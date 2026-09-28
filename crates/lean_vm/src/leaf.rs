@@ -5,7 +5,7 @@
 //! reduces to a leaf claim `Ṽ₀(ζ)`, decomposed into evaluation claims on the
 //! committed columns. Tuple coordinates `σ_i` are `K`-valued (column entries,
 //! g-powers, separators); the fingerprint challenges `α, β` are `E`-valued, so a
-//! leaf accumulates via the mixed `mul_base` product (2 PMULL per coordinate).
+//! leaf accumulates via a mixed `mul_base` product.
 
 use crate::PAR_THRESHOLD;
 use crate::colval::ColVal;
@@ -24,27 +24,19 @@ pub enum Coord {
     Const(F64),
     /// A committed column, value `col[z]`.
     Col(usize),
-    /// The free increment `g^k · col[z]` (a virtual column, §sec:vm): `k = 1` for the
-    /// count/state steps, `k ∈ {1,2,3}` for BLAKE2s's consecutive-word successors.
+    /// A committed column scaled by a power of the base-field generator.
     GCol(usize, u32),
-    /// The product `g^k · col_a[z] · col_b[z]` of two committed columns. An address
-    /// is `fp·g^o`, so this carries one on the bus without committing it: the
-    /// coordinate IS the product, so no column can disagree with it and the binding
-    /// constraint that used to say so is unnecessary (§sec:m3).
+    /// A scaled product of two committed columns, formed without committing
+    /// a separate product column.
     Prod(usize, usize, u32),
     /// The index column `g^z` (§sec:idxcol), free via the factored MLE.
     Index,
-    /// A public column (the bytecode program, §sec:e2e-bc): not committed; both parties form
-    /// its MLE directly, so it raises no claim. Shared rather than owned: push and
-    /// pull carry the same eight columns, tens of megabytes at production sizes.
+    /// A shared public column. Both parties evaluate its MLE directly;
+    /// it raises no commitment-opening claim.
     Public(Arc<Vec<F64>>),
-    /// A sum of `Const`/`Col`/`GCol`/`Prod` terms: any degree-2 form over the
-    /// table's columns, which is all §sec:m3 asks of a coordinate. This is what
-    /// carries a value a row DERIVES from its columns (an `XOR`/`MUL` result, a
-    /// `DEREF` store, a `JUMP` successor) without committing a column for it, and
-    /// with it the identity that would have tied the two. Like [`Coord::Prod`],
-    /// only a table's blocks may carry one: the table sumcheck settles them,
-    /// while a framework block has to split into per-column openings.
+    /// A degree-two form over committed table columns. Only table-owned blocks
+    /// may carry one: the table sumcheck settles it, while a framework block
+    /// must split into per-column openings.
     Sum(Vec<Coord>),
 }
 
@@ -84,9 +76,7 @@ pub enum Error {
 /// The fingerprint weights `eq(α⃗, x)` over the `2^N_TUPLE_BITS` slots (§sec:gp).
 /// A tuple is fingerprinted as `Σ_x eq(α⃗, x)·σ_x`, a MULTILINEAR combination
 /// rather than a power chain: each leaf factor is then of total degree
-/// `N_TUPLE_BITS` in the challenges instead of the tuple width, and slot `x`'s
-/// weight is an `eq` weight, which is what lets the aligned bytecode polynomial
-/// be read off at `α⃗` itself (§sec:e2e-bc).
+/// `N_TUPLE_BITS` in the challenges, independently of the tuple width.
 pub fn fingerprint_weights(alphas: &[F192]) -> Vec<F192> {
     debug_assert_eq!(alphas.len(), N_TUPLE_BITS);
     let mut w = vec![F192::ONE; 1 << N_TUPLE_BITS];
@@ -98,8 +88,7 @@ pub fn fingerprint_weights(alphas: &[F192]) -> Vec<F192> {
     w
 }
 
-/// Bits indexing a bus tuple's coordinates: `m = 11` coordinates live in the
-/// `2^4` slots of the bytecode encoding (§sec:m3, §sec:e2e-bc).
+/// Bits indexing the sixteen available bus tuple coordinates (§sec:m3).
 pub const N_TUPLE_BITS: usize = 4;
 
 /// Conservative sum of the degree bounds for every random-challenge failure in
@@ -247,9 +236,7 @@ pub fn build_leaves(
             const_part + acc.reduce()
         };
         let off = lay.offsets[b];
-        // Every row of every block is a real row: a table's height is exactly the
-        // number of rows it executed (`cpu::filler`), so no block has padding rows
-        // whose tuples would have to be divided back out of the product.
+        // Every row contributes a tuple; inactive rows carry matching neutral tuples.
         let dst = &mut leaves[off..off + (1usize << blk.kappa)];
         if dst.len() >= PAR_THRESHOLD {
             parallel::fill(dst, row);
@@ -419,7 +406,7 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
         sel_sum += eq_hi;
 
         // A table's block becomes a linear form the zerocheck will sum; only the
-        // framework blocks (boundary, memory, bytecode) still open columns at ζ.
+        // framework blocks (boundary, memory, ROM) still open columns at ζ.
         if let Some((t, base)) = owners[b] {
             let form = &mut forms[t];
             form.constant += eq_hi * beta;
@@ -576,56 +563,6 @@ fn decompose_verify(
     })
 }
 
-/// One reduced claim on the bytecode polynomial. The eight public encoding
-/// columns (opcode plus seven operand/immediate slots), padded to sixteen slots
-/// along four selector bits, form one multilinear polynomial B̃ in `κ_bc + 4`
-/// variables. The native verifier combines its column evaluations at ζ with
-/// the bus weights `eq(α⃗, ·)`, giving `B̃(ζ_lo, α⃗)`. The recursive verifier
-/// defers this claim to its public input.
-#[derive(Clone, Debug)]
-pub struct BytecodeClaim {
-    /// `ζ_side_lo ++ s`, a point in `κ_bc + 4` variables.
-    pub point: Vec<F192>,
-    /// `B̃(point)`.
-    pub value: F192,
-}
-
-/// Selector bits of the stacked bytecode polynomial: the public encoding
-/// columns (opcode + seven operand/immediate slots = eight) stack along
-/// `2^N_BYTECODE_SELECTORS` slots. A column's slot is its bus tuple coordinate,
-/// which is what fixes the width at sixteen rather than at the column count.
-pub const N_BYTECODE_SELECTORS: usize = 4;
-
-/// Slot of the first public column: the bytecode block leads with three
-/// non-public coordinates (tag, index, read count), and a column's slot IS its
-/// bus tuple coordinate.
-pub const BYTECODE_PUBLIC_SLOT: usize = 3;
-
-/// The stacked bytecode polynomial as a dense table: eight public encoding
-/// columns at their tuple coordinates, padded to sixteen selector slots. This is
-/// the polynomial [`BytecodeClaim`]s are claims about; the outermost verifier
-/// evaluates it.
-pub fn stacked_bytecode_table(blocks: &[Block]) -> Vec<F64> {
-    let mut kbc = 0;
-    let mut cols: Vec<&[F64]> = Vec::new();
-    for blk in blocks {
-        for c in &blk.coords {
-            if let Coord::Public(vals) = c {
-                kbc = blk.kappa;
-                cols.push(vals.as_slice());
-            }
-        }
-    }
-    let mut table = vec![F64::ZERO; 1 << (N_BYTECODE_SELECTORS + kbc)];
-    for (i, vals) in cols.into_iter().enumerate() {
-        let slot = BYTECODE_PUBLIC_SLOT + i;
-        assert!(slot < 1 << N_BYTECODE_SELECTORS, "a public slot is a tuple coordinate");
-        assert_eq!(vals.len(), 1 << kbc);
-        table[(slot << kbc)..((slot + 1) << kbc)].copy_from_slice(vals);
-    }
-    table
-}
-
 /// The three bus sides in `[push, pull, count]` order with their fingerprint
 /// weights. The count channel's leaf is the count itself (a single `Col`), so it
 /// runs at `α⃗ = 0` (weight `1` on slot `0`, zero elsewhere), `β = 0`, and its GKR
@@ -642,33 +579,6 @@ fn sides<'a>(
         (blocks[1], lays[1], w, beta),
         (blocks[2], lays[2], count_w, F192::ZERO),
     ]
-}
-
-/// The program's whole share of a bus leaf, in ONE evaluation: a public column's
-/// slot is its tuple coordinate and the weights are `eq(α⃗, ·)`, so the weighted
-/// sum over the columns IS the stacked polynomial at `(ζ, α⃗)` (§sec:e2e-bc).
-fn bytecode_claim(blocks: &[Block], point: &[F192], alphas: &[F192], public: &mut PublicEvals) -> BytecodeClaim {
-    let weights = fingerprint_weights(alphas);
-    let mut kbc = 0;
-    let mut slot = BYTECODE_PUBLIC_SLOT;
-    let mut value = F192::ZERO;
-    for blk in blocks {
-        for c in &blk.coords {
-            if let Coord::Public(vals) = c {
-                if slot == BYTECODE_PUBLIC_SLOT {
-                    kbc = blk.kappa;
-                }
-                assert_eq!(vals.len(), 1 << kbc);
-                value += weights[slot] * public_eval(vals, &point[..kbc], public);
-                slot += 1;
-            }
-        }
-    }
-    let claim_point = [&point[..kbc], alphas].concat();
-    BytecodeClaim {
-        value,
-        point: claim_point,
-    }
 }
 
 /// Prove the bus balances; returns the per-column claims to open (§sec:leafstack). `alpha`/
@@ -873,12 +783,10 @@ fn tables_and_prods_at(
         .unzip()
 }
 
-/// What [`verify_balance`] establishes: the per-column claims to open, the
-/// reduced bytecode claim (push and pull share ζ),
+/// What [`verify_balance`] establishes: the per-column claims to open
 /// and the table forms with their claimed sums.
 pub struct BusVerify {
     pub claims: Vec<ColumnClaim>,
-    pub bytecode_claim: BytecodeClaim,
     /// The GKR point ζ, reused as the table sumcheck's eq point.
     pub point: Vec<F192>,
     /// `forms[side][table]`, for the zerocheck to settle.
@@ -916,11 +824,8 @@ pub fn verify_balance(
     if count_root == F192::ZERO {
         return Err(Error::ZeroCount);
     }
-    // Every row of every table is a real row (`cpu::filler`), so the two sides balance
-    // outright: no padding tuples to divide back out, and no announced row counts whose
-    // truthfulness the soundness argument would have to establish. The GKR sends ONE root
-    // for both sides, so a prover cannot even state an unbalanced bus, and there is nothing
-    // to check here.
+    // Inactive rows contribute matching tuples to both sides. The GKR sends ONE
+    // root for both sides, so a prover cannot state an unbalanced bus.
 
     // Framework blocks decompose as before; the tables' blocks become linear forms.
     // Each side's table share is DERIVED from `framework + Ṽ₀(ζ)` rather than checked
@@ -957,7 +862,6 @@ pub fn verify_balance(
 
     Ok(BusVerify {
         claims,
-        bytecode_claim: bytecode_claim(push, &bus_gkr.point, &alphas, &mut public),
         point: bus_gkr.point,
         forms,
         totals,
@@ -967,29 +871,6 @@ pub fn verify_balance(
 #[cfg(test)]
 mod tests {
     use super::soundness_bits;
-
-    #[test]
-    fn bytecode_claim_matches_dense_stacking() {
-        use super::*;
-
-        let columns: Vec<_> = (0..8)
-            .map(|col| Arc::new((0..32).map(|i| F64((i + 1) * (col + 1))).collect()))
-            .collect();
-        let blocks = [Block {
-            kappa: 5,
-            coords: columns.iter().cloned().map(Coord::Public).collect(),
-        }];
-        let point: Vec<_> = (0..5).map(|i| F192::new(i + 2, i + 17, i + 23)).collect();
-        let alphas: Vec<_> = (0..N_TUPLE_BITS).map(|i| F192::new(i as u64 + 5, 3, 7)).collect();
-        let table = stacked_bytecode_table(&blocks);
-        let mut public = PublicEvals::new();
-        for col in columns.iter().rev() {
-            public_eval(col, &point, &mut public);
-        }
-        let claim = bytecode_claim(&blocks, &point, &alphas, &mut public);
-        assert_eq!(claim.point, [point, alphas].concat());
-        assert_eq!(claim.value, mle_eval(&table, &claim.point));
-    }
 
     /// The bound is `(N_TUPLE_BITS + 1)·2^mu` plus the GKR terms: only the bus
     /// DEPTH costs bits now, the multilinear fingerprint having fixed each factor's

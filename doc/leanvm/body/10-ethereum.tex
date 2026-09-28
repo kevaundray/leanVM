@@ -1,7 +1,9 @@
 % !TeX root = ../drafts/10-ethereum.tex
 \section{Ethereum use cases}\label{sec:ethereum}
 
-An aggregate proof certifies signature claims and the correct encoding of blob data. One guest program establishes these claims by checking raw signatures, checking a blob matrix, or recursively verifying child proofs of the same program.
+An aggregate proof certifies signature claims and the correct encoding of blob data. One Rust \texttt{no\_std} RV64IM guest checks raw signatures, a blob matrix, coverage, and the binding of deferred child metadata. A separate field-native recursion circuit verifies that execution proof and its child proofs. The host-facing \texttt{aggregate} and \texttt{EthereumProof} APIs compose these two relations; recursive proof verification does not execute in the RV64IM guest.
+
+\paragraph{Implementation status.} Signature aggregation uses the field-native recursive path. Direct DA proving is deferred because its RV64IM computation exceeds the supported proof capacity. The DA relation specified below and its reference/execution checks remain implemented; a field-native DA circuit with authenticated row coverage is still to be added. This is not a claim that the current implementation produces DA aggregate proofs.
 
 \subsection{Recursive aggregation}\label{sec:recursion}\label{sec:xmss-agg}\label{sec:sphincs-agg}
 
@@ -9,51 +11,61 @@ A signature claim identifies what was signed and by whom. For XMSS~\cite{rfc8391
 
 A node may publish any subset of the signature claims supported by its raw signatures and verified children. The default is their sorted, deduplicated union. The essential condition is coverage: every published claim must be justified, either directly at this node or recursively through a child.
 
-The DA claim is a sorted, duplicate-free list of at most $16$ LeanDA roots, possibly empty. Each root is paired with the hash of its membership test vector $\dual$ (\S\ref{sec:da-membership}). 
+The externally published DA claim is a sorted, duplicate-free list of at most $16$ LeanDA roots, possibly empty. The external \texttt{aggregate} call accepts at most $16$ children, whereas every internal native node has at most two. Binary folding publishes all intermediate support before the final selection and permits internal statements to retain up to $257$ roots: $16$ from each external child plus one direct root. The public root cap remains $16$. A direct DA witness also supplies a membership-vector digest, which the guest checks against the vector it derives from the root (\S\ref{sec:da-membership}); that digest is not a deferred public claim. All rows of a direct matrix remain under one commitment, even when other inputs are batched.
 
 \subsubsection{The public input}\label{sec:rec-stmt}
 
-The proof carries the signature claims and DA root list. Their digests bind these variable-length lists into a fixed-size statement. The VM's public input is BLAKE2s of the following fields, in order:
-\begin{center}
-\begin{tabular}{@{}rl@{}}
-\hline
-$32$ bytes & Fiat-Shamir IV\\
-$32$ bytes & signer-set digest\\
-$32$ bytes & DA list digest\\
-$(\kbc+5)\times24$ bytes & deferred bytecode point and value\\
-$30\times24$ bytes & deferred matrix point and two values\\
-\hline
-\end{tabular}
-\end{center}
-The deferred claims let recursion postpone expensive polynomial evaluations until the final verification (\S\ref{sec:deferred-claims}).
+The canonical \texttt{Statement} in \path{crates/aggregation_guest} contains XMSS groups, SPHINCS+ claims, and DA roots. XMSS groups are strictly ordered by epoch, with nonempty, sorted, unique key lists; SPHINCS+ pairs and DA roots are also strictly ordered. Empty aggregate statements, conflicting messages within an epoch, excessive sizes, and noncanonical encodings are rejected.
 
-The DA list digest is BLAKE2s of the concatenated pairs $(\daroot,\davechash)$, each a $32$-byte DA root $\daroot$ followed by a $32$-byte hash $\davechash$ of the membership test vector $\dual$.
-
-The signer-set digest is BLAKE2s of the following, where each cell is $16$ bytes and a count is encoded as $\gen^{\text{count}}$ (8 bytes, zero-padded to one cell):
+First compute the canonical statement digest:
+\begin{verbatim}
+statement_digest = BLAKE2s(DOMAIN || encode(statement))
+\end{verbatim}
+Here \texttt{DOMAIN} is the ASCII string \path{leanVM/RV64IM/aggregation/statement/v1} followed by one zero byte. \path{Statement::digest()} streams exactly the encoding below; it does not include an ELF or program digest.
 \begin{center}
-\begin{tabular}{@{}ll@{}}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
 \hline
-block $0$ & XMSS group count, SPHINCS+ claim count, SPHINCS+ list digest\\
-per XMSS group & epoch, key count, $32$-byte message\\
-& key list digest, two zero cells\\
+Statement field & Canonical byte encoding, in order\\
 \hline
-\end{tabular}
+XMSS & Group count; per group: $32$-bit little-endian epoch, $32$-byte message, key count, then $32$ bytes per key\\
+SPHINCS+ & Claim count, then $32$-byte key and $32$-byte message per claim\\
+DA & Root count, then $32$ bytes per root\\
+\hline
+\end{tabularx}
 \end{center}
-Each inner list digest is BLAKE2s of the list alone: $32$ bytes per XMSS key or $64$ bytes per SPHINCS+ $(\text{key},\text{message})$ pair.
+All counts are little-endian $32$-bit integers. This byte codec replaces field-cell and generator-power count encodings.
+
+Each native child claim contains a statement digest, an authorized key digest, and a height. Its nine public fields, returned by \path{public_fields}, contain the four little-endian $64$-bit words of the statement digest, the four words of the key digest, then the height. Every entry has zero upper two $\K$ coefficients, and the height is constrained to \texttt{u32}. In the byte definitions below, \texttt{LE64} encodes an integer in eight little-endian bytes, \texttt{encode\_fields} serializes each field as its three little-endian $64$-bit coefficients, and \texttt{||} concatenates byte strings. The shared \path{leanvm_guest::deferred} framing is:
+\begin{verbatim}
+public_digest(fields) =
+    BLAKE2s(BLAKE2s(PUBLIC_DOMAIN) || LE64(len(fields))
+        || encode_fields(fields))
+claims_digest(children) =
+    BLAKE2s(BLAKE2s(CLAIMS_DOMAIN) || LE64(len(children))
+        || concat(LE64(1) || child.key
+                  || public_digest(public_fields(child))
+                  for child in children))
+binding(statement_digest, children) =
+    BLAKE2s(BLAKE2s(BINDING_DOMAIN) || statement_digest
+        || claims_digest(children))
+\end{verbatim}
+The domains are respectively \path{leanVM/native-circuit/public/v2}, \path{leanVM/deferred-claims/v1}, and \path{leanVM/RV64IM/deferred-binding/v1}, each followed by one zero byte. The child count is zero, one, or two; the kind word is always one for a native proof. Order and multiplicity are bound, not just the set of child statements. The binding is the $32$-byte RV64IM execution input $\rvpublic$, whereas the nine public fields are the native proof's public input. \path{public_input(&statement, &children)} computes the binding; constructing either hash is not proof verification.
 
 \subsubsection{Checking coverage}
 
-Every published claim needs support from a direct check or a recursively verified child. The guest builds a table with a region per XMSS (epoch, message) group and separate regions for SPHINCS+ and DA. Each region starts with the claims the parent publishes, followed by extra slots for duplicates and omitted claims.
+The guest witness contains the declared statement, ordered child records, raw signatures, and optional direct DA data. Each child record contains its full canonical statement, authorized key digest, and \texttt{u32} height, but no proof or ELF bytes. After checking canonical shape, the guest recomputes the binding above and compares it with the actual machine public input. It checks each raw XMSS or SPHINCS+ signature and direct DA witness itself, while child statements enter coverage conditionally on the native circuit verifying the exact bound child claims. A successful guest execution alone does not establish child proof validity.
 
-Each occurrence of a supporting claim needs its own slot. If two children prove the same published claim, one occurrence uses its published slot and the other uses an extra slot. Every occurrence of a claim the parent omits uses an extra slot. These claims are still verified; only the published prefixes enter the parent's list digests.
+The canonical input payload starts with the eight bytes \texttt{RVAGG002}, followed by the declared statement, ordered child list, raw XMSS list, raw SPHINCS+ list, and optional direct DA record. Each child serializes its statement, $32$-byte key digest, and little-endian $32$-bit height. Counts and byte lengths within this payload are little-endian $32$-bit integers; the complete guest witness stream prefixes the payload with its little-endian $64$-bit byte length. There is no program-digest field, embedded ELF, or child-proof field.
 
-The prover supplies the extra claims and assigns each supporting occurrence to a slot. The guest checks that they match, confines the assignment to the correct region, and writes a distinct counter value there. Write-once memory prevents slot reuse. Requiring as many writes as slots ensures that every slot is covered, including every published claim.
+The guest checks coverage against sorted support, rejects conflicting XMSS messages for the same epoch even among omitted contributions, and requires every declared claim to occur in the support. Duplicate support and omission of supported claims are allowed; unsupported published claims are rejected. Every supplied raw contribution is checked by an execution and every supplied child proof by native recursion, including duplicates and inputs not published. Host signature and child-proof prechecks provide early diagnostics only. The exclusive \texttt{MAX\_KEYS} contribution bound includes duplicate and unpublished inputs, and \texttt{MAX\_EPOCHS} bounds all supported XMSS epochs before selection. This is an ordinary mutable-data coverage algorithm combined with authenticated deferred children, not a write-once slot-allocation argument.
 
-\subsubsection{Deferred evaluation claims}\label{sec:deferred-claims}
+\subsubsection{Complete recursive verification}\label{sec:deferred-claims}
 
-Verifying a child requires evaluations of three fixed polynomials: the bytecode multilinear, in $\kbc+4$ variables (\S\ref{sec:e2e-bc}), and flock's R1CS matrix multilinears $\widetilde A_0,\widetilde B_0$, each in $28$ variables (Annex~\ref{annex:flock}). Computing them inside the guest would be very expensive. Instead, the guest carries evaluation claims in its statement. These expensive computations are moved 'outside of the snark'.
+\path{recursion::Recursor} compiles one circuit from the expected \path{ProgramInfo}. Every node verifies one mandatory RV64IM execution proof for $\rvpublic$ and zero, one, or two native child proofs. The execution-verifier constraints complete the protocol of \S\ref{sec:e2e-unrolled}: public ELF/ROM evaluation, CPU and mutable-memory constraints, packed Boolean and projection reductions, Flock matrix evaluation, ring switching, and authenticated WHIR opening. Each enabled native child verification completes its own table, dataflow, Flock, private-commitment, and fixed-commitment checks. No unresolved program, matrix, or opening claim is left for a host shortcut.
 
-A node combines the claims carried by its children with the new claims produced while verifying them. Two sumchecks reduce these to three evaluations: one of the bytecode polynomial and one of each matrix polynomial, batched. The Fiat-Shamir for batching and sumchecks is seeded by all child and running claims.
+The root verifier loads its trusted actual aggregation ELF, constructs \path{ProgramInfo::from_elf}, and derives \path{Recursor::new} and its expected key digest. It verifies the root against the nine fields encoding its statement digest, expected key digest, and height, not at a key or circuit chosen by the proof. The circuit authenticates its supplied descriptor against that public key digest and constrains every child to the same key. Its public height is zero exactly for no children and otherwise one plus the maximum child height, with checked \texttt{u32} arithmetic and every child height strictly smaller. This gives well-founded same-key recursion under the expected application relation without embedding an ELF in guest advice or constructing a program or key digest fixed point. A generic native \path{Key} authenticates only its trusted expected circuit; aggregation semantics come from constructing this \path{Recursor} for the expected guest, not from accepting a proof-provided descriptor.
+
+Both leaves and internal nodes carry a \path{recursion::NodeProof} inside \path{EthereumProof}. The node codec uses \texttt{RVNODE01}, a \texttt{u32} height, and the compact native transcript. Full aggregate transport uses \texttt{RVAGG002} with the canonical statement and encoded node proof; the public-key-omitting form uses \texttt{RVAGGO02} and requires the expected signature claims separately. These host transports use their strict fixed-integer bincode codec and are distinct from the guest witness payload despite the shared full-format tag. Legacy aggregate proofs are not accepted. Decoding does not verify a proof; \path{EthereumProof::verify} derives the trusted expected key and checks the native proof.
 
 \subsection{Data availability: LeanDA}\label{sec:leanda}
 
@@ -170,7 +182,7 @@ A row is valid exactly when it consists of evaluations of a polynomial of degree
 
 The Fiat-Shamir challenges $\log_2\kdim$ in $\E$ are derived from the matrix root $\daroot$. These define the polynomial $\dual$ of \eqref{eq:dual-product} and its evaluation vector $\davec=(\dual(x))_{x\in\dom}$. Let $\davechash=H(\davec)$, serializing each entry as its three little-endian $64$-bit limbs, in domain order.
 
-The guest recomputes $\daroot$ from the encoded rows, receives $\davec$ as a hinted vector, checks its hash against $\davechash$, and uses it to check membership:
+The guest recomputes $\daroot$ from the encoded rows and derives the complete vector $\davec$ from that root itself. It checks the direct witness's membership digest against $H(\davec)$ and checks membership:
 \[
   \inner{\davec}{w_i}
   =\sum_{x\in\dom}\dual(x)w_i(x)
@@ -178,6 +190,6 @@ The guest recomputes $\daroot$ from the encoded rows, receives $\davec$ as a hin
 \]
 for every row $w_i$. The vector is shared across all rows and hashed once. It contains $32768$ entries, or $768$ KiB.
 
-Recursive nodes preserve the pair $(\daroot,\davechash)$ for each retained claim. The final native verifier recomputes $\davechash$ from every retained root (outside of the snark).
+Recursive nodes retain the root for each published DA claim. Both the vector derivation and every direct membership check are completed inside the guest that first establishes that root; there is no deferred membership-vector claim for the final native verifier to discharge.
 
 Every valid row passes. Under uniform challenges, a fixed invalid matrix passes with probability at most $\log_2\kdim/|\E|=14/2^{192}$ (Proposition~\ref{prop:rs-membership}).

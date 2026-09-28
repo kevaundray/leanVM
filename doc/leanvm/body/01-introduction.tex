@@ -10,4 +10,4 @@ Ethereum's consensus layer currently uses BLS signatures, its execution layer EC
 
 \vspace{4mm}
 
-leanVM is a candidate as the snark machinery required above. It's a verifiable virtual machine (commonly a zkVM, for "zero-knowledge virtual machine", though leanVM is not (yet) zk), with a minimalistic ISA (inspired by Cairo \cite{cairo}). It is based on binary fields, inspired by \cite{DP24} and \cite{Flock26}, currently using BLAKE2s \cite{blake2} as hash function.
+leanVM is a candidate for the snark machinery required above. It proves execution of native RV64IM programs compiled from Rust, using a bounded byte-addressed machine and proof-checked cryptographic ECALLs. The machine uses ordinary $64$-bit integer registers and mutable byte RAM; binary fields belong to the proof system, not to its instruction-word semantics. The proof system retains WHIR, the binary-field arithmetization inspired by \cite{DP24}, and Flock \cite{Flock26} for BLAKE2s \cite{blake2}. It is commonly called a zkVM, although zero-knowledge is not currently provided.

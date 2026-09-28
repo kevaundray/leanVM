@@ -5,15 +5,15 @@ The arithmetization is inspired by the M3 model (multi-multiset matching)~\cite{
 
 \subsection{M3 model}\label{sec:m3}
 
-\paragraph{Tables and columns.} A column of height $2^{\kappa}$ is a function $\cube{\kappa}\to\K$. A table is a group of columns of equal height. The arithmetization fixes the number of tables $\ntab$ and, for each table $T_j$, its number of columns $\ncol{j}$, its $\ncons{j}$ constraints and its $\nfl{j}$ bus flushes. The table heights are not fixed: the prover announces each table's log height $\tau_j$ at the beginning of the proof.
+\paragraph{Tables and columns.} A column of height $2^{\kappa}$ is a function $\cube{\kappa}\to\K$. A table is a group of columns of equal height. The generic model fixes the number of tables $\ntab$ and, for each table $T_j$, its number of columns $\ncol{j}$, its $\ncons{j}$ constraints and its $\nfl{j}$ bus flushes. Native RV64IM fixes $71$ logical table schemas but instantiates only the present subset announced in the header; in the formulas below, $j$ enumerates that subset in logical-table order. The columns are its physical $\K$ columns, and $C_{j,i}$ are its base-field relations. Boolean circuit validity and projection onto these columns are proved separately (\S\ref{sec:packed-native}), not by one physical column per bit.
 
 \paragraph{Constraints.} The constraints of $T_j$ are $C_{j,1},\dots,C_{j,\ncons{j}}$, each a polynomial over $\K$ of degree at most $d$ ($d=2$ throughout) in the $\ncol{j}$ columns, required to vanish on every row in $\cube{\tau_j}$.
 
-\paragraph{The bus.} All interactions (between tables) share a single \emph{bus}, a channel carrying tuples of up to $m=16$ $\K$-elements (shorter ones are zero-padded). Table $T_j$ has $\nfl{j}$ flushes $\btup_{j,1},\dots,\btup_{j,\nfl{j}}$, each is either a \emph{push} or a \emph{pull}. Each one of the $m$ coordinates in each tuple is a fixed polynomial of degree at most $d$ in the table's columns. A few \emph{boundary} tuples are pushed (resp. pulled) by default to the bus (for instance for the VM state $(\dsep{ST}, \pc, \fp)$, the initial $(\dsep{ST}, \gen^0, \gen^0)$ is pushed and the final $(\dsep{ST}, \gen^{\,\nprog-1}, \gen^{0})$ is pulled).
+\paragraph{The bus.} All interactions (between tables) share a single \emph{bus}, a channel carrying tuples of up to $m=16$ $\K$-elements (shorter ones are zero-padded). Table $T_j$ has $\nfl{j}$ flushes $\btup_{j,1},\dots,\btup_{j,\nfl{j}}$, each is either a \emph{push} or a \emph{pull}. Each coordinate is a fixed polynomial of degree at most $d$ in the table's columns. Boundary tuples close the CPU and sorted-history chains and seed/finalize the public ROM lookup. In particular, the CPU boundary pushes $(\dsep{CPU},\rventry,0,0)$ and pulls $(\dsep{CPU},0,\rvcycles,1)$.
 
 \paragraph{Balance.} The bus balances when its pushed tuples and its pulled tuples form the same multiset (\ref{def:multiset}).
 
-\paragraph{Domain separation.} When several interactions share the bus, the first coordinate of every tuple is a \emph{domain separator}, a fixed constant naming its interaction: $\dsep{ST}=\gen^{0}$ for VM state, $\dsep{MEM}=\gen^{1}$ for memory, $\dsep{BC}=\gen^{2}$ for bytecode. (They are needed since all interactions share a common bus.)
+\paragraph{Domain separation.} The first coordinate names the interaction. In polynomial-basis hexadecimal, the native channels use \texttt{01} for CPU, \texttt{02} for RAM events, \texttt{04} for register events, \texttt{08} for ROM, \texttt{10} for sorted RAM, \texttt{20} for sorted registers, and \texttt{40} for witness-copy state. Zero is the disabled-message separator. Enable bits gate bus coordinates through degree-two products; Boolean and arithmetic circuit identities remain unconditional.
 
 \subsection{Balancing the bus: grand product}\label{sec:gp}
 
@@ -100,7 +100,7 @@ The GKR grand-product argument reduces each side of \eqref{eq:gp} to a single ev
 
 \paragraph{Flush blocks.} The leaves split into \emph{blocks}, one per flush rule and one per boundary set. A block of a $2^{\kappa}$-row table holds $2^{\kappa}$ leaves; the row-$z$ leaf is $\beta-\sum_{\iota}\eq(\alpha,\iota)\,c_{\iota}(z)$, with $c_{\iota}(z)$ slot $\iota$ of the row's tuple. Each $c_\iota$ is a polynomial of degree at most $d = 2$ in the columns (at the corresponding row) (\S\ref{sec:m3}).
 
-\paragraph{Layout.} Order the blocks largest first at aligned offsets, padding to $2^{\mu}$ leaves with $1$s, which leave the product unchanged. This is the stacking of \S\ref{sec:stacking} applied to blocks: block $b$, of $2^{\kappa_b}$ leaves, occupies the subcube $\{(z,\mathsf{sel}_b):z\in\cube{\kappa_b}\}$ for a fixed selector $\mathsf{sel}_b$ (that depends only on the table, bytecode and memory sizes).
+\paragraph{Layout.} Order the blocks largest first at aligned offsets, padding to $2^{\mu}$ leaves with $1$s, which leave the product unchanged. This is the stacking of \S\ref{sec:stacking} applied to blocks: block $b$, of $2^{\kappa_b}$ leaves, occupies the subcube $\{(z,\mathsf{sel}_b):z\in\cube{\kappa_b}\}$ for a fixed selector determined by the public table heights, ROM shape, and memory-history headers.
 
 \paragraph{Decomposition.} Split $\zeta=(\zeta^{b}_{\mathrm{lo}},\zeta^{b}_{\mathrm{hi}})$ at block $b$'s boundary. Each block is a subcube, so the leaf MLE splits into a public selector times the block's own MLE, plus what the padding contributes:
 \begin{equation}\label{eq:gkr_leaves}
@@ -108,7 +108,7 @@ The GKR grand-product argument reduces each side of \eqref{eq:gp} to a single ev
 \end{equation}
 That last term is the padding's weight, for the final $\dots 1111$.
 
-\paragraph{Settling it.} Fix one side $s$. The boundary tuples (\S\ref{sec:m3}) and each array's seed and finalization (\S\ref{sec:lookup}) belong to no table. Their entries have degree one: a constant, the index column (\S\ref{sec:idxcol}), a public component, or one committed column. The prover sends, for each such committed multilinear, its evaluation at $\zeta^{b}_{\mathrm{lo}}$. These claims are then deferred to the PCS (\S\ref{sec:stacking}). The verifier finally evaluates each contribution, and subtracts them, with the corresponding padding term, from the claimed value of $\widetilde V^{s}_0(\zeta)$. Call the remainder $\mathsf{rem}_{s}$: it remains to prove an equation similar to \eqref{eq:gkr_leaves}, summing only on the flush blocks from tables.
+\paragraph{Settling it.} Fix one side $s$. The CPU and sorted-history boundary tuples and ROM seed and finalization blocks belong to no table. Their coordinates are constants, public array entries (\S\ref{sec:idxcol}), or a committed finalize-count column. The prover sends each encountered committed multilinear's evaluation at $\zeta^{b}_{\mathrm{lo}}$, and the resulting claim is pooled for the PCS (\S\ref{sec:stacking}). The verifier evaluates the public contributions itself and subtracts these, the committed-column contributions, and padding from $\widetilde V^{s}_0(\zeta)$. Call the remainder $\mathsf{rem}_{s}$: the table sumcheck must account for all remaining table-owned flush blocks.
 
 Let $\mathcal B$ be the blocks of $T_j$'s flushes in this leaf vector, one per flush rule (\S\ref{sec:m3}). Each holds one leaf per row of $T_j$, so each is $2^{\tau_j}$ tall and all of them split $\zeta$ at the same place, $\zeta^{b}_{\mathrm{lo}}=\zeta_{<\tau_j}$ and $\zeta^{b}_{\mathrm{hi}}=\zeta_{\ge\tau_j}$, differing only through their selector. Exchanging the two sums,
 \begin{align*}
@@ -153,6 +153,28 @@ Since $\sum_{x\in\cube{m}}x_0\cdots x_{m-1}=1$, the padded variables contribute 
   \sum_{x\in\cube{\taumax}}F(x)\;\qeq\;\sum_{s=1}^{\nside}\xi^{\,\nconstot+s-1}\mathsf{rem}_{s},
 \]
 the verifier computing the right side itself. Each summand of $F$ has individual degree $d+1=3$, the constraint contributing $d$ and the $\eq$ factor one, so the soundness error is $(3\taumax+\nside+\nconstot)/|\E|$: $3\taumax$ for the rounds (Fact~\ref{fact:sumcheck}) and $\nside+\nconstot$ for the $\xi$-batching (Corollary~\ref{cor:idtest}). Rounds bind $X_{\taumax-1}$ first, so $T_j$ joins only at round $\taumax-\tau_j$: hence \emph{back-loaded}. The end yields one claim per column, $T_j$'s at $\fc_{<\tau_j}$, settled by the PCS opening (\S\ref{sec:stacking}).
+
+\subsection{Packed native Boolean circuits}\label{sec:packed-native}
+
+The preceding table sumcheck proves the base-field relations, including F192 multiplication, and the table-owned bus contributions. Native decode, carry, comparison, range, and memory-history logic instead forms a Boolean R1CS. A table row has a witness $\zpacked$ of $2^{\kpacked}$ wires, padded with zero gates to a power of two at least $2^{10}$. Its batch has $2^\tau$ rows, with $\tau\ge3$. Every wire is a bit by the packed representation and ring-switching argument; its R1CS relation is $(A\zpacked)(B\zpacked)+\zpacked=0$ over $\Ftwo$.
+
+The public gate wiring determines the matrices. Input gates use $(z_j,1,z_j)$, zero gates $(0,0,z_j)$, one gates $(z_1,z_1,z_j)$, XOR gates $(z_a+z_b,z_1,z_j)$, and AND gates $(z_a,z_b,z_j)$, listing the $A$, $B$, and output expressions. Wire $1$ is pinned to one. A pack operation is not another Boolean wire: it defines a public linear alias from bits to a physical $\K$ word.
+
+Every original circuit equality contributes its XOR difference. The circuit combines these differences by Boolean OR, using $u\lor v=u+v+uv$, into one failure wire $\jzero$. Pinning this wire to zero enforces every equality; an XOR-only accumulator would incorrectly allow simultaneous failures to cancel. The underlying identities are unconditional, including on disabled rows. Architectural enabling remains inside the circuit and bus rules, rather than switching off R1CS validity.
+
+Flock's generic zerocheck and lincheck machinery proves the circuit relation with the table's public matrices. Lincheck uses a one-pin term of weight $\lcalpha^3$ and the failure zero-pin term of weight $\lcalpha^4$ (\S\ref{flock:packed-extension}). Its low-wire skip remains six coordinates: it runs $\kpacked-6$ high-wire rounds and returns $64$ slices at a point of dimension $\kpacked+\tau-6$. This is one ring-switching family, not four families with extra prefix coordinates.
+
+\subsubsection{Binding physical words to the bit witness}\label{sec:packed-projection}
+
+Write a physical column's public alias coefficients as $a_{\ell,j}\in\K$, so its row value must equal $\sum_j a_{\ell,j}\zpacked(j,\mathrm{row})$. A Boolean-valued column has a single coefficient one; a packed word uses polynomial-basis coefficients $x^i$ on its bit wires. At the row point $r$ already fixed by the table sumcheck, the transmitted physical values are $v_\ell$. After these values are bound, sample $\projchallenge$ and form
+\[
+  \projweight(j)=\sum_\ell\projchallenge^\ell a_{\ell,j},\qquad
+  \sum_\ell\projchallenge^\ell v_\ell
+  \qeq\sum_{j\in\cube{\kpacked}}\projweight(j)\mle{\zpacked}(j,r).
+\]
+The verifier computes $\projweight$ from the public aliases. A degree-two sumcheck eliminates the high $\kpacked-6$ wire coordinates while keeping the low six unfolded. The prover sends $64$ terminal bit-slice values, and the verifier checks their weighted sum against the terminal claim. Appending the unchanged row point $r$ gives a second point of dimension $\kpacked+\tau-6$ on the same packed witness. Its ring claim and the R1CS ring claim are both bound to the initial commitment by the shared opening. Thus a correct Boolean execution cannot be paired with different physical bus words, and a correct bus trace cannot substitute an unrelated Boolean witness.
+
+These reductions add their own checks and soundness terms. The generic table-sumcheck bound above and the BLAKE2s-specific analysis in Annex~\ref{annex:flock} are not, by themselves, an end-to-end bound for all packed native tables.
 
 \subsection{Example: proving elliptic curve multiplication}\label{sec:arith-example}
 

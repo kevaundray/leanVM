@@ -55,7 +55,7 @@ pub const PINNED_T: u64 = flock::hash::PINNED_T;
 /// Flock-native reduction buffers emitted in the same fused pass as the
 /// committed, flattened `q_flock`. They stay alive across commit, bus, and
 /// constraint proving so reduction needs no second witness pass.
-pub(crate) struct PreparedReductionWitness {
+pub struct PreparedReductionWitness {
     n_blocks: usize,
     z_packed: ArenaVec<u64>,
     a_packed: ArenaVec<u64>,
@@ -64,11 +64,11 @@ pub(crate) struct PreparedReductionWitness {
 }
 
 impl PreparedReductionWitness {
-    pub(crate) fn n_blocks(&self) -> usize {
+    pub fn n_blocks(&self) -> usize {
         self.n_blocks
     }
 
-    pub(crate) fn prove(&self, ps: &mut ProverState) -> SliceClaim {
+    pub fn prove(&self, ps: &mut ProverState) -> SliceClaim {
         Blake2sSetup::new(self.n_blocks).prove_reduction_precomputed(
             &self.z_packed,
             &self.a_packed,
@@ -91,8 +91,7 @@ pub const SLOT_B0: usize = 14;
 pub const SLOT_METADATA: usize = 18;
 
 /// The eighteen within-instance value slots in canonical order
-/// `[a0..a3, b0..b3, c0..c3, cv0..cv3, md_lo, md_hi]`, matching
-/// `tables::BLAKE2S_VALUE_COLS`.
+/// `[a0..a3, b0..b3, c0..c3, cv0..cv3, md_lo, md_hi]`.
 pub const SLOTS: [usize; 18] = [
     SLOT_A0,
     SLOT_A0 + 1,
@@ -202,7 +201,7 @@ fn flatten_packed_into(packed: &[u64], out: &mut [F64]) {
 /// reduction does not regenerate them later. Deterministic, so it matches what the
 /// reduction regenerates. An empty `blocks` yields one padding cube (all instances are
 /// padding).
-pub(crate) fn build_qflock_prepared(blocks: &[Compression], q_flock: &mut [F64]) -> PreparedReductionWitness {
+pub fn build_qflock_prepared(blocks: &[Compression], q_flock: &mut [F64]) -> PreparedReductionWitness {
     let n_blocks = blocks.len().max(1);
     let (z_packed, a_packed, b_packed, z_lincheck) =
         generate_witness_with_ab_packed_and_lincheck(blocks, n_blocks_log(n_blocks));
@@ -228,8 +227,7 @@ pub const SLOT_STRIDE_LOG: usize = K_LOG - LOG_PACKING;
 /// the committed `F64` packing). The sub-proof scalars ride the shared
 /// transcript stream (`ps.add_scalar` at the protocol points); flock runs
 /// natively in the tower field on the shared transcript. Does NOT open the PCS: the
-/// caller discharges the returned claim via [`crate::pcs::open`] (as
-/// [`crate::cpu`]'s prove does).
+/// caller discharges the returned claim via [`crate::pcs::open`].
 #[cfg(test)]
 fn prove_reduction(blocks: &[Compression], ps: &mut ProverState) -> (Vec<F64>, SliceClaim) {
     let (z_packed, reduced) = Blake2sSetup::new(blocks.len()).prove_reduction(blocks, ps);
@@ -408,7 +406,7 @@ mod tests {
         let committed = crate::pcs::commit(&mut ps, &stacked.q, stacked.shape, crate::pcs::TEST_LOG_INV_RATE);
         let (_z, reduced) = prove_reduction(&blocks, &mut ps);
         let ring = ring_switch_open(blocks.len(), offset, &reduced);
-        crate::pcs::open(&mut ps, &committed, &stacked.q, &points, &ring);
+        crate::pcs::open(&mut ps, &committed, &stacked.q, &points, &[ring]);
         let bundle = ps.into_proof();
 
         let run = |label: &'static [u8], points: &[crate::pcs::SlotClaim]| -> Result<(), &'static str> {
@@ -419,7 +417,7 @@ mod tests {
             crate::pcs::verify(
                 &mut vs,
                 points,
-                &ring,
+                &[ring],
                 stacked.shape,
                 crate::pcs::TEST_LOG_INV_RATE,
                 &root,

@@ -1,0 +1,12 @@
+[package]
+name = "leanvm_guest_claims"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+leanvm_guest = { path = "../guest" }
+
+[dev-dependencies]
+xmss = { path = "../xmss" }
+sphincs = { path = "../sphincs" }
+lean_da = { path = "../lean_da" }

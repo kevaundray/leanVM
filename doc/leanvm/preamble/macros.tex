@@ -15,8 +15,8 @@
 % ---------- fields ----------
 \newcommand{\F}{\mathbb{F}}
 \newcommand{\Ftwo}{\mathbb{F}_2}
-\newcommand{\K}{K}            % F_{2^64}:  addresses, counters, committed lanes
-\newcommand{\E}{E}            % F_{2^192} = K[y]/(y^3+y+1): words and challenges
+\newcommand{\K}{K}            % F_{2^64}: committed lanes and proof arithmetic
+\newcommand{\E}{E}            % F_{2^192} = K[y]/(y^3+y+1): challenges and field ECALL
 \newcommand{\gen}{\mathsf{g}} % generator of K^*, order 2^64 - 1
 
 % ---------- checked relations ----------
@@ -41,7 +41,7 @@
 \newcommand{\skipcoset}{\mathcal{H}'}         % 64 transmitted round-one nodes
 \newcommand{\fembed}{\varphi_{8}}             % embedding of F_{2^8} into E
 \newcommand{\zskip}{\upsilon_{\mathrm{zc}}}   % zerocheck univariate challenge
-\newcommand{\lcalpha}{\alpha_{\mathrm{lc}}}      % lincheck batching challenge (A, B, C, the pin)
+\newcommand{\lcalpha}{\alpha_{\mathrm{lc}}}      % lincheck batching challenge (A, B, C, pins)
 \newcommand{\ksk}{k_{\mathrm{sk}}}              % row index, the skipped half
 \newcommand{\kin}{k_{\mathrm{in}}}              % row index, the within-block half
 \newcommand{\jsk}{j_{\mathrm{sk}}}              % column index, the skipped half
@@ -54,13 +54,30 @@
 \newcommand{\chg}[1]{\Gamma_{#1}}                 % a wire's coefficient in the backward walk
 \newcommand{\colmar}{M_{\mathrm{col}}}           % column marginal of one matrix, A_0 or B_0
 
+% ---------- packed native circuits ----------
+\newcommand{\kpacked}{\kappa_{\mathrm{wire}}} % log padded Boolean wires per row
+\newcommand{\zpacked}{z_{\mathrm{bits}}}      % Boolean native circuit witness
+\newcommand{\qpacked}{q_{\mathrm{bits}}}      % 64-wire-packed K witness
+\newcommand{\jzero}{j_{\mathbf{0}}}          % assertion-failure OR wire
+\newcommand{\projchallenge}{\gamma_{\mathrm{proj}}}
+\newcommand{\projweight}{\Psi}              % public alias-projection weights
+
 % ---------- VM ----------
-\newcommand{\loc}[1]{\mem[\fp\cdot #1]}
-\newcommand{\dmode}{\mathsf{mode}}   % a DEREF store mode
 \newcommand{\pc}{\mathbf{pc}}
-\newcommand{\fp}{\mathbf{fp}}
-\newcommand{\nxt}[1]{\mathrm{next}(#1)}   % the successor of a register: next(pc), next(fp)
+\newcommand{\nxt}[1]{\mathrm{next}(#1)}
 \newcommand{\mem}{\mathbf{m}}
+\newcommand{\rvregs}{\mathbf{r}}       % RV64IM integer register file
+\newcommand{\rvcycle}{\mathsf{cycle}}  % nonwrapping instruction counter
+\newcommand{\rvcycles}{N_{\mathrm{cycles}}}
+\newcommand{\rvhalted}{\mathsf{halted}}
+\newcommand{\rvenabled}{\mathsf{enabled}}
+\newcommand{\rvstate}{\mathsf{state}}
+\newcommand{\rvtime}{\mathsf{time}}
+\newcommand{\rvpack}{\operatorname{pack}_{K}} % polynomial-basis bit packing
+\newcommand{\rvuint}{\operatorname{uint}}    % integer interpretation of bits
+\newcommand{\rvelf}{\mathsf{ELF}}       % exact public executable bytes
+\newcommand{\rvpublic}{\mathsf{public}} % 32 public input bytes
+\newcommand{\rventry}{\mathsf{entry}}   % validated ELF entry address
 \newcommand{\addr}{\mathit{addr}}
 \newcommand{\val}{\mathit{val}}
 \newcommand{\cnt}{\mathit{count}}
@@ -77,12 +94,11 @@
 \newcommand{\rdf}[1]{\dsep{read}\,\tup{#1}}   % a pull/push pair differing only in the count
 \newcommand{\dsep}[1]{\mathsf{#1}}
 \newcommand{\opc}[1]{\mathsf{op}_{\mathsf{#1}}}
-\newcommand{\srcsel}[1]{\mathsf{src}(#1)}
-\newcommand{\nprog}{N_{\mathrm{prog}}}   % program length
-\newcommand{\nmem}{N_{\mathrm{mem}}}    % memory length
-\newcommand{\kbc}{\kappa_{\mathrm{bc}}}   % log program length: nprog = 2^kbc 
-\newcommand{\kmem}{\kappa_{\mathrm{mem}}}  % log memory length: nmem = 2^kmem
-\newcommand{\nread}{N_{\mathrm{read}}}   % total read flushes in a proof
+\newcommand{\nprog}{N_{\mathrm{prog}}}   % padded public ROM byte count
+\newcommand{\nmem}{N_{\mathrm{mem}}}     % memory-history event count
+\newcommand{\kbc}{\kappa_{\mathrm{bc}}}  % log padded public ROM byte count
+\newcommand{\kmem}{\kappa_{\mathrm{mem}}} % log memory-history table height
+\newcommand{\nread}{N_{\mathrm{read}}}   % counted ROM lookups
 \newcommand{\ntab}{N_{\mathrm{tab}}}     % number of tables (fixed by the arithmetization)
 \newcommand{\nside}{N_{\mathrm{side}}}   % grand-product sides: push, pull, count
 \newcommand{\taumax}{\tau_{\max}}      % rounds of the table sumcheck: the tallest table's log height

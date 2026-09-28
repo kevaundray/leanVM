@@ -1,5 +1,5 @@
 // CREDIT: https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs, AGPL-3.0-only.
-//! Fiat-Shamir state and proof transport. The state is a domain-separated BLAKE2s chain whose 64-byte steps match the VM's hash opcode.
+//! Fiat-Shamir state and proof transport. The state is a domain-separated BLAKE2s chain whose 64-byte steps match the VM's compression ECALL.
 
 pub mod merkle;
 pub mod transcript;
@@ -7,10 +7,8 @@ pub mod transcript;
 use primitives::field::{F64, F192};
 
 /// `f(a, b) = BLAKE2s(a‖b)` on two 256-bit halves laid out little-endian into
-/// 64 bytes, *exactly* the VM's `Blake2s` opcode: 64 input bytes → 32-byte
-/// digest, split back into four field words. THE primitive; the chain is a
-/// chain of these, so a zkDSL program replays it with one `blake2s(...)` per
-/// step.
+/// 64 bytes: one proof-checked compression ECALL with the standard BLAKE2s IV,
+/// counter 64 and final-block flag. Its 32-byte digest is four field words.
 ///
 /// A 64-byte input is one compression, so this is `compress(init_state(0), m,
 /// t = 64, last = true)` and nothing about the byte-level padding rules can

@@ -1,97 +1,41 @@
 % !TeX root = ../drafts/02-vm-specification.tex
 \section{VM specification}\label{sec:vm}
 
-Define the following two finite fields:
+\paragraph{Machine and proof fields.} The proved machine is native RV64IM, not an instruction translation into a field-valued ISA. It has $32$ registers $\rvregs[0],\ldots,\rvregs[31]$, each a $64$-bit integer, a byte-addressed program counter $\pc$, and mutable byte memory $\mem$. Register \texttt{x0} is always zero. Arithmetic follows RISC-V integer semantics, including modular overflow, signed comparisons, and the M extension. The binary fields used to prove those semantics are
 \[
   \K=\F_{2^{64}}=\F_2[x]/(x^{64}+x^4+x^3+x+1),
-  \qquad
-  \E=\K[y]/(y^3+y+1),
-  \qquad |\E|=2^{192}.
+  \qquad \E=\K[y]/(y^3+y+1),\qquad |\E|=2^{192}.
 \]
+An element of $\K$ is represented in the polynomial basis, coefficient of $x^i$ in bit $i$. Fix $\gen=\mathtt{2}$, a generator of $\K^\times$. A field element in $\E$ has three $\K$ coefficients on $1,y,y^2$. These are proof-field representations and the format of one cryptographic service, not machine words or addresses.
 
-And fix a generator $\gen$ of the multiplicative group $\K^{\times}$, of order $2^{64}-1$.
+\paragraph{Executable.} The public program is the exact ELF byte string $\rvelf$. \path{ProgramInfo::from_elf} accepts ELF64 little-endian RISC-V \texttt{ET\_EXEC}, with ELF flags zero and valid, bounded program headers. Loadable segments must not overlap or be both writable and executable. Dynamic and interpreter segments are rejected. Segment file sizes cannot exceed memory sizes; alignment and file bounds are checked. Every loaded address lies in $[0,2^{32})$. The entry point is four-byte aligned and its four instruction bytes must be executable. The program digest is BLAKE2s of the exact ELF, not of a normalized or decoded instruction listing.
 
-An element of $\K$ is a polynomial in $x$ of degree below $64$, written in hex with the coefficient of $x^{i}$ in bit $i$, so $\mathtt{2}$ is $x$ and $\mathtt{3}$ is $x+1$. An element of $\E$ is three of those, its coefficients on $1,y,y^{2}$.
+\paragraph{Initial state and memory.} Initially $\pc=\rventry$, $\rvcycle=0$, $\rvhalted=0$, all registers are zero except \texttt{x2/sp}$=2^{32}$. RAM addresses are ordinary integers in $[0,2^{32})$. File-backed bytes are initialized from their loadable ELF segments; segment tails and otherwise unmapped RAM are zero. Mapped data accesses obey segment read/write permissions; otherwise unmapped RAM is readable and writable but not executable. Instruction fetch requires executable permission. The proof checks initialization at the first access to each address, not by committing a four-GiB initial image.
 
-\vspace{5mm}
+\paragraph{Authenticated ROM.} The public ROM contains initial file bytes and executable instruction words, sorted by tagged key. Initial-byte keys are their addresses shifted left once; instruction-word keys are their aligned program counters shifted left once, with the low bit set. Each instruction word contains four little-endian bytes, all executable, with zero substituted for a BSS byte. Words intersecting file-backed executable bytes are included; wholly BSS zero words cannot decode as a supported instruction and need no entry. One authenticated word lookup binds each CPU instruction, while initial data reads use the byte entries. The CPU's $32$-bit program-counter bound keeps the two key classes disjoint.
 
-LeanVM ISA, also known as leanISA, is inspired by \cite{cairo}. The Virtual Machine takes as input a bytecode (padded to a power of two, $\nprog = 2^{\kbc}$) and some public input $\textsf{input} \in \cube{256} \simeq (\textsf{input}_0, \dots, \textsf{input}_3) \in (\cube{64})^4$. The Virtual Machine then initializes its two $\K$-valued registers:
-\begin{itemize}
-  \item the program counter $\pc \xleftarrow{} 1_\K$
-  \item the frame pointer $\fp \xleftarrow{} 1_\K$
-\end{itemize}
+\paragraph{Execution.} Each step fetches four little-endian bytes at $\pc$, decodes their native instruction fields, reads registers, performs the instruction, and advances the nonwrapping cycle counter. The default successor is $\pc+4$; branches and jumps use native byte offsets, and \texttt{JALR} clears target bit zero. Every executed instruction and every selected successor must be four-byte aligned. Data loads and stores may be misaligned, but every accessed byte must remain in RAM and have the required permission. Stores are mutable writes; a subsequent load sees the most recent preceding write.
 
-Then, initialize the write-once memory: a buffer, of size $\nmem = 2^{\kmem}$, containing $\E$-valued \textit{memory words} (192 bits). The memory is indexed \textit{in the exponent} of $\gen$ (64 bits). The first memory word is $\mem[\gen^0] \in \E$, the second is $\mem[\gen^1]$, the third is $\mem[\gen^2]$, etc. The bytecode addressing follows the same convention. Each memory access beyond $\gen^{\nmem - 1}$ (resp. $\gen^{\nprog - 1}$ for the bytecode) is invalid.
+\paragraph{Instruction classes.} The decoder has $64$ classes: RV64I integer arithmetic, logic, shifts, comparisons, upper immediates, control flow, byte/halfword/word/doubleword loads and stores, the RV64 word operations, RV64M multiplication/division/remainder, \texttt{FENCE}, and \texttt{ECALL}. The environment is single-hart, so supported \texttt{FENCE} encodings have no data effect. Compressed, atomic, floating-point, CSR, privileged, and other unsupported instructions are rejected. Cryptographic services use standard \texttt{ECALL}, not custom instruction encodings.
 
-The public input fixes the first two memory words $\mem[\gen^0] = \textsf{input}_0 + \textsf{input}_1 \cdot y \in \E$ and $\mem[\gen^1] = \textsf{input}_2 + \textsf{input}_3 \cdot y \in \E$.
+\paragraph{Public input and advice.} There are exactly $32$ public input bytes $\rvpublic$. A sequential private witness stream supplies untrusted bytes only through the witness service. The guest must check every security-relevant witness claim. Public bytes are not preinstalled at fixed memory locations: the public-input service copies them to the guest's chosen destination. The accepted statement is existence of a successful execution for the exact ELF and public input, with some witness.
 
-The Virtual Machine execution loop is the following:
-\begin{enumerate}
-  \item fetch the instruction $\mathsf{inst}$ at address $\pc$.
-  \item execute $\mathsf{inst}$:
-    \begin{itemize}
-      \item assert the memory constraints (e.g. $\loc{o_C}=\loc{o_A}+\loc{o_B}$ for XOR)
-      \item update $\pc$ and $\fp$ (all instructions except \texttt{JUMP} set $\pc \xleftarrow{} \pc \cdot \gen$, advancing to the next instruction, and leave $\fp \xleftarrow{} \fp$ unchanged)
-    \end{itemize}
-  \item if $\pc$ equals $\pc_{\textsf{final}} := \gen^{\nprog - 1}$, exit the loop (successful execution). Otherwise go back to $1.$
-\end{enumerate}
+\subsection{ECALL ABI}\label{sec:rv-ecall}
 
-\paragraph{Write-once memory}
-
-The first time a memory word is set defines its value for the rest of the execution, i.e. it cannot be modified again in the future.
-
-When proving the VM execution via a snark, the memory is committed (by an untrusted prover) at the beginning of the execution (with all the values already filled): every instruction then simply consists in reading a bunch of memory cells, and asserting constraints on them (\textit{write-once memory} is also sometimes called \textit{read-only memory}).
-
-\paragraph{Non determinism}
-
-For a given pair of bytecode and public input, there is more than one valid execution.
-
-In particular, the memory log-size $\kmem$ is a non deterministic parameter, freely chosen at the beginning of execution, with the constraint $16\le\kmem\le 32$.
-
-\paragraph{Operands and addressing.} An instruction is an opcode followed by a list of $\K$-valued operands. An operand is either an \emph{fp-relative reference}, an offset $j$ into the current frame encoded as the $\gen$-power $o=\gen^{\,j}$, or one $\K$-lane of an \emph{immediate} ($k_0,k_1,k_2$ in \texttt{SET\_CONSTANT}). With the frame based at $\fp=\gen^{\mathrm{base}}$, a reference names the cell
-\[
-  \mem[\fp\cdot o],\qquad \fp\cdot o\;=\;\gen^{\mathrm{base}}\cdot\gen^{\,j}\;=\;\gen^{\,\mathrm{base}+j}.
-\]
-
-\paragraph{Instruction set.} The machine implements six instructions.
+Service number is in \texttt{a7/x17}. Pointer-based services take arguments in \texttt{a0/x10} through \texttt{a3/x13} and return their result in \texttt{a0}. F192 multiplication instead takes six operand limbs in \texttt{a0} through \texttt{a5} and returns three product limbs in \texttt{a0,a1,a2}. Registers not designated as outputs retain their values. All pointers are ordinary byte addresses and all multibyte memory encodings below are little-endian.
 \begin{center}
-\begin{tabularx}{\textwidth}{@{}llX@{}}
+\begin{tabularx}{\textwidth}{@{}llXl@{}}
 \hline
-Instruction & Operands & Semantics\\
+\texttt{a7} & Service & Arguments & Result\\
 \hline
-\texttt{XOR}           & $[o_A,o_B,o_C]$ & $\loc{o_C}=\loc{o_A}+\loc{o_B}$ \quad(addition in $\E$)\\
-\texttt{MUL\_NATIVE}   & $[o_A,o_B,o_C]$ & $\loc{o_C}=\loc{o_A}\cdot\loc{o_B}$ (multiplication in $\E$)\\
-\texttt{SET\_CONSTANT} & $[o,k_0,k_1,k_2]$ & $\loc{o}=k_0+k_1y+k_2y^{2}$\\
-\texttt{DEREF}         & $[o_1,o_2,o_3;\,\dmode]$ & $\mem[\loc{o_1}\cdot o_2]=\srcsel{\dmode}$ (see below)\\
-\texttt{JUMP}          & $[o_c,o_d,o_f]$ & conditional jump (see below)\\
-\texttt{BLAKE2S}        & $[o_{m_0},o_{m_1},o_{m_2},o_{m_3},o_{\mathit{cv}},o_{\mathit{out}},o_{\md}]$ & BLAKE2s compression (see below)\\
+\texttt{0} & EXIT & \texttt{a0}: status, which must be zero & halt\\
+\texttt{1} & READ\_WITNESS & \texttt{a0}: destination; \texttt{a1}: byte length & length\\
+\texttt{2} & READ\_PUBLIC & \texttt{a0}: destination for $32$ bytes & $32$\\
+\texttt{0x100} & BLAKE2s & \texttt{a0}: message ($64$ bytes); \texttt{a1}: chaining value ($32$); \texttt{a2}: metadata ($16$); \texttt{a3}: output ($32$) & $0$\\
+\texttt{0x101} & F192 multiplication & \texttt{a0,a1,a2}: left operand limbs; \texttt{a3,a4,a5}: right operand limbs & \texttt{a0,a1,a2}\\
 \hline
 \end{tabularx}
 \end{center}
+Witness reads consume exactly the requested number of bytes; short input fails. Zero-length reads are allowed. Ranges cannot wrap or exceed RAM. BLAKE2s inputs are snapshotted before any output write, including when buffers overlap. F192 multiplication reads its operand registers before replacing the result registers and performs no memory access. Unsupported services, memory faults, invalid instructions, and nonzero exit status do not produce a successful execution. EXIT advances the cycle counter and closes the proof's CPU state at $(\pc,\rvcycle,\rvhalted)=(0,\rvcycles,1)$; zero here is a terminal marker, not another fetch address.
 
-
-\texttt{DEREF} stores, at the dereferenced address $\loc{o_1}\cdot o_2$, a value chosen by a \emph{store mode} $\dmode\in\{\texttt{deref\_cell}[o_3],\texttt{deref\_pc},\texttt{deref\_fp}\}$:
-\[
-  \srcsel{\dmode}\;=\;
-  \begin{cases}
-    \loc{o_3} & \dmode=\texttt{deref\_cell}[o_3] \quad(\text{the local cell at offset }o_3 \in \K),\\
-    \gen^{2}\cdot\pc & \dmode=\texttt{deref\_pc} \quad(\text{the current program counter advanced by two}),\\
-    \fp & \dmode=\texttt{deref\_fp} \quad(\text{the current frame pointer}).
-  \end{cases}
-\]
-
-Additionally, it asserts $\loc{o_1} \in \K$.
-
-\vspace{5mm}
-
-
-\texttt{JUMP} reads a condition $c=\loc{o_c}$, and branches on whether it is zero. When $c\neq0$ it transfers control, $\pc\gets\loc{o_d}$ and $\fp\gets\loc{o_f}$; when $c=0$ it defaults to $\pc\gets\gen\cdot\pc$ and $\fp\gets\fp$. Additionally, it asserts $\loc{o_c},\loc{o_f}, \loc{o_d} \in \K$ (unconditionally).
-
-\vspace{5mm}
-
-\texttt{BLAKE2S} is the standard BLAKE2s compression, consuming a $64$-byte message block and a $32$-byte chaining value and producing $32$ bytes. Each $128$-bit chunk occupies one full $\E$ memory cell through the canonical embedding $a_0+a_1y\mapsto a_0+a_1y+0y^2$; using a cell as a BLAKE2s operand therefore constrains its top limb to zero. The four message chunks are addressed \emph{independently} by references $o_{m_0},\dots,o_{m_3}$ (chunk $i$ at address $\fp\cdot o_{m_i}$), while $o_{\mathit{cv}}$ names two \emph{consecutive} chaining-value cells $\loc{o_{\mathit{cv}}},\loc{\gen\cdot o_{\mathit{cv}}}$. The $256$-bit result is written to the consecutive cells $\loc{o_{\mathit{out}}},\loc{\gen\cdot o_{\mathit{out}}}$, and $o_{\md}$ names one more cell, so each row accesses nine. That cell $\md=\loc{o_{\md}}=\md_0+\md_1y$ packs the standard compression metadata in little-endian order,
-\[
-  \md=\mathit{counter}_{64}\;\Vert\;\mathit{final}_{32}\;\Vert\;\mathit{last\_node}_{32}.
-\]
-
-
+BLAKE2s metadata is $\md=\mathit{counter}_{64}\Vert\mathit{final}_{32}\Vert\mathit{last\_node}_{32}$. This service is the compression function, with an arbitrary supplied chaining value and metadata, rather than a complete hash-message API. Flock proves its input/output relation (\S\ref{sec:tab-blake2s}). F192 multiplication interprets each operand's three registers as the $64$-bit polynomial-basis coefficients on $1,y,y^2$ of an element of $\E$, and returns their product modulo $y^3+y+1$ in the same order (\S\ref{sec:tab-f192}). In particular, \texttt{MUL} remains integer multiplication.

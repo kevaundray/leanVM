@@ -4,11 +4,11 @@
 //! the batch is a polynomial in `η` whose coefficients are the individual sums and
 //! matching the batch's target still pins each one. The three bus forms are the
 //! exception: they SHARE their three powers across tables
-//! ([`crate::cpu::xi_form_base`]), so those coefficients are per-side totals and
+//! so those coefficients are per-side totals and
 //! the target pins the total, which is all the bus needs. The identities vanish on a
 //! valid row, but a table also attaches its three bus forms, whose sums are the
 //! values the bus is owed, so the target is those rather than zero. It is the
-//! caller's, not read off the stream: see [`crate::cpu::verify`].
+//! caller's, not an independently announced prover value.
 //!
 //! Tables of different heights are combined by back-loaded batching: table `t`'s
 //! summand is lifted onto the common `n`-cube by `∏_{i ≥ τ_t} X_i`, which leaves

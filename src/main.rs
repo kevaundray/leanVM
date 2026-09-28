@@ -72,7 +72,7 @@ enum Command {
         )]
         blobs_per_leaf: usize,
     },
-    /// Prove and verify Fibonacci in the exponent (demo).
+    /// Prove and verify wrapping u64 Fibonacci in a native Rust guest.
     Fibonacci {
         /// Number of recurrence steps.
         #[arg(long, default_value = "2000000")]

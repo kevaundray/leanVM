@@ -1,13 +1,13 @@
-//! The two benchmarks: one leaf of the aggregation tree (`aggregate`), and an
-//! n→1 recursion step over leaves of that size (`recursion`). Aggregation accepts
-//! signature counts and a blob count; recursion accepts these counts per leaf.
+//! Benchmarks for raw-input aggregation and n→1 native recursive composition.
+//! Application guests remain RV64IM; signatures are conservatively batched and
+//! binary internal nodes publish all claims until the final selection.
 
 use primitives::bench::Plan;
 use primitives::{pretty_f64, pretty_integer};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use xmss::{XmssPublicKey, XmssSignature};
 
-use crate::aggregation::{DaInput, EthereumProof, aggregate, aggregate_with_stats};
+use crate::aggregation::{AggregateStats, DaInput, EthereumProof, aggregate, aggregate_with_stats};
 use crate::signers_cache;
 
 fn blobs(n: usize, seed: u64) -> Vec<u64> {
@@ -46,23 +46,22 @@ fn sphincs_signers(
     signers_cache::get_sphincs_signers(to)[from..to].to_vec()
 }
 
-/// Report the shape and cost of one aggregation node.
-fn report(label: &str, stats: &lean_vm::cpu::Stats, sig: &EthereumProof, prove_time: &primitives::bench::Timing) {
-    let base_cycles: usize = stats.base_counts.iter().sum();
+/// Report total execution work and the final native proof transport.
+fn report(label: &str, stats: &AggregateStats, sig: &EthereumProof, prove_time: &primitives::bench::Timing) {
     println!("{label}");
-    // The program's own work, then what gets proven: the fill blocks bring each table
-    // to a power of two so that none needs padding rows, so the proven total is the sum
-    // of those powers.
+    println!("  proved execution nodes      : {}", pretty_integer(stats.executions));
+    println!("  total RV64IM cycles         : {}", pretty_integer(stats.cycles));
     println!(
-        "  cycles (VM steps)           : {} = {}",
-        pretty_integer(base_cycles),
-        crate::report::pow(base_cycles)
+        "  total byte memory events    : {}",
+        pretty_integer(stats.memory_events)
     );
-    println!("    details                   : {}", stats.details());
-    crate::report::print_proof_size(sig.proof());
-    // The whole `aggregate` call, not just `cpu::prove`: for a node that also
-    // covers verifying each child and batching the deferred claims, which are
-    // real per-node costs. `--tracing` breaks it down.
+    println!(
+        "  total execution words       : {}",
+        pretty_integer(stats.committed_words)
+    );
+    println!("  native recursion height     : {}", sig.proof().height);
+    crate::report::print_proof_size(sig.proof().to_bytes().len());
+    // The whole call includes encoding, guest execution, and native proving.
     println!(
         "  proving time                : {} s{}      peak memory {} GiB",
         pretty_f64(prove_time.mean()),
@@ -80,7 +79,7 @@ fn describe(n_xmss: usize, n_sphincs: usize) -> String {
     }
 }
 
-/// Prove signatures and `n_blobs` blobs in one leaf, then verify it.
+/// Prove signatures and one whole-blob commitment, then verify the native root.
 ///
 /// Proving runs one discarded warmup pass followed by `plan.repeat` measured
 /// passes; see [`primitives::bench`] for why the first pass is not
@@ -95,7 +94,7 @@ pub fn run_aggregation(n_xmss: usize, n_sphincs: usize, n_blobs: usize, log_inv_
     // Spawn the worker pool before any timed work, so no kernel pays the spawn
     // cost. Opting into the arena is the calling *process's* decision (one region,
     // one proof at a time), so it stays in `main`, not here.
-    lean_vm::init_prover_pool();
+    parallel::init();
     let raw_xmss = signers(0, n_xmss);
     let raw_sphincs = sphincs_signers(0, n_sphincs);
     let blobs = blobs(n_blobs, 0);
@@ -155,9 +154,8 @@ pub fn run_aggregation(n_xmss: usize, n_sphincs: usize, n_blobs: usize, log_inv_
     );
 }
 
-/// Prove `n` leaves with signatures and distinct blob payloads, then aggregate them in one
-/// recursion step and verify the result. The leaves are built once; only the
-/// recursion step is measured.
+/// Prove `n` public children, then fold them into one native root. The child
+/// aggregates are built once; only their binary composition is measured.
 pub fn run_recursion(
     n: usize,
     per_leaf: usize,
@@ -180,16 +178,13 @@ pub fn run_recursion(
         blobs_per_leaf == 0 || n <= crate::MAX_DA_ROOTS,
         "too many distinct DA roots"
     );
-    lean_vm::init_prover_pool();
+    parallel::init();
     let all = signers(0, n * per_leaf);
     let all_sphincs = sphincs_signers(0, n * sphincs_per_leaf);
     let started = std::time::Instant::now();
-    let guest_instructions: usize = crate::aggregation::unified_guest()
-        .fn_ranges
-        .iter()
-        .map(|(_, _, len)| *len as usize)
-        .sum();
-    let compile_time = started.elapsed();
+    let image = crate::aggregation::load_guest("LEANVM_GUEST_ELF").expect("load aggregate RV64IM guest");
+    let guest_bytes = image.elf.len();
+    let load_time = started.elapsed();
 
     let children: Vec<EthereumProof> = (0..n)
         .map(|k| {
@@ -219,10 +214,9 @@ pub fn run_recursion(
     });
 
     println!(
-        "aggregation bytecode: {} instructions (2^{} padded), compiled in {} s",
-        pretty_integer(guest_instructions),
-        crate::aggregation::unified_guest().prog.len().trailing_zeros(),
-        pretty_f64(compile_time.as_secs_f64())
+        "aggregation RV64IM ELF: {} bytes, loaded in {} s",
+        pretty_integer(guest_bytes),
+        pretty_f64(load_time.as_secs_f64())
     );
     let mut inputs = Vec::new();
     if per_leaf > 0 || sphincs_per_leaf > 0 {

@@ -1,0 +1,23 @@
+[package]
+name = "recursion"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+leanvm_guest = { path = "../guest", features = ["native"] }
+riscv_proof = { workspace = true, features = ["host"] }
+lean_vm.workspace = true
+primitives.workspace = true
+fiat_shamir.workspace = true
+pcs.workspace = true
+flock.workspace = true
+zk_alloc.workspace = true
+parallel.workspace = true
+bincode.workspace = true
+
+[dev-dependencies]
+riscv.workspace = true

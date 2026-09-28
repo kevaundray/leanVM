@@ -2,19 +2,19 @@
 
 ## What this is
 
-A minimal virtual machine and recursive SNARK for signature aggregation and blob encoding. Proofs are not zero knowledge.
+A native RV64IM virtual machine and field-native recursive SNARK for signature aggregation. LeanDA commitments and execution checks are implemented, but native DA proving is explicitly deferred. Proofs are not zero knowledge.
 
 - `doc/leanvm/` is the LaTeX project describing the machine ISA and the snark that proves it. Its root is `doc/leanvm/main.tex`; build it with `cd doc/leanvm && latexmk -pdf main.tex`, which writes to the gitignored `doc/leanvm/.build/`. Sections live in `doc/leanvm/body/`, numbered `01`..`10` plus the lettered annexes `a` (ring switching), `b` (the PCS), `c` (Flock), and `d` (novel basis and additive NTT), and every symbol is defined once in `doc/leanvm/preamble/macros.tex`. If latexmk fails oddly (a bibtex error, or a missing `main.log`) right after inputs are renamed or `refs.bib` is edited, remove `doc/leanvm/.build` and rerun; it has not reproduced on unchanged inputs. **Drafting one section:** each section file carries a `% !TeX root` comment pointing at its generated driver in `doc/leanvm/drafts/`, so the LaTeX build key (`F5`, or the extension's `cmd+alt+b`) compiles only that section, numbered as in the full document and with cross-references and citations resolved against `.build/main.aux`; in `main.tex` the same key builds everything. Run `doc/leanvm/make-drafts.sh` after adding, renaming or renumbering a section.
 - `doc/xmss/` is the standalone XMSS specification; `crates/xmss` implements its hash inputs and signature verification.
 - `doc/sphincs/` is the standalone specification of the concrete SPHINCS+ instance used where statelessness matters; its root is `doc/sphincs/main.tex`, built the same way as `doc/xmss`, and implemented by `crates/sphincs`. It uses the same BLAKE2s primitive and target-sum encoding shape as XMSS, with its own tweak layout, target sum, and signing search.
 - `formal/xmss/` and `formal/sphincs/` are Lean 4 proofs (over VCVio) of the ideal schemes' classical random-oracle security, `xmss_has_127_bits_of_classical_security` and `sphincs_has_127_bits_of_classical_security`; `formal/sphincs/` also proves correctness and completeness, `sphincs_is_correct` and `sphincs_is_complete`, stated in `SphincsSecurity/Completeness.lean`. Each project's `Scheme.lean`, under `XmssSecurity/` or `SphincsSecurity/`, contains the concrete parameters, the byte layout of every hash input, and the three algorithms; `Statement.lean` imports it and defines the SUF-CMA game, hash-query budget, and security claim. `lake exe cache get` once, then `lake build`.
-- The one hash function is BLAKE2s, in `primitives::hash`: scalar, streaming, keyed, and a lane-transposed batched form for the PCS Merkle tree. The VM proves one compression per opcode, and BLAKE2s takes the byte counter and final-block flag as ordinary compression inputs, so repeated opcodes hash arbitrary byte strings by carrying the chaining value and setting the counter and final flag for each block.
-- `crates/lean_compiler/zkDSL.md` documents the (pythonic) zkDSL (that compiles to the ISA that our VM runs, and that our snark proves).
+- The one hash function is BLAKE2s, in `primitives::hash`: scalar, streaming, keyed, and a lane-transposed batched form for the PCS Merkle tree. RV64IM exposes compression through a proof-checked ECALL; the native recursion circuit constrains compression through Flock. The byte counter and final-block flags are ordinary compression inputs, so repeated compressions hash arbitrary byte strings.
+- Application guests are Rust `no_std` programs targeting `riscv64im-unknown-none-elf`. `crates/guest` provides the runtime and cryptographic ABI; `scripts/build-guests.sh` compiles the bundled guests with nightly Rust and `rust-src`.
 
 Primary uses:
 
-- Aggregate XMSS claims grouped by epoch and message, SPHINCS claims carrying individual messages, and LeanDA blob encoding claims.
-- Recursively aggregate child proofs, proving that every published signature claim and DA root is supported by a raw input or a verified child.
+- Aggregate XMSS claims grouped by epoch and message, and SPHINCS claims carrying individual messages.
+- Recursively aggregate child proofs, proving every published claim is supported by a raw input or verified child. TODO: native LeanDA circuits and authenticated row coverage; do not count ignored DA proving workflows as verified.
 
 ## Layout
 
@@ -25,23 +25,29 @@ Dependency order, leaves first:
 | `parallel`        | thread pool (below)                                     |
 | `zk_alloc`        | proving arena (below)                                    |
 | `primitives`      | field kernels (NEON/AVX), bit transposes, multilinear helpers, streaming stores, `bench` |
-| `fiat_shamir`     | VM-native `FiatShamirState` + prover/verifier transcript                |
+| `fiat_shamir` | `FiatShamirState` and prover/verifier transcripts |
 | `pcs`             | additive NTT, Merkle, ring switch, stacked WHIR                    |
 | `flock`           | batched R1CS over GF(2) for BLAKE2s: zerocheck + lincheck               |
-| `lean_vm`         | arithmetization: tables, bus, constraints, `cpu::prove`/`verify`       |
-| `lean_compiler`   | zkDSL (Python subset) → ISA                                            |
+| `lean_vm` | shared tables, buses, GKR, constraints and proving infrastructure |
+| `guest` | `no_std` RV64IM runtime, ECALLs and portable field/hash operations |
+| `guest_claims` | portable XMSS, SPHINCS and LeanDA reference verification |
+| `riscv` | RV64IM execution, strict ELF loading, register and byte-memory traces |
+| `riscv_proof` | packed RV64IM constraints, host prover and portable verifier |
+| `recursion` | field-native circuits, fixed-key proofs and complete recursive verification |
+| `aggregation_guest` | canonical claim codec, raw verification, coverage and deferred child binding |
 | `xmss`            | XMSS over BLAKE2s; an independent leaf, consumed only by `rec_aggregation` |
 | `sphincs`         | the stateless SPHINCS+ instance of `doc/sphincs`; an independent leaf, consumed only by `rec_aggregation` |
 | `lean_da` | additive Reed-Solomon blob encoding, commitments, and membership vectors |
 | `rec_aggregation` | recursive signature and DA aggregation: the guest, public entry points, and benchmarks |
 
-`src/lib.rs` is the public API and the only thing a user imports: every crate above is `publish = false`, so a new user-facing item is a re-export there. `src/main.rs` is the benchmark CLI, `tests/api.rs` the end-to-end use of the API; guests are zkDSL under `crates/rec_aggregation/guests/`.
+`src/lib.rs` is the host public API: every crate above is `publish = false`, so new host-facing items are re-exported there. Guest programs use the separate `leanvm_guest` SDK. `src/main.rs` is the benchmark CLI and `tests/api.rs` exercises the public API. The aggregation guest is `crates/aggregation_guest/examples/aggregate.rs`; its implementation is `crates/aggregation_guest/src/lib.rs`.
 
 ## Building / Testing / Formatting
 
-- `.cargo/config.toml` pins `-C target-cpu=native` and `-D warnings` for rustdoc
-- always run in `--release` mode any test or benchmark touching the VM (the zkDSL compiler stack-overflows in `debug` mode)
-- **One test binary per crate, not one per file:** new `lean_compiler` integration tests go in `tests/suite/main.rs`, one linked executable instead of seventeen. Exception: a test opening an arena phase (`lean_vm::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`rec_aggregation/tests/arena_prove.rs`).
+- `.cargo/config.toml` applies `-C target-cpu=native` only to host architectures and denies rustdoc warnings.
+- Always use `--release` for VM tests and benchmarks.
+- Build actual guest executables with `scripts/build-guests.sh`. It uses `cargo +nightly` and `-Z build-std=core,alloc`; install nightly with its `rust-src` component. Do not leak host compiler wrappers or flags into this build.
+- **One integration test binary per crate, not one per file.** Arena-lifetime regressions need their own binary (`rec_aggregation/tests/arena_prove.rs`, `recursion/tests/arena_proof.rs`). Phases are process-global; concurrent resets reclaim each other's `ArenaVec`s. Run proof-heavy suites with `--test-threads=1`, both for phase safety and memory use.
 
 An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Type-check the other target before pushing anything `cfg`-gated:
 
@@ -53,14 +59,14 @@ CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-feature=+avx512f,+avx
 It needs `rustup target add x86_64-unknown-linux-gnu` and nothing else, since `check` does not link. The `apple-m4 is not a recognized processor` and `x87` notes are the pinned `target-cpu=native` and the bare cross ABI, not findings. To confirm an arm is really being reached rather than silently skipped, drop a `compile_error!` in it and watch the check fail.
 
 ```bash
-cargo testall                     # release workspace tests
+cargo testall -- --test-threads=1  # release workspace tests, sequential proving
 cargo clippyall                   # clippy, -D warnings
 cargo docall                      # rustdoc, -D warnings
 cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches and measurement harnesses are `#[ignore]`d; run by name with `-- --ignored --nocapture`: `hash_batch_prove_verify`, `pcs_throughput`, `aggregate_three_levels`, `aggregate_statement_binds`, `aggregate_hints_bind`, `aggregate_rejects_a_bad_signature`, `print_whir_query_counts`, `encoding_grinding_bits`.
+Heavy benches and measurement harnesses are `#[ignore]`d; run by name with `-- --ignored --nocapture --test-threads=1`: `hash_batch_prove_verify`, `pcs_throughput`, `aggregate_three_levels`, `aggregate_statement_binds`, `aggregate_rejects_a_bad_signature`, `print_whir_query_counts`, `encoding_grinding_bits`. The native backend's ignored tests prove full RISC verification, full native verification, and same-key zero/one/two-child composition. Confirm that a filter actually selects its test.
 
 ## Benchmarking
 
@@ -70,11 +76,11 @@ The benchmarks we care about:
 - `cargo run --release -- aggregate --sphincs 220 --log-inv-rate 1 --repeat 3`
 - `cargo run --release -- recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3`
 
-`aggregate` takes a count per scheme, both defaulting to zero, so either alone or a mix of the two is one command; `recursion --sphincs-per-leaf` likewise puts both schemes in one tree. One SPHINCS verification uses 531 compressions against XMSS's 144; use the benchmark output to compare complete VM cycle counts. `aggregate --blobs` adds LeanDA blobs, and `recursion --blobs-per-leaf` includes them in each child.
+`aggregate` takes a count per scheme, both defaulting to zero, so either alone or a mix is one command; `recursion --sphincs-per-leaf` likewise puts both schemes in one tree. The CLI reports application execution separately from the native recursive proof. Raw signatures currently use one-signature leaves and binary folding. `aggregate --blobs` and `recursion --blobs-per-leaf` remain exposed, but DA aggregate proving is deferred pending native DA circuits.
 
 ## The proving arena (`zk_alloc`)
 
-One proof is one **phase**, opened by `cpu::prove`. `ArenaVec` bumps a per-thread slab, a small block's release is at most a cursor pop while a large one is recycled (below), and the next `begin_phase()` reclaims everything. Not a `#[global_allocator]`: `raw_dealloc` picks arena-vs-system by address range, so with no phase open `ArenaVec` is an ordinary system vector (used in particular by the verifier, where correctness and simplicity matters much more than performance).
+One proof is one **phase**, opened by the execution or native-circuit prover through `zk_alloc::enter_phase`. `ArenaVec` bumps a per-thread slab, a small block's release is at most a cursor pop while a large one is recycled (below), and the next phase reclaims everything. Not a `#[global_allocator]`: `raw_dealloc` picks arena-vs-system by address range, so with no phase open `ArenaVec` is an ordinary system vector.
 
 **The rule:** an `ArenaVec` allocated in a phase dies at the next `begin_phase()`. A reset neither clears nor unmaps, so a buffer that outlives its phase reads the previous proof's plausible bytes, so the symptom is a proof that stops verifying, never a crash. Anything outliving a phase (a `Proof`, a cache, a table) must be a plain `Vec`. And **`drop` means something**: a large released block is handed back out within the phase (a per-thread free list, see the crate docs), so dropping a big buffer where it dies is worth doing, and a use-after-free the bump arena used to mask now reads another buffer's live data. Run `ZK_ALLOC_POISON=1 cargo testall` after changing buffer lifetimes; it fills released blocks and fills what a phase used when it ends, turning a silent wrong answer into a loud failure. That covers both shapes: a buffer read after being dropped, and a buffer that outlives its phase.
 
@@ -92,18 +98,19 @@ No rayon. Every parallel site is "N independent items, each writing its own disj
 
 ## Three verifiers, one protocol
 
-The same verification algorithm is written out three times, in three languages. Any change to snark protocol has to land in all three.
+The execution and native-circuit protocols each have three verification paths. Any protocol change must land in the host verifier, Python verifier and constrained recursive verifier.
 
-1. **Rust**, `lean_vm::cpu::verify`. The native verifier.
-2. **Python**, `python-verifier/verifier.py` (no dependencies), for readability and simplicity. Pinned by `lean_vm/tests/verifiers/python_verifier.rs`.
-3. **Recursive verifier**, `crates/rec_aggregation/guests/lean_ethereum.py`. Its zkDSL compiles to the ISA; proving its execution gives a proof of child proofs.
+1. **Rust:** `riscv_proof::verify` verifies execution proofs; `recursion::Key::verify` verifies native circuit proofs.
+2. **Python:** `python-verifier/verifier.py` independently implements both protocols. Interoperability is exercised by `riscv_proof/tests/python_verifier.rs` and `recursion/tests/native_python.rs`.
+3. **Recursive circuits:** `crates/recursion/src/risc_verifier.rs` and `native.rs` express complete verification over an opaque field context. The same program runs concretely to collect advice and symbolically to build constraints.
 
-Understand the third before changing the verifier. `guests/lean_ethereum.py` is zkDSL, not runnable Python. `lean_compiler` lowers it to the six-opcode, write-once-memory VM, so the prover proves every verifier step. Its size and instruction mix are what the recursion benchmark reports first. It verifies raw signatures of both schemes: a node's coverage table has one contiguous region per XMSS epoch group and separate regions for SPHINCS and DA roots, so the one range check a write already needs also keeps a signature off another group's declared keys, of either scheme, and the statement's signer lists say which scheme verified which key against which `(epoch, message)`. The XMSS signers are grouped by epoch, each group carrying its own message, a runtime number of groups (at most `MAX_EPOCHS`) bound through the signer-set digest, which is plain BLAKE2s of a byte string (each list's own digest folded into it, likewise plain BLAKE2s): a run-time length rides the byte counter because the counter is a memory operand, split as `doc/leanvm` §sec:prog-byte-counter describes. A child's groups need not equal its parent's, a hinted map tying each child group to a parent group with the same epoch and message. A SPHINCS signer's message rides its own four-cell slot, so that list is `(key, message)` pairs; both lists count claims rather than distinct signers, an XMSS key claiming once per epoch it signed at. Both schemes' tweaks are built in-circuit: XMSS's from the epochs the statement carries, derived once per group that verifies raw XMSS signatures and skipped by one that verifies none, SPHINCS's per signature from the index its message digest picks. Two consequences:
+The aggregation application does not execute a SNARK verifier. Its RV64IM guest validates canonical statements, checks raw signatures and coverage, and binds exact ordered child metadata using `leanvm_guest::deferred`. Child records contain statements, key digests and heights, not proof or ELF bytes. Guest execution alone does not authenticate those children.
 
-- The guest is **self-referential**: it verifies proofs of itself, so `unified_guest` compiles it to a fixed point on its own log size. The digest needs no fixed point, riding the statement instead of the code, which is also what lets one bytecode serve any inner size and PCS rate.
-- It does not verify *quite* everything in-circuit. Three claims on fixed polynomials (stacked bytecode, flock's A0/B0) are deferred. Each node batches its children's carried claims with the fresh ones its verifications raise, `2n` per polynomial down to one; only the root's are discharged natively, by `EthereumProof::verify` (explained in `doc/leanvm/`).
+`recursion::Recursor` verifies the mandatory execution proof and up to two native children. The root derives its trusted key from the actual expected application ELF. Every child has the same authorized key and a smaller height; a node's height is zero without children and otherwise one plus the maximum child height, with checked arithmetic. No program/key digest fixed point or unresolved polynomial claim remains for a host shortcut.
 
-`aggregate_two_to_one` is the fast end-to-end check; `aggregate_statement_binds` and `aggregate_hints_bind` are the adversarial ones, tampering the wire object and the witness respectively. A child must commit at least `2^MU_MIN` or the guest has no opening arm for it, so `aggregate` sets `Program::min_log_committed` and a smaller run grows its `SET` table through the fill blocks until it clears the floor.
+XMSS claims are grouped by epoch and message, while SPHINCS claims are key/message pairs. Both schemes count claims, not distinct keys. Coverage may be narrowed, but every supplied raw signature and child proof is still verified. Conflicting XMSS messages are rejected even if omitted from the published statement. Host prechecks are diagnostics, not soundness.
+
+`aggregate_one_signer` is a small application proof check. `aggregate_two_to_one` and `aggregate_mixed_two_to_one` exercise composition. `aggregate_statement_binds` tampers with public transport; `aggregate_witness_binds_raw_signatures_and_declared_claims` and `native_recursion_authenticates_complete_child_statements` bypass host prechecks to test witness and child binding. Execution capacity is checked from actual table counts before constructing a full trace; do not replace capacity failures with silently smaller workloads.
 
 ## Conventions that bite
 
@@ -116,11 +123,10 @@ Understand the third before changing the verifier. `guests/lean_ethereum.py` is 
 - Commit tests only that are useful in the future, to prevent regressions / failures. Don't add trivial tests that will always pass.
 - Simpler is better.
 - **Fiat-Shamir:** `add_scalar`/`next_scalar` bind into the Fiat-Shamir state as a side effect. The public statement seeds the transcript at construction; the transport exposes no separate observe operation. Never re-observe data that rode the stream, which silently desynchronizes the two sides.
-- **Prover and verifier derive the layout identically** from announced sizes. Changes to `placements_of` or the schema land on both sides. `col_kappas` is derived from `col_kappa_sources` rather than written out twice, so the two can no longer drift; keep it that way.
-- **The L0 lane fold binds the committed witness's TOP `INITIAL_FOLDING_FACTOR` variables**, because lane `l` of the interleaved commitment is the stack block `q[l·2^(μ-k) ..)`. That makes the witness's zero tail whole lanes, so `whir::commit` encodes only `StackShape::n_lanes` of them, and the opening's dense weight, its first `k` sumcheck rounds and the stack allocation shrink with it. **A leaf image is still `2^k` words**, the absent lanes contributing their codeword's zeros, but those zeros LEAD it (codeword lane `t` is stack block `n_lanes-1-t`): their whole 64-byte blocks are then one shared chaining value (`hash::zero_prefix_state`) the committer hashes once rather than per leaf, and only the image's tail rides the proof, so `PrunedMerklePaths` stores `n_lanes` words per L0 row while `RawMerklePath` (what the guest and the Python verifier read) carries the full image. The Rust and Python verifiers therefore derive `n_lanes` from the announced layout to read a row; the guest never needs it, its hints being full images. Since `mu = log2_ceil(placed)`, `n_lanes` is always in `[2^(k-1)+1, 2^k]`: the encode saving caps near half, the hashing saving is quantized to whole blocks of 8 lanes, and both are ~0 just above a power of two. The cost is that fold challenges arrive in round order while every transparent weight is written in witness coordinates, so all three verifiers rotate the terminal point left by `k` before evaluating it (`whir.rs` before `eval_b_at`, `verifier.py` before `evaluate_basis`, `open_stacked` in the guest). Anything else that reads the opening's point (per-level induced weights, the residual) stays in round order.
-- **A failed guest `assert` surfaces as a write-once memory conflict**, not an assertion message, but it names the source line: `write-once conflict at cell 34 (line 2906, pc ...)`. A failed range check and a wild `DEREF` name the function and line instead (`in verify_sub (line 2204)`). Parse and lowering errors carry a line too. Reach for `DBG_DISASM` only when the line is not enough, or when the pc lands in a fill block, which has no source line by construction.
-- Guests are single-file; the compiler skips `from snark_lib import *`, which exists only so editors accept the file as Python.
-- **One symbol, one meaning, across the whole leanVM document.** All notation is defined in `doc/leanvm/preamble/macros.tex`: define a new macro there rather than inline, and check the letter is free first. Annex B's "Symbols" table maps its letters back to WHIR/Ligerito/BCHKS25, so read it before renaming one. A sumcheck round challenge is `\fc` everywhere, which is what keeps `\rho` free for the rate; `r` is the point a claim is made at, not a challenge. **A rename in the document is a rename in the implementations**: the Rust prover and verifier, `python-verifier/verifier.py`, and `guests/lean_ethereum.py` name their variables after the document's symbols, so the four have to move together.
+- **Prover and verifier derive layouts identically** from authenticated metadata and announced sizes. Schema, placement and commitment-shape changes must agree across Rust, Python and circuit verification. Preserve typed public coefficient sources through packed constraints rather than baking instance-specific values into circuit topology.
+- **The L0 lane fold binds the committed witness's TOP `INITIAL_FOLDING_FACTOR` variables**, because lane `l` of the interleaved commitment is stack block `q[l·2^(μ-k) ..)`. `whir::commit` encodes only `StackShape::n_lanes` live lanes. A leaf image still has `2^k` words; missing lanes contribute leading zeros, and whole zero-prefix blocks share `hash::zero_prefix_state`. Compact openings carry only live words, while expanded witnesses supplied to circuit and Python verification carry the full image. Fold challenges arrive in round order, while transparent weights use witness coordinates: rotate the terminal point left by `k` before evaluating those weights. Per-level induced weights and the residual remain in round order.
+- A guest panic exits unsuccessfully. Interpreter faults report their PC; use the actual ELF and its disassembly to locate the instruction. Guest source is ordinary Rust, not zkDSL, and memory is mutable and byte-addressed.
+- **One symbol, one meaning, across the whole leanVM document.** Define notation in `doc/leanvm/preamble/macros.tex` and check that its letter is free. Read Annex B's symbol table before renaming. A sumcheck challenge is `\fc`; `\rho` is the rate, and `r` is a claim point. A notation rename must also update the Rust prover/verifiers, Python verifier and native verifier circuits wherever their names follow that notation.
 - **Doc labels are an API.** `crates/pcs` cites `thm:rbr` and `thm:mca-johnson` by name and several crates cite `doc/leanvm/main.tex` sections, so renaming a label breaks those pointers with nothing to catch it. `doc/leanvm/body/NN-*.tex` prefixes match section numbers, so inserting a section renumbers the rest.
 - **No em-dashes or en-dashes in prose**, anywhere a human reads it: docs, LaTeX, comments, commit messages. Restructure with a comma, colon, parentheses, or two sentences.
 - **Never hard-wrap prose in Markdown or LaTeX.** One paragraph is one line; let the editor wrap it. Artificial line breaks make every later edit a reflow, so diffs show rewrapped lines instead of changed words. Applies to `.md` and `.tex` alike; code blocks, tables and list items keep their own line.
@@ -138,11 +144,11 @@ Understand the third before changing the verifier. `guests/lean_ethereum.py` is 
 | `ZK_ALLOC_STATS`                                                                                        | arena peak/phase, high water, overflow           |
 | `ZK_ALLOC_POISON`                                                                                       | fill released arena blocks, to catch use-after-free |
 | `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for `#[ignore]`d benches |
-| `LEANVM_XMSS_N`, `LEANVM_HASH_N`, `LEANVM_HASH_UNROLL`                                                  | workload sizes in tests                          |
+| `LEANVM_HASH_N` | hash-chain workload size |
 | `FLOCK_N_LOG`, `FLOCK_PROVE_TRACE`, `FLOCK_ZC_TIMING`, `LINCHECK_TRACE`                                 | flock batch size, stage traces                   |
 | `PCS_LOG_N`, `PCS_LOG_INV_RATE`, `PCS_MIN_MU`, `PCS_SAMPLES`                                            | PCS throughput bench                             |
 | `WHIR_TRACE`, `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                          | WHIR NTT/Merkle split                        |
-| `DBG_PROF{,_DUMP}`, `DBG_LOOPS`, `DBG_DISASM`, `DBG_LOWER`, `DBG_PLACEHOLDERS` | compiler / guest-cycle attribution               |
+| `LEANVM_GUEST_ELF`, `LEANVM_FIBONACCI_ELF`, `LEANVM_HASH_CHAIN_ELF` | trusted application ELF overrides; otherwise bundled images are used |
 
 ## Side notes
 

@@ -1,6 +1,7 @@
-//! leanVM proves XMSS and SPHINCS signature claims and LeanDA blob well-formedness.
-//!
-//! Release only: the zkDSL compiler [`setup_verifier`] runs overflows the debug stack.
+//! leanVM proves XMSS and SPHINCS signature claims through native recursion.
+//! Signature checks run as RV64IM applications under a trusted ELF.
+//! LeanDA commitments and execution checks are available; aggregate DA proving
+//! awaits native DA circuits and authenticated row coverage.
 //!
 //! End to end in [`tests/api.rs`](https://github.com/leanEthereum/leanVM/blob/main/tests/api.rs).
 
@@ -9,10 +10,19 @@ pub use rec_aggregation::{
     MAX_DA_ROOTS, MAX_EPOCHS, MAX_KEYS, MAX_RECURSIONS, SignatureClaims, SphincsClaim, XmssClaimGroup, aggregate,
 };
 
-pub use lean_vm::{
-    cpu::CpuError,
-    pcs::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE},
-};
+pub use lean_vm::pcs::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE};
+
+/// Native RV64IM execution and strict ELF loading.
+pub mod riscv {
+    pub use ::riscv::*;
+}
+
+/// Direct RV64IM application proofs, distinct from [`EthereumProof`]'s native
+/// recursive transport.
+pub mod proof {
+    pub use riscv_proof::host::prove;
+    pub use riscv_proof::{Error, ProgramInfo, Proof, VerifySummary, verify};
+}
 
 /// LeanDA commitments. Blob symbols are `u64` words read in little-endian byte order.
 pub mod lean_da {

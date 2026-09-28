@@ -309,9 +309,8 @@ pub struct ProductTriple {
 pub enum RootShape {
     /// Three unrelated products: every root is sent.
     Distinct,
-    /// The first two trees share a product by construction, as the bus's two sides do
-    /// (`cpu::filler` fills every table to a power of two, so they balance outright). ONE root
-    /// is then sent for both, and no verifier can be handed an unbalanced pair to check.
+    /// The first two trees share the balanced bus product. ONE root is sent for
+    /// both, so a verifier cannot be handed an unbalanced pair to check.
     FirstTwoShared,
 }
 

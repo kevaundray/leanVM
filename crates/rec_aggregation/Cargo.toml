@@ -11,9 +11,11 @@ workspace = true
 primitives.workspace = true
 parallel.workspace = true
 pcs.workspace = true
-flock.workspace = true
-lean_vm.workspace = true
-lean_compiler.workspace = true
+riscv = { path = "../riscv" }
+riscv_proof = { path = "../riscv_proof", features = ["host"] }
+recursion = { path = "../recursion" }
+leanvm_aggregation_guest = { path = "../aggregation_guest" }
+ethereum_ssz.workspace = true
 xmss.workspace = true
 sphincs.workspace = true
 lean_da.workspace = true

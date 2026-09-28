@@ -131,6 +131,11 @@ pub trait LincheckCircuit: Sync {
     /// transcript message.
     fn const_pin_col(&self) -> usize;
 
+    /// Optional zero-wire pin, batched at alpha^4 with target zero.
+    fn zero_pin_col(&self) -> Option<usize> {
+        None
+    }
+
     /// Optional verifier-side fast path (doc/leanvm, Annex C): the
     /// α-batched bilinear form
     ///
@@ -1032,6 +1037,9 @@ pub fn prove_padded_capture_s_hat_v(
     //    and this is a single entry update. See `LincheckCircuit::const_pin_col`.
     let beta = alpha_sq * alpha;
     comb_vec[circuit.const_pin_col()] += beta;
+    if let Some(column) = circuit.zero_pin_col() {
+        comb_vec[column] += alpha_sq.square();
+    }
 
     // 5. Partial fold of z at the shared outer half (length-k F192 vector).
     let t = std::time::Instant::now();
@@ -1205,6 +1213,9 @@ pub fn verify(
         None => inner_product_ext(&circuit.fold_alpha_batched(alpha, &eq_inner), &w_col),
     };
     final_sum += beta * w_col[circuit.const_pin_col()];
+    if let Some(column) = circuit.zero_pin_col() {
+        final_sum += alpha_sq.square() * w_col[column];
+    }
     // The c term's `⟨eq_inner, w_col⟩`, by the tensor structure of both sides:
     // `eq_inner = eq(x_inner_rest) ⊗ λ(z_skip)` and `w_col = eq(r_inner_rest) ⊗
     // z_partial`, so it is 8 eq factors times a 64-term Lagrange combination

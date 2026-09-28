@@ -11,169 +11,83 @@
   <a href="./python-verifier/verifier.py"><img src="https://img.shields.io/badge/verifier-python-yellow?style=for-the-badge&logo=python&logoColor=white" alt="Python verifier"></a>
 </p>
 
-<table align="center">
-  <tr>
-    <td><a href="#xmss-aggregation">leanXMSS aggregation</a></td>
-    <td align="right"><b>1.2K/s</b></td>
-  </tr>
-  <tr>
-    <td><a href="#sphincs-aggregation">leanSPHINCS aggregation</a></td>
-    <td align="right"><b>280/s</b></td>
-  </tr>
-  <tr>
-    <td><a href="#data-availability">leanDA commitment</a></td>
-    <td align="right"><b>2 MiB/s</b></td>
-  </tr>
-</table>
-<table align="center">
-  <tr>
-    <td><a href="#recursion">2-to-1 recursion</a></td>
-    <td align="right"><b>0.29s</b></td>
-  </tr>
-  <tr>
-    <td><a href="#hashing">hash compressions</a></td>
-    <td align="right"><b>480K/s</b></td>
-  </tr>
-  <tr>
-    <td><a href="#fibonacci">cheap cycles</a></td>
-    <td align="right"><b>5.4M/s</b></td>
-  </tr>
-</table>
+## Native RV64IM
 
-## security
+leanVM proves execution of native RV64IM ELF programs compiled from Rust `no_std` guests. The machine has 32 integer registers, 64-bit integer arithmetic, and mutable byte RAM in `[0, 2^32)`. Native instruction decoding, executable fetch, register state, memory initialization, permissions, and chronological reads/writes are checked by the proof.
 
-leanVM is designed for security:
+The proof system retains binary-field arithmetic, WHIR commitments, and Flock's BLAKE2s compression argument. Proof-field elements are not ISA words. Cryptographic ECALLs expose BLAKE2s compression and three-limb F192 multiplication with proof-checked inputs and outputs.
 
- * 128-bit ROM (64-bit QROM) soundness
- * no proximity gap conjecture
- * end-to-end formal verification
- * a traditional hash function
+## Build
 
-**warning**: Formal verification is [in progress](https://github.com/Verified-zkEVM/leanerVM). leanVM is not (yet) production ready.
+Install Rust through [rustup](https://rustup.rs/), including a nightly toolchain with the standard-library source:
 
-## work in progress
+```bash
+rustup toolchain install nightly --component rust-src
+./scripts/build-guests.sh
+cargo build --release
+```
 
-Expect leanVM to change significantly:
+The exact guest target is `riscv64im-unknown-none-elf`, a Tier 3 target. The script uses `cargo +nightly -Z build-std=core,alloc` with that target and the guest runtime/linker flags. It enables scalar unaligned-memory lowering because the VM supports misaligned data accesses; this does not add instructions outside RV64IM. There is no prebuilt target standard library to install as a replacement for `rust-src`. Do not substitute an `imac`, floating-point, or CSR-enabled target.
 
-* **hash**: BLAKE2s is a placeholder. SHA2, SHA3, BLAKE3 are actively considered.
-* **ISA**: A migration from leanISA to RISC-V (rv64im) is planned.
-* **zk**: Support for zero-knowledge is planned.
+The workspace's default target remains the native host. Host Cargo builds can invoke the guest build script through their build integration; do not globally configure Cargo to build every crate for RISC-V.
 
-**note**: Prior to binary fields leanVM used [KoalaBear](https://crates.io/crates/p3-koala-bear) and [Poseidon](https://eprint.iacr.org/2019/458). The historical design is in [this branch](https://github.com/leanEthereum/leanVM/tree/koalabear).
+## Rust guests
 
-## benchmarks
+`crates/guest` provides the `leanvm_guest` SDK. A guest enables its `runtime` feature, uses `#![no_std]` and `#![no_main]`, links with `crates/guest/link.x`, and declares an entry with `leanvm_guest::entry!`. The entry function returns `u64`: zero exits successfully, while nonzero status or a panic fails.
 
-**machine**: M4 Max MacBook Pro (12 performance cores, 4 efficiency cores, 48GB RAM)
+The linker starts the image at `0x10000`, separates writable and executable segments, and reserves a 16 MiB stack below `2^32`. The bounded bump allocator does not reclaim allocations before exit. Calls use the RISC-V integer psABI.
 
-**note**: The Metal GPU was not used.
+| Service | `a7` | Arguments | Result |
+| --- | --- | --- | --- |
+| Exit | `0` | `a0`: status, required zero | Halt |
+| Read witness | `1` | `a0`: destination; `a1`: byte length | Length |
+| Read public input | `2` | `a0`: destination for 32 bytes | `32` |
+| BLAKE2s compression | `0x100` | `a0`: 64-byte message; `a1`: 32-byte chaining value; `a2`: 16-byte metadata; `a3`: 32-byte output | `0` |
+| F192 multiplication | `0x101` | `a0,a1,a2`: left operand limbs; `a3,a4,a5`: right operand limbs | Product limbs in `a0,a1,a2` |
+
+All multibyte memory values use little-endian encoding. BLAKE2s inputs are read before output writes, including overlapping buffers. F192 multiplication uses registers only and returns the coefficients of `1, y, y²` in order. Witness bytes are untrusted: the guest must validate its application's claims before returning zero. Use the SDK's `Hasher` or `hash` for complete BLAKE2s hashing rather than treating compression as a complete hash API.
+
+## Aggregation
+
+The Rust aggregation guest verifies every raw signature and direct DA witness, checks coverage of the canonical declared statement, and binds the exact ordered child statements, authorized keys, and heights to its execution public input. Child proof verification runs in the dedicated field-native recursion circuit, not in the RV64IM guest. Supplied contributions are checked even when duplicated or omitted from the published statement.
 
 ### XMSS aggregation
 
-The XMSS parameters are specified in [XMSS.pdf](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/XMSS.pdf), with a [(ROM) security proof in Lean 4](https://github.com/leanEthereum/leanMultisig/blob/main/formal/xmss/XmssSecurity/Statement.lean).
-
-```bash
-cargo run --release -- aggregate --xmss 900 --log-inv-rate 1 --repeat 3
-```
-
-```
-aggregation, 900 XMSS signatures
-  cycles (VM steps)           : 1,573,849 = 2^20.586
-    details                   : DEREF 2^18.947 (32.1%)  SET 2^18.528 (24.0%)  MUL 2^18.259 (19.9%)  BLAKE2S 2^16.989 (8.3%) XOR 2^16.979 (8.2%)  JUMP 2^16.839 (7.4%)  MEMORY 2^21.305  TOTAL_COMMITTED 2^26.195
-  proof size                  : 295.4 KiB
-  proving time                : 0.749 s ± 2.1%      peak memory 8.769 GiB
-  per signature               : 1,201.795 signatures/s
-  verifying                   : 3.799 ms
-```
+XMSS claims group sorted public keys by epoch and message. Conflicting messages within one epoch are rejected. The signature parameters are specified in [XMSS.pdf](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/XMSS.pdf), with a [ROM security proof in Lean 4](https://github.com/leanEthereum/leanMultisig/blob/main/formal/xmss/XmssSecurity/Statement.lean).
 
 ### SPHINCS aggregation
 
-The SPHINCS parameters are specified in [SPHINCS.pdf](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/SPHINCS.pdf), with a [(ROM) security proof in Lean 4](https://github.com/leanEthereum/leanMultisig/blob/main/formal/sphincs/SphincsSecurity/Statement.lean).
+SPHINCS+ claims are sorted key/message pairs. The signature parameters are specified in [SPHINCS.pdf](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/SPHINCS.pdf), with a [ROM security proof in Lean 4](https://github.com/leanEthereum/leanMultisig/blob/main/formal/sphincs/SphincsSecurity/Statement.lean).
 
-```bash
-cargo run --release -- aggregate --sphincs 245 --log-inv-rate 1 --repeat 3
-```
+### Data availability
 
-```
-aggregation, 245 SPHINCS signatures
-  cycles (VM steps)           : 2,132,425 = 2^21.024
-    details                   : XOR 2^18.951 (23.8%)  MUL 2^18.93 (23.4%)  SET 2^18.847 (22.1%)  DEREF 2^18.711 (20.1%)  BLAKE2S 2^16.992 (6.1%)  JUMP 2^16.543 (4.5%)  MEMORY 2^21.564  TOTAL_COMMITTED 2^26.301
-  proof size                  : 300.1 KiB
-  proving time                : 0.861 s ± 1.5%      peak memory 9.348 GiB
-  per signature               : 284.603 signatures/s
-  verifying                   : 3.841 ms
-```
+LeanDA uses additive Reed-Solomon encoding and a two-branch Merkle commitment. The guest checks the encoded matrix, derives its membership vector from the root, and checks every row's membership. Published statements retain the verified roots.
 
-### data availability
+Native DA proving is deferred. The direct RV64IM DA computation currently exceeds the proof capacity, so blob aggregation does not yet produce a proof. TODO: add field-native DA circuits with authenticated row coverage, preserving the existing commitments and public API. DA verification/reference tests remain available; DA proof workflows are explicitly marked pending.
 
-```bash
-cargo run --release -- aggregate --blobs 16 --log-inv-rate 1 --repeat 3
-```
+### Recursion
 
-```
-aggregation, 16 blobs
-  cycles (VM steps)           : 2,989,506 = 2^21.511
-    details                   : MUL 2^19.899 (32.7%)  XOR 2^19.809 (30.7%)  DEREF 2^19.138 (19.3%)  JUMP 2^18.299 (10.8%)  SET 2^16.787 (3.8%)  BLAKE2S 2^16.295 (2.7%)  MEMORY 2^21.696  TOTAL_COMMITTED 2^26.695
-  proof size                  : 322.4 KiB
-  proving time                : 0.998 s ± 0.9%      peak memory 12.646 GiB
-  blob throughput             : 16.032 blobs/s, 2.004 MiB/s
-  verifying                   : 6.659 ms
-```
+`crates/riscv_proof` contains the portable `no_std` execution verifier; `crates/recursion` implements `Recursor` and `NodeProof`. Every native node verifies one mandatory RV64IM execution proof and zero, one, or two native child proofs. Its nine public F192 fields encode four little-endian u64 words of the canonical statement digest, four words of the same authorized key digest, and a checked u32 height. Leaves have height zero; parents have one plus the maximum child height without overflow. The guest witness contains child metadata, not child proof bytes or ELF copies.
 
-### recursion
+`Statement::digest()` hashes the statement domain and canonical encoding. `leanvm_guest::deferred` defines the public-field hash, ordered child-claim hash, and execution binding; `leanvm_aggregation_guest::public_input(&statement, &children)` constructs that binding. The root verifier builds `Recursor::new(&ProgramInfo)` from the trusted expected ELF. The resulting key authenticates the fixed circuit metadata and dataflow, rather than trusting a proof-provided circuit descriptor. Its digest is carried unchanged through children, so no program or key digest fixed point is required.
 
-```bash
-cargo run --release -- recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3
-```
+The native13 arithmetization has separate authenticated fixed and private WHIR commitments. It checks field-operation tables, dataflow, Flock matrix evaluations, ring switching, and complete authenticated openings. Each node completes the full execution verifier and each enabled child verifier in this circuit; host prechecks are diagnostics, not proof obligations discharged outside it.
 
-```
-recursion 2→1, over leaves of 900 XMSS signatures
-  cycles (VM steps)           : 570,113 = 2^19.121
-    details                   : MUL 2^17.838 (41.1%)  DEREF 2^16.988 (22.8%)  XOR 2^16.747 (19.3%)  SET 2^15.79 (9.9%)  JUMP 2^14.488 (4.0%)  BLAKE2S 2^13.978 (2.8%)  MEMORY 2^19.507  TOTAL_COMMITTED 2^24.086
-  proof size                  : 191.3 KiB
-  proving time                : 0.287 s ± 15.9%      peak memory 10.124 GiB
-  verifying                   : 4.121 ms
-```
+The external `aggregate` API accepts at most 16 child aggregates and publishes at most 16 DA roots. Internal binary folding retains all intermediate claims before final selection, with capacity for 257 DA roots: 16 roots from each external child plus one direct whole-matrix commitment. Every duplicate or unpublished input remains checked, contribution and epoch bounds remain enforced, and a multi-row DA commitment is not split into different roots.
 
-### hashing
+Execution proof transport remains `RV64PRF1`; native `NodeProof` transport uses `RVNODE01`. Aggregate transport uses `RVAGG002`, or `RVAGGO02` when public keys are supplied separately, with no legacy proof fallback. The guest input payload also uses `RVAGG002` but has its own witness codec. Parsing is not verification: malformed encodings, failed constraints, invalid openings, and unconsumed proof data are rejected.
 
-```bash
-BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo test --release --package flock --test batch_proving_hashes -- hash_batch_prove_verify --exact --nocapture --include-ignored
-```
+## Security and status
 
-```
-Flock BLAKE2s batch proving, 262,144 compressions (2^18 slots)
-  setup (preprocessing, excluded) :      0.0 ms
-  witness-gen                     :     64.6 ms ± 7.8%   10.6%
-  commit                          :    101.2 ms ± 0.4%   16.6%
-  zerocheck                       :    238.3 ms ± 3.9%   39.0%
-  lincheck                        :     20.3 ms ± 12.2%   3.3%
-  pcs opening                     :    186.0 ms ± 2.9%   30.5%
-  other                           :      0.0 ms           0.0%
-  ------------------------------------------
-  prove TOTAL (witness excluded)  :    545.8 ms ± 1.1%   89.4%
-  verify                          :      1.9 ms
-  throughput                      :        480,319 compressions/s ± 1.1%
-  (~3289.9 XMSS/s equivalent at 146 compressions/signature)
-```
+leanVM is a research system and is not production ready. [Formal verification is in progress](https://github.com/Verified-zkEVM/leanerVM); this is not a claim of completed formal verification of the native RV64IM implementation.
 
-### Fibonacci
-
-```bash
-cargo run --release -- fibonacci --n 2000000 --log-inv-rate 1 --repeat 3
-```
-
-```
-Fibonacci (in the exponent, i.e. modulo 2^64 - 1), N = 2,000,000
-  cycles (VM steps)           : 2,127,880
-    details                   : MUL 2^20.944 (98.9%)  SET 2^13.288 (0.5%)  DEREF 2^12.967 (0.4%)  JUMP 2^10.968 (0.1%)  XOR2^10.966 (0.1%)  MEMORY 2^20.96  TOTAL_COMMITTED 2^25.26
-  proof size                  : 285.4 KiB
-  proving                     : 0.391 s ± 1.1%   5,442,734 cycles/s      peak memory 5.203 GiB
-  verifying                   : 2.092 ms
-```
+The proof machinery targets 128-bit ROM soundness and 64-bit QROM soundness without a proximity-gap conjecture. These are design goals, not a substitute for an end-to-end security audit. Zero-knowledge support remains planned. BLAKE2s is the current hash function; alternatives are under consideration.
 
 ## SNARK machinery
 
-- 192-bit binary field (degree-3 tower over the 64-bit field)
-- [WHIR](https://eprint.iacr.org/2024/1586) PCS, aka [Ligerito](https://eprint.iacr.org/2025/1187)
+- `GF(2^64)` commitment lanes and a degree-three, 192-bit binary extension field for challenges
+- [WHIR](https://eprint.iacr.org/2024/1586) polynomial commitments
 - [Flock](https://github.com/succinctlabs/flock/tree/main) hash proving
-- [Binius](https://github.com/IrreducibleOSS/binius)/[Binius64](https://github.com/binius-zk/binius64) ring switching, M3 arithmetisation, and more (see [DP23](https://eprint.iacr.org/2023/1784) and [DP24](https://eprint.iacr.org/2024/504))
+- [Binius](https://github.com/IrreducibleOSS/binius)/[Binius64](https://github.com/binius-zk/binius64) ring switching and M3 arithmetization influences, including [DP23](https://eprint.iacr.org/2023/1784) and [DP24](https://eprint.iacr.org/2024/504)
+
+The [technical PDF](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/leanVM.pdf) is built from `doc/leanvm`. Prior to binary fields, leanVM used KoalaBear and Poseidon; that historical design is preserved on the [koalabear branch](https://github.com/leanEthereum/leanVM/tree/koalabear).

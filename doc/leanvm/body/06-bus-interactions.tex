@@ -1,100 +1,67 @@
 % !TeX root = ../drafts/06-bus-interactions.tex
 \section{Bus interactions}\label{sec:omc}
 
-The machine runs three interactions on the bus, differentiated by their domain separators (\S\ref{sec:m3}): the VM state, the read-only memory, and the public bytecode. The last two are lookups using offline memory checking~\cite{BEGKN94}.
+Domain-separated bus channels bind CPU transitions, immutable ELF bytes, RAM events, register events, sorted histories, and witness-copy iterations. Every coordinate is a degree-at-most-two polynomial over $\K$. Packed addresses and values retain their integer bit representations; field multiplication of a lookup counter does not change the machine's addressing convention.
 
-\subsection{VM State}\label{sec:state}
+\subsection{CPU state}\label{sec:state}
 
-The state interaction uses domain separator $\dsep{ST} = \gen^{0}$, and carries the 2 registers, program counter and frame pointer: $\tup{\dsep{ST},\pc,\fp}$. Each instruction row pulls its current state and pushes its successor $\tup{\dsep{ST},\nxt{\pc},\nxt{\fp}}$; the bus is preseeded by pushing the initial state $\tup{\dsep{ST},\pc_{\mathrm{initial}},\fp_{\mathrm{initial}}} = \tup{\dsep{ST},\gen^0,\gen^0}$ and pulling the final state $\tup{\dsep{ST},\pc_{\mathrm{final}},\fp_{\mathrm{final}}} = \tup{\dsep{ST},\gen^{\nprog - 1},\gen^0}$ (boundary conditions).
-\begin{proposition}[Balance implies the existence of a valid execution]\label{prop:walk}
-Let $\mathcal R$ be a finite multiset of rows, each pulling a state $\bpull(r)$ and pushing a state $\bpush(r)$, and suppose the state channel balances:
-\[
-  \mset{\bpush(r):r\in\mathcal R}\uplus\mset{(\pc_{\mathrm{initial}},\fp_{\mathrm{initial}})}
-  \;=\;\mset{\bpull(r):r\in\mathcal R}\uplus\mset{(\pc_{\mathrm{final}},\fp_{\mathrm{final}})} .
-\]
-Then $\mathcal R$ splits into rows $r_1,\dots,r_L$ with
-\[
-  \bpull(r_1)=(\pc_{\mathrm{initial}},\fp_{\mathrm{initial}}),\qquad \bpush(r_i)=\bpull(r_{i+1}),\qquad \bpush(r_L)=(\pc_{\mathrm{final}},\fp_{\mathrm{final}}),
-\]
-and rows forming closed walks.
+An enabled CPU row pulls $\tup{\dsep{CPU},\pc,\rvcycle,0}$ and pushes its successor. Ordinary successors are $\tup{\dsep{CPU},\nxt{\pc},\rvcycle+1,0}$; EXIT pushes $\tup{\dsep{CPU},0,\rvcycle+1,1}$. One public boundary pushes $\tup{\dsep{CPU},\rventry,0,0}$ and pulls $\tup{\dsep{CPU},0,\rvcycles,1}$. Enabled cycles lie in $[0,\rvcycles)$, with $0<\rvcycles<2^{32}$, and increment without wrap.
+
+\begin{proposition}[Balanced transition rows]\label{prop:walk}
+Let a finite multiset of rows pull states $\bpull(r)$ and push states $\bpush(r)$. If adding one initial push and one final pull balances the state channel, its rows decompose into a walk from the initial state to the final state and closed walks.
 \end{proposition}
-
 \begin{proof}
-Build the directed multigraph $G$ on the states: one edge $\bpull(r)\to \bpush(r)$ per row, plus one edge $e$ from $(\pc_{\mathrm{final}},\fp_{\mathrm{final}})$ to $(\pc_{\mathrm{initial}},\fp_{\mathrm{initial}})$.
-
-Fix a state $x$. Its in-degree in $G$ counts the rows with $\bpush(r)=x$, plus $e$ if $x=(\pc_{\mathrm{initial}},\fp_{\mathrm{initial}})$. Its out-degree counts the rows with $\bpull(r)=x$, plus $e$ if $x=(\pc_{\mathrm{final}},\fp_{\mathrm{final}})$. Those two counts are the multiplicities of $x$ on the two sides of the hypothesis, so they are equal: $G$ is balanced at every state.
-
-A finite balanced multigraph is a union of edge-disjoint closed walks: follow unused edges from any vertex, which balance always permits on entering one, until a vertex repeats; remove the closed walk found and repeat. Deleting $e$ from the closed walk that contains it leaves $r_1,\dots,r_L$.
+Make one directed edge per row, from its pulled state to its pushed state, and add an edge from the final state to the initial state. Balance makes every vertex's in-degree equal its out-degree. Decompose this finite balanced multigraph into edge-disjoint closed walks. Removing the added edge leaves the asserted initial-to-final walk.
 \end{proof}
+For enabled RV64IM rows, a closed walk is impossible: the bounded integer cycle strictly increases. Thus all enabled rows belong to the execution. Disabled padding has matching null bus tuples, rather than extra architectural cycles (\S\ref{sec:e2e-pad}).
 
-\begin{remark}
-  Tolerating closed walks is what lets a table be filled to a power of two (\S\ref{sec:e2e-pad}).
-\end{remark}
+\subsection{Immutable lookup protocol}\label{sec:lookup}
 
-\subsection{The lookup protocol}\label{sec:lookup}
-
-We use a similar idea to~\cite[Protocol.~4.27]{DP23}.
-
-\paragraph{Setting.} A \emph{lookup array} $\lut$ holds $2^{\kappa}$ entries, entry $\lut[i]$ being a tuple of $\ncomp$ elements of $\K$. Its \emph{components} $\lut_0,\dots,\lut_{\ncomp-1}$ are the multilinears of height $2^{\kappa}$ holding one coordinate of the entry each: they are either committed or public. A \emph{read} is a row of a table (\S\ref{sec:m3}) naming an address $a\in\K$ and a value $v\in\K^{\ncomp}$, and is correct when $a=\gen^{i}$ and $v=\lut[i]$ for some $i<2^{\kappa}$.
-
-\paragraph{Tuple and columns.} The bus interaction uses a tuple of the form $\tup{\sep,\addr,\cnt,\val}$: a domain separator naming the array, the address, the count, then the entry in coordinates $3,\dots,\ncomp+2$. Every higher coordinate is zero, so $\ncomp\le m-3$ for the bus width $m$ (\S\ref{sec:m3}). Take every part of a read to be a committed $\K$-valued column of the reading table: its address, its count, and the $\ncomp$ components of the value read. Committed on top of $\lut$ is one finalize-count $\K$-valued column $\cntfin$ of height $2^{\kappa}$.
-
-\paragraph{Flush rules.} With $A[i]$ the number of reads of address $\gen^{i}$:
-\begin{itemize}
-\item \textbf{Seed:} for each $i<2^{\kappa}$, \push\ $\tup{\sep,\gen^{i},1,\lut[i]}$. A boundary block owned by no table, its address coordinate the index column of \S\ref{sec:idxcol}.
-\item \textbf{Read} of $v$ at $a$ with count $\cnt$: \pull\ $\tup{\sep,a,\cnt,v}$ and \push\ $\tup{\sep,a,\gen\cdot\cnt,v}$, both flushes of the reading row.
-\item \textbf{Finalize:} for each $i$, \pull\ $\tup{\sep,\gen^{i},\cntfin[i],\lut[i]}$. An honest prover commits $\cntfin[i]=\gen^{A[i]}$, the count the address has reached.
+The counted lookup argument is used only for the public ROM, not for mutable RAM. Its algebraic core follows offline memory checking~\cite{BEGKN94} and \cite[Protocol~4.27]{DP23}. A public array has entries $\tup{a_i,\lut[i]}$, where $a_i$ is an ordinary integer address packed into $\K$; its value may have several coordinates. The following generic argument does not require exponent-encoded addresses.
+\begin{itemize}[itemsep=1pt,topsep=3pt]
+\item \textbf{Seed:} for every array entry, push $\tup{\sep,a_i,1,\lut[i]}$.
+\item \textbf{Read:} pull $\tup{\sep,a,c,v}$ and push $\tup{\sep,a,\gen c,v}$.
+\item \textbf{Finalize:} for every entry, pull $\tup{\sep,a_i,\cntfin[i],\lut[i]}$.
 \end{itemize}
-
-\paragraph{Completeness.} An honest prover gives the $t$-th read of $\gen^{i}$ the count $\gen^{t}$ and commits $\cntfin[i]=\gen^{A[i]}$: both sides then carry the counts $\gen^{0},\dots,\gen^{A[i]}$ at that address, so the bus balances.
+If an entry is read $A_i$ times, the honest finalize count is $\gen^{A_i}$ and its successive read counts start at $1$. Only the counts, not the addresses, use powers of $\gen$.
 
 \begin{lemma}[Invariant count multisets]\label{lem:invcnt}
-Let $\rcnts$ be a finite multiset over $\K$ with $\gen\cdot\rcnts=\rcnts$. If $|\rcnts|<2^{64}-1$, every element of $\rcnts$ is $0$.
+Let $\rcnts$ be a finite multiset over $\K$ with $\gen\rcnts=\rcnts$. If $|\rcnts|<2^{64}-1$, every element of $\rcnts$ is zero.
 \end{lemma}
-
 \begin{proof}
-Let $\mathrm{mult}:\K\to\mathbb{N}$ be the multiplicity function of $\rcnts$ (Definition~\ref{def:multiset}). Multiplication by $\gen$ is a bijection of $\K$ and $\gen\cdot\rcnts$ has multiplicity function $c\mapsto\mathrm{mult}(\gen^{-1}c)$, so the hypothesis reads $\mathrm{mult}(\gen c)=\mathrm{mult}(c)$ for all $c$. Every nonzero $c$ is a power of $\gen$, so iterating this gives one value $\mathrm{mult}_1$ on all of $\K^{\times}$, which has $2^{64}-1$ elements. Then $|\rcnts|=\mathrm{mult}(0)+\mathrm{mult}_1(2^{64}-1)<2^{64}-1$ forces $\mathrm{mult}_1=0$.
+Multiplication by $\gen$ permutes the multiset and acts transitively on $\K^\times$. Every nonzero field element therefore has the same multiplicity. A nonzero multiplicity would contribute at least $2^{64}-1$ entries, contrary to the bound.
 \end{proof}
 
 \begin{theorem}[Lookup correctness]\label{thm:omc}
-Let the flush rules above be the only flushes carrying $\lut$'s separator, and write $(a_j,c_j,v_j)$ for the address, count and value that read $j$ evaluates to. If the bus balances, every $c_j\neq0$, and there are fewer than $2^{64}-1$ reads, then every read is correct: $(a_j,v_j)=(\gen^{i},\lut[i])$ for some $i<2^{\kappa}$.
+Suppose these are the only flushes with separator $\sep$, the bus balances, every read count is nonzero, and there are fewer than $2^{64}-1$ reads. Then every read pair $(a,v)$ equals some public entry $(a_i,\lut[i])$.
 \end{theorem}
-
 \begin{proof}
-Fix a read pair $(a,v)$ that is \emph{not} an entry of the array, so $(a,v)\neq(\gen^{i},\lut[i])$ for every $i<2^{\kappa}$. Balance equates the multiset of pushed tuples with the multiset of pulled ones; keep in each only the tuples carrying $\lut$'s separator, address $a$ and entry $v$, and the two are still equal. A seed and a finalization sit at the pairs $(\gen^{i},\lut[i])$, different from $(a,v)$, so neither survives. A read at $(a,v)$ does, on both sides at once: it pulls its count $c$ and pushes $\gen c$. So the survivors are exactly the reads at $(a,v)$.
-
-Writing $\rcnts$ for the multiset of counts of the reads at $(a,v)$, balance therefore says $\gen\cdot\rcnts=\rcnts$. There are fewer than $2^{64}-1$ of them, so Lemma~\ref{lem:invcnt} makes every count in $\rcnts$ zero; every count is nonzero by hypothesis, so $\rcnts$ is empty. No read happens at such an invalid $(a,v)$.
-
+Fix a pair absent from the public array. Filtering the balanced bus by separator and this pair removes every seed and finalization. Its read-count multiset satisfies $\gen\rcnts=\rcnts$, so Lemma~\ref{lem:invcnt} makes every surviving count zero. Nonzero read counts force the multiset to be empty.
 \end{proof}
-
 \begin{corollary}[Addresses are in range]\label{cor:addrrange}
-Under the same hypotheses every read address is an entry address $\gen^{i}$, $i<2^{\kappa}$: no read at any other address, $0$ included, occurs in an accepted proof (except with negligible soundness error).
+Under the same hypotheses, an enabled ROM read has a tagged key occurring in the public ROM. Instruction entries exist only for executable words, and the CPU checks program-counter alignment and bounds. RAM bounds are checked by the memory circuit.
 \end{corollary}
 
-\paragraph{Nothing checks the finalize counts.} $\cntfin$ appears nowhere in Theorem~\ref{thm:omc} or its proof. A wrong value (such as $0$ for instance) cannot make a bad read pass; it can only unbalance the bus at that entry, making the proof invalid.
+\paragraph{Disabled reads and count product.} Let $e$ be a Boolean lookup-enable bit. Disabled reads emit the same tuple on both sides: separator, address, and value are multiplied by $e$, while the pull count remains $c$ and the push count is $c+e(\gen+1)c$. Thus inactive counts remain nonzero, rather than becoming zero. The third GKR product proves that all lookup-count columns have nonzero product. Enabled reads obey the theorem after the identical inactive tuples cancel. The fixed lookup rules have one instruction-word lookup per CPU row and one initialization lookup per RAM row; table-height caps keep the total below $2^{64}-1$. Finalize counts need no separate semantic check: an incorrect one can only unbalance its public entry.
 
-\paragraph{Meeting the hypotheses.} Grand-product GKR checks balance (\S\ref{sec:gp}). It remains to check that all counts are nonzero, and the $\nread<2^{64}-1$ read bound, as follows.
+\subsection{Mutable RAM and register histories}\label{sec:memchan}
 
-\paragraph{The count product.} All counts are nonzero exactly when their product is. The prover therefore sends that product, one $\E$-element, and the verifier checks it is nonzero. It is proven like any other grand product, by GKR over the stacking of every count column (\S\ref{sec:leafstack}), batched with the two other GKRs of the bus (push / pull) (\S\ref{sec:gkr}).
+Each architectural access emits an event $\tup{\dsep{RAM},\addr,\rvtime,v_{\mathrm{before}},v_{\mathrm{after}},w}$, or the corresponding \texttt{REG} tuple. The write indicator $w$ is Boolean. RAM events have $32$-bit addresses and $8$-bit values; register events have $5$-bit addresses and $64$-bit values. A read preserves its value. CPU and ECALL tables emit the events; a separate history table consumes exactly the same multiset.
 
-\paragraph{Instance caps.} The verifier checks the announced sizes against public caps (\S\ref{sec:e2e-unrolled}): at most $2^{32}$ rows per table, at most $2^{32}$ memory cells (\S\ref{sec:memchan}) and at most $2^{32}$ bytecode instructions (\S\ref{sec:bytecode}). A row reads at most ten times (\texttt{BLAKE2S}: nine cells and its bytecode entry), so the six tables flush $\nread\le10\cdot6\cdot2^{32}<2^{38}$ reads, far under the $2^{64}-1$ that Lemma~\ref{lem:invcnt} requires.
+RAM timestamps concatenate a $32$-bit cycle and $32$-bit slot, $\rvtime=\rvcycle\,2^{32}+\mathit{slot}$. Register timestamps concatenate the cycle and a $4$-bit slot, $\rvtime=\rvcycle\,2^4+\mathit{slot}$. These are bounded integer concatenations, not field multiplication. Register reads precede destination writes. Within a BLAKE2s ECALL, all input-byte events precede output-byte events. F192 multiplication has only register events. The witness-copy byte index supplies its RAM slot.
 
-\paragraph{Relaxing the hypotheses.} A bus entry may be any polynomial of degree at most $d = 2$ in the row's columns (\S\ref{sec:m3}), so none of the three (address, count, value) need be committed. Example 1: we don't need to commit memory addresses of the form $\fp\cdot o$ (\S\ref{sec:memchan}) when $\fp$ and $o$ are already committed. Example 2: once the pull counter $\cnt$ is committed, no need to commit to the corresponding push counter $\gen\cdot\cnt$.
+\paragraph{Sorted chain.} The history table has a row index, previous address/time/value, and the current event. One boundary seeds index zero with zero previous state; one terminal pull binds the padded row count and the announced final address/time/value. Every row advances the index by one without wrap. An event is active exactly when its index is below the announced real event count. Active rows are sorted lexicographically by address then time, with strictly increasing times for the same address. Equal-address successors require the current before-value to equal the preceding after-value. The unique seed and bounded, incrementing index exclude disconnected cycles, duplicate indices, and invented initial histories. Padding preserves the last history state while advancing only the row index.
 
-\subsection{Memory}\label{sec:memchan}
+\paragraph{Initialization and permissions.} At the first event for each address, RAM's before-value is the corresponding ELF file byte, proved by a ROM lookup, or zero for BSS and otherwise unmapped RAM. Segment read/write permissions constrain each active data event. Registers initialize to zero except \texttt{sp}$=2^{32}$; every access to \texttt{x0} has before- and after-value zero. Address, time, byte, and register ranges are enforced by bit decomposition. Therefore a prover cannot reset a mutable location to another advised value, substitute a host snapshot, or reorder overlapping writes without breaking a constraint or a bus equality.
 
-The memory is an array of $\nmem = 2^{\kmem}$ cells, $16\le\kmem\le32$ (\S\ref{sec:vm}). Bus interaction uses domain separation $\sep=\dsep{MEM} = \gen^{1}$. A memory word is $192$-bit (i.e. one $\E$-element), so $\ncomp=3$, memory is committed as 3 $\K$-valued multilinears in $\kmem$ variables $\mem_0,\mem_1,\mem_2$.
+\subsection{Public ELF ROM}\label{sec:bytecode}
 
-\subsection{Bytecode}\label{sec:bytecode}
+The public ROM contains every file-backed byte at its virtual address shifted left once, and executable instruction words at aligned program counters shifted left once with the low bit set. Entries are sorted by these tagged keys. Every included instruction word has four executable bytes; a BSS byte contributes zero. Words wholly in BSS decode to no supported instruction and need not be materialized. A CPU row authenticates its raw $32$-bit instruction with one word lookup. First RAM accesses to file-backed data use the even-key byte entries. Writable data can subsequently change through RAM events; executable segments cannot be written.
 
-The bytecode is an array of $\nprog = 2^{\kbc}$ instructions, $\kbc \le 32$ (\S\ref{sec:e2e-bc}). Bus interaction uses domain separation $\sep=\dsep{BC} = \gen^{2}$. An instruction is an opcode plus seven operands, so $\ncomp=8$: with the separator, the address and the count ahead of them, this is the widest entry on the bus at $11$ coordinates, which is what forces the four index bits, hence the $m=16$ slots of \S\ref{sec:m3}. Coordinate $3$ is the opcode, naming the instruction:
+\subsection{Public address columns}\label{sec:idxcol}
+
+The ROM is padded to a power of two with sentinel key $2^{64}-1$ and zero value. Its key and value multilinears are evaluated from the public arrays,
 \[
-  \opc{XOR}=\gen^{0},\quad \opc{MUL}=\gen^{1},\quad \opc{SET}=\gen^{2},\quad \opc{DRF}=\gen^{3},\quad \opc{JMP}=\gen^{4},\quad \opc{B2S}=\gen^{5}.
-\] The program is public, i.e. not committed, the verifier can evaluate it directly.
-
-\subsection{The index column}\label{sec:idxcol}
-
-The seed and finalization blocks run over every address $\gen^{0},\dots,\gen^{2^{\kappa}-1}$, so the verifier needs the extension of that \emph{index column} $\mathrm{idx}$ at the point $\zeta$ (\S\ref{sec:leafstack}). Writing $w$ for the bits of $i$, $\gen^{\,i}=\prod_k(\gen^{\,2^{k}})^{w_k}$, whose $k$-th factor is $1+w_k(1+\gen^{\,2^{k}})$, which gives the efficient MLE formula:
-\[
-  \mle{\mathrm{idx}}(\zeta)\;=\;\prod_{k=0}^{\kappa-1}\bigl(1+\zeta_k\,(1+\gen^{\,2^{k}})\bigr),
+  \mle{\lut}(z)=\sum_{i\in\cube{\kbc}}\eq(z,i)\lut[i].
 \]
+Actual tagged fetch and RAM keys cannot equal the sentinel. The execution verifier evaluates the public program itself. In recursive composition this evaluation is constrained by the field-native circuit, whose program templates come from the trusted expected ELF, rather than executed by the RV64IM aggregation guest. No generator-power address polynomial or unresolved bytecode opening is part of the machine.

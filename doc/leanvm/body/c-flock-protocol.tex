@@ -1,7 +1,7 @@
 % !TeX root = ../drafts/c-flock-protocol.tex
 \section{The Flock protocol}\label{annex:flock}
 
-Flock~\cite{Flock26} proves many executions of one Boolean circuit at once, in our case the BLAKE2s compression. Since we do not follow their protocol exactly, we describe our version here.
+Flock~\cite{Flock26} proves many executions of one Boolean circuit at once. This annex describes the existing BLAKE2s compression instance and its analysis. The native packed circuits reuse its generic zerocheck and lincheck with their own public matrices and an additional zero pin, as specified in \S\ref{flock:packed-extension}; BLAKE2s-specific constants and bounds below are not silently extended to those circuits.
 
 \subsection{Statement and commitment}\label{flock:statement}
 
@@ -25,7 +25,7 @@ We also enforce the position $512$ of every block to be $1$ (preventing the all-
 z(0,0,0,0,0,0,0,0,0,1,0,0,0,0,\,t)=1\qquad\text{for every }t\in\cube{\kbatch}
 \end{equation}
 
-This second condition is enforced by lincheck (\S\ref{flock:lincheck}), and position $512=\jconst$ is where every circuit below puts its constant wire. Since it is asked of every block, the prover pads the batch out to $2^{\kbatch}$ with copies of a genuine witness block rather than with zeros.
+This second condition is enforced by lincheck (\S\ref{flock:lincheck}), and position $512=\jconst$ is the BLAKE2s circuit's constant wire. Since it is asked of every compression block, the prover pads a present batch out to $2^{\kbatch}$ with copies of a genuine witness block rather than with zeros. Native packed circuits use the separate pin convention of \S\ref{flock:packed-extension}.
 
 Set $\kskip=6$ and $\nflock=\kbool-\kskip$. The prover commits to $z$ by packing its low $\kskip$ coordinates, $64$ bits, to a $\K$-element, following Ring-Switching (Annex~\ref{annex:rs}). The resulting multilinear $\qflock:\cube{\nflock}\to\K$ is committed as one region of the stack (\S\ref{sec:stacking}).
 
@@ -132,6 +132,14 @@ R_{\mathrm{lc}}\qeq\sum_{i=0}^{63}\Bigl(&\qext A_0(\zskip,\fc_{\mathrm{in}},i,\f
 \end{split}
 \end{equation}
 
+\subsubsection{Extension to packed native circuits}\label{flock:packed-extension}
+
+For the circuits of \S\ref{sec:packed-native}, replace $\kblock=14$ by the table's $\kpacked$ and the BLAKE matrices by the public native gate matrices. The low-coordinate skip is still $\kskip=6$, so lincheck has $\kpacked-6$ rounds and returns exactly $64$ slices. Eight is the BLAKE high-wire round count $14-6$, not a different skip size.
+
+Native wire $1$ is the constant-one pin, and wire $\jzero$ is the Boolean OR of all equality failures. In the column-sum form of \eqref{flock:eq:lincheck}, replace $[j=512]$ by $[j=1]$ and add $\lcalpha^4[j=\jzero]$ to the weight. The running target remains $v_a+\lcalpha v_b+\lcalpha^2v_c+\lcalpha^3$, since the extra pin's target is zero. Equivalently, the terminal matrix evaluation receives the extra term $\lcalpha^4\wcol(\jzero)$ and its one-pin term is $\lcalpha^3\wcol(1)$. The verifier derives both positions and every matrix coefficient from the public circuit, never from an advised matrix evaluation.
+
+The native lincheck thus batches five conditions instead of BLAKE2s's four, and its batching polynomial has degree four. The BLAKE2s equations and soundness calculation remain the four-condition instance below. Native verification additionally proves the physical-word projection and opens both resulting slice families (\S\ref{sec:packed-projection}); neither the extra pin nor that reduction is covered merely by quoting the BLAKE2s-specific bound.
+
 \subsubsection{Concluding Lincheck for a native verifier}\label{flock:native}
 
 
@@ -151,11 +159,11 @@ One forward walk of the BLAKE2s circuit returns \eqref{flock:eq:matrix-form} for
 
 \subsubsection{Concluding Lincheck for a recursive verifier}\label{flock:defer}
 
-To avoid the costly circuit-walk in recursion, the recursion program receives as hint:
+The field-native recursive verifier constrains the same circuit-walk value as the portable verifier:
 \begin{equation}\label{flock:eq:matpart}
 M_{\mathrm{lc}}=\sum_{k,j\in\cube{\kblock}}\bigl(A_0(k,j)+\lcalpha B_0(k,j)\bigr)\erow(k)\,\wcol(j).
 \end{equation}
-This makes it possible to cheaply verify \eqref{flock:eq:lincheck-terminal}. Ensuring validity of the hint is deferred outside of the recursion program, via sumcheck reduction, as described in \S\ref{sec:deferred-claims}.
+Both verifiers evaluate this expression from the fixed matrices and use it in \eqref{flock:eq:lincheck-terminal} before accepting the proof. In recursion the matrix walk is part of the constrained field-native circuit, not an unchecked hint, an RV64IM guest computation, or a deferred root obligation (\S\ref{sec:deferred-claims}); the matrix identity itself is unchanged.
 
 \subsubsection{Ring switching}\label{flock:ringswitch}
 
@@ -173,7 +181,7 @@ After the witness $z$ has been committed, and its size announced:
 \item The verifier forms the zerocheck point $r$: seven fixed coordinates, the rest sampled. The $\kskip$ variables the univariate skip replaced consume no equality challenge.
 \item The prover sends $P|_{\skipcoset}$, $64$ values. The verifier samples $\zskip$ and reconstructs $v_P$.
 \item The parties run $\nflock$ quadratic zerocheck rounds on \eqref{flock:eq:pskip}, which the prover ends by sending $v_a,v_b$; the terminal identity \eqref{flock:eq:zc-terminal} then fixes $v_c$.
-\item The verifier samples $\lcalpha$ and the parties run the $8$ quadratic lincheck rounds on \eqref{flock:eq:lincheck}. The prover sends $(s_0,\ldots,s_{63})$, and the verifier checks \eqref{flock:eq:lincheck-terminal}: one circuit walk natively, the hint \eqref{flock:eq:matpart} in recursion.
+\item The verifier samples $\lcalpha$ and the parties run the $8$ quadratic lincheck rounds on \eqref{flock:eq:lincheck}. The prover sends $(s_0,\ldots,s_{63})$, and the verifier checks \eqref{flock:eq:lincheck-terminal} by evaluating the fixed-matrix circuit walk, including \eqref{flock:eq:matpart}, directly in the portable verifier or as constrained field arithmetic in recursion.
 \end{enumerate}
 What Flock leaves is one family of $64$ claims for Ring-Switching (\S\ref{flock:ringswitch}): $(s_i \qeq \mle z(i, \fc'_{\mathrm{in}},\fc_{\mathrm{out}}))_{0 \leq i \leq 63}$.
 \end{protocol}
@@ -218,7 +226,7 @@ For every empty position $k$, set $A_0(k,\cdot)=B_0(k,\cdot)=0$. This specifies 
 The R1CS constraints given by $A_0$, $B_0$ and $C_0=I$ faithfully encode the circuit.
 \subsubsection{Forward algorithm}\label{flock:forward}
 
-Given a column vector $W:\cube{\kblock}\to\E$, the forward algorithm computes the two row-indexed vectors $A_0W$ and $B_0W$ without constructing either matrix. The native lincheck verifier uses $W=\wcol$ and retains only the scalar $\inner{\erow}{A_0W}+\lcalpha\inner{\erow}{B_0W}$. The prover of the deferred matrix sumcheck in \S\ref{sec:deferred-claims} instead stores both vectors and folds them through its first $\kblock$ rounds.
+Given a column vector $W:\cube{\kblock}\to\E$, the forward algorithm computes the two row-indexed vectors $A_0W$ and $B_0W$ without constructing either matrix. Both native and recursive lincheck verifiers use $W=\wcol$ and retain only the scalar $\inner{\erow}{A_0W}+\lcalpha\inner{\erow}{B_0W}$.
 
 To compute them, visit the wires from $w_1$ to $w_N$ and evaluate every expansion against $W$:
 \[
@@ -267,7 +275,7 @@ s_i=\mle z(i,\fc'_{\mathrm{in}},\fc_{\mathrm{out}}),\qquad i\in\cube{\kskip},
 \]
 up to the PCS error and the $2^{-160}$ of Annex~\ref{annex:rs}, and let us show a $z$ failing \eqref{flock:eq:r1cs} or \eqref{flock:eq:const-one} is rejected.
 
-Lincheck comes first, and it is the only thing that checks anything: the zerocheck's own terminal identity defines $v_c$ instead of testing it, so every lie upstream reaches lincheck as a wrong triple $(v_a,v_b,v_c)$. Its terminal check \eqref{flock:eq:lincheck-terminal} is evaluated from the true $s$ and the matrices themselves, by the walk of \S\ref{flock:native} natively and, in recursion, once \eqref{flock:eq:matpart} is discharged (\S\ref{sec:deferred-claims}), so a false \eqref{flock:eq:lincheck} survives the $8$ rounds with probability at most $16/|\E|$ (Fact~\ref{fact:sumcheck}, degree two in each round). And by Lemma~\ref{lem:flock-block-diagonal} and \eqref{flock:eq:c-as-column}, \eqref{flock:eq:lincheck} says
+Lincheck comes first, and it is the only thing that checks anything: the zerocheck's own terminal identity defines $v_c$ instead of testing it, so every lie upstream reaches lincheck as a wrong triple $(v_a,v_b,v_c)$. Its terminal check \eqref{flock:eq:lincheck-terminal} is evaluated from the true $s$ and the matrices themselves, by the walk of \S\ref{flock:native} in both native and recursive verification, so a false \eqref{flock:eq:lincheck} survives the $8$ rounds with probability at most $16/|\E|$ (Fact~\ref{fact:sumcheck}, degree two in each round). And by Lemma~\ref{lem:flock-block-diagonal} and \eqref{flock:eq:c-as-column}, \eqref{flock:eq:lincheck} says
 \[
 \bigl(v_a+\qext a(\zskip,\fc)\bigr)+\lcalpha\bigl(v_b+\qext b(\zskip,\fc)\bigr)+\lcalpha^2\bigl(v_c+\qext z(\zskip,\fc)\bigr)+\lcalpha^3\bigl(1+\mle z(512,\fc_{\mathrm{out}})\bigr)=0,
 \]

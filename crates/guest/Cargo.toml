@@ -1,0 +1,34 @@
+[package]
+name = "leanvm_guest"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Installs the bare-metal startup, panic handler and bounded single-hart allocator.
+# This feature has no effect on host builds.
+runtime = []
+native = ["dep:primitives"]
+
+[target.'cfg(not(target_arch = "riscv64"))'.dependencies]
+primitives = { path = "../primitives", optional = true }
+
+[[example]]
+name = "hash_witness"
+required-features = ["runtime"]
+
+[[example]]
+name = "fibonacci"
+required-features = ["runtime"]
+
+[[example]]
+name = "hash_chain"
+required-features = ["runtime"]
+
+[[example]]
+name = "memory_contracts"
+required-features = ["runtime"]

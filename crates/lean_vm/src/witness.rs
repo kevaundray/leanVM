@@ -107,7 +107,7 @@ const FILL_CHUNK: usize = 1 << 16;
 
 /// The uninitialized stacked witness: [`StackShape::committed_len`] slots, the
 /// placed columns rounded up to a whole lane rather than all the way to `2^mu`.
-/// Arena-backed: `q` is born and dies inside one `cpu::prove` phase.
+/// Arena-backed: `q` is born and dies inside one proving phase.
 ///
 /// # Safety
 /// Every slot must be written before it is read. [`split_stack`] hands out one

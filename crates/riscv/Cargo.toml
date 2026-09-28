@@ -1,0 +1,12 @@
+[package]
+name = "riscv"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+primitives = { path = "../primitives" }
+flock = { path = "../flock" }

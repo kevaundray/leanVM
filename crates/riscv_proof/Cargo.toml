@@ -1,0 +1,21 @@
+[package]
+name = "riscv_proof"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+host = ["leanvm_guest/native", "dep:riscv", "dep:lean_vm", "dep:primitives", "dep:fiat_shamir", "dep:flock", "dep:pcs", "dep:zk_alloc"]
+[dependencies]
+leanvm_guest = { path = "../guest" }
+riscv = { path = "../riscv", optional = true }
+lean_vm = { path = "../lean_vm", optional = true }
+primitives = { path = "../primitives", optional = true }
+fiat_shamir = { path = "../fiat_shamir", optional = true }
+flock = { path = "../flock", optional = true }
+pcs = { path = "../pcs", optional = true }
+zk_alloc = { path = "../zk_alloc", optional = true }

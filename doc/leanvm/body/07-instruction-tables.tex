@@ -1,138 +1,72 @@
 % !TeX root = ../drafts/07-instruction-tables.tex
-\section{The instruction tables}\label{sec:tables}
+\section{Native instruction and service tables}\label{sec:tables}
 
-Each instruction has its own table.
+The fixed logical order has $71$ table schemas, indexed from zero: $63$ non-ECALL instruction classes, five ECALL service tables, a witness-copy byte table, RAM history, and register history. The instruction decoder has $64$ classes because all five services share the native \texttt{ECALL} encoding. Only present tables are instantiated, each with power-of-two height at least eight. The header encodes absence as zero and a present log-height $\tau$ as $\tau+1$; in particular, an absent BLAKE2s table contributes no compression witness or reduction.
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\hline
+Indices & Tables\\
+\hline
+$0\ldots62$ & Native non-ECALL operations in \path{Opcode::ALL} order\\
+$63,64,65$ & EXIT, READ\_WITNESS, READ\_PUBLIC\\
+$66,67,68$ & BLAKE2s, F192 multiplication, witness-copy byte loop\\
+$69,70$ & Sorted RAM history, sorted register history\\
+\hline
+\end{tabularx}
+\end{center}
 
-Write $\rdf{\sep,\addr,\cnt,\val_0,\val_1, \dots}$ for the pair \pull\ $\tup{\sep,\addr,\cnt,\val_0,\val_1, \dots }$, \push\ $\tup{\sep,\addr,\gen\cdot\cnt,\val_0,\val_1, \dots}$: every flush below but the state's.
+\subsection{Bit circuits and integer semantics}\label{sec:tab-xor}
 
-\subsection{\texttt{XOR}}\label{sec:tab-xor}
+Every wire is a bit, so $b(b+1)=0$; intermediate wires implement XOR, AND, carries, comparisons, and selection with unconditional degree-at-most-two Boolean identities. The proof stores these wires packed $64$ per $\K$ element and proves their R1CS validity with Flock-style zerocheck and lincheck, rather than allocating a physical field column to every bit. Packing uses $\rvpack(b)=\sum_i b_i x^i\in\K$, whereas the corresponding integer is $\rvuint(b)=\sum_i b_i2^i$. These maps share a bit representation, not their arithmetic laws: field addition is XOR, not integer addition with carries. Physical bus words and field-relation operands are linked to the bits by the alias-projection sumcheck of \S\ref{sec:packed-projection}.
 
-\texttt{XOR}\ $[o_A,o_B,o_C]$ asserts $\loc{o_C}=\loc{o_A}+\loc{o_B}$, the $192$-bit field sum (in $\E$).
-\begin{itemize}
-\item \textbf{Columns:} $\pc,\fp$; operands $o_A,o_B,o_C$; the two read values $(v_{A,i})_{i\in\{0,1,2\}}$ and $(v_{B,i})_{i\in\{0,1,2\}}$; memory counts $r_A,r_B,r_C$; bytecode count $r_{\mathrm{bc}}$.
-\item \textbf{Constraints:} none.
-\item \textbf{Flushes:}
-  \begin{itemize}
-  \item \textbf{State:} \pull\ $\tup{\dsep{ST},\pc,\fp}$, \push\ $\tup{\dsep{ST},\gen\cdot\pc,\fp}$.
-  \item \textbf{Bytecode:} $\rdf{\dsep{BC},\pc,r_{\mathrm{bc}},\opc{XOR},o_A,o_B,o_C,0,0}$.
-  \item \textbf{Memory:}
-    \begin{align*}
-      &\rdf{\dsep{MEM},\fp\cdot o_X,r_X,v_{X,0},v_{X,1},v_{X,2}}\quad(X\in\{A,B\}),\\
-      &\rdf{\dsep{MEM},\fp\cdot o_C,r_C,v_{A,0}+v_{B,0},v_{A,1}+v_{B,1},v_{A,2}+v_{B,2}}.
-    \end{align*}
-  \end{itemize}
-\end{itemize}
+The algorithms below describe the constrained circuits, rather than listing each bit column. Carry and product wires remain part of the packed committed witness, not trusted interpreter results. All original circuit equalities feed a Boolean OR failure accumulator pinned to zero, while a separate wire is pinned to one; thus disabled padding cannot bypass local validity.
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\hline
+Operation family & Constrained integer behavior\\
+\hline
+ADD/SUB and immediates & Bitwise carry/borrow chains, low $64$ result bits; immediate sign extension from raw instruction fields.\\
+AND/OR/XOR & Boolean operations on each of $64$ bits.\\
+SLT/SLTU and branches & Full signed or unsigned comparison, including sign bits; result or branch selector constrained Boolean.\\
+Shifts & Barrel selection using low six shift bits, or five for W operations; arithmetic right shift repeats the sign bit.\\
+Loads/stores & Little-endian assembly/disassembly of $1,2,4,8$ bytes; signed loads sign-extend, unsigned loads zero-extend.\\
+W operations & Operate on low $32$ bits and sign-extend the $32$-bit result to $64$, including DIVUW and REMUW.\\
+\hline
+\end{tabularx}
+\end{center}
 
-\subsection{\texttt{MUL\_NATIVE}}\label{sec:tab-mul}
+\subsection{Native multiplication and division}\label{sec:tab-mul}
 
-\texttt{MUL\_NATIVE}\ $[o_A,o_B,o_C]$ asserts $\loc{o_C}=\loc{o_A} \cdot \loc{o_B}$, the $192$-bit field multiplication (in $\E$).
-\begin{itemize}
-\item \textbf{Columns:} $\pc,\fp$; operands $o_A,o_B,o_C$; the two read values $(v_{A,i})_{i\in\{0,1,2\}}$ and $(v_{B,i})_{i\in\{0,1,2\}}$; memory counts $r_A,r_B,r_C$; bytecode count $r_{\mathrm{bc}}$.
-\item \textbf{Constraints:} none.
-\item \textbf{Flushes:}
-  \begin{itemize}
-  \item \textbf{State:} \pull\ $\tup{\dsep{ST},\pc,\fp}$, \push\ $\tup{\dsep{ST},\gen\cdot\pc,\fp}$.
-  \item \textbf{Bytecode:} $\rdf{\dsep{BC},\pc,r_{\mathrm{bc}},\opc{MUL},o_A,o_B,o_C,0,0}$.
-  \item \textbf{Memory} (the destination carries $v_Av_B$ in $\E$, of degree two). With $y^3=y+1$, put
-    \[
-    p_0=v_{A,0}v_{B,0},\quad
-    p_1=v_{A,0}v_{B,1}+v_{A,1}v_{B,0},\quad
-    p_2=v_{A,0}v_{B,2}+v_{A,1}v_{B,1}+v_{A,2}v_{B,0},
-    \]
-    \[
-    p_3=v_{A,1}v_{B,2}+v_{A,2}v_{B,1},\qquad
-    p_4=v_{A,2}v_{B,2},
-    \]
-    twelve products over the nine pairs $v_{A,i}v_{B,j}$:
-    \begin{align*}
-      &\rdf{\dsep{MEM},\fp\cdot o_X,r_X,v_{X,0},v_{X,1},v_{X,2}}\quad(X\in\{A,B\}),\\
-      &\rdf{\dsep{MEM},\fp\cdot o_C,r_C,p_0+p_3,p_1+p_3+p_4,p_2+p_4}.
-    \end{align*}
-  \end{itemize}
-\end{itemize}
+Integer multiplication constrains the full double-width product. \texttt{MUL} returns its low $64$ bits; \texttt{MULH}, \texttt{MULHSU}, and \texttt{MULHU} return its high $64$ bits with signed/signed, signed/unsigned, and unsigned/unsigned interpretation respectively. \texttt{MULW} returns the sign-extended low $32$ bits. A single identity in $\K$ would not prove any of these integer products.
 
-\subsection{\texttt{SET\_CONSTANT}}\label{sec:tab-set}
+Division uses a bit-level quotient/remainder circuit, including magnitude computation and signed restoration. For nonzero divisor, signed quotient truncates toward zero and nonzero remainder has the dividend's sign; unsigned division is ordinary Euclidean division. Division by zero returns the all-ones quotient and the dividend as remainder. Signed minimum divided by $-1$ returns the signed minimum and zero remainder. The same rules apply at width $32$ before W-result sign extension. These edge cases are defined machine behavior, not unconstrained inverse witnesses.
 
-\texttt{SET\_CONSTANT}\ $[o,k_0,k_1,k_2]$ asserts $\loc{o}=k_0+k_1y+k_2y^{2}$.
-\begin{itemize}
-\item \textbf{Columns:} $\pc,\fp$; operand $o$; immediate $(k_i)_{i\in\{0,1,2\}}$; memory count $r$; bytecode count $r_{\mathrm{bc}}$.
-\item \textbf{Constraints:} none.
-\item \textbf{Flushes:}
-  \begin{itemize}
-  \item \textbf{State:} \pull\ $\tup{\dsep{ST},\pc,\fp}$, \push\ $\tup{\dsep{ST},\gen\cdot\pc,\fp}$.
-  \item \textbf{Bytecode:} $\rdf{\dsep{BC},\pc,r_{\mathrm{bc}},\opc{SET},o,k_0,k_1,k_2,0}$.
-  \item \textbf{Memory:} $\rdf{\dsep{MEM},\fp\cdot o,r,k_0,k_1,k_2}$.
-  \end{itemize}
-\end{itemize}
+\subsection{Raw decode and immediates}\label{sec:tab-set}
 
-\subsection{\texttt{DEREF}}\label{sec:tab-deref}
+Each table fixes its native opcode/funct mask and reconstructs \texttt{rd}, \texttt{rs1}, \texttt{rs2}, and immediate bits from the committed $32$-bit instruction. U/J/B/S/I immediate layouts and shift masks are checked as encoded, not accepted from a separately decoded trace. \texttt{LUI} and \texttt{AUIPC} use sign-extended upper immediates. One instruction-word lookup binds the raw instruction to the public executable (\S\ref{sec:bytecode}). Invalid encodings cannot be admitted by naming a valid table.
 
-\texttt{DEREF}\ $[o_1,o_2,o_3;\,\dmode]$ reads a pointer and asserts the cell it points to. The row reads three cells:
-\begin{itemize}
-\item the \emph{pointer} $p$, at $\fp\cdot o_1$;
-\item the \emph{target} $v_2$, at the dereferenced address $p\cdot o_2$;
-\item the \emph{local} value $v_3$, at $\fp\cdot o_3$.
-\end{itemize}
-The store asserts that $v_2$ equals the source chosen by the mode $\dmode$ (\S\ref{sec:vm}): the local cell $v_3$, the return address $\gen^{2}\cdot\pc$, or the frame pointer $\fp$. The mode is two boolean flags $(f_{\pc},f_{\fp})$: $(0,0)$ for $\texttt{deref\_cell}[o_3]$, $(1,0)$ for $\texttt{deref\_pc}$, $(0,1)$ for $\texttt{deref\_fp}$.
-\begin{itemize}
-\item \textbf{Columns:} $\pc,\fp$; operands $o_1,o_2,o_3$; flags $f_{\pc},f_{\fp}$; pointer $p$ (a single $\K$-limb); the local value $(v_{3,i})_{i\in\{0,1,2\}}$; memory counts $r_1,r_2,r_3$; bytecode count $r_{\mathrm{bc}}$.
-\item \textbf{Constraints:} none.
-\item \textbf{Flushes:}
-  \begin{itemize}
-  \item \textbf{State:} \pull\ $\tup{\dsep{ST},\pc,\fp}$, \push\ $\tup{\dsep{ST},\gen\cdot\pc,\fp}$.
-  \item \textbf{Bytecode:} $\rdf{\dsep{BC},\pc,r_{\mathrm{bc}},\opc{DRF},o_1,o_2,o_3,f_{\pc},f_{\fp}}$.
-  \item \textbf{Memory}, the target giving $v_3$, $\gen^{2}\cdot\pc$ or $\fp$ at the three flag settings:
-    \begin{align*}
-      &\rdf{\dsep{MEM},\fp\cdot o_1,r_1,p,0,0},\\
-      &\rdf{\dsep{MEM},\fp\cdot o_3,r_3,v_{3,0},v_{3,1},v_{3,2}},\\
-      &\rdf{\dsep{MEM},p\cdot o_2,r_2,\bar f\,v_{3,0}+f_{\pc}\,(\gen^{2}\cdot\pc)+f_{\fp}\,\fp,\ \bar f\,v_{3,1},\ \bar f\,v_{3,2}},
-      \qquad \bar f=1+f_{\pc}+f_{\fp}.
-    \end{align*}
-  \end{itemize}
-\end{itemize}
+\subsection{Loads, stores, and register effects}\label{sec:tab-deref}
 
-\subsection{\texttt{JUMP}}\label{sec:tab-jump}
+Architectural base-plus-immediate arithmetic wraps modulo $2^{64}$; the resulting accessed range must lie in $[0,2^{32})$. Byte-offset additions and ECALL ranges cannot wrap across the RAM boundary. Data alignment is not required. Each instruction emits register reads at slots $0,1$ and, when applicable, its destination write at slot $2$. Every read, including an unused encoded source field, is linked to the register history. Writing \texttt{x0} discards the result but does not suppress instruction validity or a memory fault. Each loaded or stored byte is linked to mutable RAM with its before/after values (\S\ref{sec:memchan}).
 
-\texttt{JUMP}\ $[o_c,o_d,o_f]$ performs a conditional jump on whether the condition $v_{\mathrm{cond}}=\loc{o_c}$ is nonzero. It transfers to $\pc\gets v_{\pc} = \loc{o_d}$, $\fp\gets v_{\fp} = \loc{o_f}$ when $v_{\mathrm{cond}}\neq0$, and defaults to $\pc\gets\gen\cdot\pc$, $\fp\gets\fp$ otherwise. $v_{\mathrm{cond}}, v_{\fp}, v_{\pc}$ must be $\K$-valued. The branch is taken according to a boolean indicator column $b=[\,v_{\mathrm{cond}}\neq0\,]$, certified by a prover-supplied inverse $w$ and 2 constraints:
+\subsection{Control flow and enabling}\label{sec:tab-jump}
 
-\begin{itemize}
-\item \textbf{Columns:} $\pc,\fp$; operands $o_c,o_d,o_f$; the condition $v_{\mathrm{cond}}$, the destination $v_{\pc}$ and the frame $v_{\fp}$; inverse $w$ (honest prover sets $w = v_{\mathrm{cond}}^{-1}$ if $v_{\mathrm{cond}}\neq0$, otherwise $w=0$); boolean indicator $b$; memory counts $r_c,r_d,r_f$; bytecode count $r_{\mathrm{bc}}$.
-\item \textbf{Constraints:}  $b=v_{\mathrm{cond}}\cdot w$ and $v_{\mathrm{cond}}\,(b+1)=0$
-\item \textbf{Flushes:}
-  \begin{itemize}
-  \item \textbf{State:} \pull\ $\tup{\dsep{ST},\pc,\fp}$, \push\ $\tup{\dsep{ST},b\,v_{\pc}+b\,(\gen\cdot\pc)+\gen\cdot\pc,\;b\,v_{\fp}+b\,\fp+\fp}$.
-  \item \textbf{Bytecode:} $\rdf{\dsep{BC},\pc,r_{\mathrm{bc}},\opc{JMP},o_c,o_d,o_f,0,0}$.
-  \item \textbf{Memory:}
-    \begin{align*}
-      &\rdf{\dsep{MEM},\fp\cdot o_c,r_c,v_{\mathrm{cond}},0,0},\\
-      &\rdf{\dsep{MEM},\fp\cdot o_d,r_d,v_{\pc},0,0},\\
-      &\rdf{\dsep{MEM},\fp\cdot o_f,r_f,v_{\fp},0,0}.
-    \end{align*}
-  \end{itemize}
-\end{itemize}
+Branch conditions use the full register values with the selected signedness. \texttt{JAL} writes $\pc+4$ and selects its PC-relative target; \texttt{JALR} writes the same link and clears target bit zero. The selected successor is four-byte aligned. Enabled CPU rows are chained through $(\pc,\rvcycle,\rvhalted)$ and never execute from a halted state. The enable bit gates architectural bus messages and environment assertions, not internal Boolean/carry identities. Disabled rows use locally valid instruction circuits and cancel their architectural messages, rather than representing extra execution.
 
-\subsection{\texttt{BLAKE2S}}\label{sec:tab-blake2s}
+\subsection{Witness, public input, and EXIT}
 
-\texttt{BLAKE2S}\ $[o_{m_0},o_{m_1},o_{m_2},o_{m_3},o_{\mathit{cv}},o_{\mathit{out}},o_{\md}]$ compresses a $64$-byte message block under a $32$-byte chaining value into a $32$-byte result, with the BLAKE2s flags and byte counter in the metadata cell $\fp\cdot o_{\md}$. Each $128$-bit half occupies one cell, top limb zero: the four message chunks at $\fp\cdot o_{m_0},\dots,\fp\cdot o_{m_3}$, addressed independently, the chaining value at the consecutive pair $\fp\cdot o_{\mathit{cv}},\gen\cdot\fp\cdot o_{\mathit{cv}}$, and the result at $\fp\cdot o_{\mathit{out}},\gen\cdot\fp\cdot o_{\mathit{out}}$.
+The witness, public-input, and EXIT service tables bind \texttt{a7} and their arguments through register events, then replace \texttt{a0} at slot $5$. EXIT enforces zero status and closes the halted boundary. READ\_PUBLIC writes exactly the verifier's $32$ public bytes into RAM and returns $32$. READ\_WITNESS returns the requested length and seeds a copy chain keyed by cycle, destination, and length. The byte table increments an integer index from zero to that length, with each index bounded by the length and each destination byte range-checked. Its byte values are existential witness data. This chain binds all requested writes, including zero-length copies, without a separate CPU step per copied byte.
 
-Flock~\cite{Flock26} proves the compression relation with a batched R1CS over a Boolean witness (Annex~\ref{annex:flock}). The witness is packed into $\qflock$ via Ring-Switching (Annex~\ref{annex:rs}), with $64$ bits per $\K$-element.
+\subsection{BLAKE2s compression}\label{sec:tab-blake2s}
 
-The message, result, chaining value and metadata are all committed in $\qflock$: the two low limbs $z_0,z_1$ of each of the nine cells $z\in\{m_0,\dots,m_3,\mathit{cv}_0,\mathit{cv}_1,\mathit{out}_0,\mathit{out}_1,\md\}$, eighteen in all. Linking these values to the memory interaction implicitly forces the top limb of every memory cell accessed by BLAKE2s to be zero. The generalized R1CS matrices take the chaining value, byte counter, and the two finalization flags as free input: the memory interactions via the bus bind all four.
-\begin{itemize}
-\item \textbf{Columns:} $\pc,\fp$; operands $o_{m_0},o_{m_1},o_{m_2},o_{m_3},o_{\mathit{cv}},o_{\mathit{out}},o_{\md}$; one memory count $r_z$ per cell $z$; bytecode count $r_{\mathrm{bc}}$. The eighteen limbs are committed in $\qflock$, no duplicate columns needed. The nine addresses are the products $\gen^{k}\fp\cdot o$, $k\in\{0,1\}$.
-\item \textbf{Constraints:} none. The compression relation is handled by Flock.
-\item \textbf{Flushes:}
-  \begin{itemize}
-  \item \textbf{State:} \pull\ $\tup{\dsep{ST},\pc,\fp}$, \push\ $\tup{\dsep{ST},\gen\cdot\pc,\fp}$.
-  \item \textbf{Bytecode:} $\rdf{\dsep{BC},\pc,r_{\mathrm{bc}},\opc{B2S},o_{m_0},o_{m_1},o_{m_2},o_{m_3},o_{\mathit{cv}},o_{\mathit{out}},o_{\md}}$.
-  \item \textbf{Memory:}
-    \begin{align*}
-      &\rdf{\dsep{MEM},\fp\cdot o_{m_i},r_{m_i},m_{i,0},m_{i,1},0}\quad(i=0,\dots,3),\\
-      &\rdf{\dsep{MEM},\fp\cdot o_{\mathit{cv}},r_{\mathit{cv}_0},\mathit{cv}_{0,0},\mathit{cv}_{0,1},0},\\
-      &\rdf{\dsep{MEM},\gen\cdot\fp\cdot o_{\mathit{cv}},r_{\mathit{cv}_1},\mathit{cv}_{1,0},\mathit{cv}_{1,1},0},\\
-      &\rdf{\dsep{MEM},\fp\cdot o_{\mathit{out}},r_{\mathit{out}_0},\mathit{out}_{0,0},\mathit{out}_{0,1},0},\\
-      &\rdf{\dsep{MEM},\gen\cdot\fp\cdot o_{\mathit{out}},r_{\mathit{out}_1},\mathit{out}_{1,0},\mathit{out}_{1,1},0},\\
-      &\rdf{\dsep{MEM},\fp\cdot o_{\md},r_{\md},\md_0,\md_1,0}.
-    \end{align*}
-  \end{itemize}
-\end{itemize}
+Flock~\cite{Flock26} proves the compression relation with a batched Boolean R1CS (Annex~\ref{annex:flock}). The ECALL first reads $64$ message bytes, $32$ chaining-value bytes, and $16$ metadata bytes, then writes $32$ output bytes. Every byte has a RAM event. Its bits pack into eighteen $\K$ limbs: eight message, four chaining value, two metadata, and four output.
+
+These eighteen limbs are physical columns of the BLAKE table. The native table's alias-projection proof binds them to its packed byte circuit, and additional opening claims bind the same values to slots of the separately committed $\qflock$. The Flock slot ranges are $10\ldots17$ for message, $0\ldots3$ for chaining value, $18\ldots19$ for metadata, and $4\ldots7$ for output. Each Flock block has $256$ packed slots; the low eight packed coordinates select the slot and the remaining coordinates select the compression row. The RAM bus, packed native circuit, Flock constraints, and final PCS opening therefore bind the same inputs and output. Padding of a present table uses valid compression witnesses with disabled architectural effects; an absent table has no padding batch.
+
+\subsection{F192 multiplication ECALL}\label{sec:tab-f192}
+
+Read \texttt{a7} at register slot $0$ and six operand registers at slots $1,\ldots,6$. The left operand occupies \texttt{a0,a1,a2} and the right operand \texttt{a3,a4,a5}. Write the three result limbs to \texttt{a0,a1,a2} at slots $7,8,9$. There are no RAM events. Bit decomposition and register histories bind the operand and result limbs. With $p_j=\sum_{i+k=j}a_i b_k$ computed in $\K$, the three unconditional quadratic relations are
+\[
+  c_0=p_0+p_3,\qquad c_1=p_1+p_3+p_4,\qquad c_2=p_2+p_4.
+\]
+These prove multiplication in $\E=\K[y]/(y^3+y+1)$ and bind its output registers to the chronological register history. This preserves the binary-field primitive needed by the portable verifier while leaving native integer multiplication unchanged.

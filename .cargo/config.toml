@@ -6,5 +6,5 @@ docall = ["doc", "--release", "--workspace", "--no-deps"]
 [build]
 rustdocflags = ["-D", "warnings"]
 
-[target.'cfg(all())']
+[target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))']
 rustflags = ["-C", "target-cpu=native"]

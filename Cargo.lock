@@ -1405,16 +1405,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
-name = "lean_compiler"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "lean_vm",
- "primitives",
- "rand 0.9.4",
-]
-
-[[package]]
 name = "lean_da"
 version = "0.1.0"
 dependencies = [
@@ -1431,10 +1421,8 @@ dependencies = [
 name = "lean_vm"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "fiat_shamir",
  "flock",
- "lean_compiler",
  "parallel",
  "pcs",
  "primitives",
@@ -1452,9 +1440,36 @@ dependencies = [
  "primitives",
  "rand 0.9.4",
  "rec_aggregation",
+ "riscv",
+ "riscv_proof",
  "sphincs",
  "xmss",
  "zk_alloc",
+]
+
+[[package]]
+name = "leanvm_aggregation_guest"
+version = "0.1.0"
+dependencies = [
+ "leanvm_guest",
+ "leanvm_guest_claims",
+]
+
+[[package]]
+name = "leanvm_guest"
+version = "0.1.0"
+dependencies = [
+ "primitives",
+]
+
+[[package]]
+name = "leanvm_guest_claims"
+version = "0.1.0"
+dependencies = [
+ "lean_da",
+ "leanvm_guest",
+ "sphincs",
+ "xmss",
 ]
 
 [[package]]
@@ -1820,18 +1835,37 @@ name = "rec_aggregation"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "flock",
- "lean_compiler",
+ "ethereum_ssz",
  "lean_da",
- "lean_vm",
+ "leanvm_aggregation_guest",
  "parallel",
  "pcs",
  "primitives",
  "rand 0.9.4",
+ "recursion",
+ "riscv",
+ "riscv_proof",
  "serde",
  "sphincs",
  "tracing",
  "xmss",
+ "zk_alloc",
+]
+
+[[package]]
+name = "recursion"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "fiat_shamir",
+ "flock",
+ "lean_vm",
+ "leanvm_guest",
+ "parallel",
+ "pcs",
+ "primitives",
+ "riscv",
+ "riscv_proof",
  "zk_alloc",
 ]
 
@@ -1880,6 +1914,28 @@ checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac",
  "subtle",
+]
+
+[[package]]
+name = "riscv"
+version = "0.1.0"
+dependencies = [
+ "flock",
+ "primitives",
+]
+
+[[package]]
+name = "riscv_proof"
+version = "0.1.0"
+dependencies = [
+ "fiat_shamir",
+ "flock",
+ "lean_vm",
+ "leanvm_guest",
+ "pcs",
+ "primitives",
+ "riscv",
+ "zk_alloc",
 ]
 
 [[package]]

@@ -1,101 +1,71 @@
 % !TeX root = ../drafts/08-end-to-end-protocol.tex
 \section{End-to-end protocol}\label{sec:e2e}
 
-\subsection{Bytecode encoding}\label{sec:e2e-bc}
+\subsection{Public executable encoding}\label{sec:e2e-bc}
 
-The bytecode (of $\nprog=2^{\kbc}$ instructions) is encoded as one $\K$-valued multilinear $P$ in $\kbc+4$ variables:
-\begin{enumerate}[itemsep=1pt,topsep=3pt]
-\item lay instruction $z$ out as $16$ slots of $\K$: the opcode in slot $3$, the operands and immediate lanes in slots $4,\dots,10$, and $0$ everywhere else.
-\item read the resulting $2^{\kbc}\times16$ table as $P$, the low $\kbc$ variables indexing the instruction and the high four its slot, bits low first.
-\end{enumerate}
-\begin{center}
-\begin{tabular}{lllllllll}
-\hline
-Instruction & $3$ & $4$ & $5$ & $6$ & $7$ & $8$ & $9$ & $10$\\
-\hline
-\texttt{XOR}           & $\opc{XOR}$ & $o_A$ & $o_B$ & $o_C$ & $0$ & $0$ & $0$ & $0$\\
-\texttt{MUL\_NATIVE}   & $\opc{MUL}$ & $o_A$ & $o_B$ & $o_C$ & $0$ & $0$ & $0$ & $0$\\
-\texttt{SET\_CONSTANT} & $\opc{SET}$ & $o$   & $k_0$ & $k_1$ & $k_2$ & $0$ & $0$ & $0$\\
-\texttt{DEREF}         & $\opc{DRF}$ & $o_1$ & $o_2$ & $o_3$ & $f_{\pc}$ & $f_{\fp}$ & $0$ & $0$\\
-\texttt{JUMP}          & $\opc{JMP}$ & $o_c$ & $o_d$ & $o_f$ & $0$ & $0$ & $0$ & $0$\\
-\texttt{BLAKE2S}        & $\opc{B2S}$  & $o_{m_0}$ & $o_{m_1}$ & $o_{m_2}$ & $o_{m_3}$ & $o_{\mathit{cv}}$ & $o_{\mathit{out}}$ & $o_{\md}$\\
-\hline
-\end{tabular}
-\end{center}
-So $P(z,1,1,0,0)$ is instruction $z$'s opcode, $P(z,0,0,1,0)$ its first operand, and $P(z,0,0,0,0)=P(z,0,0,1,1)=0$.
+The verifier accepts the exact ELF and constructs \path{ProgramInfo} (\S\ref{sec:vm}). Public ROM key/value columns enumerate its initial file bytes and executable instruction words in tagged-key order, padded with the inaccessible sentinel described in \S\ref{sec:idxcol}. Instruction masks and operand extraction belong to the native CPU specifications; executable-word membership comes from the public ROM, and data segment bounds and permissions from the memory specification. Neither a translated instruction listing nor a prover-supplied program-polynomial evaluation replaces the public ELF.
 
 \subsection{Public input}\label{sec:e2e-pi}
 
-The public input is the first two memory cells $\mem[\gen^{0}],\mem[\gen^{1}]$, two $192$-bit words (with top limb $0$) both parties know. The verifier samples $r_m\in\E$, the prover sends $c_0,c_1\in\E$ claiming $c_\ell=\mle{\mem_\ell}(r_m,0,\dots,0)$, and the verifier checks
+The statement supplies $\rvpublic\in\{0,1\}^{256}$ independently of the proof. It enters the Fiat-Shamir transcript and the constants of READ\_PUBLIC's $32$ RAM writes. The register/RAM buses connect those bytes to their use by the guest. There is no public-input memory-prefix binding phase or separate memory-line opening.
+
+\subsection{Table padding}\label{sec:e2e-pad}
+
+Each present table has power-of-two height at least eight; absent logical tables contribute no rows or proof reductions. CPU and service padding rows have enable zero, satisfy their unconditional packed Boolean circuit identities, and emit cancelling architectural messages. Lookup counts remain nonzero even on disabled rows. RAM/register histories instead keep their sorted-index chain through padding, preserving the last real address/time/value. Enabled CPU cycles and active history indices do not wrap, so padding cannot introduce extra execution, disconnected histories, or a second initialization. A present BLAKE table supplies valid compression witnesses for its padding; an absent one has no Flock witness.
+
+\subsection{Fiat-Shamir instantiation}\label{sec:e2e-fiat-shamir}
+
+Let $H$ be BLAKE2s and let $D_{\mathrm{R1CS}}$ be the fixed digest of the existing Flock compression circuit. The program-specific IV is
 \[
-  c_0+y c_1\;\qeq\;(1+r_m)\,\mem[\gen^{0}]+r_m\,\mem[\gen^{1}].
+ H\bigl(\texttt{leanvm/rv64im/proof/v1}\Vert H(\rvelf)\Vert D_{\mathrm{R1CS}}\bigr).
 \]
-The PCS binds $(c_0,c_1,0)$ to the three memory limbs at $(r_m,0,\dots,0)$. A mismatch gives a nonzero polynomial of degree at most one, so it passes with probability at most $1/|\E|$ (Lemma~\ref{lem:sz}).
-
-\subsection{Filling the tables}\label{sec:e2e-pad}
-
-A table is proven over a power-of-two number of rows. The prover reaches one by running extra instructions, in execution cycles disjoint from the program's own run. Proposition~\ref{prop:walk} about bus balance splits the rows into two groups:
-\begin{itemize}
-\item one walk from $(\pc_0,\fp_0)$ to $(\pc_{\mathrm{final}},\fp_{\mathrm{final}})$
-\item closed walks
-\end{itemize}
-The prover can thus leverage these \emph{closed walks} to fill every table to its next power of 2. (important for completeness, but not for soundness)
-
-\subsection{Fiat Shamir instantiation}\label{sec:e2e-fiat-shamir}
-
-TODO
+The transcript is initialized with this IV and the exact $32$ public input bytes. It absorbs proof values and derives challenges in the order below. Integer header values occupy canonical base-field scalars $(u,0,0)\in\E$; nonzero upper limbs are rejected. \path{crates/riscv_proof} implements the portable execution verifier. \path{crates/recursion} constrains the same protocol in a field-native circuit; aggregation does not run the portable verifier inside its RV64IM guest.
 
 \subsection{The unrolled protocol}\label{sec:e2e-unrolled}
 
-Each reduction below adds evaluation claims on columns to a shared \emph{claim pool}, proved by the final PCS \textsc{Opening} phase.
+\paragraph{Header and layout.} Read, in order, the executed cycle count, inverse-rate exponent, $71$ encoded table heights, RAM real event count/final address/final time/final value, then the same four register-history fields. A height scalar zero denotes absence; a nonzero scalar encodes $\tau+1$, where $3\le\tau\le32$. Require $0<\rvcycles<2^{32}$, inverse-rate exponent in $1\ldots4$, and valid memory-history ranges and shapes. A memory space with zero events must be absent; a nonempty space must have a matching present table height. The layout builds present tables in logical index order and bounds every packed region and the PCS stack dimension. These announcements fix all placements before any challenge-dependent reduction.
 
-\paragraph{Setup.}
+\paragraph{Commitment.} Read the initial PCS root. The stack's logical columns are ROM finalize counts, optional $\qflock$, then each present table's physical $\K$ columns followed by its packed Boolean region $\qpacked$. Physical columns are exactly those used by base-field relations, bus coordinates, or Flock slot links, in original-column order. A native packed region has dimension $\kpacked+\tau-6$. No separate immutable RAM image or field column per internal bit is committed. Sort placements by decreasing height, breaking ties by logical column index, and pad with zero. The PCS stack dimension is between $15$ and $28$, including its lane padding.
 
-
-The Fiat-Shamir initial state (\S\ref{sec:e2e-fiat-shamir}) is seeded by the public input, the bytecode and Flock's BLAKE2s R1CS matrices. The prover sends the memory log-size $\kmem$ and the six table log-heights $\tau_j$; the verifier checks them against the caps (\S\ref{sec:lookup}) and derives the layout of every stack (PCS and GKR leaves).
-
-\paragraph{Commitment.}
-
-\begin{enumerate}
-\item \textbf{Prover.} Stack (\S\ref{sec:stacking}) every column, the three memory limbs, the two finalize (memory / bytecode) counts, and Flock's packed witness $\qflock$ (\S\ref{sec:tab-blake2s}), into $q$ and sends its commitment (Annex~\ref{annex:pcs}).
-\item \textbf{Verifier.} Receives the commitment to $q$.
+\paragraph{Bus reduction.}
+\begin{enumerate}[itemsep=1pt,topsep=3pt]
+\item Sample the four fingerprint coordinates $\alpha$ and the multiset challenge $\beta$.
+\item Read the common push/pull product and the nonzero count product. Run the batched grand-product GKR for push, pull, and lookup-count trees, yielding three leaf claims at one point $\zeta$ (\S\ref{sec:gkr}). Count leaves use the same padded cube as the bus; empty count regions contribute the multiplicative identity.
+\item Decompose those leaf claims in fixed side/block/coordinate order. Public boundary, ROM-key, and ROM-value contributions are evaluated by the verifier; announced history endpoints are public header values. Read framework committed-column evaluations in their encountered order and pool them for the final opening. All table-owned contributions become bus forms for the table sumcheck.
 \end{enumerate}
 
-\paragraph{Bus.}
+\paragraph{Table reduction.} Sample the batching scalar $\xi$ (named \texttt{eta} in the implementation). Its powers weight only the base-field relations of present tables, in logical order, followed by the three bus forms. Run the back-loaded degree-three sumcheck of \S\ref{sec:air}, eliminating high row variables first and using the GKR point for zerocheck weights. At termination, read each present table's physical column values in table/column order. Check its combined relation/bus evaluation and pool the physical claims at the corresponding low-coordinate prefix of the row point. Boolean gate validity is not charged as one constraint per physical field column in this reduction.
 
-\begin{enumerate}
-\item \textbf{Verifier.} Samples and sends the fingerprint challenge $\alpha\in\E^{4}$ and the multiset challenge $\beta\in\E$ (\S\ref{sec:gp}).
-\item \textbf{Prover.} Forms the push, pull, and \emph{count} leaf vectors (\S\ref{sec:leafstack}; the count leaves are the count columns themselves, \S\ref{sec:lookup}), stacked into blocks and padded with $1$s. Sends one bus root $R$, then the count root $R_c$.
-\item \textbf{Prover \& Verifier.} Run the one batched GKR (\S\ref{sec:gkr}) over all three trees. For the bus, the verifier checks each side's product against $R$; one $R$ for both sides is the balance check (\S\ref{sec:gp}). For the counts it checks $R_c\neq0$ (no read self-cancels, \S\ref{sec:lookup}). The pass yields three leaf claims $\widetilde V^{s}_0(\zeta)$ at one shared $\zeta$.
-\item \textbf{Prover \& Verifier.} Decompose each leaf claim (\S\ref{sec:leafstack}). The verifier forms every public part itself: the block selectors, the constant entries, the index column (\S\ref{sec:idxcol}), and the program's whole share of the two bytecode blocks, one evaluation at $(\zeta,\alpha)$ (\S\ref{sec:e2e-bc}). Three blocks per side belong to no table: the state boundary, plus each array's (memory / bytecode) seed (push side) or finalization (pull side). For their committed columns the prover sends one evaluation each, entering the claim pool. Every other block belongs to a table, and is discharged by the table sumcheck (\S\ref{sec:air}).
+\paragraph{Packed reductions and shared opening.}
+\begin{enumerate}[itemsep=1pt,topsep=3pt]
+\item For each present table in logical order, run the generic R1CS zerocheck and lincheck on its packed Boolean witness. The public circuit matrices, constant-one pin, and failure zero-pin are evaluated by the verifier. Receive one $64$-slice family at a point of dimension $\kpacked+\tau-6$.
+\item Immediately after that table's R1CS reduction, sample its projection challenge and run the physical-word alias sumcheck at its already-bound row point. Receive the second $64$-slice family on the same packed region. Both reductions use six low wire coordinates as the skip; the high-wire round count is $\kpacked-6$ (\S\ref{sec:packed-projection}).
+\item If BLAKE2s is present, run its existing Flock compression reduction, including exact matrix evaluation (Annex~\ref{annex:flock}), and append its one $64$-slice family. Append the eighteen point claims linking the physical BLAKE limbs to $\qflock$ at their eight slot coordinates followed by the table row point. These use the already-read physical values, not new independent claims.
+\item After every slice family is bound, sample one shared ring map: the six map challenges of Annex~\ref{annex:rs}. Apply it to each family, obtaining one weighted claim per family without further map challenges. The ring order is each present table's R1CS then projection, followed by optional BLAKE.
+\item Sample $\lambda$. Assign consecutive powers starting at $\lambda^0$ to all ring claims in that order, then to framework column claims, table physical-column claims, and BLAKE slot-link claims. Each contribution uses its actual committed region and selector.
+\item Run one WHIR inner-product opening for the combined target and weight against the initial root (Annex~\ref{annex:pcs}). The verifier evaluates this combined weight from the public layout, shared ring map, and all point claims.
+\item Accept only if every check succeeds and both proof streams are exhausted. No unresolved Boolean, projection, program, matrix, public-input, or column claim leaves this verifier.
 \end{enumerate}
 
-\paragraph{Table sumcheck.} One run proves the six tables' constraints together with their share of the bus (\S\ref{sec:air}).
-\begin{enumerate}
-\item \textbf{Verifier.} Samples and sends the batch challenge $\xi\in\E$. Its first $\nconstot=\sum_j\ncons{j}$ powers weight the constraints, a disjoint range per table; the last $\nside$ weight the bus forms, one per side and shared by every table. It draws no point: the batch runs at the bus point, $T_j$ tested at $\zeta_{<\tau_j}$.
-\item \textbf{Prover \& Verifier.} Run the sumcheck, $\taumax=\max_j\tau_j$ rounds with $T_j$ joining at round $\taumax-\tau_j$, against the target the verifier derived from the three leaf claims. Its summand has individual degree three and the round check pins one of the four coefficients (\S\ref{sec:prelim}), so a round costs three $\E$-elements.
-\item \textbf{Prover \& Verifier.} The prover sends one value per column of every table. The verifier rebuilds each $C_{j,i}$ and $B^{s}_j$ from them and checks that they reproduce the sumcheck's final value; the column values then enter the claim pool, $T_j$'s at $\fc_{<\tau_j}$. \texttt{BLAKE2S}'s eighteen value limbs are columns of its table but live in $\qflock$, not the stack, so their claims route there (\S\ref{sec:tab-blake2s}).
-\end{enumerate}
+\paragraph{Dedicated field-native relation.} The recursive layer uses the native13 schemas in \path{crates/recursion/src/tables.rs}, distinct from the RV64IM instruction tables: \path{Constant}, \path{PublicInput}, \path{PrivateInput}, \path{Add}, \path{Mul}, \path{Inverse}, \path{Limb0}, \path{Limb1}, \path{Limb2}, \path{Compose}, \path{AssertEqual}, \path{AssertBool}, and \path{Blake2s}. Each port stores the three $\K$ coefficients of an $\E$ value. Fixed columns contain row enables and each port's wire identifier and push/pull counters, plus constant coefficients or a public boundary index where appropriate. The dataflow bus binds operation inputs to outputs using this authenticated wiring, and the public-input bus binds the circuit's public ports. Padding has zero fixed metadata. Private advice does not choose a different operation graph or substitute unchecked arithmetic.
 
-\paragraph{Public input.}
+\paragraph{Native key and commitments.} \path{Key::new} compiles the trusted expected circuit, commits its fixed columns with WHIR at inverse-rate exponent one, and derives a $77$-word descriptor. Its header contains the public-input count, fixed and private stack dimensions and lane counts, bus dimension, public and Flock offsets, and fixed Merkle root. Each of the thirteen schemas has a presence flag, row dimension, fixed and private offsets, and bus offset. Define $D_{\mathrm{key}}$ as the ASCII string \path{leanVM/native-circuit/key/v2} followed by one zero byte. The key digest is $H(H(D_{\mathrm{key}})\Vert\operatorname{encode}(\texttt{descriptor}))$, encoding every descriptor word as a little-endian \texttt{u64}. This authenticates the fixed commitment and layout under the expected relation. A descriptor supplied as recursive advice must hash to the authorized public key digest; its shape checks alone do not authorize a circuit.
 
-\begin{enumerate}
-\item \textbf{Verifier.} Sends $r_m\in\E$ and forms the line $(1+r_m)\mem[\gen^0]+r_m\mem[\gen^1]$ from the public words.
-\item \textbf{Prover \& Verifier.} The prover sends $c_0,c_1$; the verifier checks $c_0+y c_1$ against the line and pools $(c_0,c_1,0)$ as claims on $\mem_0,\mem_1,\mem_2$ at $(r_m,0,\dots,0)$ (\S\ref{sec:e2e-pi}).
-\end{enumerate}
+\paragraph{Native verification.} The native transcript is initialized with that expected key digest and the public-field digest of \S\ref{sec:rec-stmt}. It announces a private inverse-rate exponent in $1\ldots4$ and a private WHIR root. Bus GKR and table sumcheck constrain field arithmetic and fixed dataflow metadata; the BLAKE2s table is linked to its Flock witness and its matrix evaluation is completed. Private opening batching places ring claims before point claims. One complete WHIR opening checks private column and Flock claims, and a second checks fixed-column claims against the root authenticated by the key, at the fixed exponent one. Native root verification requires complete transcript consumption. The recursive child circuit constrains these same reductions and authenticated openings, not merely a header, digest, or host-verification result. The same-key binary composition and trusted-ELF authorization are described in \S\ref{sec:deferred-claims}.
 
-\paragraph{BLAKE2s validity.}
+\subsection{Portable proof transport}\label{sec:rv-proof-format}
 
-\begin{enumerate}
-\item \textbf{Prover \& Verifier.} Reduce the executed BLAKE2s constraints to one evaluation claim on $\qflock$ (\S\ref{sec:tab-blake2s}, Annex~\ref{annex:flock}).
-\item \textbf{Prover \& Verifier.} The ring switching of \S\ref{sec:ringswitch} reduces that bit-witness claim to a weighted-sum claim on the $\qflock$ region of the stack, with an MLE-friendly $\E$-valued weight (Definition~\ref{def:ipcs}); it joins the pool.
-\end{enumerate}
-
-\paragraph{Opening.}
-
-\begin{enumerate}
-\item \textbf{Prover \& Verifier.} Each pooled claim is one evaluation of a column at a point, its value already supplied; via the stacking selectors (\S\ref{sec:stacking}) it becomes a weighted sum $\sum_w W_j(w)\,\widetilde q(w)=c_j$ over the stacked witness. (The ring-switched claim arrives already in this form, its weight supported on the $\qflock$ region.)
-\item \textbf{Verifier.} Sends one batching challenge $\lambda\in\E$, drawn after every claim value is bound. Claim $j$ takes the weight $\lambda^{j-1}$, the ring-switched claim first and the pooled column claims after: the $J$ weights are distinct powers of the one challenge (Theorem~\ref{thm:rbr}).
-\item \textbf{Prover \& Verifier.} Fold the $J$ claims into $W_\lambda=\sum_j\lambda^{j-1} W_j$ and $C_\lambda=\sum_j\lambda^{j-1} c_j$, and run the inner-product PCS opening on $\sum_w W_\lambda(w)\,\widetilde q(w)=C_\lambda$ (Annex~\ref{annex:pcs}), the verifier evaluating $W_\lambda$ itself. This one opening discharges every pooled claim; there is no separate reduction sumcheck.
-\item \textbf{Verifier.} Accepts if every check above passed: the caps, the one bus root for both sides, the nonzero count root, every sumcheck's rounds and final value, the public-input line, flock's reduction, and the PCS opening.
-\end{enumerate}
+\path{riscv_proof::Proof} carries field scalars and authenticated Merkle openings, not an execution trace or private witness. Its byte encoding is:
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\hline
+Field & Encoding\\
+\hline
+Magic & Eight bytes \texttt{RV64PRF1}\\
+Scalar count and stream & \texttt{u64} little-endian count, then $24$ bytes per $\E$ scalar (three little-endian limbs)\\
+Opening count & \texttt{u64} little-endian\\
+Each opening & \texttt{u64} leaf-word count, little-endian \texttt{u64} leaf words, \texttt{u64} sibling count, then $32$ bytes per sibling\\
+\hline
+\end{tabularx}
+\end{center}
+The bounded decoder rejects malformed lengths and trailing bytes. Openings contain the complete raw leaf image required by the Merkle layout, including leading zero lanes at level zero; callers must not strip zeros or reinterpret a leaf as only its nonzero payload. Verification reconstructs the commitments and checks algebraic claims, without replaying a supplied trace or delegating validity to a host-only checker.
