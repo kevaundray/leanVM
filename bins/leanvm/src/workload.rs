@@ -77,6 +77,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
         pretty_f64(cycles as f64 / workload.items as f64),
         workload.item
     );
+    println!("  proven rows                 : {}", pretty_integer(stats.cycles));
     // Rows per table, then the committed witness: what the prover pays for.
     println!("    details                   : {}", stats.details());
     let proof_bytes = bincode::serialized_size(&proof).expect("proof is serializable");

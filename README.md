@@ -67,10 +67,11 @@ cargo leanvm fibonacci --n 2000000 --log-inv-rate 1 --repeat 3
 
 ```
 Fibonacci (modulo 2^64), N = 2,000,000
-  cycles (VM steps)           : 2,097,208
+  cycles (RISC-V)             : 2,004,006
+  proven rows                 : 2,097,208
     details                   : ALU 2^20.934 (100.0%)  TOTAL_COMMITTED 2^26.395
   proof size                  : 337.5 KiB
-  proving                     : 1.281 s ± 1.2%   1,636,564 cycles/s      peak memory 11.6 GiB
+  proving                     : 1.281 s ± 1.2%   1,563,833 cycles/s      peak memory 11.6 GiB
   verifying                   : 6.186 ms
 ```
 
@@ -86,10 +87,11 @@ cargo leanvm guest guests/elf/blake2s.elf --input 10000 --repeat 3 --cooldown 2
 guests/elf/blake2s.elf
   input                       : [2710, 0, 0, 0]
   output                      : [8f9fc3d71d84c0cc, 515c979fa65679e8, 9ffc0e1e022efcc7, cef54d0c06836e56]
-  cycles (VM steps)           : 1,015,824
+  cycles (RISC-V)             : 657,664
+  proven rows                 : 1,015,824
     details                   : ALU 2^18.47 (55.2%)  SHIFT 2^17.238 (23.5%)  LOAD 2^16.356 (12.8%)  STORE 2^15.139 (5.5%)  MUL 2^13.288 (1.5%)  MULH 2^13.288 (1.5%)  TOTAL_COMMITTED 2^25.435
   proof size                  : 328.6 KiB
-  proving                     : 0.698 s ± 1.2%   1,454,472 cycles/s      peak memory 5.18 GiB
+  proving                     : 0.698 s ± 1.2%   941,653 cycles/s      peak memory 5.18 GiB
   verifying                   : 7.185 ms
 ```
 
@@ -103,10 +105,11 @@ cargo leanvm guest guests/elf/hash.elf --input 50000 --repeat 3
 
 ```
 guests/elf/hash.elf
-  cycles (VM steps)           : 869,384
+  cycles (RISC-V)             : 683,985
+  proven rows                 : 869,384
     details                   : ALU 2^18.641 (59.8%)  SHIFT 2^16.61 (14.6%)  STORE 2^15.915 (9.0%)  MULH 2^15.61 (7.3%)  MUL 2^15.61 (7.3%)  LOAD 2^13.618 (1.8%)  HASH 2^9.611 (0.1%)  TOTAL_COMMITTED 2^25.49
   proof size                  : 331.0 KiB
-  proving                     : 0.816 s ± 0.9%   1,065,522 cycles/s      peak memory 5.238 GiB
+  proving                     : 0.816 s ± 0.9%   838,296 cycles/s      peak memory 5.238 GiB
   verifying                   : 7.796 ms
 ```
 
