@@ -28,7 +28,6 @@ use fiat_shamir::transcript::{Challenger, Error as TranscriptError, Receiver, Tr
 use primitives::{
     field::{F64, F192, F192Unreduced, powers},
     multilinear::eq_eval,
-    pretty_integer,
     stream::Stream,
 };
 use zk_alloc::ArenaVec;
@@ -200,29 +199,14 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     // it before transforming that region in place.
     let mut codeword = unsafe { zk_alloc::ArenaVec::<F64>::uninitialized(codeword_len) };
 
-    // Optional phase timing (WHIR_TRACE): one env lookup per commit, no
-    // work when unset.
-    let trace = std::env::var_os("WHIR_TRACE").is_some();
-    let t_ntt = std::time::Instant::now();
     tracing::info_span!("NTT", kind = "base encode", log_domain = k_code, lanes = n_lanes).in_scope(|| {
         crate::ntt::transpose_lane_major(&mut codeword[..message.len()], message, n_lanes, log_rows);
         let ntt = AdditiveNttF64::standard(k_code);
         ntt.encode_interleaved_in_place(&mut codeword, n_lanes, log_inv_rate);
     });
-    let ntt_elapsed = t_ntt.elapsed();
-    let t_merkle = std::time::Instant::now();
-
-    let merkle_tree = merkle::merkle_tree_padded_rows(&codeword, n_positions, n_lanes, 1usize << log_batch_size);
+    let merkle_tree = tracing::info_span!("Merkle")
+        .in_scope(|| merkle::merkle_tree_padded_rows(&codeword, n_positions, n_lanes, 1usize << log_batch_size));
     let root = *merkle_tree.last().expect("merkle tree non-empty");
-    if trace {
-        let k_code = pretty_integer(k_code);
-        let lanes = pretty_integer(n_lanes);
-        eprintln!(
-            "[lig-commit] k_code={k_code} lanes={lanes}: ntt = {:.4} s, merkle = {:.4} s",
-            ntt_elapsed.as_secs_f64(),
-            t_merkle.elapsed().as_secs_f64(),
-        );
-    }
 
     (Commitment { root }, ProverData { codeword, merkle_tree })
 }
@@ -274,10 +258,6 @@ pub(crate) fn ligero_commit_ext(
     // SAFETY: the encode writes every matrix element before reading it.
     let mut mat = unsafe { ArenaVec::<F192>::uninitialized(codeword_len) };
 
-    // Optional per-level NTT/Merkle split (WHIR_TRACE): one env lookup per
-    // commit level, no work when unset.
-    let trace = std::env::var_os("WHIR_TRACE").is_some();
-    let t_ntt = std::time::Instant::now();
     tracing::info_span!(
         "NTT",
         kind = "extension encode",
@@ -285,8 +265,6 @@ pub(crate) fn ligero_commit_ext(
         lanes = num_interleaved
     )
     .in_scope(|| encode_interleaved_ext(ntt, &mut mat, poly, num_interleaved, log_inv_rate));
-    let ntt_elapsed = t_ntt.elapsed();
-    let t_merkle = std::time::Instant::now();
 
     // Merkle over rows, zero-copy.
     // SAFETY: F192 is repr(C) with three u64 limbs (24 bytes, no padding);
@@ -297,17 +275,7 @@ pub(crate) fn ligero_commit_ext(
     let data_bytes: &[u8] =
         unsafe { core::slice::from_raw_parts(mat.as_ptr() as *const u8, mat.len() * core::mem::size_of::<F192>()) };
     debug_assert_eq!(data_bytes.len(), block_len * leaf_size_bytes);
-    let tree = merkle::merkle_tree(data_bytes, block_len);
-    if trace {
-        let log_block_len = pretty_integer(log_block_len);
-        let num_interleaved = pretty_integer(num_interleaved);
-        eprintln!(
-            "[lig] recursive_commit(log_block={log_block_len}, lanes={num_interleaved}): \
-             ntt = {:.4} s, merkle = {:.4} s",
-            ntt_elapsed.as_secs_f64(),
-            t_merkle.elapsed().as_secs_f64(),
-        );
-    }
+    let tree = tracing::info_span!("Merkle").in_scope(|| merkle::merkle_tree(data_bytes, block_len));
 
     LigeroWitness {
         mat,
@@ -1178,18 +1146,6 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     assert_eq!(l0_codeword.len(), block_len_0 * n_lanes);
     assert_eq!(l0_tree.len(), 2 * block_len_0 - 1);
 
-    // Optional per-phase timing (WHIR_TRACE): mirror of the original's
-    // LIG_PROVE_TRACE. One env lookup per prove; the Instant reads are
-    // negligible and the accumulation/printing is gated on `trace`.
-    let trace = std::env::var_os("WHIR_TRACE").is_some();
-    let mut t_init_sumcheck = std::time::Duration::ZERO;
-    let mut t_commits = std::time::Duration::ZERO;
-    let mut t_opens = std::time::Duration::ZERO;
-    let mut t_induce = std::time::Duration::ZERO;
-    let mut t_sumcheck_folds = std::time::Duration::ZERO;
-    let mut t_intro_glue = std::time::Duration::ZERO;
-    let t_total = std::time::Instant::now();
-
     // Nothing is absorbed on entry. The commitment was bound by the `add_root`/`next_root` that
     // transmitted it, and the target is `sum_i lambda^i * claim_i` over claim values bound by their
     // own reads, with lambda drawn from the state: the state already determines both. Every caller
@@ -1216,7 +1172,6 @@ pub(crate) fn recursive_prover_with_prepared_basis(
 
     let ood_count = |lvl: usize| -> usize { config.ood_samples.get(lvl).copied().unwrap_or(0) };
 
-    let _t = std::time::Instant::now();
     let sumcheck_span = tracing::info_span!("Sumcheck");
     let (mut sc_prover, start_msg) =
         sumcheck_span.in_scope(|| SumcheckProver::new(witness, b_initial, target, lane_block, initial_message));
@@ -1230,9 +1185,6 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         r_lane_fold.push(r_j);
     }
     drop(sumcheck_span);
-    if trace {
-        t_init_sumcheck += _t.elapsed();
-    }
 
     // Commit f^1 = folded (now E-valued) witness as wtns_1.
     let n1 = log_n - initial_k;
@@ -1240,7 +1192,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     assert!(n1 >= log_num_interleaved_1);
     let log_msg_cols_1 = n1 - log_num_interleaved_1;
     let log_inv_rate_1 = config.log_inv_rates[1];
-    let _t = std::time::Instant::now();
+    let span = tracing::info_span!("Commit", level = 1).entered();
     let ntt_1 = AdditiveNttF64::standard(log_msg_cols_1 + log_inv_rate_1);
     let wtns_1 = ligero_commit_ext(
         sc_prover.f_ext(),
@@ -1249,9 +1201,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         log_inv_rate_1,
         &ntt_1,
     );
-    if trace {
-        t_commits += _t.elapsed();
-    }
+    drop(span);
     ps.add_root(&wtns_1.root());
 
     // Bind the L1 Johnson list before drawing L0 queries. Each claimed random
@@ -1269,21 +1219,19 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     // batches is fixed: the OOD claims above and these query positions.
     let lambda_0 = ps.sample();
     let weights_0 = powers(lambda_0, num_queries_0);
-    let _t = std::time::Instant::now();
+    let span = tracing::info_span!("Open", level = 0).entered();
     // Ordered (dup-possible) rows for the local induce math ...
     let opened_rows_0: Vec<Vec<F64>> = queries_0.iter().map(|&q| l0_fold_row(q)).collect();
     // ... but the stored proof carries the sorted-unique rows + one octopus over
     // the sorted-unique positions (the verifier re-fans them to ordered).
     ps.hint_merkle(PrunedMerklePaths::prune(l0_tree, block_len_0, &queries_0, l0_row));
-    if trace {
-        t_opens += _t.elapsed();
-    }
+    drop(span);
 
     // Induce basis_0 from the L0 opens. L0 dominates the induce phase, where
     // the sparse-prefix transposed-NTT path wins; the dispatcher auto-selects
     // it (deeper levels stay dense), mirroring the original.
     let sks_vks_n1 = eval_sk_at_vks(n1);
-    let _t = std::time::Instant::now();
+    let span = tracing::info_span!("Induce", level = 0).entered();
     let (basis_0_induced, enforced_sum_0) = induce_sumcheck_poly_auto_base(
         n1,
         log_inv_rate_0,
@@ -1293,18 +1241,14 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         &queries_0,
         &weights_0,
     );
-    if trace {
-        t_induce += _t.elapsed();
-    }
+    drop(span);
 
     // Introduce basis_0, then batch the level's claims with powers of lambda_0.
-    let _t = std::time::Instant::now();
+    let span = tracing::info_span!("Introduce", level = 0).entered();
     let intro_msg_0 = sc_prover.introduce_new(basis_0_induced, enforced_sum_0);
     send_msg(ps, intro_msg_0, enforced_sum_0);
     sc_prover.glue_pending(lambda_0);
-    if trace {
-        t_intro_glue += _t.elapsed();
-    }
+    drop(span);
 
     // Recursive levels.
     let mut wtns_prev = wtns_1;
@@ -1312,7 +1256,6 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     for i in 0..r {
         let k_i = config.level_ks[i];
         let mut level_rs = Vec::with_capacity(k_i);
-        let _t = std::time::Instant::now();
         let sumcheck_span = tracing::info_span!("Sumcheck");
         for _ in 0..k_i {
             let ri = ps.sample();
@@ -1321,9 +1264,6 @@ pub(crate) fn recursive_prover_with_prepared_basis(
             level_rs.push(ri);
         }
         drop(sumcheck_span);
-        if trace {
-            t_sumcheck_folds += _t.elapsed();
-        }
 
         if i == r - 1 {
             ps.add_scalars(sc_prover.f_ext());
@@ -1335,7 +1275,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
             // and its queries are bound, matching the verifier exactly.
             let lambda_last = ps.sample();
             let weights_last = powers(lambda_last, num_queries_last);
-            let _t = std::time::Instant::now();
+            let span = tracing::info_span!("Final level").entered();
             // Final level: stored (sorted-unique) only, no local induce; the
             // verifier fans these to ordered for its last-level induce.
             ps.hint_merkle(PrunedMerklePaths::prune(
@@ -1371,35 +1311,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
                     send_msg(ps, msg, sc_prover.claim());
                 }
             }
-            if trace {
-                t_opens += _t.elapsed();
-                let total = t_total.elapsed();
-                eprintln!("[lig-prove] total = {:.4} s", total.as_secs_f64());
-                eprintln!(
-                    "  initial sumcheck (initial_k folds + SC build): {:.4} s",
-                    t_init_sumcheck.as_secs_f64()
-                );
-                eprintln!(
-                    "  recursive commits (NTT + merkle):              {:.4} s",
-                    t_commits.as_secs_f64()
-                );
-                eprintln!(
-                    "  opens (rows + multi-proof, incl. final):      {:.4} s",
-                    t_opens.as_secs_f64()
-                );
-                eprintln!(
-                    "  induce_sumcheck_poly:                          {:.4} s",
-                    t_induce.as_secs_f64()
-                );
-                eprintln!(
-                    "  sumcheck recursive folds:                      {:.4} s",
-                    t_sumcheck_folds.as_secs_f64()
-                );
-                eprintln!(
-                    "  introduce_new + glue:                          {:.4} s",
-                    t_intro_glue.as_secs_f64()
-                );
-            }
+            drop(span);
             return;
         }
 
@@ -1408,7 +1320,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         assert!(n_next >= log_num_interleaved_next);
         let log_msg_cols_next = n_next - log_num_interleaved_next;
         let log_inv_rate_next = config.log_inv_rates[i + 2];
-        let _t = std::time::Instant::now();
+        let span = tracing::info_span!("Commit", level = i + 2).entered();
         let ntt_next = AdditiveNttF64::standard(log_msg_cols_next + log_inv_rate_next);
         let wtns_next = ligero_commit_ext(
             sc_prover.f_ext(),
@@ -1417,9 +1329,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
             log_inv_rate_next,
             &ntt_next,
         );
-        if trace {
-            t_commits += _t.elapsed();
-        }
+        drop(span);
         ps.add_root(&wtns_next.root());
 
         send_ood(&mut sc_prover, ps, n_next, ood_count(i + 2));
@@ -1430,7 +1340,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         let queries_i = sample_queries_ordered(ps, wtns_prev.block_len, num_queries_i);
         let lambda_i = ps.sample();
         let weights_i = powers(lambda_i, num_queries_i);
-        let _t = std::time::Instant::now();
+        let span = tracing::info_span!("Open", level = i + 1).entered();
         // Ordered rows for the local induce; sorted-unique rows + octopus stored.
         let opened_rows_i: Vec<Vec<F192>> = queries_i.iter().map(|&q| wtns_prev.row(q).to_vec()).collect();
         ps.hint_merkle(PrunedMerklePaths::prune(
@@ -1439,25 +1349,19 @@ pub(crate) fn recursive_prover_with_prepared_basis(
             &queries_i,
             |q| ext_row_words(wtns_prev.row(q)),
         ));
-        if trace {
-            t_opens += _t.elapsed();
-        }
+        drop(span);
 
         let sks_vks_i = eval_sk_at_vks(n_next);
-        let _t = std::time::Instant::now();
+        let span = tracing::info_span!("Induce", level = i + 1).entered();
         let (basis_i_induced, enforced_sum_i) =
             induce_sumcheck_poly(n_next, &sks_vks_i, &opened_rows_i, &level_rs, &queries_i, &weights_i);
-        if trace {
-            t_induce += _t.elapsed();
-        }
+        drop(span);
 
-        let _t = std::time::Instant::now();
+        let span = tracing::info_span!("Introduce", level = i + 1).entered();
         let intro_msg_i = sc_prover.introduce_new(basis_i_induced, enforced_sum_i);
         send_msg(ps, intro_msg_i, enforced_sum_i);
         sc_prover.glue_pending(lambda_i);
-        if trace {
-            t_intro_glue += _t.elapsed();
-        }
+        drop(span);
 
         wtns_prev = wtns_next;
     }

@@ -773,10 +773,8 @@ impl Blake2sSetup {
             self.n_block_slots()
         );
         let n_log = self.n_blocks_log();
-        let t_witness = std::time::Instant::now();
-        let (z_packed, a_packed_words, b_packed_words, z_packed_lincheck) =
-            generate_witness_with_ab_packed_and_lincheck(blocks, n_log);
-        reduction::trace_stage("witness:", t_witness);
+        let (z_packed, a_packed_words, b_packed_words, z_packed_lincheck) = tracing::info_span!("Witness generation")
+            .in_scope(|| generate_witness_with_ab_packed_and_lincheck(blocks, n_log));
         let reduced =
             self.prove_reduction_precomputed(&z_packed, &a_packed_words, &b_packed_words, &z_packed_lincheck, ps);
         (z_packed, reduced)

@@ -159,6 +159,7 @@ dependencies = [
  "parallel",
  "pcs",
  "primitives",
+ "tracing",
  "zk_alloc",
 ]
 
@@ -318,6 +319,7 @@ dependencies = [
 name = "primitives"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "bincode",
  "parallel",
  "primitives",

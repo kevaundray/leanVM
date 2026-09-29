@@ -19,6 +19,7 @@ use pcs::whir::{commit, config_for_rate};
 use primitives::{field::F64, pretty_integer, test_rng::Rng};
 
 fn main() {
+    bench::init_tracing_from_env();
     let requested_n_log: usize = std::env::var("FLOCK_N_LOG")
         .ok()
         .map(|s| s.parse().expect("FLOCK_N_LOG must be an integer"))
@@ -109,7 +110,8 @@ fn main() {
     // the warmup, the cooldown, and the repetition for all of them.
     let plan = Plan::from_env();
     let mut stages: [Timing; 7] = std::array::from_fn(|_| Timing::default());
-    let (transcript, _) = plan.warm_then_measure(|_final_pass| {
+    let (transcript, _) = plan.warm_then_measure(|final_pass| {
+        let _quiet = (!final_pass).then(bench::suppress_tracing);
         let (out, secs) = prove_pass();
         for (timing, s) in stages.iter_mut().zip(secs) {
             timing.push(s);

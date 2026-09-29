@@ -130,6 +130,14 @@ pub fn init_tracing() {
     let _ = Registry::default().with(env_filter).with(forest).try_init();
 }
 
+/// [`init_tracing`] when `BENCH_TRACING` is set: the `benches/` targets'
+/// counterpart of the CLI's `--tracing`.
+pub fn init_tracing_from_env() {
+    if std::env::var_os("BENCH_TRACING").is_some() {
+        init_tracing();
+    }
+}
+
 #[cfg(test)]
 mod tracing_tests {
     use super::rewrite_trace_percentages;

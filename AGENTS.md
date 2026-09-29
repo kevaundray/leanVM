@@ -50,7 +50,9 @@ cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. The parameter reports `print_whir_query_counts` and `print_whir_query_table` are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`.
+Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). The parameter reports `print_whir_query_counts` and `print_whir_query_table` are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`.
+
+**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `lean_vm`, `stage!`), never an `Instant` behind an env var.
 
 ## Benchmarking
 
@@ -148,13 +150,13 @@ The same verification algorithm is written out twice, in two languages. Any chan
 | var                                                                                                     | effect                                           |
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `LEANVM_NUM_THREADS`                                                                                    | performance-worker count; `1` = sequential       |
-| `LEANVM_PROFILE`                                                                                        | per-stage prover timings                         |
+| `BENCH_TRACING`                                                                                         | the `benches/` targets' `--tracing`: the final pass's span tree |
 | `ZK_ALLOC_STATS`                                                                                        | arena peak/phase, high water, overflow           |
 | `ZK_ALLOC_POISON`                                                                                       | fill released arena blocks, to catch use-after-free |
 | `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for the `benches/` targets |
-| `FLOCK_N_LOG`, `FLOCK_PROVE_TRACE`, `FLOCK_ZC_TIMING`, `LINCHECK_TRACE`                                 | flock batch size, stage traces                   |
-| `PCS_LOG_N`, `PCS_LOG_INV_RATE`, `PCS_SAMPLES`                                                          | PCS throughput bench                             |
-| `WHIR_TRACE`, `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                          | WHIR NTT/Merkle split                        |
+| `FLOCK_N_LOG`                                                                                           | flock batch size                                 |
+| `PCS_LOG_N`, `PCS_LOG_INV_RATE`                                                                         | PCS throughput bench                             |
+| `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                                                    | `print_whir_query_counts`'s shape                |
 
 ## Side notes
 

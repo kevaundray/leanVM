@@ -6,7 +6,7 @@ use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
 
 mod trace;
-pub use trace::{TraceSuppressed, init_tracing, suppress_tracing};
+pub use trace::{TraceSuppressed, init_tracing, init_tracing_from_env, suppress_tracing};
 
 /// One line of live progress on stderr.
 ///

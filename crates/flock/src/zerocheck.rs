@@ -165,8 +165,7 @@ pub fn prove_packed_padded(
     // C_s factor analysis in `univariate_skip_optimized`). The wire format
     // must be in "naive" convention so the verifier doesn't need to know
     // about this internal optimization; we restore the C_s factor here.
-    let zc_timing = std::env::var_os("FLOCK_ZC_TIMING").is_some();
-    let t_round1 = std::time::Instant::now();
+    let span = tracing::info_span!("Round 1").entered();
     let ntt_s = AdditiveNttGf8::new(k_skip, F8::ZERO);
     let ntt_l = AdditiveNttGf8::new(k_skip, F8(1u8 << k_skip));
     let inv_table = InvNttTableByteSingleGf8::new(&ntt_s, &ntt_l);
@@ -179,12 +178,7 @@ pub fn prove_packed_padded(
         .zip(&round1_c_opt)
         .map(|(x, y)| c_s * (*x + *y))
         .collect();
-    if zc_timing {
-        eprintln!(
-            "[zc-timing] round1 URM: {:.2} ms",
-            t_round1.elapsed().as_secs_f64() * 1e3
-        );
-    }
+    drop(span);
 
     // ---- Transmit + bind round-1 message on the stream, sample z ----
     for &x in round1.iter() {
@@ -205,7 +199,7 @@ pub fn prove_packed_padded(
     //
     // The kernels take the eq challenges of the variables they do not bind.
     // They return the bare `(G(1), G(inf))` that goes on the wire.
-    let t_bits = std::time::Instant::now();
+    let span = tracing::info_span!("Bit rounds").entered();
     let bits = PackedWitness {
         a: a_packed,
         b: b_packed,
@@ -229,10 +223,8 @@ pub fn prove_packed_padded(
     let ((g1, g_inf), [mut a_mlv, mut b_mlv, mut c_mlv]) =
         bit_round_materialize(bits, &fold, &r_rest[materialize_level + 1..], padding);
     c_running = send_round(ps, c_running, r_rest[materialize_level], g1, g_inf, &mut mlv_chis);
-    if zc_timing {
-        eprintln!("[zc-timing] bit rounds: {:.2} ms", t_bits.elapsed().as_secs_f64() * 1e3);
-    }
-    let t_tail = std::time::Instant::now();
+    drop(span);
+    let span = tracing::info_span!("Table rounds").entered();
 
     // ---- Remaining rounds, on the stored tables ----
     //
@@ -331,9 +323,7 @@ pub fn prove_packed_padded(
     ps.add_scalar(final_a_eval);
     ps.add_scalar(final_b_eval);
 
-    if zc_timing {
-        eprintln!("[zc-timing] tail: {:.2} ms", t_tail.elapsed().as_secs_f64() * 1e3);
-    }
+    drop(span);
 
     ZerocheckClaim {
         z,

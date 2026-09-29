@@ -20,6 +20,7 @@ use primitives::{field::F64, pretty_integer, test_rng::Rng};
 /// Every operation whose name contains one of the arguments, or all of them with
 /// none. `cargo bench` passes flags of its own (`--bench`), which are skipped.
 fn main() {
+    bench::init_tracing_from_env();
     let filters: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
     for (name, op) in [
         ("add_wrapping", U64Op::WrappingAdd),
@@ -111,7 +112,8 @@ fn bench(op: U64Op) {
 
     let plan = Plan::from_env();
     let mut stages: [Timing; 6] = std::array::from_fn(|_| Timing::default());
-    let (transcript, _) = plan.warm_then_measure(|_final_pass| {
+    let (transcript, _) = plan.warm_then_measure(|final_pass| {
+        let _quiet = (!final_pass).then(bench::suppress_tracing);
         let (out, secs) = prove_pass();
         for (timing, s) in stages.iter_mut().zip(secs) {
             timing.push(s);
