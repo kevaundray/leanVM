@@ -5,9 +5,9 @@ use bench::{Metric, Plan, bencher_json};
 use leanvm::{Program, Stats, prove, verify};
 use primitives::pretty_integer;
 
+use crate::fibonacci;
 use crate::guest::refuse;
-use crate::workload::Workload;
-use crate::{da, fibonacci, signatures};
+use crate::workload::{self, Workload};
 
 struct Case {
     /// The benchmark's Bencher history: renaming it, or changing its input, starts a new one.
@@ -63,16 +63,16 @@ fn cases() -> Vec<Case> {
         Case {
             name: "hash-50000",
             title: format!("BLAKE2s of {} bytes", pretty_integer(HASHED)),
-            program: Program::from_elf(include_bytes!("../../../guests/elf/hash.elf")).expect("a checked-in guest"),
+            program: Program::from_elf(include_bytes!("../../../programs/hash/hash.elf")).expect("a checked-in guest"),
             input: [HASHED as u64, 0, 0, 0],
             advice: vec![],
             expected: None,
             items: HASHED,
             item: "byte",
         },
-        Case::workload("leanxmss-400", signatures::leanxmss(400)),
-        Case::workload("leansphincs-104", signatures::leansphincs(104)),
-        Case::workload("leanda-1", da::leanda(1)),
+        Case::workload("leanxmss-400", workload::leanxmss(400)),
+        Case::workload("leansphincs-104", workload::leansphincs(104)),
+        Case::workload("leanda-1", workload::leanda(1)),
     ]
 }
 

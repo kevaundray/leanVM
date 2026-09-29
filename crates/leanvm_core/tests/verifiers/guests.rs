@@ -1,6 +1,6 @@
-//! Rust guests (`guests/`), from their ELF files: compiled by `rustc` for
+//! Rust guests (`programs/*/guest`), from their ELF files: compiled by `rustc` for
 //! `riscv64im-unknown-none-elf`, loaded, run, proven, and checked by both verifiers.
-//! The files are built by `guests/build.sh` and checked in, the target needing a
+//! The files are built by `programs/build.sh` and checked in, the target needing a
 //! nightly toolchain.
 
 use super::python_verifier::PythonStatement;
@@ -38,7 +38,7 @@ fn fibonacci_guest() {
     }
     proves_and_verifies(
         "fibonacci",
-        include_bytes!("../../../../guests/elf/fibonacci.elf"),
+        include_bytes!("../../../../programs/fibonacci/fibonacci.elf"),
         [5000, 0, 0, 0],
         [a, 0, 0, 0],
     );
@@ -55,7 +55,7 @@ fn blake2s_guest() {
     let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
     proves_and_verifies(
         "blake2s",
-        include_bytes!("../../../../guests/elf/blake2s.elf"),
+        include_bytes!("../../../../programs/blake2s/blake2s.elf"),
         [length, 0, 0, 0],
         expected,
     );
@@ -71,7 +71,7 @@ fn hash_guest() {
     let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
     proves_and_verifies(
         "hash",
-        include_bytes!("../../../../guests/elf/hash.elf"),
+        include_bytes!("../../../../programs/hash/hash.elf"),
         [length, 0, 0, 0],
         expected,
     );
@@ -85,9 +85,9 @@ fn the_hash_guests_agree_with_the_host_at_every_block_boundary() {
     let guests = [
         (
             "blake2s",
-            include_bytes!("../../../../guests/elf/blake2s.elf").as_slice(),
+            include_bytes!("../../../../programs/blake2s/blake2s.elf").as_slice(),
         ),
-        ("hash", include_bytes!("../../../../guests/elf/hash.elf").as_slice()),
+        ("hash", include_bytes!("../../../../programs/hash/hash.elf").as_slice()),
     ];
     for (name, elf) in guests {
         let program = Program::from_elf(elf).expect("a guest");
@@ -119,7 +119,7 @@ fn preimage_guest() {
     let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
     proves_and_verifies_with(
         "preimage",
-        include_bytes!("../../../../guests/elf/preimage.elf"),
+        include_bytes!("../../../../programs/preimage/preimage.elf"),
         [0; 4],
         &advice,
         expected,
@@ -152,7 +152,7 @@ fn numbers_guest() {
     let mixed = ((base as i32) / (exponent as i32 | 1)) as i64 % 1000;
     proves_and_verifies(
         "numbers",
-        include_bytes!("../../../../guests/elf/numbers.elf"),
+        include_bytes!("../../../../programs/numbers/numbers.elf"),
         [base, exponent, modulus, 0],
         [pow_mod, gcd, signed as u64, mixed as u64],
     );
@@ -161,7 +161,7 @@ fn numbers_guest() {
 /// What is not a guest is refused by name, not run.
 #[test]
 fn malformed_elf_files_are_refused() {
-    let elf = include_bytes!("../../../../guests/elf/fibonacci.elf");
+    let elf = include_bytes!("../../../../programs/fibonacci/fibonacci.elf");
     assert!(Guest::from_elf(elf).is_ok());
     assert!(Guest::from_elf(&elf[..40]).is_err(), "a truncated header");
     for (at, value, what) in [

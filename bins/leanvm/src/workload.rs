@@ -6,7 +6,7 @@ use primitives::{pretty_f64, pretty_integer};
 
 use crate::guest::refuse;
 
-/// One run of a guest (`guests/`): what it is given and what it must output.
+/// One run of a guest (`programs/`): what it is given and what it must output.
 pub struct Workload {
     /// What the report calls the run.
     pub title: String,
@@ -29,11 +29,47 @@ impl Workload {
     pub fn program(&self) -> Program {
         Program::from_elf(self.elf).expect("a guest's ELF file")
     }
+}
 
-    /// Run the guest on the interpreter, with no proof: its output, or the trap.
-    #[cfg(test)]
-    pub fn run(&self) -> Result<[u64; 4], leanvm_core::rv::Trap> {
-        leanvm_core::rv::Machine::new(&self.program().rv, self.input, &self.advice).run(1 << 30)
+/// Verify `n` leanXMSS signatures, one key each.
+pub fn leanxmss(n: usize) -> Workload {
+    let run = leanxmss_host::batch(n);
+    Workload {
+        title: format!("leanXMSS verification, {n} signatures"),
+        elf: leanxmss_host::ELF,
+        input: run.input,
+        advice: run.advice,
+        expected: run.expected,
+        items: n,
+        item: "signature",
+    }
+}
+
+/// Verify `n` leanSPHINCS signatures, one key each.
+pub fn leansphincs(n: usize) -> Workload {
+    let run = leansphincs_host::batch(n);
+    Workload {
+        title: format!("leanSPHINCS verification, {n} signatures"),
+        elf: leansphincs_host::ELF,
+        input: run.input,
+        advice: run.advice,
+        expected: run.expected,
+        items: n,
+        item: "signature",
+    }
+}
+
+/// Check `n` leanDA blobs and compute their commitment.
+pub fn leanda(n: usize) -> Workload {
+    let run = leanda_host::blobs(n);
+    Workload {
+        title: format!("leanDA check, {n} blobs of 128 KiB"),
+        elf: leanda_host::ELF,
+        input: run.input,
+        advice: run.advice,
+        expected: run.expected,
+        items: n,
+        item: "blob",
     }
 }
 
@@ -94,4 +130,15 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
         "  verifying                   : {} ms",
         pretty_f64(verify_time.mean() * 1000.0)
     );
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_signature_workloads_prove() {
+        // End to end: proven, verified, and the output the native digest.
+        for workload in [super::leanxmss(2), super::leansphincs(1)] {
+            super::run(&workload, leanvm_core::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
+        }
+    }
 }

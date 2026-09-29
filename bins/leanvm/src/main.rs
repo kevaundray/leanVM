@@ -2,10 +2,8 @@
 
 use clap::{Parser, Subcommand};
 
-mod da;
 mod fibonacci;
 mod guest;
-mod signatures;
 mod tracked;
 mod workload;
 
@@ -49,7 +47,7 @@ enum Command {
         #[arg(long, default_value = "2000000")]
         n: usize,
     },
-    /// Prove and verify a run of a RISC-V guest (see `guests/`).
+    /// Prove and verify a run of a RISC-V guest (see `programs/`).
     Guest {
         /// The guest's ELF executable.
         elf: std::path::PathBuf,
@@ -99,9 +97,9 @@ fn main() {
     match cli.command {
         Command::Fibonacci { n } => fibonacci::run_fibonacci(n, cli.log_inv_rate, plan),
         Command::Guest { elf, input, advice } => guest::run_guest(&elf, &input, &advice, cli.log_inv_rate, plan),
-        Command::Leanxmss { n } => workload::run(&signatures::leanxmss(n), cli.log_inv_rate, plan),
-        Command::Leansphincs { n } => workload::run(&signatures::leansphincs(n), cli.log_inv_rate, plan),
-        Command::Leanda { blobs } => workload::run(&da::leanda(blobs), cli.log_inv_rate, plan),
+        Command::Leanxmss { n } => workload::run(&workload::leanxmss(n), cli.log_inv_rate, plan),
+        Command::Leansphincs { n } => workload::run(&workload::leansphincs(n), cli.log_inv_rate, plan),
+        Command::Leanda { blobs } => workload::run(&workload::leanda(blobs), cli.log_inv_rate, plan),
         Command::Bench { cycles_only, markdown } => tracked::run(cycles_only, markdown, cli.log_inv_rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {

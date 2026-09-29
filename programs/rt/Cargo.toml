@@ -1,0 +1,8 @@
+[package]
+name = "leanvm-guest"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Its own workspace: the guests depend on it by path, each from its own.
+[workspace]

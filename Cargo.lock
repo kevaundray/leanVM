@@ -201,10 +201,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "leanda-host"
+version = "0.1.0"
+dependencies = [
+ "fiat_shamir",
+ "leanda",
+ "leanvm_core",
+ "pcs",
+ "primitives",
+]
+
+[[package]]
 name = "leansphincs"
 version = "0.1.0"
 dependencies = [
  "leanvm-guest",
+]
+
+[[package]]
+name = "leansphincs-host"
+version = "0.1.0"
+dependencies = [
+ "leansphincs",
+ "leanvm_core",
+ "parallel",
+ "primitives",
 ]
 
 [[package]]
@@ -224,14 +245,11 @@ dependencies = [
  "bench",
  "bincode",
  "clap",
- "fiat_shamir",
- "leanda",
- "leansphincs",
+ "leanda-host",
+ "leansphincs-host",
  "leanvm",
  "leanvm_core",
- "leanxmss",
- "parallel",
- "pcs",
+ "leanxmss-host",
  "primitives",
  "tracing",
  "zk_alloc",
@@ -260,6 +278,16 @@ name = "leanxmss"
 version = "0.1.0"
 dependencies = [
  "leanvm-guest",
+]
+
+[[package]]
+name = "leanxmss-host"
+version = "0.1.0"
+dependencies = [
+ "leanvm_core",
+ "leanxmss",
+ "parallel",
+ "primitives",
 ]
 
 [[package]]

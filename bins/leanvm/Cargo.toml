@@ -19,13 +19,10 @@ leanvm_core.workspace = true
 primitives.workspace = true
 bench.workspace = true
 zk_alloc.workspace = true
-parallel.workspace = true
-pcs.workspace = true
-fiat_shamir.workspace = true
-# The guests' own libraries, run natively as their reference and to build their inputs.
-leanxmss = { path = "../../guests/leanxmss" }
-leansphincs = { path = "../../guests/leansphincs" }
-leanda = { path = "../../guests/leanda" }
+# The programs' host sides: their guests' inputs and expected outputs.
+leanxmss-host.workspace = true
+leansphincs-host.workspace = true
+leanda-host.workspace = true
 bincode.workspace = true
 tracing.workspace = true
 clap = { version = "4", features = ["derive"] }
