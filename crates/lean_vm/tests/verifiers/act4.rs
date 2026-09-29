@@ -1,8 +1,8 @@
 //! ACT4, the RISC-V architectural tests (riscv-arch-test 4.1.0), its I and M suites:
-//! generated for leanVM's memory map by `guests/act4/generate.sh`, which runs every
+//! generated for leanVM's memory map by `conformance/act4/generate.sh`, which runs every
 //! test on the Sail reference model and builds it again with Sail's results inside,
 //! so that it checks itself. Not checked in: `generate.sh` writes them to the ignored
-//! `guests/act4/elf/`, or `LEANVM_ACT4` names another directory, which is how CI runs
+//! `conformance/act4/elf/`, or `LEANVM_ACT4` names another directory, which is how CI runs
 //! them. Run on the interpreter, proven, and checked by both verifiers. A test exits
 //! with the output zero when every check passes. Both tests are `#[ignore]`d, since
 //! they need the generated files: `cargo test --release -p lean_vm --test verifiers
@@ -46,14 +46,14 @@ struct Test {
 /// Every test, from the directory holding exactly their files.
 fn suite() -> Vec<Test> {
     let root = std::env::var_os("LEANVM_ACT4").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../guests/act4/elf"),
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/act4/elf"),
         PathBuf::from,
     );
     let listing = |directory: &Path| -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(directory)
             .unwrap_or_else(|error| {
                 panic!(
-                    "{}: {error}; generate the files with guests/act4/generate.sh",
+                    "{}: {error}; generate the files with conformance/act4/generate.sh",
                     directory.display()
                 )
             })
@@ -139,7 +139,7 @@ fn check_run(test: &Test) -> Result<(), String> {
 }
 
 #[test]
-#[ignore = "needs the ELF files of guests/act4/generate.sh"]
+#[ignore = "needs the ELF files of conformance/act4/generate.sh"]
 fn act4_on_the_interpreter() {
     let failures: Vec<String> = suite().iter().filter_map(|test| check_run(test).err()).collect();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -149,7 +149,7 @@ fn act4_on_the_interpreter() {
 /// checks the first test to use each table, which between them reach every table the
 /// suite does, side by side.
 #[test]
-#[ignore = "needs the ELF files of guests/act4/generate.sh"]
+#[ignore = "needs the ELF files of conformance/act4/generate.sh"]
 fn act4_proven() {
     let mut covered = [false; N_TABLES];
     let mut python = Vec::new();

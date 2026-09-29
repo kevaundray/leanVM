@@ -1,6 +1,6 @@
 name: RISC-V
 
-# ACT4 (guests/act4/): the tests are generated from their pinned sources, not checked
+# ACT4 (conformance/act4/): the tests are generated from their pinned sources, not checked
 # in. Generation is deterministic, so its output is cached under a hash of every input
 # and the Docker image is only built when one of them changes.
 
@@ -33,11 +33,11 @@ jobs:
         id: elf
         uses: actions/cache@v4
         with:
-          path: guests/act4/elf
-          key: act4-elf-${{ hashFiles('guests/act4/Dockerfile', 'guests/act4/*.sh', 'guests/act4/*.yaml', 'guests/act4/*.json', 'guests/act4/*.ld', 'guests/act4/*.h') }}
+          path: conformance/act4/elf
+          key: act4-elf-${{ hashFiles('conformance/act4/Dockerfile', 'conformance/act4/*.sh', 'conformance/act4/*.yaml', 'conformance/act4/*.json', 'conformance/act4/*.ld', 'conformance/act4/*.h') }}
       - name: Generate the tests from the pinned sources
         if: steps.elf.outputs.cache-hit != 'true'
-        run: guests/act4/generate.sh
+        run: conformance/act4/generate.sh
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run the tests
