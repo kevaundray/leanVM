@@ -8,7 +8,7 @@ use primitives::field::F192;
 /// proven. Proving needs them, since a table's height has to be a power of two with no
 /// padding rows, but their dummy rows would drown out exactly what these counts are
 /// measuring.
-pub fn mix(src: &str, pi: [F192; 2]) -> [usize; lean_vm::cpu::Stats::TABLES.len()] {
+pub fn mix(src: &str, pi: [F192; 2]) -> [usize; leanvm_core::cpu::Stats::TABLES.len()] {
     compile_without_filler(&parse(src).expect("parse"))
         .execute(pi)
         .unwrap()

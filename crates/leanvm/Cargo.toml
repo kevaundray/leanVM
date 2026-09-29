@@ -8,7 +8,7 @@ workspace = true
 
 [dependencies]
 rec_aggregation.workspace = true
-lean_vm.workspace = true
+leanvm_core.workspace = true
 lean_da.workspace = true
 xmss.workspace = true
 sphincs.workspace = true

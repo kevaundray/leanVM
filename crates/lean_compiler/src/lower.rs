@@ -21,7 +21,7 @@
 
 use super::*;
 use crate::filler::FillerOp;
-use lean_vm::cpu::filler::Block;
+use leanvm_core::cpu::filler::Block;
 
 mod builtins;
 mod call;
@@ -82,7 +82,7 @@ impl Abi {
 /// the largest immediate, so beyond this a huge constant index falls back to a
 /// materialized pointer instead of inflating that table. The one cap: every site
 /// that folds an exponent into `β` measures it against this.
-const FOLD_MAX: u128 = 1 << lean_vm::cpu::MIN_LOG_MEM;
+const FOLD_MAX: u128 = 1 << leanvm_core::cpu::MIN_LOG_MEM;
 
 /// The two pure operations worth interning. Both are commutative, so operands
 /// are stored sorted.
@@ -418,14 +418,14 @@ impl FnLower<'_> {
         });
     }
 
-    /// Emit the fill blocks: per table and per size in `lean_vm::cpu::filler::SIZES`,
+    /// Emit the fill blocks: per table and per size in `leanvm_core::cpu::filler::SIZES`,
     /// that many dummy instructions of the table's opcode, then a `JUMP` back to the
     /// block's own first instruction, in the same frame.
     ///
     /// A block is a cycle and nothing jumps into one: they sit past `main`'s halt
     /// and the interpreter enters them itself once the program has stopped. The
     /// state tuples a traversal pushes are the ones it pulls, so the cycle
-    /// balances for any number of traversals (`lean_vm::cpu::filler`).
+    /// balances for any number of traversals (`leanvm_core::cpu::filler`).
     ///
     /// The closing jump is always taken (its destination is a g-power, so
     /// nonzero) and reads its destination and frame from cells the interpreter
@@ -433,7 +433,7 @@ impl FnLower<'_> {
     /// one scratch cell as each operand, writing the value already there, so a
     /// block costs one cell whatever its size.
     fn lower_filler_blocks(&mut self) -> Vec<Block> {
-        use lean_vm::cpu::filler::{SIZES, frame as fr};
+        use leanvm_core::cpu::filler::{SIZES, frame as fr};
 
         // No statement wrote these, so they get the "unknown" line rather than
         // whatever `main` happened to end on.
@@ -483,7 +483,7 @@ impl FnLower<'_> {
                         // Its metadata cell is one no instruction writes, like its
                         // message cells: the interpreter leaves those zero, and a
                         // prover choosing otherwise only picks which compression the
-                        // dummy proves, which nothing reads (`lean_vm::cpu::filler`).
+                        // dummy proves, which nothing reads (`leanvm_core::cpu::filler`).
                         FillerOp::Blake2s => LOp::Blake2s {
                             ins: [fr::DIGEST + 2, fr::DIGEST + 3, fr::DIGEST + 4, fr::DIGEST + 5],
                             cv: fr::SCRATCH,
@@ -904,10 +904,10 @@ impl FnLower<'_> {
                 if *k < 1 {
                     self.fail("range-check bound GEN ** 0 names the empty set")
                 };
-                if *k > 1 << lean_vm::cpu::MIN_LOG_MEM {
+                if *k > 1 << leanvm_core::cpu::MIN_LOG_MEM {
                     self.fail(format!(
                         "range-check bound GEN ** {k} exceeds 2^{} (the minimum memory size)",
-                        lean_vm::cpu::MIN_LOG_MEM
+                        leanvm_core::cpu::MIN_LOG_MEM
                     ))
                 };
                 self.bound_cell(*k)
@@ -921,7 +921,7 @@ impl FnLower<'_> {
                     self.fail(format!(
                         "a compile-time range-check bound must be written as `log GEN ** k` or an \
                      integer, so that the 2^{} cap applies",
-                        lean_vm::cpu::MIN_LOG_MEM
+                        leanvm_core::cpu::MIN_LOG_MEM
                     ))
                 };
                 let bcell = self.expr(b);

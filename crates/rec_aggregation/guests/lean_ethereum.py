@@ -4,7 +4,7 @@
 # statement digest binding its signature claims and a possibly empty list of LeanDA roots.
 # It may check a blob matrix directly and retain any roots proved by its children.
 # Reading order: `main` is the
-# node, `verify_sub` the in-circuit copy of `lean_vm::cpu::verify`, and
+# node, `verify_sub` the in-circuit copy of `leanvm_core::cpu::verify`, and
 # `open_stacked` the WHIR opening it dispatches into.
 #
 # Every `*_PLACEHOLDER` below is filled by the host at compile time
@@ -1595,7 +1595,7 @@ def verify_tables(fs0, fs1, cursor, pi_0, pi_1, zeta, g_bus_mu, dims_g, block_ka
     claim_idx = N_BUS_CLAIMS  # AIR/PI/pin claims pool after the deduped bus claims
 
     # ---- ONE table sumcheck for all six tables ----
-    # Mirrors lean_vm::constraints::verify. zc_xi ONCE, each table folding its own
+    # Mirrors leanvm_core::constraints::verify. zc_xi ONCE, each table folding its own
     # identities with a DISJOINT range of its powers (ETA_OFFSET[t]); one shared
     # point zeta (the bus GKR's); n = max_t tau_t rounds. Rounds bind the HIGHEST
     # variable first, so a 2^tau table sits out the first n - tau and joins carrying

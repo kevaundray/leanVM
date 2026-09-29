@@ -51,9 +51,9 @@ use std::ops::Range;
 use lean_compiler::{compile, parse_with_replacements};
 use lean_da::{BLOB_SYMBOLS, CELL_SYMBOLS, CELLS_PER_ROW, CODEWORD_SYMBOLS};
 pub use lean_da::{DA_LOG_CELL, DA_LOG_K, DA_MAX_ROWS};
-use lean_vm::cpu::{Program, ProveError, prove, verify};
-use lean_vm::leaf::{Block, Coord};
-use lean_vm::transcript::FiatShamirState;
+use leanvm_core::cpu::{Program, ProveError, prove, verify};
+use leanvm_core::leaf::{Block, Coord};
+use leanvm_core::transcript::FiatShamirState;
 use primitives::field::{F64, F192, G, g_pow};
 use primitives::multilinear::mle_eval_par;
 use xmss::{XmssPublicKey, XmssSignature};
@@ -131,7 +131,7 @@ const _: () = assert!(SIGNERS_COUNT_BITS + 6 + SIGNERS_WINDOW.ilog2() <= 64);
 // reads it off the stacked table, which is `N_BYTECODE_SELECTORS` wide. Two constants
 // that happen to agree: were they to drift, a leaf's claim point would be one length in
 // the guest and another in the statement, and nothing else would notice.
-const _: () = assert!(lean_vm::leaf::N_TUPLE_BITS == lean_vm::leaf::N_BYTECODE_SELECTORS);
+const _: () = assert!(leanvm_core::leaf::N_TUPLE_BITS == leanvm_core::leaf::N_BYTECODE_SELECTORS);
 // The epoch fills a tweak's four-byte index field, so a longer lifetime would
 // need a weight per bit that `xmss::make_tweak` cannot express.
 const _: () = assert!(xmss::LOG_LIFETIME <= 32);
@@ -395,7 +395,7 @@ fn lane_hash(lanes: impl Iterator<Item = u64>) -> [F192; 2] {
 /// lanes each, whence the assert, the guest being unable to hash a third), then
 /// all three lanes of each deferred cell.
 fn statement_digest(signers_hash: [F192; 2], da_digest: [u8; 32], defer: &DeferredClaim) -> [F192; 2] {
-    let seed = lean_vm::cpu::fs_seed(unified_guest());
+    let seed = leanvm_core::cpu::fs_seed(unified_guest());
     let da_digest = pack_hash_state(&da_digest);
     let header = [
         seed[0],
@@ -461,7 +461,7 @@ pub struct EthereumProof {
     /// What this aggregate defers to whoever discharges it: its parent, in
     /// circuit, or [`Self::verify`], natively.
     defer: DeferredClaim,
-    proof: lean_vm::cpu::Proof,
+    proof: leanvm_core::cpu::Proof,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -475,7 +475,7 @@ pub enum AggregateVerifyError {
     /// The bytes are not a valid encoding of an aggregate.
     MalformedEncoding,
     /// The snark itself did not verify.
-    Snark(lean_vm::cpu::CpuError),
+    Snark(leanvm_core::cpu::CpuError),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -574,7 +574,7 @@ impl std::error::Error for AggregationError {
 }
 
 /// Everything but the signer set, which a receiver may already hold.
-type WireCore = (Vec<[u8; 32]>, Vec<F192>, Vec<F192>, lean_vm::cpu::Proof);
+type WireCore = (Vec<[u8; 32]>, Vec<F192>, Vec<F192>, leanvm_core::cpu::Proof);
 
 /// Signature claims grouped by scheme: XMSS epoch/message groups, then SPHINCS key/message pairs.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -713,7 +713,7 @@ impl EthereumProof {
     }
 
     /// The underlying VM proof, whose serialized size the CLI's benchmarks report.
-    pub fn proof(&self) -> &lean_vm::cpu::Proof {
+    pub fn proof(&self) -> &leanvm_core::cpu::Proof {
         &self.proof
     }
 
@@ -727,7 +727,7 @@ impl EthereumProof {
         )
     }
 
-    fn core(&self) -> (&[[u8; 32]], &[F192], &[F192], &lean_vm::cpu::Proof) {
+    fn core(&self) -> (&[[u8; 32]], &[F192], &[F192], &leanvm_core::cpu::Proof) {
         (
             &self.da_roots,
             &self.defer.bytecode_point,
@@ -794,7 +794,7 @@ impl EthereumProof {
 /// evaluates it and building it walks the whole program.
 fn stacked_bytecode() -> &'static [F64] {
     static TABLE: std::sync::OnceLock<Vec<F64>> = std::sync::OnceLock::new();
-    TABLE.get_or_init(|| lean_vm::cpu::layout::bytecode_table(&unified_guest().prog))
+    TABLE.get_or_init(|| leanvm_core::cpu::layout::bytecode_table(&unified_guest().prog))
 }
 
 /// The slots of the stacked bytecode that are not structurally zero.
@@ -808,9 +808,9 @@ fn bytecode_window() -> Range<usize> {
     WINDOW
         .get_or_init(|| {
             let table = stacked_bytecode();
-            let kbc = bytecode_vars() - lean_vm::leaf::N_BYTECODE_SELECTORS;
+            let kbc = bytecode_vars() - leanvm_core::leaf::N_BYTECODE_SELECTORS;
             let live = |s: usize| table[s << kbc..(s + 1) << kbc].iter().any(|v| *v != F64::ZERO);
-            let slots = 1 << lean_vm::leaf::N_BYTECODE_SELECTORS;
+            let slots = 1 << leanvm_core::leaf::N_BYTECODE_SELECTORS;
             let start = (0..slots).find(|&s| live(s)).expect("the bytecode is not all zero");
             let end = (0..slots).rfind(|&s| live(s)).expect("the bytecode is not all zero") + 1;
             start..end
@@ -861,7 +861,7 @@ fn fold_lsb_base(table: &[F64], challenge: F192) -> Vec<F192> {
 /// variables are bound. A closed form, so the row rounds never have to carry the
 /// slot half of a `2^kbcv` weight table.
 fn slot_weights(points: &[Vec<F192>], lambdas: &[F192], r_row: &[F192], kbc: usize) -> Vec<F192> {
-    let slots = lean_vm::leaf::N_BYTECODE_SELECTORS;
+    let slots = leanvm_core::leaf::N_BYTECODE_SELECTORS;
     let mut weights = vec![F192::ZERO; 1 << slots];
     for (point, &lambda) in points.iter().zip(lambdas) {
         let row_weight: F192 = (0..kbc).fold(lambda, |acc, k| acc * (F192::ONE + point[k] + r_row[k]));
@@ -1075,9 +1075,9 @@ fn aggregate_deferred_claims(
     // stacked table is structurally zero and contributes nothing to any round
     // message, and folding LSB-first pairs entries within a slot, so the window's
     // blocks stay aligned all the way down.
-    let n_slots = 1 << lean_vm::leaf::N_BYTECODE_SELECTORS;
+    let n_slots = 1 << leanvm_core::leaf::N_BYTECODE_SELECTORS;
     let slot_window = bytecode_window();
-    let kbc = kbcv - lean_vm::leaf::N_BYTECODE_SELECTORS;
+    let kbc = kbcv - leanvm_core::leaf::N_BYTECODE_SELECTORS;
     let mut wt = weighted_eq_table(
         &points,
         &gbc,
@@ -1109,7 +1109,7 @@ fn aggregate_deferred_claims(
     bt_slots[slot_window.clone()].copy_from_slice(&bt);
     let wt_slots = slot_weights(&points, &gbc, &r_bc, kbc);
     let (mut bt, mut wt) = (bt_slots, wt_slots);
-    for _ in 0..lean_vm::leaf::N_BYTECODE_SELECTORS {
+    for _ in 0..leanvm_core::leaf::N_BYTECODE_SELECTORS {
         let msg = round_msg(&[(&bt, &wt, F192::ONE)]);
         let r = absorb_round(&mut transcript, &mut bscr, &mut r_bc, &mut brun, msg);
         fold_lsb(&mut bt, r);
@@ -1326,8 +1326,11 @@ fn merkle_cap_depth(queries: usize, depth: usize) -> usize {
 
 /// The BLAKE2s table's virtual value columns, in `hash_flock::SLOTS` order.
 fn blake2s_value_columns() -> Vec<usize> {
-    let base = lean_vm::cpu::schema().base[5];
-    lean_vm::tables::BLAKE2S_VALUE_COLS.iter().map(|&c| base + c).collect()
+    let base = leanvm_core::cpu::schema().base[5];
+    leanvm_core::tables::BLAKE2S_VALUE_COLS
+        .iter()
+        .map(|&c| base + c)
+        .collect()
 }
 
 /// One entry of the guest's claim pool.
@@ -1393,12 +1396,12 @@ fn push_coord_terms(c: &Coord, base: usize, terms: &mut Vec<Term>) {
 /// bus claims (deduped by `(column, kappa)`, as `leaf.rs` pools them), then every
 /// table's committed columns, then the PI memory triple. The placeholder map's
 /// claim descriptors follow this order.
-fn walk_claims(layout: &lean_vm::cpu::Layout, kbc: usize, mut visit: impl FnMut(ClaimSite)) {
+fn walk_claims(layout: &leanvm_core::cpu::Layout, kbc: usize, mut visit: impl FnMut(ClaimSite)) {
     let sides: [&[Block]; 3] = [&layout.push, &layout.pull, &layout.count];
     let valcols = blake2s_value_columns();
     // Only the framework blocks raise claims: a table's coords are settled inside
     // the table sumcheck.
-    let is_framework: Vec<bool> = lean_vm::cpu::block_kappa_sources(kbc)
+    let is_framework: Vec<bool> = leanvm_core::cpu::block_kappa_sources(kbc)
         .into_iter()
         .map(|(src, _)| src < 2)
         .collect();
@@ -1422,8 +1425,8 @@ fn walk_claims(layout: &lean_vm::cpu::Layout, kbc: usize, mut visit: impl FnMut(
             }
         }
     }
-    let sch = lean_vm::cpu::schema();
-    for (t, table) in lean_vm::tables::tables().iter().enumerate() {
+    let sch = leanvm_core::cpu::schema();
+    for (t, table) in leanvm_core::tables::tables().iter().enumerate() {
         for c in 0..table.n_committed_columns() {
             let column = sch.base[t] + c;
             visit(ClaimSite::TableColumn {
@@ -1432,7 +1435,11 @@ fn walk_claims(layout: &lean_vm::cpu::Layout, kbc: usize, mut visit: impl FnMut(
             });
         }
     }
-    for &column in &[lean_vm::cpu::MEM_LO, lean_vm::cpu::MEM_HI, lean_vm::cpu::MEM_TOP] {
+    for &column in &[
+        leanvm_core::cpu::MEM_LO,
+        leanvm_core::cpu::MEM_HI,
+        leanvm_core::cpu::MEM_TOP,
+    ] {
         visit(ClaimSite::MemoryLimb { column });
     }
 }
@@ -1443,17 +1450,17 @@ fn walk_claims(layout: &lean_vm::cpu::Layout, kbc: usize, mut visit: impl FnMut(
 fn gen_verify(
     program: &Program,
     public_input: [F192; 2],
-    summary: lean_vm::cpu::VerifySummary,
+    summary: leanvm_core::cpu::VerifySummary,
 ) -> Result<(SubHints, DeferredSubproof), AggregationError> {
     let proof_stream = &summary.raw.stream;
-    let layout = lean_vm::cpu::layout(
+    let layout = leanvm_core::cpu::layout(
         &program.prog,
         proof_stream[0].c0 as usize,
         std::array::from_fn(|i| proof_stream[1 + i].c0 as usize),
         public_input,
     );
     let sides: [&[Block]; 3] = [&layout.push, &layout.pull, &layout.count];
-    let side_layouts = sides.map(lean_vm::leaf::layout);
+    let side_layouts = sides.map(leanvm_core::leaf::layout);
     // Fixed capacities: every buffer/stride placeholder is a global cap so
     // the placeholder map is SHAPE-INDEPENDENT (the definition of generic).
     assert!(side_layouts.iter().all(|side| side.mu <= MU_CAP) && proof_stream.len() <= STREAM_CAP);
@@ -1468,7 +1475,7 @@ fn gen_verify(
 
     // ---- typed extraction: proof structs + the verifier's summary ----
     // Push and pull share the bytecode point.
-    let kbc = summary.bytecode_claim.point.len() - lean_vm::leaf::N_BYTECODE_SELECTORS;
+    let kbc = summary.bytecode_claim.point.len() - leanvm_core::leaf::N_BYTECODE_SELECTORS;
 
     let taus = layout.taus;
     // Flock replay data, all named struct fields.
@@ -1547,7 +1554,7 @@ fn gen_verify(
     // sorted by descending kappa, then by their native column index. Transport
     // compact committed-column indices; the guest certifies the permutation,
     // ordering, and accumulated offsets before using them as claim selectors.
-    let col_sources = lean_vm::cpu::col_kappa_sources(kbc);
+    let col_sources = leanvm_core::cpu::col_kappa_sources(kbc);
     let committed_globals: Vec<usize> = col_sources
         .iter()
         .enumerate()
@@ -1663,9 +1670,9 @@ fn gen_verify(
 /// candidate `mu` in `MU_MIN..=MU_MAX` (mirrored by the soundness test's
 /// residual-log cap).
 const MU_MIN: usize = 22;
-const MU_MAX: usize = lean_vm::pcs::MAX_MU;
+const MU_MAX: usize = leanvm_core::pcs::MAX_MU;
 
-const _: () = assert!(MU_MIN >= lean_vm::pcs::MIN_MU);
+const _: () = assert!(MU_MIN >= leanvm_core::pcs::MIN_MU);
 
 /// The guest's baked buffer caps, which `placeholder_map` compiles in and
 /// `gen_verify` admits against: one definition, so a hinted shape can never
@@ -2042,7 +2049,7 @@ pub fn aggregate_with_stats(
     blobs: &[u64],
     declare: Option<ClaimSelection<'_>>,
     log_inv_rate: usize,
-) -> Result<(EthereumProof, lean_vm::cpu::Stats), AggregationError> {
+) -> Result<(EthereumProof, leanvm_core::cpu::Stats), AggregationError> {
     let da_input = DaInput {
         rows: blobs,
         roots: declare.map(|claims| claims.da_commitments),
@@ -2065,9 +2072,9 @@ pub(crate) fn aggregate_tampered(
     da_input: DaInput<'_>,
     log_inv_rate: usize,
     tamper: impl FnOnce(&mut Hints),
-) -> Result<(EthereumProof, lean_vm::cpu::Stats), AggregationError> {
+) -> Result<(EthereumProof, leanvm_core::cpu::Stats), AggregationError> {
     // Otherwise this reaches `cpu::prove`, which asserts rather than reporting.
-    if !(lean_vm::pcs::MIN_LOG_INV_RATE..=lean_vm::pcs::MAX_LOG_INV_RATE).contains(&log_inv_rate) {
+    if !(leanvm_core::pcs::MIN_LOG_INV_RATE..=leanvm_core::pcs::MAX_LOG_INV_RATE).contains(&log_inv_rate) {
         return Err(AggregationError::InvalidRate { log_inv_rate });
     }
     if children.len() > MAX_RECURSIONS {
@@ -2156,7 +2163,7 @@ pub(crate) fn aggregate_tampered(
             count(usize::from(!rows.is_empty())),
         ],
     );
-    let fs_seed = lean_vm::cpu::fs_seed(guest);
+    let fs_seed = leanvm_core::cpu::fs_seed(guest);
     hints.push("fs_seed", vec![fs_seed[0], fs_seed[1]]);
     // Per group: its epoch, its two message cells, and its declared, duplicate
     // and raw-signature counts, in the guest's geometry-pass order. The keys
@@ -2412,8 +2419,13 @@ struct OpeningShape {
 fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     // Only block and coordinate structure is used here; dummy instructions and
     // table sizes let us derive it before the guest's bytecode exists.
-    let stand_in = vec![lean_vm::cpu::Op::Xor { a: 0, b: 0, c: 0 }; 1 << kbc];
-    let layout = lean_vm::cpu::layout(&stand_in, 20, [10; lean_vm::tables::N_TABLES], [F192::ZERO, F192::ZERO]);
+    let stand_in = vec![leanvm_core::cpu::Op::Xor { a: 0, b: 0, c: 0 }; 1 << kbc];
+    let layout = leanvm_core::cpu::layout(
+        &stand_in,
+        20,
+        [10; leanvm_core::tables::N_TABLES],
+        [F192::ZERO, F192::ZERO],
+    );
     let sides: [&[Block]; 3] = [&layout.push, &layout.pull, &layout.count];
     let lcrounds = flock::hash::K_LOG - 6;
 
@@ -2431,8 +2443,8 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     // successor) costs terms rather than columns. A framework coordinate has none:
     // it decomposes into pooled claims instead.
     // The table sumcheck settles table claims; only framework blocks stream column values.
-    let sch_pm = lean_vm::cpu::schema();
-    let owner_pm: Vec<Option<usize>> = lean_vm::cpu::block_kappa_sources(kbc)
+    let sch_pm = leanvm_core::cpu::schema();
+    let owner_pm: Vec<Option<usize>> = leanvm_core::cpu::block_kappa_sources(kbc)
         .into_iter()
         .map(|(src, _)| src.checked_sub(2))
         .collect();
@@ -2473,12 +2485,15 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
         }
         sblk.push(nblocks);
     }
-    let evtot: usize = lean_vm::tables::tables().iter().map(|t| t.n_committed_columns()).sum();
+    let evtot: usize = leanvm_core::tables::tables()
+        .iter()
+        .map(|t| t.n_committed_columns())
+        .sum();
     let ncl = nclaims + evtot + 3; // bus + constraint + the three PI memory-limb claims
 
     // ---- claim descriptor buffer ids (structural) ----
     let valcols = blake2s_value_columns();
-    let col_sources_pm = lean_vm::cpu::col_kappa_sources(kbc);
+    let col_sources_pm = leanvm_core::cpu::col_kappa_sources(kbc);
     let mut compact_col_pm = vec![usize::MAX; col_sources_pm.len()];
     let mut n_committed = 0usize;
     for (global, source) in col_sources_pm.iter().enumerate() {
@@ -2487,7 +2502,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
             n_committed += 1;
         }
     }
-    let qflock_compact = compact_col_pm[lean_vm::cpu::QFLOCK];
+    let qflock_compact = compact_col_pm[leanvm_core::cpu::QFLOCK];
     assert_ne!(qflock_compact, usize::MAX, "QFLOCK must be committed");
     // Buffer codes are the guest's POINT_BUF_*: zeta, chi, pi, qflock-chi.
     let mut claims = Vec::new();
@@ -2510,7 +2525,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
                     compact_col_pm[column]
                 },
                 qflock_slot: if is_virtual {
-                    lean_vm::hash_flock::SLOTS[valcols.iter().position(|&v| v == column).unwrap()]
+                    leanvm_core::hash_flock::SLOTS[valcols.iter().position(|&v| v == column).unwrap()]
                 } else {
                     0
                 },
@@ -2537,7 +2552,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
         rep.insert(format!("{k}_PLACEHOLDER"), v);
     };
     ps("STREAM_CAP", STREAM_CAP.to_string());
-    ps("MIN_LOG_MEM", lean_vm::cpu::MIN_LOG_MEM.to_string());
+    ps("MIN_LOG_MEM", leanvm_core::cpu::MIN_LOG_MEM.to_string());
     ps("INV_GEN", dsl_u128(F192::new(G.inv().0, 0, 0)).to_string());
     ps("MU_CAP", MU_CAP.to_string());
     ps("NO_TABLE", layout.taus.len().to_string());
@@ -2545,7 +2560,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     ps("GKR_POINTS_CAP", ((MU_CAP + 1) * MU_CAP).to_string());
     ps("SIDE_BLOCK_START", literals(&sblk));
     ps("N_BLOCKS", nblocks.to_string());
-    let bks = lean_vm::cpu::block_kappa_sources(kbc);
+    let bks = leanvm_core::cpu::block_kappa_sources(kbc);
     // Push and pull emit bus blocks in matched pairs, so their baked kappa-source
     // segments are identical; the guest computes only push's side total and
     // aliases pull's mu to push's on this basis.
@@ -2593,16 +2608,19 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     // The table sumcheck's xi layout, from the native verifier's own numbers:
     // a disjoint range of identities per table, then THREE powers shared by every
     // table, one per bus side. Sharing is what lets the target be derived from the
-    // three leaf claims instead of trusted (lean_vm::cpu::xi_form_base).
-    let n_id: Vec<usize> = lean_vm::tables::tables().iter().map(|t| t.n_constraints()).collect();
-    let form_base = lean_vm::cpu::xi_form_base();
+    // three leaf claims instead of trusted (leanvm_core::cpu::xi_form_base).
+    let n_id: Vec<usize> = leanvm_core::tables::tables()
+        .iter()
+        .map(|t| t.n_constraints())
+        .collect();
+    let form_base = leanvm_core::cpu::xi_form_base();
     ps(
         "ETA_OFFSET",
-        literals(lean_vm::constraints::xi_offsets(n_id.iter().copied())),
+        literals(leanvm_core::constraints::xi_offsets(n_id.iter().copied())),
     );
     ps("ETA_FORM_BASE", form_base.to_string());
     ps("N_ETA_POWS", (form_base + 3).to_string());
-    let committed: Vec<usize> = lean_vm::tables::tables()
+    let committed: Vec<usize> = leanvm_core::tables::tables()
         .iter()
         .map(|t| t.n_committed_columns())
         .collect();
@@ -2649,7 +2667,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     ps("K_LOG", flock::hash::K_LOG.to_string());
     // The q_flock Strided-claim slot stride is K_LOG - LOG_PACKING (= 8), so the
     // qflock point-claim slot must use THIS, not LOG2_FIELD_BITS.
-    ps("SLOT_STRIDE_LOG", lean_vm::hash_flock::SLOT_STRIDE_LOG.to_string());
+    ps("SLOT_STRIDE_LOG", leanvm_core::hash_flock::SLOT_STRIDE_LOG.to_string());
 
     // ---- LIG candidate tables (fixed [minm, maxm] range; open_stacked config) ----
     let oshape = |m: usize, log_inv_rate: usize| {
@@ -2737,12 +2755,12 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     ps("LIG_MAX_VANISH_LEN", maxsvk.to_string());
     ps("LIG_MAX_OOD_SAMPLES", maxood.to_string());
     ps("LIG_MIN_LOG_SIZE", minm.to_string());
-    let cks: Vec<(usize, usize)> = lean_vm::cpu::col_kappa_sources(kbc).into_iter().flatten().collect();
+    let cks: Vec<(usize, usize)> = leanvm_core::cpu::col_kappa_sources(kbc).into_iter().flatten().collect();
     ps("N_COMMITTED_COLS", cks.len().to_string());
     ps("N_COLUMN_LOGS", (MU_MAX + 1).to_string());
     ps("COL_KAPPA_SRC", literals(cks.iter().map(|&(s, _)| s)));
     ps("COL_KAPPA_ADJ", literals(cks.iter().map(|&(_, a)| a)));
-    ps("PCS_MIN_MU", lean_vm::pcs::MIN_MU.to_string());
+    ps("PCS_MIN_MU", leanvm_core::pcs::MIN_MU.to_string());
     ps(
         "LIG_LOG_MSG_COLS_CAP",
         cands
@@ -2880,7 +2898,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     );
     ps("CLAIM_POINT_BUF", literals(claims.iter().map(|c| c.buffer)));
     ps("CLAIM_COMMITTED_COL", literals(claims.iter().map(|c| c.column)));
-    let slot_stride_log = lean_vm::hash_flock::SLOT_STRIDE_LOG;
+    let slot_stride_log = leanvm_core::hash_flock::SLOT_STRIDE_LOG;
     let cpqbits: Vec<usize> = claims
         .iter()
         .flat_map(|c| (0..slot_stride_log).map(move |k| (c.qflock_slot >> k) & 1))
@@ -2894,7 +2912,7 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     // 2*kbc points + sel bits + 2 reduced + alpha + z_skip + 2*lcrounds rounds
     // + 64 z_partial + 1 matpart.
     let bc_cols = nbcv / 2;
-    let log2_bc_cols = lean_vm::leaf::N_TUPLE_BITS;
+    let log2_bc_cols = leanvm_core::leaf::N_TUPLE_BITS;
     ps("BYTECODE_COLS", bc_cols.to_string());
     ps("LOG2_BYTECODE_COLS", log2_bc_cols.to_string());
     ps("DEFER_SIZE", (kbc + log2_bc_cols + 2 * lcrounds + 68).to_string());
@@ -2930,11 +2948,22 @@ fn placeholder_map(kbc: usize) -> BTreeMap<String, String> {
     ps("SIGNERS_WINDOW_LOG", SIGNERS_WINDOW.ilog2().to_string());
     ps("SIGNERS_MAX_WINDOWS", SIGNERS_MAX_WINDOWS.to_string());
     ps("SIGNERS_COUNT_BITS", SIGNERS_COUNT_BITS.to_string());
-    ps("BLAKE2S_IV_0", dsl_u128(lean_vm::hash_flock::IV_CELLS[0]).to_string());
-    ps("BLAKE2S_IV_1", dsl_u128(lean_vm::hash_flock::IV_CELLS[1]).to_string());
+    ps(
+        "BLAKE2S_IV_0",
+        dsl_u128(leanvm_core::hash_flock::IV_CELLS[0]).to_string(),
+    );
+    ps(
+        "BLAKE2S_IV_1",
+        dsl_u128(leanvm_core::hash_flock::IV_CELLS[1]).to_string(),
+    );
     ps(
         "MD_FINAL",
-        dsl_u128(lean_vm::hash_flock::metadata(0, lean_vm::hash_flock::FINAL_FLAG, 0)).to_string(),
+        dsl_u128(leanvm_core::hash_flock::metadata(
+            0,
+            leanvm_core::hash_flock::FINAL_FLAG,
+            0,
+        ))
+        .to_string(),
     );
 
     // The XMSS instance, from which the guest derives every table width by
@@ -3080,7 +3109,7 @@ mod tests {
     /// A second epoch inside the cached keys' window; signer `i` holds the same key at both.
     const XMSS_EPOCH_B: xmss::Epoch = XMSS_EPOCH_A + 2;
     const SMALL_LEAF_SIZE: usize = 6;
-    const LOG_INV_RATE: usize = lean_vm::pcs::TEST_LOG_INV_RATE;
+    const LOG_INV_RATE: usize = leanvm_core::pcs::TEST_LOG_INV_RATE;
 
     /// Cached `(key, signature)` pairs as the API takes them, every one at
     /// `epoch` over the cache's message for it.
@@ -3285,7 +3314,7 @@ mod tests {
 
     #[test]
     fn aggregate_one_sphincs_signer() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let aggregate = prove_sphincs_leaf(&get_sphincs_signers(1));
         aggregate.verify().expect("verifies");
         assert!(aggregate.xmss_signers.is_empty());
@@ -3294,7 +3323,7 @@ mod tests {
 
     #[test]
     fn aggregate_one_signer() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let aggregate = prove_leaf(&get_signers(1));
         aggregate.verify().expect("verifies");
         assert_eq!(aggregate.xmss_signers[0].epoch, XMSS_EPOCH_A);
@@ -3306,7 +3335,7 @@ mod tests {
     /// case, absorbing one entry a frame.
     #[test]
     fn aggregate_mixed_leaf() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let aggregate = aggregate(
             &[],
             at_epoch(&get_signers(3), XMSS_EPOCH_A),
@@ -3325,7 +3354,7 @@ mod tests {
     /// child's two key lists have to land in their own.
     #[test]
     fn aggregate_mixed_two_to_one() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let xmss = get_signers(6);
         let sphincs = get_sphincs_signers(4);
         let leaf = |x: &[(XmssPublicKey, XmssSignature)], s: &[RawSphincs]| {
@@ -3346,7 +3375,7 @@ mod tests {
     /// log(g^0)` (unsatisfiable, so nothing may be written there) is reached.
     #[test]
     fn aggregate_one_scheme_per_child() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let xmss_child = prove_leaf(&get_signers(3));
         let sphincs_child = prove_sphincs_leaf(&get_sphincs_signers(2));
         let node =
@@ -3360,7 +3389,7 @@ mod tests {
     /// here rather than cached, the cache holding one message per key.
     #[test]
     fn aggregate_one_key_two_messages() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let mut rng = StdRng::seed_from_u64(77);
         let (secret_key, public_key) = sphincs::key_gen(&mut rng);
         let raw: Vec<RawSphincs> = [3u8, 9]
@@ -3381,7 +3410,7 @@ mod tests {
 
     #[test]
     fn guest_column_selectors_match_native_eq() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let (helpers, _) = include_str!("../guests/lean_ethereum.py")
             .split_once("\ndef main():")
             .unwrap();
@@ -3441,7 +3470,7 @@ def main():
 
     #[test]
     fn guest_merkle_children_bind_every_link() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let (helpers, _) = include_str!("../guests/lean_ethereum.py")
             .split_once("\ndef main():")
             .unwrap();
@@ -3530,7 +3559,7 @@ def main():
     /// execute and neither would the byte counter's base.
     #[test]
     fn aggregate_two_to_one() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let big = 2 * SIGNERS_WINDOW + 6;
         let signers = get_signers(SMALL_LEAF_SIZE + big);
         let left = prove_leaf(&signers[..SMALL_LEAF_SIZE]);
@@ -3552,7 +3581,7 @@ def main():
     /// aggregate has to verify against a statement that carries it.
     #[test]
     fn aggregate_with_a_da_payload() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let rows = da_rows(3, 97);
 
         let node = aggregate(&[], vec![], vec![], &rows, None, LOG_INV_RATE).expect("node aggregates");
@@ -3616,7 +3645,7 @@ def main():
 
     #[test]
     fn da_roots_accumulate_and_can_be_selected_or_omitted() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(SMALL_LEAF_SIZE);
         let mut children = Vec::new();
         for seed in [509, 510] {
@@ -3907,7 +3936,7 @@ def main():
 
     #[test]
     fn da_root_lists_merge_two_and_three() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let mut leaves = Vec::new();
         let mut expected = Vec::new();
         for seed in 600..605 {
@@ -3951,7 +3980,7 @@ def main():
 
     #[test]
     fn da_guest_hashes_root_lists() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let (helpers, _) = include_str!("../guests/lean_ethereum.py")
             .split_once("\ndef main():")
             .unwrap();
@@ -3995,7 +4024,7 @@ def main():
 
     #[test]
     fn da_guest_bounds_coverage_slots() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let (helpers, _) = include_str!("../guests/lean_ethereum.py")
             .split_once("\ndef main():")
             .unwrap();
@@ -4056,7 +4085,7 @@ def main():
 
     #[test]
     fn da_guest_checks_commitment_and_codewords() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let source = include_str!("../guests/lean_ethereum.py");
         let (helpers, _) = source.split_once("\ndef main():").unwrap();
         let source = format!(
@@ -4193,7 +4222,7 @@ def main():
 
     #[test]
     fn da_row_shape_checks_power_of_two_boundaries() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let (helpers, _) = include_str!("../guests/lean_ethereum.py")
             .split_once("\ndef main():")
             .unwrap();
@@ -4228,7 +4257,7 @@ def main():
 
     #[test]
     fn ceil_log_hints_enforce_rounding_and_floor() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let (helpers, _) = include_str!("../guests/lean_ethereum.py")
             .split_once("\ndef main():")
             .unwrap();
@@ -4283,7 +4312,7 @@ def main():
     /// 8, exercising two different arms of the tree dispatch and a non-empty gap.
     #[test]
     fn da_row_count_is_a_run_time_parameter() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(SMALL_LEAF_SIZE);
         for n_rows in [1usize, 3, 4, 5] {
             let rows = da_rows(n_rows, 200 + n_rows as u64);
@@ -4300,7 +4329,7 @@ def main():
     #[test]
     #[ignore]
     fn da_blob_proof() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(SMALL_LEAF_SIZE);
         // One discarded proof: the first pays the flock circuit build and the
         // arena's page faults, which would otherwise land entirely on the first row
@@ -4341,7 +4370,7 @@ def main():
     /// A leaf carrying no payload publishes the digest of an empty root list.
     #[test]
     fn no_payload_publishes_the_empty_root_list() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(SMALL_LEAF_SIZE);
         let node = prove_leaf(&signers);
         assert!(node.da_roots.is_empty());
@@ -4358,7 +4387,7 @@ def main():
     /// where `plain_window` never executes and neither does the byte counter's base.
     #[test]
     fn aggregate_many_epoch_groups() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         // Two blocks a group plus a leading one, so SIGNERS_WINDOW / 2 groups make
         // SIGNERS_WINDOW + 1 blocks: one whole window and the final block. The cached
         // keys are activated over exactly that many epochs, and one key may claim
@@ -4382,7 +4411,7 @@ def main():
     /// second both.
     #[test]
     fn a_node_may_publish_less_than_it_covers() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let at_a = get_signers(3);
         let at_b = get_signers_at(2, XMSS_EPOCH_B);
         let mut raw = at_epoch(&at_a, XMSS_EPOCH_A);
@@ -4496,7 +4525,7 @@ def main():
     /// with A, and a signature verified against the wrong group's tweaks fails.
     #[test]
     fn raw_signatures_follow_the_table_not_the_epochs() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         const _: () = assert!(XMSS_EPOCH_A < XMSS_EPOCH_B, "A must sort first for this to bite");
         let a = get_signers(1);
         let b = get_signers_at(1, XMSS_EPOCH_B);
@@ -4528,7 +4557,7 @@ def main():
 
     #[test]
     fn aggregate_two_epochs() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let at_a = get_signers(4);
         let at_b = get_signers_at(2, XMSS_EPOCH_B);
         assert_eq!(at_a[0].0, at_b[0].0, "the cache reuses keys across epochs");
@@ -4601,7 +4630,7 @@ def main():
 
     #[test]
     fn aggregate_overlapping_signers() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(40);
         let left = prove_leaf(&signers[..25]);
         let right = prove_leaf(&signers[15..]);
@@ -4619,7 +4648,7 @@ def main():
     #[test]
     #[ignore]
     fn aggregate_three_levels() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(4 * SMALL_LEAF_SIZE);
         let claims = get_sphincs_signers(5);
         let leaf = |index: usize, sphincs: &[RawSphincs]| {
@@ -4668,7 +4697,7 @@ def main():
     #[test]
     #[ignore]
     fn aggregate_statement_binds() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(2 * SMALL_LEAF_SIZE);
         let left = prove_leaf(&signers[..SMALL_LEAF_SIZE]);
         let right = prove_leaf(&signers[SMALL_LEAF_SIZE..]);
@@ -4785,7 +4814,7 @@ def main():
     #[test]
     #[ignore]
     fn aggregate_hints_bind() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let signers = get_signers(2 * SMALL_LEAF_SIZE);
 
         let rejects = |children: &[EthereumProof],
@@ -5129,7 +5158,7 @@ def main():
     #[test]
     #[ignore]
     fn aggregate_rejects_a_bad_signature() {
-        lean_vm::init_prover_pool();
+        leanvm_core::init_prover_pool();
         let mut raw_signatures = at_epoch(&get_signers(3), XMSS_EPOCH_A);
         raw_signatures[1].3.wots_signature.chain_tips[0][0] ^= 1;
         assert!(
@@ -5215,7 +5244,7 @@ def main():
     /// hash's byte counter and both flags, and every guest digest rests on those
     /// being the ones the scheme specifies. The fill blocks are the deliberate
     /// exception: their dummy reads a cell nothing writes, and nothing reads what
-    /// they compress (`lean_vm::cpu::filler`).
+    /// they compress (`leanvm_core::cpu::filler`).
     ///
     /// This is a scan by pc, not a dominance check: a writer sitting in a branch
     /// nobody took would satisfy it. What makes naming such a cell impossible is
@@ -5223,7 +5252,7 @@ def main():
     /// `blake2s_default_iv_*` tests are what guard that, by proving both paths.
     #[test]
     fn every_guest_blake2s_metadata_cell_is_written_first() {
-        use lean_vm::cpu::{DerefMode, Op};
+        use leanvm_core::cpu::{DerefMode, Op};
 
         // Which frame cell an instruction writes, if any. A `DEREF` in cell mode is
         // bidirectional under write-once, so its local operand counts as a write.

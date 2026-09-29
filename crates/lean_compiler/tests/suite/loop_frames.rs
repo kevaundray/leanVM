@@ -1,10 +1,10 @@
 use lean_compiler::{compile, compile_without_filler, parse};
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192, g_pow};
 
 #[test]
 fn loop_frames_preserve_escaped_cells_and_nested_allocations() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let source = r#"
 def make_heap(x):
     h = HeapBuf(2)
@@ -51,7 +51,7 @@ def main():
         let public = [F192::from(sum), F192::from(g_pow(end))];
         assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
         if end == 9 {
-            let (proof, _) = prove(&program, public, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+            let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
             verify(&program, &public, &proof).unwrap();
         }
     }
@@ -101,7 +101,7 @@ def main():
 
 #[test]
 fn rebound_counter_keeps_incremental_frames() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let source = r#"
 def bump(x):
     if x == 1:
@@ -124,7 +124,7 @@ def main():
     for bound in ["GEN ** 2", "public[GEN]"] {
         let program = compile(&parse(&source.replace("STOP", bound)).unwrap());
         assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
-        let (proof, _) = prove(&program, public, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         verify(&program, &public, &proof).unwrap();
     }
 }

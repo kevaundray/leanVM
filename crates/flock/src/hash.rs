@@ -257,7 +257,7 @@ pub fn padding_block() -> Compression {
 }
 
 /// Domain separator for this circuit in the Fiat-Shamir seed
-/// (`lean_vm::cpu`), baked as an opaque constant.
+/// (`leanvm_core::cpu`), baked as an opaque constant.
 ///
 /// **Provenance.** It is the old `BlockR1cs::r1cs_digest` (a since-deleted struct) at `n_blocks_log = 3`,
 /// under the tag `flock-r1cs-digest-v3`, absorbing in order: `k_log = 14`,
@@ -846,7 +846,7 @@ impl Blake2sSetup {
     /// `q_flock`, with its ring-switch weights.
     ///
     /// Does NOT open the PCS; the caller discharges the returned claim in the
-    /// one stacked opening (`lean_vm`'s `pcs::open`).
+    /// one stacked opening (`leanvm_core`'s `pcs::open`).
     pub fn prove_reduction_precomputed(
         &self,
         z_packed: &[u64],

@@ -1,5 +1,5 @@
 //! A compiler from a Python-like zkDSL (see `zkDSL.md`) to the ISA (`cpu::Op`).
-//! Produces a [`lean_vm::cpu::Program`]: bytecode plus the prover's allocation hints.
+//! Produces a [`leanvm_core::cpu::Program`]: bytecode plus the prover's allocation hints.
 //!
 //! ## Calling convention
 //!
@@ -28,8 +28,8 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use lean_vm::cpu::hints::{BitsDest, RHint};
-use lean_vm::cpu::{DerefMode, Op, Program};
+use leanvm_core::cpu::hints::{BitsDest, RHint};
+use leanvm_core::cpu::{DerefMode, Op, Program};
 use primitives::{
     field::{F64, F192, g_pow},
     pretty_integer,

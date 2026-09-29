@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 primitives.workspace = true
-lean_vm.workspace = true
+leanvm_core.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

@@ -45,7 +45,7 @@ fn sphincs_signers(
 }
 
 /// Report the shape and cost of one aggregation node.
-fn report(label: &str, stats: &lean_vm::cpu::Stats, sig: &EthereumProof, prove_time: &Timing) {
+fn report(label: &str, stats: &leanvm_core::cpu::Stats, sig: &EthereumProof, prove_time: &Timing) {
     let base_cycles: usize = stats.base_counts.iter().sum();
     println!("{label}");
     // The program's own work, then what gets proven: the fill blocks bring each table
@@ -93,7 +93,7 @@ pub fn run_aggregation(n_xmss: usize, n_sphincs: usize, n_blobs: usize, log_inv_
     // Spawn the worker pool before any timed work, so no kernel pays the spawn
     // cost. Opting into the arena is the calling *process's* decision (one region,
     // one proof at a time), so it stays in `main`, not here.
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let raw_xmss = signers(0, n_xmss);
     let raw_sphincs = sphincs_signers(0, n_sphincs);
     let blobs = blobs(n_blobs, 0);
@@ -171,7 +171,7 @@ pub fn run_recursion(
         blobs_per_leaf == 0 || n <= rec_aggregation::MAX_DA_ROOTS,
         "too many distinct DA roots"
     );
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let all = signers(0, n * per_leaf);
     let all_sphincs = sphincs_signers(0, n * sphincs_per_leaf);
     let started = std::time::Instant::now();

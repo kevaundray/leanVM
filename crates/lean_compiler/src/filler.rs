@@ -9,13 +9,13 @@
 //! program entries already need nothing, their seed and finalize tuples cancelling.
 //!
 //! So run the difference off instead. Every program carries, past `main`'s halt, one
-//! block per table per size in `lean_vm::cpu::filler::SIZES`: that many dummy
+//! block per table per size in `leanvm_core::cpu::filler::SIZES`: that many dummy
 //! instructions of the table's opcode, then a `JUMP` back to the block's own first
 //! instruction. Each block is therefore a cycle, and no program code enters one: on the
 //! bus its state tuples cancel against each other rather than against the program's
 //! chain, so it can be traversed any number of times, and the interpreter walks the
 //! blocks itself once the program has halted
-//! (`lean_vm::cpu::Program::execute`).
+//! (`leanvm_core::cpu::Program::execute`).
 //!
 //! Nothing in a block counts, tests, or allocates: a traversal of the size-`s` block
 //! costs exactly `s + 1` rows, `s` of its table and one `JUMP`. That is where the sizes
@@ -46,7 +46,7 @@ pub enum FillerOp {
     Blake2s,
 }
 
-/// The tables, in `lean_vm::cpu::Stats::TABLES` order, which is how the solver indexes
+/// The tables, in `leanvm_core::cpu::Stats::TABLES` order, which is how the solver indexes
 /// them.
 pub const TABLES: [(u8, FillerOp); 6] = [
     (0, FillerOp::Xor),

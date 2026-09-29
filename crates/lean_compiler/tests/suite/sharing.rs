@@ -5,7 +5,7 @@
 //! not to where it happens.
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{Fault, ProveError, prove, verify};
+use leanvm_core::cpu::{Fault, ProveError, prove, verify};
 use primitives::field::{F64, F192, g_pow};
 
 /// A returned value that repeats a constant computed earlier in the same
@@ -31,7 +31,7 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(3)) * F192::from(F64(7)), F192::from(F64(7))];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("returned duplicate constant is preserved");
 }
 
@@ -56,7 +56,7 @@ def main():
     let program = compile(&parse(src).expect("parse"));
     // (k + k) + (k + k) == 0 in characteristic two.
     let want = [F192::ZERO, F192::ZERO];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("duplicated call arguments are preserved");
 }
 
@@ -88,7 +88,7 @@ def main():
 ";
     let run = |pi: [F192; 2]| -> bool {
         let program = compile(&parse(src).expect("parse"));
-        prove(&program, pi, lean_vm::pcs::TEST_LOG_INV_RATE)
+        prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE)
             .is_ok_and(|(proof, _)| verify(&program, &pi, &proof).is_ok())
     };
     assert!(
@@ -137,7 +137,7 @@ def main():
 fn assert_survives_a_duplicated_comparison() {
     let program = compile(&parse(&duplicated_comparison(9)).expect("parse"));
     let want = [F192::ZERO, F192::from(g_pow(9))];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("passing assert still verifies");
 }
 
@@ -147,7 +147,7 @@ fn assert_survives_a_duplicated_comparison() {
 fn failing_assert_still_conflicts() {
     let program = compile(&parse(&duplicated_comparison(10)).expect("parse"));
     let want = [F192::ZERO, F192::from(g_pow(9))];
-    let Err(ProveError::Execution(err)) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE) else {
+    let Err(ProveError::Execution(err)) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE) else {
         panic!("a failing assert makes no proof")
     };
     assert!(matches!(err.fault, Fault::Conflict { .. }), "{err}");
@@ -175,7 +175,7 @@ def main():
     let mut program = compile(&parse(src).expect("parse"));
     program.set_witness("flag", vec![vec![F192::ZERO]]);
     let want = [F192::ZERO, F192::ZERO];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("untaken branch must not consume its witness");
 }
 
@@ -227,7 +227,7 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(11)), F192::from(g_pow(22))];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("each compression absorbs its own chaining value");
 }
 
@@ -258,7 +258,7 @@ def main():
 
 #[test]
 fn cached_loads_see_linked_equalities_before_use() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let source = r#"
 def fill(h):
     value = hint_witness("value")
@@ -285,7 +285,7 @@ def main():
             let mut program = compile(&parse(&source).unwrap());
             program.set_witness("value", vec![vec![value]]);
             assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
-            let (proof, _) = prove(&program, public, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+            let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
             verify(&program, &public, &proof).unwrap();
             assert!(program.execute([public[0] + F192::ONE, value]).is_err());
         }
@@ -296,7 +296,7 @@ def main():
 /// says, even where the loaded name is used directly rather than loaded again.
 #[test]
 fn a_load_before_its_store_sees_the_store() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let source = "\
 def main():
     h = HeapBuf(1)
@@ -308,7 +308,7 @@ def main():
 ";
     let program = compile(&parse(source).unwrap());
     let public = [F192::from(g_pow(4)), F192::ZERO];
-    let (proof, _) = prove(&program, public, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &public, &proof).unwrap();
 }
 
@@ -330,7 +330,7 @@ def main():
 
 #[test]
 fn cached_copies_see_later_stores() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     let source = r#"
 def square(h):
     return h[GEN] * h[GEN]
@@ -359,7 +359,7 @@ def main():
         let mut program = compile(&parse(&source).unwrap());
         program.set_witness("value", vec![vec![value]]);
         assert!(program.execute(public).unwrap().unconstrained_reads.is_empty());
-        let (proof, _) = prove(&program, public, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, _) = prove(&program, public, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         verify(&program, &public, &proof).unwrap();
     }
 }

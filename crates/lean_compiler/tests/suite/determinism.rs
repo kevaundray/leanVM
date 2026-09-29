@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::Program;
+use leanvm_core::cpu::Program;
 
 /// `tests/programs/<name>.py` against the digest of the bytecode it compiles to.
 /// The list is closed: a new program must be added here, so one cannot be added

@@ -4,7 +4,7 @@
 //! `p = 0`, which cannot then be set to `1`. Three rows and no `JUMP`.
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{Op, prove, verify};
+use leanvm_core::cpu::{Op, prove, verify};
 use primitives::field::{F64, F192, g_pow};
 
 /// Honest inequality over runtime values: prove + verify pass, and corrupting
@@ -25,7 +25,7 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(g_pow(12)), F192::from(g_pow(5))];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("inequality program verifies");
 
     let bad = [F192::from(g_pow(11)), F192::from(g_pow(5))];
@@ -55,7 +55,7 @@ def main():
         let mut program = compile(&parse(src).expect("parse"));
         program.set_witness("vals", vec![vec![F192::from(a), F192::from(b)]]);
         let pi = [F192::from(a), F192::from(b)];
-        prove(&program, pi, lean_vm::pcs::TEST_LOG_INV_RATE)
+        prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE)
             .is_ok_and(|(proof, _)| verify(&program, &pi, &proof).is_ok())
     };
     assert!(run(g_pow(3), g_pow(5)), "distinct hints must verify");
@@ -79,7 +79,7 @@ def main():
 ";
     let program = compile(&parse(src).expect("parse"));
     let want = [F192::from(F64(5)), F192::from(F64(7))];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("loop inequality verifies");
 }
 
@@ -159,7 +159,7 @@ def main():
         let mut program = compile(&parse(src).expect("parse"));
         program.set_witness("vals", vec![vec![F192::from(a), F192::from(b)]]);
         let pi = [F192::from(a) + F192::from(b), F192::ONE];
-        prove(&program, pi, lean_vm::pcs::TEST_LOG_INV_RATE)
+        prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE)
             .is_ok_and(|(proof, _)| verify(&program, &pi, &proof).is_ok())
     };
     assert!(run(g_pow(3), g_pow(5)), "distinct hints must verify");
@@ -189,7 +189,7 @@ def main():
     let run = |a: F192, b: F192, inv: F192| -> bool {
         let mut program = compile(&parse(src).expect("parse"));
         program.set_witness("vals", vec![vec![a, b, inv]]);
-        prove(&program, [a, b], lean_vm::pcs::TEST_LOG_INV_RATE)
+        prove(&program, [a, b], leanvm_core::pcs::TEST_LOG_INV_RATE)
             .is_ok_and(|(proof, _)| verify(&program, &[a, b], &proof).is_ok())
     };
     let (a, b) = (F192::from(g_pow(3)), F192::from(g_pow(5)));

@@ -15,7 +15,7 @@
 use std::fs;
 
 use lean_compiler::{compile, parse, parse_const};
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, verify};
 use primitives::field::F192;
 
 /// The `# public_input: <elt>, <elt>` annotation, or `[0, 0]` if absent.
@@ -72,7 +72,7 @@ fn all_py_programs() {
         for (stream, entries) in witness(&src) {
             program.set_witness(stream, entries);
         }
-        let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         verify(&program, &want, &proof).unwrap_or_else(|e| panic!("{name}: verify: {e:?}"));
         println!("{name}: ok");
     }

@@ -1,11 +1,11 @@
-//! Pins `python-verifier/verifier.py` against `lean_vm::cpu::verify`: the same
+//! Pins `python-verifier/verifier.py` against `leanvm_core::cpu::verify`: the same
 //! protocol is written out in Rust, in Python, and in zkDSL, so any protocol
 //! change must land in all three, and this is what catches the Python one
 //! drifting.
 
 use fiat_shamir::transcript::RawProof;
 use lean_compiler::{compile, parse_with_replacements};
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192, g_pow};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -77,7 +77,7 @@ fn python_verify(directory: &Path, bytecode: &Path, public_input: &Path, raw: &R
 }
 
 fn public_input() -> [F192; 2] {
-    use lean_vm::hash_flock::{FINAL_FLAG, IV, PINNED_T, compression, digest, metadata};
+    use leanvm_core::hash_flock::{FINAL_FLAG, IV, PINNED_T, compression, digest, metadata};
 
     let seed = [F64(5), F64::ZERO, F64(7), F64::ZERO];
     let metadata = metadata(PINNED_T, FINAL_FLAG, 0);
@@ -123,7 +123,7 @@ fn test_python_verifier() {
     let encoded = bincode::serialize(&proof).expect("serialize proof");
     // The statement the verifier takes is the bytecode multilinear plus 256 bits
     // of public input, not a structured program.
-    let table: Vec<u8> = lean_vm::cpu::layout::bytecode_table(&program.prog)
+    let table: Vec<u8> = leanvm_core::cpu::layout::bytecode_table(&program.prog)
         .iter()
         .flat_map(|w| w.0.to_le_bytes())
         .collect();
@@ -153,7 +153,7 @@ fn test_python_verifier() {
     assert!(!output.status.success(), "Python accepted a noncanonical announcement");
 
     let mut malformed_root = proof.clone();
-    let root_offset = lean_vm::tables::N_TABLES + 2;
+    let root_offset = leanvm_core::tables::N_TABLES + 2;
     malformed_root.stream[root_offset].c2 = 1;
     assert!(verify(&program, &public_input, &malformed_root).is_err());
     let mut raw_root = raw.clone();

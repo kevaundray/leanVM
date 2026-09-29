@@ -7,8 +7,8 @@
 //! duplicating their knowledge of what a dummy row looks like.
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{CpuError, Proof, ProveError, prove, verify};
-use lean_vm::vmhash::compress;
+use leanvm_core::cpu::{CpuError, Proof, ProveError, prove, verify};
+use leanvm_core::vmhash::compress;
 use primitives::field::{F64, F192};
 
 /// A program that hashes one block and publishes the digest, so its proof carries
@@ -33,10 +33,10 @@ fn hashing_pi() -> [F192; 2] {
     [F192::new(d[0].0, d[1].0, 0), F192::new(d[2].0, d[3].0, 0)]
 }
 
-fn hashing_proof() -> (lean_vm::cpu::Program, [F192; 2], Proof) {
+fn hashing_proof() -> (leanvm_core::cpu::Program, [F192; 2], Proof) {
     let program = compile(&parse(HASHING).expect("parse"));
     let pi = hashing_pi();
-    let (proof, _) = prove(&program, pi, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &pi, &proof).expect("honest proof verifies");
     (program, pi, proof)
 }
@@ -91,7 +91,7 @@ fn a_proof_does_not_verify_against_another_program() {
     let program = compile(&parse(&src(5)).expect("parse"));
     let other = compile(&parse(&src(6)).expect("parse"));
     let pi = [F192::ZERO, F192::ZERO];
-    let (proof, _) = prove(&program, pi, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &pi, &proof).expect("honest proof verifies");
     assert!(
         verify(&other, &pi, &proof).is_err(),
@@ -112,7 +112,7 @@ fn a_proof_roundtrips_through_bytes() {
     // The announced sizes lead the stream: memory log, the table log heights, then
     // the PCS rate.
     let mut bad_rate = decoded.clone();
-    bad_rate.stream[1 + lean_vm::cpu::Stats::TABLES.len()] = F192::new(5, 0, 0);
+    bad_rate.stream[1 + leanvm_core::cpu::Stats::TABLES.len()] = F192::new(5, 0, 0);
     assert!(
         matches!(verify(&program, &pi, &bad_rate), Err(CpuError::PublicInput)),
         "the announced PCS rate must be in 1..=4"
@@ -120,7 +120,7 @@ fn a_proof_roundtrips_through_bytes() {
 
     // A BLAKE2s height below flock's instance floor describes a layout the
     // arithmetization cannot express, and all three verifiers reject it there.
-    let blake2s = lean_vm::cpu::Stats::TABLES
+    let blake2s = leanvm_core::cpu::Stats::TABLES
         .iter()
         .position(|&t| t == "BLAKE2S")
         .unwrap();
@@ -136,7 +136,7 @@ fn a_proof_roundtrips_through_bytes() {
 #[test]
 fn an_unsupported_rate_is_an_error() {
     let program = compile(&parse(HASHING).expect("parse"));
-    let rate = lean_vm::pcs::MAX_LOG_INV_RATE + 1;
+    let rate = leanvm_core::pcs::MAX_LOG_INV_RATE + 1;
     assert_eq!(
         prove(&program, hashing_pi(), rate).err(),
         Some(ProveError::InvalidRate { log_inv_rate: rate })

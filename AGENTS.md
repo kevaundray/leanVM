@@ -29,7 +29,7 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 | `fiat_shamir`     | VM-native `FiatShamirState` + prover/verifier transcript                |
 | `pcs`             | additive NTT, Merkle, ring switch, stacked WHIR                    |
 | `flock`           | batched R1CS over GF(2) for BLAKE2s: zerocheck + lincheck               |
-| `lean_vm`         | arithmetization: tables, bus, constraints, `cpu::prove`/`verify`       |
+| `leanvm_core`     | arithmetization: tables, bus, constraints, `cpu::prove`/`verify`       |
 | `lean_compiler`   | zkDSL (Python subset) → ISA                                            |
 | `xmss`            | XMSS over BLAKE2s; an independent leaf, consumed only by `rec_aggregation` |
 | `sphincs`         | the stateless SPHINCS+ instance of `doc/sphincs`; an independent leaf, consumed only by `rec_aggregation` |
@@ -43,7 +43,7 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 
 - `.cargo/config.toml` pins `-C target-cpu=native` and `-D warnings` for rustdoc
 - always run in `--release` mode any test or benchmark touching the VM (the zkDSL compiler stack-overflows in `debug` mode)
-- **One test binary per crate, not one per file:** new `lean_compiler` integration tests go in `tests/suite/main.rs`, one linked executable instead of seventeen. Exception: a test opening an arena phase (`lean_vm::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`rec_aggregation/tests/arena_prove.rs`).
+- **One test binary per crate, not one per file:** new `lean_compiler` integration tests go in `tests/suite/main.rs`, one linked executable instead of seventeen. Exception: a test opening an arena phase (`leanvm_core::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`rec_aggregation/tests/arena_prove.rs`).
 
 An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Type-check the other target before pushing anything `cfg`-gated:
 
@@ -64,7 +64,7 @@ ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` i
 
 Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch`, pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). Slow checks and reports are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`: `aggregate_three_levels`, `aggregate_statement_binds`, `aggregate_hints_bind`, `aggregate_rejects_a_bad_signature`, `print_whir_query_counts`, `encoding_grinding_bits`.
 
-**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `lean_vm`, `stage!`), never an `Instant` behind an env var.
+**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `leanvm_core`, `stage!`), never an `Instant` behind an env var.
 
 ## Benchmarking
 
@@ -82,7 +82,7 @@ One proof is one **phase**, opened by `cpu::prove`. `ArenaVec` bumps a per-threa
 
 **The rule:** an `ArenaVec` allocated in a phase dies at the next `begin_phase()`. A reset neither clears nor unmaps, so a buffer that outlives its phase reads the previous proof's plausible bytes, so the symptom is a proof that stops verifying, never a crash. Anything outliving a phase (a `Proof`, a cache, a table) must be a plain `Vec`. And **`drop` means something**: a large released block is handed back out within the phase (a per-thread free list, see the crate docs), so dropping a big buffer where it dies is worth doing, and a use-after-free the bump arena used to mask now reads another buffer's live data. Run `ZK_ALLOC_POISON=1 cargo testall` after changing buffer lifetimes; it fills released blocks and fills what a phase used when it ends, turning a silent wrong answer into a loud failure. That covers both shapes: a buffer read after being dropped, and a buffer that outlives its phase.
 
-`setup_prover_without_arena` (or `lean_vm::init_prover_pool` alone) leaves the arena disengaged, sending every `ArenaVec` to the system allocator. It is the escape hatch for a host where even the recycled peak does not fit; on one that it does fit, the arena is faster, since its pages stay faulted in across proofs.
+`setup_prover_without_arena` (or `leanvm_core::init_prover_pool` alone) leaves the arena disengaged, sending every `ArenaVec` to the system allocator. It is the escape hatch for a host where even the recycled peak does not fit; on one that it does fit, the arena is faster, since its pages stay faulted in across proofs.
 
 ## The thread pool (`parallel`)
 
@@ -98,8 +98,8 @@ No rayon. Every parallel site is "N independent items, each writing its own disj
 
 The same verification algorithm is written out three times, in three languages. Any change to snark protocol has to land in all three.
 
-1. **Rust**, `lean_vm::cpu::verify`. The native verifier.
-2. **Python**, `python-verifier/verifier.py` (no dependencies), for readability and simplicity. Pinned by `lean_vm/tests/verifiers/python_verifier.rs`.
+1. **Rust**, `leanvm_core::cpu::verify`. The native verifier.
+2. **Python**, `python-verifier/verifier.py` (no dependencies), for readability and simplicity. Pinned by `leanvm_core/tests/verifiers/python_verifier.rs`.
 3. **Recursive verifier**, `crates/rec_aggregation/guests/lean_ethereum.py`. Its zkDSL compiles to the ISA; proving its execution gives a proof of child proofs.
 
 Understand the third before changing the verifier. `guests/lean_ethereum.py` is zkDSL, not runnable Python. `lean_compiler` lowers it to the six-opcode, write-once-memory VM, so the prover proves every verifier step. Its size and instruction mix are what the recursion benchmark reports first. It verifies raw signatures of both schemes: a node's coverage table has one contiguous region per XMSS `(epoch, message)` group and separate regions for SPHINCS and DA roots, so the one range check a write already needs also keeps a signature off another group's declared keys, of either scheme, and the statement's signer lists say which scheme verified which key against which `(epoch, message)`. The XMSS signers are grouped by `(epoch, message)`, so one epoch signed at under several messages is one group per message, a runtime number of groups (at most `MAX_EPOCHS`) bound through the signer-set digest, which is plain BLAKE2s of a byte string (each list's own digest folded into it, likewise plain BLAKE2s): a run-time length rides the byte counter because the counter is a memory operand, split as `doc/leanvm` §sec:prog-byte-counter describes. A child's groups need not equal its parent's, a hinted map tying each child group to a parent group with the same epoch and message. A SPHINCS signer's message rides its own four-cell slot, so that list is `(key, message)` pairs; both lists count claims rather than distinct signers, an XMSS key claiming once per `(epoch, message)` it signed. Both schemes' tweaks are built in-circuit: XMSS's from the epochs the statement carries, derived once per group that verifies raw XMSS signatures and skipped by one that verifies none, SPHINCS's per signature from the index its message digest picks. Two consequences:

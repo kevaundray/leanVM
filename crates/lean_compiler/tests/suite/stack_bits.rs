@@ -3,7 +3,7 @@
 //! pointer (at a runtime index, or from a callee).
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{Fault, Stats, prove, verify};
+use leanvm_core::cpu::{Fault, Stats, prove, verify};
 use primitives::field::{F64, F192};
 
 const V: u64 = 0b1011_0110;
@@ -119,7 +119,7 @@ def probe(v):
     let mut program = compile(&parse(src).expect("parse"));
     program.set_witness("v", vec![vec![F192::from(F64(V))]]);
     let want = [F192::from(F64(V)), F192::from(F64::ONE)];
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("the pointer reads the frame run");
     let bad = [F192::from(F64(V + 1)), F192::from(F64::ONE)];
     assert!(verify(&program, &bad, &proof).is_err(), "a wrong value is rejected");

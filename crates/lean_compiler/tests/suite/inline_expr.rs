@@ -7,7 +7,7 @@
 //! `let`.
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192};
 
 #[test]
@@ -50,7 +50,7 @@ def main():
     let o = f3 * f5;
     let want = [F192::from(x), F192::from(y + o)];
 
-    let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+    let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
     verify(&program, &want, &proof).expect("expression-position inline calls compute correctly");
 
     let mut bad = want;

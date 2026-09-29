@@ -13,8 +13,8 @@
 //! interpretation of the program, so it is worth pinning rather than assuming.
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::filler;
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::filler;
+use leanvm_core::cpu::{prove, verify};
 use primitives::field::F192;
 
 const PROGRAMS: [&str; 5] = [
@@ -32,7 +32,7 @@ fn every_table_lands_on_a_power_of_two() {
     for src in PROGRAMS {
         let program = compile(&parse(src).expect("parse"));
         let pi = [F192::ZERO, F192::ZERO];
-        let (proof, stats) = prove(&program, pi, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, stats) = prove(&program, pi, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         assert!(filler::is_filled(stats.counts), "{:?} for {src:?}", stats.counts);
         verify(&program, &pi, &proof).expect("a filled program verifies");
     }
@@ -45,7 +45,7 @@ fn every_table_lands_on_a_power_of_two() {
 fn the_cost_model_is_exact() {
     for src in PROGRAMS {
         let program = compile(&parse(src).expect("parse"));
-        let stats = prove(&program, [F192::ZERO, F192::ZERO], lean_vm::pcs::TEST_LOG_INV_RATE)
+        let stats = prove(&program, [F192::ZERO, F192::ZERO], leanvm_core::pcs::TEST_LOG_INV_RATE)
             .unwrap()
             .1;
         let plan = filler::solve(stats.base_counts, filler::NO_FLOORS).expect("solvable");

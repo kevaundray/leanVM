@@ -9,7 +9,7 @@ pub use rec_aggregation::{
     MAX_DA_ROOTS, MAX_EPOCHS, MAX_KEYS, MAX_RECURSIONS, SignatureClaims, SphincsClaim, XmssClaimGroup, aggregate,
 };
 
-pub use lean_vm::{
+pub use leanvm_core::{
     cpu::{CpuError, ExecError, Fault, ProveError},
     pcs::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE},
 };
@@ -46,7 +46,7 @@ pub use rand;
 /// Call once before verifying an [`EthereumProof`]. Idempotent, and
 /// [`setup_prover`] does it for you.
 pub fn setup_verifier() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
     rec_aggregation::warm_up();
 }
 

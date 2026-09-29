@@ -6,7 +6,7 @@ use rec_aggregation::{aggregate, signers_cache};
 
 #[test]
 fn repeated_proofs_survive_phase_resets() {
-    lean_vm::init_prover();
+    leanvm_core::init_prover();
     assert!(
         zk_alloc::is_enabled(),
         "this test is meaningless unless the arena is engaged"
@@ -26,7 +26,7 @@ fn repeated_proofs_survive_phase_resets() {
                 raw_sphincs.clone(),
                 &blob,
                 None,
-                lean_vm::pcs::TEST_LOG_INV_RATE,
+                leanvm_core::pcs::TEST_LOG_INV_RATE,
             )
             .expect("leaf aggregates")
         })

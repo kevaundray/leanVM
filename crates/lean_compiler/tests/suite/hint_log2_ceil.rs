@@ -5,7 +5,7 @@
 //! so this test checks only that the advice computes the right value.
 
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, verify};
 use primitives::field::{F64, F192, g_pow};
 
 fn log2_ceil_of(v: u128) -> usize {
@@ -33,7 +33,7 @@ def main():
         let bits: Vec<F192> = (0..8).map(|j| F192::from(F64(((v >> j) & 1) as u64))).collect();
         program.set_witness("bits", vec![bits]);
         let want = [F192::from(g_pow(log2_ceil_of(v))), F192::from(F64::ONE)];
-        let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         verify(&program, &want, &proof).unwrap_or_else(|_| panic!("v={v}: log2_ceil advice must verify"));
         let bad = [F192::from(g_pow(log2_ceil_of(v) + 1)), F192::from(F64::ONE)];
         assert!(
@@ -62,7 +62,7 @@ def main():
         let bits: Vec<F192> = (0..8).map(|j| F192::from(F64(((v >> j) & 1) as u64))).collect();
         program.set_witness("bits", vec![bits]);
         let want = [F192::from(g_pow(mu)), F192::from(F64::ONE)];
-        let (proof, _) = prove(&program, want, lean_vm::pcs::TEST_LOG_INV_RATE).unwrap();
+        let (proof, _) = prove(&program, want, leanvm_core::pcs::TEST_LOG_INV_RATE).unwrap();
         verify(&program, &want, &proof).unwrap_or_else(|_| panic!("v={v}: floored log2_ceil must verify"));
     }
 }

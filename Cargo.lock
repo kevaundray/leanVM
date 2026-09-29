@@ -1421,7 +1421,7 @@ name = "lean_compiler"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "lean_vm",
+ "leanvm_core",
  "primitives",
  "rand 0.9.4",
 ]
@@ -1440,26 +1440,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "lean_vm"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "fiat_shamir",
- "flock",
- "lean_compiler",
- "parallel",
- "pcs",
- "primitives",
- "tracing",
- "zk_alloc",
-]
-
-[[package]]
 name = "leanvm"
 version = "0.1.0"
 dependencies = [
  "lean_da",
- "lean_vm",
+ "leanvm_core",
  "rand 0.9.4",
  "rec_aggregation",
  "sphincs",
@@ -1476,7 +1461,7 @@ dependencies = [
  "clap",
  "lean_compiler",
  "lean_da",
- "lean_vm",
+ "leanvm_core",
  "primitives",
  "rand 0.9.4",
  "rec_aggregation",
@@ -1484,6 +1469,21 @@ dependencies = [
  "sphincs",
  "tracing",
  "xmss",
+ "zk_alloc",
+]
+
+[[package]]
+name = "leanvm_core"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "fiat_shamir",
+ "flock",
+ "lean_compiler",
+ "parallel",
+ "pcs",
+ "primitives",
+ "tracing",
  "zk_alloc",
 ]
 
@@ -1851,7 +1851,7 @@ dependencies = [
  "flock",
  "lean_compiler",
  "lean_da",
- "lean_vm",
+ "leanvm_core",
  "parallel",
  "pcs",
  "primitives",

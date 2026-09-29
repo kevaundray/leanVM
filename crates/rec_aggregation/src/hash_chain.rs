@@ -3,14 +3,14 @@
 use std::time::Instant;
 
 use lean_compiler::{compile, compile_without_filler, parse};
-use lean_vm::cpu::{prove, verify};
-use lean_vm::vmhash::compress;
+use leanvm_core::cpu::{prove, verify};
+use leanvm_core::vmhash::compress;
 use primitives::{
     field::{F64, F192},
     pretty_f64, pretty_integer,
 };
 
-fn instruction_counts(source: &str, public_input: [F192; 2]) -> [usize; lean_vm::cpu::Stats::TABLES.len()] {
+fn instruction_counts(source: &str, public_input: [F192; 2]) -> [usize; leanvm_core::cpu::Stats::TABLES.len()] {
     compile_without_filler(&parse(source).expect("parse"))
         .execute(public_input)
         .unwrap()
@@ -85,7 +85,7 @@ fn blake2s_hash_chain() {
     let program = compile(&parse(&source).expect("parse"));
 
     let started = Instant::now();
-    let (proof, stats) = prove(&program, public_input, lean_vm::pcs::TEST_LOG_INV_RATE).expect("proves");
+    let (proof, stats) = prove(&program, public_input, leanvm_core::pcs::TEST_LOG_INV_RATE).expect("proves");
     let prove_time = started.elapsed();
     let started = Instant::now();
     verify(&program, &public_input, &proof).expect("hash-chain proof verifies");

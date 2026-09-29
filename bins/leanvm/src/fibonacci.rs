@@ -3,7 +3,7 @@
 
 use bench::Plan;
 use lean_compiler::{compile, parse};
-use lean_vm::cpu::{prove, verify};
+use leanvm_core::cpu::{prove, verify};
 use primitives::{
     field::{F64, F192, g_pow},
     pretty_f64, pretty_integer,
@@ -107,6 +107,6 @@ fn fibonacci_program(fib_n: usize) -> (String, [F192; 2]) {
 mod tests {
     #[test]
     fn fibonacci() {
-        super::run_fibonacci(200_000, lean_vm::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
+        super::run_fibonacci(200_000, leanvm_core::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
     }
 }
