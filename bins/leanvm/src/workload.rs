@@ -32,8 +32,8 @@ impl Workload {
 
     /// Run the guest on the interpreter, with no proof: its output, or the trap.
     #[cfg(test)]
-    pub fn run(&self) -> Result<[u64; 4], lean_vm::rv::Trap> {
-        lean_vm::rv::Machine::new(&self.program().rv, self.input, &self.advice).run(1 << 30)
+    pub fn run(&self) -> Result<[u64; 4], leanvm_core::rv::Trap> {
+        leanvm_core::rv::Machine::new(&self.program().rv, self.input, &self.advice).run(1 << 30)
     }
 }
 
@@ -47,7 +47,7 @@ pub fn cycles(workloads: &[Workload]) {
     println!("|---|---:|---:|---:|---|");
     for workload in workloads {
         // One run each: the rows per table fix the committed size.
-        let stats = lean_vm::cpu::measure(&workload.program(), workload.input, &workload.advice)
+        let stats = leanvm_core::cpu::measure(&workload.program(), workload.input, &workload.advice)
             .unwrap_or_else(|trap| refuse(format_args!("{}: {trap}", workload.title)));
         let cycles: usize = stats.base_counts.iter().sum();
         println!(

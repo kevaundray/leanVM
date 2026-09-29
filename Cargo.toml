@@ -21,7 +21,7 @@ primitives = { path = "crates/primitives" }
 fiat_shamir = { path = "crates/fiat_shamir" }
 pcs = { path = "crates/pcs" }
 flock = { path = "crates/flock" }
-lean_vm = { path = "crates/lean_vm" }
+leanvm_core = { path = "crates/leanvm_core" }
 zk_alloc = { path = "crates/zk_alloc" }
 parallel = { path = "crates/parallel" }
 libc = "0.2"

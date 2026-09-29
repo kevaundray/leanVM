@@ -78,6 +78,6 @@ fn fibonacci_program(fib_n: usize) -> (Program, [u64; 4]) {
 mod tests {
     #[test]
     fn fibonacci() {
-        super::run_fibonacci(200_000, lean_vm::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
+        super::run_fibonacci(200_000, leanvm_core::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
     }
 }

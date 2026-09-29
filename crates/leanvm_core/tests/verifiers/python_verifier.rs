@@ -1,9 +1,9 @@
-//! Pins `python-verifier/verifier.py` against `lean_vm::cpu::verify`: the same
+//! Pins `python-verifier/verifier.py` against `leanvm_core::cpu::verify`: the same
 //! protocol is written out in Rust and in Python, so any protocol change must land
 //! in both, and this is what catches the Python one drifting.
 
 use fiat_shamir::transcript::RawProof;
-use lean_vm::cpu::{prove, verify, verify_to_raw};
+use leanvm_core::cpu::{prove, verify, verify_to_raw};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::Instant;
@@ -18,7 +18,7 @@ pub struct PythonStatement {
 }
 
 impl PythonStatement {
-    pub fn new(tag: &str, program: &lean_vm::cpu::Program, input: &[u64; 4], output: &[u64; 4]) -> Self {
+    pub fn new(tag: &str, program: &leanvm_core::cpu::Program, input: &[u64; 4], output: &[u64; 4]) -> Self {
         // One directory per statement, not per tag: the tests share a process, so two of
         // them naming the same tag would write each other's files and check the wrong
         // proof, which python would ACCEPT, silently proving nothing.
@@ -33,7 +33,7 @@ impl PythonStatement {
             directory,
         };
         let rv = &program.rv;
-        let table: Vec<u8> = lean_vm::cpu::layout::bytecode_table(rv)
+        let table: Vec<u8> = leanvm_core::cpu::layout::bytecode_table(rv)
             .iter()
             .flat_map(|w| w.0.to_le_bytes())
             .collect();
@@ -143,7 +143,7 @@ fn test_python_verifier() {
 
     let mut malformed_root = proof.clone();
     // Past the announcement: the table heights, the rate, the final clock.
-    let root_offset = lean_vm::tables::N_TABLES + 2;
+    let root_offset = leanvm_core::tables::N_TABLES + 2;
     malformed_root.stream[root_offset].c2 = 1;
     assert!(verify(&program, &input, &output, &malformed_root).is_err());
     let mut raw_root = raw.clone();
@@ -182,7 +182,7 @@ fn test_python_verifier() {
 fn the_python_verifier_follows_the_slowest_rate() {
     let (program, _) = super::programs::fibonacci();
     let input = [0; 4];
-    let rate = lean_vm::pcs::MAX_LOG_INV_RATE;
+    let rate = leanvm_core::pcs::MAX_LOG_INV_RATE;
     let (proof, output, _) = prove(&program, input, &[], rate).expect("the run halts");
     let raw = verify_to_raw(&program, &input, &output, &proof).expect("honest proof verifies");
     PythonStatement::new("rate", &program, &input, &output).assert_accepts(&raw);

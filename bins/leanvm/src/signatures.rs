@@ -267,7 +267,7 @@ mod tests {
     fn the_signature_guests_prove() {
         // End to end: proven, verified, and the output the native digest.
         for workload in [leanxmss(2), leansphincs(1)] {
-            workload::run(&workload, lean_vm::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
+            workload::run(&workload, leanvm_core::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
         }
     }
 }

@@ -4,8 +4,8 @@
 //! nightly toolchain.
 
 use super::python_verifier::PythonStatement;
-use lean_vm::cpu::{Program, measure, prove, verify, verify_to_raw};
-use lean_vm::rv::{self, Guest, Machine};
+use leanvm_core::cpu::{Program, measure, prove, verify, verify_to_raw};
+use leanvm_core::rv::{self, Guest, Machine};
 
 fn proves_and_verifies(tag: &str, elf: &[u8], input: [u64; 4], expected: [u64; 4]) {
     proves_and_verifies_with(tag, elf, input, &[], expected);

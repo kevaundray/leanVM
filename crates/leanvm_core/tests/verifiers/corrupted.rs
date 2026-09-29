@@ -3,7 +3,7 @@
 //! prover's to choose, so every path the verifier takes through it has to end in
 //! [`CpuError`], not in an index out of bounds.
 
-use lean_vm::cpu::{Proof, prove, verify};
+use leanvm_core::cpu::{Proof, prove, verify};
 
 struct Rng(u64);
 

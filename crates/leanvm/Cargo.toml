@@ -7,7 +7,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-lean_vm.workspace = true
+leanvm_core.workspace = true
 zk_alloc.workspace = true
 
 [dev-dependencies]

@@ -172,6 +172,7 @@ impl Plan {
     pub fn from_env() -> Self {
         Self::new(env_usize("BENCH_REPEAT", 1), env_usize("BENCH_COOLDOWN", 2) as u64)
     }
+
     /// Run `f` once untimed to warm up, then `self.repeat` measured passes,
     /// keeping the last result and the samples.
     ///

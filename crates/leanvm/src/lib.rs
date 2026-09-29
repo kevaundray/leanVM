@@ -13,7 +13,7 @@
 //!
 //! End to end in [`crates/leanvm/tests/api.rs`](https://github.com/leanEthereum/leanVM/blob/main/crates/leanvm/tests/api.rs).
 
-pub use lean_vm::{
+pub use leanvm_core::{
     cpu::{CpuError, Program, Proof, Stats, prove, verify},
     pcs::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE},
     rv::ElfError,
@@ -22,7 +22,7 @@ pub use lean_vm::{
 
 /// Call once before [`verify`]. Idempotent, and [`setup_prover`] does it for you.
 pub fn setup_verifier() {
-    lean_vm::init_prover_pool();
+    leanvm_core::init_prover_pool();
 }
 
 /// Call once before [`prove`].

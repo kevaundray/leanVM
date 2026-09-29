@@ -1932,7 +1932,7 @@ def verify_execution(
 
 def protocol_constants() -> str:
     """Every constant this verifier shares with the Rust one, as sorted `name value` lines. The two are written out
-    twice on purpose, so something has to hold them together: `lean_vm`'s `constants_match_the_python_verifier`
+    twice on purpose, so something has to hold them together: `leanvm_core`'s `constants_match_the_python_verifier`
     renders the same lines from its own side and diffs them. Lists are comma-separated."""
     scalars = {
         "ADVICE_BASE": ADVICE_BASE,

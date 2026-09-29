@@ -44,10 +44,10 @@ fn whir_query_table_matches_rust() {
     // two drifting, and names the edit when the knob moves.
     assert_eq!(
         (min_log, max_log),
-        (lean_vm::pcs::MIN_MU, lean_vm::pcs::MAX_MU),
+        (leanvm_core::pcs::MIN_MU, leanvm_core::pcs::MAX_MU),
         "set MIN_STACKED_LOG / MAX_STACKED_LOG in python-verifier/verifier.py to {} / {}",
-        lean_vm::pcs::MIN_MU,
-        lean_vm::pcs::MAX_MU
+        leanvm_core::pcs::MIN_MU,
+        leanvm_core::pcs::MAX_MU
     );
 
     let mut checked = 0;
@@ -86,13 +86,13 @@ fn whir_query_table_matches_rust() {
 
 /// Regenerates the literal the pin above checks: paste its output over `WHIR_QUERIES` in
 /// `python-verifier/verifier.py`.
-/// `cargo test --release -p lean_vm --test verifiers print_whir_query_table -- --ignored --nocapture`
+/// `cargo test --release -p leanvm_core --test verifiers print_whir_query_table -- --ignored --nocapture`
 #[test]
 #[ignore = "manual table regeneration"]
 fn print_whir_query_table() {
     let rates: Vec<String> = (1..=4)
         .map(|rate| {
-            let rows: Vec<String> = (lean_vm::pcs::MIN_MU..=lean_vm::pcs::MAX_MU)
+            let rows: Vec<String> = (leanvm_core::pcs::MIN_MU..=leanvm_core::pcs::MAX_MU)
                 .map(|log_n| {
                     let config = WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + LOG_PACKING, rate)
                         .unwrap()

@@ -5,13 +5,13 @@
 //! `conformance/act4/elf/`, or `LEANVM_ACT4` names another directory, which is how CI runs
 //! them. Run on the interpreter, proven, and checked by both verifiers. A test exits
 //! with the output zero when every check passes. Both tests are `#[ignore]`d, since
-//! they need the generated files: `cargo test --release -p lean_vm --test verifiers
+//! they need the generated files: `cargo test --release -p leanvm_core --test verifiers
 //! -- --ignored act4`.
 
 use super::python_verifier::PythonStatement;
-use lean_vm::cpu::{Program, prove, verify_to_raw};
-use lean_vm::rv::{Guest, Machine, RAM_BASE, TEXT_BASE, Trap};
-use lean_vm::tables::N_TABLES;
+use leanvm_core::cpu::{Program, prove, verify_to_raw};
+use leanvm_core::rv::{Guest, Machine, RAM_BASE, TEXT_BASE, Trap};
+use leanvm_core::tables::N_TABLES;
 use std::path::{Path, PathBuf};
 
 /// Every test of the two suites, as `(extension, instruction)`, the file being

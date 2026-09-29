@@ -1,9 +1,9 @@
 //! RISC-V programs, proven and checked by both verifiers.
 
 use super::python_verifier::PythonStatement;
-use lean_vm::cpu::{Program, prove, verify, verify_to_raw};
-use lean_vm::rv::asm::*;
-use lean_vm::rv::{ADVICE_BASE, RAM_BASE, TEXT_BASE};
+use leanvm_core::cpu::{Program, prove, verify, verify_to_raw};
+use leanvm_core::rv::asm::*;
+use leanvm_core::rv::{ADVICE_BASE, RAM_BASE, TEXT_BASE};
 
 const STEPS: u64 = 1000;
 
@@ -103,7 +103,7 @@ fn alu_instructions_prove_and_verify() {
         .r("add", A4, A4, A4)
         .jalr(ZERO, RA, 0);
     let program = Program::new(&a.finish(), TEXT_BASE, vec![], 2, 0);
-    let expected = lean_vm::rv::Machine::new(&program.rv, [0; 4], &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, [0; 4], &[])
         .run(1 << 20)
         .expect("the run halts");
     assert_ne!(expected, [0; 4]);
@@ -169,7 +169,7 @@ fn loads_and_stores_prove_and_verify() {
         .jalr(ZERO, RA, 0);
     let program = Program::new(&a.finish(), TEXT_BASE, image, LOG_RAM, 0);
     let input = [0x1111, 0x2222, 0x3333, 0x4444];
-    let expected = lean_vm::rv::Machine::new(&program.rv, input, &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, input, &[])
         .run(1 << 20)
         .expect("the run halts");
     assert_eq!(expected[2..], [0x1111, 0x4444], "the public input is RAM's first words");
@@ -204,7 +204,7 @@ fn shifts_and_multiplications_prove_and_verify() {
         a.i(op, T0, S0, amount).r("xor", A2, A2, T0).r("sub", A3, A3, T0);
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, vec![], 2, 0);
-    let expected = lean_vm::rv::Machine::new(&program.rv, [0; 4], &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, [0; 4], &[])
         .run(1 << 20)
         .expect("the run halts");
     assert!(expected.iter().all(|&word| word != 0));
@@ -233,7 +233,7 @@ fn divisions_prove_and_verify() {
         }
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, vec![], 2, 0);
-    let expected = lean_vm::rv::Machine::new(&program.rv, [0; 4], &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, [0; 4], &[])
         .run(1 << 20)
         .expect("the run halts");
     proves_and_verifies("div", &program, [0; 4], expected);
@@ -244,7 +244,7 @@ fn divisions_prove_and_verify() {
 /// message block loaded from the image, checked against the host's hash.
 #[test]
 fn blake2s_precompile_proves_and_verifies() {
-    use lean_vm::rv::hash::{H, M, OUT};
+    use leanvm_core::rv::hash::{H, M, OUT};
     const BLOCK: u64 = RAM_BASE + 128;
     let data: Vec<u8> = (0..100u32).map(|i| (i * 37 + 11) as u8).collect();
     let words = |bytes: &[u8]| -> Vec<u64> {
@@ -292,7 +292,7 @@ fn blake2s_precompile_proves_and_verifies() {
     let program = Program::new(&text, TEXT_BASE, vec![], 7, 0);
     assert_eq!(
         prove(&program, [0; 4], &[], 1).err(),
-        Some(lean_vm::rv::Trap::Misaligned {
+        Some(leanvm_core::rv::Trap::Misaligned {
             pc: TEXT_BASE + 8,
             address: BLOCK + 4
         })
@@ -336,7 +336,7 @@ fn advice_proves_and_verifies() {
     let program = Program::new(&text, TEXT_BASE, vec![], 2, LOG_ADVICE);
     assert!(matches!(
         prove(&program, [0; 4], &[], 1).err(),
-        Some(lean_vm::rv::Trap::Unmapped { .. })
+        Some(leanvm_core::rv::Trap::Unmapped { .. })
     ));
 }
 
@@ -347,6 +347,6 @@ fn a_trap_is_reported() {
     let program = Program::new(&text, TEXT_BASE, vec![], 2, 0);
     assert_eq!(
         prove(&program, [0; 4], &[], 1).err(),
-        Some(lean_vm::rv::Trap::Illegal { pc: TEXT_BASE })
+        Some(leanvm_core::rv::Trap::Illegal { pc: TEXT_BASE })
     );
 }
