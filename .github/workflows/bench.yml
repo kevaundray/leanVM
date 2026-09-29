@@ -1,9 +1,9 @@
 name: Bench
 
-# Tracks the programs of `leanvm bench` on Bencher, and on the proving machines flock's
-# `hash_batch` too. Configuration:
-# - secret `BENCHER_API_KEY` and variable `BENCHER_PROJECT` (the project slug);
-#   without them the benchmarks still run and nothing is uploaded.
+# Runs the programs of `leanvm bench`, and on the proving machines flock's `hash_batch`
+# too, and saves each testbed's Bencher Metric Format JSON as the artifact
+# `bench-<testbed>`, with a PR's event as `pr-event`. It holds no secret, so it runs
+# the same for a fork's PR: bench-track.yml uploads the results once this succeeds.
 # - variable `BENCH_TESTBEDS`: the dedicated proving machines as a JSON array,
 #   e.g. [{"name": "zen5", "runner": ["self-hosted", "zen5"]}], each with python3.
 #   Unset, no proving job runs.
@@ -15,7 +15,7 @@ on:
     # The branches PRs target: their history is what a PR is compared against.
     branches: [ "main", "riscv-exploration" ]
   pull_request:
-    types: [ opened, reopened, synchronize, labeled ]
+    types: [ opened, reopened, edited, synchronize, labeled ]
   workflow_dispatch:
 
 permissions:
@@ -30,24 +30,27 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
-  UPLOAD: ${{ vars.BENCHER_PROJECT != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-  BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
 jobs:
+  # What bench-track.yml needs to name the PR's Bencher branch and its start point.
+  event:
+    name: PR event
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-event
+          path: ${{ github.event_path }}
+
   cycles:
     name: Cycles
     if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
     env:
       # Cycle counts do not depend on the ISA; this keeps cached artifacts runnable
       # on whichever runner restores them (see rust.yml).
       RUSTFLAGS: -C target-cpu=haswell
-      ERROR_ON_ALERT: 1
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -57,18 +60,10 @@ jobs:
         run: cargo leanvm bench --cycles-only --markdown >> "$GITHUB_STEP_SUMMARY"
       - name: Count cycles
         run: cargo leanvm bench --cycles-only > bench.json && cat bench.json
-      - uses: bencherdev/bencher@main
-        if: env.UPLOAD == 'true'
-      - name: Track with Bencher
-        if: env.UPLOAD == 'true'
-        env:
-          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Deterministic: any increase over the base branch's last value is a regression.
-        run: >-
-          .github/bencher.sh ubuntu-latest
-          --threshold-measure cycles --threshold-test percentage
-          --threshold-max-sample-size 1 --threshold-upper-boundary 0.0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-ubuntu-latest
+          path: bench.json
 
   prove:
     name: Prove (${{ matrix.testbed.name }})
@@ -83,10 +78,6 @@ jobs:
       fail-fast: false
       matrix:
         testbed: ${{ fromJSON(vars.BENCH_TESTBEDS || '[]') }}
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -105,15 +96,7 @@ jobs:
         run: >-
           python3 -c 'import json, sys; print(json.dumps({k: v for f in sys.argv[1:] for k, v in json.load(open(f)).items()}, indent=2))'
           vm.json flock.json > bench.json
-      - uses: bencherdev/bencher@main
-        if: env.UPLOAD == 'true'
-      - name: Track with Bencher
-        if: env.UPLOAD == 'true'
-        env:
-          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Alerts are reported, not failed on, until each machine's noise is known.
-        run: >-
-          .github/bencher.sh ${{ matrix.testbed.name }}
-          --threshold-measure latency --threshold-test t_test
-          --threshold-max-sample-size 64 --threshold-upper-boundary 0.99
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.testbed.name }}
+          path: bench.json
