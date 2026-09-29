@@ -6,7 +6,9 @@ name: RISC-V
 
 on:
   push:
-    branches: [ "main" ]
+    # Pushes to the branches PRs target save the generated tests where those PRs can
+    # restore them: a PR's own cache is visible to it alone.
+    branches: [ "main", "riscv-exploration" ]
   pull_request:
   workflow_dispatch:
 
