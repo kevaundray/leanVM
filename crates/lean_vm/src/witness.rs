@@ -7,9 +7,6 @@
 use primitives::field::F64;
 use zk_alloc::ArenaVec;
 
-/// A committed column: `2^κ` `K`-elements.
-pub type Column = Vec<F64>;
-
 /// Where a column sits in the stacked witness. A [`Placement::VIRTUAL`] column is
 /// NOT committed: it carries data for the bus, but its evaluation claims settle
 /// against some other committed column (e.g. the BLAKE2s value columns route to `q_flock`).

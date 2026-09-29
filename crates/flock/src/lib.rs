@@ -14,7 +14,7 @@
 //!
 //! [`hash`] is the protocol's circuit: the BLAKE2s compression as a per-block
 //! R1CS, plus its witness generation and the leanVM-facing reduction entry
-//! points (`Blake2sSetup::{prove_reduction, verify_reduction, …}`). [`circuit`]
+//! points (`Blake2sSetup::{prove_reduction_precomputed, verify_reduction, …}`). [`circuit`]
 //! is the gate-list vocabulary every other circuit is written in, and [`arith`]
 //! holds u64 addition and multiplication in it.
 //! Steps 2 to 4 above are

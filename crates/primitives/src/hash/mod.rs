@@ -1,7 +1,7 @@
 //! BLAKE2s (RFC 7693), the repo's one hash function.
 //!
 //! - The 10-round compression: every hash here is a chain of them, and the VM proves one per opcode.
-//! - Ordinary BLAKE2s-256 over bytes, one-shot, keyed or streaming.
+//! - Ordinary BLAKE2s-256 over bytes, one-shot or streaming.
 //! - The batched form: many equal-length inputs at once, one SIMD lane each, for the PCS Merkle tree.
 //!
 //! Why BLAKE2s: the byte counter and final flag are ordinary compression inputs.
@@ -15,9 +15,17 @@ mod arm;
 #[cfg(target_arch = "x86_64")]
 mod x86;
 
+use batch::{Lanes32, hash_many_with};
+
+/// The batched backend this build dispatches to.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+type Backend = x86::Avx512;
+#[cfg(all(target_arch = "x86_64", not(target_feature = "avx512f"), target_feature = "avx2"))]
+type Backend = x86::Avx2;
+#[cfg(target_arch = "aarch64")]
+type Backend = arm::Neon;
 #[cfg(not(any(all(target_arch = "x86_64", target_feature = "avx2"), target_arch = "aarch64")))]
-use batch::Scalar8;
-use batch::hash_many_with;
+type Backend = batch::Scalar8;
 
 /// BLAKE2s initial values: the SHA-256 IV.
 pub const IV: [u32; 8] = [
@@ -64,24 +72,15 @@ pub const G_LANES: [[usize; 4]; 8] = [
     [3, 4, 9, 14],
 ];
 
-/// The parameter block folded into `h[0]` for an unkeyed BLAKE2s-256.
-///
-/// Digest length 32, key length 0, fanout 1, depth 1.
-pub const PARAM_UNKEYED: u32 = 0x0101_0000 ^ OUT_LEN as u32;
-
-/// The initial chaining value for a `key_len`-byte key (0 = unkeyed).
-#[inline]
-pub const fn init_state(key_len: usize) -> [u32; 8] {
-    assert!(key_len <= 32, "BLAKE2s key is at most 32 bytes");
-    let mut h = IV;
-    h[0] ^= 0x0101_0000 ^ ((key_len as u32) << 8) ^ OUT_LEN as u32;
-    h
-}
-
 /// The unkeyed BLAKE2s-256 initial chaining value: the IV with the parameter block in word 0.
 ///
 /// Hashing 64 bytes is one compression from here, at counter 64 with the final flag.
-pub const PARAM_IV: [u32; 8] = init_state(0);
+pub const PARAM_IV: [u32; 8] = {
+    let mut h = IV;
+    // Digest length 32, key length 0, fanout 1, depth 1.
+    h[0] ^= 0x0101_0000 ^ OUT_LEN as u32;
+    h
+};
 
 /// The BLAKE2s compression: absorb block `m` at byte counter `t` into `h`.
 ///
@@ -157,30 +156,11 @@ pub struct Hasher {
 impl Hasher {
     pub fn new() -> Self {
         Self {
-            h: init_state(0),
+            h: PARAM_IV,
             buf: [0u8; BLOCK_LEN],
             buf_len: 0,
             counter: 0,
         }
-    }
-
-    /// Keyed BLAKE2s-256 (RFC 7693, section 2.9): the zero-padded key is the first block.
-    ///
-    /// The key is at most 32 bytes.
-    pub fn new_keyed(key: &[u8]) -> Self {
-        assert!(key.len() <= 32, "BLAKE2s key is at most 32 bytes");
-        let mut s = Self {
-            h: init_state(key.len()),
-            buf: [0u8; BLOCK_LEN],
-            buf_len: 0,
-            counter: 0,
-        };
-        if !key.is_empty() {
-            // A full block even for a shorter key, and it counts toward the byte counter.
-            s.buf[..key.len()].copy_from_slice(key);
-            s.buf_len = BLOCK_LEN;
-        }
-        s
     }
 
     pub fn update(&mut self, mut data: &[u8]) -> &mut Self {
@@ -219,7 +199,7 @@ impl Default for Hasher {
 pub fn hash(data: &[u8]) -> [u8; OUT_LEN] {
     // Whole blocks, the shape hashed in bulk, need no buffering.
     if !data.is_empty() && data.len().is_multiple_of(BLOCK_LEN) {
-        let mut h = init_state(0);
+        let mut h = PARAM_IV;
         let n = data.len() / BLOCK_LEN;
         for (b, block) in data.as_chunks::<BLOCK_LEN>().0.iter().enumerate() {
             let t = ((b + 1) * BLOCK_LEN) as u64;
@@ -232,27 +212,15 @@ pub fn hash(data: &[u8]) -> [u8; OUT_LEN] {
     hasher.finalize()
 }
 
-/// One-shot keyed BLAKE2s-256, the PRF form.
-///
-/// The key is at most 32 bytes.
-pub fn keyed_hash(key: &[u8], data: &[u8]) -> [u8; OUT_LEN] {
-    let mut hasher = Hasher::new_keyed(key);
-    hasher.update(data);
-    hasher.finalize()
-}
-
 /// Inputs one vector of the widest backend holds.
 ///
 /// Batched calls accept any count, and hash the remainder one at a time.
-pub const LANES: usize = if cfg!(all(target_arch = "x86_64", target_feature = "avx512f")) {
-    16
-} else if cfg!(target_arch = "x86_64") {
-    8
-} else if cfg!(target_arch = "aarch64") {
-    4
-} else {
-    8
-};
+pub const LANES: usize = Backend::WIDTH;
+
+/// Inputs one batched step hashes together.
+///
+/// A count that is a multiple of it has no remainder.
+pub const BATCH: usize = Backend::GROUPS * Backend::WIDTH;
 
 /// Batched BLAKE2s-256 of `LEN`-byte inputs, one 32-byte digest each.
 ///
@@ -274,7 +242,7 @@ pub fn hash_many<const LEN: usize>(data: &[u8], out: &mut [u8]) {
 ///
 /// Digests are unchanged: a prefix's compressions depend on nothing after them.
 pub fn zero_prefix_state(n_blocks: usize) -> [u32; 8] {
-    let mut h = init_state(0);
+    let mut h = PARAM_IV;
     for b in 0..n_blocks {
         compress(&mut h, &[0u32; 16], ((b + 1) * BLOCK_LEN) as u64, false);
     }
@@ -310,24 +278,8 @@ pub fn hash_many_dyn_from_state(data: &[u8], len: usize, state: &[u32; 8], t_off
     let n = out.len() / OUT_LEN;
     assert_eq!(data.len(), n * len);
     assert_eq!(out.len(), n * OUT_LEN);
-    // SAFETY (each arm): the asserts pin the buffer sizes.
-    // Every backend is gated on the feature its intrinsics need.
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
-    unsafe {
-        hash_many_with::<x86::Avx512>(data, len, state, t_offset, out)
-    }
-    #[cfg(all(target_arch = "x86_64", not(target_feature = "avx512f"), target_feature = "avx2"))]
-    unsafe {
-        hash_many_with::<x86::Avx2>(data, len, state, t_offset, out)
-    }
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        hash_many_with::<arm::Neon>(data, len, state, t_offset, out)
-    }
-    #[cfg(not(any(all(target_arch = "x86_64", target_feature = "avx2"), target_arch = "aarch64")))]
-    unsafe {
-        hash_many_with::<Scalar8>(data, len, state, t_offset, out)
-    }
+    // SAFETY: the asserts pin the buffer sizes, and the backend is gated on the features its intrinsics need.
+    unsafe { hash_many_with::<Backend>(data, len, state, t_offset, out) }
 }
 
 /// The batched hash with a runtime input length, a nonzero multiple of 64.
@@ -337,7 +289,7 @@ pub fn hash_many_dyn(data: &[u8], len: usize, out: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
-    use super::batch::{Lanes32, Scalar8};
+    use super::batch::Scalar8;
     use super::*;
     use crate::test_rng::Rng;
 
@@ -438,24 +390,6 @@ mod tests {
             (1024, "72dc5524951b8955c23b7e3e7f51fb9fff71d8650317f3b7d6e8572e78e230a6"),
         ] {
             assert_eq!(hex(&hash(&pattern(n))), expected, "unkeyed, {n} bytes");
-        }
-    }
-
-    #[test]
-    fn matches_keyed_reference_vectors() {
-        // Same source, keyed: the key block is a full block and counts toward the counter.
-        let key: Vec<u8> = (0..32u8).collect();
-        for (n, expected) in [
-            (
-                0usize,
-                "48a8997da407876b3d79c0d92325ad3b89cbb754d86ab71aee047ad345fd2c49",
-            ),
-            (1, "722ac21d94c3868234e075bb5692678e6460c23466b10b48acf133e6f89f9082"),
-            (64, "ce3c22b930e6395797de1e490600d305294ff2e30eb187bb63120e3f5e3fc129"),
-            (65, "82e02e62a066f2f3cd7a8a542581cbf441e35cf7a771fc7adb0965d8446b71cb"),
-            (100, "6d76c967766118147e79a7528778f3c53125c42b357c86a97834339715a74bcd"),
-        ] {
-            assert_eq!(hex(&keyed_hash(&key, &pattern(n))), expected, "keyed, {n} bytes");
         }
     }
 

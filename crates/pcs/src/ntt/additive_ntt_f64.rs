@@ -50,6 +50,9 @@ fn span_get(basis: &[F64], idx: usize) -> F64 {
     acc
 }
 
+/// Receives a finished block of codeword rows, as `(first_row, rows)`.
+pub type RowSink<'a> = dyn Fn(usize, &[F64]) + Sync + 'a;
+
 /// Additive NTT over F_{2^64} with the standard polynomial-basis subspace
 /// `{1, x, x², …}`: the F_2-subspace is `{0, 1, …, 2^ℓ−1}` under the natural
 /// integer encoding, exactly as in the extension-field version (whose domain already
@@ -113,28 +116,6 @@ impl AdditiveNttF64 {
         [t0, a, a + d, c, c + e0, c + e1, c + e0 + e1]
     }
 
-    /// Forward additive NTT in place (scalar; used directly for tests and as
-    /// the small-input path).
-    pub fn forward_transform_scalar(&self, data: &mut [F64]) {
-        let log_d = log2_strict_usize(data.len());
-        assert!(log_d <= self.log_domain_size());
-        for layer in 0..log_d {
-            let num_blocks = 1usize << layer;
-            let block_size_half = 1usize << (log_d - layer - 1);
-            for block in 0..num_blocks {
-                let twiddle = self.twiddle(layer, block);
-                let block_start = block << (log_d - layer);
-                for idx0 in block_start..(block_start + block_size_half) {
-                    let idx1 = idx0 | block_size_half;
-                    let v = data[idx1];
-                    let new_u = data[idx0] + v * twiddle;
-                    data[idx0] = new_u;
-                    data[idx1] = v + new_u;
-                }
-            }
-        }
-    }
-
     /// RS-encode a message already stored in the codeword's first replica.
     ///
     /// # Overview
@@ -158,26 +139,43 @@ impl AdditiveNttF64 {
     pub fn encode_interleaved_in_place(&self, data: &mut [F64], num_ntts: usize, log_inv_rate: usize) {
         // The message is the buffer's own first replica.
         let msg = parallel::SendPtr(data.as_mut_ptr());
-        self.transform(data, num_ntts, log_inv_rate, Some(msg));
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), None);
     }
 
-    /// RS-encode a message held in a buffer of its own.
+    /// Encode in place, handing `on_rows` every finished block of rows.
+    ///
+    /// - It is called as `on_rows(first_row, rows)`, from pool tasks.
+    /// - Each row is handed over exactly once.
+    /// - Blocks are aligned, and all of one power-of-two size.
+    /// - A block is handed over while its rows are still in cache.
+    pub fn encode_interleaved_in_place_with(
+        &self,
+        data: &mut [F64],
+        num_ntts: usize,
+        log_inv_rate: usize,
+        on_rows: &RowSink<'_>,
+    ) {
+        let msg = parallel::SendPtr(data.as_mut_ptr());
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
+    }
+
+    /// RS-encode a message held in a buffer of its own, handing `on_rows` every finished block of rows.
     ///
     /// - The result equals encoding in place.
     /// - Every codeword word is written before it is read, so the codeword may start uninitialized.
+    /// - The blocks are as for the in-place encode.
     ///
-    /// The replication is fused into the first pass. Each block at layer
-    /// `log_inv_rate` IS one replica, so a block's eight participating rows are eight
-    /// message rows, and the pass can gather them itself instead of reading back a
-    /// codeword someone else just filled. That turns three sweeps of the whole
-    /// codeword (fill it, read it, write it) into one gather and one write. Replica 0 IS the message,
-    /// so the blocks run in descending order and it is transformed in place last,
-    /// once every other replica has read it.
-    /// 
     /// # Panics
     ///
     /// Panics unless the codeword is exactly `2^r` messages long.
-    pub fn encode_interleaved(&self, data: &mut [F64], msg: &[F64], num_ntts: usize, log_inv_rate: usize) {
+    pub fn encode_interleaved_with(
+        &self,
+        data: &mut [F64],
+        msg: &[F64],
+        num_ntts: usize,
+        log_inv_rate: usize,
+        on_rows: &RowSink<'_>,
+    ) {
         assert_eq!(
             msg.len() << log_inv_rate,
             data.len(),
@@ -185,63 +183,7 @@ impl AdditiveNttF64 {
         );
         // Read-only from here on: the pointer only feeds the first pass's reads.
         let msg = parallel::SendPtr(msg.as_ptr().cast_mut());
-        self.transform(data, num_ntts, log_inv_rate, Some(msg));
-    }
-
-    /// Scalar reference for the interleaved forward NTT (test oracle).
-    pub fn forward_transform_interleaved_scalar_from_layer(
-        &self,
-        data: &mut [F64],
-        num_ntts: usize,
-        start_layer: usize,
-    ) {
-        let n_total = data.len();
-        let log_d = log2_strict_usize(n_total / num_ntts);
-
-        for layer in start_layer..log_d {
-            let num_blocks = 1usize << layer;
-            let block_size = 1usize << (log_d - layer);
-            let block_size_half = block_size >> 1;
-            let block_elems = block_size * num_ntts;
-            for block in 0..num_blocks {
-                let twiddle = self.twiddle(layer, block);
-                let block_start = block * block_elems;
-                for row in 0..block_size_half {
-                    let off_top = block_start + row * num_ntts;
-                    let off_bot = off_top + block_size_half * num_ntts;
-                    for lane in 0..num_ntts {
-                        let v = data[off_bot + lane];
-                        let new_u = data[off_top + lane] + v * twiddle;
-                        data[off_top + lane] = new_u;
-                        data[off_bot + lane] = v + new_u;
-                    }
-                }
-            }
-        }
-    }
-
-    /// Parallel forward NTT of many interleaved transforms, from one layer on.
-    ///
-    /// # Layout
-    ///
-    /// ```text
-    ///     word pos * n + lane  =  position pos of transform lane
-    ///
-    ///     row 0:  [ lane 0, lane 1, ..., lane n-1 ]   <- one Merkle leaf
-    ///     row 1:  [ lane 0, lane 1, ..., lane n-1 ]
-    /// ```
-    ///
-    /// - Starting at layer `r` skips the layers a caller already ran by replicating its message `2^r` times.
-    /// - The lane count `n` is only a stride, so it need not be a power of two.
-    /// - It is not one for a padding-free commitment, which interleaves only the lanes carrying data.
-    /// - The row count still is a power of two: it is the transform's domain.
-    pub fn forward_transform_interleaved_parallel_from_layer(
-        &self,
-        data: &mut [F64],
-        num_ntts: usize,
-        start_layer: usize,
-    ) {
-        self.transform(data, num_ntts, start_layer, None);
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
     }
 
     /// Run layers `start..d` of a `2^d`-row transform in as few sweeps of the buffer as possible.
@@ -274,7 +216,19 @@ impl AdditiveNttF64 {
     /// - The message may be the buffer's own block 0.
     /// - So a gathered task visits blocks in descending order, and overwrites block 0 last.
     /// - Tasks own disjoint row residues, so no task reads rows another task writes.
-    fn transform(&self, data: &mut [F64], num_ntts: usize, start: usize, msg: Option<parallel::SendPtr<F64>>) {
+    ///
+    /// # Finished rows
+    ///
+    /// - Each deep sub-block is final, and hands its rows to `on_rows` while they are in L2.
+    /// - Without a split deep pass, the rows go over in parallel blocks at the end.
+    fn transform(
+        &self,
+        data: &mut [F64],
+        num_ntts: usize,
+        start: usize,
+        msg: Option<parallel::SendPtr<F64>>,
+        on_rows: Option<&RowSink<'_>>,
+    ) {
         // The buffer is 2^log_d rows of `num_ntts` words.
         assert!(num_ntts > 0);
         assert_eq!(data.len() % num_ntts, 0);
@@ -330,9 +284,14 @@ impl AdditiveNttF64 {
             replicate(data, m, data.len() >> start);
         }
 
+        // A lone sub-block runs on this thread, so its rows go over in parallel afterwards.
+        let fuse = 0 < deep_start && deep_start < log_d;
+        let deep_rows = on_rows.filter(|_| fuse);
+
         // Phase 3: the deep pass, one task per contiguous sub-block.
         if deep_start < log_d {
-            let sub_len = num_ntts << (log_d - deep_start);
+            let log_sub = log_d - deep_start;
+            let sub_len = num_ntts << log_sub;
             let block_len = data.len() >> start;
             parallel::chunks_mut(data, sub_len, |sub_idx, sub| match msg {
                 // A separate message: build the sub-block in scratch, then write it out once.
@@ -349,6 +308,9 @@ impl AdditiveNttF64 {
                     // - This sub-block ends inside its replica, so the read stays in bounds.
                     scratch.copy_from_slice(unsafe { std::slice::from_raw_parts(m.add(off), sub_len) });
                     self.run_layers(scratch, log_d, num_ntts, deep_start, log_d, deep_start, sub_idx);
+                    if let Some(f) = deep_rows {
+                        f(sub_idx << log_sub, scratch);
+                    }
                     if stream {
                         Stream::new().copy(sub, scratch);
                     } else {
@@ -356,8 +318,20 @@ impl AdditiveNttF64 {
                     }
                 }),
                 // The replicas are already in place: run the layers where they are.
-                None => self.run_layers(sub, log_d, num_ntts, deep_start, log_d, deep_start, sub_idx),
+                None => {
+                    self.run_layers(sub, log_d, num_ntts, deep_start, log_d, deep_start, sub_idx);
+                    if let Some(f) = deep_rows {
+                        f(sub_idx << log_sub, sub);
+                    }
+                }
             });
+        }
+
+        if let Some(f) = on_rows.filter(|_| !fuse) {
+            // Four blocks per worker.
+            let log_tasks = (4 * parallel::num_threads()).next_power_of_two().ilog2() as usize;
+            let log_rows = log_d - log_tasks.min(log_d);
+            parallel::chunks_mut(data, num_ntts << log_rows, |i, rows| f(i << log_rows, rows));
         }
     }
 
@@ -1145,8 +1119,34 @@ mod tests {
     use super::*;
     use primitives::test_rng::Rng;
 
-    /// Check forward∘inverse = id and scalar == interleaved == parallel, plus
-    /// linearity.
+    /// Scalar reference: one butterfly at a time over `num_ntts` interleaved lanes.
+    fn forward_scalar_from_layer(ntt: &AdditiveNttF64, data: &mut [F64], num_ntts: usize, start_layer: usize) {
+        let n_total = data.len();
+        let log_d = log2_strict_usize(n_total / num_ntts);
+
+        for layer in start_layer..log_d {
+            let num_blocks = 1usize << layer;
+            let block_size = 1usize << (log_d - layer);
+            let block_size_half = block_size >> 1;
+            let block_elems = block_size * num_ntts;
+            for block in 0..num_blocks {
+                let twiddle = ntt.twiddle(layer, block);
+                let block_start = block * block_elems;
+                for row in 0..block_size_half {
+                    let off_top = block_start + row * num_ntts;
+                    let off_bot = off_top + block_size_half * num_ntts;
+                    for lane in 0..num_ntts {
+                        let v = data[off_bot + lane];
+                        let new_u = data[off_top + lane] + v * twiddle;
+                        data[off_top + lane] = new_u;
+                        data[off_bot + lane] = v + new_u;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check forward∘inverse = id and scalar == parallel.
     #[test]
     fn inverse_roundtrip_and_variants_agree() {
         let ntt = AdditiveNttF64::standard(12);
@@ -1156,12 +1156,9 @@ mod tests {
             let orig: Vec<F64> = (0..n).map(|_| F64(rng.next_u64())).collect();
 
             let mut a = orig.clone();
-            ntt.forward_transform_scalar(&mut a);
-            let mut b = orig.clone();
-            ntt.forward_transform_interleaved_scalar_from_layer(&mut b, 1, 0);
-            assert_eq!(a, b, "interleaved(1 lane) == scalar at log_d={log_d}");
+            forward_scalar_from_layer(&ntt, &mut a, 1, 0);
             let mut c = orig.clone();
-            ntt.forward_transform_interleaved_parallel_from_layer(&mut c, 1, 0);
+            ntt.transform(&mut c, 1, 0, None, None);
             assert_eq!(a, c, "parallel == scalar at log_d={log_d}");
 
             ntt.inverse_transform(&mut a);
@@ -1198,10 +1195,10 @@ mod tests {
 
             // Reference: one butterfly at a time.
             let mut want = original.clone();
-            ntt.forward_transform_interleaved_scalar_from_layer(&mut want, lanes, start_layer);
+            forward_scalar_from_layer(&ntt, &mut want, lanes, start_layer);
             // Under test: the pass-planning driver.
             let mut got = original;
-            ntt.forward_transform_interleaved_parallel_from_layer(&mut got, lanes, start_layer);
+            ntt.transform(&mut got, lanes, start_layer, None, None);
 
             assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, start_layer={start_layer}");
         }
@@ -1221,6 +1218,9 @@ mod tests {
         //     (14, 8, 1)             one gathered pass reading the first replica
         //     (14, 64, 2)            one gathered pass reading the first replica
         //     (12, 2048, 1)          two gathered passes, with streaming stores
+        //     (4, 8, 4)              rate = log_d: no layer left, rows handed over at the end
+        //
+        // The handed-over rows must tile the codeword once, each block already final.
         let mut rng = Rng::new(0xE0C0DE);
         for (log_d, lanes, log_inv_rate) in [
             (9usize, 8usize, 1usize),
@@ -1228,6 +1228,7 @@ mod tests {
             (14, 8, 1),
             (14, 64, 2),
             (12, 2048, 1),
+            (4, 8, 4),
         ] {
             let ntt = AdditiveNttF64::standard(log_d);
             let msg_len = (lanes << log_d) >> log_inv_rate;
@@ -1236,14 +1237,30 @@ mod tests {
             // Reference: 2^rate explicit copies, then the scalar transform from the rate layer.
             let mut want = vec![F64::ZERO; msg_len << log_inv_rate];
             replicate_rows(&mut want, &msg);
-            ntt.forward_transform_interleaved_scalar_from_layer(&mut want, lanes, log_inv_rate);
+            forward_scalar_from_layer(&ntt, &mut want, lanes, log_inv_rate);
 
             // Under test: only the first replica holds the message, the rest is zero.
             let mut got = vec![F64::ZERO; msg_len << log_inv_rate];
             got[..msg_len].copy_from_slice(&msg);
-            ntt.encode_interleaved_in_place(&mut got, lanes, log_inv_rate);
-
+            let blocks = std::sync::Mutex::new(Vec::new());
+            ntt.encode_interleaved_in_place_with(&mut got, lanes, log_inv_rate, &|row, rows| {
+                blocks.lock().unwrap().push((row, rows.to_vec()))
+            });
             assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}");
+
+            let mut blocks = blocks.into_inner().unwrap();
+            blocks.sort_by_key(|b| b.0);
+            let mut next = 0;
+            for (row, rows) in blocks {
+                assert_eq!(row, next, "blocks tile the rows, log_d={log_d}");
+                assert_eq!(
+                    rows[..],
+                    want[row * lanes..][..rows.len()],
+                    "a handed-over block is final"
+                );
+                next += rows.len() / lanes;
+            }
+            assert_eq!(next, 1 << log_d, "every row handed over, log_d={log_d}");
         }
     }
 
@@ -1278,7 +1295,7 @@ mod tests {
                 let block = n_lanes - 1 - lane;
                 let mut want = vec![F64::ZERO; block_len];
                 replicate_rows(&mut want, &msg[block * rows..(block + 1) * rows]);
-                ntt.forward_transform_interleaved_parallel_from_layer(&mut want, 1, log_inv_rate);
+                ntt.transform(&mut want, 1, log_inv_rate, None, None);
                 for pos in 0..block_len {
                     assert_eq!(
                         got[pos * n_lanes + lane],
@@ -1307,9 +1324,9 @@ mod tests {
                     per_lane[lane][pos] = v;
                 }
             }
-            ntt.forward_transform_interleaved_parallel_from_layer(&mut soa, lanes, 0);
+            ntt.transform(&mut soa, lanes, 0, None, None);
             for (lane, lane_data) in per_lane.iter_mut().enumerate() {
-                ntt.forward_transform_scalar(lane_data);
+                forward_scalar_from_layer(&ntt, lane_data, 1, 0);
                 for pos in 0..n {
                     assert_eq!(soa[pos * lanes + lane], lane_data[pos]);
                 }

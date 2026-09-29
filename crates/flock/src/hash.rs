@@ -518,21 +518,6 @@ pub fn marginal_walk(alpha: F192, u: &[F192]) -> Vec<F192> {
     a
 }
 
-/// Does `z` satisfy the block-diagonal R1CS, `(A_0 z) ⊙ (B_0 z) = z` per block?
-///
-/// Checked through [`row_values_walk`], which returns exactly the two row values
-/// `(⟨A_0(k,·), z⟩, ⟨B_0(k,·), z⟩)` that the relation compares, so no matrix is
-/// needed. `z` is the whole batch, `2^n_blocks_log` blocks of `K` bits.
-pub fn satisfies(z: &[bool], n_blocks_log: usize) -> bool {
-    assert_eq!(z.len(), K << n_blocks_log, "z must be one K-bit block per instance");
-    let bit = |b: bool| if b { F192::ONE } else { F192::ZERO };
-    (0..1usize << n_blocks_log).all(|t| {
-        let block: Vec<F192> = z[t * K..(t + 1) * K].iter().map(|&b| bit(b)).collect();
-        let (a, b) = row_values_walk(&block);
-        (0..K).all(|k| a[k] * b[k] == block[k])
-    })
-}
-
 /// Walk-capable [`crate::lincheck::LincheckCircuit`] over the BLAKE2s R1CS:
 /// `bilinear_form` answers lincheck's verifier in O(circuit) field ops, so the
 /// verifier never materializes the substituted matrices' column
@@ -712,9 +697,6 @@ impl Blake2sSetup {
     pub fn n_blocks_log(&self) -> usize {
         self.n_blocks_log
     }
-    pub fn n_block_slots(&self) -> usize {
-        1usize << self.n_blocks_log()
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -752,39 +734,19 @@ pub fn ring_switch_verify(n_blocks: usize, offset: usize, claim: &SliceClaim) ->
 
 impl Blake2sSetup {
     /// **Flock reduction (prover).** Run the BLAKE2s zerocheck and lincheck on
-    /// the shared transcript, reducing R1CS validity of `blocks` to ONE
+    /// the shared transcript, reducing R1CS validity of the blocks to ONE
     /// evaluation claim on the committed packed witness `q_flock`. (The
     /// statement is already transcript-bound: the embedding protocol seeds
-    /// with the R1CS digest and announces the count.) Returns:
-    /// - `z_packed`: the regenerated packed witness the PCS later opens against;
-    /// - the [`SliceClaim`] on `q_flock`, with its ring-switch weights.
+    /// with the R1CS digest and announces the count.)
+    ///
+    /// The embedder has already generated the packed `z`, `A·z`, `B·z`, and
+    /// lincheck-stripe buffers (`generate_witness_with_ab_packed_and_lincheck`)
+    /// before committing the flattened witness. It is [`Self::prove_zerocheck`]
+    /// then [`Self::prove_lincheck`], and returns the [`SliceClaim`] on
+    /// `q_flock`, with its ring-switch weights.
     ///
     /// Does NOT open the PCS; the caller discharges the returned claim in the
     /// one stacked opening (`lean_vm`'s `pcs::open`).
-    pub fn prove_reduction(
-        &self,
-        blocks: &[Compression],
-        ps: &mut fiat_shamir::transcript::ProverState,
-    ) -> (ArenaVec<u64>, SliceClaim) {
-        assert!(
-            blocks.len() <= self.n_block_slots(),
-            "{} compressions exceed this setup's {} slots",
-            blocks.len(),
-            self.n_block_slots()
-        );
-        let n_log = self.n_blocks_log();
-        let (z_packed, a_packed_words, b_packed_words, z_packed_lincheck) = tracing::info_span!("Witness generation")
-            .in_scope(|| generate_witness_with_ab_packed_and_lincheck(blocks, n_log));
-        let reduced =
-            self.prove_reduction_precomputed(&z_packed, &a_packed_words, &b_packed_words, &z_packed_lincheck, ps);
-        (z_packed, reduced)
-    }
-
-    /// **Flock reduction from a prepared witness (prover).** This is the
-    /// witness-generation-free counterpart of [`Self::prove_reduction`] for
-    /// embedders that already generated the packed `z`, `A·z`, `B·z`, and
-    /// lincheck-stripe buffers before committing the flattened witness. It is
-    /// [`Self::prove_zerocheck`] then [`Self::prove_lincheck`].
     pub fn prove_reduction_precomputed(
         &self,
         z_packed: &[u64],
@@ -825,7 +787,7 @@ impl Blake2sSetup {
     /// **Flock reduction (verifier).** Replay the BLAKE2s zerocheck and
     /// lincheck straight off the shared transcript stream, recovering the one
     /// evaluation claim on the committed witness `q_flock`. Mirror of
-    /// [`Self::prove_reduction`]; the PCS then discharges the returned claim.
+    /// [`Self::prove_reduction_precomputed`]; the PCS then discharges the returned claim.
     pub fn verify_reduction(
         &self,
         vs: &mut fiat_shamir::transcript::VerifierState<'_>,
@@ -838,6 +800,21 @@ impl Blake2sSetup {
 mod tests {
     use super::*;
     use primitives::test_rng::Rng;
+
+    /// Does `z` satisfy the block-diagonal R1CS, `(A_0 z) ⊙ (B_0 z) = z` per block?
+    ///
+    /// Checked through [`row_values_walk`], which returns exactly the two row values
+    /// `(⟨A_0(k,·), z⟩, ⟨B_0(k,·), z⟩)` that the relation compares, so no matrix is
+    /// needed. `z` is the whole batch, `2^n_blocks_log` blocks of `K` bits.
+    fn satisfies(z: &[bool], n_blocks_log: usize) -> bool {
+        assert_eq!(z.len(), K << n_blocks_log, "z must be one K-bit block per instance");
+        let bit = |b: bool| if b { F192::ONE } else { F192::ZERO };
+        (0..1usize << n_blocks_log).all(|t| {
+            let block: Vec<F192> = z[t * K..(t + 1) * K].iter().map(|&b| bit(b)).collect();
+            let (a, b) = row_values_walk(&block);
+            (0..K).all(|k| a[k] * b[k] == block[k])
+        })
+    }
 
     /// Unpack the first `n_bits` logical bits of a packed witness.
     fn unpack_bits(z: &[u64], n_bits: usize) -> Vec<bool> {

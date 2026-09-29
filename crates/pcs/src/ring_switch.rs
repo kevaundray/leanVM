@@ -68,7 +68,6 @@
 //! [DP24]: <https://eprint.iacr.org/2024/504>
 
 use fiat_shamir::transcript::Challenger;
-use primitives::bits::transpose_8x8_bits;
 use primitives::field::{F64, F192};
 
 use super::pack::PACKING_WIDTH;
@@ -174,11 +173,6 @@ pub fn inner_product_ext(a: &[F192], b: &[F192]) -> F192 {
     acc
 }
 
-/// The verifier's claim check: `sum_i prefix_weights[i] * s_hat_v[i]`.
-pub fn claim_check(prefix_weights: &[F192], s_hat_v: &[F192]) -> F192 {
-    inner_product_ext(prefix_weights, s_hat_v)
-}
-
 /// Compute the slice-MLE vector `s_hat_v` (length 64) from a packed witness
 /// and a tensor-expanded suffix point.
 ///
@@ -189,46 +183,21 @@ pub fn claim_check(prefix_weights: &[F192], s_hat_v: &[F192]) -> F192 {
 /// Output: `s_hat_v[i] = sum_y bit_i(packed_witness[y]) * suffix_tensor[y]`
 /// for `i in 0..64` (bit i = polynomial-basis coordinate of the u64).
 ///
-/// Dispatch: the method-of-four-Russians kernel
-/// (`fold_1b_rows_mfr_8wide`) for lengths divisible by 8 (any real
-/// witness), the scalar bit-scan otherwise (tiny test instances). Both
-/// compute the same per-bit XOR-sums, only regrouped, and GF(2^192)
-/// addition is XOR (commutative, associative, exact), so the output and
-/// hence the transcript are byte-identical either way.
+/// The prover takes these from lincheck, so this is the reference for tests and the unprepared fallback.
 pub fn fold_1b_rows(packed_witness: &[F64], suffix_tensor: &[F192]) -> Vec<F192> {
     assert_eq!(packed_witness.len(), suffix_tensor.len());
-    if !packed_witness.is_empty() && packed_witness.len().is_multiple_of(8) {
-        fold_1b_rows_mfr_8wide(packed_witness, suffix_tensor)
-    } else {
-        fold_1b_rows_scalar(packed_witness, suffix_tensor)
-    }
-}
-
-/// Reuse lincheck's partial fold to derive the 64 slice evaluations needed by
-/// the K ring switch, avoiding a second pass over the packed witness.
-pub fn s_hat_v_from_z_vec(z_vec: &[F192], inner_rest_tail: &[F192]) -> Vec<F192> {
-    let n_packed = PACKING_WIDTH;
-    let n_tail = 1usize << inner_rest_tail.len();
-    assert_eq!(z_vec.len(), n_packed * n_tail);
-    if inner_rest_tail.is_empty() {
-        return z_vec.to_vec();
-    }
-    let eq = build_eq_table_ext(inner_rest_tail);
     parallel::fold_reduce(
-        eq.len(),
-        || vec![F192::ZERO; n_packed],
-        |acc, k| {
-            let weight = eq[k];
-            for (slot, &value) in acc.iter_mut().zip(&z_vec[k * n_packed..(k + 1) * n_packed]) {
-                *slot += weight * value;
+        packed_witness.len(),
+        || vec![F192::ZERO; PACKING_WIDTH],
+        |acc, i| {
+            let w = suffix_tensor[i];
+            let mut bits = packed_witness[i].0;
+            while bits != 0 {
+                acc[bits.trailing_zeros() as usize] += w;
+                bits &= bits - 1;
             }
         },
-        |mut acc, part| {
-            for (slot, value) in acc.iter_mut().zip(part) {
-                *slot += value;
-            }
-            acc
-        },
+        xor_accs,
     )
 }
 
@@ -239,95 +208,6 @@ fn xor_accs(mut a: Vec<F192>, b: Vec<F192>) -> Vec<F192> {
         *av += *bv;
     }
     a
-}
-
-/// Scalar reference path of [`fold_1b_rows`]: a parallel bit-scan with
-/// per-thread length-64 partial accumulators XOR-reduced at the end.
-/// Data-dependent cost: `trailing_zeros` + RMW + branch per set bit
-/// (~32/word on a random witness).
-fn fold_1b_rows_scalar(packed_witness: &[F64], suffix_tensor: &[F192]) -> Vec<F192> {
-    assert_eq!(packed_witness.len(), suffix_tensor.len());
-    parallel::fold_reduce(
-        packed_witness.len(),
-        || vec![F192::ZERO; PACKING_WIDTH],
-        |acc, i| {
-            let w = suffix_tensor[i];
-            let mut bits = packed_witness[i].0;
-            while bits != 0 {
-                let r = bits.trailing_zeros() as usize;
-                acc[r] += w;
-                bits &= bits - 1;
-            }
-        },
-        xor_accs,
-    )
-}
-
-/// Build the 16-entry subset-sum lookup table over 4 E elements:
-/// `sums[mask] = sum_{k in 0..4 : bit_k(mask) = 1} elems[k]`. 15 additions
-/// via the standard doubling pattern.
-#[inline(always)]
-fn subset_sums_4_ext(elems: [F192; 4]) -> [F192; 16] {
-    let mut sums = [F192::ZERO; 16];
-    for (i, &e) in elems.iter().enumerate() {
-        let half = 1 << i;
-        for k in 0..half {
-            sums[half + k] = sums[k] + e;
-        }
-    }
-    sums
-}
-
-/// Method-of-four-Russians [`fold_1b_rows`] kernel: the extension-field layer's
-/// `fold_1b_rows_1way_mfr_8wide_k4` ported to 8-byte K words (where 8 words
-/// per transpose group cover ALL 64 output bits with the 8 byte positions,
-/// no wasted transpose rows).
-///
-/// Per group of 8 words: build two 16-entry subset-sum tables over the 8
-/// suffix weights (low nibble = words 0..4, high = words 4..8, 30 adds
-/// total); then for each byte position `r_byte` gather that byte of all 8
-/// words into a u64 (word `e` in byte slot `e`) and 8x8 bit-transpose it,
-/// so transposed byte `p`, bit `e` is bit `r_byte*8 + p` of word `e`: an
-/// 8-bit mask over the group for output position `r = r_byte*8 + p`. Each
-/// output position then costs two table lookups + one in-register add + one
-/// accumulator RMW, regardless of bit density: a constant ~12 adds + 8 RMWs
-/// per word vs the scalar path's ~32 data-dependent conditional adds.
-/// Per-worker accumulators via `parallel::fold_reduce` (no shared cache lines).
-fn fold_1b_rows_mfr_8wide(packed_witness: &[F64], suffix_tensor: &[F192]) -> Vec<F192> {
-    assert_eq!(packed_witness.len(), suffix_tensor.len());
-    assert!(packed_witness.len().is_multiple_of(8));
-    parallel::fold_reduce(
-        packed_witness.len() / 8,
-        || vec![F192::ZERO; PACKING_WIDTH],
-        |acc, c| {
-            let m_chunk = &packed_witness[8 * c..8 * c + 8];
-            let t_chunk = &suffix_tensor[8 * c..8 * c + 8];
-            let lo_tbl = subset_sums_4_ext([t_chunk[0], t_chunk[1], t_chunk[2], t_chunk[3]]);
-            let hi_tbl = subset_sums_4_ext([t_chunk[4], t_chunk[5], t_chunk[6], t_chunk[7]]);
-
-            let mut m_bytes = [[0u8; 8]; 8];
-            for (e, slot) in m_bytes.iter_mut().enumerate() {
-                *slot = m_chunk[e].0.to_le_bytes();
-            }
-
-            for r_byte in 0..8 {
-                let combined: u64 = (m_bytes[0][r_byte] as u64)
-                    | ((m_bytes[1][r_byte] as u64) << 8)
-                    | ((m_bytes[2][r_byte] as u64) << 16)
-                    | ((m_bytes[3][r_byte] as u64) << 24)
-                    | ((m_bytes[4][r_byte] as u64) << 32)
-                    | ((m_bytes[5][r_byte] as u64) << 40)
-                    | ((m_bytes[6][r_byte] as u64) << 48)
-                    | ((m_bytes[7][r_byte] as u64) << 56);
-                let tb = transpose_8x8_bits(combined).to_le_bytes();
-                let base = r_byte * 8;
-                for (p, &mask) in tb.iter().enumerate() {
-                    acc[base + p] += lo_tbl[(mask & 0x0F) as usize] + hi_tbl[(mask >> 4) as usize];
-                }
-            }
-        },
-        xor_accs,
-    )
 }
 
 /// Compute `rs_eq_ind`, the transparent E-valued weight vector over the
@@ -611,13 +491,18 @@ mod tests {
     use super::*;
     use crate::merkle::Hash;
     use crate::pack::LOG_PACKING;
-    use crate::pack::pack_witness;
     use crate::whir::VerifierConfig;
     use crate::whir::{
         commit, recursive_prover_with_basis, recursive_verifier_with_basis, recursive_verifier_with_basis_succinct,
     };
     use crate::whir_config::test_config_for;
     use primitives::test_rng::Rng;
+
+    /// Pack bit `64 * y + i` of `bits` into bit `i` of word `y`.
+    fn pack_witness(bits: &[bool]) -> Vec<F64> {
+        let word = |c: &[bool]| c.iter().rev().fold(0, |acc, &b| acc << 1 | b as u64);
+        bits.chunks(PACKING_WIDTH).map(|c| F64(word(c))).collect()
+    }
 
     /// Number of Frobenius terms the composed batching map expands to: the
     /// F_2-dimension of `K`.
@@ -780,7 +665,7 @@ mod tests {
         let m = 9;
         let mut rng = Rng::new(1);
         let bits = rng.bits(1usize << m);
-        let packed = pack_witness(&bits, m);
+        let packed = pack_witness(&bits);
         let suffix_point = rng.ext_vec(m - LOG_PACKING);
         let eq_suffix = build_eq_table_ext(&suffix_point);
 
@@ -800,33 +685,6 @@ mod tests {
         assert_eq!(s_hat_v, s_hat_v_reference(&packed, &suffix_point));
     }
 
-    /// The MFR kernel must equal the scalar bit-scan (same XOR-sums, only
-    /// regrouped) on random data, and the dispatcher must route both regimes
-    /// correctly (multiple-of-8 lengths to MFR, smaller powers of two to the
-    /// scalar path).
-    #[test]
-    fn fold_1b_rows_mfr_matches_scalar() {
-        let mut rng = Rng::new(31);
-        for log_len in [3usize, 4, 7, 11] {
-            let len = 1usize << log_len;
-            let packed: Vec<F64> = (0..len).map(|_| F64(rng.next_u64())).collect();
-            let tensor = rng.ext_vec(len);
-            let mfr = fold_1b_rows_mfr_8wide(&packed, &tensor);
-            let scalar = fold_1b_rows_scalar(&packed, &tensor);
-            assert_eq!(mfr, scalar, "MFR/scalar split at len={len}");
-            assert_eq!(fold_1b_rows(&packed, &tensor), mfr, "dispatcher at len={len}");
-        }
-        for len in [1usize, 2, 4] {
-            let packed: Vec<F64> = (0..len).map(|_| F64(rng.next_u64())).collect();
-            let tensor = rng.ext_vec(len);
-            assert_eq!(
-                fold_1b_rows(&packed, &tensor),
-                fold_1b_rows_scalar(&packed, &tensor),
-                "scalar fallback at len={len}"
-            );
-        }
-    }
-
     /// The prefix x suffix split factors the bit-MLE, and `prove_prepare`'s
     /// witness fold reproduces the reference slice values.
     #[test]
@@ -834,7 +692,7 @@ mod tests {
         let m = 10;
         let mut rng = Rng::new(2);
         let bits = rng.bits(1usize << m);
-        let packed = pack_witness(&bits, m);
+        let packed = pack_witness(&bits);
         let point = rng.ext_vec(m);
         let prefix_weights = build_eq_table_ext(&point[..LOG_PACKING]);
         let suffix_point = &point[LOG_PACKING..];
@@ -848,7 +706,7 @@ mod tests {
             }
         }
         assert_eq!(
-            claim_check(&prefix_weights, &s_ref),
+            inner_product_ext(&prefix_weights, &s_ref),
             direct,
             "prefix x suffix split must factor the MLE"
         );
@@ -912,7 +770,7 @@ mod tests {
     fn prove_e2e(m: usize, seed: u64, generalized_weights: bool) -> E2e {
         let mut rng = Rng::new(seed);
         let bits = rng.bits(1usize << m);
-        let packed = pack_witness(&bits, m);
+        let packed = pack_witness(&bits);
         let log_n = m - LOG_PACKING;
         let pc = test_config_for(log_n);
         let (cm, pd) = commit(&packed, log_n, pc.initial_k, pc.log_inv_rates[0]);
@@ -925,7 +783,7 @@ mod tests {
         } else {
             build_eq_table_ext(&rng.ext_vec(LOG_PACKING))
         };
-        let claim = claim_check(&prefix_weights, &s_hat_v_reference(&packed, &suffix_point));
+        let claim = inner_product_ext(&prefix_weights, &s_hat_v_reference(&packed, &suffix_point));
 
         // Drive the production two-phase API with a single claim: prepare the
         // slices, sample the shared map, finish with a batching scalar of one.
@@ -964,7 +822,7 @@ mod tests {
     /// half of the two phases, shared by both paths below. As in production, the
     /// slices ride the statement, tied to `claim` by the caller.
     fn verify_e2e_reduction(e: &E2e, vs: &mut fiat_shamir::transcript::VerifierState<'_>) -> Option<(Vec<F192>, F192)> {
-        if claim_check(&e.prefix_weights, &e.rs_s_hat_v) != e.claim {
+        if inner_product_ext(&e.prefix_weights, &e.rs_s_hat_v) != e.claim {
             return None;
         }
         let coordinate_weights = build_coordinate_weights(&sample_map_challenges(vs));
@@ -1058,7 +916,7 @@ mod tests {
         s[0] += w1 * d * w0.inv();
         let bad = with(s, e.claim, e.fs.clone());
         assert_eq!(
-            claim_check(&bad.prefix_weights, &bad.rs_s_hat_v),
+            inner_product_ext(&bad.prefix_weights, &bad.rs_s_hat_v),
             e.claim,
             "forgery must be claim-preserving for this test to bite"
         );

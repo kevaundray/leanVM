@@ -199,13 +199,16 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     // it before transforming that region in place.
     let mut codeword = unsafe { zk_alloc::ArenaVec::<F64>::uninitialized(codeword_len) };
 
+    // Leaves are hashed as the encode finishes each block of rows.
+    let tree = merkle::MerkleBuilder::new(n_positions, n_lanes, 1usize << log_batch_size);
     tracing::info_span!("NTT", kind = "base encode", log_domain = k_code, lanes = n_lanes).in_scope(|| {
         crate::ntt::transpose_lane_major(&mut codeword[..message.len()], message, n_lanes, log_rows);
         let ntt = AdditiveNttF64::standard(k_code);
-        ntt.encode_interleaved_in_place(&mut codeword, n_lanes, log_inv_rate);
+        ntt.encode_interleaved_in_place_with(&mut codeword, n_lanes, log_inv_rate, &|row, rows| {
+            tree.absorb(row, rows)
+        });
     });
-    let merkle_tree = tracing::info_span!("Merkle")
-        .in_scope(|| merkle::merkle_tree_padded_rows(&codeword, n_positions, n_lanes, 1usize << log_batch_size));
+    let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = *merkle_tree.last().expect("merkle tree non-empty");
 
     (Commitment { root }, ProverData { codeword, merkle_tree })
@@ -258,24 +261,21 @@ pub(crate) fn ligero_commit_ext(
     // SAFETY: the encode writes every matrix element before reading it.
     let mut mat = unsafe { ArenaVec::<F192>::uninitialized(codeword_len) };
 
+    // One leaf per row, its F192s as K words: hashed as the encode finishes each block.
+    let row_words = 3 * num_interleaved;
+    let builder = merkle::MerkleBuilder::new(block_len, row_words, row_words);
     tracing::info_span!(
         "NTT",
         kind = "extension encode",
         log_domain = log_block_len,
         lanes = num_interleaved
     )
-    .in_scope(|| encode_interleaved_ext(ntt, &mut mat, poly, num_interleaved, log_inv_rate));
-
-    // Merkle over rows, zero-copy.
-    // SAFETY: F192 is repr(C) with three u64 limbs (24 bytes, no padding);
-    // a `[F192]` slice is its contiguous byte image. The cast covers exactly
-    // `mat.len() * size_of::<F192>()` initialized
-    // bytes.
-    let leaf_size_bytes = num_interleaved * core::mem::size_of::<F192>();
-    let data_bytes: &[u8] =
-        unsafe { core::slice::from_raw_parts(mat.as_ptr() as *const u8, mat.len() * core::mem::size_of::<F192>()) };
-    debug_assert_eq!(data_bytes.len(), block_len * leaf_size_bytes);
-    let tree = tracing::info_span!("Merkle").in_scope(|| merkle::merkle_tree(data_bytes, block_len));
+    .in_scope(|| {
+        encode_interleaved_ext(ntt, &mut mat, poly, num_interleaved, log_inv_rate, &|row, rows| {
+            builder.absorb(row, rows)
+        })
+    });
+    let tree = tracing::info_span!("Merkle").in_scope(|| builder.finish());
 
     LigeroWitness {
         mat,
@@ -1156,8 +1156,8 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     // here, the caller having transmitted it.
     // The codeword interleaves only the committed lanes, and its lane `t` is stack
     // block `n_lanes-1-t`, so a row IS the tail of the leaf image: the absent lanes
-    // are the image's leading zeros (`merkle::merkle_tree_padded_rows` shares their
-    // hash prefix, and only this tail rides the proof).
+    // are the image's leading zeros (`MerkleBuilder` shares their hash prefix, and only
+    // this tail rides the proof).
     let l0_row = |q: usize| -> Vec<F64> { l0_codeword[q * n_lanes..(q + 1) * n_lanes].to_vec() };
     // The same row for the induce, which folds a lane-ASCENDING row against the
     // lane eq table: reversing the image puts block `b` at index `b` and the absent
