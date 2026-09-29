@@ -1,0 +1,74 @@
+name: Bench
+
+# Runs the benchmarks and saves each testbed's Bencher Metric Format JSON as the artifact
+# `bench-<testbed>`, with a PR's event as `pr-event`. It holds no secret, so it runs the
+# same for a fork's PR: bench-track.yml uploads the results once this succeeds.
+# - variable `BENCH_TESTBEDS`: the dedicated proving machines as a JSON array,
+#   e.g. [{"name": "zen5", "runner": ["self-hosted", "zen5"]}].
+#   Unset, no proving job runs.
+# PRs prove only when labelled `bench`, and never from a fork: a self-hosted runner
+# would run the fork's code.
+
+on:
+  push:
+    # The branches PRs target: their history is what a PR is compared against.
+    branches: [ "main", "riscv-exploration" ]
+  pull_request:
+    # Not `edited`: a description edit would restart, and so cancel, the PR's run.
+    types: [ opened, reopened, synchronize, labeled ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A label other than `bench` starts a run in which every job skips: it must not
+# cancel the PR's real run.
+concurrency:
+  group: bench-${{ github.ref }}-${{ github.event.label.name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # What bench-track.yml needs to name the PR's Bencher branch and its start point.
+  event:
+    name: PR event
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-event
+          path: ${{ github.event_path }}
+
+  prove:
+    name: Prove (${{ matrix.testbed.name }})
+    if: >-
+      vars.BENCH_TESTBEDS != '' && (github.event_name != 'pull_request' || (
+      github.event.pull_request.head.repo.full_name == github.repository
+      && contains(github.event.pull_request.labels.*.name, 'bench')
+      && (github.event.action != 'labeled' || github.event.label.name == 'bench')))
+    runs-on: ${{ matrix.testbed.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        testbed: ${{ fromJSON(vars.BENCH_TESTBEDS || '[]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Built with the pinned `target-cpu=native`: one cache per machine.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.testbed.name }}
+      - name: Prove flock's hash batch
+        env:
+          FLOCK_N_LOG: 18
+          BENCH_REPEAT: 5
+        run: cargo bench -p flock --bench hash_batch -- --json > bench.json && cat bench.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.testbed.name }}
+          path: bench.json

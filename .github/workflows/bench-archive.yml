@@ -1,0 +1,29 @@
+name: Archive benchmarks
+
+# Archives a closed PR's Bencher branch (`pr/<number>`, bench-track.yml). A
+# `pull_request_target` workflow has the secrets for a fork's PR too, and it runs
+# none of the PR's code; it runs the copy of this file on the PR's base branch.
+
+on:
+  pull_request_target:
+    types: [ closed ]
+
+permissions: {}
+
+jobs:
+  archive:
+    name: Archive
+    # Only a PR that was benchmarked has a branch: one labelled `bench` on the proving
+    # machines, or any PR into riscv-exploration, whose exact counts run on every PR.
+    if: >-
+      vars.BENCHER_PROJECT != '' && (github.event.pull_request.base.ref == 'riscv-exploration'
+      || contains(github.event.pull_request.labels.*.name, 'bench'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: bencherdev/bencher@main
+      - name: Archive the PR's branch
+        env:
+          BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
+          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: bencher archive --project "$BENCHER_PROJECT" --key "$BENCHER_API_KEY" --branch "pr/$NUMBER"

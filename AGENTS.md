@@ -25,7 +25,7 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 | `parallel`        | thread pool (below)                                     |
 | `zk_alloc`        | proving arena (below)                                    |
 | `primitives`      | field kernels (NEON/AVX), bit transposes, multilinear helpers, streaming stores |
-| `bench`           | benchmark harness for the CLI and the `benches/` targets: `Plan` (warmup, repeats, cooldown), `Timing`, the `--tracing` trace tree; never linked by the prover |
+| `bench`           | benchmark harness for the CLI and the `benches/` targets: `Plan` (warmup, repeats, cooldown), `Timing`, the `--tracing` trace tree, Bencher Metric Format output (`Metric`, `bencher_json`); never linked by the prover |
 | `fiat_shamir`     | VM-native `FiatShamirState` + prover/verifier transcript                |
 | `pcs`             | additive NTT, Merkle, ring switch, stacked WHIR                    |
 | `flock`           | batched R1CS over GF(2) for BLAKE2s: zerocheck + lincheck               |
@@ -75,6 +75,8 @@ The benchmarks we care about:
 - `cargo leanvm recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3`
 
 `aggregate` takes a count per scheme, both defaulting to zero, so either alone or a mix of the two is one command; `recursion --sphincs-per-leaf` likewise puts both schemes in one tree. One SPHINCS verification uses 531 compressions against XMSS's 144; use the benchmark output to compare complete VM cycle counts. `aggregate --blobs` adds LeanDA blobs, and `recursion --blobs-per-leaf` includes them in each child.
+
+CI tracks benchmarks on Bencher in three workflows, Bencher's pattern for PRs from forks: `bench.yml` runs the benchmarks with no secret and saves each testbed's Bencher Metric Format JSON as an artifact (`bench-<testbed>`, and a PR's event as `pr-event`); `bench-track.yml` (`workflow_run`, so it runs only from the default branch, for the `Bench` runs of every branch) uploads them with the secrets and never runs the PR's code; `bench-archive.yml` (`pull_request_target`, so the base branch's copy runs) archives a closed PR's Bencher branch. A PR's results land on the Bencher branch `pr/<number>`, started from its base branch at the base commit, and Bencher comments on the PR; pushes to `main` and `riscv-exploration` set those branches' thresholds, so each is the baseline for the PRs into it. On `main` the tracked benchmark is flock's `hash_batch` at `FLOCK_N_LOG=18` (`cargo bench -p flock --bench hash_batch -- --json`, its proving time with the witness excluded), proven on each dedicated machine listed in the repository variable `BENCH_TESTBEDS` (a JSON array of `{"name", "runner"}`, the runner's labels) on pushes and on PRs labelled `bench`, never from a fork; latency alerts only report. Uploading needs the secret `BENCHER_API_KEY` and the variable `BENCHER_PROJECT`; without them the benchmarks still run. A fork's results are what its own run wrote, so they inform a review and gate nothing. A benchmark's name is its Bencher history, so renaming one or changing its input starts a new one.
 
 ## The proving arena (`zk_alloc`)
 
