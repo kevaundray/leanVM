@@ -41,13 +41,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Prove and verify Fibonacci modulo 2^64.
+    /// Prove and verify Fibonacci modulo 2^64 in hand-written RISC-V, the README's throughput figure.
+    ///
+    /// One `add` per step, so every row is ALU. The Rust guest of the same function is
+    /// `guest programs/fibonacci/fibonacci.elf --advice N`.
     Fibonacci {
         /// Number of recurrence steps.
         #[arg(long, default_value = "2000000")]
         n: usize,
     },
-    /// Prove and verify a run of a RISC-V guest (see `programs/`).
+    /// Prove and verify any guest ELF on advice given by hand (see `programs/`).
     Guest {
         /// The guest's ELF executable.
         elf: std::path::PathBuf,
@@ -55,25 +58,17 @@ enum Command {
         #[arg(long, value_delimiter = ',', value_parser = guest::parse_word)]
         advice: Vec<u64>,
     },
-    /// Prove and verify a guest checking leanXMSS signatures, one key each.
-    Leanxmss {
-        /// Signatures to verify.
-        #[arg(long, default_value_t = 64, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
-        n: usize,
+    /// Prove and verify a program whose host builds its advice (`programs/<name>/host`).
+    Run {
+        program: workload::Hosted,
+        /// Items: signatures for leanxmss and leansphincs, blobs for leanda. A quick run by default.
+        #[arg(long, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
+        n: Option<usize>,
     },
-    /// Prove and verify a guest checking leanSPHINCS signatures, one key each.
-    Leansphincs {
-        /// Signatures to verify.
-        #[arg(long, default_value_t = 16, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
-        n: usize,
-    },
-    /// Prove and verify a guest checking leanDA blobs and computing their commitment.
-    Leanda {
-        /// Blobs of 128 KiB to check.
-        #[arg(long, default_value_t = 1, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
-        blobs: usize,
-    },
-    /// Run the programs tracked in CI: proven, as Bencher Metric Format JSON.
+    /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
+    ///
+    /// The list is `bins/leanvm/src/tracked.rs`: Fibonacci, hash, leanXMSS, leanSPHINCS and leanDA,
+    /// at the README's sizes.
     Bench {
         /// Measure without proving: the exact counts only, no proof size or time.
         #[arg(long)]
@@ -94,9 +89,10 @@ fn main() {
     match cli.command {
         Command::Fibonacci { n } => fibonacci::run_fibonacci(n, cli.log_inv_rate, plan),
         Command::Guest { elf, advice } => guest::run_guest(&elf, &advice, cli.log_inv_rate, plan),
-        Command::Leanxmss { n } => workload::run(&workload::leanxmss(n), cli.log_inv_rate, plan),
-        Command::Leansphincs { n } => workload::run(&workload::leansphincs(n), cli.log_inv_rate, plan),
-        Command::Leanda { blobs } => workload::run(&workload::leanda(blobs), cli.log_inv_rate, plan),
+        Command::Run { program, n } => {
+            let n = n.unwrap_or(program.default_items());
+            workload::run(&program.workload(n), cli.log_inv_rate, plan)
+        }
         Command::Bench { cycles_only, markdown } => tracked::run(cycles_only, markdown, cli.log_inv_rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {

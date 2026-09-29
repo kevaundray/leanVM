@@ -7,7 +7,7 @@ use primitives::pretty_integer;
 
 use crate::fibonacci;
 use crate::guest::{INPUT, refuse};
-use crate::workload::{self, Workload};
+use crate::workload::{Hosted, Workload};
 
 struct Case {
     /// The benchmark's Bencher history: renaming it, or changing its input, starts a new one.
@@ -66,9 +66,9 @@ fn cases() -> Vec<Case> {
             items: HASHED,
             item: "byte",
         },
-        Case::workload("leanxmss-400", workload::leanxmss(400)),
-        Case::workload("leansphincs-104", workload::leansphincs(104)),
-        Case::workload("leanda-1", workload::leanda(1)),
+        Case::workload("leanxmss-400", Hosted::Leanxmss.workload(400)),
+        Case::workload("leansphincs-104", Hosted::Leansphincs.workload(104)),
+        Case::workload("leanda-1", Hosted::Leanda.workload(1)),
     ]
 }
 

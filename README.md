@@ -120,9 +120,9 @@ Three programs check what an Ethereum node would: leanXMSS signatures, leanSPHIN
 Each guest is a `no_std` library, byte-compatible with the schemes' reference implementations, plus the `main` that runs it. Each host runs the same library natively to build the inputs and the expected output.
 
 ```bash
-cargo leanvm leanxmss --n 400 --repeat 3
-cargo leanvm leansphincs --n 104 --repeat 3
-cargo leanvm leanda --blobs 1 --repeat 3
+cargo leanvm run leanxmss --n 400 --repeat 3
+cargo leanvm run leansphincs --n 104 --repeat 3
+cargo leanvm run leanda --n 1 --repeat 3
 ```
 
 The report gives the RISC-V cycles per signature or per blob, the rows per table and the committed witness, then the proving and verifying times.

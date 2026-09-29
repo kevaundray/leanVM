@@ -29,42 +29,67 @@ impl Workload {
     }
 }
 
-/// Verify `n` leanXMSS signatures, one key each.
-pub fn leanxmss(n: usize) -> Workload {
-    let run = leanxmss_host::batch(n);
-    Workload {
-        title: format!("leanXMSS verification, {n} signatures"),
-        elf: leanxmss_host::ELF,
-        advice: run.advice,
-        expected: run.expected,
-        items: n,
-        item: "signature",
-    }
+/// The programs with a host (`programs/<name>/host`), which builds their advice and output.
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum Hosted {
+    /// Verify leanXMSS signatures, one key each.
+    Leanxmss,
+    /// Verify leanSPHINCS signatures, one key each.
+    Leansphincs,
+    /// Check leanDA blobs of 128 KiB and compute their commitment.
+    Leanda,
 }
 
-/// Verify `n` leanSPHINCS signatures, one key each.
-pub fn leansphincs(n: usize) -> Workload {
-    let run = leansphincs_host::batch(n);
-    Workload {
-        title: format!("leanSPHINCS verification, {n} signatures"),
-        elf: leansphincs_host::ELF,
-        advice: run.advice,
-        expected: run.expected,
-        items: n,
-        item: "signature",
+impl Hosted {
+    /// The items a run covers when none is named: a quick run, not the benchmark's.
+    pub fn default_items(self) -> usize {
+        match self {
+            Self::Leanxmss => 64,
+            Self::Leansphincs => 16,
+            Self::Leanda => 1,
+        }
     }
-}
 
-/// Check `n` leanDA blobs and compute their commitment.
-pub fn leanda(n: usize) -> Workload {
-    let run = leanda_host::blobs(n);
-    Workload {
-        title: format!("leanDA check, {n} blobs of 128 KiB"),
-        elf: leanda_host::ELF,
-        advice: run.advice,
-        expected: run.expected,
-        items: n,
-        item: "blob",
+    /// A run over `n` items: signatures, or blobs.
+    pub fn workload(self, n: usize) -> Workload {
+        let (title, elf, run, item) = match self {
+            Self::Leanxmss => {
+                let run = leanxmss_host::batch(n);
+                (
+                    format!("leanXMSS verification, {n} signatures"),
+                    leanxmss_host::ELF,
+                    (run.advice, run.expected),
+                    "signature",
+                )
+            }
+            Self::Leansphincs => {
+                let run = leansphincs_host::batch(n);
+                (
+                    format!("leanSPHINCS verification, {n} signatures"),
+                    leansphincs_host::ELF,
+                    (run.advice, run.expected),
+                    "signature",
+                )
+            }
+            Self::Leanda => {
+                let run = leanda_host::blobs(n);
+                (
+                    format!("leanDA check, {n} blobs of 128 KiB"),
+                    leanda_host::ELF,
+                    (run.advice, run.expected),
+                    "blob",
+                )
+            }
+        };
+        let (advice, expected) = run;
+        Workload {
+            title,
+            elf,
+            advice,
+            expected,
+            items: n,
+            item,
+        }
     }
 }
 
@@ -132,7 +157,10 @@ mod tests {
     #[test]
     fn the_signature_workloads_prove() {
         // End to end: proven, verified, and the output the native digest.
-        for workload in [super::leanxmss(2), super::leansphincs(1)] {
+        for workload in [
+            super::Hosted::Leanxmss.workload(2),
+            super::Hosted::Leansphincs.workload(1),
+        ] {
             super::run(&workload, leanvm_core::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
         }
     }
