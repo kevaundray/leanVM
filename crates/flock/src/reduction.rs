@@ -65,14 +65,6 @@ pub struct ZerocheckStage {
     x_ab: QuirkyPoint,
 }
 
-/// One `FLOCK_PROVE_TRACE` line. `label` carries its own colon so the stages
-/// line up.
-pub(crate) fn trace_stage(label: &str, t: std::time::Instant) {
-    if std::env::var_os("FLOCK_PROVE_TRACE").is_some() {
-        eprintln!("[flock prove] {label:<11}{:8.2} ms", t.elapsed().as_secs_f64() * 1e3);
-    }
-}
-
 /// The lincheck input point carried over from the zerocheck claim: the
 /// univariate-skip coordinate, then the multilinear challenges split at
 /// `inner_rest_len` into the inner-rest and outer halves.
@@ -108,7 +100,7 @@ impl Block<'_> {
         b_packed_words: &[u64],
         ps: &mut ProverState,
     ) -> ZerocheckStage {
-        let t_zerocheck = std::time::Instant::now();
+        let _span = tracing::info_span!("Zerocheck").entered();
         let m = self.k_log + n_blocks_log;
 
         // The fused generator packs 64 Boolean coordinates per word.
@@ -134,9 +126,9 @@ impl Block<'_> {
             ps,
         );
 
-        let x_ab = x_ab_of(&zc_claim, self.k_log - K_SKIP);
-        trace_stage("zerocheck:", t_zerocheck);
-        ZerocheckStage { x_ab }
+        ZerocheckStage {
+            x_ab: x_ab_of(&zc_claim, self.k_log - K_SKIP),
+        }
     }
 
     /// **Second stage (prover): the lincheck.** Reduces the zerocheck's
@@ -149,7 +141,7 @@ impl Block<'_> {
         z_packed_lincheck: &[u8],
         ps: &mut ProverState,
     ) -> SliceClaim {
-        let t_lincheck = std::time::Instant::now();
+        let _span = tracing::info_span!("Lincheck").entered();
         let m = self.k_log + n_blocks_log;
         assert_eq!(
             z_packed_lincheck.len(),
@@ -169,9 +161,7 @@ impl Block<'_> {
             ps,
         );
 
-        let claim = reduction_claim(&lc_claim, &x_ab.x_outer);
-        trace_stage("lincheck:", t_lincheck);
-        claim
+        reduction_claim(&lc_claim, &x_ab.x_outer)
     }
 
     /// **Verifier.** Replay the zerocheck and lincheck straight off the shared

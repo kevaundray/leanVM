@@ -1,0 +1,15 @@
+[package]
+name = "leanvm"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+leanvm_core.workspace = true
+zk_alloc.workspace = true
+
+[dev-dependencies]
+primitives.workspace = true
+bincode.workspace = true

@@ -71,6 +71,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bench"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "primitives",
+ "tracing-forest",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -144,10 +154,12 @@ dependencies = [
 name = "flock"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "fiat_shamir",
  "parallel",
  "pcs",
  "primitives",
+ "tracing",
  "zk_alloc",
 ]
 
@@ -182,20 +194,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
-name = "lean_vm"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "fiat_shamir",
- "flock",
- "parallel",
- "pcs",
- "primitives",
- "tracing",
- "zk_alloc",
-]
-
-[[package]]
 name = "leanda"
 version = "0.1.0"
 dependencies = [
@@ -214,11 +212,23 @@ name = "leanvm"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "leanvm_core",
+ "primitives",
+ "zk_alloc",
+]
+
+[[package]]
+name = "leanvm-cli"
+version = "0.1.0"
+dependencies = [
+ "bench",
+ "bincode",
  "clap",
  "fiat_shamir",
- "lean_vm",
  "leanda",
  "leansphincs",
+ "leanvm",
+ "leanvm_core",
  "leanxmss",
  "parallel",
  "pcs",
@@ -230,6 +240,20 @@ dependencies = [
 [[package]]
 name = "leanvm-guest"
 version = "0.1.0"
+
+[[package]]
+name = "leanvm_core"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "fiat_shamir",
+ "flock",
+ "parallel",
+ "pcs",
+ "primitives",
+ "tracing",
+ "zk_alloc",
+]
 
 [[package]]
 name = "leanxmss"
@@ -297,6 +321,7 @@ dependencies = [
 name = "pcs"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "bincode",
  "fiat_shamir",
  "parallel",
@@ -324,14 +349,12 @@ dependencies = [
 name = "primitives"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "bincode",
- "libc",
  "parallel",
  "primitives",
  "rand",
  "serde",
- "tracing-forest",
- "tracing-subscriber",
  "zk_alloc",
 ]
 

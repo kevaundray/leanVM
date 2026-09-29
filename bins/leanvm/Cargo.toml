@@ -1,0 +1,31 @@
+[package]
+name = "leanvm-cli"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "leanvm"
+path = "src/main.rs"
+# Its rustdoc would overwrite the `leanvm` library's (cargo#6313).
+doc = false
+
+[lints]
+workspace = true
+
+[dependencies]
+leanvm.workspace = true
+leanvm_core.workspace = true
+primitives.workspace = true
+bench.workspace = true
+zk_alloc.workspace = true
+parallel.workspace = true
+pcs.workspace = true
+fiat_shamir.workspace = true
+# The guests' own libraries, run natively as their reference and to build their inputs.
+leanxmss = { path = "../../guests/leanxmss" }
+leansphincs = { path = "../../guests/leansphincs" }
+leanda = { path = "../../guests/leanda" }
+bincode.workspace = true
+tracing.workspace = true
+clap = { version = "4", features = ["derive"] }
