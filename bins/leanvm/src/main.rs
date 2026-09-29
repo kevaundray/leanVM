@@ -6,6 +6,7 @@ mod da;
 mod fibonacci;
 mod guest;
 mod signatures;
+mod tracked;
 mod workload;
 
 #[derive(Parser)]
@@ -79,6 +80,12 @@ enum Command {
         #[arg(long, default_value_t = 1, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
         blobs: usize,
     },
+    /// Run the programs tracked in CI and print their metrics as Bencher Metric Format JSON.
+    Bench {
+        /// Measure without proving: the exact counts only, no proof size or time.
+        #[arg(long)]
+        cycles_only: bool,
+    },
 }
 
 fn main() {
@@ -95,6 +102,7 @@ fn main() {
         Command::Leansphincs { n } => workload::run(&signatures::leansphincs(n), cli.log_inv_rate, plan),
         Command::Cycles => workload::cycles(&[signatures::leanxmss(400), signatures::leansphincs(104), da::leanda(1)]),
         Command::Leanda { blobs } => workload::run(&da::leanda(blobs), cli.log_inv_rate, plan),
+        Command::Bench { cycles_only } => tracked::run_bench(cycles_only, cli.log_inv_rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());
