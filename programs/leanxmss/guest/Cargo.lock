@@ -3,12 +3,12 @@
 version = 4
 
 [[package]]
-name = "leanvm-guest"
+name = "leanvm_guest"
 version = "0.1.0"
 
 [[package]]
 name = "leanxmss"
 version = "0.1.0"
 dependencies = [
- "leanvm-guest",
+ "leanvm_guest",
 ]

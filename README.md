@@ -45,7 +45,7 @@ Expect leanVM to change significantly:
 
 ## programs
 
-A program is a guest: a `no_std` Rust program built for `riscv64im-unknown-none-elf` against the runtime crate in [`crates/guest`](./crates/guest/src/lib.rs), which gives it its public input (four words), its advice (a region of memory the prover fills, which the statement says nothing about), its output (four words) and a BLAKE2s hasher over the custom instruction. The runtime's linker script fixes the memory map. Each program lives in its own folder, `programs/<name>/guest`, a standalone package that `cargo build --release` builds there (a nightly toolchain, for `-Zbuild-std`); a program whose input takes work to make also has a host, `programs/<name>/host`, its code off the VM. `programs/build.sh` builds every guest and refreshes its checked-in `programs/<name>/<name>.elf`; then prove and verify a run:
+A program is a guest: a `no_std` Rust program built for `riscv64im-unknown-none-elf` against the runtime crate in [`sdk`](./sdk/src/lib.rs), which gives it its public input (four words), its advice (a region of memory the prover fills, which the statement says nothing about), its output (four words) and a BLAKE2s hasher over the custom instruction. The runtime's linker script fixes the memory map. Each program lives in its own folder, `programs/<name>/guest`, a standalone package that `cargo build --release` builds there (a nightly toolchain, for `-Zbuild-std`); a program whose input takes work to make also has a host, `programs/<name>/host`, its code off the VM. `programs/build.sh` builds every guest and refreshes its checked-in `programs/<name>/<name>.elf`; then prove and verify a run:
 
 ```bash
 cargo leanvm guest programs/preimage/preimage.elf --advice 5,0x6f6c6c6568
