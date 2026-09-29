@@ -1,8 +1,8 @@
 [workspace]
 members = ["crates/*", "bins/*", "programs/*/host"]
-# Each guest, and the runtime the guests share, is its own workspace, for another target. A host depends on its
-# guest's library by path, which would make the guest a member: `exclude` takes no globs, so each is named.
-exclude = ["programs/rt", "programs/leanxmss/guest", "programs/leansphincs/guest", "programs/leanda/guest"]
+# Each guest is its own workspace, for another target. A host depends on its guest's library by path, which
+# would make the guest a member: `exclude` takes no globs, so each is named.
+exclude = ["programs/leanxmss/guest", "programs/leansphincs/guest", "programs/leanda/guest"]
 resolver = "3"
 
 [workspace.package]
