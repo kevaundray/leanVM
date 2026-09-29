@@ -42,7 +42,7 @@ fn median(mut xs: Vec<f64>) -> f64 {
 }
 
 fn main() {
-    primitives::init_tracing();
+    bench::init_tracing();
 
     let log_n = env_usize("PCS_LOG_N").unwrap_or(22);
     let samples = env_usize("PCS_SAMPLES").unwrap_or(5).max(1);

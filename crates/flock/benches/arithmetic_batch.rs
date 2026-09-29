@@ -7,6 +7,7 @@
 
 use std::time::Instant;
 
+use bench::{Plan, Timing};
 use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
 use flock::arith::{U64Circuit, U64Op};
 use flock::reduction::{min_n_blocks_log, ring_switch_open, ring_switch_verify};
@@ -14,7 +15,6 @@ use pcs::pack::LOG_PACKING;
 use pcs::stack_open::{open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
-use primitives::bench::{Plan, Timing};
 use primitives::{field::F64, pretty_integer, test_rng::Rng};
 
 /// Every operation whose name contains one of the arguments, or all of them with

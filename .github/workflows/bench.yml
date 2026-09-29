@@ -1,10 +1,12 @@
 name: Bench
 
-# Tracks the guests of `leanvm bench` on Bencher. Configuration:
+# Tracks the programs of `leanvm bench` on Bencher, and on the proving machines flock's
+# `hash_batch` too (the README's two headline numbers). Configuration:
 # - secret `BENCHER_API_KEY` and variable `BENCHER_PROJECT` (the project slug);
 #   without them the benchmarks still run and nothing is uploaded.
 # - variable `BENCH_TESTBEDS`: the dedicated proving machines as a JSON array,
-#   e.g. [{"name": "zen5", "runner": ["self-hosted", "zen5"]}]. Unset, no proving job runs.
+#   e.g. [{"name": "zen5", "runner": ["self-hosted", "zen5"]}], each with python3.
+#   Unset, no proving job runs.
 # PRs prove only when labelled `bench`, and never from a fork: a self-hosted runner
 # would run the fork's code.
 
@@ -88,8 +90,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.testbed.name }}
-      - name: Prove
-        run: cargo leanvm bench --repeat 5 > bench.json && cat bench.json
+      - name: Prove the programs
+        run: cargo leanvm bench --repeat 5 > vm.json && cat vm.json
+      - name: Prove flock's hash batch
+        env:
+          FLOCK_N_LOG: 18
+          BENCH_REPEAT: 5
+        run: cargo bench -p flock --bench hash_batch -- --json > flock.json && cat flock.json
+      - name: Merge the reports
+        run: >-
+          python3 -c 'import json, sys; print(json.dumps({k: v for f in sys.argv[1:] for k, v in json.load(open(f)).items()}, indent=2))'
+          vm.json flock.json > bench.json
       - uses: bencherdev/bencher@main
         if: env.UPLOAD == 'true'
       - name: Track with Bencher

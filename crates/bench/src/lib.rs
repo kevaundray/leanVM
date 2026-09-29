@@ -1,7 +1,12 @@
-//! Repeated benchmark timing with warmup, cooldown, and confidence intervals.
+//! The benchmark harness of the CLI and the `benches/` targets: repeated timing with
+//! warmup, cooldown and confidence intervals, the trace tree `--tracing` prints, and
+//! Bencher Metric Format output. Nothing the prover or verifier links.
 
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
+
+mod trace;
+pub use trace::{TraceSuppressed, init_tracing, suppress_tracing};
 
 /// One line of live progress on stderr.
 ///
@@ -174,7 +179,7 @@ impl Plan {
     /// Each call is told whether it is the FINAL measured pass, so a caller can
     /// do once-per-run work in the pass the reported numbers describe. The
     /// benchmarks use it to emit one trace tree instead of one per pass
-    /// ([`crate::suppress_tracing`]).
+    /// ([`suppress_tracing`]).
     pub fn warm_then_measure<T>(&self, mut f: impl FnMut(bool) -> T) -> (T, Timing) {
         let progress = Progress::new();
         progress.status("[warming]");
@@ -245,6 +250,60 @@ pub fn env_usize(key: &str, default: usize) -> usize {
         .ok()
         .map(|s| s.parse().unwrap_or_else(|_| panic!("{key} must be an integer")))
         .unwrap_or(default)
+}
+
+/// One measure of one benchmark in Bencher Metric Format: a value, and for a
+/// timing the fastest and slowest pass.
+pub struct Metric {
+    value: f64,
+    bounds: Option<(f64, f64)>,
+}
+
+impl Metric {
+    #[must_use]
+    pub fn exact(value: usize) -> Self {
+        Self {
+            value: value as f64,
+            bounds: None,
+        }
+    }
+
+    /// In nanoseconds, the unit of Bencher's built-in `latency` measure.
+    #[must_use]
+    pub fn nanoseconds(timing: &Timing) -> Self {
+        let ns = |secs: f64| (secs * 1e9).round();
+        let samples = timing.samples();
+        Self {
+            value: ns(timing.mean()),
+            bounds: Some((
+                ns(samples.iter().copied().fold(f64::INFINITY, f64::min)),
+                ns(samples.iter().copied().fold(0.0, f64::max)),
+            )),
+        }
+    }
+}
+
+/// Benchmarks and their measures as Bencher Metric Format JSON, what CI uploads
+/// (`.github/workflows/bench.yml`): <https://bencher.dev/docs/reference/bencher-metric-format/>.
+#[must_use]
+pub fn bencher_json(report: &[(String, Vec<(&str, Metric)>)]) -> String {
+    let benchmarks: Vec<String> = report
+        .iter()
+        .map(|(name, metrics)| {
+            let measures: Vec<String> = metrics
+                .iter()
+                .map(|(measure, m)| match m.bounds {
+                    None => format!("\"{measure}\": {{\"value\": {}}}", m.value),
+                    Some((lo, hi)) => format!(
+                        "\"{measure}\": {{\"value\": {}, \"lower_value\": {lo}, \"upper_value\": {hi}}}",
+                        m.value
+                    ),
+                })
+                .collect();
+            format!("  \"{name}\": {{{}}}", measures.join(", "))
+        })
+        .collect();
+    format!("{{\n{}\n}}", benchmarks.join(",\n"))
 }
 
 #[cfg(test)]

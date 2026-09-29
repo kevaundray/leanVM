@@ -17,6 +17,7 @@ workspace = true
 leanvm.workspace = true
 lean_vm.workspace = true
 primitives.workspace = true
+bench.workspace = true
 zk_alloc.workspace = true
 bincode.workspace = true
 tracing.workspace = true
