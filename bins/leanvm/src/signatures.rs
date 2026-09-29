@@ -1,13 +1,13 @@
 //! The signature workloads: signers, each with its own key, sign one message.
 //!
-//! One message at one epoch for all is the Ethereum shape: validators attest to one block.
+//! One message at one leaf index for all is the Ethereum shape: validators attest to one block.
 
 use crate::workload::Workload;
 
 /// The message every signer signs.
 const MESSAGE: [u64; 4] = [0x4242_4242_4242_4242; 4];
-/// The epoch every leanXMSS signer signs at.
-const EPOCH: u32 = 1234;
+/// The leaf index every leanXMSS signer signs at.
+const LEAF_INDEX: u32 = 1234;
 
 /// A signer's secret seed: its index, then zeros.
 fn seed(i: usize) -> [u8; 32] {
@@ -20,8 +20,8 @@ fn seed(i: usize) -> [u8; 32] {
 pub fn leanxmss(n: usize) -> Workload {
     // Keys and signatures are independent, so they are made in parallel.
     let entries = parallel::map_collect(n, |i| {
-        let (sk, pk) = leanxmss::key_gen(seed(i), EPOCH);
-        leanxmss::Entry::new(pk, EPOCH, MESSAGE, sk.sign(&MESSAGE).expect("a valid encoding"))
+        let (sk, pk) = leanxmss::key_gen(seed(i), LEAF_INDEX);
+        leanxmss::Entry::new(pk, LEAF_INDEX, MESSAGE, sk.sign(&MESSAGE).expect("a valid encoding"))
     });
     // The native run of the guest's own code is the reference output.
     let claims = leanxmss::verify_batch(&entries).expect("honest signatures verify");
@@ -95,9 +95,9 @@ mod tests {
 
     #[test]
     fn leanxmss_is_the_specified_scheme() {
-        // Known answers of the XMSS specification's implementation, at the edges of the epochs.
+        // Known answers of the XMSS specification's implementation, at the edges of the leaf indices.
         //
-        // Each: the epoch, the public key's bytes, the BLAKE2s digest of the signature's bytes.
+        // Each: the leaf index, the public key's bytes, the BLAKE2s digest of the signature's bytes.
         let (seed, message) = fixed();
         let known = [
             (
@@ -116,34 +116,34 @@ mod tests {
                 "c06f727fd8bbaa02bc641f8d9382e2d69b9ad4f3e5022d4fa140c53d60a1e5d2",
             ),
         ];
-        for (epoch, pk_hex, sig_digest) in known {
-            let (sk, pk) = leanxmss::key_gen(seed, epoch);
-            let entry = leanxmss::Entry::new(pk, epoch, message, sk.sign(&message).unwrap());
+        for (leaf_index, pk_hex, sig_digest) in known {
+            let (sk, pk) = leanxmss::key_gen(seed, leaf_index);
+            let entry = leanxmss::Entry::new(pk, leaf_index, message, sk.sign(&message).unwrap());
             // An entry's words are its bytes:
             //
             //     words 0..4   public key
-            //     words 4..9   epoch, message
+            //     words 4..9   leaf index, message
             //     words 9..    signature
-            assert_eq!(hex(bytes(&entry.as_words()[..4])), pk_hex, "epoch {epoch}");
+            assert_eq!(hex(bytes(&entry.as_words()[..4])), pk_hex, "leaf index {leaf_index}");
             assert_eq!(
                 hex(primitives::hash::hash(&bytes(&entry.as_words()[9..]))),
                 sig_digest,
-                "epoch {epoch}"
+                "leaf index {leaf_index}"
             );
-            assert_eq!(leanxmss::verify(&pk, epoch, &message, &entry.signature), Ok(()));
+            assert_eq!(leanxmss::verify(&pk, leaf_index, &message, &entry.signature), Ok(()));
         }
     }
 
     #[test]
     fn leanxmss_outputs_the_blake2s_of_its_claims() {
-        // Invariant: the output is BLAKE2s-256 of the claims (key, epoch, message: 9 words) back to back.
+        // Invariant: the output is BLAKE2s-256 of the claims (key, leaf index, message: 9 words) back to back.
         //
         // Every count up to 9 claims: a claim is 72 bytes, so its end falls at each offset of a 64-byte block, 8 claims end on a block boundary and 0 are the empty message.
         let (seed, message) = fixed();
         let entries: Vec<_> = (0..9)
-            .map(|epoch| {
-                let (sk, pk) = leanxmss::key_gen(seed, epoch);
-                leanxmss::Entry::new(pk, epoch, message, sk.sign(&message).unwrap())
+            .map(|leaf_index| {
+                let (sk, pk) = leanxmss::key_gen(seed, leaf_index);
+                leanxmss::Entry::new(pk, leaf_index, message, sk.sign(&message).unwrap())
             })
             .collect();
         for n in 0..=entries.len() {
@@ -179,18 +179,18 @@ mod tests {
 
     #[test]
     fn leanxmss_rejects_a_change_anywhere() {
-        use leanxmss::VerifyError::{EpochOutOfRange, InvalidEncoding, InvalidMerklePath};
+        use leanxmss::VerifyError::{InvalidEncoding, InvalidMerklePath, LeafIndexOutOfRange};
         // Invariant: a verifier binds the claim and every part of the signature.
         //
-        // Fixture state: one honest signature at epoch 7.
+        // Fixture state: one honest signature at leaf index 7.
         let (seed, message) = fixed();
         let (sk, pk) = leanxmss::key_gen(seed, 7);
         let signature = sk.sign(&message).unwrap();
-        let verify = |pk: &leanxmss::PublicKey, epoch, message: &[u64; 4], signature: &leanxmss::Signature| {
-            leanxmss::verify(pk, epoch, message, signature).err()
+        let verify = |pk: &leanxmss::PublicKey, leaf_index, message: &[u64; 4], signature: &leanxmss::Signature| {
+            leanxmss::verify(pk, leaf_index, message, signature).err()
         };
 
-        // Mutation: the message, the epoch, the randomness.
+        // Mutation: the message, the leaf index, the randomness.
         //
         //     all three enter the encoding digest
         //     → a new digest, valid with probability about 2^-15
@@ -216,14 +216,14 @@ mod tests {
         bad_pk.merkle_root[0] ^= 1;
         assert_eq!(verify(&bad_pk, 7, &message, &signature), Some(InvalidMerklePath));
 
-        // Mutation: an entry's epoch word with bit 32 set.
+        // Mutation: an entry's leaf index word with bit 32 set.
         //
-        //     claimed epoch   2^32 + 7
-        //     leaf index      7, were it truncated
-        //     → rejected rather than verified at another epoch than claimed
+        //     claimed leaf index   2^32 + 7
+        //     truncated            7
+        //     → rejected rather than verified at another leaf index than claimed
         let mut entry = leanxmss::Entry::new(pk, 7, message, signature);
-        entry.epoch |= 1 << 32;
-        assert_eq!(leanxmss::verify_batch(&[entry]), Err((0, EpochOutOfRange)));
+        entry.leaf_index |= 1 << 32;
+        assert_eq!(leanxmss::verify_batch(&[entry]), Err((0, LeafIndexOutOfRange)));
     }
 
     #[test]

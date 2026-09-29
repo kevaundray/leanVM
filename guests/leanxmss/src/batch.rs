@@ -4,7 +4,7 @@
 
 use crate::*;
 
-/// One signature and its claim: that a key signed a message at an epoch.
+/// One signature and its claim: that a key signed a message at a leaf index.
 ///
 /// The advice holds entries back to back, in this layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub struct Entry {
     /// Who signed.
     pub public_key: PublicKey,
     /// When, in a word of its own so the entry stays word-aligned.
-    pub epoch: u64,
+    pub leaf_index: u64,
     /// What was signed.
     pub message: Message,
     /// The signature the claim rests on.
@@ -30,10 +30,10 @@ const _: () = assert!(align_of::<Entry>() == 8);
 const _: () = assert!(size_of::<Entry>() == 8 * CLAIM_WORDS + SIG_SIZE);
 
 impl Entry {
-    pub fn new(public_key: PublicKey, epoch: Epoch, message: Message, signature: Signature) -> Self {
+    pub fn new(public_key: PublicKey, leaf_index: LeafIndex, message: Message, signature: Signature) -> Self {
         Self {
             public_key,
-            epoch: epoch.into(),
+            leaf_index: leaf_index.into(),
             message,
             signature,
         }
@@ -45,7 +45,7 @@ impl Entry {
         unsafe { &*(self as *const Self).cast() }
     }
 
-    /// What the entry claims, the fields before the signature: key, epoch, message.
+    /// What the entry claims, the fields before the signature: key, leaf index, message.
     pub fn claim(&self) -> &[u64; CLAIM_WORDS] {
         self.as_words().first_chunk().unwrap()
     }
@@ -65,9 +65,9 @@ pub fn entries(words: &[u64], n: usize) -> Option<&[Entry]> {
 /// The index of the first entry whose signature fails, and why.
 pub fn verify_batch(entries: &[Entry]) -> Result<[u64; 4], (usize, VerifyError)> {
     for (i, entry) in entries.iter().enumerate() {
-        // An epoch past `2^32 - 1` would be claimed whole but verified truncated.
-        let epoch = Epoch::try_from(entry.epoch).map_err(|_| (i, VerifyError::EpochOutOfRange))?;
-        verify(&entry.public_key, epoch, &entry.message, &entry.signature).map_err(|e| (i, e))?;
+        // A leaf index past `2^32 - 1` would be claimed whole but verified truncated.
+        let leaf_index = LeafIndex::try_from(entry.leaf_index).map_err(|_| (i, VerifyError::LeafIndexOutOfRange))?;
+        verify(&entry.public_key, leaf_index, &entry.message, &entry.signature).map_err(|e| (i, e))?;
     }
     Ok(hash_with(|claims| {
         for entry in entries {

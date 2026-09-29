@@ -14,7 +14,7 @@
 //!
 //! Signatures, public keys and verification are the [XMSS specification]'s, byte for byte.
 //!
-//! Key generation is not: it makes keys for one epoch, whose other tree nodes are fillers.
+//! Key generation is not: it makes keys for one leaf index, whose other tree nodes are fillers.
 //!
 //! [DKKW25]: https://eprint.iacr.org/2025/055
 //! [XMSS specification]: https://github.com/leanEthereum/leanVM/releases/download/doc-latest/XMSS.pdf
@@ -36,8 +36,8 @@ pub type PublicParam = [u64; 2];
 pub type Randomness = [u64; 3];
 /// The message to sign: a 256-bit message hash.
 pub type Message = [u64; 4];
-/// When a signature was made: each epoch signs at most one message.
-pub type Epoch = u32;
+/// The Merkle leaf, and so the one-time key, a signature uses: each leaf index signs at most one message.
+pub type LeafIndex = u32;
 
 /// `v`: hash chains, one per encoding digit.
 pub const V: usize = 42;
@@ -51,7 +51,7 @@ pub const NUM_CHAIN_HASHES: usize = 99;
 ///
 /// Above the mean 147, so a verifier walks fewer steps than a signer.
 pub const TARGET_SUM: usize = V * (CHAIN_LENGTH - 1) - NUM_CHAIN_HASHES;
-/// Merkle tree height: a key covers `2^32` epochs.
+/// Merkle tree height: a key covers `2^32` leaf indices.
 pub const LOG_LIFETIME: usize = 32;
 
 /// Serialized public key: `merkle_root | public_param`.
@@ -109,11 +109,11 @@ pub enum VerifyError {
     InvalidEncoding,
     /// The recovered one-time key does not reach the root.
     InvalidMerklePath,
-    /// A batch entry's epoch word is past the key's `2^32` epochs.
-    EpochOutOfRange,
+    /// A batch entry's leaf index word is past the key's `2^32` leaf indices.
+    LeafIndexOutOfRange,
 }
 
-/// Check a signature on a message at an epoch: 133 hash calls, 144 compressions.
+/// Check a signature on a message at a leaf index: 133 hash calls, 144 compressions.
 ///
 /// ```text
 ///   calls  compressions
@@ -122,19 +122,24 @@ pub enum VerifyError {
 ///   1      11             hash the chain ends into the leaf
 ///   32     32             fold the leaf up the tree
 /// ```
-pub fn verify(pk: &PublicKey, epoch: Epoch, message: &Message, signature: &Signature) -> Result<(), VerifyError> {
+pub fn verify(
+    pk: &PublicKey,
+    leaf_index: LeafIndex,
+    message: &Message,
+    signature: &Signature,
+) -> Result<(), VerifyError> {
     let pp = &pk.public_param;
     // The digits say where each chain was opened.
-    let digits = encode(pp, epoch, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
+    let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
     // Walk each chain the rest of the way, chain `i` from value `digit_i` to value 7: its end is the leaf's.
-    let mut chains = Chains::new(pp, epoch);
+    let mut chains = Chains::new(pp, leaf_index);
     let mut next_digit = digits.in_order();
-    let leaf = wots_leaf(pp, epoch, |i| {
+    let leaf = wots_leaf(pp, leaf_index, |i| {
         let start = next_digit();
         chains.walk(i, start, CHAIN_LENGTH - 1 - start, signature.chain_tips[i])
     });
     // The chain ends are the one-time public key: its leaf, folded up to the root.
-    let root = merkle_root(pp, epoch, leaf, &signature.merkle_proof);
+    let root = merkle_root(pp, leaf_index, leaf, &signature.merkle_proof);
     if root == pk.merkle_root {
         Ok(())
     } else {
@@ -220,9 +225,9 @@ impl Digits {
 /// The target-sum encoding of a message, or `None` if it is not valid.
 ///
 /// It is valid iff each word's top bit is zero and the digits sum to 195.
-fn encode(pp: &PublicParam, epoch: Epoch, message: &Message, randomness: &Randomness) -> Option<Digits> {
+fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness: &Randomness) -> Option<Digits> {
     let ([m0, m1, m2, m3], [r0, r1, r2]) = (*message, *randomness);
-    let [low, high] = tweak_hash(pp, TWEAK_ENCODING, 0, epoch, &[m0, m1, m2, m3, r0, r1, r2, 0]);
+    let [low, high] = tweak_hash(pp, TWEAK_ENCODING, 0, leaf_index, &[m0, m1, m2, m3, r0, r1, r2, 0]);
     // Bits 0..63 are 21 digits, bit 63 is pinned to zero.
     //
     // Why pinned: with it, the digits determine the word.
@@ -236,15 +241,15 @@ fn encode(pp: &PublicParam, epoch: Epoch, message: &Message, randomness: &Random
 /// The hash every chain step is, `tweak | pp | value`, kept across steps and chains.
 struct Chains {
     step: Template<6>,
-    epoch: Epoch,
+    leaf_index: LeafIndex,
 }
 
 impl Chains {
-    fn new(pp: &PublicParam, epoch: Epoch) -> Self {
-        let [t0, t1] = tweak(TWEAK_CHAIN, 0, epoch);
+    fn new(pp: &PublicParam, leaf_index: LeafIndex) -> Self {
+        let [t0, t1] = tweak(TWEAK_CHAIN, 0, leaf_index);
         Self {
             step: Template::new([t0, t1, pp[0], pp[1], 0, 0]),
-            epoch,
+            leaf_index,
         }
     }
 
@@ -253,8 +258,8 @@ impl Chains {
     /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
     fn walk(&mut self, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
         (start..start + steps).fold(value, |value, s| {
-            // Only the tweak's first word, the position, changes: the second is the epoch, as the template holds.
-            let [position, _] = tweak(TWEAK_CHAIN, (i * CHAIN_LENGTH + s) as u32, self.epoch);
+            // Only the tweak's first word, the position, changes: the second is the leaf index, as the template holds.
+            let [position, _] = tweak(TWEAK_CHAIN, (i * CHAIN_LENGTH + s) as u32, self.leaf_index);
             self.step.set(0, [position]);
             self.step.set(PAYLOAD, value);
             digest(self.step.digest())
@@ -264,21 +269,21 @@ impl Chains {
 
 /// The Merkle leaf of a one-time key, `tweak | pp | ends`: chain `i`'s end `end(i)`, the chains in order, in one hash.
 #[inline(always)]
-fn wots_leaf(pp: &PublicParam, epoch: Epoch, end: impl FnMut(usize) -> Digest) -> Digest {
+fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, end: impl FnMut(usize) -> Digest) -> Digest {
     digest(hash_with(|message| {
         message
-            .write(tweak(TWEAK_WOTS_PK, 0, epoch))
+            .write(tweak(TWEAK_WOTS_PK, 0, leaf_index))
             .write(*pp)
             .write_each(V, end);
     }))
 }
 
-/// Fold a leaf, at index `epoch`, up its authentication path: each node `tweak | pp | left | right`.
-fn merkle_root(pp: &PublicParam, epoch: Epoch, leaf: Digest, path: &[Digest; LOG_LIFETIME]) -> Digest {
+/// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`.
+fn merkle_root(pp: &PublicParam, leaf_index: LeafIndex, leaf: Digest, path: &[Digest; LOG_LIFETIME]) -> Digest {
     let mut node = Template::new([0, 0, pp[0], pp[1], 0, 0, 0, 0]);
     path.iter().enumerate().fold(leaf, |child, (level, sibling)| {
         // The child's index at this level: its low bit says which side it is on.
-        let index = u64::from(epoch) >> level;
+        let index = u64::from(leaf_index) >> level;
         let ([c0, c1], [s0, s1]) = (child, *sibling);
         let children = if index & 1 == 0 {
             [c0, c1, s0, s1]
