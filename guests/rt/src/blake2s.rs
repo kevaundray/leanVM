@@ -143,6 +143,179 @@ impl Blake2s {
     }
 }
 
+/// A one-block message of `W` words, hashed again and again: rewritten in place between hashes, where it changed.
+///
+/// Hashes of one shape write the words they share (a key, a prefix, the padding) once, not once per hash: the
+/// message stays in the block the instruction reads, which writes the compression and nothing else.
+pub struct Template<const W: usize> {
+    block: Block,
+}
+
+impl<const W: usize> Template<W> {
+    #[inline(always)]
+    pub fn new(words: [u64; W]) -> Self {
+        const { assert!(W <= 8, "a template is one block") };
+        let mut m = [0; 8];
+        m[..W].copy_from_slice(&words);
+        Self {
+            block: Block { h: IV, out: [0; 4], m },
+        }
+    }
+
+    /// Rewrite the message from word `at`.
+    #[inline(always)]
+    pub fn set<const N: usize>(&mut self, at: usize, words: [u64; N]) {
+        self.block.m[..W][at..at + N].copy_from_slice(&words);
+    }
+
+    /// The digest of the message as it stands, as four little-endian words.
+    #[inline(always)]
+    pub fn digest(&mut self) -> [u64; 4] {
+        self.block.compress(8 * W as u64, true)
+    }
+}
+
+/// BLAKE2s-256 of the words `write` puts in a [`Stream`], as four little-endian words.
+///
+/// The stream writes straight into the block the instruction reads, and its position stays in registers: the block
+/// is this call's, and the stream only borrows it. [`Blake2s`] copies its message into the instruction's block at
+/// each compression instead, which keeps a hasher that lives across calls in registers too.
+#[inline(always)]
+pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
+    let mut block = Block {
+        h: IV,
+        out: [0; 4],
+        m: [0; 8],
+    };
+    let mut stream = Stream {
+        block: &mut block,
+        filled: 0,
+        done: 0,
+    };
+    write(&mut stream);
+    stream.finish()
+}
+
+/// A message being written for [`hash_with`], in words: each full block absorbed once more of it follows.
+pub struct Stream<'a> {
+    block: &'a mut Block,
+    /// Words in the message block.
+    filled: usize,
+    /// Bytes absorbed before it.
+    done: u64,
+}
+
+impl Stream<'_> {
+    /// Append words to the message.
+    #[inline(always)]
+    pub fn write<const N: usize>(&mut self, words: [u64; N]) -> &mut Self {
+        for word in words {
+            // A full block is absorbed only now, once more of the message is known to follow.
+            if self.filled == 8 {
+                self.absorb();
+            }
+            self.block.m[self.filled] = word;
+            self.filled += 1;
+        }
+        self
+    }
+
+    /// Append `count` arrays of words, `array(i)` for `i` in order: [`Self::write`] of each.
+    ///
+    /// Where `N` divides a block and the message is at a multiple of `N` words, the arrays go a block at a time: the
+    /// compiler unrolls a block's arrays, so their words go to fixed places, with no check that the block is full.
+    #[inline(always)]
+    pub fn write_each<const N: usize>(&mut self, count: usize, mut array: impl FnMut(usize) -> [u64; N]) -> &mut Self {
+        if !(const { N > 0 && 8 % N == 0 } && self.filled.is_multiple_of(N)) {
+            for i in 0..count {
+                self.write(array(i));
+            }
+            return self;
+        }
+        let mut i = 0;
+        // The rest of this block.
+        while self.filled < 8 && i < count {
+            self.put(array(i));
+            i += 1;
+        }
+        // Then whole blocks, the full one absorbed only once an array is known to follow.
+        while i < count {
+            self.absorb();
+            if i + 8 / N <= count {
+                for j in 0..8 / N {
+                    self.put(array(i + j));
+                }
+                i += 8 / N;
+            } else {
+                while i < count {
+                    self.put(array(i));
+                    i += 1;
+                }
+            }
+        }
+        self
+    }
+
+    /// Write words where the block has room for them.
+    #[inline(always)]
+    fn put<const N: usize>(&mut self, words: [u64; N]) {
+        self.block.m[self.filled..self.filled + N].copy_from_slice(&words);
+        self.filled += N;
+    }
+
+    /// Absorb the full message block, which more of the message follows.
+    #[inline(always)]
+    fn absorb(&mut self) {
+        self.done += 64;
+        self.block.h = self.block.compress(self.done, false);
+        self.filled = 0;
+    }
+
+    /// The digest: the last block zero-padded, the counter every byte of the message.
+    #[inline(always)]
+    fn finish(&mut self) -> [u64; 4] {
+        for (j, word) in self.block.m.iter_mut().enumerate() {
+            if j >= self.filled {
+                *word = 0;
+            }
+        }
+        self.block.compress(self.done + 8 * self.filled as u64, true)
+    }
+}
+
+/// The block the instruction works on, in words.
+///
+/// ```text
+///     words 0..4    chaining value, read
+///     words 4..8    compression, written
+///     words 8..16   message, read
+/// ```
+///
+/// Aligned to its size, so word `k` is the cell at `base ^ 8k`.
+#[repr(C, align(128))]
+struct Block {
+    h: [u64; 4],
+    out: [u64; 4],
+    m: [u64; 8],
+}
+
+impl Block {
+    /// The compression of `m` onto `h`, in place, `t` bytes into the message.
+    #[inline(always)]
+    fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: the block is this borrow's, whole and initialized.
+        unsafe {
+            instruction(self, t, last);
+            self.out
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        {
+            portable::compress(&self.h, &self.m, t, last)
+        }
+    }
+}
+
 /// The compression of a message block onto a chaining value, `t` bytes into the message.
 ///
 /// On the VM it is one `blake2s` instruction, on a block laid out as the machine's hash row reads it.
@@ -150,21 +323,6 @@ impl Blake2s {
 fn compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64; 4] {
     #[cfg(all(target_arch = "riscv64", target_os = "none"))]
     {
-        /// The block the instruction works on, in words.
-        ///
-        /// ```text
-        ///     words 0..4    chaining value, read
-        ///     words 4..8    compression, written
-        ///     words 8..16   message, read
-        /// ```
-        ///
-        /// Aligned to its size, so word `k` is the cell at `base ^ 8k`.
-        #[repr(C, align(128))]
-        struct Block {
-            h: [u64; 4],
-            out: [u64; 4],
-            m: [u64; 8],
-        }
         // Built here and nowhere else: a block kept in the hasher is copied whenever the hasher moves.
         let mut block = core::mem::MaybeUninit::<Block>::uninit();
         let base = block.as_mut_ptr();
@@ -174,18 +332,31 @@ fn compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64; 4] {
         unsafe {
             (&raw mut (*base).h).write(*h);
             (&raw mut (*base).m).write(*m);
-            // `funct3` is the finalization flag: 1 on the last block.
-            if last {
-                core::arch::asm!(".insn r 0x0b, 1, 0, x0, {0}, {1}", in(reg) base, in(reg) t, options(nostack));
-            } else {
-                core::arch::asm!(".insn r 0x0b, 0, 0, x0, {0}, {1}", in(reg) base, in(reg) t, options(nostack));
-            }
+            instruction(base, t, last);
             (&raw const (*base).out).read()
         }
     }
     #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
     {
         portable::compress(h, m, t, last)
+    }
+}
+
+/// The `blake2s` instruction on the block at `base`.
+///
+/// # Safety
+///
+/// `base` points to a block whose `h` and `m` are initialized and whose `out` is writable.
+#[cfg(all(target_arch = "riscv64", target_os = "none"))]
+#[inline(always)]
+unsafe fn instruction(base: *mut Block, t: u64, last: bool) {
+    // `funct3` is the finalization flag: 1 on the last block.
+    unsafe {
+        if last {
+            core::arch::asm!(".insn r 0x0b, 1, 0, x0, {0}, {1}", in(reg) base, in(reg) t, options(nostack));
+        } else {
+            core::arch::asm!(".insn r 0x0b, 0, 0, x0, {0}, {1}", in(reg) base, in(reg) t, options(nostack));
+        }
     }
 }
 

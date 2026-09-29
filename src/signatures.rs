@@ -135,6 +135,26 @@ mod tests {
     }
 
     #[test]
+    fn leanxmss_outputs_the_blake2s_of_its_claims() {
+        // Invariant: the output is BLAKE2s-256 of the claims (key, epoch, message: 9 words) back to back.
+        //
+        // Every count up to 9 claims: a claim is 72 bytes, so its end falls at each offset of a 64-byte block, 8 claims end on a block boundary and 0 are the empty message.
+        let (seed, message) = fixed();
+        let entries: Vec<_> = (0..9)
+            .map(|epoch| {
+                let (sk, pk) = leanxmss::key_gen(seed, epoch);
+                leanxmss::Entry::new(pk, epoch, message, sk.sign(&message).unwrap())
+            })
+            .collect();
+        for n in 0..=entries.len() {
+            let claims: Vec<u64> = entries[..n].iter().flat_map(|e| e.as_words()[..9].to_vec()).collect();
+            let digest = primitives::hash::hash(&bytes(&claims));
+            let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
+            assert_eq!(leanxmss::verify_batch(&entries[..n]), Ok(expected), "{n} claims");
+        }
+    }
+
+    #[test]
     fn leansphincs_is_the_specified_scheme() {
         // Known answers of the SPHINCS+ specification's implementation.
         //

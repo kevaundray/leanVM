@@ -16,7 +16,7 @@
 #![no_std]
 
 mod blake2s;
-pub use blake2s::Blake2s;
+pub use blake2s::{Blake2s, Stream, Template, hash_with};
 
 // The entry point, the input, the output and the advice exist on the VM only.
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
