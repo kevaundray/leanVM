@@ -63,6 +63,7 @@ fn main() {
     zk_alloc::enable_arena();
     let prove_pass = || {
         let _phase = zk_alloc::enter_phase();
+        let _span = tracing::info_span!("Flock prove", n_log).entered();
         let t_pass = Instant::now();
         let t = Instant::now();
         let (z_packed, a_packed, b_packed, z_lincheck) = generate_witness_with_ab_packed_and_lincheck(&blocks, n_log);

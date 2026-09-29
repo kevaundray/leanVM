@@ -1477,7 +1477,6 @@ dependencies = [
  "lean_compiler",
  "lean_da",
  "lean_vm",
- "leanvm",
  "primitives",
  "rand 0.9.4",
  "rec_aggregation",

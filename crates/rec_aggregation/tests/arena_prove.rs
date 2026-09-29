@@ -18,16 +18,21 @@ fn repeated_proofs_survive_phase_resets() {
         .collect();
     let raw_sphincs = signers_cache::get_sphincs_signers(1);
     let blob: Vec<u64> = (0..lean_da::BLOB_SYMBOLS as u64).collect();
-    for _ in 0..3 {
-        let proof = aggregate(
-            &[],
-            raw_xmss.clone(),
-            raw_sphincs.clone(),
-            &blob,
-            None,
-            lean_vm::pcs::TEST_LOG_INV_RATE,
-        )
-        .expect("leaf aggregates");
+    let proofs: Vec<_> = (0..3)
+        .map(|_| {
+            aggregate(
+                &[],
+                raw_xmss.clone(),
+                raw_sphincs.clone(),
+                &blob,
+                None,
+                lean_vm::pcs::TEST_LOG_INV_RATE,
+            )
+            .expect("leaf aggregates")
+        })
+        .collect();
+    // Verified only after the last phase reset, so a proof holding arena memory fails too.
+    for proof in &proofs {
         proof.verify().expect("the leaf aggregate verifies");
     }
 

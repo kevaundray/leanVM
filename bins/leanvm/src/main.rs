@@ -52,7 +52,7 @@ enum Command {
         #[arg(
             long,
             default_value_t = 0,
-            value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(0..=leanvm::lean_da::DA_MAX_ROWS as u64)
+            value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(0..=lean_da::DA_MAX_ROWS as u64)
         )]
         blobs: usize,
     },
@@ -72,7 +72,7 @@ enum Command {
         #[arg(
             long,
             default_value_t = 0,
-            value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(0..=leanvm::lean_da::DA_MAX_ROWS as u64)
+            value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(0..=lean_da::DA_MAX_ROWS as u64)
         )]
         blobs_per_leaf: usize,
     },
