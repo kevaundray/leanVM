@@ -45,13 +45,13 @@ Expect leanVM to change significantly:
 
 ## programs
 
-A program is a guest: a `no_std` Rust program built for `riscv64im-unknown-none-elf` against the runtime crate in [`sdk`](./sdk/src/lib.rs), which gives it its public input (four words), its advice (a region of memory the prover fills, which the statement says nothing about), its output (four words) and a BLAKE2s hasher over the custom instruction. The runtime's linker script fixes the memory map. Each program lives in its own folder, `programs/<name>/guest`, a standalone package that `cargo build --release` builds there (a nightly toolchain, for `-Zbuild-std`); a program whose input takes work to make also has a host, `programs/<name>/host`, its code off the VM. `programs/build.sh` builds every guest and refreshes its checked-in `programs/<name>/<name>.elf`; then prove and verify a run:
+A program is a guest: a `no_std` Rust program built for `riscv64im-unknown-none-elf` against the SDK in [`sdk`](./sdk/src/lib.rs). Its `main` does all its I/O: `leanvm_guest::read::<T>()` takes the next value from the advice (a region of memory the prover fills, which the statement says nothing about), in place with no copy or decoding, and `leanvm_guest::commit(&value)` makes a value public. The run's output is the BLAKE2s digest of everything committed, in order, which a verifier recomputes from the public values. Everything else in a guest is ordinary Rust. The SDK's linker script fixes the memory map. Each program lives in its own folder, `programs/<name>/guest`, a standalone package that `cargo build --release` builds there (a nightly toolchain, for `-Zbuild-std`); a program whose advice takes work to make also has a host, `programs/<name>/host`, its code off the VM. `programs/build.sh` builds every guest and refreshes its checked-in `programs/<name>/<name>.elf`; then prove and verify a run:
 
 ```bash
 cargo leanvm guest programs/preimage/preimage.elf --advice 5,0x6f6c6c6568
 ```
 
-The statement a proof makes is the program (an ELF file), the four input words and the four output words; everything a guest reads from its advice it has to check itself, which is what makes a proof a proof of knowledge (`preimage` outputs the digest of a message only the prover has).
+The statement a proof makes is the program (an ELF file) and its four output words, the digest of what it committed; everything a guest reads from its advice it has to check itself, which is what makes a proof a proof of knowledge (`preimage` commits the digest of a message only the prover has).
 
 ## benchmarks
 
@@ -80,12 +80,12 @@ Fibonacci (modulo 2^64), N = 2,000,000
 The `blake2s` guest is the hash function written in ordinary Rust, compiled by `rustc` for `riscv64im-unknown-none-elf` (`programs/blake2s`): 10,000 bytes, 157 compressions, a mix of arithmetic, shifts, loads and stores.
 
 ```bash
-cargo leanvm guest programs/blake2s/blake2s.elf --input 10000 --repeat 3 --cooldown 2
+cargo leanvm guest programs/blake2s/blake2s.elf --advice 10000 --repeat 3 --cooldown 2
 ```
 
 ```
 programs/blake2s/blake2s.elf
-  input                       : [2710, 0, 0, 0]
+  advice                      : 1 words
   output                      : [8f9fc3d71d84c0cc, 515c979fa65679e8, 9ffc0e1e022efcc7, cef54d0c06836e56]
   cycles (RISC-V)             : 657,664
   proven rows                 : 1,015,824
@@ -100,7 +100,7 @@ programs/blake2s/blake2s.elf
 The `hash` guest hashes 50,000 bytes through the compression instruction, 782 compressions; most of its cycles generate the message.
 
 ```bash
-cargo leanvm guest programs/hash/hash.elf --input 50000 --repeat 3
+cargo leanvm guest programs/hash/hash.elf --advice 50000 --repeat 3
 ```
 
 ```

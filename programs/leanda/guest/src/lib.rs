@@ -23,7 +23,7 @@
 //!
 //! This is the binary-field version: `GF(2^64)` symbols, an additive NTT, and BLAKE2s.
 //!
-//! The guest reads `L` from the advice and cannot sample it, so it outputs `H(root, H(L))`.
+//! The guest reads `L` from the advice and cannot sample it, so it commits the root and `H(L)`.
 //!
 //! A verifier derives `L` from the root, and checks the output against both.
 //!
@@ -61,14 +61,14 @@ pub enum Error {
     NotACodeword(usize),
 }
 
-/// Check that every row is a codeword, and return `H(root, H(L))`.
+/// Check that every row is a codeword, and return the public values: the root and `H(L)`.
 ///
 /// The scratch holds the cell digests: one row of them per row, padding included.
 ///
 /// # Errors
 ///
 /// A row count out of range, or the first row that is not a codeword.
-pub fn check(dual: &[Dual; M], rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -> Result<Hash, Error> {
+pub fn check(dual: &[Dual; M], rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -> Result<[Hash; 2], Error> {
     // SAFETY: zero is a valid `u64`.
     // Why zeroed: one `memset`, where an array expression copies each window.
     let mut buckets: Buckets = unsafe { core::mem::zeroed() };
@@ -78,7 +78,7 @@ pub fn check(dual: &[Dual; M], rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -
             return Err(Error::NotACodeword(i));
         }
     }
-    Ok(hash_pair(&commit(rows, cells)?, &dual_digest(dual)))
+    Ok([commit(rows, cells)?, dual_digest(dual)])
 }
 
 /// The commitment's root `H(root_row, root_col)`.

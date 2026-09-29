@@ -1,20 +1,22 @@
 //! The leanSPHINCS program off the VM: it signs, lays the signatures out as the guest's
-//! advice, and runs the guest's own library natively for the output the guest must give.
+//! advice, and verifies them natively for the output the guest must give.
 //!
 //! One message for all signers is the Ethereum shape: validators attest to one block.
+
+use leansphincs::{Message, PublicKey, Signature};
+use leanvm_guest::{PublicValues, as_words_unchecked};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leansphincs.elf");
 
 /// What one run of the guest is given, and what it must output.
 pub struct Run {
-    pub input: [u64; 4],
     pub advice: Vec<u64>,
     pub expected: [u64; 4],
 }
 
 /// The message every signer signs.
-const MESSAGE: [u64; 4] = [0x4242_4242_4242_4242; 4];
+const MESSAGE: Message = [0x4242_4242_4242_4242; 4];
 
 /// A signer's secret seed: its index, then zeros.
 fn seed(i: usize) -> [u8; 32] {
@@ -26,21 +28,37 @@ fn seed(i: usize) -> [u8; 32] {
 /// `n` signers, each with its own key, sign the message.
 pub fn batch(n: usize) -> Run {
     // Keys and signatures are independent, so they are made in parallel.
-    let entries = parallel::map_collect(n, |i| {
-        let (sk, public_key) = leansphincs::key_gen(seed(i));
-        let signature = sk.sign(&MESSAGE).expect("an admissible digest and encodings");
-        leansphincs::Entry {
-            public_key,
-            message: MESSAGE,
-            signature,
-        }
+    let signed = parallel::map_collect(n, |i| {
+        let (sk, pk) = leansphincs::key_gen(seed(i));
+        (pk, sk.sign(&MESSAGE).expect("an admissible digest and encodings"))
     });
-    Run {
-        input: [n as u64, 0, 0, 0],
-        advice: entries.iter().flat_map(|e| e.as_words()).copied().collect(),
-        // The native run of the guest's own code is the reference output.
-        expected: leansphincs::verify_batch(&entries).expect("honest signatures verify"),
+    // What the guest reads: the count, then key, message and signature for each.
+    let mut advice = vec![n as u64];
+    // What it commits: each claim, key and message.
+    let mut public = PublicValues::new();
+    for (pk, signature) in &signed {
+        leansphincs::verify(pk, &MESSAGE, signature).expect("honest signatures verify");
+        advice.extend(words_of_key(pk));
+        advice.extend(MESSAGE);
+        advice.extend(words_of_signature(signature));
+        public.commit(&pk.root).commit(&pk.public_param).commit(&MESSAGE);
     }
+    Run {
+        advice,
+        expected: public.digest(),
+    }
+}
+
+/// A key as the words the guest reads it from.
+fn words_of_key(pk: &PublicKey) -> &[u64] {
+    // SAFETY: `repr(C)` words, with no padding (see its definition).
+    unsafe { as_words_unchecked(pk) }
+}
+
+/// A signature as the words the guest reads it from.
+fn words_of_signature(signature: &Signature) -> &[u64] {
+    // SAFETY: `repr(C)` words, with no padding (see its definition).
+    unsafe { as_words_unchecked(signature) }
 }
 
 #[cfg(test)]
@@ -81,20 +99,16 @@ mod tests {
         // The signature's digest is over its specification bytes, each counter in 4 bytes.
         let (seed, message) = fixed();
         let (sk, public_key) = leansphincs::key_gen(seed);
-        let entry = leansphincs::Entry {
-            public_key,
-            message,
-            signature: sk.sign(&message).unwrap(),
-        };
+        let signature = sk.sign(&message).unwrap();
         assert_eq!(
-            hex(bytes(&entry.as_words()[..4])),
+            hex(bytes(words_of_key(&public_key))),
             "cd0efd73b0e58cec9291994a125dae7c5957ef5b2c556a3f7b0117d93e98e61b"
         );
         assert_eq!(
-            hex(primitives::hash::hash(&entry.signature.to_bytes())),
+            hex(primitives::hash::hash(&signature.to_bytes())),
             "76f771d246ae4460e0d2d193c567c8352cfc6e3ccd6e4d68d25955832d5e3431"
         );
-        assert_eq!(leansphincs::verify(&public_key, &message, &entry.signature), Ok(()));
+        assert_eq!(leansphincs::verify(&public_key, &message, &signature), Ok(()));
     }
 
     #[test]
@@ -142,7 +156,7 @@ mod tests {
     /// The guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(run: &Run) -> Result<[u64; 4], leanvm_core::rv::Trap> {
         let program = leanvm_core::cpu::Program::from_elf(ELF).expect("the guest's ELF file");
-        leanvm_core::rv::Machine::new(&program.rv, run.input, &run.advice).run(1 << 30)
+        leanvm_core::rv::Machine::new(&program.rv, [0; 4], &run.advice).run(1 << 30)
     }
 
     #[test]

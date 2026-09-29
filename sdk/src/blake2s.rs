@@ -34,7 +34,7 @@ impl Default for Blake2s {
 
 impl Blake2s {
     #[inline(always)]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             h: IV,
             m: [0; 8],

@@ -7,6 +7,7 @@
 
 use fiat_shamir::{FiatShamirState, merkle::hash_to_scalars};
 use leanda::{CELLS, Dual, Hash, LOG_K, M};
+use leanvm_guest::PublicValues;
 use pcs::ntt::AdditiveNttF64;
 use primitives::field::{F64, F192};
 
@@ -15,7 +16,6 @@ pub const ELF: &[u8] = include_bytes!("../../leanda.elf");
 
 /// What one run of the guest is given, and what it must output.
 pub struct Run {
-    pub input: [u64; 4],
     pub advice: Vec<u64>,
     pub expected: [u64; 4],
 }
@@ -31,16 +31,18 @@ pub fn blobs(n: usize) -> Run {
     let mut cells = vec![[[0; 4]; CELLS]; n.next_power_of_two()];
     let root = leanda::commit(rows, &mut cells).expect("1..=MAX_ROWS blobs");
     let dual = dual_codeword(&root);
-    // The native run of the guest's own code is the reference output: `H(root, H(L))`.
-    let expected = leanda::check(dual.as_slice().try_into().unwrap(), rows, &mut cells).expect("codewords");
+    // The guest commits what its code computes natively: the root and `H(L)`.
+    let checked = leanda::check(dual.as_slice().try_into().unwrap(), rows, &mut cells).expect("codewords");
 
-    // The advice: `L`, then the encoded blobs.
-    let mut advice = dual.as_flattened().to_vec();
+    // The advice: the blob count, `L`, then the encoded blobs.
+    let mut advice = vec![n as u64];
+    advice.extend_from_slice(dual.as_flattened());
     advice.extend_from_slice(&codewords);
+    let mut public = PublicValues::new();
+    public.commit(&checked);
     Run {
-        input: [n as u64, 0, 0, 0],
         advice,
-        expected,
+        expected: public.digest(),
     }
 }
 
@@ -195,7 +197,7 @@ mod tests {
     /// The guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(run: &Run) -> Result<[u64; 4], leanvm_core::rv::Trap> {
         let program = leanvm_core::cpu::Program::from_elf(ELF).expect("the guest's ELF file");
-        leanvm_core::rv::Machine::new(&program.rv, run.input, &run.advice).run(1 << 30)
+        leanvm_core::rv::Machine::new(&program.rv, [0; 4], &run.advice).run(1 << 30)
     }
 
     #[test]

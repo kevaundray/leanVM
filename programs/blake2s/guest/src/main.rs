@@ -1,9 +1,9 @@
-//! BLAKE2s-256 of the `input()[0]` bytes `0, 1, 2, ...` (mod 251), in plain Rust: the
-//! digest is the output.
+//! BLAKE2s-256 of the bytes `0, 1, 2, ...` (mod 251), as many as the advice's first word says,
+//! in plain Rust. The length and the digest are committed.
 #![no_std]
 #![no_main]
 
-use leanvm_guest::{input, output};
+use leanvm_guest::{commit, read};
 
 const IV: [u32; 8] = [
     0x6A09_E667,
@@ -65,7 +65,7 @@ fn compress(h: &mut [u32; 8], block: &[u8; 64], counter: u64, last: bool) {
 
 #[unsafe(no_mangle)]
 extern "C" fn main() {
-    let length = input()[0];
+    let length = *read::<u64>();
     let mut h = IV;
     h[0] ^= 0x0101_0020; // no key, a 32-byte digest
     let mut block = [0u8; 64];
@@ -80,5 +80,6 @@ extern "C" fn main() {
         filled += 1;
     }
     compress(&mut h, &block, done + filled as u64, true);
-    output(core::array::from_fn(|i| h[2 * i] as u64 | (h[2 * i + 1] as u64) << 32));
+    commit(&length);
+    commit(&core::array::from_fn::<u64, 4, _>(|i| h[2 * i] as u64 | (h[2 * i + 1] as u64) << 32));
 }

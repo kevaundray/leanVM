@@ -1,22 +1,24 @@
 //! The leanXMSS program off the VM: it signs, lays the signatures out as the guest's
-//! advice, and runs the guest's own library natively for the output the guest must give.
+//! advice, and verifies them natively for the output the guest must give.
 //!
 //! One message at one leaf index for all signers is the Ethereum shape: validators attest to one block.
+
+use leanvm_guest::{PublicValues, as_words_unchecked};
+use leanxmss::{LeafIndex, Message, PublicKey, Signature};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leanxmss.elf");
 
 /// What one run of the guest is given, and what it must output.
 pub struct Run {
-    pub input: [u64; 4],
     pub advice: Vec<u64>,
     pub expected: [u64; 4],
 }
 
 /// The message every signer signs.
-const MESSAGE: [u64; 4] = [0x4242_4242_4242_4242; 4];
+const MESSAGE: Message = [0x4242_4242_4242_4242; 4];
 /// The leaf index every signer signs at.
-const LEAF_INDEX: u32 = 1234;
+const LEAF_INDEX: LeafIndex = 1234;
 
 /// A signer's secret seed: its index, then zeros.
 fn seed(i: usize) -> [u8; 32] {
@@ -28,16 +30,42 @@ fn seed(i: usize) -> [u8; 32] {
 /// `n` signers, each with its own key, sign the message.
 pub fn batch(n: usize) -> Run {
     // Keys and signatures are independent, so they are made in parallel.
-    let entries = parallel::map_collect(n, |i| {
+    let signed = parallel::map_collect(n, |i| {
         let (sk, pk) = leanxmss::key_gen(seed(i), LEAF_INDEX);
-        leanxmss::Entry::new(pk, LEAF_INDEX, MESSAGE, sk.sign(&MESSAGE).expect("a valid encoding"))
+        (pk, sk.sign(&MESSAGE).expect("a valid encoding"))
     });
-    Run {
-        input: [n as u64, 0, 0, 0],
-        advice: entries.iter().flat_map(|e| e.as_words()).copied().collect(),
-        // The native run of the guest's own code is the reference output.
-        expected: leanxmss::verify_batch(&entries).expect("honest signatures verify"),
+    // What the guest reads: the count, then key, leaf index, message and signature for each.
+    let mut advice = vec![n as u64];
+    // What it commits: each claim, key, leaf index and message.
+    let mut public = PublicValues::new();
+    for (pk, signature) in &signed {
+        leanxmss::verify(pk, LEAF_INDEX, &MESSAGE, signature).expect("honest signatures verify");
+        advice.extend(words_of_key(pk));
+        advice.push(LEAF_INDEX.into());
+        advice.extend(MESSAGE);
+        advice.extend(words_of_signature(signature));
+        public
+            .commit(&pk.merkle_root)
+            .commit(&pk.public_param)
+            .commit(&u64::from(LEAF_INDEX))
+            .commit(&MESSAGE);
     }
+    Run {
+        advice,
+        expected: public.digest(),
+    }
+}
+
+/// A key as the words the guest reads it from.
+fn words_of_key(pk: &PublicKey) -> &[u64] {
+    // SAFETY: `repr(C)` words, with no padding (see its definition).
+    unsafe { as_words_unchecked(pk) }
+}
+
+/// A signature as the words the guest reads it from.
+fn words_of_signature(signature: &Signature) -> &[u64] {
+    // SAFETY: `repr(C)` words, with no padding (see its definition).
+    unsafe { as_words_unchecked(signature) }
 }
 
 #[cfg(test)]
@@ -87,25 +115,21 @@ mod tests {
         ];
         for (leaf_index, pk_hex, sig_digest) in known {
             let (sk, pk) = leanxmss::key_gen(seed, leaf_index);
-            let entry = leanxmss::Entry::new(pk, leaf_index, message, sk.sign(&message).unwrap());
-            // An entry's words are its bytes:
-            //
-            //     words 0..4   public key
-            //     words 4..9   leaf index, message
-            //     words 9..    signature
-            assert_eq!(hex(bytes(&entry.as_words()[..4])), pk_hex, "leaf index {leaf_index}");
+            let signature = sk.sign(&message).unwrap();
+            // The key's and the signature's words are their specification bytes.
+            assert_eq!(hex(bytes(words_of_key(&pk))), pk_hex, "leaf index {leaf_index}");
             assert_eq!(
-                hex(primitives::hash::hash(&bytes(&entry.as_words()[9..]))),
+                hex(primitives::hash::hash(&bytes(words_of_signature(&signature)))),
                 sig_digest,
                 "leaf index {leaf_index}"
             );
-            assert_eq!(leanxmss::verify(&pk, leaf_index, &message, &entry.signature), Ok(()));
+            assert_eq!(leanxmss::verify(&pk, leaf_index, &message, &signature), Ok(()));
         }
     }
 
     #[test]
     fn leanxmss_rejects_a_change_anywhere() {
-        use leanxmss::VerifyError::{InvalidEncoding, InvalidMerklePath, LeafIndexOutOfRange};
+        use leanxmss::VerifyError::{InvalidEncoding, InvalidMerklePath};
         // Invariant: a verifier binds the claim and every part of the signature.
         //
         // Fixture state: one honest signature at leaf index 7.
@@ -141,21 +165,12 @@ mod tests {
         let mut bad_pk = pk;
         bad_pk.merkle_root[0] ^= 1;
         assert_eq!(verify(&bad_pk, 7, &message, &signature), Some(InvalidMerklePath));
-
-        // Mutation: an entry's leaf index word with bit 32 set.
-        //
-        //     claimed leaf index   2^32 + 7
-        //     truncated            7
-        //     → rejected rather than verified at another leaf index than claimed
-        let mut entry = leanxmss::Entry::new(pk, 7, message, signature);
-        entry.leaf_index |= 1 << 32;
-        assert_eq!(leanxmss::verify_batch(&[entry]), Err((0, LeafIndexOutOfRange)));
     }
 
     /// The guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(run: &Run) -> Result<[u64; 4], leanvm_core::rv::Trap> {
         let program = leanvm_core::cpu::Program::from_elf(ELF).expect("the guest's ELF file");
-        leanvm_core::rv::Machine::new(&program.rv, run.input, &run.advice).run(1 << 30)
+        leanvm_core::rv::Machine::new(&program.rv, [0; 4], &run.advice).run(1 << 30)
     }
 
     #[test]
@@ -167,7 +182,17 @@ mod tests {
         // Mutation: the top bit of the advice's last word, a node of the last signature's path.
         //
         //     the guest's check fails → it panics → an illegal instruction → no output
-        *run.advice.last_mut().unwrap() ^= 1 << 63;
+        let mut forged = run.advice.clone();
+        *forged.last_mut().unwrap() ^= 1 << 63;
+        assert!(on_the_vm(&Run { advice: forged, ..run }).is_err());
+
+        // Mutation: the first leaf index word (after the count and the key) with bit 32 set.
+        //
+        //     claimed leaf index   2^32 + 1234
+        //     truncated            1234, which verifies
+        //     → the guest refuses the word rather than verify at another leaf index than committed
+        run = batch(1);
+        run.advice[1 + 4] |= 1 << 32;
         assert!(on_the_vm(&run).is_err());
     }
 }

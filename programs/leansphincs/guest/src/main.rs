@@ -1,18 +1,31 @@
-//! Verify the `input()[0]` leanSPHINCS signatures the advice holds, laid out as entries.
+//! Verify the leanSPHINCS signatures the advice holds: their count, then for each a public
+//! key, a message and a signature.
 //!
-//! The output is the digest of their claims.
+//! Each claim (key, message) is committed, so the output is the digest of the claims.
 //!
 //! A bad signature leaves the run without a proof.
 #![no_std]
 #![no_main]
 
-use leanvm_guest::{advice, input, output};
+use leansphincs::{Message, PublicKey, Signature};
+use leanvm_guest::{commit, read, read_unchecked};
 
 leanvm_guest::advice_words!(1 << 16);
 
 #[unsafe(no_mangle)]
 extern "C" fn main() {
-    // The entries are read in place from the advice.
-    let entries = leansphincs::entries(advice(), input()[0] as usize).expect("the entries fit the advice");
-    output(leansphincs::verify_batch(entries).expect("every signature verifies"));
+    let n = *read::<u64>();
+    for _ in 0..n {
+        // Read in place. SAFETY: both types are `repr(C)` words, with no padding, and any
+        // words are one (see their definitions).
+        let public_key = unsafe { read_unchecked::<PublicKey>() };
+        let message = read::<Message>();
+        let signature = unsafe { read_unchecked::<Signature>() };
+
+        leansphincs::verify(public_key, message, signature).expect("every signature verifies");
+
+        commit(&public_key.root);
+        commit(&public_key.public_param);
+        commit(message);
+    }
 }

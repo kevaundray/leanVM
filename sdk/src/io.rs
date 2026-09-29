@@ -1,39 +1,199 @@
-//! A run's input and output: the public input, the advice and the public output, all
-//! plain memory at addresses `link.ld` fixes. There are no system calls: the machine
-//! seeds the input and the advice before the run, and `_start` returns the output.
+//! What a guest reads and what it proves: `read` takes values from the advice, in place,
+//! and `commit` makes values public. There are no system calls: the advice is memory the
+//! prover fills before the run, at the addresses `link.ld` fixes, and the run's output is
+//! the BLAKE2s digest of everything committed, in order, which the verifier recomputes from
+//! the public values.
 
-/// The output `_start` loads into `a0..a3` when `main` returns.
-pub(crate) static mut OUTPUT: [u64; 4] = [0; 4];
+use crate::Blake2s;
 
-unsafe extern "C" {
-    /// RAM's first four words, and the advice region's bounds (`link.ld`).
-    static __input: [u64; 4];
-    static __advice: u64;
-    static __advice_top: u64;
+/// A type made of 64-bit words and nothing else, so that any words are one.
+///
+/// # Safety
+///
+/// The type is `repr(C)` (or an array), its size a multiple of 8 and its alignment 8, it
+/// has no padding, and every bit pattern of its words is a valid value: integers and arrays
+/// of them, never a `bool`, an enum, a reference or a pointer.
+pub unsafe trait Words: Sized + 'static {}
+
+// SAFETY: a word is a word.
+unsafe impl Words for u64 {}
+// SAFETY: an array of word types is its elements' words, back to back.
+unsafe impl<T: Words, const N: usize> Words for [T; N] {}
+
+/// A value as its words.
+pub fn as_words<T: Words>(value: &T) -> &[u64] {
+    slice_as_words(core::slice::from_ref(value))
 }
 
-/// The run's public input.
-pub fn input() -> [u64; 4] {
-    // SAFETY: the linker script reserves these words, and nothing writes them.
-    unsafe { core::ptr::read_volatile(&raw const __input) }
+/// Values as their words, back to back.
+pub fn slice_as_words<T: Words>(values: &[T]) -> &[u64] {
+    // SAFETY: `T` is its words with no padding (`Words`).
+    unsafe { slice_as_words_unchecked(values) }
 }
 
-/// The advice: words the prover supplies, which the statement says nothing about, so
-/// a guest has to check what it reads here.
-pub fn advice() -> &'static [u64] {
-    // The two symbols bound the region without belonging to one object, so the length
-    // is address arithmetic rather than `offset_from`, which asks for one allocation.
-    let (start, end) = (&raw const __advice, &raw const __advice_top);
-    let words = (end as usize - start as usize) / size_of::<u64>();
-    // SAFETY: the linker script reserves the region, it holds whole words, and nothing
-    // in this crate writes it.
-    unsafe { core::slice::from_raw_parts(start, words) }
+/// A value of a type from another crate as its words, for a host laying out advice that
+/// the guest reads with `read_unchecked`.
+///
+/// # Safety
+///
+/// `T` is words only, as [`Words`] says.
+pub unsafe fn as_words_unchecked<T>(value: &T) -> &[u64] {
+    // SAFETY: the caller's.
+    unsafe { slice_as_words_unchecked(core::slice::from_ref(value)) }
 }
 
-/// Set the run's public output, which the run returns in `a0..a3` when `main` does.
-pub fn output(words: [u64; 4]) {
-    // SAFETY: one hart, no interrupts: nothing else touches `OUTPUT`.
-    unsafe { core::ptr::write_volatile(&raw mut OUTPUT, words) }
+/// # Safety
+///
+/// `T` is words only, as [`Words`] says.
+unsafe fn slice_as_words_unchecked<T>(values: &[T]) -> &[u64] {
+    const {
+        assert!(
+            size_of::<T>().is_multiple_of(8) && align_of::<T>() == 8,
+            "a type of whole words"
+        )
+    };
+    // SAFETY: `T` is its words with no padding (the caller's), so the values are their words.
+    unsafe { core::slice::from_raw_parts(values.as_ptr().cast(), size_of_val(values) / 8) }
+}
+
+/// The public values a run commits, and the output they make: their BLAKE2s digest.
+///
+/// On the VM, `commit` feeds the run's own; off it, this is how a host computes the output
+/// a guest must give.
+pub struct PublicValues(Blake2s);
+
+impl Default for PublicValues {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PublicValues {
+    pub const fn new() -> Self {
+        Self(Blake2s::new())
+    }
+
+    /// Commit a value.
+    #[inline(always)]
+    pub fn commit<T: Words>(&mut self, value: &T) -> &mut Self {
+        self.0.update_words(as_words(value));
+        self
+    }
+
+    /// Commit values, the same as committing each in turn.
+    #[inline(always)]
+    pub fn commit_slice<T: Words>(&mut self, values: &[T]) -> &mut Self {
+        self.0.update_words(slice_as_words(values));
+        self
+    }
+
+    /// The output: the digest of everything committed.
+    pub fn digest(self) -> [u64; 4] {
+        self.0.finalize_words()
+    }
+}
+
+#[cfg(all(target_arch = "riscv64", target_os = "none"))]
+pub use vm::{commit, commit_slice, read, read_slice, read_unchecked};
+
+#[cfg(all(target_arch = "riscv64", target_os = "none"))]
+pub(crate) mod vm {
+    use super::{PublicValues, Words};
+
+    /// The output `_start` loads into `a0..a3` when the run ends.
+    pub(crate) static mut OUTPUT: [u64; 4] = [0; 4];
+    /// What the run has committed so far.
+    static mut PUBLIC: PublicValues = PublicValues::new();
+    /// The advice words read so far.
+    static mut READ: usize = 0;
+
+    unsafe extern "C" {
+        /// The advice region's bounds (`link.ld`).
+        static __advice: u64;
+        static __advice_top: u64;
+    }
+
+    /// The advice: words the prover supplies, which the statement says nothing about.
+    fn advice() -> &'static [u64] {
+        // The two symbols bound the region without belonging to one object, so the length
+        // is address arithmetic rather than `offset_from`, which asks for one allocation.
+        let (start, end) = (&raw const __advice, &raw const __advice_top);
+        let words = (end as usize - start as usize) / size_of::<u64>();
+        // SAFETY: the linker script reserves the region, it holds whole words, and nothing
+        // in this crate writes it.
+        unsafe { core::slice::from_raw_parts(start, words) }
+    }
+
+    /// The next value of the advice, in place: nothing is copied or decoded.
+    ///
+    /// The prover chose it, so the guest has to check it. Reading past the advice panics,
+    /// so the run has no proof.
+    #[inline(always)]
+    pub fn read<T: Words>() -> &'static T {
+        &read_slice::<T>(1)[0]
+    }
+
+    /// The next `n` values of the advice, in place.
+    #[inline(always)]
+    pub fn read_slice<T: Words>(n: usize) -> &'static [T] {
+        // SAFETY: any words are a `T` (`Words`).
+        unsafe { take(n) }
+    }
+
+    /// The next value of the advice as a type from another crate, in place: how a guest's
+    /// `main` reads its library's types, which need not know the VM.
+    ///
+    /// # Safety
+    ///
+    /// `T` is words only, as [`Words`] says.
+    #[inline(always)]
+    pub unsafe fn read_unchecked<T>() -> &'static T {
+        // SAFETY: the caller's.
+        unsafe { &take::<T>(1)[0] }
+    }
+
+    /// # Safety
+    ///
+    /// `T` is words only, as [`Words`] says.
+    #[inline(always)]
+    unsafe fn take<T>(n: usize) -> &'static [T] {
+        const {
+            assert!(
+                size_of::<T>().is_multiple_of(8) && align_of::<T>() == 8,
+                "a type of whole words"
+            )
+        };
+        let words = n.checked_mul(size_of::<T>() / 8).expect("the values fit the advice");
+        // SAFETY: one hart, no interrupts: nothing else touches `READ`.
+        let start = unsafe { READ };
+        let end = start.checked_add(words).expect("the values fit the advice");
+        let taken = advice().get(start..end).expect("the values fit the advice");
+        // SAFETY: as above.
+        unsafe { READ = end };
+        // SAFETY: the words are aligned to 8, as `T` is, and any words are a `T` (the caller's).
+        unsafe { core::slice::from_raw_parts(taken.as_ptr().cast(), n) }
+    }
+
+    /// Make a value public: the run's output is the digest of everything committed, in order.
+    #[inline(always)]
+    pub fn commit<T: Words>(value: &T) {
+        commit_slice(core::slice::from_ref(value));
+    }
+
+    /// Make values public, the same as committing each in turn.
+    #[inline(always)]
+    pub fn commit_slice<T: Words>(values: &[T]) {
+        // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`.
+        unsafe { &mut *(&raw mut PUBLIC) }.commit_slice(values);
+    }
+
+    /// Called by `_start` once `main` returns: the output is the digest of what was committed.
+    pub(crate) extern "C" fn finish() {
+        // SAFETY: the run is over, so `PUBLIC` is read once and nothing touches it after.
+        let public = unsafe { core::ptr::read(&raw const PUBLIC) };
+        // SAFETY: as above, for `OUTPUT`.
+        unsafe { core::ptr::write_volatile(&raw mut OUTPUT, public.digest()) }
+    }
 }
 
 /// Size the guest's advice region, in words: a power of two.

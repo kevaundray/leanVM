@@ -4,7 +4,7 @@ use bench::Plan;
 use leanvm::{Program, prove, verify};
 use primitives::{pretty_f64, pretty_integer};
 
-use crate::guest::refuse;
+use crate::guest::{INPUT, refuse};
 
 /// One run of a guest (`programs/`): what it is given and what it must output.
 pub struct Workload {
@@ -12,8 +12,6 @@ pub struct Workload {
     pub title: String,
     /// The guest's ELF file.
     pub elf: &'static [u8],
-    /// The public input: the item count, then zeros.
-    pub input: [u64; 4],
     /// What the guest checks, which the statement does not cover.
     pub advice: Vec<u64>,
     /// The output the native reference computed, so a proof of anything else fails.
@@ -37,7 +35,6 @@ pub fn leanxmss(n: usize) -> Workload {
     Workload {
         title: format!("leanXMSS verification, {n} signatures"),
         elf: leanxmss_host::ELF,
-        input: run.input,
         advice: run.advice,
         expected: run.expected,
         items: n,
@@ -51,7 +48,6 @@ pub fn leansphincs(n: usize) -> Workload {
     Workload {
         title: format!("leanSPHINCS verification, {n} signatures"),
         elf: leansphincs_host::ELF,
-        input: run.input,
         advice: run.advice,
         expected: run.expected,
         items: n,
@@ -65,7 +61,6 @@ pub fn leanda(n: usize) -> Workload {
     Workload {
         title: format!("leanDA check, {n} blobs of 128 KiB"),
         elf: leanda_host::ELF,
-        input: run.input,
         advice: run.advice,
         expected: run.expected,
         items: n,
@@ -91,7 +86,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     // Only the final measured pass is traced.
     let (result, prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        prove(&program, workload.input, &workload.advice, log_inv_rate)
+        prove(&program, INPUT, &workload.advice, log_inv_rate)
     });
     // A run too long for one proof has none: continuations are not implemented.
     let (proof, output, stats) = result.unwrap_or_else(|trap| refuse(format_args!("the run has no proof: {trap}")));
@@ -101,7 +96,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     );
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &workload.input, &output, &proof).expect("the proof verifies")
+        verify(&program, &INPUT, &output, &proof).expect("the proof verifies")
     });
 
     // The proven rows include padding: the guest's own cycles are the per-table base counts.

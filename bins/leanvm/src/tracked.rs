@@ -6,7 +6,7 @@ use leanvm::{Program, Stats, prove, verify};
 use primitives::pretty_integer;
 
 use crate::fibonacci;
-use crate::guest::refuse;
+use crate::guest::{INPUT, refuse};
 use crate::workload::{self, Workload};
 
 struct Case {
@@ -15,7 +15,6 @@ struct Case {
     /// What the markdown table calls it.
     title: String,
     program: Program,
-    input: [u64; 4],
     advice: Vec<u64>,
     /// The native reference's output, where there is one.
     expected: Option<[u64; 4]>,
@@ -29,7 +28,6 @@ impl Case {
             name,
             program: workload.program(),
             title: workload.title,
-            input: workload.input,
             advice: workload.advice,
             expected: Some(workload.expected),
             items: workload.items,
@@ -39,7 +37,7 @@ impl Case {
 
     /// The run's exact counts, without a proof.
     fn measure(&self) -> Stats {
-        leanvm_core::cpu::measure(&self.program, self.input, &self.advice)
+        leanvm_core::cpu::measure(&self.program, INPUT, &self.advice)
             .unwrap_or_else(|trap| refuse(format_args!("{}: {trap}", self.name)))
     }
 }
@@ -54,7 +52,6 @@ fn cases() -> Vec<Case> {
             name: "fibonacci-asm-2000000",
             title: format!("Fibonacci modulo 2^64, {} steps", pretty_integer(FIBONACCI)),
             program: fibonacci,
-            input: [0; 4],
             advice: vec![],
             expected: Some(fibonacci_output),
             items: FIBONACCI,
@@ -64,8 +61,7 @@ fn cases() -> Vec<Case> {
             name: "hash-50000",
             title: format!("BLAKE2s of {} bytes", pretty_integer(HASHED)),
             program: Program::from_elf(include_bytes!("../../../programs/hash/hash.elf")).expect("a checked-in guest"),
-            input: [HASHED as u64, 0, 0, 0],
-            advice: vec![],
+            advice: vec![HASHED as u64],
             expected: None,
             items: HASHED,
             item: "byte",
@@ -111,13 +107,13 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
 fn proven(case: &Case, log_inv_rate: usize, plan: Plan) -> Vec<(&'static str, Metric)> {
     eprintln!("{}", case.name);
     let ((proof, output, stats), time) = plan.warm_then_measure(|_| {
-        prove(&case.program, case.input, &case.advice, log_inv_rate)
+        prove(&case.program, INPUT, &case.advice, log_inv_rate)
             .unwrap_or_else(|trap| refuse(format_args!("{}: {trap}", case.name)))
     });
     if let Some(expected) = case.expected {
         assert_eq!(output, expected, "{}: the output is the native reference's", case.name);
     }
-    verify(&case.program, &case.input, &output, &proof).expect("an honest proof verifies");
+    verify(&case.program, &INPUT, &output, &proof).expect("an honest proof verifies");
     let proof_bytes = bincode::serialized_size(&proof).expect("proof is serializable");
     let mut metrics = counts(&stats);
     metrics.push(("proof-size", Metric::exact(proof_bytes as usize)));

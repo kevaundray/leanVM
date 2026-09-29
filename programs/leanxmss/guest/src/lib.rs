@@ -20,10 +20,8 @@
 //! [XMSS specification]: https://github.com/leanEthereum/leanVM/releases/download/doc-latest/XMSS.pdf
 #![no_std]
 
-mod batch;
 mod sign;
 
-pub use batch::{Entry, entries, verify_batch};
 pub use sign::{SecretKey, SignError, key_gen};
 
 use leanvm_guest::Blake2s;
@@ -109,8 +107,6 @@ pub enum VerifyError {
     InvalidEncoding,
     /// The recovered one-time key does not reach the root.
     InvalidMerklePath,
-    /// A batch entry's leaf index word is past the key's `2^32` leaf indices.
-    LeafIndexOutOfRange,
 }
 
 /// Check a signature on a message at a leaf index: 133 hash calls, 144 compressions.

@@ -2,7 +2,8 @@
 
 use core::arch::global_asm;
 
-// The run starts here: a stack, `main`, then `exit` with the output in `a0..a3`.
+// The run starts here: a stack, `main`, the output made from what was committed, then
+// `exit` with it in `a0..a3`.
 global_asm!(
     ".section .text._start",
     ".globl _start",
@@ -12,6 +13,7 @@ global_asm!(
     "la sp, __stack_top",
     ".option pop",
     "call main",
+    "call {finish}",
     "la t0, {output}",
     "ld a0, 0(t0)",
     "ld a1, 8(t0)",
@@ -19,7 +21,8 @@ global_asm!(
     "ld a3, 24(t0)",
     "li a7, 93",
     "ecall",
-    output = sym crate::io::OUTPUT,
+    finish = sym crate::io::vm::finish,
+    output = sym crate::io::vm::OUTPUT,
 );
 
 #[panic_handler]

@@ -7,27 +7,41 @@ use super::python_verifier::PythonStatement;
 use leanvm_core::cpu::{Program, measure, prove, verify, verify_to_raw};
 use leanvm_core::rv::{self, Guest, Machine};
 
-fn proves_and_verifies(tag: &str, elf: &[u8], input: [u64; 4], expected: [u64; 4]) {
-    proves_and_verifies_with(tag, elf, input, &[], expected);
+/// The guests read the advice alone: the public input is zero.
+const INPUT: [u64; 4] = [0; 4];
+
+/// The output of a guest committing `values` in order.
+fn committed(values: &[&[u64]]) -> [u64; 4] {
+    let mut public = leanvm_guest::PublicValues::new();
+    for value in values {
+        public.commit_slice(value);
+    }
+    public.digest()
 }
 
-fn proves_and_verifies_with(tag: &str, elf: &[u8], input: [u64; 4], advice: &[u64], expected: [u64; 4]) {
+fn proves_and_verifies(tag: &str, elf: &[u8], advice: &[u64], expected: [u64; 4]) {
     let program = Program::from_elf(elf).expect("a guest");
-    let ran = Machine::new(&program.rv, input, advice)
+    let ran = Machine::new(&program.rv, INPUT, advice)
         .run(1 << 24)
         .expect("the run halts");
     assert_eq!(ran, expected, "{tag}: the interpreter");
 
-    let (proof, output, stats) = prove(&program, input, advice, 1).expect("the run halts");
+    let (proof, output, stats) = prove(&program, INPUT, advice, 1).expect("the run halts");
     assert_eq!(output, expected);
     // Measuring a run reports what proving it does, without the proof.
-    assert_eq!(measure(&program, input, advice), Ok(stats.clone()), "{tag}: measure");
-    let raw = verify_to_raw(&program, &input, &output, &proof).expect("honest proof verifies");
-    PythonStatement::new(tag, &program, &input, &output).assert_accepts(&raw);
+    assert_eq!(measure(&program, INPUT, advice), Ok(stats.clone()), "{tag}: measure");
+    let raw = verify_to_raw(&program, &INPUT, &output, &proof).expect("honest proof verifies");
+    PythonStatement::new(tag, &program, &INPUT, &output).assert_accepts(&raw);
     let mut wrong = output;
     wrong[3] ^= 1;
-    assert!(verify(&program, &input, &wrong, &proof).is_err());
+    assert!(verify(&program, &INPUT, &wrong, &proof).is_err());
     println!("{tag}: {} instructions, {}", program.rv.entries.len(), stats.details());
+}
+
+/// The BLAKE2s digest of `message`, as four words.
+fn digest_words(message: &[u8]) -> [u64; 4] {
+    let digest = primitives::hash::hash(message);
+    std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()))
 }
 
 #[test]
@@ -39,8 +53,8 @@ fn fibonacci_guest() {
     proves_and_verifies(
         "fibonacci",
         include_bytes!("../../../../programs/fibonacci/fibonacci.elf"),
-        [5000, 0, 0, 0],
-        [a, 0, 0, 0],
+        &[5000],
+        committed(&[&[5000, a]]),
     );
 }
 
@@ -51,13 +65,11 @@ fn fibonacci_guest() {
 fn blake2s_guest() {
     let length = 150u64;
     let message: Vec<u8> = (0..length).map(|i| (i % 251) as u8).collect();
-    let digest = primitives::hash::Hasher::new().update(&message).finalize();
-    let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
     proves_and_verifies(
         "blake2s",
         include_bytes!("../../../../programs/blake2s/blake2s.elf"),
-        [length, 0, 0, 0],
-        expected,
+        &[length],
+        committed(&[&[length], &digest_words(&message)]),
     );
 }
 
@@ -67,13 +79,11 @@ fn blake2s_guest() {
 fn hash_guest() {
     let length = 1000u64;
     let message: Vec<u8> = (0..length).map(|i| (i % 251) as u8).collect();
-    let digest = primitives::hash::Hasher::new().update(&message).finalize();
-    let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
     proves_and_verifies(
         "hash",
         include_bytes!("../../../../programs/hash/hash.elf"),
-        [length, 0, 0, 0],
-        expected,
+        &[length],
+        committed(&[&[length], &digest_words(&message)]),
     );
 }
 
@@ -93,10 +103,8 @@ fn the_hash_guests_agree_with_the_host_at_every_block_boundary() {
         let program = Program::from_elf(elf).expect("a guest");
         for length in [0u64, 1, 55, 63, 64, 65, 127, 128, 129, 256] {
             let message: Vec<u8> = (0..length).map(|i| (i % 251) as u8).collect();
-            let digest = primitives::hash::hash(&message);
-            let expected: [u64; 4] =
-                std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
-            let ran = Machine::new(&program.rv, [length, 0, 0, 0], &[])
+            let expected = committed(&[&[length], &digest_words(&message)]);
+            let ran = Machine::new(&program.rv, INPUT, &[length])
                 .run(1 << 24)
                 .unwrap_or_else(|trap| panic!("{name} on {length} bytes: {trap}"));
             assert_eq!(ran, expected, "{name} on {length} bytes");
@@ -115,14 +123,11 @@ fn preimage_guest() {
         word[..chunk.len()].copy_from_slice(chunk);
         u64::from_le_bytes(word)
     }));
-    let digest = primitives::hash::hash(&message);
-    let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
-    proves_and_verifies_with(
+    proves_and_verifies(
         "preimage",
         include_bytes!("../../../../programs/preimage/preimage.elf"),
-        [0; 4],
         &advice,
-        expected,
+        committed(&[&digest_words(&message)]),
     );
 }
 
@@ -153,8 +158,8 @@ fn numbers_guest() {
     proves_and_verifies(
         "numbers",
         include_bytes!("../../../../programs/numbers/numbers.elf"),
-        [base, exponent, modulus, 0],
-        [pow_mod, gcd, signed as u64, mixed as u64],
+        &[base, exponent, modulus],
+        committed(&[&[base, exponent, modulus], &[pow_mod, gcd, signed as u64, mixed as u64]]),
     );
 }
 

@@ -19,12 +19,10 @@
 //! Byte for byte the scheme of the leanSPHINCS specification, whose letters the code keeps.
 #![no_std]
 
-mod batch;
 mod fts;
 mod ots;
 mod sign;
 
-pub use batch::{Entry, entries, verify_batch};
 pub use sign::{SecretKey, SignError, key_gen};
 
 use leanvm_guest::Blake2s;
