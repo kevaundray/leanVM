@@ -18,7 +18,9 @@
 mod blake2s;
 pub use blake2s::Blake2s;
 
-// The entry point, the input, the output and the advice exist on the VM only.
+// The entry point, the input, the output, the advice and the precompiles exist on the VM only.
+#[cfg(all(target_arch = "riscv64", target_os = "none"))]
+pub mod precompile;
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
 mod vm;
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
