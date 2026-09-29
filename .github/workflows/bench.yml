@@ -15,7 +15,8 @@ on:
     # The branches PRs target: their history is what a PR is compared against.
     branches: [ "main", "riscv-exploration" ]
   pull_request:
-    types: [ opened, reopened, edited, synchronize, labeled ]
+    # Not `edited`: a description edit would restart, and so cancel, the PR's run.
+    types: [ opened, reopened, synchronize, labeled ]
   workflow_dispatch:
 
 permissions:
