@@ -163,6 +163,12 @@ pub(crate) mod vm {
     }
 }
 
+// TODO: remove this macro by making the advice region's size per proof rather than per program:
+// the prover announces a power of two, bound into the transcript before any challenge and range
+// checked by both verifiers (at most `MAX_LOG_ADVICE`, inside the advice window). That is sound,
+// the advice being the prover's anyway: a region too small traps the read past its end, one too
+// large only costs the prover. `read` would then drop its bounds check against `__advice_top` and
+// rely on that trap.
 /// Size the guest's advice region, in words: a power of two.
 ///
 /// A guest that names none gets 8192 words.
