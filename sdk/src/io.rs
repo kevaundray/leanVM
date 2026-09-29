@@ -20,17 +20,6 @@ unsafe impl Words for u64 {}
 // SAFETY: an array of word types is its elements' words, back to back.
 unsafe impl<T: Words, const N: usize> Words for [T; N] {}
 
-/// A value as its words.
-pub fn as_words<T: Words>(value: &T) -> &[u64] {
-    slice_as_words(core::slice::from_ref(value))
-}
-
-/// Values as their words, back to back.
-pub fn slice_as_words<T: Words>(values: &[T]) -> &[u64] {
-    // SAFETY: `T` is its words with no padding (`Words`).
-    unsafe { slice_as_words_unchecked(values) }
-}
-
 /// A value of a type from another crate as its words, for a host laying out advice that
 /// the guest reads with `read_unchecked`.
 ///
@@ -38,22 +27,17 @@ pub fn slice_as_words<T: Words>(values: &[T]) -> &[u64] {
 ///
 /// `T` is words only, as [`Words`] says.
 pub unsafe fn as_words_unchecked<T>(value: &T) -> &[u64] {
-    // SAFETY: the caller's.
-    unsafe { slice_as_words_unchecked(core::slice::from_ref(value)) }
+    const { assert_words::<T>() };
+    // SAFETY: `T` is its words with no padding (the caller's).
+    unsafe { core::slice::from_raw_parts((value as *const T).cast(), size_of::<T>() / 8) }
 }
 
-/// # Safety
-///
-/// `T` is words only, as [`Words`] says.
-unsafe fn slice_as_words_unchecked<T>(values: &[T]) -> &[u64] {
-    const {
-        assert!(
-            size_of::<T>().is_multiple_of(8) && align_of::<T>() == 8,
-            "a type of whole words"
-        )
-    };
-    // SAFETY: `T` is its words with no padding (the caller's), so the values are their words.
-    unsafe { core::slice::from_raw_parts(values.as_ptr().cast(), size_of_val(values) / 8) }
+/// That `T` is whole, aligned words, at compile time.
+const fn assert_words<T>() {
+    assert!(
+        size_of::<T>().is_multiple_of(8) && align_of::<T>() == 8,
+        "a type of whole words"
+    );
 }
 
 /// The public values a run commits, and the output they make: their BLAKE2s digest.
@@ -76,14 +60,8 @@ impl PublicValues {
     /// Commit a value.
     #[inline(always)]
     pub fn commit<T: Words>(&mut self, value: &T) -> &mut Self {
-        self.0.update_words(as_words(value));
-        self
-    }
-
-    /// Commit values, the same as committing each in turn.
-    #[inline(always)]
-    pub fn commit_slice<T: Words>(&mut self, values: &[T]) -> &mut Self {
-        self.0.update_words(slice_as_words(values));
+        // SAFETY: `T` is words only (`Words`).
+        self.0.update_words(unsafe { as_words_unchecked(value) });
         self
     }
 
@@ -94,11 +72,11 @@ impl PublicValues {
 }
 
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
-pub use vm::{commit, commit_slice, read, read_slice, read_unchecked};
+pub use vm::{commit, read, read_slice, read_unchecked};
 
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
 pub(crate) mod vm {
-    use super::{PublicValues, Words};
+    use super::{PublicValues, Words, assert_words};
 
     /// The output `_start` loads into `a0..a3` when the run ends.
     pub(crate) static mut OUTPUT: [u64; 4] = [0; 4];
@@ -157,12 +135,7 @@ pub(crate) mod vm {
     /// `T` is words only, as [`Words`] says.
     #[inline(always)]
     unsafe fn take<T>(n: usize) -> &'static [T] {
-        const {
-            assert!(
-                size_of::<T>().is_multiple_of(8) && align_of::<T>() == 8,
-                "a type of whole words"
-            )
-        };
+        const { assert_words::<T>() };
         let words = n.checked_mul(size_of::<T>() / 8).expect("the values fit the advice");
         // SAFETY: one hart, no interrupts: nothing else touches `READ`.
         let start = unsafe { READ };
@@ -177,14 +150,8 @@ pub(crate) mod vm {
     /// Make a value public: the run's output is the digest of everything committed, in order.
     #[inline(always)]
     pub fn commit<T: Words>(value: &T) {
-        commit_slice(core::slice::from_ref(value));
-    }
-
-    /// Make values public, the same as committing each in turn.
-    #[inline(always)]
-    pub fn commit_slice<T: Words>(values: &[T]) {
         // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`.
-        unsafe { &mut *(&raw mut PUBLIC) }.commit_slice(values);
+        unsafe { &mut *(&raw mut PUBLIC) }.commit(value);
     }
 
     /// Called by `_start` once `main` returns: the output is the digest of what was committed.

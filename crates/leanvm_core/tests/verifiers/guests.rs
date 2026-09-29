@@ -13,8 +13,8 @@ const INPUT: [u64; 4] = [0; 4];
 /// The output of a guest committing `values` in order.
 fn committed(values: &[&[u64]]) -> [u64; 4] {
     let mut public = leanvm_guest::PublicValues::new();
-    for value in values {
-        public.commit_slice(value);
+    for &word in values.iter().copied().flatten() {
+        public.commit(&word);
     }
     public.digest()
 }

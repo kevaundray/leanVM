@@ -25,11 +25,11 @@
 mod blake2s;
 mod io;
 pub use blake2s::Blake2s;
-pub use io::{PublicValues, Words, as_words, as_words_unchecked, slice_as_words};
+pub use io::{PublicValues, Words, as_words_unchecked};
 
 // Reading, committing, the entry point and the precompiles exist on the VM only.
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
-pub use io::{commit, commit_slice, read, read_slice, read_unchecked};
+pub use io::{commit, read, read_slice, read_unchecked};
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
 pub mod precompile;
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
