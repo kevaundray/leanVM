@@ -197,14 +197,37 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "leanda"
 version = "0.1.0"
 dependencies = [
- "leanvm-guest",
+ "leanvm_guest",
+]
+
+[[package]]
+name = "leanda-host"
+version = "0.1.0"
+dependencies = [
+ "fiat_shamir",
+ "leanda",
+ "leanvm_core",
+ "leanvm_guest",
+ "pcs",
+ "primitives",
 ]
 
 [[package]]
 name = "leansphincs"
 version = "0.1.0"
 dependencies = [
- "leanvm-guest",
+ "leanvm_guest",
+]
+
+[[package]]
+name = "leansphincs-host"
+version = "0.1.0"
+dependencies = [
+ "leansphincs",
+ "leanvm_core",
+ "leanvm_guest",
+ "parallel",
+ "primitives",
 ]
 
 [[package]]
@@ -213,6 +236,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "leanvm_core",
+ "leanvm_guest",
  "primitives",
  "zk_alloc",
 ]
@@ -224,22 +248,15 @@ dependencies = [
  "bench",
  "bincode",
  "clap",
- "fiat_shamir",
- "leanda",
- "leansphincs",
+ "leanda-host",
+ "leansphincs-host",
  "leanvm",
  "leanvm_core",
- "leanxmss",
- "parallel",
- "pcs",
+ "leanxmss-host",
  "primitives",
  "tracing",
  "zk_alloc",
 ]
-
-[[package]]
-name = "leanvm-guest"
-version = "0.1.0"
 
 [[package]]
 name = "leanvm_core"
@@ -248,6 +265,7 @@ dependencies = [
  "bincode",
  "fiat_shamir",
  "flock",
+ "leanvm_guest",
  "parallel",
  "pcs",
  "primitives",
@@ -256,10 +274,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "leanvm_guest"
+version = "0.1.0"
+
+[[package]]
 name = "leanxmss"
 version = "0.1.0"
 dependencies = [
- "leanvm-guest",
+ "leanvm_guest",
+]
+
+[[package]]
+name = "leanxmss-host"
+version = "0.1.0"
+dependencies = [
+ "leanvm_core",
+ "leanvm_guest",
+ "leanxmss",
+ "parallel",
+ "primitives",
 ]
 
 [[package]]

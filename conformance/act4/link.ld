@@ -1,4 +1,4 @@
-/* ACT4's test layout on leanVM's memory map (guests/link.ld): the code in the text,
+/* ACT4's test layout on leanVM's memory map (sdk/link.ld): the code in the text,
    every other section in RAM past the input words, and one word of advice. Sail runs
    the same file on the regions sail.json describes, so the two agree on every address.
    RAM is the smallest power of two holding the image, the loader reading its size off

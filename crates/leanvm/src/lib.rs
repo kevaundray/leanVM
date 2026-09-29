@@ -1,5 +1,5 @@
 //! leanVM: a minimal zkVM for RISC-V (rv64im). A [`Program`] is a guest's ELF executable
-//! ([`Program::from_elf`], see `guests/`) or a text written by hand ([`Program::new`],
+//! ([`Program::from_elf`], see `programs/`) or a text written by hand ([`Program::new`],
 //! with [`asm`]), [`prove`] runs it and
 //! proves the run on a public input, RAM's first four words, [`verify`] checks the proof
 //! against the program, that input and the output the run claims: `a0..a3` when it

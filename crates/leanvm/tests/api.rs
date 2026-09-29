@@ -28,12 +28,11 @@ fn fibonacci() -> Program {
     Program::new(&text, TEXT_BASE, vec![], LOG_RAM, 0)
 }
 
-/// The `preimage` guest (see `guests/`): it hashes the message the prover puts in the
-/// advice and returns the digest, so one program, one input and two advices give two
-/// statements. Its rows cover the tables `fibonacci` does not: `HASH`, and the advice's
+/// The `preimage` guest (see `programs/`): it hashes the message the prover puts in the
+/// advice and commits the digest, so one program and two advices give two statements. Its rows cover the tables `fibonacci` does not: `HASH`, and the advice's
 /// side of memory.
 fn preimage(message: &[u8]) -> (Program, Vec<u64>, [u64; 4]) {
-    let program = Program::from_elf(include_bytes!("../../../guests/elf/preimage.elf")).expect("a guest");
+    let program = Program::from_elf(include_bytes!("../../../programs/preimage/preimage.elf")).expect("a guest");
     let mut advice = vec![message.len() as u64];
     advice.extend(message.chunks(8).map(|chunk| {
         let mut word = [0u8; 8];
@@ -41,8 +40,11 @@ fn preimage(message: &[u8]) -> (Program, Vec<u64>, [u64; 4]) {
         u64::from_le_bytes(word)
     }));
     let digest = primitives::hash::hash(message);
-    let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
-    (program, advice, expected)
+    let digest: [u64; 4] = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
+    // The output is the digest of what the guest committed: the message's digest.
+    let mut public = leanvm_guest::PublicValues::new();
+    public.commit(&digest);
+    (program, advice, public.digest())
 }
 
 #[test]
