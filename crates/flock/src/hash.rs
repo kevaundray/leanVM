@@ -832,14 +832,6 @@ pub struct ZerocheckStage {
     x_ab: crate::lincheck::QuirkyPoint,
 }
 
-/// One `FLOCK_PROVE_TRACE` line. `label` carries its own colon so the stages
-/// line up.
-fn trace_stage(label: &str, t: std::time::Instant) {
-    if std::env::var_os("FLOCK_PROVE_TRACE").is_some() {
-        eprintln!("[flock prove] {label:<11}{:8.2} ms", t.elapsed().as_secs_f64() * 1e3);
-    }
-}
-
 impl Blake2sSetup {
     /// **Flock reduction (prover).** Run the BLAKE2s zerocheck and lincheck on
     /// the shared transcript, reducing R1CS validity of the blocks to ONE
@@ -877,7 +869,7 @@ impl Blake2sSetup {
         b_packed_words: &[u64],
         ps: &mut fiat_shamir::transcript::ProverState,
     ) -> ZerocheckStage {
-        let t_zerocheck = std::time::Instant::now();
+        let _span = tracing::info_span!("Zerocheck").entered();
 
         // The fused generator packs 64 Boolean coordinates per word.
         let packed_len = 1usize << (self.m() - 6);
@@ -903,9 +895,9 @@ impl Blake2sSetup {
             ps,
         );
 
-        let x_ab = x_ab_of(&zc_claim, K_LOG - K_SKIP);
-        trace_stage("zerocheck:", t_zerocheck);
-        ZerocheckStage { x_ab }
+        ZerocheckStage {
+            x_ab: x_ab_of(&zc_claim, K_LOG - K_SKIP),
+        }
     }
 
     /// **Flock reduction, second stage (prover): the lincheck.** Reduces the
@@ -917,7 +909,7 @@ impl Blake2sSetup {
         z_packed_lincheck: &[u8],
         ps: &mut fiat_shamir::transcript::ProverState,
     ) -> SliceClaim {
-        let t_lincheck = std::time::Instant::now();
+        let _span = tracing::info_span!("Lincheck").entered();
         let packed_len = 1usize << (self.m() - 6);
         assert_eq!(z_packed_lincheck.len(), packed_len * 8, "wrong lincheck stripe length");
 
@@ -933,9 +925,7 @@ impl Blake2sSetup {
             ps,
         );
 
-        let claim = reduction_claim(&lc_claim, &x_ab.x_outer);
-        trace_stage("lincheck:", t_lincheck);
-        claim
+        reduction_claim(&lc_claim, &x_ab.x_outer)
     }
 
     /// **Flock reduction (verifier).** Replay the BLAKE2s zerocheck and

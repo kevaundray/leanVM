@@ -243,16 +243,7 @@ pub fn open_batch_mixed_whir_stacked(
         !ring.claims.is_empty(),
         "stacked PCS opening carries at least one ring-switched claim"
     );
-    // Optional phase timing, answering to the same env var as the WHIR
-    // prover/commit tracing (one env lookup per open, no work when unset).
-    let trace = std::env::var_os("WHIR_TRACE").is_some();
-    let mut t = std::time::Instant::now();
-    let mark = |label: &str, t: &mut std::time::Instant| {
-        if trace {
-            eprintln!("[stack-open-k] {label}: {:7.2} ms", t.elapsed().as_secs_f64() * 1e3);
-        }
-        *t = std::time::Instant::now();
-    };
+    let span = tracing::info_span!("Ring switch").entered();
 
     // 1. Ring-switch reduction: prepare every claim's s_hat_v (the caller bound
     //    them upstream), then sample one shared linear map.
@@ -284,7 +275,7 @@ pub fn open_batch_mixed_whir_stacked(
         .zip(lambdas_rs.iter().copied())
         .map(|(state, lambda)| ring_switch::prove_finish_deferred(state, &coordinate_weights, lambda))
         .collect();
-    mark("ring-switch proves", &mut t);
+    drop(span);
 
     // 3. Combined target and lifted stack weight b_stack: the lambda-weighted
     //    rs_eq_ind sum scattered at the q_flock slice, plus the point-claim
@@ -301,8 +292,8 @@ pub fn open_batch_mixed_whir_stacked(
     // filled from the ring-switch outputs and the point claims, then feeds
     // round 0's message while it is still hot, so nothing re-reads the buffer.
     let lane_block = 1usize << (log_n - config.initial_k);
-    let (b_stack, message) = basis::build(stack, lane_block, point_claims, lambdas_pd, ring, &rs_outputs);
-    mark("basis + initial message", &mut t);
+    let (b_stack, message) = tracing::info_span!("Basis")
+        .in_scope(|| basis::build(stack, lane_block, point_claims, lambdas_pd, ring, &rs_outputs));
 
     // 4. One WHIR over the full stack against the combined claim (the
     //    stack is borrowed by the prover; no copy).

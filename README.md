@@ -72,7 +72,7 @@ Expect leanVM to change significantly:
 The XMSS parameters are specified in [XMSS.pdf](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/XMSS.pdf), with a [(ROM) security proof in Lean 4](https://github.com/leanEthereum/leanMultisig/blob/main/formal/xmss/XmssSecurity/Statement.lean).
 
 ```bash
-cargo run --release -- aggregate --xmss 900 --log-inv-rate 1 --repeat 3
+cargo leanvm aggregate --xmss 900 --log-inv-rate 1 --repeat 3
 ```
 
 ```
@@ -90,7 +90,7 @@ aggregation, 900 XMSS signatures
 The SPHINCS parameters are specified in [SPHINCS.pdf](https://github.com/leanEthereum/leanVM/releases/download/doc-latest/SPHINCS.pdf), with a [(ROM) security proof in Lean 4](https://github.com/leanEthereum/leanMultisig/blob/main/formal/sphincs/SphincsSecurity/Statement.lean).
 
 ```bash
-cargo run --release -- aggregate --sphincs 245 --log-inv-rate 1 --repeat 3
+cargo leanvm aggregate --sphincs 245 --log-inv-rate 1 --repeat 3
 ```
 
 ```
@@ -106,7 +106,7 @@ aggregation, 245 SPHINCS signatures
 ### data availability
 
 ```bash
-cargo run --release -- aggregate --blobs 16 --log-inv-rate 1 --repeat 3
+cargo leanvm aggregate --blobs 16 --log-inv-rate 1 --repeat 3
 ```
 
 ```
@@ -122,7 +122,7 @@ aggregation, 16 blobs
 ### recursion
 
 ```bash
-cargo run --release -- recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3
+cargo leanvm recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3
 ```
 
 ```
@@ -137,7 +137,7 @@ recursion 2→1, over leaves of 900 XMSS signatures
 ### hashing
 
 ```bash
-BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo test --release --package flock --test batch_proving_hashes -- hash_batch_prove_verify --exact --nocapture --include-ignored
+BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch
 ```
 
 ```
@@ -159,7 +159,7 @@ Flock BLAKE2s batch proving, 262,144 compressions (2^18 slots)
 ### Fibonacci
 
 ```bash
-cargo run --release -- fibonacci --n 2000000 --log-inv-rate 1 --repeat 3
+cargo leanvm fibonacci --n 2000000 --log-inv-rate 1 --repeat 3
 ```
 
 ```

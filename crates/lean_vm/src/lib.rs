@@ -72,25 +72,11 @@ pub const SECURITY_BITS: u32 = 128;
 /// overhead is not worth it for small inputs. Shared by [`constraints`], [`gkr`], [`leaf`].
 pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 
-/// Run one prover stage inside its `tracing` span and, under `LEANVM_PROFILE`,
-/// report its wall time. Called through [`stage!`], which spells the stage's name
-/// once for both.
-pub(crate) fn stage_impl<T>(name: &str, span: tracing::Span, f: impl FnOnce() -> T) -> T {
-    static PROFILE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    let t = std::time::Instant::now();
-    let out = span.in_scope(f);
-    if *PROFILE.get_or_init(|| std::env::var_os("LEANVM_PROFILE").is_some()) {
-        eprintln!("[profile] {name:<20}: {:>8.2} ms", t.elapsed().as_secs_f64() * 1e3);
-    }
-    out
-}
-
-/// `stage!("Commit", || …)`: one named prover stage, a `tracing` span plus an
-/// optional `LEANVM_PROFILE` timing line. A disabled span carries no metadata, so
-/// the name has to travel separately from `info_span!`.
+/// `stage!("Commit", || …)`: one named prover stage, run inside its `tracing` span,
+/// which is what the CLI's `--tracing` tree shows.
 macro_rules! stage {
     ($name:literal, $f:expr) => {
-        $crate::stage_impl($name, tracing::info_span!($name), $f)
+        tracing::info_span!($name).in_scope($f)
     };
 }
 pub(crate) use stage;

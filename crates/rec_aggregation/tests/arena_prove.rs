@@ -2,7 +2,7 @@
 //!
 //! This has its own binary because arena phases are process-global and cannot nest.
 
-use primitives::bench::Plan;
+use rec_aggregation::{aggregate, signers_cache};
 
 #[test]
 fn repeated_proofs_survive_phase_resets() {
@@ -12,7 +12,24 @@ fn repeated_proofs_survive_phase_resets() {
         "this test is meaningless unless the arena is engaged"
     );
 
-    rec_aggregation::run_aggregation(3, 1, 1, lean_vm::pcs::TEST_LOG_INV_RATE, Plan::new(2, 0));
+    let raw_xmss: Vec<_> = signers_cache::get_signers(3)
+        .into_iter()
+        .map(|(pk, sig)| (pk, signers_cache::XMSS_EPOCH_A, signers_cache::message(), sig))
+        .collect();
+    let raw_sphincs = signers_cache::get_sphincs_signers(1);
+    let blob: Vec<u64> = (0..lean_da::BLOB_SYMBOLS as u64).collect();
+    for _ in 0..3 {
+        let proof = aggregate(
+            &[],
+            raw_xmss.clone(),
+            raw_sphincs.clone(),
+            &blob,
+            None,
+            lean_vm::pcs::TEST_LOG_INV_RATE,
+        )
+        .expect("leaf aggregates");
+        proof.verify().expect("the leaf aggregate verifies");
+    }
 
     let stats = zk_alloc::stats();
     assert!(stats.phases >= 3, "expected one phase per proof, got {stats:?}");

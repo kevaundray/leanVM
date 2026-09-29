@@ -1,7 +1,12 @@
-//! Repeated benchmark timing with warmup, cooldown, and confidence intervals.
+//! The benchmark harness of the CLI and the `benches/` targets: repeated timing with
+//! warmup, cooldown and confidence intervals, and the trace tree `--tracing` prints.
+//! Nothing the prover or verifier links.
 
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
+
+mod trace;
+pub use trace::{TraceSuppressed, init_tracing, init_tracing_from_env, suppress_tracing};
 
 /// One line of live progress on stderr.
 ///
@@ -160,13 +165,21 @@ impl Plan {
         }
     }
 
+    /// Read the plan from the environment: `BENCH_REPEAT` and `BENCH_COOLDOWN`
+    /// (seconds), for the crates' `benches/` targets, which `cargo bench` runs
+    /// without a command line of their own. Defaults match the CLI.
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self::new(env_usize("BENCH_REPEAT", 1), env_usize("BENCH_COOLDOWN", 2) as u64)
+    }
+
     /// Run `f` once untimed to warm up, then `self.repeat` measured passes,
     /// keeping the last result and the samples.
     ///
     /// Each call is told whether it is the FINAL measured pass, so a caller can
     /// do once-per-run work in the pass the reported numbers describe. The
     /// benchmarks use it to emit one trace tree instead of one per pass
-    /// ([`crate::suppress_tracing`]).
+    /// ([`suppress_tracing`]).
     pub fn warm_then_measure<T>(&self, mut f: impl FnMut(bool) -> T) -> (T, Timing) {
         let progress = Progress::new();
         progress.status("[warming]");
@@ -225,6 +238,18 @@ pub fn peak_rss_bytes() -> u64 {
     let max = usage.ru_maxrss as u64;
     // `ru_maxrss` is bytes on macOS and KiB on Linux.
     if cfg!(target_os = "macos") { max } else { max * 1024 }
+}
+
+/// Read a `usize` benchmark knob from the environment, defaulting when unset.
+///
+/// # Panics
+/// If the variable is set but does not parse.
+#[must_use]
+pub fn env_usize(key: &str, default: usize) -> usize {
+    std::env::var(key)
+        .ok()
+        .map(|s| s.parse().unwrap_or_else(|_| panic!("{key} must be an integer")))
+        .unwrap_or(default)
 }
 
 #[cfg(test)]

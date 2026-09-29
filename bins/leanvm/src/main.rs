@@ -2,6 +2,10 @@
 
 use clap::{Parser, Subcommand};
 
+mod benchmark;
+mod fibonacci;
+mod report;
+
 #[derive(Parser)]
 struct Cli {
     /// WHIR inverse-rate logarithm (1 through 4).
@@ -83,13 +87,13 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
     lean_vm::init_prover();
-    let plan = primitives::bench::Plan::new(cli.repeat, cli.cooldown);
+    let plan = bench::Plan::new(cli.repeat, cli.cooldown);
     if cli.tracing && !matches!(&cli.command, Command::Recursion { .. }) {
-        primitives::init_tracing();
+        bench::init_tracing();
     }
     match cli.command {
         Command::Aggregate { xmss, sphincs, blobs } => {
-            rec_aggregation::run_aggregation(xmss, sphincs, blobs, cli.log_inv_rate, plan);
+            benchmark::run_aggregation(xmss, sphincs, blobs, cli.log_inv_rate, plan);
         }
         Command::Recursion {
             n,
@@ -97,7 +101,7 @@ fn main() {
             sphincs_per_leaf,
             blobs_per_leaf,
         } => {
-            rec_aggregation::run_recursion(
+            benchmark::run_recursion(
                 n,
                 xmss_per_leaf,
                 sphincs_per_leaf,
@@ -108,7 +112,7 @@ fn main() {
             );
         }
         Command::Fibonacci { n } => {
-            rec_aggregation::run_fibonacci(n, cli.log_inv_rate, plan);
+            fibonacci::run_fibonacci(n, cli.log_inv_rate, plan);
         }
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {

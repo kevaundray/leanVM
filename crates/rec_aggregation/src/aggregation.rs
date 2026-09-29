@@ -712,7 +712,8 @@ impl EthereumProof {
         wire().serialize(&self.core()).expect("an aggregate serializes")
     }
 
-    pub(crate) fn proof(&self) -> &lean_vm::cpu::Proof {
+    /// The underlying VM proof, whose serialized size the CLI's benchmarks report.
+    pub fn proof(&self) -> &lean_vm::cpu::Proof {
         &self.proof
     }
 
@@ -2030,30 +2031,23 @@ pub fn aggregate(
     declare: Option<ClaimSelection<'_>>,
     log_inv_rate: usize,
 ) -> Result<EthereumProof, AggregationError> {
+    aggregate_with_stats(children, raw_xmss, raw_sphincs, blobs, declare, log_inv_rate).map(|(sig, _)| sig)
+}
+
+/// [`aggregate`], also returning the prover's statistics (what the CLI's benchmarks report).
+pub fn aggregate_with_stats(
+    children: &[EthereumProof],
+    raw_xmss: Vec<(XmssPublicKey, xmss::Epoch, xmss::Message, XmssSignature)>,
+    raw_sphincs: Vec<(SphincsPublicKey, sphincs::Message, SphincsSignature)>,
+    blobs: &[u64],
+    declare: Option<ClaimSelection<'_>>,
+    log_inv_rate: usize,
+) -> Result<(EthereumProof, lean_vm::cpu::Stats), AggregationError> {
     let da_input = DaInput {
         rows: blobs,
         roots: declare.map(|claims| claims.da_commitments),
     };
-    aggregate_with_stats(
-        children,
-        raw_xmss,
-        raw_sphincs,
-        declare.map(|claims| claims.signatures),
-        da_input,
-        log_inv_rate,
-    )
-    .map(|(sig, _)| sig)
-}
-
-/// [`aggregate`], keeping the prover statistics the benchmark reports.
-pub(crate) fn aggregate_with_stats(
-    children: &[EthereumProof],
-    raw_xmss: Vec<(XmssPublicKey, xmss::Epoch, xmss::Message, XmssSignature)>,
-    raw_sphincs: Vec<(SphincsPublicKey, sphincs::Message, SphincsSignature)>,
-    declare: Option<&SignatureClaims>,
-    da_input: DaInput<'_>,
-    log_inv_rate: usize,
-) -> Result<(EthereumProof, lean_vm::cpu::Stats), AggregationError> {
+    let declare = declare.map(|claims| claims.signatures);
     aggregate_tampered(children, raw_xmss, raw_sphincs, declare, da_input, log_inv_rate, |_| {})
 }
 
@@ -4320,28 +4314,16 @@ def main():
             &[],
             at_epoch(&signers, XMSS_EPOCH_A),
             vec![],
+            &da_rows(1, 7),
             None,
-            DaInput {
-                rows: &da_rows(1, 7),
-                roots: None,
-            },
             LOG_INV_RATE,
         );
         for n_rows in [1usize, 6, 14, 32] {
             let rows = da_rows(n_rows, 300 + n_rows as u64);
             let started = std::time::Instant::now();
-            let (node, stats) = aggregate_with_stats(
-                &[],
-                at_epoch(&signers, XMSS_EPOCH_A),
-                vec![],
-                None,
-                DaInput {
-                    rows: &rows,
-                    roots: None,
-                },
-                LOG_INV_RATE,
-            )
-            .expect("node aggregates");
+            let (node, stats) =
+                aggregate_with_stats(&[], at_epoch(&signers, XMSS_EPOCH_A), vec![], &rows, None, LOG_INV_RATE)
+                    .expect("node aggregates");
             let elapsed = started.elapsed();
             let payload = n_rows * (1 << DA_LOG_K) * 8;
             println!(

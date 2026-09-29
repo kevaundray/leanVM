@@ -1,32 +1,10 @@
-[package]
-name = "leanvm"
-version.workspace = true
-edition.workspace = true
-
-[[bin]]
-name = "leanvm"
-path = "src/main.rs"
-
-[lints]
-workspace = true
-
-[dependencies]
-primitives.workspace = true
-rec_aggregation.workspace = true
-lean_vm.workspace = true
-lean_da.workspace = true
-xmss.workspace = true
-sphincs.workspace = true
-zk_alloc.workspace = true
-rand.workspace = true
-clap = { version = "4", features = ["derive"] }
+[workspace]
+members = ["crates/*", "bins/*"]
+resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-
-[workspace]
-members = ["crates/*"]
 
 # Numeric kernels legitimately index by loop variable and take many arguments.
 [workspace.lints.clippy]
@@ -34,6 +12,8 @@ needless_range_loop = "allow"
 too_many_arguments = "allow"
 
 [workspace.dependencies]
+bench = { path = "crates/bench" }
+leanvm = { path = "crates/leanvm" }
 primitives = { path = "crates/primitives" }
 fiat_shamir = { path = "crates/fiat_shamir" }
 pcs = { path = "crates/pcs" }

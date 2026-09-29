@@ -18,13 +18,14 @@ Primary uses:
 
 ## Layout
 
-Dependency order, leaves first:
+The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI in `bins/`. Dependency order, leaves first:
 
 | crate             | role                                                                   |
 | ----------------- | ---------------------------------------------------------------------- |
 | `parallel`        | thread pool (below)                                     |
 | `zk_alloc`        | proving arena (below)                                    |
-| `primitives`      | field kernels (NEON/AVX), bit transposes, multilinear helpers, streaming stores, `bench` |
+| `primitives`      | field kernels (NEON/AVX), bit transposes, multilinear helpers, streaming stores |
+| `bench`           | benchmark harness for the CLI and the `benches/` targets: `Plan` (warmup, repeats, cooldown), `Timing`, the `--tracing` trace tree; never linked by the prover |
 | `fiat_shamir`     | VM-native `FiatShamirState` + prover/verifier transcript                |
 | `pcs`             | additive NTT, Merkle, ring switch, stacked WHIR                    |
 | `flock`           | batched R1CS over GF(2) for BLAKE2s: zerocheck + lincheck               |
@@ -33,9 +34,10 @@ Dependency order, leaves first:
 | `xmss`            | XMSS over BLAKE2s; an independent leaf, consumed only by `rec_aggregation` |
 | `sphincs`         | the stateless SPHINCS+ instance of `doc/sphincs`; an independent leaf, consumed only by `rec_aggregation` |
 | `lean_da` | additive Reed-Solomon blob encoding, commitments, and membership vectors |
-| `rec_aggregation` | recursive signature and DA aggregation: the guest, public entry points, and benchmarks |
+| `rec_aggregation` | recursive signature and DA aggregation: the guest and public entry points |
+| `leanvm`          | the public API: re-exports of `rec_aggregation`, `xmss`, `sphincs`, `lean_da`, and the prover/verifier setup |
 
-`src/lib.rs` is the public API and the only thing a user imports: every crate above is `publish = false`, so a new user-facing item is a re-export there. `src/main.rs` is the benchmark CLI, `tests/api.rs` the end-to-end use of the API; guests are zkDSL under `crates/rec_aggregation/guests/`.
+`crates/leanvm/src/lib.rs` is the public API and the only thing a user imports: every other crate is `publish = false`, so a new user-facing item is a re-export there. `crates/leanvm/tests/api.rs` is the end-to-end use of the API; guests are zkDSL under `crates/rec_aggregation/guests/`. The benchmark CLI is its own package, `bins/leanvm` (`leanvm-cli`, binary `leanvm`), run with `cargo leanvm <subcommand>` (a `.cargo/config.toml` alias for `run --release -p leanvm-cli --`): `aggregate`, `recursion` and `fibonacci`, whose drivers live there, over `rec_aggregation::aggregate_with_stats`.
 
 ## Building / Testing / Formatting
 
@@ -60,15 +62,17 @@ cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches and measurement harnesses are `#[ignore]`d; run by name with `-- --ignored --nocapture`: `hash_batch_prove_verify`, `pcs_throughput`, `aggregate_three_levels`, `aggregate_statement_binds`, `aggregate_hints_bind`, `aggregate_rejects_a_bad_signature`, `print_whir_query_counts`, `encoding_grinding_bits`.
+Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch`, pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). Slow checks and reports are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`: `aggregate_three_levels`, `aggregate_statement_binds`, `aggregate_hints_bind`, `aggregate_rejects_a_bad_signature`, `print_whir_query_counts`, `encoding_grinding_bits`.
+
+**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `lean_vm`, `stage!`), never an `Instant` behind an env var.
 
 ## Benchmarking
 
 The benchmarks we care about:
 
-- `cargo run --release -- aggregate --xmss 900 --log-inv-rate 1 --repeat 3`
-- `cargo run --release -- aggregate --sphincs 220 --log-inv-rate 1 --repeat 3`
-- `cargo run --release -- recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3`
+- `cargo leanvm aggregate --xmss 900 --log-inv-rate 1 --repeat 3`
+- `cargo leanvm aggregate --sphincs 220 --log-inv-rate 1 --repeat 3`
+- `cargo leanvm recursion --n 2 --xmss-per-leaf 900 --log-inv-rate 2 --repeat 3`
 
 `aggregate` takes a count per scheme, both defaulting to zero, so either alone or a mix of the two is one command; `recursion --sphincs-per-leaf` likewise puts both schemes in one tree. One SPHINCS verification uses 531 compressions against XMSS's 144; use the benchmark output to compare complete VM cycle counts. `aggregate --blobs` adds LeanDA blobs, and `recursion --blobs-per-leaf` includes them in each child.
 
@@ -135,14 +139,14 @@ Understand the third before changing the verifier. `guests/lean_ethereum.py` is 
 | var                                                                                                     | effect                                           |
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `LEANVM_NUM_THREADS`                                                                                    | performance-worker count; `1` = sequential       |
-| `LEANVM_PROFILE`                                                                                        | per-stage prover timings                         |
+| `BENCH_TRACING`                                                                                         | the `benches/` targets' `--tracing`: the final pass's span tree |
 | `ZK_ALLOC_STATS`                                                                                        | arena peak/phase, high water, overflow           |
 | `ZK_ALLOC_POISON`                                                                                       | fill released arena blocks, to catch use-after-free |
-| `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for `#[ignore]`d benches |
+| `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for the `benches/` targets |
 | `LEANVM_XMSS_N`, `LEANVM_HASH_N`, `LEANVM_HASH_UNROLL`                                                  | workload sizes in tests                          |
-| `FLOCK_N_LOG`, `FLOCK_PROVE_TRACE`, `FLOCK_ZC_TIMING`, `LINCHECK_TRACE`                                 | flock batch size, stage traces                   |
-| `PCS_LOG_N`, `PCS_LOG_INV_RATE`, `PCS_MIN_MU`, `PCS_SAMPLES`                                            | PCS throughput bench                             |
-| `WHIR_TRACE`, `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                          | WHIR NTT/Merkle split                        |
+| `FLOCK_N_LOG`                                                                                           | flock batch size                                 |
+| `PCS_LOG_N`, `PCS_LOG_INV_RATE`, `PCS_MIN_MU`                                                           | PCS throughput bench                             |
+| `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                                                    | `print_whir_query_counts`'s shape                |
 | `DBG_PROF{,_DUMP}`, `DBG_LOOPS`, `DBG_DISASM`, `DBG_LOWER`, `DBG_PLACEHOLDERS` | compiler / guest-cycle attribution               |
 
 ## Side notes

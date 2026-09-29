@@ -1,6 +1,6 @@
 //! The no-arena path, in its own binary: `enable_arena` is a process-wide
 //! one-way opt-in, so a test that must not have it cannot share a process with
-//! `tests/api.rs`.
+//! `api.rs`.
 
 use leanvm::*;
 

@@ -2,13 +2,11 @@
 //! n→1 recursion step over leaves of that size (`recursion`). Aggregation accepts
 //! signature counts and a blob count; recursion accepts these counts per leaf.
 
-use primitives::bench::Plan;
+use bench::{Plan, Timing};
 use primitives::{pretty_f64, pretty_integer};
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use rec_aggregation::{EthereumProof, aggregate, aggregate_with_stats, signers_cache};
 use xmss::{XmssPublicKey, XmssSignature};
-
-use crate::aggregation::{DaInput, EthereumProof, aggregate, aggregate_with_stats};
-use crate::signers_cache;
 
 fn blobs(n: usize, seed: u64) -> Vec<u64> {
     let mut rng = StdRng::seed_from_u64(seed);
@@ -47,7 +45,7 @@ fn sphincs_signers(
 }
 
 /// Report the shape and cost of one aggregation node.
-fn report(label: &str, stats: &lean_vm::cpu::Stats, sig: &EthereumProof, prove_time: &primitives::bench::Timing) {
+fn report(label: &str, stats: &lean_vm::cpu::Stats, sig: &EthereumProof, prove_time: &Timing) {
     let base_cycles: usize = stats.base_counts.iter().sum();
     println!("{label}");
     // The program's own work, then what gets proven: the fill blocks bring each table
@@ -83,7 +81,7 @@ fn describe(n_xmss: usize, n_sphincs: usize) -> String {
 /// Prove signatures and `n_blobs` blobs in one leaf, then verify it.
 ///
 /// Proving runs one discarded warmup pass followed by `plan.repeat` measured
-/// passes; see [`primitives::bench`] for why the first pass is not
+/// passes; see [`bench`] for why the first pass is not
 /// representative and why the cooldown matters.
 pub fn run_aggregation(n_xmss: usize, n_sphincs: usize, n_blobs: usize, log_inv_rate: usize, plan: Plan) {
     assert!(
@@ -102,22 +100,12 @@ pub fn run_aggregation(n_xmss: usize, n_sphincs: usize, n_blobs: usize, log_inv_
     // Only the final measured pass of each stage is traced: the tree describes the
     // proof the reported timings are about, instead of repeating itself per pass.
     let ((sig, stats), prove_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(primitives::suppress_tracing);
-        aggregate_with_stats(
-            &[],
-            raw_xmss.clone(),
-            raw_sphincs.clone(),
-            None,
-            DaInput {
-                rows: &blobs,
-                roots: None,
-            },
-            log_inv_rate,
-        )
-        .expect("leaf aggregates")
+        let _quiet = (!last).then(bench::suppress_tracing);
+        aggregate_with_stats(&[], raw_xmss.clone(), raw_sphincs.clone(), &blobs, None, log_inv_rate)
+            .expect("leaf aggregates")
     });
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-        let _quiet = (!last).then(primitives::suppress_tracing);
+        let _quiet = (!last).then(bench::suppress_tracing);
         sig.verify().expect("the leaf aggregate verifies");
     });
     drop(trace_span);
@@ -167,7 +155,10 @@ pub fn run_recursion(
     enable_tracing: bool,
     plan: Plan,
 ) {
-    assert!((1..=crate::MAX_RECURSIONS).contains(&n), "invalid child count");
+    assert!(
+        (1..=rec_aggregation::MAX_RECURSIONS).contains(&n),
+        "invalid child count"
+    );
     assert!(
         per_leaf > 0 || sphincs_per_leaf > 0 || blobs_per_leaf > 0,
         "a leaf needs signatures or blobs"
@@ -177,14 +168,14 @@ pub fn run_recursion(
         "too many blobs in one commitment"
     );
     assert!(
-        blobs_per_leaf == 0 || n <= crate::MAX_DA_ROOTS,
+        blobs_per_leaf == 0 || n <= rec_aggregation::MAX_DA_ROOTS,
         "too many distinct DA roots"
     );
     lean_vm::init_prover_pool();
     let all = signers(0, n * per_leaf);
     let all_sphincs = sphincs_signers(0, n * sphincs_per_leaf);
     let started = std::time::Instant::now();
-    let guest_instructions = crate::aggregation::unified_guest().code_len();
+    let guest_instructions = rec_aggregation::aggregation::unified_guest().code_len();
     let compile_time = started.elapsed();
 
     let children: Vec<EthereumProof> = (0..n)
@@ -202,22 +193,24 @@ pub fn run_recursion(
         .collect();
 
     if enable_tracing {
-        primitives::init_tracing();
+        bench::init_tracing();
     }
     let ((sig, stats), prove_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(primitives::suppress_tracing);
-        aggregate_with_stats(&children, vec![], vec![], None, DaInput::default(), log_inv_rate)
-            .expect("node aggregates")
+        let _quiet = (!last).then(bench::suppress_tracing);
+        aggregate_with_stats(&children, vec![], vec![], &[], None, log_inv_rate).expect("node aggregates")
     });
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-        let _quiet = (!last).then(primitives::suppress_tracing);
+        let _quiet = (!last).then(bench::suppress_tracing);
         sig.verify().expect("the recursive aggregate verifies");
     });
 
     println!(
         "aggregation bytecode: {} instructions (2^{} padded), compiled in {} s",
         pretty_integer(guest_instructions),
-        crate::aggregation::unified_guest().prog.len().trailing_zeros(),
+        rec_aggregation::aggregation::unified_guest()
+            .prog
+            .len()
+            .trailing_zeros(),
         pretty_f64(compile_time.as_secs_f64())
     );
     let mut inputs = Vec::new();
