@@ -1,0 +1,44 @@
+name: RISC-V
+
+# ACT4 (guests/act4/): the tests are generated from their pinned sources, not checked
+# in. Generation is deterministic, so its output is cached under a hash of every input
+# and the Docker image is only built when one of them changes.
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: riscv-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # As in rust.yml: the SIMD backend under test must not depend on the runner.
+  RUSTFLAGS: -C target-cpu=haswell
+
+jobs:
+  act4:
+    name: ACT4
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore the generated tests
+        id: elf
+        uses: actions/cache@v4
+        with:
+          path: guests/act4/elf
+          key: act4-elf-${{ hashFiles('guests/act4/Dockerfile', 'guests/act4/*.sh', 'guests/act4/*.yaml', 'guests/act4/*.json', 'guests/act4/*.ld', 'guests/act4/*.h') }}
+      - name: Generate the tests from the pinned sources
+        if: steps.elf.outputs.cache-hit != 'true'
+        run: guests/act4/generate.sh
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run the tests
+        run: cargo test --release -p lean_vm --test verifiers -- --ignored act4
