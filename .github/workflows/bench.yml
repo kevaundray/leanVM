@@ -53,8 +53,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # No proof: proving time on a shared runner is noise.
-      - name: Summarize the workload guests
-        run: cargo leanvm cycles >> "$GITHUB_STEP_SUMMARY"
+      - name: Summarize the counts
+        run: cargo leanvm bench --cycles-only --markdown >> "$GITHUB_STEP_SUMMARY"
       - name: Count cycles
         run: cargo leanvm bench --cycles-only > bench.json && cat bench.json
       - uses: bencherdev/bencher@main

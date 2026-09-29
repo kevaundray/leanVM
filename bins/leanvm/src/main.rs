@@ -72,19 +72,20 @@ enum Command {
         #[arg(long, default_value_t = 16, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
     },
-    /// Measure every workload guest, the most one proof holds, without proving: a markdown table.
-    Cycles,
     /// Prove and verify a guest checking leanDA blobs and computing their commitment.
     Leanda {
         /// Blobs of 128 KiB to check.
         #[arg(long, default_value_t = 1, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
         blobs: usize,
     },
-    /// Run the programs tracked in CI and print their metrics as Bencher Metric Format JSON.
+    /// Run the programs tracked in CI: proven, as Bencher Metric Format JSON.
     Bench {
         /// Measure without proving: the exact counts only, no proof size or time.
         #[arg(long)]
         cycles_only: bool,
+        /// Print the counts as a markdown table rather than JSON.
+        #[arg(long, requires = "cycles_only")]
+        markdown: bool,
     },
 }
 
@@ -100,9 +101,8 @@ fn main() {
         Command::Guest { elf, input, advice } => guest::run_guest(&elf, &input, &advice, cli.log_inv_rate, plan),
         Command::Leanxmss { n } => workload::run(&signatures::leanxmss(n), cli.log_inv_rate, plan),
         Command::Leansphincs { n } => workload::run(&signatures::leansphincs(n), cli.log_inv_rate, plan),
-        Command::Cycles => workload::cycles(&[signatures::leanxmss(400), signatures::leansphincs(104), da::leanda(1)]),
         Command::Leanda { blobs } => workload::run(&da::leanda(blobs), cli.log_inv_rate, plan),
-        Command::Bench { cycles_only } => tracked::run_bench(cycles_only, cli.log_inv_rate, plan),
+        Command::Bench { cycles_only, markdown } => tracked::run(cycles_only, markdown, cli.log_inv_rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());

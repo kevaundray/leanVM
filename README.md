@@ -126,13 +126,13 @@ The report gives the RISC-V cycles per signature or per blob, the rows per table
 
 These are the most one proof holds: continuations are not implemented.
 
-To get the cost of all three without proving, exact and the same on every machine:
+To get the cost of these three and the other benchmarks without proving, exact and the same on every machine:
 
 ```bash
-cargo leanvm cycles
+cargo leanvm bench --cycles-only --markdown
 ```
 
-It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words. CI adds it to each run's summary.
+It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words. CI adds it to each run's summary. Without `--markdown` it prints the same counts as the JSON CI tracks on Bencher, and without `--cycles-only` it proves each program too.
 
 ### hashing
 
