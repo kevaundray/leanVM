@@ -15,30 +15,32 @@ fn leaf(pp: &PublicParam, idx: u64, kappa: usize, j: usize, secret: &Digest) -> 
 }
 
 /// A tree's node: a level and an index within it.
-///
-/// Inlined, since the forest's folds call it 140 times a verification.
 #[inline(always)]
-fn node(pp: &PublicParam, idx: u64, kappa: usize, level: usize, j: usize, left: &Digest, right: &Digest) -> Digest {
-    th(
-        pp,
-        &tweak(TWEAK_FTS_NODE, kappa, idx as u32, level as u32, j as u32),
-        &concat(left, right),
+fn node(hash: &mut NodeHash, idx: u64, kappa: usize, level: usize, j: usize, left: &Digest, right: &Digest) -> Digest {
+    hash.hash(
+        tweak(TWEAK_FTS_NODE, kappa, idx as u32, level as u32, j as u32),
+        left,
+        right,
     )
 }
 
-/// `Fts.key`: the few-time public key, `Th` over the roots.
-fn key(pp: &PublicParam, idx: u64, roots: &[Digest; FTS_TREES]) -> Digest {
-    th::<{ 2 * FTS_TREES }>(
-        pp,
-        &tweak(TWEAK_FTS_ROOTS, 0, idx as u32, 0, 0),
-        roots.as_flattened().try_into().unwrap(),
-    )
+/// `Fts.key`: the few-time public key, `Th` over the roots, tree `kappa`'s being `root(kappa)`, each written into
+/// the hash as it is reached.
+#[inline(always)]
+fn key(pp: &PublicParam, idx: u64, root: impl FnMut(usize) -> Digest) -> Digest {
+    digest(hash_with(|m| {
+        m.write(tweak(TWEAK_FTS_ROOTS, 0, idx as u32, 0, 0))
+            .write(*pp)
+            .write_each(FTS_TREES, root);
+    }))
 }
 
 /// `Fts.recover`: the few-time key an opening of the leaves `u` reaches.
 pub(crate) fn recover(pp: &PublicParam, idx: u64, u: &[u32; K], opening: &[FtsOpening; FTS_TREES]) -> Digest {
-    // Each tree's root: its opened leaf folded up its path.
-    let roots = core::array::from_fn(|kappa| {
+    let hash = &mut NodeHash::new(pp);
+    // Each tree's root: its opened leaf folded up its path. The closure owns its copies of `idx` and the
+    // references, so they stay in registers across the compressions rather than being reloaded after each.
+    key(pp, idx, move |kappa| {
         let opened = u[kappa] as usize;
         let start = leaf(pp, idx, kappa, opened, &opening[kappa].secret);
         opening[kappa]
@@ -51,10 +53,9 @@ pub(crate) fn recover(pp: &PublicParam, idx: u64, u: &[u32; K], opening: &[FtsOp
                 } else {
                     (sibling, &current)
                 };
-                node(pp, idx, kappa, level + 1, opened >> (level + 1), left, right)
+                node(hash, idx, kappa, level + 1, opened >> (level + 1), left, right)
             })
-    });
-    key(pp, idx, &roots)
+    })
 }
 
 /// `Fts.key` and `Fts.open` at once, each tree being built whole.
@@ -62,6 +63,7 @@ pub(crate) fn recover(pp: &PublicParam, idx: u64, u: &[u32; K], opening: &[FtsOp
 /// The last index is ignored: its tree is the dropped one.
 pub(crate) fn open(pp: &PublicParam, master: &[u64; 4], idx: u64, u: &[u32; K]) -> (Digest, [FtsOpening; FTS_TREES]) {
     let mut roots = [[0; 2]; FTS_TREES];
+    let mut hash = NodeHash::new(pp);
     let opening = core::array::from_fn(|kappa| {
         let opened = u[kappa] as usize;
         let secret_of = |j| secret(pp, master, idx, kappa, j);
@@ -71,7 +73,7 @@ pub(crate) fn open(pp: &PublicParam, master: &[u64; 4], idx: u64, u: &[u32; K]) 
         for (level, sibling) in path.iter_mut().enumerate() {
             *sibling = nodes[(opened >> level) ^ 1];
             for j in 0..(1 << A) >> (level + 1) {
-                nodes[j] = node(pp, idx, kappa, level + 1, j, &nodes[2 * j], &nodes[2 * j + 1]);
+                nodes[j] = node(&mut hash, idx, kappa, level + 1, j, &nodes[2 * j], &nodes[2 * j + 1]);
             }
         }
         roots[kappa] = nodes[0];
@@ -80,5 +82,5 @@ pub(crate) fn open(pp: &PublicParam, master: &[u64; 4], idx: u64, u: &[u32; K]) 
             path,
         }
     });
-    (key(pp, idx, &roots), opening)
+    (key(pp, idx, |kappa| roots[kappa]), opening)
 }

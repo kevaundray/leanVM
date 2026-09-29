@@ -33,6 +33,11 @@ impl Entry {
         // SAFETY: an entry is its words, with no padding (asserted above).
         unsafe { &*(self as *const Self).cast() }
     }
+
+    /// What the entry claims, the fields before the signature: key and message.
+    pub fn claim(&self) -> &[u64; CLAIM_WORDS] {
+        self.as_words().first_chunk().unwrap()
+    }
 }
 
 /// The first `n` entries laid out in some words, read in place, or `None` if they do not fit.
@@ -48,11 +53,12 @@ pub fn entries(words: &[u64], n: usize) -> Option<&[Entry]> {
 ///
 /// The index of the first entry whose signature fails, and why.
 pub fn verify_batch(entries: &[Entry]) -> Result<[u64; 4], (usize, VerifyError)> {
-    let mut claims = Blake2s::new();
     for (i, entry) in entries.iter().enumerate() {
         verify(&entry.public_key, &entry.message, &entry.signature).map_err(|e| (i, e))?;
-        // The claim is the entry's first 8 words: key and message.
-        claims.update_words(&entry.as_words()[..CLAIM_WORDS]);
     }
-    Ok(claims.finalize_words())
+    Ok(hash_with(|claims| {
+        for entry in entries {
+            claims.write(*entry.claim());
+        }
+    }))
 }
