@@ -9,7 +9,7 @@ A RISC-V (rv64im) virtual machine and the SNARK that proves its execution. Proof
 
 ## Layout
 
-Dependency order, leaves first:
+The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI in `bins/`. Dependency order, leaves first:
 
 | crate             | role                                                                   |
 | ----------------- | ---------------------------------------------------------------------- |
@@ -20,8 +20,9 @@ Dependency order, leaves first:
 | `pcs`             | additive NTT, Merkle, ring switch, stacked WHIR                    |
 | `flock`           | batched R1CS over GF(2): zerocheck + lincheck; gate-list circuits over word ports (`circuit`), the u64 adder and multiplier in them (`arith`), the BLAKE2s circuit (`hash`) |
 | `lean_vm`         | the RISC-V machine (`rv`: decoder, class semantics and circuits, interpreter, assembler, ELF loader) and its arithmetization: tables, bus, constraints, `cpu::prove`/`verify` |
+| `leanvm`          | the public API: re-exports of `lean_vm` and the prover/verifier setup    |
 
-`src/lib.rs` is the public API and the only thing a user imports: every crate above is `publish = false`, so a new user-facing item is a re-export there. `src/main.rs` is the CLI (`fibonacci`, the benchmark, and `guest <elf> --input a,b,c,d --advice ...`), `tests/api.rs` the end-to-end use of the API.
+`crates/leanvm/src/lib.rs` is the public API and the only thing a user imports: every other crate is `publish = false`, so a new user-facing item is a re-export there, and `leanvm` depends on `lean_vm` and `zk_alloc` alone. `crates/leanvm/tests/api.rs` is the end-to-end use of the API. The CLI is its own package, `bins/leanvm` (`leanvm-cli`, binary `leanvm`), run with `cargo leanvm <subcommand>` (a `.cargo/config.toml` alias for `run --release -p leanvm-cli --`): `fibonacci`, the benchmark, `guest <elf> --input a,b,c,d --advice ...`, and `bench`, the guests CI tracks.
 
 `guests/` is a separate cargo workspace (its own toolchain file, nightly with `rust-src`, and `.cargo/config.toml` targeting `riscv64im-unknown-none-elf` with `-Zbuild-std=core`): the runtime crate `rt` (`_start`, `input()`, `advice()`, `output()`, a `Blake2s` hasher over the custom instruction through `.insn r`, a panic that is `unimp`), the guests, `link.ld` fixing the memory map, and `build.sh`, which refreshes the checked-in ELF fixtures in `guests/elf/` that `lean_vm/tests/verifiers/guests.rs` loads. **Rerun `build.sh` after touching a guest or the runtime**: nothing rebuilds the fixtures, so CI would keep testing the old ELF and say nothing. The nightly channel floats, so the fixtures are not reproducible byte for byte across toolchain updates, which is why they are not diffed in CI. The root `.cargo/config.toml` scopes `target-cpu=native` to `cfg(not(target_arch = "riscv64"))` because the guests inherit it. Atomics are why the target is `im` and not `imac`: the builtin target has no compare-and-swap, so a dependency needing one does not compile.
 
@@ -29,7 +30,7 @@ Dependency order, leaves first:
 
 - `.cargo/config.toml` pins `-C target-cpu=native` and `-D warnings` for rustdoc
 - always run in `--release` mode any test or benchmark touching the VM
-- **One test binary per crate, not one per file** (`lean_vm/tests/verifiers/main.rs`). Exception: a test opening an arena phase (`lean_vm::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`tests/api.rs` is that binary, and `tests/no_arena.rs` the one that must never enable the arena).
+- **One test binary per crate, not one per file** (`lean_vm/tests/verifiers/main.rs`). Exception: a test opening an arena phase (`lean_vm::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`leanvm/tests/api.rs` is that binary, and `leanvm/tests/no_arena.rs` the one that must never enable the arena).
 
 An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Type-check the other target before pushing anything `cfg`-gated:
 
@@ -48,15 +49,17 @@ cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches and measurement harnesses are `#[ignore]`d; run by name with `-- --ignored --nocapture`: `hash_batch_prove_verify`, `add_wrapping_prove_verify`, `mul_wrapping_prove_verify`, `mul_widening_prove_verify`, `pcs_throughput`, `multithreaded_throughput`, `print_whir_query_counts`, `print_whir_query_table`.
+Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. The parameter reports `print_whir_query_counts` and `print_whir_query_table` are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`.
 
 ## Benchmarking
 
 The benchmarks we care about:
 
-- `cargo run --release -- fibonacci --n 2000000 --log-inv-rate 1 --repeat 3` (Fibonacci mod 2^64, on registers)
-- `cargo run --release -- guest guests/elf/hash.elf --input 50000 --repeat 3` (the precompile, from a Rust guest)
-- `BENCH_REPEAT=3 FLOCK_N_LOG=18 cargo test --release -p flock --test batch_proving_hashes -- hash_batch_prove_verify --exact --nocapture --include-ignored` (flock alone, on its hand-optimized circuit)
+- `cargo leanvm fibonacci --n 2000000 --log-inv-rate 1 --repeat 3` (Fibonacci mod 2^64, on registers)
+- `cargo leanvm guest guests/elf/hash.elf --input 50000 --repeat 3` (the precompile, from a Rust guest)
+- `BENCH_REPEAT=3 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch` (flock alone, on its hand-optimized circuit)
+
+CI tracks the guests listed in `bins/leanvm/src/bench.rs` on Bencher (`.github/workflows/bench.yml`). `cargo leanvm bench` proves each one and prints Bencher Metric Format JSON on stdout: `cycles` (instructions executed), `proven-rows` (table heights after padding), `committed`, `proof-size` and `latency` (proving time in ns); `--cycles-only` runs the interpreter alone and reports the first two. The `cycles` job runs that on `ubuntu-latest` for every PR and fails on any increase over `main`, cycle counts being exact. The `prove` job runs on each dedicated machine listed in the repository variable `BENCH_TESTBEDS` (a JSON array of `{"name", "runner"}`, the runner's labels), on pushes to `main` and on PRs labelled `bench`, never from a fork, and only reports latency alerts. Uploading needs the secret `BENCHER_API_KEY` and the variable `BENCHER_PROJECT`; without them the jobs still run. A case's name is its Bencher history, so renaming one or changing its input starts a new one. The counts are the checked-in ELFs', so a guest change shows up only after `guests/build.sh`.
 
 ## Read-write arrays
 
@@ -149,7 +152,7 @@ The same verification algorithm is written out twice, in two languages. Any chan
 | `LEANVM_PROFILE`                                                                                        | per-stage prover timings                         |
 | `ZK_ALLOC_STATS`                                                                                        | arena peak/phase, high water, overflow           |
 | `ZK_ALLOC_POISON`                                                                                       | fill released arena blocks, to catch use-after-free |
-| `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for `#[ignore]`d benches |
+| `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for the `benches/` targets |
 | `FLOCK_N_LOG`, `FLOCK_PROVE_TRACE`, `FLOCK_ZC_TIMING`, `LINCHECK_TRACE`                                 | flock batch size, stage traces                   |
 | `PCS_LOG_N`, `PCS_LOG_INV_RATE`, `PCS_SAMPLES`                                                          | PCS throughput bench                             |
 | `WHIR_TRACE`, `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                          | WHIR NTT/Merkle split                        |

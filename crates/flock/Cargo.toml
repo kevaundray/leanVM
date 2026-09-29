@@ -16,3 +16,11 @@ zk_alloc.workspace = true
 
 [dev-dependencies]
 primitives = { workspace = true, features = ["test-util"] }
+
+[[bench]]
+name = "hash_batch"
+harness = false
+
+[[bench]]
+name = "arithmetic_batch"
+harness = false

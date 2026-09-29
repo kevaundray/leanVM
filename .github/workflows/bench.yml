@@ -1,0 +1,104 @@
+name: Bench
+
+# Tracks the guests of `leanvm bench` on Bencher. Configuration:
+# - secret `BENCHER_API_KEY` and variable `BENCHER_PROJECT` (the project slug);
+#   without them the benchmarks still run and nothing is uploaded.
+# - variable `BENCH_TESTBEDS`: the dedicated proving machines as a JSON array,
+#   e.g. [{"name": "zen5", "runner": ["self-hosted", "zen5"]}]. Unset, no proving job runs.
+# PRs prove only when labelled `bench`, and never from a fork: a self-hosted runner
+# would run the fork's code.
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    types: [ opened, reopened, synchronize, labeled ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A label other than `bench` starts a run in which every job skips: it must not
+# cancel the PR's real run.
+concurrency:
+  group: bench-${{ github.ref }}-${{ github.event.label.name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
+  UPLOAD: ${{ vars.BENCHER_PROJECT != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+jobs:
+  cycles:
+    name: Cycles
+    if: github.event.action != 'labeled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    env:
+      # Cycle counts do not depend on the ISA; this keeps cached artifacts runnable
+      # on whichever runner restores them (see rust.yml).
+      RUSTFLAGS: -C target-cpu=haswell
+      ERROR_ON_ALERT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Count cycles
+        run: cargo leanvm bench --cycles-only > bench.json && cat bench.json
+      - uses: bencherdev/bencher@main
+        if: env.UPLOAD == 'true'
+      - name: Track with Bencher
+        if: env.UPLOAD == 'true'
+        env:
+          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Deterministic: any increase over the last value on main is a regression.
+        run: >-
+          .github/bencher.sh ubuntu-latest
+          --threshold-measure cycles --threshold-test percentage
+          --threshold-max-sample-size 1 --threshold-upper-boundary 0.0
+
+  prove:
+    name: Prove (${{ matrix.testbed.name }})
+    if: >-
+      vars.BENCH_TESTBEDS != '' && (github.event_name != 'pull_request' || (
+      github.event.pull_request.head.repo.full_name == github.repository
+      && contains(github.event.pull_request.labels.*.name, 'bench')
+      && (github.event.action != 'labeled' || github.event.label.name == 'bench')))
+    runs-on: ${{ matrix.testbed.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        testbed: ${{ fromJSON(vars.BENCH_TESTBEDS || '[]') }}
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Built with the pinned `target-cpu=native`: one cache per machine.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.testbed.name }}
+      - name: Prove
+        run: cargo leanvm bench --repeat 5 > bench.json && cat bench.json
+      - uses: bencherdev/bencher@main
+        if: env.UPLOAD == 'true'
+      - name: Track with Bencher
+        if: env.UPLOAD == 'true'
+        env:
+          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Alerts are reported, not failed on, until each machine's noise is known.
+        run: >-
+          .github/bencher.sh ${{ matrix.testbed.name }}
+          --threshold-measure latency --threshold-test t_test
+          --threshold-max-sample-size 64 --threshold-upper-boundary 0.99

@@ -2,6 +2,7 @@
 
 use clap::{Parser, Subcommand};
 
+mod bench;
 mod fibonacci;
 mod guest;
 
@@ -56,6 +57,12 @@ enum Command {
         #[arg(long, value_delimiter = ',', value_parser = guest::parse_word)]
         advice: Vec<u64>,
     },
+    /// Run the guests tracked in CI and print their metrics as Bencher Metric Format JSON.
+    Bench {
+        /// Only run the interpreter: report cycle counts, without proving.
+        #[arg(long)]
+        cycles_only: bool,
+    },
 }
 
 fn main() {
@@ -68,6 +75,7 @@ fn main() {
     match cli.command {
         Command::Fibonacci { n } => fibonacci::run_fibonacci(n, cli.log_inv_rate, plan),
         Command::Guest { elf, input, advice } => guest::run_guest(&elf, &input, &advice, cli.log_inv_rate, plan),
+        Command::Bench { cycles_only } => bench::run_bench(cycles_only, cli.log_inv_rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());

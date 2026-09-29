@@ -161,8 +161,8 @@ impl Plan {
     }
 
     /// Read the plan from the environment: `BENCH_REPEAT` and `BENCH_COOLDOWN`
-    /// (seconds), for the `#[ignore]`d benchmark tests, which have no command line
-    /// of their own. Defaults match the CLI.
+    /// (seconds), for the crates' `benches/` targets, which `cargo bench` runs
+    /// without a command line of their own. Defaults match the CLI.
     #[must_use]
     pub fn from_env() -> Self {
         Self::new(env_usize("BENCH_REPEAT", 1), env_usize("BENCH_COOLDOWN", 2) as u64)

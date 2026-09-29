@@ -1,0 +1,23 @@
+[package]
+name = "leanvm-cli"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "leanvm"
+path = "src/main.rs"
+# Its rustdoc would overwrite the `leanvm` library's (cargo#6313).
+doc = false
+
+[lints]
+workspace = true
+
+[dependencies]
+leanvm.workspace = true
+lean_vm.workspace = true
+primitives.workspace = true
+zk_alloc.workspace = true
+bincode.workspace = true
+tracing.workspace = true
+clap = { version = "4", features = ["derive"] }

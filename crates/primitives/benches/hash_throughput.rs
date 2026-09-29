@@ -1,3 +1,9 @@
+//! Batched BLAKE2s throughput across the thread pool, 64-byte blocks to 32-byte digests.
+//!
+//! ```text
+//! cargo bench -p primitives --bench hash_throughput
+//! ```
+
 use std::time::Instant;
 
 /// Median of `PASSES` timed passes, with a cooldown between them: the machine
@@ -24,10 +30,7 @@ fn time(reps: usize, mut f: impl FnMut()) -> f64 {
     median(samples)
 }
 
-/// cargo test --release -p primitives --test hash_bench multithreaded_throughput -- --ignored --nocapture
-#[test]
-#[ignore = "manual throughput measurement"]
-fn multithreaded_throughput() {
+fn main() {
     const K: usize = 1 << 10; // hashes per call: 96 KiB in+out per task, cache-resident
     const ITERS: usize = 1 << 5; // rehash rounds per task per dispatch
     const TASKS: usize = 1 << 10;

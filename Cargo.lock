@@ -200,8 +200,19 @@ name = "leanvm"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "lean_vm",
+ "primitives",
+ "zk_alloc",
+]
+
+[[package]]
+name = "leanvm-cli"
+version = "0.1.0"
+dependencies = [
+ "bincode",
  "clap",
  "lean_vm",
+ "leanvm",
  "primitives",
  "tracing",
  "zk_alloc",

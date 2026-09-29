@@ -1,5 +1,4 @@
-//! Dedicated PCS throughput benchmark (manual; `#[ignore]`d so it never runs
-//! in a normal `cargo test`).
+//! Dedicated PCS throughput benchmark.
 //!
 //! Commits and opens a random witness of `2^PCS_LOG_N` GF(2^64) elements at
 //! inverse-rate `1/2^PCS_LOG_INV_RATE`, times each phase, and reports GiB/s
@@ -10,7 +9,7 @@
 //!   PCS_SAMPLES        timed repetitions; the median is reported     [default 5]
 //!
 //! Run:
-//!   PCS_LOG_N=24 PCS_LOG_INV_RATE=1 cargo test --release -p pcs --test pcs_throughput -- --ignored --nocapture
+//!   PCS_LOG_N=24 PCS_LOG_INV_RATE=1 cargo bench -p pcs --bench throughput
 //!
 //! Hierarchical tracing is enabled automatically (`RUST_LOG` adjusts its
 //! verbosity). Set `WHIR_TRACE=1` as well for the legacy textual per-phase
@@ -42,9 +41,7 @@ fn median(mut xs: Vec<f64>) -> f64 {
     xs[xs.len() / 2]
 }
 
-#[test]
-#[ignore = "manual release benchmark; drive with PCS_LOG_N / PCS_LOG_INV_RATE"]
-fn pcs_throughput() {
+fn main() {
     primitives::init_tracing();
 
     let log_n = env_usize("PCS_LOG_N").unwrap_or(22);
