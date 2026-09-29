@@ -8,13 +8,10 @@ publish = false
 workspace = true
 
 [dependencies]
-libc.workspace = true
 parallel.workspace = true
 rand = { workspace = true, optional = true }
 serde.workspace = true
 zk_alloc.workspace = true
-tracing-forest.workspace = true
-tracing-subscriber.workspace = true
 
 [features]
 # Test-only helpers (`test_rng`) used by this and other crates' tests.
@@ -23,4 +20,9 @@ test-util = ["dep:rand"]
 
 [dev-dependencies]
 primitives = { path = ".", features = ["test-util"] }
+bench.workspace = true
 bincode.workspace = true
+
+[[bench]]
+name = "hash_throughput"
+harness = false

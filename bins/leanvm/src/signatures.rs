@@ -27,7 +27,7 @@ pub fn leanxmss(n: usize) -> Workload {
     let claims = leanxmss::verify_batch(&entries).expect("honest signatures verify");
     Workload {
         title: format!("leanXMSS verification, {n} signatures"),
-        elf: include_bytes!("../guests/elf/leanxmss.elf"),
+        elf: include_bytes!("../../../guests/elf/leanxmss.elf"),
         input: [n as u64, 0, 0, 0],
         advice: entries.iter().flat_map(|e| e.as_words()).copied().collect(),
         expected: claims,
@@ -52,7 +52,7 @@ pub fn leansphincs(n: usize) -> Workload {
     let claims = leansphincs::verify_batch(&entries).expect("honest signatures verify");
     Workload {
         title: format!("leanSPHINCS verification, {n} signatures"),
-        elf: include_bytes!("../guests/elf/leansphincs.elf"),
+        elf: include_bytes!("../../../guests/elf/leansphincs.elf"),
         input: [n as u64, 0, 0, 0],
         advice: entries.iter().flat_map(|e| e.as_words()).copied().collect(),
         expected: claims,
@@ -267,11 +267,7 @@ mod tests {
     fn the_signature_guests_prove() {
         // End to end: proven, verified, and the output the native digest.
         for workload in [leanxmss(2), leansphincs(1)] {
-            workload::run(
-                &workload,
-                lean_vm::pcs::TEST_LOG_INV_RATE,
-                primitives::bench::Plan::default(),
-            );
+            workload::run(&workload, lean_vm::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
         }
     }
 }

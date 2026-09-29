@@ -1,11 +1,18 @@
 //! Standalone batch BLAKE2s proving, isolated from the VM.
 //!
 //! ```text
-//! BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo test --release --package flock --test batch_proving_hashes -- hash_batch_prove_verify --exact --nocapture --include-ignored
+//! BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch
+//! ```
+//!
+//! `BENCH_TRACING=1` prints the final pass's span tree (`RUST_LOG` adjusts it).
+//!
+//! ```text
+//! BENCH_TRACING=1 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch
 //! ```
 
 use std::time::Instant;
 
+use bench::{Plan, Timing};
 use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
 use flock::hash::{
     Blake2sSetup, Compression, K_LOG, generate_witness_with_ab_packed_and_lincheck, min_n_blocks_log,
@@ -15,12 +22,10 @@ use pcs::pack::LOG_PACKING;
 use pcs::stack_open::{open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
-use primitives::bench::{Plan, Timing};
 use primitives::{field::F64, pretty_integer, test_rng::Rng};
 
-#[test]
-#[ignore = "manual release benchmark; needs a large-stack worker and substantial memory"]
-fn hash_batch_prove_verify() {
+fn main() {
+    bench::init_tracing_from_env();
     let requested_n_log: usize = std::env::var("FLOCK_N_LOG")
         .ok()
         .map(|s| s.parse().expect("FLOCK_N_LOG must be an integer"))
@@ -57,6 +62,7 @@ fn hash_batch_prove_verify() {
     zk_alloc::enable_arena();
     let prove_pass = || {
         let _phase = zk_alloc::enter_phase();
+        let _span = tracing::info_span!("Flock prove", n_log).entered();
         let t_pass = Instant::now();
         let t = Instant::now();
         let (z_packed, a_packed, b_packed, z_lincheck) = generate_witness_with_ab_packed_and_lincheck(&blocks, n_log);
@@ -109,14 +115,10 @@ fn hash_batch_prove_verify() {
 
     // The per-stage timings ride alongside the pass result, so one `Plan` drives
     // the warmup, the cooldown, and the repetition for all of them.
-    let env = |key: &str, default: usize| {
-        std::env::var(key).map_or(default, |s| {
-            s.parse().unwrap_or_else(|_| panic!("{key} must be an integer"))
-        })
-    };
-    let plan = Plan::new(env("BENCH_REPEAT", 1), env("BENCH_COOLDOWN", 2) as u64);
+    let plan = Plan::from_env();
     let mut stages: [Timing; 7] = std::array::from_fn(|_| Timing::default());
-    let (transcript, _) = plan.warm_then_measure(|_final_pass| {
+    let (transcript, _) = plan.warm_then_measure(|final_pass| {
+        let _quiet = (!final_pass).then(bench::suppress_tracing);
         let (out, secs) = prove_pass();
         for (timing, s) in stages.iter_mut().zip(secs) {
             timing.push(s);

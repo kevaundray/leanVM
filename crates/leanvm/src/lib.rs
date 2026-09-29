@@ -11,7 +11,7 @@
 //! there it has to check itself. Passing more words than the region holds is a
 //! programming error, and panics.
 //!
-//! End to end in [`tests/api.rs`](https://github.com/leanEthereum/leanVM/blob/main/tests/api.rs).
+//! End to end in [`crates/leanvm/tests/api.rs`](https://github.com/leanEthereum/leanVM/blob/main/crates/leanvm/tests/api.rs).
 
 pub use lean_vm::{
     cpu::{CpuError, Program, Proof, Stats, prove, verify},

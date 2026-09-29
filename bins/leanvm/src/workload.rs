@@ -1,7 +1,8 @@
 //! A guest workload, proven and verified the way the benchmarks report it.
 
+use bench::Plan;
 use leanvm::{Program, prove, verify};
-use primitives::{bench::Plan, pretty_f64, pretty_integer};
+use primitives::{pretty_f64, pretty_integer};
 
 use crate::guest::refuse;
 
@@ -78,7 +79,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     }
     // Only the final measured pass is traced.
     let (result, prove_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(primitives::suppress_tracing);
+        let _quiet = (!last).then(bench::suppress_tracing);
         prove(&program, workload.input, &workload.advice, log_inv_rate)
     });
     // A run too long for one proof has none: continuations are not implemented.
@@ -88,7 +89,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
         "the guest's output is the native reference's"
     );
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-        let _quiet = (!last).then(primitives::suppress_tracing);
+        let _quiet = (!last).then(bench::suppress_tracing);
         verify(&program, &workload.input, &output, &proof).expect("the proof verifies")
     });
 
@@ -111,7 +112,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
         prove_time.spread(),
         pretty_f64(workload.items as f64 / prove_time.mean()),
         workload.item,
-        pretty_f64(primitives::bench::peak_rss_bytes() as f64 / (1u64 << 30) as f64)
+        pretty_f64(bench::peak_rss_bytes() as f64 / (1u64 << 30) as f64)
     );
     println!(
         "  verifying                   : {} ms",

@@ -9,25 +9,27 @@ A RISC-V (rv64im) virtual machine and the SNARK that proves its execution. Proof
 
 ## Layout
 
-Dependency order, leaves first:
+The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI in `bins/`. Dependency order, leaves first:
 
 | crate             | role                                                                   |
 | ----------------- | ---------------------------------------------------------------------- |
 | `parallel`        | thread pool (below)                                     |
 | `zk_alloc`        | proving arena (below)                                    |
-| `primitives`      | field kernels (NEON/AVX), bit transposes, multilinear helpers, streaming stores, `bench` |
+| `primitives`      | field kernels (NEON/AVX), bit transposes, multilinear helpers, streaming stores |
+| `bench`           | benchmark harness for the CLI and the `benches/` targets: `Plan` (warmup, repeats, cooldown), `Timing`, the `--tracing` trace tree; never linked by the prover |
 | `fiat_shamir`     | VM-native `FiatShamirState` + prover/verifier transcript                |
 | `pcs`             | additive NTT, Merkle, ring switch, stacked WHIR                    |
 | `flock`           | batched R1CS over GF(2): zerocheck + lincheck; gate-list circuits over word ports (`circuit`), the u64 adder and multiplier in them (`arith`), the BLAKE2s circuit (`hash`) |
 | `lean_vm`         | the RISC-V machine (`rv`: decoder, class semantics and circuits, interpreter, assembler, ELF loader) and its arithmetization: tables, bus, constraints, `cpu::prove`/`verify` |
+| `leanvm`          | the public API: re-exports of `lean_vm` and the prover/verifier setup    |
 
-`src/lib.rs` is the public API and the only thing a user imports: every crate above is `publish = false`, so a new user-facing item is a re-export there. `src/main.rs` is the CLI (`fibonacci`, the benchmark, and `guest <elf> --input a,b,c,d --advice ...`), `tests/api.rs` the end-to-end use of the API.
+`crates/leanvm/src/lib.rs` is the public API and the only thing a user imports: every other crate is `publish = false`, so a new user-facing item is a re-export there, and `leanvm` depends on `lean_vm` and `zk_alloc` alone. `crates/leanvm/tests/api.rs` is the end-to-end use of the API. The CLI is its own package, `bins/leanvm` (`leanvm-cli`, binary `leanvm`), run with `cargo leanvm <subcommand>` (a `.cargo/config.toml` alias for `run --release -p leanvm-cli --`): `fibonacci`, the benchmark, and `guest <elf> --input a,b,c,d --advice ...`.
 
 `guests/` is a separate cargo workspace (its own toolchain file, nightly with `rust-src`, and `.cargo/config.toml` targeting `riscv64im-unknown-none-elf` with `-Zbuild-std=core`): the runtime crate `rt` (`_start`, `input()`, `advice()`, `output()`, `advice_words!` sizing a guest's advice region, a `Blake2s` hasher over the custom instruction through `.insn r`, a panic that is `unimp`), the guests, `link.ld` fixing the memory map, and `build.sh`, which refreshes the checked-in ELF fixtures in `guests/elf/` that `lean_vm/tests/verifiers/guests.rs` loads. **Rerun `build.sh` after touching a guest or the runtime**: nothing rebuilds the fixtures, so CI would keep testing the old ELF and say nothing. The nightly channel floats, so the fixtures are not reproducible byte for byte across toolchain updates, which is why they are not diffed in CI. The root `.cargo/config.toml` scopes `target-cpu=native` to `cfg(not(target_arch = "riscv64"))` because the guests inherit it. Atomics are why the target is `im` and not `imac`: the builtin target has no compare-and-swap, so a dependency needing one does not compile.
 
 **The workload guests** `leanxmss`, `leansphincs` and `leanda` are each a `no_std` library and its guest.
 
-- Off the VM, `rt` keeps only `Blake2s`, in portable Rust. So the root package runs the same libraries natively, to sign, encode and compute the expected output (`src/signatures.rs`, `src/da.rs`). The root workspace excludes `guests/` for that.
+- Off the VM, `rt` keeps only `Blake2s`, in portable Rust. So the CLI (`bins/leanvm`) runs the same libraries natively, to sign, encode and compute the expected output (`bins/leanvm/src/signatures.rs`, `bins/leanvm/src/da.rs`). The root workspace excludes `guests/` for that.
 
 - Values are `u64` words, never byte arrays. A byte-aligned word costs eight `lbu`. The advice entries are `repr(C)` word structs, read in place.
 
@@ -35,7 +37,7 @@ Dependency order, leaves first:
 
 - rv64im has no carry-less multiply, so leanDA's membership check uses buckets. Each 11-bit window of each symbol XORs its `L_x` into a bucket, and the buckets are weighed once per blob.
 
-- The KATs in `src/signatures.rs` and `src/da.rs` pin all three to the reference implementations.
+- The KATs in `bins/leanvm/src/signatures.rs` and `bins/leanvm/src/da.rs` pin all three to the reference implementations.
 
 `conformance/act4/` holds the official RISC-V architectural tests ([ACT4](https://github.com/riscv/riscv-arch-test), riscv-arch-test 4.1.0 at `6e8a4512`), their `I` and `M` suites, 64 tests, for an `rv64im` profile with no misaligned access. ACT4 runs each test on the Sail reference model and builds it again with Sail's results inside, so that the ELF file checks itself. The configuration is `test_config.yaml`, `leanvm-rv64im.yaml` (for the unified database, UDB, which defines `MXLEN` through `Sm` and so needs `Zicsr` claimed too: `rvmodel_macros.h` leaves `STANDARD_SM_SUPPORTED` undefined, so no test touches a CSR), `sail.json` (Sail's regions: leanVM's text and RAM), `link.ld` (the code in the text, everything else in RAM past the input words, RAM the smallest power of two holding the image) and `rvmodel_macros.h` (a test ends in `exit` with the output zero on a pass, `a0 = 1` and `a1` the caller when the framework halts on a failure). A failing check's handler reads the check back from the text, which leanVM cannot read, so it traps there, and `lean_vm/tests/verifiers/act4.rs` reports the check's description, the value computed and Sail's. `generate.sh` builds the Docker image of `Dockerfile` (Ubuntu 24.04 by digest, riscv-gnu-toolchain 2025.08.08 with GCC 15.1, Sail 0.13.1 and mise 2026.9.17 by checksum, the Ruby and Python tools locked by riscv-arch-test itself) and generates `elf/I` and `elf/M` byte for byte: it strips the symbol naming the compiler's temporary object file, which is random, and clears the compressed-instructions flag that ACT4's alignment directives set though nothing is compressed. **The ELF files are not checked in** (`elf/` is ignored), so `act4.rs`'s two tests are `#[ignore]`d: run `conformance/act4/generate.sh` once (Docker), then `cargo test --release -p lean_vm --test verifiers -- --ignored act4`. CI (`.github/workflows/riscv.yml`) runs them on every PR, caching the generated files under a hash of every file in `conformance/act4/`, so the image is only built when one of them changes. Left out by design: `Misalign` (a misaligned access traps, and the configuration says so), `Zicsr` (no CSRs), `Zifencei` (no self-modifying code), and `Zmmul`, whose tests are M's multiplication tests again. `act4.rs` runs every test on the interpreter, proves each and checks the proof with the Rust verifier, and with the Python verifier the first test to reach each table.
 
@@ -43,7 +45,7 @@ Dependency order, leaves first:
 
 - `.cargo/config.toml` pins `-C target-cpu=native` and `-D warnings` for rustdoc
 - always run in `--release` mode any test or benchmark touching the VM
-- **One test binary per crate, not one per file** (`lean_vm/tests/verifiers/main.rs`). Exception: a test opening an arena phase (`lean_vm::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`tests/api.rs` is that binary, and `tests/no_arena.rs` the one that must never enable the arena).
+- **One test binary per crate, not one per file** (`lean_vm/tests/verifiers/main.rs`). Exception: a test opening an arena phase (`lean_vm::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`leanvm/tests/api.rs` is that binary, and `leanvm/tests/no_arena.rs` the one that must never enable the arena).
 
 An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Type-check the other target before pushing anything `cfg`-gated:
 
@@ -62,17 +64,19 @@ cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches and measurement harnesses are `#[ignore]`d; run by name with `-- --ignored --nocapture`: `hash_batch_prove_verify`, `add_wrapping_prove_verify`, `mul_wrapping_prove_verify`, `mul_widening_prove_verify`, `pcs_throughput`, `multithreaded_throughput`, `print_whir_query_counts`, `print_whir_query_table`.
+Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). The parameter reports `print_whir_query_counts` and `print_whir_query_table` are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`.
+
+**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `lean_vm`, `stage!`), never an `Instant` behind an env var.
 
 ## Benchmarking
 
 The benchmarks we care about:
 
-- `cargo run --release -- fibonacci --n 2000000 --log-inv-rate 1 --repeat 3` (Fibonacci mod 2^64, on registers)
-- `cargo run --release -- guest guests/elf/hash.elf --input 50000 --repeat 3` (the precompile, from a Rust guest)
-- `cargo run --release -- leanxmss --n 400 --repeat 3`, `leansphincs --n 104`, `leanda --blobs 1` (the Ethereum workloads, the most one proof holds)
-- `cargo run --release -- cycles` (the same workloads' RISC-V cycles and committed words, exact, no proof: `cpu::measure`, which CI's `Cycles` job puts in each run's summary)
-- `BENCH_REPEAT=3 FLOCK_N_LOG=18 cargo test --release -p flock --test batch_proving_hashes -- hash_batch_prove_verify --exact --nocapture --include-ignored` (flock alone, on its hand-optimized circuit)
+- `cargo leanvm fibonacci --n 2000000 --log-inv-rate 1 --repeat 3` (Fibonacci mod 2^64, on registers)
+- `cargo leanvm guest guests/elf/hash.elf --input 50000 --repeat 3` (the precompile, from a Rust guest)
+- `cargo leanvm leanxmss --n 400 --repeat 3`, `leansphincs --n 104`, `leanda --blobs 1` (the Ethereum workloads, the most one proof holds)
+- `cargo leanvm cycles` (the same workloads' RISC-V cycles and committed words, exact, no proof: `cpu::measure`, which CI's `Cycles` job puts in each run's summary)
+- `BENCH_REPEAT=3 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch` (flock alone, on its hand-optimized circuit)
 
 ## Read-write arrays
 
@@ -162,14 +166,14 @@ The same verification algorithm is written out twice, in two languages. Any chan
 | var                                                                                                     | effect                                           |
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `LEANVM_NUM_THREADS`                                                                                    | performance-worker count; `1` = sequential       |
-| `LEANVM_PROFILE`                                                                                        | per-stage prover timings                         |
+| `BENCH_TRACING`                                                                                         | the `benches/` targets' `--tracing`: the final pass's span tree |
 | `LEANVM_ACT4`                                                                                           | directory of generated ACT4 ELF files (`I/`, `M/`) to test instead of `conformance/act4/elf/` |
 | `ZK_ALLOC_STATS`                                                                                        | arena peak/phase, high water, overflow           |
 | `ZK_ALLOC_POISON`                                                                                       | fill released arena blocks, to catch use-after-free |
-| `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for `#[ignore]`d benches |
-| `FLOCK_N_LOG`, `FLOCK_PROVE_TRACE`, `FLOCK_ZC_TIMING`, `LINCHECK_TRACE`                                 | flock batch size, stage traces                   |
-| `PCS_LOG_N`, `PCS_LOG_INV_RATE`, `PCS_SAMPLES`                                                          | PCS throughput bench                             |
-| `WHIR_TRACE`, `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                          | WHIR NTT/Merkle split                        |
+| `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for the `benches/` targets |
+| `FLOCK_N_LOG`                                                                                           | flock batch size                                 |
+| `PCS_LOG_N`, `PCS_LOG_INV_RATE`                                                                         | PCS throughput bench                             |
+| `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                                                    | `print_whir_query_counts`'s shape                |
 
 ## Side notes
 

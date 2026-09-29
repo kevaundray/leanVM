@@ -30,7 +30,7 @@ pub fn leanda(n: usize) -> Workload {
     advice.extend_from_slice(&codewords);
     Workload {
         title: format!("leanDA check, {n} blobs of 128 KiB"),
-        elf: include_bytes!("../guests/elf/leanda.elf"),
+        elf: include_bytes!("../../../guests/elf/leanda.elf"),
         input: [n as u64, 0, 0, 0],
         advice,
         expected,

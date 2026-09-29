@@ -84,9 +84,9 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
     lean_vm::init_prover();
-    let plan = primitives::bench::Plan::new(cli.repeat, cli.cooldown);
+    let plan = bench::Plan::new(cli.repeat, cli.cooldown);
     if cli.tracing {
-        primitives::init_tracing();
+        bench::init_tracing();
     }
     match cli.command {
         Command::Fibonacci { n } => fibonacci::run_fibonacci(n, cli.log_inv_rate, plan),

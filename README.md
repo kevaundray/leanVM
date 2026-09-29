@@ -48,7 +48,7 @@ Expect leanVM to change significantly:
 A guest is a `no_std` Rust program built for `riscv64im-unknown-none-elf` against the runtime crate in [`guests/rt`](./guests/rt/src/lib.rs), which gives it its public input (four words), its advice (a region of memory the prover fills, which the statement says nothing about), its output (four words) and a BLAKE2s hasher over the custom instruction. The linker script fixes the memory map. Build them with `guests/build.sh` (a nightly toolchain, for `-Zbuild-std`), then prove and verify a run:
 
 ```bash
-cargo run --release -- guest guests/elf/preimage.elf --advice 5,0x6f6c6c6568
+cargo leanvm guest guests/elf/preimage.elf --advice 5,0x6f6c6c6568
 ```
 
 The statement a proof makes is the program (an ELF file), the four input words and the four output words; everything a guest reads from its advice it has to check itself, which is what makes a proof a proof of knowledge (`preimage` outputs the digest of a message only the prover has).
@@ -62,7 +62,7 @@ The statement a proof makes is the program (an ELF file), the four input words a
 ### Fibonacci
 
 ```bash
-cargo run --release -- fibonacci --n 2000000 --log-inv-rate 1 --repeat 3
+cargo leanvm fibonacci --n 2000000 --log-inv-rate 1 --repeat 3
 ```
 
 ```
@@ -79,7 +79,7 @@ Fibonacci (modulo 2^64), N = 2,000,000
 The `blake2s` guest is the hash function written in ordinary Rust, compiled by `rustc` for `riscv64im-unknown-none-elf` (`guests/blake2s`): 10,000 bytes, 157 compressions, a mix of arithmetic, shifts, loads and stores.
 
 ```bash
-cargo run --release -- guest guests/elf/blake2s.elf --input 10000 --repeat 3 --cooldown 2
+cargo leanvm guest guests/elf/blake2s.elf --input 10000 --repeat 3 --cooldown 2
 ```
 
 ```
@@ -98,7 +98,7 @@ guests/elf/blake2s.elf
 The `hash` guest hashes 50,000 bytes through the compression instruction, 782 compressions; most of its cycles generate the message.
 
 ```bash
-cargo run --release -- guest guests/elf/hash.elf --input 50000 --repeat 3
+cargo leanvm guest guests/elf/hash.elf --input 50000 --repeat 3
 ```
 
 ```
@@ -117,9 +117,9 @@ Three guests check what an Ethereum node would: leanXMSS signatures, leanSPHINCS
 Each is a `no_std` library, byte-compatible with the schemes' reference implementations, plus the guest that runs it. The host runs the same library natively to build the inputs and the expected output.
 
 ```bash
-cargo run --release -- leanxmss --n 400 --repeat 3
-cargo run --release -- leansphincs --n 104 --repeat 3
-cargo run --release -- leanda --blobs 1 --repeat 3
+cargo leanvm leanxmss --n 400 --repeat 3
+cargo leanvm leansphincs --n 104 --repeat 3
+cargo leanvm leanda --blobs 1 --repeat 3
 ```
 
 The report gives the RISC-V cycles per signature or per blob, the rows per table and the committed witness, then the proving and verifying times.
@@ -129,7 +129,7 @@ These are the most one proof holds: continuations are not implemented.
 To get the cost of all three without proving, exact and the same on every machine:
 
 ```bash
-cargo run --release -- cycles
+cargo leanvm cycles
 ```
 
 It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words. CI adds it to each run's summary.
@@ -137,7 +137,7 @@ It prints a markdown table of the RISC-V cycles, per item and in all, and the co
 ### hashing
 
 ```bash
-BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo test --release --package flock --test batch_proving_hashes -- hash_batch_prove_verify --exact --nocapture --include-ignored
+BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch
 ```
 
 ```

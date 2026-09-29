@@ -1109,24 +1109,14 @@ pub fn prove_padded_capture_s_hat_v(
     assert_eq!(x_ab.x_inner_rest.len(), inner_rest_len);
     assert_eq!(x_ab.x_outer.len(), n_log);
 
-    let trace = std::env::var("LINCHECK_TRACE").is_ok();
-    let stage = |name: &str, t: std::time::Instant| {
-        if trace {
-            eprintln!("[lc] {name:<26} {:>7.2} ms", t.elapsed().as_secs_f64() * 1e3);
-        }
-    };
-
     // 1. Sample α (matches verifier's order). Used to batch the scalar
     //    consistency checks v_a, v_b, v_c into a single sumcheck.
     let alpha = ps.sample();
 
     // 2. Build the α-batched column marginal through the circuit.
-    let t = std::time::Instant::now();
-    let eq_inner = build_quirky_eq_table(x_ab.z_skip, &x_ab.x_inner_rest, k_skip);
-    stage("build_quirky_eq", t);
-    let t = std::time::Instant::now();
-    let mut comb_vec = circuit.fold_alpha_batched(alpha, &eq_inner);
-    stage("fold_alpha_batched", t);
+    let eq_inner =
+        tracing::info_span!("Eq table").in_scope(|| build_quirky_eq_table(x_ab.z_skip, &x_ab.x_inner_rest, k_skip));
+    let mut comb_vec = tracing::info_span!("Fold circuit").in_scope(|| circuit.fold_alpha_batched(alpha, &eq_inner));
 
     // 3. The zerocheck's c-claim, at α². `C = I`, so `ĉ(x_ab)` is the z-claim
     //    `Σ_j eq_inner[j]·ẑ(j, x_outer)`: the same row weights the matrices are
@@ -1146,12 +1136,12 @@ pub fn prove_padded_capture_s_hat_v(
     comb_vec[circuit.const_pin_col()] += beta;
 
     // 5. Partial fold of z at the shared outer half (length-k F192 vector).
-    let t = std::time::Instant::now();
-    let eq_x_outer = build_eq(&x_ab.x_outer);
-    let mut z_vec = partial_fold_packed_z_best(z_packed, m, k_log, useful_bits, &eq_x_outer);
-    stage("partial_fold_z", t);
+    let mut z_vec = tracing::info_span!("Partial fold").in_scope(|| {
+        let eq_x_outer = build_eq(&x_ab.x_outer);
+        partial_fold_packed_z_best(z_packed, m, k_log, useful_bits, &eq_x_outer)
+    });
 
-    let t_sumcheck = std::time::Instant::now();
+    let span = tracing::info_span!("Sumcheck").entered();
 
     // 6. Standard multilinear product-sumcheck over the high `inner_rest_len`
     //    bits of `i`. Each round binds the TOP remaining bit. After `inner_rest_len` rounds, both
@@ -1185,7 +1175,7 @@ pub fn prove_padded_capture_s_hat_v(
             }
         }
     }
-    stage("sumcheck (all rounds)", t_sumcheck);
+    drop(span);
 
     // 7. Send `z_partial` (the post-sumcheck collapsed z_vec). Length 2^k_skip.
     let z_partial = z_vec;

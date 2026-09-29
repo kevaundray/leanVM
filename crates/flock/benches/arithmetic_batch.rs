@@ -2,12 +2,12 @@
 //! addition, and multiplication wrapping (a `u64` result) or widening (a `u128`).
 //!
 //! ```text
-//! BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=20 cargo test --release --package flock --test batch_proving_arithmetic -- mul_wrapping_prove_verify --exact --nocapture --include-ignored
+//! BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=20 cargo bench -p flock --bench arithmetic_batch -- mul_wrapping
 //! ```
 
-use std::sync::Mutex;
 use std::time::Instant;
 
+use bench::{Plan, Timing};
 use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
 use flock::arith::{U64Circuit, U64Op};
 use flock::reduction::{min_n_blocks_log, ring_switch_open, ring_switch_verify};
@@ -15,32 +15,25 @@ use pcs::pack::LOG_PACKING;
 use pcs::stack_open::{open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
-use primitives::bench::{Plan, Timing};
 use primitives::{field::F64, pretty_integer, test_rng::Rng};
 
-/// Arena phases are process-global, so the benchmarks must not overlap.
-static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
-
-#[test]
-#[ignore = "manual release benchmark; needs substantial memory"]
-fn add_wrapping_prove_verify() {
-    bench(U64Op::WrappingAdd);
-}
-
-#[test]
-#[ignore = "manual release benchmark; needs substantial memory"]
-fn mul_wrapping_prove_verify() {
-    bench(U64Op::WrappingMul);
-}
-
-#[test]
-#[ignore = "manual release benchmark; needs substantial memory"]
-fn mul_widening_prove_verify() {
-    bench(U64Op::WideningMul);
+/// Every operation whose name contains one of the arguments, or all of them with
+/// none. `cargo bench` passes flags of its own (`--bench`), which are skipped.
+fn main() {
+    bench::init_tracing_from_env();
+    let filters: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
+    for (name, op) in [
+        ("add_wrapping", U64Op::WrappingAdd),
+        ("mul_wrapping", U64Op::WrappingMul),
+        ("mul_widening", U64Op::WideningMul),
+    ] {
+        if filters.is_empty() || filters.iter().any(|f| name.contains(f.as_str())) {
+            bench(op);
+        }
+    }
 }
 
 fn bench(op: U64Op) {
-    let _serial = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let (title, unit) = match op {
         U64Op::WrappingAdd => ("Wrapping u64 addition", "sums"),
         U64Op::WrappingMul => ("Wrapping u64 multiplication", "products"),
@@ -71,10 +64,11 @@ fn bench(op: U64Op) {
     let label = format!("flock-{op:?}-batch").into_bytes();
 
     // One full prove pass from the raw pairs, one arena phase, as in
-    // `batch_proving_hashes`.
+    // `hash_batch`.
     zk_alloc::enable_arena();
     let prove_pass = || {
         let _phase = zk_alloc::enter_phase();
+        let _span = tracing::info_span!("Flock prove", n_log).entered();
         let t_pass = Instant::now();
         let t = Instant::now();
         let (z_packed, a_packed, b_packed, z_lincheck) = circuit.generate_witness(&pairs, n_log);
@@ -117,14 +111,10 @@ fn bench(op: U64Op) {
         (proof, [witness_s, commit_s, zerocheck_s, lincheck_s, open_s, pass_s])
     };
 
-    let env = |key: &str, default: usize| {
-        std::env::var(key).map_or(default, |s| {
-            s.parse().unwrap_or_else(|_| panic!("{key} must be an integer"))
-        })
-    };
-    let plan = Plan::new(env("BENCH_REPEAT", 1), env("BENCH_COOLDOWN", 2) as u64);
+    let plan = Plan::from_env();
     let mut stages: [Timing; 6] = std::array::from_fn(|_| Timing::default());
-    let (transcript, _) = plan.warm_then_measure(|_final_pass| {
+    let (transcript, _) = plan.warm_then_measure(|final_pass| {
+        let _quiet = (!final_pass).then(bench::suppress_tracing);
         let (out, secs) = prove_pass();
         for (timing, s) in stages.iter_mut().zip(secs) {
             timing.push(s);

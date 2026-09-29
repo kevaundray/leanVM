@@ -33,7 +33,7 @@ fn fibonacci() -> Program {
 /// statements. Its rows cover the tables `fibonacci` does not: `HASH`, and the advice's
 /// side of memory.
 fn preimage(message: &[u8]) -> (Program, Vec<u64>, [u64; 4]) {
-    let program = Program::from_elf(include_bytes!("../guests/elf/preimage.elf")).expect("a guest");
+    let program = Program::from_elf(include_bytes!("../../../guests/elf/preimage.elf")).expect("a guest");
     let mut advice = vec![message.len() as u64];
     advice.extend(message.chunks(8).map(|chunk| {
         let mut word = [0u8; 8];
