@@ -3,18 +3,18 @@ name: Bench
 # Runs the benchmarks and saves each testbed's Bencher Metric Format JSON as the artifact
 # `bench-<testbed>`, with a PR's event as `pr-event`. It holds no secret, so it runs the
 # same for a fork's PR: bench-track.yml uploads the results once this succeeds.
-# - variable `BENCH_TESTBEDS`: the machines to prove on, as a JSON array of
+# The testbeds:
+# - `github-ubuntu`, GitHub's `ubuntu-latest`, is named here: a fork's PR runs without the
+#   repository's variables, and it is the one testbed a fork proves on, a throwaway
+#   machine with no secrets.
+# - variable `BENCH_TESTBEDS`: the self-hosted machines, as a JSON array of
 #   {"name", "runner"}, the runner's labels, e.g.
-#   [{"name": "github-ubuntu", "runner": "ubuntu-latest"},
-#    {"name": "zen5", "runner": ["self-hosted", "zen5"]}].
-#   A runner given as one `ubuntu-*`, `windows-*` or `macos-*` label is GitHub-hosted;
-#   any other is self-hosted. Unset, no proving job runs.
+#   [{"name": "zen5", "runner": ["self-hosted", "zen5"]}]. Never for a fork's PR, which
+#   would run its code on our hardware.
 # A PR proves when labelled `bench`, which a maintainer adds after reading it. A fork's PR
-# proves on GitHub-hosted testbeds only, a throwaway machine with no secrets; a
-# self-hosted one would run the fork's code on our hardware. That choice is made here,
-# and a fork's PR runs its own copy of this file, so the self-hosted runners' own
-# settings (a runner group limited to this repository's workflows on `main` and
-# `riscv-exploration`, and approval for outside contributors' runs) are what enforce it.
+# runs its own copy of this file, so the self-hosted runners' own settings (a runner
+# group limited to this repository's workflows on `main` and `riscv-exploration`, and
+# approval for outside contributors' runs) are what keep it off them.
 
 on:
   push:
@@ -59,7 +59,8 @@ jobs:
     steps:
       - id: plan
         env:
-          TESTBEDS: ${{ vars.BENCH_TESTBEDS || '[]' }}
+          HOSTED: '[{"name": "github-ubuntu", "runner": "ubuntu-latest"}]'
+          SELF_HOSTED: ${{ vars.BENCH_TESTBEDS || '[]' }}
           EVENT: ${{ github.event_name }}
           FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
           LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'bench') }}
@@ -69,9 +70,9 @@ jobs:
           if [ "$EVENT" = pull_request ] && { [ "$LABELLED" != true ] || [ "$OTHER_LABEL" = true ]; }; then
             testbeds='[]'
           elif [ "$FORK" = true ]; then
-            testbeds=$(jq -c '[.[] | select(.runner | type == "string" and test("^(ubuntu|windows|macos)-"))]' <<<"$TESTBEDS")
+            testbeds=$HOSTED
           else
-            testbeds=$(jq -c . <<<"$TESTBEDS")
+            testbeds=$(jq -cn --argjson a "$HOSTED" --argjson b "$SELF_HOSTED" '$a + $b | unique_by(.name)')
           fi
           echo "testbeds=$testbeds" >> "$GITHUB_OUTPUT"
           echo "Testbeds: $testbeds"
