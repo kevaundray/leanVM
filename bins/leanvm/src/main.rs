@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 mod fibonacci;
 mod guest;
+mod tracked;
 mod workload;
 
 #[derive(Parser)]
@@ -66,13 +67,22 @@ enum Command {
         #[arg(long, default_value_t = 16, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
     },
-    /// Measure every workload guest, the most one proof holds, without proving: a markdown table.
-    Cycles,
     /// Prove and verify a guest checking leanDA blobs and computing their commitment.
     Leanda {
         /// Blobs of 128 KiB to check.
         #[arg(long, default_value_t = 1, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
         blobs: usize,
+    },
+    /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
+    ///
+    /// The lists are `bins/leanvm/src/tracked.rs`.
+    Bench {
+        /// Count every program at the README's sizes without proving: the exact counts only.
+        #[arg(long)]
+        cycles_only: bool,
+        /// Print the counts as a markdown table rather than JSON.
+        #[arg(long, requires = "cycles_only")]
+        markdown: bool,
     },
 }
 
@@ -88,10 +98,8 @@ fn main() {
         Command::Guest { elf, advice } => guest::run_guest(&elf, &advice, cli.log_inv_rate, plan),
         Command::Leanxmss { n } => workload::run(&workload::leanxmss(n), cli.log_inv_rate, plan),
         Command::Leansphincs { n } => workload::run(&workload::leansphincs(n), cli.log_inv_rate, plan),
-        Command::Cycles => {
-            workload::cycles(&[workload::leanxmss(400), workload::leansphincs(104), workload::leanda(1)])
-        }
         Command::Leanda { blobs } => workload::run(&workload::leanda(blobs), cli.log_inv_rate, plan),
+        Command::Bench { cycles_only, markdown } => tracked::run(cycles_only, markdown, cli.log_inv_rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());

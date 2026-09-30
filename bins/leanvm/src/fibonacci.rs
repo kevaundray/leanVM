@@ -50,7 +50,7 @@ pub fn run_fibonacci(n: usize, log_inv_rate: usize, plan: Plan) {
 /// The demo program and its output `[F(n) mod 2^64, 0, 0, 0]`: a loop whose body is
 /// `UNROLL` recurrence steps in place, `a <- a + b` then `b <- a + b`, so that a step is
 /// one instruction and the loop's own two are paid once per `UNROLL`.
-fn fibonacci_program(fib_n: usize) -> (Program, [u64; 4]) {
+pub fn fibonacci_program(fib_n: usize) -> (Program, [u64; 4]) {
     const UNROLL: usize = 1000;
     assert!(
         fib_n >= UNROLL && fib_n.is_multiple_of(UNROLL),

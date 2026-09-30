@@ -129,10 +129,10 @@ These are the most one proof holds: continuations are not implemented.
 To get the cost of all three without proving, exact and the same on every machine:
 
 ```bash
-cargo leanvm cycles
+cargo leanvm bench --cycles-only --markdown
 ```
 
-It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words. CI adds it to each run's summary.
+It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words, for these three and the other benchmarks. CI adds it to each run's summary, and tracks the same counts on [Bencher](https://bencher.dev/perf/leanvm), failing a PR that raises any program's cycles; without `--markdown` it prints them as Bencher's JSON, and without `--cycles-only` it proves each program too.
 
 ### hashing
 
