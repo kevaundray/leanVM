@@ -1,8 +1,8 @@
 //! The interpreter: the reference semantics of a [`Program`], one [`Step`] at a time.
 
 use super::{
-    ADVICE_BASE, Class, Entry, INPUT_WORDS, LOG_REGS, MAX_LOG_ADVICE, MAX_LOG_RAM, MAX_LOG_TEXT, OUTPUT_REGS, RAM_BASE,
-    SYS_EXIT, SYSCALL_REG, TEXT_BASE,
+    ADVICE_BASE, Class, Entry, LOG_REGS, MAX_LOG_ADVICE, MAX_LOG_RAM, MAX_LOG_TEXT, OUTPUT_REGS, RAM_BASE, SYS_EXIT,
+    SYSCALL_REG, TEXT_BASE,
 };
 use super::{Target, decode, hash, load, semantics, store};
 
@@ -14,8 +14,7 @@ pub struct Program {
     /// is the halt slot, which is illegal, as is every slot holding no instruction.
     pub entries: Vec<Entry>,
     pub entry_pc: u64,
-    /// RAM's words after the [`INPUT_WORDS`] the public input takes. The rest of its
-    /// `2^log_ram` words are zero.
+    /// RAM's first words. The rest of its `2^log_ram` words are zero.
     pub image: Vec<u64>,
     pub log_ram: usize,
     /// The advice region holds `2^log_advice` words ([`ADVICE_BASE`]).
@@ -38,7 +37,7 @@ impl Program {
             "the text exceeds 2^{MAX_LOG_TEXT} instructions"
         );
         assert!(
-            (2..=MAX_LOG_RAM).contains(&log_ram) && INPUT_WORDS + image.len() <= 1 << log_ram,
+            log_ram <= MAX_LOG_RAM && image.len() <= 1 << log_ram,
             "RAM is too small for its image, or exceeds its region"
         );
         assert!(log_advice <= MAX_LOG_ADVICE, "the advice exceeds its region");
@@ -215,15 +214,13 @@ pub struct Machine<'a> {
 }
 
 impl<'a> Machine<'a> {
-    /// The machine about to run `program` on `input`, RAM's first words, and `advice`,
-    /// the advice region's first words.
-    pub fn new(program: &'a Program, input: [u64; INPUT_WORDS], advice: &[u64]) -> Self {
+    /// The machine about to run `program` on `advice`, the advice region's first words.
+    pub fn new(program: &'a Program, advice: &[u64]) -> Self {
         assert!(
             advice.len() <= 1 << program.log_advice,
             "the advice does not fit its region"
         );
-        let mut mem = input.to_vec();
-        mem.extend(&program.image);
+        let mut mem = program.image.clone();
         mem.resize(1 << program.log_ram, 0);
         mem.extend(advice);
         mem.resize((1 << program.log_ram) + (1 << program.log_advice), 0);
@@ -580,11 +577,11 @@ mod tests {
             let program = Program::new(
                 &[word],
                 TEXT_BASE,
-                (INPUT_WORDS..1 << LOG_RAM).map(|_| rng.next()).collect(),
+                (0..1 << LOG_RAM).map(|_| rng.next()).collect(),
                 LOG_RAM,
                 0,
             );
-            let mut m = Machine::new(&program, [0; 4], &[]);
+            let mut m = Machine::new(&program, &[]);
             for r in 1..32 {
                 m.regs[r] = rng.word();
             }
@@ -605,7 +602,7 @@ mod tests {
     }
 
     fn run(text: &[u32], image: Vec<u64>) -> Result<[u64; 4], Trap> {
-        Machine::new(&Program::new(text, TEXT_BASE, image, LOG_RAM, 0), [7, 0, 0, 0], &[]).run(1 << 20)
+        Machine::new(&Program::new(text, TEXT_BASE, image, LOG_RAM, 0), &[]).run(1 << 20)
     }
 
     #[test]
@@ -639,7 +636,7 @@ mod tests {
         assert_eq!(run(&text, vec![]), Ok([2_880_067_194_370_816_120, 0, 0, 0]));
 
         // Bubble sort of eight words through a stack frame, then a0 <- the median pair's sum.
-        const DATA: u64 = RAM_BASE + 8 * INPUT_WORDS as u64;
+        const DATA: u64 = RAM_BASE;
         let data = [5u64, 3, 9, 1, 8, 2, 7, 4];
         let text = Asm::new()
             .li(SP, RAM_BASE + RAM_BYTES)
@@ -677,9 +674,9 @@ mod tests {
             .jalr(ZERO, RA, 0)
             .finish();
         let program = Program::new(&text, TEXT_BASE, data.to_vec(), LOG_RAM, 0);
-        let mut m = Machine::new(&program, [0; 4], &[]);
+        let mut m = Machine::new(&program, &[]);
         assert_eq!(m.run(1 << 20), Ok([4 + 5, 0, 0, 0]));
-        assert_eq!(m.ram()[INPUT_WORDS..][..8], [1, 2, 3, 4, 5, 7, 8, 9]);
+        assert_eq!(m.ram()[..8], [1, 2, 3, 4, 5, 7, 8, 9]);
         assert_eq!(m.regs[0], 0, "x0");
     }
 

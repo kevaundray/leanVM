@@ -30,29 +30,26 @@ pub fn fibonacci() -> (Program, [u64; 4]) {
     (Program::new(&text, TEXT_BASE, vec![], 2, 0), [a, 0, 0, 0])
 }
 
-fn proves_and_verifies(tag: &str, program: &Program, input: [u64; 4], expected: [u64; 4]) {
-    proves_and_verifies_with(tag, program, input, &[], expected);
+fn proves_and_verifies(tag: &str, program: &Program, expected: [u64; 4]) {
+    proves_and_verifies_with(tag, program, &[], expected);
 }
 
-fn proves_and_verifies_with(tag: &str, program: &Program, input: [u64; 4], advice: &[u64], expected: [u64; 4]) {
-    let (proof, output, _) = prove(program, input, advice, 1).expect("the run halts");
+fn proves_and_verifies_with(tag: &str, program: &Program, advice: &[u64], expected: [u64; 4]) {
+    let (proof, output, _) = prove(program, advice, 1).expect("the run halts");
     assert_eq!(output, expected);
-    let raw = verify_to_raw(program, &input, &output, &proof).expect("honest proof verifies");
-    PythonStatement::new(tag, program, &input, &output).assert_accepts(&raw);
+    let raw = verify_to_raw(program, &output, &proof).expect("honest proof verifies");
+    PythonStatement::new(tag, program, &output).assert_accepts(&raw);
 
-    // The proof is about this input and this output.
-    for (wrong_input, wrong_output) in [(1, 0), (0, 1)] {
-        let (mut input, mut output) = (input, output);
-        input[0] ^= wrong_input;
-        output[0] ^= wrong_output;
-        assert!(verify(program, &input, &output, &proof).is_err());
-    }
+    // The proof is about this output.
+    let mut wrong = output;
+    wrong[0] ^= 1;
+    assert!(verify(program, &wrong, &proof).is_err());
 }
 
 #[test]
 fn fibonacci_proves_and_verifies() {
     let (program, output) = fibonacci();
-    proves_and_verifies("fibonacci", &program, [0; 4], output);
+    proves_and_verifies("fibonacci", &program, output);
 }
 
 /// Every instruction of the `ALU` class at least once: the arithmetic and its 32-bit
@@ -103,20 +100,20 @@ fn alu_instructions_prove_and_verify() {
         .r("add", A4, A4, A4)
         .jalr(ZERO, RA, 0);
     let program = Program::new(&a.finish(), TEXT_BASE, vec![], 2, 0);
-    let expected = leanvm_core::rv::Machine::new(&program.rv, [0; 4], &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, &[])
         .run(1 << 20)
         .expect("the run halts");
     assert_ne!(expected, [0; 4]);
-    proves_and_verifies("alu", &program, [0; 4], expected);
+    proves_and_verifies("alu", &program, expected);
 }
 
 /// Every load and store, through a stack frame and over the program's image: a
 /// bubble sort of eight words in place, then a checksum of the sorted bytes read back
-/// at every width, signed and not, and the public input folded in.
+/// at every width, signed and not.
 #[test]
 fn loads_and_stores_prove_and_verify() {
     const LOG_RAM: usize = 6;
-    const DATA: u64 = RAM_BASE + 8 * 4;
+    const DATA: u64 = RAM_BASE;
     let image = vec![5u64, 3, 0xffff_ffff_ffff_fff9, 1, 8, 0x8877_6655_4433_2211, 7, 4];
     let mut a = Asm::new();
     a.li(SP, RAM_BASE + (8 << LOG_RAM))
@@ -136,14 +133,11 @@ fn loads_and_stores_prove_and_verify() {
         .r("add", A0, A0, T1)
         .load("lbu", T1, 57, T0)
         .r("add", A0, A0, T1)
-        // Narrow stores into the first sorted word, then the public input.
+        // Narrow stores into the first sorted word.
         .store("sb", T1, 1, T0)
         .store("sh", T1, 2, T0)
         .store("sw", T1, 4, T0)
         .load("ld", A1, 0, T0)
-        .li(T0, RAM_BASE)
-        .load("ld", A2, 0, T0)
-        .load("ld", A3, 24, T0)
         .exit()
         .label("sort")
         .i("addi", SP, SP, -16)
@@ -168,12 +162,10 @@ fn loads_and_stores_prove_and_verify() {
         .i("addi", SP, SP, 16)
         .jalr(ZERO, RA, 0);
     let program = Program::new(&a.finish(), TEXT_BASE, image, LOG_RAM, 0);
-    let input = [0x1111, 0x2222, 0x3333, 0x4444];
-    let expected = leanvm_core::rv::Machine::new(&program.rv, input, &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, &[])
         .run(1 << 20)
         .expect("the run halts");
-    assert_eq!(expected[2..], [0x1111, 0x4444], "the public input is RAM's first words");
-    proves_and_verifies("memory", &program, input, expected);
+    proves_and_verifies("memory", &program, expected);
 }
 
 /// Every shift and every multiplication, registers and immediates, 64-bit and 32-bit
@@ -204,11 +196,11 @@ fn shifts_and_multiplications_prove_and_verify() {
         a.i(op, T0, S0, amount).r("xor", A2, A2, T0).r("sub", A3, A3, T0);
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, vec![], 2, 0);
-    let expected = leanvm_core::rv::Machine::new(&program.rv, [0; 4], &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, &[])
         .run(1 << 20)
         .expect("the run halts");
     assert!(expected.iter().all(|&word| word != 0));
-    proves_and_verifies("shift-mul", &program, [0; 4], expected);
+    proves_and_verifies("shift-mul", &program, expected);
 }
 
 /// Every division and remainder, 64-bit and 32-bit, on operands of both signs, by zero,
@@ -233,10 +225,10 @@ fn divisions_prove_and_verify() {
         }
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, vec![], 2, 0);
-    let expected = leanvm_core::rv::Machine::new(&program.rv, [0; 4], &[])
+    let expected = leanvm_core::rv::Machine::new(&program.rv, &[])
         .run(1 << 20)
         .expect("the run halts");
-    proves_and_verifies("div", &program, [0; 4], expected);
+    proves_and_verifies("div", &program, expected);
 }
 
 /// BLAKE2s of 100 bytes through the precompile: two compressions of the block at
@@ -261,7 +253,7 @@ fn blake2s_precompile_proves_and_verifies() {
         .collect();
     // The image: the block (its chaining value seeded, its message the first 64 bytes),
     // then the second message block.
-    let mut image = vec![0u64; ((BLOCK - RAM_BASE) / 8 - 4) as usize];
+    let mut image = vec![0u64; ((BLOCK - RAM_BASE) / 8) as usize];
     image.extend(&iv);
     image.extend([0; 4]);
     image.extend(words(&data[..64]));
@@ -285,13 +277,13 @@ fn blake2s_precompile_proves_and_verifies() {
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, image, 7, 0);
     let expected: [u64; 4] = words(&primitives::hash::hash(&data))[..4].try_into().unwrap();
-    proves_and_verifies("blake2s", &program, [0; 4], expected);
+    proves_and_verifies("blake2s", &program, expected);
 
     // A block pointer that is no word address traps, like a misaligned load.
     let text = Asm::new().li(S0, BLOCK + 4).blake2s(S0, ZERO, true).exit().finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 7, 0);
     assert_eq!(
-        prove(&program, [0; 4], &[], 1).err(),
+        prove(&program, &[], 1).err(),
         Some(leanvm_core::rv::Trap::Misaligned {
             pc: TEXT_BASE + 8,
             address: BLOCK + 4
@@ -325,7 +317,7 @@ fn advice_proves_and_verifies() {
             advice[0].wrapping_add(advice[1]),
             0,
         ];
-        proves_and_verifies_with("advice", &program, [0; 4], &advice, expected);
+        proves_and_verifies_with("advice", &program, &advice, expected);
     }
     // Past the region is nowhere, like past RAM.
     let text = Asm::new()
@@ -335,7 +327,7 @@ fn advice_proves_and_verifies() {
         .finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 2, LOG_ADVICE);
     assert!(matches!(
-        prove(&program, [0; 4], &[], 1).err(),
+        prove(&program, &[], 1).err(),
         Some(leanvm_core::rv::Trap::Unmapped { .. })
     ));
 }
@@ -346,7 +338,7 @@ fn a_trap_is_reported() {
     let text = Asm::new().word(0x0010_0073).exit().finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 2, 0);
     assert_eq!(
-        prove(&program, [0; 4], &[], 1).err(),
+        prove(&program, &[], 1).err(),
         Some(leanvm_core::rv::Trap::Illegal { pc: TEXT_BASE })
     );
 }

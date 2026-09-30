@@ -12,11 +12,11 @@ So $P(z,1,1,0,0)$ is instruction $z$'s tag, $P(z,1,0,1,0)$ its first register, $
 
 \paragraph{Well-formedness.} The proof system is sound for any table $P$, a malformed one included: it proves that the rows read $P$ and did what its fields say. What makes $P$ a RISC-V program is checked once, by both parties, where a program enters: every entry with a tag reads two registers below $32$ and writes a cell in $1..32$, its successor is its own address plus $4$, its flags are ones its class defines, its selector bits are bits, and a \texttt{HASH} entry writes the sink and has immediate $0$. The two verifiers check the same rules, and the digest below is of the decoded table, so a verifier is never handed a program it did not check.
 
-\subsection{Public input and output}\label{sec:e2e-pi}
+\subsection{The statement}\label{sec:e2e-pi}
 
-The \emph{statement} is a program, an input and an output: that the program, run on RAM holding the four input words then its image, halts on \texttt{exit} with $\regs[10],\dots,\regs[13]$ holding the output (\S\ref{sec:vm}). The program is one digest, BLAKE2s of everything public and fixed: the table $P$, the entry point, the halt slot, $\kmem$, $\kadv$ and the image, each variable-length part length-framed. The digest and the input seed the Fiat-Shamir transcript (\S\ref{sec:e2e-fiat-shamir}), so every challenge depends on the exact statement; the output does too, as the words the transcript starts from.
+The \emph{statement} is a program and an output: that the program, run on RAM holding its image, halts on \texttt{exit} with $\regs[10],\dots,\regs[13]$ holding the output (\S\ref{sec:vm}). The program is one digest, BLAKE2s of everything public and fixed: the table $P$, the entry point, the halt slot, $\kmem$, $\kadv$ and the image, each variable-length part length-framed. The digest seeds the Fiat-Shamir transcript (\S\ref{sec:e2e-fiat-shamir}), so every challenge depends on the exact statement; the output does too, as the words the transcript starts from.
 
-The input needs no claim: RAM's seed column $\meminit$ is public, the input then the image then zeros, and the verifier evaluates its extension at $\zeta$ itself, in time proportional to the image rather than to $\nmem$, the column being zero outside two stretches (\S\ref{sec:leafstack}). The output and the exit are five claims on the committed final registers $\regfin$ at Boolean points, one per register, whose values both parties know and neither transmits:
+RAM's initial words need no claim: its seed column $\meminit$ is public, the image then zeros, and the verifier evaluates its extension at $\zeta$ itself, in time proportional to the image rather than to $\nmem$, the column being zero past the image (\S\ref{sec:leafstack}). The output and the exit are five claims on the committed final registers $\regfin$ at Boolean points, one per register, whose values both parties know and neither transmits:
 \[
   \mle{\regfin}(\mathrm{bits}(17))\;\qeq\;\intk{93},\qquad \mle{\regfin}(\mathrm{bits}(10+i))\;\qeq\;\textsf{output}_i\quad(i<4),
 \]
@@ -32,7 +32,7 @@ A padding row's accesses cost nothing either. The gap check \eqref{eq:gap} force
 
 \subsection{Fiat Shamir instantiation}\label{sec:e2e-fiat-shamir}
 
-The transcript is a BLAKE2s sponge over $\K$-words. Its initial state is the BLAKE2s digest of the program's digest and the four input words (\S\ref{sec:e2e-pi}), and the four output words are absorbed first, so the state depends on the whole statement before the prover sends anything. Every scalar the prover sends is absorbed as it is sent, every challenge is squeezed from the state at that point, and a value that rode the stream is never absorbed a second time. The commitment's Merkle root is a scalar like any other.
+The transcript is a BLAKE2s sponge over $\K$-words. Its initial state is the program's digest (\S\ref{sec:e2e-pi}), and the four output words are absorbed first, so the state depends on the whole statement before the prover sends anything. Every scalar the prover sends is absorbed as it is sent, every challenge is squeezed from the state at that point, and a value that rode the stream is never absorbed a second time. The commitment's Merkle root is a scalar like any other.
 
 \subsection{The unrolled protocol}\label{sec:e2e-unrolled}
 

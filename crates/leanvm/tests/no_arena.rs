@@ -20,11 +20,11 @@ fn proving_without_the_arena() {
         .exit()
         .finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 2, 0);
-    let (proof, output, _) = prove(&program, [0; 4], &[], MIN_LOG_INV_RATE).expect("the run halts");
+    let (proof, output, _) = prove(&program, &[], MIN_LOG_INV_RATE).expect("the run halts");
     assert_eq!(output, [300, 0, 0, 0]);
-    verify(&program, &[0; 4], &output, &proof).expect("the proof verifies");
+    verify(&program, &output, &proof).expect("the proof verifies");
 
     let mut wrong_output = output;
     wrong_output[0] += 1;
-    assert!(verify(&program, &[0; 4], &wrong_output, &proof).is_err());
+    assert!(verify(&program, &wrong_output, &proof).is_err());
 }

@@ -4,7 +4,7 @@ use bench::Plan;
 use leanvm::{Program, prove, verify};
 use primitives::{pretty_f64, pretty_integer};
 
-use crate::guest::{INPUT, refuse};
+use crate::guest::refuse;
 
 /// One run of a guest (`programs/`): what it is given and what it must output.
 pub struct Workload {
@@ -78,7 +78,7 @@ pub fn cycles(workloads: &[Workload]) {
     println!("|---|---:|---:|---:|---|");
     for workload in workloads {
         // One run each: the rows per table fix the committed size.
-        let stats = leanvm_core::cpu::measure(&workload.program(), INPUT, &workload.advice)
+        let stats = leanvm_core::cpu::measure(&workload.program(), &workload.advice)
             .unwrap_or_else(|trap| refuse(format_args!("{}: {trap}", workload.title)));
         let cycles: usize = stats.base_counts.iter().sum();
         println!(
@@ -111,7 +111,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     // Only the final measured pass is traced.
     let (result, prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        prove(&program, INPUT, &workload.advice, log_inv_rate)
+        prove(&program, &workload.advice, log_inv_rate)
     });
     // A run too long for one proof has none: continuations are not implemented.
     let (proof, output, stats) = result.unwrap_or_else(|trap| refuse(format_args!("the run has no proof: {trap}")));
@@ -121,7 +121,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     );
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &INPUT, &output, &proof).expect("the proof verifies")
+        verify(&program, &output, &proof).expect("the proof verifies")
     });
 
     // The proven rows include padding: the guest's own cycles are the per-table base counts.

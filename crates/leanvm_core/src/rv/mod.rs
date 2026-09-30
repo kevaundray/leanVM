@@ -43,9 +43,6 @@ pub const MAX_LOG_RAM: usize = 27;
 pub const ADVICE_BASE: u64 = 0x2000_0000;
 pub const MAX_LOG_ADVICE: usize = 26;
 
-/// RAM's first words are the run's public input, and the program's image follows.
-pub const INPUT_WORDS: usize = 4;
-
 /// The register array holds `2^LOG_REGS` cells: `x0..x31`, then [`SINK`].
 pub const LOG_REGS: usize = 6;
 /// The cell written by an instruction with no destination.

@@ -574,8 +574,8 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
     require(count_root != ZERO, "a bus count is zero")
 
     # The framework blocks' committed columns, in the order the two sides first name them. The push side names the
-    # advice's initial words, every other seed being public (the registers start at zero, RAM at the input and the
-    # program's image); the pull side names each read-write array's final timestamps and values, then each read-only
+    # advice's initial words, every other seed being public (the registers start at zero, RAM at the program's
+    # image); the pull side names each read-write array's final timestamps and values, then each read-only
     # array's final counts.
     register_low = tuple(point[:LOG_REGISTERS])
     ram_low = tuple(point[: layout.log_ram])
@@ -732,7 +732,7 @@ FLOCK_MIN_LOG_SIZE = 13
 # The machine is RISC-V (rv64im). Instruction z sits at TEXT_BASE + 4z, and the register array holds x0..x31, then
 # SINK, the cell an instruction with no destination writes: nothing reads it, which is what hardwires x0 to zero.
 TEXT_BASE = 0x1000_0000
-RAM_BASE = 0x4000_0000  # RAM's word z sits at RAM_BASE + 8z; its first INPUT_WORDS words are the public input
+RAM_BASE = 0x4000_0000  # RAM's word z sits at RAM_BASE + 8z; the program's image is its first words
 ADVICE_BASE = 0x2000_0000  # the advice's word z sits at ADVICE_BASE + 8z; what it holds before the run is the prover's
 # What the regions hold at most, and the most rows a table may announce. These bound the counting arguments the
 # memory and lookup proofs rest on, so the verifier checks them before it runs any reduction.
@@ -740,7 +740,6 @@ MAX_LOG_TEXT = 26
 MAX_LOG_RAM = 27
 MAX_LOG_ADVICE = 26
 MAX_LOG_ROWS = 32
-INPUT_WORDS = 4
 LOG_REGISTERS = 6
 SINK = 32
 SYSCALL_REGISTER, SYS_EXIT = 17, 93  # a7 holds `exit` when the run halts
@@ -1735,7 +1734,7 @@ def build_layout(
         "invalid announced table sizes",
     )
     require(
-        2 <= log_ram <= MAX_LOG_RAM and all(offset + len(words) <= 2**log_ram for offset, words in ram),
+        log_ram <= MAX_LOG_RAM and all(offset + len(words) <= 2**log_ram for offset, words in ram),
         "RAM does not hold its image",
     )
     require(0 <= log_advice <= MAX_LOG_ADVICE, "the advice exceeds its region")
@@ -1867,21 +1866,19 @@ def verify_execution(
     log_ram: int,
     log_advice: int,
     image: Sequence[int],
-    public_input: Sequence[int],
     output: Sequence[int],
     proof: Proof,
 ) -> None:
     """The statement: the program whose decoded table is `bytecode`, started at `entry_pc` on a RAM of `2^log_ram` words
-    holding `public_input` then `image`, with an advice region of `2^log_advice` words holding whatever the prover put
-    there, halts on `exit` with a0..a3 holding `output`."""
-    require(len(public_input) == INPUT_WORDS and len(output) == 4, "the input and the output are four words each")
+    holding `image` then zeros, with an advice region of `2^log_advice` words holding whatever the prover put there,
+    halts on `exit` with a0..a3 holding `output`."""
+    require(len(output) == 4, "the output is four words")
     check_bytecode(bytecode)
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
     preimage = b"leanvm-rv64im-1" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
-    digest = blake2s_hash(preimage)
-    transcript = Transcript(proof, blake2s_hash(digest.value + pack(f"<{INPUT_WORDS}Q", *public_input)), [K(word) for word in output])
+    transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 
     # 1] table log-sizes, log-inv-rate in WHIR, and the clock the run ended on (a K element)
     announced = transcript.next_scalars(2 + len(TABLES))
@@ -1889,7 +1886,7 @@ def verify_execution(
     table_logs = tuple(int(value.c0) for value in announced[: len(TABLES)])
     log_inverse_rate = int(announced[-2].c0)
     require(1 <= log_inverse_rate <= 4, "invalid PCS inverse rate")
-    ram = ((0, public_input), (INPUT_WORDS, image))
+    ram = ((0, image),)
     layout = build_layout(bytecode, entry_pc, log_ram, log_advice, ram, table_logs, announced[-1])
     require(MIN_STACKED_LOG <= layout.stack_log <= MAX_STACKED_LOG, "committed size outside the PCS window")
 
@@ -1945,7 +1942,6 @@ def protocol_constants() -> str:
         "HASH_STRIDE": HASH_STRIDE,
         "HASH_WORDS": HASH_WORDS,
         "INITIAL_FOLDING_FACTOR": INITIAL_FOLDING_FACTOR,
-        "INPUT_WORDS": INPUT_WORDS,
         "LOG_PACKING": LOG_PACKING,
         "LOG_REGISTERS": LOG_REGISTERS,
         "MAX_LOG_ADVICE": MAX_LOG_ADVICE,
@@ -1997,7 +1993,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "public",
         type=Path,
-        help="little-endian 64-bit words: the entry pc, log2 of RAM's words, log2 of the advice's, the program's image (its length, then its words), the four input words, the four output words",
+        help="little-endian 64-bit words: the entry pc, log2 of RAM's words, log2 of the advice's, the program's image (its length, then its words), the four output words",
     )
     parser.add_argument("stream", type=Path, help="the proof's scalar stream, 24-byte little-endian field elements")
     parser.add_argument("merkle_openings", type=Path, help="every Merkle opening: its leaf's words, then its sibling digests")
@@ -2007,12 +2003,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         require(len(encoded_bytecode) % 8 == 0, "bytecode is not a whole number of 64-bit words")
         bytecode = [K(int.from_bytes(encoded_bytecode[i : i + 8], "little")) for i in range(0, len(encoded_bytecode), 8)]
         encoded_public = arguments.public.read_bytes()
-        require(len(encoded_public) % 8 == 0 and len(encoded_public) >= 12 * 8, "the public words are malformed")
+        require(len(encoded_public) % 8 == 0 and len(encoded_public) >= 8 * 8, "the public words are malformed")
         entry_pc, log_ram, log_advice, image_length, *rest = unpack(f"<{len(encoded_public) // 8}Q", encoded_public)
-        require(len(rest) == image_length + INPUT_WORDS + 4, "the public words are malformed")
-        image, public_input, output = rest[:image_length], rest[image_length:-4], rest[-4:]
+        require(len(rest) == image_length + 4, "the public words are malformed")
+        image, output = rest[:image_length], rest[image_length:]
         proof = Proof.load(arguments.stream, arguments.merkle_openings)
-        verify_execution(bytecode, entry_pc, log_ram, log_advice, image, public_input, output, proof)
+        verify_execution(bytecode, entry_pc, log_ram, log_advice, image, output, proof)
     except (OSError, ValueError, KeyError, VerificationError) as exc:
         parser.exit(1, f"verification failed: {exc}\n")
     print("verification succeeded")

@@ -10,7 +10,7 @@ use std::time::Instant;
 
 /// One statement laid out the way the Python verifier takes it: the bytecode
 /// multilinear, then what else is public (where the run starts, RAM's size and first
-/// words, the input, the output), not a structured program.
+/// words, the output), not a structured program.
 pub struct PythonStatement {
     directory: PathBuf,
     bytecode: PathBuf,
@@ -18,7 +18,7 @@ pub struct PythonStatement {
 }
 
 impl PythonStatement {
-    pub fn new(tag: &str, program: &leanvm_core::cpu::Program, input: &[u64; 4], output: &[u64; 4]) -> Self {
+    pub fn new(tag: &str, program: &leanvm_core::cpu::Program, output: &[u64; 4]) -> Self {
         // One directory per statement, not per tag: the tests share a process, so two of
         // them naming the same tag would write each other's files and check the wrong
         // proof, which python would ACCEPT, silently proving nothing.
@@ -46,7 +46,6 @@ impl PythonStatement {
         ]
         .iter()
         .chain(&rv.image)
-        .chain(input)
         .chain(output)
         .flat_map(|w| w.to_le_bytes())
         .collect();
@@ -122,21 +121,20 @@ impl Drop for PythonStatement {
 #[test]
 fn test_python_verifier() {
     let (program, _) = super::programs::fibonacci();
-    let input = [0; 4];
-    let (proof, output, stats) = prove(&program, input, &[], 1).expect("the run halts");
+    let (proof, output, stats) = prove(&program, &[], 1).expect("the run halts");
     // Python reads the RAW proof: same protocol, each query carrying its own
     // full Merkle path instead of one octopus over the batch. A Rust verify
     // expands the wire form, so the pruning is written once.
-    let raw = verify_to_raw(&program, &input, &output, &proof).expect("honest proof verifies");
+    let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
     let encoded = bincode::serialize(&proof).expect("serialize proof");
-    let statement = PythonStatement::new("tamper", &program, &input, &output);
+    let statement = PythonStatement::new("tamper", &program, &output);
     let verification_started = Instant::now();
     statement.assert_accepts(&raw);
     let verification_time = verification_started.elapsed();
 
     let mut malformed_announcement = proof.clone();
     malformed_announcement.stream[0].c1 = 1;
-    assert!(verify(&program, &input, &output, &malformed_announcement).is_err());
+    assert!(verify(&program, &output, &malformed_announcement).is_err());
     let mut raw_announcement = raw.clone();
     raw_announcement.stream[0].c1 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_announcement), "a noncanonical announcement");
@@ -145,7 +143,7 @@ fn test_python_verifier() {
     // Past the announcement: the table heights, the rate, the final clock.
     let root_offset = leanvm_core::tables::N_TABLES + 2;
     malformed_root.stream[root_offset].c2 = 1;
-    assert!(verify(&program, &input, &output, &malformed_root).is_err());
+    assert!(verify(&program, &output, &malformed_root).is_err());
     let mut raw_root = raw.clone();
     raw_root.stream[root_offset].c2 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_root), "a noncanonical commitment root");
@@ -181,9 +179,8 @@ fn test_python_verifier() {
 #[test]
 fn the_python_verifier_follows_the_slowest_rate() {
     let (program, _) = super::programs::fibonacci();
-    let input = [0; 4];
     let rate = leanvm_core::pcs::MAX_LOG_INV_RATE;
-    let (proof, output, _) = prove(&program, input, &[], rate).expect("the run halts");
-    let raw = verify_to_raw(&program, &input, &output, &proof).expect("honest proof verifies");
-    PythonStatement::new("rate", &program, &input, &output).assert_accepts(&raw);
+    let (proof, output, _) = prove(&program, &[], rate).expect("the run halts");
+    let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
+    PythonStatement::new("rate", &program, &output).assert_accepts(&raw);
 }

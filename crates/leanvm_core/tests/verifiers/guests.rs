@@ -7,9 +7,6 @@ use super::python_verifier::PythonStatement;
 use leanvm_core::cpu::{Program, measure, prove, verify, verify_to_raw};
 use leanvm_core::rv::{self, Guest, Machine};
 
-/// The guests read the advice alone: the public input is zero.
-const INPUT: [u64; 4] = [0; 4];
-
 /// The output of a guest committing `values` in order.
 fn committed(values: &[&[u64]]) -> [u64; 4] {
     let mut public = leanvm_guest::PublicValues::new();
@@ -21,20 +18,18 @@ fn committed(values: &[&[u64]]) -> [u64; 4] {
 
 fn proves_and_verifies(tag: &str, elf: &[u8], advice: &[u64], expected: [u64; 4]) {
     let program = Program::from_elf(elf).expect("a guest");
-    let ran = Machine::new(&program.rv, INPUT, advice)
-        .run(1 << 24)
-        .expect("the run halts");
+    let ran = Machine::new(&program.rv, advice).run(1 << 24).expect("the run halts");
     assert_eq!(ran, expected, "{tag}: the interpreter");
 
-    let (proof, output, stats) = prove(&program, INPUT, advice, 1).expect("the run halts");
+    let (proof, output, stats) = prove(&program, advice, 1).expect("the run halts");
     assert_eq!(output, expected);
     // Measuring a run reports what proving it does, without the proof.
-    assert_eq!(measure(&program, INPUT, advice), Ok(stats.clone()), "{tag}: measure");
-    let raw = verify_to_raw(&program, &INPUT, &output, &proof).expect("honest proof verifies");
-    PythonStatement::new(tag, &program, &INPUT, &output).assert_accepts(&raw);
+    assert_eq!(measure(&program, advice), Ok(stats.clone()), "{tag}: measure");
+    let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
+    PythonStatement::new(tag, &program, &output).assert_accepts(&raw);
     let mut wrong = output;
     wrong[3] ^= 1;
-    assert!(verify(&program, &INPUT, &wrong, &proof).is_err());
+    assert!(verify(&program, &wrong, &proof).is_err());
     println!("{tag}: {} instructions, {}", program.rv.entries.len(), stats.details());
 }
 
@@ -104,7 +99,7 @@ fn the_hash_guests_agree_with_the_host_at_every_block_boundary() {
         for length in [0u64, 1, 55, 63, 64, 65, 127, 128, 129, 256] {
             let message: Vec<u8> = (0..length).map(|i| (i % 251) as u8).collect();
             let expected = committed(&[&[length], &digest_words(&message)]);
-            let ran = Machine::new(&program.rv, INPUT, &[length])
+            let ran = Machine::new(&program.rv, &[length])
                 .run(1 << 24)
                 .unwrap_or_else(|trap| panic!("{name} on {length} bytes: {trap}"));
             assert_eq!(ran, expected, "{name} on {length} bytes");

@@ -4,9 +4,6 @@ use bench::Plan;
 use leanvm::{Program, prove, verify};
 use primitives::{pretty_f64, pretty_integer};
 
-/// The public input every run gets: guests read the advice alone, so it is zero.
-pub const INPUT: [u64; 4] = [0; 4];
-
 pub fn parse_word(word: &str) -> Result<u64, std::num::ParseIntError> {
     match word.strip_prefix("0x") {
         Some(hex) => u64::from_str_radix(hex, 16),
@@ -33,12 +30,12 @@ pub fn run_guest(elf: &std::path::Path, advice: &[u64], log_inv_rate: usize, pla
 
     let (result, prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        prove(&program, INPUT, advice, log_inv_rate)
+        prove(&program, advice, log_inv_rate)
     });
     let (proof, output, stats) = result.unwrap_or_else(|trap| refuse(format_args!("the run has no proof: {trap}")));
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &INPUT, &output, &proof).unwrap()
+        verify(&program, &output, &proof).unwrap()
     });
 
     println!("{}", elf.display());

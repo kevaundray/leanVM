@@ -2,7 +2,7 @@
 //! and RAM. Anything the machine could not run as the file means it to be run is
 //! refused here, not discovered as a trap.
 
-use super::{ADVICE_BASE, INPUT_WORDS, MAX_LOG_ADVICE, MAX_LOG_RAM, MAX_LOG_TEXT, RAM_BASE, TEXT_BASE};
+use super::{ADVICE_BASE, MAX_LOG_ADVICE, MAX_LOG_RAM, MAX_LOG_TEXT, RAM_BASE, TEXT_BASE};
 
 /// What a program is made from.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -10,7 +10,7 @@ pub struct Guest {
     /// The text's words, the first at [`TEXT_BASE`].
     pub text: Vec<u32>,
     pub entry_pc: u64,
-    /// RAM's words after the input's.
+    /// RAM's first words.
     pub image: Vec<u64>,
     pub log_ram: usize,
     pub log_advice: usize,
@@ -146,16 +146,14 @@ impl Guest {
                 }
                 place::<4>(&mut text, vaddr - TEXT_BASE, bytes);
             } else {
-                // RAM's first words are the input's: a segment may reserve them, not fill them.
-                let first = RAM_BASE + 8 * INPUT_WORDS as u64;
-                if vaddr < RAM_BASE || end > RAM_BASE + (8 << MAX_LOG_RAM) || (vaddr < first && !bytes.is_empty()) {
-                    return Err(ElfError("a data segment outside RAM, or over the input words"));
+                if vaddr < RAM_BASE || end > RAM_BASE + (8 << MAX_LOG_RAM) {
+                    return Err(ElfError("a data segment outside RAM"));
                 }
                 if !bytes.is_empty() {
-                    if vaddr - first + bytes.len() as u64 > file_len {
+                    if vaddr - RAM_BASE + bytes.len() as u64 > file_len {
                         return Err(ElfError("more image than the file carries"));
                     }
-                    place::<8>(&mut image, vaddr - first, bytes);
+                    place::<8>(&mut image, vaddr - RAM_BASE, bytes);
                 }
             }
         }
@@ -166,7 +164,7 @@ impl Guest {
         let ram_end =
             symbol(&r, RAM_END_SYMBOL)?.ok_or(ElfError("no __stack_top symbol: not linked with the guests' script"))?;
         let ram_bytes = ram_end.wrapping_sub(RAM_BASE);
-        if ram_end <= RAM_BASE || !ram_bytes.is_power_of_two() || ram_bytes < 8 * (INPUT_WORDS as u64 + 1) {
+        if ram_end <= RAM_BASE || !ram_bytes.is_power_of_two() || ram_bytes < 8 {
             return Err(ElfError("RAM's size is not a power of two"));
         }
         let log_ram = (ram_bytes / 8).trailing_zeros() as usize;
@@ -186,7 +184,7 @@ impl Guest {
             .iter()
             .map(|&w| u64::from_le_bytes(w))
             .collect();
-        if log_ram > MAX_LOG_RAM || INPUT_WORDS + image.len() > 1 << log_ram {
+        if log_ram > MAX_LOG_RAM || image.len() > 1 << log_ram {
             return Err(ElfError("the image does not fit RAM"));
         }
         Ok(Self {

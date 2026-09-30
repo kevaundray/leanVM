@@ -126,7 +126,7 @@ fn failed_check(test: &Test, machine: &Machine, trap: &Trap) -> Option<String> {
 /// What the interpreter says of a test, as a failure message if it is not a pass.
 fn check_run(test: &Test) -> Result<(), String> {
     let name = &test.name;
-    let mut machine = Machine::new(&test.program.rv, [0; 4], &[]);
+    let mut machine = Machine::new(&test.program.rv, &[]);
     match machine.run(CYCLE_CAP) {
         Ok(PASS) => Ok(()),
         Ok([1, called_from, ..]) => Err(format!("{name}: fails, halting from {called_from:#x}")),
@@ -154,17 +154,13 @@ fn act4_proven() {
     let mut covered = [false; N_TABLES];
     let mut python = Vec::new();
     for Test { name, program, .. } in suite() {
-        let (proof, output, stats) = prove(&program, [0; 4], &[], 1).unwrap_or_else(|trap| panic!("{name}: {trap}"));
+        let (proof, output, stats) = prove(&program, &[], 1).unwrap_or_else(|trap| panic!("{name}: {trap}"));
         assert_eq!(output, PASS, "{name}: the prover's output");
-        let raw = verify_to_raw(&program, &[0; 4], &output, &proof).unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let raw = verify_to_raw(&program, &output, &proof).unwrap_or_else(|error| panic!("{name}: {error:?}"));
         let used = stats.base_counts.map(|rows| rows > 0);
         if used.iter().zip(&covered).any(|(&used, &seen)| used && !seen) {
             covered = std::array::from_fn(|t| covered[t] || used[t]);
-            python.push((
-                name.clone(),
-                PythonStatement::new(&name, &program, &[0; 4], &output),
-                raw,
-            ));
+            python.push((name.clone(), PythonStatement::new(&name, &program, &output), raw));
         }
     }
     std::thread::scope(|scope| {

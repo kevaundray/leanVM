@@ -11,8 +11,6 @@ MEMORY {
 SECTIONS {
   .text : { KEEP(*(.text._start)) *(.text .text.*) } > TEXT
 
-  /* RAM's first four words are the run's public input: nothing is loaded there. */
-  .input (NOLOAD) : { __input = .; . += 32; } > RAM
   /* Everything that is not code lives in RAM: the text is not mapped as data. */
   .data : {
     *(.rodata .rodata.* .srodata .srodata.*)

@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::leaf::SparseColumn;
-use crate::rv::{ADVICE_BASE, INPUT_WORDS, LOG_REGS, RAM_BASE, TEXT_BASE};
+use crate::rv::{ADVICE_BASE, LOG_REGS, RAM_BASE, TEXT_BASE};
 
 // ---- column schema -----------------------------------------------------------
 
@@ -283,15 +283,15 @@ pub fn bytecode_table(p: &rv::Program) -> Vec<F64> {
     crate::leaf::stacked_bytecode_table(std::slice::from_ref(&block))
 }
 
-/// Build the public [`Layout`] from the program, the run's public input, the tables' log
-/// heights `taus` and the clock the prover says the run ended on. The flush blocks reference columns only
+/// Build the public [`Layout`] from the program, the tables' log heights `taus` and the
+/// clock the prover says the run ended on. The flush blocks reference columns only
 /// by INDEX and the program only through its public columns, so this needs no
 /// committed witness: both prover and verifier reconstruct exactly the same structure.
 ///
 /// A table's height is its row count: the fill blocks bring every count up to a power of
 /// two (`cpu::filler`), so `2^taus[t]` rows were all executed and no flush has padding
 /// tuples to divide back out of the bus.
-pub fn layout(p: &rv::Program, input: &[u64; INPUT_WORDS], taus: [usize; tables::N_TABLES], ts_final: F64) -> Layout {
+pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -> Layout {
     let sizes = Sizes::of(p);
     let log_bytecode = sizes.log_bytecode;
     let one = F64::ONE;
@@ -327,12 +327,12 @@ pub fn layout(p: &rv::Program, input: &[u64; INPUT_WORDS], taus: [usize; tables:
         vec![Const(tables::SEP_REG), cell, Col(REG_FTS), Col(REG_FIN)],
     ));
     // RAM the same way, cell `z` at its byte address `RAM_BASE + 8z`. What it holds
-    // before the run is public: the input, the program's image, zeros.
+    // before the run is public: the program's image, then zeros.
     let word = IntIndex {
         base: F64(RAM_BASE),
         shift: 3,
     };
-    let ram = SparseColumn::new(p.log_ram, &[(0, input), (INPUT_WORDS, &p.image)]);
+    let ram = SparseColumn::new(p.log_ram, &[(0, &p.image)]);
     push.push(blk(
         p.log_ram,
         vec![
@@ -440,7 +440,7 @@ impl Program {
         (shape.mu, committed)
     }
 
-    pub(crate) fn build(&self, exec: &Execution, input: &[u64; INPUT_WORDS]) -> Witness {
+    pub(crate) fn build(&self, exec: &Execution) -> Witness {
         let p = &self.rv;
         // The trace was emitted in the same walk as the run (no re-walk).
         let tr = &exec.trace;
@@ -474,7 +474,7 @@ impl Program {
             );
             tau
         });
-        let l = layout(p, input, taus, tr.ts_final);
+        let l = layout(p, taus, tr.ts_final);
         // The range arrays' addresses, to turn a gap's chunks into column values.
         let range_lo = primitives::field::geometric(tables::range_lo_first(), F64::G, 1 << tables::RANGE_LOG);
         let range_hi = primitives::field::geometric(F64::ONE, tables::range_hi_ratio(), 1 << tables::RANGE_LOG);
