@@ -168,6 +168,18 @@ impl<const W: usize> Template<W> {
         self.block.m[..W][at..at + N].copy_from_slice(&words);
     }
 
+    /// Write `value` at byte `at` of the message: a field narrower than a word, or an offset already in bytes,
+    /// which then needs no shift to become an address as [`Self::set`]'s word index does.
+    #[inline(always)]
+    pub fn write<T: Copy>(&mut self, at: usize, value: T) {
+        assert!(
+            at.is_multiple_of(align_of::<T>()) && at + size_of::<T>() <= 8 * W,
+            "an aligned field inside the message"
+        );
+        // SAFETY: the field is inside the message and aligned (checked above); the message is plain words.
+        unsafe { self.block.m.as_mut_ptr().byte_add(at).cast::<T>().write(value) }
+    }
+
     /// The digest of the message as it stands, as four little-endian words.
     #[inline(always)]
     pub fn digest(&mut self) -> [u64; 4] {

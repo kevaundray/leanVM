@@ -38,6 +38,10 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 
 - **Pick the hashing form by what repeats.** A hash repeated in one shape (a chain step, a tree node) is a `Template`: the instruction writes only the compression, so the words the next hash shares (the IV, the parameter, the padding) stay in its block and each hash writes only what changed. A message produced piece by piece (a one-time key's leaf, its chain ends; leanSPHINCS's few-time key, its roots) is `hash_with`: its `Stream` writes straight into the instruction's block, and `write_each` puts a block's arrays at fixed places. A message with a byte-sized field (leanSPHINCS's 4-byte encoding counter) stays on `Blake2s`, whose byte path the other two lack. `Blake2s` copies its message into a fresh block at each compression, which is what keeps a long-lived hasher's state in registers; a hasher owning its block loses that, since once the instruction has its address the compiler neither removes copies of it nor folds what it holds.
 
+- A field narrower than a word, or a slot picked at run time, is `Template::write` at a byte offset: a word index costs a shift to become an address. A tweak's position and index are 32-bit fields, so a hash that changes only those writes two `sw`s. leanXMSS's Merkle path is unrolled this way, its child and sibling placed by the level's bit with no branch.
+
+- **A saved instruction pays only where it takes a table under a power of two** at the size proved: every class's table pads to a power of two, so read `bench --cycles-only`'s per-table heights, not the total. A rewrite that trades ALU rows for SHIFT or LOAD rows can double another table.
+
 - rv64im has no carry-less multiply, so leanDA's membership check uses buckets. Each 11-bit window of each symbol XORs its `L_x` into a bucket, and the buckets are weighed once per blob.
 
 - The KATs in each host pin all three to the reference implementations.
