@@ -4,17 +4,17 @@ name: Bench
 # `bench-<testbed>`, with a PR's event as `pr-event`. It holds no secret, so it runs the
 # same for a fork's PR: bench-track.yml uploads the results once this succeeds.
 # The testbeds:
-# - `github-ubuntu`, GitHub's `ubuntu-latest`, is named here: a fork's PR runs without the
-#   repository's variables, and it is the one testbed a fork proves on, a throwaway
-#   machine with no secrets.
+# - `github-ubuntu`, GitHub's `ubuntu-latest`, on every push and every PR, forks included:
+#   a throwaway machine with no secrets. It is named here because a fork's PR runs
+#   without the repository's variables.
 # - variable `BENCH_TESTBEDS`: the self-hosted machines, as a JSON array of
 #   {"name", "runner"}, the runner's labels, e.g.
-#   [{"name": "zen5", "runner": ["self-hosted", "zen5"]}]. Never for a fork's PR, which
-#   would run its code on our hardware.
-# A PR proves when labelled `bench`, which a maintainer adds after reading it. A fork's PR
-# runs its own copy of this file, so the self-hosted runners' own settings (a runner
-# group limited to this repository's workflows on `main` and `riscv-exploration`, and
-# approval for outside contributors' runs) are what keep it off them.
+#   [{"name": "zen5", "runner": ["self-hosted", "zen5"]}]. On pushes, and on a PR from this
+#   repository once a maintainer labels it `bench`; never on a fork's PR, which would run
+#   its code on our hardware. A fork's PR runs its own copy of this file, so the
+#   self-hosted runners' own settings (a runner group limited to this repository's
+#   workflows on `main` and `riscv-exploration`, and approval for outside contributors'
+#   runs) are what keep it off them.
 
 on:
   push:
@@ -28,8 +28,7 @@ on:
 permissions:
   contents: read
 
-# A label other than `bench` starts a run that proves nothing: it must not
-# cancel the PR's real run.
+# A `labeled` event starts a run of its own, which must not cancel the PR's.
 concurrency:
   group: bench-${{ github.ref }}-${{ github.event.label.name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -62,17 +61,22 @@ jobs:
           HOSTED: '[{"name": "github-ubuntu", "runner": "ubuntu-latest"}]'
           SELF_HOSTED: ${{ vars.BENCH_TESTBEDS || '[]' }}
           EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          LABEL: ${{ github.event.label.name }}
           FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
           LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'bench') }}
-          # A `labeled` event for another label proves nothing: the PR's own run does.
-          OTHER_LABEL: ${{ github.event.action == 'labeled' && github.event.label.name != 'bench' }}
         run: |
-          if [ "$EVENT" = pull_request ] && { [ "$LABELLED" != true ] || [ "$OTHER_LABEL" = true ]; }; then
-            testbeds='[]'
-          elif [ "$FORK" = true ]; then
-            testbeds=$HOSTED
+          all=$(jq -cn --argjson a "$HOSTED" --argjson b "$SELF_HOSTED" '$a + $b | unique_by(.name)')
+          if [ "$EVENT" != pull_request ]; then
+            testbeds=$all
+          elif [ "$ACTION" = labeled ]; then
+            # The PR's own run proved on github-ubuntu: `bench` on a PR from this repository
+            # adds the self-hosted machines, and any other label proves nothing.
+            if [ "$LABEL" = bench ] && [ "$FORK" != true ]; then testbeds=$SELF_HOSTED; else testbeds='[]'; fi
+          elif [ "$LABELLED" = true ] && [ "$FORK" != true ]; then
+            testbeds=$all
           else
-            testbeds=$(jq -cn --argjson a "$HOSTED" --argjson b "$SELF_HOSTED" '$a + $b | unique_by(.name)')
+            testbeds=$HOSTED
           fi
           echo "testbeds=$testbeds" >> "$GITHUB_OUTPUT"
           echo "Testbeds: $testbeds"

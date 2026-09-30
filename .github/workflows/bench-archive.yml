@@ -13,11 +13,8 @@ permissions: {}
 jobs:
   archive:
     name: Archive
-    # Only a PR that was benchmarked has a branch: one labelled `bench`, forks included,
-    # or any PR into riscv-exploration, whose exact counts run on every PR.
-    if: >-
-      vars.BENCHER_PROJECT != '' && (github.event.pull_request.base.ref == 'riscv-exploration'
-      || contains(github.event.pull_request.labels.*.name, 'bench'))
+    # Every PR is benchmarked, so every PR has a branch.
+    if: vars.BENCHER_PROJECT != ''
     runs-on: ubuntu-latest
     steps:
       - uses: bencherdev/bencher@main
