@@ -15,7 +15,7 @@ use primitives::field::{F64, F192, F192Unreduced, g_pow, index_mle, int_index_ml
 use primitives::multilinear::{eq_eval, eq_table_arena, mle_eval};
 use std::collections::HashMap;
 use std::sync::Arc;
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 /// One tuple coordinate as a function of the block's row `z`.
 #[derive(Clone, Debug)]
@@ -356,6 +356,7 @@ pub fn build_leaves(
     // Capacity is rounded to whole four-tuples because `gkr::QuaternaryLayerState`
     // pads this level to that before reading it, and growing it here would copy it.
     let covered: usize = blocks.iter().map(|blk| 1usize << blk.kappa).sum();
+    #[expect(clippy::uninit_vec, reason = "the per-block fills below cover `0..explicit`")]
     let mut leaves = if covered == explicit {
         let mut values = ArenaVec::with_capacity(explicit.next_multiple_of(4));
         // SAFETY: the per-block fills below cover `0..explicit` exactly, and each

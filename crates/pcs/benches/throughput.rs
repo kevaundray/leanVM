@@ -28,6 +28,7 @@ use primitives::{
     pretty_integer,
     test_rng::Rng,
 };
+use zk_alloc::ArenaVecExt;
 
 fn main() {
     bench::init_tracing_from_env();

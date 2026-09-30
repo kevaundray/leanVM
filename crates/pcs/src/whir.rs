@@ -30,7 +30,7 @@ use primitives::{
     multilinear::eq_eval,
     stream::Stream,
 };
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 pub use super::whir_config::{
     FinalBlockConfig, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, LevelShapes, MAX_LOG_INV_RATE, MIN_LOG_INV_RATE,

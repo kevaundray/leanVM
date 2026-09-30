@@ -6,34 +6,11 @@
 //! `K`-valued (`F64`) while randomness is `E`-valued (`F192`), so the first
 //! fold of a committed table also lifts it into `E`.
 
-use std::ops::DerefMut;
-
+use std::alloc::Allocator;
 use std::mem::MaybeUninit;
 
 use crate::field::{F64, F192, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8, mul4};
 use zk_alloc::ArenaVec;
-
-/// The one thing the in-place folds need beyond a mutable slice: the ability to
-/// drop a suffix. Implemented for `Vec` and `ArenaVec`, so a fold works on either
-/// without duplicating the kernel or naming a container in its signature.
-pub trait Shrink<T>: DerefMut<Target = [T]> {
-    /// Keep the first `len` elements, dropping the rest.
-    fn shrink_to(&mut self, len: usize);
-}
-
-impl<T> Shrink<T> for Vec<T> {
-    #[inline]
-    fn shrink_to(&mut self, len: usize) {
-        self.truncate(len);
-    }
-}
-
-impl<T> Shrink<T> for ArenaVec<T> {
-    #[inline]
-    fn shrink_to(&mut self, len: usize) {
-        self.truncate(len);
-    }
-}
 
 /// Multilinear interpolation in one variable over `E`: `lo + t·(lo+hi)`, the
 /// char-2 form of `(1−t)·lo + t·hi`.
@@ -181,7 +158,7 @@ pub fn fold_high_k(table: &[F64], chi: F192) -> ArenaVec<F192> {
 /// Bind the highest free variable of `table` to `chi` in place: `table[i] =
 /// interp(table[i], table[i + half], chi)`. Binding from the top down leaves the
 /// low variables, the ones every table of a batch shares, for last.
-pub fn fold_high_inplace<B: Shrink<F192>>(table: &mut B, chi: F192) {
+pub fn fold_high_inplace<A: Allocator>(table: &mut Vec<F192, A>, chi: F192) {
     debug_assert_eq!(table.len() % 2, 0);
     let half = table.len() / 2;
     {
@@ -191,7 +168,7 @@ pub fn fold_high_inplace<B: Shrink<F192>>(table: &mut B, chi: F192) {
         let (lo, hi) = (**table).split_at_mut(half);
         interp_into(lo, hi, chi);
     }
-    table.shrink_to(half);
+    table.truncate(half);
 }
 
 /// `lo[i] = interp(lo[i], hi[i], chi)`, four products per batch.
@@ -211,7 +188,7 @@ fn interp_into(lo: &mut [F192], hi: &[F192], chi: F192) {
 /// Marginalize the lowest variable out of an `eq` table (in place). `eq(r_0, 0) +
 /// eq(r_0, 1) = 1`, so summing adjacent entries drops `r_0` with no multiplies,
 /// versus `2^{n-1}` to rebuild the table.
-pub fn shrink_eq_low<B: Shrink<F192>>(table: &mut B) {
+pub fn shrink_eq_low<A: Allocator>(table: &mut Vec<F192, A>) {
     let half = table.len() / 2;
     {
         // Sliced, as in `fold_high_inplace`: reading the pair and writing the
@@ -223,12 +200,12 @@ pub fn shrink_eq_low<B: Shrink<F192>>(table: &mut B) {
             t[i] = a + b;
         }
     }
-    table.shrink_to(half);
+    table.truncate(half);
 }
 
 /// Marginalize the highest variable out of an `eq` table (in place), the
 /// [`shrink_eq_low`] counterpart for a top-down sumcheck.
-pub fn shrink_eq_high<B: Shrink<F192>>(table: &mut B) {
+pub fn shrink_eq_high<A: Allocator>(table: &mut Vec<F192, A>) {
     let half = table.len() / 2;
     {
         // Sliced, as in `fold_high_inplace`.
@@ -237,7 +214,7 @@ pub fn shrink_eq_high<B: Shrink<F192>>(table: &mut B) {
             *l += *h;
         }
     }
-    table.shrink_to(half);
+    table.truncate(half);
 }
 
 /// The one barycentric denominator an aligned `size`-node window of the φ₈ table has: `∏_{k≠0} φ₈(k)`,

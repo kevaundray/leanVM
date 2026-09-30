@@ -497,6 +497,7 @@ mod tests {
     };
     use crate::whir_config::test_config_for;
     use primitives::test_rng::Rng;
+    use zk_alloc::ArenaVecExt;
 
     /// Pack bit `64 * y + i` of `bits` into bit `i` of word `y`.
     fn pack_witness(bits: &[bool]) -> Vec<F64> {

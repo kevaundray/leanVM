@@ -111,7 +111,7 @@ pub fn log2_ceil_usize(n: usize) -> usize {
 pub fn par_collect_arena<T: Send>(n: usize, build: impl Fn(usize) -> T + Sync) -> zk_alloc::ArenaVec<T> {
     // SAFETY: the fill below writes every slot in `0..n` exactly once, and
     // the dispatch joins before the buffer is observable.
-    let mut out = unsafe { zk_alloc::ArenaVec::uninitialized(n) };
+    let mut out = unsafe { <zk_alloc::ArenaVec<T> as zk_alloc::ArenaVecExt<T>>::uninitialized(n) };
     parallel::fill(&mut out, build);
     out
 }

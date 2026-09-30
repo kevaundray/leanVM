@@ -10,7 +10,7 @@
 use crate::ntt::AdditiveNttF64;
 use crate::whir::build_eq_table_ext;
 use primitives::field::{F64, F192};
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 // ===================================================================
 // LCH novel-basis evaluations over K (mirror of whir's extension-field block)
@@ -272,7 +272,7 @@ pub(crate) fn induce_sumcheck_evaluate_at_residual(
     if yr_len > PAR_FLOOR {
         primitives::par_collect_arena(yr_len, compute_y)
     } else {
-        (0..yr_len).map(compute_y).collect()
+        ArenaVec::from_iter((0..yr_len).map(compute_y))
     }
 }
 

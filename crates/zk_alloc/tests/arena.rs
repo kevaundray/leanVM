@@ -5,7 +5,7 @@
 
 use std::sync::{Mutex, MutexGuard};
 
-use zk_alloc::{ArenaVec, enable_arena, enter_phase};
+use zk_alloc::{ArenaVec, ArenaVecExt, enable_arena, enter_phase};
 
 const N: usize = 4096;
 

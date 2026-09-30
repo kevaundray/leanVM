@@ -41,7 +41,7 @@ use crate::zerocheck::univariate_skip::pack_bits;
 use crate::zerocheck::univariate_skip::{SplitEq, build_eq};
 use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
 use primitives::stream::Stream;
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 /// Four independent products. Tuples keep the scalar and NEON paths in registers, while AVX-512 uses the batched helper.
 #[inline(always)]

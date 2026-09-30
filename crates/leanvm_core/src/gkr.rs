@@ -11,7 +11,7 @@ use crate::transcript::{Challenger, ProverState, Receiver, Transmitter, Verifier
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
 use primitives::multilinear::{eq_table, interp, poly_eval, shrink_eq_low};
 use primitives::stream::Stream;
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GkrError {
@@ -53,7 +53,7 @@ fn build_layers(leaves: ArenaVec<F192>, mu: usize) -> Vec<ArenaVec<F192>> {
         } else if full_rows >= PAR_THRESHOLD {
             primitives::par_collect_arena(full_rows, product)
         } else {
-            (0..full_rows).map(product).collect()
+            ArenaVec::from_iter((0..full_rows).map(product))
         };
         if !current.len().is_multiple_of(4) && current.len() > 2 {
             let row = full_rows;
@@ -367,8 +367,9 @@ pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, s
         }
 
         let width = 1usize << round_count;
-        let mut trees =
-            [0, 1, 2].map(|tree| QuaternaryLayerState::new(std::mem::take(&mut layers[tree][layer - 2]), width));
+        let mut trees = [0, 1, 2].map(|tree| {
+            QuaternaryLayerState::new(std::mem::replace(&mut layers[tree][layer - 2], ArenaVec::new()), width)
+        });
         let mut equality = if round_count > 0 {
             eq_table(&point[1..])
         } else {
@@ -521,9 +522,9 @@ mod tests {
     #[test]
     fn quartic_round_message_matches_direct_evaluation() {
         for width in [2, 4, 8, 16] {
-            let below: ArenaVec<F192> = (0..4 * width)
-                .map(|i| F192::new((17 * i + width + 1) as u64, (i * i + 3) as u64, (5 * i + 7) as u64))
-                .collect();
+            let below = ArenaVec::from_iter(
+                (0..4 * width).map(|i| F192::new((17 * i + width + 1) as u64, (i * i + 3) as u64, (5 * i + 7) as u64)),
+            );
             let state = QuaternaryLayerState::new(below, width);
             let equality: Vec<F192> = (0..width / 2)
                 .map(|i| F192::new((31 * i + 5) as u64, (7 * i + 1) as u64, (11 * i + 9) as u64))
@@ -554,9 +555,9 @@ mod tests {
                 if len > 4 * width {
                     continue;
                 }
-                let values: ArenaVec<F192> = (0..len)
-                    .map(|i| F192::new((17 * i + 1) as u64, (i * i + 3) as u64, (5 * i + 7) as u64))
-                    .collect();
+                let values = ArenaVec::from_iter(
+                    (0..len).map(|i| F192::new((17 * i + 1) as u64, (i * i + 3) as u64, (5 * i + 7) as u64)),
+                );
                 let mut reference = QuaternaryLayerState::new(ArenaVec::from_slice(&values), width);
                 let mut fused = QuaternaryLayerState::new(values, width);
                 let point: Vec<F192> = (0..width.ilog2() - 1)

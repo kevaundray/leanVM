@@ -5,7 +5,7 @@
 //! the column's offset.
 
 use primitives::field::F64;
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 /// Where a column sits in the stacked witness. A [`Placement::VIRTUAL`] column is
 /// NOT committed: it carries data for the bus, but its evaluation claims settle

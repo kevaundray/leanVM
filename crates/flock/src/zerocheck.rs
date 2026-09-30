@@ -24,7 +24,7 @@
 
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use primitives::field::{F8, F192};
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
 

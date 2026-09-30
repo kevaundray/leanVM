@@ -16,9 +16,10 @@
 //! # Usage
 //!
 //! ```no_run
+//! use zk_alloc::{ArenaVec, ArenaVecExt};
 //! zk_alloc::enable_arena(); // once, at startup
 //! let _phase = zk_alloc::enter_phase(); // bind before the phase's buffers
-//! let buf: zk_alloc::ArenaVec<u64> = zk_alloc::ArenaVec::with_capacity(1 << 20);
+//! let buf: ArenaVec<u64> = ArenaVec::with_capacity(1 << 20);
 //! ```
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -29,7 +30,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 mod arena_vec;
 mod syscall;
 
-pub use arena_vec::{ArenaVec, alloc_uninit, assume_init};
+pub use arena_vec::{Arena, ArenaVec, ArenaVecExt, alloc_uninit, assume_init};
 
 /// Address space reserved per thread. Overflow falls back to the system allocator.
 const SLAB_SIZE: usize = 64 << 30;
@@ -182,8 +183,9 @@ thread_local! {
     static NO_SLAB: Cell<bool> = const { Cell::new(false) };
 }
 
-fn region() -> usize {
-    *REGION.get_or_init(|| {
+/// Map the reservation. Done in [`enable_arena`], never on the allocation path, which must not unwind.
+fn reserve_region() {
+    REGION.get_or_init(|| {
         let size = region_size();
         // SAFETY: `reserve` returns a page-aligned pointer or null.
         let ptr = unsafe { syscall::reserve(size) };
@@ -195,7 +197,7 @@ fn region() -> usize {
         // SAFETY: the mapping we just made is live and exactly `size` bytes.
         unsafe { syscall::disable_huge_pages(ptr, size) };
         ptr as usize
-    })
+    });
 }
 
 /// Opt into the arena. Call once at startup, before any proving.
@@ -205,6 +207,7 @@ fn region() -> usize {
 /// memory-constrained host, at the cost of the page-fault churn described in the
 /// module docs.
 pub fn enable_arena() {
+    reserve_region();
     syscall::retain_system_heap();
     POISON.store(std::env::var_os("ZK_ALLOC_POISON").is_some(), Ordering::Relaxed);
     ARENA_ENGAGED.store(true, Ordering::Release);
@@ -340,7 +343,12 @@ unsafe fn alloc_slow(size: usize, align: usize) -> *mut u8 {
                 NO_SLAB.set(true);
                 return unsafe { system_alloc(size, align) };
             }
-            base = region() + idx * SLAB_SIZE;
+            // Set by `enable_arena`, which a phase requires.
+            let Some(&region) = REGION.get() else {
+                NO_SLAB.set(true);
+                return unsafe { system_alloc(size, align) };
+            };
+            base = region + idx * SLAB_SIZE;
             BASE.set(base);
             END.set(base + SLAB_SIZE);
         } else {
@@ -458,8 +466,8 @@ fn dealloc_large(addr: usize, size: usize) {
 /// leave it to the next [`begin_phase`]; for a system pointer, a system free.
 ///
 /// Which one applies is decided by address range, not by a flag stored beside
-/// the buffer, which is what lets [`ArenaVec`] carry no allocator parameter and
-/// stay a single type whether or not a phase was open when it was built.
+/// the buffer, which is what lets [`Arena`] be zero-sized and one allocator
+/// whether or not a phase was open when a buffer was built.
 ///
 /// Recycling is safe NOT because of a cursor property (reuse puts live
 /// allocations below the cursor), but because a block reaches the list only from

@@ -4,7 +4,7 @@
 
 use primitives::bits::bit_transpose_64bytes;
 use primitives::stream::Stream;
-use zk_alloc::ArenaVec;
+use zk_alloc::{ArenaVec, ArenaVecExt};
 
 /// OR the low 32 bits of `val` into `buf` starting at bit-offset `bit_off`.
 /// Handles u64 straddling when `bit_off % 64 > 32`.

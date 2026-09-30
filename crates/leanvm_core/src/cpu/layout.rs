@@ -5,6 +5,7 @@
 use super::*;
 use crate::leaf::SparseColumn;
 use crate::rv::{ADVICE_BASE, LOG_REGS, RAM_BASE, TEXT_BASE};
+use zk_alloc::ArenaVecExt;
 
 // ---- column schema -----------------------------------------------------------
 
