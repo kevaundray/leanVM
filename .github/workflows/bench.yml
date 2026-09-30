@@ -58,7 +58,9 @@ jobs:
     steps:
       - id: plan
         env:
-          HOSTED: '[{"name": "github-ubuntu", "runner": "ubuntu-latest"}]'
+          # Its ISA is pinned: `target-cpu=native` would build for whichever CPU the job lands
+          # on, and a cached build then dies of SIGILL on an older one (see rust.yml).
+          HOSTED: '[{"name": "github-ubuntu", "runner": "ubuntu-latest", "rustflags": "-C target-cpu=haswell"}]'
           SELF_HOSTED: ${{ vars.BENCH_TESTBEDS || '[]' }}
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
@@ -94,7 +96,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      # Built with the pinned `target-cpu=native`: one cache per machine.
+      # A testbed that names its rustflags replaces .cargo/config.toml's `target-cpu=native`;
+      # set only then, since an empty RUSTFLAGS would drop that too.
+      - name: Pin the ISA
+        if: matrix.testbed.rustflags
+        env:
+          FLAGS: ${{ matrix.testbed.rustflags }}
+        run: echo "RUSTFLAGS=$FLAGS" >> "$GITHUB_ENV"
+      # One cache per testbed; RUSTFLAGS is part of its key.
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.testbed.name }}
