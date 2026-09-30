@@ -9,9 +9,13 @@ name: Track benchmarks
 # A PR's results go to the Bencher branch `pr/<number>`, started from its base branch
 # at the base commit with the base's thresholds, and Bencher comments on the PR. A push
 # to a tracked branch sets that branch's thresholds: any cycles increase on
-# ubuntu-latest fails, a proving machine's latency alerts only report. The PR's run
-# wrote everything read here, so a fork's results are the fork's word: they inform a
-# review and gate nothing.
+# ubuntu-latest fails, a proving machine's latency alerts only report.
+#
+# The PR's run wrote everything read here, a fork's with its own copy of bench.yml. So
+# the PR is not taken from its `pr-event`: only its number is, and GitHub's API must say
+# that PR's head is the commit the run benchmarked, or nothing is uploaded; its base comes
+# from the API too. A fork's results are still the fork's word: they inform a review and
+# gate nothing.
 
 on:
   workflow_run:
@@ -30,17 +34,32 @@ jobs:
       checks: write
       pull-requests: write
     steps:
+      # A run that proved nothing saved no results.
+      - name: Find results
+        id: results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          count=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name | startswith("bench-"))] | length')
+          echo "found=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
+        if: steps.results.outputs.found == 'true'
         with:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: results
       - uses: bencherdev/bencher@main
+        if: steps.results.outputs.found == 'true'
       - name: Upload to Bencher
+        if: steps.results.outputs.found == 'true'
         env:
           BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
           BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           EVENT: ${{ github.event.workflow_run.event }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -49,12 +68,17 @@ jobs:
           shopt -s nullglob
           tracked=false
           if [ "$EVENT" = pull_request ]; then
-            event=results/pr-event/event.json
-            number=$(jq -r .number "$event")
+            number=$(jq -r .number results/pr-event/event.json)
             [[ $number =~ ^[0-9]+$ ]] || { echo "not a PR number: $number"; exit 1; }
-            branch=(--branch "pr/$number" --hash "$(jq -r .pull_request.head.sha "$event")"
-              --start-point "$(jq -r .pull_request.base.ref "$event")"
-              --start-point-hash "$(jq -r .pull_request.base.sha "$event")"
+            pr=$(gh api "repos/$REPO/pulls/$number")
+            # A forged number, or a PR that moved on since this run: nothing to upload.
+            if [ "$(jq -r .head.sha <<<"$pr")" != "$HEAD_SHA" ]; then
+              echo "::warning::PR #$number's head is not $HEAD_SHA, the commit this run benchmarked: nothing uploaded"
+              exit 0
+            fi
+            branch=(--branch "pr/$number" --hash "$HEAD_SHA"
+              --start-point "$(jq -r .base.ref <<<"$pr")"
+              --start-point-hash "$(jq -r .base.sha <<<"$pr")"
               --start-point-clone-thresholds --start-point-reset --ci-number "$number")
           elif [ "$HEAD_BRANCH" = main ] || [ "$HEAD_BRANCH" = riscv-exploration ]; then
             tracked=true

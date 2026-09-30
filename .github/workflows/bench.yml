@@ -3,11 +3,18 @@ name: Bench
 # Runs the benchmarks and saves each testbed's Bencher Metric Format JSON as the artifact
 # `bench-<testbed>`, with a PR's event as `pr-event`. It holds no secret, so it runs the
 # same for a fork's PR: bench-track.yml uploads the results once this succeeds.
-# - variable `BENCH_TESTBEDS`: the dedicated proving machines as a JSON array,
-#   e.g. [{"name": "zen5", "runner": ["self-hosted", "zen5"]}].
-#   Unset, no proving job runs.
-# PRs prove only when labelled `bench`, and never from a fork: a self-hosted runner
-# would run the fork's code.
+# - variable `BENCH_TESTBEDS`: the machines to prove on, as a JSON array of
+#   {"name", "runner"}, the runner's labels, e.g.
+#   [{"name": "github-ubuntu", "runner": "ubuntu-latest"},
+#    {"name": "zen5", "runner": ["self-hosted", "zen5"]}].
+#   A runner given as one `ubuntu-*`, `windows-*` or `macos-*` label is GitHub-hosted;
+#   any other is self-hosted. Unset, no proving job runs.
+# A PR proves when labelled `bench`, which a maintainer adds after reading it. A fork's PR
+# proves on GitHub-hosted testbeds only, a throwaway machine with no secrets; a
+# self-hosted one would run the fork's code on our hardware. That choice is made here,
+# and a fork's PR runs its own copy of this file, so the self-hosted runners' own
+# settings (a runner group limited to this repository's workflows on `main` and
+# `riscv-exploration`, and approval for outside contributors' runs) are what enforce it.
 
 on:
   push:
@@ -21,7 +28,7 @@ on:
 permissions:
   contents: read
 
-# A label other than `bench` starts a run in which every job skips: it must not
+# A label other than `bench` starts a run that proves nothing: it must not
 # cancel the PR's real run.
 concurrency:
   group: bench-${{ github.ref }}-${{ github.event.label.name }}
@@ -43,19 +50,42 @@ jobs:
           name: pr-event
           path: ${{ github.event_path }}
 
+  # The testbeds this event may prove on, as the matrix of `prove`.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      testbeds: ${{ steps.plan.outputs.testbeds }}
+    steps:
+      - id: plan
+        env:
+          TESTBEDS: ${{ vars.BENCH_TESTBEDS || '[]' }}
+          EVENT: ${{ github.event_name }}
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'bench') }}
+          # A `labeled` event for another label proves nothing: the PR's own run does.
+          OTHER_LABEL: ${{ github.event.action == 'labeled' && github.event.label.name != 'bench' }}
+        run: |
+          if [ "$EVENT" = pull_request ] && { [ "$LABELLED" != true ] || [ "$OTHER_LABEL" = true ]; }; then
+            testbeds='[]'
+          elif [ "$FORK" = true ]; then
+            testbeds=$(jq -c '[.[] | select(.runner | type == "string" and test("^(ubuntu|windows|macos)-"))]' <<<"$TESTBEDS")
+          else
+            testbeds=$(jq -c . <<<"$TESTBEDS")
+          fi
+          echo "testbeds=$testbeds" >> "$GITHUB_OUTPUT"
+          echo "Testbeds: $testbeds"
+
   prove:
     name: Prove (${{ matrix.testbed.name }})
-    if: >-
-      vars.BENCH_TESTBEDS != '' && (github.event_name != 'pull_request' || (
-      github.event.pull_request.head.repo.full_name == github.repository
-      && contains(github.event.pull_request.labels.*.name, 'bench')
-      && (github.event.action != 'labeled' || github.event.label.name == 'bench')))
+    needs: plan
+    if: needs.plan.outputs.testbeds != '[]'
     runs-on: ${{ matrix.testbed.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        testbed: ${{ fromJSON(vars.BENCH_TESTBEDS || '[]') }}
+        testbed: ${{ fromJSON(needs.plan.outputs.testbeds) }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
