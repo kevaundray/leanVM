@@ -18,7 +18,7 @@ pub fn blake2s_compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64;
         (&raw mut (*base).h).write(*h);
         (&raw mut (*base).m).write(*m);
         blake2s_compress_in_place(base, t, last);
-        (&raw const (*base).out).read()
+        (&raw const (*base).out).read().assume_init()
     }
 }
 

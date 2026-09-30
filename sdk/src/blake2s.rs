@@ -4,6 +4,9 @@
 //!
 //! The machine moves a word in one instruction, and a byte-aligned value one byte at a time.
 
+use core::marker::PhantomData;
+use core::mem::MaybeUninit;
+
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
 /// The parameter block says: no key, a 32-byte digest, so `0x0101_0020` is folded into the first lane.
@@ -158,7 +161,11 @@ impl<const W: usize> Template<W> {
         let mut m = [0; 8];
         m[..W].copy_from_slice(&words);
         Self {
-            block: Block { h: IV, out: [0; 4], m },
+            block: Block {
+                h: IV,
+                out: MaybeUninit::uninit(),
+                m,
+            },
         }
     }
 
@@ -196,25 +203,50 @@ impl<const W: usize> Template<W> {
 pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
     let mut block = Block {
         h: IV,
-        out: [0; 4],
+        out: MaybeUninit::uninit(),
         m: [0; 8],
     };
+    let block = core::ptr::from_mut(&mut block);
+    // SAFETY: both halves of the message are in the block.
+    let (lo, hi) = unsafe {
+        (
+            (&raw mut (*block).m).cast::<u64>(),
+            (&raw mut (*block).m).cast::<u64>().add(4),
+        )
+    };
     let mut stream = Stream {
-        block: &mut block,
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        block,
+        lo,
+        hi,
         filled: 0,
         done: 0,
+        _block: PhantomData,
     };
     write(&mut stream);
     stream.finish()
 }
 
 /// A message being written for [`hash_with`], in words: each full block absorbed once more of it follows.
+///
+/// On the VM a block is absorbed without copying its compression into the next chaining value. The instruction
+/// reads word `k` at `base ^ 8k`, so moving `base` by 32 bytes swaps the chaining value's words with the
+/// compression's: word `4 + k` at `base ^ 32 + 8k` is word `k` at `(base ^ 32) ^ 8k`. The move swaps the message's
+/// halves too, so the stream keeps a pointer to each and swaps them after each block; the base is always 64 bytes
+/// below the first half.
 pub struct Stream<'a> {
-    block: &'a mut Block,
+    /// The block, which the portable compression reads by its fields.
+    #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+    block: *mut Block,
+    /// Words 0..4 of the message block.
+    lo: *mut u64,
+    /// Words 4..8 of the message block.
+    hi: *mut u64,
     /// Words in the message block.
     filled: usize,
     /// Bytes absorbed before it.
     done: u64,
+    _block: PhantomData<&'a mut Block>,
 }
 
 impl Stream<'_> {
@@ -226,7 +258,7 @@ impl Stream<'_> {
             if self.filled == 8 {
                 self.absorb();
             }
-            self.block.m[self.filled] = word;
+            self.set(self.filled, word);
             self.filled += 1;
         }
         self
@@ -250,48 +282,110 @@ impl Stream<'_> {
             self.put(array(i));
             i += 1;
         }
-        // Then whole blocks, the full one absorbed only once an array is known to follow.
+        // Then whole blocks, the full one absorbed only once an array is known to follow. Two a turn: each absorb
+        // swaps the message's halves, so a turn ends with them where it began and the swap costs no moves.
         while i < count {
-            self.absorb();
-            if i + 8 / N <= count {
-                for j in 0..8 / N {
-                    self.put(array(i + j));
-                }
-                i += 8 / N;
-            } else {
-                while i < count {
-                    self.put(array(i));
-                    i += 1;
-                }
+            i = self.next_block(i, count, &mut array);
+            if i < count {
+                i = self.next_block(i, count, &mut array);
             }
         }
         self
     }
 
+    /// Absorb the full block, then fill the next from array `i` on: the index after the last array written.
+    #[inline(always)]
+    fn next_block<const N: usize>(
+        &mut self,
+        mut i: usize,
+        count: usize,
+        array: &mut impl FnMut(usize) -> [u64; N],
+    ) -> usize {
+        self.absorb();
+        if i + 8 / N <= count {
+            for j in 0..8 / N {
+                self.put(array(i + j));
+            }
+            i + 8 / N
+        } else {
+            while i < count {
+                self.put(array(i));
+                i += 1;
+            }
+            i
+        }
+    }
+
     /// Write words where the block has room for them.
     #[inline(always)]
     fn put<const N: usize>(&mut self, words: [u64; N]) {
-        self.block.m[self.filled..self.filled + N].copy_from_slice(&words);
+        for (k, word) in words.into_iter().enumerate() {
+            self.set(self.filled + k, word);
+        }
         self.filled += N;
+    }
+
+    /// Set word `j < 8` of the message.
+    #[inline(always)]
+    fn set(&mut self, j: usize, word: u64) {
+        assert!(j < 8);
+        // SAFETY: each half holds four words of the block.
+        unsafe {
+            if j < 4 {
+                self.lo.add(j).write(word)
+            } else {
+                self.hi.add(j - 4).write(word)
+            }
+        }
     }
 
     /// Absorb the full message block, which more of the message follows.
     #[inline(always)]
     fn absorb(&mut self) {
         self.done += 64;
-        self.block.h = self.block.compress(self.done, false);
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        {
+            // SAFETY: the base names the block's words, the chaining value and the message initialized.
+            unsafe { crate::precompile::blake2s_compress_in_place(self.base(), self.done, false) };
+            core::mem::swap(&mut self.lo, &mut self.hi);
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        {
+            // SAFETY: the block is this stream's, and nothing else holds it.
+            let block = unsafe { &mut *self.block };
+            block.h = portable::compress(&block.h, &block.m, self.done, false);
+        }
         self.filled = 0;
     }
 
     /// The digest: the last block zero-padded, the counter every byte of the message.
     #[inline(always)]
     fn finish(&mut self) -> [u64; 4] {
-        for (j, word) in self.block.m.iter_mut().enumerate() {
-            if j >= self.filled {
-                *word = 0;
-            }
+        for j in self.filled..8 {
+            self.set(j, 0);
         }
-        self.block.compress(self.done + 8 * self.filled as u64, true)
+        let t = self.done + 8 * self.filled as u64;
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: as in `absorb`; the compression is then the four words 64 bytes below the second half, which the
+        // instruction wrote.
+        unsafe {
+            crate::precompile::blake2s_compress_in_place(self.base(), t, true);
+            self.hi.byte_sub(64).cast::<[u64; 4]>().read()
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        {
+            // SAFETY: as in `absorb`.
+            let block = unsafe { &*self.block };
+            portable::compress(&block.h, &block.m, t, true)
+        }
+    }
+
+    /// The block's base as the instruction takes it: 64 bytes below the message's first half.
+    #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+    #[inline(always)]
+    fn base(&mut self) -> *mut Block {
+        // SAFETY: the first half is 64 or 96 bytes into the block.
+        unsafe { self.lo.byte_sub(64).cast() }
     }
 }
 
@@ -307,7 +401,8 @@ impl Stream<'_> {
 #[repr(C, align(128))]
 pub(crate) struct Block {
     pub(crate) h: [u64; 4],
-    pub(crate) out: [u64; 4],
+    /// Written by the instruction before anything reads it.
+    pub(crate) out: MaybeUninit<[u64; 4]>,
     pub(crate) m: [u64; 8],
 }
 
@@ -316,10 +411,11 @@ impl Block {
     #[inline(always)]
     fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
         #[cfg(all(target_arch = "riscv64", target_os = "none"))]
-        // SAFETY: the block is this borrow's, whole and initialized.
+        // SAFETY: the block is this borrow's, its chaining value and message initialized; the instruction writes
+        // the compression.
         unsafe {
             crate::precompile::blake2s_compress_in_place(self, t, last);
-            self.out
+            self.out.assume_init()
         }
         #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
         {
