@@ -127,12 +127,11 @@ pub fn verify(
     let pp = &pk.public_param;
     // The digits say where each chain was opened.
     let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
-    // Walk each chain the rest of the way, chain `i` from value `digit_i` to value 7: its end is the leaf's.
+    // Walk each chain the rest of the way, chain `i` from value `digit_i` to value 7: its end is the leaf's. The leaf
+    // takes the chains one by one, unrolled, so each digit's shift and each position are constants.
     let mut chains = Chains::new(pp, leaf_index);
-    let mut next_digit = digits.in_order();
     let leaf = wots_leaf(pp, leaf_index, |i| {
-        let start = next_digit();
-        chains.walk(i, start, CHAIN_LENGTH - 1 - start, signature.chain_tips[i])
+        chains.walk(i, digits.get(i)..CHAIN_LENGTH - 1, signature.chain_tips[i])
     });
     // The chain ends are the one-time public key: its leaf, folded up to the root.
     let root = merkle_root(pp, leaf_index, leaf, &signature.merkle_proof);
@@ -181,21 +180,9 @@ struct Digits([u64; 2]);
 
 impl Digits {
     /// Digit `i`: bits `3j..3j+3` of word `i / 21`, `j = i % 21`.
+    #[inline(always)]
     fn get(self, i: usize) -> usize {
         (self.0[i / (V / 2)] >> (W * (i % (V / 2)))) as usize & (CHAIN_LENGTH - 1)
-    }
-
-    /// The digits in order, a call each: shifted out of the words, which no division by 21 costs.
-    #[inline(always)]
-    fn in_order(self) -> impl FnMut() -> usize {
-        let [low, high] = self.0;
-        // The high word's digits start right after the low word's 63 bits.
-        let mut rest = u128::from(low) | u128::from(high) << (W * V / 2);
-        move || {
-            let digit = rest as usize & (CHAIN_LENGTH - 1);
-            rest >>= W;
-            digit
-        }
     }
 
     /// The sum of the digits, by adding neighbouring fields in place.
@@ -237,7 +224,6 @@ fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness
 /// The hash every chain step is, `tweak | pp | value`, kept across steps and chains.
 struct Chains {
     step: Template<6>,
-    leaf_index: LeafIndex,
 }
 
 impl Chains {
@@ -245,32 +231,33 @@ impl Chains {
         let [t0, t1] = tweak(TWEAK_CHAIN, 0, leaf_index);
         Self {
             step: Template::new([t0, t1, pp[0], pp[1], 0, 0]),
-            leaf_index,
         }
     }
 
-    /// Walk chain `i` for `steps` steps from value number `start`.
+    /// Walk chain `i` from value number `values.start` to value number `values.end`.
     ///
-    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
-    fn walk(&mut self, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
-        (start..start + steps).fold(value, |value, s| {
-            // Only the tweak's first word, the position, changes: the second is the leaf index, as the template holds.
-            let [position, _] = tweak(TWEAK_CHAIN, (i * CHAIN_LENGTH + s) as u32, self.leaf_index);
-            self.step.set(0, [position]);
-            self.step.set(PAYLOAD, value);
-            digest(self.step.digest())
-        })
+    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak. Only the tweak's
+    /// position field changes: its second word, the leaf index, is the template's.
+    #[inline(always)]
+    fn walk(&mut self, i: usize, values: core::ops::Range<usize>, value: Digest) -> Digest {
+        let first = (i * CHAIN_LENGTH) as u32;
+        let positions = first + values.start as u32..first + values.end as u32;
+        self.step.chain::<TWEAK_POSITION, { 8 * PAYLOAD }>(positions, value)
     }
 }
 
 /// The Merkle leaf of a one-time key, `tweak | pp | ends`: chain `i`'s end `end(i)`, the chains in order, in one hash.
+///
+/// Unrolled over the chains, so each end's place in the stream's blocks is a constant.
 #[inline(always)]
-fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, end: impl FnMut(usize) -> Digest) -> Digest {
+fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, mut end: impl FnMut(usize) -> Digest) -> Digest {
+    const { assert!(V == 42, "one end a chain below") };
     digest(hash_with(|message| {
-        message
-            .write(tweak(TWEAK_WOTS_PK, 0, leaf_index))
-            .write(*pp)
-            .write_each(V, end);
+        message.write(tweak(TWEAK_WOTS_PK, 0, leaf_index)).write(*pp);
+        macro_rules! ends {
+            ($($i:literal)*) => { $( message.write(end($i)); )* };
+        }
+        ends!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41);
     }))
 }
 

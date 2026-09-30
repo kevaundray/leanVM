@@ -76,14 +76,84 @@ pub use vm::{commit, read, read_slice, read_unchecked};
 
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
 pub(crate) mod vm {
-    use super::{PublicValues, Words, assert_words};
+    use super::{Words, as_words_unchecked, assert_words};
+    use crate::blake2s::{Block, IV};
+    use core::mem::MaybeUninit;
 
     /// The output `_start` loads into `a0..a3` when the run ends.
     pub(crate) static mut OUTPUT: [u64; 4] = [0; 4];
-    /// What the run has committed so far.
-    static mut PUBLIC: PublicValues = PublicValues::new();
+    /// What the run has committed so far: BLAKE2s streamed through the instruction's own block.
+    static mut PUBLIC: Public = Public {
+        block: Block {
+            h: IV,
+            out: MaybeUninit::uninit(),
+            m: [0; 8],
+        },
+        // SAFETY: the message is in the static.
+        next: unsafe { (&raw mut PUBLIC.block.m).cast() },
+        done: 0,
+    };
     /// The advice words read so far.
     static mut READ: usize = 0;
+
+    /// The committed words' BLAKE2s, in progress: the block the instruction reads, the message word the next
+    /// committed word goes to, and the bytes compressed before the message.
+    ///
+    /// A word is one store and a pointer bump, and a full block is compressed where it is, only once a word is known
+    /// to follow it: the last block is the one compressed as last.
+    struct Public {
+        block: Block,
+        next: *mut u64,
+        done: u64,
+    }
+
+    impl Public {
+        #[inline(always)]
+        fn message(&mut self) -> *mut u64 {
+            (&raw mut self.block.m).cast()
+        }
+
+        #[inline(always)]
+        fn commit(&mut self, words: &[u64]) {
+            let (start, mut next) = (self.message(), self.next);
+            // SAFETY: the message's eight words.
+            let end = unsafe { start.add(8) };
+            for &word in words {
+                if next == end {
+                    self.absorb();
+                    next = start;
+                }
+                // SAFETY: `next` is a word of the message, below `end`.
+                unsafe {
+                    next.write(word);
+                    next = next.add(1);
+                }
+            }
+            self.next = next;
+        }
+
+        /// Compress the full message, which more words follow: the compression becomes the chaining value.
+        fn absorb(&mut self) {
+            self.done += 64;
+            // SAFETY: the block is the static's, its chaining value and message initialized.
+            unsafe {
+                crate::precompile::blake2s_compress_in_place(&mut self.block, self.done, false);
+                self.block.h = self.block.out.assume_init();
+            }
+        }
+
+        /// The digest: the last block zero-padded, the counter every byte committed.
+        fn finish(&mut self) -> [u64; 4] {
+            // SAFETY: `next` and the message's end are in the message.
+            let filled = unsafe { self.next.offset_from(self.message()) } as usize;
+            self.block.m[filled..].fill(0);
+            // SAFETY: as in `absorb`.
+            unsafe {
+                crate::precompile::blake2s_compress_in_place(&mut self.block, self.done + 8 * filled as u64, true);
+                self.block.out.assume_init()
+            }
+        }
+    }
 
     unsafe extern "C" {
         /// The advice region's bounds (`link.ld`).
@@ -150,16 +220,16 @@ pub(crate) mod vm {
     /// Make a value public: the run's output is the digest of everything committed, in order.
     #[inline(always)]
     pub fn commit<T: Words>(value: &T) {
-        // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`.
-        unsafe { &mut *(&raw mut PUBLIC) }.commit(value);
+        // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`; `T` is words only (`Words`).
+        unsafe { (*(&raw mut PUBLIC)).commit(as_words_unchecked(value)) }
     }
 
     /// Called by `_start` once `main` returns: the output is the digest of what was committed.
     pub(crate) extern "C" fn finish() {
-        // SAFETY: the run is over, so `PUBLIC` is read once and nothing touches it after.
-        let public = unsafe { core::ptr::read(&raw const PUBLIC) };
+        // SAFETY: the run is over, so nothing touches `PUBLIC` after.
+        let digest = unsafe { (*(&raw mut PUBLIC)).finish() };
         // SAFETY: as above, for `OUTPUT`.
-        unsafe { core::ptr::write_volatile(&raw mut OUTPUT, public.digest()) }
+        unsafe { core::ptr::write_volatile(&raw mut OUTPUT, digest) }
     }
 }
 

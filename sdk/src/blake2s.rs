@@ -10,7 +10,7 @@ use core::mem::MaybeUninit;
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
 /// The parameter block says: no key, a 32-byte digest, so `0x0101_0020` is folded into the first lane.
-const IV: [u64; 4] = [
+pub(crate) const IV: [u64; 4] = [
     0xBB67_AE85_6A09_E667 ^ 0x0101_0020,
     0xA54F_F53A_3C6E_F372,
     0x9B05_688C_510E_527F,
@@ -192,6 +192,50 @@ impl<const W: usize> Template<W> {
     pub fn digest(&mut self) -> [u64; 4] {
         self.block.compress(8 * W as u64, true)
     }
+
+    /// A hash chain: for each `c` in `counters`, write `c` as the `u32` at message byte `COUNTER` and `value` at
+    /// message byte `VALUE`, then `value` becomes the digest's first two words. Returns the last `value`, or `value`
+    /// itself for no counters.
+    ///
+    /// On the VM the loop is written out by hand: eight instructions a step, the compression one of them.
+    #[inline(always)]
+    pub fn chain<const COUNTER: usize, const VALUE: usize>(
+        &mut self,
+        counters: core::ops::Range<u32>,
+        value: [u64; 2],
+    ) -> [u64; 2] {
+        const {
+            assert!(
+                COUNTER.is_multiple_of(4) && COUNTER + 4 <= 8 * W,
+                "a u32 field inside the message"
+            )
+        };
+        const {
+            assert!(
+                VALUE.is_multiple_of(8) && VALUE + 16 <= 8 * W,
+                "two words inside the message"
+            )
+        };
+        assert!(counters.start <= counters.end);
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: the block is this template's, whole and initialized, and the range is not reversed.
+        unsafe {
+            crate::precompile::blake2s_chain::<COUNTER, VALUE>(
+                &mut self.block,
+                8 * W as u64,
+                counters.start,
+                counters.end,
+                value,
+            )
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        counters.fold(value, |value, c| {
+            self.write(COUNTER, c);
+            self.write(VALUE, value);
+            let [d0, d1, ..] = self.digest();
+            [d0, d1]
+        })
+    }
 }
 
 /// BLAKE2s-256 of the words `write` puts in a [`Stream`], as four little-endian words.
@@ -201,14 +245,13 @@ impl<const W: usize> Template<W> {
 /// each compression instead, which keeps a hasher that lives across calls in registers too.
 #[inline(always)]
 pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
-    let mut block = Block {
-        h: IV,
-        out: MaybeUninit::uninit(),
-        m: [0; 8],
-    };
-    let block = core::ptr::from_mut(&mut block);
-    // SAFETY: both halves of the message are in the block.
+    // Only the chaining value is written here: the stream writes every message word before a compression reads it,
+    // padding the last block itself.
+    let mut block = MaybeUninit::<Block>::uninit();
+    let block = block.as_mut_ptr();
+    // SAFETY: the pointers are the block's own fields; the chaining value is written before anything reads it.
     let (lo, hi) = unsafe {
+        (&raw mut (*block).h).write(IV);
         (
             (&raw mut (*block).m).cast::<u64>(),
             (&raw mut (*block).m).cast::<u64>().add(4),
