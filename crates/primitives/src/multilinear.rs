@@ -10,7 +10,7 @@ use std::ops::DerefMut;
 
 use std::mem::MaybeUninit;
 
-use crate::field::{F64, F192, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8, mul4};
+use crate::field::{F64, F192, F192x4, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8};
 use zk_alloc::ArenaVec;
 
 /// The one thing the in-place folds need beyond a mutable slice: the ability to
@@ -102,8 +102,9 @@ pub fn fill_eq_table_uninit(r: &[F192], seed: F192, out: &mut [MaybeUninit<F192>
     let rows = parallel::recommended_chunk_size(high.len());
     parallel::chunks_mut(out, rows * low.len(), |c, chunk| {
         for (row, &w) in chunk.chunks_exact_mut(low.len()).zip(&high[c * rows..]) {
+            let w = F192x4::splat(w);
             for (dst, src) in row.as_chunks_mut::<4>().0.iter_mut().zip(low.as_chunks::<4>().0) {
-                let p = mul4([w; 4], *src);
+                let p = (w * F192x4::load(src)).to_array();
                 dst.iter_mut().zip(p).for_each(|(d, p)| _ = d.write(p));
             }
         }
@@ -128,12 +129,12 @@ fn fill_eq_doubling(r: &[F192], seed: F192, out: &mut [MaybeUninit<F192>]) {
         let lo = unsafe { &mut *(lo as *mut [MaybeUninit<F192>] as *mut [F192]) };
         let (lo4, lo_tail) = lo.as_chunks_mut::<4>();
         let (hi4, hi_tail) = hi.as_chunks_mut::<4>();
+        let rk4 = F192x4::splat(rk);
         for (l, h) in lo4.iter_mut().zip(hi4) {
-            let p = mul4([rk; 4], *l);
-            for k in 0..4 {
-                h[k].write(p[k]);
-                l[k] += p[k];
-            }
+            let lv = F192x4::load(l);
+            let p = rk4 * lv;
+            h.iter_mut().zip(p.to_array()).for_each(|(h, p)| _ = h.write(p));
+            (lv + p).store(l);
         }
         for (l, h) in lo_tail.iter_mut().zip(hi_tail) {
             let p = *l * rk;
@@ -197,11 +198,10 @@ pub fn fold_high_inplace<B: Shrink<F192>>(table: &mut B, chi: F192) {
 /// `lo[i] = interp(lo[i], hi[i], chi)`, four products per batch.
 fn interp_into(lo: &mut [F192], hi: &[F192], chi: F192) {
     let ((lo4, lo_tail), (hi4, hi_tail)) = (lo.as_chunks_mut::<4>(), hi.as_chunks::<4>());
+    let chi4 = F192x4::splat(chi);
     for (l, h) in lo4.iter_mut().zip(hi4) {
-        let p = mul4([chi; 4], std::array::from_fn(|i| l[i] + h[i]));
-        for i in 0..4 {
-            l[i] += p[i];
-        }
+        let lv = F192x4::load(l);
+        (lv + chi4 * (lv + F192x4::load(h))).store(l);
     }
     for (l, h) in lo_tail.iter_mut().zip(hi_tail) {
         *l = interp(*l, *h, chi);

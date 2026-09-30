@@ -229,18 +229,6 @@ pub fn mul2(a: [F192; 2], b: [F192; 2]) -> [F192; 2] {
     [a[0] * b[0], a[1] * b[1]]
 }
 
-/// Four independent products.
-#[inline(always)]
-pub fn mul4(a: [F192; 4], b: [F192; 4]) -> [F192; 4] {
-    (F192x4::new(a) * F192x4::new(b)).to_array()
-}
-
-/// Four independent products without the reduction, for a caller XOR-accumulating many products.
-#[inline(always)]
-pub fn mul_unreduced4(a: [F192; 4], b: [F192; 4]) -> [F192Unreduced; 4] {
-    F192x4::new(a).mul_unreduced(F192x4::new(b)).to_array()
-}
-
 /// Eight mixed products `t * k[i]` by one shared `E` scalar.
 ///
 /// On AVX-512 this is six CLMULs for all eight, against twenty-four one at a time.
@@ -1469,8 +1457,6 @@ mod tests {
             let a = batch.map(|(a, _)| a);
             let b = batch.map(|(_, b)| b);
             let want: [F192; 4] = std::array::from_fn(|i| software::mul(a[i], b[i]));
-            assert_eq!(mul4(a, b), want);
-            assert_eq!(mul_unreduced4(a, b).map(F192Unreduced::reduce), want);
             assert_eq!(mul2([a[0], a[1]], [b[0], b[1]]), [want[0], want[1]]);
             // The lane-resident form: every constructor, and every way out.
             let (x, y) = (F192x4::load(&a), F192x4::new(b));

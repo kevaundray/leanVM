@@ -8,7 +8,7 @@
 
 use crate::PAR_THRESHOLD;
 use crate::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
-use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
+use primitives::field::{F192, F192x4, F192x4Unreduced, mul2};
 use primitives::multilinear::{eq_table, interp, poly_eval, shrink_eq_low};
 use primitives::stream::Stream;
 use zk_alloc::ArenaVec;
@@ -46,14 +46,33 @@ fn build_layers(leaves: ArenaVec<F192>, mu: usize) -> Vec<ArenaVec<F192>> {
             );
             left * right
         };
+        // Four rows at a time, a row per lane: the three products of each row are three batched products.
+        let fill = |first_row: usize, out: &mut [F192]| {
+            let (quads, tail) = out.as_chunks_mut::<4>();
+            for (quad, out) in quads.iter_mut().enumerate() {
+                let row = first_row + 4 * quad;
+                let child = |k: usize| F192x4::new(std::array::from_fn(|r| current[4 * (row + r) + k]));
+                ((child(0) * child(1)) * (child(2) * child(3))).store(out);
+            }
+            let row = first_row + 4 * quads.len();
+            for (r, out) in tail.iter_mut().enumerate() {
+                *out = product(row + r);
+            }
+        };
         let mut next: ArenaVec<F192> = if current.len() == 1 {
             ArenaVec::from_iter([current[0]])
         } else if current.len() == 2 {
             ArenaVec::from_iter([current[0] * current[1]])
-        } else if full_rows >= PAR_THRESHOLD {
-            primitives::par_collect_arena(full_rows, product)
         } else {
-            (0..full_rows).map(product).collect()
+            // SAFETY: `fill` writes every row before anything reads `next`.
+            let mut next = unsafe { ArenaVec::uninitialized(full_rows) };
+            if full_rows >= PAR_THRESHOLD {
+                let rows = window_rows(full_rows).next_multiple_of(4);
+                parallel::chunks_mut(&mut next, rows, |index, out| fill(index * rows, out));
+            } else {
+                fill(0, &mut next);
+            }
+            next
         };
         if !current.len().is_multiple_of(4) && current.len() > 2 {
             let row = full_rows;
@@ -75,7 +94,8 @@ fn build_layers(leaves: ArenaVec<F192>, mu: usize) -> Vec<ArenaVec<F192>> {
 }
 
 #[inline(always)]
-fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] {
+fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> F192x4Unreduced {
+    let mul4 = |a, b| (F192x4::new(a) * F192x4::new(b)).to_array();
     let [left0, left2, right0, right2] = mul4(
         [lines[0][0], lines[0][1], lines[2][0], lines[2][1]],
         [lines[1][0], lines[1][1], lines[3][0], lines[3][1]],
@@ -92,7 +112,7 @@ fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] 
     );
     let c2 = cross_even + c0 + c4 + middle;
     let c3 = cross_high + middle + c4;
-    mul_unreduced4([equality; 4], [c0 + at_one, c2, c3, c4])
+    F192x4::splat(equality).mul_unreduced(F192x4::new([c0 + at_one, c2, c3, c4]))
 }
 
 /// Two binary product levels contracted into one degree-four layer.
@@ -128,7 +148,7 @@ impl QuaternaryLayerState {
     fn round_message(&self, equality: &[F192]) -> [F192; 4] {
         let stored_rows = self.values.len() / 4;
         let full_pairs = stored_rows / 2;
-        let summand = |row: usize| -> [F192Unreduced; 4] {
+        let summand = |row: usize| -> F192x4Unreduced {
             let (lo, hi) = (8 * row, 8 * row + 4);
             let lines = [0, 1, 2, 3].map(|child| {
                 let at_zero = self.values[lo + child];
@@ -136,22 +156,17 @@ impl QuaternaryLayerState {
             });
             quartic_summand(lines, equality[row])
         };
-        let xor = |mut left: [F192Unreduced; 4], right: [F192Unreduced; 4]| {
-            for coefficient in 0..4 {
-                left[coefficient] ^= right[coefficient];
-            }
-            left
-        };
+        let xor = |left: F192x4Unreduced, right: F192x4Unreduced| left ^ right;
         let rows = window_rows(full_pairs);
-        let window = |index: usize| -> [F192Unreduced; 4] {
+        let window = |index: usize| -> F192x4Unreduced {
             let base = index * rows;
-            (base..(base + rows).min(full_pairs)).fold([F192Unreduced::ZERO; 4], |sum, row| xor(sum, summand(row)))
+            (base..(base + rows).min(full_pairs)).fold(F192x4Unreduced::ZERO, |sum, row| sum ^ summand(row))
         };
         let windows = full_pairs.div_ceil(rows);
         let mut message = if full_pairs >= PAR_THRESHOLD {
-            parallel::map_reduce(windows, || [F192Unreduced::ZERO; 4], window, xor)
+            parallel::map_reduce(windows, || F192x4Unreduced::ZERO, window, xor)
         } else {
-            (0..windows).map(window).fold([F192Unreduced::ZERO; 4], xor)
+            (0..windows).map(window).fold(F192x4Unreduced::ZERO, xor)
         };
         if !stored_rows.is_multiple_of(2) {
             let lo = 8 * full_pairs;
@@ -159,9 +174,9 @@ impl QuaternaryLayerState {
                 let at_zero = self.values[lo + child];
                 [at_zero, at_zero + F192::ONE]
             });
-            message = xor(message, quartic_summand(lines, equality[full_pairs]));
+            message ^= quartic_summand(lines, equality[full_pairs]);
         }
-        message.map(F192Unreduced::reduce)
+        message.reduce().to_array()
     }
 
     fn fold(&mut self, challenge: F192) {
@@ -170,12 +185,15 @@ impl QuaternaryLayerState {
         let rows = stored_rows.div_ceil(2);
         self.next.truncate(4 * rows);
         let (values, next) = (&self.values, &mut self.next);
-        let fold_row = |row: usize| -> [F192; 4] {
-            // One slice, not eight indexes: the bounds checks and the
-            // index-by-24 multiplies fall out.
-            let v = &values[8 * row..8 * row + 8];
-            let folds = mul4(std::array::from_fn(|child| v[child] + v[4 + child]), [challenge; 4]);
-            std::array::from_fn(|child| v[child] + folds[child])
+        let challenge = F192x4::splat(challenge);
+        // `left + challenge * (left + right)`, the pair's two halves as `left` and `right`.
+        let fold_pair = |left: &[F192; 4], right: &[F192; 4], out: &mut [F192; 4]| {
+            let left = F192x4::load(left);
+            (left + challenge * (left + F192x4::load(right))).store(out);
+        };
+        let fold_row = |row: usize, out: &mut [F192; 4]| {
+            let (left, right) = values[8 * row..8 * row + 8].split_at(4);
+            fold_pair(left.try_into().unwrap(), right.try_into().unwrap(), out);
         };
         // The next round is what reads the output, and a layer this size is long
         // evicted by then, so where an ordinary store fetches the line it
@@ -186,20 +204,21 @@ impl QuaternaryLayerState {
         let window = |base: usize, destination: &mut [F192]| {
             let stream = Stream::new();
             for (pair, slot) in destination.chunks_mut(8).enumerate() {
-                let mut both = [F192::ZERO; 8];
-                both[..4].copy_from_slice(&fold_row(base + 2 * pair));
+                let mut both = [[F192::ZERO; 4]; 2];
+                fold_row(base + 2 * pair, &mut both[0]);
                 if slot.len() == 8 {
-                    both[4..].copy_from_slice(&fold_row(base + 2 * pair + 1));
+                    fold_row(base + 2 * pair + 1, &mut both[1]);
                 }
-                stream.copy(slot, &both[..slot.len()]);
+                stream.copy(slot, &both.as_flattened()[..slot.len()]);
             }
         };
         #[cfg(not(target_arch = "x86_64"))]
         let window = |base: usize, destination: &mut [F192]| {
             for (pair, slot) in destination.chunks_mut(8).enumerate() {
-                slot[..4].copy_from_slice(&fold_row(base + 2 * pair));
-                if slot.len() == 8 {
-                    slot[4..].copy_from_slice(&fold_row(base + 2 * pair + 1));
+                let (first, second) = slot.split_at_mut(4);
+                fold_row(base + 2 * pair, first.try_into().unwrap());
+                if let Ok(second) = second.try_into() {
+                    fold_row(base + 2 * pair + 1, second);
                 }
             }
         };
@@ -213,13 +232,8 @@ impl QuaternaryLayerState {
         }
         if !stored_rows.is_multiple_of(2) {
             let lo = 8 * full_rows;
-            let folds = mul4(
-                [0, 1, 2, 3].map(|child| self.values[lo + child] + F192::ONE),
-                [challenge; 4],
-            );
-            for child in 0..4 {
-                self.next[4 * full_rows + child] = self.values[lo + child] + folds[child];
-            }
+            let (left, out) = (&values[lo..lo + 4], &mut next[4 * full_rows..4 * full_rows + 4]);
+            fold_pair(left.try_into().unwrap(), &[F192::ONE; 4], out.try_into().unwrap());
         }
         std::mem::swap(&mut self.values, &mut self.next);
         self.logical_rows /= 2;
@@ -231,60 +245,50 @@ impl QuaternaryLayerState {
         self.next.truncate(4 * rows);
         let values = &self.values;
         let dst = parallel::SendPtr(self.next.as_mut_ptr());
+        let challenge = F192x4::splat(challenge);
         const PAIRS: usize = 16;
         let pairs = rows.div_ceil(2);
         let task = |index: usize| {
             let first = index * PAIRS;
             let end = (first + PAIRS).min(pairs);
-            let mut stage = [F192::ZERO; 8 * PAIRS];
+            let mut stage = [[F192::ZERO; 4]; 2 * PAIRS];
             let end_row = (2 * end).min(rows);
             for row in 2 * first..end_row {
                 let lo = 8 * row;
-                let left = &values[lo..lo + 4];
-                let right = values.get(lo + 4..lo + 8).unwrap_or(&[F192::ONE; 4]);
-                let product = mul4(std::array::from_fn(|i| left[i] + right[i]), [challenge; 4]);
-                let offset = 4 * (row - 2 * first);
-                for i in 0..4 {
-                    stage[offset + i] = left[i] + product[i];
-                }
+                let left = F192x4::load(values[lo..lo + 4].try_into().unwrap());
+                let right = values
+                    .get(lo + 4..lo + 8)
+                    .map_or(&[F192::ONE; 4], |right| right.try_into().unwrap());
+                (left + challenge * (left + F192x4::load(right))).store(&mut stage[row - 2 * first]);
             }
-            let mut message = [F192Unreduced::ZERO; 4];
+            let mut message = F192x4Unreduced::ZERO;
             for pair in first..end {
-                let lo = 8 * (pair - first);
-                let left = &stage[lo..lo + 4];
+                let left = &stage[2 * (pair - first)];
                 let right = if 2 * pair + 1 < rows {
-                    &stage[lo + 4..lo + 8]
+                    &stage[2 * (pair - first) + 1]
                 } else {
                     &[F192::ONE; 4]
                 };
                 let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
-                let terms = quartic_summand(lines, equality[pair]);
-                for i in 0..4 {
-                    message[i] ^= terms[i];
-                }
+                message ^= quartic_summand(lines, equality[pair]);
             }
             // The next round reads the destination; this round reads only the local stage.
             let stream = Stream::new();
             let len = 4 * (end_row - 2 * first);
             // SAFETY: tasks own disjoint initialized prefixes of the output, covering every row.
-            unsafe { stream.copy(dst.slice(8 * first, len), &stage[..len]) };
+            unsafe { stream.copy(dst.slice(8 * first, len), &stage.as_flattened()[..len]) };
             message
         };
-        let xor = |mut a: [F192Unreduced; 4], b: [F192Unreduced; 4]| {
-            for i in 0..4 {
-                a[i] ^= b[i];
-            }
-            a
-        };
+        let xor = |a: F192x4Unreduced, b: F192x4Unreduced| a ^ b;
         let tasks = pairs.div_ceil(PAIRS);
         let message = if rows >= PAR_THRESHOLD {
-            parallel::map_reduce(tasks, || [F192Unreduced::ZERO; 4], task, xor)
+            parallel::map_reduce(tasks, || F192x4Unreduced::ZERO, task, xor)
         } else {
-            (0..tasks).map(task).fold([F192Unreduced::ZERO; 4], xor)
+            (0..tasks).map(task).fold(F192x4Unreduced::ZERO, xor)
         };
         std::mem::swap(&mut self.values, &mut self.next);
         self.logical_rows /= 2;
-        message.map(F192Unreduced::reduce)
+        message.reduce().to_array()
     }
 
     fn children(&self) -> [F192; 4] {

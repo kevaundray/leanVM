@@ -735,7 +735,7 @@ impl Convert {
     fn accumulate_gfni(&mut self, ab: &[[u8; 64]], c: &[[u8; 64]], eq_lo: F192) {
         use crate::zerocheck::bit_fold::gfni::weight_matrices;
         use core::arch::x86_64::*;
-        use primitives::field::{F64, mul_base8, mul4};
+        use primitives::field::{F64, F192x4, mul_base8};
 
         // phi_8 of the unit bytes, as base-field scalars.
         static PHI_UNITS: OnceLock<[F64; 8]> = OnceLock::new();
@@ -750,8 +750,9 @@ impl Convert {
         // Matrices of medium position b: the weights (gamma^b eq_lo) phi_8(2^s).
         let gamma = gamma_powers();
         let mut matrices = [[0u64; 24]; N_MEDIUM_VALUES];
+        let eq_lo = F192x4::splat(eq_lo);
         for (quad, m) in gamma.as_chunks::<4>().0.iter().zip(matrices.as_chunks_mut::<4>().0) {
-            let t = mul4(*quad, [eq_lo; 4]);
+            let t = (F192x4::load(quad) * eq_lo).to_array();
             for (t, m) in t.iter().zip(m) {
                 *m = weight_matrices(&mul_base8(*t, *units));
             }

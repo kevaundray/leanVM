@@ -48,31 +48,81 @@ use zk_alloc::ArenaVec;
 fn mul_quad(a: (F192, F192, F192, F192), b: (F192, F192, F192, F192)) -> (F192, F192, F192, F192) {
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     {
-        let r = primitives::field::mul4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
+        let r = (quad(a) * quad(b)).to_array();
         (r[0], r[1], r[2], r[3])
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     (a.0 * b.0, a.1 * b.1, a.2 * b.2, a.3 * b.3)
 }
 
-/// [`mul_quad`] without the reduction, for a caller XOR-accumulating products.
+/// Four running sums of unreduced products, one per lane: lane-resident on AVX-512.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+type QuadLanes = primitives::field::F192x4Unreduced;
+#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+type QuadLanes = [F192Unreduced; 4];
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+const QUAD_LANES_ZERO: QuadLanes = primitives::field::F192x4Unreduced::ZERO;
+#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+const QUAD_LANES_ZERO: QuadLanes = [F192Unreduced::ZERO; 4];
+
+/// `lanes[i] += a.i * b.i`, unreduced.
 #[inline(always)]
-fn mul_quad_unreduced(
-    a: (F192, F192, F192, F192),
-    b: (F192, F192, F192, F192),
-) -> (F192Unreduced, F192Unreduced, F192Unreduced, F192Unreduced) {
+fn quad_lanes_mac(lanes: &mut QuadLanes, a: (F192, F192, F192, F192), b: (F192, F192, F192, F192)) {
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     {
-        let r = primitives::field::mul_unreduced4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
-        (r[0], r[1], r[2], r[3])
+        *lanes ^= quad(a).mul_unreduced(quad(b));
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
-    (
+    for (lane, p) in lanes.iter_mut().zip([
         a.0.mul_unreduced(b.0),
         a.1.mul_unreduced(b.1),
         a.2.mul_unreduced(b.2),
         a.3.mul_unreduced(b.3),
-    )
+    ]) {
+        *lane ^= p;
+    }
+}
+
+#[inline(always)]
+fn quad_lanes(lanes: QuadLanes) -> [F192Unreduced; 4] {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    return lanes.to_array();
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    lanes
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+fn quad(a: (F192, F192, F192, F192)) -> primitives::field::F192x4 {
+    primitives::field::F192x4::new([a.0, a.1, a.2, a.3])
+}
+
+/// A running sum of unreduced products taken four at a time. On AVX-512 it stays lane-resident and its lanes meet
+/// once, in [`quad_sum_total`].
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+type QuadSum = primitives::field::F192x4Unreduced;
+#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+type QuadSum = F192Unreduced;
+
+/// `sum += a.0 * b.0 + a.1 * b.1 + a.2 * b.2 + a.3 * b.3`, unreduced.
+#[inline(always)]
+fn quad_sum_mac(sum: &mut QuadSum, a: (F192, F192, F192, F192), b: (F192, F192, F192, F192)) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    {
+        *sum ^= quad(a).mul_unreduced(quad(b));
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    {
+        *sum ^= a.0.mul_unreduced(b.0) ^ a.1.mul_unreduced(b.1) ^ a.2.mul_unreduced(b.2) ^ a.3.mul_unreduced(b.3);
+    }
+}
+
+#[inline(always)]
+fn quad_sum_total(sum: QuadSum) -> F192Unreduced {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    return sum.sum();
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    sum
 }
 
 // ---------------------------------------------------------------------------
@@ -391,7 +441,7 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
         eq_hi.len(),
         || [F192::ZERO; 8],
         |hi| {
-            let mut acc = [F192Unreduced::ZERO; 8];
+            let mut acc = [QUAD_LANES_ZERO; 2];
             // Sixteen quads per folded block.
             for lo_first in (0..lo_size).step_by(BLOCK / 4) {
                 let n = (lo_size - lo_first).min(BLOCK / 4);
@@ -415,14 +465,12 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
                     // Every term of the quad shares one eq weight.
                     let eq = eq_lo[lo_first + i];
                     let e = (eq, eq, eq, eq);
-                    let (s0, s1, s2, s3) = mul_quad_unreduced(e, (p1 + c1, p3 + c3, q0, q1));
-                    let (s4, s5, s6, s7) = mul_quad_unreduced(e, (p2 + c2, r0, r1, r2));
-                    for (acc, s) in acc.iter_mut().zip([s0, s1, s2, s3, s4, s5, s6, s7]) {
-                        *acc ^= s;
-                    }
+                    quad_lanes_mac(&mut acc[0], e, (p1 + c1, p3 + c3, q0, q1));
+                    quad_lanes_mac(&mut acc[1], e, (p2 + c2, r0, r1, r2));
                 }
             }
-            acc.map(|s| eq_hi[hi] * s.reduce())
+            let sums: [F192Unreduced; 8] = acc.map(quad_lanes).as_flattened().try_into().expect("two quads");
+            sums.map(|s| eq_hi[hi] * s.reduce())
         },
         |x, y| std::array::from_fn(|i| x[i] + y[i]),
     );
@@ -470,8 +518,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
             let [oa, ob, oc] = chunks.map(|ch| unsafe { ch.get(hi) });
             let stream = Stream::new();
-            let mut g1_acc = F192Unreduced::ZERO;
-            let mut ginf_acc = F192Unreduced::ZERO;
+            let (mut g1_quads, mut ginf_quads) = (QuadSum::ZERO, QuadSum::ZERO);
             // Thirty-two pairs per folded block.
             for lo_first in (0..lo_size).step_by(BLOCK / 2) {
                 let n = (lo_size - lo_first).min(BLOCK / 2);
@@ -503,19 +550,17 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
                     );
                     let lo = lo_first + i;
                     let eq_q = (eq_lo[lo], eq_lo[lo + 1], eq_lo[lo + 2], eq_lo[lo + 3]);
-                    let (t1_a, t1_b, t1_c, t1_d) =
-                        mul_quad_unreduced(eq_q, (p_a + c1_a, p_b + c1_b, p_c + c1_c, p_d + c1_d));
-                    let (ti_a, ti_b, ti_c, ti_d) = mul_quad_unreduced(eq_q, (q_a, q_b, q_c, q_d));
-                    g1_acc ^= t1_a ^ t1_b ^ t1_c ^ t1_d;
-                    ginf_acc ^= ti_a ^ ti_b ^ ti_c ^ ti_d;
+                    quad_sum_mac(&mut g1_quads, eq_q, (p_a + c1_a, p_b + c1_b, p_c + c1_c, p_d + c1_d));
+                    quad_sum_mac(&mut ginf_quads, eq_q, (q_a, q_b, q_c, q_d));
                     i += 4;
                 }
                 // Fewer than four pairs per task only at the smallest instances.
                 while i < n {
                     let (a0, a1, b0, b1, c1) = (f.a[2 * i], f.a[2 * i + 1], f.b[2 * i], f.b[2 * i + 1], f.c[2 * i + 1]);
-                    let eq = eq_lo[lo_first + i];
-                    g1_acc ^= eq.mul_unreduced(a1 * b1 + c1);
-                    ginf_acc ^= eq.mul_unreduced((a0 + a1) * (b0 + b1));
+                    // One live lane: the sums stay in one accumulator each.
+                    let (z, eq) = (F192::ZERO, eq_lo[lo_first + i]);
+                    quad_sum_mac(&mut g1_quads, (eq, z, z, z), (a1 * b1 + c1, z, z, z));
+                    quad_sum_mac(&mut ginf_quads, (eq, z, z, z), ((a0 + a1) * (b0 + b1), z, z, z));
                     i += 1;
                 }
 
@@ -538,7 +583,8 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
                     oc[dst].copy_from_slice(&f.c[..o_len]);
                 }
             }
-            (eq_hi[hi] * g1_acc.reduce(), eq_hi[hi] * ginf_acc.reduce())
+            let (g1, ginf) = (quad_sum_total(g1_quads), quad_sum_total(ginf_quads));
+            (eq_hi[hi] * g1.reduce(), eq_hi[hi] * ginf.reduce())
         },
         |(s1, si), (t1, ti)| (s1 + t1, si + ti),
     );
@@ -620,6 +666,7 @@ pub fn fold_and_compute_round_single_into(c: &[F192], c_out: &mut [F192], r_fold
             let c_out = unsafe { c_chunks.get(x_hi) };
             let c_in = &c[x_hi * chunk_in..(x_hi + 1) * chunk_in];
             let mut p1_acc = F192Unreduced::ZERO;
+            let mut p1_quads = QuadSum::ZERO;
             // Four x_lo per iteration, as in the pair kernel; see there for why
             // the outputs stream.
             let stream = Stream::new();
@@ -652,11 +699,7 @@ pub fn fold_and_compute_round_single_into(c: &[F192], c_out: &mut [F192], r_fold
                 let (c0_d, c1_d) = (g(3, 0) + d_d0, g(3, 2) + d_d1);
 
                 let eq_q = (eq_lo[x_lo], eq_lo[x_lo + 1], eq_lo[x_lo + 2], eq_lo[x_lo + 3]);
-                let (t_a, t_b, t_c, t_d) = mul_quad_unreduced(eq_q, (c1_a, c1_b, c1_c, c1_d));
-                p1_acc ^= t_a;
-                p1_acc ^= t_b;
-                p1_acc ^= t_c;
-                p1_acc ^= t_d;
+                quad_sum_mac(&mut p1_quads, eq_q, (c1_a, c1_b, c1_c, c1_d));
 
                 let oi = 2 * x_lo;
                 stream.copy(
@@ -676,7 +719,7 @@ pub fn fold_and_compute_round_single_into(c: &[F192], c_out: &mut [F192], r_fold
                 p1_acc ^= eq_lo[x_lo].mul_unreduced(c1);
                 x_lo += 1;
             }
-            eq_hi[x_hi] * p1_acc.reduce()
+            eq_hi[x_hi] * (p1_acc ^ quad_sum_total(p1_quads)).reduce()
         },
         |a, b| a + b,
     )
@@ -741,6 +784,7 @@ pub fn fold_and_compute_round_pair_into(
 
             let mut p1_acc = F192Unreduced::ZERO;
             let mut pinf_acc = F192Unreduced::ZERO;
+            let (mut p1_quads, mut pinf_quads) = (QuadSum::ZERO, QuadSum::ZERO);
             // The message is built from the folded values while they are still
             // in registers, so nothing reads `a_out`/`b_out` until the next
             // round, by which time a buffer this size is long evicted.
@@ -832,16 +876,8 @@ pub fn fold_and_compute_round_pair_into(
                         (b0_a + b1_a, b0_b + b1_b, b0_c + b1_c, b0_d + b1_d),
                     );
                     let eq_q = (eq_l_a, eq_l_b, eq_l_c, eq_l_d);
-                    let (t1_a, t1_b, t1_c, t1_d) = mul_quad_unreduced(eq_q, (g1_a, g1_b, g1_c, g1_d));
-                    let (ti_a, ti_b, ti_c, ti_d) = mul_quad_unreduced(eq_q, (g_inf_a, g_inf_b, g_inf_c, g_inf_d));
-                    p1_acc ^= t1_a;
-                    p1_acc ^= t1_b;
-                    p1_acc ^= t1_c;
-                    p1_acc ^= t1_d;
-                    pinf_acc ^= ti_a;
-                    pinf_acc ^= ti_b;
-                    pinf_acc ^= ti_c;
-                    pinf_acc ^= ti_d;
+                    quad_sum_mac(&mut p1_quads, eq_q, (g1_a, g1_b, g1_c, g1_d));
+                    quad_sum_mac(&mut pinf_quads, eq_q, (g_inf_a, g_inf_b, g_inf_c, g_inf_d));
 
                     x_lo += 4;
                 }
@@ -869,8 +905,8 @@ pub fn fold_and_compute_round_pair_into(
                 x_lo += 1;
             }
 
-            let p1 = p1_acc.reduce();
-            let pinf = pinf_acc.reduce();
+            let p1 = (p1_acc ^ quad_sum_total(p1_quads)).reduce();
+            let pinf = (pinf_acc ^ quad_sum_total(pinf_quads)).reduce();
             let eq_h = eq_hi[x_hi];
             (eq_h * p1, eq_h * pinf)
         },
