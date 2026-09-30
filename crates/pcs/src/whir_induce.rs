@@ -33,7 +33,10 @@ pub fn eval_sk_at_vks(log_n: usize) -> Vec<F64> {
     if log_n == 0 {
         return sks_vks;
     }
-    let mut layer: Vec<F64> = (1..=log_n).map(|i| F64(1u64 << i)).collect();
+    let mut layer = Vec::with_capacity(log_n);
+    for i in 1..=log_n {
+        layer.push(F64(1u64 << i));
+    }
     let mut cur_len = log_n;
     for i in 0..log_n {
         for j in 0..cur_len {
@@ -59,8 +62,8 @@ fn normalized_sks_at(x: F64, sks_vks: &[F64], inv_sks_vks: &[F64], out: &mut [F6
     for i in 1..out.len() {
         out[i] = next_s(out[i - 1], sks_vks[i - 1]);
     }
-    for (v, &inv) in out.iter_mut().zip(inv_sks_vks) {
-        *v *= inv;
+    for i in 0..out.len() {
+        out[i] *= inv_sks_vks[i];
     }
 }
 
@@ -73,28 +76,31 @@ pub(crate) trait RowElem: Copy + Sync {
 impl RowElem for F64 {
     #[inline]
     fn dot(row: &[Self], eq: &[F192]) -> F192 {
-        row.iter()
-            .zip(eq.iter())
-            .map(|(&r, &e)| e.mul_base(r))
-            .fold(F192::ZERO, |a, v| a + v)
+        let mut acc = F192::ZERO;
+        for (&r, &e) in row.iter().zip(eq) {
+            acc += e.mul_base(r);
+        }
+        acc
     }
 }
 
 impl RowElem for F192 {
     #[inline]
     fn dot(row: &[Self], eq: &[F192]) -> F192 {
-        row.iter()
-            .zip(eq.iter())
-            .map(|(&r, &e)| r * e)
-            .fold(F192::ZERO, |a, v| a + v)
+        let mut acc = F192::ZERO;
+        for (&r, &e) in row.iter().zip(eq) {
+            acc += r * e;
+        }
+        acc
     }
 }
 
 fn invert_sks(sks_vks: &[F64]) -> Vec<F64> {
-    sks_vks
-        .iter()
-        .map(|&v| if v.is_zero() { F64::ZERO } else { v.inv() })
-        .collect()
+    let mut inv = Vec::with_capacity(sks_vks.len());
+    for &v in sks_vks {
+        inv.push(if v.is_zero() { F64::ZERO } else { v.inv() });
+    }
+    inv
 }
 
 /// Dense induce: `basis_poly[j] = Σ_i w_i · W-hat_j(q_i)`,
@@ -216,64 +222,65 @@ pub(crate) fn induce_sumcheck_evaluate_at_residual(
     weights: &[F192],
     ris_for_basis: &[F192],
     yr_log_n: usize,
-) -> ArenaVec<F192> {
+) -> Vec<F192> {
     assert_eq!(ris_for_basis.len() + yr_log_n, log_msg_cols);
-    let n_queries = queries.len();
-    let yr_len = 1usize << yr_log_n;
-
-    debug_assert_eq!(weights.len(), n_queries);
+    debug_assert_eq!(weights.len(), queries.len());
     let inv_sks_vks = invert_sks(sks_vks);
-    let prefix_len = ris_for_basis.len();
 
-    // Per-query precomputation: W-hat_k(q) for all k over K, split into a
-    // fixed prefix product (E scalar) and the suffix W-hat values varied per y.
-    struct PerQuery {
-        prefix_prod: F192,
-        suffix_w: Vec<F64>, // length = yr_log_n
+    // Per query, W-hat_k(q) for all k over K, split into a fixed prefix product
+    // (an E scalar) and the suffix W-hat values varied per y. Verify-sized: at
+    // most a few hundred queries and a residual of `2^RESIDUAL_MAX_LOG` points.
+    let mut prefix_prods = Vec::with_capacity(queries.len());
+    let mut suffix_ws = Vec::with_capacity(queries.len());
+    for i in 0..queries.len() {
+        let sks_at_x = query_sks(queries[i], log_msg_cols, sks_vks, &inv_sks_vks);
+        prefix_prods.push(prefix_prod(ris_for_basis, &sks_at_x));
+        suffix_ws.push(sks_at_x[ris_for_basis.len()..].to_vec());
     }
-    let compute_query = |&q: &usize| -> PerQuery {
-        let mut sks_at_x = vec![F64::ZERO; log_msg_cols];
-        normalized_sks_at(F64(q as u64), sks_vks, &inv_sks_vks, &mut sks_at_x);
-        // Prefix product: Π_{k<prefix_len} (1 + ris[k] · (1 + W-hat_k(q)))
-        let mut prefix_prod = F192::ONE;
-        for k in 0..prefix_len {
-            prefix_prod *= F192::ONE + ris_for_basis[k] * (F192::ONE + F192::from(sks_at_x[k]));
-        }
-        let suffix_w = if log_msg_cols > prefix_len {
-            sks_at_x[prefix_len..].to_vec()
-        } else {
-            Vec::new()
-        };
-        PerQuery { prefix_prod, suffix_w }
-    };
-    // Once per recursion level over verify-sized inputs; stay serial below
-    // the dispatch crossover (mirror of the original's PAR_FLOOR).
-    const PAR_FLOOR: usize = 1024;
-    let per_query: Vec<PerQuery> = if n_queries > PAR_FLOOR {
-        parallel::map_collect(n_queries, |i| compute_query(&queries[i]))
-    } else {
-        queries.iter().map(compute_query).collect()
-    };
 
     // For each residual position y, accumulate the suffix product per query.
-    let compute_y = |y: usize| -> F192 {
-        let mut sum = F192::ZERO;
-        for i in 0..n_queries {
-            let pq = &per_query[i];
-            let mut suffix_prod = F192::ONE;
-            for j in 0..yr_log_n {
-                let p_j = if (y >> j) & 1 == 1 { F192::ONE } else { F192::ZERO };
-                suffix_prod *= F192::ONE + p_j * (F192::ONE + F192::from(pq.suffix_w[j]));
-            }
-            sum += weights[i] * pq.prefix_prod * suffix_prod;
-        }
-        sum
-    };
-    if yr_len > PAR_FLOOR {
-        primitives::par_collect_arena(yr_len, compute_y)
-    } else {
-        (0..yr_len).map(compute_y).collect()
+    let yr_len = 1usize << yr_log_n;
+    let mut out = Vec::with_capacity(yr_len);
+    for y in 0..yr_len {
+        out.push(residual_eval(y, weights, &prefix_prods, &suffix_ws));
     }
+    out
+}
+
+/// The normalized `W-hat_k(q)` for every `k < log_msg_cols`.
+fn query_sks(q: usize, log_msg_cols: usize, sks_vks: &[F64], inv_sks_vks: &[F64]) -> Vec<F64> {
+    let mut sks_at_x = vec![F64::ZERO; log_msg_cols];
+    normalized_sks_at(F64(q as u64), sks_vks, inv_sks_vks, &mut sks_at_x);
+    sks_at_x
+}
+
+/// `Π_{k < |ris|} (1 + ris[k] · (1 + W-hat_k(q)))`.
+fn prefix_prod(ris: &[F192], sks_at_x: &[F64]) -> F192 {
+    let mut prod = F192::ONE;
+    for k in 0..ris.len() {
+        prod *= F192::ONE + ris[k] * (F192::ONE + F192::from(sks_at_x[k]));
+    }
+    prod
+}
+
+/// The basis at the residual point `y`: every query's weighted prefix product
+/// times its suffix product at `y`'s bits.
+fn residual_eval(y: usize, weights: &[F192], prefix_prods: &[F192], suffix_ws: &[Vec<F64>]) -> F192 {
+    let mut sum = F192::ZERO;
+    for i in 0..suffix_ws.len() {
+        sum += weights[i] * prefix_prods[i] * suffix_prod(y, &suffix_ws[i]);
+    }
+    sum
+}
+
+/// `Π_j (1 + y_j · (1 + W-hat_j))` over the bits `y_j` of `y`.
+fn suffix_prod(y: usize, suffix_w: &[F64]) -> F192 {
+    let mut prod = F192::ONE;
+    for j in 0..suffix_w.len() {
+        let p_j = if (y >> j) & 1 == 1 { F192::ONE } else { F192::ZERO };
+        prod *= F192::ONE + p_j * (F192::ONE + F192::from(suffix_w[j]));
+    }
+    prod
 }
 
 /// Transposed forward additive NTT, `F^T`, in place over `2^log_d` E-values

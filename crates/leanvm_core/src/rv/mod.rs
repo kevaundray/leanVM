@@ -139,7 +139,9 @@ impl Entry {
 /// The flag words a class defines, which are the only ones its circuit is written for
 /// and the only ones an entry may carry ([`Entry::is_well_formed`]). Empty for
 /// [`Class::Illegal`], which carries no flags at all.
-pub fn legal_flags(class: Class) -> &'static [u64] {
+// Any lifetime rather than `'static`, whose borrows Aeneas cannot pass on to a caller.
+pub fn legal_flags<'a>(class: Class) -> &'a [u64] {
+    static NONE: [u64; 0] = [];
     match class {
         Class::Alu => &alu::LEGAL,
         Class::Shift => &shift::LEGAL,
@@ -149,7 +151,7 @@ pub fn legal_flags(class: Class) -> &'static [u64] {
         Class::Mulh => &mulh::LEGAL,
         Class::Div => &div::LEGAL,
         Class::Hash => &hash::LEGAL,
-        Class::Illegal => &[],
+        Class::Illegal => &NONE,
     }
 }
 
@@ -176,7 +178,7 @@ pub mod alu {
     pub const BR_GEU: u64 = 1 << 13;
     pub const ALWAYS: u64 = 1 << 14;
 
-    pub const LEGAL: [u64; 17] = [
+    pub static LEGAL: [u64; 17] = [
         0,
         SUB,
         WORD,
@@ -205,7 +207,7 @@ pub mod shift {
     /// Shift the low 32 bits, and sign-extend the low 32 bits of the result.
     pub const WORD: u64 = 1 << 2;
 
-    pub const LEGAL: [u64; 6] = [0, RIGHT, RIGHT | ARITH, WORD, WORD | RIGHT, WORD | RIGHT | ARITH];
+    pub static LEGAL: [u64; 6] = [0, RIGHT, RIGHT | ARITH, WORD, WORD | RIGHT, WORD | RIGHT | ARITH];
 }
 
 /// [`Class::Load`]'s flags: `log2` of the width in bytes, then the extension.
@@ -213,14 +215,14 @@ pub mod load {
     pub const LOG_WIDTH: u64 = 0b11;
     pub const SIGNED: u64 = 1 << 2;
 
-    pub const LEGAL: [u64; 7] = [SIGNED, SIGNED | 1, SIGNED | 2, 3, 0, 1, 2];
+    pub static LEGAL: [u64; 7] = [SIGNED, SIGNED | 1, SIGNED | 2, 3, 0, 1, 2];
 }
 
 /// [`Class::Store`]'s flags: `log2` of the width in bytes.
 pub mod store {
     pub const LOG_WIDTH: u64 = 0b11;
 
-    pub const LEGAL: [u64; 4] = [0, 1, 2, 3];
+    pub static LEGAL: [u64; 4] = [0, 1, 2, 3];
 }
 
 /// [`Class::Mul`]'s flags.
@@ -228,7 +230,7 @@ pub mod mul {
     /// Sign-extend the low 32 bits of the product.
     pub const WORD: u64 = 1 << 0;
 
-    pub const LEGAL: [u64; 2] = [0, WORD];
+    pub static LEGAL: [u64; 2] = [0, WORD];
 }
 
 /// [`Class::Mulh`]'s flags: which operands are signed.
@@ -236,7 +238,7 @@ pub mod mulh {
     pub const SIGNED_1: u64 = 1 << 0;
     pub const SIGNED_2: u64 = 1 << 1;
 
-    pub const LEGAL: [u64; 3] = [SIGNED_1 | SIGNED_2, SIGNED_1, 0];
+    pub static LEGAL: [u64; 3] = [SIGNED_1 | SIGNED_2, SIGNED_1, 0];
 }
 
 /// [`Class::Hash`]: `blake2s rs1, rs2`, the BLAKE2s compression of the 128-byte block
@@ -258,7 +260,7 @@ pub mod hash {
     pub const BLOCK_BYTES: u64 = 8 * WORDS as u64;
 
     pub const FINAL: u64 = u32::MAX as u64;
-    pub const LEGAL: [u64; 2] = [0, FINAL];
+    pub static LEGAL: [u64; 2] = [0, FINAL];
 }
 
 /// [`Class::Div`]'s flags.
@@ -270,5 +272,5 @@ pub mod div {
     /// low 32 bits of the result.
     pub const WORD: u64 = 1 << 2;
 
-    pub const LEGAL: [u64; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+    pub static LEGAL: [u64; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
 }

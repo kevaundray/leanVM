@@ -155,16 +155,18 @@ pub fn open(ps: &mut ProverState, c: &Committed, q: &[F64], points: &[SlotClaim]
 
 /// Verify the opening (mirror of [`open`]): flock's ring-switched claim
 /// and every `points` slot evaluation are checked together in the ONE stacked
-/// WHIR against `root`, pulling its Merkle phases off the transcript.
+/// WHIR against `root`, pulling its Merkle phases off the transcript. The config is
+/// derived afresh rather than through the prover's cache, which the Lean extraction
+/// cannot read.
 pub fn verify(
     vs: &mut VerifierState,
     points: &[SlotClaim],
-    rings: &[RingSwitchVerify<'_>],
+    rings: &[RingSwitchVerify],
     shape: crate::witness::StackShape,
     log_inv_rate: usize,
     root: &[u8; 32],
 ) -> Result<(), Error> {
-    let cfg = whir_config(shape.mu, log_inv_rate);
+    let cfg = ::pcs::whir::supported_config(shape.mu, log_inv_rate);
     verify_opening_batch_mixed_whir_stacked(vs, &cfg, shape.mu, shape.n_lanes, root, points, rings).map_err(Error::Whir)
 }
 

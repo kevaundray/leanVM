@@ -23,7 +23,7 @@ pub struct Blake2s {
     /// Bytes in the message block.
     filled: usize,
     /// Bytes compressed before the message block.
-    done: u64,
+    compressed: u64,
 }
 
 impl Default for Blake2s {
@@ -39,7 +39,7 @@ impl Blake2s {
             h: IV,
             m: [0; 8],
             filled: 0,
-            done: 0,
+            compressed: 0,
         }
     }
 
@@ -77,10 +77,10 @@ impl Blake2s {
         //
         // Why `> 8`: a block with nothing after it may be the last, which is compressed differently.
         while self.filled == 0 && words.len() > 8 {
-            let (block, rest) = words.split_first_chunk::<8>().unwrap();
-            self.done += 64;
-            self.h = compress(&self.h, block, self.done, false);
-            words = rest;
+            let block = words.first_chunk::<8>().unwrap();
+            self.compressed += 64;
+            self.h = compress(&self.h, block, self.compressed, false);
+            words = &words[8..];
         }
         // The rest, at most one block, goes word by word into the buffer.
         for &word in words {
@@ -109,12 +109,12 @@ impl Blake2s {
         //     filled = 20:  word 0 keeps 8,  word 1 keeps 8,  word 2 keeps 4,  words 3..8 keep 0
         //
         // Why a mask: a zeroing loop of unknown length becomes a `memset` call.
-        for (i, word) in self.m.iter_mut().enumerate() {
+        for i in 0..8 {
             let keep = self.filled.saturating_sub(8 * i).min(8);
-            *word &= if keep == 8 { u64::MAX } else { (1 << (8 * keep)) - 1 };
+            self.m[i] &= if keep == 8 { u64::MAX } else { (1 << (8 * keep)) - 1 };
         }
         // The counter of the last block counts every byte of the message.
-        compress(&self.h, &self.m, self.done + self.filled as u64, true)
+        compress(&self.h, &self.m, self.compressed + self.filled as u64, true)
     }
 
     pub fn hash(data: &[u8]) -> [u8; 32] {
@@ -128,8 +128,8 @@ impl Blake2s {
     fn make_room(&mut self) {
         if self.filled == 64 {
             // The counter covers every byte up to the end of this block.
-            self.done += 64;
-            self.h = compress(&self.h, &self.m, self.done, false);
+            self.compressed += 64;
+            self.h = compress(&self.h, &self.m, self.compressed, false);
             self.filled = 0;
         }
     }
@@ -204,27 +204,29 @@ mod portable {
         }
         // Ten rounds: four column steps, then four diagonal steps.
         for s in &SIGMA {
-            let mut g = |a: usize, b: usize, c: usize, d: usize, x: u32, y: u32| {
-                v[a] = v[a].wrapping_add(v[b]).wrapping_add(x);
-                v[d] = (v[d] ^ v[a]).rotate_right(16);
-                v[c] = v[c].wrapping_add(v[d]);
-                v[b] = (v[b] ^ v[c]).rotate_right(12);
-                v[a] = v[a].wrapping_add(v[b]).wrapping_add(y);
-                v[d] = (v[d] ^ v[a]).rotate_right(8);
-                v[c] = v[c].wrapping_add(v[d]);
-                v[b] = (v[b] ^ v[c]).rotate_right(7);
-            };
-            g(0, 4, 8, 12, m[s[0]], m[s[1]]);
-            g(1, 5, 9, 13, m[s[2]], m[s[3]]);
-            g(2, 6, 10, 14, m[s[4]], m[s[5]]);
-            g(3, 7, 11, 15, m[s[6]], m[s[7]]);
-            g(0, 5, 10, 15, m[s[8]], m[s[9]]);
-            g(1, 6, 11, 12, m[s[10]], m[s[11]]);
-            g(2, 7, 8, 13, m[s[12]], m[s[13]]);
-            g(3, 4, 9, 14, m[s[14]], m[s[15]]);
+            g(&mut v, 0, 4, 8, 12, m[s[0]], m[s[1]]);
+            g(&mut v, 1, 5, 9, 13, m[s[2]], m[s[3]]);
+            g(&mut v, 2, 6, 10, 14, m[s[4]], m[s[5]]);
+            g(&mut v, 3, 7, 11, 15, m[s[6]], m[s[7]]);
+            g(&mut v, 0, 5, 10, 15, m[s[8]], m[s[9]]);
+            g(&mut v, 1, 6, 11, 12, m[s[10]], m[s[11]]);
+            g(&mut v, 2, 7, 8, 13, m[s[12]], m[s[13]]);
+            g(&mut v, 3, 4, 9, 14, m[s[14]], m[s[15]]);
         }
         // The new chaining value `h ^ v_lo ^ v_hi`, packed back into words.
         let word = |i: usize| u64::from(lane(h, i) ^ v[i] ^ v[i + 8]);
         core::array::from_fn(|k| word(2 * k) | word(2 * k + 1) << 32)
+    }
+
+    /// The mixing step `G` on lanes `a, b, c, d` of `v`, with message words `x, y`.
+    fn g(v: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, x: u32, y: u32) {
+        v[a] = v[a].wrapping_add(v[b]).wrapping_add(x);
+        v[d] = (v[d] ^ v[a]).rotate_right(16);
+        v[c] = v[c].wrapping_add(v[d]);
+        v[b] = (v[b] ^ v[c]).rotate_right(12);
+        v[a] = v[a].wrapping_add(v[b]).wrapping_add(y);
+        v[d] = (v[d] ^ v[a]).rotate_right(8);
+        v[c] = v[c].wrapping_add(v[d]);
+        v[b] = (v[b] ^ v[c]).rotate_right(7);
     }
 }

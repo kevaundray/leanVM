@@ -134,18 +134,18 @@ pub struct RingSwitchOpen {
 }
 
 /// A verifier claim whose slices were transmitted and checked by the caller.
-#[derive(Clone, Copy, Debug)]
-pub struct RingSwitchVerifyClaim<'a> {
-    pub suffix_point: &'a [F192],
-    pub s_hat_v: &'a [F192; PACKING_WIDTH],
+#[derive(Clone, Debug)]
+pub struct RingSwitchVerifyClaim {
+    pub suffix_point: Vec<F192>,
+    pub s_hat_v: [F192; PACKING_WIDTH],
 }
 
-/// Verifier inputs borrowed from the upstream reduction.
+/// Verifier inputs from the upstream reduction.
 #[derive(Clone, Debug)]
-pub struct RingSwitchVerify<'a> {
+pub struct RingSwitchVerify {
     pub offset: usize,
     pub qflock_vars: usize,
-    pub claims: Vec<RingSwitchVerifyClaim<'a>>,
+    pub claims: Vec<RingSwitchVerifyClaim>,
 }
 
 // ---------------------------------------------------------------------------
@@ -176,12 +176,7 @@ fn stack_claim_eq_at(claim: &StackClaim, x: &[F192]) -> F192 {
     match claim {
         StackClaim::Point { offset, low_point, .. } => {
             let n = low_point.len();
-            let mut e = eq_eval(low_point, &x[..n]);
-            let sel = offset >> n;
-            for (k, &xi) in x[n..].iter().enumerate() {
-                e *= if (sel >> k) & 1 == 1 { xi } else { F192::ONE + xi };
-            }
-            e
+            eq_eval(low_point, &x[..n]) * eq_bits(*offset >> n, &x[n..])
         }
         StackClaim::Strided {
             offset,
@@ -190,19 +185,21 @@ fn stack_claim_eq_at(claim: &StackClaim, x: &[F192]) -> F192 {
             point,
             ..
         } => {
-            let mut e = F192::ONE;
-            for (k, &xi) in x[..*stride_log].iter().enumerate() {
-                e *= if (slot >> k) & 1 == 1 { xi } else { F192::ONE + xi };
-            }
             let block_vars = stride_log + point.len();
-            e *= eq_eval(point, &x[*stride_log..block_vars]);
-            let sel = offset >> block_vars;
-            for (k, &xi) in x[block_vars..].iter().enumerate() {
-                e *= if (sel >> k) & 1 == 1 { xi } else { F192::ONE + xi };
-            }
-            e
+            eq_bits(*slot, &x[..*stride_log])
+                * eq_eval(point, &x[*stride_log..block_vars])
+                * eq_bits(*offset >> block_vars, &x[block_vars..])
         }
     }
+}
+
+/// `eq(bits, x)`, the Boolean point `bits` read LSB-first against `x`.
+fn eq_bits(bits: usize, x: &[F192]) -> F192 {
+    let mut e = F192::ONE;
+    for k in 0..x.len() {
+        e *= if (bits >> k) & 1 == 1 { x[k] } else { F192::ONE + x[k] };
+    }
+    e
 }
 
 // ---------------------------------------------------------------------------
@@ -330,28 +327,12 @@ pub fn verify_opening_batch_mixed_whir_stacked(
     n_lanes: usize,
     root: &Hash,
     point_claims: &[StackClaim],
-    rings: &[RingSwitchVerify<'_>],
+    rings: &[RingSwitchVerify],
 ) -> Result<(), VerifyError> {
-    let n_rs: usize = rings.iter().map(|ring| ring.claims.len()).sum();
-    assert!(n_rs > 0, "stacked PCS opening carries at least one ring-switched claim");
     // Caller (statement) invariants: panic on misuse, like the extension-field layer.
-    for ring in rings {
-        assert!(ring.qflock_vars <= log_n);
-        assert!(
-            ring.offset.is_multiple_of(1usize << ring.qflock_vars),
-            "q_flock offset must be 2^qflock_vars-aligned"
-        );
-        for claim in &ring.claims {
-            assert_eq!(claim.suffix_point.len(), ring.qflock_vars);
-        }
-        // Every claim's support must lie inside the cube, or its selector coords would
-        // run off the end of the fold point (mirror of the opener's own bound).
-        assert!(ring.offset + (1usize << ring.qflock_vars) <= 1usize << log_n);
-    }
-    assert!(
-        point_claims.iter().all(|c| claim_range(c).1 <= 1usize << log_n),
-        "every claim must live inside the committed cube"
-    );
+    let n_rs = check_rings(rings, log_n);
+    assert!(n_rs > 0, "stacked PCS opening carries at least one ring-switched claim");
+    check_point_claims(point_claims, log_n);
 
     // 1. Ring-switch verify: every claim arrives with its 64 slices, bound
     //    upstream by the caller, so nothing is read here. Then sample one
@@ -363,39 +344,128 @@ pub fn verify_opening_batch_mixed_whir_stacked(
     //    then fold both families into the target over disjoint power ranges.
     let lambdas = powers(vs.sample(), n_rs + point_claims.len());
     let (lambdas_rs, lambdas_pd) = lambdas.split_at(n_rs);
-
-    let mut target = F192::ZERO;
-    for (claim, g) in rings.iter().flat_map(|ring| &ring.claims).zip(lambdas_rs.iter()) {
-        target += *g * ring_switch::verify_finish(claim.s_hat_v, &coordinate_weights);
-    }
-    for (claim, g) in point_claims.iter().zip(lambdas_pd.iter()) {
-        target += *g * claim.value();
-    }
+    let weights = StackedWeights {
+        rings,
+        point_claims,
+        lambdas_rs,
+        lambdas_pd,
+        coordinate_weights: &coordinate_weights,
+    };
+    let target = weights.target();
 
     // 3. Evaluate the lifted weight once, at the terminal sumcheck point.
-    let eval_b_at = |x: &[F192]| -> F192 {
-        let mut acc = F192::ZERO;
-        let mut lambdas_rs = lambdas_rs.iter();
-        for ring in rings {
-            let (x_lo, x_hi) = x.split_at(ring.qflock_vars);
-            let sel = ring.offset >> ring.qflock_vars;
-            let mut sel_eq = F192::ONE;
-            for (k, &xi) in x_hi.iter().enumerate() {
-                sel_eq *= if (sel >> k) & 1 == 1 { xi } else { F192::ONE + xi };
-            }
-            let mut rs_part = F192::ZERO;
-            for (claim, g) in ring.claims.iter().zip(lambdas_rs.by_ref()) {
-                rs_part += *g * ring_switch::eval_rs_eq(claim.suffix_point, x_lo, &coordinate_weights);
-            }
-            acc += rs_part * sel_eq;
+    recursive_verifier_with_basis_succinct(config, log_n, n_lanes, target, root, move |x| weights.eval_at(x), vs)
+}
+
+/// Panics unless every ring fits a `2^log_n` stack; returns their claim count.
+fn check_rings(rings: &[RingSwitchVerify], log_n: usize) -> usize {
+    let mut n_rs = 0;
+    for i in 0..rings.len() {
+        rings[i].check(log_n);
+        n_rs += rings[i].claims.len();
+    }
+    n_rs
+}
+
+/// Panics unless every point claim lives inside the `2^log_n` cube.
+fn check_point_claims(point_claims: &[StackClaim], log_n: usize) {
+    for i in 0..point_claims.len() {
+        assert!(
+            claim_range(&point_claims[i]).1 <= 1usize << log_n,
+            "every claim must live inside the committed cube"
+        );
+    }
+}
+
+impl RingSwitchVerify {
+    /// Panics unless the claims fit a `2^log_n` stack: statement invariants.
+    fn check(&self, log_n: usize) {
+        assert!(self.qflock_vars <= log_n);
+        assert!(
+            self.offset.is_multiple_of(1usize << self.qflock_vars),
+            "q_flock offset must be 2^qflock_vars-aligned"
+        );
+        for i in 0..self.claims.len() {
+            assert_eq!(self.claims[i].suffix_point.len(), self.qflock_vars);
         }
-        for (claim, g) in point_claims.iter().zip(lambdas_pd.iter()) {
-            acc += *g * stack_claim_eq_at(claim, x);
+        // Every claim's support must lie inside the cube, or its selector coords would
+        // run off the end of the fold point (mirror of the opener's own bound).
+        assert!(self.offset + (1usize << self.qflock_vars) <= 1usize << log_n);
+    }
+
+    /// The claims' values batched with `lambdas`, one per claim.
+    fn batched_value(&self, lambdas: &[F192], coordinate_weights: &[F192]) -> F192 {
+        let mut value = F192::ZERO;
+        for i in 0..self.claims.len() {
+            value += lambdas[i] * ring_switch::verify_finish(&self.claims[i].s_hat_v, coordinate_weights);
+        }
+        value
+    }
+
+    /// The claims' lifted weights batched with `lambdas`, at `x`, a point of the
+    /// full stack cube.
+    fn batched_weight_at(&self, lambdas: &[F192], x: &[F192], coordinate_weights: &[F192]) -> F192 {
+        let (x_lo, x_hi) = x.split_at(self.qflock_vars);
+        let mut rs_part = F192::ZERO;
+        for i in 0..self.claims.len() {
+            rs_part += lambdas[i] * ring_switch::eval_rs_eq(&self.claims[i].suffix_point, x_lo, coordinate_weights);
+        }
+        rs_part * eq_bits(self.offset >> self.qflock_vars, x_hi)
+    }
+}
+
+/// The batched weight the stacked opening proves against, as the verifier
+/// evaluates it: every ring-switched claim and point claim, each scaled by its
+/// batching power.
+#[derive(Clone, Copy)]
+struct StackedWeights<'a> {
+    rings: &'a [RingSwitchVerify],
+    point_claims: &'a [StackClaim],
+    lambdas_rs: &'a [F192],
+    lambdas_pd: &'a [F192],
+    coordinate_weights: &'a [F192],
+}
+
+impl StackedWeights<'_> {
+    /// The combined target: every claim's value scaled by its batching power.
+    fn target(self) -> F192 {
+        let mut target = F192::ZERO;
+        let mut first = 0;
+        for i in 0..self.rings.len() {
+            let n = self.rings[i].claims.len();
+            target += self.rings[i].batched_value(&self.lambdas_rs[first..first + n], self.coordinate_weights);
+            first += n;
+        }
+        target + self.point_claims_value()
+    }
+
+    fn point_claims_value(self) -> F192 {
+        let mut value = F192::ZERO;
+        for i in 0..self.point_claims.len() {
+            value += self.lambdas_pd[i] * self.point_claims[i].value();
+        }
+        value
+    }
+
+    /// The weight's multilinear extension at `x`, a point of the full stack cube.
+    fn eval_at(self, x: &[F192]) -> F192 {
+        let mut acc = F192::ZERO;
+        let mut first = 0;
+        for i in 0..self.rings.len() {
+            let n = self.rings[i].claims.len();
+            acc += self.rings[i].batched_weight_at(&self.lambdas_rs[first..first + n], x, self.coordinate_weights);
+            first += n;
+        }
+        acc + self.point_claims_eq_at(x)
+    }
+
+    fn point_claims_eq_at(self, x: &[F192]) -> F192 {
+        let mut acc = F192::ZERO;
+        for i in 0..self.point_claims.len() {
+            acc += self.lambdas_pd[i] * stack_claim_eq_at(&self.point_claims[i], x);
         }
         acc
-    };
-
-    recursive_verifier_with_basis_succinct(config, log_n, n_lanes, target, root, eval_b_at, vs)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -626,11 +696,11 @@ mod tests {
         }
     }
 
-    fn verifier_claims(claims: &[RingSwitchClaim]) -> Vec<RingSwitchVerifyClaim<'_>> {
+    fn verifier_claims(claims: &[RingSwitchClaim]) -> Vec<RingSwitchVerifyClaim> {
         claims
             .iter()
             .map(|claim| RingSwitchVerifyClaim {
-                suffix_point: &claim.suffix_point,
+                suffix_point: claim.suffix_point.clone(),
                 s_hat_v: claim.s_hat_v.as_deref().unwrap().try_into().unwrap(),
             })
             .collect()

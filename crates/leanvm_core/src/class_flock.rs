@@ -11,7 +11,7 @@
 //! claims routed to those words.
 
 use crate::cpu::Row;
-use crate::rv::Entry;
+use crate::rv::{Class, Entry};
 use crate::tables::{ClassSpec, N_TABLES, Word};
 use crate::transcript::{ProverState, VerifierState};
 use ::pcs::pack::LOG_PACKING;
@@ -38,18 +38,16 @@ pub const fn stride_log(spec: &ClassSpec) -> usize {
 /// Table `t`'s gate list, built once.
 pub fn circuit(t: usize) -> &'static Circuit {
     static CIRCUITS: [OnceLock<Circuit>; N_TABLES] = [const { OnceLock::new() }; N_TABLES];
-    CIRCUITS[t].get_or_init(|| {
-        let spec = crate::tables::CLASSES[t];
-        let circuit = (spec.circuit)();
-        assert_eq!(circuit.k_log(), spec.k_log, "{}'s block size moved", spec.name);
-        assert_eq!(
-            circuit.n_input_words(),
-            spec.n_inputs,
-            "{}'s input ports moved",
-            spec.name
-        );
-        circuit
-    })
+    CIRCUITS[t].get_or_init(|| build(t))
+}
+
+/// Table `t`'s gate list, checked against the constants the layout takes from it.
+fn build(t: usize) -> Circuit {
+    let spec = &crate::tables::CLASSES[t];
+    let circuit = crate::rv::circuits::of(spec.class);
+    assert_eq!(circuit.k_log(), spec.k_log, "table {t}'s block size moved");
+    assert_eq!(circuit.n_input_words(), spec.n_inputs, "table {t}'s input ports moved");
+    circuit
 }
 
 /// `log2` of the batch proving `n_rows` instances: a power of two, at least flock's
@@ -94,7 +92,7 @@ impl Prepared {
     /// Build table `t`'s batch, one instance per row, and write its packed witness
     /// into `window`, the class's committed column.
     pub(crate) fn build(t: usize, rows: &[Row], entries: &[Entry], window: &mut [F64]) -> Self {
-        let spec = crate::tables::CLASSES[t];
+        let spec = &crate::tables::CLASSES[t];
         let n_blocks_log = n_blocks_log(spec, rows.len());
         assert_eq!(
             rows.len(),
@@ -106,14 +104,14 @@ impl Prepared {
             // The row's input words, one per input port.
             let mut words = [0u64; MAX_INPUT_WORDS];
             let words = &mut words[..spec.n_inputs];
-            for (word, &port) in words.iter_mut().zip(spec.ports) {
+            for (word, &port) in words.iter_mut().zip(spec.ports.iter()) {
                 *word = word_of(port, row, &entries[row.index as usize]);
             }
 
-            // A class with a word-level witness skips the walk of its gate list.
-            match spec.witness {
-                Some(witness) => witness(words, z, az, bz),
-                None => circuit.witness_instance(words, z, az, bz),
+            // The hash's word-level witness skips the walk of its gate list.
+            match spec.class {
+                Class::Hash => crate::rv::circuits::blake2s_witness(words, z, az, bz),
+                _ => circuit.witness_instance(words, z, az, bz),
             }
         });
         assert_eq!(window.len(), z.len(), "the committed column is the wrong size");
@@ -130,8 +128,8 @@ impl Prepared {
                     let expected = word_of(port, row, &entries[row.index as usize]);
                     assert_eq!(
                         src[k], expected,
-                        "{}'s circuit disagrees with the interpreter on {port:?}",
-                        spec.name
+                        "{:?}'s circuit disagrees with the interpreter on {port:?}",
+                        spec.class
                     );
                 }
             }
@@ -157,7 +155,9 @@ impl Prepared {
     }
 }
 
-/// The verifier's replay of table `t`'s reduction: zerocheck, then lincheck.
+/// The verifier's replay of table `t`'s reduction: zerocheck, then lincheck. It builds
+/// the circuit rather than share [`circuit`]'s, whose `OnceLock` the Lean extraction
+/// does not model.
 pub fn verify_reduction(t: usize, n_blocks_log: usize, vs: &mut VerifierState) -> Result<ReductionReplay, VerifyError> {
-    circuit(t).block().verify(n_blocks_log, vs)
+    build(t).block().verify(n_blocks_log, vs)
 }

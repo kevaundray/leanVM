@@ -38,7 +38,7 @@ pub const SIZES: [usize; 9] = [128, 64, 32, 16, 8, 4, 2, 1, 0];
 /// ([`crate::class_flock::n_blocks_log`]). Filling a table below its floor would leave
 /// it padded up to it, which is the padding this exists to avoid.
 pub fn min_rows(t: usize) -> usize {
-    1 << crate::class_flock::n_blocks_log(CLASSES[t], 1)
+    1 << crate::class_flock::n_blocks_log(&CLASSES[t], 1)
 }
 
 /// `ALU`'s index in [`CLASSES`]. Every traversal of every block lands its closing jump

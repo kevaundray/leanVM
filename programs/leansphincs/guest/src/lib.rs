@@ -156,24 +156,32 @@ impl Signature {
         // Fields in order, each word as its 8 little-endian bytes.
         let mut out = [0; SIG_SIZE];
         let mut at = 0;
-        let mut put = |bytes: &[u8]| {
-            out[at..at + bytes.len()].copy_from_slice(bytes);
-            at += bytes.len();
-        };
-        let words = |words: &[u64], put: &mut dyn FnMut(&[u8])| words.iter().for_each(|w| put(&w.to_le_bytes()));
-        words(&self.randomizer, &mut put);
+        put_words(&mut out, &mut at, &self.randomizer);
         for opening in &self.fts {
-            words(&opening.secret, &mut put);
-            words(opening.path.as_flattened(), &mut put);
+            put_words(&mut out, &mut at, &opening.secret);
+            put_words(&mut out, &mut at, opening.path.as_flattened());
         }
         for lay in 0..D {
             let (counter, ots, path) = self.layer(lay);
             // A counter of a valid signature fits its 4 bytes.
-            put(&(counter as u32).to_le_bytes());
-            words(ots.as_flattened(), &mut put);
-            words(path.as_flattened(), &mut put);
+            put(&mut out, &mut at, &(counter as u32).to_le_bytes());
+            put_words(&mut out, &mut at, ots.as_flattened());
+            put_words(&mut out, &mut at, path.as_flattened());
         }
         out
+    }
+}
+
+/// Write bytes at `at`, and move `at` past them.
+fn put(out: &mut [u8], at: &mut usize, bytes: &[u8]) {
+    out[*at..*at + bytes.len()].copy_from_slice(bytes);
+    *at += bytes.len();
+}
+
+/// Write words at `at`, each as its 8 little-endian bytes, and move `at` past them.
+fn put_words(out: &mut [u8], at: &mut usize, words: &[u64]) {
+    for w in words {
+        put(out, at, &w.to_le_bytes());
     }
 }
 
@@ -237,10 +245,12 @@ pub fn verify(pk: &PublicKey, message: &Message, signature: &Signature) -> Resul
     let mut message = fts::recover(pp, idx, &u, &signature.fts);
     for lay in (0..D).rev() {
         let pos = Pos::of(idx, lay);
-        let (counter, ots, path) = signature.layer(lay);
+        let (counter, sig, path) = signature.layer(lay);
         // A counter is 32 bits: a word holding more is no counter.
-        let counter = u32::try_from(counter).map_err(|_| VerifyError::InadmissibleEncoding)?;
-        let leaf = ots::leaf(pp, pos, &message, counter, ots).ok_or(VerifyError::InadmissibleEncoding)?;
+        let leaf = u32::try_from(counter)
+            .ok()
+            .and_then(|counter| ots::leaf(pp, pos, &message, counter, sig))
+            .ok_or(VerifyError::InadmissibleEncoding)?;
         message = tree_fold(pp, pos, leaf, path);
     }
     if message == pk.root {
@@ -286,16 +296,20 @@ fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, mess
     hasher.update_words(&tweak(TWEAK_MSG, 0, 0, 0, 0)).update_words(pp);
     hasher.update_words(randomizer).update_words(root).update_words(message);
     let digest = hasher.finalize_words();
-    // Bits `offset..offset + len`, little-endian, which may straddle two words.
-    let bits = |offset: usize, len: usize| {
-        let (word, shift) = (offset / 64, offset % 64);
-        let mut x = digest[word] >> shift;
-        if shift + len > 64 {
-            x |= digest[word + 1] << (64 - shift);
-        }
-        x & ((1 << len) - 1)
-    };
-    (bits(0, H), core::array::from_fn(|kappa| bits(H + kappa * A, A) as u32))
+    (
+        bits(&digest, 0, H),
+        core::array::from_fn(|kappa| bits(&digest, H + kappa * A, A) as u32),
+    )
+}
+
+/// Bits `offset..offset + len` of a digest, little-endian, which may straddle two words.
+fn bits(digest: &[u64; 4], offset: usize, len: usize) -> u64 {
+    let (word, shift) = (offset / 64, offset % 64);
+    let mut x = digest[word] >> shift;
+    if shift + len > 64 {
+        x |= digest[word + 1] << (64 - shift);
+    }
+    x & ((1 << len) - 1)
 }
 
 /// A hypertree node: a level and an index within a layer's tree.

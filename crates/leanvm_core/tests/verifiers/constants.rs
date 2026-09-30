@@ -69,7 +69,7 @@ fn rust_constants() -> String {
 
     for (t, spec) in CLASSES.iter().enumerate() {
         let circuit = leanvm_core::class_flock::circuit(t);
-        let prefix = format!("TABLE.{}", spec.name.to_lowercase());
+        let prefix = format!("TABLE.{}", spec.name().to_lowercase());
         let mut line = String::new();
         for (field, value) in [
             ("opcode", t as u64),

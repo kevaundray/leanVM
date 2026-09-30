@@ -74,10 +74,18 @@ pub const SECURITY_BITS: u32 = 128;
 pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 
 /// `stage!("Commit", || …)`: one named prover stage, run inside its `tracing` span,
-/// which is what the CLI's `--tracing` tree shows.
+/// which is what the CLI's `--tracing` tree shows. Just the call under `cfg(aeneas)`,
+/// since a span's callsite is a `dyn` static the Lean extraction cannot translate.
+#[cfg(not(aeneas))]
 macro_rules! stage {
     ($name:literal, $f:expr) => {
         tracing::info_span!($name).in_scope($f)
+    };
+}
+#[cfg(aeneas)]
+macro_rules! stage {
+    ($name:literal, $f:expr) => {
+        ($f)()
     };
 }
 pub(crate) use stage;

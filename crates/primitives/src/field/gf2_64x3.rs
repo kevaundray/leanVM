@@ -397,8 +397,9 @@ impl BitXor for F192Unreduced {
 impl BitXorAssign for F192Unreduced {
     #[inline]
     fn bitxor_assign(&mut self, rhs: Self) {
-        for (acc, x) in self.coeffs.as_flattened_mut().iter_mut().zip(rhs.coeffs.as_flattened()) {
-            *acc ^= x;
+        for k in 0..3 {
+            self.coeffs[k][0] ^= rhs.coeffs[k][0];
+            self.coeffs[k][1] ^= rhs.coeffs[k][1];
         }
     }
 }

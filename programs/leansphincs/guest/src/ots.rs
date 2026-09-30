@@ -65,12 +65,12 @@ pub(crate) fn encode(pp: &PublicParam, pos: Pos, message: &Digest, counter: u32)
 }
 
 /// `Ots.leaf`: the leaf a one-time signature recovers, or `None` if `counter` gives no codeword.
-pub(crate) fn leaf(pp: &PublicParam, pos: Pos, message: &Digest, counter: u32, ots: &[Digest; V]) -> Option<Digest> {
+pub(crate) fn leaf(pp: &PublicParam, pos: Pos, message: &Digest, counter: u32, sig: &[Digest; V]) -> Option<Digest> {
     let x = encode(pp, pos, message, counter)?;
     // Chain `i` was opened at value `x_i`: walk it the rest of the way to value 7.
     let ends = core::array::from_fn(|i| {
         let start = x[i] as usize;
-        chain(pp, pos, i, start, CHAIN_LEN - 1 - start, ots[i])
+        chain(pp, pos, i, start, CHAIN_LEN - 1 - start, sig[i])
     });
     Some(leaf_hash(pp, pos, &ends))
 }

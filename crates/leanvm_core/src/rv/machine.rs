@@ -275,17 +275,24 @@ impl<'a> Machine<'a> {
             Class::Illegal => return Err(Trap::Illegal { pc }),
             _ => None,
         };
-        let (out, taken, access) = compute(&e, v1, v2, cell.map_or(0, |cell| self.mem[cell]));
-        let ram = cell.map(|cell| {
-            self.mem[cell] = access.new;
-            access
-        });
+        let old = match cell {
+            Some(cell) => self.mem[cell],
+            None => 0,
+        };
+        let (out, taken, access) = compute(&e, v1, v2, old);
+        let ram = match cell {
+            Some(cell) => {
+                self.mem[cell] = access.new;
+                Some(access)
+            }
+            None => None,
+        };
+        let pc4 = pc.wrapping_add(4);
+        let vd = if e.link { pc4 } else { out };
         let hash = match e.class {
             Class::Hash => Some(Box::new(self.hash(pc, v1, v2, e.flags)?)),
             _ => None,
         };
-        let pc4 = pc.wrapping_add(4);
-        let vd = if e.link { pc4 } else { out };
         let vd_old = match e.class {
             Class::Hash => 0,
             _ => std::mem::replace(&mut self.regs[e.ad as usize], vd),
@@ -317,8 +324,8 @@ impl<'a> Machine<'a> {
             return Err(Trap::Misaligned { pc, address: base });
         }
         let mut cells = [0usize; hash::WORDS];
-        for (k, cell) in cells.iter_mut().enumerate() {
-            *cell = self.cell(base ^ (8 * k as u64))?;
+        for k in 0..hash::WORDS {
+            cells[k] = self.cell(base ^ (8 * k as u64))?;
         }
         let access = compute_hash(cells.map(|cell| self.mem[cell]), t, flags);
         for (j, &out) in access.out.iter().enumerate() {

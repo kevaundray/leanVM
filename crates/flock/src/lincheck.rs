@@ -105,7 +105,7 @@ use zk_alloc::ArenaVec;
 // marginal of base matrix `M ∈ {A_0, B_0}`, at cost ∝ NNZ.
 //
 // `LincheckCircuit` is the seam: the prover and verifier take
-// `&dyn LincheckCircuit` instead of a pair of matrices. The one live impl is
+// a `LincheckCircuit` instead of a pair of matrices. The one live impl is
 // `hash::WalkLincheckCircuit`, which walks the circuit in both directions
 // (forwards for the verifier's `bilinear_form`, backwards for the prover's
 // marginal) and never touches a matrix entry. See doc/leanvm, Annex C
@@ -199,29 +199,27 @@ pub struct LincheckClaim {
 /// Reasons the verifier may reject.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VerifyError {
-    /// One of the input quirky points has wrong `x_inner_rest` length
+    /// The input quirky point has the wrong `x_inner_rest` length
     /// (expected `k_log − k_skip`).
-    BadInnerRestLength {
-        which: &'static str,
-        expected: usize,
-        got: usize,
-    },
-    /// One of the input quirky points has wrong `x_outer` length
+    BadInnerRestLength { expected: usize, got: usize },
+    /// The input quirky point has the wrong `x_outer` length
     /// (expected `n_log = m − k_log`).
-    BadOuterLength {
-        which: &'static str,
-        expected: usize,
-        got: usize,
-    },
+    BadOuterLength { expected: usize, got: usize },
     /// The circuit's column count isn't `2^k_log`.
     BadNCols { expected: usize, got: usize },
     /// `k_skip` exceeds `k_log` (the matrix inner dimension).
     KSkipExceedsKLog { k_skip: usize, k_log: usize },
-    /// The scalar consistency check failed for one of (A, B, C).
+    /// The final sumcheck identity failed.
     /// Detected: `Σ_{i_inner} M̂_0_quirky(z_skip, x_inner_rest, i_inner) · z_x_vec[i_inner] ≠ v`.
-    ConsistencyFailed { which: &'static str },
+    ConsistencyFailed,
     /// The proof stream ran out while reading a message.
     Transcript(fiat_shamir::transcript::Error),
+}
+
+impl From<fiat_shamir::transcript::Error> for VerifyError {
+    fn from(e: fiat_shamir::transcript::Error) -> Self {
+        Self::Transcript(e)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1095,7 +1093,7 @@ pub fn prove_padded_capture_s_hat_v(
     k_log: usize,
     k_skip: usize,
     useful_bits: usize,
-    circuit: &dyn LincheckCircuit,
+    circuit: &impl LincheckCircuit,
     x_ab: &QuirkyPoint,
     ps: &mut ProverState,
 ) -> LincheckClaim {
@@ -1207,7 +1205,7 @@ pub fn verify(
     m: usize,
     k_log: usize,
     k_skip: usize,
-    circuit: &dyn LincheckCircuit,
+    circuit: &impl LincheckCircuit,
     x_ab: &QuirkyPoint,
     v_a: F192,
     v_b: F192,
@@ -1225,14 +1223,12 @@ pub fn verify(
 
     if x_ab.x_inner_rest.len() != inner_rest_len {
         return Err(VerifyError::BadInnerRestLength {
-            which: "x_ab",
             expected: inner_rest_len,
             got: x_ab.x_inner_rest.len(),
         });
     }
     if x_ab.x_outer.len() != n_log {
         return Err(VerifyError::BadOuterLength {
-            which: "x_ab",
             expected: n_log,
             got: x_ab.x_outer.len(),
         });
@@ -1271,16 +1267,26 @@ pub fn verify(
     let target = v_a + alpha * v_b + alpha_sq * v_c + beta;
     let mut running = target;
     let mut r_rounds = Vec::with_capacity(inner_rest_len);
+    let mut failure = None;
     for _ in 0..inner_rest_len {
         // `c1 + c2 = claim` in char 2, so `c1` never rides the wire.
-        let q = vs.next_round_poly(3, running, None).map_err(VerifyError::Transcript)?;
+        let q = match vs.next_round_poly(3, running, None) {
+            Ok(q) => q,
+            Err(e) => {
+                failure = Some(VerifyError::Transcript(e));
+                break;
+            }
+        };
         let r = vs.sample();
         running = primitives::multilinear::poly_eval(&q, r);
         r_rounds.push(r);
     }
+    if let Some(e) = failure {
+        return Err(e);
+    }
 
     // 4. Read + bind z_partial AFTER the sumcheck rounds (matches prover order).
-    let z_partial: Vec<F192> = vs.next_scalars(n_skip).map_err(VerifyError::Transcript)?;
+    let z_partial: Vec<F192> = vs.next_scalars(n_skip)?;
 
     // Convert sumcheck challenges to LSB-first x_inner_rest order (same
     // convention as prover; also the eq-ordering of the step-5 column weights).
@@ -1312,15 +1318,13 @@ pub fn verify(
     // z_partial`, so it is 8 eq factors times a 64-term Lagrange combination
     // instead of a length-k inner product.
     let lambda_skip = lagrange_weights_naive(k_skip, x_ab.z_skip);
-    let c_slice_value = lambda_skip
-        .iter()
-        .zip(&z_partial)
-        .fold(F192::ZERO, |acc, (&w, &s)| acc + w * s);
+    let mut c_slice_value = F192::ZERO;
+    for i in 0..n_skip {
+        c_slice_value += lambda_skip[i] * z_partial[i];
+    }
     final_sum += alpha_sq * eq_eval(&x_ab.x_inner_rest, &r_inner_rest) * c_slice_value;
     if running != final_sum {
-        return Err(VerifyError::ConsistencyFailed {
-            which: "sumcheck-final",
-        });
+        return Err(VerifyError::ConsistencyFailed);
     }
 
     // 6. `z_partial` IS the output claim: the 64 bit-slice values of z at
@@ -1352,7 +1356,7 @@ mod tests {
         m: usize,
         k_log: usize,
         k_skip: usize,
-        circuit: &dyn LincheckCircuit,
+        circuit: &impl LincheckCircuit,
         x_ab: &QuirkyPoint,
         ps: &mut fiat_shamir::transcript::ProverState,
     ) -> LincheckClaim {
@@ -1867,7 +1871,7 @@ mod tests {
             let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
             let res = verify(m, k_log, k_skip, &circuit, &x_ab, v_a, v_b, v_c, &mut ch);
             assert!(
-                matches!(res, Err(VerifyError::ConsistencyFailed { .. })),
+                matches!(res, Err(VerifyError::ConsistencyFailed)),
                 "verify did not reject z_partial[{skip_idx}].{label} bit-flip: got {res:?}"
             );
         }

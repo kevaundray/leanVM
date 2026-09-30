@@ -91,8 +91,8 @@ impl TensorAlgebraE {
     /// Multiply by an element of the vertical subring (`1 (x) scalar`): each
     /// `elems[i]` is scaled by `scalar` in E.
     pub fn scale_vertical(mut self, scalar: F192) -> Self {
-        for e in self.elems.iter_mut() {
-            *e *= scalar;
+        for i in 0..self.elems.len() {
+            self.elems[i] *= scalar;
         }
         self
     }
@@ -120,8 +120,8 @@ impl TensorAlgebraE {
         assert_eq!(coeffs.len(), DEGREE_E, "fold_vertical: coeffs.len() must be 192");
         let transposed = self.transpose();
         let mut acc = F192::ZERO;
-        for (e, c) in transposed.elems.iter().zip(coeffs.iter()) {
-            acc += *e * *c;
+        for w in 0..DEGREE_E {
+            acc += transposed.elems[w] * coeffs[w];
         }
         acc
     }
@@ -129,8 +129,8 @@ impl TensorAlgebraE {
 
 impl AddAssign<&TensorAlgebraE> for TensorAlgebraE {
     fn add_assign(&mut self, rhs: &TensorAlgebraE) {
-        for (a, b) in self.elems.iter_mut().zip(rhs.elems.iter()) {
-            *a = *a + *b;
+        for i in 0..self.elems.len().min(rhs.elems.len()) {
+            self.elems[i] = self.elems[i] + rhs.elems[i];
         }
     }
 }
@@ -144,22 +144,23 @@ fn square_transpose_ext(elems: &mut [F192]) {
     assert_eq!(elems.len(), DEGREE_E, "square_transpose_ext: input must be length 192");
 
     let mut out = [F192::ZERO; DEGREE_E];
-    for (j, o) in out.iter_mut().enumerate() {
-        let mut c0: u64 = 0;
-        let mut c1: u64 = 0;
-        let mut c2: u64 = 0;
-        for i in 0..64 {
-            c0 |= ext_bit(elems[i], j) << i;
-        }
-        for i in 64..128 {
-            c1 |= ext_bit(elems[i], j) << (i - 64);
-        }
-        for i in 128..192 {
-            c2 |= ext_bit(elems[i], j) << (i - 128);
-        }
-        *o = F192::new(c0, c1, c2);
+    for j in 0..DEGREE_E {
+        out[j] = F192::new(
+            column_bits(&elems[..64], j),
+            column_bits(&elems[64..128], j),
+            column_bits(&elems[128..], j),
+        );
     }
     elems.copy_from_slice(&out);
+}
+
+/// Bit `j` of each of 64 rows, row `i`'s at bit `i`.
+fn column_bits(rows: &[F192], j: usize) -> u64 {
+    let mut bits = 0;
+    for i in 0..64 {
+        bits |= ext_bit(rows[i], j) << i;
+    }
+    bits
 }
 
 #[cfg(test)]

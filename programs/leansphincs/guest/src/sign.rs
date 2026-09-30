@@ -154,8 +154,8 @@ impl SecretKey {
         // A lower layer's tree: 128 leaves, in a buffer sized for the largest tree.
         let (pp, leaves) = (&self.public_param, 1 << HEIGHTS[pos.lay]);
         let mut nodes = [[0; 2]; 1 << HEIGHTS[0]];
-        for (e, node) in nodes[..leaves].iter_mut().enumerate() {
-            *node = public_leaf(pp, &self.master, Pos { e: e as u32, ..pos });
+        for e in 0..leaves {
+            nodes[e] = public_leaf(pp, &self.master, Pos { e: e as u32, ..pos });
         }
         path_and_root(pp, pos, 0, 0, &mut nodes[..leaves], path)
     }
@@ -224,11 +224,11 @@ fn path_and_root(
     path: &mut [Digest],
 ) -> Digest {
     let width = nodes.len();
-    for (k, sibling) in path.iter_mut().enumerate() {
+    for k in 0..path.len() {
         // At level `from + k` the band starts at `first >> k` and is `width >> k` wide.
         let level = from + k;
         // The sibling flips the low bit of the leaf's ancestor.
-        *sibling = nodes[(((u64::from(pos.e) >> level) ^ 1) - (first >> k)) as usize];
+        path[k] = nodes[(((u64::from(pos.e) >> level) ^ 1) - (first >> k)) as usize];
         fold(pp, pos.lay, pos.tau, level, first >> k, &mut nodes[..width >> k]);
     }
     nodes[0]

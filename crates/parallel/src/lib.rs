@@ -1,4 +1,10 @@
 //! Fixed-size thread pool for flat data-parallel kernels. Workers claim ranges from one shared counter, which also balances heterogeneous cores. Dispatches cannot nest. Task panics are resumed on the dispatcher after all workers stop.
+//!
+//! Under `--cfg aeneas` (the Lean extraction) every dispatch is its sequential form
+//! from `sequential.rs` instead, and the pool is never reached.
+
+// The pool is compiled but unused under `cfg(aeneas)`.
+#![cfg_attr(aeneas, allow(dead_code, unused_imports))]
 
 use std::any::Any;
 use std::cell::{Cell, UnsafeCell};
@@ -8,10 +14,20 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, Once, OnceLock};
 use std::thread::Thread;
 
+#[cfg(aeneas)]
+mod sequential;
 mod topology;
 
+#[cfg(aeneas)]
+pub use sequential::{
+    chunks_mut, chunks_mut_zip, chunks_mut2, fill, find_first, fold_reduce, for_each, for_each_chunk, for_each_mut,
+    map_collect, map_reduce, map_reduce_with_state, num_threads,
+};
+
+#[cfg(not(aeneas))]
+pub use topology::num_threads;
 use topology::{Qos, set_qos};
-pub use topology::{Topology, num_threads, topology};
+pub use topology::{Topology, topology};
 
 /// Idle spins before a worker parks: long enough to stay hot across back-to-back
 /// dispatches, short enough to yield the core during a sequential stretch.
@@ -238,6 +254,7 @@ fn drain(pool: &Pool) {
 /// If called from inside a pool task: that would deadlock on the dispatch lock, so
 /// it panics rather than silently serializing. Fan out over the outermost
 /// independent unit and keep the levels below it sequential.
+#[cfg(not(aeneas))]
 pub fn for_each_chunk<F: Fn(usize, usize) + Sync>(n_tasks: usize, f: F) {
     assert!(!IN_TASK.get(), "nested parallel dispatch from inside a pool task");
 
@@ -292,6 +309,7 @@ pub fn for_each_chunk<F: Fn(usize, usize) + Sync>(n_tasks: usize, f: F) {
 
 /// `f(i)` for every `i` in `0..n_tasks`, in parallel. `#[inline]` folds the
 /// range-to-index adapter into the monomorphized [`for_each_chunk`].
+#[cfg(not(aeneas))]
 #[inline]
 pub fn for_each<F: Fn(usize) + Sync>(n_tasks: usize, f: F) {
     for_each_chunk(n_tasks, |start, end| {
@@ -337,6 +355,7 @@ impl<T> SendPtr<T> {
 
 /// Parallel `data.chunks_mut(chunk).enumerate().for_each(f)`; the final chunk may
 /// be shorter.
+#[cfg(not(aeneas))]
 pub fn chunks_mut<T: Send, F>(data: &mut [T], chunk: usize, f: F)
 where
     F: Fn(usize, &mut [T]) + Sync,
@@ -351,6 +370,7 @@ where
 
 /// Parallel `a.chunks_mut(chunk).zip(b.chunks_mut(chunk))`, for the kernels that
 /// fold two tables in lockstep. `a` and `b` must have equal length.
+#[cfg(not(aeneas))]
 pub fn chunks_mut2<A: Send, B: Send, F>(a: &mut [A], b: &mut [B], chunk: usize, f: F)
 where
     F: Fn(usize, &mut [A], &mut [B]) + Sync,
@@ -411,6 +431,7 @@ impl<T> Chunks<T> {
 
 /// Parallel `dst.chunks_mut(chunk).zip(src.chunks(chunk))`, for a kernel that
 /// writes one table while reading another of the same length.
+#[cfg(not(aeneas))]
 pub fn chunks_mut_zip<T: Send, S: Sync, F>(dst: &mut [T], src: &[S], chunk: usize, f: F)
 where
     F: Fn(usize, &mut [T], &[S]) + Sync,
@@ -424,6 +445,7 @@ where
 
 /// Parallel `data.iter_mut().enumerate().for_each(f)`, chunked by
 /// [`recommended_chunk_size`]. Hands the closure each element's **global** index.
+#[cfg(not(aeneas))]
 #[inline]
 pub fn for_each_mut<T: Send, F>(data: &mut [T], f: F)
 where
@@ -439,6 +461,7 @@ where
 
 /// Parallel `for (i, slot) in dst.iter_mut().enumerate() { *slot = build(i) }`.
 /// The in-place counterpart of [`map_collect`], which allocates.
+#[cfg(not(aeneas))]
 #[inline]
 pub fn fill<T: Send, F: Fn(usize) -> T + Sync>(dst: &mut [T], build: F) {
     for_each_mut(dst, |i, slot| *slot = build(i));
@@ -447,6 +470,7 @@ pub fn fill<T: Send, F: Fn(usize) -> T + Sync>(dst: &mut [T], build: F) {
 /// Parallel `(0..n_tasks).map(f).collect::<Vec<_>>()`: runs `f(i)` across the
 /// pool and writes each result straight into the output at its own index: one
 /// allocation, no `Option` slots, no per-worker intermediate vectors.
+#[cfg(not(aeneas))]
 pub fn map_collect<T: Send, F: Fn(usize) -> T + Sync>(n_tasks: usize, f: F) -> Vec<T> {
     let mut out: Vec<T> = Vec::with_capacity(n_tasks);
     let base = SendPtr(out.as_mut_ptr());
@@ -468,6 +492,7 @@ pub fn map_collect<T: Send, F: Fn(usize) -> T + Sync>(n_tasks: usize, f: F) -> V
 ///
 /// Workers publish hits into a shared minimum and skip any claim that starts past
 /// it, so the search stops early without giving up determinism.
+#[cfg(not(aeneas))]
 pub fn find_first<P: Fn(usize) -> bool + Sync>(n_tasks: usize, pred: P) -> Option<usize> {
     let best = AtomicUsize::new(usize::MAX);
     for_each_chunk(n_tasks, |start, end| {
@@ -512,6 +537,7 @@ fn drain_into_slots<S: Send>(n_tasks: usize, run: impl Fn(&mut Option<S>, usize,
 /// reduce)`. Each worker folds its claimed indices into one local partial; the
 /// partials combine on the dispatcher. `reduce` must be associative with
 /// `identity()` a neutral element.
+#[cfg(not(aeneas))]
 pub fn map_reduce<T, ID, M, R>(n_tasks: usize, identity: ID, map: M, reduce: R) -> T
 where
     T: Send,
@@ -538,6 +564,7 @@ where
 /// This is the shape for a reduction whose accumulator is itself a buffer (a
 /// 64-slot bit-fold, say): the buffer is allocated once per worker rather than
 /// once per item, and no two workers share a cache line.
+#[cfg(not(aeneas))]
 pub fn fold_reduce<A, I, F, C>(n_tasks: usize, init: I, fold: F, combine: C) -> A
 where
     A: Send,
@@ -553,6 +580,7 @@ where
 /// created once per worker and threaded through its claims; the accumulators
 /// combine on the dispatcher. `combine` must be associative with `init_acc()` a
 /// neutral element.
+#[cfg(not(aeneas))]
 pub fn map_reduce_with_state<S, A, IS, IA, F, C>(n_tasks: usize, init_state: IS, init_acc: IA, fold: F, combine: C) -> A
 where
     S: Send,

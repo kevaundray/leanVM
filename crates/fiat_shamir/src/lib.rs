@@ -16,8 +16,9 @@ use primitives::field::{F64, F192};
 /// leak into the in-circuit version.
 pub fn compress(a: [F64; 4], b: [F64; 4]) -> [F64; 4] {
     let mut input = [0u8; 64];
-    for (slot, w) in input.as_chunks_mut::<8>().0.iter_mut().zip(a.into_iter().chain(b)) {
-        *slot = w.0.to_le_bytes();
+    for i in 0..4 {
+        input[8 * i..8 * i + 8].copy_from_slice(&a[i].0.to_le_bytes());
+        input[32 + 8 * i..40 + 8 * i].copy_from_slice(&b[i].0.to_le_bytes());
     }
     digest_words(&primitives::hash::hash(&input))
 }
@@ -97,7 +98,11 @@ impl FiatShamirState {
 
     /// Squeeze `n` challenges, in order.
     pub fn sample_vec(&mut self, n: usize) -> Vec<F192> {
-        (0..n).map(|_| self.sample()).collect()
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            out.push(self.sample());
+        }
+        out
     }
 
     /// The PoW base `compress(cv, (0, 0, 0, DS_POW_BASE))`, read without mutating

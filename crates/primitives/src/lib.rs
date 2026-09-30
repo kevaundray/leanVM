@@ -108,11 +108,23 @@ pub fn log2_ceil_usize(n: usize) -> usize {
 /// calling thread, filled in place by the workers: no per-worker intermediate
 /// vectors to allocate and copy out of. This lives here rather than in
 /// `zk_alloc` so the allocator itself stays free of a thread-pool dependency.
+#[cfg(not(aeneas))]
 pub fn par_collect_arena<T: Send>(n: usize, build: impl Fn(usize) -> T + Sync) -> zk_alloc::ArenaVec<T> {
     // SAFETY: the fill below writes every slot in `0..n` exactly once, and
     // the dispatch joins before the buffer is observable.
     let mut out = unsafe { zk_alloc::ArenaVec::uninitialized(n) };
     parallel::fill(&mut out, build);
+    out
+}
+
+/// [`par_collect_arena`] on the calling thread, with no uninitialized buffer: the
+/// form the Lean extraction reads.
+#[cfg(aeneas)]
+pub fn par_collect_arena<T: Send>(n: usize, build: impl Fn(usize) -> T + Sync) -> zk_alloc::ArenaVec<T> {
+    let mut out = zk_alloc::ArenaVec::with_capacity(n);
+    for i in 0..n {
+        out.push(build(i));
+    }
     out
 }
 

@@ -29,10 +29,10 @@ pub fn min_n_blocks_log(n_blocks: usize) -> usize {
 /// A circuit as the reduction sees it: `2^k_log` witness bits per instance, of
 /// which `[useful_bits, 2^k_log)` are zero padding the prover skips.
 #[derive(Clone, Copy)]
-pub struct Block<'a> {
+pub struct Block<'a, C> {
     pub k_log: usize,
     pub useful_bits: usize,
-    pub circuit: &'a dyn LincheckCircuit,
+    pub circuit: &'a C,
 }
 
 /// The one claim on the committed witness `q_flock` left by the zerocheck +
@@ -88,7 +88,7 @@ fn reduction_claim(lc: &LincheckClaim, x_outer: &[F192]) -> SliceClaim {
     }
 }
 
-impl Block<'_> {
+impl<C: LincheckCircuit> Block<'_, C> {
     /// **First stage (prover): the zerocheck.** Reduces `a·b ⊕ c = 0` over the
     /// cube of `2^n_blocks_log` blocks to evaluation claims on `(â, b̂, ĉ)`, all
     /// three at one point.
@@ -169,10 +169,13 @@ impl Block<'_> {
     /// witness `q_flock`. The PCS then discharges the returned claim.
     pub fn verify(&self, n_blocks_log: usize, vs: &mut VerifierState<'_>) -> Result<ReductionReplay, VerifyError> {
         let m = self.k_log + n_blocks_log;
-        let zc_claim = zerocheck::verify(m, vs).map_err(VerifyError::Zerocheck)?;
+        let zc_claim = match zerocheck::verify(m, vs) {
+            Ok(claim) => claim,
+            Err(e) => return Err(VerifyError::Zerocheck(e)),
+        };
 
         let x_ab = x_ab_of(&zc_claim, self.k_log - K_SKIP);
-        let lc_claim = lincheck::verify(
+        let lc_claim = match lincheck::verify(
             m,
             self.k_log,
             K_SKIP,
@@ -182,8 +185,10 @@ impl Block<'_> {
             zc_claim.b_eval,
             zc_claim.c_eval,
             vs,
-        )
-        .map_err(VerifyError::Lincheck)?;
+        ) {
+            Ok(claim) => claim,
+            Err(e) => return Err(VerifyError::Lincheck(e)),
+        };
 
         let claim = reduction_claim(&lc_claim, &x_ab.x_outer);
         Ok(ReductionReplay {
@@ -226,18 +231,27 @@ pub fn ring_switch_open(qflock_vars: usize, offset: usize, reduced: &SliceClaim)
 /// Verifier counterpart of [`ring_switch_open`]: package the recovered claim as
 /// a [`RingSwitchVerify`], the same statement data. The transmitted opening
 /// travels separately.
-pub fn ring_switch_verify(qflock_vars: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerify<'_> {
+// Index loop and push: the Lean extraction models neither `copy_from_slice` nor `vec![..]`.
+#[allow(clippy::manual_memcpy, clippy::vec_init_then_push)]
+pub fn ring_switch_verify(qflock_vars: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerify {
     assert_eq!(
         claim.suffix_point.len(),
         qflock_vars,
         "ring-switch suffix must span the q_flock cube"
     );
+    assert_eq!(claim.s_hat_v.len(), PACKING_WIDTH, "ring-switch has 64 slices");
+    let mut s_hat_v = [F192::ZERO; PACKING_WIDTH];
+    for i in 0..PACKING_WIDTH {
+        s_hat_v[i] = claim.s_hat_v[i];
+    }
+    let mut claims = Vec::with_capacity(1);
+    claims.push(RingSwitchVerifyClaim {
+        suffix_point: claim.suffix_point.clone(),
+        s_hat_v,
+    });
     RingSwitchVerify {
         offset,
         qflock_vars,
-        claims: vec![RingSwitchVerifyClaim {
-            suffix_point: &claim.suffix_point,
-            s_hat_v: claim.s_hat_v.as_slice().try_into().expect("ring-switch has 64 slices"),
-        }],
+        claims,
     }
 }

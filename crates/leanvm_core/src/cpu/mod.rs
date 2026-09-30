@@ -58,21 +58,32 @@ fn announce_public(ps: &mut ProverState, taus: [usize; tables::N_TABLES], log_in
     ps.add_scalar(F192::from(ts_final));
 }
 
+/// A size the prover announced: a scalar whose high limbs are zero.
+fn read_size(vs: &mut VerifierState) -> Result<usize, CpuError> {
+    let word = vs.next_scalar().map_err(CpuError::Transcript)?;
+    if word.c1 != 0 || word.c2 != 0 {
+        return Err(CpuError::PublicInput);
+    }
+    usize::try_from(word.c0).map_err(|_| CpuError::PublicInput)
+}
+
 /// Verifier side of [`announce_public`]: read the announced sizes and PCS rate from
 /// the stream, validate them, and reconstruct the public [`Layout`] from the program
 /// and those sizes. Nothing the program fixes is read from the prover.
 fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize), CpuError> {
-    let read_size = |vs: &mut VerifierState| -> Result<usize, CpuError> {
-        let word = vs.next_scalar().map_err(CpuError::Transcript)?;
-        if word.c1 != 0 || word.c2 != 0 {
-            return Err(CpuError::PublicInput);
-        }
-        usize::try_from(word.c0).map_err(|_| CpuError::PublicInput)
-    };
-
     let mut taus = [0usize; tables::N_TABLES];
-    for t in &mut taus {
-        *t = read_size(vs)?;
+    let mut failure = None;
+    for t in 0..tables::N_TABLES {
+        match read_size(vs) {
+            Ok(tau) => taus[t] = tau,
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        }
+    }
+    if let Some(e) = failure {
+        return Err(e);
     }
     let log_inv_rate = read_size(vs)?;
     let ts_final = vs.next_scalar().map_err(CpuError::Transcript)?;
@@ -86,13 +97,16 @@ fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize)
     // caps BEFORE running any reduction. (A table's row count is the number of
     // times its class runs, unbounded by the bytecode size since a small loop
     // body runs many times, so it gets its own cap.)
-    let floors_hold = (0..tables::N_TABLES)
+    let mut floors_hold = true;
+    for t in 0..tables::N_TABLES {
         // flock sizes its argument to at least `n_blocks_log(1)` instances, and a
         // table's circuit words share that instance cube, so a height below the floor
         // describes a layout the arithmetization cannot express. `python-verifier`
         // rejects it here too.
-        .all(|t| (crate::class_flock::n_blocks_log(tables::CLASSES[t], 1)..=MAX_LOG_ROWS).contains(&taus[t]));
-    if !floors_hold || ::pcs::whir::validate_log_inv_rate(log_inv_rate).is_err() {
+        let floor = crate::class_flock::n_blocks_log(&tables::CLASSES[t], 1);
+        floors_hold &= (floor..=MAX_LOG_ROWS).contains(&taus[t]);
+    }
+    if !floors_hold || !::pcs::whir::is_supported_log_inv_rate(log_inv_rate) {
         return Err(CpuError::PublicInput);
     }
     let l = layout(&prog.rv, taus, F64(ts_final.c0));
@@ -214,10 +228,20 @@ type TableSpans = Vec<(usize, usize)>;
 fn block_owners(sizes: Sizes, sides: [usize; 3]) -> BlockOwners {
     let sch = schema();
     let src = block_kappa_sources(sizes);
-    let mut it = src
-        .into_iter()
-        .map(|(source, _)| source.checked_sub(1).map(|t| (t, sch.base[t])));
-    sides.map(|n| it.by_ref().take(n).collect())
+    let mut owners: BlockOwners = [Vec::new(), Vec::new(), Vec::new()];
+    let mut block = 0;
+    for s in 0..3 {
+        for _ in 0..sides[s] {
+            let (source, _) = src[block];
+            owners[s].push(if source == 0 {
+                None
+            } else {
+                Some((source - 1, sch.base[source - 1]))
+            });
+            block += 1;
+        }
+    }
+    owners
 }
 
 /// The bus's public wiring: per side which table owns each block, and each table's
@@ -232,11 +256,12 @@ fn bus_wiring(program: &Program, l: &Layout) -> (BlockOwners, TableSpans) {
 /// forms reference the flushed ones and its constraint the rest.
 fn table_spans() -> TableSpans {
     let sch = schema();
-    tables::tables()
-        .iter()
-        .enumerate()
-        .map(|(t, tb)| (sch.base[t], tb.n_committed_columns()))
-        .collect()
+    let table_set = tables::tables();
+    let mut spans = Vec::with_capacity(tables::N_TABLES);
+    for t in 0..tables::N_TABLES {
+        spans.push((sch.base[t], table_set[t].n_committed_columns()));
+    }
+    spans
 }
 
 /// The per-table inputs to the table sumcheck (§constraints), in schema order.
@@ -247,41 +272,49 @@ fn table_spans() -> TableSpans {
 /// evaluated on the same values. The identities take the air's own `η`-range; the
 /// three forms take the shared powers at [`xi_form_base`], folded into the forms'
 /// coefficients once rather than multiplied onto every row's form value.
-fn airs(taus: &[usize; tables::N_TABLES], forms: &[Vec<leaf::BusForm>; 3], xi: F192) -> Vec<constraints::Air<'static>> {
+#[allow(clippy::type_complexity)] // the two closure types, which no alias can name
+fn airs(
+    taus: &[usize; tables::N_TABLES],
+    forms: &[Vec<leaf::BusForm>; 3],
+    xi: F192,
+) -> Vec<constraints::Air<impl Fn(&[F192], &[F192], bool) -> F192 + Sync, impl Fn(&[F192], &[F64], bool) -> F192 + Sync>>
+{
     let form_pows = xi_form_pows(xi);
     // Each table's slice of the batch's `η`-powers, exactly as `constraints` cuts
     // them, turned into the weights its identities want once rather than per row.
     let pows = primitives::field::powers(xi, xi_form_base());
     let offsets = constraints::xi_offsets(tables::tables().iter().map(|t| t.n_constraints()));
-    tables::tables()
-        .iter()
-        .zip(taus)
-        .enumerate()
-        .map(|(t, (&table, &tau))| {
-            let weights = table.constraint_weights(&pows[offsets[t]..offsets[t] + table.n_constraints()]);
-            let weights_k = weights.clone();
-            // One form, not three: the batch adds the three sides' evaluations
-            // anyway, and summing them here is a setup cost against a dot product
-            // and a product list per row per node.
-            let bus = leaf::BusForm::sum((0..3).map(|s| forms[s][t].scaled(form_pows[s])));
-            let bus_k = bus.clone();
-            constraints::Air {
-                tau,
-                n_cols: table.n_committed_columns(),
-                n_constraints: table.n_constraints(),
-                eval: Box::new(move |_, vals, quadratic| {
-                    let air = <F192 as ColVal>::lift(table.eval_constraint(&weights, vals, quadratic));
-                    <F192 as ColVal>::reduce(air ^ bus.eval_unreduced(vals, quadratic))
-                }),
-                // The same expression over K columns: the identity's K-only products
-                // stay 64-bit and the bus form becomes a mixed dot product.
-                eval_k: Box::new(move |_, vals, quadratic| {
-                    let air = <F64 as ColVal>::lift(table.eval_constraint_k(&weights_k, vals, quadratic));
-                    <F64 as ColVal>::reduce(air ^ bus_k.eval_unreduced(vals, quadratic))
-                }),
-            }
-        })
-        .collect()
+    let mut airs = Vec::with_capacity(tables::N_TABLES);
+    for t in 0..tables::N_TABLES {
+        let table = tables::Table::new(t);
+        let weights = table.constraint_weights(&pows[offsets[t]..offsets[t] + table.n_constraints()]);
+        // One form, not three: the batch adds the three sides' evaluations
+        // anyway, and summing them here is a setup cost against a dot product
+        // and a product list per row per node.
+        let bus = leaf::BusForm::sum(&[
+            forms[0][t].scaled(form_pows[0]),
+            forms[1][t].scaled(form_pows[1]),
+            forms[2][t].scaled(form_pows[2]),
+        ]);
+        let (n_cols, n_constraints) = (table.n_committed_columns(), table.n_constraints());
+        let (table_k, weights_k, bus_k) = (tables::Table::new(t), weights.clone(), bus.clone());
+        airs.push(constraints::Air {
+            tau: taus[t],
+            n_cols,
+            n_constraints,
+            eval: move |_: &[F192], vals: &[F192], quadratic: bool| {
+                let air = <F192 as ColVal>::lift(table.eval_constraint(&weights, vals, quadratic));
+                <F192 as ColVal>::reduce(air ^ bus.eval_unreduced(vals, quadratic))
+            },
+            // The same expression over K columns: the identity's K-only products
+            // stay 64-bit and the bus form becomes a mixed dot product.
+            eval_k: move |_: &[F192], vals: &[F64], quadratic: bool| {
+                let air = <F64 as ColVal>::lift(table_k.eval_constraint(&weights_k, vals, quadratic));
+                <F64 as ColVal>::reduce(air ^ bus_k.eval_unreduced(vals, quadratic))
+            },
+        });
+    }
+    airs
 }
 
 /// Each table's claimed sum: its identities vanish, so what its summand comes to
@@ -321,12 +354,17 @@ fn xi_form_pows(xi: F192) -> [F192; 3] {
 /// needed.
 fn flock_value_slot(col: usize) -> Option<(usize, usize, usize)> {
     let sch = schema();
-    (0..tables::N_TABLES).find_map(|t| {
-        let (port, _) = tables::word_columns(t)
-            .into_iter()
-            .find(|&(_, c)| sch.base[t] + c == col)?;
-        Some((q_column(t), port, crate::class_flock::stride_log(tables::CLASSES[t])))
-    })
+    let mut slot = None;
+    for t in 0..tables::N_TABLES {
+        let words = tables::word_columns(t);
+        for i in 0..words.len() {
+            let (port, c) = words[i];
+            if sch.base[t] + c == col {
+                slot = Some((q_column(t), port, crate::class_flock::stride_log(&tables::CLASSES[t])));
+            }
+        }
+    }
+    slot
 }
 
 /// Run statistics returned alongside the proof: the cycle count (total executed
@@ -362,7 +400,7 @@ impl Stats {
             .iter()
             .zip(&self.base_counts)
             .filter(|&(_, &c)| c > 0)
-            .map(|(spec, &c)| (spec.name, c))
+            .map(|(spec, &c)| (spec.name(), c))
             .collect();
         shares.sort_unstable_by_key(|&(_, c)| std::cmp::Reverse(c));
         let mut parts: Vec<String> = shares
@@ -571,7 +609,7 @@ pub fn verify(program: &Program, output: &[u64; 4], proof: &Proof) -> Result<(),
 
 /// [`verify`], returning the proof it accepted with every query's Merkle path
 /// written out, the form `python-verifier` reads.
-#[tracing::instrument(name = "Verify", skip_all)]
+#[cfg_attr(not(aeneas), tracing::instrument(name = "Verify", skip_all))]
 pub fn verify_to_raw(
     program: &Program,
     output: &[u64; 4],
@@ -582,7 +620,13 @@ pub fn verify_to_raw(
     let root = pcs::read_commitment(&mut vs).map_err(CpuError::Transcript)?;
 
     let (owners, spans) = bus_wiring(program, &l);
-    let bus = leaf::verify_balance(&l.push, &l.pull, &l.count, &owners, &spans, &mut vs).map_err(CpuError::Bus)?;
+    // The errors are wrapped by `match` rather than `map_err(CpuError::Bus)`: the Lean
+    // extraction names a constructor used as a function after its argument's type,
+    // and three of them take an `Error`.
+    let bus = match leaf::verify_balance(&l.push, &l.pull, &l.count, &owners, &spans, &mut vs) {
+        Ok(bus) => bus,
+        Err(e) => return Err(CpuError::Bus(e)),
+    };
 
     let zc_xi = vs.sample();
     let form_pows = xi_form_pows(zc_xi);
@@ -593,9 +637,15 @@ pub fn verify_to_raw(
     // are fixed, hitting that one number forces `Σ_t σ_{s,t} = R_s` on all three
     // sides. A transmitted target would be a free value in its own check, and the
     // tables' bus blocks would be settled by nothing at all.
-    let target = (0..3).fold(F192::ZERO, |a, s| a + form_pows[s] * bus.totals[s]);
-    let table_claims = constraints::verify(&airs(&l.taus, &bus.forms, zc_xi), zc_xi, &bus.point, target, &mut vs)
-        .map_err(CpuError::Constraint)?;
+    let mut target = F192::ZERO;
+    for s in 0..3 {
+        target += form_pows[s] * bus.totals[s];
+    }
+    let table_claims = match constraints::verify(&airs(&l.taus, &bus.forms, zc_xi), zc_xi, &bus.point, target, &mut vs)
+    {
+        Ok(claims) => claims,
+        Err(e) => return Err(CpuError::Constraint(e)),
+    };
 
     let slots = finish_claims(&l, bus.claims, &table_claims, output);
 
@@ -604,18 +654,31 @@ pub fn verify_to_raw(
     // witness, then verify them alongside every point claim in the ONE WHIR opening
     // (mirroring `prove`).
     let mut replays = Vec::with_capacity(tables::N_TABLES);
-    for (t, &tau) in l.taus.iter().enumerate() {
-        replays.push(crate::class_flock::verify_reduction(t, tau, &mut vs).map_err(CpuError::Flock)?);
+    let mut failure = None;
+    for t in 0..tables::N_TABLES {
+        match crate::class_flock::verify_reduction(t, l.taus[t], &mut vs) {
+            Ok(replay) => replays.push(replay),
+            Err(e) => {
+                failure = Some(CpuError::Flock(e));
+                break;
+            }
+        }
     }
-    let rings: Vec<_> = replays
-        .iter()
-        .enumerate()
-        .map(|(t, replay)| {
-            let placement = &l.placements[q_column(t)];
-            flock::reduction::ring_switch_verify(placement.n_vars, placement.offset, &replay.claim)
-        })
-        .collect();
-    pcs::verify(&mut vs, &slots, &rings, l.shape, log_inv_rate, &root).map_err(CpuError::Open)?;
+    if let Some(e) = failure {
+        return Err(e);
+    }
+    let mut rings = Vec::with_capacity(tables::N_TABLES);
+    for t in 0..tables::N_TABLES {
+        let placement = &l.placements[q_column(t)];
+        rings.push(flock::reduction::ring_switch_verify(
+            placement.n_vars,
+            placement.offset,
+            &replays[t].claim,
+        ));
+    }
+    if let Err(e) = pcs::verify(&mut vs, &slots, &rings, l.shape, log_inv_rate, &root) {
+        return Err(CpuError::Open(e));
+    }
     vs.finish().map_err(CpuError::Transcript)?;
     Ok(vs.into_raw_proof())
 }

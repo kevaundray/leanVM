@@ -125,8 +125,8 @@ fn block_words(block: &[u8; BLOCK_LEN]) -> [u32; 16] {
 #[inline]
 fn state_bytes(h: &[u32; 8]) -> [u8; OUT_LEN] {
     let mut out = [0u8; OUT_LEN];
-    for (chunk, word) in out.as_chunks_mut::<4>().0.iter_mut().zip(h) {
-        *chunk = word.to_le_bytes();
+    for i in 0..8 {
+        out[4 * i..4 * i + 4].copy_from_slice(&h[i].to_le_bytes());
     }
     out
 }

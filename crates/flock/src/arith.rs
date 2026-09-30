@@ -126,7 +126,7 @@ impl U64Circuit {
         self.circuit.useful_bits()
     }
 
-    pub fn block(&self) -> Block<'_> {
+    pub fn block(&self) -> Block<'_, Circuit> {
         self.circuit.block()
     }
 

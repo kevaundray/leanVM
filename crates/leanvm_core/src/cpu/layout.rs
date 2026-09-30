@@ -5,6 +5,7 @@
 use super::*;
 use crate::leaf::SparseColumn;
 use crate::rv::{ADVICE_BASE, LOG_REGS, RAM_BASE, TEXT_BASE};
+use std::sync::Arc;
 
 // ---- column schema -----------------------------------------------------------
 
@@ -41,37 +42,46 @@ pub(crate) const fn q_column(t: usize) -> usize {
 /// table `t` (in [`tables::tables`] order) owns the contiguous block `[base[t],
 /// base[t] + n_committed_columns_t)`. Both prover and verifier derive this identically
 /// from the table set, so every column claim lines up.
+#[derive(Clone, Copy)]
 pub struct Schema {
     pub base: [usize; tables::N_TABLES],
     pub n: usize,
 }
 
-/// The schema is a pure function of the fixed table set, so compute it once.
-pub fn schema() -> &'static Schema {
-    static SCHEMA: std::sync::OnceLock<Schema> = std::sync::OnceLock::new();
-    SCHEMA.get_or_init(|| {
-        let mut base = [0usize; tables::N_TABLES];
-        let mut next = N_SHARED;
-        for (t, table) in tables::tables().iter().enumerate() {
-            base[t] = next;
-            next += table.n_committed_columns();
-        }
-        Schema { base, n: next }
-    })
+/// The schema, a pure function of the fixed table set.
+pub fn schema() -> Schema {
+    let table_set = tables::tables();
+    let mut base = [0usize; tables::N_TABLES];
+    let mut next = N_SHARED;
+    for t in 0..tables::N_TABLES {
+        base[t] = next;
+        next += table_set[t].n_committed_columns();
+    }
+    Schema { base, n: next }
 }
 
 /// Offset a table's local flush coordinates to global column indices.
-fn offset_coords(base: usize, coords: Vec<Coord>) -> Vec<Coord> {
-    coords.into_iter().map(|c| offset_coord(base, c)).collect()
+fn offset_coords(base: usize, coords: &[Coord]) -> Vec<Coord> {
+    let mut out = Vec::with_capacity(coords.len());
+    for i in 0..coords.len() {
+        out.push(offset_coord(base, &coords[i]));
+    }
+    out
 }
 
-fn offset_coord(base: usize, c: Coord) -> Coord {
+fn offset_coord(base: usize, c: &Coord) -> Coord {
     match c {
         Coord::Col(i) => Coord::Col(base + i),
-        Coord::GCol(i, k) => Coord::GCol(base + i, k),
-        Coord::Prod(i, j, k) => Coord::Prod(base + i, base + j, k),
-        Coord::Sum(cs) => Coord::Sum(offset_coords(base, cs)),
-        other => other,
+        Coord::GCol(i, k) => Coord::GCol(base + i, *k),
+        Coord::Prod(i, j, k) => Coord::Prod(base + i, base + j, *k),
+        Coord::Sum(ts) => {
+            let mut out = Vec::with_capacity(ts.len());
+            for i in 0..ts.len() {
+                out.push(ts[i].offset(base));
+            }
+            Coord::Sum(out)
+        }
+        other => other.clone(),
     }
 }
 
@@ -177,16 +187,20 @@ pub fn col_kappa_sources(sizes: Sizes) -> Vec<Option<(usize, usize)>> {
     k[BFCNT] = Some((0, sizes.log_bytecode));
     k[RLO_CNT] = Some((0, tables::RANGE_LOG));
     k[RHI_CNT] = Some((0, tables::RANGE_LOG));
-    for (t, table) in tables::tables().iter().enumerate() {
+    let table_set = tables::tables();
+    for t in 0..tables::N_TABLES {
         let base = sch.base[t];
-        k[base..base + table.n_committed_columns()].fill(Some((1 + t, 0)));
+        for c in base..base + table_set[t].n_committed_columns() {
+            k[c] = Some((1 + t, 0));
+        }
         // The circuit's words are ALWAYS virtual: the class's packed witness already
         // holds them at fixed packed slots, so committing them again is redundant.
         // Their bus claims route directly to slot evaluations of it (`slot_claims`),
         // which is the whole binding.
-        k[q_column(t)] = Some((1 + t, crate::class_flock::stride_log(tables::CLASSES[t])));
-        for (_, c) in tables::word_columns(t) {
-            k[base + c] = None;
+        k[q_column(t)] = Some((1 + t, crate::class_flock::stride_log(&tables::CLASSES[t])));
+        let words = tables::word_columns(t);
+        for i in 0..words.len() {
+            k[base + words[i].1] = None;
         }
     }
     k
@@ -214,15 +228,22 @@ pub fn block_kappa_sources(sizes: Sizes) -> Vec<(usize, usize)> {
     let mut push = framework_kappa_sources(sizes);
     let mut pull = push.clone();
     let mut count = Vec::new();
-    for (t, table) in tables::tables().iter().enumerate() {
+    let table_set = tables::tables();
+    for t in 0..tables::N_TABLES {
         let mut fb = tables::FlushBuilder::new();
-        table.flushes(&mut fb);
-        push.extend(std::iter::repeat_n((1 + t, 0), fb.push.len()));
-        pull.extend(std::iter::repeat_n((1 + t, 0), fb.pull.len()));
-        count.extend(std::iter::repeat_n((1 + t, 0), table.count_columns().len()));
+        table_set[t].flushes(&mut fb);
+        for _ in 0..fb.push.len() {
+            push.push((1 + t, 0));
+        }
+        for _ in 0..fb.pull.len() {
+            pull.push((1 + t, 0));
+        }
+        for _ in 0..table_set[t].count_columns().len() {
+            count.push((1 + t, 0));
+        }
     }
-    push.extend(pull);
-    push.extend(count);
+    push.extend_from_slice(&pull);
+    push.extend_from_slice(&count);
     push
 }
 
@@ -230,12 +251,16 @@ pub fn block_kappa_sources(sizes: Sizes) -> Vec<(usize, usize)> {
 /// substituting the announced sizes. `None` marks a **virtual** (uncommitted) column.
 /// Depends only on the public sizes, so the verifier can reconstruct the placements.
 fn col_kappas(sizes: Sizes, taus: [usize; tables::N_TABLES]) -> Vec<Option<usize>> {
-    let mut values = vec![0usize];
-    values.extend(taus);
-    col_kappa_sources(sizes)
-        .iter()
-        .map(|s| s.map(|(source, adj)| values[source] + adj))
-        .collect()
+    let sources = col_kappa_sources(sizes);
+    let mut kappas = Vec::with_capacity(sources.len());
+    for i in 0..sources.len() {
+        kappas.push(match sources[i] {
+            Some((0, adj)) => Some(adj),
+            Some((source, adj)) => Some(taus[source - 1] + adj),
+            None => None,
+        });
+    }
+    kappas
 }
 
 /// How many PUBLIC columns a bytecode entry is: the class tag, then `flags, a1, a2,
@@ -244,25 +269,30 @@ pub const N_BYTECODE_COLUMNS: usize = 10;
 
 /// The public bytecode columns over the program cube, in bytecode-slot order. The
 /// program is not committed, so these ride the seed/finalize blocks as
-/// `Coord::Public` and stack into the polynomial [`bytecode_table`] returns.
-pub fn bytecode_columns(p: &rv::Program) -> [Vec<F64>; N_BYTECODE_COLUMNS] {
-    let column = |f: &(dyn Fn(usize, &rv::Entry) -> u64 + Sync)| {
-        parallel::map_collect(p.entries.len(), |i| F64(f(i, &p.entries[i])))
-    };
+/// `Coord::Public` and stack into the polynomial [`bytecode_table`] returns. Each is
+/// shared between the seed and finalize blocks: a copy is tens of megabytes per column
+/// at production sizes.
+pub fn bytecode_columns(p: &rv::Program) -> [Arc<Vec<F64>>; N_BYTECODE_COLUMNS] {
+    fn column(p: &rv::Program, f: impl Fn(usize, &rv::Entry) -> u64 + Sync) -> Arc<Vec<F64>> {
+        Arc::new(parallel::map_collect(p.entries.len(), |i| F64(f(i, &p.entries[i]))))
+    }
     [
         // An illegal entry's tag is zero, which is no table's: nothing can read it.
-        parallel::map_collect(p.entries.len(), |i| {
-            tables::table_of(p.entries[i].class).map_or(F64::ZERO, primitives::field::g_pow)
-        }),
-        column(&|_, e| e.flags),
-        column(&|_, e| e.a1 as u64),
-        column(&|_, e| e.a2 as u64),
-        column(&|_, e| e.ad as u64),
-        column(&|_, e| e.imm),
-        column(&|i, _| p.pc_of(i).wrapping_add(4)),
-        column(&|i, _| p.dt_of(i)),
-        column(&|_, e| e.link as u64),
-        column(&|_, e| e.jalr as u64),
+        Arc::new(parallel::map_collect(p.entries.len(), |i| {
+            match tables::table_of(p.entries[i].class) {
+                Some(t) => primitives::field::g_pow(t),
+                None => F64::ZERO,
+            }
+        })),
+        column(p, |_, e| e.flags),
+        column(p, |_, e| e.a1 as u64),
+        column(p, |_, e| e.a2 as u64),
+        column(p, |_, e| e.ad as u64),
+        column(p, |_, e| e.imm),
+        column(p, |i, _| p.pc_of(i).wrapping_add(4)),
+        column(p, |i, _| p.dt_of(i)),
+        column(p, |_, e| e.link as u64),
+        column(p, |_, e| e.jalr as u64),
     ]
 }
 
@@ -273,14 +303,33 @@ pub fn bytecode_columns(p: &rv::Program) -> [Vec<F64>; N_BYTECODE_COLUMNS] {
 /// This is the multilinear an outermost verifier is handed in place of a
 /// structured program, and what the program digest binds ([`Program::new`]).
 pub fn bytecode_table(p: &rv::Program) -> Vec<F64> {
-    let coords = bytecode_columns(p)
-        .map(|c| Coord::Public(std::sync::Arc::new(c)))
-        .into();
+    let coords = bytecode_columns(p).map(Coord::Public).into();
     let block = Block {
         kappa: crate::log2_strict_usize(p.entries.len()),
         coords,
     };
     crate::leaf::stacked_bytecode_table(std::slice::from_ref(&block))
+}
+
+/// The bytecode's seed or finalize block, entry `i` at its `pc` (the program columns
+/// are public), with read count `count`.
+fn bytecode_block(
+    log_bytecode: usize,
+    prog_cols: &[std::sync::Arc<Vec<F64>>; N_BYTECODE_COLUMNS],
+    count: Coord,
+) -> Block {
+    let pc = Coord::IntIndex {
+        base: F64(TEXT_BASE),
+        shift: 2,
+    };
+    let mut coords = vec![Coord::Const(SEP_BYTECODE), pc, count];
+    for c in 0..N_BYTECODE_COLUMNS {
+        coords.push(Coord::Public(prog_cols[c].clone()));
+    }
+    Block {
+        kappa: log_bytecode,
+        coords,
+    }
 }
 
 /// Build the public [`Layout`] from the program, the tables' log heights `taus` and the
@@ -295,12 +344,10 @@ pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -
     let sizes = Sizes::of(p);
     let log_bytecode = sizes.log_bytecode;
     let one = F64::ONE;
-    // Shared between the seed and finalize blocks: a copy is tens of megabytes per
-    // column at production sizes.
-    let prog_cols: [std::sync::Arc<Vec<F64>>; N_BYTECODE_COLUMNS] = bytecode_columns(p).map(std::sync::Arc::new);
+    let prog_cols = bytecode_columns(p);
 
     // ---- bus blocks ----
-    use Coord::{Col, Const, IntIndex, Powers, Public, Sparse};
+    use Coord::{Col, Const, IntIndex, Powers, Sparse};
     let blk = |kappa: usize, coords: Vec<Coord>| Block { kappa, coords };
 
     let mut push: Vec<Block> = Vec::new();
@@ -332,7 +379,7 @@ pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -
         base: F64(RAM_BASE),
         shift: 3,
     };
-    let ram = SparseColumn::new(p.log_ram, &[(0, &p.image)]);
+    let ram = SparseColumn::new(p.log_ram).with_stretch(0, &p.image);
     push.push(blk(
         p.log_ram,
         vec![
@@ -359,22 +406,9 @@ pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -
         p.log_advice,
         vec![Const(tables::SEP_MEM), word, Col(ADV_FTS), Col(ADV_FIN)],
     ));
-    // Bytecode seed + finalize, entry `i` at its `pc` (the program columns are public).
-    let bytecode_block = |count: Coord| {
-        let pc = IntIndex {
-            base: F64(TEXT_BASE),
-            shift: 2,
-        };
-        blk(
-            log_bytecode,
-            [Const(SEP_BYTECODE), pc, count]
-                .into_iter()
-                .chain(prog_cols.iter().cloned().map(Public))
-                .collect(),
-        )
-    };
-    push.push(bytecode_block(Const(one)));
-    pull.push(bytecode_block(Col(BFCNT)));
+    // Bytecode seed + finalize.
+    push.push(bytecode_block(log_bytecode, &prog_cols, Const(one)));
+    pull.push(bytecode_block(log_bytecode, &prog_cols, Col(BFCNT)));
     // The two range arrays (§sec:rangecheck): entries with no value, so a read is a
     // range check on its address. Neither is committed: their addresses are
     // geometric, `g^{j+1}` and `g^{-2^16·j}`.
@@ -392,19 +426,21 @@ pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -
     // local indices; offset them to the table's global columns.
     let sch = schema();
     let mut count_blocks: Vec<Block> = Vec::new();
-    for (t, table) in tables::tables().iter().enumerate() {
+    let table_set = tables::tables();
+    for t in 0..tables::N_TABLES {
         let base = sch.base[t];
         let kappa = taus[t];
         let mut fb = FlushBuilder::new();
-        table.flushes(&mut fb);
-        for coords in fb.push {
-            push.push(blk(kappa, offset_coords(base, coords)));
+        table_set[t].flushes(&mut fb);
+        for i in 0..fb.push.len() {
+            push.push(blk(kappa, offset_coords(base, &fb.push[i])));
         }
-        for coords in fb.pull {
-            pull.push(blk(kappa, offset_coords(base, coords)));
+        for i in 0..fb.pull.len() {
+            pull.push(blk(kappa, offset_coords(base, &fb.pull[i])));
         }
-        for &c in table.count_columns() {
-            count_blocks.push(blk(kappa, vec![Col(base + c)]));
+        let counts = table_set[t].count_columns();
+        for i in 0..counts.len() {
+            count_blocks.push(blk(kappa, vec![Col(base + counts[i])]));
         }
     }
 
@@ -468,9 +504,9 @@ impl Program {
             let tau = crate::log2_strict_usize(r);
             assert_eq!(
                 tau,
-                crate::class_flock::n_blocks_log(tables::CLASSES[t], r),
+                crate::class_flock::n_blocks_log(&tables::CLASSES[t], r),
                 "the {} table must be filled to flock's instance floor",
-                tables::CLASSES[t].name
+                tables::CLASSES[t].name()
             );
             tau
         });
@@ -515,7 +551,7 @@ impl Program {
             for (t, table) in tables::tables().iter().enumerate() {
                 let (base, n) = (sch.base[t], table.n_committed_columns());
                 let ctx = FillCtx::new(tr, &range_lo, &range_hi, p, 1 << l.taus[t], n);
-                tables::fill_table(*table, &ctx, &mut windows[base..base + n]);
+                tables::fill_table(table, &ctx, &mut windows[base..base + n]);
             }
             // Shared columns. These ten plus the flock witnesses below are every
             // shared column, and each has to be written: the stack is uninitialized, so

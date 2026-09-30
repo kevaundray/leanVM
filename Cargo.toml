@@ -15,6 +15,10 @@ edition = "2024"
 needless_range_loop = "allow"
 too_many_arguments = "allow"
 
+# `verification/extract.sh` builds with `--cfg aeneas` for the Lean extraction.
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(aeneas)"] }
+
 [workspace.dependencies]
 bench = { path = "crates/bench" }
 leanvm = { path = "crates/leanvm" }

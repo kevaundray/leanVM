@@ -6,6 +6,9 @@ use primitives::field::{F64, F192};
 
 pub type Hash = [u8; 32];
 
+/// Tree nodes as `(index, hash)`, in ascending index order.
+type Nodes = Vec<(usize, Hash)>;
+
 /// Encode a Merkle hash as the two field words transcripts carry it in: two
 /// 128-bit halves, each a K pair with a spare top lane. Every digest in the
 /// protocol uses this one split (the commitment root, the public input), so the
@@ -24,7 +27,7 @@ pub fn hash_to_scalars(hash: &Hash) -> [F192; 2] {
 /// 128-bit, so a nonzero one is not a digest at all.
 #[inline]
 pub fn scalars_to_hash(scalars: &[F192; 2]) -> Result<Hash, Error> {
-    if scalars.iter().any(|s| s.c2 != 0) {
+    if scalars[0].c2 != 0 || scalars[1].c2 != 0 {
         return Err(Error::NonCanonicalEncoding);
     }
     let mut hash = [0u8; 32];
@@ -60,8 +63,8 @@ fn leaf_image(row: &[F64], leaf_words: usize) -> Vec<F64> {
 /// The committer's leaf preimage: the image's words, little-endian.
 fn hash_words(image: &[F64]) -> Hash {
     let mut bytes = vec![0u8; 8 * image.len()];
-    for (dst, word) in bytes.as_chunks_mut::<8>().0.iter_mut().zip(image) {
-        *dst = word.0.to_le_bytes();
+    for i in 0..image.len() {
+        bytes[8 * i..8 * i + 8].copy_from_slice(&image[i].0.to_le_bytes());
     }
     hash_leaf(&bytes)
 }
@@ -141,11 +144,19 @@ impl PrunedMerklePaths {
         if sorted.len() != self.leaf_data.len() || row_words > leaf_words {
             return None;
         }
-        let hashes = self
-            .leaf_data
-            .iter()
-            .map(|row| (row.len() == row_words).then(|| hash_words(&leaf_image(row, leaf_words))))
-            .collect::<Option<Vec<_>>>()?;
+        let mut hashes = Vec::with_capacity(self.leaf_data.len());
+        let mut malformed = false;
+        for i in 0..self.leaf_data.len() {
+            let row = &self.leaf_data[i];
+            if row.len() != row_words {
+                malformed = true;
+                break;
+            }
+            hashes.push(hash_words(&leaf_image(row, leaf_words)));
+        }
+        if malformed {
+            return None;
+        }
         Some((sorted, hashes))
     }
 
@@ -173,67 +184,179 @@ impl PrunedMerklePaths {
         }
         let height = num_leaves.trailing_zeros() as usize;
         let (sorted, leaf_hashes) = self.leaf_hashes(queries, row_words, leaf_words)?;
-        if sorted.last().is_some_and(|&p| p >= num_leaves) {
+        if sorted[sorted.len() - 1] >= num_leaves {
             return None;
         }
 
-        // Rebuild every node on the queried paths bottom-up, pulling a stored
-        // sibling only where that sibling is not itself a queried subtree.
-        let mut supplied = self.sibling_hashes.iter();
-        let mut known: Vec<Vec<(usize, Hash)>> = Vec::with_capacity(height);
-        let mut nodes: Vec<(usize, Hash)> = sorted.iter().copied().zip(leaf_hashes).collect();
+        let (known, rebuilt_root) = self.rebuild(&sorted, &leaf_hashes, height)?;
+        if rebuilt_root != *root {
+            return None;
+        }
+        let per_distinct = sibling_paths(&known, &sorted)?;
+        self.expand(queries, &sorted, &per_distinct, leaf_words)
+    }
+
+    /// Rebuild every node on the queried paths bottom-up, pulling a stored
+    /// sibling only where that sibling is not itself a queried subtree: the
+    /// levels and the root, or `None` unless the stored hashes are used exactly.
+    fn rebuild(&self, sorted: &[usize], leaf_hashes: &[Hash], height: usize) -> Option<(Vec<Nodes>, Hash)> {
+        let mut nodes = leaf_nodes(sorted, leaf_hashes);
+        let mut supplied = 0;
+        let mut known = Vec::with_capacity(height);
+        let mut short = false;
         for _ in 0..height {
-            let mut level = Vec::with_capacity(2 * nodes.len());
-            let mut parents = Vec::with_capacity(nodes.len());
-            let mut i = 0;
-            while i < nodes.len() {
-                let idx = nodes[i].0;
-                let paired = idx & 1 == 0 && nodes.get(i + 1).is_some_and(|&(j, _)| j == (idx | 1));
-                let (left, right) = if paired {
-                    (nodes[i].1, nodes[i + 1].1)
-                } else if idx & 1 == 0 {
-                    (nodes[i].1, *supplied.next()?)
-                } else {
-                    (*supplied.next()?, nodes[i].1)
-                };
-                parents.push((idx >> 1, hash_pair(&left, &right)));
-                level.push((idx & !1, left));
-                level.push((idx | 1, right));
-                i += if paired { 2 } else { 1 };
+            match self.fold_level(&nodes, &mut supplied, &mut known) {
+                Some(parents) => nodes = parents,
+                None => {
+                    short = true;
+                    break;
+                }
             }
-            known.push(level);
-            nodes = parents;
         }
         // The last fold leaves exactly the root, and nothing may be left over.
-        if supplied.next().is_some() || nodes[0].1 != *root {
+        if short || supplied != self.sibling_hashes.len() {
             return None;
         }
-
-        let per_distinct: Vec<Vec<Hash>> = sorted
-            .iter()
-            .map(|&leaf| {
-                (0..height)
-                    .map(|lvl| {
-                        let level = &known[lvl];
-                        let pos = level.binary_search_by_key(&((leaf >> lvl) ^ 1), |&(j, _)| j).ok()?;
-                        Some(level[pos].1)
-                    })
-                    .collect::<Option<Vec<_>>>()
-            })
-            .collect::<Option<Vec<_>>>()?;
-
-        queries
-            .iter()
-            .map(|q| {
-                let slot = sorted.binary_search(q).ok()?;
-                Some(RawMerklePath {
-                    leaf_index: *q,
-                    leaf_data: leaf_image(&self.leaf_data[slot], leaf_words),
-                    path: per_distinct[slot].clone(),
-                })
-            })
-            .collect()
+        Some((known, nodes[0].1))
     }
+
+    /// One opening per query, in `queries` order, from the distinct leaves'
+    /// paths.
+    fn expand(
+        &self,
+        queries: &[usize],
+        sorted: &[usize],
+        per_distinct: &[Vec<Hash>],
+        leaf_words: usize,
+    ) -> Option<Vec<RawMerklePath>> {
+        let mut openings = Vec::with_capacity(queries.len());
+        let mut missing = false;
+        for i in 0..queries.len() {
+            let q = queries[i];
+            let Some(slot) = position_of(sorted, q) else {
+                missing = true;
+                break;
+            };
+            openings.push(RawMerklePath {
+                leaf_index: q,
+                leaf_data: leaf_image(&self.leaf_data[slot], leaf_words),
+                path: per_distinct[slot].clone(),
+            });
+        }
+        if missing {
+            return None;
+        }
+        Some(openings)
+    }
+
+    /// One level of [`Self::open`]'s rebuild: every node paired with its sibling
+    /// (a known node, or the next stored hash, counted by `supplied`), recorded
+    /// in `known`, and their parents. `None` when the stored hashes run out.
+    fn fold_level(&self, nodes: &[(usize, Hash)], supplied: &mut usize, known: &mut Vec<Nodes>) -> Option<Nodes> {
+        let mut level = Vec::with_capacity(2 * nodes.len());
+        let mut parents = Vec::with_capacity(nodes.len());
+        let mut i = 0;
+        let mut short = false;
+        while i < nodes.len() {
+            let idx = nodes[i].0;
+            let paired = idx & 1 == 0 && i + 1 < nodes.len() && nodes[i + 1].0 == (idx | 1);
+            if !paired && *supplied == self.sibling_hashes.len() {
+                short = true;
+                break;
+            }
+            let (left, right) = if paired {
+                (nodes[i].1, nodes[i + 1].1)
+            } else if idx & 1 == 0 {
+                (nodes[i].1, self.sibling_hashes[*supplied])
+            } else {
+                (self.sibling_hashes[*supplied], nodes[i].1)
+            };
+            if !paired {
+                *supplied += 1;
+            }
+            parents.push((idx >> 1, hash_pair(&left, &right)));
+            level.push((idx & !1, left));
+            level.push((idx | 1, right));
+            i += if paired { 2 } else { 1 };
+        }
+        if short {
+            return None;
+        }
+        known.push(level);
+        Some(parents)
+    }
+}
+
+/// The queried leaves as the rebuild's bottom level.
+fn leaf_nodes(sorted: &[usize], leaf_hashes: &[Hash]) -> Nodes {
+    let mut nodes = Vec::with_capacity(sorted.len());
+    for i in 0..sorted.len() {
+        nodes.push((sorted[i], leaf_hashes[i]));
+    }
+    nodes
+}
+
+/// Every distinct leaf's sibling path, or `None` if one is missing.
+fn sibling_paths(known: &[Nodes], sorted: &[usize]) -> Option<Vec<Vec<Hash>>> {
+    let mut paths = Vec::with_capacity(sorted.len());
+    let mut missing = false;
+    for i in 0..sorted.len() {
+        match sibling_path(known, sorted[i]) {
+            Some(path) => paths.push(path),
+            None => {
+                missing = true;
+                break;
+            }
+        }
+    }
+    if missing {
+        return None;
+    }
+    Some(paths)
+}
+
+/// The sibling path of `leaf` from the rebuilt levels, bottom up, or `None` if a
+/// level lacks the sibling.
+fn sibling_path(known: &[Vec<(usize, Hash)>], leaf: usize) -> Option<Vec<Hash>> {
+    let mut path = Vec::with_capacity(known.len());
+    let mut missing = false;
+    for lvl in 0..known.len() {
+        match sibling_at(&known[lvl], (leaf >> lvl) ^ 1) {
+            Some(hash) => path.push(hash),
+            None => {
+                missing = true;
+                break;
+            }
+        }
+    }
+    if missing {
+        return None;
+    }
+    Some(path)
+}
+
+/// The hash stored at node `index` of a rebuilt level (its indices are distinct).
+fn sibling_at(level: &[(usize, Hash)], index: usize) -> Option<Hash> {
+    let mut found = None;
+    for i in 0..level.len() {
+        if level[i].0 == index {
+            found = Some(level[i].1);
+            break;
+        }
+    }
+    found
+}
+
+/// Where `x` sits in `sorted`, a list of distinct values.
+fn position_of(sorted: &[usize], x: usize) -> Option<usize> {
+    let mut found = None;
+    for i in 0..sorted.len() {
+        if sorted[i] == x {
+            found = Some(i);
+            break;
+        }
+    }
+    found
 }
 
 /// One query's opening, unpruned: the leaf's FULL image (zero prefix included) and

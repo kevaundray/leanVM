@@ -59,6 +59,7 @@ pub fn eq_eval(r: &[F192], x: &[F192]) -> F192 {
 }
 
 /// The `eq(r, ·)` table over `n = r.len()` variables. See [`fill_eq_table_uninit`].
+#[cfg(not(aeneas))]
 pub fn eq_table(r: &[F192]) -> Vec<F192> {
     let len = 1usize << r.len();
     let mut eq = Vec::with_capacity(len);
@@ -68,12 +69,37 @@ pub fn eq_table(r: &[F192]) -> Vec<F192> {
     eq
 }
 
+/// [`eq_table`] by the level-by-level doubling, on the calling thread and with no
+/// uninitialized buffer: the form the Lean extraction reads.
+#[cfg(aeneas)]
+pub fn eq_table(r: &[F192]) -> Vec<F192> {
+    let mut eq = Vec::with_capacity(1usize << r.len());
+    eq.push(F192::ONE);
+    for j in 0..r.len() {
+        let half = 1usize << j;
+        eq.resize(2 * half, F192::ZERO);
+        for i in 0..half {
+            let high = eq[i] * r[j];
+            eq[i + half] = high;
+            eq[i] += high;
+        }
+    }
+    eq
+}
+
 /// Arena-backed [`eq_table`], for the prover's large tables. Identical output.
+#[cfg(not(aeneas))]
 pub fn eq_table_arena(r: &[F192]) -> ArenaVec<F192> {
     let mut eq = zk_alloc::alloc_uninit(1usize << r.len());
     fill_eq_table_uninit(r, F192::ONE, &mut eq);
     // SAFETY: the fill writes every entry.
     unsafe { zk_alloc::assume_init(eq) }
+}
+
+/// [`eq_table`] in an `ArenaVec`: the form the Lean extraction reads.
+#[cfg(aeneas)]
+pub fn eq_table_arena(r: &[F192]) -> ArenaVec<F192> {
+    ArenaVec::from_slice(&eq_table(r))
 }
 
 /// Fill `out` with `seed * eq(r, .)`, in LSB-first order. Every entry is written before it is read.
@@ -144,6 +170,7 @@ fn fill_eq_doubling(r: &[F192], seed: F192, out: &mut [MaybeUninit<F192>]) {
 }
 
 /// Below this a parallel dispatch costs more than the fold it replaces.
+#[cfg(not(aeneas))]
 const PAR_THRESHOLD: usize = 1 << 12;
 
 /// The mixed fold: bind the lowest variable of a `K`-table to an
@@ -323,6 +350,7 @@ pub fn mle_eval(table: &[F64], point: &[F192]) -> F192 {
 
 /// [`mle_eval`] with the rows spread over the worker pool.
 /// A caller already inside a dispatch must use [`mle_eval`] to avoid nesting.
+#[cfg(not(aeneas))]
 pub fn mle_eval_par(table: &[F64], point: &[F192]) -> F192 {
     debug_assert_eq!(table.len(), 1 << point.len());
     if table.len() < PAR_THRESHOLD {
@@ -335,12 +363,29 @@ pub fn mle_eval_par(table: &[F64], point: &[F192]) -> F192 {
     parallel::map_reduce(high.len(), || F192::ZERO, eval, |a, b| a + b)
 }
 
+/// [`mle_eval_par`] as `Σ_x table[x]·eq(point, x)` on the calling thread: the form the
+/// Lean extraction reads.
+#[cfg(aeneas)]
+pub fn mle_eval_par(table: &[F64], point: &[F192]) -> F192 {
+    let eq = eq_table(point);
+    let mut acc = F192::ZERO;
+    for x in 0..table.len() {
+        acc += eq[x].mul_base(table[x]);
+    }
+    acc
+}
+
 /// The variables of the L1-resident low `eq` table of an MLE evaluation.
 const MLE_LOW_VARS: usize = 10;
 
 /// `eq(r, .)` packed eight weights at a time for [`dot_base`]. Needs `r.len() >= 3`.
 fn packed_eq(r: &[F192]) -> Vec<Weights8> {
-    eq_table(r).as_chunks::<8>().0.iter().map(Weights8::new).collect()
+    let eq = eq_table(r);
+    let mut packed = Vec::with_capacity(eq.len() / 8);
+    for chunk in eq.as_chunks::<8>().0.iter() {
+        packed.push(Weights8::new(chunk));
+    }
+    packed
 }
 
 /// Bind the remaining variables of a half-folded `E`-table, LSB-first.

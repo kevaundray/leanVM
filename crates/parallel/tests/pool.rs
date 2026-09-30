@@ -128,6 +128,7 @@ fn task_panic_reaches_the_dispatcher_and_the_pool_survives() {
 
 /// Nesting is a bug, not a slow path: it must be reported, not silently
 /// serialized, so that a lost fan-out cannot hide as a slow one.
+#[cfg(not(aeneas))]
 #[test]
 #[should_panic = "nested parallel dispatch"]
 fn nested_dispatch_panics_rather_than_deadlocking() {

@@ -44,9 +44,14 @@ pub const LOG_INV_RATE_0: usize = 1;
 pub const MIN_LOG_INV_RATE: usize = 1;
 pub const MAX_LOG_INV_RATE: usize = 4;
 
+/// Whether `log_inv_rate` is a production WHIR inverse-rate logarithm.
+pub fn is_supported_log_inv_rate(log_inv_rate: usize) -> bool {
+    (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE).contains(&log_inv_rate)
+}
+
 /// Validate a production WHIR inverse-rate logarithm.
 pub fn validate_log_inv_rate(log_inv_rate: usize) -> Result<(), String> {
-    if !(MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE).contains(&log_inv_rate) {
+    if !is_supported_log_inv_rate(log_inv_rate) {
         return Err(format!(
             "log_inv_rate must be in {MIN_LOG_INV_RATE}..={MAX_LOG_INV_RATE}, got {log_inv_rate}"
         ));

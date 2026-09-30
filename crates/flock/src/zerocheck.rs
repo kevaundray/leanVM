@@ -59,13 +59,12 @@ const N_INNER: usize = 7; // 3 small + 4 medium fixed-constant eq dimensions
 const PAIR_PASSES: usize = if bit_fold::GFNI { 2 } else { 0 };
 
 /// Build the equality coordinates that remain after the univariate skip.
-fn equality_tail(m: usize, mut sample_vec: impl FnMut(usize) -> Vec<F192>) -> Vec<F192> {
-    let outer = sample_vec(m - K_SKIP - N_INNER);
-    small_challenges()
-        .into_iter()
-        .chain(medium_challenges())
-        .chain(outer)
-        .collect()
+fn equality_tail(m: usize, challenger: &mut impl Challenger) -> Vec<F192> {
+    let mut tail = Vec::with_capacity(m - K_SKIP);
+    tail.extend_from_slice(&small_challenges());
+    tail.extend_from_slice(&medium_challenges());
+    tail.extend_from_slice(&challenger.sample_vec(m - K_SKIP - N_INNER));
+    tail
 }
 
 /// Witness padding descriptor for URM work-skipping.
@@ -109,6 +108,12 @@ pub enum VerifyError {
     LogNTooSmall { log_n: usize, k_skip: usize },
     /// The proof stream ran out while reading a message.
     Transcript(fiat_shamir::transcript::Error),
+}
+
+impl From<fiat_shamir::transcript::Error> for VerifyError {
+    fn from(e: fiat_shamir::transcript::Error) -> Self {
+        Self::Transcript(e)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +171,7 @@ pub fn prove_packed_padded(
     //   r_rest[3..7]               : protocol medium-eq constants β_i
     //   r_rest[7..m-k_skip]        : sampled outer equality coordinates
     // Prover and verifier use the same tower-valued challenges directly.
-    let r_rest = equality_tail(m, |n| ps.sample_vec(n));
+    let r_rest = equality_tail(m, ps);
 
     // ---- Round 1: URM (extract_c, parallel) ----
     //
@@ -375,10 +380,10 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
 
     // ---- Re-derive the equality tail (in lockstep with prove_packed) ----
     // The verifier samples tower challenges directly, matching the prover.
-    let r_rest = equality_tail(m, |n| vs.sample_vec(n));
+    let r_rest = equality_tail(m, vs);
 
     // ---- Read + bind the round-1 message off the stream, sample z ----
-    let round1: Vec<F192> = vs.next_scalars(ell).map_err(VerifyError::Transcript)?;
+    let round1: Vec<F192> = vs.next_scalars(ell)?;
     let z = vs.sample();
 
     // ---- Reconstruct the initial running claim ----
@@ -410,14 +415,22 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
     //      where `G(X) = G(0)·(1+X) + G(1)·X + G(∞)·X·(X+1)` (char-2 quadratic
     //      interpolation through G(0), G(1), G(∞)).
     let mut mlv_chis: Vec<F192> = Vec::with_capacity(n_mlv);
+    let mut failure = None;
     for i in 0..n_mlv {
         let r_eq = r_rest[i];
-        let g = vs
-            .next_round_poly(3, c_running, Some(r_eq))
-            .map_err(VerifyError::Transcript)?;
+        let g = match vs.next_round_poly(3, c_running, Some(r_eq)) {
+            Ok(g) => g,
+            Err(e) => {
+                failure = Some(VerifyError::Transcript(e));
+                break;
+            }
+        };
         let chi = vs.sample();
         mlv_chis.push(chi);
         c_running = primitives::multilinear::poly_eval(&g, chi);
+    }
+    if let Some(e) = failure {
+        return Err(e);
     }
 
     // ---- Terminal identity ----
@@ -434,8 +447,8 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
     // what the identity leaves, so there is nothing to check here. A prover who
     // lies about anything upstream just shifts the lie into `ĉ`, and lincheck,
     // which pins all three against the committed witness, rejects it.
-    let final_a_eval = vs.next_scalar().map_err(VerifyError::Transcript)?;
-    let final_b_eval = vs.next_scalar().map_err(VerifyError::Transcript)?;
+    let final_a_eval = vs.next_scalar()?;
+    let final_b_eval = vs.next_scalar()?;
     let final_c_eval = c_running + final_a_eval * final_b_eval;
 
     Ok(ZerocheckClaim {

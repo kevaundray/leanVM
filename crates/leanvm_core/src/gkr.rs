@@ -428,14 +428,13 @@ pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, s
 
 /// Verify the RLC-batched radix-four proof.
 pub fn verify_product_triple(mu: usize, vs: &mut VerifierState, shape: RootShape) -> Result<ProductTriple, GkrError> {
-    let mut root = || vs.next_scalar().map_err(|_| GkrError::Truncated);
     let roots = match shape {
-        RootShape::Distinct => [root()?, root()?, root()?],
+        RootShape::Distinct => [read_scalar(vs)?, read_scalar(vs)?, read_scalar(vs)?],
         // One root for both balancing trees, so their equality is structural: there is no
         // unbalanced pair a prover could state, and nothing for the caller to check.
         RootShape::FirstTwoShared => {
-            let shared = root()?;
-            [shared, shared, root()?]
+            let shared = read_scalar(vs)?;
+            [shared, shared, read_scalar(vs)?]
         }
     };
     let mut lambda = vs.sample();
@@ -443,62 +442,128 @@ pub fn verify_product_triple(mu: usize, vs: &mut VerifierState, shape: RootShape
     let mut values = roots;
 
     let mut layer = mu;
+    let mut failure = None;
     while layer > 0 {
-        let round_count = mu - layer;
-        let mut claim = poly_eval(&values, lambda);
-        if layer % 2 == 1 {
-            debug_assert_eq!(round_count, 0, "only the root-most layer may be binary");
-            let mut tails = [[F192::ZERO; 2]; 3];
-            for value in tails.iter_mut().flatten() {
-                *value = vs.next_scalar().map_err(|_| GkrError::Truncated)?;
+        let (step, reduced) = if layer % 2 == 1 {
+            debug_assert_eq!(mu - layer, 0, "only the root-most layer may be binary");
+            (verify_binary_layer(layer, values, lambda, vs), 1)
+        } else {
+            (verify_quaternary_layer(layer, &point, values, lambda, vs), 2)
+        };
+        match step {
+            Ok((next_values, next_point)) => {
+                values = next_values;
+                point = next_point;
             }
-            let products = tails.map(|[left, right]| left * right);
-            if claim != poly_eval(&products, lambda) {
-                return Err(GkrError::LayerMismatch { layer });
+            Err(e) => {
+                failure = Some(e);
+                break;
             }
-            let challenge = vs.sample();
-            for (value, [left, right]) in values.iter_mut().zip(tails) {
-                *value = interp(left, right, challenge);
-            }
-            lambda = vs.sample();
-            point = vec![challenge];
-            layer -= 1;
-            continue;
-        }
-
-        let mut round_point = Vec::with_capacity(round_count);
-        for &equality_point in point.iter().take(round_count) {
-            let h = vs
-                .next_round_poly(5, claim, Some(equality_point))
-                .map_err(|_| GkrError::Truncated)?;
-            let challenge = vs.sample();
-            round_point.push(challenge);
-            claim = poly_eval(&h, challenge);
-        }
-        let mut tails = [[F192::ZERO; 4]; 3];
-        for value in tails.iter_mut().flatten() {
-            *value = vs.next_scalar().map_err(|_| GkrError::Truncated)?;
-        }
-        let products = tails.map(|tail| tail[0] * tail[1] * tail[2] * tail[3]);
-        if claim != poly_eval(&products, lambda) {
-            return Err(GkrError::LayerMismatch { layer });
-        }
-        let low_challenge = vs.sample();
-        let high_challenge = vs.sample();
-        for (value, tail) in values.iter_mut().zip(tails) {
-            *value = interp(
-                interp(tail[0], tail[1], low_challenge),
-                interp(tail[2], tail[3], low_challenge),
-                high_challenge,
-            );
         }
         lambda = vs.sample();
-        point = vec![low_challenge, high_challenge];
-        point.extend_from_slice(&round_point);
-        layer -= 2;
+        layer -= reduced;
+    }
+    if let Some(e) = failure {
+        return Err(e);
     }
 
     Ok(ProductTriple { roots, point, values })
+}
+
+fn read_scalar(vs: &mut VerifierState) -> Result<F192, GkrError> {
+    vs.next_scalar().map_err(|_| GkrError::Truncated)
+}
+
+/// The three trees' children at one layer, tree by tree.
+fn read_tails(vs: &mut VerifierState, n: usize) -> Result<Vec<F192>, GkrError> {
+    let mut tails = Vec::with_capacity(n);
+    let mut failure = None;
+    for _ in 0..n {
+        match read_scalar(vs) {
+            Ok(s) => tails.push(s),
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        }
+    }
+    if let Some(e) = failure {
+        return Err(e);
+    }
+    Ok(tails)
+}
+
+/// The root-most layer when `mu` is odd: two children per node, no rounds. Returns
+/// the three trees' claims one layer down and their point.
+fn verify_binary_layer(
+    layer: usize,
+    values: [F192; 3],
+    lambda: F192,
+    vs: &mut VerifierState,
+) -> Result<([F192; 3], Vec<F192>), GkrError> {
+    let claim = poly_eval(&values, lambda);
+    let tails = read_tails(vs, 6)?;
+    let products = [tails[0] * tails[1], tails[2] * tails[3], tails[4] * tails[5]];
+    if claim != poly_eval(&products, lambda) {
+        return Err(GkrError::LayerMismatch { layer });
+    }
+    let challenge = vs.sample();
+    let mut next = [F192::ZERO; 3];
+    for t in 0..3 {
+        next[t] = interp(tails[2 * t], tails[2 * t + 1], challenge);
+    }
+    Ok((next, vec![challenge]))
+}
+
+/// A radix-four layer: one sumcheck round per variable of `point`, then four
+/// children per node. Returns the three trees' claims two layers down and their point.
+fn verify_quaternary_layer(
+    layer: usize,
+    point: &[F192],
+    values: [F192; 3],
+    lambda: F192,
+    vs: &mut VerifierState,
+) -> Result<([F192; 3], Vec<F192>), GkrError> {
+    let mut claim = poly_eval(&values, lambda);
+    let mut round_point = Vec::with_capacity(point.len());
+    let mut failure = None;
+    // No `break`, as in `constraints::verify`: after a failed read the rounds are skipped.
+    for r in 0..point.len() {
+        if failure.is_none() {
+            match vs.next_round_poly(5, claim, Some(point[r])) {
+                Ok(h) => {
+                    let challenge = vs.sample();
+                    round_point.push(challenge);
+                    claim = poly_eval(&h, challenge);
+                }
+                Err(_) => failure = Some(GkrError::Truncated),
+            }
+        }
+    }
+    if let Some(e) = failure {
+        return Err(e);
+    }
+    let tails = read_tails(vs, 12)?;
+    let mut products = [F192::ZERO; 3];
+    for t in 0..3 {
+        products[t] = tails[4 * t] * tails[4 * t + 1] * tails[4 * t + 2] * tails[4 * t + 3];
+    }
+    if claim != poly_eval(&products, lambda) {
+        return Err(GkrError::LayerMismatch { layer });
+    }
+    let low_challenge = vs.sample();
+    let high_challenge = vs.sample();
+    let mut next = [F192::ZERO; 3];
+    for t in 0..3 {
+        next[t] = interp(
+            interp(tails[4 * t], tails[4 * t + 1], low_challenge),
+            interp(tails[4 * t + 2], tails[4 * t + 3], low_challenge),
+            high_challenge,
+        );
+    }
+    let mut next_point = vec![low_challenge, high_challenge];
+    next_point.extend_from_slice(&round_point);
+    Ok((next, next_point))
 }
 
 #[cfg(test)]

@@ -51,29 +51,26 @@ pub enum Error {
     FinalMismatch,
 }
 
-/// One table's row constraint: identity `i` is weighted by `pows[i]`; `true` selects its homogeneous quadratic part.
-pub type Constraint<'a> = Box<dyn Fn(&[F192], &[F192], bool) -> F192 + Sync + 'a>;
-/// The same form over `K`-valued columns, for the round a table joins the batch.
-pub type ConstraintK<'a> = Box<dyn Fn(&[F192], &[F64], bool) -> F192 + Sync + 'a>;
-
-/// One table's place in the shared batch.
-pub struct Air<'a> {
+/// One table's place in the shared batch. `eval` is its row constraint: identity `i`
+/// is weighted by `pows[i]`; `true` selects its homogeneous quadratic part. `eval_k`
+/// is the same form over `K`-valued columns, for the round a table joins the batch.
+pub struct Air<E, EK> {
     pub tau: usize,
     pub n_cols: usize,
     pub n_constraints: usize,
-    pub eval: Constraint<'a>,
-    pub eval_k: ConstraintK<'a>,
+    pub eval: E,
+    pub eval_k: EK,
 }
 
 /// Start of each table's disjoint range of `η`-powers.
 pub fn xi_offsets(n_constraints: impl Iterator<Item = usize>) -> Vec<usize> {
-    n_constraints
-        .scan(0usize, |off, n| {
-            let start = *off;
-            *off += n;
-            Some(start)
-        })
-        .collect()
+    let mut offsets = Vec::new();
+    let mut off = 0;
+    for n in n_constraints {
+        offsets.push(off);
+        off += n;
+    }
+    offsets
 }
 
 /// An active round: one endpoint evaluation and the quadratic coefficient.
@@ -143,14 +140,18 @@ fn round_polynomial([endpoint, quadratic]: [F192; 2], zeta: F192, claim: F192, w
 /// sumcheck over `max τ_t` variables. `cols[t]` holds table `t`'s involved columns
 /// (`2^{τ_t}` values each, folded in place). Returns the per-table claims, in input
 /// order, on the nested points `ρ[..τ_t]`.
-pub fn prove(
-    airs: &[Air<'_>],
+pub fn prove<E, EK>(
+    airs: &[Air<E, EK>],
     cols: &[Vec<&[F64]>],
     xi: F192,
     zeta: &[F192],
     sigma: &[F192],
     ps: &mut ProverState,
-) -> Vec<Claims> {
+) -> Vec<Claims>
+where
+    E: Fn(&[F192], &[F192], bool) -> F192 + Sync,
+    EK: Fn(&[F192], &[F64], bool) -> F192 + Sync,
+{
     let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
     debug_assert!(zeta.len() >= n, "the eq point must cover the tallest table");
     let offsets = xi_offsets(airs.iter().map(|a| a.n_constraints));
@@ -184,9 +185,9 @@ pub fn prove(
             if air.tau > m {
                 let w = &pows[offsets[t]..offsets[t] + air.n_constraints];
                 let p = if let Some(table) = &folded[t] {
-                    table_message(table, &*air.eval, w, 1 << m, &eqr, zeta[m].is_zero())
+                    table_message(table, &air.eval, w, 1 << m, &eqr, zeta[m].is_zero())
                 } else {
-                    table_message(&cols[t], &*air.eval_k, w, 1 << m, &eqr, zeta[m].is_zero())
+                    table_message(&cols[t], &air.eval_k, w, 1 << m, &eqr, zeta[m].is_zero())
                 };
                 for i in 0..2 {
                     msg[i] += weights[t] * p[i];
@@ -247,19 +248,27 @@ pub fn prove(
 
 /// Verify the table sumcheck, returning the per-table claims for the caller to
 /// settle against the commitment.
-pub fn verify(
-    airs: &[Air<'_>],
+pub fn verify<E, EK>(
+    airs: &[Air<E, EK>],
     xi: F192,
     zeta: &[F192],
     target: F192,
     vs: &mut VerifierState,
-) -> Result<Vec<Claims>, Error> {
-    let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
+) -> Result<Vec<Claims>, Error>
+where
+    E: Fn(&[F192], &[F192], bool) -> F192,
+{
+    let mut n = 0;
+    let mut n_pows = 0;
+    for t in 0..airs.len() {
+        n = n.max(airs[t].tau);
+        n_pows += airs[t].n_constraints;
+    }
     if zeta.len() < n {
         return Err(Error::Truncated);
     }
     let offsets = xi_offsets(airs.iter().map(|a| a.n_constraints));
-    let pows = powers(xi, airs.iter().map(|a| a.n_constraints).sum());
+    let pows = powers(xi, n_pows);
     let mut weights = vec![F192::ONE; airs.len()];
     // An ordinary sumcheck for `target`, which the caller supplies. Each round
     // arrives as the round polynomial itself at `nd`, so the two steps are the
@@ -267,34 +276,88 @@ pub fn verify(
     // waiting term. `ζ` and the heights enter only `weights`, never the check.
     let mut claim = target;
     let mut chi = vec![F192::ZERO; n];
+    let mut failure = None;
     for j in 0..n {
         let m = n - 1 - j;
         // The running claim fixes the linear coefficient.
-        let h = vs.next_round_poly(4, claim, None).map_err(|_| Error::Truncated)?;
+        let h = match vs.next_round_poly(4, claim, None) {
+            Ok(h) => h,
+            Err(_) => {
+                failure = Some(Error::Truncated);
+                break;
+            }
+        };
         let rk = vs.sample();
         chi[m] = rk;
         claim = poly_eval(&h, rk);
         let eq_k = F192::ONE + zeta[m] + rk;
-        for (t, air) in airs.iter().enumerate() {
-            weights[t] *= if air.tau > m { eq_k } else { rk };
+        for t in 0..airs.len() {
+            weights[t] *= if airs[t].tau > m { eq_k } else { rk };
         }
     }
-
-    let mut acc = F192::ZERO;
-    let mut claims = Vec::with_capacity(airs.len());
-    for (t, air) in airs.iter().enumerate() {
-        let evals = vs.next_scalars(air.n_cols).map_err(|_| Error::Truncated)?;
-        let w = &pows[offsets[t]..offsets[t] + air.n_constraints];
-        acc += weights[t] * (air.eval)(w, &evals, false);
-        claims.push(Claims {
-            chi: chi[..air.tau].to_vec(),
-            evals,
-        });
+    if let Some(e) = failure {
+        return Err(e);
     }
+
+    let (acc, claims) = table_claims(airs, &pows, &offsets, &chi, &weights, vs)?;
     if acc != claim {
         return Err(Error::FinalMismatch);
     }
     Ok(claims)
+}
+
+/// Each table's claim off the stream, and the weighted sum of their constraint values.
+fn table_claims<E, EK>(
+    airs: &[Air<E, EK>],
+    pows: &[F192],
+    offsets: &[usize],
+    chi: &[F192],
+    weights: &[F192],
+    vs: &mut VerifierState,
+) -> Result<(F192, Vec<Claims>), Error>
+where
+    E: Fn(&[F192], &[F192], bool) -> F192,
+{
+    let mut acc = F192::ZERO;
+    let mut claims = Vec::with_capacity(airs.len());
+    let mut failure = None;
+    for t in 0..airs.len() {
+        let (value, table) = match table_claim(&airs[t], pows, offsets[t], chi, vs) {
+            Ok(r) => r,
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        };
+        acc += weights[t] * value;
+        claims.push(table);
+    }
+    match failure {
+        Some(e) => Err(e),
+        None => Ok((acc, claims)),
+    }
+}
+
+/// One table's column evaluations off the stream, and its constraint's value there.
+fn table_claim<E, EK>(
+    air: &Air<E, EK>,
+    pows: &[F192],
+    offset: usize,
+    chi: &[F192],
+    vs: &mut VerifierState,
+) -> Result<(F192, Claims), Error>
+where
+    E: Fn(&[F192], &[F192], bool) -> F192,
+{
+    let evals = vs.next_scalars(air.n_cols).map_err(|_| Error::Truncated)?;
+    let value = (air.eval)(&pows[offset..offset + air.n_constraints], &evals, false);
+    Ok((
+        value,
+        Claims {
+            chi: chi[..air.tau].to_vec(),
+            evals,
+        },
+    ))
 }
 
 #[cfg(test)]
@@ -362,22 +425,24 @@ mod tests {
         synth_eval(pows, v, quadratic) + if quadratic { F192::ZERO } else { v[1].mul_e(pows[2]) }
     }
 
-    fn airs_for(taus: &[usize], attached: bool) -> Vec<Air<'static>> {
+    type SynthAir = Air<fn(&[F192], &[F192], bool) -> F192, fn(&[F192], &[F64], bool) -> F192>;
+
+    fn airs_for(taus: &[usize], attached: bool) -> Vec<SynthAir> {
         taus.iter()
             .map(|&tau| Air {
                 tau,
                 n_cols: 4,
                 n_constraints: if attached { 3 } else { 2 },
-                eval: Box::new(if attached {
+                eval: if attached {
                     synth_eval_attached::<F192>
                 } else {
                     synth_eval::<F192>
-                }),
-                eval_k: Box::new(if attached {
+                },
+                eval_k: if attached {
                     synth_eval_attached::<F64>
                 } else {
                     synth_eval::<F64>
-                }),
+                },
             })
             .collect()
     }

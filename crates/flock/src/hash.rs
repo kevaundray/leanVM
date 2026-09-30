@@ -282,7 +282,7 @@ pub const R1CS_DIGEST: [u8; 32] = [
 fn forward_walk(sink: &mut crate::gf2::RowValues, w: &[F192]) {
     sink.bconst(Z_CONST_POS, w[Z_CONST_POS]);
     // Free-input rows: A = [slot], B = [Z_CONST].
-    for (base, len) in [
+    for &(base, len) in &[
         (CV_BASE, 8 * WORD_BITS),
         (MSG_BASE, 16 * WORD_BITS),
         (COUNTER_LO_BASE, 4 * WORD_BITS),
@@ -299,8 +299,8 @@ fn forward_walk(sink: &mut crate::gf2::RowValues, w: &[F192]) {
     for i in 0..4 {
         state[8 + i] = wire_from_const(w, BLAKE2S_IV[i], Z_CONST_POS);
     }
-    for (i, base) in [COUNTER_LO_BASE, COUNTER_HI_BASE, FINAL_BASE, LAST_NODE_BASE]
-        .into_iter()
+    for (i, &base) in [COUNTER_LO_BASE, COUNTER_HI_BASE, FINAL_BASE, LAST_NODE_BASE]
+        .iter()
         .enumerate()
     {
         state[12 + i] = wire_xor(
@@ -351,9 +351,9 @@ pub fn bilinear_walk_pair(u: &[F192], w: &[F192]) -> (F192, F192) {
     let (a, b) = row_values_walk(w);
     let mut va = F192::ZERO;
     let mut vb = F192::ZERO;
-    for ((&ui, &ai), &bi) in u.iter().zip(&a).zip(&b) {
-        va += ui * ai;
-        vb += ui * bi;
+    for i in 0..K {
+        va += u[i] * a[i];
+        vb += u[i] * b[i];
     }
     (va, vb)
 }
@@ -707,7 +707,7 @@ impl Blake2sSetup {
 // the caller carries the WHIR opening.
 
 /// The BLAKE2s circuit as the reduction sees it.
-const BLOCK: Block<'static> = Block {
+const BLOCK: Block<'static, WalkLincheckCircuit> = Block {
     k_log: K_LOG,
     useful_bits: USEFUL_BITS,
     circuit: &WalkLincheckCircuit,
@@ -728,7 +728,7 @@ pub fn ring_switch_open(n_blocks: usize, offset: usize, reduced: &SliceClaim) ->
 }
 
 /// [`reduction::ring_switch_verify`] for `n_blocks` compressions.
-pub fn ring_switch_verify(n_blocks: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerify<'_> {
+pub fn ring_switch_verify(n_blocks: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerify {
     reduction::ring_switch_verify(qflock_kappa(n_blocks), offset, claim)
 }
 

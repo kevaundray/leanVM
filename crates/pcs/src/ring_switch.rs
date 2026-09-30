@@ -72,7 +72,7 @@ use primitives::field::{F64, F192};
 
 use super::pack::PACKING_WIDTH;
 use super::tensor_algebra::{DEGREE_E, TensorAlgebraE, transpose_s_hat};
-use super::whir::{build_eq_table_ext, inner_product_base_ext};
+use super::whir::{build_eq_table_ext, dot_base_ext, inner_product_base_ext};
 
 /// Total degree of the six-challenge composed batching map. This is the
 /// conservative degree used by the WHIR list-size soundness accounting.
@@ -131,24 +131,27 @@ pub const COMPOSITION_SHIFTS: [usize; 6] = [32, 16, 8, 4, 2, 1];
 pub fn build_coordinate_weights(challenges: &[F192; COMPOSITION_SHIFTS.len()]) -> Vec<F192> {
     // b_w has only bit w set: bits 0..64 are K's power basis, and bits 64/128
     // shift it by Y / Y^2.
-    let basis = |w: usize| match w / PACKING_WIDTH {
-        0 => F192::new(1u64 << (w % PACKING_WIDTH), 0, 0),
-        1 => F192::new(0, 1u64 << (w % PACKING_WIDTH), 0),
-        _ => F192::new(0, 0, 1u64 << (w % PACKING_WIDTH)),
-    };
-    (0..DEGREE_E)
-        .map(|w| apply_composed_map(basis(w), challenges))
-        .collect()
+    let mut weights = Vec::with_capacity(DEGREE_E);
+    for w in 0..DEGREE_E {
+        let bit = 1u64 << (w % PACKING_WIDTH);
+        let basis = match w / PACKING_WIDTH {
+            0 => F192::new(bit, 0, 0),
+            1 => F192::new(0, bit, 0),
+            _ => F192::new(0, 0, bit),
+        };
+        weights.push(apply_composed_map(basis, challenges));
+    }
+    weights
 }
 
 /// Applies the composed map `Phi` of [`build_coordinate_weights`] to one value.
 fn apply_composed_map(mut value: F192, challenges: &[F192; COMPOSITION_SHIFTS.len()]) -> F192 {
-    for (&challenge, &shift) in challenges.iter().zip(COMPOSITION_SHIFTS.iter()) {
+    for t in 0..COMPOSITION_SHIFTS.len() {
         let mut frobenius = value;
-        for _ in 0..shift {
+        for _ in 0..COMPOSITION_SHIFTS[t] {
             frobenius = frobenius.square();
         }
-        value += challenge * frobenius;
+        value += challenges[t] * frobenius;
     }
     value
 }
@@ -156,7 +159,11 @@ fn apply_composed_map(mut value: F192, challenges: &[F192; COMPOSITION_SHIFTS.le
 /// Sample the composed map's challenges after every ring-switch message has
 /// been bound.
 pub fn sample_map_challenges(ch: &mut impl Challenger) -> [F192; COMPOSITION_SHIFTS.len()] {
-    std::array::from_fn(|_| ch.sample())
+    let mut challenges = [F192::ZERO; COMPOSITION_SHIFTS.len()];
+    for i in 0..COMPOSITION_SHIFTS.len() {
+        challenges[i] = ch.sample();
+    }
+    challenges
 }
 
 // ---------------------------------------------------------------------------
@@ -423,7 +430,7 @@ pub fn prove_prepare(
 /// produce the batched sumcheck claim. Pair it with [`eval_rs_eq`] at the WHIR
 /// final point, which takes the same weights, so `rs_eq_ind` is never built.
 pub fn verify_finish(s_hat_v: &[F192], coordinate_weights: &[F192]) -> F192 {
-    inner_product_base_ext(&transpose_s_hat(s_hat_v), coordinate_weights)
+    dot_base_ext(&transpose_s_hat(s_hat_v), coordinate_weights)
 }
 
 // ---------------------------------------------------------------------------

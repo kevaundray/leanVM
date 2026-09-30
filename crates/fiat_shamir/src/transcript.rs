@@ -85,7 +85,21 @@ pub trait Receiver: Challenger {
     ) -> Result<Vec<Vec<F64>>, Error>;
     fn next_scalar(&mut self) -> Result<F192, Error>;
     fn next_scalars(&mut self, n: usize) -> Result<Vec<F192>, Error> {
-        (0..n).map(|_| self.next_scalar()).collect()
+        let mut xs = Vec::with_capacity(n);
+        let mut failure = None;
+        for _ in 0..n {
+            match self.next_scalar() {
+                Ok(x) => xs.push(x),
+                Err(e) => {
+                    failure = Some(e);
+                    break;
+                }
+            }
+        }
+        if let Some(e) = failure {
+            return Err(e);
+        }
+        Ok(xs)
     }
 
     /// Mirror of [`Transmitter::add_root`]. Both halves are prover-chosen, so a
@@ -145,7 +159,7 @@ pub struct VerifierState<'a> {
     fs: FiatShamirState,
     stream: &'a [F192],
     offset: usize,
-    merkle: &'a [PrunedMerklePaths],
+    phases: &'a [PrunedMerklePaths],
     phase: usize,
     raw_openings: Vec<RawMerklePath>,
 }
@@ -167,7 +181,7 @@ impl<'a> VerifierState<'a> {
             fs,
             stream: &proof.stream,
             offset: 0,
-            merkle: &proof.merkle,
+            phases: &proof.merkle,
             phase: 0,
             raw_openings: Vec::new(),
         }
@@ -178,14 +192,27 @@ impl<'a> VerifierState<'a> {
     /// half of reading a round polynomial, whose coefficients bind in index order
     /// once they have all been read.
     fn take_raw(&mut self) -> Result<F192, Error> {
-        let x = *self.stream.get(self.offset).ok_or(Error::ExceededStream)?;
-        self.offset += 1;
-        Ok(x)
+        match self.stream.get(self.offset) {
+            Some(&x) => {
+                self.offset += 1;
+                Ok(x)
+            }
+            None => Err(Error::ExceededStream),
+        }
     }
 
     #[inline]
     fn bind(&mut self, x: F192) {
         self.fs.observe(x);
+    }
+
+    /// Bind every coefficient but the `fixed` one, in index order.
+    fn bind_except(&mut self, coeffs: &[F192], fixed: usize) {
+        for i in 0..coeffs.len() {
+            if i != fixed {
+                self.fs.observe(coeffs[i]);
+            }
+        }
     }
 
     /// The redundant form of the proof just verified: every scalar it read, plus
@@ -200,7 +227,7 @@ impl<'a> VerifierState<'a> {
 
     /// Assert the whole proof was consumed (no trailing/extra data).
     pub fn finish(&self) -> Result<(), Error> {
-        if self.offset == self.stream.len() && self.phase == self.merkle.len() {
+        if self.offset == self.stream.len() && self.phase == self.phases.len() {
             Ok(())
         } else {
             Err(Error::NotFullyConsumed)
@@ -257,43 +284,57 @@ impl<'a> Receiver for VerifierState<'a> {
         row_words: usize,
         leaf_words: usize,
     ) -> Result<Vec<Vec<F64>>, Error> {
-        let paths: &'a PrunedMerklePaths = self.merkle.get(self.phase).ok_or(Error::MissingHint)?;
+        let paths: &'a PrunedMerklePaths = self.phases.get(self.phase).ok_or(Error::MissingHint)?;
         self.phase += 1;
         let openings = paths
             .open(root, num_leaves, queries, row_words, leaf_words)
             .ok_or(Error::InvalidMerkleOpening)?;
-        let rows = openings.iter().map(|o| o.leaf_data.clone()).collect();
-        self.raw_openings.extend(openings);
+        let mut rows = Vec::with_capacity(openings.len());
+        for opening in openings {
+            rows.push(opening.leaf_data.clone());
+            self.raw_openings.push(opening);
+        }
         Ok(rows)
     }
 
     /// Read the next scalar, binding it into the state (mirrors `add_scalar`).
     #[inline]
     fn next_scalar(&mut self) -> Result<F192, Error> {
-        let x = self.take_raw()?;
-        self.bind(x);
-        Ok(x)
+        match self.take_raw() {
+            Ok(x) => {
+                self.bind(x);
+                Ok(x)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     fn next_round_poly(&mut self, n_coeffs: usize, claim: F192, eq: Option<F192>) -> Result<Vec<F192>, Error> {
         assert!(n_coeffs >= 2, "a round polynomial has at least two coefficients");
         let fixed = usize::from(eq.is_none());
         let mut coeffs = vec![F192::ZERO; n_coeffs];
-        for i in (0..n_coeffs).filter(|&i| i != fixed) {
-            coeffs[i] = self.take_raw()?;
-        }
-        let sum_from = |from: usize| coeffs[from..].iter().fold(F192::ZERO, |acc, &c| acc + c);
-        coeffs[fixed] = match eq {
-            // `c1 + … + cd = claim`, summing the transmitted ones from `c2`.
-            None => claim + sum_from(2),
-            // `c0 + r·(c1 + … + cd) = claim`, and every `ci` above `c0` was read.
-            Some(r) => claim + r * sum_from(1),
-        };
-        for (i, &c) in coeffs.iter().enumerate() {
+        let mut failure = None;
+        for i in 0..n_coeffs {
             if i != fixed {
-                self.bind(c);
+                match self.take_raw() {
+                    Ok(c) => coeffs[i] = c,
+                    Err(e) => {
+                        failure = Some(e);
+                        break;
+                    }
+                }
             }
         }
+        if let Some(e) = failure {
+            return Err(e);
+        }
+        coeffs[fixed] = match eq {
+            // `c1 + … + cd = claim`, summing the transmitted ones from `c2`.
+            None => claim + sum(&coeffs[2..]),
+            // `c0 + r·(c1 + … + cd) = claim`, and every `ci` above `c0` was read.
+            Some(r) => claim + r * sum(&coeffs[1..]),
+        };
+        self.bind_except(&coeffs, fixed);
         Ok(coeffs)
     }
 
@@ -328,6 +369,14 @@ impl Challenger for VerifierState<'_> {
     fn sample_vec(&mut self, n: usize) -> Vec<F192> {
         self.fs.sample_vec(n)
     }
+}
+
+fn sum(xs: &[F192]) -> F192 {
+    let mut acc = F192::ZERO;
+    for &x in xs {
+        acc += x;
+    }
+    acc
 }
 
 #[cfg(test)]

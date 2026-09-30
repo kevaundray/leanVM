@@ -20,12 +20,19 @@
 //! let _phase = zk_alloc::enter_phase(); // bind before the phase's buffers
 //! let buf: zk_alloc::ArenaVec<u64> = zk_alloc::ArenaVec::with_capacity(1 << 20);
 //! ```
+//!
+//! Under `--cfg aeneas` (the Lean extraction) `ArenaVec` is a plain `Vec` instead
+//! (`arena_vec_aeneas.rs`), and the arena is never reached.
+
+// The arena is compiled but unused under `cfg(aeneas)`.
+#![cfg_attr(aeneas, allow(dead_code, unused_imports))]
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+#[cfg_attr(aeneas, path = "arena_vec_aeneas.rs")]
 mod arena_vec;
 mod syscall;
 

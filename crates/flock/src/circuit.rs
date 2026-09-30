@@ -43,6 +43,15 @@ enum Gate {
     Copy(u32, u32),
 }
 
+/// The words ports of these widths in bits take, each rounded up to whole words.
+fn words(bits: &[usize]) -> usize {
+    let mut n = 0;
+    for i in 0..bits.len() {
+        n += bits[i].div_ceil(64);
+    }
+    n
+}
+
 /// A gate list under construction.
 pub struct Builder {
     gates: Vec<Gate>,
@@ -58,7 +67,6 @@ impl Builder {
     /// Ports of the given widths in bits, each rounded up to whole words: the inputs,
     /// whose bits are free wires, then the outputs.
     pub fn new(input_bits: &[usize], output_bits: &[usize]) -> Self {
-        let words = |bits: &[usize]| bits.iter().map(|b| b.div_ceil(64)).sum::<usize>();
         let n_input_words = words(input_bits);
         let const_pos = 64 * (n_input_words + words(output_bits));
         let mut c = Self {
@@ -71,12 +79,17 @@ impl Builder {
         };
         c.one = Some(c.push(Gate::Free(const_pos as u32)));
         let mut base = 0;
-        for &bits in input_bits {
-            let wires = (0..bits).map(|i| Some(c.push(Gate::Free((base + i) as u32)))).collect();
+        for port in 0..input_bits.len() {
+            let bits = input_bits[port];
+            let mut wires = Vec::with_capacity(bits);
+            for i in 0..bits {
+                wires.push(Some(c.push(Gate::Free((base + i) as u32))));
+            }
             c.inputs.push(wires);
             base += 64 * bits.div_ceil(64);
         }
-        for &bits in output_bits {
+        for port in 0..output_bits.len() {
+            let bits = output_bits[port];
             c.outputs.push((base, bits));
             base += 64 * bits.div_ceil(64);
         }
@@ -116,10 +129,14 @@ impl Builder {
 
     /// One product, and one slot, unless an operand is a structural zero.
     pub fn and(&mut self, x: Wire, y: Wire) -> Wire {
-        let (x, y) = (x?, y?);
-        let slot = self.next_slot as u32;
-        self.next_slot += 1;
-        Some(self.push(Gate::And(x, y, slot)))
+        match (x, y) {
+            (Some(x), Some(y)) => {
+                let slot = self.next_slot as u32;
+                self.next_slot += 1;
+                Some(self.push(Gate::And(x, y, slot)))
+            }
+            _ => None,
+        }
     }
 
     pub fn or(&mut self, x: Wire, y: Wire) -> Wire {
@@ -147,8 +164,12 @@ impl Builder {
 
     pub fn finish(self) -> Circuit {
         let useful_bits = self.next_slot;
+        let mut output_words = 0;
+        for port in 0..self.outputs.len() {
+            output_words += self.outputs[port].1.div_ceil(64);
+        }
         Circuit {
-            const_pos: 64 * (self.n_input_words + self.outputs.iter().map(|o| o.1.div_ceil(64)).sum::<usize>()),
+            const_pos: 64 * (self.n_input_words + output_words),
             k_log: useful_bits.next_power_of_two().trailing_zeros() as usize,
             useful_bits,
             n_input_words: self.n_input_words,
@@ -189,7 +210,7 @@ impl Circuit {
         self.n_input_words
     }
 
-    pub fn block(&self) -> Block<'_> {
+    pub fn block(&self) -> Block<'_, Self> {
         Block {
             k_log: self.k_log,
             useful_bits: self.useful_bits,
@@ -307,9 +328,11 @@ impl LincheckCircuit for Circuit {
         let c = self.const_pos;
         let mut m = vec![F192::ZERO; u.len()];
         let mut adj = vec![F192::ZERO; self.gates.len()];
-        for (i, &gate) in self.gates.iter().enumerate().rev() {
+        let mut i = self.gates.len();
+        while i > 0 {
+            i -= 1;
             let g = adj[i];
-            match gate {
+            match self.gates[i] {
                 Gate::Free(s) => {
                     let s = s as usize;
                     m[s] += g + u[s];
@@ -338,10 +361,10 @@ impl LincheckCircuit for Circuit {
 
     fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> Option<F192> {
         let (ra, rb) = self.row_values(w);
-        Some(
-            u.iter()
-                .zip(ra.iter().zip(&rb))
-                .fold(F192::ZERO, |acc, (&u, (&a, &b))| acc + u * (a + alpha * b)),
-        )
+        let mut acc = F192::ZERO;
+        for i in 0..u.len().min(ra.len()) {
+            acc += u[i] * (ra[i] + alpha * rb[i]);
+        }
+        Some(acc)
     }
 }

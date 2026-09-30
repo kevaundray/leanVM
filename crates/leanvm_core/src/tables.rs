@@ -15,9 +15,9 @@
 
 use crate::colval::ColVal;
 use crate::cpu::{Access, HashRow, Row, Trace};
-use crate::leaf::Coord::{self, Col, Const, GCol, Prod};
+use crate::leaf::Coord::{self, Col, Const, GCol};
+use crate::leaf::SumTerm;
 use crate::rv::{self, Class, SINK, hash};
-use flock::circuit::Circuit;
 use primitives::field::{F64, F192, mul_by_g};
 
 // ---- the identities ----------------------------------------------------------
@@ -42,8 +42,11 @@ fn access_identities<T: ColVal>(w: &[F192], cols: &[T], ts: usize, acc: Acc) -> 
 /// [`access_identities`]' weights from the `n` identities' `η`-powers.
 fn access_weights(pows: &[F192], slots: &[u32]) -> Vec<F192> {
     assert_eq!(pows.len(), slots.len());
-    let shifted = pows.iter().zip(slots).map(|(p, &s)| p.mul_base(g_pow(s as usize)));
-    pows.iter().copied().chain(shifted).collect()
+    let mut w = pows.to_vec();
+    for i in 0..pows.len() {
+        w.push(pows[i].mul_base(g_pow(slots[i] as usize)));
+    }
+    w
 }
 
 // ---- shared bus vocabulary ---------------------------------------------------
@@ -91,8 +94,7 @@ pub fn range_lo_first() -> F64 {
 }
 /// The high range array's addresses are the powers of `g^{-2^16}`, from `g^0`.
 pub fn range_hi_ratio() -> F64 {
-    static RATIO: std::sync::OnceLock<F64> = std::sync::OnceLock::new();
-    *RATIO.get_or_init(|| primitives::field::g_pow(1 << RANGE_LOG).inv())
+    primitives::field::g_pow(1 << RANGE_LOG).inv()
 }
 
 /// Where a table keeps its `n` accesses' columns, grouped by kind so that each kind
@@ -277,51 +279,11 @@ impl<'a> FillCtx<'a> {
 /// Fill one table's columns and check that every window was written. The stack is
 /// allocated uninitialized, so a column the table forgot would be read as
 /// indeterminate bytes rather than caught by a length mismatch.
-pub(crate) fn fill_table(table: &dyn Table, ctx: &FillCtx, out: &mut [ColumnOut]) {
+pub(crate) fn fill_table(table: &Table, ctx: &FillCtx, out: &mut [ColumnOut]) {
     table.fill(ctx, out);
     assert_eq!(ctx.written.len(), table.n_committed_columns());
     let all = ctx.written.iter().all(|w| w.load(std::sync::atomic::Ordering::Relaxed));
     assert!(all, "a table left one of its columns unwritten");
-}
-
-// ---- the trait ---------------------------------------------------------------
-
-/// One instruction table. Indices in [`flushes`](Table::flushes) and
-/// [`count_columns`](Table::count_columns) are local to this table.
-pub trait Table: Sync {
-    /// Number of columns (local indices `0..n_committed_columns`), the virtual ones included.
-    fn n_committed_columns(&self) -> usize;
-    /// Local indices of this table's read-count columns: the `g^{count}` values of
-    /// its lookups into the read-only arrays (the bytecode, the two range arrays).
-    /// The framework treats them specially: each gets its own single-column "count"
-    /// bus block.
-    fn count_columns(&self) -> &[usize];
-    /// How many identities [`eval_constraint`](Table::eval_constraint) folds.
-    /// Sizes this table's slice of the batch's disjoint `xi`-range (§constraints).
-    fn n_constraints(&self) -> usize;
-    /// What [`eval_constraint`](Table::eval_constraint) is handed, from this table's
-    /// slice of the batch's `xi`-powers: the powers themselves, plus whatever
-    /// constant multiples of them the identities need, computed once per proof
-    /// rather than per row.
-    fn constraint_weights(&self, pows: &[F192]) -> Vec<F192>;
-    /// Evaluate the table's degree-2 constraints at one row, reading column values
-    /// by local index from `cols` and weighting them by `weights`
-    /// ([`constraint_weights`](Table::constraint_weights)). The table sumcheck
-    /// carries every column of a table, in local order, so `cols` is indexed
-    /// directly. With `quadratic=false` it returns `0` on every valid row
-    /// (§sec:air); `true` selects only the degree-two terms.
-    fn eval_constraint(&self, weights: &[F192], cols: &[F192], quadratic: bool) -> F192;
-    /// The same identity over `K`-valued columns, for the round a table joins the
-    /// batch, before its columns have been folded into `E` (§sec:air). Both entry
-    /// points delegate to one generic definition, so they cannot drift.
-    fn eval_constraint_k(&self, weights: &[F192], cols: &[F64], quadratic: bool) -> F192;
-    /// Declare the table's bus interactions.
-    fn flushes(&self, f: &mut FlushBuilder);
-    /// Fill this table's columns from the trace: `out[i]` is local column `i`'s
-    /// window, already at its final length. Every window must be written in full;
-    /// use `FillCtx::col` / `FillCtx::cols`, which record the coverage `fill_table`
-    /// checks.
-    fn fill(&self, ctx: &FillCtx, out: &mut [ColumnOut]);
 }
 
 // ---- the classes -------------------------------------------------------------
@@ -368,32 +330,72 @@ pub enum Ram {
     Block,
 }
 
-/// One instance's `z`, `A·z` and `B·z` from its input words, into zeroed buffers.
-pub type InstanceWitness = fn(&[u64], &mut [u64], &mut [u64], &mut [u64]);
+/// Ports of the widest circuit, the hash's.
+const MAX_PORTS: usize = 18;
+
+/// A circuit's port words in order, held inline so that a [`ClassSpec`] holds no
+/// reference, which is what lets the Lean extraction read one out of [`CLASSES`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Ports {
+    words: [Word; MAX_PORTS],
+    len: usize,
+}
+
+impl Ports {
+    const fn new(words: &[Word]) -> Self {
+        let mut inline = [Word::Flags; MAX_PORTS];
+        let mut i = 0;
+        while i < words.len() {
+            inline[i] = words[i];
+            i += 1;
+        }
+        Self {
+            words: inline,
+            len: words.len(),
+        }
+    }
+}
+
+impl std::ops::Deref for Ports {
+    type Target = [Word];
+    fn deref(&self) -> &[Word] {
+        &self.words[..self.len]
+    }
+}
 
 /// What specializes the class table to one instruction class.
+#[derive(Clone, Copy, Debug)]
 pub struct ClassSpec {
     pub class: Class,
-    pub name: &'static str,
     /// Branches and jumps: the bytecode's `dt`, `link` and `jalr` fields, and the
     /// circuit's `taken` word. Without them the next `pc` is `pc + 4` and `rd`
     /// receives `out`.
     pub control: bool,
     pub ram: Ram,
-    pub circuit: fn() -> Circuit,
-    /// One instance's witness by word arithmetic, when the class has it.
-    ///
-    /// It writes what the walk of the circuit's gate list would, which a test pins.
-    pub witness: Option<InstanceWitness>,
     /// `log2` of the bits one instance of the circuit occupies. A constant, because
     /// the layout needs it before any circuit is built; [`crate::class_flock`] checks it.
     pub k_log: usize,
     /// The circuit's port words in order, the first `n_inputs` of them its inputs.
-    pub ports: &'static [Word],
+    pub ports: Ports,
     pub n_inputs: usize,
 }
 
 impl ClassSpec {
+    /// The table's name.
+    pub const fn name(&self) -> &'static str {
+        match self.class {
+            Class::Alu => "ALU",
+            Class::Load => "LOAD",
+            Class::Store => "STORE",
+            Class::Shift => "SHIFT",
+            Class::Mul => "MUL",
+            Class::Mulh => "MULH",
+            Class::Div => "DIV",
+            Class::Hash => "HASH",
+            Class::Illegal => "ILLEGAL",
+        }
+    }
+
     /// Whether the row writes a register, in clock slot 3.
     pub const fn writes_register(&self) -> bool {
         !matches!(self.ram, Ram::Block)
@@ -414,7 +416,13 @@ impl ClassSpec {
         match self.ram {
             Ram::None => vec![s1, s2, sd],
             Ram::Read | Ram::Write => vec![s1, s2, sd, RAM_SLOT],
-            Ram::Block => [s1, s2].into_iter().chain((0..hash::WORDS).map(block_slot)).collect(),
+            Ram::Block => {
+                let mut slots = vec![s1, s2];
+                for k in 0..hash::WORDS {
+                    slots.push(block_slot(k));
+                }
+                slots
+            }
         }
     }
 
@@ -427,44 +435,35 @@ impl ClassSpec {
     }
 }
 
-pub static ALU: ClassSpec = ClassSpec {
+pub const ALU: ClassSpec = ClassSpec {
     class: Class::Alu,
-    name: "ALU",
     control: true,
     ram: Ram::None,
-    circuit: rv::circuits::alu,
-    witness: None,
     k_log: 10,
-    ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out, Word::Taken],
+    ports: Ports::new(&[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out, Word::Taken]),
     n_inputs: 4,
 };
-pub static LOAD: ClassSpec = ClassSpec {
+pub const LOAD: ClassSpec = ClassSpec {
     class: Class::Load,
-    name: "LOAD",
     control: false,
     ram: Ram::Read,
-    circuit: rv::circuits::load,
-    witness: None,
     k_log: 10,
-    ports: &[
+    ports: Ports::new(&[
         Word::V1,
         Word::Imm,
         Word::Flags,
         Word::Cell(0),
         Word::Address,
         Word::Out,
-    ],
+    ]),
     n_inputs: 4,
 };
-pub static STORE: ClassSpec = ClassSpec {
+pub const STORE: ClassSpec = ClassSpec {
     class: Class::Store,
-    name: "STORE",
     control: false,
     ram: Ram::Write,
-    circuit: rv::circuits::store,
-    witness: None,
     k_log: 10,
-    ports: &[
+    ports: Ports::new(&[
         Word::V1,
         Word::V2,
         Word::Imm,
@@ -473,53 +472,41 @@ pub static STORE: ClassSpec = ClassSpec {
         Word::Address,
         Word::CellNew(0),
         Word::Out,
-    ],
+    ]),
     n_inputs: 5,
 };
 
-pub static SHIFT: ClassSpec = ClassSpec {
+pub const SHIFT: ClassSpec = ClassSpec {
     class: Class::Shift,
-    name: "SHIFT",
     control: false,
     ram: Ram::None,
-    circuit: rv::circuits::shift,
-    witness: None,
     k_log: 10,
-    ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
+    ports: Ports::new(&[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out]),
     n_inputs: 4,
 };
-pub static MUL: ClassSpec = ClassSpec {
+pub const MUL: ClassSpec = ClassSpec {
     class: Class::Mul,
-    name: "MUL",
     control: false,
     ram: Ram::None,
-    circuit: rv::circuits::mul,
-    witness: None,
     k_log: 12,
-    ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
+    ports: Ports::new(&[Word::V1, Word::V2, Word::Flags, Word::Out]),
     n_inputs: 3,
 };
-pub static MULH: ClassSpec = ClassSpec {
+pub const MULH: ClassSpec = ClassSpec {
     class: Class::Mulh,
-    name: "MULH",
     control: false,
     ram: Ram::None,
-    circuit: rv::circuits::mulh,
-    witness: None,
     k_log: 13,
-    ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
+    ports: Ports::new(&[Word::V1, Word::V2, Word::Flags, Word::Out]),
     n_inputs: 3,
 };
 
-pub static DIV: ClassSpec = ClassSpec {
+pub const DIV: ClassSpec = ClassSpec {
     class: Class::Div,
-    name: "DIV",
     control: false,
     ram: Ram::None,
-    circuit: rv::circuits::div,
-    witness: None,
     k_log: 13,
-    ports: &[
+    ports: Ports::new(&[
         Word::V1,
         Word::V2,
         Word::Flags,
@@ -527,21 +514,18 @@ pub static DIV: ClassSpec = ClassSpec {
         Word::HintR,
         Word::Out,
         Word::Bad,
-    ],
+    ]),
     n_inputs: 5,
 };
 
 /// The BLAKE2s precompile ([`hash`]): the counter is `v2`, the finalization word the
 /// flags, and the block's words are the row's cells, the result's four rewritten.
-pub static HASH: ClassSpec = ClassSpec {
+pub const HASH: ClassSpec = ClassSpec {
     class: Class::Hash,
-    name: "HASH",
     control: false,
     ram: Ram::Block,
-    circuit: rv::circuits::blake2s,
-    witness: Some(rv::circuits::blake2s_witness),
     k_log: 14,
-    ports: &[
+    ports: Ports::new(&[
         Word::V2,
         Word::Flags,
         Word::Cell(0),
@@ -560,31 +544,40 @@ pub static HASH: ClassSpec = ClassSpec {
         Word::CellNew(5),
         Word::CellNew(6),
         Word::CellNew(7),
-    ],
+    ]),
     n_inputs: 14,
 };
 
 /// The tables, in the order of `row_counts` / `taus` throughout `cpu`. Table `t`'s
 /// class tag in the bytecode is `g^t`.
 pub const N_TABLES: usize = 8;
-pub static CLASSES: [&ClassSpec; N_TABLES] = [&ALU, &LOAD, &STORE, &SHIFT, &MUL, &MULH, &DIV, &HASH];
+pub static CLASSES: [ClassSpec; N_TABLES] = [ALU, LOAD, STORE, SHIFT, MUL, MULH, DIV, HASH];
 
 /// The table running `class`, if it has one yet.
 pub fn table_of(class: Class) -> Option<usize> {
-    CLASSES.iter().position(|spec| spec.class == class)
+    let mut t = 0;
+    while t < N_TABLES && CLASSES[t].class != class {
+        t += 1;
+    }
+    (t < N_TABLES).then_some(t)
 }
 
-pub fn tables() -> [&'static dyn Table; N_TABLES] {
-    static TABLES: std::sync::OnceLock<Vec<ClassTable>> = std::sync::OnceLock::new();
-    let tables = TABLES.get_or_init(|| (0..N_TABLES).map(ClassTable::new).collect());
-    std::array::from_fn(|t| &tables[t] as &dyn Table)
+/// The tables, in [`CLASSES`] order.
+pub fn tables() -> [Table; N_TABLES] {
+    std::array::from_fn(Table::new)
 }
 
 /// Table `t`'s circuit words that are columns, as `(port, local column)`.
 pub(crate) fn word_columns(t: usize) -> Vec<(usize, usize)> {
-    let cols = Cols::new(CLASSES[t]);
-    let ports = CLASSES[t].ports.iter().enumerate();
-    ports.filter_map(|(port, &w)| Some((port, cols.word(w)?))).collect()
+    let spec = &CLASSES[t];
+    let cols = Cols::new(spec);
+    let mut words = Vec::new();
+    for port in 0..spec.ports.len() {
+        if let Some(c) = cols.word(spec.ports[port]) {
+            words.push((port, c));
+        }
+    }
+    words
 }
 
 /// The slot of a bytecode tuple that holds a row's [`Word::Bad`]: past every field of
@@ -621,27 +614,40 @@ struct Cols {
     rbc: usize,
 }
 
+/// Hands out consecutive local column indices.
+struct Next(usize);
+
+impl Next {
+    fn take(&mut self, n: usize) -> usize {
+        self.0 += n;
+        self.0 - n
+    }
+
+    fn take_if(&mut self, cond: bool, n: usize) -> Option<usize> {
+        if cond { Some(self.take(n)) } else { None }
+    }
+}
+
 impl Cols {
     fn new(spec: &ClassSpec) -> Self {
-        let mut next = 0;
-        let mut take = |n: usize| {
-            next += n;
-            next - n
-        };
-        let (pc, ts, a1, a2, pc4) = (take(1), take(1), take(1), take(1), take(1));
-        let (v1, v2, flags) = (take(1), take(1), take(1));
-        let rd = spec.writes_register().then(|| take(3));
-        let control = spec.control.then(|| take(4));
-        let imm = spec.ports.contains(&Word::Imm).then(|| take(1));
+        let mut next = Next(0);
+        let (pc, ts, a1, a2, pc4) = (next.take(1), next.take(1), next.take(1), next.take(1), next.take(1));
+        let (v1, v2, flags) = (next.take(1), next.take(1), next.take(1));
+        let rd = next.take_if(spec.writes_register(), 3);
+        let control = next.take_if(spec.control, 4);
+        let imm = next.take_if(spec.ports.contains(&Word::Imm), 1);
         let (ram, block) = match spec.ram {
             Ram::None => (None, None),
-            Ram::Read => (Some(take(2)), None),
-            Ram::Write => (Some(take(3)), None),
-            Ram::Block => (None, Some(take(hash::WORDS + 4))),
+            Ram::Read => (Some(next.take(2)), None),
+            Ram::Write => (Some(next.take(3)), None),
+            Ram::Block => (None, Some(next.take(hash::WORDS + 4))),
         };
-        let bad = spec.ports.contains(&Word::Bad).then(|| take(1));
+        let bad = next.take_if(spec.ports.contains(&Word::Bad), 1);
         let n = spec.n_accesses();
-        let acc = Acc { base: take(5 * n), n };
+        let acc = Acc {
+            base: next.take(5 * n),
+            n,
+        };
         Self {
             pc,
             ts,
@@ -658,7 +664,7 @@ impl Cols {
             block,
             bad,
             acc,
-            rbc: take(1),
+            rbc: next.take(1),
         }
     }
 
@@ -690,75 +696,101 @@ impl Cols {
 }
 
 /// The table of one instruction class (§sec:tables): the state step, the bytecode
-/// read, two register reads, the RAM access of a load or a store, and one register write.
-struct ClassTable {
+/// read, two register reads, the RAM access of a load or a store, and one register
+/// write. Indices in [`flushes`](Table::flushes) and
+/// [`count_columns`](Table::count_columns) are local to this table.
+pub struct Table {
     index: usize,
-    spec: &'static ClassSpec,
+    spec: ClassSpec,
     cols: Cols,
     counts: Vec<usize>,
 }
 
-impl ClassTable {
-    fn new(index: usize) -> Self {
+impl Table {
+    pub(crate) fn new(index: usize) -> Self {
         let spec = CLASSES[index];
-        let cols = Cols::new(spec);
+        let cols = Cols::new(&spec);
         assert_eq!(cols.rbc, cols.acc.end(), "the counts are the table's last columns");
+        // The accesses' counts end `acc`, and the bytecode's follows.
+        let mut counts = Vec::new();
+        for c in cols.acc.count_lo(0)..cols.rbc + 1 {
+            counts.push(c);
+        }
         Self {
             index,
             spec,
             cols,
-            // The accesses' counts end `acc`, and the bytecode's follows.
-            counts: (cols.acc.count_lo(0)..=cols.rbc).collect(),
+            counts,
         }
     }
 
-    fn eval<T: ColVal>(&self, w: &[F192], cols: &[T]) -> F192 {
-        access_identities(w, cols, self.cols.ts, self.cols.acc)
-    }
-}
-
-impl Table for ClassTable {
-    fn n_committed_columns(&self) -> usize {
+    /// Number of columns (local indices `0..n_committed_columns`), the virtual ones included.
+    pub fn n_committed_columns(&self) -> usize {
         self.cols.rbc + 1
     }
-    fn count_columns(&self) -> &[usize] {
+
+    /// Local indices of this table's read-count columns: the `g^{count}` values of
+    /// its lookups into the read-only arrays (the bytecode, the two range arrays).
+    /// The framework treats them specially: each gets its own single-column "count"
+    /// bus block.
+    pub fn count_columns(&self) -> &[usize] {
         &self.counts
     }
-    fn n_constraints(&self) -> usize {
+
+    /// How many identities [`eval_constraint`](Table::eval_constraint) folds.
+    /// Sizes this table's slice of the batch's disjoint `xi`-range (§constraints).
+    pub fn n_constraints(&self) -> usize {
         self.cols.acc.n
     }
-    fn constraint_weights(&self, pows: &[F192]) -> Vec<F192> {
+
+    /// What [`eval_constraint`](Table::eval_constraint) is handed, from this table's
+    /// slice of the batch's `xi`-powers: the powers themselves, plus whatever
+    /// constant multiples of them the identities need, computed once per proof
+    /// rather than per row.
+    pub fn constraint_weights(&self, pows: &[F192]) -> Vec<F192> {
         access_weights(pows, &self.spec.slots())
     }
-    // `quadratic` is ignored because `access_identities` is homogeneous of degree two:
-    // every term is a product of two columns, so the quadratic part IS the identity. A
-    // linear or constant term added there would have to be split out here.
-    fn eval_constraint(&self, w: &[F192], cols: &[F192], _quadratic: bool) -> F192 {
-        self.eval(w, cols)
+
+    /// Evaluate the table's degree-2 constraints at one row, reading column values
+    /// by local index from `cols` and weighting them by `weights`
+    /// ([`constraint_weights`](Table::constraint_weights)). The table sumcheck
+    /// carries every column of a table, in local order, so `cols` is indexed
+    /// directly; they are `K`-valued in the round a table joins the batch, before
+    /// they have been folded into `E` (§sec:air). With `quadratic=false` it returns
+    /// `0` on every valid row (§sec:air); `true` selects only the degree-two terms.
+    ///
+    /// `quadratic` is ignored because `access_identities` is homogeneous of degree
+    /// two: every term is a product of two columns, so the quadratic part IS the
+    /// identity. A linear or constant term added there would have to be split out here.
+    pub fn eval_constraint<T: ColVal>(&self, weights: &[F192], cols: &[T], _quadratic: bool) -> F192 {
+        access_identities(weights, cols, self.cols.ts, self.cols.acc)
     }
-    fn eval_constraint_k(&self, w: &[F192], cols: &[F64], _quadratic: bool) -> F192 {
-        self.eval(w, cols)
-    }
-    fn flushes(&self, f: &mut FlushBuilder) {
+
+    /// Declare the table's bus interactions.
+    pub fn flushes(&self, f: &mut FlushBuilder) {
         let c = &self.cols;
         // What the row derives: the next `pc`, `pc4 + taken·dt + jalr·(out + pc4)`, and
         // what `rd` receives, `out + link·(out + pc4)`, each of degree 2 (§sec:m3).
-        let (npc, vd, control) = match (c.control, c.rd) {
-            (Some(dt), Some(ad)) => {
-                let (link, jalr, taken, out) = (dt + 1, dt + 2, dt + 3, ad + 2);
-                (
-                    Coord::Sum(vec![
-                        Col(c.pc4),
-                        Prod(taken, dt, 0),
-                        Prod(jalr, out, 0),
-                        Prod(jalr, c.pc4, 0),
-                    ]),
-                    Some(Coord::Sum(vec![Col(out), Prod(link, out, 0), Prod(link, c.pc4, 0)])),
-                    vec![Col(dt), Col(link), Col(jalr)],
-                )
-            }
-            (_, rd) => (Col(c.pc4), rd.map(|ad| Col(ad + 2)), Vec::new()),
-        };
+        let mut npc = Col(c.pc4);
+        let mut vd = c.rd.map(|ad| Col(ad + 2));
+        let mut control = Vec::new();
+        if let Some(dt) = c.control
+            && let Some(ad) = c.rd
+        {
+            let (link, jalr, taken, out) = (dt + 1, dt + 2, dt + 3, ad + 2);
+            npc = Coord::Sum(vec![
+                SumTerm::Col(c.pc4),
+                SumTerm::Prod(taken, dt, 0),
+                SumTerm::Prod(jalr, out, 0),
+                SumTerm::Prod(jalr, c.pc4, 0),
+            ]);
+            vd = Some(Coord::Sum(vec![
+                SumTerm::Col(out),
+                SumTerm::Prod(link, out, 0),
+                SumTerm::Prod(link, c.pc4, 0),
+            ]));
+            control = vec![Col(dt), Col(link), Col(jalr)];
+        }
         f.state(c.pc, c.ts, npc, self.spec.stride());
         // A row without a register write or an immediate reads their constants off
         // the entry: the sink, and zero.
@@ -770,8 +802,14 @@ impl Table for ClassTable {
             Col(c.flags),
             Col(c.a1),
             Col(c.a2),
-            c.rd.map_or(Const(F64(SINK as u64)), Col),
-            c.imm.map_or(Const(F64::ZERO), Col),
+            match c.rd {
+                Some(ad) => Col(ad),
+                None => Const(F64(SINK as u64)),
+            },
+            match c.imm {
+                Some(imm) => Col(imm),
+                None => Const(F64::ZERO),
+            },
             Col(c.pc4),
         ];
         entry.extend(control);
@@ -796,7 +834,7 @@ impl Table for ClassTable {
         if let Some(block) = c.block {
             let out_word = hash::OUT as usize / 8;
             for k in 0..hash::WORDS {
-                let addr = Coord::Sum(vec![Col(c.v1), Const(F64(8 * k as u64))]);
+                let addr = Coord::Sum(vec![SumTerm::Col(c.v1), SumTerm::Const(F64(8 * k as u64))]);
                 let new = match k.wrapping_sub(out_word) {
                     j if j < 4 => Col(block + hash::WORDS + j),
                     _ => Col(block + k),
@@ -805,6 +843,11 @@ impl Table for ClassTable {
             }
         }
     }
+
+    /// Fill this table's columns from the trace: `out[i]` is local column `i`'s
+    /// window, already at its final length. Every window must be written in full;
+    /// use `FillCtx::col` / `FillCtx::cols`, which record the coverage `fill_table`
+    /// checks.
     fn fill(&self, ctx: &FillCtx, out: &mut [ColumnOut]) {
         let c = &self.cols;
         let rows: &[Row] = &ctx.trace.rows[self.index];
@@ -871,7 +914,7 @@ mod tests {
     #[test]
     fn access_identity_is_the_strict_gap() {
         use primitives::field::g_pow;
-        let table = ClassTable::new(0);
+        let table = Table::new(0);
         let (x, cycle, access) = (41usize, 70_000usize, 2usize);
         let slot = REG_SLOTS[access] as usize;
         let gap = CLOCK_STRIDE as usize * cycle + slot - x - 1;
@@ -886,10 +929,11 @@ mod tests {
             row[table.cols.acc.hi(access)] = (0..gap >> RANGE_LOG).fold(F64::ONE, |h, _| h * range_hi_ratio());
             row
         };
-        assert_eq!(table.eval(&w, &row(gap)), F192::ZERO);
+        let eval = |cols: &[_]| table.eval_constraint(&w, cols, false);
+        assert_eq!(eval(&row(gap)), F192::ZERO);
         let lifted: Vec<F192> = row(gap).into_iter().map(F192::from).collect();
-        assert_eq!(table.eval(&w, &lifted), F192::ZERO);
-        assert_ne!(table.eval(&w, &row(gap + 1)), F192::ZERO);
-        assert_ne!(table.eval(&w, &row(gap + (1 << RANGE_LOG))), F192::ZERO);
+        assert_eq!(table.eval_constraint(&w, &lifted, false), F192::ZERO);
+        assert_ne!(eval(&row(gap + 1)), F192::ZERO);
+        assert_ne!(eval(&row(gap + (1 << RANGE_LOG))), F192::ZERO);
     }
 }

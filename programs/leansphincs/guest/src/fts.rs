@@ -61,24 +61,31 @@ pub(crate) fn recover(pp: &PublicParam, idx: u64, u: &[u32; K], opening: &[FtsOp
 ///
 /// The last index is ignored: its tree is the dropped one.
 pub(crate) fn open(pp: &PublicParam, master: &[u64; 4], idx: u64, u: &[u32; K]) -> (Digest, [FtsOpening; FTS_TREES]) {
-    let mut roots = [[0; 2]; FTS_TREES];
-    let opening = core::array::from_fn(|kappa| {
-        let opened = u[kappa] as usize;
-        let secret_of = |j| secret(pp, master, idx, kappa, j);
-        let mut nodes: [Digest; 1 << A] = core::array::from_fn(|j| leaf(pp, idx, kappa, j, &secret_of(j)));
-        let mut path = [[0; 2]; A];
-        // Level by level in place: node `j` of the next level only reads nodes `2j` and `2j + 1`.
-        for (level, sibling) in path.iter_mut().enumerate() {
-            *sibling = nodes[(opened >> level) ^ 1];
-            for j in 0..(1 << A) >> (level + 1) {
-                nodes[j] = node(pp, idx, kappa, level + 1, j, &nodes[2 * j], &nodes[2 * j + 1]);
-            }
-        }
-        roots[kappa] = nodes[0];
-        FtsOpening {
-            secret: secret_of(opened),
-            path,
-        }
-    });
-    (key(pp, idx, &roots), opening)
+    let trees: [(Digest, FtsOpening); FTS_TREES] =
+        core::array::from_fn(|kappa| open_tree(pp, master, idx, kappa, u[kappa] as usize));
+    let roots = core::array::from_fn(|kappa| trees[kappa].0);
+    (key(pp, idx, &roots), trees.map(|(_, opening)| opening))
+}
+
+/// Tree `kappa`'s root, and its opening at leaf `opened`.
+fn open_tree(pp: &PublicParam, master: &[u64; 4], idx: u64, kappa: usize, opened: usize) -> (Digest, FtsOpening) {
+    let secret_of = |j| secret(pp, master, idx, kappa, j);
+    let mut nodes: [Digest; 1 << A] = core::array::from_fn(|j| leaf(pp, idx, kappa, j, &secret_of(j)));
+    let mut path = [[0; 2]; A];
+    for level in 0..A {
+        path[level] = nodes[(opened >> level) ^ 1];
+        fold_level(pp, idx, kappa, level, &mut nodes);
+    }
+    let opening = FtsOpening {
+        secret: secret_of(opened),
+        path,
+    };
+    (nodes[0], opening)
+}
+
+/// Replace a level's nodes by their parents, in place: node `j` of the next level only reads nodes `2j` and `2j + 1`.
+fn fold_level(pp: &PublicParam, idx: u64, kappa: usize, level: usize, nodes: &mut [Digest; 1 << A]) {
+    for j in 0..(1 << A) >> (level + 1) {
+        nodes[j] = node(pp, idx, kappa, level + 1, j, &nodes[2 * j], &nodes[2 * j + 1]);
+    }
 }
