@@ -87,7 +87,7 @@ fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize)
     }
     let log_inv_rate = read_size(vs)?;
     let ts_final = vs.next_scalar().map_err(CpuError::Transcript)?;
-    if ts_final.c1 != 0 || ts_final.c2 != 0 {
+    if ts_final.c0 == 0 || ts_final.c1 != 0 || ts_final.c2 != 0 {
         return Err(CpuError::PublicInput);
     }
     // The public instance caps ensure that, with `ord(g) = 2^64 − 1`, the
@@ -118,22 +118,28 @@ fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize)
     Ok((l, log_inv_rate))
 }
 
-/// A program as the prover and the verifier hold it.
+/// A validated program and its cached public-statement digest.
+///
+/// The decoded program is read-only, so the digest always describes what is proven.
+///
+/// ```compile_fail
+/// # use leanvm_core::cpu::Program;
+/// fn change_image(program: &mut Program) {
+///     program.rv.image.clear();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// # use leanvm_core::cpu::Program;
+/// fn change_image(program: &mut Program) {
+///     program.rv().image.clear();
+/// }
+/// ```
 #[derive(Clone)]
 pub struct Program {
-    /// The decoded text, the padding blocks included, and RAM as the run finds it.
-    pub rv: rv::Program,
-    /// BLAKE2s over everything public and fixed: the stacked bytecode multilinear
-    /// (that table is 16·2^kbc words, tens of megabytes at production sizes, so it is
-    /// hashed once here rather than per proof), the entry and halt `pc`, and RAM's
-    /// size and initial words. Always set by [`Program::new`], so a `Program` cannot
-    /// carry a digest inconsistent with itself.
-    pub(crate) digest: [u8; 32],
-    /// The padding blocks in the text ([`filler`]), whose rows bring every table's
-    /// row count to a power of two. Prover-side only, and no program code reaches
-    /// them, so a missing or wrong entry costs the prover a run that does not fill
-    /// rather than anything a verifier would accept.
-    pub filler: Vec<filler::Block>,
+    rv: rv::Program,
+    digest: [u8; 32],
+    filler: Vec<filler::Block>,
 }
 
 /// The digest reinterprets tables of words as bytes, which is their `to_le_bytes`
@@ -141,6 +147,16 @@ pub struct Program {
 const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
+    /// The decoded text, memory image and region sizes, for inspection or interpretation.
+    pub fn rv(&self) -> &rv::Program {
+        &self.rv
+    }
+
+    /// BLAKE2s over the decoded text, entry, halt, region sizes and initial RAM image.
+    pub fn digest(&self) -> &[u8; 32] {
+        &self.digest
+    }
+
     /// The program of a guest's ELF executable ([`rv::Guest::from_elf`]).
     pub fn from_elf(elf: &[u8]) -> Result<Self, rv::ElfError> {
         let guest = rv::Guest::from_elf(elf)?;
@@ -182,7 +198,7 @@ impl Program {
             unsafe { core::slice::from_raw_parts(table.as_ptr().cast::<u8>(), core::mem::size_of_val(&table[..])) };
         // Every variable-length part is length-framed, so the preimage parses one way.
         let mut h = primitives::hash::Hasher::new();
-        h.update(b"leanvm-rv64im-1");
+        h.update(b"leanvm-rv64im-2");
         h.update(&bytes(&[table.len() as u64]));
         h.update(table_bytes);
         h.update(&bytes(&[
@@ -723,6 +739,27 @@ mod tests {
     use crate::rv::asm::*;
     use primitives::field::g_pow;
 
+    #[test]
+    fn digest_binds_every_public_program_component() {
+        let text = Asm::new().i("addi", A0, ZERO, 5).exit().finish();
+        let program = Program::new(&text, rv::TEXT_BASE, vec![1], 2, 0);
+        assert_eq!(program.digest(), program.clone().digest());
+
+        let mut changed_text = text.clone();
+        changed_text[0] = Asm::new().i("addi", A0, ZERO, 6).finish()[0];
+        let changed = [
+            Program::new(&changed_text, rv::TEXT_BASE, vec![1], 2, 0),
+            Program::new(&text, rv::TEXT_BASE + 4, vec![1], 2, 0),
+            Program::new(&text, rv::TEXT_BASE, vec![2], 2, 0),
+            Program::new(&text, rv::TEXT_BASE, vec![1, 0], 2, 0),
+            Program::new(&text, rv::TEXT_BASE, vec![1], 3, 0),
+            Program::new(&text, rv::TEXT_BASE, vec![1], 2, 1),
+        ];
+        for changed in changed {
+            assert_ne!(program.digest(), changed.digest());
+        }
+    }
+
     /// Reassign every range read's count, as a prover would after changing a gap, so
     /// that the range arrays balance and what is left to judge is the registers.
     fn recount_range_reads(exec: &mut Execution) {
@@ -756,6 +793,55 @@ mod tests {
             "unmatched (side, block, row): {:?}",
             &unmatched[..unmatched.len().min(12)]
         );
+    }
+
+    #[test]
+    fn only_ecall_can_terminate_the_state_channel() {
+        let prototype = Asm::new().li(T0, rv::TEXT_BASE).i("addi", A0, ZERO, 42).exit().finish();
+        let halt = Program::new(&prototype, rv::TEXT_BASE, vec![], 2, 0).rv.halt_pc();
+        let original = Asm::new().li(T0, halt).i("addi", A0, ZERO, 42).exit().finish();
+        let honest_program = Program::new(&original, rv::TEXT_BASE, vec![], 2, 0);
+        assert_eq!(honest_program.rv.halt_pc(), halt);
+        let exit_index = original.len() - 1;
+        let pc = honest_program.rv.pc_of(exit_index);
+        for instruction in [j_type(0, (halt - pc) as i32), i_type(0x67, 0, 0, T0, 0)] {
+            let mut text = original.clone();
+            text[exit_index] = instruction;
+            let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0);
+            assert!(matches!(program.execute(&[]), Err(rv::Trap::Illegal { pc }) if pc == halt));
+
+            // Forge the terminal row directly, bypassing the interpreter's trap.
+            let mut execution = honest_program.execute(&[]).unwrap();
+            let entry = program.rv.entries[exit_index];
+            if entry.jalr {
+                let tick = tables::CLOCK_STRIDE * (exit_index as u32 + 1);
+                let previous = original[..exit_index]
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(i, &word)| {
+                        (rv::decode(word, program.rv.pc_of(i)).ad == T0 as u8)
+                            .then_some(tables::CLOCK_STRIDE * (i as u32 + 1) + 3)
+                    })
+                    .unwrap();
+                let row = &mut execution.trace.rows[0][exit_index];
+                (row.v1, row.out, row.taken) = (halt, halt, false);
+                (row.acc[0].x, row.acc[0].gap) = (g_pow(previous as usize), tick - previous - 1);
+                (row.acc[1].x, row.acc[1].gap) = (g_pow((tick - 3) as usize), 3);
+                execution.trace.reg_ts[T0 as usize] = g_pow(tick as usize);
+                recount_range_reads(&mut execution);
+            }
+            execution.trace.reg_fin[rv::SINK as usize] = F64(pc + 4);
+            let witness = program.build(&execution);
+            let unmatched = leaf::unmatched_leaves(&witness.layout.push, &witness.layout.pull, &witness.columns());
+            assert_eq!(unmatched.len(), 2, "{unmatched:?}");
+            assert!(unmatched.iter().all(|(_, block, _)| *block == 0 || *block == 7));
+
+            let failure = std::panic::catch_unwind(|| prove_execution(&program, &execution, pcs::TEST_LOG_INV_RATE));
+            let failure = failure.expect_err("a non-exit terminal transition was proven");
+            let message = failure.downcast_ref::<String>().map(String::as_str).unwrap_or("");
+            assert!(message.contains("two products to agree"), "{message}");
+        }
     }
 
     /// A load cannot return what its cell does not hold. The forged run is consistent

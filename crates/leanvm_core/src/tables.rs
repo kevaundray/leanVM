@@ -150,10 +150,10 @@ impl FlushBuilder {
 
     /// Pull the current state and push the next: `npc`, which a row DERIVES from its
     /// columns rather than committing, and the clock advanced by the class's stride.
-    fn state(&mut self, pc: usize, ts: usize, npc: Coord, stride: u32) {
+    fn state(&mut self, pc: usize, ts: usize, npc: Coord, stride: u32, exit: Coord) {
         self.pair(
-            vec![Const(SEP_STATE), npc, GCol(ts, stride)],
-            vec![Const(SEP_STATE), Col(pc), Col(ts)],
+            vec![Const(SEP_STATE), npc, GCol(ts, stride), exit],
+            vec![Const(SEP_STATE), Col(pc), Col(ts), Const(F64::ZERO)],
         );
     }
 
@@ -584,6 +584,9 @@ pub(crate) fn word_columns(t: usize) -> Vec<(usize, usize)> {
 /// an entry, where the program is zero.
 pub const BAD_SLOT: usize = 13;
 
+/// Bytecode slot binding the exit selector.
+pub const EXIT_SLOT: usize = 14;
+
 /// A class table's local columns: `pc, ts, a1, a2, pc4, v1, v2, flags`, then the
 /// optional groups in the order of the fields below, then the accesses and the
 /// bytecode read's count.
@@ -600,7 +603,7 @@ struct Cols {
     flags: usize,
     /// The register write: `ad`, what it held, and `out`. A hash row has none.
     rd: Option<usize>,
-    /// `dt`, `link`, `jalr`, then `taken`.
+    /// The target offset, link, indirect jump, taken bit, and exit selector.
     control: Option<usize>,
     /// The immediate, which a hash row has not.
     imm: Option<usize>,
@@ -634,7 +637,7 @@ impl Cols {
         let (pc, ts, a1, a2, pc4) = (next.take(1), next.take(1), next.take(1), next.take(1), next.take(1));
         let (v1, v2, flags) = (next.take(1), next.take(1), next.take(1));
         let rd = next.take_if(spec.writes_register(), 3);
-        let control = next.take_if(spec.control, 4);
+        let control = next.take_if(spec.control, 5);
         let imm = next.take_if(spec.ports.contains(&Word::Imm), 1);
         let (ram, block) = match spec.ram {
             Ram::None => (None, None),
@@ -791,7 +794,12 @@ impl Table {
             ]));
             control = vec![Col(dt), Col(link), Col(jalr)];
         }
-        f.state(c.pc, c.ts, npc, self.spec.stride());
+        // Only an exit can meet the terminal marker; zero-clock padding stays inert.
+        let exit = match c.control {
+            Some(dt) => Coord::Prod(dt + 4, c.ts, self.spec.stride()),
+            None => Const(F64::ZERO),
+        };
+        f.state(c.pc, c.ts, npc, self.spec.stride(), exit);
         // A row without a register write or an immediate reads their constants off
         // the entry: the sink, and zero.
         let mut entry = vec![
@@ -817,6 +825,8 @@ impl Table {
             entry.resize(BAD_SLOT, Const(F64::ZERO));
             entry.push(Col(bad));
         }
+        entry.resize(EXIT_SLOT, Const(F64::ZERO));
+        entry.push(c.control.map_or(Const(F64::ZERO), |dt| Col(dt + 4)));
         f.counted(entry, c.rbc);
         let [s1, s2, sd] = REG_SLOTS;
         f.access(SEP_REG, Col(c.a1), c.ts, c.acc, 0, s1, Col(c.v1), Col(c.v1));
@@ -877,6 +887,7 @@ impl Table {
                     F64(e.link as u64),
                     F64(e.jalr as u64),
                     F64(r.taken as u64),
+                    F64((e.target == rv::Target::Halt) as u64),
                 ]
             });
         }
