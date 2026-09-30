@@ -53,15 +53,22 @@ jobs:
           - name: github-ubuntu
             runner: ubuntu-latest
             rustflags: -C target-cpu=haswell
-          # Apple silicon: the NEON kernels.
-          - name: github-macos
-            runner: macos-latest
-            rustflags: -C target-cpu=apple-m1
+          # arm64 Linux: the NEON kernels, which are chosen at compile time on `aes` (PMULL)
+          # and `sha3` (EOR3), neither of which a generic aarch64 target enables.
+          - name: github-ubuntu-arm
+            runner: ubuntu-24.04-arm
+            rustflags: -C target-cpu=neoverse-n2 -C target-feature=+aes,+sha3
     env:
       RUSTFLAGS: ${{ matrix.testbed.rustflags }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # The CPU the testbed's ISA is pinned for must have what it enables, or it dies of SIGILL.
+      - name: CPU features
+        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+        run: |
+          grep -m1 -E '^Features' /proc/cpuinfo
+          for f in aes pmull sha3 sve2; do grep -qw "$f" <(grep -m1 -E '^Features' /proc/cpuinfo) || { echo "::error::no $f on this runner"; exit 1; }; done
       # One cache per testbed; RUSTFLAGS is part of its key.
       - uses: Swatinem/rust-cache@v2
         with:
