@@ -20,6 +20,7 @@ fn rust_constants() -> String {
     scalar("ADVICE_BASE", leanvm_core::rv::ADVICE_BASE);
     scalar("BAD_SLOT", leanvm_core::tables::BAD_SLOT as u64);
     scalar("BUS_BITS", leanvm_core::leaf::N_TUPLE_BITS as u64);
+    scalar("EXIT_SLOT", leanvm_core::tables::EXIT_SLOT as u64);
     scalar("CLOCK_STRIDE", leanvm_core::tables::CLOCK_STRIDE as u64);
     scalar("FLOCK_K_SKIP", flock::zerocheck::K_SKIP as u64);
     scalar("FLOCK_MIN_LOG_SIZE", leanvm_core::class_flock::MIN_CUBE_LOG as u64);
@@ -30,7 +31,6 @@ fn rust_constants() -> String {
         "INITIAL_FOLDING_FACTOR",
         pcs::whir_config::INITIAL_FOLDING_FACTOR as u64,
     );
-    scalar("INPUT_WORDS", leanvm_core::rv::INPUT_WORDS as u64);
     scalar("LOG_PACKING", pcs::pack::LOG_PACKING as u64);
     scalar("LOG_REGISTERS", leanvm_core::rv::LOG_REGS as u64);
     scalar("MAX_LOG_ADVICE", leanvm_core::rv::MAX_LOG_ADVICE as u64);

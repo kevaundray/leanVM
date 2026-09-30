@@ -7,6 +7,6 @@ leanvm = ["run", "--release", "-p", "leanvm-cli", "--"]
 [build]
 rustdocflags = ["-D", "warnings"]
 
-# Not for the RISC-V guests (`guests/`), which inherit this file: no RISC-V target accepts the host's CPU.
+# Not for the RISC-V guests (`programs/*/guest`), which inherit this file: no RISC-V target accepts the host's CPU.
 [target.'cfg(not(target_arch = "riscv64"))']
 rustflags = ["-C", "target-cpu=native"]

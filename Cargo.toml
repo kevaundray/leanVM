@@ -1,7 +1,8 @@
 [workspace]
-members = ["crates/*", "bins/*"]
-# The guests are their own workspace, for another target: the host only uses their libraries.
-exclude = ["guests"]
+members = ["crates/*", "bins/*", "sdk", "programs/*/host"]
+# Each guest is its own workspace, for another target. A host depends on its guest's library by path, which
+# would make the guest a member: `exclude` takes no globs, so each is named.
+exclude = ["programs/leanxmss/guest", "programs/leansphincs/guest", "programs/leanda/guest"]
 resolver = "3"
 
 [workspace.package]
@@ -24,6 +25,10 @@ flock = { path = "crates/flock" }
 leanvm_core = { path = "crates/leanvm_core" }
 zk_alloc = { path = "crates/zk_alloc" }
 parallel = { path = "crates/parallel" }
+leanvm_guest = { path = "sdk" }
+leanxmss-host = { path = "programs/leanxmss/host" }
+leansphincs-host = { path = "programs/leansphincs/host" }
+leanda-host = { path = "programs/leanda/host" }
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 bincode = "1"

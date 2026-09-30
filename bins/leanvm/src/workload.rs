@@ -6,14 +6,12 @@ use primitives::{pretty_f64, pretty_integer};
 
 use crate::guest::refuse;
 
-/// One run of a guest (`guests/`): what it is given and what it must output.
+/// One run of a guest (`programs/`): what it is given and what it must output.
 pub struct Workload {
     /// What the report calls the run.
     pub title: String,
     /// The guest's ELF file.
     pub elf: &'static [u8],
-    /// The public input: the item count, then zeros.
-    pub input: [u64; 4],
     /// What the guest checks, which the statement does not cover.
     pub advice: Vec<u64>,
     /// The output the native reference computed, so a proof of anything else fails.
@@ -29,36 +27,44 @@ impl Workload {
     pub fn program(&self) -> Program {
         Program::from_elf(self.elf).expect("a guest's ELF file")
     }
+}
 
-    /// Run the guest on the interpreter, with no proof: its output, or the trap.
-    #[cfg(test)]
-    pub fn run(&self) -> Result<[u64; 4], leanvm_core::rv::Trap> {
-        leanvm_core::rv::Machine::new(&self.program().rv, self.input, &self.advice).run(1 << 30)
+/// Verify `n` leanXMSS signatures, one key each.
+pub fn leanxmss(n: usize) -> Workload {
+    let run = leanxmss_host::batch(n);
+    Workload {
+        title: format!("leanXMSS verification, {n} signatures"),
+        elf: leanxmss_host::ELF,
+        advice: run.advice,
+        expected: run.expected,
+        items: n,
+        item: "signature",
     }
 }
 
-/// The cost of each workload without proving it, as a markdown table.
-///
-/// RISC-V cycles are the guest's work, committed words the prover's: both are exact.
-///
-/// So the table is the same on every machine, where proving time is not.
-pub fn cycles(workloads: &[Workload]) {
-    println!("| workload | RISC-V cycles | per item | committed words | tables |");
-    println!("|---|---:|---:|---:|---|");
-    for workload in workloads {
-        // One run each: the rows per table fix the committed size.
-        let stats = leanvm_core::cpu::measure(&workload.program(), workload.input, &workload.advice)
-            .unwrap_or_else(|trap| refuse(format_args!("{}: {trap}", workload.title)));
-        let cycles: usize = stats.base_counts.iter().sum();
-        println!(
-            "| {} | {} | {} / {} | 2^{:.2} | {} |",
-            workload.title,
-            pretty_integer(cycles),
-            pretty_integer(cycles / workload.items),
-            workload.item,
-            (stats.committed as f64).log2(),
-            stats.details()
-        );
+/// Verify `n` leanSPHINCS signatures, one key each.
+pub fn leansphincs(n: usize) -> Workload {
+    let run = leansphincs_host::batch(n);
+    Workload {
+        title: format!("leanSPHINCS verification, {n} signatures"),
+        elf: leansphincs_host::ELF,
+        advice: run.advice,
+        expected: run.expected,
+        items: n,
+        item: "signature",
+    }
+}
+
+/// Check `n` leanDA blobs and compute their commitment.
+pub fn leanda(n: usize) -> Workload {
+    let run = leanda_host::blobs(n);
+    Workload {
+        title: format!("leanDA check, {n} blobs of 128 KiB"),
+        elf: leanda_host::ELF,
+        advice: run.advice,
+        expected: run.expected,
+        items: n,
+        item: "blob",
     }
 }
 
@@ -68,7 +74,7 @@ pub fn cycles(workloads: &[Workload]) {
 pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     let program = workload.program();
     // More items than the guest's advice region holds is the user's mistake, not a bug.
-    let region = 1usize << program.rv.log_advice;
+    let region = 1usize << program.rv().log_advice();
     if workload.advice.len() > region {
         refuse(format_args!(
             "{} {}s take {} advice words, and the guest's region holds {region}",
@@ -80,7 +86,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     // Only the final measured pass is traced.
     let (result, prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        prove(&program, workload.input, &workload.advice, log_inv_rate)
+        prove(&program, &workload.advice, log_inv_rate)
     });
     // A run too long for one proof has none: continuations are not implemented.
     let (proof, output, stats) = result.unwrap_or_else(|trap| refuse(format_args!("the run has no proof: {trap}")));
@@ -90,7 +96,7 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
     );
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &workload.input, &output, &proof).expect("the proof verifies")
+        verify(&program, &output, &proof).expect("the proof verifies")
     });
 
     // The proven rows include padding: the guest's own cycles are the per-table base counts.
@@ -118,4 +124,15 @@ pub fn run(workload: &Workload, log_inv_rate: usize, plan: Plan) {
         "  verifying                   : {} ms",
         pretty_f64(verify_time.mean() * 1000.0)
     );
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_signature_workloads_prove() {
+        // End to end: proven, verified, and the output the native digest.
+        for workload in [super::leanxmss(2), super::leansphincs(1)] {
+            super::run(&workload, leanvm_core::pcs::TEST_LOG_INV_RATE, bench::Plan::default());
+        }
+    }
 }

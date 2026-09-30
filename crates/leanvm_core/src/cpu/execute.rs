@@ -97,12 +97,12 @@ fn advance(ts: F64, k: u32) -> F64 {
 }
 
 impl Program {
-    /// Run the program on `input` and `advice`, recording every row, then write out the
+    /// Run the program on `advice`, recording every row, then write out the
     /// padding rows that bring each table to a power of two ([`filler`]). A run that
     /// traps has no proof.
-    pub fn execute(&self, input: [u64; rv::INPUT_WORDS], advice: &[u64]) -> Result<Execution, Trap> {
+    pub fn execute(&self, advice: &[u64]) -> Result<Execution, Trap> {
         let p = &self.rv;
-        let mut m = Machine::new(p, input, advice);
+        let mut m = Machine::new(p, advice);
         let adv_init: Vec<F64> = m.advice().iter().map(|&w| F64(w)).collect();
         let mut ranges = Ranges {
             lo: vec![F64::ONE; 1 << RANGE_LOG],

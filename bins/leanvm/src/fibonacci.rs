@@ -16,12 +16,12 @@ pub fn run_fibonacci(n: usize, log_inv_rate: usize, plan: Plan) {
     // Only the final measured pass of each stage is traced.
     let ((proof, output, stats), prove_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        prove(&program, [0; 4], &[], log_inv_rate).expect("the run halts")
+        prove(&program, &[], log_inv_rate).expect("the run halts")
     });
     assert_eq!(output, expected);
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &[0; 4], &output, &proof).unwrap()
+        verify(&program, &output, &proof).unwrap()
     });
 
     // tracing-forest renders its tree only when the root span closes, so the
@@ -50,7 +50,7 @@ pub fn run_fibonacci(n: usize, log_inv_rate: usize, plan: Plan) {
 /// The demo program and its output `[F(n) mod 2^64, 0, 0, 0]`: a loop whose body is
 /// `UNROLL` recurrence steps in place, `a <- a + b` then `b <- a + b`, so that a step is
 /// one instruction and the loop's own two are paid once per `UNROLL`.
-fn fibonacci_program(fib_n: usize) -> (Program, [u64; 4]) {
+pub fn fibonacci_program(fib_n: usize) -> (Program, [u64; 4]) {
     const UNROLL: usize = 1000;
     assert!(
         fib_n >= UNROLL && fib_n.is_multiple_of(UNROLL),
@@ -71,7 +71,10 @@ fn fibonacci_program(fib_n: usize) -> (Program, [u64; 4]) {
         a = a.wrapping_add(b);
         b = b.wrapping_add(a);
     }
-    (Program::new(&text.finish(), TEXT_BASE, vec![], 2, 0), [a, 0, 0, 0])
+    (
+        Program::new(&text.finish(), TEXT_BASE, vec![], 2, 0).expect("valid instruction program"),
+        [a, 0, 0, 0],
+    )
 }
 
 #[cfg(test)]

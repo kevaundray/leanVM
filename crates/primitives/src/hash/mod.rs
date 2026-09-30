@@ -89,15 +89,6 @@ pub const PARAM_IV: [u32; 8] = {
 /// The last-node flag stays zero: nothing here uses the tree mode.
 #[inline]
 pub fn compress(h: &mut [u32; 8], m: &[u32; 16], t: u64, last: bool) {
-    #[cfg(target_arch = "x86_64")]
-    x86::compress(h, m, t, last);
-    #[cfg(not(target_arch = "x86_64"))]
-    compress_portable(h, m, t, last);
-}
-
-/// The compression as the RFC writes it: the reference every specialized path is pinned to.
-#[cfg_attr(target_arch = "x86_64", allow(dead_code))]
-fn compress_portable(h: &mut [u32; 8], m: &[u32; 16], t: u64, last: bool) {
     let mut v = [0u32; 16];
     v[..8].copy_from_slice(h);
     v[8..].copy_from_slice(&IV);
@@ -287,11 +278,30 @@ pub fn hash_many_dyn(data: &[u8], len: usize, out: &mut [u8]) {
     hash_many_dyn_from_state(data, len, &PARAM_IV, 0, out);
 }
 
+/// The official unkeyed BLAKE2s-256 test vectors, as `(input, digest)` pairs.
+///
+/// Input `n` is the `n` bytes `00 01 .. n-1`, for `n` in `0..256`: every length through four blocks.
+///
+/// `test_vectors.txt` is extracted from `testvectors/blake2-kat.json` of <https://github.com/BLAKE2/BLAKE2>:
+///
+/// ```text
+/// jq -r '.[] | select(.hash == "blake2s" and .key == "") | .out' blake2-kat.json
+/// ```
+#[cfg(feature = "test-util")]
+pub fn test_vectors() -> impl Iterator<Item = (Vec<u8>, [u8; OUT_LEN])> {
+    let lines: Vec<&str> = include_str!("test_vectors.txt").lines().collect();
+    assert_eq!(lines.len(), 256, "the vector file is truncated");
+    lines.into_iter().enumerate().map(|(n, line)| {
+        let input = (0..n).map(|i| i as u8).collect();
+        let digest = std::array::from_fn(|i| u8::from_str_radix(&line[2 * i..2 * i + 2], 16).unwrap());
+        (input, digest)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::batch::Scalar8;
     use super::*;
-    use crate::test_rng::Rng;
 
     #[test]
     fn continued_from_zero_prefix_matches_whole_image() {
@@ -327,42 +337,13 @@ mod tests {
     }
 
     fn reference(data: &[u8]) -> [u8; OUT_LEN] {
-        // Whole blocks through the RFC-literal compression, independent of the fast paths.
+        // Whole blocks straight through `compress`, independent of the streaming and batched paths.
         let mut h = PARAM_IV;
         let n = data.len() / BLOCK_LEN;
         for (b, block) in data.as_chunks::<BLOCK_LEN>().0.iter().enumerate() {
-            compress_portable(&mut h, &block_words(block), ((b + 1) * BLOCK_LEN) as u64, b + 1 == n);
+            compress(&mut h, &block_words(block), ((b + 1) * BLOCK_LEN) as u64, b + 1 == n);
         }
         state_bytes(&h)
-    }
-
-    #[test]
-    fn compress_matches_portable() {
-        // Invariant: the dispatched compression equals the RFC-literal one.
-        let mut rng = Rng::new(0xB1A2);
-
-        // Edge counters first: the low and high halves enter different state words.
-        //
-        //     t = 2^32 - 1    low word all ones
-        //     t = 2^32        high word one
-        let counters = [0u64, 64, u32::MAX as u64, 1 << 32, u64::MAX];
-        for trial in 0..256 {
-            // Random state and block, then an edge or random counter.
-            let h: [u32; 8] = std::array::from_fn(|_| rng.next_u32());
-            let m: [u32; 16] = std::array::from_fn(|_| rng.next_u32());
-            let t = counters.get(trial).copied().unwrap_or_else(|| rng.next_u64());
-            let last = rng.bit();
-
-            // Same start, same end.
-            let (mut got, mut want) = (h, h);
-            compress(&mut got, &m, t, last);
-            compress_portable(&mut want, &m, t, last);
-            assert_eq!(got, want, "t = {t:#x}, last = {last}");
-        }
-    }
-
-    fn hex(bytes: &[u8]) -> String {
-        bytes.iter().map(|b| format!("{b:02x}")).collect()
     }
 
     fn pattern(n: usize) -> Vec<u8> {
@@ -370,26 +351,10 @@ mod tests {
     }
 
     #[test]
-    fn matches_reference_vectors() {
-        // Known answers from Python's `hashlib.blake2s`.
-        //
-        // 65 bytes pins the held-back buffer: the first block must not be compressed as final.
-        for (n, expected) in [
-            (
-                0usize,
-                "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
-            ),
-            (1, "a28ac19d6bcbe2cd1d7de183485768d598e996b07889b9b11f418cb1b4a4fb0d"),
-            (63, "de27df0e375d83c49f1af9ca8270f9f2fe7b70bf800fc01672db0e9746021ebf"),
-            (64, "5377e4ff957bda4d4535f4879876b71a61056c4cec31e78397c66ec47a86a130"),
-            (65, "19b1b26fba093f4a670d8913e1b71cbb2916dfa701018cc6b05785c966593374"),
-            (127, "6846f99493436241d0a6f289c9a911b1d0f4860db8f2b5df5295ffd37d03a3c4"),
-            (128, "83470c75afa23d90cd7659906e4b47daa278131fbb225241dd37a40fd5355ac7"),
-            (192, "8608895acbb0b5581cdfb5e84d11de01f722ab250285a172e8d59f2f67c46110"),
-            (256, "080c6da49f3ef891dfbf1abdfe224490e30afbad3a24e4e689fd13e4a13de241"),
-            (1024, "72dc5524951b8955c23b7e3e7f51fb9fff71d8650317f3b7d6e8572e78e230a6"),
-        ] {
-            assert_eq!(hex(&hash(&pattern(n))), expected, "unkeyed, {n} bytes");
+    fn matches_official_vectors() {
+        // Whole blocks take the fast path, and 65 bytes pins the held-back buffer.
+        for (input, digest) in test_vectors() {
+            assert_eq!(hash(&input), digest, "{} bytes", input.len());
         }
     }
 

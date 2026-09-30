@@ -1,9 +1,8 @@
 //! leanVM: a minimal zkVM for RISC-V (rv64im). A [`Program`] is a guest's ELF executable
-//! ([`Program::from_elf`], see `guests/`) or a text written by hand ([`Program::new`],
+//! ([`Program::from_elf`], see `programs/`) or a text written by hand ([`Program::new`],
 //! with [`asm`]), [`prove`] runs it and
-//! proves the run on a public input, RAM's first four words, [`verify`] checks the proof
-//! against the program, that input and the output the run claims: `a0..a3` when it
-//! called `exit`.
+//! proves the run, [`verify`] checks the proof against the program and the output the
+//! run claims: `a0..a3` when it called `exit`.
 //!
 //! [`prove`] also takes the run's ADVICE, the words the program finds at
 //! [`ADVICE_BASE`]. The statement says nothing about them beyond how many the program's
@@ -16,8 +15,8 @@
 pub use leanvm_core::{
     cpu::{CpuError, Program, Proof, Stats, prove, verify},
     pcs::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE},
-    rv::ElfError,
     rv::{ADVICE_BASE, RAM_BASE, TEXT_BASE, Trap, asm},
+    rv::{ElfError, ProgramError},
 };
 
 /// Call once before [`verify`]. Idempotent, and [`setup_prover`] does it for you.

@@ -23,7 +23,7 @@ pub mod semantics;
 
 pub use decode::decode;
 pub use elf::{ElfError, Guest};
-pub use machine::{Machine, Program, Trap};
+pub use machine::{Machine, Program, ProgramError, Trap};
 
 /// Where the text sits. Nonzero (a function at 0 would be Rust's null), and a
 /// multiple of the largest text, so that instruction `i` is at `TEXT_BASE ^ (i << 2)`.
@@ -42,9 +42,6 @@ pub const MAX_LOG_RAM: usize = 27;
 /// guest reads from it, it has to check.
 pub const ADVICE_BASE: u64 = 0x2000_0000;
 pub const MAX_LOG_ADVICE: usize = 26;
-
-/// RAM's first words are the run's public input, and the program's image follows.
-pub const INPUT_WORDS: usize = 4;
 
 /// The register array holds `2^LOG_REGS` cells: `x0..x31`, then [`SINK`].
 pub const LOG_REGS: usize = 6;
@@ -125,8 +122,24 @@ impl Entry {
         if self.class == Class::Illegal {
             return *self == Self::ILLEGAL;
         }
+        if self.target == Target::Halt {
+            return *self == decode(0x73, 0);
+        }
         let legal = legal_flags(self.class);
-        let control = self.class == Class::Alu;
+        let control = if self.class != Class::Alu {
+            self.target == Target::Next && !self.link && !self.jalr
+        } else {
+            match self.flags {
+                alu::CLEAR_BIT0 => self.jalr && self.link && self.target == Target::Next,
+                alu::ALWAYS => !self.jalr && self.link && matches!(self.target, Target::Abs(_)),
+                flags
+                    if flags & (alu::BR_EQ | alu::BR_NE | alu::BR_LT | alu::BR_GE | alu::BR_LTU | alu::BR_GEU) != 0 =>
+                {
+                    !self.jalr && !self.link && matches!(self.target, Target::Abs(_))
+                }
+                _ => !self.jalr && !self.link && self.target == Target::Next,
+            }
+        };
         // A hash row writes no register and reads no immediate: its table holds both at
         // their constants.
         let hash = self.class == Class::Hash;
@@ -134,7 +147,7 @@ impl Entry {
             && self.a2 < 32
             && (1..=SINK).contains(&self.ad)
             && legal.contains(&self.flags)
-            && (control || (self.target == Target::Next && !self.link && !self.jalr))
+            && control
             && (!hash || (self.ad == SINK && self.imm == 0))
     }
 }

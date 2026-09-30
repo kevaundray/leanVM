@@ -148,10 +148,10 @@ impl FlushBuilder {
 
     /// Pull the current state and push the next: `npc`, which a row DERIVES from its
     /// columns rather than committing, and the clock advanced by the class's stride.
-    fn state(&mut self, pc: usize, ts: usize, npc: Coord, stride: u32) {
+    fn state(&mut self, pc: usize, ts: usize, npc: Coord, stride: u32, exit: Coord) {
         self.pair(
-            vec![Const(SEP_STATE), npc, GCol(ts, stride)],
-            vec![Const(SEP_STATE), Col(pc), Col(ts)],
+            vec![Const(SEP_STATE), npc, GCol(ts, stride), exit],
+            vec![Const(SEP_STATE), Col(pc), Col(ts), Const(F64::ZERO)],
         );
     }
 
@@ -201,7 +201,22 @@ pub struct FillCtx<'a> {
     /// misses one would leave the stacked witness holding uninitialized slots, so
     /// [`fill_table`] checks the whole set was covered.
     written: Vec<std::sync::atomic::AtomicBool>,
+    /// The table's column writers, each over a range of rows.
+    ///
+    /// They run together in one pass, so each row is read once, from cache.
+    writers: std::sync::Mutex<Vec<RowsWriter<'a>>>,
 }
+
+/// Writes some of a table's columns for a range of its rows.
+type RowsWriter<'a> = Box<dyn Fn(std::ops::Range<usize>) + Send + Sync + 'a>;
+
+/// Rows one task of the fill pass takes.
+///
+/// # Why this value
+///
+/// - 1024 rows of the trace are about 220 KiB, which stays in L2.
+/// - Every writer of the table reads the same rows while they are there.
+const FILL_ROWS: usize = 1 << 10;
 
 /// Where one column's values go: its window in the stacked witness, or a private
 /// buffer if the column is virtual.
@@ -223,53 +238,88 @@ impl<'a> FillCtx<'a> {
             program,
             rows,
             written: (0..n_cols).map(|_| false.into()).collect(),
+            writers: std::sync::Mutex::new(Vec::new()),
         }
     }
 
     /// Write local column `at`: `f` over the trace rows.
-    fn col<R: Sync>(&self, out: &mut [ColumnOut], rows: &[R], at: usize, f: impl Fn(&R) -> F64 + Sync) {
-        self.cols(out, rows, at, |r| [f(r)]);
+    fn col<R: Sync>(&self, out: &mut [ColumnOut], rows: &'a [R], at: usize, f: impl Fn(&R) -> F64 + Send + Sync + 'a) {
+        self.cols(out, rows, at, move |r| [f(r)]);
     }
 
     /// Write the `N` local columns at `at..at + N` from one closure per row.
     fn cols<const N: usize, R: Sync>(
         &self,
         out: &mut [ColumnOut],
-        rows: &[R],
+        rows: &'a [R],
         at: usize,
-        f: impl Fn(&R) -> [F64; N] + Sync,
+        f: impl Fn(&R) -> [F64; N] + Send + Sync + 'a,
+    ) {
+        self.cols_at(out, rows, std::array::from_fn(|k| at + k), f);
+    }
+
+    /// Write the `N` local columns `at` from one closure per row.
+    ///
+    /// The writes are queued, and happen when the table's fill pass runs.
+    fn cols_at<const N: usize, R: Sync>(
+        &self,
+        out: &mut [ColumnOut],
+        rows: &'a [R],
+        at: [usize; N],
+        f: impl Fn(&R) -> [F64; N] + Send + Sync + 'a,
     ) {
         let n = self.rows;
-        let dst: [parallel::SendPtr<F64>; N] = std::array::from_fn(|k| {
-            assert_eq!(out[at + k].len(), n, "column {} has the wrong window length", at + k);
-            self.written[at + k].store(true, std::sync::atomic::Ordering::Relaxed);
-            parallel::SendPtr(out[at + k].as_mut_ptr())
+        let dst: [parallel::SendPtr<F64>; N] = at.map(|c| {
+            assert_eq!(out[c].len(), n, "column {c} has the wrong window length");
+            self.written[c].store(true, std::sync::atomic::Ordering::Relaxed);
+            parallel::SendPtr(out[c].as_mut_ptr())
         });
         // A table's height is its row count (`cpu::filler`), so there is nothing to
         // pad with.
         assert_eq!(rows.len(), n, "a table's rows must fill its cube");
-        parallel::for_each(n, |i| {
-            let v = f(&rows[i]);
-            for (k, p) in dst.iter().enumerate() {
-                // SAFETY: distinct `i` write disjoint in-bounds slots of each of the
-                // `N` windows, each exactly once, and the dispatch blocks until
-                // every write is finished.
-                unsafe { p.add(i).write(v[k]) };
+        let writer = move |range: std::ops::Range<usize>| {
+            for i in range {
+                let v = f(&rows[i]);
+                for (k, p) in dst.iter().enumerate() {
+                    // SAFETY: distinct `i` write disjoint in-bounds slots of each of the
+                    // `N` windows, each exactly once. The windows stay borrowed until the
+                    // fill pass that runs this writer has joined.
+                    unsafe { p.add(i).write(v[k]) };
+                }
+            }
+        };
+        self.writers.lock().expect("no writer panicked").push(Box::new(writer));
+    }
+
+    /// Run every queued writer, in one parallel pass over the rows.
+    fn run(&self) {
+        let writers = std::mem::take(&mut *self.writers.lock().expect("no writer panicked"));
+        // One task per block of rows; every writer covers the block while its rows are in cache.
+        parallel::for_each(self.rows.div_ceil(FILL_ROWS), |task| {
+            let range = task * FILL_ROWS..((task + 1) * FILL_ROWS).min(self.rows);
+            for writer in &writers {
+                writer(range.clone());
             }
         });
     }
 
     /// The `5·n` columns of a table's accesses, one kind at a time.
-    fn accesses<R: Sync>(&self, out: &mut [ColumnOut], rows: &[R], acc: Acc, f: impl Fn(&R) -> &[Access] + Sync) {
+    fn accesses<R: Sync>(&self, out: &mut [ColumnOut], rows: &'a [R], acc: Acc, f: fn(&R) -> &[Access]) {
         let mask = (1u32 << RANGE_LOG) - 1;
+        let (range_lo, range_hi) = (self.range_lo, self.range_hi);
         for i in 0..acc.n {
-            self.col(out, rows, acc.x(i), |r| f(r)[i].x);
-            self.col(out, rows, acc.lo(i), |r| self.range_lo[(f(r)[i].gap & mask) as usize]);
-            self.col(out, rows, acc.hi(i), |r| {
-                self.range_hi[(f(r)[i].gap >> RANGE_LOG) as usize]
+            // One writer per access: its previous timestamp, its gap's two range entries, their two counts.
+            let at = [acc.x(i), acc.lo(i), acc.hi(i), acc.count_lo(i), acc.count_hi(i)];
+            self.cols_at(out, rows, at, move |r| {
+                let a = &f(r)[i];
+                [
+                    a.x,
+                    range_lo[(a.gap & mask) as usize],
+                    range_hi[(a.gap >> RANGE_LOG) as usize],
+                    a.count_lo,
+                    a.count_hi,
+                ]
             });
-            self.col(out, rows, acc.count_lo(i), |r| f(r)[i].count_lo);
-            self.col(out, rows, acc.count_hi(i), |r| f(r)[i].count_hi);
         }
     }
 }
@@ -277,8 +327,9 @@ impl<'a> FillCtx<'a> {
 /// Fill one table's columns and check that every window was written. The stack is
 /// allocated uninitialized, so a column the table forgot would be read as
 /// indeterminate bytes rather than caught by a length mismatch.
-pub(crate) fn fill_table(table: &dyn Table, ctx: &FillCtx, out: &mut [ColumnOut]) {
+pub(crate) fn fill_table<'a>(table: &'a dyn Table, ctx: &FillCtx<'a>, out: &mut [ColumnOut]) {
     table.fill(ctx, out);
+    ctx.run();
     assert_eq!(ctx.written.len(), table.n_committed_columns());
     let all = ctx.written.iter().all(|w| w.load(std::sync::atomic::Ordering::Relaxed));
     assert!(all, "a table left one of its columns unwritten");
@@ -321,7 +372,7 @@ pub trait Table: Sync {
     /// window, already at its final length. Every window must be written in full;
     /// use `FillCtx::col` / `FillCtx::cols`, which record the coverage `fill_table`
     /// checks.
-    fn fill(&self, ctx: &FillCtx, out: &mut [ColumnOut]);
+    fn fill<'a>(&'a self, ctx: &FillCtx<'a>, out: &mut [ColumnOut]);
 }
 
 // ---- the classes -------------------------------------------------------------
@@ -368,6 +419,9 @@ pub enum Ram {
     Block,
 }
 
+/// One instance's `z`, `A·z` and `B·z` from its input words, into zeroed buffers.
+pub type InstanceWitness = fn(&[u64], &mut [u64], &mut [u64], &mut [u64]);
+
 /// What specializes the class table to one instruction class.
 pub struct ClassSpec {
     pub class: Class,
@@ -378,6 +432,10 @@ pub struct ClassSpec {
     pub control: bool,
     pub ram: Ram,
     pub circuit: fn() -> Circuit,
+    /// One instance's witness by word arithmetic, when the class has it.
+    ///
+    /// It writes what the walk of the circuit's gate list would, which a test pins.
+    pub witness: Option<InstanceWitness>,
     /// `log2` of the bits one instance of the circuit occupies. A constant, because
     /// the layout needs it before any circuit is built; [`crate::class_flock`] checks it.
     pub k_log: usize,
@@ -426,6 +484,7 @@ pub static ALU: ClassSpec = ClassSpec {
     control: true,
     ram: Ram::None,
     circuit: rv::circuits::alu,
+    witness: None,
     k_log: 10,
     ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out, Word::Taken],
     n_inputs: 4,
@@ -436,6 +495,7 @@ pub static LOAD: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::Read,
     circuit: rv::circuits::load,
+    witness: None,
     k_log: 10,
     ports: &[
         Word::V1,
@@ -453,6 +513,7 @@ pub static STORE: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::Write,
     circuit: rv::circuits::store,
+    witness: None,
     k_log: 10,
     ports: &[
         Word::V1,
@@ -473,6 +534,7 @@ pub static SHIFT: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::None,
     circuit: rv::circuits::shift,
+    witness: None,
     k_log: 10,
     ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
     n_inputs: 4,
@@ -483,6 +545,7 @@ pub static MUL: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::None,
     circuit: rv::circuits::mul,
+    witness: None,
     k_log: 12,
     ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
     n_inputs: 3,
@@ -493,6 +556,7 @@ pub static MULH: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::None,
     circuit: rv::circuits::mulh,
+    witness: None,
     k_log: 13,
     ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
     n_inputs: 3,
@@ -504,6 +568,7 @@ pub static DIV: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::None,
     circuit: rv::circuits::div,
+    witness: None,
     k_log: 13,
     ports: &[
         Word::V1,
@@ -525,6 +590,7 @@ pub static HASH: ClassSpec = ClassSpec {
     control: false,
     ram: Ram::Block,
     circuit: rv::circuits::blake2s,
+    witness: Some(rv::circuits::blake2s_witness),
     k_log: 14,
     ports: &[
         Word::V2,
@@ -576,6 +642,9 @@ pub(crate) fn word_columns(t: usize) -> Vec<(usize, usize)> {
 /// an entry, where the program is zero.
 pub const BAD_SLOT: usize = 13;
 
+/// Bytecode slot binding the exit selector.
+pub const EXIT_SLOT: usize = 14;
+
 /// A class table's local columns: `pc, ts, a1, a2, pc4, v1, v2, flags`, then the
 /// optional groups in the order of the fields below, then the accesses and the
 /// bytecode read's count.
@@ -592,7 +661,7 @@ struct Cols {
     flags: usize,
     /// The register write: `ad`, what it held, and `out`. A hash row has none.
     rd: Option<usize>,
-    /// `dt`, `link`, `jalr`, then `taken`.
+    /// The target offset, link, indirect jump, taken bit, and exit selector.
     control: Option<usize>,
     /// The immediate, which a hash row has not.
     imm: Option<usize>,
@@ -616,7 +685,7 @@ impl Cols {
         let (pc, ts, a1, a2, pc4) = (take(1), take(1), take(1), take(1), take(1));
         let (v1, v2, flags) = (take(1), take(1), take(1));
         let rd = spec.writes_register().then(|| take(3));
-        let control = spec.control.then(|| take(4));
+        let control = spec.control.then(|| take(5));
         let imm = spec.ports.contains(&Word::Imm).then(|| take(1));
         let (ram, block) = match spec.ram {
             Ram::None => (None, None),
@@ -744,7 +813,11 @@ impl Table for ClassTable {
             }
             (_, rd) => (Col(c.pc4), rd.map(|ad| Col(ad + 2)), Vec::new()),
         };
-        f.state(c.pc, c.ts, npc, self.spec.stride());
+        // Only an exit can meet the terminal marker; zero-clock padding stays inert.
+        let exit = c
+            .control
+            .map_or(Const(F64::ZERO), |dt| Prod(dt + 4, c.ts, self.spec.stride()));
+        f.state(c.pc, c.ts, npc, self.spec.stride(), exit);
         // A row without a register write or an immediate reads their constants off
         // the entry: the sink, and zero.
         let mut entry = vec![
@@ -764,6 +837,8 @@ impl Table for ClassTable {
             entry.resize(BAD_SLOT, Const(F64::ZERO));
             entry.push(Col(bad));
         }
+        entry.resize(EXIT_SLOT, Const(F64::ZERO));
+        entry.push(c.control.map_or(Const(F64::ZERO), |dt| Col(dt + 4)));
         f.counted(entry, c.rbc);
         let [s1, s2, sd] = REG_SLOTS;
         f.access(SEP_REG, Col(c.a1), c.ts, c.acc, 0, s1, Col(c.v1), Col(c.v1));
@@ -790,12 +865,12 @@ impl Table for ClassTable {
             }
         }
     }
-    fn fill(&self, ctx: &FillCtx, out: &mut [ColumnOut]) {
+    fn fill<'a>(&'a self, ctx: &FillCtx<'a>, out: &mut [ColumnOut]) {
         let c = &self.cols;
         let rows: &[Row] = &ctx.trace.rows[self.index];
         let p = ctx.program;
-        let entry = |r: &Row| &p.entries[r.index as usize];
-        ctx.cols(out, rows, c.pc, |r| {
+        let entry = move |r: &Row| &p.entries[r.index as usize];
+        ctx.cols(out, rows, c.pc, move |r| {
             let (e, pc) = (entry(r), p.pc_of(r.index as usize));
             [
                 F64(pc),
@@ -809,40 +884,43 @@ impl Table for ClassTable {
             ]
         });
         if let Some(ad) = c.rd {
-            ctx.cols(out, rows, ad, |r| [F64(entry(r).ad as u64), F64(r.vd_old), F64(r.out)]);
+            ctx.cols(out, rows, ad, move |r| {
+                [F64(entry(r).ad as u64), F64(r.vd_old), F64(r.out)]
+            });
         }
         if let Some(dt) = c.control {
-            ctx.cols(out, rows, dt, |r| {
+            ctx.cols(out, rows, dt, move |r| {
                 let e = entry(r);
                 [
                     F64(p.dt_of(r.index as usize)),
                     F64(e.link as u64),
                     F64(e.jalr as u64),
                     F64(r.taken as u64),
+                    F64((e.target == rv::Target::Halt) as u64),
                 ]
             });
         }
         if let Some(imm) = c.imm {
-            ctx.col(out, rows, imm, |r| F64(entry(r).imm));
+            ctx.col(out, rows, imm, move |r| F64(entry(r).imm));
         }
         if let Some(address) = c.ram {
-            ctx.cols(out, rows, address, |r| [F64(r.ram.address), F64(r.ram.old)]);
+            ctx.cols(out, rows, address, move |r| [F64(r.ram.address), F64(r.ram.old)]);
             if self.spec.ram == Ram::Write {
-                ctx.col(out, rows, address + 2, |r| F64(r.ram.new));
+                ctx.col(out, rows, address + 2, move |r| F64(r.ram.new));
             }
         }
         if let Some(block) = c.block {
             fn hash(r: &Row) -> &HashRow {
                 r.hash.as_ref().expect("a hash row has its block")
             }
-            ctx.cols(out, rows, block, |r| hash(r).block.map(F64));
+            ctx.cols(out, rows, block, move |r| hash(r).block.map(F64));
             ctx.cols(out, rows, block + hash::WORDS, |r| hash(r).out.map(F64));
         }
         if let Some(bad) = c.bad {
-            ctx.col(out, rows, bad, |_| F64::ZERO);
+            ctx.col(out, rows, bad, move |_| F64::ZERO);
         }
         ctx.accesses(out, rows, c.acc, Row::accesses);
-        ctx.col(out, rows, c.rbc, |r| r.bytecode_read);
+        ctx.col(out, rows, c.rbc, move |r| r.bytecode_read);
     }
 }
 

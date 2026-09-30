@@ -1,6 +1,6 @@
-/* ACT4's test layout on leanVM's memory map (guests/link.ld): the code in the text,
-   every other section in RAM past the input words, and one word of advice. Sail runs
-   the same file on the regions sail.json describes, so the two agree on every address.
+/* ACT4's test layout on leanVM's memory map (sdk/link.ld): the code in the text,
+   every other section in RAM, and one word of advice. Sail runs the same file on the
+   regions sail.json describes, so the two agree on every address.
    RAM is the smallest power of two holding the image, the loader reading its size off
    __stack_top: the tests use no stack. */
 OUTPUT_ARCH("riscv")
@@ -22,9 +22,7 @@ SECTIONS {
   .text.rvtest : { *(.text.rvtest) *(.text.rvtest.*) } > TEXT
   .text.rvmodel : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > TEXT
 
-  /* RAM's first four words are the run's public input: nothing is loaded there, and a
-     section reserving them would make GNU ld write zeros there into the data segment. */
-  .data ORIGIN(RAM) + 32 : {
+  .data ORIGIN(RAM) : {
     *(.rodata) *(.rodata.*) *(.srodata) *(.srodata.*)
     *(.data) *(.data.*) *(.sdata) *(.sdata.*)
   } > RAM
