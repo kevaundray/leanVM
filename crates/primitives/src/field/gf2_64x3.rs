@@ -26,7 +26,7 @@ use super::gf2_64::F64;
 )))]
 use super::gf2_64::mul_wide;
 #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
-use super::gf2_64::{reduce, square_wide};
+use super::gf2_64::square_wide;
 
 /// An element `c0 + c1*y + c2*y^2`; bit `i` of each coefficient is its coefficient of `x^i`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -365,11 +365,19 @@ impl F192Unreduced {
         {
             aarch64::reduce(self)
         }
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "avx2"))]
+        {
+            // SAFETY: avx2 is enabled at compile time.
+            unsafe { x86_64::reduce(self) }
+        }
+        #[cfg(not(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "avx2")
+        )))]
         {
             let [c0, c1, c2] = self
                 .coeffs
-                .map(|[lo, hi]| reduce(u128::from(hi) << 64 | u128::from(lo)));
+                .map(|[lo, hi]| super::gf2_64::reduce(u128::from(hi) << 64 | u128::from(lo)));
             F192 { c0, c1, c2 }
         }
     }
@@ -704,29 +712,107 @@ pub mod x86_64 {
         }
     }
 
-    /// Lane-wise base reduction: qword `i` of the result is the reduction of `hi[i] * x^64 + lo[i]`.
-    ///
-    /// The same shift network as the scalar reduction, applied to every qword at once.
+    /// Reduce all three coefficients in one YMM register, never leaving the vector unit.
     ///
     /// # Safety
     ///
     /// Requires the `avx2` target feature.
-    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2"))]
+    #[cfg(target_feature = "avx2")]
     #[inline]
     #[target_feature(enable = "avx2")]
+    pub unsafe fn reduce(u: F192Unreduced) -> F192 {
+        // SAFETY: the function carries avx2; the reinterprets are between values of equal size.
+        unsafe {
+            let [d0, d1, d2] = u.coeffs.map(|c| transmute::<[u64; 2], __m128i>(c));
+            // Interleaving [d0 | d2] with [d1 | d2] gives the low and high words of [c0, c1 | c2, c2].
+            let (x, y) = (_mm256_set_m128i(d2, d0), _mm256_set_m128i(d2, d1));
+            let r = reduce_lanes256(_mm256_unpacklo_epi64(x, y), _mm256_unpackhi_epi64(x, y));
+            let [c0, c1, c2, _] = transmute::<__m256i, [u64; 4]>(r);
+            F192::new(c0, c1, c2)
+        }
+    }
+
+    /// `GF2P8AFFINEQB` matrices for `hi * 0x1B`, taken a byte of `hi` at a time.
+    ///
+    /// `FOLD` maps a byte to the low byte of its product by `0x1B`, `CARRY` to the byte that product carries into the
+    /// next, and `SPILL` to the low byte of `CARRY`'s output times `0x1B` again: the carry out of the top byte, folded
+    /// back into byte 0. Output bit `i` is the parity of the input byte against byte `7 - i` of the matrix.
+    #[cfg(target_feature = "gfni")]
+    const FOLD: i64 = byte_matrix(0, false);
+    #[cfg(target_feature = "gfni")]
+    const CARRY: i64 = byte_matrix(8, false);
+    #[cfg(target_feature = "gfni")]
+    const SPILL: i64 = byte_matrix(8, true);
+
+    /// The carry-less product of a byte and `0x1B`.
+    #[cfg(target_feature = "gfni")]
+    const fn times_0x1b(x: u8) -> u16 {
+        let x = x as u16;
+        x ^ x << 1 ^ x << 3 ^ x << 4
+    }
+
+    /// The matrix of the byte map `x -> (x * 0x1B) >> shift`, times `0x1B` once more if `refold`, truncated to a byte.
+    #[cfg(target_feature = "gfni")]
+    const fn byte_matrix(shift: u32, refold: bool) -> i64 {
+        let mut m = 0u64;
+        let mut j = 0;
+        while j < 8 {
+            let mut column = (times_0x1b(1 << j) >> shift) as u8;
+            if refold {
+                column = times_0x1b(column) as u8;
+            }
+            let mut i = 0;
+            while i < 8 {
+                m |= ((column >> i & 1) as u64) << (8 * (7 - i) + j);
+                i += 1;
+            }
+            j += 1;
+        }
+        m as i64
+    }
+
+    /// Lane-wise base reduction: qword `i` of the result is the reduction of `hi[i] * x^64 + lo[i]`.
+    ///
+    /// The same shift network as the scalar reduction, applied to every qword at once. With GFNI, byte `j` of
+    /// `hi * 0x1B` is `FOLD` of byte `j` plus `CARRY` of byte `j - 1`, and byte 0 also takes `SPILL` of the top byte:
+    ///
+    /// ```text
+    ///     result = lo ^ FOLD(hi) ^ CARRY(hi << 8) ^ SPILL(hi >> 56)
+    /// ```
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(target_feature = "avx2")]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    #[cfg_attr(target_feature = "gfni", target_feature(enable = "gfni"))]
     unsafe fn reduce_lanes256(lo: __m256i, hi: __m256i) -> __m256i {
-        // The bits of `hi * 0x1B` shifted past x^63.
-        let spill = _mm256_xor_si256(
-            _mm256_xor_si256(_mm256_srli_epi64::<63>(hi), _mm256_srli_epi64::<61>(hi)),
-            _mm256_srli_epi64::<60>(hi),
-        );
-        // lo ^ f(hi ^ spill), with f(v) = v ^ v<<1 ^ v<<3 ^ v<<4.
-        let v = _mm256_xor_si256(hi, spill);
-        let f = _mm256_xor_si256(
-            _mm256_xor_si256(v, _mm256_slli_epi64::<1>(v)),
-            _mm256_xor_si256(_mm256_slli_epi64::<3>(v), _mm256_slli_epi64::<4>(v)),
-        );
-        _mm256_xor_si256(lo, f)
+        #[cfg(target_feature = "gfni")]
+        {
+            let affine = |x, m| _mm256_gf2p8affine_epi64_epi8::<0>(x, _mm256_set1_epi64x(m));
+            let folded = _mm256_xor_si256(lo, affine(hi, FOLD));
+            let carried = _mm256_xor_si256(
+                affine(_mm256_slli_epi64::<8>(hi), CARRY),
+                affine(_mm256_srli_epi64::<56>(hi), SPILL),
+            );
+            _mm256_xor_si256(folded, carried)
+        }
+        #[cfg(not(target_feature = "gfni"))]
+        {
+            // The bits of `hi * 0x1B` shifted past x^63.
+            let spill = _mm256_xor_si256(
+                _mm256_xor_si256(_mm256_srli_epi64::<63>(hi), _mm256_srli_epi64::<61>(hi)),
+                _mm256_srli_epi64::<60>(hi),
+            );
+            // lo ^ f(hi ^ spill), with f(v) = v ^ v<<1 ^ v<<3 ^ v<<4.
+            let v = _mm256_xor_si256(hi, spill);
+            let f = _mm256_xor_si256(
+                _mm256_xor_si256(v, _mm256_slli_epi64::<1>(v)),
+                _mm256_xor_si256(_mm256_slli_epi64::<3>(v), _mm256_slli_epi64::<4>(v)),
+            );
+            _mm256_xor_si256(lo, f)
+        }
     }
 
     /// Lane-wise base reduction on eight qwords; see the four-qword version.
@@ -737,19 +823,31 @@ pub mod x86_64 {
     #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     #[inline]
     #[target_feature(enable = "avx512f")]
+    #[cfg_attr(target_feature = "gfni", target_feature(enable = "gfni"))]
     unsafe fn reduce_lanes512(lo: __m512i, hi: __m512i) -> __m512i {
-        // The bits of `hi * 0x1B` shifted past x^63.
-        let spill = _mm512_xor_si512(
-            _mm512_xor_si512(_mm512_srli_epi64::<63>(hi), _mm512_srli_epi64::<61>(hi)),
-            _mm512_srli_epi64::<60>(hi),
-        );
-        // lo ^ f(hi ^ spill), with f(v) = v ^ v<<1 ^ v<<3 ^ v<<4.
-        let v = _mm512_xor_si512(hi, spill);
-        let f = _mm512_xor_si512(
-            _mm512_xor_si512(v, _mm512_slli_epi64::<1>(v)),
-            _mm512_xor_si512(_mm512_slli_epi64::<3>(v), _mm512_slli_epi64::<4>(v)),
-        );
-        _mm512_xor_si512(lo, f)
+        #[cfg(target_feature = "gfni")]
+        {
+            let affine = |x, m| _mm512_gf2p8affine_epi64_epi8::<0>(x, _mm512_set1_epi64(m));
+            let folded = _mm512_xor_si512(lo, affine(hi, FOLD));
+            let carried = _mm512_xor_si512(
+                affine(_mm512_slli_epi64::<8>(hi), CARRY),
+                affine(_mm512_srli_epi64::<56>(hi), SPILL),
+            );
+            _mm512_xor_si512(folded, carried)
+        }
+        #[cfg(not(target_feature = "gfni"))]
+        {
+            let spill = _mm512_xor_si512(
+                _mm512_xor_si512(_mm512_srli_epi64::<63>(hi), _mm512_srli_epi64::<61>(hi)),
+                _mm512_srli_epi64::<60>(hi),
+            );
+            let v = _mm512_xor_si512(hi, spill);
+            let f = _mm512_xor_si512(
+                _mm512_xor_si512(v, _mm512_slli_epi64::<1>(v)),
+                _mm512_xor_si512(_mm512_slli_epi64::<3>(v), _mm512_slli_epi64::<4>(v)),
+            );
+            _mm512_xor_si512(lo, f)
+        }
     }
 
     /// The y-folded Karatsuba products of two pairs, one pair per 128-bit lane.
