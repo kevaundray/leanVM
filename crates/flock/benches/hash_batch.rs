@@ -9,10 +9,17 @@
 //! ```text
 //! BENCH_TRACING=1 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch
 //! ```
+//!
+//! With `-- --json` it prints, in place of the report, the proving time (witness
+//! excluded, as in the report's throughput) as Bencher Metric Format JSON, for CI.
+//!
+//! ```text
+//! FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch -- --json
+//! ```
 
 use std::time::Instant;
 
-use bench::{Plan, Timing};
+use bench::{Metric, Plan, Timing, bencher_json};
 use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
 use flock::hash::{
     Blake2sSetup, Compression, K_LOG, generate_witness_with_ab_packed_and_lincheck, min_n_blocks_log,
@@ -154,6 +161,15 @@ fn main() {
         );
         vs.finish().expect("transcript fully consumed");
     });
+
+    if std::env::args().any(|arg| arg == "--json") {
+        let report = [(
+            format!("flock-hash-batch-{n}"),
+            vec![("latency", Metric::nanoseconds(&prove))],
+        )];
+        println!("{}", bencher_json(&report));
+        return;
+    }
 
     // Every share is against the whole pass, never against the sum of the named
     // stages, so the "other" line carries the real remainder.
