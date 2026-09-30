@@ -8,8 +8,9 @@ name: Track benchmarks
 #
 # A PR's results go to the Bencher branch `pr/<number>`, started from its base branch
 # at the base commit with the base's thresholds, and Bencher comments on the PR. A push
-# to a tracked branch sets that branch's thresholds: any cycles increase on
-# ubuntu-latest fails, a proving machine's latency alerts only report.
+# to a tracked branch sets that branch's thresholds: any increase in an exact count
+# (cycles, proven-rows, committed) on ubuntu-latest fails, a proving machine's latency
+# alerts only report.
 #
 # The PR's run wrote everything read here, a fork's with its own copy of bench.yml. So
 # the PR is not taken from its `pr-event`: only its number is, and GitHub's API must say
@@ -93,9 +94,12 @@ jobs:
             [[ $testbed =~ ^[A-Za-z0-9_-]+$ ]] || { echo "not a testbed name: $testbed"; exit 1; }
             args=()
             if [ "$testbed" = ubuntu-latest ]; then
-              # Exact counts: any increase is a regression.
-              thresholds=(--threshold-measure cycles --threshold-test percentage
-                --threshold-max-sample-size 1 --threshold-upper-boundary 0.0)
+              # Exact counts: any increase in any of them is a regression.
+              thresholds=()
+              for measure in cycles proven-rows committed; do
+                thresholds+=(--threshold-measure "$measure" --threshold-test percentage
+                  --threshold-max-sample-size 1 --threshold-upper-boundary 0.0)
+              done
               args+=(--error-on-alert)
             else
               # Reported, not failed on, until each machine's noise is known.
