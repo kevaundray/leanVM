@@ -232,37 +232,13 @@ pub fn mul2(a: [F192; 2], b: [F192; 2]) -> [F192; 2] {
 /// Four independent products.
 #[inline(always)]
 pub fn mul4(a: [F192; 4], b: [F192; 4]) -> [F192; 4] {
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-    // SAFETY: both features are enabled at compile time.
-    return unsafe { x86_64::mul_vec4(a, b) };
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
-    {
-        let lo = mul2([a[0], a[1]], [b[0], b[1]]);
-        let hi = mul2([a[2], a[3]], [b[2], b[3]]);
-        [lo[0], lo[1], hi[0], hi[1]]
-    }
+    (F192x4::new(a) * F192x4::new(b)).to_array()
 }
 
 /// Four independent products without the reduction, for a caller XOR-accumulating many products.
 #[inline(always)]
 pub fn mul_unreduced4(a: [F192; 4], b: [F192; 4]) -> [F192Unreduced; 4] {
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-    // SAFETY: both features are enabled at compile time.
-    return unsafe { x86_64::mul_unreduced_vec4(a, b) };
-    #[cfg(all(
-        target_arch = "x86_64",
-        target_feature = "vpclmulqdq",
-        target_feature = "avx2",
-        not(target_feature = "avx512f")
-    ))]
-    // SAFETY: both features are enabled at compile time.
-    return unsafe {
-        let lo = x86_64::mul_unreduced_vec2([a[0], a[1]], [b[0], b[1]]);
-        let hi = x86_64::mul_unreduced_vec2([a[2], a[3]], [b[2], b[3]]);
-        [lo[0], lo[1], hi[0], hi[1]]
-    };
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
-    std::array::from_fn(|i| a[i].mul_unreduced(b[i]))
+    F192x4::new(a).mul_unreduced(F192x4::new(b)).to_array()
 }
 
 /// Eight mixed products `t * k[i]` by one shared `E` scalar.
@@ -275,6 +251,199 @@ pub fn mul_base8(t: F192, k: [F64; 8]) -> [F192; 8] {
     return unsafe { x86_64::mul_base8(t, k) };
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     k.map(|k| t.mul_base(k))
+}
+
+/// Four elements, for chains of batched products and sums.
+///
+/// On AVX-512 the four live in two registers, one element per 128-bit lane, so a chain packs its operands once and
+/// unpacks its results once; elsewhere they are four scalars. [`F192x4::load`] reads four elements already in
+/// memory with full-width loads; [`F192x4::new`] builds from values in registers, which such a load would read back
+/// through a store it cannot forward from.
+#[derive(Clone, Copy, Debug)]
+pub struct F192x4(Quad);
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+type Quad = x86_64::Lanes4;
+#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+type Quad = [F192; 4];
+
+impl F192x4 {
+    /// The same element in all four places.
+    #[inline(always)]
+    pub fn splat(e: F192) -> Self {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return Self(unsafe { x86_64::Lanes4::splat(e) });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        Self([e; 4])
+    }
+
+    /// Four elements held in registers.
+    #[inline(always)]
+    pub fn new(e: [F192; 4]) -> Self {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return Self(unsafe { x86_64::Lanes4::new(e) });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        Self(e)
+    }
+
+    /// Four elements in memory.
+    #[inline(always)]
+    pub fn load(e: &[F192; 4]) -> Self {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return Self(unsafe { x86_64::Lanes4::load(e) });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        Self(*e)
+    }
+
+    /// Write the four elements to memory.
+    #[inline(always)]
+    pub fn store(self, out: &mut [F192; 4]) {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        unsafe {
+            self.0.store(out)
+        };
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        {
+            *out = self.0;
+        }
+    }
+
+    #[inline(always)]
+    pub fn to_array(self) -> [F192; 4] {
+        let mut out = [F192::ZERO; 4];
+        self.store(&mut out);
+        out
+    }
+
+    /// Four independent products without the reduction, for a caller XOR-accumulating many products.
+    #[inline(always)]
+    pub fn mul_unreduced(self, rhs: Self) -> F192x4Unreduced {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return F192x4Unreduced(unsafe { self.0.mul_unreduced(rhs.0) });
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "vpclmulqdq",
+            target_feature = "avx2",
+            not(target_feature = "avx512f")
+        ))]
+        // SAFETY: both features are enabled at compile time.
+        return unsafe {
+            let (a, b) = (self.0, rhs.0);
+            let lo = x86_64::mul_unreduced_vec2([a[0], a[1]], [b[0], b[1]]);
+            let hi = x86_64::mul_unreduced_vec2([a[2], a[3]], [b[2], b[3]]);
+            F192x4Unreduced([lo[0], lo[1], hi[0], hi[1]])
+        };
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
+        F192x4Unreduced(std::array::from_fn(|i| self.0[i].mul_unreduced(rhs.0[i])))
+    }
+}
+
+impl Add for F192x4 {
+    type Output = Self;
+    #[inline(always)]
+    fn add(self, rhs: Self) -> Self {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return Self(unsafe { self.0.add(rhs.0) });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        Self(std::array::from_fn(|i| self.0[i] + rhs.0[i]))
+    }
+}
+
+impl AddAssign for F192x4 {
+    #[inline(always)]
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
+impl Mul for F192x4 {
+    type Output = Self;
+    /// Four independent products.
+    #[inline(always)]
+    fn mul(self, rhs: Self) -> Self {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return Self(unsafe { self.0.mul(rhs.0) });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        {
+            let (a, b) = (self.0, rhs.0);
+            let lo = mul2([a[0], a[1]], [b[0], b[1]]);
+            let hi = mul2([a[2], a[3]], [b[2], b[3]]);
+            Self([lo[0], lo[1], hi[0], hi[1]])
+        }
+    }
+}
+
+/// Four [`F192Unreduced`] values, lane-resident like [`F192x4`].
+#[derive(Clone, Copy, Debug)]
+pub struct F192x4Unreduced(QuadUnreduced);
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+type QuadUnreduced = x86_64::Lanes4Unreduced;
+#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+type QuadUnreduced = [F192Unreduced; 4];
+
+impl F192x4Unreduced {
+    pub const ZERO: Self = {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        let zero = x86_64::Lanes4Unreduced::ZERO;
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        let zero = [F192Unreduced::ZERO; 4];
+        Self(zero)
+    };
+
+    #[inline(always)]
+    pub fn reduce(self) -> F192x4 {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return F192x4(unsafe { self.0.reduce() });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        F192x4(self.0.map(F192Unreduced::reduce))
+    }
+
+    #[inline(always)]
+    pub fn to_array(self) -> [F192Unreduced; 4] {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return unsafe { self.0.to_array() };
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        self.0
+    }
+
+    /// The sum of the four values.
+    #[inline(always)]
+    pub fn sum(self) -> F192Unreduced {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return unsafe { self.0.sum() };
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        self.0.into_iter().fold(F192Unreduced::ZERO, |acc, u| acc ^ u)
+    }
+}
+
+impl BitXor for F192x4Unreduced {
+    type Output = Self;
+    #[inline(always)]
+    fn bitxor(self, rhs: Self) -> Self {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        // SAFETY: both features are enabled at compile time.
+        return Self(unsafe { self.0.xor(rhs.0) });
+        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        Self(std::array::from_fn(|i| self.0[i] ^ rhs.0[i]))
+    }
+}
+
+impl BitXorAssign for F192x4Unreduced {
+    #[inline(always)]
+    fn bitxor_assign(&mut self, rhs: Self) {
+        *self = *self ^ rhs;
+    }
 }
 
 /// Eight `E` weights, laid out once for [`dot_base`].
@@ -915,68 +1084,185 @@ pub mod x86_64 {
         }
     }
 
-    /// The y-folded Karatsuba products of four pairs, one pair per 128-bit lane.
+    /// Four elements, one per 128-bit lane: lane `i` of `lo` is `[c0, c1]` of element `i`, lane `i` of `c2` is
+    /// `[c2, c2]`.
     ///
-    /// # Safety
+    /// A product picks its operand qwords with the CLMUL immediate, as the scalar one does, from `lo`, `c2` and
+    /// two registers derived in-lane, so no product moves data across lanes:
     ///
-    /// Requires the `vpclmulqdq` and `avx512f` target features.
+    /// ```text
+    ///     register         lo qword     hi qword       imm 0x00    imm 0x11
+    ///     lo               c0           c1             p0          p1
+    ///     c2               c2           c2             p2
+    ///     lo ^ c2          c0 ^ c2      c1 ^ c2        p02         p12
+    ///     lo ^ swap(lo)    c0 ^ c1      c0 ^ c1        p01
+    /// ```
+    ///
+    /// Reducing `[d0, d1]` and `[d2, d2]` lane-wise returns the product in the same layout.
     #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-    #[inline]
-    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
-    unsafe fn karatsuba_vec4(a: [F192; 4], b: [F192; 4]) -> [__m512i; 3] {
-        // One coefficient of all four elements, in the low qword of each lane.
-        let pack = |c: [u64; 4]| _mm512_set_epi64(0, c[3] as i64, 0, c[2] as i64, 0, c[1] as i64, 0, c[0] as i64);
-        let (a0, a1, a2) = (pack(a.map(|e| e.c0)), pack(a.map(|e| e.c1)), pack(a.map(|e| e.c2)));
-        let (b0, b1, b2) = (pack(b.map(|e| e.c0)), pack(b.map(|e| e.c1)), pack(b.map(|e| e.c2)));
-        // One instruction per base product covers all four lanes.
-        let mul = |x, y| _mm512_clmulepi64_epi128::<0x00>(x, y);
-        let xor = |x, y| _mm512_xor_si512(x, y);
-        fold(
-            mul(a0, b0),
-            mul(a1, b1),
-            mul(a2, b2),
-            mul(xor(a0, a1), xor(b0, b1)),
-            mul(xor(a0, a2), xor(b0, b2)),
-            mul(xor(a1, a2), xor(b1, b2)),
-            xor,
-        )
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct Lanes4 {
+        lo: __m512i,
+        c2: __m512i,
     }
 
-    /// Four independent products in the four 128-bit lanes of a ZMM register.
-    ///
-    /// # Safety
-    ///
-    /// Requires the `vpclmulqdq` and `avx512f` target features.
+    /// Four unreduced values, lane `i` of `d[k]` the 128-bit coefficient of `y^k` of value `i`.
     #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-    #[inline]
-    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
-    pub unsafe fn mul_vec4(a: [F192; 4], b: [F192; 4]) -> [F192; 4] {
-        // SAFETY: the function carries both features.
-        unsafe {
-            let [d0, d1, d2] = karatsuba_vec4(a, b);
-            // Lane i of c01 is [c0_i, c1_i]; the low qword of lane i of c2 is c2_i.
-            let c01 = reduce_lanes512(_mm512_unpacklo_epi64(d0, d1), _mm512_unpackhi_epi64(d0, d1));
-            let c2 = reduce_lanes512(d2, _mm512_unpackhi_epi64(d2, d2));
-            let (w01, w2) = (transmute::<__m512i, [u64; 8]>(c01), transmute::<__m512i, [u64; 8]>(c2));
-            std::array::from_fn(|i| F192::new(w01[2 * i], w01[2 * i + 1], w2[2 * i]))
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct Lanes4Unreduced {
+        d: [__m512i; 3],
+    }
+
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    impl Lanes4 {
+        /// # Safety
+        ///
+        /// Requires the `avx512f` target feature, as does every method here.
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn splat(e: F192) -> Self {
+            Self {
+                lo: _mm512_broadcast_i32x4(pair(e.c0, e.c1)),
+                c2: _mm512_set1_epi64(e.c2 as i64),
+            }
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn new(e: [F192; 4]) -> Self {
+            let [c0, c1, c2] = [e.map(|e| e.c0 as i64), e.map(|e| e.c1 as i64), e.map(|e| e.c2 as i64)];
+            Self {
+                lo: _mm512_setr_epi64(c0[0], c1[0], c0[1], c1[1], c0[2], c1[2], c0[3], c1[3]),
+                c2: _mm512_setr_epi64(c2[0], c2[0], c2[1], c2[1], c2[2], c2[2], c2[3], c2[3]),
+            }
+        }
+
+        /// Twelve qwords `q`, element `i` at `q[3i..3i + 3]`, gathered from two overlapping loads.
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn load(e: &[F192; 4]) -> Self {
+            let q = e.as_ptr().cast::<u64>();
+            // SAFETY: both loads lie within the 96 bytes of `e`.
+            let (head, tail) = unsafe { (_mm512_loadu_si512(q.cast()), _mm512_loadu_si512(q.add(4).cast())) };
+            // Indices 0..8 pick q[0..8] from `head`, 8..16 pick q[4..12] from `tail`.
+            Self {
+                lo: _mm512_permutex2var_epi64(head, _mm512_setr_epi64(0, 1, 3, 4, 6, 7, 13, 14), tail),
+                c2: _mm512_permutex2var_epi64(head, _mm512_setr_epi64(2, 2, 5, 5, 12, 12, 15, 15), tail),
+            }
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn store(self, out: &mut [F192; 4]) {
+            // Indices 0..8 pick from `lo`, 8..16 from `c2`.
+            let head = _mm512_permutex2var_epi64(self.lo, _mm512_setr_epi64(0, 1, 8, 2, 3, 10, 4, 5), self.c2);
+            let tail = _mm512_permutex2var_epi64(self.lo, _mm512_setr_epi64(12, 6, 7, 14, 0, 0, 0, 0), self.c2);
+            let q = out.as_mut_ptr().cast::<u64>();
+            // SAFETY: both stores lie within the 96 bytes of `out`.
+            unsafe {
+                _mm512_storeu_si512(q.cast(), head);
+                _mm256_storeu_si256(q.add(8).cast(), _mm512_castsi512_si256(tail));
+            }
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn add(self, rhs: Self) -> Self {
+            Self {
+                lo: _mm512_xor_si512(self.lo, rhs.lo),
+                c2: _mm512_xor_si512(self.c2, rhs.c2),
+            }
+        }
+
+        /// The y-folded Karatsuba products, lane by lane.
+        #[inline]
+        #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+        unsafe fn karatsuba(self, rhs: Self) -> [__m512i; 3] {
+            let (a, b) = (self, rhs);
+            let xor = |x, y| _mm512_xor_si512(x, y);
+            let swap_xor = |v| xor(v, _mm512_shuffle_epi32::<0x4E>(v));
+            let (a01, b01) = (swap_xor(a.lo), swap_xor(b.lo));
+            let (a_s, b_s) = (xor(a.lo, a.c2), xor(b.lo, b.c2));
+            fold(
+                _mm512_clmulepi64_epi128::<0x00>(a.lo, b.lo),
+                _mm512_clmulepi64_epi128::<0x11>(a.lo, b.lo),
+                _mm512_clmulepi64_epi128::<0x00>(a.c2, b.c2),
+                _mm512_clmulepi64_epi128::<0x00>(a01, b01),
+                _mm512_clmulepi64_epi128::<0x00>(a_s, b_s),
+                _mm512_clmulepi64_epi128::<0x11>(a_s, b_s),
+                xor,
+            )
+        }
+
+        #[inline]
+        #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+        pub(crate) unsafe fn mul(self, rhs: Self) -> Self {
+            // SAFETY: the function carries both features.
+            unsafe { Lanes4Unreduced { d: self.karatsuba(rhs) }.reduce() }
+        }
+
+        #[inline]
+        #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+        pub(crate) unsafe fn mul_unreduced(self, rhs: Self) -> Lanes4Unreduced {
+            // SAFETY: the function carries both features.
+            Lanes4Unreduced {
+                d: unsafe { self.karatsuba(rhs) },
+            }
         }
     }
 
-    /// Four independent unreduced products, packed as for the reduced version.
-    ///
-    /// # Safety
-    ///
-    /// Requires the `vpclmulqdq` and `avx512f` target features.
     #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-    #[inline]
-    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
-    pub unsafe fn mul_unreduced_vec4(a: [F192; 4], b: [F192; 4]) -> [F192Unreduced; 4] {
-        // SAFETY: the function carries both features; lane i of each register is one coefficient.
-        unsafe {
-            let d = karatsuba_vec4(a, b).map(|d| transmute::<__m512i, [[u64; 2]; 4]>(d));
+    impl Lanes4Unreduced {
+        pub(crate) const ZERO: Self = Self {
+            // SAFETY: an all-zero bit pattern is a valid register value.
+            d: unsafe { transmute::<[u64; 24], [__m512i; 3]>([0; 24]) },
+        };
+
+        /// # Safety
+        ///
+        /// Requires the `avx512f` target feature, as does every method here.
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn xor(self, rhs: Self) -> Self {
+            Self {
+                d: [0, 1, 2].map(|k| _mm512_xor_si512(self.d[k], rhs.d[k])),
+            }
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn reduce(self) -> Lanes4 {
+            let [d0, d1, d2] = self.d;
+            // SAFETY: the function carries avx512f.
+            unsafe {
+                Lanes4 {
+                    lo: reduce_lanes512(_mm512_unpacklo_epi64(d0, d1), _mm512_unpackhi_epi64(d0, d1)),
+                    c2: reduce_lanes512(_mm512_unpacklo_epi64(d2, d2), _mm512_unpackhi_epi64(d2, d2)),
+                }
+            }
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn to_array(self) -> [F192Unreduced; 4] {
+            // SAFETY: lane i of each register is one coefficient of value i.
+            let d = self.d.map(|d| unsafe { transmute::<__m512i, [[u64; 2]; 4]>(d) });
             std::array::from_fn(|i| F192Unreduced {
                 coeffs: [d[0][i], d[1][i], d[2][i]],
             })
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub(crate) unsafe fn sum(self) -> F192Unreduced {
+            // Fold the four 128-bit lanes of each coefficient into one.
+            let lanes = self.d.map(|d| {
+                let half = _mm256_xor_si256(_mm512_castsi512_si256(d), _mm512_extracti64x4_epi64::<1>(d));
+                let q = _mm_xor_si128(_mm256_castsi256_si128(half), _mm256_extracti128_si256::<1>(half));
+                // SAFETY: the reinterpret is between 128-bit values.
+                unsafe { transmute::<__m128i, [u64; 2]>(q) }
+            });
+            F192Unreduced { coeffs: lanes }
         }
     }
     /// The six products of a shared pair of operand registers against eight packed scalars.
@@ -1186,6 +1472,17 @@ mod tests {
             assert_eq!(mul4(a, b), want);
             assert_eq!(mul_unreduced4(a, b).map(F192Unreduced::reduce), want);
             assert_eq!(mul2([a[0], a[1]], [b[0], b[1]]), [want[0], want[1]]);
+            // The lane-resident form: every constructor, and every way out.
+            let (x, y) = (F192x4::load(&a), F192x4::new(b));
+            assert_eq!(x.to_array(), a);
+            assert_eq!((x * y).to_array(), want);
+            assert_eq!((x + y).to_array(), std::array::from_fn(|i| a[i] + b[i]));
+            assert_eq!((F192x4::splat(a[1]) * y).to_array(), b.map(|b| a[1] * b));
+            let u = x.mul_unreduced(y);
+            assert_eq!(u.reduce().to_array(), want);
+            assert_eq!(u.to_array().map(F192Unreduced::reduce), want);
+            assert_eq!((u ^ u).reduce().to_array(), [F192::ZERO; 4]);
+            assert_eq!(u.sum().reduce(), want.into_iter().fold(F192::ZERO, |s, p| s + p));
         }
     }
 
