@@ -2,10 +2,11 @@
 //! Format JSON or, counted without a proof, as a markdown table.
 //!
 //! Two lists. The counts are exact and cheap, so they are taken at the README's sizes, the
-//! most one proof holds. Proving on CI's GitHub-hosted runners (16 GB) takes the sizes that
-//! fit them: leanXMSS and leanSPHINCS at a quarter, and no leanDA, whose one blob is its
-//! smallest run. A case's name is its Bencher history, so renaming one or changing its
-//! input starts a new one.
+//! most one proof holds, on one testbed: they are the same on every machine. Proving on CI's
+//! GitHub-hosted runners (16 GB) takes the sizes that fit them (leanXMSS and leanSPHINCS at a
+//! quarter, and no leanDA, whose one blob is its smallest run) and reports only the proving
+//! time, the one measure that differs between machines. A case's name is its Bencher
+//! history, so renaming one or changing its input starts a new one.
 
 use bench::{Metric, Plan, bencher_json};
 use leanvm::{Program, Stats, prove, verify};
@@ -135,10 +136,11 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
     ]
 }
 
-/// The counts, then the proof's size in bytes and the proving time.
+/// The proving time, after checking the proof: the output is the native reference's and it
+/// verifies.
 fn proved(case: &Case, log_inv_rate: usize, plan: Plan) -> Vec<(&'static str, Metric)> {
     eprintln!("{}", case.name);
-    let ((proof, output, stats), time) = plan.warm_then_measure(|_| {
+    let ((proof, output, _), time) = plan.warm_then_measure(|_| {
         prove(&case.program, &case.advice, log_inv_rate)
             .unwrap_or_else(|trap| refuse(format_args!("{}: {trap}", case.name)))
     });
@@ -148,11 +150,7 @@ fn proved(case: &Case, log_inv_rate: usize, plan: Plan) -> Vec<(&'static str, Me
         case.name
     );
     verify(&case.program, &output, &proof).expect("an honest proof verifies");
-    let proof_bytes = bincode::serialized_size(&proof).expect("proof is serializable");
-    let mut metrics = counts(&stats);
-    metrics.push(("proof-size", Metric::exact(proof_bytes as usize)));
-    metrics.push(("latency", Metric::nanoseconds(&time)));
-    metrics
+    vec![("latency", Metric::nanoseconds(&time))]
 }
 
 /// The counts as a markdown table, with the rows per table: what CI puts in each run's summary.
