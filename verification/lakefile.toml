@@ -1,0 +1,13 @@
+name = "verification"
+defaultTargets = ["Extract"]
+
+# Must be the commit of the Aeneas release `extract.sh` pins (AENEAS_RELEASE).
+[[require]]
+name = "aeneas"
+git = { url = "https://github.com/AeneasVerif/aeneas", subDir = "backends/lean" }
+rev = "b08bf81f2524ee295a8c37444893acfc9c5f4dde"
+
+# What `extract.sh` generates from the Rust, and the externals it calls.
+[[lean_lib]]
+name = "Extract"
+globs = ["Extract.+"]

@@ -1,0 +1,56 @@
+name: Aeneas
+
+# verification/: the Rust translated to Lean by Charon and Aeneas. The translation is not
+# checked in: this extracts it from the Rust with the pinned release and builds it, so a
+# Rust change Aeneas cannot translate, or whose translation does not compile, fails here.
+
+on:
+  push:
+    branches: [ "main", "riscv-exploration" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aeneas-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Must match AENEAS_RELEASE in verification/extract.sh.
+  AENEAS_RELEASE: nightly-2026.09.29-b08bf81
+
+jobs:
+  aeneas:
+    name: Extract and build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Charon and Aeneas
+        run: |
+          dir="$RUNNER_TEMP/aeneas"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 \
+            "https://github.com/AeneasVerif/aeneas/releases/download/$AENEAS_RELEASE/aeneas-linux-x86_64.tar.gz" \
+            | tar -xz -C "$dir" aeneas charon charon-driver rust-toolchain
+          echo "AENEAS_DIR=$dir" >> "$GITHUB_ENV"
+      - name: Install the nightly Charon is built against
+        run: |
+          channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' "$AENEAS_DIR/rust-toolchain")
+          rustup toolchain install "$channel" --profile minimal -c rustc-dev -c llvm-tools -c rust-src -c miri
+      - name: Extract
+        run: verification/extract.sh
+      # Installs the toolchain of verification/lean-toolchain, restores .lake, fetches
+      # Mathlib's cache (a dependency of Aeneas) and runs `lake build`.
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: verification
+          use-mathlib-cache: true
+      - name: No sorry
+        working-directory: verification
+        run: |
+          if grep -rnw sorry --include='*.lean' Extract; then
+            echo "::error::Aeneas left a sorry in the translation"
+            exit 1
+          fi
