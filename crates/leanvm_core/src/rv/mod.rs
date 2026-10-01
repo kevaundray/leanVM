@@ -61,8 +61,12 @@ pub enum Class {
     /// Add, subtract, compare, bitwise logic, branches and jumps.
     Alu,
     Shift,
+    /// The loads and stores narrower than a doubleword.
     Load,
     Store,
+    /// `ld` and `sd`: a doubleword moved between a register and its cell, with no byte to select.
+    Ld,
+    Sd,
     /// The low word of a product.
     Mul,
     /// The high word of a product.
@@ -142,9 +146,10 @@ impl Entry {
         };
         // A field a class's table holds at a constant has to be that constant.
         // A load reads no `rs2`, a store and a hash write no `rd`, and a hash has no immediate.
+        // A doubleword load or store has no flags: its table holds them at zero.
         let constants = match self.class {
-            Class::Load => self.a2 == 0,
-            Class::Store => self.ad == SINK,
+            Class::Load | Class::Ld => self.a2 == 0,
+            Class::Store | Class::Sd => self.ad == SINK,
             Class::Hash => self.ad == SINK && self.imm == 0,
             _ => true,
         };
@@ -166,6 +171,7 @@ pub fn legal_flags(class: Class) -> &'static [u64] {
         Class::Shift => &shift::LEGAL,
         Class::Load => &load::LEGAL,
         Class::Store => &store::LEGAL,
+        Class::Ld | Class::Sd => &[0],
         Class::Mul => &mul::LEGAL,
         Class::Mulh => &mulh::LEGAL,
         Class::Div => &div::LEGAL,
@@ -229,19 +235,19 @@ pub mod shift {
     pub const LEGAL: [u64; 6] = [0, RIGHT, RIGHT | ARITH, WORD, WORD | RIGHT, WORD | RIGHT | ARITH];
 }
 
-/// [`Class::Load`]'s flags: `log2` of the width in bytes, then the extension.
+/// [`Class::Load`]'s flags: `log2` of the width in bytes, then the extension. A doubleword is [`Class::Ld`].
 pub mod load {
     pub const LOG_WIDTH: u64 = 0b11;
     pub const SIGNED: u64 = 1 << 2;
 
-    pub const LEGAL: [u64; 7] = [SIGNED, SIGNED | 1, SIGNED | 2, 3, 0, 1, 2];
+    pub const LEGAL: [u64; 6] = [SIGNED, SIGNED | 1, SIGNED | 2, 0, 1, 2];
 }
 
-/// [`Class::Store`]'s flags: `log2` of the width in bytes.
+/// [`Class::Store`]'s flags: `log2` of the width in bytes. A doubleword is [`Class::Sd`].
 pub mod store {
     pub const LOG_WIDTH: u64 = 0b11;
 
-    pub const LEGAL: [u64; 4] = [0, 1, 2, 3];
+    pub const LEGAL: [u64; 3] = [0, 1, 2];
 }
 
 /// [`Class::Mul`]'s flags.

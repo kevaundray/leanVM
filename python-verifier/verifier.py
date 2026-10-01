@@ -865,8 +865,10 @@ class Flushes:
 # the register write. What a class computes is a flock circuit, and every word that circuit reads or writes (`WORDS`)
 # is a column here that lives in the circuit's packed witness: the bus is what binds the circuit to the machine. A row
 # reads rs2 only if its circuit takes v2, and writes rd only if its circuit gives out: a load's rs2 is x0, and a store's
-# and a hash's rd is the sink, so those accesses would prove nothing. The hash class also accesses the sixteen words of
-# its block, the result's four rewritten.
+# and a hash's rd is the sink, so those accesses would prove nothing. A doubleword load or store (`copies`) is the
+# exception: its circuit gives the address alone, and the word it moves is a column of its own, the cell that rd
+# receives or the v2 that the cell receives. The hash class also accesses the sixteen words of its block, the result's
+# four rewritten.
 
 CONTROL_COLUMNS = ("dt", "link", "jalr", "taken", "exit")  # the bytecode fields of a class with branches and jumps, and its taken bit
 HASH_COLUMNS = (*(f"cell_{k}" for k in range(HASH_WORDS)), *(f"cell_new_{HASH_OUT_WORD + j}" for j in range(4)))
@@ -878,31 +880,46 @@ BAD_SLOT = 12  # where a bytecode tuple holds a row's `bad` word: past every fie
 BYTECODE_PUBLIC_SLOT = 2  # an entry's first field, after the separator and the address
 
 
-def _class_columns(control: bool, ram: str, ports: Sequence[str | None]) -> tuple[str, ...]:
+def _registers(ram: str, ports: Sequence[str | None], copies: bool) -> tuple[bool, bool]:
+    """Whether a row reads rs2 and writes rd: when its circuit takes v2 and gives out, or when it is a doubleword store
+    reading the v2 it moves, or a doubleword load writing the cell it moves."""
+    return "v2" in ports or (copies and ram == "write"), "out" in ports or (copies and ram == "read")
+
+
+def _class_columns(control: bool, ram: str, ports: Sequence[str | None], copies: bool) -> tuple[str, ...]:
+    reads_rs2, writes_rd = _registers(ram, ports, copies)
+    # A doubleword store's new cell is its v2 column.
+    ram_columns = RAM_COLUMNS[ram][:2] if copies else RAM_COLUMNS[ram]
     return (
-        "pc", "ts", "a1", "pc4", "v1", "flags", *(("a2", "v2") if "v2" in ports else ()), *(("ad", "vd_old", "out") if "out" in ports else ()),
-        *(CONTROL_COLUMNS if control else ()), *(("imm",) if "imm" in ports else ()), *RAM_COLUMNS[ram], *(("bad",) if "bad" in ports else ()),
-        *(f"prev_{i}" for i in range(len(_slots(ram, ports)))), "step",
+        "pc", "ts", "a1", "pc4", "v1", *(("flags",) if "flags" in ports else ()), *(("a2", "v2") if reads_rs2 else ()),
+        *(("ad", "vd_old") if writes_rd else ()), *(("out",) if "out" in ports else ()), *(CONTROL_COLUMNS if control else ()),
+        *(("imm",) if "imm" in ports else ()), *ram_columns, *(("bad",) if "bad" in ports else ()),
+        *(f"prev_{i}" for i in range(len(_slots(ram, reads_rs2, writes_rd)))), "step",
     )  # fmt: skip
 
 
-def _slots(ram: str, ports: Sequence[str | None]) -> tuple[int, ...]:
+def _slots(ram: str, reads_rs2: bool, writes_rd: bool) -> tuple[int, ...]:
     """The clock slots of a row's accesses, in the order of their columns: the registers' it makes, then RAM's."""
-    registers = tuple(slot for slot, made in zip(REGISTER_SLOTS, (True, "v2" in ports, "out" in ports), strict=True) if made)
+    registers = tuple(slot for slot, made in zip(REGISTER_SLOTS, (True, reads_rs2, writes_rd), strict=True) if made)
     if ram == "block":
         return (*registers, *HASH_SLOTS)
     return (*registers, RAM_SLOT) if RAM_COLUMNS[ram] else registers
 
 
-def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str, ports: Sequence[str | None]) -> Flushes:
-    a1, pc4, flags, v1 = _cols(columns, "a1", "pc4", "flags", "v1")
-    # A row without an rs2 read, an rd write or an immediate reads their constants off the entry: x0, the sink, and zero.
+def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str, ports: Sequence[str | None], copies: bool) -> Flushes:
+    reads_rs2, writes_rd = _registers(ram, ports, copies)
+    a1, pc4, v1 = _cols(columns, "a1", "pc4", "v1")
+    # A row without flags, an rs2 read, an rd write or an immediate reads their constants off the entry: zero, x0, the
+    # sink, and zero.
     npc, vd, fields = _col(pc4), _const(ZERO), ()
-    a2_form, ad_form, imm_form = _const(ZERO), _const(SINK), _const(ZERO)
-    if "v2" in ports:
+    flags_form, a2_form, ad_form, imm_form = _const(ZERO), _const(ZERO), _const(SINK), _const(ZERO)
+    if "flags" in ports:
+        flags_form = _col(_cols(columns, "flags")[0])
+    if reads_rs2:
         a2_form = _col(_cols(columns, "a2")[0])
-    if "out" in ports:
-        ad, out = _cols(columns, "ad", "out")
+    if writes_rd:
+        # What rd receives: the circuit's result, or the cell a doubleword load moves.
+        ad, out = _cols(columns, "ad", "cell_0" if copies else "out")
         ad_form, vd = _col(ad), _col(out)
     if "imm" in ports:
         imm_form = _col(_cols(columns, "imm")[0])
@@ -917,7 +934,7 @@ def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str,
     # Only an exit marks its next state, exit * (ts ^ step), which only the final state meets.
     exit_marker = _prod(exit, ts) + _prod(exit, step) if control else _const(ZERO)
     flushes.state(columns, npc, exit_marker)
-    entry = (_const(_gpow(opcode)), _col(flags), _col(a1), a2_form, ad_form, imm_form, _col(pc4), *fields)
+    entry = (_const(_gpow(opcode)), flags_form, _col(a1), a2_form, ad_form, imm_form, _col(pc4), *fields)
     if "bad" in ports:
         # What the circuit asserts to be zero rides a slot where the program is zero, so the lookup makes it zero.
         entry = (*entry, *[_const(ZERO)] * (BAD_SLOT - BYTECODE_PUBLIC_SLOT - len(entry)), _col(_cols(columns, "bad")[0]))
@@ -927,14 +944,16 @@ def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str,
     # columns are numbered in the order the row makes them.
     accesses = count()
     flushes.access(columns, SEP_REG, _col(a1), next(accesses), REGISTER_SLOTS[0], _col(v1), _col(v1))
-    if "v2" in ports:
+    if reads_rs2:
         v2 = _col(_cols(columns, "v2")[0])
         flushes.access(columns, SEP_REG, a2_form, next(accesses), REGISTER_SLOTS[1], v2, v2)
-    if "out" in ports:
+    if writes_rd:
         flushes.access(columns, SEP_REG, ad_form, next(accesses), REGISTER_SLOTS[2], _col(_cols(columns, "vd_old")[0]), vd)
     if ram in ("read", "write"):
-        # The cell's address is the circuit's word, so an access outside RAM, or a misaligned one, pulls a tuple nothing pushed.
-        address, cell, cell_new = _cols(columns, "address", "cell_0", RAM_COLUMNS[ram][-1])
+        # The cell's address is the circuit's word, so an access outside RAM, or a misaligned one, pulls a tuple nothing
+        # pushed. A doubleword store leaves its v2 column there, the one its rs2 read pulls.
+        new = "v2" if copies and ram == "write" else RAM_COLUMNS[ram][-1]
+        address, cell, cell_new = _cols(columns, "address", "cell_0", new)
         flushes.access(columns, SEP_MEM, _col(address), next(accesses), RAM_SLOT, _col(cell), _col(cell_new))
     if ram == "block":
         # Word k of the block is the cell at v1 ^ 8k, which is v1 + 8k in the field; the result's words are rewritten.
@@ -956,26 +975,27 @@ class Table:
     circuit: FlockCircuit
     ports: tuple[str | None, ...]  # the circuit's port words in order: a column each, or None for a hint, which is no column
     legal_flags: frozenset[int]
+    copies: bool = False  # a doubleword load or store: the word moved is a column of its own, not a circuit word
 
     @property
     def columns(self) -> tuple[str, ...]:
-        return _class_columns(self.control, self.ram, self.ports)
+        return _class_columns(self.control, self.ram, self.ports, self.copies)
 
     @property
     def flushes(self) -> Flushes:
-        return _class_flushes(self.opcode, self.columns, self.control, self.ram, self.ports)
+        return _class_flushes(self.opcode, self.columns, self.control, self.ram, self.ports, self.copies)
 
     @property
     def slots(self) -> tuple[int, ...]:
-        return _slots(self.ram, self.ports)
+        return _slots(self.ram, self.reads_rs2, self.writes_rd)
 
     @property
     def reads_rs2(self) -> bool:
-        return "v2" in self.ports
+        return _registers(self.ram, self.ports, self.copies)[0]
 
     @property
     def writes_rd(self) -> bool:
-        return "out" in self.ports
+        return _registers(self.ram, self.ports, self.copies)[1]
 
     @cached_property
     def clock(self) -> FlockCircuit:
@@ -1502,6 +1522,16 @@ def _store() -> _GateList:
     return c
 
 
+def _word_address() -> _GateList:
+    """(v1, imm) -> address, the circuit of a doubleword load or store: the adder alone. A doubleword's misalignment
+    bits are all three low ones, so the sum itself goes on the memory bus."""
+    c = _GateList((64, 64), (64,))
+    v1, imm = c.inputs
+    for i, wire in enumerate(_add(c, v1, imm)):
+        c.output(0, i, wire)
+    return c
+
+
 def _add_with_carry(c: _GateList, x: Sequence[Wire], y: Sequence[Wire], carry: Wire) -> tuple[list[Wire], Wire]:
     """`x + y + carry`, and the carry out of the top bit: one product per bit."""
     total: list[Wire] = []
@@ -1751,17 +1781,20 @@ HASH_FINAL = 2**32 - 1
 
 TABLES = (
     Table("alu", 0, True, "none", _alu().circuit(), ("v1", "v2", "imm", "flags", "out", "taken"), ALU_LEGAL_FLAGS),
-    # A load's flags are log2 of its width in bytes, then whether it sign-extends; a store's, log2 of its width.
-    Table("load", 1, False, "read", _load().circuit(), ("v1", "imm", "flags", "cell_0", "address", "out"), frozenset(range(7))),
-    Table("store", 2, False, "write", _store().circuit(), ("v1", "v2", "imm", "flags", "cell_0", "address", "cell_new_0"), frozenset(range(4))),
+    # A load's flags are log2 of its width in bytes, then whether it sign-extends; a store's, log2 of its width. A
+    # doubleword is LD's or SD's, which have no flags: their circuit is the address alone, the word moved a column.
+    Table("load", 1, False, "read", _load().circuit(), ("v1", "imm", "flags", "cell_0", "address", "out"), frozenset((0, 1, 2, 4, 5, 6))),
+    Table("store", 2, False, "write", _store().circuit(), ("v1", "v2", "imm", "flags", "cell_0", "address", "cell_new_0"), frozenset(range(3))),
+    Table("ld", 3, False, "read", _word_address().circuit(), ("v1", "imm", "address"), frozenset((0,)), copies=True),
+    Table("sd", 4, False, "write", _word_address().circuit(), ("v1", "imm", "address"), frozenset((0,)), copies=True),
     # A shift's flags: right, arithmetic (with right), 32-bit. A product's: 32-bit; its high word's: which operands are signed.
-    Table("shift", 3, False, "none", _shift().circuit(), ("v1", "v2", "imm", "flags", "out"), frozenset((0, 1, 3, 4, 5, 7))),
-    Table("mul", 4, False, "none", _mul().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1))),
-    Table("mulh", 5, False, "none", _mulh().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1, 3))),
+    Table("shift", 5, False, "none", _shift().circuit(), ("v1", "v2", "imm", "flags", "out"), frozenset((0, 1, 3, 4, 5, 7))),
+    Table("mul", 6, False, "none", _mul().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1))),
+    Table("mulh", 7, False, "none", _mulh().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1, 3))),
     # A division's flags: signed, remainder, 32-bit. Its two hints are in its witness and in no column.
-    Table("div", 6, False, "none", _div().circuit(), ("v1", "v2", "flags", None, None, "out", "bad"), frozenset(range(8))),
+    Table("div", 8, False, "none", _div().circuit(), ("v1", "v2", "flags", None, None, "out", "bad"), frozenset(range(8))),
     # The BLAKE2s precompile: the counter is v2 and the flags are the finalization word, all ones on the last block.
-    Table("hash", 7, False, "block", _blake2s().circuit(), HASH_PORTS, frozenset((0, HASH_FINAL))),
+    Table("hash", 9, False, "block", _blake2s().circuit(), HASH_PORTS, frozenset((0, HASH_FINAL))),
 )
 
 TABLE_WIDTHS = tuple(t.width for t in TABLES)
@@ -2002,7 +2035,7 @@ def verify_execution(
     check_bytecode(bytecode)
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
-    preimage = b"leanvm-rv64im-5" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
+    preimage = b"leanvm-rv64im-6" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
     transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 

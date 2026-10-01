@@ -243,6 +243,8 @@ pub fn compute(e: &Entry, v1: u64, v2: u64, cell: u64) -> (u64, bool, RamAccess)
             false,
             ram(semantics::store(cell, address, v2, e.flags), e.flags & store::LOG_WIDTH),
         ),
+        Class::Ld => (cell, false, ram(cell, 3)),
+        Class::Sd => (0, false, ram(v2, 3)),
         Class::Hash | Class::Illegal => (0, false, none),
     }
 }
@@ -334,9 +336,13 @@ impl<'a> Machine<'a> {
         let e = self.program.entries[index];
         let (v1, v2) = (self.regs[e.a1 as usize], self.regs[e.a2 as usize]);
         let cell = match e.class {
-            Class::Load | Class::Store => {
+            Class::Load | Class::Store | Class::Ld | Class::Sd => {
                 let address = semantics::address(v1, e.imm);
-                if !semantics::is_aligned(address, e.flags & load::LOG_WIDTH) {
+                let log_width = match e.class {
+                    Class::Ld | Class::Sd => 3,
+                    _ => e.flags & load::LOG_WIDTH,
+                };
+                if !semantics::is_aligned(address, log_width) {
                     return Err(Trap::Misaligned { pc, address });
                 }
                 Some(self.cell(address)?)
@@ -358,7 +364,7 @@ impl<'a> Machine<'a> {
         // Why: the sink is never read, so a class whose destination is always the sink makes no write.
         // Its table then has no register write to prove.
         let vd_old = match e.class {
-            Class::Store | Class::Hash => 0,
+            Class::Store | Class::Sd | Class::Hash => 0,
             _ => std::mem::replace(&mut self.regs[e.ad as usize], vd),
         };
         let npc = match (e.jalr, taken) {
@@ -835,17 +841,24 @@ mod tests {
             a.exit().finish()
         };
         let pc = TEXT_BASE + 4;
-        // A misaligned load, one outside RAM, one reaching for the text.
-        let t = text(&mut |a| {
-            a.li(T0, RAM_BASE).load("lw", A0, 2, T0);
-        });
-        assert_eq!(
-            run(&t, vec![]),
-            Err(Trap::Misaligned {
-                pc,
-                address: RAM_BASE + 2
-            })
-        );
+        // Misaligned loads and stores, a doubleword one at an offset a word would allow; then one outside RAM, one reaching for the text.
+        for (op, offset) in [("lw", 2), ("ld", 4), ("ld", 1), ("sd", 4), ("sd", 2)] {
+            let t = text(&mut |a| {
+                a.li(T0, RAM_BASE);
+                match op {
+                    "sd" => a.store(op, A0, offset, T0),
+                    _ => a.load(op, A0, offset, T0),
+                };
+            });
+            assert_eq!(
+                run(&t, vec![]),
+                Err(Trap::Misaligned {
+                    pc,
+                    address: RAM_BASE + offset as u64
+                }),
+                "{op} at offset {offset}"
+            );
+        }
         let t = text(&mut |a| {
             a.li(T0, RAM_BASE).load("ld", A0, -8, T0);
         });

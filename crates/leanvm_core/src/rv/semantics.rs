@@ -82,6 +82,12 @@ pub fn is_aligned(address: u64, log_width: u64) -> bool {
     address & ((1 << log_width) - 1) == 0
 }
 
+/// [`super::Class::Ld`]'s and [`super::Class::Sd`]'s bus address: `v1 + imm` itself, a
+/// doubleword's misalignment bits being all three low ones.
+pub fn word_address(v1: u64, imm: u64) -> u64 {
+    bus_address(address(v1, imm), 3)
+}
+
 /// The value a load at `address` returns, from the 64-bit cell holding it.
 pub fn load(cell: u64, address: u64, flags: u64) -> u64 {
     let bits = 8 << (flags & load::LOG_WIDTH);

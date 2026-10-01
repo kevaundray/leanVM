@@ -165,6 +165,18 @@ pub fn store() -> Circuit {
     c.finish()
 }
 
+/// [`super::semantics::word_address`], [`super::Class::Ld`]'s and [`super::Class::Sd`]'s
+/// circuit: `(v1, imm) -> address`, the adder alone. The value moved is no word of it: the
+/// table puts the same column in the register's tuple and in the cell's.
+pub fn word_address() -> Circuit {
+    let mut c = Builder::new(&[64, 64], &[64]);
+    let (v1, imm) = (c.input(0), c.input(1));
+    for (i, wire) in add(&mut c, &v1, &imm).into_iter().enumerate() {
+        c.output(0, i, wire);
+    }
+    c.finish()
+}
+
 /// [`super::semantics::shift`]: `(v1, v2, imm, flags) -> out`. One right shifter serves
 /// both directions, a left shift being a right shift of the reversed word.
 pub fn shift() -> Circuit {
@@ -610,17 +622,31 @@ mod tests {
     }
 
     #[test]
-    fn load_and_store_are_their_references() {
-        let (load, store) = (load(), store());
+    fn loads_and_stores_are_their_references() {
+        let (load, store, word) = (load(), store(), word_address());
         assert_eq!(
             (load.k_log(), store.k_log()),
             (10, 10),
             "an instance is 16 packed words"
         );
+        assert_eq!(word.k_log(), 8, "a doubleword's instance is 4 packed words");
         let mut rng = Rng(0xA3);
         for round in 0..4000 {
             let (v1, imm, v2, cell) = (rng.word(), rng.next() % 4096, rng.word(), rng.next());
             let address = semantics::address(v1, imm);
+            // Any two words: the adder is checked whole, carries and misalignment bits included.
+            let (base, offset) = (rng.word(), rng.word());
+            let got = run(&word, &[base, offset], 2..3)[0];
+            assert_eq!(
+                got,
+                semantics::word_address(base, offset),
+                "doubleword at {base:#x} + {offset:#x}"
+            );
+            assert_eq!(
+                got & 7,
+                base.wrapping_add(offset) & 7,
+                "a misaligned doubleword names no cell"
+            );
             for &flags in &crate::rv::load::LEGAL {
                 let log_width = flags & crate::rv::load::LOG_WIDTH;
                 // Aligned every other round, which a random address seldom is.
@@ -799,7 +825,17 @@ mod tests {
         // Fixture state: 128 instances per class, two 64-lane walks.
         let n_log = 7;
         let mut rng = Rng(0xB1);
-        for circuit in [alu(), load(), store(), shift(), mul(), mulh(), div(), blake2s()] {
+        for circuit in [
+            alu(),
+            load(),
+            store(),
+            word_address(),
+            shift(),
+            mul(),
+            mulh(),
+            div(),
+            blake2s(),
+        ] {
             // Edge words (0, 1, all ones, sign bits) drive every carry and compare.
             let rows: Vec<Vec<u64>> = (0..1 << n_log)
                 .map(|_| (0..circuit.n_input_words()).map(|_| rng.word()).collect())

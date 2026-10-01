@@ -1,7 +1,7 @@
 //! The decoder: a 32-bit word at `pc` to its [`Entry`]. Anything rv64im does not
 //! define, a reserved encoding included, is [`Entry::ILLEGAL`].
 
-use super::{Class, Entry, SINK, Target, alu, div, hash, load, mul, mulh, shift, store};
+use super::{Class, Entry, SINK, Target, alu, div, hash, load, mul, mulh, shift};
 
 /// Sign-extend the low `bits` bits of `x`.
 fn sext(x: u32, bits: u32) -> u64 {
@@ -77,18 +77,15 @@ pub fn decode(word: u32, pc: u64) -> Entry {
             }
         }
         // Loads
-        0x03 => {
-            let flags = match f3 {
-                0..=2 => load::SIGNED | f3 as u64,
-                // A 64-bit load has no extension.
-                3 => 3,
-                4..=6 => (f3 - 4) as u64,
-                _ => return Entry::ILLEGAL,
-            };
-            imm(Class::Load, flags, imm_i)
-        }
+        0x03 => match f3 {
+            0..=2 => imm(Class::Load, load::SIGNED | f3 as u64, imm_i),
+            3 => imm(Class::Ld, 0, imm_i),
+            4..=6 => imm(Class::Load, (f3 - 4) as u64, imm_i),
+            _ => Entry::ILLEGAL,
+        },
         // Stores
-        0x23 if f3 <= 3 => entry(Class::Store, f3 as u64 & store::LOG_WIDTH, rs1, rs2, 0, imm_s),
+        0x23 if f3 < 3 => entry(Class::Store, f3 as u64, rs1, rs2, 0, imm_s),
+        0x23 if f3 == 3 => entry(Class::Sd, 0, rs1, rs2, 0, imm_s),
         // Register-immediate
         0x13 => match f3 {
             0 => imm(Class::Alu, 0, imm_i),
@@ -189,15 +186,24 @@ mod tests {
 
     #[test]
     fn a_skipped_register_access_names_its_constant() {
-        // Invariant: a load's `rs2` is `x0` and a store's `rd` the sink, which their tables hold as constants.
+        // Invariant: a load's `rs2` is `x0`, a store's `rd` the sink and a doubleword's flags zero, which their tables hold as constants.
         //
-        // Fixture state: `ld a0, 0(a1)` and `sd a0, 0(a1)`.
-        // Mutation: the load names `x1` as `rs2`, the store `x1` as `rd`.
-        let (load, store) = (decode(0x0005_b503, 0), decode(0x00a5_b023, 0));
-        assert_eq!((load.class, store.class), (Class::Load, Class::Store));
-        assert!(load.is_well_formed() && store.is_well_formed());
-        assert!(!Entry { a2: 1, ..load }.is_well_formed());
-        assert!(!Entry { ad: 1, ..store }.is_well_formed());
+        // Fixture state: `ld`, `sd`, `lw` and `sw` of `a0` at `0(a1)`.
+        // Mutation: the load names `x1` as `rs2`, the store `x1` as `rd`, the doubleword ones a flag.
+        for (load, store, class) in [
+            (0x0005_b503, 0x00a5_b023, (Class::Ld, Class::Sd)),
+            (0x0005_a503, 0x00a5_a023, (Class::Load, Class::Store)),
+        ] {
+            let (load, store) = (decode(load, 0), decode(store, 0));
+            assert_eq!((load.class, store.class), class);
+            assert!(load.is_well_formed() && store.is_well_formed());
+            assert!(!Entry { a2: 1, ..load }.is_well_formed());
+            assert!(!Entry { ad: 1, ..store }.is_well_formed());
+            if class.0 == Class::Ld {
+                assert!(!Entry { flags: 3, ..load }.is_well_formed());
+                assert!(!Entry { flags: 3, ..store }.is_well_formed());
+            }
+        }
     }
 
     #[test]
