@@ -354,20 +354,20 @@ impl QuaternaryLayerState {
     }
 }
 
-/// The result of a batched grand-product proof: the three roots and leaf
-/// evaluations, all reduced to one shared point. Under [`RootShape::FirstTwoShared`],
-/// `roots[0] == roots[1]` by construction rather than by a check.
-pub struct ProductTriple {
-    pub roots: [F192; 3],
+/// The result of a batched grand-product proof: the roots and leaf evaluations, all
+/// reduced to one shared point. Under [`RootShape::FirstTwoShared`], `roots[0] ==
+/// roots[1]` by construction rather than by a check.
+pub struct Products<const N: usize> {
+    pub roots: [F192; N],
     pub point: Vec<F192>,
-    pub values: [F192; 3],
+    pub values: [F192; N],
 }
 
-/// How many of the three roots ride the stream, which is a property of the statement rather than
+/// How many of the roots ride the stream, which is a property of the statement rather than
 /// of the reduction below.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RootShape {
-    /// Three unrelated products: every root is sent.
+    /// Unrelated products: every root is sent.
     Distinct,
     /// The first two trees share a product by construction, as the bus's two sides do
     /// (`cpu::filler` fills every table to a power of two, so they balance outright). ONE root
@@ -375,15 +375,29 @@ pub enum RootShape {
     FirstTwoShared,
 }
 
-/// Prove three identity-padded grand products as one RLC-batched radix-four GKR.
-pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, shape: RootShape) -> ProductTriple {
-    let mu = crate::log2_ceil_usize(leaves[0].len());
+/// `Σ_k λ^k·values[k]`, the batch's combination of one coefficient across the trees.
+fn combine<const N: usize>(values: [F192; N], lambda: F192) -> F192 {
+    values.iter().rev().fold(F192::ZERO, |acc, &v| acc * lambda + v)
+}
+
+/// Prove `N` identity-padded grand products as one RLC-batched radix-four GKR, over the
+/// depth of the tallest tree.
+pub fn prove_products<const N: usize>(
+    leaves: [ArenaVec<F192>; N],
+    ps: &mut ProverState,
+    shape: RootShape,
+) -> Products<N> {
+    let mu = leaves
+        .iter()
+        .map(|lane| crate::log2_ceil_usize(lane.len()))
+        .max()
+        .expect("at least one tree");
     assert!(
-        leaves.iter().all(|lane| !lane.is_empty() && lane.len() <= 1 << mu),
-        "batched trees must be nonempty prefixes of the first tree's logical tree"
+        leaves.iter().all(|lane| !lane.is_empty()),
+        "batched trees must be nonempty"
     );
     let mut layers = leaves.map(|lane| build_layers(lane, mu));
-    let roots = [layers[0][mu][0], layers[1][mu][0], layers[2][mu][0]];
+    let roots: [F192; N] = std::array::from_fn(|tree| layers[tree][mu][0]);
     match shape {
         RootShape::Distinct => {
             for root in roots {
@@ -392,8 +406,7 @@ pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, s
         }
         RootShape::FirstTwoShared => {
             assert_eq!(roots[0], roots[1], "FirstTwoShared needs the two products to agree");
-            ps.add_scalar(roots[0]);
-            ps.add_scalar(roots[2]);
+            ps.add_scalars(&roots[1..]);
         }
     }
     let mut lambda = ps.sample();
@@ -405,7 +418,7 @@ pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, s
         let round_count = mu - layer;
         if layer % 2 == 1 {
             debug_assert_eq!(round_count, 0, "only the root-most layer may be binary");
-            let tails = [0, 1, 2].map(|tree| {
+            let tails: [[F192; 2]; N] = std::array::from_fn(|tree| {
                 let below = &layers[tree][layer - 1];
                 match below.as_slice() {
                     [left, right] => [*left, *right],
@@ -427,20 +440,18 @@ pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, s
         }
 
         let width = 1usize << round_count;
-        let mut trees =
-            [0, 1, 2].map(|tree| QuaternaryLayerState::new(std::mem::take(&mut layers[tree][layer - 2]), width));
+        let mut trees: [QuaternaryLayerState; N] =
+            std::array::from_fn(|tree| QuaternaryLayerState::new(std::mem::take(&mut layers[tree][layer - 2]), width));
         // Round `j` of this layer weighs its rows by `eq(point[1 + j..], .)`.
         let mut equality = SplitEq::new(if round_count > 0 { &point[1..] } else { &[] });
         let mut round_point = Vec::with_capacity(round_count);
         let mut messages = if round_count > 0 {
             trees.each_ref().map(|tree| tree.round_message(&equality))
         } else {
-            [[F192::ZERO; 4]; 3]
+            [[F192::ZERO; 4]; N]
         };
         for round in 0..round_count {
-            let mut coeffs = [0, 1, 2, 3].map(|coefficient| {
-                messages[0][coefficient] + lambda * (messages[1][coefficient] + lambda * messages[2][coefficient])
-            });
+            let mut coeffs = [0, 1, 2, 3].map(|coefficient| combine(messages.map(|m| m[coefficient]), lambda));
             // The kernel accumulates `q(0) + q(1)`, the wire carries `c1`. This is
             // `Transmitter::add_round_poly(_, true)` bar its dropped `c0`, which the
             // claim fixes and the prover therefore never forms.
@@ -480,21 +491,25 @@ pub fn prove_product_triple(leaves: [ArenaVec<F192>; 3], ps: &mut ProverState, s
         layer -= 2;
     }
 
-    ProductTriple { roots, point, values }
+    Products { roots, point, values }
 }
 
-/// Verify the RLC-batched radix-four proof.
-pub fn verify_product_triple(mu: usize, vs: &mut VerifierState, shape: RootShape) -> Result<ProductTriple, GkrError> {
-    let mut root = || vs.next_scalar().map_err(|_| GkrError::Truncated);
-    let roots = match shape {
-        RootShape::Distinct => [root()?, root()?, root()?],
-        // One root for both balancing trees, so their equality is structural: there is no
-        // unbalanced pair a prover could state, and nothing for the caller to check.
-        RootShape::FirstTwoShared => {
-            let shared = root()?;
-            [shared, shared, root()?]
-        }
-    };
+/// Verify the RLC-batched radix-four proof of `N` trees of depth `mu`.
+pub fn verify_products<const N: usize>(
+    mu: usize,
+    vs: &mut VerifierState,
+    shape: RootShape,
+) -> Result<Products<N>, GkrError> {
+    let mut roots = [F192::ZERO; N];
+    // One root for both balancing trees, so their equality is structural: there is no
+    // unbalanced pair a prover could state, and nothing for the caller to check.
+    let first_sent = usize::from(shape == RootShape::FirstTwoShared);
+    for root in &mut roots[first_sent..] {
+        *root = vs.next_scalar().map_err(|_| GkrError::Truncated)?;
+    }
+    if first_sent == 1 {
+        roots[0] = roots[1];
+    }
     let mut lambda = vs.sample();
     let mut point = Vec::new();
     let mut values = roots;
@@ -505,7 +520,7 @@ pub fn verify_product_triple(mu: usize, vs: &mut VerifierState, shape: RootShape
         let mut claim = poly_eval(&values, lambda);
         if layer % 2 == 1 {
             debug_assert_eq!(round_count, 0, "only the root-most layer may be binary");
-            let mut tails = [[F192::ZERO; 2]; 3];
+            let mut tails = [[F192::ZERO; 2]; N];
             for value in tails.iter_mut().flatten() {
                 *value = vs.next_scalar().map_err(|_| GkrError::Truncated)?;
             }
@@ -532,7 +547,7 @@ pub fn verify_product_triple(mu: usize, vs: &mut VerifierState, shape: RootShape
             round_point.push(challenge);
             claim = poly_eval(&h, challenge);
         }
-        let mut tails = [[F192::ZERO; 4]; 3];
+        let mut tails = [[F192::ZERO; 4]; N];
         for value in tails.iter_mut().flatten() {
             *value = vs.next_scalar().map_err(|_| GkrError::Truncated)?;
         }
@@ -555,7 +570,7 @@ pub fn verify_product_triple(mu: usize, vs: &mut VerifierState, shape: RootShape
         layer -= 2;
     }
 
-    Ok(ProductTriple { roots, point, values })
+    Ok(Products { roots, point, values })
 }
 
 #[cfg(test)]
@@ -677,7 +692,7 @@ mod tests {
                 .each_ref()
                 .map(|lane| lane.iter().copied().fold(F192::ONE, |product, value| product * value));
             let mut ps = ProverState::from_label(b"radix-four-gkr-test");
-            let proved = prove_product_triple(
+            let proved = prove_products(
                 leaves.each_ref().map(|l| ArenaVec::from_slice(l.as_slice())),
                 &mut ps,
                 RootShape::Distinct,
@@ -689,7 +704,7 @@ mod tests {
 
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(b"radix-four-gkr-test", &proof);
-            let verified = verify_product_triple(mu, &mut vs, RootShape::Distinct).expect("GKR verifies");
+            let verified = verify_products(mu, &mut vs, RootShape::Distinct).expect("GKR verifies");
             assert_eq!(verified.roots, proved.roots);
             assert_eq!(verified.point, proved.point);
             assert_eq!(verified.values, proved.values);
@@ -712,7 +727,7 @@ mod tests {
                 padded
             });
             let mut sparse_ps = ProverState::from_label(b"sparse-radix-four-gkr-test");
-            let proved = prove_product_triple(
+            let proved = prove_products(
                 leaves.each_ref().map(|l| ArenaVec::from_slice(l.as_slice())),
                 &mut sparse_ps,
                 RootShape::Distinct,
@@ -729,7 +744,7 @@ mod tests {
             }
             let proof = sparse_ps.into_proof();
             let mut dense_ps = ProverState::from_label(b"sparse-radix-four-gkr-test");
-            let dense_proved = prove_product_triple(
+            let dense_proved = prove_products(
                 dense.each_ref().map(|l| ArenaVec::from_slice(l.as_slice())),
                 &mut dense_ps,
                 RootShape::Distinct,
@@ -739,7 +754,7 @@ mod tests {
             assert_eq!(dense_proved.values, proved.values);
             assert_eq!(dense_ps.into_proof().stream, proof.stream);
             let mut vs = VerifierState::from_label(b"sparse-radix-four-gkr-test", &proof);
-            let verified = verify_product_triple(mu, &mut vs, RootShape::Distinct).expect("GKR verifies");
+            let verified = verify_products(mu, &mut vs, RootShape::Distinct).expect("GKR verifies");
             assert_eq!(verified.roots, proved.roots);
             assert_eq!(verified.point, proved.point);
             assert_eq!(verified.values, proved.values);

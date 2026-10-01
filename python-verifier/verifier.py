@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from functools import cache, reduce
-from itertools import accumulate, islice, repeat
+from itertools import accumulate, islice, pairwise, repeat
 from operator import mul
 from pathlib import Path
 from struct import pack, unpack
@@ -30,6 +30,15 @@ def _base_mul(left: int, right: int) -> int:
             product ^= left
         right >>= 1
         left <<= 1
+    return _reduce(product)
+
+
+def _base_square(value: int) -> int:
+    """Squaring is additive in characteristic 2: bit i of the value lands on bit 2i of the product."""
+    return _reduce(int("0".join(f"{value:b}"), 2))
+
+
+def _reduce(product: int) -> int:
     low, high = product & (2**64 - 1), product >> 64
     folded = low ^ high ^ (high << 1) ^ (high << 3) ^ (high << 4)
     overflow = folded >> 64
@@ -144,6 +153,8 @@ class E:
     __radd__ = __add__
 
     def __mul__(self, other: object) -> E:
+        if isinstance(other, K):
+            return E(self.c0 * other, self.c1 * other, self.c2 * other)  # K sits in E as the constant limb
         rhs = self.lift(other)
         # y^3 = y + 1 folds the degree-4 product back into three limbs.
         p0 = self.c0 * rhs.c0
@@ -154,6 +165,11 @@ class E:
         return E(p0 + p3, p1 + p3 + p4, p2 + p4)
 
     __rmul__ = __mul__
+
+    def square(self) -> E:
+        """The product's cross terms cancel in characteristic 2, leaving c0^2 + c1^2 y^2 + c2^2 y^4, folded by y^3 = y + 1."""
+        c0, c1, c2 = (K(_base_square(limb.value)) for limb in (self.c0, self.c1, self.c2))
+        return E(c0, c2, c1 + c2)
 
     def __pow__(self, exponent: int) -> E:
         if exponent < 0:
@@ -455,11 +471,11 @@ def sumcheck(transcript: Transcript, claim: E, count: int, equalities: Sequence[
 # Bus balance and decomposition ---------------------------------------------
 
 
-def verify_gkr_grand_products(depth: int, transcript: Transcript) -> tuple[E, MultilinearPoint, tuple[E, E, E]]:
-    shared, count = transcript.next_scalar(), transcript.next_scalar()
+def verify_gkr_grand_products(depth: int, transcript: Transcript) -> tuple[MultilinearPoint, tuple[E, E]]:
+    shared = transcript.next_scalar()
     combiner = transcript.sample()
     point: list[E] = []
-    values = (shared, shared, count)  # 3 grand product GKR are batched together: push, pull, count
+    values = (shared, shared)  # 2 grand product GKR are batched together, push and pull, under one root
 
     layer = depth
     while layer > 0:
@@ -469,7 +485,7 @@ def verify_gkr_grand_products(depth: int, transcript: Transcript) -> tuple[E, Mu
         # The product is degree 2^step, so one more coefficient than that per round.
         x, claim = sumcheck(transcript, claim, 2**step + 1, point)
 
-        children = [transcript.next_scalars(2**step) for _ in range(3)]
+        children = [transcript.next_scalars(2**step) for _ in range(2)]
         products = [reduce(mul, child) for child in children]
         require(claim == poly_eval(products, combiner), f"GKR layer {layer}: children do not match the sumcheck")
 
@@ -479,7 +495,7 @@ def verify_gkr_grand_products(depth: int, transcript: Transcript) -> tuple[E, Mu
         point = [*y, *x]
         layer -= step
 
-    return count, tuple(point), (values[0], values[1], values[2])
+    return tuple(point), (values[0], values[1])
 
 
 @dataclass
@@ -508,7 +524,7 @@ class Form:
 
 @dataclass(frozen=True)
 class BusBlock:
-    """One block of a bus side, always owned by a table. The five blocks no table owns are the framework, on `BusLayout`."""
+    """One block of a bus side, always owned by a table. The four blocks no table owns are the framework, on `BusLayout`."""
 
     log_rows: int  # the owner's height: this block flushes 2^log_rows rows
     coordinates: tuple[Form, ...]  # the tuple flushed, over the owner's OWN local column indices; stays symbolic until its table sumcheck
@@ -516,26 +532,39 @@ class BusBlock:
 
 
 @dataclass(frozen=True)
+class Producer:
+    """A lookup array's table side: entry x is pushed m_x times, m_x being its word in the multiplicity column read as an
+    integer. Bit i of it is a push block of its own, whose row x is the entry's leaf raised to 2^i where that bit is set
+    and 1 where it is not. The bus reads the low `bits` bits, enough for every read the tables can make of the array."""
+
+    log_rows: int
+    column: int  # the committed multiplicity column
+    bits: int
+
+
+@dataclass(frozen=True)
 class BusLayout:
     """Where a side's blocks sit in the stacked leaf cube. Split by kind because framework coordinates are
-    public, so the verifier evaluates their fingerprints outright, while a table's stay symbolic until its sumcheck."""
+    public, so the verifier evaluates their fingerprints outright, while a table's stay symbolic until its sumcheck,
+    and a producer's bits become weights on its own sumcheck."""
 
-    depth: int  # log2 of the padded cube, so how many layers the side's GKR walks
-    framework: tuple[
-        Placement, ...
-    ]  # the blocks no table owns, stacked first: boundary state, memory, bytecode, the two range arrays (none on the count side)
+    depth: int  # log2 of the padded cube
+    framework: tuple[Placement, ...]  # the blocks no table owns, stacked first: boundary state, registers, RAM, the advice
     tables: tuple[Placement, ...]  # one per block a table owns, in the side's own block order
+    producers: tuple[tuple[Placement, ...], ...]  # per producer, one per bit
 
 
-FrameworkLogRows = tuple[int, int, int, int, int] | tuple[()]  # state, memory, bytecode, range low, range high
+FrameworkLogRows = tuple[int, int, int, int]  # state, registers, RAM, the advice
 
 
-def bus_layout(framework_log_rows: FrameworkLogRows, blocks: Sequence[BusBlock]) -> BusLayout:
-    sizes = [*framework_log_rows, *(block.log_rows for block in blocks)]
+def bus_layout(framework_log_rows: FrameworkLogRows, blocks: Sequence[BusBlock], producers: Sequence[Producer]) -> BusLayout:
+    sizes = [*framework_log_rows, *(block.log_rows for block in blocks), *(p.log_rows for p in producers for _ in range(p.bits))]
     offsets, depth = stack_offsets(sizes)
     placements = [Placement(size, offset) for size, offset in zip(sizes, offsets)]
-    split = len(framework_log_rows)
-    return BusLayout(depth, tuple(placements[:split]), tuple(placements[split:]))
+    split = len(framework_log_rows) + len(blocks)
+    bounds = accumulate((p.bits for p in producers), initial=split)
+    by_producer = tuple(tuple(placements[start:end]) for start, end in pairwise(bounds))
+    return BusLayout(depth, tuple(placements[: len(framework_log_rows)]), tuple(placements[len(framework_log_rows) : split]), by_producer)
 
 
 @dataclass(frozen=True)
@@ -557,31 +586,30 @@ class BusResult:
     claims: tuple[ColumnClaim, ...]
     point: MultilinearPoint  # the GKR point zeta, which the table sumcheck reuses
     forms: tuple[tuple[Form, ...], ...]  # forms[table][side]
-    totals: tuple[E, E, E]  # what the tables owe each side, derived
+    producers: tuple[tuple[E, ...], ...]  # per producer, the weight on each bit's block
+    totals: tuple[E, E]  # what the tables and the producers owe each side, derived
+    weights: tuple[E, ...]  # eq(alpha, .), the fingerprint the producers' public columns are made of
+    beta: E
 
 
 def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
-    # state, registers, RAM, the advice, bytecode, the two range arrays
-    framework_log_rows = (0, LOG_REGISTERS, layout.log_ram, layout.log_advice, layout.log_bytecode, RANGE_LOG, RANGE_LOG)
-    push_layout = bus_layout(framework_log_rows, layout.push)
-    pull_layout = bus_layout(framework_log_rows, layout.pull)
-    count_layout = bus_layout((), layout.count)
+    framework_log_rows = (0, LOG_REGISTERS, layout.log_ram, layout.log_advice)  # state, registers, RAM, the advice
+    push_layout = bus_layout(framework_log_rows, layout.push, layout.producers)
+    pull_layout = bus_layout(framework_log_rows, layout.pull, ())
+    # Both trees run over the taller one's depth: the producers' bits push with no pull of their own.
+    depth = max(push_layout.depth, pull_layout.depth)
 
     alphas = transcript.samples(BUS_BITS)
     weights = eq_kernel(alphas)
     beta = transcript.sample()
-    count_root, point, tree_values = verify_gkr_grand_products(push_layout.depth, transcript)
-    require(count_root != ZERO, "a bus count is zero")
+    point, tree_values = verify_gkr_grand_products(depth, transcript)
 
     # The framework blocks' committed columns, in the order the two sides first name them. The push side names the
     # advice's initial words, every other seed being public (the registers start at zero, RAM at the program's
-    # image); the pull side names each read-write array's final timestamps and values, then each read-only
-    # array's final counts.
+    # image); the pull side names each read-write array's final timestamps and values.
     register_low = tuple(point[:LOG_REGISTERS])
     ram_low = tuple(point[: layout.log_ram])
     advice_low = tuple(point[: layout.log_advice])
-    bytecode_low = tuple(point[: layout.log_bytecode])
-    range_low = tuple(point[:RANGE_LOG])
     advice_initial = transcript.next_scalar()
     register_final_ts = transcript.next_scalar()
     register_final = transcript.next_scalar()
@@ -589,9 +617,6 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
     ram_final = transcript.next_scalar()
     advice_final_ts = transcript.next_scalar()
     advice_final = transcript.next_scalar()
-    bytecode_final = transcript.next_scalar()
-    range_lo_final = transcript.next_scalar()
-    range_hi_final = transcript.next_scalar()
     claims = [
         ColumnClaim(ADVICE_INITIAL, advice_low, advice_initial),
         ColumnClaim(REGISTER_FINAL_TIMESTAMPS, register_low, register_final_ts),
@@ -600,37 +625,16 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
         ColumnClaim(RAM_FINAL, ram_low, ram_final),
         ColumnClaim(ADVICE_FINAL_TIMESTAMPS, advice_low, advice_final_ts),
         ColumnClaim(ADVICE_FINAL, advice_low, advice_final),
-        ColumnClaim(BYTECODE_FINAL_COUNTERS, bytecode_low, bytecode_final),
-        ColumnClaim(RANGE_LO_FINAL_COUNTERS, range_low, range_lo_final),
-        ColumnClaim(RANGE_HI_FINAL_COUNTERS, range_low, range_hi_final),
     ]
-    # Register numbers, addresses and pcs are integers: register z is cell z, RAM's word z sits at RAM_BASE + 8z, the
-    # advice's at ADVICE_BASE + 8z, instruction z at TEXT_BASE + 4z.
+    # Register numbers and addresses are integers: register z is cell z, RAM's word z sits at RAM_BASE + 8z, the
+    # advice's at ADVICE_BASE + 8z.
     register_index = int_index_mle(0, 0, register_low)
     ram_index = int_index_mle(RAM_BASE, 3, ram_low)
     ram_initial = sparse_mle(layout.ram, ram_low)
     advice_index = int_index_mle(ADVICE_BASE, 3, advice_low)
-    bytecode_index = int_index_mle(TEXT_BASE, 2, bytecode_low)
-    bytecode_value = multilinear_eval(layout.bytecode, (*bytecode_low, *alphas))
-    # The range arrays are never committed: their addresses g^(j+1) and g^(-2^16 j) are geometric.
-    range_lo_index = powers_mle(GEN, GEN, range_low)
-    range_hi_index = powers_mle(ONE, RANGE_HI_RATIO, range_low)
 
-    def fingerprints(
-        pc: E,
-        clock: E,
-        exit_marker: E,
-        register_ts: E,
-        register: E,
-        ram_ts: E,
-        ram: E,
-        advice_ts: E,
-        advice: E,
-        bytecode_count: E,
-        range_lo_count: E,
-        range_hi_count: E,
-    ) -> tuple[E, ...]:
-        """The seven framework tuples, each its coordinates weighted by eq(alpha, .); slots past the ones
+    def fingerprints(pc: E, clock: E, exit_marker: E, register_ts: E, register: E, ram_ts: E, ram: E, advice_ts: E, advice: E) -> tuple[E, ...]:
+        """The four framework tuples, each its coordinates weighted by eq(alpha, .); slots past the ones
         named are zero. A side differs only here: push starts the run and seeds every array, pull ends the
         run at the halt slot and finalizes every array with its committed columns."""
         return (
@@ -638,92 +642,97 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
             dot(weights[:4], (SEP_REG, register_index, register_ts, register)),
             dot(weights[:4], (SEP_MEM, ram_index, ram_ts, ram)),
             dot(weights[:4], (SEP_MEM, advice_index, advice_ts, advice)),
-            dot(weights[:3], (SEP_BYTECODE, bytecode_index, bytecode_count)) + bytecode_value,
-            dot(weights[:3], (SEP_RANGE_LO, range_lo_index, range_lo_count)),
-            dot(weights[:3], (SEP_RANGE_HI, range_hi_index, range_hi_count)),
         )
 
     halt_pc = E(TEXT_BASE + 4 * (2**layout.log_bytecode - 1))  # the run ends on the text's last slot, which is never executed
     # cycle 1, every cell at timestamp g^0: the registers zero, RAM as the statement has it, the advice as the prover has it
-    start = fingerprints(E(layout.entry_pc), _gpow(CLOCK_STRIDE), ZERO, ONE, ZERO, ONE, ram_initial, ONE, advice_initial, ONE, ONE, ONE)
+    start = fingerprints(E(layout.entry_pc), _gpow(CLOCK_STRIDE), ZERO, ONE, ZERO, ONE, ram_initial, ONE, advice_initial)
     end = fingerprints(
-        halt_pc,
-        layout.final_clock,
-        layout.final_clock,
-        register_final_ts,
-        register_final,
-        ram_final_ts,
-        ram_final,
-        advice_final_ts,
-        advice_final,
-        bytecode_final,
-        range_lo_final,
-        range_hi_final,
-    )
-    sides = (
-        (layout.push, push_layout, start, weights, beta),
-        (layout.pull, pull_layout, end, weights, beta),
-        (layout.count, count_layout, (), (ONE,), ZERO),  # The count channel owns no framework block and runs at alpha = beta = 0.
+        halt_pc, layout.final_clock, layout.final_clock, register_final_ts, register_final, ram_final_ts, ram_final, advice_final_ts, advice_final
     )
     totals = []  # what remains to be proven by the next table sumcheck
-    forms = tuple(tuple(Form() for _ in range(3)) for _ in TABLES)
-    for side, (blocks, side_layout, framework_fingerprints, side_weights, side_beta) in enumerate(sides):
+    forms = tuple(tuple(Form() for _ in range(2)) for _ in TABLES)
+    # A producer's bit block weighs on its own sumcheck, at its selector.
+    producers = tuple(tuple(p.eq_above(point) for p in bits) for bits in push_layout.producers)
+    for side, (blocks, side_layout, framework_fingerprints) in enumerate(((layout.push, push_layout, start), (layout.pull, pull_layout, end))):
         framework_selectors = [p.eq_above(point) for p in side_layout.framework]
         table_selectors = [p.eq_above(point) for p in side_layout.tables]
-        known = dot(framework_selectors, [side_beta + fingerprint for fingerprint in framework_fingerprints])
+        known = dot(framework_selectors, [beta + fingerprint for fingerprint in framework_fingerprints])
         # A table's blocks stay symbolic: they accumulate into the form its sumcheck settles over its own columns.
-        beta_form = _const(side_beta)
+        beta_form = _const(beta)
         for selector, block in zip(table_selectors, blocks, strict=True):
             form = forms[block.owner][side]
             form.add_scaled(beta_form, selector)
             for slot, coordinate in enumerate(block.coordinates):
-                form.add_scaled(coordinate, selector * side_weights[slot])  # the fingerprint, one tuple slot at a time
-        # Every occupied row holds beta + its fingerprint; the rest of the leaf cube holds 1.
-        ones_padding = E.sum(framework_selectors + table_selectors) + ONE
-        totals.append(tree_values[side] + known + ones_padding)  # what the forms owe: the GKR value, less framework and padding
+                form.add_scaled(coordinate, selector * weights[slot])  # the fingerprint, one tuple slot at a time
+        # Every occupied row holds its leaf; the rest of the leaf cube holds 1.
+        producer_selectors = [selector for bits in producers for selector in bits] if side == 0 else []
+        ones_padding = E.sum(framework_selectors + table_selectors + producer_selectors) + ONE
+        totals.append(tree_values[side] + known + ones_padding)  # what the sumcheck owes: the GKR value, less framework and padding
 
-    return BusResult(tuple(claims), point, forms, (totals[0], totals[1], totals[2]))
+    return BusResult(tuple(claims), point, forms, producers, (totals[0], totals[1]), tuple(weights), beta)
 
 
 # Table sumcheck -------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class ProducerAir:
+    """A producer in the table sumcheck: it owes the push side, for each bit i, sum_x eq(zeta, x) (1 + b_i(x) P'_i(x)) at
+    its weight on that bit's block. Its bits are sent; its public columns P'_i the verifier evaluates itself."""
+
+    log_rows: int
+    coefficients: tuple[E, ...]  # per bit, its block's weight, the push side's power folded in
+    public: Callable[[MultilinearPoint], list[E]]  # the public columns P'_i at a point
+
+
 def table_sumcheck(
     table_log_heights: Sequence[int],
     bus_forms: Sequence[Sequence[Form]],
+    producers: Sequence[ProducerAir],
     constraint_powers: Sequence[E],
     form_powers: Sequence[E],
     equality_point: MultilinearPoint,
     target: E,
     transcript: Transcript,
-) -> list[ColumnClaim]:
-    n_rounds = max(table_log_heights)
+) -> tuple[list[ColumnClaim], list[tuple[MultilinearPoint, tuple[E, ...]]]]:
+    """The tables' column claims, then per producer its point and its bits' values there."""
+    heights = [*table_log_heights, *(producer.log_rows for producer in producers)]
+    n_rounds = max(heights)
     challenges, claim = sumcheck(transcript, target, 4, [None] * n_rounds)
     point = list(reversed(challenges))
-    weights = [ONE] * len(TABLES)
+    weights = [ONE] * len(heights)
     for variable, challenge in enumerate(point):
         equality = ONE + equality_point[variable] + challenge
-        for index, height in enumerate(table_log_heights):
+        for index, height in enumerate(heights):
             weights[index] *= equality if height > variable else challenge
 
     final = ZERO
     cursor = 0
     claims: list[ColumnClaim] = []
-    for table, height, forms, weight in zip(TABLES, table_log_heights, bus_forms, weights, strict=True):
+    for table, height, forms, weight in zip(TABLES, table_log_heights, bus_forms, weights[: len(TABLES)], strict=True):
         evaluations = tuple(transcript.next_scalars(table.width))
         summand = dot(constraint_powers[cursor : cursor + table.n_constraints], table.constraints(evaluations))
         final += weight * (summand + dot(form_powers, [form.evaluate(evaluations.__getitem__) for form in forms]))
         cursor += table.n_constraints
         table_point = tuple(point[:height])
         claims.extend(ColumnClaim(GLOBAL_COLUMN_BASES[table.opcode] + local, table_point, value) for local, value in enumerate(evaluations))
+    families = []
+    for producer, weight in zip(producers, weights[len(TABLES) :], strict=True):
+        bits = tuple(transcript.next_scalars(len(producer.coefficients)))
+        producer_point = tuple(point[: producer.log_rows])
+        public = producer.public(producer_point)
+        final += weight * E.sum(c * (ONE + b * p) for c, b, p in zip(producer.coefficients, bits, public, strict=True))
+        families.append((producer_point, bits))
     require(final == claim, "table sumcheck terminal mismatch")
-    return claims
+    return claims, families
 
 
 # The columns no instruction table owns. They come first in the global column numbering, then one packed flock
-# witness per table, then the tables' own columns.
+# witness per table, then the tables' own columns. The last three are how often each entry of the bytecode and of the
+# two range arrays is read: entry x's word is that count as an integer, and its bits are its producer's one-bit columns.
 NUM_FRAMEWORK_COLUMNS = 10
-REGISTER_FINAL, REGISTER_FINAL_TIMESTAMPS, RAM_FINAL, RAM_FINAL_TIMESTAMPS, ADVICE_INITIAL, ADVICE_FINAL, ADVICE_FINAL_TIMESTAMPS, BYTECODE_FINAL_COUNTERS, RANGE_LO_FINAL_COUNTERS, RANGE_HI_FINAL_COUNTERS = range(NUM_FRAMEWORK_COLUMNS)  # fmt: skip
+REGISTER_FINAL, REGISTER_FINAL_TIMESTAMPS, RAM_FINAL, RAM_FINAL_TIMESTAMPS, ADVICE_INITIAL, ADVICE_FINAL, ADVICE_FINAL_TIMESTAMPS, BYTECODE_MULTIPLICITIES, RANGE_LO_MULTIPLICITIES, RANGE_HI_MULTIPLICITIES = range(NUM_FRAMEWORK_COLUMNS)  # fmt: skip
 
 K_BITS = 64
 FLOCK_K_SKIP = log2_ceil(K_BITS)
@@ -758,7 +767,7 @@ class Layout:
     ram: Sequence[tuple[int, Sequence[int]]]  # RAM before the run, as the stretches that are not zero
     push: tuple[BusBlock, ...]
     pull: tuple[BusBlock, ...]
-    count: tuple[BusBlock, ...]
+    producers: tuple[Producer, ...]  # the bytecode's, then the two range arrays'
     placements: tuple[Placement, ...]
     stack_log: int
     table_log_heights: tuple[int, ...]
@@ -807,11 +816,11 @@ HASH_STRIDE = 2 + HASH_WORDS
 RANGE_LOG = 16
 RANGE_HI_RATIO = GEN ** -(2**RANGE_LOG)
 
-ACCESS_KINDS = ("x", "lo", "hi", "cnt_lo", "cnt_hi")
+ACCESS_KINDS = ("x", "lo", "hi")
 
 
 def _accesses(count: int) -> tuple[str, ...]:
-    """The columns of a table's accesses, by kind: the previous timestamps, the gap's two chunks, their read counts."""
+    """The columns of a table's accesses, by kind: the previous timestamps, then the gap's two chunks."""
     return tuple(f"{kind}_{i}" for kind in ACCESS_KINDS for i in range(count))
 
 
@@ -829,17 +838,17 @@ class Flushes:
         pc, ts = _cols(columns, "pc", "ts")
         self.pair((_const(SEP_STATE), npc, _col(ts, stride), exit_marker), (_const(SEP_STATE), _col(pc), _col(ts), _const(ZERO)))
 
-    def counted(self, prefix: Sequence[Form], count: int, suffix: Sequence[Form]) -> None:
-        """A read of a lookup array: pulled with its count, pushed back with the count advanced."""
-        self.pair((*prefix, _col(count, 1), *suffix), (*prefix, _col(count), *suffix))
+    def read(self, entry: Sequence[Form]) -> None:
+        """A read of a lookup array: one pull, which the array's own side pushes as often as it is read."""
+        self.pull.append(tuple(entry))
 
     def access(self, columns: Sequence[str], separator: E, address: Form, access: int, slot: int, old: Form, new: Form) -> None:
         """Access `access` of the row, at clock slot `slot`: pull the cell as its previous access left it, push it
         back at this access's timestamp, and read the gap's two chunks off the range arrays."""
-        ts, x, lo, hi, cnt_lo, cnt_hi = _cols(columns, "ts", *(f"{kind}_{access}" for kind in ACCESS_KINDS))
+        ts, x, lo, hi = _cols(columns, "ts", *(f"{kind}_{access}" for kind in ACCESS_KINDS))
         self.pair((_const(separator), address, _col(ts, slot), new), (_const(separator), address, _col(x), old))
-        self.counted((_const(SEP_RANGE_LO), _col(lo)), cnt_lo, ())
-        self.counted((_const(SEP_RANGE_HI), _col(hi)), cnt_hi, ())
+        self.read((_const(SEP_RANGE_LO), _col(lo)))
+        self.read((_const(SEP_RANGE_HI), _col(hi)))
 
 
 def _access_constraints(columns: Sequence[str], slots: Sequence[int]) -> Callable[[Sequence[E]], tuple[E, ...]]:
@@ -863,15 +872,16 @@ HASH_COLUMNS = (*(f"cell_{k}" for k in range(HASH_WORDS)), *(f"cell_new_{HASH_OU
 RAM_COLUMNS = {"none": (), "read": ("address", "cell_0"), "write": ("address", "cell_0", "cell_new_0"), "block": HASH_COLUMNS}
 
 
-EXIT_SLOT = 14  # public selector: only ECALL can terminate the state channel
-BAD_SLOT = 13  # where a bytecode tuple holds a row's `bad` word: past every field of an entry, where the program is zero
+EXIT_SLOT = 13  # public selector: only ECALL can terminate the state channel
+BAD_SLOT = 12  # where a bytecode tuple holds a row's `bad` word: past every field of an entry, where the program is zero
+BYTECODE_PUBLIC_SLOT = 2  # an entry's first field, after the separator and the address
 
 
 def _class_columns(control: bool, ram: str, ports: Sequence[str | None]) -> tuple[str, ...]:
     return (
         "pc", "ts", "a1", "a2", "pc4", "v1", "v2", "flags", *(() if ram == "block" else ("ad", "vd_old", "out")),
         *(CONTROL_COLUMNS if control else ()), *(("imm",) if "imm" in ports else ()), *RAM_COLUMNS[ram], *(("bad",) if "bad" in ports else ()),
-        *_accesses(len(_slots(ram))), "cnt_bc",
+        *_accesses(len(_slots(ram))),
     )  # fmt: skip
 
 
@@ -883,7 +893,7 @@ def _slots(ram: str) -> tuple[int, ...]:
 
 
 def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str, ports: Sequence[str | None]) -> Flushes:
-    a1, a2, pc4, flags, v1, v2, cnt_bc = _cols(columns, "a1", "a2", "pc4", "flags", "v1", "v2", "cnt_bc")
+    a1, a2, pc4, flags, v1, v2 = _cols(columns, "a1", "a2", "pc4", "flags", "v1", "v2")
     # A row without a register write or an immediate reads their constants off the entry: the sink, and zero.
     npc, vd, fields, stride = _col(pc4), _const(ZERO), (), CLOCK_STRIDE
     ad_form, imm_form = _const(SINK), _const(ZERO)
@@ -906,9 +916,9 @@ def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str,
     entry = (_const(_gpow(opcode)), _col(flags), _col(a1), _col(a2), ad_form, imm_form, _col(pc4), *fields)
     if "bad" in ports:
         # What the circuit asserts to be zero rides a slot where the program is zero, so the lookup makes it zero.
-        entry = (*entry, *[_const(ZERO)] * (BAD_SLOT - 3 - len(entry)), _col(_cols(columns, "bad")[0]))
-    entry = (*entry, *[_const(ZERO)] * (EXIT_SLOT - 3 - len(entry)), _col(exit) if control else _const(ZERO))
-    flushes.counted((_const(SEP_BYTECODE), _col(_cols(columns, "pc")[0])), cnt_bc, entry)
+        entry = (*entry, *[_const(ZERO)] * (BAD_SLOT - BYTECODE_PUBLIC_SLOT - len(entry)), _col(_cols(columns, "bad")[0]))
+    entry = (*entry, *[_const(ZERO)] * (EXIT_SLOT - BYTECODE_PUBLIC_SLOT - len(entry)), _col(exit) if control else _const(ZERO))
+    flushes.read((_const(SEP_BYTECODE), _col(_cols(columns, "pc")[0]), *entry))
     # The register's number comes straight from the bytecode. A read pushes back the value it pulled.
     flushes.access(columns, SEP_REG, _col(a1), 0, REGISTER_SLOTS[0], _col(v1), _col(v1))
     flushes.access(columns, SEP_REG, _col(a2), 1, REGISTER_SLOTS[1], _col(v2), _col(v2))
@@ -961,10 +971,6 @@ class Table:
     @property
     def width(self) -> int:
         return len(self.columns)
-
-    @property
-    def count_columns(self) -> tuple[int, ...]:
-        return tuple(i for i, name in enumerate(self.columns) if name.startswith("cnt"))
 
     @property
     def slot_bits(self) -> int:
@@ -1708,9 +1714,10 @@ def check_bytecode(bytecode: Sequence[K]) -> None:
     are ones its class defines. An entry with no tag can be read by no table: a run reaching one has no proof."""
     size = len(bytecode) // 2**BUS_BITS
     fields = [[int(word) for word in bytecode[slot * size : (slot + 1) * size]] for slot in range(2**BUS_BITS)]
-    tag, flags, a1, a2, ad, imm, pc4, dt, link, jalr = fields[3:13]
+    tag, flags, a1, a2, ad, imm, pc4, dt, link, jalr = fields[BYTECODE_PUBLIC_SLOT:BAD_SLOT]
     exit = fields[EXIT_SLOT]
-    require(not any(any(column) for column in fields[:3] + [fields[13], fields[15]]), "a bytecode slot outside an entry's fields is nonzero")
+    outside = fields[:BYTECODE_PUBLIC_SLOT] + [fields[BAD_SLOT]] + fields[EXIT_SLOT + 1 :]
+    require(not any(any(column) for column in outside), "a bytecode slot outside an entry's fields is nonzero")
     tags = {int(_gpow(table.opcode)): table for table in TABLES}
     for z in range(size):
         if tag[z] == 0:
@@ -1768,15 +1775,22 @@ def build_layout(
 
     push: list[BusBlock] = []
     pull: list[BusBlock] = []
-    count: list[BusBlock] = []
     for table, height in zip(TABLES, table_log_heights, strict=True):
         flushes = table.flushes
         for coordinates in flushes.push:
             push.append(BusBlock(height, coordinates, table.opcode))
         for coordinates in flushes.pull:
             pull.append(BusBlock(height, coordinates, table.opcode))
-        for local in table.count_columns:
-            count.append(BusBlock(height, (_col(local),), table.opcode))
+    # The lookup arrays' table sides, each pushing an entry as often as it is read. The bus reads enough of a
+    # multiplicity's bits for every read these tables can make: each row reads the bytecode once, and each range
+    # array once per access.
+    rows = sum(2**height for height in table_log_heights)
+    accesses = sum(len(table.slots) * 2**height for table, height in zip(TABLES, table_log_heights))
+    producers = (
+        Producer(log_bytecode, BYTECODE_MULTIPLICITIES, rows.bit_length()),
+        Producer(RANGE_LOG, RANGE_LO_MULTIPLICITIES, accesses.bit_length()),
+        Producer(RANGE_LOG, RANGE_HI_MULTIPLICITIES, accesses.bit_length()),
+    )
 
     # Every column's log size, in global order: the framework's, the flock witnesses', then each table's block.
     witness_kappas = [height + table.slot_bits for table, height in zip(TABLES, table_log_heights)]
@@ -1813,7 +1827,7 @@ def build_layout(
         ram,
         tuple(push),
         tuple(pull),
-        tuple(count),
+        producers,
         tuple(placements),
         stack_log,
         tuple(table_log_heights),
@@ -1887,6 +1901,44 @@ def verify_stacked_opening(transcript: Transcript, root: Digest, stack_log: int,
     verify_whir(transcript, stack_log, log_inv_rate, dot(scales, values), root, lambda point: dot(scales, [weight(point) for weight in weights]))
 
 
+def _range_public(producer: Producer, separator: E, first: E, ratio: E, weights: Sequence[E], beta: E) -> Callable[[MultilinearPoint], list[E]]:
+    """A range array's public columns P'_i = (beta + w_0 sep + w_1 first ratio^x)^(2^i) - 1 at a point. Squaring is
+    additive here, so the 2^i-th power of the address column is the geometric column first^(2^i) (ratio^(2^i))^x."""
+
+    def public(point: MultilinearPoint) -> list[E]:
+        constant, weight, f, r = beta + weights[0] * separator, weights[1], first, ratio
+        values = []
+        for _ in range(producer.bits):
+            values.append(constant + weight * powers_mle(f, r, point) + ONE)
+            constant, weight, f, r = constant.square(), weight.square(), f.square(), r.square()
+        return values
+
+    return public
+
+
+def _bytecode_public(producer: Producer, bytecode: Sequence[K], weights: Sequence[E], beta: E) -> Callable[[MultilinearPoint], list[E]]:
+    """The bytecode's public columns P'_i = (beta + pi_alpha(entry x))^(2^i) - 1 at a point. Squaring is additive, so the
+    separator and the address column TEXT_BASE + 4x are raised term by term, the address staying affine in the bits;
+    the program's columns are summed into one, c(x), whose powers are taken entry by entry."""
+
+    def public(point: MultilinearPoint) -> list[E]:
+        size = len(bytecode) >> BUS_BITS
+        slots = range(BYTECODE_PUBLIC_SLOT, EXIT_SLOT + 1)
+        sums = [E.sum(weights[slot] * word for slot in slots if (word := bytecode[slot * size + x])) for x in range(size)]
+        eq = eq_kernel(point)
+        constant, weight = beta + weights[0] * SEP_BYTECODE + weights[1] * E(TEXT_BASE), weights[1]
+        monomials = [E(1 << (bit + 2)) for bit in range(len(point))]
+        values = []
+        for _ in range(producer.bits):
+            values.append(constant + weight * dot(point, monomials) + dot(eq, sums) + ONE)
+            constant, weight = constant.square(), weight.square()
+            monomials = [m.square() for m in monomials]
+            sums = [s.square() for s in sums]
+        return values
+
+    return public
+
+
 def verify_execution(
     bytecode: Sequence[K],
     entry_pc: int,
@@ -1921,17 +1973,31 @@ def verify_execution(
     # 2] parse WHIR commitment: one Merkle root (No OOD, our PCS is only List-binding).
     root = Digest.from_halves(*transcript.next_scalars(2))
 
-    # 3] Bus: one batched GKR over the push, pull and count trees, then the leaf decomposition, which leaves each table a degree-2 claim.
+    # 3] Bus: one batched GKR over the push and pull trees, then the leaf decomposition, which leaves each table a
+    # degree-2 claim and each producer a weight on each of its bits.
     bus = verify_bus_balance(layout, transcript)
 
-    # 4] One batched (back-loaded) "table sumcheck" over all the tables, at the bus point, proving the target the three
-    # leaf claims derive and that constraints vanish. Every table takes a disjoint range of xi powers for its constraints
+    # 4] One batched (back-loaded) "table sumcheck" over all the tables and producers, at the bus point, proving the
+    # target the two leaf claims derive and that constraints vanish. Every table takes a disjoint range of xi powers
+    # for its constraints.
     xi = transcript.sample()
     n_constraints = sum(table.n_constraints for table in TABLES)
-    xi_powers = powers(xi, n_constraints + 3)  # one power per constraint, then one per bus side, shared by every table
+    xi_powers = powers(xi, n_constraints + 2)  # one power per constraint, then one per bus side, shared by every table
     constraint_powers, form_powers = xi_powers[:n_constraints], xi_powers[n_constraints:]
     target = dot(form_powers, bus.totals)
-    table_sumcheck_claims = table_sumcheck(layout.table_log_heights, bus.forms, constraint_powers, form_powers, bus.point, target, transcript)
+    bytecode_producer, lo_producer, hi_producer = layout.producers
+    publics = (
+        _bytecode_public(bytecode_producer, bytecode, bus.weights, bus.beta),
+        _range_public(lo_producer, SEP_RANGE_LO, GEN, GEN, bus.weights, bus.beta),
+        _range_public(hi_producer, SEP_RANGE_HI, ONE, RANGE_HI_RATIO, bus.weights, bus.beta),
+    )
+    producer_airs = [
+        ProducerAir(producer.log_rows, tuple(form_powers[0] * c for c in coefficients), public)
+        for producer, coefficients, public in zip(layout.producers, bus.producers, publics, strict=True)
+    ]
+    table_sumcheck_claims, bits = table_sumcheck(
+        layout.table_log_heights, bus.forms, producer_airs, constraint_powers, form_powers, bus.point, target, transcript
+    )
     claims = [*bus.claims, *table_sumcheck_claims]
 
     # 5] the exit: a7 holds `exit` and a0..a3 the output when the run ends. A register's final value is the final
@@ -1942,6 +2008,8 @@ def verify_execution(
 
     # 6] each class's circuit via Flock, one reduction per table over its own packed witness
     families = [verify_flock(table.circuit, layout.table_log_heights[table.opcode], transcript) for table in TABLES]
+    # and each producer's bits, the 64 bit slices of its multiplicity column: the bits the bus reads, then zeros
+    families += [(point, (*values, *[ZERO] * (K_BITS - len(values)))) for point, values in bits]
 
     # 7] Ring-switching
     # Each claim is supported on its witness's region of the stack, so its weight carries the
@@ -1949,7 +2017,7 @@ def verify_execution(
     def on_region(placement: Placement, target: E, weight: Callable[[Sequence[E]], E]) -> StackClaim:
         return (lambda x: placement.eq_above(x) * weight(x[: placement.variables]), target)
 
-    regions = [layout.placements[column] for column in WITNESS_COLUMNS]
+    regions = [layout.placements[column] for column in (*WITNESS_COLUMNS, *(producer.column for producer in layout.producers))]
     ringswitches = [on_region(region, *claim) for region, claim in zip(regions, ring_switch(families, transcript), strict=True)]
     verify_stacked_opening(transcript, root, layout.stack_log, log_inverse_rate, [*ringswitches, *(c.on_stack(layout) for c in claims)])
     transcript.finish()

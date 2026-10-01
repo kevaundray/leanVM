@@ -1,8 +1,8 @@
 //! leanVM: arithmetization of a minimal zkVM (see `doc/leanvm/main.tex`).
 //!
-//! Machine words, addresses, the pc, timestamps and read counters live in `K = GF(2^64)`.
+//! Machine words, addresses, the pc and timestamps live in `K = GF(2^64)`.
 //! What the machine computes with is an integer, read as the element with those bits;
-//! what the proof system only ever steps (a timestamp, a read count) is a power of a
+//! what the proof system only ever steps (a timestamp) is a power of a
 //! fixed generator `g`, so incrementing one is a multiplication by `g`, a free virtual
 //! operation. Every physical witness column is K-valued and is committed directly by a
 //! dense multilinear PCS.

@@ -17,7 +17,7 @@ The arithmetization is inspired by the M3 model (multi-multiset matching)~\cite{
 
 \subsection{Balancing the bus: grand product}\label{sec:gp}
 
-Both multisets (\emph{pulls} and \emph{pushes}) carry the same number of tuples, and padding each with factors of $1$, which change no product, makes that number a power of two, $2^{\mu}$.
+The two sides' multisets (\emph{pulls} and \emph{pushes}) are given as leaves, one linear factor $\beta-\pi_\alpha(\btup)$ per tuple, or, for a lookup array's producer (\S\ref{sec:lookup}), a power of one; padding each side with factors of $1$, which change no product, brings its leaf count to a power of two, and $2^{\mu}$ is the larger of the two.
 
 \emph{Fingerprint.} The verifier samples $\alpha=(\alpha_0,\dots,\alpha_3)\in\E^{4}$ and maps each tuple $\btup \in \K^{16}$ to a single $\E$-element:
 \[
@@ -34,7 +34,7 @@ the sixteen slots indexed by their bits, low bit first, and smaller tuples padde
 \end{equation}
 
 \begin{theorem}\label{th:product_check}
-  The protocol above has perfect completeness (equal pulled and pushed multisets always make \eqref{eq:gp} valid) and soundness error $4\cdot 2^{\mu}/|\E|$ (if the pulled and pushed multisets differ, the probability that \eqref{eq:gp} passes over uniform $\alpha \in \E^{4}$ and $\beta \in \E$).
+  The protocol above has perfect completeness (equal pulled and pushed multisets always make \eqref{eq:gp} valid) and soundness error $4N/|\E|$, $N$ being the larger side's number of linear factors counted with multiplicity (if the pulled and pushed multisets differ, the probability that \eqref{eq:gp} passes over uniform $\alpha \in \E^{4}$ and $\beta \in \E$). A side of tuple leaves alone has $N\le2^{\mu}$.
 \end{theorem}
 
 \begin{lemma}[A product identity is a multiset identity]\label{lem:gp}
@@ -63,7 +63,7 @@ A product vanishes in a domain only if one of its factors does, so $\pi_A(\btup)
 \begin{proof}[Proof of Theorem~\ref{th:product_check}]
 \emph{Completeness.} Equal pulled and pushed multisets make \eqref{eq:gp} hold for every $\alpha$ and $\beta$, so completeness is immediate.
 
-\emph{Soundness.} Different pulled and pushed multisets make $\Pi_P\neq\Pi_Q$, by Lemma~\ref{lem:gp}, and \eqref{eq:gp} tests them at the one point $(\alpha_0, \dots, \alpha_3, \beta)$. Both sides have degree at most $4\cdot 2^{\mu}$ in $(\alpha_0, \dots, \alpha_3, \beta)$, since there are at most $2^{\mu}$ factors, of the form $\beta-\pi_\alpha(\btup)$, each of total degree at most $4$. Applying Corollary~\ref{cor:idtest} gives a soundness error of $4\cdot 2^{\mu}/|\E|$.
+\emph{Soundness.} Different pulled and pushed multisets make $\Pi_P\neq\Pi_Q$, by Lemma~\ref{lem:gp}, and \eqref{eq:gp} tests them at the one point $(\alpha_0, \dots, \alpha_3, \beta)$. Both sides have degree at most $4N$ in $(\alpha_0, \dots, \alpha_3, \beta)$, since $\Pi_P$ has $|P|\le N$ factors counted with multiplicity, of the form $\beta-\pi_\alpha(\btup)$, each of total degree at most $4$; a producer's leaf of bit $k$ is one such factor to a power $0$ or $2^{k}$ (Lemma~\ref{lem:prodbits}). Applying Corollary~\ref{cor:idtest} gives a soundness error of $4N/|\E|$.
 \end{proof}
 
 \subsection{Proving the grand product}\label{sec:gkr}
@@ -94,19 +94,19 @@ If $\mu$ is odd, GKR first processes the root-most binary layer, which has no su
 
 \subsubsection{Batching several grand-products}
 
-The $\nside$ grand products, numbered $s=1,\dots,\nside$, are proven in one pass, at one sumcheck per layer instead of $\nside$.
+The $\nside=2$ grand products, numbered $s=1,\dots,\nside$, the push side and the pull side, are proven in one pass, at one sumcheck per layer instead of $\nside$. They need not pair block for block (the producers' blocks are on the push side alone), so the two trees may differ in depth; they share one announced root, which is the balance check.
 
 Pad every tree with $1$-leaves up to the depth $\mu$ of the deepest. The verifier then samples at every layer a combiner $\lambda \in \E$, and each layer runs a single sumcheck on the random linear combination of the $\nside$ identities,
 \[
 \sum_{s=1}^{\nside}\lambda^{s-1}\widetilde V_i^{s}(r)=\sum_{x\in\cube{\mu-i}}\eq(r,x)\sum_{s=1}^{\nside}\lambda^{s-1}\prod_{a,b\in\{0,1\}}\widetilde V_{i-2}^{s}(a,b,x)
 \]
-All $\nside$ trees leave the pass on claims at one shared terminal point $\zeta$.
+Both trees leave the pass on claims at one shared terminal point $\zeta$.
 
 \subsection{Stacking the leaves}\label{sec:leafstack}
 
 GKR (\S\ref{sec:gkr}) leaves one claim per side $s$: the value of $\widetilde V^{s}_0(\zeta)$, the extension of that side's leaves at the terminal point $\zeta\in\E^{\mu}$. This subsection reduces it to one sum per table, over its rows, of a polynomial of degree at most $d=2$ in its columns: exactly what the \emph{table sumcheck} (\S\ref{sec:air}) proves.
 
-\paragraph{Blocks.} The leaves of side $s$ are a stack (\S\ref{sec:stacking}) whose pieces are its \emph{blocks}: one per flush of each table on that side, and one per boundary set (\S\ref{sec:m3}, \S\ref{sec:lookup}). Block $b$ holds $2^{\kappa_b}$ leaves $L_b(x)$ and sits at the public selector $\mathsf{sel}_b$; for the block of a flush $\btup_{j,f}$, $\kappa_b=\tau_j$ and $L_b(x)=\beta-\pi_\alpha(\btup_{j,f}(x))$. One diffence with the stacking at commitment (\S\ref{sec:stacking}) is the padding: $1$s rather than $0$s.
+\paragraph{Blocks.} The leaves of side $s$ are a stack (\S\ref{sec:stacking}) whose pieces are its \emph{blocks}: one per flush of each table on that side, one per boundary set (\S\ref{sec:m3}, \S\ref{sec:memchan}), and, on the push side alone, one per bit of each lookup array's producer (\S\ref{sec:lookup}). Block $b$ holds $2^{\kappa_b}$ leaves $L_b(x)$ and sits at the public selector $\mathsf{sel}_b$; for the block of a flush $\btup_{j,f}$, $\kappa_b=\tau_j$ and $L_b(x)=\beta-\pi_\alpha(\btup_{j,f}(x))$; for bit $k$ of a producer of $2^{\kappa}$ entries, $\kappa_b=\kappa$ and $L_b(x)=1+\mbit{k}(x)\,\pubp{k}(x)$, \eqref{eq:prodleaf}. One diffence with the stacking at commitment (\S\ref{sec:stacking}) is the padding: $1$s rather than $0$s.
 \begin{equation}\label{eq:gkr_leaves}
   \widetilde V^{s}_0(\zeta)\;=\;\sum_{b}\eq(\mathsf{sel}_b,\zeta_{\ge\kappa_b})\;\widetilde L_b(\zeta_{<\kappa_b})\;+\;\underbrace{\Bigl(1-\sum_{b}\eq(\mathsf{sel}_b,\zeta_{\ge\kappa_b})\Bigr)}_{\text{padding}},
 \end{equation}
@@ -116,9 +116,9 @@ both sums over the blocks of side $s$.
 \begin{itemize}[itemsep=1pt,topsep=3pt]
 \item \emph{Padding.} Public: the verifier evaluates it.
 \item \emph{Boundary blocks.} Every slot of their tuples is public (a constant, a public component, or an index column of \S\ref{sec:idxcol}) or a single committed column, so $\widetilde L_b(\zeta_{<\kappa_b})$ is a linear combination of their evaluations at $\zeta_{<\kappa_b}$. The verifier computes the public ones; the prover sends each committed one, as a claim deferred to the PCS (\S\ref{sec:stacking}).
-\item \emph{Table blocks.} Nothing is sent for them: the table sumcheck proves them.
+\item \emph{Table and producer blocks.} Nothing is sent for them: the table sumcheck proves them.
 \end{itemize}
-The verifier subtracts the first two kinds from the claimed value; the difference, $\mathsf{rem}_{s}$, is what the tables owe.
+The verifier subtracts the first two kinds from the claimed value; the difference, $\mathsf{rem}_{s}$, is what the tables and the producers owe.
 
 \paragraph{What a table owes.} A block of $T_j$ has $\kappa_b=\tau_j$, so by Fact~\ref{fact:eq} its term in \eqref{eq:gkr_leaves} is a sum over $T_j$'s rows against the weight $\eq(\zeta_{<\tau_j},\cdot)$. The blocks of $T_j$ share that weight and differ only by selector, so together they contribute one such sum, of
 \begin{equation}\label{eq:bus_poly}
@@ -129,6 +129,12 @@ of degree at most $d$ in $T_j$'s columns, with coefficients the verifier builds 
   \sum_{j=1}^{\ntab}\ \sum_{x\in\cube{\tau_j}}\eq(\zeta_{<\tau_j},x)\,B^{s}_j(x)\;\qeq\;\mathsf{rem}_{s},
   \qquad s\in\{1,\dots,\nside\}.
 \end{equation}
+
+\paragraph{What a producer owes.} A producer's bit blocks share $\kappa_b=\kappa$ and its weight $\eq(\zeta_{<\kappa},\cdot)$ in the same way, so the producer is one more term of \eqref{eq:bus} on the push side, an \emph{air} of height $2^{\kappa}$ with no constraints, owing the sum of
+\[
+  B^{\push}(x)\;=\;\sum_{k<\nbit}\eq(\mathsf{sel}_{b_k},\zeta_{\ge\kappa})\bigl(1+\mbit{k}(x)\,\pubp{k}(x)\bigr),
+\]
+$b_k$ being its block of bit $k$, of degree $2$ in its columns: the bits $\mbit{k}$, committed (\S\ref{sec:lookup}), and the $\pubp{k}$, public. It owes nothing on the pull side. Below, the sums over $j$ run over the tables and then the producers.
 
 \subsection{Table sumcheck}\label{sec:air}
 
@@ -156,6 +162,8 @@ Since $\sum_{x\in\cube{m}}x_0\cdots x_{m-1}=1$, the padded variables contribute 
   \sum_{x\in\cube{\taumax}}F(x)\;\qeq\;\sum_{s=1}^{\nside}\xi^{\,\nconstot+s-1}\mathsf{rem}_{s},
 \]
 the verifier computing the right side itself. Each summand of $F$ has individual degree $d+1=3$, the constraint contributing $d$ and the $\eq$ factor one, so the soundness error is $(3\taumax+\nside+\nconstot)/|\E|$: $3\taumax$ for the rounds (Fact~\ref{fact:sumcheck}) and $\nside+\nconstot$ for the $\xi$-batching (Corollary~\ref{cor:idtest}). Rounds bind $X_{\taumax-1}$ first, so $T_j$ joins only at round $\taumax-\tau_j$: hence \emph{back-loaded}. The end yields one claim per column, $T_j$'s at $\fc_{<\tau_j}$, settled by the PCS opening (\S\ref{sec:stacking}).
+
+\paragraph{Producer airs.} A producer (\S\ref{sec:leafstack}) joins the batch like a table of height $2^{\kappa}$ with no constraints, its summand $\xi^{\,\nconstot}B^{\push}$ carrying the push side's power, against $\eq(\zeta_{<\kappa},\cdot)$, of individual degree $3$ as well; $\taumax$ is then the largest of the tables' and the producers' log heights. Its columns are its bits $\mbit{0},\dots,\mbit{\nbit-1}$ and its public columns $\pubp{0},\dots,\pubp{\nbit-1}$: the prover folds both, but at the end sends only the bits' values at $\fc_{<\kappa}$, and the verifier evaluates each $\widetilde{\pubp{k}}(\fc_{<\kappa})$ itself (\S\ref{sec:lookup}). The bits' claims are settled by ring switching against the multiplicity column (\S\ref{sec:ringswitch}).
 
 \subsection{Example: proving elliptic curve multiplication}\label{sec:arith-example}
 

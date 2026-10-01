@@ -29,4 +29,4 @@ via the PCS (Annex~\ref{annex:pcs}).
 
 \subsection{Committing to booleans via Ring-Switching}\label{sec:ringswitch}
 
-Flock's argument for an instruction class (\S\ref{sec:tab-class}) requires a commitment to a Boolean multilinear in $\nflock+\kskip$ variables. Ring switching~\cite{DP24} lets the prover pack its low $\kskip=6$ coordinates into the $\K$-valued multilinear $\qflock$ in $\nflock$ variables (Annex~\ref{annex:rs}), which occupies one region of the stack in \S\ref{sec:stacking}, one per class.
+Flock's argument for an instruction class (\S\ref{sec:tab-class}) requires a commitment to a Boolean multilinear in $\nflock+\kskip$ variables. Ring switching~\cite{DP24} lets the prover pack its low $\kskip=6$ coordinates into the $\K$-valued multilinear $\qflock$ in $\nflock$ variables (Annex~\ref{annex:rs}), which occupies one region of the stack in \S\ref{sec:stacking}, one per class. The three multiplicity columns of the lookup arrays are bit-packed the same way, their bit slices being the producers' one-bit columns (\S\ref{sec:lookup}), and each is one more ring-switched region.

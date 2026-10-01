@@ -15,9 +15,12 @@ pub(crate) struct Access {
     /// `y - x - 1` for this access's timestamp `y`: what the two range reads certify
     /// to be below `2^32`.
     pub(crate) gap: u32,
-    /// The read counts of the two range-array entries the gap's chunks name.
-    pub(crate) count_lo: F64,
-    pub(crate) count_hi: F64,
+}
+
+impl Access {
+    /// A padding row's access, and the access a row does not make: clock zero on both
+    /// sides, so the identity holds with the first entry of each range array.
+    pub(crate) const PADDING: Self = Self { x: F64::ZERO, gap: 0 };
 }
 
 /// What a hash row adds to a [`Row`]: its block's words as found and the four it
@@ -57,7 +60,6 @@ pub(crate) struct Row {
     /// keeps its accesses in `hash` instead.
     pub(crate) acc: [Access; 4],
     pub(crate) hash: Option<Box<HashRow>>,
-    pub(crate) bytecode_read: F64,
 }
 
 impl Row {
@@ -67,14 +69,6 @@ impl Row {
         match &self.hash {
             Some(hash) => &hash.acc,
             None => &self.acc,
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn accesses_mut(&mut self) -> &mut [Access] {
-        match &mut self.hash {
-            Some(hash) => &mut hash.acc,
-            None => &mut self.acc,
         }
     }
 }
@@ -92,10 +86,6 @@ pub(crate) struct Trace {
     pub(crate) adv_init: Vec<F64>,
     pub(crate) adv_fin: Vec<F64>,
     pub(crate) adv_ts: Vec<F64>,
-    pub(crate) bytecode_count: Vec<F64>, // per-pc running execution count g^{count}; final = g^{A[pc]}
-    /// Final read counts of the two range arrays' entries.
-    pub(crate) range_lo_count: Vec<F64>,
-    pub(crate) range_hi_count: Vec<F64>,
     /// The clock `g^{4·cycle}` the run ended on: the final state's timestamp.
     pub(crate) ts_final: F64,
 }

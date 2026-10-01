@@ -1,12 +1,13 @@
-//! The tables' local constraints (§sec:air), proven by one sumcheck for all tables.
+//! The tables' local constraints (§sec:air), proven by one sumcheck for all tables,
+//! the lookup arrays' producers among them.
 //!
 //! Each table folds its identities with a DISJOINT range of one `η`'s powers, so
 //! the batch is a polynomial in `η` whose coefficients are the individual sums and
-//! matching the batch's target still pins each one. The three bus forms are the
-//! exception: they SHARE their three powers across tables
+//! matching the batch's target still pins each one. The two bus forms are the
+//! exception: they SHARE their two powers across tables
 //! ([`crate::cpu::xi_form_base`]), so those coefficients are per-side totals and
 //! the target pins the total, which is all the bus needs. The identities vanish on a
-//! valid row, but a table also attaches its three bus forms, whose sums are the
+//! valid row, but a table also attaches its two bus forms, whose sums are the
 //! values the bus is owed, so the target is those rather than zero. It is the
 //! caller's, not read off the stream: see [`crate::cpu::verify`].
 //!
@@ -38,7 +39,7 @@ use primitives::field::{F64, F192, F192Unreduced, powers};
 use primitives::multilinear::{eq_table_arena, fold_high_inplace, fold_high_k, poly_eval, shrink_eq_high};
 use zk_alloc::ArenaVec;
 
-/// One table's involved columns' evaluations at its table-sumcheck point.
+/// One table's sent columns' evaluations at its table-sumcheck point.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Claims {
     pub chi: Vec<F192>,
@@ -55,14 +56,27 @@ pub enum Error {
 pub type Constraint<'a> = Box<dyn Fn(&[F192], &[F192], bool) -> F192 + Sync + 'a>;
 /// The same form over `K`-valued columns, for the round a table joins the batch.
 pub type ConstraintK<'a> = Box<dyn Fn(&[F192], &[F64], bool) -> F192 + Sync + 'a>;
+/// A table's public columns at its point, which the verifier computes rather than reads.
+pub type PublicEvals<'a> = Box<dyn Fn(&[F192]) -> Vec<F192> + Sync + 'a>;
 
-/// One table's place in the shared batch.
+/// One table's place in the shared batch. Its last `n_public` columns are public: the
+/// prover folds them like the rest, but sends none, and the verifier takes their values
+/// at the point from `public`.
 pub struct Air<'a> {
     pub tau: usize,
     pub n_cols: usize,
     pub n_constraints: usize,
     pub eval: Constraint<'a>,
     pub eval_k: ConstraintK<'a>,
+    pub n_public: usize,
+    pub public: Option<PublicEvals<'a>>,
+}
+
+/// One table's columns as the prover hands them over: `K`-valued as committed, lifted
+/// into `E` on the round the table joins, or `E`-valued from the start.
+pub enum Columns<'a> {
+    K(Vec<&'a [F64]>),
+    E(Vec<ArenaVec<F192>>),
 }
 
 /// Start of each table's disjoint range of `η`-powers.
@@ -145,7 +159,7 @@ fn round_polynomial([endpoint, quadratic]: [F192; 2], zeta: F192, claim: F192, w
 /// order, on the nested points `ρ[..τ_t]`.
 pub fn prove(
     airs: &[Air<'_>],
-    cols: &[Vec<&[F64]>],
+    cols: Vec<Columns<'_>>,
     xi: F192,
     zeta: &[F192],
     sigma: &[F192],
@@ -163,8 +177,14 @@ pub fn prove(
     let mut chi = vec![F192::ZERO; n];
     // The folded tables are the batch's largest transients: one E-lifted copy of
     // every column of every still-active table. Arena-backed, so they are bumped
-    // rather than mapped afresh each round.
-    let mut folded: Vec<Option<Vec<ArenaVec<F192>>>> = (0..airs.len()).map(|_| None).collect();
+    // rather than mapped afresh each round. A table handed over in `E` starts here.
+    let (cols, mut folded): (Vec<Vec<&[F64]>>, Vec<_>) = cols
+        .into_iter()
+        .map(|c| match c {
+            Columns::K(k) => (k, None),
+            Columns::E(e) => (Vec::new(), Some(e)),
+        })
+        .unzip();
     // `k`, the challenges drawn so far, common to every air that is still waiting.
     let mut k = F192::ONE;
     let mut claim = sigma.iter().copied().fold(F192::ZERO, |a, b| a + b);
@@ -231,11 +251,12 @@ pub fn prove(
     airs.iter()
         .enumerate()
         .map(|(t, air)| {
-            let evals: Vec<F192> = if let Some(table) = &folded[t] {
+            let mut evals: Vec<F192> = if let Some(table) = &folded[t] {
                 table.iter().map(|c| c[0]).collect()
             } else {
                 cols[t].iter().map(|c| F192::from(c[0])).collect()
             };
+            evals.truncate(air.n_cols - air.n_public);
             ps.add_scalars(&evals);
             Claims {
                 chi: chi[..air.tau].to_vec(),
@@ -283,9 +304,16 @@ pub fn verify(
     let mut acc = F192::ZERO;
     let mut claims = Vec::with_capacity(airs.len());
     for (t, air) in airs.iter().enumerate() {
-        let evals = vs.next_scalars(air.n_cols).map_err(|_| Error::Truncated)?;
+        let evals = vs
+            .next_scalars(air.n_cols - air.n_public)
+            .map_err(|_| Error::Truncated)?;
+        let mut values = evals.clone();
+        if let Some(public) = &air.public {
+            values.extend(public(&chi[..air.tau]));
+        }
+        assert_eq!(values.len(), air.n_cols, "a table's public columns are all evaluated");
         let w = &pows[offsets[t]..offsets[t] + air.n_constraints];
-        acc += weights[t] * (air.eval)(w, &evals, false);
+        acc += weights[t] * (air.eval)(w, &values, false);
         claims.push(Claims {
             chi: chi[..air.tau].to_vec(),
             evals,
@@ -378,6 +406,8 @@ mod tests {
                 } else {
                     synth_eval::<F64>
                 }),
+                n_public: 0,
+                public: None,
             })
             .collect()
     }
@@ -397,8 +427,11 @@ mod tests {
         let (xi, zeta) = xi_zeta(taus);
         let zeros = vec![F192::ZERO; taus.len()];
         let mut ps = ProverState::from_label(b"zc-test");
-        let views: Vec<Vec<&[F64]>> = cols.iter().map(|t| t.iter().map(|c| &c[..]).collect()).collect();
-        let pclaims = prove(&airs, &views, xi, &zeta, &zeros, &mut ps);
+        let views = cols
+            .iter()
+            .map(|t| Columns::K(t.iter().map(|c| &c[..]).collect()))
+            .collect();
+        let pclaims = prove(&airs, views, xi, &zeta, &zeros, &mut ps);
         let proof = ps.into_proof();
         let mut vs = VerifierState::from_label(b"zc-test", &proof);
         let vclaims = verify(&airs, xi, &zeta, F192::ZERO, &mut vs);
@@ -455,8 +488,11 @@ mod tests {
             let airs = airs_for(&taus, true);
             let target = sig.iter().fold(F192::ZERO, |a, &b| a + b);
             let mut ps = ProverState::from_label(b"zc-test");
-            let views: Vec<Vec<&[F64]>> = cols.iter().map(|t| t.iter().map(|c| &c[..]).collect()).collect();
-            let pclaims = prove(&airs, &views, xi, &zeta, sig, &mut ps);
+            let views = cols
+                .iter()
+                .map(|t| Columns::K(t.iter().map(|c| &c[..]).collect()))
+                .collect();
+            let pclaims = prove(&airs, views, xi, &zeta, sig, &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(b"zc-test", &proof);
             let out = verify(&airs, xi, &zeta, target, &mut vs);

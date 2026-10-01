@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::rv::{self, ADVICE_BASE, Class, LOG_REGS, Machine, RAM_BASE, Trap, hash, machine::compute};
-use crate::tables::{CLASSES, CLOCK_STRIDE, RAM_SLOT, RANGE_LOG, REG_SLOTS, block_slot};
+use crate::tables::{CLASSES, CLOCK_STRIDE, RAM_SLOT, REG_SLOTS, block_slot};
 use primitives::field::{F64, mul_by_g};
 
 pub struct Execution {
@@ -13,26 +13,7 @@ pub struct Execution {
     /// Rows per table before the padding rows: the work the program itself does, as
     /// against the power-of-two heights that get proven. Cost measurements want this one.
     pub base_counts: [usize; crate::tables::N_TABLES],
-    pub(crate) trace: Trace, // rows, final timestamps and counts, emitted in the same walk
-}
-
-/// Running read counts `g^{count}` of the two range arrays' entries, which every
-/// read-write array's gap checks share.
-struct Ranges {
-    lo: Vec<F64>,
-    hi: Vec<F64>,
-}
-
-impl Ranges {
-    /// One read of each range array, at the chunks of `gap`.
-    #[inline(always)]
-    fn read(&mut self, gap: u32) -> (F64, F64) {
-        let (lo, hi) = ((gap & ((1 << RANGE_LOG) - 1)) as usize, (gap >> RANGE_LOG) as usize);
-        let counts = (self.lo[lo], self.hi[hi]);
-        self.lo[lo] = mul_by_g(counts.0);
-        self.hi[hi] = mul_by_g(counts.1);
-        counts
-    }
+    pub(crate) trace: Trace, // rows and final timestamps, emitted in the same walk
 }
 
 /// What the memory argument keeps per cell of one read-write array (§sec:memchan):
@@ -53,41 +34,15 @@ impl Cells {
 
     /// Access `cell` at clock `y`, whose g-power is `ts`.
     #[inline(always)]
-    fn access(&mut self, ranges: &mut Ranges, cell: usize, y: u32, ts: F64) -> Access {
+    fn access(&mut self, cell: usize, y: u32, ts: F64) -> Access {
         let (x, x_ts) = (self.last[cell], self.last_ts[cell]);
-        // The clock only moves forward, and starts after the seed's zero.
-        let gap = y - x - 1;
-        let (count_lo, count_hi) = ranges.read(gap);
         self.last[cell] = y;
         self.last_ts[cell] = ts;
+        // The clock only moves forward, and starts after the seed's zero.
         Access {
             x: x_ts,
-            gap,
-            count_lo,
-            count_hi,
+            gap: y - x - 1,
         }
-    }
-}
-
-/// A padding row's access: clock zero on both sides, so the identity holds with the
-/// first entry of each range array.
-fn padding_access(ranges: &mut Ranges) -> Access {
-    let (count_lo, count_hi) = ranges.read(0);
-    Access {
-        x: F64::ZERO,
-        gap: 0,
-        count_lo,
-        count_hi,
-    }
-}
-
-/// The access a row does not make: its columns do not exist, so nothing reads it.
-fn padding_access_unread() -> Access {
-    Access {
-        x: F64::ZERO,
-        gap: 0,
-        count_lo: F64::ZERO,
-        count_hi: F64::ZERO,
     }
 }
 
@@ -108,10 +63,6 @@ impl Program {
         }
         let mut m = Machine::new(p, advice);
         let adv_init: Vec<F64> = m.advice().iter().map(|&w| F64(w)).collect();
-        let mut ranges = Ranges {
-            lo: vec![F64::ONE; 1 << RANGE_LOG],
-            hi: vec![F64::ONE; 1 << RANGE_LOG],
-        };
         let mut regs = Cells::new(1 << LOG_REGS);
         // RAM's cells, then the advice's, as the machine numbers them.
         let mut ram = Cells::new((1 << p.log_ram) + (1 << p.log_advice));
@@ -121,13 +72,6 @@ impl Program {
             } else {
                 (1 << p.log_ram) + ((address - ADVICE_BASE) / 8) as usize
             }
-        };
-        // Per-pc bytecode execution count (g^{count}).
-        let mut bytecode_count: Vec<F64> = vec![F64::ONE; p.entries.len()];
-        let mut fetch = |index: usize| {
-            let v = bytecode_count[index];
-            bytecode_count[index] = mul_by_g(v);
-            v
         };
         let mut rows: [Vec<Row>; crate::tables::N_TABLES] = std::array::from_fn(|_| Vec::new());
 
@@ -150,22 +94,20 @@ impl Program {
             let cells = [e.a1, e.a2, e.ad].map(|cell| cell as usize);
             let n_regs = if spec.writes_register() { 3 } else { 2 };
             let mut acc: [Access; 4] = std::array::from_fn(|i| match cells.get(i) {
-                Some(&cell) if i < n_regs => {
-                    regs.access(&mut ranges, cell, tick + REG_SLOTS[i], advance(ts, REG_SLOTS[i]))
-                }
-                _ => padding_access_unread(),
+                Some(&cell) if i < n_regs => regs.access(cell, tick + REG_SLOTS[i], advance(ts, REG_SLOTS[i])),
+                _ => Access::PADDING,
             });
             if let Some(access) = step.ram {
                 let cell = cell_of(access.address);
-                acc[3] = ram.access(&mut ranges, cell, tick + RAM_SLOT, advance(ts, RAM_SLOT));
+                acc[3] = ram.access(cell, tick + RAM_SLOT, advance(ts, RAM_SLOT));
             }
             // A hash row's block, word `k` at `v1 ^ 8k`, after its two register reads.
             let hash = step.hash.map(|h| {
-                let mut all = [padding_access_unread(); 2 + hash::WORDS];
+                let mut all = [Access::PADDING; 2 + hash::WORDS];
                 all[..2].copy_from_slice(&acc[..2]);
                 for k in 0..hash::WORDS {
                     let cell = cell_of(step.v1 ^ (8 * k as u64));
-                    all[2 + k] = ram.access(&mut ranges, cell, tick + block_slot(k), advance(ts, block_slot(k)));
+                    all[2 + k] = ram.access(cell, tick + block_slot(k), advance(ts, block_slot(k)));
                 }
                 Box::new(HashRow {
                     block: h.block,
@@ -184,7 +126,6 @@ impl Program {
                 ram: step.ram.unwrap_or_default(),
                 acc,
                 hash,
-                bytecode_read: fetch(step.index),
             });
             tick += spec.stride();
             ts = advance(ts, spec.stride());
@@ -205,23 +146,18 @@ impl Program {
                     let e = &p.entries[index];
                     let table = crate::tables::table_of(e.class).expect("a fill block's class has a table");
                     let (out, taken, access) = compute(e, 0, 0, 0);
-                    let n_accesses = CLASSES[table].n_accesses();
                     // The row's accesses are all padding ones, in a hash row's own array.
-                    let mut acc = [padding_access_unread(); 4];
-                    let mut hash = (e.class == Class::Hash).then(|| {
+                    let acc = [Access::PADDING; 4];
+                    let hash = (e.class == Class::Hash).then(|| {
                         // The compression of a zero block, whose result the row rewrites.
                         let mut h = rv::machine::compute_hash([0; hash::WORDS], 0, e.flags);
                         h.block[hash::OUT as usize / 8..][..4].copy_from_slice(&h.out);
                         Box::new(HashRow {
                             block: h.block,
                             out: h.out,
-                            acc: [padding_access_unread(); 2 + hash::WORDS],
+                            acc: [Access::PADDING; 2 + hash::WORDS],
                         })
                     });
-                    let all = hash.as_mut().map_or(&mut acc[..], |h| &mut h.acc[..]);
-                    for a in &mut all[..n_accesses] {
-                        *a = padding_access(&mut ranges);
-                    }
                     rows[table].push(Row {
                         index: index as u32,
                         ts: F64::ZERO,
@@ -233,7 +169,6 @@ impl Program {
                         ram: access,
                         acc,
                         hash,
-                        bytecode_read: fetch(index),
                     });
                 }
             }
@@ -250,9 +185,6 @@ impl Program {
             adv_init,
             adv_fin: m.advice().iter().map(|&w| F64(w)).collect(),
             adv_ts: adv_ts.to_vec(),
-            bytecode_count,
-            range_lo_count: ranges.lo,
-            range_hi_count: ranges.hi,
             ts_final: ts,
         };
         Ok(Execution {

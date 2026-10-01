@@ -1,6 +1,6 @@
 //! The public column schema and bus layout: the committed-column indices, and
-//! the flush/count blocks the verifier reconstructs from the program and the
-//! announced sizes. Plus the prover-side witness build.
+//! the flush blocks and producers the verifier reconstructs from the program and
+//! the announced sizes. Plus the prover-side witness build.
 
 use super::*;
 use crate::leaf::SparseColumn;
@@ -9,8 +9,8 @@ use crate::rv::{ADVICE_BASE, LOG_REGS, RAM_BASE, TEXT_BASE};
 // ---- column schema -----------------------------------------------------------
 
 // Shared committed columns (indices `0..N_SHARED`). The program is PUBLIC, not
-// committed: it rides the bytecode seed/finalize blocks as `Coord::Public`; only the
-// witness-dependent finalize counts are committed. So are the registers and RAM before
+// committed: it rides the bytecode producer as `Coord::Public`; only the
+// witness-dependent multiplicities are committed. So are the registers and RAM before
 // the run, zero and the program's image: what is committed is what they hold after it,
 // and each cell's last timestamp (§sec:memchan). The advice is the one array whose
 // initial words are committed as well: they are the prover's.
@@ -21,10 +21,12 @@ pub const MFTS: usize = 3;
 pub const ADV_INIT: usize = 4;
 pub const ADV_FIN: usize = 5;
 pub const ADV_FTS: usize = 6;
-pub const BFCNT: usize = 7; // per-pc bytecode execution count, g^{A[pc]}
-// Per-entry read counts of the two range arrays (§sec:rangecheck).
-pub const RLO_CNT: usize = 8;
-pub const RHI_CNT: usize = 9;
+// How often each entry of the three lookup arrays is read (§sec:lookup): the bytecode's,
+// then the two range arrays' (§sec:rangecheck). Entry `x`'s word is the integer `m_x`, and
+// its bits are the producer's one-bit columns, opened by ring switching.
+pub const BC_MULT: usize = 7;
+pub const RLO_MULT: usize = 8;
+pub const RHI_MULT: usize = 9;
 /// Then one packed flock witness per table, committed in the SAME stack as every
 /// other column (single PCS): `2^(k_log + tau - 6)` words, the SOLE copy of the
 /// table's circuit words, whose columns are virtual and route their claims here
@@ -82,8 +84,9 @@ fn offset_coord(base: usize, c: Coord) -> Coord {
 pub struct Layout {
     pub push: Vec<Block>,
     pub pull: Vec<Block>,
-    /// Count channel: the lookups' read-count columns, whose product must be nonzero (§sec:lookup).
-    pub count: Vec<Block>,
+    /// The three lookup arrays' table sides: the bytecode, then the two range arrays
+    /// (§sec:lookup).
+    pub producers: Vec<Producer>,
     /// Per-column placement (offset + n_vars) in the stacked witness; from the
     /// columns' log-sizes alone, so reconstructable by the verifier.
     pub placements: Vec<witness::Placement>,
@@ -174,9 +177,9 @@ pub fn col_kappa_sources(sizes: Sizes) -> Vec<Option<(usize, usize)>> {
     k[ADV_INIT] = Some((0, sizes.log_advice));
     k[ADV_FIN] = Some((0, sizes.log_advice));
     k[ADV_FTS] = Some((0, sizes.log_advice));
-    k[BFCNT] = Some((0, sizes.log_bytecode));
-    k[RLO_CNT] = Some((0, tables::RANGE_LOG));
-    k[RHI_CNT] = Some((0, tables::RANGE_LOG));
+    k[BC_MULT] = Some((0, sizes.log_bytecode));
+    k[RLO_MULT] = Some((0, tables::RANGE_LOG));
+    k[RHI_MULT] = Some((0, tables::RANGE_LOG));
     for (t, table) in tables::tables().iter().enumerate() {
         let base = sch.base[t];
         k[base..base + table.n_committed_columns()].fill(Some((1 + t, 0)));
@@ -193,36 +196,26 @@ pub fn col_kappa_sources(sizes: Sizes) -> Vec<Option<(usize, usize)>> {
 }
 
 /// The framework blocks a side starts with, as `(source, adj)`: the state boundary, the
-/// registers, RAM, the advice, the bytecode, the two range arrays.
+/// registers, RAM, the advice.
 fn framework_kappa_sources(sizes: Sizes) -> Vec<(usize, usize)> {
-    vec![
-        (0, 0),
-        (0, LOG_REGS),
-        (0, sizes.log_ram),
-        (0, sizes.log_advice),
-        (0, sizes.log_bytecode),
-        (0, tables::RANGE_LOG),
-        (0, tables::RANGE_LOG),
-    ]
+    vec![(0, 0), (0, LOG_REGS), (0, sizes.log_ram), (0, sizes.log_advice)]
 }
 
-/// The bus flush blocks' kappa SOURCES, flattened in side order (push, pull,
-/// count) exactly as the blocks are constructed below: per block
-/// `(source, adj)` with kappa = value(source) + adj, source 0 = the constant
-/// 0, 1 + t = tau_t. Keep in lockstep with the block construction in [`fn@layout`].
+/// The bus flush blocks' kappa SOURCES, flattened in side order (push, pull)
+/// exactly as the blocks are constructed below: per block `(source, adj)` with
+/// kappa = value(source) + adj, source 0 = the constant 0, 1 + t = tau_t. Keep in
+/// lockstep with the block construction in [`fn@layout`]. The producers' blocks are
+/// not among them: they follow the push side's, and belong to the producers.
 pub fn block_kappa_sources(sizes: Sizes) -> Vec<(usize, usize)> {
     let mut push = framework_kappa_sources(sizes);
     let mut pull = push.clone();
-    let mut count = Vec::new();
     for (t, table) in tables::tables().iter().enumerate() {
         let mut fb = tables::FlushBuilder::new();
         table.flushes(&mut fb);
         push.extend(std::iter::repeat_n((1 + t, 0), fb.push.len()));
         pull.extend(std::iter::repeat_n((1 + t, 0), fb.pull.len()));
-        count.extend(std::iter::repeat_n((1 + t, 0), table.count_columns().len()));
     }
     push.extend(pull);
-    push.extend(count);
     push
 }
 
@@ -240,11 +233,11 @@ fn col_kappas(sizes: Sizes, taus: [usize; tables::N_TABLES]) -> Vec<Option<usize
 
 /// How many PUBLIC columns a bytecode entry is: the class tag, then `flags, a1, a2,
 /// ad, imm, pc4, dt, link, jalr`, a zero verdict, and the exit selector (§sec:e2e-bc).
-pub const N_BYTECODE_COLUMNS: usize = tables::EXIT_SLOT - 2;
+pub const N_BYTECODE_COLUMNS: usize = tables::EXIT_SLOT + 1 - crate::leaf::BYTECODE_PUBLIC_SLOT;
 
 /// The public bytecode columns over the program cube, in bytecode-slot order. The
-/// program is not committed, so these ride the seed/finalize blocks as
-/// `Coord::Public` and stack into the polynomial [`bytecode_table`] returns.
+/// program is not committed, so these ride the bytecode producer as `Coord::Public` and
+/// stack into the polynomial [`bytecode_table`] returns.
 pub fn bytecode_columns(p: &rv::Program) -> [Vec<F64>; N_BYTECODE_COLUMNS] {
     let column = |f: &(dyn Fn(usize, &rv::Entry) -> u64 + Sync)| {
         parallel::map_collect(p.entries.len(), |i| F64(f(i, &p.entries[i])))
@@ -268,6 +261,19 @@ pub fn bytecode_columns(p: &rv::Program) -> [Vec<F64>; N_BYTECODE_COLUMNS] {
     ]
 }
 
+/// The bytecode's entries as the bus carries them: the separator, entry `i`'s address
+/// `TEXT_BASE + 4i`, then the program's public columns.
+fn bytecode_tuple(columns: [std::sync::Arc<Vec<F64>>; N_BYTECODE_COLUMNS]) -> Vec<Coord> {
+    let pc = Coord::IntIndex {
+        base: F64(TEXT_BASE),
+        shift: 2,
+    };
+    [Coord::Const(SEP_BYTECODE), pc]
+        .into_iter()
+        .chain(columns.into_iter().map(Coord::Public))
+        .collect()
+}
+
 /// The stacked bytecode polynomial: the columns at their bus tuple coordinates,
 /// which is what makes the program's whole share of a bus leaf one evaluation at
 /// `(ζ, α⃗)` (see [`crate::leaf::stacked_bytecode_table`]).
@@ -275,14 +281,23 @@ pub fn bytecode_columns(p: &rv::Program) -> [Vec<F64>; N_BYTECODE_COLUMNS] {
 /// This is the multilinear an outermost verifier is handed in place of a
 /// structured program, and what the program digest binds ([`Program::new`]).
 pub fn bytecode_table(p: &rv::Program) -> Vec<F64> {
-    let coords = bytecode_columns(p)
-        .map(|c| Coord::Public(std::sync::Arc::new(c)))
-        .into();
-    let block = Block {
-        kappa: crate::log2_strict_usize(p.entries.len()),
-        coords,
-    };
-    crate::leaf::stacked_bytecode_table(std::slice::from_ref(&block))
+    let tuple = bytecode_tuple(bytecode_columns(p).map(std::sync::Arc::new));
+    crate::leaf::stacked_bytecode_table(crate::log2_strict_usize(p.entries.len()), &tuple)
+}
+
+/// How many bits of its multiplicities each lookup array's producer puts on the bus,
+/// bytecode first, then the two range arrays: enough for the most reads the tables of
+/// these heights can make of it, every row reading the bytecode once and each range
+/// array once per access. Completeness only: no read count is too large for soundness.
+pub fn multiplicity_bits(taus: [usize; tables::N_TABLES]) -> [usize; 3] {
+    let rows: u64 = taus.iter().map(|&tau| 1u64 << tau).sum();
+    let accesses: u64 = tables::CLASSES
+        .iter()
+        .zip(taus)
+        .map(|(spec, tau)| (spec.n_accesses() as u64) << tau)
+        .sum();
+    let bits = |reads: u64| (u64::BITS - reads.leading_zeros()) as usize;
+    [bits(rows), bits(accesses), bits(accesses)]
 }
 
 /// Build the public [`Layout`] from the program, the tables' log heights `taus` and the
@@ -295,14 +310,10 @@ pub fn bytecode_table(p: &rv::Program) -> Vec<F64> {
 /// tuples to divide back out of the bus.
 pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -> Layout {
     let sizes = Sizes::of(p);
-    let log_bytecode = sizes.log_bytecode;
     let one = F64::ONE;
-    // Shared between the seed and finalize blocks: a copy is tens of megabytes per
-    // column at production sizes.
-    let prog_cols: [std::sync::Arc<Vec<F64>>; N_BYTECODE_COLUMNS] = bytecode_columns(p).map(std::sync::Arc::new);
 
     // ---- bus blocks ----
-    use Coord::{Col, Const, IntIndex, Powers, Public, Sparse};
+    use Coord::{Col, Const, IntIndex, Powers, Sparse};
     let blk = |kappa: usize, coords: Vec<Coord>| Block { kappa, coords };
 
     let mut push: Vec<Block> = Vec::new();
@@ -374,39 +385,11 @@ pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -
         p.log_advice,
         vec![Const(tables::SEP_MEM), word, Col(ADV_FTS), Col(ADV_FIN)],
     ));
-    // Bytecode seed + finalize, entry `i` at its `pc` (the program columns are public).
-    let bytecode_block = |count: Coord| {
-        let pc = IntIndex {
-            base: F64(TEXT_BASE),
-            shift: 2,
-        };
-        blk(
-            log_bytecode,
-            [Const(SEP_BYTECODE), pc, count]
-                .into_iter()
-                .chain(prog_cols.iter().cloned().map(Public))
-                .collect(),
-        )
-    };
-    push.push(bytecode_block(Const(one)));
-    pull.push(bytecode_block(Col(BFCNT)));
-    // The two range arrays (§sec:rangecheck): entries with no value, so a read is a
-    // range check on its address. Neither is committed: their addresses are
-    // geometric, `g^{j+1}` and `g^{-2^16·j}`.
-    for (sep, first, ratio, count) in [
-        (tables::SEP_RANGE_LO, tables::range_lo_first(), F64::G, RLO_CNT),
-        (tables::SEP_RANGE_HI, one, tables::range_hi_ratio(), RHI_CNT),
-    ] {
-        let addresses = Powers { first, ratio };
-        push.push(blk(tables::RANGE_LOG, vec![Const(sep), addresses.clone(), Const(one)]));
-        pull.push(blk(tables::RANGE_LOG, vec![Const(sep), addresses, Col(count)]));
-    }
     debug_assert_eq!(push.len(), framework_kappa_sources(sizes).len());
 
-    // Per-table blocks: each table declares its flushes and read-count columns in
-    // local indices; offset them to the table's global columns.
+    // Per-table blocks: each table declares its flushes in local indices; offset them
+    // to the table's global columns.
     let sch = schema();
-    let mut count_blocks: Vec<Block> = Vec::new();
     for (t, table) in tables::tables().iter().enumerate() {
         let base = sch.base[t];
         let kappa = taus[t];
@@ -418,16 +401,40 @@ pub fn layout(p: &rv::Program, taus: [usize; tables::N_TABLES], ts_final: F64) -
         for coords in fb.pull {
             pull.push(blk(kappa, offset_coords(base, coords)));
         }
-        for &c in table.count_columns() {
-            count_blocks.push(blk(kappa, vec![Col(base + c)]));
-        }
     }
+
+    // The lookup arrays' table sides (§sec:lookup): the bytecode, entry `i` at its `pc`
+    // with the program's public columns, and the two range arrays (§sec:rangecheck),
+    // entries with no value, so that a read is a range check on its address. None is
+    // committed: the program is public and the range arrays' addresses are geometric,
+    // `g^{j+1}` and `g^{-2^16·j}`. What is, is how often each entry is read.
+    let [bc_bits, range_bits] = {
+        let [bc, lo, hi] = multiplicity_bits(taus);
+        debug_assert_eq!(lo, hi);
+        [bc, lo]
+    };
+    let range = |sep: F64, first: F64, ratio: F64, col: usize| Producer {
+        kappa: tables::RANGE_LOG,
+        coords: vec![Const(sep), Powers { first, ratio }],
+        col,
+        bits: range_bits,
+    };
+    let producers = vec![
+        Producer {
+            kappa: sizes.log_bytecode,
+            coords: bytecode_tuple(bytecode_columns(p).map(std::sync::Arc::new)),
+            col: BC_MULT,
+            bits: bc_bits,
+        },
+        range(tables::SEP_RANGE_LO, tables::range_lo_first(), F64::G, RLO_MULT),
+        range(tables::SEP_RANGE_HI, one, tables::range_hi_ratio(), RHI_MULT),
+    ];
 
     let (placements, shape) = witness::placements_of(&col_kappas(sizes, taus));
     Layout {
         push,
         pull,
-        count: count_blocks,
+        producers,
         placements,
         shape,
         taus,
@@ -461,7 +468,7 @@ impl Program {
         let tr = &exec.trace;
         let sch = schema();
 
-        // The public layout (flush/count blocks, placements, boundary, taus) is a pure
+        // The public layout (flush blocks, producers, placements, boundary, taus) is a pure
         // function of the program and the announced sizes, with no committed witness;
         // reconstruct it here so the prover and verifier share exactly the same
         // structure. It comes before the fill because it fixes each table's height
@@ -544,9 +551,10 @@ impl Program {
             windows[ADV_INIT].copy_from_slice(&tr.adv_init);
             windows[ADV_FIN].copy_from_slice(&tr.adv_fin);
             windows[ADV_FTS].copy_from_slice(&tr.adv_ts);
-            windows[BFCNT].copy_from_slice(&tr.bytecode_count); // counts ended at g^{A[pc]}
-            windows[RLO_CNT].copy_from_slice(&tr.range_lo_count);
-            windows[RHI_CNT].copy_from_slice(&tr.range_hi_count);
+            let [bc, lo, hi] = windows
+                .get_disjoint_mut([BC_MULT, RLO_MULT, RHI_MULT])
+                .expect("three distinct columns");
+            count_reads(tr, [bc, lo, hi]);
         });
         // The classes' packed witnesses, one instance per row of their table.
         let reductions = crate::stage!("Build flock witnesses", || {
@@ -562,6 +570,26 @@ impl Program {
             layout: l,
             ts_final: tr.ts_final,
             reductions,
+        }
+    }
+}
+
+/// How often each entry of each lookup array is read, the bytecode's by every row and
+/// the range arrays' by every access, at its gap's two chunks: each entry's word is that
+/// count as an integer.
+fn count_reads(tr: &Trace, [bc, lo, hi]: [&mut [F64]; 3]) {
+    for column in [&mut *bc, &mut *lo, &mut *hi] {
+        column.fill(F64::ZERO);
+    }
+    let mask = (1u32 << tables::RANGE_LOG) - 1;
+    for (t, rows) in tr.rows.iter().enumerate() {
+        let n = tables::CLASSES[t].n_accesses();
+        for r in rows {
+            bc[r.index as usize].0 += 1;
+            for a in &r.accesses()[..n] {
+                lo[(a.gap & mask) as usize].0 += 1;
+                hi[(a.gap >> tables::RANGE_LOG) as usize].0 += 1;
+            }
         }
     }
 }
