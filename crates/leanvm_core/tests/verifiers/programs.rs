@@ -1,7 +1,8 @@
 //! RISC-V programs, proven and checked by both verifiers.
 
 use super::python_verifier::PythonStatement;
-use leanvm_core::cpu::{Program, prove, verify, verify_to_raw};
+use leanvm_core::cpu::{Program, ProveError, prove, verify, verify_to_raw};
+use leanvm_core::pcs::Rate;
 use leanvm_core::rv::asm::*;
 use leanvm_core::rv::{ADVICE_BASE, RAM_BASE, TEXT_BASE};
 
@@ -38,7 +39,7 @@ fn proves_and_verifies(tag: &str, program: &Program, expected: [u64; 4]) {
 }
 
 fn proves_and_verifies_with(tag: &str, program: &Program, advice: &[u64], expected: [u64; 4]) {
-    let (proof, output, _) = prove(program, advice, 1).expect("the run halts");
+    let (proof, output, _) = prove(program, advice, Rate::MIN).expect("the run halts");
     assert_eq!(output, expected);
     let raw = verify_to_raw(program, &output, &proof).expect("honest proof verifies");
     PythonStatement::new(tag, program, &output).assert_accepts(&raw);
@@ -104,7 +105,7 @@ fn alu_instructions_prove_and_verify() {
         .jalr(ZERO, RA, 0);
     let program = Program::new(&a.finish(), TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
     let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run(1 << 20)
+        .run()
         .expect("the run halts");
     assert_ne!(expected, [0; 4]);
     proves_and_verifies("alu", &program, expected);
@@ -166,7 +167,7 @@ fn loads_and_stores_prove_and_verify() {
         .jalr(ZERO, RA, 0);
     let program = Program::new(&a.finish(), TEXT_BASE, image, LOG_RAM, 0).expect("valid instruction program");
     let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run(1 << 20)
+        .run()
         .expect("the run halts");
     proves_and_verifies("memory", &program, expected);
 }
@@ -200,7 +201,7 @@ fn shifts_and_multiplications_prove_and_verify() {
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
     let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run(1 << 20)
+        .run()
         .expect("the run halts");
     assert!(expected.iter().all(|&word| word != 0));
     proves_and_verifies("shift-mul", &program, expected);
@@ -229,7 +230,7 @@ fn divisions_prove_and_verify() {
     }
     let program = Program::new(&a.exit().finish(), TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
     let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run(1 << 20)
+        .run()
         .expect("the run halts");
     proves_and_verifies("div", &program, expected);
 }
@@ -286,11 +287,11 @@ fn blake2s_precompile_proves_and_verifies() {
     let text = Asm::new().li(S0, BLOCK + 4).blake2s(S0, ZERO, true).exit().finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 7, 0).expect("valid instruction program");
     assert_eq!(
-        prove(&program, &[], 1).err(),
-        Some(leanvm_core::rv::Trap::Misaligned {
+        prove(&program, &[], Rate::MIN).err(),
+        Some(ProveError::Trap(leanvm_core::rv::Trap::Misaligned {
             pc: TEXT_BASE + 8,
             address: BLOCK + 4
-        })
+        }))
     );
 }
 
@@ -330,8 +331,8 @@ fn advice_proves_and_verifies() {
         .finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 2, LOG_ADVICE).expect("valid instruction program");
     assert!(matches!(
-        prove(&program, &[], 1).err(),
-        Some(leanvm_core::rv::Trap::Unmapped { .. })
+        prove(&program, &[], Rate::MIN).err(),
+        Some(ProveError::Trap(leanvm_core::rv::Trap::Unmapped { .. }))
     ));
 }
 
@@ -341,7 +342,7 @@ fn a_trap_is_reported() {
     let text = Asm::new().word(0x0010_0073).exit().finish();
     let program = Program::new(&text, TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
     assert_eq!(
-        prove(&program, &[], 1).err(),
-        Some(leanvm_core::rv::Trap::Illegal { pc: TEXT_BASE })
+        prove(&program, &[], Rate::MIN).err(),
+        Some(ProveError::Trap(leanvm_core::rv::Trap::Illegal { pc: TEXT_BASE }))
     );
 }

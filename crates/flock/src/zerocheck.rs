@@ -49,6 +49,9 @@ use univariate_skip_optimized::{
 pub const K_SKIP: usize = 6;
 const N_INNER: usize = 7; // 3 small + 4 medium fixed-constant eq dimensions
 
+/// The fewest variables a zerocheck's cube can have: the univariate skip plus the fixed-constant dimensions.
+pub const MIN_LOG_N: usize = K_SKIP + N_INNER;
+
 /// Passes over the packed bits, two rounds each, before the folded tables are stored.
 ///
 /// - A pass re-reads the three bit tables, `3 * 2^m` bits.
@@ -74,14 +77,30 @@ fn equality_tail(m: usize, mut sample_vec: impl FnMut(usize) -> Vec<F192>) -> Ve
         .collect()
 }
 
-/// Witness padding descriptor for URM work-skipping.
+/// Where the zero padding of a batched witness lies, so the zerocheck can skip it.
 ///
-/// The witness is a sequence of `2^(m - k_log)` blocks of `2^k_log` bits each;
-/// inside each block, bits `[0, useful_bits_per_block)` carry real data and
-/// bits `[useful_bits_per_block, 2^k_log)` are zero padding. URM contributions
-/// from a chunk of all-zero bits are themselves zero, so we can skip those
-/// chunks and produce byte-identical output.
-pub use pcs::pack::PaddingSpec;
+/// The witness is `2^(m - k_log)` blocks of `2^k_log` bits.
+///
+/// Each block holds its data first and zero padding after it.
+///
+/// A chunk of zero bits adds nothing to a round message, so skipping it leaves the output unchanged.
+#[derive(Clone, Copy, Debug)]
+pub struct PaddingSpec {
+    /// Log of the bits in one block.
+    pub k_log: usize,
+    /// Bits at the start of each block that carry data; the rest are zero.
+    pub useful_bits_per_block: usize,
+}
+
+impl PaddingSpec {
+    /// Treat every bit as useful.
+    pub fn dense(m: usize) -> Self {
+        Self {
+            k_log: m,
+            useful_bits_per_block: 1usize << m,
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Public types: claim, proof, error.
@@ -108,13 +127,15 @@ pub struct ZerocheckClaim {
     pub c_eval: F192,
 }
 
-/// Reasons the verifier may reject a proof.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Why the zerocheck verifier rejects.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum VerifyError {
-    /// `log_n` doesn't satisfy `log_n >= K_SKIP`.
+    /// Fewer variables than the univariate skip takes.
+    #[error("log_n {log_n} is below k_skip {k_skip}")]
     LogNTooSmall { log_n: usize, k_skip: usize },
-    /// The proof stream ran out while reading a message.
-    Transcript(fiat_shamir::transcript::Error),
+    /// The proof stream is malformed.
+    #[error(transparent)]
+    Transcript(#[from] fiat_shamir::transcript::Error),
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +276,7 @@ pub fn prove_packed_padded(
     let mut next = materialize_level + 1;
     // Ping-pong scratch: a pass writes its folded tables here, then the two swap.
     let n_in = a_mlv.len();
-    // SAFETY (x3): a pass writes every slot of the prefix it hands on, and nothing reads past it.
+    // SAFETY: a pass writes every slot of the prefix it hands on, and nothing reads past it.
     let (mut a_nxt, mut b_nxt, mut c_nxt) = unsafe {
         (
             ArenaVec::<F192>::uninitialized(n_in / 2),
@@ -379,7 +400,7 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
     let r_rest = equality_tail(m, |n| vs.sample_vec(n));
 
     // ---- Read + bind the round-1 message off the stream, sample z ----
-    let round1: Vec<F192> = vs.next_scalars(ell).map_err(VerifyError::Transcript)?;
+    let round1: Vec<F192> = vs.next_scalars(ell)?;
     let z = vs.sample();
 
     // ---- Reconstruct the initial running claim ----
@@ -413,9 +434,7 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
     let mut mlv_chis: Vec<F192> = Vec::with_capacity(n_mlv);
     for i in 0..n_mlv {
         let r_eq = r_rest[i];
-        let g = vs
-            .next_round_poly(3, c_running, Some(r_eq))
-            .map_err(VerifyError::Transcript)?;
+        let g = vs.next_round_poly(3, c_running, Some(r_eq))?;
         let chi = vs.sample();
         mlv_chis.push(chi);
         c_running = primitives::multilinear::poly_eval(&g, chi);
@@ -435,8 +454,8 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
     // what the identity leaves, so there is nothing to check here. A prover who
     // lies about anything upstream just shifts the lie into `ĉ`, and lincheck,
     // which pins all three against the committed witness, rejects it.
-    let final_a_eval = vs.next_scalar().map_err(VerifyError::Transcript)?;
-    let final_b_eval = vs.next_scalar().map_err(VerifyError::Transcript)?;
+    let final_a_eval = vs.next_scalar()?;
+    let final_b_eval = vs.next_scalar()?;
     let final_c_eval = c_running + final_a_eval * final_b_eval;
 
     Ok(ZerocheckClaim {

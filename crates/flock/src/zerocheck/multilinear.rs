@@ -19,8 +19,7 @@
 //! - **Table rounds.** The last bit pass stores the folded tables.
 //!   Each later pass folds the challenges pending on them and sends two rounds, as the bit passes do.
 //!
-//! **Index convention** (matches the C++ extract_c pipeline's `sumcheck_round_pair`
-//! and the NEON `fold_in_place_pair`): the **low bit** of the multilinear index
+//! **Index convention** (matches `fold_in_place_pair`): the **low bit** of the multilinear index
 //! is bound first. So `a_mlv[2k]` is the X=0 value and `a_mlv[2k+1]` is the X=1
 //! value, paired by the round message and the fold.
 //!
@@ -478,8 +477,10 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
     let (pair_in_block_mask, live_pairs) = padding_pairs(padding, position_log);
     let live = |pair: usize| (pair & pair_in_block_mask) < live_pairs;
 
-    // SAFETY (x3): every slot is written below, padding included.
-    let mut out: [ArenaVec<F192>; 3] = std::array::from_fn(|_| unsafe { ArenaVec::uninitialized(n_pos) });
+    let mut out: [ArenaVec<F192>; 3] = std::array::from_fn(|_| {
+        // SAFETY: every slot is written below, padding included.
+        unsafe { ArenaVec::uninitialized(n_pos) }
+    });
     let [out_a, out_b, out_c] = &mut out;
     let chunks = [out_a, out_b, out_c].map(|o| parallel::Chunks::new(o, 2 * lo_size));
 

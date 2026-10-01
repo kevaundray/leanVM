@@ -1,15 +1,14 @@
 //! leanVM: arithmetization of a minimal zkVM (see `doc/leanvm/main.tex`).
 //!
-//! Machine words, addresses, the pc, timestamps and read counters live in `K = GF(2^64)`.
+//! Machine words, addresses, the pc and timestamps live in `K = GF(2^64)`.
 //! What the machine computes with is an integer, read as the element with those bits;
-//! what the proof system only ever steps (a timestamp, a read count) is a power of a
+//! what the proof system only ever steps (a timestamp) is a power of a
 //! fixed generator `g`, so incrementing one is a multiplication by `g`, a free virtual
 //! operation. Every physical witness column is K-valued and is committed directly by a
 //! dense multilinear PCS.
 //! Challenges and transcript scalars live in `E = GF(2^192)`, leaving ample margin
 //! for 128-bit soundness.
 //!
-//! - [`transcript`]: the shared Fiat-Shamir transcript (re-exported from `fiat_shamir`).
 //! - [`pcs`]: `K`-committed witness, `E`-opened, via the stacked WHIR (§sec:stacking, §annex:pcs).
 //! - [`witness`]: `K`-valued columns stacked into one committed witness.
 //! - [`gkr`]: the grand product via GKR (§sec:gkr), balancing the bus.
@@ -30,7 +29,6 @@ pub mod leaf;
 pub mod pcs;
 pub mod rv;
 pub mod tables;
-pub mod transcript;
 pub mod witness;
 
 /// Prepare the process for proving: the worker pool ([`init_prover_pool`]) plus

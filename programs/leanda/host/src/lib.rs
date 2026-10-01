@@ -187,7 +187,7 @@ mod tests {
                 broken[0][c] ^= 1 << bit;
                 assert_eq!(
                     check(&broken, &mut cells),
-                    Err(leanda::Error::NotACodeword(0)),
+                    Err(leanda::Error::NotACodeword { row: 0 }),
                     "limb {c} bit {bit}"
                 );
             }
@@ -197,7 +197,7 @@ mod tests {
     /// The guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(run: &Run) -> Result<[u64; 4], leanvm_core::rv::Trap> {
         let program = leanvm_core::cpu::Program::from_elf(ELF).expect("the guest's ELF file");
-        leanvm_core::rv::Machine::new(program.rv(), &run.advice).run(1 << 30)
+        leanvm_core::rv::Machine::new(program.rv(), &run.advice).run()
     }
 
     #[test]

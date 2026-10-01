@@ -8,12 +8,15 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
 
 
 # Numeric kernels legitimately index by loop variable and take many arguments.
 [workspace.lints.clippy]
 needless_range_loop = "allow"
 too_many_arguments = "allow"
+undocumented_unsafe_blocks = "deny"
 
 [workspace.dependencies]
 bench = { path = "crates/bench" }
@@ -33,6 +36,7 @@ libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 bincode = "1"
 rand = "0.9"
+thiserror = { version = "2", default-features = false }
 tracing = "0.1.26"
 tracing-forest = { version = "0.3.0", features = ["ansi", "smallvec"] }
 tracing-subscriber = { version = "0.3.23", features = ["std", "env-filter"] }
