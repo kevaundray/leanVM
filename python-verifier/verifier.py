@@ -1464,23 +1464,25 @@ def _add(c: _GateList, x: Sequence[Wire], y: Sequence[Wire]) -> list[Wire]:
     return total
 
 
-def _shift_bytes(c: _GateList, x: Sequence[Wire], amount: Sequence[Wire], left: bool) -> list[Wire]:
-    """`x` shifted by `8 * amount` bits, `amount` being three bits."""
+def _shift_bytes(c: _GateList, x: Sequence[Wire], amount: Sequence[Wire], left: bool, bits: int) -> list[Wire]:
+    """`x` shifted by `8 * amount` bits, `amount` being three bits. Only the low `bits` bits of the result are made, the
+    ones the caller reads."""
     x = list(x)
     for stage, bit in enumerate(amount):
         by = 8 << stage
         moved = [x[i - by] if i >= by else None for i in range(64)] if left else [x[i + by] if i + by < 64 else None for i in range(64)]
-        x = [c.mux(bit, moved[i], x[i]) for i in range(64)]
+        x = [c.mux(bit, moved[i], x[i]) for i in range(bits if stage + 1 == len(amount) else 64)]
     return x
 
 
 def _bus_address(c: _GateList, v1: Sequence[Wire], imm: Sequence[Wire], log_width: Sequence[Wire]) -> tuple[list[Wire], list[Wire], list[Wire]]:
-    """A load's or a store's address `v1 + imm`, the width's thresholds (at least 2 bytes, at least 4, exactly 8), and
-    what goes on the memory bus: the address of the 64-bit cell, with the bits that misalign the access left in.
-    A cell's address is a multiple of 8, so a misaligned access names no cell at all."""
+    """A load's or a store's address `v1 + imm`, the width's thresholds (at least 2 bytes, at least 4), and what goes
+    on the memory bus: the address of the 64-bit cell, with the bits that misalign the access left in. A cell's
+    address is a multiple of 8, so a misaligned access names no cell at all. A doubleword is LD's or SD's, so the two
+    width bits are never both set (their OR is their XOR) and bit 2 never misaligns: it is cleared."""
     address = _add(c, v1, imm)
-    thresholds = [c.either(log_width[0], log_width[1]), log_width[1], c.product(log_width[0], log_width[1])]
-    bus = [c.product(address[i], thresholds[i]) for i in range(3)] + address[3:]
+    thresholds = [c.xor(log_width[0], log_width[1]), log_width[1]]
+    bus = [c.product(address[i], thresholds[i]) for i in range(2)] + [None] + address[3:]
     return address, thresholds, bus
 
 
@@ -1488,18 +1490,18 @@ def _load() -> _GateList:
     """(v1, imm, flags, cell) -> (address, out): the bytes of `cell` the address names, extended to 64 bits."""
     c = _GateList((64, 64, 3, 64), (64, 64))
     v1, imm, flags, cell = c.inputs
-    address, (ge2, ge4, eq8), bus = _bus_address(c, v1, imm, flags[:2])
-    value = _shift_bytes(c, cell, address[:3], left=False)
+    address, (ge2, ge4), bus = _bus_address(c, v1, imm, flags[:2])
+    # At most 4 bytes are loaded, so only the low half of the shifted cell is read.
+    value = _shift_bytes(c, cell, address[:3], left=False, bits=32)
     # The extension: the value's top bit, which the width places, if the load is signed.
     sign: Wire = None
-    for width, bit in ((c.invert(ge2), 7), (c.xor(ge2, ge4), 15), (c.xor(ge4, eq8), 31)):
+    for width, bit in ((c.invert(ge2), 7), (c.xor(ge2, ge4), 15), (ge4, 31)):
         sign = c.xor(sign, c.product(width, value[bit]))
     extension = c.product(flags[2], sign)
     for i, wire in enumerate(bus):
         c.output(0, i, wire)
     for i in range(64):
-        keeps = None if i < 8 else ge2 if i < 16 else ge4 if i < 32 else eq8
-        c.output(1, i, value[i] if i < 8 else c.mux(keeps, value[i], extension))
+        c.output(1, i, value[i] if i < 8 else c.mux(ge2, value[i], extension) if i < 16 else c.mux(ge4, value[i], extension) if i < 32 else extension)
     return c
 
 
@@ -1509,10 +1511,12 @@ def _store() -> _GateList:
     c = _GateList((64, 64, 64, 2, 64), (64, 64))
     v1, v2, imm, flags, cell = c.inputs
     address, thresholds, bus = _bus_address(c, v1, imm, flags)
-    value = _shift_bytes(c, v2, address[:3], left=True)
+    # At most 4 bytes are stored, so the high half of v2 is never written.
+    value = _shift_bytes(c, [*v2[:32], *[None] * 32], address[:3], left=True, bits=64)
     # Byte j is written when it shares the access's block: bit k of j equals bit k of the address wherever the
-    # width does not already span both.
-    spans = [[c.either(c.invert(address[k]), thresholds[k]), c.either(address[k], thresholds[k])] for k in range(3)]
+    # width does not already span both. No width spans bit 2, so there the byte's bit must equal the address's.
+    spans = [[c.either(c.invert(address[k]), thresholds[k]), c.either(address[k], thresholds[k])] for k in range(2)]
+    spans.append([c.invert(address[2]), address[2]])
     for i, wire in enumerate(bus):
         c.output(0, i, wire)
     for j in range(8):

@@ -63,8 +63,9 @@ fn add(c: &mut Builder, x: &[Wire], y: &[Wire]) -> Word {
     sum
 }
 
-/// `x` shifted by `8·amount` bits, `amount` being three bits: left, or right.
-fn shift_bytes(c: &mut Builder, x: &[Wire], amount: &[Wire], left: bool) -> Word {
+/// `x` shifted by `8·amount` bits, `amount` being three bits: left, or right. Only the
+/// low `bits` bits of the result are made, the ones the caller reads.
+fn shift_bytes(c: &mut Builder, x: &[Wire], amount: &[Wire], left: bool, bits: usize) -> Word {
     let mut x = x.to_vec();
     for (stage, &bit) in amount.iter().enumerate() {
         let by = 8 << stage;
@@ -75,30 +76,27 @@ fn shift_bytes(c: &mut Builder, x: &[Wire], amount: &[Wire], left: bool) -> Word
                 x.get(i + by).copied().flatten()
             }
         };
-        x = (0..64).map(|i| c.mux(bit, from(&x, i), x[i])).collect();
+        let made = if stage + 1 == amount.len() { bits } else { 64 };
+        x = (0..made).map(|i| c.mux(bit, from(&x, i), x[i])).collect();
     }
     x
 }
 
 /// The width thresholds of a load or a store, from the two bits of `log2` of its
-/// width in bytes: at least 2, at least 4, exactly 8.
-fn width_thresholds(c: &mut Builder, log_width: &[Wire]) -> [Wire; 3] {
-    [
-        c.or(log_width[0], log_width[1]),
-        log_width[1],
-        c.and(log_width[0], log_width[1]),
-    ]
+/// width in bytes: at least 2, at least 4. A doubleword is [`super::Class::Ld`]'s or
+/// [`super::Class::Sd`]'s, so the two bits are never both set and their OR is their XOR.
+fn width_thresholds(c: &mut Builder, log_width: &[Wire]) -> [Wire; 2] {
+    [c.xor(log_width[0], log_width[1]), log_width[1]]
 }
 
-/// [`super::semantics::bus_address`]: the low three bits are the ones misaligning the access.
-fn bus_address(c: &mut Builder, address: &[Wire], thresholds: [Wire; 3]) -> Word {
+/// [`super::semantics::bus_address`]: the low bits are the ones misaligning the access.
+/// Bit 2 never does, no width here reaching 8 bytes, so it is cleared.
+fn bus_address(c: &mut Builder, address: &[Wire], thresholds: [Wire; 2]) -> Word {
     (0..64)
-        .map(|i| {
-            if i < 3 {
-                c.and(address[i], thresholds[i])
-            } else {
-                address[i]
-            }
+        .map(|i| match i {
+            0 | 1 => c.and(address[i], thresholds[i]),
+            2 => None,
+            _ => address[i],
         })
         .collect()
 }
@@ -109,11 +107,12 @@ pub fn load() -> Circuit {
     let mut c = Builder::new(&[64, 64, 3, 64], &[64, 64]);
     let (v1, imm, flags, cell) = (c.input(0), c.input(1), c.input(2), c.input(3));
     let address = add(&mut c, &v1, &imm);
-    let [ge2, ge4, eq8] = width_thresholds(&mut c, &flags[..2]);
-    let bus = bus_address(&mut c, &address, [ge2, ge4, eq8]);
-    let value = shift_bytes(&mut c, &cell, &address[..3], false);
+    let [ge2, ge4] = width_thresholds(&mut c, &flags[..2]);
+    let bus = bus_address(&mut c, &address, [ge2, ge4]);
+    // At most 4 bytes are loaded, so only the low half of the shifted cell is read.
+    let value = shift_bytes(&mut c, &cell, &address[..3], false, 32);
     // The extension: the value's top bit, which the width places, if the load is signed.
-    let (w1, w2, w4) = (c.not(ge2), c.xor(ge2, ge4), c.xor(ge4, eq8));
+    let (w1, w2, w4) = (c.not(ge2), c.xor(ge2, ge4), ge4);
     let sign = [(w1, 7), (w2, 15), (w4, 31)]
         .into_iter()
         .fold(None, |acc, (width, bit)| {
@@ -125,13 +124,12 @@ pub fn load() -> Circuit {
         c.output(0, i, wire);
     }
     for i in 0..64 {
-        let keeps = match i {
-            0..8 => None,
-            8..16 => Some(ge2),
-            16..32 => Some(ge4),
-            _ => Some(eq8),
+        let wire = match i {
+            0..8 => value[i],
+            8..16 => c.mux(ge2, value[i], extension),
+            16..32 => c.mux(ge4, value[i], extension),
+            _ => extension,
         };
-        let wire = keeps.map_or(value[i], |keeps| c.mux(keeps, value[i], extension));
         c.output(1, i, wire);
     }
     c.finish()
@@ -142,14 +140,20 @@ pub fn store() -> Circuit {
     let mut c = Builder::new(&[64, 64, 64, 2, 64], &[64, 64]);
     let (v1, v2, imm, flags, cell) = (c.input(0), c.input(1), c.input(2), c.input(3), c.input(4));
     let address = add(&mut c, &v1, &imm);
-    let [ge2, ge4, eq8] = width_thresholds(&mut c, &flags);
-    let bus = bus_address(&mut c, &address, [ge2, ge4, eq8]);
-    let value = shift_bytes(&mut c, &v2, &address[..3], true);
+    let [ge2, ge4] = width_thresholds(&mut c, &flags);
+    let bus = bus_address(&mut c, &address, [ge2, ge4]);
+    // At most 4 bytes are stored, so the high half of `v2` is never written.
+    let low: Word = (0..64).map(|i| if i < 32 { v2[i] } else { None }).collect();
+    let value = shift_bytes(&mut c, &low, &address[..3], true, 64);
     // Byte `j` is written when it shares the access's block: bit `k` of `j` equals bit
-    // `k` of the address wherever the width does not already span both.
+    // `k` of the address wherever the width does not already span both. No width spans
+    // bit 2, so there the byte's bit must equal the address's.
     let spans: [[Wire; 2]; 3] = std::array::from_fn(|k| {
-        let (is_zero, threshold) = (c.not(address[k]), [ge2, ge4, eq8][k]);
-        [c.or(is_zero, threshold), c.or(address[k], threshold)]
+        let is_zero = c.not(address[k]);
+        match [ge2, ge4].get(k) {
+            Some(&threshold) => [c.or(is_zero, threshold), c.or(address[k], threshold)],
+            None => [is_zero, address[k]],
+        }
     });
     for (i, &wire) in bus.iter().enumerate() {
         c.output(0, i, wire);

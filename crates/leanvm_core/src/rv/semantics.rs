@@ -88,25 +88,20 @@ pub fn word_address(v1: u64, imm: u64) -> u64 {
     bus_address(address(v1, imm), 3)
 }
 
-/// The value a load at `address` returns, from the 64-bit cell holding it.
+/// The value a load of 1, 2 or 4 bytes at `address` returns, from the 64-bit cell holding it.
 pub fn load(cell: u64, address: u64, flags: u64) -> u64 {
     let bits = 8 << (flags & load::LOG_WIDTH);
     let x = cell >> (8 * (address & 7));
-    if bits == 64 {
-        x
-    } else if flags & load::SIGNED != 0 {
+    if flags & load::SIGNED != 0 {
         (((x << (64 - bits)) as i64) >> (64 - bits)) as u64
     } else {
         x & ((1 << bits) - 1)
     }
 }
 
-/// The cell a store of `value` at `address` leaves.
+/// The cell a store of 1, 2 or 4 bytes of `value` at `address` leaves.
 pub fn store(cell: u64, address: u64, value: u64, flags: u64) -> u64 {
     let bits = 8 << (flags & store::LOG_WIDTH);
-    if bits == 64 {
-        return value;
-    }
     let mask = ((1u64 << bits) - 1) << (8 * (address & 7));
     (cell & !mask) | ((value << (8 * (address & 7))) & mask)
 }
