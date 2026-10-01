@@ -12,9 +12,9 @@ use crate::constraints;
 use crate::leaf::{self, Block, ColumnClaim, Coord, Producer};
 use crate::pcs;
 use crate::rv;
-use crate::tables::{self, FillCtx, FlushBuilder, SEP_BYTECODE, SEP_STATE};
-use crate::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
+use crate::tables::{self, FillCtx, SEP_BYTECODE, SEP_STATE};
 use crate::witness;
+use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use primitives::field::{F64, F192};
 
 mod execute;
@@ -62,11 +62,11 @@ fn announce_public(ps: &mut ProverState, taus: [usize; tables::N_TABLES], log_in
 /// and those sizes. Nothing the program fixes is read from the prover.
 fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize), CpuError> {
     let read_size = |vs: &mut VerifierState| -> Result<usize, CpuError> {
-        let word = vs.next_scalar().map_err(CpuError::Transcript)?;
+        let word = vs.next_scalar()?;
         if word.c1 != 0 || word.c2 != 0 {
-            return Err(CpuError::PublicInput);
+            return Err(CpuError::NonCanonicalSize);
         }
-        usize::try_from(word.c0).map_err(|_| CpuError::PublicInput)
+        usize::try_from(word.c0).map_err(|_| CpuError::NonCanonicalSize)
     };
 
     let mut taus = [0usize; tables::N_TABLES];
@@ -74,9 +74,9 @@ fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize)
         *t = read_size(vs)?;
     }
     let log_inv_rate = read_size(vs)?;
-    let ts_final = vs.next_scalar().map_err(CpuError::Transcript)?;
+    let ts_final = vs.next_scalar()?;
     if ts_final.c0 == 0 || ts_final.c1 != 0 || ts_final.c2 != 0 {
-        return Err(CpuError::PublicInput);
+        return Err(CpuError::FinalClock);
     }
     // The public instance caps ensure that, with `ord(g) = 2^64 − 1`, the clock and
     // memory arguments are theorems only when the announced instance keeps every
@@ -84,20 +84,29 @@ fn read_public(vs: &mut VerifierState, prog: &Program) -> Result<(Layout, usize)
     // the caps BEFORE running any reduction. (A table's row count is the number of
     // times its class runs, unbounded by the bytecode size since a small loop
     // body runs many times, so it gets its own cap.)
-    let floors_hold = (0..tables::N_TABLES)
+    for (spec, &log_rows) in tables::CLASSES.iter().zip(&taus) {
         // flock sizes its argument to at least `n_blocks_log(1)` instances, and a
         // table's circuit words share that instance cube, so a height below the floor
         // describes a layout the arithmetization cannot express. `python-verifier`
         // rejects it here too.
-        .all(|t| (crate::class_flock::n_blocks_log(tables::CLASSES[t], 1)..=MAX_LOG_ROWS).contains(&taus[t]));
-    if !floors_hold || ::pcs::whir::validate_log_inv_rate(log_inv_rate).is_err() {
-        return Err(CpuError::PublicInput);
+        let min = crate::class_flock::n_blocks_log(spec, 1);
+        if !(min..=MAX_LOG_ROWS).contains(&log_rows) {
+            return Err(CpuError::TableHeight {
+                table: spec.name,
+                log_rows,
+                min,
+                max: MAX_LOG_ROWS,
+            });
+        }
+    }
+    if !u8::try_from(log_inv_rate).is_ok_and(|r| pcs::Rate::new(r).is_ok()) {
+        return Err(CpuError::Rate { log_inv_rate });
     }
     let l = layout(&prog.rv, taus, F64(ts_final.c0));
     // The caps bound each announced log on its own; what the PCS is configured for
     // is the stacked size they imply, which they do not bound.
     if !(pcs::MIN_MU..=pcs::MAX_MU).contains(&l.shape.mu) {
-        return Err(CpuError::PublicInput);
+        return Err(CpuError::WitnessSize { mu: l.shape.mu });
     }
     Ok((l, log_inv_rate))
 }
@@ -184,7 +193,7 @@ impl Program {
             unsafe { core::slice::from_raw_parts(table.as_ptr().cast::<u8>(), core::mem::size_of_val(&table[..])) };
         // Every variable-length part is length-framed, so the preimage parses one way.
         let mut h = primitives::hash::Hasher::new();
-        h.update(b"leanvm-rv64im-2");
+        h.update(b"leanvm-rv64im-4");
         h.update(&bytes(&[table.len() as u64]));
         h.update(table_bytes);
         h.update(&bytes(&[
@@ -204,204 +213,186 @@ impl Program {
 }
 
 /// The whole proof is the transcript: a scalar stream plus the PCS hint
-/// channels (see [`crate::transcript::Proof`]).
-pub use crate::transcript::Proof;
+/// channels (see [`fiat_shamir::transcript::Proof`]).
+pub use fiat_shamir::transcript::Proof;
 
-/// Why a proof does not verify, by the stage that refused it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Why a proof does not verify, by the stage that refuses it.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CpuError {
+    /// An announced size is not a canonical integer.
+    #[error("an announced size is not a canonical integer")]
+    NonCanonicalSize,
+    /// A table's announced height is outside what the arithmetization expresses.
+    #[error("the {table} table announces 2^{log_rows} rows, outside 2^{min}..=2^{max}")]
+    TableHeight {
+        table: &'static str,
+        log_rows: usize,
+        min: usize,
+        max: usize,
+    },
+    /// The announced rate is one the commitment does not support.
+    #[error("the announced log_inv_rate {log_inv_rate} is not in {min}..={max}", min = pcs::Rate::MIN.log_inv_rate(), max = pcs::Rate::MAX.log_inv_rate())]
+    Rate { log_inv_rate: usize },
+    /// The announced final clock is zero or not a base-field element.
+    #[error("the announced final clock is not a nonzero base-field element")]
+    FinalClock,
+    /// The announced heights stack to a witness the commitment does not take.
+    #[error("the witness has 2^{mu} words, outside 2^{min}..=2^{max}", min = pcs::MIN_MU, max = pcs::MAX_MU)]
+    WitnessSize { mu: usize },
+    /// The proof stream is malformed.
+    #[error(transparent)]
+    Transcript(#[from] fiat_shamir::transcript::Error),
+    /// The memory and lookup bus does not balance.
+    #[error("the bus: {0}")]
     Bus(leaf::Error),
+    /// The table constraints do not hold.
+    #[error("the table constraints: {0}")]
     Constraint(constraints::Error),
-    Open(pcs::Error),
-    PublicInput,
-    Transcript(crate::transcript::Error),
-    /// A class's flock sub-proof failed to verify. (A missing or malformed one
-    /// surfaces as [`CpuError::Transcript`] when the shared `stream`/`openings` fail
-    /// to reconstruct or fully consume.)
-    Flock(flock::verifier::VerifyError),
+    /// A class's circuit sub-proof is rejected.
+    #[error("the {table} circuit: {error}")]
+    Flock {
+        table: &'static str,
+        error: flock::verifier::VerifyError,
+    },
+    /// The commitment opening is rejected.
+    #[error("the opening: {0}")]
+    Open(::pcs::whir::VerifyError),
 }
-
-impl std::fmt::Display for CpuError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Bus(error) => write!(f, "the bus does not balance ({error:?})"),
-            Self::Constraint(error) => write!(f, "the table constraints fail ({error:?})"),
-            Self::Open(error) => write!(f, "the commitment opening fails ({error:?})"),
-            Self::PublicInput => f.write_str("the announced sizes are out of range"),
-            Self::Transcript(error) => write!(f, "the transcript is malformed ({error:?})"),
-            Self::Flock(error) => write!(f, "a circuit's sub-proof fails ({error:?})"),
-        }
-    }
-}
-
-impl std::error::Error for CpuError {}
 
 /// Why a run has no proof.
 ///
 /// Every variant is a limit of the prover or a mistake of its caller, except a trap, which is the run's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ProveError {
     /// The run trapped.
-    Trap(rv::Trap),
+    #[error(transparent)]
+    Trap(#[from] rv::Trap),
     /// The run is longer than one proof holds, in cycles or in committed words.
+    #[error("the run is longer than one proof holds (continuations are not implemented)")]
     TooLong,
     /// More advice words than the program's region holds.
+    #[error("the advice has {got} words, and the program's region holds {max}")]
     AdviceTooLong { max: usize, got: usize },
-    /// A rate the PCS does not support.
-    InvalidRate { log_inv_rate: usize },
 }
 
-impl From<rv::Trap> for ProveError {
-    fn from(trap: rv::Trap) -> Self {
-        Self::Trap(trap)
-    }
+/// One table's summand in the table sumcheck (§constraints): its identities, weighted
+/// by its own `η`-range, plus its two bus forms, weighted by the shared powers at
+/// [`xi_form_base`]. The forms carry every committed column of the table, so the
+/// identities and the forms read the same value array.
+struct TableSummand {
+    table: &'static tables::ClassTable,
+    weights: Vec<F192>,
+    bus: leaf::BusForm,
 }
 
-impl std::fmt::Display for ProveError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Self::Trap(trap) => trap.fmt(f),
-            Self::TooLong => f.write_str("the run is longer than one proof holds (continuations are not implemented)"),
-            Self::AdviceTooLong { max, got } => {
-                write!(f, "the advice has {got} words, and the program's region holds {max}")
+/// A producer's summand (§sec:lookup): its bit `i`'s block owes the push side
+/// `Σ_x eq(ζ, x)·(1 + b_i(x)·P'_i(x))` at the block's selector, and the producer has no
+/// identity of its own. Its columns are its bits `b_i`, which are sent, then its public
+/// `P'_i`, which the verifier computes.
+struct ProducerSummand {
+    /// Per bit, its block's selector, the push side's form power folded in.
+    coefficients: Vec<F192>,
+    producer: Producer,
+    /// The fingerprint `(eq(α⃗, ·), β)` the public columns are made of.
+    weights: Vec<F192>,
+    beta: F192,
+}
+
+/// One air of the table sumcheck: a table's, or a lookup array's producer's.
+enum Summand {
+    Table(TableSummand),
+    Producer(ProducerSummand),
+}
+
+impl constraints::Summand for Summand {
+    #[inline(always)]
+    fn eval<T: ColVal>(&self, cols: &[T], quadratic: bool) -> F192 {
+        match self {
+            // The identities are homogeneous of degree two, so their quadratic part is
+            // their whole value.
+            Summand::Table(s) => {
+                T::reduce(T::lift(s.table.eval(&s.weights, cols)) ^ s.bus.eval_unreduced(cols, quadratic))
             }
-            Self::InvalidRate { log_inv_rate } => write!(
-                f,
-                "log_inv_rate {log_inv_rate} is not in {}..={}",
-                ::pcs::whir::MIN_LOG_INV_RATE,
-                ::pcs::whir::MAX_LOG_INV_RATE
-            ),
+            // `Σ_i c_i·(1 + b_i·P'_i)`, whose quadratic part is the products.
+            Summand::Producer(s) => {
+                let n = s.coefficients.len();
+                let products = (0..n).fold(T::lift(F192::ZERO), |acc, i| {
+                    acc ^ (cols[i] * cols[n + i]).mul_e_unreduced(s.coefficients[i])
+                });
+                let constant = if quadratic {
+                    F192::ZERO
+                } else {
+                    s.coefficients.iter().fold(F192::ZERO, |a, &b| a + b)
+                };
+                T::reduce(products) + constant
+            }
+        }
+    }
+
+    fn public(&self, chi: &[F192]) -> Vec<F192> {
+        match self {
+            Summand::Table(_) => Vec::new(),
+            Summand::Producer(s) => leaf::producer_public_evals(&s.producer, &s.weights, s.beta, chi),
         }
     }
 }
 
-impl std::error::Error for ProveError {}
-
-/// Per side, which table (if any) owns each bus block, as `(table, column base)`.
-type BlockOwners = [Vec<Option<(usize, usize)>>; 2];
-/// Each table's `(column base, committed column count)` in the global schema.
-type TableSpans = Vec<(usize, usize)>;
-
-/// Blocks sourced from a table's height belong to it; the boundary, register and memory
-/// blocks belong to none and keep their own column claims at ζ.
-fn block_owners(sizes: Sizes, sides: [usize; 2]) -> BlockOwners {
-    let sch = schema();
-    let src = block_kappa_sources(sizes);
-    let mut it = src
-        .into_iter()
-        .map(|(source, _)| source.checked_sub(1).map(|t| (t, sch.base[t])));
-    sides.map(|n| it.by_ref().take(n).collect())
+/// The producers as the table sumcheck takes them: their weights on each bit's block,
+/// and the fingerprint (`eq(α⃗, ·)`, `β`) their public columns use.
+struct ProducerShares<'a> {
+    coefficients: &'a [Vec<F192>],
+    weights: &'a [F192],
+    beta: F192,
 }
 
-/// The bus's public wiring: per side which table owns each block, and each table's
-/// column span. Derived from the program and the announced layout alone, so prover
-/// and verifier build it identically.
-fn bus_wiring(program: &Program, l: &Layout) -> (BlockOwners, TableSpans) {
-    let owners = block_owners(Sizes::of(&program.rv), [l.push.len(), l.pull.len()]);
-    (owners, table_spans())
-}
-
-/// The table sumcheck carries every committed column of a table, because its bus
-/// forms reference the flushed ones and its constraint the rest.
-fn table_spans() -> TableSpans {
-    let sch = schema();
-    tables::tables()
-        .iter()
-        .enumerate()
-        .map(|(t, tb)| (sch.base[t], tb.n_committed_columns()))
-        .collect()
-}
-
-/// The per-table inputs to the table sumcheck (§constraints), in schema order, then
-/// one per producer. Prover and verifier both call this, so their column order and
-/// constraint closures agree by construction.
-/// The airs carry every committed column of their table, so a constraint indexes the
-/// value array directly and each table's two bus forms can be
-/// evaluated on the same values. The identities take the air's own `η`-range; the
-/// two forms take the shared powers at [`xi_form_base`], folded into the forms'
-/// coefficients once rather than multiplied onto every row's form value.
+/// The inputs to the table sumcheck, one per table in schema order, then one per
+/// producer. Prover and verifier both call this, so their column order and summands
+/// agree by construction.
 fn airs(
-    taus: &[usize; tables::N_TABLES],
+    l: &Layout,
     forms: &[Vec<leaf::BusForm>; 2],
-    producers: Producers,
+    producers: ProducerShares<'_>,
     xi: F192,
-) -> Vec<constraints::Air<'static>> {
+) -> Vec<constraints::Air<Summand>> {
     let form_pows = xi_form_pows(xi);
-    // Each table's slice of the batch's `η`-powers, exactly as `constraints` cuts
-    // them, turned into the weights its identities want once rather than per row.
+    // Each table's slice of the batch's `η`-powers, turned into the weights its
+    // identities want once rather than per row.
     let pows = primitives::field::powers(xi, xi_form_base());
     let offsets = constraints::xi_offsets(tables::tables().iter().map(|t| t.n_constraints()));
     let tables = tables::tables()
-        .into_iter()
-        .zip(taus)
+        .iter()
+        .zip(&l.taus)
         .enumerate()
-        .map(|(t, (table, &tau))| {
-            let weights = table.constraint_weights(&pows[offsets[t]..offsets[t] + table.n_constraints()]);
-            let weights_k = weights.clone();
-            // One form, not two: the batch adds the two sides' evaluations
-            // anyway, and summing them here is a setup cost against a dot product
-            // and a product list per row per node.
-            let bus = leaf::BusForm::sum((0..2).map(|s| forms[s][t].scaled(form_pows[s])));
-            let bus_k = bus.clone();
-            constraints::Air {
-                tau,
-                n_cols: table.n_committed_columns(),
-                n_constraints: table.n_constraints(),
-                eval: Box::new(move |_, vals, quadratic| {
-                    let air = <F192 as ColVal>::lift(table.eval_constraint(&weights, vals, quadratic));
-                    <F192 as ColVal>::reduce(air ^ bus.eval_unreduced(vals, quadratic))
-                }),
-                // The same expression over K columns: the identity's K-only products
-                // stay 64-bit and the bus form becomes a mixed dot product.
-                eval_k: Box::new(move |_, vals, quadratic| {
-                    let air = <F64 as ColVal>::lift(table.eval_constraint_k(&weights_k, vals, quadratic));
-                    <F64 as ColVal>::reduce(air ^ bus_k.eval_unreduced(vals, quadratic))
-                }),
-                n_public: 0,
-                public: None,
-            }
+        .map(|(t, (table, &tau))| constraints::Air {
+            tau,
+            n_cols: table.n_committed_columns(),
+            n_public: 0,
+            summand: Summand::Table(TableSummand {
+                table,
+                weights: table.constraint_weights(&pows[offsets[t]..offsets[t] + table.n_constraints()]),
+                // One form, not two: the batch adds the two sides' evaluations
+                // anyway, and summing them here is a setup cost against a dot product
+                // and a product list per row per node.
+                bus: leaf::BusForm::sum((0..2).map(|s| forms[s][t].scaled(form_pows[s]))),
+            }),
         });
-    // A producer's air (§sec:lookup): its bit `i`'s block owes the push side
-    // `Σ_x eq(ζ, x)·(1 + b_i(x)·P'_i(x))`, at the block's selector, and the producer
-    // has no identity of its own. Its bits are sent; its `P'_i` the verifier computes.
-    let (blocks, coefficients, weights, beta) = producers;
-    let producers = blocks.iter().zip(coefficients).map(move |(p, coefficients)| {
-        let c: Vec<F192> = coefficients.iter().map(|&c| c * form_pows[0]).collect();
-        let c_k = c.clone();
-        let (p, weights) = (p.clone(), weights.to_vec());
-        constraints::Air {
+    let producers = l
+        .producers
+        .iter()
+        .zip(producers.coefficients)
+        .map(|(p, coefficients)| constraints::Air {
             tau: p.kappa,
             n_cols: 2 * p.bits,
-            n_constraints: 0,
-            eval: Box::new(move |_, vals, quadratic| producer_eval(&c, vals, quadratic)),
-            eval_k: Box::new(move |_, vals, quadratic| producer_eval(&c_k, vals, quadratic)),
             n_public: p.bits,
-            public: Some(Box::new(move |chi| {
-                leaf::producer_public_evals(&p, &weights, beta, chi)
-            })),
-        }
-    });
+            summand: Summand::Producer(ProducerSummand {
+                coefficients: coefficients.iter().map(|&c| c * form_pows[0]).collect(),
+                producer: p.clone(),
+                weights: producers.weights.to_vec(),
+                beta: producers.beta,
+            }),
+        });
     tables.chain(producers).collect()
-}
-
-/// The producers as the table sumcheck takes them: their tuples, their weights on
-/// each bit's block, and the fingerprint (`eq(α⃗, ·)`, `β`) their public columns use.
-type Producers<'a> = (&'a [leaf::Producer], &'a [Vec<F192>], &'a [F192], F192);
-
-/// A producer's summand at one row: `Σ_i c_i·(1 + b_i·P'_i)`, its columns being its
-/// bits `b_i` then its public `P'_i`.
-fn producer_eval<T: ColVal>(c: &[F192], vals: &[T], quadratic: bool) -> F192 {
-    let n = c.len();
-    let products = (0..n).fold(T::lift(F192::ZERO), |acc, i| {
-        acc ^ (vals[i] * vals[n + i]).mul_e_unreduced(c[i])
-    });
-    let constant = if quadratic {
-        F192::ZERO
-    } else {
-        c.iter().fold(F192::ZERO, |a, &b| a + b)
-    };
-    T::reduce(products) + constant
 }
 
 /// Each table's claimed sum: its identities vanish, so what its summand comes to
@@ -431,22 +422,6 @@ fn xi_form_pows(xi: F192) -> [F192; 2] {
     let base = xi_form_base();
     let pows = primitives::field::powers(xi, base + 2);
     [pows[base], pows[base + 1]]
-}
-
-/// If `col` is a circuit word's column (global index), where the word lives: the
-/// class's committed packed witness, the word's place within an instance (its port),
-/// and the stride between instances. These columns are virtual (uncommitted): their
-/// bus evaluation claims are re-routed to slot evaluations of that witness, which is
-/// the whole binding: the bus-tied value IS the flock-proven word, no separate check
-/// needed.
-fn flock_value_slot(col: usize) -> Option<(usize, usize, usize)> {
-    let sch = schema();
-    (0..tables::N_TABLES).find_map(|t| {
-        let (port, _) = tables::word_columns(t)
-            .into_iter()
-            .find(|&(_, c)| sch.base[t] + c == col)?;
-        Some((q_column(t), port, crate::class_flock::stride_log(tables::CLASSES[t])))
-    })
 }
 
 /// Run statistics returned alongside the proof: the cycle count (total executed
@@ -504,18 +479,15 @@ impl Stats {
 /// the verifier needs through the returned [`Proof`] (scalar stream + PCS commitment /
 /// opening hints). Returns the proof, the run's public output (`a0..a3` at the exit)
 /// and its [`Stats`].
-/// `log_inv_rate` selects the PCS rate and is announced in the Fiat-Shamir transcript
+/// `rate` selects the PCS rate and is announced in the Fiat-Shamir transcript
 /// before the commitment.
 ///
 /// # Errors
 ///
-/// The run's trap, a run too long for one proof, more advice than the program's region
-/// holds, or a rate the PCS does not support.
-#[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate))]
-pub fn prove(program: &Program, advice: &[u64], log_inv_rate: usize) -> Result<(Proof, [u64; 4], Stats), ProveError> {
-    if ::pcs::whir::validate_log_inv_rate(log_inv_rate).is_err() {
-        return Err(ProveError::InvalidRate { log_inv_rate });
-    }
+/// The run's trap, a run too long for one proof, or more advice than the program's
+/// region holds.
+#[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate = rate.log_inv_rate()))]
+pub fn prove(program: &Program, advice: &[u64], rate: pcs::Rate) -> Result<(Proof, [u64; 4], Stats), ProveError> {
     // One proof is one arena phase: every transient buffer below is bump-allocated
     // and reclaimed wholesale here, rather than faulted in and unmapped again per
     // proof. Bound first so it outlives them; inert unless `init_prover` opted in.
@@ -526,7 +498,7 @@ pub fn prove(program: &Program, advice: &[u64], log_inv_rate: usize) -> Result<(
     if program.stack_log(exec.trace.row_counts()) > pcs::MAX_MU {
         return Err(ProveError::TooLong);
     }
-    let (proof, stats) = prove_execution(program, &exec, log_inv_rate);
+    let (proof, stats) = prove_execution(program, &exec, rate);
     Ok((proof, exec.output, stats))
 }
 
@@ -556,7 +528,7 @@ pub fn measure(program: &Program, advice: &[u64]) -> Result<Stats, ProveError> {
 
 /// [`prove`] from a finished run. Split out so a test can hand it a run no honest
 /// machine produced.
-fn prove_execution(program: &Program, exec: &Execution, log_inv_rate: usize) -> (Proof, Stats) {
+fn prove_execution(program: &Program, exec: &Execution, rate: pcs::Rate) -> (Proof, Stats) {
     let w = crate::stage!("Build witness", || program.build(exec));
     let stats = Stats {
         cycles: exec.cycles,
@@ -564,11 +536,12 @@ fn prove_execution(program: &Program, exec: &Execution, log_inv_rate: usize) -> 
         base_counts: exec.base_counts,
         committed: w.committed_size(),
     };
-    (prove_witness(program, w, &exec.output, log_inv_rate), stats)
+    (prove_witness(program, w, &exec.output, rate), stats)
 }
 
 /// [`prove_execution`] from a built witness, which a test may have forged.
-fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], log_inv_rate: usize) -> Proof {
+fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], rate: pcs::Rate) -> Proof {
+    let log_inv_rate = rate.log_inv_rate().into();
     // The public statement (program digest + output) seeds the transcript, so
     // every challenge depends on the exact program and what the run claims to return.
     let mut ps = ProverState::new(fs_seed(program), output.map(F64));
@@ -584,7 +557,7 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], log_inv_rate:
     // over this commitment (below). A circuit's words bind through the register and
     // bytecode buses: their virtual columns route to that witness, so no separate pin
     // claims are needed. Mirrored in `verify`.
-    let (owners, spans) = bus_wiring(program, &w.layout);
+    let spans = &schema().spans;
     // The columns are windows into `w.q`, so both stages read them in place: the
     // table sumcheck lifts each K-column into a fresh `E` copy on the round it
     // joins and never writes the K-columns back.
@@ -592,7 +565,7 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], log_inv_rate:
         let l = &w.layout;
         let cols = w.columns();
         let mut bus = crate::stage!("Prove bus", || {
-            leaf::prove_balance(&l.push, &l.pull, &l.producers, &cols, &owners, &spans, &mut ps)
+            leaf::prove_balance(&l.push, &l.pull, &l.producers, &cols, spans, &mut ps)
         });
         let table_claims = crate::stage!("Prove constraints", || {
             // One sumcheck for all the tables and producers (§constraints).
@@ -609,13 +582,18 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], log_inv_rate:
                 .map(|&(base, n)| constraints::Columns::K((0..n).map(|c| cols[base + c]).collect()))
                 .chain(producers.into_iter().map(|p| constraints::Columns::E(p.columns)))
                 .collect();
-            let airs = airs(
-                &l.taus,
-                &bus.forms,
-                (&l.producers, &coefficients, &bus.weights, bus.beta),
-                xi,
-            );
-            constraints::prove(&airs, table_cols, xi, &bus.point, &sigma, &mut ps)
+            let shares = ProducerShares {
+                coefficients: &coefficients,
+                weights: &bus.weights,
+                beta: bus.beta,
+            };
+            constraints::prove(
+                &airs(l, &bus.forms, shares, xi),
+                table_cols,
+                &bus.point,
+                &sigma,
+                &mut ps,
+            )
         });
         (bus.claims, table_claims)
     };
@@ -634,18 +612,18 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], log_inv_rate:
             .iter()
             .enumerate()
             .map(|(t, prepared)| {
-                let placement = &w.layout.placements[q_column(t)];
+                let window = w.layout.witness_window(t);
                 let reduced = prepared.prove(&mut ps);
-                flock::reduction::ring_switch_open(placement.n_vars, placement.offset, &reduced)
+                flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
             })
             .collect()
     });
     drop(reductions);
     for (p, claims) in l.producers.iter().zip(&table_claims[tables::N_TABLES..]) {
-        let placement = &l.placements[p.col];
+        let window = l.multiplicity_window(p);
         rings.push(::pcs::stack_open::RingSwitchOpen {
-            offset: placement.offset,
-            qflock_vars: placement.n_vars,
+            offset: window.offset,
+            qflock_vars: window.n_vars,
             claims: vec![::pcs::stack_open::RingSwitchClaim {
                 suffix_point: claims.chi.clone(),
                 s_hat_v: Some(multiplicity_slices(claims).to_vec()),
@@ -677,14 +655,12 @@ fn finish_claims(
     let mut claims = bus_claims;
     let sch = schema();
     claims.reserve(sch.n - N_SHARED);
-    for (t, table) in tables::tables().iter().enumerate() {
-        for c in 0..table.n_committed_columns() {
-            claims.push(ColumnClaim {
-                col: sch.base[t] + c,
-                point: table_claims[t].chi.clone(),
-                value: table_claims[t].evals[c],
-            });
-        }
+    for (&(base, _), table) in sch.spans.iter().zip(table_claims) {
+        claims.extend(table.evals.iter().enumerate().map(|(c, &value)| ColumnClaim {
+            col: base + c,
+            point: table.chi.clone(),
+            value,
+        }));
     }
     // The exit (§sec:e2e-pi): the run halted on `exit`, returning `output`.
     claims.push(final_register_claim(rv::SYSCALL_REG, rv::SYS_EXIT));
@@ -699,7 +675,7 @@ fn finish_claims(
 /// rather than transmitted, and the opening discharges it like any other.
 fn final_register_claim(reg: u8, value: u64) -> ColumnClaim {
     ColumnClaim {
-        col: REG_FIN,
+        col: Shared::RegFin.col(),
         point: (0..rv::LOG_REGS)
             .map(|bit| if (reg >> bit) & 1 == 1 { F192::ONE } else { F192::ZERO })
             .collect(),
@@ -725,10 +701,9 @@ pub fn verify_to_raw(
 ) -> Result<fiat_shamir::transcript::RawProof, CpuError> {
     let mut vs = VerifierState::new(fs_seed(program), proof, output.map(F64));
     let (l, log_inv_rate) = read_public(&mut vs, program)?;
-    let root = pcs::read_commitment(&mut vs).map_err(CpuError::Transcript)?;
+    let root = pcs::read_commitment(&mut vs)?;
 
-    let (owners, spans) = bus_wiring(program, &l);
-    let bus = leaf::verify_balance(&l.push, &l.pull, &l.producers, &owners, &spans, &mut vs).map_err(CpuError::Bus)?;
+    let bus = leaf::verify_balance(&l.push, &l.pull, &l.producers, &schema().spans, &mut vs).map_err(CpuError::Bus)?;
 
     let zc_xi = vs.sample();
     let form_pows = xi_form_pows(zc_xi);
@@ -740,13 +715,13 @@ pub fn verify_to_raw(
     // sides. A transmitted target would be a free value in its own check, and the
     // tables' bus blocks would be settled by nothing at all.
     let target = (0..2).fold(F192::ZERO, |a, s| a + form_pows[s] * bus.totals[s]);
-    let airs = airs(
-        &l.taus,
-        &bus.forms,
-        (&l.producers, &bus.producers, &bus.weights, bus.beta),
-        zc_xi,
-    );
-    let table_claims = constraints::verify(&airs, zc_xi, &bus.point, target, &mut vs).map_err(CpuError::Constraint)?;
+    let shares = ProducerShares {
+        coefficients: &bus.producers,
+        weights: &bus.weights,
+        beta: bus.beta,
+    };
+    let table_claims = constraints::verify(&airs(&l, &bus.forms, shares, zc_xi), &bus.point, target, &mut vs)
+        .map_err(CpuError::Constraint)?;
 
     let slots = finish_claims(&l, bus.claims, &table_claims, output);
 
@@ -756,7 +731,11 @@ pub fn verify_to_raw(
     // (mirroring `prove`).
     let mut replays = Vec::with_capacity(tables::N_TABLES);
     for (t, &tau) in l.taus.iter().enumerate() {
-        replays.push(crate::class_flock::verify_reduction(t, tau, &mut vs).map_err(CpuError::Flock)?);
+        let replay = crate::class_flock::verify_reduction(t, tau, &mut vs).map_err(|error| CpuError::Flock {
+            table: tables::CLASSES[t].name,
+            error,
+        })?;
+        replays.push(replay);
     }
     let slices: Vec<[F192; ::pcs::pack::PACKING_WIDTH]> = table_claims[tables::N_TABLES..]
         .iter()
@@ -766,8 +745,8 @@ pub fn verify_to_raw(
         .iter()
         .enumerate()
         .map(|(t, replay)| {
-            let placement = &l.placements[q_column(t)];
-            flock::reduction::ring_switch_verify(placement.n_vars, placement.offset, &replay.claim)
+            let window = l.witness_window(t);
+            flock::reduction::ring_switch_verify(window.n_vars, window.offset, &replay.claim)
         })
         .chain(
             l.producers
@@ -775,10 +754,10 @@ pub fn verify_to_raw(
                 .zip(&table_claims[tables::N_TABLES..])
                 .zip(&slices)
                 .map(|((p, claims), slices)| {
-                    let placement = &l.placements[p.col];
+                    let window = l.multiplicity_window(p);
                     ::pcs::stack_open::RingSwitchVerify {
-                        offset: placement.offset,
-                        qflock_vars: placement.n_vars,
+                        offset: window.offset,
+                        qflock_vars: window.n_vars,
                         claims: vec![::pcs::stack_open::RingSwitchVerifyClaim {
                             suffix_point: &claims.chi,
                             s_hat_v: slices,
@@ -788,40 +767,38 @@ pub fn verify_to_raw(
         )
         .collect();
     pcs::verify(&mut vs, &slots, &rings, l.shape, log_inv_rate, &root).map_err(CpuError::Open)?;
-    vs.finish().map_err(CpuError::Transcript)?;
+    vs.finish()?;
     Ok(vs.into_raw_proof())
 }
 
-/// Lift `ColumnClaim`s to located PCS claims: a claim on column `c` lives in
-/// the slot at `placements[c].offset`, with the claim's point as the low point.
+/// Lift `ColumnClaim`s to located PCS claims: a claim on a committed column lives in
+/// its window, with the claim's point as the low point.
 ///
-/// A circuit word's column is virtual: it has no committed placement. A claim
-/// `word_col(r) = v` (at the table's row point `r`) is re-routed to the equal slot
-/// evaluation of the class's packed witness: an ordinary claim on that committed
-/// column at the point freezing the low coords to the port's bits and the high
-/// coords to `r`. No downstream special-casing: it folds into the one opening like
-/// every other point claim.
+/// A circuit word's column is a port: it has no window of its own. A claim
+/// `word_col(r) = v` (at the table's row point `r`) is the equal slot evaluation of
+/// the class's packed witness, at the point freezing the low coords to the port's bits
+/// and the high coords to `r`. Folded sparsely (the table's height, not the dense
+/// witness block), it joins the one opening like every other point claim.
 fn slot_claims(l: &Layout, claims: Vec<ColumnClaim>) -> Vec<pcs::SlotClaim> {
     claims
         .into_iter()
-        .map(|c| {
-            // A circuit word: its claim at the row point `c.point` is a slot value of
-            // the packed witness, a boolean-selector (strided) claim, folded sparsely
-            // (the table's height, not the dense witness block).
-            if let Some((q_col, slot, stride_log)) = flock_value_slot(c.col) {
-                return pcs::SlotClaim::Strided {
-                    offset: l.placements[q_col].offset,
-                    slot,
-                    stride_log,
-                    point: c.point,
-                    value: c.value,
-                };
-            }
-            pcs::SlotClaim::Point {
-                offset: l.placements[c.col].offset,
+        .map(|c| match l.placements[c.col] {
+            witness::Placement::Committed(window) => pcs::SlotClaim::Point {
+                offset: window.offset,
                 low_point: c.point,
                 value: c.value,
-            }
+            },
+            witness::Placement::Port {
+                offset,
+                port,
+                stride_log,
+            } => pcs::SlotClaim::Strided {
+                offset,
+                slot: port,
+                stride_log,
+                point: c.point,
+                value: c.value,
+            },
         })
         .collect()
 }
@@ -898,14 +875,13 @@ mod tests {
 
     /// A committed column of a built witness, to forge it.
     fn column_mut(w: &mut Witness, col: usize) -> &mut [F64] {
-        let p = w.layout.placements[col];
-        assert!(!p.is_virtual(), "a forged column is committed");
-        &mut w.q[p.offset..p.offset + (1 << p.n_vars)]
+        let window = w.layout.placements[col].window().expect("a forged column is committed");
+        &mut w.q[window.offset..window.offset + (1 << window.n_vars)]
     }
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.
     fn assert_unbalanced(program: &Program, w: Witness, output: &[u64; 4]) {
-        let refused = std::panic::catch_unwind(|| prove_witness(program, w, output, pcs::TEST_LOG_INV_RATE))
+        let refused = std::panic::catch_unwind(|| prove_witness(program, w, output, pcs::Rate::MIN))
             .expect_err("an unbalanced bus was proven");
         let message = refused.downcast_ref::<String>().map(String::as_str).unwrap_or("");
         assert!(
@@ -1004,6 +980,39 @@ mod tests {
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
     }
 
+    #[test]
+    fn a_forged_store_unbalances_the_bus() {
+        // Invariant: a store cannot write a value its `rs2` does not hold.
+        //
+        // Fixture state: `t1 = 5` is stored at `RAM_BASE + 32`, then loaded into `a0`.
+        // Mutation: the store writes 7, and the circuit's instance, the cell, the load and the output follow it.
+        // So only the store's read of `t1` is left to refuse it.
+        let text = Asm::new()
+            .li(T0, rv::RAM_BASE + 32)
+            .i("addi", T1, ZERO, 5)
+            .store("sd", T1, 0, T0)
+            .load("ld", A0, 0, T0)
+            .exit()
+            .finish();
+        let program = Program::new(&text, rv::TEXT_BASE, vec![], 3, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let tables = [rv::Class::Store, rv::Class::Load].map(|c| tables::table_of(c).unwrap());
+        let [store, load] = forged.trace.rows.get_disjoint_mut(tables).unwrap();
+        fn real(rows: &mut [Row]) -> &mut Row {
+            rows.iter_mut().find(|r| !r.ts.is_zero()).unwrap()
+        }
+        let (store, load) = (real(store), real(load));
+        (store.v2, store.ram.new) = (7, 7);
+        (load.ram.old, load.ram.new, load.out) = (7, 7, 7);
+        forged.trace.reg_fin[A0 as usize] = F64(7);
+        forged.trace.ram_fin[4] = F64(7);
+        let w = program.build(&forged);
+        let unmatched = unmatched(&w);
+        // The read, pulled and pushed back as 7, meets neither `t1`'s write nor its final value.
+        // That leaves two tuples on each side.
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
     /// The point of the timestamps: a register written twice cannot be read as of its
     /// first write. The forged run is consistent everywhere else (the stale value
     /// flows into the result, the final registers and the range reads), so what fails
@@ -1020,7 +1029,7 @@ mod tests {
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         let honest = program.execute(&[]).unwrap();
         assert_eq!(honest.output, [12, 0, 0, 0]);
-        let (proof, _) = prove_execution(&program, &honest, pcs::TEST_LOG_INV_RATE);
+        let (proof, _) = prove_execution(&program, &honest, pcs::Rate::MIN);
         verify(&program, &honest.output, &proof).expect("the honest run verifies");
 
         let mut forged = program.execute(&[]).unwrap();
@@ -1081,17 +1090,17 @@ mod tests {
         let (low, high) = ((gap & 0xffff) as usize, (gap >> tables::RANGE_LOG) as usize);
 
         let mut w = program.build(&exec);
-        let [x, lo, hi] = tables::access_columns(alu, 0).map(|c| schema().base[alu] + c);
+        let [x, lo, hi] = tables::access_columns(alu, 0).map(|c| schema().spans[alu].0 + c);
         let shift = g_pow(1 << tables::RANGE_LOG);
-        let ts = column_mut(&mut w, schema().base[alu] + 1)[row];
+        let ts = column_mut(&mut w, schema().spans[alu].0 + 1)[row];
         let x = column_mut(&mut w, x)[row];
         column_mut(&mut w, lo)[row] *= shift;
         column_mut(&mut w, hi)[row] *= shift;
         let (lo_value, hi_value) = (column_mut(&mut w, lo)[row], column_mut(&mut w, hi)[row]);
         assert_eq!(x * lo_value, ts * hi_value, "the gap identity still holds");
-        column_mut(&mut w, RLO_MULT)[low].0 -= 1;
-        column_mut(&mut w, RHI_MULT)[high].0 -= 1;
-        column_mut(&mut w, RHI_MULT)[high - 1].0 += 1;
+        column_mut(&mut w, Shared::RangeLoMult.col())[low].0 -= 1;
+        column_mut(&mut w, Shared::RangeHiMult.col())[high].0 -= 1;
+        column_mut(&mut w, Shared::RangeHiMult.col())[high - 1].0 += 1;
 
         let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 1, "{unmatched:?}");
@@ -1113,9 +1122,9 @@ mod tests {
         let alu = tables::table_of(rv::Class::Alu).unwrap();
         let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
         let mut w = program.build(&exec);
-        let offset = schema().base[alu] + tables::branch_offset_column(alu);
+        let offset = schema().spans[alu].0 + tables::branch_offset_column(alu);
         column_mut(&mut w, offset)[row] = F64(8);
-        column_mut(&mut w, BC_MULT)[0].0 -= 1;
+        column_mut(&mut w, Shared::BytecodeMult.col())[0].0 -= 1;
 
         let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 1, "{unmatched:?}");
@@ -1133,7 +1142,11 @@ mod tests {
         let text = Asm::new().i("addi", A0, ZERO, 5).exit().finish();
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        for (p, col) in [BC_MULT, RLO_MULT, RHI_MULT].into_iter().enumerate() {
+        for (p, col) in LOOKUPS
+            .map(|lookup| lookup.multiplicity().col())
+            .into_iter()
+            .enumerate()
+        {
             for flip in [1u64, 2, 4] {
                 let mut w = program.build(&exec);
                 assert_eq!(w.layout.producers[p].col, col);

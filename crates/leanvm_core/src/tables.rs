@@ -78,6 +78,7 @@ pub const CLOCK_STRIDE: u32 = 4;
 /// seeds' `g^0`.
 pub const CLOCK_START: F64 = g_pow(CLOCK_STRIDE as usize);
 /// A row's clock slots: `rs1`, `rs2`, then `rd` last, after the RAM access if there is one.
+/// A row that skips an access leaves its slot unused.
 pub const REG_SLOTS: [u32; 3] = [0, 1, 3];
 pub const RAM_SLOT: u32 = 2;
 /// A hash row reads its two registers, then accesses its block's words in order.
@@ -310,46 +311,12 @@ impl<'a> FillCtx<'a> {
 /// Fill one table's columns and check that every window was written. The stack is
 /// allocated uninitialized, so a column the table forgot would be read as
 /// indeterminate bytes rather than caught by a length mismatch.
-pub(crate) fn fill_table<'a>(table: &'a dyn Table, ctx: &FillCtx<'a>, out: &mut [ColumnOut]) {
+pub(crate) fn fill_table<'a>(table: &'a ClassTable, ctx: &FillCtx<'a>, out: &mut [ColumnOut]) {
     table.fill(ctx, out);
     ctx.run();
     assert_eq!(ctx.written.len(), table.n_committed_columns());
     let all = ctx.written.iter().all(|w| w.load(std::sync::atomic::Ordering::Relaxed));
     assert!(all, "a table left one of its columns unwritten");
-}
-
-// ---- the trait ---------------------------------------------------------------
-
-/// One instruction table. Indices in [`flushes`](Table::flushes) are local to this table.
-pub trait Table: Sync {
-    /// Number of columns (local indices `0..n_committed_columns`), the virtual ones included.
-    fn n_committed_columns(&self) -> usize;
-    /// How many identities [`eval_constraint`](Table::eval_constraint) folds.
-    /// Sizes this table's slice of the batch's disjoint `xi`-range (§constraints).
-    fn n_constraints(&self) -> usize;
-    /// What [`eval_constraint`](Table::eval_constraint) is handed, from this table's
-    /// slice of the batch's `xi`-powers: the powers themselves, plus whatever
-    /// constant multiples of them the identities need, computed once per proof
-    /// rather than per row.
-    fn constraint_weights(&self, pows: &[F192]) -> Vec<F192>;
-    /// Evaluate the table's degree-2 constraints at one row, reading column values
-    /// by local index from `cols` and weighting them by `weights`
-    /// ([`constraint_weights`](Table::constraint_weights)). The table sumcheck
-    /// carries every column of a table, in local order, so `cols` is indexed
-    /// directly. With `quadratic=false` it returns `0` on every valid row
-    /// (§sec:air); `true` selects only the degree-two terms.
-    fn eval_constraint(&self, weights: &[F192], cols: &[F192], quadratic: bool) -> F192;
-    /// The same identity over `K`-valued columns, for the round a table joins the
-    /// batch, before its columns have been folded into `E` (§sec:air). Both entry
-    /// points delegate to one generic definition, so they cannot drift.
-    fn eval_constraint_k(&self, weights: &[F192], cols: &[F64], quadratic: bool) -> F192;
-    /// Declare the table's bus interactions.
-    fn flushes(&self, f: &mut FlushBuilder);
-    /// Fill this table's columns from the trace: `out[i]` is local column `i`'s
-    /// window, already at its final length. Every window must be written in full;
-    /// use `FillCtx::col` / `FillCtx::cols`, which record the coverage `fill_table`
-    /// checks.
-    fn fill<'a>(&'a self, ctx: &FillCtx<'a>, out: &mut [ColumnOut]);
 }
 
 // ---- the classes -------------------------------------------------------------
@@ -390,9 +357,9 @@ pub enum Ram {
     Read,
     /// One cell read and rewritten.
     Write,
-    /// The hash's block ([`hash`]): word `k` is the cell at `v1 ^ 8k`, in clock slot
-    /// [`block_slot`]`(k)`, and the result's four words are rewritten. The row writes
-    /// no register.
+    /// The hash's block: word `k` is the cell at `v1 ^ 8k`, in clock slot `2 + k`.
+    ///
+    /// The result's four words are rewritten.
     Block,
 }
 
@@ -407,6 +374,14 @@ pub struct ClassSpec {
     /// circuit's `taken` word. Without them the next `pc` is `pc + 4` and `rd`
     /// receives `out`.
     pub control: bool,
+    /// Whether the row reads `rs2`, in clock slot 1.
+    /// A load decodes with `x0` there, and its circuit takes no `v2`.
+    pub reads_rs2: bool,
+    /// Whether the row writes `rd`, in clock slot 3.
+    /// A store's and a hash's destination is the sink, which nothing reads.
+    ///
+    /// A row that skips either reads its register number off the entry as a constant.
+    pub writes_rd: bool,
     pub ram: Ram,
     pub circuit: fn() -> Circuit,
     /// One instance's witness by word arithmetic, when the class has it.
@@ -422,28 +397,37 @@ pub struct ClassSpec {
 }
 
 impl ClassSpec {
-    /// Whether the row writes a register, in clock slot 3.
-    pub const fn writes_register(&self) -> bool {
-        !matches!(self.ram, Ram::Block)
+    /// The register accesses the row makes, in column order: `rs1`, then `rs2` and `rd` if it makes them.
+    ///
+    /// Each is an index into the entry's three register cells and into the register slots.
+    pub const fn registers(&self) -> &'static [usize] {
+        match (self.reads_rs2, self.writes_rd) {
+            (true, true) => &[0, 1, 2],
+            (true, false) => &[0, 1],
+            (false, true) => &[0, 2],
+            (false, false) => &[0],
+        }
+    }
+
+    /// The clock slots of the row's RAM accesses.
+    const fn ram_slots(&self) -> std::ops::Range<u32> {
+        match self.ram {
+            Ram::None => 0..0,
+            Ram::Read | Ram::Write => RAM_SLOT..RAM_SLOT + 1,
+            Ram::Block => block_slot(0)..block_slot(hash::WORDS),
+        }
     }
 
     /// Accesses per row: the registers', then RAM's.
     pub const fn n_accesses(&self) -> usize {
-        match self.ram {
-            Ram::None => 3,
-            Ram::Read | Ram::Write => 4,
-            Ram::Block => 2 + hash::WORDS,
-        }
+        let ram = self.ram_slots();
+        self.registers().len() + (ram.end - ram.start) as usize
     }
 
     /// The clock slots of the row's accesses, in the order of their columns.
     pub fn slots(&self) -> Vec<u32> {
-        let [s1, s2, sd] = REG_SLOTS;
-        match self.ram {
-            Ram::None => vec![s1, s2, sd],
-            Ram::Read | Ram::Write => vec![s1, s2, sd, RAM_SLOT],
-            Ram::Block => [s1, s2].into_iter().chain((0..hash::WORDS).map(block_slot)).collect(),
-        }
+        let registers = self.registers().iter().map(|&i| REG_SLOTS[i]);
+        registers.chain(self.ram_slots()).collect()
     }
 
     /// How far the clock advances per row: past its last slot.
@@ -459,6 +443,8 @@ pub static ALU: ClassSpec = ClassSpec {
     class: Class::Alu,
     name: "ALU",
     control: true,
+    reads_rs2: true,
+    writes_rd: true,
     ram: Ram::None,
     circuit: rv::circuits::alu,
     witness: None,
@@ -470,6 +456,8 @@ pub static LOAD: ClassSpec = ClassSpec {
     class: Class::Load,
     name: "LOAD",
     control: false,
+    reads_rs2: false,
+    writes_rd: true,
     ram: Ram::Read,
     circuit: rv::circuits::load,
     witness: None,
@@ -488,6 +476,8 @@ pub static STORE: ClassSpec = ClassSpec {
     class: Class::Store,
     name: "STORE",
     control: false,
+    reads_rs2: true,
+    writes_rd: false,
     ram: Ram::Write,
     circuit: rv::circuits::store,
     witness: None,
@@ -500,7 +490,6 @@ pub static STORE: ClassSpec = ClassSpec {
         Word::Cell(0),
         Word::Address,
         Word::CellNew(0),
-        Word::Out,
     ],
     n_inputs: 5,
 };
@@ -509,6 +498,8 @@ pub static SHIFT: ClassSpec = ClassSpec {
     class: Class::Shift,
     name: "SHIFT",
     control: false,
+    reads_rs2: true,
+    writes_rd: true,
     ram: Ram::None,
     circuit: rv::circuits::shift,
     witness: None,
@@ -520,6 +511,8 @@ pub static MUL: ClassSpec = ClassSpec {
     class: Class::Mul,
     name: "MUL",
     control: false,
+    reads_rs2: true,
+    writes_rd: true,
     ram: Ram::None,
     circuit: rv::circuits::mul,
     witness: None,
@@ -531,6 +524,8 @@ pub static MULH: ClassSpec = ClassSpec {
     class: Class::Mulh,
     name: "MULH",
     control: false,
+    reads_rs2: true,
+    writes_rd: true,
     ram: Ram::None,
     circuit: rv::circuits::mulh,
     witness: None,
@@ -543,6 +538,8 @@ pub static DIV: ClassSpec = ClassSpec {
     class: Class::Div,
     name: "DIV",
     control: false,
+    reads_rs2: true,
+    writes_rd: true,
     ram: Ram::None,
     circuit: rv::circuits::div,
     witness: None,
@@ -565,6 +562,8 @@ pub static HASH: ClassSpec = ClassSpec {
     class: Class::Hash,
     name: "HASH",
     control: false,
+    reads_rs2: true,
+    writes_rd: false,
     ram: Ram::Block,
     circuit: rv::circuits::blake2s,
     witness: Some(rv::circuits::blake2s_witness),
@@ -602,17 +601,10 @@ pub fn table_of(class: Class) -> Option<usize> {
     CLASSES.iter().position(|spec| spec.class == class)
 }
 
-pub fn tables() -> [&'static dyn Table; N_TABLES] {
-    static TABLES: std::sync::OnceLock<Vec<ClassTable>> = std::sync::OnceLock::new();
-    let tables = TABLES.get_or_init(|| (0..N_TABLES).map(ClassTable::new).collect());
-    std::array::from_fn(|t| &tables[t] as &dyn Table)
-}
-
-/// Table `t`'s circuit words that are columns, as `(port, local column)`.
-pub(crate) fn word_columns(t: usize) -> Vec<(usize, usize)> {
-    let cols = Cols::new(CLASSES[t]);
-    let ports = CLASSES[t].ports.iter().enumerate();
-    ports.filter_map(|(port, &w)| Some((port, cols.word(w)?))).collect()
+/// The class tables, in [`CLASSES`] order.
+pub fn tables() -> &'static [ClassTable; N_TABLES] {
+    static TABLES: std::sync::OnceLock<[ClassTable; N_TABLES]> = std::sync::OnceLock::new();
+    TABLES.get_or_init(|| std::array::from_fn(ClassTable::new))
 }
 
 /// The slot of a bytecode tuple that holds a row's [`Word::Bad`]: past every field of
@@ -622,29 +614,77 @@ pub const BAD_SLOT: usize = 12;
 /// Bytecode slot binding the exit selector.
 pub const EXIT_SLOT: usize = 13;
 
-/// A class table's local columns: `pc, ts, a1, a2, pc4, v1, v2, flags`, then the
-/// optional groups in the order of the fields below, then the accesses.
+/// The `rs2` read's columns: the register's number and what it held.
+#[derive(Clone, Copy)]
+struct Rs2Cols {
+    a2: usize,
+    v2: usize,
+}
+
+/// The register write's columns: the cell written, what it held, and the class's result.
+#[derive(Clone, Copy)]
+struct RdCols {
+    ad: usize,
+    vd_old: usize,
+    out: usize,
+}
+
+/// A branch's or a jump's columns: the bytecode's target offset, link and indirect-jump
+/// selectors, the circuit's taken bit, and the exit selector.
+#[derive(Clone, Copy)]
+struct ControlCols {
+    dt: usize,
+    link: usize,
+    jalr: usize,
+    taken: usize,
+    exit: usize,
+}
+
+/// A load's or a store's columns: the bus address, the cell as the row found it, and
+/// what the row leaves there, which for a load is the cell itself.
+#[derive(Clone, Copy)]
+struct RamCols {
+    address: usize,
+    cell: usize,
+    new: usize,
+}
+
+/// The hash's columns: the block's sixteen words as found, then the four it rewrites.
+#[derive(Clone, Copy)]
+struct BlockCols {
+    words: usize,
+    out: usize,
+}
+
+impl BlockCols {
+    /// What the row leaves in word `k` of its block.
+    fn left(&self, k: usize) -> usize {
+        match k.wrapping_sub(hash::OUT as usize / 8) {
+            j if j < 4 => self.out + j,
+            _ => self.words + k,
+        }
+    }
+}
+
+/// A class table's local columns: `pc, ts, a1, pc4, v1, flags`, then the optional groups.
+///
+/// The groups are in the order of the fields below, then come the accesses.
 #[derive(Clone, Copy)]
 struct Cols {
     pc: usize,
     ts: usize,
     // The bytecode entry's fields that are no circuit word.
     a1: usize,
-    a2: usize,
     pc4: usize,
     v1: usize,
-    v2: usize,
     flags: usize,
-    /// The register write: `ad`, what it held, and `out`. A hash row has none.
-    rd: Option<usize>,
-    /// The target offset, link, indirect jump, taken bit, and exit selector.
-    control: Option<usize>,
+    rs2: Option<Rs2Cols>,
+    rd: Option<RdCols>,
+    control: Option<ControlCols>,
     /// The immediate, which a hash row has not.
     imm: Option<usize>,
-    /// The bus address and the cell, then what a store leaves in the cell.
-    ram: Option<usize>,
-    /// The hash's block: its sixteen words as found, then the four the row writes.
-    block: Option<usize>,
+    ram: Option<RamCols>,
+    block: Option<BlockCols>,
     bad: Option<usize>,
     acc: Acc,
 }
@@ -656,16 +696,35 @@ impl Cols {
             next += n;
             next - n
         };
-        let (pc, ts, a1, a2, pc4) = (take(1), take(1), take(1), take(1), take(1));
-        let (v1, v2, flags) = (take(1), take(1), take(1));
-        let rd = spec.writes_register().then(|| take(3));
-        let control = spec.control.then(|| take(5));
+        let (pc, ts, a1, pc4, v1, flags) = (take(1), take(1), take(1), take(1), take(1), take(1));
+        let rs2 = spec.reads_rs2.then(|| Rs2Cols {
+            a2: take(1),
+            v2: take(1),
+        });
+        let rd = spec.writes_rd.then(|| RdCols {
+            ad: take(1),
+            vd_old: take(1),
+            out: take(1),
+        });
+        let control = spec.control.then(|| ControlCols {
+            dt: take(1),
+            link: take(1),
+            jalr: take(1),
+            taken: take(1),
+            exit: take(1),
+        });
         let imm = spec.ports.contains(&Word::Imm).then(|| take(1));
         let (ram, block) = match spec.ram {
             Ram::None => (None, None),
-            Ram::Read => (Some(take(2)), None),
-            Ram::Write => (Some(take(3)), None),
-            Ram::Block => (None, Some(take(hash::WORDS + 4))),
+            Ram::Read | Ram::Write => {
+                let (address, cell) = (take(1), take(1));
+                let new = if spec.ram == Ram::Write { take(1) } else { cell };
+                (Some(RamCols { address, cell, new }), None)
+            }
+            Ram::Block => {
+                let words = take(hash::WORDS);
+                (None, Some(BlockCols { words, out: take(4) }))
+            }
         };
         let bad = spec.ports.contains(&Word::Bad).then(|| take(1));
         let n = spec.n_accesses();
@@ -674,11 +733,10 @@ impl Cols {
             pc,
             ts,
             a1,
-            a2,
             pc4,
             v1,
-            v2,
             flags,
+            rs2,
             rd,
             control,
             imm,
@@ -691,34 +749,34 @@ impl Cols {
 
     /// The word's column, if it has one: a hint has none.
     fn word(&self, word: Word) -> Option<usize> {
-        let out_word = hash::OUT as usize / 8;
+        let missing = || -> usize { panic!("the class has no {word:?} word") };
         Some(match word {
             Word::Flags => self.flags,
-            Word::Imm => self.imm.expect("a hash row has no immediate"),
+            Word::Imm => self.imm.unwrap_or_else(missing),
             Word::V1 => self.v1,
-            Word::V2 => self.v2,
-            Word::Out => self.rd.expect("a hash row has no result word") + 2,
-            Word::Taken => self.control.expect("only a control class has a taken word") + 3,
-            Word::Address => self.ram.expect("only a load or a store has an address"),
+            Word::V2 => self.rs2.map_or_else(missing, |r| r.v2),
+            Word::Out => self.rd.map_or_else(missing, |rd| rd.out),
+            Word::Taken => self.control.map_or_else(missing, |c| c.taken),
+            Word::Address => self.ram.map_or_else(missing, |r| r.address),
             Word::Cell(k) => match (self.ram, self.block) {
-                (Some(address), _) => address + 1,
-                (_, Some(block)) => block + k as usize,
-                _ => panic!("the class names no cell"),
+                (Some(ram), _) => ram.cell,
+                (_, Some(block)) => block.words + k as usize,
+                _ => missing(),
             },
             Word::CellNew(k) => match (self.ram, self.block) {
-                (Some(address), _) => address + 2,
-                (_, Some(block)) => block + hash::WORDS + k as usize - out_word,
-                _ => panic!("the class rewrites no cell"),
+                (Some(ram), _) => ram.new,
+                (_, Some(block)) => block.left(k as usize),
+                _ => missing(),
             },
-            Word::Bad => self.bad.expect("the class asserts nothing"),
+            Word::Bad => self.bad.unwrap_or_else(missing),
             Word::HintQ | Word::HintR => return None,
         })
     }
 }
 
-/// The table of one instruction class (§sec:tables): the state step, the bytecode
-/// read, two register reads, the RAM access of a load or a store, and one register write.
-struct ClassTable {
+/// The table of one instruction class (§sec:tables): the state step, the bytecode read, and the accesses.
+/// Its column indices are local (`0..n_committed_columns`).
+pub struct ClassTable {
     index: usize,
     spec: &'static ClassSpec,
     cols: Cols,
@@ -727,6 +785,19 @@ struct ClassTable {
 impl ClassTable {
     fn new(index: usize) -> Self {
         let spec = CLASSES[index];
+        // Invariant: a register access exists exactly when its value is a circuit word.
+        assert_eq!(
+            spec.reads_rs2,
+            spec.ports.contains(&Word::V2),
+            "{}: rs2 read",
+            spec.name
+        );
+        assert_eq!(
+            spec.writes_rd,
+            spec.ports.contains(&Word::Out),
+            "{}: rd write",
+            spec.name
+        );
         Self {
             index,
             spec,
@@ -734,65 +805,77 @@ impl ClassTable {
         }
     }
 
-    fn eval<T: ColVal>(&self, w: &[F192], cols: &[T]) -> F192 {
-        access_identities(w, cols, self.cols.ts, self.cols.acc)
-    }
-}
-
-impl Table for ClassTable {
-    fn n_committed_columns(&self) -> usize {
+    /// Number of columns, the virtual ones included.
+    pub fn n_committed_columns(&self) -> usize {
         self.cols.acc.end()
     }
-    fn n_constraints(&self) -> usize {
+
+    /// How many identities the table folds, which sizes its slice of the batch's
+    /// disjoint `η`-range (§constraints).
+    pub fn n_constraints(&self) -> usize {
         self.cols.acc.n
     }
-    fn constraint_weights(&self, pows: &[F192]) -> Vec<F192> {
+
+    /// The circuit's words that are columns, as `(port, local column)`.
+    pub(crate) fn word_columns(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        let ports = self.spec.ports.iter().enumerate();
+        ports.filter_map(|(port, &w)| Some((port, self.cols.word(w)?)))
+    }
+
+    /// What the identities are weighted by, from the table's slice of the batch's
+    /// `η`-powers: the powers, then the same times each access's `g^{slot}`, computed
+    /// once per proof rather than per row.
+    pub fn constraint_weights(&self, pows: &[F192]) -> Vec<F192> {
         access_weights(pows, &self.spec.slots())
     }
-    // `quadratic` is ignored because `access_identities` is homogeneous of degree two:
-    // every term is a product of two columns, so the quadratic part IS the identity. A
-    // linear or constant term added there would have to be split out here.
-    fn eval_constraint(&self, w: &[F192], cols: &[F192], _quadratic: bool) -> F192 {
-        self.eval(w, cols)
+
+    /// The table's identities at one row, weighted by `w`: zero on every valid row
+    /// (§sec:air).
+    ///
+    /// Every term is a product of two columns, so the expression is its own quadratic
+    /// part: a round coefficient and a value are the same evaluation.
+    pub fn eval<T: ColVal>(&self, w: &[F192], cols: &[T]) -> F192 {
+        access_identities(w, cols, self.cols.ts, self.cols.acc)
     }
-    fn eval_constraint_k(&self, w: &[F192], cols: &[F64], _quadratic: bool) -> F192 {
-        self.eval(w, cols)
-    }
-    fn flushes(&self, f: &mut FlushBuilder) {
+
+    /// The table's bus interactions, in local column indices.
+    pub(crate) fn flushes(&self) -> FlushBuilder {
+        let mut f = FlushBuilder::new();
         let c = &self.cols;
         // What the row derives: the next `pc`, `pc4 + taken·dt + jalr·(out + pc4)`, and
         // what `rd` receives, `out + link·(out + pc4)`, each of degree 2 (§sec:m3).
         let (npc, vd, control) = match (c.control, c.rd) {
-            (Some(dt), Some(ad)) => {
-                let (link, jalr, taken, out) = (dt + 1, dt + 2, dt + 3, ad + 2);
-                (
-                    Coord::Sum(vec![
-                        Col(c.pc4),
-                        Prod(taken, dt, 0),
-                        Prod(jalr, out, 0),
-                        Prod(jalr, c.pc4, 0),
-                    ]),
-                    Some(Coord::Sum(vec![Col(out), Prod(link, out, 0), Prod(link, c.pc4, 0)])),
-                    vec![Col(dt), Col(link), Col(jalr)],
-                )
-            }
-            (_, rd) => (Col(c.pc4), rd.map(|ad| Col(ad + 2)), Vec::new()),
+            (Some(k), Some(rd)) => (
+                Coord::Sum(vec![
+                    Col(c.pc4),
+                    Prod(k.taken, k.dt, 0),
+                    Prod(k.jalr, rd.out, 0),
+                    Prod(k.jalr, c.pc4, 0),
+                ]),
+                Some(Coord::Sum(vec![
+                    Col(rd.out),
+                    Prod(k.link, rd.out, 0),
+                    Prod(k.link, c.pc4, 0),
+                ])),
+                vec![Col(k.dt), Col(k.link), Col(k.jalr)],
+            ),
+            (_, rd) => (Col(c.pc4), rd.map(|rd| Col(rd.out)), Vec::new()),
         };
         // Only an exit can meet the terminal marker; zero-clock padding stays inert.
         let exit = c
             .control
-            .map_or(Const(F64::ZERO), |dt| Prod(dt + 4, c.ts, self.spec.stride()));
+            .map_or(Const(F64::ZERO), |k| Prod(k.exit, c.ts, self.spec.stride()));
         f.state(c.pc, c.ts, npc, self.spec.stride(), exit);
-        // A row without a register write or an immediate reads their constants off
-        // the entry: the sink, and zero.
+        // A row without an `rs2` read, an `rd` write or an immediate reads its constant off the entry.
+        // Those constants are `x0`, the sink, and zero.
         let mut entry = vec![
             Const(SEP_BYTECODE),
             Col(c.pc),
             Const(g_pow(self.index)),
             Col(c.flags),
             Col(c.a1),
-            Col(c.a2),
-            c.rd.map_or(Const(F64(SINK as u64)), Col),
+            c.rs2.map_or(Const(F64::ZERO), |r| Col(r.a2)),
+            c.rd.map_or(Const(F64(SINK as u64)), |rd| Col(rd.ad)),
             c.imm.map_or(Const(F64::ZERO), Col),
             Col(c.pc4),
         ];
@@ -802,33 +885,50 @@ impl Table for ClassTable {
             entry.push(Col(bad));
         }
         entry.resize(EXIT_SLOT, Const(F64::ZERO));
-        entry.push(c.control.map_or(Const(F64::ZERO), |dt| Col(dt + 4)));
+        entry.push(c.control.map_or(Const(F64::ZERO), |k| Col(k.exit)));
         f.read(entry);
+        // The accesses' columns are in the order the row makes them.
+        let mut n = 0;
+        let mut next = || {
+            n += 1;
+            n - 1
+        };
         let [s1, s2, sd] = REG_SLOTS;
-        f.access(SEP_REG, Col(c.a1), c.ts, c.acc, 0, s1, Col(c.v1), Col(c.v1));
-        f.access(SEP_REG, Col(c.a2), c.ts, c.acc, 1, s2, Col(c.v2), Col(c.v2));
-        if let (Some(ad), Some(vd)) = (c.rd, vd) {
-            f.access(SEP_REG, Col(ad), c.ts, c.acc, 2, sd, Col(ad + 1), vd);
+        f.access(SEP_REG, Col(c.a1), c.ts, c.acc, next(), s1, Col(c.v1), Col(c.v1));
+        if let Some(r) = c.rs2 {
+            f.access(SEP_REG, Col(r.a2), c.ts, c.acc, next(), s2, Col(r.v2), Col(r.v2));
+        }
+        if let (Some(rd), Some(vd)) = (c.rd, vd) {
+            f.access(SEP_REG, Col(rd.ad), c.ts, c.acc, next(), sd, Col(rd.vd_old), vd);
         }
         // The cell a load or a store names is the circuit's word, so an access outside
         // RAM, or a misaligned one, pulls a tuple nothing pushed.
-        if let Some(address) = c.ram {
-            let (cell, new) = (address + 1, address + if self.spec.ram == Ram::Write { 2 } else { 1 });
-            f.access(SEP_MEM, Col(address), c.ts, c.acc, 3, RAM_SLOT, Col(cell), Col(new));
+        if let Some(ram) = c.ram {
+            f.access(
+                SEP_MEM,
+                Col(ram.address),
+                c.ts,
+                c.acc,
+                next(),
+                RAM_SLOT,
+                Col(ram.cell),
+                Col(ram.new),
+            );
         }
         // The hash's block: word `k` at `v1 ^ 8k`, which is `v1 + 8k` in the field.
         if let Some(block) = c.block {
-            let out_word = hash::OUT as usize / 8;
             for k in 0..hash::WORDS {
                 let addr = Coord::Sum(vec![Col(c.v1), Const(F64(8 * k as u64))]);
-                let new = match k.wrapping_sub(out_word) {
-                    j if j < 4 => Col(block + hash::WORDS + j),
-                    _ => Col(block + k),
-                };
-                f.access(SEP_MEM, addr, c.ts, c.acc, 2 + k, block_slot(k), Col(block + k), new);
+                let (old, new) = (Col(block.words + k), Col(block.left(k)));
+                f.access(SEP_MEM, addr, c.ts, c.acc, next(), block_slot(k), old, new);
             }
         }
+        f
     }
+
+    /// Fill this table's columns from the trace: `out[i]` is local column `i`'s
+    /// window, already at its final length. Every window must be written in full,
+    /// which `fill_table` checks.
     fn fill<'a>(&'a self, ctx: &FillCtx<'a>, out: &mut [ColumnOut]) {
         let c = &self.cols;
         let rows: &[Row] = &ctx.trace.rows[self.index];
@@ -840,20 +940,23 @@ impl Table for ClassTable {
                 F64(pc),
                 r.ts,
                 F64(e.a1 as u64),
-                F64(e.a2 as u64),
                 F64(pc.wrapping_add(4)),
                 F64(r.v1),
-                F64(r.v2),
                 F64(e.flags),
             ]
         });
-        if let Some(ad) = c.rd {
-            ctx.cols(out, rows, ad, move |r| {
+        if let Some(rs2) = c.rs2 {
+            ctx.cols_at(out, rows, [rs2.a2, rs2.v2], move |r| {
+                [F64(entry(r).a2 as u64), F64(r.v2)]
+            });
+        }
+        if let Some(rd) = c.rd {
+            ctx.cols_at(out, rows, [rd.ad, rd.vd_old, rd.out], move |r| {
                 [F64(entry(r).ad as u64), F64(r.vd_old), F64(r.out)]
             });
         }
-        if let Some(dt) = c.control {
-            ctx.cols(out, rows, dt, move |r| {
+        if let Some(k) = c.control {
+            ctx.cols_at(out, rows, [k.dt, k.link, k.jalr, k.taken, k.exit], move |r| {
                 let e = entry(r);
                 [
                     F64(p.dt_of(r.index as usize)),
@@ -867,18 +970,20 @@ impl Table for ClassTable {
         if let Some(imm) = c.imm {
             ctx.col(out, rows, imm, move |r| F64(entry(r).imm));
         }
-        if let Some(address) = c.ram {
-            ctx.cols(out, rows, address, move |r| [F64(r.ram.address), F64(r.ram.old)]);
-            if self.spec.ram == Ram::Write {
-                ctx.col(out, rows, address + 2, move |r| F64(r.ram.new));
+        if let Some(ram) = c.ram {
+            ctx.cols_at(out, rows, [ram.address, ram.cell], move |r| {
+                [F64(r.ram.address), F64(r.ram.old)]
+            });
+            if ram.new != ram.cell {
+                ctx.col(out, rows, ram.new, move |r| F64(r.ram.new));
             }
         }
         if let Some(block) = c.block {
             fn hash(r: &Row) -> &HashRow {
                 r.hash.as_ref().expect("a hash row has its block")
             }
-            ctx.cols(out, rows, block, move |r| hash(r).block.map(F64));
-            ctx.cols(out, rows, block + hash::WORDS, |r| hash(r).out.map(F64));
+            ctx.cols(out, rows, block.words, move |r| hash(r).block.map(F64));
+            ctx.cols(out, rows, block.out, |r| hash(r).out.map(F64));
         }
         if let Some(bad) = c.bad {
             ctx.col(out, rows, bad, move |_| F64::ZERO);
@@ -897,7 +1002,7 @@ pub(crate) fn access_columns(t: usize, i: usize) -> [usize; 3] {
 /// Table `t`'s local column holding a branch's target offset.
 #[cfg(test)]
 pub(crate) fn branch_offset_column(t: usize) -> usize {
-    Cols::new(CLASSES[t]).control.expect("a control class")
+    Cols::new(CLASSES[t]).control.expect("a control class").dt
 }
 
 #[cfg(test)]

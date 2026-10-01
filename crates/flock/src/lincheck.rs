@@ -196,32 +196,27 @@ pub struct LincheckClaim {
     pub s_hat_v: Vec<F192>,
 }
 
-/// Reasons the verifier may reject.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Why the lincheck verifier rejects.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum VerifyError {
-    /// One of the input quirky points has wrong `x_inner_rest` length
-    /// (expected `k_log − k_skip`).
-    BadInnerRestLength {
-        which: &'static str,
-        expected: usize,
-        got: usize,
-    },
-    /// One of the input quirky points has wrong `x_outer` length
-    /// (expected `n_log = m − k_log`).
-    BadOuterLength {
-        which: &'static str,
-        expected: usize,
-        got: usize,
-    },
-    /// The circuit's column count isn't `2^k_log`.
+    /// The claim point's inner coordinates are not `k_log - k_skip` long.
+    #[error("the claim point has {got} inner coordinates, and lincheck needs {expected}")]
+    BadInnerRestLength { expected: usize, got: usize },
+    /// The claim point's outer coordinates are not `m - k_log` long.
+    #[error("the claim point has {got} outer coordinates, and lincheck needs {expected}")]
+    BadOuterLength { expected: usize, got: usize },
+    /// The circuit's column count is not `2^k_log`.
+    #[error("the circuit has {got} columns, and lincheck needs {expected}")]
     BadNCols { expected: usize, got: usize },
-    /// `k_skip` exceeds `k_log` (the matrix inner dimension).
+    /// More skipped variables than the matrix's inner dimension has.
+    #[error("k_skip {k_skip} exceeds k_log {k_log}")]
     KSkipExceedsKLog { k_skip: usize, k_log: usize },
-    /// The scalar consistency check failed for one of (A, B, C).
-    /// Detected: `Σ_{i_inner} M̂_0_quirky(z_skip, x_inner_rest, i_inner) · z_x_vec[i_inner] ≠ v`.
-    ConsistencyFailed { which: &'static str },
-    /// The proof stream ran out while reading a message.
-    Transcript(fiat_shamir::transcript::Error),
+    /// The sumcheck's final claim is not the batched `A`, `B`, `C` evaluation.
+    #[error("the sumcheck's final claim does not match the matrices")]
+    SumcheckMismatch,
+    /// The proof stream is malformed.
+    #[error(transparent)]
+    Transcript(#[from] fiat_shamir::transcript::Error),
 }
 
 // ---------------------------------------------------------------------------
@@ -470,9 +465,13 @@ fn partial_fold_packed_z_iblock_padded(
             let tables_ptr = tables.as_ptr();
             // Base of this (tile, i_base): process_block reads
             // z_base[t·k + bs] = z[(stripe_base+t)·k + i_base + bs].
+            // SAFETY: `z_packed` is `n_stripes * k` bytes, `stripe_base < n_stripes` and `i_base < k`.
             let z_base = unsafe { z_packed.as_ptr().add(stripe_base * k + i_base) };
             for b in 0..n_block {
                 let i = b * BLOCK_K;
+                // SAFETY: the tile's `TILE_T` stripes end by `n_stripes`, a multiple of `TILE_T`, and
+                // `i_base + i + BLOCK_K <= useful <= k` keeps every 8-byte row read inside its stripe; `tables` is
+                // `TILE_T * 256` entries; `i + BLOCK_K <= out_slice.len()`, both being multiples of `BLOCK_K`.
                 unsafe {
                     process_block_neon_single(z_base, k, i, tables_ptr, out_slice.as_mut_ptr().add(i));
                 }
@@ -533,9 +532,13 @@ fn partial_fold_packed_z_oblock_padded(
                 build_sum_table(&eq_outer[eq_off..eq_off + 8], &mut tables[t * 256..(t + 1) * 256]);
             }
             let tables_ptr = tables.as_ptr();
+            // SAFETY: `z_packed` is `n_stripes * k` bytes and `stripe_base < n_stripes`.
             let z_base = unsafe { z_packed.as_ptr().add(stripe_base * k) };
             let mut bs = 0usize;
             while bs < useful {
+                // SAFETY: the tile's `TILE_T` stripes end by `n_stripes`, a multiple of `TILE_T`;
+                // `bs + BLOCK_K <= useful <= k` keeps every row read inside its stripe and the 8 outputs inside
+                // the length-`k` partial; `tables` is `TILE_T * 256` entries.
                 unsafe {
                     process_block_neon_single(z_base, k, bs, tables_ptr, partial.as_mut_ptr().add(bs));
                 }
@@ -1127,14 +1130,12 @@ pub fn verify(
 
     if x_ab.x_inner_rest.len() != inner_rest_len {
         return Err(VerifyError::BadInnerRestLength {
-            which: "x_ab",
             expected: inner_rest_len,
             got: x_ab.x_inner_rest.len(),
         });
     }
     if x_ab.x_outer.len() != n_log {
         return Err(VerifyError::BadOuterLength {
-            which: "x_ab",
             expected: n_log,
             got: x_ab.x_outer.len(),
         });
@@ -1175,14 +1176,14 @@ pub fn verify(
     let mut r_rounds = Vec::with_capacity(inner_rest_len);
     for _ in 0..inner_rest_len {
         // `c1 + c2 = claim` in char 2, so `c1` never rides the wire.
-        let q = vs.next_round_poly(3, running, None).map_err(VerifyError::Transcript)?;
+        let q = vs.next_round_poly(3, running, None)?;
         let r = vs.sample();
         running = primitives::multilinear::poly_eval(&q, r);
         r_rounds.push(r);
     }
 
     // 4. Read + bind z_partial AFTER the sumcheck rounds (matches prover order).
-    let z_partial: Vec<F192> = vs.next_scalars(n_skip).map_err(VerifyError::Transcript)?;
+    let z_partial: Vec<F192> = vs.next_scalars(n_skip)?;
 
     // Convert sumcheck challenges to LSB-first x_inner_rest order (same
     // convention as prover; also the eq-ordering of the step-5 column weights).
@@ -1220,9 +1221,7 @@ pub fn verify(
         .fold(F192::ZERO, |acc, (&w, &s)| acc + w * s);
     final_sum += alpha_sq * eq_eval(&x_ab.x_inner_rest, &r_inner_rest) * c_slice_value;
     if running != final_sum {
-        return Err(VerifyError::ConsistencyFailed {
-            which: "sumcheck-final",
-        });
+        return Err(VerifyError::SumcheckMismatch);
     }
 
     // 6. `z_partial` IS the output claim: the 64 bit-slice values of z at
@@ -1769,7 +1768,7 @@ mod tests {
             let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
             let res = verify(m, k_log, k_skip, &circuit, &x_ab, v_a, v_b, v_c, &mut ch);
             assert!(
-                matches!(res, Err(VerifyError::ConsistencyFailed { .. })),
+                matches!(res, Err(VerifyError::SumcheckMismatch)),
                 "verify did not reject z_partial[{skip_idx}].{label} bit-flip: got {res:?}"
             );
         }

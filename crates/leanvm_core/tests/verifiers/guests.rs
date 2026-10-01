@@ -5,6 +5,7 @@
 
 use super::python_verifier::PythonStatement;
 use leanvm_core::cpu::{Program, measure, prove, verify, verify_to_raw};
+use leanvm_core::pcs::Rate;
 use leanvm_core::rv::{self, ElfError, Guest, Machine};
 
 /// The output of a guest committing `values` in order.
@@ -21,7 +22,7 @@ fn proves_and_verifies(tag: &str, elf: &[u8], advice: &[u64], expected: [u64; 4]
     let ran = Machine::new(program.rv(), advice).run().expect("the run halts");
     assert_eq!(ran, expected, "{tag}: the interpreter");
 
-    let (proof, output, stats) = prove(&program, advice, 1).expect("the run halts");
+    let (proof, output, stats) = prove(&program, advice, Rate::MIN).expect("the run halts");
     assert_eq!(output, expected);
     // Measuring a run reports what proving it does, without the proof.
     assert_eq!(measure(&program, advice), Ok(stats.clone()), "{tag}: measure");
@@ -219,14 +220,28 @@ fn malformed_elf_layouts_are_refused() {
     for (at, width, value, reason) in [
         (20, 4, 2, ElfError::UnsupportedHeader),
         (52, 2, 63, ElfError::UnsupportedHeader),
-        (48, 4, 8, ElfError::UnsupportedFlags),
+        (48, 4, 8, ElfError::UnsupportedFlags { flags: 8 }),
         (54, 2, 0, ElfError::UnsupportedHeader),
         (54, 2, 55, ElfError::UnsupportedHeader),
         (58, 2, 63, ElfError::UnsupportedHeader),
-        (24, 8, 0, ElfError::EntryPoint),
-        (24, 8, rv::RAM_BASE, ElfError::EntryPoint),
-        (24, 8, rv::TEXT_BASE + 2, ElfError::EntryPoint),
-        (24, 8, rv::TEXT_BASE + text_len, ElfError::EntryPoint),
+        (24, 8, 0, ElfError::EntryPoint { entry: 0 }),
+        (24, 8, rv::RAM_BASE, ElfError::EntryPoint { entry: rv::RAM_BASE }),
+        (
+            24,
+            8,
+            rv::TEXT_BASE + 2,
+            ElfError::EntryPoint {
+                entry: rv::TEXT_BASE + 2,
+            },
+        ),
+        (
+            24,
+            8,
+            rv::TEXT_BASE + text_len,
+            ElfError::EntryPoint {
+                entry: rv::TEXT_BASE + text_len,
+            },
+        ),
         (ph + 40, 8, text_len - 1, ElfError::MalformedSegment),
         (ph + 48, 8, 3, ElfError::MalformedSegment),
         (ph + 8, 8, word_at(ph + 8) + 1, ElfError::MalformedSegment),
@@ -244,7 +259,12 @@ fn malformed_elf_layouts_are_refused() {
     let mut bad = elf.to_vec();
     bad[ph + 40..ph + 48].copy_from_slice(&(text_len + 4).to_le_bytes());
     bad[24..32].copy_from_slice(&(rv::TEXT_BASE + text_len).to_le_bytes());
-    assert_eq!(Guest::from_elf(&bad), Err(ElfError::EntryPoint));
+    assert_eq!(
+        Guest::from_elf(&bad),
+        Err(ElfError::EntryPoint {
+            entry: rv::TEXT_BASE + text_len
+        })
+    );
 
     // A complete instruction inside the executable segment may be another entry.
     let mut other_entry = elf.to_vec();

@@ -89,7 +89,7 @@ fn public_api_end_to_end() {
     let bytes = received.to_bytes();
     let mut bumped = bytes.clone();
     bumped[4] += 1;
-    assert_eq!(Proof::from_bytes(&bumped), Err(Error::UnsupportedVersion { found: 2 }));
+    assert_eq!(Proof::from_bytes(&bumped), Err(Error::UnsupportedVersion { found: 4 }));
     let mut magic = bytes.clone();
     magic[0] ^= 1;
     assert_eq!(Proof::from_bytes(&magic), Err(Error::MalformedProof));
@@ -100,7 +100,7 @@ fn public_api_end_to_end() {
     );
 
     // 6. What the caller gets wrong is an error, not a panic.
-    assert_eq!(Rate::new(0), Err(Error::InvalidRate { log_inv_rate: 0 }));
+    assert_eq!(Rate::new(0), Err(InvalidRate { log_inv_rate: 0 }));
     assert!(Rate::new(Rate::MAX.log_inv_rate() + 1).is_err());
     let one_word =
         Program::new(&Asm::new().exit().finish(), TEXT_BASE, vec![], 0, 0).expect("valid instruction program");

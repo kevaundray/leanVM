@@ -12,10 +12,10 @@
 use crate::PAR_THRESHOLD;
 use crate::colval::ColVal;
 use crate::gkr;
-use crate::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
-use primitives::field::{F64, F192, F192Unreduced, g_pow, index_mle, int_index_mle, powers_mle};
+use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
+use primitives::field::{F64, F192, F192Unreduced, g_pow, int_index_mle, powers_mle};
 use primitives::multilinear::{eq_eval, eq_table_arena, mle_eval};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use zk_alloc::ArenaVec;
 
@@ -39,15 +39,12 @@ pub enum Coord {
     /// whose bits are that integer's: what addresses a region whose cell `z` sits at
     /// `base + (z << shift)`. Free, its MLE being linear.
     IntIndex { base: F64, shift: u32 },
-    /// The exponent column `g^z` (§sec:idxcol), free via the factored MLE: the
-    /// values of the `EXP` array.
-    Index,
     /// The geometric column `first·ratio^z`, free the same way: the addresses of a
     /// range-check array (§sec:rangecheck).
     Powers { first: F64, ratio: F64 },
     /// A public column (the bytecode program, §sec:e2e-bc): not committed; both parties form
-    /// its MLE directly, so it raises no claim. Shared rather than owned: push and
-    /// pull carry the same ten columns, tens of megabytes at production sizes.
+    /// its MLE directly, so it raises no claim. Shared rather than owned: a column is
+    /// tens of megabytes at production sizes.
     Public(Arc<Vec<F64>>),
     /// A public column that is zero outside a few blocks (RAM as the run finds it,
     /// §sec:memchan): the verifier evaluates it in time proportional to the blocks,
@@ -126,6 +123,29 @@ impl SparseColumn {
 pub struct Block {
     pub kappa: usize,
     pub coords: Vec<Coord>,
+    /// The table whose block it is, if any. A table's block becomes a form its table
+    /// sumcheck settles; a framework block opens its columns at the bus point.
+    pub owner: Option<usize>,
+}
+
+impl Block {
+    /// A block no table owns.
+    pub fn framework(kappa: usize, coords: Vec<Coord>) -> Self {
+        Self {
+            kappa,
+            coords,
+            owner: None,
+        }
+    }
+
+    /// A block of table `owner`.
+    pub fn table(owner: usize, kappa: usize, coords: Vec<Coord>) -> Self {
+        Self {
+            kappa,
+            coords,
+            owner: Some(owner),
+        }
+    }
 }
 
 /// A lookup array as its table side pushes it (§sec:lookup): `2^kappa` entries, entry `x`
@@ -158,10 +178,15 @@ pub struct ColumnClaim {
     pub value: F192,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Why the bus does not balance.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
-    Truncated,
-    Gkr(gkr::GkrError),
+    /// The proof stream is malformed.
+    #[error(transparent)]
+    Transcript(#[from] fiat_shamir::transcript::Error),
+    /// The grand products' GKR rejects.
+    #[error(transparent)]
+    Gkr(#[from] gkr::GkrError),
 }
 
 /// The fingerprint weights `eq(α⃗, x)` over the `2^N_TUPLE_BITS` slots (§sec:gp).
@@ -261,13 +286,11 @@ pub(crate) fn unmatched_leaves(
         .collect();
     let (w, beta) = (fingerprint_weights(&alphas), F192::new(13, 17, 19));
     let powers = power_tables(tuples(push).chain(tuples(pull)).chain(producer_tuples(producers)));
-    let longest = push.iter().chain(pull).map(|b| b.kappa).max().unwrap_or(0);
-    let gpow = primitives::field::g_powers(1 << longest);
     let side = |blocks: &[Block]| {
         let mut at = Vec::new();
         for (b, block) in blocks.iter().enumerate() {
             let mut leaves = vec![F192::ZERO; 1 << block.kappa];
-            fill_tuple(&block.coords, cols, &w, beta, &gpow, &powers, &mut leaves);
+            fill_tuple(&block.coords, cols, &w, beta, &powers, &mut leaves);
             at.extend(leaves.into_iter().enumerate().map(|(z, leaf)| (leaf, b, z)));
         }
         at
@@ -275,7 +298,7 @@ pub(crate) fn unmatched_leaves(
     let (mut pushed, pulled) = (side(push), side(pull));
     for (p, producer) in producers.iter().enumerate() {
         let mut leaves = vec![F192::ZERO; 1 << producer.kappa];
-        fill_tuple(&producer.coords, cols, &w, beta, &gpow, &powers, &mut leaves);
+        fill_tuple(&producer.coords, cols, &w, beta, &powers, &mut leaves);
         for (x, leaf) in leaves.into_iter().enumerate() {
             let m = cols[producer.col][x].0 & ((1u64 << producer.bits) - 1);
             pushed.extend(std::iter::repeat_n((leaf, push.len() + p, x), m as usize));
@@ -305,7 +328,6 @@ pub(crate) fn unmatched_leaves(
 enum Term<'a> {
     Col(usize, F192),
     Prod(usize, usize, F192),
-    Index(F192),
     IntIndex(F192, u32),
     Public(&'a [F64], F192),
 }
@@ -345,7 +367,6 @@ fn push_terms<'a>(c: &'a Coord, w: F192, powers: &'a PowerTables, terms: &mut Ve
         Coord::Col(i) => terms.push(Term::Col(*i, w)),
         Coord::GCol(i, k) => terms.push(Term::Col(*i, w.mul_base(g_pow(*k as usize)))),
         Coord::Prod(i, j, k) => terms.push(Term::Prod(*i, *j, w.mul_base(g_pow(*k as usize)))),
-        Coord::Index => terms.push(Term::Index(w)),
         Coord::IntIndex { base, shift } => {
             *constant += w.mul_base(*base);
             terms.push(Term::IntIndex(w, *shift));
@@ -370,15 +391,7 @@ fn push_terms<'a>(c: &'a Coord, w: F192, powers: &'a PowerTables, terms: &mut Ve
 
 /// One tuple's leaves, `β − Σ_i w_i c_i(z)` for every row `z`, into `dst`. The
 /// row-invariant weights and constant coordinates are folded once into `const_part`.
-fn fill_tuple(
-    coords: &[Coord],
-    cols: &[&[F64]],
-    w: &[F192],
-    beta: F192,
-    gpow: &[F64],
-    powers: &PowerTables,
-    dst: &mut [F192],
-) {
+fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, powers: &PowerTables, dst: &mut [F192]) {
     let mut const_part = beta;
     let mut terms: Vec<Term> = Vec::with_capacity(coords.len());
     for (i, c) in coords.iter().enumerate() {
@@ -394,7 +407,6 @@ fn fill_tuple(
             acc ^= match t {
                 Term::Col(i, c) => c.mul_base_unreduced(cols[*i][z]),
                 Term::Prod(i, j, c) => c.mul_base_unreduced(cols[*i][z] * cols[*j][z]),
-                Term::Index(c) => c.mul_base_unreduced(gpow[z]),
                 Term::IntIndex(c, shift) => c.mul_base_unreduced(F64((z as u64) << shift)),
                 Term::Public(vals, c) => c.mul_base_unreduced(vals[z]),
             };
@@ -418,16 +430,14 @@ fn producer_leaves(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192, powers
     let mut q = ArenaVec::with_capacity(1 << p.kappa);
     // SAFETY: `fill_tuple` writes every slot before anything reads one.
     unsafe { q.set_len(1 << p.kappa) };
-    fill_tuple(&p.coords, cols, w, beta, &[], powers, &mut q);
+    fill_tuple(&p.coords, cols, w, beta, powers, &mut q);
     q
 }
 
 /// Build one side's leaf vector: block `b` row `z` holds `β − Σ_i w_i c_i(z)` for
 /// the fingerprint weights `w = eq(α⃗, ·)`, then each producer's bit blocks, bit `i`'s
 /// row `x` holding `(β − π_α(e_x))^{2^i}` where that bit of `m_x` is set and `1` where
-/// it is not, followed implicitly by the identity `1` up to `2^μ`. `gpow` supplies
-/// `g^z` for [`Coord::Index`] and is the caller's, shared by the two sides.
-#[allow(clippy::too_many_arguments)]
+/// it is not, followed implicitly by the identity `1` up to `2^μ`.
 pub fn build_leaves(
     blocks: &[Block],
     producers: &[Producer],
@@ -435,7 +445,6 @@ pub fn build_leaves(
     cols: &[&[F64]],
     w: &[F192],
     beta: F192,
-    gpow: &[F64],
     powers: &PowerTables,
 ) -> ArenaVec<F192> {
     let kappas: Vec<usize> = blocks
@@ -475,7 +484,7 @@ pub fn build_leaves(
     for (b, blk) in blocks.iter().enumerate() {
         let off = lay.offsets[b];
         let dst = &mut leaves[off..off + (1usize << blk.kappa)];
-        fill_tuple(&blk.coords, cols, w, beta, gpow, powers, dst);
+        fill_tuple(&blk.coords, cols, w, beta, powers, dst);
     }
     let mut b = blocks.len();
     for p in producers {
@@ -702,7 +711,7 @@ fn accumulate_form(c: &Coord, w: F192, base: usize, form: &mut BusForm) {
                 accumulate_form(c, w, base, form);
             }
         }
-        Coord::Index | Coord::IntIndex { .. } | Coord::Powers { .. } | Coord::Public(_) | Coord::Sparse(_) => {
+        Coord::IntIndex { .. } | Coord::Powers { .. } | Coord::Public(_) | Coord::Sparse(_) => {
             unreachable!("a table's bus block carries no virtual coordinate")
         }
     }
@@ -717,52 +726,62 @@ fn selector(lay: &Layout, b: usize, kappa: usize, zeta: &[F192]) -> F192 {
     eq_eval(&sel_bits, &zeta[kappa..])
 }
 
-/// Walk one side's blocks. A block owned by table `t` (with column base `base`)
-/// accumulates into `forms[t]`; a producer's bit block leaves its selector in
-/// `coefficients[p]`, its air's weight on that bit; the framework blocks are decomposed
-/// into per-column claims as before, `fresh` supplying values not already in `claims`.
-/// Returns the framework blocks' contribution to `Ṽ₀(ζ)` plus the padding mass, so the
-/// caller can settle the side once the zerocheck has proven the tables' forms.
-#[allow(clippy::too_many_arguments)]
+/// The framework blocks' column claims, deduplicated: push and pull share their GKR
+/// point, so a column read by both sides (or by two same-κ blocks of one side) is
+/// streamed and opened ONCE; later occurrences reuse the value. Alongside them, each
+/// producer's weight on each of its bits' blocks, which its air owes the push side.
+#[derive(Default)]
+struct Openings {
+    claims: Vec<ColumnClaim>,
+    /// `(column, κ)` to the column's value at `ζ[..κ]`: every claim is at a prefix of
+    /// the one bus point, so its length names it.
+    known: HashMap<(usize, usize), F192>,
+    public: PublicEvals,
+    /// Per producer, its bits' blocks' selectors, in order.
+    producers: Vec<Vec<F192>>,
+}
+
+/// Walk one side's blocks. A block owned by table `t` accumulates into `forms[t]`,
+/// over the table's local columns (`tables[t]` is its `(base, width)`); a producer's
+/// bit block leaves its selector in `open.producers`, its air's weight on that bit; the
+/// framework blocks are decomposed into per-column claims, `fresh` supplying values not
+/// already opened. Returns the framework blocks' contribution to `Ṽ₀(ζ)` plus the
+/// padding mass, so the caller can settle the side once the zerocheck has proven the
+/// tables' forms and the producers' airs.
 fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
-    blocks: &[Block],
-    producers: &[Producer],
-    lay: &Layout,
+    side: &Side,
     zeta: &[F192],
-    w: &[F192],
-    beta: F192,
-    owners: &[Option<(usize, usize)>],
+    tables: &[(usize, usize)],
     forms: &mut [BusForm],
-    coefficients: &mut [Vec<F192>],
-    claims: &mut Vec<ColumnClaim>,
-    public: &mut PublicEvals,
+    open: &mut Openings,
     mut fresh: F,
 ) -> Result<F192, Error> {
+    let (lay, w, beta) = (&side.lay, &side.w, side.beta);
     assert_eq!(zeta.len(), lay.mu);
     let mut acc = F192::ZERO;
     let mut sel_sum = F192::ZERO;
-    let mut b = blocks.len();
-    for (p, producer) in producers.iter().enumerate() {
-        for _ in 0..producer.bits {
-            let eq_hi = selector(lay, b, producer.kappa, zeta);
-            sel_sum += eq_hi;
-            coefficients[p].push(eq_hi);
-            b += 1;
-        }
+    let mut b = side.blocks.len();
+    for producer in side.producers {
+        let selectors: Vec<F192> = (b..b + producer.bits)
+            .map(|b| selector(lay, b, producer.kappa, zeta))
+            .collect();
+        sel_sum += selectors.iter().fold(F192::ZERO, |a, &s| a + s);
+        open.producers.push(selectors);
+        b += producer.bits;
     }
-    for (b, blk) in blocks.iter().enumerate() {
+    for (b, blk) in side.blocks.iter().enumerate() {
         let kappa = blk.kappa;
         let zeta_lo = &zeta[..kappa];
         let eq_hi = selector(lay, b, kappa, zeta);
         sel_sum += eq_hi;
 
         // A table's block becomes a linear form the zerocheck will sum; only the
-        // framework blocks (boundary, memory, bytecode) still open columns at ζ.
-        if let Some((t, base)) = owners[b] {
+        // framework blocks (boundary, registers, memory) still open columns at ζ.
+        if let Some(t) = blk.owner {
             let form = &mut forms[t];
             form.constant += eq_hi * beta;
             for (i, c) in blk.coords.iter().enumerate() {
-                accumulate_form(c, eq_hi * w[i], base, form);
+                accumulate_form(c, eq_hi * w[i], tables[t].0, form);
             }
             continue;
         }
@@ -771,11 +790,12 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
         // record it. The push ORDER is the stream order, so every coordinate that
         // needs a column value must go through here.
         let mut col_val = |i: usize| -> Result<F192, Error> {
-            if let Some(v) = known_claim(claims, i, zeta_lo) {
+            if let Some(&v) = open.known.get(&(i, kappa)) {
                 return Ok(v);
             }
             let v = fresh(i, zeta_lo)?;
-            claims.push(ColumnClaim {
+            open.known.insert((i, kappa), v);
+            open.claims.push(ColumnClaim {
                 col: i,
                 point: zeta_lo.to_vec(),
                 value: v,
@@ -786,7 +806,6 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
         for (i, c) in blk.coords.iter().enumerate() {
             let coord_val = match c {
                 Coord::Const(v) => F192::from(*v),
-                Coord::Index => index_mle(zeta_lo),
                 Coord::IntIndex { base, shift } => int_index_mle(*base, *shift, zeta_lo),
                 Coord::Powers { first, ratio } => powers_mle(*first, *ratio, zeta_lo),
                 Coord::Col(i) => col_val(*i)?,
@@ -794,7 +813,7 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
                 Coord::Prod(..) | Coord::Sum(..) => {
                     unreachable!("only a table's bus block carries a degree-2 coordinate")
                 }
-                Coord::Public(vals) => public_eval(vals, zeta_lo, public),
+                Coord::Public(vals) => public_eval(vals, zeta_lo, &mut open.public),
                 Coord::Sparse(column) => column.eval(zeta_lo),
             };
             inner += w[i] * coord_val;
@@ -803,16 +822,6 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
     }
     // The padding rows (identity `1`) contribute the leftover mass `1 - Σ_b sel_b`.
     Ok(acc + (F192::ONE + sel_sum))
-}
-
-/// Look up an already-recorded claim on `(col, point)`. Push and pull share
-/// their GKR point, so a column read by both sides (or by two same-κ blocks of
-/// one side) is streamed and opened ONCE; later occurrences reuse the value.
-fn known_claim(claims: &[ColumnClaim], col: usize, point: &[F192]) -> Option<F192> {
-    claims
-        .iter()
-        .find(|c| c.col == col && c.point == point)
-        .map(|c| c.value)
 }
 
 // One bus GKR point per cache; its prefixes are keyed by length and shared column identity.
@@ -835,36 +844,26 @@ fn public_eval(vals: &Arc<Vec<F64>>, point: &[F192], cache: &mut PublicEvals) ->
 /// transcript and only their `add_scalar` ORDER matters. The second pass
 /// replays them through the transcript in the original block/coord order,
 /// keeping the stream byte-identical to the serial form.
-#[allow(clippy::too_many_arguments)]
 fn decompose_prove(
-    blocks: &[Block],
-    producers: &[Producer],
-    lay: &Layout,
+    side: &Side,
     cols: &[&[F64]],
     zeta: &[F192],
-    w: &[F192],
-    beta: F192,
-    owners: &[Option<(usize, usize)>],
+    tables: &[(usize, usize)],
     forms: &mut [BusForm],
-    coefficients: &mut [Vec<F192>],
-    claims: &mut Vec<ColumnClaim>,
-    public: &mut PublicEvals,
+    open: &mut Openings,
     ps: &mut ProverState,
 ) -> F192 {
     // Pass 1: enumerate the FRESH committed coords exactly as `decompose_formula`
-    // visits them (blocks in order, coords in order, Col/GCol only, first
-    // occurrence per `(col, point)`, the same dedup as `known_claim`), then
-    // evaluate the column MLEs in parallel.
+    // visits them (framework blocks in order, coords in order, Col/GCol only, first
+    // occurrence per `(col, κ)`), then evaluate the column MLEs in parallel.
     let mut jobs: Vec<(usize, usize)> = Vec::new();
-    for (b, blk) in blocks.iter().enumerate() {
-        if owners[b].is_some() {
-            continue;
-        }
+    let mut seen = HashSet::new();
+    for blk in side.blocks.iter().filter(|b| b.owner.is_none()) {
         for c in &blk.coords {
             if let Coord::Col(i) | Coord::GCol(i, _) = c {
-                let fresh = known_claim(claims, *i, &zeta[..blk.kappa]).is_none() && !jobs.contains(&(*i, blk.kappa));
-                if fresh {
-                    jobs.push((*i, blk.kappa));
+                let key = (*i, blk.kappa);
+                if !open.known.contains_key(&key) && seen.insert(key) {
+                    jobs.push(key);
                 }
             }
         }
@@ -876,64 +875,16 @@ fn decompose_prove(
 
     // Pass 2: replay in the original order; duplicates reuse the recorded claim.
     let mut fresh_iter = jobs.iter().zip(vals.iter());
-    decompose_formula(
-        blocks,
-        producers,
-        lay,
-        zeta,
-        w,
-        beta,
-        owners,
-        forms,
-        coefficients,
-        claims,
-        public,
-        |col, zeta_lo| {
-            let (&(jc, jk), &v) = fresh_iter
-                .next()
-                .expect("job enumeration matches decompose_formula's col_val order");
-            debug_assert_eq!((jc, jk), (col, zeta_lo.len()), "job/coord order drift");
-            debug_assert_eq!(v, mle_eval(cols[col], zeta_lo), "job/coord order drift");
-            ps.add_scalar(v);
-            Ok(v)
-        },
-    )
+    decompose_formula(side, zeta, tables, forms, open, |col, zeta_lo| {
+        let (&(jc, jk), &v) = fresh_iter
+            .next()
+            .expect("job enumeration matches decompose_formula's col_val order");
+        debug_assert_eq!((jc, jk), (col, zeta_lo.len()), "job/coord order drift");
+        debug_assert_eq!(v, mle_eval(cols[col], zeta_lo), "job/coord order drift");
+        ps.add_scalar(v);
+        Ok(v)
+    })
     .expect("prover decomposition is infallible")
-}
-
-/// Verifier-side decomposition: reads each FRESH committed value from the
-/// stream (duplicates reuse the recorded claim), recomputes `Ṽ₀(ζ)`, and
-/// records the fresh claims. A pre-pass mirrors the formula's block/coord scan
-/// so the stream reads stay sequential.
-#[allow(clippy::too_many_arguments)]
-fn decompose_verify(
-    blocks: &[Block],
-    producers: &[Producer],
-    lay: &Layout,
-    zeta: &[F192],
-    w: &[F192],
-    beta: F192,
-    owners: &[Option<(usize, usize)>],
-    forms: &mut [BusForm],
-    coefficients: &mut [Vec<F192>],
-    claims: &mut Vec<ColumnClaim>,
-    public: &mut PublicEvals,
-    vs: &mut VerifierState,
-) -> Result<F192, Error> {
-    decompose_formula(
-        blocks,
-        producers,
-        lay,
-        zeta,
-        w,
-        beta,
-        owners,
-        forms,
-        coefficients,
-        claims,
-        public,
-        |_, _| vs.next_scalar().map_err(|_| Error::Truncated),
-    )
 }
 
 /// Selector bits of the stacked bytecode polynomial: the public encoding
@@ -963,10 +914,65 @@ pub fn stacked_bytecode_table(kbc: usize, coords: &[Coord]) -> Vec<F64> {
     table
 }
 
-/// The bus depth: the taller side's. Push and pull no longer pair block for block, the
-/// producers' bits being push blocks with no pull of their own.
-fn depth(push: &Layout, pull: &Layout) -> usize {
-    push.mu.max(pull.mu)
+/// One bus side: its blocks and producers, where they stack, and its fingerprint
+/// `(eq(α⃗, ·), β)`.
+struct Side<'a> {
+    blocks: &'a [Block],
+    producers: &'a [Producer],
+    lay: Layout,
+    w: Vec<F192>,
+    beta: F192,
+}
+
+/// The two bus sides in `[push, pull]` order, which both parties lay out and
+/// fingerprint the same way before the GKR.
+struct BusSetup<'a> {
+    sides: [Side<'a>; 2],
+}
+
+impl<'a> BusSetup<'a> {
+    /// Lay the sides out and sample the fingerprint. The push side ends on the
+    /// producers' bits, which no pull pairs with, so the two sides no longer match block
+    /// for block: the shorter tree is padded to the taller's depth (identity leaves),
+    /// and both run as ONE RLC-batched GKR at ONE shared point.
+    fn new(push: &'a [Block], pull: &'a [Block], producers: &'a [Producer], challenger: &mut impl Challenger) -> Self {
+        let mut push_lay = layout(push, producers);
+        let mut pull_lay = layout(pull, &[]);
+        let mu = push_lay.mu.max(pull_lay.mu);
+        assert_grinding_unnecessary(push, pull, producers, mu);
+        (push_lay.mu, pull_lay.mu) = (mu, mu);
+        let alphas: Vec<F192> = (0..N_TUPLE_BITS).map(|_| challenger.sample()).collect();
+        let w = fingerprint_weights(&alphas);
+        let beta = challenger.sample();
+        Self {
+            sides: [
+                Side {
+                    blocks: push,
+                    producers,
+                    lay: push_lay,
+                    w: w.clone(),
+                    beta,
+                },
+                Side {
+                    blocks: pull,
+                    producers: &[],
+                    lay: pull_lay,
+                    w,
+                    beta,
+                },
+            ],
+        }
+    }
+
+    /// The depth of the batched GKR.
+    fn mu(&self) -> usize {
+        self.sides[0].lay.mu
+    }
+
+    /// Each table's form on every side, empty.
+    fn empty_forms(tables: &[(usize, usize)]) -> [Vec<BusForm>; 2] {
+        std::array::from_fn(|_| tables.iter().map(|&(_, n)| BusForm::new(n)).collect())
+    }
 }
 
 /// What a producer's air is owed and summed over, prover-side: its weight on each
@@ -982,8 +988,9 @@ pub struct ProducerProof {
 /// `beta` follow the witness commitment (the only ordering the grand product
 /// needs), and the block structure is public, so no shape is observed.
 /// Everything the bus hands on: the framework blocks' column claims,
-/// the shared GKR point (the table sumcheck's eq point), and
-/// per side the tables' linear forms plus what each is claimed to sum to.
+/// the shared GKR point (the table sumcheck's eq point),
+/// per side the tables' linear forms plus what each is claimed to sum to, and the
+/// producers' share of the push side.
 pub struct BusProof {
     pub claims: Vec<ColumnClaim>,
     /// The GKR point ζ: the zerocheck reuses it, so no fresh point is sampled.
@@ -1008,83 +1015,54 @@ pub fn prove_balance(
     pull: &[Block],
     producers: &[Producer],
     cols: &[&[F64]],
-    owners: &[Vec<Option<(usize, usize)>>; 2],
     tables: &[(usize, usize)],
     ps: &mut ProverState,
 ) -> BusProof {
-    let mut push_lay = layout(push, producers);
-    let mut pull_lay = layout(pull, &[]);
-    let mu = depth(&push_lay, &pull_lay);
-    assert_grinding_unnecessary(push, pull, producers, mu);
-    let alphas: Vec<F192> = (0..N_TUPLE_BITS).map(|_| ps.sample()).collect();
-    let w = fingerprint_weights(&alphas);
-    let beta = ps.sample();
-    // The `g^z` table backing `Coord::Index`, built once for the two sides.
-    let index_k = [push, pull]
-        .into_iter()
-        .flatten()
-        .filter(|b| b.coords.iter().any(|c| matches!(c, Coord::Index)))
-        .map(|b| b.kappa)
-        .max();
-    let gpow = index_k.map_or_else(Vec::new, |k| primitives::field::g_powers(1usize << k));
+    let setup = BusSetup::new(push, pull, producers, ps);
     let powers = power_tables(tuples(push).chain(tuples(pull)).chain(producer_tuples(producers)));
     // Two independent leaf vectors, built one after another: each `build_leaves`
     // already fans its own blocks out across the whole pool, so nesting an outer
-    // split on top would only add a barrier.
-    let [push_leaves, pull_leaves] = crate::stage!("Bus leaves", || {
-        [
-            build_leaves(push, producers, &push_lay, cols, &w, beta, &gpow, &powers),
-            build_leaves(pull, &[], &pull_lay, cols, &w, beta, &gpow, &powers),
-        ]
+    // split on top would only add a barrier. The all-one padding stays implicit.
+    let leaves = crate::stage!("Bus leaves", || {
+        setup.sides.each_ref().map(|side| {
+            build_leaves(
+                side.blocks,
+                side.producers,
+                &side.lay,
+                cols,
+                &side.w,
+                side.beta,
+                &powers,
+            )
+        })
     });
-    // Leaf construction keeps the all-one padding implicit; decomposition uses the full logical depth.
-    (push_lay.mu, pull_lay.mu) = (mu, mu);
     // Both trees run as ONE RLC-batched GKR, the shorter padded, so every claim lands
     // on ONE point ζ.
-    let bus_gkr = crate::stage!("Bus GKR", || {
-        gkr::prove_products([push_leaves, pull_leaves], ps, gkr::RootShape::FirstTwoShared)
-    });
+    let bus_gkr = crate::stage!("Bus GKR", || { gkr::prove_products(leaves, ps) });
 
     // Framework blocks keep their per-column claims (deduped: push/pull share ζ);
     // every table block becomes a form for the zerocheck instead, and every producer
     // bit a weight for its producer's air.
-    let mut claims: Vec<ColumnClaim> = Vec::new();
     // Each table's columns at ζ[..τ], computed once and shared by the two sides
     // (a form's linear part factors through them). Nothing here travels, neither the
     // evaluations nor any total: the verifier derives each side's table share as `Ṽ₀(ζ)` less the
     // framework decomposition ([`verify_balance`]) and the batch settles it. A
     // transmitted total would appear in exactly one check, which it could always be
     // solved to satisfy, and would settle nothing.
-    let mut forms = std::array::from_fn(|_| tables.iter().map(|&(_, n)| BusForm::new(n)).collect::<Vec<_>>());
-    let mut coefficients = vec![Vec::new(); producers.len()];
+    let mut forms = BusSetup::empty_forms(tables);
     let mut frameworks = [F192::ZERO; 2];
-    let mut public = PublicEvals::new();
+    let mut open = Openings::default();
     crate::stage!("Bus decompose", || {
-        for (s, (blocks, side_producers, lay)) in [(push, producers, &push_lay), (pull, &[][..], &pull_lay)]
-            .into_iter()
-            .enumerate()
-        {
-            frameworks[s] = decompose_prove(
-                blocks,
-                side_producers,
-                lay,
-                cols,
-                &bus_gkr.point,
-                &w,
-                beta,
-                &owners[s],
-                &mut forms[s],
-                &mut coefficients,
-                &mut claims,
-                &mut public,
-                ps,
-            );
+        for (s, side) in setup.sides.iter().enumerate() {
+            frameworks[s] = decompose_prove(side, cols, &bus_gkr.point, tables, &mut forms[s], &mut open, ps);
         }
     });
     let (table_evals, prod_sums) = tables_and_prods_at(cols, tables, &forms, &bus_gkr.point);
+    let [push_side, _] = &setup.sides;
+    let (w, beta) = (push_side.w.clone(), push_side.beta);
     let producers: Vec<ProducerProof> = producers
         .iter()
-        .zip(coefficients)
+        .zip(std::mem::take(&mut open.producers))
         .map(|(p, coefficients)| {
             let columns = producer_columns(p, cols, &w, beta);
             let eq = eq_table_arena(&bus_gkr.point[..p.kappa]);
@@ -1130,7 +1108,7 @@ pub fn prove_balance(
     });
 
     BusProof {
-        claims,
+        claims: open.claims,
         point: bus_gkr.point,
         forms,
         sigmas,
@@ -1238,21 +1216,11 @@ pub fn verify_balance(
     push: &[Block],
     pull: &[Block],
     producers: &[Producer],
-    owners: &[Vec<Option<(usize, usize)>>; 2],
     tables: &[(usize, usize)],
     vs: &mut VerifierState,
 ) -> Result<BusVerify, Error> {
-    let mut push_lay = layout(push, producers);
-    let mut pull_lay = layout(pull, &[]);
-    let mu = depth(&push_lay, &pull_lay);
-    assert_grinding_unnecessary(push, pull, producers, mu);
-    let alphas: Vec<F192> = (0..N_TUPLE_BITS).map(|_| vs.sample()).collect();
-    let w = fingerprint_weights(&alphas);
-    // The shorter tree is padded to the taller's depth (identity leaves), so both
-    // verify as ONE RLC-batched GKR at ONE shared point.
-    (push_lay.mu, pull_lay.mu) = (mu, mu);
-    let beta = vs.sample();
-    let bus_gkr = gkr::verify_products::<2>(mu, vs, gkr::RootShape::FirstTwoShared).map_err(Error::Gkr)?;
+    let setup = BusSetup::new(push, pull, producers, vs);
+    let bus_gkr = gkr::verify_products::<2>(setup.mu(), vs)?;
     // Every row of every table is a real row (`cpu::filler`), so the two sides balance
     // outright: no padding tuples to divide back out, and no announced row counts whose
     // truthfulness the soundness argument would have to establish. The GKR sends ONE root
@@ -1263,43 +1231,28 @@ pub fn verify_balance(
     // producers' bits weights on their airs. Each side's share of those is DERIVED from
     // `framework + Ṽ₀(ζ)` rather than checked here, the batch's target being what pins
     // it, so no table column is opened at ζ.
-    let mut claims: Vec<ColumnClaim> = Vec::new();
-    let mut forms = std::array::from_fn(|_| tables.iter().map(|&(_, n)| BusForm::new(n)).collect::<Vec<_>>());
-    let mut coefficients = vec![Vec::new(); producers.len()];
+    let mut forms = BusSetup::empty_forms(tables);
     let mut totals = [F192::ZERO; 2];
-    let mut public = PublicEvals::new();
-    for (s, (blocks, side_producers, lay)) in [(push, producers, &push_lay), (pull, &[][..], &pull_lay)]
-        .into_iter()
-        .enumerate()
-    {
-        let framework = decompose_verify(
-            blocks,
-            side_producers,
-            lay,
-            &bus_gkr.point,
-            &w,
-            beta,
-            &owners[s],
-            &mut forms[s],
-            &mut coefficients,
-            &mut claims,
-            &mut public,
-            vs,
-        )?;
+    let mut open = Openings::default();
+    for (s, side) in setup.sides.iter().enumerate() {
+        let framework = decompose_formula(side, &bus_gkr.point, tables, &mut forms[s], &mut open, |_, _| {
+            Ok(vs.next_scalar()?)
+        })?;
         // What the tables owe this side: DERIVED, never read. A transmitted total
         // would be a free variable in its own check and would settle nothing; the
         // caller instead pins these against the batch's target.
         totals[s] = framework + bus_gkr.values[s];
     }
+    let [push_side, _] = setup.sides;
 
     Ok(BusVerify {
-        claims,
+        claims: open.claims,
         point: bus_gkr.point,
         forms,
-        producers: coefficients,
+        producers: open.producers,
         totals,
-        weights: w,
-        beta,
+        weights: push_side.w,
+        beta: push_side.beta,
     })
 }
 

@@ -34,8 +34,8 @@
 
 use crate::PAR_THRESHOLD;
 use crate::colval::ColVal;
-use crate::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
-use primitives::field::{F64, F192, F192Unreduced, powers};
+use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
+use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::{eq_table_arena, fold_high_inplace, fold_high_k, poly_eval, shrink_eq_high};
 use zk_alloc::ArenaVec;
 
@@ -46,30 +46,44 @@ pub struct Claims {
     pub evals: Vec<F192>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Why the table constraints reject.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
-    Truncated,
+    /// The bus point has fewer coordinates than the tallest table has variables.
+    #[error("the bus point has {len} coordinates, and the tallest table has {rounds} variables")]
+    PointTooShort { len: usize, rounds: usize },
+    /// The proof stream is malformed.
+    #[error(transparent)]
+    Transcript(#[from] fiat_shamir::transcript::Error),
+    /// The sumcheck's final claim is not the tables' summands at the opened columns.
+    #[error("the constraint sumcheck's final claim does not match the columns")]
     FinalMismatch,
 }
 
-/// One table's row constraint: identity `i` is weighted by `pows[i]`; `true` selects its homogeneous quadratic part.
-pub type Constraint<'a> = Box<dyn Fn(&[F192], &[F192], bool) -> F192 + Sync + 'a>;
-/// The same form over `K`-valued columns, for the round a table joins the batch.
-pub type ConstraintK<'a> = Box<dyn Fn(&[F192], &[F64], bool) -> F192 + Sync + 'a>;
-/// A table's public columns at its point, which the verifier computes rather than reads.
-pub type PublicEvals<'a> = Box<dyn Fn(&[F192]) -> Vec<F192> + Sync + 'a>;
+/// One table's summand at one row: its identities and bus forms, already weighted by
+/// their `η`-powers, over the table's columns.
+///
+/// Written once, generic over the column type: `K` in the round a table joins the
+/// batch, `E` after it (see [`ColVal`]).
+pub trait Summand: Sync {
+    /// The summand at `cols`; `quadratic` selects only its degree-two terms.
+    fn eval<T: ColVal>(&self, cols: &[T], quadratic: bool) -> F192;
+
+    /// The table's public columns at its point `chi`, which the verifier computes rather
+    /// than reads: as many as the air's `n_public`.
+    fn public(&self, _chi: &[F192]) -> Vec<F192> {
+        Vec::new()
+    }
+}
 
 /// One table's place in the shared batch. Its last `n_public` columns are public: the
 /// prover folds them like the rest, but sends none, and the verifier takes their values
-/// at the point from `public`.
-pub struct Air<'a> {
+/// at the point from [`Summand::public`].
+pub struct Air<S> {
     pub tau: usize,
     pub n_cols: usize,
-    pub n_constraints: usize,
-    pub eval: Constraint<'a>,
-    pub eval_k: ConstraintK<'a>,
     pub n_public: usize,
-    pub public: Option<PublicEvals<'a>>,
+    pub summand: S,
 }
 
 /// One table's columns as the prover hands them over: `K`-valued as committed, lifted
@@ -102,8 +116,7 @@ pub fn xi_offsets(n_constraints: impl Iterator<Item = usize>) -> Vec<usize> {
 #[inline(always)]
 fn table_message<T: ColVal, C: std::ops::Deref<Target = [T]> + Sync>(
     cols: &[C],
-    eval: &(impl Fn(&[F192], &[T], bool) -> F192 + Sync + ?Sized),
-    pows: &[F192],
+    summand: &impl Summand,
     half: usize,
     eqr: &[F192],
     at_one: bool,
@@ -119,8 +132,8 @@ fn table_message<T: ColVal, C: std::ops::Deref<Target = [T]> + Sync>(
             slope[ci] = lo + hi;
         }
         [
-            e.mul_unreduced(eval(pows, endpoint, false)),
-            e.mul_unreduced(eval(pows, slope, true)),
+            e.mul_unreduced(summand.eval(endpoint, false)),
+            e.mul_unreduced(summand.eval(slope, true)),
         ]
     };
     let xor = |a: [F192Unreduced; 2], b: [F192Unreduced; 2]| [a[0] ^ b[0], a[1] ^ b[1]];
@@ -157,19 +170,16 @@ fn round_polynomial([endpoint, quadratic]: [F192; 2], zeta: F192, claim: F192, w
 /// sumcheck over `max τ_t` variables. `cols[t]` holds table `t`'s involved columns
 /// (`2^{τ_t}` values each, folded in place). Returns the per-table claims, in input
 /// order, on the nested points `ρ[..τ_t]`.
-pub fn prove(
-    airs: &[Air<'_>],
+pub fn prove<S: Summand>(
+    airs: &[Air<S>],
     cols: Vec<Columns<'_>>,
-    xi: F192,
     zeta: &[F192],
     sigma: &[F192],
     ps: &mut ProverState,
 ) -> Vec<Claims> {
     let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
     debug_assert!(zeta.len() >= n, "the eq point must cover the tallest table");
-    let offsets = xi_offsets(airs.iter().map(|a| a.n_constraints));
-    let pows = powers(xi, airs.iter().map(|a| a.n_constraints).sum());
-    // η^{offset_t}, already inside `pows`; the rounds then fold in the pre-join
+    // η^{offset_t}, already inside each summand; the rounds then fold in the pre-join
     // challenges and the eq factor, so `weights` is the whole per-table state.
     let mut weights = vec![F192::ONE; airs.len()];
     // ONE eq table over the low (still free) variables serves every active table.
@@ -202,11 +212,10 @@ pub fn prove(
         let mut msg = [F192::ZERO; 2];
         for (t, air) in airs.iter().enumerate() {
             if air.tau > m {
-                let w = &pows[offsets[t]..offsets[t] + air.n_constraints];
                 let p = if let Some(table) = &folded[t] {
-                    table_message(table, &*air.eval, w, 1 << m, &eqr, zeta[m].is_zero())
+                    table_message(table, &air.summand, 1 << m, &eqr, zeta[m].is_zero())
                 } else {
-                    table_message(&cols[t], &*air.eval_k, w, 1 << m, &eqr, zeta[m].is_zero())
+                    table_message(&cols[t], &air.summand, 1 << m, &eqr, zeta[m].is_zero())
                 };
                 for i in 0..2 {
                     msg[i] += weights[t] * p[i];
@@ -268,19 +277,19 @@ pub fn prove(
 
 /// Verify the table sumcheck, returning the per-table claims for the caller to
 /// settle against the commitment.
-pub fn verify(
-    airs: &[Air<'_>],
-    xi: F192,
+pub fn verify<S: Summand>(
+    airs: &[Air<S>],
     zeta: &[F192],
     target: F192,
     vs: &mut VerifierState,
 ) -> Result<Vec<Claims>, Error> {
     let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
     if zeta.len() < n {
-        return Err(Error::Truncated);
+        return Err(Error::PointTooShort {
+            len: zeta.len(),
+            rounds: n,
+        });
     }
-    let offsets = xi_offsets(airs.iter().map(|a| a.n_constraints));
-    let pows = powers(xi, airs.iter().map(|a| a.n_constraints).sum());
     let mut weights = vec![F192::ONE; airs.len()];
     // An ordinary sumcheck for `target`, which the caller supplies. Each round
     // arrives as the round polynomial itself at `nd`, so the two steps are the
@@ -291,7 +300,7 @@ pub fn verify(
     for j in 0..n {
         let m = n - 1 - j;
         // The running claim fixes the linear coefficient.
-        let h = vs.next_round_poly(4, claim, None).map_err(|_| Error::Truncated)?;
+        let h = vs.next_round_poly(4, claim, None)?;
         let rk = vs.sample();
         chi[m] = rk;
         claim = poly_eval(&h, rk);
@@ -304,16 +313,11 @@ pub fn verify(
     let mut acc = F192::ZERO;
     let mut claims = Vec::with_capacity(airs.len());
     for (t, air) in airs.iter().enumerate() {
-        let evals = vs
-            .next_scalars(air.n_cols - air.n_public)
-            .map_err(|_| Error::Truncated)?;
+        let evals = vs.next_scalars(air.n_cols - air.n_public)?;
         let mut values = evals.clone();
-        if let Some(public) = &air.public {
-            values.extend(public(&chi[..air.tau]));
-        }
+        values.extend(air.summand.public(&chi[..air.tau]));
         assert_eq!(values.len(), air.n_cols, "a table's public columns are all evaluated");
-        let w = &pows[offsets[t]..offsets[t] + air.n_constraints];
-        acc += weights[t] * (air.eval)(w, &values, false);
+        acc += weights[t] * air.summand.eval(&values, false);
         claims.push(Claims {
             chi: chi[..air.tau].to_vec(),
             evals,
@@ -328,36 +332,50 @@ pub fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::{Proof, ProverState, VerifierState};
-    use primitives::field::F64;
+    use fiat_shamir::transcript::Proof;
+    use primitives::field::powers;
 
-    fn synth_eval<T: crate::colval::ColVal>(pows: &[F192], v: &[T], quadratic: bool) -> F192 {
-        if quadratic {
-            return (v[0] * v[1]).mul_e(pows[0]);
+    /// Two identities over four columns, `pows`-weighted, plus `constant`. An attached
+    /// third "identity" is the linear form `vals[1]`, whose claimed sum is an
+    /// evaluation of column 1 rather than zero.
+    struct Synth {
+        pows: Vec<F192>,
+        attached: bool,
+        constant: F192,
+    }
+
+    impl Summand for Synth {
+        fn eval<T: ColVal>(&self, v: &[T], quadratic: bool) -> F192 {
+            let p = &self.pows;
+            if quadratic {
+                return (v[0] * v[1]).mul_e(p[0]);
+            }
+            let attached = if self.attached { v[1].mul_e(p[2]) } else { F192::ZERO };
+            (v[0] * v[1] + v[2]).mul_e(p[0]) + (v[0] + v[3]).mul_e(p[1]) + attached + self.constant
         }
-        (v[0] * v[1] + v[2]).mul_e(pows[0]) + (v[0] + v[3]).mul_e(pows[1])
     }
 
     #[test]
     fn round_coefficients_match_full_evaluations() {
         fn check<T: ColVal + Into<F192>>(cols: &[Vec<T>]) {
-            let weights = powers(F192::new(3, 5, 7), 3);
-            let eq = eq_table_arena(&[F192::new(11, 13, 17), F192::new(19, 23, 29)]);
-            let eval = |p: &[F192], v: &[T], quadratic| {
-                synth_eval_attached(p, v, quadratic) + if quadratic { F192::ZERO } else { F192::ONE }
+            let synth = Synth {
+                pows: powers(F192::new(3, 5, 7), 3),
+                attached: true,
+                constant: F192::ONE,
             };
+            let eq = eq_table_arena(&[F192::new(11, 13, 17), F192::new(19, 23, 29)]);
             let full_eval = |r| {
                 (0..4).fold(F192::ZERO, |sum, i| {
                     let v: Vec<_> = cols
                         .iter()
                         .map(|c| primitives::multilinear::interp(c[i].into(), c[i + 4].into(), r))
                         .collect();
-                    sum + eq[i] * (synth_eval_attached(&weights, &v, false) + F192::ONE)
+                    sum + eq[i] * synth.eval(&v, false)
                 })
             };
             let waiting = F192::new(43, 47, 53);
             for zeta in [F192::ZERO, F192::ONE, F192::new(59, 61, 67)] {
-                let message = table_message(cols, &eval, &weights, 4, &eq, zeta.is_zero());
+                let message = table_message(cols, &synth, 4, &eq, zeta.is_zero());
                 let claim = (F192::ONE + zeta) * full_eval(F192::ZERO) + zeta * full_eval(F192::ONE) + waiting;
                 let h = round_polynomial(message, zeta, claim, waiting);
                 for r in [F192::ZERO, F192::ONE, F192::new(31, 37, 41)] {
@@ -384,30 +402,21 @@ mod tests {
         vec![a.clone(), b, ab, a]
     }
 
-    /// A third, attached "identity": the linear form `vals[1]`, whose claimed sum
-    /// is an evaluation of column 1 rather than zero.
-    fn synth_eval_attached<T: crate::colval::ColVal>(pows: &[F192], v: &[T], quadratic: bool) -> F192 {
-        synth_eval(pows, v, quadratic) + if quadratic { F192::ZERO } else { v[1].mul_e(pows[2]) }
-    }
-
-    fn airs_for(taus: &[usize], attached: bool) -> Vec<Air<'static>> {
+    /// Each table takes the next `n` of `η`'s powers, `n` its identities.
+    fn airs_for(taus: &[usize], attached: bool, xi: F192) -> Vec<Air<Synth>> {
+        let n = if attached { 3 } else { 2 };
+        let pows = powers(xi, n * taus.len());
         taus.iter()
-            .map(|&tau| Air {
+            .enumerate()
+            .map(|(t, &tau)| Air {
                 tau,
                 n_cols: 4,
-                n_constraints: if attached { 3 } else { 2 },
-                eval: Box::new(if attached {
-                    synth_eval_attached::<F192>
-                } else {
-                    synth_eval::<F192>
-                }),
-                eval_k: Box::new(if attached {
-                    synth_eval_attached::<F64>
-                } else {
-                    synth_eval::<F64>
-                }),
                 n_public: 0,
-                public: None,
+                summand: Synth {
+                    pows: pows[n * t..n * (t + 1)].to_vec(),
+                    attached,
+                    constant: F192::ZERO,
+                },
             })
             .collect()
     }
@@ -423,18 +432,18 @@ mod tests {
     }
 
     fn run(taus: &[usize], cols: Vec<Vec<Vec<F64>>>) -> (Proof, Result<Vec<Claims>, Error>) {
-        let airs = airs_for(taus, false);
         let (xi, zeta) = xi_zeta(taus);
+        let airs = airs_for(taus, false, xi);
         let zeros = vec![F192::ZERO; taus.len()];
         let mut ps = ProverState::from_label(b"zc-test");
         let views = cols
             .iter()
             .map(|t| Columns::K(t.iter().map(|c| &c[..]).collect()))
             .collect();
-        let pclaims = prove(&airs, views, xi, &zeta, &zeros, &mut ps);
+        let pclaims = prove(&airs, views, &zeta, &zeros, &mut ps);
         let proof = ps.into_proof();
         let mut vs = VerifierState::from_label(b"zc-test", &proof);
-        let vclaims = verify(&airs, xi, &zeta, F192::ZERO, &mut vs);
+        let vclaims = verify(&airs, &zeta, F192::ZERO, &mut vs);
         if let Ok(vc) = &vclaims {
             assert_eq!(&pclaims, vc);
         }
@@ -485,17 +494,17 @@ mod tests {
             .collect();
 
         let settle = |sig: &[F192], cols: Vec<Vec<Vec<F64>>>| -> Result<Vec<Claims>, Error> {
-            let airs = airs_for(&taus, true);
+            let airs = airs_for(&taus, true, xi);
             let target = sig.iter().fold(F192::ZERO, |a, &b| a + b);
             let mut ps = ProverState::from_label(b"zc-test");
             let views = cols
                 .iter()
                 .map(|t| Columns::K(t.iter().map(|c| &c[..]).collect()))
                 .collect();
-            let pclaims = prove(&airs, views, xi, &zeta, sig, &mut ps);
+            let pclaims = prove(&airs, views, &zeta, sig, &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(b"zc-test", &proof);
-            let out = verify(&airs, xi, &zeta, target, &mut vs);
+            let out = verify(&airs, &zeta, target, &mut vs);
             if let Ok(vc) = &out {
                 assert_eq!(&pclaims, vc);
             }
@@ -520,14 +529,14 @@ mod tests {
         let cols = taus.iter().enumerate().map(|(i, &t)| good_table(t, i as u64)).collect();
         let (proof, ok) = run(&taus, cols);
         assert!(ok.is_ok());
-        let airs = airs_for(&taus, false);
         let (xi, zeta) = xi_zeta(&taus);
+        let airs = airs_for(&taus, false, xi);
         for i in 0..proof.stream.len() {
             let mut bad = proof.clone();
             bad.stream[i] += F192::ONE;
             let mut vs = VerifierState::from_label(b"zc-test", &bad);
             assert!(
-                verify(&airs, xi, &zeta, F192::ZERO, &mut vs).is_err(),
+                verify(&airs, &zeta, F192::ZERO, &mut vs).is_err(),
                 "tampered word {i} must be rejected"
             );
         }

@@ -4,6 +4,7 @@
 
 use fiat_shamir::transcript::RawProof;
 use leanvm_core::cpu::{CpuError, prove, verify, verify_to_raw};
+use leanvm_core::pcs::Rate;
 use primitives::field::F192;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -122,7 +123,7 @@ impl Drop for PythonStatement {
 #[test]
 fn test_python_verifier() {
     let (program, _) = super::programs::fibonacci();
-    let (proof, output, stats) = prove(&program, &[], 1).expect("the run halts");
+    let (proof, output, stats) = prove(&program, &[], Rate::MIN).expect("the run halts");
     // Python reads the RAW proof: same protocol, each query carrying its own
     // full Merkle path instead of one octopus over the batch. A Rust verify
     // expands the wire form, so the pruning is written once.
@@ -135,7 +136,10 @@ fn test_python_verifier() {
 
     let mut malformed_announcement = proof.clone();
     malformed_announcement.stream[0].c1 = 1;
-    assert!(verify(&program, &output, &malformed_announcement).is_err());
+    assert_eq!(
+        verify(&program, &output, &malformed_announcement),
+        Err(CpuError::NonCanonicalSize)
+    );
     let mut raw_announcement = raw.clone();
     raw_announcement.stream[0].c1 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_announcement), "a noncanonical announcement");
@@ -144,7 +148,7 @@ fn test_python_verifier() {
     let final_clock = leanvm_core::tables::N_TABLES + 1;
     let mut zero_clock = proof.clone();
     zero_clock.stream[final_clock] = F192::ZERO;
-    assert_eq!(verify(&program, &output, &zero_clock), Err(CpuError::PublicInput));
+    assert_eq!(verify(&program, &output, &zero_clock), Err(CpuError::FinalClock));
     let mut raw_zero_clock = raw.clone();
     raw_zero_clock.stream[final_clock] = F192::ZERO;
     let refused = statement.verify(&raw_zero_clock);
@@ -173,6 +177,23 @@ fn test_python_verifier() {
         String::from_utf8_lossy(&python.stderr).contains("misnames a register"),
         "Python refused a table that writes x0 for the wrong reason"
     );
+    // A load reads no `rs2` and a store writes no `rd`: their tables hold those fields at
+    // constants, `x0` and the sink, so an entry naming another register is refused.
+    for (class, slot, reason) in [
+        (leanvm_core::rv::Class::Load, 5, "reads an rs2"),
+        (leanvm_core::rv::Class::Store, 6, "writes an rd"),
+    ] {
+        // The class tag `g^t`, which is `2^t` since `g = x`.
+        let tag = 1u64 << leanvm_core::tables::table_of(class).expect("the class has a table");
+        let mut malformed = table.clone();
+        for (slot, value) in [(2, tag), (3, 0), (slot, 1)] {
+            malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
+        }
+        std::fs::write(&statement.bytecode, malformed).expect("write malformed register");
+        let refused = statement.verify(&raw);
+        PythonStatement::assert_rejects(&refused, reason);
+        assert!(String::from_utf8_lossy(&refused.stderr).contains(reason), "{reason}");
+    }
     // Setting an exit selector on an ordinary instruction is a malformed public table.
     let mut forged_exit = table.clone();
     forged_exit[8 * leanvm_core::tables::EXIT_SLOT * entries..][..8].copy_from_slice(&1u64.to_le_bytes());
@@ -249,8 +270,7 @@ for flags, link, jalr in [(1 << 14, 1, 0), (1 | (1 << 8), 0, 0), (1 << 7, 1, 1)]
 #[test]
 fn the_python_verifier_follows_the_slowest_rate() {
     let (program, _) = super::programs::fibonacci();
-    let rate = leanvm_core::pcs::MAX_LOG_INV_RATE;
-    let (proof, output, _) = prove(&program, &[], rate).expect("the run halts");
+    let (proof, output, _) = prove(&program, &[], Rate::MAX).expect("the run halts");
     let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
     PythonStatement::new("rate", &program, &output).assert_accepts(&raw);
 }

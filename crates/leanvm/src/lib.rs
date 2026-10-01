@@ -17,43 +17,9 @@ use leanvm_core::cpu::{self, CpuError, ProveError};
 
 pub use leanvm_core::{
     cpu::{Program, Stats},
+    pcs::{InvalidRate, Rate},
     rv::{ADVICE_BASE, ElfError, ProgramError, RAM_BASE, TEXT_BASE, Trap, asm},
 };
-
-/// The commitment's rate, as the base-two logarithm of its inverse.
-///
-/// A larger value, a lower rate, makes a smaller proof and a slower prover.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Rate(u8);
-
-impl Rate {
-    /// The fastest prover, and the largest proof.
-    pub const MIN: Self = Self(leanvm_core::pcs::MIN_LOG_INV_RATE as u8);
-
-    /// The smallest proof, and the slowest prover.
-    pub const MAX: Self = Self(leanvm_core::pcs::MAX_LOG_INV_RATE as u8);
-
-    /// The rate `2^-log_inv_rate`.
-    ///
-    /// # Errors
-    ///
-    /// A rate the commitment does not support.
-    pub fn new(log_inv_rate: u8) -> Result<Self, Error> {
-        if (Self::MIN.0..=Self::MAX.0).contains(&log_inv_rate) {
-            Ok(Self(log_inv_rate))
-        } else {
-            Err(Error::InvalidRate {
-                log_inv_rate: log_inv_rate.into(),
-            })
-        }
-    }
-
-    /// The base-two logarithm of the inverse rate.
-    #[must_use]
-    pub fn log_inv_rate(self) -> u8 {
-        self.0
-    }
-}
 
 /// The process's proving setup: the worker pool and, unless declined, the proving arena.
 ///
@@ -83,7 +49,7 @@ impl Prover {
     ///
     /// The run's trap, a run longer than one proof holds, or more advice than the program's region holds.
     pub fn prove(&self, program: &Program, advice: &[u64], rate: Rate) -> Result<Proved, Error> {
-        let (proof, output, stats) = cpu::prove(program, advice, rate.0.into())?;
+        let (proof, output, stats) = cpu::prove(program, advice, rate)?;
         Ok(Proved {
             proof: Proof(proof),
             output,
@@ -125,7 +91,7 @@ pub fn measure(program: &Program, advice: &[u64]) -> Result<Stats, Error> {
 ///
 /// The proof does not verify against this program and this output.
 pub fn verify(program: &Program, output: &[u64; 4], proof: &Proof) -> Result<(), Error> {
-    cpu::verify(program, output, &proof.0).map_err(|error| Error::Verify(VerifyError(error)))
+    Ok(cpu::verify(program, output, &proof.0).map_err(VerifyError)?)
 }
 
 /// A proof of a run.
@@ -148,7 +114,7 @@ impl Proof {
     const MAGIC: [u8; 4] = *b"LVMP";
 
     /// The protocol version, bumped by every change to what a proof says.
-    const VERSION: u16 = 1;
+    const VERSION: u16 = 3;
 
     /// The proof's bytes.
     #[must_use]
@@ -176,76 +142,39 @@ impl Proof {
 }
 
 /// Everything that can go wrong in loading, proving or verifying.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// The file is not a guest.
-    Elf(ElfError),
+    #[error(transparent)]
+    Elf(#[from] ElfError),
     /// The text and RAM form no program.
-    Program(ProgramError),
+    #[error(transparent)]
+    Program(#[from] ProgramError),
     /// The run trapped, so it has no proof.
+    #[error("the run traps: {0}")]
     Trap(Trap),
     /// The run is longer than one proof holds.
+    #[error("the run is longer than one proof holds")]
     TooLong,
     /// More advice words than the program's region holds.
+    #[error("the advice has {got} words, and the program's region holds {max}")]
     AdviceTooLong { max: usize, got: usize },
     /// A rate the commitment does not support.
-    InvalidRate { log_inv_rate: usize },
+    #[error(transparent)]
+    InvalidRate(#[from] InvalidRate),
     /// Bytes that are no proof.
+    #[error("the bytes are no proof")]
     MalformedProof,
     /// A proof of another protocol version.
+    #[error(
+        "a proof of protocol version {found}, and this verifier reads version {}",
+        Proof::VERSION
+    )]
     UnsupportedVersion { found: u16 },
     /// The proof does not verify.
-    Verify(VerifyError),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Elf(error) => error.fmt(f),
-            Self::Program(error) => error.fmt(f),
-            Self::Trap(trap) => write!(f, "the run traps: {trap}"),
-            Self::TooLong => f.write_str("the run is longer than one proof holds"),
-            Self::AdviceTooLong { max, got } => {
-                write!(f, "the advice has {got} words, and the program's region holds {max}")
-            }
-            Self::InvalidRate { log_inv_rate } => write!(
-                f,
-                "log_inv_rate {log_inv_rate} is not in {}..={}",
-                Rate::MIN.0,
-                Rate::MAX.0
-            ),
-            Self::MalformedProof => f.write_str("the bytes are no proof"),
-            Self::UnsupportedVersion { found } => write!(
-                f,
-                "a proof of protocol version {found}, and this verifier reads version {}",
-                Proof::VERSION
-            ),
-            Self::Verify(error) => error.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Elf(error) => error.source(),
-            Self::Program(error) => error.source(),
-            _ => None,
-        }
-    }
-}
-
-impl From<ElfError> for Error {
-    fn from(error: ElfError) -> Self {
-        Self::Elf(error)
-    }
-}
-
-impl From<ProgramError> for Error {
-    fn from(error: ProgramError) -> Self {
-        Self::Program(error)
-    }
+    #[error(transparent)]
+    Verify(#[from] VerifyError),
 }
 
 impl From<ProveError> for Error {
@@ -254,19 +183,11 @@ impl From<ProveError> for Error {
             ProveError::Trap(trap) => Self::Trap(trap),
             ProveError::TooLong => Self::TooLong,
             ProveError::AdviceTooLong { max, got } => Self::AdviceTooLong { max, got },
-            ProveError::InvalidRate { log_inv_rate } => Self::InvalidRate { log_inv_rate },
         }
     }
 }
 
 /// Why a proof does not verify: which stage of the verifier refused it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("the proof does not verify: {0}")]
 pub struct VerifyError(CpuError);
-
-impl fmt::Display for VerifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "the proof does not verify: {}", self.0)
-    }
-}
-
-impl std::error::Error for VerifyError {}
