@@ -187,11 +187,12 @@ pub const N_TUPLE_BITS: usize = 4;
 
 /// Conservative sum of the degree bounds for every random-challenge failure in
 /// the bus argument. A side's product has at most `factors` linear factors, counted
-/// with multiplicity, each of total degree `N_TUPLE_BITS` in `α⃗` and one in `β`. The
-/// second term covers all radix-four GKR batching and sumcheck challenges.
+/// with multiplicity, each `β - π_α(t)` of total degree `N_TUPLE_BITS` in `(α⃗, β)`:
+/// `N_TUPLE_BITS` in `α⃗`, one in `β`, and the total degree of a sum is the larger.
+/// The second term covers all radix-four GKR batching and sumcheck challenges.
 fn soundness_degree_bound(factors: u128, mu: usize) -> u128 {
     assert!(mu < u128::BITS as usize, "bus layout is too large to bound");
-    let fingerprint = (N_TUPLE_BITS as u128 + 1) * factors;
+    let fingerprint = N_TUPLE_BITS as u128 * factors;
     let gkr = 8u128 * (mu as u128 + 1).pow(2);
     fingerprint + gkr
 }
@@ -1324,9 +1325,9 @@ mod tests {
         );
     }
 
-    /// The bound is `(N_TUPLE_BITS + 1)` per linear factor plus the GKR terms: the
-    /// multilinear fingerprint fixes each factor's degree at four in `α⃗` and one in
-    /// `β`, whatever the tuple's width.
+    /// The bound is `N_TUPLE_BITS` per linear factor plus the GKR terms: the
+    /// multilinear fingerprint fixes each factor's total degree at four, whatever
+    /// the tuple's width.
     #[test]
     fn bus_soundness_tracks_factors() {
         assert!(soundness_bits(1 << 38, 38) >= crate::SECURITY_BITS);
