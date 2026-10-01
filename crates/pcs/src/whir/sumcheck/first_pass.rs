@@ -131,9 +131,10 @@ impl ProductRow {
     /// The sum of every product.
     fn sum(&self) -> F192 {
         let [c0, c1, c2] = self.0.map(|lanes| {
-            let wide = lanes
-                .chunks_exact(2)
-                .fold(0u128, |acc, q| acc ^ (u128::from(q[1]) << 64 | u128::from(q[0])));
+            let (pairs, _) = lanes.as_chunks::<2>();
+            let wide = pairs
+                .iter()
+                .fold(0u128, |acc, &[lo, hi]| acc ^ (u128::from(hi) << 64 | u128::from(lo)));
             primitives::field::gf2_64::reduce(wide)
         });
         F192::new(c0, c1, c2)
