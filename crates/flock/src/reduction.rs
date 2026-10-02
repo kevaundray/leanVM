@@ -3,7 +3,7 @@
 //! witness, packaged for ring switching. A circuit supplies only its [`Block`]:
 //! the shape, and the walks behind its [`LincheckCircuit`].
 
-use crate::lincheck::{self, LincheckCircuit, LincheckClaim, QuirkyPoint};
+use crate::lincheck::{self, LincheckCircuit, LincheckClaim, MatrixClaim, QuirkyPoint};
 use crate::verifier::VerifyError;
 use crate::witness::packed_bytes;
 use crate::zerocheck::{self, K_SKIP, PaddingSpec, ZerocheckClaim};
@@ -168,11 +168,23 @@ impl Block<'_> {
     /// transcript stream, recovering the one evaluation claim on the committed
     /// witness `q_flock`. The PCS then discharges the returned claim.
     pub fn verify(&self, n_blocks_log: usize, vs: &mut VerifierState<'_>) -> Result<ReductionReplay, VerifyError> {
+        let (replay, matrices) = self.verify_deferred(n_blocks_log, vs)?;
+        matrices.check(self.circuit).map_err(VerifyError::Lincheck)?;
+        Ok(replay)
+    }
+
+    /// [`Self::verify`] up to the circuit's matrices, whose form lincheck's terminal
+    /// identity leaves as a [`MatrixClaim`] ([`lincheck::verify_deferred`]).
+    pub fn verify_deferred(
+        &self,
+        n_blocks_log: usize,
+        vs: &mut VerifierState<'_>,
+    ) -> Result<(ReductionReplay, MatrixClaim), VerifyError> {
         let m = self.k_log + n_blocks_log;
         let zc_claim = zerocheck::verify(m, vs).map_err(VerifyError::Zerocheck)?;
 
         let x_ab = x_ab_of(&zc_claim, self.k_log - K_SKIP);
-        let lc_claim = lincheck::verify(
+        let (lc_claim, matrices) = lincheck::verify_deferred(
             m,
             self.k_log,
             K_SKIP,
@@ -186,11 +198,14 @@ impl Block<'_> {
         .map_err(VerifyError::Lincheck)?;
 
         let claim = reduction_claim(&lc_claim, &x_ab.x_outer);
-        Ok(ReductionReplay {
-            claim,
-            zc_claim,
-            lc_claim,
-        })
+        Ok((
+            ReductionReplay {
+                claim,
+                zc_claim,
+                lc_claim,
+            },
+            matrices,
+        ))
     }
 }
 
