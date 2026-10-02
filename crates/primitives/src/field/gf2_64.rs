@@ -33,7 +33,8 @@ impl F64 {
     ///
     /// Cross terms vanish in characteristic 2, so the square moves bit `i` to bit `2i`.
     /// On aarch64 it is the product with itself instead: its PMULL folds stay in the vector register,
-    /// where [`reduce`] would cross to integer registers and back.
+    /// where [`reduce`] would cross to integer registers and back. On a leanVM guest it is the product with itself
+    /// too, one extension-field instruction.
     #[cfg_attr(not(recguest_count), inline)]
     #[cfg_attr(recguest_count, inline(never))]
     pub fn square(self) -> Self {
@@ -41,7 +42,14 @@ impl F64 {
         {
             self * self
         }
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        #[cfg(all(target_arch = "riscv64", target_os = "zkvm"))]
+        {
+            super::gf2_64x3::ext::mul_k(self, self)
+        }
+        #[cfg(not(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(target_arch = "riscv64", target_os = "zkvm")
+        )))]
         {
             Self(reduce(square_wide(self.0)))
         }
@@ -108,9 +116,14 @@ impl Mul for F64 {
             // SAFETY: pclmulqdq is enabled at compile time.
             unsafe { Self(x86_64::mul(self.0, rhs.0)) }
         }
+        #[cfg(all(target_arch = "riscv64", target_os = "zkvm"))]
+        {
+            super::gf2_64x3::ext::mul_k(self, rhs)
+        }
         #[cfg(not(any(
             all(target_arch = "aarch64", target_feature = "aes"),
-            all(target_arch = "x86_64", target_feature = "pclmulqdq")
+            all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+            all(target_arch = "riscv64", target_os = "zkvm")
         )))]
         {
             Self(reduce(mul_wide(self.0, rhs.0)))

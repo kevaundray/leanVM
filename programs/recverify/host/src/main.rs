@@ -4,7 +4,7 @@
 //! ```text
 //! recverify-host <recverify elf> fib <n> [core]     Fibonacci n (a multiple of 1000), verified in the guest
 //! recverify-host <recverify elf> xmss <n> [core]    leanXMSS over n signatures, verified in the guest
-//! recverify-host <recverify elf> prim <op> <n>      n of one primitive in the guest (its `primitive` codes)
+//! recverify-host <recverify elf> prim <op> <n>      n of one primitive in the guest, or 100 + op checks one (its `primitive` codes)
 //! recverify-host <recverify elf> words <log_ram> <log_advice> <rows per table...>
 //! ```
 //!
@@ -111,6 +111,15 @@ fn main() {
             let run = run(&outer, &advice);
             let shape = report(&outer, &run);
             measure_if_asked(&outer, &advice, &run, &shape);
+            if op >= 100 {
+                // A check: `[mismatches, n, first mismatching input]`.
+                let [mismatches, checked, first, _] = run.output;
+                println!(
+                    "check of operation {}: {mismatches} mismatches in {checked} inputs",
+                    op - 100
+                );
+                assert_eq!(mismatches, 0, "operation {} first differs on input {first}", op - 100);
+            }
         }
         workload => {
             let outer = Program::from_elf(&elf).expect("the guest's ELF");

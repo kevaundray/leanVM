@@ -16,8 +16,8 @@ ELF=programs/recverify/guest/target/riscv64im-leanvm-zkvm/release/recverify
 
 On the guest target the library takes these paths, all gated on `target_arch = "riscv64"` and `target_os = "zkvm"`, so native builds are unchanged:
 
-- `primitives::field::gf2_64`: the 64x64 carry-less product by integer multiplies (`software::clmul_by_holes`) and the square by shifts (`software::spread`), since rv64im has no carry-less multiply.
-- `primitives::field::gf2_64x3`: the `F192` product by Karatsuba (`software::mul_unreduced_karatsuba`), six base products rather than nine.
+- `primitives::field::gf2_64x3`: every product is the machine's extension-field instruction (#397, `ext`, inline `.insn` on elements in memory): `extmul` for a product, an in-place product (`*=`) and a square (every operand the same element), `extmulk` for a product by an `F64`, `extmack` per term of `dot_base`. The products come reduced, so `F192Unreduced` holds the reduced sum (the reduction is linear, so the result is the same).
+- `primitives::field::gf2_64`: the `F64` product and square are `extmulk` on the element `(a, 0, 0)`, cheaper than the software kernels in cycles and in committed words. The carry-less 64x64 product (`mul_wide`) stays software, by integer multiplies (`software::clmul_by_holes`), and the verifier no longer calls it.
 - `primitives::hash`: `compress` is the machine's `blake2s` instruction, and the batched hash runs one input at a time through it.
 - `zk_alloc`: no address space to reserve, so the arena stays disengaged.
 
@@ -36,7 +36,7 @@ target/release/recverify-host $ELF xmss 400 [core]   # leanXMSS over 400 signatu
 
 Two more subcommands:
 
-- `prim <op> <n>` runs `n` of one primitive in the guest instead of a verifier (the guest's `primitive`: 0 `F64` product, 1 `F192` product, 2 `F192` square, 3 `F192` times `F64`, 4 `F192` inverse, 5 the carry-less 64x64 product, 6 a BLAKE2s compression, anything else the loop alone). The cost of one is the difference of two runs over the difference of their `n`.
+- `prim <op> <n>` runs `n` of one primitive in the guest instead of a verifier (the guest's `primitive`: 0 `F64` product, 1 `F192` product, 2 `F192` square, 3 `F192` times `F64`, 4 `F192` inverse, 5 the carry-less 64x64 product, 6 a BLAKE2s compression, 7 `F64` square, 8 `F192` product accumulated unreduced, 9 `F192` product in place, 10 `F192` times `F64` accumulated unreduced, 11 an eight-term `dot_base`, anything else below 100 the loop alone). The cost of one is the difference of two runs over the difference of their `n`. `prim <100 + op> <n>` instead checks operation `op` (0 to 4 and 7 to 11) on `n` random inputs against the software kernels the guest used before it had the extension-field instructions, and the host asserts there is no mismatch.
 - `words <log_ram> <log_advice> <rows of ALU LOAD STORE LD SD SHIFT MUL MULH DIV HASH EXT>` is the committed size a run of this guest with those executed rows would have, with RAM and the advice resized.
 
 ## Memory
@@ -62,10 +62,8 @@ COUNT=programs/recverify/guest/target/count/riscv64im-leanvm-zkvm/release/recver
 - `PROFILE_CALLS=/tmp/calls.txt target/release/recverify-host <elf> ...` keeps a shadow call stack; `python3 programs/recverify/profile.py <elf> /tmp/calls.txt calls [depth] [min_percent]` prints the dynamic call tree, steps inclusive of callees (use the same ELF for both).
 - The counting build (`--cfg recguest_count`, declared in the workspace's `check-cfg`) keeps every field operation and compression a call (`inline(never)`), so `PROFILE_CALLS` with `$COUNT` and `python3 programs/recverify/profile.py $COUNT /tmp/calls.txt ops` counts them per verifier stage. Its step counts are not the release build's.
 
-`model.py` models the cycles and committed words per inner proof under field-multiply options (software, a carry-less multiply pair, a GF(2^192) block class) from `measured.json`, which holds this branch's measured runs (rows, operation counts, the plumbing split) of Fibonacci 1,000, Fibonacci 2M and leanXMSS 400 in both modes: `python3 programs/recverify/model.py programs/recverify/measured.json` from the workspace root, with the host and the guest built. Regenerate `measured.json` after a change that moves the guest's costs.
+`model.py` models the cycles and committed words per inner proof under field-multiply options (the software kernels, a carry-less multiply pair, and the extension-field instructions the guest uses) from `measured.json`, which holds this branch's measured runs (rows, operation counts, the plumbing split) of Fibonacci 1,000, Fibonacci 2M and leanXMSS 400 in both modes: `python3 programs/recverify/model.py programs/recverify/measured.json` from the workspace root, with the host and the guest built. Regenerate `measured.json` after a change that moves the guest's costs.
 
 ## Experiments on top
 
 The harness keeps upstream's protocol. It uses `verify_core` and `check_deferred` (#393), the WHIR configuration as a table (#396, which removes the guest's soft float) and the skip domain's Lagrange forms in linear time (#391). Changes that move the verifier's cost can be measured by merging them into a scratch branch and rerunning the host: jagged tables (#389) or one batched zerocheck and lincheck (#392). A change made before the `cpu` module was rebuilt around its domain types (#381) needs porting first: the free `cpu::verify*` functions are `Program` methods now, the bytecode tuple and table are `Lookup::Bytecode`'s, and `cpu/trace.rs` is part of `cpu/execute.rs`. With batched flock reductions `DeferredClaims` holds one batched circuit claim, so `claim_words` in the guest and the host changes with it.
-
-The guest does its `F192` arithmetic in software: it builds `std` for its own target rather than through `leanvm_guest`, so the extension-field instructions (#397, `leanvm_guest::ext` and the EXT table) do not reach it. Routing `gf2_64x3`'s product through them on the guest target is the field-multiply option `model.py` prices as a GF(2^192) block class.

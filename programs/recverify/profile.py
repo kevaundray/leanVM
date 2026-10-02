@@ -58,6 +58,7 @@ def symbol_table(raw=False):
 
 OPS = [
     ("E mul", "F192>::mul_unreduced"),
+    ("E mul", "F192 as core::ops::arith::MulAssign>::mul_assign"),
     ("ExK", "F192>::mul_base_unreduced"),
     ("E sq", "F192>::square"),
     ("E inv", "F192>::inv"),
@@ -84,7 +85,7 @@ if mode == "ops":
                     "  " + names.get(int(stage, 16), stage) + " / " + names.get(int(substage, 16), substage),
                 ):
                     table[key][op] += int(calls)
-    labels = [label for label, _ in OPS]
+    labels = list(dict.fromkeys(label for label, _ in OPS))
     print("| stage | " + " | ".join(labels) + " |")
     print("|---|" + "---:|" * len(labels))
     for key in sorted(table, key=lambda k: (k != "TOTAL", -sum(table[k].values()))):

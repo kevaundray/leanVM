@@ -13,7 +13,7 @@
 //!
 //! It builds `std` for a custom target (`riscv64im-leanvm-zkvm.json`, `os = "zkvm"`), whose platform layer calls
 //! the `sys_*` functions below; the heap is a bump allocator. An advice starting `u64::MAX, op, n` runs `n` of one
-//! primitive instead (`primitive`), to price it.
+//! primitive instead (`primitive`), to price it, or checks it against the software kernels (`check`).
 #![no_main]
 
 use core::arch::global_asm;
@@ -150,9 +150,14 @@ fn claims_hash(claims: &DeferredClaims) -> [u64; 4] {
 
 /// `n` chained runs of one primitive, on values the compiler cannot fold: 0 F64 product, 1 F192 product,
 /// 2 F192 square, 3 F192 times F64, 4 F192 inverse, 5 the 64x64 carry-less product, 6 BLAKE2s compression,
-/// anything else nothing (the loop alone).
+/// 7 F64 square, 8 F192 product accumulated unreduced, 9 F192 product in place, 10 F192 times F64 accumulated
+/// unreduced, 11 an eight-term mixed inner product (`dot_base`), anything else below 100 nothing (the loop alone).
+/// `100 + op` checks the operation instead (`check`).
 fn primitive(op: u64, n: u64) -> [u64; 4] {
-    use primitives::field::{F64, F192, gf2_64::mul_wide};
+    use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base, gf2_64::mul_wide};
+    if op >= 100 {
+        return check(op - 100, n);
+    }
     let seed = core::hint::black_box([
         0x950e87d7f5606615u64,
         0x2c61275c9e6b6cf8,
@@ -169,6 +174,8 @@ fn primitive(op: u64, n: u64) -> [u64; 4] {
         c1: seed[2],
         c2: seed[1],
     };
+    let weights = Weights8::new(&[x, y, x, y, y, x, y, x]);
+    let mut u = F192Unreduced::ZERO;
     let mut k = F64(seed[0]);
     let mut w = 0u128;
     let mut h = [seed[0] as u32; 8];
@@ -182,11 +189,109 @@ fn primitive(op: u64, n: u64) -> [u64; 4] {
             4 => x = x.inv(),
             5 => w ^= mul_wide(seed[0] ^ (w as u64), seed[3] ^ i),
             6 => primitives::hash::compress(&mut h, &m, i, false),
+            7 => k = k.square(),
+            8 => u ^= x.mul_unreduced(F192::new(seed[3] ^ i, seed[2], seed[1])),
+            9 => x *= y,
+            10 => u ^= x.mul_base_unreduced(F64(seed[3] ^ i)),
+            11 => u ^= dot_base(core::slice::from_ref(&weights), &[F64(seed[3] ^ i); 8]),
             _ => k = F64(k.0 ^ i),
         }
-        core::hint::black_box((&x, &k, &w, &h));
+        core::hint::black_box((&x, &k, &w, &h, &u));
     }
+    let x = x + u.reduce();
     [x.c0 ^ k.0, x.c1 ^ w as u64, x.c2 ^ (w >> 64) as u64, h[0] as u64]
+}
+
+/// Operation `op` (`primitive`'s codes, the field operations) against the software kernels the guest used before it
+/// had the machine's extension-field instructions, on `n` random inputs: `[mismatches, n, the first mismatching
+/// input or u64::MAX, 0]`.
+fn check(op: u64, n: u64) -> [u64; 4] {
+    use primitives::field::gf2_64::{reduce, software};
+    use primitives::field::gf2_64x3::software::mul_unreduced_karatsuba;
+    use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base};
+
+    /// xorshift64*, with the reduction's corner cases mixed in.
+    struct Rng(u64);
+    impl Rng {
+        fn word(&mut self) -> u64 {
+            const CORNERS: [u64; 6] = [0, 1, u64::MAX, 1 << 63, 0xf000_0000_0000_0000, 0x1b];
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            let r = self.0.wrapping_mul(0x2545_f491_4f6c_dd1d);
+            if r % 8 == 0 { CORNERS[(r >> 3) as usize % 6] } else { r }
+        }
+        fn element(&mut self) -> F192 {
+            F192::new(self.word(), self.word(), self.word())
+        }
+    }
+    let mut rng = Rng(core::hint::black_box(0x9e37_79b9_7f4a_7c15u64 ^ op));
+
+    // The software kernels: products by integer multiplies, squares by shifts.
+    let k_mul = |a: F64, b: F64| F64(reduce(software::clmul_by_holes(a.0, b.0)));
+    let k_sq = |a: F64| F64(reduce(software::spread(a.0)));
+    let e_mul = |a: F192, b: F192| mul_unreduced_karatsuba(a, b).reduce();
+    let e_sq = |a: F192| {
+        let [s0, s1, s2] = [a.c0, a.c1, a.c2].map(|c| reduce(software::spread(c)));
+        F192::new(s0, s2, s1 ^ s2)
+    };
+    let e_mul_k = |a: F192, k: F64| F192::new(k_mul(F64(a.c0), k).0, k_mul(F64(a.c1), k).0, k_mul(F64(a.c2), k).0);
+
+    let (mut mismatches, mut first) = (0, u64::MAX);
+    for i in 0..n {
+        let a = if i == 0 { F192::ZERO } else { rng.element() };
+        let (b, k) = (rng.element(), F64(rng.word()));
+        let ok = match op {
+            0 => F64(a.c0) * k == k_mul(F64(a.c0), k),
+            1 => a * b == e_mul(a, b),
+            2 => a.square() == e_sq(a),
+            3 => a.mul_base(k) == e_mul_k(a, k),
+            4 => {
+                let inv = a.inv();
+                if a.is_zero() {
+                    inv.is_zero()
+                } else {
+                    e_mul(a, inv) == F192::ONE
+                }
+            }
+            7 => F64(a.c0).square() == k_sq(F64(a.c0)),
+            8 => {
+                let terms: [(F192, F192); 4] = std::array::from_fn(|_| (rng.element(), rng.element()));
+                let sum = terms
+                    .iter()
+                    .fold(F192Unreduced::ZERO, |acc, &(x, y)| acc ^ x.mul_unreduced(y));
+                sum.reduce() == terms.iter().fold(F192::ZERO, |acc, &(x, y)| acc + e_mul(x, y))
+            }
+            9 => {
+                let mut c = a;
+                c *= b;
+                c == e_mul(a, b)
+            }
+            10 => {
+                let terms: [(F192, F64); 4] = std::array::from_fn(|_| (rng.element(), F64(rng.word())));
+                let sum = terms
+                    .iter()
+                    .fold(F192Unreduced::ZERO, |acc, &(x, k)| acc ^ x.mul_base_unreduced(k));
+                sum.reduce() == terms.iter().fold(F192::ZERO, |acc, &(x, k)| acc + e_mul_k(x, k))
+            }
+            11 => {
+                let ws: [F192; 16] = std::array::from_fn(|_| rng.element());
+                let ks: [F64; 16] = std::array::from_fn(|_| F64(rng.word()));
+                let packed = [
+                    Weights8::new(ws[..8].try_into().unwrap()),
+                    Weights8::new(ws[8..].try_into().unwrap()),
+                ];
+                let expect = ws.iter().zip(&ks).fold(F192::ZERO, |acc, (&w, &k)| acc + e_mul_k(w, k));
+                dot_base(&packed, &ks).reduce() == expect
+            }
+            _ => panic!("operation {op} has no extension-field path"),
+        };
+        if !ok {
+            mismatches += 1;
+            first = first.min(i);
+        }
+    }
+    [mismatches, n, first, 0]
 }
 
 /// The bump allocator: a release of the latest block pops the cursor, and nothing else is reclaimed.
