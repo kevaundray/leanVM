@@ -188,7 +188,7 @@ impl Program {
             unsafe { core::slice::from_raw_parts(table.as_ptr().cast::<u8>(), core::mem::size_of_val(&table[..])) };
         // Every variable-length part is length-framed, so the preimage parses one way.
         let mut h = primitives::hash::Hasher::new();
-        h.update(b"leanvm-rv64im-6");
+        h.update(b"leanvm-rv64im-7");
         h.update(&bytes(&[table.len() as u64]));
         h.update(table_bytes);
         h.update(&bytes(&[
@@ -379,8 +379,8 @@ fn airs(
 }
 
 /// Each table's claimed sum: what its summand comes to is its two bus forms,
-/// `η`-weighted. Prover-side only, to build the waiting
-/// line each round; the verifier needs just their total, which it derives.
+/// `η`-weighted. Prover-side only, their total starting the batch; the verifier
+/// derives that total itself.
 fn sigmas(bus: &[Vec<F192>; 2], form_pows: [F192; 2]) -> Vec<F192> {
     (0..tables::tables().len())
         .map(|t| (0..2).fold(F192::ZERO, |acc, s| acc + form_pows[s] * bus[s][t]))
