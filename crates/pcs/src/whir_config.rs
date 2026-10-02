@@ -32,8 +32,6 @@ pub const MIN_LOG_INV_RATE: usize = 1;
 pub const MAX_LOG_INV_RATE: usize = 4;
 
 /// Why [`config_for_rate`] has no configuration for a witness size and a rate.
-///
-/// `level` counts from L0, the commitment's own code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {
@@ -43,6 +41,13 @@ pub enum ConfigError {
     /// A witness size outside the tabulated range.
     #[error("log_n {log_n} is not in {MIN_LOG_N}..={MAX_LOG_N}")]
     SizeOutOfRange { log_n: usize },
+}
+
+/// Why the level ladder has no shape for a witness size. No size [`config_for_rate`] accepts gets here; the test-only derivation and its fallback ladder, which take any size, can.
+///
+/// `level` counts from L0, the commitment's own code.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub(crate) enum LadderError {
     /// No variable is left after the initial fold.
     #[error("log_n {log_n} does not exceed the initial fold {initial_k}")]
     TooFewVariables { log_n: usize, initial_k: usize },
@@ -201,14 +206,14 @@ struct LadderShape {
 /// level's inverse-rate logarithm from `(new level, previous rate, fold just taken,
 /// message dimension the new level carries)`, which is the only thing that separates the
 /// production ladder from the test-support one.
-fn derive_ladder<E: From<ConfigError>>(
+fn derive_ladder<E: From<LadderError>>(
     log_n: usize,
     initial_k: usize,
     log_inv_rate: usize,
     mut next_rate: impl FnMut(usize, usize, usize, usize) -> Result<usize, E>,
 ) -> Result<LadderShape, E> {
     if log_n <= initial_k {
-        return Err(ConfigError::TooFewVariables { log_n, initial_k }.into());
+        return Err(LadderError::TooFewVariables { log_n, initial_k }.into());
     }
     let mut shape = LadderShape {
         log_inv_rates: vec![log_inv_rate],
@@ -228,7 +233,7 @@ fn derive_ladder<E: From<ConfigError>>(
         fold_running = k;
     }
     if shape.k_levels.len() < 2 {
-        return Err(ConfigError::TooFewLevels { log_n }.into());
+        return Err(LadderError::TooFewLevels { log_n }.into());
     }
     Ok(shape)
 }
@@ -237,7 +242,7 @@ fn derive_ladder<E: From<ConfigError>>(
 /// [`RS_DOMAIN_INITIAL_REDUCTION_FACTOR`] bits after the initial fold, then
 /// exactly one bit per subsequent fold, so a fold of `k` variables raises the
 /// inverse-rate logarithm by `k - reduction`.
-fn derive_ladder_shape(log_n: usize, initial_k: usize, log_inv_rate: usize) -> Result<LadderShape, ConfigError> {
+fn derive_ladder_shape(log_n: usize, initial_k: usize, log_inv_rate: usize) -> Result<LadderShape, LadderError> {
     let mut domain_reduction = RS_DOMAIN_INITIAL_REDUCTION_FACTOR;
     derive_ladder(
         log_n,
@@ -246,7 +251,7 @@ fn derive_ladder_shape(log_n: usize, initial_k: usize, log_inv_rate: usize) -> R
         |level, rate_running, fold_running, _cols| {
             let rate_increase = fold_running
                 .checked_sub(domain_reduction)
-                .ok_or(ConfigError::FoldBelowReduction {
+                .ok_or(LadderError::FoldBelowReduction {
                     level,
                     fold: fold_running,
                     reduction: domain_reduction,
@@ -346,7 +351,8 @@ pub fn config_for_rate(log_n: usize, log_inv_rate: usize) -> Result<ProverConfig
     if !(MIN_LOG_N..=MAX_LOG_N).contains(&log_n) {
         return Err(ConfigError::SizeOutOfRange { log_n });
     }
-    let shape = derive_ladder_shape(log_n, INITIAL_FOLDING_FACTOR, log_inv_rate)?;
+    let shape = derive_ladder_shape(log_n, INITIAL_FOLDING_FACTOR, log_inv_rate)
+        .expect("the tabulated window always has a ladder");
     let levels = shape.k_levels.len();
     let queries = WHIR_QUERIES[log_inv_rate - MIN_LOG_INV_RATE][log_n - MIN_LOG_N];
     Ok(ProverConfig::new(
