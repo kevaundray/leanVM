@@ -18,18 +18,6 @@ use crate::pack::PACKING_WIDTH;
 /// The degree of E = GF(2^192) over F_2 (the opening degree e).
 pub const DEGREE_E: usize = 192;
 
-/// Bit w of an E element in the tower basis (w in 0..192).
-#[cfg(test)]
-const fn ext_bit(e: F192, w: usize) -> u64 {
-    if w < 64 {
-        (e.c0 >> w) & 1
-    } else if w < 128 {
-        (e.c1 >> (w - 64)) & 1
-    } else {
-        (e.c2 >> (w - 128)) & 1
-    }
-}
-
 /// Rectangular tensor-algebra transpose: `s_hat_v` (64 E-elements, the row
 /// view of a `K (x)_F2 E` element) to `s_hat_u` (192 K-elements, the column
 /// view).
@@ -165,6 +153,17 @@ fn square_transpose_ext(elems: &mut [F192]) {
 mod tests {
     use super::*;
     use primitives::test_rng::Rng;
+
+    /// Bit w of an E element in the tower basis (w in 0..192).
+    const fn ext_bit(e: F192, w: usize) -> u64 {
+        if w < 64 {
+            (e.c0 >> w) & 1
+        } else if w < 128 {
+            (e.c1 >> (w - 64)) & 1
+        } else {
+            (e.c2 >> (w - 128)) & 1
+        }
+    }
 
     #[test]
     fn rect_transpose_bit_relation() {
