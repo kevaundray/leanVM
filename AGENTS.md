@@ -48,14 +48,14 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 - always run in `--release` mode any test or benchmark touching the VM
 - **One test binary per crate, not one per file** (`leanvm_core/tests/verifiers/main.rs`). Exception: a test opening an arena phase (`leanvm_core::init_prover`) needs its own binary. Phases are process-global, so two in one process reclaim each other's `ArenaVec`s and the symptom is a proof that stops verifying, never a crash (`leanvm/tests/api.rs` is that binary, and `leanvm/tests/no_arena.rs` the one that must never enable the arena).
 
-An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Type-check the other target before pushing anything `cfg`-gated:
+An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Lint the other target before pushing anything `cfg`-gated (CI's "Clippy on the AVX-512 backends" step runs the same command):
 
 ```bash
-CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-feature=+avx512f,+avx512bw,+avx512vl,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes" \
-  cargo check --release --workspace --target x86_64-unknown-linux-gnu
+RUSTFLAGS="-C target-feature=+avx512f,+avx512bw,+avx512vl,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes" \
+  cargo clippy --release --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings
 ```
 
-It needs `rustup target add x86_64-unknown-linux-gnu` and nothing else, since `check` does not link. The `apple-m4 is not a recognized processor` and `x87` notes are the pinned `target-cpu=native` and the bare cross ABI, not findings. To confirm an arm is really being reached rather than silently skipped, drop a `compile_error!` in it and watch the check fail.
+It needs `rustup target add x86_64-unknown-linux-gnu` and nothing else, since clippy does not link. Use `RUSTFLAGS`, not `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`: cargo lets a set `RUSTFLAGS` (as in CI) beat the target's, and it also replaces the pinned `target-cpu=native`, which no cross target recognizes. The `x87` note is the bare cross ABI, not a finding. To confirm an arm is really being reached rather than silently skipped, drop a `compile_error!` in it and watch the lint fail.
 
 ```bash
 cargo testall                     # release workspace tests

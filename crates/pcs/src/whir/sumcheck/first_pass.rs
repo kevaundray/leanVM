@@ -103,7 +103,7 @@ impl ProductRow {
         #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
         // SAFETY: both features are enabled at compile time.
         unsafe {
-            avx512::mul_acc(self, w, k)
+            avx512::mul_acc(self, w, k);
         }
         #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
         for j in 0..ROW / 2 {
@@ -468,7 +468,7 @@ impl WeightFold {
             #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
             // SAFETY: both features are enabled at compile time.
             unsafe {
-                avx512::fold_acc(row, e, &b)
+                avx512::fold_acc(row, e, &b);
             }
             #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
             for (x, w) in b.iter().enumerate() {
@@ -486,7 +486,7 @@ impl WeightFold {
             #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
             // SAFETY: both features are enabled at compile time.
             unsafe {
-                avx512::fold_base_acc(row, e, &f)
+                avx512::fold_base_acc(row, e, &f);
             }
             #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
             for (x, w) in f.iter().enumerate() {
