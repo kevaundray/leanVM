@@ -1,21 +1,23 @@
-//! Pins `python-verifier`'s `WHIR_QUERIES` against the Rust query search. The
-//! Python verifier tabulates rather than repeating that search, which would make
-//! cross-language float identity part of the protocol.
+//! Pins `python-verifier`'s WHIR configurations, its `WHIR_QUERIES` and the ladder it
+//! builds around them, against the Rust table (`pcs::whir::config_for_rate`), which `pcs`
+//! pins to the floating-point soundness derivation. Both verifiers tabulate rather than
+//! repeating that search, which would make float identity part of the protocol. A stale
+//! Python table fails with the line to paste over it.
 
-use pcs::LOG_PACKING;
-use pcs::whir_config::WhirSecurityConfig;
+use pcs::whir::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE, config_for_rate};
 use std::path::Path;
 use std::process::Command;
 
-/// The range, then `rate log_n q0 q1 …` per entry.
+/// The range, then `rate log_n rates | folds | queries | grinding | ood` per entry.
 const DUMP: &str = "\
 import sys; sys.path.insert(0, '.')
 import verifier as v
 print(v.MIN_STACKED_LOG, v.MAX_STACKED_LOG)
 for rate in range(1, 5):
     for log_n in range(v.MIN_STACKED_LOG, v.MAX_STACKED_LOG + 1):
-        row = v.WHIR_QUERIES[rate - 1][log_n - v.MIN_STACKED_LOG]
-        print(rate, log_n, ' '.join(map(str, row)))
+        c = v.derive_config(log_n, rate)
+        fields = (c.log_inv_rates, c.folds, c.queries, c.grinding_bits, c.ood_samples)
+        print(rate, log_n, ' | '.join(' '.join(map(str, f)) for f in fields))
 ";
 
 #[test]
@@ -29,8 +31,9 @@ fn whir_query_table_matches_rust() {
         .expect("run python3 to dump the table");
     assert!(
         output.status.success(),
-        "dumping WHIR_QUERIES failed:\n{}",
-        String::from_utf8_lossy(&output.stderr)
+        "dumping the WHIR configurations failed:\n{}\nIf WHIR_QUERIES in python-verifier/verifier.py is stale, replace it with:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        python_table()
     );
     let dumped = String::from_utf8(output.stdout).expect("table dump is utf-8");
     let mut lines = dumped.lines();
@@ -38,10 +41,10 @@ fn whir_query_table_matches_rust() {
     let mut range = lines.next().expect("range line").split_whitespace();
     let mut next_bound = || range.next().expect("a bound").parse::<usize>().expect("a bound");
     let (min_log, max_log) = (next_bound(), next_bound());
-    // Every verifier admits the same committed-size window, and `pcs::MAX_MU` is the
-    // one knob that sets it. `python-verifier` is standalone and dependency-free, so
-    // it cannot read the Rust constant and keeps a literal; this is what stops the
-    // two drifting, and names the edit when the knob moves.
+    // Every verifier admits the same committed-size window, and the WHIR table's
+    // `pcs::whir::MAX_LOG_N` is the one knob that sets it. `python-verifier` is standalone
+    // and dependency-free, so it cannot read the Rust constant and keeps a literal; this
+    // is what stops the two drifting, and names the edit when the knob moves.
     assert_eq!(
         (min_log, max_log),
         (leanvm_core::pcs::MIN_MU, leanvm_core::pcs::MAX_MU),
@@ -52,30 +55,51 @@ fn whir_query_table_matches_rust() {
 
     let mut checked = 0;
     for line in lines {
-        let mut fields = line.split_whitespace().map(|f| f.parse::<usize>().expect("an integer"));
-        let rate = fields.next().expect("rate");
-        let log_n = fields.next().expect("log_n");
-        let tabulated: Vec<usize> = fields.collect();
+        let (rate, log_n, rest) = {
+            let mut head = line.splitn(3, ' ');
+            let mut next = || head.next().expect("a field");
+            (
+                next().parse::<usize>().expect("rate"),
+                next().parse::<usize>().expect("log_n"),
+                next(),
+            )
+        };
+        let fields: Vec<Vec<usize>> = rest
+            .split(" | ")
+            .map(|f| f.split_whitespace().map(|x| x.parse().expect("an integer")).collect())
+            .collect();
+        let [rates, folds, queries, grinding, ood] = fields.as_slice() else {
+            panic!("rate {rate}, log_n {log_n}: expected rates | folds | queries | grinding | ood, got {rest}")
+        };
 
-        // Python's `log_n` is the packed size; the Rust search unpacks it itself.
-        let m = log_n + LOG_PACKING;
-        let config = WhirSecurityConfig::derive_config_with_log_inv_rate(m, rate)
-            .unwrap_or_else(|e| panic!("rate {rate}, log_n {log_n}: the search itself failed: {e}"))
-            .to_config()
-            .unwrap_or_else(|e| panic!("rate {rate}, log_n {log_n}: {e}"));
+        let config = config_for_rate(log_n, rate).unwrap_or_else(|e| panic!("rate {rate}, log_n {log_n}: {e}"));
         assert_eq!(
             config.queries(),
-            tabulated,
-            "rate {rate}, log_n {log_n}: WHIR_QUERIES is stale, regenerate it with print_whir_query_table"
+            queries,
+            "rate {rate}, log_n {log_n}: WHIR_QUERIES in python-verifier/verifier.py is stale, replace it with:\n{}",
+            python_table()
         );
-        // Hardcoded on the Python side, so it must hold wherever the table does.
-        let expected_ood: Vec<usize> = std::iter::once(0)
-            .chain(std::iter::repeat_n(1, config.queries().len() - 1))
+        assert_eq!(
+            config.log_inv_rates(),
+            rates,
+            "rate {rate}, log_n {log_n}: the rate ladders differ"
+        );
+        let rust_folds: Vec<usize> = std::iter::once(config.initial_k())
+            .chain(config.level_ks().iter().copied())
             .collect();
         assert_eq!(
+            &rust_folds, folds,
+            "rate {rate}, log_n {log_n}: the fold ladders differ"
+        );
+        assert_eq!(
+            config.grinding_bits(),
+            grinding,
+            "rate {rate}, log_n {log_n}: the grinding ladders differ"
+        );
+        assert_eq!(
             config.ood_samples(),
-            expected_ood,
-            "rate {rate}, log_n {log_n}: OOD samples are no longer 'none at level 0, one after'"
+            ood,
+            "rate {rate}, log_n {log_n}: the OOD ladders differ"
         );
         checked += 1;
     }
@@ -86,20 +110,13 @@ fn whir_query_table_matches_rust() {
     );
 }
 
-/// Regenerates the literal the pin above checks: paste its output over `WHIR_QUERIES` in
-/// `python-verifier/verifier.py`.
-/// `cargo test --release -p leanvm_core --test verifiers print_whir_query_table -- --ignored --nocapture`
-#[test]
-#[ignore = "manual table regeneration"]
-fn print_whir_query_table() {
-    let rates: Vec<String> = (1..=4)
+/// `WHIR_QUERIES` as `python-verifier/verifier.py` writes it, from the Rust table.
+fn python_table() -> String {
+    let rates: Vec<String> = (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE)
         .map(|rate| {
             let rows: Vec<String> = (leanvm_core::pcs::MIN_MU..=leanvm_core::pcs::MAX_MU)
                 .map(|log_n| {
-                    let config = WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + LOG_PACKING, rate)
-                        .unwrap()
-                        .to_config()
-                        .unwrap();
+                    let config = config_for_rate(log_n, rate).unwrap();
                     let queries: Vec<String> = config.queries().iter().map(usize::to_string).collect();
                     format!("({})", queries.join(","))
                 })
@@ -107,5 +124,5 @@ fn print_whir_query_table() {
             format!("({})", rows.join(", "))
         })
         .collect();
-    println!("WHIR_QUERIES = ({})  # fmt: skip", rates.join(", "));
+    format!("WHIR_QUERIES = ({})  # fmt: skip", rates.join(", "))
 }

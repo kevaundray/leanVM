@@ -26,7 +26,7 @@ unsafe impl<T: Words, const N: usize> Words for [T; N] {}
 /// # Safety
 ///
 /// `T` is words only, as [`Words`] says.
-pub unsafe fn as_words_unchecked<T>(value: &T) -> &[u64] {
+pub const unsafe fn as_words_unchecked<T>(value: &T) -> &[u64] {
     const { assert_words::<T>() };
     // SAFETY: `T` is its words with no padding (the caller's).
     unsafe { core::slice::from_raw_parts((value as *const T).cast(), size_of::<T>() / 8) }
@@ -165,7 +165,7 @@ pub(crate) mod vm {
 
 // TODO: remove this macro by making the advice region's size per proof rather than per program:
 // the prover announces a power of two, bound into the transcript before any challenge and range
-// checked by both verifiers (at most `MAX_LOG_ADVICE`, inside the advice window). That is sound,
+// checked by both verifiers (at most 2^26 words, inside the advice window). That is sound,
 // the advice being the prover's anyway: a region too small traps the read past its end, one too
 // large only costs the prover. `read` would then drop its bounds check against `__advice_top` and
 // rely on that trap.
