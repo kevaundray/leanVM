@@ -1226,8 +1226,18 @@ def lagrange_weights(count: int, point: E) -> list[E]:
     return [p * s * denominator for p, s in zip(prefix[:count], suffix[1:])]
 
 
-def lagrange_interpolate(count: int, values: Sequence[E], point: E) -> E:
-    return dot(lagrange_weights(count, point), values)
+def interpolate_zero_on_skip(values_on_coset: Sequence[E], point: E) -> E:
+    """At `point`, the polynomial of degree below `2 * K_BITS` that is zero on `PHI[:K_BITS]` and `values_on_coset` on `PHI[K_BITS : 2 * K_BITS]`.
+
+    Over the whole window the zeros drop out of the Lagrange sum, and every weight left carries `prod_(s in PHI[:K_BITS]) (point + s)`.
+    `total` and `prefix` are the sum and the product of the differences over the nodes seen so far."""
+    vanishing = reduce(mul, (point + node for node in PHI[:K_BITS]), ONE)
+    total, prefix = ZERO, vanishing * _window_denominator(2 * K_BITS)
+    for node, value in zip(PHI[K_BITS : 2 * K_BITS], values_on_coset, strict=True):
+        difference = point + node
+        total = total * difference + value * prefix
+        prefix *= difference
+    return total
 
 
 @dataclass(frozen=True)
@@ -1248,7 +1258,7 @@ def verify_flock_zerocheck(log_n: int, transcript: Transcript) -> ZerocheckResul
     # P = P^AB + P^C on the coset, then z_skip; the 64 zeros on Lambda are assumed.
     p_coset = transcript.next_scalars(K_BITS)
     z_skip = transcript.sample()
-    v_p = lagrange_interpolate(2 * K_BITS, [ZERO] * K_BITS + list(p_coset), z_skip)
+    v_p = interpolate_zero_on_skip(p_coset, z_skip)
 
     # nflock quadratic rounds on P, closed by v_a, v_b.
     chi, running = sumcheck(transcript, v_p, 3, r)
