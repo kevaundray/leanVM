@@ -49,7 +49,19 @@ pub enum Coord {
     /// with it the identity that would have tied the two. Like [`Coord::Prod`],
     /// only a table's blocks may carry one: the table sumcheck settles them,
     /// while a framework block has to split into per-column openings.
-    Sum(Vec<Coord>),
+    Sum(Vec<Self>),
+}
+
+impl Coord {
+    /// The coordinate with every column index shifted by `base`: a table's local coordinate, made global.
+    pub fn offset(self, base: usize) -> Self {
+        match self {
+            Self::Col(i) => Self::Col(base + i),
+            Self::Prod(i, j) => Self::Prod(base + i, base + j),
+            Self::Sum(cs) => Self::Sum(cs.into_iter().map(|c| c.offset(base)).collect()),
+            other => other,
+        }
+    }
 }
 
 /// A public column of `2^log_len` words given by its nonzero stretches, each cut into
@@ -122,7 +134,7 @@ pub struct Block {
 
 impl Block {
     /// A block no table owns.
-    pub fn framework(kappa: usize, coords: Vec<Coord>) -> Self {
+    pub const fn framework(kappa: usize, coords: Vec<Coord>) -> Self {
         Self {
             kappa,
             coords,
@@ -131,7 +143,7 @@ impl Block {
     }
 
     /// A block of table `owner`.
-    pub fn table(owner: usize, kappa: usize, coords: Vec<Coord>) -> Self {
+    pub const fn table(owner: usize, kappa: usize, coords: Vec<Coord>) -> Self {
         Self {
             kappa,
             coords,
@@ -905,7 +917,7 @@ impl<'a> BusSetup<'a> {
     }
 
     /// The depth of the batched GKR.
-    fn mu(&self) -> usize {
+    const fn mu(&self) -> usize {
         self.sides[0].lay.mu
     }
 

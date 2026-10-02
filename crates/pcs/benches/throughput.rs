@@ -33,7 +33,8 @@ fn main() {
 
     let log_n = env_usize("PCS_LOG_N", 22);
     let log_inv_rate = env_usize("PCS_LOG_INV_RATE", LOG_INV_RATE_0);
-    let pc = config_for_rate(log_n, log_inv_rate).expect("WHIR config feasible (try a larger PCS_LOG_N, e.g. >= 16)");
+    let pc =
+        config_for_rate(log_n, log_inv_rate).unwrap_or_else(|e| panic!("no WHIR config for PCS_LOG_N={log_n}: {e}"));
     let plan = Plan::from_env();
     let trace_span = tracing::info_span!("PCS throughput", log_n, log_inv_rate).entered();
 
@@ -96,12 +97,12 @@ fn main() {
 
     println!(
         "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, mean of {}",
-        pretty_integer(plan.repeat)
+        pretty_integer(&plan.repeat)
     );
     println!(
         "  committed data                  : {:>8.1} MiB  ({:>13} F64)",
         mib(data_bytes),
-        pretty_integer(n)
+        pretty_integer(&n)
     );
     println!("  RS codeword (encoded)           : {:>8.1} MiB", mib(codeword_bytes));
     println!("  ------------------------------------------------------------");

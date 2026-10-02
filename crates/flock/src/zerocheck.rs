@@ -38,7 +38,7 @@ use multilinear::{
     PackedWitness, bit_round_materialize, bit_round_pair, fold_and_round_pair_into, fold_in_place_pair,
     fold_in_place_single, interpolate_at_z_combined, round_pair_naive, round_single_naive,
 };
-use primitives::multilinear::lagrange_weights_naive;
+use primitives::multilinear::skip_lagrange_weights;
 use univariate_skip_optimized::{
     c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
 };
@@ -94,7 +94,7 @@ pub struct PaddingSpec {
 
 impl PaddingSpec {
     /// Treat every bit as useful.
-    pub fn dense(m: usize) -> Self {
+    pub const fn dense(m: usize) -> Self {
         Self {
             k_log: m,
             useful_bits_per_block: 1usize << m,
@@ -242,7 +242,7 @@ pub fn prove_packed_padded(
         b: b_packed,
         c: c_packed,
     };
-    let lagrange = lagrange_weights_naive(k_skip, z);
+    let lagrange = skip_lagrange_weights(k_skip, z);
     // The running claim, mirrored from the verifier (same round-1 values, same z).
     // `(1 + r) G(0) + r G(1) = claim` lets the wire drop `G(0)`, so the prover needs it too.
     let mut c_running = interpolate_at_z_combined(&round1, k_skip, z);
@@ -432,8 +432,7 @@ pub fn verify(log_n: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim
     //      where `G(X) = G(0)·(1+X) + G(1)·X + G(∞)·X·(X+1)` (char-2 quadratic
     //      interpolation through G(0), G(1), G(∞)).
     let mut mlv_chis: Vec<F192> = Vec::with_capacity(n_mlv);
-    for i in 0..n_mlv {
-        let r_eq = r_rest[i];
+    for &r_eq in &r_rest[..n_mlv] {
         let g = vs.next_round_poly(3, c_running, Some(r_eq))?;
         let chi = vs.sample();
         mlv_chis.push(chi);
@@ -488,7 +487,7 @@ mod tests {
     /// slices. This is what the three zerocheck claims are supposed to be.
     fn quirky_eval(bits: &[bool], z: F192, chi: &[F192]) -> F192 {
         let ell = 1usize << K_SKIP;
-        let weights = primitives::multilinear::lagrange_weights_naive(K_SKIP, z);
+        let weights = primitives::multilinear::skip_lagrange_weights(K_SKIP, z);
         let eq = primitives::multilinear::eq_table(chi);
         let mut acc = F192::ZERO;
         for (v, &e) in eq.iter().enumerate() {

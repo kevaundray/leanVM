@@ -18,8 +18,8 @@
 //!   deeper-level (E-valued) encodes use K-twiddles via the mixed product
 //!   [`F192::mul_base`] (3 PMULL) instead of a full E multiplication.
 //!
-//! Soundness note: [`WhirSecurityConfig`] analyzes the actual challenge
-//! field size `q = 2^192`; the committed alphabet remains `K = GF(2^64)`.
+//! Soundness note: the parameters ([`config_for_rate`]) come from an analysis of the actual
+//! challenge field size `q = 2^192`; the committed alphabet remains `K = GF(2^64)`.
 //!
 //! The opening splits by concern:
 //!
@@ -41,11 +41,11 @@ use fiat_shamir::transcript::Challenger;
 use primitives::field::{F64, F192};
 
 #[cfg(test)]
-pub use super::whir_config::default_config;
+pub(crate) use super::whir_config::default_config;
 pub use super::whir_config::{
-    ConfigError, FinalBlockConfig, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MIN_LOG_INV_RATE,
+    ConfigError, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE, MIN_LOG_N,
     ProverConfig, QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, SECURITY_BITS,
-    SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, WhirLevelConfig, WhirSecurityConfig, validate_log_inv_rate,
+    SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, config_for_rate, validate_log_inv_rate,
 };
 
 pub use crate::whir_induce::*;
@@ -75,18 +75,6 @@ pub fn inner_product_base_ext(witness: &[F64], b: &[F192]) -> F192 {
         |i| b[i].mul_base(witness[i]),
         |a, v| a + v,
     )
-}
-
-// ===================================================================
-// Config reuse
-// ===================================================================
-
-/// Derive the shared prover/verifier config for a K-witness of `2^log_n` F64
-/// elements at L0 inverse-rate logarithm `log_inv_rate`, using the production
-/// 128-bit Johnson/OOD profile at `m = log_n + LOG_PACKING`.
-pub fn config_for_rate(log_n: usize, log_inv_rate: usize) -> Result<ProverConfig, ConfigError> {
-    let sec = WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + crate::LOG_PACKING, log_inv_rate)?;
-    sec.to_config()
 }
 
 /// Sample `count` query positions in transcript order: no dedup, no sort.

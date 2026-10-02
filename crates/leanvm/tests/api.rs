@@ -6,26 +6,26 @@ use leanvm::*;
 fn fibonacci(n: u64) -> Program {
     const LOG_RAM: usize = 4;
     let text = Asm::new()
-        .li(SP, RAM_BASE + (8 << LOG_RAM) - 16)
-        .li(T0, RAM_BASE)
-        .load("ld", T0, 0, T0)
-        .i("addi", T1, ZERO, 1)
-        .store("sd", ZERO, 0, SP)
-        .store("sd", T1, 8, SP)
+        .li(Reg::SP, Region::RAM.base() + (8 << LOG_RAM) - 16)
+        .li(Reg::T0, Region::RAM.base())
+        .load(Ld, Reg::T0, 0, Reg::T0)
+        .i(Addi, Reg::T1, Reg::ZERO, 1)
+        .store(Sd, Reg::ZERO, 0, Reg::SP)
+        .store(Sd, Reg::T1, 8, Reg::SP)
         .label("loop")
-        .load("ld", A0, 0, SP)
-        .load("ld", A1, 8, SP)
-        .r("add", A2, A0, A1)
-        .store("sd", A1, 0, SP)
-        .store("sd", A2, 8, SP)
-        .i("addi", T0, T0, -1)
-        .branch("bne", T0, ZERO, "loop")
-        .load("ld", A0, 0, SP)
-        .li(A1, 0)
-        .li(A2, 0)
+        .load(Ld, Reg::A0, 0, Reg::SP)
+        .load(Ld, Reg::A1, 8, Reg::SP)
+        .r(Add, Reg::A2, Reg::A0, Reg::A1)
+        .store(Sd, Reg::A1, 0, Reg::SP)
+        .store(Sd, Reg::A2, 8, Reg::SP)
+        .i(Addi, Reg::T0, Reg::T0, -1)
+        .branch(Bne, Reg::T0, Reg::ZERO, "loop")
+        .load(Ld, Reg::A0, 0, Reg::SP)
+        .li(Reg::A1, 0)
+        .li(Reg::A2, 0)
         .exit()
         .finish();
-    Program::new(&text, TEXT_BASE, vec![n], LOG_RAM, 0).expect("valid instruction program")
+    Program::new(&text, Region::TEXT.base(), vec![n], LOG_RAM, 0).expect("valid instruction program")
 }
 
 /// The `preimage` guest (see `programs/`): it hashes the message the prover puts in the
@@ -102,8 +102,8 @@ fn public_api_end_to_end() {
     // 6. What the caller gets wrong is an error, not a panic.
     assert_eq!(Rate::new(0), Err(InvalidRate { log_inv_rate: 0 }));
     assert!(Rate::new(Rate::MAX.log_inv_rate() + 1).is_err());
-    let one_word =
-        Program::new(&Asm::new().exit().finish(), TEXT_BASE, vec![], 0, 0).expect("valid instruction program");
+    let one_word = Program::new(&Asm::new().exit().finish(), Region::TEXT.base(), vec![], 0, 0)
+        .expect("valid instruction program");
     assert_eq!(
         prover.prove(&one_word, &[1, 2], Rate::MIN).map(|_| ()),
         Err(Error::AdviceTooLong { max: 1, got: 2 })

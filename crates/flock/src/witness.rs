@@ -9,7 +9,7 @@ use zk_alloc::ArenaVec;
 /// OR the low 32 bits of `val` into `buf` starting at bit-offset `bit_off`.
 /// Handles u64 straddling when `bit_off % 64 > 32`.
 #[inline(always)]
-pub(crate) fn or_u32_at_bit(buf: &mut [u64], bit_off: usize, val: u32) {
+pub(crate) const fn or_u32_at_bit(buf: &mut [u64], bit_off: usize, val: u32) {
     let u64_idx = bit_off >> 6;
     let shift = bit_off & 63;
     buf[u64_idx] |= (val as u64) << shift;
@@ -20,7 +20,7 @@ pub(crate) fn or_u32_at_bit(buf: &mut [u64], bit_off: usize, val: u32) {
 
 /// Set bit `bit_off` of `buf` (low-bit-first within each u64).
 #[inline(always)]
-pub(crate) fn or_bit_at(buf: &mut [u64], bit_off: usize) {
+pub(crate) const fn or_bit_at(buf: &mut [u64], bit_off: usize) {
     buf[bit_off >> 6] |= 1u64 << (bit_off & 63);
 }
 
@@ -31,14 +31,14 @@ pub(crate) struct BitRecord<const NW: usize> {
 
 impl<const NW: usize> BitRecord<NW> {
     #[inline(always)]
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self { w: [0u64; NW] }
     }
 
     /// OR a (pre-masked) value into record bits `[POS, POS + width)`.
     /// `POS` is const so the straddle branch and shifts fold at compile time.
     #[inline(always)]
-    pub(crate) fn push<const POS: usize>(&mut self, val: u32) {
+    pub(crate) const fn push<const POS: usize>(&mut self, val: u32) {
         let v = val as u64;
         let idx = POS >> 6;
         let s = POS & 63;
@@ -67,7 +67,7 @@ impl<const NW: usize> BitRecord<NW> {
 /// `left/right/carry_aux` masked to the low 31 bits (bit 31 is the discarded
 /// mod-2³² carry-out; the carry slot is 31 bits wide).
 #[inline(always)]
-pub(crate) fn add_carry_parts(x: u32, y: u32) -> (u32, u32, u32, u32) {
+pub(crate) const fn add_carry_parts(x: u32, y: u32) -> (u32, u32, u32, u32) {
     let sum = x.wrapping_add(y);
     let cin = sum ^ x ^ y;
     const MASK_LO31: u32 = 0x7FFF_FFFF;
@@ -85,7 +85,7 @@ pub(crate) fn add_carry_parts(x: u32, y: u32) -> (u32, u32, u32, u32) {
 /// to bits 1..=30 **and shifted down by one**, so its slot `j` holds bit
 /// `j + 1`, matching the 30-slot ripple run.
 #[inline(always)]
-pub(crate) fn add3_fused_parts(x: u32, y: u32, z: u32) -> (u32, (u32, u32, u32), (u32, u32, u32)) {
+pub(crate) const fn add3_fused_parts(x: u32, y: u32, z: u32) -> (u32, (u32, u32, u32), (u32, u32, u32)) {
     const MASK_LO31: u32 = 0x7FFF_FFFF;
     const MASK_LO30: u32 = 0x3FFF_FFFF;
     let maj_left = (x ^ z) & MASK_LO31;
@@ -105,14 +105,14 @@ pub(crate) fn add3_fused_parts(x: u32, y: u32, z: u32) -> (u32, (u32, u32, u32),
 /// Write a 32-bit lin-id (or input) slot: (z, a) = val, b = all-ones.
 /// **c is not written**: since `C = I`, `c == z` byte-for-byte.
 #[inline]
-pub(crate) fn write_lin_word_ab_packed(bit_off: usize, val: u32, z: &mut [u64], a: &mut [u64], b: &mut [u64]) {
+pub(crate) const fn write_lin_word_ab_packed(bit_off: usize, val: u32, z: &mut [u64], a: &mut [u64], b: &mut [u64]) {
     or_u32_at_bit(z, bit_off, val);
     or_u32_at_bit(a, bit_off, val);
     or_u32_at_bit(b, bit_off, 0xFFFF_FFFF);
 }
 
 /// of the `u64` words on a little-endian target.
-pub(crate) fn packed_bytes(words: &[u64]) -> &[u8] {
+pub(crate) const fn packed_bytes(words: &[u64]) -> &[u8] {
     const _: () = assert!(
         cfg!(target_endian = "little"),
         "packed witness bytes assume little-endian"
@@ -283,6 +283,38 @@ where
             for (i, out) in t.stripes.as_chunks_mut::<64>().0.iter_mut().enumerate() {
                 let rows: [[u8; 8]; 8] = std::array::from_fn(|l| t.z[l * u64_per_block + i].to_le_bytes());
                 bit_transpose_64bytes(rows.as_flattened().try_into().expect("64 bytes"), out);
+            }
+        },
+    )
+}
+
+/// Build native witnesses eight instances at a time, then pack their byte stripe.
+pub(crate) fn drive_witness_batched<S: Sync>(
+    rows: &[S],
+    padding: &S,
+    n_blocks_log: usize,
+    k_log: usize,
+    batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
+) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+    assert!(rows.len() <= 1 << n_blocks_log, "more rows than instances");
+    let words = (1usize << k_log) / 64;
+    drive_witness_groups(
+        n_blocks_log,
+        k_log,
+        8,
+        || (),
+        |(), first, t| {
+            // The callback ORs product runs into a fresh group of eight instances.
+            t.z.fill(0);
+            t.a.fill(0);
+            t.b.fill(0);
+            let inputs = std::array::from_fn(|l| rows.get(first + l).unwrap_or(padding));
+            batch(inputs, t.z, t.a, t.b);
+
+            // Each output stripe carries one witness bit from each of the eight instances.
+            for (i, out) in t.stripes.as_chunks_mut::<64>().0.iter_mut().enumerate() {
+                let bits: [[u8; 8]; 8] = std::array::from_fn(|l| t.z[l * words + i].to_le_bytes());
+                bit_transpose_64bytes(bits.as_flattened().try_into().expect("eight word lanes"), out);
             }
         },
     )
