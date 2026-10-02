@@ -17,10 +17,12 @@ use crate::witness;
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use primitives::field::{F64, F192};
 
+pub mod deferred;
 mod execute;
 pub mod filler;
 pub mod layout;
 mod trace;
+pub use deferred::{DeferredClaims, check_deferred};
 pub use execute::Execution;
 pub use layout::*;
 pub(crate) use trace::{HashRow, Row, Trace};
@@ -326,7 +328,8 @@ impl constraints::Summand for Summand {
     fn public(&self, chi: &[F192]) -> Vec<F192> {
         match self {
             Self::Table(_) => Vec::new(),
-            Self::Producer(s) => leaf::producer_public_evals(&s.producer, &s.weights, s.beta, chi),
+            // Short of the program's columns, which the program claim settles.
+            Self::Producer(s) => leaf::producer_affine_evals(&s.producer, &s.weights, s.beta, chi),
         }
     }
 }
@@ -672,18 +675,40 @@ fn final_register_claim(reg: rv::Reg, value: u64) -> ColumnClaim {
 /// `output`: replay the transcript, reconstruct the public layout from the announced
 /// sizes, read every scalar the prover wrote and pull the PCS hints, then assert the
 /// stream was fully consumed. Takes only public inputs, never the prover's witness.
+///
+/// [`verify_core`] then [`check_deferred`].
 pub fn verify(program: &Program, output: &[u64; 4], proof: &Proof) -> Result<(), CpuError> {
-    verify_to_raw(program, output, proof).map(|_| ())
+    check_deferred(&verify_core(program, output, proof)?, program)
 }
 
 /// [`verify`], returning the proof it accepted with every query's Merkle path
 /// written out, the form `python-verifier` reads.
-#[tracing::instrument(name = "Verify", skip_all)]
 pub fn verify_to_raw(
     program: &Program,
     output: &[u64; 4],
     proof: &Proof,
 ) -> Result<fiat_shamir::transcript::RawProof, CpuError> {
+    let (claims, raw) = replay(program, output, proof)?;
+    check_deferred(&claims, program)?;
+    Ok(raw)
+}
+
+/// [`verify`] short of evaluating the polynomials only the program or the VM's circuits
+/// fix: every check that depends on the proof, and the claims those polynomials must
+/// meet for the proof to verify ([`DeferredClaims`]). A proof is accepted exactly when
+/// this succeeds and [`check_deferred`] accepts its claims, which a caller may settle
+/// later and merged with other proofs' ([`DeferredClaims::merge`]); never skip them.
+pub fn verify_core(program: &Program, output: &[u64; 4], proof: &Proof) -> Result<DeferredClaims, CpuError> {
+    replay(program, output, proof).map(|(claims, _)| claims)
+}
+
+/// [`verify_core`], and the proof it replayed with its Merkle paths written out.
+#[tracing::instrument(name = "Verify core", skip_all)]
+fn replay(
+    program: &Program,
+    output: &[u64; 4],
+    proof: &Proof,
+) -> Result<(DeferredClaims, fiat_shamir::transcript::RawProof), CpuError> {
     let mut vs = VerifierState::new(fs_seed(program), proof, output.map(F64));
     let (l, log_inv_rate) = read_public(&mut vs, program)?;
     let root = pcs::read_commitment(&mut vs)?;
@@ -698,31 +723,37 @@ pub fn verify_to_raw(
     // derived; the batch must sum to `Σ_s η^{base+s}·R_s`. Since `η` is sampled after
     // the `R_s` are fixed, hitting that one number forces `Σ_t σ_{s,t} = R_s` on both
     // sides. A transmitted target would be a free value in its own check, and the
-    // tables' bus blocks would be settled by nothing at all.
+    // tables' bus blocks would be settled by nothing at all. RAM's image is left out
+    // of it, and the program claim makes up for it.
     let target = (0..2).fold(F192::ZERO, |a, s| a + form_pows[s] * bus.totals[s]);
     let shares = ProducerShares {
         coefficients: &bus.producers,
         weights: &bus.weights,
         beta: bus.beta,
     };
-    let table_claims = constraints::verify(&airs(&l, &bus.forms, shares, zc_xi), &bus.point, target, &mut vs)
+    let table_sumcheck = constraints::verify(&airs(&l, &bus.forms, shares, zc_xi), &bus.point, target, &mut vs)
         .map_err(CpuError::Constraint)?;
+    let program_claim = deferred::program_claim(&bus, &table_sumcheck, form_pows);
+    let table_claims = table_sumcheck.claims;
 
     let slots = finish_claims(&l, bus.claims, &table_claims, output);
 
     // Replay each circuit's flock reduction straight off the shared stream (each scalar
     // bound as it is read) to recover its validity claim on the circuit's packed
     // witness, then verify them alongside every point claim in the ONE WHIR opening
-    // (mirroring `prove`).
+    // (mirroring `prove`). Each leaves its matrices' form to its circuit.
     let mut replays = Vec::with_capacity(crate::class_flock::N_FLOCKS);
+    let mut circuit_claims = Vec::with_capacity(crate::class_flock::N_FLOCKS);
     for f in 0..crate::class_flock::N_FLOCKS {
         let (t, part) = crate::class_flock::flock(f);
-        let replay = crate::class_flock::verify_reduction(f, l.taus[t], &mut vs).map_err(|error| CpuError::Flock {
-            table: tables::CLASSES[t].name,
-            part,
-            error,
-        })?;
+        let (replay, matrices) =
+            crate::class_flock::verify_reduction(f, l.taus[t], &mut vs).map_err(|error| CpuError::Flock {
+                table: tables::CLASSES[t].name,
+                part,
+                error,
+            })?;
         replays.push(replay);
+        circuit_claims.push(deferred::Claim::new(matrices.form, matrices.value));
     }
     let slices: Vec<[F192; ::pcs::pack::PACKING_WIDTH]> = table_claims[tables::N_TABLES..]
         .iter()
@@ -755,7 +786,11 @@ pub fn verify_to_raw(
         .collect();
     pcs::verify(&mut vs, &slots, &rings, l.shape, log_inv_rate, &root).map_err(CpuError::Open)?;
     vs.finish()?;
-    Ok(vs.into_raw_proof())
+    let claims = DeferredClaims {
+        program: program_claim,
+        circuits: circuit_claims,
+    };
+    Ok((claims, vs.into_raw_proof()))
 }
 
 /// Lift `ColumnClaim`s to located PCS claims: a claim on a committed column lives in

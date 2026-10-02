@@ -342,7 +342,7 @@ pub fn bytecode_columns(p: &rv::Program) -> [Vec<F64>; N_BYTECODE_COLUMNS] {
 
 /// The bytecode's entries as the bus carries them: the separator, entry `i`'s address
 /// `TEXT_BASE + 4i`, then the program's public columns.
-fn bytecode_tuple(p: &rv::Program) -> Vec<Coord> {
+pub(crate) fn bytecode_tuple(p: &rv::Program) -> Vec<Coord> {
     let pc = Coord::IntIndex {
         base: F64(TEXT_BASE),
         shift: 2,

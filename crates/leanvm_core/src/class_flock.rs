@@ -17,6 +17,7 @@ use crate::tables::{CLASSES, ClassSpec, N_TABLES, Part, Word};
 use ::pcs::pack::LOG_PACKING;
 use fiat_shamir::transcript::{ProverState, VerifierState};
 use flock::circuit::Circuit;
+use flock::lincheck::MatrixClaim;
 use flock::reduction::{ReductionReplay, SliceClaim};
 use flock::verifier::VerifyError;
 use primitives::field::F64;
@@ -224,7 +225,13 @@ impl Prepared {
     }
 }
 
-/// The verifier's replay of packed witness `f`'s reduction: zerocheck, then lincheck.
-pub fn verify_reduction(f: usize, n_blocks_log: usize, vs: &mut VerifierState) -> Result<ReductionReplay, VerifyError> {
-    circuit(f).block().verify(n_blocks_log, vs)
+/// The verifier's replay of packed witness `f`'s reduction, zerocheck then lincheck, up
+/// to the circuit's matrices: their form is left as a [`MatrixClaim`] for the circuit
+/// ([`circuit`]) to settle.
+pub fn verify_reduction(
+    f: usize,
+    n_blocks_log: usize,
+    vs: &mut VerifierState,
+) -> Result<(ReductionReplay, MatrixClaim), VerifyError> {
+    circuit(f).block().verify_deferred(n_blocks_log, vs)
 }
