@@ -670,7 +670,7 @@ pub fn generate_witness_with_ab_packed_and_lincheck(
     drive_witness_packed_and_lincheck(
         blocks,
         Some(&padding),
-        n_blocks_log,
+        1 << n_blocks_log,
         K_LOG,
         &mut [],
         |&(ref h, ref m, t, f0, f1), z, a, b| build_block_witness_ab_packed_into(h, m, t, f0, f1, z, a, b),
@@ -774,7 +774,7 @@ impl Blake2sSetup {
         b_packed_words: &[u64],
         ps: &mut fiat_shamir::transcript::ProverState,
     ) -> ZerocheckStage {
-        BLOCK.prove_zerocheck(self.n_blocks_log, z_packed, a_packed_words, b_packed_words, ps)
+        BLOCK.prove_zerocheck(self.n_blocks_log, z_packed, a_packed_words, b_packed_words, None, ps)
     }
 
     /// **Flock reduction, second stage (prover): the lincheck.** Reduces the
@@ -786,7 +786,7 @@ impl Blake2sSetup {
         z_packed_lincheck: &[u8],
         ps: &mut fiat_shamir::transcript::ProverState,
     ) -> SliceClaim {
-        BLOCK.prove_lincheck(self.n_blocks_log, stage, z_packed_lincheck, ps)
+        BLOCK.prove_lincheck(self.n_blocks_log, stage, z_packed_lincheck, None, ps)
     }
 
     /// **Flock reduction (verifier).** Replay the BLAKE2s zerocheck and

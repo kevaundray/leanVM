@@ -70,22 +70,6 @@ pub fn pieces(row_vars: usize, rows: usize) -> Vec<(usize, usize)> {
     out
 }
 
-/// `Σ_{j ≥ from} eq(point, j)` over the rows `j < 2^|point|`: the weight a point puts on
-/// every row from `from` on, `1 - Σ_{j < from} eq(point, j)`, the latter the sum over the
-/// aligned pieces of `from`'s binary expansion (§sec:jagged).
-pub fn tail_weight(point: &[F192], from: usize) -> F192 {
-    if from >= 1 << point.len() {
-        return F192::ZERO;
-    }
-    let mut first = 0;
-    let mut acc = F192::ONE;
-    for bit in (0..point.len()).rev().filter(|&bit| (from >> bit) & 1 == 1) {
-        acc += eq_bits(point, first, bit);
-        first += 1 << bit;
-    }
-    acc
-}
-
 /// `eq(point[from..], first >> from)`: the weight a point puts on the aligned rows
 /// `[first, first + 2^from)`.
 fn eq_bits(point: &[F192], first: usize, from: usize) -> F192 {

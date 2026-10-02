@@ -761,7 +761,7 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
             }
             if let Some(row) = &padding.rows[t] {
                 let leaf = (blk.coords.iter().zip(w)).fold(beta, |acc, (c, &wi)| acc + wi * coord_at(c, base, row));
-                let tail = crate::witness::tail_weight(zeta_lo, padding.heights[t]);
+                let tail = primitives::multilinear::tail_weight(zeta_lo, padding.heights[t]);
                 acc += eq_hi * tail * (leaf + F192::ONE);
             }
             continue;

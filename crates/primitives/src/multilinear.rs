@@ -58,6 +58,29 @@ pub fn eq_eval(r: &[F192], x: &[F192]) -> F192 {
         .fold(F192::ONE, |acc, (&ri, &xi)| acc * (F192::ONE + ri + xi))
 }
 
+/// `Σ_{j ≥ from} eq(point, j)` over the indices `j < 2^|point|` (LSB-first): the
+/// weight a point puts on every index from `from` on. It is `1 − Σ_{j < from}`, and
+/// the indices below `from` are the aligned blocks of its binary expansion, each
+/// weighing `eq` of the point's coordinates above the block.
+pub fn tail_weight(point: &[F192], from: usize) -> F192 {
+    if from >= 1usize.checked_shl(point.len() as u32).unwrap_or(usize::MAX) {
+        return F192::ZERO;
+    }
+    let mut first = 0usize;
+    let mut acc = F192::ONE;
+    for bit in (0..point.len()).rev().filter(|&bit| (from >> bit) & 1 == 1) {
+        acc += (point[bit..].iter().enumerate()).fold(F192::ONE, |e, (k, &r)| {
+            e * if (first >> (bit + k)) & 1 == 1 {
+                r
+            } else {
+                F192::ONE + r
+            }
+        });
+        first += 1 << bit;
+    }
+    acc
+}
+
 /// The `eq(r, ·)` table over `n = r.len()` variables. See [`fill_eq_table_uninit`].
 pub fn eq_table(r: &[F192]) -> Vec<F192> {
     let len = 1usize << r.len();

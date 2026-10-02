@@ -136,29 +136,74 @@ fn word_of(word: Word, slots: &[u32], row: &Row, entry: &Entry) -> u64 {
     }
 }
 
+/// Instances of the padding unit: past the explicit instances, a batch is copies of
+/// this many padding instances (§sec:jagged), which flock proves as one unit.
+const PAD_UNIT: usize = 64;
+
+/// One table of a batch: in the arena, or on the heap when the arena would not
+/// recycle its block (below [`zk_alloc::REUSE_MIN`]), since a small arena block
+/// outliving its neighbors keeps their released space from merging.
+enum Table<T> {
+    Arena(ArenaVec<T>),
+    Heap(Vec<T>),
+}
+
+impl<T: Copy> Table<T> {
+    /// Copied out, and released, while the arena's latest block: the copies are taken
+    /// in reverse allocation order, so each pops the arena's cursor.
+    fn new(table: ArenaVec<T>) -> Self {
+        if size_of_val(&table[..]) < zk_alloc::REUSE_MIN {
+            Self::Heap(table.to_vec())
+        } else {
+            Self::Arena(table)
+        }
+    }
+}
+
+impl<T> std::ops::Deref for Table<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        match self {
+            Self::Arena(table) => table,
+            Self::Heap(table) => table,
+        }
+    }
+}
+
 /// The flock-native tables of one class's batch, kept from the pass that wrote its
 /// committed column so the reduction needs no second witness pass.
+///
+/// They hold the batch's first instances only, its rows and then padding instances
+/// up to a whole number of [`PAD_UNIT`]s; every later instance repeats the padding
+/// row, so the reduction takes them as copies of one unit of them (`pad`).
 pub(crate) struct Prepared {
     flock: usize,
     n_blocks_log: usize,
-    z: ArenaVec<u64>,
-    a: ArenaVec<u64>,
-    b: ArenaVec<u64>,
-    z_lincheck: ArenaVec<u8>,
+    z: Table<u64>,
+    a: Table<u64>,
+    b: Table<u64>,
+    z_lincheck: Table<u8>,
+    /// The padding unit's `z`, `A·z` and `B·z`, when instances are left to it, on the
+    /// heap as a small [`Table`] is.
+    pad: Option<[Vec<u64>; 3]>,
 }
 
 impl Prepared {
-    /// Build packed witness `f`'s batch, one instance per row of its table, writing its
-    /// committed column's pieces, `(first row, piece)`, in place as it goes.
-    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], pieces: Vec<(usize, &mut [F64])>) -> Self {
+    /// Build packed witness `f`'s batch of `2^n_blocks_log` instances from its table's
+    /// committed rows, the live ones then the padding row every later row repeats,
+    /// writing its committed column's pieces, `(first row, piece)`, in place as it goes.
+    pub(crate) fn build(
+        f: usize,
+        n_blocks_log: usize,
+        rows: &[Row],
+        entries: &[Entry],
+        pieces: Vec<(usize, &mut [F64])>,
+    ) -> Self {
         let (t, part) = flock(f);
         let spec = CLASSES[t];
-        let n_blocks_log = n_blocks_log(spec, rows.len());
-        assert_eq!(
-            rows.len(),
-            1 << n_blocks_log,
-            "a table's rows fill its batch (cpu::padding)"
-        );
+        let explicit = rows.len().next_multiple_of(PAD_UNIT).min(1 << n_blocks_log);
+        let padding = rows.last().expect("a table commits at least its padding row");
         let circuit = circuit(f);
         let ports = crate::tables::tables()[t].ports(part);
         let n_inputs = circuit.n_input_words();
@@ -172,6 +217,15 @@ impl Prepared {
         // A class with a word-level witness skips the walk of its gate list; the others
         // walk it 64 instances at a time.
         let witness = spec.witness.filter(|_| part == Part::Class);
+        let generate = |rows: &[Row], n_instances: usize, copies: &mut [flock::ZCopy<'_>]| match witness {
+            None => circuit.generate_witness_from(rows, padding, n_instances, copies, input_words),
+            Some(witness) => circuit.generate_witness_with(rows, padding, n_instances, copies, |row, z, az, bz| {
+                let mut words = [0u64; MAX_INPUT_WORDS];
+                let words = &mut words[..n_inputs];
+                input_words(row, words);
+                witness(words, z, az, bz);
+            }),
+        };
         let mut copies: Vec<flock::ZCopy<'_>> = (pieces.into_iter())
             .map(|(first, piece)| flock::ZCopy {
                 first,
@@ -180,19 +234,17 @@ impl Prepared {
                 words: unsafe { std::slice::from_raw_parts_mut(piece.as_mut_ptr().cast::<u64>(), piece.len()) },
             })
             .collect();
-        let (z, a, b, z_lincheck) = match witness {
-            None => circuit.generate_witness_from(rows, &rows[0], n_blocks_log, &mut copies, input_words),
-            Some(witness) => {
-                circuit.generate_witness_with(rows, &rows[0], n_blocks_log, &mut copies, |row, z, az, bz| {
-                    let mut words = [0u64; MAX_INPUT_WORDS];
-                    let words = &mut words[..n_inputs];
-                    input_words(row, words);
-                    witness(words, z, az, bz);
-                })
-            }
-        };
+        let (z, a, b, z_lincheck) = generate(rows, explicit, &mut copies);
+        // In reverse allocation order (`Table::new`).
+        let z_lincheck = Table::new(z_lincheck);
+        let (b, a, z) = (Table::new(b), Table::new(a), Table::new(z));
+        let pad = (explicit < 1 << n_blocks_log).then(|| {
+            // Built last, so the arena pops it whole once it is copied out.
+            let (z, a, b, _) = generate(&[], PAD_UNIT, &mut []);
+            [z.to_vec(), a.to_vec(), b.to_vec()]
+        });
         let stride = 1 << stride_log(spec, part);
-        assert_eq!(z.len(), rows.len() * stride, "the committed column is the wrong size");
+        assert_eq!(z.len(), explicit * stride, "the batch is the wrong size");
         const BATCH: usize = 1 << 10;
         parallel::for_each(rows.len().div_ceil(BATCH), |batch| {
             let first = batch * BATCH;
@@ -217,14 +269,18 @@ impl Prepared {
             a,
             b,
             z_lincheck,
+            pad,
         }
     }
 
     /// Flock's zerocheck then lincheck, leaving the one claim on the committed column.
     pub(crate) fn prove(&self, ps: &mut ProverState) -> SliceClaim {
         let block = circuit(self.flock).block();
-        let stage = block.prove_zerocheck(self.n_blocks_log, &self.z, &self.a, &self.b, ps);
-        block.prove_lincheck(self.n_blocks_log, stage, &self.z_lincheck, ps)
+        let pad = self.pad.as_ref().map(|[z, a, b]| [&z[..], &a[..], &b[..]]);
+        let stage = block.prove_zerocheck(self.n_blocks_log, &self.z, &self.a, &self.b, pad, ps);
+        // The padding instance, the unit's first.
+        let pad_z = pad.map(|[z, ..]| &z[..z.len() / PAD_UNIT]);
+        block.prove_lincheck(self.n_blocks_log, stage, &self.z_lincheck, pad_z, ps)
     }
 }
 

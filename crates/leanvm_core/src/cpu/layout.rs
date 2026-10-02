@@ -663,17 +663,14 @@ impl Program {
             count_reads(tr, outs[Lookup::Bytecode.multiplicity().col()].rows);
         });
         drop(outs); // release the borrows of the stacks and of the virtual buffers
-        // The packed witnesses, one instance per row of their table, each writing its
-        // committed pieces in place.
+        // The packed witnesses, one instance per committed row of their table, each
+        // writing its committed pieces in place.
         let reductions: Vec<crate::class_flock::Prepared> = crate::stage!("Build flock witnesses", || {
             (flocks.into_iter().enumerate())
                 .map(|(f, pieces)| {
-                    crate::class_flock::Prepared::build(
-                        f,
-                        &tr.rows[crate::class_flock::flock(f).0],
-                        p.entries(),
-                        pieces,
-                    )
+                    let t = crate::class_flock::flock(f).0;
+                    let rows = &tr.rows[t][..committed_rows(tr.heights[t], l.taus[t])];
+                    crate::class_flock::Prepared::build(f, l.taus[t], rows, p.entries(), pieces)
                 })
                 .collect()
         });

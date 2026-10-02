@@ -144,7 +144,7 @@ pub struct ZCopy<'a> {
     pub words: &'a mut [u64],
 }
 
-/// The four witness tables of `2^n_blocks_log` instances, built `group` instances at a time.
+/// The four witness tables of `n_total` instances, built `group` instances at a time.
 ///
 /// - The fill closure writes every word and byte of the group starting at the instance it is given.
 /// - Each worker keeps one scratch state, built once and reused across its groups.
@@ -154,7 +154,7 @@ pub struct ZCopy<'a> {
 ///
 /// Building in place instead would fetch every output line before writing it.
 pub(crate) fn drive_witness_groups<St, I, F>(
-    n_blocks_log: usize,
+    n_total: usize,
     k_log: usize,
     group: usize,
     copies: &mut [ZCopy<'_>],
@@ -167,14 +167,13 @@ where
     F: Fn(&mut St, usize, GroupTables<'_>) + Sync,
 {
     let k = 1usize << k_log;
-    let n_total = 1usize << n_blocks_log;
     assert!(
         n_total >= 8 && n_total.is_multiple_of(8),
         "lincheck stripe layout requires n_total ≥ 8 and divisible by 8"
     );
     assert!(
         group.is_multiple_of(8) && n_total.is_multiple_of(group),
-        "a group of {group} instances must tile 2^{n_blocks_log} in whole stripes"
+        "a group of {group} instances must tile {n_total} in whole stripes"
     );
 
     let total_words = n_total * (k / 64);
@@ -251,16 +250,16 @@ where
 }
 
 /// Drive the parallel chunked witness build for `n_blocks` instances padded
-/// to `2^n_blocks_log` slots, one instance at a time. Returns `(z, a, b, z_lincheck)`:
+/// to `n_total` slots, one instance at a time. Returns `(z, a, b, z_lincheck)`:
 /// the three bit-packed `u64` tables (`K / 64` words per instance) and the lincheck
 /// byte stripe.
 ///
 /// `per_block(initial, z_u64, a_u64, b_u64)` populates one block's worth of
 /// `(z, a, b)` data: 3 zero-initialized `u64`-buffers of length `K / 64`.
 /// `K` is derived from `k_log`. `initial_states.len()` may be less than
-/// `2^n_blocks_log`.
+/// `n_total`.
 ///
-/// `padding` controls what fills the trailing `2^n_blocks_log −
+/// `padding` controls what fills the trailing `n_total −
 /// initial_states.len()` slots:
 /// - `None`: leave them all-zero (trivial constraint satisfaction).
 /// - `Some(p)`: build a real block from `p` in every padding slot. Encoders
@@ -271,7 +270,7 @@ where
 pub(crate) fn drive_witness_packed_and_lincheck<S: Sync, F>(
     initial_states: &[S],
     padding: Option<&S>,
-    n_blocks_log: usize,
+    n_total: usize,
     k_log: usize,
     copies: &mut [ZCopy<'_>],
     per_block: F,
@@ -281,14 +280,11 @@ where
 {
     let u64_per_block = (1usize << k_log) / 64;
     let n_blocks = initial_states.len();
-    assert!(
-        n_blocks <= 1 << n_blocks_log,
-        "{n_blocks} blocks > 2^{n_blocks_log} slots"
-    );
+    assert!(n_blocks <= n_total, "{n_blocks} blocks > {n_total} slots");
 
     // Eight blocks per group, the lincheck stripe of one group being their bit transpose.
     drive_witness_groups(
-        n_blocks_log,
+        n_total,
         k_log,
         8,
         copies,

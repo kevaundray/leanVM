@@ -896,8 +896,8 @@ mod tests {
                 z_lincheck[bit] ^= 1;
             }
             let mut ps = ProverState::from_label(LABEL);
-            let stage = block.prove_zerocheck(n_log, &z, &a, &b, &mut ps);
-            let claim = block.prove_lincheck(n_log, stage, &z_lincheck, &mut ps);
+            let stage = block.prove_zerocheck(n_log, &z, &a, &b, None, &mut ps);
+            let claim = block.prove_lincheck(n_log, stage, &z_lincheck, None, &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(LABEL, &proof);
             block.verify(n_log, &mut vs).is_ok_and(|r| r.claim == claim) && vs.finish().is_ok()
@@ -929,11 +929,12 @@ mod tests {
                 .collect();
 
             // The same batch through both generators, every table compared.
-            let walk = circuit.generate_witness_with(&rows, &rows[0], n_log, &mut [], |row, z, az, bz| {
+            let walk = circuit.generate_witness_with(&rows, &rows[0], 1 << n_log, &mut [], |row, z, az, bz| {
                 circuit.witness_instance(row, z, az, bz);
             });
-            let sliced =
-                circuit.generate_witness_from(&rows, &rows[0], n_log, &mut [], |row, words| words.copy_from_slice(row));
+            let sliced = circuit.generate_witness_from(&rows, &rows[0], 1 << n_log, &mut [], |row, words| {
+                words.copy_from_slice(row);
+            });
             assert!(walk.0[..] == sliced.0[..], "z");
             assert!(walk.1[..] == sliced.1[..], "A*z");
             assert!(walk.2[..] == sliced.2[..], "B*z");
@@ -975,7 +976,7 @@ mod tests {
 
         // Both generators on the same batch, every table compared.
         let walk = BLAKE2S.generate_witness(&rows, n_log);
-        let fast = BLAKE2S.generate_witness_with(&rows, &[0; 14], n_log, &mut [], |row, z, az, bz| {
+        let fast = BLAKE2S.generate_witness_with(&rows, &[0; 14], 1 << n_log, &mut [], |row, z, az, bz| {
             blake2s_witness(row, z, az, bz);
         });
         assert!(walk.0[..] == fast.0[..], "z");
