@@ -207,11 +207,14 @@ fn test_python_verifier() {
         String::from_utf8_lossy(&python.stderr).contains("misnames a register"),
         "Python refused a table that writes x0 for the wrong reason"
     );
-    // A load reads no `rs2` and a store writes no `rd`: their tables hold those fields at
-    // constants, `x0` and the sink, so an entry naming another register is refused.
+    // A load reads no `rs2`, a store writes no `rd`, and a doubleword one has no flags: their tables hold those fields
+    // at constants, `x0`, the sink and zero, so an entry naming another register or a flag is refused.
     for (class, slot, reason) in [
         (leanvm_core::rv::Class::Load, 5, "reads an rs2"),
         (leanvm_core::rv::Class::Store, 6, "writes an rd"),
+        (leanvm_core::rv::Class::Ld, 5, "reads an rs2"),
+        (leanvm_core::rv::Class::Sd, 6, "writes an rd"),
+        (leanvm_core::rv::Class::Ld, 3, "flags are not its class's"),
     ] {
         // The class tag `g^t`, which is `2^t` since `g = x`.
         let tag = 1u64 << leanvm_core::tables::table_of(class).expect("the class has a table");

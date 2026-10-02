@@ -4,7 +4,7 @@
 
     cycles_X = plumbing (+ soft float, unless counted as removed) + sum_op n_op * c_X(op)
     rows_X   = the same per table, the new classes CLMUL and GF192 aside
-    words_X  = stack_sizes(rows_X of the nine tables, log_ram 21, log_advice 16) + new-class rows * words per row
+    words_X  = stack_sizes(rows_X of the eleven tables, log_ram 21, log_advice 16) + new-class rows * words per row
 
 `measured.json` holds, per run, the measured cycles and rows (`recverify-host`), the operation counts (`profile.py ops` on the counting build) and the plumbing and soft float split (`profile.py classes`). `shared` (core runs) is what k proofs of one program would share: building the circuits (`initialize` under `replay`) and everything outside `replay` (the program's setup, reading the advice, committing). CLMUL and GF192 are hypothetical classes; their words per row are estimates.
 """
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ELF = "programs/recverify/guest/target/riscv64im-leanvm-zkvm/release/recverify"
-TABLES = ["ALU", "LOAD", "STORE", "SHIFT", "MUL", "MULH", "DIV", "HASH", "EXT"]
+TABLES = ["ALU", "LOAD", "STORE", "LD", "SD", "SHIFT", "MUL", "MULH", "DIV", "HASH", "EXT"]
 NEW_WORDS = {"CLMUL": 34, "GF192": 170}
 OPS = ["Emul", "ExK", "Esq", "Kmul", "Ksq"]
 # Cycles, rows per table (net of the loop) per operation. `sw` is `prim` runs of this guest. `clmul` and `gf192` were priced with
@@ -24,20 +24,20 @@ OPS = ["Emul", "ExK", "Esq", "Kmul", "Ksq"]
 # estimates. Ksq is estimated as a third of Esq (software) or a Kmul (Zbc).
 COST = {
     "sw": {
-        "Emul": (1240, {"ALU": 674, "LOAD": 115, "STORE": 100, "SHIFT": 63, "MUL": 288}),
-        "ExK": (630, {"ALU": 341, "LOAD": 56, "STORE": 50, "SHIFT": 39, "MUL": 144}),
-        "Esq": (140, {"ALU": 82, "LOAD": 8, "STORE": 2, "SHIFT": 48}),
-        "Kmul": (206, {"ALU": 112, "LOAD": 17, "STORE": 16, "SHIFT": 13, "MUL": 48}),
-        "Ksq": (47, {"ALU": 27, "LOAD": 3, "STORE": 1, "SHIFT": 16}),
+        "Emul": (1244, {"ALU": 675, "LD": 117, "SD": 101, "SHIFT": 63, "MUL": 288}),
+        "ExK": (635, {"ALU": 345, "LD": 57, "SD": 50, "SHIFT": 39, "MUL": 144}),
+        "Esq": (147, {"ALU": 87, "LD": 10, "SD": 2, "SHIFT": 48}),
+        "Kmul": (209, {"ALU": 113, "LD": 19, "SD": 16, "SHIFT": 13, "MUL": 48}),
+        "Ksq": (49, {"ALU": 29, "LD": 3, "SD": 1, "SHIFT": 16}),
     },
     "clmul": {
-        "Emul": (76, {"ALU": 39, "LOAD": 5, "STORE": 2, "SHIFT": 18, "CLMUL": 12}),
-        "ExK": (51, {"ALU": 23, "LOAD": 2, "STORE": 2, "SHIFT": 18, "CLMUL": 6}),
-        "Esq": (52, {"ALU": 24, "LOAD": 2, "STORE": 2, "SHIFT": 18, "CLMUL": 6}),
+        "Emul": (76, {"ALU": 39, "LD": 5, "SD": 2, "SHIFT": 18, "CLMUL": 12}),
+        "ExK": (51, {"ALU": 23, "LD": 2, "SD": 2, "SHIFT": 18, "CLMUL": 6}),
+        "Esq": (52, {"ALU": 24, "LD": 2, "SD": 2, "SHIFT": 18, "CLMUL": 6}),
         "Kmul": (15, {"ALU": 7, "SHIFT": 6, "CLMUL": 2}),
         "Ksq": (15, {"ALU": 7, "SHIFT": 6, "CLMUL": 2}),
     },
-    "gf192": {op: (14, {"LOAD": 5, "STORE": 8, "GF192": 1}) for op in OPS},
+    "gf192": {op: (14, {"LD": 5, "SD": 8, "GF192": 1}) for op in OPS},
 }
 LIMIT = 1 << 28
 

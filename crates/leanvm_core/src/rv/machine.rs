@@ -121,9 +121,14 @@ impl<'a> Machine<'a> {
 
         // Resolve every address before writing anything, so a trap leaves no trace.
         let cell = match entry.class {
-            Class::Load | Class::Store => {
+            Class::Load | Class::Store | Class::Ld | Class::Sd => {
                 let address = WordAccess::address(v1, entry.imm);
-                Some(self.cell(pc, address, entry.flags & Load::LOG_WIDTH)?)
+                // A double word's width is its class's, a narrower access's its flags'.
+                let log_width = match entry.class {
+                    Class::Ld | Class::Sd => 3,
+                    _ => entry.flags & Load::LOG_WIDTH,
+                };
+                Some(self.cell(pc, address, log_width)?)
             }
             _ => None,
         };
@@ -294,7 +299,7 @@ impl<'a> Machine<'a> {
     /// They make no write at all, so their tables have none to prove.
     const fn write_destination(&mut self, entry: &Entry, vd: u64) -> u64 {
         match entry.class {
-            Class::Store | Class::Hash | Class::Ext => 0,
+            Class::Store | Class::Sd | Class::Hash | Class::Ext => 0,
             _ => self.registers.replace(entry.ad, vd),
         }
     }
@@ -627,6 +632,26 @@ mod tests {
                 address: Region::RAM.base() + 2
             })
         );
+
+        // Misaligned double words, at offsets a word would allow and at ones it would not.
+        for offset in [4, 1] {
+            let load = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base()).load(Ld, Reg::A0, offset, Reg::T0);
+            });
+            let store = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base()).store(Sd, Reg::A0, offset, Reg::T0);
+            });
+            for text in [load, store] {
+                assert_eq!(
+                    run(&text, vec![]),
+                    Err(Trap::Misaligned {
+                        pc,
+                        address: Region::RAM.base() + offset as u64
+                    }),
+                    "offset {offset}"
+                );
+            }
+        }
         assert_eq!(
             run(&below, vec![]),
             Err(Trap::Unmapped {

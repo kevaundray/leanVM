@@ -8,8 +8,9 @@
 //! VIRTUAL column here: it lives in the circuit's packed witness
 //! ([`crate::class_flock`]) and rides the bus from there, in the register and RAM
 //! tuples and the bytecode tuple, which is all that binds the circuit to the machine.
-//! What a row commits of its own is the rest of its bytecode entry and the old value of
-//! what it writes. What orders its accesses in time (§sec:memchan) is a second circuit,
+//! What a row commits of its own is the rest of its bytecode entry, the old value of
+//! what it writes, and the value a doubleword load or store moves ([`ClassSpec::copies`]).
+//! What orders its accesses in time (§sec:memchan) is a second circuit,
 //! its clock circuit, whose words are virtual columns too: the row's clock, each
 //! access's previous timestamp, and the bits the row flips in its clock.
 
@@ -390,7 +391,7 @@ pub struct ClassSpec {
     pub name: &'static str,
     /// Branches and jumps: the bytecode's `dt`, `link` and `jalr` fields, and the
     /// circuit's `taken` word. Without them the next `pc` is `pc + 4` and `rd`
-    /// receives `out`.
+    /// receives `out`, or the cell of a doubleword load ([`Self::copies`]).
     pub control: bool,
     /// Whether the row reads `rs2`, in clock slot 1.
     /// A load decodes with `x0` there, and its circuit takes no `v2`.
@@ -405,6 +406,10 @@ pub struct ClassSpec {
     /// The read writes the register back as it found it.
     pub reads_rd: bool,
     pub ram: Ram,
+    /// A doubleword load or store: the row moves a word between a register and its cell unchanged, so the word is a column of its own rather than a circuit word.
+    ///
+    /// A load's `rd` receives its `cell`, and a store's cell receives its `v2`; the circuit gives the address alone.
+    pub copies: bool,
     /// One instance's witness by word arithmetic, when the class has it.
     ///
     /// It writes what the walk of the circuit's gate list would, which a test pins.
@@ -485,6 +490,7 @@ pub static ALU: ClassSpec = ClassSpec {
     writes_rd: true,
     reads_rd: false,
     ram: Ram::None,
+    copies: false,
     witness: None,
     batch_witness: None,
     k_log: 10,
@@ -500,6 +506,7 @@ pub static LOAD: ClassSpec = ClassSpec {
     writes_rd: true,
     reads_rd: false,
     ram: Ram::Read,
+    copies: false,
     witness: None,
     batch_witness: None,
     k_log: 10,
@@ -522,6 +529,7 @@ pub static STORE: ClassSpec = ClassSpec {
     writes_rd: false,
     reads_rd: false,
     ram: Ram::Write,
+    copies: false,
     witness: None,
     batch_witness: None,
     k_log: 10,
@@ -537,6 +545,40 @@ pub static STORE: ClassSpec = ClassSpec {
     n_inputs: 5,
     clock_k_log: 9,
 };
+/// `ld`: the cell at `v1 + imm` is what `rd` receives.
+pub static LD: ClassSpec = ClassSpec {
+    class: Class::Ld,
+    name: "LD",
+    control: false,
+    reads_rs2: false,
+    writes_rd: true,
+    reads_rd: false,
+    ram: Ram::Read,
+    copies: true,
+    witness: None,
+    batch_witness: None,
+    k_log: 8,
+    ports: &[Word::V1, Word::Imm, Word::Address],
+    n_inputs: 2,
+    clock_k_log: 9,
+};
+/// `sd`: `v2` is what the cell at `v1 + imm` receives.
+pub static SD: ClassSpec = ClassSpec {
+    class: Class::Sd,
+    name: "SD",
+    control: false,
+    reads_rs2: true,
+    writes_rd: false,
+    reads_rd: false,
+    ram: Ram::Write,
+    copies: true,
+    witness: None,
+    batch_witness: None,
+    k_log: 8,
+    ports: &[Word::V1, Word::Imm, Word::Address],
+    n_inputs: 2,
+    clock_k_log: 9,
+};
 
 pub static SHIFT: ClassSpec = ClassSpec {
     class: Class::Shift,
@@ -546,6 +588,7 @@ pub static SHIFT: ClassSpec = ClassSpec {
     writes_rd: true,
     reads_rd: false,
     ram: Ram::None,
+    copies: false,
     witness: None,
     batch_witness: None,
     k_log: 10,
@@ -561,6 +604,7 @@ pub static MUL: ClassSpec = ClassSpec {
     writes_rd: true,
     reads_rd: false,
     ram: Ram::None,
+    copies: false,
     witness: None,
     batch_witness: if cfg!(all(target_arch = "x86_64", target_feature = "avx2")) {
         Some(rv::Mul::witness_batch)
@@ -580,6 +624,7 @@ pub static MULH: ClassSpec = ClassSpec {
     writes_rd: true,
     reads_rd: false,
     ram: Ram::None,
+    copies: false,
     witness: Some(rv::Mulh::witness),
     batch_witness: None,
     k_log: 13,
@@ -596,6 +641,7 @@ pub static DIV: ClassSpec = ClassSpec {
     writes_rd: true,
     reads_rd: false,
     ram: Ram::None,
+    copies: false,
     witness: None,
     batch_witness: None,
     k_log: 13,
@@ -622,6 +668,7 @@ pub static HASH: ClassSpec = ClassSpec {
     writes_rd: false,
     reads_rd: false,
     ram: Ram::Block,
+    copies: false,
     witness: Some(rv::circuits::blake2s_witness),
     batch_witness: None,
     k_log: 14,
@@ -662,6 +709,7 @@ pub static EXT: ClassSpec = ClassSpec {
     writes_rd: false,
     reads_rd: true,
     ram: Ram::Limbs,
+    copies: false,
     witness: None,
     batch_witness: None,
     k_log: 13,
@@ -696,8 +744,8 @@ pub static EXT: ClassSpec = ClassSpec {
 
 /// The tables, in the order of `row_counts` / `taus` throughout `cpu`. Table `t`'s
 /// class tag in the bytecode is `g^t`.
-pub const N_TABLES: usize = 9;
-pub static CLASSES: [&ClassSpec; N_TABLES] = [&ALU, &LOAD, &STORE, &SHIFT, &MUL, &MULH, &DIV, &HASH, &EXT];
+pub const N_TABLES: usize = 11;
+pub static CLASSES: [&ClassSpec; N_TABLES] = [&ALU, &LOAD, &STORE, &LD, &SD, &SHIFT, &MUL, &MULH, &DIV, &HASH, &EXT];
 
 /// The table running `class`, if it has one yet.
 pub fn table_of(class: Class) -> Option<usize> {
@@ -731,7 +779,7 @@ struct PointerCols {
     vd: usize,
 }
 
-/// The register write's columns: the cell written, what it held, and the class's result.
+/// The register write's columns: the cell written, what it held, and what it receives: the class's result, or a load's cell ([`ClassSpec::copies`]).
 #[derive(Clone, Copy)]
 struct RdCols {
     ad: usize,
@@ -751,7 +799,7 @@ struct ControlCols {
 }
 
 /// A load's or a store's columns: the bus address, the cell as the row found it, and
-/// what the row leaves there, which for a load is the cell itself.
+/// what the row leaves there, which for a load is the cell itself and for a doubleword store `v2` ([`ClassSpec::copies`]).
 #[derive(Clone, Copy)]
 struct RamCols {
     address: usize,
@@ -803,7 +851,7 @@ impl BlockCols {
     }
 }
 
-/// A class table's local columns: `pc, ts, a1, pc4, v1, flags`, then the optional groups.
+/// A class table's local columns: `pc, ts, a1, pc4, v1`, then the optional groups.
 ///
 /// The groups are in the order of the fields below, then come the accesses' previous timestamps and the clock's step.
 #[derive(Clone, Copy)]
@@ -814,7 +862,8 @@ struct Cols {
     a1: usize,
     pc4: usize,
     v1: usize,
-    flags: usize,
+    /// The flags, which a doubleword load or store has not.
+    flags: Option<usize>,
     rs2: Option<Rs2Cols>,
     rd: Option<RdCols>,
     pointer: Option<PointerCols>,
@@ -837,16 +886,16 @@ impl Cols {
             next += n;
             next - n
         };
-        let (pc, ts, a1, pc4, v1, flags) = (take(1), take(1), take(1), take(1), take(1), take(1));
+        let (pc, ts, a1, pc4, v1) = (take(1), take(1), take(1), take(1), take(1));
+        let flags = spec.ports.contains(&Word::Flags).then(|| take(1));
         let rs2 = spec.reads_rs2.then(|| Rs2Cols {
             a2: take(1),
             v2: take(1),
         });
-        let rd = spec.writes_rd.then(|| RdCols {
-            ad: take(1),
-            vd_old: take(1),
-            out: take(1),
-        });
+        // A doubleword load's `rd` receives its cell, which is a column further on.
+        let rd = spec
+            .writes_rd
+            .then(|| (take(1), take(1), (!spec.copies).then(|| take(1))));
         let pointer = spec.reads_rd.then(|| PointerCols {
             ad: take(1),
             vd: take(1),
@@ -863,7 +912,11 @@ impl Cols {
             Ram::None | Ram::Limbs => (None, None),
             Ram::Read | Ram::Write => {
                 let (address, cell) = (take(1), take(1));
-                let new = if spec.ram == Ram::Write { take(1) } else { cell };
+                let new = match (spec.ram, rs2) {
+                    (Ram::Read, _) => cell,
+                    (Ram::Write, Some(rs2)) if spec.copies => rs2.v2,
+                    _ => take(1),
+                };
                 (Some(RamCols { address, cell, new }), None)
             }
             Ram::Block => {
@@ -871,6 +924,11 @@ impl Cols {
                 (None, Some(BlockCols { words, out: take(4) }))
             }
         };
+        let rd = rd.map(|(ad, vd_old, out)| RdCols {
+            ad,
+            vd_old,
+            out: out.unwrap_or_else(|| ram.expect("a doubleword load reads a cell").cell),
+        });
         let limbs = (spec.ram == Ram::Limbs).then(|| LimbCols {
             limbs: take(Ext::LIMBS),
             new: take(3),
@@ -907,7 +965,7 @@ impl Cols {
             Word::Clock => self.ts,
             Word::Prev(i) => self.prev + i as usize,
             Word::Step => self.step,
-            Word::Flags => self.flags,
+            Word::Flags => self.flags.unwrap_or_else(missing),
             Word::Imm => self.imm.unwrap_or_else(missing),
             Word::V1 => self.v1,
             Word::V2 => self.rs2.map_or_else(missing, |r| r.v2),
@@ -955,15 +1013,15 @@ impl ClassTable {
     fn new(index: usize) -> Self {
         let spec = CLASSES[index];
         let cols = Cols::new(spec);
-        // Invariant: a register access exists exactly when its value is a circuit word.
+        // Invariant: a register access exists exactly when its value is a circuit word, or a column a doubleword load or store moves.
         assert_eq!(
-            spec.reads_rs2,
+            spec.reads_rs2 && !spec.copies,
             spec.ports.contains(&Word::V2),
             "{}: rs2 read",
             spec.name
         );
         assert_eq!(
-            spec.writes_rd,
+            spec.writes_rd && !spec.copies,
             spec.ports.contains(&Word::Out),
             "{}: rd write",
             spec.name
@@ -979,6 +1037,20 @@ impl ClassTable {
             "{}: rd is read or written, not both",
             spec.name
         );
+        // A doubleword load moves its cell to `rd`, a doubleword store `v2` to its cell, and its circuit gives the address alone.
+        if spec.copies {
+            let moves = match spec.ram {
+                Ram::Read => spec.writes_rd && !spec.reads_rs2,
+                Ram::Write => spec.reads_rs2 && !spec.writes_rd,
+                Ram::None | Ram::Block | Ram::Limbs => false,
+            };
+            let ports = [Word::V1, Word::Imm, Word::Address];
+            assert!(
+                moves && !spec.control && !spec.reads_rd && spec.ports == ports,
+                "{}: a copy",
+                spec.name
+            );
+        }
         Self {
             index,
             spec,
@@ -1030,13 +1102,13 @@ impl ClassTable {
             Coord::Sum(vec![Prod(k.exit, c.ts), Prod(k.exit, c.step)])
         });
         f.state(c.pc, c.ts, c.step, npc, exit);
-        // A row without an `rs2` read, an `rd` write or an immediate reads its constant off the entry.
-        // Those constants are `x0`, the sink, and zero.
+        // A row without flags, an `rs2` read, an `rd` write or an immediate reads its constant off the entry.
+        // Those constants are zero, `x0`, the sink, and zero.
         let mut entry = vec![
             Const(SEP_BYTECODE),
             Col(c.pc),
             Const(g_pow(self.index)),
-            Col(c.flags),
+            c.flags.map_or(Const(F64::ZERO), Col),
             Col(c.a1),
             c.rs2.map_or(Const(F64::ZERO), |r| Col(r.a2)),
             match (c.rd, c.pointer) {
@@ -1073,7 +1145,9 @@ impl ClassTable {
             access(&mut f, Const(SEP_REG), Col(p.ad), Col(p.vd), Col(p.vd));
         }
         // The cell a load or a store names is the circuit's word, so an access outside
-        // RAM, or a misaligned one, pulls a tuple nothing pushed.
+        // RAM, or a misaligned one, pulls a tuple nothing pushed. A doubleword load's
+        // cell is the column its `rd` write pushes, and a doubleword store's new cell the
+        // column its `rs2` read pulls, so the value moved is the one bound on both sides.
         if let Some(ram) = c.ram {
             access(&mut f, Const(SEP_MEM), Col(ram.address), Col(ram.cell), Col(ram.new));
         }
@@ -1114,25 +1188,31 @@ impl ClassTable {
         let p = ctx.program;
         let entry = move |r: &Row| &p.entries()[r.index as usize];
         ctx.cols(out, rows, c.pc, move |r| {
-            let (e, pc) = (entry(r), p.pc_of(r.index as usize));
+            let pc = p.pc_of(r.index as usize);
             [
                 F64(pc),
                 F64(r.ts),
-                F64(e.a1 as u64),
+                F64(entry(r).a1 as u64),
                 F64(pc.wrapping_add(4)),
                 F64(r.v1),
-                F64(e.flags),
             ]
         });
+        if let Some(flags) = c.flags {
+            ctx.col(out, rows, flags, move |r| F64(entry(r).flags));
+        }
         if let Some(rs2) = c.rs2 {
             ctx.cols_at(out, rows, [rs2.a2, rs2.v2], move |r| {
                 [F64(entry(r).a2 as u64), F64(r.v2)]
             });
         }
         if let Some(rd) = c.rd {
-            ctx.cols_at(out, rows, [rd.ad, rd.vd_old, rd.out], move |r| {
-                [F64(entry(r).ad as u64), F64(r.vd_old), F64(r.out)]
+            ctx.cols_at(out, rows, [rd.ad, rd.vd_old], move |r| {
+                [F64(entry(r).ad as u64), F64(r.vd_old)]
             });
+            // A doubleword load's result is its cell's column, written with the cell.
+            if c.ram.is_none_or(|ram| ram.cell != rd.out) {
+                ctx.col(out, rows, rd.out, move |r| F64(r.out));
+            }
         }
         if let Some(p) = c.pointer {
             ctx.cols_at(out, rows, [p.ad, p.vd], move |r| {
@@ -1158,7 +1238,8 @@ impl ClassTable {
             ctx.cols_at(out, rows, [ram.address, ram.cell], move |r| {
                 [F64(r.ram.address), F64(r.ram.old)]
             });
-            if ram.new != ram.cell {
+            // A load leaves its cell, and a doubleword store's new cell is its `v2` column.
+            if ram.new != ram.cell && c.rs2.is_none_or(|rs2| rs2.v2 != ram.new) {
                 ctx.col(out, rows, ram.new, move |r| F64(r.ram.new));
             }
         }

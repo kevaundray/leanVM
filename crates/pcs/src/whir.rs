@@ -52,9 +52,7 @@ pub use crate::whir_induce::*;
 pub use commit::{Commitment, ProverData, commit};
 pub use prove::recursive_prover_with_basis;
 pub(crate) use prove::recursive_prover_with_prepared_basis;
-#[cfg(test)]
-pub(crate) use sumcheck::build_initial_basis;
-pub(crate) use sumcheck::{Basis, INITIAL_BASIS_CHUNK, initial_message};
+pub(crate) use sumcheck::{Basis, INITIAL_BASIS_CHUNK, initial_rounds};
 pub use verify::{VerifyError, recursive_verifier_with_basis_succinct};
 
 /// Mixed inner product `Σ_i b[i] · witness[i]` (E x K via `mul_base`). The

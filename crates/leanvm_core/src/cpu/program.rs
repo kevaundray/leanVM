@@ -37,7 +37,7 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-5";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-6";
 
     /// The program of a guest's ELF executable.
     ///
@@ -746,30 +746,48 @@ mod tests {
         }
     }
 
+    /// The two families of loads and stores: the doubleword ones, whose value is a column, and the narrower ones, whose
+    /// value is a circuit word. Each as `(store, load, their classes)`.
+    const STORE_LOAD: [(StoreOp, LoadOp, [rv::Class; 2]); 2] = [
+        (Sd, Ld, [rv::Class::Sd, rv::Class::Ld]),
+        (Sw, Lw, [rv::Class::Store, rv::Class::Load]),
+    ];
+
+    /// `t1 = 5` stored in RAM's fifth word then loaded into `a0`, run honestly, and its store's and load's tables.
+    fn store_then_load(store: StoreOp, load: LoadOp, classes: [rv::Class; 2]) -> (Program, Execution, [usize; 2]) {
+        let text = Asm::new()
+            .li(Reg::T0, Region::RAM.base() + 32)
+            .i(Addi, Reg::T1, Reg::ZERO, 5)
+            .store(store, Reg::T1, 0, Reg::T0)
+            .load(load, Reg::A0, 0, Reg::T0)
+            .exit()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 3, 0).expect("valid instruction program");
+        let run = program.execute(&[]).unwrap();
+        assert_eq!(run.output, [5, 0, 0, 0]);
+        (program, run, classes.map(|c| tables::table_of(c).unwrap()))
+    }
+
+    /// The first row of the run among `rows`, past the padding rows at clock zero.
+    fn real(rows: &mut [Row]) -> &mut Row {
+        rows.iter_mut().find(|r| r.ts != 0).unwrap()
+    }
+
     /// A load cannot return what its cell does not hold. The forged run is consistent
     /// everywhere else (the circuit's instance, the register written, the output), so
     /// what is left unmatched is RAM's: the load pulls a tuple no store pushed.
     #[test]
     fn a_forged_load_unbalances_the_bus() {
-        let text = Asm::new()
-            .li(Reg::T0, Region::RAM.base() + 32)
-            .i(Addi, Reg::T1, Reg::ZERO, 5)
-            .store(Sd, Reg::T1, 0, Reg::T0)
-            .load(Ld, Reg::A0, 0, Reg::T0)
-            .exit()
-            .finish();
-        let program = Program::new(&text, Region::TEXT.base(), vec![], 3, 0).expect("valid instruction program");
-        let mut forged = program.execute(&[]).unwrap();
-        assert_eq!(forged.output, [5, 0, 0, 0]);
-        let load = tables::table_of(rv::Class::Load).unwrap();
-        let row = forged.trace.rows[load].iter_mut().find(|r| r.ts != 0).unwrap();
-        (row.ram.old, row.ram.new, row.out) = (7, 7, 7);
-        forged.trace.reg_fin[Reg::A0.index()] = F64(7);
-        forged.trace.ram_fin[4] = F64(7);
-        let w = Witness::build(&program, &forged);
-        let unmatched = unmatched(&w);
-        // The load's pull and the store's push, which it should have met.
-        assert_eq!(unmatched.len(), 2, "{unmatched:?}");
+        for (store, load, classes) in STORE_LOAD {
+            let (program, mut forged, [_, table]) = store_then_load(store, load, classes);
+            let row = real(&mut forged.trace.rows[table]);
+            (row.ram.old, row.ram.new, row.out) = (7, 7, 7);
+            forged.trace.reg_fin[Reg::A0.index()] = F64(7);
+            forged.trace.ram_fin[4] = F64(7);
+            let unmatched = unmatched_run(&program, &forged);
+            // The load's pull and the store's push, which it should have met.
+            assert_eq!(unmatched.len(), 2, "{}: {unmatched:?}", load.mnemonic());
+        }
     }
 
     #[test]
@@ -815,30 +833,82 @@ mod tests {
         // Fixture state: `t1 = 5` is stored in RAM's fifth word, then loaded into `a0`.
         // Mutation: the store writes 7, and the circuit's instance, the cell, the load and the output follow it.
         // So only the store's read of `t1` is left to refuse it.
-        let text = Asm::new()
-            .li(Reg::T0, Region::RAM.base() + 32)
-            .i(Addi, Reg::T1, Reg::ZERO, 5)
-            .store(Sd, Reg::T1, 0, Reg::T0)
-            .load(Ld, Reg::A0, 0, Reg::T0)
-            .exit()
-            .finish();
-        let program = Program::new(&text, Region::TEXT.base(), vec![], 3, 0).expect("valid instruction program");
-        let mut forged = program.execute(&[]).unwrap();
-        let tables = [rv::Class::Store, rv::Class::Load].map(|c| tables::table_of(c).unwrap());
-        let [store, load] = forged.trace.rows.get_disjoint_mut(tables).unwrap();
-        fn real(rows: &mut [Row]) -> &mut Row {
-            rows.iter_mut().find(|r| r.ts != 0).unwrap()
+        for (store, load, classes) in STORE_LOAD {
+            let (program, mut forged, tables) = store_then_load(store, load, classes);
+            let [store_rows, load_rows] = forged.trace.rows.get_disjoint_mut(tables).unwrap();
+            let (store_row, load_row) = (real(store_rows), real(load_rows));
+            (store_row.v2, store_row.ram.new) = (7, 7);
+            (load_row.ram.old, load_row.ram.new, load_row.out) = (7, 7, 7);
+            forged.trace.reg_fin[Reg::A0.index()] = F64(7);
+            forged.trace.ram_fin[4] = F64(7);
+            let unmatched = unmatched_run(&program, &forged);
+            // The read, pulled and pushed back as 7, meets neither `t1`'s write nor its final value.
+            // That leaves two tuples on each side.
+            assert_eq!(unmatched.len(), 4, "{}: {unmatched:?}", store.mnemonic());
         }
-        let (store, load) = (real(store), real(load));
-        (store.v2, store.ram.new) = (7, 7);
+    }
+
+    #[test]
+    fn a_doubleword_moves_its_value_unchanged() {
+        // Invariant: a doubleword load's `rd` receives the cell it reads, and a doubleword store's cell the `v2` it reads.
+        //
+        // Fixture state: `t1 = 5` is stored in RAM's fifth word by `sd`, then loaded into `a0` by `ld`.
+        // Mutation: the load gives `a0` 7 from a cell holding 5, or the store leaves 7 from a `t1` holding 5, what follows agreeing.
+        // Neither class has a column for the value it moves other than the one it reads, so the 5 is what it pushes.
+        let (program, honest, tables) = store_then_load(Sd, Ld, [rv::Class::Sd, rv::Class::Ld]);
+        let mut forged = program.execute(&[]).unwrap();
+        real(&mut forged.trace.rows[tables[1]]).out = 7;
+        forged.trace.reg_fin[Reg::A0.index()] = F64(7);
+        // The write's push of 5 and `a0`'s final 7.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 2, "ld: {unmatched:?}");
+
+        let mut forged = honest;
+        let [store, load] = forged.trace.rows.get_disjoint_mut(tables).unwrap();
+        real(store).ram.new = 7;
+        let load = real(load);
         (load.ram.old, load.ram.new, load.out) = (7, 7, 7);
         forged.trace.reg_fin[Reg::A0.index()] = F64(7);
         forged.trace.ram_fin[4] = F64(7);
-        let w = Witness::build(&program, &forged);
-        let unmatched = unmatched(&w);
-        // The read, pulled and pushed back as 7, meets neither `t1`'s write nor its final value.
-        // That leaves two tuples on each side.
-        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+        // The store's push of 5 and the load's pull of 7.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 2, "sd: {unmatched:?}");
+    }
+
+    #[test]
+    fn a_misaligned_doubleword_names_no_cell() {
+        // Invariant: a doubleword's bus address is its sum itself, so a misaligned `ld` or `sd` names no cell.
+        //
+        // Fixture state: `t0` is RAM's fifth word, then `ld a0, 0(t0)` or `sd t1, 0(t0)`, run honestly.
+        // Mutation: the program's access has immediate 1, which the interpreter refuses; the row is the honest one at the
+        // address its circuit computes, a byte past the cell, and the cell it should have touched keeps its seed.
+        let cell = Region::RAM.base() + 32;
+        for class in [rv::Class::Ld, rv::Class::Sd] {
+            let text = |offset| {
+                let mut a = Asm::new();
+                a.li(Reg::T0, cell).i(Addi, Reg::T1, Reg::ZERO, 5);
+                match class {
+                    rv::Class::Ld => a.load(Ld, Reg::A0, offset, Reg::T0),
+                    _ => a.store(Sd, Reg::T1, offset, Reg::T0),
+                };
+                a.exit().finish()
+            };
+            let program =
+                |offset| Program::new(&text(offset), Region::TEXT.base(), vec![], 3, 0).expect("valid program");
+            let misaligned = program(1);
+            assert!(matches!(
+                misaligned.execute(&[]),
+                Err(ProveError::Trap(rv::Trap::Misaligned { address, .. })) if address == cell + 1
+            ));
+            let mut forged = program(0).execute(&[]).unwrap();
+            let row = real(&mut forged.trace.rows[tables::table_of(class).unwrap()]);
+            row.ram.address = cell + 1;
+            (forged.trace.ram_fin[4], forged.trace.ram_ts[4]) = (F64::ZERO, F64(tables::SEED_CLOCK));
+            let w = Witness::build(&misaligned, &forged);
+            // The access's pull and push, at an address no cell has.
+            assert_eq!(unmatched(&w).len(), 2, "{class:?}: {:?}", unmatched(&w));
+            assert_unbalanced(&misaligned, w, &forged.output);
+        }
     }
 
     /// The point of the timestamps: a register written twice cannot be read as of its
@@ -965,11 +1035,12 @@ mod tests {
         //
         // Fixture state: the run sets `a0 = 42` and exits, never touching `a1`.
         // Past the exit sits `jal a1, 0`, a jump to itself, which the run never reaches.
-        // The no-op sizes ALU's fill so that it ends on the lone jump.
+        // The two no-ops size ALU's fill so that it ends on the lone jump.
         // Mutation: a padding instance of it takes the place of the fill's lone jump, its write pulling `a1`'s seed.
         // `a1`'s final value is what it pushes, so the output claims `a1 = pc + 4`.
         let text = Asm::new()
             .i(Addi, Reg::A0, Reg::ZERO, 42)
+            .i(Addi, Reg::ZERO, Reg::ZERO, 0)
             .i(Addi, Reg::ZERO, Reg::ZERO, 0)
             .exit()
             .label("spin")

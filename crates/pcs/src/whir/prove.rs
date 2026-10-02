@@ -8,7 +8,7 @@
 
 use super::commit::ligero_commit_ext;
 use super::sample_queries_ordered;
-use super::sumcheck::{Basis, SumcheckMessage, SumcheckProver, send_msg};
+use super::sumcheck::{Basis, InitialRounds, SumcheckProver, send_msg};
 use crate::merkle::Hash;
 use crate::ntt::AdditiveNttF64;
 use crate::whir_config::ProverConfig;
@@ -100,7 +100,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     target: F192,
     l0_codeword: &[F64],
     l0_tree: &[Hash],
-    initial_message: Option<SumcheckMessage>,
+    initial: Option<InitialRounds>,
     ps: &mut impl Transmitter,
 ) {
     let r = config.level_steps();
@@ -153,7 +153,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
 
     let sumcheck_span = tracing::info_span!("Sumcheck");
     let (mut sc_prover, start_msg) =
-        sumcheck_span.in_scope(|| SumcheckProver::new(witness, b_initial, target, lane_block, initial_message));
+        sumcheck_span.in_scope(|| SumcheckProver::new(witness, b_initial, target, lane_block, initial_k, initial));
     send_msg(ps, start_msg, target);
 
     let mut r_lane_fold = Vec::with_capacity(initial_k);

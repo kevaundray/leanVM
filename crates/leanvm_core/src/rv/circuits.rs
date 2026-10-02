@@ -51,16 +51,20 @@ pub(super) trait WordGadgets {
     /// `x` bit-reversed unless `right` is set; one product per bit.
     fn reverse_unless(&mut self, right: Wire, x: &[Wire]) -> Word;
 
-    /// The width thresholds, from the two bits of the width's logarithm: at least 2, at least 4, exactly 8.
-    fn width_thresholds(&mut self, log_width: &[Wire]) -> [Wire; 3];
-
-    /// The bus address: the address, its low three bits kept only where they misalign the access.
+    /// The width thresholds, from the two bits of the width's logarithm: at least 2, at least 4.
     ///
-    /// It is the reference's bus address, bit by bit.
-    fn bus_address(&mut self, address: &[Wire], thresholds: [Wire; 3]) -> Word;
+    /// A double word is LD's or SD's, so the two bits are never both set, and their OR is their XOR.
+    fn width_thresholds(&mut self, log_width: &[Wire]) -> [Wire; 2];
+
+    /// The bus address: the address, its low two bits kept only where they misalign the access.
+    ///
+    /// It is the reference's bus address, bit by bit. Bit 2 never misaligns, no width here reaching 8 bytes, so it is cleared.
+    fn bus_address(&mut self, address: &[Wire], thresholds: [Wire; 2]) -> Word;
 
     /// `x` shifted by `8 * amount` bits, left or right; `amount` has three bits.
-    fn shift_bytes(&mut self, x: &[Wire], amount: &[Wire], left: bool) -> Word;
+    ///
+    /// Only the low `bits` bits of the result are made, the ones the caller reads.
+    fn shift_bytes(&mut self, x: &[Wire], amount: &[Wire], left: bool, bits: usize) -> Word;
 }
 
 impl WordGadgets for Builder {
@@ -132,27 +136,21 @@ impl WordGadgets for Builder {
         (0..64).map(|i| self.mux(right, x[i], x[63 - i])).collect()
     }
 
-    fn width_thresholds(&mut self, log_width: &[Wire]) -> [Wire; 3] {
-        [
-            self.or(log_width[0], log_width[1]),
-            log_width[1],
-            self.and(log_width[0], log_width[1]),
-        ]
+    fn width_thresholds(&mut self, log_width: &[Wire]) -> [Wire; 2] {
+        [self.xor(log_width[0], log_width[1]), log_width[1]]
     }
 
-    fn bus_address(&mut self, address: &[Wire], thresholds: [Wire; 3]) -> Word {
+    fn bus_address(&mut self, address: &[Wire], thresholds: [Wire; 2]) -> Word {
         (0..64)
-            .map(|i| {
-                if i < 3 {
-                    self.and(address[i], thresholds[i])
-                } else {
-                    address[i]
-                }
+            .map(|i| match i {
+                0 | 1 => self.and(address[i], thresholds[i]),
+                2 => None,
+                _ => address[i],
             })
             .collect()
     }
 
-    fn shift_bytes(&mut self, x: &[Wire], amount: &[Wire], left: bool) -> Word {
+    fn shift_bytes(&mut self, x: &[Wire], amount: &[Wire], left: bool, bits: usize) -> Word {
         let mut x = x.to_vec();
         for (stage, &bit) in amount.iter().enumerate() {
             // Stage k moves by 8 * 2^k bits when bit k is set; a vacated bit is zero.
@@ -164,7 +162,8 @@ impl WordGadgets for Builder {
                     x.get(i + by).copied().flatten()
                 }
             };
-            x = (0..64).map(|i| self.mux(bit, from(&x, i), x[i])).collect();
+            let made = if stage + 1 == amount.len() { bits } else { 64 };
+            x = (0..made).map(|i| self.mux(bit, from(&x, i), x[i])).collect();
         }
         x
     }
@@ -178,11 +177,13 @@ mod tests {
     use proptest::test_runner::TestRunner;
 
     /// Every class with a circuit.
-    const CLASSES: [Class; 9] = [
+    const CLASSES: [Class; 11] = [
         Class::Alu,
         Class::Shift,
         Class::Load,
         Class::Store,
+        Class::Ld,
+        Class::Sd,
         Class::Mul,
         Class::Mulh,
         Class::Div,
@@ -194,7 +195,7 @@ mod tests {
     fn instance_sizes_are_pinned() {
         // The log of each instance's bits, which the tables fix before any circuit is built.
         let sizes = CLASSES.map(|class| class.circuit().k_log());
-        assert_eq!(sizes, [10, 10, 10, 10, 12, 13, 13, 14, 13]);
+        assert_eq!(sizes, [10, 10, 10, 10, 8, 8, 12, 13, 13, 14, 13]);
     }
 
     #[test]

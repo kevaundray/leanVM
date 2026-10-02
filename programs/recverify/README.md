@@ -37,7 +37,7 @@ target/release/recverify-host $ELF xmss 400 [core]   # leanXMSS over 400 signatu
 Two more subcommands:
 
 - `prim <op> <n>` runs `n` of one primitive in the guest instead of a verifier (the guest's `primitive`: 0 `F64` product, 1 `F192` product, 2 `F192` square, 3 `F192` times `F64`, 4 `F192` inverse, 5 the carry-less 64x64 product, 6 a BLAKE2s compression, anything else the loop alone). The cost of one is the difference of two runs over the difference of their `n`.
-- `words <log_ram> <log_advice> <rows of ALU LOAD STORE SHIFT MUL MULH DIV HASH EXT>` is the committed size a run of this guest with those executed rows would have, with RAM and the advice resized.
+- `words <log_ram> <log_advice> <rows of ALU LOAD STORE LD SD SHIFT MUL MULH DIV HASH EXT>` is the committed size a run of this guest with those executed rows would have, with RAM and the advice resized.
 
 ## Memory
 

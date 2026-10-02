@@ -9,7 +9,9 @@
 use super::circuits::ClassCircuit;
 use super::instruction::{ExtOp, ImmOp, Instruction, LoadOp, Opcode, RegOp, ShiftOp, StoreOp};
 use super::register::{Reg, RegisterFile};
-use super::semantics::{Alu, Div, Ext, Hash, InstructionClass, Load, Mul, Mulh, Outcome, Shift, Store, WordAccess};
+use super::semantics::{
+    Alu, Div, Ext, Hash, InstructionClass, Ld, Load, Mul, Mulh, Outcome, Sd, Shift, Store, WordAccess,
+};
 use flock::circuit::Circuit;
 
 /// An instruction class: one table, one circuit.
@@ -19,10 +21,14 @@ pub enum Class {
     Alu,
     /// Logical and arithmetic shifts.
     Shift,
-    /// A byte, half word, word or double word read from memory.
+    /// A byte, half word or word read from memory.
     Load,
-    /// A byte, half word, word or double word written to memory.
+    /// A byte, half word or word written to memory.
     Store,
+    /// `ld`: a double word moved from its cell to a register, with no byte to select.
+    Ld,
+    /// `sd`: a double word moved from a register to its cell, with no byte to select.
+    Sd,
     /// The low word of a product.
     Mul,
     /// The high word of a product.
@@ -49,6 +55,8 @@ impl Class {
             Self::Shift => Shift::LEGAL,
             Self::Load => Load::LEGAL,
             Self::Store => Store::LEGAL,
+            Self::Ld => Ld::LEGAL,
+            Self::Sd => Sd::LEGAL,
             Self::Mul => Mul::LEGAL,
             Self::Mulh => Mulh::LEGAL,
             Self::Div => Div::LEGAL,
@@ -72,6 +80,8 @@ impl Class {
             Self::Shift => ShiftOp::Slli.encode(zero, zero, 0),
             Self::Load => LoadOp::Lb.encode(zero, zero, 0),
             Self::Store => StoreOp::Sb.encode(zero, zero, 0),
+            Self::Ld => LoadOp::Ld.encode(zero, zero, 0),
+            Self::Sd => StoreOp::Sd.encode(zero, zero, 0),
             Self::Mul => RegOp::Mul.encode(zero, zero, zero),
             Self::Mulh => RegOp::Mulhu.encode(zero, zero, zero),
             Self::Div => RegOp::Divu.encode(zero, zero, zero),
@@ -92,6 +102,8 @@ impl Class {
             Self::Shift => Shift::circuit(),
             Self::Load => Load::circuit(),
             Self::Store => Store::circuit(),
+            Self::Ld => Ld::circuit(),
+            Self::Sd => Sd::circuit(),
             Self::Mul => Mul::circuit(),
             Self::Mulh => Mulh::circuit(),
             Self::Div => Div::circuit(),
@@ -218,6 +230,26 @@ impl Entry {
                 };
                 (0, false, Some(access))
             }
+            // A double word's value is its cell, unchanged.
+            Class::Ld => {
+                let (address, value) = Ld { v1, imm, cell }.eval();
+                let access = WordAccess {
+                    address,
+                    old: cell,
+                    new: cell,
+                };
+                (value, false, Some(access))
+            }
+            // A double word's store leaves `v2` itself in its cell.
+            Class::Sd => {
+                let (address, new) = Sd { v1, v2, imm }.eval();
+                let access = WordAccess {
+                    address,
+                    old: cell,
+                    new,
+                };
+                (0, false, Some(access))
+            }
             Class::Hash | Class::Ext | Class::Illegal => (0, false, None),
         };
         Outcome { out, taken, access }
@@ -267,11 +299,13 @@ impl Entry {
                 ..Self::sequential(Class::Alu, flags, rs1, rs2, 0, 0)
             }),
 
-            // Loads: the width and the extension.
+            // Loads: the width and the extension. A double word is LD's, which has no flags.
+            Opcode::Load if f3 == 3 => imm(Class::Ld, 0, ins.imm_i()),
             Opcode::Load => Load::flags_of(f3).map_or(Self::ILLEGAL, |flags| imm(Class::Load, flags, ins.imm_i())),
 
-            // Stores: the width, from 1 to 8 bytes.
-            Opcode::Store if f3 <= 3 => Self::sequential(Class::Store, f3 as u64, rs1, rs2, 0, ins.imm_s()),
+            // Stores: the width, from 1 to 4 bytes. A double word is SD's, which has no flags.
+            Opcode::Store if f3 < 3 => Self::sequential(Class::Store, f3 as u64, rs1, rs2, 0, ins.imm_s()),
+            Opcode::Store if f3 == 3 => Self::sequential(Class::Sd, 0, rs1, rs2, 0, ins.imm_s()),
 
             // Register-immediate arithmetic.
             Opcode::OpImm => match f3 {
@@ -443,10 +477,12 @@ impl Entry {
     /// - A store writes no `rd`, so its destination is the sink.
     /// - A hash writes no `rd` and has no immediate.
     /// - An extension-field product reads `rd` as an address, so it names a register, and has no immediate.
+    ///
+    /// That a doubleword load or store has no flags is its legal flag word, zero.
     const fn has_table_constants(&self) -> bool {
         match self.class {
-            Class::Load => self.a2 == 0,
-            Class::Store => self.ad == RegisterFile::SINK,
+            Class::Load | Class::Ld => self.a2 == 0,
+            Class::Store | Class::Sd => self.ad == RegisterFile::SINK,
             Class::Hash => self.ad == RegisterFile::SINK && self.imm == 0,
             Class::Ext => self.ad < RegisterFile::SINK && self.imm == 0,
             _ => true,
@@ -489,16 +525,25 @@ mod tests {
 
     #[test]
     fn a_skipped_register_access_names_its_constant() {
-        // Invariant: a load's rs2 is x0, and a store's rd is the sink.
+        // Invariant: a load's rs2 is x0, a store's rd is the sink, and a double word's flags are zero.
         //
-        // Fixture: `ld a0, 0(a1)` and `sd a0, 0(a1)`.
-        let (load, store) = (Entry::decode(0x0005_b503, 0), Entry::decode(0x00a5_b023, 0));
-        assert_eq!((load.class, store.class), (Class::Load, Class::Store));
-        assert!(load.is_well_formed() && store.is_well_formed());
+        // Fixture: `ld`, `sd`, `lw` and `sw` of `a0` at `0(a1)`.
+        for (load, store, classes) in [
+            (0x0005_b503, 0x00a5_b023, (Class::Ld, Class::Sd)),
+            (0x0005_a503, 0x00a5_a023, (Class::Load, Class::Store)),
+        ] {
+            let (load, store) = (Entry::decode(load, 0), Entry::decode(store, 0));
+            assert_eq!((load.class, store.class), classes);
+            assert!(load.is_well_formed() && store.is_well_formed());
 
-        // Mutation: the load reads x1 as rs2, the store writes x1.
-        assert!(!Entry { a2: 1, ..load }.is_well_formed());
-        assert!(!Entry { ad: 1, ..store }.is_well_formed());
+            // Mutation: the load reads x1 as rs2, the store writes x1, the double words carry a width.
+            assert!(!Entry { a2: 1, ..load }.is_well_formed());
+            assert!(!Entry { ad: 1, ..store }.is_well_formed());
+            if classes.0 == Class::Ld {
+                assert!(!Entry { flags: 3, ..load }.is_well_formed());
+                assert!(!Entry { flags: 3, ..store }.is_well_formed());
+            }
+        }
     }
 
     #[test]
@@ -591,6 +636,8 @@ mod tests {
             Class::Shift,
             Class::Load,
             Class::Store,
+            Class::Ld,
+            Class::Sd,
             Class::Mul,
             Class::Mulh,
             Class::Div,
@@ -688,9 +735,13 @@ mod tests {
         #[test]
         fn memory_operations_decode_to_their_width(load in proptest::sample::select(&LoadOp::ALL[..]), store in proptest::sample::select(&StoreOp::ALL[..]), offset in -2048i32..2048, rs1 in any::<Reg>(), rs2 in any::<Reg>()) {
             // The width in the flags is the operation's, and the offset is the immediate.
+            //
+            // A double word is LD's or SD's, which have no flags.
             let (l, s) = (Entry::decode(load.encode(rs2, rs1, offset).bits(), 0), Entry::decode(store.encode(rs2, rs1, offset).bits(), 0));
-            prop_assert_eq!((l.class, l.flags & Load::LOG_WIDTH, l.imm), (Class::Load, load.log_width() as u64, offset as i64 as u64));
-            prop_assert_eq!((s.class, s.flags, s.imm), (Class::Store, store.log_width() as u64, offset as i64 as u64));
+            let load_shape = if load.log_width() == 3 { (Class::Ld, 0) } else { (Class::Load, load.log_width() as u64) };
+            let store_shape = if store.log_width() == 3 { (Class::Sd, 0) } else { (Class::Store, store.log_width() as u64) };
+            prop_assert_eq!((l.class, l.flags & Load::LOG_WIDTH, l.imm), (load_shape.0, load_shape.1, offset as i64 as u64));
+            prop_assert_eq!((s.class, s.flags, s.imm), (store_shape.0, store_shape.1, offset as i64 as u64));
         }
 
         #[test]

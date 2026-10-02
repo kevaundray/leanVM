@@ -294,14 +294,21 @@ pub fn open_batch_mixed_whir_stacked(
 
     // The lifted weight is never stored.
     //
-    //     round 0:       each chunk is filled, then feeds the message while hot
-    //     lane round 1:  each chunk is filled again, then folded
+    //     first pass:  each chunk is filled, then feeds the first lane rounds' sums while hot
+    //     first fold:  each chunk is filled again, then folded by those rounds' challenges
     //
     // Filling costs less than writing the weight out and reading it back.
     let lane_block = 1usize << (log_n - config.initial_k());
     let weight = basis::StackWeight::new(stack.len(), lane_block, point_claims, lambdas_pd, rings, &rs_outputs);
     let fill = |start: usize, dst: &mut [F192]| weight.fill(start, dst);
-    let message = tracing::info_span!("Basis").in_scope(|| super::whir::initial_message(stack, lane_block, &fill));
+    let initial = tracing::info_span!("Basis").in_scope(|| {
+        super::whir::initial_rounds(
+            stack,
+            lane_block,
+            config.initial_k(),
+            &super::whir::Basis::Virtual(&fill),
+        )
+    });
 
     // 4. One WHIR over the full stack against the combined claim (the
     //    stack is borrowed by the prover; no copy).
@@ -313,7 +320,7 @@ pub fn open_batch_mixed_whir_stacked(
         target,
         &prover_data.codeword,
         &prover_data.merkle_tree,
-        Some(message),
+        Some(initial),
         ps,
     );
 }
@@ -506,12 +513,6 @@ mod tests {
                 weight.fill(i * chunk, out);
             }
             assert_eq!(actual, expected, "lane_vars={lane_vars}, lanes={lanes}");
-            let message =
-                super::super::whir::initial_message(&stack, lane_block, &|start, dst| weight.fill(start, dst));
-            let (_, expected_message) = super::super::whir::build_initial_basis(&stack, lane_block, |start, dst| {
-                dst.copy_from_slice(&expected[start..start + dst.len()]);
-            });
-            assert_eq!(message, expected_message);
         }
     }
 
