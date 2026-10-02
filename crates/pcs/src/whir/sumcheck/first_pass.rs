@@ -44,8 +44,8 @@ const ROW: usize = 8;
 fn extend_grid<T: Copy, const R: usize>(grid: &mut [T; GRID], add: impl Fn(&T, &T) -> T) {
     let mut stride = 1;
     for i in 0..R {
-        for high in 0..1usize << (R - 1 - i) {
-            let base = 3 * stride * LANE_IN_GRID[high];
+        for &high in &LANE_IN_GRID[..1 << (R - 1 - i)] {
+            let base = 3 * stride * high;
             for at in base..base + stride {
                 grid[at + 2 * stride] = add(&grid[at], &grid[at + stride]);
             }
@@ -287,8 +287,8 @@ impl InitialRounds {
         // Digit `j` is the round's variable, at 0 or inf; the lane bits above it are summed over the cube.
         let [u_0, u_2] = [0, 2].map(|x| {
             let mut sums = vec![F192::ZERO; low];
-            for high in 0..1usize << (self.rounds - 1 - j) {
-                let base = low * (x + 3 * LANE_IN_GRID[high]);
+            for &high in &LANE_IN_GRID[..1 << (self.rounds - 1 - j)] {
+                let base = low * (x + 3 * high);
                 for (s, &g) in sums.iter_mut().zip(&self.grid[base..base + low]) {
                     *s += g;
                 }
@@ -320,8 +320,8 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
         let digits = (n_lanes - whole).next_power_of_two().ilog2() as usize;
         let tail = grid_pass(digits, f, block, b, whole..n_lanes);
         let low = tail.len();
-        for high in 0..1usize << (rounds - digits) {
-            let base = low * 2 * LANE_IN_GRID[high];
+        for &high in &LANE_IN_GRID[..1 << (rounds - digits)] {
+            let base = low * 2 * high;
             for (g, &t) in grid[base..base + low].iter_mut().zip(&tail) {
                 *g += t;
             }
