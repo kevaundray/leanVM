@@ -4,8 +4,7 @@
 //! Boolean witnesses are packed into `K = GF(2^64)` and WHIR opens them
 //! over its cubic extension `E = GF(2^192)`.
 
-// The proof path computes in integers and binary fields alone; the soundness analysis behind the WHIR table is the one exception, and test-only.
-#![deny(clippy::float_arithmetic)]
+#![deny(clippy::float_arithmetic, clippy::cast_precision_loss)]
 
 pub mod merkle;
 pub mod ntt;

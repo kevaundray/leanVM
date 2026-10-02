@@ -80,7 +80,8 @@ fn mul_quad_unreduced(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-use primitives::multilinear::lagrange_weights_naive;
+use primitives::multilinear::skip_lagrange_weights;
+use primitives::multilinear::{barycentric_sum, window_denominator};
 
 /// Interpolate a degree-`< 2·2^k_skip` polynomial at z, given its `2^k_skip`
 /// evaluations on Λ and the assumption that it equals **zero on S**.
@@ -91,15 +92,16 @@ use primitives::multilinear::lagrange_weights_naive;
 /// evaluations on Λ that the prover sends, that's `2·2^k_skip` evaluations -
 /// enough to interpolate the degree-`< 2·2^k_skip` polynomial uniquely.
 ///
+/// Over the window `S ∪ Λ` the zeros on S drop out of the Lagrange sum, and the
+/// weight of every node of Λ carries the factor `∏_{s∈S} (z + s)`.
 pub fn interpolate_at_z_combined(values_on_lambda: &[F192], k_skip: usize, z: F192) -> F192 {
     let ell = 1usize << k_skip;
     assert_eq!(values_on_lambda.len(), ell);
     assert!(2 * ell <= 256, "Λ ∪ S must fit in F_8 (need k_skip ≤ 7)");
-    // The first `ell` nodes are S, where the polynomial is zero by assumption;
-    // the Λ evaluations follow.
-    let mut values = vec![F192::ZERO; 2 * ell];
-    values[ell..].copy_from_slice(values_on_lambda);
-    primitives::multilinear::lagrange_eval(&PHI_8_TABLE[..2 * ell], &values, z)
+    let (s, lambda) = PHI_8_TABLE[..2 * ell].split_at(ell);
+    let vanishing_on_s = s[1..].iter().fold(z + s[0], |acc, &node| acc * (z + node));
+    let scale = vanishing_on_s * window_denominator(2 * ell);
+    barycentric_sum(lambda, values_on_lambda, z, scale)
 }
 
 // ---------------------------------------------------------------------------
@@ -764,7 +766,30 @@ mod tests {
         let ell = 1usize << k_skip;
         assert_eq!(values.len(), ell);
         assert!(2 * ell <= 256, "Λ ∪ S must fit in F_8 (need k_skip ≤ 7)");
-        primitives::multilinear::lagrange_eval(&PHI_8_TABLE[ell..2 * ell], values, z)
+        barycentric_sum(&PHI_8_TABLE[ell..2 * ell], values, z, window_denominator(ell))
+    }
+
+    /// The round-1 claim, interpolated over Λ alone with S's vanishing product factored out, equals the
+    /// interpolation of the zeros on S and the values on Λ over the whole window, at random points and
+    /// at every node of either half.
+    #[test]
+    fn combined_interpolation_matches_the_whole_window() {
+        let mut rng = Rng::new(0x0C0B_14ED);
+        for k_skip in 0..=7 {
+            let ell = 1usize << k_skip;
+            let values_on_lambda = rng.ext_vec(ell);
+            for z in rng.ext_vec(4).into_iter().chain(PHI_8_TABLE[..2 * ell].iter().copied()) {
+                let whole_window = skip_lagrange_weights(k_skip + 1, z)[ell..]
+                    .iter()
+                    .zip(&values_on_lambda)
+                    .fold(F192::ZERO, |acc, (&w, &v)| acc + w * v);
+                assert_eq!(
+                    interpolate_at_z_combined(&values_on_lambda, k_skip, z),
+                    whole_window,
+                    "k_skip {k_skip}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -893,7 +918,7 @@ mod tests {
 
             // Path B: direct fold of c at z (Lagrange) then bind each
             // r_rest element with fold_in_place_single.
-            let weights = lagrange_weights_naive(K_SKIP, z);
+            let weights = skip_lagrange_weights(K_SKIP, z);
             let mut c_mlv = fold_at_z_naive(&c, m, K_SKIP, &weights);
             for &r_val in &r {
                 fold_in_place_single(&mut c_mlv, r_val);
@@ -940,7 +965,7 @@ mod tests {
             let z = rng.ext();
             let r_rest = rng.ext_vec(n_mlv);
             let rho = rng.ext_vec(n_mlv);
-            let lagrange = lagrange_weights_naive(K_SKIP, z);
+            let lagrange = skip_lagrange_weights(K_SKIP, z);
             let dense = PaddingSpec::dense(m);
 
             // Level 0 of the naive route: the univariate-skip fold at z.
@@ -992,7 +1017,7 @@ mod tests {
                 k_log,
                 useful_bits_per_block: useful,
             };
-            let lagrange = lagrange_weights_naive(K_SKIP, rng.ext());
+            let lagrange = skip_lagrange_weights(K_SKIP, rng.ext());
             let r_rest = rng.ext_vec(m - K_SKIP);
             let rho = rng.ext_vec(4);
             for t in 0..=4 {
@@ -1031,7 +1056,7 @@ mod tests {
         let z = rng.ext();
         let r_eq = rng.ext_vec(m - k_skip - 1);
 
-        let weights = lagrange_weights_naive(k_skip, z);
+        let weights = skip_lagrange_weights(k_skip, z);
         let a_mlv = fold_at_z_naive(&a, m, k_skip, &weights);
         let b_mlv = fold_at_z_naive(&b, m, k_skip, &weights);
 

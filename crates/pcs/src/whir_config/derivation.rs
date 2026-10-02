@@ -28,13 +28,15 @@
 
 #![expect(
     clippy::float_arithmetic,
+    clippy::cast_precision_loss,
     reason = "The soundness analysis is real-valued; it only runs in tests, which pin the integer table to it."
 )]
 
 use super::{
-    ConfigError, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE, MIN_LOG_N,
-    ProverConfig, QUERY_GRINDING_BITS, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR,
-    SECURITY_BITS, config_for_rate, derive_ladder, derive_ladder_shape, validate_log_inv_rate,
+    ConfigError, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, LadderError, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE,
+    MIN_LOG_N, ProverConfig, QUERY_GRINDING_BITS, RS_DOMAIN_INITIAL_REDUCTION_FACTOR,
+    RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR, SECURITY_BITS, config_for_rate, derive_ladder, derive_ladder_shape,
+    validate_log_inv_rate,
 };
 
 /// Why the derivation found no sound configuration, or why one it was handed is unsound.
@@ -43,9 +45,12 @@ use super::{
 #[derive(Clone, Copy, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum DerivationError {
-    /// The rate or the ladder rules the size out.
+    /// The rate is out of range.
     #[error(transparent)]
     Config(#[from] ConfigError),
+    /// The level ladder rules the size out.
+    #[error(transparent)]
+    Ladder(#[from] LadderError),
     /// A witness smaller than one packed word.
     #[error("m {m} is below LOG_PACKING {packing}", packing = crate::LOG_PACKING)]
     WitnessBelowPacking { m: usize },
@@ -668,7 +673,7 @@ impl WhirSecurityConfig {
                     .log_inv_rate
                     .checked_add(lv.k)
                     .and_then(|r| r.checked_sub(domain_reduction))
-                    .ok_or(ConfigError::FoldBelowReduction {
+                    .ok_or(LadderError::FoldBelowReduction {
                         level,
                         fold: lv.k,
                         reduction: domain_reduction,

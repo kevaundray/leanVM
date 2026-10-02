@@ -1,4 +1,4 @@
-// CREDIT: https://github.com/succinctlabs/flock (`build_eq` and `lagrange_weights_naive`), MIT OR Apache-2.0.
+// CREDIT: https://github.com/succinctlabs/flock (`build_eq` and the skip domain's Lagrange weights), MIT OR Apache-2.0.
 //! Multilinear-extension utilities: the equality polynomial, single-variable
 //! folding, and MLE evaluation. Truth tables are indexed little-endian (variable
 //! `k` is bit `k`). Sumchecks here consume variables from either end, so folding
@@ -7,6 +7,7 @@
 //! fold of a committed table also lifts it into `E`.
 
 use std::ops::DerefMut;
+use std::sync::LazyLock;
 
 use std::mem::MaybeUninit;
 
@@ -240,52 +241,35 @@ pub fn shrink_eq_high<B: Shrink<F192>>(table: &mut B) {
     table.shrink_to(half);
 }
 
-/// The one barycentric denominator an aligned `size`-node window of the φ₈ table has: `∏_{k≠0} φ₈(k)`,
-/// inverted. φ₈ is F2-linear on its index, so `nodes[a] + nodes[b] = φ₈(a ^ b)` (the window's offset
-/// cancels) and `b ↦ a ^ b` only permutes the window, leaving every node the same product.
+/// The barycentric weight every node of an aligned `size`-node window of the φ₈ table shares,
+/// `1 / ∏_{k≠0} φ₈(k)`. φ₈ is F2-linear on its index, so `nodes[a] + nodes[b] = φ₈(a ^ b)` (the window's
+/// offset cancels) and `b ↦ a ^ b` only permutes the window, leaving every node the same product.
+/// Computed once for every window size.
 pub fn window_denominator(size: usize) -> F192 {
-    PHI_8_TABLE[1..size]
-        .iter()
-        .fold(F192::ONE, |acc, &node| acc * node)
-        .inv()
-}
-
-/// The barycentric weights of `nodes` at `p`: `weights[i] =
-/// ∏_{k≠i} (p + nodes[k]) / ∏_{k≠i} (nodes[i] + nodes[k])`. `O(n²)` multiplies
-/// and, by `window_denominator`, a single inverse.
-///
-/// `nodes` must be an aligned window of the φ₈ table, `nodes[a] = nodes[0] + φ₈(a)`, which is what
-/// every caller passes: a `2^k` prefix, or one of its cosets.
-fn lagrange_weights(nodes: &[F192], p: F192) -> Vec<F192> {
-    let n = nodes.len();
-    debug_assert!(n.is_power_of_two() && n <= PHI_8_TABLE.len());
-    debug_assert!(
-        (0..n).all(|a| nodes[a] == nodes[0] + PHI_8_TABLE[a]),
-        "not an aligned φ₈ window"
-    );
-    let denominator = window_denominator(n);
-    (0..n)
-        .map(|i| {
-            let mut num = F192::ONE;
-            for (k, &node) in nodes.iter().enumerate() {
-                if k != i {
-                    num *= p + node;
-                }
-            }
-            num * denominator
+    static DENOMINATORS: LazyLock<[F192; 9]> = LazyLock::new(|| {
+        std::array::from_fn(|log| {
+            PHI_8_TABLE[1..1 << log]
+                .iter()
+                .fold(F192::ONE, |acc, &node| acc * node)
+                .inv()
         })
-        .collect()
+    });
+    debug_assert!(size.is_power_of_two() && size <= PHI_8_TABLE.len());
+    DENOMINATORS[size.trailing_zeros() as usize]
 }
 
-/// Lagrange evaluation: given distinct `nodes` and a polynomial's `values` there,
-/// evaluate the interpolant at `p`. Reads a sumcheck round's univariate (sent as
-/// evaluations) at the verifier's challenge.
-pub fn lagrange_eval(nodes: &[F192], values: &[F192], p: F192) -> F192 {
+/// `scale · Σ_i values[i] · ∏_{k≠i} (p + nodes[k])`, in one pass of three products a node and no
+/// inverse; `sum` and `prefix` hold the sum and the product of the differences over the nodes seen so
+/// far. For an aligned window of the φ₈ table and `scale = window_denominator(nodes.len())` it is the
+/// Lagrange interpolant of `values` at `p`, exact at a node too.
+pub fn barycentric_sum(nodes: &[F192], values: &[F192], p: F192, scale: F192) -> F192 {
     debug_assert_eq!(nodes.len(), values.len());
-    lagrange_weights(nodes, p)
-        .iter()
-        .zip(values)
-        .fold(F192::ZERO, |acc, (&w, &v)| acc + v * w)
+    let (mut sum, mut prefix) = (values[0] * scale, scale);
+    for i in 1..nodes.len() {
+        prefix *= p + nodes[i - 1];
+        sum = sum * (p + nodes[i]) + values[i] * prefix;
+    }
+    sum
 }
 
 /// A polynomial at `point`, by Horner over its coefficients, constant first.
@@ -355,12 +339,25 @@ fn fold_ladder(mut cur: Vec<F192>, point: &[F192]) -> F192 {
     cur[0]
 }
 
-/// Barycentric weights over the first `2^k_skip` nodes of the GF(2^8) subfield.
-/// O(2^{2·k_skip}) field multiplies, a one-time cost.
-pub fn lagrange_weights_naive(k_skip: usize, z: F192) -> Vec<F192> {
-    let ell = 1usize << k_skip;
-    assert!(ell <= 256, "k_skip > 8 would exceed PHI_8_TABLE");
-    lagrange_weights(&PHI_8_TABLE[..ell], z)
+/// The Lagrange weights of the skip domain, the first `2^k_skip` nodes of the φ₈ table, at `z`:
+/// `weights[i] = ∏_{k≠i} (z + φ₈(k)) · window_denominator`, by prefix and suffix products of the
+/// differences. Linear in the node count, no inverse, and exact at a node.
+pub fn skip_lagrange_weights(k_skip: usize, z: F192) -> Vec<F192> {
+    let n = 1usize << k_skip;
+    let nodes = &PHI_8_TABLE[..n];
+    let mut weights = vec![window_denominator(n); n];
+    for i in 1..n {
+        weights[i] = weights[i - 1] * (z + nodes[i - 1]);
+    }
+    let mut suffix = z + nodes[n - 1];
+    for i in (1..n - 1).rev() {
+        weights[i] *= suffix;
+        suffix *= z + nodes[i];
+    }
+    if n > 1 {
+        weights[0] *= suffix;
+    }
+    weights
 }
 
 #[cfg(test)]

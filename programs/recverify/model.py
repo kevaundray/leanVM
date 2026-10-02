@@ -4,7 +4,7 @@
 
     cycles_X = plumbing (+ soft float, unless counted as removed) + sum_op n_op * c_X(op)
     rows_X   = the same per table, the new classes CLMUL and GF192 aside
-    words_X  = stack_sizes(rows_X of the eight tables, log_ram 21, log_advice 16) + new-class rows * words per row
+    words_X  = stack_sizes(rows_X of the nine tables, log_ram 21, log_advice 16) + new-class rows * words per row
 
 `measured.json` holds, per run, the measured cycles and rows (`recverify-host`), the operation counts (`profile.py ops` on the counting build) and the plumbing and soft float split (`profile.py classes`). `shared` (core runs) is what k proofs of one program would share: building the circuits (`initialize` under `replay`) and everything outside `replay` (the program's setup, reading the advice, committing). CLMUL and GF192 are hypothetical classes; their words per row are estimates.
 """
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ELF = "programs/recverify/guest/target/riscv64im-leanvm-zkvm/release/recverify"
-TABLES = ["ALU", "LOAD", "STORE", "SHIFT", "MUL", "MULH", "DIV", "HASH"]
+TABLES = ["ALU", "LOAD", "STORE", "SHIFT", "MUL", "MULH", "DIV", "HASH", "EXT"]
 NEW_WORDS = {"CLMUL": 34, "GF192": 170}
 OPS = ["Emul", "ExK", "Esq", "Kmul", "Ksq"]
 # Cycles, rows per table (net of the loop) per operation. `sw` is `prim` runs of this guest. `clmul` and `gf192` were priced with

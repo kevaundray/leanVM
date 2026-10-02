@@ -37,7 +37,7 @@ target/release/recverify-host $ELF xmss 400 [core]   # leanXMSS over 400 signatu
 Two more subcommands:
 
 - `prim <op> <n>` runs `n` of one primitive in the guest instead of a verifier (the guest's `primitive`: 0 `F64` product, 1 `F192` product, 2 `F192` square, 3 `F192` times `F64`, 4 `F192` inverse, 5 the carry-less 64x64 product, 6 a BLAKE2s compression, anything else the loop alone). The cost of one is the difference of two runs over the difference of their `n`.
-- `words <log_ram> <log_advice> <rows of ALU LOAD STORE SHIFT MUL MULH DIV HASH>` is the committed size a run of this guest with those executed rows would have, with RAM and the advice resized.
+- `words <log_ram> <log_advice> <rows of ALU LOAD STORE SHIFT MUL MULH DIV HASH EXT>` is the committed size a run of this guest with those executed rows would have, with RAM and the advice resized.
 
 ## Memory
 
@@ -66,6 +66,6 @@ COUNT=programs/recverify/guest/target/count/riscv64im-leanvm-zkvm/release/recver
 
 ## Experiments on top
 
-The harness keeps upstream's protocol. It uses `verify_core` and `check_deferred` (#393) and the WHIR configuration as a table (#396, which removes the guest's soft float). Changes that move the verifier's cost can be measured by merging them into a scratch branch and rerunning the host: jagged tables (#389), one batched zerocheck and lincheck (#392), or a field-multiply instruction. A change made before the `cpu` module was rebuilt around its domain types (#381) needs porting first: the free `cpu::verify*` functions are `Program` methods now, the bytecode tuple and table are `Lookup::Bytecode`'s, and `cpu/trace.rs` is part of `cpu/execute.rs`. With batched flock reductions `DeferredClaims` holds one batched circuit claim, so `claim_words` in the guest and the host changes with it.
+The harness keeps upstream's protocol. It uses `verify_core` and `check_deferred` (#393), the WHIR configuration as a table (#396, which removes the guest's soft float) and the skip domain's Lagrange forms in linear time (#391). Changes that move the verifier's cost can be measured by merging them into a scratch branch and rerunning the host: jagged tables (#389) or one batched zerocheck and lincheck (#392). A change made before the `cpu` module was rebuilt around its domain types (#381) needs porting first: the free `cpu::verify*` functions are `Program` methods now, the bytecode tuple and table are `Lookup::Bytecode`'s, and `cpu/trace.rs` is part of `cpu/execute.rs`. With batched flock reductions `DeferredClaims` holds one batched circuit claim, so `claim_words` in the guest and the host changes with it.
 
-#391 (the skip domain's Lagrange forms in linear time, protocol-neutral) is the one most worth merging for the guest: the quadratic Lagrange weights `flock::lincheck::verify_deferred` computes are most of `verify_core`'s cost here. It conflicts in one hunk of `verify_deferred`: keep the #393 side (it moved the row weights into `MatrixForm::evaluate`), then restore `let lambda_skip = skip_lagrange_weights(k_skip, x_ab.z_skip);` above `c_slice_value`, which the merge drops.
+The guest does its `F192` arithmetic in software: it builds `std` for its own target rather than through `leanvm_guest`, so the extension-field instructions (#397, `leanvm_guest::ext` and the EXT table) do not reach it. Routing `gf2_64x3`'s product through them on the guest target is the field-multiply option `model.py` prices as a GF(2^192) block class.
