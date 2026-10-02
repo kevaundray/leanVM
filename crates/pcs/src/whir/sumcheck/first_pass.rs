@@ -71,7 +71,7 @@ impl WeightRow {
     fn pack(w: &[F192]) -> Self {
         let mut row = Self::default();
         for (x, e) in w.iter().enumerate() {
-            let pair = if x % 2 == 0 { &mut row.lo } else { &mut row.hi };
+            let pair = if x.is_multiple_of(2) { &mut row.lo } else { &mut row.hi };
             pair[x & !1] = e.c0;
             pair[x | 1] = e.c1;
             row.c2[x] = e.c2;
@@ -437,7 +437,7 @@ impl LaneWeight {
         let ey = e * F192::Y;
         let by_coefficient = [e, ey, ey * F192::Y];
         Self {
-            pairs: by_coefficient.map(|c| std::array::from_fn(|i| if i % 2 == 0 { c.c0 } else { c.c1 })),
+            pairs: by_coefficient.map(|c| std::array::from_fn(|i| if i.is_multiple_of(2) { c.c0 } else { c.c1 })),
             highs: by_coefficient.map(|c| [c.c2; ROW]),
         }
     }
@@ -510,7 +510,7 @@ impl WeightFold {
     pub(super) fn write(&self, dst: &mut [F192]) {
         for (x, d) in dst.iter_mut().enumerate() {
             let (row, i) = (&self.0[x / ROW], x % ROW);
-            let (j, slots) = (i / 2 * 2, if i % 2 == 0 { [0, 1, 4] } else { [2, 3, 5] });
+            let (j, slots) = (i / 2 * 2, if i.is_multiple_of(2) { [0, 1, 4] } else { [2, 3, 5] });
             let [c0, c1, c2] = slots
                 .map(|s| primitives::field::gf2_64::reduce(u128::from(row[s][j + 1]) << 64 | u128::from(row[s][j])));
             *d = F192::new(c0, c1, c2);
