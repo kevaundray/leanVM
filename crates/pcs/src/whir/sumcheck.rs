@@ -10,8 +10,6 @@
 mod first_pass;
 
 use fiat_shamir::transcript::{Error as TranscriptError, Receiver, Transmitter};
-#[cfg(test)]
-use first_pass::PRECOMPUTED_ROUNDS;
 pub(crate) use first_pass::{InitialRounds, initial_rounds};
 use first_pass::{LaneWeight, WeightFold};
 use primitives::field::{F64, F192, F192Unreduced};
@@ -104,7 +102,7 @@ trait RoundWitness: Copy + Sync + std::ops::Add<Output = Self> {
     /// interpolation collapses to `x0·(1+r)`.
     fn fold_lone(x0: Self, r: F192) -> F192;
     /// Add `e·x` over one lane's window `xs` to a fold of several lane bits at once.
-    fn fold_lane(acc: &mut WeightFold, e: &LaneWeight, xs: &[Self]);
+    fn add_weighted_lane(acc: &mut WeightFold, e: &LaneWeight, xs: &[Self]);
 }
 
 impl RoundWitness for F64 {
@@ -127,7 +125,7 @@ impl RoundWitness for F64 {
         F192::from(x0) + r.mul_base(x0)
     }
     #[inline]
-    fn fold_lane(acc: &mut WeightFold, e: &LaneWeight, xs: &[Self]) {
+    fn add_weighted_lane(acc: &mut WeightFold, e: &LaneWeight, xs: &[Self]) {
         acc.add_base(e, xs);
     }
 }
@@ -152,7 +150,7 @@ impl RoundWitness for F192 {
         x0 + r * x0
     }
     #[inline]
-    fn fold_lane(acc: &mut WeightFold, e: &LaneWeight, xs: &[Self]) {
+    fn add_weighted_lane(acc: &mut WeightFold, e: &LaneWeight, xs: &[Self]) {
         acc.add(e, xs);
     }
 }
@@ -582,7 +580,7 @@ fn fold_and_msg_blocks<T: RoundWitness>(
                     break;
                 }
                 let b_l = if l == 0 { b_lo } else { window(b, raw_hi, src, len) };
-                T::fold_lane(&mut acc_f, e, &f[src..src + len]);
+                T::add_weighted_lane(&mut acc_f, e, &f[src..src + len]);
                 acc_b.add(e, b_l);
             }
             acc_f.write(stage);
@@ -834,6 +832,7 @@ mod tests {
     use super::*;
     use crate::ring_switch::inner_product_ext;
     use crate::whir_config::INITIAL_FOLDING_FACTOR;
+    use first_pass::PRECOMPUTED_ROUNDS;
     use primitives::test_rng::Rng;
 
     #[test]
