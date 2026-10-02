@@ -66,7 +66,7 @@ cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). The parameter report `print_whir_query_counts` and the table generators `print_whir_config_table` and `print_whir_query_table` are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`.
+Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval).
 
 **Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `leanvm_core`, `stage!`), never an `Instant` behind an env var.
 
@@ -146,7 +146,7 @@ The same verification algorithm is written out twice, in two languages. Any chan
 1. **Rust**, `leanvm_core::cpu::Program::verify`. The native verifier.
 2. **Python**, `python-verifier/verifier.py` (no dependencies), for readability and simplicity. Pinned by `leanvm_core/tests/verifiers/python_verifier.rs`, which feeds it the raw proof `cpu::Program::verify_to_raw` returns.
 
-Neither the prover nor the verifiers compute the WHIR parameters: each reads a table of query counts (`WHIR_QUERIES` in `pcs::whir_config` and in `verifier.py`) and builds the rest from the integer level ladder, so no floating point reaches a proof. The floating-point soundness derivation that chooses them is test-only (`pcs::whir_config::derivation`): `the_table_is_the_derivation` pins the Rust table to it, and `whir_query_table_matches_rust` the Python table to the Rust one. Changing a constant the derivation reads (the security target, a folding factor, the grinding bits, the size window) means regenerating both, with `print_whir_config_table` then `print_whir_query_table`.
+Neither the prover nor the verifiers compute the WHIR parameters: each reads a table of query counts (`WHIR_QUERIES` in `pcs::whir_config` and in `verifier.py`) and builds the rest from the integer level ladder, so no floating point reaches a proof. The floating-point soundness derivation that chooses them is test-only (`pcs::whir_config::derivation`): `the_table_is_the_derivation` pins the Rust table to it, and `whir_query_table_matches_rust` the Python table to the Rust one. Changing a constant the derivation reads (the security target, a folding factor, the grinding bits, the size window) fails the first, whose message holds the rows to paste over the Rust table; then the second fails with the line to paste over the Python one. Moving the size window also changes the Rust table's type: give each rate that many rows first (`&[]` will do) so that `pcs` compiles.
 
 ## Conventions that bite
 
@@ -180,7 +180,6 @@ Neither the prover nor the verifiers compute the WHIR parameters: each reads a t
 | `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for the `benches/` targets |
 | `FLOCK_N_LOG`                                                                                           | flock batch size                                 |
 | `PCS_LOG_N`, `PCS_LOG_INV_RATE`                                                                         | PCS throughput bench                             |
-| `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                                                    | `print_whir_query_counts`'s shape                |
 
 ## Side notes
 

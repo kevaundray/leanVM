@@ -850,7 +850,8 @@ impl WhirSecurityConfig {
 
 mod tests {
     use super::*;
-    use primitives::pretty_integer;
+    use crate::whir_config::WHIR_QUERIES;
+    use std::fmt::Write;
 
     #[test]
     fn johnson_bound_uses_theorem_parameter_and_reduced_rate() {
@@ -896,9 +897,34 @@ mod tests {
         );
     }
 
+    /// `WHIR_QUERIES`'s rows as `whir_config.rs` writes them, with `queries(log_inv_rate, log_n)` in each entry.
+    fn table_rows(queries: impl Fn(usize, usize) -> Vec<usize>) -> String {
+        let mut rows = String::new();
+        for log_inv_rate in MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE {
+            writeln!(rows, "    // Rate 2^-{log_inv_rate}.\n    [").unwrap();
+            for log_n in MIN_LOG_N..=MAX_LOG_N {
+                let row: Vec<String> = queries(log_inv_rate, log_n).iter().map(usize::to_string).collect();
+                writeln!(rows, "        &[{}],", row.join(", ")).unwrap();
+            }
+            writeln!(rows, "    ],").unwrap();
+        }
+        rows
+    }
+
     /// Every entry of the table is what the derivation gives, field by field, and the table serves no other size or rate.
+    /// A stale table fails with the rows to paste over it.
     #[test]
     fn the_table_is_the_derivation() {
+        let derived = |log_inv_rate: usize, log_n: usize| {
+            derive_config(log_n, log_inv_rate).unwrap_or_else(|e| panic!("rate 2^-{log_inv_rate}, log_n {log_n}: {e}"))
+        };
+        let rows = table_rows(|log_inv_rate, log_n| derived(log_inv_rate, log_n).queries().to_vec());
+        let tabulated =
+            table_rows(|log_inv_rate, log_n| WHIR_QUERIES[log_inv_rate - MIN_LOG_INV_RATE][log_n - MIN_LOG_N].to_vec());
+        assert!(
+            tabulated == rows,
+            "WHIR_QUERIES is stale, replace its rows in crates/pcs/src/whir_config.rs with:\n{rows}"
+        );
         for log_inv_rate in MIN_LOG_INV_RATE - 1..=MAX_LOG_INV_RATE + 1 {
             for log_n in 0..=MAX_LOG_N + 8 {
                 let tabulated = config_for_rate(log_n, log_inv_rate);
@@ -907,69 +933,13 @@ mod tests {
                 } else if !(MIN_LOG_N..=MAX_LOG_N).contains(&log_n) {
                     assert_eq!(tabulated, Err(ConfigError::SizeOutOfRange { log_n }));
                 } else {
-                    let derived = derive_config(log_n, log_inv_rate)
-                        .unwrap_or_else(|e| panic!("rate 2^-{log_inv_rate}, log_n {log_n}: {e}"));
                     assert_eq!(
                         tabulated,
-                        Ok(derived),
-                        "rate 2^-{log_inv_rate}, log_n {log_n}: WHIR_QUERIES is stale, regenerate it with print_whir_config_table"
+                        Ok(derived(log_inv_rate, log_n)),
+                        "rate 2^-{log_inv_rate}, log_n {log_n}"
                     );
                 }
             }
-        }
-    }
-
-    /// Regenerates the rows of `WHIR_QUERIES` in `whir_config.rs`, which the test above pins:
-    /// `cargo test --release -p pcs print_whir_config_table -- --ignored --nocapture`
-    #[test]
-    #[ignore = "manual table regeneration"]
-    fn print_whir_config_table() {
-        for log_inv_rate in MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE {
-            println!("    // Rate 2^-{log_inv_rate}.");
-            println!("    [");
-            for log_n in MIN_LOG_N..=MAX_LOG_N {
-                let queries: Vec<String> = derive_config(log_n, log_inv_rate)
-                    .unwrap()
-                    .queries()
-                    .iter()
-                    .map(usize::to_string)
-                    .collect();
-                println!("        &[{}],", queries.join(", "));
-            }
-            println!("    ],");
-        }
-    }
-
-    /// Parameter-report helper:
-    /// `WHIR_LOG_INV_RATE=2 WHIR_NUM_VARS=22 cargo test --release -p pcs print_whir_query_counts -- --ignored --nocapture`
-    #[test]
-    #[ignore = "manual parameter report; configure it through environment variables"]
-    fn print_whir_query_counts() {
-        let env_usize = |name: &str| {
-            std::env::var(name)
-                .unwrap_or_else(|_| panic!("missing {name}"))
-                .parse::<usize>()
-                .unwrap_or_else(|_| panic!("{name} must be a non-negative integer"))
-        };
-        let log_inv_rate = env_usize("WHIR_LOG_INV_RATE");
-        let num_vars = env_usize("WHIR_NUM_VARS");
-        let cfg =
-            WhirSecurityConfig::derive_config_with_log_inv_rate(num_vars + crate::LOG_PACKING, log_inv_rate).unwrap();
-
-        println!(
-            "num_vars={}, rate=1/{}",
-            pretty_integer(&num_vars),
-            pretty_integer(&(1usize << log_inv_rate))
-        );
-        for (level, params) in cfg.levels.iter().enumerate() {
-            let eta = params.eta;
-            println!(
-                "L{}: rate=1/{}, queries={}, eta={eta:.12e}, m={}",
-                pretty_integer(&level),
-                pretty_integer(&(1usize << params.log_inv_rate)),
-                pretty_integer(&params.queries),
-                pretty_integer(&(johnson_m_param(params.log_inv_rate, params.log_msg_cols, eta) as usize)),
-            );
         }
     }
 }

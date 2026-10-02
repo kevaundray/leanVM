@@ -1,9 +1,10 @@
 //! Pins `python-verifier`'s WHIR configurations, its `WHIR_QUERIES` and the ladder it
 //! builds around them, against the Rust table (`pcs::whir::config_for_rate`), which `pcs`
 //! pins to the floating-point soundness derivation. Both verifiers tabulate rather than
-//! repeating that search, which would make float identity part of the protocol.
+//! repeating that search, which would make float identity part of the protocol. A stale
+//! Python table fails with the line to paste over it.
 
-use pcs::whir::{QUERY_GRINDING_BITS, config_for_rate};
+use pcs::whir::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE, QUERY_GRINDING_BITS, config_for_rate};
 use std::path::Path;
 use std::process::Command;
 
@@ -29,8 +30,9 @@ fn whir_query_table_matches_rust() {
         .expect("run python3 to dump the table");
     assert!(
         output.status.success(),
-        "dumping WHIR_QUERIES failed:\n{}",
-        String::from_utf8_lossy(&output.stderr)
+        "dumping the WHIR configurations failed:\n{}\nIf WHIR_QUERIES in python-verifier/verifier.py is stale, replace it with:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        python_table()
     );
     let dumped = String::from_utf8(output.stdout).expect("table dump is utf-8");
     let mut lines = dumped.lines();
@@ -73,7 +75,8 @@ fn whir_query_table_matches_rust() {
         assert_eq!(
             config.queries(),
             queries,
-            "rate {rate}, log_n {log_n}: WHIR_QUERIES is stale, regenerate it with print_whir_query_table"
+            "rate {rate}, log_n {log_n}: WHIR_QUERIES in python-verifier/verifier.py is stale, replace it with:\n{}",
+            python_table()
         );
         assert_eq!(
             config.log_inv_rates(),
@@ -109,13 +112,9 @@ fn whir_query_table_matches_rust() {
     );
 }
 
-/// Regenerates the literal the pin above checks: paste its output over `WHIR_QUERIES` in
-/// `python-verifier/verifier.py`.
-/// `cargo test --release -p leanvm_core --test verifiers print_whir_query_table -- --ignored --nocapture`
-#[test]
-#[ignore = "manual table regeneration"]
-fn print_whir_query_table() {
-    let rates: Vec<String> = (1..=4)
+/// `WHIR_QUERIES` as `python-verifier/verifier.py` writes it, from the Rust table.
+fn python_table() -> String {
+    let rates: Vec<String> = (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE)
         .map(|rate| {
             let rows: Vec<String> = (leanvm_core::pcs::MIN_MU..=leanvm_core::pcs::MAX_MU)
                 .map(|log_n| {
@@ -127,5 +126,5 @@ fn print_whir_query_table() {
             format!("({})", rows.join(", "))
         })
         .collect();
-    println!("WHIR_QUERIES = ({})  # fmt: skip", rates.join(", "));
+    format!("WHIR_QUERIES = ({})  # fmt: skip", rates.join(", "))
 }
