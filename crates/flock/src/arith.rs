@@ -140,7 +140,7 @@ impl U64Circuit {
     ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
         let n = self.op.out_bits();
         self.circuit
-            .generate_witness_with(pairs, &(0, 0), n_blocks_log, |&(a, b), z, az, bz| {
+            .generate_witness_with(pairs, &(0, 0), n_blocks_log, &mut [], |&(a, b), z, az, bz| {
                 let mut witness = Instance { z, az, bz };
                 let out = match &self.plan {
                     Plan::Add(adder) => adder.witness(a, b, &mut witness),

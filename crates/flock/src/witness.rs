@@ -136,10 +136,19 @@ pub(crate) struct GroupTables<'a> {
     pub stripes: &'a mut [u8],
 }
 
+/// Instances `first..` of a batch's packed `z`, which the driver writes here as well
+/// as into `z` itself: the batch's share of a committed stack laid out elsewhere,
+/// written as each group is built rather than copied out of `z` afterwards.
+pub struct ZCopy<'a> {
+    pub first: usize,
+    pub words: &'a mut [u64],
+}
+
 /// The four witness tables of `2^n_blocks_log` instances, built `group` instances at a time.
 ///
 /// - The fill closure writes every word and byte of the group starting at the instance it is given.
 /// - Each worker keeps one scratch state, built once and reused across its groups.
+/// - Each group's `z` words also go to every [`ZCopy`] holding some of its instances.
 ///
 /// A group builds in its worker's buffers, which stay in cache, then streams out.
 ///
@@ -148,6 +157,7 @@ pub(crate) fn drive_witness_groups<St, I, F>(
     n_blocks_log: usize,
     k_log: usize,
     group: usize,
+    copies: &mut [ZCopy<'_>],
     init: I,
     fill: F,
 ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>)
@@ -186,6 +196,15 @@ where
     let b_chunks = parallel::Chunks::new(&mut b, group_words);
     let stripe_chunks = parallel::Chunks::new(&mut z_lincheck, group_bytes);
     debug_assert_eq!(z_chunks.count(), stripe_chunks.count());
+    // Each copy as `(first word, words, destination)` in `z`'s word indexing.
+    let copies: Vec<(usize, usize, parallel::SendPtr<u64>)> = copies
+        .iter_mut()
+        .map(|c| {
+            let first = c.first * (k / 64);
+            assert!(first + c.words.len() <= total_words, "a copy runs past the batch");
+            (first, c.words.len(), parallel::SendPtr(c.words.as_mut_ptr()))
+        })
+        .collect();
 
     parallel::map_reduce_with_state(
         z_chunks.count(),
@@ -215,6 +234,15 @@ where
                 stream.copy(b_chunks.get(g), b_grp);
                 stream.copy(stripe_chunks.get(g), stripes);
             }
+            let (lo, hi) = (g * group_words, (g + 1) * group_words);
+            for &(first, len, dst) in &copies {
+                let (from, to) = (lo.max(first), hi.min(first + len));
+                if from < to {
+                    // SAFETY: distinct groups write disjoint words of each copy, which
+                    // the caller's `&mut` keeps borrowed for the whole dispatch.
+                    unsafe { stream.copy(dst.slice(from - first, to - from), &z_grp[from - lo..to - lo]) };
+                }
+            }
         },
         |(), ()| (),
     );
@@ -238,11 +266,14 @@ where
 /// - `Some(p)`: build a real block from `p` in every padding slot. Encoders
 ///   that pin a constant wire need this so the constant column is all-ones
 ///   across *every* batched instance (see `lincheck's `LincheckCircuit::const_pin_col``).
+///
+/// `copies` take `z` as well ([`drive_witness_groups`]).
 pub(crate) fn drive_witness_packed_and_lincheck<S: Sync, F>(
     initial_states: &[S],
     padding: Option<&S>,
     n_blocks_log: usize,
     k_log: usize,
+    copies: &mut [ZCopy<'_>],
     per_block: F,
 ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>)
 where
@@ -260,6 +291,7 @@ where
         n_blocks_log,
         k_log,
         8,
+        copies,
         || (),
         |(), first, t| {
             // A block only sets bits, so it starts from zero.

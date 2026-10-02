@@ -235,8 +235,9 @@ pub const fn committed_rows(height: usize, tau: usize) -> usize {
     if height < 1 << tau { height + 1 } else { 1 << tau }
 }
 
-/// The prover's witness: the committed stack `q`, the full-height stack it was gathered
-/// from (which the bus and the table sumcheck read), and the public [`Layout`].
+/// The prover's witness: the committed stack `q`, the full-height stack of the columns
+/// that commit only some of their rows (which the bus and the table sumcheck read,
+/// the others being read in `q`), and the public [`Layout`].
 pub(crate) struct Witness {
     pub(crate) q: zk_alloc::ArenaVec<F64>,
     pub(crate) padded: zk_alloc::ArenaVec<F64>,
@@ -253,44 +254,31 @@ pub(crate) struct Witness {
 }
 
 impl Witness {
-    /// One read-only view per column at its full height, in global column order: the
-    /// window into the full-height stack for a committed column, the private buffer
-    /// for a port.
+    /// One read-only view per column at its full height, in global column order: its
+    /// window in the full-height stack, its piece of the committed stack when it is
+    /// committed whole, or the private buffer of a port. A packed witness's is empty,
+    /// its flock batch holding its words.
     pub(crate) fn columns(&self) -> Vec<&[F64]> {
-        columns_of(&self.padded, &self.windows, &self.virt)
+        let mut cols: Vec<&[F64]> = (self.windows.iter().zip(&self.layout.placements))
+            .map(|(w, p)| match (w, p.column()) {
+                (Some(w), _) => &self.padded[w.offset..w.offset + (1 << w.n_vars)],
+                (None, Some(c)) if c.stride_log == 0 => {
+                    debug_assert_eq!(c.pieces.len(), 1, "a column without a window is committed whole");
+                    &self.q[c.pieces[0].offset..c.pieces[0].offset + (1 << c.row_vars)]
+                }
+                (None, _) => &[],
+            })
+            .collect();
+        for (i, buf) in &self.virt {
+            cols[*i] = buf;
+        }
+        cols
     }
 
     /// Committed data before the zero-pad to `2^m`: the real witness size.
     pub(crate) fn committed_size(&self) -> usize {
         committed_size(&self.layout.placements)
     }
-
-    /// The committed stack, gathered from every column at its full height: a packed
-    /// witness's is its flock batch's words, every other one's its window.
-    pub(crate) fn gather(&self) -> zk_alloc::ArenaVec<F64> {
-        let mut columns = self.columns();
-        for (f, prepared) in self.reductions.iter().enumerate() {
-            columns[q_column(f)] = prepared.packed();
-        }
-        witness::gather(&columns, &self.layout.placements, self.layout.shape)
-    }
-}
-
-/// One read-only view per column at its full height: its window in `padded`, or its
-/// port buffer in `virt`.
-pub(crate) fn columns_of<'a>(
-    padded: &'a [F64],
-    windows: &[Option<witness::Window>],
-    virt: &'a [(usize, zk_alloc::ArenaVec<F64>)],
-) -> Vec<&'a [F64]> {
-    let mut cols: Vec<&[F64]> = windows
-        .iter()
-        .map(|w| w.map_or(&[][..], |w| &padded[w.offset..w.offset + (1 << w.n_vars)]))
-        .collect();
-    for (i, buf) in virt {
-        cols[*i] = buf;
-    }
-    cols
 }
 
 /// The committed columns' total length.
@@ -595,15 +583,19 @@ impl Program {
             );
         }
 
-        // The full-height stack is written exactly ONCE: allocate it, carve one window
-        // per committed column, and have every fill write its column straight into
-        // place. The committed stack is gathered from it afterwards, piece by piece.
+        // The committed stack and the full-height stack are each written exactly ONCE:
+        // allocate them, carve out every piece and every window, and have every fill
+        // write straight into place. A column that commits only some of its rows is
+        // written at its full height, and each committed row copied into its piece
+        // while it is in cache; one committed whole is written into its piece alone.
         //
-        // SAFETY: the allocation is uninitialized. `split_stack` hands out windows
-        // tiling all of it; `fill_table` checks that each table wrote every window it
-        // was given, and the shared columns below write theirs.
+        // SAFETY: both allocations are uninitialized. `split_pieces` hands out pieces
+        // tiling `q` but its zeroed tail, `split_stack` windows tiling all of `padded`;
+        // `fill_table` checks that each table wrote every column it was given, the
+        // shared columns below write theirs, and each flock batch its pieces.
         let (padded_windows, padded_len) = witness::padded_windows(&column_sources(Sizes::of(p), tr.heights));
         let mut padded = unsafe { witness::alloc_padded(padded_len) };
+        let mut q = unsafe { zk_alloc::ArenaVec::<F64>::uninitialized(l.shape.committed_len()) };
         // A port is not in the stack, so its values need storage of their own: it
         // carries data for the bus, and only its evaluation claims route elsewhere (to
         // its class's packed witness).
@@ -618,9 +610,37 @@ impl Program {
                 }
             }
         }
+        let (pieces, tail) = witness::split_pieces(&mut q, &l.placements);
+        parallel::chunks_mut(tail, 1 << 16, |_, chunk| chunk.fill(F64::ZERO));
+        // Each column's pieces as `(first row, piece)`.
+        let mut pieces: Vec<Vec<(usize, &mut [F64])>> = (pieces.into_iter().zip(&l.placements))
+            .map(|(pieces, p)| {
+                p.column()
+                    .map_or_else(Vec::new, |c| c.pieces.iter().map(|p| p.first_row).zip(pieces).collect())
+            })
+            .collect();
+        let flocks: Vec<Vec<(usize, &mut [F64])>> = (0..crate::class_flock::N_FLOCKS)
+            .map(|f| std::mem::take(&mut pieces[q_column(f)]))
+            .collect();
         let mut windows = witness::split_stack(&mut padded, &padded_windows);
+        let mut outs: Vec<tables::ColumnOut<'_>> = (windows.iter_mut().zip(pieces))
+            .map(|(window, mut pieces)| {
+                if window.is_empty() && pieces.len() == 1 {
+                    // Committed whole: its one piece is the column.
+                    tables::ColumnOut {
+                        rows: pieces.pop().expect("one piece").1,
+                        pieces,
+                    }
+                } else {
+                    tables::ColumnOut {
+                        rows: std::mem::take(window),
+                        pieces,
+                    }
+                }
+            })
+            .collect();
         for (i, buf) in virt.iter_mut() {
-            windows[*i] = buf;
+            outs[*i].rows = buf;
         }
 
         // Each table fills its own columns from the trace (local indices, offset
@@ -629,7 +649,7 @@ impl Program {
             for (t, table) in tables::tables().iter().enumerate() {
                 let (base, n) = sch.spans[t];
                 let ctx = FillCtx::new(tr, p, 1 << l.taus[t], n);
-                tables::fill_table(table, &ctx, &mut windows[base..base + n]);
+                tables::fill_table(table, &ctx, &mut outs[base..base + n]);
             }
             // Every shared column has to be written: the stack is uninitialized, so one
             // left out would be read as indeterminate bytes rather than caught by a
@@ -637,29 +657,35 @@ impl Program {
             // counted from its rows.
             for c in SHARED {
                 if let Some(values) = c.values(tr) {
-                    windows[c.col()].copy_from_slice(values);
+                    outs[c.col()].rows.copy_from_slice(values);
                 }
             }
-            count_reads(tr, windows[Lookup::Bytecode.multiplicity().col()]);
+            count_reads(tr, outs[Lookup::Bytecode.multiplicity().col()].rows);
         });
-        drop(windows); // release the borrow of the stack and of the virtual buffers
-        // The packed witnesses, one instance per row of their table.
+        drop(outs); // release the borrows of the stacks and of the virtual buffers
+        // The packed witnesses, one instance per row of their table, each writing its
+        // committed pieces in place.
         let reductions: Vec<crate::class_flock::Prepared> = crate::stage!("Build flock witnesses", || {
-            (0..crate::class_flock::N_FLOCKS)
-                .map(|f| crate::class_flock::Prepared::build(f, &tr.rows[crate::class_flock::flock(f).0], p.entries()))
+            (flocks.into_iter().enumerate())
+                .map(|(f, pieces)| {
+                    crate::class_flock::Prepared::build(
+                        f,
+                        &tr.rows[crate::class_flock::flock(f).0],
+                        p.entries(),
+                        pieces,
+                    )
+                })
                 .collect()
         });
-        let mut w = Witness {
-            q: zk_alloc::ArenaVec::new(),
+        Witness {
+            q,
             padded,
             windows: padded_windows,
             virt,
             layout: l,
             ts_final: tr.ts_final,
             reductions,
-        };
-        w.q = crate::stage!("Gather pieces", || w.gather());
-        w
+        }
     }
 }
 

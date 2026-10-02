@@ -8,9 +8,10 @@
 //! `q` over `F64`. An evaluation claim on a column becomes a claim on `q` whose
 //! weight is one scaled equality term per piece ([`Column::terms`]).
 //!
-//! The prover also keeps every column at its full height, in a stack of its own laid
-//! out the same way with whole columns ([`padded_windows`]): that is what the bus and
-//! the table sumcheck read, and the committed stack is gathered from it ([`gather`]).
+//! Every witness builder writes its pieces straight into place ([`split_pieces`]).
+//! The prover also keeps every column that commits only some of its rows at its full
+//! height, in a stack of its own laid out the same way with whole columns
+//! ([`padded_windows`]): that is what the bus and the table sumcheck read.
 
 use primitives::field::{F64, F192};
 use zk_alloc::ArenaVec;
@@ -302,19 +303,20 @@ pub struct Window {
     pub n_vars: usize,
 }
 
-/// Every committed column of one word a row, the shared columns and the tables' own,
-/// at its full height, laid out as `stack_offsets` lays whole columns, and the
-/// total: the prover's working copy, which the bus and the table sumcheck read and
-/// nothing commits. A port has no window, and neither has a packed witness (rows of
-/// several words), whose words its flock batch already holds.
+/// Every column of one word a row that commits only some of its rows, at its full
+/// height, laid out as `stack_offsets` lays whole columns, and the total: the
+/// prover's working copy, which the bus and the table sumcheck read and nothing
+/// commits. A column committed whole has no window, the committed stack holding it
+/// in one piece; neither has a port, nor a packed witness (rows of several words),
+/// whose words its flock batch already holds.
 pub fn padded_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
     let kappas: Vec<Option<usize>> = (sources.iter())
         .map(|s| match *s {
             Source::Committed {
                 row_vars,
                 stride_log: 0,
-                ..
-            } => Some(row_vars),
+                rows,
+            } if rows < 1 << row_vars => Some(row_vars),
             Source::Committed { .. } | Source::Port { .. } => None,
         })
         .collect();
@@ -326,10 +328,6 @@ pub fn padded_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
         .collect();
     (windows, total)
 }
-
-/// Chunk width for the bulk writes below: big enough to amortize the dispatch,
-/// small enough to spread one column across cores.
-const FILL_CHUNK: usize = 1 << 16;
 
 /// The uninitialized `len`-word full-height stack. Arena-backed: it is born and dies
 /// inside one `cpu::prove` phase.
@@ -372,42 +370,42 @@ pub fn split_stack<'a>(q: &'a mut [F64], windows: &[Option<Window>]) -> Vec<&'a 
     out
 }
 
-/// The committed stack: every piece of every committed column copied out of the
-/// column at its full height, `columns[i]` for column `i`, into its place, and zeros
-/// past the last piece up to the [`StackShape::committed_len`] the commitment takes.
-pub fn gather(columns: &[&[F64]], placements: &[Placement], shape: StackShape) -> ArenaVec<F64> {
-    // `(destination, column, first word, length)` of every piece, which tile `[0, placed)`.
-    let mut copies: Vec<(usize, usize, usize, usize)> = (placements.iter().enumerate())
+/// Carve the committed stack into its pieces, `pieces[i][k]` being piece `k` of
+/// column `i` (none for a port), and the tail past the last piece, which the
+/// commitment takes as zeros. Every witness builder writes its pieces in place, so
+/// the committed stack is written once and never gathered.
+///
+/// The pieces tile `[0, placed)` with no gap ([`placements_of`]), checked here, so
+/// consecutive `split_at_mut` hand out disjoint slices covering all of `q`.
+#[allow(clippy::type_complexity)]
+pub fn split_pieces<'a>(q: &'a mut [F64], placements: &[Placement]) -> (Vec<Vec<&'a mut [F64]>>, &'a mut [F64]) {
+    let mut order: Vec<(usize, usize, usize, usize)> = (placements.iter().enumerate())
         .filter_map(|(i, p)| Some((i, p.column()?)))
         .flat_map(|(i, c)| {
-            assert_eq!(
-                columns[i].len(),
-                1 << (c.row_vars + c.stride_log),
-                "column {i} is not at full height"
-            );
-            c.pieces.iter().map(move |p| {
-                let len = 1usize << (p.log_rows + c.stride_log);
-                (p.offset, i, p.first_row << c.stride_log, len)
-            })
+            (c.pieces.iter().enumerate()).map(move |(k, p)| (p.offset, i, k, 1usize << (p.log_rows + c.stride_log)))
         })
         .collect();
-    copies.sort_unstable_by_key(|&(dst, ..)| dst);
-    // SAFETY: the chunks below write every slot, a piece's copy or a zero.
-    let mut q = unsafe { ArenaVec::<F64>::uninitialized(shape.committed_len()) };
-    parallel::chunks_mut(&mut q, FILL_CHUNK, |ci, chunk| {
-        let start = ci * FILL_CHUNK;
-        let end = start + chunk.len();
-        let mut at = start;
-        let first = copies.partition_point(|&(dst, _, _, len)| dst + len <= start);
-        for &(dst, column, src, len) in copies[first..].iter().take_while(|&&(dst, ..)| dst < end) {
-            let (lo, hi) = (dst.max(start), (dst + len).min(end));
-            debug_assert_eq!(lo, at, "the pieces tile the stack with no gap");
-            chunk[lo - start..hi - start].copy_from_slice(&columns[column][src + lo - dst..src + hi - dst]);
-            at = hi;
-        }
-        chunk[at - start..].fill(F64::ZERO);
-    });
-    q
+    order.sort_unstable_by_key(|&(offset, ..)| offset);
+
+    let mut out: Vec<Vec<&mut [F64]>> = placements
+        .iter()
+        .map(|p| {
+            let n = p.column().map_or(0, |c| c.pieces.len());
+            let mut pieces = Vec::with_capacity(n);
+            pieces.resize_with(n, || &mut [][..]);
+            pieces
+        })
+        .collect();
+    let mut rest = q;
+    let mut placed = 0usize;
+    for (offset, i, k, len) in order {
+        assert_eq!(offset, placed, "the pieces must tile the stack from 0 with no gap");
+        let (piece, tail) = rest.split_at_mut(len);
+        out[i][k] = piece;
+        rest = tail;
+        placed += len;
+    }
+    (out, rest)
 }
 
 #[cfg(test)]

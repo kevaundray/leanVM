@@ -148,9 +148,9 @@ pub(crate) struct Prepared {
 }
 
 impl Prepared {
-    /// Build packed witness `f`'s batch, one instance per row of its table. Its
-    /// committed column is the batch's packed words ([`Self::packed`]).
-    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry]) -> Self {
+    /// Build packed witness `f`'s batch, one instance per row of its table, writing its
+    /// committed column's pieces, `(first row, piece)`, in place as it goes.
+    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], pieces: Vec<(usize, &mut [F64])>) -> Self {
         let (t, part) = flock(f);
         let spec = CLASSES[t];
         let n_blocks_log = n_blocks_log(spec, rows.len());
@@ -172,17 +172,25 @@ impl Prepared {
         // A class with a word-level witness skips the walk of its gate list; the others
         // walk it 64 instances at a time.
         let witness = spec.witness.filter(|_| part == Part::Class);
-        let (z, a, b, z_lincheck) = witness.map_or_else(
-            || circuit.generate_witness_from(rows, &rows[0], n_blocks_log, input_words),
-            |witness| {
-                circuit.generate_witness_with(rows, &rows[0], n_blocks_log, |row, z, az, bz| {
+        let mut copies: Vec<flock::ZCopy<'_>> = (pieces.into_iter())
+            .map(|(first, piece)| flock::ZCopy {
+                first,
+                // SAFETY: `F64` is `repr(transparent)` over `u64`, and the packing is bit
+                // `i` at position `i` on both sides.
+                words: unsafe { std::slice::from_raw_parts_mut(piece.as_mut_ptr().cast::<u64>(), piece.len()) },
+            })
+            .collect();
+        let (z, a, b, z_lincheck) = match witness {
+            None => circuit.generate_witness_from(rows, &rows[0], n_blocks_log, &mut copies, input_words),
+            Some(witness) => {
+                circuit.generate_witness_with(rows, &rows[0], n_blocks_log, &mut copies, |row, z, az, bz| {
                     let mut words = [0u64; MAX_INPUT_WORDS];
                     let words = &mut words[..n_inputs];
                     input_words(row, words);
                     witness(words, z, az, bz);
                 })
-            },
-        );
+            }
+        };
         let stride = 1 << stride_log(spec, part);
         assert_eq!(z.len(), rows.len() * stride, "the committed column is the wrong size");
         const BATCH: usize = 1 << 10;
@@ -210,14 +218,6 @@ impl Prepared {
             b,
             z_lincheck,
         }
-    }
-
-    /// The batch's packed words, instance `j` at `j · 2^stride_log`: the circuit's
-    /// committed column at its full height.
-    pub(crate) const fn packed(&self) -> &[F64] {
-        // SAFETY: `F64` is `repr(transparent)` over `u64`, and the packing is bit `i`
-        // at position `i` on both sides.
-        unsafe { std::slice::from_raw_parts(self.z.as_ptr().cast::<F64>(), self.z.len()) }
     }
 
     /// Flock's zerocheck then lincheck, leaving the one claim on the committed column.

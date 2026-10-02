@@ -530,7 +530,7 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], rate: pcs::Ra
     // bytecode buses: their virtual columns route to that witness, so no separate pin
     // claims are needed. Mirrored in `verify`.
     let spans = &schema().spans;
-    // The columns are windows into the full-height stack, so both stages read them in
+    // The columns are windows into the full-height stack or pieces of the committed one, so both stages read them in
     // place: the table sumcheck lifts each K-column into a fresh `E` copy on the round
     // it joins and never writes the K-columns back.
     let (bus_claims, table_claims, pads) = {
@@ -926,12 +926,24 @@ mod tests {
         )
     }
 
-    /// Forge a committed column of a built witness at its full height, and gather the
-    /// committed stack again from the forgery.
+    /// Forge a committed column of a built witness at its full height, and its pieces
+    /// of the committed stack with it.
     fn forge(w: &mut Witness, col: usize, edit: impl FnOnce(&mut [F64])) {
-        let window = w.windows[col].expect("a forged column is committed");
-        edit(&mut w.padded[window.offset..window.offset + (1 << window.n_vars)]);
-        w.q = w.gather();
+        let c = w.layout.placements[col]
+            .column()
+            .expect("a forged column is committed")
+            .clone();
+        match w.windows[col] {
+            Some(window) => {
+                let rows = &mut w.padded[window.offset..window.offset + (1 << window.n_vars)];
+                edit(rows);
+                for p in &c.pieces {
+                    let len = 1 << p.log_rows;
+                    w.q[p.offset..p.offset + len].copy_from_slice(&rows[p.first_row..p.first_row + len]);
+                }
+            }
+            None => edit(&mut w.q[c.pieces[0].offset..c.pieces[0].offset + (1 << c.row_vars)]),
+        }
     }
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.

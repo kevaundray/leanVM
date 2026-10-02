@@ -929,10 +929,11 @@ mod tests {
                 .collect();
 
             // The same batch through both generators, every table compared.
-            let walk = circuit.generate_witness_with(&rows, &rows[0], n_log, |row, z, az, bz| {
+            let walk = circuit.generate_witness_with(&rows, &rows[0], n_log, &mut [], |row, z, az, bz| {
                 circuit.witness_instance(row, z, az, bz);
             });
-            let sliced = circuit.generate_witness_from(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
+            let sliced =
+                circuit.generate_witness_from(&rows, &rows[0], n_log, &mut [], |row, words| words.copy_from_slice(row));
             assert!(walk.0[..] == sliced.0[..], "z");
             assert!(walk.1[..] == sliced.1[..], "A*z");
             assert!(walk.2[..] == sliced.2[..], "B*z");
@@ -974,8 +975,9 @@ mod tests {
 
         // Both generators on the same batch, every table compared.
         let walk = BLAKE2S.generate_witness(&rows, n_log);
-        let fast =
-            BLAKE2S.generate_witness_with(&rows, &[0; 14], n_log, |row, z, az, bz| blake2s_witness(row, z, az, bz));
+        let fast = BLAKE2S.generate_witness_with(&rows, &[0; 14], n_log, &mut [], |row, z, az, bz| {
+            blake2s_witness(row, z, az, bz);
+        });
         assert!(walk.0[..] == fast.0[..], "z");
         assert!(walk.1[..] == fast.1[..], "A*z");
         assert!(walk.2[..] == fast.2[..], "B*z");

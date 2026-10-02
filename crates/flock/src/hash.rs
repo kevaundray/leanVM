@@ -672,6 +672,7 @@ pub fn generate_witness_with_ab_packed_and_lincheck(
         Some(&padding),
         n_blocks_log,
         K_LOG,
+        &mut [],
         |&(ref h, ref m, t, f0, f1), z, a, b| build_block_witness_ab_packed_into(h, m, t, f0, f1, z, a, b),
     )
 }
