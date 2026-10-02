@@ -383,20 +383,22 @@ pub fn verify_opening_batch_mixed_whir_stacked(
         target += *g * claim.value();
     }
 
-    // 3. Evaluate the lifted weight once, at the terminal sumcheck point.
+    // 3. Evaluate the lifted weight once, at the terminal sumcheck point. Every ring's weight is
+    //    evaluated at a prefix of it, so one precomputed query serves them all.
+    let max_qflock_vars = rings.iter().map(|ring| ring.qflock_vars).max().unwrap_or(0);
     let eval_b_at = |x: &[F192]| -> F192 {
+        let rs_query = ring_switch::RsEqQuery::new(&map_challenges, &x[..max_qflock_vars]);
         let mut acc = F192::ZERO;
         let mut lambdas_rs = lambdas_rs.iter();
         for ring in rings {
-            let (x_lo, x_hi) = x.split_at(ring.qflock_vars);
             let sel = ring.offset >> ring.qflock_vars;
             let mut sel_eq = F192::ONE;
-            for (k, &xi) in x_hi.iter().enumerate() {
+            for (k, &xi) in x[ring.qflock_vars..].iter().enumerate() {
                 sel_eq *= if (sel >> k) & 1 == 1 { xi } else { F192::ONE + xi };
             }
             let mut rs_part = F192::ZERO;
             for (claim, g) in ring.claims.iter().zip(lambdas_rs.by_ref()) {
-                rs_part += *g * ring_switch::eval_rs_eq(claim.suffix_point, x_lo, &coordinate_weights);
+                rs_part += *g * ring_switch::eval_rs_eq(claim.suffix_point, &rs_query);
             }
             acc += rs_part * sel_eq;
         }

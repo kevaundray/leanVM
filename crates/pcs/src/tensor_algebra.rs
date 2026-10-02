@@ -8,9 +8,8 @@
 // Port of binius64's `crates/math/src/tensor_algebra.rs` for the 64-bit
 // transition: K = F_{2^64} packing, E = GF(2^192) tower opening field.
 
-//! Tensor algebra for the rectangular `K ⊗ E` transpose and square `E ⊗ E` operations used by ring switching.
+//! Tensor algebra for the rectangular `K ⊗ E` transpose used by ring switching.
 
-use core::ops::AddAssign;
 use primitives::field::{F64, F192};
 
 use crate::pack::PACKING_WIDTH;
@@ -58,97 +57,6 @@ pub fn transpose_s_hat(s_hat_v: &[F192]) -> Vec<F64> {
     s_hat_u
 }
 
-/// An element of `E (x)_F2 E` (E = the tower GF(2^192)), stored as 192
-/// `F192` elements: `elems[i]` is the second-factor component attached to
-/// the i-th F_2-basis element of the first factor, i.e.
-/// `bit_j(elems[i])` = the coefficient of `b_i (x) b_j`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TensorAlgebraE {
-    /// Length-192 vector; see the struct docs for the indexing convention.
-    pub elems: Vec<F192>,
-}
-
-impl TensorAlgebraE {
-    /// Embed `x` into the vertical subring: returns `1 (x) x`.
-    pub fn from_vertical(x: F192) -> Self {
-        let mut elems = vec![F192::ZERO; DEGREE_E];
-        elems[0] = x;
-        Self { elems }
-    }
-
-    /// Multiply by an element of the vertical subring (`1 (x) scalar`): each
-    /// `elems[i]` is scaled by `scalar` in E.
-    pub fn scale_vertical(mut self, scalar: F192) -> Self {
-        for e in self.elems.iter_mut() {
-            *e *= scalar;
-        }
-        self
-    }
-
-    /// Multiply by an element of the horizontal subring (`scalar (x) 1`).
-    /// Implemented as `transpose . scale_vertical . transpose`.
-    pub fn scale_horizontal(self, scalar: F192) -> Self {
-        self.transpose().scale_vertical(scalar).transpose()
-    }
-
-    /// Transpose: swap the two tensor factors. Concretely, after transpose,
-    /// `bit_j(elems'[i]) = bit_i(elems[j])` for all `i, j in [0, 192)`.
-    pub fn transpose(mut self) -> Self {
-        square_transpose_ext(&mut self.elems);
-        self
-    }
-
-    /// Fold to a single E element: transpose, then scale row `w` by
-    /// `coeffs[w]` and sum.
-    ///
-    /// Computes `sum_w coeffs[w] * transpose(self).elems[w]`. With `self =
-    /// sum_y eq(query, y) (x) eq(z, y)` and `coeffs = eq(r'')` this is the
-    /// MLE of `rs_eq_ind` at `query` (see `ring_switch::eval_rs_eq`).
-    pub fn fold_vertical(self, coeffs: &[F192]) -> F192 {
-        assert_eq!(coeffs.len(), DEGREE_E, "fold_vertical: coeffs.len() must be 192");
-        let transposed = self.transpose();
-        let mut acc = F192::ZERO;
-        for (e, c) in transposed.elems.iter().zip(coeffs.iter()) {
-            acc += *e * *c;
-        }
-        acc
-    }
-}
-
-impl AddAssign<&Self> for TensorAlgebraE {
-    fn add_assign(&mut self, rhs: &Self) {
-        for (a, b) in self.elems.iter_mut().zip(rhs.elems.iter()) {
-            *a = *a + *b;
-        }
-    }
-}
-
-/// In-place 192x192 F_2 matrix transpose of the F192 coefficient table.
-///
-/// On input: `elems[i]` viewed as a 192-bit row; bit `j` (tower basis) is the
-/// F_2 coefficient at position `(i, j)`. On output: bit `j` of `elems[i]`
-/// becomes the old bit `i` of `elems[j]`.
-///
-/// By 64x64 blocks: word `c` of rows `64r..64r+64` is transposed as one block and lands as word `r` of rows
-/// `64c..64c+64`, so the work is word operations rather than one bit at a time.
-fn square_transpose_ext(elems: &mut [F192]) {
-    assert_eq!(elems.len(), DEGREE_E, "square_transpose_ext: input must be length 192");
-    let word = |e: &F192, c: usize| [e.c0, e.c1, e.c2][c];
-    let mut out = [[0u64; 3]; DEGREE_E];
-    for r in 0..3 {
-        for c in 0..3 {
-            let mut block: [u64; 64] = core::array::from_fn(|i| word(&elems[64 * r + i], c));
-            primitives::bits::transpose_64x64(&mut block);
-            for (i, &w) in block.iter().enumerate() {
-                out[64 * c + i][r] = w;
-            }
-        }
-    }
-    for (e, [c0, c1, c2]) in elems.iter_mut().zip(out) {
-        *e = F192::new(c0, c1, c2);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,36 +84,5 @@ mod tests {
                 assert_eq!((u.0 >> i) & 1, ext_bit(v, w), "bit ({i}, {w}) not transposed");
             }
         }
-    }
-
-    #[test]
-    fn square_transpose_moves_every_bit() {
-        let mut rng = Rng::new(2);
-        let orig = rng.ext_vec(DEGREE_E);
-        let t = TensorAlgebraE { elems: orig.clone() }.transpose();
-        for (i, &row) in t.elems.iter().enumerate() {
-            for (w, &col) in orig.iter().enumerate() {
-                assert_eq!(ext_bit(row, w), ext_bit(col, i), "bit ({i}, {w}) not transposed");
-            }
-        }
-        assert_eq!(t.transpose().elems, orig, "transpose twice must be id");
-    }
-
-    /// `fold_vertical(from_vertical(x), coeffs)` is exactly the F_2-linear
-    /// map Phi sending the w-th E-basis bit to coeffs[w], applied to x. This
-    /// is the map the ring switch uses to define `rs_eq_ind`.
-    #[test]
-    fn fold_vertical_is_phi() {
-        let mut rng = Rng::new(3);
-        let coeffs = rng.ext_vec(DEGREE_E);
-        let x = rng.ext();
-        let folded = TensorAlgebraE::from_vertical(x).fold_vertical(&coeffs);
-        let mut expected = F192::ZERO;
-        for (w, &c) in coeffs.iter().enumerate() {
-            if ext_bit(x, w) == 1 {
-                expected += c;
-            }
-        }
-        assert_eq!(folded, expected);
     }
 }
