@@ -7,20 +7,20 @@ use leanvm::*;
 
 #[test]
 fn proving_without_the_arena() {
-    setup_prover_without_arena();
+    let prover = Prover::without_arena();
     assert!(!zk_alloc::is_enabled(), "this path must leave the arena disengaged");
 
     // A countdown, returning how far it counted.
     let text = Asm::new()
-        .li(T0, 300)
+        .li(Reg::T0, 300)
         .label("loop")
-        .i("addi", A0, A0, 1)
-        .i("addi", T0, T0, -1)
-        .branch("bne", T0, ZERO, "loop")
+        .i(Addi, Reg::A0, Reg::A0, 1)
+        .i(Addi, Reg::T0, Reg::T0, -1)
+        .branch(Bne, Reg::T0, Reg::ZERO, "loop")
         .exit()
         .finish();
-    let program = Program::new(&text, TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
-    let (proof, output, _) = prove(&program, &[], MIN_LOG_INV_RATE).expect("the run halts");
+    let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+    let Proved { proof, output, .. } = prover.prove(&program, &[], Rate::MIN).expect("the run halts");
     assert_eq!(output, [300, 0, 0, 0]);
     verify(&program, &output, &proof).expect("the proof verifies");
 

@@ -23,6 +23,7 @@ pub struct ArenaVec<T> {
 // no additional thread affinity (a slab is bumped only by its owning thread, and
 // the resulting pointer is plain memory).
 unsafe impl<T: Send> Send for ArenaVec<T> {}
+// SAFETY: a shared `ArenaVec` hands out only `&[T]`, as a shared `Vec` does, and `T: Sync` makes that sound.
 unsafe impl<T: Sync> Sync for ArenaVec<T> {}
 
 impl<T> ArenaVec<T> {
@@ -252,7 +253,7 @@ impl<T> ArenaVec<T> {
     /// Exactly one `ArenaVec` may own a given pointer.
     #[inline]
     #[must_use]
-    pub(crate) unsafe fn from_raw_parts(ptr: *mut T, len: usize, cap: usize) -> Self {
+    pub(crate) const unsafe fn from_raw_parts(ptr: *mut T, len: usize, cap: usize) -> Self {
         Self {
             // SAFETY: the caller guarantees `ptr` is non-null.
             ptr: unsafe { NonNull::new_unchecked(ptr) },

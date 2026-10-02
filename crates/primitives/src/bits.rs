@@ -17,12 +17,12 @@ pub fn bit_transpose_64bytes(input: &[u8; 64], output: &mut [u8; 64]) {
     #[cfg(all(target_arch = "x86_64", target_feature = "avx512vbmi", target_feature = "gfni"))]
     // SAFETY: the features are enabled at compile time.
     unsafe {
-        bit_transpose_64bytes_gfni(input, output)
+        bit_transpose_64bytes_gfni(input, output);
     }
     #[cfg(target_arch = "aarch64")]
     // SAFETY: aarch64 always has NEON.
     unsafe {
-        bit_transpose_64bytes_neon(input, output)
+        bit_transpose_64bytes_neon(input, output);
     }
     #[cfg(not(any(
         all(target_arch = "x86_64", target_feature = "avx512vbmi", target_feature = "gfni"),
@@ -68,7 +68,7 @@ pub fn transpose_64x64(m: &mut [u64; 64]) {
     all(target_arch = "x86_64", target_feature = "avx512vbmi", target_feature = "gfni"),
     allow(dead_code)
 )]
-fn transpose_8x8_bits(mut x: u64) -> u64 {
+const fn transpose_8x8_bits(mut x: u64) -> u64 {
     let t = (x ^ (x >> 7)) & 0x00AA_00AA_00AA_00AA;
     x ^= t ^ (t << 7);
     let t = (x ^ (x >> 14)) & 0x0000_CCCC_0000_CCCC;
@@ -137,6 +137,8 @@ unsafe fn bit_transpose_64bytes_gfni(input: &[u8; 64], output: &mut [u8; 64]) {
 unsafe fn bit_transpose_64bytes_neon(input: &[u8; 64], output: &mut [u8; 64]) {
     use core::arch::aarch64::*;
 
+    // SAFETY: NEON is part of the aarch64 baseline, and every load and store offset is below 64, the length of
+    // both arrays.
     unsafe {
         let in_ptr = input.as_ptr();
         let v0 = vld1q_u8(in_ptr);

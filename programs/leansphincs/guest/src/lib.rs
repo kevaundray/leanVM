@@ -142,7 +142,7 @@ pub struct Signature {
 
 impl Signature {
     /// A layer's counter, one-time signature and path.
-    fn layer(&self, lay: usize) -> (u64, &[Digest; V], &[Digest]) {
+    const fn layer(&self, lay: usize) -> (u64, &[Digest; V], &[Digest]) {
         // The layers have different heights, hence different types.
         match lay {
             0 => self.layer0.parts(),
@@ -178,19 +178,22 @@ impl Signature {
 }
 
 impl<const HEIGHT: usize> LayerSignature<HEIGHT> {
-    fn parts(&self) -> (u64, &[Digest; V], &[Digest]) {
+    const fn parts(&self) -> (u64, &[Digest; V], &[Digest]) {
         (self.counter, &self.ots, &self.path)
     }
 }
 
 /// Why a signature is rejected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum VerifyError {
     /// The message digest's last index is not zero.
+    #[error("the message digest's last index is not zero")]
     InadmissibleDigest,
     /// A layer's counter gives the message it signs no codeword.
-    InadmissibleEncoding,
+    #[error("layer {layer}'s counter gives the message it signs no codeword")]
+    InadmissibleEncoding { layer: usize },
     /// The hypertree walk does not reach the key's root.
+    #[error("the hypertree walk does not reach the key's root")]
     RootMismatch,
 }
 
@@ -214,7 +217,7 @@ impl Pos {
     /// ```text
     ///   idx = [ tau_0 = 0 | e_0 : 12 bits | e_1 : 7 bits | e_2 : 7 bits ]
     /// ```
-    fn of(idx: u64, lay: usize) -> Self {
+    const fn of(idx: u64, lay: usize) -> Self {
         // The tree is what sits above the layer, the leaf the layer's own bits.
         Self {
             lay,
@@ -239,8 +242,9 @@ pub fn verify(pk: &PublicKey, message: &Message, signature: &Signature) -> Resul
         let pos = Pos::of(idx, lay);
         let (counter, ots, path) = signature.layer(lay);
         // A counter is 32 bits: a word holding more is no counter.
-        let counter = u32::try_from(counter).map_err(|_| VerifyError::InadmissibleEncoding)?;
-        let leaf = ots::leaf(pp, pos, &message, counter, ots).ok_or(VerifyError::InadmissibleEncoding)?;
+        let inadmissible = VerifyError::InadmissibleEncoding { layer: lay };
+        let counter = u32::try_from(counter).map_err(|_| inadmissible)?;
+        let leaf = ots::leaf(pp, pos, &message, counter, ots).ok_or(inadmissible)?;
         message = tree_fold(pp, pos, leaf, path);
     }
     if message == pk.root {
@@ -267,7 +271,7 @@ fn tweak(t: u8, lay: usize, tau: u32, p: u32, j: u32) -> [u64; 2] {
 
 /// A digest is the first 16 bytes of the 32.
 #[inline(always)]
-fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
+const fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
     [d0, d1]
 }
 

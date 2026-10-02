@@ -309,7 +309,7 @@ impl Weights8 {
 
     /// Weight `i`, unpacked.
     #[inline]
-    pub fn get(&self, i: usize) -> F192 {
+    pub const fn get(&self, i: usize) -> F192 {
         let j = i / 2;
         let pair = if i.is_multiple_of(2) { &self.lo } else { &self.hi };
         F192::new(pair[2 * j], pair[2 * j + 1], self.c2[2 * j + i % 2])
@@ -545,9 +545,11 @@ pub mod aarch64 {
     /// Three 128-bit coefficients as an unreduced element.
     #[inline(always)]
     fn unreduced(d: [uint64x2_t; 3]) -> F192Unreduced {
-        // SAFETY: a 128-bit register and a `[u64; 2]` hold the same bits.
         F192Unreduced {
-            coeffs: d.map(|d| unsafe { transmute::<uint64x2_t, [u64; 2]>(d) }),
+            coeffs: d.map(|d| {
+                // SAFETY: `uint64x2_t` and `[u64; 2]` are both 16 plain bytes, valid for every bit pattern.
+                unsafe { transmute::<uint64x2_t, [u64; 2]>(d) }
+            }),
         }
     }
 

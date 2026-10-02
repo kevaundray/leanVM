@@ -20,11 +20,10 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use bench::{Plan, Timing, env_usize};
-use pcs::whir::{
-    LOG_INV_RATE_0, build_eq_table_ext, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis,
-};
+use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis};
 use primitives::{
     field::{F64, F192},
+    multilinear::eq_table,
     pretty_integer,
     test_rng::Rng,
 };
@@ -34,7 +33,8 @@ fn main() {
 
     let log_n = env_usize("PCS_LOG_N", 22);
     let log_inv_rate = env_usize("PCS_LOG_INV_RATE", LOG_INV_RATE_0);
-    let pc = config_for_rate(log_n, log_inv_rate).expect("WHIR config feasible (try a larger PCS_LOG_N, e.g. >= 16)");
+    let pc =
+        config_for_rate(log_n, log_inv_rate).unwrap_or_else(|e| panic!("no WHIR config for PCS_LOG_N={log_n}: {e}"));
     let plan = Plan::from_env();
     let trace_span = tracing::info_span!("PCS throughput", log_n, log_inv_rate).entered();
 
@@ -43,7 +43,7 @@ fn main() {
     let n = 1usize << log_n;
     let witness: Vec<F64> = (0..n).map(|_| F64(rng.next_u64())).collect();
     let point: Vec<F192> = rng.ext_vec(log_n);
-    let b_initial = build_eq_table_ext(&point);
+    let b_initial = eq_table(&point);
     let target = inner_product_base_ext(&witness, &b_initial);
 
     // Nothing a pass allocates outlives it: the commitment and the proof are
@@ -55,7 +55,7 @@ fn main() {
         let _phase = zk_alloc::enter_phase();
 
         let t = Instant::now();
-        let (cm, pd) = tracing::info_span!("Commit").in_scope(|| commit(&witness, log_n, pc.initial_k, log_inv_rate));
+        let (cm, pd) = tracing::info_span!("Commit").in_scope(|| commit(&witness, log_n, pc.initial_k(), log_inv_rate));
         commit_t.push(t.elapsed().as_secs_f64());
 
         let mut ch = fiat_shamir::transcript::ProverState::from_label(b"pcs-throughput");
@@ -97,12 +97,12 @@ fn main() {
 
     println!(
         "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, mean of {}",
-        pretty_integer(plan.repeat)
+        pretty_integer(&plan.repeat)
     );
     println!(
         "  committed data                  : {:>8.1} MiB  ({:>13} F64)",
         mib(data_bytes),
-        pretty_integer(n)
+        pretty_integer(&n)
     );
     println!("  RS codeword (encoded)           : {:>8.1} MiB", mib(codeword_bytes));
     println!("  ------------------------------------------------------------");

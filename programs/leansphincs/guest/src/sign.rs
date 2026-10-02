@@ -31,11 +31,13 @@ pub struct SecretKey {
 }
 
 /// Why signing failed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum SignError {
     /// `A_max` digests in a row had a nonzero last index.
+    #[error("A_max digests in a row have a nonzero last index")]
     NoAdmissibleDigest,
     /// `C_max` counters in a row gave no codeword.
+    #[error("C_max counters in a row give no codeword")]
     NoAdmissibleEncoding,
 }
 
@@ -78,7 +80,7 @@ pub fn key_gen(seed: [u8; 32]) -> (SecretKey, PublicKey) {
 }
 
 impl SecretKey {
-    pub fn public_key(&self) -> PublicKey {
+    pub const fn public_key(&self) -> PublicKey {
         PublicKey {
             root: self.root,
             public_param: self.public_param,

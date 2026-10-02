@@ -1,9 +1,10 @@
-//! Pins `python-verifier/verifier.py` against `leanvm_core::cpu::verify`: the same
+//! Pins `python-verifier/verifier.py` against `leanvm_core::cpu::Program::verify`: the same
 //! protocol is written out in Rust and in Python, so any protocol change must land
 //! in both, and this is what catches the Python one drifting.
 
 use fiat_shamir::transcript::RawProof;
-use leanvm_core::cpu::{CpuError, prove, verify, verify_to_raw};
+use leanvm_core::cpu::CpuError;
+use leanvm_core::pcs::Rate;
 use primitives::field::F192;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -34,7 +35,8 @@ impl PythonStatement {
             directory,
         };
         let rv = program.rv();
-        let table: Vec<u8> = leanvm_core::cpu::layout::bytecode_table(rv)
+        let table: Vec<u8> = leanvm_core::cpu::Lookup::Bytecode
+            .table(rv)
             .iter()
             .flat_map(|w| w.0.to_le_bytes())
             .collect();
@@ -122,11 +124,11 @@ impl Drop for PythonStatement {
 #[test]
 fn test_python_verifier() {
     let (program, _) = super::programs::fibonacci();
-    let (proof, output, stats) = prove(&program, &[], 1).expect("the run halts");
+    let (proof, output, stats) = program.prove(&[], Rate::MIN).expect("the run halts");
     // Python reads the RAW proof: same protocol, each query carrying its own
     // full Merkle path instead of one octopus over the batch. A Rust verify
     // expands the wire form, so the pruning is written once.
-    let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
+    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
     let encoded = bincode::serialize(&proof).expect("serialize proof");
     let statement = PythonStatement::new("tamper", &program, &output);
     let verification_started = Instant::now();
@@ -135,27 +137,37 @@ fn test_python_verifier() {
 
     let mut malformed_announcement = proof.clone();
     malformed_announcement.stream[0].c1 = 1;
-    assert!(verify(&program, &output, &malformed_announcement).is_err());
+    assert_eq!(
+        program.verify(&output, &malformed_announcement),
+        Err(CpuError::NonCanonicalSize)
+    );
     let mut raw_announcement = raw.clone();
     raw_announcement.stream[0].c1 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_announcement), "a noncanonical announcement");
 
-    // A zero-clock row cannot supply the terminal marker.
+    // Neither a padding row's clock nor a failed row's can end the run.
     let final_clock = leanvm_core::tables::N_TABLES + 1;
-    let mut zero_clock = proof.clone();
-    zero_clock.stream[final_clock] = F192::ZERO;
-    assert_eq!(verify(&program, &output, &zero_clock), Err(CpuError::PublicInput));
-    let mut raw_zero_clock = raw.clone();
-    raw_zero_clock.stream[final_clock] = F192::ZERO;
-    let refused = statement.verify(&raw_zero_clock);
-    PythonStatement::assert_rejects(&refused, "a zero final clock");
-    assert!(String::from_utf8_lossy(&refused.stderr).contains("the final clock is zero"));
+    let honest = proof.stream[final_clock].c0;
+    for clock in [
+        0,
+        honest ^ leanvm_core::tables::SEED_CLOCK,
+        honest | 1 << leanvm_core::tables::FAIL_BIT,
+    ] {
+        let mut forged = proof.clone();
+        forged.stream[final_clock] = F192::new(clock, 0, 0);
+        assert_eq!(program.verify(&output, &forged), Err(CpuError::FinalClock));
+        let mut raw_forged = raw.clone();
+        raw_forged.stream[final_clock] = F192::new(clock, 0, 0);
+        let refused = statement.verify(&raw_forged);
+        PythonStatement::assert_rejects(&refused, "a final clock that is not live");
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("the final clock is not a live clock"));
+    }
 
-    let mut malformed_root = proof.clone();
+    let mut malformed_root = proof;
     // Past the announcement: the table heights, the rate, the final clock.
     let root_offset = leanvm_core::tables::N_TABLES + 2;
     malformed_root.stream[root_offset].c2 = 1;
-    assert!(verify(&program, &output, &malformed_root).is_err());
+    assert!(program.verify(&output, &malformed_root).is_err());
     let mut raw_root = raw.clone();
     raw_root.stream[root_offset].c2 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_root), "a noncanonical commitment root");
@@ -163,7 +175,7 @@ fn test_python_verifier() {
     // A decoded table is RISC-V only if it says so: one whose first entry writes `x0`
     // is refused before anything is verified.
     let table = std::fs::read(&statement.bytecode).expect("read bytecode");
-    let (ad_slot, entries) = (7, table.len() / 8 / 16);
+    let (ad_slot, entries) = (6, table.len() / 8 / 16);
     let mut writes_x0 = table.clone();
     writes_x0[8 * ad_slot * entries..][..8].copy_from_slice(&0u64.to_le_bytes());
     std::fs::write(&statement.bytecode, writes_x0).expect("write bytecode");
@@ -173,6 +185,26 @@ fn test_python_verifier() {
         String::from_utf8_lossy(&python.stderr).contains("misnames a register"),
         "Python refused a table that writes x0 for the wrong reason"
     );
+    // A load reads no `rs2`, a store writes no `rd`, and a doubleword one has no flags: their tables hold those fields
+    // at constants, `x0`, the sink and zero, so an entry naming another register or a flag is refused.
+    for (class, slot, reason) in [
+        (leanvm_core::rv::Class::Load, 5, "reads an rs2"),
+        (leanvm_core::rv::Class::Store, 6, "writes an rd"),
+        (leanvm_core::rv::Class::Ld, 5, "reads an rs2"),
+        (leanvm_core::rv::Class::Sd, 6, "writes an rd"),
+        (leanvm_core::rv::Class::Ld, 3, "flags are not its class's"),
+    ] {
+        // The class tag `g^t`, which is `2^t` since `g = x`.
+        let tag = 1u64 << leanvm_core::tables::table_of(class).expect("the class has a table");
+        let mut malformed = table.clone();
+        for (slot, value) in [(2, tag), (3, 0), (slot, 1)] {
+            malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
+        }
+        std::fs::write(&statement.bytecode, malformed).expect("write malformed register");
+        let refused = statement.verify(&raw);
+        PythonStatement::assert_rejects(&refused, reason);
+        assert!(String::from_utf8_lossy(&refused.stderr).contains(reason), "{reason}");
+    }
     // Setting an exit selector on an ordinary instruction is a malformed public table.
     let mut forged_exit = table.clone();
     forged_exit[8 * leanvm_core::tables::EXIT_SLOT * entries..][..8].copy_from_slice(&1u64.to_le_bytes());
@@ -180,9 +212,9 @@ fn test_python_verifier() {
     let refused = statement.verify(&raw);
     PythonStatement::assert_rejects(&refused, "an ordinary instruction marked as an exit");
     assert!(String::from_utf8_lossy(&refused.stderr).contains("an exit entry is not ECALL"));
-    let branch = leanvm_core::rv::alu::SUB | leanvm_core::rv::alu::BR_EQ;
-    let always = leanvm_core::rv::alu::ALWAYS;
-    let jalr = leanvm_core::rv::alu::CLEAR_BIT0;
+    let branch = leanvm_core::rv::Alu::SUB | leanvm_core::rv::Alu::BR_EQ;
+    let always = leanvm_core::rv::Alu::ALWAYS;
+    let jalr = leanvm_core::rv::Alu::CLEAR_BIT0;
     for (flags, dt, link, indirect) in [
         (branch, 0x44, 1, 1),
         (always, 0, 0, 0),
@@ -197,7 +229,7 @@ fn test_python_verifier() {
         (always, 0x44, 1, 1),
     ] {
         let mut malformed = table.clone();
-        for (slot, value) in [(4, flags), (10, dt), (11, link), (12, indirect)] {
+        for (slot, value) in [(3, flags), (9, dt), (10, link), (11, indirect)] {
             malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
         }
         std::fs::write(&statement.bytecode, malformed).expect("write malformed control flow");
@@ -218,7 +250,7 @@ v['check_bytecode'](words)
 n = len(words) // 16
 for flags, link, jalr in [(1 << 14, 1, 0), (1 | (1 << 8), 0, 0), (1 << 7, 1, 1)]:
     candidate = words.copy()
-    for slot, value in [(4, flags), (10, 0), (11, link), (12, jalr)]:
+    for slot, value in [(3, flags), (9, 0), (10, link), (11, jalr)]:
         candidate[slot * n] = v['K'](value)
     v['check_bytecode'](candidate)
 "#,
@@ -249,8 +281,7 @@ for flags, link, jalr in [(1 << 14, 1, 0), (1 | (1 << 8), 0, 0), (1 << 7, 1, 1)]
 #[test]
 fn the_python_verifier_follows_the_slowest_rate() {
     let (program, _) = super::programs::fibonacci();
-    let rate = leanvm_core::pcs::MAX_LOG_INV_RATE;
-    let (proof, output, _) = prove(&program, &[], rate).expect("the run halts");
-    let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
+    let (proof, output, _) = program.prove(&[], Rate::MAX).expect("the run halts");
+    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
     PythonStatement::new("rate", &program, &output).assert_accepts(&raw);
 }

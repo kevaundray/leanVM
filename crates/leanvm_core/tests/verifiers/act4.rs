@@ -9,8 +9,9 @@
 //! -- --ignored act4`.
 
 use super::python_verifier::PythonStatement;
-use leanvm_core::cpu::{Program, prove, verify_to_raw};
-use leanvm_core::rv::{Guest, Machine, RAM_BASE, TEXT_BASE, Trap};
+use leanvm_core::cpu::Program;
+use leanvm_core::pcs::Rate;
+use leanvm_core::rv::{Guest, Machine, Region, Trap};
 use leanvm_core::tables::N_TABLES;
 use std::path::{Path, PathBuf};
 
@@ -97,18 +98,28 @@ fn suite() -> Vec<Test> {
 /// behind which the text holds the check's label and the address of its description,
 /// and `x4` its register save area, where the registers are.
 fn failed_check(test: &Test, machine: &Machine, trap: &Trap) -> Option<String> {
-    let link = machine.regs[5];
+    let link = machine.registers().cells()[5];
     if !matches!(*trap, Trap::Unmapped { address, .. } if address == link.wrapping_sub(6)) {
         return None;
     }
-    let word = |pc: u64| test.text.get(pc.checked_sub(TEXT_BASE)? as usize / 4).copied();
-    let ram = |address: u64| machine.ram().get(address.checked_sub(RAM_BASE)? as usize / 8).copied();
+    let word = |pc: u64| {
+        test.text
+            .get(pc.checked_sub(Region::TEXT.base())? as usize / 4)
+            .copied()
+    };
+    let ram = |address: u64| {
+        machine
+            .memory()
+            .ram()
+            .get(address.checked_sub(Region::RAM.base())? as usize / 8)
+            .copied()
+    };
     // `ld expected, offset(signature)`, `beq expected, actual`, `jal x5, handler`.
     let (load, beq) = (word(link.wrapping_sub(12))?, word(link.wrapping_sub(8))?);
     if load & 0x707f != 0x3003 || beq & 0x707f != 0x63 {
         return None;
     }
-    let saved = |register: u32| ram(machine.regs[4].wrapping_add(8 * register as u64));
+    let saved = |register: u32| ram(machine.registers().cells()[4].wrapping_add(8 * register as u64));
     let actual = (beq >> 20) & 31;
     let signature = saved((load >> 15) & 31)?.wrapping_add((load as i32 >> 20) as u64);
     let description = u64::from(word(link.wrapping_add(8))?) | u64::from(word(link.wrapping_add(12))?) << 32;
@@ -127,14 +138,13 @@ fn failed_check(test: &Test, machine: &Machine, trap: &Trap) -> Option<String> {
 fn check_run(test: &Test) -> Result<(), String> {
     let name = &test.name;
     let mut machine = Machine::new(test.program.rv(), &[]);
-    match machine.run(CYCLE_CAP) {
-        Ok(PASS) => Ok(()),
-        Ok([1, called_from, ..]) => Err(format!("{name}: fails, halting from {called_from:#x}")),
-        Ok(output) => Err(format!("{name}: exits with {output:?}")),
-        Err(trap) => Err(match failed_check(test, &machine, &trap) {
-            Some(check) => format!("{name}: {check}"),
-            None => format!("{name}: {trap}"),
-        }),
+    match machine.run_for(CYCLE_CAP) {
+        Ok(Some(PASS)) => Ok(()),
+        Ok(Some([1, called_from, ..])) => Err(format!("{name}: fails, halting from {called_from:#x}")),
+        Ok(Some(output)) => Err(format!("{name}: exits with {output:?}")),
+        Ok(None) => Err(format!("{name}: runs past {CYCLE_CAP} cycles")),
+        Err(trap) => Err(failed_check(test, &machine, &trap)
+            .map_or_else(|| format!("{name}: {trap}"), |check| format!("{name}: {check}"))),
     }
 }
 
@@ -154,9 +164,13 @@ fn act4_proven() {
     let mut covered = [false; N_TABLES];
     let mut python = Vec::new();
     for Test { name, program, .. } in suite() {
-        let (proof, output, stats) = prove(&program, &[], 1).unwrap_or_else(|trap| panic!("{name}: {trap}"));
+        let (proof, output, stats) = program
+            .prove(&[], Rate::MIN)
+            .unwrap_or_else(|trap| panic!("{name}: {trap}"));
         assert_eq!(output, PASS, "{name}: the prover's output");
-        let raw = verify_to_raw(&program, &output, &proof).unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let raw = program
+            .verify_to_raw(&output, &proof)
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         let used = stats.base_counts.map(|rows| rows > 0);
         if used.iter().zip(&covered).any(|(&used, &seen)| used && !seen) {
             covered = std::array::from_fn(|t| covered[t] || used[t]);

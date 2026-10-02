@@ -1,7 +1,7 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-core), MIT OR Apache-2.0.
-//! Round-1 prover message: fully optimized (shift_reduce + extract_c, scalar).
+//! Round-1 prover message: fully optimized (shift_reduce + extract_c).
 //!
-//! Scalar Rust implementation (no NEON). Three layered optimizations on top of
+//! Scalar Rust, with NEON and GFNI kernels for the inner sweep. Three layered optimizations on top of
 //! the `round1_extract_c` scaffold:
 //!
 //! 1. **Geometric small-eq + shift_reduce inner** (3 inner-most rest-dims).
@@ -64,7 +64,7 @@ const N_MEDIUM: usize = 4;
 /// `tests::friendly_challenges_f2_independent`.
 const SMALL_CHAL_F8: [u8; 3] = [0xF7, 0x53, 0xB5];
 
-/// `C_s` as an F_8 value. Verified empirically by the C++ project.
+/// `C_s` as an F_8 value, pinned by the cross-check against the naive round.
 const C_S_F8: u8 = 0x1C;
 
 /// The constant `C_s = φ_8(0x1C) ∈ F_{2^192}`: the relative scaling factor
@@ -225,11 +225,17 @@ fn convert_table() -> &'static ConvertTable {
 // into the per-(K, lane) 16-bit accumulators.
 // ---------------------------------------------------------------------------
 
+/// # Safety
+/// `table_base` points to a `256 * 64`-byte table, and `BH < 4`.
 #[cfg(target_arch = "aarch64")]
 // `0 ^ BH` is the i = 0 case of the `i ^ BH` row-select pattern below; spelling
 // it out keeps the four loads visibly parallel.
 #[allow(clippy::identity_op)]
 #[inline(always)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Separate NEON accumulators preserve the register layout of the fused kernel."
+)]
 unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
     table_base: *const u8,
     a_byte: u8,
@@ -244,6 +250,8 @@ unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
     db3: &mut core::arch::aarch64::uint8x16_t,
 ) {
     use core::arch::aarch64::*;
+    // SAFETY: NEON is part of the aarch64 baseline; `table_base` is the caller's `256 * 64`-byte table, so row
+    // `byte * 64` plus a chunk offset `(i ^ BH) * 16 < 64` (`BH < 4`) stays inside it.
     unsafe {
         let ra = table_base.add(a_byte as usize * 64);
         let rb = table_base.add(b_byte as usize * 64);
@@ -268,8 +276,15 @@ unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
 
 /// Process one K-row: 8 byte positions of `a` and `b` via the inv_NTT table,
 /// F_8 multiply, widen-shift by K, XOR into the four `(acc_lo, acc_hi)` pairs.
+///
+/// # Safety
+/// `table_base` points to a `256 * 64`-byte table, and `a_row` and `b_row` to `N_CHUNKS` readable bytes each.
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Separate NEON accumulators preserve the register layout of the fused kernel."
+)]
 unsafe fn fused_apply_one_k<const K: i32>(
     table_base: *const u8,
     a_row: *const u8,
@@ -285,6 +300,8 @@ unsafe fn fused_apply_one_k<const K: i32>(
 ) {
     use core::arch::aarch64::*;
     use primitives::field::gf2_8::neon::gf8_mul_vec16;
+    // SAFETY: NEON is part of the aarch64 baseline; the caller guarantees `N_CHUNKS` readable bytes at `a_row` and
+    // `b_row` and a `256 * 64`-byte table, and every load is a table row plus an offset below 64.
     unsafe {
         // `π_b(i') = i' ⊕ 8b` is a chunk-index XOR by `b >> 1`, which is a free
         // load offset, and for odd `b` a swap of each chunk's two 8-byte halves.
@@ -377,6 +394,9 @@ fn shift_reduce_inner_ab_fused_neon(
     let byte_base_b = chunk_byte_base + b_med * N_CHUNKS * 8;
     let table_base = inv_table.data_ptr();
 
+    // SAFETY: NEON is part of the aarch64 baseline. The table is `256 * 64` bytes, its `k` being `K_SKIP` (asserted
+    // at the entry point). The row windows `byte_base_b + K * N_CHUNKS .. + N_CHUNKS` for `K < 8` lie in both packed
+    // tables, whose lengths the entry point asserts against the windows it walks. `out` is 64 bytes.
     unsafe {
         let mut acc0_lo = vdupq_n_u16(0);
         let mut acc0_hi = vdupq_n_u16(0);
@@ -664,7 +684,7 @@ struct Convert {
     target_feature = "avx512vbmi"
 )))]
 impl Convert {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             ab: [F192::ZERO; ELL],
             c: [F192::ZERO; ELL],
@@ -687,7 +707,7 @@ impl Convert {
         }
     }
 
-    fn values(&self) -> ([F192; ELL], [F192; ELL]) {
+    const fn values(&self) -> ([F192; ELL], [F192; ELL]) {
         (self.ab, self.c)
     }
 }
@@ -719,7 +739,7 @@ struct Convert {
     target_feature = "avx512vbmi"
 ))]
 impl Convert {
-    fn new() -> Self {
+    const fn new() -> Self {
         // SAFETY: an all-zero bit pattern is a valid register value.
         unsafe { core::mem::zeroed() }
     }
@@ -807,11 +827,11 @@ struct WorkerState {
 
 impl WorkerState {
     /// The two accumulators, once every claimed `x_hi` has been folded in.
-    fn into_results(self) -> ([F192; ELL], [F192; ELL]) {
+    const fn into_results(self) -> ([F192; ELL], [F192; ELL]) {
         (self.local_res_ab, self.local_res_c_s)
     }
 
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             partials: Convert::new(),
             chunk_ab_bytes: [[0u8; 64]; 1 << N_MEDIUM],
@@ -828,6 +848,10 @@ impl WorkerState {
 /// `FULL` specializes the trip count to the constant `1 << N_MEDIUM`, which is
 /// the case for every non-boundary window; the unroll depends on it.
 #[inline(always)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The proof kernel keeps its independent inputs explicit."
+)]
 fn accumulate_x_outer<const FULL: bool>(
     n_b_med: usize,
     chunk_byte_base: usize,
@@ -867,6 +891,10 @@ fn accumulate_x_outer<const FULL: bool>(
 
 /// Process one outer value.
 #[inline]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The proof kernel keeps its independent inputs explicit."
+)]
 fn process_one_x_hi(
     x_hi: usize,
     big_lo_size: usize,
@@ -885,7 +913,7 @@ fn process_one_x_hi(
 
     let n_lo = n_lo_and_inner - N_INNER;
 
-    for x_outer_lo in 0..big_lo_size {
+    for (x_outer_lo, &eq_lo_val) in eq_lo_scaled.iter().enumerate().take(big_lo_size) {
         let x_outer = x_outer_lo | (x_hi << n_lo);
         let within_hash_outer = x_outer & within_outer_mask;
         let n_b_med = b_med_counts[within_hash_outer] as usize;
@@ -894,7 +922,6 @@ fn process_one_x_hi(
         }
 
         let chunk_byte_base = ((x_outer_lo << N_INNER) | (x_hi << n_lo_and_inner)) * N_CHUNKS;
-        let eq_lo_val = eq_lo_scaled[x_outer_lo];
 
         if n_b_med == (1 << N_MEDIUM) {
             accumulate_x_outer::<true>(
@@ -975,6 +1002,10 @@ fn build_b_med_counts(padding: &PaddingSpec) -> (usize, Vec<u8>) {
 /// Skips 512-bit b_med sub-windows that fall entirely in the zero padding of
 /// every witness block per `padding`, which is byte-identical to the dense
 /// path when those bits are honestly zero.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The proof kernel keeps its independent inputs explicit."
+)]
 pub fn round1_shift_reduce_extract_c_packed_padded(
     a_packed: &[u8],
     b_packed: &[u8],
@@ -1152,8 +1183,9 @@ mod tests {
                 rows.swap(rank, p);
                 for i in 0..rows.len() {
                     if i != rank && rows[i][limb] & mask != 0 {
-                        for l in 0..3 {
-                            rows[i][l] ^= rows[rank][l];
+                        let pivot = rows[rank];
+                        for (limb, value) in rows[i].iter_mut().zip(pivot) {
+                            *limb ^= value;
                         }
                     }
                 }

@@ -101,11 +101,13 @@ pub struct Signature {
 }
 
 /// Why a signature is rejected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum VerifyError {
     /// The randomness gives the message no valid encoding.
+    #[error("the randomness gives the message no valid encoding")]
     InvalidEncoding,
     /// The recovered one-time key does not reach the root.
+    #[error("the recovered one-time key does not reach the root")]
     InvalidMerklePath,
 }
 
@@ -159,7 +161,7 @@ fn tweak(ty: u8, position: u32, index: u32) -> [u64; 2] {
 
 /// A digest is the first 16 bytes of the 32.
 #[inline(always)]
-fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
+const fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
     [d0, d1]
 }
 
@@ -181,14 +183,14 @@ struct Digits([u64; 2]);
 impl Digits {
     /// Digit `i`: bits `3j..3j+3` of word `i / 21`, `j = i % 21`.
     #[inline(always)]
-    fn get(self, i: usize) -> usize {
+    const fn get(self, i: usize) -> usize {
         (self.0[i / (V / 2)] >> (W * (i % (V / 2)))) as usize & (CHAIN_LENGTH - 1)
     }
 
     /// The sum of the digits, by adding neighbouring fields in place.
     ///
     /// No field overflows into the next: the top bits are zero, a digit is at most 7, and all of them sum to at most 294.
-    fn sum(self) -> u64 {
+    const fn sum(self) -> u64 {
         let [low, high] = self.0;
         // 7 in every 6-bit field: the even digits.
         const EVEN: u64 = 0x71C7_1C71_C71C_71C7;

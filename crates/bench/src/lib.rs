@@ -96,7 +96,8 @@ fn mean_and_ci(samples: &[f64]) -> (f64, f64) {
 fn t_critical_95(df: usize) -> f64 {
     let z = 1.959_964_f64;
     let df = df as f64;
-    z + (z.powi(3) + z) / (4.0 * df) + (5.0 * z.powi(5) + 16.0 * z.powi(3) + 3.0 * z) / (96.0 * df.powi(2))
+    z + (z.powi(3) + z) / (4.0 * df)
+        + 3.0f64.mul_add(z, 16.0f64.mul_add(z.powi(3), 5.0 * z.powi(5))) / (96.0 * df.powi(2))
 }
 
 /// Wall-clock samples from one repeated measurement, in seconds.
@@ -231,9 +232,9 @@ impl Plan {
 /// picture. Read after a warmup pass, this is the steady-state footprint.
 #[must_use]
 pub fn peak_rss_bytes() -> u64 {
-    // SAFETY: `getrusage` only writes into the `rusage` we hand it, which is
-    // zeroed and correctly sized.
+    // SAFETY: `rusage` is a plain C struct of integers, for which all-zero bytes are a valid value.
     let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    // SAFETY: `getrusage` only writes into the `rusage` we hand it, which is a live, correctly sized local.
     unsafe { libc::getrusage(libc::RUSAGE_SELF, &raw mut usage) };
     let max = usage.ru_maxrss as u64;
     // `ru_maxrss` is bytes on macOS and KiB on Linux.
@@ -261,7 +262,7 @@ pub struct Metric {
 
 impl Metric {
     #[must_use]
-    pub fn exact(value: usize) -> Self {
+    pub const fn exact(value: usize) -> Self {
         Self {
             value: value as f64,
             bounds: None,

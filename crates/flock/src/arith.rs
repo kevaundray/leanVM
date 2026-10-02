@@ -114,15 +114,15 @@ impl U64Circuit {
         Self { op, circuit, plan }
     }
 
-    pub fn circuit(&self) -> &Circuit {
+    pub const fn circuit(&self) -> &Circuit {
         &self.circuit
     }
 
-    pub fn k_log(&self) -> usize {
+    pub const fn k_log(&self) -> usize {
         self.circuit.k_log()
     }
 
-    pub fn useful_bits(&self) -> usize {
+    pub const fn useful_bits(&self) -> usize {
         self.circuit.useful_bits()
     }
 
@@ -144,7 +144,7 @@ impl U64Circuit {
                 let mut witness = Instance { z, az, bz };
                 let out = match &self.plan {
                     Plan::Add(adder) => adder.witness(a, b, &mut witness),
-                    Plan::Mul(multiplier) => multiplier.witness(a, b, &mut witness),
+                    Plan::Mul(multiplier) => multiplier.witness_into(a, b, &mut witness),
                 };
                 witness.unit_rows(A_BASE, a as u128, 64);
                 witness.unit_rows(B_BASE, b as u128, 64);

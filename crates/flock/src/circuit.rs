@@ -24,7 +24,7 @@
 
 use crate::lincheck::LincheckCircuit;
 use crate::reduction::Block;
-use crate::witness::{GroupTables, drive_witness_groups, drive_witness_packed_and_lincheck};
+use crate::witness::{GroupTables, drive_witness_batched, drive_witness_groups, drive_witness_packed_and_lincheck};
 use primitives::bits::transpose_64x64;
 use primitives::field::F192;
 use zk_alloc::ArenaVec;
@@ -95,7 +95,7 @@ impl Builder {
     }
 
     /// The constant 1.
-    pub fn one(&self) -> Wire {
+    pub const fn one(&self) -> Wire {
         self.one
     }
 
@@ -105,7 +105,7 @@ impl Builder {
     }
 
     /// The slot the next product takes.
-    pub fn next_slot(&self) -> usize {
+    pub const fn next_slot(&self) -> usize {
         self.next_slot
     }
 
@@ -144,11 +144,25 @@ impl Builder {
     /// Commits `wire` as bit `bit` of output port `port`. A structural zero needs no
     /// gate: the empty row is what forces the bit to zero.
     pub fn output(&mut self, port: usize, bit: usize, wire: Wire) {
+        let slot = self.output_slot(port, bit);
+        if let Some(wire) = wire {
+            self.push(Gate::Copy(wire, slot));
+        }
+    }
+
+    /// One product, committed as bit `bit` of output port `port` rather than at the next slot.
+    ///
+    /// The port bit is the product's row, so the output costs no copy.
+    pub fn and_output(&mut self, port: usize, bit: usize, x: Wire, y: Wire) -> Wire {
+        let slot = self.output_slot(port, bit);
+        let (x, y) = (x?, y?);
+        Some(self.push(Gate::And(x, y, slot)))
+    }
+
+    fn output_slot(&self, port: usize, bit: usize) -> u32 {
         let (base, bits) = self.outputs[port];
         assert!(bit < bits, "output port {port} has {bits} bits");
-        if let Some(wire) = wire {
-            self.push(Gate::Copy(wire, (base + bit) as u32));
-        }
+        (base + bit) as u32
     }
 
     pub fn finish(self) -> Circuit {
@@ -173,25 +187,25 @@ pub struct Circuit {
 
 impl Circuit {
     /// `log2` of the bits one instance occupies.
-    pub fn k_log(&self) -> usize {
+    pub const fn k_log(&self) -> usize {
         self.k_log
     }
 
-    pub fn useful_bits(&self) -> usize {
+    pub const fn useful_bits(&self) -> usize {
         self.useful_bits
     }
 
     /// The constant wire's position.
-    pub fn const_pos(&self) -> usize {
+    pub const fn const_pos(&self) -> usize {
         self.const_pos
     }
 
     /// Products, which is what an instance pays beyond its ports.
-    pub fn n_products(&self) -> usize {
+    pub const fn n_products(&self) -> usize {
         self.useful_bits - self.const_pos - 1
     }
 
-    pub fn n_input_words(&self) -> usize {
+    pub const fn n_input_words(&self) -> usize {
         self.n_input_words
     }
 
@@ -392,6 +406,20 @@ impl Circuit {
         drive_witness_packed_and_lincheck(rows, Some(padding), n_blocks_log, self.k_log, instance)
     }
 
+    /// Build native witnesses eight instances at a time.
+    ///
+    /// The callback fills three zeroed instance-major buffers for each group.
+    pub fn generate_witness_batched<S: Sync>(
+        &self,
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
+    ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+        // Eight adjacent instances occupy one lincheck byte stripe.
+        drive_witness_batched(rows, padding, n_blocks_log, self.k_log, batch)
+    }
+
     /// The matrix-vector products `(A_0 w, B_0 w)`, by one forward walk.
     pub(crate) fn row_values(&self, w: &[F192]) -> (Vec<F192>, Vec<F192>) {
         let k = self.n_cols();
@@ -544,12 +572,18 @@ mod tests {
             };
             pool.push(wire);
         }
-        // Drive about half the output bits, leaving the rest structural zeros.
+        // Drive about half the output bits, by a copy or by a product, leaving the rest structural zeros.
         for (port, bits) in [(0, 64), (1, narrow)] {
             for bit in 0..bits {
-                if rng.bit() {
-                    let wire = pool[rng.next_u32() as usize % pool.len()];
-                    c.output(port, bit, wire);
+                let kind = rng.next_u32() % 4;
+                let mut pick = || pool[rng.next_u32() as usize % pool.len()];
+                match kind {
+                    0 | 1 => {}
+                    2 => c.output(port, bit, pick()),
+                    _ => {
+                        let (x, y) = (pick(), pick());
+                        c.and_output(port, bit, x, y);
+                    }
                 }
             }
         }
@@ -578,7 +612,7 @@ mod tests {
 
             // The same batch through both generators, every table compared.
             let walk = circuit.generate_witness_with(&rows, &padding, n_log, |row, z, az, bz| {
-                circuit.witness_instance(row, z, az, bz)
+                circuit.witness_instance(row, z, az, bz);
             });
             let sliced = circuit.generate_witness_from(&rows, &padding, n_log, |row, words| words.copy_from_slice(row));
             assert!(walk.0[..] == sliced.0[..], "z, round {round}");

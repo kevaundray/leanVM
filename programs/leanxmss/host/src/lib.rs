@@ -57,13 +57,13 @@ pub fn batch(n: usize) -> Run {
 }
 
 /// A key as the words the guest reads it from.
-fn words_of_key(pk: &PublicKey) -> &[u64] {
+const fn words_of_key(pk: &PublicKey) -> &[u64] {
     // SAFETY: `repr(C)` words, with no padding (see its definition).
     unsafe { as_words_unchecked(pk) }
 }
 
 /// A signature as the words the guest reads it from.
-fn words_of_signature(signature: &Signature) -> &[u64] {
+const fn words_of_signature(signature: &Signature) -> &[u64] {
     // SAFETY: `repr(C)` words, with no padding (see its definition).
     unsafe { as_words_unchecked(signature) }
 }
@@ -170,7 +170,7 @@ mod tests {
     /// The guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(run: &Run) -> Result<[u64; 4], leanvm_core::rv::Trap> {
         let program = leanvm_core::cpu::Program::from_elf(ELF).expect("the guest's ELF file");
-        leanvm_core::rv::Machine::new(program.rv(), &run.advice).run(1 << 30)
+        leanvm_core::rv::Machine::new(program.rv(), &run.advice).run()
     }
 
     #[test]

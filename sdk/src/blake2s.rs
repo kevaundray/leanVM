@@ -208,13 +208,13 @@ impl<const W: usize> Template<W> {
             assert!(
                 COUNTER.is_multiple_of(4) && COUNTER + 4 <= 8 * W,
                 "a u32 field inside the message"
-            )
+            );
         };
         const {
             assert!(
                 VALUE.is_multiple_of(8) && VALUE + 16 <= 8 * W,
                 "two words inside the message"
-            )
+            );
         };
         assert!(counters.start <= counters.end);
         #[cfg(all(target_arch = "riscv64", target_os = "none"))]
@@ -375,9 +375,9 @@ impl Stream<'_> {
         // SAFETY: each half holds four words of the block.
         unsafe {
             if j < 4 {
-                self.lo.add(j).write(word)
+                self.lo.add(j).write(word);
             } else {
-                self.hi.add(j - 4).write(word)
+                self.hi.add(j - 4).write(word);
             }
         }
     }
@@ -452,6 +452,11 @@ pub(crate) struct Block {
 impl Block {
     /// The compression of `m` onto `h`, in place, `t` bytes into the message.
     #[inline(always)]
+    // The instruction writes `out`; off the VM the portable compression only reads the block.
+    #[cfg_attr(
+        not(all(target_arch = "riscv64", target_os = "none")),
+        allow(clippy::needless_pass_by_ref_mut)
+    )]
     fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
         #[cfg(all(target_arch = "riscv64", target_os = "none"))]
         // SAFETY: the block is this borrow's, its chaining value and message initialized; the instruction writes
@@ -510,7 +515,7 @@ mod portable {
     ];
 
     /// The 32-bit little-endian lane `i` of a word array.
-    fn lane(words: &[u64], i: usize) -> u32 {
+    const fn lane(words: &[u64], i: usize) -> u32 {
         (words[i / 2] >> (32 * (i % 2))) as u32
     }
 

@@ -28,7 +28,6 @@ pub use fiat_shamir::merkle::{Hash, hash_leaf, hash_pair};
 use parallel::SendPtr;
 use primitives::field::F64;
 use primitives::hash::{BATCH, BLOCK_LEN, OUT_LEN, hash_many, hash_many_dyn_from_state, zero_prefix_state};
-use primitives::pretty_integer;
 use zk_alloc::ArenaVec;
 
 /// Nodes one climb takes at most: 32 KiB of digests, which stay in L1.
@@ -36,30 +35,6 @@ const UNIT: usize = 1 << 10;
 
 /// Staging tile for leaves whose zero padding does not end on a block boundary.
 const STAGE_TILE_BYTES: usize = 16 << 10;
-
-/// Merkle tree over `num_leaves` equal byte leaves.
-///
-/// Every leaf is hashed as plain BLAKE2s-256 of its bytes.
-#[tracing::instrument(
-    name = "Hashing",
-    skip_all,
-    fields(
-        num_leaves = %pretty_integer(num_leaves),
-        leaf_size = %pretty_integer(data.len().checked_div(num_leaves).unwrap_or(0))
-    )
-)]
-pub fn merkle_tree(data: &[u8], num_leaves: usize) -> ArenaVec<Hash> {
-    assert!(num_leaves > 0, "num_leaves must be power of 2");
-    assert_eq!(
-        data.len() % num_leaves,
-        0,
-        "data length must be a multiple of num_leaves"
-    );
-    let leaf_bytes = data.len() / num_leaves;
-    let builder = MerkleBuilder::with_bytes(num_leaves, leaf_bytes, leaf_bytes);
-    builder.absorb_all(data);
-    builder.finish()
-}
 
 /// A Merkle tree filled one aligned block of leaves at a time, from any thread.
 ///
@@ -133,6 +108,7 @@ impl MerkleBuilder {
     }
 
     /// Absorb all rows, in parallel blocks.
+    #[cfg(test)]
     fn absorb_all(&self, data: &[u8]) {
         let num_leaves = self.nodes.width(0);
         assert_eq!(data.len(), num_leaves * self.leaves.row_bytes(), "one row per leaf");
@@ -172,12 +148,12 @@ impl Nodes {
     }
 
     /// Nodes on `level`.
-    fn width(&self, level: usize) -> usize {
+    const fn width(&self, level: usize) -> usize {
         self.num_leaves >> level
     }
 
     /// Index of `level`'s first node.
-    fn start(&self, level: usize) -> usize {
+    const fn start(&self, level: usize) -> usize {
         2 * self.num_leaves - ((2 * self.num_leaves) >> level)
     }
 
@@ -325,7 +301,7 @@ impl LeafHasher {
         }
     }
 
-    fn row_bytes(&self) -> usize {
+    const fn row_bytes(&self) -> usize {
         match *self {
             Self::Direct { row_bytes, .. } | Self::Staged { row_bytes, .. } | Self::Single { row_bytes, .. } => {
                 row_bytes
@@ -381,7 +357,7 @@ impl LeafHasher {
 struct Tile([u64; STAGE_TILE_BYTES / 8]);
 
 impl Tile {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self([0; STAGE_TILE_BYTES / 8])
     }
 
@@ -399,12 +375,12 @@ impl Tile {
     }
 }
 
-fn words_as_bytes(words: &[F64]) -> &[u8] {
+const fn words_as_bytes(words: &[F64]) -> &[u8] {
     // SAFETY: F64 is repr(transparent) over u64, so on this LE target the slice is its words' byte image.
     unsafe { std::slice::from_raw_parts(words.as_ptr().cast(), std::mem::size_of_val(words)) }
 }
 
-fn digests_as_bytes(out: &mut [MaybeUninit<Hash>]) -> &mut [u8] {
+const fn digests_as_bytes(out: &mut [MaybeUninit<Hash>]) -> &mut [u8] {
     // SAFETY: a digest is 32 bytes with no padding, and the hasher only writes.
     unsafe { std::slice::from_raw_parts_mut(out.as_mut_ptr().cast(), out.len() * OUT_LEN) }
 }
@@ -418,6 +394,14 @@ mod tests {
         assert_eq!(data.len(), row_words * num_leaves);
         let builder = MerkleBuilder::new(num_leaves, row_words, leaf_words);
         builder.absorb_all(words_as_bytes(data));
+        builder.finish()
+    }
+
+    /// The tree over `num_leaves` equal byte leaves, each hashed as plain BLAKE2s-256 of its bytes.
+    fn merkle_tree(data: &[u8], num_leaves: usize) -> ArenaVec<Hash> {
+        let leaf_bytes = data.len() / num_leaves;
+        let builder = MerkleBuilder::with_bytes(num_leaves, leaf_bytes, leaf_bytes);
+        builder.absorb_all(data);
         builder.finish()
     }
 

@@ -2,6 +2,8 @@
 name = "primitives"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [lints]
@@ -21,7 +23,6 @@ test-util = ["dep:rand"]
 [dev-dependencies]
 primitives = { path = ".", features = ["test-util"] }
 bench.workspace = true
-bincode.workspace = true
 
 [[bench]]
 name = "hash_throughput"

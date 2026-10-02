@@ -30,7 +30,7 @@ unsafe impl Words for Entry {}
 
 impl Entry {
     /// The claim, the entry's first words, in place.
-    fn claim(&self) -> &[u64; CLAIM_WORDS] {
+    const fn claim(&self) -> &[u64; CLAIM_WORDS] {
         // SAFETY: `repr(C)`, so the key, the leaf index and the message are the first words, back to back.
         unsafe { &*(self as *const Self).cast() }
     }

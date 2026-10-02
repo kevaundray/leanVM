@@ -60,7 +60,7 @@ pub(crate) struct Digits([u64; 2]);
 
 impl Digits {
     /// Chunk `i`: bits `3r..3r+3` of word `i / 21`, `r = i % 21`.
-    pub(crate) fn get(self, i: usize) -> usize {
+    pub(crate) const fn get(self, i: usize) -> usize {
         (self.0[i / (V / 2)] >> (W * (i % (V / 2)))) as usize & (CHAIN_LEN - 1)
     }
 
@@ -81,7 +81,7 @@ impl Digits {
     ///
     /// No field overflows into the next: the top bits are zero, a chunk is at most 7, and all of them sum to at
     /// most 294.
-    fn sum(self) -> u64 {
+    const fn sum(self) -> u64 {
         let [low, high] = self.0;
         // 7 in every 6-bit field: the even chunks.
         const EVEN: u64 = 0x71C7_1C71_C71C_71C7;

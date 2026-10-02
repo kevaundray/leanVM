@@ -89,7 +89,7 @@
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use pcs::ring_switch::inner_product_ext;
 use primitives::field::F192;
-use primitives::multilinear::{eq_eval, eq_table as build_eq, lagrange_weights_naive};
+use primitives::multilinear::{eq_eval, eq_table as build_eq, skip_lagrange_weights};
 #[cfg(test)]
 use zk_alloc::ArenaVec;
 
@@ -196,32 +196,27 @@ pub struct LincheckClaim {
     pub s_hat_v: Vec<F192>,
 }
 
-/// Reasons the verifier may reject.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Why the lincheck verifier rejects.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum VerifyError {
-    /// One of the input quirky points has wrong `x_inner_rest` length
-    /// (expected `k_log − k_skip`).
-    BadInnerRestLength {
-        which: &'static str,
-        expected: usize,
-        got: usize,
-    },
-    /// One of the input quirky points has wrong `x_outer` length
-    /// (expected `n_log = m − k_log`).
-    BadOuterLength {
-        which: &'static str,
-        expected: usize,
-        got: usize,
-    },
-    /// The circuit's column count isn't `2^k_log`.
+    /// The claim point's inner coordinates are not `k_log - k_skip` long.
+    #[error("the claim point has {got} inner coordinates, and lincheck needs {expected}")]
+    BadInnerRestLength { expected: usize, got: usize },
+    /// The claim point's outer coordinates are not `m - k_log` long.
+    #[error("the claim point has {got} outer coordinates, and lincheck needs {expected}")]
+    BadOuterLength { expected: usize, got: usize },
+    /// The circuit's column count is not `2^k_log`.
+    #[error("the circuit has {got} columns, and lincheck needs {expected}")]
     BadNCols { expected: usize, got: usize },
-    /// `k_skip` exceeds `k_log` (the matrix inner dimension).
+    /// More skipped variables than the matrix's inner dimension has.
+    #[error("k_skip {k_skip} exceeds k_log {k_log}")]
     KSkipExceedsKLog { k_skip: usize, k_log: usize },
-    /// The scalar consistency check failed for one of (A, B, C).
-    /// Detected: `Σ_{i_inner} M̂_0_quirky(z_skip, x_inner_rest, i_inner) · z_x_vec[i_inner] ≠ v`.
-    ConsistencyFailed { which: &'static str },
-    /// The proof stream ran out while reading a message.
-    Transcript(fiat_shamir::transcript::Error),
+    /// The sumcheck's final claim is not the batched `A`, `B`, `C` evaluation.
+    #[error("the sumcheck's final claim does not match the matrices")]
+    SumcheckMismatch,
+    /// The proof stream is malformed.
+    #[error(transparent)]
+    Transcript(#[from] fiat_shamir::transcript::Error),
 }
 
 // ---------------------------------------------------------------------------
@@ -235,8 +230,7 @@ pub enum VerifyError {
 ///   `output[i_inner] = Σ_{i_outer ∈ {0,1}^n_log}  z[i_inner, i_outer] · eq_outer[i_outer]`
 ///
 /// Equivalently, `output[i_inner] = ẑ(i_inner_as_F192, x_outer)` for boolean
-/// `i_inner`. Used as the cross-check oracle for the production
-/// `partial_fold_packed_z_triple`.
+/// `i_inner`. Used as the cross-check oracle for the production folds.
 #[cfg(test)]
 pub fn partial_fold_packed_z(z_packed: &[u8], m: usize, k_log: usize, eq_outer: &[F192]) -> Vec<F192> {
     let n_log = m - k_log;
@@ -320,85 +314,6 @@ fn partial_fold_packed_z_fast_padded(
 /// Larger values re-stream the accumulator less often but grow the tables that must stay in L1.
 const NEON_TILE_T: usize = 8;
 
-/// x86-64 twin of the tiled gather kernel below.
-///
-/// `VPTERNLOGQ` is the exact counterpart of AArch64's `EOR3`: an arbitrary
-/// three-input bitwise function in one instruction, so immediate `0x96`
-/// (`a ^ b ^ c`) folds a paired-stripe accumulate the same way. Only the
-/// `c0`/`c1` limbs ride in the vector: `c2` is scalar and takes two XORs.
-///
-/// # Safety
-/// - `tile_bytes_ptr` must point to at least `TILE_T * k` bytes, with `bs + 8`
-///   readable in every stripe row (guaranteed by `bs + BLOCK_K <= k`).
-/// - `tables_ptr` must point to at least `TILE_T * 256` `F192`.
-/// - `out_ptr` must point to at least 8 writable `F192`.
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl"))]
-#[inline(never)]
-#[allow(unsafe_op_in_unsafe_fn)]
-unsafe fn process_block_avx512_single(
-    tile_bytes_ptr: *const u8,
-    k: usize,
-    bs: usize,
-    tables_ptr: *const F192,
-    out_ptr: *mut F192,
-) {
-    use std::arch::x86_64::*;
-    const TILE_T: usize = NEON_TILE_T;
-    // `F192` is `#[repr(C)]` with `c0, c1, c2`, so a 128-bit load at `&c0`
-    // covers exactly the `(c0, c1)` pair.
-    const XOR3: i32 = 0x96;
-
-    let mut acc01 = [_mm_setzero_si128(); 8];
-    let mut acc2 = [0u64; 8];
-    for i in 0..8 {
-        let out = &*out_ptr.add(i);
-        acc01[i] = _mm_loadu_si128((&out.c0 as *const u64).cast());
-        acc2[i] = out.c2;
-    }
-
-    // One unaligned 8-byte load per stripe replaces eight LDRB-equivalents,
-    // and stripes are swept in pairs so each vector accumulator folds both
-    // table entries with a single VPTERNLOGQ.
-    let mut t = 0;
-    while t + 1 < TILE_T {
-        let ta0 = tables_ptr.add(t * 256);
-        let ta1 = tables_ptr.add((t + 1) * 256);
-        let w0 = (tile_bytes_ptr.add(t * k + bs) as *const u64).read_unaligned();
-        let w1 = (tile_bytes_ptr.add((t + 1) * k + bs) as *const u64).read_unaligned();
-        for i in 0..8 {
-            let e0 = &*ta0.add(((w0 >> (8 * i)) & 0xff) as usize);
-            let e1 = &*ta1.add(((w1 >> (8 * i)) & 0xff) as usize);
-            let v0 = _mm_loadu_si128((&e0.c0 as *const u64).cast());
-            let v1 = _mm_loadu_si128((&e1.c0 as *const u64).cast());
-            acc01[i] = _mm_ternarylogic_epi64::<XOR3>(acc01[i], v0, v1);
-            acc2[i] ^= e0.c2 ^ e1.c2;
-        }
-        t += 2;
-    }
-    if t < TILE_T {
-        let ta = tables_ptr.add(t * 256);
-        let w = (tile_bytes_ptr.add(t * k + bs) as *const u64).read_unaligned();
-        for i in 0..8 {
-            let entry = &*ta.add(((w >> (8 * i)) & 0xff) as usize);
-            let v = _mm_loadu_si128((&entry.c0 as *const u64).cast());
-            acc01[i] = _mm_xor_si128(acc01[i], v);
-            acc2[i] ^= entry.c2;
-        }
-    }
-
-    for i in 0..8 {
-        let out = &mut *out_ptr.add(i);
-        _mm_storeu_si128((&mut out.c0 as *mut u64).cast(), acc01[i]);
-        out.c2 = acc2[i];
-    }
-}
-
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl"))]
-use self::process_block_avx512_single as process_block_single;
-/// The two architectures' inner kernels are interchangeable at the call site.
-#[cfg(target_arch = "aarch64")]
-use self::process_block_neon_single as process_block_single;
-
 /// Single-matrix NEON inner kernel: sweep TILE_T=8 stripes of a stripe-tile
 /// for one BLOCK_K=8 block of i_inner positions, keeping all 8 accumulators
 /// in NEON Q-registers.
@@ -474,10 +389,7 @@ unsafe fn process_block_neon_single(
 /// `(k, n_tiles, useful)`, where `useful` is `useful_bits` rounded up to a
 /// `BLOCK_K` multiple: padded rows fold to zero, and a boundary block's padding
 /// bytes are 0 ⇒ `table[0] = 0` ⇒ they contribute nothing.
-#[cfg(any(
-    target_arch = "aarch64",
-    all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl")
-))]
+#[cfg(target_arch = "aarch64")]
 fn neon_fold_params(
     z_packed: &[u8],
     m: usize,
@@ -510,10 +422,7 @@ fn neon_fold_params(
 /// **output** (`i_inner`) instead of over z stripes.
 ///
 /// Workers own disjoint output slices, keeping one shared length-`k` accumulator and avoiding a final reduction. Each worker rebuilds the per-tile sum tables for its slice.
-#[cfg(any(
-    target_arch = "aarch64",
-    all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl")
-))]
+#[cfg(target_arch = "aarch64")]
 fn partial_fold_packed_z_iblock_padded(
     z_packed: &[u8],
     m: usize,
@@ -556,11 +465,15 @@ fn partial_fold_packed_z_iblock_padded(
             let tables_ptr = tables.as_ptr();
             // Base of this (tile, i_base): process_block reads
             // z_base[t·k + bs] = z[(stripe_base+t)·k + i_base + bs].
+            // SAFETY: `z_packed` is `n_stripes * k` bytes, `stripe_base < n_stripes` and `i_base < k`.
             let z_base = unsafe { z_packed.as_ptr().add(stripe_base * k + i_base) };
             for b in 0..n_block {
                 let i = b * BLOCK_K;
+                // SAFETY: the tile's `TILE_T` stripes end by `n_stripes`, a multiple of `TILE_T`, and
+                // `i_base + i + BLOCK_K <= useful <= k` keeps every 8-byte row read inside its stripe; `tables` is
+                // `TILE_T * 256` entries; `i + BLOCK_K <= out_slice.len()`, both being multiples of `BLOCK_K`.
                 unsafe {
-                    process_block_single(z_base, k, i, tables_ptr, out_slice.as_mut_ptr().add(i));
+                    process_block_neon_single(z_base, k, i, tables_ptr, out_slice.as_mut_ptr().add(i));
                 }
             }
         }
@@ -582,10 +495,7 @@ fn partial_fold_packed_z_iblock_padded(
 /// partial is the full length-k output, while the register-tiled inner kernel keeps its accumulators in NEON registers. This trades reduction traffic for eliminating redundant table construction.
 ///
 /// # Safety / preconditions: identical to the iblock kernel.
-#[cfg(any(
-    target_arch = "aarch64",
-    all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl")
-))]
+#[cfg(target_arch = "aarch64")]
 fn partial_fold_packed_z_oblock_padded(
     z_packed: &[u8],
     m: usize,
@@ -622,11 +532,15 @@ fn partial_fold_packed_z_oblock_padded(
                 build_sum_table(&eq_outer[eq_off..eq_off + 8], &mut tables[t * 256..(t + 1) * 256]);
             }
             let tables_ptr = tables.as_ptr();
+            // SAFETY: `z_packed` is `n_stripes * k` bytes and `stripe_base < n_stripes`.
             let z_base = unsafe { z_packed.as_ptr().add(stripe_base * k) };
             let mut bs = 0usize;
             while bs < useful {
+                // SAFETY: the tile's `TILE_T` stripes end by `n_stripes`, a multiple of `TILE_T`;
+                // `bs + BLOCK_K <= useful <= k` keeps every row read inside its stripe and the 8 outputs inside
+                // the length-`k` partial; `tables` is `TILE_T * 256` entries.
                 unsafe {
-                    process_block_single(z_base, k, bs, tables_ptr, partial.as_mut_ptr().add(bs));
+                    process_block_neon_single(z_base, k, bs, tables_ptr, partial.as_mut_ptr().add(bs));
                 }
                 bs += BLOCK_K;
             }
@@ -707,7 +621,7 @@ fn partial_fold_packed_z_gfni(
                 &eq_outer[8 * GFNI_TILE * tile..][..8 * GFNI_TILE],
                 tile,
                 acc,
-            )
+            );
         },
         |mut x, y| {
             for (x, y) in x.iter_mut().flatten().zip(y.iter().flatten()) {
@@ -772,10 +686,7 @@ fn partial_fold_packed_z_best(
         return partial_fold_packed_z_gfni(z_packed, m, k_log, useful_bits, eq_outer);
     }
     if n_log_ok_for_tile(m, k_log, NEON_TILE_T) {
-        #[cfg(any(
-            target_arch = "aarch64",
-            all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl")
-        ))]
+        #[cfg(target_arch = "aarch64")]
         {
             // `oblock` avoids per-worker table construction but adds private partials and a reduction, so use it only above the tuned crossover.
             let n_log = m - k_log;
@@ -784,10 +695,7 @@ fn partial_fold_packed_z_best(
             }
             partial_fold_packed_z_iblock_padded(z_packed, m, k_log, useful_bits, eq_outer)
         }
-        #[cfg(not(any(
-            target_arch = "aarch64",
-            all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl")
-        )))]
+        #[cfg(not(target_arch = "aarch64"))]
         {
             partial_fold_packed_z_fast_padded(z_packed, m, k_log, useful_bits, eq_outer)
         }
@@ -799,15 +707,12 @@ fn partial_fold_packed_z_best(
 /// Outer-dimension threshold (`n_log = m − k_log`) at/above which the
 /// outer(tile)-partitioned fold beats the i_inner-partitioned one. See
 /// [`partial_fold_packed_z_best`] for the crossover calibration.
-#[cfg(any(
-    target_arch = "aarch64",
-    all(target_arch = "x86_64", target_feature = "avx512f", target_feature = "avx512vl")
-))]
+#[cfg(target_arch = "aarch64")]
 const OBLOCK_MIN_N_LOG: usize = 16;
 
 /// Quick test for "can we use the tiled fast path?". Tile uses `TILE_T`
 /// stripes; we need `n_stripes` divisible by TILE_T and enough outer dim.
-fn n_log_ok_for_tile(m: usize, k_log: usize, tile_t: usize) -> bool {
+const fn n_log_ok_for_tile(m: usize, k_log: usize, tile_t: usize) -> bool {
     let n_log = m - k_log;
     if n_log < 3 + (tile_t.trailing_zeros() as usize) {
         return false;
@@ -827,8 +732,7 @@ fn build_sum_table(eq8: &[F192], table: &mut [F192]) {
     debug_assert_eq!(eq8.len(), 8);
     debug_assert_eq!(table.len(), 256);
     table[0] = F192::ZERO;
-    for i in 0..8 {
-        let e = eq8[i];
+    for (i, &e) in eq8.iter().enumerate() {
         let len = 1usize << i;
         for j in 0..len {
             table[len + j] = table[j] + e;
@@ -884,7 +788,7 @@ pub fn pack_z_lincheck_from_packed(z_packed_words: &[u64], m: usize, k_log: usiz
     // Each stripe (byte_idx) writes a disjoint k-byte chunk, so process them in
     // parallel. Inside one stripe, k independent output bytes.
     parallel::chunks_mut(&mut z_packed, k, |byte_idx, chunk| {
-        for i_inner in 0..k {
+        for (i_inner, slot) in chunk.iter_mut().enumerate() {
             let mut byte = 0u8;
             for r in 0..8 {
                 let i_outer = 8 * byte_idx + r;
@@ -893,7 +797,7 @@ pub fn pack_z_lincheck_from_packed(z_packed_words: &[u64], m: usize, k_log: usiz
                     byte |= 1u8 << r;
                 }
             }
-            chunk[i_inner].write(byte);
+            slot.write(byte);
         }
     });
     // SAFETY: every parallel chunk writes each of its output bytes exactly once.
@@ -913,7 +817,7 @@ pub fn pack_z_lincheck_from_packed(z_packed_words: &[u64], m: usize, k_log: usiz
 /// univariate-skip variable ordering). The `k_log − k_skip` multilinear
 /// inner-rest dims occupy the next bits.
 pub fn build_quirky_eq_table(z_skip: F192, x_inner_rest: &[F192], k_skip: usize) -> Vec<F192> {
-    let lambda_skip = lagrange_weights_naive(k_skip, z_skip);
+    let lambda_skip = skip_lagrange_weights(k_skip, z_skip);
     let eq_rest = build_eq(x_inner_rest);
     // Layout: index = i_skip + i_inner_rest · 2^k_skip  ⇒  i_skip is low bits.
     outer_product(&eq_rest, &lambda_skip)
@@ -1089,6 +993,10 @@ fn sumcheck_bind_both_and_eval_next(comb: &mut Vec<F192>, z: &mut Vec<F192>, r: 
 /// The lincheck prover. Its claim retains the transmitted post-sumcheck
 /// `z_partial`, which is exactly the AB claim's 64-entry ring-switch `s_hat_v`.
 /// The opening reuses it without a second witness scan or transmission.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The proof kernel keeps its independent inputs explicit."
+)]
 pub fn prove_padded_capture_s_hat_v(
     z_packed: &[u8],
     m: usize,
@@ -1203,6 +1111,10 @@ pub fn prove_padded_capture_s_hat_v(
 /// Verify a lincheck proof. Walks the transcript in lockstep with the prover,
 /// replays the α-batched product sumcheck against `v_a`, `v_b` and `v_c`, and
 /// derives the single output z-claim `w`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The proof kernel keeps its independent inputs explicit."
+)]
 pub fn verify(
     m: usize,
     k_log: usize,
@@ -1225,14 +1137,12 @@ pub fn verify(
 
     if x_ab.x_inner_rest.len() != inner_rest_len {
         return Err(VerifyError::BadInnerRestLength {
-            which: "x_ab",
             expected: inner_rest_len,
             got: x_ab.x_inner_rest.len(),
         });
     }
     if x_ab.x_outer.len() != n_log {
         return Err(VerifyError::BadOuterLength {
-            which: "x_ab",
             expected: n_log,
             got: x_ab.x_outer.len(),
         });
@@ -1253,7 +1163,8 @@ pub fn verify(
     //    the verifier only ever consumes it through one inner product, so
     //    that work is deferred to step 5 (and walk-capable circuits answer it
     //    in O(circuit) ops without the marginal at all).
-    let eq_inner = build_quirky_eq_table(x_ab.z_skip, &x_ab.x_inner_rest, k_skip);
+    let lambda_skip = skip_lagrange_weights(k_skip, x_ab.z_skip);
+    let eq_inner = outer_product(&build_eq(&x_ab.x_inner_rest), &lambda_skip);
 
     // 3. Replay the multilinear product-sumcheck (inner_rest_len rounds).
     //    Only the transcript messages drive the running claim; the prover's
@@ -1273,14 +1184,14 @@ pub fn verify(
     let mut r_rounds = Vec::with_capacity(inner_rest_len);
     for _ in 0..inner_rest_len {
         // `c1 + c2 = claim` in char 2, so `c1` never rides the wire.
-        let q = vs.next_round_poly(3, running, None).map_err(VerifyError::Transcript)?;
+        let q = vs.next_round_poly(3, running, None)?;
         let r = vs.sample();
         running = primitives::multilinear::poly_eval(&q, r);
         r_rounds.push(r);
     }
 
     // 4. Read + bind z_partial AFTER the sumcheck rounds (matches prover order).
-    let z_partial: Vec<F192> = vs.next_scalars(n_skip).map_err(VerifyError::Transcript)?;
+    let z_partial: Vec<F192> = vs.next_scalars(n_skip)?;
 
     // Convert sumcheck challenges to LSB-first x_inner_rest order (same
     // convention as prover; also the eq-ordering of the step-5 column weights).
@@ -1302,25 +1213,21 @@ pub fn verify(
     let eq_rest = build_eq(&r_inner_rest);
     let w_col = outer_product(&eq_rest, &z_partial);
     debug_assert_eq!(w_col.len(), k);
-    let mut final_sum = match circuit.bilinear_form(alpha, &eq_inner, &w_col) {
-        Some(v) => v,
-        None => inner_product_ext(&circuit.fold_alpha_batched(alpha, &eq_inner), &w_col),
-    };
+    let mut final_sum = circuit
+        .bilinear_form(alpha, &eq_inner, &w_col)
+        .unwrap_or_else(|| inner_product_ext(&circuit.fold_alpha_batched(alpha, &eq_inner), &w_col));
     final_sum += beta * w_col[circuit.const_pin_col()];
     // The c term's `⟨eq_inner, w_col⟩`, by the tensor structure of both sides:
     // `eq_inner = eq(x_inner_rest) ⊗ λ(z_skip)` and `w_col = eq(r_inner_rest) ⊗
     // z_partial`, so it is 8 eq factors times a 64-term Lagrange combination
     // instead of a length-k inner product.
-    let lambda_skip = lagrange_weights_naive(k_skip, x_ab.z_skip);
     let c_slice_value = lambda_skip
         .iter()
         .zip(&z_partial)
         .fold(F192::ZERO, |acc, (&w, &s)| acc + w * s);
     final_sum += alpha_sq * eq_eval(&x_ab.x_inner_rest, &r_inner_rest) * c_slice_value;
     if running != final_sum {
-        return Err(VerifyError::ConsistencyFailed {
-            which: "sumcheck-final",
-        });
+        return Err(VerifyError::SumcheckMismatch);
     }
 
     // 6. `z_partial` IS the output claim: the 64 bit-slice values of z at
@@ -1483,7 +1390,7 @@ mod tests {
 
         // Tower helpers: the point is F192 (the verifier's field), and the
         // expected value must equal the F192 claim the verifier derives.
-        let lambda = lagrange_weights_naive(k_skip, point.z_skip);
+        let lambda = skip_lagrange_weights(k_skip, point.z_skip);
         let eq_rest = build_eq(&point.x_inner_rest);
         let eq_outer = build_eq(&point.x_outer);
         debug_assert_eq!(lambda.len(), k_skip_dim);
@@ -1491,8 +1398,8 @@ mod tests {
         debug_assert_eq!(eq_outer.len(), n_outer);
 
         let mut acc = F192::ZERO;
-        for i in 0..(1 << m) {
-            if !f[i] {
+        for (i, &bit) in f.iter().enumerate().take(1 << m) {
+            if !bit {
                 continue;
             }
             let i_skip = i & (k_skip_dim - 1);
@@ -1544,15 +1451,15 @@ mod tests {
 
             let k = 1usize << k_log;
             assert_eq!(got.len(), k);
-            for i_inner in 0..k {
+            for (i_inner, &value) in got.iter().enumerate() {
                 let mut acc = F192::ZERO;
-                for i_outer in 0..(1usize << n_log) {
+                for (i_outer, &weight) in eq_outer.iter().enumerate() {
                     let i = i_inner + i_outer * k;
                     if z[i] {
-                        acc += eq_outer[i_outer];
+                        acc += weight;
                     }
                 }
-                assert_eq!(got[i_inner], acc, "mismatch at m={m}, i_inner={i_inner}");
+                assert_eq!(value, acc, "mismatch at m={m}, i_inner={i_inner}");
             }
         }
     }
@@ -1867,7 +1774,7 @@ mod tests {
             let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
             let res = verify(m, k_log, k_skip, &circuit, &x_ab, v_a, v_b, v_c, &mut ch);
             assert!(
-                matches!(res, Err(VerifyError::ConsistencyFailed { .. })),
+                matches!(res, Err(VerifyError::SumcheckMismatch)),
                 "verify did not reject z_partial[{skip_idx}].{label} bit-flip: got {res:?}"
             );
         }
@@ -1892,11 +1799,7 @@ mod tests {
         let v_b = mle_eval_bool_quirky(&b, m, k_log, k_skip, &x_ab);
         let v_c = mle_eval_bool_quirky(&z, m, k_log, k_skip, &x_ab);
 
-        let circuit = SparseCircuit {
-            a_0: a_0.clone(),
-            b_0: b_0.clone(),
-            pin: PIN_COL,
-        };
+        let circuit = SparseCircuit { a_0, b_0, pin: PIN_COL };
         let mut ch_p = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
         let _ = prove(&z_packed, m, k_log, k_skip, &circuit, &x_ab, &mut ch_p);
         let proof_t = ch_p.into_proof();

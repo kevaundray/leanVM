@@ -75,10 +75,10 @@ pub(super) trait Lanes32: Copy {
         // Gather into rows of 16 words, the widest backend's lane count.
         let mut words = [[0u32; 16]; 16];
         for lane in 0..Self::WIDTH {
-            for w in 0..16 {
+            for (w, row) in words.iter_mut().enumerate() {
                 // SAFETY: the caller guarantees 64 readable bytes per input.
                 let word = unsafe { src.add(lane * stride + 4 * w).cast::<u32>().read_unaligned() };
-                words[w][lane] = u32::from_le(word);
+                row[lane] = u32::from_le(word);
             }
         }
         // SAFETY: each row holds 16 >= WIDTH words.
@@ -105,7 +105,7 @@ pub(super) trait Lanes32: Copy {
                 // SAFETY: `lane * 32 + i * 4 + 4 <= WIDTH * 32`.
                 unsafe {
                     out.add(lane * OUT_LEN + 4 * i)
-                        .copy_from_nonoverlapping(bytes.as_ptr(), 4)
+                        .copy_from_nonoverlapping(bytes.as_ptr(), 4);
                 };
             }
         }
@@ -136,11 +136,13 @@ impl Lanes32 for Scalar8 {
 
     #[inline(always)]
     unsafe fn load(p: *const u32) -> Self {
+        // SAFETY: the caller guarantees `WIDTH` = 8 readable words at `p`, and `i < 8`.
         Self(std::array::from_fn(|i| unsafe { *p.add(i) }))
     }
     #[inline(always)]
     unsafe fn store(self, p: *mut u32) {
         for (i, x) in self.0.into_iter().enumerate() {
+            // SAFETY: the caller guarantees `WIDTH` = 8 writable words at `p`, and `i < 8`.
             unsafe { *p.add(i) = x };
         }
     }
@@ -394,11 +396,14 @@ pub(super) unsafe fn hash_many_with<S: Lanes32>(
     out: &mut [u8],
 ) {
     // The walk needs the group count as a const generic.
-    match S::GROUPS {
-        1 => unsafe { hash_many_grouped::<S, 1>(data, len, state, t_offset, out) },
-        2 => unsafe { hash_many_grouped::<S, 2>(data, len, state, t_offset, out) },
-        4 => unsafe { hash_many_grouped::<S, 4>(data, len, state, t_offset, out) },
-        _ => unreachable!("GROUPS is 1, 2 or 4"),
+    // SAFETY: the grouped driver has this function's contract, which the caller upholds.
+    unsafe {
+        match S::GROUPS {
+            1 => hash_many_grouped::<S, 1>(data, len, state, t_offset, out),
+            2 => hash_many_grouped::<S, 2>(data, len, state, t_offset, out),
+            4 => hash_many_grouped::<S, 4>(data, len, state, t_offset, out),
+            _ => unreachable!("GROUPS is 1, 2 or 4"),
+        }
     }
 }
 

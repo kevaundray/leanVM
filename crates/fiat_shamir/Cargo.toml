@@ -2,6 +2,8 @@
 name = "fiat_shamir"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [lints]
@@ -11,3 +13,5 @@ workspace = true
 parallel.workspace = true
 primitives.workspace = true
 serde.workspace = true
+bincode.workspace = true
+thiserror.workspace = true
