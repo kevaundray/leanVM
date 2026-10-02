@@ -64,16 +64,8 @@ COUNT=programs/recverify/guest/target/count/riscv64im-leanvm-zkvm/release/recver
 
 `model.py` models the cycles and committed words per inner proof under field-multiply options (software, a carry-less multiply pair, a GF(2^192) block class) from `measured.json`, which holds this branch's measured runs (rows, operation counts, the plumbing split) of Fibonacci 1,000, Fibonacci 2M and leanXMSS 400 in both modes: `python3 programs/recverify/model.py programs/recverify/measured.json` from the workspace root, with the host and the guest built. Regenerate `measured.json` after a change that moves the guest's costs.
 
-## Experimental branches
+## Experiments on top
 
-This branch keeps upstream's protocol: `riscv-exploration` with #393 (`verify_core` and `check_deferred`) and #396 (the WHIR configuration as a table, which removes the guest's soft float) merged, each as its own merge commit, so either drops out cleanly once it lands. Experiments that change the protocol or the verifier's cost live on their own branches; merge one into a scratch branch to measure it:
+The harness keeps upstream's protocol. It uses `verify_core` and `check_deferred` (#393) and the WHIR configuration as a table (#396, which removes the guest's soft float). Changes that move the verifier's cost can be measured by merging them into a scratch branch and rerunning the host: jagged tables (#389), one batched zerocheck and lincheck (#392), or a field-multiply instruction. A change made before the `cpu` module was rebuilt around its domain types (#381) needs porting first: the free `cpu::verify*` functions are `Program` methods now, the bytecode tuple and table are `Lookup::Bytecode`'s, and `cpu/trace.rs` is part of `cpu/execute.rs`. With batched flock reductions `DeferredClaims` holds one batched circuit claim, so `claim_words` in the guest and the host changes with it.
 
-```bash
-git switch -c scratch/jagged kw/recursive-guest && git merge kw/jagged-pcs           # jagged tables, live rows only (#389)
-git switch -c scratch/batching kw/recursive-guest && git merge kw/flock-batching     # one batched zerocheck and lincheck (#392)
-git switch -c scratch/field kw/recursive-guest && git merge kw/field-precompile-study  # the mule/mulk field-multiply prototypes
-```
-
-These three branch from `riscv-exploration` before the `cpu` module was rebuilt around its domain types (#381), so each merge conflicts across `leanvm_core::cpu`, `witness.rs`, `constraints.rs` and `verifier.py`, and has to be ported the way #393 was here: the free `cpu::verify*` functions are `Program` methods now, the bytecode tuple and table are `Lookup::Bytecode`'s, and `cpu/trace.rs` is part of `cpu/execute.rs`. On the batched stack `DeferredClaims` has one batched circuit claim, so `claim_words` in the guest and the host changes with it; `kw/recursion-guest-v2` is this guest on the jagged and batched stack, with the earlier study's report `RECURSION_AS_GUEST_V2.md`.
-
-`kw/flock-barycentric` (#391, the skip domain's Lagrange forms in linear time, protocol-neutral) is the one most worth merging for the guest: the quadratic Lagrange weights `flock::lincheck::verify_deferred` computes are most of `verify_core`'s cost here. It conflicts in one hunk of `verify_deferred`: keep this branch's side (#393 moved the row weights into `MatrixForm::evaluate`), then restore `let lambda_skip = skip_lagrange_weights(k_skip, x_ab.z_skip);` above `c_slice_value`, which the merge drops.
+#391 (the skip domain's Lagrange forms in linear time, protocol-neutral) is the one most worth merging for the guest: the quadratic Lagrange weights `flock::lincheck::verify_deferred` computes are most of `verify_core`'s cost here. It conflicts in one hunk of `verify_deferred`: keep the #393 side (it moved the row weights into `MatrixForm::evaluate`), then restore `let lambda_skip = skip_lagrange_weights(k_skip, x_ab.z_skip);` above `c_slice_value`, which the merge drops.

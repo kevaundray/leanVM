@@ -19,9 +19,9 @@ ELF = "programs/recverify/guest/target/riscv64im-leanvm-zkvm/release/recverify"
 TABLES = ["ALU", "LOAD", "STORE", "SHIFT", "MUL", "MULH", "DIV", "HASH"]
 NEW_WORDS = {"CLMUL": 34, "GF192": 170}
 OPS = ["Emul", "ExK", "Esq", "Kmul", "Ksq"]
-# Cycles, rows per table (net of the loop) per operation. `sw` is `prim` runs of this guest. `clmul` and `gf192` were priced on
-# kw/recursion-guest-v2 by stand-ins this branch does not carry (`--cfg recguest_zbc`, a block instruction in place of a
-# GF(2^192) product). Ksq is estimated as a third of Esq (software) or a Kmul (Zbc).
+# Cycles, rows per table (net of the loop) per operation. `sw` is `prim` runs of this guest. `clmul` and `gf192` were priced with
+# stand-ins not carried here (a carry-less multiply pair, and a block instruction in place of a GF(2^192) product), so they are
+# estimates. Ksq is estimated as a third of Esq (software) or a Kmul (Zbc).
 COST = {
     "sw": {
         "Emul": (1240, {"ALU": 674, "LOAD": 115, "STORE": 100, "SHIFT": 63, "MUL": 288}),
