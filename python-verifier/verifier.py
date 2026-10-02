@@ -765,8 +765,8 @@ def table_sumcheck(
     """The tables' column claims, then per producer its point and its bits' values there."""
     heights = [*table_log_heights, *(producer.log_rows for producer in producers)]
     n_rounds = max(heights)
-    challenges, claim = sumcheck(transcript, target, 4, [None] * n_rounds)
-    point = list(reversed(challenges))
+    # Round j binds variable j, the lowest first; a table done before a round carries the line its lifting variable makes.
+    point, claim = sumcheck(transcript, target, 4, [None] * n_rounds)
     weights = [ONE] * len(heights)
     for variable, challenge in enumerate(point):
         equality = ONE + equality_point[variable] + challenge
@@ -2088,7 +2088,7 @@ def verify_execution(
     check_bytecode(bytecode)
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
-    preimage = b"leanvm-rv64im-6" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
+    preimage = b"leanvm-rv64im-7" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
     transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 
@@ -2115,7 +2115,7 @@ def verify_execution(
     # degree-2 claim and each producer a weight on each of its bits.
     bus = verify_bus_balance(layout, pads, transcript)
 
-    # 5] One batched (back-loaded) "table sumcheck" over all the tables and the producer, at the bus point, proving the
+    # 5] One batched (front-loaded) "table sumcheck" over all the tables and the producer, at the bus point, proving the
     # target the two leaf claims derive: the tables' bus forms and the producer's bits, weighted by the same powers of xi.
     xi = transcript.sample()
     form_powers = powers(xi, 2)  # one power per bus side, shared by every table

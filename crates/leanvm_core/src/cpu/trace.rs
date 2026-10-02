@@ -61,8 +61,8 @@ impl Row {
 }
 
 pub(crate) struct Trace {
-    /// Per table, in [`crate::tables::CLASSES`] order: its live rows, then the padding
-    /// rows up to its proven size.
+    /// Per table, in [`crate::tables::CLASSES`] order: its live rows, then, when its
+    /// height is short of its proven size, the padding row every later row repeats.
     pub(crate) rows: [Vec<Row>; crate::tables::N_TABLES],
     /// Each table's live rows: its height.
     pub(crate) heights: [usize; crate::tables::N_TABLES],
@@ -83,6 +83,6 @@ pub(crate) struct Trace {
 impl Trace {
     /// Rows per instruction table as proven, padding included.
     pub(crate) fn row_counts(&self) -> [usize; crate::tables::N_TABLES] {
-        std::array::from_fn(|t| self.rows[t].len())
+        std::array::from_fn(|t| 1 << super::tau_of(t, self.heights[t]))
     }
 }

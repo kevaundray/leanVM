@@ -202,8 +202,8 @@ impl FlushBuilder {
 pub struct FillCtx<'a> {
     pub(crate) trace: &'a Trace,
     pub(crate) program: &'a rv::Program,
-    /// This table's proven row count `2^tau`, its height padded (`cpu::padding`), the
-    /// length of every window in `out`.
+    /// This table's committed rows, its live rows and then the padding row every later
+    /// row repeats (`cpu::padding`): the length of every window in `out`.
     pub(crate) rows: usize,
     /// Which local columns [`Self::col`] / [`Self::cols`] have written. A fill that
     /// misses one would leave the stacked witness holding uninitialized slots, so
@@ -226,11 +226,11 @@ type RowsWriter<'a> = Box<dyn Fn(std::ops::Range<usize>) + Send + Sync + 'a>;
 /// - Every writer of the table reads the same rows while they are there.
 const FILL_ROWS: usize = 1 << 10;
 
-/// Where one column's values go: `rows`, the column at its full height (its window in
-/// the full-height stack, its one piece of the committed stack when it is committed
-/// whole, or a private buffer if the column is virtual), and `pieces`, the committed
-/// stack's pieces, as `(first row, piece)`, that its committed rows are copied into
-/// when it commits only some of them.
+/// Where one column's values go: `rows`, the column at its committed rows (its window in
+/// the live stack, its one piece of the committed stack when it is committed whole, or
+/// a private buffer if the column is virtual), and `pieces`, the committed stack's
+/// pieces, as `(first row, piece)`, that its committed rows are copied into when it
+/// commits only some of them.
 pub struct ColumnOut<'a> {
     pub rows: &'a mut [F64],
     pub pieces: Vec<(usize, &'a mut [F64])>,
@@ -282,9 +282,9 @@ impl<'a> FillCtx<'a> {
                 .collect();
             (parallel::SendPtr(out[c].rows.as_mut_ptr()), pieces)
         });
-        // The executor wrote the padding rows out (`cpu::padding`), so there is nothing to
+        // The executor wrote the padding row out (`cpu::padding`), so there is nothing to
         // pad with here.
-        assert_eq!(rows.len(), n, "a table's rows must fill its cube");
+        assert_eq!(rows.len(), n, "a table's trace is its committed rows");
         let writer = move |range: std::ops::Range<usize>| {
             for i in range.clone() {
                 let v = f(&rows[i]);

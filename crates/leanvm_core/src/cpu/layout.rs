@@ -235,13 +235,13 @@ pub const fn committed_rows(height: usize, tau: usize) -> usize {
     if height < 1 << tau { height + 1 } else { 1 << tau }
 }
 
-/// The prover's witness: the committed stack `q`, the full-height stack of the columns
-/// that commit only some of their rows (which the bus and the table sumcheck read,
-/// the others being read in `q`), and the public [`Layout`].
+/// The prover's witness: the committed stack `q`, the live stack of the columns that
+/// commit only some of their rows (which the bus and the table sumcheck read, the
+/// others being read in `q`), and the public [`Layout`].
 pub(crate) struct Witness {
     pub(crate) q: zk_alloc::ArenaVec<F64>,
-    pub(crate) padded: zk_alloc::ArenaVec<F64>,
-    /// Each column's window in `padded`.
+    pub(crate) live: zk_alloc::ArenaVec<F64>,
+    /// Each column's window in `live`.
     pub(crate) windows: Vec<Option<witness::Window>>,
     /// The ports' values as `(global column index, values)`. They carry data for the
     /// bus but are not committed, so they are not in `q`.
@@ -254,14 +254,15 @@ pub(crate) struct Witness {
 }
 
 impl Witness {
-    /// One read-only view per column at its full height, in global column order: its
-    /// window in the full-height stack, its piece of the committed stack when it is
-    /// committed whole, or the private buffer of a port. A packed witness's is empty,
+    /// One read-only view per column, in global column order: a table's column at its
+    /// [`committed_rows`], every later row repeating the last (its window in the live
+    /// stack, its piece of the committed stack when it is committed whole, or the
+    /// private buffer of a port), a shared column whole. A packed witness's is empty,
     /// its flock batch holding its words.
     pub(crate) fn columns(&self) -> Vec<&[F64]> {
         let mut cols: Vec<&[F64]> = (self.windows.iter().zip(&self.layout.placements))
             .map(|(w, p)| match (w, p.column()) {
-                (Some(w), _) => &self.padded[w.offset..w.offset + (1 << w.n_vars)],
+                (Some(w), _) => &self.live[w.offset..w.offset + w.len],
                 (None, Some(c)) if c.stride_log == 0 => {
                     debug_assert_eq!(c.pieces.len(), 1, "a column without a window is committed whole");
                     &self.q[c.pieces[0].offset..c.pieces[0].offset + (1 << c.row_vars)]
@@ -565,36 +566,37 @@ impl Program {
         // The public layout (flush blocks, producers, placements, boundary, taus) is a pure
         // function of the program and the announced sizes, with no committed witness;
         // reconstruct it here so the prover and verifier share exactly the same
-        // structure. It comes before the fill because it fixes each table's height
-        // `2^tau`, which lets every column be allocated at its final length in one pass.
+        // structure. It comes before the fill because it fixes each table's committed
+        // rows, which lets every column be allocated at its final length in one pass.
         assert!(
             tr.heights.iter().all(|&h| h <= 1 << MAX_LOG_ROWS),
             "a table exceeds 2^{MAX_LOG_ROWS} rows"
         );
         let l = layout(p, tr.heights, tr.ts_final);
-        // The executor padded every table to its proven size with copies of the row at
-        // its height (`cpu::padding`).
-        for (t, rows) in tr.rows.iter().enumerate() {
+        // The executor wrote each table's live rows, then the padding row every later
+        // row repeats (`cpu::padding`): its committed rows.
+        let rows: [usize; tables::N_TABLES] = std::array::from_fn(|t| committed_rows(tr.heights[t], l.taus[t]));
+        for (t, table_rows) in tr.rows.iter().enumerate() {
             assert_eq!(
-                rows.len(),
-                1 << l.taus[t],
-                "the {} table is not padded",
+                table_rows.len(),
+                rows[t],
+                "the {} table is not its committed rows",
                 tables::CLASSES[t].name
             );
         }
 
-        // The committed stack and the full-height stack are each written exactly ONCE:
+        // The committed stack and the live stack are each written exactly ONCE:
         // allocate them, carve out every piece and every window, and have every fill
         // write straight into place. A column that commits only some of its rows is
-        // written at its full height, and each committed row copied into its piece
-        // while it is in cache; one committed whole is written into its piece alone.
+        // written at those rows, and each copied into its piece while it is in cache;
+        // one committed whole is written into its piece alone.
         //
         // SAFETY: both allocations are uninitialized. `split_pieces` hands out pieces
-        // tiling `q` but its zeroed tail, `split_stack` windows tiling all of `padded`;
+        // tiling `q` but its zeroed tail, `split_stack` windows tiling all of `live`;
         // `fill_table` checks that each table wrote every column it was given, the
         // shared columns below write theirs, and each flock batch its pieces.
-        let (padded_windows, padded_len) = witness::padded_windows(&column_sources(Sizes::of(p), tr.heights));
-        let mut padded = unsafe { witness::alloc_padded(padded_len) };
+        let (live_windows, live_len) = witness::live_windows(&column_sources(Sizes::of(p), tr.heights));
+        let mut live = unsafe { witness::alloc_live(live_len) };
         let mut q = unsafe { zk_alloc::ArenaVec::<F64>::uninitialized(l.shape.committed_len()) };
         // A port is not in the stack, so its values need storage of their own: it
         // carries data for the bus, and only its evaluation claims route elsewhere (to
@@ -606,7 +608,7 @@ impl Program {
                     // SAFETY: a port is a table column, `FillCtx::cols` writes every
                     // row of every window it is given, and `fill_table` asserts each
                     // table wrote all of its columns.
-                    virt.push((i, unsafe { zk_alloc::ArenaVec::<F64>::uninitialized(1 << l.taus[t]) }));
+                    virt.push((i, unsafe { zk_alloc::ArenaVec::<F64>::uninitialized(rows[t]) }));
                 }
             }
         }
@@ -622,7 +624,7 @@ impl Program {
         let flocks: Vec<Vec<(usize, &mut [F64])>> = (0..crate::class_flock::N_FLOCKS)
             .map(|f| std::mem::take(&mut pieces[q_column(f)]))
             .collect();
-        let mut windows = witness::split_stack(&mut padded, &padded_windows);
+        let mut windows = witness::split_stack(&mut live, &live_windows);
         let mut outs: Vec<tables::ColumnOut<'_>> = (windows.iter_mut().zip(pieces))
             .map(|(window, mut pieces)| {
                 if window.is_empty() && pieces.len() == 1 {
@@ -648,7 +650,7 @@ impl Program {
         crate::stage!("Fill columns", || {
             for (t, table) in tables::tables().iter().enumerate() {
                 let (base, n) = sch.spans[t];
-                let ctx = FillCtx::new(tr, p, 1 << l.taus[t], n);
+                let ctx = FillCtx::new(tr, p, rows[t], n);
                 tables::fill_table(table, &ctx, &mut outs[base..base + n]);
             }
             // Every shared column has to be written: the stack is uninitialized, so one
@@ -669,15 +671,14 @@ impl Program {
             (flocks.into_iter().enumerate())
                 .map(|(f, pieces)| {
                     let t = crate::class_flock::flock(f).0;
-                    let rows = &tr.rows[t][..committed_rows(tr.heights[t], l.taus[t])];
-                    crate::class_flock::Prepared::build(f, l.taus[t], rows, p.entries(), pieces)
+                    crate::class_flock::Prepared::build(f, l.taus[t], &tr.rows[t], p.entries(), pieces)
                 })
                 .collect()
         });
         Witness {
             q,
-            padded,
-            windows: padded_windows,
+            live,
+            windows: live_windows,
             virt,
             layout: l,
             ts_final: tr.ts_final,

@@ -14,7 +14,7 @@ use crate::colval::ColVal;
 use crate::gkr;
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use primitives::field::{F64, F192, F192Unreduced, int_index_mle};
-use primitives::multilinear::{eq_eval, eq_table_arena, mle_eval};
+use primitives::multilinear::{eq_eval, eq_table, eq_table_arena, mle_eval};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use zk_alloc::ArenaVec;
@@ -1033,7 +1033,10 @@ pub fn prove_balance(
             frameworks[s] = decompose_prove(side, cols, &bus_gkr.point, tables, &mut forms[s], &mut open, ps);
         }
     });
-    let (table_evals, prod_sums) = tables_and_prods_at(cols, tables, &forms, &bus_gkr.point);
+    let taus: Vec<usize> = (0..tables.len())
+        .map(|t| crate::cpu::tau_of(t, padding.heights[t]))
+        .collect();
+    let (table_evals, prod_sums) = tables_and_prods_at(cols, tables, &taus, &forms, &bus_gkr.point);
     let [push_side, _] = &setup.sides;
     let (w, beta) = (push_side.w.clone(), push_side.beta);
     let producers: Vec<ProducerProof> = producers
@@ -1094,33 +1097,40 @@ pub fn prove_balance(
     }
 }
 
-/// Every table's committed columns at `ζ[..τ_t]`, and, for every column pair its
+/// Every table's committed columns at `ζ[..τ]`, and, for every column pair its
 /// forms multiply, `Σ_z eq(ζ[..τ], z)·col_a(z)·col_b(z)`.
 ///
-/// One eq table per table, streamed once past every column and every pair at
-/// the same time. Evaluated apart these are `n_cols + n_pairs` fold ladders
+/// One pass per table, streamed once past every column and every pair at the
+/// same time. Evaluated apart these are `n_cols + n_pairs` fold ladders
 /// over the same table at the same point, and a ladder lifts every `K` word it
 /// reads into an `E` it writes and reads again, where a dot against the weights
 /// moves the column's own eight bytes. Pairs are deduped across the two sides
 /// and the several blocks that carry the same address, so an address costs one
 /// pass however often it is flushed. `tables[t] = (base, n_cols)` in the global
 /// schema; a pair names LOCAL column indices.
+///
+/// A column holds its committed rows, every later row repeating the last
+/// (§sec:jagged): the pass reads those, and the rest weigh the last row by their
+/// `eq` mass.
 #[allow(clippy::type_complexity)]
 fn tables_and_prods_at(
     cols: &[&[F64]],
     tables: &[(usize, usize)],
+    taus: &[usize],
     forms: &[Vec<BusForm>; 2],
     zeta: &[F192],
 ) -> (Vec<Vec<F192>>, Vec<Vec<(usize, usize, F192)>>) {
-    /// Rows per task: the eq slice a task reads stays in L2 while every column
-    /// and pair accumulator sweeps past it.
-    const ROWS: usize = 1 << 12;
+    /// `log2` of the rows per task: the low `eq` table a task reads stays in L2
+    /// while every column and pair accumulator sweeps past it, and its entry of the
+    /// high one scales the task's sums once.
+    const ROWS_LOG: usize = 12;
 
     tables
         .iter()
+        .zip(taus)
         .enumerate()
-        .map(|(t, &(base, n_cols))| {
-            let tau = crate::log2_strict_usize(cols[base].len());
+        .map(|(t, (&(base, n_cols), &tau))| {
+            let len = cols[base].len();
             let mut pairs: Vec<(usize, usize)> = forms
                 .iter()
                 .flat_map(|side| side[t].prods.iter().map(|&(a, b, _)| (a, b)))
@@ -1128,38 +1138,53 @@ fn tables_and_prods_at(
             pairs.sort_unstable();
             pairs.dedup();
 
-            let eq = eq_table_arena(&zeta[..tau]);
+            let lo_log = tau.min(ROWS_LOG);
+            let (lo, hi) = (eq_table(&zeta[..lo_log]), eq_table(&zeta[lo_log..tau]));
             let n_acc = n_cols + pairs.len();
-            let sums = parallel::fold_reduce(
-                (1usize << tau).div_ceil(ROWS),
-                || vec![F192Unreduced::ZERO; n_acc],
-                |acc, chunk| {
-                    let lo = chunk * ROWS;
-                    let weights = &eq[lo..(lo + ROWS).min(1 << tau)];
-                    let span = |c: usize| &cols[base + c][lo..lo + weights.len()];
-                    for (c, slot) in acc[..n_cols].iter_mut().enumerate() {
+            let (mut sums, _) = parallel::fold_reduce(
+                len.div_ceil(1 << lo_log),
+                || (vec![F192::ZERO; n_acc], vec![F192Unreduced::ZERO; n_acc]),
+                |(acc, part), chunk| {
+                    let first = chunk << lo_log;
+                    let weights = &lo[..(len - first).min(1 << lo_log)];
+                    let span = |c: usize| &cols[base + c][first..first + weights.len()];
+                    part.fill(F192Unreduced::ZERO);
+                    for (c, slot) in part[..n_cols].iter_mut().enumerate() {
                         for (&w, &v) in weights.iter().zip(span(c)) {
                             *slot ^= w.mul_base_unreduced(v);
                         }
                     }
-                    for (&(a, b), slot) in pairs.iter().zip(&mut acc[n_cols..]) {
+                    for (&(a, b), slot) in pairs.iter().zip(&mut part[n_cols..]) {
                         for ((&w, &x), &y) in weights.iter().zip(span(a)).zip(span(b)) {
                             *slot ^= w.mul_base_unreduced(x * y);
                         }
                     }
-                },
-                |mut left, right| {
-                    for (slot, part) in left.iter_mut().zip(right) {
-                        *slot ^= part;
+                    for (a, p) in acc.iter_mut().zip(part.iter()) {
+                        *a += hi[chunk] * p.reduce();
                     }
-                    left
+                },
+                |(mut left, part), (right, _)| {
+                    for (slot, r) in left.iter_mut().zip(right) {
+                        *slot += r;
+                    }
+                    (left, part)
                 },
             );
-            let evals = sums[..n_cols].iter().map(|s| s.reduce()).collect();
+            if len < 1 << tau {
+                let tail = primitives::multilinear::tail_weight(&zeta[..tau], len);
+                let last = |c: usize| cols[base + c][len - 1];
+                for (c, slot) in sums[..n_cols].iter_mut().enumerate() {
+                    *slot += tail.mul_base(last(c));
+                }
+                for (&(a, b), slot) in pairs.iter().zip(&mut sums[n_cols..]) {
+                    *slot += tail.mul_base(last(a) * last(b));
+                }
+            }
+            let evals = sums[..n_cols].to_vec();
             let prods = pairs
                 .iter()
                 .zip(&sums[n_cols..])
-                .map(|(&(a, b), s)| (a, b, s.reduce()))
+                .map(|(&(a, b), &s)| (a, b, s))
                 .collect();
             (evals, prods)
         })
