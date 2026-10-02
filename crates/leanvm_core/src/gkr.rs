@@ -377,8 +377,9 @@ fn combine<const N: usize>(values: [F192; N], lambda: F192) -> F192 {
 /// depth of the tallest tree.
 ///
 /// The first two trees share a product by construction, as the bus's two sides do
-/// (`cpu::filler` fills every table to a power of two, so they balance outright). ONE root
-/// is sent for both, and no verifier can be handed an unbalanced pair to check.
+/// (every row they flush is a row the run made, a padding row flushing the identity, so
+/// they balance outright). ONE root is sent for both, and no verifier can be handed an
+/// unbalanced pair to check.
 pub fn prove_products<const N: usize>(leaves: [ArenaVec<F192>; N], ps: &mut ProverState) -> Products<N> {
     const { assert!(N >= 2, "the first two trees are the bus's two sides") };
     let mu = leaves

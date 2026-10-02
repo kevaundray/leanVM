@@ -148,16 +148,16 @@ pub(crate) struct Prepared {
 }
 
 impl Prepared {
-    /// Build packed witness `f`'s batch, one instance per row of its table, and write it
-    /// into `window`, its committed column.
-    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], window: &mut [F64]) -> Self {
+    /// Build packed witness `f`'s batch, one instance per row of its table. Its
+    /// committed column is the batch's packed words ([`Self::packed`]).
+    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry]) -> Self {
         let (t, part) = flock(f);
         let spec = CLASSES[t];
         let n_blocks_log = n_blocks_log(spec, rows.len());
         assert_eq!(
             rows.len(),
             1 << n_blocks_log,
-            "a table's rows fill its batch (cpu::filler)"
+            "a table's rows fill its batch (cpu::padding)"
         );
         let circuit = circuit(f);
         let ports = crate::tables::tables()[t].ports(part);
@@ -183,16 +183,15 @@ impl Prepared {
                 })
             },
         );
-        assert_eq!(window.len(), z.len(), "the committed column is the wrong size");
         let stride = 1 << stride_log(spec, part);
-        // `F64` is `repr(transparent)` over `u64`, and the packing is bit `i` at
-        // position `i` on both sides.
+        assert_eq!(z.len(), rows.len() * stride, "the committed column is the wrong size");
         const BATCH: usize = 1 << 10;
-        parallel::chunks_mut_zip(window, &z, stride * BATCH, |batch, dst, src| {
-            for (j, src) in src.chunks_exact(stride).enumerate() {
+        parallel::for_each(rows.len().div_ceil(BATCH), |batch| {
+            let first = batch * BATCH;
+            for (j, row) in rows[first..rows.len().min(first + BATCH)].iter().enumerate() {
+                let src = &z[(first + j) * stride..][..stride];
                 // What the circuit computed is what the interpreter did, or the bus
                 // would carry one and flock prove the other.
-                let row = &rows[batch * BATCH + j];
                 for (k, &port) in ports.iter().enumerate().skip(n_inputs) {
                     let expected = word_of(port, &slots, row, &entries[row.index as usize]);
                     assert_eq!(
@@ -201,9 +200,6 @@ impl Prepared {
                         spec.name
                     );
                 }
-            }
-            for (d, &s) in dst.iter_mut().zip(src) {
-                *d = F64(s);
             }
         });
         Self {
@@ -214,6 +210,14 @@ impl Prepared {
             b,
             z_lincheck,
         }
+    }
+
+    /// The batch's packed words, instance `j` at `j · 2^stride_log`: the circuit's
+    /// committed column at its full height.
+    pub(crate) const fn packed(&self) -> &[F64] {
+        // SAFETY: `F64` is `repr(transparent)` over `u64`, and the packing is bit `i`
+        // at position `i` on both sides.
+        unsafe { std::slice::from_raw_parts(self.z.as_ptr().cast::<F64>(), self.z.len()) }
     }
 
     /// Flock's zerocheck then lincheck, leaving the one claim on the committed column.

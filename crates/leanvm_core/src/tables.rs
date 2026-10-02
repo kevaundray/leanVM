@@ -202,8 +202,8 @@ impl FlushBuilder {
 pub struct FillCtx<'a> {
     pub(crate) trace: &'a Trace,
     pub(crate) program: &'a rv::Program,
-    /// This table's height `2^tau`, the length of every window in `out`, and its row
-    /// count too (`cpu::filler`).
+    /// This table's proven row count `2^tau`, its height padded (`cpu::padding`), the
+    /// length of every window in `out`.
     pub(crate) rows: usize,
     /// Which local columns [`Self::col`] / [`Self::cols`] have written. A fill that
     /// misses one would leave the stacked witness holding uninitialized slots, so
@@ -273,8 +273,8 @@ impl<'a> FillCtx<'a> {
             self.written[c].store(true, std::sync::atomic::Ordering::Relaxed);
             parallel::SendPtr(out[c].as_mut_ptr())
         });
-        // A table's height is its row count (`cpu::filler`), so there is nothing to
-        // pad with.
+        // The executor wrote the padding rows out (`cpu::padding`), so there is nothing to
+        // pad with here.
         assert_eq!(rows.len(), n, "a table's rows must fill its cube");
         let writer = move |range: std::ops::Range<usize>| {
             for i in range {

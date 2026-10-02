@@ -93,7 +93,7 @@ use crate::witness::{
     write_lin_word_ab_packed,
 };
 use pcs::pack::LOG_PACKING;
-use pcs::stack_open::{RingSwitchOpen, RingSwitchVerify};
+use pcs::stack_open::{RingSwitchClaim, RingSwitchVerifyClaim};
 use primitives::field::F192;
 use zk_alloc::ArenaVec;
 
@@ -727,12 +727,12 @@ pub fn qflock_kappa(n_blocks: usize) -> usize {
 
 /// [`reduction::ring_switch_open`] for `n_blocks` compressions, `offset` being
 /// `q_flock`'s slot in the committed stack.
-pub fn ring_switch_open(n_blocks: usize, offset: usize, reduced: &SliceClaim) -> RingSwitchOpen {
+pub fn ring_switch_open(n_blocks: usize, offset: usize, reduced: &SliceClaim) -> RingSwitchClaim {
     reduction::ring_switch_open(qflock_kappa(n_blocks), offset, reduced)
 }
 
 /// [`reduction::ring_switch_verify`] for `n_blocks` compressions.
-pub fn ring_switch_verify(n_blocks: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerify<'_> {
+pub fn ring_switch_verify(n_blocks: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerifyClaim<'_> {
     reduction::ring_switch_verify(qflock_kappa(n_blocks), offset, claim)
 }
 
