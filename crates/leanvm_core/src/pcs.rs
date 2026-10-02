@@ -85,28 +85,15 @@ pub struct InvalidRate {
 }
 // The PCS and the unground F192 bus argument both target `SECURITY_BITS`.
 const _: () = assert!(::pcs::whir::SECURITY_BITS == crate::SECURITY_BITS as usize);
-/// Minimum committed-witness log-size accepted by the WHIR level ladder, with one level of margin.
-pub const MIN_MU: usize = 15;
-/// Largest committed size accepted by all verifiers.
-pub const MAX_MU: usize = 28;
+/// Minimum committed-witness log-size, the smallest the WHIR table configures.
+pub const MIN_MU: usize = ::pcs::whir::MIN_LOG_N;
+/// Largest committed size accepted by all verifiers, the largest the WHIR table configures.
+pub const MAX_MU: usize = ::pcs::whir::MAX_LOG_N;
 
-/// The shared WHIR config for a `2^μ`-word witness, memoized per `(μ, log_inv_rate)`.
-fn whir_config(mu: usize, log_inv_rate: usize) -> std::sync::Arc<ProverConfig> {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex, OnceLock};
-    type Cache = Mutex<HashMap<(usize, usize), Arc<ProverConfig>>>;
-    static CACHE: OnceLock<Cache> = OnceLock::new();
-    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut map = cache.lock().expect("whir config cache poisoned");
-    Arc::clone(map.entry((mu, log_inv_rate)).or_insert_with(|| {
-        assert!(
-            mu >= MIN_MU,
-            "witness must be ≥ 2^{MIN_MU} elements (padded by placements_of)"
-        );
-        let config = config_for_rate(mu, log_inv_rate)
-            .unwrap_or_else(|e| panic!("whir config for mu={mu}, log_inv_rate={log_inv_rate}: {e}"));
-        Arc::new(config)
-    }))
+/// The shared WHIR config for a `2^μ`-word witness.
+fn whir_config(mu: usize, log_inv_rate: usize) -> ProverConfig {
+    config_for_rate(mu, log_inv_rate)
+        .unwrap_or_else(|e| panic!("whir config for mu={mu}, log_inv_rate={log_inv_rate}: {e}"))
 }
 
 /// A committed `K`-valued witness plus the data needed to open it. The witness
@@ -201,20 +188,4 @@ pub fn verify(
 ) -> Result<(), ::pcs::whir::VerifyError> {
     let cfg = whir_config(shape.mu, log_inv_rate);
     verify_opening_batch_mixed_whir_stacked(vs, &cfg, shape.mu, shape.n_lanes, root, points, rings)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// What lets all three verifiers check a plain range instead of re-deriving
-    /// the ladder: every size in the window is configurable at every rate.
-    #[test]
-    fn supported_window_is_configurable() {
-        for rate in ::pcs::whir::MIN_LOG_INV_RATE..=::pcs::whir::MAX_LOG_INV_RATE {
-            for mu in MIN_MU..=MAX_MU {
-                assert!(config_for_rate(mu, rate).is_ok(), "mu={mu} rate={rate}");
-            }
-        }
-    }
 }
