@@ -618,7 +618,7 @@ class ColumnClaim:
         coordinates to the port's bits."""
         placement = layout.placements[self.column]
         if isinstance(placement, Port):
-            column, slot, low = layout.placements[placement.column], placement.port, placement.stride
+            column, slot, low = layout.column(placement.column), placement.port, placement.stride
             terms = column.terms(self.point, 0)
         else:
             column, slot, low = placement, 0, 0
@@ -856,6 +856,12 @@ class Layout:
     @property
     def framework_log_rows(self) -> dict[str, int]:
         return framework_log_rows(self.log_bytecode, self.log_ram, self.log_advice)
+
+    def column(self, index: int) -> JaggedColumn:
+        """The committed column `index` names: a packed witness or a one-word column, never a circuit word."""
+        placement = self.placements[index]
+        assert isinstance(placement, JaggedColumn), f"column {index} is a circuit word"
+        return placement
 
 
 def framework_log_rows(log_bytecode: int, log_ram: int, log_advice: int) -> dict[str, int]:
@@ -2191,7 +2197,7 @@ def verify_execution(
     families += [(point, (*values, *[ZERO] * (K_BITS - len(values)))) for point, values in bits]
 
     # 9] Ring-switching: each claim is on its packed column's pieces, and they lead the batch, taking the first powers.
-    regions = [layout.placements[column] for column in (*WITNESS_COLUMNS, *(producer.column for producer in layout.producers))]
+    regions = [layout.column(column) for column in (*WITNESS_COLUMNS, *(producer.column for producer in layout.producers))]
     ringswitches = ring_switch([(region, *family) for region, family in zip(regions, families, strict=True)], transcript)
     verify_stacked_opening(transcript, root, layout.stack_log, log_inverse_rate, [*ringswitches, *(c.on_stack(layout) for c in claims)])
     transcript.finish()
