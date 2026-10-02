@@ -188,7 +188,7 @@ impl Program {
             unsafe { core::slice::from_raw_parts(table.as_ptr().cast::<u8>(), core::mem::size_of_val(&table[..])) };
         // Every variable-length part is length-framed, so the preimage parses one way.
         let mut h = primitives::hash::Hasher::new();
-        h.update(b"leanvm-rv64im-7");
+        h.update(b"leanvm-rv64im-8");
         h.update(&bytes(&[table.len() as u64]));
         h.update(table_bytes);
         h.update(&bytes(&[
@@ -243,13 +243,9 @@ pub enum CpuError {
     /// The table constraints do not hold.
     #[error("the table constraints: {0}")]
     Constraint(constraints::Error),
-    /// One of a table's circuit sub-proofs is rejected.
-    #[error("the {table} table's {part:?} circuit: {error}")]
-    Flock {
-        table: &'static str,
-        part: tables::Part,
-        error: flock::verifier::VerifyError,
-    },
+    /// The circuits' batched sub-proof is rejected.
+    #[error("the circuits' reductions: {0}")]
+    Flock(flock::verifier::VerifyError),
     /// The commitment opening is rejected.
     #[error("the opening: {0}")]
     Open(::pcs::whir::VerifyError),
@@ -588,28 +584,24 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], rate: pcs::Ra
 
     let slots = finish_claims(l, bus_claims, &table_claims, &pads, output);
 
-    // Run each circuit's flock reduction (zerocheck + lincheck), every class circuit
-    // then every clock circuit, over the native layouts retained from the witness
-    // build; it returns the validity claim on the circuit's committed packed witness,
-    // discharged by the PCS below in the SAME WHIR as every leanVM point claim,
-    // through ring-switched terms of its own. The producer's bits join them, its
+    // Run flock's reductions (zerocheck + lincheck), batched over every class circuit
+    // then every clock circuit under shared challenges, over the native layouts retained
+    // from the witness build; they return the validity claim on each circuit's committed
+    // packed witness, discharged by the PCS below in the SAME WHIR as every leanVM point
+    // claim, through ring-switched terms of its own. The producer's bits join them, its
     // multiplicity column ring-switched too.
     let reductions = w.reductions;
-    let mut rings: Vec<_> = crate::stage!("Flock reductions", || {
-        reductions
-            .iter()
-            .enumerate()
-            .map(|(f, prepared)| {
-                let reduced = prepared.prove(&mut ps);
-                pcs::RingSwitchClaim {
-                    terms: ring_terms(l.witness_column(f), &reduced.suffix_point),
-                    suffix_point: reduced.suffix_point,
-                    s_hat_v: Some(reduced.s_hat_v),
-                }
-            })
-            .collect()
+    let reduced = crate::stage!("Flock reductions", || {
+        crate::class_flock::prove_reductions(&reductions, &mut ps)
     });
     drop(reductions);
+    let mut rings: Vec<_> = (reduced.into_iter().enumerate())
+        .map(|(f, reduced)| pcs::RingSwitchClaim {
+            terms: ring_terms(l.witness_column(f), &reduced.suffix_point),
+            suffix_point: reduced.suffix_point,
+            s_hat_v: Some(reduced.s_hat_v),
+        })
+        .collect();
     for (p, claims) in l.producers.iter().zip(&table_claims[tables::N_TABLES..]) {
         rings.push(pcs::RingSwitchClaim {
             terms: ring_terms(l.multiplicity_column(p), &claims.chi),
@@ -759,20 +751,14 @@ pub fn verify_to_raw(
 
     let slots = finish_claims(&l, bus.claims, &table_claims, &pads, output);
 
-    // Replay each circuit's flock reduction straight off the shared stream (each scalar
-    // bound as it is read) to recover its validity claim on the circuit's packed
+    // Replay the batched flock reductions straight off the shared stream (each scalar
+    // bound as it is read) to recover each circuit's validity claim on its packed
     // witness, then verify them alongside every point claim in the ONE WHIR opening
     // (mirroring `prove`).
-    let mut replays = Vec::with_capacity(crate::class_flock::N_FLOCKS);
-    for f in 0..crate::class_flock::N_FLOCKS {
-        let (t, part) = crate::class_flock::flock(f);
-        let replay = crate::class_flock::verify_reduction(f, l.taus[t], &mut vs).map_err(|error| CpuError::Flock {
-            table: tables::CLASSES[t].name,
-            part,
-            error,
-        })?;
-        replays.push(replay);
-    }
+    let n_blocks_log: Vec<usize> = (0..crate::class_flock::N_FLOCKS)
+        .map(|f| l.taus[crate::class_flock::flock(f).0])
+        .collect();
+    let replays = crate::class_flock::verify_reductions(&n_blocks_log, &mut vs).map_err(CpuError::Flock)?;
     let slices: Vec<[F192; ::pcs::pack::PACKING_WIDTH]> = table_claims[tables::N_TABLES..]
         .iter()
         .map(multiplicity_slices)
