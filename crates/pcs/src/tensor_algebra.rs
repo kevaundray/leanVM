@@ -19,7 +19,7 @@ use crate::pack::PACKING_WIDTH;
 pub const DEGREE_E: usize = 192;
 
 /// Bit w of an E element in the tower basis (w in 0..192).
-#[inline(always)]
+#[cfg(test)]
 const fn ext_bit(e: F192, w: usize) -> u64 {
     if w < 64 {
         (e.c0 >> w) & 1
@@ -140,26 +140,25 @@ impl AddAssign<&Self> for TensorAlgebraE {
 /// On input: `elems[i]` viewed as a 192-bit row; bit `j` (tower basis) is the
 /// F_2 coefficient at position `(i, j)`. On output: bit `j` of `elems[i]`
 /// becomes the old bit `i` of `elems[j]`.
+///
+/// By 64x64 blocks: word `c` of rows `64r..64r+64` is transposed as one block and lands as word `r` of rows
+/// `64c..64c+64`, so the work is word operations rather than one bit at a time.
 fn square_transpose_ext(elems: &mut [F192]) {
     assert_eq!(elems.len(), DEGREE_E, "square_transpose_ext: input must be length 192");
-
-    let mut out = [F192::ZERO; DEGREE_E];
-    for (j, o) in out.iter_mut().enumerate() {
-        let mut c0: u64 = 0;
-        let mut c1: u64 = 0;
-        let mut c2: u64 = 0;
-        for (i, &elem) in elems[0..64].iter().enumerate() {
-            c0 |= ext_bit(elem, j) << i;
+    let word = |e: &F192, c: usize| [e.c0, e.c1, e.c2][c];
+    let mut out = [[0u64; 3]; DEGREE_E];
+    for r in 0..3 {
+        for c in 0..3 {
+            let mut block: [u64; 64] = core::array::from_fn(|i| word(&elems[64 * r + i], c));
+            primitives::bits::transpose_64x64(&mut block);
+            for (i, &w) in block.iter().enumerate() {
+                out[64 * c + i][r] = w;
+            }
         }
-        for (i, &elem) in elems[64..128].iter().enumerate() {
-            c1 |= ext_bit(elem, j) << i;
-        }
-        for (i, &elem) in elems[128..192].iter().enumerate() {
-            c2 |= ext_bit(elem, j) << i;
-        }
-        *o = F192::new(c0, c1, c2);
     }
-    elems.copy_from_slice(&out);
+    for (e, [c0, c1, c2]) in elems.iter_mut().zip(out) {
+        *e = F192::new(c0, c1, c2);
+    }
 }
 
 #[cfg(test)]
@@ -181,18 +180,16 @@ mod tests {
     }
 
     #[test]
-    fn square_transpose_is_involution() {
+    fn square_transpose_moves_every_bit() {
         let mut rng = Rng::new(2);
         let orig = rng.ext_vec(DEGREE_E);
-        let t = TensorAlgebraE { elems: orig.clone() };
-        let tt = t.transpose();
-        // Bit relation on a spot-check diagonal band plus full involution.
-        for i in 0..DEGREE_E {
-            for w in [0usize, 1, 63, 64, 65, 127] {
-                assert_eq!(ext_bit(tt.elems[i], w), ext_bit(orig[w], i));
+        let t = TensorAlgebraE { elems: orig.clone() }.transpose();
+        for (i, &row) in t.elems.iter().enumerate() {
+            for (w, &col) in orig.iter().enumerate() {
+                assert_eq!(ext_bit(row, w), ext_bit(col, i), "bit ({i}, {w}) not transposed");
             }
         }
-        assert_eq!(tt.transpose().elems, orig, "transpose twice must be id");
+        assert_eq!(t.transpose().elems, orig, "transpose twice must be id");
     }
 
     /// `fold_vertical(from_vertical(x), coeffs)` is exactly the F_2-linear
