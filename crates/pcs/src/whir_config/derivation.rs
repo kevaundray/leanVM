@@ -28,6 +28,7 @@
 
 #![expect(
     clippy::float_arithmetic,
+    clippy::cast_precision_loss,
     reason = "The soundness analysis is real-valued; it only runs in tests, which pin the integer table to it."
 )]
 

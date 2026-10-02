@@ -4,8 +4,8 @@
 //! Boolean witnesses are packed into `K = GF(2^64)` and WHIR opens them
 //! over its cubic extension `E = GF(2^192)`.
 
-// The proof path computes in integers and binary fields alone; the soundness analysis behind the WHIR table is the one exception, and test-only.
-#![deny(clippy::float_arithmetic)]
+// The proof path computes in integers and binary fields alone. The soundness analysis behind the WHIR table computes in floating point and is `#[cfg(test)]`, which is what keeps it out of a build; these lints are a partial second check, catching float operators and lossy integer-to-float casts but not float method calls or lossless casts.
+#![deny(clippy::float_arithmetic, clippy::cast_precision_loss)]
 
 pub mod merkle;
 pub mod ntt;
