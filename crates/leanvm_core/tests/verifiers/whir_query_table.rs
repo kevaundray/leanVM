@@ -4,11 +4,11 @@
 //! repeating that search, which would make float identity part of the protocol. A stale
 //! Python table fails with the line to paste over it.
 
-use pcs::whir::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE, QUERY_GRINDING_BITS, config_for_rate};
+use pcs::whir::{MAX_LOG_INV_RATE, MIN_LOG_INV_RATE, config_for_rate};
 use std::path::Path;
 use std::process::Command;
 
-/// The range, then `rate log_n rates | folds | queries` per entry.
+/// The range, then `rate log_n rates | folds | queries | grinding | ood` per entry.
 const DUMP: &str = "\
 import sys; sys.path.insert(0, '.')
 import verifier as v
@@ -16,7 +16,8 @@ print(v.MIN_STACKED_LOG, v.MAX_STACKED_LOG)
 for rate in range(1, 5):
     for log_n in range(v.MIN_STACKED_LOG, v.MAX_STACKED_LOG + 1):
         c = v.derive_config(log_n, rate)
-        print(rate, log_n, ' | '.join(' '.join(map(str, f)) for f in (c.log_inv_rates, c.folds, c.queries)))
+        fields = (c.log_inv_rates, c.folds, c.queries, c.grinding_bits, c.ood_samples)
+        print(rate, log_n, ' | '.join(' '.join(map(str, f)) for f in fields))
 ";
 
 #[test]
@@ -67,8 +68,8 @@ fn whir_query_table_matches_rust() {
             .split(" | ")
             .map(|f| f.split_whitespace().map(|x| x.parse().expect("an integer")).collect())
             .collect();
-        let [rates, folds, queries] = fields.as_slice() else {
-            panic!("rate {rate}, log_n {log_n}: expected rates | folds | queries, got {rest}")
+        let [rates, folds, queries, grinding, ood] = fields.as_slice() else {
+            panic!("rate {rate}, log_n {log_n}: expected rates | folds | queries | grinding | ood, got {rest}")
         };
 
         let config = config_for_rate(log_n, rate).unwrap_or_else(|e| panic!("rate {rate}, log_n {log_n}: {e}"));
@@ -90,18 +91,15 @@ fn whir_query_table_matches_rust() {
             &rust_folds, folds,
             "rate {rate}, log_n {log_n}: the fold ladders differ"
         );
-        // Hardcoded on the Python side, so they must hold wherever the table does.
-        let expected_ood: Vec<usize> = std::iter::once(0)
-            .chain(std::iter::repeat_n(1, config.queries().len() - 1))
-            .collect();
+        assert_eq!(
+            config.grinding_bits(),
+            grinding,
+            "rate {rate}, log_n {log_n}: the grinding ladders differ"
+        );
         assert_eq!(
             config.ood_samples(),
-            expected_ood,
-            "rate {rate}, log_n {log_n}: OOD samples are no longer 'none at level 0, one after'"
-        );
-        assert!(
-            config.grinding_bits().iter().all(|&bits| bits == QUERY_GRINDING_BITS),
-            "rate {rate}, log_n {log_n}: grinding is no longer QUERY_GRINDING_BITS at every level"
+            ood,
+            "rate {rate}, log_n {log_n}: the OOD ladders differ"
         );
         checked += 1;
     }

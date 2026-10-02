@@ -1025,11 +1025,12 @@ class WhirConfig:
     log_inv_rates: tuple[int, ...]
     folds: tuple[int, ...]
     queries: tuple[int, ...]
+    grinding_bits: tuple[int, ...]
+    ood_samples: tuple[int, ...]
 
 
 def derive_config(log_n: int, log_inv_rate: int) -> WhirConfig:
-    """The opening shape at this size and rate: the ladder geometry, then the
-    tabulated query counts."""
+    """The opening shape at this size and rate: the ladder geometry, then the tabulated query counts, the same grinding at every level, and one OOD sample at every level past L0."""
     require(MIN_STACKED_LOG <= log_n <= MAX_STACKED_LOG and 1 <= log_inv_rate <= 4, "invalid WHIR shape")
     folds = [INITIAL_FOLDING_FACTOR]
     log_inv_rates = [log_inv_rate]
@@ -1042,7 +1043,13 @@ def derive_config(log_n: int, log_inv_rate: int) -> WhirConfig:
         folds.append(fold)
     queries = WHIR_QUERIES[log_inv_rate - 1][log_n - MIN_STACKED_LOG]
     require(len(queries) == len(folds), "tabulated query count does not match the ladder")
-    return WhirConfig(log_inv_rates=tuple(log_inv_rates), folds=tuple(folds), queries=queries)
+    return WhirConfig(
+        log_inv_rates=tuple(log_inv_rates),
+        folds=tuple(folds),
+        queries=queries,
+        grinding_bits=(QUERY_GRINDING_BITS,) * len(folds),
+        ood_samples=(0,) + (1,) * (len(folds) - 1),
+    )
 
 
 def _ext_row(words: Sequence[K]) -> tuple[E, ...]:
@@ -1140,11 +1147,12 @@ def verify_whir(transcript: Transcript, log_n: int, log_inv_rate: int, target: E
             residual = tuple(transcript.next_scalars(2**message_log))
         else:
             next_root = Digest.from_halves(*transcript.next_scalars(2))
-            ood_point = tuple(transcript.samples(message_log))
-            ood_value = transcript.next_scalar()
-            pending.append((transcript.sumcheck_round_poly(3, ood_value), lambda x, z=ood_point: eq_eval(z, x)))
+            for _ in range(config.ood_samples[level + 1]):
+                ood_point = tuple(transcript.samples(message_log))
+                ood_value = transcript.next_scalar()
+                pending.append((transcript.sumcheck_round_poly(3, ood_value), lambda x, z=ood_point: eq_eval(z, x)))
 
-        transcript.grind_check(QUERY_GRINDING_BITS)
+        transcript.grind_check(config.grinding_bits[level])
         block_length = 2 ** (message_log + level_rate)
         queries = sample_queries(transcript, block_length, config.queries[level])
         # One batching challenge per level, drawn once every claim it batches is
