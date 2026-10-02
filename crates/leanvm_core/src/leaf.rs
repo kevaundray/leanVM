@@ -391,11 +391,11 @@ fn producer_leaves(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> Are
     q
 }
 
-/// Build one side's leaf vector: block `b` row `z` holds `β − Σ_i w_i c_i(z)` for
-/// the fingerprint weights `w = eq(α⃗, ·)`, `1` on a table's rows from its height on,
-/// then each producer's bit blocks, bit `i`'s row `x` holding `(β − π_α(e_x))^{2^i}`
-/// where that bit of `m_x` is set and `1` where it is not, followed implicitly by the
-/// identity `1` up to `2^μ`.
+/// Build one side's leaves: block `b` row `z` holds `β − Σ_i w_i c_i(z)` for the
+/// fingerprint weights `w = eq(α⃗, ·)`, then each producer's bit blocks, bit `i`'s row `x`
+/// holding `(β − π_α(e_x))^{2^i}` where that bit of `m_x` is set and `1` where it is not.
+/// A table's rows from its height on hold the identity `1`, as does every leaf past the
+/// blocks up to `2^μ`: those are never written ([`gkr::Leaves`]).
 pub fn build_leaves(
     blocks: &[Block],
     producers: &[Producer],
@@ -404,7 +404,7 @@ pub fn build_leaves(
     w: &[F192],
     beta: F192,
     heights: &[usize],
-) -> ArenaVec<F192> {
+) -> gkr::Leaves {
     let kappas: Vec<usize> = blocks
         .iter()
         .map(|b| b.kappa)
@@ -417,41 +417,30 @@ pub fn build_leaves(
         .max()
         .unwrap_or(1);
     debug_assert!(explicit <= 1usize << lay.mu);
-    // `stack_offsets` packs the power-of-two blocks contiguously from zero, so the
-    // blocks tile `0..explicit` and every slot below is written by one of them: the
-    // identity fill would be overwritten in full, and this is the largest buffer in
-    // the proof. The `covered` test is what licenses skipping it, so a layout that
-    // ever left a hole falls back to filling rather than reading uninitialized rows.
-    // Capacity is rounded to whole four-tuples because `gkr::QuaternaryLayerState`
-    // pads this level to that before reading it, and growing it here would copy it.
-    let covered: usize = kappas.iter().map(|&kappa| 1usize << kappa).sum();
-    let mut leaves = if covered == explicit {
-        let mut values = ArenaVec::with_capacity(explicit.next_multiple_of(4));
-        // SAFETY: the per-block fills below cover `0..explicit` exactly, and each
-        // joins before this function returns.
-        unsafe { values.set_len(explicit) };
-        values
-    } else {
-        let mut values = ArenaVec::with_capacity(explicit.next_multiple_of(4));
-        values.resize(explicit, F192::ONE);
-        values
-    };
     // A table's block flushes its live rows; its padding rows take the identity, so the
-    // product is over the rows the run made (§sec:jagged).
-    for (b, blk) in blocks.iter().enumerate() {
-        let off = lay.offsets[b];
-        let dst = &mut leaves[off..off + (1usize << blk.kappa)];
-        let (live, padding) = dst.split_at_mut(blk.owner.map_or(dst.len(), |t| heights[t]));
-        fill_tuple(&blk.coords, cols, w, beta, live);
-        parallel::chunks_mut(padding, PRODUCER_CHUNK, |_, chunk| chunk.fill(F192::ONE));
+    // product is over the rows the run made (§sec:jagged). Every other block is whole.
+    let live: Vec<usize> = (blocks.iter().map(|b| b.owner.map_or(1 << b.kappa, |t| heights[t])))
+        .chain(producers.iter().flat_map(|p| std::iter::repeat_n(1 << p.kappa, p.bits)))
+        .collect();
+    let mut order: Vec<usize> = (0..kappas.len()).collect();
+    order.sort_unstable_by_key(|&b| lay.offsets[b]);
+    let spans: Vec<(usize, usize)> = order.iter().map(|&b| (lay.offsets[b], live[b])).collect();
+    // SAFETY: every block's span is written below, the fills joining before this returns.
+    let mut leaves = unsafe { gkr::Leaves::new(explicit, &spans) };
+    let mut dst: Vec<&mut [F192]> = Vec::with_capacity(kappas.len());
+    dst.resize_with(kappas.len(), || &mut []);
+    for (&b, span) in order.iter().zip(leaves.spans_mut()) {
+        dst[b] = span;
     }
-    let mut b = blocks.len();
+    let mut dst = dst.into_iter();
+    for blk in blocks {
+        fill_tuple(&blk.coords, cols, w, beta, dst.next().expect("a span per block"));
+    }
     for p in producers {
         let mut q = producer_leaves(p, cols, w, beta);
         let mult = cols[p.col];
         for bit in 0..p.bits {
-            let off = lay.offsets[b];
-            let dst = &mut leaves[off..off + (1usize << p.kappa)];
+            let dst = dst.next().expect("a span per producer bit");
             // Bit `bit`'s leaves, then `q` squared in place for the next bit.
             parallel::chunks_mut2(dst, &mut q, PRODUCER_CHUNK, |ci, dst, q| {
                 let mult = &mult[ci * PRODUCER_CHUNK..];
@@ -460,7 +449,6 @@ pub fn build_leaves(
                     *q = q.square();
                 }
             });
-            b += 1;
         }
     }
     leaves
