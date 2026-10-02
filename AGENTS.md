@@ -66,7 +66,7 @@ cargo fmt --all                   # max_width = 120
 ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` it
 ```
 
-Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). The parameter reports `print_whir_query_counts` and `print_whir_query_table` are `#[ignore]`d tests; run them by name with `-- --ignored --nocapture`.
+Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput`, primitives' `hash_throughput`. All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval).
 
 **Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). A new stage worth timing gets an `info_span!` (in `leanvm_core`, `stage!`), never an `Instant` behind an env var.
 
@@ -148,6 +148,8 @@ The same verification algorithm is written out twice, in two languages. Any chan
 
 Both are split in two, `verify` being one then the other: `verify_core` runs every check that depends on the proof and returns the claims it leaves on polynomials only the program or the VM's circuits fix (`cpu::DeferredClaims`: the table sumcheck's final identity short of the bytecode producer's program columns and RAM's image, and each circuit's lincheck terminal identity short of its matrix form), and `check_deferred` evaluates them. A recursive verifier carries the claims instead of evaluating them, merging those of many proofs (`DeferredClaims::merge`); a caller of `verify_core` must never drop them. `python_leaves_the_same_deferred_claims` pins the two sides' claims to each other (`verifier.py --deferred`).
 
+Neither the prover nor the verifiers compute the WHIR parameters: each reads a table of query counts (`WHIR_QUERIES` in `pcs::whir_config` and in `verifier.py`) and builds the rest from the integer level ladder, so no floating point reaches a proof. The floating-point soundness derivation that chooses them is test-only (`pcs::whir_config::derivation`): `the_table_is_the_derivation` pins the Rust table to it, and `whir_query_table_matches_rust` the Python table to the Rust one. Changing a constant the derivation reads (the security target, a folding factor, the grinding bits, the size window) fails the first, whose message holds the rows to paste over the Rust table; then the second fails with the line to paste over the Python one. Moving the size window also changes the Rust table's type: give each rate that many rows first (`&[]` will do) so that `pcs` compiles.
+
 ## Conventions that bite
 
 - **The prover can be memory-bandwidth bound.** Reduce memory traffic before assuming that more workers or fewer instructions improve throughput. `primitives::stream::Stream` publishes a buffer without the read-for-ownership an ordinary store pays, but ONLY where nothing reads the destination again before it is evicted. Where a consumer follows in the same pass, the fetch it avoids becomes that consumer's miss: fold kernels earn it by building their round message from registers, or by folding into an L1 stage first (`whir::fold_and_msg_blocks`). That fetch is an x86 cost only: on Apple silicon a store-only fill already sustains what a read-only pass does and `STNP` measures identical to `STP`, so `Stream` is a plain copy there and the L1 stage earns its keep for the read locality alone, which is still better than writing through.
@@ -180,7 +182,6 @@ Both are split in two, `verify` being one then the other: `verify_core` runs eve
 | `BENCH_REPEAT`, `BENCH_COOLDOWN`                                                                        | `--repeat`/`--cooldown` for the `benches/` targets |
 | `FLOCK_N_LOG`                                                                                           | flock batch size                                 |
 | `PCS_LOG_N`, `PCS_LOG_INV_RATE`                                                                         | PCS throughput bench                             |
-| `WHIR_NUM_VARS`, `WHIR_LOG_INV_RATE`                                                                    | `print_whir_query_counts`'s shape                |
 
 ## Side notes
 
