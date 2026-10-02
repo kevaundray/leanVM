@@ -425,7 +425,7 @@ impl Program {
     /// The base-two logarithm of the stacked witness, and its committed size, for a run of these row counts.
     ///
     /// The layout depends on the program and the row counts alone, so no witness is built.
-    pub(super) fn stack_sizes(&self, row_counts: [usize; tables::N_TABLES]) -> (usize, usize) {
+    pub fn stack_sizes(&self, row_counts: [usize; tables::N_TABLES]) -> (usize, usize) {
         let taus = row_counts.map(|rows| crate::log2_ceil_usize(rows.max(1)));
         let (placements, shape) = Sizes::of(&self.rv).stack(taus);
         (shape.mu, crate::witness::committed_len(&placements))

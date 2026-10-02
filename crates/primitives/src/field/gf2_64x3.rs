@@ -57,7 +57,9 @@ impl F192 {
     }
 
     /// Product without the base-field reduction, for XOR accumulation.
-    #[inline]
+    // `--cfg recguest_count` (`programs/recverify`) keeps each field operation a call, so a guest run counts them.
+    #[cfg_attr(not(recguest_count), inline)]
+    #[cfg_attr(recguest_count, inline(never))]
     pub fn mul_unreduced(self, rhs: Self) -> F192Unreduced {
         #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
         {
@@ -73,7 +75,14 @@ impl F192 {
             all(target_arch = "x86_64", target_feature = "pclmulqdq")
         )))]
         {
-            software::mul_unreduced(self, rhs)
+            #[cfg(all(target_arch = "riscv64", target_os = "zkvm"))]
+            {
+                software::mul_unreduced_karatsuba(self, rhs)
+            }
+            #[cfg(not(all(target_arch = "riscv64", target_os = "zkvm")))]
+            {
+                software::mul_unreduced(self, rhs)
+            }
         }
     }
 
@@ -93,7 +102,8 @@ impl F192 {
     }
 
     /// Mixed product by a base-field scalar without the reduction, for XOR accumulation.
-    #[inline]
+    #[cfg_attr(not(recguest_count), inline)]
+    #[cfg_attr(recguest_count, inline(never))]
     pub fn mul_base_unreduced(self, k: F64) -> F192Unreduced {
         #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
         {
@@ -121,7 +131,8 @@ impl F192 {
     ///     (c0 + c1*y + c2*y^2)^2 = c0^2 + c1^2*y^2 + c2^2*y^4
     ///                            = c0^2 + c2^2*y + (c1^2 + c2^2)*y^2     (y^4 = y^2 + y)
     /// ```
-    #[inline]
+    #[cfg_attr(not(recguest_count), inline)]
+    #[cfg_attr(recguest_count, inline(never))]
     pub fn square(self) -> Self {
         #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
         {
@@ -156,6 +167,7 @@ impl F192 {
     /// so `self⁻¹ = m·N(self)⁻¹` needs two extension multiplies, one base-field
     /// inverse and one base-field scaling. The Fermat ladder it replaces spent
     /// 190 squarings and 190 multiplies, an order of magnitude more.
+    #[cfg_attr(recguest_count, inline(never))]
     pub fn inv(self) -> Self {
         let m = self.frobenius() * self.frobenius().frobenius();
         let norm = self * m;
@@ -994,6 +1006,19 @@ pub mod software {
     pub fn mul(a: F192, b: F192) -> F192 {
         mul_unreduced(a, b).reduce()
     }
+
+    /// Karatsuba: six base products by [`mul_wide`](crate::field::gf2_64::mul_wide), for a machine where a
+    /// product costs far more than an XOR.
+    pub fn mul_unreduced_karatsuba(a: F192, b: F192) -> F192Unreduced {
+        use crate::field::gf2_64::mul_wide;
+        let (p0, p1, p2) = (mul_wide(a.c0, b.c0), mul_wide(a.c1, b.c1), mul_wide(a.c2, b.c2));
+        let p01 = mul_wide(a.c0 ^ a.c1, b.c0 ^ b.c1);
+        let p02 = mul_wide(a.c0 ^ a.c2, b.c0 ^ b.c2);
+        let p12 = mul_wide(a.c1 ^ a.c2, b.c1 ^ b.c2);
+        let e = [p0, p01 ^ p0 ^ p1, p02 ^ p0 ^ p2 ^ p1, p12 ^ p1 ^ p2, p2];
+        // y^3 = y + 1 and y^4 = y^2 + y.
+        F192Unreduced::from_wide([e[0] ^ e[3], e[1] ^ e[3] ^ e[4], e[2] ^ e[4]])
+    }
 }
 
 // Tests: every backend against the software reference, independent Python vectors, field axioms,
@@ -1070,6 +1095,7 @@ mod tests {
             // Dispatched product, its unreduced form, and squaring.
             assert_eq!(a * b, want);
             assert_eq!(a.mul_unreduced(b).reduce(), want);
+            assert_eq!(software::mul_unreduced_karatsuba(a, b).reduce(), want);
             assert_eq!(a.square(), software::mul(a, a));
             // A mixed product is a full product by an element with no y part.
             let k = F64(b.c1);
