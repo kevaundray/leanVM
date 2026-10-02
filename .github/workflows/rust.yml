@@ -43,6 +43,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Clippy
         run: cargo clippyall
+      # The haswell pin above leaves the AVX-512 backends uncompiled; type-check them here.
+      # A step `RUSTFLAGS` replaces the workflow's, which would otherwise beat the target's flags.
+      - name: Check the AVX-512 backends
+        env:
+          RUSTFLAGS: -C target-feature=+avx512f,+avx512bw,+avx512vl,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes
+        run: cargo check --release --workspace --target x86_64-unknown-linux-gnu
 
   doc:
     name: Rustdoc
