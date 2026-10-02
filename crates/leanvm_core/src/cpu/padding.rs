@@ -9,13 +9,17 @@
 //! registers, which the text carries for the purpose ([`append_noops`]).
 
 use crate::rv::Class;
-use crate::rv::asm::{Addi, Divu, Instruction, Lb, Mul, Mulhu, Opcode, Reg, Sb, Slli};
+use crate::rv::asm::{Addi, Andi, Bne, Divu, Instruction, Lb, Mul, Mulhu, Opcode, Reg, Sb, Slli};
 use crate::tables::{CLASSES, N_TABLES};
 
 /// A no-op of `class`: every register is `x0`.
 fn nop(class: Class) -> u32 {
     let instruction = match class {
-        Class::Alu => Addi.encode(Reg::ZERO, Reg::ZERO, 0),
+        Class::Add => Addi.encode(Reg::ZERO, Reg::ZERO, 0),
+        Class::Logic => Andi.encode(Reg::ZERO, Reg::ZERO, 0),
+        // A branch not taken, and a jump to itself linking into the sink.
+        Class::Branch => Bne.encode(Reg::ZERO, Reg::ZERO, 0),
+        Class::Jump => Instruction::j(Reg::ZERO, 0),
         // A load and a store of the byte at address zero, which nothing executes.
         Class::Load => Lb.encode(Reg::ZERO, Reg::ZERO, 0),
         Class::Store => Sb.encode(Reg::ZERO, Reg::ZERO, 0),

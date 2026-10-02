@@ -188,7 +188,7 @@ impl Program {
             unsafe { core::slice::from_raw_parts(table.as_ptr().cast::<u8>(), core::mem::size_of_val(&table[..])) };
         // Every variable-length part is length-framed, so the preimage parses one way.
         let mut h = primitives::hash::Hasher::new();
-        h.update(b"leanvm-rv64im-7");
+        h.update(b"leanvm-rv64im-8");
         h.update(&bytes(&[table.len() as u64]));
         h.update(table_bytes);
         h.update(&bytes(&[
@@ -958,14 +958,14 @@ mod tests {
         );
     }
 
-    /// Put `row` among `ALU`'s live rows, ahead of its padding row: the table's height
-    /// grows by one to take it.
-    fn add_live_row(exec: &mut Execution, row: Row) {
-        let height = exec.trace.heights[0];
-        let tau = tau_of(0, height);
-        assert!(height < 1 << tau, "ALU has a padding row to take");
-        set_height(exec, 0, height + 1, tau);
-        exec.trace.rows[0][height] = row;
+    /// Put `row` among table `t`'s live rows, ahead of its padding row: the table's
+    /// height grows by one to take it.
+    fn add_live_row(exec: &mut Execution, t: usize, row: Row) {
+        let height = exec.trace.heights[t];
+        let tau = tau_of(t, height);
+        assert!(height < 1 << tau, "the table has a padding row to take");
+        set_height(exec, t, height + 1, tau);
+        exec.trace.rows[t][height] = row;
     }
 
     /// Move table `t`'s height to `height`, its rows past it repeating the row now at
@@ -984,7 +984,7 @@ mod tests {
         let e = &program.rv.entries()[index];
         let rv::Outcome { out, taken, access } = e.evaluate(0, 0, 0);
         let ram = access.unwrap_or_default();
-        let slots: Vec<u64> = tables::ALU.slots().into_iter().map(u64::from).collect();
+        let slots: Vec<u64> = tables::JUMP.slots().into_iter().map(u64::from).collect();
         Row {
             index: index as u32,
             ts: 0,
@@ -994,9 +994,26 @@ mod tests {
             taken,
             vd_old: program.rv.pc_of(index) + 4,
             ram,
-            prev: [slots[0], slots[1], slots[2], 0],
+            prev: [slots[0], slots[1], 0, 0],
             hash: None,
         }
+    }
+
+    /// Whether every tuple left unmatched is a state tuple of one of `tables`, or a framework
+    /// block's in `framework`. A table's state tuples are its first block on each side.
+    fn only_states(w: &Witness, unmatched: &[(&str, usize, usize)], tables: &[usize], framework: &[usize]) -> bool {
+        unmatched.iter().all(|&(side, block, _)| {
+            let blocks = if side == "push" { &w.layout.push } else { &w.layout.pull };
+            framework.contains(&block)
+                || tables
+                    .iter()
+                    .any(|&t| blocks.iter().position(|b| b.owner == Some(t)) == Some(block))
+        })
+    }
+
+    /// The table running `class`.
+    fn table(class: rv::Class) -> usize {
+        tables::table_of(class).expect("the class has a table")
     }
 
     /// The tuples a run leaves unmatched, as `(side, block, row)`.
@@ -1051,8 +1068,9 @@ mod tests {
             // Forge the terminal row directly, bypassing the interpreter's trap.
             let mut execution = honest_program.execute(&[]).unwrap();
             let entry = program.rv.entries()[exit_index];
+            let jump = table(rv::Class::Jump);
             if entry.jalr {
-                // The jump reads `t0` in slot 0, where the exit read `x0`, which leaves `x0`'s slot-1 read pulling the cycle before.
+                // The jump reads `t0` in slot 0, where the exit read `x0`, which leaves `x0` last read the cycle before.
                 let ts = tables::CLOCK_START + exit_index as u64 * tables::CYCLE;
                 let previous = original[..exit_index]
                     .iter()
@@ -1063,18 +1081,22 @@ mod tests {
                             .then_some((tables::CLOCK_START + i as u64 * tables::CYCLE) | 3)
                     })
                     .unwrap();
-                let row = &mut execution.trace.rows[0][exit_index];
+                let row = execution.trace.rows[jump]
+                    .iter_mut()
+                    .find(|r| r.index as usize == exit_index)
+                    .unwrap();
+                assert_eq!(row.prev[0], ts - tables::CYCLE + 1);
                 (row.v1, row.out, row.taken) = (halt, halt, false);
-                (row.prev[0], row.prev[1]) = (previous, ts - tables::CYCLE + 1);
+                row.prev[0] = previous;
                 execution.trace.reg_ts[Reg::T0.index()] = F64(ts);
+                execution.trace.reg_ts[Reg::ZERO.index()] = F64(ts - tables::CYCLE + 1);
             }
             execution.trace.reg_fin[rv::RegisterFile::SINK as usize] = F64(pc + 4);
             let witness = program.build(&execution);
             let unmatched = unmatched(&witness);
-            // The final state on the pull side, and the ALU's state push, the push side's
-            // first block past its four framework blocks.
+            // The final state on the pull side, the first framework block, and the jump's state push.
             assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-            assert!(unmatched.iter().all(|(_, block, _)| *block == 0 || *block == 4));
+            assert!(only_states(&witness, &unmatched, &[jump], &[0]), "{unmatched:?}");
             assert_unbalanced(&program, witness, &execution.output);
         }
     }
@@ -1138,6 +1160,130 @@ mod tests {
         assert_eq!(unmatched.len(), 4, "{unmatched:?}");
     }
 
+    /// The row of entry `index` in table `t`.
+    fn row_of(exec: &mut Execution, t: usize, index: usize) -> &mut Row {
+        let height = exec.trace.heights[t];
+        exec.trace.rows[t][..height]
+            .iter_mut()
+            .find(|r| r.index as usize == index)
+            .expect("the entry ran in the table")
+    }
+
+    #[test]
+    fn a_forged_add_operand_unbalances_the_bus() {
+        // Invariant: an `ADD` row cannot use a value its `rs2` does not hold.
+        //
+        // Fixture state: `t0 = 5` and `t1 = 3`, then `a0 = t0 + t1`.
+        // Mutation: the add reads 4 from `t1`, and its result, `a0` and the output follow it, so its circuit's instance
+        // is honest. Only the read of `t1` is left to refuse it: it meets neither `t1`'s write nor its final value.
+        let text = Asm::new()
+            .i(Addi, Reg::T0, Reg::ZERO, 5)
+            .i(Addi, Reg::T1, Reg::ZERO, 3)
+            .r(Add, Reg::A0, Reg::T0, Reg::T1)
+            .exit()
+            .finish();
+        let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let row = row_of(&mut forged, table(rv::Class::Add), 2);
+        assert_eq!((row.v2, row.out), (3, 8));
+        (row.v2, row.out) = (4, 9);
+        forged.output[0] = 9;
+        forged.trace.reg_fin[Reg::A0.index()] = F64(9);
+        // Two tuples on each side: the read's pull and push.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    #[test]
+    fn a_forged_logic_operand_unbalances_the_bus() {
+        // Invariant: a `LOGIC` row cannot use a value its `rs1` does not hold.
+        //
+        // Fixture state: `t0 = 5`, then `a0 = t0 ^ 3`.
+        // Mutation: the XOR reads 6 from `t0`, and its result, `a0` and the output follow it, so its circuit's instance
+        // is honest. Only the read of `t0` is left to refuse it: it meets neither `t0`'s write nor its final value.
+        let text = Asm::new()
+            .i(Addi, Reg::T0, Reg::ZERO, 5)
+            .i(Xori, Reg::A0, Reg::T0, 3)
+            .exit()
+            .finish();
+        let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let row = row_of(&mut forged, table(rv::Class::Logic), 1);
+        assert_eq!((row.v1, row.out), (5, 6));
+        (row.v1, row.out) = (6, 5);
+        forged.output[0] = 5;
+        forged.trace.reg_fin[Reg::A0.index()] = F64(5);
+        // Two tuples on each side: the read's pull and push.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    #[test]
+    fn a_forged_jump_base_unbalances_the_bus() {
+        // Invariant: a `JUMP` row cannot read a value its `rs1` does not hold, even one the target it computes forgets.
+        //
+        // Fixture state: `t0` is the address of the exit, which `jalr x0, 0(t0)` jumps to.
+        // Mutation: the jump reads `t0` with bit 0 set, which `JALR` clears: its target, so every other tuple, and its
+        // circuit's instance are the honest ones. Only the read of `t0` is left to refuse it.
+        let text = Asm::new()
+            .auipc(Reg::T0, 0)
+            .i(Addi, Reg::T0, Reg::T0, 12)
+            .jalr(Reg::ZERO, Reg::T0, 0)
+            .exit()
+            .finish();
+        let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let target = program.rv.pc_of(3);
+        let row = row_of(&mut forged, table(rv::Class::Jump), 2);
+        assert_eq!((row.v1, row.out), (target, target));
+        row.v1 = target | 1;
+        // Two tuples on each side: the read's pull and push.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    #[test]
+    fn a_jump_cannot_run_as_a_branch() {
+        // Invariant: a `BRANCH` row reads only entries that neither link nor jump to a computed target, since its
+        // bytecode tuple holds `link`, `jalr` and the exit at zero, with its own class tag.
+        //
+        // Fixture state: `jal x0, skip` jumps over an instruction to the exit.
+        // Mutation: the jump's row moves to the branch table as an honest `beq x0, x0`, whose flag word is the jump's,
+        // and the registers follow it: `x0` read twice, the sink never written.
+        // What is left is the branch row's bytecode read, which no entry pushes, and the jump's entry, which no row reads.
+        let text = Asm::new()
+            .jal(Reg::ZERO, "skip")
+            .i(Addi, Reg::A1, Reg::ZERO, 1)
+            .label("skip")
+            .exit()
+            .finish();
+        let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let (jump, branch, add) = (table(rv::Class::Jump), table(rv::Class::Branch), table(rv::Class::Add));
+        assert_eq!(rv::Branch::EQ, rv::Jump::DIRECT);
+
+        let mut row = forged.trace.rows[jump].remove(0);
+        forged.trace.heights[jump] -= 1;
+        assert_eq!((row.index, row.taken), (0, true));
+        row.prev[1] = row.ts;
+        add_live_row(&mut forged, branch, row.clone());
+
+        // `li a7` reads `x0` after the branch's second read, and the exit writes the sink first.
+        row_of(&mut forged, add, 2).prev[0] = row.ts | 1;
+        let exit = row_of(&mut forged, jump, 3);
+        (exit.prev[1], exit.vd_old) = (tables::SEED_CLOCK, 0);
+
+        let w = program.build(&forged);
+        let unmatched = unmatched(&w);
+        assert_eq!(unmatched.len(), 2, "{unmatched:?}");
+        let producer = w.layout.push.len();
+        assert!(unmatched.contains(&("push", producer, 0)), "{unmatched:?}");
+        let (_, block, at) = *unmatched.iter().find(|u| u.0 == "pull").unwrap();
+        assert_eq!(at, 0);
+        assert_eq!(w.layout.pull[block].owner, Some(branch));
+        assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == SEP_BYTECODE));
+    }
+
     /// The point of the timestamps: a register written twice cannot be read as of its
     /// first write. The forged run is consistent everywhere else (the stale value
     /// flows into the result and the final registers, and the read is in order), so
@@ -1182,15 +1328,22 @@ mod tests {
     /// the multiplicities for what the rows now read leaves its bytecode read unmatched.
     #[test]
     fn a_forged_bytecode_read_unbalances_the_bus() {
-        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        // Fixture: `a0 = 5`, then `beq a0, x0`, not taken.
+        let text = Asm::new()
+            .i(Addi, Reg::A0, Reg::ZERO, 5)
+            .branch(Beq, Reg::A0, Reg::ZERO, "skip")
+            .i(Addi, Reg::A1, Reg::ZERO, 1)
+            .label("skip")
+            .exit()
+            .finish();
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        let alu = tables::table_of(rv::Class::Alu).unwrap();
-        let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        let branch = table(rv::Class::Branch);
+        let row = exec.trace.rows[branch].iter().position(|r| r.index == 1).unwrap();
         let mut w = program.build(&exec);
-        let offset = schema().spans[alu].0 + tables::branch_offset_column(alu);
+        let offset = schema().spans[branch].0 + tables::branch_offset_column(branch);
         forge(&mut w, offset, |col| col[row] = F64(8));
-        forge(&mut w, Shared::BytecodeMult.col(), |col| col[0].0 -= 1);
+        forge(&mut w, Shared::BytecodeMult.col(), |col| col[1].0 -= 1);
 
         let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 1, "{unmatched:?}");
@@ -1250,10 +1403,16 @@ mod tests {
         forged.output[0] = 9;
         forged.trace.reg_fin[Reg::A0.index()] = F64(9);
         forged.trace.reg_ts[Reg::T0.index()] = F64(tables::CLOCK_START | 3);
-        // The read's row pushes a failed clock, which the next row's pull does not meet.
-        let unmatched = unmatched_run(&program, &forged);
+        // The read's row pushes a failed clock, which the next row, the exit, does not pull.
+        let w = program.build(&forged);
+        let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-        assert!(unmatched.iter().all(|&(_, block, _)| block == FRAMEWORK.len()));
+        assert!(only_states(
+            &w,
+            &unmatched,
+            &[table(rv::Class::Add), table(rv::Class::Jump)],
+            &[]
+        ));
     }
 
     #[test]
@@ -1274,16 +1433,18 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let spin = text.len() - 1;
         let mut row = padding_jump(&program, spin);
-        (row.prev[2], row.vd_old) = (tables::SEED_CLOCK, 0);
-        add_live_row(&mut forged, row);
+        (row.prev[1], row.vd_old) = (tables::SEED_CLOCK, 0);
+        let jump = table(rv::Class::Jump);
+        add_live_row(&mut forged, jump, row);
         let link = program.rv.pc_of(spin) + 4;
         forged.output[1] = link;
         forged.trace.reg_fin[Reg::A1.index()] = F64(link);
         forged.trace.reg_ts[Reg::A1.index()] = F64(3);
         // The row's failed clock leaves its own state tuples unmatched, and nothing else.
-        let unmatched = unmatched_run(&program, &forged);
+        let w = program.build(&forged);
+        let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-        assert!(unmatched.iter().all(|&(_, block, _)| block == FRAMEWORK.len()));
+        assert!(only_states(&w, &unmatched, &[jump], &[]));
     }
 
     #[test]
@@ -1305,19 +1466,21 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let spin = text.len() - 1;
         let link = program.rv.pc_of(spin) + 4;
-        let read = &mut forged.trace.rows[0][1];
+        let read = &mut forged.trace.rows[table(rv::Class::Add)][1];
         let write = read.prev[0];
         (read.v1, read.out, read.prev[0]) = (link, link, 3);
         let mut row = padding_jump(&program, spin);
-        (row.prev[2], row.vd_old) = (write, 5);
-        add_live_row(&mut forged, row);
+        (row.prev[1], row.vd_old) = (write, 5);
+        let jump = table(rv::Class::Jump);
+        add_live_row(&mut forged, jump, row);
         forged.output[0] = link;
         forged.trace.reg_fin[Reg::A0.index()] = F64(link);
         forged.trace.reg_fin[Reg::T0.index()] = F64(link);
         // Both rows push failed clocks: the read's, and the padding row's, each a state tuple pushed and one not pulled.
-        let unmatched = unmatched_run(&program, &forged);
+        let w = program.build(&forged);
+        let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 4, "{unmatched:?}");
-        assert!(unmatched.iter().all(|&(_, block, _)| block == FRAMEWORK.len()));
+        assert!(only_states(&w, &unmatched, &[table(rv::Class::Add), jump], &[]));
     }
 
     #[test]
@@ -1330,8 +1493,11 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 42).exit().finish();
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let exit = forged.trace.rows[0].iter_mut().find(|r| r.index == 2).unwrap();
-        (exit.prev[2], exit.vd_old) = (exit.ts | 3, exit.out);
+        let exit = forged.trace.rows[table(rv::Class::Jump)]
+            .iter_mut()
+            .find(|r| r.index == 2)
+            .unwrap();
+        (exit.prev[1], exit.vd_old) = (exit.ts | 3, exit.out);
         let sink = rv::RegisterFile::SINK as usize;
         (forged.trace.reg_ts[sink], forged.trace.reg_fin[sink]) = (F64(tables::SEED_CLOCK), F64::ZERO);
         forged.trace.ts_final |= 1 << tables::FAIL_BIT;
@@ -1344,9 +1510,9 @@ mod tests {
     fn a_forged_height_unbalances_the_bus() {
         // Invariant: a table's height names exactly the rows on the bus, so moving it moves rows on or off.
         //
-        // Fixture state: `a0 = 5`, then the exit, each an `ALU` row.
-        // Mutation: `ALU`'s height one lower, the exit now the row its padding repeats, or one higher, a padding no-op
-        // joining the run's rows; either way the rows past it repeat the row at it, as the commitment says.
+        // Fixture state: `a0 = 5` and `a7 = 93`, each an `ADD` row, then the exit.
+        // Mutation: `ADD`'s height one lower, the second row now the row its padding repeats, or one higher, a padding
+        // no-op joining the run's rows; either way the rows past it repeat the row at it, as the commitment says.
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         for delta in [-1, 1] {
@@ -1366,25 +1532,25 @@ mod tests {
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
         let (mut proof, _) = prove_execution(&program, &exec, pcs::Rate::MIN);
-        // The stream opens on the heights, `ALU`'s first.
+        // The stream opens on the heights, `ADD`'s first.
         proof.stream[0] = F192::new((1 << MAX_LOG_ROWS) + 1, 0, 0);
         assert!(matches!(
             verify(&program, &exec.output, &proof),
-            Err(CpuError::TableHeight { table: "ALU", .. })
+            Err(CpuError::TableHeight { table: "ADD", .. })
         ));
     }
 
-    /// An honest witness of `a0 = 5` and its `ALU` table's branch-offset column, which
-    /// is committed rather than a circuit word.
-    fn witness_and_column() -> (Program, Execution, Witness, usize) {
+    /// An honest witness of `a0 = 5`, its `JUMP` table, and that table's branch-offset
+    /// column, which is committed rather than a circuit word.
+    fn witness_and_column() -> (Program, Execution, Witness, usize, usize) {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
         let w = program.build(&exec);
-        let alu = tables::table_of(rv::Class::Alu).unwrap();
-        let col = schema().spans[alu].0 + tables::branch_offset_column(alu);
+        let jump = table(rv::Class::Jump);
+        let col = schema().spans[jump].0 + tables::branch_offset_column(jump);
         assert!(w.layout.placements[col].column().is_some());
-        (program, exec, w, col)
+        (program, exec, w, jump, col)
     }
 
     #[test]
@@ -1393,8 +1559,8 @@ mod tests {
         //
         // Mutation: the padding row the bus and the table sumcheck read, and every row past it with it, differs from
         // the committed one. The bus takes it off again, but the table sumcheck sums it, and the commitment disagrees.
-        let (program, exec, mut w, col) = witness_and_column();
-        let padding = w.layout.heights[0];
+        let (program, exec, mut w, t, col) = witness_and_column();
+        let padding = w.layout.heights[t];
         let window = w.windows[col].unwrap();
         assert_eq!(window.len, padding + 1);
         w.live[window.offset + padding] += F64(1);
@@ -1407,7 +1573,7 @@ mod tests {
         // Invariant: what the claims are made of is what the committed stack holds.
         //
         // Mutation: the committed stack's word of a live row differs from the column the bus and the sumcheck read.
-        let (program, exec, mut w, col) = witness_and_column();
+        let (program, exec, mut w, _, col) = witness_and_column();
         let piece = w.layout.placements[col].column().unwrap().pieces[0];
         assert_eq!(piece.first_row, 0);
         w.q[piece.offset] += F64(1);

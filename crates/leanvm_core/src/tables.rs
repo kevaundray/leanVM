@@ -387,14 +387,26 @@ pub enum Ram {
 /// One instance's `z`, `A·z` and `B·z` from its input words, into zeroed buffers.
 pub type InstanceWitness = fn(&[u64], &mut [u64], &mut [u64], &mut [u64]);
 
+/// Where a class's rows send control.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Control {
+    /// To `pc + 4`, and `rd` receives `out`.
+    None,
+    /// A branch: to the bytecode's target when the circuit's `taken` is set, else to `pc + 4`.
+    /// Its bytecode's `link`, `jalr` and exit selectors are the constant zero.
+    Branch,
+    /// A jump: the branch's columns, then the bytecode's `link`, `jalr` and exit selectors.
+    Jump,
+}
+
 /// What specializes the class table to one instruction class.
 pub struct ClassSpec {
     pub class: Class,
     pub name: &'static str,
-    /// Branches and jumps: the bytecode's `dt`, `link` and `jalr` fields, and the
-    /// circuit's `taken` word. Without them the next `pc` is `pc + 4` and `rd`
-    /// receives `out`.
-    pub control: bool,
+    /// Branches and jumps: the bytecode's `dt` and the circuit's `taken` word, then a
+    /// jump's `link`, `jalr` and exit selectors. Without them the next `pc` is `pc + 4`
+    /// and `rd` receives `out`.
+    pub control: Control,
     /// Whether the row reads `rs2`, in clock slot 1.
     /// A load decodes with `x0` there, and its circuit takes no `v2`.
     pub reads_rs2: bool,
@@ -459,23 +471,64 @@ impl ClassSpec {
     }
 }
 
-pub static ALU: ClassSpec = ClassSpec {
-    class: Class::Alu,
-    name: "ALU",
-    control: true,
+pub static ADD: ClassSpec = ClassSpec {
+    class: Class::Add,
+    name: "ADD",
+    control: Control::None,
     reads_rs2: true,
     writes_rd: true,
     ram: Ram::None,
     witness: None,
-    k_log: 10,
-    ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out, Word::Taken],
+    k_log: 9,
+    ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
     n_inputs: 4,
+    clock_k_log: 9,
+};
+pub static LOGIC: ClassSpec = ClassSpec {
+    class: Class::Logic,
+    name: "LOGIC",
+    control: Control::None,
+    reads_rs2: true,
+    writes_rd: true,
+    ram: Ram::None,
+    witness: None,
+    k_log: 9,
+    ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
+    n_inputs: 4,
+    clock_k_log: 9,
+};
+/// A branch writes no `rd` and has no immediate: its bytecode tuple holds the sink and zero there.
+pub static BRANCH: ClassSpec = ClassSpec {
+    class: Class::Branch,
+    name: "BRANCH",
+    control: Control::Branch,
+    reads_rs2: true,
+    writes_rd: false,
+    ram: Ram::None,
+    witness: None,
+    k_log: 9,
+    ports: &[Word::V1, Word::V2, Word::Flags, Word::Taken],
+    n_inputs: 3,
+    clock_k_log: 9,
+};
+/// A jump reads no `rs2`: its bytecode tuple holds `x0` there.
+pub static JUMP: ClassSpec = ClassSpec {
+    class: Class::Jump,
+    name: "JUMP",
+    control: Control::Jump,
+    reads_rs2: false,
+    writes_rd: true,
+    ram: Ram::None,
+    witness: None,
+    k_log: 9,
+    ports: &[Word::V1, Word::Imm, Word::Flags, Word::Out, Word::Taken],
+    n_inputs: 3,
     clock_k_log: 9,
 };
 pub static LOAD: ClassSpec = ClassSpec {
     class: Class::Load,
     name: "LOAD",
-    control: false,
+    control: Control::None,
     reads_rs2: false,
     writes_rd: true,
     ram: Ram::Read,
@@ -495,7 +548,7 @@ pub static LOAD: ClassSpec = ClassSpec {
 pub static STORE: ClassSpec = ClassSpec {
     class: Class::Store,
     name: "STORE",
-    control: false,
+    control: Control::None,
     reads_rs2: true,
     writes_rd: false,
     ram: Ram::Write,
@@ -517,7 +570,7 @@ pub static STORE: ClassSpec = ClassSpec {
 pub static SHIFT: ClassSpec = ClassSpec {
     class: Class::Shift,
     name: "SHIFT",
-    control: false,
+    control: Control::None,
     reads_rs2: true,
     writes_rd: true,
     ram: Ram::None,
@@ -530,7 +583,7 @@ pub static SHIFT: ClassSpec = ClassSpec {
 pub static MUL: ClassSpec = ClassSpec {
     class: Class::Mul,
     name: "MUL",
-    control: false,
+    control: Control::None,
     reads_rs2: true,
     writes_rd: true,
     ram: Ram::None,
@@ -543,7 +596,7 @@ pub static MUL: ClassSpec = ClassSpec {
 pub static MULH: ClassSpec = ClassSpec {
     class: Class::Mulh,
     name: "MULH",
-    control: false,
+    control: Control::None,
     reads_rs2: true,
     writes_rd: true,
     ram: Ram::None,
@@ -557,7 +610,7 @@ pub static MULH: ClassSpec = ClassSpec {
 pub static DIV: ClassSpec = ClassSpec {
     class: Class::Div,
     name: "DIV",
-    control: false,
+    control: Control::None,
     reads_rs2: true,
     writes_rd: true,
     ram: Ram::None,
@@ -581,7 +634,7 @@ pub static DIV: ClassSpec = ClassSpec {
 pub static HASH: ClassSpec = ClassSpec {
     class: Class::Hash,
     name: "HASH",
-    control: false,
+    control: Control::None,
     reads_rs2: true,
     writes_rd: false,
     ram: Ram::Block,
@@ -613,8 +666,10 @@ pub static HASH: ClassSpec = ClassSpec {
 
 /// The tables, in the order of `row_counts` / `taus` throughout `cpu`. Table `t`'s
 /// class tag in the bytecode is `g^t`.
-pub const N_TABLES: usize = 8;
-pub static CLASSES: [&ClassSpec; N_TABLES] = [&ALU, &LOAD, &STORE, &SHIFT, &MUL, &MULH, &DIV, &HASH];
+pub const N_TABLES: usize = 11;
+pub static CLASSES: [&ClassSpec; N_TABLES] = [
+    &ADD, &LOGIC, &BRANCH, &JUMP, &LOAD, &STORE, &SHIFT, &MUL, &MULH, &DIV, &HASH,
+];
 
 /// The table running `class`, if it has one yet.
 pub fn table_of(class: Class) -> Option<usize> {
@@ -649,14 +704,20 @@ struct RdCols {
     out: usize,
 }
 
-/// A branch's or a jump's columns: the bytecode's target offset, link and indirect-jump
-/// selectors, the circuit's taken bit, and the exit selector.
+/// A branch's or a jump's columns: the bytecode's target offset and the circuit's taken
+/// bit, then a jump's own.
 #[derive(Clone, Copy)]
 struct ControlCols {
     dt: usize,
+    taken: usize,
+    jump: Option<JumpCols>,
+}
+
+/// A jump's columns: the bytecode's link and indirect-jump selectors, and the exit selector.
+#[derive(Clone, Copy)]
+struct JumpCols {
     link: usize,
     jalr: usize,
-    taken: usize,
     exit: usize,
 }
 
@@ -728,13 +789,22 @@ impl Cols {
             vd_old: take(1),
             out: take(1),
         });
-        let control = spec.control.then(|| ControlCols {
-            dt: take(1),
-            link: take(1),
-            jalr: take(1),
-            taken: take(1),
-            exit: take(1),
-        });
+        let control = match spec.control {
+            Control::None => None,
+            Control::Branch => Some(ControlCols {
+                dt: take(1),
+                taken: take(1),
+                jump: None,
+            }),
+            Control::Jump => {
+                let (dt, link, jalr, taken, exit) = (take(1), take(1), take(1), take(1), take(1));
+                Some(ControlCols {
+                    dt,
+                    taken,
+                    jump: Some(JumpCols { link, jalr, exit }),
+                })
+            }
+        };
         let imm = spec.ports.contains(&Word::Imm).then(|| take(1));
         let (ram, block) = match spec.ram {
             Ram::None => (None, None),
@@ -832,6 +902,17 @@ impl ClassTable {
             "{}: rd write",
             spec.name
         );
+        assert_eq!(
+            spec.control != Control::None,
+            spec.ports.contains(&Word::Taken),
+            "{}: taken",
+            spec.name
+        );
+        assert!(
+            spec.control != Control::Jump || spec.writes_rd,
+            "{}: a jump links",
+            spec.name
+        );
         Self {
             index,
             spec,
@@ -864,24 +945,26 @@ impl ClassTable {
         let mut f = FlushBuilder::new();
         let c = &self.cols;
         // What the row derives: the next `pc`, `pc4 + taken·dt + jalr·(out + pc4)`, and
-        // what `rd` receives, `out + link·(out + pc4)`, each of degree 2 (§sec:m3).
-        let (npc, vd, control) = match (c.control, c.rd) {
-            (Some(k), Some(rd)) => (
-                Coord::Sum(vec![
-                    Col(c.pc4),
-                    Prod(k.taken, k.dt),
-                    Prod(k.jalr, rd.out),
-                    Prod(k.jalr, c.pc4),
-                ]),
-                Some(Coord::Sum(vec![Col(rd.out), Prod(k.link, rd.out), Prod(k.link, c.pc4)])),
-                vec![Col(k.dt), Col(k.link), Col(k.jalr)],
-            ),
-            (_, rd) => (Col(c.pc4), rd.map(|rd| Col(rd.out)), Vec::new()),
-        };
+        // what `rd` receives, `out + link·(out + pc4)`, each of degree 2 (§sec:m3). A
+        // branch has neither `jalr` nor `link`, nor an `rd` to write, and its entry holds
+        // zero for both, which the slots past `dt` read.
+        let zero = || Const(F64::ZERO);
+        let mut npc = vec![Col(c.pc4)];
+        let mut vd = c.rd.map(|rd| Col(rd.out));
+        let mut control = Vec::new();
+        if let Some(k) = c.control {
+            npc.push(Prod(k.taken, k.dt));
+            control.push(Col(k.dt));
+            if let (Some(j), Some(rd)) = (k.jump, c.rd) {
+                npc.extend([Prod(j.jalr, rd.out), Prod(j.jalr, c.pc4)]);
+                vd = Some(Coord::Sum(vec![Col(rd.out), Prod(j.link, rd.out), Prod(j.link, c.pc4)]));
+                control.extend([Col(j.link), Col(j.jalr)]);
+            }
+        }
+        let npc = if npc.len() == 1 { npc.remove(0) } else { Coord::Sum(npc) };
         // Only an exit marks its next state, `exit·(ts ^ step)`, which only the final state meets.
-        let exit = c.control.map_or(Const(F64::ZERO), |k| {
-            Coord::Sum(vec![Prod(k.exit, c.ts), Prod(k.exit, c.step)])
-        });
+        let jump = c.control.and_then(|k| k.jump);
+        let exit = jump.map_or_else(zero, |j| Coord::Sum(vec![Prod(j.exit, c.ts), Prod(j.exit, c.step)]));
         f.state(c.pc, c.ts, c.step, npc, exit);
         // A row without an `rs2` read, an `rd` write or an immediate reads its constant off the entry.
         // Those constants are `x0`, the sink, and zero.
@@ -891,18 +974,18 @@ impl ClassTable {
             Const(g_pow(self.index)),
             Col(c.flags),
             Col(c.a1),
-            c.rs2.map_or(Const(F64::ZERO), |r| Col(r.a2)),
+            c.rs2.map_or_else(zero, |r| Col(r.a2)),
             c.rd.map_or(Const(F64(RegisterFile::SINK as u64)), |rd| Col(rd.ad)),
-            c.imm.map_or(Const(F64::ZERO), Col),
+            c.imm.map_or_else(zero, Col),
             Col(c.pc4),
         ];
         entry.extend(control);
         if let Some(bad) = c.bad {
-            entry.resize(BAD_SLOT, Const(F64::ZERO));
+            entry.resize(BAD_SLOT, zero());
             entry.push(Col(bad));
         }
-        entry.resize(EXIT_SLOT, Const(F64::ZERO));
-        entry.push(c.control.map_or(Const(F64::ZERO), |k| Col(k.exit)));
+        entry.resize(EXIT_SLOT, zero());
+        entry.push(jump.map_or_else(zero, |j| Col(j.exit)));
         f.read(entry);
         // The accesses' columns are in the order the row makes them.
         let mut slots = self.spec.slots().into_iter().enumerate();
@@ -962,16 +1045,15 @@ impl ClassTable {
             });
         }
         if let Some(k) = c.control {
-            ctx.cols_at(out, rows, [k.dt, k.link, k.jalr, k.taken, k.exit], move |r| {
-                let e = entry(r);
-                [
-                    F64(p.dt_of(r.index as usize)),
-                    F64(e.link as u64),
-                    F64(e.jalr as u64),
-                    F64(r.taken as u64),
-                    F64((e.is_exit()) as u64),
-                ]
+            ctx.cols_at(out, rows, [k.dt, k.taken], move |r| {
+                [F64(p.dt_of(r.index as usize)), F64(r.taken as u64)]
             });
+            if let Some(j) = k.jump {
+                ctx.cols_at(out, rows, [j.link, j.jalr, j.exit], move |r| {
+                    let e = entry(r);
+                    [F64(e.link as u64), F64(e.jalr as u64), F64(e.is_exit() as u64)]
+                });
+            }
         }
         if let Some(imm) = c.imm {
             ctx.col(out, rows, imm, move |r| F64(entry(r).imm));

@@ -43,5 +43,6 @@ pub use program::{Program, ProgramError};
 pub use region::{ADVICE_BASE, MAX_LOG_ADVICE, MAX_LOG_RAM, MAX_LOG_TEXT, RAM_BASE, Region, TEXT_BASE};
 pub use register::{Reg, RegisterFile, Syscall};
 pub use semantics::{
-    Alu, BlockAccess, Div, Hash, InstructionClass, Load, Mul, Mulh, Outcome, Shift, Store, WordAccess,
+    Add, BlockAccess, Branch, Div, Hash, InstructionClass, Jump, Load, Logic, Mul, Mulh, Outcome, Shift, Store,
+    WordAccess,
 };
