@@ -89,7 +89,7 @@
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use pcs::ring_switch::inner_product_ext;
 use primitives::field::F192;
-use primitives::multilinear::{eq_eval, eq_table as build_eq, lagrange_weights_naive};
+use primitives::multilinear::{eq_eval, eq_table as build_eq, skip_lagrange_weights};
 #[cfg(test)]
 use zk_alloc::ArenaVec;
 
@@ -817,7 +817,7 @@ pub fn pack_z_lincheck_from_packed(z_packed_words: &[u64], m: usize, k_log: usiz
 /// univariate-skip variable ordering). The `k_log − k_skip` multilinear
 /// inner-rest dims occupy the next bits.
 pub fn build_quirky_eq_table(z_skip: F192, x_inner_rest: &[F192], k_skip: usize) -> Vec<F192> {
-    let lambda_skip = lagrange_weights_naive(k_skip, z_skip);
+    let lambda_skip = skip_lagrange_weights(k_skip, z_skip);
     let eq_rest = build_eq(x_inner_rest);
     // Layout: index = i_skip + i_inner_rest · 2^k_skip  ⇒  i_skip is low bits.
     outer_product(&eq_rest, &lambda_skip)
@@ -1163,7 +1163,8 @@ pub fn verify(
     //    the verifier only ever consumes it through one inner product, so
     //    that work is deferred to step 5 (and walk-capable circuits answer it
     //    in O(circuit) ops without the marginal at all).
-    let eq_inner = build_quirky_eq_table(x_ab.z_skip, &x_ab.x_inner_rest, k_skip);
+    let lambda_skip = skip_lagrange_weights(k_skip, x_ab.z_skip);
+    let eq_inner = outer_product(&build_eq(&x_ab.x_inner_rest), &lambda_skip);
 
     // 3. Replay the multilinear product-sumcheck (inner_rest_len rounds).
     //    Only the transcript messages drive the running claim; the prover's
@@ -1220,7 +1221,6 @@ pub fn verify(
     // `eq_inner = eq(x_inner_rest) ⊗ λ(z_skip)` and `w_col = eq(r_inner_rest) ⊗
     // z_partial`, so it is 8 eq factors times a 64-term Lagrange combination
     // instead of a length-k inner product.
-    let lambda_skip = lagrange_weights_naive(k_skip, x_ab.z_skip);
     let c_slice_value = lambda_skip
         .iter()
         .zip(&z_partial)
@@ -1390,7 +1390,7 @@ mod tests {
 
         // Tower helpers: the point is F192 (the verifier's field), and the
         // expected value must equal the F192 claim the verifier derives.
-        let lambda = lagrange_weights_naive(k_skip, point.z_skip);
+        let lambda = skip_lagrange_weights(k_skip, point.z_skip);
         let eq_rest = build_eq(&point.x_inner_rest);
         let eq_outer = build_eq(&point.x_outer);
         debug_assert_eq!(lambda.len(), k_skip_dim);
