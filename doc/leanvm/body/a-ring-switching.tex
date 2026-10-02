@@ -163,6 +163,8 @@ The reduction \eqref{eq:complete} used only that each $Q_i(u)$ is a bit and that
 \]
 $r'_1,\dots,r'_{s+e}$ being the opening point's coordinates within the piece; the piece's stacking selector multiplies it as for any stacked column (\S\ref{sec:stacking}). A witness committed whole is the one piece of scale $1$, and the boxed formula itself.
 
+\paragraph{Claims at prefixes of one point.} The products $\prod_n(1+r_n^{2^k}+r'_n)$ of the boxed formula run over a prefix of the claim's coordinates, for a scaled piece as for a whole witness. Claims whose points are prefixes of one longer point, as Flock's batch leaves for its circuits of one block size (\S\ref{flock:batch}), therefore share them: the verifier runs the products once over the longest point and reads every claim's pieces off them at their own lengths.
+
 \subsection{Cost}\label{rs:cost}
 
 One application of $\Phi$ takes $63$ squarings and $6$ multiplications: the Frobenius ladder climbs $32+16+8+4+2+1$ steps, and each stage multiplies once by its challenge. The same recurrence run on the coefficient table gives the $c_k$ of \eqref{eq:ck}: stage $p$ raises its $2^p$ entries to the $2^{2^{5-p}}$ power and multiplies each by $f_p$; the raising is $32$ squarings whatever $p$ is.

@@ -361,22 +361,48 @@ pub fn verify_opening_batch_mixed_whir_stacked(
         target += *g * claim.value;
     }
 
+    // Ring claims whose suffix points are prefixes of one longest point share its walk:
+    // `eval_rs_eq_terms` serves every prefix of the point it walks, so each walk takes
+    // the terms of every claim it covers.
+    let mut walks: Vec<(usize, Vec<usize>)> = Vec::new();
+    let mut by_length: Vec<usize> = (0..n_rs).collect();
+    by_length.sort_by_key(|&i| std::cmp::Reverse(rings[i].suffix_point.len()));
+    for i in by_length {
+        let point = rings[i].suffix_point;
+        match walks
+            .iter_mut()
+            .find(|(lead, _)| rings[*lead].suffix_point.starts_with(point))
+        {
+            Some((_, members)) => members.push(i),
+            None => walks.push((i, vec![i])),
+        }
+    }
+
     // 3. Evaluate the lifted weight once, at the terminal sumcheck point.
     let eval_b_at = |x: &[F192]| -> F192 {
         let mut acc = F192::ZERO;
-        for (claim, g) in rings.iter().zip(lambdas_rs) {
-            let shape: Vec<(usize, F192)> = claim.terms.iter().map(|t| (t.n_vars, t.scale)).collect();
-            let values = ring_switch::eval_rs_eq_terms(claim.suffix_point, x, &coordinate_weights, &shape);
-            let rs_part = claim.terms.iter().zip(values).fold(F192::ZERO, |acc, (t, value)| {
-                let selector = Term {
-                    offset: t.offset,
-                    n_vars: t.n_vars,
-                    scale: F192::ONE,
-                }
-                .selector_at(t.n_vars, x);
-                acc + value * selector
-            });
-            acc += *g * rs_part;
+        for (lead, members) in &walks {
+            let shape: Vec<(usize, F192)> = (members.iter())
+                .flat_map(|&i| rings[i].terms.iter().map(|t| (t.n_vars, t.scale)))
+                .collect();
+            let mut values =
+                ring_switch::eval_rs_eq_terms(rings[*lead].suffix_point, x, &coordinate_weights, &shape).into_iter();
+            for &i in members {
+                let rs_part = rings[i]
+                    .terms
+                    .iter()
+                    .zip(values.by_ref())
+                    .fold(F192::ZERO, |acc, (t, value)| {
+                        let selector = Term {
+                            offset: t.offset,
+                            n_vars: t.n_vars,
+                            scale: F192::ONE,
+                        }
+                        .selector_at(t.n_vars, x);
+                        acc + value * selector
+                    });
+                acc += lambdas_rs[i] * rs_part;
+            }
         }
         for (claim, g) in point_claims.iter().zip(lambdas_pd.iter()) {
             acc += *g * claim.weight_at(x);
@@ -608,7 +634,8 @@ mod tests {
         }
 
         // One ring-switched claim on q_flock (plain eq prefix weights), and one
-        // of two scaled pieces of it.
+        // of two scaled pieces of it; then, on the filler past it, one whose point
+        // is a prefix of theirs, which shares their walk, and one whose point is not.
         let suffix_point = rng.ext_vec(qflock_vars);
         let split = vec![
             RingTerm {
@@ -622,15 +649,27 @@ mod tests {
                 scale: rng.ext(),
             },
         ];
-        let rings: Vec<RingSwitchClaim> = [whole_slice(qflock_offset, qflock_vars), split]
-            .into_iter()
-            .map(|terms| RingSwitchClaim {
-                suffix_point: suffix_point.clone(),
-                // Exercise the fold path (no precompute).
-                s_hat_v: None,
-                terms,
-            })
-            .collect();
+        let past = qflock_offset + (1 << qflock_vars);
+        let rings: Vec<RingSwitchClaim> = [
+            (suffix_point.clone(), whole_slice(qflock_offset, qflock_vars)),
+            (suffix_point.clone(), split),
+            (
+                suffix_point[..qflock_vars - 1].to_vec(),
+                whole_slice(past, qflock_vars - 1),
+            ),
+            (
+                rng.ext_vec(qflock_vars - 2),
+                whole_slice(past + (1 << (qflock_vars - 1)), qflock_vars - 2),
+            ),
+        ]
+        .into_iter()
+        .map(|(suffix_point, terms)| RingSwitchClaim {
+            suffix_point,
+            // Exercise the fold path (no precompute).
+            s_hat_v: None,
+            terms,
+        })
+        .collect();
         // The verifier's copy of the same claims: the slices ride the statement,
         // bound by the caller, as flock binds its family.
         let ring_verify = rings
@@ -720,13 +759,20 @@ mod tests {
             "rescaled piece accepted"
         );
 
-        // Wrong ring-switched slices: rejected by the ring-switch binding.
-        for r in 0..2 {
+        // Wrong ring-switched slices: rejected by the ring-switch binding. A wrong
+        // point is rejected by the weight, shared walk or not.
+        for r in 0..inst.ring_verify.len() {
             let mut bad_ring = inst.ring_verify.clone();
             bad_ring[r].s_hat_v.as_mut().unwrap()[7] += F192::ONE;
             assert!(
                 !verify_instance(&inst, &inst.point_claims, &bad_ring, &inst.fs),
                 "tampered ring-switch slice {r} accepted"
+            );
+            let mut bad_ring = inst.ring_verify.clone();
+            bad_ring[r].suffix_point[0] += F192::ONE;
+            assert!(
+                !verify_instance(&inst, &inst.point_claims, &bad_ring, &inst.fs),
+                "moved ring-switch point {r} accepted"
             );
         }
 
