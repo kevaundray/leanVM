@@ -34,8 +34,8 @@
 use crate::PAR_THRESHOLD;
 use crate::colval::ColVal;
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
-use primitives::field::{F64, F192, F192Unreduced};
-use primitives::multilinear::{eq_table_arena, fold_high_inplace, fold_high_k, poly_eval, shrink_eq_high};
+use primitives::field::{F64, F192, F192Unreduced, mul_base8, mul4};
+use primitives::multilinear::{eq_table_arena, interp, interp_k, poly_eval, shrink_eq_high, tail_weight};
 use zk_alloc::ArenaVec;
 
 /// One table's sent columns' evaluations at its table-sumcheck point.
@@ -85,8 +85,9 @@ pub struct Air<S> {
     pub summand: S,
 }
 
-/// One table's columns as the prover hands them over: `K`-valued as committed, lifted
-/// into `E` on the round the table joins, or `E`-valued from the start.
+/// One table's columns as the prover hands them over: each column's first rows, every
+/// later row of the table's cube repeating its last (§sec:jagged). `K`-valued as
+/// committed, lifted into `E` on the round the table joins, or `E`-valued from the start.
 pub enum Columns<'a> {
     K(Vec<&'a [F64]>),
     E(Vec<ArenaVec<F192>>),
@@ -103,7 +104,18 @@ pub fn xi_offsets(n_constraints: impl Iterator<Item = usize>) -> Vec<usize> {
         .collect()
 }
 
-/// An active round: one endpoint evaluation and the quadratic coefficient.
+/// The pairs a round over `half` pairs reads of a column `len` long, every later row
+/// repeating the last: pair `i` is rows `i` and `i + half`, and when the column is at
+/// most half its cube, every pair from `len - 1` on is the last row twice.
+const fn high_pairs(len: usize, half: usize) -> usize {
+    if len > half { half } else { len - 1 }
+}
+
+/// An active round: one endpoint evaluation and the quadratic coefficient, against
+/// `eqr = eq(zeta, ·)` over the round's `half` pairs.
+///
+/// The pairs past [`high_pairs`] are the last row twice: their slope is zero, so they
+/// add the summand at that row, weighed by their `eq` mass, to the endpoint alone.
 ///
 /// Generic twice over: in the column element, `K` before a table's columns are
 /// folded and `E` after ([`ColVal`]), and in the container, `Vec` for the former
@@ -116,17 +128,21 @@ pub fn xi_offsets(n_constraints: impl Iterator<Item = usize>) -> Vec<usize> {
 fn table_message<T: ColVal, C: std::ops::Deref<Target = [T]> + Sync>(
     cols: &[C],
     summand: &impl Summand,
-    half: usize,
     eqr: &[F192],
+    zeta: &[F192],
     at_one: bool,
 ) -> [F192; 2] {
     let ncols = cols.len();
+    let (half, len) = (eqr.len(), cols[0].len());
+    debug_assert!(cols.iter().all(|c| c.len() == len) && (1..=2 * half).contains(&len));
+    let pairs = high_pairs(len, half);
     // The X² coefficient is Q(hi + lo); linear and constant terms cannot contribute.
-    let summand = |i: usize, scratch: &mut [T]| -> [F192Unreduced; 2] {
+    let pair = |i: usize, scratch: &mut [T]| -> [F192Unreduced; 2] {
         let e = eqr[i];
+        let i_hi = (i + half).min(len - 1);
         let (endpoint, slope) = scratch.split_at_mut(ncols);
         for (ci, c) in cols.iter().enumerate() {
-            let (lo, hi) = (c[i], c[i + half]);
+            let (lo, hi) = (c[i], c[i_hi]);
             endpoint[ci] = if at_one { hi } else { lo };
             slope[ci] = lo + hi;
         }
@@ -136,21 +152,83 @@ fn table_message<T: ColVal, C: std::ops::Deref<Target = [T]> + Sync>(
         ]
     };
     let xor = |a: [F192Unreduced; 2], b: [F192Unreduced; 2]| [a[0] ^ b[0], a[1] ^ b[1]];
-    let acc = if half >= PAR_THRESHOLD {
+    let acc = if pairs >= PAR_THRESHOLD {
         // The `2 * ncols` scratch is per-worker, not per-row: `map_reduce_with_state`
         // creates it once and threads it through every row that worker claims.
         parallel::map_reduce_with_state(
-            half,
+            pairs,
             || vec![T::ZERO; 2 * ncols],
             || [F192Unreduced::ZERO; 2],
-            |scratch, acc, i| *acc = xor(*acc, summand(i, scratch)),
+            |scratch, acc, i| *acc = xor(*acc, pair(i, scratch)),
             xor,
         )
     } else {
         let mut scratch = vec![T::ZERO; 2 * ncols];
-        (0..half).fold([F192Unreduced::ZERO; 2], |acc, i| xor(acc, summand(i, &mut scratch)))
+        (0..pairs).fold([F192Unreduced::ZERO; 2], |acc, i| xor(acc, pair(i, &mut scratch)))
     };
-    acc.map(F192Unreduced::reduce)
+    let mut message = acc.map(F192Unreduced::reduce);
+    if pairs < half {
+        let last: Vec<T> = cols.iter().map(|c| c[len - 1]).collect();
+        message[0] += tail_weight(zeta, pairs) * summand.eval(&last, false);
+    }
+    message
+}
+
+/// Bind a column's highest variable to `chi` over a cube of `2·half` rows and lift it
+/// into `E`: row `i` meets row `i + half`, or the last row past the column. A column at
+/// most `half` long keeps its length, its last row folding to itself. Eight entries
+/// share one batched mixed product ([`mul_base8`]).
+fn fold_high_k(column: &[F64], half: usize, chi: F192) -> ArenaVec<F192> {
+    let last = column[column.len() - 1];
+    let (lo, hi) = column.split_at(column.len().min(half));
+    let (lo_pair, lo_last) = lo.split_at(hi.len());
+    let mut out = ArenaVec::with_capacity(lo.len());
+    let ((lo8, lo_tail), (hi8, hi_tail)) = (lo_pair.as_chunks::<8>(), hi.as_chunks::<8>());
+    for (l, h) in lo8.iter().zip(hi8) {
+        let p = mul_base8(chi, std::array::from_fn(|i| l[i] + h[i]));
+        out.extend((0..8).map(|i| F192::from(l[i]) + p[i]));
+    }
+    out.extend(lo_tail.iter().zip(hi_tail).map(|(&l, &h)| interp_k(l, h, chi)));
+    let (last8, last_tail) = lo_last.as_chunks::<8>();
+    for l in last8 {
+        let p = mul_base8(chi, std::array::from_fn(|i| l[i] + last));
+        out.extend((0..8).map(|i| F192::from(l[i]) + p[i]));
+    }
+    out.extend(last_tail.iter().map(|&l| interp_k(l, last, chi)));
+    out
+}
+
+/// [`fold_high_k`] of an `E` column, in place, four products per batch.
+fn fold_high_inplace(column: &mut ArenaVec<F192>, half: usize, chi: F192) {
+    let (len, last) = (column.len(), column[column.len() - 1]);
+    {
+        // Split once rather than index twice: indexing reloads the data pointer and
+        // length through the container every iteration, since nothing proves they do
+        // not alias the elements, and pays a bounds check for it.
+        let (lo, hi) = column.split_at_mut(len.min(half));
+        let (lo_pair, lo_last) = lo.split_at_mut(hi.len());
+        let ((lo4, lo_tail), (hi4, hi_tail)) = (lo_pair.as_chunks_mut::<4>(), hi.as_chunks::<4>());
+        for (l, h) in lo4.iter_mut().zip(hi4) {
+            let p = mul4([chi; 4], std::array::from_fn(|i| l[i] + h[i]));
+            for i in 0..4 {
+                l[i] += p[i];
+            }
+        }
+        for (l, h) in lo_tail.iter_mut().zip(hi_tail) {
+            *l = interp(*l, *h, chi);
+        }
+        let (last4, last_tail) = lo_last.as_chunks_mut::<4>();
+        for l in last4 {
+            let p = mul4([chi; 4], std::array::from_fn(|i| l[i] + last));
+            for i in 0..4 {
+                l[i] += p[i];
+            }
+        }
+        for l in last_tail {
+            *l = interp(*l, last, chi);
+        }
+    }
+    column.truncate(len.min(half));
 }
 
 fn round_polynomial([endpoint, quadratic]: [F192; 2], zeta: F192, claim: F192, waiting: F192) -> [F192; 4] {
@@ -167,8 +245,8 @@ fn round_polynomial([endpoint, quadratic]: [F192; 2], zeta: F192, claim: F192, w
 
 /// Prove that every table's batched constraint vanishes on all of its rows, as ONE
 /// sumcheck over `max τ_t` variables. `cols[t]` holds table `t`'s involved columns
-/// (`2^{τ_t}` values each, folded in place). Returns the per-table claims, in input
-/// order, on the nested points `ρ[..τ_t]`.
+/// (see [`Columns`], folded in place). Returns the per-table claims, in input order,
+/// on the nested points `ρ[..τ_t]`.
 pub fn prove<S: Summand>(
     airs: &[Air<S>],
     cols: Vec<Columns<'_>>,
@@ -212,8 +290,8 @@ pub fn prove<S: Summand>(
         for (t, air) in airs.iter().enumerate() {
             if air.tau > m {
                 let p = folded[t].as_ref().map_or_else(
-                    || table_message(&cols[t], &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
-                    |table| table_message(table, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                    || table_message(&cols[t], &air.summand, &eqr, &zeta[..m], zeta[m].is_zero()),
+                    |table| table_message(table, &air.summand, &eqr, &zeta[..m], zeta[m].is_zero()),
                 );
                 for i in 0..2 {
                     msg[i] += weights[t] * p[i];
@@ -241,16 +319,18 @@ pub fn prove<S: Summand>(
                     parallel::for_each(cols.count(), |ci| {
                         // SAFETY: column `ci` is folded by exactly one task.
                         let col = unsafe { &mut cols.get(ci)[0] };
-                        fold_high_inplace(col, rk);
+                        fold_high_inplace(col, 1 << m, rk);
                     });
                 } else {
-                    table.iter_mut().for_each(|c| fold_high_inplace(c, rk));
+                    table.iter_mut().for_each(|c| fold_high_inplace(c, 1 << m, rk));
                 }
             } else {
                 // The round a table joins is the largest fold it ever does, so it
                 // fans out like the in-place ones below rather than running on the
                 // dispatcher alone.
-                folded[t] = Some(parallel::map_collect(cols[t].len(), |ci| fold_high_k(cols[t][ci], rk)));
+                folded[t] = Some(parallel::map_collect(cols[t].len(), |ci| {
+                    fold_high_k(cols[t][ci], 1 << m, rk)
+                }));
             }
         }
     }
@@ -360,7 +440,8 @@ mod tests {
                 attached: true,
                 constant: F192::ONE,
             };
-            let eq = eq_table_arena(&[F192::new(11, 13, 17), F192::new(19, 23, 29)]);
+            let point = [F192::new(11, 13, 17), F192::new(19, 23, 29)];
+            let eq = eq_table_arena(&point);
             let full_eval = |r| {
                 (0..4).fold(F192::ZERO, |sum, i| {
                     let v: Vec<_> = cols
@@ -372,7 +453,7 @@ mod tests {
             };
             let waiting = F192::new(43, 47, 53);
             for zeta in [F192::ZERO, F192::ONE, F192::new(59, 61, 67)] {
-                let message = table_message(cols, &synth, 4, &eq, zeta.is_zero());
+                let message = table_message(cols, &synth, &eq, &point, zeta.is_zero());
                 let claim = (F192::ONE + zeta) * full_eval(F192::ZERO) + zeta * full_eval(F192::ONE) + waiting;
                 let h = round_polynomial(message, zeta, claim, waiting);
                 for r in [F192::ZERO, F192::ONE, F192::new(31, 37, 41)] {

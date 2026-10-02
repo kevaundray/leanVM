@@ -126,12 +126,15 @@ impl Program {
         let output = m.output()?;
         let base_counts: [usize; crate::tables::N_TABLES] = std::array::from_fn(|t| rows[t].len());
 
-        // The padding rows, written out rather than executed: one row per table, a
-        // no-op at clock zero touching nothing, every read holding zero and every write
-        // rewriting what it writes, repeated up to the table's proven size. The bus
-        // leaves them out; their circuit instances are honest ones, on those zeros.
+        // The padding row, written out rather than executed: one row per table, a no-op
+        // at clock zero touching nothing, every read holding zero and every write
+        // rewriting what it writes, which every row up to the table's proven size
+        // repeats and nothing stores more than once. The bus leaves it out; its circuit
+        // instance is an honest one, on those zeros.
+        let mut cycles = 0;
         for (t, rows) in rows.iter_mut().enumerate() {
             let proven = 1 << super::tau_of(t, rows.len());
+            cycles += proven;
             if rows.len() == proven {
                 continue;
             }
@@ -171,10 +174,9 @@ impl Program {
                 prev,
                 hash,
             };
-            rows.resize_with(proven, || row.clone());
+            rows.push(row);
         }
 
-        let cycles = rows.iter().map(Vec::len).sum();
         let ram_last = ram.timestamps();
         let (ram_ts, adv_ts) = ram_last.split_at(1 << p.log_ram());
         let trace = Trace {

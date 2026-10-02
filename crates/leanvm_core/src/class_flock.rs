@@ -148,17 +148,19 @@ pub(crate) struct Prepared {
 }
 
 impl Prepared {
-    /// Build packed witness `f`'s batch, one instance per row of its table, writing its
-    /// committed column's pieces, `(first row, piece)`, in place as it goes.
-    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], pieces: Vec<(usize, &mut [F64])>) -> Self {
+    /// Build packed witness `f`'s batch of `2^n_blocks_log` instances from its table's
+    /// committed rows, the live ones then the padding row every later row repeats,
+    /// writing its committed column's pieces, `(first row, piece)`, in place as it goes.
+    pub(crate) fn build(
+        f: usize,
+        n_blocks_log: usize,
+        rows: &[Row],
+        entries: &[Entry],
+        pieces: Vec<(usize, &mut [F64])>,
+    ) -> Self {
         let (t, part) = flock(f);
         let spec = CLASSES[t];
-        let n_blocks_log = n_blocks_log(spec, rows.len());
-        assert_eq!(
-            rows.len(),
-            1 << n_blocks_log,
-            "a table's rows fill its batch (cpu::padding)"
-        );
+        let padding = rows.last().expect("a table commits at least its padding row");
         let circuit = circuit(f);
         let ports = crate::tables::tables()[t].ports(part);
         let n_inputs = circuit.n_input_words();
@@ -181,9 +183,9 @@ impl Prepared {
             })
             .collect();
         let (z, a, b, z_lincheck) = match witness {
-            None => circuit.generate_witness_from(rows, &rows[0], n_blocks_log, &mut copies, input_words),
+            None => circuit.generate_witness_from(rows, padding, n_blocks_log, &mut copies, input_words),
             Some(witness) => {
-                circuit.generate_witness_with(rows, &rows[0], n_blocks_log, &mut copies, |row, z, az, bz| {
+                circuit.generate_witness_with(rows, padding, n_blocks_log, &mut copies, |row, z, az, bz| {
                     let mut words = [0u64; MAX_INPUT_WORDS];
                     let words = &mut words[..n_inputs];
                     input_words(row, words);
@@ -192,7 +194,11 @@ impl Prepared {
             }
         };
         let stride = 1 << stride_log(spec, part);
-        assert_eq!(z.len(), rows.len() * stride, "the committed column is the wrong size");
+        assert_eq!(
+            z.len(),
+            stride << n_blocks_log,
+            "the committed column is the wrong size"
+        );
         const BATCH: usize = 1 << 10;
         parallel::for_each(rows.len().div_ceil(BATCH), |batch| {
             let first = batch * BATCH;

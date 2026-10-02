@@ -530,9 +530,10 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], rate: pcs::Ra
     // bytecode buses: their virtual columns route to that witness, so no separate pin
     // claims are needed. Mirrored in `verify`.
     let spans = &schema().spans;
-    // The columns are windows into the full-height stack or pieces of the committed one, so both stages read them in
-    // place: the table sumcheck lifts each K-column into a fresh `E` copy on the round
-    // it joins and never writes the K-columns back.
+    // The columns are windows into the live stack or pieces of the committed one, each
+    // at its committed rows, so both stages read them in place: the table sumcheck lifts
+    // each K-column into a fresh `E` copy on its first fold and never writes the
+    // K-columns back.
     let (bus_claims, table_claims, pads) = {
         let l = &w.layout;
         let cols = w.columns();
@@ -579,9 +580,9 @@ fn prove_witness(program: &Program, w: Witness, output: &[u64; 4], rate: pcs::Ra
         });
         (bus.claims, table_claims, pads)
     };
-    // Nothing reads a column at its full height again: the reductions have their own
-    // tables, and the opening reads the committed stack.
-    drop(w.padded);
+    // Nothing reads a table column again: the reductions have their own tables, and
+    // the opening reads the committed stack.
+    drop(w.live);
     drop(w.virt);
     let l = &w.layout;
 
@@ -926,8 +927,8 @@ mod tests {
         )
     }
 
-    /// Forge a committed column of a built witness at its full height, and its pieces
-    /// of the committed stack with it.
+    /// Forge a committed column of a built witness at its committed rows, and its
+    /// pieces of the committed stack with it.
     fn forge(w: &mut Witness, col: usize, edit: impl FnOnce(&mut [F64])) {
         let c = w.layout.placements[col]
             .column()
@@ -935,7 +936,7 @@ mod tests {
             .clone();
         match w.windows[col] {
             Some(window) => {
-                let rows = &mut w.padded[window.offset..window.offset + (1 << window.n_vars)];
+                let rows = &mut w.live[window.offset..window.offset + window.len];
                 edit(rows);
                 for p in &c.pieces {
                     let len = 1 << p.log_rows;
@@ -957,13 +958,25 @@ mod tests {
         );
     }
 
-    /// Make `row` the first padding row of `ALU` a live one: the table's height grows
-    /// by one to take it.
+    /// Put `row` among `ALU`'s live rows, ahead of its padding row: the table's height
+    /// grows by one to take it.
     fn add_live_row(exec: &mut Execution, row: Row) {
         let height = exec.trace.heights[0];
-        assert!(height < exec.trace.rows[0].len(), "ALU has a padding row to take");
+        let tau = tau_of(0, height);
+        assert!(height < 1 << tau, "ALU has a padding row to take");
+        set_height(exec, 0, height + 1, tau);
         exec.trace.rows[0][height] = row;
-        exec.trace.heights[0] += 1;
+    }
+
+    /// Move table `t`'s height to `height`, its rows past it repeating the row now at
+    /// it, on a cube of `2^tau` rows.
+    fn set_height(exec: &mut Execution, t: usize, height: usize, tau: usize) {
+        let rows = &mut exec.trace.rows[t];
+        let at = rows[height.min(rows.len() - 1)].clone();
+        rows.truncate(height);
+        rows.push(at);
+        rows.truncate(committed_rows(height, tau));
+        exec.trace.heights[t] = height;
     }
 
     /// The row a jump to itself makes, `jal rd, 0` at entry `index`, at clock zero.
@@ -1338,10 +1351,9 @@ mod tests {
         let program = Program::new(&text, rv::TEXT_BASE, vec![], 2, 0).expect("valid instruction program");
         for delta in [-1, 1] {
             let mut forged = program.execute(&[]).unwrap();
+            let tau = tau_of(0, forged.trace.heights[0]);
             let height = forged.trace.heights[0].checked_add_signed(delta).unwrap();
-            let at = forged.trace.rows[0][height].clone();
-            forged.trace.rows[0][height..].fill_with(|| at.clone());
-            forged.trace.heights[0] = height;
+            set_height(&mut forged, 0, height, tau);
             let w = program.build(&forged);
             assert!(!unmatched(&w).is_empty());
             assert_unbalanced(&program, w, &forged.output);
@@ -1376,17 +1388,18 @@ mod tests {
     }
 
     #[test]
-    fn a_padding_row_off_its_repeat_is_refused() {
-        // Invariant: the rows past a table's height are the row at it, which the commitment holds once.
+    fn a_padding_row_off_the_committed_one_is_refused() {
+        // Invariant: the rows from a table's height on are the row at it, which the commitment holds once.
         //
-        // Mutation: one padding row of a committed column holds another value. The bus never reads it, but the
-        // table sumcheck sums it, and the commitment, which cannot say it, disagrees.
+        // Mutation: the padding row the bus and the table sumcheck read, and every row past it with it, differs from
+        // the committed one. The bus takes it off again, but the table sumcheck sums it, and the commitment disagrees.
         let (program, exec, mut w, col) = witness_and_column();
-        let padding = w.layout.heights[0] + 1;
+        let padding = w.layout.heights[0];
         let window = w.windows[col].unwrap();
-        w.padded[window.offset + padding] += F64(1);
+        assert_eq!(window.len, padding + 1);
+        w.live[window.offset + padding] += F64(1);
         let proof = prove_witness(&program, w, &exec.output, pcs::Rate::MIN);
-        assert!(verify(&program, &exec.output, &proof).is_err());
+        assert!(matches!(verify(&program, &exec.output, &proof), Err(CpuError::Open(_))));
     }
 
     #[test]

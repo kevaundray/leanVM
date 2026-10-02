@@ -9,9 +9,9 @@
 //! weight is one scaled equality term per piece ([`Column::terms`]).
 //!
 //! Every witness builder writes its pieces straight into place ([`split_pieces`]).
-//! The prover also keeps every column that commits only some of its rows at its full
-//! height, in a stack of its own laid out the same way with whole columns
-//! ([`padded_windows`]): that is what the bus and the table sumcheck read.
+//! The prover also keeps every column that commits only some of its rows at those
+//! rows, in a stack of its own ([`live_windows`]): that is what the bus and the
+//! table sumcheck read, taking the rows past them as the last.
 
 use primitives::field::{F64, F192};
 use zk_alloc::ArenaVec;
@@ -68,22 +68,6 @@ pub fn pieces(row_vars: usize, rows: usize) -> Vec<(usize, usize)> {
     }
     out.push((live, 0));
     out
-}
-
-/// `Σ_{j ≥ from} eq(point, j)` over the rows `j < 2^|point|`: the weight a point puts on
-/// every row from `from` on, `1 - Σ_{j < from} eq(point, j)`, the latter the sum over the
-/// aligned pieces of `from`'s binary expansion (§sec:jagged).
-pub fn tail_weight(point: &[F192], from: usize) -> F192 {
-    if from >= 1 << point.len() {
-        return F192::ZERO;
-    }
-    let mut first = 0;
-    let mut acc = F192::ONE;
-    for bit in (0..point.len()).rev().filter(|&bit| (from >> bit) & 1 == 1) {
-        acc += eq_bits(point, first, bit);
-        first += 1 << bit;
-    }
-    acc
 }
 
 /// `eq(point[from..], first >> from)`: the weight a point puts on the aligned rows
@@ -296,75 +280,75 @@ pub fn placements_of(sources: &[Source]) -> (Vec<Placement>, StackShape) {
     (placements, StackShape { mu, n_lanes })
 }
 
-/// A column's window in the prover's full-height stack: `2^n_vars` words from `offset`.
+/// A column's window in the prover's live stack: `len` words from `offset`.
 #[derive(Clone, Copy, Debug)]
 pub struct Window {
     pub offset: usize,
-    pub n_vars: usize,
+    pub len: usize,
 }
 
-/// Every column of one word a row that commits only some of its rows, at its full
-/// height, laid out as `stack_offsets` lays whole columns, and the total: the
-/// prover's working copy, which the bus and the table sumcheck read and nothing
-/// commits. A column committed whole has no window, the committed stack holding it
-/// in one piece; neither has a port, nor a packed witness (rows of several words),
-/// whose words its flock batch already holds.
-pub fn padded_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
-    let kappas: Vec<Option<usize>> = (sources.iter())
+/// Every column of one word a row that commits only some of its rows, at its
+/// committed rows (the rows past them repeat the last), laid end to end, and the
+/// total: the prover's working copy, which the bus and the table sumcheck read and
+/// nothing commits. A column committed whole has no window, the committed stack
+/// holding it in one piece; neither has a port, nor a packed witness (rows of
+/// several words), whose words its flock batch already holds.
+pub fn live_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
+    let mut total = 0;
+    let windows = (sources.iter())
         .map(|s| match *s {
             Source::Committed {
                 row_vars,
                 stride_log: 0,
                 rows,
-            } if rows < 1 << row_vars => Some(row_vars),
+            } if rows < 1 << row_vars => {
+                let window = Window {
+                    offset: total,
+                    len: rows,
+                };
+                total += rows;
+                Some(window)
+            }
             Source::Committed { .. } | Source::Port { .. } => None,
         })
-        .collect();
-    let (offsets, total) = stack_offsets(&kappas);
-    let windows = kappas
-        .iter()
-        .zip(offsets)
-        .map(|(kappa, offset)| kappa.map(|n_vars| Window { offset, n_vars }))
         .collect();
     (windows, total)
 }
 
-/// The uninitialized `len`-word full-height stack. Arena-backed: it is born and dies
-/// inside one `cpu::prove` phase.
+/// The uninitialized `len`-word live stack. Arena-backed: it is born and dies inside
+/// one `cpu::prove` phase.
 ///
 /// # Safety
 /// Every slot must be written before it is read. [`split_stack`] hands out one
 /// window per committed column, which together cover the whole allocation, so the
 /// obligation reduces to each column's fill writing its own window.
-pub unsafe fn alloc_padded(len: usize) -> ArenaVec<F64> {
+pub unsafe fn alloc_live(len: usize) -> ArenaVec<F64> {
     // SAFETY: forwarded to the caller by the contract above.
     unsafe { ArenaVec::<F64>::uninitialized(len) }
 }
 
-/// Carve the full-height stack into one mutable window per committed column, in
-/// column order. A port gets an empty window: it is not in the stack, so its values
-/// need storage of their own.
+/// Carve the live stack into one mutable window per column that has one, in column
+/// order, and an empty window for the others.
 ///
 /// Writing each column into its final place is what lets the whole witness be
-/// written once. Safe despite [`alloc_padded`]'s uninitialized allocation:
-/// [`padded_windows`] tiles the columns from offset 0 with no gap, checked here, so
+/// written once. Safe despite [`alloc_live`]'s uninitialized allocation:
+/// [`live_windows`] tiles the columns from offset 0 with no gap, checked here, so
 /// consecutive `split_at_mut` hands out disjoint windows covering all of it.
 pub fn split_stack<'a>(q: &'a mut [F64], windows: &[Option<Window>]) -> Vec<&'a mut [F64]> {
-    let mut order: Vec<(usize, Window)> = (windows.iter().enumerate())
-        .filter_map(|(i, w)| Some((i, (*w)?)))
-        .collect();
-    order.sort_unstable_by_key(|&(_, w)| w.offset);
-
     let mut out: Vec<&mut [F64]> = Vec::with_capacity(windows.len());
-    out.resize_with(windows.len(), || &mut []);
     let mut rest = q;
     let mut placed = 0usize;
-    for (i, w) in order {
-        assert_eq!(w.offset, placed, "the stacked columns must tile from 0 with no gap");
-        let (window, tail) = rest.split_at_mut(1 << w.n_vars);
-        out[i] = window;
-        rest = tail;
-        placed += 1 << w.n_vars;
+    for w in windows {
+        out.push(match w {
+            Some(w) => {
+                assert_eq!(w.offset, placed, "the stacked columns must tile from 0 with no gap");
+                let (window, tail) = std::mem::take(&mut rest).split_at_mut(w.len);
+                rest = tail;
+                placed += w.len;
+                window
+            }
+            None => &mut [],
+        });
     }
     assert!(rest.is_empty(), "the windows must cover the whole stack");
     out
