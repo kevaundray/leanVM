@@ -14,7 +14,7 @@
 //!
 //! An XOR, a NOT or a copy is free.
 
-use super::semantics::{Alu, Div, Hash, Load, Mul, Mulh, Shift, Store};
+use super::semantics::{Add, Branch, Div, Hash, Jump, Load, Logic, Mul, Mulh, Shift, Store};
 use flock::arith::mul::Multiplier;
 use flock::circuit::{Builder, Circuit, Wire};
 use primitives::hash::{G_LANES, IV, SIGMA};
@@ -28,17 +28,14 @@ pub trait ClassCircuit {
     fn circuit() -> Circuit;
 }
 
-impl ClassCircuit for Alu {
-    /// The ALU: `(v1, v2, imm, flags) -> (out, taken)`.
-    ///
-    /// It mirrors the reference function on every legal flag word.
+impl ClassCircuit for Add {
+    /// The adder: `(v1, v2, imm, flags) -> out`.
     ///
     /// - The second operand is `b = v2 ^ imm`.
     /// - One adder gives `v1 + b`, or `v1 - b` for the comparisons.
-    /// - The output is that sum, unless a selector picks a comparison or a bitwise operation.
-    /// - The jump is taken always, or when the one branch condition set holds.
+    /// - The output is that sum, unless a comparison replaces it by its bit.
     fn circuit() -> Circuit {
-        let mut c = Builder::new(&[64, 64, 64, 15], &[64, 1]);
+        let mut c = Builder::new(&[64, 64, 64, 4], &[64]);
         let (v1, v2, imm, f) = (c.input(0), c.input(1), c.input(2), c.input(3));
         let flag = |bit: u64| f[bit.trailing_zeros() as usize];
         let b = c.xor_word(&v2, &imm);
@@ -54,61 +51,112 @@ impl ClassCircuit for Alu {
         //
         //     ltu = borrow
         //     lt  = borrow ^ sign(v1) ^ sign(b)
-        //     eq  = no bit of v1 ^ b set
         let ltu = c.not(carry_out);
         let signs = c.xor(v1[63], b[63]);
         let lt = c.xor(ltu, signs);
-        let diff = c.xor_word(&v1, &b);
-        let ne = c.any(&diff);
-        let eq = c.not(ne);
 
-        // The output: the sum unless a selector is set.
-        //
-        //     and = v1 * b
-        //     or  = v1 * b ^ (v1 ^ b)
-        //     xor = v1 ^ b
+        // The sum unless a comparison is selected, whose single bit is the output's bit 0.
         let sum = c.sext32_if(flag(Self::WORD), &sum);
-        let selectors = [Self::SEL_LT, Self::SEL_LTU, Self::SEL_AND, Self::SEL_OR, Self::SEL_XOR];
-        let none = selectors.iter().fold(c.one(), |acc, &s| c.xor(acc, flag(s)));
-        let and_or = c.xor(flag(Self::SEL_AND), flag(Self::SEL_OR));
-        let or_xor = c.xor(flag(Self::SEL_OR), flag(Self::SEL_XOR));
-        let mut out = c.and_word(none, &sum);
-        for i in 0..64 {
-            let both = c.and(v1[i], b[i]);
-            let and_term = c.and(and_or, both);
-            let xor_term = c.and(or_xor, diff[i]);
-            let logic = c.xor(and_term, xor_term);
-            out[i] = c.xor(out[i], logic);
-        }
-
-        // A comparison is a single bit, the output's bit 0.
+        let compares = c.xor(flag(Self::SEL_LT), flag(Self::SEL_LTU));
+        let keeps = c.not(compares);
+        let mut out = c.and_word(keeps, &sum);
         let lt_term = c.and(flag(Self::SEL_LT), lt);
         let ltu_term = c.and(flag(Self::SEL_LTU), ltu);
         let compared = c.xor(lt_term, ltu_term);
         out[0] = c.xor(out[0], compared);
 
-        // A JALR target drops its low bit.
-        let keep_bit0 = c.not(flag(Self::CLEAR_BIT0));
-        out[0] = c.and(keep_bit0, out[0]);
+        c.output_word(0, &out);
+        c.finish()
+    }
+}
 
-        // The jump: unconditional, or the one branch condition set.
+impl ClassCircuit for Logic {
+    /// The bitwise logic: `(v1, v2, imm, flags) -> out`, two products per bit.
+    ///
+    /// With `b = v2 ^ imm` and the selectors `or` and `xor`, bit by bit:
+    ///
+    /// ```text
+    ///     p   = (v1 ^ or) * (b ^ or)          v1 & b, or !(v1 | b) when or
+    ///     out = p ^ or ^ xor * (p ^ v1 ^ b)
+    /// ```
+    fn circuit() -> Circuit {
+        let mut c = Builder::new(&[64, 64, 64, 3], &[64]);
+        let (v1, v2, imm, f) = (c.input(0), c.input(1), c.input(2), c.input(3));
+        let flag = |bit: u64| f[bit.trailing_zeros() as usize];
+        let (or, xor) = (flag(Self::OR), flag(Self::XOR));
+        let b = c.xor_word(&v2, &imm);
+        for i in 0..64 {
+            let (x, y) = (c.xor(v1[i], or), c.xor(b[i], or));
+            let p = c.and(x, y);
+            let diff = c.xor(v1[i], b[i]);
+            let flip = c.xor(p, diff);
+            let xor_term = c.and(xor, flip);
+            let kept = c.xor(p, or);
+            let bit = c.xor(kept, xor_term);
+            c.output(0, i, bit);
+        }
+        c.finish()
+    }
+}
+
+impl ClassCircuit for Branch {
+    /// The branch: `(v1, v2, flags) -> taken`.
+    ///
+    /// - The difference `v1 + !v2 + 1` borrows exactly when it does not carry out, and only its carries are made.
+    /// - The jump is taken when the one condition set holds.
+    fn circuit() -> Circuit {
+        let mut c = Builder::new(&[64, 64, 6], &[1]);
+        let (v1, v2, f) = (c.input(0), c.input(1), c.input(2));
+        let flag = |bit: u64| f[bit.trailing_zeros() as usize];
+        let one = c.one();
+
+        // The comparisons, from the borrow and the signs.
+        //
+        //     ltu = borrow
+        //     lt  = borrow ^ sign(v1) ^ sign(v2)
+        //     eq  = no bit of v1 ^ v2 set
+        let not_v2: Word = v2.iter().map(|&bit| c.not(bit)).collect();
+        let (_, carry_out) = c.add_with_carry(&v1, &not_v2, one);
+        let ltu = c.not(carry_out);
+        let signs = c.xor(v1[63], v2[63]);
+        let lt = c.xor(ltu, signs);
+        let diff = c.xor_word(&v1, &v2);
+        let ne = c.any(&diff);
+        let eq = c.not(ne);
+
         let (ge, geu) = (c.not(lt), c.not(ltu));
         let taken = [
-            (Self::BR_EQ, eq),
-            (Self::BR_NE, ne),
-            (Self::BR_LT, lt),
-            (Self::BR_GE, ge),
-            (Self::BR_LTU, ltu),
-            (Self::BR_GEU, geu),
+            (Self::EQ, eq),
+            (Self::NE, ne),
+            (Self::LT, lt),
+            (Self::GE, ge),
+            (Self::LTU, ltu),
+            (Self::GEU, geu),
         ]
         .into_iter()
-        .fold(flag(Self::ALWAYS), |acc, (when, holds)| {
+        .fold(None, |acc, (when, holds)| {
             let term = c.and(flag(when), holds);
             c.xor(acc, term)
         });
 
-        c.output_word(0, &out);
-        c.output(1, 0, taken);
+        c.output(0, 0, taken);
+        c.finish()
+    }
+}
+
+impl ClassCircuit for Jump {
+    /// The jump: `(v1, imm, flags) -> (out, taken)`.
+    ///
+    /// - The computed target is `v1 + imm`, bit 0 cleared: that bit has no gate, so it is zero.
+    /// - The fixed target is taken when the jump is direct.
+    fn circuit() -> Circuit {
+        let mut c = Builder::new(&[64, 64, 1], &[64, 1]);
+        let (v1, imm, f) = (c.input(0), c.input(1), c.input(2));
+        let target = c.add_wrapping(&v1, &imm);
+        for (i, &bit) in target.iter().enumerate().skip(1) {
+            c.output(0, i, bit);
+        }
+        c.output(1, 0, f[Self::DIRECT.trailing_zeros() as usize]);
         c.finish()
     }
 }
@@ -727,8 +775,11 @@ mod tests {
     use std::sync::LazyLock;
 
     /// Every class with a circuit.
-    const CLASSES: [Class; 8] = [
-        Class::Alu,
+    const CLASSES: [Class; 11] = [
+        Class::Add,
+        Class::Logic,
+        Class::Branch,
+        Class::Jump,
         Class::Shift,
         Class::Load,
         Class::Store,
@@ -739,7 +790,7 @@ mod tests {
     ];
 
     // The circuits a test drives directly, built once.
-    static ALU: LazyLock<Circuit> = LazyLock::new(Alu::circuit);
+    static BRANCH: LazyLock<Circuit> = LazyLock::new(Branch::circuit);
     static STORE: LazyLock<Circuit> = LazyLock::new(Store::circuit);
     static DIV: LazyLock<Circuit> = LazyLock::new(Div::circuit);
     static BLAKE2S: LazyLock<Circuit> = LazyLock::new(Hash::circuit);
@@ -779,13 +830,16 @@ mod tests {
     fn instance_sizes_are_pinned() {
         // The log of each instance's bits, which the tables fix before any circuit is built.
         let sizes = CLASSES.map(|class| class.circuit().k_log());
-        assert_eq!(sizes, [10, 10, 10, 10, 12, 13, 13, 14]);
+        assert_eq!(sizes, [9, 9, 9, 9, 10, 10, 10, 12, 13, 13, 14]);
     }
 
     #[test]
     fn every_circuit_matches_its_reference() {
         // The cheap circuits get more cases, the large ones fewer.
-        circuit_matches_reference::<Alu>(4096);
+        circuit_matches_reference::<Add>(4096);
+        circuit_matches_reference::<Logic>(4096);
+        circuit_matches_reference::<Branch>(4096);
+        circuit_matches_reference::<Jump>(4096);
         circuit_matches_reference::<Shift>(4096);
         circuit_matches_reference::<Load>(4096);
         circuit_matches_reference::<Store>(4096);
@@ -872,25 +926,24 @@ mod tests {
     }
 
     #[test]
-    fn flock_proves_honest_alu_instances_and_refuses_a_flipped_bit() {
+    fn flock_proves_honest_branch_instances_and_refuses_a_flipped_bit() {
         // Fixture: 16 instances cycling through the legal words.
-        const LABEL: &[u8] = b"rv-alu-reduction-test";
-        let block = ALU.block();
+        const LABEL: &[u8] = b"rv-branch-reduction-test";
+        let block = BRANCH.block();
         let n_log = 4;
-        let rows: Vec<[u64; 4]> = (0..1u64 << n_log)
+        let rows: Vec<[u64; 3]> = (0..1u64 << n_log)
             .map(|i| {
                 [
                     i.wrapping_mul(0x9e37_79b9_7f4a_7c15),
                     !i,
-                    0,
-                    Alu::LEGAL[i as usize % Alu::LEGAL.len()],
+                    Branch::LEGAL[i as usize % Branch::LEGAL.len()],
                 ]
             })
             .collect();
 
         // Prove the batch, optionally flipping one witness bit first, and verify.
         let accepts = |tamper: Option<usize>| {
-            let (mut z, a, b, mut z_lincheck) = ALU.generate_witness(&rows, n_log);
+            let (mut z, a, b, mut z_lincheck) = BRANCH.generate_witness(&rows, n_log);
             if let Some(bit) = tamper {
                 z[bit / 64] ^= 1 << (bit % 64);
                 z_lincheck[bit] ^= 1;
@@ -904,11 +957,11 @@ mod tests {
         };
         assert!(accepts(None));
 
-        // Mutation: an output bit, a spare bit of taken's word, the last product.
+        // Mutation: taken, a spare bit of taken's word, the last product.
         for bit in [
-            64 * ALU.n_input_words() + 5,
-            64 * (ALU.n_input_words() + 1) + 1,
-            ALU.useful_bits() - 1,
+            64 * BRANCH.n_input_words(),
+            64 * BRANCH.n_input_words() + 1,
+            BRANCH.useful_bits() - 1,
         ] {
             assert!(!accepts(Some(bit)), "flipping bit {bit} must reject");
         }
