@@ -86,8 +86,8 @@ enum Command {
         #[arg(long, default_value = "1", value_parser = parse_rate)]
         inner_log_inv_rate: Rate,
     },
-    /// Prove a leaf program, then an aggregation tree over `leaves` copies of its proof: a lift node per leaf and
-    /// nodes of `arity` children up to the root.
+    /// Prove a leaf program, then an aggregation tree over `leaves` copies of its proof: a first-level node per
+    /// `arity` leaves and nodes of `arity` children up to the root.
     Aggregate {
         /// The leaf program: `fibonacci` or `leanxmss`.
         #[arg(long, default_value = "leanxmss")]
@@ -95,8 +95,8 @@ enum Command {
         /// Fibonacci steps, or leanXMSS signatures.
         #[arg(long, default_value_t = 400)]
         n: usize,
-        /// Leaf proofs, a power of the arity.
-        #[arg(long, default_value_t = 4, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
+        /// Leaf proofs, a positive power of the arity.
+        #[arg(long, default_value_t = 4, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(2..))]
         leaves: usize,
         /// Children per node.
         #[arg(long, default_value_t = 2, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(2..))]

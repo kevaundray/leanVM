@@ -150,7 +150,7 @@ fn public_api_end_to_end() {
     tree.verify(&root, &[digest, other_digest]).unwrap();
     assert!(tree.verify(&root, &[other_digest, digest]).is_err());
     assert!(matches!(
-        tree.prove_lift(&prover, &hashed.proof, other_digest),
+        tree.prove_first(&prover, &[(&hashed.proof, digest), (&hashed.proof, other_digest)]),
         Err(Error::Verify(_))
     ));
 

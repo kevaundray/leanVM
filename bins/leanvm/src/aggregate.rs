@@ -81,17 +81,10 @@ pub fn run(program: &str, n: usize, leaves: usize, arity: usize, prover: &Prover
         pretty_f64(setup)
     );
 
-    let (lift, lift_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        tree.prove_lift(prover, &proof, output).expect("an honest leaf")
-    });
-    let (_, lift_verify) = quiet.measure_quiet(|_| tree.verify_proof(&lift).expect("the lift verifies"));
-    report("lift node", &tree, Kind::Lift, &lift, &lift_time, &lift_verify);
-
-    let children = vec![lift; arity];
+    let leaf_proofs = vec![(&proof, output); arity];
     let (first, first_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        tree.prove_node(prover, &children).expect("honest children")
+        tree.prove_first(prover, &leaf_proofs).expect("honest leaves")
     });
     let (_, first_verify) = quiet.measure_quiet(|_| tree.verify_proof(&first).expect("the node verifies"));
     report(
@@ -105,23 +98,29 @@ pub fn run(program: &str, n: usize, leaves: usize, arity: usize, prover: &Prover
     let (_, settle) = quiet.measure_quiet(|_| tree.verify(&first, &vec![output; arity]).expect("a root"));
     println!("  as a root, with its claims  : {}", ms(&settle));
 
-    let children = vec![first; arity];
-    let (node, node_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        tree.prove_node(prover, &children).expect("honest children")
-    });
-    let (_, node_verify) = quiet.measure_quiet(|_| tree.verify_proof(&node).expect("the node verifies"));
-    report(
-        &format!("node over nodes, arity {arity}"),
-        &tree,
-        Kind::Node,
-        &node,
-        &node_time,
-        &node_verify,
-    );
-    let outputs = vec![output; arity * arity];
-    let (_, settle) = quiet.measure_quiet(|_| tree.verify(&node, &outputs).expect("a root"));
-    println!("  as a root, with its claims  : {}", ms(&settle));
+    let mut child = first;
+    let mut leaves_under = arity;
+    for (name, kind) in [("second-level node", Kind::Second), ("node over nodes", Kind::Node)] {
+        let children = vec![child; arity];
+        let (node, node_time) = plan.warm_then_measure(|last| {
+            let _quiet = (!last).then(bench::suppress_tracing);
+            tree.prove_node(prover, &children).expect("honest children")
+        });
+        let (_, node_verify) = quiet.measure_quiet(|_| tree.verify_proof(&node).expect("the node verifies"));
+        report(
+            &format!("{name}, arity {arity}"),
+            &tree,
+            kind,
+            &node,
+            &node_time,
+            &node_verify,
+        );
+        leaves_under *= arity;
+        let outputs = vec![output; leaves_under];
+        let (_, settle) = quiet.measure_quiet(|_| tree.verify(&node, &outputs).expect("a root"));
+        println!("  as a root, with its claims  : {}", ms(&settle));
+        child = node;
+    }
 
     let leaf_proofs = vec![(&proof, output); leaves];
     let start = std::time::Instant::now();
@@ -131,7 +130,7 @@ pub fn run(program: &str, n: usize, leaves: usize, arity: usize, prover: &Prover
     let (_, root_verify) = quiet.measure_quiet(|_| tree.verify(&root, &outputs).expect("the root verifies"));
     println!("whole tree");
     println!(
-        "  proving every lift and node : {} s, after {leaves} leaf proofs",
+        "  proving every node          : {} s, after {leaves} leaf proofs",
         pretty_f64(whole)
     );
     println!("  verifying the root          : {}", ms(&root_verify));

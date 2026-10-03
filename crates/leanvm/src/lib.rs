@@ -260,11 +260,11 @@ pub mod recursion {
     }
 }
 
-/// Aggregation trees: leanVM proofs of one program at the leaves, a lift node verifying each in a recursion proof,
-/// a first level of nodes each verifying `arity` lifts, and nodes above it each verifying `arity` nodes with one
-/// circuit, up to a root [`aggregate::Tree::verify`] checks against the leaves' outputs. Every proof of a tree
-/// carries constant-size claims on the program and the circuits, which each node reduces and only the root's
-/// verifier evaluates.
+/// Aggregation trees: leanVM proofs of one program at the leaves, a first level of nodes each verifying `arity`
+/// leaves in a recursion proof, a second level each verifying `arity` first-level nodes, and nodes above it each
+/// verifying `arity` nodes with one circuit, up to a root [`aggregate::Tree::verify`] checks against the leaves'
+/// outputs. Every proof of a tree carries constant-size claims on the program and the circuits, which each node
+/// reduces and only the root's verifier evaluates.
 pub mod aggregate {
     use super::{Error, Program, Proof, Prover, Rate, VerifyError};
     pub use leanvm_core::rec::tree::{Kind, TreeError, TreeProof, TreeStatement, tree_digest};
@@ -299,16 +299,23 @@ pub mod aggregate {
             Ok(InnerProof::new(self.0.program(), &proof.0, output).map_err(VerifyError)?)
         }
 
-        /// Prove a lift node over one leaf.
+        fn inners(&self, leaves: &[(&Proof, [u64; 4])]) -> Result<Vec<InnerProof<'p>>, Error> {
+            leaves
+                .iter()
+                .map(|&(proof, output)| self.inner(proof, output))
+                .collect()
+        }
+
+        /// Prove a first-level node over `arity` leaves, each a proof and its output, in order.
         ///
         /// # Errors
         ///
-        /// A leaf of another shape, or one that does not verify.
-        pub fn prove_lift(&self, _prover: &Prover, leaf: &Proof, output: [u64; 4]) -> Result<TreeProof, Error> {
-            Ok(self.0.prove_lift(&self.inner(leaf, output)?)?)
+        /// The wrong number of leaves, a leaf of another shape, or one that does not verify.
+        pub fn prove_first(&self, _prover: &Prover, leaves: &[(&Proof, [u64; 4])]) -> Result<TreeProof, Error> {
+            Ok(self.0.prove_first(&self.inners(leaves)?)?)
         }
 
-        /// Prove a node over `arity` children, in order: lifts, or nodes of either kind.
+        /// Prove a node over `arity` children, in order: first-level nodes, or nodes above them of either kind.
         ///
         /// # Errors
         ///
@@ -321,13 +328,9 @@ pub mod aggregate {
         ///
         /// # Errors
         ///
-        /// Leaves that are no power of the arity, or a leaf that does not verify.
+        /// Leaves that are no positive power of the arity, or a leaf that does not verify.
         pub fn prove(&self, _prover: &Prover, leaves: &[(&Proof, [u64; 4])]) -> Result<TreeProof, Error> {
-            let leaves = leaves
-                .iter()
-                .map(|&(proof, output)| self.inner(proof, output))
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(self.0.prove_tree(&leaves)?)
+            Ok(self.0.prove_tree(&self.inners(leaves)?)?)
         }
 
         /// Check that `root` is the root of a tree whose leaves prove `outputs`, in order: its recursion proof,

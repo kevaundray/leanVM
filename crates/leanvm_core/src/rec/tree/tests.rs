@@ -23,7 +23,7 @@ fn forged<T>(forge: Forge, f: impl FnOnce() -> T) -> T {
     out
 }
 
-/// A tree of four leaves at arity two verifies, and each forgery is refused: by the prover where the circuit
+/// A tree of eight leaves at arity two verifies, and each forgery is refused: by the prover where the circuit
 /// cannot hold, by the root's verifier where the claims it carries are false.
 #[test]
 fn a_tree_verifies_and_refuses_forgeries() {
@@ -32,32 +32,45 @@ fn a_tree_verifies_and_refuses_forgeries() {
     let leaf = InnerProof::new(&program, &proof, output).expect("an honest proof");
     let (taus, log_inv_rate) = announced_shape(&leaf.proof.stream).expect("a shape");
     let tree = Tree::new(&program, taus, log_inv_rate, 2, Rate::MIN).expect("a valid shape");
+    let leaves = || {
+        [0, 1].map(|_| InnerProof {
+            program: &program,
+            proof: leaf.proof.clone(),
+            output,
+        })
+    };
 
-    let lift = tree.prove_lift(&leaf).expect("an honest leaf");
-    tree.verify(&lift, &[output]).expect("a lift is the root of one leaf");
-    let node = tree.prove_node(&[lift.clone(), lift.clone()]).expect("honest children");
-    assert_eq!(node.statement.kind, Kind::First);
-    tree.verify(&node, &[output; 2])
+    let first = tree.prove_first(&leaves()).expect("honest leaves");
+    assert_eq!(first.statement.kind, Kind::First);
+    tree.verify(&first, &[output; 2])
         .expect("a first-level node is the root of two leaves");
-    let root = tree.prove_node(&[node.clone(), node.clone()]).expect("honest children");
+    let second = tree
+        .prove_node(&[first.clone(), first.clone()])
+        .expect("honest children");
+    assert_eq!(second.statement.kind, Kind::Second);
+    tree.verify(&second, &[output; 4])
+        .expect("a second-level node is the root of four leaves");
+    let root = tree
+        .prove_node(&[second.clone(), second.clone()])
+        .expect("honest children");
     assert_eq!(root.statement.kind, Kind::Node);
-    let outputs = [output; 4];
+    let outputs = [output; 8];
     tree.verify(&root, &outputs).expect("the root verifies");
     let above = tree
-        .prove_node(&[root.clone(), node.clone()])
-        .expect("a node verifies either kind of node");
+        .prove_node(&[root.clone(), second.clone()])
+        .expect("a node verifies either kind of node above the first level");
     assert_eq!(above.statement.kind, Kind::Node);
 
     // The root's statement.
     let mut wrong = outputs;
-    wrong[2][0] ^= 1;
+    wrong[5][0] ^= 1;
     assert_eq!(
         tree.verify(&root, &wrong),
         Err(TreeError::Outputs),
         "a wrong leaf output"
     );
     assert_eq!(
-        tree.verify(&root, &outputs[..2]),
+        tree.verify(&root, &outputs[..4]),
         Err(TreeError::Outputs),
         "too few leaves"
     );
@@ -81,78 +94,97 @@ fn a_tree_verifies_and_refuses_forgeries() {
     );
 
     // A child the node's prover is handed.
-    let mut forged_child = node.clone();
+    let mut forged_child = second.clone();
     let mid = forged_child.proof.stream.len() / 2;
     forged_child.proof.stream[mid] += F192::ONE;
     assert!(matches!(
-        tree.prove_node(&[node.clone(), forged_child]),
+        tree.prove_node(&[second.clone(), forged_child]),
         Err(TreeError::Child { index: 1, .. })
     ));
-    let mut forged_child = node.clone();
+    let mut forged_child = first.clone();
     forged_child.statement.matrices[0][1] += F192::ONE;
     assert!(matches!(
-        tree.prove_node(&[forged_child, node.clone()]),
+        tree.prove_node(&[forged_child, first.clone()]),
         Err(TreeError::Child { index: 0, .. })
     ));
     let other = Tree::new(&program, taus, log_inv_rate, 3, Rate::MIN).expect("a valid shape");
-    let other_lift = other.prove_lift(&leaf).expect("an honest leaf");
+    let [a, b] = leaves();
+    let other_first = other
+        .prove_first(&[
+            a,
+            b,
+            InnerProof {
+                program: &program,
+                proof: leaf.proof.clone(),
+                output,
+            },
+        ])
+        .expect("honest leaves");
     assert!(
         matches!(
-            tree.prove_node(&[lift.clone(), other_lift]),
+            tree.prove_node(&[first.clone(), other_first]),
             Err(TreeError::Child { index: 1, .. })
         ),
         "a child of another tree's shape"
     );
     assert!(matches!(
-        tree.prove_node(std::slice::from_ref(&lift)),
+        tree.prove_node(std::slice::from_ref(&first)),
         Err(TreeError::Arity { .. })
     ));
+    assert!(matches!(tree.prove_first(&leaves()[..1]), Err(TreeError::Arity { .. })));
     assert!(
         matches!(
-            tree.prove_node(&[node.clone(), lift.clone()]),
+            tree.prove_node(&[second.clone(), first.clone()]),
             Err(TreeError::Level { index: 1 })
         ),
-        "a lift beside a node"
+        "a first-level node beside a second-level node"
     );
-    let mut relabeled = node.clone();
+    let mut relabeled = second.clone();
     relabeled.statement.kind = Kind::Node;
     assert!(
         matches!(
-            tree.prove_node(&[node, relabeled]),
+            tree.prove_node(&[second, relabeled]),
             Err(TreeError::Child { index: 1, .. })
         ),
-        "a first-level node stating another kind"
+        "a second-level node stating another kind"
     );
 
-    // A forged leaf.
-    let mut bad = InnerProof {
-        program: &program,
-        proof: leaf.proof.clone(),
-        output,
-    };
+    // A forged leaf, and a recursion proof given as a leaf.
+    let [honest, mut bad] = leaves();
     let mid = bad.proof.stream.len() / 2;
     bad.proof.stream[mid] += F192::ONE;
     assert!(
-        matches!(tree.prove_lift(&bad), Err(TreeError::Unsatisfied(_))),
+        matches!(tree.prove_first(&[honest, bad]), Err(TreeError::Unsatisfied(_))),
         "a forged leaf"
+    );
+    let [honest, _] = leaves();
+    let recursion = InnerProof {
+        program: &program,
+        proof: tree.read(&first).expect("the node verifies"),
+        output,
+    };
+    assert_eq!(
+        tree.prove_first(&[honest, recursion]),
+        Err(TreeError::LeafShape),
+        "a recursion proof as a leaf"
     );
 
     // Reduced claims that satisfy every identity and are false: an honest node's prover cannot reduce them, a
     // cheating one carries them up, and the root's verifier refuses them.
     for forge in [Forge::Matrix, Forge::Dense] {
-        let false_lift = forged(forge, || tree.prove_lift(&leaf)).expect("the forgery satisfies the circuit");
+        let false_first = forged(forge, || tree.prove_first(&leaves())).expect("the forgery satisfies the circuit");
         assert!(
-            matches!(tree.verify(&false_lift, &[output]), Err(TreeError::Claim(_))),
+            matches!(tree.verify(&false_first, &[output; 2]), Err(TreeError::Claim(_))),
             "{forge:?}"
         );
-        let children = [lift.clone(), false_lift];
+        let children = [first.clone(), false_first];
         assert!(
             matches!(tree.prove_node(&children), Err(TreeError::Unsatisfied(_))),
             "{forge:?}"
         );
         let carried = forged(forge, || tree.prove_node(&children)).expect("a cheating node");
         assert!(
-            matches!(tree.verify(&carried, &[output; 2]), Err(TreeError::Claim(_))),
+            matches!(tree.verify(&carried, &[output; 4]), Err(TreeError::Claim(_))),
             "{forge:?} carried"
         );
     }
@@ -327,10 +359,16 @@ fn the_circuit_replays_a_recursion_proof() {
     let leaf = InnerProof::new(&program, &proof, output).expect("an honest proof");
     let (taus, log_inv_rate) = announced_shape(&leaf.proof.stream).expect("a shape");
     let tree = Tree::new(&program, taus, log_inv_rate, 2, Rate::MIN).expect("a valid shape");
-    let lift = tree.prove_lift(&leaf).expect("an honest leaf");
-    let (circuit, words) = (&tree.lift, lift.statement.words());
+    let first = tree
+        .prove_first(&[0, 1].map(|_| InnerProof {
+            program: &program,
+            proof: leaf.proof.clone(),
+            output,
+        }))
+        .expect("honest leaves");
+    let (circuit, words) = (&tree.first, first.statement.words());
 
-    let mut vs = VerifierState::new(tree.iv, &lift.proof, lift.statement.public_input());
+    let mut vs = VerifierState::new(tree.iv, &first.proof, first.statement.public_input());
     crate::pcs::read_commitment(&mut vs).expect("a root");
     let layout = proof::Layout::new(circuit);
     let (push, pull) = machine::bus_blocks(circuit, &words, &layout.taus, &spans());
@@ -345,7 +383,7 @@ fn the_circuit_replays_a_recursion_proof() {
         .verify_deferred(layout.taus[circuit::Table::Hash as usize], &mut vs)
         .expect("the reduction replays");
 
-    let raw = tree.read(&lift).expect("the lift verifies");
+    let raw = tree.read(&first).expect("the first-level node verifies");
     let build = |source: Source, statement: &TreeStatement, columns: Option<&[Vec<F64>]>| {
         let mut b = Builder::new();
         let d = &tree.design;
@@ -374,11 +412,11 @@ fn the_circuit_replays_a_recursion_proof() {
             &[],
             &d.fixed[0],
             columns,
-            LIFT_FIXED,
+            FIRST_FIXED,
         );
         (b, child)
     };
-    let (b, child) = build(Source::Proof(&raw), &lift.statement, Some(&tree.columns[0]));
+    let (b, child) = build(Source::Proof(&raw), &first.statement, Some(&tree.columns[0]));
     assert_eq!(b.e(child.target), target);
     let m = &child.matrix;
     let values = |ws: &[Ew]| ws.iter().map(|&w| b.e(w)).collect::<Vec<_>>();
@@ -390,7 +428,7 @@ fn the_circuit_replays_a_recursion_proof() {
     assert_eq!(values(&m.s_hat_v), native.form.s_hat_v);
     let (circuit, _, failures) = b.finish();
     assert!(failures.is_empty(), "{failures:?}");
-    let zero = TreeStatement::zero(tree.design.n_dense(), matrix_vars(), Kind::Lift);
+    let zero = TreeStatement::zero(tree.design.n_dense(), matrix_vars(), Kind::First);
     assert!(
         circuit == build(Source::Shape, &zero, None).0.finish().0,
         "the shape builds the same circuit"

@@ -1,7 +1,7 @@
 //! The recursion circuits' fixed columns as dense polynomials: each circuit's bus columns that the circuit fixes
-//! (`machine::fixed_columns`), stacked largest first at aligned offsets. The lift's stack is a polynomial of its
-//! own; the two node circuits share their heights, so their stacks are one polynomial under one more variable, the
-//! node's kind bit (whether its children are nodes).
+//! (`machine::fixed_columns`), stacked largest first at aligned offsets. The first-level node's stack is a
+//! polynomial of its own; the two other node circuits share their heights, so their stacks are one polynomial under
+//! one more variable, the node's kind bit (whether its children are above the first level).
 
 use crate::rec::circuit::N_TABLES;
 use crate::rec::machine::{self, Fixed};
