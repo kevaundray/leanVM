@@ -2,6 +2,7 @@
 //! the circuits' claims as wires.
 
 use super::bus::{opening_claims, read_announcement, table_sumcheck, verify_balance};
+use super::pcs::RingShare;
 use super::{MatrixClaim, ProgramClaim, RingRegion, SliceClaim};
 use crate::class_flock;
 use crate::cpu::{Layout, Program};
@@ -17,10 +18,15 @@ pub struct Shape<'p> {
     pub log_inv_rate: usize,
 }
 
-/// What the core leaves: the claims on the program and on the circuits.
+/// What the core leaves: the claims on the program and on the circuits, and the ring-switched claims'
+/// share of the opening, with what locates those claims beyond the deferred claims: each flock claim's
+/// outer coordinates and the bytecode multiplicities' bits.
 pub struct Core {
     pub program: ProgramClaim,
     pub circuits: Vec<MatrixClaim>,
+    pub ring: RingShare,
+    pub x_outer: Vec<Vec<Ew>>,
+    pub bits: Vec<Ew>,
 }
 
 /// The transcript seeded with the program's digest and the output, the four words `output`.
@@ -43,11 +49,13 @@ pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Sour
 
     let mut slices: Vec<SliceClaim> = Vec::with_capacity(class_flock::N_FLOCKS);
     let mut circuits = Vec::with_capacity(class_flock::N_FLOCKS);
+    let mut x_outer = Vec::with_capacity(class_flock::N_FLOCKS);
     for f in 0..class_flock::N_FLOCKS {
         let (table, part) = class_flock::flock(f);
         let (slice, matrix) = b.scope(format!("flock {} {part:?}", tables::CLASSES[table].name), |b| {
             super::flock::verify_reduction(b, &mut t, class_flock::shape(f), l.taus[table])
         });
+        x_outer.push(slice.suffix_point[matrix.r_inner_rest.len()..].to_vec());
         slices.push(slice);
         circuits.push(matrix);
     }
@@ -80,13 +88,18 @@ pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Sour
         });
     }
 
-    b.scope("opening", |b| {
-        super::pcs::verify(b, &mut t, &slots, &rings, l.shape, shape.log_inv_rate, root);
-    });
+    let ring = b.scope("opening", |b| super::pcs::verify(b, &mut t, &slots, &rings, l.shape, shape.log_inv_rate, root));
     if !t.finished() {
         b.scope("transcript", |b| b.fail("the proof has data the verifier never reads"));
     }
-    Core { program, circuits }
+    let bits = tables_claims.claims[N_TABLES].1.clone();
+    Core {
+        program,
+        circuits,
+        ring,
+        x_outer,
+        bits,
+    }
 }
 
 #[cfg(test)]

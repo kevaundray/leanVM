@@ -56,12 +56,28 @@ pub struct InnerStatement {
     pub taus: [usize; N_TABLES],
     pub log_inv_rate: usize,
     pub claims: DeferredClaims,
+    pub ring: RingClaims,
+}
+
+/// What the ring-switched claims of an inner proof's opening put into its target and its terminal weight,
+/// which the outer verifier recomputes from the claims (`pcs::stack_open`): the map's and the batching
+/// challenges, the terminal point, both shares, and what locates the claims beyond the deferred claims (each
+/// flock claim's outer coordinates, the bytecode multiplicities' bits).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RingClaims {
+    pub map: [F192; 6],
+    pub lambda: F192,
+    pub point: Vec<F192>,
+    pub target: F192,
+    pub weight: F192,
+    pub x_outer: Vec<Vec<F192>>,
+    pub bits: Vec<F192>,
 }
 
 impl InnerStatement {
     /// How many words of the outer statement it is.
     pub fn n_words(&self) -> usize {
-        4 + claim_words(&self.claims).len()
+        4 + claim_words(&self.claims).len() + ring_words(&self.ring).len()
     }
 }
 
@@ -87,6 +103,9 @@ pub enum RecursionError {
     /// An inner proof's deferred claims are false.
     #[error("inner proof {index}: {error}")]
     Deferred { index: usize, error: CpuError },
+    /// An inner proof's ring-switched claims do not put what the statement says into its opening.
+    #[error("inner proof {index}: the ring-switched claims' shares are wrong")]
+    Ring { index: usize },
     /// The statement does not match the programs it is checked against.
     #[error("the statement names {got} inner proofs, and {expected} programs are given")]
     Arity { expected: usize, got: usize },
@@ -121,7 +140,7 @@ fn valid_shape(program: &Program, taus: &[usize; N_TABLES], log_inv_rate: usize)
 
 /// Whether `claims` have the one term and the lengths a proof of this shape leaves, so that their words
 /// parse one way.
-fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredClaims) -> bool {
+fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredClaims, ring: &RingClaims) -> bool {
     let l = Layout::new(program.rv(), *taus, 0);
     let [p] = &l.producers[..] else { unreachable!("one lookup array, the bytecode") };
     let program_ok = match &claims.program.terms[..] {
@@ -133,7 +152,15 @@ fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredCla
         }
         _ => false,
     };
+    let ring_ok = ring.point.len() == l.shape.mu
+        && ring.bits.len() == p.bits
+        && ring.x_outer.len() == class_flock::N_FLOCKS
+        && ring.x_outer.iter().enumerate().all(|(f, x)| {
+            let rest = class_flock::shape(f).k_log - flock::zerocheck::K_SKIP;
+            rest + x.len() == l.witness_window(f).n_vars
+        });
     program_ok
+        && ring_ok
         && claims.circuits.len() == class_flock::N_FLOCKS
         && claims.circuits.iter().enumerate().all(|(f, c)| match &c.terms[..] {
             [(one, form)] => {
@@ -145,6 +172,33 @@ fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredCla
             }
             _ => false,
         })
+}
+
+/// Whether the ring claims' shares are what their claims put into the opening: the flock claims at their
+/// matrix forms' column points then their outer coordinates, with their slices; then the bytecode
+/// multiplicities' bits at the table sumcheck's point. `s` is well formed.
+fn ring_shares_hold(program: &Program, s: &InnerStatement) -> bool {
+    let l = Layout::new(program.rv(), s.taus, 0);
+    let [p] = &l.producers[..] else { unreachable!("one lookup array, the bytecode") };
+    let r = &s.ring;
+    let mut bits = r.bits.clone();
+    bits.resize(::pcs::pack::PACKING_WIDTH, F192::ZERO);
+    let flocks = s.claims.circuits.iter().zip(&r.x_outer).map(|(c, x)| {
+        let form = &c.terms[0].1;
+        ([&form.r_inner_rest[..], x].concat(), &form.s_hat_v[..])
+    });
+    let producer = (s.claims.program.terms[0].1.bytecode[..p.kappa].to_vec(), &bits[..]);
+    let claims: Vec<(Vec<F192>, &[F192])> = flocks.chain(std::iter::once(producer)).collect();
+    let windows = (0..class_flock::N_FLOCKS)
+        .map(|f| l.witness_window(f))
+        .chain(std::iter::once(l.multiplicity_window(p)));
+    let regions: Vec<(usize, usize, Vec<&[F192]>)> = windows
+        .zip(&claims)
+        .map(|(w, (point, _))| (w.offset, w.n_vars, vec![&point[..]]))
+        .collect();
+    let slices: Vec<&[F192]> = claims.iter().map(|(_, s)| *s).collect();
+    inner::pcs::ring_target(&r.map, r.lambda, &slices) == r.target
+        && inner::pcs::ring_weight(&r.map, r.lambda, &regions, &r.point) == r.weight
 }
 
 /// The deferred claims' wires, in statement order after the output.
@@ -163,6 +217,30 @@ fn claim_wires(core: &inner::core::Core) -> Vec<Ew> {
         w.extend(&c.s_hat_v);
         w.push(c.value);
     }
+    let r = &core.ring;
+    w.extend(&r.map);
+    w.push(r.lambda);
+    w.extend(&r.point);
+    w.push(r.target);
+    w.push(r.weight);
+    for x in &core.x_outer {
+        w.extend(x);
+    }
+    w.extend(&core.bits);
+    w
+}
+
+/// The ring claims as statement words, in [`claim_wires`]' order after the deferred claims.
+fn ring_words(r: &RingClaims) -> Vec<F192> {
+    let mut w = r.map.to_vec();
+    w.push(r.lambda);
+    w.extend(&r.point);
+    w.push(r.target);
+    w.push(r.weight);
+    for x in &r.x_outer {
+        w.extend(x);
+    }
+    w.extend(&r.bits);
     w
 }
 
@@ -194,7 +272,7 @@ fn statement_words(inners: &[InnerStatement]) -> Vec<Limbs> {
     let mut words = Vec::new();
     for s in inners {
         words.extend(s.output.map(|o| [o, 0, 0, 0]));
-        words.extend(claim_words(&s.claims).into_iter().map(|x| [x.c0, x.c1, x.c2, 0]));
+        words.extend(claim_words(&s.claims).into_iter().chain(ring_words(&s.ring)).map(|x| [x.c0, x.c1, x.c2, 0]));
     }
     words
 }
@@ -238,6 +316,21 @@ fn build(shapes: &[Shape], sources: &[Source], outputs: &[[u64; 4]]) -> (Builder
         cores.push(core);
     }
     (b, cores)
+}
+
+/// The native ring claims the core's wires hold.
+fn ring_of(b: &Builder, core: &inner::core::Core) -> RingClaims {
+    let e = |ws: &[Ew]| ws.iter().map(|&w| b.e(w)).collect::<Vec<_>>();
+    let r = &core.ring;
+    RingClaims {
+        map: std::array::from_fn(|i| b.e(r.map[i])),
+        lambda: b.e(r.lambda),
+        point: e(&r.point),
+        target: b.e(r.target),
+        weight: b.e(r.weight),
+        x_outer: core.x_outer.iter().map(|x| e(x)).collect(),
+        bits: e(&core.bits),
+    }
 }
 
 /// The native claims the core's wires hold.
@@ -311,6 +404,7 @@ pub fn circuit_of(inners: &[InnerProof]) -> Result<(Circuit, circuit::Assignment
             taus: shape.taus,
             log_inv_rate: shape.log_inv_rate,
             claims: claims_of(&b, core),
+            ring: ring_of(&b, core),
         })
         .collect();
     let (circuit, assignment, failures) = b.finish();
@@ -349,7 +443,7 @@ pub fn circuit_for(programs: &[&Program], inners: &[InnerStatement]) -> Result<C
         .zip(inners)
         .enumerate()
         .map(|(index, (&program, s))| {
-            (valid_shape(program, &s.taus, s.log_inv_rate) && well_formed(program, &s.taus, &s.claims))
+            (valid_shape(program, &s.taus, s.log_inv_rate) && well_formed(program, &s.taus, &s.claims, &s.ring))
                 .then_some(Shape {
                     program,
                     taus: s.taus,
@@ -384,6 +478,9 @@ pub fn verify(programs: &[&Program], proof: &RecursionProof, log_inv_rate: usize
         program
             .check_deferred(&s.claims)
             .map_err(|error| RecursionError::Deferred { index, error })?;
+        if !ring_shares_hold(program, s) {
+            return Err(RecursionError::Ring { index });
+        }
     }
     Ok(())
 }
@@ -420,6 +517,10 @@ mod tests {
         let mut wrong_output = rec.clone();
         wrong_output.inners[1].output[0] ^= 1;
         assert!(verify(&programs, &wrong_output, 1).is_err());
+
+        let mut wrong_ring = rec.clone();
+        wrong_ring.inners[0].ring.target += F192::ONE;
+        assert!(verify(&programs, &wrong_ring, 1).is_err());
 
         let mut wrong_claim = rec.clone();
         wrong_claim.inners[0].claims.circuits[3].value += F192::ONE;

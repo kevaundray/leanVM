@@ -90,102 +90,50 @@ fn mle(b: &mut Builder, y: &[Ew], r: &[Ew]) -> Ew {
     y[0]
 }
 
-/// `v^(2^128) = v + c2·(Y + Y^2) + c1·Y^2` for `v = c0 + c1·Y + c2·Y^2`: two Frobenius maps.
-fn frobenius2(b: &mut Builder, v: Ew) -> Ew {
-    let [_, c1, c2] = b.e_to_k(v);
-    let y_y2 = b.e_const(F192::new(0, 1, 1));
-    let y2 = b.e_const(F192::new(0, 0, 1));
-    let u = b.mul_k_add(y_y2, c2, v);
-    b.mul_k_add(y2, c1, u)
+/// The ring-switched claims' share of the opening, which the circuit leaves to the outer verifier: the map's
+/// challenges and the batching challenge, the terminal point, and what the claims put into the target and
+/// into the weight there (`stack_open::verify_opening_batch_mixed_whir_stacked`). Their slices and points are
+/// the circuit's own wires, which the statement exposes too.
+pub struct RingShare {
+    pub map: Vec<Ew>,
+    pub lambda: Ew,
+    pub point: Vec<Ew>,
+    pub target: Ew,
+    pub weight: Ew,
 }
 
-/// `v^(2^-j)` at index `j >= lowest` and `v` at index 0 (`ring_switch::inverse_frobenius_ladder`); the
-/// other entries are `v` and unused.
-fn inverse_frobenius_ladder(b: &mut Builder, v: Ew, lowest: usize) -> Vec<Ew> {
-    let mut ladder = vec![v; PACKING_WIDTH];
-    let mut power = frobenius2(b, v);
-    for slot in ladder[lowest.max(1)..].iter_mut().rev() {
-        power = b.square(power);
-        *slot = power;
+/// The native ring-switched share of the target, `Σ_c λ^c·verify_finish(s_c)`.
+pub fn ring_target(map: &[F192; 6], lambda: F192, slices: &[&[F192]]) -> F192 {
+    let weights = ::pcs::ring_switch::build_coordinate_weights(map);
+    let mut g = F192::ONE;
+    let mut total = F192::ZERO;
+    for s in slices {
+        total += g * ::pcs::ring_switch::verify_finish(s, &weights);
+        g *= lambda;
     }
-    ladder
+    total
 }
 
-/// The ring-switching map `Phi` drawn from its six challenges, as the coefficients `C_k^(2^-k)` of its
-/// Frobenius form (`ring_switch::RsEqQuery`); absent is one.
-struct Map {
-    coefficients: Vec<Option<Ew>>,
-}
-
-impl Map {
-    /// `ring_switch::sample_map_challenges`, then the coefficients.
-    fn sample(b: &mut Builder, t: &mut Transcript) -> Self {
-        let challenges = t.sample_vec(b, COMPOSITION_SHIFTS.len());
-        // C_k^(2^-k) = prod_{p : k & d_p} f_p^(2^-(k - k mod d_p)), and k - k mod d_p is the part of k at
-        // the shifts down to d_p, so the product grows one shift at a time.
-        let mut coefficients: Vec<Option<Ew>> = vec![None];
-        let mut prefixes = vec![0usize];
-        for (&f, &shift) in challenges.iter().zip(COMPOSITION_SHIFTS.iter()) {
-            let ladder = inverse_frobenius_ladder(b, f, shift);
-            let mut next_c = Vec::with_capacity(2 * coefficients.len());
-            let mut next_p = Vec::with_capacity(2 * prefixes.len());
-            for (&c, &k) in coefficients.iter().zip(&prefixes) {
-                next_c.push(c);
-                next_p.push(k);
-                next_c.push(Some(times(b, c, ladder[k + shift])));
-                next_p.push(k + shift);
-            }
-            coefficients = next_c;
-            prefixes = next_p;
+/// The native ring-switched share of the weight at the terminal point `x`, each region `(offset,
+/// qflock_vars, suffix points)`, the claims in order taking `λ^c`.
+pub fn ring_weight(map: &[F192; 6], lambda: F192, rings: &[(usize, usize, Vec<&[F192]>)], x: &[F192]) -> F192 {
+    let max_qflock_vars = rings.iter().map(|r| r.1).max().unwrap_or(0);
+    let query = ::pcs::ring_switch::RsEqQuery::new(map, &x[..max_qflock_vars]);
+    let mut g = F192::ONE;
+    let mut total = F192::ZERO;
+    for (offset, qflock_vars, points) in rings {
+        let sel = offset >> qflock_vars;
+        let sel_eq = x[*qflock_vars..].iter().enumerate().fold(F192::ONE, |acc, (k, &xi)| {
+            acc * if (sel >> k) & 1 == 1 { xi } else { F192::ONE + xi }
+        });
+        let mut part = F192::ZERO;
+        for z in points {
+            part += g * ::pcs::ring_switch::eval_rs_eq(z, &query);
+            g *= lambda;
         }
-        let mut by_k = vec![None; PACKING_WIDTH];
-        for (c, k) in coefficients.into_iter().zip(prefixes) {
-            by_k[k] = c;
-        }
-        Self { coefficients: by_k }
+        total += sel_eq * part;
     }
-
-    /// `ring_switch::verify_finish`: `Σ_w Phi(b_w)·t_w` over the transposed slices `t`, which is
-    /// `Σ_j x^j·Phi(s_j) = Σ_k (C_k^(2^-k)·S(x^(2^-k)))^(2^k)` for `S(u) = Σ_j s_j·u^j`, closed by the
-    /// linearized Horner rule from `k = 63` down.
-    fn finish(&self, b: &mut Builder, s_hat_v: &[Ew]) -> Ew {
-        assert_eq!(s_hat_v.len(), PACKING_WIDTH);
-        let mut acc: Option<Ew> = None;
-        for k in (0..PACKING_WIDTH).rev() {
-            let mut xk = F64(2);
-            for _ in 0..(PACKING_WIDTH - k) % PACKING_WIDTH {
-                xk = xk.square();
-            }
-            let xk = F192::from(xk);
-            let mut s = s_hat_v[PACKING_WIDTH - 1];
-            for &sj in s_hat_v[..PACKING_WIDTH - 1].iter().rev() {
-                s = b.mul_const_add(s, xk, sj);
-            }
-            let term = match self.coefficients[k] {
-                Some(c) => b.mul(c, s),
-                None => s,
-            };
-            acc = Some(match acc {
-                None => term,
-                Some(a) => b.mul_add(a, a, term),
-            });
-        }
-        acc.expect("the map has 64 terms")
-    }
-
-    /// `ring_switch::eval_rs_eq` at the suffix point `z`, against the query's ladders.
-    fn eval_rs_eq(&self, b: &mut Builder, z: &[Ew], ladders: &[Vec<Ew>]) -> Ew {
-        assert!(z.len() <= ladders.len());
-        let mut terms = self.coefficients.clone();
-        for (&zn, ladder) in z.iter().zip(ladders) {
-            for (term, &power) in terms.iter_mut().zip(ladder) {
-                *term = Some(times_eq(b, *term, power, zn));
-            }
-        }
-        let mut terms: Vec<Ew> = terms.into_iter().map(|t| or_one(b, t)).collect();
-        let last = terms.pop().expect("the map has 64 terms");
-        terms.iter().rev().fold(last, |acc, &term| b.mul_add(acc, acc, term))
-    }
+    total
 }
 
 /// One coordinate of a claim's full point: a wire, or a Boolean selector bit.
@@ -239,6 +187,9 @@ fn claim_end(claim: &StackClaim) -> usize {
 
 /// Verify the opening of the commitment `root` against the point claims `slots` and the ring-switched
 /// regions `rings` (`crate::pcs::verify`). The claims' values and slices were bound by the caller.
+///
+/// The ring-switched claims' share of the target and of the terminal weight is a hint, settled by the
+/// outer verifier from the exposed [`RingShare`] ([`ring_target`], [`ring_weight`]).
 pub fn verify(
     b: &mut Builder,
     t: &mut Transcript,
@@ -247,7 +198,7 @@ pub fn verify(
     shape: crate::witness::StackShape,
     log_inv_rate: usize,
     root: Dw,
-) {
+) -> RingShare {
     let log_n = shape.mu;
     let config = config_for_rate(log_n, log_inv_rate)
         .unwrap_or_else(|e| panic!("whir config for mu={log_n}, log_inv_rate={log_inv_rate}: {e}"));
@@ -270,53 +221,55 @@ pub fn verify(
         "every claim must live inside the committed cube"
     );
 
-    let map = b.scope("ring switch map", |b| Map::sample(b, t));
+    let map = t.sample_vec(b, COMPOSITION_SHIFTS.len());
     let lambda = t.sample(b);
     let lambdas = powers(b, lambda, n_rs + slots.len());
-    let (lambdas_rs, lambdas_pd) = lambdas.split_at(n_rs);
+    let lambdas_pd = &lambdas[n_rs..];
+    let map_values: [F192; 6] = std::array::from_fn(|i| b.e(map[i]));
+    let slices: Vec<Vec<F192>> =
+        rings.iter().flat_map(|r| &r.claims).map(|c| c.s_hat_v.iter().map(|&w| b.e(w)).collect()).collect();
+    let slice_refs: Vec<&[F192]> = slices.iter().map(Vec::as_slice).collect();
+    let ring_target_wire = b.free_e(ring_target(&map_values, b.e(lambda), &slice_refs));
 
     let target = b.scope("target", |b| {
-        let mut target = None;
-        for (claim, &g) in rings.iter().flat_map(|ring| &ring.claims).zip(lambdas_rs) {
-            let v = map.finish(b, &claim.s_hat_v);
-            target = Some(mac(b, target, g, v));
-        }
+        let mut target = ring_target_wire;
         for (claim, &g) in slots.iter().zip(lambdas_pd) {
-            target = Some(mac(b, target, g, claim.value()));
+            target = mac(b, Some(target), g, claim.value());
         }
-        target.expect("at least one claim")
+        target
     });
 
-    let max_qflock_vars = rings.iter().map(|ring| ring.qflock_vars).max().unwrap_or(0);
+    let points: Vec<Vec<Vec<F192>>> = rings
+        .iter()
+        .map(|r| r.claims.iter().map(|c| c.suffix_point.iter().map(|&w| b.e(w)).collect()).collect())
+        .collect();
+    let mut share = None;
     let eval_b_at = |b: &mut Builder, x: &[Ew], init: Option<Ew>| -> Ew {
-        let ladders: Vec<Vec<Ew>> = x[..max_qflock_vars]
+        let x_values: Vec<F192> = x.iter().map(|&w| b.e(w)).collect();
+        let regions: Vec<(usize, usize, Vec<&[F192]>)> = rings
             .iter()
-            .map(|&q| inverse_frobenius_ladder(b, q, 1))
+            .zip(&points)
+            .map(|(r, p)| (r.offset, r.qflock_vars, p.iter().map(Vec::as_slice).collect()))
             .collect();
-        let mut acc = init;
-        let mut lambdas_rs = lambdas_rs.iter();
-        for ring in rings {
-            let sel = ring.offset >> ring.qflock_vars;
-            let mut sel_eq = None;
-            for (k, &xi) in x[ring.qflock_vars..].iter().enumerate() {
-                sel_eq = Some(select(b, sel_eq, xi, (sel >> k) & 1 == 1));
-            }
-            let mut rs_part = None;
-            for (claim, &g) in ring.claims.iter().zip(lambdas_rs.by_ref()) {
-                let v = map.eval_rs_eq(b, &claim.suffix_point, &ladders);
-                rs_part = Some(mac(b, rs_part, g, v));
-            }
-            let rs_part = rs_part.unwrap_or_else(|| b.zero());
-            acc = Some(mac(b, acc, sel_eq, rs_part));
-        }
+        let weight = b.free_e(ring_weight(&map_values, b.e(lambda), &regions, &x_values));
+        share = Some((x.to_vec(), weight));
+        let mut acc = mac(b, init, None, weight);
         for (claim, &g) in slots.iter().zip(lambdas_pd) {
             let e = stack_claim_eq_at(b, claim, x);
-            acc = Some(mac(b, acc, g, e));
+            acc = mac(b, Some(acc), g, e);
         }
-        acc.unwrap_or_else(|| b.zero())
+        acc
     };
 
     b.scope("whir", |b| whir(b, t, &config, log_n, shape.n_lanes, target, root, eval_b_at));
+    let (point, weight) = share.expect("the terminal check evaluates the weight");
+    RingShare {
+        map,
+        lambda,
+        point,
+        target: ring_target_wire,
+        weight,
+    }
 }
 
 /// A round's quadratic `c + b·X + a·X^2` (`whir::sumcheck::RoundQuad`).
