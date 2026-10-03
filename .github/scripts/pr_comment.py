@@ -14,6 +14,7 @@ a checkout of the PR's code.
 """
 
 import argparse
+import itertools
 import json
 import math
 import os
@@ -30,8 +31,8 @@ COMMIT = re.compile(r"[0-9a-f]{40}")
 # A time is shown when every round moved it the same way and its median ratio is this far from one.
 THRESHOLD = 0.01
 
-# Bench measures, in the order rows show them, and what rows call them.
-MEASURES = {"latency": "proving", "verify": "verifying", "proof-size": "proof size"}
+# Bench measures, in the order the comment groups them, and what it calls them.
+MEASURES = {"latency": "Proving time", "verify": "Verifying time", "proof-size": "Proof size"}
 
 
 class Bad(Exception):
@@ -128,15 +129,30 @@ def counts(doc, head):
 
 @dataclass(order=True)
 class Row:
+    rank: int
+    measure: str
     benchmark: str
     testbed: str
-    rank: int
-    measure: str = field(compare=False)
     cpu: str = field(compare=False)
     shown: bool = field(compare=False)
     base: str = field(compare=False)
     pr: str = field(compare=False)
     change: str = field(compare=False)
+
+
+def tables(rows, cpu):
+    """One table per measure, in `MEASURES` order, the rows sorted by benchmark and runner."""
+    lines = []
+    for measure, group in itertools.groupby(sorted(rows), key=lambda row: row.measure):
+        lines += [f"#### {MEASURES.get(measure, measure)}", ""]
+        if cpu:
+            lines += ["| benchmark | runner | CPU | base | this PR | change |", "|---|---|---|---:|---:|---:|"]
+            lines += [f"| {r.benchmark} | {r.testbed} | {r.cpu} | {r.base} | {r.pr} | {r.change} |" for r in group]
+        else:
+            lines += ["| benchmark | runner | base | this PR | change |", "|---|---|---:|---:|---:|"]
+            lines += [f"| {r.benchmark} | {r.testbed} | {r.base} | {r.pr} | {r.change} |" for r in group]
+        lines.append("")
+    return lines
 
 
 def cell(measure, by_round):
@@ -189,8 +205,7 @@ def bench(docs, head):
             base, pr = sides["base"].get((benchmark, measure), {}), sides["head"].get((benchmark, measure), {})
             shown, change = compare(measure, base, pr)
             rank = list(MEASURES).index(measure) if measure in MEASURES else len(MEASURES)
-            rows.append(Row(benchmark, testbed, rank, measure, cpu, shown, cell(measure, base), cell(measure, pr), change))
-    rows.sort()
+            rows.append(Row(rank, measure, benchmark, testbed, cpu, shown, cell(measure, base), cell(measure, pr), change))
     if not any(row.shown for row in rows):
         return ""
     (base,) = bases
@@ -204,16 +219,10 @@ def bench(docs, head):
                 f"and its median by at least {THRESHOLD:.0%} (the change is the median ratio, with the rounds' range)."
             ),
             "",
-            "| benchmark | runner | measure | base | this PR | change |",
-            "|---|---|---|---:|---:|---:|",
-            *(f"| {r.benchmark} | {r.testbed} | {MEASURES.get(r.measure, r.measure)} | {r.base} | {r.pr} | {r.change} |" for r in rows if r.shown),
-            "",
+            *tables([row for row in rows if row.shown], cpu=False),
             "<details><summary>Every result</summary>",
             "",
-            "| benchmark | runner | CPU | measure | base | this PR | change |",
-            "|---|---|---|---|---:|---:|---:|",
-            *(f"| {r.benchmark} | {r.testbed} | {r.cpu} | {MEASURES.get(r.measure, r.measure)} | {r.base} | {r.pr} | {r.change} |" for r in rows),
-            "",
+            *tables(rows, cpu=True),
             "</details>",
         ]
     )
