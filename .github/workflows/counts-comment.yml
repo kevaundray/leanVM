@@ -1,0 +1,102 @@
+name: Counts comment
+
+# Posts on a PR the exact counts its Counts run (counts.yml) found changed against its base:
+# one comment, edited on every run and deleted once nothing differs. A run that failed on an
+# increase saved its counts first, so it is posted too.
+#
+# Like bench-track.yml, this runs from the default branch with a write token and never runs
+# the PR's code: it reads the run's artifact `counts`, a fork's included, takes only the PR
+# number from it, and posts only if GitHub's API says that PR's head is the commit the run
+# counted. Every name and number is checked before it reaches the comment.
+
+on:
+  workflow_run:
+    workflows: [ Counts ]
+    types: [ completed ]
+
+permissions: {}
+
+jobs:
+  comment:
+    name: Comment
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Find the counts
+        id: results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          count=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == "counts")] | length')
+          echo "found=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: steps.results.outputs.found == 'true'
+        with:
+          name: counts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: counts
+      - name: Comment
+        if: steps.results.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          number=$(jq -r .pr counts/counts.json)
+          [[ $number =~ ^[0-9]+$ ]] || { echo "not a PR number: $number"; exit 1; }
+          if [ "$(gh api "repos/$REPO/pulls/$number" --jq .head.sha)" != "$HEAD_SHA" ]; then
+            echo "::warning::PR #$number's head is not $HEAD_SHA, the commit this run counted: nothing posted"
+            exit 0
+          fi
+          body=$(jq -r --arg head "$HEAD_SHA" '
+            def name: if type == "string" and test("^[A-Za-z0-9_.-]+$") then . else error("not a name: \(.)") end;
+            def count: if . == null or (type == "number" and . >= 0 and . == floor) then . else error("not a count: \(.)") end;
+            def commas: tostring | if length > 3 then (.[:-3] | commas) + "," + .[-3:] else . end;
+            def cell: if . == null then "none" else commas end;
+            def signed: if . > 0 then "+" + commas elif . < 0 then "-" + (-. | commas) else "0" end;
+            def percent: (. * 100 | round) as $c | ($c | fabs) as $a
+              | (if $c > 0 then "+" elif $c < 0 then "-" else "" end)
+              + ($a / 100 | floor | tostring) + "." + ($a % 100 | tostring | if length < 2 then "0" + . else . end) + "%";
+            def change($old; $new):
+              if $old == null then "new" elif $new == null then "removed"
+              else ($new - $old) as $d | ($d | signed) + (if $old > 0 then " (" + (100 * $d / $old | percent) + ")" else "" end)
+                | if $d > 0 then "**" + . + "**" else . end
+              end;
+            (.base | if type == "string" and test("^[0-9a-f]{40}$") then . else error("not a commit: \(.)") end) as $base
+            | .counts.base as $b | .counts.head as $h
+            # Every (program, measure) of either side, in the order the PR reports them.
+            | reduce ($h, $b | to_entries[] | .key as $p | .value | keys_unsorted[] | [$p, .]) as $k
+                ([]; if any(.[]; . == $k) then . else . + [$k] end)
+            | map((.[0] | name) as $p | (.[1] | name) as $m
+                | {$p, $m, old: ($b[$p][$m].value | count), new: ($h[$p][$m].value | count)})
+            | map(select(.old != .new))
+            | if length == 0 then "" else
+                ([ "<!-- leanvm-counts -->",
+                   "### Exact counts",
+                   "",
+                   "`cargo leanvm bench --cycles-only`, the counts that changed: \($head) merged into its base, against the base \($base). Any increase fails the Counts check.",
+                   "",
+                   "| program | measure | base | this PR | change |",
+                   "|---|---|---:|---:|---:|" ]
+                 + map("| \(.p) | \(.m) | \(.old | cell) | \(.new | cell) | \(change(.old; .new)) |")
+                 | join("\n"))
+              end' counts/counts.json)
+          marker='<!-- leanvm-counts -->'
+          id=$(gh api --paginate "repos/$REPO/issues/$number/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n1)
+          if [ -z "$body" ]; then
+            if [ -n "$id" ]; then gh api -X DELETE "repos/$REPO/issues/comments/$id"; fi
+          elif [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$REPO/issues/$number/comments" -f body="$body" > /dev/null
+          fi
