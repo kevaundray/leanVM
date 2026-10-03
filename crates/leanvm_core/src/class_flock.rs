@@ -18,7 +18,7 @@ use ::pcs::pack::LOG_PACKING;
 use fiat_shamir::transcript::{ProverState, VerifierState};
 use flock::circuit::Circuit;
 use flock::lincheck::MatrixClaim;
-use flock::reduction::{ReductionReplay, SliceClaim};
+use flock::reduction::{ReductionReplay, Shape, SliceClaim};
 use flock::verifier::VerifyError;
 use primitives::field::F64;
 use std::sync::OnceLock;
@@ -65,6 +65,23 @@ pub const fn stride_log(spec: &ClassSpec, part: Part) -> usize {
     k_log(spec, part) - LOG_PACKING
 }
 
+/// What the verifier's replay of packed witness `f`'s reduction reads of its circuit, short of its matrices: the
+/// instance's size and the constant wire's column, the first after the port words. The table's spec fixes both,
+/// so [`verify_reduction`] builds no circuit; [`circuit`] checks them against the built one.
+pub fn shape(f: usize) -> Shape {
+    let (t, part) = flock(f);
+    let spec = CLASSES[t];
+    let n_ports = match part {
+        Part::Class => spec.ports.len(),
+        // The clock, each access's previous timestamp, then the step ([`ClassSpec::clock_ports`]).
+        Part::Clock => spec.n_accesses() + 2,
+    };
+    Shape {
+        k_log: k_log(spec, part),
+        const_pin_col: 64 * n_ports,
+    }
+}
+
 /// Packed witness `f`'s gate list, built once.
 pub fn circuit(f: usize) -> &'static Circuit {
     static CIRCUITS: [OnceLock<Circuit>; N_FLOCKS] = [const { OnceLock::new() }; N_FLOCKS];
@@ -75,10 +92,17 @@ pub fn circuit(f: usize) -> &'static Circuit {
             Part::Class => (spec.class.circuit(), spec.n_inputs),
             Part::Clock => (crate::tables::clock_circuit(&spec.slots()), 1 + spec.n_accesses()),
         };
+        let shape = shape(f);
         assert_eq!(
             circuit.k_log(),
-            k_log(spec, part),
+            shape.k_log,
             "{}'s {part:?} block size moved",
+            spec.name
+        );
+        assert_eq!(
+            circuit.const_pos(),
+            shape.const_pin_col,
+            "{}'s {part:?} constant wire moved",
             spec.name
         );
         assert_eq!(
@@ -259,11 +283,11 @@ impl Prepared {
 
 /// The verifier's replay of packed witness `f`'s reduction, zerocheck then lincheck, up
 /// to the circuit's matrices: their form is left as a [`MatrixClaim`] for the circuit
-/// ([`circuit`]) to settle.
+/// ([`circuit`]) to settle. It reads only the circuit's [`shape`], and builds none.
 pub fn verify_reduction(
     f: usize,
     n_blocks_log: usize,
     vs: &mut VerifierState,
 ) -> Result<(ReductionReplay, MatrixClaim), VerifyError> {
-    circuit(f).block().verify_deferred(n_blocks_log, vs)
+    shape(f).verify_deferred(n_blocks_log, vs)
 }
