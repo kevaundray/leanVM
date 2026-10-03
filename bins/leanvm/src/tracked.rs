@@ -9,7 +9,9 @@
 //! base and head are proven in turns on one runner and compared there. A case's name is what
 //! a PR's results are matched by, so renaming one or changing its input shows it as new.
 
-use bench::{Metric, Plan, bencher_json};
+use std::time::Duration;
+
+use bench::{Metric, Plan, Timing, bencher_json};
 use leanvm::{Program, Proved, Prover, Rate, Stats, verify};
 use primitives::pretty_integer;
 
@@ -110,7 +112,7 @@ fn proven() -> [(&'static str, Build); 4] {
 
 /// With `cycles_only`, count every case without a proof, as JSON or with `markdown` as a
 /// table; otherwise prove, verify and time the proven cases, or only the one named `only`,
-/// as JSON.
+/// as JSON (one case per process makes its `peak-memory` that case's alone).
 pub fn run(cycles_only: bool, markdown: bool, only: Option<&str>, prover: &Prover, rate: Rate, plan: Plan) {
     if markdown {
         return table(&counted());
@@ -128,10 +130,12 @@ pub fn run(cycles_only: bool, markdown: bool, only: Option<&str>, prover: &Prove
         if cases.is_empty() {
             refuse(format_args!("no tracked case is named {}", only.unwrap_or_default()));
         }
-        cases
+        bench::time_stages("Prove");
+        let report: Vec<_> = cases
             .into_iter()
             .map(|(name, case)| (name.to_string(), proved(&case(name), prover, rate, plan)))
-            .collect()
+            .collect();
+        return println!("{}", bencher_json(&report));
     };
     println!("{}", bencher_json(&report));
 }
@@ -151,14 +155,20 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
 const VERIFY_PASSES: usize = 20;
 
 /// The proving time, the proof's size and the verifying time, after checking the proof: the
-/// output is the native reference's and it verifies.
-fn proved(case: &Case, prover: &Prover, rate: Rate, plan: Plan) -> Vec<(&'static str, Metric)> {
+/// output is the native reference's and it verifies. Then the time of each of the proof's
+/// stages (the `Prove` span's direct children, `--tracing`'s top level) and the process's peak
+/// resident memory so far.
+fn proved(case: &Case, prover: &Prover, rate: Rate, plan: Plan) -> Vec<(String, Metric)> {
     eprintln!("{}", case.name);
+    let mut passes = Vec::new();
     let (Proved { proof, output, .. }, time) = plan.warm_then_measure(|_| {
-        prover
+        let proved = prover
             .prove(&case.program, &case.advice, rate)
-            .unwrap_or_else(|e| refuse(format_args!("{}: {e}", case.name)))
+            .unwrap_or_else(|e| refuse(format_args!("{}: {e}", case.name)));
+        passes.push(bench::take_stages());
+        proved
     });
+    let peak_memory = bench::peak_rss_bytes();
     assert_eq!(
         output, case.expected,
         "{}: the output is the native reference's",
@@ -166,11 +176,50 @@ fn proved(case: &Case, prover: &Prover, rate: Rate, plan: Plan) -> Vec<(&'static
     );
     let (verified, verify_time) = Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| verify(&case.program, &output, &proof));
     verified.expect("an honest proof verifies");
-    vec![
-        ("latency", Metric::nanoseconds(&time)),
-        ("proof-size", Metric::exact(proof.to_bytes().len())),
-        ("verify", Metric::nanoseconds(&verify_time)),
-    ]
+    let mut report = vec![
+        ("latency".to_string(), Metric::nanoseconds(&time)),
+        ("proof-size".to_string(), Metric::exact(proof.to_bytes().len())),
+        ("verify".to_string(), Metric::nanoseconds(&verify_time)),
+    ];
+    report.extend(stages(&passes[1..]));
+    report.push(("peak-memory".to_string(), Metric::exact(peak_memory as usize)));
+    report
+}
+
+/// One `stage.<name>` measure per stage, in the order the stages ran, over the measured
+/// passes: a stage's name lowercased, every character but a letter or a digit made a `-`.
+fn stages(passes: &[Vec<(&'static str, Duration)>]) -> Vec<(String, Metric)> {
+    let mut names: Vec<&'static str> = Vec::new();
+    for &(name, _) in passes.iter().flatten() {
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
+        .into_iter()
+        .map(|name| {
+            let mut timing = Timing::default();
+            for pass in passes {
+                timing.push(
+                    pass.iter()
+                        .filter(|(n, _)| *n == name)
+                        .map(|(_, d)| d.as_secs_f64())
+                        .sum(),
+                );
+            }
+            let measure: String = name
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        c.to_ascii_lowercase()
+                    } else {
+                        '-'
+                    }
+                })
+                .collect();
+            (format!("stage.{measure}"), Metric::nanoseconds(&timing))
+        })
+        .collect()
 }
 
 /// The counts as a markdown table, with the rows per table: what CI puts in each run's summary.

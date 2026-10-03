@@ -111,7 +111,8 @@ impl Drop for TraceSuppressed {
 /// harmless: if another global subscriber is already installed, this leaves it
 /// unchanged. Output pauses while a [`suppress_tracing`] guard is alive; the
 /// filter is dynamic (never cached per callsite) so the same callsite can be
-/// recorded on one pass and skipped on the next.
+/// recorded on one pass and skipped on the next. It also times the stages
+/// [`crate::time_stages`] names, on every pass.
 pub fn init_tracing() {
     use tracing_forest::{ForestLayer, PrettyPrinter, util::LevelFilter};
     use tracing_subscriber::{
@@ -127,7 +128,11 @@ pub fn init_tracing() {
             !TRACE_SUPPRESSED.load(std::sync::atomic::Ordering::Relaxed)
         }));
 
-    let _ = Registry::default().with(env_filter).with(forest).try_init();
+    let _ = Registry::default()
+        .with(env_filter)
+        .with(forest)
+        .with(crate::stages::Stages)
+        .try_init();
 }
 
 /// [`init_tracing`] when `BENCH_TRACING` is set: the `benches/` targets'

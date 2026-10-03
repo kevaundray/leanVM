@@ -82,6 +82,7 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "primitives",
+ "tracing",
  "tracing-forest",
  "tracing-subscriber",
 ]
