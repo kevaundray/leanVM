@@ -80,6 +80,8 @@ CI compares every PR with its base, never with a history. The base is the merge 
 
 The two posting workflows serve `riscv-exploration` too, whose `bench.yml` proves its programs as well as flock (proving time, proof size, verifying time), and whose `counts.yml` counts its programs exactly (`cargo leanvm bench --cycles-only`) at the PR and at its base and fails on any increase; `counts-comment.yml` posts the counts that changed.
 
+Both posting workflows only run `.github/scripts/pr_comment.py` (standard-library Python, formatted like `verifier.py`), which checks the artifacts and builds, edits or deletes the comment. Its `--dry-run` prints the comment a run's downloaded artifacts would give (`gh run download <run> -p 'ab-*'`) and posts nothing.
+
 ## The proving arena (`zk_alloc`)
 
 One proof is one **phase**, opened by `cpu::prove`. `ArenaVec` bumps a per-thread slab, a small block's release is at most a cursor pop while a large one is recycled (below), and the next `begin_phase()` reclaims everything. Not a `#[global_allocator]`: `raw_dealloc` picks arena-vs-system by address range, so with no phase open `ArenaVec` is an ordinary system vector (used in particular by the verifier, where correctness and simplicity matters much more than performance).
