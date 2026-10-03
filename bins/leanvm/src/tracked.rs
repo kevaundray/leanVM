@@ -1,12 +1,14 @@
-//! The programs tracked in CI (`.github/workflows/bench.yml`), reported as Bencher Metric
-//! Format JSON or, counted without a proof, as a markdown table.
+//! The programs tracked in CI, reported as Bencher Metric Format JSON or, counted without a
+//! proof, as a markdown table.
 //!
 //! Two lists. The counts are exact and cheap, so they are taken at the README's sizes, the
-//! most one proof holds, on one testbed: they are the same on every machine. Proving on CI's
-//! GitHub-hosted runners (16 GB) takes the sizes that fit them (leanXMSS and leanSPHINCS at a
-//! quarter, and no leanDA, whose one blob is its smallest run) and reports only the proving
-//! time, the one measure that differs between machines. A case's name is its Bencher
-//! history, so renaming one or changing its input starts a new one.
+//! most one proof holds, on one runner (`.github/workflows/counts.yml`), which compares a
+//! PR's with its base's: they are the same on every machine. Proving on CI's GitHub-hosted
+//! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
+//! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run) and reports
+//! only the proving time, the one measure that differs between machines. A case's name is
+//! what a PR's counts are matched by and its Bencher history, so renaming one or changing
+//! its input starts a new one.
 
 use bench::{Metric, Plan, bencher_json};
 use leanvm::{Program, Proved, Prover, Rate, Stats, verify};
