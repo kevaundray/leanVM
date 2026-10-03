@@ -5,10 +5,9 @@
 //! most one proof holds, on one runner (`.github/workflows/counts.yml`), which compares a
 //! PR's with its base's: they are the same on every machine. Proving on CI's GitHub-hosted
 //! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
-//! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run) and reports
-//! only the proving time, the one measure that differs between machines. A case's name is
-//! what a PR's counts are matched by and its Bencher history, so renaming one or changing
-//! its input starts a new one.
+//! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
+//! base and head are proven in turns on one runner and compared there. A case's name is what
+//! a PR's results are matched by, so renaming one or changing its input shows it as new.
 
 use bench::{Metric, Plan, bencher_json};
 use leanvm::{Program, Proved, Prover, Rate, Stats, verify};
@@ -96,19 +95,23 @@ fn counted() -> Vec<Case> {
     ]
 }
 
-/// Proven: the sizes that fit a GitHub-hosted runner.
-fn proven() -> Vec<Case> {
-    vec![
-        Case::fibonacci("fibonacci-asm-2000000", 2_000_000),
-        Case::hash("hash-50000", 50_000),
-        Case::workload("leanxmss-100", workload::leanxmss(100)),
-        Case::workload("leansphincs-26", workload::leansphincs(26)),
+/// Builds a case given its name.
+type Build = fn(&'static str) -> Case;
+
+/// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
+fn proven() -> [(&'static str, Build); 4] {
+    [
+        ("fibonacci-asm-2000000", |name| Case::fibonacci(name, 2_000_000)),
+        ("hash-50000", |name| Case::hash(name, 50_000)),
+        ("leanxmss-100", |name| Case::workload(name, workload::leanxmss(100))),
+        ("leansphincs-26", |name| Case::workload(name, workload::leansphincs(26))),
     ]
 }
 
 /// With `cycles_only`, count every case without a proof, as JSON or with `markdown` as a
-/// table; otherwise prove, verify and time the proven cases, as JSON.
-pub fn run(cycles_only: bool, markdown: bool, prover: &Prover, rate: Rate, plan: Plan) {
+/// table; otherwise prove, verify and time the proven cases, or only the one named `only`,
+/// as JSON.
+pub fn run(cycles_only: bool, markdown: bool, only: Option<&str>, prover: &Prover, rate: Rate, plan: Plan) {
     if markdown {
         return table(&counted());
     }
@@ -118,9 +121,16 @@ pub fn run(cycles_only: bool, markdown: bool, prover: &Prover, rate: Rate, plan:
             .map(|case| (case.name.to_string(), counts(&case.measure())))
             .collect()
     } else {
-        proven()
-            .iter()
-            .map(|case| (case.name.to_string(), proved(case, prover, rate, plan)))
+        let cases: Vec<_> = proven()
+            .into_iter()
+            .filter(|(name, _)| only.is_none_or(|only| only == *name))
+            .collect();
+        if cases.is_empty() {
+            refuse(format_args!("no tracked case is named {}", only.unwrap_or_default()));
+        }
+        cases
+            .into_iter()
+            .map(|(name, case)| (name.to_string(), proved(&case(name), prover, rate, plan)))
             .collect()
     };
     println!("{}", bencher_json(&report));
@@ -137,8 +147,11 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
     ]
 }
 
-/// The proving time, after checking the proof: the output is the native reference's and it
-/// verifies.
+/// A verification takes milliseconds, so one pass says little about it.
+const VERIFY_PASSES: usize = 20;
+
+/// The proving time, the proof's size and the verifying time, after checking the proof: the
+/// output is the native reference's and it verifies.
 fn proved(case: &Case, prover: &Prover, rate: Rate, plan: Plan) -> Vec<(&'static str, Metric)> {
     eprintln!("{}", case.name);
     let (Proved { proof, output, .. }, time) = plan.warm_then_measure(|_| {
@@ -151,8 +164,13 @@ fn proved(case: &Case, prover: &Prover, rate: Rate, plan: Plan) -> Vec<(&'static
         "{}: the output is the native reference's",
         case.name
     );
-    verify(&case.program, &output, &proof).expect("an honest proof verifies");
-    vec![("latency", Metric::nanoseconds(&time))]
+    let (verified, verify_time) = Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| verify(&case.program, &output, &proof));
+    verified.expect("an honest proof verifies");
+    vec![
+        ("latency", Metric::nanoseconds(&time)),
+        ("proof-size", Metric::exact(proof.to_bytes().len())),
+        ("verify", Metric::nanoseconds(&verify_time)),
+    ]
 }
 
 /// The counts as a markdown table, with the rows per table: what CI puts in each run's summary.

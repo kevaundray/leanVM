@@ -1,67 +1,68 @@
 name: Bench
 
-# Runs the benchmarks and saves each testbed's Bencher Metric Format JSON as the artifact
-# `bench-<testbed>`, with a PR's event as `pr-event`. It holds no secret, so it runs the
-# same for a fork's PR: bench-track.yml uploads the results once this succeeds.
+# Proves a PR's merge commit and its base (the merge commit's first parent) in turns on one
+# runner, so the comparison is free of which machine the job landed on: one job per testbed
+# and benchmark, each building both sides and running them `ROUNDS` times in the order base,
+# PR, PR, base, ... Each job saves its runs as the artifact `ab-<testbed>-<benchmark>`, and
+# bench-comment.yml, on the default branch, posts what changed on the PR. It gates nothing.
 #
-# The testbeds are GitHub-hosted, on every push and every PR, forks included: throwaway
-# machines with no secrets. A testbed's name is its Bencher history, so renaming one
-# starts a new one. Each pins its ISA: `target-cpu=native` would build for whichever CPU
-# the job lands on, and a cached build then dies of SIGILL on an older one (see rust.yml).
+# The testbeds are GitHub-hosted runners, forks' PRs included. Each pins its ISA:
+# `target-cpu=native` would build for whichever CPU the job lands on, and a cached build then
+# dies of SIGILL on an older one (see rust.yml).
 
 on:
-  push:
-    # The branches PRs target: their history is what a PR is compared against.
-    branches: [ "main", "riscv-exploration" ]
   pull_request:
     # Not `edited`: a description edit would restart, and so cancel, the PR's run.
     types: [ opened, reopened, synchronize ]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: bench-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  ROUNDS: 5
 
 jobs:
-  # What bench-track.yml needs to name the PR's Bencher branch and its start point.
-  event:
-    name: PR event
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pr-event
-          path: ${{ github.event_path }}
-
-  prove:
-    name: Prove (${{ matrix.testbed.name }})
+  ab:
+    name: ${{ matrix.benchmark }} (${{ matrix.testbed.name }})
     runs-on: ${{ matrix.testbed.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         testbed:
-          # x86-64 Linux.
-          - name: github-ubuntu
+          - name: x86-64
             runner: ubuntu-latest
             rustflags: -C target-cpu=haswell
-          # arm64 Linux: the NEON kernels, which are chosen at compile time on `aes` (PMULL)
-          # and `sha3` (EOR3), neither of which a generic aarch64 target enables.
-          - name: github-ubuntu-arm
+          # The NEON kernels, which are chosen at compile time on `aes` (PMULL) and `sha3`
+          # (EOR3), neither of which a generic aarch64 target enables.
+          - name: arm64
             runner: ubuntu-24.04-arm
             rustflags: -C target-cpu=neoverse-n2 -C target-feature=+aes,+sha3
+        # The cases of `proven()` in bins/leanvm/src/tracked.rs, and flock's hash batch.
+        benchmark:
+          - fibonacci-asm-2000000
+          - hash-50000
+          - leanxmss-100
+          - leansphincs-26
+          - flock-hash-batch-262144
     env:
       RUSTFLAGS: ${{ matrix.testbed.rustflags }}
+      BENCHMARK: ${{ matrix.benchmark }}
+      FLOCK: ${{ startsWith(matrix.benchmark, 'flock-') }}
+      FLOCK_N_LOG: 18
+      BENCH_REPEAT: 1
+      BENCH_COOLDOWN: 0
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The merge commit and its first parent, the base.
+          fetch-depth: 2
       - uses: dtolnay/rust-toolchain@stable
       # The CPU the testbed's ISA is pinned for must have what it enables, or it dies of SIGILL.
       - name: CPU features
@@ -73,16 +74,48 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.testbed.name }}
-      - name: Prove the programs
-        run: cargo leanvm bench --repeat 5 --cooldown 0 > programs.json && cat programs.json
-      - name: Prove flock's hash batch
+      - name: Build the PR and its base
+        run: |
+          build() {
+            mkdir -p "ab/$1"
+            if [ "$FLOCK" = true ]; then
+              exe=$(cargo bench -p flock --bench hash_batch --no-run --message-format=json \
+                | jq -r 'select(.reason == "compiler-artifact" and .target.name == "hash_batch") | .executable')
+              cp "$exe" "ab/$1/bench"
+            else
+              cargo build --release -p leanvm-cli
+              cp target/release/leanvm "ab/$1/bench"
+            fi
+          }
+          build head
+          git checkout --quiet --detach HEAD^1
+          build base
+          git checkout --quiet --detach "$GITHUB_SHA"
+      - name: Prove in turns
+        run: |
+          run() {
+            if [ "$FLOCK" = true ]; then
+              "ab/$1/bench" --json
+            else
+              "ab/$1/bench" bench --only "$BENCHMARK" --repeat 1 --cooldown 0
+            fi
+          }
+          for round in $(seq "$ROUNDS"); do
+            if [ $((round % 2)) = 1 ]; then order="base head"; else order="head base"; fi
+            for side in $order; do
+              run "$side" > result.json
+              jq -c --argjson round "$round" --arg side "$side" '{round: $round, side: $side, results: .}' result.json | tee -a runs.jsonl
+            done
+          done
+      - name: Save the runs
         env:
-          FLOCK_N_LOG: 18
-          BENCH_REPEAT: 5
-        run: cargo bench -p flock --bench hash_batch -- --json > flock.json && cat flock.json
-      - name: Merge the reports
-        run: jq -s 'add' programs.json flock.json > bench.json
+          PR: ${{ github.event.number }}
+          TESTBED: ${{ matrix.testbed.name }}
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name: *//p' | head -n1)
+          jq -n --argjson pr "$PR" --arg base "$(git rev-parse HEAD^1)" --arg testbed "$TESTBED" --arg cpu "$cpu" \
+            --slurpfile runs runs.jsonl '{pr: $pr, base: $base, testbed: $testbed, cpu: $cpu, runs: $runs}' > ab.json
       - uses: actions/upload-artifact@v4
         with:
-          name: bench-${{ matrix.testbed.name }}
-          path: bench.json
+          name: ab-${{ matrix.testbed.name }}-${{ matrix.benchmark }}
+          path: ab.json
