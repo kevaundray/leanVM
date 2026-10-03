@@ -8,7 +8,9 @@ use primitives::{pretty_f64, pretty_integer};
 use crate::{fibonacci, workload};
 
 /// The tables' names, in the recursion machine's order.
-const TABLES: [&str; 7] = ["EMUL", "EXK", "COMPRESS", "LEAF", "SPLIT", "CAST", "PUB"];
+const TABLES: [&str; 9] = [
+    "EMUL", "EXK", "HASH0", "HASH1", "HASH2", "HASH3", "SPLIT", "CAST", "PUB",
+];
 
 /// The inner program: Fibonacci of `n` steps, or `n` leanXMSS signatures.
 fn inner(program: &str, n: usize) -> (String, Program, Vec<u64>, [u64; 4]) {
@@ -52,7 +54,10 @@ pub fn run(program: &str, n: usize, arity: usize, inner_rate: Rate, prover: &Pro
 
     let statement_words: usize = outer.inners.iter().map(recursion::InnerStatement::n_words).sum();
     let proof_bytes = outer.proof.to_bytes().len();
-    println!("Recursion over {arity} x {title}, inner log-inv-rate {}", inner_rate.log_inv_rate());
+    println!(
+        "Recursion over {arity} x {title}, inner log-inv-rate {}",
+        inner_rate.log_inv_rate()
+    );
     let rows: Vec<String> = TABLES
         .iter()
         .zip(stats.rows.iter().zip(&stats.log_rows))

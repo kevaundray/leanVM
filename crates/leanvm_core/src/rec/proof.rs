@@ -16,7 +16,7 @@ use primitives::field::{F64, F192};
 use zk_alloc::ArenaVec;
 
 /// The tables whose rows are BLAKE2s compressions, each with a packed witness of its own.
-const HASH_TABLES: [Table; 2] = [Table::Compress, Table::Leaf];
+const HASH_TABLES: [Table; super::circuit::N_HASH] = Table::HASH;
 
 /// The committed columns before the owned tables': the hash tables' packed witnesses.
 const N_SHARED: usize = HASH_TABLES.len();
@@ -230,7 +230,10 @@ impl Witness {
     /// One view per global column: a committed column's window, a port's own buffer.
     fn columns<'a>(&'a self, layout: &Layout) -> Vec<&'a [F64]> {
         let mut cols: Vec<&[F64]> = (layout.placements.iter())
-            .map(|p| p.window().map_or(&[][..], |w| &self.q[w.offset..w.offset + (1 << w.n_vars)]))
+            .map(|p| {
+                p.window()
+                    .map_or(&[][..], |w| &self.q[w.offset..w.offset + (1 << w.n_vars)])
+            })
             .collect();
         for (i, buf) in &self.virt {
             cols[*i] = buf;
@@ -264,7 +267,14 @@ pub fn prove(circuit: &Circuit, a: &Assignment, iv: [F64; 4], public_input: [F64
     let (push, pull) = machine::bus_blocks(circuit, &a.statement, &layout.taus, &spans());
     let (bus_claims, table_claims) = {
         let cols = w.columns(&layout);
-        let bus = crate::stage!("Prove bus", || leaf::prove_balance(&push, &pull, &[], &cols, &spans(), &mut ps));
+        let bus = crate::stage!("Prove bus", || leaf::prove_balance(
+            &push,
+            &pull,
+            &[],
+            &cols,
+            &spans(),
+            &mut ps
+        ));
         let claims = crate::stage!("Prove constraints", || {
             let xi = ps.sample();
             let sums: Vec<F192> = (0..N_OWNED).map(|t| bus.sigmas[0][t] + xi * bus.sigmas[1][t]).collect();
@@ -367,7 +377,14 @@ mod tests {
     }
 
     fn verify_run(circuit: &Circuit, statement: &[Limbs], proof: &Proof) -> Result<(), RecError> {
-        verify(circuit, statement, IV, PUBLIC, pcs::Rate::MIN.log_inv_rate().into(), proof)
+        verify(
+            circuit,
+            statement,
+            IV,
+            PUBLIC,
+            pcs::Rate::MIN.log_inv_rate().into(),
+            proof,
+        )
     }
 
     /// Wires of [`every_kind`] a test forges.
@@ -444,7 +461,11 @@ mod tests {
     #[test]
     fn every_table_and_slot_kind_proves_and_verifies() {
         let (circuit, a, _) = every_kind();
-        assert!(circuit.row_counts().iter().all(|&n| n > 0), "{:?}", circuit.row_counts());
+        let counts = circuit.row_counts();
+        assert!(
+            Table::ALL.iter().all(|t| t.is_hash() || counts[*t as usize] > 0),
+            "{counts:?}"
+        );
         let proof = prove_run(&circuit, &a);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), Ok(()));
     }
@@ -452,7 +473,9 @@ mod tests {
     /// The `EMUL` and `EXK` outputs are `a·b + d` and `a·k + d` in `E`.
     #[test]
     fn emul_and_exk_outputs_are_e_arithmetic() {
-        let words: Vec<u64> = (1..=9u64).map(|i| i.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ (i << 61)).collect();
+        let words: Vec<u64> = (1..=9u64)
+            .map(|i| i.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ (i << 61))
+            .collect();
         let cols: Vec<F64> = words.iter().map(|&w| F64(w)).collect();
         let e = |c: usize| F192::new(words[c], words[c + 1], words[c + 2]);
         let out = |t: Table| {
@@ -507,19 +530,42 @@ mod tests {
             let c = b.e_const(F192::new(i + 5, 1, 0));
             e = b.mul_add(e, c, e);
             e = b.mul_const(e, F192::from(F64(i + 3)));
-            acc = b.compress(acc, e, ds).0;
-            let m: [Kw; 8] = std::array::from_fn(|j| b.free_k(i * 8 + j as u64));
-            acc = b.leaf_block(acc, m, 64 * (i + 1), i == 2);
             let w = b.free_k(i * 0x1234_5678);
             b.split(w);
             b.d_to_k(acc);
+        }
+        for i in 0..61u64 {
+            acc = if i % 2 == 0 {
+                b.compress(acc, e, ds).0
+            } else {
+                let m: [Kw; 8] = std::array::from_fn(|j| b.free_k(i * 8 + j as u64));
+                b.leaf_block(acc, m, 64 * (i + 1), i % 4 == 3)
+            };
         }
         b.expose_d(acc);
         let (circuit, a, failures) = b.finish();
         assert!(failures.is_empty(), "{failures:?}");
         let counts = circuit.row_counts();
-        assert!(counts.iter().all(|&n| n > 1 && !n.is_power_of_two()), "{counts:?}");
+        assert_eq!(Table::HASH.map(|t| counts[t as usize]), [32, 16, 8, 5]);
+        let others = Table::ALL.iter().filter(|t| !t.is_hash() || **t == Table::Hash3);
+        assert!(
+            others
+                .map(|&t| counts[t as usize])
+                .all(|n| n > 1 && !n.is_power_of_two()),
+            "{counts:?}"
+        );
         let proof = prove_run(&circuit, &a);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), Ok(()));
+    }
+
+    /// The hash rows fill powers of two in creation order, the last table taking the rest.
+    #[test]
+    fn hash_rows_split_into_powers_of_two() {
+        use crate::rec::circuit::hash_split;
+        assert_eq!(hash_split(14_744), [8192, 4096, 2048, 408]);
+        assert_eq!(hash_split(9_966), [8192, 1024, 512, 238]);
+        assert_eq!(hash_split(61), [32, 16, 8, 5]);
+        assert_eq!(hash_split(5), [5, 0, 0, 0]);
+        assert_eq!(hash_split(0), [0; 4]);
     }
 }

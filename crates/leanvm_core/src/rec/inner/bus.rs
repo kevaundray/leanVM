@@ -79,9 +79,7 @@ fn verify_products(b: &mut Builder, t: &mut Transcript, mu: usize) -> (Vec<Ew>, 
             round_point.push(challenge);
             claim = poly_eval(b, &h, challenge);
         }
-        let tails: Vec<[Ew; 4]> = (0..2)
-            .map(|_| std::array::from_fn(|_| t.next_scalar(b)))
-            .collect();
+        let tails: Vec<[Ew; 4]> = (0..2).map(|_| std::array::from_fn(|_| t.next_scalar(b))).collect();
         let products: Vec<Ew> = tails.iter().map(|tail| product(b, tail)).collect();
         let expected = poly_eval(b, &products, lambda);
         b.eq_e(claim, expected);
@@ -122,9 +120,8 @@ pub(super) fn verify_balance(b: &mut Builder, t: &mut Transcript, l: &Layout, ts
     let sides: [(&[Block], &[Producer], &crate::leaf::Layout); 2] =
         [(&l.push, &l.producers, &push_lay), (&l.pull, &[], &pull_lay)];
     for (s, (blocks, side_producers, lay)) in sides.into_iter().enumerate() {
-        let selector = |b: &mut Builder, block: usize, kappa: usize| {
-            eq_bits(b, lay.offsets[block] >> kappa, &point[kappa..mu])
-        };
+        let selector =
+            |b: &mut Builder, block: usize, kappa: usize| eq_bits(b, lay.offsets[block] >> kappa, &point[kappa..mu]);
         let mut sel_terms: Vec<Ew> = Vec::new();
         let mut index = blocks.len();
         for p in side_producers {
@@ -275,7 +272,9 @@ fn producer_affine_evals(b: &mut Builder, p: &Producer, w: &[Ew], beta: Ew, chi:
             constant = b.square(constant);
             for (weight, monomials) in &mut affine {
                 *weight = b.square(*weight);
-                monomials.iter_mut().for_each(|m| *m = (primitives::field::F64(*m) * primitives::field::F64(*m)).0);
+                monomials
+                    .iter_mut()
+                    .for_each(|m| *m = (primitives::field::F64(*m) * primitives::field::F64(*m)).0);
             }
         }
     }
@@ -290,7 +289,12 @@ pub(super) struct TableSumcheck {
 
 /// The announced sizes: every height and the rate are the shape's, the final clock a live, cycle-aligned
 /// word (`Announcement::read`).
-pub(super) fn read_announcement(b: &mut Builder, t: &mut Transcript, taus: &[usize; N_TABLES], log_inv_rate: usize) -> Ew {
+pub(super) fn read_announcement(
+    b: &mut Builder,
+    t: &mut Transcript,
+    taus: &[usize; N_TABLES],
+    log_inv_rate: usize,
+) -> Ew {
     for &tau in taus {
         let x = t.next_scalar(b);
         b.eq_e_const(x, F192::new(tau as u64, 0, 0));
@@ -312,14 +316,24 @@ pub(super) fn read_announcement(b: &mut Builder, t: &mut Transcript, taus: &[usi
 }
 
 /// `constraints::verify` on the RISC-V batch (`cpu::batch`), then `deferred::program_claim`.
-pub(super) fn table_sumcheck(b: &mut Builder, t: &mut Transcript, l: &Layout, bus: &Bus) -> (TableSumcheck, ProgramClaim) {
+pub(super) fn table_sumcheck(
+    b: &mut Builder,
+    t: &mut Transcript,
+    l: &Layout,
+    bus: &Bus,
+) -> (TableSumcheck, ProgramClaim) {
     let xi = t.sample(b);
     let push = b.one();
     let pull = xi;
     let target = b.mul_add(xi, bus.totals[1], bus.totals[0]);
     let spans = &Schema::get().spans;
 
-    let taus: Vec<usize> = l.taus.iter().copied().chain(l.producers.iter().map(|p| p.kappa)).collect();
+    let taus: Vec<usize> = l
+        .taus
+        .iter()
+        .copied()
+        .chain(l.producers.iter().map(|p| p.kappa))
+        .collect();
     let n = taus.iter().copied().max().unwrap_or(0);
     let mut claim = target;
     let mut weights: Vec<Ew> = vec![b.one(); taus.len()];
@@ -332,10 +346,17 @@ pub(super) fn table_sumcheck(b: &mut Builder, t: &mut Transcript, l: &Layout, bu
         claim = poly_eval(b, &h, rk);
         let s = b.add(bus.point[m], rk);
         for (w, &tau) in weights.iter_mut().zip(&taus) {
-            *w = if tau > m { times_one_plus(b, *w, s) } else { b.mul(*w, rk) };
+            *w = if tau > m {
+                times_one_plus(b, *w, s)
+            } else {
+                b.mul(*w, rk)
+            };
         }
     }
-    let chi: Vec<Ew> = chi.into_iter().map(|c| c.expect("every round binds its variable")).collect();
+    let chi: Vec<Ew> = chi
+        .into_iter()
+        .map(|c| c.expect("every round binds its variable"))
+        .collect();
 
     let mut residual = claim;
     let mut claims = Vec::with_capacity(taus.len());
@@ -358,7 +379,9 @@ pub(super) fn table_sumcheck(b: &mut Builder, t: &mut Transcript, l: &Layout, bu
         claims.push((chi[..l.taus[table]].to_vec(), values));
     }
 
-    let [p] = &l.producers[..] else { unreachable!("one lookup array, the bytecode") };
+    let [p] = &l.producers[..] else {
+        unreachable!("one lookup array, the bytecode")
+    };
     let point = chi[..p.kappa].to_vec();
     let bits = t.next_scalars(b, p.bits);
     let public = producer_affine_evals(b, p, &bus.weights, bus.beta, &point);
@@ -381,7 +404,9 @@ pub(super) fn table_sumcheck(b: &mut Builder, t: &mut Transcript, l: &Layout, bu
     claims.push((point.clone(), bits));
     let target_weight = product(b, &chi);
 
-    let [image] = &bus.sparse[..] else { unreachable!("RAM's image is the one sparse column") };
+    let [image] = &bus.sparse[..] else {
+        unreachable!("RAM's image is the one sparse column")
+    };
     let side_power = if image.side == 0 { push } else { pull };
     let tw = b.mul(target_weight, side_power);
     let image_weight = b.mul(tw, image.weight);
@@ -422,7 +447,13 @@ fn slot_claim(l: &Layout, c: ColumnClaim) -> StackClaim {
 }
 
 /// `Layout::opening_claims`: the bus's framework claims, each table's columns, then the exit's.
-pub(super) fn opening_claims(b: &mut Builder, l: &Layout, bus_claims: Vec<ColumnClaim>, tables: &TableSumcheck, output: &[Ew; 4]) -> Vec<StackClaim> {
+pub(super) fn opening_claims(
+    b: &mut Builder,
+    l: &Layout,
+    bus_claims: Vec<ColumnClaim>,
+    tables: &TableSumcheck,
+    output: &[Ew; 4],
+) -> Vec<StackClaim> {
     let spans = &Schema::get().spans;
     let mut claims = bus_claims;
     for (&(base, _), (chi, evals)) in spans.iter().zip(&tables.claims) {
@@ -454,7 +485,6 @@ pub(super) fn opening_claims(b: &mut Builder, l: &Layout, bus_claims: Vec<Column
     }
     claims.into_iter().map(|c| slot_claim(l, c)).collect()
 }
-
 
 #[cfg(test)]
 mod tests {

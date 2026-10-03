@@ -142,7 +142,9 @@ fn valid_shape(program: &Program, taus: &[usize; N_TABLES], log_inv_rate: usize)
 /// parse one way.
 fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredClaims, ring: &RingClaims) -> bool {
     let l = Layout::new(program.rv(), *taus, 0);
-    let [p] = &l.producers[..] else { unreachable!("one lookup array, the bytecode") };
+    let [p] = &l.producers[..] else {
+        unreachable!("one lookup array, the bytecode")
+    };
     let program_ok = match &claims.program.terms[..] {
         [(one, point)] => {
             *one == F192::ONE
@@ -179,7 +181,9 @@ fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredCla
 /// multiplicities' bits at the table sumcheck's point. `s` is well formed.
 fn ring_shares_hold(program: &Program, s: &InnerStatement) -> bool {
     let l = Layout::new(program.rv(), s.taus, 0);
-    let [p] = &l.producers[..] else { unreachable!("one lookup array, the bytecode") };
+    let [p] = &l.producers[..] else {
+        unreachable!("one lookup array, the bytecode")
+    };
     let r = &s.ring;
     let mut bits = r.bits.clone();
     bits.resize(::pcs::pack::PACKING_WIDTH, F192::ZERO);
@@ -272,7 +276,12 @@ fn statement_words(inners: &[InnerStatement]) -> Vec<Limbs> {
     let mut words = Vec::new();
     for s in inners {
         words.extend(s.output.map(|o| [o, 0, 0, 0]));
-        words.extend(claim_words(&s.claims).into_iter().chain(ring_words(&s.ring)).map(|x| [x.c0, x.c1, x.c2, 0]));
+        words.extend(
+            claim_words(&s.claims)
+                .into_iter()
+                .chain(ring_words(&s.ring))
+                .map(|x| [x.c0, x.c1, x.c2, 0]),
+        );
     }
     words
 }
@@ -390,7 +399,9 @@ fn shapes_of<'p>(inners: &[InnerProof<'p>]) -> Result<Vec<Shape<'p>>, RecursionE
 /// # Errors
 ///
 /// Refuses an inner proof with no valid shape, and one that does not verify.
-pub fn circuit_of(inners: &[InnerProof]) -> Result<(Circuit, circuit::Assignment, Vec<InnerStatement>), RecursionError> {
+pub fn circuit_of(
+    inners: &[InnerProof],
+) -> Result<(Circuit, circuit::Assignment, Vec<InnerStatement>), RecursionError> {
     let shapes = shapes_of(inners)?;
     let sources: Vec<Source> = inners.iter().map(|p| Source::Proof(&p.proof)).collect();
     let outputs: Vec<[u64; 4]> = inners.iter().map(|p| p.output).collect();

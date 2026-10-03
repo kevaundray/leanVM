@@ -200,8 +200,8 @@ pub struct VerifyError(CpuError);
 /// [`recursion::verify`] settles against the programs after the outer proof.
 pub mod recursion {
     use super::{Error, Program, Proof, Prover, Rate};
-    pub use leanvm_core::rec::{InnerStatement, RecursionError, RecursionProof};
     use leanvm_core::rec::{self, InnerProof, circuit::N_TABLES};
+    pub use leanvm_core::rec::{InnerStatement, RecursionError, RecursionProof};
 
     /// A proof to recurse on: its program, the proof, and the output it proves.
     #[derive(Clone, Copy)]

@@ -55,7 +55,11 @@ fn times_one_plus(b: &mut Builder, acc: Option<Ew>, x: Ew) -> Ew {
 
 /// `acc·x` if `bit`, else `acc·(1 + x)`: one coordinate of a Boolean point's equality weight.
 fn select(b: &mut Builder, acc: Option<Ew>, x: Ew, bit: bool) -> Ew {
-    if bit { times(b, acc, x) } else { times_one_plus(b, acc, x) }
+    if bit {
+        times(b, acc, x)
+    } else {
+        times_one_plus(b, acc, x)
+    }
 }
 
 /// `acc·(1 + p + x)`: one coordinate of `eq(p, x)`.
@@ -71,8 +75,14 @@ fn eq_table(b: &mut Builder, r: &[Ew], len: usize) -> Vec<Option<Ew>> {
     for (i, &ri) in r.iter().enumerate() {
         let half = 1usize << i;
         let need = len.min(2 * half);
-        let lo: Vec<Option<Ew>> = eq[..need.min(half)].iter().map(|&e| Some(times_one_plus(b, e, ri))).collect();
-        let hi: Vec<Option<Ew>> = eq[..need.saturating_sub(half)].iter().map(|&e| Some(times(b, e, ri))).collect();
+        let lo: Vec<Option<Ew>> = eq[..need.min(half)]
+            .iter()
+            .map(|&e| Some(times_one_plus(b, e, ri)))
+            .collect();
+        let hi: Vec<Option<Ew>> = eq[..need.saturating_sub(half)]
+            .iter()
+            .map(|&e| Some(times(b, e, ri)))
+            .collect();
         eq = lo;
         eq.extend(hi);
     }
@@ -146,9 +156,10 @@ enum Coord {
 /// `stack_open::stack_claim_eq_at`: the claim's equality weight at the full stack point `x`.
 fn stack_claim_eq_at(b: &mut Builder, claim: &StackClaim, x: &[Ew]) -> Ew {
     let (low, sel): (Vec<Coord>, usize) = match claim {
-        StackClaim::Point { offset, low_point, .. } => {
-            (low_point.iter().map(|&p| Coord::At(p)).collect(), offset >> low_point.len())
-        }
+        StackClaim::Point { offset, low_point, .. } => (
+            low_point.iter().map(|&p| Coord::At(p)).collect(),
+            offset >> low_point.len(),
+        ),
         StackClaim::Strided {
             offset,
             slot,
@@ -226,8 +237,11 @@ pub fn verify(
     let lambdas = powers(b, lambda, n_rs + slots.len());
     let lambdas_pd = &lambdas[n_rs..];
     let map_values: [F192; 6] = std::array::from_fn(|i| b.e(map[i]));
-    let slices: Vec<Vec<F192>> =
-        rings.iter().flat_map(|r| &r.claims).map(|c| c.s_hat_v.iter().map(|&w| b.e(w)).collect()).collect();
+    let slices: Vec<Vec<F192>> = rings
+        .iter()
+        .flat_map(|r| &r.claims)
+        .map(|c| c.s_hat_v.iter().map(|&w| b.e(w)).collect())
+        .collect();
     let slice_refs: Vec<&[F192]> = slices.iter().map(Vec::as_slice).collect();
     let ring_target_wire = b.free_e(ring_target(&map_values, b.e(lambda), &slice_refs));
 
@@ -241,7 +255,12 @@ pub fn verify(
 
     let points: Vec<Vec<Vec<F192>>> = rings
         .iter()
-        .map(|r| r.claims.iter().map(|c| c.suffix_point.iter().map(|&w| b.e(w)).collect()).collect())
+        .map(|r| {
+            r.claims
+                .iter()
+                .map(|c| c.suffix_point.iter().map(|&w| b.e(w)).collect())
+                .collect()
+        })
         .collect();
     let mut share = None;
     let eval_b_at = |b: &mut Builder, x: &[Ew], init: Option<Ew>| -> Ew {
@@ -261,7 +280,9 @@ pub fn verify(
         acc
     };
 
-    b.scope("whir", |b| whir(b, t, &config, log_n, shape.n_lanes, target, root, eval_b_at));
+    b.scope("whir", |b| {
+        whir(b, t, &config, log_n, shape.n_lanes, target, root, eval_b_at)
+    });
     let (point, weight) = share.expect("the terminal check evaluates the weight");
     RingShare {
         map,
@@ -410,13 +431,7 @@ fn enforced_sum_e(b: &mut Builder, rows: &[Vec<Ew>], v: &[Ew], w: &[Option<Ew>])
 
 /// `whir_induce::induce_sumcheck_evaluate_at_residual` at one point:
 /// `Σ_i w_i·Π_k (1 + p_k·(1 + s_k(q_i)/s_k(v_k)))`, with `q_i` the query index as a `K` element.
-fn induce_at(
-    b: &mut Builder,
-    log_msg_cols: usize,
-    queries: &[Vec<Kw>],
-    weights: &[Option<Ew>],
-    point: &[Ew],
-) -> Ew {
+fn induce_at(b: &mut Builder, log_msg_cols: usize, queries: &[Vec<Kw>], weights: &[Option<Ew>], point: &[Ew]) -> Ew {
     assert_eq!(point.len(), log_msg_cols);
     let sks = eval_sk_at_vks(log_msg_cols);
     // 1 + p·(1 + s/σ) = (1 + p) + (p/σ)·s.
@@ -561,7 +576,10 @@ fn whir(
 
     for i in 0..r {
         let k_i = config.level_ks()[i];
-        assert!(n_current >= k_i, "level {i} of the configuration does not fit the witness");
+        assert!(
+            n_current >= k_i,
+            "level {i} of the configuration does not fit the witness"
+        );
         let level_rs = fold_rounds(b, t, k_i, &mut t_r, &mut quad);
         ris.extend_from_slice(&level_rs);
         n_current -= k_i;
@@ -726,10 +744,9 @@ mod tests {
         for (offset, slot, stride_log) in [(4 * lane, 5, 3), (6 * lane, 0, 0)] {
             let point = rng.ext_vec(mu - 6 - stride_log);
             let value = q.map_or(F192::ZERO, |q| {
-                eq(&point)
-                    .iter()
-                    .enumerate()
-                    .fold(F192::ZERO, |acc, (j, e)| acc + e.mul_base(q[offset + slot + (j << stride_log)]))
+                eq(&point).iter().enumerate().fold(F192::ZERO, |acc, (j, e)| {
+                    acc + e.mul_base(q[offset + slot + (j << stride_log)])
+                })
             });
             slots.push(SlotClaim::Strided {
                 offset,
@@ -923,7 +940,10 @@ mod tests {
             };
             bad.merkle[opening].path[1][0] ^= 1;
             let (_, failures, _) = build(shape, log_inv_rate, &slots, &rings, Source::Proof(&bad));
-            assert!(!failures.is_empty(), "{what}: a tampered sibling of opening {opening} passes");
+            assert!(
+                !failures.is_empty(),
+                "{what}: a tampered sibling of opening {opening} passes"
+            );
         }
     }
 

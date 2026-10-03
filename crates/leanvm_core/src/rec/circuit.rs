@@ -42,13 +42,16 @@ pub enum Table {
     Emul,
     /// `c = a·k + d`, `k` in `K`. Slots `a`, `k`, `d`, `c`.
     Exk,
-    /// One BLAKE2s compression of two 32-byte halves from the parameter IV, a transcript step or a Merkle
-    /// node. Slots: the first half (through the Merkle selector), the selector bit, the observed scalar, the
-    /// domain tag, the output, the output's first three words as a challenge.
-    Compress,
-    /// One block of a Merkle leaf's hash. Slots: the chaining value, the counter and final flag, the eight
-    /// message words, the output.
-    Leaf,
+    /// One BLAKE2s compression each: a transcript step or a Merkle node from the parameter IV, or a block of a
+    /// Merkle leaf's hash. The hash rows are spread over four tables, in creation order ([`hash_split`]), so
+    /// that their heights' padding stays small. Slots: the chaining value, the counter and final flag, the
+    /// message's first half through the Merkle selector, the selector bit, the message's words 4 to 6 as an
+    /// `E` element, its word 7, the output, the output's first three words as a challenge, the eight message
+    /// words.
+    Hash0,
+    Hash1,
+    Hash2,
+    Hash3,
     /// A word and its 64 bits.
     Split,
     /// Four words seen as a digest, an `E` element, two 128-bit `E` halves, and four `K` words.
@@ -58,19 +61,67 @@ pub enum Table {
 }
 
 /// How many tables there are.
-pub const N_TABLES: usize = 7;
+pub const N_TABLES: usize = 9;
+
+/// How many tables hold the hash rows.
+pub const N_HASH: usize = 4;
+
+/// The fewest rows a hash table has, flock's floor.
+pub const MIN_HASH_ROWS: usize = 8;
+
+/// How many of `n` hash rows each hash table takes, in creation order: each the largest power of two not
+/// above what remains (all of it, at most [`MIN_HASH_ROWS`]), the last everything left.
+pub const fn hash_split(n: usize) -> [usize; N_HASH] {
+    let mut split = [0; N_HASH];
+    let mut left = n;
+    let mut i = 0;
+    while i < N_HASH {
+        split[i] = if i == N_HASH - 1 || left <= MIN_HASH_ROWS {
+            left
+        } else {
+            1 << left.ilog2()
+        };
+        left -= split[i];
+        i += 1;
+    }
+    split
+}
 
 impl Table {
     /// Every table, in protocol order.
     pub const ALL: [Self; N_TABLES] = [
         Self::Emul,
         Self::Exk,
-        Self::Compress,
-        Self::Leaf,
+        Self::Hash0,
+        Self::Hash1,
+        Self::Hash2,
+        Self::Hash3,
         Self::Split,
         Self::Cast,
         Self::Pub,
     ];
+
+    /// The hash tables, in protocol order.
+    pub const HASH: [Self; N_HASH] = [Self::Hash0, Self::Hash1, Self::Hash2, Self::Hash3];
+
+    pub const fn is_hash(self) -> bool {
+        matches!(self, Self::Hash0 | Self::Hash1 | Self::Hash2 | Self::Hash3)
+    }
+
+    /// Its name in reports.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Emul => "EMUL",
+            Self::Exk => "EXK",
+            Self::Hash0 => "HASH0",
+            Self::Hash1 => "HASH1",
+            Self::Hash2 => "HASH2",
+            Self::Hash3 => "HASH3",
+            Self::Split => "SPLIT",
+            Self::Cast => "CAST",
+            Self::Pub => "PUB",
+        }
+    }
 
     /// Its slots' kinds; a `Pub` slot takes any kind.
     pub const fn slot_kinds(self) -> &'static [Kind] {
@@ -78,8 +129,7 @@ impl Table {
         match self {
             Self::Emul => &[E, E, E, E],
             Self::Exk => &[E, K, E, E],
-            Self::Compress => &[D, K, E, K, D, E],
-            Self::Leaf => &[D, D, K, K, K, K, K, K, K, K, D],
+            Self::Hash0 | Self::Hash1 | Self::Hash2 | Self::Hash3 => &HASH_KINDS,
             Self::Split => &SPLIT_KINDS,
             Self::Cast => &[D, E, E, E, K, K, K, K],
             Self::Pub => &[K],
@@ -104,6 +154,15 @@ impl Table {
 }
 
 const SPLIT_KINDS: [Kind; 65] = [Kind::K; 65];
+
+/// The slots of a hash row: `h`, `(t, f)`, the muxed half, `b`, `x`, `ds`, the output, the challenge, `m0..m7`.
+const HASH_KINDS: [Kind; 16] = {
+    use Kind::{D, E, K};
+    [D, D, D, K, E, K, D, E, K, K, K, K, K, K, K, K]
+};
+
+/// The number of slots of a hash row.
+const HASH_SLOTS: usize = HASH_KINDS.len();
 
 /// The domain tags of the transcript's compressions (`fiat_shamir`).
 pub mod tag {
@@ -143,10 +202,9 @@ pub struct Assignment {
     /// Per table, row-major, each row's slots' own wires, whose values the slots carry.
     pub rows: [Vec<u32>; N_TABLES],
     pub values: Vec<Limbs>,
-    /// Per `Compress` row and per `Leaf` row, its inputs.
-    pub compress: Vec<HashInputs>,
-    pub leaf: Vec<HashInputs>,
-    /// Per `Compress` row, its selector bit.
+    /// Per hash row, in creation order (the hash tables' rows one after another), its inputs and its
+    /// selector bit.
+    pub hash: Vec<HashInputs>,
     pub selector: Vec<u64>,
     /// The statement's words.
     pub statement: Vec<Limbs>,
@@ -158,10 +216,11 @@ pub struct Builder {
     kinds: Vec<Kind>,
     parent: Vec<u32>,
     rows: [Vec<u32>; N_TABLES],
+    /// The hash rows' slots, in creation order, which [`Builder::finish`] spreads over the hash tables.
+    hash_rows: Vec<u32>,
     pubs: Vec<PubSource>,
     consts: HashMap<(Kind, Limbs), u32>,
-    compress: Vec<HashInputs>,
-    leaf: Vec<HashInputs>,
+    hash: Vec<HashInputs>,
     selector: Vec<u64>,
     statement: Vec<Limbs>,
     scope: Vec<String>,
@@ -211,10 +270,10 @@ impl Builder {
             kinds: Vec::new(),
             parent: Vec::new(),
             rows: Default::default(),
+            hash_rows: Vec::new(),
             pubs: Vec::new(),
             consts: HashMap::new(),
-            compress: Vec::new(),
-            leaf: Vec::new(),
+            hash: Vec::new(),
             selector: Vec::new(),
             statement: Vec::new(),
             scope: Vec::new(),
@@ -242,9 +301,16 @@ impl Builder {
     fn row(&mut self, table: Table, slots: &[u32]) {
         debug_assert_eq!(slots.len(), table.n_slots());
         for (&w, &kind) in slots.iter().zip(table.slot_kinds()) {
-            debug_assert!(table == Table::Pub || self.kinds[w as usize] == kind, "{table:?} slot kind");
+            debug_assert!(
+                table == Table::Pub || self.kinds[w as usize] == kind,
+                "{table:?} slot kind"
+            );
         }
-        self.rows[table as usize].extend_from_slice(slots);
+        if table.is_hash() {
+            self.hash_rows.extend_from_slice(slots);
+        } else {
+            self.rows[table as usize].extend_from_slice(slots);
+        }
     }
 
     /// Run `f` under a name, which an equality that fails reports.
@@ -469,7 +535,7 @@ impl Builder {
 
     // Hashing.
 
-    /// One `Compress` row: `compress(acc, (x, ds))` for a transcript step, the selector at zero.
+    /// One hash row: `compress(acc, (x, ds))` for a transcript step, the selector at zero.
     ///
     /// Returns the output and its first three words as a challenge.
     pub fn compress(&mut self, acc: Dw, x: Ew, ds: Kw) -> (Dw, Ew) {
@@ -479,29 +545,32 @@ impl Builder {
         self.compress_row(acc, zero, x, ds, m, 0)
     }
 
-    /// One `Compress` row as a Merkle node: the parent of `acc` and `sibling`, `acc` on the right if `bit`.
+    /// One hash row as a Merkle node: the parent of `acc` and `sibling`, `acc` on the right if `bit`.
     pub fn node(&mut self, acc: Dw, bit: Kw, sibling: Limbs) -> Dw {
         let (a, b) = (self.d(acc), self.k(bit));
         let (left, right) = if b == 1 { (sibling, a) } else { (a, sibling) };
-        let m = [left[0], left[1], left[2], left[3], right[0], right[1], right[2], right[3]];
+        let m = [
+            left[0], left[1], left[2], left[3], right[0], right[1], right[2], right[3],
+        ];
         let x = self.free_e(F192::new(m[4], m[5], m[6]));
         let ds = self.free_k(m[7]);
         self.compress_row(acc, bit, x, ds, m, b).0
     }
 
+    /// A compression from the parameter IV: its chaining value and its counter and flag are constants, its
+    /// message words free but for what the muxed half, `x` and `ds` hold them to.
     fn compress_row(&mut self, acc: Dw, bit: Kw, x: Ew, ds: Kw, m: [u64; 8], b: u64) -> (Dw, Ew) {
         let iv = param_iv();
-        let inputs: HashInputs = [64, FINAL, iv[0], iv[1], iv[2], iv[3], m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7]];
-        let out = compress_words(&inputs);
-        let o = Dw(self.wire(Kind::D, out));
-        let ch = Ew(self.wire(Kind::E, [out[0], out[1], out[2], 0]));
-        self.row(Table::Compress, &[acc.0, bit.0, x.0, ds.0, o.0, ch.0]);
-        self.compress.push(inputs);
-        self.selector.push(b);
-        (o, ch)
+        let h = self.d_const(iv);
+        let tf = self.d_const([64, FINAL, 0, 0]);
+        let words = m.map(|v| self.free_k(v).0);
+        let inputs: HashInputs = [
+            64, FINAL, iv[0], iv[1], iv[2], iv[3], m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
+        ];
+        self.hash_row([h.0, tf.0, acc.0, bit.0, x.0, ds.0], words, inputs, b)
     }
 
-    /// One `Leaf` row: block `m` absorbed into `h` at byte counter `t`, final if `last`.
+    /// One hash row: block `m` absorbed into `h` at byte counter `t`, final if `last`.
     pub fn leaf_block(&mut self, h: Dw, m: [Kw; 8], t: u64, last: bool) -> Dw {
         let f = if last { FINAL } else { 0 };
         let tf = self.d_const([t, f, 0, 0]);
@@ -510,13 +579,28 @@ impl Builder {
         for (slot, w) in inputs[6..].iter_mut().zip(m) {
             *slot = self.k(w);
         }
-        let o = Dw(self.wire(Kind::D, compress_words(&inputs)));
-        let mut slots = vec![h.0, tf.0];
-        slots.extend(m.iter().map(|w| w.0));
-        slots.push(o.0);
-        self.row(Table::Leaf, &slots);
-        self.leaf.push(inputs);
-        o
+        let v = &inputs[6..];
+        let acc = self.free_d([v[0], v[1], v[2], v[3]]);
+        let bit = self.free_k(0);
+        let x = self.free_e(F192::new(v[4], v[5], v[6]));
+        let ds = self.free_k(v[7]);
+        self.hash_row([h.0, tf.0, acc.0, bit.0, x.0, ds.0], m.map(|w| w.0), inputs, 0)
+            .0
+    }
+
+    /// A hash row's slots: `head` its first six, its output and challenge, then `words` its message's.
+    fn hash_row(&mut self, head: [u32; 6], words: [u32; 8], inputs: HashInputs, b: u64) -> (Dw, Ew) {
+        let out = compress_words(&inputs);
+        let o = Dw(self.wire(Kind::D, out));
+        let ch = Ew(self.wire(Kind::E, [out[0], out[1], out[2], 0]));
+        let mut slots = [0u32; HASH_SLOTS];
+        slots[..6].copy_from_slice(&head);
+        slots[6..8].copy_from_slice(&[o.0, ch.0]);
+        slots[8..].copy_from_slice(&words);
+        self.row(Table::Hash0, &slots);
+        self.hash.push(inputs);
+        self.selector.push(b);
+        (o, ch)
     }
 
     // Words and bits.
@@ -541,7 +625,10 @@ impl Builder {
         assert!(bits.len() <= 64);
         let zero = self.k_const(0);
         let all: [Kw; 64] = std::array::from_fn(|i| bits.get(i).copied().unwrap_or(zero));
-        let v = all.iter().enumerate().fold(0u64, |acc, (i, &b)| acc | (self.k(b) & 1) << i);
+        let v = all
+            .iter()
+            .enumerate()
+            .fold(0u64, |acc, (i, &b)| acc | (self.k(b) & 1) << i);
         let w = self.free_k(v);
         self.split_row(w.0, &all.map(|b| b.0));
         w
@@ -575,14 +662,20 @@ impl Builder {
     /// The limbs of `e`.
     pub fn e_to_k(&mut self, e: Ew) -> [Kw; 3] {
         let v = self.e(e);
-        let w = self.cast_row([None, Some(e.0), None, None, None, None, None, None], [v.c0, v.c1, v.c2, 0]);
+        let w = self.cast_row(
+            [None, Some(e.0), None, None, None, None, None, None],
+            [v.c0, v.c1, v.c2, 0],
+        );
         [Kw(w[4]), Kw(w[5]), Kw(w[6])]
     }
 
     /// The element with limbs `k`.
     pub fn k_to_e(&mut self, k: [Kw; 3]) -> Ew {
         let v = [self.k(k[0]), self.k(k[1]), self.k(k[2]), 0];
-        let w = self.cast_row([None, None, None, None, Some(k[0].0), Some(k[1].0), Some(k[2].0), None], v);
+        let w = self.cast_row(
+            [None, None, None, None, Some(k[0].0), Some(k[1].0), Some(k[2].0), None],
+            v,
+        );
         Ew(w[1])
     }
 
@@ -602,7 +695,19 @@ impl Builder {
     /// A digest from its words.
     pub fn k_to_d(&mut self, k: [Kw; 4]) -> Dw {
         let v = k.map(|w| self.k(w));
-        let w = self.cast_row([None, None, None, None, Some(k[0].0), Some(k[1].0), Some(k[2].0), Some(k[3].0)], v);
+        let w = self.cast_row(
+            [
+                None,
+                None,
+                None,
+                None,
+                Some(k[0].0),
+                Some(k[1].0),
+                Some(k[2].0),
+                Some(k[3].0),
+            ],
+            v,
+        );
         Dw(w[0])
     }
 
@@ -612,7 +717,10 @@ impl Builder {
         if l.c2 != 0 || h.c2 != 0 {
             self.fail("a digest half has a top limb");
         }
-        let w = self.cast_row([None, None, Some(lo.0), Some(hi.0), None, None, None, None], [l.c0, l.c1, h.c0, h.c1]);
+        let w = self.cast_row(
+            [None, None, Some(lo.0), Some(hi.0), None, None, None, None],
+            [l.c0, l.c1, h.c0, h.c1],
+        );
         Dw(w[0])
     }
 
@@ -620,7 +728,11 @@ impl Builder {
     ///
     /// A wire's class is numbered by its first slot, so a circuit is the same however it was built.
     pub fn finish(mut self) -> (Circuit, Assignment, Vec<String>) {
-        let own = std::mem::take(&mut self.rows);
+        let mut own = std::mem::take(&mut self.rows);
+        let mut hash = std::mem::take(&mut self.hash_rows).into_iter();
+        for (table, n) in Table::HASH.into_iter().zip(hash_split(self.hash.len())) {
+            own[table as usize] = hash.by_ref().take(n * HASH_SLOTS).collect();
+        }
         let mut number: HashMap<u32, u32> = HashMap::new();
         let rows: [Vec<u32>; N_TABLES] = std::array::from_fn(|t| {
             own[t]
@@ -642,8 +754,7 @@ impl Builder {
             Assignment {
                 rows: own,
                 values: self.values,
-                compress: self.compress,
-                leaf: self.leaf,
+                hash: self.hash,
                 selector: self.selector,
                 statement: self.statement,
             },
@@ -651,9 +762,13 @@ impl Builder {
         )
     }
 
-    /// How many rows each table has so far.
+    /// How many rows each table has so far, the hash rows as [`Builder::finish`] would spread them.
     pub fn row_counts(&self) -> [usize; N_TABLES] {
-        std::array::from_fn(|t| self.rows[t].len() / Table::ALL[t].n_slots())
+        let mut counts: [usize; N_TABLES] = std::array::from_fn(|t| self.rows[t].len() / Table::ALL[t].n_slots());
+        for (table, n) in Table::HASH.into_iter().zip(hash_split(self.hash.len())) {
+            counts[table as usize] = n;
+        }
+        counts
     }
 }
 

@@ -1,4 +1,4 @@
-//! The inner proof's transcript, replayed in the circuit: every absorb and squeeze is a `Compress` row, so
+//! The inner proof's transcript, replayed in the circuit: every absorb and squeeze is a hash row, so
 //! the scalars hashed are the wires the arithmetic uses (`fiat_shamir::FiatShamirState`).
 
 use super::circuit::{Builder, Dw, Ew, Kw, Limbs, tag};
@@ -143,7 +143,10 @@ impl<'a> Transcript<'a> {
             }
         };
         coeffs[fixed] = Some(derived);
-        let coeffs: Vec<Ew> = coeffs.into_iter().map(|c| c.expect("every coefficient is set")).collect();
+        let coeffs: Vec<Ew> = coeffs
+            .into_iter()
+            .map(|c| c.expect("every coefficient is set"))
+            .collect();
         for (i, &c) in coeffs.iter().enumerate() {
             if i != fixed {
                 self.observe(b, c);
@@ -234,7 +237,12 @@ mod tests {
         let scalars = [F192::new(1, 2, 3), F192::new(u64::MAX, 7, 0)];
         ps.add_scalars(&scalars);
         let c0 = ps.sample();
-        let poly = [F192::new(5, 0, 0), F192::new(6, 1, 0), F192::new(7, 0, 9), F192::new(8, 8, 8)];
+        let poly = [
+            F192::new(5, 0, 0),
+            F192::new(6, 1, 0),
+            F192::new(7, 0, 9),
+            F192::new(8, 8, 8),
+        ];
         ps.add_round_poly(&poly, false);
         let r = ps.sample();
         ps.add_round_poly(&poly, true);

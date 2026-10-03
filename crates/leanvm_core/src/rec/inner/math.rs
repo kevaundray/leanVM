@@ -36,7 +36,11 @@ pub fn eq_table(b: &mut Builder, point: &[Ew]) -> Vec<Ew> {
 pub fn eq_bits(b: &mut Builder, bits: usize, point: &[Ew]) -> Ew {
     let mut acc = b.one();
     for (j, &z) in point.iter().enumerate() {
-        acc = if bits >> j & 1 == 1 { b.mul(acc, z) } else { times_one_plus(b, acc, z) };
+        acc = if bits >> j & 1 == 1 {
+            b.mul(acc, z)
+        } else {
+            times_one_plus(b, acc, z)
+        };
     }
     acc
 }

@@ -117,7 +117,13 @@ fn verify_zerocheck(b: &mut Builder, t: &mut Transcript, m: usize) -> ZerocheckC
 }
 
 /// `flock::lincheck::verify_deferred` at the zerocheck's point, `k_skip = K_SKIP`.
-fn verify_lincheck(b: &mut Builder, t: &mut Transcript, k_log: usize, const_pin_col: usize, zc: &ZerocheckClaim) -> MatrixClaim {
+fn verify_lincheck(
+    b: &mut Builder,
+    t: &mut Transcript,
+    k_log: usize,
+    const_pin_col: usize,
+    zc: &ZerocheckClaim,
+) -> MatrixClaim {
     assert!(K_SKIP <= k_log, "k_skip {K_SKIP} exceeds k_log {k_log}");
     assert!(const_pin_col < 1 << k_log, "the constant wire is outside the block");
     let inner_rest_len = k_log - K_SKIP;
@@ -150,7 +156,11 @@ fn verify_lincheck(b: &mut Builder, t: &mut Transcript, k_log: usize, const_pin_
     let pin_rest = const_pin_col >> K_SKIP;
     let mut pin_term = z_partial[const_pin_col & (ELL - 1)];
     for (j, &r) in r_inner_rest.iter().enumerate() {
-        pin_term = if (pin_rest >> j) & 1 == 1 { b.mul(pin_term, r) } else { times_one_plus(b, pin_term, r) };
+        pin_term = if (pin_rest >> j) & 1 == 1 {
+            b.mul(pin_term, r)
+        } else {
+            times_one_plus(b, pin_term, r)
+        };
     }
     let value = b.mul_add(beta, pin_term, running);
 
@@ -176,10 +186,17 @@ fn verify_lincheck(b: &mut Builder, t: &mut Transcript, k_log: usize, const_pin_
 /// `Shape::verify_deferred`: the reduction's claim on the packed witness (`ReductionReplay::claim`) and the
 /// matrix claim lincheck's terminal identity leaves, which the native `MatrixClaim::check` settles against
 /// the circuit.
-pub fn verify_reduction(b: &mut Builder, t: &mut Transcript, shape: Shape, n_blocks_log: usize) -> (SliceClaim, MatrixClaim) {
+pub fn verify_reduction(
+    b: &mut Builder,
+    t: &mut Transcript,
+    shape: Shape,
+    n_blocks_log: usize,
+) -> (SliceClaim, MatrixClaim) {
     let m = shape.k_log + n_blocks_log;
     let zc = b.scope("zerocheck", |b| verify_zerocheck(b, t, m));
-    let matrices = b.scope("lincheck", |b| verify_lincheck(b, t, shape.k_log, shape.const_pin_col, &zc));
+    let matrices = b.scope("lincheck", |b| {
+        verify_lincheck(b, t, shape.k_log, shape.const_pin_col, &zc)
+    });
     let x_outer = &zc.mlv_challenges[shape.k_log - K_SKIP..];
     let mut suffix_point = matrices.r_inner_rest.clone();
     suffix_point.extend_from_slice(x_outer);
@@ -223,9 +240,9 @@ mod tests {
         let circuit = class_flock::circuit(f);
         let (t, _) = class_flock::flock(f);
         let (z, a, bz, zl) = match CLASSES[t].witness {
-            Some(witness) => circuit.generate_witness_with(rows, &[0; N], n_blocks_log, |row, z, az, bz| {
-                witness(row, z, az, bz)
-            }),
+            Some(witness) => {
+                circuit.generate_witness_with(rows, &[0; N], n_blocks_log, |row, z, az, bz| witness(row, z, az, bz))
+            }
             None => circuit.generate_witness(rows, n_blocks_log),
         };
         let block = circuit.block();
@@ -284,7 +301,9 @@ mod tests {
     fn honest(f: usize, n_blocks_log: usize, proof: &Proof) {
         let (replay_native, matrices, read) = native(f, n_blocks_log, proof);
         assert_eq!(read, proof.stream.len(), "the native replay reads the whole stream");
-        matrices.check(class_flock::circuit(f)).expect("the native verifier accepts");
+        matrices
+            .check(class_flock::circuit(f))
+            .expect("the native verifier accepts");
 
         let raw = RawProof {
             stream: proof.stream.clone(),
@@ -310,7 +329,10 @@ mod tests {
         let mut proof = proof.clone();
         proof.stream[index] += F192::ONE;
         let (_, matrices, _) = native(f, n_blocks_log, &proof);
-        assert!(matrices.check(class_flock::circuit(f)).is_err(), "the native verifier rejects");
+        assert!(
+            matrices.check(class_flock::circuit(f)).is_err(),
+            "the native verifier rejects"
+        );
 
         let raw = RawProof {
             stream: proof.stream.clone(),
@@ -319,7 +341,10 @@ mod tests {
         let (mut b, finished, _, mc) = replay(f, n_blocks_log, Source::Proof(&raw));
         assert!(finished);
         let got = native_claim(&b, &mc);
-        assert_eq!(got, matrices, "the circuit replays the tampered stream as the native verifier does");
+        assert_eq!(
+            got, matrices,
+            "the circuit replays the tampered stream as the native verifier does"
+        );
         let form = got.form.evaluate(class_flock::circuit(f));
         b.eq_e_const(mc.value, form);
         assert!(!b.failures().is_empty(), "the tampered proof does not settle");

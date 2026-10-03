@@ -10,7 +10,7 @@
 //! The hash tables' words are ports of their rows' packed BLAKE2s witnesses, which flock proves; the `Pub`
 //! table commits nothing, its blocks being the framework's.
 
-use super::circuit::{Assignment, Circuit, FINAL, HashInputs, Limbs, N_TABLES, PubSource, Table, param_iv};
+use super::circuit::{Assignment, Circuit, HashInputs, Limbs, N_TABLES, PubSource, Table, hash_split};
 use crate::class_flock;
 use crate::colval::ColVal;
 use crate::constraints;
@@ -32,7 +32,7 @@ const F: usize = 1;
 const H: usize = 2;
 const M: usize = 6;
 const O: usize = 14;
-/// The `Compress` table's selector column, after its ports.
+/// A hash table's selector column, after its ports.
 const SEL: usize = N_PORTS;
 
 /// How many columns table `t` has, its ports first.
@@ -40,8 +40,7 @@ pub const fn n_cols(t: Table) -> usize {
     match t {
         Table::Emul => 9,
         Table::Exk => 7,
-        Table::Compress => N_PORTS + 1,
-        Table::Leaf => N_PORTS,
+        Table::Hash0 | Table::Hash1 | Table::Hash2 | Table::Hash3 => N_PORTS + 1,
         Table::Split => 65,
         Table::Cast => 4,
         Table::Pub => 0,
@@ -50,10 +49,7 @@ pub const fn n_cols(t: Table) -> usize {
 
 /// How many of table `t`'s columns are ports of its packed witness: its first.
 pub const fn n_ports(t: Table) -> usize {
-    match t {
-        Table::Compress | Table::Leaf => N_PORTS,
-        _ => 0,
-    }
+    if t.is_hash() { N_PORTS } else { 0 }
 }
 
 /// The packed witness index of the HASH class circuit, which proves every hash row.
@@ -74,10 +70,11 @@ pub fn hash_stride_log() -> usize {
 
 /// `log2` of table `t`'s height for `rows` rows: a power of two, at flock's floor for a hash table.
 pub fn log_rows(t: Table, rows: usize) -> usize {
-    match t {
-        Table::Compress | Table::Leaf => flock::reduction::min_n_blocks_log(rows.max(1))
-            .max(class_flock::MIN_CUBE_LOG.saturating_sub(tables::HASH.k_log)),
-        _ => crate::log2_ceil_usize(rows.max(1)),
+    if t.is_hash() {
+        flock::reduction::min_n_blocks_log(rows.max(1))
+            .max(class_flock::MIN_CUBE_LOG.saturating_sub(tables::HASH.k_log))
+    } else {
+        crate::log2_ceil_usize(rows.max(1))
     }
 }
 
@@ -112,19 +109,19 @@ pub fn slot(t: Table, s: usize) -> [Coord; 4] {
             Sum(vec![Prod(2, 3), Col(6)]),
             zero(),
         ],
-        // The Merkle mux: the message's left half at `b = 0`, its right half at `b = 1`.
-        (Table::Compress, 0) => {
-            std::array::from_fn(|i| Sum(vec![Col(M + i), Prod(SEL, M + i), Prod(SEL, M + 4 + i)]))
-        }
-        (Table::Compress, 1) => k(SEL),
-        (Table::Compress, 2) => e(M + 4),
-        (Table::Compress, 3) => k(M + 7),
-        (Table::Compress, 4) => d(O),
-        (Table::Compress, 5) => e(O),
-        (Table::Leaf, 0) => d(H),
-        (Table::Leaf, 1) => [Col(T), Col(F), zero(), zero()],
-        (Table::Leaf, 2..=9) => k(M + s - 2),
-        (Table::Leaf, 10) => d(O),
+        (Table::Hash0 | Table::Hash1 | Table::Hash2 | Table::Hash3, _) => match s {
+            0 => d(H),
+            1 => [Col(T), Col(F), zero(), zero()],
+            // The Merkle mux: the message's left half at `b = 0`, its right half at `b = 1`.
+            2 => std::array::from_fn(|i| Sum(vec![Col(M + i), Prod(SEL, M + i), Prod(SEL, M + 4 + i)])),
+            3 => k(SEL),
+            4 => e(M + 4),
+            5 => k(M + 7),
+            6 => d(O),
+            7 => e(O),
+            8..16 => k(M + s - 8),
+            _ => unreachable!("{t:?} has no slot {s}"),
+        },
         (Table::Split, _) => k(s),
         (Table::Cast, 0) => d(0),
         (Table::Cast, 1) => e(0),
@@ -151,19 +148,15 @@ pub fn identities(t: Table) -> Vec<BusForm> {
     };
     let boolean = |c: usize| form(&[(c, F192::ONE)], vec![(c, c, F192::ONE)], 0);
     match t {
-        // A compression from the parameter IV, and a Boolean selector.
-        Table::Compress => {
-            let iv = param_iv();
-            let mut ids = vec![form(&[(T, F192::ONE)], vec![], 64), form(&[(F, F192::ONE)], vec![], FINAL)];
-            ids.extend((0..4).map(|j| form(&[(H + j, F192::ONE)], vec![], iv[j])));
-            ids.push(boolean(SEL));
-            ids
-        }
+        // A Boolean selector; what a hash row hashes from is its wiring's.
+        Table::Hash0 | Table::Hash1 | Table::Hash2 | Table::Hash3 => vec![boolean(SEL)],
         // A word is its bits, each Boolean.
         Table::Split => {
             let mut word = vec![(0, F192::ONE)];
             word.extend((0..64).map(|i| (1 + i, F192::from(F64(1 << i)))));
-            std::iter::once(form(&word, vec![], 0)).chain((1..65).map(boolean)).collect()
+            std::iter::once(form(&word, vec![], 0))
+                .chain((1..65).map(boolean))
+                .collect()
         }
         _ => Vec::new(),
     }
@@ -283,11 +276,15 @@ pub fn bus_blocks(
     let pub_next = next[Table::Pub as usize].pop().expect("one Pub slot");
     pull.push(Block::framework(
         tau,
-        std::iter::once(own_key(Table::Pub, 0)).chain(values.iter().cloned()).collect(),
+        std::iter::once(own_key(Table::Pub, 0))
+            .chain(values.iter().cloned())
+            .collect(),
     ));
     push.push(Block::framework(
         tau,
-        std::iter::once(Coord::Public(Arc::new(pub_next))).chain(values).collect(),
+        std::iter::once(Coord::Public(Arc::new(pub_next)))
+            .chain(values)
+            .collect(),
     ));
 
     for (t, (table, next)) in Table::ALL[..N_OWNED].iter().zip(next).enumerate() {
@@ -297,7 +294,9 @@ pub fn bus_blocks(
             pull.push(Block::table(
                 t,
                 tau,
-                std::iter::once(own_key(*table, s)).chain(limbs.iter().cloned()).collect(),
+                std::iter::once(own_key(*table, s))
+                    .chain(limbs.iter().cloned())
+                    .collect(),
             ));
             push.push(Block::table(
                 t,
@@ -309,17 +308,17 @@ pub fn bus_blocks(
     (push, pull)
 }
 
+/// Hash table `t`'s share of the hash rows, in creation order.
+fn hash_range(t: Table, n: usize) -> std::ops::Range<usize> {
+    let i = Table::HASH.iter().position(|&h| h == t).expect("a hash table");
+    let split = hash_split(n);
+    let start = split[..i].iter().sum();
+    start..start + split[i]
+}
+
 /// A hash table's rows' inputs, and the inputs of its padding rows.
 pub fn hash_rows(t: Table, a: &Assignment) -> (&[HashInputs], HashInputs) {
-    match t {
-        Table::Compress => {
-            let iv = param_iv();
-            let padding = [64, FINAL, iv[0], iv[1], iv[2], iv[3], 0, 0, 0, 0, 0, 0, 0, 0];
-            (&a.compress, padding)
-        }
-        Table::Leaf => (&a.leaf, [0; 14]),
-        _ => unreachable!("{t:?} hashes nothing"),
-    }
+    (&a.hash[hash_range(t, a.hash.len())], [0; 14])
 }
 
 /// Write table `t`'s committed columns, those past its ports, from the assignment: `windows` are its local
@@ -331,18 +330,27 @@ pub fn fill_table(t: Table, a: &Assignment, windows: &mut [&mut [F64]]) {
     // Each committed column as `(column, slot, limb)`: what the column holds is that limb of that slot's wire.
     let sources: Vec<(usize, usize, usize)> = match t {
         Table::Emul => (0..9).map(|c| (c, c / 3, c % 3)).collect(),
-        Table::Exk => [(0, 0, 0), (1, 0, 1), (2, 0, 2), (3, 1, 0), (4, 2, 0), (5, 2, 1), (6, 2, 2)].to_vec(),
+        Table::Exk => [
+            (0, 0, 0),
+            (1, 0, 1),
+            (2, 0, 2),
+            (3, 1, 0),
+            (4, 2, 0),
+            (5, 2, 1),
+            (6, 2, 2),
+        ]
+        .to_vec(),
         Table::Split => (0..65).map(|c| (c, c, 0)).collect(),
         Table::Cast => (0..4).map(|c| (c, 0, c)).collect(),
-        Table::Compress => {
+        Table::Hash0 | Table::Hash1 | Table::Hash2 | Table::Hash3 => {
             let column = &mut windows[SEL];
             column.fill(F64::ZERO);
-            for (slot, &b) in column.iter_mut().zip(&a.selector) {
+            for (slot, &b) in column.iter_mut().zip(&a.selector[hash_range(t, a.hash.len())]) {
                 *slot = F64(b);
             }
             return;
         }
-        Table::Leaf | Table::Pub => return,
+        Table::Pub => return,
     };
     let height = rows.len() / n;
     for (c, s, limb) in sources {

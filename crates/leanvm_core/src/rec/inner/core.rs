@@ -39,7 +39,9 @@ fn seed<'a>(b: &mut Builder, program: &Program, output: [Kw; 4], source: Source<
 /// The core of the verifier of one inner proof of `shape`, read from `source`, run against `output`.
 pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Source) -> Core {
     let mut t = seed(b, shape.program, output, source);
-    let ts = b.scope("announcement", |b| read_announcement(b, &mut t, &shape.taus, shape.log_inv_rate));
+    let ts = b.scope("announcement", |b| {
+        read_announcement(b, &mut t, &shape.taus, shape.log_inv_rate)
+    });
     let l = Layout::new(shape.program.rv(), shape.taus, 0);
     let root = t.next_root(b);
     let bus = b.scope("bus", |b| verify_balance(b, &mut t, &l, ts));
@@ -88,7 +90,9 @@ pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Sour
         });
     }
 
-    let ring = b.scope("opening", |b| super::pcs::verify(b, &mut t, &slots, &rings, l.shape, shape.log_inv_rate, root));
+    let ring = b.scope("opening", |b| {
+        super::pcs::verify(b, &mut t, &slots, &rings, l.shape, shape.log_inv_rate, root)
+    });
     if !t.finished() {
         b.scope("transcript", |b| b.fail("the proof has data the verifier never reads"));
     }
