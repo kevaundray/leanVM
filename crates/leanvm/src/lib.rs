@@ -175,6 +175,9 @@ pub enum Error {
     /// The proof does not verify.
     #[error(transparent)]
     Verify(#[from] VerifyError),
+    /// Recursion refused: an inner proof does not verify, or the outer proof does not.
+    #[error(transparent)]
+    Recursion(#[from] recursion::RecursionError),
 }
 
 impl From<ProveError> for Error {
@@ -191,3 +194,65 @@ impl From<ProveError> for Error {
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("the proof does not verify: {0}")]
 pub struct VerifyError(CpuError);
+
+/// One proof that leanVM proofs verify: a recursion machine runs the verifier's core on each inner proof as a
+/// fixed list of rows, and its statement is each inner proof's output, shape and deferred claims, which
+/// [`recursion::verify`] settles against the programs after the outer proof.
+pub mod recursion {
+    use super::{Error, Program, Proof, Prover, Rate};
+    pub use leanvm_core::rec::{InnerStatement, RecursionError, RecursionProof};
+    use leanvm_core::rec::{self, InnerProof, circuit::N_TABLES};
+
+    /// A proof to recurse on: its program, the proof, and the output it proves.
+    #[derive(Clone, Copy)]
+    pub struct Inner<'a> {
+        pub program: &'a Program,
+        pub proof: &'a Proof,
+        pub output: [u64; 4],
+    }
+
+    /// The recursion circuit's size: each table's rows and height, and the committed words.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct CircuitStats {
+        pub rows: [usize; N_TABLES],
+        pub log_rows: [usize; N_TABLES],
+        pub committed: usize,
+    }
+
+    /// Prove that every inner proof verifies, the outer proof at `rate`.
+    ///
+    /// # Errors
+    ///
+    /// An inner proof that does not verify.
+    pub fn prove(_prover: &Prover, inners: &[Inner], rate: Rate) -> Result<RecursionProof, Error> {
+        let inners = inners
+            .iter()
+            .map(|i| InnerProof::new(i.program, &i.proof.0, i.output).map_err(super::VerifyError))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rec::prove(&inners, rate)?)
+    }
+
+    /// Check that proofs of `programs` verify to the outputs `proof` states, the outer proof at `rate`.
+    ///
+    /// # Errors
+    ///
+    /// The first check that refuses.
+    pub fn verify(programs: &[&Program], proof: &RecursionProof, rate: Rate) -> Result<(), Error> {
+        Ok(rec::verify(programs, proof, rate.log_inv_rate().into())?)
+    }
+
+    /// The size of the circuit verifying proofs of these programs and shapes.
+    ///
+    /// # Errors
+    ///
+    /// A shape no proof can have.
+    pub fn stats(programs: &[&Program], inners: &[InnerStatement]) -> Result<CircuitStats, Error> {
+        let circuit = rec::circuit_for(programs, inners)?;
+        Ok(CircuitStats {
+            rows: circuit.row_counts(),
+            log_rows: rec::proof::Layout::new(&circuit).taus,
+            committed: rec::proof::committed_words(&circuit),
+        })
+    }
+}

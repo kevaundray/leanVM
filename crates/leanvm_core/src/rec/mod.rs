@@ -58,6 +58,13 @@ pub struct InnerStatement {
     pub claims: DeferredClaims,
 }
 
+impl InnerStatement {
+    /// How many words of the outer statement it is.
+    pub fn n_words(&self) -> usize {
+        4 + claim_words(&self.claims).len()
+    }
+}
+
 /// A proof that every inner proof verifies, and what it states about each.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecursionProof {
