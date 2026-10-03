@@ -404,7 +404,7 @@ impl Block {
         not(all(target_arch = "riscv64", target_os = "none")),
         allow(clippy::needless_pass_by_ref_mut)
     )]
-    fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
+    pub(crate) fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
         #[cfg(all(target_arch = "riscv64", target_os = "none"))]
         // SAFETY: the block is this borrow's, its chaining value and message initialized; the instruction writes
         // the compression.

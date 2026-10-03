@@ -5,6 +5,10 @@
 //! the public values.
 
 use crate::Blake2s;
+#[cfg(any(test, all(target_arch = "riscv64", target_os = "none")))]
+use crate::blake2s::{Block, IV};
+#[cfg(any(test, all(target_arch = "riscv64", target_os = "none")))]
+use core::mem::MaybeUninit;
 
 /// A type made of 64-bit words and nothing else, so that any words are one.
 ///
@@ -71,17 +75,108 @@ impl PublicValues {
     }
 }
 
+/// The committed words' BLAKE2s, in progress, as `commit` keeps it: the block the instruction reads, where the next
+/// committed word goes in its message, and the bytes compressed before the message.
+///
+/// A word is one store and a pointer bump, and a full block is compressed where it is, only once a word is known to
+/// follow it: the last block is the one compressed as last. `next` points into the value itself, so a `Public` never
+/// moves, and it is reached only through a raw pointer, which `next` derives from: a reference to it, or to its block,
+/// held across a use of `next` would be invalidated by it, so a reference to the block lives only inside a compression.
+#[cfg(any(test, all(target_arch = "riscv64", target_os = "none")))]
+struct Public {
+    block: Block,
+    next: *mut u64,
+    done: u64,
+}
+
+#[cfg(any(test, all(target_arch = "riscv64", target_os = "none")))]
+impl Public {
+    /// Nothing committed, the next word going to `next`, which must be the new value's first message word.
+    const fn new(next: *mut u64) -> Self {
+        Self {
+            block: Block {
+                h: IV,
+                out: MaybeUninit::uninit(),
+                m: [0; 8],
+            },
+            next,
+            done: 0,
+        }
+    }
+
+    /// Commit `words`.
+    ///
+    /// # Safety
+    ///
+    /// `this` points to a `Public` made by [`Self::new`] with its first message word, `next` derived from `this`,
+    /// and nothing else reaches it.
+    #[inline(always)]
+    unsafe fn commit(this: *mut Self, words: &[u64]) {
+        // SAFETY: the caller's; `next` is a word of the message, at most its end, and is written only below it.
+        unsafe {
+            let start = (&raw mut (*this).block.m).cast::<u64>();
+            let end = start.add(8);
+            let mut next = (*this).next;
+            for &word in words {
+                if next == end {
+                    Self::absorb(this);
+                    next = start;
+                }
+                next.write(word);
+                next = next.add(1);
+            }
+            (*this).next = next;
+        }
+    }
+
+    /// Compress the full message, which more words follow: the compression becomes the chaining value.
+    ///
+    /// # Safety
+    ///
+    /// As [`Self::commit`].
+    #[inline(always)]
+    unsafe fn absorb(this: *mut Self) {
+        // SAFETY: the caller's; the reference to the block ends before `next` is used again.
+        unsafe {
+            (*this).done += 64;
+            let done = (*this).done;
+            let block = &mut (*this).block;
+            block.h = block.compress(done, false);
+        }
+    }
+
+    /// The digest: the last block zero-padded, the counter every byte committed.
+    ///
+    /// # Safety
+    ///
+    /// As [`Self::commit`].
+    unsafe fn finish(this: *mut Self) -> [u64; 4] {
+        // SAFETY: the caller's; `next` is in the message or at its end, and the reference to the block is the last
+        // use of the value.
+        unsafe {
+            let filled = (*this)
+                .next
+                .offset_from_unsigned((&raw const (*this).block.m).cast::<u64>());
+            let t = (*this).done + 8 * filled as u64;
+            let block = &mut (*this).block;
+            block.m[filled..].fill(0);
+            block.compress(t, true)
+        }
+    }
+}
+
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
 pub use vm::{commit, read, read_slice, read_unchecked};
 
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]
 pub(crate) mod vm {
-    use super::{PublicValues, Words, assert_words};
+    use super::{Public, Words, as_words_unchecked, assert_words};
 
     /// The output `_start` loads into `a0..a3` when the run ends.
     pub(crate) static mut OUTPUT: [u64; 4] = [0; 4];
-    /// What the run has committed so far.
-    static mut PUBLIC: PublicValues = PublicValues::new();
+    /// What the run has committed so far, streamed through the instruction's own block.
+    // SAFETY: only the address of the static's message is taken, nothing is read.
+    static mut PUBLIC: Public = Public::new(unsafe { (&raw mut PUBLIC.block.m).cast() });
     /// The advice words read so far.
     static mut READ: usize = 0;
 
@@ -150,16 +245,17 @@ pub(crate) mod vm {
     /// Make a value public: the run's output is the digest of everything committed, in order.
     #[inline(always)]
     pub fn commit<T: Words>(value: &T) {
-        // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`.
-        unsafe { &mut *(&raw mut PUBLIC) }.commit(value);
+        // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`, which is reached only by its address;
+        // `T` is words only (`Words`).
+        unsafe { Public::commit(&raw mut PUBLIC, as_words_unchecked(value)) }
     }
 
     /// Called by `_start` once `main` returns: the output is the digest of what was committed.
     pub(crate) extern "C" fn finish() {
-        // SAFETY: the run is over, so `PUBLIC` is read once and nothing touches it after.
-        let public = unsafe { core::ptr::read(&raw const PUBLIC) };
+        // SAFETY: as in `commit`; the run is over, so nothing touches `PUBLIC` after.
+        let digest = unsafe { Public::finish(&raw mut PUBLIC) };
         // SAFETY: as above, for `OUTPUT`.
-        unsafe { core::ptr::write_volatile(&raw mut OUTPUT, public.digest()) }
+        unsafe { core::ptr::write_volatile(&raw mut OUTPUT, digest) }
     }
 }
 
@@ -190,4 +286,46 @@ macro_rules! advice_words {
             bytes = const 8 * ($words as u64),
         );
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use primitives::test_rng::Rng;
+
+    /// The digest `commit` gives for `words` committed `n` at a time: a `Public` as the VM's, made in place.
+    fn committed(words: &[u64], n: usize) -> [u64; 4] {
+        let mut public = MaybeUninit::<Public>::uninit();
+        let this = public.as_mut_ptr();
+        // SAFETY: the value is made with its own first message word, `next` derived from `this`, and is reached only
+        // through `this`.
+        unsafe {
+            this.write(Public::new((&raw mut (*this).block.m).cast()));
+            for piece in words.chunks(n) {
+                Public::commit(this, piece);
+            }
+            Public::finish(this)
+        }
+    }
+
+    #[test]
+    fn commit_outputs_what_public_values_computes() {
+        // Invariant: the run's output, the digest `commit` streams through its block, is the digest `PublicValues`
+        // gives a host for the same words, however they are split into commits.
+        //
+        // Fixture: nothing committed, then every count through five blocks, so the last word falls at every offset of
+        // a block and on its end; a word at a time, in pieces straddling blocks, and all at once.
+        let mut rng = Rng::new(0xC0);
+        let words: [u64; 40] = core::array::from_fn(|_| rng.next_u64());
+        for len in 0..=40 {
+            let mut host = PublicValues::new();
+            for word in &words[..len] {
+                host.commit(word);
+            }
+            let expected = host.digest();
+            for n in [1, 3, 8, 9, 40] {
+                assert_eq!(committed(&words[..len], n), expected, "{len} words, {n} at a time");
+            }
+        }
+    }
 }
