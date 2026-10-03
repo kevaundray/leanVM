@@ -36,7 +36,7 @@ use primitives::multilinear::{eq_table, mle_eval};
 use reduce::{Col, DenseClaim, MatrixClaim, Row, Weight, matrix_vars, reduce_dense, reduce_matrices};
 
 /// The domain of a tree proof's transcript seed, versioned with the circuits.
-const DOMAIN: &[u8] = b"leanvm-tree-2";
+const DOMAIN: &[u8] = b"leanvm-tree-3";
 /// The domain of a node's reduction transcript.
 const AGGREGATE: &[u8] = b"leanvm-tree-aggregate-1";
 /// The first word of a lift's and of a node's leaf digest.

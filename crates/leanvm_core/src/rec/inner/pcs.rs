@@ -2,7 +2,7 @@
 //! lifted weight of `pcs::stack_open::verify_opening_batch_mixed_whir_stacked`, and the succinct WHIR
 //! verifier under it (`pcs::whir::recursive_verifier_with_basis_succinct`).
 
-use super::{RingRegion, StackClaim, math};
+use super::{RingRegion, SliceClaim, StackClaim, math};
 use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::transcript::Transcript;
 use ::pcs::pack::PACKING_WIDTH;
@@ -151,8 +151,9 @@ impl Map {
         acc.expect("the map has 64 terms")
     }
 
-    /// `ring_switch::eval_rs_eq` at the suffix point `z`, against the query's ladders.
-    fn eval_rs_eq(&self, b: &mut Builder, z: &[Ew], ladders: &[Vec<Ew>]) -> Ew {
+    /// The terms `C_k^(2^-k)·P_k` of `ring_switch::rs_eq_prefix_terms` at the suffix point `z`, against the
+    /// query's ladders, before any scale; absent is one.
+    fn terms(&self, b: &mut Builder, z: &[Ew], ladders: &[Vec<Ew>]) -> Vec<Option<Ew>> {
         assert!(z.len() <= ladders.len());
         let mut terms = self.coefficients.clone();
         for (&zn, ladder) in z.iter().zip(ladders) {
@@ -160,10 +161,14 @@ impl Map {
                 *term = Some(times_eq(b, *term, power, zn));
             }
         }
-        let mut terms: Vec<Ew> = terms.into_iter().map(|t| or_one(b, t)).collect();
-        let last = terms.pop().expect("the map has 64 terms");
-        terms.iter().rev().fold(last, |acc, &term| b.mul_add(acc, acc, term))
+        terms
     }
+}
+
+/// `ring_switch::close_rs_eq`: `Σ_k term_k^(2^k)`, by the linearized Horner rule from `k = 63` down.
+fn close_rs_eq(b: &mut Builder, mut terms: Vec<Ew>) -> Ew {
+    let last = terms.pop().expect("the map has 64 terms");
+    terms.iter().rev().fold(last, |acc, &term| b.mul_add(acc, acc, term))
 }
 
 /// Where the ring-switched claims' share of the opening is settled.
@@ -175,36 +180,38 @@ pub enum RingMode {
     Prove,
 }
 
-/// The ring-switched claims' share of the opening, which the circuit leaves to the outer verifier: the map's
-/// challenges and the batching challenge, the terminal point, and what the claims put into the target and
-/// into the weight there (`stack_open::verify_opening_batch_mixed_whir_stacked`). Their slices and points are
-/// the circuit's own wires, which the statement exposes too.
+/// The ring-switched family's share of the opening, which the circuit leaves to the outer verifier: the family's
+/// challenge `γ_rs` and the map's challenges, the terminal point, and what the family puts into the target and into
+/// the weight there (`stack_open::verify_opening_batch_mixed_whir_stacked`). The family takes the batching
+/// challenge's first power, one. The claims' slices and points are the circuit's own wires, which the statement
+/// exposes too.
 pub struct RingShare {
+    pub gamma: Ew,
     pub map: Vec<Ew>,
-    pub lambda: Ew,
     pub point: Vec<Ew>,
     pub target: Ew,
     pub weight: Ew,
 }
 
-/// The native ring-switched share of the target, `Σ_c λ^c·verify_finish(s_c)`.
-pub fn ring_target(map: &[F192; 6], lambda: F192, slices: &[&[F192]]) -> F192 {
-    let weights = ::pcs::ring_switch::build_coordinate_weights(map);
-    let mut g = F192::ONE;
-    let mut total = F192::ZERO;
+/// The native share of the target, `verify_finish` on the family's slices `Σ_j γ^j·s_j`, the claims in order.
+pub fn ring_target(gamma: F192, map: &[F192; 6], slices: &[&[F192]]) -> F192 {
+    let mut family = [F192::ZERO; PACKING_WIDTH];
+    let mut scale = F192::ONE;
     for s in slices {
-        total += g * ::pcs::ring_switch::verify_finish(s, &weights);
-        g *= lambda;
+        for (f, &v) in family.iter_mut().zip(*s) {
+            *f += scale * v;
+        }
+        scale *= gamma;
     }
-    total
+    ::pcs::ring_switch::verify_finish(&family, &::pcs::ring_switch::build_coordinate_weights(map))
 }
 
-/// The native ring-switched share of the weight at the terminal point `x`, each region `(offset,
-/// qflock_vars, suffix points)`, the claims in order taking `λ^c`.
-pub fn ring_weight(map: &[F192; 6], lambda: F192, rings: &[(usize, usize, Vec<&[F192]>)], x: &[F192]) -> F192 {
+/// The native share of the weight at the terminal point `x`, each region `(offset, qflock_vars, suffix
+/// points)`, the claims in order taking the scales `γ^j` inside the map.
+pub fn ring_weight(gamma: F192, map: &[F192; 6], rings: &[(usize, usize, Vec<&[F192]>)], x: &[F192]) -> F192 {
     let max_qflock_vars = rings.iter().map(|r| r.1).max().unwrap_or(0);
     let query = ::pcs::ring_switch::RsEqQuery::new(map, &x[..max_qflock_vars]);
-    let mut g = F192::ONE;
+    let mut scale = F192::ONE;
     let mut total = F192::ZERO;
     for (offset, qflock_vars, points) in rings {
         let sel = offset >> qflock_vars;
@@ -213,8 +220,8 @@ pub fn ring_weight(map: &[F192; 6], lambda: F192, rings: &[(usize, usize, Vec<&[
         });
         let mut part = F192::ZERO;
         for z in points {
-            part += g * ::pcs::ring_switch::eval_rs_eq(z, &query);
-            g *= lambda;
+            part += ::pcs::ring_switch::eval_rs_eq(z, scale, &query);
+            scale *= gamma;
         }
         total += sel_eq * part;
     }
@@ -274,9 +281,10 @@ fn claim_end(claim: &StackClaim) -> usize {
 /// Verify the opening of the commitment `root` against the point claims `slots` and the ring-switched
 /// regions `rings` (`crate::pcs::verify`). The claims' values and slices were bound by the caller.
 ///
-/// Under [`RingMode::Hint`] the ring-switched claims' share of the target and of the terminal weight is a hint,
-/// settled by the outer verifier from the returned [`RingShare`] ([`ring_target`], [`ring_weight`]); under
-/// [`RingMode::Prove`] the circuit computes both and returns nothing.
+/// Every ring-switched claim joins one family, claim `j` at the scale `γ_rs^j`. Under [`RingMode::Hint`] the
+/// family's share of the target and of the terminal weight is a hint, settled by the outer verifier from the
+/// returned [`RingShare`] ([`ring_target`], [`ring_weight`]); under [`RingMode::Prove`] the circuit computes both,
+/// one map application per slice of the family, and returns nothing.
 #[expect(
     clippy::too_many_arguments,
     reason = "the opening's inputs, as `pcs::verify` takes them"
@@ -313,21 +321,32 @@ pub fn verify(
         "every claim must live inside the committed cube"
     );
 
+    let gamma = t.sample(b);
     let map = t.sample_vec(b, COMPOSITION_SHIFTS.len());
     let lambda = t.sample(b);
-    let lambdas = powers(b, lambda, n_rs + slots.len());
-    let (lambdas_rs, lambdas_pd) = lambdas.split_at(n_rs);
+    let lambdas = powers(b, lambda, 1 + slots.len());
+    let lambdas_pd = &lambdas[1..];
     let map_values: [F192; 6] = std::array::from_fn(|i| b.e(map[i]));
     let phi = (mode == RingMode::Prove).then(|| b.scope("ring switch map", |b| Map::new(b, &map)));
+    let scales = if phi.is_some() {
+        powers(b, gamma, n_rs)
+    } else {
+        Vec::new()
+    };
 
     let ring_target_wire = match &phi {
         Some(phi) => b.scope("ring target", |b| {
-            let mut target = None;
-            for (claim, &g) in rings.iter().flat_map(|ring| &ring.claims).zip(lambdas_rs) {
-                let v = phi.finish(b, &claim.s_hat_v);
-                target = Some(mac(b, target, g, v));
-            }
-            target.expect("at least one ring-switched claim")
+            let claims: Vec<&SliceClaim> = rings.iter().flat_map(|ring| &ring.claims).collect();
+            let family: Vec<Ew> = (0..PACKING_WIDTH)
+                .map(|i| {
+                    let mut slice = None;
+                    for (claim, &scale) in claims.iter().zip(&scales) {
+                        slice = Some(mac(b, slice, scale, claim.s_hat_v[i]));
+                    }
+                    slice.expect("at least one ring-switched claim")
+                })
+                .collect();
+            phi.finish(b, &family)
         }),
         None => {
             let slices: Vec<Vec<F192>> = rings
@@ -336,8 +355,13 @@ pub fn verify(
                 .map(|c| c.s_hat_v.iter().map(|&w| b.e(w)).collect())
                 .collect();
             let slice_refs: Vec<&[F192]> = slices.iter().map(Vec::as_slice).collect();
-            b.free_e(ring_target(&map_values, b.e(lambda), &slice_refs))
+            b.free_e(ring_target(b.e(gamma), &map_values, &slice_refs))
         }
+    };
+    #[cfg(test)]
+    let ring_target_wire = match tests::TARGET_SHIFT.get() {
+        shift if shift.is_zero() => ring_target_wire,
+        shift => b.add_const(ring_target_wire, shift),
     };
 
     let target = b.scope("target", |b| {
@@ -367,22 +391,30 @@ pub fn verify(
                     .map(|&q| math::inverse_frobenius_ladder(b, q, 1, PACKING_WIDTH))
                     .collect();
                 let mut weight = None;
-                let mut lambdas_rs = lambdas_rs.iter();
+                let mut scales = scales.iter();
                 for ring in rings {
+                    // The region's claims add their scaled terms, the Frobenius being additive, and close once.
+                    let mut terms: Option<Vec<Ew>> = None;
+                    for (claim, &scale) in ring.claims.iter().zip(scales.by_ref()) {
+                        let at = phi.terms(b, &claim.suffix_point, &ladders);
+                        let sum: Vec<Ew> = (at.into_iter().enumerate())
+                            .map(|(k, term)| {
+                                let term = or_one(b, term);
+                                mac(b, terms.as_ref().map(|acc| acc[k]), scale, term)
+                            })
+                            .collect();
+                        terms = Some(sum);
+                    }
+                    let Some(terms) = terms else { continue };
+                    let part = close_rs_eq(b, terms);
                     let sel = ring.offset >> ring.qflock_vars;
                     let mut sel_eq = None;
                     for (k, &xi) in x[ring.qflock_vars..].iter().enumerate() {
                         sel_eq = Some(select(b, sel_eq, xi, (sel >> k) & 1 == 1));
                     }
-                    let mut part = None;
-                    for (claim, &g) in ring.claims.iter().zip(lambdas_rs.by_ref()) {
-                        let v = phi.eval_rs_eq(b, &claim.suffix_point, &ladders);
-                        part = Some(mac(b, part, g, v));
-                    }
-                    let part = part.unwrap_or_else(|| b.zero());
                     weight = Some(mac(b, weight, sel_eq, part));
                 }
-                weight.expect("at least one ring-switched region")
+                weight.expect("at least one ring-switched claim")
             }
             None => {
                 let x_values: Vec<F192> = x.iter().map(|&w| b.e(w)).collect();
@@ -391,7 +423,7 @@ pub fn verify(
                     .zip(&points)
                     .map(|(r, p)| (r.offset, r.qflock_vars, p.iter().map(Vec::as_slice).collect()))
                     .collect();
-                b.free_e(ring_weight(&map_values, b.e(lambda), &regions, &x_values))
+                b.free_e(ring_weight(b.e(gamma), &map_values, &regions, &x_values))
             }
         };
         share = Some((x.to_vec(), weight));
@@ -408,8 +440,8 @@ pub fn verify(
     });
     let (point, weight) = share.expect("the terminal check evaluates the weight");
     (mode == RingMode::Hint).then_some(RingShare {
+        gamma,
         map,
-        lambda,
         point,
         target: ring_target_wire,
         weight,
@@ -823,7 +855,6 @@ mod tests {
     use super::*;
     use crate::pcs::{RingSwitchClaim, RingSwitchOpen, RingSwitchVerify, SlotClaim};
     use crate::rec::circuit::{Circuit, Limbs};
-    use crate::rec::inner::SliceClaim;
     use crate::rec::transcript::Source;
     use crate::witness::StackShape;
     use ::pcs::ring_switch::fold_1b_rows;
@@ -831,6 +862,11 @@ mod tests {
     use ::pcs::whir::inner_product_base_ext;
     use fiat_shamir::transcript::{ProverState, RawProof, VerifierState};
     use primitives::test_rng::Rng;
+
+    thread_local! {
+        /// Added to the family's target, so a test can hand the opening a wrong one.
+        pub(super) static TARGET_SHIFT: std::cell::Cell<F192> = const { std::cell::Cell::new(F192::ZERO) };
+    }
 
     const LABEL: &[u8] = b"rec-inner-pcs-test";
     /// Fewer lanes than a leaf holds, and not whole blocks of them, so the L0 image has a zero prefix.
@@ -1067,6 +1103,14 @@ mod tests {
                 );
             }
         }
+        // The family's one target reaches the terminal check, hinted or computed.
+        TARGET_SHIFT.set(F192::ONE);
+        let (_, failures, _) = build(&slots, &rings, Source::Proof(&raw));
+        TARGET_SHIFT.set(F192::ZERO);
+        assert!(
+            failures.iter().any(|f| f.contains("terminal")),
+            "{what}: a wrong family target passes: {failures:?}"
+        );
 
         for opening in [0, raw.merkle.len() - 1] {
             let mut bad = RawProof {

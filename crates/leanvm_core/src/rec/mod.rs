@@ -25,7 +25,7 @@ use primitives::field::{F64, F192};
 use transcript::Source;
 
 /// The domain of the outer transcript's seed, versioned with the circuit.
-const DOMAIN: &[u8] = b"leanvm-recursion-1";
+const DOMAIN: &[u8] = b"leanvm-recursion-2";
 
 /// An inner proof as the recursion prover takes it: its program, its proof with every Merkle path written
 /// out, and the output it claims.
@@ -61,14 +61,14 @@ pub struct InnerStatement {
     pub ring: RingClaims,
 }
 
-/// What the ring-switched claims of an inner proof's opening put into its target and its terminal weight,
-/// which the outer verifier recomputes from the claims (`pcs::stack_open`): the map's and the batching
+/// What the ring-switched family of an inner proof's opening puts into its target and its terminal weight, which
+/// the outer verifier recomputes from the claims (`pcs::stack_open`): the family's challenge and the map's
 /// challenges, the terminal point, both shares, and what locates the claims beyond the deferred claims (each
 /// flock claim's outer coordinates, the bytecode multiplicities' bits).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RingClaims {
+    pub gamma: F192,
     pub map: [F192; 6],
-    pub lambda: F192,
     pub point: Vec<F192>,
     pub target: F192,
     pub weight: F192,
@@ -178,9 +178,9 @@ fn well_formed(program: &Program, taus: &[usize; N_TABLES], claims: &DeferredCla
         })
 }
 
-/// Whether the ring claims' shares are what their claims put into the opening: the flock claims at their
-/// matrix forms' column points then their outer coordinates, with their slices; then the bytecode
-/// multiplicities' bits at the table sumcheck's point. `s` is well formed.
+/// Whether the ring family's shares are what its claims put into the opening: the flock claims at their matrix
+/// forms' column points then their outer coordinates, with their slices; then the bytecode multiplicities' bits at
+/// the table sumcheck's point, claim `j` at the scale `γ^j`. `s` is well formed.
 fn ring_shares_hold(program: &Program, s: &InnerStatement) -> bool {
     let l = Layout::new(program.rv(), s.taus, 0);
     let [p] = &l.producers[..] else {
@@ -203,8 +203,8 @@ fn ring_shares_hold(program: &Program, s: &InnerStatement) -> bool {
         .map(|(w, (point, _))| (w.offset, w.n_vars, vec![&point[..]]))
         .collect();
     let slices: Vec<&[F192]> = claims.iter().map(|(_, s)| *s).collect();
-    inner::pcs::ring_target(&r.map, r.lambda, &slices) == r.target
-        && inner::pcs::ring_weight(&r.map, r.lambda, &regions, &r.point) == r.weight
+    inner::pcs::ring_target(r.gamma, &r.map, &slices) == r.target
+        && inner::pcs::ring_weight(r.gamma, &r.map, &regions, &r.point) == r.weight
 }
 
 /// The deferred claims' wires, in statement order after the output.
@@ -227,8 +227,8 @@ fn claim_wires(core: &inner::core::Core) -> Vec<Ew> {
         .ring
         .as_ref()
         .expect("the single-level circuit hints the ring share");
+    w.push(r.gamma);
     w.extend(&r.map);
-    w.push(r.lambda);
     w.extend(&r.point);
     w.push(r.target);
     w.push(r.weight);
@@ -241,8 +241,8 @@ fn claim_wires(core: &inner::core::Core) -> Vec<Ew> {
 
 /// The ring claims as statement words, in [`claim_wires`]' order after the deferred claims.
 fn ring_words(r: &RingClaims) -> Vec<F192> {
-    let mut w = r.map.to_vec();
-    w.push(r.lambda);
+    let mut w = vec![r.gamma];
+    w.extend(r.map);
     w.extend(&r.point);
     w.push(r.target);
     w.push(r.weight);
@@ -342,8 +342,8 @@ fn ring_of(b: &Builder, core: &inner::core::Core) -> RingClaims {
         .as_ref()
         .expect("the single-level circuit hints the ring share");
     RingClaims {
+        gamma: b.e(r.gamma),
         map: std::array::from_fn(|i| b.e(r.map[i])),
-        lambda: b.e(r.lambda),
         point: e(&r.point),
         target: b.e(r.target),
         weight: b.e(r.weight),
@@ -539,9 +539,29 @@ mod tests {
         wrong_output.inners[1].output[0] ^= 1;
         assert!(verify(&programs, &wrong_output, 1).is_err());
 
+        // The ring family's shares are settled against the claims: its target, its challenge, a claim's slices.
         let mut wrong_ring = rec.clone();
         wrong_ring.inners[0].ring.target += F192::ONE;
         assert!(verify(&programs, &wrong_ring, 1).is_err());
+        assert!(
+            !ring_shares_hold(&program, &wrong_ring.inners[0]),
+            "a wrong family target"
+        );
+        let mut wrong_gamma = rec.inners[1].clone();
+        wrong_gamma.ring.gamma += F192::ONE;
+        assert!(!ring_shares_hold(&program, &wrong_gamma), "a wrong family challenge");
+        for f in [0, class_flock::N_FLOCKS - 1] {
+            let mut wrong_slice = rec.inners[1].clone();
+            wrong_slice.claims.circuits[f].terms[0].1.s_hat_v[7] += F192::ONE;
+            assert!(
+                !ring_shares_hold(&program, &wrong_slice),
+                "a wrong slice of circuit {f}"
+            );
+        }
+        let mut wrong_bit = rec.inners[1].clone();
+        wrong_bit.ring.bits[0] += F192::ONE;
+        assert!(!ring_shares_hold(&program, &wrong_bit), "a wrong multiplicity bit");
+        assert!(ring_shares_hold(&program, &rec.inners[1]), "the honest shares hold");
 
         let mut wrong_claim = rec.clone();
         wrong_claim.inners[0].claims.circuits[3].value += F192::ONE;
