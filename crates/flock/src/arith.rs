@@ -277,12 +277,13 @@ mod tests {
         }
     }
 
-    /// **A batch of circuits proves each of them.** Circuits of three block sizes
-    /// (`k_log` 8, 12 and 13) and mixed instance counts and heights, from no rows at
-    /// all to a batch of rows in full: the verifier recovers each circuit's claim,
-    /// and each is its witness's true slices at its point. A flipped witness bit in
-    /// any one circuit, or a wrong claim of any one circuit on the stream, is
-    /// rejected.
+    /// **A batch of circuits proves each of them, in lockstep.** Circuits of three block
+    /// sizes (`k_log` 8, 12 and 13) and mixed instance counts and heights, from no rows
+    /// at all to a batch of rows in full: the verifier recovers each circuit's claim,
+    /// each is its witness's true slices at its point, and every point is a prefix of
+    /// the longest. The low batch coordinates lincheck binds are the ones the claim is
+    /// at: the zerocheck's in their place give other slices. A flipped witness bit in
+    /// any one circuit, or a wrong claim of any one circuit on the stream, is rejected.
     #[test]
     fn a_mixed_batch_proves_each_circuit() {
         type Tables = (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>);
@@ -319,17 +320,42 @@ mod tests {
 
         let (proof, claims) = prove(&whole);
         let replays = accepts(&proof).expect("an honest batch verifies");
-        for (f, ((replay, claim), (z, ..))) in replays.iter().zip(&claims).zip(&whole).enumerate() {
-            assert_eq!(&replay.claim, claim, "circuit {f}'s claim");
+        let slices_at = |z: &[u64], point: &[F192]| -> Vec<F192> {
             // Word `w` of the packed witness is position `w` past the skip, bit `i` its slice `i`.
-            let eq = primitives::multilinear::eq_table(&claim.suffix_point);
-            let slices: Vec<F192> = (0..64)
+            let eq = primitives::multilinear::eq_table(point);
+            (0..64)
                 .map(|i| {
                     (z.iter().zip(&eq)).fold(F192::ZERO, |acc, (&w, &e)| if w >> i & 1 == 1 { acc + e } else { acc })
                 })
-                .collect();
-            assert_eq!(claim.s_hat_v, slices, "circuit {f}'s slices are its witness's");
+                .collect()
+        };
+        let longest = claims.iter().map(|c| &c.suffix_point).max_by_key(|p| p.len()).unwrap();
+        let mut moved = 0;
+        for (f, ((replay, claim), (z, ..))) in replays.iter().zip(&claims).zip(&whole).enumerate() {
+            assert_eq!(&replay.claim, claim, "circuit {f}'s claim");
+            assert_eq!(
+                claim.s_hat_v,
+                slices_at(z, &claim.suffix_point),
+                "circuit {f}'s slices are its witness's"
+            );
+            assert!(
+                longest.starts_with(&claim.suffix_point),
+                "circuit {f}'s point is a prefix of one point"
+            );
+            let (inner, kept) = (blocks[f].0.k_log - 6, replay.lc_claim.r_outer_lo.len());
+            if kept > 0 && shapes[f].2 > 0 {
+                let mut zerocheck_point = claim.suffix_point.clone();
+                zerocheck_point[inner..inner + kept]
+                    .copy_from_slice(&replay.zc_claim.mlv_challenges[inner..inner + kept]);
+                assert_ne!(
+                    claim.s_hat_v,
+                    slices_at(z, &zerocheck_point),
+                    "circuit {f}'s lockstep coordinates"
+                );
+                moved += 1;
+            }
         }
+        assert!(moved >= 2, "the batch keeps outer coordinates of circuits with rows");
 
         // A flipped bit (an output bit of instance 1) in any one circuit.
         for f in 0..shapes.len() {

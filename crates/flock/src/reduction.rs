@@ -90,12 +90,14 @@ fn x_ab_of(zc: &ZerocheckClaim, inner_rest_len: usize) -> QuirkyPoint {
     }
 }
 
-/// The claim the reduction leaves for the PCS: lincheck's output point, whose
-/// 64 slice values are `lc.s_hat_v`. Prover and verifier must derive it
-/// identically, so they share this one derivation.
+/// The claim the reduction leaves for the PCS: lincheck's output point, its inner
+/// coordinates and the low outer ones it bound, then the zerocheck's other outer
+/// coordinates; its 64 slice values are `lc.s_hat_v`. Prover and verifier must derive
+/// it identically, so they share this one derivation.
 fn reduction_claim(lc: &LincheckClaim, x_outer: &[F192]) -> SliceClaim {
     let mut suffix_point = lc.r_inner_rest.clone();
-    suffix_point.extend_from_slice(x_outer);
+    suffix_point.extend_from_slice(&lc.r_outer_lo);
+    suffix_point.extend_from_slice(&x_outer[lc.r_outer_lo.len()..]);
     SliceClaim {
         suffix_point,
         s_hat_v: lc.s_hat_v.clone(),

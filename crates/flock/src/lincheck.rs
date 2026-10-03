@@ -31,7 +31,7 @@
 //!
 //! The prover partially folds the witness at the shared outer point and forms the column marginal of `A + α B + α² I`, with a constant-wire pin at `α³`. A product sumcheck reduces its inner product to the final `2^k_skip` witness slices, which the prover sends after the rounds. The verifier reconstructs the terminal marginal through the circuit's bilinear form; ring switching binds the slices to the commitment.
 //!
-//! Several circuits share one α and one product sumcheck: circuit `f`'s identity takes the weight `α^{4f}`, every circuit binds its top inner coordinate in the first round, and a circuit done early adds the line `X·u` its lifting variable makes, which reaches only the coefficient the claim fixes (doc/leanvm Annex C, "Batching the circuits").
+//! Several circuits share one α and one product sumcheck, in lockstep: circuit `f`'s identity takes the weight `α^{4f}`, and the rounds bind the slots of one point top first, each circuit filling the batch's `max_f (k_log_f - k_skip)` slots with its inner coordinates and then as many of its low outer ones, so every circuit's claim point is a prefix of one point. A circuit with fewer slots sits out the first rounds and adds the line `X·u` its lifting variable makes, which reaches only the coefficient the claim fixes (doc/leanvm Annex C, "Batching the circuits" and "Lockstep").
 //!
 //! ## Quirky (univariate-skip) claim points
 //!
@@ -90,6 +90,7 @@
 
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
 use pcs::ring_switch::inner_product_ext;
+use primitives::bits::bit_transpose_64bytes;
 use primitives::field::F192;
 use primitives::multilinear::{eq_eval, eq_table as build_eq, skip_lagrange_weights};
 #[cfg(test)]
@@ -179,7 +180,8 @@ pub struct QuirkyPoint {
 // length-2^k_skip residual, which is the output claim itself.)
 
 /// Lincheck output: the `2^k_skip` bit-slice claims on `z` at the inner point
-/// `r_inner_rest` combined with `x_ab.x_outer` (publicly known to the caller).
+/// `r_inner_rest`, the low outer coordinates `r_outer_lo` and the rest of
+/// `x_ab.x_outer` (publicly known to the caller).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LincheckClaim {
     /// The A/B batching challenge (sampled first).
@@ -187,12 +189,14 @@ pub struct LincheckClaim {
     /// The constant-pin challenge `alpha³`; zero when the circuit has no pin
     /// column.
     pub beta: F192,
-    /// The sumcheck round challenges, in round order (MSB-first binding).
+    /// The challenges of the rounds the circuit took part in, in round order (MSB-first binding).
     pub r_rounds: Vec<F192>,
     /// Multilinear post-vector random sample, length `k_log − k_skip`.
     pub r_inner_rest: Vec<F192>,
+    /// The low outer coordinates the sumcheck bound in place of `x_ab.x_outer`'s (lockstep), in coordinate order.
+    pub r_outer_lo: Vec<F192>,
     /// The transmitted post-sumcheck vector: the 64 bit-slice values of `z` at
-    /// `(r_inner_rest, x_ab.x_outer)`, pinned by the terminal identity. This IS
+    /// `(r_inner_rest, r_outer_lo, x_ab.x_outer[r_outer_lo.len()..])`, pinned by the terminal identity. This IS
     /// the AB claim, and it IS its ring-switch `s_hat_v`, so the opening
     /// verifier reuses it rather than receiving the same values a second time.
     pub s_hat_v: Vec<F192>,
@@ -706,6 +710,274 @@ fn partial_fold_packed_z_best(
     }
 }
 
+/// The partial fold keeping the low `kept` outer coordinates, which lockstep lincheck binds with the inner ones (doc/leanvm Annex C, "Lockstep"):
+///
+/// ```text
+///     out[i_inner + k·t] = Σ_{t_hi} z[i_inner, t + 2^kept·t_hi] · eq_hi[t_hi],    t < 2^kept
+/// ```
+///
+/// A stripe's byte carries the eight outer values `8s..8s+8`, which the kept coordinates send to different outputs, so
+/// a byte is no longer one sum-table lookup. Eight stripes whose outer values agree on the kept coordinates are read
+/// at one inner position and bit-transposed: each transposed byte holds one output's bits over those eight stripes,
+/// and one sum table of their eight weights serves it, one lookup per byte again. A task folds a range of the stripe
+/// groups into one block of outputs, and the tasks of one block add up at the end.
+fn partial_fold_keeping(
+    z_packed: &[u8],
+    m: usize,
+    k_log: usize,
+    useful_bits: usize,
+    kept: usize,
+    eq_hi: &[F192],
+) -> Vec<F192> {
+    if kept == 0 {
+        return partial_fold_packed_z_best(z_packed, m, k_log, useful_bits, eq_hi);
+    }
+    let k = 1usize << k_log;
+    let n_log = m - k_log;
+    assert!(k_log >= 6, "a task reads whole 64-byte registers of a stripe");
+    assert!(
+        n_log >= 3 && kept <= n_log,
+        "stripes need eight outer values, and only those can be kept"
+    );
+    assert_eq!(z_packed.len(), (1usize << m) / 8);
+    assert_eq!(eq_hi.len(), 1usize << (n_log - kept));
+
+    // Outer value `8s + r` is bit `r` of stripe `s`. The kept coordinates are `r`'s low `rows_log` bits, then the
+    // stripe's low `lo_log` ones: a group reads the `width` stripes `lo + stride·(width·h + i)`, and its transposed
+    // byte `r` goes to output row `(r mod rows) + rows·lo` through the sum table `r / rows`.
+    let rows_log = kept.min(3);
+    let rows = 1usize << rows_log;
+    let lo_log = kept - rows_log;
+    let stride = 1usize << lo_log;
+    let n_hi = 1usize << (n_log - 3 - lo_log);
+    let width = n_hi.min(8);
+    let n_groups = n_hi / width;
+    let n_tables = 8 >> rows_log;
+
+    // Tasks: an output block (a `lo` and `block` inner positions, whole registers of 64), then a range of the groups.
+    // One register per row keeps a task's sums in L1; twice the workers' count of tasks balances them.
+    let useful = useful_bits.min(k).next_multiple_of(64).min(k);
+    let block = (64 * n_tables).min(useful.max(64)).min(k);
+    let n_blocks = useful.div_ceil(block);
+    let ranges = (2 * parallel::num_threads())
+        .div_ceil(stride * n_blocks)
+        .clamp(1, n_groups);
+    let n_tasks = stride * n_blocks * ranges;
+    let task_len = rows * block;
+    let shape = Keeping {
+        k,
+        rows_log,
+        stride,
+        width,
+        n_tables,
+        block,
+    };
+
+    let mut partials = vec![F192::ZERO; n_tasks * task_len];
+    parallel::chunks_mut(&mut partials, task_len, |task, acc| {
+        let range = task % ranges;
+        let b = (task / ranges) % n_blocks;
+        let lo = task / (ranges * n_blocks);
+        let columns = b * block..((b + 1) * block).min(useful);
+        let groups = range * n_groups / ranges..(range + 1) * n_groups / ranges;
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "gfni",
+            target_feature = "avx512bw",
+            target_feature = "avx512vbmi"
+        ))]
+        // SAFETY: compiled only with the features enabled.
+        unsafe {
+            shape.fold_gfni(z_packed, eq_hi, lo, columns, groups, acc);
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "gfni",
+            target_feature = "avx512bw",
+            target_feature = "avx512vbmi"
+        )))]
+        shape.fold(z_packed, eq_hi, lo, columns, groups, acc);
+    });
+
+    // Each output block sums its ranges' partials into its own rows of `out`.
+    let mut out = vec![F192::ZERO; k << kept];
+    let out_ptr = parallel::SendPtr(out.as_mut_ptr());
+    parallel::for_each(stride * n_blocks, |ob| {
+        let (lo, b) = (ob / n_blocks, ob % n_blocks);
+        let (start, end) = (b * block, ((b + 1) * block).min(useful));
+        let accs = &partials[ob * ranges * task_len..(ob + 1) * ranges * task_len];
+        for row in 0..rows {
+            // SAFETY: block `b` of row `row + rows·lo` belongs to this output block alone, and it lies inside `out`.
+            let dst = unsafe { out_ptr.slice(k * (row + rows * lo) + start, end - start) };
+            for acc in accs.chunks_exact(task_len) {
+                for (slot, &v) in dst.iter_mut().zip(&acc[row * block..]) {
+                    *slot += v;
+                }
+            }
+        }
+    });
+    out
+}
+
+/// The shape of [`partial_fold_keeping`]'s tasks: stripe group `h` of `lo` is the `width` stripes
+/// `lo + stride·(width·h + i)`, and its transposed byte `r` goes to output row `r mod 2^rows_log` of the
+/// task's `rows × block` accumulator through table `r >> rows_log` of the group's weights.
+#[derive(Clone, Copy)]
+struct Keeping {
+    k: usize,
+    rows_log: usize,
+    stride: usize,
+    width: usize,
+    n_tables: usize,
+    block: usize,
+}
+
+impl Keeping {
+    /// Weight `i` of group `h`'s table `q`: the `eq_hi` entry of its stripe `i`'s outer values, zero past `width`.
+    fn weights(&self, eq_hi: &[F192], h: usize, q: usize) -> [F192; 8] {
+        std::array::from_fn(|i| {
+            if i < self.width {
+                eq_hi[q + self.n_tables * (self.width * h + i)]
+            } else {
+                F192::ZERO
+            }
+        })
+    }
+
+    /// The first byte of stripe `i` of group `h` of `lo`.
+    const fn stripe(&self, lo: usize, h: usize, i: usize) -> usize {
+        (lo + self.stride * (self.width * h + i)) * self.k
+    }
+
+    /// Fold the groups `groups` of `lo` at the inner positions `columns` into `acc`, by sum tables.
+    #[cfg_attr(
+        all(
+            target_arch = "x86_64",
+            target_feature = "gfni",
+            target_feature = "avx512bw",
+            target_feature = "avx512vbmi"
+        ),
+        allow(dead_code)
+    )]
+    fn fold(
+        &self,
+        z_packed: &[u8],
+        eq_hi: &[F192],
+        lo: usize,
+        columns: std::ops::Range<usize>,
+        groups: std::ops::Range<usize>,
+        acc: &mut [F192],
+    ) {
+        let rows = 1usize << self.rows_log;
+        let mut tables = vec![[F192::ZERO; 256]; self.n_tables];
+        for h in groups {
+            for (q, table) in tables.iter_mut().enumerate() {
+                build_sum_table(&self.weights(eq_hi, h, q), table);
+            }
+            for j in columns.clone().step_by(8) {
+                let mut input = [0u8; 64];
+                for i in 0..self.width {
+                    let stripe = self.stripe(lo, h, i);
+                    input[8 * i..8 * i + 8].copy_from_slice(&z_packed[stripe + j..stripe + j + 8]);
+                }
+                let mut bits = [0u8; 64];
+                bit_transpose_64bytes(&input, &mut bits);
+                for (c, column) in bits.as_chunks::<8>().0.iter().enumerate() {
+                    for (r, &byte) in column.iter().enumerate() {
+                        acc[(r & (rows - 1)) * self.block + j - columns.start + c] +=
+                            tables[r >> self.rows_log][usize::from(byte)];
+                    }
+                }
+            }
+        }
+    }
+
+    /// [`Self::fold`] with GFNI, as `partial_fold_packed_z_gfni` folds a stripe: 64 inner positions of each of a
+    /// group's stripes are one register each, three swap rounds transpose their bits across the eight registers,
+    /// and each transposed register is 24 affine products into the byte-sliced accumulator of its row.
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "gfni",
+        target_feature = "avx512bw",
+        target_feature = "avx512vbmi"
+    ))]
+    #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
+    fn fold_gfni(
+        &self,
+        z_packed: &[u8],
+        eq_hi: &[F192],
+        lo: usize,
+        columns: std::ops::Range<usize>,
+        groups: std::ops::Range<usize>,
+        acc: &mut [F192],
+    ) {
+        use crate::zerocheck::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
+        use core::arch::x86_64::*;
+
+        // Registers `a` and `b` trade the bits of each byte that the shift lines up: rows of an 8x8 bit matrix per
+        // byte, so three rounds transpose it.
+        #[target_feature(enable = "avx512f")]
+        fn swap<const SHIFT: u32>(a: &mut __m512i, b: &mut __m512i, mask: i8) {
+            let keep = _mm512_set1_epi8(mask);
+            let up = _mm512_slli_epi64::<SHIFT>(*b);
+            let down = _mm512_srli_epi64::<SHIFT>(*a);
+            *a = _mm512_ternarylogic_epi64::<0xCA>(keep, *a, up);
+            *b = _mm512_ternarylogic_epi64::<0xCA>(keep, down, *b);
+        }
+
+        let rows = 1usize << self.rows_log;
+        let registers = columns.len() / 64;
+        // Group by group, so each stripe is read in runs of the task's columns: the byte-sliced sums of every row and
+        // register of the task's columns stay in cache across the groups.
+        let mut sums = vec![[_mm512_setzero_si512(); OUT_BYTES]; rows * registers];
+        for h in groups {
+            let matrices: [[u64; OUT_BYTES]; 8] = std::array::from_fn(|q| {
+                if q < self.n_tables {
+                    weight_matrices(&self.weights(eq_hi, h, q))
+                } else {
+                    [0; OUT_BYTES]
+                }
+            });
+            for (c, j) in columns.clone().step_by(64).enumerate() {
+                let mut x: [__m512i; 8] = std::array::from_fn(|i| {
+                    if i < self.width {
+                        let at = self.stripe(lo, h, i) + j;
+                        // SAFETY: the stripe's 64 bytes from `j` lie inside it, `j + 64 <= k`.
+                        unsafe { _mm512_loadu_si512(z_packed[at..at + 64].as_ptr().cast()) }
+                    } else {
+                        _mm512_setzero_si512()
+                    }
+                });
+                for i in 0..4 {
+                    let [a, b] = x.get_disjoint_mut([i, i + 4]).expect("distinct registers");
+                    swap::<4>(a, b, 0x0F);
+                }
+                for i in [0, 1, 4, 5] {
+                    let [a, b] = x.get_disjoint_mut([i, i + 2]).expect("distinct registers");
+                    swap::<2>(a, b, 0x33);
+                }
+                for i in [0, 2, 4, 6] {
+                    let [a, b] = x.get_disjoint_mut([i, i + 1]).expect("distinct registers");
+                    swap::<1>(a, b, 0x55);
+                }
+                for (r, &y) in x.iter().enumerate() {
+                    let sums = &mut sums[(r & (rows - 1)) * registers + c];
+                    for (s, &m) in sums.iter_mut().zip(&matrices[r >> self.rows_log]) {
+                        *s = _mm512_xor_si512(*s, _mm512_gf2p8affine_epi64_epi8::<0>(y, _mm512_set1_epi64(m as i64)));
+                    }
+                }
+            }
+        }
+        for row in 0..rows {
+            for c in 0..registers {
+                let at = row * self.block + 64 * c;
+                let out: &mut [F192; 64] = (&mut acc[at..at + 64]).try_into().expect("64 outputs");
+                store_f192(&sums[row * registers + c], out);
+            }
+        }
+    }
+}
+
 /// Outer-dimension threshold (`n_log = m − k_log`) at/above which the
 /// outer(tile)-partitioned fold beats the i_inner-partitioned one. See
 /// [`partial_fold_packed_z_best`] for the crossover calibration.
@@ -1026,6 +1298,11 @@ pub struct LincheckStatement<'a> {
 
 /// One circuit's product sumcheck: its α-batched column marginal and its partially
 /// folded `z`, both bound top variable first, and its own running claim.
+///
+/// With kept outer coordinates the marginal is `comb ⊗ eq(x_outer_lo, ·)`, kept outer
+/// coordinates on top, so their rounds come first and run on the two `2^kept` factors
+/// `eq(x_outer_lo, ·)` and `t ↦ ⟨comb, z(·, t)⟩`; the last of them folds `z` along the
+/// kept coordinates and the inner rounds run as for one circuit ([`Kept`]).
 struct CircuitProver {
     comb: Vec<F192>,
     z: Vec<F192>,
@@ -1033,10 +1310,21 @@ struct CircuitProver {
     running: F192,
     /// The next round's `(q(1), q(∞))`.
     next: (F192, F192),
+    /// The kept coordinates' tables, until their rounds are done.
+    kept: Option<Kept>,
+}
+
+/// What the inner rounds need once the kept outer coordinates are bound: the
+/// marginal, the fold of `z` keeping those coordinates, and their challenges so far.
+struct Kept {
+    comb: Vec<F192>,
+    z: Vec<F192>,
+    challenges: Vec<F192>,
 }
 
 impl CircuitProver {
-    fn new(input: &LincheckInput<'_>, alpha: F192) -> Self {
+    /// `kept` of the circuit's low outer coordinates join its inner ones in the sumcheck ([`lockstep`]).
+    fn new(input: &LincheckInput<'_>, alpha: F192, kept: usize) -> Self {
         let LincheckInput {
             z_packed,
             m,
@@ -1054,6 +1342,7 @@ impl CircuitProver {
         assert_eq!(circuit.n_cols(), k);
         assert_eq!(x_ab.x_inner_rest.len(), k_log - k_skip);
         assert_eq!(x_ab.x_outer.len(), n_log);
+        assert!(kept <= n_log);
 
         // The α-batched column marginal through the circuit.
         let eq_inner =
@@ -1076,18 +1365,33 @@ impl CircuitProver {
         // and this is a single entry update. See `LincheckCircuit::const_pin_col`.
         comb[circuit.const_pin_col()] += alpha_sq * alpha;
 
-        // Partial fold of z at the shared outer half (length-k F192 vector).
+        // Partial fold of z at the outer coordinates the sumcheck leaves alone, keeping the `kept` low ones: a
+        // length-`2^(k_log + kept)` vector `z(j, t)`. Block diagonality makes `ẑ(j, x_outer)` its eq-weighted sum along
+        // the kept coordinates, so the identity is the same, its marginal `comb(j)·eq(x_outer_lo, t)`.
         let z = tracing::info_span!("Partial fold").in_scope(|| {
-            let eq_x_outer = build_eq(&x_ab.x_outer);
-            partial_fold_packed_z_best(z_packed, m, k_log, useful_bits, &eq_x_outer)
+            let eq_hi = build_eq(&x_ab.x_outer[kept..]);
+            partial_fold_keeping(z_packed, m, k_log, useful_bits, kept, &eq_hi)
         });
+        let rounds = k_log - k_skip + kept;
+        let (comb, z, kept) = if kept == 0 {
+            (comb, z, None)
+        } else {
+            // The kept rounds' factors: summing over `j` first leaves `⟨comb, z(·, t)⟩`, and its product with
+            // `eq(x_outer_lo, t)` has the same round polynomials as the whole marginal against the whole fold.
+            let inner = parallel::map_collect(1 << kept, |t| inner_product_ext(&comb, &z[t * k..(t + 1) * k]));
+            let state = Kept {
+                comb,
+                z,
+                challenges: Vec::with_capacity(kept),
+            };
+            (build_eq(&x_ab.x_outer[..kept]), inner, Some(state))
+        };
 
         // Round 0's message is the only standalone evaluation pass; every later
         // round's message falls out of binding the previous round (fold +
         // next-eval fused into one pass, see `sumcheck_bind_both_and_eval_next`).
         // The running claim is the whole inner product, one O(k) pass over the
         // column vectors and negligible beside the sumcheck itself.
-        let rounds = k_log - k_skip;
         let next = if rounds > 0 {
             sumcheck_round_eval_par(&comb, &z)
         } else {
@@ -1100,6 +1404,7 @@ impl CircuitProver {
             rounds,
             running,
             next,
+            kept,
         }
     }
 
@@ -1113,6 +1418,34 @@ impl CircuitProver {
     /// Bind round `t`'s top variable at `r`.
     fn bind(&mut self, t: usize, r: F192) {
         self.running = primitives::multilinear::poly_eval(&self.message(), r);
+        if let Some(kept) = &mut self.kept {
+            kept.challenges.push(r);
+            if self.comb.len() == 2 {
+                // The last kept round: `eq(x_outer_lo, ·)` bound is a scalar on the marginal, and `z` folds along the
+                // kept coordinates at their challenges, which the rounds took top first.
+                sumcheck_bind_top_in_place_par(&mut self.comb, r);
+                let Kept { comb, z, challenges } = self.kept.take().expect("the kept tables");
+                let scale = self.comb[0];
+                let eq = build_eq(&challenges.iter().rev().copied().collect::<Vec<_>>());
+                let k = comb.len();
+                let mut folded = vec![F192::ZERO; k];
+                parallel::chunks_mut(&mut folded, 256, |c, out| {
+                    for (t, &w) in eq.iter().enumerate() {
+                        for (o, &v) in out.iter_mut().zip(&z[k * t + 256 * c..]) {
+                            *o += w * v;
+                        }
+                    }
+                });
+                self.z = folded;
+                self.comb = comb.into_iter().map(|c| c * scale).collect();
+                self.next = if t + 1 < self.rounds {
+                    sumcheck_round_eval_par(&self.comb, &self.z)
+                } else {
+                    (F192::ZERO, F192::ZERO)
+                };
+                return;
+            }
+        }
         if t + 1 < self.rounds {
             // Fused: bind both tables at r AND compute round (t+1)'s message.
             self.next = sumcheck_bind_both_and_eval_next(&mut self.comb, &mut self.z, r);
@@ -1124,72 +1457,87 @@ impl CircuitProver {
     }
 }
 
+/// How many low outer coordinates each circuit's lincheck binds, from each circuit's `(inner, outer)` coordinate
+/// counts: the inner ones past the skip, and the batch's. The batch binds `max_f inner_f` slots of one point, and
+/// circuit `f` fills them with its inner coordinates and then its low outer ones, as many as it has, so that every
+/// circuit's claim point is a prefix of one point (doc/leanvm Annex C, "Lockstep").
+fn lockstep(shapes: impl Iterator<Item = (usize, usize)> + Clone) -> Vec<usize> {
+    let slots = shapes.clone().map(|(inner, _)| inner).max().unwrap_or(0);
+    shapes.map(|(inner, outer)| (slots - inner).min(outer)).collect()
+}
+
 /// The lincheck prover, for a batch of circuits under one α and one sumcheck
-/// (doc/leanvm Annex C, "Batching the circuits").
+/// (doc/leanvm Annex C, "Batching the circuits" and "Lockstep").
 ///
-/// Circuit `f`'s identity takes the weight `α^{4f}`, and its product sumcheck binds
-/// its `k_log - k_skip` inner coordinates top first, every circuit from the first
-/// round. A circuit done before a round is lifted by that round's variable: it adds
-/// the line `X·u`, `u` its final claim times the challenges since, which reaches
-/// only the coefficient the claim fixes. Each circuit's claim retains its
-/// transmitted post-sumcheck `z_partial`, which is exactly its 64-entry ring-switch
-/// `s_hat_v`, sent after the rounds in circuit order.
+/// Circuit `f`'s identity takes the weight `α^{4f}`. The sumcheck binds the slots of
+/// one point top first, a circuit's inner coordinates and then the low outer ones
+/// `lockstep` keeps, so every circuit's claim point is a prefix of one point. A
+/// circuit with fewer slots than the batch sits out the first rounds, lifted by their
+/// variables: it adds the line `X·u`, `u` its claim times the challenges so far, which
+/// reaches only the coefficient the round's claim fixes. Each circuit's claim retains
+/// its transmitted post-sumcheck `z_partial`, which is exactly its 64-entry
+/// ring-switch `s_hat_v`, sent after the rounds in circuit order.
 pub fn prove(inputs: &[LincheckInput<'_>], ps: &mut ProverState) -> Vec<LincheckClaim> {
     // Sample α (matches verifier's order). It batches each circuit's scalar
     // consistency checks v_a, v_b, v_c and its pin, and the circuits.
     let alpha = ps.sample();
     let weights = circuit_weights(alpha, inputs.len());
-    let mut provers: Vec<CircuitProver> = inputs.iter().map(|input| CircuitProver::new(input, alpha)).collect();
+    let kept = lockstep(inputs.iter().map(|i| (i.k_log - i.k_skip, i.m - i.k_log)));
+    let mut provers: Vec<CircuitProver> = (inputs.iter().zip(&kept))
+        .map(|(input, &kept)| CircuitProver::new(input, alpha, kept))
+        .collect();
 
     let span = tracing::info_span!("Sumcheck").entered();
     let n_rounds = provers.iter().map(|p| p.rounds).max().expect("a batch has a circuit");
+    let mut lifts = weights;
     let mut r_rounds = Vec::with_capacity(n_rounds);
     for t in 0..n_rounds {
         let mut message = [F192::ZERO; 3];
-        for (prover, &weight) in provers.iter().zip(&weights) {
-            let own = if t < prover.rounds {
+        for (prover, &lift) in provers.iter().zip(&lifts) {
+            let own = if t + prover.rounds >= n_rounds {
                 prover.message()
             } else {
                 [F192::ZERO, prover.running, F192::ZERO]
             };
             for (m, c) in message.iter_mut().zip(own) {
-                *m += weight * c;
+                *m += lift * c;
             }
         }
         ps.add_round_poly(&message, false);
         let r = ps.sample();
         r_rounds.push(r);
-        for prover in &mut provers {
-            if t < prover.rounds {
-                prover.bind(t, r);
+        for (prover, lift) in provers.iter_mut().zip(&mut lifts) {
+            if t + prover.rounds >= n_rounds {
+                prover.bind(t + prover.rounds - n_rounds, r);
             } else {
-                prover.running *= r;
+                *lift *= r;
             }
         }
     }
     drop(span);
 
     // Send each `z_partial` (the post-sumcheck collapsed z). Length 2^k_skip.
-    provers
-        .into_iter()
-        .map(|prover| {
+    (provers.into_iter().zip(kept))
+        .map(|(prover, kept)| {
             ps.add_scalars(&prover.z);
-            claim_of(alpha, &r_rounds[..prover.rounds], prover.z)
+            claim_of(alpha, &r_rounds[n_rounds - prover.rounds..], kept, prover.z)
         })
         .collect()
 }
 
-/// A circuit's claim from its rounds' challenges. The rounds bind the TOP bit
-/// first, so `r_rounds[0]` bound bit `inner_rest_len − 1` of the inner rest, and
-/// LSB-first `r_inner_rest[j] = r_rounds[inner_rest_len − 1 − j]`.
-fn claim_of(alpha: F192, r_rounds: &[F192], s_hat_v: Vec<F192>) -> LincheckClaim {
+/// A circuit's claim from the challenges of the rounds it took part in. The rounds bind
+/// the TOP slot first, so `r_rounds[0]` bound its last slot, and in slot order the
+/// point is `r_rounds` reversed: the inner coordinates, then the `kept` outer ones.
+fn claim_of(alpha: F192, r_rounds: &[F192], kept: usize, s_hat_v: Vec<F192>) -> LincheckClaim {
     let mut r_inner_rest = r_rounds.to_vec();
     r_inner_rest.reverse();
+    let r_outer_lo = r_inner_rest.split_off(r_rounds.len() - kept);
     LincheckClaim {
         alpha,
         beta: alpha.square() * alpha,
         r_rounds: r_rounds.to_vec(),
         r_inner_rest,
+        r_outer_lo,
         s_hat_v,
     }
 }
@@ -1241,9 +1589,9 @@ pub fn verify(
     let target = (statements.iter().zip(&weights)).fold(F192::ZERO, |acc, (s, &w)| {
         acc + w * (s.v_a + alpha * s.v_b + alpha_sq * s.v_c + beta)
     });
-    let n_rounds = statements
-        .iter()
-        .map(|s| s.k_log - s.k_skip)
+    let kept = lockstep(statements.iter().map(|s| (s.k_log - s.k_skip, s.m - s.k_log)));
+    let n_rounds = (statements.iter().zip(&kept))
+        .map(|(s, &kept)| s.k_log - s.k_skip + kept)
         .max()
         .expect("a batch has a circuit");
     let mut running = target;
@@ -1258,17 +1606,18 @@ pub fn verify(
 
     // 3. Read + bind every z_partial AFTER the sumcheck rounds (matches prover
     //    order), and check the batch's final claim: each circuit's terminal form,
-    //    times its weight and the challenges of the rounds it sat out. Circuits at
-    //    one inner point (one block size, under the batch's shared challenges) share
-    //    its row weights.
+    //    times its weight and the challenges of the rounds it sat out, and the eq
+    //    weight of the outer coordinates it kept at the challenges that bound them.
+    //    Circuits at one inner point (one block size, under the batch's shared
+    //    challenges) share its row weights.
     let mut final_sum = F192::ZERO;
     let mut claims = Vec::with_capacity(statements.len());
     let mut rows: Vec<RowWeights<'_>> = Vec::new();
-    for (s, &weight) in statements.iter().zip(&weights) {
-        let rounds = s.k_log - s.k_skip;
+    for ((s, &weight), &kept) in statements.iter().zip(&weights).zip(&kept) {
+        let start = n_rounds - (s.k_log - s.k_skip + kept);
         let z_partial: Vec<F192> = vs.next_scalars(1 << s.k_skip)?;
-        let claim = claim_of(alpha, &r_rounds[..rounds], z_partial);
-        let lift = r_rounds[rounds..].iter().fold(weight, |acc, &r| acc * r);
+        let claim = claim_of(alpha, &r_rounds[start..], kept, z_partial);
+        let lift = r_rounds[..start].iter().fold(weight, |acc, &r| acc * r);
         let at = match rows.iter().position(|w| w.serves(s)) {
             Some(at) => at,
             None => {
@@ -1276,7 +1625,8 @@ pub fn verify(
                 rows.len() - 1
             }
         };
-        final_sum += lift * terminal(s, &rows[at], &claim);
+        let outer_lo = eq_eval(&s.x_ab.x_outer[..kept], &claim.r_outer_lo);
+        final_sum += lift * outer_lo * terminal(s, &rows[at], &claim);
         claims.push(claim);
     }
     if running != final_sum {
@@ -1626,6 +1976,42 @@ mod tests {
             let serial = partial_fold_packed_z(&z_packed, m, k_log, &eq);
             let fast = partial_fold_packed_z_fast_padded_dense(&z_packed, m, k_log, &eq);
             assert_eq!(serial, fast, "at m={m}, k_log={k_log}");
+        }
+    }
+
+    /// The fold keeping the low outer coordinates, against its definition straight off the bits: every shape of the
+    /// gather (kept below, at and above a byte's three bits, fewer than eight stripes per group, all kept) and padding.
+    #[test]
+    fn partial_fold_keeping_matches_its_definition() {
+        let cases: &[(usize, usize, usize, usize)] = &[
+            (12, 6, 1, 64),
+            (14, 8, 2, 200),
+            (14, 8, 3, 256),
+            (15, 9, 5, 512),
+            (16, 8, 6, 160),
+            (13, 8, 5, 256),
+            (16, 10, 4, 1024),
+            (17, 12, 1, 4096),
+            (11, 6, 5, 64),
+        ];
+        for &(m, k_log, kept, useful_bits) in cases {
+            let mut rng = Rng::new(900 + (m * 31 + kept) as u64);
+            let k = 1usize << k_log;
+            let mut z = rng.bits(1 << m);
+            for (i, bit) in z.iter_mut().enumerate() {
+                *bit &= i % k < useful_bits;
+            }
+            let z_packed = pack_z_lincheck(&z, m, k_log);
+            let eq_hi = build_eq(&rng.ext_vec(m - k_log - kept));
+            let mut want = vec![F192::ZERO; k << kept];
+            for (i, &bit) in z.iter().enumerate() {
+                let (inner, outer) = (i % k, i / k);
+                if bit {
+                    want[inner + k * (outer % (1 << kept))] += eq_hi[outer >> kept];
+                }
+            }
+            let got = partial_fold_keeping(&z_packed, m, k_log, useful_bits, kept, &eq_hi);
+            assert_eq!(got, want, "m={m}, k_log={k_log}, kept={kept}, useful={useful_bits}");
         }
     }
 

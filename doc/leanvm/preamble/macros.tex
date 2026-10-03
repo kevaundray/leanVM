@@ -49,6 +49,9 @@
 \newcommand{\kblockf}[1]{\kappa_{\mathrm{block},#1}} % \kblock of circuit #1 of the batch
 \newcommand{\kbatchf}[1]{\kappa_{\mathrm{batch},#1}} % \kbatch of circuit #1 of the batch
 \newcommand{\nflockf}[1]{\kappa_{\flock,#1}}         % \nflock of circuit #1 of the batch
+\newcommand{\kkeep}[1]{\kappa_{\mathrm{keep},#1}}   % low batch coordinates of circuit #1 lincheck binds in lockstep
+\newcommand{\kwait}[1]{\kappa_{\mathrm{wait},#1}}   % lockstep lincheck rounds circuit #1 sits out, the first ones
+\newcommand{\lspt}{\fc^{\mathrm{ls}}}               % the one point every circuit's claim is a prefix of (lockstep)
 \newcommand{\ksk}{k_{\mathrm{sk}}}              % row index, the skipped half
 \newcommand{\kin}{k_{\mathrm{in}}}              % row index, the within-block half
 \newcommand{\jsk}{j_{\mathrm{sk}}}              % column index, the skipped half

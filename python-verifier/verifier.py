@@ -1348,35 +1348,42 @@ class FlockCircuit:
 def verify_flock_lincheck(
     circuits: Sequence[FlockCircuit], zerochecks: Sequence[ZerocheckResult], transcript: Transcript
 ) -> list[tuple[MultilinearPoint, tuple[E, ...]]]:
-    """Lincheck for every circuit under one alpha and one sumcheck, circuit f's identity weighted by alpha^(4f). Its
-    rounds bind each circuit's high column coordinates, top first, every circuit from the first round; a circuit done
-    before a round carries the line its lifting variable makes. Per circuit: its claim's point, then its 64 slices s."""
+    """Lincheck for every circuit under one alpha and one sumcheck, circuit f's identity weighted by alpha^(4f), in
+    lockstep: the rounds bind the slots of one point top first, as many as the largest circuit has column coordinates
+    past the skip, and each circuit fills them with its column coordinates and then its low batch coordinates, as many
+    as it has, so every claim's point is a prefix of one point. A circuit with fewer slots sits out the first rounds,
+    carrying the line its lifting variable makes. Per circuit: its claim's point, then its 64 slices s."""
     alpha = transcript.sample()  # batches the two matrix identities, the c claim and the constant-position claim, and the circuits
     weights = powers(alpha**4, len(circuits))
-    rounds = [circuit.log_size - FLOCK_K_SKIP for circuit in circuits]
+    inner = [circuit.log_size - FLOCK_K_SKIP for circuit in circuits]
+    slots = max(inner)
+    kept = [min(slots - columns, len(zc.chi) - columns) for columns, zc in zip(inner, zerochecks, strict=True)]
     claim = dot(weights, [zc.v_a + alpha * zc.v_b + alpha**2 * zc.v_c + alpha**3 for zc in zerochecks])
-    round_challenges, r_lc = sumcheck(transcript, claim, 3, [None] * max(rounds))
+    round_challenges, r_lc = sumcheck(transcript, claim, 3, [None] * slots)
 
     # Every residual, then the terminal identity: pin term and c term included.
     # C = I, so the c weight is e_row itself, and both sides being tensors it
     # collapses to eq(chi_in, chi_in_prime) times a 64-term Lagrange combination.
     terminal = ZERO
     families = []
-    for circuit, zc, n_rounds, weight in zip(circuits, zerochecks, rounds, weights, strict=True):
+    for circuit, zc, columns, outer, weight in zip(circuits, zerochecks, inner, kept, weights, strict=True):
         s = tuple(transcript.next_scalars(K_BITS))
         # e_row: phi8 Lagrange in the skip coordinate, eq in the slot variables.
         skip_weights = lagrange_weights(K_BITS, zc.z_skip)
-        chi_in = zc.chi[:n_rounds]
+        chi_in, chi_out = zc.chi[:columns], zc.chi[columns:]
         e_row = [eq * value for eq in eq_kernel(chi_in) for value in skip_weights]
-        chi_in_prime = tuple(reversed(round_challenges[:n_rounds]))
+        start = slots - columns - outer
+        point = tuple(reversed(round_challenges[start:]))  # the slots in coordinate order
+        chi_in_prime = point[:columns]
         w_col = [value * eq for eq in eq_kernel(chi_in_prime) for value in s]
         form = (
             circuit.bilinear(alpha, e_row, w_col)
             + alpha**2 * eq_eval(chi_in, chi_in_prime) * dot(skip_weights, s)
             + alpha**3 * w_col[circuit.constant_column]
         )
-        terminal += reduce(mul, round_challenges[n_rounds:], weight) * form
-        families.append((chi_in_prime + zc.chi[n_rounds:], s))
+        # The batch coordinates the rounds bound weigh the circuit by their eq at the zerocheck's.
+        terminal += reduce(mul, round_challenges[:start], weight) * eq_eval(chi_out[:outer], point[columns:]) * form
+        families.append((point + chi_out[outer:], s))
     require(terminal == r_lc, "Flock lincheck terminal mismatch")
     return families
 
@@ -2187,7 +2194,7 @@ def verify_execution(
     check_bytecode(bytecode)
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
-    preimage = b"leanvm-rv64im-8" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
+    preimage = b"leanvm-rv64im-9" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
     transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 

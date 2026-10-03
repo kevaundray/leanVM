@@ -298,7 +298,8 @@ fn the_python_verifier_follows_the_slowest_rate() {
 
 /// Every flock circuit's claim joins the opening's one ring-switched family through its 64 slices, the last words
 /// flock sends: both verifiers find them at the same place and reject any one of them moved, the first circuit's, a
-/// middle one's and the last's.
+/// middle one's and the last's. And the claim's point is the lockstep one: Python with two of a clock circuit's
+/// lincheck-bound coordinates swapped rejects.
 #[test]
 fn both_verifiers_bind_every_circuits_slices() {
     let (program, _) = super::programs::fibonacci();
@@ -338,4 +339,24 @@ sys.exit(v['main'](sys.argv[2:]))
         raw_forged.stream[at] += F192::ONE;
         PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice");
     }
+
+    // The lockstep slots are where the claim is: the first clock circuit's point with two of its lincheck-bound batch
+    // coordinates swapped is refused by the opening.
+    let swapped = r#"import runpy, sys
+v = runpy.run_path(sys.argv[1])
+g = v['main'].__globals__
+flock = g['verify_flock']
+def swapped(circuits, transcript):
+    families = flock(circuits, transcript)
+    point, s = families[len(families) // 2]
+    point = (*point[:3], point[4], point[3], *point[5:])
+    families[len(families) // 2] = (point, s)
+    return families
+g['verify_flock'] = swapped
+sys.exit(v['main'](sys.argv[2:]))
+"#;
+    PythonStatement::assert_rejects(
+        &statement.verify_with(&raw, Some(swapped)),
+        "a lockstep point out of order",
+    );
 }
