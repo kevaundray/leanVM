@@ -24,7 +24,7 @@ mod sign;
 
 pub use sign::{SecretKey, SignError, key_gen};
 
-use leanvm_guest::Blake2s;
+use leanvm_guest::{Blake2s, Template};
 
 /// A hash value: 128 bits.
 pub type Digest = [u64; 2];
@@ -130,17 +130,8 @@ pub fn verify(
     // The digits say where each chain was opened.
     let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
     // Walk each chain the rest of the way: chain `i` from value `digit_i` to value 7.
-    let ends = core::array::from_fn(|i| {
-        let start = digits[i] as usize;
-        chain(
-            pp,
-            leaf_index,
-            i,
-            start,
-            CHAIN_LENGTH - 1 - start,
-            signature.chain_tips[i],
-        )
-    });
+    let mut chains = Chains::new(pp, leaf_index);
+    let ends = core::array::from_fn(|i| chains.walk(i, digits[i] as usize..CHAIN_LENGTH - 1, signature.chain_tips[i]));
     // The chain ends are the one-time public key: its leaf, folded up to the root.
     let root = merkle_root(
         pp,
@@ -185,6 +176,17 @@ fn tweak_hash<const N: usize>(pp: &PublicParam, ty: u8, position: u32, index: u3
     [digest[0], digest[1]]
 }
 
+/// A digest is the first 16 bytes of the 32.
+#[inline(always)]
+const fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
+    [d0, d1]
+}
+
+/// Where the payload starts in a one-block message `tweak | pp | payload`.
+const PAYLOAD: usize = 4;
+/// Bytes 4..8 of a tweak: its position.
+const TWEAK_POSITION: usize = 4;
+
 /// The target-sum encoding: the message's 42 digits, or `None` if they are not valid.
 ///
 /// The encoding digest is two words of 21 three-bit digits each.
@@ -215,13 +217,32 @@ fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness
     (sum == TARGET_SUM).then_some(digits)
 }
 
-/// Walk chain `i` for `steps` steps from value number `start`.
-///
-/// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
-fn chain(pp: &PublicParam, leaf_index: LeafIndex, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
-    (start..start + steps).fold(value, |value, s| {
-        tweak_hash(pp, TWEAK_CHAIN, (i * CHAIN_LENGTH + s) as u32, leaf_index, &value)
-    })
+/// The hash every chain step is, `tweak | pp | value`, kept across steps and chains.
+struct Chains {
+    step: Template<6>,
+}
+
+impl Chains {
+    fn new(pp: &PublicParam, leaf_index: LeafIndex) -> Self {
+        let [t0, t1] = tweak(TWEAK_CHAIN, 0, leaf_index);
+        Self {
+            step: Template::new([t0, t1, pp[0], pp[1], 0, 0]),
+        }
+    }
+
+    /// Walk chain `i` from value number `values.start` to value number `values.end`.
+    ///
+    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak. Only the tweak's
+    /// position field changes: its second word, the leaf index, is the template's.
+    #[inline(always)]
+    fn walk(&mut self, i: usize, values: core::ops::Range<usize>, value: Digest) -> Digest {
+        let first = (i * CHAIN_LENGTH) as u32;
+        (first + values.start as u32..first + values.end as u32).fold(value, |value, position| {
+            self.step.write(TWEAK_POSITION, position);
+            self.step.write(8 * PAYLOAD, value);
+            digest(self.step.digest())
+        })
+    }
 }
 
 /// The Merkle leaf of a one-time key: its 42 chain ends in one hash, 11 compressions.
@@ -235,28 +256,22 @@ fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, ends: &[Digest; V]) -> Dig
     )
 }
 
-/// The parent at a level, the leaves being level 0, and an index within it.
-fn merkle_node(pp: &PublicParam, level: usize, index: u64, left: &Digest, right: &Digest) -> Digest {
-    // Both children fill one block with the tweak and the parameter: one compression.
-    tweak_hash(
-        pp,
-        TWEAK_MERKLE,
-        level as u32,
-        index as u32,
-        &[left[0], left[1], right[0], right[1]],
-    )
-}
-
-/// Fold a leaf, at index `leaf_index`, up its authentication path.
+/// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`, in one
+/// block kept across levels.
 fn merkle_root(pp: &PublicParam, leaf_index: LeafIndex, leaf: Digest, path: &[Digest; LOG_LIFETIME]) -> Digest {
-    path.iter().enumerate().fold(leaf, |node, (level, sibling)| {
-        // The node's index at this level: its low bit says which child it is.
+    let mut node = Template::new([0, 0, pp[0], pp[1], 0, 0, 0, 0]);
+    path.iter().enumerate().fold(leaf, |child, (level, sibling)| {
+        // The child's index at this level: its low bit says which side it is on.
         let index = u64::from(leaf_index) >> level;
-        let (left, right) = if index & 1 == 0 {
-            (&node, sibling)
+        let ([c0, c1], [s0, s1]) = (child, *sibling);
+        let children = if index & 1 == 0 {
+            [c0, c1, s0, s1]
         } else {
-            (sibling, &node)
+            [s0, s1, c0, c1]
         };
-        merkle_node(pp, level + 1, index >> 1, left, right)
+        // The parent is at the next level up, and half the index.
+        node.set(0, tweak(TWEAK_MERKLE, (level + 1) as u32, (index >> 1) as u32));
+        node.set(PAYLOAD, children);
+        digest(node.digest())
     })
 }

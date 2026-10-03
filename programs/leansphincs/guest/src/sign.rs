@@ -136,7 +136,8 @@ impl SecretKey {
             .find_map(|c| ots::encode(pp, pos, message, c as u32).map(|x| (c as u32, x)))
             .ok_or(SignError::NoAdmissibleEncoding)?;
         // Chain `i` opened at value `x_i`.
-        let ots = core::array::from_fn(|i| ots::chain(pp, pos, i, 0, x[i] as usize, ots::secret(pp, master, pos, i)));
+        let mut chains = ots::Chains::new(pp, pos);
+        let ots = core::array::from_fn(|i| chains.walk(i, 0, x[i] as usize, ots::secret(pp, master, pos, i)));
         // The top layer's tree has the cache; the others are rebuilt whole.
         let mut path = [[0; 2]; HEIGHT];
         *message = if lay == 0 {
@@ -192,7 +193,8 @@ impl SecretKey {
 
 /// The leaf of a one-time key: every chain walked to its end.
 fn public_leaf(pp: &PublicParam, master: &[u64; 4], pos: Pos) -> Digest {
-    let ends = core::array::from_fn(|i| ots::chain(pp, pos, i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i)));
+    let mut chains = ots::Chains::new(pp, pos);
+    let ends = core::array::from_fn(|i| chains.walk(i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i)));
     ots::leaf_hash(pp, pos, &ends)
 }
 
@@ -200,10 +202,11 @@ fn public_leaf(pp: &PublicParam, master: &[u64; 4], pos: Pos) -> Digest {
 ///
 /// The band starts at index `first`, an even one.
 fn fold(pp: &PublicParam, lay: usize, tau: u32, level: usize, first: u64, nodes: &mut [Digest]) {
+    let mut hash = NodeHash::new(pp);
     // Parent `j` reads only children `2j` and `2j + 1`, which no earlier parent overwrote.
     for j in 0..nodes.len() / 2 {
         nodes[j] = node(
-            pp,
+            &mut hash,
             lay,
             tau,
             level + 1,

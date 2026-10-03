@@ -25,7 +25,7 @@ mod sign;
 
 pub use sign::{SecretKey, SignError, key_gen};
 
-use leanvm_guest::Blake2s;
+use leanvm_guest::{Blake2s, Template};
 
 /// `n`: a hash value, 128 bits.
 pub type Digest = [u64; 2];
@@ -281,6 +281,15 @@ fn th<const N: usize>(pp: &PublicParam, tw: &[u64; 2], message: &[u64; N]) -> Di
     [digest[0], digest[1]]
 }
 
+/// A digest is the first 16 bytes of the 32.
+#[inline(always)]
+const fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
+    [d0, d1]
+}
+
+/// Where the message starts in a one-block `Th`, after `tw | P`.
+const PAYLOAD: usize = 4;
+
 /// The message digest, read as the index and the `k` few-time leaf indices.
 ///
 /// `h + ka = 176` bits: the index in the low 26, then 10 bits per leaf index.
@@ -302,22 +311,33 @@ fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, mess
     (bits(0, H), core::array::from_fn(|kappa| bits(H + kappa * A, A) as u32))
 }
 
-/// A hypertree node: a level and an index within a layer's tree.
-fn node(pp: &PublicParam, lay: usize, tau: u32, level: usize, j: u64, left: &Digest, right: &Digest) -> Digest {
-    th(
-        pp,
-        &tweak(TWEAK_NODE, lay, tau, level as u32, j as u32),
-        &concat(left, right),
-    )
+/// `Th` of tree nodes, `tw | P | left | right`, in one block kept across nodes: a node writes only its tweak and
+/// its children.
+struct NodeHash(Template<8>);
+
+impl NodeHash {
+    fn new(pp: &PublicParam) -> Self {
+        Self(Template::new([0, 0, pp[0], pp[1], 0, 0, 0, 0]))
+    }
+
+    /// The parent of `left` and `right` under `tw`.
+    #[inline(always)]
+    fn hash(&mut self, tw: [u64; 2], left: &Digest, right: &Digest) -> Digest {
+        self.0.set(0, tw);
+        self.0.set(PAYLOAD, [left[0], left[1], right[0], right[1]]);
+        digest(self.0.digest())
+    }
 }
 
-/// Two digests as one message.
-const fn concat(left: &Digest, right: &Digest) -> [u64; 4] {
-    [left[0], left[1], right[0], right[1]]
+/// A hypertree node: a level and an index within a layer's tree.
+#[inline(always)]
+fn node(hash: &mut NodeHash, lay: usize, tau: u32, level: usize, j: u64, left: &Digest, right: &Digest) -> Digest {
+    hash.hash(tweak(TWEAK_NODE, lay, tau, level as u32, j as u32), left, right)
 }
 
 /// `Tree.fold`: a leaf folded up its path to its tree's root.
 fn tree_fold(pp: &PublicParam, pos: Pos, leaf: Digest, path: &[Digest]) -> Digest {
+    let mut hash = NodeHash::new(pp);
     path.iter().enumerate().fold(leaf, |current, (level, sibling)| {
         // The leaf's bit at this level says which child the current node is.
         let (left, right) = if (pos.e >> level) & 1 == 0 {
@@ -326,7 +346,7 @@ fn tree_fold(pp: &PublicParam, pos: Pos, leaf: Digest, path: &[Digest]) -> Diges
             (sibling, &current)
         };
         node(
-            pp,
+            &mut hash,
             pos.lay,
             pos.tau,
             level + 1,

@@ -4,6 +4,8 @@
 //!
 //! The machine moves a word in one instruction, and a byte-aligned value one byte at a time.
 
+use core::mem::MaybeUninit;
+
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
 /// The parameter block says: no key, a 32-byte digest, so `0x0101_0020` is folded into the first lane.
@@ -143,6 +145,66 @@ impl Blake2s {
     }
 }
 
+/// A one-block message of `W` words, hashed again and again: rewritten in place between hashes, where it changed.
+///
+/// Hashes of one shape write the words they share (a key, a prefix, the padding) once, not once per hash: the
+/// message stays in the block the instruction reads, which writes the compression and nothing else.
+pub struct Template<const W: usize> {
+    block: Block,
+}
+
+impl<const W: usize> Template<W> {
+    #[inline(always)]
+    pub fn new(words: [u64; W]) -> Self {
+        const { assert!(W <= 8, "a template is one block") };
+        let mut m = [0; 8];
+        m[..W].copy_from_slice(&words);
+        Self {
+            block: Block {
+                h: IV,
+                out: MaybeUninit::uninit(),
+                m,
+            },
+        }
+    }
+
+    /// Rewrite the message from word `at`.
+    #[inline(always)]
+    pub fn set<const N: usize>(&mut self, at: usize, words: [u64; N]) {
+        self.block.m[..W][at..at + N].copy_from_slice(&words);
+    }
+
+    /// Write `value` at byte `at` of the message: a field narrower than a word, or an offset already in bytes,
+    /// which then needs no shift to become an address as [`Self::set`]'s word index does.
+    #[inline(always)]
+    pub fn write<T: Plain>(&mut self, at: usize, value: T) {
+        assert!(
+            at.is_multiple_of(align_of::<T>()) && size_of::<T>() <= 8 * W && at <= 8 * W - size_of::<T>(),
+            "an aligned field inside the message"
+        );
+        // SAFETY: the field is inside the message and aligned (checked above), and `T` has no padding, so the
+        // message stays initialized words.
+        unsafe { self.block.m.as_mut_ptr().byte_add(at).cast::<T>().write(value) }
+    }
+
+    /// The digest of the message as it stands, as four little-endian words.
+    #[inline(always)]
+    pub fn digest(&mut self) -> [u64; 4] {
+        self.block.compress(8 * W as u64, true)
+    }
+}
+
+/// What [`Template::write`] takes: an integer or an array of them, whose bytes are all initialized.
+mod plain {
+    pub trait Plain: Copy {}
+    impl Plain for u8 {}
+    impl Plain for u16 {}
+    impl Plain for u32 {}
+    impl Plain for u64 {}
+    impl<T: Plain, const N: usize> Plain for [T; N] {}
+}
+use plain::Plain;
+
 /// The block the instruction works on, in words.
 ///
 /// ```text
@@ -152,13 +214,35 @@ impl Blake2s {
 /// ```
 ///
 /// Aligned to its size, so word `k` is the cell at `base ^ 8k`.
-#[cfg(all(target_arch = "riscv64", target_os = "none"))]
 #[repr(C, align(128))]
 pub(crate) struct Block {
     pub(crate) h: [u64; 4],
     /// Written by the instruction before anything reads it.
-    pub(crate) out: core::mem::MaybeUninit<[u64; 4]>,
+    pub(crate) out: MaybeUninit<[u64; 4]>,
     pub(crate) m: [u64; 8],
+}
+
+impl Block {
+    /// The compression of `m` onto `h`, in place, `t` bytes into the message.
+    #[inline(always)]
+    // The instruction writes `out`; off the VM the portable compression only reads the block.
+    #[cfg_attr(
+        not(all(target_arch = "riscv64", target_os = "none")),
+        allow(clippy::needless_pass_by_ref_mut)
+    )]
+    fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: the block is this borrow's, its chaining value and message initialized; the instruction writes
+        // the compression.
+        unsafe {
+            crate::precompile::blake2s_compress_in_place(self, t, last);
+            self.out.assume_init()
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        {
+            portable::compress(&self.h, &self.m, t, last)
+        }
+    }
 }
 
 /// The compression of a message block onto a chaining value, `t` bytes into the message:
@@ -244,5 +328,165 @@ mod portable {
         // The new chaining value `h ^ v_lo ^ v_hi`, packed back into words.
         let word = |i: usize| u64::from(lane(h, i) ^ v[i] ^ v[i + 8]);
         core::array::from_fn(|k| word(2 * k) | word(2 * k + 1) << 32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use primitives::test_rng::Rng;
+
+    /// The reference BLAKE2s-256 of `bytes`, as little-endian words.
+    fn reference(bytes: &[u8]) -> [u64; 4] {
+        let digest = primitives::hash::hash(bytes);
+        core::array::from_fn(|k| u64::from_le_bytes(digest[8 * k..8 * k + 8].try_into().unwrap()))
+    }
+
+    /// A template and the bytes its message should be, rewritten together.
+    struct Mirror<const W: usize> {
+        template: Template<W>,
+        bytes: [u8; 64],
+    }
+
+    impl<const W: usize> Mirror<W> {
+        fn new(words: [u64; W]) -> Self {
+            let mut bytes = [0; 64];
+            for (k, word) in words.iter().enumerate() {
+                bytes[8 * k..8 * k + 8].copy_from_slice(&word.to_le_bytes());
+            }
+            Self {
+                template: Template::new(words),
+                bytes,
+            }
+        }
+
+        fn put(&mut self, at: usize, le: &[u8]) {
+            self.bytes[at..at + le.len()].copy_from_slice(le);
+        }
+
+        fn check(&mut self) {
+            let expected = reference(&self.bytes[..8 * W]);
+            assert_eq!(self.template.digest(), expected, "{W} words");
+            assert_eq!(self.template.digest(), expected, "hashing leaves the message as it was");
+        }
+    }
+
+    fn hashes_its_message<const W: usize>(rng: &mut Rng) {
+        Mirror::<W>::new(core::array::from_fn(|_| rng.next_u64())).check();
+    }
+
+    #[test]
+    fn a_template_is_the_blake2s_of_its_message() {
+        // Invariant: a template of `W` words hashes as BLAKE2s-256 of those `8W` bytes, the empty message included.
+        let mut rng = Rng::new(0x7E3);
+        hashes_its_message::<0>(&mut rng);
+        hashes_its_message::<1>(&mut rng);
+        hashes_its_message::<2>(&mut rng);
+        hashes_its_message::<3>(&mut rng);
+        hashes_its_message::<4>(&mut rng);
+        hashes_its_message::<5>(&mut rng);
+        hashes_its_message::<6>(&mut rng);
+        hashes_its_message::<7>(&mut rng);
+        hashes_its_message::<8>(&mut rng);
+    }
+
+    /// A random offset of a `size`-byte field, aligned to its size and inside a message of `W` words.
+    fn offset<const W: usize>(rng: &mut Rng, size: usize) -> usize {
+        rng.next_u64() as usize % (8 * W / size) * size
+    }
+
+    fn rewrites<const W: usize>(rng: &mut Rng) {
+        let mut mirror = Mirror::<W>::new(core::array::from_fn(|_| rng.next_u64()));
+        mirror.check();
+        for _ in 0..256 {
+            let value = rng.next_u64();
+            match rng.next_u64() % 7 {
+                0 => {
+                    let at = offset::<W>(rng, 8) / 8;
+                    mirror.template.set(at, [value]);
+                    mirror.put(8 * at, &value.to_le_bytes());
+                }
+                1 => {
+                    let at = offset::<W>(rng, 8) / 8;
+                    let at = at.min(W - 2);
+                    mirror.template.set(at, [value, !value]);
+                    mirror.put(8 * at, &value.to_le_bytes());
+                    mirror.put(8 * at + 8, &(!value).to_le_bytes());
+                }
+                2 => {
+                    let at = offset::<W>(rng, 1);
+                    mirror.template.write(at, value as u8);
+                    mirror.put(at, &[value as u8]);
+                }
+                3 => {
+                    let at = offset::<W>(rng, 2);
+                    mirror.template.write(at, value as u16);
+                    mirror.put(at, &(value as u16).to_le_bytes());
+                }
+                4 => {
+                    let at = offset::<W>(rng, 4);
+                    mirror.template.write(at, value as u32);
+                    mirror.put(at, &(value as u32).to_le_bytes());
+                }
+                5 => {
+                    let at = offset::<W>(rng, 8);
+                    mirror.template.write(at, value);
+                    mirror.put(at, &value.to_le_bytes());
+                }
+                _ => {
+                    // A digest-sized field at any word, not only at a multiple of its size.
+                    let at = offset::<W>(rng, 8).min(8 * W - 16);
+                    mirror.template.write(at, [value, !value]);
+                    mirror.put(at, &value.to_le_bytes());
+                    mirror.put(at + 8, &(!value).to_le_bytes());
+                }
+            }
+            mirror.check();
+        }
+        // The last field of each width ends at the message's end, and is inside it.
+        mirror.template.write(8 * W - 1, 0xA5u8);
+        mirror.put(8 * W - 1, &[0xA5]);
+        mirror.template.write(8 * W - 2, 0xA55Au16);
+        mirror.put(8 * W - 2, &0xA55Au16.to_le_bytes());
+        mirror.template.write(8 * W - 4, 0xA55A_5AA5u32);
+        mirror.put(8 * W - 4, &0xA55A_5AA5u32.to_le_bytes());
+        mirror.check();
+    }
+
+    #[test]
+    fn a_rewritten_template_is_the_blake2s_of_its_new_message() {
+        // Invariant: after any run of `set`s and `write`s, a template hashes the message those leave, as bytes in
+        // little-endian words; hashing leaves the message as it was.
+        //
+        // Fixture: the chain step's shape (6 words), a whole block, and two words; a field of every width.
+        let mut rng = Rng::new(0x7E4);
+        rewrites::<2>(&mut rng);
+        rewrites::<6>(&mut rng);
+        rewrites::<8>(&mut rng);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_a_misaligned_field() {
+        Template::new([0; 6]).write(2, 0u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_a_field_past_the_message_inside_the_block() {
+        // Words 6 and 7 of the block are padding, not the message.
+        Template::new([0; 6]).write(48, 0u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_a_field_wider_than_the_message() {
+        Template::new([0; 1]).write(0, [0u64; 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_an_offset_whose_end_would_wrap() {
+        Template::new([0; 6]).write(usize::MAX, 0u8);
     }
 }

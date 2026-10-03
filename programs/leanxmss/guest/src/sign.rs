@@ -39,8 +39,8 @@ pub fn key_gen(seed: [u8; 32], leaf_index: LeafIndex) -> (SecretKey, PublicKey) 
     let public_param = tweak_hash(&[0; 2], TWEAK_PARAMETER, 0, 0, &seed);
     let pp = &public_param;
     // The one real leaf: every chain walked from its start to its end.
-    let ends =
-        core::array::from_fn(|i| chain(pp, leaf_index, i, 0, CHAIN_LENGTH - 1, secret(&seed, pp, leaf_index, i)));
+    let mut chains = Chains::new(pp, leaf_index);
+    let ends = core::array::from_fn(|i| chains.walk(i, 0..CHAIN_LENGTH - 1, secret(&seed, pp, leaf_index, i)));
     let leaf = wots_leaf(pp, leaf_index, &ends);
     // Its path is all fillers, which the root is the fold of.
     let merkle_root = merkle_root(pp, leaf_index, leaf, &filler_path(&seed, pp, leaf_index));
@@ -80,16 +80,10 @@ impl SecretKey {
             })
             .ok_or(SignError::NoValidEncoding)?;
         // Chain `i` opened at value `digit_i`, and the path of fillers.
+        let mut chains = Chains::new(pp, leaf_index);
         Ok(Signature {
             chain_tips: core::array::from_fn(|i| {
-                chain(
-                    pp,
-                    leaf_index,
-                    i,
-                    0,
-                    digits[i] as usize,
-                    secret(seed, pp, leaf_index, i),
-                )
+                chains.walk(i, 0..digits[i] as usize, secret(seed, pp, leaf_index, i))
             }),
             randomness,
             merkle_proof: filler_path(seed, pp, leaf_index),

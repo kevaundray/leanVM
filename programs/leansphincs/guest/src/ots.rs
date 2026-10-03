@@ -12,17 +12,35 @@ pub(crate) fn secret(pp: &PublicParam, master: &[u64; 4], pos: Pos, i: usize) ->
     th(pp, &tweak(TWEAK_PRF, pos.lay, pos.tau, i as u32, pos.e), master)
 }
 
-/// `Chain`: walk chain `i` for `steps` steps from value number `start`.
-///
-/// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
-pub(crate) fn chain(pp: &PublicParam, pos: Pos, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
-    (start..start + steps).fold(value, |value, s| {
-        th(
-            pp,
-            &tweak(TWEAK_CHAIN, pos.lay, pos.tau, (CHAIN_LEN * i + s) as u32, pos.e),
-            &value,
-        )
-    })
+/// `Chain`'s hash, `tw | P | value`, kept across a one-time key's steps and chains: a step writes only its tweak's
+/// position and its value.
+pub(crate) struct Chains {
+    step: Template<6>,
+    pos: Pos,
+}
+
+impl Chains {
+    pub(crate) fn new(pp: &PublicParam, pos: Pos) -> Self {
+        let [t0, t1] = tweak(TWEAK_CHAIN, pos.lay, pos.tau, 0, pos.e);
+        Self {
+            step: Template::new([t0, t1, pp[0], pp[1], 0, 0]),
+            pos,
+        }
+    }
+
+    /// `Chain`: walk chain `i` for `steps` steps from value number `start`.
+    ///
+    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
+    pub(crate) fn walk(&mut self, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
+        let Pos { lay, tau, e } = self.pos;
+        (start..start + steps).fold(value, |value, s| {
+            // Only the tweak's first word, the position, changes: the second, `tau | e`, is the template's.
+            let [position, _] = tweak(TWEAK_CHAIN, lay, tau, (CHAIN_LEN * i + s) as u32, e);
+            self.step.set(0, [position]);
+            self.step.set(PAYLOAD, value);
+            digest(self.step.digest())
+        })
+    }
 }
 
 /// The Merkle leaf of a one-time key: `Th` over its `v` chain ends.
@@ -68,9 +86,10 @@ pub(crate) fn encode(pp: &PublicParam, pos: Pos, message: &Digest, counter: u32)
 pub(crate) fn leaf(pp: &PublicParam, pos: Pos, message: &Digest, counter: u32, ots: &[Digest; V]) -> Option<Digest> {
     let x = encode(pp, pos, message, counter)?;
     // Chain `i` was opened at value `x_i`: walk it the rest of the way to value 7.
+    let mut chains = Chains::new(pp, pos);
     let ends = core::array::from_fn(|i| {
         let start = x[i] as usize;
-        chain(pp, pos, i, start, CHAIN_LEN - 1 - start, ots[i])
+        chains.walk(i, start, CHAIN_LEN - 1 - start, ots[i])
     });
     Some(leaf_hash(pp, pos, &ends))
 }
