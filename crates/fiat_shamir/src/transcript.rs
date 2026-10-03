@@ -14,7 +14,7 @@ pub struct Proof<M = PrunedMerklePaths> {
 
 /// The proof the Python verifier consumes: [`Proof`] with every query's Merkle
 /// path written out, which is the one thing it would otherwise have to
-/// reconstruct. A verifier run yields it as a by-product
+/// reconstruct. A recording verifier run yields it as a by-product
 /// ([`VerifierState::into_raw_proof`]), so that expansion is written once, in Rust.
 pub type RawProof = Proof<RawMerklePath>;
 
@@ -181,7 +181,8 @@ pub struct VerifierState<'a> {
     offset: usize,
     merkle: &'a [PrunedMerklePaths],
     phase: usize,
-    raw_openings: Vec<RawMerklePath>,
+    /// The unpruned openings, kept only by a [`VerifierState::recording`] state.
+    raw_openings: Option<Vec<RawMerklePath>>,
 }
 
 impl<'a> VerifierState<'a> {
@@ -203,8 +204,15 @@ impl<'a> VerifierState<'a> {
             offset: 0,
             merkle: &proof.merkle,
             phase: 0,
-            raw_openings: Vec::new(),
+            raw_openings: None,
         }
+    }
+
+    /// Keep every opening's unpruned form, for [`VerifierState::into_raw_proof`].
+    #[must_use]
+    pub fn recording(mut self) -> Self {
+        self.raw_openings = Some(Vec::new());
+        self
     }
 
     /// Advance the wire cursor by one **without** binding or recording: the read
@@ -228,10 +236,14 @@ impl<'a> VerifierState<'a> {
     /// The redundant form of the proof just verified: every scalar it read, plus
     /// one unpruned opening per query in phase order. Meaningful only after a
     /// verification that accepted, since a rejected one stops part way.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless the state is [`VerifierState::recording`].
     pub fn into_raw_proof(self) -> RawProof {
         RawProof {
             stream: self.stream[..self.offset].to_vec(),
-            merkle: self.raw_openings,
+            merkle: self.raw_openings.expect("a recording verifier state"),
         }
     }
 
@@ -287,8 +299,8 @@ impl<'a> Receiver for VerifierState<'a> {
     /// in `queries` order.
     ///
     /// The only way to reach a phase's rows, so none can be used unauthenticated.
-    /// The check also yields each query's full sibling path, which is recorded
-    /// for [`VerifierState::into_raw_proof`].
+    /// The check also yields each query's full sibling path, which a
+    /// [`VerifierState::recording`] state keeps for [`VerifierState::into_raw_proof`].
     fn next_merkle_batch(
         &mut self,
         root: &Hash,
@@ -300,12 +312,10 @@ impl<'a> Receiver for VerifierState<'a> {
         let phase = self.phase;
         let paths: &'a PrunedMerklePaths = self.merkle.get(phase).ok_or(Error::MissingHint { phase })?;
         self.phase += 1;
-        let openings = paths
-            .open(root, num_leaves, queries, row_words, leaf_words)
-            .ok_or(Error::InvalidMerkleOpening { phase })?;
-        let rows = openings.iter().map(|o| o.leaf_data.clone()).collect();
-        self.raw_openings.extend(openings);
-        Ok(rows)
+        let raw = self.raw_openings.as_mut();
+        paths
+            .open(root, num_leaves, queries, row_words, leaf_words, raw)
+            .ok_or(Error::InvalidMerkleOpening { phase })
     }
 
     /// Read the next scalar, binding it into the state (mirrors `add_scalar`).
