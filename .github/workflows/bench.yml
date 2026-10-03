@@ -100,10 +100,20 @@ jobs:
               "ab/$1/bench" bench --only "$BENCHMARK" --repeat 1 --cooldown 0
             fi
           }
+          # A base that cannot run the benchmark at all (one this PR adds, or a base older than
+          # `--only`) fails its first run, and the PR's runs are then compared with nothing: the
+          # comment shows them as new. Any other failure fails the job.
+          base=true
           for round in $(seq "$ROUNDS"); do
             if [ $((round % 2)) = 1 ]; then order="base head"; else order="head base"; fi
             for side in $order; do
-              run "$side" > result.json
+              if [ "$side" = base ] && [ "$base" = false ]; then continue; fi
+              if ! run "$side" > result.json; then
+                if [ "$side" = head ] || [ "$round" != 1 ]; then exit 1; fi
+                echo "::warning::the base cannot run $BENCHMARK: the PR's runs are compared with nothing"
+                base=false
+                continue
+              fi
               jq -c --argjson round "$round" --arg side "$side" '{round: $round, side: $side, results: .}' result.json | tee -a runs.jsonl
             done
           done
