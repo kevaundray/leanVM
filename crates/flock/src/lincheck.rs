@@ -1175,16 +1175,23 @@ pub fn verify(
     v_c: F192,
     vs: &mut VerifierState<'_>,
 ) -> Result<LincheckClaim, VerifyError> {
-    let (claim, matrices) = verify_deferred(m, k_log, k_skip, circuit, x_ab, v_a, v_b, v_c, vs)?;
+    if circuit.n_cols() != 1 << k_log {
+        return Err(VerifyError::BadNCols {
+            expected: 1 << k_log,
+            got: circuit.n_cols(),
+        });
+    }
+    let (claim, matrices) = verify_deferred(m, k_log, k_skip, circuit.const_pin_col(), x_ab, v_a, v_b, v_c, vs)?;
     matrices.check(circuit)?;
     Ok(claim)
 }
 
 /// [`verify`] up to the circuit's matrices: the terminal identity's bilinear form is
 /// returned as a [`MatrixClaim`] rather than evaluated, the identity's other terms
-/// checked through the claim's value. Nothing the claim holds is bound into the
-/// transcript, so settling it later, or merged with other proofs' claims, is the same
-/// check.
+/// checked through the claim's value. Of the circuit it reads only its shape, `k_log`
+/// and the constant wire's column `const_pin_col`, which whoever settles the claim
+/// holds the circuit to. Nothing the claim holds is bound into the transcript, so
+/// settling it later, or merged with other proofs' claims, is the same check.
 #[expect(
     clippy::too_many_arguments,
     reason = "The proof kernel keeps its independent inputs explicit."
@@ -1193,14 +1200,13 @@ pub fn verify_deferred(
     m: usize,
     k_log: usize,
     k_skip: usize,
-    circuit: &dyn LincheckCircuit,
+    const_pin_col: usize,
     x_ab: &QuirkyPoint,
     v_a: F192,
     v_b: F192,
     v_c: F192,
     vs: &mut VerifierState<'_>,
 ) -> Result<(LincheckClaim, MatrixClaim), VerifyError> {
-    let k = 1usize << k_log;
     let n_log = m - k_log;
 
     if k_skip > k_log {
@@ -1219,12 +1225,6 @@ pub fn verify_deferred(
         return Err(VerifyError::BadOuterLength {
             expected: n_log,
             got: x_ab.x_outer.len(),
-        });
-    }
-    if circuit.n_cols() != k {
-        return Err(VerifyError::BadNCols {
-            expected: k,
-            got: circuit.n_cols(),
         });
     }
 
@@ -1274,7 +1274,7 @@ pub fn verify_deferred(
     //    running claim. Ties z_partial to the upstream v_a, v_b. The bilinear form
     //    is the matrices' and is left in the claim; the rest is taken off its value.
     //    `w_col[pin]` is its slice times the eq weight of its inner index.
-    let pin = circuit.const_pin_col();
+    let pin = const_pin_col;
     let pin_rest = pin >> k_skip;
     let eq_pin = (r_inner_rest.iter().enumerate()).fold(F192::ONE, |acc, (j, &r)| {
         acc * if (pin_rest >> j) & 1 == 1 { r } else { r + F192::ONE }
