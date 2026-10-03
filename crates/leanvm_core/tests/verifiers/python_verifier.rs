@@ -62,6 +62,12 @@ impl PythonStatement {
     /// reader deriving every leaf width and tree height from the protocol it is
     /// replaying.
     pub fn verify(&self, raw: &RawProof) -> Output {
+        self.verify_with(raw, None)
+    }
+
+    /// [`Self::verify`], the verifier run through `prelude` when one is given: a Python script that receives the
+    /// verifier's path then its arguments, and may wrap its functions before calling its `main`.
+    pub fn verify_with(&self, raw: &RawProof, prelude: Option<&str>) -> Output {
         let mut stream = Vec::new();
         for scalar in &raw.stream {
             for limb in [scalar.c0, scalar.c1, scalar.c2] {
@@ -81,7 +87,11 @@ impl PythonStatement {
         let openings_path = self.directory.join("merkle_openings.bin");
         std::fs::write(&stream_path, stream).expect("write scalar stream");
         std::fs::write(&openings_path, openings).expect("write Merkle openings");
-        Command::new("python3")
+        let mut command = Command::new("python3");
+        if let Some(prelude) = prelude {
+            command.arg("-c").arg(prelude);
+        }
+        command
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../python-verifier/verifier.py"))
             .arg(&self.bytecode)
             .arg(&self.public)
@@ -284,4 +294,48 @@ fn the_python_verifier_follows_the_slowest_rate() {
     let (proof, output, _) = program.prove(&[], Rate::MAX).expect("the run halts");
     let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
     PythonStatement::new("rate", &program, &output).assert_accepts(&raw);
+}
+
+/// Every flock circuit's claim joins the opening's one ring-switched family through its 64 slices, the last words
+/// flock sends: both verifiers find them at the same place and reject any one of them moved, the first circuit's, a
+/// middle one's and the last's.
+#[test]
+fn both_verifiers_bind_every_circuits_slices() {
+    let (program, _) = super::programs::fibonacci();
+    let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
+    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
+    assert_eq!(raw.stream, proof.stream, "the raw proof's scalars are the proof's");
+    let statement = PythonStatement::new("slices", &program, &output);
+
+    // Where flock's words end, as the Python verifier reads them.
+    let prelude = r#"import runpy, sys
+v = runpy.run_path(sys.argv[1])
+g = v['main'].__globals__
+flock = g['verify_flock']
+def recorded(circuits, transcript):
+    families = flock(circuits, transcript)
+    print(transcript.stream_offset)
+    return families
+g['verify_flock'] = recorded
+sys.exit(v['main'](sys.argv[2:]))
+"#;
+    let traced = statement.verify_with(&raw, Some(prelude));
+    assert!(traced.status.success(), "{}", String::from_utf8_lossy(&traced.stderr));
+    let end: usize = String::from_utf8_lossy(&traced.stdout)
+        .lines()
+        .next()
+        .and_then(|line| line.trim().parse().ok())
+        .expect("the offset after flock");
+    let slices = leanvm_core::class_flock::N_FLOCKS * 64;
+    for at in [end - slices, end - slices / 2 + 7, end - 1] {
+        let mut forged = proof.clone();
+        forged.stream[at] += F192::ONE;
+        assert!(
+            program.verify(&output, &forged).is_err(),
+            "Rust accepted a moved slice at {at}"
+        );
+        let mut raw_forged = raw.clone();
+        raw_forged.stream[at] += F192::ONE;
+        PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice");
+    }
 }

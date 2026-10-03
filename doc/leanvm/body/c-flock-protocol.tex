@@ -190,7 +190,7 @@ R_{\mathrm{lc}}\qeq\sum_f\lcalpha^{4f}\Bigl(\prod_{t=\kblockf{f}-\kskip}^{\klcma
 \end{equation}
 $\lcterm{f}$ the right side of \eqref{flock:eq:lincheck-terminal} for circuit $f$, by one walk of each circuit (\S\ref{flock:native}).
 
-\paragraph{What it leaves.} One family per witness, as for one circuit: $s_{f,i}\qeq\mle{z_f}(i,\fc'_{\mathrm{in},f},\fc_{\mathrm{out},f})$ for $i<64$, for ring switching (\S\ref{flock:ringswitch}). Two circuits of one block size share $\fc'_{\mathrm{in},f}$ and the first coordinates of $\fc$, so the shorter one's point is a prefix of the longer one's, and the verifier evaluates their weights in one pass (\S\ref{rs:weight}). The twenty-two make seven such groups, one per block size of \S\ref{flock:classes}: the nine clock circuits of $\kblock=9$, the four class circuits of $\kblock=10$, the three of $\kblock=13$, and two each for $\kblock=8$ and $\kblock=11$.
+\paragraph{What it leaves.} One claim per witness, as for one circuit: $s_{f,i}\qeq\mle{z_f}(i,\fc'_{\mathrm{in},f},\fc_{\mathrm{out},f})$ for $i<64$, for ring switching (\S\ref{flock:ringswitch}), where the twenty-two join the opening's one family (\S\ref{rs:family}). Two circuits of one block size share $\fc'_{\mathrm{in},f}$ and the first coordinates of $\fc$, so the shorter one's point is a prefix of the longer one's, and the verifier walks their weights' products once (\S\ref{rs:cost}). The twenty-two make seven such groups, one per block size of \S\ref{flock:classes}: the nine clock circuits of $\kblock=9$, the four class circuits of $\kblock=10$, the three of $\kblock=13$, and two each for $\kblock=8$ and $\kblock=11$.
 
 \subsection{Evaluating the matrices}\label{flock:matrices}
 
@@ -346,7 +346,7 @@ We argue for the batch of \S\ref{flock:batch}; one circuit is the batch of one. 
 \[
 s_{f,i}=\mle{z_f}(i,\fc'_{\mathrm{in},f},\fc_{\mathrm{out},f}),\qquad i\in\cube{\kskip},
 \]
-up to the PCS error and the $2^{-160}$ of Annex~\ref{annex:rs}, and let us show that if some $z_{f^\ast}$ fails \eqref{flock:eq:r1cs} or \eqref{flock:eq:const-one}, the batch is rejected.
+up to the PCS error and the one-family error of Lemma~\ref{lem:rs-family}, and let us show that if some $z_{f^\ast}$ fails \eqref{flock:eq:r1cs} or \eqref{flock:eq:const-one}, the batch is rejected.
 
 Lincheck comes first: the zerocheck pins nothing on its own, its terminal identity binding the circuits' triples $(v_{a,f},v_{b,f},v_{c,f})$ only through one combination of them, so every lie upstream reaches lincheck as a wrong triple. Its terminal check \eqref{flock:eq:batch-lc-terminal} is evaluated from the true $s$ and the matrices themselves, by the walk of \S\ref{flock:native}, so a false batched identity survives the $\klcmax$ rounds with probability at most $2\klcmax/|\E|$ (Fact~\ref{fact:sumcheck}): the batched summand has degree two in each variable, a done circuit's part being linear in the variables that lift it. And by Lemma~\ref{lem:flock-block-diagonal} and \eqref{flock:eq:c-as-column}, the batched identity says
 \[
