@@ -1,5 +1,5 @@
 //! The programs tracked in CI, reported as Bencher Metric Format JSON or, counted without a
-//! proof, as a markdown table.
+//! proof, as a markdown table, or both from one pass.
 //!
 //! Two lists. The counts are exact and cheap, so they are taken at the README's sizes, the
 //! most one proof holds, on one runner (`.github/workflows/counts.yml`), which compares a
@@ -8,6 +8,9 @@
 //! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
 //! base and head are proven in turns on one runner and compared there. A case's name is what
 //! a PR's results are matched by, so renaming one or changing its input shows it as new.
+
+use std::fmt::Write as _;
+use std::io::Write as _;
 
 use bench::{Metric, Plan, bencher_json};
 use leanvm::{Program, Proved, Prover, Rate, Stats, verify};
@@ -108,17 +111,40 @@ fn proven() -> [(&'static str, Build); 4] {
     ]
 }
 
-/// With `cycles_only`, count every case without a proof, as JSON or with `markdown` as a
-/// table; otherwise prove, verify and time the proven cases, or only the one named `only`,
-/// as JSON.
-pub fn run(cycles_only: bool, markdown: bool, only: Option<&str>, prover: &Prover, rate: Rate, plan: Plan) {
-    if markdown {
-        return table(&counted());
-    }
+/// With `cycles_only`, count every case without a proof and print the counts as JSON, or with
+/// `markdown` as a table, or as JSON with the table appended to `markdown_file`; otherwise
+/// prove, verify and time the proven cases, or only the one named `only`, as JSON.
+pub fn run(
+    cycles_only: bool,
+    markdown: bool,
+    markdown_file: Option<&std::path::Path>,
+    only: Option<&str>,
+    prover: &Prover,
+    rate: Rate,
+    plan: Plan,
+) {
     let report: Vec<_> = if cycles_only {
-        counted()
+        let counted: Vec<_> = counted()
+            .into_iter()
+            .map(|case| {
+                let stats = case.measure();
+                (case, stats)
+            })
+            .collect();
+        if markdown {
+            return print!("{}", table(&counted));
+        }
+        if let Some(path) = markdown_file {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .and_then(|mut file| file.write_all(table(&counted).as_bytes()))
+                .unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
+        }
+        counted
             .iter()
-            .map(|case| (case.name.to_string(), counts(&case.measure())))
+            .map(|(case, stats)| (case.name.to_string(), counts(stats)))
             .collect()
     } else {
         let cases: Vec<_> = proven()
@@ -174,13 +200,13 @@ fn proved(case: &Case, prover: &Prover, rate: Rate, plan: Plan) -> Vec<(&'static
 }
 
 /// The counts as a markdown table, with the rows per table: what CI puts in each run's summary.
-fn table(cases: &[Case]) {
-    println!("| program | RISC-V cycles | per item | committed words | tables |");
-    println!("|---|---:|---:|---:|---|");
-    for case in cases {
-        let stats = case.measure();
+fn table(counted: &[(Case, Stats)]) -> String {
+    let mut table =
+        String::from("| program | RISC-V cycles | per item | committed words | tables |\n|---|---:|---:|---:|---|\n");
+    for (case, stats) in counted {
         let cycles: usize = stats.base_counts.iter().sum();
-        println!(
+        writeln!(
+            table,
             "| {} | {} | {} / {} | 2^{:.2} | {} |",
             case.title,
             pretty_integer(&cycles),
@@ -188,6 +214,8 @@ fn table(cases: &[Case]) {
             case.item,
             (stats.committed as f64).log2(),
             stats.details()
-        );
+        )
+        .unwrap();
     }
+    table
 }

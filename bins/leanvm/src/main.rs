@@ -79,6 +79,9 @@ enum Command {
         /// Print the counts as a markdown table rather than JSON.
         #[arg(long, requires = "cycles_only")]
         markdown: bool,
+        /// Print the counts as JSON and append the markdown table to this file, from the same pass.
+        #[arg(long, requires = "cycles_only", conflicts_with = "markdown")]
+        markdown_file: Option<std::path::PathBuf>,
         /// Prove only the case of this name, as each of CI's proving jobs does.
         #[arg(long, conflicts_with = "cycles_only")]
         only: Option<String>,
@@ -105,8 +108,17 @@ fn main() {
         Command::Bench {
             cycles_only,
             markdown,
+            markdown_file,
             only,
-        } => tracked::run(cycles_only, markdown, only.as_deref(), &prover, cli.rate, plan),
+        } => tracked::run(
+            cycles_only,
+            markdown,
+            markdown_file.as_deref(),
+            only.as_deref(),
+            &prover,
+            cli.rate,
+            plan,
+        ),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());
