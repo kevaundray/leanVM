@@ -137,7 +137,7 @@ impl SecretKey {
             .ok_or(SignError::NoAdmissibleEncoding)?;
         // Chain `i` opened at value `x_i`.
         let mut chains = ots::Chains::new(pp, pos);
-        let ots = core::array::from_fn(|i| chains.walk(i, 0, x[i] as usize, ots::secret(pp, master, pos, i)));
+        let ots = core::array::from_fn(|i| chains.walk(i, 0, x.get(i), ots::secret(pp, master, pos, i)));
         // The top layer's tree has the cache; the others are rebuilt whole.
         let mut path = [[0; 2]; HEIGHT];
         *message = if lay == 0 {
