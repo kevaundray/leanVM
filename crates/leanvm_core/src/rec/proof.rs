@@ -105,7 +105,7 @@ impl Layout {
     }
 
     /// The constraint batch's airs, one per owned table.
-    fn airs(&self, forms: &[Vec<leaf::BusForm>; 2], xi: F192) -> Vec<Air<machine::Summand>> {
+    pub(crate) fn airs(&self, forms: &[Vec<leaf::BusForm>; 2], xi: F192) -> Vec<Air<machine::Summand>> {
         machine::summands(forms, xi)
             .into_iter()
             .enumerate()

@@ -283,7 +283,10 @@ fn claim_end(claim: &StackClaim) -> usize {
 /// Under [`RingMode::Hint`] the ring-switched claims' share of the target and of the terminal weight is a hint,
 /// settled by the outer verifier from the returned [`RingShare`] ([`ring_target`], [`ring_weight`]); under
 /// [`RingMode::Prove`] the circuit computes both and returns nothing.
-#[expect(clippy::too_many_arguments, reason = "the opening's inputs, as `pcs::verify` takes them")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the opening's inputs, as `pcs::verify` takes them"
+)]
 pub fn verify(
     b: &mut Builder,
     t: &mut Transcript,
@@ -962,7 +965,16 @@ mod tests {
                     .collect(),
             })
             .collect();
-        verify(&mut b, &mut t, &slot_wires, &ring_wires, shape, log_inv_rate, root, mode);
+        verify(
+            &mut b,
+            &mut t,
+            &slot_wires,
+            &ring_wires,
+            shape,
+            log_inv_rate,
+            root,
+            mode,
+        );
         let finished = t.finished();
         let (circuit, _, failures) = b.finish();
         (circuit, failures, finished)

@@ -23,11 +23,13 @@ use crate::witness::Placement;
 use primitives::field::{F64, F192};
 
 /// What verifying a child leaves: its `Hash` table's matrix claim, the claim on the fixed polynomial (of the
-/// dense polynomials, number `poly`), and the transcript's final state.
+/// dense polynomials, number `poly`), the transcript's final state, and the table sumcheck's target, which the
+/// native verifier derives from the bus with the fixed columns evaluated.
 pub struct Child {
     pub matrix: MatrixClaim,
     pub fixed: DenseClaim,
     pub state: Dw,
+    pub target: Ew,
 }
 
 /// A table's bus block on one side, kept symbolic until its columns' values are read.
@@ -48,7 +50,10 @@ struct FixedTerm {
 /// Verify a recursion proof of heights `taus` and rate `log_inv_rate`, read by `t` (seeded with its statement),
 /// whose statement is the words `statement`, each given as its limbs, and whose kind is `kind`. `columns` are the
 /// child's fixed columns, which only the prover holds; `poly` names the fixed polynomial among the dense ones.
-#[expect(clippy::too_many_arguments, reason = "a child's shape, statement and kind, each its own input")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a child's shape, statement and kind, each its own input"
+)]
 pub fn verify_child(
     b: &mut Builder,
     t: &mut Transcript,
@@ -66,7 +71,11 @@ pub fn verify_child(
 
     // The bus: the `Pub` block, then every owned table's slots, on both sides alike.
     let mut blocks: Vec<(Table, usize)> = vec![(Table::Pub, 0)];
-    blocks.extend(Table::ALL[..N_OWNED].iter().flat_map(|&t| (0..t.n_slots()).map(move |s| (t, s))));
+    blocks.extend(
+        Table::ALL[..N_OWNED]
+            .iter()
+            .flat_map(|&t| (0..t.n_slots()).map(move |s| (t, s))),
+    );
     let kappas: Vec<Option<usize>> = blocks.iter().map(|&(t, _)| Some(taus[t as usize])).collect();
     let (offsets, placed) = crate::witness::stack_offsets(&kappas);
     let mu = crate::log2_ceil_usize(placed.max(1));
@@ -76,8 +85,15 @@ pub fn verify_child(
     let beta = t.sample(b);
     let (zeta, gkr_values) = b.scope("gkr", |b| verify_products(b, t, mu));
 
-    let statement_part = b.scope("statement", |b| statement_mle(b, statement, &zeta[..taus[Table::Pub as usize]], &weights));
-    let column_of = |f: Fixed| machine::fixed_columns().iter().position(|&c| c == f).expect("a fixed column");
+    let statement_part = b.scope("statement", |b| {
+        statement_mle(b, statement, &zeta[..taus[Table::Pub as usize]], &weights)
+    });
+    let column_of = |f: Fixed| {
+        machine::fixed_columns()
+            .iter()
+            .position(|&c| c == f)
+            .expect("a fixed column")
+    };
     let mut fixed_terms: Vec<FixedTerm> = Vec::new();
     let mut forms: Vec<FormBlock> = Vec::new();
     let mut totals = [beta; 2];
@@ -196,6 +212,7 @@ pub fn verify_child(
         matrix,
         fixed: fixed_claim,
         state: t.state(),
+        target,
     }
 }
 
@@ -217,7 +234,10 @@ fn statement_mle(b: &mut Builder, statement: &[Vec<Kw>], zeta: &[Ew], weights: &
 
 /// The fixed columns' terms as one claim on the fixed polynomial, its value a hint the prover computes from
 /// `columns`.
-#[expect(clippy::too_many_arguments, reason = "the claim's point is the bus's, its terms the bus's coefficients")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the claim's point is the bus's, its terms the bus's coefficients"
+)]
 fn fixed_claim(
     b: &mut Builder,
     fixed: &FixedLayout,
@@ -292,7 +312,10 @@ fn table_sumcheck(
             });
         }
     }
-    let chi: Vec<Ew> = chi.into_iter().map(|c| c.expect("every round binds its variable")).collect();
+    let chi: Vec<Ew> = chi
+        .into_iter()
+        .map(|c| c.expect("every round binds its variable"))
+        .collect();
 
     // The identities' powers of `xi` start at `xi^2`, each table's range after the previous one's.
     let xi2 = b.square(xi);
@@ -338,5 +361,3 @@ fn table_sumcheck(
     b.scope("final", |b| b.eq_e(claim, residual));
     (chi, values_all)
 }
-
-

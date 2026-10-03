@@ -124,9 +124,14 @@ struct StatementWires {
 
 impl StatementWires {
     fn es(&self) -> impl Iterator<Item = Ew> + '_ {
-        (self.dense_point.iter().chain(&self.dense_values).chain(&self.rows).chain(&self.cols))
-            .copied()
-            .chain(self.matrices.iter().flatten().copied())
+        (self
+            .dense_point
+            .iter()
+            .chain(&self.dense_values)
+            .chain(&self.rows)
+            .chain(&self.cols))
+        .copied()
+        .chain(self.matrices.iter().flatten().copied())
     }
 
     fn expose(&self, b: &mut Builder) {
@@ -166,9 +171,14 @@ impl TreeStatement {
         let e = |x: &F192| [x.c0, x.c1, x.c2, 0];
         let mut words = vec![[self.kind as u64, 0, 0, 0], self.digest];
         words.extend(
-            (self.dense_point.iter().chain(&self.dense_values).chain(&self.rows).chain(&self.cols))
-                .chain(self.matrices.iter().flatten())
-                .map(e),
+            (self
+                .dense_point
+                .iter()
+                .chain(&self.dense_values)
+                .chain(&self.rows)
+                .chain(&self.cols))
+            .chain(self.matrices.iter().flatten())
+            .map(e),
         );
         words
     }
@@ -238,14 +248,23 @@ pub fn node_digest(children: &[[u64; 4]]) -> [u64; 4] {
 ///
 /// [`TreeError::Outputs`] if the leaves are not a power of `arity`.
 pub fn tree_digest(outputs: &[[u64; 4]], arity: usize) -> Result<[u64; 4], TreeError> {
+    if !is_power(outputs.len(), arity) {
+        return Err(TreeError::Outputs);
+    }
     let mut level: Vec<[u64; 4]> = outputs.iter().map(|&o| lift_digest(o)).collect();
     while level.len() > 1 {
-        if !level.len().is_multiple_of(arity) {
-            return Err(TreeError::Outputs);
-        }
         level = level.chunks(arity).map(node_digest).collect();
     }
-    level.pop().ok_or(TreeError::Outputs)
+    Ok(level[0])
+}
+
+/// Whether `n` leaves make a tree of `arity`: one, or a power of an arity of at least two.
+fn is_power(n: usize, arity: usize) -> bool {
+    let mut n = n;
+    while arity > 1 && n > 1 && n.is_multiple_of(arity) {
+        n /= arity;
+    }
+    n == 1
 }
 
 /// `d`'s words bound into `t`: the first three as one element, the fourth as another.
@@ -314,7 +333,13 @@ impl<'p> Design<'p> {
         let mut h = primitives::hash::Hasher::new();
         h.update(DOMAIN);
         h.update(self.leaf.program.digest());
-        for x in self.leaf.taus.iter().chain(&[self.leaf.log_inv_rate, self.arity]).chain(&self.taus) {
+        for x in self
+            .leaf
+            .taus
+            .iter()
+            .chain(&[self.leaf.log_inv_rate, self.arity])
+            .chain(&self.taus)
+        {
             h.update(&(*x as u64).to_le_bytes());
         }
         h.update(&[self.rate.log_inv_rate()]);
@@ -340,8 +365,12 @@ impl<'p> Design<'p> {
         tables: Option<&[Vec<F64>; N_DENSE]>,
     ) -> StatementWires {
         let tables: Option<Vec<&[F64]>> = tables.map(|ts| ts.iter().map(Vec::as_slice).collect());
-        let dense = b.scope("dense reduction", |b| reduce_dense(b, t, &self.n_vars, tables.as_deref(), dense));
-        let m = b.scope("matrix reduction", |b| reduce_matrices(b, t, tables.is_some(), matrices));
+        let dense = b.scope("dense reduction", |b| {
+            reduce_dense(b, t, &self.n_vars, tables.as_deref(), dense)
+        });
+        let m = b.scope("matrix reduction", |b| {
+            reduce_matrices(b, t, tables.is_some(), matrices)
+        });
         let kind = b.k_const(kind as u64);
         let s = StatementWires {
             kind,
@@ -612,10 +641,7 @@ impl<'p> Tree<'p> {
         if proof::Layout::new(&node).shape.mu > crate::pcs::MAX_MU {
             return Err(TreeError::Shape);
         }
-        let columns = [
-            machine::fixed_values(&lift, &taus),
-            machine::fixed_values(&node, &taus),
-        ];
+        let columns = [machine::fixed_values(&lift, &taus), machine::fixed_values(&node, &taus)];
         let mut fixed_table = design.fixed.stack(&columns[0]);
         fixed_table.extend(design.fixed.stack(&columns[1]));
         let rv = program.rv();
@@ -633,12 +659,8 @@ impl<'p> Tree<'p> {
         })
     }
 
-    pub const fn taus(&self) -> [usize; N_TABLES] {
-        self.design.taus
-    }
-
-    pub const fn arity(&self) -> usize {
-        self.design.arity
+    pub const fn program(&self) -> &'p Program {
+        self.design.leaf.program
     }
 
     /// The circuit of a proof of this kind.
@@ -659,7 +681,7 @@ impl<'p> Tree<'p> {
         if leaf.program.digest() != d.leaf.program.digest() {
             return Err(TreeError::LeafShape);
         }
-        if announced_shape(&leaf.proof) != Some((d.leaf.taus, d.leaf.log_inv_rate)) {
+        if announced_shape(&leaf.proof.stream) != Some((d.leaf.taus, d.leaf.log_inv_rate)) {
             return Err(TreeError::LeafShape);
         }
         let (b, s) = d.lift(Some((&leaf.proof, leaf.output)), Some(&self.tables));
@@ -686,14 +708,46 @@ impl<'p> Tree<'p> {
                 if !c.statement.well_formed(d.n_dense()) {
                     return Err(TreeError::Statement { index });
                 }
-                let raw = self
-                    .read(c)
-                    .map_err(|error| TreeError::Child { index, error })?;
+                let raw = self.read(c).map_err(|error| TreeError::Child { index, error })?;
                 Ok((&c.statement, raw))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let (b, s) = d.node(Some(&read), Some(&self.columns), Some(&self.tables));
         self.prove(b, &s, &self.node)
+    }
+
+    /// Prove the tree over `leaves`, in order: a lift each, then each level's nodes over `arity` proofs of the
+    /// level below, up to the root.
+    ///
+    /// # Errors
+    ///
+    /// [`TreeError::Outputs`] unless the leaves are a power of the arity, and whatever refuses a leaf.
+    pub fn prove_tree(&self, leaves: &[InnerProof]) -> Result<TreeProof, TreeError> {
+        let arity = self.design.arity;
+        if !is_power(leaves.len(), arity) {
+            return Err(TreeError::Outputs);
+        }
+        let mut level: Vec<TreeProof> = leaves.iter().map(|l| self.prove_lift(l)).collect::<Result<_, _>>()?;
+        while level.len() > 1 {
+            level = level
+                .chunks(arity)
+                .map(|c| self.prove_node(c))
+                .collect::<Result<_, _>>()?;
+        }
+        Ok(level.pop().expect("one root"))
+    }
+
+    /// Verify a tree proof's recursion proof alone, short of what its statement claims.
+    ///
+    /// # Errors
+    ///
+    /// The recursion proof does not verify.
+    pub fn verify_proof(&self, p: &TreeProof) -> Result<(), TreeError> {
+        if !p.statement.well_formed(self.design.n_dense()) {
+            return Err(TreeError::Statement { index: 0 });
+        }
+        self.read(p)?;
+        Ok(())
     }
 
     /// Verify a tree proof's recursion proof, returning it as its verifier read it.
@@ -715,7 +769,7 @@ impl<'p> Tree<'p> {
             return Err(TreeError::Unsatisfied(first));
         }
         circuit.floor = self.design.taus;
-        debug_assert!(&circuit == expected, "the circuit is the shape's");
+        assert!(&circuit == expected, "the circuit is the shape's");
         let proof = proof::prove(
             &circuit,
             &assignment,
@@ -771,12 +825,6 @@ impl<'p> Tree<'p> {
             }
         }
         Ok(())
-    }
-
-    /// A proof of this kind's circuit: each table's rows, and the words the proof commits.
-    pub fn stats(&self, kind: Kind) -> ([usize; N_TABLES], usize) {
-        let c = self.circuit(kind);
-        (c.row_counts(), proof::committed_words(c))
     }
 }
 

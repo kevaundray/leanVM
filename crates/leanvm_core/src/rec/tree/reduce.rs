@@ -185,7 +185,11 @@ impl DenseClaim {
             for (i, &x) in term.top.iter().enumerate() {
                 acc = Some(times_eq(b, acc, x, r[at + i]));
             }
-            assert_eq!(at + term.top.len(), r.len(), "a term's point has its polynomial's variables");
+            assert_eq!(
+                at + term.top.len(),
+                r.len(),
+                "a term's point has its polynomial's variables"
+            );
             let eq = acc.unwrap_or_else(|| b.one());
             total = match term.coef {
                 Some(c) => b.mul_add(c, eq, total),
@@ -236,19 +240,23 @@ pub fn reduce_dense(
                 add_eq(&mut weights[c.poly], &point, g * coef);
             }
         }
-        let polys: Vec<Vec<F192>> = tables.iter().map(|p| p.iter().map(|&x| F192::from(x)).collect()).collect();
+        let polys: Vec<Vec<F192>> = tables
+            .iter()
+            .map(|p| p.iter().map(|&x| F192::from(x)).collect())
+            .collect();
         (polys, weights)
     });
 
     let mut point = Vec::with_capacity(n);
     for i in 0..n {
         let (c0, c2) = state.as_ref().map_or((F192::ZERO, F192::ZERO), |(polys, weights)| {
-            (polys.iter().zip(weights).zip(n_vars))
-                .filter(|&(_, &k)| k > i)
-                .fold((F192::ZERO, F192::ZERO), |(c0, c2), ((p, w), _)| {
+            (polys.iter().zip(weights).zip(n_vars)).filter(|&(_, &k)| k > i).fold(
+                (F192::ZERO, F192::ZERO),
+                |(c0, c2), ((p, w), _)| {
                     let (a, c) = products(w, p);
                     (c0 + a, c2 + c)
-                })
+                },
+            )
         });
         let (r, next) = round(b, t, claim, c0, c2);
         claim = next;
@@ -483,13 +491,14 @@ pub fn reduce_matrices(b: &mut Builder, t: &mut Transcript, honest: bool, claims
     let mut s = Vec::with_capacity(k_max);
     for i in 0..k_max {
         let (c0, c2) = cols_state.as_ref().map_or((F192::ZERO, F192::ZERO), |state| {
-            (state.iter().zip(&ks))
-                .filter(|&(_, &k)| k > i)
-                .fold((F192::ZERO, F192::ZERO), |(c0, c2), ([at, wa, bt, wb], _)| {
+            (state.iter().zip(&ks)).filter(|&(_, &k)| k > i).fold(
+                (F192::ZERO, F192::ZERO),
+                |(c0, c2), ([at, wa, bt, wb], _)| {
                     let (a0, a2) = products(wa, at);
                     let (b0, b2) = products(wb, bt);
                     (c0 + a0 + b0, c2 + a2 + b2)
-                })
+                },
+            )
         });
         let (si, next) = round(b, t, claim, c0, c2);
         claim = next;

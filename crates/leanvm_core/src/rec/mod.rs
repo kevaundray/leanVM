@@ -113,9 +113,9 @@ pub enum RecursionError {
 }
 
 /// The shape a proof announces: its tables' heights and its rate, the first scalars of its stream.
-pub fn announced_shape(proof: &RawProof) -> Option<([usize; N_TABLES], usize)> {
+pub fn announced_shape(stream: &[F192]) -> Option<([usize; N_TABLES], usize)> {
     let word = |i: usize| -> Option<usize> {
-        let x = proof.stream.get(i)?;
+        let x = stream.get(i)?;
         (x.c1 == 0 && x.c2 == 0).then_some(())?;
         usize::try_from(x.c0).ok()
     };
@@ -222,7 +222,10 @@ fn claim_wires(core: &inner::core::Core) -> Vec<Ew> {
         w.extend(&c.s_hat_v);
         w.push(c.value);
     }
-    let r = core.ring.as_ref().expect("the single-level circuit hints the ring share");
+    let r = core
+        .ring
+        .as_ref()
+        .expect("the single-level circuit hints the ring share");
     w.extend(&r.map);
     w.push(r.lambda);
     w.extend(&r.point);
@@ -333,7 +336,10 @@ fn build(shapes: &[Shape], sources: &[Source], outputs: &[[u64; 4]]) -> (Builder
 /// The native ring claims the core's wires hold.
 fn ring_of(b: &Builder, core: &inner::core::Core) -> RingClaims {
     let e = |ws: &[Ew]| ws.iter().map(|&w| b.e(w)).collect::<Vec<_>>();
-    let r = core.ring.as_ref().expect("the single-level circuit hints the ring share");
+    let r = core
+        .ring
+        .as_ref()
+        .expect("the single-level circuit hints the ring share");
     RingClaims {
         map: std::array::from_fn(|i| b.e(r.map[i])),
         lambda: b.e(r.lambda),
@@ -384,7 +390,7 @@ fn shapes_of<'p>(inners: &[InnerProof<'p>]) -> Result<Vec<Shape<'p>>, RecursionE
         .iter()
         .enumerate()
         .map(|(index, p)| {
-            let (taus, log_inv_rate) = announced_shape(&p.proof).ok_or(RecursionError::Shape { index })?;
+            let (taus, log_inv_rate) = announced_shape(&p.proof.stream).ok_or(RecursionError::Shape { index })?;
             if !valid_shape(p.program, &taus, log_inv_rate) {
                 return Err(RecursionError::Shape { index });
             }

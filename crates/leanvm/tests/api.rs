@@ -140,6 +140,20 @@ fn public_api_end_to_end() {
         Err(Error::Verify(_))
     ));
 
+    // 8. Aggregation: a tree over two proofs of one program, the leaves' outputs in order.
+    let (_, other_advice, other_digest) = preimage(b"leanvm");
+    let other = prover.prove(&guest, &other_advice, Rate::MIN).expect("the run halts");
+    let tree = aggregate::Tree::new(&guest, &hashed.proof, 2, Rate::MIN).expect("a leaf shape");
+    let root = tree
+        .prove(&prover, &[(&hashed.proof, digest), (&other.proof, other_digest)])
+        .expect("both leaves verify");
+    tree.verify(&root, &[digest, other_digest]).unwrap();
+    assert!(tree.verify(&root, &[other_digest, digest]).is_err());
+    assert!(matches!(
+        tree.prove_lift(&prover, &hashed.proof, other_digest),
+        Err(Error::Verify(_))
+    ));
+
     let stats = zk_alloc::stats();
     assert!(stats.phases >= 2, "expected one phase per proof, got {stats:?}");
     assert!(stats.peak_bytes > 0, "no buffer reached the arena: {stats:?}");

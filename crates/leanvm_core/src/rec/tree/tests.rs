@@ -30,7 +30,7 @@ fn a_tree_verifies_and_refuses_forgeries() {
     let program = program();
     let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
     let leaf = InnerProof::new(&program, &proof, output).expect("an honest proof");
-    let (taus, log_inv_rate) = announced_shape(&leaf.proof).expect("a shape");
+    let (taus, log_inv_rate) = announced_shape(&leaf.proof.stream).expect("a shape");
     let tree = Tree::new(&program, taus, log_inv_rate, 2, Rate::MIN).expect("a valid shape");
 
     let lift = tree.prove_lift(&leaf).expect("an honest leaf");
@@ -43,17 +43,34 @@ fn a_tree_verifies_and_refuses_forgeries() {
     // The root's statement.
     let mut wrong = outputs;
     wrong[2][0] ^= 1;
-    assert_eq!(tree.verify(&root, &wrong), Err(TreeError::Outputs), "a wrong leaf output");
-    assert_eq!(tree.verify(&root, &outputs[..2]), Err(TreeError::Outputs), "too few leaves");
+    assert_eq!(
+        tree.verify(&root, &wrong),
+        Err(TreeError::Outputs),
+        "a wrong leaf output"
+    );
+    assert_eq!(
+        tree.verify(&root, &outputs[..2]),
+        Err(TreeError::Outputs),
+        "too few leaves"
+    );
     let mut tampered = root.clone();
     tampered.statement.matrices[3][0] += F192::ONE;
-    assert!(matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))), "a matrix value");
+    assert!(
+        matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))),
+        "a matrix value"
+    );
     let mut tampered = root.clone();
     tampered.statement.dense_point[1] += F192::ONE;
-    assert!(matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))), "a reduced point");
+    assert!(
+        matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))),
+        "a reduced point"
+    );
     let mut tampered = root.clone();
     tampered.statement.dense_values[BYTECODE] += F192::ONE;
-    assert!(matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))), "a program value");
+    assert!(
+        matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))),
+        "a program value"
+    );
 
     // A child the node's prover is handed.
     let mut forged_child = node.clone();
@@ -88,17 +105,29 @@ fn a_tree_verifies_and_refuses_forgeries() {
     };
     let mid = bad.proof.stream.len() / 2;
     bad.proof.stream[mid] += F192::ONE;
-    assert!(matches!(tree.prove_lift(&bad), Err(TreeError::Unsatisfied(_))), "a forged leaf");
+    assert!(
+        matches!(tree.prove_lift(&bad), Err(TreeError::Unsatisfied(_))),
+        "a forged leaf"
+    );
 
     // Reduced claims that satisfy every identity and are false: an honest node's prover cannot reduce them, a
     // cheating one carries them up, and the root's verifier refuses them.
     for forge in [Forge::Matrix, Forge::Dense] {
         let false_lift = forged(forge, || tree.prove_lift(&leaf)).expect("the forgery satisfies the circuit");
-        assert!(matches!(tree.verify(&false_lift, &[output]), Err(TreeError::Claim(_))), "{forge:?}");
+        assert!(
+            matches!(tree.verify(&false_lift, &[output]), Err(TreeError::Claim(_))),
+            "{forge:?}"
+        );
         let children = [lift.clone(), false_lift];
-        assert!(matches!(tree.prove_node(&children), Err(TreeError::Unsatisfied(_))), "{forge:?}");
+        assert!(
+            matches!(tree.prove_node(&children), Err(TreeError::Unsatisfied(_))),
+            "{forge:?}"
+        );
         let carried = forged(forge, || tree.prove_node(&children)).expect("a cheating node");
-        assert!(matches!(tree.verify(&carried, &[output; 2]), Err(TreeError::Claim(_))), "{forge:?} carried");
+        assert!(
+            matches!(tree.verify(&carried, &[output; 2]), Err(TreeError::Claim(_))),
+            "{forge:?} carried"
+        );
     }
 }
 
@@ -107,7 +136,10 @@ fn a_tree_verifies_and_refuses_forgeries() {
 fn the_dense_reduction_reduces_to_the_polynomials() {
     let mut rng = Rng::new(17);
     let n_vars = [3, 6, 4];
-    let tables: Vec<Vec<F64>> = n_vars.iter().map(|&n| (0..1 << n).map(|_| F64(rng.next_u64())).collect()).collect();
+    let tables: Vec<Vec<F64>> = n_vars
+        .iter()
+        .map(|&n| (0..1 << n).map(|_| F64(rng.next_u64())).collect())
+        .collect();
     let refs: Vec<&[F64]> = tables.iter().map(Vec::as_slice).collect();
     let run = |lie: bool| {
         let mut rng = Rng::new(5);
@@ -183,7 +215,12 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
         for f in [0, 3, machine::hash_flock()] {
             let circuit = class_flock::circuit(f);
             let k = circuit.k_log();
-            let (z, x_rest, r_rest, slices) = (rng.ext(), rng.ext_vec(k - k_skip), rng.ext_vec(k - k_skip), rng.ext_vec(64));
+            let (z, x_rest, r_rest, slices) = (
+                rng.ext(),
+                rng.ext_vec(k - k_skip),
+                rng.ext_vec(k - k_skip),
+                rng.ext_vec(64),
+            );
             let alpha = rng.ext();
             let form = flock::lincheck::MatrixForm {
                 alpha,
@@ -197,7 +234,14 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
                 v += F192::ONE;
             }
             let w = |b: &mut Builder, xs: &[F192]| xs.iter().map(|&x| b.free_e(x)).collect::<Vec<_>>();
-            let (zw, xw, rw, sw, aw, vw) = (b.free_e(z), w(&mut b, &x_rest), w(&mut b, &r_rest), w(&mut b, &slices), b.free_e(alpha), b.free_e(v));
+            let (zw, xw, rw, sw, aw, vw) = (
+                b.free_e(z),
+                w(&mut b, &x_rest),
+                w(&mut b, &r_rest),
+                w(&mut b, &slices),
+                b.free_e(alpha),
+                b.free_e(v),
+            );
             claims.push(MatrixClaim {
                 circuit: f,
                 row: Row::Quirky { z: zw, rest: xw },
@@ -209,7 +253,10 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
             let (ra, rb) = circuit.row_values(&eq_table(&py));
             let u = eq_table(&px);
             let dot = |r: &[F192]| u.iter().zip(r).fold(F192::ZERO, |acc, (&x, &y)| acc + x * y);
-            for (weights, value) in [([Weight::One, Weight::Zero], dot(&ra)), ([Weight::Zero, Weight::One], dot(&rb))] {
+            for (weights, value) in [
+                ([Weight::One, Weight::Zero], dot(&ra)),
+                ([Weight::Zero, Weight::One], dot(&rb)),
+            ] {
                 let (pxw, pyw, vw) = (w(&mut b, &px), w(&mut b, &py), b.free_e(value));
                 claims.push(MatrixClaim {
                     circuit: f,
@@ -238,4 +285,88 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
         assert_eq!(*v, [dot(&ra), dot(&rb)], "circuit {f}");
     }
     assert!(!run(true).0.is_empty(), "a false claim is reduced");
+}
+
+/// A recursion proof verified in rows reaches the native verifier's table-sumcheck target and leaves its `Hash`
+/// table's matrix claim, value for value, and builds the circuit its shape builds.
+#[test]
+fn the_circuit_replays_a_recursion_proof() {
+    use crate::leaf;
+    use crate::rec::proof::spans;
+    use fiat_shamir::transcript::{Challenger, VerifierState};
+
+    let program = program();
+    let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
+    let leaf = InnerProof::new(&program, &proof, output).expect("an honest proof");
+    let (taus, log_inv_rate) = announced_shape(&leaf.proof.stream).expect("a shape");
+    let tree = Tree::new(&program, taus, log_inv_rate, 2, Rate::MIN).expect("a valid shape");
+    let lift = tree.prove_lift(&leaf).expect("an honest leaf");
+    let (circuit, words) = (&tree.lift, lift.statement.words());
+
+    let mut vs = VerifierState::new(tree.iv, &lift.proof, lift.statement.public_input());
+    crate::pcs::read_commitment(&mut vs).expect("a root");
+    let layout = proof::Layout::new(circuit);
+    let (push, pull) = machine::bus_blocks(circuit, &words, &layout.taus, &spans());
+    let bus = leaf::verify_balance(&push, &pull, &[], &spans(), &mut vs).expect("the bus balances");
+    let xi = vs.sample();
+    let target = bus.totals[0] + xi * bus.totals[1];
+    crate::constraints::verify(&layout.airs(&bus.forms, xi), &bus.point, target, &mut vs)
+        .expect("the batch verifies")
+        .settle()
+        .expect("the batch settles");
+    let (_, native) = class_flock::shape(machine::hash_flock())
+        .verify_deferred(layout.taus[circuit::Table::Hash as usize], &mut vs)
+        .expect("the reduction replays");
+
+    let raw = tree.read(&lift).expect("the lift verifies");
+    let build = |source: Source, statement: &TreeStatement, columns: Option<&[Vec<F64>]>| {
+        let mut b = Builder::new();
+        let d = &tree.design;
+        let iv = b.d_const(tree.iv.map(|w| w.0));
+        let s = StatementWires {
+            kind: b.free_k(statement.kind as u64),
+            digest: b.free_d(statement.digest),
+            dense_point: statement.dense_point.iter().map(|&x| b.free_e(x)).collect(),
+            dense_values: statement.dense_values.iter().map(|&x| b.free_e(x)).collect(),
+            rows: statement.rows.iter().map(|&x| b.free_e(x)).collect(),
+            cols: statement.cols.iter().map(|&x| b.free_e(x)).collect(),
+            matrices: statement.matrices.iter().map(|m| m.map(|x| b.free_e(x))).collect(),
+        };
+        let kind = b.k_to_e1(s.kind);
+        let limbs = s.limbs(&mut b);
+        let flat: Vec<Kw> = limbs.iter().flatten().copied().collect();
+        let pi = chain_wires(&mut b, &flat);
+        let [p0, p1, p2, p3] = b.d_to_k(pi);
+        let first = b.k_to_e([p0, p1, p2]);
+        let mut t = Transcript::new(&mut b, iv, (first, p3), source);
+        let child = child::verify_child(
+            &mut b,
+            &mut t,
+            &d.taus,
+            d.rate.log_inv_rate().into(),
+            &limbs,
+            kind,
+            &d.fixed,
+            columns,
+            FIXED,
+        );
+        (b, child)
+    };
+    let (b, child) = build(Source::Proof(&raw), &lift.statement, Some(&tree.columns[0]));
+    assert_eq!(b.e(child.target), target);
+    let m = &child.matrix;
+    let values = |ws: &[Ew]| ws.iter().map(|&w| b.e(w)).collect::<Vec<_>>();
+    assert_eq!(b.e(m.value), native.value);
+    assert_eq!(b.e(m.alpha), native.form.alpha);
+    assert_eq!(b.e(m.z_skip), native.form.z_skip);
+    assert_eq!(values(&m.x_inner_rest), native.form.x_inner_rest);
+    assert_eq!(values(&m.r_inner_rest), native.form.r_inner_rest);
+    assert_eq!(values(&m.s_hat_v), native.form.s_hat_v);
+    let (circuit, _, failures) = b.finish();
+    assert!(failures.is_empty(), "{failures:?}");
+    let zero = TreeStatement::zero(tree.design.n_dense(), matrix_vars());
+    assert!(
+        circuit == build(Source::Shape, &zero, None).0.finish().0,
+        "the shape builds the same circuit"
+    );
 }
