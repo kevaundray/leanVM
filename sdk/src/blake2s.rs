@@ -212,11 +212,11 @@ use plain::Plain;
 /// each compression instead, which keeps a hasher that lives across calls in registers too.
 #[inline(always)]
 pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
-    let mut block = Block {
-        h: IV,
-        out: MaybeUninit::uninit(),
-        m: [0; 8],
-    };
+    // Only the chaining value is written here: the stream writes each message word before a compression reads it,
+    // padding the last block itself.
+    let mut block = MaybeUninit::<Block>::uninit();
+    // SAFETY: a field of the block this frame owns.
+    unsafe { (&raw mut (*block.as_mut_ptr()).h).write(IV) };
     let mut stream = Stream {
         block: &mut block,
         filled: 0,
@@ -228,7 +228,9 @@ pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
 
 /// A message being written for [`hash_with`], in words: each full block absorbed once more of it follows.
 pub struct Stream<'a> {
-    block: &'a mut Block,
+    /// The block: its chaining value written, and its message's words below `filled`, which are all eight once a
+    /// block is full.
+    block: &'a mut MaybeUninit<Block>,
     /// Words in the message block.
     filled: usize,
     /// Bytes absorbed before it.
@@ -244,8 +246,7 @@ impl Stream<'_> {
             if self.filled == 8 {
                 self.absorb();
             }
-            self.block.m[self.filled] = word;
-            self.filled += 1;
+            self.put([word]);
         }
         self
     }
@@ -289,27 +290,47 @@ impl Stream<'_> {
     /// Write words where the block has room for them.
     #[inline(always)]
     fn put<const N: usize>(&mut self, words: [u64; N]) {
-        self.block.m[self.filled..self.filled + N].copy_from_slice(&words);
-        self.filled += N;
+        for word in words {
+            let filled = self.filled;
+            self.message()[filled].write(word);
+            self.filled += 1;
+        }
+    }
+
+    /// The message words, written or not.
+    #[inline(always)]
+    fn message(&mut self) -> &mut [MaybeUninit<u64>; 8] {
+        // SAFETY: the message of the block this stream holds, as words that need not be initialized.
+        unsafe { &mut *(&raw mut (*self.block.as_mut_ptr()).m).cast() }
+    }
+
+    /// The block, once its chaining value and its eight message words are written.
+    #[inline(always)]
+    fn full(&mut self) -> &mut Block {
+        debug_assert_eq!(self.filled, 8);
+        // SAFETY: the chaining value and every message word are written (`filled` is 8 only once each word below it
+        // is), and `out` may be uninitialized.
+        unsafe { self.block.assume_init_mut() }
     }
 
     /// Absorb the full message block, which more of the message follows.
     #[inline(always)]
     fn absorb(&mut self) {
         self.done += 64;
-        self.block.h = self.block.compress(self.done, false);
+        let done = self.done;
+        let block = self.full();
+        block.h = block.compress(done, false);
         self.filled = 0;
     }
 
     /// The digest: the last block zero-padded, the counter every byte of the message.
     #[inline(always)]
     fn finish(&mut self) -> [u64; 4] {
-        for (j, word) in self.block.m.iter_mut().enumerate() {
-            if j >= self.filled {
-                *word = 0;
-            }
+        let t = self.done + 8 * self.filled as u64;
+        while self.filled < 8 {
+            self.put([0]);
         }
-        self.block.compress(self.done + 8 * self.filled as u64, true)
+        self.full().compress(t, true)
     }
 }
 
@@ -629,7 +650,9 @@ mod tests {
         // Invariant: whatever the pieces it is written in, `hash_with` hashes as BLAKE2s-256 of the words' bytes.
         //
         // Fixture: every length from the empty message through one block, one block and a word, to five blocks, each
-        // starting its pieces at every offset within a block, so that pieces straddle every block boundary.
+        // starting its pieces at every offset within a block, so that pieces straddle every block boundary. The stream
+        // leaves the message unwritten until a word goes there, so a last block shorter than the one before still
+        // holds that block's words past its end: each length that ends short of a block checks they hash as zeros.
         let mut rng = Rng::new(0x5E6);
         let words: [u64; 40] = core::array::from_fn(|_| rng.next_u64());
         for len in 0..=40 {
