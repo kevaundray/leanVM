@@ -84,3 +84,29 @@ pub fn int_index_mle(b: &mut Builder, base: u64, shift: u32, point: &[Ew]) -> Ew
     }
     acc
 }
+
+/// `v^(2^128) = v + c2·(Y + Y^2) + c1·Y^2` for `v = c0 + c1·Y + c2·Y^2`: two Frobenius maps.
+pub fn frobenius2(b: &mut Builder, v: Ew) -> Ew {
+    let [_, c1, c2] = b.e_to_k(v);
+    let y_y2 = b.e_const(F192::new(0, 1, 1));
+    let y2 = b.e_const(F192::new(0, 0, 1));
+    let u = b.mul_k_add(y_y2, c2, v);
+    b.mul_k_add(y2, c1, u)
+}
+
+/// `v^(2^-j)` at index `j >= lowest` of `len <= 64` entries, and `v` at index 0
+/// (`ring_switch::inverse_frobenius_ladder`); the other entries are `v` and unused.
+pub fn inverse_frobenius_ladder(b: &mut Builder, v: Ew, lowest: usize, len: usize) -> Vec<Ew> {
+    assert!(len <= 64);
+    let mut ladder = vec![v; len];
+    // `v^(2^-j) = (v^(2^128))^(2^(64-j))`.
+    let mut power = frobenius2(b, v);
+    for _ in len..64 {
+        power = b.square(power);
+    }
+    for slot in ladder[lowest.max(1)..].iter_mut().rev() {
+        power = b.square(power);
+        *slot = power;
+    }
+    ladder
+}

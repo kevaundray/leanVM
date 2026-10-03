@@ -97,6 +97,90 @@ fn mle(b: &mut Builder, y: &[Ew], r: &[Ew]) -> Ew {
     y[0]
 }
 
+/// The ring-switching map `Phi` from its six challenges, as the coefficients `C_k^(2^-k)` of its Frobenius
+/// form (`ring_switch::RsEqQuery`); absent is one.
+struct Map {
+    coefficients: Vec<Option<Ew>>,
+}
+
+impl Map {
+    fn new(b: &mut Builder, challenges: &[Ew]) -> Self {
+        // C_k^(2^-k) = prod_{p : k & d_p} f_p^(2^-(k - k mod d_p)), and k - k mod d_p is the part of k at
+        // the shifts down to d_p, so the product grows one shift at a time.
+        let mut coefficients: Vec<Option<Ew>> = vec![None];
+        let mut prefixes = vec![0usize];
+        for (&f, &shift) in challenges.iter().zip(COMPOSITION_SHIFTS.iter()) {
+            let ladder = math::inverse_frobenius_ladder(b, f, shift, PACKING_WIDTH);
+            let mut next_c = Vec::with_capacity(2 * coefficients.len());
+            let mut next_p = Vec::with_capacity(2 * prefixes.len());
+            for (&c, &k) in coefficients.iter().zip(&prefixes) {
+                next_c.push(c);
+                next_p.push(k);
+                next_c.push(Some(times(b, c, ladder[k + shift])));
+                next_p.push(k + shift);
+            }
+            coefficients = next_c;
+            prefixes = next_p;
+        }
+        let mut by_k = vec![None; PACKING_WIDTH];
+        for (c, k) in coefficients.into_iter().zip(prefixes) {
+            by_k[k] = c;
+        }
+        Self { coefficients: by_k }
+    }
+
+    /// `ring_switch::verify_finish`: `Σ_w Phi(b_w)·t_w` over the transposed slices `t`, which is
+    /// `Σ_j x^j·Phi(s_j) = Σ_k (C_k^(2^-k)·S(x^(2^-k)))^(2^k)` for `S(u) = Σ_j s_j·u^j`, closed by the
+    /// linearized Horner rule from `k = 63` down.
+    fn finish(&self, b: &mut Builder, s_hat_v: &[Ew]) -> Ew {
+        assert_eq!(s_hat_v.len(), PACKING_WIDTH);
+        let mut acc: Option<Ew> = None;
+        for k in (0..PACKING_WIDTH).rev() {
+            let mut xk = F64(2);
+            for _ in 0..(PACKING_WIDTH - k) % PACKING_WIDTH {
+                xk = xk.square();
+            }
+            let xk = F192::from(xk);
+            let mut s = s_hat_v[PACKING_WIDTH - 1];
+            for &sj in s_hat_v[..PACKING_WIDTH - 1].iter().rev() {
+                s = b.mul_const_add(s, xk, sj);
+            }
+            let term = match self.coefficients[k] {
+                Some(c) => b.mul(c, s),
+                None => s,
+            };
+            acc = Some(match acc {
+                None => term,
+                Some(a) => b.mul_add(a, a, term),
+            });
+        }
+        acc.expect("the map has 64 terms")
+    }
+
+    /// `ring_switch::eval_rs_eq` at the suffix point `z`, against the query's ladders.
+    fn eval_rs_eq(&self, b: &mut Builder, z: &[Ew], ladders: &[Vec<Ew>]) -> Ew {
+        assert!(z.len() <= ladders.len());
+        let mut terms = self.coefficients.clone();
+        for (&zn, ladder) in z.iter().zip(ladders) {
+            for (term, &power) in terms.iter_mut().zip(ladder) {
+                *term = Some(times_eq(b, *term, power, zn));
+            }
+        }
+        let mut terms: Vec<Ew> = terms.into_iter().map(|t| or_one(b, t)).collect();
+        let last = terms.pop().expect("the map has 64 terms");
+        terms.iter().rev().fold(last, |acc, &term| b.mul_add(acc, acc, term))
+    }
+}
+
+/// Where the ring-switched claims' share of the opening is settled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RingMode {
+    /// Hinted and exposed as a [`RingShare`], which a native verifier recomputes.
+    Hint,
+    /// Computed in the circuit from the map's challenges, as the native verifier does.
+    Prove,
+}
+
 /// The ring-switched claims' share of the opening, which the circuit leaves to the outer verifier: the map's
 /// challenges and the batching challenge, the terminal point, and what the claims put into the target and
 /// into the weight there (`stack_open::verify_opening_batch_mixed_whir_stacked`). Their slices and points are
@@ -196,8 +280,10 @@ fn claim_end(claim: &StackClaim) -> usize {
 /// Verify the opening of the commitment `root` against the point claims `slots` and the ring-switched
 /// regions `rings` (`crate::pcs::verify`). The claims' values and slices were bound by the caller.
 ///
-/// The ring-switched claims' share of the target and of the terminal weight is a hint, settled by the
-/// outer verifier from the exposed [`RingShare`] ([`ring_target`], [`ring_weight`]).
+/// Under [`RingMode::Hint`] the ring-switched claims' share of the target and of the terminal weight is a hint,
+/// settled by the outer verifier from the returned [`RingShare`] ([`ring_target`], [`ring_weight`]); under
+/// [`RingMode::Prove`] the circuit computes both and returns nothing.
+#[expect(clippy::too_many_arguments, reason = "the opening's inputs, as `pcs::verify` takes them")]
 pub fn verify(
     b: &mut Builder,
     t: &mut Transcript,
@@ -206,7 +292,8 @@ pub fn verify(
     shape: crate::witness::StackShape,
     log_inv_rate: usize,
     root: Dw,
-) -> RingShare {
+    mode: RingMode,
+) -> Option<RingShare> {
     let log_n = shape.mu;
     let config = config_for_rate(log_n, log_inv_rate)
         .unwrap_or_else(|e| panic!("whir config for mu={log_n}, log_inv_rate={log_inv_rate}: {e}"));
@@ -232,15 +319,29 @@ pub fn verify(
     let map = t.sample_vec(b, COMPOSITION_SHIFTS.len());
     let lambda = t.sample(b);
     let lambdas = powers(b, lambda, n_rs + slots.len());
-    let lambdas_pd = &lambdas[n_rs..];
+    let (lambdas_rs, lambdas_pd) = lambdas.split_at(n_rs);
     let map_values: [F192; 6] = std::array::from_fn(|i| b.e(map[i]));
-    let slices: Vec<Vec<F192>> = rings
-        .iter()
-        .flat_map(|r| &r.claims)
-        .map(|c| c.s_hat_v.iter().map(|&w| b.e(w)).collect())
-        .collect();
-    let slice_refs: Vec<&[F192]> = slices.iter().map(Vec::as_slice).collect();
-    let ring_target_wire = b.free_e(ring_target(&map_values, b.e(lambda), &slice_refs));
+    let phi = (mode == RingMode::Prove).then(|| b.scope("ring switch map", |b| Map::new(b, &map)));
+
+    let ring_target_wire = match &phi {
+        Some(phi) => b.scope("ring target", |b| {
+            let mut target = None;
+            for (claim, &g) in rings.iter().flat_map(|ring| &ring.claims).zip(lambdas_rs) {
+                let v = phi.finish(b, &claim.s_hat_v);
+                target = Some(mac(b, target, g, v));
+            }
+            target.expect("at least one ring-switched claim")
+        }),
+        None => {
+            let slices: Vec<Vec<F192>> = rings
+                .iter()
+                .flat_map(|r| &r.claims)
+                .map(|c| c.s_hat_v.iter().map(|&w| b.e(w)).collect())
+                .collect();
+            let slice_refs: Vec<&[F192]> = slices.iter().map(Vec::as_slice).collect();
+            b.free_e(ring_target(&map_values, b.e(lambda), &slice_refs))
+        }
+    };
 
     let target = b.scope("target", |b| {
         let mut target = ring_target_wire;
@@ -259,15 +360,43 @@ pub fn verify(
                 .collect()
         })
         .collect();
+    let max_qflock_vars = rings.iter().map(|ring| ring.qflock_vars).max().unwrap_or(0);
     let mut share = None;
     let eval_b_at = |b: &mut Builder, x: &[Ew], init: Option<Ew>| -> Ew {
-        let x_values: Vec<F192> = x.iter().map(|&w| b.e(w)).collect();
-        let regions: Vec<(usize, usize, Vec<&[F192]>)> = rings
-            .iter()
-            .zip(&points)
-            .map(|(r, p)| (r.offset, r.qflock_vars, p.iter().map(Vec::as_slice).collect()))
-            .collect();
-        let weight = b.free_e(ring_weight(&map_values, b.e(lambda), &regions, &x_values));
+        let weight = match &phi {
+            Some(phi) => {
+                let ladders: Vec<Vec<Ew>> = x[..max_qflock_vars]
+                    .iter()
+                    .map(|&q| math::inverse_frobenius_ladder(b, q, 1, PACKING_WIDTH))
+                    .collect();
+                let mut weight = None;
+                let mut lambdas_rs = lambdas_rs.iter();
+                for ring in rings {
+                    let sel = ring.offset >> ring.qflock_vars;
+                    let mut sel_eq = None;
+                    for (k, &xi) in x[ring.qflock_vars..].iter().enumerate() {
+                        sel_eq = Some(select(b, sel_eq, xi, (sel >> k) & 1 == 1));
+                    }
+                    let mut part = None;
+                    for (claim, &g) in ring.claims.iter().zip(lambdas_rs.by_ref()) {
+                        let v = phi.eval_rs_eq(b, &claim.suffix_point, &ladders);
+                        part = Some(mac(b, part, g, v));
+                    }
+                    let part = part.unwrap_or_else(|| b.zero());
+                    weight = Some(mac(b, weight, sel_eq, part));
+                }
+                weight.expect("at least one ring-switched region")
+            }
+            None => {
+                let x_values: Vec<F192> = x.iter().map(|&w| b.e(w)).collect();
+                let regions: Vec<(usize, usize, Vec<&[F192]>)> = rings
+                    .iter()
+                    .zip(&points)
+                    .map(|(r, p)| (r.offset, r.qflock_vars, p.iter().map(Vec::as_slice).collect()))
+                    .collect();
+                b.free_e(ring_weight(&map_values, b.e(lambda), &regions, &x_values))
+            }
+        };
         share = Some((x.to_vec(), weight));
         let mut acc = mac(b, init, None, weight);
         for (claim, &g) in slots.iter().zip(lambdas_pd) {
@@ -281,13 +410,13 @@ pub fn verify(
         whir(b, t, &config, log_n, shape.n_lanes, target, root, eval_b_at);
     });
     let (point, weight) = share.expect("the terminal check evaluates the weight");
-    RingShare {
+    (mode == RingMode::Hint).then_some(RingShare {
         map,
         lambda,
         point,
         target: ring_target_wire,
         weight,
-    }
+    })
 }
 
 /// A round's quadratic `c + b·X + a·X^2` (`whir::sumcheck::RoundQuad`).
@@ -783,6 +912,7 @@ mod tests {
         slots: &[SlotClaim],
         rings: &[Ring],
         source: Source,
+        mode: RingMode,
     ) -> (Circuit, Vec<String>, bool) {
         let shaped = matches!(source, Source::Shape);
         let mut b = Builder::new();
@@ -832,14 +962,15 @@ mod tests {
                     .collect(),
             })
             .collect();
-        verify(&mut b, &mut t, &slot_wires, &ring_wires, shape, log_inv_rate, root);
+        verify(&mut b, &mut t, &slot_wires, &ring_wires, shape, log_inv_rate, root, mode);
         let finished = t.finished();
         let (circuit, _, failures) = b.finish();
         (circuit, failures, finished)
     }
 
-    /// Commit and open natively, verify natively, then replay the verification in the circuit.
-    fn check(mu: usize, log_inv_rate: usize, seed: u64) {
+    /// Commit and open natively, verify natively, then replay the verification in the circuit, the
+    /// ring-switched share settled as `mode` says.
+    fn check(mu: usize, log_inv_rate: usize, seed: u64, mode: RingMode) {
         let mut rng = Rng::new(seed);
         let shape = StackShape { mu, n_lanes: N_LANES };
         let q: Vec<F64> = (0..shape.committed_len()).map(|_| F64(rng.next_u64())).collect();
@@ -888,11 +1019,14 @@ mod tests {
         vs.finish().expect("native verify consumes the proof");
         let raw = vs.into_raw_proof();
 
-        let what = format!("mu {mu}, log_inv_rate {log_inv_rate}");
-        let (circuit, failures, finished) = build(shape, log_inv_rate, &slots, &rings, Source::Proof(&raw));
+        let what = format!("mu {mu}, log_inv_rate {log_inv_rate}, {mode:?}");
+        let build = |slots: &[SlotClaim], rings: &[Ring], source: Source<'_>| {
+            build(shape, log_inv_rate, slots, rings, source, mode)
+        };
+        let (circuit, failures, finished) = build(&slots, &rings, Source::Proof(&raw));
         assert!(failures.is_empty(), "{what}: {failures:?}");
         assert!(finished, "{what}: the circuit left part of the proof unread");
-        let (shaped, _, _) = build(shape, log_inv_rate, &slots, &rings, Source::Shape);
+        let (shaped, _, _) = build(&slots, &rings, Source::Shape);
         assert!(circuit == shaped, "{what}: the shape builds another circuit");
 
         let mut bad = RawProof {
@@ -901,7 +1035,7 @@ mod tests {
         };
         let mid = bad.stream.len() / 2;
         bad.stream[mid].c1 ^= 1;
-        let (_, failures, _) = build(shape, log_inv_rate, &slots, &rings, Source::Proof(&bad));
+        let (_, failures, _) = build(&slots, &rings, Source::Proof(&bad));
         assert!(!failures.is_empty(), "{what}: a tampered scalar passes");
 
         // Every claim reaches the terminal check.
@@ -910,7 +1044,7 @@ mod tests {
             match &mut bad[i] {
                 SlotClaim::Point { value, .. } | SlotClaim::Strided { value, .. } => *value += F192::ONE,
             }
-            let (_, failures, _) = build(shape, log_inv_rate, &bad, &rings, Source::Proof(&raw));
+            let (_, failures, _) = build(&bad, &rings, Source::Proof(&raw));
             assert!(
                 failures.iter().any(|f| f.contains("terminal")),
                 "{what}: a wrong value of slot claim {i} passes: {failures:?}"
@@ -920,7 +1054,7 @@ mod tests {
             for c in 0..rings[r].claims.len() {
                 let mut bad = rings.clone();
                 bad[r].claims[c].1[7] += F192::ONE;
-                let (_, failures, _) = build(shape, log_inv_rate, &slots, &bad, Source::Proof(&raw));
+                let (_, failures, _) = build(&slots, &bad, Source::Proof(&raw));
                 assert!(
                     failures.iter().any(|f| f.contains("terminal")),
                     "{what}: a wrong slice of ring {r} claim {c} passes: {failures:?}"
@@ -934,7 +1068,7 @@ mod tests {
                 merkle: raw.merkle.clone(),
             };
             bad.merkle[opening].path[1][0] ^= 1;
-            let (_, failures, _) = build(shape, log_inv_rate, &slots, &rings, Source::Proof(&bad));
+            let (_, failures, _) = build(&slots, &rings, Source::Proof(&bad));
             assert!(
                 !failures.is_empty(),
                 "{what}: a tampered sibling of opening {opening} passes"
@@ -944,13 +1078,13 @@ mod tests {
 
     #[test]
     fn the_circuit_replays_the_smallest_opening() {
-        check(crate::pcs::MIN_MU, 1, 1);
-        check(crate::pcs::MIN_MU, 2, 2);
+        check(crate::pcs::MIN_MU, 1, 1, RingMode::Hint);
+        check(crate::pcs::MIN_MU, 2, 2, RingMode::Prove);
     }
 
     #[test]
     fn the_circuit_replays_a_larger_opening() {
-        check(20, 1, 3);
-        check(20, 2, 4);
+        check(20, 1, 3, RingMode::Prove);
+        check(20, 2, 4, RingMode::Hint);
     }
 }

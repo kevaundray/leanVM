@@ -2,11 +2,11 @@
 //! the circuits' claims as wires.
 
 use super::bus::{opening_claims, read_announcement, table_sumcheck, verify_balance};
-use super::pcs::RingShare;
+use super::pcs::{RingMode, RingShare};
 use super::{MatrixClaim, ProgramClaim, RingRegion, SliceClaim};
 use crate::class_flock;
 use crate::cpu::{Layout, Program};
-use crate::rec::circuit::{Builder, Ew, Kw};
+use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::transcript::{Source, Transcript};
 use crate::tables::{self, N_TABLES};
 
@@ -18,15 +18,17 @@ pub struct Shape<'p> {
     pub log_inv_rate: usize,
 }
 
-/// What the core leaves: the claims on the program and on the circuits, and the ring-switched claims'
-/// share of the opening, with what locates those claims beyond the deferred claims: each flock claim's
-/// outer coordinates and the bytecode multiplicities' bits.
+/// What the core leaves: the claims on the program and on the circuits, the ring-switched claims' share of
+/// the opening when the circuit leaves it as a hint, with what locates those claims beyond the deferred claims
+/// (each flock claim's outer coordinates and the bytecode multiplicities' bits), and the transcript's final
+/// state, which binds every scalar the proof sent.
 pub struct Core {
     pub program: ProgramClaim,
     pub circuits: Vec<MatrixClaim>,
-    pub ring: RingShare,
+    pub ring: Option<RingShare>,
     pub x_outer: Vec<Vec<Ew>>,
     pub bits: Vec<Ew>,
+    pub state: Dw,
 }
 
 /// The transcript seeded with the program's digest and the output, the four words `output`.
@@ -36,8 +38,9 @@ fn seed<'a>(b: &mut Builder, program: &Program, output: [Kw; 4], source: Source<
     Transcript::new(b, iv, (first, output[3]), source)
 }
 
-/// The core of the verifier of one inner proof of `shape`, read from `source`, run against `output`.
-pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Source) -> Core {
+/// The core of the verifier of one inner proof of `shape`, read from `source`, run against `output`, the
+/// opening's ring-switched share settled as `ring` says.
+pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Source, ring: RingMode) -> Core {
     let mut t = seed(b, shape.program, output, source);
     let ts = b.scope("announcement", |b| {
         read_announcement(b, &mut t, &shape.taus, shape.log_inv_rate)
@@ -90,8 +93,8 @@ pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Sour
         });
     }
 
-    let ring = b.scope("opening", |b| {
-        super::pcs::verify(b, &mut t, &slots, &rings, l.shape, shape.log_inv_rate, root)
+    let share = b.scope("opening", |b| {
+        super::pcs::verify(b, &mut t, &slots, &rings, l.shape, shape.log_inv_rate, root, ring)
     });
     if !t.finished() {
         b.scope("transcript", |b| b.fail("the proof has data the verifier never reads"));
@@ -100,9 +103,10 @@ pub fn verify_core(b: &mut Builder, shape: &Shape, output: [Kw; 4], source: Sour
     Core {
         program,
         circuits,
-        ring,
+        ring: share,
         x_outer,
         bits,
+        state: t.state(),
     }
 }
 
@@ -136,7 +140,7 @@ mod tests {
         let build = |source: Source| {
             let mut b = Builder::new();
             let out = output.map(|o| b.free_k(o));
-            let core = verify_core(&mut b, &shape, out, source);
+            let core = verify_core(&mut b, &shape, out, source, RingMode::Prove);
             (b, core)
         };
         let (b, core) = build(Source::Proof(&raw));

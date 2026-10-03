@@ -221,7 +221,7 @@ fn claim_wires(core: &inner::core::Core) -> Vec<Ew> {
         w.extend(&c.s_hat_v);
         w.push(c.value);
     }
-    let r = &core.ring;
+    let r = core.ring.as_ref().expect("the single-level circuit hints the ring share");
     w.extend(&r.map);
     w.push(r.lambda);
     w.extend(&r.point);
@@ -318,7 +318,9 @@ fn build(shapes: &[Shape], sources: &[Source], outputs: &[[u64; 4]]) -> (Builder
         for &o in &output {
             b.expose_k(o);
         }
-        let core = b.scope(format!("inner {i}"), |b| verify_core(b, shape, output, source));
+        let core = b.scope(format!("inner {i}"), |b| {
+            verify_core(b, shape, output, source, inner::pcs::RingMode::Hint)
+        });
         for w in claim_wires(&core) {
             b.expose_e(w);
         }
@@ -330,7 +332,7 @@ fn build(shapes: &[Shape], sources: &[Source], outputs: &[[u64; 4]]) -> (Builder
 /// The native ring claims the core's wires hold.
 fn ring_of(b: &Builder, core: &inner::core::Core) -> RingClaims {
     let e = |ws: &[Ew]| ws.iter().map(|&w| b.e(w)).collect::<Vec<_>>();
-    let r = &core.ring;
+    let r = core.ring.as_ref().expect("the single-level circuit hints the ring share");
     RingClaims {
         map: std::array::from_fn(|i| b.e(r.map[i])),
         lambda: b.e(r.lambda),
