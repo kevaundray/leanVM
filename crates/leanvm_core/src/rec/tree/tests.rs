@@ -118,7 +118,7 @@ fn a_tree_verifies_and_refuses_forgeries() {
     relabeled.statement.kind = Kind::Node;
     assert!(
         matches!(
-            tree.prove_node(&[node.clone(), relabeled]),
+            tree.prove_node(&[node, relabeled]),
             Err(TreeError::Child { index: 1, .. })
         ),
         "a first-level node stating another kind"
