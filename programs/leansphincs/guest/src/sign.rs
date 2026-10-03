@@ -136,7 +136,7 @@ impl SecretKey {
             .find_map(|c| ots::encode(pp, pos, message, c as u32).map(|x| (c as u32, x)))
             .ok_or(SignError::NoAdmissibleEncoding)?;
         // Chain `i` opened at value `x_i`.
-        let ots = core::array::from_fn(|i| ots::chain(pp, pos, i, 0, x[i] as usize, ots::secret(pp, master, pos, i)));
+        let ots = core::array::from_fn(|i| ots::chain(pp, pos, i, 0, x.get(i), ots::secret(pp, master, pos, i)));
         // The top layer's tree has the cache; the others are rebuilt whole.
         let mut path = [[0; 2]; HEIGHT];
         *message = if lay == 0 {

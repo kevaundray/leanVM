@@ -130,8 +130,9 @@ pub fn verify(
     // The digits say where each chain was opened.
     let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
     // Walk each chain the rest of the way: chain `i` from value `digit_i` to value 7.
+    let mut next_digit = digits.in_order();
     let ends = core::array::from_fn(|i| {
-        let start = digits[i] as usize;
+        let start = next_digit();
         chain(
             pp,
             leaf_index,
@@ -185,34 +186,64 @@ fn tweak_hash<const N: usize>(pp: &PublicParam, ty: u8, position: u32, index: u3
     [digest[0], digest[1]]
 }
 
-/// The target-sum encoding: the message's 42 digits, or `None` if they are not valid.
-///
-/// The encoding digest is two words of 21 three-bit digits each.
-///
-/// It is valid iff each word's top bit is zero and the digits sum to 195.
-fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness: &Randomness) -> Option<[u8; V]> {
-    // The payload is `message | randomness | zeros`: 64 bytes, so two compressions in all.
-    let [m0, m1, m2, m3] = *message;
-    let [r0, r1, r2] = *randomness;
-    let digest = tweak_hash(pp, TWEAK_ENCODING, 0, leaf_index, &[m0, m1, m2, m3, r0, r1, r2, 0]);
+/// The target-sum encoding: 42 three-bit digits, 21 to a word, where each chain is opened.
+#[derive(Clone, Copy)]
+struct Digits([u64; 2]);
 
-    let mut digits = [0; V];
-    let mut sum = 0;
-    for (half, word) in digest.into_iter().enumerate() {
-        // Bits 0..63 are 21 digits, bit 63 is pinned to zero.
-        //
-        // Why pinned: with it, the digits determine the word.
-        if word >> (W * V / 2) != 0 {
-            return None;
-        }
-        // Digit `i` of the half is bits `3i..3i+3`.
-        for i in 0..V / 2 {
-            let digit = (word >> (W * i)) as u8 & (CHAIN_LENGTH as u8 - 1);
-            digits[half * V / 2 + i] = digit;
-            sum += digit as usize;
+impl Digits {
+    /// Digit `i`: bits `3j..3j+3` of word `i / 21`, `j = i % 21`.
+    #[inline(always)]
+    const fn get(self, i: usize) -> usize {
+        (self.0[i / (V / 2)] >> (W * (i % (V / 2)))) as usize & (CHAIN_LENGTH - 1)
+    }
+
+    /// The digits in order, a call each: shifted out of the words, which no division by 21 costs.
+    #[inline(always)]
+    fn in_order(self) -> impl FnMut() -> usize {
+        let [low, high] = self.0;
+        // The high word's digits start right after the low word's 63 bits.
+        let mut rest = u128::from(low) | u128::from(high) << (W * V / 2);
+        move || {
+            let digit = rest as usize & (CHAIN_LENGTH - 1);
+            rest >>= W;
+            digit
         }
     }
-    (sum == TARGET_SUM).then_some(digits)
+
+    /// The sum of the digits, by adding neighbouring fields in place.
+    ///
+    /// No field overflows into the next: the top bits are zero, a digit is at most 7, and all of them sum to at most 294.
+    const fn sum(self) -> u64 {
+        let [low, high] = self.0;
+        // 7 in every 6-bit field: the even digits.
+        const EVEN: u64 = 0x71C7_1C71_C71C_71C7;
+        // 63 in every 12-bit field.
+        const LOW6: u64 = 0xF03F_03F0_3F03_F03F;
+        // Four digits to a 6-bit field, two of each word: at most 28.
+        let s = (low & EVEN) + (low >> W & EVEN) + (high & EVEN) + (high >> W & EVEN);
+        // Two fields to a 12-bit field: at most 56.
+        let s = (s & LOW6) + (s >> 6 & LOW6);
+        // The six fields, folded into the lowest.
+        let s = s + (s >> 12);
+        let s = s + (s >> 24);
+        (s + (s >> 48)) & 0xFFF
+    }
+}
+
+/// The target-sum encoding of a message, or `None` if it is not valid.
+///
+/// It is valid iff each word's top bit is zero and the digits sum to 195.
+fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness: &Randomness) -> Option<Digits> {
+    let ([m0, m1, m2, m3], [r0, r1, r2]) = (*message, *randomness);
+    let [low, high] = tweak_hash(pp, TWEAK_ENCODING, 0, leaf_index, &[m0, m1, m2, m3, r0, r1, r2, 0]);
+    // Bits 0..63 are 21 digits, bit 63 is pinned to zero.
+    //
+    // Why pinned: with it, the digits determine the word.
+    if (low | high) >> (W * V / 2) != 0 {
+        return None;
+    }
+    let digits = Digits([low, high]);
+    (digits.sum() == TARGET_SUM as u64).then_some(digits)
 }
 
 /// Walk chain `i` for `steps` steps from value number `start`.
