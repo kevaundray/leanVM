@@ -192,6 +192,51 @@ impl<const W: usize> Template<W> {
     pub fn digest(&mut self) -> [u64; 4] {
         self.block.compress(8 * W as u64, true)
     }
+
+    /// A hash chain: for each `c` in `counters`, write `c` as the `u32` at message byte `COUNTER` and `value` at
+    /// message byte `VALUE`, then `value` becomes the digest's first two words. Returns the last `value`, or `value`
+    /// itself for no counters.
+    ///
+    /// On the VM the loop is written by hand: eight instructions a step, the compression one of them.
+    #[inline(always)]
+    pub fn chain<const COUNTER: usize, const VALUE: usize>(
+        &mut self,
+        counters: core::ops::Range<u32>,
+        value: [u64; 2],
+    ) -> [u64; 2] {
+        const {
+            assert!(
+                COUNTER.is_multiple_of(4) && COUNTER + 4 <= 8 * W,
+                "a u32 field inside the message"
+            );
+        };
+        const {
+            assert!(
+                VALUE.is_multiple_of(8) && VALUE + 16 <= 8 * W,
+                "two words inside the message"
+            );
+        };
+        assert!(counters.start <= counters.end, "a chain of no negative length");
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: the block is this template's, its chaining value and message initialized, the fields inside the
+        // message (checked above), and the range is not reversed (checked above).
+        unsafe {
+            crate::precompile::blake2s_chain::<COUNTER, VALUE>(
+                &mut self.block,
+                8 * W as u64,
+                counters.start,
+                counters.end,
+                value,
+            )
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        counters.fold(value, |value, c| {
+            self.write(COUNTER, c);
+            self.write(VALUE, value);
+            let [d0, d1, ..] = self.digest();
+            [d0, d1]
+        })
+    }
 }
 
 /// What [`Template::write`] takes: an integer or an array of them, whose bytes are all initialized.
@@ -617,6 +662,53 @@ mod tests {
     #[should_panic(expected = "an aligned field inside the message")]
     fn write_rejects_an_offset_whose_end_would_wrap() {
         Template::new([0; 6]).write(usize::MAX, 0u8);
+    }
+
+    /// `chain::<COUNTER, VALUE>` over every length from 0 to 16 and a few first counters, against the reference
+    /// BLAKE2s of each step's message; the template is left holding the last step's message.
+    fn chains<const W: usize, const COUNTER: usize, const VALUE: usize>(rng: &mut Rng) {
+        for first in [0, 1, 0x1234_5678, u32::MAX - 16] {
+            for len in 0..=16 {
+                let mut mirror = Mirror::<W>::new(core::array::from_fn(|_| rng.next_u64()));
+                let start = [rng.next_u64(), rng.next_u64()];
+                let mut value = start;
+                for c in first..first + len {
+                    mirror.put(COUNTER, &c.to_le_bytes());
+                    mirror.put(VALUE, &value[0].to_le_bytes());
+                    mirror.put(VALUE + 8, &value[1].to_le_bytes());
+                    let [d0, d1, ..] = reference(&mirror.bytes[..8 * W]);
+                    value = [d0, d1];
+                }
+                let chained = mirror.template.chain::<COUNTER, VALUE>(first..first + len, start);
+                assert_eq!(
+                    chained, value,
+                    "counter at {COUNTER}, value at {VALUE}, {len} steps from {first}"
+                );
+                mirror.check();
+            }
+        }
+    }
+
+    #[test]
+    fn a_chain_is_its_steps_hashed_in_turn() {
+        // Invariant: `chain` is the fold of its steps, each writing its counter and the value, the value becoming the
+        // digest's first two words; no steps return the value as given.
+        //
+        // Fixture: leanXMSS's and leanSPHINCS's shape (6 words, the counter in the tweak, the value after the
+        // parameter), the counter after the value and in the last word, a whole block, and counters up to `u32::MAX`.
+        let mut rng = Rng::new(0xC4A);
+        chains::<6, 4, 32>(&mut rng);
+        chains::<6, 44, 0>(&mut rng);
+        chains::<4, 24, 0>(&mut rng);
+        chains::<8, 0, 48>(&mut rng);
+        chains::<8, 60, 8>(&mut rng);
+    }
+
+    #[test]
+    #[should_panic(expected = "a chain of no negative length")]
+    fn chain_rejects_a_reversed_range() {
+        let (start, end) = (2, 1);
+        Template::new([0; 6]).chain::<4, 32>(start..end, [0; 2]);
     }
 
     /// The reference BLAKE2s-256 of up to 256 words, as little-endian bytes.

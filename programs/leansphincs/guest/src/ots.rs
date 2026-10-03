@@ -16,30 +16,28 @@ pub(crate) fn secret(pp: &PublicParam, master: &[u64; 4], pos: Pos, i: usize) ->
 /// position and its value.
 pub(crate) struct Chains {
     step: Template<6>,
-    pos: Pos,
 }
+
+/// Bytes 4..8 of a tweak: its position `p`.
+const TWEAK_POSITION: usize = 4;
 
 impl Chains {
     pub(crate) fn new(pp: &PublicParam, pos: Pos) -> Self {
         let [t0, t1] = tweak(TWEAK_CHAIN, pos.lay, pos.tau, 0, pos.e);
         Self {
             step: Template::new([t0, t1, pp[0], pp[1], 0, 0]),
-            pos,
         }
     }
 
     /// `Chain`: walk chain `i` for `steps` steps from value number `start`.
     ///
-    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
+    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak. Only the tweak's
+    /// position field changes: the rest, `tau | e` included, is the template's.
+    #[inline(always)]
     pub(crate) fn walk(&mut self, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
-        let Pos { lay, tau, e } = self.pos;
-        (start..start + steps).fold(value, |value, s| {
-            // Only the tweak's first word, the position, changes: the second, `tau | e`, is the template's.
-            let [position, _] = tweak(TWEAK_CHAIN, lay, tau, (CHAIN_LEN * i + s) as u32, e);
-            self.step.set(0, [position]);
-            self.step.set(PAYLOAD, value);
-            digest(self.step.digest())
-        })
+        let first = (CHAIN_LEN * i + start) as u32;
+        self.step
+            .chain::<TWEAK_POSITION, { 8 * PAYLOAD }>(first..first + steps as u32, value)
     }
 }
 

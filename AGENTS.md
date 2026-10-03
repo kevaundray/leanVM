@@ -40,6 +40,10 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 
 - A field narrower than a word, or a slot picked at run time, is `Template::write` at a byte offset: a word index costs a shift to become an address. A tweak's position and index are 32-bit fields, so a hash that changes only those writes two `sw`s. leanXMSS's Merkle path is unrolled this way, its child and sibling placed by the level's bit with no branch.
 
+- A hash chain, each step's digest the next step's value and a counter field its position, is `Template::chain` (both signature schemes' chains): on the VM its loop is written by hand in `precompile.rs`, eight instructions a step with the compression, which is what the compiler's own loop could not reach. A guest calls `Template::chain`, never the loop, so the loop can change under it. Everything else stays Rust, unrolled where a constant index makes a shift or an offset free (leanXMSS's 32 Merkle levels).
+
+- **A saved instruction pays only where it takes a table under a power of two** at the size proved: every class's table pads to a power of two, so read `bench --cycles-only`'s per-table heights, not the total. A rewrite that trades ALU rows for SHIFT or LOAD rows can double another table.
+
 - rv64im has no carry-less multiply, so leanDA's membership check uses the extension-field precompile: one `extmack` per symbol, `sum += L_x * w_x` with `L_x` in `E` and `w_x` in `K` (`leanvm_guest::ext::mul_add_base`). An unrolled loop measured worse: LLVM strength-reduces it into more pointer updates than it saves.
 
 - The KATs in each host pin all three to the reference implementations.

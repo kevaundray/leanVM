@@ -39,6 +39,55 @@ pub(crate) unsafe fn blake2s_compress_in_place(base: *mut Block, t: u64, last: b
     }
 }
 
+/// A hash chain in the one-block message of the block at `base`, `t` bytes long: for each `c` in `first..end`, the
+/// `u32` at message byte `COUNTER` becomes `c`, the two words at message byte `VALUE` become `value`, and `value`
+/// becomes the first two words of the final compression. Returns the last `value`: `value` itself if `first == end`.
+///
+/// One loop of eight instructions a step, the compression one of them: the counter doubles as the loop's.
+///
+/// # Safety
+///
+/// `base` points to a block whose `h` and `m` are initialized, whose `out` is writable, and which nothing else
+/// holds; the `u32` at message byte `COUNTER` and the two words at message byte `VALUE` are aligned and inside the
+/// message; `first <= end`.
+#[inline(always)]
+pub(crate) unsafe fn blake2s_chain<const COUNTER: usize, const VALUE: usize>(
+    base: *mut Block,
+    t: u64,
+    first: u32,
+    end: u32,
+    value: [u64; 2],
+) -> [u64; 2] {
+    let [mut v0, mut v1] = value;
+    // SAFETY: the caller's; each step writes the message's counter and value, the instruction reads `h` and `m` and
+    // writes `out`, and the loop reads `out`'s first two words. The counter, zero-extended, counts up to `end`.
+    unsafe {
+        core::arch::asm!(
+            "beq {c}, {end}, 2f",
+            "1:",
+            "sw {c}, {counter}({base})",
+            "sd {v0}, {value}({base})",
+            "sd {v1}, {value}+8({base})",
+            ".insn r 0x0b, 1, 0, x0, {base}, {t}",
+            "ld {v0}, 32({base})",
+            "ld {v1}, 40({base})",
+            "addi {c}, {c}, 1",
+            "bne {c}, {end}, 1b",
+            "2:",
+            base = in(reg) base,
+            t = in(reg) t,
+            c = inout(reg) u64::from(first) => _,
+            end = in(reg) u64::from(end),
+            v0 = inout(reg) v0,
+            v1 = inout(reg) v1,
+            counter = const 64 + COUNTER,
+            value = const 64 + VALUE,
+            options(nostack),
+        );
+    }
+    [v0, v1]
+}
+
 /// One extension-field instruction (custom-1, opcode `0x2b`) on the elements at `c`, `a` and `b`.
 ///
 /// `FUNCT3` is the instruction: bit 0 accumulates into `c`, and bit 1 reads `b` as one base-field word.

@@ -258,11 +258,8 @@ impl Chains {
     #[inline(always)]
     fn walk(&mut self, i: usize, values: core::ops::Range<usize>, value: Digest) -> Digest {
         let first = (i * CHAIN_LENGTH) as u32;
-        (first + values.start as u32..first + values.end as u32).fold(value, |value, position| {
-            self.step.write(TWEAK_POSITION, position);
-            self.step.write(8 * PAYLOAD, value);
-            digest(self.step.digest())
-        })
+        let positions = first + values.start as u32..first + values.end as u32;
+        self.step.chain::<TWEAK_POSITION, { 8 * PAYLOAD }>(positions, value)
     }
 }
 
