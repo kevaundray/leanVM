@@ -28,11 +28,22 @@ NAME = re.compile(r"[A-Za-z0-9_.-]+")
 TEXT = re.compile(r"[A-Za-z0-9 ()@.,_-]*")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 
-# A time is shown when every round moved it the same way and its median ratio is this far from one.
+# A time or a peak memory is shown when every round moved it the same way and its median ratio is this far from one.
 THRESHOLD = 0.01
 
-# Bench measures, in the order the comment groups them, and what it calls them.
-MEASURES = {"latency": "Proving time", "verify": "Verifying time", "proof-size": "Proof size"}
+# A prover stage's time, `stage.<stage>`; every stage is in one group, `STAGES`, which no measure can be named.
+STAGE = re.compile(r"stage\.([a-z0-9_-]+)")
+STAGES = "stage.*"
+
+# Bench measures, in the order the comment groups them, and what it calls them. Only `proof-size` is exact.
+MEASURES = {
+    "latency": "Proving time",
+    STAGES: "Prover stages",
+    "verify": "Verifying time",
+    "per-op": "Time per operation",
+    "proof-size": "Proof size",
+    "peak-memory": "Peak memory",
+}
 
 
 class Bad(Exception):
@@ -81,10 +92,10 @@ def percent(fraction):
 
 
 def seconds(ns):
-    for unit, scale in (("s", 1e9), ("ms", 1e6)):
+    for unit, scale in (("s", 1e9), ("ms", 1e6), ("µs", 1e3)):
         if ns >= scale:
             return f"{ns / scale:.2f} {unit}"
-    return f"{ns / 1e3:.2f} µs"
+    return f"{ns:.2f} ns"
 
 
 def bold(text, on):
@@ -130,9 +141,11 @@ def counts(doc, head):
 @dataclass(order=True)
 class Row:
     rank: int
-    measure: str
+    group: str
     benchmark: str
     testbed: str
+    order: int
+    stage: str = field(compare=False)
     cpu: str = field(compare=False)
     shown: bool = field(compare=False)
     base: str = field(compare=False)
@@ -141,16 +154,20 @@ class Row:
 
 
 def tables(rows, cpu):
-    """One table per measure, in `MEASURES` order, the rows sorted by benchmark and runner."""
+    """One table per group, in `MEASURES` order, the rows sorted by benchmark, runner and stage."""
     lines = []
-    for measure, group in itertools.groupby(sorted(rows), key=lambda row: row.measure):
-        lines += [f"#### {MEASURES.get(measure, measure)}", ""]
-        if cpu:
-            lines += ["| benchmark | runner | CPU | base | this PR | change |", "|---|---|---|---:|---:|---:|"]
-            lines += [f"| {r.benchmark} | {r.testbed} | {r.cpu} | {r.base} | {r.pr} | {r.change} |" for r in group]
-        else:
-            lines += ["| benchmark | runner | base | this PR | change |", "|---|---|---:|---:|---:|"]
-            lines += [f"| {r.benchmark} | {r.testbed} | {r.base} | {r.pr} | {r.change} |" for r in group]
+    for (_, group), grouped in itertools.groupby(sorted(rows), key=lambda row: (row.rank, row.group)):
+        stages = group == STAGES
+        columns = ["benchmark", "runner", *(["stage"] if stages else []), *(["CPU"] if cpu else [])]
+        lines += [
+            f"#### {MEASURES.get(group, group)}",
+            "",
+            f"| {' | '.join(columns)} | base | this PR | change |",
+            "|" + "---|" * len(columns) + "---:|" * 3,
+        ]
+        for r in grouped:
+            cells = [r.benchmark, r.testbed, *([r.stage] if stages else []), *([r.cpu] if cpu else []), r.base, r.pr, r.change]
+            lines.append(f"| {' | '.join(cells)} |")
         lines.append("")
     return lines
 
@@ -158,10 +175,10 @@ def tables(rows, cpu):
 def cell(measure, by_round):
     if not by_round:
         return "none"
-    values = sorted(set(by_round.values()))
     if measure == "proof-size":
-        return " or ".join(f"{v:,} B" for v in values)
-    return seconds(statistics.median(by_round.values()))
+        return " or ".join(f"{v:,} B" for v in sorted(set(by_round.values())))
+    median = statistics.median(by_round.values())
+    return f"{median / 2**20:.2f} MiB" if measure == "peak-memory" else seconds(median)
 
 
 def compare(measure, base, head):
@@ -175,17 +192,20 @@ def compare(measure, base, head):
         (a,), (b,) = a, b
         return b != a, bold(f"{signed(b - a)} B ({percent((b - a) / a)})", b > a)
     ratios = [head[r] / base[r] for r in base if r in head and base[r] > 0]
+    if not ratios:
+        shown = any(head.values())
+        return shown, bold("from zero", shown)
     median = statistics.median(ratios)
     shown = (min(ratios) > 1 or max(ratios) < 1) and abs(median - 1) >= THRESHOLD
     return shown, bold(f"{percent(median - 1)} ({percent(min(ratios) - 1)} to {percent(max(ratios) - 1)})", shown and median > 1)
 
 
 def bench(docs, head):
-    """Each benchmark's base and PR, proven in turns on one runner: the rows that moved, and every row collapsed."""
+    """Each benchmark's base and PR, run in turns on one runner: the rows that moved, and every row collapsed."""
     bases = {checked(COMMIT, doc.get("base"), "a commit") for doc in docs}
     if len(bases) != 1:
         raise Bad(f"not one base commit: {bases}")
-    rows, rounds = [], 0
+    rows, rounds, stages = [], 0, {}
     for doc in docs:
         testbed, cpu = checked(NAME, doc.get("testbed"), "a name"), checked(TEXT, doc.get("cpu"), "plain text")
         runs = doc.get("runs")
@@ -201,22 +221,26 @@ def bench(docs, head):
             rounds = max(rounds, r)
             for key, value in metrics(run.get("results")).items():
                 sides[side].setdefault(key, {})[r] = value
+                if stage := STAGE.fullmatch(key[1]):
+                    stages.setdefault(stage[1], len(stages))
         for benchmark, measure in sides["base"].keys() | sides["head"].keys():
             base, pr = sides["base"].get((benchmark, measure), {}), sides["head"].get((benchmark, measure), {})
             shown, change = compare(measure, base, pr)
-            rank = list(MEASURES).index(measure) if measure in MEASURES else len(MEASURES)
-            rows.append(Row(rank, measure, benchmark, testbed, cpu, shown, cell(measure, base), cell(measure, pr), change))
+            stage = STAGE.fullmatch(measure)
+            group, name, order = (STAGES, stage[1], stages[stage[1]]) if stage else (measure, "", 0)
+            rank = list(MEASURES).index(group) if group in MEASURES else len(MEASURES)
+            rows.append(Row(rank, group, benchmark, testbed, order, name, cpu, shown, cell(measure, base), cell(measure, pr), change))
     if not any(row.shown for row in rows):
         return ""
     (base,) = bases
     return "\n".join(
         [
-            "### Proving: base against this PR, on one runner",
+            "### Benchmarks: base against this PR, on one runner",
             "",
             (
-                f"{head} merged into its base, against the base {base}: each benchmark proven in turns on one runner, "
-                f"base and PR {rounds} times each. A size is shown when it changed; a time when it moved the same way in every round "
-                f"and its median by at least {THRESHOLD:.0%} (the change is the median ratio, with the rounds' range)."
+                f"{head} merged into its base, against the base {base}: each benchmark run in turns on one runner, "
+                f"base and PR {rounds} times each. A size is shown when it changed; a time or a peak memory when it moved the same way "
+                f"in every round and its median by at least {THRESHOLD:.0%} (the change is the median ratio, with the rounds' range)."
             ),
             "",
             *tables([row for row in rows if row.shown], cpu=False),
