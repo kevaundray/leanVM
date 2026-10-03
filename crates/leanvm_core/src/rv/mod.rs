@@ -37,12 +37,12 @@ mod semantics;
 pub use circuits::ClassCircuit;
 pub use elf::{ElfError, Guest};
 pub use entry::{Class, Entry, Target};
-pub use instruction::{BranchOp, ImmOp, Instruction, LoadOp, Opcode, RegOp, ShiftOp, StoreOp};
+pub use instruction::{BranchOp, ExtOp, ImmOp, Instruction, LoadOp, Opcode, RegOp, ShiftOp, StoreOp};
 pub use machine::{Machine, Trap};
 pub use program::{Program, ProgramError};
-pub use region::{ADVICE_BASE, MAX_LOG_ADVICE, MAX_LOG_RAM, MAX_LOG_TEXT, RAM_BASE, Region, TEXT_BASE};
+pub use region::Region;
 pub use register::{Reg, RegisterFile, Syscall};
 pub use semantics::{
-    Add, BlockAccess, Branch, Div, Hash, InstructionClass, Jump, Load, Logic, Mul, Mulh, Outcome, Shift, Store,
-    WordAccess,
+    Add, BlockAccess, Branch, Div, Ext, ExtResult, Hash, InstructionClass, Jump, Ld, Limb, Load, Logic, Mul, Mulh,
+    Outcome, Sd, Shift, Store, WordAccess,
 };

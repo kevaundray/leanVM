@@ -273,14 +273,21 @@ pub fn open_batch_mixed_whir_stacked(
 
     // The lifted weight is never stored.
     //
-    //     round 0:       each chunk is filled, then feeds the message while hot
-    //     lane round 1:  each chunk is filled again, then folded
+    //     first pass:  each chunk is filled, then feeds the first lane rounds' sums while hot
+    //     first fold:  each chunk is filled again, then folded by those rounds' challenges
     //
     // Filling costs less than writing the weight out and reading it back.
     let lane_block = 1usize << (log_n - config.initial_k());
     let weight = basis::StackWeight::new(stack.len(), lane_block, point_claims, lambdas_pd, &rs_outputs);
     let fill = |start: usize, dst: &mut [F192]| weight.fill(start, dst);
-    let message = tracing::info_span!("Basis").in_scope(|| super::whir::initial_message(stack, lane_block, &fill));
+    let initial = tracing::info_span!("Basis").in_scope(|| {
+        super::whir::initial_rounds(
+            stack,
+            lane_block,
+            config.initial_k(),
+            &super::whir::Basis::Virtual(&fill),
+        )
+    });
 
     // 4. One WHIR over the full stack against the combined claim (the
     //    stack is borrowed by the prover; no copy).
@@ -292,7 +299,7 @@ pub fn open_batch_mixed_whir_stacked(
         target,
         &prover_data.codeword,
         &prover_data.merkle_tree,
-        Some(message),
+        Some(initial),
         ps,
     );
 }
@@ -361,12 +368,18 @@ pub fn verify_opening_batch_mixed_whir_stacked(
         target += *g * claim.value;
     }
 
-    // 3. Evaluate the lifted weight once, at the terminal sumcheck point.
+    // 3. Evaluate the lifted weight once, at the terminal sumcheck point. Every ring term's weight is
+    //    evaluated at a prefix of it, so one precomputed query serves them all.
+    let max_term_vars = (rings.iter().flat_map(|claim| &claim.terms))
+        .map(|t| t.n_vars)
+        .max()
+        .unwrap_or(0);
     let eval_b_at = |x: &[F192]| -> F192 {
+        let rs_query = ring_switch::RsEqQuery::new(&map_challenges, &x[..max_term_vars]);
         let mut acc = F192::ZERO;
         for (claim, g) in rings.iter().zip(lambdas_rs) {
             let shape: Vec<(usize, F192)> = claim.terms.iter().map(|t| (t.n_vars, t.scale)).collect();
-            let values = ring_switch::eval_rs_eq_terms(claim.suffix_point, x, &coordinate_weights, &shape);
+            let values = ring_switch::eval_rs_eq_terms(claim.suffix_point, &rs_query, &shape);
             let rs_part = claim.terms.iter().zip(values).fold(F192::ZERO, |acc, (t, value)| {
                 let selector = Term {
                     offset: t.offset,
@@ -497,12 +510,6 @@ mod tests {
                 weight.fill(i * chunk, out);
             }
             assert_eq!(actual, expected, "lane_vars={lane_vars}, lanes={lanes}");
-            let message =
-                super::super::whir::initial_message(&stack, lane_block, &|start, dst| weight.fill(start, dst));
-            let (_, expected_message) = super::super::whir::build_initial_basis(&stack, lane_block, |start, dst| {
-                dst.copy_from_slice(&expected[start..start + dst.len()]);
-            });
-            assert_eq!(message, expected_message);
         }
     }
 

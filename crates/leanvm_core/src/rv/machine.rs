@@ -10,7 +10,7 @@ use super::entry::{Class, Entry};
 use super::program::Program;
 use super::region::Region;
 use super::register::{Reg, RegisterFile, Syscall};
-use super::semantics::{BlockAccess, Hash, Load, WordAccess};
+use super::semantics::{BlockAccess, Ext, Hash, InstructionClass, Limb, Load, WordAccess};
 
 /// Why a run stops without halting: a fault of the ISA.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
@@ -22,7 +22,7 @@ pub enum Trap {
         /// The faulting address.
         pc: u64,
     },
-    /// A load, a store or a hash block at an address its width does not divide.
+    /// A load, a store, a hash block or an extension-field limb at an address its width does not divide.
     #[error("misaligned access to {address:#x} at pc {pc:#x}")]
     Misaligned {
         /// The instruction's address.
@@ -121,9 +121,14 @@ impl<'a> Machine<'a> {
 
         // Resolve every address before writing anything, so a trap leaves no trace.
         let cell = match entry.class {
-            Class::Load | Class::Store => {
+            Class::Load | Class::Store | Class::Ld | Class::Sd => {
                 let address = WordAccess::address(v1, entry.imm);
-                Some(self.cell(pc, address, entry.flags & Load::LOG_WIDTH)?)
+                // A double word's width is its class's, a narrower access's its flags'.
+                let log_width = match entry.class {
+                    Class::Ld | Class::Sd => 3,
+                    _ => entry.flags & Load::LOG_WIDTH,
+                };
+                Some(self.cell(pc, address, log_width)?)
             }
             _ => None,
         };
@@ -131,15 +136,22 @@ impl<'a> Machine<'a> {
             Class::Hash => Some(self.block(pc, v1)?),
             _ => None,
         };
+        let limbs = match entry.class {
+            Class::Ext => Some(self.limbs(pc, [v1, v2, self.registers.read(entry.ad)], entry.flags)?),
+            _ => None,
+        };
 
         // Compute, then apply the memory access.
         let outcome = entry.evaluate(v1, v2, cell.map_or(0, |cell| self.memory.get(cell)));
-        let memory = match (cell, outcome.access, block) {
-            (Some(cell), Some(access), _) => {
+        let memory = match (cell, outcome.access, block, limbs) {
+            (Some(cell), Some(access), _, _) => {
                 self.memory.set(cell, access.new);
                 MemoryAccess::Word(access)
             }
-            (_, _, Some(cells)) => MemoryAccess::Block(Box::new(self.compress(&cells, v2, entry.flags))),
+            (_, _, Some(cells), _) => MemoryAccess::Block(Box::new(self.compress(&cells, v2, entry.flags))),
+            (_, _, _, Some((pointers, cells))) => {
+                MemoryAccess::Ext(Box::new(self.multiply(pointers, &cells, entry.flags)))
+            }
             _ => MemoryAccess::None,
         };
 
@@ -240,6 +252,33 @@ impl<'a> Machine<'a> {
         Ok(cells)
     }
 
+    /// The pointers of an extension-field product and the cells of its limbs, `None` for a limb read from `x0`.
+    ///
+    /// Every limb in memory must be a mapped word, `a`'s first, then `b`'s, then `c`'s.
+    fn limbs(&self, pc: u64, pointers: [u64; 3], flags: u64) -> Result<([u64; 3], [Option<usize>; Ext::LIMBS]), Trap> {
+        let mut cells = [None; Ext::LIMBS];
+        for (k, cell) in cells.iter_mut().enumerate() {
+            if let Limb::Memory(address) = Ext::limb(pointers, flags, k) {
+                *cell = Some(self.cell(pc, address, 3)?);
+            }
+        }
+        Ok((pointers, cells))
+    }
+
+    /// Read every limb, then write `c`: so `c` may be `a` or `b`.
+    fn multiply(&mut self, pointers: [u64; 3], cells: &[Option<usize>; Ext::LIMBS], flags: u64) -> Ext {
+        let instance = Ext {
+            flags,
+            pointers,
+            limbs: cells.map(|cell| cell.map_or(0, |cell| self.memory.get(cell))),
+        };
+        let c = instance.eval().c;
+        for (cell, word) in cells[6..].iter().zip(c) {
+            self.memory.set(cell.expect("c is in memory"), word);
+        }
+        instance
+    }
+
     /// Compress the block in `cells` and write the result to its result words.
     fn compress(&mut self, cells: &[usize; Hash::WORDS], t: u64, flags: u64) -> BlockAccess {
         let block = cells.map(|cell| self.memory.get(cell));
@@ -255,10 +294,12 @@ impl<'a> Machine<'a> {
     ///
     /// A store, a branch and a hash always write the sink, which nothing reads.
     ///
+    /// An extension-field product reads `rd` as an address, and writes no register.
+    ///
     /// They make no write at all, so their tables have none to prove.
     const fn write_destination(&mut self, entry: &Entry, vd: u64) -> u64 {
         match entry.class {
-            Class::Store | Class::Branch | Class::Hash => 0,
+            Class::Store | Class::Sd | Class::Branch | Class::Hash | Class::Ext => 0,
             _ => self.registers.replace(entry.ad, vd),
         }
     }
@@ -273,6 +314,8 @@ pub enum MemoryAccess {
     Word(WordAccess),
     /// A whole block: the hash.
     Block(Box<BlockAccess>),
+    /// The limbs of an extension-field product: the instance as the row found it.
+    Ext(Box<Ext>),
 }
 
 /// One executed instruction, as a row of its class's table records it.
@@ -290,7 +333,7 @@ pub struct Step {
     pub taken: bool,
     /// What the destination held before.
     ///
-    /// Zero for a store or a hash, whose destination is the sink and which write nothing.
+    /// Zero for a store, a hash or an extension-field product, which write no register.
     pub vd_old: u64,
     /// What the destination holds now: the output, or `pc + 4` for a link.
     pub vd: u64,
@@ -377,10 +420,10 @@ impl Memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rv::Region;
     use crate::rv::asm::*;
     use crate::rv::semantics::InstructionClass;
     use crate::rv::semantics::tests::edge_word;
-    use crate::rv::{RAM_BASE, TEXT_BASE};
     use proptest::prelude::*;
 
     /// The fixture's RAM: 2^8 words.
@@ -391,7 +434,7 @@ mod tests {
 
     /// Run `text` from its first word, for at most 2^20 steps.
     fn run(text: &[u32], image: Vec<u64>) -> Result<Option<[u64; 4]>, Trap> {
-        let program = Program::new(text, TEXT_BASE, image, LOG_RAM, 0).expect("a valid program");
+        let program = Program::new(text, Region::TEXT.base(), image, LOG_RAM, 0).expect("a valid program");
         Machine::new(&program, &[]).run_for(1 << 20)
     }
 
@@ -440,10 +483,10 @@ mod tests {
         //     a0       the median pair's sum, 4 + 5
         let data = [5u64, 3, 9, 1, 8, 2, 7, 4];
         let text = Asm::new()
-            .li(Reg::SP, RAM_BASE + RAM_BYTES)
-            .li(Reg::A0, RAM_BASE)
+            .li(Reg::SP, Region::RAM.base() + RAM_BYTES)
+            .li(Reg::A0, Region::RAM.base())
             .jal(Reg::RA, "sort")
-            .li(Reg::T0, RAM_BASE)
+            .li(Reg::T0, Region::RAM.base())
             .load(Ld, Reg::A0, 24, Reg::T0)
             .load(Ld, Reg::A1, 32, Reg::T0)
             .r(Add, Reg::A0, Reg::A0, Reg::A1)
@@ -475,7 +518,7 @@ mod tests {
             .i(Addi, Reg::SP, Reg::SP, 16)
             .jalr(Reg::ZERO, Reg::RA, 0)
             .finish();
-        let program = Program::new(&text, TEXT_BASE, data.to_vec(), LOG_RAM, 0).expect("a valid program");
+        let program = Program::new(&text, Region::TEXT.base(), data.to_vec(), LOG_RAM, 0).expect("a valid program");
         let mut m = Machine::new(&program, &[]);
 
         assert_eq!(m.run(), Ok([4 + 5, 0, 0, 0]));
@@ -488,9 +531,11 @@ mod tests {
         // Fixture: a block at RAM's base, h = 1..4 and m = 9..16, a final compression.
         let block: [u64; Hash::WORDS] = std::array::from_fn(|k| if (4..8).contains(&k) { 0 } else { k as u64 + 1 });
         let text = exiting(|a| {
-            a.li(Reg::T0, RAM_BASE).li(Reg::T1, 64).blake2s(Reg::T0, Reg::T1, true);
+            a.li(Reg::T0, Region::RAM.base())
+                .li(Reg::T1, 64)
+                .blake2s(Reg::T0, Reg::T1, true);
         });
-        let program = Program::new(&text, TEXT_BASE, block.to_vec(), LOG_RAM, 0).unwrap();
+        let program = Program::new(&text, Region::TEXT.base(), block.to_vec(), LOG_RAM, 0).unwrap();
         let mut m = Machine::new(&program, &[]);
         m.run().unwrap();
 
@@ -508,66 +553,156 @@ mod tests {
     }
 
     #[test]
+    fn an_extension_product_reads_every_operand_before_it_writes() {
+        // Fixture: x = (3, 5, 7) at RAM's base and the base-field w = 9 right after it, packed.
+        //
+        //     t0 -> x at +0      t1 -> w at +24      t2 -> c at +32
+        let (x, w) = ([3, 5, 7], 9);
+        let product = |a: [u64; 3], b: [u64; 3]| {
+            let limbs = [a[0], a[1], a[2], b[0], b[1], b[2], 0, 0, 0];
+            Ext {
+                flags: 0,
+                pointers: [0; 3],
+                limbs,
+            }
+            .eval()
+            .c
+        };
+        let run = |f: &dyn Fn(&mut Asm)| {
+            let text = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base())
+                    .li(Reg::T1, Region::RAM.base() + 24)
+                    .li(Reg::T2, Region::RAM.base() + 32);
+                f(a);
+            });
+            let program = Program::new(&text, Region::TEXT.base(), vec![3, 5, 7, 9], LOG_RAM, 0).unwrap();
+            let mut m = Machine::new(&program, &[]);
+            m.run().map(|_| m.memory().ram()[..7].to_vec())
+        };
+
+        // Squaring in place: c is a, read before it is written.
+        let square = product(x, x);
+        assert_eq!(
+            run(&|a| {
+                a.ext(Extmul, Reg::T0, Reg::T0, Reg::T0);
+            })
+            .unwrap()[..3],
+            square
+        );
+
+        // Accumulating twice into c, the second time by the base-field w.
+        let sum: Vec<u64> = (0..3).map(|i| square[i] ^ product(x, [w, 0, 0])[i]).collect();
+        let ram = run(&|a| {
+            a.ext(Extmul, Reg::T2, Reg::T0, Reg::T0)
+                .ext(Extmack, Reg::T2, Reg::T0, Reg::T1);
+        });
+        assert_eq!(ram.unwrap()[4..7], sum[..]);
+
+        // A misaligned limb traps, and so does a limb past RAM.
+        let misaligned = run(&|a| {
+            a.i(Addi, Reg::T1, Reg::T1, 4).ext(Extmul, Reg::T2, Reg::T0, Reg::T1);
+        });
+        assert!(matches!(misaligned, Err(Trap::Misaligned { address, .. }) if address == Region::RAM.base() + 28));
+        let past = run(&|a| {
+            a.li(Reg::T0, Region::RAM.base() + RAM_BYTES - 16)
+                .ext(Extmul, Reg::T2, Reg::T0, Reg::T0);
+        });
+        assert!(matches!(past, Err(Trap::Unmapped { address, .. }) if address == Region::RAM.base() + RAM_BYTES));
+    }
+
+    #[test]
     fn faults_trap_and_leave_no_trace() {
         // The fixture's faulting instruction is always the second.
-        let pc = TEXT_BASE + 4;
+        let pc = Region::TEXT.base() + 4;
 
         // A misaligned load, one below RAM, a store reaching into the text.
         let misaligned = exiting(|a| {
-            a.li(Reg::T0, RAM_BASE).load(Lw, Reg::A0, 2, Reg::T0);
+            a.li(Reg::T0, Region::RAM.base()).load(Lw, Reg::A0, 2, Reg::T0);
         });
         let below = exiting(|a| {
-            a.li(Reg::T0, RAM_BASE).load(Ld, Reg::A0, -8, Reg::T0);
+            a.li(Reg::T0, Region::RAM.base()).load(Ld, Reg::A0, -8, Reg::T0);
         });
         let into_text = exiting(|a| {
-            a.li(Reg::T0, TEXT_BASE).store(Sd, Reg::A0, 0, Reg::T0);
+            a.li(Reg::T0, Region::TEXT.base()).store(Sd, Reg::A0, 0, Reg::T0);
         });
         assert_eq!(
             run(&misaligned, vec![]),
             Err(Trap::Misaligned {
                 pc,
-                address: RAM_BASE + 2
+                address: Region::RAM.base() + 2
             })
         );
+
+        // Misaligned double words, at offsets a word would allow and at ones it would not.
+        for offset in [4, 1] {
+            let load = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base()).load(Ld, Reg::A0, offset, Reg::T0);
+            });
+            let store = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base()).store(Sd, Reg::A0, offset, Reg::T0);
+            });
+            for text in [load, store] {
+                assert_eq!(
+                    run(&text, vec![]),
+                    Err(Trap::Misaligned {
+                        pc,
+                        address: Region::RAM.base() + offset as u64
+                    }),
+                    "offset {offset}"
+                );
+            }
+        }
         assert_eq!(
             run(&below, vec![]),
             Err(Trap::Unmapped {
                 pc,
-                address: RAM_BASE - 8
+                address: Region::RAM.base() - 8
             })
         );
-        assert_eq!(run(&into_text, vec![]), Err(Trap::Unmapped { pc, address: TEXT_BASE }));
+        assert_eq!(
+            run(&into_text, vec![]),
+            Err(Trap::Unmapped {
+                pc,
+                address: Region::TEXT.base()
+            })
+        );
 
         // A hash block at no word address, and one below RAM.
         let unaligned_block = exiting(|a| {
-            a.li(Reg::T0, RAM_BASE + 4).blake2s(Reg::T0, Reg::ZERO, false);
+            a.li(Reg::T0, Region::RAM.base() + 4).blake2s(Reg::T0, Reg::ZERO, false);
         });
         let below_block = exiting(|a| {
-            a.li(Reg::T0, RAM_BASE - 128).blake2s(Reg::T0, Reg::ZERO, false);
+            a.li(Reg::T0, Region::RAM.base() - 128)
+                .blake2s(Reg::T0, Reg::ZERO, false);
         });
         // Both bases take two instructions to form, so the hash is the third.
-        let pc = TEXT_BASE + 8;
+        let pc = Region::TEXT.base() + 8;
         assert_eq!(
             run(&unaligned_block, vec![]),
             Err(Trap::Misaligned {
                 pc,
-                address: RAM_BASE + 4
+                address: Region::RAM.base() + 4
             })
         );
         assert_eq!(
             run(&below_block, vec![]),
             Err(Trap::Unmapped {
                 pc,
-                address: RAM_BASE - 128
+                address: Region::RAM.base() - 128
             })
         );
 
         // Falling off the text, a jump to address zero, EBREAK.
-        let pc = TEXT_BASE + 4;
+        let pc = Region::TEXT.base() + 4;
         let jump_to_zero = [Instruction::i(Opcode::Jalr, 0, Reg::ZERO, Reg::ZERO, 0).bits(), 0x13];
         assert_eq!(run(&[0x13], vec![]), Err(Trap::Illegal { pc }));
         assert_eq!(run(&jump_to_zero, vec![]), Err(Trap::Illegal { pc: 0 }));
-        assert_eq!(run(&[0x0010_0073], vec![]), Err(Trap::Illegal { pc: TEXT_BASE }));
+        assert_eq!(
+            run(&[0x0010_0073], vec![]),
+            Err(Trap::Illegal {
+                pc: Region::TEXT.base()
+            })
+        );
 
         // An ecall that is not exit.
         assert_eq!(
@@ -583,21 +718,21 @@ mod tests {
         //     words 0..8    in RAM, the result words 4..8 among them
         //     words 8..16   past RAM
         let text = Asm::new().blake2s(Reg::T0, Reg::ZERO, false).finish();
-        let program = Program::new(&text, TEXT_BASE, vec![7; 8], 3, 0).unwrap();
+        let program = Program::new(&text, Region::TEXT.base(), vec![7; 8], 3, 0).unwrap();
         let mut m = Machine::new(&program, &[]);
-        m.registers.set(Reg::T0, RAM_BASE);
+        m.registers.set(Reg::T0, Region::RAM.base());
 
         // The step traps on the block's ninth word, before writing the result.
         assert_eq!(
             m.step(),
             Err(Trap::Unmapped {
-                pc: TEXT_BASE,
-                address: RAM_BASE + 64
+                pc: Region::TEXT.base(),
+                address: Region::RAM.base() + 64
             })
         );
 
         // The machine is as it was: same pc, RAM untouched.
-        assert_eq!(m.pc(), TEXT_BASE);
+        assert_eq!(m.pc(), Region::TEXT.base());
         assert_eq!(m.memory().ram(), [7; 8]);
     }
 
@@ -612,25 +747,25 @@ mod tests {
     mod memory {
         use super::super::*;
         use crate::rv::Program;
-        use crate::rv::{ADVICE_BASE, RAM_BASE, TEXT_BASE};
+        use crate::rv::Region;
         use proptest::prelude::*;
 
         proptest! {
             #[test]
             fn cell_maps_exactly_the_two_regions(address in prop_oneof![
                 any::<u64>(),
-                RAM_BASE - 16..RAM_BASE + 80,
-                ADVICE_BASE - 16..ADVICE_BASE + 48,
+                Region::RAM.base() - 16..Region::RAM.base() + 80,
+                Region::ADVICE.base() - 16..Region::ADVICE.base() + 48,
             ]) {
                 // Fixture: 8 cells of RAM, then 4 of advice.
-                let program = Program::new(&[0x13], TEXT_BASE, vec![], 3, 2).unwrap();
+                let program = Program::new(&[0x13], Region::TEXT.base(), vec![], 3, 2).unwrap();
                 let memory = Memory::new(&program, &[]);
 
                 // Each byte of a region maps to its cell; no other address maps at all.
-                let expected = if (RAM_BASE..RAM_BASE + 64).contains(&address) {
-                    Some(((address - RAM_BASE) / 8) as usize)
-                } else if (ADVICE_BASE..ADVICE_BASE + 32).contains(&address) {
-                    Some(8 + ((address - ADVICE_BASE) / 8) as usize)
+                let expected = if (Region::RAM.base()..Region::RAM.base() + 64).contains(&address) {
+                    Some(((address - Region::RAM.base()) / 8) as usize)
+                } else if (Region::ADVICE.base()..Region::ADVICE.base() + 32).contains(&address) {
+                    Some(8 + ((address - Region::ADVICE.base()) / 8) as usize)
                 } else {
                     None
                 };
@@ -641,7 +776,7 @@ mod tests {
         #[test]
         fn new_lays_out_the_image_and_the_advice() {
             // Fixture: a 2-word image in 4 cells of RAM, 1 word of advice in 2 cells.
-            let program = Program::new(&[0x13], TEXT_BASE, vec![7, 8], 2, 1).unwrap();
+            let program = Program::new(&[0x13], Region::TEXT.base(), vec![7, 8], 2, 1).unwrap();
             let memory = Memory::new(&program, &[9]);
 
             // Each region is its initial words, then zeros.
@@ -659,7 +794,7 @@ mod tests {
         use super::super::Machine;
         use crate::rv::asm::*;
         use crate::rv::semantics::tests::edge_word;
-        use crate::rv::{Program, RAM_BASE, TEXT_BASE};
+        use crate::rv::{Program, Region};
         use proptest::prelude::*;
         use proptest::sample::select;
 
@@ -678,7 +813,7 @@ mod tests {
             let (rs1, rs2, f7) = ((word >> 15 & 31) as usize, (word >> 20 & 31) as usize, word >> 25);
             let (a, b) = (x[rs1], x[rs2]);
             let imm_i = (word as i32 >> 20) as i64 as u64;
-            let at = |address: u64| (address - RAM_BASE) as usize;
+            let at = |address: u64| (address - Region::RAM.base()) as usize;
             let w = |v: u64| v as i32 as i64 as u64;
 
             // Each opcode sets the result, the next pc, or memory.
@@ -865,7 +1000,7 @@ mod tests {
                 slot in 0u64..RAM_BYTES - 8,
             ) {
                 // Fixture: one instruction, a random RAM image and random registers.
-                let program = Program::new(&[word], TEXT_BASE, image, LOG_RAM, 0).expect("a legal instruction");
+                let program = Program::new(&[word], Region::TEXT.base(), image, LOG_RAM, 0).expect("a legal instruction");
                 let mut m = Machine::new(&program, &[]);
                 for (r, &value) in (1..32).filter_map(Reg::new).zip(&regs) {
                     m.registers.set(r, value);
@@ -873,7 +1008,7 @@ mod tests {
 
                 // Aim a memory access at an aligned address in RAM.
                 if let Some((base, imm, log_width)) = access {
-                    let address = RAM_BASE + (slot & !((1 << log_width) - 1));
+                    let address = Region::RAM.base() + (slot & !((1 << log_width) - 1));
                     m.registers.set(base, address.wrapping_sub(imm as i64 as u64));
                 }
 

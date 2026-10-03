@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 pub use super::instruction::BranchOp::{self, *};
+pub use super::instruction::ExtOp::{self, *};
 pub use super::instruction::ImmOp::{self, *};
 pub use super::instruction::LoadOp::{self, *};
 pub use super::instruction::RegOp::{self, *};
@@ -174,6 +175,11 @@ impl Asm {
         self.emit(Instruction::r(Opcode::Custom0, last as u32, 0, Reg::ZERO, rs1, rs2))
     }
 
+    /// `op rd, rs1, rs2`: an extension-field multiplication, every register an address.
+    pub fn ext(&mut self, op: ExtOp, rd: Reg, rs1: Reg, rs2: Reg) -> &mut Self {
+        self.emit(op.encode(rd, rs1, rs2))
+    }
+
     /// `ecall`.
     pub fn ecall(&mut self) -> &mut Self {
         self.emit(Instruction::ECALL)
@@ -218,7 +224,7 @@ impl Asm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::TEXT_BASE;
+    use crate::rv::Region;
     use crate::rv::entry::{Class, Entry, Target};
 
     #[test]
@@ -238,9 +244,9 @@ mod tests {
             .finish();
 
         // The decoder folds each offset into its absolute target.
-        let entry = |i: usize| Entry::decode(text[i], TEXT_BASE + 4 * i as u64);
-        assert_eq!(entry(0).target, Target::Abs(TEXT_BASE));
-        assert_eq!(entry(1).target, Target::Abs(TEXT_BASE + 12));
+        let entry = |i: usize| Entry::decode(text[i], Region::TEXT.base() + 4 * i as u64);
+        assert_eq!(entry(0).target, Target::Abs(Region::TEXT.base()));
+        assert_eq!(entry(1).target, Target::Abs(Region::TEXT.base() + 12));
         assert_eq!(entry(2).class, Class::Add);
     }
 

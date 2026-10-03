@@ -73,7 +73,7 @@ impl<'a> PointWeight<'a> {
 /// - each ring-switched claim's terms, each over its own slice;
 /// - each point claim's terms' equality weights, each over its own support.
 ///
-/// It is never stored whole: round 0 and the first lane round each refill the chunks they read.
+/// It is never stored whole: the opening's first pass and its first fold each refill the chunks they read.
 pub(super) struct StackWeight<'a> {
     /// Each point claim term's weight, its high equality table built once.
     weights: Vec<PointWeight<'a>>,

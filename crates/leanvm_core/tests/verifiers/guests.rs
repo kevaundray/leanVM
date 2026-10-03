@@ -4,9 +4,9 @@
 //! nightly toolchain.
 
 use super::python_verifier::PythonStatement;
-use leanvm_core::cpu::{Program, measure, prove, verify, verify_to_raw};
+use leanvm_core::cpu::Program;
 use leanvm_core::pcs::Rate;
-use leanvm_core::rv::{self, ElfError, Guest, Machine};
+use leanvm_core::rv::{ElfError, Guest, Machine, Region};
 
 /// The output of a guest committing `values` in order.
 fn committed(values: &[&[u64]]) -> [u64; 4] {
@@ -22,15 +22,15 @@ fn proves_and_verifies(tag: &str, elf: &[u8], advice: &[u64], expected: [u64; 4]
     let ran = Machine::new(program.rv(), advice).run().expect("the run halts");
     assert_eq!(ran, expected, "{tag}: the interpreter");
 
-    let (proof, output, stats) = prove(&program, advice, Rate::MIN).expect("the run halts");
+    let (proof, output, stats) = program.prove(advice, Rate::MIN).expect("the run halts");
     assert_eq!(output, expected);
     // Measuring a run reports what proving it does, without the proof.
-    assert_eq!(measure(&program, advice), Ok(stats.clone()), "{tag}: measure");
-    let raw = verify_to_raw(&program, &output, &proof).expect("honest proof verifies");
+    assert_eq!(program.measure(advice), Ok(stats.clone()), "{tag}: measure");
+    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
     PythonStatement::new(tag, &program, &output).assert_accepts(&raw);
     let mut wrong = output;
     wrong[3] ^= 1;
-    assert!(verify(&program, &wrong, &proof).is_err());
+    assert!(program.verify(&wrong, &proof).is_err());
     println!(
         "{tag}: {} instructions, {}",
         program.rv().entries().len(),
@@ -188,9 +188,13 @@ fn malformed_elf_files_are_refused() {
     let word_at = |file: &[u8], at: usize| u64::from_le_bytes(file[at..at + 8].try_into().unwrap());
     let phoff = word_at(elf, 32) as usize;
     for (field, value, what) in [
-        (16, rv::TEXT_BASE + (4 << 20), "a segment past what the file carries"),
-        (16, rv::TEXT_BASE - 4, "a segment below the text"),
-        (16, rv::TEXT_BASE + 1, "a segment that is no instruction address"),
+        (
+            16,
+            Region::TEXT.base() + (4 << 20),
+            "a segment past what the file carries",
+        ),
+        (16, Region::TEXT.base() - 4, "a segment below the text"),
+        (16, Region::TEXT.base() + 1, "a segment that is no instruction address"),
     ] {
         let mut bad = elf.to_vec();
         bad[phoff + field..phoff + field + 8].copy_from_slice(&value.to_le_bytes());
@@ -225,21 +229,28 @@ fn malformed_elf_layouts_are_refused() {
         (54, 2, 55, ElfError::UnsupportedHeader),
         (58, 2, 63, ElfError::UnsupportedHeader),
         (24, 8, 0, ElfError::EntryPoint { entry: 0 }),
-        (24, 8, rv::RAM_BASE, ElfError::EntryPoint { entry: rv::RAM_BASE }),
         (
             24,
             8,
-            rv::TEXT_BASE + 2,
+            Region::RAM.base(),
             ElfError::EntryPoint {
-                entry: rv::TEXT_BASE + 2,
+                entry: Region::RAM.base(),
             },
         ),
         (
             24,
             8,
-            rv::TEXT_BASE + text_len,
+            Region::TEXT.base() + 2,
             ElfError::EntryPoint {
-                entry: rv::TEXT_BASE + text_len,
+                entry: Region::TEXT.base() + 2,
+            },
+        ),
+        (
+            24,
+            8,
+            Region::TEXT.base() + text_len,
+            ElfError::EntryPoint {
+                entry: Region::TEXT.base() + text_len,
             },
         ),
         (ph + 40, 8, text_len - 1, ElfError::MalformedSegment),
@@ -258,19 +269,19 @@ fn malformed_elf_layouts_are_refused() {
     // Executable BSS is zero-filled memory, not a file-backed entry instruction.
     let mut bad = elf.to_vec();
     bad[ph + 40..ph + 48].copy_from_slice(&(text_len + 4).to_le_bytes());
-    bad[24..32].copy_from_slice(&(rv::TEXT_BASE + text_len).to_le_bytes());
+    bad[24..32].copy_from_slice(&(Region::TEXT.base() + text_len).to_le_bytes());
     assert_eq!(
         Guest::from_elf(&bad),
         Err(ElfError::EntryPoint {
-            entry: rv::TEXT_BASE + text_len
+            entry: Region::TEXT.base() + text_len
         })
     );
 
     // A complete instruction inside the executable segment may be another entry.
     let mut other_entry = elf.to_vec();
-    other_entry[24..32].copy_from_slice(&(rv::TEXT_BASE + 4).to_le_bytes());
+    other_entry[24..32].copy_from_slice(&(Region::TEXT.base() + 4).to_le_bytes());
     let loaded = Guest::from_elf(&other_entry).unwrap();
-    assert_eq!(loaded.entry_pc, rv::TEXT_BASE + 4);
+    assert_eq!(loaded.entry_pc, Region::TEXT.base() + 4);
     assert_eq!(loaded.text, guest.text);
     assert_eq!(loaded.image, guest.image);
 }

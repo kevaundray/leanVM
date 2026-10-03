@@ -7,10 +7,11 @@
 //! The program is public, so each instruction word is decoded into an entry once, before any run.
 
 use super::circuits::ClassCircuit;
-use super::instruction::{Instruction, Opcode};
-use super::register::RegisterFile;
+use super::instruction::{BranchOp, ExtOp, ImmOp, Instruction, LoadOp, Opcode, RegOp, ShiftOp, StoreOp};
+use super::register::{Reg, RegisterFile};
 use super::semantics::{
-    Add, Branch, Div, Hash, InstructionClass, Jump, Load, Logic, Mul, Mulh, Outcome, Shift, Store, WordAccess,
+    Add, Branch, Div, Ext, Hash, InstructionClass, Jump, Ld, Load, Logic, Mul, Mulh, Outcome, Sd, Shift, Store,
+    WordAccess,
 };
 use flock::circuit::Circuit;
 
@@ -27,10 +28,14 @@ pub enum Class {
     Jump,
     /// Logical and arithmetic shifts.
     Shift,
-    /// A byte, half word, word or double word read from memory.
+    /// A byte, half word or word read from memory.
     Load,
-    /// A byte, half word, word or double word written to memory.
+    /// A byte, half word or word written to memory.
     Store,
+    /// `ld`: a double word moved from its cell to a register, with no byte to select.
+    Ld,
+    /// `sd`: a double word moved from a register to its cell, with no byte to select.
+    Sd,
     /// The low word of a product.
     Mul,
     /// The high word of a product.
@@ -39,6 +44,8 @@ pub enum Class {
     Div,
     /// The BLAKE2s compression, a custom instruction.
     Hash,
+    /// The multiplication in the extension field, by an element of it or of the base field: a custom instruction.
+    Ext,
     /// No table runs it, so reaching one is a trap.
     Illegal,
 }
@@ -58,12 +65,45 @@ impl Class {
             Self::Shift => Shift::LEGAL,
             Self::Load => Load::LEGAL,
             Self::Store => Store::LEGAL,
+            Self::Ld => Ld::LEGAL,
+            Self::Sd => Sd::LEGAL,
             Self::Mul => Mul::LEGAL,
             Self::Mulh => Mulh::LEGAL,
             Self::Div => Div::LEGAL,
             Self::Hash => Hash::LEGAL,
+            Self::Ext => Ext::LEGAL,
             Self::Illegal => &[],
         }
+    }
+
+    /// An instruction of the class that names no register but `x0`, or `ra` where `x0` is undefined.
+    ///
+    /// A branch's is not taken, and a jump's jumps to itself, linking into the sink.
+    ///
+    /// A load, a store, a hash and an extension-field product touch the memory at address zero.
+    ///
+    /// The extension-field product reads `c`'s address from `ra`, as an address in `x0` is undefined.
+    ///
+    /// Returns `None` for the illegal class, which has no instruction.
+    pub const fn nop(self) -> Option<Instruction> {
+        let zero = Reg::ZERO;
+        Some(match self {
+            Self::Add => ImmOp::Addi.encode(zero, zero, 0),
+            Self::Logic => ImmOp::Andi.encode(zero, zero, 0),
+            Self::Branch => BranchOp::Bne.encode(zero, zero, 0),
+            Self::Jump => Instruction::j(zero, 0),
+            Self::Shift => ShiftOp::Slli.encode(zero, zero, 0),
+            Self::Load => LoadOp::Lb.encode(zero, zero, 0),
+            Self::Store => StoreOp::Sb.encode(zero, zero, 0),
+            Self::Ld => LoadOp::Ld.encode(zero, zero, 0),
+            Self::Sd => StoreOp::Sd.encode(zero, zero, 0),
+            Self::Mul => RegOp::Mul.encode(zero, zero, zero),
+            Self::Mulh => RegOp::Mulhu.encode(zero, zero, zero),
+            Self::Div => RegOp::Divu.encode(zero, zero, zero),
+            Self::Hash => Instruction::r(Opcode::Custom0, 0, 0, zero, zero, zero),
+            Self::Ext => ExtOp::Extmul.encode(Reg::RA, zero, zero),
+            Self::Illegal => return None,
+        })
     }
 
     /// The class's circuit: its function as a gate list over the words its table puts on the bus.
@@ -80,10 +120,13 @@ impl Class {
             Self::Shift => Shift::circuit(),
             Self::Load => Load::circuit(),
             Self::Store => Store::circuit(),
+            Self::Ld => Ld::circuit(),
+            Self::Sd => Sd::circuit(),
             Self::Mul => Mul::circuit(),
             Self::Mulh => Mulh::circuit(),
             Self::Div => Div::circuit(),
             Self::Hash => Hash::circuit(),
+            Self::Ext => Ext::circuit(),
             Self::Illegal => panic!("the illegal class has no circuit"),
         }
     }
@@ -166,7 +209,7 @@ impl Entry {
     ///
     /// The result holds whether or not a run could make the access.
     ///
-    /// A hash computes nothing here: its block is the machine's to read.
+    /// A hash or an extension-field product computes nothing here: its operands are the machine's to read.
     pub fn evaluate(&self, v1: u64, v2: u64, cell: u64) -> Outcome {
         let (flags, imm) = (self.flags, self.imm);
         let (out, taken, access) = match self.class {
@@ -208,7 +251,27 @@ impl Entry {
                 };
                 (0, false, Some(access))
             }
-            Class::Hash | Class::Illegal => (0, false, None),
+            // A double word's value is its cell, unchanged.
+            Class::Ld => {
+                let (address, value) = Ld { v1, imm, cell }.eval();
+                let access = WordAccess {
+                    address,
+                    old: cell,
+                    new: cell,
+                };
+                (value, false, Some(access))
+            }
+            // A double word's store leaves `v2` itself in its cell.
+            Class::Sd => {
+                let (address, new) = Sd { v1, v2, imm }.eval();
+                let access = WordAccess {
+                    address,
+                    old: cell,
+                    new,
+                };
+                (0, false, Some(access))
+            }
+            Class::Hash | Class::Ext | Class::Illegal => (0, false, None),
         };
         Outcome { out, taken, access }
     }
@@ -257,11 +320,13 @@ impl Entry {
                 ..Self::sequential(Class::Branch, flags, rs1, rs2, 0, 0)
             }),
 
-            // Loads: the width and the extension.
+            // Loads: the width and the extension. A double word is LD's, which has no flags.
+            Opcode::Load if f3 == 3 => imm(Class::Ld, 0, ins.imm_i()),
             Opcode::Load => Load::flags_of(f3).map_or(Self::ILLEGAL, |flags| imm(Class::Load, flags, ins.imm_i())),
 
-            // Stores: the width, from 1 to 8 bytes.
-            Opcode::Store if f3 <= 3 => Self::sequential(Class::Store, f3 as u64, rs1, rs2, 0, ins.imm_s()),
+            // Stores: the width, from 1 to 4 bytes. A double word is SD's, which has no flags.
+            Opcode::Store if f3 < 3 => Self::sequential(Class::Store, f3 as u64, rs1, rs2, 0, ins.imm_s()),
+            Opcode::Store if f3 == 3 => Self::sequential(Class::Sd, 0, rs1, rs2, 0, ins.imm_s()),
 
             // Register-immediate arithmetic.
             Opcode::OpImm => match f3 {
@@ -334,6 +399,13 @@ impl Entry {
             Opcode::Custom0 if f7 == 0 && rd == 0 && f3 <= 1 => {
                 let flags = if f3 == 1 { Hash::FINAL } else { 0 };
                 Self::sequential(Class::Hash, flags, rs1, rs2, 0, 0)
+            }
+
+            // The extension-field multiplication: the function's bits accumulate, and make rs2 a base-field element.
+            //
+            // Every register is an address, and address 0 is unmapped, so rd = x0 is undefined.
+            Opcode::Custom1 if f7 == 0 && f3 <= 3 && rd != 0 => {
+                Self::sequential(Class::Ext, f3 as u64, rs1, rs2, rd, 0)
             }
 
             // ECALL is a jump to the halt slot.
@@ -420,11 +492,15 @@ impl Entry {
     /// - A store writes no `rd`, so its destination is the sink.
     /// - A branch writes no `rd` and has no immediate.
     /// - A hash writes no `rd` and has no immediate.
+    /// - An extension-field product reads `rd` as an address, so it names a register, and has no immediate.
+    ///
+    /// That a doubleword load or store has no flags is its legal flag word, zero.
     const fn has_table_constants(&self) -> bool {
         match self.class {
-            Class::Load | Class::Jump => self.a2 == 0,
-            Class::Store => self.ad == RegisterFile::SINK,
+            Class::Load | Class::Ld | Class::Jump => self.a2 == 0,
+            Class::Store | Class::Sd => self.ad == RegisterFile::SINK,
             Class::Branch | Class::Hash => self.ad == RegisterFile::SINK && self.imm == 0,
+            Class::Ext => self.ad < RegisterFile::SINK && self.imm == 0,
             _ => true,
         }
     }
@@ -433,8 +509,8 @@ impl Entry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::TEXT_BASE;
-    use crate::rv::instruction::{BranchOp, ImmOp, LoadOp, RegOp, ShiftOp, StoreOp};
+    use crate::rv::Region;
+    use crate::rv::instruction::{BranchOp, ExtOp, ImmOp, LoadOp, RegOp, ShiftOp, StoreOp};
     use crate::rv::register::Reg;
     use proptest::prelude::*;
 
@@ -465,22 +541,34 @@ mod tests {
 
     #[test]
     fn a_skipped_register_access_names_its_constant() {
-        // Invariant: a load's and a jump's rs2 is x0, a store's rd is the sink, and a branch's rd is the sink and
-        // its immediate zero.
+        // Invariant: a load's and a jump's rs2 is x0, a store's rd is the sink, a branch's rd is the sink and
+        // its immediate zero, and a double word's flags are zero.
         //
-        // Fixture: `ld a0, 0(a1)`, `sd a0, 0(a1)`, `jalr ra, 0(a1)` and `beq a0, a1, 0`.
-        let [load, store, jump, branch] =
-            [0x0005_b503, 0x00a5_b023, 0x0005_80e7, 0x00b5_0063].map(|word| Entry::decode(word, 0));
-        assert_eq!(
-            [load.class, store.class, jump.class, branch.class],
-            [Class::Load, Class::Store, Class::Jump, Class::Branch]
-        );
-        assert!([load, store, jump, branch].iter().all(Entry::is_well_formed));
+        // Fixture: `ld`, `sd`, `lw` and `sw` of `a0` at `0(a1)`.
+        for (load, store, classes) in [
+            (0x0005_b503, 0x00a5_b023, (Class::Ld, Class::Sd)),
+            (0x0005_a503, 0x00a5_a023, (Class::Load, Class::Store)),
+        ] {
+            let (load, store) = (Entry::decode(load, 0), Entry::decode(store, 0));
+            assert_eq!((load.class, store.class), classes);
+            assert!(load.is_well_formed() && store.is_well_formed());
 
-        // Mutation: the load and the jump read x1 as rs2, the store and the branch write x1, the branch adds 4.
-        assert!(!Entry { a2: 1, ..load }.is_well_formed());
+            // Mutation: the load reads x1 as rs2, the store writes x1, the double words carry a width.
+            assert!(!Entry { a2: 1, ..load }.is_well_formed());
+            assert!(!Entry { ad: 1, ..store }.is_well_formed());
+            if classes.0 == Class::Ld {
+                assert!(!Entry { flags: 3, ..load }.is_well_formed());
+                assert!(!Entry { flags: 3, ..store }.is_well_formed());
+            }
+        }
+
+        // Fixture: `jalr ra, 0(a1)` and `beq a0, a1, 0`.
+        let [jump, branch] = [0x0005_80e7, 0x00b5_0063].map(|word| Entry::decode(word, 0));
+        assert_eq!([jump.class, branch.class], [Class::Jump, Class::Branch]);
+        assert!(jump.is_well_formed() && branch.is_well_formed());
+
+        // Mutation: the jump reads x1 as rs2, the branch writes x1, the branch adds 4.
         assert!(!Entry { a2: 1, ..jump }.is_well_formed());
-        assert!(!Entry { ad: 1, ..store }.is_well_formed());
         assert!(!Entry { ad: 1, ..branch }.is_well_formed());
         assert!(!Entry { imm: 4, ..branch }.is_well_formed());
     }
@@ -522,13 +610,17 @@ mod tests {
         for (class, words) in witnesses {
             assert_eq!(class.legal_flags().len(), words.len());
             for (&flags, &word) in class.legal_flags().iter().zip(words) {
-                let decoded = Entry::decode(word, TEXT_BASE);
+                let decoded = Entry::decode(word, Region::TEXT.base());
                 assert_eq!((decoded.class, decoded.flags), (class, flags));
 
                 // Mutation: every target kind, link and jalr.
                 //
                 // Only the decoded shape is well formed, whatever the fixed address.
-                for target in [Target::Next, Target::Abs(TEXT_BASE), Target::Abs(TEXT_BASE + 4)] {
+                for target in [
+                    Target::Next,
+                    Target::Abs(Region::TEXT.base()),
+                    Target::Abs(Region::TEXT.base() + 4),
+                ] {
                     for link in [false, true] {
                         for jalr in [false, true] {
                             let candidate = Entry {
@@ -556,7 +648,7 @@ mod tests {
         //
         //     ecall, blake2s, blake2s on the final block
         for word in [0x73, 0x0000_000b, 0x0000_100b] {
-            assert!(Entry::decode(word, TEXT_BASE).is_well_formed());
+            assert!(Entry::decode(word, Region::TEXT.base()).is_well_formed());
         }
 
         // Every opcode and function, every 12-bit top, with fixed registers.
@@ -566,10 +658,42 @@ mod tests {
             for f3 in 0..8u32 {
                 for top in 0..(1u32 << 12) {
                     let word = opcode | (f3 << 12) | (top << 20) | (0x15 << 7) | (0x0a << 15);
-                    let e = Entry::decode(word, TEXT_BASE);
+                    let e = Entry::decode(word, Region::TEXT.base());
                     assert!(e.is_well_formed(), "{word:#010x} decodes to {e:?}");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn each_class_nop_is_of_its_class_and_names_only_x0() {
+        // Fixture: every class but the illegal one, which has no instruction.
+        let classes = [
+            Class::Add,
+            Class::Logic,
+            Class::Branch,
+            Class::Jump,
+            Class::Shift,
+            Class::Load,
+            Class::Store,
+            Class::Ld,
+            Class::Sd,
+            Class::Mul,
+            Class::Mulh,
+            Class::Div,
+            Class::Hash,
+        ];
+        assert_eq!(Class::Illegal.nop(), None);
+
+        // Each no-op decodes to its class, reads x0 twice, writes the sink, and has no immediate.
+        for class in classes {
+            let e = Entry::decode(class.nop().expect("a legal class").bits(), Region::TEXT.base());
+            assert_eq!(
+                (e.class, e.a1, e.a2, e.ad, e.imm),
+                (class, 0, 0, RegisterFile::SINK, 0),
+                "{class:?}"
+            );
+            assert!(e.is_well_formed());
         }
     }
 
@@ -593,6 +717,9 @@ mod tests {
             0x0000_208b,          // BLAKE2S with function 2
             0x0000_008b | 5 << 7, // BLAKE2S with a destination
             0x0200_000b,          // BLAKE2S with a function-7 bit set
+            0x0000_402b | 5 << 7, // an extension-field product with function 4
+            0x0200_002b | 5 << 7, // an extension-field product with a function-7 bit set
+            0x0000_002b,          // an extension-field product into the address in x0
         ];
         for word in illegal {
             assert_eq!(Entry::decode(word, 0), Entry::ILLEGAL, "{word:#010x}");
@@ -606,16 +733,34 @@ mod tests {
         #[test]
         fn register_operations_decode_to_their_operands(op in proptest::sample::select(&RegOp::ALL[..]), rd in any::<Reg>(), rs1 in any::<Reg>(), rs2 in any::<Reg>()) {
             // Invariant: the assembler and the decoder agree on every register field.
-            let e = Entry::decode(op.encode(rd, rs1, rs2).bits(), TEXT_BASE);
+            let e = Entry::decode(op.encode(rd, rs1, rs2).bits(), Region::TEXT.base());
             let ad = if rd.index() == 0 { RegisterFile::SINK } else { rd.index() as u8 };
             prop_assert_eq!((e.a1, e.a2, e.ad, e.imm), (rs1.index() as u8, rs2.index() as u8, ad, 0));
             prop_assert!(e.is_well_formed());
         }
 
         #[test]
+        fn extension_field_operations_decode_to_their_flags(op in proptest::sample::select(&ExtOp::ALL[..]), rd in any::<Reg>(), rs1 in any::<Reg>(), rs2 in any::<Reg>()) {
+            // Invariant: the flags are the function's bits, and every register is read as itself.
+            //
+            //     extmul 0, extmac 1 (accumulate), extmulk 2 (base field), extmack 3
+            let e = Entry::decode(op.encode(rd, rs1, rs2).bits(), Region::TEXT.base());
+            if rd == Reg::ZERO {
+                // The address in x0 would be 0, which is unmapped.
+                prop_assert_eq!(e, Entry::ILLEGAL);
+            } else {
+                let flags = ExtOp::ALL.iter().position(|&o| o == op).unwrap() as u64;
+                prop_assert_eq!((e.class, e.flags), (Class::Ext, flags));
+                prop_assert_eq!((e.a1, e.a2, e.ad), (rs1.index() as u8, rs2.index() as u8, rd.index() as u8));
+                prop_assert!(e.is_well_formed());
+                prop_assert!(!Entry { ad: RegisterFile::SINK, ..e }.is_well_formed(), "an address in the sink");
+            }
+        }
+
+        #[test]
         fn immediate_operations_decode_to_their_immediate(op in proptest::sample::select(&ImmOp::ALL[..]), imm in -2048i32..2048, rd in any::<Reg>(), rs1 in any::<Reg>()) {
             // The 12-bit immediate is sign-extended, and the second read is x0.
-            let e = Entry::decode(op.encode(rd, rs1, imm).bits(), TEXT_BASE);
+            let e = Entry::decode(op.encode(rd, rs1, imm).bits(), Region::TEXT.base());
             prop_assert_eq!((e.a1, e.a2, e.imm), (rs1.index() as u8, 0, imm as i64 as u64));
         }
 
@@ -623,24 +768,28 @@ mod tests {
         fn shifts_decode_to_their_amount(op in proptest::sample::select(&ShiftOp::ALL[..]), raw in any::<u32>(), rd in any::<Reg>(), rs1 in any::<Reg>()) {
             // Any amount the format holds is the entry's immediate.
             let amount = raw % (1 << op.amount_bits());
-            let e = Entry::decode(op.encode(rd, rs1, amount).bits(), TEXT_BASE);
+            let e = Entry::decode(op.encode(rd, rs1, amount).bits(), Region::TEXT.base());
             prop_assert_eq!((e.class, e.imm), (Class::Shift, amount as u64));
         }
 
         #[test]
         fn memory_operations_decode_to_their_width(load in proptest::sample::select(&LoadOp::ALL[..]), store in proptest::sample::select(&StoreOp::ALL[..]), offset in -2048i32..2048, rs1 in any::<Reg>(), rs2 in any::<Reg>()) {
             // The width in the flags is the operation's, and the offset is the immediate.
+            //
+            // A double word is LD's or SD's, which have no flags.
             let (l, s) = (Entry::decode(load.encode(rs2, rs1, offset).bits(), 0), Entry::decode(store.encode(rs2, rs1, offset).bits(), 0));
-            prop_assert_eq!((l.class, l.flags & Load::LOG_WIDTH, l.imm), (Class::Load, load.log_width() as u64, offset as i64 as u64));
-            prop_assert_eq!((s.class, s.flags, s.imm), (Class::Store, store.log_width() as u64, offset as i64 as u64));
+            let load_shape = if load.log_width() == 3 { (Class::Ld, 0) } else { (Class::Load, load.log_width() as u64) };
+            let store_shape = if store.log_width() == 3 { (Class::Sd, 0) } else { (Class::Store, store.log_width() as u64) };
+            prop_assert_eq!((l.class, l.flags & Load::LOG_WIDTH, l.imm), (load_shape.0, load_shape.1, offset as i64 as u64));
+            prop_assert_eq!((s.class, s.flags, s.imm), (store_shape.0, store_shape.1, offset as i64 as u64));
         }
 
         #[test]
         fn branches_fold_their_target(op in proptest::sample::select(&BranchOp::ALL[..]), half in -2048i32..2048, rs1 in any::<Reg>(), rs2 in any::<Reg>()) {
             // The target is pc plus the offset, folded at decoding.
             let offset = 2 * half;
-            let e = Entry::decode(op.encode(rs1, rs2, offset).bits(), TEXT_BASE);
-            prop_assert_eq!(e.target, Target::Abs(TEXT_BASE.wrapping_add(offset as i64 as u64)));
+            let e = Entry::decode(op.encode(rs1, rs2, offset).bits(), Region::TEXT.base());
+            prop_assert_eq!(e.target, Target::Abs(Region::TEXT.base().wrapping_add(offset as i64 as u64)));
         }
     }
 }

@@ -315,3 +315,39 @@ where
         },
     )
 }
+
+/// Build native witnesses eight instances at a time, then pack their byte stripe.
+///
+/// `copies` take `z` as well ([`drive_witness_groups`]).
+pub(crate) fn drive_witness_batched<S: Sync>(
+    rows: &[S],
+    padding: &S,
+    n_total: usize,
+    k_log: usize,
+    copies: &mut [ZCopy<'_>],
+    batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
+) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+    assert!(rows.len() <= n_total, "more rows than instances");
+    let words = (1usize << k_log) / 64;
+    drive_witness_groups(
+        n_total,
+        k_log,
+        8,
+        copies,
+        || (),
+        |(), first, t| {
+            // The callback ORs product runs into a fresh group of eight instances.
+            t.z.fill(0);
+            t.a.fill(0);
+            t.b.fill(0);
+            let inputs = std::array::from_fn(|l| rows.get(first + l).unwrap_or(padding));
+            batch(inputs, t.z, t.a, t.b);
+
+            // Each output stripe carries one witness bit from each of the eight instances.
+            for (i, out) in t.stripes.as_chunks_mut::<64>().0.iter_mut().enumerate() {
+                let bits: [[u8; 8]; 8] = std::array::from_fn(|l| t.z[l * words + i].to_le_bytes());
+                bit_transpose_64bytes(bits.as_flattened().try_into().expect("eight word lanes"), out);
+            }
+        },
+    )
+}
