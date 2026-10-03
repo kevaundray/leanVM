@@ -1,9 +1,9 @@
 //! Proving and verifying a run of the recursion machine: the same pipeline as `cpu::Program`, on the circuit's
 //! tables.
 //!
-//! The stack commits the two hash tables' packed witnesses, then every owned table's committed columns. The
-//! bus balances the slots' copy cycles, one batch proves every table's summand at the bus's point, flock proves
-//! every hash row, and one opening settles the column claims and the two packed witnesses' ring-switched claims.
+//! The stack commits the `Hash` table's packed witness, then every owned table's committed columns. The bus
+//! balances the slots' copy cycles, one batch proves every table's summand at the bus's point, flock proves
+//! every hash row, and one opening settles the column claims and the packed witness's ring-switched claim.
 
 use super::circuit::{Assignment, Circuit, Limbs, N_TABLES, Table};
 use super::machine::{self, N_OWNED};
@@ -15,21 +15,13 @@ use fiat_shamir::transcript::{Challenger, Proof, ProverState, VerifierState};
 use primitives::field::{F64, F192};
 use zk_alloc::ArenaVec;
 
-/// The tables whose rows are BLAKE2s compressions, each with a packed witness of its own.
-const HASH_TABLES: [Table; super::circuit::N_HASH] = Table::HASH;
+/// The global column of the `Hash` table's packed witness, the one committed column before the owned tables'.
+const Q_COLUMN: usize = 0;
 
-/// The committed columns before the owned tables': the hash tables' packed witnesses.
-const N_SHARED: usize = HASH_TABLES.len();
-
-/// The global column of hash table `HASH_TABLES[h]`'s packed witness.
-const fn q_column(h: usize) -> usize {
-    h
-}
-
-/// Each owned table's first global column and its number of columns, in table order after the packed witnesses.
+/// Each owned table's first global column and its number of columns, in table order after the packed witness.
 pub const fn spans() -> [(usize, usize); N_OWNED] {
     let mut spans = [(0, 0); N_OWNED];
-    let mut next = N_SHARED;
+    let mut next = Q_COLUMN + 1;
     let mut t = 0;
     while t < N_OWNED {
         spans[t] = (next, machine::n_cols(Table::ALL[t]));
@@ -74,21 +66,20 @@ impl Layout {
         let counts = circuit.row_counts();
         let taus: [usize; N_TABLES] = std::array::from_fn(|t| machine::log_rows(Table::ALL[t], counts[t]));
         let stride_log = machine::hash_stride_log();
-        let mut sources: Vec<Source> = HASH_TABLES
-            .iter()
-            .map(|&t| Source::Committed(taus[t as usize] + stride_log))
-            .collect();
+        let mut sources = vec![Source::Committed(taus[Table::Hash as usize] + stride_log)];
         for (t, &(base, n)) in spans().iter().enumerate() {
             debug_assert_eq!(sources.len(), base);
             let table = Table::ALL[t];
-            let h = HASH_TABLES.iter().position(|&x| x == table);
-            sources.extend((0..n).map(|c| match h {
-                Some(h) if c < machine::n_ports(table) => Source::Port {
-                    column: q_column(h),
-                    port: c,
-                    stride_log,
-                },
-                _ => Source::Committed(taus[t]),
+            sources.extend((0..n).map(|c| {
+                if c < machine::n_ports(table) {
+                    Source::Port {
+                        column: Q_COLUMN,
+                        port: c,
+                        stride_log,
+                    }
+                } else {
+                    Source::Committed(taus[t])
+                }
             }));
         }
         let (placements, shape) = witness::placements_of(&sources);
@@ -157,7 +148,7 @@ pub fn committed_words(circuit: &Circuit) -> usize {
     witness::committed_len(&Layout::new(circuit).placements)
 }
 
-/// One hash table's flock batch, one instance per row.
+/// The `Hash` table's flock batch, one instance per row.
 struct HashBatch {
     tau: usize,
     z: ArenaVec<u64>,
@@ -166,17 +157,17 @@ struct HashBatch {
     z_lincheck: ArenaVec<u8>,
 }
 
-/// The prover's stack, its ports' values by global column, and the hash tables' batches.
+/// The prover's stack, its ports' values by global column, and the `Hash` table's batch.
 struct Witness {
     q: ArenaVec<F64>,
     virt: Vec<(usize, ArenaVec<F64>)>,
-    batches: Vec<HashBatch>,
+    batch: HashBatch,
 }
 
 impl Witness {
     fn build(layout: &Layout, a: &Assignment) -> Self {
         // SAFETY: `split_stack` zeroes the pad tail; every committed window is written below: each owned table's
-        // committed columns by `fill_table`, each packed witness from its batch, and each port's buffer in full.
+        // committed columns by `fill_table`, the packed witness from its batch, and each port's buffer in full.
         let mut q = unsafe { witness::alloc_stack(layout.shape) };
         let mut virt: Vec<(usize, ArenaVec<F64>)> = Vec::new();
         for (t, &(base, _)) in spans().iter().enumerate() {
@@ -194,37 +185,30 @@ impl Witness {
         }
 
         let (circuit, stride_log) = (machine::hash_circuit(), machine::hash_stride_log());
-        let batches = HASH_TABLES
-            .iter()
-            .enumerate()
-            .map(|(h, &table)| {
-                let tau = layout.taus[table as usize];
-                let (rows, padding) = machine::hash_rows(table, a);
-                let (z, za, zb, z_lincheck) = circuit.generate_witness_with(rows, &padding, tau, |row, z, az, bz| {
-                    crate::rv::circuits::blake2s_witness(row, z, az, bz);
-                });
-                parallel::chunks_mut_zip(windows[q_column(h)], &z, 1 << 16, |_, dst, src| {
-                    for (d, &s) in dst.iter_mut().zip(src) {
-                        *d = F64(s);
-                    }
-                });
-                let base = spans()[table as usize].0;
-                for port in 0..machine::N_PORTS {
-                    for (j, slot) in windows[base + port].iter_mut().enumerate() {
-                        *slot = F64(z[(j << stride_log) + port]);
-                    }
-                }
-                HashBatch {
-                    tau,
-                    z,
-                    a: za,
-                    b: zb,
-                    z_lincheck,
-                }
-            })
-            .collect();
+        let tau = layout.taus[Table::Hash as usize];
+        let (z, za, zb, z_lincheck) = circuit.generate_witness_with(&a.hash, &[0; 14], tau, |row, z, az, bz| {
+            crate::rv::circuits::blake2s_witness(row, z, az, bz);
+        });
+        parallel::chunks_mut_zip(windows[Q_COLUMN], &z, 1 << 16, |_, dst, src| {
+            for (d, &s) in dst.iter_mut().zip(src) {
+                *d = F64(s);
+            }
+        });
+        let base = spans()[Table::Hash as usize].0;
+        for port in 0..machine::N_PORTS {
+            for (j, slot) in windows[base + port].iter_mut().enumerate() {
+                *slot = F64(z[(j << stride_log) + port]);
+            }
+        }
         drop(windows);
-        Self { q, virt, batches }
+        let batch = HashBatch {
+            tau,
+            z,
+            a: za,
+            b: zb,
+            z_lincheck,
+        };
+        Self { q, virt, batch }
     }
 
     /// One view per global column: a committed column's window, a port's own buffer.
@@ -288,22 +272,16 @@ pub fn prove(circuit: &Circuit, a: &Assignment, iv: [F64; 4], public_input: [F64
     };
     let slots = layout.opening_claims(bus_claims, &table_claims);
 
-    let Witness { q, virt, batches } = w;
+    let Witness { q, virt, batch } = w;
     drop(virt);
-    let block = machine::hash_circuit().block();
-    let rings: Vec<_> = crate::stage!("Flock reductions", || {
-        batches
-            .into_iter()
-            .enumerate()
-            .map(|(h, batch)| {
-                let window = layout.window(q_column(h));
-                let stage = block.prove_zerocheck(batch.tau, &batch.z, &batch.a, &batch.b, &mut ps);
-                let reduced = block.prove_lincheck(batch.tau, stage, &batch.z_lincheck, &mut ps);
-                flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
-            })
-            .collect()
+    let ring = crate::stage!("Flock reduction", || {
+        let block = machine::hash_circuit().block();
+        let window = layout.window(Q_COLUMN);
+        let stage = block.prove_zerocheck(batch.tau, &batch.z, &batch.a, &batch.b, &mut ps);
+        let reduced = block.prove_lincheck(batch.tau, stage, &batch.z_lincheck, &mut ps);
+        flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
     });
-    crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &rings));
+    crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &[ring]));
     ps.into_proof()
 }
 
@@ -344,21 +322,13 @@ pub fn verify(
     let table_claims = constraints::verify(&layout.airs(&bus.forms, xi), &bus.point, target, &mut vs)?.settle()?;
     let slots = layout.opening_claims(bus.claims, &table_claims);
 
-    // The outer verifier is the root, so each hash table's matrices are settled here against the circuit.
-    let block = machine::hash_circuit().block();
-    let replays = HASH_TABLES
-        .iter()
-        .map(|&t| block.verify(layout.taus[t as usize], &mut vs))
-        .collect::<Result<Vec<_>, _>>()?;
-    let rings: Vec<_> = replays
-        .iter()
-        .enumerate()
-        .map(|(h, replay)| {
-            let window = layout.window(q_column(h));
-            flock::reduction::ring_switch_verify(window.n_vars, window.offset, &replay.claim)
-        })
-        .collect();
-    pcs::verify(&mut vs, &slots, &rings, layout.shape, log_inv_rate, &root)?;
+    // The outer verifier is the root, so the `Hash` table's matrices are settled here against the circuit.
+    let replay = machine::hash_circuit()
+        .block()
+        .verify(layout.taus[Table::Hash as usize], &mut vs)?;
+    let window = layout.window(Q_COLUMN);
+    let ring = flock::reduction::ring_switch_verify(window.n_vars, window.offset, &replay.claim);
+    pcs::verify(&mut vs, &slots, &[ring], layout.shape, log_inv_rate, &root)?;
     vs.finish()?;
     Ok(())
 }
@@ -462,10 +432,7 @@ mod tests {
     fn every_table_and_slot_kind_proves_and_verifies() {
         let (circuit, a, _) = every_kind();
         let counts = circuit.row_counts();
-        assert!(
-            Table::ALL.iter().all(|t| t.is_hash() || counts[*t as usize] > 0),
-            "{counts:?}"
-        );
+        assert!(counts.iter().all(|&n| n > 0), "{counts:?}");
         let proof = prove_run(&circuit, &a);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), Ok(()));
     }
@@ -546,26 +513,9 @@ mod tests {
         let (circuit, a, failures) = b.finish();
         assert!(failures.is_empty(), "{failures:?}");
         let counts = circuit.row_counts();
-        assert_eq!(Table::HASH.map(|t| counts[t as usize]), [32, 16, 8, 5]);
-        let others = Table::ALL.iter().filter(|t| !t.is_hash() || **t == Table::Hash3);
-        assert!(
-            others
-                .map(|&t| counts[t as usize])
-                .all(|n| n > 1 && !n.is_power_of_two()),
-            "{counts:?}"
-        );
+        assert_eq!(counts[Table::Hash as usize], 61);
+        assert!(counts.iter().all(|&n| n > 1 && !n.is_power_of_two()), "{counts:?}");
         let proof = prove_run(&circuit, &a);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), Ok(()));
-    }
-
-    /// The hash rows fill powers of two in creation order, the last table taking the rest.
-    #[test]
-    fn hash_rows_split_into_powers_of_two() {
-        use crate::rec::circuit::hash_split;
-        assert_eq!(hash_split(14_744), [8192, 4096, 2048, 408]);
-        assert_eq!(hash_split(9_966), [8192, 1024, 512, 238]);
-        assert_eq!(hash_split(61), [32, 16, 8, 5]);
-        assert_eq!(hash_split(5), [5, 0, 0, 0]);
-        assert_eq!(hash_split(0), [0; 4]);
     }
 }

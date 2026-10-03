@@ -8,9 +8,7 @@ use primitives::{pretty_f64, pretty_integer};
 use crate::{fibonacci, workload};
 
 /// The tables' names, in the recursion machine's order.
-const TABLES: [&str; 9] = [
-    "EMUL", "EXK", "HASH0", "HASH1", "HASH2", "HASH3", "SPLIT", "CAST", "PUB",
-];
+const TABLES: [&str; 6] = ["EMUL", "EXK", "HASH", "SPLIT", "CAST", "PUB"];
 
 /// The inner program: Fibonacci of `n` steps, or `n` leanXMSS signatures.
 fn inner(program: &str, n: usize) -> (String, Program, Vec<u64>, [u64; 4]) {

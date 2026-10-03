@@ -43,15 +43,10 @@ pub enum Table {
     /// `c = a·k + d`, `k` in `K`. Slots `a`, `k`, `d`, `c`.
     Exk,
     /// One BLAKE2s compression each: a transcript step or a Merkle node from the parameter IV, or a block of a
-    /// Merkle leaf's hash. The hash rows are spread over four tables, in creation order ([`hash_split`]), so
-    /// that their heights' padding stays small. Slots: the chaining value, the counter and final flag, the
-    /// message's first half through the Merkle selector, the selector bit, the message's words 4 to 6 as an
-    /// `E` element, its word 7, the output, the output's first three words as a challenge, the eight message
-    /// words.
-    Hash0,
-    Hash1,
-    Hash2,
-    Hash3,
+    /// Merkle leaf's hash. Slots: the chaining value, the counter and final flag, the message's first half
+    /// through the Merkle selector, the selector bit, the message's words 4 to 6 as an `E` element, its word
+    /// 7, the output, the output's first three words as a challenge, the eight message words.
+    Hash,
     /// A word and its 64 bits.
     Split,
     /// Four words seen as a digest, an `E` element, two 128-bit `E` halves, and four `K` words.
@@ -61,67 +56,11 @@ pub enum Table {
 }
 
 /// How many tables there are.
-pub const N_TABLES: usize = 9;
-
-/// How many tables hold the hash rows.
-pub const N_HASH: usize = 4;
-
-/// The fewest rows a hash table has, flock's floor.
-pub const MIN_HASH_ROWS: usize = 8;
-
-/// How many of `n` hash rows each hash table takes, in creation order: each the largest power of two not
-/// above what remains (all of it, at most [`MIN_HASH_ROWS`]), the last everything left.
-pub const fn hash_split(n: usize) -> [usize; N_HASH] {
-    let mut split = [0; N_HASH];
-    let mut left = n;
-    let mut i = 0;
-    while i < N_HASH {
-        split[i] = if i == N_HASH - 1 || left <= MIN_HASH_ROWS {
-            left
-        } else {
-            1 << left.ilog2()
-        };
-        left -= split[i];
-        i += 1;
-    }
-    split
-}
+pub const N_TABLES: usize = 6;
 
 impl Table {
     /// Every table, in protocol order.
-    pub const ALL: [Self; N_TABLES] = [
-        Self::Emul,
-        Self::Exk,
-        Self::Hash0,
-        Self::Hash1,
-        Self::Hash2,
-        Self::Hash3,
-        Self::Split,
-        Self::Cast,
-        Self::Pub,
-    ];
-
-    /// The hash tables, in protocol order.
-    pub const HASH: [Self; N_HASH] = [Self::Hash0, Self::Hash1, Self::Hash2, Self::Hash3];
-
-    pub const fn is_hash(self) -> bool {
-        matches!(self, Self::Hash0 | Self::Hash1 | Self::Hash2 | Self::Hash3)
-    }
-
-    /// Its name in reports.
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Emul => "EMUL",
-            Self::Exk => "EXK",
-            Self::Hash0 => "HASH0",
-            Self::Hash1 => "HASH1",
-            Self::Hash2 => "HASH2",
-            Self::Hash3 => "HASH3",
-            Self::Split => "SPLIT",
-            Self::Cast => "CAST",
-            Self::Pub => "PUB",
-        }
-    }
+    pub const ALL: [Self; N_TABLES] = [Self::Emul, Self::Exk, Self::Hash, Self::Split, Self::Cast, Self::Pub];
 
     /// Its slots' kinds; a `Pub` slot takes any kind.
     pub const fn slot_kinds(self) -> &'static [Kind] {
@@ -129,7 +68,7 @@ impl Table {
         match self {
             Self::Emul => &[E, E, E, E],
             Self::Exk => &[E, K, E, E],
-            Self::Hash0 | Self::Hash1 | Self::Hash2 | Self::Hash3 => &HASH_KINDS,
+            Self::Hash => &HASH_KINDS,
             Self::Split => &SPLIT_KINDS,
             Self::Cast => &[D, E, E, E, K, K, K, K],
             Self::Pub => &[K],
@@ -202,8 +141,7 @@ pub struct Assignment {
     /// Per table, row-major, each row's slots' own wires, whose values the slots carry.
     pub rows: [Vec<u32>; N_TABLES],
     pub values: Vec<Limbs>,
-    /// Per hash row, in creation order (the hash tables' rows one after another), its inputs and its
-    /// selector bit.
+    /// Per hash row, its inputs and its selector bit.
     pub hash: Vec<HashInputs>,
     pub selector: Vec<u64>,
     /// The statement's words.
@@ -216,8 +154,6 @@ pub struct Builder {
     kinds: Vec<Kind>,
     parent: Vec<u32>,
     rows: [Vec<u32>; N_TABLES],
-    /// The hash rows' slots, in creation order, which [`Builder::finish`] spreads over the hash tables.
-    hash_rows: Vec<u32>,
     pubs: Vec<PubSource>,
     consts: HashMap<(Kind, Limbs), u32>,
     hash: Vec<HashInputs>,
@@ -270,7 +206,6 @@ impl Builder {
             kinds: Vec::new(),
             parent: Vec::new(),
             rows: Default::default(),
-            hash_rows: Vec::new(),
             pubs: Vec::new(),
             consts: HashMap::new(),
             hash: Vec::new(),
@@ -306,11 +241,7 @@ impl Builder {
                 "{table:?} slot kind"
             );
         }
-        if table.is_hash() {
-            self.hash_rows.extend_from_slice(slots);
-        } else {
-            self.rows[table as usize].extend_from_slice(slots);
-        }
+        self.rows[table as usize].extend_from_slice(slots);
     }
 
     /// Run `f` under a name, which an equality that fails reports.
@@ -597,7 +528,7 @@ impl Builder {
         slots[..6].copy_from_slice(&head);
         slots[6..8].copy_from_slice(&[o.0, ch.0]);
         slots[8..].copy_from_slice(&words);
-        self.row(Table::Hash0, &slots);
+        self.row(Table::Hash, &slots);
         self.hash.push(inputs);
         self.selector.push(b);
         (o, ch)
@@ -728,11 +659,7 @@ impl Builder {
     ///
     /// A wire's class is numbered by its first slot, so a circuit is the same however it was built.
     pub fn finish(mut self) -> (Circuit, Assignment, Vec<String>) {
-        let mut own = std::mem::take(&mut self.rows);
-        let mut hash = std::mem::take(&mut self.hash_rows).into_iter();
-        for (table, n) in Table::HASH.into_iter().zip(hash_split(self.hash.len())) {
-            own[table as usize] = hash.by_ref().take(n * HASH_SLOTS).collect();
-        }
+        let own = std::mem::take(&mut self.rows);
         let mut number: HashMap<u32, u32> = HashMap::new();
         let rows: [Vec<u32>; N_TABLES] = std::array::from_fn(|t| {
             own[t]
@@ -762,13 +689,9 @@ impl Builder {
         )
     }
 
-    /// How many rows each table has so far, the hash rows as [`Builder::finish`] would spread them.
+    /// How many rows each table has so far.
     pub fn row_counts(&self) -> [usize; N_TABLES] {
-        let mut counts: [usize; N_TABLES] = std::array::from_fn(|t| self.rows[t].len() / Table::ALL[t].n_slots());
-        for (table, n) in Table::HASH.into_iter().zip(hash_split(self.hash.len())) {
-            counts[table as usize] = n;
-        }
-        counts
+        std::array::from_fn(|t| self.rows[t].len() / Table::ALL[t].n_slots())
     }
 }
 
