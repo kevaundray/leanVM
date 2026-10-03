@@ -6,7 +6,7 @@
     rows_X   = the same per table, the new class CLMUL aside
     words_X  = stack_sizes(rows_X of the eleven tables, log_ram 21, log_advice 16) + CLMUL rows * words per row
 
-`measured.json` holds, per run, the measured cycles and rows (`recverify-host`), the operation counts (`profile.py ops` on the counting build) and the plumbing and soft float split (`profile.py classes`). `shared` (core runs) is what k proofs of one program would share: building the circuits (`initialize` under `replay`) and everything outside `replay` (the program's setup, reading the advice, committing). `sw` is the guest's software kernels, `ext` the machine's extension-field instructions it uses now (the EXT table), and CLMUL a hypothetical class whose words per row are an estimate.
+`measured.json` holds, per run, the measured cycles and rows (`recverify-host`), the operation counts (`profile.py ops` on the counting build) and the plumbing and soft float split (`profile.py classes`). `shared` (core runs) is what k proofs of one program would share: everything outside `replay` (the program's setup, reading the advice, committing) and the one-time initializations (`initialize`) under it, `replay` building no circuit. `sw` is the guest's software kernels, `ext` the machine's extension-field instructions it uses now (the EXT table), and CLMUL a hypothetical class whose words per row are an estimate.
 """
 
 import json
@@ -87,7 +87,7 @@ for name, run in runs.items():
                 f"x{cycles / fit:6.2f} {new}"
             )
 
-# k inner proofs of one program in one guest run: the circuits' construction and the program's setup once, the rest per proof.
+# k inner proofs of one program in one guest run: the program's setup and the one-time initializations once, the rest per proof.
 for name, run in runs.items():
     if "shared" not in run:
         continue
