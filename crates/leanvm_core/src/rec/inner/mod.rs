@@ -2,6 +2,12 @@
 //! proof, leaving the claims on the program's and the circuits' fixed polynomials as wires the statement
 //! exposes.
 
+mod bus;
+pub mod core;
+pub mod flock;
+pub mod math;
+pub mod pcs;
+
 use super::circuit::Ew;
 
 /// `pcs::stack_open::StackClaim` with its point and value as wires.

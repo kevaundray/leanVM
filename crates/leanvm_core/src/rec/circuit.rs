@@ -260,7 +260,8 @@ impl Builder {
         &self.failures
     }
 
-    fn fail(&mut self, what: &str) {
+    /// Record a check that failed on the values, which the circuit cannot express as an equality.
+    pub fn fail(&mut self, what: &str) {
         if self.failures.len() < 64 {
             self.failures.push(format!("{}: {what}", self.scope.join(" / ")));
         }

@@ -577,10 +577,11 @@ pub fn producer_public_twist(coords: &[Coord], w: &[F192], chi: &[F192], twist: 
 /// One table's bus contribution on one side, as a form over that table's committed
 /// columns: `Σ_c coeffs[c]·col_c(z) + Σ (a,b,c) c·col_a(z)·col_b(z) + constant`.
 /// Every coefficient is a public function of `α`, `β` and the block selectors at
-/// `ζ`, because a table's bus blocks carry only `Const`/`Col`/`Prod`
-/// coordinates. The table sumcheck sums this against `eq(ζ[..τ], ·)` instead of
-/// opening each column at `ζ`, which is why those per-column claims no longer reach
-/// the PCS.
+/// `ζ`, because what a table's bus blocks carry besides `Const`/`Col`/`Prod`
+/// coordinates is a top-level `IntIndex` or `Public` one, which the verifier
+/// evaluates itself and which stays out of the form. The table sumcheck sums this
+/// against `eq(ζ[..τ], ·)` instead of opening each column at `ζ`, which is why those
+/// per-column claims no longer reach the PCS.
 ///
 /// The quadratic part comes from [`Coord::Prod`] and is free: the AIR identities are
 /// already degree 2, so a degree-2 form does not raise the round-polynomial degree
@@ -692,7 +693,7 @@ fn accumulate_form(c: &Coord, w: F192, base: usize, form: &mut BusForm) {
             }
         }
         Coord::IntIndex { .. } | Coord::Public(_) | Coord::Sparse(_) => {
-            unreachable!("a table's bus block carries no virtual coordinate")
+            unreachable!("a table's bus block carries a virtual coordinate only at the top level, and no sparse one")
         }
     }
 }
@@ -734,13 +735,14 @@ pub struct SparseShare {
 }
 
 /// Walk one side's blocks. A block owned by table `t` accumulates into `forms[t]`,
-/// over the table's local columns (`tables[t]` is its `(base, width)`); a producer's
+/// over the table's local columns (`tables[t]` is its `(base, width)`), short of its
+/// `IntIndex` and `Public` coordinates, which join the side's known part; a producer's
 /// bit block leaves its selector in `open.producers`, its air's weight on that bit; the
 /// framework blocks are decomposed into per-column claims, `fresh` supplying values not
 /// already opened, and a sparse public column's share is left in `open.sparse`. Returns
-/// the framework blocks' contribution to `Ṽ₀(ζ)` short of those shares, plus the
-/// padding mass, so the caller can settle the side once the zerocheck has proven the
-/// tables' forms and the producers' airs.
+/// the framework blocks' contribution to `Ṽ₀(ζ)` short of those shares, plus the tables'
+/// virtual coordinates' and the padding mass, so the caller can settle the side once the
+/// zerocheck has proven the tables' forms and the producers' airs.
 fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
     side: &Side,
     zeta: &[F192],
@@ -770,12 +772,20 @@ fn decompose_formula<F: FnMut(usize, &[F192]) -> Result<F192, Error>>(
 
         // A table's block becomes a linear form the zerocheck will sum; only the
         // framework blocks (boundary, registers, memory) still open columns at ζ.
+        // A virtual coordinate of a table's block is no column: the verifier evaluates
+        // it at ζ itself, so its share joins the side's known part rather than the form.
         if let Some(t) = blk.owner {
             let form = &mut forms[t];
             form.constant += eq_hi * beta;
+            let mut known = F192::ZERO;
             for (i, c) in blk.coords.iter().enumerate() {
-                accumulate_form(c, eq_hi * w[i], tables[t].0, form);
+                match c {
+                    Coord::IntIndex { base, shift } => known += w[i] * int_index_mle(*base, *shift, zeta_lo),
+                    Coord::Public(vals) => known += w[i] * public_eval(vals, zeta_lo, &mut open.public),
+                    _ => accumulate_form(c, eq_hi * w[i], tables[t].0, form),
+                }
             }
+            acc += eq_hi * known;
             continue;
         }
 
