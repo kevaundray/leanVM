@@ -268,7 +268,7 @@ impl Metric {
         }
     }
 
-    /// In nanoseconds, the unit of Bencher's built-in `latency` measure.
+    /// In nanoseconds, the fastest and slowest pass as its bounds.
     #[must_use]
     pub fn nanoseconds(timing: &Timing) -> Self {
         let ns = |secs: f64| (secs * 1e9).round();
@@ -283,7 +283,7 @@ impl Metric {
     }
 }
 
-/// Benchmarks and their measures as Bencher Metric Format JSON, what CI uploads
+/// Benchmarks and their measures as Bencher Metric Format JSON, what CI's comparisons read
 /// (`.github/workflows/bench.yml`): <https://bencher.dev/docs/reference/bencher-metric-format/>.
 #[must_use]
 pub fn bencher_json(report: &[(String, Vec<(&str, Metric)>)]) -> String {

@@ -1,0 +1,137 @@
+name: Bench comment
+
+# Posts on a PR what its Bench run (bench.yml) found: each benchmark's base and PR proven in
+# turns on one runner. A size is shown when it changed; a time when it moved the same way in
+# every round and its median moved by at least 1%. One comment, edited on every run and
+# deleted once nothing is shown; every result is in it, collapsed.
+#
+# Like counts-comment.yml, it runs from the default branch with a write token and never runs
+# the PR's code: it reads the run's `ab-*` artifacts, a fork's included, takes only the PR
+# number from them, and posts only if GitHub's API says that PR's head is the commit the run
+# proved. Every name and number is checked before it reaches the comment.
+
+on:
+  workflow_run:
+    workflows: [ Bench ]
+    types: [ completed ]
+
+permissions: {}
+
+jobs:
+  comment:
+    name: Comment
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Find the runs
+        id: results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          count=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '.artifacts[] | select(.name | startswith("ab-")) | .name' | wc -l)
+          echo "found=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: steps.results.outputs.found == 'true'
+        with:
+          pattern: ab-*
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: runs
+      - name: Comment
+        if: steps.results.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(runs/*/ab.json)
+          number=$(jq -rs 'map(.pr) | unique | if length == 1 then .[0] else "several" end' "${files[@]}")
+          [[ $number =~ ^[0-9]+$ ]] || { echo "not a PR number: $number"; exit 1; }
+          if [ "$(gh api "repos/$REPO/pulls/$number" --jq .head.sha)" != "$HEAD_SHA" ]; then
+            echo "::warning::PR #$number's head is not $HEAD_SHA, the commit this run proved: nothing posted"
+            exit 0
+          fi
+          body=$(jq -rs --arg head "$HEAD_SHA" '
+            def name: if type == "string" and test("^[A-Za-z0-9_.-]+$") then . else error("not a name: \(.)") end;
+            def text: if type == "string" and test("^[A-Za-z0-9 ()@.,_-]*$") then . else error("not plain text: \(.)") end;
+            def value: if . == null or (type == "number" and . >= 0) then . else error("not a value: \(.)") end;
+            def commas: tostring | if length > 3 then (.[:-3] | commas) + "," + .[-3:] else . end;
+            def fixed2: (. * 100 | round) as $c | ($c | fabs) as $a
+              | (if $c < 0 then "-" else "" end) + ($a / 100 | floor | tostring) + "."
+              + ($a % 100 | tostring | if length < 2 then "0" + . else . end);
+            def percent: (if . > 0 then "+" else "" end) + (. * 100 | fixed2) + "%";
+            def seconds: if . >= 1e9 then (. / 1e9 | fixed2) + " s" elif . >= 1e6 then (. / 1e6 | fixed2) + " ms"
+              else (. / 1e3 | fixed2) + " µs" end;
+            def median: sort | length as $n | if $n % 2 == 1 then .[($n - 1) / 2] else (.[$n / 2 - 1] + .[$n / 2]) / 2 end;
+            def title: {latency: "proving", verify: "verifying", "proof-size": "proof size"}[.] // .;
+            def order: ["latency", "verify", "proof-size"] | index([.]) // 9;
+            def bold($on): if $on then "**" + . + "**" else . end;
+
+            (map(.base) | unique) as $bases
+            | if ($bases | length) == 1 and ($bases[0] | type) == "string" and ($bases[0] | test("^[0-9a-f]{40}$"))
+              then . else error("not one base commit: \($bases)") end
+            | ([.[].runs[].round] | max) as $rounds
+            | [ .[] | (.testbed | name) as $t | (.cpu | text) as $cpu | .runs as $runs
+                | [$runs[].results | to_entries[] | .key as $b | .value | keys_unsorted[] | [$b, .]] | unique | .[]
+                | (.[0] | name) as $b | (.[1] | name) as $m
+                | [$runs[] | {round, side, v: (.results[$b][$m].value | value)} | select(.v != null)] as $vs
+                | [$vs[] | select(.side == "base")] as $base | [$vs[] | select(.side == "head")] as $head
+                | {$t, $cpu, $b, $m}
+                + if ($base | length) == 0 or ($head | length) == 0 then
+                    def cell: if length == 0 then "none" elif $m == "proof-size" then (.[0].v | commas) + " B" else map(.v) | median | seconds end;
+                    {shown: true, base: ($base | cell), pr: ($head | cell), change: (if ($base | length) == 0 then "new" else "removed" end)}
+                  elif $m == "proof-size" then
+                    ($base | map(.v) | unique) as $bv | ($head | map(.v) | unique) as $hv
+                    | if ($bv | length) > 1 or ($hv | length) > 1 then
+                        {shown: true, base: ($bv | map(commas) | join(" or ")), pr: ($hv | map(commas) | join(" or ")), change: "varies between rounds"}
+                      else
+                        ($hv[0] - $bv[0]) as $d
+                        | {shown: ($d != 0), base: (($bv[0] | commas) + " B"), pr: (($hv[0] | commas) + " B"),
+                           change: ((if $d > 0 then "+" + ($d | commas) elif $d < 0 then "-" + (-$d | commas) else "0" end)
+                             + " B (" + ($d / $bv[0] | percent) + ")" | bold($d > 0))}
+                      end
+                  else
+                    [$head[] as $h | $base[] | select(.round == $h.round and .v > 0) | $h.v / .v] as $r
+                    | ($r | median) as $med | ($r | min) as $lo | ($r | max) as $hi
+                    | (($lo > 1 or $hi < 1) and (($med - 1) | fabs) >= 0.01) as $shown
+                    | {shown: $shown, base: ($base | map(.v) | median | seconds), pr: ($head | map(.v) | median | seconds),
+                       change: (($med - 1 | percent) + " (" + ($lo - 1 | percent) + " to " + ($hi - 1 | percent) + ")" | bold($shown and $med > 1))}
+                  end ]
+            | sort_by([.b, .t, (.m | order)])
+            | if all(.[]; .shown | not) then "" else
+                ([ "<!-- leanvm-bench -->",
+                   "### Proving: base against this PR, on one runner",
+                   "",
+                   "\($head) merged into its base, against the base \($bases[0]): each benchmark proven in turns on one runner, base and PR \($rounds) times each. A size is shown when it changed; a time when it moved the same way in every round and its median by at least 1% (the change is the median ratio, with the rounds range).",
+                   "",
+                   "| benchmark | runner | measure | base | this PR | change |",
+                   "|---|---|---|---:|---:|---:|" ]
+                 + (map(select(.shown)) | map("| \(.b) | \(.t) | \(.m | title) | \(.base) | \(.pr) | \(.change) |"))
+                 + [ "",
+                     "<details><summary>Every result</summary>",
+                     "",
+                     "| benchmark | runner | CPU | measure | base | this PR | change |",
+                     "|---|---|---|---|---:|---:|---:|" ]
+                 + map("| \(.b) | \(.t) | \(.cpu) | \(.m | title) | \(.base) | \(.pr) | \(.change) |")
+                 + [ "", "</details>" ]
+                 | join("\n"))
+              end' "${files[@]}")
+          marker='<!-- leanvm-bench -->'
+          id=$(gh api --paginate "repos/$REPO/issues/$number/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n1)
+          if [ -z "$body" ]; then
+            if [ -n "$id" ]; then gh api -X DELETE "repos/$REPO/issues/comments/$id"; fi
+          elif [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$REPO/issues/$number/comments" -f body="$body" > /dev/null
+          fi

@@ -4,10 +4,11 @@ name: Counts comment
 # one comment, edited on every run and deleted once nothing differs. A run that failed on an
 # increase saved its counts first, so it is posted too.
 #
-# Like bench-track.yml, this runs from the default branch with a write token and never runs
-# the PR's code: it reads the run's artifact `counts`, a fork's included, takes only the PR
-# number from it, and posts only if GitHub's API says that PR's head is the commit the run
-# counted. Every name and number is checked before it reaches the comment.
+# It runs from the default branch (GitHub runs a `workflow_run` workflow from nowhere else)
+# with a write token, and never runs the PR's code: it reads the run's artifact `counts`, a
+# fork's included, takes only the PR number from it, and posts only if GitHub's API says that
+# PR's head is the commit the run counted. Every name and number is checked before it reaches
+# the comment.
 
 on:
   workflow_run:
