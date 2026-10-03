@@ -112,6 +112,9 @@ enum Command {
         /// Print the counts as a markdown table rather than JSON.
         #[arg(long, requires = "cycles_only")]
         markdown: bool,
+        /// Prove only the case of this name, as each of CI's proving jobs does.
+        #[arg(long, conflicts_with = "cycles_only")]
+        only: Option<String>,
     },
 }
 
@@ -144,7 +147,11 @@ fn main() {
             leaves,
             arity,
         } => aggregate::run(&program, n, leaves, arity, &prover, cli.rate, plan),
-        Command::Bench { cycles_only, markdown } => tracked::run(cycles_only, markdown, &prover, cli.rate, plan),
+        Command::Bench {
+            cycles_only,
+            markdown,
+            only,
+        } => tracked::run(cycles_only, markdown, only.as_deref(), &prover, cli.rate, plan),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());
