@@ -53,7 +53,7 @@ pub const fn n_ports(t: Table) -> usize {
 }
 
 /// The packed witness index of the HASH class circuit, which proves every hash row.
-fn hash_flock() -> usize {
+pub fn hash_flock() -> usize {
     let t = tables::table_of(crate::rv::Class::Hash).expect("the HASH class has a table");
     class_flock::flock_index(t, Part::Class)
 }
@@ -194,7 +194,7 @@ pub fn summands(forms: &[Vec<BusForm>; 2], xi: F192) -> Vec<Summand> {
 }
 
 /// Slot `s` of table `t`'s key at row `z`.
-const fn key(t: Table, s: usize, z: usize) -> u64 {
+pub const fn key(t: Table, s: usize, z: usize) -> u64 {
     ((t.first_slot() + s) as u64) << 32 | z as u64
 }
 
@@ -306,6 +306,51 @@ pub fn bus_blocks(
         }
     }
     (push, pull)
+}
+
+/// A public column of the bus that the circuit fixes: slot `s` of table `t`'s `next`, or limb `j` of the `Pub`
+/// rows' constants, the statement's rows zero there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fixed {
+    Next(Table, usize),
+    Value(usize),
+}
+
+impl Fixed {
+    /// The table whose height the column has.
+    pub const fn table(self) -> Table {
+        match self {
+            Self::Next(t, _) => t,
+            Self::Value(_) => Table::Pub,
+        }
+    }
+}
+
+/// Every fixed column, in the order a recursive verifier stacks them: each table's slots' `next`, in table and
+/// slot order, then the four limbs of the `Pub` constants.
+pub fn fixed_columns() -> Vec<Fixed> {
+    Table::ALL
+        .into_iter()
+        .flat_map(|t| (0..t.n_slots()).map(move |s| Fixed::Next(t, s)))
+        .chain((0..4).map(Fixed::Value))
+        .collect()
+}
+
+/// The values of [`fixed_columns`] for `circuit` at heights `taus`.
+pub fn fixed_values(circuit: &Circuit, taus: &[usize; N_TABLES]) -> Vec<Vec<F64>> {
+    let mut next = next_keys(circuit, taus);
+    let mut values: Vec<Vec<F64>> = next.iter_mut().flat_map(std::mem::take).collect();
+    let tau = taus[Table::Pub as usize];
+    let mut limbs: [Vec<F64>; 4] = std::array::from_fn(|_| vec![F64::ZERO; 1 << tau]);
+    for (z, source) in circuit.pubs.iter().enumerate() {
+        if let PubSource::Const(v) = *source {
+            for (column, &v) in limbs.iter_mut().zip(&v) {
+                column[z] = F64(v);
+            }
+        }
+    }
+    values.extend(limbs);
+    values
 }
 
 /// Write table `t`'s committed columns, those past its ports, from the assignment: `windows` are its local

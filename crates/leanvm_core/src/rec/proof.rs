@@ -11,12 +11,12 @@ use crate::constraints::{self, Air, Claims, Columns};
 use crate::leaf::{self, ColumnClaim};
 use crate::pcs;
 use crate::witness::{self, Placement, Source, StackShape, Window};
-use fiat_shamir::transcript::{Challenger, Proof, ProverState, VerifierState};
+use fiat_shamir::transcript::{Challenger, Proof, ProverState, RawProof, VerifierState};
 use primitives::field::{F64, F192};
 use zk_alloc::ArenaVec;
 
 /// The global column of the `Hash` table's packed witness, the one committed column before the owned tables'.
-const Q_COLUMN: usize = 0;
+pub const Q_COLUMN: usize = 0;
 
 /// Each owned table's first global column and its number of columns, in table order after the packed witness.
 pub const fn spans() -> [(usize, usize); N_OWNED] {
@@ -51,6 +51,13 @@ pub enum RecError {
     Open(#[from] ::pcs::whir::VerifyError),
 }
 
+/// Each table's height as a base-two logarithm: the least power of two holding its rows, at flock's floor for
+/// the `Hash` table, and at least the circuit's floor.
+pub fn heights(circuit: &Circuit) -> [usize; N_TABLES] {
+    let counts = circuit.row_counts();
+    std::array::from_fn(|t| machine::log_rows(Table::ALL[t], counts[t]).max(circuit.floor[t]))
+}
+
 /// What both sides derive from the circuit alone: each table's height and where every column sits in the
 /// stack.
 #[derive(Clone, Debug)]
@@ -63,8 +70,11 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(circuit: &Circuit) -> Self {
-        let counts = circuit.row_counts();
-        let taus: [usize; N_TABLES] = std::array::from_fn(|t| machine::log_rows(Table::ALL[t], counts[t]));
+        Self::from_taus(heights(circuit))
+    }
+
+    /// The layout of a circuit whose tables have these heights.
+    pub fn from_taus(taus: [usize; N_TABLES]) -> Self {
         let stride_log = machine::hash_stride_log();
         let mut sources = vec![Source::Committed(taus[Table::Hash as usize] + stride_log)];
         for (t, &(base, n)) in spans().iter().enumerate() {
@@ -90,7 +100,7 @@ impl Layout {
         }
     }
 
-    fn window(&self, col: usize) -> Window {
+    pub fn window(&self, col: usize) -> Window {
         self.placements[col].window().expect("a committed column")
     }
 
@@ -299,6 +309,23 @@ pub fn verify(
     log_inv_rate: usize,
     proof: &Proof,
 ) -> Result<(), RecError> {
+    verify_to_raw(circuit, statement, iv, public_input, log_inv_rate, proof).map(|_| ())
+}
+
+/// [`verify`], returning the proof as its verifier read it, every Merkle path written out: what a recursive
+/// verifier replays.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
+pub fn verify_to_raw(
+    circuit: &Circuit,
+    statement: &[Limbs],
+    iv: [F64; 4],
+    public_input: [F64; 4],
+    log_inv_rate: usize,
+    proof: &Proof,
+) -> Result<RawProof, RecError> {
     if statement.len() != circuit.statement_len {
         return Err(RecError::StatementLength {
             expected: circuit.statement_len,
@@ -330,7 +357,7 @@ pub fn verify(
     let ring = flock::reduction::ring_switch_verify(window.n_vars, window.offset, &replay.claim);
     pcs::verify(&mut vs, &slots, &[ring], layout.shape, log_inv_rate, &root)?;
     vs.finish()?;
-    Ok(())
+    Ok(vs.into_raw_proof())
 }
 
 #[cfg(test)]

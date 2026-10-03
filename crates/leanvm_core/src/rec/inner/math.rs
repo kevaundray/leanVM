@@ -99,6 +99,9 @@ pub fn frobenius2(b: &mut Builder, v: Ew) -> Ew {
 pub fn inverse_frobenius_ladder(b: &mut Builder, v: Ew, lowest: usize, len: usize) -> Vec<Ew> {
     assert!(len <= 64);
     let mut ladder = vec![v; len];
+    if len <= lowest.max(1) {
+        return ladder;
+    }
     // `v^(2^-j) = (v^(2^128))^(2^(64-j))`.
     let mut power = frobenius2(b, v);
     for _ in len..64 {

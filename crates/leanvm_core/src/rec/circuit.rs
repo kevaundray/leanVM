@@ -126,6 +126,8 @@ pub enum PubSource {
 pub type HashInputs = [u64; 14];
 
 /// The fixed part of a circuit: its rows, and for each slot the wire it names.
+///
+/// The statement's `Pub` rows come first, in statement order, then the constants'.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Circuit {
     /// Per table, row-major, each row's slots' wire classes.
@@ -134,6 +136,9 @@ pub struct Circuit {
     pub pubs: Vec<PubSource>,
     /// How many words the statement has.
     pub statement_len: usize,
+    /// Each table's least height, as a base-two logarithm: a circuit that must share its heights with others
+    /// is padded to theirs.
+    pub floor: [usize; N_TABLES],
 }
 
 /// What the prover adds to a circuit: every wire's value, and every hash row's inputs.
@@ -659,7 +664,17 @@ impl Builder {
     ///
     /// A wire's class is numbered by its first slot, so a circuit is the same however it was built.
     pub fn finish(mut self) -> (Circuit, Assignment, Vec<String>) {
-        let own = std::mem::take(&mut self.rows);
+        let mut own = std::mem::take(&mut self.rows);
+        // The statement's rows first, in statement order: what a recursive verifier evaluates of the `Pub`
+        // table is then one aligned stretch.
+        let mut order: Vec<usize> = (0..self.pubs.len()).collect();
+        order.sort_by_key(|&i| match self.pubs[i] {
+            PubSource::Statement(j) => (0, j),
+            PubSource::Const(_) => (1, i),
+        });
+        let pub_rows = &own[Table::Pub as usize];
+        own[Table::Pub as usize] = order.iter().map(|&i| pub_rows[i]).collect();
+        let pubs: Vec<PubSource> = order.iter().map(|&i| self.pubs[i]).collect();
         let mut number: HashMap<u32, u32> = HashMap::new();
         let rows: [Vec<u32>; N_TABLES] = std::array::from_fn(|t| {
             own[t]
@@ -675,8 +690,9 @@ impl Builder {
         (
             Circuit {
                 rows,
-                pubs: self.pubs,
+                pubs,
                 statement_len,
+                floor: [0; N_TABLES],
             },
             Assignment {
                 rows: own,

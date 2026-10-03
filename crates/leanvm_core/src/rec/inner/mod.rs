@@ -2,7 +2,7 @@
 //! proof, leaving the claims on the program's and the circuits' fixed polynomials as wires the statement
 //! exposes.
 
-mod bus;
+pub(crate) mod bus;
 pub mod core;
 pub mod flock;
 pub mod math;

@@ -49,7 +49,7 @@ pub(super) struct Bus {
 
 /// `gkr::verify_products::<2>`: the two sides' grand products under one root, reduced to their leaf
 /// vectors at one point.
-fn verify_products(b: &mut Builder, t: &mut Transcript, mu: usize) -> (Vec<Ew>, [Ew; 2]) {
+pub(crate) fn verify_products(b: &mut Builder, t: &mut Transcript, mu: usize) -> (Vec<Ew>, [Ew; 2]) {
     let root = t.next_scalar(b);
     let mut values = [root, root];
     let mut lambda = t.sample(b);
@@ -231,7 +231,7 @@ fn coord_value(b: &mut Builder, c: &Coord, values: &[Ew]) -> Ew {
 }
 
 /// `w·c(values) + acc`, a constant coordinate by one EXK row.
-fn weighted_coord(b: &mut Builder, w: Ew, c: &Coord, values: &[Ew], acc: Ew) -> Ew {
+pub(crate) fn weighted_coord(b: &mut Builder, w: Ew, c: &Coord, values: &[Ew], acc: Ew) -> Ew {
     match c {
         Coord::Const(v) => b.mul_const_add(w, F192::from(*v), acc),
         Coord::Sum(cs) => cs.iter().fold(acc, |acc, c| weighted_coord(b, w, c, values, acc)),

@@ -71,6 +71,13 @@ impl Differences {
     }
 }
 
+/// `Σ_i L_i(z)·values[i]`, `L_i` the skip domain's Lagrange weights (`skip_lagrange_weights(K_SKIP, z)`).
+pub(crate) fn skip_weighted_sum(b: &mut Builder, z: Ew, values: &[Ew]) -> Ew {
+    let skip = Differences::new(b, z, &PHI_8_TABLE[..ELL]);
+    let sum = skip.lagrange_sum(b, values);
+    b.mul_const(sum, window_denominator(ELL))
+}
+
 /// `flock::zerocheck::verify` over `{0,1}^m`.
 fn verify_zerocheck(b: &mut Builder, t: &mut Transcript, m: usize) -> ZerocheckClaim {
     assert!(m >= MIN_LOG_N, "log_n {m} is below the zerocheck's floor {MIN_LOG_N}");

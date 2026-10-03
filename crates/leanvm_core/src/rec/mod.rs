@@ -10,6 +10,7 @@ pub mod inner;
 pub mod machine;
 pub mod proof;
 pub mod transcript;
+pub mod tree;
 
 use crate::class_flock;
 use crate::cpu::{Claim, CpuError, DeferredClaims, Layout, Program, ProgramPoint};
@@ -112,7 +113,7 @@ pub enum RecursionError {
 }
 
 /// The shape a proof announces: its tables' heights and its rate, the first scalars of its stream.
-fn announced_shape(proof: &RawProof) -> Option<([usize; N_TABLES], usize)> {
+pub fn announced_shape(proof: &RawProof) -> Option<([usize; N_TABLES], usize)> {
     let word = |i: usize| -> Option<usize> {
         let x = proof.stream.get(i)?;
         (x.c1 == 0 && x.c2 == 0).then_some(())?;
@@ -126,7 +127,7 @@ fn announced_shape(proof: &RawProof) -> Option<([usize; N_TABLES], usize)> {
 }
 
 /// Whether a proof of `program` can have this shape (`cpu::Announcement::read` and `layout`).
-fn valid_shape(program: &Program, taus: &[usize; N_TABLES], log_inv_rate: usize) -> bool {
+pub fn valid_shape(program: &Program, taus: &[usize; N_TABLES], log_inv_rate: usize) -> bool {
     let heights = tables::CLASSES
         .iter()
         .zip(taus)
