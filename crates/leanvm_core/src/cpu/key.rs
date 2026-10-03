@@ -82,13 +82,11 @@ impl VerifyingKey {
     #[must_use]
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
         let (root, rest) = bytes.split_first_chunk::<32>()?;
-        if !rest.len().is_multiple_of(8) {
+        let (words, tail) = rest.as_chunks::<8>();
+        if !tail.is_empty() {
             return None;
         }
-        let words: Vec<u64> = rest
-            .chunks_exact(8)
-            .map(|w| u64::from_le_bytes(w.try_into().expect("a chunk is eight bytes")))
-            .collect();
+        let words: Vec<u64> = words.iter().map(|&w| u64::from_le_bytes(w)).collect();
         let (&[log_bytecode, entry_pc, log_ram, log_advice, image_len], image) = words.split_first_chunk::<5>()?;
         let size = |word: u64| usize::try_from(word).ok();
         let (log_bytecode, log_ram, log_advice) = (size(log_bytecode)?, size(log_ram)?, size(log_advice)?);
