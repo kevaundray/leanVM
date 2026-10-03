@@ -1,13 +1,6 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-core), MIT OR Apache-2.0.
-// CREDIT: https://github.com/binius-zk/binius64 (`eval_rs_eq`), Apache-2.0.
-// Copyright 2025 The Binius Developers
-// Copyright 2025 Irreducible, Inc.
-// Modifications copyright 2026 Succinct Labs, Benedikt Bunz, William Wang
-// SPDX-License-Identifier: Apache-2.0 OR MIT
 //
-// The DP24 iterative `eval_rs_eq` is ported from binius64. The module is
-// the rectangular (f = 64, e = 192) generalization described in
-// the ring-switching-generalized note.
+// The rectangular (f = 64, e = 192) generalization described in the ring-switching-generalized note.
 
 //! Ring-switching reduction for the 64-bit transition: F_2 to K = GF(2^64)
 //! packing, opened over E = GF(2^192) (the tower [`F192`]).
@@ -60,12 +53,7 @@
 //! - The prover keeps the equality tensor factored, folds each claim into a
 //!   small byte table, and combines the claims directly into one dense PCS
 //!   weight. It never materializes a dense vector per claim.
-//! - [`eval_rs_eq`] lets the verifier avoid materializing the vector entirely:
-//!   its MLE at the WHIR final point is evaluated in
-//!   `O((m-6) * 192^2)` bit-ops plus `O((m-6) * 192)` E-multiplications via
-//!   the DP24 tensor-algebra iterative algorithm (DP24 section 1.3 Figure 3).
-//!
-//! [DP24]: <https://eprint.iacr.org/2024/504>
+//! - [`eval_rs_eq`] lets the verifier avoid materializing the vector entirely: its MLE at the WHIR final point is the closed form of doc `leanvm` Annex A (`rs:weight`), with the Frobenius moved onto the point every claim shares (`rs:cost`), so a claim costs `64 L` E-multiplications and 63 squarings after one precomputation per opening ([`RsEqQuery`]).
 
 use fiat_shamir::transcript::Challenger;
 use primitives::field::{F64, F192};
@@ -73,7 +61,7 @@ use primitives::multilinear::eq_table;
 
 use super::pack::PACKING_WIDTH;
 use super::stack_open::RingTerm;
-use super::tensor_algebra::{DEGREE_E, TensorAlgebraE, transpose_s_hat};
+use super::tensor_algebra::{DEGREE_E, transpose_s_hat};
 use super::whir::inner_product_base_ext;
 
 /// Total degree of the six-challenge composed batching map. This is the
@@ -84,6 +72,9 @@ pub const RING_SWITCH_SOUNDNESS_DEGREE: usize =
 /// Frobenius shifts in the order in which the two-term maps are composed.
 /// Descending order bounds every challenge's exponent by `2^31`.
 pub const COMPOSITION_SHIFTS: [usize; 6] = [32, 16, 8, 4, 2, 1];
+
+/// Number of Frobenius terms the composed batching map expands to: the `F_2`-dimension of `K`.
+const LINEARIZED_TERMS: usize = PACKING_WIDTH;
 
 /// The coordinate batching weights: `weights[w] = Phi(b_w)`, where `b_w` is the
 /// `w`-th `F_2`-coordinate basis element of `E` (the order `transpose_s_hat`
@@ -454,96 +445,106 @@ pub fn prove_prepare(
 
 /// Phase 2 of the ring-switch verifier: given the shared coordinate weights,
 /// produce the batched sumcheck claim. Pair it with [`eval_rs_eq`] at the WHIR
-/// final point, which takes the same weights, so `rs_eq_ind` is never built.
+/// final point, which takes the same map's challenges, so `rs_eq_ind` is never built.
 pub fn verify_finish(s_hat_v: &[F192], coordinate_weights: &[F192]) -> F192 {
     inner_product_base_ext(&transpose_s_hat(s_hat_v), coordinate_weights)
 }
 
 // ---------------------------------------------------------------------------
-// Polylog evaluation of MLE(rs_eq_ind)
+// Closed-form evaluation of MLE(rs_eq_ind)
 // ---------------------------------------------------------------------------
 
-/// Polylog-cost evaluation of `MLE(rs_eq_ind)(query)` at the WHIR final
-/// challenge point, following DP24 section 1.3 Figure 3.
-///
-/// ## Derivation
-///
-/// `rs_eq_ind[y] = Phi(eq(z, y))` with `z = suffix_point` and `Phi : E -> E`
-/// the F_2-linear map sending basis bit w to `coordinate_weights[w]`. So
-///
-/// ```text
-/// MLE(rs_eq_ind)(q) = sum_y eq(q, y) * Phi(eq(z, y))
-///                   = sum_w coordinate_weights[w] * (sum_y A(y, w) * eq(q, y))
-/// ```
-///
-/// where `A(y, w) = bit_w(eq(z, y))`. The inner sums are the components of
-/// the tensor-algebra element `Theta = sum_y eq(q, y) (x) eq(z, y)` in
-/// `E (x)_F2 E`, decomposed on the second factor's F_2 basis. Theta builds
-/// iteratively because eq factorizes per coordinate: in char 2,
-/// `sum_{y_j} eq(q_j, y_j) (x) eq(z_j, y_j) = 1 (x) 1 + q_j (x) 1 + 1 (x) z_j`,
-/// so each step is `Theta += q_j * Theta|first + z_j * Theta|second`
-/// (`scale_horizontal` / `scale_vertical`). The final `fold_vertical`
-/// transposes (so rows are indexed by the z-side basis w) and folds with
-/// `coordinate_weights`.
-///
-/// The rectangular twist vs. the old module: the fold length is e = 192
-/// (the E-degree over F_2), not the packing width 64; the K side of the
-/// reduction never appears here because `rs_eq_ind` is E-valued.
-///
-/// ## Arguments
-///
-/// * `z_vals`: the ring-switch suffix point,
-///   length L = m - 6.
-/// * `query`: the WHIR final challenges, length L, same coordinate order.
-/// * `coordinate_weights`: the 192 coordinate batching weights, the same ones
-///   passed to [`verify_finish`].
-pub fn eval_rs_eq(z_vals: &[F192], query: &[F192], coordinate_weights: &[F192]) -> F192 {
-    assert_eq!(
-        z_vals.len(),
-        query.len(),
-        "eval_rs_eq: z_vals and query must have equal length"
-    );
-    assert_eq!(
-        coordinate_weights.len(),
-        DEGREE_E,
-        "eval_rs_eq: coordinate_weights length must be 192"
-    );
-
-    let mut eval = TensorAlgebraE::from_vertical(F192::ONE);
-    for (&z_i, &q_i) in z_vals.iter().zip(query.iter()) {
-        let vert_scaled = eval.clone().scale_vertical(z_i);
-        let hztl_scaled = eval.clone().scale_horizontal(q_i);
-        eval += &vert_scaled;
-        eval += &hztl_scaled;
+/// `v^(2^-j)` at index `j`, for `j < 64`. Squaring from `v^(2^128) = v^(2^-64)`, which costs only two Frobenius maps, climbs to `v^(2^-1)` in 63 squarings.
+fn inverse_frobenius_ladder(v: F192) -> [F192; LINEARIZED_TERMS] {
+    let mut ladder = [v; LINEARIZED_TERMS];
+    let mut power = v.frobenius().frobenius();
+    for slot in ladder[1..].iter_mut().rev() {
+        power = power.square();
+        *slot = power;
     }
-    eval.fold_vertical(coordinate_weights)
+    ladder
 }
 
-/// [`eval_rs_eq`] for several scaled prefixes of one point at once: entry `k` is the
-/// MLE of `Φ(scale_k·eq(z_vals[..n_k], ·))` at `query[..n_k]` for `terms[k] = (n_k,
-/// scale_k)`. The scale multiplies the second tensor factor, which every step leaves
-/// alone, so one pass over the longest prefix serves every term.
-pub fn eval_rs_eq_terms(
-    z_vals: &[F192],
-    query: &[F192],
-    coordinate_weights: &[F192],
-    terms: &[(usize, F192)],
-) -> Vec<F192> {
-    assert_eq!(coordinate_weights.len(), DEGREE_E);
+/// What every [`eval_rs_eq`] at a prefix of one query point shares: the query's inverse Frobenius ladders and the map's coefficients shifted to match. Each ring of a stacked opening is evaluated at a prefix of the same terminal point, so one of these serves the whole opening.
+pub struct RsEqQuery {
+    /// `C_k^(2^-k)` at index `k`, `C_k` the map's Frobenius coefficients.
+    coefficients: [F192; LINEARIZED_TERMS],
+    /// `1 + q_n^(2^-k)` at `[n][k]`.
+    ladders: Vec<[F192; LINEARIZED_TERMS]>,
+}
+
+impl RsEqQuery {
+    /// Precompute for `query` under the map drawn from `challenges` (those of [`build_coordinate_weights`]).
+    pub fn new(challenges: &[F192; COMPOSITION_SHIFTS.len()], query: &[F192]) -> Self {
+        // With d_p = COMPOSITION_SHIFTS[p], C_k = prod_{p : k & d_p} f_p^(2^(k mod d_p)), so C_k^(2^-k) = prod_{p : k & d_p} f_p^(2^-(k - k mod d_p)).
+        let challenge_ladders = challenges.map(inverse_frobenius_ladder);
+        let coefficients = std::array::from_fn(|k| {
+            COMPOSITION_SHIFTS
+                .iter()
+                .zip(&challenge_ladders)
+                .filter(|&(&shift, _)| k & shift != 0)
+                .map(|(&shift, ladder)| ladder[k - k % shift])
+                .reduce(|acc, factor| acc * factor)
+                .unwrap_or(F192::ONE)
+        });
+        let ladders = query
+            .iter()
+            .map(|&q| inverse_frobenius_ladder(q).map(|power| F192::ONE + power))
+            .collect();
+        Self { coefficients, ladders }
+    }
+}
+
+/// `MLE(rs_eq_ind)` at the first `z_vals.len()` coordinates of `query`, for the claim at the suffix point `z_vals`.
+///
+/// Doc `leanvm` Annex A (`rs:weight`) gives `MLE(rs_eq_ind)(q) = sum_{k<64} C_k prod_n (1 + z_n^(2^k) + q_n)`. Each factor is `(1 + z_n + q_n^(2^-k))^(2^k)`, so the sum is `sum_k (C_k^(2^-k) P_k)^(2^k)` with `P_k = prod_n (1 + z_n + q_n^(2^-k))`: every Frobenius power falls on the shared `query`, and the outer powers close by the linearized Horner rule `acc <- acc^2 + C_k^(2^-k) P_k` from `k = 63` down.
+///
+/// Panics if `z_vals` is longer than `query`.
+pub fn eval_rs_eq(z_vals: &[F192], query: &RsEqQuery) -> F192 {
+    assert!(
+        z_vals.len() <= query.ladders.len(),
+        "eval_rs_eq: the suffix point is longer than the query"
+    );
+    let mut terms = query.coefficients;
+    for (&z, ladder) in z_vals.iter().zip(&query.ladders) {
+        for (term, &power) in terms.iter_mut().zip(ladder) {
+            *term *= power + z;
+        }
+    }
+    linearized_horner(&terms)
+}
+
+/// The linearized Horner rule that closes the Frobenius sum: `acc <- acc^2 + term` from the last term down.
+fn linearized_horner(terms: &[F192; LINEARIZED_TERMS]) -> F192 {
+    let (&last, rest) = terms.split_last().expect("the map has 64 terms");
+    rest.iter().rev().fold(last, |acc, &term| acc.square() + term)
+}
+
+/// [`eval_rs_eq`] for several scaled prefixes of one point at once: entry `k` is the MLE of `Φ(scale_k·eq(z_vals[..n_k], ·))` at `query`'s first `n_k` coordinates, for `terms[k] = (n_k, scale_k)`.
+///
+/// `Φ(s·v) = sum_k C_k s^(2^k) v^(2^k)`, so a scale enters every `P_k` before its Frobenius power: the term is `sum_k (C_k^(2^-k) s P_k)^(2^k)`. The `P_k` of a prefix extend to the next coordinate by one product each, so one pass over the longest prefix serves every term.
+///
+/// Panics if a term is longer than `z_vals` or than `query`.
+pub fn eval_rs_eq_terms(z_vals: &[F192], query: &RsEqQuery, terms: &[(usize, F192)]) -> Vec<F192> {
     let longest = terms.iter().map(|&(n, _)| n).max().unwrap_or(0);
-    assert!(longest <= z_vals.len() && longest <= query.len());
+    assert!(
+        longest <= z_vals.len() && longest <= query.ladders.len(),
+        "eval_rs_eq_terms: a term is longer than the suffix point or the query"
+    );
     let mut out = vec![F192::ZERO; terms.len()];
-    let mut eval = TensorAlgebraE::from_vertical(F192::ONE);
-    for n in 0..=longest {
+    // Close every term over the first `n` coordinates.
+    let mut close = |n: usize, products: &[F192; LINEARIZED_TERMS]| {
         for (slot, &(_, scale)) in out.iter_mut().zip(terms).filter(|(_, t)| t.0 == n) {
-            *slot = eval.clone().scale_vertical(scale).fold_vertical(coordinate_weights);
+            *slot = linearized_horner(&products.map(|p| scale * p));
         }
-        if n < longest {
-            let vert_scaled = eval.clone().scale_vertical(z_vals[n]);
-            let hztl_scaled = eval.clone().scale_horizontal(query[n]);
-            eval += &vert_scaled;
-            eval += &hztl_scaled;
+    };
+    let mut products = query.coefficients;
+    close(0, &products);
+    for (n, (&z, ladder)) in z_vals.iter().zip(&query.ladders).take(longest).enumerate() {
+        for (p, &power) in products.iter_mut().zip(ladder) {
+            *p *= power + z;
         }
+        close(n + 1, &products);
     }
     out
 }
@@ -564,10 +565,6 @@ mod tests {
         bits.chunks(PACKING_WIDTH).map(|c| F64(word(c))).collect()
     }
 
-    /// Number of Frobenius terms the composed batching map expands to: the
-    /// F_2-dimension of `K`.
-    const LINEARIZED_TERMS: usize = PACKING_WIDTH;
-
     /// One unscaled term over the whole `2^n`-word stack.
     fn whole(n_vars: usize) -> [RingTerm; 1] {
         [RingTerm {
@@ -577,15 +574,22 @@ mod tests {
         }]
     }
 
-    /// Each scaled prefix term is its own dense evaluation.
+    /// Each scaled prefix term is its own dense evaluation, from one shared query, as in the stacked opening.
     #[test]
     fn eval_rs_eq_terms_matches_dense() {
         let mut rng = Rng::new(5);
         let z = rng.ext_vec(6);
-        let query = rng.ext_vec(6);
-        let coordinate_weights = build_coordinate_weights(&std::array::from_fn(|_| rng.ext()));
-        let terms = [(6, rng.ext()), (0, rng.ext()), (3, rng.ext()), (3, rng.ext())];
-        let actual = eval_rs_eq_terms(&z, &query, &coordinate_weights, &terms);
+        let query = rng.ext_vec(8);
+        let challenges = std::array::from_fn(|_| rng.ext());
+        let coordinate_weights = build_coordinate_weights(&challenges);
+        let terms = [
+            (6, rng.ext()),
+            (0, rng.ext()),
+            (3, rng.ext()),
+            (3, rng.ext()),
+            (6, F192::ONE),
+        ];
+        let actual = eval_rs_eq_terms(&z, &RsEqQuery::new(&challenges, &query), &terms);
         for (&(n, scale), &actual) in terms.iter().zip(&actual) {
             let scaled: Vec<F192> = eq_table(&z[..n]).iter().map(|&e| scale * e).collect();
             let dense = inner_product_ext(&fold_dense(&scaled, &coordinate_weights), &eq_table(&query[..n]));
@@ -809,22 +813,23 @@ mod tests {
         );
     }
 
-    /// eval_rs_eq must agree with the dense evaluation: materialize
-    /// rs_eq_ind, evaluate its MLE at a random query with the eq table.
+    /// `eval_rs_eq` against the definition: materialize `rs_eq_ind = Phi(eq(z, .))` and take its MLE at the query's prefix with the eq table. One precomputed query serves every suffix length up to its own, as in the stacked opening.
     #[test]
     fn eval_rs_eq_matches_dense() {
-        let l = 6;
+        let max_len = 8;
         let mut rng = Rng::new(4);
-        let z = rng.ext_vec(l);
-        let challenges = std::array::from_fn(|_| rng.ext());
-        let coordinate_weights = build_coordinate_weights(&challenges);
-        let rs_eq_ind = fold_dense(&eq_table(&z), &coordinate_weights);
-
-        let query = rng.ext_vec(l);
-        let eq_query = eq_table(&query);
-        let dense = inner_product_ext(&rs_eq_ind, &eq_query);
-
-        assert_eq!(eval_rs_eq(&z, &query, &coordinate_weights), dense);
+        for _ in 0..3 {
+            let challenges = std::array::from_fn(|_| rng.ext());
+            let coordinate_weights = build_coordinate_weights(&challenges);
+            let query = rng.ext_vec(max_len);
+            let rs_query = RsEqQuery::new(&challenges, &query);
+            for len in 0..=max_len {
+                let z = rng.ext_vec(len);
+                let rs_eq_ind = fold_dense(&eq_table(&z), &coordinate_weights);
+                let dense = inner_product_ext(&rs_eq_ind, &eq_table(&query[..len]));
+                assert_eq!(eval_rs_eq(&z, &rs_query), dense, "suffix length {len}");
+            }
+        }
     }
 
     // -- end-to-end: reduction + whir opening --------------------------
@@ -900,20 +905,24 @@ mod tests {
     /// Finish the caller-supplied slices against the shared map: the verifier's
     /// half of the two phases, shared by both paths below. As in production, the
     /// slices ride the statement, tied to `claim` by the caller.
-    fn verify_e2e_reduction(e: &E2e, vs: &mut fiat_shamir::transcript::VerifierState<'_>) -> Option<(Vec<F192>, F192)> {
+    fn verify_e2e_reduction(
+        e: &E2e,
+        vs: &mut fiat_shamir::transcript::VerifierState<'_>,
+    ) -> Option<([F192; COMPOSITION_SHIFTS.len()], Vec<F192>, F192)> {
         if inner_product_ext(&e.prefix_weights, &e.rs_s_hat_v) != e.claim {
             return None;
         }
-        let coordinate_weights = build_coordinate_weights(&sample_map_challenges(vs));
+        let challenges = sample_map_challenges(vs);
+        let coordinate_weights = build_coordinate_weights(&challenges);
         let sumcheck_claim = verify_finish(&e.rs_s_hat_v, &coordinate_weights);
-        Some((coordinate_weights, sumcheck_claim))
+        Some((challenges, coordinate_weights, sumcheck_claim))
     }
 
     /// Dense verification: rebuild `rs_eq_ind`, and let the whir verifier's
     /// terminal closure evaluate its MLE from the whole table.
     fn verify_e2e_dense(e: &E2e) -> bool {
         let mut vs = fiat_shamir::transcript::VerifierState::from_label(E2E_DOMAIN, &e.fs);
-        let Some((coordinate_weights, sumcheck_claim)) = verify_e2e_reduction(e, &mut vs) else {
+        let Some((_, coordinate_weights, sumcheck_claim)) = verify_e2e_reduction(e, &mut vs) else {
             return false;
         };
         let rs_eq_ind = fold_dense(&eq_table(&e.suffix_point), &coordinate_weights);
@@ -933,7 +942,7 @@ mod tests {
     /// terminal closure evaluates its MLE once via `eval_rs_eq`.
     fn verify_e2e_succinct(e: &E2e) -> bool {
         let mut vs = fiat_shamir::transcript::VerifierState::from_label(E2E_DOMAIN, &e.fs);
-        let Some((coordinate_weights, sumcheck_claim)) = verify_e2e_reduction(e, &mut vs) else {
+        let Some((challenges, _, sumcheck_claim)) = verify_e2e_reduction(e, &mut vs) else {
             return false;
         };
         let z = e.suffix_point.clone();
@@ -943,7 +952,7 @@ mod tests {
             1 << e.vc.initial_k(),
             sumcheck_claim,
             &e.root,
-            |point| eval_rs_eq(&z, point, &coordinate_weights),
+            |point| eval_rs_eq(&z, &RsEqQuery::new(&challenges, point)),
             &mut vs,
         )
         .is_ok()

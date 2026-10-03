@@ -117,6 +117,8 @@ fn word_of(word: Word, slots: &[u32], row: &Row, entry: &Entry) -> u64 {
         }
         .hints()
     };
+    // An extension-field row's limbs.
+    let ext = || row.ext.as_ref().expect("an extension-field row has its limbs");
     match word {
         Word::Clock => row.ts,
         Word::Prev(i) => row.prev()[i as usize],
@@ -128,8 +130,22 @@ fn word_of(word: Word, slots: &[u32], row: &Row, entry: &Entry) -> u64 {
         Word::Out => row.out,
         Word::Taken => row.taken as u64,
         Word::Address => row.ram.address,
-        Word::Cell(k) => row.hash.as_ref().map_or(row.ram.old, |h| h.block[k as usize]),
-        Word::CellNew(k) => row.hash.as_ref().map_or(row.ram.new, |h| h.word_after(k as usize)),
+        Word::Cell(k) => match (&row.hash, &row.ext) {
+            (Some(h), _) => h.block[k as usize],
+            (_, Some(x)) => x.instance.limbs[k as usize],
+            _ => row.ram.old,
+        },
+        Word::CellNew(k) => match (&row.hash, &row.ext) {
+            (Some(h), _) => h.word_after(k as usize),
+            (_, Some(x)) => x.result.c[k as usize - 6],
+            _ => row.ram.new,
+        },
+        Word::Dest => ext().instance.pointers[2],
+        Word::LimbAddress(k) => {
+            let i = crate::rv::ExtResult::OFFSET_LIMBS.iter().position(|&j| j == k as usize);
+            ext().result.addresses[i.expect("a computed limb address")]
+        }
+        Word::LimbSeparator => ext().result.separator,
         Word::Bad => 0,
         Word::HintQ => hints().0,
         Word::HintR => hints().1,
@@ -217,15 +233,30 @@ impl Prepared {
         // A class with a word-level witness skips the walk of its gate list; the others
         // walk it 64 instances at a time.
         let witness = spec.witness.filter(|_| part == Part::Class);
-        let generate = |rows: &[Row], n_instances: usize, copies: &mut [flock::ZCopy<'_>]| match witness {
-            None => circuit.generate_witness_from(rows, padding, n_instances, copies, input_words),
-            Some(witness) => circuit.generate_witness_with(rows, padding, n_instances, copies, |row, z, az, bz| {
-                let mut words = [0u64; MAX_INPUT_WORDS];
-                let words = &mut words[..n_inputs];
-                input_words(row, words);
-                witness(words, z, az, bz);
-            }),
-        };
+        let batch_witness = spec.batch_witness.filter(|_| part == Part::Class);
+        let generate =
+            |rows: &[Row], n_instances: usize, copies: &mut [flock::ZCopy<'_>]| match (batch_witness, witness) {
+                // Eight rows share a native arithmetic call before their byte stripe is packed.
+                (Some(batch), _) => {
+                    circuit.generate_witness_batched(rows, padding, n_instances, copies, |rows, z, az, bz| {
+                        let mut words = [[0u64; MAX_INPUT_WORDS]; 8];
+                        for (row, words) in rows.into_iter().zip(&mut words) {
+                            input_words(row, &mut words[..n_inputs]);
+                        }
+                        let inputs = std::array::from_fn(|i| &words[i][..n_inputs]);
+                        batch(&inputs, z, az, bz);
+                    })
+                }
+                (None, None) => circuit.generate_witness_from(rows, padding, n_instances, copies, input_words),
+                (None, Some(witness)) => {
+                    circuit.generate_witness_with(rows, padding, n_instances, copies, |row, z, az, bz| {
+                        let mut words = [0u64; MAX_INPUT_WORDS];
+                        let words = &mut words[..n_inputs];
+                        input_words(row, words);
+                        witness(words, z, az, bz);
+                    })
+                }
+            };
         let mut copies: Vec<flock::ZCopy<'_>> = (pieces.into_iter())
             .map(|(first, piece)| flock::ZCopy {
                 first,

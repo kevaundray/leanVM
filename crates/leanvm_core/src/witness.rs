@@ -209,6 +209,15 @@ pub(crate) fn stack_offsets(kappas: &[Option<usize>]) -> (Vec<usize>, usize) {
     (offsets, off)
 }
 
+/// The committed pieces' total length, before the stack's zero pad: the real witness size.
+pub fn committed_len(placements: &[Placement]) -> usize {
+    placements
+        .iter()
+        .filter_map(Placement::column)
+        .map(Column::committed_len)
+        .sum()
+}
+
 /// Per-column placements and the committed stack's [`StackShape`] from the columns'
 /// sources alone: every piece of every committed column, in column then piece order,
 /// stacked largest first at aligned offsets. Depends only on the sizes, so the
@@ -316,7 +325,7 @@ pub fn live_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
 }
 
 /// The uninitialized `len`-word live stack. Arena-backed: it is born and dies inside
-/// one `cpu::prove` phase.
+/// one `cpu::Program::prove` phase.
 ///
 /// # Safety
 /// Every slot must be written before it is read. [`split_stack`] hands out one
