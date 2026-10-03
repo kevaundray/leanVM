@@ -24,7 +24,7 @@ mod sign;
 
 pub use sign::{SecretKey, SignError, key_gen};
 
-use leanvm_guest::Blake2s;
+use leanvm_guest::{Blake2s, Template, hash_with};
 
 /// A hash value: 128 bits.
 pub type Digest = [u64; 2];
@@ -129,25 +129,14 @@ pub fn verify(
     let pp = &pk.public_param;
     // The digits say where each chain was opened.
     let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
-    // Walk each chain the rest of the way: chain `i` from value `digit_i` to value 7.
-    let ends = core::array::from_fn(|i| {
-        let start = digits[i] as usize;
-        chain(
-            pp,
-            leaf_index,
-            i,
-            start,
-            CHAIN_LENGTH - 1 - start,
-            signature.chain_tips[i],
-        )
+    // Walk each chain the rest of the way, chain `i` from value `digit_i` to value 7: its end is the leaf's. The leaf
+    // takes the chains one by one, unrolled, so each digit's shift and each position are constants.
+    let mut chains = Chains::new(pp, leaf_index);
+    let leaf = wots_leaf(pp, leaf_index, |i| {
+        chains.walk(i, digits.get(i)..CHAIN_LENGTH - 1, signature.chain_tips[i])
     });
     // The chain ends are the one-time public key: its leaf, folded up to the root.
-    let root = merkle_root(
-        pp,
-        leaf_index,
-        wots_leaf(pp, leaf_index, &ends),
-        &signature.merkle_proof,
-    );
+    let root = merkle_root(pp, leaf_index, leaf, &signature.merkle_proof);
     if root == pk.merkle_root {
         Ok(())
     } else {
@@ -171,92 +160,141 @@ fn tweak(ty: u8, position: u32, index: u32) -> [u64; 2] {
 }
 
 /// BLAKE2s of `tweak | pp | payload`, cut to a digest.
-///
-/// Inlined with its length known, a call folds to the words it hashes and the compressions.
 #[inline(always)]
 fn tweak_hash<const N: usize>(pp: &PublicParam, ty: u8, position: u32, index: u32, payload: &[u64; N]) -> Digest {
-    let mut hasher = Blake2s::new();
-    hasher
-        .update_words(&tweak(ty, position, index))
-        .update_words(pp)
-        .update_words(payload);
-    // A digest is the first 16 bytes of the 32.
-    let digest = hasher.finalize_words();
-    [digest[0], digest[1]]
+    digest(hash_with(|message| {
+        message.write(tweak(ty, position, index)).write(*pp).write(*payload);
+    }))
 }
 
-/// The target-sum encoding: the message's 42 digits, or `None` if they are not valid.
-///
-/// The encoding digest is two words of 21 three-bit digits each.
+/// A digest is the first 16 bytes of the 32.
+#[inline(always)]
+const fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
+    [d0, d1]
+}
+
+/// Where the payload starts in a one-block message `tweak | pp | payload`.
+const PAYLOAD: usize = 4;
+/// Bytes 4..8 of a tweak: its position.
+const TWEAK_POSITION: usize = 4;
+
+/// The target-sum encoding: 42 three-bit digits, 21 to a word, where each chain is opened.
+#[derive(Clone, Copy)]
+struct Digits([u64; 2]);
+
+impl Digits {
+    /// Digit `i`: bits `3j..3j+3` of word `i / 21`, `j = i % 21`.
+    #[inline(always)]
+    const fn get(self, i: usize) -> usize {
+        (self.0[i / (V / 2)] >> (W * (i % (V / 2)))) as usize & (CHAIN_LENGTH - 1)
+    }
+
+    /// The sum of the digits, by adding neighbouring fields in place.
+    ///
+    /// No field overflows into the next: the top bits are zero, a digit is at most 7, and all of them sum to at most 294.
+    const fn sum(self) -> u64 {
+        let [low, high] = self.0;
+        // 7 in every 6-bit field: the even digits.
+        const EVEN: u64 = 0x71C7_1C71_C71C_71C7;
+        // 63 in every 12-bit field.
+        const LOW6: u64 = 0xF03F_03F0_3F03_F03F;
+        // Four digits to a 6-bit field, two of each word: at most 28.
+        let s = (low & EVEN) + (low >> W & EVEN) + (high & EVEN) + (high >> W & EVEN);
+        // Two fields to a 12-bit field: at most 56.
+        let s = (s & LOW6) + (s >> 6 & LOW6);
+        // The six fields, folded into the lowest.
+        let s = s + (s >> 12);
+        let s = s + (s >> 24);
+        (s + (s >> 48)) & 0xFFF
+    }
+}
+
+/// The target-sum encoding of a message, or `None` if it is not valid.
 ///
 /// It is valid iff each word's top bit is zero and the digits sum to 195.
-fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness: &Randomness) -> Option<[u8; V]> {
-    // The payload is `message | randomness | zeros`: 64 bytes, so two compressions in all.
-    let [m0, m1, m2, m3] = *message;
-    let [r0, r1, r2] = *randomness;
-    let digest = tweak_hash(pp, TWEAK_ENCODING, 0, leaf_index, &[m0, m1, m2, m3, r0, r1, r2, 0]);
+fn encode(pp: &PublicParam, leaf_index: LeafIndex, message: &Message, randomness: &Randomness) -> Option<Digits> {
+    let ([m0, m1, m2, m3], [r0, r1, r2]) = (*message, *randomness);
+    let [low, high] = tweak_hash(pp, TWEAK_ENCODING, 0, leaf_index, &[m0, m1, m2, m3, r0, r1, r2, 0]);
+    // Bits 0..63 are 21 digits, bit 63 is pinned to zero.
+    //
+    // Why pinned: with it, the digits determine the word.
+    if (low | high) >> (W * V / 2) != 0 {
+        return None;
+    }
+    let digits = Digits([low, high]);
+    (digits.sum() == TARGET_SUM as u64).then_some(digits)
+}
 
-    let mut digits = [0; V];
-    let mut sum = 0;
-    for (half, word) in digest.into_iter().enumerate() {
-        // Bits 0..63 are 21 digits, bit 63 is pinned to zero.
-        //
-        // Why pinned: with it, the digits determine the word.
-        if word >> (W * V / 2) != 0 {
-            return None;
-        }
-        // Digit `i` of the half is bits `3i..3i+3`.
-        for i in 0..V / 2 {
-            let digit = (word >> (W * i)) as u8 & (CHAIN_LENGTH as u8 - 1);
-            digits[half * V / 2 + i] = digit;
-            sum += digit as usize;
+/// The hash every chain step is, `tweak | pp | value`, kept across steps and chains.
+struct Chains {
+    step: Template<6>,
+}
+
+impl Chains {
+    fn new(pp: &PublicParam, leaf_index: LeafIndex) -> Self {
+        let [t0, t1] = tweak(TWEAK_CHAIN, 0, leaf_index);
+        Self {
+            step: Template::new([t0, t1, pp[0], pp[1], 0, 0]),
         }
     }
-    (sum == TARGET_SUM).then_some(digits)
+
+    /// Walk chain `i` from value number `values.start` to value number `values.end`.
+    ///
+    /// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak. Only the tweak's
+    /// position field changes: its second word, the leaf index, is the template's.
+    #[inline(always)]
+    fn walk(&mut self, i: usize, values: core::ops::Range<usize>, value: Digest) -> Digest {
+        let first = (i * CHAIN_LENGTH) as u32;
+        let positions = first + values.start as u32..first + values.end as u32;
+        self.step.chain::<TWEAK_POSITION, { 8 * PAYLOAD }>(positions, value)
+    }
 }
 
-/// Walk chain `i` for `steps` steps from value number `start`.
+/// The Merkle leaf of a one-time key, `tweak | pp | ends`: chain `i`'s end `end(i)`, the chains in order, in one hash.
 ///
-/// The step out of value `s` is hashed at position `8i + s`, so no two steps share a tweak.
-fn chain(pp: &PublicParam, leaf_index: LeafIndex, i: usize, start: usize, steps: usize, value: Digest) -> Digest {
-    (start..start + steps).fold(value, |value, s| {
-        tweak_hash(pp, TWEAK_CHAIN, (i * CHAIN_LENGTH + s) as u32, leaf_index, &value)
-    })
+/// Unrolled over the chains, so each end's place in the stream's blocks is a constant.
+#[inline(always)]
+fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, mut end: impl FnMut(usize) -> Digest) -> Digest {
+    const { assert!(V == 42, "the ends below are one a chain") };
+    digest(hash_with(|message| {
+        message.write(tweak(TWEAK_WOTS_PK, 0, leaf_index)).write(*pp);
+        macro_rules! ends {
+            ($($i:literal)*) => { $( message.write(end($i)); )* };
+        }
+        ends!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41);
+    }))
 }
 
-/// The Merkle leaf of a one-time key: its 42 chain ends in one hash, 11 compressions.
-fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, ends: &[Digest; V]) -> Digest {
-    tweak_hash::<{ 2 * V }>(
-        pp,
-        TWEAK_WOTS_PK,
-        0,
-        leaf_index,
-        ends.as_flattened().try_into().unwrap(),
-    )
-}
-
-/// The parent at a level, the leaves being level 0, and an index within it.
-fn merkle_node(pp: &PublicParam, level: usize, index: u64, left: &Digest, right: &Digest) -> Digest {
-    // Both children fill one block with the tweak and the parameter: one compression.
-    tweak_hash(
-        pp,
-        TWEAK_MERKLE,
-        level as u32,
-        index as u32,
-        &[left[0], left[1], right[0], right[1]],
-    )
-}
-
-/// Fold a leaf, at index `leaf_index`, up its authentication path.
+/// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`.
+///
+/// Unrolled, so each level's tweak position and shifts are constants and the loop bookkeeping is gone. Across levels
+/// only the tweak's position and index fields change, so each is one 32-bit store.
 fn merkle_root(pp: &PublicParam, leaf_index: LeafIndex, leaf: Digest, path: &[Digest; LOG_LIFETIME]) -> Digest {
-    path.iter().enumerate().fold(leaf, |node, (level, sibling)| {
-        // The node's index at this level: its low bit says which child it is.
-        let index = u64::from(leaf_index) >> level;
-        let (left, right) = if index & 1 == 0 {
-            (&node, sibling)
-        } else {
-            (sibling, &node)
-        };
-        merkle_node(pp, level + 1, index >> 1, left, right)
-    })
+    const { assert!(LOG_LIFETIME == 32, "one node a level below") };
+    let [t0, t1] = tweak(TWEAK_MERKLE, 0, 0);
+    let mut node = Template::new([t0, t1, pp[0], pp[1], 0, 0, 0, 0]);
+    let (bits, mut child) = (u64::from(leaf_index), leaf);
+    macro_rules! levels {
+        ($($level:literal)*) => { $( child = merkle_node::<$level>(&mut node, bits, child, &path[$level]); )* };
+    }
+    levels!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31);
+    child
+}
+
+/// Bytes 12..16 of a tweak: its index.
+const TWEAK_INDEX: usize = 12;
+
+/// The parent of `child` at level `LEVEL`, the leaves being level 0, and its `sibling`, `bits` the leaf index.
+///
+/// Bit `LEVEL` of the leaf index is the child's side: the child and the sibling go to the slots it picks, with no
+/// branch. The side is kept in bytes, a multiple of a word, so turning it into an address takes no shift.
+#[inline(always)]
+fn merkle_node<const LEVEL: usize>(node: &mut Template<8>, bits: u64, child: Digest, sibling: &Digest) -> Digest {
+    let side = (bits << 4 >> LEVEL & 16) as usize;
+    // The parent is at the next level up, at half the index.
+    node.write(TWEAK_POSITION, (LEVEL + 1) as u32);
+    node.write(TWEAK_INDEX, (bits >> (LEVEL + 1)) as u32);
+    node.write(8 * PAYLOAD + side, child);
+    node.write(8 * PAYLOAD + 16 - side, *sibling);
+    digest(node.digest())
 }
