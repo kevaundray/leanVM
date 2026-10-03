@@ -3,7 +3,8 @@
 //!
 //! The rows run `cpu::Program::verify_core` on each inner proof ([`inner`]); the outer statement is each
 //! inner proof's output, shape and [`DeferredClaims`], which [`verify`] settles natively after the outer
-//! proof, exactly as `cpu::Program::verify` settles its own.
+//! proof, exactly as `cpu::Program::verify` settles its own. [`tree`] composes recursion proofs into aggregation
+//! trees, whose nodes reduce those claims rather than handing them up.
 
 pub mod circuit;
 pub mod inner;
