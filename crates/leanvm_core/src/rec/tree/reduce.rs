@@ -17,7 +17,8 @@ use crate::rec::transcript::Transcript;
 use flock::lincheck::{LincheckCircuit, build_quirky_eq_table};
 use flock::zerocheck::K_SKIP;
 use primitives::field::{F64, F192};
-use primitives::multilinear::eq_table;
+use primitives::multilinear::{eq_table, mle_eval_par};
+use std::collections::BTreeMap;
 
 /// What a test makes the prover forge: reduced values that satisfy the final identity and are false.
 #[cfg(test)]
@@ -101,26 +102,99 @@ fn values(b: &Builder, ws: &[Ew]) -> Vec<F192> {
     ws.iter().map(|&w| b.e(w)).collect()
 }
 
-/// Pairs of tables a sumcheck folds together, one pair per claim.
+/// Pairs a sumcheck folds together, one pair per claim.
 type Tables = Vec<(Vec<F192>, Vec<F192>)>;
+
+/// The entries one task of a parallel pass takes; a shorter pass stays on the calling thread.
+const CHUNK: usize = 1 << 12;
+
+/// `Σ_{k < n} f(k)` over pairs of elements, across the pool when long.
+fn sum_pairs(n: usize, f: impl Fn(usize) -> (F192, F192) + Sync) -> (F192, F192) {
+    let add = |(a, b): (F192, F192), (c, d): (F192, F192)| (a + c, b + d);
+    let task = |i: usize| {
+        (i * CHUNK..n.min((i + 1) * CHUNK))
+            .map(&f)
+            .fold((F192::ZERO, F192::ZERO), add)
+    };
+    if n <= CHUNK {
+        return task(0);
+    }
+    parallel::map_reduce(n.div_ceil(CHUNK), || (F192::ZERO, F192::ZERO), task, add)
+}
+
+/// The table of `f(k)` for `k < n`, written across the pool when long.
+fn table_of(n: usize, f: impl Fn(usize) -> F192 + Sync) -> Vec<F192> {
+    if n <= CHUNK {
+        return (0..n).map(f).collect();
+    }
+    let mut out = Vec::with_capacity(n);
+    parallel::chunks_mut(&mut out.spare_capacity_mut()[..n], CHUNK, |i, dst| {
+        for (j, slot) in dst.iter_mut().enumerate() {
+            slot.write(f(i * CHUNK + j));
+        }
+    });
+    // SAFETY: the chunks cover all `n` entries, each written once.
+    unsafe { out.set_len(n) };
+    out
+}
 
 /// `h(0)` and the leading coefficient of `Σ_k u(X, k)·g(X, k)` over the lowest variable, for tables of even length.
 fn products(u: &[F192], g: &[F192]) -> (F192, F192) {
-    (u.as_chunks::<2>().0.iter())
-        .zip(g.as_chunks::<2>().0)
-        .fold((F192::ZERO, F192::ZERO), |(c0, c2), (u, g)| {
-            (c0 + u[0] * g[0], c2 + (u[0] + u[1]) * (g[0] + g[1]))
-        })
+    sum_pairs(u.len() / 2, |k| {
+        let (u0, u1, g0, g1) = (u[2 * k], u[2 * k + 1], g[2 * k], g[2 * k + 1]);
+        (u0 * g0, (u0 + u1) * (g0 + g1))
+    })
+}
+
+/// [`products`] for a `g` in the base field.
+fn products_base(u: &[F192], g: &[F64]) -> (F192, F192) {
+    sum_pairs(u.len() / 2, |k| {
+        let (u0, u1, g0, g1) = (u[2 * k], u[2 * k + 1], g[2 * k], g[2 * k + 1]);
+        (u0.mul_base(g0), (u0 + u1).mul_base(g0 + g1))
+    })
 }
 
 /// Bind the lowest variable of `table` to `r`.
 fn fold(table: &mut Vec<F192>, r: F192) {
-    let half = table.len() / 2;
-    for k in 0..half {
-        let (lo, hi) = (table[2 * k], table[2 * k + 1]);
-        table[k] = lo + r * (lo + hi);
+    let t = &*table;
+    let next = table_of(t.len() / 2, |k| t[2 * k] + r * (t[2 * k] + t[2 * k + 1]));
+    *table = next;
+}
+
+/// [`fold`] for a table in the base field.
+fn fold_base(table: &[F64], r: F192) -> Vec<F192> {
+    table_of(table.len() / 2, |k| {
+        r.mul_base(table[2 * k] + table[2 * k + 1]) + F192::from(table[2 * k])
+    })
+}
+
+/// A dense polynomial the reduction's prover folds: its table in the base field until a round binds a variable.
+enum Poly<'a> {
+    Base(&'a [F64]),
+    Ext(Vec<F192>),
+}
+
+impl Poly<'_> {
+    fn products(&self, weights: &[F192]) -> (F192, F192) {
+        match self {
+            Self::Base(p) => products_base(weights, p),
+            Self::Ext(p) => products(weights, p),
+        }
     }
-    table.truncate(half);
+
+    fn fold(&mut self, r: F192) {
+        match self {
+            Self::Base(p) => *self = Self::Ext(fold_base(p, r)),
+            Self::Ext(p) => fold(p, r),
+        }
+    }
+
+    fn first(&self) -> F192 {
+        match self {
+            Self::Base(p) => F192::from(p[0]),
+            Self::Ext(p) => p[0],
+        }
+    }
 }
 
 /// One term of a dense claim: `coef·P(low[..n_low] ‖ bits ‖ top)`, `coef` one when absent.
@@ -156,16 +230,27 @@ impl DenseClaim {
         }
     }
 
-    /// The terms' coefficients and points, as values.
-    fn native(&self, b: &Builder) -> Vec<(F192, Vec<F192>)> {
+    /// The terms of `scale` times this claim's weight, each placed in the polynomial's table by the Boolean suffix
+    /// of its point.
+    fn placed(&self, b: &Builder, scale: F192) -> Vec<Placed> {
+        let boolean = |x: &F192| *x == F192::ZERO || *x == F192::ONE;
         let low = values(b, &self.low);
         self.terms
             .iter()
             .map(|t| {
                 let mut point = low[..t.n_low].to_vec();
-                point.extend(t.bits.iter().map(|&bit| if bit { F192::ONE } else { F192::ZERO }));
+                point.extend(t.bits.iter().map(|&bit| F192::from(F64(u64::from(bit)))));
                 point.extend(values(b, &t.top));
-                (t.coef.map_or(F192::ONE, |c| b.e(c)), point)
+                let k = point.len() - point.iter().rev().take_while(|x| boolean(x)).count();
+                let offset = (point[k..].iter().enumerate())
+                    .map(|(i, &x)| usize::from(x == F192::ONE) << (k + i))
+                    .sum();
+                point.truncate(k);
+                Placed {
+                    coef: scale * t.coef.map_or(F192::ONE, |c| b.e(c)),
+                    point,
+                    offset,
+                }
             })
             .collect()
     }
@@ -203,15 +288,38 @@ impl DenseClaim {
     }
 }
 
-/// `table += scale·eq(point, ·)`, a Boolean suffix of the point placing a smaller table.
-fn add_eq(table: &mut [F192], point: &[F192], scale: F192) {
-    let boolean = |x: F192| x == F192::ZERO || x == F192::ONE;
-    let k = point.len() - point.iter().rev().take_while(|&&x| boolean(x)).count();
-    let offset: usize = (point[k..].iter().enumerate())
-        .map(|(i, &x)| usize::from(x == F192::ONE) << (k + i))
-        .sum();
-    for (slot, e) in table[offset..offset + (1 << k)].iter_mut().zip(eq_table(&point[..k])) {
-        *slot += scale * e;
+/// One term of the prover's weight table: `coef·eq(point, ·)` at `offset`.
+struct Placed {
+    coef: F192,
+    point: Vec<F192>,
+    offset: usize,
+}
+
+/// The variables of the low eq tables [`add_eqs`] keeps in L1.
+const LOW_VARS: usize = 10;
+
+/// `table[offset + x] += Σ_t coef_t·eq(p_t, x)` for terms of one offset and size, in one pass over the table: each
+/// term's eq table is the tensor of a low one and a high one scaled by its coefficient.
+fn add_eqs(table: &mut [F192], terms: &[&Placed]) {
+    let k = terms[0].point.len();
+    let l = k.min(LOW_VARS);
+    let lows: Vec<Vec<F192>> = terms.iter().map(|t| eq_table(&t.point[..l])).collect();
+    let highs: Vec<Vec<F192>> = (terms.iter())
+        .map(|t| eq_table(&t.point[l..]).into_iter().map(|e| e * t.coef).collect())
+        .collect();
+    let row = |h: usize, dst: &mut [F192]| {
+        for (low, high) in lows.iter().zip(&highs) {
+            for (slot, &e) in dst.iter_mut().zip(low) {
+                *slot += high[h] * e;
+            }
+        }
+    };
+    let offset = terms[0].offset;
+    let dst = &mut table[offset..offset + (1 << k)];
+    if dst.len() <= CHUNK {
+        dst.chunks_mut(1 << l).enumerate().for_each(|(h, d)| row(h, d));
+    } else {
+        parallel::chunks_mut(dst, 1 << l, row);
     }
 }
 
@@ -235,39 +343,46 @@ pub fn reduce_dense(
     let claim_values: Vec<Ew> = claims.iter().map(|c| c.value).collect();
     let (mut claim, powers) = batch(b, gamma, &claim_values);
 
+    // A polynomial no claim weighs is not folded: its value is one evaluation at the end.
     let mut state = tables.map(|tables| {
-        let mut weights: Vec<Vec<F192>> = n_vars.iter().map(|&k| vec![F192::ZERO; 1 << k]).collect();
+        let mut terms: Vec<Vec<Placed>> = (0..n_vars.len()).map(|_| Vec::new()).collect();
         for (c, &g) in claims.iter().zip(&powers) {
-            let g = b.e(g);
-            for (coef, point) in c.native(b) {
-                add_eq(&mut weights[c.poly], &point, g * coef);
-            }
+            terms[c.poly].extend(c.placed(b, b.e(g)));
         }
-        let polys: Vec<Vec<F192>> = tables
-            .iter()
-            .map(|p| p.iter().map(|&x| F192::from(x)).collect())
+        let weights: Vec<Option<Vec<F192>>> = (terms.iter().zip(n_vars))
+            .map(|(terms, &k)| {
+                (!terms.is_empty()).then(|| {
+                    let mut regions: BTreeMap<(usize, usize), Vec<&Placed>> = BTreeMap::new();
+                    for t in terms {
+                        regions.entry((t.offset, t.point.len())).or_default().push(t);
+                    }
+                    let mut w = table_of(1 << k, |_| F192::ZERO);
+                    for region in regions.values() {
+                        add_eqs(&mut w, region);
+                    }
+                    w
+                })
+            })
             .collect();
+        let polys: Vec<Poly> = tables.iter().map(|&p| Poly::Base(p)).collect();
         (polys, weights)
     });
 
     let mut point = Vec::with_capacity(n);
     for i in 0..n {
         let (c0, c2) = state.as_ref().map_or((F192::ZERO, F192::ZERO), |(polys, weights)| {
-            (polys.iter().zip(weights).zip(n_vars)).filter(|&(_, &k)| k > i).fold(
-                (F192::ZERO, F192::ZERO),
-                |(c0, c2), ((p, w), _)| {
-                    let (a, c) = products(w, p);
-                    (c0 + a, c2 + c)
-                },
-            )
+            (polys.iter().zip(weights).zip(n_vars))
+                .filter(|&(_, &k)| k > i)
+                .filter_map(|((p, w), _)| w.as_ref().map(|w| p.products(w)))
+                .fold((F192::ZERO, F192::ZERO), |(c0, c2), (a, c)| (c0 + a, c2 + c))
         });
         let (r, next) = round(b, t, claim, c0, c2);
         claim = next;
         if let Some((polys, weights)) = &mut state {
             let rv = b.e(r);
             for ((p, w), &k) in polys.iter_mut().zip(weights.iter_mut()).zip(n_vars) {
-                if k > i {
-                    fold(p, rv);
+                if let (true, Some(w)) = (k > i, w) {
+                    p.fold(rv);
                     fold(w, rv);
                 }
             }
@@ -277,13 +392,23 @@ pub fn reduce_dense(
 
     #[cfg_attr(not(test), expect(unused_mut, reason = "a test forges the values"))]
     let mut native: Vec<F192> = (0..n_vars.len())
-        .map(|j| state.as_ref().map_or(F192::ZERO, |(polys, _)| polys[j][0]))
+        .map(|j| {
+            state
+                .as_ref()
+                .map_or(F192::ZERO, |(polys, weights)| match (&weights[j], &polys[j]) {
+                    (None, Poly::Base(p)) => mle_eval_par(p, &values(b, &point[..n_vars[j]])),
+                    (_, p) => p.first(),
+                })
+        })
         .collect();
     #[cfg(test)]
     if let (Forge::Dense, Some((_, weights))) = (FORGE.get(), &state) {
         let rv = values(b, &point);
         let coefs: Vec<F192> = (0..n_vars.len())
-            .map(|j| rv[n_vars[j]..].iter().fold(weights[j][0], |acc, &x| acc * x))
+            .map(|j| {
+                let w = weights[j].as_ref().map_or(F192::ZERO, |w| w[0]);
+                rv[n_vars[j]..].iter().fold(w, |acc, &x| acc * x)
+            })
             .collect();
         forge(&mut native, &coefs, b.e(claim));
     }
