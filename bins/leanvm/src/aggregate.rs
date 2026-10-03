@@ -88,7 +88,7 @@ pub fn run(program: &str, n: usize, leaves: usize, arity: usize, prover: &Prover
     let (_, lift_verify) = quiet.measure_quiet(|_| tree.verify_proof(&lift).expect("the lift verifies"));
     report("lift node", &tree, Kind::Lift, &lift, &lift_time, &lift_verify);
 
-    let children = vec![lift.clone(); arity];
+    let children = vec![lift; arity];
     let (node, node_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
         tree.prove_node(prover, &children).expect("honest children")

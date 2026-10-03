@@ -65,7 +65,7 @@ fn a_tree_verifies_and_refuses_forgeries() {
         matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))),
         "a reduced point"
     );
-    let mut tampered = root.clone();
+    let mut tampered = root;
     tampered.statement.dense_values[BYTECODE] += F192::ONE;
     assert!(
         matches!(tree.verify(&tampered, &outputs), Err(TreeError::Root(_))),
@@ -83,7 +83,7 @@ fn a_tree_verifies_and_refuses_forgeries() {
     let mut forged_child = node.clone();
     forged_child.statement.matrices[0][1] += F192::ONE;
     assert!(matches!(
-        tree.prove_node(&[forged_child, node.clone()]),
+        tree.prove_node(&[forged_child, node]),
         Err(TreeError::Child { index: 0, .. })
     ));
     let other = Tree::new(&program, taus, log_inv_rate, 3, Rate::MIN).expect("a valid shape");
@@ -95,7 +95,10 @@ fn a_tree_verifies_and_refuses_forgeries() {
         ),
         "a child of another tree's shape"
     );
-    assert!(matches!(tree.prove_node(&[lift.clone()]), Err(TreeError::Arity { .. })));
+    assert!(matches!(
+        tree.prove_node(std::slice::from_ref(&lift)),
+        Err(TreeError::Arity { .. })
+    ));
 
     // A forged leaf.
     let mut bad = InnerProof {

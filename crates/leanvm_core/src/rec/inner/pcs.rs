@@ -145,14 +145,8 @@ impl Map {
             for &sj in s_hat_v[..PACKING_WIDTH - 1].iter().rev() {
                 s = b.mul_const_add(s, xk, sj);
             }
-            let term = match self.coefficients[k] {
-                Some(c) => b.mul(c, s),
-                None => s,
-            };
-            acc = Some(match acc {
-                None => term,
-                Some(a) => b.mul_add(a, a, term),
-            });
+            let term = self.coefficients[k].map_or(s, |c| b.mul(c, s));
+            acc = Some(acc.map_or(term, |a| b.mul_add(a, a, term)));
         }
         acc.expect("the map has 64 terms")
     }

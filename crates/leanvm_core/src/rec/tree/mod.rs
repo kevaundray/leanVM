@@ -137,7 +137,7 @@ impl StatementWires {
     fn expose(&self, b: &mut Builder) {
         b.expose_k(self.kind);
         b.expose_d(self.digest);
-        for w in self.es().collect::<Vec<_>>() {
+        for w in self.es() {
             b.expose_e(w);
         }
     }
@@ -145,7 +145,7 @@ impl StatementWires {
     /// Each word's limbs, in statement order.
     fn limbs(&self, b: &mut Builder) -> Vec<Vec<Kw>> {
         let mut out = vec![vec![self.kind], b.d_to_k(self.digest).to_vec()];
-        for w in self.es().collect::<Vec<_>>() {
+        for w in self.es() {
             out.push(b.e_to_k(w).to_vec());
         }
         out
@@ -259,7 +259,7 @@ pub fn tree_digest(outputs: &[[u64; 4]], arity: usize) -> Result<[u64; 4], TreeE
 }
 
 /// Whether `n` leaves make a tree of `arity`: one, or a power of an arity of at least two.
-fn is_power(n: usize, arity: usize) -> bool {
+const fn is_power(n: usize, arity: usize) -> bool {
     let mut n = n;
     while arity > 1 && n > 1 && n.is_multiple_of(arity) {
         n /= arity;
@@ -354,6 +354,10 @@ impl<'p> Design<'p> {
     }
 
     /// Reduce the claims and expose the statement.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the statement's parts and the claims to reduce"
+    )]
     fn finish(
         &self,
         b: &mut Builder,
@@ -462,7 +466,6 @@ impl<'p> Design<'p> {
 
     /// The node's circuit verifying `children` (each its statement and proof as its verifier read it), from the
     /// shape alone when `None`; `columns` and `tables` the fixed columns and the dense polynomials when proving.
-    #[expect(clippy::type_complexity, reason = "a child is its statement and its read proof")]
     fn node(
         &self,
         children: Option<&[(&TreeStatement, RawProof)]>,

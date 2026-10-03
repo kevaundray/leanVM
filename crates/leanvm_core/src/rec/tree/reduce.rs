@@ -101,10 +101,13 @@ fn values(b: &Builder, ws: &[Ew]) -> Vec<F192> {
     ws.iter().map(|&w| b.e(w)).collect()
 }
 
+/// Pairs of tables a sumcheck folds together, one pair per claim.
+type Tables = Vec<(Vec<F192>, Vec<F192>)>;
+
 /// `h(0)` and the leading coefficient of `Σ_k u(X, k)·g(X, k)` over the lowest variable, for tables of even length.
 fn products(u: &[F192], g: &[F192]) -> (F192, F192) {
-    u.chunks_exact(2)
-        .zip(g.chunks_exact(2))
+    (u.as_chunks::<2>().0.iter())
+        .zip(g.as_chunks::<2>().0)
         .fold((F192::ZERO, F192::ZERO), |(c0, c2), (u, g)| {
             (c0 + u[0] * g[0], c2 + (u[0] + u[1]) * (g[0] + g[1]))
         })
@@ -292,10 +295,7 @@ pub fn reduce_dense(
             let w = c.weight(b, &point[..k]);
             omega = b.mul_add(g, w, omega);
         }
-        let weighted = match lift(b, &point[..n], k) {
-            Some(l) => b.mul(omega, l),
-            None => omega,
-        };
+        let weighted = lift(b, &point[..n], k).map_or(omega, |l| b.mul(omega, l));
         total = b.mul_add(weighted, reduced[j], total);
     }
     b.scope("dense reduction", |b| b.eq_e(claim, total));
@@ -424,8 +424,8 @@ pub fn reduce_matrices(b: &mut Builder, t: &mut Transcript, honest: bool, claims
     let (mut claim, powers) = batch(b, gamma, &claim_values);
 
     // Per circuit, per claim: `γ^c·u` and `g = (a·A + b·B)·w`.
-    let mut rows_state: Option<Vec<Vec<(Vec<F192>, Vec<F192>)>>> = honest.then(|| {
-        let mut state: Vec<Vec<(Vec<F192>, Vec<F192>)>> = vec![Vec::new(); n_circuits];
+    let mut rows_state: Option<Vec<Tables>> = honest.then(|| {
+        let mut state: Vec<Tables> = vec![Vec::new(); n_circuits];
         for (c, &g) in claims.iter().zip(&powers) {
             let gv = b.e(g);
             let u: Vec<F192> = c.row.table(b).into_iter().map(|x| gv * x).collect();
