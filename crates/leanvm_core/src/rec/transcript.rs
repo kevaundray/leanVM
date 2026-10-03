@@ -59,7 +59,7 @@ impl<'a> Transcript<'a> {
     }
 
     /// Whether every scalar and opening of the proof was read.
-    pub fn finished(&self) -> bool {
+    pub const fn finished(&self) -> bool {
         match self.source {
             Source::Proof(p) => self.offset == p.stream.len() && self.opening == p.merkle.len(),
             Source::Shape => true,
@@ -75,7 +75,7 @@ impl<'a> Transcript<'a> {
         v
     }
 
-    fn absorb(&mut self, b: &mut Builder, x: Ew, ds: u64) -> Dw {
+    fn absorb(&self, b: &mut Builder, x: Ew, ds: u64) -> Dw {
         let ds = b.k_const(ds);
         let (cv, _) = b.compress(self.cv, x, ds);
         cv

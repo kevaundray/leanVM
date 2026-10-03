@@ -194,7 +194,7 @@ pub fn summands(forms: &[Vec<BusForm>; 2], xi: F192) -> Vec<Summand> {
 }
 
 /// Slot `s` of table `t`'s key at row `z`.
-fn key(t: Table, s: usize, z: usize) -> u64 {
+const fn key(t: Table, s: usize, z: usize) -> u64 {
     ((t.first_slot() + s) as u64) << 32 | z as u64
 }
 

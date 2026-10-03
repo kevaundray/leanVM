@@ -233,11 +233,11 @@ impl Default for Builder {
     }
 }
 
-fn e_limbs(x: F192) -> Limbs {
+const fn e_limbs(x: F192) -> Limbs {
     [x.c0, x.c1, x.c2, 0]
 }
 
-fn limbs_e(l: Limbs) -> F192 {
+const fn limbs_e(l: Limbs) -> F192 {
     F192::new(l[0], l[1], l[2])
 }
 

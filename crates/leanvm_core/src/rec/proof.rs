@@ -491,7 +491,7 @@ mod tests {
     fn a_statement_the_prover_did_not_expose_is_rejected() {
         let (circuit, a, _) = every_kind();
         let proof = prove_run(&circuit, &a);
-        let mut statement = a.statement.clone();
+        let mut statement = a.statement;
         statement[0][1] ^= 1;
         assert!(verify_run(&circuit, &statement, &proof).is_err());
     }

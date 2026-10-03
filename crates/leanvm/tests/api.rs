@@ -128,7 +128,7 @@ fn public_api_end_to_end() {
     let outer = recursion::prove(&prover, &inners, Rate::MIN).expect("both proofs verify");
     recursion::verify(&[&program, &guest], &outer, Rate::MIN).unwrap();
     assert!(recursion::verify(&[&guest, &program], &outer, Rate::MIN).is_err());
-    let mut wrong = outer.clone();
+    let mut wrong = outer;
     wrong.inners[1].output[3] ^= 1;
     assert!(recursion::verify(&[&program, &guest], &wrong, Rate::MIN).is_err());
     let forged = recursion::Inner {

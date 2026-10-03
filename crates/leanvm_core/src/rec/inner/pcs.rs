@@ -22,10 +22,7 @@ fn mac(b: &mut Builder, acc: Option<Ew>, c: Option<Ew>, x: Ew) -> Ew {
 
 /// `acc·f`, where an absent `acc` is one.
 fn times(b: &mut Builder, acc: Option<Ew>, f: Ew) -> Ew {
-    match acc {
-        None => f,
-        Some(a) => b.mul(a, f),
-    }
+    acc.map_or(f, |a| b.mul(a, f))
 }
 
 fn or_one(b: &mut Builder, x: Option<Ew>) -> Ew {
@@ -281,7 +278,7 @@ pub fn verify(
     };
 
     b.scope("whir", |b| {
-        whir(b, t, &config, log_n, shape.n_lanes, target, root, eval_b_at)
+        whir(b, t, &config, log_n, shape.n_lanes, target, root, eval_b_at);
     });
     let (point, weight) = share.expect("the terminal check evaluates the weight");
     RingShare {
@@ -640,10 +637,7 @@ fn whir(
                         let s = b.add(z, x);
                         scalar = math::times_one_plus(b, scalar, s);
                     }
-                    weight = Some(match weight {
-                        None => scalar,
-                        Some(w) => b.add(scalar, w),
-                    });
+                    weight = Some(weight.map_or(scalar, |w| b.add(scalar, w)));
                 }
                 let mut full_point = ris.clone();
                 full_point.extend_from_slice(&ris_tail);
@@ -764,9 +758,10 @@ mod tests {
                 claims: (0..n_claims)
                     .map(|_| {
                         let suffix_point = rng.ext_vec(qflock_vars);
-                        let s_hat_v = q.map_or(vec![F192::ZERO; PACKING_WIDTH], |q| {
-                            fold_1b_rows(&q[offset..offset + (1 << qflock_vars)], &eq(&suffix_point))
-                        });
+                        let s_hat_v = q.map_or_else(
+                            || vec![F192::ZERO; PACKING_WIDTH],
+                            |q| fold_1b_rows(&q[offset..offset + (1 << qflock_vars)], &eq(&suffix_point)),
+                        );
                         (suffix_point, s_hat_v)
                     })
                     .collect(),

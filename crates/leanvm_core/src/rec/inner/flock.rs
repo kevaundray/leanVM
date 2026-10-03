@@ -63,9 +63,9 @@ impl Differences {
     fn lagrange_sum(&self, b: &mut Builder, values: &[Ew]) -> Ew {
         assert_eq!(values.len(), self.diffs.len());
         let mut sum = values[0];
-        for i in 1..values.len() {
-            let term = b.mul(values[i], self.prefix[i - 1]);
-            sum = b.mul_add(sum, self.diffs[i], term);
+        for ((&value, &prefix), &diff) in values[1..].iter().zip(&self.prefix).zip(&self.diffs[1..]) {
+            let term = b.mul(value, prefix);
+            sum = b.mul_add(sum, diff, term);
         }
         sum
     }
@@ -78,8 +78,12 @@ fn verify_zerocheck(b: &mut Builder, t: &mut Transcript, m: usize) -> ZerocheckC
 
     // The equality tail: the fixed inner coordinates, then the sampled outer ones (`equality_tail`).
     let outer = t.sample_vec(b, m - MIN_LOG_N);
-    let fixed: Vec<F192> = small_challenges().into_iter().chain(medium_challenges()).collect();
-    let r_rest: Vec<Ew> = fixed.into_iter().map(|c| b.e_const(c)).chain(outer).collect();
+    let r_rest: Vec<Ew> = small_challenges()
+        .into_iter()
+        .chain(medium_challenges())
+        .map(|c| b.e_const(c))
+        .chain(outer)
+        .collect();
     debug_assert_eq!(r_rest.len(), n_mlv);
 
     let round1 = t.next_scalars(b, ELL);
@@ -239,12 +243,12 @@ mod tests {
     fn prove<const N: usize>(f: usize, rows: &[[u64; N]], n_blocks_log: usize) -> Proof {
         let circuit = class_flock::circuit(f);
         let (t, _) = class_flock::flock(f);
-        let (z, a, bz, zl) = match CLASSES[t].witness {
-            Some(witness) => {
+        let (z, a, bz, zl) = CLASSES[t].witness.map_or_else(
+            || circuit.generate_witness(rows, n_blocks_log),
+            |witness| {
                 circuit.generate_witness_with(rows, &[0; N], n_blocks_log, |row, z, az, bz| witness(row, z, az, bz))
-            }
-            None => circuit.generate_witness(rows, n_blocks_log),
-        };
+            },
+        );
         let block = circuit.block();
         let mut ps = ProverState::from_label(LABEL);
         let stage = block.prove_zerocheck(n_blocks_log, &z, &a, &bz, &mut ps);
