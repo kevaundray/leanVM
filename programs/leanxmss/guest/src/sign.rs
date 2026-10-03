@@ -82,9 +82,7 @@ impl SecretKey {
         // Chain `i` opened at value `digit_i`, and the path of fillers.
         let mut chains = Chains::new(pp, leaf_index);
         Ok(Signature {
-            chain_tips: core::array::from_fn(|i| {
-                chains.walk(i, 0..digits[i] as usize, secret(seed, pp, leaf_index, i))
-            }),
+            chain_tips: core::array::from_fn(|i| chains.walk(i, 0..digits.get(i), secret(seed, pp, leaf_index, i))),
             randomness,
             merkle_proof: filler_path(seed, pp, leaf_index),
         })
