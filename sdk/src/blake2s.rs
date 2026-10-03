@@ -7,7 +7,7 @@
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
 /// The parameter block says: no key, a 32-byte digest, so `0x0101_0020` is folded into the first lane.
-const IV: [u64; 4] = [
+pub(crate) const IV: [u64; 4] = [
     0xBB67_AE85_6A09_E667 ^ 0x0101_0020,
     0xA54F_F53A_3C6E_F372,
     0x9B05_688C_510E_527F,
@@ -141,6 +141,24 @@ impl Blake2s {
         // SAFETY: eight words are readable and writable as their 64 bytes.
         unsafe { &mut *(&raw mut self.m).cast() }
     }
+}
+
+/// The block the instruction works on, in words.
+///
+/// ```text
+///     words 0..4    chaining value, read
+///     words 4..8    compression, written
+///     words 8..16   message, read
+/// ```
+///
+/// Aligned to its size, so word `k` is the cell at `base ^ 8k`.
+#[cfg(all(target_arch = "riscv64", target_os = "none"))]
+#[repr(C, align(128))]
+pub(crate) struct Block {
+    pub(crate) h: [u64; 4],
+    /// Written by the instruction before anything reads it.
+    pub(crate) out: core::mem::MaybeUninit<[u64; 4]>,
+    pub(crate) m: [u64; 8],
 }
 
 /// The compression of a message block onto a chaining value, `t` bytes into the message:
