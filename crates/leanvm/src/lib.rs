@@ -261,9 +261,10 @@ pub mod recursion {
 }
 
 /// Aggregation trees: leanVM proofs of one program at the leaves, a lift node verifying each in a recursion proof,
-/// and nodes each verifying `arity` recursion proofs with one circuit, up to a root [`aggregate::Tree::verify`]
-/// checks against the leaves' outputs. Every proof of a tree carries constant-size claims on the program and the
-/// circuits, which each node reduces and only the root's verifier evaluates.
+/// a first level of nodes each verifying `arity` lifts, and nodes above it each verifying `arity` nodes with one
+/// circuit, up to a root [`aggregate::Tree::verify`] checks against the leaves' outputs. Every proof of a tree
+/// carries constant-size claims on the program and the circuits, which each node reduces and only the root's
+/// verifier evaluates.
 pub mod aggregate {
     use super::{Error, Program, Proof, Prover, Rate, VerifyError};
     pub use leanvm_core::rec::tree::{Kind, TreeError, TreeProof, TreeStatement, tree_digest};
@@ -307,11 +308,11 @@ pub mod aggregate {
             Ok(self.0.prove_lift(&self.inner(leaf, output)?)?)
         }
 
-        /// Prove a node over `arity` children, in order.
+        /// Prove a node over `arity` children, in order: lifts, or nodes of either kind.
         ///
         /// # Errors
         ///
-        /// The wrong number of children, or a child that does not verify.
+        /// The wrong number of children, children of two levels, or a child that does not verify.
         pub fn prove_node(&self, _prover: &Prover, children: &[TreeProof]) -> Result<TreeProof, Error> {
             Ok(self.0.prove_node(children)?)
         }

@@ -77,7 +77,7 @@ pub fn run(program: &str, n: usize, leaves: usize, arity: usize, prover: &Prover
     println!("  proving                     : {}", secs(&leaf_time));
     println!("  verifying                   : {}", ms(&leaf_verify));
     println!(
-        "tree setup (both circuits, the fixed polynomials): {} s",
+        "tree setup (the three circuits, the fixed polynomials): {} s",
         pretty_f64(setup)
     );
 
@@ -89,20 +89,38 @@ pub fn run(program: &str, n: usize, leaves: usize, arity: usize, prover: &Prover
     report("lift node", &tree, Kind::Lift, &lift, &lift_time, &lift_verify);
 
     let children = vec![lift; arity];
+    let (first, first_time) = plan.warm_then_measure(|last| {
+        let _quiet = (!last).then(bench::suppress_tracing);
+        tree.prove_node(prover, &children).expect("honest children")
+    });
+    let (_, first_verify) = quiet.measure_quiet(|_| tree.verify_proof(&first).expect("the node verifies"));
+    report(
+        &format!("first-level node, arity {arity}"),
+        &tree,
+        Kind::First,
+        &first,
+        &first_time,
+        &first_verify,
+    );
+    let (_, settle) = quiet.measure_quiet(|_| tree.verify(&first, &vec![output; arity]).expect("a root"));
+    println!("  as a root, with its claims  : {}", ms(&settle));
+
+    let children = vec![first; arity];
     let (node, node_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
         tree.prove_node(prover, &children).expect("honest children")
     });
     let (_, node_verify) = quiet.measure_quiet(|_| tree.verify_proof(&node).expect("the node verifies"));
     report(
-        &format!("node, arity {arity}"),
+        &format!("node over nodes, arity {arity}"),
         &tree,
         Kind::Node,
         &node,
         &node_time,
         &node_verify,
     );
-    let (_, settle) = quiet.measure_quiet(|_| tree.verify(&node, &vec![output; arity]).expect("a root"));
+    let outputs = vec![output; arity * arity];
+    let (_, settle) = quiet.measure_quiet(|_| tree.verify(&node, &outputs).expect("a root"));
     println!("  as a root, with its claims  : {}", ms(&settle));
 
     let leaf_proofs = vec![(&proof, output); leaves];

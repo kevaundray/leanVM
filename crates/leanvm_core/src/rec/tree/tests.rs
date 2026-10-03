@@ -36,9 +36,17 @@ fn a_tree_verifies_and_refuses_forgeries() {
     let lift = tree.prove_lift(&leaf).expect("an honest leaf");
     tree.verify(&lift, &[output]).expect("a lift is the root of one leaf");
     let node = tree.prove_node(&[lift.clone(), lift.clone()]).expect("honest children");
+    assert_eq!(node.statement.kind, Kind::First);
+    tree.verify(&node, &[output; 2])
+        .expect("a first-level node is the root of two leaves");
     let root = tree.prove_node(&[node.clone(), node.clone()]).expect("honest children");
+    assert_eq!(root.statement.kind, Kind::Node);
     let outputs = [output; 4];
     tree.verify(&root, &outputs).expect("the root verifies");
+    let above = tree
+        .prove_node(&[root.clone(), node.clone()])
+        .expect("a node verifies either kind of node");
+    assert_eq!(above.statement.kind, Kind::Node);
 
     // The root's statement.
     let mut wrong = outputs;
@@ -83,7 +91,7 @@ fn a_tree_verifies_and_refuses_forgeries() {
     let mut forged_child = node.clone();
     forged_child.statement.matrices[0][1] += F192::ONE;
     assert!(matches!(
-        tree.prove_node(&[forged_child, node]),
+        tree.prove_node(&[forged_child, node.clone()]),
         Err(TreeError::Child { index: 0, .. })
     ));
     let other = Tree::new(&program, taus, log_inv_rate, 3, Rate::MIN).expect("a valid shape");
@@ -99,6 +107,22 @@ fn a_tree_verifies_and_refuses_forgeries() {
         tree.prove_node(std::slice::from_ref(&lift)),
         Err(TreeError::Arity { .. })
     ));
+    assert!(
+        matches!(
+            tree.prove_node(&[node.clone(), lift.clone()]),
+            Err(TreeError::Level { index: 1 })
+        ),
+        "a lift beside a node"
+    );
+    let mut relabeled = node.clone();
+    relabeled.statement.kind = Kind::Node;
+    assert!(
+        matches!(
+            tree.prove_node(&[node.clone(), relabeled]),
+            Err(TreeError::Child { index: 1, .. })
+        ),
+        "a first-level node stating another kind"
+    );
 
     // A forged leaf.
     let mut bad = InnerProof {
@@ -335,7 +359,6 @@ fn the_circuit_replays_a_recursion_proof() {
             cols: statement.cols.iter().map(|&x| b.free_e(x)).collect(),
             matrices: statement.matrices.iter().map(|m| m.map(|x| b.free_e(x))).collect(),
         };
-        let kind = b.k_to_e1(s.kind);
         let limbs = s.limbs(&mut b);
         let flat: Vec<Kw> = limbs.iter().flatten().copied().collect();
         let pi = chain_wires(&mut b, &flat);
@@ -345,13 +368,13 @@ fn the_circuit_replays_a_recursion_proof() {
         let child = child::verify_child(
             &mut b,
             &mut t,
-            &d.taus,
+            &d.taus[0],
             d.rate.log_inv_rate().into(),
             &limbs,
-            kind,
-            &d.fixed,
+            &[],
+            &d.fixed[0],
             columns,
-            FIXED,
+            LIFT_FIXED,
         );
         (b, child)
     };
@@ -367,7 +390,7 @@ fn the_circuit_replays_a_recursion_proof() {
     assert_eq!(values(&m.s_hat_v), native.form.s_hat_v);
     let (circuit, _, failures) = b.finish();
     assert!(failures.is_empty(), "{failures:?}");
-    let zero = TreeStatement::zero(tree.design.n_dense(), matrix_vars());
+    let zero = TreeStatement::zero(tree.design.n_dense(), matrix_vars(), Kind::Lift);
     assert!(
         circuit == build(Source::Shape, &zero, None).0.finish().0,
         "the shape builds the same circuit"

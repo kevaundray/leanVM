@@ -1,6 +1,7 @@
-//! The recursion circuits' fixed columns as one dense polynomial: each circuit's bus columns that the circuit fixes
-//! (`machine::fixed_columns`), stacked largest first at aligned offsets, and the lift's then the node's stack under
-//! one more variable, the proof's kind.
+//! The recursion circuits' fixed columns as dense polynomials: each circuit's bus columns that the circuit fixes
+//! (`machine::fixed_columns`), stacked largest first at aligned offsets. The lift's stack is a polynomial of its
+//! own; the two node circuits share their heights, so their stacks are one polynomial under one more variable, the
+//! node's kind bit (whether its children are nodes).
 
 use crate::rec::circuit::N_TABLES;
 use crate::rec::machine::{self, Fixed};
@@ -25,11 +26,6 @@ impl FixedLayout {
             offsets,
             omega: crate::log2_ceil_usize(placed.max(1)),
         }
-    }
-
-    /// The fixed polynomial's variables: one circuit's stack, then the kind.
-    pub const fn n_vars(&self) -> usize {
-        self.omega + 1
     }
 
     /// One circuit's stack of its fixed columns' `values`, zero between them.

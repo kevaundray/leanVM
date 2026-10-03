@@ -163,12 +163,15 @@
 \newcommand{\slotkey}{\mathsf{key}}       % the bus key a recursion slot pulls at
 \newcommand{\slotnext}{\mathsf{next}}     % the key of the next slot of the slot's wire, where it pushes
 \newcommand{\rlift}{\mathfrak{L}}         % the lift circuit: verifies one leanVM proof
-\newcommand{\rnode}{\mathfrak{N}}         % the node circuit: verifies a tree's arity of recursion proofs
+\newcommand{\rfirst}{\mathfrak{F}}        % the first-level node circuit: verifies a tree's arity of lifts
+\newcommand{\rnode}{\mathfrak{N}}         % the node circuit: verifies a tree's arity of nodes
 \newcommand{\arity}{k_{\mathrm{tree}}}   % a node's number of children
-\newcommand{\taufix}{\tau^{\star}}       % the heights the lift and the node share
-\newcommand{\rkind}{\mathsf{kind}}       % a tree proof's kind, 0 for a lift and 1 for a node
+\newcommand{\taulift}{\tau^{\rlift}}     % the lift's heights
+\newcommand{\taufix}{\tau^{\star}}       % the heights the two node circuits share
+\newcommand{\rkind}{\mathsf{kind}}       % a tree proof's kind: 0 for a lift, 2 for a first-level node, 3 for a node
 \newcommand{\tdig}{\mathsf{dig}}         % a tree proof's digest of its leaves' outputs
-\newcommand{\fixpoly}{\mathsf{W}}        % the fixed polynomial: the lift's and the node's fixed bus columns
+\newcommand{\fixlift}{\mathsf{W}_{\rlift}} % the lift's fixed bus columns, stacked
+\newcommand{\fixnode}{\mathsf{W}_{\rnode}} % the two node circuits' fixed bus columns, stacked under the kind bit
 \newcommand{\fixdim}{\omega_{\mathrm{fix}}} % log2 of one circuit's stack of fixed columns
 \newcommand{\bctab}{\mathsf{T}_{\mathrm{bc}}} % the stacked bytecode table as a polynomial
 \newcommand{\imgpoly}{\mathsf{I}}        % RAM's image, zero padded to a power of two

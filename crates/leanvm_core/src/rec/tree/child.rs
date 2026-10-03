@@ -22,8 +22,8 @@ use crate::rec::transcript::Transcript;
 use crate::witness::Placement;
 use primitives::field::{F64, F192};
 
-/// What verifying a child leaves: its `Hash` table's matrix claim, the claim on the fixed polynomial (of the
-/// dense polynomials, number `poly`), the transcript's final state, and the table sumcheck's target, which the
+/// What verifying a child leaves: its `Hash` table's matrix claim, the claim on its circuit's fixed polynomial (of
+/// the dense polynomials, number `poly`), the transcript's final state, and the table sumcheck's target, which the
 /// native verifier derives from the bus with the fixed columns evaluated.
 pub struct Child {
     pub matrix: MatrixClaim,
@@ -48,8 +48,9 @@ struct FixedTerm {
 }
 
 /// Verify a recursion proof of heights `taus` and rate `log_inv_rate`, read by `t` (seeded with its statement),
-/// whose statement is the words `statement`, each given as its limbs, and whose kind is `kind`. `columns` are the
-/// child's fixed columns, which only the prover holds; `poly` names the fixed polynomial among the dense ones.
+/// whose statement is the words `statement`, each given as its limbs. `columns` are the child's fixed columns,
+/// which only the prover holds, at `fixed` in the dense polynomial `poly`, under the coordinates `top` that name
+/// its circuit there.
 #[expect(
     clippy::too_many_arguments,
     reason = "a child's shape, statement and kind, each its own input"
@@ -60,7 +61,7 @@ pub fn verify_child(
     taus: &[usize; N_TABLES],
     log_inv_rate: usize,
     statement: &[Vec<Kw>],
-    kind: Ew,
+    top: &[Ew],
     fixed: &FixedLayout,
     columns: Option<&[Vec<F64>]>,
     poly: usize,
@@ -155,7 +156,7 @@ pub fn verify_child(
     for term in fixed_terms.iter_mut().filter(|term| term.side == 1) {
         term.coef = b.mul(term.coef, xi);
     }
-    let fixed_claim = fixed_claim(b, fixed, taus, &zeta, kind, &fixed_terms, columns, poly);
+    let fixed_claim = fixed_claim(b, fixed, taus, &zeta, top, &fixed_terms, columns, poly);
     let target = b.mul_add(xi, totals[1], totals[0]);
     let target = b.add(target, fixed_claim.value);
 
@@ -232,8 +233,8 @@ fn statement_mle(b: &mut Builder, statement: &[Vec<Kw>], zeta: &[Ew], weights: &
     zeta[s_log..].iter().fold(sum, |acc, &z| times_one_plus(b, acc, z))
 }
 
-/// The fixed columns' terms as one claim on the fixed polynomial, its value a hint the prover computes from
-/// `columns`.
+/// The fixed columns' terms as one claim on the fixed polynomial, under the coordinates `top`, its value a hint the
+/// prover computes from `columns`.
 #[expect(
     clippy::too_many_arguments,
     reason = "the claim's point is the bus's, its terms the bus's coefficients"
@@ -243,7 +244,7 @@ fn fixed_claim(
     fixed: &FixedLayout,
     taus: &[usize; N_TABLES],
     zeta: &[Ew],
-    kind: Ew,
+    top: &[Ew],
     terms: &[FixedTerm],
     columns: Option<&[Vec<F64>]>,
     poly: usize,
@@ -266,7 +267,7 @@ fn fixed_claim(
                 coef: Some(term.coef),
                 n_low: tau,
                 bits: (0..fixed.omega - tau).map(|k| (sel >> k) & 1 == 1).collect(),
-                top: vec![kind],
+                top: top.to_vec(),
             }
         })
         .collect();
