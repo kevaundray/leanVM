@@ -4,10 +4,12 @@
 //!
 //! The machine moves a word in one instruction, and a byte-aligned value one byte at a time.
 
+use core::mem::MaybeUninit;
+
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
 /// The parameter block says: no key, a 32-byte digest, so `0x0101_0020` is folded into the first lane.
-const IV: [u64; 4] = [
+pub(crate) const IV: [u64; 4] = [
     0xBB67_AE85_6A09_E667 ^ 0x0101_0020,
     0xA54F_F53A_3C6E_F372,
     0x9B05_688C_510E_527F,
@@ -143,6 +145,214 @@ impl Blake2s {
     }
 }
 
+/// A one-block message of `W` words, hashed again and again: rewritten in place between hashes, where it changed.
+///
+/// Hashes of one shape write the words they share (a key, a prefix, the padding) once, not once per hash: the
+/// message stays in the block the instruction reads, which writes the compression and nothing else.
+pub struct Template<const W: usize> {
+    block: Block,
+}
+
+impl<const W: usize> Template<W> {
+    #[inline(always)]
+    pub fn new(words: [u64; W]) -> Self {
+        const { assert!(W <= 8, "a template is one block") };
+        let mut m = [0; 8];
+        m[..W].copy_from_slice(&words);
+        Self {
+            block: Block {
+                h: IV,
+                out: MaybeUninit::uninit(),
+                m,
+            },
+        }
+    }
+
+    /// Rewrite the message from word `at`.
+    #[inline(always)]
+    pub fn set<const N: usize>(&mut self, at: usize, words: [u64; N]) {
+        self.block.m[..W][at..at + N].copy_from_slice(&words);
+    }
+
+    /// Write `value` at byte `at` of the message: a field narrower than a word, or an offset already in bytes,
+    /// which then needs no shift to become an address as [`Self::set`]'s word index does.
+    #[inline(always)]
+    pub fn write<T: Plain>(&mut self, at: usize, value: T) {
+        assert!(
+            at.is_multiple_of(align_of::<T>()) && size_of::<T>() <= 8 * W && at <= 8 * W - size_of::<T>(),
+            "an aligned field inside the message"
+        );
+        // SAFETY: the field is inside the message and aligned (checked above), and `T` has no padding, so the
+        // message stays initialized words.
+        unsafe { self.block.m.as_mut_ptr().byte_add(at).cast::<T>().write(value) }
+    }
+
+    /// The digest of the message as it stands, as four little-endian words.
+    #[inline(always)]
+    pub fn digest(&mut self) -> [u64; 4] {
+        self.block.compress(8 * W as u64, true)
+    }
+}
+
+/// What [`Template::write`] takes: an integer or an array of them, whose bytes are all initialized.
+mod plain {
+    pub trait Plain: Copy {}
+    impl Plain for u8 {}
+    impl Plain for u16 {}
+    impl Plain for u32 {}
+    impl Plain for u64 {}
+    impl<T: Plain, const N: usize> Plain for [T; N] {}
+}
+use plain::Plain;
+
+/// BLAKE2s-256 of the words `write` puts in a [`Stream`], as four little-endian words.
+///
+/// The stream writes straight into the block the instruction reads, and its position stays in registers: the block
+/// is this call's, and the stream only borrows it. [`Blake2s`] copies its message into the instruction's block at
+/// each compression instead, which keeps a hasher that lives across calls in registers too.
+#[inline(always)]
+pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
+    let mut block = Block {
+        h: IV,
+        out: MaybeUninit::uninit(),
+        m: [0; 8],
+    };
+    let mut stream = Stream {
+        block: &mut block,
+        filled: 0,
+        done: 0,
+    };
+    write(&mut stream);
+    stream.finish()
+}
+
+/// A message being written for [`hash_with`], in words: each full block absorbed once more of it follows.
+pub struct Stream<'a> {
+    block: &'a mut Block,
+    /// Words in the message block.
+    filled: usize,
+    /// Bytes absorbed before it.
+    done: u64,
+}
+
+impl Stream<'_> {
+    /// Append words to the message.
+    #[inline(always)]
+    pub fn write<const N: usize>(&mut self, words: [u64; N]) -> &mut Self {
+        for word in words {
+            // A full block is absorbed only now, once more of the message is known to follow.
+            if self.filled == 8 {
+                self.absorb();
+            }
+            self.block.m[self.filled] = word;
+            self.filled += 1;
+        }
+        self
+    }
+
+    /// Append `count` arrays of words, `array(i)` for `i` in order: [`Self::write`] of each.
+    ///
+    /// Where `N` divides a block and the message is at a multiple of `N` words, the arrays go a block at a time: the
+    /// compiler unrolls a block's arrays, so their words go to fixed places, with no check that the block is full.
+    #[inline(always)]
+    pub fn write_each<const N: usize>(&mut self, count: usize, mut array: impl FnMut(usize) -> [u64; N]) -> &mut Self {
+        if !(const { N > 0 && 8 % N == 0 } && self.filled.is_multiple_of(N)) {
+            for i in 0..count {
+                self.write(array(i));
+            }
+            return self;
+        }
+        let mut i = 0;
+        // The rest of this block.
+        while self.filled < 8 && i < count {
+            self.put(array(i));
+            i += 1;
+        }
+        // Then whole blocks, the full one absorbed only once an array is known to follow.
+        while i < count {
+            self.absorb();
+            if i + 8 / N <= count {
+                for j in 0..8 / N {
+                    self.put(array(i + j));
+                }
+                i += 8 / N;
+            } else {
+                while i < count {
+                    self.put(array(i));
+                    i += 1;
+                }
+            }
+        }
+        self
+    }
+
+    /// Write words where the block has room for them.
+    #[inline(always)]
+    fn put<const N: usize>(&mut self, words: [u64; N]) {
+        self.block.m[self.filled..self.filled + N].copy_from_slice(&words);
+        self.filled += N;
+    }
+
+    /// Absorb the full message block, which more of the message follows.
+    #[inline(always)]
+    fn absorb(&mut self) {
+        self.done += 64;
+        self.block.h = self.block.compress(self.done, false);
+        self.filled = 0;
+    }
+
+    /// The digest: the last block zero-padded, the counter every byte of the message.
+    #[inline(always)]
+    fn finish(&mut self) -> [u64; 4] {
+        for (j, word) in self.block.m.iter_mut().enumerate() {
+            if j >= self.filled {
+                *word = 0;
+            }
+        }
+        self.block.compress(self.done + 8 * self.filled as u64, true)
+    }
+}
+
+/// The block the instruction works on, in words.
+///
+/// ```text
+///     words 0..4    chaining value, read
+///     words 4..8    compression, written
+///     words 8..16   message, read
+/// ```
+///
+/// Aligned to its size, so word `k` is the cell at `base ^ 8k`.
+#[repr(C, align(128))]
+pub(crate) struct Block {
+    pub(crate) h: [u64; 4],
+    /// Written by the instruction before anything reads it.
+    pub(crate) out: MaybeUninit<[u64; 4]>,
+    pub(crate) m: [u64; 8],
+}
+
+impl Block {
+    /// The compression of `m` onto `h`, in place, `t` bytes into the message.
+    #[inline(always)]
+    // The instruction writes `out`; off the VM the portable compression only reads the block.
+    #[cfg_attr(
+        not(all(target_arch = "riscv64", target_os = "none")),
+        allow(clippy::needless_pass_by_ref_mut)
+    )]
+    fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: the block is this borrow's, its chaining value and message initialized; the instruction writes
+        // the compression.
+        unsafe {
+            crate::precompile::blake2s_compress_in_place(self, t, last);
+            self.out.assume_init()
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        {
+            portable::compress(&self.h, &self.m, t, last)
+        }
+    }
+}
+
 /// The compression of a message block onto a chaining value, `t` bytes into the message:
 /// the machine's instruction on the VM, portable Rust elsewhere.
 #[inline(always)]
@@ -226,5 +436,265 @@ mod portable {
         // The new chaining value `h ^ v_lo ^ v_hi`, packed back into words.
         let word = |i: usize| u64::from(lane(h, i) ^ v[i] ^ v[i + 8]);
         core::array::from_fn(|k| word(2 * k) | word(2 * k + 1) << 32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use primitives::test_rng::Rng;
+
+    /// The reference BLAKE2s-256 of `bytes`, as little-endian words.
+    fn reference(bytes: &[u8]) -> [u64; 4] {
+        let digest = primitives::hash::hash(bytes);
+        core::array::from_fn(|k| u64::from_le_bytes(digest[8 * k..8 * k + 8].try_into().unwrap()))
+    }
+
+    /// A template and the bytes its message should be, rewritten together.
+    struct Mirror<const W: usize> {
+        template: Template<W>,
+        bytes: [u8; 64],
+    }
+
+    impl<const W: usize> Mirror<W> {
+        fn new(words: [u64; W]) -> Self {
+            let mut bytes = [0; 64];
+            for (k, word) in words.iter().enumerate() {
+                bytes[8 * k..8 * k + 8].copy_from_slice(&word.to_le_bytes());
+            }
+            Self {
+                template: Template::new(words),
+                bytes,
+            }
+        }
+
+        fn put(&mut self, at: usize, le: &[u8]) {
+            self.bytes[at..at + le.len()].copy_from_slice(le);
+        }
+
+        fn check(&mut self) {
+            let expected = reference(&self.bytes[..8 * W]);
+            assert_eq!(self.template.digest(), expected, "{W} words");
+            assert_eq!(self.template.digest(), expected, "hashing leaves the message as it was");
+        }
+    }
+
+    fn hashes_its_message<const W: usize>(rng: &mut Rng) {
+        Mirror::<W>::new(core::array::from_fn(|_| rng.next_u64())).check();
+    }
+
+    #[test]
+    fn a_template_is_the_blake2s_of_its_message() {
+        // Invariant: a template of `W` words hashes as BLAKE2s-256 of those `8W` bytes, the empty message included.
+        let mut rng = Rng::new(0x7E3);
+        hashes_its_message::<0>(&mut rng);
+        hashes_its_message::<1>(&mut rng);
+        hashes_its_message::<2>(&mut rng);
+        hashes_its_message::<3>(&mut rng);
+        hashes_its_message::<4>(&mut rng);
+        hashes_its_message::<5>(&mut rng);
+        hashes_its_message::<6>(&mut rng);
+        hashes_its_message::<7>(&mut rng);
+        hashes_its_message::<8>(&mut rng);
+    }
+
+    /// A random offset of a `size`-byte field, aligned to its size and inside a message of `W` words.
+    fn offset<const W: usize>(rng: &mut Rng, size: usize) -> usize {
+        rng.next_u64() as usize % (8 * W / size) * size
+    }
+
+    fn rewrites<const W: usize>(rng: &mut Rng) {
+        let mut mirror = Mirror::<W>::new(core::array::from_fn(|_| rng.next_u64()));
+        mirror.check();
+        for _ in 0..256 {
+            let value = rng.next_u64();
+            match rng.next_u64() % 7 {
+                0 => {
+                    let at = offset::<W>(rng, 8) / 8;
+                    mirror.template.set(at, [value]);
+                    mirror.put(8 * at, &value.to_le_bytes());
+                }
+                1 => {
+                    let at = offset::<W>(rng, 8) / 8;
+                    let at = at.min(W - 2);
+                    mirror.template.set(at, [value, !value]);
+                    mirror.put(8 * at, &value.to_le_bytes());
+                    mirror.put(8 * at + 8, &(!value).to_le_bytes());
+                }
+                2 => {
+                    let at = offset::<W>(rng, 1);
+                    mirror.template.write(at, value as u8);
+                    mirror.put(at, &[value as u8]);
+                }
+                3 => {
+                    let at = offset::<W>(rng, 2);
+                    mirror.template.write(at, value as u16);
+                    mirror.put(at, &(value as u16).to_le_bytes());
+                }
+                4 => {
+                    let at = offset::<W>(rng, 4);
+                    mirror.template.write(at, value as u32);
+                    mirror.put(at, &(value as u32).to_le_bytes());
+                }
+                5 => {
+                    let at = offset::<W>(rng, 8);
+                    mirror.template.write(at, value);
+                    mirror.put(at, &value.to_le_bytes());
+                }
+                _ => {
+                    // A digest-sized field at any word, not only at a multiple of its size.
+                    let at = offset::<W>(rng, 8).min(8 * W - 16);
+                    mirror.template.write(at, [value, !value]);
+                    mirror.put(at, &value.to_le_bytes());
+                    mirror.put(at + 8, &(!value).to_le_bytes());
+                }
+            }
+            mirror.check();
+        }
+        // The last field of each width ends at the message's end, and is inside it.
+        mirror.template.write(8 * W - 1, 0xA5u8);
+        mirror.put(8 * W - 1, &[0xA5]);
+        mirror.template.write(8 * W - 2, 0xA55Au16);
+        mirror.put(8 * W - 2, &0xA55Au16.to_le_bytes());
+        mirror.template.write(8 * W - 4, 0xA55A_5AA5u32);
+        mirror.put(8 * W - 4, &0xA55A_5AA5u32.to_le_bytes());
+        mirror.check();
+    }
+
+    #[test]
+    fn a_rewritten_template_is_the_blake2s_of_its_new_message() {
+        // Invariant: after any run of `set`s and `write`s, a template hashes the message those leave, as bytes in
+        // little-endian words; hashing leaves the message as it was.
+        //
+        // Fixture: the chain step's shape (6 words), a whole block, and two words; a field of every width.
+        let mut rng = Rng::new(0x7E4);
+        rewrites::<2>(&mut rng);
+        rewrites::<6>(&mut rng);
+        rewrites::<8>(&mut rng);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_a_misaligned_field() {
+        Template::new([0; 6]).write(2, 0u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_a_field_past_the_message_inside_the_block() {
+        // Words 6 and 7 of the block are padding, not the message.
+        Template::new([0; 6]).write(48, 0u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_a_field_wider_than_the_message() {
+        Template::new([0; 1]).write(0, [0u64; 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "an aligned field inside the message")]
+    fn write_rejects_an_offset_whose_end_would_wrap() {
+        Template::new([0; 6]).write(usize::MAX, 0u8);
+    }
+
+    /// The reference BLAKE2s-256 of up to 256 words, as little-endian bytes.
+    fn reference_of_words(words: &[u64]) -> [u64; 4] {
+        let mut bytes = [0; 8 * 256];
+        for (k, word) in words.iter().enumerate() {
+            bytes[8 * k..8 * k + 8].copy_from_slice(&word.to_le_bytes());
+        }
+        reference(&bytes[..8 * words.len()])
+    }
+
+    /// `hash_with` of `words`: the first `prefix` one at a time, then `N` at a time, the rest one at a time.
+    fn in_pieces<const N: usize>(words: &[u64], prefix: usize) -> [u64; 4] {
+        hash_with(|s| {
+            let (head, rest) = words.split_at(prefix);
+            for &word in head {
+                s.write([word]);
+            }
+            let (pieces, tail) = rest.as_chunks::<N>();
+            for &piece in pieces {
+                s.write(piece);
+            }
+            for &word in tail {
+                s.write([word]);
+            }
+        })
+    }
+
+    #[test]
+    fn hash_with_is_the_blake2s_of_its_words() {
+        // Invariant: whatever the pieces it is written in, `hash_with` hashes as BLAKE2s-256 of the words' bytes.
+        //
+        // Fixture: every length from the empty message through one block, one block and a word, to five blocks, each
+        // starting its pieces at every offset within a block, so that pieces straddle every block boundary.
+        let mut rng = Rng::new(0x5E6);
+        let words: [u64; 40] = core::array::from_fn(|_| rng.next_u64());
+        for len in 0..=40 {
+            let message = &words[..len];
+            let expected = reference_of_words(message);
+            for prefix in 0..=len.min(8) {
+                let check = |digest, n| assert_eq!(digest, expected, "{len} words, {n} at a time after {prefix}");
+                check(in_pieces::<1>(message, prefix), 1);
+                check(in_pieces::<2>(message, prefix), 2);
+                check(in_pieces::<3>(message, prefix), 3);
+                check(in_pieces::<4>(message, prefix), 4);
+                check(in_pieces::<8>(message, prefix), 8);
+                check(in_pieces::<11>(message, prefix), 11);
+            }
+        }
+    }
+
+    /// `write_each` of `count` arrays of `N` words after `prefix` single words and before `suffix` more, against the
+    /// reference of the same words; the arrays must be asked for once each, in order.
+    fn writes_each<const N: usize>(words: &[u64; 256]) {
+        for prefix in 0..=8 {
+            for count in 0..=12 {
+                for suffix in 0..=2 {
+                    let len = prefix + N * count + suffix;
+                    let mut next = 0;
+                    let digest = hash_with(|s| {
+                        for &word in &words[..prefix] {
+                            s.write([word]);
+                        }
+                        s.write_each(count, |i| {
+                            assert_eq!(i, next, "arrays asked for in order");
+                            next += 1;
+                            core::array::from_fn::<_, N, _>(|k| words[prefix + N * i + k])
+                        });
+                        for &word in &words[prefix + N * count..len] {
+                            s.write([word]);
+                        }
+                    });
+                    assert_eq!(next, count, "each array asked for once");
+                    assert_eq!(
+                        digest,
+                        reference_of_words(&words[..len]),
+                        "{count} arrays of {N} words after {prefix}, then {suffix}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn write_each_puts_each_array_where_write_would() {
+        // Invariant: `write_each(count, array)` is `write(array(i))` for `i` in order, whether it takes the block at a
+        // time path (`N` divides 8 and the message is at a multiple of `N`) or the word at a time one.
+        //
+        // Fixture: arrays of every width dividing a block, and of 3, 5 and 16 words, which do not; empty arrays; every
+        // starting offset in a block, up to 12 arrays (several blocks), then nothing or more words.
+        let mut rng = Rng::new(0x5E7);
+        let words = core::array::from_fn(|_| rng.next_u64());
+        writes_each::<0>(&words);
+        writes_each::<1>(&words);
+        writes_each::<2>(&words);
+        writes_each::<3>(&words);
+        writes_each::<4>(&words);
+        writes_each::<5>(&words);
+        writes_each::<8>(&words);
+        writes_each::<16>(&words);
     }
 }
