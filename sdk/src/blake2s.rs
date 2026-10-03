@@ -205,6 +205,114 @@ mod plain {
 }
 use plain::Plain;
 
+/// BLAKE2s-256 of the words `write` puts in a [`Stream`], as four little-endian words.
+///
+/// The stream writes straight into the block the instruction reads, and its position stays in registers: the block
+/// is this call's, and the stream only borrows it. [`Blake2s`] copies its message into the instruction's block at
+/// each compression instead, which keeps a hasher that lives across calls in registers too.
+#[inline(always)]
+pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
+    let mut block = Block {
+        h: IV,
+        out: MaybeUninit::uninit(),
+        m: [0; 8],
+    };
+    let mut stream = Stream {
+        block: &mut block,
+        filled: 0,
+        done: 0,
+    };
+    write(&mut stream);
+    stream.finish()
+}
+
+/// A message being written for [`hash_with`], in words: each full block absorbed once more of it follows.
+pub struct Stream<'a> {
+    block: &'a mut Block,
+    /// Words in the message block.
+    filled: usize,
+    /// Bytes absorbed before it.
+    done: u64,
+}
+
+impl Stream<'_> {
+    /// Append words to the message.
+    #[inline(always)]
+    pub fn write<const N: usize>(&mut self, words: [u64; N]) -> &mut Self {
+        for word in words {
+            // A full block is absorbed only now, once more of the message is known to follow.
+            if self.filled == 8 {
+                self.absorb();
+            }
+            self.block.m[self.filled] = word;
+            self.filled += 1;
+        }
+        self
+    }
+
+    /// Append `count` arrays of words, `array(i)` for `i` in order: [`Self::write`] of each.
+    ///
+    /// Where `N` divides a block and the message is at a multiple of `N` words, the arrays go a block at a time: the
+    /// compiler unrolls a block's arrays, so their words go to fixed places, with no check that the block is full.
+    #[inline(always)]
+    pub fn write_each<const N: usize>(&mut self, count: usize, mut array: impl FnMut(usize) -> [u64; N]) -> &mut Self {
+        if !(const { N > 0 && 8 % N == 0 } && self.filled.is_multiple_of(N)) {
+            for i in 0..count {
+                self.write(array(i));
+            }
+            return self;
+        }
+        let mut i = 0;
+        // The rest of this block.
+        while self.filled < 8 && i < count {
+            self.put(array(i));
+            i += 1;
+        }
+        // Then whole blocks, the full one absorbed only once an array is known to follow.
+        while i < count {
+            self.absorb();
+            if i + 8 / N <= count {
+                for j in 0..8 / N {
+                    self.put(array(i + j));
+                }
+                i += 8 / N;
+            } else {
+                while i < count {
+                    self.put(array(i));
+                    i += 1;
+                }
+            }
+        }
+        self
+    }
+
+    /// Write words where the block has room for them.
+    #[inline(always)]
+    fn put<const N: usize>(&mut self, words: [u64; N]) {
+        self.block.m[self.filled..self.filled + N].copy_from_slice(&words);
+        self.filled += N;
+    }
+
+    /// Absorb the full message block, which more of the message follows.
+    #[inline(always)]
+    fn absorb(&mut self) {
+        self.done += 64;
+        self.block.h = self.block.compress(self.done, false);
+        self.filled = 0;
+    }
+
+    /// The digest: the last block zero-padded, the counter every byte of the message.
+    #[inline(always)]
+    fn finish(&mut self) -> [u64; 4] {
+        for (j, word) in self.block.m.iter_mut().enumerate() {
+            if j >= self.filled {
+                *word = 0;
+            }
+        }
+        self.block.compress(self.done + 8 * self.filled as u64, true)
+    }
+}
+
 /// The block the instruction works on, in words.
 ///
 /// ```text
@@ -488,5 +596,105 @@ mod tests {
     #[should_panic(expected = "an aligned field inside the message")]
     fn write_rejects_an_offset_whose_end_would_wrap() {
         Template::new([0; 6]).write(usize::MAX, 0u8);
+    }
+
+    /// The reference BLAKE2s-256 of up to 256 words, as little-endian bytes.
+    fn reference_of_words(words: &[u64]) -> [u64; 4] {
+        let mut bytes = [0; 8 * 256];
+        for (k, word) in words.iter().enumerate() {
+            bytes[8 * k..8 * k + 8].copy_from_slice(&word.to_le_bytes());
+        }
+        reference(&bytes[..8 * words.len()])
+    }
+
+    /// `hash_with` of `words`: the first `prefix` one at a time, then `N` at a time, the rest one at a time.
+    fn in_pieces<const N: usize>(words: &[u64], prefix: usize) -> [u64; 4] {
+        hash_with(|s| {
+            let (head, rest) = words.split_at(prefix);
+            for &word in head {
+                s.write([word]);
+            }
+            let (pieces, tail) = rest.as_chunks::<N>();
+            for &piece in pieces {
+                s.write(piece);
+            }
+            for &word in tail {
+                s.write([word]);
+            }
+        })
+    }
+
+    #[test]
+    fn hash_with_is_the_blake2s_of_its_words() {
+        // Invariant: whatever the pieces it is written in, `hash_with` hashes as BLAKE2s-256 of the words' bytes.
+        //
+        // Fixture: every length from the empty message through one block, one block and a word, to five blocks, each
+        // starting its pieces at every offset within a block, so that pieces straddle every block boundary.
+        let mut rng = Rng::new(0x5E6);
+        let words: [u64; 40] = core::array::from_fn(|_| rng.next_u64());
+        for len in 0..=40 {
+            let message = &words[..len];
+            let expected = reference_of_words(message);
+            for prefix in 0..=len.min(8) {
+                let check = |digest, n| assert_eq!(digest, expected, "{len} words, {n} at a time after {prefix}");
+                check(in_pieces::<1>(message, prefix), 1);
+                check(in_pieces::<2>(message, prefix), 2);
+                check(in_pieces::<3>(message, prefix), 3);
+                check(in_pieces::<4>(message, prefix), 4);
+                check(in_pieces::<8>(message, prefix), 8);
+                check(in_pieces::<11>(message, prefix), 11);
+            }
+        }
+    }
+
+    /// `write_each` of `count` arrays of `N` words after `prefix` single words and before `suffix` more, against the
+    /// reference of the same words; the arrays must be asked for once each, in order.
+    fn writes_each<const N: usize>(words: &[u64; 256]) {
+        for prefix in 0..=8 {
+            for count in 0..=12 {
+                for suffix in 0..=2 {
+                    let len = prefix + N * count + suffix;
+                    let mut next = 0;
+                    let digest = hash_with(|s| {
+                        for &word in &words[..prefix] {
+                            s.write([word]);
+                        }
+                        s.write_each(count, |i| {
+                            assert_eq!(i, next, "arrays asked for in order");
+                            next += 1;
+                            core::array::from_fn::<_, N, _>(|k| words[prefix + N * i + k])
+                        });
+                        for &word in &words[prefix + N * count..len] {
+                            s.write([word]);
+                        }
+                    });
+                    assert_eq!(next, count, "each array asked for once");
+                    assert_eq!(
+                        digest,
+                        reference_of_words(&words[..len]),
+                        "{count} arrays of {N} words after {prefix}, then {suffix}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn write_each_puts_each_array_where_write_would() {
+        // Invariant: `write_each(count, array)` is `write(array(i))` for `i` in order, whether it takes the block at a
+        // time path (`N` divides 8 and the message is at a multiple of `N`) or the word at a time one.
+        //
+        // Fixture: arrays of every width dividing a block, and of 3, 5 and 16 words, which do not; empty arrays; every
+        // starting offset in a block, up to 12 arrays (several blocks), then nothing or more words.
+        let mut rng = Rng::new(0x5E7);
+        let words = core::array::from_fn(|_| rng.next_u64());
+        writes_each::<0>(&words);
+        writes_each::<1>(&words);
+        writes_each::<2>(&words);
+        writes_each::<3>(&words);
+        writes_each::<4>(&words);
+        writes_each::<5>(&words);
+        writes_each::<8>(&words);
+        writes_each::<16>(&words);
     }
 }

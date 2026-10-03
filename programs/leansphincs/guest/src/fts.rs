@@ -24,20 +24,23 @@ fn node(hash: &mut NodeHash, idx: u64, kappa: usize, level: usize, j: usize, lef
     )
 }
 
-/// `Fts.key`: the few-time public key, `Th` over the roots.
-fn key(pp: &PublicParam, idx: u64, roots: &[Digest; FTS_TREES]) -> Digest {
-    th::<{ 2 * FTS_TREES }>(
-        pp,
-        &tweak(TWEAK_FTS_ROOTS, 0, idx as u32, 0, 0),
-        roots.as_flattened().try_into().unwrap(),
-    )
+/// `Fts.key`: the few-time public key, `Th` over the roots, tree `kappa`'s being `root(kappa)`, each written into
+/// the hash as it is reached.
+#[inline(always)]
+fn key(pp: &PublicParam, idx: u64, root: impl FnMut(usize) -> Digest) -> Digest {
+    digest(hash_with(|m| {
+        m.write(tweak(TWEAK_FTS_ROOTS, 0, idx as u32, 0, 0))
+            .write(*pp)
+            .write_each(FTS_TREES, root);
+    }))
 }
 
 /// `Fts.recover`: the few-time key an opening of the leaves `u` reaches.
 pub(crate) fn recover(pp: &PublicParam, idx: u64, u: &[u32; K], opening: &[FtsOpening; FTS_TREES]) -> Digest {
-    let mut hash = NodeHash::new(pp);
-    // Each tree's root: its opened leaf folded up its path.
-    let roots = core::array::from_fn(|kappa| {
+    let hash = &mut NodeHash::new(pp);
+    // Each tree's root: its opened leaf folded up its path. The closure owns its copies of `idx` and the
+    // references, so they stay in registers across the compressions rather than being reloaded after each.
+    key(pp, idx, move |kappa| {
         let opened = u[kappa] as usize;
         let start = leaf(pp, idx, kappa, opened, &opening[kappa].secret);
         opening[kappa]
@@ -50,10 +53,9 @@ pub(crate) fn recover(pp: &PublicParam, idx: u64, u: &[u32; K], opening: &[FtsOp
                 } else {
                     (sibling, &current)
                 };
-                node(&mut hash, idx, kappa, level + 1, opened >> (level + 1), left, right)
+                node(hash, idx, kappa, level + 1, opened >> (level + 1), left, right)
             })
-    });
-    key(pp, idx, &roots)
+    })
 }
 
 /// `Fts.key` and `Fts.open` at once, each tree being built whole.
@@ -80,5 +82,5 @@ pub(crate) fn open(pp: &PublicParam, master: &[u64; 4], idx: u64, u: &[u32; K]) 
             path,
         }
     });
-    (key(pp, idx, &roots), opening)
+    (key(pp, idx, |kappa| roots[kappa]), opening)
 }

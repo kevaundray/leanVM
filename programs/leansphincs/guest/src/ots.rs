@@ -43,13 +43,15 @@ impl Chains {
     }
 }
 
-/// The Merkle leaf of a one-time key: `Th` over its `v` chain ends.
-pub(crate) fn leaf_hash(pp: &PublicParam, pos: Pos, ends: &[Digest; V]) -> Digest {
-    th::<{ 2 * V }>(
-        pp,
-        &tweak(TWEAK_LEAF, pos.lay, pos.tau, 0, pos.e),
-        ends.as_flattened().try_into().unwrap(),
-    )
+/// The Merkle leaf of a one-time key: `Th` over its `v` chain ends, chain `i`'s being `end(i)`, the chains in
+/// order, each written into the hash as it is reached.
+#[inline(always)]
+pub(crate) fn leaf_hash(pp: &PublicParam, pos: Pos, end: impl FnMut(usize) -> Digest) -> Digest {
+    digest(hash_with(|m| {
+        m.write(tweak(TWEAK_LEAF, pos.lay, pos.tau, 0, pos.e))
+            .write(*pp)
+            .write_each(V, end);
+    }))
 }
 
 /// A codeword: `v` chunks of `w` bits, 21 to a word, where each chain is opened.
@@ -122,9 +124,8 @@ pub(crate) fn leaf(pp: &PublicParam, pos: Pos, message: &Digest, counter: u32, o
     // Chain `i` was opened at value `x_i`: walk it the rest of the way to value 7.
     let mut chains = Chains::new(pp, pos);
     let mut next_digit = digits.in_order();
-    let ends = core::array::from_fn(|i| {
+    Some(leaf_hash(pp, pos, |i| {
         let start = next_digit();
         chains.walk(i, start, CHAIN_LEN - 1 - start, ots[i])
-    });
-    Some(leaf_hash(pp, pos, &ends))
+    }))
 }

@@ -24,7 +24,7 @@ mod sign;
 
 pub use sign::{SecretKey, SignError, key_gen};
 
-use leanvm_guest::{Blake2s, Template};
+use leanvm_guest::{Blake2s, Template, hash_with};
 
 /// A hash value: 128 bits.
 pub type Digest = [u64; 2];
@@ -129,17 +129,14 @@ pub fn verify(
     let pp = &pk.public_param;
     // The digits say where each chain was opened.
     let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(VerifyError::InvalidEncoding)?;
-    // Walk each chain the rest of the way: chain `i` from value `digit_i` to value 7.
+    // Walk each chain the rest of the way, chain `i` from value `digit_i` to value 7: its end is the leaf's.
     let mut chains = Chains::new(pp, leaf_index);
     let mut next_digit = digits.in_order();
-    let ends = core::array::from_fn(|i| chains.walk(i, next_digit()..CHAIN_LENGTH - 1, signature.chain_tips[i]));
+    let leaf = wots_leaf(pp, leaf_index, |i| {
+        chains.walk(i, next_digit()..CHAIN_LENGTH - 1, signature.chain_tips[i])
+    });
     // The chain ends are the one-time public key: its leaf, folded up to the root.
-    let root = merkle_root(
-        pp,
-        leaf_index,
-        wots_leaf(pp, leaf_index, &ends),
-        &signature.merkle_proof,
-    );
+    let root = merkle_root(pp, leaf_index, leaf, &signature.merkle_proof);
     if root == pk.merkle_root {
         Ok(())
     } else {
@@ -163,18 +160,11 @@ fn tweak(ty: u8, position: u32, index: u32) -> [u64; 2] {
 }
 
 /// BLAKE2s of `tweak | pp | payload`, cut to a digest.
-///
-/// Inlined with its length known, a call folds to the words it hashes and the compressions.
 #[inline(always)]
 fn tweak_hash<const N: usize>(pp: &PublicParam, ty: u8, position: u32, index: u32, payload: &[u64; N]) -> Digest {
-    let mut hasher = Blake2s::new();
-    hasher
-        .update_words(&tweak(ty, position, index))
-        .update_words(pp)
-        .update_words(payload);
-    // A digest is the first 16 bytes of the 32.
-    let digest = hasher.finalize_words();
-    [digest[0], digest[1]]
+    digest(hash_with(|message| {
+        message.write(tweak(ty, position, index)).write(*pp).write(*payload);
+    }))
 }
 
 /// A digest is the first 16 bytes of the 32.
@@ -276,15 +266,15 @@ impl Chains {
     }
 }
 
-/// The Merkle leaf of a one-time key: its 42 chain ends in one hash, 11 compressions.
-fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, ends: &[Digest; V]) -> Digest {
-    tweak_hash::<{ 2 * V }>(
-        pp,
-        TWEAK_WOTS_PK,
-        0,
-        leaf_index,
-        ends.as_flattened().try_into().unwrap(),
-    )
+/// The Merkle leaf of a one-time key, `tweak | pp | ends`: chain `i`'s end `end(i)`, the chains in order, in one hash.
+#[inline(always)]
+fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, end: impl FnMut(usize) -> Digest) -> Digest {
+    digest(hash_with(|message| {
+        message
+            .write(tweak(TWEAK_WOTS_PK, 0, leaf_index))
+            .write(*pp)
+            .write_each(V, end);
+    }))
 }
 
 /// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`.

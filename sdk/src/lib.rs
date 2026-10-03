@@ -25,7 +25,7 @@
 mod blake2s;
 pub mod ext;
 mod io;
-pub use blake2s::{Blake2s, Template};
+pub use blake2s::{Blake2s, Stream, Template, hash_with};
 pub use io::{PublicValues, Words, as_words_unchecked};
 
 // Reading, committing, the entry point and the precompiles exist on the VM only.

@@ -194,8 +194,9 @@ impl SecretKey {
 /// The leaf of a one-time key: every chain walked to its end.
 fn public_leaf(pp: &PublicParam, master: &[u64; 4], pos: Pos) -> Digest {
     let mut chains = ots::Chains::new(pp, pos);
-    let ends = core::array::from_fn(|i| chains.walk(i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i)));
-    ots::leaf_hash(pp, pos, &ends)
+    ots::leaf_hash(pp, pos, |i| {
+        chains.walk(i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i))
+    })
 }
 
 /// Replace a band of nodes at a level by their parents, in place.

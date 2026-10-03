@@ -40,8 +40,9 @@ pub fn key_gen(seed: [u8; 32], leaf_index: LeafIndex) -> (SecretKey, PublicKey) 
     let pp = &public_param;
     // The one real leaf: every chain walked from its start to its end.
     let mut chains = Chains::new(pp, leaf_index);
-    let ends = core::array::from_fn(|i| chains.walk(i, 0..CHAIN_LENGTH - 1, secret(&seed, pp, leaf_index, i)));
-    let leaf = wots_leaf(pp, leaf_index, &ends);
+    let leaf = wots_leaf(pp, leaf_index, |i| {
+        chains.walk(i, 0..CHAIN_LENGTH - 1, secret(&seed, pp, leaf_index, i))
+    });
     // Its path is all fillers, which the root is the fold of.
     let merkle_root = merkle_root(pp, leaf_index, leaf, &filler_path(&seed, pp, leaf_index));
     let public_key = PublicKey {
