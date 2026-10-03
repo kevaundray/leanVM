@@ -15,7 +15,7 @@ use crate::pcs;
 use crate::rv::{self, Machine, Region};
 use crate::tables::{self, CLOCK_START, CYCLE, MAX_CYCLES};
 use ::pcs::pack::PACKING_WIDTH;
-use fiat_shamir::transcript::{Challenger, Proof, ProverState, RawProof, VerifierState};
+use fiat_shamir::transcript::{Challenger, Proof, ProverState, VerifierState};
 use primitives::field::{F64, F192};
 
 /// A validated program, its fill blocks, and the digest of everything public about it.
@@ -294,27 +294,10 @@ impl Program {
     /// # Errors
     ///
     /// Returns the first stage that refuses the proof.
-    pub fn verify(&self, output: &[u64; 4], proof: &Proof) -> Result<(), CpuError> {
-        self.replay(output, proof, false).map(|_| ())
-    }
-
-    /// Verify a proof, and return it with every query's Merkle path written out, the form the Python verifier reads.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first stage that refuses the proof.
-    pub fn verify_to_raw(&self, output: &[u64; 4], proof: &Proof) -> Result<RawProof, CpuError> {
-        self.replay(output, proof, true).map(VerifierState::into_raw_proof)
-    }
-
-    /// Verify a proof, and return the transcript it was read through, which keeps the unpruned openings if `record`.
     #[tracing::instrument(name = "Verify", skip_all)]
-    fn replay<'p>(&self, output: &[u64; 4], proof: &'p Proof, record: bool) -> Result<VerifierState<'p>, CpuError> {
+    pub fn verify(&self, output: &[u64; 4], proof: &Proof) -> Result<(), CpuError> {
         // The public statement seeds the transcript, as on the prover's side.
         let mut vs = VerifierState::new(self.fs_seed(), proof, output.map(F64));
-        if record {
-            vs = vs.recording();
-        }
 
         // The announced sizes, then the layout they describe, then the commitment.
         let announcement = Announcement::read(&mut vs)?;
@@ -378,7 +361,7 @@ impl Program {
         // The one opening, then nothing may be left on the stream.
         pcs::verify(&mut vs, &slots, &rings, l.shape, announcement.log_inv_rate, &root).map_err(CpuError::Open)?;
         vs.finish()?;
-        Ok(vs)
+        Ok(())
     }
 
     /// The decoded text, memory image and region sizes.
