@@ -4,10 +4,18 @@
 //! ```text
 //! BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=20 cargo bench -p flock --bench arithmetic_batch -- mul_wrapping
 //! ```
+//!
+//! With `--json` it prints, in place of the reports, each operation's proving time (witness
+//! excluded, as in `hash_batch`) as Bencher Metric Format JSON, for CI: benchmark
+//! `flock-<operation>-batch-<n>` (`flock-mul-wrapping-batch-262144`), measure `latency`.
+//!
+//! ```text
+//! FLOCK_N_LOG=18 cargo bench -p flock --bench arithmetic_batch -- --json
+//! ```
 
 use std::time::Instant;
 
-use bench::{Plan, Timing};
+use bench::{Metric, Plan, Timing, bencher_json};
 use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
 use flock::arith::{U64Circuit, U64Op};
 use flock::reduction::{min_n_blocks_log, ring_switch_open, ring_switch_verify};
@@ -21,19 +29,31 @@ use primitives::{field::F64, pretty_integer, test_rng::Rng};
 /// none. `cargo bench` passes flags of its own (`--bench`), which are skipped.
 fn main() {
     bench::init_tracing_from_env();
+    let json = std::env::args().any(|arg| arg == "--json");
     let filters: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
+    let mut report = Vec::new();
     for (name, op) in [
         ("add_wrapping", U64Op::WrappingAdd),
         ("mul_wrapping", U64Op::WrappingMul),
         ("mul_widening", U64Op::WideningMul),
     ] {
         if filters.is_empty() || filters.iter().any(|f| name.contains(f.as_str())) {
-            bench(op);
+            let (n, prove) = bench(op, json);
+            let name = name.replace('_', "-");
+            report.push((
+                format!("flock-{name}-batch-{n}"),
+                vec![("latency", Metric::nanoseconds(&prove))],
+            ));
         }
+    }
+    if json {
+        println!("{}", bencher_json(&report));
     }
 }
 
-fn bench(op: U64Op) {
+/// Proves `op`'s batch, printing its report unless `quiet`, and returns the batch size and the
+/// proving time, witness excluded.
+fn bench(op: U64Op, quiet: bool) -> (usize, Timing) {
     let (title, unit) = match op {
         U64Op::WrappingAdd => ("Wrapping u64 addition", "sums"),
         U64Op::WrappingMul => ("Wrapping u64 multiplication", "products"),
@@ -78,6 +98,7 @@ fn bench(op: U64Op) {
         assert_eq!(q_flock.len(), 1 << mu);
 
         let mut ps = ProverState::from_label(&label);
+        let t_prove = Instant::now();
 
         let t = Instant::now();
         let (commitment, prover_data) = commit(q_flock, mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0);
@@ -105,14 +126,18 @@ fn bench(op: U64Op) {
             std::slice::from_ref(&ring),
         );
         let open_s = t.elapsed().as_secs_f64();
+        let prove_s = t_prove.elapsed().as_secs_f64();
 
         let proof = ps.into_proof();
         let pass_s = t_pass.elapsed().as_secs_f64();
-        (proof, [witness_s, commit_s, zerocheck_s, lincheck_s, open_s, pass_s])
+        (
+            proof,
+            [witness_s, commit_s, zerocheck_s, lincheck_s, open_s, prove_s, pass_s],
+        )
     };
 
     let plan = Plan::from_env();
-    let mut stages: [Timing; 6] = std::array::from_fn(|_| Timing::default());
+    let mut stages: [Timing; 7] = std::array::from_fn(|_| Timing::default());
     let (transcript, _) = plan.warm_then_measure(|final_pass| {
         let _quiet = (!final_pass).then(bench::suppress_tracing);
         let (out, secs) = prove_pass();
@@ -122,7 +147,7 @@ fn bench(op: U64Op) {
         out
     });
     // The warmup pass also pushed a sample; drop the leading one per stage.
-    let [witness, commit_stage, zerocheck, lincheck, open, pass] = stages.map(|t| {
+    let [witness, commit_stage, zerocheck, lincheck, open, prove, pass] = stages.map(|t| {
         let mut kept = Timing::default();
         for &s in &t.samples()[1..] {
             kept.push(s);
@@ -150,6 +175,9 @@ fn bench(op: U64Op) {
         );
         vs.finish().expect("transcript fully consumed");
     });
+    if quiet {
+        return (n, prove);
+    }
 
     let pass_s = pass.mean();
     let share = |s: f64| format!("{:>5.1}%", 100.0 * s / pass_s);
@@ -182,6 +210,7 @@ fn bench(op: U64Op) {
         pass_s * 1e3,
         pass.spread()
     );
+    println!("  prove (witness excluded)        : {}", ms(&prove));
     println!(
         "  verify                          : {:>8.1} ms",
         verify_time.mean() * 1e3
@@ -191,4 +220,5 @@ fn bench(op: U64Op) {
         pretty_integer(&((n as f64 / pass_s).round() as u64)),
         pass.spread()
     );
+    (n, prove)
 }
