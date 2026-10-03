@@ -38,7 +38,7 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 
 - **Pick the hashing form by what repeats.** A hash repeated in one shape (a chain step, a tree node) is a `Template`: the instruction writes only the compression, so the words the next hash shares (the IV, the parameter, the padding) stay in its block and each hash writes only what changed. Any other message stays on `Blake2s`, which copies its message into a fresh block at each compression: that is what keeps a long-lived hasher's state in registers, and a hasher owning its block loses it, since once the instruction has its address the compiler neither removes copies of it nor folds what it holds.
 
-- A field narrower than a word is `Template::write` at a byte offset: a word index costs a shift to become an address. A tweak's position is a 32-bit field, so a leanXMSS chain step rewrites it with one `sw`.
+- A field narrower than a word, or a slot picked at run time, is `Template::write` at a byte offset: a word index costs a shift to become an address. A tweak's position and index are 32-bit fields, so a hash that changes only those writes two `sw`s. leanXMSS's Merkle path is unrolled this way, its child and sibling placed by the level's bit with no branch.
 
 - rv64im has no carry-less multiply, so leanDA's membership check uses the extension-field precompile: one `extmack` per symbol, `sum += L_x * w_x` with `L_x` in `E` and `w_x` in `K` (`leanvm_guest::ext::mul_add_base`). An unrolled loop measured worse: LLVM strength-reduces it into more pointer updates than it saves.
 

@@ -287,22 +287,36 @@ fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, ends: &[Digest; V]) -> Dig
     )
 }
 
-/// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`, in one
-/// block kept across levels.
+/// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`.
+///
+/// Unrolled, so each level's tweak position and shifts are constants and the loop bookkeeping is gone. Across levels
+/// only the tweak's position and index fields change, so each is one 32-bit store.
 fn merkle_root(pp: &PublicParam, leaf_index: LeafIndex, leaf: Digest, path: &[Digest; LOG_LIFETIME]) -> Digest {
-    let mut node = Template::new([0, 0, pp[0], pp[1], 0, 0, 0, 0]);
-    path.iter().enumerate().fold(leaf, |child, (level, sibling)| {
-        // The child's index at this level: its low bit says which side it is on.
-        let index = u64::from(leaf_index) >> level;
-        let ([c0, c1], [s0, s1]) = (child, *sibling);
-        let children = if index & 1 == 0 {
-            [c0, c1, s0, s1]
-        } else {
-            [s0, s1, c0, c1]
-        };
-        // The parent is at the next level up, and half the index.
-        node.set(0, tweak(TWEAK_MERKLE, (level + 1) as u32, (index >> 1) as u32));
-        node.set(PAYLOAD, children);
-        digest(node.digest())
-    })
+    const { assert!(LOG_LIFETIME == 32, "one node a level below") };
+    let [t0, t1] = tweak(TWEAK_MERKLE, 0, 0);
+    let mut node = Template::new([t0, t1, pp[0], pp[1], 0, 0, 0, 0]);
+    let (bits, mut child) = (u64::from(leaf_index), leaf);
+    macro_rules! levels {
+        ($($level:literal)*) => { $( child = merkle_node::<$level>(&mut node, bits, child, &path[$level]); )* };
+    }
+    levels!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31);
+    child
+}
+
+/// Bytes 12..16 of a tweak: its index.
+const TWEAK_INDEX: usize = 12;
+
+/// The parent of `child` at level `LEVEL`, the leaves being level 0, and its `sibling`, `bits` the leaf index.
+///
+/// Bit `LEVEL` of the leaf index is the child's side: the child and the sibling go to the slots it picks, with no
+/// branch. The side is kept in bytes, a multiple of a word, so turning it into an address takes no shift.
+#[inline(always)]
+fn merkle_node<const LEVEL: usize>(node: &mut Template<8>, bits: u64, child: Digest, sibling: &Digest) -> Digest {
+    let side = (bits << 4 >> LEVEL & 16) as usize;
+    // The parent is at the next level up, at half the index.
+    node.write(TWEAK_POSITION, (LEVEL + 1) as u32);
+    node.write(TWEAK_INDEX, (bits >> (LEVEL + 1)) as u32);
+    node.write(8 * PAYLOAD + side, child);
+    node.write(8 * PAYLOAD + 16 - side, *sibling);
+    digest(node.digest())
 }
