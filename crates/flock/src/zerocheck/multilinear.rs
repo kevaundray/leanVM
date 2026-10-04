@@ -220,6 +220,8 @@ impl<'a> PackedWitness<'a> {
 }
 
 /// The folded `a`, `b`, `c` values of up to 64 consecutive positions.
+///
+/// A task folds every block into one of these, so no block pays for zeroing or moving its tables.
 struct FoldedBlock {
     a: [F192; BLOCK],
     b: [F192; BLOCK],
@@ -227,19 +229,19 @@ struct FoldedBlock {
 }
 
 impl FoldedBlock {
-    /// Fold positions `first..first + len` of each witness.
+    const ZERO: Self = Self {
+        a: [F192::ZERO; BLOCK],
+        b: [F192::ZERO; BLOCK],
+        c: [F192::ZERO; BLOCK],
+    };
+
+    /// Fold positions `first..first + len` of each witness into the first `len` values.
     #[inline(always)]
-    fn new<const CHUNKS: usize>(fold: &BitFold, rows: [&[[u8; CHUNKS]]; 3], first: usize, len: usize) -> Self {
-        let mut block = Self {
-            a: [F192::ZERO; BLOCK],
-            b: [F192::ZERO; BLOCK],
-            c: [F192::ZERO; BLOCK],
-        };
+    fn fold<const CHUNKS: usize>(&mut self, fold: &BitFold, rows: [&[[u8; CHUNKS]]; 3], first: usize, len: usize) {
         let [a, b, c] = rows;
-        fold.fold_block(&a[first..first + len], &mut block.a);
-        fold.fold_block(&b[first..first + len], &mut block.b);
-        fold.fold_block(&c[first..first + len], &mut block.c);
-        block
+        fold.fold_block(&a[first..first + len], &mut self.a);
+        fold.fold_block(&b[first..first + len], &mut self.b);
+        fold.fold_block(&c[first..first + len], &mut self.c);
     }
 }
 
@@ -390,6 +392,7 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
         || [F192::ZERO; 8],
         |hi| {
             let mut acc = [F192Unreduced::ZERO; 8];
+            let mut f = FoldedBlock::ZERO;
             // Sixteen quads per folded block.
             for lo_first in (0..lo_size).step_by(BLOCK / 4) {
                 let n = (lo_size - lo_first).min(BLOCK / 4);
@@ -398,7 +401,7 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
                 if !(quad_first..quad_first + n).any(live) {
                     continue;
                 }
-                let f = FoldedBlock::new(fold, rows, 4 * quad_first, 4 * n);
+                f.fold(fold, rows, 4 * quad_first, 4 * n);
                 for i in 0..n {
                     let quad = |t: &[F192; BLOCK]| -> [F192; 4] { t[4 * i..4 * i + 4].try_into().expect("a quad") };
                     let [lo, hi] = quad_pair_terms(quad(&f.a), quad(&f.b), quad(&f.c));
@@ -457,6 +460,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
             let [oa, ob, oc] = chunks.map(|ch| unsafe { ch.get(hi) });
             let stream = Stream::new();
+            let mut f = FoldedBlock::ZERO;
             let mut g1_acc = F192Unreduced::ZERO;
             let mut ginf_acc = F192Unreduced::ZERO;
             // Thirty-two pairs per folded block.
@@ -471,7 +475,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
                     }
                     continue;
                 }
-                let f = FoldedBlock::new(fold, rows, 2 * pair_first, o_len);
+                f.fold(fold, rows, 2 * pair_first, o_len);
 
                 // Four pairs per step: every product is one lane of a quad.
                 let mut i = 0;

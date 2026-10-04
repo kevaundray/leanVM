@@ -274,10 +274,10 @@ pub mod gfni {
     pub const OUT_BYTES: usize = 24;
 
     /// One butterfly stage: registers `z` and `z | zbit` exchange bytes through two permutes.
+    ///
+    /// The caller passes `zbit` as a constant of its unrolled loop, so the registers never leave the register file.
     #[derive(Clone, Copy, Debug)]
     struct Stage {
-        /// The register-index bit the stage pairs on.
-        zbit: usize,
         /// Byte sources of the low register of each pair; bit 6 picks the high one.
         lo: [u8; 64],
         /// Byte sources of the high register of each pair.
@@ -285,23 +285,23 @@ pub mod gfni {
     }
 
     impl Stage {
-        /// Swap byte-offset bit `fbit` with register bit `zbit`, then permute each output by `sigma`.
+        /// Swap byte-offset bit `fbit` with the register bit the stage is applied on, then permute each output by `sigma`.
         ///
         /// Output offset `f` takes the byte the plain swap leaves at offset `sigma(f)`.
-        fn swap(fbit: usize, zbit: usize, sigma: impl Fn(usize) -> usize) -> Self {
+        fn swap(fbit: usize, sigma: impl Fn(usize) -> usize) -> Self {
             // The plain swap: a byte keeps its offset except bit `fbit`, which trades places with the register bit.
             let lo = |f: usize| if f & fbit == 0 { f } else { 64 | (f ^ fbit) };
             let hi = |f: usize| if f & fbit == 0 { f | fbit } else { 64 | f };
             Self {
-                zbit,
                 lo: std::array::from_fn(|f| lo(sigma(f)) as u8),
                 hi: std::array::from_fn(|f| hi(sigma(f)) as u8),
             }
         }
 
+        /// Exchange bytes between registers `z` and `z | zbit`, for every `z` with that bit clear.
         #[inline]
         #[target_feature(enable = "avx512f", enable = "avx512vbmi")]
-        fn apply(&self, regs: &mut [__m512i]) {
+        fn apply<const N: usize>(&self, zbit: usize, regs: &mut [__m512i; N]) {
             // SAFETY: both index arrays are 64 bytes.
             let (lo, hi) = unsafe {
                 (
@@ -309,10 +309,12 @@ pub mod gfni {
                     _mm512_loadu_si512(self.hi.as_ptr().cast()),
                 )
             };
-            for z in (0..regs.len()).filter(|z| z & self.zbit == 0) {
-                let (u, w) = (regs[z], regs[z | self.zbit]);
+            for k in 0..N / 2 {
+                // Pair `k` with a zero inserted at bit `zbit`.
+                let z = (k & (zbit - 1)) | ((k & !(zbit - 1)) << 1);
+                let (u, w) = (regs[z], regs[z | zbit]);
                 regs[z] = _mm512_permutex2var_epi8(u, lo, w);
-                regs[z | self.zbit] = _mm512_permutex2var_epi8(u, hi, w);
+                regs[z | zbit] = _mm512_permutex2var_epi8(u, hi, w);
             }
         }
 
@@ -330,15 +332,13 @@ pub mod gfni {
                 place(self.lo[f], f);
                 place(self.hi[f], 64 | f);
             }
-            Self {
-                zbit: self.zbit,
-                lo,
-                hi,
-            }
+            Self { lo, hi }
         }
     }
 
     /// Stages taking eight registers of one output coefficient, register = byte `o` and offset = value `p`, to qwords.
+    ///
+    /// Stage `s` pairs on register bit `s`.
     ///
     /// ```text
     ///     after the stages     offset = (o, then p bits 0..3)     register = p bits 3..6
@@ -347,7 +347,7 @@ pub mod gfni {
     /// So register `k`, qword `l` is the coefficient of value `8k + l`.
     static OUTPUT_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
         let to_qwords = |f: usize| (f >> 3) | ((f & 7) << 3);
-        [0, 1, 2].map(|s| Stage::swap(8 << s, 1 << s, |f| if s == 2 { to_qwords(f) } else { f }))
+        [0, 1, 2].map(|s| Stage::swap(8 << s, |f| if s == 2 { to_qwords(f) } else { f }))
     });
 
     /// [`OUTPUT_STAGES`] undone: eight registers of one coefficient's qwords back to one register per byte.
@@ -365,12 +365,15 @@ pub mod gfni {
     #[target_feature(enable = "avx512f", enable = "avx512vbmi")]
     pub fn store_f192(acc: &[__m512i; OUT_BYTES], out: &mut [F192; BLOCK]) {
         // Per coefficient, eight registers of output bytes become eight registers of qwords.
-        let [mut c0, mut c1, mut c2]: [[__m512i; 8]; 3] =
-            std::array::from_fn(|i| std::array::from_fn(|o| acc[8 * i + o]));
-        for stage in OUTPUT_STAGES.iter() {
-            stage.apply(&mut c0);
-            stage.apply(&mut c1);
-            stage.apply(&mut c2);
+        let [mut c0, mut c1, mut c2] = [[_mm512_setzero_si512(); 8]; 3];
+        for o in 0..8 {
+            (c0[o], c1[o], c2[o]) = (acc[o], acc[8 + o], acc[16 + o]);
+        }
+        let stages = &*OUTPUT_STAGES;
+        for s in 0..3 {
+            stages[s].apply(1 << s, &mut c0);
+            stages[s].apply(1 << s, &mut c1);
+            stages[s].apply(1 << s, &mut c2);
         }
 
         // Interleave the three coefficients of values 8k..8k+8 into 24 consecutive qwords.
@@ -439,9 +442,11 @@ pub mod gfni {
             }
         };
         let mut c: [[__m512i; 8]; 3] = std::array::from_fn(|i| std::array::from_fn(|k| split(i, k)));
-        for stage in INPUT_STAGES.iter() {
+        // The inverses run in reverse order, so stage `s` pairs on register bit `2 - s`.
+        let stages = &*INPUT_STAGES;
+        for s in 0..3 {
             for coefficient in &mut c {
-                stage.apply(coefficient);
+                stages[s].apply(4 >> s, coefficient);
             }
         }
         std::array::from_fn(|r| c[r / 8][r % 8])
@@ -517,7 +522,7 @@ pub mod gfni {
     pub(super) struct Imp {
         /// `matrices[24 r + o]` maps register `r` of the input transpose to output byte `o`.
         matrices: Vec<u64>,
-        /// Stages taking row-major bytes to one register per input byte.
+        /// Stages taking row-major bytes to one register per input byte; stage `s` pairs on register bit `s + skew`.
         input: Vec<Stage>,
     }
 
@@ -545,7 +550,7 @@ pub mod gfni {
             let input = (0..n_stages)
                 .map(|s| {
                     let last = s + 1 == n_stages;
-                    Stage::swap(1 << s, 1 << (s + skew), |f| if last { plain(f) } else { f })
+                    Stage::swap(1 << s, |f| if last { plain(f) } else { f })
                 })
                 .collect();
 
@@ -623,11 +628,16 @@ pub mod gfni {
         fn fold_full<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK], out: &mut [F192; BLOCK]) {
             // Phase 1: CHUNKS registers of 64 bytes, row-major, then one register per input byte.
             let base = rows.as_ptr().cast::<u8>();
-            // SAFETY: the block is 64 * CHUNKS bytes, exactly CHUNKS registers.
-            let mut regs: [__m512i; CHUNKS] =
-                std::array::from_fn(|i| unsafe { _mm512_loadu_si512(base.add(64 * i).cast()) });
-            for stage in &self.input {
-                stage.apply(&mut regs);
+            let mut regs = [_mm512_setzero_si512(); CHUNKS];
+            for (i, r) in regs.iter_mut().enumerate() {
+                // SAFETY: the block is 64 * CHUNKS bytes, exactly CHUNKS registers.
+                *r = unsafe { _mm512_loadu_si512(base.add(64 * i).cast()) };
+            }
+            // Constants of CHUNKS, so the stage loop unrolls with each stage's register bit known.
+            let c = CHUNKS.trailing_zeros() as usize;
+            let skew = c.saturating_sub(6);
+            for s in 0..c.min(6) {
+                self.input[s].apply(1 << (s + skew), &mut regs);
             }
 
             // Phase 2: every output byte accumulates one affine product per input register.
