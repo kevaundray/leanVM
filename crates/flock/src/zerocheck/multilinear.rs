@@ -193,29 +193,42 @@ fn split_eq(r: &[F192]) -> (Vec<F192>, Vec<F192>) {
     (build_eq(&r[..n_lo]), build_eq(&r[n_lo..]))
 }
 
-/// The packed `a`, `b`, `c` witnesses, 64 skip bits per row.
+/// The packed `a` and `b` witnesses, 64 skip bits per row.
+///
+/// The kernels never read `c`: an honest witness has `c = a AND b`, derived from the rows already loaded.
 #[derive(Clone, Copy, Debug)]
 pub struct PackedWitness<'a> {
     /// The `A z` bits.
     pub a: &'a [u8],
     /// The `B z` bits.
     pub b: &'a [u8],
-    /// The `C z` bits.
-    pub c: &'a [u8],
 }
 
 impl<'a> PackedWitness<'a> {
-    /// The three witnesses cut into rows of `CHUNKS` bytes, one per position at this level.
-    fn rows<const CHUNKS: usize>(self) -> [&'a [[u8; CHUNKS]]; 3] {
-        let rows = [self.a, self.b, self.c].map(|packed| {
+    /// The two witnesses cut into rows of `CHUNKS` bytes, one per position at this level.
+    fn rows<const CHUNKS: usize>(self) -> [&'a [[u8; CHUNKS]]; 2] {
+        let rows = [self.a, self.b].map(|packed| {
             let (rows, rest) = packed.as_chunks::<CHUNKS>();
             assert!(rest.is_empty(), "packed witness is whole rows");
             rows
         });
         let n_pos = rows[0].len();
-        assert!(rows.iter().all(|r| r.len() == n_pos), "a, b, c have one length");
+        assert_eq!(rows[1].len(), n_pos, "a and b have one length");
         assert!(n_pos.is_power_of_two(), "a power-of-two number of positions");
         rows
+    }
+}
+
+/// The `c = a AND b` rows of up to 64 positions, into the first `a.len()` rows of `c`.
+#[inline(always)]
+fn and_rows<const CHUNKS: usize>(a: &[[u8; CHUNKS]], b: &[[u8; CHUNKS]], c: &mut [[u8; CHUNKS]; BLOCK]) {
+    for ((c, a), b) in c
+        .as_flattened_mut()
+        .iter_mut()
+        .zip(a.as_flattened())
+        .zip(b.as_flattened())
+    {
+        *c = a & b;
     }
 }
 
@@ -237,11 +250,13 @@ impl FoldedBlock {
 
     /// Fold positions `first..first + len` of each witness into the first `len` values.
     #[inline(always)]
-    fn fold<const CHUNKS: usize>(&mut self, fold: &BitFold, rows: [&[[u8; CHUNKS]]; 3], first: usize, len: usize) {
-        let [a, b, c] = rows;
-        fold.fold_block(&a[first..first + len], &mut self.a);
-        fold.fold_block(&b[first..first + len], &mut self.b);
-        fold.fold_block(&c[first..first + len], &mut self.c);
+    fn fold<const CHUNKS: usize>(&mut self, fold: &BitFold, rows: [&[[u8; CHUNKS]]; 2], first: usize, len: usize) {
+        let [a, b] = rows.map(|r| &r[first..first + len]);
+        let mut c = [[0u8; CHUNKS]; BLOCK];
+        and_rows(a, b, &mut c);
+        fold.fold_block(a, &mut self.a);
+        fold.fold_block(b, &mut self.b);
+        fold.fold_block(&c[..len], &mut self.c);
     }
 }
 
@@ -787,7 +802,7 @@ mod planar {
     )]
     pub(super) fn quad_sums<const CHUNKS: usize>(
         fold: &BitFold,
-        rows: [&[[u8; CHUNKS]]; 3],
+        rows: [&[[u8; CHUNKS]]; 2],
         quad_first: usize,
         eq: &[F192x8],
         live: impl Fn(usize) -> bool,
@@ -800,8 +815,11 @@ mod planar {
             if !(q0..q0 + BLOCK / 4).any(&live) {
                 continue;
             }
-            let [pa, pb, pc] =
-                rows.map(|t| fold.fold_quads::<CHUNKS>(t[4 * q0..4 * q0 + BLOCK].try_into().expect("a block")));
+            let [ra, rb]: [&[[u8; CHUNKS]; BLOCK]; 2] =
+                rows.map(|t| t[4 * q0..4 * q0 + BLOCK].try_into().expect("a block"));
+            let mut rc = [[0u8; CHUNKS]; BLOCK];
+            super::and_rows(ra, rb, &mut rc);
+            let [pa, pb, pc] = [ra, rb, &rc].map(|t| fold.fold_quads::<CHUNKS>(t));
             for (g, &e) in eq.iter().enumerate() {
                 let at =
                     |p: &[[__m512i; 8]; 3], uv: usize| F192x8([p[0][uv + 4 * g], p[1][uv + 4 * g], p[2][uv + 4 * g]]);
@@ -1040,19 +1058,17 @@ mod tests {
         }
     }
 
-    /// A random `a, b, c` witness over `2^m` slots, bits and packed.
+    /// A random honest `a, b, c = a AND b` witness over `2^m` slots, bits and packed.
     fn random_witness(rng: &mut Rng, m: usize) -> ([Vec<bool>; 3], [Vec<u8>; 3]) {
-        let bits = [rng.bits(1 << m), rng.bits(1 << m), rng.bits(1 << m)];
+        let (a, b) = (rng.bits(1 << m), rng.bits(1 << m));
+        let c = a.iter().zip(&b).map(|(x, y)| x & y).collect();
+        let bits = [a, b, c];
         let packed = [0, 1, 2].map(|i| pack_bits(&bits[i]));
         (bits, packed)
     }
 
     fn packed(p: &[Vec<u8>; 3]) -> PackedWitness<'_> {
-        PackedWitness {
-            a: &p[0],
-            b: &p[1],
-            c: &p[2],
-        }
+        PackedWitness { a: &p[0], b: &p[1] }
     }
 
     /// The naive message of one round on stored tables: `(G(1), G(inf))` with `c` added to `G(1)`.

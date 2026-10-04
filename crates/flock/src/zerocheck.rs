@@ -51,7 +51,7 @@ pub const MIN_LOG_N: usize = K_SKIP + N_INNER;
 
 /// Passes over the packed bits, two rounds each, before the folded tables are stored.
 ///
-/// - A pass re-reads the three bit tables, `3 * 2^m` bits.
+/// - A pass re-reads the `a` and `b` bit tables, `2 * 2^m` bits; it derives `c = a AND b`.
 /// - Storing at level `t` writes three F192 tables, `3 * 192 * 2^(m - 6 - t)` bits, then reads them back.
 /// - On x86 a pass is bandwidth-bound, with GFNI or with the byte tables.
 /// - So storing pays once the tables are well below the bits: level 4, after two passes.
@@ -163,6 +163,8 @@ fn send_round(
 
 /// THE zerocheck prover entry: proves `a·b ⊕ c = 0` over the padded cube,
 /// leaving `(â, b̂, ĉ)` claimed at one point for lincheck to batch.
+///
+/// Only round 1 reads `c_packed`: the later passes derive `c = a AND b`, which an honest witness satisfies.
 pub fn prove_packed_padded(
     a_packed: &[u8],
     b_packed: &[u8],
@@ -224,7 +226,7 @@ pub fn prove_packed_padded(
     //
     // Level `t` is the round with `rho_1..rho_t` already bound.
     //
-    //     bits of a, b, c    1 bit per slot, 3 * 2^m bits in all
+    //     bits of a, b       1 bit per slot, 2 * 2^m bits in all; c = a AND b is derived, not read
     //     one F192 table     192 bits per slot, 2^(m - 6 - t) slots each
     //
     // While the tables would be larger than the bits, re-reading the bits is the cheaper pass.
@@ -237,7 +239,6 @@ pub fn prove_packed_padded(
     let bits = PackedWitness {
         a: a_packed,
         b: b_packed,
-        c: c_packed,
     };
     let lagrange = skip_lagrange_weights(k_skip, z);
     // The running claim, mirrored from the verifier (same round-1 values, same z).
