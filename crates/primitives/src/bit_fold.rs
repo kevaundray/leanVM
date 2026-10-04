@@ -11,9 +11,9 @@
 //! - Portable: a 256-entry subset-sum table per byte, one lookup per byte.
 //! - GFNI: an 8x8 bit matrix per (input byte, output byte), applied to 64 rows by one instruction.
 
-use primitives::field::F192;
+use crate::field::F192;
 
-use crate::zerocheck::univariate_skip::build_eq;
+use crate::multilinear::eq_table;
 
 #[cfg(not(all(
     target_arch = "x86_64",
@@ -21,7 +21,7 @@ use crate::zerocheck::univariate_skip::build_eq;
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 )))]
-use portable::Imp;
+use portable::{self as imp, Imp};
 
 #[cfg(all(
     target_arch = "x86_64",
@@ -29,7 +29,7 @@ use portable::Imp;
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use gfni::Imp;
+use gfni::{self as imp, Imp};
 
 /// Rows folded per call.
 pub const BLOCK: usize = 64;
@@ -77,7 +77,7 @@ impl BitFold {
     ///     w[64 u + s] = eq(rho, u) * L_s(z)        u in 0..2^t, s in 0..64
     /// ```
     pub fn at_level(lagrange: &[F192], rho: &[F192]) -> Self {
-        let weights: Vec<F192> = build_eq(rho)
+        let weights: Vec<F192> = eq_table(rho)
             .iter()
             .flat_map(|&e| lagrange.iter().map(move |&l| e * l))
             .collect();
@@ -95,6 +95,68 @@ impl BitFold {
         debug_assert_eq!(CHUNKS, self.n_chunks);
         assert!(rows.len() <= BLOCK);
         self.imp.fold_block(rows, out);
+    }
+}
+
+/// A GF(2)-linear map from F192 to F192, given by the image of each of its 192 coordinate bits.
+///
+/// It is [`BitFold`] on the 24 bytes of an F192, whose input transpose is the inverse of the output's.
+#[derive(Clone, Debug)]
+pub struct F192Map {
+    imp: Imp,
+}
+
+impl F192Map {
+    /// The map sending coordinate bit `b` (bit `b % 64` of coefficient `b / 64`) to `weights[b]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless there are 192 weights.
+    pub fn new(weights: &[F192]) -> Self {
+        assert_eq!(weights.len(), 192, "one weight per coordinate bit");
+        Self {
+            imp: Imp::new_f192(weights),
+        }
+    }
+
+    /// Add the image of each of `xs` to `out`.
+    #[inline]
+    pub fn apply_add(&self, xs: &[F192; BLOCK], out: &mut [F192]) {
+        assert!(out.len() <= BLOCK);
+        self.imp.apply_add_f192(xs, out);
+    }
+
+    /// The map `x -> self(x * c)`, itself GF(2)-linear.
+    pub fn after_mul(&self, c: F192) -> Self {
+        let mut weights = [F192::ZERO; 192];
+        for (chunk, w) in weights.chunks_mut(BLOCK).enumerate() {
+            let xs: [F192; BLOCK] = std::array::from_fn(|i| {
+                let bit = BLOCK * chunk + i;
+                let mut words = [0u64; 3];
+                words[bit / 64] = 1 << (bit % 64);
+                F192::new(words[0], words[1], words[2]) * c
+            });
+            self.apply_add(&xs, w);
+        }
+        Self::new(&weights)
+    }
+
+    /// Add the image of each value of `xs` to `out`.
+    #[inline]
+    pub fn apply_sliced_add(&self, xs: &Sliced, out: &mut [F192]) {
+        assert!(out.len() <= BLOCK);
+        self.imp.apply_sliced_add(&xs.0, out);
+    }
+}
+
+/// A block of values in the layout the map reads, so that a block mapped many times is transposed once.
+#[derive(Clone, Debug)]
+pub struct Sliced(imp::Sliced);
+
+impl Sliced {
+    /// The block `xs`.
+    pub fn new(xs: &[F192; BLOCK]) -> Self {
+        Self(Imp::slice(xs))
     }
 }
 
@@ -148,13 +210,40 @@ mod portable {
             }
         }
 
+        pub(super) fn new_f192(weights: &[F192]) -> Self {
+            Self::new(weights)
+        }
+
         #[inline]
         pub(super) fn fold_block<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]], out: &mut [F192; BLOCK]) {
             for (o, row) in out.iter_mut().zip(rows) {
                 *o = fold_row_lookup(&self.tables, row);
             }
         }
+
+        pub(super) fn slice(xs: &[F192; BLOCK]) -> Sliced {
+            *xs
+        }
+
+        #[inline]
+        pub(super) fn apply_sliced_add(&self, xs: &Sliced, out: &mut [F192]) {
+            self.apply_add_f192(xs, out);
+        }
+
+        #[inline]
+        pub(super) fn apply_add_f192(&self, xs: &[F192; BLOCK], out: &mut [F192]) {
+            for (o, x) in out.iter_mut().zip(xs) {
+                let mut row = [0u8; 24];
+                row[..8].copy_from_slice(&x.c0.to_le_bytes());
+                row[8..16].copy_from_slice(&x.c1.to_le_bytes());
+                row[16..].copy_from_slice(&x.c2.to_le_bytes());
+                *o += fold_row_lookup(&self.tables, &row);
+            }
+        }
     }
+
+    /// A block of values, as they are.
+    pub(super) type Sliced = [F192; BLOCK];
 }
 
 #[cfg(all(
@@ -163,7 +252,7 @@ mod portable {
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-pub(crate) mod gfni {
+pub mod gfni {
     //! The GFNI fold of 64 rows at a time.
     //!
     //! ```text
@@ -182,7 +271,7 @@ pub(crate) mod gfni {
     use super::{BLOCK, F192};
 
     /// Bytes of an F192.
-    pub(crate) const OUT_BYTES: usize = 24;
+    pub const OUT_BYTES: usize = 24;
 
     /// One butterfly stage: registers `z` and `z | zbit` exchange bytes through two permutes.
     #[derive(Clone, Copy, Debug)]
@@ -226,6 +315,27 @@ pub(crate) mod gfni {
                 regs[z | self.zbit] = _mm512_permutex2var_epi8(u, hi, w);
             }
         }
+
+        /// The stage undoing this one.
+        fn inverse(&self) -> Self {
+            let (mut lo, mut hi) = ([0u8; 64], [0u8; 64]);
+            let mut place = |src: u8, pos: usize| {
+                if src < 64 {
+                    lo[usize::from(src)] = pos as u8;
+                } else {
+                    hi[usize::from(src) - 64] = pos as u8;
+                }
+            };
+            for f in 0..64 {
+                place(self.lo[f], f);
+                place(self.hi[f], 64 | f);
+            }
+            Self {
+                zbit: self.zbit,
+                lo,
+                hi,
+            }
+        }
     }
 
     /// Stages taking eight registers of one output coefficient, register = byte `o` and offset = value `p`, to qwords.
@@ -240,10 +350,20 @@ pub(crate) mod gfni {
         [0, 1, 2].map(|s| Stage::swap(8 << s, 1 << s, |f| if s == 2 { to_qwords(f) } else { f }))
     });
 
+    /// [`OUTPUT_STAGES`] undone: eight registers of one coefficient's qwords back to one register per byte.
+    static INPUT_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
+        let [a, b, c] = &*OUTPUT_STAGES;
+        [c.inverse(), b.inverse(), a.inverse()]
+    });
+
     /// Store 24 registers of output bytes, register `o` holding byte `o` of 64 values, as those 64 values.
+    ///
+    /// # Safety
+    ///
+    /// The CPU must have the enabled target features.
     #[inline]
     #[target_feature(enable = "avx512f", enable = "avx512vbmi")]
-    pub(crate) fn store_f192(acc: &[__m512i; OUT_BYTES], out: &mut [F192; BLOCK]) {
+    pub fn store_f192(acc: &[__m512i; OUT_BYTES], out: &mut [F192; BLOCK]) {
         // Per coefficient, eight registers of output bytes become eight registers of qwords.
         let [mut c0, mut c1, mut c2]: [[__m512i; 8]; 3] =
             std::array::from_fn(|i| std::array::from_fn(|o| acc[8 * i + o]));
@@ -282,6 +402,51 @@ pub(crate) mod gfni {
         }
     }
 
+    /// Qword sources splitting 24 consecutive qwords of eight values into coefficient `i` of each value.
+    ///
+    /// Returns the two-register sources, the third-register sources, and the mask of lanes from the third.
+    const fn split_index(i: usize) -> ([i64; 8], [i64; 8], u8) {
+        let (mut lo, mut hi, mut mask) = ([0i64; 8], [0i64; 8], 0u8);
+        let mut l = 0;
+        while l < 8 {
+            let q = 3 * l + i;
+            if q < 16 {
+                lo[l] = q as i64;
+            } else {
+                hi[l] = (q - 16) as i64;
+                mask |= 1 << l;
+            }
+            l += 1;
+        }
+        (lo, hi, mask)
+    }
+
+    const SPLIT: [([i64; 8], [i64; 8], u8); 3] = [split_index(0), split_index(1), split_index(2)];
+
+    /// Load 64 values as 24 registers of bytes, register `o` holding byte `o` of every value: [`store_f192`] undone.
+    #[inline]
+    #[target_feature(enable = "avx512f", enable = "avx512vbmi")]
+    fn load_f192(xs: &[F192; BLOCK]) -> [__m512i; OUT_BYTES] {
+        let src = xs.as_ptr().cast::<u8>();
+        // Coefficient `i` of values 8k..8k+8, one qword each.
+        let split = |i: usize, k: usize| {
+            let (lo, hi, mask) = &SPLIT[i];
+            // SAFETY: values 8k..8k+8 are 192 bytes, three registers, and the index arrays are 64 bytes.
+            unsafe {
+                let v: [__m512i; 3] = std::array::from_fn(|r| _mm512_loadu_si512(src.add(192 * k + 64 * r).cast()));
+                let q = _mm512_permutex2var_epi64(v[0], _mm512_loadu_si512(lo.as_ptr().cast()), v[1]);
+                _mm512_mask_permutexvar_epi64(q, *mask, _mm512_loadu_si512(hi.as_ptr().cast()), v[2])
+            }
+        };
+        let mut c: [[__m512i; 8]; 3] = std::array::from_fn(|i| std::array::from_fn(|k| split(i, k)));
+        for stage in INPUT_STAGES.iter() {
+            for coefficient in &mut c {
+                stage.apply(coefficient);
+            }
+        }
+        std::array::from_fn(|r| c[r / 8][r % 8])
+    }
+
     /// Byte sources gathering byte `o` of eight weights into qword `o`, in reverse weight order.
     ///
     /// Output register `g`, qword `l`, byte `7 - s` takes byte `8g + l` of weight `s`, input byte `24 s + 8g + l`.
@@ -318,9 +483,13 @@ pub(crate) mod gfni {
     ///     1. gather     qword o  =  byte o of w_7, ..., w_0        (a byte transpose)
     ///     2. transpose  each qword as an 8x8 bit matrix           (an affine against the reversed identity)
     /// ```
+    ///
+    /// # Safety
+    ///
+    /// The CPU must have the enabled target features.
     #[inline]
     #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
-    pub(crate) fn weight_matrices(w: &[F192; 8]) -> [u64; OUT_BYTES] {
+    pub fn weight_matrices(w: &[F192; 8]) -> [u64; OUT_BYTES] {
         let src = w.as_ptr().cast::<u8>();
         // SAFETY: eight weights are 192 bytes, exactly three registers.
         let v: [__m512i; 3] = std::array::from_fn(|i| unsafe { _mm512_loadu_si512(src.add(64 * i).cast()) });
@@ -339,6 +508,9 @@ pub(crate) mod gfni {
         }
         out
     }
+
+    /// A block of values, one register per byte.
+    pub(super) type Sliced = [__m512i; OUT_BYTES];
 
     /// The GFNI matrices and the input transpose.
     #[derive(Clone, Debug)]
@@ -387,6 +559,51 @@ pub(crate) mod gfni {
             Self { matrices, input }
         }
 
+        pub(super) fn new_f192(weights: &[F192]) -> Self {
+            let bytes: &[[F192; 8]] = weights.as_chunks().0;
+            // SAFETY: the module is compiled only with these target features enabled.
+            let matrices = bytes.iter().flat_map(|b| unsafe { weight_matrices(b) }).collect();
+            Self {
+                matrices,
+                input: Vec::new(),
+            }
+        }
+
+        pub(super) fn slice(xs: &[F192; BLOCK]) -> Sliced {
+            // SAFETY: the module is compiled only with these target features enabled.
+            unsafe { load_f192(xs) }
+        }
+
+        #[inline]
+        pub(super) fn apply_add_f192(&self, xs: &[F192; BLOCK], out: &mut [F192]) {
+            self.apply_sliced_add(&Self::slice(xs), out);
+        }
+
+        #[inline]
+        pub(super) fn apply_sliced_add(&self, regs: &Sliced, out: &mut [F192]) {
+            let mut image = [F192::ZERO; BLOCK];
+            // SAFETY: the module is compiled only with these target features enabled.
+            unsafe { self.map_regs(regs, &mut image) };
+            for (o, &y) in out.iter_mut().zip(&image) {
+                *o += y;
+            }
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
+        fn map_regs(&self, regs: &Sliced, out: &mut [F192; BLOCK]) {
+            let mut acc = [_mm512_setzero_si512(); OUT_BYTES];
+            let matrices: &[[u64; OUT_BYTES]] = self.matrices.as_chunks().0;
+            for (pair, m) in regs.as_chunks::<2>().0.iter().zip(matrices.as_chunks::<2>().0) {
+                for o in 0..OUT_BYTES {
+                    let g0 = _mm512_gf2p8affine_epi64_epi8::<0>(pair[0], _mm512_set1_epi64(m[0][o] as i64));
+                    let g1 = _mm512_gf2p8affine_epi64_epi8::<0>(pair[1], _mm512_set1_epi64(m[1][o] as i64));
+                    acc[o] = _mm512_ternarylogic_epi64::<0x96>(acc[o], g0, g1);
+                }
+            }
+            store_f192(&acc, out);
+        }
+
         #[inline]
         pub(super) fn fold_block<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]], out: &mut [F192; BLOCK]) {
             // A short block folds from a zero-padded copy.
@@ -433,7 +650,7 @@ pub(crate) mod gfni {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::test_util::Rng;
+    use crate::test_util::Rng;
 
     #[test]
     fn fold_block_matches_definition() {
@@ -466,5 +683,40 @@ mod tests {
         check::<32>(&mut rng);
         check::<64>(&mut rng);
         check::<128>(&mut rng);
+    }
+
+    #[test]
+    fn f192_map_matches_definition() {
+        let mut rng = Rng::new(0x0F19_23A9);
+        let weights: Vec<F192> = (0..192).map(|_| rng.ext()).collect();
+        let map = F192Map::new(&weights);
+        for len in [BLOCK, 7] {
+            let xs: [F192; BLOCK] = std::array::from_fn(|_| rng.ext());
+            let before: Vec<F192> = (0..len).map(|_| rng.ext()).collect();
+            let mut out = before.clone();
+            map.apply_add(&xs, &mut out);
+            for p in 0..len {
+                let words = [xs[p].c0, xs[p].c1, xs[p].c2];
+                let image = (0..192)
+                    .filter(|&b| words[b / 64] >> (b % 64) & 1 == 1)
+                    .fold(F192::ZERO, |acc, b| acc + weights[b]);
+                assert_eq!(out[p], before[p] + image, "len={len}, value {p}");
+            }
+        }
+    }
+
+    #[test]
+    fn composed_map_is_the_map_after_the_product() {
+        let mut rng = Rng::new(0xC0_4405E);
+        let weights: Vec<F192> = (0..192).map(|_| rng.ext()).collect();
+        let map = F192Map::new(&weights);
+        let c = rng.ext();
+        let composed = map.after_mul(c);
+        let xs: [F192; BLOCK] = std::array::from_fn(|_| rng.ext());
+        let mut expected = [F192::ZERO; BLOCK];
+        map.apply_add(&xs.map(|x| x * c), &mut expected);
+        let mut got = [F192::ZERO; BLOCK];
+        composed.apply_sliced_add(&Sliced::new(&xs), &mut got);
+        assert_eq!(got, expected);
     }
 }

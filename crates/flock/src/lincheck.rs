@@ -92,17 +92,17 @@
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use crate::zerocheck::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
+use core::arch::x86_64::*;
+use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
+use parallel::SendPtr;
+use pcs::ring_switch::inner_product_ext;
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "gfni",
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use core::arch::x86_64::*;
-use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
-use parallel::SendPtr;
-use pcs::ring_switch::inner_product_ext;
+use primitives::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
 use primitives::field::F192;
 #[cfg(target_arch = "aarch64")]
 use primitives::field::neon::xor3_u64;

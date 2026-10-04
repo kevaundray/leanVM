@@ -32,18 +32,18 @@
 
 use super::univariate_skip::{SplitEq, ntt_extend_vec};
 use super::{K_SKIP, N_INNER, PaddingSpec};
+#[cfg(target_arch = "aarch64")]
+use core::arch::aarch64::*;
+#[cfg(all(target_arch = "x86_64", target_feature = "gfni"))]
+use core::arch::x86_64::*;
+use pcs::ntt::InvNttTableByteSingleGf8;
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "gfni",
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use crate::zerocheck::bit_fold::gfni::{store_f192, weight_matrices};
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64::*;
-#[cfg(all(target_arch = "x86_64", target_feature = "gfni"))]
-use core::arch::x86_64::*;
-use pcs::ntt::InvNttTableByteSingleGf8;
+use primitives::bit_fold::gfni::{store_f192, weight_matrices};
 use primitives::bits::bit_transpose_64bytes;
 use primitives::field::gf2_8::gf8_reduce;
 #[cfg(target_arch = "aarch64")]

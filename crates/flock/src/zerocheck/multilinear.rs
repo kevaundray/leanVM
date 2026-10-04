@@ -35,9 +35,9 @@
 //! `current_claim = (1+r_now)·G(0) + r_now·G(1)`.
 
 use crate::zerocheck::PaddingSpec;
-use crate::zerocheck::bit_fold::{BLOCK, BitFold};
 use crate::zerocheck::univariate_skip::{SplitEq, build_eq};
 use parallel::Chunks;
+use primitives::bit_fold::{BLOCK, BitFold};
 use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
 use primitives::multilinear::{barycentric_sum, window_denominator};
 use primitives::stream::Stream;

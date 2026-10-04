@@ -22,13 +22,13 @@
 //! is tested on honest witnesses; verify also rejects byte-mutated proofs and
 //! shape-corrupted ones.
 
-use bit_fold::BitFold;
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
 use multilinear::{
     PackedWitness, bit_round_materialize, bit_round_pair, fold_and_round_pair_into, fold_in_place_pair,
     fold_in_place_single, interpolate_at_z_combined, round_pair_naive, round_single_naive,
 };
 use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
+use primitives::bit_fold::BitFold;
 use primitives::field::{F8, F192};
 use primitives::multilinear::skip_lagrange_weights;
 use thiserror::Error;
@@ -36,7 +36,6 @@ use univariate_skip_optimized::{
     c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
 };
 
-pub mod bit_fold;
 pub mod multilinear;
 pub mod univariate_skip;
 pub mod univariate_skip_optimized;
