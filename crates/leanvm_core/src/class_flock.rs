@@ -136,19 +136,18 @@ pub const fn n_blocks_log(spec: &ClassSpec, n_rows: usize) -> usize {
     if natural > floor { natural } else { floor }
 }
 
-/// The flock-native tables of one class's batch, kept from the pass that wrote its
-/// committed column so the reduction needs no second witness pass.
+/// The flock-native tables of one class's batch but `z`, which is its committed column,
+/// kept from the pass that wrote that column so the reduction needs no second witness pass.
 pub(crate) struct Prepared {
     flock: usize,
     n_blocks_log: usize,
-    z: Vec<u64>,
     a: Vec<u64>,
     b: Vec<u64>,
     z_lincheck: Vec<u8>,
 }
 
 impl Prepared {
-    /// Build packed witness `f`'s batch, one instance per row of its table, and write it
+    /// Build packed witness `f`'s batch, one instance per row of its table, its `z` straight
     /// into `window`, its committed column.
     pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], window: &mut [F64]) -> Self {
         let (t, part) = flock(f);
@@ -169,70 +168,80 @@ impl Prepared {
                 *word = port.value(row, &entries[row.index as usize], &slots);
             }
         };
+        // What the circuit computed is what the interpreter did, or the bus would carry one and flock prove the other.
+        let check = |row: &Row, z: &[u64]| {
+            for (k, &port) in ports.iter().enumerate().skip(n_inputs) {
+                let expected = port.value(row, &entries[row.index as usize], &slots);
+                assert_eq!(
+                    z[k], expected,
+                    "{}'s {part:?} circuit disagrees with the interpreter on {port:?}",
+                    spec.name
+                );
+            }
+        };
+        // SAFETY: `F64` is `repr(transparent)` over `u64`, and the packing is bit `i` at position `i` on both sides.
+        let z = unsafe { std::slice::from_raw_parts_mut(window.as_mut_ptr().cast::<u64>(), window.len()) };
         // A clock circuit, and a class with a word-level witness, skip the walk of the gate list;
         // the others walk it 64 instances at a time.
-        let (z, a, b, z_lincheck) = match (part, spec.batch_witness, spec.witness) {
-            (Part::Clock, _, _) => circuit.generate_witness_with(rows, &rows[0], n_blocks_log, |row, z, az, bz| {
-                Clock::witness(&slots, row.ts, &row.prev()[..slots.len()], z, az, bz);
-            }),
+        let (a, b, z_lincheck) = match (part, spec.batch_witness, spec.witness) {
+            (Part::Clock, _, _) => circuit.generate_witness_with_into(
+                z,
+                rows,
+                &rows[0],
+                n_blocks_log,
+                |row, z, az, bz| Clock::witness(&slots, row.ts, &row.prev()[..slots.len()], z, az, bz),
+                check,
+            ),
             (Part::Class, Some(batch), _) => {
                 // Eight rows share a native arithmetic call before their byte stripe is packed.
-                circuit.generate_witness_batched(rows, &rows[0], n_blocks_log, |rows, z, az, bz| {
-                    let mut words = [[0u64; MAX_INPUT_WORDS]; 8];
-                    for (row, words) in rows.into_iter().zip(&mut words) {
-                        input_words(row, &mut words[..n_inputs]);
-                    }
-                    let inputs = std::array::from_fn(|i| &words[i][..n_inputs]);
-                    batch(&inputs, z, az, bz);
-                })
+                circuit.generate_witness_batched_into(
+                    z,
+                    rows,
+                    &rows[0],
+                    n_blocks_log,
+                    |rows, z, az, bz| {
+                        let mut words = [[0u64; MAX_INPUT_WORDS]; 8];
+                        for (row, words) in rows.into_iter().zip(&mut words) {
+                            input_words(row, &mut words[..n_inputs]);
+                        }
+                        let inputs = std::array::from_fn(|i| &words[i][..n_inputs]);
+                        batch(&inputs, z, az, bz);
+                    },
+                    check,
+                )
             }
-            (Part::Class, None, Some(witness)) => {
-                circuit.generate_witness_with(rows, &rows[0], n_blocks_log, |row, z, az, bz| {
+            (Part::Class, None, Some(witness)) => circuit.generate_witness_with_into(
+                z,
+                rows,
+                &rows[0],
+                n_blocks_log,
+                |row, z, az, bz| {
                     let mut words = [0u64; MAX_INPUT_WORDS];
                     let words = &mut words[..n_inputs];
                     input_words(row, words);
                     witness(words, z, az, bz);
-                })
+                },
+                check,
+            ),
+            (Part::Class, None, None) => {
+                circuit.generate_witness_from_into(z, rows, &rows[0], n_blocks_log, input_words, check)
             }
-            (Part::Class, None, None) => circuit.generate_witness_from(rows, &rows[0], n_blocks_log, input_words),
         };
-        assert_eq!(window.len(), z.len(), "the committed column is the wrong size");
-        let stride = 1 << stride_log(spec, part);
-        // `F64` is `repr(transparent)` over `u64`, and the packing is bit `i` at
-        // position `i` on both sides.
-        const BATCH: usize = 1 << 10;
-        parallel::chunks_mut_zip(window, &z, stride * BATCH, |batch, dst, src| {
-            for (j, src) in src.chunks_exact(stride).enumerate() {
-                // What the circuit computed is what the interpreter did, or the bus
-                // would carry one and flock prove the other.
-                let row = &rows[batch * BATCH + j];
-                for (k, &port) in ports.iter().enumerate().skip(n_inputs) {
-                    let expected = port.value(row, &entries[row.index as usize], &slots);
-                    assert_eq!(
-                        src[k], expected,
-                        "{}'s {part:?} circuit disagrees with the interpreter on {port:?}",
-                        spec.name
-                    );
-                }
-            }
-            for (d, &s) in dst.iter_mut().zip(src) {
-                *d = F64(s);
-            }
-        });
         Self {
             flock: f,
             n_blocks_log,
-            z,
             a,
             b,
             z_lincheck,
         }
     }
 
-    /// Flock's zerocheck then lincheck, leaving the one claim on the committed column.
-    pub(crate) fn prove(&self, ps: &mut ProverState) -> SliceClaim {
+    /// Flock's zerocheck then lincheck on `z`, the committed column, leaving the one claim on it.
+    pub(crate) fn prove(&self, z: &[F64], ps: &mut ProverState) -> SliceClaim {
+        // SAFETY: `F64` is `repr(transparent)` over `u64`.
+        let z = unsafe { std::slice::from_raw_parts(z.as_ptr().cast::<u64>(), z.len()) };
         let block = circuit(self.flock).block();
-        let stage = block.prove_zerocheck(self.n_blocks_log, &self.z, &self.a, &self.b, ps);
+        let stage = block.prove_zerocheck(self.n_blocks_log, z, &self.a, &self.b, ps);
         block.prove_lincheck(self.n_blocks_log, stage, &self.z_lincheck, ps)
     }
 }

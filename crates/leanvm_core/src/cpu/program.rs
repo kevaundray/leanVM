@@ -268,7 +268,8 @@ impl Program {
                 .enumerate()
                 .map(|(f, prepared)| {
                     let window = w.layout.witness_window(f);
-                    let reduced = prepared.prove(&mut ps);
+                    let z = &w.q[window.offset..window.offset + (1 << window.n_vars)];
+                    let reduced = prepared.prove(z, &mut ps);
                     flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
                 })
                 .collect()
