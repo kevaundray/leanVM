@@ -127,12 +127,6 @@ impl InvNttTableByteSingleGf8 {
 
     /// [`apply`](Self::apply) at the protocol's `ell = 64`, one register wide.
     ///
-    /// The whole accumulator is a single ZMM, so it never round-trips through
-    /// memory between chunks the way the 128-bit arm's four does, and the
-    /// `i' ⊕ 8b` permutation is one `vpermq`: an XOR of `8b` on a byte index is
-    /// an XOR of `b` on a qword index, which folds the chunk swap and the
-    /// half-swap the narrow arm does separately into one shuffle.
-    ///
     /// # Safety
     /// Requires AVX-512F, and `self.ell` must be 64. The method validates slice
     /// lengths.
@@ -140,22 +134,35 @@ impl InvNttTableByteSingleGf8 {
     #[inline]
     #[target_feature(enable = "avx512f")]
     unsafe fn apply_avx512(&self, bytes: &[u8], out: &mut [F8]) {
-        assert_eq!(self.ell, 64);
-        assert_eq!(bytes.len(), self.n_chunks);
         assert_eq!(out.len(), self.ell);
-        // SAFETY: every row offset is `byte * 64` into a `256 * 64` table, and
-        // the single store covers exactly `out`.
-        unsafe {
-            let base = self.data.as_ptr().cast::<u8>();
-            let iota = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 6, 7);
-            let row = |b: usize| _mm512_loadu_si512(base.add(bytes[b] as usize * 64).cast());
-            let mut acc = row(0);
-            for b in 1..self.n_chunks {
-                let idx = _mm512_xor_si512(iota, _mm512_set1_epi64(b as i64));
-                acc = _mm512_xor_si512(acc, _mm512_permutexvar_epi64(idx, row(b)));
-            }
-            _mm512_storeu_si512(out.as_mut_ptr().cast(), acc);
-        }
+        let bytes: &[u8; 8] = bytes.try_into().expect("8 bytes at ell = 64");
+        // SAFETY: the single store covers exactly `out`.
+        unsafe { _mm512_storeu_si512(out.as_mut_ptr().cast(), self.apply_zmm(bytes)) };
+    }
+
+    /// The 64 evaluations of one 8-byte row as one ZMM, at `ell = 64`.
+    ///
+    /// Byte `b`'s row enters permuted by `i' ⊕ 8b`, an XOR of `b` on the qword index.
+    /// The rows are summed as a tree, so each bit of `b` is one fixed shuffle:
+    /// bit 0 swaps the qwords of each 128-bit lane, bits 1 and 2 swap lanes, and only those two cross a lane.
+    ///
+    /// # Panics
+    /// Panics unless `self.ell` is 64.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub fn apply_zmm(&self, bytes: &[u8; 8]) -> __m512i {
+        assert_eq!(self.ell, 64);
+        let base = self.data.as_ptr().cast::<u8>();
+        // SAFETY: every row offset is `byte * 64` into a `256 * 64` table.
+        let row = |b: usize| unsafe { _mm512_loadu_si512(base.add(bytes[b] as usize * 64).cast()) };
+        let swap_qwords = |v| _mm512_shuffle_epi32::<0x4E>(v);
+        let swap_lanes = |v| _mm512_shuffle_i64x2::<0xB1>(v, v);
+        let swap_halves = |v| _mm512_shuffle_i64x2::<0x4E>(v, v);
+        let pair = |b: usize| _mm512_xor_si512(row(b), swap_qwords(row(b + 1)));
+        let lo = _mm512_xor_si512(pair(0), swap_lanes(pair(2)));
+        let hi = _mm512_xor_si512(pair(4), swap_lanes(pair(6)));
+        _mm512_xor_si512(lo, swap_halves(hi))
     }
 
     /// Scalar reference. Kept public so tests can use it as the cross-check
