@@ -33,7 +33,7 @@
 
 use crate::PAR_THRESHOLD;
 use crate::arith::{Arith, Verifier};
-use crate::colval::ColVal;
+use crate::colval::{ColVal, padded_width};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter, VerifierState};
 use parallel::Chunks;
 use primitives::field::{F64, F192, F192Unreduced};
@@ -175,10 +175,11 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
     at_one: bool,
 ) -> [F192; 2] {
     let ncols = cols.len();
+    let width = padded_width(ncols);
     // The X² coefficient is Q(hi + lo); linear and constant terms cannot contribute.
     let summand = |i: usize, scratch: &mut [T]| -> [F192Unreduced; 2] {
         let e = eqr[i];
-        let (endpoint, slope) = scratch.split_at_mut(ncols);
+        let (endpoint, slope) = scratch.split_at_mut(width);
         for (ci, c) in cols.iter().enumerate() {
             let (lo, hi) = (c[i], c[i + half]);
             endpoint[ci] = if at_one { hi } else { lo };
@@ -195,13 +196,13 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
         // creates it once and threads it through every row that worker claims.
         parallel::map_reduce_with_state(
             half,
-            || vec![T::ZERO; 2 * ncols],
+            || vec![T::ZERO; 2 * width],
             || [F192Unreduced::ZERO; 2],
             |scratch, acc, i| *acc = xor(*acc, summand(i, scratch)),
             xor,
         )
     } else {
-        let mut scratch = vec![T::ZERO; 2 * ncols];
+        let mut scratch = vec![T::ZERO; 2 * width];
         (0..half).fold([F192Unreduced::ZERO; 2], |acc, i| xor(acc, summand(i, &mut scratch)))
     };
     acc.map(F192Unreduced::reduce)
@@ -323,11 +324,12 @@ fn folded_message(
     at_one: bool,
     fold: impl Fn(usize, &mut [F192], &mut [F192]) + Sync,
 ) -> [F192; 2] {
+    let width = padded_width(ncols);
     let accumulate = |scratch: &mut Vec<F192>, acc: &mut [F192Unreduced; 2], i: usize| {
-        // Layout: [next low row | next high row | their difference].
-        let (lo, rest) = scratch.split_at_mut(ncols);
-        let (hi, slope) = rest.split_at_mut(ncols);
-        fold(i, lo, hi);
+        // Layout: [next low row | next high row | their difference], each padded with zero columns.
+        let (lo, rest) = scratch.split_at_mut(width);
+        let (hi, slope) = rest.split_at_mut(width);
+        fold(i, &mut lo[..ncols], &mut hi[..ncols]);
         for c in 0..ncols {
             slope[c] = lo[c] + hi[c];
         }
@@ -339,14 +341,14 @@ fn folded_message(
     let acc = if eqr.len() >= PAR_THRESHOLD {
         parallel::map_reduce_with_state(
             eqr.len(),
-            || vec![F192::ZERO; 3 * ncols],
+            || vec![F192::ZERO; 3 * width],
             || [F192Unreduced::ZERO; 2],
             accumulate,
             |a, b| [a[0] ^ b[0], a[1] ^ b[1]],
         )
     } else {
         // Reuse scratch across the small final rounds without dispatching workers.
-        let mut scratch = vec![F192::ZERO; 3 * ncols];
+        let mut scratch = vec![F192::ZERO; 3 * width];
         let mut acc = [F192Unreduced::ZERO; 2];
         for i in 0..eqr.len() {
             accumulate(&mut scratch, &mut acc, i);
@@ -381,10 +383,8 @@ fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Syn
     let lo = Chunks::new(lo, ncols);
     let hi = Chunks::new(hi, ncols);
     let message = folded_message(ncols, eqr, summand, at_one, |i, a, b| {
-        for (c, col) in cols.iter().enumerate() {
-            a[c] = interp(col[i], col[i + half]);
-            b[c] = interp(col[i + pairs], col[i + pairs + half]);
-        }
+        interp_row(a, rk, |c| cols[c][i], |c| cols[c][i + half]);
+        interp_row(b, rk, |c| cols[c][i + pairs], |c| cols[c][i + pairs + half]);
         // SAFETY: task i owns row i in each disjoint output half for the whole dispatch.
         unsafe {
             lo.get(i).copy_from_slice(a);
@@ -425,16 +425,30 @@ fn fold_rows_and_message(
     let message = folded_message(ncols, eqr, summand, at_one, |i, a, b| {
         // SAFETY: task i exclusively borrows row i in each disjoint quarter exactly once.
         let (lo, hi, upper_lo, upper_hi) = unsafe { (q0.get(i), q1.get(i), q2.get(i), q3.get(i)) };
-        for c in 0..ncols {
-            a[c] = lo[c] + (lo[c] + upper_lo[c]) * rk;
-            b[c] = hi[c] + (hi[c] + upper_hi[c]) * rk;
-        }
+        interp_row(a, rk, |c| lo[c], |c| upper_lo[c]);
+        interp_row(b, rk, |c| hi[c], |c| upper_hi[c]);
         // Read all four input rows before overwriting either output row.
         lo.copy_from_slice(a);
         hi.copy_from_slice(b);
     });
     table.truncate(half * ncols);
     Some(message)
+}
+
+/// `out[c] = lo(c) + (lo(c) + hi(c))·rk` for every column, eight columns per batched product.
+#[inline(always)]
+fn interp_row<T: ColVal + Into<F192>>(out: &mut [F192], rk: F192, lo: impl Fn(usize) -> T, hi: impl Fn(usize) -> T) {
+    let (groups, tail) = out.as_chunks_mut::<8>();
+    let split = 8 * groups.len();
+    for (g, dst) in groups.iter_mut().enumerate() {
+        let lows: [T; 8] = std::array::from_fn(|j| lo(8 * g + j));
+        let products = T::mul_e8(std::array::from_fn(|j| lows[j] + hi(8 * g + j)), rk);
+        *dst = std::array::from_fn(|j| lows[j].into() + products[j]);
+    }
+    for (j, dst) in tail.iter_mut().enumerate() {
+        let (a, b) = (lo(split + j), hi(split + j));
+        *dst = a.into() + (a + b).mul_e(rk);
+    }
 }
 
 /// What the table sumcheck's verifier establishes.

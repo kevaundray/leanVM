@@ -11,6 +11,8 @@
 
 use crate::arith::{Arith, Native, Verifier};
 use crate::colval::ColVal;
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+use crate::colval::PackedCoeffs;
 use crate::gkr::GkrError;
 use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
@@ -661,14 +663,18 @@ impl BusForm {
     /// rather than paying one per term.
     /// `quadratic` selects only degree-two terms, for a sumcheck round coefficient.
     pub fn eval_unreduced<T: ColVal>(&self, evals: &[T], quadratic: bool) -> T::Unreduced {
-        self.prods.iter().fold(
-            if quadratic {
-                T::lift(F192::ZERO)
-            } else {
-                T::dot_unreduced(&self.coeffs, evals) ^ T::lift(self.constant)
-            },
-            |acc, &(a, b, c)| acc ^ (evals[a] * evals[b]).mul_e_unreduced(c),
-        )
+        let linear = if quadratic {
+            T::lift(F192::ZERO)
+        } else {
+            T::dot_unreduced(&self.coeffs, evals) ^ T::lift(self.constant)
+        };
+        self.add_products(evals, linear)
+    }
+
+    /// `acc` plus the form's products at `evals`.
+    #[inline(always)]
+    fn add_products<T: ColVal>(&self, evals: &[T], acc: T::Unreduced) -> T::Unreduced {
+        (self.prods.iter()).fold(acc, |acc, &(a, b, c)| acc ^ (evals[a] * evals[b]).mul_e_unreduced(c))
     }
 
     /// [`eval_unreduced`](Self::eval_unreduced) on its own.
@@ -690,6 +696,41 @@ impl BusForm {
                     .expect("every pair was summed");
                 acc + c * s.2
             })
+    }
+}
+
+/// A form as the prover's table sumcheck evaluates it per row, on AVX-512 its linear
+/// coefficients packed for [`dot_base`].
+#[derive(Clone, Debug)]
+pub struct PackedForm {
+    form: BusForm,
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    packed: PackedCoeffs,
+}
+
+impl PackedForm {
+    #[cfg_attr(
+        not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")),
+        expect(clippy::missing_const_for_fn, reason = "const only where nothing is packed")
+    )]
+    pub fn new(form: BusForm) -> Self {
+        Self {
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            packed: PackedCoeffs::new(&form.coeffs),
+            form,
+        }
+    }
+
+    /// [`BusForm::eval_unreduced`], on AVX-512 its linear part one batched dot product
+    /// where `evals` is a row padded to the packed width.
+    #[inline(always)]
+    pub fn eval_unreduced<T: ColVal>(&self, evals: &[T], quadratic: bool) -> T::Unreduced {
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        if !quadratic && evals.len() == self.packed.width() {
+            let linear = T::dot_packed(&self.packed, evals) ^ T::lift(self.form.constant);
+            return self.form.add_products(evals, linear);
+        }
+        self.form.eval_unreduced(evals, quadratic)
     }
 }
 

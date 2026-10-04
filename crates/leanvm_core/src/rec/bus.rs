@@ -14,7 +14,7 @@ use super::table::Table;
 use crate::arith::{Arith, Verifier};
 use crate::colval::ColVal;
 use crate::constraints::{Residual, Summand};
-use crate::leaf::{Block, BusError, BusForm, BusProof, BusVerify, Coord};
+use crate::leaf::{Block, BusError, BusForm, BusProof, BusVerify, Coord, PackedForm};
 use crate::{constraints, leaf};
 use fiat_shamir::transcript::ProverState;
 use primitives::field::{F64, F192};
@@ -32,7 +32,7 @@ pub(crate) struct BusBlocks {
 }
 
 /// A table's whole summand in the prover's constraint batch: its bus forms and its identities, already weighted.
-pub(crate) struct TableSummand(BusForm);
+pub(crate) struct TableSummand(PackedForm);
 
 /// A table's summand as the verifiers evaluate it at the batch's point: its two bus forms and its weighted identities.
 pub(crate) struct TableResidual<'a, E> {
@@ -144,7 +144,7 @@ impl TableSummand {
                     parts.push(id.scaled(power));
                     power *= xi;
                 }
-                Self(BusForm::sum(parts))
+                Self(PackedForm::new(BusForm::sum(parts)))
             })
             .collect()
     }

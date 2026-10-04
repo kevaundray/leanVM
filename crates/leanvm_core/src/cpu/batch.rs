@@ -7,7 +7,7 @@ use crate::arith::{Arith, Native};
 use crate::colval::ColVal;
 use crate::constraints::{Air, Residual, Summand};
 use crate::leaf;
-use crate::leaf::{BusForm, BusVerify, Producer};
+use crate::leaf::{BusForm, BusVerify, PackedForm, Producer};
 use crate::tables::ClassTable;
 use primitives::field::F192;
 
@@ -87,7 +87,9 @@ impl Batch {
                 tau,
                 n_cols: table.n_committed_columns(),
                 n_public: 0,
-                summand: Term::Table(BusForm::sum((0..2).map(|s| forms[s][t].scaled(powers.0[s])))),
+                summand: Term::Table(PackedForm::new(BusForm::sum(
+                    (0..2).map(|s| forms[s][t].scaled(powers.0[s])),
+                ))),
             });
 
         // A producer's term: its bits, then its public columns.
@@ -114,7 +116,7 @@ impl Batch {
 /// One term of the batch: a table's, or a lookup producer's.
 pub(super) enum Term {
     /// A table's two bus forms, already summed with their side weights.
-    Table(BusForm),
+    Table(PackedForm),
     /// A producer's share of the push side.
     Producer(ProducerTerm),
 }
