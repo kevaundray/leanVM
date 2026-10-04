@@ -19,7 +19,7 @@
 //! Lookups per row: n_chunks (= ell/8), each load is `ell` contiguous bytes.
 
 use crate::ntt::AdditiveNttGf8;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use core::arch::x86_64::*;
 use primitives::field::F8;
 
@@ -115,6 +115,13 @@ impl InvNttTableByteSingleGf8 {
             unsafe { self.apply_avx512(bytes, out) };
             return;
         }
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "avx512f")))]
+        if self.ell == 64 {
+            // SAFETY: avx2 is enabled at compile time; the method validates
+            // slice lengths and requires exactly this `ell`.
+            unsafe { self.apply_avx2(bytes, out) };
+            return;
+        }
         #[cfg(target_arch = "x86_64")]
         if self.ell >= 16 {
             // SAFETY: x86_64 statically guarantees SSE2; ell ≥ 16 ⇒ at least
@@ -155,6 +162,57 @@ impl InvNttTableByteSingleGf8 {
                 acc = _mm512_xor_si512(acc, _mm512_permutexvar_epi64(idx, row(b)));
             }
             _mm512_storeu_si512(out.as_mut_ptr().cast(), acc);
+        }
+    }
+
+    /// [`apply`](Self::apply) at the protocol's `ell = 64`, two registers wide.
+    ///
+    /// The `i' ⊕ 8b` permutation is a qword-index XOR by `b`: bit 0 swaps the qwords of each lane, bit 1 the lanes, bit 2
+    /// the registers.
+    ///
+    /// # Safety
+    /// Requires AVX2, and `self.ell` must be 64. The method validates slice
+    /// lengths.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[cfg_attr(target_feature = "avx512f", allow(dead_code))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn apply_avx2(&self, bytes: &[u8], out: &mut [F8]) {
+        assert_eq!(self.ell, 64);
+        assert_eq!(bytes.len(), self.n_chunks);
+        assert_eq!(out.len(), self.ell);
+        // SAFETY: every row offset is `byte * 64` into a `256 * 64` table, and
+        // the two stores cover exactly `out`.
+        unsafe {
+            let base = self.data.as_ptr().cast::<u8>();
+            let row = |b: usize| {
+                let p = base.add(bytes[b] as usize * 64);
+                (_mm256_loadu_si256(p.cast()), _mm256_loadu_si256(p.add(32).cast()))
+            };
+            let (mut lo, mut hi) = row(0);
+            for b in 1..8 {
+                let (mut l, mut h) = row(b);
+                if b & 1 != 0 {
+                    (l, h) = (
+                        _mm256_shuffle_epi32::<0b01_00_11_10>(l),
+                        _mm256_shuffle_epi32::<0b01_00_11_10>(h),
+                    );
+                }
+                if b & 2 != 0 {
+                    (l, h) = (
+                        _mm256_permute4x64_epi64::<0b01_00_11_10>(l),
+                        _mm256_permute4x64_epi64::<0b01_00_11_10>(h),
+                    );
+                }
+                if b & 4 != 0 {
+                    (l, h) = (h, l);
+                }
+                lo = _mm256_xor_si256(lo, l);
+                hi = _mm256_xor_si256(hi, h);
+            }
+            let dst = out.as_mut_ptr().cast::<u8>();
+            _mm256_storeu_si256(dst.cast(), lo);
+            _mm256_storeu_si256(dst.add(32).cast(), hi);
         }
     }
 
@@ -367,6 +425,12 @@ mod tests {
                     out_scalar, out_simd,
                     "scalar/simd apply disagree at k={k}, bytes={bytes:02x?}"
                 );
+                #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+                if table.ell == 64 {
+                    // SAFETY: the crate is built with AVX2, and `ell` is 64.
+                    unsafe { table.apply_avx2(&bytes, &mut out_simd) };
+                    assert_eq!(out_scalar, out_simd, "scalar/avx2 apply disagree, bytes={bytes:02x?}");
+                }
             }
         }
     }

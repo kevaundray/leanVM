@@ -42,15 +42,15 @@ use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
 use primitives::multilinear::{barycentric_sum, window_denominator};
 use primitives::stream::Stream;
 
-/// Four independent products. Tuples keep the scalar and NEON paths in registers, while AVX-512 uses the batched helper.
+/// Four independent products. Tuples keep the scalar and NEON paths in registers, while VPCLMULQDQ uses the batched helper.
 #[inline(always)]
 fn mul_quad(a: (F192, F192, F192, F192), b: (F192, F192, F192, F192)) -> (F192, F192, F192, F192) {
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     {
         let r = primitives::field::mul4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
         (r[0], r[1], r[2], r[3])
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     (a.0 * b.0, a.1 * b.1, a.2 * b.2, a.3 * b.3)
 }
 
@@ -60,12 +60,12 @@ fn mul_quad_unreduced(
     a: (F192, F192, F192, F192),
     b: (F192, F192, F192, F192),
 ) -> (F192Unreduced, F192Unreduced, F192Unreduced, F192Unreduced) {
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     {
         let r = primitives::field::mul_unreduced4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
         (r[0], r[1], r[2], r[3])
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     (
         a.0.mul_unreduced(b.0),
         a.1.mul_unreduced(b.1),

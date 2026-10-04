@@ -54,7 +54,7 @@ pub const MIN_LOG_N: usize = K_SKIP + N_INNER;
 ///
 /// - A pass re-reads the three bit tables, `3 * 2^m` bits.
 /// - Storing at level `t` writes three F192 tables, `3 * 192 * 2^(m - 6 - t)` bits, then reads them back.
-/// - On x86 a pass is bandwidth-bound, with GFNI or with the byte tables.
+/// - On x86 a pass is bandwidth-bound with GFNI, and the AVX2 nibble lookups keep it cheap enough for the same choice.
 /// - So storing pays once the tables are well below the bits: level 4, after two passes.
 /// - On aarch64 the byte-table fold is compute-bound, its tables growing with the level.
 /// - There a pass costs more than the stored tables' traffic: store at once.
