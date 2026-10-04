@@ -697,11 +697,15 @@ pub mod gfni {
                 // SAFETY: the block is 64 * CHUNKS bytes, exactly CHUNKS registers.
                 *r = unsafe { _mm512_loadu_si512(base.add(64 * i).cast()) };
             }
-            // Constants of CHUNKS, so the stage loop unrolls with each stage's register bit known.
-            let c = CHUNKS.trailing_zeros() as usize;
-            let skew = c.saturating_sub(6);
-            for s in 0..c.min(6) {
-                self.input[s].apply(1 << (s + skew), &mut regs);
+            // Up to three stages per pass over the registers, eight at a time, so a wide row is not
+            // reloaded and stored for every stage when its registers outnumber the register file.
+            let n_stages = CHUNKS.trailing_zeros().min(6) as usize;
+            for first in (0..n_stages).step_by(3) {
+                match n_stages - first {
+                    1 => self.input_stages::<2, CHUNKS>(first, &mut regs),
+                    2 => self.input_stages::<4, CHUNKS>(first, &mut regs),
+                    _ => self.input_stages::<8, CHUNKS>(first, &mut regs),
+                }
             }
 
             // Phase 2: every output byte accumulates one affine product per input register.
@@ -715,6 +719,27 @@ pub mod gfni {
                 }
             }
             acc
+        }
+
+        /// Input stages `first..first + log2(G)`, on each group of `G` registers they pair.
+        #[inline]
+        #[target_feature(enable = "avx512f", enable = "avx512vbmi")]
+        fn input_stages<const G: usize, const CHUNKS: usize>(&self, first: usize, regs: &mut [__m512i; CHUNKS]) {
+            // Stage `s` pairs on register bit `s + skew`.
+            let low = first + (CHUNKS.trailing_zeros() as usize).saturating_sub(6);
+            let group_bits = (G - 1) << low;
+            for base in (0..CHUNKS).filter(|r| r & group_bits == 0) {
+                let mut group = [_mm512_setzero_si512(); G];
+                for (k, g) in group.iter_mut().enumerate() {
+                    *g = regs[base | (k << low)];
+                }
+                for j in 0..G.trailing_zeros() as usize {
+                    self.input[first + j].apply(1 << j, &mut group);
+                }
+                for (k, g) in group.iter().enumerate() {
+                    regs[base | (k << low)] = *g;
+                }
+            }
         }
     }
 }
