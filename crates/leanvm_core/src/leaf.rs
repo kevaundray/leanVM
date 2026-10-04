@@ -16,7 +16,7 @@ use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use primitives::field::MixedSums8;
-use primitives::field::{F64, F192, F192Unreduced};
+use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base};
 use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
@@ -1243,22 +1243,34 @@ fn tables_and_prods_at(
 
             let eq = eq_table(&zeta[..tau]);
             let n_acc = n_cols + pairs.len();
-            let sums = parallel::fold_reduce(
+            // A task packs its eq slice once, then every column and pair dots against it
+            // eight rows at a time; a slice short of eight rows takes the scalar path.
+            let sums = parallel::map_reduce_with_state(
                 (1usize << tau).div_ceil(ROWS),
+                || (Vec::with_capacity(ROWS / 8), Vec::with_capacity(ROWS)),
                 || vec![F192Unreduced::ZERO; n_acc],
-                |acc, chunk| {
+                |(packed, products): &mut (Vec<Weights8>, Vec<F64>), acc, chunk| {
                     let lo = chunk * ROWS;
                     let weights = &eq[lo..(lo + ROWS).min(1 << tau)];
                     let span = |c: usize| &cols[base + c][lo..lo + weights.len()];
+                    let (blocks, tail) = weights.as_chunks::<8>();
+                    let split = 8 * blocks.len();
+                    packed.clear();
+                    packed.extend(blocks.iter().map(Weights8::new));
+                    let dot = |k: &[F64]| {
+                        tail.iter()
+                            .zip(&k[split..])
+                            .fold(dot_base(packed, &k[..split]), |acc, (&w, &v)| {
+                                acc ^ w.mul_base_unreduced(v)
+                            })
+                    };
                     for (c, slot) in acc[..n_cols].iter_mut().enumerate() {
-                        for (&w, &v) in weights.iter().zip(span(c)) {
-                            *slot ^= w.mul_base_unreduced(v);
-                        }
+                        *slot ^= dot(span(c));
                     }
                     for (&(a, b), slot) in pairs.iter().zip(&mut acc[n_cols..]) {
-                        for ((&w, &x), &y) in weights.iter().zip(span(a)).zip(span(b)) {
-                            *slot ^= w.mul_base_unreduced(x * y);
-                        }
+                        products.clear();
+                        products.extend(span(a).iter().zip(span(b)).map(|(&x, &y)| x * y));
+                        *slot ^= dot(products);
                     }
                 },
                 |mut left, right| {
