@@ -169,6 +169,104 @@ impl WordGadgets for Builder {
     }
 }
 
+/// The rows of `z`, `A·z` and `B·z` from a word on, written in order: each row `A·z = a`, `B·z = b`, `z = a·b`.
+///
+/// A word is stored once it is full, so the tables are written, never read.
+pub(crate) struct Products<'a> {
+    tables: [&'a mut [u64]; 3],
+    word: usize,
+    /// Bits of `pending` taken.
+    used: u32,
+    /// The rows of each table's current word so far.
+    pending: [u64; 3],
+}
+
+impl<'a> Products<'a> {
+    pub(crate) const fn new(tables: [&'a mut [u64]; 3], word: usize) -> Self {
+        Self {
+            tables,
+            word,
+            used: 0,
+            pending: [0; 3],
+        }
+    }
+
+    /// The next `bits` rows, at most 64, their `A·z` and `B·z` the low bits of `a` and `b`, which hold no others.
+    #[inline(always)]
+    pub(crate) fn push(&mut self, a: u64, b: u64, bits: u32) {
+        let rows = [a & b, a, b];
+        let at = self.used;
+        for (pending, row) in self.pending.iter_mut().zip(rows) {
+            *pending |= row << at;
+        }
+        self.used += bits;
+        if self.used >= 64 {
+            for ((table, pending), row) in self.tables.iter_mut().zip(&mut self.pending).zip(rows) {
+                table[self.word] = *pending;
+                // `(row >> 1) >> (63 - at)` is `row >> (64 - at)`, the rows that did not fit, with no overflowing shift at `at = 0`.
+                *pending = (row >> 1) >> (63 - at);
+            }
+            self.word += 1;
+            self.used -= 64;
+        }
+    }
+
+    /// The next 192 rows, three per bit of three words: row `3i + k` has `A·z` bit `i` of `a[k]` and `B·z` bit `i` of `b[k]`.
+    #[inline(always)]
+    pub(crate) fn push_interleaved3(&mut self, a: [u64; 3], b: [u64; 3]) {
+        for (a, b) in interleave3(a).into_iter().zip(interleave3(b)) {
+            self.push(a, b, 64);
+        }
+    }
+
+    /// The tables, the last word stored.
+    pub(crate) fn finish(mut self) -> [&'a mut [u64]; 3] {
+        if self.used > 0 {
+            for (table, pending) in self.tables.iter_mut().zip(self.pending) {
+                table[self.word] = pending;
+            }
+        }
+        self.tables
+    }
+}
+
+/// The 192 bits `x0_0, x1_0, x2_0, x0_1, ...` of three words, as three words.
+#[inline(always)]
+fn interleave3([x, y, w]: [u64; 3]) -> [u64; 3] {
+    // Word `j` starts at bit 64j of the sequence, which is bit `64j / 3` of the word at `64j mod 3`.
+    [
+        spread3(x) | spread3(y) << 1 | spread3(w) << 2,
+        spread3(y >> 21) | spread3(w >> 21) << 1 | spread3(x >> 22) << 2,
+        spread3(w >> 42) | spread3(x >> 43) << 1 | spread3(y >> 43) << 2,
+    ]
+}
+
+/// The low 22 bits of `x` at every third bit, from bit 0.
+#[cfg_attr(
+    not(all(target_arch = "x86_64", target_feature = "bmi2")),
+    expect(clippy::missing_const_for_fn, reason = "BMI2's bit deposit is a runtime intrinsic.")
+)]
+#[inline(always)]
+fn spread3(x: u64) -> u64 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    {
+        // SAFETY: BMI2 is enabled at compile time.
+        unsafe { std::arch::x86_64::_pdep_u64(x, 0x9249_2492_4924_9249) }
+    }
+    // Without it, bits 0 to 20 spread by halving strides, and bit 21 goes to bit 63.
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    {
+        let top = (x >> 21 & 1) << 63;
+        let mut x = x & 0x1f_ffff;
+        x = (x | x << 32) & 0x001f_0000_0000_ffff;
+        x = (x | x << 16) & 0x001f_0000_ff00_00ff;
+        x = (x | x << 8) & 0x100f_00f0_0f00_f00f;
+        x = (x | x << 4) & 0x10c3_0c30_c30c_30c3;
+        x = (x | x << 2) & 0x1249_2492_4924_9249;
+        x | top
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::rv::entry::Class;

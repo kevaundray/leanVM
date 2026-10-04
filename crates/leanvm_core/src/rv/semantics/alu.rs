@@ -1,7 +1,7 @@
 //! The ALU: sums, differences, comparisons, bitwise logic, branches and jumps.
 
 use super::{InstructionClass, sext32};
-use crate::rv::circuits::{ClassCircuit, Word, WordGadgets};
+use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
 use crate::rv::entry::Class;
 use flock::circuit::{Builder, Circuit};
 
@@ -247,10 +247,99 @@ impl ClassCircuit for Alu {
     }
 }
 
+impl Alu {
+    /// One instance of the circuit's witness by word arithmetic: what the walk of [`Alu::circuit`] writes, into zeroed buffers.
+    ///
+    /// Inputs `v1`, `v2`, `imm` and the flags' 15 bits, the outputs `out` and `taken`, the constant at bit 384, then the products:
+    ///
+    /// ```text
+    ///     adder        64   A·z = v1 ^ c,   B·z = (b ^ sub) ^ c,  c the carries of v1 + (b ^ sub) + sub
+    ///     any          63   A·z = the OR of diff's bits below,  B·z = diff's bit
+    ///     sext32       32   A·z = word,  B·z = sum_31 ^ sum_i
+    ///     none         64   A·z = none,  B·z = the sign-extended sum
+    ///     logic       192   per bit: v1 * b, and_or * that, or_xor * diff
+    ///     comparisons   2   SEL_LT * lt, SEL_LTU * ltu
+    ///     bit 0         1   !CLEAR_BIT0 * out_0
+    ///     branches      6   each condition's flag * whether it holds
+    /// ```
+    pub(crate) fn witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        const FLAG_BITS: u64 = (1 << 15) - 1;
+        let (v1, v2, imm, flags) = (inputs[0], inputs[1], inputs[2], inputs[3] & FLAG_BITS);
+        let flag = |bit: u64| u64::from(flags & bit != 0);
+        let all = |bit: u64| u64::from(bit != 0).wrapping_neg();
+        let b = v2 ^ imm;
+        let sub = flag(Self::SUB);
+
+        // The adder: the carry into each bit, and out of the top.
+        let y = b ^ all(sub);
+        let (partial, o1) = v1.overflowing_add(y);
+        let (sum, o2) = partial.overflowing_add(sub);
+        let carries = sum ^ v1 ^ y;
+        let ltu = u64::from(!(o1 | o2));
+        let lt = ltu ^ (v1 ^ b) >> 63;
+        let diff = v1 ^ b;
+        let ne = u64::from(diff != 0);
+
+        let word = all(flag(Self::WORD));
+        let sext_diff = ((sum >> 31 & 1).wrapping_neg() ^ sum) >> 32;
+        let extended = sum ^ (word & sext_diff) << 32;
+        let none = 1
+            ^ flag(Self::SEL_LT)
+            ^ flag(Self::SEL_LTU)
+            ^ flag(Self::SEL_AND)
+            ^ flag(Self::SEL_OR)
+            ^ flag(Self::SEL_XOR);
+        let and_or = all(flag(Self::SEL_AND) ^ flag(Self::SEL_OR));
+        let or_xor = all(flag(Self::SEL_OR) ^ flag(Self::SEL_XOR));
+        let both = v1 & b;
+        let mut out = all(none) & extended ^ and_or & both ^ or_xor & diff;
+        let (lt_term, ltu_term) = (flag(Self::SEL_LT) & lt, flag(Self::SEL_LTU) & ltu);
+        let out0 = (out ^ lt_term ^ ltu_term) & 1;
+        let keep_bit0 = flag(Self::CLEAR_BIT0) ^ 1;
+        out = out & !1 | keep_bit0 & out0;
+
+        let conditions = [
+            (Self::BR_EQ, ne ^ 1),
+            (Self::BR_NE, ne),
+            (Self::BR_LT, lt),
+            (Self::BR_GE, lt ^ 1),
+            (Self::BR_LTU, ltu),
+            (Self::BR_GEU, ltu ^ 1),
+        ];
+        let taken = conditions
+            .iter()
+            .fold(flag(Self::ALWAYS), |acc, &(when, holds)| acc ^ flag(when) & holds);
+
+        // The ports.
+        for (i, bits) in [u64::MAX, u64::MAX, u64::MAX, FLAG_BITS].into_iter().enumerate() {
+            (z[i], az[i], bz[i]) = (inputs[i] & bits, inputs[i] & bits, bits);
+        }
+        (z[4], az[4], bz[4]) = (out, out, u64::MAX);
+        (z[5], az[5], bz[5]) = (taken, taken, 1);
+
+        // The constant, then the products in the order the circuit makes them.
+        let mut rows = Products::new([z, az, bz], 6);
+        rows.push(1, 1, 1);
+        rows.push(v1 ^ carries, y ^ carries, 64);
+        let below = diff.isolate_lowest_one().wrapping_neg();
+        rows.push(below & (u64::MAX >> 1), diff >> 1, 63);
+        rows.push(word >> 32, sext_diff, 32);
+        rows.push(all(none), extended, 64);
+        rows.push_interleaved3([v1, and_or, or_xor], [b, both, diff]);
+        rows.push(flag(Self::SEL_LT), lt, 1);
+        rows.push(flag(Self::SEL_LTU), ltu, 1);
+        rows.push(keep_bit0, out0, 1);
+        for (when, holds) in conditions {
+            rows.push(flag(when), holds, 1);
+        }
+        rows.finish();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{circuit_matches_reference, edge_word};
+    use crate::rv::semantics::tests::{EDGES, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk};
     use fiat_shamir::transcript::{ProverState, VerifierState};
     use proptest::prelude::*;
     use proptest::sample::select;
@@ -286,6 +375,13 @@ mod tests {
     fn alu_circuit_matches_the_reference() {
         // Legal flags and edge-biased operands pin the gate list to the reference function.
         circuit_matches_reference::<Alu>(4096);
+    }
+
+    #[test]
+    fn the_word_witness_is_the_gate_walk() {
+        // Every legal flag word on edge operands: `b` an edge word or its complement, equal to `v1` on the diagonal.
+        let edges = grid(&[&EDGES, &EDGES, &[0, u64::MAX], Alu::LEGAL]);
+        word_witness_is_the_walk::<Alu>(Alu::witness, edges);
     }
 
     #[test]

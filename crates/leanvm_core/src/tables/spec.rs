@@ -2,7 +2,7 @@
 
 use super::Word;
 use super::clock::Clock;
-use crate::rv::{Class, Ext, Hash, Mul, Mulh};
+use crate::rv::{Alu, Class, Ext, Hash, Ld, Load, Mul, Mulh, Shift, Store};
 use crate::{class_flock, rv};
 use std::ops::Range;
 
@@ -95,7 +95,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
+        witness: Some(Alu::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out, Word::Taken],
@@ -113,7 +113,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Read,
         copies: false,
-        witness: None,
+        witness: Some(Load::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[
@@ -138,7 +138,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Write,
         copies: false,
-        witness: None,
+        witness: Some(Store::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[
@@ -164,7 +164,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Read,
         copies: true,
-        witness: None,
+        witness: Some(Ld::witness),
         batch_witness: None,
         k_log: 8,
         ports: &[Word::V1, Word::Imm, Word::Address],
@@ -182,7 +182,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Write,
         copies: true,
-        witness: None,
+        witness: Some(Ld::witness),
         batch_witness: None,
         k_log: 8,
         ports: &[Word::V1, Word::Imm, Word::Address],
@@ -200,7 +200,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
+        witness: Some(Shift::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],

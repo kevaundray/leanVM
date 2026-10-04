@@ -169,25 +169,13 @@ impl Prepared {
                 *word = port.value(row, &entries[row.index as usize], &slots);
             }
         };
-        // A class with a word-level witness skips the walk of its gate list; the others
-        // walk it 64 instances at a time.
-        let witness = spec.witness.filter(|_| part == Part::Class);
-        let batch_witness = spec.batch_witness.filter(|_| part == Part::Class);
-        let (z, a, b, z_lincheck) = batch_witness.map_or_else(
-            || {
-                witness.map_or_else(
-                    || circuit.generate_witness_from(rows, &rows[0], n_blocks_log, input_words),
-                    |witness| {
-                        circuit.generate_witness_with(rows, &rows[0], n_blocks_log, |row, z, az, bz| {
-                            let mut words = [0u64; MAX_INPUT_WORDS];
-                            let words = &mut words[..n_inputs];
-                            input_words(row, words);
-                            witness(words, z, az, bz);
-                        })
-                    },
-                )
-            },
-            |batch| {
+        // A clock circuit, and a class with a word-level witness, skip the walk of the gate list;
+        // the others walk it 64 instances at a time.
+        let (z, a, b, z_lincheck) = match (part, spec.batch_witness, spec.witness) {
+            (Part::Clock, _, _) => circuit.generate_witness_with(rows, &rows[0], n_blocks_log, |row, z, az, bz| {
+                Clock::witness(&slots, row.ts, &row.prev()[..slots.len()], z, az, bz);
+            }),
+            (Part::Class, Some(batch), _) => {
                 // Eight rows share a native arithmetic call before their byte stripe is packed.
                 circuit.generate_witness_batched(rows, &rows[0], n_blocks_log, |rows, z, az, bz| {
                     let mut words = [[0u64; MAX_INPUT_WORDS]; 8];
@@ -197,8 +185,17 @@ impl Prepared {
                     let inputs = std::array::from_fn(|i| &words[i][..n_inputs]);
                     batch(&inputs, z, az, bz);
                 })
-            },
-        );
+            }
+            (Part::Class, None, Some(witness)) => {
+                circuit.generate_witness_with(rows, &rows[0], n_blocks_log, |row, z, az, bz| {
+                    let mut words = [0u64; MAX_INPUT_WORDS];
+                    let words = &mut words[..n_inputs];
+                    input_words(row, words);
+                    witness(words, z, az, bz);
+                })
+            }
+            (Part::Class, None, None) => circuit.generate_witness_from(rows, &rows[0], n_blocks_log, input_words),
+        };
         assert_eq!(window.len(), z.len(), "the committed column is the wrong size");
         let stride = 1 << stride_log(spec, part);
         // `F64` is `repr(transparent)` over `u64`, and the packing is bit `i` at
