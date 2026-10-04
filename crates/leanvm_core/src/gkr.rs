@@ -35,43 +35,68 @@ fn window_rows(total: usize) -> usize {
     total.div_ceil(tasks).clamp(64, 1 << 10)
 }
 
+/// The next radix-four level: entry `k` is the product of `current[4k..4k + 4]`, the last
+/// four-tuple padded with ones.
+///
+/// Allocated at its final size in whole four-tuples, since [`QuaternaryLayerState::new`]
+/// pads a level to that and growing it would copy it.
+pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
+    let rows = current.len().div_ceil(4);
+    let full_rows = current.len() / 4;
+    // SAFETY: the fill writes `next[..full_rows]` and the tail the one row after.
+    let mut next = unsafe { primitives::uninit_vec(rows.next_multiple_of(4)) };
+    next.truncate(rows);
+    let product = |row: usize| {
+        let [left, right] = mul2(
+            [current[4 * row], current[4 * row + 2]],
+            [current[4 * row + 1], current[4 * row + 3]],
+        );
+        left * right
+    };
+    if full_rows >= PAR_THRESHOLD {
+        parallel::fill(&mut next[..full_rows], product);
+    } else {
+        for (row, slot) in next[..full_rows].iter_mut().enumerate() {
+            *slot = product(row);
+        }
+    }
+    if full_rows < rows {
+        next[full_rows] = padded_product(current, full_rows);
+    }
+    next
+}
+
+/// Entry `row` of [`next_level`]: the product of `current[4 * row..]`'s first four, ones past its end.
+pub(crate) fn padded_product(current: &[F192], row: usize) -> F192 {
+    let child = |index| current.get(4 * row + index).copied().unwrap_or(F192::ONE);
+    let [left, right] = mul2([child(0), child(2)], [child(1), child(3)]);
+    left * right
+}
+
 /// Build only the levels consumed by radix four: `0,2,4,…`, plus a final
-/// binary root when the logical depth is odd.
-fn build_layers(leaves: Vec<F192>, mu: usize) -> Vec<Vec<F192>> {
+/// binary root when the logical depth is odd. `first` is level 2, [`next_level`]
+/// of the leaves, which the caller builds alongside them.
+fn build_layers(leaves: Vec<F192>, first: Vec<F192>, mu: usize) -> Vec<Vec<F192>> {
     assert!(!leaves.is_empty());
     assert!(leaves.len() <= 1usize << mu);
+    assert_eq!(
+        first.len(),
+        leaves.len().div_ceil(4),
+        "the first level is the leaves' products"
+    );
     // At mu = 22 the leaf level alone is hundreds of megabytes, and every level
     // dies with the proof.
     let mut layers: Vec<Vec<F192>> = (0..=mu).map(|_| Vec::new()).collect();
     layers[0] = leaves;
-    let mut level = 0;
+    let mut level = if mu >= 2 {
+        layers[2] = first;
+        2
+    } else {
+        0
+    };
     while level + 2 <= mu {
-        let current = &layers[level];
-        let full_rows = current.len() / 4;
-        let product = |row: usize| {
-            let [left, right] = mul2(
-                [current[4 * row], current[4 * row + 2]],
-                [current[4 * row + 1], current[4 * row + 3]],
-            );
-            left * right
-        };
-        let mut next: Vec<F192> = if current.len() == 1 {
-            Vec::from_iter([current[0]])
-        } else if current.len() == 2 {
-            Vec::from_iter([current[0] * current[1]])
-        } else if full_rows >= PAR_THRESHOLD {
-            primitives::par_collect(full_rows, product)
-        } else {
-            (0..full_rows).map(product).collect()
-        };
-        if !current.len().is_multiple_of(4) && current.len() > 2 {
-            let row = full_rows;
-            let child = |index| current.get(4 * row + index).copied().unwrap_or(F192::ONE);
-            let [left, right] = mul2([child(0), child(2)], [child(1), child(3)]);
-            next.push(left * right);
-        }
+        layers[level + 2] = next_level(&layers[level]);
         level += 2;
-        layers[level] = next;
     }
     if level < mu {
         layers[mu] = match layers[level].as_slice() {
@@ -386,18 +411,20 @@ fn combine<const N: usize>(values: [F192; N], lambda: F192) -> F192 {
 /// The first two trees share a product by construction, as the bus's two sides do
 /// (`cpu::filler` fills every table to a power of two, so they balance outright). ONE root
 /// is sent for both, and no verifier can be handed an unbalanced pair to check.
-pub fn prove_products<const N: usize>(leaves: [Vec<F192>; N], ps: &mut ProverState) -> Products<N> {
+///
+/// Each tree comes as its leaves and their first product level, `gkr::next_level`.
+pub fn prove_products<const N: usize>(trees: [(Vec<F192>, Vec<F192>); N], ps: &mut ProverState) -> Products<N> {
     const { assert!(N >= 2, "the first two trees are the bus's two sides") };
-    let mu = leaves
+    let mu = trees
         .iter()
-        .map(|lane| crate::log2_ceil_usize(lane.len()))
+        .map(|(lane, _)| crate::log2_ceil_usize(lane.len()))
         .max()
         .expect("at least one tree");
     assert!(
-        leaves.iter().all(|lane| !lane.is_empty()),
+        trees.iter().all(|(lane, _)| !lane.is_empty()),
         "batched trees must be nonempty"
     );
-    let mut layers = leaves.map(|lane| build_layers(lane, mu));
+    let mut layers = trees.map(|(lane, first)| build_layers(lane, first, mu));
     let roots: [F192; N] = std::array::from_fn(|tree| layers[tree][mu][0]);
     assert_eq!(roots[0], roots[1], "the bus needs the two products to agree");
     ps.add_scalars(&roots[1..]);
@@ -679,7 +706,7 @@ mod tests {
                 .each_ref()
                 .map(|lane| lane.iter().copied().fold(F192::ONE, |product, value| product * value));
             let mut ps = ProverState::from_label(b"radix-four-gkr-test");
-            let proved = prove_products(leaves.each_ref().map(|l| l.to_vec()), &mut ps);
+            let proved = prove_products(leaves.each_ref().map(|l| (l.to_vec(), next_level(l))), &mut ps);
             assert_eq!(proved.roots, expected_roots);
             for (lane, leaf) in leaves.iter().enumerate() {
                 assert_eq!(proved.values[lane], mle_eval_e(leaf, &proved.point));
@@ -714,7 +741,7 @@ mod tests {
                 padded
             });
             let mut sparse_ps = ProverState::from_label(b"sparse-radix-four-gkr-test");
-            let proved = prove_products(leaves.each_ref().map(|l| l.to_vec()), &mut sparse_ps);
+            let proved = prove_products(leaves.each_ref().map(|l| (l.to_vec(), next_level(l))), &mut sparse_ps);
             for (lane, values) in dense.iter().enumerate() {
                 assert_eq!(proved.values[lane], mle_eval_e(values, &proved.point));
                 assert_eq!(
@@ -724,7 +751,7 @@ mod tests {
             }
             let proof = sparse_ps.into_proof();
             let mut dense_ps = ProverState::from_label(b"sparse-radix-four-gkr-test");
-            let dense_proved = prove_products(dense.each_ref().map(|l| l.to_vec()), &mut dense_ps);
+            let dense_proved = prove_products(dense.each_ref().map(|l| (l.to_vec(), next_level(l))), &mut dense_ps);
             assert_eq!(dense_proved.roots, proved.roots);
             assert_eq!(dense_proved.point, proved.point);
             assert_eq!(dense_proved.values, proved.values);

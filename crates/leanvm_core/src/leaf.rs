@@ -16,12 +16,14 @@ use crate::colval::PackedCoeffs;
 use crate::gkr::GkrError;
 use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
+use parallel::Chunks;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use primitives::field::MixedSums8;
-use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base};
+use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base, mul2, mul4};
 use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
+use std::ops::Range;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 
@@ -316,7 +318,17 @@ const LEAF_CHUNK: usize = 1 << 10;
 
 /// One tuple's leaves, `β − Σ_i w_i c_i(z)` for every row `z`, into `dst`. The
 /// row-invariant weights and constant coordinates are folded once into `const_part`.
-fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &mut [F192]) {
+///
+/// With `products`, also the leaves' [`gkr::next_level`] while they are in registers:
+/// `dst` then holds whole groups of eight rows, and `products` a quarter of its length.
+fn fill_tuple(
+    coords: &[Coord],
+    cols: &[&[F64]],
+    w: &[F192],
+    beta: F192,
+    dst: &mut [F192],
+    products: Option<&mut [F192]>,
+) {
     let mut const_part = beta;
     let mut terms: Vec<Term> = Vec::with_capacity(coords.len());
     for (i, c) in coords.iter().enumerate() {
@@ -356,20 +368,38 @@ fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &m
     };
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     let rows8 = |z: usize| -> [F192; 8] { std::array::from_fn(|r| row(z + r)) };
-    let fill = |base: usize, dst: &mut [F192]| {
+    let fill = |base: usize, dst: &mut [F192], products: Option<&mut [F192]>| {
         let (groups, tail) = dst.as_chunks_mut::<8>();
         let tail_start = base + 8 * groups.len();
-        for (g, out) in groups.iter_mut().enumerate() {
-            *out = rows8(base + 8 * g);
+        if let Some(products) = products {
+            debug_assert!(tail.is_empty() && products.len() == 2 * groups.len());
+            for ((g, out), pair) in groups.iter_mut().enumerate().zip(products.as_chunks_mut::<2>().0) {
+                let l = rows8(base + 8 * g);
+                let [a, b, c, d] = mul4([l[0], l[2], l[4], l[6]], [l[1], l[3], l[5], l[7]]);
+                *pair = mul2([a, c], [b, d]);
+                *out = l;
+            }
+        } else {
+            for (g, out) in groups.iter_mut().enumerate() {
+                *out = rows8(base + 8 * g);
+            }
         }
         for (r, slot) in tail.iter_mut().enumerate() {
             *slot = row(tail_start + r);
         }
     };
     if dst.len() >= PAR_THRESHOLD {
-        parallel::chunks_mut(dst, LEAF_CHUNK, |ci, chunk| fill(ci * LEAF_CHUNK, chunk));
+        if let Some(products) = products {
+            let products = Chunks::new(products, LEAF_CHUNK / 4);
+            parallel::chunks_mut(dst, LEAF_CHUNK, |ci, chunk| {
+                // SAFETY: task `ci` alone takes chunk `ci` of the products, the quarter of its rows.
+                fill(ci * LEAF_CHUNK, chunk, Some(unsafe { products.get(ci) }));
+            });
+        } else {
+            parallel::chunks_mut(dst, LEAF_CHUNK, |ci, chunk| fill(ci * LEAF_CHUNK, chunk, None));
+        }
     } else {
-        fill(0, dst);
+        fill(0, dst, products);
     }
 }
 
@@ -380,14 +410,15 @@ const PRODUCER_CHUNK: usize = 1 << 12;
 fn producer_leaves(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> Vec<F192> {
     // SAFETY: `fill_tuple` writes every slot before anything reads one.
     let mut q = unsafe { primitives::uninit_vec(1 << p.kappa) };
-    fill_tuple(&p.coords, cols, w, beta, &mut q);
+    fill_tuple(&p.coords, cols, w, beta, &mut q, None);
     q
 }
 
 /// Build one side's leaf vector: block `b` row `z` holds `β − Σ_i w_i c_i(z)` for
 /// the fingerprint weights `w = eq(α⃗, ·)`, then each producer's bit blocks, bit `i`'s
 /// row `x` holding `(β − π_α(e_x))^{2^i}` where that bit of `m_x` is set and `1` where
-/// it is not, followed implicitly by the identity `1` up to `2^μ`.
+/// it is not, followed implicitly by the identity `1` up to `2^μ`. Returns the leaves
+/// and their first product level, `gkr::next_level`, formed for most blocks in the same pass.
 pub fn build_leaves(
     blocks: &[Block],
     producers: &[Producer],
@@ -395,7 +426,7 @@ pub fn build_leaves(
     cols: &[&[F64]],
     w: &[F192],
     beta: F192,
-) -> Vec<F192> {
+) -> (Vec<F192>, Vec<F192>) {
     let kappas: Vec<usize> = blocks
         .iter()
         .map(|b| b.kappa)
@@ -428,13 +459,33 @@ pub fn build_leaves(
         values.resize(explicit, F192::ONE);
         values
     };
+    let n_products = explicit.div_ceil(4);
+    // SAFETY: the blocks' fills write the ranges in `fused`, and the pass after
+    // them every other slot of `products[..n_products]`.
+    let mut products = unsafe { primitives::uninit_vec(n_products.next_multiple_of(4)) };
+    products.truncate(n_products);
+    let mut fused: Vec<Range<usize>> = Vec::with_capacity(blocks.len());
     // Every row of every block is a real row: a table's height is exactly the
     // number of rows it executed (`cpu::filler`), so no block has padding rows
     // whose tuples would have to be divided back out of the product.
     for (b, blk) in blocks.iter().enumerate() {
-        let off = lay.offsets[b];
-        let dst = &mut leaves[off..off + (1usize << blk.kappa)];
-        fill_tuple(&blk.coords, cols, w, beta, dst);
+        let (off, len) = (lay.offsets[b], 1usize << blk.kappa);
+        let dst = &mut leaves[off..off + len];
+        // A block of eight rows or more starts at a multiple of its size, so its
+        // four-tuples are its own.
+        if blk.kappa >= 3 {
+            fill_tuple(
+                &blk.coords,
+                cols,
+                w,
+                beta,
+                dst,
+                Some(&mut products[off / 4..(off + len) / 4]),
+            );
+            fused.push(off / 4..(off + len) / 4);
+        } else {
+            fill_tuple(&blk.coords, cols, w, beta, dst, None);
+        }
     }
     let mut b = blocks.len();
     for p in producers {
@@ -454,7 +505,24 @@ pub fn build_leaves(
             b += 1;
         }
     }
-    leaves
+    // The products no block fill formed: the small blocks', the producers' and any hole's.
+    fused.sort_unstable_by_key(|r| r.start);
+    let mut start = 0;
+    for r in fused.into_iter().chain(std::iter::once(n_products..n_products)) {
+        if start < r.start {
+            let dst = &mut products[start..r.start];
+            let product = |i: usize| gkr::padded_product(&leaves, start + i);
+            if dst.len() >= PAR_THRESHOLD {
+                parallel::fill(dst, product);
+            } else {
+                for (i, slot) in dst.iter_mut().enumerate() {
+                    *slot = product(i);
+                }
+            }
+        }
+        start = start.max(r.end);
+    }
+    (leaves, products)
 }
 
 /// What the producer's air sums against `eq(ζ, ·)` (§sec:lookup): its bits as `E`
@@ -1448,7 +1516,7 @@ pub(crate) mod tests {
             let mut at = Vec::new();
             for (b, block) in blocks.iter().enumerate() {
                 let mut leaves = vec![F192::ZERO; 1 << block.kappa];
-                fill_tuple(&block.coords, cols, &w, beta, &mut leaves);
+                fill_tuple(&block.coords, cols, &w, beta, &mut leaves, None);
                 at.extend(leaves.into_iter().enumerate().map(|(z, leaf)| (leaf, b, z)));
             }
             at
@@ -1456,7 +1524,7 @@ pub(crate) mod tests {
         let (mut pushed, pulled) = (side(push), side(pull));
         for (p, producer) in producers.iter().enumerate() {
             let mut leaves = vec![F192::ZERO; 1 << producer.kappa];
-            fill_tuple(&producer.coords, cols, &w, beta, &mut leaves);
+            fill_tuple(&producer.coords, cols, &w, beta, &mut leaves, None);
             for (x, leaf) in leaves.into_iter().enumerate() {
                 let m = cols[producer.col][x].0 & ((1u64 << producer.bits) - 1);
                 pushed.extend(std::iter::repeat_n((leaf, push.len() + p, x), m as usize));
