@@ -5,6 +5,7 @@ name: Bench
 # and benchmark, each building both sides and running them `ROUNDS` times in the order base,
 # PR, PR, base, ... Each job saves its runs as the artifact `ab-<testbed>-<benchmark>`, and
 # bench-comment.yml, on the default branch, posts what changed on the PR. It gates nothing.
+# A job is one CLI benchmark, or one `benches/` target with all the benchmarks it prints.
 #
 # The testbeds are GitHub-hosted runners, forks' PRs included. Each pins its ISA:
 # `target-cpu=native` would build for whichever CPU the job lands on, and a cached build then
@@ -29,7 +30,7 @@ env:
 
 jobs:
   ab:
-    name: ${{ matrix.benchmark }} (${{ matrix.testbed.name }})
+    name: ${{ matrix.benchmark.name }} (${{ matrix.testbed.name }})
     runs-on: ${{ matrix.testbed.runner }}
     timeout-minutes: 60
     strategy:
@@ -44,17 +45,23 @@ jobs:
           - name: arm64
             runner: ubuntu-24.04-arm
             rustflags: -C target-cpu=neoverse-n2 -C target-feature=+aes,+sha3
-        # The cases of `proven()` in bins/leanvm/src/tracked.rs, and flock's hash batch.
+        # The cases of `proven()` in bins/leanvm/src/tracked.rs, run by the CLI, then the
+        # `benches/` targets (`package`, `target`), each run with `--json`.
         benchmark:
-          - fibonacci-asm-2000000
-          - hash-50000
-          - leanxmss-100
-          - leansphincs-26
-          - flock-hash-batch-262144
+          - name: fibonacci-asm-2000000
+          - name: hash-50000
+          - name: leanxmss-100
+          - name: leansphincs-26
+          - { name: flock-hash-batch-262144, package: flock, target: hash_batch }
+          - { name: flock-arithmetic-batch, package: flock, target: arithmetic_batch }
+          - { name: pcs-throughput, package: pcs, target: throughput }
+          - { name: blake2s-batch, package: primitives, target: hash_throughput }
+          - { name: kernels, package: primitives, target: kernels }
     env:
       RUSTFLAGS: ${{ matrix.testbed.rustflags }}
-      BENCHMARK: ${{ matrix.benchmark }}
-      FLOCK: ${{ startsWith(matrix.benchmark, 'flock-') }}
+      BENCHMARK: ${{ matrix.benchmark.name }}
+      PACKAGE: ${{ matrix.benchmark.package }}
+      TARGET: ${{ matrix.benchmark.target }}
       FLOCK_N_LOG: 18
       BENCH_REPEAT: 1
       BENCH_COOLDOWN: 0
@@ -78,37 +85,39 @@ jobs:
         run: |
           build() {
             mkdir -p "ab/$1"
-            if [ "$FLOCK" = true ]; then
-              exe=$(cargo bench -p flock --bench hash_batch --no-run --message-format=json \
-                | jq -r 'select(.reason == "compiler-artifact" and .target.name == "hash_batch") | .executable')
-              cp "$exe" "ab/$1/bench"
+            if [ -n "$TARGET" ]; then
+              exe=$(cargo bench -p "$PACKAGE" --bench "$TARGET" --no-run --message-format=json \
+                | jq -r --arg target "$TARGET" 'select(.reason == "compiler-artifact" and .target.name == $target) | .executable') || return
             else
-              cargo build --release -p leanvm-cli
-              cp target/release/leanvm "ab/$1/bench"
+              cargo build --release -p leanvm-cli || return
+              exe=target/release/leanvm
             fi
+            cp "$exe" "ab/$1/bench"
           }
           build head
           git checkout --quiet --detach HEAD^1
-          build base
+          # A base without the target (one this PR adds) has nothing to run: see below.
+          build base || echo "::warning::the base cannot build $BENCHMARK"
           git checkout --quiet --detach "$GITHUB_SHA"
       - name: Prove in turns
         run: |
           run() {
-            if [ "$FLOCK" = true ]; then
+            if [ -n "$TARGET" ]; then
               "ab/$1/bench" --json
             else
               "ab/$1/bench" bench --only "$BENCHMARK" --repeat 1 --cooldown 0
             fi
           }
-          # A base that cannot run the benchmark at all (one this PR adds, or a base older than
-          # `--only`) fails its first run, and the PR's runs are then compared with nothing: the
-          # comment shows them as new. Any other failure fails the job.
+          # A base that cannot run the benchmark at all (one this PR adds, a base older than
+          # `--only`, or a target whose base prints no JSON) fails its first run, and the PR's
+          # runs are then compared with nothing: the comment shows them as new. Any other
+          # failure fails the job.
           base=true
           for round in $(seq "$ROUNDS"); do
             if [ $((round % 2)) = 1 ]; then order="base head"; else order="head base"; fi
             for side in $order; do
               if [ "$side" = base ] && [ "$base" = false ]; then continue; fi
-              if ! run "$side" > result.json; then
+              if ! run "$side" > result.json || ! jq -e 'type == "object"' result.json > /dev/null; then
                 if [ "$side" = head ] || [ "$round" != 1 ]; then exit 1; fi
                 echo "::warning::the base cannot run $BENCHMARK: the PR's runs are compared with nothing"
                 base=false
@@ -127,5 +136,5 @@ jobs:
             --slurpfile runs runs.jsonl '{pr: $pr, base: $base, testbed: $testbed, cpu: $cpu, runs: $runs}' > ab.json
       - uses: actions/upload-artifact@v4
         with:
-          name: ab-${{ matrix.testbed.name }}-${{ matrix.benchmark }}
+          name: ab-${{ matrix.testbed.name }}-${{ matrix.benchmark.name }}
           path: ab.json
