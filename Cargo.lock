@@ -282,6 +282,7 @@ dependencies = [
  "leanvm",
  "leanvm_guest",
  "leanxmss-host",
+ "parallel",
  "primitives",
  "tracing",
 ]
