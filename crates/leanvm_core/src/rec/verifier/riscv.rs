@@ -9,7 +9,7 @@ use crate::cpu::{CpuError, DeferredClaims, Layout, Program, TableReduction};
 use crate::pcs::Rate;
 use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::transcript::{ProofSource, Transcript};
-use crate::tables::{CYCLE, LIVE_BIT, N_TABLES};
+use crate::tables::{Clock, N_TABLES};
 use ::pcs::pack::PACKING_WIDTH;
 use ::pcs::stack_open::{RingSwitchVerify, RingSwitchVerifyClaim};
 use primitives::field::F192;
@@ -145,11 +145,11 @@ impl<'p> ProofShape<'p> {
         r.b.eq_k_const(high, 0);
         r.b.eq_k_const(top, 0);
         // Bit 40 set, every bit above it clear, and the slot bits below the cycle clear.
-        let slot_bits = CYCLE.trailing_zeros() as usize;
+        let slot_bits = Clock::CYCLE.trailing_zeros() as usize;
         for (i, bit) in r.b.split(word).into_iter().enumerate() {
-            if i == LIVE_BIT as usize {
+            if i == Clock::LIVE_BIT as usize {
                 r.b.eq_k_const(bit, 1);
-            } else if i > LIVE_BIT as usize || i < slot_bits {
+            } else if i > Clock::LIVE_BIT as usize || i < slot_bits {
                 r.b.eq_k_const(bit, 0);
             }
         }

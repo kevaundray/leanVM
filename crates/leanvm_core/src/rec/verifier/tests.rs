@@ -12,7 +12,7 @@ use crate::rec::fixed::FixedColumns;
 use crate::rec::table::HashFlock;
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rv::asm::*;
-use crate::tables::{CLASSES, N_TABLES, Part};
+use crate::tables::{ClassSpec, N_TABLES, Part};
 use crate::witness::StackShape;
 use ::flock::reduction::{Instance, Shape};
 use ::flock::zerocheck::K_SKIP;
@@ -225,8 +225,8 @@ impl Batch {
     fn new<const N: usize>(f: usize, rows: &[[u64; N]]) -> Self {
         let circuit = class_flock::circuit(f);
         let (t, _) = class_flock::flock(f);
-        let n_blocks_log = class_flock::n_blocks_log(CLASSES[t], rows.len());
-        let witness = CLASSES[t].witness.map_or_else(
+        let n_blocks_log = class_flock::n_blocks_log(ClassSpec::ALL[t], rows.len());
+        let witness = ClassSpec::ALL[t].witness.map_or_else(
             || circuit.generate_witness(rows, n_blocks_log),
             |witness| {
                 circuit.generate_witness_with(rows, &[0; N], n_blocks_log, |row, z, az, bz| witness(row, z, az, bz))
@@ -361,7 +361,7 @@ fn xorshift(seed: u64) -> impl FnMut() -> u64 {
 }
 
 fn flock_index(name: &str, part: Part) -> usize {
-    let t = CLASSES.iter().position(|c| c.name == name).expect("a table");
+    let t = ClassSpec::ALL.iter().position(|c| c.name == name).expect("a table");
     class_flock::flock_index(t, part)
 }
 
