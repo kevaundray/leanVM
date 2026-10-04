@@ -27,3 +27,7 @@ bench.workspace = true
 [[bench]]
 name = "hash_throughput"
 harness = false
+
+[[bench]]
+name = "kernels"
+harness = false

@@ -24,15 +24,17 @@ mod execute;
 pub mod filler;
 mod layout;
 mod program;
+mod reduce;
 mod witness;
 
-pub use deferred::{Claim, DeferredClaims, ProgramPoint};
+pub use deferred::{Claim, DeferredClaims, MalformedClaim, ProgramPoint};
 pub use error::{CpuError, ProveError};
 pub use execute::Execution;
 pub(crate) use execute::{ExtRow, HashRow, Row, Trace};
 pub use fiat_shamir::transcript::Proof;
 pub use layout::{Framework, Layout, Lookup, N_BYTECODE_COLUMNS, N_SHARED, Q_BASE, Schema, Shared, Sizes};
 pub use program::{Program, Stats};
+pub(crate) use reduce::TableReduction;
 
 /// Each table holds at most `2^MAX_LOG_ROWS` rows: its class's executed instructions.
 ///

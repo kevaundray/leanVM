@@ -1,199 +1,227 @@
-//! The claims a proof leaves on polynomials that only the program or the VM's circuits
-//! fix. [`Program::verify_core`] runs every check that depends on the proof and returns
-//! them; [`Program::check_deferred`] evaluates them. Nothing they hold is bound into the
-//! transcript, so a recursive verifier can carry them out of the proof it verifies and
-//! leave them to whoever holds the program, merging the claims of many proofs into one
-//! ([`DeferredClaims::merge`]).
+//! The claims a proof leaves on polynomials that only the program or the VM's circuits fix.
 //!
-//! Two kinds, each the completion of an identity [`Program::verify`] checks whole:
+//! The verifier's core runs every check that depends on the proof and returns these claims.
+//! Settling them is the rest of verification.
+//! Their points are challenges and stream scalars, and nothing is absorbed after them, so a recursive verifier can carry them out of the proof and settle them later.
 //!
-//! - the table sumcheck's final identity, short of the bytecode producer's public
-//!   columns and of RAM's image in its target, which only the program fixes
-//!   ([`ProgramPoint`]);
-//! - each flock circuit's lincheck terminal identity, short of the bilinear form of its
-//!   matrices `A`, `B`, which only the circuit fixes ([`MatrixForm`]). Its `C` is the
-//!   identity, whose form is closed and stays in the core.
+//! Each completes an identity the full verifier checks whole:
+//!
+//! - the table sumcheck's final identity, short of the bytecode producer's program columns and of RAM's image in its target;
+//! - each flock circuit's lincheck terminal identity, short of the bilinear form `u^T (A_0 + alpha B_0) w` of its matrices.
+//!
+//! Lincheck's `C` is the identity, whose form is closed and stays in the core.
 
 use super::batch::FormPowers;
 use super::layout::Lookup;
 use super::{CpuError, Program};
+use crate::arith::Arith;
 use crate::class_flock;
 use crate::constraints;
 use crate::leaf::{self, BusVerify, N_TUPLE_BITS, SparseColumn};
-use crate::tables;
-use flock::lincheck::{self, MatrixForm};
+use crate::rv;
+use crate::tables::{self, Part};
+use flock::lincheck::{self, MatrixClaim, MatrixForm};
 use primitives::field::F192;
 
-/// `Σ_j c_j·f(p_j) = value`: weighted evaluations of one fixed polynomial `f`. One
-/// proof's claim has one point of weight one; [`Claim::merge`] makes the claims of
-/// several proofs on the same `f` one.
+/// One fixed polynomial `f` claimed to take `value` at `point`.
+///
+/// Its elements are values, or whatever a verifier holds them as.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Claim<P> {
-    pub terms: Vec<(F192, P)>,
-    pub value: F192,
-}
-
-impl<P: Clone> Claim<P> {
-    /// `f(point) = value`.
-    pub fn new(point: P, value: F192) -> Self {
-        Self {
-            terms: vec![(F192::ONE, point)],
-            value,
-        }
-    }
-
-    /// `Σ_k γ^k·claims[k]`: one claim on their polynomial for all of them. If any of them
-    /// is false, so is the merged claim, except with probability `(n − 1)/|E|` over
-    /// `gamma`, which the caller draws once the claims are fixed (a recursive verifier
-    /// from a transcript that has absorbed them).
-    pub fn merge(claims: &[Self], gamma: F192) -> Self {
-        let mut power = F192::ONE;
-        let mut merged = Self {
-            terms: Vec::new(),
-            value: F192::ZERO,
-        };
-        for claim in claims {
-            merged
-                .terms
-                .extend(claim.terms.iter().map(|(c, p)| (power * *c, p.clone())));
-            merged.value += power * claim.value;
-            power *= gamma;
-        }
-        merged
-    }
-
-    /// The claim against `evaluate`, `None` at a malformed point.
-    fn holds(&self, mut evaluate: impl FnMut(&P) -> Option<F192>) -> bool {
-        (self.terms.iter())
-            .try_fold(F192::ZERO, |acc, (c, p)| Some(acc + *c * evaluate(p)?))
-            .is_some_and(|sum| sum == self.value)
-    }
+pub struct Claim<P, E = F192> {
+    /// Where the polynomial is evaluated.
+    pub point: P,
+    /// The value the proof claims it takes there.
+    pub value: E,
 }
 
 /// A point of the program's fixed polynomials, at which they take the value
 ///
-/// `Σ_i μ_i·Σ_x eq(χ, x)·T(x, α⃗)^{2^i} + image_weight·image(image_point)`,
+/// ```text
+/// sum_i mu_i sum_x eq(chi, x) T(x, alpha)^(2^i) + image_weight image(image_point)
+/// ```
 ///
-/// `T(x, α⃗) = Σ_s eq(α⃗, s)·T(x, s)` the stacked bytecode table
-/// ([`Lookup::table`]) at entry `x`, and `image` RAM's image then zeros.
+/// - `T(x, alpha) = sum_s eq(alpha, s) T(x, s)` is the stacked bytecode table at entry `x`.
+/// - `image` is RAM's image, then zeros.
 ///
-/// The first sum is the bytecode producer's public columns, multiplicity bit `i`'s
-/// being `Σ_x eq(χ, x)·T(x, α⃗)^{2^i}`. Raising to `2^i` is the Frobenius automorphism
-/// `φ^i`, so that is `φ^i(T̂(φ^{-i}(χ), α⃗))`, the table at one point twisted by `φ^i`, and
-/// the weights `μ_i` take every bit's into one claim on the table at `(χ, α⃗)`.
-/// [`leaf::producer_public_twist`] evaluates it through the bits of the table at `χ`.
+/// The first sum is the bytecode producer's program columns, bit `i`'s raised to `2^i`.
+/// Raising to `2^i` is the Frobenius automorphism `phi^i`, so bit `i`'s column is `phi^i(T(phi^(-i)(chi), alpha))`.
+/// The weights `mu_i` batch every bit's into one claim on the table at `(chi, alpha)`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProgramPoint {
-    /// `χ ‖ α⃗`: the table sumcheck's point on the entries, then the bus fingerprint's.
-    pub bytecode: Vec<F192>,
-    /// `μ_i` per multiplicity bit, lowest first.
-    pub twist: Vec<F192>,
-    pub image_weight: F192,
-    pub image_point: Vec<F192>,
+pub struct ProgramPoint<E = F192> {
+    /// The table sumcheck's point on the entries `chi`, then the bus fingerprint's `alpha`.
+    pub bytecode: Vec<E>,
+    /// The weight `mu_i` of each multiplicity bit, lowest first.
+    pub twist: Vec<E>,
+    /// The weight of the image's term.
+    pub image_weight: E,
+    /// The point at which the image is evaluated.
+    pub image_point: Vec<E>,
 }
 
-impl ProgramPoint {
-    /// The value at this point of the program whose bytecode tuple is `tuple`, `None` if
-    /// the point is not of its shape.
-    fn evaluate(&self, tuple: &[leaf::Coord], kbc: usize, image: &SparseColumn, log_ram: usize) -> Option<F192> {
-        if self.bytecode.len() != kbc + N_TUPLE_BITS || self.image_point.len() != log_ram || self.twist.len() > 64 {
-            return None;
+impl<E: Copy> ProgramPoint<E> {
+    /// The same point, each element mapped by `f`.
+    pub fn map<T>(&self, mut f: impl FnMut(E) -> T) -> ProgramPoint<T> {
+        ProgramPoint {
+            bytecode: self.bytecode.iter().map(|&x| f(x)).collect(),
+            twist: self.twist.iter().map(|&x| f(x)).collect(),
+            image_weight: f(self.image_weight),
+            image_point: self.image_point.iter().map(|&x| f(x)).collect(),
         }
-        let (chi, alphas) = self.bytecode.split_at(kbc);
-        let weights = leaf::fingerprint_weights(alphas);
-        let bytecode = leaf::producer_public_twist(tuple, &weights, chi, &self.twist);
-        Some(bytecode + self.image_weight * image.eval(&self.image_point))
     }
 }
 
-/// Everything [`Program::verify_core`] leaves to the program and to the VM's circuits.
+/// Everything the verifier's core leaves to the program and to the VM's circuits.
+///
+/// Its elements are values, or whatever a verifier holds them as.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DeferredClaims {
-    pub program: Claim<ProgramPoint>,
-    /// Per packed witness, in [`class_flock::flock`] order, its circuit's matrix form.
-    pub circuits: Vec<Claim<MatrixForm>>,
+pub struct DeferredClaims<E = F192> {
+    /// The claim on the program's bytecode table and RAM image.
+    pub program: Claim<ProgramPoint<E>, E>,
+    /// One claim per packed witness, class circuits then clock circuits, on its circuit's matrix form.
+    pub circuits: Vec<Claim<MatrixForm<E>, E>>,
 }
 
-impl DeferredClaims {
-    /// [`Claim::merge`] of each claim of proofs of one program, under one `gamma`.
-    pub fn merge(claims: &[Self], gamma: F192) -> Self {
-        let program: Vec<_> = claims.iter().map(|c| c.program.clone()).collect();
-        Self {
-            program: Claim::merge(&program, gamma),
-            circuits: (0..class_flock::N_FLOCKS)
-                .map(|f| {
-                    let circuit: Vec<_> = claims.iter().map(|c| c.circuits[f].clone()).collect();
-                    Claim::merge(&circuit, gamma)
+impl<E: Copy> DeferredClaims<E> {
+    /// The same claims, each element mapped by `f`.
+    pub fn map<T>(&self, mut f: impl FnMut(E) -> T) -> DeferredClaims<T> {
+        DeferredClaims {
+            program: Claim {
+                point: self.program.point.map(&mut f),
+                value: f(self.program.value),
+            },
+            circuits: (self.circuits.iter())
+                .map(|c| Claim {
+                    point: c.point.map(&mut f),
+                    value: f(c.value),
                 })
                 .collect(),
         }
     }
 }
 
-/// What the table sumcheck's final identity leaves to the program: the bytecode
-/// producer's public columns, each multiplicity bit's weighted by what the identity
-/// gives it, and RAM's image, which the bus left out of the target and which reaches the
-/// final claim through every round's challenge.
-pub(super) fn program_claim(
-    bus: &BusVerify,
-    table_sumcheck: &constraints::Final,
-    powers: FormPowers,
-) -> Claim<ProgramPoint> {
-    let [coefficients] = &bus.producers[..] else {
-        unreachable!("one lookup array, the bytecode")
-    };
-    // The producer's air follows the tables'; its sent columns are its bits `b_i`, and
-    // its summand `Σ_i c_i·(1 + b_i·P'_i)` takes each `P'_i` at `c_i·b_i`.
-    let air = tables::N_TABLES;
-    let (weight, producer) = (table_sumcheck.weights[air], &table_sumcheck.claims[air]);
-    let twist = (coefficients.iter().zip(&producer.evals))
-        .map(|(&c, &b)| weight * c * powers.push() * b)
-        .collect();
-    let mut shares = (0..2).flat_map(|s| bus.sparse[s].iter().map(move |share| (s, share)));
-    let (Some((side, image)), None) = (shares.next(), shares.next()) else {
-        unreachable!("RAM's image is the one sparse column, seeded once")
-    };
-    Claim::new(
-        ProgramPoint {
-            bytecode: [&producer.chi[..], &bus.alphas[..]].concat(),
-            twist,
-            image_weight: table_sumcheck.target_weight * powers.side(side) * image.weight,
-            image_point: image.point.clone(),
-        },
-        table_sumcheck.residual,
-    )
+/// Why a set of deferred claims has no shape the program and its circuits give claims.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum MalformedClaim {
+    /// Not one claim per packed witness.
+    #[error("{got} circuit claims, for {expected} circuits")]
+    CircuitCount {
+        /// The number of packed witnesses.
+        expected: usize,
+        /// The number of claims.
+        got: usize,
+    },
+    /// The program claim's point does not fit the program's table and RAM.
+    #[error("the program claim's point does not fit the program")]
+    ProgramPoint,
+    /// A circuit claim's point does not fit its circuit.
+    #[error("the {table} table's {part:?} circuit claim's point does not fit the circuit")]
+    MatrixForm {
+        /// The table.
+        table: &'static str,
+        /// Which of its two circuits.
+        part: Part,
+    },
+}
+
+impl ProgramPoint {
+    /// The value of the program's fixed polynomials at this point, if the point has the program's shape.
+    fn evaluate(&self, rv: &rv::Program) -> Option<F192> {
+        let kbc = crate::log2_strict_usize(rv.entries().len());
+        // A multiplicity is one word, so it has at most 64 bits.
+        if self.bytecode.len() != kbc + N_TUPLE_BITS || self.image_point.len() != rv.log_ram() || self.twist.len() > 64
+        {
+            return None;
+        }
+        let (chi, alphas) = self.bytecode.split_at(kbc);
+        let weights = leaf::fingerprint_weights(alphas);
+        let bytecode = leaf::producer_public_twist(&Lookup::Bytecode.tuple(rv), &weights, chi, &self.twist);
+        let image = SparseColumn::new(rv.log_ram(), &[(0, rv.image())]);
+        Some(bytecode + self.image_weight * image.eval(&self.image_point))
+    }
+}
+
+impl<E: Copy> Claim<ProgramPoint<E>, E> {
+    /// The claim the table sumcheck's final identity leaves to the program.
+    ///
+    /// - The producer's summand `sum_i c_i (1 + b_i P'_i)` takes each program column `P'_i` at weight `c_i b_i`.
+    /// - RAM's image is out of the bus target, and reaches the final claim at the target's weight.
+    pub(crate) fn from_table_sumcheck<A: Arith<E = E>>(
+        a: &mut A,
+        bus: &BusVerify<E>,
+        table_sumcheck: &constraints::Final<E>,
+        powers: FormPowers<E>,
+    ) -> Self {
+        let [coefficients] = &bus.producers[..] else {
+            unreachable!("one lookup array, the bytecode")
+        };
+        // The producer's air follows the tables'.
+        let air = tables::N_TABLES;
+        let (weight, producer) = (table_sumcheck.weights[air], &table_sumcheck.claims[air]);
+        let twist = (coefficients.iter().zip(&producer.evals))
+            .map(|(&c, &b)| {
+                let wc = a.mul(weight, c);
+                let pushed = a.mul(wc, powers.push());
+                a.mul(pushed, b)
+            })
+            .collect();
+        let mut shares = (0..2).flat_map(|s| bus.sparse[s].iter().map(move |share| (s, share)));
+        let (Some((side, image)), None) = (shares.next(), shares.next()) else {
+            unreachable!("RAM's image is the one sparse column, seeded once")
+        };
+        let sided = a.mul(table_sumcheck.target_weight, powers.side(side));
+        Self {
+            point: ProgramPoint {
+                bytecode: [&producer.chi[..], &bus.alphas[..]].concat(),
+                twist,
+                image_weight: a.mul(sided, image.weight),
+                image_point: image.point.clone(),
+            },
+            value: table_sumcheck.residual,
+        }
+    }
+}
+
+impl From<MatrixClaim> for Claim<MatrixForm> {
+    fn from(claim: MatrixClaim) -> Self {
+        Self {
+            point: claim.form,
+            value: claim.value,
+        }
+    }
 }
 
 impl Program {
-    /// Evaluate the claims [`Program::verify_core`] left: on the program's bytecode table and
-    /// RAM image, and on each flock circuit's matrices. Each is refused as the stage whose
-    /// identity it completes, the table constraints or the circuit's lincheck.
+    /// Settle the claims the verifier's core left, on the program's bytecode table and RAM image, and on each circuit's matrices.
     ///
     /// # Errors
     ///
-    /// Returns the stage whose identity a false claim completes.
+    /// - A malformed claim: one whose shape no proof of this program gives.
+    /// - A false claim: the stage whose identity it completes, the table constraints or the circuit's lincheck.
     #[tracing::instrument(name = "Check deferred", skip_all)]
     pub fn check_deferred(&self, claims: &DeferredClaims) -> Result<(), CpuError> {
-        let rv = self.rv();
-        let tuple = Lookup::Bytecode.tuple(rv);
-        let kbc = crate::log2_strict_usize(rv.entries().len());
-        let image = SparseColumn::new(rv.log_ram(), &[(0, rv.image())]);
-        if !(claims.program).holds(|p| p.evaluate(&tuple, kbc, &image, rv.log_ram())) {
+        if claims.circuits.len() != class_flock::N_FLOCKS {
+            return Err(CpuError::MalformedClaim(MalformedClaim::CircuitCount {
+                expected: class_flock::N_FLOCKS,
+                got: claims.circuits.len(),
+            }));
+        }
+
+        let program = (claims.program.point)
+            .evaluate(self.rv())
+            .ok_or(CpuError::MalformedClaim(MalformedClaim::ProgramPoint))?;
+        if program != claims.program.value {
             return Err(CpuError::Constraint(constraints::Error::FinalMismatch));
         }
-        assert_eq!(claims.circuits.len(), class_flock::N_FLOCKS, "one claim per circuit");
+
         for (f, claim) in claims.circuits.iter().enumerate() {
-            let circuit = class_flock::circuit(f);
-            let rest = circuit.block().k_log - flock::zerocheck::K_SKIP;
-            let well_formed = |form: &MatrixForm| {
-                form.s_hat_v.len() == 1 << flock::zerocheck::K_SKIP
-                    && form.x_inner_rest.len() == rest
-                    && form.r_inner_rest.len() == rest
-            };
-            if !claim.holds(|form| well_formed(form).then(|| form.evaluate(circuit))) {
-                let (t, part) = class_flock::flock(f);
+            let (t, part) = class_flock::flock(f);
+            let table = tables::CLASSES[t].name;
+            if !class_flock::shape(f).fits(&claim.point) {
+                return Err(CpuError::MalformedClaim(MalformedClaim::MatrixForm { table, part }));
+            }
+            if claim.point.evaluate(class_flock::circuit(f)) != claim.value {
                 return Err(CpuError::Flock {
-                    table: tables::CLASSES[t].name,
+                    table,
                     part,
                     error: flock::verifier::VerifyError::Lincheck(lincheck::VerifyError::SumcheckMismatch),
                 });
@@ -209,10 +237,9 @@ mod tests {
     use crate::rv::asm::*;
     use primitives::multilinear::{eq_table, mle_eval};
 
-    /// The bytecode claim, taken through the bits of the table at `χ`, is the per-bit
-    /// claims it replaces, each the table at `(φ^{-i}(χ), α⃗)` twisted by `φ^i`.
     #[test]
     fn the_twisted_bytecode_claim_is_the_per_bit_claims() {
+        // Bit i's claim is the table at (phi^(-i)(chi), alpha) twisted by phi^i, and the batch is their sum.
         let text = Asm::new()
             .li(Reg::T0, 0x0123_4567_89ab_cdef)
             .i(Addi, Reg::T1, Reg::T0, -77)
@@ -232,7 +259,7 @@ mod tests {
         let tuple = Lookup::Bytecode.tuple(rv);
         let table = Lookup::Bytecode.table(rv);
 
-        // `c(x) = T(x, α⃗)`, raised to `2^i` entry by entry: bit `i`'s public column.
+        // `c(x) = T(x, alpha)`, raised to `2^i` entry by entry: bit `i`'s public column.
         let eq = eq_table(&chi);
         let mut c: Vec<F192> = (0..rv.entries().len())
             .map(|x| (0..1 << N_TUPLE_BITS).fold(F192::ZERO, |acc, s| acc + weights[s].mul_base(table[(s << kbc) + x])))

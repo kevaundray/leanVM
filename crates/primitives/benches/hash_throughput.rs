@@ -4,11 +4,21 @@
 //! ```text
 //! BENCH_REPEAT=5 cargo bench -p primitives --bench hash_throughput
 //! ```
+//!
+//! With `-- --json` it prints, in place of the report, the time per hashed block across the pool
+//! (benchmark `blake2s-batch`, measure `per-op`) as Bencher Metric Format JSON, for CI.
+//!
+//! ```text
+//! cargo bench -p primitives --bench hash_throughput -- --json
+//! ```
+
+use bench::{Metric, bencher_json};
 
 fn main() {
     const K: usize = 1 << 10; // hashes per call: 96 KiB in+out per task, cache-resident
     const ITERS: usize = 1 << 5; // rehash rounds per task per dispatch
     const TASKS: usize = 1 << 10;
+    const HASHES: usize = TASKS * K * ITERS;
 
     let data: Vec<u8> = (0..TASKS * K * 64).map(|i| (i & 0xff) as u8).collect();
     let mut out = vec![0u8; TASKS * K * 32];
@@ -21,11 +31,19 @@ fn main() {
             }
         });
     });
+    if std::env::args().any(|arg| arg == "--json") {
+        let report = [(
+            "blake2s-batch".to_string(),
+            vec![("per-op", Metric::nanoseconds_per_op(&time, HASHES))],
+        )];
+        println!("{}", bencher_json(&report));
+        return;
+    }
     println!(
         "64B -> 32B, {} threads, LANES={}: {:.0} Mhash/s{}",
         parallel::num_threads(),
         primitives::hash::LANES,
-        (TASKS * K * ITERS) as f64 / time.mean() / 1e6,
+        HASHES as f64 / time.mean() / 1e6,
         time.spread(),
     );
 }

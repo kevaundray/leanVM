@@ -121,21 +121,18 @@ fn claim_words(claims: &DeferredClaims) -> Vec<u64> {
     use primitives::field::F192;
     let mut words = Vec::new();
     let mut put = |xs: &[F192]| words.extend(xs.iter().flat_map(|x| [x.c0, x.c1, x.c2]));
-    for (c, p) in &claims.program.terms {
-        put(&[*c]);
-        put(&p.bytecode);
-        put(&p.twist);
-        put(&[p.image_weight]);
-        put(&p.image_point);
-    }
+    let p = &claims.program.point;
+    put(&p.bytecode);
+    put(&p.twist);
+    put(&[p.image_weight]);
+    put(&p.image_point);
     put(&[claims.program.value]);
     for claim in &claims.circuits {
-        for (c, form) in &claim.terms {
-            put(&[*c, form.alpha, form.z_skip]);
-            put(&form.x_inner_rest);
-            put(&form.r_inner_rest);
-            put(&form.s_hat_v);
-        }
+        let form = &claim.point;
+        put(&[form.alpha, form.z_skip]);
+        put(&form.x_inner_rest);
+        put(&form.r_inner_rest);
+        put(&form.s_hat_v);
         put(&[claim.value]);
     }
     words

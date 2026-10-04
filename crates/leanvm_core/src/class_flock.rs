@@ -65,15 +65,18 @@ pub const fn stride_log(spec: &ClassSpec, part: Part) -> usize {
     k_log(spec, part) - LOG_PACKING
 }
 
-/// What the verifier's replay of packed witness `f`'s reduction reads of its circuit, short of its matrices: the
-/// instance's size and the constant wire's column, the first after the port words. The table's spec fixes both,
-/// so [`verify_reduction`] builds no circuit; [`circuit`] checks them against the built one.
+/// What the verifier's replay of packed witness `f`'s reduction reads of its circuit short of its matrices.
+///
+/// - The instance's size.
+/// - The constant wire's column, the first after the port words.
+///
+/// The table's spec fixes both, so the replay builds no circuit, and building the circuit checks them.
 pub fn shape(f: usize) -> Shape {
     let (t, part) = flock(f);
     let spec = CLASSES[t];
     let n_ports = match part {
         Part::Class => spec.ports.len(),
-        // The clock, each access's previous timestamp, then the step ([`ClassSpec::clock_ports`]).
+        // The clock, each access's previous timestamp, then the step.
         Part::Clock => spec.n_accesses() + 2,
     };
     Shape {
@@ -281,9 +284,14 @@ impl Prepared {
     }
 }
 
-/// The verifier's replay of packed witness `f`'s reduction, zerocheck then lincheck, up
-/// to the circuit's matrices: their form is left as a [`MatrixClaim`] for the circuit
-/// ([`circuit`]) to settle. It reads only the circuit's [`shape`], and builds none.
+/// The verifier's replay of packed witness `f`'s reduction, zerocheck then lincheck, up to the circuit's matrices.
+///
+/// Their form is left as a claim for the built circuit to settle.
+/// It reads only the circuit's shape, and builds none.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
 pub fn verify_reduction(
     f: usize,
     n_blocks_log: usize,
