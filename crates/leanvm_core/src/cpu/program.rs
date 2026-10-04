@@ -3,20 +3,24 @@
 //! It runs, is proven, and is verified against its digest.
 
 use super::batch::{Batch, FormPowers};
+use super::deferred::DeferredClaims;
 use super::error::{CpuError, ProveError};
 use super::execute::{Execution, TraceBuilder};
 use super::filler::{FillBlocks, Plan};
 use super::layout::{Announcement, Lookup, Schema, Sizes};
 use super::witness::Witness;
-use crate::class_flock;
-use crate::constraints;
-use crate::leaf;
-use crate::pcs;
-use crate::rv::{self, Machine, Region};
-use crate::tables::{self, CLOCK_START, CYCLE, MAX_CYCLES};
+use crate::arith::Native;
+use crate::constraints::Columns;
+use crate::pcs::Rate;
+use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
+use crate::tables::{ClassSpec, Clock};
+use crate::{class_flock, constraints, leaf, pcs, tables};
 use ::pcs::pack::PACKING_WIDTH;
+use ::pcs::stack_open::{RingSwitchClaim, RingSwitchOpen, RingSwitchVerify, RingSwitchVerifyClaim};
 use fiat_shamir::transcript::{Challenger, Proof, ProverState, RawProof, VerifierState};
 use primitives::field::{F64, F192};
+use primitives::hash::WordHasher;
+use std::cmp::Reverse;
 
 /// A validated program, its fill blocks, and the digest of everything public about it.
 ///
@@ -24,7 +28,7 @@ use primitives::field::{F64, F192};
 #[derive(Clone)]
 pub struct Program {
     /// The decoded program, the fill blocks appended to its text.
-    pub(super) rv: rv::Program,
+    pub(super) rv: RiscvProgram,
     /// The digest of the public statement, which seeds the transcript.
     pub(super) digest: [u8; 32],
     /// Where each fill block sits in the text.
@@ -33,15 +37,15 @@ pub struct Program {
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-6";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-7";
 
     /// The program of a guest's ELF executable.
     ///
     /// # Errors
     ///
     /// Refuses a file that is no guest, or whose text and RAM form no program.
-    pub fn from_elf(elf: &[u8]) -> Result<Self, rv::ElfError> {
-        let guest = rv::Guest::from_elf(elf)?;
+    pub fn from_elf(elf: &[u8]) -> Result<Self, ElfError> {
+        let guest = Guest::from_elf(elf)?;
         Self::new(
             &guest.text,
             guest.entry_pc,
@@ -49,7 +53,7 @@ impl Program {
             guest.log_ram,
             guest.log_advice,
         )
-        .map_err(rv::ElfError::Program)
+        .map_err(ElfError::Program)
     }
 
     /// The program of instruction words, an entry point, a RAM image and the memory sizes.
@@ -65,9 +69,9 @@ impl Program {
         image: Vec<u64>,
         log_ram: usize,
         log_advice: usize,
-    ) -> Result<Self, rv::ProgramError> {
+    ) -> Result<Self, ProgramError> {
         // Check the shape on the supplied text, before anything is appended to it.
-        rv::Program::validate(text.len(), entry_pc, image.len(), log_ram, log_advice)?;
+        RiscvProgram::validate(text.len(), entry_pc, image.len(), log_ram, log_advice)?;
 
         // What gets appended must fit too: the illegal word, the fill blocks, then the illegal slot and the halt slot.
         let fits = text
@@ -76,14 +80,14 @@ impl Program {
             .and_then(usize::checked_next_power_of_two)
             .is_some_and(|total| total <= 1 << Region::TEXT.max_log_words());
         if !fits {
-            return Err(rv::ProgramError::TextTooLarge);
+            return Err(ProgramError::TextTooLarge);
         }
 
         // A run falling off the program's own text must trap, not slide into a fill block.
         let mut text = text.to_vec();
         text.push(0);
         let filler = FillBlocks::append(&mut text);
-        let rv = rv::Program::new(&text, entry_pc, image, log_ram, log_advice)?;
+        let rv = RiscvProgram::new(&text, entry_pc, image, log_ram, log_advice)?;
         Ok(Self {
             digest: Self::digest_of(&rv),
             rv,
@@ -108,15 +112,15 @@ impl Program {
         let mut trace = TraceBuilder::new(p, m.memory().advice());
 
         // The clock starts on cycle 1, so that the first access comes strictly after the seeds.
-        let mut ts = CLOCK_START;
+        let mut ts = Clock::CLOCK_START;
         while !m.halted() {
             // The cycle count must not carry into the live bit.
-            if ts >> tables::SLOT_BITS & MAX_CYCLES == MAX_CYCLES {
+            if ts >> Clock::SLOT_BITS & Clock::MAX_CYCLES == Clock::MAX_CYCLES {
                 return Err(ProveError::TooLong);
             }
             let step = m.step()?;
             trace.record(p, &m, step, ts);
-            ts += CYCLE;
+            ts += Clock::CYCLE;
         }
         let output = m.output()?;
 
@@ -150,7 +154,7 @@ impl Program {
     ///
     /// Refuses a run that traps, one too long for one proof, and more advice than the program's region holds.
     #[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate = rate.log_inv_rate()))]
-    pub fn prove(&self, advice: &[u64], rate: pcs::Rate) -> Result<(Proof, [u64; 4], Stats), ProveError> {
+    pub fn prove(&self, advice: &[u64], rate: Rate) -> Result<(Proof, [u64; 4], Stats), ProveError> {
         // One proof is one arena phase: every transient buffer below is reclaimed wholesale when it ends.
         //
         // The returned proof is system-allocated, so it survives the next phase.
@@ -186,7 +190,7 @@ impl Program {
     }
 
     /// Prove a finished run, which a test may have forged.
-    fn prove_execution(&self, exec: &Execution, rate: pcs::Rate) -> (Proof, Stats) {
+    fn prove_execution(&self, exec: &Execution, rate: Rate) -> (Proof, Stats) {
         let w = crate::stage!("Build witness", || Witness::build(self, exec));
         let stats = Stats {
             cycles: exec.cycles,
@@ -202,7 +206,7 @@ impl Program {
     /// # Panics
     ///
     /// Panics if the witness's bus does not balance: an honest run's always does.
-    fn prove_witness(&self, w: Witness, output: &[u64; 4], rate: pcs::Rate) -> Proof {
+    fn prove_witness(&self, w: Witness, output: &[u64; 4], rate: Rate) -> Proof {
         // The public statement, the program's digest and the output, seeds the transcript.
         let mut ps = ProverState::new(self.fs_seed(), output.map(F64));
 
@@ -229,15 +233,15 @@ impl Program {
                 let coefficients: Vec<Vec<F192>> = producers.iter().map(|p| p.coefficients.clone()).collect();
 
                 // The batch's eq point is the bus's, which lets it settle the bus forms alongside the constraints.
-                let powers = FormPowers::new(ps.sample());
+                let powers = FormPowers::new(&mut Native, ps.sample());
                 let mut sums = powers.table_sums(&bus.sigmas);
                 sums.extend(producers.iter().map(|p| powers.push() * p.sigma));
 
                 // The tables' columns in the field they are committed in, then the producers' lifted columns.
                 let table_cols = spans
                     .iter()
-                    .map(|&(base, n)| constraints::Columns::K((0..n).map(|c| cols[base + c]).collect()))
-                    .chain(producers.into_iter().map(|p| constraints::Columns::E(p.columns)))
+                    .map(|&(base, n)| Columns::K((0..n).map(|c| cols[base + c]).collect()))
+                    .chain(producers.into_iter().map(|p| Columns::E(p.columns)))
                     .collect();
                 let batch = Batch::new(l, &bus.forms, &coefficients, &bus.weights, bus.beta, powers);
                 constraints::prove(batch.airs(), table_cols, &bus.point, &sums, &mut ps)
@@ -245,7 +249,12 @@ impl Program {
             (bus.claims, table_claims)
         };
         let l = &w.layout;
-        let slots = l.opening_claims(bus_claims, &table_claims, output);
+        let slots = l.opening_claims(
+            &mut Native,
+            bus_claims,
+            &table_claims,
+            &output.map(|o| F192::from(F64(o))),
+        );
 
         // Each circuit's flock reduction, every class circuit then every clock circuit.
         //
@@ -267,10 +276,10 @@ impl Program {
         // Each producer's multiplicity column, a ring-switched region too.
         for (p, claims) in l.producers.iter().zip(&table_claims[tables::N_TABLES..]) {
             let window = l.multiplicity_window(p);
-            rings.push(::pcs::stack_open::RingSwitchOpen {
+            rings.push(RingSwitchOpen {
                 offset: window.offset,
                 qflock_vars: window.n_vars,
-                claims: vec![::pcs::stack_open::RingSwitchClaim {
+                claims: vec![RingSwitchClaim {
                     suffix_point: claims.chi.clone(),
                     s_hat_v: Some(claims.evals_padded::<PACKING_WIDTH>().to_vec()),
                 }],
@@ -283,12 +292,14 @@ impl Program {
     /// Verify a proof that the program exits returning `output`.
     ///
     /// It takes only public inputs, never the prover's witness.
+    /// It is the verifier's core, then the settlement of the claims the core leaves.
     ///
     /// # Errors
     ///
     /// Returns the first stage that refuses the proof.
+    #[tracing::instrument(name = "Verify", skip_all)]
     pub fn verify(&self, output: &[u64; 4], proof: &Proof) -> Result<(), CpuError> {
-        self.verify_to_raw(output, proof).map(|_| ())
+        self.check_deferred(&self.verify_core(output, proof)?)
     }
 
     /// Verify a proof, and return it with every query's Merkle path written out, the form the Python verifier reads.
@@ -298,6 +309,27 @@ impl Program {
     /// Returns the first stage that refuses the proof.
     #[tracing::instrument(name = "Verify", skip_all)]
     pub fn verify_to_raw(&self, output: &[u64; 4], proof: &Proof) -> Result<RawProof, CpuError> {
+        let (claims, raw) = self.replay(output, proof)?;
+        self.check_deferred(&claims)?;
+        Ok(raw)
+    }
+
+    /// The verifier's core: every check that depends on the proof.
+    ///
+    /// It returns the claims the proof leaves on polynomials only the program or the VM's circuits fix.
+    /// A proof verifies exactly when the core accepts it and its claims are settled.
+    /// A caller may settle them later, but never skip them.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first stage that refuses the proof.
+    pub fn verify_core(&self, output: &[u64; 4], proof: &Proof) -> Result<DeferredClaims, CpuError> {
+        self.replay(output, proof).map(|(claims, _)| claims)
+    }
+
+    /// The verifier's core, and the proof it replayed with its Merkle paths written out.
+    #[tracing::instrument(name = "Verify core", skip_all)]
+    fn replay(&self, output: &[u64; 4], proof: &Proof) -> Result<(DeferredClaims, RawProof), CpuError> {
         // The public statement seeds the transcript, as on the prover's side.
         let mut vs = VerifierState::new(self.fs_seed(), proof, output.map(F64));
 
@@ -306,37 +338,28 @@ impl Program {
         let l = announcement.layout(&self.rv)?;
         let root = pcs::read_commitment(&mut vs)?;
 
-        let bus = leaf::verify_balance(&l.push, &l.pull, &l.producers, &Schema::get().spans, &mut vs)
-            .map_err(CpuError::Bus)?;
-
-        // The tie between the batch and the bus, and why the batch's target is never sent.
-        //
-        // Each side's leaf claim, less its framework blocks, is the tables' and producers' share `R_s`.
-        //
-        // The verifier just derived those, and the batch must sum to `sum_s xi^s * R_s`.
-        //
-        // The challenge `xi` comes after the `R_s` are fixed, so hitting that one number forces each side's share.
-        let powers = FormPowers::new(vs.sample());
-        let target = powers.combine(bus.totals);
-        let batch = Batch::new(&l, &bus.forms, &bus.producers, &bus.weights, bus.beta, powers);
-        let table_claims =
-            constraints::verify(batch.airs(), &bus.point, target, &mut vs).map_err(CpuError::Constraint)?;
-        let slots = l.opening_claims(bus.claims, &table_claims, output);
+        let clock = F192::from(F64(announcement.ts_final));
+        let reduced = l.reduce_tables(&mut vs, clock, &output.map(|o| F192::from(F64(o))))?;
 
         // Replay each circuit's flock reduction off the stream, to recover its validity claim on its packed witness.
+        //
+        // Each leaves its matrices' form to its circuit.
         let mut replays = Vec::with_capacity(class_flock::N_FLOCKS);
+        let mut circuit_claims = Vec::with_capacity(class_flock::N_FLOCKS);
         for f in 0..class_flock::N_FLOCKS {
             let (t, part) = class_flock::flock(f);
-            let replay = class_flock::verify_reduction(f, l.taus[t], &mut vs).map_err(|error| CpuError::Flock {
-                table: tables::CLASSES[t].name,
-                part,
-                error,
-            })?;
+            let (replay, matrices) =
+                class_flock::verify_reduction(f, l.taus[t], &mut vs).map_err(|error| CpuError::Flock {
+                    table: ClassSpec::ALL[t].name,
+                    part,
+                    error,
+                })?;
             replays.push(replay);
+            circuit_claims.push(matrices.into());
         }
 
         // The ring-switched regions: each packed witness, then each producer's multiplicity column.
-        let producer_claims = &table_claims[tables::N_TABLES..];
+        let producer_claims = &reduced.producers;
         let slices: Vec<[F192; PACKING_WIDTH]> = producer_claims.iter().map(|claims| claims.evals_padded()).collect();
         let witnesses = replays.iter().enumerate().map(|(f, replay)| {
             let window = l.witness_window(f);
@@ -349,10 +372,10 @@ impl Program {
             .zip(&slices)
             .map(|((p, claims), slices)| {
                 let window = l.multiplicity_window(p);
-                ::pcs::stack_open::RingSwitchVerify {
+                RingSwitchVerify {
                     offset: window.offset,
                     qflock_vars: window.n_vars,
-                    claims: vec![::pcs::stack_open::RingSwitchVerifyClaim {
+                    claims: vec![RingSwitchVerifyClaim {
                         suffix_point: &claims.chi,
                         s_hat_v: slices,
                     }],
@@ -361,13 +384,25 @@ impl Program {
         let rings: Vec<_> = witnesses.chain(producers).collect();
 
         // The one opening, then nothing may be left on the stream.
-        pcs::verify(&mut vs, &slots, &rings, l.shape, announcement.log_inv_rate, &root).map_err(CpuError::Open)?;
+        pcs::verify(
+            &mut vs,
+            &reduced.slots,
+            &rings,
+            l.shape,
+            announcement.log_inv_rate,
+            &root,
+        )
+        .map_err(CpuError::Open)?;
         vs.finish()?;
-        Ok(vs.into_raw_proof())
+        let claims = DeferredClaims {
+            program: reduced.program,
+            circuits: circuit_claims,
+        };
+        Ok((claims, vs.into_raw_proof()))
     }
 
     /// The decoded text, memory image and region sizes.
-    pub const fn rv(&self) -> &rv::Program {
+    pub const fn rv(&self) -> &RiscvProgram {
         &self.rv
     }
 
@@ -397,13 +432,13 @@ impl Program {
     /// The digest of `rv`'s public statement.
     ///
     /// Every variable-length part is length-framed, so the preimage parses one way.
-    fn digest_of(rv: &rv::Program) -> [u8; 32] {
+    fn digest_of(rv: &RiscvProgram) -> [u8; 32] {
         let kbc = Lookup::Bytecode.log_rows(Sizes::of(rv));
         // SAFETY: F64 is #[repr(transparent)] over u64.
         let words = |v: &[F64]| unsafe { core::slice::from_raw_parts(v.as_ptr().cast::<u64>(), v.len()) };
 
         // The domain, the stacked bytecode table, then the scalars and the image.
-        let mut h = primitives::hash::WordHasher::new();
+        let mut h = WordHasher::new();
         h.update(Self::DIGEST_DOMAIN);
         h.update_words(&[1 << (leaf::N_BYTECODE_SELECTORS + kbc)]);
         leaf::for_each_bytecode_slot(kbc, &Lookup::Bytecode.tuple(rv), |col| match col {
@@ -454,13 +489,13 @@ impl Stats {
 
         // Each table's share of the program's own rows, largest first.
         let base_cycles: usize = self.base_counts.iter().sum();
-        let mut shares: Vec<(&str, usize)> = tables::CLASSES
+        let mut shares: Vec<(&str, usize)> = ClassSpec::ALL
             .iter()
             .zip(&self.base_counts)
             .filter(|&(_, &c)| c > 0)
             .map(|(spec, &c)| (spec.name, c))
             .collect();
-        shares.sort_unstable_by_key(|&(_, c)| std::cmp::Reverse(c));
+        shares.sort_unstable_by_key(|&(_, c)| Reverse(c));
         let mut parts: Vec<String> = shares
             .iter()
             .map(|&(name, c)| {
@@ -483,9 +518,11 @@ mod tests {
     use crate::cpu::filler::JUMP;
     use crate::cpu::layout::{Framework, Shared};
     use crate::leaf::Coord;
+    use crate::leaf::tests::unmatched_leaves;
+    use crate::pcs::Rate;
     use crate::rv::asm::*;
-    use crate::rv::{InstructionClass, Reg};
-    use crate::tables::SEP_BYTECODE;
+    use crate::rv::{Class, Entry, InstructionClass, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
+    use crate::tables::{ClassSpec, ClassTable, Clock, Separator};
 
     #[test]
     fn construction_refuses_an_entry_or_a_size_out_of_range() {
@@ -500,28 +537,28 @@ mod tests {
         ] {
             assert!(matches!(
                 Program::new(&text, entry, vec![], 0, 0),
-                Err(rv::ProgramError::EntryPoint)
+                Err(ProgramError::EntryPoint)
             ));
         }
 
         // An empty text has no entry point at all.
         assert!(matches!(
             Program::new(&[], Region::TEXT.base(), vec![], 0, 0),
-            Err(rv::ProgramError::EntryPoint)
+            Err(ProgramError::EntryPoint)
         ));
 
         // An image larger than RAM, RAM or the advice beyond its region.
         assert!(matches!(
             Program::new(&text, Region::TEXT.base(), vec![0, 0], 0, 0),
-            Err(rv::ProgramError::RamSize)
+            Err(ProgramError::RamSize)
         ));
         assert!(matches!(
             Program::new(&text, Region::TEXT.base(), vec![], usize::MAX, 0),
-            Err(rv::ProgramError::RamSize)
+            Err(ProgramError::RamSize)
         ));
         assert!(matches!(
             Program::new(&text, Region::TEXT.base(), vec![], 0, usize::MAX),
-            Err(rv::ProgramError::AdviceSize)
+            Err(ProgramError::AdviceSize)
         ));
     }
 
@@ -533,7 +570,7 @@ mod tests {
         assert!(program(limit).is_ok());
 
         // One word more no longer fits.
-        assert!(matches!(program(limit + 1), Err(rv::ProgramError::TextTooLarge)));
+        assert!(matches!(program(limit + 1), Err(ProgramError::TextTooLarge)));
     }
 
     #[test]
@@ -545,8 +582,8 @@ mod tests {
 
         // Running it traps on the first instruction.
         assert_eq!(
-            rv::Machine::new(program.rv(), &[]).run_for(1),
-            Err(rv::Trap::Illegal {
+            Machine::new(program.rv(), &[]).run_for(1),
+            Err(Trap::Illegal {
                 pc: Region::TEXT.base()
             })
         );
@@ -579,7 +616,7 @@ mod tests {
 
     /// The leaves a witness's bus leaves unmatched, as `(side, block, row)`.
     fn unmatched(w: &Witness) -> Vec<(&'static str, usize, usize)> {
-        leaf::unmatched_leaves(&w.layout.push, &w.layout.pull, &w.layout.producers, &w.columns())
+        unmatched_leaves(&w.layout.push, &w.layout.pull, &w.layout.producers, &w.columns())
     }
 
     /// A committed column of a built witness, to forge it.
@@ -590,7 +627,7 @@ mod tests {
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.
     fn assert_unbalanced(program: &Program, w: Witness, output: &[u64; 4]) {
-        let refused = std::panic::catch_unwind(|| program.prove_witness(w, output, pcs::Rate::MIN))
+        let refused = std::panic::catch_unwind(|| program.prove_witness(w, output, Rate::MIN))
             .expect_err("an unbalanced bus was proven");
         let message = refused.downcast_ref::<String>().map(String::as_str).unwrap_or("");
         assert!(
@@ -614,9 +651,9 @@ mod tests {
     /// The padding row a jump to itself makes, `jal rd, 0` at entry `index`, at clock zero.
     fn padding_jump(program: &Program, index: usize) -> Row {
         let e = &program.rv.entries()[index];
-        let rv::Outcome { out, taken, access } = e.evaluate(0, 0, 0);
+        let Outcome { out, taken, access } = e.evaluate(0, 0, 0);
         let ram = access.unwrap_or_default();
-        let slots: Vec<u64> = tables::ALU.slots().into_iter().map(u64::from).collect();
+        let slots: Vec<u64> = ClassSpec::ALU.slots().into_iter().map(u64::from).collect();
         Row {
             index: index as u32,
             ts: 0,
@@ -679,29 +716,29 @@ mod tests {
             let mut text = original.clone();
             text[exit_index] = instruction.bits();
             let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid jump program");
-            assert!(matches!(program.execute(&[]), Err(ProveError::Trap(rv::Trap::Illegal { pc })) if pc == halt));
+            assert!(matches!(program.execute(&[]), Err(ProveError::Trap(Trap::Illegal { pc })) if pc == halt));
 
             // Forge the terminal row directly, bypassing the interpreter's trap.
             let mut execution = honest_program.execute(&[]).unwrap();
             let entry = program.rv.entries()[exit_index];
             if entry.jalr {
                 // The jump reads `t0` in slot 0, where the exit read `x0`, which leaves `x0`'s slot-1 read pulling the cycle before.
-                let ts = tables::CLOCK_START + exit_index as u64 * tables::CYCLE;
+                let ts = Clock::CLOCK_START + exit_index as u64 * Clock::CYCLE;
                 let previous = original[..exit_index]
                     .iter()
                     .enumerate()
                     .rev()
                     .find_map(|(i, &word)| {
-                        (rv::Entry::decode(word, program.rv.pc_of(i)).ad == Reg::T0.index() as u8)
-                            .then_some((tables::CLOCK_START + i as u64 * tables::CYCLE) | 3)
+                        (Entry::decode(word, program.rv.pc_of(i)).ad == Reg::T0.index() as u8)
+                            .then_some((Clock::CLOCK_START + i as u64 * Clock::CYCLE) | 3)
                     })
                     .unwrap();
                 let row = &mut execution.trace.rows[0][exit_index];
                 (row.v1, row.out, row.taken) = (halt, halt, false);
-                (row.prev[0], row.prev[1]) = (previous, ts - tables::CYCLE + 1);
+                (row.prev[0], row.prev[1]) = (previous, ts - Clock::CYCLE + 1);
                 execution.trace.reg_ts[Reg::T0.index()] = F64(ts);
             }
-            execution.trace.reg_fin[rv::RegisterFile::SINK as usize] = F64(pc + 4);
+            execution.trace.reg_fin[RegisterFile::SINK as usize] = F64(pc + 4);
             let witness = Witness::build(&program, &execution);
             let unmatched = unmatched(&witness);
             // The final state on the pull side, and the ALU's state push, the push side's
@@ -714,13 +751,11 @@ mod tests {
 
     /// The two families of loads and stores: the doubleword ones, whose value is a column, and the narrower ones, whose
     /// value is a circuit word. Each as `(store, load, their classes)`.
-    const STORE_LOAD: [(StoreOp, LoadOp, [rv::Class; 2]); 2] = [
-        (Sd, Ld, [rv::Class::Sd, rv::Class::Ld]),
-        (Sw, Lw, [rv::Class::Store, rv::Class::Load]),
-    ];
+    const STORE_LOAD: [(StoreOp, LoadOp, [Class; 2]); 2] =
+        [(Sd, Ld, [Class::Sd, Class::Ld]), (Sw, Lw, [Class::Store, Class::Load])];
 
     /// `t1 = 5` stored in RAM's fifth word then loaded into `a0`, run honestly, and its store's and load's tables.
-    fn store_then_load(store: StoreOp, load: LoadOp, classes: [rv::Class; 2]) -> (Program, Execution, [usize; 2]) {
+    fn store_then_load(store: StoreOp, load: LoadOp, classes: [Class; 2]) -> (Program, Execution, [usize; 2]) {
         let text = Asm::new()
             .li(Reg::T0, Region::RAM.base() + 32)
             .i(Addi, Reg::T1, Reg::ZERO, 5)
@@ -731,7 +766,7 @@ mod tests {
         let program = Program::new(&text, Region::TEXT.base(), vec![], 3, 0).expect("valid instruction program");
         let run = program.execute(&[]).unwrap();
         assert_eq!(run.output, [5, 0, 0, 0]);
-        (program, run, classes.map(|c| tables::table_of(c).unwrap()))
+        (program, run, classes.map(|c| ClassTable::index_of(c).unwrap()))
     }
 
     /// The first row of the run among `rows`, past the padding rows at clock zero.
@@ -775,7 +810,7 @@ mod tests {
 
         // Mutation: the row claims b_1 = 1, as if b were (9, 1, 0), and c and RAM follow it.
         let mut forged = program.execute(&[]).unwrap();
-        let ext = tables::table_of(rv::Class::Ext).unwrap();
+        let ext = ClassTable::index_of(Class::Ext).unwrap();
         let row = forged.trace.rows[ext].iter_mut().find(|r| r.ts != 0).unwrap();
         let x = row.ext.as_mut().unwrap();
         x.instance.limbs[4] = 1;
@@ -821,7 +856,7 @@ mod tests {
         // Fixture state: `t1 = 5` is stored in RAM's fifth word by `sd`, then loaded into `a0` by `ld`.
         // Mutation: the load gives `a0` 7 from a cell holding 5, or the store leaves 7 from a `t1` holding 5, what follows agreeing.
         // Neither class has a column for the value it moves other than the one it reads, so the 5 is what it pushes.
-        let (program, honest, tables) = store_then_load(Sd, Ld, [rv::Class::Sd, rv::Class::Ld]);
+        let (program, honest, tables) = store_then_load(Sd, Ld, [Class::Sd, Class::Ld]);
         let mut forged = program.execute(&[]).unwrap();
         real(&mut forged.trace.rows[tables[1]]).out = 7;
         forged.trace.reg_fin[Reg::A0.index()] = F64(7);
@@ -849,12 +884,12 @@ mod tests {
         // Mutation: the program's access has immediate 1, which the interpreter refuses; the row is the honest one at the
         // address its circuit computes, a byte past the cell, and the cell it should have touched keeps its seed.
         let cell = Region::RAM.base() + 32;
-        for class in [rv::Class::Ld, rv::Class::Sd] {
+        for class in [Class::Ld, Class::Sd] {
             let text = |offset| {
                 let mut a = Asm::new();
                 a.li(Reg::T0, cell).i(Addi, Reg::T1, Reg::ZERO, 5);
                 match class {
-                    rv::Class::Ld => a.load(Ld, Reg::A0, offset, Reg::T0),
+                    Class::Ld => a.load(Ld, Reg::A0, offset, Reg::T0),
                     _ => a.store(Sd, Reg::T1, offset, Reg::T0),
                 };
                 a.exit().finish()
@@ -864,12 +899,12 @@ mod tests {
             let misaligned = program(1);
             assert!(matches!(
                 misaligned.execute(&[]),
-                Err(ProveError::Trap(rv::Trap::Misaligned { address, .. })) if address == cell + 1
+                Err(ProveError::Trap(Trap::Misaligned { address, .. })) if address == cell + 1
             ));
             let mut forged = program(0).execute(&[]).unwrap();
-            let row = real(&mut forged.trace.rows[tables::table_of(class).unwrap()]);
+            let row = real(&mut forged.trace.rows[ClassTable::index_of(class).unwrap()]);
             row.ram.address = cell + 1;
-            (forged.trace.ram_fin[4], forged.trace.ram_ts[4]) = (F64::ZERO, F64(tables::SEED_CLOCK));
+            (forged.trace.ram_fin[4], forged.trace.ram_ts[4]) = (F64::ZERO, F64(Clock::SEED_CLOCK));
             let w = Witness::build(&misaligned, &forged);
             // The access's pull and push, at an address no cell has.
             assert_eq!(unmatched(&w).len(), 2, "{class:?}: {:?}", unmatched(&w));
@@ -893,13 +928,13 @@ mod tests {
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let honest = program.execute(&[]).unwrap();
         assert_eq!(honest.output, [12, 0, 0, 0]);
-        let (proof, _) = program.prove_execution(&honest, pcs::Rate::MIN);
+        let (proof, _) = program.prove_execution(&honest, Rate::MIN);
         program.verify(&honest.output, &proof).expect("the honest run verifies");
 
         let mut forged = program.execute(&[]).unwrap();
         let row = &mut forged.trace.rows[0][3];
         // The read happens at cycle 4; the first write happened at cycle 1, the second at 2, each in slot 3.
-        let write = |cycle: u64| tables::SEED_CLOCK | (cycle * tables::CYCLE) | 3;
+        let write = |cycle: u64| Clock::SEED_CLOCK | (cycle * Clock::CYCLE) | 3;
         assert_eq!((row.v1, row.prev[0]), (9, write(2)));
         (row.v1, row.out, row.prev[0]) = (5, 8, write(1));
         forged.output[0] = 8;
@@ -924,10 +959,15 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        let alu = tables::table_of(rv::Class::Alu).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
         let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
         let mut w = Witness::build(&program, &exec);
-        let offset = Schema::get().spans[alu].0 + tables::branch_offset_column(alu);
+        // Bytecode slot 9 binds the decoded branch target offset.
+        let bus = ClassTable::all()[alu].flushes();
+        let Coord::Col(branch_offset) = bus.pull[1][9] else {
+            panic!("the ALU binds its branch offset to a column");
+        };
+        let offset = Schema::get().spans[alu].0 + branch_offset;
         column_mut(&mut w, offset)[row] = F64(8);
         column_mut(&mut w, Shared::BytecodeMult.col())[0].0 -= 1;
 
@@ -935,7 +975,7 @@ mod tests {
         assert_eq!(unmatched.len(), 1, "{unmatched:?}");
         let (side, block, at) = unmatched[0];
         assert_eq!((side, at), ("pull", row));
-        assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == SEP_BYTECODE));
+        assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
         assert_unbalanced(&program, w, &exec.output);
     }
 
@@ -988,7 +1028,7 @@ mod tests {
         (row.v1, row.out, row.prev[0]) = (9, 9, row.ts);
         forged.output[0] = 9;
         forged.trace.reg_fin[Reg::A0.index()] = F64(9);
-        forged.trace.reg_ts[Reg::T0.index()] = F64(tables::CLOCK_START | 3);
+        forged.trace.reg_ts[Reg::T0.index()] = F64(Clock::CLOCK_START | 3);
         // The read's row pushes a failed clock, which the next row's pull does not meet.
         let unmatched = unmatched_run(&program, &forged);
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
@@ -1016,7 +1056,7 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let spin = text.len() - 1;
         let mut row = padding_jump(&program, spin);
-        (row.prev[2], row.vd_old) = (tables::SEED_CLOCK, 0);
+        (row.prev[2], row.vd_old) = (Clock::SEED_CLOCK, 0);
         replace_lone_jump(&program, &mut forged, row);
         let link = program.rv.pc_of(spin) + 4;
         forged.output[1] = link;
@@ -1077,11 +1117,11 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let exit = forged.trace.rows[0].iter_mut().find(|r| r.index == 2).unwrap();
         (exit.prev[2], exit.vd_old) = (exit.ts | 3, exit.out);
-        let sink = rv::RegisterFile::SINK as usize;
-        (forged.trace.reg_ts[sink], forged.trace.reg_fin[sink]) = (F64(tables::SEED_CLOCK), F64::ZERO);
-        forged.trace.ts_final |= 1 << tables::FAIL_BIT;
+        let sink = RegisterFile::SINK as usize;
+        (forged.trace.reg_ts[sink], forged.trace.reg_fin[sink]) = (F64(Clock::SEED_CLOCK), F64::ZERO);
+        forged.trace.ts_final |= 1 << Clock::FAIL_BIT;
         assert!(unmatched_run(&program, &forged).is_empty());
-        let (proof, _) = program.prove_execution(&forged, pcs::Rate::MIN);
+        let (proof, _) = program.prove_execution(&forged, Rate::MIN);
         assert_eq!(program.verify(&forged.output, &proof), Err(CpuError::FinalClock));
     }
 }

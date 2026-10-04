@@ -1,11 +1,15 @@
 //! The benchmark harness of the CLI and the `benches/` targets: repeated timing with
-//! warmup, cooldown and confidence intervals, the trace tree `--tracing` prints, and
-//! Bencher Metric Format output. Nothing the prover or verifier links.
+//! warmup, cooldown and confidence intervals, the trace tree `--tracing` prints, the prover's
+//! stage times, and Bencher Metric Format output. Nothing the prover or verifier links.
 
+use std::fmt::Display;
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
 
+mod stages;
 mod trace;
+pub use stages::{take_stages, time_stages};
+
 pub use trace::{TraceSuppressed, init_tracing, init_tracing_from_env, suppress_tracing};
 
 /// One line of live progress on stderr.
@@ -269,10 +273,20 @@ impl Metric {
         }
     }
 
-    /// In nanoseconds, the unit of Bencher's built-in `latency` measure.
+    /// In nanoseconds, the fastest and slowest pass as its bounds.
     #[must_use]
     pub fn nanoseconds(timing: &Timing) -> Self {
-        let ns = |secs: f64| (secs * 1e9).round();
+        Self::timed(timing, |secs| (secs * 1e9).round())
+    }
+
+    /// In nanoseconds per operation of a pass doing `ops` of them, the fastest and slowest pass as its bounds.
+    /// Kept to the picosecond, since a field operation takes a few nanoseconds or less.
+    #[must_use]
+    pub fn nanoseconds_per_op(timing: &Timing, ops: usize) -> Self {
+        Self::timed(timing, |secs| (secs * 1e12 / ops as f64).round() / 1e3)
+    }
+
+    fn timed(timing: &Timing, ns: impl Fn(f64) -> f64) -> Self {
         let samples = timing.samples();
         Self {
             value: ns(timing.mean()),
@@ -284,10 +298,11 @@ impl Metric {
     }
 }
 
-/// Benchmarks and their measures as Bencher Metric Format JSON, what CI uploads
+/// Benchmarks and their measures as Bencher Metric Format JSON, what CI's comparisons read
 /// (`.github/workflows/bench.yml`): <https://bencher.dev/docs/reference/bencher-metric-format/>.
+/// A measure's name is a `&str`, or a `String` when it is built at run time.
 #[must_use]
-pub fn bencher_json(report: &[(String, Vec<(&str, Metric)>)]) -> String {
+pub fn bencher_json<M: Display>(report: &[(String, Vec<(M, Metric)>)]) -> String {
     let benchmarks: Vec<String> = report
         .iter()
         .map(|(name, metrics)| {

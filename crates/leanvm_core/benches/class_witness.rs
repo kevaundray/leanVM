@@ -5,7 +5,8 @@
 //! ```
 
 use bench::Plan;
-use primitives::test_rng::Rng;
+use leanvm_core::tables::ClassSpec;
+use primitives::test_util::Rng;
 
 fn main() {
     // One batch of 2^16 instances per class, the size of a mid-sized run's table.
@@ -18,10 +19,7 @@ fn main() {
         "class", "k_log", "walk", "64 lanes", "speedup"
     );
     // Every class without a word-level witness of its own.
-    for spec in leanvm_core::tables::CLASSES
-        .iter()
-        .filter(|spec| spec.witness.is_none())
-    {
+    for spec in ClassSpec::ALL.iter().filter(|spec| spec.witness.is_none()) {
         let circuit = spec.class.circuit();
 
         // Random input words: the walk costs the same on any input.

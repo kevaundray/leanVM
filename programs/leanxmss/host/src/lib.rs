@@ -71,6 +71,10 @@ const fn words_of_signature(signature: &Signature) -> &[u64] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use leanvm_core::cpu::Program;
+    use leanvm_core::rv::{Machine, Trap};
+    use leanxmss::XmssVerifyError::{InvalidEncoding, InvalidMerklePath};
+    use leanxmss::{PublicKey, Signature};
 
     fn hex(bytes: impl IntoIterator<Item = u8>) -> String {
         bytes.into_iter().map(|b| format!("{b:02x}")).collect()
@@ -129,14 +133,13 @@ mod tests {
 
     #[test]
     fn leanxmss_rejects_a_change_anywhere() {
-        use leanxmss::VerifyError::{InvalidEncoding, InvalidMerklePath};
         // Invariant: a verifier binds the claim and every part of the signature.
         //
         // Fixture state: one honest signature at leaf index 7.
         let (seed, message) = fixed();
         let (sk, pk) = leanxmss::key_gen(seed, 7);
         let signature = sk.sign(&message).unwrap();
-        let verify = |pk: &leanxmss::PublicKey, leaf_index, message: &[u64; 4], signature: &leanxmss::Signature| {
+        let verify = |pk: &PublicKey, leaf_index, message: &[u64; 4], signature: &Signature| {
             leanxmss::verify(pk, leaf_index, message, signature).err()
         };
 
@@ -168,9 +171,9 @@ mod tests {
     }
 
     /// The guest on the interpreter, with no proof: its output, or the trap.
-    fn on_the_vm(run: &Run) -> Result<[u64; 4], leanvm_core::rv::Trap> {
-        let program = leanvm_core::cpu::Program::from_elf(ELF).expect("the guest's ELF file");
-        leanvm_core::rv::Machine::new(program.rv(), &run.advice).run()
+    fn on_the_vm(run: &Run) -> Result<[u64; 4], Trap> {
+        let program = Program::from_elf(ELF).expect("the guest's ELF file");
+        Machine::new(program.rv(), &run.advice).run()
     }
 
     #[test]
@@ -194,5 +197,28 @@ mod tests {
         run = batch(1);
         run.advice[1 + 4] |= 1 << 32;
         assert!(on_the_vm(&run).is_err());
+    }
+
+    #[test]
+    fn leanxmss_outputs_the_blake2s_of_its_claims() {
+        // Invariant: the output is BLAKE2s-256 of the claims (key, leaf index, message: 9 words) back to back.
+        //
+        // Every count up to 9 claims: a claim is 72 bytes, so its end falls at each offset of a 64-byte block, 8 claims
+        // end on a block boundary and 0 are the empty message.
+        let claim = size_of::<PublicKey>() / 8 + 1 + MESSAGE.len();
+        let entry = claim + size_of::<Signature>() / 8;
+        for n in 0..=9 {
+            let run = batch(n);
+            // The advice is the count, then each entry: its claim, then its signature.
+            assert_eq!(run.advice.len(), 1 + n * entry);
+            let claims: Vec<u64> = run.advice[1..]
+                .chunks(entry)
+                .flat_map(|e| e[..claim].to_vec())
+                .collect();
+            let digest = primitives::hash::hash(&bytes(&claims));
+            let expected = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
+            assert_eq!(run.expected, expected, "{n} claims, natively");
+            assert_eq!(on_the_vm(&run), Ok(expected), "{n} claims, on the VM");
+        }
     }
 }

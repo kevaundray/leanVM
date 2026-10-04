@@ -1,5 +1,7 @@
+use aggregate::{Leaf, LeafShape, Tree, TreeError, TreeProof};
 use leanvm::asm::*;
 use leanvm::*;
+use leanvm_guest::PublicValues;
 
 /// `a0 <- F(n) mod 2^64`, `n` being the first word of the program's image, by a loop
 /// that keeps its two numbers on the stack.
@@ -42,7 +44,7 @@ fn preimage(message: &[u8]) -> (Program, Vec<u64>, [u64; 4]) {
     let digest = primitives::hash::hash(message);
     let digest: [u64; 4] = std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()));
     // The output is the digest of what the guest committed: the message's digest.
-    let mut public = leanvm_guest::PublicValues::new();
+    let mut public = PublicValues::new();
     public.commit(&digest);
     (program, advice, public.digest())
 }
@@ -63,11 +65,11 @@ fn public_api_end_to_end() {
     wrong_output[0] += 1;
     assert!(matches!(
         verify(&fibonacci(91), &output, &received),
-        Err(Error::Verify(_))
+        Err(LeanVmError::Verify(_))
     ));
     assert!(matches!(
         verify(&program, &wrong_output, &received),
-        Err(Error::Verify(_))
+        Err(LeanVmError::Verify(_))
     ));
 
     // 3. One proof is one arena phase: the first proof outlives the second's phase.
@@ -89,14 +91,20 @@ fn public_api_end_to_end() {
     let bytes = received.to_bytes();
     let mut bumped = bytes.clone();
     bumped[4] += 1;
-    assert_eq!(Proof::from_bytes(&bumped), Err(Error::UnsupportedVersion { found: 6 }));
+    assert_eq!(
+        Proof::from_bytes(&bumped),
+        Err(LeanVmError::UnsupportedVersion { found: 7 })
+    );
     let mut magic = bytes.clone();
     magic[0] ^= 1;
-    assert_eq!(Proof::from_bytes(&magic), Err(Error::MalformedProof));
-    assert_eq!(Proof::from_bytes(&bytes[..bytes.len() - 1]), Err(Error::MalformedProof));
+    assert_eq!(Proof::from_bytes(&magic), Err(LeanVmError::MalformedProof));
+    assert_eq!(
+        Proof::from_bytes(&bytes[..bytes.len() - 1]),
+        Err(LeanVmError::MalformedProof)
+    );
     assert_eq!(
         Proof::from_bytes(&[bytes.as_slice(), &[0]].concat()),
-        Err(Error::MalformedProof)
+        Err(LeanVmError::MalformedProof)
     );
 
     // 6. What the caller gets wrong is an error, not a panic.
@@ -106,9 +114,31 @@ fn public_api_end_to_end() {
         .expect("valid instruction program");
     assert_eq!(
         prover.prove(&one_word, &[1, 2], Rate::MIN).map(|_| ()),
-        Err(Error::AdviceTooLong { max: 1, got: 2 })
+        Err(LeanVmError::AdviceTooLong { max: 1, got: 2 })
     );
     assert_eq!(Program::from_elf(b"\x7fELF").map(|_| ()), Err(ElfError::Truncated));
+
+    // 7. Two proofs of one program, aggregated in one tree proof whose root states both outputs, in order.
+    let leaves: Vec<Proved> = [b"leanVM".as_slice(), b"LEANvm"]
+        .into_iter()
+        .map(|message| {
+            let (guest, advice, _) = preimage(message);
+            prover.prove(&guest, &advice, Rate::MIN).expect("the run halts")
+        })
+        .collect();
+    let (guest, ..) = preimage(b"");
+    let shape = LeafShape::of(&leaves[0].proof).expect("an announced shape");
+    let tree = Tree::new(&guest, shape, 2, 2, Rate::MIN).expect("a tree");
+    let pairs: Vec<Leaf<'_>> = leaves.iter().map(Leaf::from).collect();
+    let root = tree.prove(&pairs).expect("honest leaves");
+    let root = TreeProof::from_bytes(&root.to_bytes()).expect("a tree proof's own bytes");
+    let outputs = [leaves[0].output, leaves[1].output];
+    assert_ne!(outputs[0], outputs[1]);
+    tree.verify(&root, &outputs).unwrap();
+    assert_eq!(
+        tree.verify(&root, &[outputs[1], outputs[0]]),
+        Err(LeanVmError::Tree(TreeError::Outputs))
+    );
 
     let stats = zk_alloc::stats();
     assert!(stats.phases >= 2, "expected one phase per proof, got {stats:?}");

@@ -3,11 +3,14 @@
 //! in both, and this is what catches the Python one drifting.
 
 use fiat_shamir::transcript::RawProof;
-use leanvm_core::cpu::CpuError;
+use leanvm_core::cpu::{CpuError, Lookup, Program};
 use leanvm_core::pcs::Rate;
+use leanvm_core::rv::{Alu, Class};
+use leanvm_core::tables::{ClassTable, Clock};
 use primitives::field::F192;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// One statement laid out the way the Python verifier takes it: the bytecode
@@ -20,12 +23,12 @@ pub struct PythonStatement {
 }
 
 impl PythonStatement {
-    pub fn new(tag: &str, program: &leanvm_core::cpu::Program, output: &[u64; 4]) -> Self {
+    pub fn new(tag: &str, program: &Program, output: &[u64; 4]) -> Self {
         // One directory per statement, not per tag: the tests share a process, so two of
         // them naming the same tag would write each other's files and check the wrong
         // proof, which python would ACCEPT, silently proving nothing.
-        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let unique = NEXT.fetch_add(1, Ordering::Relaxed);
         let directory =
             std::env::temp_dir().join(format!("leanvm-python-verifier-{tag}-{}-{unique}", std::process::id()));
         std::fs::create_dir_all(&directory).expect("create test directory");
@@ -35,7 +38,7 @@ impl PythonStatement {
             directory,
         };
         let rv = program.rv();
-        let table: Vec<u8> = leanvm_core::cpu::Lookup::Bytecode
+        let table: Vec<u8> = Lookup::Bytecode
             .table(rv)
             .iter()
             .flat_map(|w| w.0.to_le_bytes())
@@ -62,6 +65,34 @@ impl PythonStatement {
     /// reader deriving every leaf width and tree height from the protocol it is
     /// replaying.
     pub fn verify(&self, raw: &RawProof) -> Output {
+        self.verify_with(raw, None)
+    }
+
+    /// The verifier run through `prelude` when one is given: a Python script that receives the verifier's path then its
+    /// arguments, and may wrap the verifier's functions before calling its `main`.
+    pub fn verify_with(&self, raw: &RawProof, prelude: Option<&str>) -> Output {
+        self.command(raw, prelude).output().expect("run native Python verifier")
+    }
+
+    /// The claims Python's `verify_core` leaves on `raw`, as it renders them, once it
+    /// has checked them.
+    pub fn deferred(&self, raw: &RawProof) -> String {
+        let output = self
+            .command(raw, None)
+            .arg("--deferred")
+            .output()
+            .expect("run native Python verifier");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success(),
+            "native Python verification failed:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let claims = stdout.trim().strip_suffix("verification succeeded");
+        claims.expect("the verdict follows the claims").trim().to_owned()
+    }
+
+    fn command(&self, raw: &RawProof, prelude: Option<&str>) -> Command {
         let mut stream = Vec::new();
         for scalar in &raw.stream {
             for limb in [scalar.c0, scalar.c1, scalar.c2] {
@@ -81,14 +112,17 @@ impl PythonStatement {
         let openings_path = self.directory.join("merkle_openings.bin");
         std::fs::write(&stream_path, stream).expect("write scalar stream");
         std::fs::write(&openings_path, openings).expect("write Merkle openings");
-        Command::new("python3")
+        let mut command = Command::new("python3");
+        if let Some(prelude) = prelude {
+            command.arg("-c").arg(prelude);
+        }
+        command
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../python-verifier/verifier.py"))
             .arg(&self.bytecode)
             .arg(&self.public)
             .arg(stream_path)
-            .arg(openings_path)
-            .output()
-            .expect("run native Python verifier")
+            .arg(openings_path);
+        command
     }
 
     /// Python refused, and refused the way it should: through its own error path, not
@@ -148,11 +182,7 @@ fn test_python_verifier() {
     // Neither a padding row's clock nor a failed row's can end the run.
     let final_clock = leanvm_core::tables::N_TABLES + 1;
     let honest = proof.stream[final_clock].c0;
-    for clock in [
-        0,
-        honest ^ leanvm_core::tables::SEED_CLOCK,
-        honest | 1 << leanvm_core::tables::FAIL_BIT,
-    ] {
+    for clock in [0, honest ^ Clock::SEED_CLOCK, honest | 1 << Clock::FAIL_BIT] {
         let mut forged = proof.clone();
         forged.stream[final_clock] = F192::new(clock, 0, 0);
         assert_eq!(program.verify(&output, &forged), Err(CpuError::FinalClock));
@@ -188,14 +218,14 @@ fn test_python_verifier() {
     // A load reads no `rs2`, a store writes no `rd`, and a doubleword one has no flags: their tables hold those fields
     // at constants, `x0`, the sink and zero, so an entry naming another register or a flag is refused.
     for (class, slot, reason) in [
-        (leanvm_core::rv::Class::Load, 5, "reads an rs2"),
-        (leanvm_core::rv::Class::Store, 6, "writes an rd"),
-        (leanvm_core::rv::Class::Ld, 5, "reads an rs2"),
-        (leanvm_core::rv::Class::Sd, 6, "writes an rd"),
-        (leanvm_core::rv::Class::Ld, 3, "flags are not its class's"),
+        (Class::Load, 5, "reads an rs2"),
+        (Class::Store, 6, "writes an rd"),
+        (Class::Ld, 5, "reads an rs2"),
+        (Class::Sd, 6, "writes an rd"),
+        (Class::Ld, 3, "flags are not its class's"),
     ] {
         // The class tag `g^t`, which is `2^t` since `g = x`.
-        let tag = 1u64 << leanvm_core::tables::table_of(class).expect("the class has a table");
+        let tag = 1u64 << ClassTable::index_of(class).expect("the class has a table");
         let mut malformed = table.clone();
         for (slot, value) in [(2, tag), (3, 0), (slot, 1)] {
             malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
@@ -212,9 +242,9 @@ fn test_python_verifier() {
     let refused = statement.verify(&raw);
     PythonStatement::assert_rejects(&refused, "an ordinary instruction marked as an exit");
     assert!(String::from_utf8_lossy(&refused.stderr).contains("an exit entry is not ECALL"));
-    let branch = leanvm_core::rv::Alu::SUB | leanvm_core::rv::Alu::BR_EQ;
-    let always = leanvm_core::rv::Alu::ALWAYS;
-    let jalr = leanvm_core::rv::Alu::CLEAR_BIT0;
+    let branch = Alu::SUB | Alu::BR_EQ;
+    let always = Alu::ALWAYS;
+    let jalr = Alu::CLEAR_BIT0;
     for (flags, dt, link, indirect) in [
         (branch, 0x44, 1, 1),
         (always, 0, 0, 0),
@@ -284,4 +314,85 @@ fn the_python_verifier_follows_the_slowest_rate() {
     let (proof, output, _) = program.prove(&[], Rate::MAX).expect("the run halts");
     let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
     PythonStatement::new("rate", &program, &output).assert_accepts(&raw);
+}
+
+/// Every ring-switched claim joins the opening's one family through its slices: both verifiers reject a moved slice of
+/// the first, a middle and the last flock circuit, and a moved multiplicity bit. Python also rejects a family target off
+/// by one and a family combined by the wrong challenge.
+#[test]
+fn both_verifiers_bind_every_circuits_slices() {
+    let (program, _) = super::programs::fibonacci();
+    let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
+    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
+    assert_eq!(raw.stream, proof.stream, "the raw proof's scalars are the proof's");
+    let statement = PythonStatement::new("slices", &program, &output);
+
+    // Where the table sumcheck (ending on the multiplicity bits) and each circuit's reduction (ending on its 64 slices)
+    // stop reading the stream, as the Python verifier reads it.
+    let prelude = r#"import runpy, sys
+v = runpy.run_path(sys.argv[1])
+g = v['main'].__globals__
+def recorded(name):
+    inner = g[name]
+    def wrapped(*args):
+        out = inner(*args)
+        print(name, args[-1].stream_offset)
+        return out
+    g[name] = wrapped
+recorded('table_sumcheck')
+recorded('verify_flock')
+sys.exit(v['main'](sys.argv[2:]))
+"#;
+    let traced = statement.verify_with(&raw, Some(prelude));
+    assert!(traced.status.success(), "{}", String::from_utf8_lossy(&traced.stderr));
+    let stdout = String::from_utf8_lossy(&traced.stdout);
+    let ends = |name: &str| -> Vec<usize> {
+        (stdout.lines())
+            .filter_map(|line| line.strip_prefix(name)?.trim().parse().ok())
+            .collect()
+    };
+    let flocks = ends("verify_flock");
+    let n = leanvm_core::class_flock::N_FLOCKS;
+    assert_eq!(flocks.len(), n, "one reduction per circuit");
+    let [bits_end] = ends("table_sumcheck")[..] else {
+        panic!("one table sumcheck")
+    };
+    for at in [flocks[0] - 64, flocks[n / 2] - 64 + 7, flocks[n - 1] - 1, bits_end - 1] {
+        let mut forged = proof.clone();
+        forged.stream[at] += F192::ONE;
+        assert!(
+            program.verify(&output, &forged).is_err(),
+            "Rust accepted a moved scalar at {at}"
+        );
+        let mut raw_forged = raw.clone();
+        raw_forged.stream[at] += F192::ONE;
+        PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice or bit");
+    }
+
+    let shifted = r#"import runpy, sys
+v = runpy.run_path(sys.argv[1])
+g = v['main'].__globals__
+ring_switch = g['ring_switch']
+def shifted(claims, transcript):
+    weight, target = ring_switch(claims, transcript)
+    return weight, target + g['ONE']
+g['ring_switch'] = shifted
+sys.exit(v['main'](sys.argv[2:]))
+"#;
+    PythonStatement::assert_rejects(&statement.verify_with(&raw, Some(shifted)), "a wrong family target");
+
+    let wrong_gamma = r#"import runpy, sys
+v = runpy.run_path(sys.argv[1])
+g = v['main'].__globals__
+ring_switch, powers = g['ring_switch'], g['powers']
+def wrong_gamma(claims, transcript):
+    g['powers'] = lambda base, n: powers(base + g['ONE'], n)
+    try:
+        return ring_switch(claims, transcript)
+    finally:
+        g['powers'] = powers
+g['ring_switch'] = wrong_gamma
+sys.exit(v['main'](sys.argv[2:]))
+"#;
+    PythonStatement::assert_rejects(&statement.verify_with(&raw, Some(wrong_gamma)), "a wrong gamma_rs");
 }

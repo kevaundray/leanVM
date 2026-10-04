@@ -421,7 +421,7 @@ impl Circuit {
     }
 
     /// The matrix-vector products `(A_0 w, B_0 w)`, by one forward walk.
-    pub(crate) fn row_values(&self, w: &[F192]) -> (Vec<F192>, Vec<F192>) {
+    pub fn row_values(&self, w: &[F192]) -> (Vec<F192>, Vec<F192>) {
         let k = self.n_cols();
         assert_eq!(w.len(), k);
         let wc = w[self.const_pos];
@@ -545,7 +545,7 @@ impl LincheckCircuit for Circuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::test_rng::Rng;
+    use primitives::test_util::Rng;
 
     /// A random circuit over the builder's whole vocabulary.
     ///

@@ -10,12 +10,13 @@
 //! precomputation of Bagad, Dao, Domb and Thaler, <https://eprint.iacr.org/2025/1117>:
 //! the witness is in `K`, so every product is a mixed one).
 
-use super::{Basis, INITIAL_BASIS_CHUNK, SumcheckMessage, window};
+use super::{Basis, FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, PRECOMPUTED_ROUNDS, SumcheckMessage, window};
+#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+use primitives::field::gf2_64::mul_wide;
 use primitives::field::{F64, F192};
+use std::ops::Range;
 
-/// Lane rounds whose messages come out of the first pass, `R` above.
-pub(super) const PRECOMPUTED_ROUNDS: usize = 4;
-/// Lanes per group, and points of `{0, 1, inf}^R`.
+/// Lanes per group, and points of `{0, 1, inf}^R`, `R` being [`PRECOMPUTED_ROUNDS`].
 const GROUP: usize = 1 << PRECOMPUTED_ROUNDS;
 const GRID: usize = 3usize.pow(PRECOMPUTED_ROUNDS as u32);
 
@@ -107,7 +108,6 @@ impl ProductRow {
         }
         #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
         for j in 0..ROW / 2 {
-            use primitives::field::gf2_64::mul_wide;
             let (even, odd) = (k[2 * j], k[2 * j + 1]);
             let sums = [
                 mul_wide(w.lo[2 * j], even) ^ mul_wide(w.hi[2 * j], odd),
@@ -332,7 +332,7 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
 
 /// The grid sums over `lanes`, `rounds` digits at a time: whole groups, or one group whose
 /// missing lanes are zero.
-fn grid_pass(rounds: usize, f: &[F64], block: usize, b: &Basis<'_>, lanes: std::ops::Range<usize>) -> Vec<F192> {
+fn grid_pass(rounds: usize, f: &[F64], block: usize, b: &Basis<'_>, lanes: Range<usize>) -> Vec<F192> {
     match rounds {
         0 => grid_pass_with::<0>(f, block, b, lanes),
         1 => grid_pass_with::<1>(f, block, b, lanes),
@@ -343,7 +343,7 @@ fn grid_pass(rounds: usize, f: &[F64], block: usize, b: &Basis<'_>, lanes: std::
     }
 }
 
-fn grid_pass_with<const R: usize>(f: &[F64], block: usize, b: &Basis<'_>, lanes: std::ops::Range<usize>) -> Vec<F192> {
+fn grid_pass_with<const R: usize>(f: &[F64], block: usize, b: &Basis<'_>, lanes: Range<usize>) -> Vec<F192> {
     let group = 1 << R;
     let points = 3usize.pow(R as u32);
     // A regenerated weight is filled one aligned chunk at a time, or one whole block below that.
@@ -398,8 +398,7 @@ fn grid_pass_with<const R: usize>(f: &[F64], block: usize, b: &Basis<'_>, lanes:
         })
     };
     let new_acc = || Box::new([ProductRow::default(); GRID]);
-    const PAR_THRESHOLD: usize = 8192;
-    let acc = if lanes.len() * block < PAR_THRESHOLD {
+    let acc = if lanes.len() * block < FIRST_PASS_PAR_THRESHOLD {
         let (mut scratch, mut acc) = (new_scratch(), new_acc());
         for t in 0..n_tasks {
             task(&mut scratch, &mut acc, t);

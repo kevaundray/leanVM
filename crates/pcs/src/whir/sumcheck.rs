@@ -7,15 +7,49 @@
 //! running claim every level's queries are batched into. The first lane rounds
 //! come out of one pass, in [`first_pass`].
 
-mod first_pass;
-
-use fiat_shamir::transcript::{Error as TranscriptError, Receiver, Transmitter};
-pub(crate) use first_pass::{InitialRounds, initial_rounds};
+use core::ops::BitXorAssign;
+use fiat_shamir::transcript::{Receiver, TranscriptError, Transmitter};
 use first_pass::{LaneWeight, WeightFold};
+use parallel::SendPtr;
 use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::eq_table;
 use primitives::stream::Stream;
+use std::ops::Add;
 use zk_alloc::ArenaVec;
+
+mod first_pass;
+
+pub(crate) use first_pass::{InitialRounds, initial_rounds};
+
+// ===================================================================
+// Tuning constants
+// ===================================================================
+//
+// Prover-side work sizes, gathered here so they can be found and tuned together.
+// The round messages do not depend on them.
+
+/// Lane rounds whose messages come out of [`first_pass`].
+const PRECOMPUTED_ROUNDS: usize = 4;
+
+/// Work items below which a loop runs on the calling thread, where dispatch costs more than the work.
+const PAR_THRESHOLD: usize = 4096;
+
+/// [`PAR_THRESHOLD`] for the first pass, counted in words over all its lanes.
+const FIRST_PASS_PAR_THRESHOLD: usize = 8192;
+
+/// Elements per task wherever a round is chunked: the fused adjacent-pair fold,
+/// and the lane rounds, whose block is the whole L0 message divided by the
+/// interleaving and so has to be fed to the pool from inside a block pair rather
+/// than across them.
+const ROUND_CHUNK: usize = 2048;
+
+/// Words of the initial weight one fill call writes: a chunk, aligned to its size.
+///
+/// A lane block below this size is filled whole.
+pub(crate) const INITIAL_BASIS_CHUNK: usize = 256;
+
+/// Elements a stored (dense) weight's lane fold stages in L1 before publishing them.
+const DENSE_STAGE: usize = 128;
 
 // ===================================================================
 // Stateful sumcheck over E with a two-phase (Base then Ext) witness
@@ -88,8 +122,8 @@ impl RoundQuad {
 /// the E basis is a mixed `mul_base`, 2 PMULL), `F192` after it (full E
 /// products, 3 PMULL). The associated accumulator is the matching
 /// deferred-reduction type.
-trait RoundWitness: Copy + Sync + std::ops::Add<Output = Self> {
-    type Acc: Copy + Send + core::ops::BitXorAssign;
+trait RoundWitness: Copy + Sync + Add<Output = Self> {
+    type Acc: Copy + Send + BitXorAssign;
     const ZERO_ACC: Self::Acc;
     fn mul_basis_unreduced(self, b: F192) -> Self::Acc;
     fn reduce(acc: Self::Acc) -> F192;
@@ -194,7 +228,6 @@ fn round_msg_and_eval_lsb_ext(f: &[F192], b: &[F192]) -> (SumcheckMessage, F192)
         let e0 = f0 * b0;
         (e0, (f0 + f1) * (b0 + b1), e0 + f1 * b1)
     };
-    const PAR_THRESHOLD: usize = 4096;
     let half = n / 2;
     let (u_0, u_2, y) = if half < PAR_THRESHOLD {
         (0..half)
@@ -259,7 +292,6 @@ fn fold_and_msg_lsb<T: RoundWitness>(
 
     let fold_f = |j: usize| -> F192 { T::fold_pair(f[2 * j], f[2 * j + 1], r) };
     let fold_b = |j: usize| -> F192 { F192::fold_pair(b[2 * j], b[2 * j + 1], r) };
-    const PAR_THRESHOLD: usize = 4096;
     if half < PAR_THRESHOLD {
         let mut nf = ArenaVec::with_capacity(half);
         let mut nb = ArenaVec::with_capacity(half);
@@ -288,8 +320,8 @@ fn fold_and_msg_lsb<T: RoundWitness>(
     let mut nb = unsafe { fold_out_buf(half) };
     // The fold writes and the message accumulate share one pass per chunk, so
     // the freshly folded values are still in L1 when they are multiplied.
-    let nf_base = parallel::SendPtr(nf.as_mut_ptr());
-    let nb_base = parallel::SendPtr(nb.as_mut_ptr());
+    let nf_base = SendPtr(nf.as_mut_ptr());
+    let nb_base = SendPtr(nb.as_mut_ptr());
     let (u_0, u_2) = parallel::map_reduce(
         half.div_ceil(ROUND_CHUNK),
         || (F192Unreduced::ZERO, F192Unreduced::ZERO),
@@ -337,23 +369,16 @@ fn fold_and_msg_lsb<T: RoundWitness>(
 // padding. After them the buffer is one `H`-element block and every later round
 // is the ordinary adjacent-pair fold.
 
-/// Elements per task wherever a round is chunked: the fused adjacent-pair fold,
-/// and the lane rounds, whose block is the whole L0 message divided by the
-/// interleaving and so has to be fed to the pool from inside a block pair rather
-/// than across them.
-const ROUND_CHUNK: usize = 2048;
-
 /// Sum the per-task `(u_0, u_2)` accumulators, sequentially for the small
 /// instances where dispatch costs more than the work. Unreduced accumulators
 /// combine by XOR and `reduce` is linear, so both paths land on the same message.
 #[inline]
-fn accumulate_msg<A: Copy + Send + core::ops::BitXorAssign>(
+fn accumulate_msg<A: Copy + Send + BitXorAssign>(
     n_tasks: usize,
     n_pairs: usize,
     zero: A,
     task: impl Fn(usize) -> (A, A) + Sync,
 ) -> (A, A) {
-    const PAR_THRESHOLD: usize = 4096;
     if n_pairs < PAR_THRESHOLD {
         let mut u_0 = zero;
         let mut u_2 = zero;
@@ -400,40 +425,6 @@ fn msg_terms_lone<T: RoundWitness>(f0: &[T], b0: &[F192]) -> (T::Acc, T::Acc) {
     }
     (u, u)
 }
-
-/// Round message for a lane round, over `f.len() / block` blocks: the reference the first pass is tested against.
-#[cfg(test)]
-fn round_msg_blocks<T: RoundWitness>(f: &[T], b: &[F192], block: usize) -> SumcheckMessage {
-    // Real asserts, not debug ones: the crate is only ever built in release, and a
-    // block count that truncates drops the trailing block from BOTH u_0 and u_2,
-    // which is a well-formed but wrong round message rather than a panic.
-    assert_eq!(b.len(), f.len());
-    assert!(block > 0 && f.len().is_multiple_of(block));
-    let n_blocks = f.len() / block;
-    let per = block.div_ceil(ROUND_CHUNK);
-    let task = |t: usize| -> (T::Acc, T::Acc) {
-        let (i, c) = (t / per, t % per);
-        let x0 = c * ROUND_CHUNK;
-        let len = ROUND_CHUNK.min(block - x0);
-        let lo = 2 * i * block + x0;
-        if 2 * i + 1 < n_blocks {
-            let hi = lo + block;
-            msg_terms_pair(&f[lo..lo + len], &f[hi..hi + len], &b[lo..lo + len], &b[hi..hi + len])
-        } else {
-            msg_terms_lone(&f[lo..lo + len], &b[lo..lo + len])
-        }
-    };
-    let (u_0, u_2) = accumulate_msg(n_blocks.div_ceil(2) * per, f.len() / 2, T::ZERO_ACC, task);
-    SumcheckMessage {
-        u_0: T::reduce(u_0),
-        u_2: T::reduce(u_2),
-    }
-}
-
-/// Words of the initial weight one fill call writes: a chunk, aligned to its size.
-///
-/// A lane block below this size is filled whole.
-pub(crate) const INITIAL_BASIS_CHUNK: usize = 256;
 
 /// The opening's initial weight, regenerated one aligned chunk at a time.
 ///
@@ -522,8 +513,8 @@ fn fold_and_msg_blocks<T: RoundWitness>(
     let mut nf = unsafe { fold_out_buf(n_out * block) };
     // SAFETY: as for `nf`, the same loop writes every slot of `nb`.
     let mut nb = unsafe { fold_out_buf(n_out * block) };
-    let nf_base = parallel::SendPtr(nf.as_mut_ptr());
-    let nb_base = parallel::SendPtr(nb.as_mut_ptr());
+    let nf_base = SendPtr(nf.as_mut_ptr());
+    let nb_base = SendPtr(nb.as_mut_ptr());
 
     let per = block.div_ceil(ROUND_CHUNK);
     // Fold into an L1-resident stage rather than straight into `nf`/`nb`. The
@@ -536,7 +527,7 @@ fn fold_and_msg_blocks<T: RoundWitness>(
     // A regenerated weight is refilled one fill chunk at a time, the unit its fill is written for.
     const STAGE_MAX: usize = INITIAL_BASIS_CHUNK;
     let stage_len = match b {
-        Basis::Dense(_) => 128,
+        Basis::Dense(_) => DENSE_STAGE,
         Basis::Virtual(_) => STAGE_MAX,
     };
     let fold_block = |stage: &mut [F192],
@@ -799,7 +790,6 @@ impl<'a> SumcheckProver<'a> {
             scalar *= lambda;
             let combined = self.combined_basis.dense_mut();
             assert_eq!(b_new.len(), combined.len());
-            const PAR_THRESHOLD: usize = 4096;
             if combined.len() < PAR_THRESHOLD {
                 for (acc, &v) in combined.iter_mut().zip(b_new.iter()) {
                     *acc += scalar * v;
@@ -832,8 +822,35 @@ mod tests {
     use super::*;
     use crate::ring_switch::inner_product_ext;
     use crate::whir_config::INITIAL_FOLDING_FACTOR;
-    use first_pass::PRECOMPUTED_ROUNDS;
-    use primitives::test_rng::Rng;
+    use primitives::test_util::Rng;
+
+    /// Round message for a lane round, over `f.len() / block` blocks: the reference the first pass is tested against.
+    fn round_msg_blocks<T: RoundWitness>(f: &[T], b: &[F192], block: usize) -> SumcheckMessage {
+        // Real asserts, not debug ones: the crate is only ever built in release, and a
+        // block count that truncates drops the trailing block from BOTH u_0 and u_2,
+        // which is a well-formed but wrong round message rather than a panic.
+        assert_eq!(b.len(), f.len());
+        assert!(block > 0 && f.len().is_multiple_of(block));
+        let n_blocks = f.len() / block;
+        let per = block.div_ceil(ROUND_CHUNK);
+        let task = |t: usize| -> (T::Acc, T::Acc) {
+            let (i, c) = (t / per, t % per);
+            let x0 = c * ROUND_CHUNK;
+            let len = ROUND_CHUNK.min(block - x0);
+            let lo = 2 * i * block + x0;
+            if 2 * i + 1 < n_blocks {
+                let hi = lo + block;
+                msg_terms_pair(&f[lo..lo + len], &f[hi..hi + len], &b[lo..lo + len], &b[hi..hi + len])
+            } else {
+                msg_terms_lone(&f[lo..lo + len], &b[lo..lo + len])
+            }
+        };
+        let (u_0, u_2) = accumulate_msg(n_blocks.div_ceil(2) * per, f.len() / 2, T::ZERO_ACC, task);
+        SumcheckMessage {
+            u_0: T::reduce(u_0),
+            u_2: T::reduce(u_2),
+        }
+    }
 
     #[test]
     fn a_regenerated_weight_folds_like_the_stored_one() {

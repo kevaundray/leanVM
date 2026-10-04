@@ -12,6 +12,7 @@
 
 use super::program::ProgramError;
 use super::region::Region;
+use thiserror::Error;
 
 /// What a program is made from: its undecoded text, entry point and memory sizes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,7 +102,7 @@ impl Guest {
 }
 
 /// Why a file is no guest.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
 #[non_exhaustive]
 pub enum ElfError {
     /// A field runs past the end of the file, or its offset overflows.
@@ -546,7 +547,7 @@ impl Loaded {
             // The entry point's four bytes come from the file.
             let entry_end = entry_pc.checked_add(4);
             self.entry_loaded |= entry_pc >= vaddr && entry_end.is_some_and(|e| e <= vaddr + bytes.len() as u64);
-            Self::write::<4>(&mut self.text, offset, bytes);
+            self.write_segment(segment);
         } else {
             // Data lies in RAM, and its file bytes are no larger than the file.
             if !Region::RAM.contains(vaddr..end) {
@@ -558,19 +559,25 @@ impl Loaded {
                 if offset + bytes.len() as u64 > file_len {
                     return Err(ElfError::MalformedSegment);
                 }
-                Self::write::<8>(&mut self.image, offset, bytes);
+                self.write_segment(segment);
             }
         }
         Ok(())
     }
 
-    /// Write `bytes` at `offset` of a buffer of whole `WORD`-byte words, grown to hold them.
-    fn write<const WORD: usize>(buffer: &mut Vec<u8>, offset: u64, bytes: &[u8]) {
-        let end = offset as usize + bytes.len();
+    /// Copy a checked segment into text or RAM, zero-filling gaps and rounding to whole words.
+    fn write_segment(&mut self, segment: &Segment<'_>) {
+        let (buffer, region) = if segment.is_executable() {
+            (&mut self.text, Region::TEXT)
+        } else {
+            (&mut self.image, Region::RAM)
+        };
+        let offset = (segment.vaddr - region.base()) as usize;
+        let end = offset + segment.bytes.len();
         if buffer.len() < end {
-            buffer.resize(end.next_multiple_of(WORD), 0);
+            buffer.resize(end.next_multiple_of(region.word_bytes() as usize), 0);
         }
-        buffer[offset as usize..end].copy_from_slice(bytes);
+        buffer[offset..end].copy_from_slice(segment.bytes);
     }
 }
 

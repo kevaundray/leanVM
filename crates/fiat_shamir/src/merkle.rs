@@ -1,8 +1,10 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-core), MIT OR Apache-2.0.
 //! Digest encoding and Merkle openings carried by proofs.
 
-use crate::transcript::Error;
+use crate::transcript::TranscriptError;
 use primitives::field::{F64, F192};
+use primitives::hash::WordHasher;
+use serde::{Deserialize, Serialize};
 
 pub type Hash = [u8; 32];
 
@@ -23,9 +25,9 @@ pub fn hash_to_scalars(hash: &Hash) -> [F192; 2] {
 /// stream, where a malicious prover picks the third limb: a digest half is
 /// 128-bit, so a nonzero one is not a digest at all.
 #[inline]
-pub fn scalars_to_hash(scalars: &[F192; 2]) -> Result<Hash, Error> {
+pub fn scalars_to_hash(scalars: &[F192; 2]) -> Result<Hash, TranscriptError> {
     if scalars.iter().any(|s| s.c2 != 0) {
-        return Err(Error::NonCanonicalEncoding);
+        return Err(TranscriptError::NonCanonicalEncoding);
     }
     let mut hash = [0u8; 32];
     for (i, s) in scalars.iter().enumerate() {
@@ -67,7 +69,7 @@ fn hash_words(image: &[F64]) -> Hash {
 fn hash_row(prefix: &[u32; 8], zero_blocks: usize, zeros: usize, row: &[F64]) -> Hash {
     // SAFETY: F64 is #[repr(transparent)] over u64.
     let words = unsafe { core::slice::from_raw_parts(row.as_ptr().cast::<u64>(), row.len()) };
-    let mut h = primitives::hash::WordHasher::from_state(*prefix, (zero_blocks * 64) as u64);
+    let mut h = WordHasher::from_state(*prefix, (zero_blocks * 64) as u64);
     h.update_zero_words(zeros).update_words(words);
     h.finalize()
 }
@@ -91,7 +93,7 @@ fn sorted_unique(queries: &[usize]) -> Vec<usize> {
 /// the missing words being a zero prefix the caller also announces,
 /// which is what keeps a padding-free L0 commitment's absent lanes out of the
 /// proof.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrunedMerklePaths {
     pub leaf_data: Vec<Vec<F64>>,
     pub sibling_hashes: Vec<Hash>,
@@ -259,7 +261,7 @@ impl PrunedMerklePaths {
 /// the root is a walk up one path, with no dedup bookkeeping. The Python
 /// verifier consumes this; the wire format ([`PrunedMerklePaths`]) sends each
 /// shared sibling once.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawMerklePath {
     /// Transcript-derived position.
     pub leaf_index: usize,
@@ -375,7 +377,7 @@ mod tests {
         assert_eq!(scalars_to_hash(&scalars), Ok(hash));
         assert_eq!(
             scalars_to_hash(&[F192::new(scalars[0].c0, scalars[0].c1, 1), scalars[1]]),
-            Err(Error::NonCanonicalEncoding)
+            Err(TranscriptError::NonCanonicalEncoding)
         );
     }
 }
