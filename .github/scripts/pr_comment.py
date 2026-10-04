@@ -153,22 +153,38 @@ class Row:
     change: str = field(compare=False)
 
 
-def tables(rows, cpu):
-    """One table per group, in `MEASURES` order, the rows sorted by benchmark, runner and stage."""
+def table(rows, cpu, stages=()):
+    """A group's table; with `stages`, each case's stage rows follow its row, indented."""
+    columns = ["benchmark", "runner", *(["CPU"] if cpu else [])]
+    lines = [f"| {' | '.join(columns)} | base | this PR | change |", "|" + "---|" * len(columns) + "---:|" * 3]
+    for r in rows:
+        name = f"**{r.benchmark}**" if stages else r.benchmark
+        lines.append(f"| {' | '.join([name, r.testbed, *([r.cpu] if cpu else [])])} | {r.base} | {r.pr} | {r.change} |")
+        for s in stages:
+            if (s.benchmark, s.testbed) == (r.benchmark, r.testbed):
+                cells = [f"&emsp;↳ {s.stage}", "", *([""] if cpu else [])]
+                lines.append(f"| {' | '.join(cells)} | {s.base} | {s.pr} | {s.change} |")
+    return lines
+
+
+def tables(rows, cpu, everything):
+    """One table per group, in `MEASURES` order, the rows sorted by benchmark and runner. Prover stages follow the
+    proving times, collapsed: each case whose time or any stage is in `rows`, its time over all its stages from
+    `everything`."""
     lines = []
-    for (_, group), grouped in itertools.groupby(sorted(rows), key=lambda row: (row.rank, row.group)):
-        stages = group == STAGES
-        columns = ["benchmark", "runner", *(["stage"] if stages else []), *(["CPU"] if cpu else [])]
-        lines += [
-            f"#### {MEASURES.get(group, group)}",
-            "",
-            f"| {' | '.join(columns)} | base | this PR | change |",
-            "|" + "---|" * len(columns) + "---:|" * 3,
-        ]
-        for r in grouped:
-            cells = [r.benchmark, r.testbed, *([r.stage] if stages else []), *([r.cpu] if cpu else []), r.base, r.pr, r.change]
-            lines.append(f"| {' | '.join(cells)} |")
-        lines.append("")
+    groups = {group: list(grouped) for (_, group), grouped in itertools.groupby(sorted(rows), key=lambda row: (row.rank, row.group))}
+    staged = {(r.benchmark, r.testbed) for r in everything if r.group == STAGES}
+    cases = staged & {(r.benchmark, r.testbed) for r in groups.get("latency", []) + groups.pop(STAGES, [])}
+    if cases and "latency" not in groups:
+        groups = {"latency": [], **groups}
+    for group, grouped in groups.items():
+        lines += [f"#### {MEASURES.get(group, group)}", ""]
+        if grouped:
+            lines += [*table(grouped, cpu), ""]
+        if group == "latency" and cases:
+            totals = sorted(r for r in everything if r.group == "latency" and (r.benchmark, r.testbed) in cases)
+            stages = sorted(r for r in everything if r.group == STAGES)
+            lines += ["<details><summary>Prover stages</summary>", "", *table(totals, cpu, stages), "", "</details>", ""]
     return lines
 
 
@@ -243,10 +259,10 @@ def bench(docs, head):
                 f"in every round and its median by at least {THRESHOLD:.0%} (the change is the median ratio, with the rounds' range)."
             ),
             "",
-            *tables([row for row in rows if row.shown], cpu=False),
+            *tables([row for row in rows if row.shown], cpu=False, everything=rows),
             "<details><summary>Every result</summary>",
             "",
-            *tables(rows, cpu=True),
+            *tables(rows, cpu=True, everything=rows),
             "</details>",
         ]
     )
