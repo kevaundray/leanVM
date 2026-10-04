@@ -63,6 +63,40 @@ fn span_get(basis: &[F64], idx: usize) -> F64 {
     acc
 }
 
+/// The twiddles of consecutive blocks of one layer, one addition a block.
+///
+/// A twiddle is `Σ_j bit_j(block) · row[offset + j]`, so from block `b` to `b + 1` it changes by the
+/// entries under the bits that flip: `b`'s trailing ones and the zero above them, a prefix of the row.
+struct TwiddleWalk {
+    /// The current block's twiddle.
+    t: F64,
+    /// `steps[k] = Σ_{j <= k} row[offset + j]`, the change past `k` trailing ones.
+    steps: [F64; 64],
+}
+
+impl TwiddleWalk {
+    /// The walk over a layer of `2^layer` blocks, from block `first`.
+    fn new(row: &[F64], offset: usize, layer: usize, first: usize) -> Self {
+        let mut walk = Self {
+            t: span_get(&row[offset..offset + layer], first),
+            steps: [F64::ZERO; 64],
+        };
+        let mut acc = F64::ZERO;
+        for (step, &entry) in walk.steps.iter_mut().zip(&row[offset..offset + layer]) {
+            acc += entry;
+            *step = acc;
+        }
+        walk
+    }
+
+    /// Move from block `block` to `block + 1`.
+    #[inline]
+    fn step(&mut self, block: usize) {
+        // Past the layer's last block the index has `layer` trailing ones, which reads a zero step.
+        self.t += self.steps[block.trailing_ones() as usize];
+    }
+}
+
 /// Receives a finished block of codeword rows, as `(first_row, rows)`.
 pub type RowSink<'a> = dyn Fn(usize, &[F64]) + Sync + 'a;
 
@@ -102,31 +136,6 @@ impl AdditiveNttF64 {
     pub fn twiddle(&self, layer: usize, block: usize) -> F64 {
         let v = &self.evals[self.log_domain_size() - layer - 1];
         span_get(&v[1..], block)
-    }
-
-    /// The seven twiddles a radix-8 group needs, breadth-first: layer `layer`,
-    /// then `layer + 1` (one per half), then `layer + 2` (one per quarter).
-    ///
-    /// `span_get` is F_2-linear in the block index, so the six deeper twiddles are
-    /// the block's own contribution plus a fixed correction per sub-block index:
-    /// one scan of the three basis rows replaces seven.
-    pub(crate) fn twiddles_radix8(&self, layer: usize, block: usize) -> [F64; 7] {
-        let l = self.log_domain_size();
-        let (v0, v1, v2) = (
-            &self.evals[l - layer - 1],
-            &self.evals[l - layer - 2],
-            &self.evals[l - layer - 3],
-        );
-        let (mut t0, mut a, mut c) = (F64::ZERO, F64::ZERO, F64::ZERO);
-        for j in 0..layer {
-            if (block >> j) & 1 == 1 {
-                t0 += v0[1 + j];
-                a += v1[2 + j];
-                c += v2[3 + j];
-            }
-        }
-        let (d, e0, e1) = (v1[1], v2[1], v2[2]);
-        [t0, a, a + d, c, c + e0, c + e1, c + e0 + e1]
     }
 
     /// RS-encode a message already stored in the codeword's first replica.
@@ -456,7 +465,12 @@ impl AdditiveNttF64 {
     ///
     /// - The domain has `2^d` rows and splits into `2^o` equal sub-blocks.
     /// - The buffer is one of them; its index fixes the global block index, and so the twiddle, of each block.
-    /// - Three layers fuse into one radix-8 sweep where blocks are wide enough, then two, then one.
+    /// - Three layers fuse into one radix-8 sweep, the one or two layers left over into a first sweep of their own.
+    ///
+    /// # Why the leftover goes first
+    ///
+    /// - A sweep costs a twiddle computation per block, and the first layers have the fewest, largest blocks.
+    /// - Last, a lone layer would pair two-row blocks, each with its own twiddle for one butterfly row.
     #[allow(clippy::too_many_arguments)]
     fn run_layers(
         &self,
@@ -474,53 +488,67 @@ impl AdditiveNttF64 {
             let num_blocks_in_buf = 1usize << (layer - outer_log);
             let block_size = 1usize << (log_d - layer);
             let block_elems = block_size * num_ntts;
-            // A block's index in the whole domain, which picks its twiddle.
-            let global = |block_in_buf: usize| sub_idx * num_blocks_in_buf + block_in_buf;
+            // The global index of the buffer's first block, which picks its twiddle; the others follow it.
+            let first = sub_idx * num_blocks_in_buf;
+            // Blocks span at least the layers left, since the end layer is at most `log_d`.
+            let blocks = buf.chunks_exact_mut(block_elems).zip(first..);
 
-            if layer + 2 < end_layer && block_size >= 8 {
-                // Three layers to go and blocks of at least 8 rows: one radix-8 sweep.
-                let eighth = block_size >> 3;
-                for block_in_buf in 0..num_blocks_in_buf {
-                    let t = self.twiddles_radix8(layer, global(block_in_buf));
-                    let start = block_in_buf * block_elems;
-                    butterfly_interleaved_fused_3layer(&mut buf[start..start + block_elems], &t, eighth, num_ntts);
-                }
-                layer += 3;
-            } else if layer + 1 < end_layer && block_size >= 4 {
-                // Two layers to go: one radix-4 sweep.
-                let quarter = block_size >> 2;
-                for block_in_buf in 0..num_blocks_in_buf {
-                    let global_block = global(block_in_buf);
-                    let t_outer = self.twiddle(layer, global_block);
-                    let t_inner_a = self.twiddle(layer + 1, 2 * global_block);
-                    let t_inner_b = self.twiddle(layer + 1, 2 * global_block + 1);
-                    let start = block_in_buf * block_elems;
-                    butterfly_interleaved_fused_2layer(
-                        &mut buf[start..start + block_elems],
-                        t_outer,
-                        t_inner_a,
-                        t_inner_b,
-                        quarter,
-                        num_ntts,
+            match (end_layer - layer) % 3 {
+                0 => {
+                    // A radix-8 sweep, its seven twiddles breadth-first.
+                    let (mut t0, mut a, mut c) = (
+                        TwiddleWalk::new(self.row(layer), 1, layer, first),
+                        TwiddleWalk::new(self.row(layer + 1), 2, layer, first),
+                        TwiddleWalk::new(self.row(layer + 2), 3, layer, first),
                     );
+                    let (d, e0, e1) = (self.row(layer + 1)[1], self.row(layer + 2)[1], self.row(layer + 2)[2]);
+                    for (block, global) in blocks {
+                        let (a_t, c_t) = (a.t, c.t);
+                        let t = [t0.t, a_t, a_t + d, c_t, c_t + e0, c_t + e1, c_t + e0 + e1];
+                        butterfly_interleaved_fused_3layer(block, &t, block_size >> 3, num_ntts);
+                        t0.step(global);
+                        a.step(global);
+                        c.step(global);
+                    }
+                    layer += 3;
                 }
-                layer += 2;
-            } else {
-                // One layer: a plain butterfly sweep.
-                let block_size_half = block_size >> 1;
-                for block_in_buf in 0..num_blocks_in_buf {
-                    let twiddle = self.twiddle(layer, global(block_in_buf));
-                    let start = block_in_buf * block_elems;
-                    butterfly_interleaved_block(
-                        &mut buf[start..start + block_elems],
-                        twiddle,
-                        block_size_half,
-                        num_ntts,
+                2 => {
+                    // A radix-4 sweep: one twiddle for the block, then one per half.
+                    let (mut outer, mut inner) = (
+                        TwiddleWalk::new(self.row(layer), 1, layer, first),
+                        TwiddleWalk::new(self.row(layer + 1), 2, layer, first),
                     );
+                    let d = self.row(layer + 1)[1];
+                    for (block, global) in blocks {
+                        butterfly_interleaved_fused_2layer(
+                            block,
+                            outer.t,
+                            inner.t,
+                            inner.t + d,
+                            block_size >> 2,
+                            num_ntts,
+                        );
+                        outer.step(global);
+                        inner.step(global);
+                    }
+                    layer += 2;
                 }
-                layer += 1;
+                _ => {
+                    // One layer: a plain butterfly sweep.
+                    let mut walk = TwiddleWalk::new(self.row(layer), 1, layer, first);
+                    for (block, global) in blocks {
+                        butterfly_interleaved_block(block, walk.t, block_size >> 1, num_ntts);
+                        walk.step(global);
+                    }
+                    layer += 1;
+                }
             }
         }
+    }
+
+    /// The table row a layer's twiddles are subset sums of.
+    fn row(&self, layer: usize) -> &[F64] {
+        &self.evals[self.log_domain_size() - layer - 1]
     }
 
     /// Recover novel-basis coefficients from evaluations with a scalar inverse NTT.
@@ -598,6 +626,23 @@ fn fused_rows<const N: usize>(
 /// - The eight rows stay in L1 across all twelve butterflies.
 /// - The seven twiddles are breadth-first: one for layer L, two for L+1, four for L+2.
 fn butterfly_interleaved_fused_3layer(block: &mut [F64], t: &[F64; 7], eighth: usize, num_ntts: usize) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    {
+        // SAFETY: the arm is compiled only with AVX-512F; registers only.
+        let tw = t.map(|x| unsafe { _mm512_set1_epi64(x.0 as i64) });
+        let vectors = num_ntts / 8;
+        let done = 8 * vectors;
+        fused_rows::<8>(block, eighth, num_ntts, |rows| {
+            // SAFETY: the target features are enabled at compile time, and each row has `num_ntts` words.
+            unsafe { radix8_avx512(std::array::from_fn(|i| rows[i].as_mut_ptr()), &tw, vectors) };
+            // The lane no vector covers, if any.
+            if done < num_ntts {
+                let mut tail = rows.each_mut().map(|row| &mut row[done..]);
+                radix8_butterflies(&mut tail, t);
+            }
+        });
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     fused_rows::<8>(block, eighth, num_ntts, |rows| radix8_butterflies(rows, t));
 }
 
@@ -798,6 +843,26 @@ fn butterfly_interleaved_fused_2layer(
     quarter: usize,
     num_ntts: usize,
 ) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    {
+        // SAFETY: the arm is compiled only with AVX-512F; registers only.
+        let tw = [t_outer, t_inner_a, t_inner_b].map(|x| unsafe { _mm512_set1_epi64(x.0 as i64) });
+        let vectors = num_ntts / 8;
+        let done = 8 * vectors;
+        fused_rows::<4>(block, quarter, num_ntts, |rows| {
+            // SAFETY: the target features are enabled at compile time, and each row has `num_ntts` words.
+            unsafe { radix4_avx512(std::array::from_fn(|i| rows[i].as_mut_ptr()), &tw, vectors) };
+            // The lane no vector covers, if any.
+            if done < num_ntts {
+                let [row_a, row_b, row_c, row_d] = rows.each_mut().map(|row| &mut row[done..]);
+                butterfly_lanes(row_a, row_c, t_outer);
+                butterfly_lanes(row_b, row_d, t_outer);
+                butterfly_lanes(row_a, row_b, t_inner_a);
+                butterfly_lanes(row_c, row_d, t_inner_b);
+            }
+        });
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     fused_rows::<4>(block, quarter, num_ntts, |rows| {
         let [row_a, row_b, row_c, row_d] = rows;
         // Layer L: rows 2 apart, one twiddle for the block.
@@ -832,14 +897,15 @@ fn butterfly_lanes(top: &mut [F64], bot: &mut [F64], twiddle: F64) {
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     {
         let vectors = top.len() / 8;
-        // SAFETY: the target features are enabled at compile time and each
-        // iteration reads and writes exactly eight elements from both rows.
+        let done = 8 * vectors;
+        // SAFETY: the target features are enabled at compile time, and both rows have the lanes covered.
         unsafe {
-            for i in 0..vectors {
-                butterfly_lanes_avx512(top.as_mut_ptr().add(8 * i), bot.as_mut_ptr().add(8 * i), twiddle.0);
-            }
+            let tw = _mm512_set1_epi64(twiddle.0 as i64);
+            columns_avx512([top.as_mut_ptr(), bot.as_mut_ptr()], vectors, |r| {
+                butterfly_regs_avx512(r, 0, 1, tw);
+            });
         }
-        for lane in 8 * vectors..top.len() {
+        for lane in done..top.len() {
             let v = bot[lane];
             let new_u = top[lane] + v * twiddle;
             top[lane] = new_u;
@@ -905,7 +971,7 @@ fn butterfly_lanes(top: &mut [F64], bot: &mut [F64], twiddle: F64) {
     }
 }
 
-/// [`butterfly_lanes_avx512`] at half the width, for a machine with VPCLMULQDQ
+/// [`mul_lanes_avx512`]'s butterfly at half the width, for a machine with VPCLMULQDQ
 /// but no AVX-512. Without it the base encode's innermost loop is scalar there,
 /// which costs it about half again as much.
 ///
@@ -1022,7 +1088,7 @@ unsafe fn butterfly_lanes_neon_8(top: *mut F64, bot: *mut F64, twiddle: u64) {
     }
 }
 
-/// Eight F64 butterflies with a shared twiddle, one per 64-bit lane of an AVX-512 register.
+/// The products `v * t` of eight F64 lanes by one broadcast twiddle, reduced.
 ///
 /// # Algorithm
 ///
@@ -1034,40 +1100,38 @@ unsafe fn butterfly_lanes_neon_8(top: *mut F64, bot: *mut F64, twiddle: u64) {
 ///
 ///     reduce:     p = lo + hi * x^64,  x^64 = x^4 + x^3 + x + 1
 ///                 p mod f = lo ^ g(hi ^ spill),  g(y) = y ^ y<<1 ^ y<<3 ^ y<<4
-///                 spill = hi>>63 ^ hi>>61 ^ hi>>60, the bits g pushes past x^63
+///                 spill = n ^ n>>1 ^ n>>3 with n = hi>>60, the bits g pushes past x^63
 /// ```
 ///
 /// - The unpacks stay inside 128-bit lanes, so no shuffle crosses lanes.
-/// - The reduction takes shifts and three-way XORs, `vpternlogq 0x96`, instead of two more carry-less multiplies.
-/// - Zen 5 has one carry-less multiplier per core, so those two would dominate the kernel.
-///
-/// # Safety
-///
-/// - Requires VPCLMULQDQ and AVX-512F.
-/// - Each pointer must address eight readable and writable words.
+/// - The reduction takes no further carry-less multiply: the multiplier issues one every other cycle.
+/// - Shifts and shuffles share two pipes with the unpacks, adds have four, so the left shifts of `g` are doublings.
+/// - The spill is one table lookup of the top nibble where AVX-512BW has `vpshufb`.
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-#[inline]
-#[target_feature(enable = "vpclmulqdq", enable = "avx512f", enable = "avx2")]
-unsafe fn butterfly_lanes_avx512(top: *mut F64, bot: *mut F64, twiddle: u64) {
-    // SAFETY:
-    // - The caller supplies two valid eight-word rows.
-    // - This function's target features cover every intrinsic below.
+#[inline(always)]
+fn mul_lanes_avx512(v: __m512i, tw: __m512i) -> __m512i {
+    const XOR3: i32 = 0x96;
+    // SAFETY: the arm is compiled only with VPCLMULQDQ and AVX-512F (and BW where it uses it); registers only.
     unsafe {
-        // Load both rows and broadcast the twiddle to every lane.
-        let u = _mm512_loadu_si512(top.cast());
-        let v = _mm512_loadu_si512(bot.cast());
-        let tw = _mm512_set1_epi64(twiddle as i64);
-
-        // Products v * t: even lanes, then odd lanes, one 128-bit product per 128-bit lane.
         let even = _mm512_clmulepi64_epi128::<0x00>(v, tw);
         let odd = _mm512_clmulepi64_epi128::<0x11>(v, tw);
-        // Back to lane order: qword i of lo / hi is the low / high half of lane i's product.
         let lo = _mm512_unpacklo_epi64(even, odd);
         let hi = _mm512_unpackhi_epi64(even, odd);
-
-        // Reduce modulo x^64 + x^4 + x^3 + x + 1 with shifts and three-way XORs.
-        const XOR3: i32 = 0x96;
-        // The bits of hi * (x^4 + x^3 + x + 1) that land past x^63.
+        #[cfg(target_feature = "avx512bw")]
+        let spill = {
+            const SPILL: [u8; 16] = {
+                let mut table = [0u8; 16];
+                let mut n = 0;
+                while n < 16 {
+                    table[n] = (n ^ (n >> 1) ^ (n >> 3)) as u8;
+                    n += 1;
+                }
+                table
+            };
+            let table = _mm512_broadcast_i32x4(_mm_loadu_si128(SPILL.as_ptr().cast()));
+            _mm512_shuffle_epi8(table, _mm512_srli_epi64::<60>(hi))
+        };
+        #[cfg(not(target_feature = "avx512bw"))]
         let spill = _mm512_ternarylogic_epi64::<XOR3>(
             _mm512_srli_epi64::<63>(hi),
             _mm512_srli_epi64::<61>(hi),
@@ -1075,14 +1139,105 @@ unsafe fn butterfly_lanes_avx512(top: *mut F64, bot: *mut F64, twiddle: u64) {
         );
         // Both hi and spill are multiplied by the same constant, so fold them first.
         let x = _mm512_xor_si512(hi, spill);
-        // g(x) = x ^ x<<1 ^ x<<3 ^ x<<4, split across two three-way XORs.
-        let fx = _mm512_ternarylogic_epi64::<XOR3>(x, _mm512_slli_epi64::<1>(x), _mm512_slli_epi64::<3>(x));
-        // Butterfly top: u' = u + v * t, with the product's lo and g(x) folded in one step.
-        let new_u = _mm512_ternarylogic_epi64::<XOR3>(u, lo, _mm512_xor_si512(fx, _mm512_slli_epi64::<4>(x)));
-        // Butterfly bottom: v' = v + u'.
-        let new_v = _mm512_xor_si512(v, new_u);
-        _mm512_storeu_si512(top.cast(), new_u);
-        _mm512_storeu_si512(bot.cast(), new_v);
+        let x2 = _mm512_add_epi64(x, x);
+        let x8 = {
+            let x4 = _mm512_add_epi64(x2, x2);
+            _mm512_add_epi64(x4, x4)
+        };
+        let x16 = _mm512_add_epi64(x8, x8);
+        _mm512_ternarylogic_epi64::<XOR3>(_mm512_ternarylogic_epi64::<XOR3>(lo, x, x2), x8, x16)
+    }
+}
+
+/// One butterfly of eight lanes held in registers: `u' = u + v * t`, `v' = v + u'`.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+fn butterfly_regs_avx512(rows: &mut [__m512i], top: usize, bot: usize, tw: __m512i) {
+    // SAFETY: the arm is compiled only with AVX-512F; registers only.
+    unsafe {
+        let new_u = _mm512_xor_si512(rows[top], mul_lanes_avx512(rows[bot], tw));
+        rows[bot] = _mm512_xor_si512(rows[bot], new_u);
+        rows[top] = new_u;
+    }
+}
+
+/// Run `body` on columns of eight lanes of `N` rows held in registers, each row loaded and stored once.
+///
+/// The lanes past the last whole vector are the caller's.
+///
+/// # Safety
+///
+/// - Requires AVX-512F.
+/// - Each row pointer must address `8 * vectors` readable and writable words.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+unsafe fn columns_avx512<const N: usize>(rows: [*mut F64; N], vectors: usize, body: impl Fn(&mut [__m512i; N])) {
+    // SAFETY: every access is inside the words the caller guarantees.
+    unsafe {
+        for c in 0..vectors {
+            let mut r: [__m512i; N] = std::array::from_fn(|i| _mm512_loadu_si512(rows[i].add(8 * c).cast()));
+            body(&mut r);
+            for (i, row) in r.iter().enumerate() {
+                _mm512_storeu_si512(rows[i].add(8 * c).cast(), *row);
+            }
+        }
+    }
+}
+
+/// A radix-8 row group with the eight rows in registers.
+///
+/// Each row is loaded and stored once for its twelve butterflies, not three times.
+///
+/// # Safety
+///
+/// - Requires VPCLMULQDQ and AVX-512F.
+/// - Each row pointer must address `8 * vectors` readable and writable words.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "vpclmulqdq", enable = "avx512f", enable = "avx2")]
+unsafe fn radix8_avx512(rows: [*mut F64; 8], t: &[__m512i; 7], vectors: usize) {
+    // SAFETY: forwarded from the caller.
+    unsafe {
+        columns_avx512(rows, vectors, |r| {
+            // Layer L: rows 4 apart, one twiddle for the whole block.
+            butterfly_regs_avx512(r, 0, 4, t[0]);
+            butterfly_regs_avx512(r, 1, 5, t[0]);
+            butterfly_regs_avx512(r, 2, 6, t[0]);
+            butterfly_regs_avx512(r, 3, 7, t[0]);
+            // Layer L+1: rows 2 apart, one twiddle per half.
+            butterfly_regs_avx512(r, 0, 2, t[1]);
+            butterfly_regs_avx512(r, 1, 3, t[1]);
+            butterfly_regs_avx512(r, 4, 6, t[2]);
+            butterfly_regs_avx512(r, 5, 7, t[2]);
+            // Layer L+2: adjacent rows, one twiddle per quarter.
+            butterfly_regs_avx512(r, 0, 1, t[3]);
+            butterfly_regs_avx512(r, 2, 3, t[4]);
+            butterfly_regs_avx512(r, 4, 5, t[5]);
+            butterfly_regs_avx512(r, 6, 7, t[6]);
+        });
+    }
+}
+
+/// A radix-4 row group with the four rows in registers.
+///
+/// # Safety
+///
+/// - Requires VPCLMULQDQ and AVX-512F.
+/// - Each row pointer must address `8 * vectors` readable and writable words.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "vpclmulqdq", enable = "avx512f", enable = "avx2")]
+unsafe fn radix4_avx512(rows: [*mut F64; 4], t: &[__m512i; 3], vectors: usize) {
+    // SAFETY: forwarded from the caller.
+    unsafe {
+        columns_avx512(rows, vectors, |r| {
+            // Layer L: rows 2 apart, one twiddle for the block.
+            butterfly_regs_avx512(r, 0, 2, t[0]);
+            butterfly_regs_avx512(r, 1, 3, t[0]);
+            // Layer L+1: adjacent rows, one twiddle per half.
+            butterfly_regs_avx512(r, 0, 1, t[1]);
+            butterfly_regs_avx512(r, 2, 3, t[2]);
+        });
     }
 }
 
