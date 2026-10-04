@@ -5,6 +5,8 @@
 //! A signature then rebuilds a `2^6`-leaf subtree of it, not all `2^12` leaves.
 
 use crate::*;
+use ots::Chains;
+use thiserror::Error;
 
 /// `A_max`: message digests a signer tries.
 const MAX_DIGEST_ATTEMPTS: u64 = 1 << 32;
@@ -31,8 +33,8 @@ pub struct SecretKey {
 }
 
 /// Why signing failed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum SignError {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum SphincsSignError {
     /// `A_max` digests in a row had a nonzero last index.
     #[error("A_max digests in a row have a nonzero last index")]
     NoAdmissibleDigest,
@@ -88,7 +90,7 @@ impl SecretKey {
     }
 
     /// `Sign`: deterministic and stateless.
-    pub fn sign(&self, message: &Message) -> Result<Signature, SignError> {
+    pub fn sign(&self, message: &Message) -> Result<Signature, SphincsSignError> {
         let (pp, master) = (&self.public_param, &self.master);
         // A digest is admissible when its last index is zero: `2^10` tries on average.
         let (randomizer, idx, u) = (0..MAX_DIGEST_ATTEMPTS)
@@ -104,7 +106,7 @@ impl SecretKey {
                 let (idx, u) = message_digest(pp, &self.root, &randomizer, message);
                 (u[K - 1] == 0).then_some((randomizer, idx, u))
             })
-            .ok_or(SignError::NoAdmissibleDigest)?;
+            .ok_or(SphincsSignError::NoAdmissibleDigest)?;
         // The few-time key the index picks, and its opening at the digest's leaves.
         let (fts_key, fts) = fts::open(pp, master, idx, &u);
 
@@ -129,14 +131,15 @@ impl SecretKey {
         idx: u64,
         lay: usize,
         message: &mut Digest,
-    ) -> Result<LayerSignature<HEIGHT>, SignError> {
+    ) -> Result<LayerSignature<HEIGHT>, SphincsSignError> {
         let (pp, master, pos) = (&self.public_param, &self.master, Pos::of(idx, lay));
         // The least counter with a codeword: a larger one would reveal a second codeword.
         let (counter, x) = (0..MAX_ENCODING_ATTEMPTS)
             .find_map(|c| ots::encode(pp, pos, message, c as u32).map(|x| (c as u32, x)))
-            .ok_or(SignError::NoAdmissibleEncoding)?;
+            .ok_or(SphincsSignError::NoAdmissibleEncoding)?;
         // Chain `i` opened at value `x_i`.
-        let ots = core::array::from_fn(|i| ots::chain(pp, pos, i, 0, x[i] as usize, ots::secret(pp, master, pos, i)));
+        let mut chains = Chains::new(pp, pos);
+        let ots = core::array::from_fn(|i| chains.walk(i, 0, x.get(i), ots::secret(pp, master, pos, i)));
         // The top layer's tree has the cache; the others are rebuilt whole.
         let mut path = [[0; 2]; HEIGHT];
         *message = if lay == 0 {
@@ -192,18 +195,21 @@ impl SecretKey {
 
 /// The leaf of a one-time key: every chain walked to its end.
 fn public_leaf(pp: &PublicParam, master: &[u64; 4], pos: Pos) -> Digest {
-    let ends = core::array::from_fn(|i| ots::chain(pp, pos, i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i)));
-    ots::leaf_hash(pp, pos, &ends)
+    let mut chains = Chains::new(pp, pos);
+    ots::leaf_hash(pp, pos, |i| {
+        chains.walk(i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i))
+    })
 }
 
 /// Replace a band of nodes at a level by their parents, in place.
 ///
 /// The band starts at index `first`, an even one.
 fn fold(pp: &PublicParam, lay: usize, tau: u32, level: usize, first: u64, nodes: &mut [Digest]) {
+    let mut hash = NodeHash::new(pp);
     // Parent `j` reads only children `2j` and `2j + 1`, which no earlier parent overwrote.
     for j in 0..nodes.len() / 2 {
         nodes[j] = node(
-            pp,
+            &mut hash,
             lay,
             tau,
             level + 1,

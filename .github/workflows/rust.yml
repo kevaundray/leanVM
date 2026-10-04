@@ -54,13 +54,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Clippy
         run: cargo clippyall
-      # The haswell pin leaves the AVX-512 backends uncompiled; type-check them here.
+      # The haswell pin leaves the AVX-512 backends uncompiled; lint them here (`clippyall` with a `--target`).
       # A step `RUSTFLAGS` replaces the job's, which would otherwise beat the target's flags.
-      - name: Check the AVX-512 backends
+      - name: Clippy on the AVX-512 backends
         if: matrix.arch == 'x86-64'
         env:
           RUSTFLAGS: -C target-feature=+avx512f,+avx512bw,+avx512vl,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes
-        run: cargo check --release --workspace --target x86_64-unknown-linux-gnu
+        run: cargo clippy --release --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings
 
   clippy-guests:
     name: Clippy (RISC-V guests)
@@ -69,9 +69,10 @@ jobs:
       RUSTFLAGS: ""
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: clippy, rust-src, rustfmt
+      # The guests' toolchain file pins a dated nightly with `rust-src` alone; rustup installs it here, with clippy and rustfmt.
+      - name: Install the guests' toolchain
+        working-directory: programs/hash/guest
+        run: rustup component add clippy rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: programs -> target
@@ -80,7 +81,7 @@ jobs:
       - name: Check formatting
         run: |
           for guest in programs/*/guest; do
-            cargo fmt --manifest-path "$guest/Cargo.toml" -- --check
+            (cd "$guest" && cargo fmt -- --check)
           done
 
   doc:
@@ -123,20 +124,18 @@ jobs:
       # Three workers, so the pool's dispatch, park and completion paths all run.
       LEANVM_NUM_THREADS: 3
       # Miri hides the environment unless told, and the pool would then run one thread.
-      # The pool's workers and the arena's region live for the process, which reads as a leak.
-      # The arena turns slab addresses back into pointers.
+      # The pool's workers live for the process, which reads as a leak.
       # Each seed is another thread interleaving.
       MIRIFLAGS: >-
         -Zmiri-env-forward=LEANVM_NUM_THREADS
         -Zmiri-ignore-leaks
-        -Zmiri-permissive-provenance
         -Zmiri-many-seeds=0..8
     steps:
       - uses: actions/checkout@v4
       # The latest nightly that ships Miri.
       - uses: dtolnay/rust-toolchain@miri
       - name: Miri
-        run: cargo miri test -p parallel -p zk_alloc
+        run: cargo miri test -p parallel
 
   deny:
     name: Cargo deny

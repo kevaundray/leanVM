@@ -10,9 +10,3 @@ workspace = true
 
 [dependencies]
 leanvm_core.workspace = true
-zk_alloc.workspace = true
-thiserror.workspace = true
-
-[dev-dependencies]
-leanvm_guest.workspace = true
-primitives.workspace = true

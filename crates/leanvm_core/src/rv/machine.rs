@@ -7,13 +7,14 @@
 //! A run that faults stops with a trap, and no proof can follow it.
 
 use super::entry::{Class, Entry};
-use super::program::Program;
+use super::program::RiscvProgram;
 use super::region::Region;
 use super::register::{Reg, RegisterFile, Syscall};
 use super::semantics::{BlockAccess, Ext, Hash, Limb, Load, WordAccess};
+use thiserror::Error;
 
 /// Why a run stops without halting: a fault of the ISA.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
 #[non_exhaustive]
 pub enum Trap {
     /// `pc` names no legal instruction: it is outside the text, misaligned, or illegal.
@@ -50,7 +51,7 @@ pub enum Trap {
 #[derive(Clone, Debug)]
 pub struct Machine<'a> {
     /// The program being run.
-    program: &'a Program,
+    program: &'a RiscvProgram,
     /// `x0` to `x31`, then the sink.
     registers: RegisterFile,
     /// RAM and the advice.
@@ -67,7 +68,7 @@ impl<'a> Machine<'a> {
     /// # Panics
     ///
     /// Panics if the advice does not fit its region.
-    pub fn new(program: &'a Program, advice: &[u64]) -> Self {
+    pub fn new(program: &'a RiscvProgram, advice: &[u64]) -> Self {
         Self {
             program,
             registers: RegisterFile::new(),
@@ -78,7 +79,7 @@ impl<'a> Machine<'a> {
     }
 
     /// The program being run.
-    pub const fn program(&self) -> &'a Program {
+    pub const fn program(&self) -> &'a RiscvProgram {
         self.program
     }
 
@@ -121,9 +122,14 @@ impl<'a> Machine<'a> {
 
         // Resolve every address before writing anything, so a trap leaves no trace.
         let cell = match entry.class {
-            Class::Load | Class::Store => {
+            Class::Load | Class::Store | Class::Ld | Class::Sd => {
                 let address = WordAccess::address(v1, entry.imm);
-                Some(self.cell(pc, address, entry.flags & Load::LOG_WIDTH)?)
+                // A double word's width is its class's, a narrower access's its flags'.
+                let log_width = match entry.class {
+                    Class::Ld | Class::Sd => 3,
+                    _ => entry.flags & Load::LOG_WIDTH,
+                };
+                Some(self.cell(pc, address, log_width)?)
             }
             _ => None,
         };
@@ -293,7 +299,7 @@ impl<'a> Machine<'a> {
     /// They make no write at all, so their tables have none to prove.
     const fn write_destination(&mut self, entry: &Entry, vd: u64) -> u64 {
         match entry.class {
-            Class::Store | Class::Hash | Class::Ext => 0,
+            Class::Store | Class::Sd | Class::Hash | Class::Ext => 0,
             _ => self.registers.replace(entry.ad, vd),
         }
     }
@@ -359,7 +365,7 @@ impl Memory {
     /// # Panics
     ///
     /// Panics if the advice does not fit its region.
-    fn new(program: &Program, advice: &[u64]) -> Self {
+    fn new(program: &RiscvProgram, advice: &[u64]) -> Self {
         let (log_ram, log_advice) = (program.log_ram(), program.log_advice());
         assert!(advice.len() <= 1 << log_advice, "the advice does not fit its region");
 
@@ -428,7 +434,7 @@ mod tests {
 
     /// Run `text` from its first word, for at most 2^20 steps.
     fn run(text: &[u32], image: Vec<u64>) -> Result<Option<[u64; 4]>, Trap> {
-        let program = Program::new(text, Region::TEXT.base(), image, LOG_RAM, 0).expect("a valid program");
+        let program = RiscvProgram::new(text, Region::TEXT.base(), image, LOG_RAM, 0).expect("a valid program");
         Machine::new(&program, &[]).run_for(1 << 20)
     }
 
@@ -512,7 +518,8 @@ mod tests {
             .i(Addi, Reg::SP, Reg::SP, 16)
             .jalr(Reg::ZERO, Reg::RA, 0)
             .finish();
-        let program = Program::new(&text, Region::TEXT.base(), data.to_vec(), LOG_RAM, 0).expect("a valid program");
+        let program =
+            RiscvProgram::new(&text, Region::TEXT.base(), data.to_vec(), LOG_RAM, 0).expect("a valid program");
         let mut m = Machine::new(&program, &[]);
 
         assert_eq!(m.run(), Ok([4 + 5, 0, 0, 0]));
@@ -529,7 +536,7 @@ mod tests {
                 .li(Reg::T1, 64)
                 .blake2s(Reg::T0, Reg::T1, true);
         });
-        let program = Program::new(&text, Region::TEXT.base(), block.to_vec(), LOG_RAM, 0).unwrap();
+        let program = RiscvProgram::new(&text, Region::TEXT.base(), block.to_vec(), LOG_RAM, 0).unwrap();
         let mut m = Machine::new(&program, &[]);
         m.run().unwrap();
 
@@ -568,7 +575,7 @@ mod tests {
                     .li(Reg::T2, Region::RAM.base() + 32);
                 f(a);
             });
-            let program = Program::new(&text, Region::TEXT.base(), vec![3, 5, 7, 9], LOG_RAM, 0).unwrap();
+            let program = RiscvProgram::new(&text, Region::TEXT.base(), vec![3, 5, 7, 9], LOG_RAM, 0).unwrap();
             let mut m = Machine::new(&program, &[]);
             m.run().map(|_| m.memory().ram()[..7].to_vec())
         };
@@ -625,6 +632,26 @@ mod tests {
                 address: Region::RAM.base() + 2
             })
         );
+
+        // Misaligned double words, at offsets a word would allow and at ones it would not.
+        for offset in [4, 1] {
+            let load = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base()).load(Ld, Reg::A0, offset, Reg::T0);
+            });
+            let store = exiting(|a| {
+                a.li(Reg::T0, Region::RAM.base()).store(Sd, Reg::A0, offset, Reg::T0);
+            });
+            for text in [load, store] {
+                assert_eq!(
+                    run(&text, vec![]),
+                    Err(Trap::Misaligned {
+                        pc,
+                        address: Region::RAM.base() + offset as u64
+                    }),
+                    "offset {offset}"
+                );
+            }
+        }
         assert_eq!(
             run(&below, vec![]),
             Err(Trap::Unmapped {
@@ -691,7 +718,7 @@ mod tests {
         //     words 0..8    in RAM, the result words 4..8 among them
         //     words 8..16   past RAM
         let text = Asm::new().blake2s(Reg::T0, Reg::ZERO, false).finish();
-        let program = Program::new(&text, Region::TEXT.base(), vec![7; 8], 3, 0).unwrap();
+        let program = RiscvProgram::new(&text, Region::TEXT.base(), vec![7; 8], 3, 0).unwrap();
         let mut m = Machine::new(&program, &[]);
         m.registers.set(Reg::T0, Region::RAM.base());
 
@@ -719,8 +746,7 @@ mod tests {
     /// The memory layout and address map.
     mod memory {
         use super::super::*;
-        use crate::rv::Program;
-        use crate::rv::Region;
+        use crate::rv::{Region, RiscvProgram};
         use proptest::prelude::*;
 
         proptest! {
@@ -731,7 +757,7 @@ mod tests {
                 Region::ADVICE.base() - 16..Region::ADVICE.base() + 48,
             ]) {
                 // Fixture: 8 cells of RAM, then 4 of advice.
-                let program = Program::new(&[0x13], Region::TEXT.base(), vec![], 3, 2).unwrap();
+                let program = RiscvProgram::new(&[0x13], Region::TEXT.base(), vec![], 3, 2).unwrap();
                 let memory = Memory::new(&program, &[]);
 
                 // Each byte of a region maps to its cell; no other address maps at all.
@@ -749,7 +775,7 @@ mod tests {
         #[test]
         fn new_lays_out_the_image_and_the_advice() {
             // Fixture: a 2-word image in 4 cells of RAM, 1 word of advice in 2 cells.
-            let program = Program::new(&[0x13], Region::TEXT.base(), vec![7, 8], 2, 1).unwrap();
+            let program = RiscvProgram::new(&[0x13], Region::TEXT.base(), vec![7, 8], 2, 1).unwrap();
             let memory = Memory::new(&program, &[9]);
 
             // Each region is its initial words, then zeros.
@@ -767,7 +793,7 @@ mod tests {
         use super::super::Machine;
         use crate::rv::asm::*;
         use crate::rv::semantics::tests::edge_word;
-        use crate::rv::{Program, Region};
+        use crate::rv::{Region, RiscvProgram};
         use proptest::prelude::*;
         use proptest::sample::select;
 
@@ -973,7 +999,7 @@ mod tests {
                 slot in 0u64..RAM_BYTES - 8,
             ) {
                 // Fixture: one instruction, a random RAM image and random registers.
-                let program = Program::new(&[word], Region::TEXT.base(), image, LOG_RAM, 0).expect("a legal instruction");
+                let program = RiscvProgram::new(&[word], Region::TEXT.base(), image, LOG_RAM, 0).expect("a legal instruction");
                 let mut m = Machine::new(&program, &[]);
                 for (r, &value) in (1..32).filter_map(Reg::new).zip(&regs) {
                     m.registers.set(r, value);

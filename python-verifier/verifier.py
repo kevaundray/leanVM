@@ -569,7 +569,9 @@ class BusResult:
     point: MultilinearPoint  # the GKR point zeta, which the table sumcheck reuses
     forms: tuple[tuple[Form, ...], ...]  # forms[table][side]
     producers: tuple[tuple[E, ...], ...]  # per producer, the weight on each bit's block
-    totals: tuple[E, E]  # what the tables and the producers owe each side, derived
+    totals: tuple[E, E]  # what the tables and the producers owe each side, derived, short of RAM's image
+    image: tuple[E, MultilinearPoint]  # RAM's image's weight in the push side's total, and its point
+    alphas: tuple[E, ...]
     weights: tuple[E, ...]  # eq(alpha, .), the fingerprint the producers' public columns are made of
     beta: E
 
@@ -581,7 +583,12 @@ class Column:
     index: int
 
 
-type FrameworkTuple = tuple[E | Column, ...]
+@dataclass(frozen=True)
+class Image:
+    """RAM's image in a framework tuple: only the program fixes it, so its value is left to the program's deferred claim."""
+
+
+type FrameworkTuple = tuple[E | Column | Image, ...]
 type FrameworkBlock = tuple[FrameworkTuple, FrameworkTuple]  # push, pull
 
 
@@ -590,7 +597,7 @@ def framework_tuples(layout: Layout, lows: dict[str, MultilinearPoint]) -> dict[
     run at the halt slot and finalizes every array with its committed columns. Register numbers and addresses are
     integers: register z is cell z, RAM's word z sits at RAM_BASE + 8z, the advice's at ADVICE_BASE + 8z."""
 
-    def array(separator: E, index: E, initial: E | Column, final_ts: str, final: str) -> FrameworkBlock:
+    def array(separator: E, index: E, initial: E | Column | Image, final_ts: str, final: str) -> FrameworkBlock:
         """A read-write array: every cell starts at the seed's timestamp holding `initial`, and ends at its last timestamp holding its final word."""
         return (separator, index, E(SEED_CLOCK), initial), (separator, index, Column(SHARED[final_ts]), Column(SHARED[final]))
 
@@ -600,7 +607,7 @@ def framework_tuples(layout: Layout, lows: dict[str, MultilinearPoint]) -> dict[
         "state": ((SEP_STATE, E(layout.entry_pc), E(CLOCK_START), ZERO), (SEP_STATE, halt_pc, layout.final_clock, layout.final_clock)),
         # the registers start at zero, RAM as the statement has it, the advice as the prover has it
         "registers": array(SEP_REG, int_index_mle(0, 0, lows["registers"]), ZERO, "register_final_ts", "register_final"),
-        "ram": array(SEP_MEM, int_index_mle(RAM_BASE, 3, lows["ram"]), sparse_mle(layout.ram, lows["ram"]), "ram_final_ts", "ram_final"),
+        "ram": array(SEP_MEM, int_index_mle(RAM_BASE, 3, lows["ram"]), Image(), "ram_final_ts", "ram_final"),
         "advice": array(SEP_MEM, int_index_mle(ADVICE_BASE, 3, lows["advice"]), Column(SHARED["advice_initial"]), "advice_final_ts", "advice_final"),
     }
 
@@ -622,13 +629,17 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
     tuples = framework_tuples(layout, lows)
     claims: list[ColumnClaim] = []
     opened: dict[int, E] = {}
+    image_slots: dict[str, E] = {}  # per framework block, the fingerprint's weight on RAM's image, which is left out
 
-    def fingerprint(block: str, coordinates: Sequence[E | Column]) -> E:
+    def fingerprint(block: str, coordinates: Sequence[E | Column | Image]) -> E:
         """The tuple's coordinates weighted by eq(alpha, .), slots past the ones named being zero. A committed column's
         value is read off the stream the first time either side names it, so push's columns come first, then pull's."""
         values = []
-        for coordinate in coordinates:
-            if isinstance(coordinate, Column):
+        for slot, coordinate in enumerate(coordinates):
+            if isinstance(coordinate, Image):
+                image_slots[block] = weights[slot]
+                coordinate = ZERO
+            elif isinstance(coordinate, Column):
                 if coordinate.index not in opened:
                     opened[coordinate.index] = transcript.next_scalar()
                     claims.append(ColumnClaim(coordinate.index, lows[block], opened[coordinate.index]))
@@ -638,6 +649,8 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
 
     start = [fingerprint(block, tuples[block][0]) for block in FRAMEWORK]
     end = [fingerprint(block, tuples[block][1]) for block in FRAMEWORK]
+    # RAM's image seeds the push side, at its block's selector.
+    image = (push_layout.framework[FRAMEWORK.index("ram")].eq_above(point) * image_slots["ram"], lows["ram"])
     totals = []  # what remains to be proven by the next table sumcheck
     forms = tuple(tuple(Form() for _ in range(2)) for _ in TABLES)
     # A producer's bit block weighs on its own sumcheck, at its selector.
@@ -658,7 +671,7 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
         ones_padding = E.sum(framework_selectors + table_selectors + producer_selectors) + ONE
         totals.append(tree_values[side] + known + ones_padding)  # what the sumcheck owes: the GKR value, less framework and padding
 
-    return BusResult(tuple(claims), point, forms, producers, (totals[0], totals[1]), tuple(weights), beta)
+    return BusResult(tuple(claims), point, forms, producers, (totals[0], totals[1]), image, tuple(alphas), tuple(weights), beta)
 
 
 # Table sumcheck -------------------------------------------------------------
@@ -667,11 +680,21 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
 @dataclass(frozen=True)
 class ProducerAir:
     """A producer in the table sumcheck: it owes the push side, for each bit i, sum_x eq(zeta, x) (1 + b_i(x) P'_i(x)) at
-    its weight on that bit's block. Its bits are sent; its public columns P'_i the verifier evaluates itself."""
+    its weight on that bit's block. Its bits are sent; of its public columns P'_i the verifier evaluates the part the
+    program's columns do not enter, and leaves theirs to the program's deferred claim."""
 
     log_rows: int
     coefficients: tuple[E, ...]  # per bit, its block's weight, the push side's power folded in
-    public: Callable[[MultilinearPoint], list[E]]  # the public columns P'_i at a point
+    public: Callable[[MultilinearPoint], list[E]]  # the public columns P'_i at a point, short of the program's columns
+
+
+@dataclass(frozen=True)
+class TableSumcheck:
+    claims: list[ColumnClaim]  # the tables' column claims
+    families: list[tuple[MultilinearPoint, tuple[E, ...]]]  # per producer, its point and its bits' values there
+    twists: list[tuple[E, ...]]  # per producer, the weight of each bit's public column in the terminal identity
+    residual: E  # what the terminal identity leaves to the program: the public columns' and the target's missing parts
+    target_weight: E  # the weight of the target in the terminal identity: the product of the round challenges
 
 
 def table_sumcheck(
@@ -683,9 +706,9 @@ def table_sumcheck(
     equality_point: MultilinearPoint,
     target: E,
     transcript: Transcript,
-) -> tuple[list[ColumnClaim], list[tuple[MultilinearPoint, tuple[E, ...]]]]:
-    """The tables' column claims, then per producer its point and its bits' values there. A table's summand is its two
-    bus forms at `form_powers`, then its own identities, each at a power of its own: their sums are zero."""
+) -> TableSumcheck:
+    """A table's summand is its two bus forms at `form_powers`, then its own identities, each at a power of its own:
+    their sums are zero."""
     heights = [*table_log_heights, *(producer.log_rows for producer in producers)]
     n_rounds = max(heights)
     challenges, claim = sumcheck(transcript, target, 4, [None] * n_rounds)
@@ -705,14 +728,15 @@ def table_sumcheck(
         table_point = tuple(point[:height])
         claims.extend(ColumnClaim(GLOBAL_COLUMN_BASES[table.opcode] + local, table_point, value) for local, value in enumerate(evaluations))
     families = []
+    twists = []
     for producer, weight in zip(producers, weights[len(TABLES) :], strict=True):
         bits = tuple(transcript.next_scalars(len(producer.coefficients)))
         producer_point = tuple(point[: producer.log_rows])
         public = producer.public(producer_point)
         final += weight * E.sum(c * (ONE + b * p) for c, b, p in zip(producer.coefficients, bits, public, strict=True))
         families.append((producer_point, bits))
-    require(final == claim, "table sumcheck terminal mismatch")
-    return claims, families
+        twists.append(tuple(weight * c * b for c, b in zip(producer.coefficients, bits, strict=True)))  # P'_i enters at c_i b_i
+    return TableSumcheck(claims, families, twists, final + claim, reduce(mul, challenges, ONE))
 
 
 # The bus blocks no instruction table owns, which each side starts with, in this order: the run's boundary, then
@@ -723,7 +747,7 @@ LOOKUPS = ("bytecode",)
 # The committed columns no instruction table owns, each with the array whose rows it has: each read-write array's final
 # words and timestamps, the advice's initial words, then how often each entry of the read-only array is read: entry
 # x's word is that count as an integer, and its bits are its producer's one-bit columns. They come first in the global
-# column numbering, then two packed flock witnesses per table, then the tables' own columns.
+# column numbering, then the packed flock witnesses (`FLOCKS`), then the tables' own columns.
 SHARED_COLUMNS = (
     ("register_final", "registers"),
     ("register_final_ts", "registers"),
@@ -878,8 +902,10 @@ class Flushes:
 # the register write. What a class computes is a flock circuit, and every word that circuit reads or writes (`WORDS`)
 # is a column here that lives in the circuit's packed witness: the bus is what binds the circuit to the machine. A row
 # reads rs2 only if its circuit takes v2, and writes rd only if its circuit gives out: a load's rs2 is x0, and a store's
-# and a hash's rd is the sink, so those accesses would prove nothing. The hash class also accesses the sixteen words of
-# its block, the result's four rewritten.
+# and a hash's rd is the sink, so those accesses would prove nothing. A doubleword load or store (`copies`) is the
+# exception: its circuit gives the address alone, and the word it moves is a column of its own, the cell that rd
+# receives or the v2 that the cell receives. The hash class also accesses the sixteen words of its block, the result's
+# four rewritten.
 #
 # The extension-field class has no class circuit. Its row reads rd as an address (`vd`), then nine limbs, committed
 # columns: a's and b's read, c's rewritten. A base-field b's two high limbs are reads of x0. Its table's identities say
@@ -901,18 +927,28 @@ BAD_SLOT = 12  # where a bytecode tuple holds a row's `bad` word: past every fie
 BYTECODE_PUBLIC_SLOT = 2  # an entry's first field, after the separator and the address
 
 
-def _class_columns(control: bool, ram: str, words: Sequence[str | None]) -> tuple[str, ...]:
+def _registers(ram: str, words: Sequence[str | None], copies: bool) -> tuple[bool, bool]:
+    """Whether a row reads rs2 and writes rd: when its circuits take v2 and give out, or when it is a doubleword store
+    reading the v2 it moves, or a doubleword load writing the cell it moves."""
+    return "v2" in words or (copies and ram == "write"), "out" in words or (copies and ram == "read")
+
+
+def _class_columns(control: bool, ram: str, words: Sequence[str | None], copies: bool) -> tuple[str, ...]:
+    reads_rs2, writes_rd = _registers(ram, words, copies)
+    # A doubleword store's new cell is its v2 column.
+    ram_columns = RAM_COLUMNS[ram][:2] if copies else RAM_COLUMNS[ram]
     flag_bits = tuple(word for word in words if word and word.startswith("flag_bit_"))
     return (
-        "pc", "ts", "a1", "pc4", "v1", "flags", *(("a2", "v2") if "v2" in words else ()), *(("ad", "vd_old", "out") if "out" in words else ()),
-        *(("ad", "vd") if "vd" in words else ()), *(CONTROL_COLUMNS if control else ()), *(("imm",) if "imm" in words else ()), *RAM_COLUMNS[ram],
-        *flag_bits, *(("bad",) if "bad" in words else ()), *(f"prev_{i}" for i in range(len(_slots(ram, words)))), "step",
+        "pc", "ts", "a1", "pc4", "v1", *(("flags",) if "flags" in words else ()), *(("a2", "v2") if reads_rs2 else ()),
+        *(("ad", "vd_old") if writes_rd else ()), *(("out",) if "out" in words else ()), *(("ad", "vd") if "vd" in words else ()),
+        *(CONTROL_COLUMNS if control else ()), *(("imm",) if "imm" in words else ()), *ram_columns, *flag_bits, *(("bad",) if "bad" in words else ()),
+        *(f"prev_{i}" for i in range(len(_slots(ram, reads_rs2, writes_rd or "vd" in words)))), "step",
     )  # fmt: skip
 
 
-def _slots(ram: str, words: Sequence[str | None]) -> tuple[int, ...]:
+def _slots(ram: str, reads_rs2: bool, touches_rd: bool) -> tuple[int, ...]:
     """The clock slots of a row's accesses, in the order of their columns: the registers' it makes, then RAM's."""
-    registers = tuple(slot for slot, made in zip(REGISTER_SLOTS, (True, "v2" in words, "out" in words or "vd" in words), strict=True) if made)
+    registers = tuple(slot for slot, made in zip(REGISTER_SLOTS, (True, reads_rs2, touches_rd), strict=True) if made)
     if ram == "block":
         return (*registers, *HASH_SLOTS)
     if ram == "limbs":
@@ -920,15 +956,20 @@ def _slots(ram: str, words: Sequence[str | None]) -> tuple[int, ...]:
     return (*registers, RAM_SLOT) if RAM_COLUMNS[ram] else registers
 
 
-def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str, words: Sequence[str | None]) -> Flushes:
-    a1, pc4, flags, v1 = _cols(columns, "a1", "pc4", "flags", "v1")
-    # A row without an rs2 read, an rd write or an immediate reads their constants off the entry: x0, the sink, and zero.
+def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str, words: Sequence[str | None], copies: bool) -> Flushes:
+    reads_rs2, writes_rd = _registers(ram, words, copies)
+    a1, pc4, v1 = _cols(columns, "a1", "pc4", "v1")
+    # A row without flags, an rs2 read, an rd write or an immediate reads their constants off the entry: zero, x0, the
+    # sink, and zero.
     npc, vd, fields = _col(pc4), _const(ZERO), ()
-    a2_form, ad_form, imm_form = _const(ZERO), _const(SINK), _const(ZERO)
-    if "v2" in words:
+    flags_form, a2_form, ad_form, imm_form = _const(ZERO), _const(ZERO), _const(SINK), _const(ZERO)
+    if "flags" in words:
+        flags_form = _col(_cols(columns, "flags")[0])
+    if reads_rs2:
         a2_form = _col(_cols(columns, "a2")[0])
-    if "out" in words:
-        ad, out = _cols(columns, "ad", "out")
+    if writes_rd:
+        # What rd receives: the circuit's result, or the cell a doubleword load moves.
+        ad, out = _cols(columns, "ad", "cell_0" if copies else "out")
         ad_form, vd = _col(ad), _col(out)
     if "vd" in words:
         ad_form = _col(_cols(columns, "ad")[0])
@@ -945,7 +986,7 @@ def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str,
     # Only an exit marks its next state, exit * (ts ^ step), which only the final state meets.
     exit_marker = _prod(exit, ts) + _prod(exit, step) if control else _const(ZERO)
     flushes.state(columns, npc, exit_marker)
-    entry = (_const(_gpow(opcode)), _col(flags), _col(a1), a2_form, ad_form, imm_form, _col(pc4), *fields)
+    entry = (_const(_gpow(opcode)), flags_form, _col(a1), a2_form, ad_form, imm_form, _col(pc4), *fields)
     if "bad" in words:
         # What the circuit asserts to be zero rides a slot where the program is zero, so the lookup makes it zero.
         entry = (*entry, *[_const(ZERO)] * (BAD_SLOT - BYTECODE_PUBLIC_SLOT - len(entry)), _col(_cols(columns, "bad")[0]))
@@ -955,18 +996,20 @@ def _class_flushes(opcode: int, columns: Sequence[str], control: bool, ram: str,
     # columns are numbered in the order the row makes them.
     accesses = count()
     flushes.access(columns, _const(SEP_REG), _col(a1), next(accesses), REGISTER_SLOTS[0], _col(v1), _col(v1))
-    if "v2" in words:
+    if reads_rs2:
         v2 = _col(_cols(columns, "v2")[0])
         flushes.access(columns, _const(SEP_REG), a2_form, next(accesses), REGISTER_SLOTS[1], v2, v2)
-    if "out" in words:
+    if writes_rd:
         flushes.access(columns, _const(SEP_REG), ad_form, next(accesses), REGISTER_SLOTS[2], _col(_cols(columns, "vd_old")[0]), vd)
     if "vd" in words:
         # An address in rd, read and written back as found.
         pointer = _col(_cols(columns, "vd")[0])
         flushes.access(columns, _const(SEP_REG), ad_form, next(accesses), REGISTER_SLOTS[2], pointer, pointer)
     if ram in ("read", "write"):
-        # The cell's address is the circuit's word, so an access outside RAM, or a misaligned one, pulls a tuple nothing pushed.
-        address, cell, cell_new = _cols(columns, "address", "cell_0", RAM_COLUMNS[ram][-1])
+        # The cell's address is the circuit's word, so an access outside RAM, or a misaligned one, pulls a tuple nothing
+        # pushed. A doubleword store leaves its v2 column there, the one its rs2 read pulls.
+        new = "v2" if copies and ram == "write" else RAM_COLUMNS[ram][-1]
+        address, cell, cell_new = _cols(columns, "address", "cell_0", new)
         flushes.access(columns, _const(SEP_MEM), _col(address), next(accesses), RAM_SLOT, _col(cell), _col(cell_new))
     if ram == "block":
         # Word k of the block is the cell at v1 ^ 8k, which is v1 + 8k in the field; the result's words are rewritten.
@@ -1020,6 +1063,7 @@ class Table:
     circuit: FlockCircuit | None  # None for the class its table proves by identities
     ports: tuple[str | None, ...]  # the circuit's port words in order: a column each, or None for a hint, which is no column
     legal_flags: frozenset[int]
+    copies: bool = False  # a doubleword load or store: the word moved is a column of its own, not a circuit word
     clock_inputs: tuple[str, ...] = ()  # what the clock circuit reads past the timestamps, and gives past the step
     clock_outputs: tuple[str, ...] = ()
     clock_gates: Callable[[Sequence[int]], _GateList] = lambda slots: _clock(slots)
@@ -1031,11 +1075,11 @@ class Table:
 
     @property
     def columns(self) -> tuple[str, ...]:
-        return _class_columns(self.control, self.ram, self.words)
+        return _class_columns(self.control, self.ram, self.words, self.copies)
 
     @property
     def flushes(self) -> Flushes:
-        return _class_flushes(self.opcode, self.columns, self.control, self.ram, self.words)
+        return _class_flushes(self.opcode, self.columns, self.control, self.ram, self.words, self.copies)
 
     @property
     def identities(self) -> tuple[Form, ...]:
@@ -1044,15 +1088,15 @@ class Table:
 
     @property
     def slots(self) -> tuple[int, ...]:
-        return _slots(self.ram, self.words)
+        return _slots(self.ram, self.reads_rs2, self.writes_rd or self.reads_rd)
 
     @property
     def reads_rs2(self) -> bool:
-        return "v2" in self.words
+        return _registers(self.ram, self.words, self.copies)[0]
 
     @property
     def writes_rd(self) -> bool:
-        return "out" in self.words
+        return _registers(self.ram, self.words, self.copies)[1]
 
     @property
     def reads_rd(self) -> bool:
@@ -1362,32 +1406,49 @@ class FlockCircuit:
     bilinear: Callable[[E, Sequence[E], Sequence[E]], E]
 
 
-def verify_flock_lincheck(circuit: FlockCircuit, zc: ZerocheckResult, transcript: Transcript) -> tuple[MultilinearPoint, tuple[E, ...]]:
-    """Lincheck at the quirky point (z_skip, chi): the claim's point, then its 64 slices s."""
+@dataclass(frozen=True)
+class MatrixForm:
+    """The part of a lincheck's terminal identity only the circuit fixes: `e_row^T (A0 + alpha B0) w_col`, e_row the
+    quirky eq weights at (z_skip, chi_in) and w_col the column weights eq(chi_in_prime, .) times the 64 slices s."""
+
+    alpha: E
+    z_skip: E
+    chi_in: MultilinearPoint
+    chi_in_prime: MultilinearPoint
+    s: tuple[E, ...]
+
+    def evaluate(self, circuit: FlockCircuit) -> E:
+        # e_row: phi8 Lagrange in the skip coordinate, eq in the slot variables.
+        e_row = [weight * value for weight in eq_kernel(self.chi_in) for value in lagrange_weights(K_BITS, self.z_skip)]
+        w_col = [value * weight for weight in eq_kernel(self.chi_in_prime) for value in self.s]
+        return circuit.bilinear(self.alpha, e_row, w_col)
+
+
+def verify_flock_lincheck(
+    circuit: FlockCircuit, zc: ZerocheckResult, transcript: Transcript
+) -> tuple[MultilinearPoint, tuple[E, ...], MatrixForm, E]:
+    """Lincheck at the quirky point (z_skip, chi): the claim's point, then its 64 slices s, then the circuit's matrix
+    form and the value the terminal identity needs it to take."""
     n_rounds = circuit.log_size - FLOCK_K_SKIP
     alpha = transcript.sample()  # batches the two matrix identities, the c claim and the constant-position claim
-    # e_row: phi8 Lagrange in the skip coordinate, eq in the slot variables.
     skip_weights = lagrange_weights(K_BITS, zc.z_skip)
     chi_in = zc.chi[:n_rounds]
-    e_row = [weight * value for weight in eq_kernel(chi_in) for value in skip_weights]
 
     # The rounds that bind the high column coordinates (8 for BLAKE2s), leaving 64 unfolded.
     claim = zc.v_a + alpha * zc.v_b + alpha**2 * zc.v_c + alpha**3
     round_challenges, r_lc = sumcheck(transcript, claim, 3, [None] * n_rounds)
 
-    # The residual, then the terminal identity: pin term and c term included.
-    # C = I, so the c weight is e_row itself, and both sides being tensors it
-    # collapses to eq(chi_in, chi_in_prime) times a 64-term Lagrange combination.
+    # The residual, then the terminal identity, of which the matrix form is left to the circuit: what remains is the
+    # c term and the pin term. C = I, so the c weight is e_row itself, and both sides being tensors it collapses to
+    # eq(chi_in, chi_in_prime) times a 64-term Lagrange combination; the pin's column weight is its slice times the eq
+    # weight of its slot.
     s = tuple(transcript.next_scalars(K_BITS))
     chi_in_prime = tuple(reversed(round_challenges))
-    w_col = [value * weight for weight in eq_kernel(chi_in_prime) for value in s]
-    terminal = (
-        circuit.bilinear(alpha, e_row, w_col)
-        + alpha**2 * eq_eval(chi_in, chi_in_prime) * dot(skip_weights, s)
-        + alpha**3 * w_col[circuit.constant_column]
+    pin = circuit.constant_column
+    value = (
+        r_lc + alpha**2 * eq_eval(chi_in, chi_in_prime) * dot(skip_weights, s) + alpha**3 * s[pin % K_BITS] * eq_kernel(chi_in_prime)[pin // K_BITS]
     )
-    require(terminal == r_lc, "Flock lincheck terminal mismatch")
-    return chi_in_prime + zc.chi[n_rounds:], s
+    return chi_in_prime + zc.chi[n_rounds:], s, MatrixForm(alpha, zc.z_skip, chi_in, chi_in_prime, s), value
 
 
 # The class circuits ----------------------------------------------------------
@@ -1539,23 +1600,25 @@ def _add(c: _GateList, x: Sequence[Wire], y: Sequence[Wire]) -> list[Wire]:
     return total
 
 
-def _shift_bytes(c: _GateList, x: Sequence[Wire], amount: Sequence[Wire], left: bool) -> list[Wire]:
-    """`x` shifted by `8 * amount` bits, `amount` being three bits."""
+def _shift_bytes(c: _GateList, x: Sequence[Wire], amount: Sequence[Wire], left: bool, bits: int) -> list[Wire]:
+    """`x` shifted by `8 * amount` bits, `amount` being three bits. Only the low `bits` bits of the result are made, the
+    ones the caller reads."""
     x = list(x)
     for stage, bit in enumerate(amount):
         by = 8 << stage
         moved = [x[i - by] if i >= by else None for i in range(64)] if left else [x[i + by] if i + by < 64 else None for i in range(64)]
-        x = [c.mux(bit, moved[i], x[i]) for i in range(64)]
+        x = [c.mux(bit, moved[i], x[i]) for i in range(bits if stage + 1 == len(amount) else 64)]
     return x
 
 
 def _bus_address(c: _GateList, v1: Sequence[Wire], imm: Sequence[Wire], log_width: Sequence[Wire]) -> tuple[list[Wire], list[Wire], list[Wire]]:
-    """A load's or a store's address `v1 + imm`, the width's thresholds (at least 2 bytes, at least 4, exactly 8), and
-    what goes on the memory bus: the address of the 64-bit cell, with the bits that misalign the access left in.
-    A cell's address is a multiple of 8, so a misaligned access names no cell at all."""
+    """A load's or a store's address `v1 + imm`, the width's thresholds (at least 2 bytes, at least 4), and what goes
+    on the memory bus: the address of the 64-bit cell, with the bits that misalign the access left in. A cell's
+    address is a multiple of 8, so a misaligned access names no cell at all. A doubleword is LD's or SD's, so the two
+    width bits are never both set (their OR is their XOR) and bit 2 never misaligns: it is cleared."""
     address = _add(c, v1, imm)
-    thresholds = [c.either(log_width[0], log_width[1]), log_width[1], c.product(log_width[0], log_width[1])]
-    bus = [c.product(address[i], thresholds[i]) for i in range(3)] + address[3:]
+    thresholds = [c.xor(log_width[0], log_width[1]), log_width[1]]
+    bus = [c.product(address[i], thresholds[i]) for i in range(2)] + [None] + address[3:]
     return address, thresholds, bus
 
 
@@ -1563,18 +1626,18 @@ def _load() -> _GateList:
     """(v1, imm, flags, cell) -> (address, out): the bytes of `cell` the address names, extended to 64 bits."""
     c = _GateList((64, 64, 3, 64), (64, 64))
     v1, imm, flags, cell = c.inputs
-    address, (ge2, ge4, eq8), bus = _bus_address(c, v1, imm, flags[:2])
-    value = _shift_bytes(c, cell, address[:3], left=False)
+    address, (ge2, ge4), bus = _bus_address(c, v1, imm, flags[:2])
+    # At most 4 bytes are loaded, so only the low half of the shifted cell is read.
+    value = _shift_bytes(c, cell, address[:3], left=False, bits=32)
     # The extension: the value's top bit, which the width places, if the load is signed.
     sign: Wire = None
-    for width, bit in ((c.invert(ge2), 7), (c.xor(ge2, ge4), 15), (c.xor(ge4, eq8), 31)):
+    for width, bit in ((c.invert(ge2), 7), (c.xor(ge2, ge4), 15), (ge4, 31)):
         sign = c.xor(sign, c.product(width, value[bit]))
     extension = c.product(flags[2], sign)
     for i, wire in enumerate(bus):
         c.output(0, i, wire)
     for i in range(64):
-        keeps = None if i < 8 else ge2 if i < 16 else ge4 if i < 32 else eq8
-        c.output(1, i, value[i] if i < 8 else c.mux(keeps, value[i], extension))
+        c.output(1, i, value[i] if i < 8 else c.mux(ge2, value[i], extension) if i < 16 else c.mux(ge4, value[i], extension) if i < 32 else extension)
     return c
 
 
@@ -1584,16 +1647,28 @@ def _store() -> _GateList:
     c = _GateList((64, 64, 64, 2, 64), (64, 64))
     v1, v2, imm, flags, cell = c.inputs
     address, thresholds, bus = _bus_address(c, v1, imm, flags)
-    value = _shift_bytes(c, v2, address[:3], left=True)
+    # At most 4 bytes are stored, so the high half of v2 is never written.
+    value = _shift_bytes(c, [*v2[:32], *[None] * 32], address[:3], left=True, bits=64)
     # Byte j is written when it shares the access's block: bit k of j equals bit k of the address wherever the
-    # width does not already span both.
-    spans = [[c.either(c.invert(address[k]), thresholds[k]), c.either(address[k], thresholds[k])] for k in range(3)]
+    # width does not already span both. No width spans bit 2, so there the byte's bit must equal the address's.
+    spans = [[c.either(c.invert(address[k]), thresholds[k]), c.either(address[k], thresholds[k])] for k in range(2)]
+    spans.append([c.invert(address[2]), address[2]])
     for i, wire in enumerate(bus):
         c.output(0, i, wire)
     for j in range(8):
         written = c.product(c.product(spans[0][j & 1], spans[1][j >> 1 & 1]), spans[2][j >> 2])
         for i in range(8 * j, 8 * j + 8):
             c.output(1, i, c.mux(written, value[i], cell[i]))
+    return c
+
+
+def _word_address() -> _GateList:
+    """(v1, imm) -> address, the circuit of a doubleword load or store: the adder alone. A doubleword's misalignment
+    bits are all three low ones, so the sum itself goes on the memory bus."""
+    c = _GateList((64, 64), (64,))
+    v1, imm = c.inputs
+    for i, wire in enumerate(_add(c, v1, imm)):
+        c.output(0, i, wire)
     return c
 
 
@@ -1881,20 +1956,34 @@ HASH_FINAL = 2**32 - 1
 
 TABLES = (
     Table("alu", 0, True, "none", _alu().circuit(), ("v1", "v2", "imm", "flags", "out", "taken"), ALU_LEGAL_FLAGS),
-    # A load's flags are log2 of its width in bytes, then whether it sign-extends; a store's, log2 of its width.
-    Table("load", 1, False, "read", _load().circuit(), ("v1", "imm", "flags", "cell_0", "address", "out"), frozenset(range(7))),
-    Table("store", 2, False, "write", _store().circuit(), ("v1", "v2", "imm", "flags", "cell_0", "address", "cell_new_0"), frozenset(range(4))),
+    # A load's flags are log2 of its width in bytes, then whether it sign-extends; a store's, log2 of its width. A
+    # doubleword is LD's or SD's, which have no flags: their circuit is the address alone, the word moved a column.
+    Table("load", 1, False, "read", _load().circuit(), ("v1", "imm", "flags", "cell_0", "address", "out"), frozenset((0, 1, 2, 4, 5, 6))),
+    Table("store", 2, False, "write", _store().circuit(), ("v1", "v2", "imm", "flags", "cell_0", "address", "cell_new_0"), frozenset(range(3))),
+    Table("ld", 3, False, "read", _word_address().circuit(), ("v1", "imm", "address"), frozenset((0,)), copies=True),
+    Table("sd", 4, False, "write", _word_address().circuit(), ("v1", "imm", "address"), frozenset((0,)), copies=True),
     # A shift's flags: right, arithmetic (with right), 32-bit. A product's: 32-bit; its high word's: which operands are signed.
-    Table("shift", 3, False, "none", _shift().circuit(), ("v1", "v2", "imm", "flags", "out"), frozenset((0, 1, 3, 4, 5, 7))),
-    Table("mul", 4, False, "none", _mul().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1))),
-    Table("mulh", 5, False, "none", _mulh().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1, 3))),
+    Table("shift", 5, False, "none", _shift().circuit(), ("v1", "v2", "imm", "flags", "out"), frozenset((0, 1, 3, 4, 5, 7))),
+    Table("mul", 6, False, "none", _mul().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1))),
+    Table("mulh", 7, False, "none", _mulh().circuit(), ("v1", "v2", "flags", "out"), frozenset((0, 1, 3))),
     # A division's flags: signed, remainder, 32-bit. Its two hints are in its witness and in no column.
-    Table("div", 6, False, "none", _div().circuit(), ("v1", "v2", "flags", None, None, "out", "bad"), frozenset(range(8))),
+    Table("div", 8, False, "none", _div().circuit(), ("v1", "v2", "flags", None, None, "out", "bad"), frozenset(range(8))),
     # The BLAKE2s precompile: the counter is v2 and the flags are the finalization word, all ones on the last block.
-    Table("hash", 7, False, "block", _blake2s().circuit(), HASH_PORTS, frozenset((0, HASH_FINAL))),
+    Table("hash", 9, False, "block", _blake2s().circuit(), HASH_PORTS, frozenset((0, HASH_FINAL))),
     # The extension-field precompile, with no class circuit: a at v1, b at v2 and c at the address in rd. Its identities
     # say the product; its clock circuit splits the flags (accumulate, base field) and computes the limbs' addresses.
-    Table("ext", 8, False, "limbs", None, (), EXT_LEGAL_FLAGS, ("v1", "v2", "vd", "flags"), EXT_CLOCK_OUTPUTS, _ext_clock),
+    Table(
+        "ext",
+        10,
+        False,
+        "limbs",
+        None,
+        (),
+        EXT_LEGAL_FLAGS,
+        clock_inputs=("v1", "v2", "vd", "flags"),
+        clock_outputs=EXT_CLOCK_OUTPUTS,
+        clock_gates=_ext_clock,
+    ),
 )
 
 TABLE_WIDTHS = tuple(t.width for t in TABLES)
@@ -1954,7 +2043,7 @@ def check_bytecode(bytecode: Sequence[K]) -> None:
         require(table.reads_rs2 or a2[z] == 0, "a bytecode entry reads an rs2 its class does not")
         require(table.writes_rd or table.reads_rd or ad[z] == SINK, "a bytecode entry writes an rd its class does not")
         require(not table.reads_rd or ad[z] < SINK, "a bytecode entry reads an address from the sink")
-        require(table.ram not in ("block", "limbs") or imm[z] == 0, "a hash or an extension-field entry has an immediate")
+        require("imm" in table.words or imm[z] == 0, "a bytecode entry has an immediate its class does not")
 
 
 def build_layout(
@@ -2035,9 +2124,9 @@ def build_layout(
     )
 
 
-def verify_flock(circuit: FlockCircuit, log_height: int, transcript: Transcript) -> tuple[MultilinearPoint, tuple[E, ...]]:
-    """The reduction in protocol order: zerocheck, then lincheck. What it leaves is the
-    point and the 64 claims s[i] = z(i, point), i < 64, for ring switching to bind."""
+def verify_flock(circuit: FlockCircuit, log_height: int, transcript: Transcript) -> tuple[MultilinearPoint, tuple[E, ...], MatrixForm, E]:
+    """The reduction in protocol order: zerocheck, then lincheck. What it leaves is the point and the 64 claims
+    s[i] = z(i, point), i < 64, for ring switching to bind, and the matrix form with the value it must take."""
     zc = verify_flock_zerocheck(circuit.log_size + log_height, transcript)
     return verify_flock_lincheck(circuit, zc, transcript)
 
@@ -2055,35 +2144,43 @@ def _phi(value: E, challenges: Sequence[E]) -> E:
     return value
 
 
-def _ring_weight(r: MultilinearPoint, r_prime: Sequence[E], coefficients: Sequence[E]) -> E:
-    """The weight `W(u) = Phi(eq(r, u))`, extended and evaluated by the opening at
-    `r_prime`: `sum_k c_k prod_n (1 + r_n^(2^k) + r'_n)`."""
+def _ring_weight(r: MultilinearPoint, scale: E, r_prime: Sequence[E], coefficients: Sequence[E]) -> E:
+    """The weight `W(u) = Phi(scale eq(r, u))`, extended and evaluated by the opening at
+    `r_prime`: `sum_k c_k scale^(2^k) prod_n (1 + r_n^(2^k) + r'_n)`."""
     total = ZERO
     frobenius = list(r)
     for c in coefficients:
-        product = c
+        product = c * scale
         for value, challenge in zip(frobenius, r_prime, strict=True):
             product *= ONE + value + challenge
         total += product
         frobenius = [value**2 for value in frobenius]
+        scale = scale.square()
     return total
 
 
-def ring_switch(families: Sequence[tuple[MultilinearPoint, Sequence[E]]], transcript: Transcript) -> list[tuple[E, Callable[[Sequence[E]], E]]]:
-    """Each family of 64 claims s[i] = z(i, point) becomes one dense claim `sum_u W(u) q(u) = target` on its own packed witness.
+def ring_switch(claims: Sequence[tuple[Placement, MultilinearPoint, Sequence[E]]], transcript: Transcript) -> StackClaim:
+    """Every ring-switched claim, 64 values s[i] = q(i, point) on its region of the stack, becomes part of one dense
+    claim `sum_u W(u) q(u) = target` on the stack.
 
-    Draw Phi once every family is fixed, the one map serving them all, then take the target
-    `T = sum_i x^i Phi(s_i)` against the MLE-friendly weight `W(u) = Phi(eq(point, u))`.
-    Returns each family's target and its W as a closure."""
+    Once every claim is fixed, draw gamma_rs: claim j takes the scale gamma_rs^j, and the family's 64 slices are the
+    claims' slices so weighted. Then draw Phi, take the target `T = sum_i x^i Phi(family_i)` once, and the weight that
+    puts `Phi(gamma_rs^j eq(point_j, u))` on claim j's region. The points need not be related."""
+    scales = powers(transcript.sample(), len(claims))
+    family = [E.sum(scale * s[i] for scale, (_, _, s) in zip(scales, claims, strict=True)) for i in range(K_BITS)]
     challenges = transcript.samples(len(RING_MAP_SHIFTS))
     # The same map as a Frobenius sum, `Phi(a) = sum_k c_k a^(2^k)` for k < 64.
     coefficients = [reduce(mul, (f ** (2 ** (k % s)) for f, s in zip(challenges, RING_MAP_SHIFTS) if k & s), ONE) for k in range(K_BITS)]
+    target = poly_eval([_phi(value, challenges) for value in family], GEN)
 
-    def claim(point: MultilinearPoint, s: Sequence[E]) -> tuple[E, Callable[[Sequence[E]], E]]:
-        target = poly_eval([_phi(value, challenges) for value in s], GEN)
-        return target, lambda r_prime: _ring_weight(point, r_prime, coefficients)
+    def weight(x: Sequence[E]) -> E:
+        # Each claim is supported on its witness's region of the stack, so its weight carries the placement's selector.
+        return E.sum(
+            region.eq_above(x) * _ring_weight(point, scale, x[: region.variables], coefficients)
+            for scale, (region, point, _) in zip(scales, claims, strict=True)
+        )
 
-    return [claim(point, s) for point, s in families]
+    return (weight, target)
 
 
 # Stacked opening -------------------------------------------------------------
@@ -2101,30 +2198,93 @@ def verify_stacked_opening(transcript: Transcript, root: Digest, stack_log: int,
     verify_whir(transcript, stack_log, log_inv_rate, dot(scales, values), root, lambda point: dot(scales, [weight(point) for weight in weights]))
 
 
-def _bytecode_public(producer: Producer, bytecode: Sequence[K], weights: Sequence[E], beta: E) -> Callable[[MultilinearPoint], list[E]]:
-    """The bytecode's public columns P'_i = (beta + pi_alpha(entry x))^(2^i) - 1 at a point. Squaring is additive, so the
-    separator and the address column TEXT_BASE + 4x are raised term by term, the address staying affine in the bits;
-    the program's columns are summed into one, c(x), whose powers are taken entry by entry."""
+def _bytecode_affine(producer: Producer, weights: Sequence[E], beta: E) -> Callable[[MultilinearPoint], list[E]]:
+    """The bytecode's public columns P'_i = (beta + pi_alpha(entry x))^(2^i) - 1 at a point, short of the program's
+    columns. Squaring is additive, so the separator and the address column TEXT_BASE + 4x are raised term by term, the
+    address staying affine in the bits; the program's columns' share is the program's deferred claim."""
 
     def public(point: MultilinearPoint) -> list[E]:
-        size = len(bytecode) >> BUS_BITS
-        slots = range(BYTECODE_PUBLIC_SLOT, EXIT_SLOT + 1)
-        sums = [E.sum(weights[slot] * word for slot in slots if (word := bytecode[slot * size + x])) for x in range(size)]
-        eq = eq_kernel(point)
         constant, weight = beta + weights[0] * SEP_BYTECODE + weights[1] * E(TEXT_BASE), weights[1]
         monomials = [E(1 << (bit + 2)) for bit in range(len(point))]
         values = []
         for _ in range(producer.bits):
-            values.append(constant + weight * dot(point, monomials) + dot(eq, sums) + ONE)
+            values.append(constant + weight * dot(point, monomials) + ONE)
             constant, weight = constant.square(), weight.square()
             monomials = [m.square() for m in monomials]
-            sums = [s.square() for s in sums]
         return values
 
     return public
 
 
-def verify_execution(
+# Deferred claims ------------------------------------------------------------
+#
+# What the verifier leaves to the polynomials only the program or the VM's circuits fix: the table sumcheck's terminal
+# identity short of the bytecode producer's program columns and of RAM's image, and each circuit's lincheck terminal
+# identity short of its matrix form. Their points are challenges and stream scalars, and nothing is absorbed after them,
+# so they can be settled after the rest of the proof, or by someone else.
+
+
+@dataclass(frozen=True)
+class ProgramPoint:
+    """The program's polynomials at a point, whose value is
+
+        sum_i twist[i] sum_x eq(chi, x) T(x, alpha)^(2^i) + image_weight image(image_point),
+
+    T(x, alpha) = sum_s eq(alpha, s) T(x, s) the stacked bytecode table at entry x, and image RAM's image then zeros.
+    The first sum is the producer's program columns, bit i's raised to 2^i: the Frobenius twist phi^i of the table at
+    (phi^-i(chi), alpha), all bits' taken at once."""
+
+    bytecode: MultilinearPoint  # chi, then alpha
+    twist: tuple[E, ...]
+    image_weight: E
+    image_point: MultilinearPoint
+
+    def evaluate(self, bytecode: Sequence[K], image: Sequence[int]) -> E:
+        size = len(bytecode) >> BUS_BITS
+        chi, alphas = self.bytecode[: log2_strict(size)], self.bytecode[log2_strict(size) :]
+        weights = eq_kernel(alphas)
+        slots = range(BYTECODE_PUBLIC_SLOT, EXIT_SLOT + 1)
+        sums = [E.sum(weights[slot] * word for slot in slots if (word := bytecode[slot * size + x])) for x in range(size)]
+        eq = eq_kernel(chi)
+        total = ZERO
+        for weight in self.twist:
+            total += weight * dot(eq, sums)
+            sums = [s.square() for s in sums]
+        return total + self.image_weight * sparse_mle(((0, image),), self.image_point)
+
+
+@dataclass(frozen=True)
+class DeferredClaims:
+    program: tuple[ProgramPoint, E]  # the point, and the value the program's polynomials must take there
+    circuits: tuple[tuple[MatrixForm, E], ...]  # per circuit, in FLOCKS order, its matrix form and the value it must take
+
+    def render(self) -> str:
+        """One line per field, every element as its three limbs in hexadecimal, high first: what the Rust side renders
+        for the same claims."""
+
+        def line(name: str, values: Sequence[E]) -> str:
+            return " ".join([name, *(f"{int(v.c2):016x}{int(v.c1):016x}{int(v.c0):016x}" for v in values)])
+
+        point, value = self.program
+        lines = [
+            line("program value", [value]),
+            line("program bytecode", point.bytecode),
+            line("program twist", point.twist),
+            line("program image_weight", [point.image_weight]),
+            line("program image_point", point.image_point),
+        ]
+        for f, (form, value) in enumerate(self.circuits):
+            lines += [
+                line(f"circuit {f} value", [value]),
+                line(f"circuit {f} alpha", [form.alpha]),
+                line(f"circuit {f} row", [form.z_skip, *form.chi_in]),
+                line(f"circuit {f} column", form.chi_in_prime),
+                line(f"circuit {f} slices", form.s),
+            ]
+        return "\n".join(lines)
+
+
+def verify_core(
     bytecode: Sequence[K],
     entry_pc: int,
     log_ram: int,
@@ -2132,15 +2292,15 @@ def verify_execution(
     image: Sequence[int],
     output: Sequence[int],
     proof: Proof,
-) -> None:
+) -> DeferredClaims:
     """The statement: the program whose decoded table is `bytecode`, started at `entry_pc` on a RAM of `2^log_ram` words
     holding `image` then zeros, with an advice region of `2^log_advice` words holding whatever the prover put there,
-    halts on `exit` with a0..a3 holding `output`."""
+    halts on `exit` with a0..a3 holding `output`. Everything but the deferred claims, which it returns."""
     require(len(output) == 4, "the output is four words")
     check_bytecode(bytecode)
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
-    preimage = b"leanvm-rv64im-6" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
+    preimage = b"leanvm-rv64im-8" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
     transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 
@@ -2165,6 +2325,8 @@ def verify_execution(
 
     # 4] One batched (back-loaded) "table sumcheck" over all the tables and the producer, at the bus point, proving the
     # target the two leaf claims derive: the tables' bus forms and the producer's bits, weighted by the same powers of xi.
+    # RAM's image is not in the target, nor the program's columns in the producer's public ones: their share of the
+    # terminal identity is the program's deferred claim, the image's reaching it through every round's challenge.
     # A table's own identities take the next powers of xi, in table order, which no other form uses: their sums are
     # zero, so the target is the same, and matching it pins each of them to zero.
     xi = transcript.sample()
@@ -2175,15 +2337,16 @@ def verify_execution(
         start += len(table.identities)
     target = dot(form_powers, bus.totals)
     (bytecode_producer,) = layout.producers
-    publics = (_bytecode_public(bytecode_producer, bytecode, bus.weights, bus.beta),)
+    publics = (_bytecode_affine(bytecode_producer, bus.weights, bus.beta),)
     producer_airs = [
         ProducerAir(producer.log_rows, tuple(form_powers[0] * c for c in coefficients), public)
         for producer, coefficients, public in zip(layout.producers, bus.producers, publics, strict=True)
     ]
-    table_sumcheck_claims, bits = table_sumcheck(
-        layout.table_log_heights, bus.forms, producer_airs, form_powers, identity_powers, bus.point, target, transcript
-    )
-    claims = [*bus.claims, *table_sumcheck_claims]
+    tables = table_sumcheck(layout.table_log_heights, bus.forms, producer_airs, form_powers, identity_powers, bus.point, target, transcript)
+    ((chi, _),), (twist,) = tables.families, tables.twists
+    image_weight, image_point = bus.image
+    program = ProgramPoint((*chi, *bus.alphas), twist, tables.target_weight * form_powers[0] * image_weight, image_point)
+    claims = [*bus.claims, *tables.claims]
 
     # 5] the exit: a7 holds `exit` and a0..a3 the output when the run ends. A register's final value is the final
     # registers' column at the Boolean point naming it, a claim the verifier computes rather than receives.
@@ -2191,21 +2354,44 @@ def verify_execution(
         point = tuple(ONE if register >> bit & 1 else ZERO for bit in range(LOG_REGISTERS))
         claims.append(ColumnClaim(SHARED["register_final"], point, E(value)))
 
-    # 6] each circuit via Flock, every table's class circuit then every table's clock circuit, each over its own packed witness
-    families = [verify_flock(circuit, layout.table_log_heights[table.opcode], transcript) for table, circuit, _ in FLOCKS]
+    # 6] each circuit via Flock, every class circuit then every table's clock circuit, each over its own packed
+    # witness, each leaving its matrix form to its circuit
+    flocks = [verify_flock(circuit, layout.table_log_heights[table.opcode], transcript) for table, circuit, _ in FLOCKS]
+    families = [(point, s) for point, s, _, _ in flocks]
     # and the producer's bits, the 64 bit slices of its multiplicity column: the bits the bus reads, then zeros
-    families += [(point, (*values, *[ZERO] * (K_BITS - len(values)))) for point, values in bits]
+    families += [(point, (*values, *[ZERO] * (K_BITS - len(values)))) for point, values in tables.families]
 
-    # 7] Ring-switching
-    # Each claim is supported on its witness's region of the stack, so its weight carries the
-    # placement's selector, and they lead the batch, taking the first powers.
-    def on_region(placement: Placement, target: E, weight: Callable[[Sequence[E]], E]) -> StackClaim:
-        return (lambda x: placement.eq_above(x) * weight(x[: placement.variables]), target)
-
+    # 7] Ring-switching: one family for every claim, which leads the batch, taking the first power (lambda^0 = 1).
     regions = [layout.placements[column] for column in (*WITNESS_COLUMNS, *(producer.column for producer in layout.producers))]
-    ringswitches = [on_region(region, *claim) for region, claim in zip(regions, ring_switch(families, transcript), strict=True)]
-    verify_stacked_opening(transcript, root, layout.stack_log, log_inverse_rate, [*ringswitches, *(c.on_stack(layout) for c in claims)])
+    ring_claims = [(region, point, s) for region, (point, s) in zip(regions, families, strict=True)]
+    verify_stacked_opening(
+        transcript, root, layout.stack_log, log_inverse_rate, [ring_switch(ring_claims, transcript), *(c.on_stack(layout) for c in claims)]
+    )
     transcript.finish()
+    return DeferredClaims((program, tables.residual), tuple((form, value) for _, _, form, value in flocks))
+
+
+def check_deferred(claims: DeferredClaims, bytecode: Sequence[K], image: Sequence[int]) -> None:
+    """Evaluate the claims `verify_core` left: on the program's bytecode table and RAM image, and on each circuit's matrices."""
+    point, value = claims.program
+    require(point.evaluate(bytecode, image) == value, "table sumcheck terminal mismatch")
+    for (_, circuit, _), (form, value) in zip(FLOCKS, claims.circuits, strict=True):
+        require(form.evaluate(circuit) == value, "Flock lincheck terminal mismatch")
+
+
+def verify_execution(
+    bytecode: Sequence[K],
+    entry_pc: int,
+    log_ram: int,
+    log_advice: int,
+    image: Sequence[int],
+    output: Sequence[int],
+    proof: Proof,
+) -> DeferredClaims:
+    """`verify_core`, then `check_deferred`; returns the claims it checked."""
+    claims = verify_core(bytecode, entry_pc, log_ram, log_advice, image, output, proof)
+    check_deferred(claims, bytecode, image)
+    return claims
 
 
 def protocol_constants() -> str:
@@ -2285,6 +2471,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("stream", type=Path, help="the proof's scalar stream, 24-byte little-endian field elements")
     parser.add_argument("merkle_openings", type=Path, help="every Merkle opening: its leaf's words, then its sibling digests")
+    parser.add_argument("--deferred", action="store_true", help="print the deferred claims before the verdict, one field a line")
     arguments = parser.parse_args(argv)
     try:
         encoded_bytecode = arguments.bytecode.read_bytes()
@@ -2296,9 +2483,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         require(len(rest) == image_length + 4, "the public words are malformed")
         image, output = rest[:image_length], rest[image_length:]
         proof = Proof.load(arguments.stream, arguments.merkle_openings)
-        verify_execution(bytecode, entry_pc, log_ram, log_advice, image, output, proof)
+        claims = verify_execution(bytecode, entry_pc, log_ram, log_advice, image, output, proof)
     except (OSError, ValueError, KeyError, VerificationError) as exc:
         parser.exit(1, f"verification failed: {exc}\n")
+    if arguments.deferred:
+        print(claims.render())
     print("verification succeeded")
     return 0
 

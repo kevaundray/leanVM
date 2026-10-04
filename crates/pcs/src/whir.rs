@@ -40,8 +40,6 @@ mod verify;
 use fiat_shamir::transcript::Challenger;
 use primitives::field::{F64, F192};
 
-#[cfg(test)]
-pub(crate) use super::whir_config::default_config;
 pub use super::whir_config::{
     ConfigError, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE, MIN_LOG_N,
     ProverConfig, QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, SECURITY_BITS,
@@ -53,7 +51,7 @@ pub use commit::{Commitment, ProverData, commit};
 pub use prove::recursive_prover_with_basis;
 pub(crate) use prove::recursive_prover_with_prepared_basis;
 pub(crate) use sumcheck::{Basis, INITIAL_BASIS_CHUNK, initial_rounds};
-pub use verify::{VerifyError, recursive_verifier_with_basis_succinct};
+pub use verify::{WhirError, recursive_verifier_with_basis_succinct};
 
 /// Mixed inner product `Σ_i b[i] · witness[i]` (E x K via `mul_base`). The
 /// evaluation-claim `target` for a K-witness against an E-basis.

@@ -13,16 +13,16 @@
 //! claims routed to those words.
 
 use crate::cpu::Row;
-use crate::rv::{Div, Entry, Ext};
-use crate::tables::{CLASSES, ClassSpec, N_CIRCUITS, N_TABLES, Part, Word};
+use crate::rv::Entry;
+use crate::tables::{ClassSpec, ClassTable, N_CIRCUITS, N_TABLES, Part};
 use ::pcs::pack::LOG_PACKING;
 use fiat_shamir::transcript::{ProverState, VerifierState};
 use flock::circuit::Circuit;
-use flock::reduction::{ReductionReplay, SliceClaim};
-use flock::verifier::VerifyError;
+use flock::lincheck::MatrixClaim;
+use flock::reduction::{ReductionReplay, Shape, SliceClaim};
+use flock::verifier::FlockError;
 use primitives::field::F64;
 use std::sync::OnceLock;
-use zk_alloc::ArenaVec;
 
 /// The zerocheck's cube has at least this many variables (flock's univariate skip
 /// plus its fixed-point dimensions), which floors the batch of a small circuit.
@@ -73,20 +73,52 @@ pub const fn stride_log(spec: &ClassSpec, part: Part) -> usize {
     k_log(spec, part) - LOG_PACKING
 }
 
+/// The most variables any packed witness's circuit has per instance.
+pub fn max_k_log() -> usize {
+    (0..N_FLOCKS).map(|f| shape(f).k_log).max().unwrap_or(0)
+}
+
+/// What the verifier's replay of packed witness `f`'s reduction reads of its circuit short of its matrices.
+///
+/// - The instance's size.
+/// - The constant wire's column, the first after the port words.
+///
+/// The table's spec fixes both, so the replay builds no circuit, and building the circuit checks them.
+pub const fn shape(f: usize) -> Shape {
+    let (t, part) = flock(f);
+    let spec = ClassSpec::ALL[t];
+    let n_ports = match part {
+        Part::Class => spec.ports.len(),
+        // The clock, each access's previous timestamp and the clock's own inputs, then the step and its own outputs.
+        Part::Clock => spec.n_accesses() + 2 + spec.clock_inputs.len() + spec.clock_outputs.len(),
+    };
+    Shape {
+        k_log: k_log(spec, part),
+        const_pin_col: 64 * n_ports,
+    }
+}
+
 /// Packed witness `f`'s gate list, built once.
 pub fn circuit(f: usize) -> &'static Circuit {
     static CIRCUITS: [OnceLock<Circuit>; N_FLOCKS] = [const { OnceLock::new() }; N_FLOCKS];
     CIRCUITS[f].get_or_init(|| {
         let (t, part) = flock(f);
-        let spec = CLASSES[t];
+        let spec = ClassSpec::ALL[t];
         let (circuit, n_inputs) = match part {
             Part::Class => (spec.class.circuit(), spec.n_inputs),
             Part::Clock => (spec.clock_circuit(), 1 + spec.n_accesses() + spec.clock_inputs.len()),
         };
+        let shape = shape(f);
         assert_eq!(
             circuit.k_log(),
-            k_log(spec, part),
+            shape.k_log,
             "{}'s {part:?} block size moved",
+            spec.name
+        );
+        assert_eq!(
+            circuit.const_pos(),
+            shape.const_pin_col,
+            "{}'s {part:?} constant wire moved",
             spec.name
         );
         assert_eq!(
@@ -100,7 +132,7 @@ pub fn circuit(f: usize) -> &'static Circuit {
 }
 
 /// `log2` of the batch proving `n_rows` instances: a power of two, at least flock's
-/// stripe floor and at least what the zerocheck's cube needs for both of the table's circuits.
+/// stripe floor and at least what the zerocheck's cube needs for each of the table's circuits.
 pub const fn n_blocks_log(spec: &ClassSpec, n_rows: usize) -> usize {
     let n = if n_rows > 8 { n_rows } else { 8 };
     let natural = n.next_power_of_two().trailing_zeros() as usize;
@@ -113,55 +145,15 @@ pub const fn n_blocks_log(spec: &ClassSpec, n_rows: usize) -> usize {
     if natural > floor { natural } else { floor }
 }
 
-/// A row's value of one circuit word.
-///
-/// `slots` are the clock slots of the row's accesses.
-fn word_of(word: Word, slots: &[u32], row: &Row, entry: &Entry) -> u64 {
-    // The division's honest hints, the circuit's two prover-supplied ports.
-    let hints = || {
-        Div {
-            flags: entry.flags,
-            v1: row.v1,
-            v2: row.v2,
-        }
-        .hints()
-    };
-    // An extension-field row's limbs and pointers.
-    let ext = || row.ext.as_ref().expect("an extension-field row has its pointers");
-    match word {
-        Word::Clock => row.ts,
-        Word::Prev(i) => row.prev()[i as usize],
-        Word::Step => crate::tables::clock_step(row.ts, &row.prev()[..slots.len()], slots),
-        Word::Flags => entry.flags,
-        Word::Imm => entry.imm,
-        Word::V1 => row.v1,
-        Word::V2 => row.v2,
-        Word::Out => row.out,
-        Word::Taken => row.taken as u64,
-        Word::Address => row.ram.address,
-        Word::Cell(k) => row.hash.as_ref().map_or(row.ram.old, |h| h.block[k as usize]),
-        Word::CellNew(k) => row.hash.as_ref().map_or(row.ram.new, |h| h.word_after(k as usize)),
-        Word::Dest => ext().instance.pointers[2],
-        Word::FlagBit(k) => entry.flags >> k & 1,
-        Word::LimbAddress(k) => {
-            let x = &ext().instance;
-            Ext::bus_address(x.pointers, x.flags, k as usize)
-        }
-        Word::Bad => 0,
-        Word::HintQ => hints().0,
-        Word::HintR => hints().1,
-    }
-}
-
 /// The flock-native tables of one class's batch, kept from the pass that wrote its
 /// committed column so the reduction needs no second witness pass.
 pub(crate) struct Prepared {
     flock: usize,
     n_blocks_log: usize,
-    z: ArenaVec<u64>,
-    a: ArenaVec<u64>,
-    b: ArenaVec<u64>,
-    z_lincheck: ArenaVec<u8>,
+    z: Vec<u64>,
+    a: Vec<u64>,
+    b: Vec<u64>,
+    z_lincheck: Vec<u8>,
 }
 
 impl Prepared {
@@ -169,7 +161,7 @@ impl Prepared {
     /// into `window`, its committed column.
     pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], window: &mut [F64]) -> Self {
         let (t, part) = flock(f);
-        let spec = CLASSES[t];
+        let spec = ClassSpec::ALL[t];
         let n_blocks_log = n_blocks_log(spec, rows.len());
         assert_eq!(
             rows.len(),
@@ -177,13 +169,13 @@ impl Prepared {
             "a table's rows fill its batch (cpu::filler)"
         );
         let circuit = circuit(f);
-        let ports = crate::tables::tables()[t].ports(part);
+        let ports = ClassTable::all()[t].ports(part);
         let n_inputs = circuit.n_input_words();
         let slots = spec.slots();
         // The row's input words, one per input port.
         let input_words = |row: &Row, words: &mut [u64]| {
             for (word, &port) in words.iter_mut().zip(ports) {
-                *word = word_of(port, &slots, row, &entries[row.index as usize]);
+                *word = port.value(row, &entries[row.index as usize], &slots);
             }
         };
         // A class with a word-level witness skips the walk of its gate list; the others
@@ -227,7 +219,7 @@ impl Prepared {
                 // would carry one and flock prove the other.
                 let row = &rows[batch * BATCH + j];
                 for (k, &port) in ports.iter().enumerate().skip(n_inputs) {
-                    let expected = word_of(port, &slots, row, &entries[row.index as usize]);
+                    let expected = port.value(row, &entries[row.index as usize], &slots);
                     assert_eq!(
                         src[k], expected,
                         "{}'s {part:?} circuit disagrees with the interpreter on {port:?}",
@@ -257,7 +249,18 @@ impl Prepared {
     }
 }
 
-/// The verifier's replay of packed witness `f`'s reduction: zerocheck, then lincheck.
-pub fn verify_reduction(f: usize, n_blocks_log: usize, vs: &mut VerifierState) -> Result<ReductionReplay, VerifyError> {
-    circuit(f).block().verify(n_blocks_log, vs)
+/// The verifier's replay of packed witness `f`'s reduction, zerocheck then lincheck, up to the circuit's matrices.
+///
+/// Their form is left as a claim for the built circuit to settle.
+/// It reads only the circuit's shape, and builds none.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
+pub fn verify_reduction(
+    f: usize,
+    n_blocks_log: usize,
+    vs: &mut VerifierState,
+) -> Result<(ReductionReplay, MatrixClaim), FlockError> {
+    shape(f).verify_deferred(n_blocks_log, vs)
 }

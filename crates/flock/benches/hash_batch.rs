@@ -29,7 +29,10 @@ use pcs::pack::LOG_PACKING;
 use pcs::stack_open::{open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
-use primitives::{field::F64, pretty_integer, test_rng::Rng};
+use primitives::{field::F64, pretty_integer, test_util::Rng};
+
+#[global_allocator]
+static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
 
 fn main() {
     bench::init_tracing_from_env();
@@ -61,14 +64,7 @@ fn main() {
     // One full prove pass: witness generation, commitment, zerocheck, lincheck,
     // and the stacked opening. Deterministic in `blocks`, so every pass is the
     // same work on the same shape and their timings are directly comparable.
-    //
-    // Each pass is one arena phase, matching how the VM prover runs. Only the
-    // transcript and the opening escape, and both are plain `Vec` proof data, so
-    // nothing here outlives its phase. `setup` is built above, outside any phase,
-    // because it is cached across passes.
-    zk_alloc::enable_arena();
     let prove_pass = || {
-        let _phase = zk_alloc::enter_phase();
         let _span = tracing::info_span!("Flock prove", n_log).entered();
         let t_pass = Instant::now();
         let t = Instant::now();

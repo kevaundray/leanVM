@@ -16,7 +16,7 @@
 //! products of limbs, in `K`: the table proves the product by three identities of degree 2 over `K`
 //! (`tables::ClassTable::identities`), and its clock circuit computes the limbs' addresses ([`Ext::clock_circuit`]).
 
-use crate::tables;
+use crate::tables::Clock;
 use flock::circuit::{Builder, Circuit, Wire};
 use primitives::field::F192;
 
@@ -128,7 +128,7 @@ impl Ext {
             .into_iter()
             .chain([64; Self::OFFSET_LIMBS.len()])
             .collect::<Vec<_>>();
-        let mut c = tables::clock_builder(slots, &[64, 64, 64, 2], &ports);
+        let mut c = Clock::builder(slots, &[64, 64, 64, 2], &ports);
         let first = 1 + slots.len();
         let [a, b, d, flags] = std::array::from_fn(|i| c.input(first + i));
         let (accumulate, base) = (flags[0], flags[1]);
@@ -228,7 +228,7 @@ mod tests {
         ) {
             // Invariant: past the step, the outputs are the flags' two bits and the bus addresses of the limbs that
             // are no pointer, wrapping past 2^64 and zero for a base-field b's high limbs.
-            let slots = tables::EXT.slots();
+            let slots = crate::tables::ClassSpec::EXT.slots();
             let circuit = Ext::clock_circuit(&slots);
             let mut inputs = vec![0; 1 + slots.len()];
             inputs.extend(pointers);
