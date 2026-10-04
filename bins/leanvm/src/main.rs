@@ -96,11 +96,13 @@ enum Command {
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
     /// A proven case reports `latency`, `proof-size`, `verify`, one `stage.<name>` per
-    /// top-level span of the proof (`--tracing`'s first level under `Prove`) and `peak-memory`.
+    /// top-level span of the proof (`--tracing`'s first level under `Prove`) and `peak-memory`;
+    /// an aggregation tree's case reports them for its first-level node and its node.
     ///
     /// The lists are `bins/leanvm/src/tracked.rs`.
     Bench {
-        /// Count every program at the README's sizes without proving: the exact counts only.
+        /// Count every program, and two aggregation trees' circuits, at the README's sizes
+        /// without proving: the exact counts only.
         #[arg(long)]
         cycles_only: bool,
         /// Print the counts as a markdown table rather than JSON.

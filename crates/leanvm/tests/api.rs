@@ -126,8 +126,11 @@ fn public_api_end_to_end() {
             prover.prove(&guest, &advice, Rate::MIN).expect("the run halts")
         })
         .collect();
-    let (guest, ..) = preimage(b"");
+    let (guest, advice, _) = preimage(b"leanVM");
     let shape = LeafShape::of(&leaves[0].proof).expect("an announced shape");
+    // A tree's key needs no proof: a measured run gives the shape its proof announces.
+    let measured = measure(&guest, &advice).expect("the run halts");
+    assert_eq!(LeafShape::measured(&measured, Rate::MIN), shape);
     let tree = Tree::new(&guest, shape, 2, 2, Rate::MIN).expect("a tree");
     let pairs: Vec<Leaf<'_>> = leaves.iter().map(Leaf::from).collect();
     let root = tree.prove(&pairs).expect("honest leaves");

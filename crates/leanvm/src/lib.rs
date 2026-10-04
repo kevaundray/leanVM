@@ -217,7 +217,7 @@ pub struct LeanVmVerifyError(CpuError);
 /// Every tree proof states the same few hundred words: a digest of its leaves' outputs, and claims only the root's verifier evaluates.
 /// A tree over one leaf, `arity_0` one, is a single proof's recursion.
 pub mod aggregate {
-    use super::{LeanVmError, Program, Proof, Proved, Rate};
+    use super::{LeanVmError, Program, Proof, Proved, Rate, Stats};
     use leanvm_core::rec::table::Table;
     use leanvm_core::rec::tree;
     use std::fmt::{Debug, Formatter};
@@ -282,6 +282,15 @@ pub mod aggregate {
             tree::LeafShape::of(&proof.0)
                 .map(Self)
                 .ok_or(LeanVmError::MalformedProof)
+        }
+
+        /// The shape a proof of a run that cost `stats` announces at `rate`: a tree's key, built without a proof.
+        #[must_use]
+        pub fn measured(stats: &Stats, rate: Rate) -> Self {
+            Self(tree::LeafShape::new(
+                stats.counts.map(|rows| rows.ilog2() as usize),
+                rate,
+            ))
         }
     }
 

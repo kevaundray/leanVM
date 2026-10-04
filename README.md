@@ -132,7 +132,7 @@ To get the cost of all three without proving, exact and the same on every machin
 cargo leanvm bench --cycles-only --markdown
 ```
 
-It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words, for these three and the other benchmarks. CI adds it to each run's summary, compares the same counts on every PR with the PR's base, comments with the ones that changed, and fails a PR that raises any of them; without `--markdown` it prints them as JSON (Bencher Metric Format), `--markdown-file <path>` appending the table to a file from the same pass, and without `--cycles-only` it proves each program too.
+It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words, for these three and the other benchmarks, then one of the recursion circuits of two aggregation trees over leanXMSS proofs (`cargo leanvm aggregate`), 2 to 1 and 4 to 1 (`aggregate-leanxmss-400-2to1` and `aggregate-leanxmss-400-4to1`: every node combines 2, or 4, proofs into 1): each kind of node's rows per table and committed words, `-first` for a first-level node (the RISC-V verifier in rows over its leaf proofs) and `-node` for a higher node (the recursion verifier in rows over its child proofs). CI adds them to each run's summary, compares the same counts on every PR with the PR's base, comments with the ones that changed, and fails a PR that raises any of them; without `--markdown` it prints them as JSON (Bencher Metric Format), `--markdown-file <path>` appending the tables to a file from the same pass, and without `--cycles-only` it proves each program, and one node of each kind of both trees over leanXMSS-100 leaves, too.
 
 ### hashing
 
