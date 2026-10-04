@@ -279,6 +279,13 @@ const unsafe fn assume_init(slice: &[MaybeUninit<F192>]) -> &[F192] {
     unsafe { std::slice::from_raw_parts(slice.as_ptr().cast(), slice.len()) }
 }
 
+/// Row `r` of a level: its four children.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+fn row(values: &[F192], r: usize) -> &[F192; 4] {
+    values[4 * r..4 * r + 4].as_array().unwrap()
+}
+
 /// Two binary product levels contracted into one degree-four layer.
 struct QuaternaryLayerState {
     /// Four child tables interleaved in their original order. This lets the
@@ -329,8 +336,13 @@ impl QuaternaryLayerState {
         let rows = window_rows(full_pairs);
         #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
         let summand4 = |_: &mut (), pair: usize, weights: F192x4| -> [F192x4Unreduced; 4] {
-            let child = |offset: usize| F192x4::new(std::array::from_fn(|j| self.values[8 * (pair + j) + offset]));
-            quartic_summand4([0, 1, 2, 3].map(child), [4, 5, 6, 7].map(child), weights)
+            // Each row as its four children in lanes, turned to put the four pairs in lanes.
+            let rows = |half: usize| {
+                F192x4::transpose(std::array::from_fn(|j| {
+                    F192x4::load(row(&self.values, 2 * (pair + j) + half))
+                }))
+            };
+            quartic_summand4(rows(0), rows(1), weights)
         };
         let window = |index: usize| -> [F192Unreduced; 4] {
             let base = index * rows;
@@ -488,19 +500,18 @@ impl QuaternaryLayerState {
                     quartic_summand(lines, weight)
                 },
                 |stage, pair, weights| {
-                    // The pairs' two rows each, folded in lanes and staged as rows.
+                    // Each pair's two rows, folded with their children in lanes and staged,
+                    // then turned to put the four pairs in lanes.
                     let folded = [0, 1].map(|k| {
-                        [0, 1, 2, 3].map(|c| {
-                            let at = |half: usize| {
-                                F192x4::new(std::array::from_fn(|j| values[8 * (2 * (pair + j) + k) + 4 * half + c]))
-                            };
-                            let (left, right) = (at(0), at(1));
-                            let row = left + (left + right).mul(lanes);
-                            for (j, value) in row.to_array().into_iter().enumerate() {
-                                stage[8 * (pair + j - first) + 4 * k + c].write(value);
-                            }
-                            row
-                        })
+                        F192x4::transpose(std::array::from_fn(|j| {
+                            let n = 2 * (pair + j) + k;
+                            let (left, right) =
+                                (F192x4::load(row(values, 2 * n)), F192x4::load(row(values, 2 * n + 1)));
+                            let folded = left + (left + right).mul(lanes);
+                            let slot = 4 * (n - 2 * first);
+                            folded.store(stage[slot..slot + 4].as_mut_array().unwrap());
+                            folded
+                        }))
                     });
                     quartic_summand4(folded[0], folded[1], weights)
                 },

@@ -23,6 +23,8 @@ use super::gf2_64::F64;
 use super::gf2_64::mul_wide;
 #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
 use super::gf2_64::{reduce, square_wide};
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+use core::mem::MaybeUninit;
 use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
 use serde::{Deserialize, Serialize};
 
@@ -358,8 +360,37 @@ impl F192x4 {
 
     #[inline(always)]
     pub fn to_array(self) -> [F192; 4] {
-        // SAFETY: both features are enabled at compile time.
-        unsafe { x86_64::unlanes4(self.lanes) }
+        let mut out = [MaybeUninit::uninit(); 4];
+        self.store(&mut out);
+        // SAFETY: `store` wrote all four.
+        out.map(|v| unsafe { v.assume_init() })
+    }
+
+    /// Four consecutive elements in memory, element `i` to lane `i`.
+    ///
+    /// From memory rather than by value: two loads and two permutes, where
+    /// [`new`](Self::new) inserts twelve words one at a time.
+    #[inline(always)]
+    pub fn load(v: &[F192; 4]) -> Self {
+        Self {
+            // SAFETY: both features are enabled at compile time; `v` is twelve words.
+            lanes: unsafe { x86_64::load_lanes4(v) },
+        }
+    }
+
+    /// Lane `i` to `out[i]`, the inverse of [`load`](Self::load). The slots need not be
+    /// initialized: a staging buffer is written here before it is read.
+    #[inline(always)]
+    pub fn store(self, out: &mut [MaybeUninit<F192>; 4]) {
+        // SAFETY: both features are enabled at compile time; `out` is twelve words.
+        unsafe { x86_64::store_lanes4(self.lanes, out) }
+    }
+
+    /// Lane `j` of `out[i]` is lane `i` of `rows[j]`.
+    #[inline(always)]
+    pub fn transpose(rows: [Self; 4]) -> [Self; 4] {
+        // SAFETY: avx512f is enabled at compile time.
+        unsafe { x86_64::transpose_lanes4(rows.map(|r| r.lanes)) }.map(|lanes| Self { lanes })
     }
 
     /// The lane-wise products without the reduction.
@@ -764,6 +795,8 @@ pub mod x86_64 {
     use super::{F192, F192Unreduced};
     use crate::field::gf2_64::F64;
     use core::arch::x86_64::*;
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    use core::mem::MaybeUninit;
     use core::mem::transmute;
 
     /// Two 64-bit words as one register, `lo` in the low qword.
@@ -1187,7 +1220,7 @@ pub mod x86_64 {
         ]
     }
 
-    /// The elements of [`lanes4`]'s form.
+    /// Four consecutive elements, twelve words, into [`lanes4`]'s form.
     ///
     /// # Safety
     ///
@@ -1195,10 +1228,67 @@ pub mod x86_64 {
     #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     #[inline]
     #[target_feature(enable = "avx512f")]
-    pub unsafe fn unlanes4([c01, c22]: [__m512i; 2]) -> [F192; 4] {
-        // SAFETY: the reinterprets are between 512-bit values.
-        let (w01, w22) = unsafe { (transmute::<__m512i, [u64; 8]>(c01), transmute::<__m512i, [u64; 8]>(c22)) };
-        std::array::from_fn(|i| F192::new(w01[2 * i], w01[2 * i + 1], w22[2 * i]))
+    pub unsafe fn load_lanes4(v: &[F192; 4]) -> [__m512i; 2] {
+        let words = v.as_ptr().cast::<i64>();
+        // SAFETY: `v` is twelve words, words 0..8 and 8..12.
+        let (head, tail) = unsafe {
+            (
+                _mm512_loadu_si512(words.cast()),
+                _mm512_castsi256_si512(_mm256_loadu_si256(words.add(8).cast())),
+            )
+        };
+        // An index of 8 or more takes word `index - 8` of `tail`.
+        let c01 = _mm512_set_epi64(10, 9, 7, 6, 4, 3, 1, 0);
+        let c22 = _mm512_set_epi64(11, 11, 8, 8, 5, 5, 2, 2);
+        [
+            _mm512_permutex2var_epi64(head, c01, tail),
+            _mm512_permutex2var_epi64(head, c22, tail),
+        ]
+    }
+
+    /// [`lanes4`]'s form back to twelve consecutive words, the inverse of [`load_lanes4`].
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx512f` target feature.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub unsafe fn store_lanes4([c01, c22]: [__m512i; 2], out: &mut [MaybeUninit<F192>; 4]) {
+        let words = out.as_mut_ptr().cast::<i64>();
+        // An index of 8 or more takes word `index - 8` of `c22`.
+        let head = _mm512_permutex2var_epi64(c01, _mm512_set_epi64(5, 4, 10, 3, 2, 8, 1, 0), c22);
+        let tail = _mm512_permutex2var_epi64(c01, _mm512_set_epi64(0, 0, 0, 0, 14, 7, 6, 12), c22);
+        // SAFETY: `out` is twelve words, words 0..8 and 8..12.
+        unsafe {
+            _mm512_storeu_si512(words.cast(), head);
+            _mm256_storeu_si256(words.add(8).cast(), _mm512_castsi512_si256(tail));
+        }
+    }
+
+    /// The 4x4 transpose of [`lanes4`] values: lane `j` of `out[i]` is lane `i` of `rows[j]`.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx512f` target feature.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub unsafe fn transpose_lanes4(rows: [[__m512i; 2]; 4]) -> [[__m512i; 2]; 4] {
+        let part = |p: usize| {
+            let [a, b, c, d] = rows.map(|r| r[p]);
+            // `[a0, a1, b0, b1]`, `[a2, a3, b2, b3]`, and the same of `c` and `d`.
+            let (ab01, ab23) = (_mm512_shuffle_i64x2::<0x44>(a, b), _mm512_shuffle_i64x2::<0xEE>(a, b));
+            let (cd01, cd23) = (_mm512_shuffle_i64x2::<0x44>(c, d), _mm512_shuffle_i64x2::<0xEE>(c, d));
+            [
+                _mm512_shuffle_i64x2::<0x88>(ab01, cd01),
+                _mm512_shuffle_i64x2::<0xDD>(ab01, cd01),
+                _mm512_shuffle_i64x2::<0x88>(ab23, cd23),
+                _mm512_shuffle_i64x2::<0xDD>(ab23, cd23),
+            ]
+        };
+        let (c01, c22) = (part(0), part(1));
+        std::array::from_fn(|i| [c01[i], c22[i]])
     }
 
     /// Lane-wise XOR.
@@ -1405,6 +1495,11 @@ mod tests {
             let want: [F192; 4] = std::array::from_fn(|i| software::mul(a[i], b[i]));
             let (a4, b4) = (F192x4::new(a), F192x4::new(b));
             assert_eq!(a4.to_array(), a);
+            assert_eq!(F192x4::load(&a).to_array(), a);
+            let rows = [a, b, want, a].map(F192x4::new);
+            let columns = F192x4::transpose(rows).map(F192x4::to_array);
+            let rows = rows.map(F192x4::to_array);
+            assert!((0..4).all(|i| (0..4).all(|j| columns[i][j] == rows[j][i])));
             assert_eq!(a4.mul(b4).to_array(), want);
             assert_eq!((a4 + b4).to_array(), std::array::from_fn(|i| a[i] + b[i]));
             let mut acc = F192x4Unreduced::zero();
