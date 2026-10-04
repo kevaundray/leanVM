@@ -387,10 +387,33 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
     let (quad_in_block_mask, live_quads) = padding_pairs(padding, quad_log - 1);
     let live = |quad: usize| (quad & quad_in_block_mask) < live_quads;
 
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "gfni",
+        target_feature = "avx512bw",
+        target_feature = "avx512vbmi",
+        target_feature = "avx512f",
+        target_feature = "vpclmulqdq"
+    ))]
+    let eq_planes = (lo_size >= BLOCK / 4).then(|| planar::planes(&eq_lo));
+
     let sums = parallel::map_reduce(
         eq_hi.len(),
         || [F192::ZERO; 8],
         |hi| {
+            #[cfg(all(
+                target_arch = "x86_64",
+                target_feature = "gfni",
+                target_feature = "avx512bw",
+                target_feature = "avx512vbmi",
+                target_feature = "avx512f",
+                target_feature = "vpclmulqdq"
+            ))]
+            if let Some(eq_planes) = &eq_planes {
+                // SAFETY: the target features are enabled at compile time.
+                let acc = unsafe { planar::quad_sums(fold, rows, hi * lo_size, eq_planes, live) };
+                return acc.map(|s| eq_hi[hi] * s.reduce());
+            }
             let mut acc = [F192Unreduced::ZERO; 8];
             let mut f = FoldedBlock::ZERO;
             // Sixteen quads per folded block.
@@ -712,6 +735,96 @@ pub fn fold_in_place_pair(a: &mut Vec<F192>, b: &mut Vec<F192>, challenge: F192)
     }
     a.truncate(half);
     b.truncate(half);
+}
+
+/// The two-round pass on coefficient planes: eight quads per register, so no product packs or unpacks a value.
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "gfni",
+    target_feature = "avx512bw",
+    target_feature = "avx512vbmi",
+    target_feature = "avx512f",
+    target_feature = "vpclmulqdq"
+))]
+mod planar {
+    use core::arch::x86_64::__m512i;
+    use core::mem::transmute;
+
+    use primitives::bit_fold::{BLOCK, BitFold};
+    use primitives::field::gf2_64x3::x86_64::{F192x8, F192x8Sum};
+    use primitives::field::{F192, F192Unreduced};
+
+    /// Eight consecutive values per entry, in planes.
+    pub(super) fn planes(values: &[F192]) -> Vec<F192x8> {
+        let (groups, rest) = values.as_chunks::<8>();
+        assert!(rest.is_empty(), "whole groups of eight");
+        groups
+            .iter()
+            .map(|g| {
+                // SAFETY: eight qwords are one register.
+                let plane = |k: fn(&F192) -> u64| unsafe { transmute::<[u64; 8], __m512i>(g.each_ref().map(k)) };
+                F192x8([plane(|e| e.c0), plane(|e| e.c1), plane(|e| e.c2)])
+            })
+            .collect()
+    }
+
+    /// The eight sums of [`super::quad_pair_terms`] over the quads `quad_first..`, one per `eq` entry's eight.
+    ///
+    /// The eq weight multiplies the four `a` values first, so each sum's terms are products of `eq * a` combinations:
+    ///
+    /// ```text
+    ///     eq * (a_1 b_1 + c_1) = (eq a_1) b_1 + eq c_1          eq * du_0 eu_0 = (eq a_0 + eq a_1)(b_0 + b_1)
+    /// ```
+    ///
+    /// Fifteen products per quad, four of them reduced, against sixteen with eight reduced.
+    #[inline]
+    #[target_feature(
+        enable = "avx512f",
+        enable = "avx512bw",
+        enable = "avx512vbmi",
+        enable = "gfni",
+        enable = "vpclmulqdq"
+    )]
+    pub(super) fn quad_sums<const CHUNKS: usize>(
+        fold: &BitFold,
+        rows: [&[[u8; CHUNKS]]; 3],
+        quad_first: usize,
+        eq: &[F192x8],
+        live: impl Fn(usize) -> bool,
+    ) -> [F192Unreduced; 8] {
+        let mut acc = [F192x8Sum::zero(); 8];
+        // Sixteen quads per folded block, two registers of eight.
+        for (b, eq) in eq.as_chunks::<2>().0.iter().enumerate() {
+            let q0 = quad_first + (BLOCK / 4) * b;
+            // A block wholly in padding folds to zero.
+            if !(q0..q0 + BLOCK / 4).any(&live) {
+                continue;
+            }
+            let [pa, pb, pc] =
+                rows.map(|t| fold.fold_quads::<CHUNKS>(t[4 * q0..4 * q0 + BLOCK].try_into().expect("a block")));
+            for (g, &e) in eq.iter().enumerate() {
+                let at =
+                    |p: &[[__m512i; 8]; 3], uv: usize| F192x8([p[0][uv + 4 * g], p[1][uv + 4 * g], p[2][uv + 4 * g]]);
+                let [a0, a1, a2, a3] = [0, 1, 2, 3].map(|uv| e.mul(at(&pa, uv)));
+                let [b0, b1, b2, b3] = [0, 1, 2, 3].map(|uv| at(&pb, uv));
+                let [c1, c2, c3] = [1, 2, 3].map(|uv| at(&pc, uv));
+                let (du0, du1, dv0, dv1) = (a0.add(a1), a2.add(a3), a0.add(a2), a1.add(a3));
+                let (eu0, eu1, ev0, ev1) = (b0.add(b1), b2.add(b3), b0.add(b2), b1.add(b3));
+                acc[0].mul_add(a1, b1);
+                acc[0].mul_add(e, c1);
+                acc[1].mul_add(a3, b3);
+                acc[1].mul_add(e, c3);
+                acc[2].mul_add(du0, eu0);
+                acc[3].mul_add(du1, eu1);
+                acc[4].mul_add(a2, b2);
+                acc[4].mul_add(e, c2);
+                acc[5].mul_add(dv0, ev0);
+                acc[6].mul_add(dv1, ev1);
+                acc[7].mul_add(du0.add(du1), eu0.add(eu1));
+            }
+        }
+        acc.map(|s| s.total())
+    }
 }
 
 // ---------------------------------------------------------------------------

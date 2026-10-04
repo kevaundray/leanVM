@@ -15,6 +15,14 @@ use crate::field::F192;
 
 use crate::multilinear::eq_table;
 
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "gfni",
+    target_feature = "avx512bw",
+    target_feature = "avx512vbmi"
+))]
+use core::arch::x86_64::__m512i;
+
 #[cfg(not(all(
     target_arch = "x86_64",
     target_feature = "gfni",
@@ -95,6 +103,22 @@ impl BitFold {
         debug_assert_eq!(CHUNKS, self.n_chunks);
         assert!(rows.len() <= BLOCK);
         self.imp.fold_block(rows, out);
+    }
+
+    /// Fold 64 consecutive rows into coefficient planes, grouped by quad.
+    ///
+    /// Plane `k`, register `u + 2v + 4g`, qword `l` is coefficient `k` of row `4 (8g + l) + u + 2v`.
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "gfni",
+        target_feature = "avx512bw",
+        target_feature = "avx512vbmi"
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
+    pub fn fold_quads<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK]) -> [[__m512i; 8]; 3] {
+        debug_assert_eq!(CHUNKS, self.n_chunks);
+        self.imp.fold_quads(rows)
     }
 }
 
@@ -354,6 +378,21 @@ pub mod gfni {
     static INPUT_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
         let [a, b, c] = &*OUTPUT_STAGES;
         [c.inverse(), b.inverse(), a.inverse()]
+    });
+
+    /// Stages taking eight registers of one output coefficient, register = byte `o` and offset = value `p`, to quad planes.
+    ///
+    /// Stage `s` pairs on register bit `s`.
+    ///
+    /// ```text
+    ///     after the stages     offset = (o, then p bits 2..5)     register = p bits 0, 1, 5
+    /// ```
+    ///
+    /// So register `u + 2v + 4g`, qword `l` is the coefficient of value `4 (8g + l) + u + 2v`: of quad `8g + l`, one register per `(u, v)`.
+    static QUAD_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
+        // The plain swaps leave offset = (o0, o1, p2, p3, p4, o2).
+        let to_qwords = |f: usize| (f & 3) | ((f >> 3) << 2) | (((f >> 2) & 1) << 5);
+        [Stage::swap(1, |f| f), Stage::swap(2, |f| f), Stage::swap(32, to_qwords)]
     });
 
     /// Store 24 registers of output bytes, register `o` holding byte `o` of 64 values, as those 64 values.
@@ -623,9 +662,34 @@ pub mod gfni {
             unsafe { self.fold_full::<CHUNKS>(rows, out) };
         }
 
+        /// Fold a full block into quad planes, see [`QUAD_STAGES`].
+        #[inline]
+        #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
+        pub(super) fn fold_quads<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK]) -> [[__m512i; 8]; 3] {
+            let acc = self.fold_bytes::<CHUNKS>(rows);
+            let mut planes = [[_mm512_setzero_si512(); 8]; 3];
+            for (i, plane) in planes.iter_mut().enumerate() {
+                plane.copy_from_slice(&acc[8 * i..8 * i + 8]);
+            }
+            let stages = &*QUAD_STAGES;
+            for s in 0..3 {
+                for plane in &mut planes {
+                    stages[s].apply(1 << s, plane);
+                }
+            }
+            planes
+        }
+
         #[inline]
         #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
         fn fold_full<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK], out: &mut [F192; BLOCK]) {
+            store_f192(&self.fold_bytes::<CHUNKS>(rows), out);
+        }
+
+        /// Fold a full block into 24 registers, register `o` holding byte `o` of the 64 values.
+        #[inline]
+        #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
+        fn fold_bytes<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK]) -> [__m512i; OUT_BYTES] {
             // Phase 1: CHUNKS registers of 64 bytes, row-major, then one register per input byte.
             let base = rows.as_ptr().cast::<u8>();
             let mut regs = [_mm512_setzero_si512(); CHUNKS];
@@ -650,9 +714,7 @@ pub mod gfni {
                     acc[o] = _mm512_ternarylogic_epi64::<0x96>(acc[o], g0, g1);
                 }
             }
-
-            // Phase 3: back to one F192 per row.
-            store_f192(&acc, out);
+            acc
         }
     }
 }
