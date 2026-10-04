@@ -123,9 +123,9 @@ if mode == "calls":
 top = int(sys.argv[4]) if len(sys.argv) > 4 else 40
 counts, tables = {}, {}
 for line in Path(path).read_text().splitlines():
-    pc, n, table = line.split()
+    pc, n, t = line.split()
     counts[int(pc, 16)] = int(n)
-    tables[int(pc, 16)] = table
+    tables[int(pc, 16)] = t
 frames = frames_of(sorted(counts))
 total = sum(counts.values())
 by = collections.Counter()
