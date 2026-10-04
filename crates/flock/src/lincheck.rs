@@ -140,7 +140,7 @@ pub trait LincheckCircuit: Sync {
     ///
     /// for arbitrary row weights `u` and column weights `w` (length
     /// `n_cols()` each), WITHOUT materializing the length-k column marginal.
-    /// [`verify`] only ever consumes the marginal through one inner product
+    /// [`MatrixForm::evaluate`] only ever consumes the marginal through one inner product
     /// against a column-weight vector, so an implementation that can walk its
     /// circuit (O(circuit) field ops, see `hash::bilinear_walk`) answers
     /// here and never pays the ∝ NNZ marginal. Default `None`: the verifier

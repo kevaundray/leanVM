@@ -335,7 +335,7 @@ fn check_reductions(batches: &[Batch]) {
                 .collect()
         };
         let delta = F192::new(7, 0, 0);
-        let mut forged = proof.clone();
+        let mut forged = proof;
         forged.stream[len - tail + PACKING_WIDTH] += delta * lifts[1];
         forged.stream[len - tail + 2 * PACKING_WIDTH + 1] += delta * lifts[0];
         let moved = native(&forged).expect("the batch's identity holds");

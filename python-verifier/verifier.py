@@ -2113,9 +2113,7 @@ def build_layout(
     )
 
 
-def verify_flock(
-    circuits: Sequence[tuple[FlockCircuit, int]], transcript: Transcript
-) -> list[tuple[MultilinearPoint, tuple[E, ...], MatrixForm, E]]:
+def verify_flock(circuits: Sequence[tuple[FlockCircuit, int]], transcript: Transcript) -> list[tuple[MultilinearPoint, tuple[E, ...], MatrixForm, E]]:
     """The reductions of every circuit, each over 2^log_height instances, in protocol order: the batched zerocheck,
     then the batched lincheck. What they leave, per circuit, is the point and the 64 claims s[i] = z(i, point), i < 64,
     for ring switching to bind, and the matrix form with the value it must take."""
