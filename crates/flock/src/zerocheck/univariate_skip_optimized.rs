@@ -32,20 +32,20 @@
 
 use super::univariate_skip::{SplitEq, ntt_extend_vec};
 use super::{K_SKIP, N_INNER, PaddingSpec};
+#[cfg(target_arch = "aarch64")]
+use core::arch::aarch64::*;
+#[cfg(all(target_arch = "x86_64", any(target_feature = "gfni", target_feature = "avx2")))]
+use core::arch::x86_64::*;
+use pcs::ntt::InvNttTableByteSingleGf8;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-use crate::zerocheck::bit_fold::avx2;
+use primitives::bit_fold::avx2;
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "gfni",
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use crate::zerocheck::bit_fold::gfni::{store_f192, weight_matrices};
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64::*;
-#[cfg(all(target_arch = "x86_64", any(target_feature = "gfni", target_feature = "avx2")))]
-use core::arch::x86_64::*;
-use pcs::ntt::InvNttTableByteSingleGf8;
+use primitives::bit_fold::gfni::{store_f192, weight_matrices};
 use primitives::bits::bit_transpose_64bytes;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "gfni")))]
 use primitives::field::gf2_8::avx2::gf8_mul_vec32;
@@ -501,23 +501,17 @@ unsafe fn shift_reduce_inner_ab_gfni_512(
     out: &mut [u8; 64],
 ) {
     let byte_base_b = chunk_byte_base + b_med * N_CHUNKS * 8;
-    // `inv_table.apply` overwrites every lane, so these need no re-zeroing per K.
-    let mut a_col = [F8::ZERO; ELL];
-    let mut b_col = [F8::ZERO; ELL];
+    let chunk = |k: usize| byte_base_b + k * N_CHUNKS..byte_base_b + (k + 1) * N_CHUNKS;
 
-    // SAFETY: the target features are carried by the function; the loads and
-    // stores stay within a_col/b_col/out, each exactly `ELL` bytes.
+    // SAFETY: the target features are carried by the function; the store covers exactly `out`.
     unsafe {
         let (mut acc_lo, mut acc_hi) = (_mm512_setzero_si512(), _mm512_setzero_si512());
         let zero = _mm512_setzero_si512();
 
         for k in 0..8 {
-            let chunk_off = byte_base_b + k * N_CHUNKS;
-            inv_table.apply(&a_packed[chunk_off..chunk_off + N_CHUNKS], &mut a_col);
-            inv_table.apply(&b_packed[chunk_off..chunk_off + N_CHUNKS], &mut b_col);
             let y = _mm512_gf2p8mul_epi8(
-                _mm512_loadu_si512(a_col.as_ptr().cast()),
-                _mm512_loadu_si512(b_col.as_ptr().cast()),
+                inv_table.apply_zmm(a_packed[chunk(k)].try_into().expect("one chunk")),
+                inv_table.apply_zmm(b_packed[chunk(k)].try_into().expect("one chunk")),
             );
             let shift = _mm_cvtsi32_si128(k as i32);
             acc_lo = _mm512_xor_si512(acc_lo, _mm512_sll_epi16(_mm512_unpacklo_epi8(y, zero), shift));

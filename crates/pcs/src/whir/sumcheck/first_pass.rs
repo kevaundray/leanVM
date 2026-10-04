@@ -574,7 +574,10 @@ mod lanes {
     /// The arm this target dispatches to.
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     pub(super) type Best = Ymm;
-    #[cfg(all(target_arch = "x86_64", not(all(target_feature = "vpclmulqdq", target_feature = "avx2"))))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        not(all(target_feature = "vpclmulqdq", target_feature = "avx2"))
+    ))]
     pub(super) type Best = Xmm;
     #[cfg(target_arch = "aarch64")]
     pub(super) type Best = Neon;
