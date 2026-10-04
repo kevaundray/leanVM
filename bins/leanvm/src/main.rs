@@ -101,8 +101,8 @@ enum Command {
     ///
     /// The lists are `bins/leanvm/src/tracked.rs`.
     Bench {
-        /// Count every program, and an aggregation tree's circuits, at the README's sizes without
-        /// proving: the exact counts only.
+        /// Count every program, and two aggregation trees' circuits, at the README's sizes
+        /// without proving: the exact counts only.
         #[arg(long)]
         cycles_only: bool,
         /// Print the counts as a markdown table rather than JSON.

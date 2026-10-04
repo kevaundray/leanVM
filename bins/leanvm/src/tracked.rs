@@ -120,7 +120,8 @@ fn proven() -> [(&'static str, Build); 4] {
 }
 
 /// An aggregation tree over copies of one case's proof: first-level nodes of `arity_0` leaves,
-/// nodes of `arity` tree proofs.
+/// nodes of `arity` tree proofs. A tree's name ends `<N>to1` when both are `N`: every node
+/// combines `N` proofs into 1.
 struct Aggregation {
     name: &'static str,
     leaf: Case,
@@ -144,7 +145,9 @@ impl Aggregation {
             .unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }
 
-    /// A kind of node's benchmark name, and what the markdown table calls it.
+    /// A kind of node's benchmark name, and what the markdown table calls it: `<name>-first`, a
+    /// first-level node (the RISC-V verifier in rows over `arity_0` leaf proofs), and
+    /// `<name>-node`, a higher node (the recursion verifier in rows over `arity` child proofs).
     fn node(&self, kind: Kind) -> (String, String) {
         match kind {
             Kind::First => (
@@ -162,25 +165,30 @@ impl Aggregation {
     }
 }
 
-/// Aggregation trees counted without a proof: the README's.
+/// Aggregation trees counted without a proof: the README's leaves, 2 to 1 (`cargo leanvm
+/// aggregate`'s shape) and 4 to 1.
 fn counted_trees() -> Vec<Aggregation> {
-    vec![Aggregation::new(
-        "aggregate-leanxmss-400-4x4",
-        Case::workload("leanxmss-400", workload::leanxmss(400)),
-        4,
-        4,
-    )]
+    let leaf = || Case::workload("leanxmss-400", workload::leanxmss(400));
+    vec![
+        Aggregation::new("aggregate-leanxmss-400-2to1", leaf(), 2, 2),
+        Aggregation::new("aggregate-leanxmss-400-4to1", leaf(), 4, 4),
+    ]
 }
 
 /// Builds an aggregation tree given its name.
 type BuildTree = fn(&'static str) -> Aggregation;
 
-/// Aggregation trees proven: the README's arities over leaves of a size proven above. Each
-/// gives two benchmarks, `<name>-first` and `<name>-node`.
-fn proven_trees() -> [(&'static str, BuildTree); 1] {
-    [("aggregate-leanxmss-100-4x4", |name| {
-        Aggregation::new(name, Case::workload("leanxmss-100", workload::leanxmss(100)), 4, 4)
-    })]
+/// Aggregation trees proven: the counted trees' arities over leaves of a size proven above.
+/// Each gives two benchmarks, `<name>-first` and `<name>-node`.
+fn proven_trees() -> [(&'static str, BuildTree); 2] {
+    [
+        ("aggregate-leanxmss-100-2to1", |name| {
+            Aggregation::new(name, Case::workload("leanxmss-100", workload::leanxmss(100)), 2, 2)
+        }),
+        ("aggregate-leanxmss-100-4to1", |name| {
+            Aggregation::new(name, Case::workload("leanxmss-100", workload::leanxmss(100)), 4, 4)
+        }),
+    ]
 }
 
 /// With `cycles_only`, count every case without a proof and print the counts as JSON, or with
