@@ -58,11 +58,11 @@ The root `Cargo.toml` is workspace-only: the libraries are in `crates/`, the CLI
 An x86-only arm never compiles on an Apple dev machine, so a typo in one ships. Lint the other target before pushing anything `cfg`-gated (CI's "Clippy on the AVX-512 backends" step runs the same command):
 
 ```bash
-RUSTFLAGS="-C target-feature=+avx512f,+avx512bw,+avx512vl,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes" \
+RUSTFLAGS="-C target-feature=+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes" \
   cargo clippy --release --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings
 ```
 
-It needs `rustup target add x86_64-unknown-linux-gnu` and nothing else, since clippy does not link. Use `RUSTFLAGS`, not `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`: cargo lets a set `RUSTFLAGS` (as in CI) beat the target's, and it also replaces the pinned `target-cpu=native`, which no cross target recognizes. The `x87` note is the bare cross ABI, not a finding. To confirm an arm is really being reached rather than silently skipped, drop a `compile_error!` in it and watch the lint fail.
+It needs `rustup target add x86_64-unknown-linux-gnu` and nothing else, since clippy does not link. Use `RUSTFLAGS`, not `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`: cargo lets a set `RUSTFLAGS` (as in CI) beat the target's, and it also replaces the pinned `target-cpu=native`, which no cross target recognizes. The `x87` note is the bare cross ABI, not a finding. To confirm an arm is really being reached rather than silently skipped, drop a `compile_error!` in it and watch the lint fail. The x86 kernels have AVX2 arms too, with and without GFNI, which CI's "SIMD" legs build and test: lint them the same way with `-C target-cpu=x86-64-v3 -C target-feature=+vpclmulqdq,+pclmulqdq`, and with `+gfni,+aes` added.
 
 ```bash
 cargo testall                     # release workspace tests
