@@ -14,6 +14,8 @@ use crate::colval::ColVal;
 use crate::gkr::GkrError;
 use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+use primitives::field::MixedSums8;
 use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
@@ -307,6 +309,9 @@ fn push_terms<'a>(c: &'a Coord, w: F192, terms: &mut Vec<Term<'a>>, constant: &m
     }
 }
 
+/// Rows per task of a block's leaf fill, a multiple of eight.
+const LEAF_CHUNK: usize = 1 << 10;
+
 /// One tuple's leaves, `β − Σ_i w_i c_i(z)` for every row `z`, into `dst`. The
 /// row-invariant weights and constant coordinates are folded once into `const_part`.
 fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &mut [F192]) {
@@ -331,12 +336,38 @@ fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &m
         }
         const_part + acc.reduce()
     };
-    if dst.len() >= PAR_THRESHOLD {
-        parallel::fill(dst, row);
-    } else {
-        for (z, slot) in dst.iter_mut().enumerate() {
-            *slot = row(z);
+    // Eight rows at once: each term's coefficient meets eight words in one batched
+    // product, and the eight sums reduce together. Elsewhere one row at a time.
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    let rows8 = |z: usize| -> [F192; 8] {
+        let mut sums = MixedSums8::new();
+        for t in &terms {
+            let (c, k) = match t {
+                Term::Col(i, c) => (c, *cols[*i][z..z + 8].as_array().unwrap()),
+                Term::Prod(i, j, c) => (c, std::array::from_fn(|r| cols[*i][z + r] * cols[*j][z + r])),
+                Term::IntIndex(c, shift) => (c, std::array::from_fn(|r| F64(((z + r) as u64) << shift))),
+                Term::Public(vals, c) => (c, *vals[z..z + 8].as_array().unwrap()),
+            };
+            sums.add(*c, k);
         }
+        sums.reduce().map(|s| const_part + s)
+    };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    let rows8 = |z: usize| -> [F192; 8] { std::array::from_fn(|r| row(z + r)) };
+    let fill = |base: usize, dst: &mut [F192]| {
+        let (groups, tail) = dst.as_chunks_mut::<8>();
+        let tail_start = base + 8 * groups.len();
+        for (g, out) in groups.iter_mut().enumerate() {
+            *out = rows8(base + 8 * g);
+        }
+        for (r, slot) in tail.iter_mut().enumerate() {
+            *slot = row(tail_start + r);
+        }
+    };
+    if dst.len() >= PAR_THRESHOLD {
+        parallel::chunks_mut(dst, LEAF_CHUNK, |ci, chunk| fill(ci * LEAF_CHUNK, chunk));
+    } else {
+        fill(0, dst);
     }
 }
 

@@ -275,6 +275,50 @@ pub fn mul_base8(t: F192, k: [F64; 8]) -> [F192; 8] {
     k.map(|k| t.mul_base(k))
 }
 
+/// Eight sums of mixed products, `sum_t t_t * k_t[i]` for each `i < 8`, every `t_t` shared by the eight.
+///
+/// A term costs six CLMULs for all eight sums, and the eight reduce together once. AVX-512 only:
+/// elsewhere a caller sums each row's [`F192::mul_base_unreduced`] products itself.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[derive(Clone, Copy)]
+pub struct MixedSums8 {
+    acc: [core::arch::x86_64::__m512i; 6],
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+impl Default for MixedSums8 {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+impl MixedSums8 {
+    /// Eight empty sums.
+    #[inline(always)]
+    pub fn new() -> Self {
+        Self {
+            // SAFETY: avx512f is enabled at compile time.
+            acc: unsafe { [core::arch::x86_64::_mm512_setzero_si512(); 6] },
+        }
+    }
+
+    /// Add `t * k[i]` to sum `i`.
+    #[inline(always)]
+    pub fn add(&mut self, t: F192, k: [F64; 8]) {
+        // SAFETY: both features are enabled at compile time.
+        unsafe { x86_64::mul_base8_add(&mut self.acc, t, k) }
+    }
+
+    /// The eight sums.
+    #[inline(always)]
+    pub fn reduce(self) -> [F192; 8] {
+        // SAFETY: both features are enabled at compile time.
+        unsafe { x86_64::mul_base8_reduce(self.acc) }
+    }
+}
+
 /// Eight `E` weights, laid out once for [`dot_base`].
 ///
 /// Pairs share a 128-bit lane, so the kernel loads them with no shuffle:
@@ -915,13 +959,46 @@ pub mod x86_64 {
     #[inline]
     #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
     pub unsafe fn mul_base8(t: F192, k: [F64; 8]) -> [F192; 8] {
+        // SAFETY: the function carries both features.
+        unsafe {
+            let mut acc = [_mm512_setzero_si512(); 6];
+            mul_base8_add(&mut acc, t, k);
+            mul_base8_reduce(acc)
+        }
+    }
+
+    /// Add the eight mixed products `t * k[i]` to the six product registers of [`mul_by_pairs`].
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx512f` target features.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+    pub unsafe fn mul_base8_add(acc: &mut [__m512i; 6], t: F192, k: [F64; 8]) {
         // SAFETY: the function carries both features; `k` is eight qwords.
         unsafe {
             // `t` in every lane: [c0, c1] for both pair registers, [c2, c2] for the last.
             let t01 = _mm512_broadcast_i32x4(pair(t.c0, t.c1));
             let t2 = _mm512_set1_epi64(t.c2 as i64);
             let kv = _mm512_loadu_si512(k.as_ptr().cast());
-            let [e0, e1, o0, o1, e2, o2] = mul_by_pairs(t01, t01, t2, kv);
+            for (acc, p) in acc.iter_mut().zip(mul_by_pairs(t01, t01, t2, kv)) {
+                *acc = _mm512_xor_si512(*acc, p);
+            }
+        }
+    }
+
+    /// Reduce the six product registers of [`mul_base8_add`] into the eight sums.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx512f` target features.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+    pub unsafe fn mul_base8_reduce([e0, e1, o0, o1, e2, o2]: [__m512i; 6]) -> [F192; 8] {
+        // SAFETY: the function carries both features.
+        unsafe {
             // Gather each product's low and high halves into qword-wise vectors, then reduce.
             let red = |x, y| reduce_lanes512(_mm512_unpacklo_epi64(x, y), _mm512_unpackhi_epi64(x, y));
             let even = transmute::<__m512i, [u64; 8]>(red(e0, e1));
@@ -1134,6 +1211,36 @@ mod tests {
             let k: [F64; 16] = std::array::from_fn(|_| F64(rng.ext().c0));
             let want = (0..16).fold(F192::ZERO, |acc, i| acc + w[i].mul_base(k[i]));
             assert_eq!(dot_base(&packed, &k).reduce(), want);
+        }
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[test]
+    fn mixed_sums_match_software() {
+        let mut rng = Rng::new(10);
+        for _ in 0..200 {
+            // A zero and an all-ones word in every term, a corner coefficient in the first.
+            let terms: [(F192, [F64; 8]); 3] = std::array::from_fn(|i| {
+                let t = if i == 0 {
+                    CORNERS[rng.next_u64() as usize % CORNERS.len()]
+                } else {
+                    rng.ext()
+                };
+                let mut k: [F64; 8] = std::array::from_fn(|_| F64(rng.next_u64()));
+                k[i] = F64(0);
+                k[7 - i] = F64(u64::MAX);
+                (t, k)
+            });
+            let mut sums = MixedSums8::new();
+            for (t, k) in terms {
+                sums.add(t, k);
+            }
+            let want: [F192; 8] = std::array::from_fn(|i| {
+                terms
+                    .iter()
+                    .fold(F192::ZERO, |acc, (t, k)| acc + software::mul(*t, F192::from(k[i])))
+            });
+            assert_eq!(sums.reduce(), want);
         }
     }
 
