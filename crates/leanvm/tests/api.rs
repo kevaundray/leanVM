@@ -89,7 +89,7 @@ fn public_api_end_to_end() {
     let bytes = received.to_bytes();
     let mut bumped = bytes.clone();
     bumped[4] += 1;
-    assert_eq!(Proof::from_bytes(&bumped), Err(Error::UnsupportedVersion { found: 7 }));
+    assert_eq!(Proof::from_bytes(&bumped), Err(Error::UnsupportedVersion { found: 8 }));
     let mut magic = bytes.clone();
     magic[0] ^= 1;
     assert_eq!(Proof::from_bytes(&magic), Err(Error::MalformedProof));
@@ -109,6 +109,28 @@ fn public_api_end_to_end() {
         Err(Error::AdviceTooLong { max: 1, got: 2 })
     );
     assert_eq!(Program::from_elf(b"\x7fELF").map(|_| ()), Err(ElfError::Truncated));
+
+    // 7. Two proofs of one program, aggregated in one tree proof whose root states both outputs, in order.
+    let leaves: Vec<Proved> = [b"leanVM".as_slice(), b"LEANvm"]
+        .into_iter()
+        .map(|message| {
+            let (guest, advice, _) = preimage(message);
+            prover.prove(&guest, &advice, Rate::MIN).expect("the run halts")
+        })
+        .collect();
+    let (guest, ..) = preimage(b"");
+    let shape = aggregate::LeafShape::of(&leaves[0].proof).expect("an announced shape");
+    let tree = aggregate::Tree::new(&guest, shape, 2, 2, Rate::MIN).expect("a tree");
+    let pairs: Vec<aggregate::Leaf<'_>> = leaves.iter().map(aggregate::Leaf::from).collect();
+    let root = tree.prove(&pairs).expect("honest leaves");
+    let root = aggregate::TreeProof::from_bytes(&root.to_bytes()).expect("a tree proof's own bytes");
+    let outputs = [leaves[0].output, leaves[1].output];
+    assert_ne!(outputs[0], outputs[1]);
+    tree.verify(&root, &outputs).unwrap();
+    assert_eq!(
+        tree.verify(&root, &[outputs[1], outputs[0]]),
+        Err(Error::Tree(aggregate::TreeError::Outputs))
+    );
 
     let stats = zk_alloc::stats();
     assert!(stats.phases >= 2, "expected one phase per proof, got {stats:?}");

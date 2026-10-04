@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 use leanvm::{Prover, Rate};
 
+mod aggregate;
 mod fibonacci;
 mod guest;
 mod tracked;
@@ -69,6 +70,24 @@ enum Command {
         #[arg(long, default_value_t = 1, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
         blobs: usize,
     },
+    /// Prove a leaf program once, then an aggregation tree over copies of its proof.
+    Aggregate {
+        /// The leaf program.
+        #[arg(long, value_enum, default_value = "leanxmss")]
+        program: aggregate::LeafProgram,
+        /// The leaf program's size: Fibonacci's steps, or the signatures it verifies.
+        #[arg(long, default_value_t = 400, value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
+        n: usize,
+        /// The leaves: the first level's arity times a power of the nodes' arity.
+        #[arg(long, default_value_t = 4)]
+        leaves: usize,
+        /// The leaves each first-level node verifies.
+        #[arg(long, default_value_t = 2)]
+        arity0: usize,
+        /// The children each node verifies.
+        #[arg(long, default_value_t = 2)]
+        arity: usize,
+    },
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
     /// The lists are `bins/leanvm/src/tracked.rs`.
@@ -79,6 +98,12 @@ enum Command {
         /// Print the counts as a markdown table rather than JSON.
         #[arg(long, requires = "cycles_only")]
         markdown: bool,
+        /// Print the counts as JSON and append the markdown table to this file, from the same pass.
+        #[arg(long, requires = "cycles_only", conflicts_with = "markdown")]
+        markdown_file: Option<std::path::PathBuf>,
+        /// Prove only the case of this name, as each of CI's proving jobs does.
+        #[arg(long, conflicts_with = "cycles_only")]
+        only: Option<String>,
     },
 }
 
@@ -99,7 +124,34 @@ fn main() {
         Command::Leanxmss { n } => workload::run(&workload::leanxmss(n), &prover, cli.rate, plan),
         Command::Leansphincs { n } => workload::run(&workload::leansphincs(n), &prover, cli.rate, plan),
         Command::Leanda { blobs } => workload::run(&workload::leanda(blobs), &prover, cli.rate, plan),
-        Command::Bench { cycles_only, markdown } => tracked::run(cycles_only, markdown, &prover, cli.rate, plan),
+        Command::Aggregate {
+            program,
+            n,
+            leaves,
+            arity0,
+            arity,
+        } => {
+            let shape = aggregate::Shape {
+                leaves,
+                arity_0: arity0,
+                arity,
+            };
+            aggregate::run(program, n, shape, &prover, cli.rate, plan);
+        }
+        Command::Bench {
+            cycles_only,
+            markdown,
+            markdown_file,
+            only,
+        } => tracked::run(
+            cycles_only,
+            markdown,
+            markdown_file.as_deref(),
+            only.as_deref(),
+            &prover,
+            cli.rate,
+            plan,
+        ),
     }
     if std::env::var_os("ZK_ALLOC_STATS").is_some() {
         eprintln!("{}", zk_alloc::stats());

@@ -4,7 +4,9 @@
 //! witness, packaged for ring switching. A circuit supplies only its [`Block`]:
 //! the shape, and the walks behind its [`LincheckCircuit`].
 
-use crate::lincheck::{self, LincheckCircuit, LincheckClaim, LincheckInput, LincheckStatement, QuirkyPoint};
+use crate::lincheck::{
+    self, LincheckCircuit, LincheckClaim, LincheckInput, LincheckStatement, MatrixClaim, MatrixForm, QuirkyPoint,
+};
 use crate::verifier::VerifyError;
 use crate::witness::packed_bytes;
 use crate::zerocheck::multilinear::PackedWitness;
@@ -37,6 +39,18 @@ pub struct Block<'a> {
     pub circuit: &'a dyn LincheckCircuit,
 }
 
+/// What the verifier's replay reads of a circuit short of its matrices.
+///
+/// The matrices are left to the claim the replay returns, so the replay needs no built circuit.
+/// Whoever settles that claim against the circuit holds the circuit to this shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shape {
+    /// The base-two logarithm of the witness bits per instance.
+    pub k_log: usize,
+    /// The column of the constant wire, which lincheck pins to one.
+    pub const_pin_col: usize,
+}
+
 /// The one claim on the committed witness `q_flock` left by the zerocheck +
 /// lincheck reduction, for the PCS to discharge: the `2^k_skip` bit-slice
 /// values of `z` at `suffix_point`, transmitted and pinned inside the reduction
@@ -44,13 +58,15 @@ pub struct Block<'a> {
 /// and C), so the PCS only has to bind them to the commitment.
 ///
 /// This is the clean seam between Flock's reduction and the PCS.
+///
+/// Its elements are values, or whatever a verifier holds them as.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SliceClaim {
-    pub suffix_point: Vec<F192>,
-    pub s_hat_v: Vec<F192>,
+pub struct SliceClaim<E = F192> {
+    pub suffix_point: Vec<E>,
+    pub s_hat_v: Vec<E>,
 }
 
-/// Everything [`verify`] recovers for one circuit: the z-claim for the PCS and the
+/// Everything [`verify_deferred`] recovers for one circuit: the z-claim for the PCS and the
 /// zerocheck / lincheck claims.
 #[derive(Clone, Debug)]
 pub struct ReductionReplay {
@@ -174,41 +190,88 @@ pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim
     prove_lincheck(instances, stage, ps)
 }
 
+impl Block<'_> {
+    /// What the verifier's replay reads of the circuit short of its matrices.
+    pub fn shape(&self) -> Shape {
+        Shape {
+            k_log: self.k_log,
+            const_pin_col: self.circuit.const_pin_col(),
+        }
+    }
+}
+
+impl Shape {
+    /// Whether a matrix form has the lengths a replay of a circuit of this shape gives.
+    pub const fn fits(&self, form: &MatrixForm) -> bool {
+        let rest = self.k_log - K_SKIP;
+        form.s_hat_v.len() == 1 << K_SKIP && form.x_inner_rest.len() == rest && form.r_inner_rest.len() == rest
+    }
+}
+
 /// **Verifier.** Replay the batched zerocheck and lincheck over circuits of
 /// `2^n_blocks_log` instances each straight off the shared transcript stream,
-/// recovering one evaluation claim on each circuit's committed witness. The PCS
-/// then discharges the returned claims.
-pub fn verify(
-    circuits: &[(Block<'_>, usize)],
+/// recovering one evaluation claim on each circuit's committed witness, which
+/// the PCS then discharges, and each circuit's claim on its matrices.
+///
+/// It reads only the circuits' shapes: their matrices' forms are left as claims
+/// for the built circuits to settle.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
+pub fn verify_deferred(
+    circuits: &[(Shape, usize)],
     vs: &mut VerifierState<'_>,
-) -> Result<Vec<ReductionReplay>, VerifyError> {
-    let log_ns: Vec<usize> = circuits.iter().map(|(block, n)| block.k_log + n).collect();
+) -> Result<Vec<(ReductionReplay, MatrixClaim)>, VerifyError> {
+    let log_ns: Vec<usize> = circuits.iter().map(|(shape, n)| shape.k_log + n).collect();
     let zc_claims = zerocheck::verify(&log_ns, vs).map_err(VerifyError::Zerocheck)?;
 
     let x_abs: Vec<QuirkyPoint> = (circuits.iter().zip(&zc_claims))
-        .map(|((block, _), zc)| x_ab_of(zc, block.k_log - K_SKIP))
+        .map(|((shape, _), zc)| x_ab_of(zc, shape.k_log - K_SKIP))
         .collect();
     let statements: Vec<LincheckStatement<'_>> = (circuits.iter().zip(&log_ns).zip(&zc_claims).zip(&x_abs))
-        .map(|((((block, _), &m), zc), x_ab)| LincheckStatement {
+        .map(|((((shape, _), &m), zc), x_ab)| LincheckStatement {
             m,
-            k_log: block.k_log,
+            k_log: shape.k_log,
             k_skip: K_SKIP,
-            circuit: block.circuit,
+            const_pin_col: shape.const_pin_col,
             x_ab,
             v_a: zc.a_eval,
             v_b: zc.b_eval,
             v_c: zc.c_eval,
         })
         .collect();
-    let lc_claims = lincheck::verify(&statements, vs).map_err(VerifyError::Lincheck)?;
+    let lc_claims = lincheck::verify_deferred(&statements, vs).map_err(VerifyError::Lincheck)?;
 
     Ok((zc_claims.into_iter().zip(lc_claims).zip(&x_abs))
-        .map(|((zc_claim, lc_claim), x_ab)| ReductionReplay {
-            claim: reduction_claim(&lc_claim, &x_ab.x_outer),
-            zc_claim,
-            lc_claim,
+        .map(|((zc_claim, (lc_claim, matrices)), x_ab)| {
+            let replay = ReductionReplay {
+                claim: reduction_claim(&lc_claim, &x_ab.x_outer),
+                zc_claim,
+                lc_claim,
+            };
+            (replay, matrices)
         })
         .collect())
+}
+
+/// [`verify_deferred`], each circuit's matrix claim settled against the circuit.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
+pub fn verify(
+    circuits: &[(Block<'_>, usize)],
+    vs: &mut VerifierState<'_>,
+) -> Result<Vec<ReductionReplay>, VerifyError> {
+    let shapes: Vec<(Shape, usize)> = circuits.iter().map(|(block, n)| (block.shape(), *n)).collect();
+    let replays = verify_deferred(&shapes, vs)?;
+    (replays.into_iter().zip(circuits))
+        .map(|((replay, matrices), (block, _))| {
+            matrices.check(block.circuit).map_err(VerifyError::Lincheck)?;
+            Ok(replay)
+        })
+        .collect()
 }
 
 /// One reduction claim as a tower [`RingSwitchClaim`]: the `2^k_skip` slices and
@@ -243,7 +306,7 @@ pub fn ring_switch_open(qflock_vars: usize, offset: usize, reduced: &SliceClaim)
 /// Verifier counterpart of [`ring_switch_open`]: package the recovered claim as
 /// a [`RingSwitchVerify`], the same statement data. The transmitted opening
 /// travels separately.
-pub fn ring_switch_verify(qflock_vars: usize, offset: usize, claim: &SliceClaim) -> RingSwitchVerify<'_> {
+pub fn ring_switch_verify<E>(qflock_vars: usize, offset: usize, claim: &SliceClaim<E>) -> RingSwitchVerify<'_, E> {
     assert_eq!(
         claim.suffix_point.len(),
         qflock_vars,

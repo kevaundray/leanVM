@@ -17,7 +17,8 @@ use crate::tables::{CLASSES, ClassSpec, N_TABLES, Part, Word};
 use ::pcs::pack::LOG_PACKING;
 use fiat_shamir::transcript::{ProverState, VerifierState};
 use flock::circuit::Circuit;
-use flock::reduction::{Instance, ReductionReplay, SliceClaim};
+use flock::lincheck::MatrixClaim;
+use flock::reduction::{Instance, ReductionReplay, Shape, SliceClaim};
 use flock::verifier::VerifyError;
 use primitives::field::F64;
 use std::sync::OnceLock;
@@ -64,6 +65,31 @@ pub const fn stride_log(spec: &ClassSpec, part: Part) -> usize {
     k_log(spec, part) - LOG_PACKING
 }
 
+/// The most variables any packed witness's circuit has per instance.
+pub fn max_k_log() -> usize {
+    (0..N_FLOCKS).map(|f| shape(f).k_log).max().unwrap_or(0)
+}
+
+/// What the verifier's replay of packed witness `f`'s reduction reads of its circuit short of its matrices.
+///
+/// - The instance's size.
+/// - The constant wire's column, the first after the port words.
+///
+/// The table's spec fixes both, so the replay builds no circuit, and building the circuit checks them.
+pub fn shape(f: usize) -> Shape {
+    let (t, part) = flock(f);
+    let spec = CLASSES[t];
+    let n_ports = match part {
+        Part::Class => spec.ports.len(),
+        // The clock, each access's previous timestamp, then the step.
+        Part::Clock => spec.n_accesses() + 2,
+    };
+    Shape {
+        k_log: k_log(spec, part),
+        const_pin_col: 64 * n_ports,
+    }
+}
+
 /// Packed witness `f`'s gate list, built once.
 pub fn circuit(f: usize) -> &'static Circuit {
     static CIRCUITS: [OnceLock<Circuit>; N_FLOCKS] = [const { OnceLock::new() }; N_FLOCKS];
@@ -74,10 +100,17 @@ pub fn circuit(f: usize) -> &'static Circuit {
             Part::Class => (spec.class.circuit(), spec.n_inputs),
             Part::Clock => (crate::tables::clock_circuit(&spec.slots()), 1 + spec.n_accesses()),
         };
+        let shape = shape(f);
         assert_eq!(
             circuit.k_log(),
-            k_log(spec, part),
+            shape.k_log,
             "{}'s {part:?} block size moved",
+            spec.name
+        );
+        assert_eq!(
+            circuit.const_pos(),
+            shape.const_pin_col,
+            "{}'s {part:?} constant wire moved",
             spec.name
         );
         assert_eq!(
@@ -265,9 +298,18 @@ pub(crate) fn prove_reductions(batches: &[Prepared], ps: &mut ProverState) -> Ve
     flock::reduction::prove(&instances, ps)
 }
 
-/// The verifier's replay of the batched reductions, packed witness `f`'s batch being
-/// `2^n_blocks_log[f]` instances.
-pub fn verify_reductions(n_blocks_log: &[usize], vs: &mut VerifierState) -> Result<Vec<ReductionReplay>, VerifyError> {
-    let circuits: Vec<_> = (0..N_FLOCKS).map(|f| (circuit(f).block(), n_blocks_log[f])).collect();
-    flock::reduction::verify(&circuits, vs)
+/// The verifier's replay of the batched reductions, zerocheck then lincheck, up to the circuits' matrices, packed witness `f`'s batch being `2^n_blocks_log[f]` instances.
+///
+/// Each circuit's form is left as a claim for the built circuit to settle.
+/// It reads only the circuits' shapes, and builds none.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
+pub fn verify_reductions(
+    n_blocks_log: &[usize; N_FLOCKS],
+    vs: &mut VerifierState,
+) -> Result<Vec<(ReductionReplay, MatrixClaim)>, VerifyError> {
+    let circuits: Vec<(Shape, usize)> = (0..N_FLOCKS).map(|f| (shape(f), n_blocks_log[f])).collect();
+    flock::reduction::verify_deferred(&circuits, vs)
 }

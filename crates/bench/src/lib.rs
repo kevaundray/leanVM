@@ -269,10 +269,20 @@ impl Metric {
         }
     }
 
-    /// In nanoseconds, the unit of Bencher's built-in `latency` measure.
+    /// In nanoseconds, the fastest and slowest pass as its bounds.
     #[must_use]
     pub fn nanoseconds(timing: &Timing) -> Self {
-        let ns = |secs: f64| (secs * 1e9).round();
+        Self::timed(timing, |secs| (secs * 1e9).round())
+    }
+
+    /// In nanoseconds per operation of a pass doing `ops` of them, the fastest and slowest pass as its bounds.
+    /// Kept to the picosecond, since a field operation takes a few nanoseconds or less.
+    #[must_use]
+    pub fn nanoseconds_per_op(timing: &Timing, ops: usize) -> Self {
+        Self::timed(timing, |secs| (secs * 1e12 / ops as f64).round() / 1e3)
+    }
+
+    fn timed(timing: &Timing, ns: impl Fn(f64) -> f64) -> Self {
         let samples = timing.samples();
         Self {
             value: ns(timing.mean()),
@@ -284,7 +294,7 @@ impl Metric {
     }
 }
 
-/// Benchmarks and their measures as Bencher Metric Format JSON, what CI uploads
+/// Benchmarks and their measures as Bencher Metric Format JSON, what CI's comparisons read
 /// (`.github/workflows/bench.yml`): <https://bencher.dev/docs/reference/bencher-metric-format/>.
 #[must_use]
 pub fn bencher_json(report: &[(String, Vec<(&str, Metric)>)]) -> String {

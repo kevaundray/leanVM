@@ -4,6 +4,8 @@
 //! inverse-rate `1/2^PCS_LOG_INV_RATE`, times each phase, and reports GiB/s
 //! over the committed data. Each pass is one arena phase, as a proof is; the
 //! passes follow [`bench::Plan::from_env`] (`BENCH_REPEAT`, `BENCH_COOLDOWN`).
+//! It then times the commitment's additive NTT alone (the RS encode, without
+//! the transpose and the Merkle tree), as passes of its own.
 //!
 //! ```text
 //! PCS_LOG_N          number of variables = log2(witness length)   [default 22]
@@ -15,11 +17,20 @@
 //!
 //! Large `PCS_LOG_N` needs substantial memory: the RS codeword is `2^log_inv_rate`×
 //! the witness, and the open copies the basis table each pass.
+//!
+//! With `-- --json` it prints, in place of the report, Bencher Metric Format JSON for CI:
+//! `pcs-commit-<PCS_LOG_N>` and `pcs-open-<PCS_LOG_N>` (measure `latency`), and
+//! `ntt-forward-<PCS_LOG_N>` (measure `per-op`, one encode).
+//!
+//! ```text
+//! cargo bench -p pcs --bench throughput -- --json
+//! ```
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use bench::{Plan, Timing, env_usize};
+use bench::{Metric, Plan, Timing, bencher_json, env_usize};
+use pcs::ntt::AdditiveNttF64;
 use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis};
 use primitives::{
     field::{F64, F192},
@@ -95,6 +106,38 @@ fn main() {
     // before printing the throughput report so the complete trace appears first.
     drop(trace_span);
 
+    // The commit's encode alone, on a buffer outside the arena: `2^initial_k` interleaved
+    // lanes, the message in the first replica.
+    const ENCODES: usize = 4;
+    let log_lanes = pc.initial_k();
+    let ntt = AdditiveNttF64::standard(log_n - log_lanes + log_inv_rate);
+    let mut codeword = vec![F64::ZERO; n << log_inv_rate];
+    codeword[..n].copy_from_slice(&witness);
+    let (_, ntt_t) = plan.warm_then_measure(|_| {
+        for _ in 0..ENCODES {
+            ntt.encode_interleaved_in_place(black_box(&mut codeword), 1 << log_lanes, log_inv_rate);
+        }
+    });
+
+    if std::env::args().any(|arg| arg == "--json") {
+        let report = [
+            (
+                format!("pcs-commit-{log_n}"),
+                vec![("latency", Metric::nanoseconds(&commit_t))],
+            ),
+            (
+                format!("pcs-open-{log_n}"),
+                vec![("latency", Metric::nanoseconds(&open_t))],
+            ),
+            (
+                format!("ntt-forward-{log_n}"),
+                vec![("per-op", Metric::nanoseconds_per_op(&ntt_t, ENCODES))],
+            ),
+        ];
+        println!("{}", bencher_json(&report));
+        return;
+    }
+
     println!(
         "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, mean of {}",
         pretty_integer(&plan.repeat)
@@ -117,6 +160,11 @@ fn main() {
         open_s * 1e3,
         gibps(open_s),
         open_t.spread()
+    );
+    println!(
+        "  NTT (the commit's encode alone) : {:>8.1} ms{}",
+        ntt_t.mean() * 1e3 / ENCODES as f64,
+        ntt_t.spread()
     );
     println!("  ------------------------------------------------------------");
     println!(

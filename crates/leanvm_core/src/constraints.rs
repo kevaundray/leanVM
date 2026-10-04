@@ -32,8 +32,9 @@
 //! are no rounds in which no table has joined.
 
 use crate::PAR_THRESHOLD;
+use crate::arith::{Arith, Verifier};
 use crate::colval::ColVal;
-use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
+use fiat_shamir::transcript::{Challenger, ProverState, Transmitter, VerifierState};
 use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::{eq_table_arena, poly_eval, shrink_eq_high};
 #[cfg(test)]
@@ -42,9 +43,23 @@ use zk_alloc::ArenaVec;
 
 /// One table's sent columns' evaluations at its table-sumcheck point.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Claims {
-    pub chi: Vec<F192>,
-    pub evals: Vec<F192>,
+pub struct Claims<E = F192> {
+    pub chi: Vec<E>,
+    pub evals: Vec<E>,
+}
+
+impl<E: Copy> Claims<E> {
+    /// The evaluations, then `zero`s up to `n`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there are more than `n` evaluations.
+    pub fn evals_padded_with(&self, n: usize, zero: E) -> Vec<E> {
+        assert!(self.evals.len() <= n, "more evaluations than slots");
+        let mut out = self.evals.clone();
+        out.resize(n, zero);
+        out
+    }
 }
 
 impl Claims {
@@ -84,9 +99,33 @@ pub trait Summand: Sync {
     fn eval<T: ColVal>(&self, cols: &[T], quadratic: bool) -> F192;
 
     /// The table's public columns at its point `chi`, which the verifier computes rather
-    /// than reads: as many as the air's `n_public`.
+    /// than reads: as many as the air's `n_public`. A caller may leave a part of them
+    /// out, which the final identity's residual then owes.
     fn public(&self, _chi: &[F192]) -> Vec<F192> {
         Vec::new()
+    }
+}
+
+/// A table's summand as the verifier evaluates it at the batch's point, over the verifier's arithmetic.
+pub trait Residual<A: Arith> {
+    /// The summand at its columns' values `cols`.
+    fn value_at(&self, a: &mut A, cols: &[A::E]) -> A::E;
+
+    /// The table's public columns at its point `chi`, as many as the air's `n_public`.
+    ///
+    /// A caller may leave a part of them out, which the final identity's residual then owes.
+    fn public_at(&self, _a: &mut A, _chi: &[A::E]) -> Vec<A::E> {
+        Vec::new()
+    }
+}
+
+impl<S: Summand> Residual<VerifierState<'_>> for S {
+    fn value_at(&self, _: &mut VerifierState<'_>, cols: &[F192]) -> F192 {
+        Summand::eval(self, cols, false)
+    }
+
+    fn public_at(&self, _: &mut VerifierState<'_>, chi: &[F192]) -> Vec<F192> {
+        Summand::public(self, chi)
     }
 }
 
@@ -497,14 +536,55 @@ fn prove_reference<S: Summand>(
         .collect()
 }
 
-/// Verify the table sumcheck, returning the per-table claims for the caller to
-/// settle against the commitment.
-pub fn verify<S: Summand>(
+/// What the table sumcheck's verifier establishes.
+///
+/// - The per-table claims.
+/// - The batch's final identity, short of whatever the caller left out of the public columns and the target.
+pub struct Final<E = F192> {
+    /// Per air, its column claims.
+    pub claims: Vec<Claims<E>>,
+    /// Each air's weight in the final identity: the eq weight of its point times the challenges of the rounds it sat out.
+    pub weights: Vec<E>,
+    /// The final claim plus every air's weighted summand at its columns.
+    ///
+    /// It is zero when the identity holds as the airs and the target stand.
+    /// Otherwise it is what the parts the caller left out owe: an air's through its summand, the target's times its weight.
+    pub residual: E,
+    /// What the final claim moves by per unit of target.
+    ///
+    /// It is the product of the round challenges, since each round's claim fixes the linear coefficient of its polynomial.
+    pub target_weight: E,
+}
+
+impl Final {
+    /// The claims, when nothing was left out.
+    ///
+    /// # Errors
+    ///
+    /// Returns a final mismatch when the residual is not zero.
+    pub fn settle(self) -> Result<Vec<Claims>, Error> {
+        if self.residual.is_zero() {
+            Ok(self.claims)
+        } else {
+            Err(Error::FinalMismatch)
+        }
+    }
+}
+
+/// Verify the table sumcheck.
+///
+/// It returns the per-table claims, for the caller to settle against the commitment.
+/// It returns the final identity's residual, for the caller to settle against what it left out.
+///
+/// # Errors
+///
+/// Returns an error if the bus point is shorter than the tallest table, or the stream is malformed.
+pub fn verify<V: Verifier, S: Residual<V>>(
+    v: &mut V,
     airs: &[Air<S>],
-    zeta: &[F192],
-    target: F192,
-    vs: &mut VerifierState,
-) -> Result<Vec<Claims>, Error> {
+    zeta: &[V::E],
+    target: V::E,
+) -> Result<Final<V::E>, Error> {
     let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
     if zeta.len() < n {
         return Err(Error::PointTooShort {
@@ -512,43 +592,53 @@ pub fn verify<S: Summand>(
             rounds: n,
         });
     }
-    let mut weights = vec![F192::ONE; airs.len()];
+    let one = v.one();
+    let mut weights = vec![one; airs.len()];
     // An ordinary sumcheck for `target`, which the caller supplies. Each round
     // arrives as the round polynomial itself at `nd`, so the two steps are the
     // textbook ones and nothing has to be reapplied: no eq factor, no separate
     // waiting term. `ζ` and the heights enter only `weights`, never the check.
     let mut claim = target;
-    let mut chi = vec![F192::ZERO; n];
+    let mut chi = vec![one; n];
     for j in 0..n {
         let m = n - 1 - j;
         // The running claim fixes the linear coefficient.
-        let h = vs.next_round_poly(4, claim, None)?;
-        let rk = vs.sample();
+        let h = v.next_round_poly(4, claim, None)?;
+        let rk = v.sample();
         chi[m] = rk;
-        claim = poly_eval(&h, rk);
-        let eq_k = F192::ONE + zeta[m] + rk;
-        for (t, air) in airs.iter().enumerate() {
-            weights[t] *= if air.tau > m { eq_k } else { rk };
+        claim = v.poly_eval(&h, rk);
+        // A table active in the round takes `eq = 1 + zeta_m + r`, one that sits it out takes `r`.
+        let s = v.add(zeta[m], rk);
+        for (w, air) in weights.iter_mut().zip(airs) {
+            *w = if air.tau > m {
+                v.times_one_plus(*w, s)
+            } else {
+                v.mul(*w, rk)
+            };
         }
     }
 
-    let mut acc = F192::ZERO;
+    let mut residual = claim;
     let mut claims = Vec::with_capacity(airs.len());
-    for (t, air) in airs.iter().enumerate() {
-        let evals = vs.next_scalars(air.n_cols - air.n_public)?;
+    for (&weight, air) in weights.iter().zip(airs) {
+        let evals = v.next_scalars(air.n_cols - air.n_public)?;
         let mut values = evals.clone();
-        values.extend(air.summand.public(&chi[..air.tau]));
+        values.extend(air.summand.public_at(v, &chi[..air.tau]));
         assert_eq!(values.len(), air.n_cols, "a table's public columns are all evaluated");
-        acc += weights[t] * air.summand.eval(&values, false);
+        let summand = air.summand.value_at(v, &values);
+        residual = v.mul_add(weight, summand, residual);
         claims.push(Claims {
             chi: chi[..air.tau].to_vec(),
             evals,
         });
     }
-    if acc != claim {
-        return Err(Error::FinalMismatch);
-    }
-    Ok(claims)
+    let target_weight = v.product(&chi);
+    Ok(Final {
+        claims,
+        weights,
+        residual,
+        target_weight,
+    })
 }
 
 #[cfg(test)]
@@ -667,7 +757,7 @@ mod tests {
         let pclaims = prove(&airs, views, &zeta, &zeros, &mut ps);
         let proof = ps.into_proof();
         let mut vs = VerifierState::from_label(b"zc-test", &proof);
-        let vclaims = verify(&airs, &zeta, F192::ZERO, &mut vs);
+        let vclaims = verify(&mut vs, &airs, &zeta, F192::ZERO).and_then(Final::settle);
         if let Ok(vc) = &vclaims {
             assert_eq!(&pclaims, vc);
         }
@@ -777,7 +867,12 @@ mod tests {
             let proof = ps.into_proof();
             // No column evaluations are transmitted, but the constant still binds every round.
             let mut vs = VerifierState::from_label(b"constant-column-free-test", &proof);
-            assert_eq!(verify(&airs, &zeta, F192::ONE, &mut vs).unwrap(), claims);
+            assert_eq!(
+                verify(&mut vs, &airs, &zeta, F192::ONE)
+                    .and_then(Final::settle)
+                    .unwrap(),
+                claims
+            );
             vs.finish().unwrap();
         }
     }
@@ -836,7 +931,7 @@ mod tests {
             let pclaims = prove(&airs, views, &zeta, sig, &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(b"zc-test", &proof);
-            let out = verify(&airs, &zeta, target, &mut vs);
+            let out = verify(&mut vs, &airs, &zeta, target).and_then(Final::settle);
             if let Ok(vc) = &out {
                 assert_eq!(&pclaims, vc);
             }
@@ -868,7 +963,9 @@ mod tests {
             bad.stream[i] += F192::ONE;
             let mut vs = VerifierState::from_label(b"zc-test", &bad);
             assert!(
-                verify(&airs, &zeta, F192::ZERO, &mut vs).is_err(),
+                verify(&mut vs, &airs, &zeta, F192::ZERO)
+                    .and_then(Final::settle)
+                    .is_err(),
                 "tampered word {i} must be rejected"
             );
         }
