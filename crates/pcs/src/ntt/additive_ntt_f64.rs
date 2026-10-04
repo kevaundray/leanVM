@@ -401,8 +401,8 @@ impl AdditiveNttF64 {
         //
         //     message is block 0 of the buffer  ->  a task could overwrite it while others still copy it
         //     no layer left to run              ->  no deep task would write the buffer at all
-        if let Some(Message::Rows(m)) =
-            msg.take_if(|m| matches!(m, Message::Rows(r) if std::ptr::eq(r.0, data.as_mut_ptr())) || deep_start == log_d)
+        if let Some(Message::Rows(m)) = msg
+            .take_if(|m| matches!(m, Message::Rows(r) if std::ptr::eq(r.0, data.as_mut_ptr())) || deep_start == log_d)
         {
             replicate(data, m, data.len() >> start);
         }
@@ -744,6 +744,9 @@ fn butterfly_interleaved_fused_3layer(block: &mut [F64], t: &[F64; 7], eighth: u
     {
         // SAFETY: the arm is compiled only with AVX-512F; registers only.
         let tw = t.map(|x| unsafe { _mm512_set1_epi64(x.0 as i64) });
+        if num_ntts % 8 >= 2 {
+            return butterfly_interleaved_fused_3layer_masked(block, &tw, eighth, num_ntts);
+        }
         let vectors = num_ntts / 8;
         let done = 8 * vectors;
         fused_rows::<8>(block, eighth, num_ntts, |rows| {
@@ -758,6 +761,27 @@ fn butterfly_interleaved_fused_3layer(block: &mut [F64], t: &[F64; 7], eighth: u
     }
     #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     fused_rows::<8>(block, eighth, num_ntts, |rows| radix8_butterflies(rows, t));
+}
+
+/// [`butterfly_interleaved_fused_3layer`] for rows that end in two to seven lanes past a whole vector.
+///
+/// - Those lanes take one masked vector, which costs less than two scalar butterflies each.
+/// - It is a function of its own, so the whole-vector loop of the common shapes keeps its registers.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(never)]
+fn butterfly_interleaved_fused_3layer_masked(block: &mut [F64], tw: &[__m512i; 7], eighth: usize, num_ntts: usize) {
+    let (vectors, mask) = (num_ntts / 8, (1u8 << (num_ntts % 8)) - 1);
+    fused_rows::<8>(block, eighth, num_ntts, |rows| {
+        let rows: [*mut F64; 8] = std::array::from_fn(|i| rows[i].as_mut_ptr());
+        // SAFETY: the target features are enabled at compile time; each row has `8 * vectors` words and the
+        // masked lanes after them.
+        unsafe {
+            radix8_avx512(rows, tw, vectors);
+            masked_column_avx512(rows.map(|row| row.add(8 * vectors)), mask, |r| {
+                radix8_regs_avx512(r, tw);
+            });
+        }
+    });
 }
 
 /// The twelve butterflies of one radix-8 row group, with its seven twiddles breadth-first.
@@ -872,8 +896,9 @@ unsafe fn gather_lanes(dst: &mut [F64], msg: SendPtr<F64>, msg_rows: usize, n: u
     // Message lanes `0 .. whole` go eight at a time; the rest, the lowest codeword lanes, one at a time.
     let whole = if LANE_GATHER { n - n % 8 } else { 0 };
     #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
-    for q in (0..residues).step_by(8) {
-        for l0 in (0..whole).step_by(8) {
+    for l0 in (0..whole).step_by(8) {
+        // Each lane's lines in order, so a lane's run of `residues` words is read front to back.
+        for q in (0..residues).step_by(8) {
             // SAFETY: line `k` is lane `l0 + 7 - k`, rows `row + q ..+ 8`, inside the message by the caller.
             let lines: [__m512i; 8] = std::array::from_fn(|k| unsafe {
                 _mm512_loadu_si512(msg.add((l0 + 7 - k) * msg_rows + row + q).cast_const().cast())
@@ -1062,6 +1087,9 @@ fn butterfly_interleaved_fused_2layer(
     {
         // SAFETY: the arm is compiled only with AVX-512F; registers only.
         let tw = [t_outer, t_inner_a, t_inner_b].map(|x| unsafe { _mm512_set1_epi64(x.0 as i64) });
+        if num_ntts % 8 >= 2 {
+            return butterfly_interleaved_fused_2layer_masked(block, &tw, quarter, num_ntts);
+        }
         let vectors = num_ntts / 8;
         let done = 8 * vectors;
         fused_rows::<4>(block, quarter, num_ntts, |rows| {
@@ -1089,13 +1117,60 @@ fn butterfly_interleaved_fused_2layer(
     });
 }
 
+/// [`butterfly_interleaved_fused_2layer`] for rows that end in two to seven lanes past a whole vector.
+///
+/// As [`butterfly_interleaved_fused_3layer_masked`].
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(never)]
+fn butterfly_interleaved_fused_2layer_masked(block: &mut [F64], tw: &[__m512i; 3], quarter: usize, num_ntts: usize) {
+    let (vectors, mask) = (num_ntts / 8, (1u8 << (num_ntts % 8)) - 1);
+    fused_rows::<4>(block, quarter, num_ntts, |rows| {
+        let rows: [*mut F64; 4] = std::array::from_fn(|i| rows[i].as_mut_ptr());
+        // SAFETY: the target features are enabled at compile time; each row has `8 * vectors` words and the
+        // masked lanes after them.
+        unsafe {
+            radix4_avx512(rows, tw, vectors);
+            masked_column_avx512(rows.map(|row| row.add(8 * vectors)), mask, |r| {
+                radix4_regs_avx512(r, tw);
+            });
+        }
+    });
+}
+
 #[inline]
 fn butterfly_interleaved_block(block: &mut [F64], twiddle: F64, block_size_half: usize, num_ntts: usize) {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    if num_ntts % 8 >= 2 {
+        return butterfly_interleaved_block_masked(block, twiddle, block_size_half, num_ntts);
+    }
     let half_offset = block_size_half * num_ntts;
     let (top, bot) = block.split_at_mut(half_offset);
     for r in 0..block_size_half {
         let off = r * num_ntts;
         butterfly_lanes(&mut top[off..off + num_ntts], &mut bot[off..off + num_ntts], twiddle);
+    }
+}
+
+/// [`butterfly_interleaved_block`] for rows that end in two to seven lanes past a whole vector.
+///
+/// As [`butterfly_interleaved_fused_3layer_masked`].
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(never)]
+fn butterfly_interleaved_block_masked(block: &mut [F64], twiddle: F64, block_size_half: usize, num_ntts: usize) {
+    let (vectors, mask) = (num_ntts / 8, (1u8 << (num_ntts % 8)) - 1);
+    let half_offset = block_size_half * num_ntts;
+    let base = block.as_mut_ptr();
+    // SAFETY: the arm is compiled only with AVX-512F; registers only.
+    let tw = unsafe { _mm512_set1_epi64(twiddle.0 as i64) };
+    for r in 0..block_size_half {
+        // SAFETY: rows `r` of the two halves, `num_ntts` words each, inside the block and disjoint.
+        unsafe {
+            let rows = [base.add(r * num_ntts), base.add(half_offset + r * num_ntts)];
+            columns_avx512(rows, vectors, |p| butterfly_regs_avx512(p, 0, 1, tw));
+            masked_column_avx512(rows.map(|row| row.add(8 * vectors)), mask, |p| {
+                butterfly_regs_avx512(p, 0, 1, tw);
+            });
+        }
     }
 }
 
@@ -1399,6 +1474,58 @@ unsafe fn columns_avx512<const N: usize>(rows: [*mut F64; N], vectors: usize, bo
     }
 }
 
+/// [`columns_avx512`] for one column of fewer than eight lanes, the ones `mask` selects.
+///
+/// # Safety
+///
+/// - Requires AVX-512F.
+/// - Each row pointer must address the lanes `mask` selects; the others are neither read nor written.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+unsafe fn masked_column_avx512<const N: usize>(rows: [*mut F64; N], mask: __mmask8, body: impl Fn(&mut [__m512i; N])) {
+    // SAFETY: masked-off lanes are neither read nor written, the rest are the caller's.
+    unsafe {
+        let mut r: [__m512i; N] = std::array::from_fn(|i| _mm512_maskz_loadu_epi64(mask, rows[i].cast()));
+        body(&mut r);
+        for (i, row) in r.iter().enumerate() {
+            _mm512_mask_storeu_epi64(rows[i].cast(), mask, *row);
+        }
+    }
+}
+
+/// The twelve butterflies of a radix-8 row group held in registers, its seven twiddles breadth-first.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+fn radix8_regs_avx512(r: &mut [__m512i; 8], t: &[__m512i; 7]) {
+    // Layer L: rows 4 apart, one twiddle for the whole block.
+    butterfly_regs_avx512(r, 0, 4, t[0]);
+    butterfly_regs_avx512(r, 1, 5, t[0]);
+    butterfly_regs_avx512(r, 2, 6, t[0]);
+    butterfly_regs_avx512(r, 3, 7, t[0]);
+    // Layer L+1: rows 2 apart, one twiddle per half.
+    butterfly_regs_avx512(r, 0, 2, t[1]);
+    butterfly_regs_avx512(r, 1, 3, t[1]);
+    butterfly_regs_avx512(r, 4, 6, t[2]);
+    butterfly_regs_avx512(r, 5, 7, t[2]);
+    // Layer L+2: adjacent rows, one twiddle per quarter.
+    butterfly_regs_avx512(r, 0, 1, t[3]);
+    butterfly_regs_avx512(r, 2, 3, t[4]);
+    butterfly_regs_avx512(r, 4, 5, t[5]);
+    butterfly_regs_avx512(r, 6, 7, t[6]);
+}
+
+/// The four butterflies of a radix-4 row group held in registers: one twiddle for the block, then one per half.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+fn radix4_regs_avx512(r: &mut [__m512i; 4], t: &[__m512i; 3]) {
+    // Layer L: rows 2 apart, one twiddle for the block.
+    butterfly_regs_avx512(r, 0, 2, t[0]);
+    butterfly_regs_avx512(r, 1, 3, t[0]);
+    // Layer L+1: adjacent rows, one twiddle per half.
+    butterfly_regs_avx512(r, 0, 1, t[1]);
+    butterfly_regs_avx512(r, 2, 3, t[2]);
+}
+
 /// A radix-8 row group with the eight rows in registers.
 ///
 /// Each row is loaded and stored once for its twelve butterflies, not three times.
@@ -1412,25 +1539,7 @@ unsafe fn columns_avx512<const N: usize>(rows: [*mut F64; N], vectors: usize, bo
 #[target_feature(enable = "vpclmulqdq", enable = "avx512f", enable = "avx2")]
 unsafe fn radix8_avx512(rows: [*mut F64; 8], t: &[__m512i; 7], vectors: usize) {
     // SAFETY: forwarded from the caller.
-    unsafe {
-        columns_avx512(rows, vectors, |r| {
-            // Layer L: rows 4 apart, one twiddle for the whole block.
-            butterfly_regs_avx512(r, 0, 4, t[0]);
-            butterfly_regs_avx512(r, 1, 5, t[0]);
-            butterfly_regs_avx512(r, 2, 6, t[0]);
-            butterfly_regs_avx512(r, 3, 7, t[0]);
-            // Layer L+1: rows 2 apart, one twiddle per half.
-            butterfly_regs_avx512(r, 0, 2, t[1]);
-            butterfly_regs_avx512(r, 1, 3, t[1]);
-            butterfly_regs_avx512(r, 4, 6, t[2]);
-            butterfly_regs_avx512(r, 5, 7, t[2]);
-            // Layer L+2: adjacent rows, one twiddle per quarter.
-            butterfly_regs_avx512(r, 0, 1, t[3]);
-            butterfly_regs_avx512(r, 2, 3, t[4]);
-            butterfly_regs_avx512(r, 4, 5, t[5]);
-            butterfly_regs_avx512(r, 6, 7, t[6]);
-        });
-    }
+    unsafe { columns_avx512(rows, vectors, |r| radix8_regs_avx512(r, t)) };
 }
 
 /// A radix-4 row group with the four rows in registers.
@@ -1444,16 +1553,7 @@ unsafe fn radix8_avx512(rows: [*mut F64; 8], t: &[__m512i; 7], vectors: usize) {
 #[target_feature(enable = "vpclmulqdq", enable = "avx512f", enable = "avx2")]
 unsafe fn radix4_avx512(rows: [*mut F64; 4], t: &[__m512i; 3], vectors: usize) {
     // SAFETY: forwarded from the caller.
-    unsafe {
-        columns_avx512(rows, vectors, |r| {
-            // Layer L: rows 2 apart, one twiddle for the block.
-            butterfly_regs_avx512(r, 0, 2, t[0]);
-            butterfly_regs_avx512(r, 1, 3, t[0]);
-            // Layer L+1: adjacent rows, one twiddle per half.
-            butterfly_regs_avx512(r, 0, 1, t[1]);
-            butterfly_regs_avx512(r, 2, 3, t[2]);
-        });
-    }
+    unsafe { columns_avx512(rows, vectors, |r| radix4_regs_avx512(r, t)) };
 }
 
 /// Two F64 butterflies with a shared twiddle, NEON-resident end to end.
@@ -1635,7 +1735,10 @@ mod tests {
                 let first = Message::Rows(SendPtr(got.as_mut_ptr()));
                 let sink = |row: usize, rows: &[F64]| blocks.lock().unwrap().push((row, rows.to_vec()));
                 ntt.transform_for(&mut got, lanes, log_inv_rate, Some(first), Some(&sink), workers);
-                assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}, workers={workers}");
+                assert_eq!(
+                    got, want,
+                    "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}, workers={workers}"
+                );
 
                 let mut blocks = blocks.into_inner().unwrap();
                 blocks.sort_by_key(|b| b.0);
