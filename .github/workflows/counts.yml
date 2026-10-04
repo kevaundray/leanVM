@@ -38,10 +38,9 @@ jobs:
           fetch-depth: 2
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Summarize the counts
-        run: cargo leanvm bench --cycles-only --markdown >> "$GITHUB_STEP_SUMMARY"
       - name: Count
-        run: cargo leanvm bench --cycles-only > head.json && cat head.json
+        # One pass: the JSON for the comparison, the table for the summary.
+        run: cargo leanvm bench --cycles-only --markdown-file "$GITHUB_STEP_SUMMARY" > head.json && cat head.json
       - name: Count the base
         if: github.event_name == 'pull_request'
         run: |
