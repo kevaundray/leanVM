@@ -352,8 +352,11 @@ impl AdditiveNttF64 {
         //       L3 deep pass:  1 gathered sweep  (9 layers),      then 12 deep  <- one sweep fewer
         //
         //     20 layers: 1 gathered sweep either way, so the deep pass stays in L2
+        //
+        // A lone worker spills to an L3 it shares with no one, so it takes the L3 deep pass whenever it has one:
+        // the layers it moves out of the gathered pass shrink the gathered groups, and their scattered reads.
         let gathered_sweeps = |deep: usize| (log_d - start).saturating_sub(deep).div_ceil(fit2);
-        let deep = if gathered_sweeps(fit3) < gathered_sweeps(fit2) {
+        let deep = if workers == 1 || gathered_sweeps(fit3) < gathered_sweeps(fit2) {
             fit3
         } else {
             fit2
