@@ -13,6 +13,7 @@ use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
 use primitives::multilinear::{eq_table, interp};
 use primitives::stream::Stream;
+use std::mem::MaybeUninit;
 use std::ops::Range;
 use thiserror::Error;
 
@@ -308,7 +309,8 @@ impl QuaternaryLayerState {
         let task = |index: usize| {
             let first = index * PAIRS;
             let end = (first + PAIRS).min(pairs);
-            let mut stage = [F192::ZERO; 8 * PAIRS];
+            // Every slot read below is written first, so the stage needs no zero fill.
+            let mut stage = [MaybeUninit::<F192>::uninit(); 8 * PAIRS];
             let end_row = (2 * end).min(rows);
             for row in 2 * first..end_row {
                 let lo = 8 * row;
@@ -317,9 +319,12 @@ impl QuaternaryLayerState {
                 let product = mul4(std::array::from_fn(|i| left[i] + right[i]), [challenge; 4]);
                 let offset = 4 * (row - 2 * first);
                 for i in 0..4 {
-                    stage[offset + i] = left[i] + product[i];
+                    stage[offset + i].write(left[i] + product[i]);
                 }
             }
+            let len = 4 * (end_row - 2 * first);
+            // SAFETY: the loop above wrote `stage[..len]`.
+            let stage = unsafe { std::slice::from_raw_parts(stage.as_ptr().cast::<F192>(), len) };
             let message = equality.weighted_sum(first..end, |pair, weight| {
                 let lo = 8 * (pair - first);
                 let left = &stage[lo..lo + 4];
@@ -333,9 +338,8 @@ impl QuaternaryLayerState {
             });
             // The next round reads the destination; this round reads only the local stage.
             let stream = Stream::new();
-            let len = 4 * (end_row - 2 * first);
             // SAFETY: tasks own disjoint initialized prefixes of the output, covering every row.
-            unsafe { stream.copy(dst.slice(8 * first, len), &stage[..len]) };
+            unsafe { stream.copy(dst.slice(8 * first, len), stage) };
             message
         };
         let xor = |mut a: [F192Unreduced; 4], b: [F192Unreduced; 4]| {
