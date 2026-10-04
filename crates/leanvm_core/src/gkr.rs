@@ -11,9 +11,13 @@ use crate::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+use primitives::field::{F192x4, F192x4Unreduced};
 use primitives::multilinear::{eq_table, interp};
 use primitives::stream::Stream;
 use std::mem::MaybeUninit;
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+use std::ops::Mul;
 use std::ops::Range;
 use thiserror::Error;
 
@@ -143,6 +147,7 @@ impl SplitEq {
     ///
     /// `terms(x, w)` returns its unreduced products already scaled by the low weight `w`.
     /// Each run of `x` sharing a high weight is reduced once and scaled by it once.
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     fn weighted_sum(
         &self,
         range: Range<usize>,
@@ -158,6 +163,53 @@ impl SplitEq {
             let mut run = [F192Unreduced::ZERO; 4];
             for y in x..run_end {
                 let t = terms(y, self.low[y & mask]);
+                for (acc, t) in run.iter_mut().zip(t) {
+                    *acc ^= t;
+                }
+            }
+            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
+            for (acc, t) in total.iter_mut().zip(scaled) {
+                *acc ^= t;
+            }
+            x = run_end;
+        }
+        total
+    }
+
+    /// `sum_x eq(r, x) · terms(x)` over a range of `x`, four `x` at a time in lanes.
+    ///
+    /// `terms(state, x, w)` returns its unreduced products already scaled by the low weight `w`;
+    /// `terms4(state, x, w)` does the same for `x..x + 4` at once, lane `j` for `x + j`, and
+    /// serves every four of a run below `wide_end`. Both are handed `state`.
+    /// Each run of `x` sharing a high weight is reduced once and scaled by it once.
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    fn weighted_sum_lanes<S: ?Sized>(
+        &self,
+        range: Range<usize>,
+        wide_end: usize,
+        state: &mut S,
+        mut terms: impl FnMut(&mut S, usize, F192) -> [F192Unreduced; 4],
+        mut terms4: impl FnMut(&mut S, usize, F192x4) -> [F192x4Unreduced; 4],
+    ) -> [F192Unreduced; 4] {
+        let mask = self.low.len() - 1;
+        let mut total = [F192Unreduced::ZERO; 4];
+        let mut x = range.start;
+        while x < range.end {
+            // The run of `x` in this high block.
+            let high = x >> self.low_log;
+            let run_end = ((high + 1) << self.low_log).min(range.end);
+            let mut wide = [F192x4Unreduced::zero(); 4];
+            let mut y = x;
+            while y + 4 <= run_end.min(wide_end) {
+                let weights = F192x4::new(std::array::from_fn(|j| self.low[(y + j) & mask]));
+                for (acc, t) in wide.iter_mut().zip(terms4(state, y, weights)) {
+                    *acc ^= t;
+                }
+                y += 4;
+            }
+            let mut run = wide.map(F192x4Unreduced::sum);
+            for y in y..run_end {
+                let t = terms(state, y, self.low[y & mask]);
                 for (acc, t) in run.iter_mut().zip(t) {
                     *acc ^= t;
                 }
@@ -191,6 +243,40 @@ fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] 
     let c2 = cross_even + c0 + c4 + middle;
     let c3 = cross_high + middle + c4;
     mul_unreduced4([equality; 4], [c0 + at_one, c2, c3, c4])
+}
+
+/// [`quartic_summand`] of four row pairs at once, lane `j` for pair `j`: `low[c]` is
+/// child `c` of each pair's low row, `high[c]` of its high row.
+///
+/// The same products, each one lane-wise product for the four pairs.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline(always)]
+fn quartic_summand4(low: [F192x4; 4], high: [F192x4; 4], equality: F192x4) -> [F192x4Unreduced; 4] {
+    let slope: [F192x4; 4] = std::array::from_fn(|c| low[c] + high[c]);
+    let (left0, left2) = (low[0].mul(low[1]), slope[0].mul(slope[1]));
+    let (right0, right2) = (low[2].mul(low[3]), slope[2].mul(slope[3]));
+    // A line at one is the high row, and a product's three coefficients sum to it there.
+    let (left_at_one, right_at_one) = (high[0].mul(high[1]), high[2].mul(high[3]));
+    let (c0, c4) = (left0.mul(right0), left2.mul(right2));
+    let left1 = left_at_one + left0 + left2;
+    let right1 = right_at_one + right0 + right2;
+    let middle = left1.mul(right1);
+    let at_one = left_at_one.mul(right_at_one);
+    let cross_even = (left0 + left2).mul(right0 + right2);
+    let cross_high = (left1 + left2).mul(right1 + right2);
+    let c2 = cross_even + c0 + c4 + middle;
+    let c3 = cross_high + middle + c4;
+    [c0 + at_one, c2, c3, c4].map(|c| equality.mul_unreduced(c))
+}
+
+/// `slice` as the values it holds.
+///
+/// # Safety
+///
+/// Every element of `slice` is initialized.
+const unsafe fn assume_init(slice: &[MaybeUninit<F192>]) -> &[F192] {
+    // SAFETY: `MaybeUninit<F192>` has `F192`'s layout, and the caller vouches for the values.
+    unsafe { std::slice::from_raw_parts(slice.as_ptr().cast(), slice.len()) }
 }
 
 /// Two binary product levels contracted into one degree-four layer.
@@ -241,9 +327,18 @@ impl QuaternaryLayerState {
             left
         };
         let rows = window_rows(full_pairs);
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        let summand4 = |_: &mut (), pair: usize, weights: F192x4| -> [F192x4Unreduced; 4] {
+            let child = |offset: usize| F192x4::new(std::array::from_fn(|j| self.values[8 * (pair + j) + offset]));
+            quartic_summand4([0, 1, 2, 3].map(child), [4, 5, 6, 7].map(child), weights)
+        };
         let window = |index: usize| -> [F192Unreduced; 4] {
             let base = index * rows;
-            equality.weighted_sum(base..(base + rows).min(full_pairs), summand)
+            let range = base..(base + rows).min(full_pairs);
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            return equality.weighted_sum_lanes(range, full_pairs, &mut (), |_, row, w| summand(row, w), summand4);
+            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+            equality.weighted_sum(range, summand)
         };
         let windows = full_pairs.div_ceil(rows);
         let mut message = if full_pairs >= PAR_THRESHOLD {
@@ -331,13 +426,19 @@ impl QuaternaryLayerState {
         let dst = SendPtr(self.next.as_mut_ptr());
         const PAIRS: usize = 16;
         let pairs = rows.div_ceil(2);
+        // A pair below this has both rows and both their halves stored.
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        let full_pairs = stored_rows / 4;
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        let lanes = F192x4::splat(challenge);
         let task = |index: usize| {
             let first = index * PAIRS;
             let end = (first + PAIRS).min(pairs);
-            // Every slot read below is written first, so the stage needs no zero fill.
-            let mut stage = [MaybeUninit::<F192>::uninit(); 8 * PAIRS];
             let end_row = (2 * end).min(rows);
-            for row in 2 * first..end_row {
+            let len = 4 * (end_row - 2 * first);
+            // Every slot is written before it is read, so the stage needs no zero fill.
+            let mut stage = [MaybeUninit::<F192>::uninit(); 8 * PAIRS];
+            let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
                 let lo = 8 * row;
                 let left = &values[lo..lo + 4];
                 let right = values.get(lo + 4..lo + 8).unwrap_or(&[F192::ONE; 4]);
@@ -346,21 +447,66 @@ impl QuaternaryLayerState {
                 for i in 0..4 {
                     stage[offset + i].write(left[i] + product[i]);
                 }
-            }
-            let len = 4 * (end_row - 2 * first);
-            // SAFETY: the loop above wrote `stage[..len]`.
-            let stage = unsafe { std::slice::from_raw_parts(stage.as_ptr().cast::<F192>(), len) };
-            let message = equality.weighted_sum(first..end, |pair, weight| {
-                let lo = 8 * (pair - first);
-                let left = &stage[lo..lo + 4];
-                let right = if 2 * pair + 1 < rows {
-                    &stage[lo + 4..lo + 8]
-                } else {
-                    &[F192::ONE; 4]
-                };
-                let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
-                quartic_summand(lines, weight)
-            });
+            };
+            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+            let message = {
+                for row in 2 * first..end_row {
+                    fold_row(&mut stage, row);
+                }
+                // SAFETY: the loop above wrote `stage[..len]`.
+                let stage = unsafe { assume_init(&stage[..len]) };
+                equality.weighted_sum(first..end, |pair, weight| {
+                    let lo = 8 * (pair - first);
+                    let left = &stage[lo..lo + 4];
+                    let right = if 2 * pair + 1 < rows {
+                        &stage[lo + 4..lo + 8]
+                    } else {
+                        &[F192::ONE; 4]
+                    };
+                    let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
+                    quartic_summand(lines, weight)
+                })
+            };
+            // Each pair folded where its summand reads it, four pairs at a time in lanes.
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            let message = equality.weighted_sum_lanes(
+                first..end,
+                full_pairs,
+                &mut stage,
+                |stage, pair, weight| {
+                    let has_right = 2 * pair + 1 < rows;
+                    fold_row(stage, 2 * pair);
+                    if has_right {
+                        fold_row(stage, 2 * pair + 1);
+                    }
+                    let lo = 8 * (pair - first);
+                    // SAFETY: the pair's rows, written just above.
+                    let pair_rows = unsafe { assume_init(&stage[lo..lo + if has_right { 8 } else { 4 }]) };
+                    let left = &pair_rows[..4];
+                    let right = if has_right { &pair_rows[4..8] } else { &[F192::ONE; 4] };
+                    let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
+                    quartic_summand(lines, weight)
+                },
+                |stage, pair, weights| {
+                    // The pairs' two rows each, folded in lanes and staged as rows.
+                    let folded = [0, 1].map(|k| {
+                        [0, 1, 2, 3].map(|c| {
+                            let at = |half: usize| {
+                                F192x4::new(std::array::from_fn(|j| values[8 * (2 * (pair + j) + k) + 4 * half + c]))
+                            };
+                            let (left, right) = (at(0), at(1));
+                            let row = left + (left + right).mul(lanes);
+                            for (j, value) in row.to_array().into_iter().enumerate() {
+                                stage[8 * (pair + j - first) + 4 * k + c].write(value);
+                            }
+                            row
+                        })
+                    });
+                    quartic_summand4(folded[0], folded[1], weights)
+                },
+            );
+            // SAFETY: every row of the task is folded into `stage[..len]` above.
+            let stage = unsafe { assume_init(&stage[..len]) };
             // The next round reads the destination; this round reads only the local stage.
             let stream = Stream::new();
             // SAFETY: tasks own disjoint initialized prefixes of the output, covering every row.
@@ -615,16 +761,28 @@ mod tests {
         }
 
         // Terms of one coefficient: x itself, as a field element, scaled by the weight.
+        let value = |x: usize| F192::new(x as u64, 1, 0);
         let terms = |x: usize, w: F192| {
             let mut t = [F192Unreduced::ZERO; 4];
-            t[0] = w.mul_unreduced(F192::new(x as u64, 1, 0));
+            t[0] = w.mul_unreduced(value(x));
+            t
+        };
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        let terms4 = |_: &mut (), x: usize, w: F192x4| {
+            let mut t = [F192x4Unreduced::zero(); 4];
+            t[0] = w.mul_unreduced(F192x4::new(std::array::from_fn(|j| value(x + j))));
             t
         };
         for range in [0..10, 4090..4100, 100..9000, 0..1 << 14] {
-            let want = range
-                .clone()
-                .fold(F192::ZERO, |sum, x| sum + dense[x] * F192::new(x as u64, 1, 0));
+            let want = range.clone().fold(F192::ZERO, |sum, x| sum + dense[x] * value(x));
+            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
             assert_eq!(split.weighted_sum(range.clone(), terms)[0].reduce(), want, "{range:?}");
+            // Scalar terms only, lanes where they fit, and lanes stopped partway.
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            for wide_end in [0, range.end, range.start + 7] {
+                let got = split.weighted_sum_lanes(range.clone(), wide_end, &mut (), |_, x, w| terms(x, w), terms4);
+                assert_eq!(got[0].reduce(), want, "{range:?} {wide_end}");
+            }
         }
     }
 
