@@ -100,6 +100,15 @@ impl TwiddleWalk {
 /// Receives a finished block of codeword rows, as `(first_row, rows)`.
 pub type RowSink<'a> = dyn Fn(usize, &[F64]) + Sync + 'a;
 
+/// Where an encode's message is read from, while the codeword does not hold it yet.
+#[derive(Clone, Copy)]
+enum Message {
+    /// Row-major, `num_ntts` words a row; it may be the codeword's own first replica.
+    Rows(SendPtr<F64>),
+    /// Lane-major, in its own buffer: block `b` of the rows is codeword lane `num_ntts - 1 - b`.
+    Lanes(SendPtr<F64>),
+}
+
 /// Additive NTT over F_{2^64} with the standard polynomial-basis subspace
 /// `{1, x, x², …}`: the F_2-subspace is `{0, 1, …, 2^ℓ−1}` under the natural
 /// integer encoding, exactly as in the extension-field version (whose domain already
@@ -153,14 +162,12 @@ impl AdditiveNttF64 {
     /// - The first pass therefore reads its rows from the message itself.
     /// - No pass fills the replicas only to read them back.
     ///
-    /// # Why the transpose stays separate
+    /// # Lane-major callers
     ///
-    /// - A lane-major caller transposes its message into place first.
-    /// - The transpose wants one long contiguous run per lane.
-    /// - The first pass wants hundreds of scattered rows at once.
+    /// - A lane-major message goes to [`Self::encode_lane_major_with`] instead, which reads it in place.
     pub fn encode_interleaved_in_place(&self, data: &mut [F64], num_ntts: usize, log_inv_rate: usize) {
         // The message is the buffer's own first replica.
-        let msg = SendPtr(data.as_mut_ptr());
+        let msg = Message::Rows(SendPtr(data.as_mut_ptr()));
         self.transform(data, num_ntts, log_inv_rate, Some(msg), None);
     }
 
@@ -177,7 +184,7 @@ impl AdditiveNttF64 {
         log_inv_rate: usize,
         on_rows: &RowSink<'_>,
     ) {
-        let msg = SendPtr(data.as_mut_ptr());
+        let msg = Message::Rows(SendPtr(data.as_mut_ptr()));
         self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
     }
 
@@ -204,7 +211,47 @@ impl AdditiveNttF64 {
             "the codeword is 2^log_inv_rate messages"
         );
         // Read-only from here on: the pointer only feeds the first pass's reads.
-        let msg = SendPtr(msg.as_ptr().cast_mut());
+        let msg = Message::Rows(SendPtr(msg.as_ptr().cast_mut()));
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
+    }
+
+    /// RS-encode a lane-major message, handing `on_rows` every finished block of rows.
+    ///
+    /// # Layout
+    ///
+    /// ```text
+    ///     message, lane-major:   [ block 0 | block 1 | ... | block n-1 ]   each 2^(d - r) words
+    ///     codeword lane t        encodes message block n - 1 - t
+    /// ```
+    ///
+    /// - The lane order is [`transpose_lane_major`]'s: the result equals that transpose, then the in-place encode.
+    /// - Every codeword word is written before it is read, so the codeword may start uninitialized.
+    /// - The blocks are as for the in-place encode.
+    ///
+    /// # Why the message is read in place
+    ///
+    /// - The first pass reads its rows from the message, so a row-major copy of it would be written only to be read once.
+    /// - Where the plan's first pass takes eight neighbouring rows at once, each lane gives it whole cache lines.
+    /// - Otherwise the message is transposed into the first replica, then encoded in place.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless the codeword is exactly `2^r` messages long.
+    pub fn encode_lane_major_with(
+        &self,
+        data: &mut [F64],
+        msg: &[F64],
+        num_ntts: usize,
+        log_inv_rate: usize,
+        on_rows: &RowSink<'_>,
+    ) {
+        assert_eq!(
+            msg.len() << log_inv_rate,
+            data.len(),
+            "the codeword is 2^log_inv_rate messages"
+        );
+        // Read-only from here on: the pointer only feeds the first pass's reads, or the transpose.
+        let msg = Message::Lanes(SendPtr(msg.as_ptr().cast_mut()));
         self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
     }
 
@@ -243,13 +290,33 @@ impl AdditiveNttF64 {
     ///
     /// - Each deep sub-block is final, and hands its rows to `on_rows` while they are in L2.
     /// - Without a split deep pass, the rows go over in parallel blocks at the end.
+    ///
+    /// # One worker
+    ///
+    /// - A lone worker has its core's whole L3, so a gathered group takes up to `2^MAX_LOG_RESIDUES` residues.
+    /// - Their rows are adjacent, so each copy in or out is one long run, and a row group has that many times
+    ///   the lanes.
+    /// - Several workers keep one residue a group: their scratch then stays in their share of L2.
     fn transform(
         &self,
         data: &mut [F64],
         num_ntts: usize,
         start: usize,
-        msg: Option<SendPtr<F64>>,
+        msg: Option<Message>,
         on_rows: Option<&RowSink<'_>>,
+    ) {
+        self.transform_for(data, num_ntts, start, msg, on_rows, parallel::num_threads());
+    }
+
+    /// [`Self::transform`], planned for `workers` workers.
+    fn transform_for(
+        &self,
+        data: &mut [F64],
+        num_ntts: usize,
+        start: usize,
+        msg: Option<Message>,
+        on_rows: Option<&RowSink<'_>>,
+        workers: usize,
     ) {
         // The buffer is 2^log_d rows of `num_ntts` words.
         assert!(num_ntts > 0);
@@ -271,8 +338,7 @@ impl AdditiveNttF64 {
 
         // From 2^12 rows on, cut at least 2^LOG_SUBS_PER_WORKER deep sub-blocks per worker.
         let par_log = if log_d >= PARALLEL_FLOOR_LOG_D {
-            (log2_strict_usize(parallel::num_threads().next_power_of_two()) + LOG_SUBS_PER_WORKER)
-                .min(log_d - MIN_SUB_LOG)
+            (log2_strict_usize(workers.next_power_of_two()) + LOG_SUBS_PER_WORKER).min(log_d - MIN_SUB_LOG)
         } else {
             0
         };
@@ -294,17 +360,40 @@ impl AdditiveNttF64 {
         };
         let deep_start = log_d.saturating_sub(deep).max(par_log).max(start);
 
+        // Residues a gathered group takes, as a log: several only for a lone worker, within its L3 budget.
+        let residues = |layer: usize, g: usize| {
+            if workers == 1 {
+                let room = (LONE_GATHER_WORDS / (num_ntts << g)).max(1).ilog2() as usize;
+                room.min(MAX_LOG_RESIDUES).min(log_d - layer - g)
+            } else {
+                0
+            }
+        };
+
         // A buffer this large is evicted before the next pass reads it back.
         let stream = data.len() >= STREAM_MIN_WORDS;
+
+        // A lane-major message is read in place by a first gathered pass that takes whole cache lines of it,
+        // eight residues of each lane at a time. Any other plan reads it transposed into the first replica.
+        let mut msg = msg;
+        if let Some(Message::Lanes(m)) = msg {
+            let first_g = (deep_start - start).min(fit2);
+            if !(LANE_GATHER && start < deep_start && residues(start, first_g) >= 3) {
+                let msg_len = data.len() >> start;
+                // SAFETY: the lane-major message is one replica of words, disjoint from the codeword.
+                let lanes = unsafe { std::slice::from_raw_parts(m.0.cast_const(), msg_len) };
+                transpose_lane_major(&mut data[..msg_len], lanes, num_ntts, log_d - start);
+                msg = Some(Message::Rows(SendPtr(data.as_mut_ptr())));
+            }
+        }
 
         // Phase 1: gathered passes, each at most one L2 group of layers.
         //
         // Only the first one reads the message.
-        let mut msg = msg;
         let mut layer = start;
         while layer < deep_start {
             let g = (deep_start - layer).min(fit2);
-            self.gathered_pass(data, log_d, num_ntts, layer, g, msg.take(), stream);
+            self.gathered_pass(data, log_d, num_ntts, layer, g, residues(layer, g), msg.take(), stream);
             layer += g;
         }
 
@@ -312,7 +401,9 @@ impl AdditiveNttF64 {
         //
         //     message is block 0 of the buffer  ->  a task could overwrite it while others still copy it
         //     no layer left to run              ->  no deep task would write the buffer at all
-        if let Some(m) = msg.take_if(|m| std::ptr::eq(m.0, data.as_mut_ptr()) || deep_start == log_d) {
+        if let Some(Message::Rows(m)) =
+            msg.take_if(|m| matches!(m, Message::Rows(r) if std::ptr::eq(r.0, data.as_mut_ptr())) || deep_start == log_d)
+        {
             replicate(data, m, data.len() >> start);
         }
 
@@ -329,7 +420,7 @@ impl AdditiveNttF64 {
                 // A separate message: build the sub-block in scratch, then write it out once.
                 //
                 // Streamed out whole, the codeword is written without ever being read.
-                Some(m) => with_scratch(sub_len, |scratch| {
+                Some(Message::Rows(m)) => with_scratch(sub_len, |scratch| {
                     // A sub-block sits at the same offset in every replica.
                     //
                     //     sub-block at offset off of its replica  <-  message words [off, off + sub_len)
@@ -356,6 +447,8 @@ impl AdditiveNttF64 {
                         f(sub_idx << log_sub, sub);
                     }
                 }
+                // A lane-major message is read by a gathered pass, or transposed into place before any pass.
+                Some(Message::Lanes(_)) => unreachable!("a lane-major message reaches no deep pass"),
             });
         }
 
@@ -389,10 +482,16 @@ impl AdditiveNttF64 {
     /// - The residue is below `step`, so that shift drops it.
     /// - The scratch transform therefore takes the same twiddles as the full one.
     ///
+    /// # Several residues a group
+    ///
+    /// - A group may take `2^log_r` adjacent residues: their rows sit side by side, and share every twiddle.
+    /// - So the group is one transform with `2^log_r` times the lanes, and each of its rows one contiguous run.
+    ///
     /// # With a message
     ///
     /// - Every block's rows come from the message.
-    /// - One task takes one residue across all blocks, block 0 last.
+    /// - One task takes one residue group across all blocks, block 0 last.
+    /// - A lane-major message gives each lane's word of eight adjacent residues as one cache line.
     #[allow(clippy::too_many_arguments)]
     fn gathered_pass(
         &self,
@@ -401,45 +500,58 @@ impl AdditiveNttF64 {
         num_ntts: usize,
         layer: usize,
         g: usize,
-        msg: Option<SendPtr<F64>>,
+        log_r: usize,
+        msg: Option<Message>,
         stream: bool,
     ) {
-        // A group is 2^g rows, `step` rows apart.
+        // A group is 2^g rows, `step` rows apart, each `2^log_r` adjacent rows wide.
         let log_step = log_d - layer - g;
         let (rows, step) = (1usize << g, 1usize << log_step);
-        // With a message, a task is one residue across every block.
-        // Without one, a task is one (block, residue) pair.
-        let n_tasks = if msg.is_some() { step } else { step << layer };
+        assert!(log_r <= log_step, "a group's residues are inside one step");
+        let wide = num_ntts << log_r;
+        // A lane-major message is read eight residues of a lane at a time.
+        assert!(
+            !matches!(msg, Some(Message::Lanes(_))) || log_r >= 3,
+            "a lane-major message is read whole lines at a time"
+        );
+        // With a message, a task is one residue group across every block.
+        // Without one, a task is one (block, residue group) pair.
+        let n_tasks = (if msg.is_some() { step } else { step << layer }) >> log_r;
         let base = SendPtr(data.as_mut_ptr());
         parallel::for_each_chunk(n_tasks, |lo, hi| {
-            // One L2-resident scratch of 2^g rows serves every group of the task.
-            with_scratch(rows * num_ntts, |scratch| {
+            // One scratch of 2^g wide rows serves every group of the task.
+            with_scratch(rows * wide, |scratch| {
                 // One fence at the end of the task covers all its streaming stores.
                 let stream = stream.then(Stream::new);
                 let mut group = |block: usize, r: usize| {
-                    // Row `i` of the group, as a word offset inside its block.
-                    let row = |i: usize| (r + (i << log_step)) * num_ntts;
+                    // Row `i` of the group, as a row index and a word offset inside its block.
+                    let row_idx = |i: usize| r + (i << log_step);
+                    let row = |i: usize| row_idx(i) * num_ntts;
                     let block_off = (block << (log_d - layer)) * num_ntts;
                     // Gather: the scattered rows become one contiguous 2^g-row buffer.
-                    for (i, dst) in scratch.chunks_exact_mut(num_ntts).enumerate() {
+                    for (i, dst) in scratch.chunks_exact_mut(wide).enumerate() {
                         // SAFETY:
                         // - The message and the codeword both cover every row addressed here.
                         // - Tasks own disjoint residues, so no other task writes these rows.
                         // - Block 0 is written last, after every read of the message in it.
-                        let src = unsafe {
+                        unsafe {
                             match msg {
-                                Some(m) => std::slice::from_raw_parts(m.add(row(i)), num_ntts),
-                                None => base.slice(block_off + row(i), num_ntts),
+                                Some(Message::Rows(m)) => {
+                                    dst.copy_from_slice(std::slice::from_raw_parts(m.add(row(i)), wide));
+                                }
+                                Some(Message::Lanes(m)) => {
+                                    gather_lanes(dst, m, 1 << (log_d - layer), num_ntts, row_idx(i));
+                                }
+                                None => dst.copy_from_slice(base.slice(block_off + row(i), wide)),
                             }
-                        };
-                        dst.copy_from_slice(src);
+                        }
                     }
                     // Transform: a (layer + g)-layer domain whose sub-block index is the global block.
-                    self.run_layers(scratch, layer + g, num_ntts, layer, layer + g, layer, block);
+                    self.run_layers(scratch, layer + g, wide, layer, layer + g, layer, block);
                     // Scatter: every row returns to its place.
-                    for (i, src) in scratch.chunks_exact(num_ntts).enumerate() {
+                    for (i, src) in scratch.chunks_exact(wide).enumerate() {
                         // SAFETY: this group alone owns these rows of the codeword.
-                        let dst = unsafe { base.slice(block_off + row(i), num_ntts) };
+                        let dst = unsafe { base.slice(block_off + row(i), wide) };
                         match &stream {
                             Some(s) => s.copy(dst, src),
                             None => dst.copy_from_slice(src),
@@ -447,6 +559,8 @@ impl AdditiveNttF64 {
                     }
                 };
                 for t in lo..hi {
+                    // The group's first residue, in the task's step-indexed order.
+                    let t = t << log_r;
                     if msg.is_some() {
                         // Block 0 may be the message itself, so it is transformed last.
                         for block in (0..1usize << layer).rev() {
@@ -734,6 +848,92 @@ pub fn transpose_lane_major(out: &mut [F64], msg: &[F64], n_lanes: usize, log_ro
     });
 }
 
+/// Whether a gathered pass reads a lane-major message in place; elsewhere it is transposed first.
+///
+/// Only the AVX-512 build turns each eight lanes of eight residues around in registers.
+const LANE_GATHER: bool = cfg!(all(target_arch = "x86_64", target_feature = "avx512f"));
+
+/// Gather `dst.len() / n` adjacent rows of a lane-major message, from row `row`, into row-major order.
+///
+/// ```text
+///     dst[j * n + (n - 1 - l)]  =  msg[l * msg_rows + row + j]       lanes reversed, as in transpose_lane_major
+/// ```
+///
+/// - Eight rows of one lane are one cache line, read whole, when `row` is a multiple of eight.
+/// - Eight lanes of those eight rows are turned around in registers.
+///
+/// # Safety
+///
+/// - The message holds `n` lanes of `msg_rows` words each.
+/// - `row + dst.len() / n <= msg_rows`, and `dst.len() / n` is a multiple of eight.
+unsafe fn gather_lanes(dst: &mut [F64], msg: SendPtr<F64>, msg_rows: usize, n: usize, row: usize) {
+    let residues = dst.len() / n;
+    debug_assert!(residues.is_multiple_of(8) && row + residues <= msg_rows);
+    // Message lanes `0 .. whole` go eight at a time; the rest, the lowest codeword lanes, one at a time.
+    let whole = if LANE_GATHER { n - n % 8 } else { 0 };
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+    for q in (0..residues).step_by(8) {
+        for l0 in (0..whole).step_by(8) {
+            // SAFETY: line `k` is lane `l0 + 7 - k`, rows `row + q ..+ 8`, inside the message by the caller.
+            let lines: [__m512i; 8] = std::array::from_fn(|k| unsafe {
+                _mm512_loadu_si512(msg.add((l0 + 7 - k) * msg_rows + row + q).cast_const().cast())
+            });
+            // Column `j` is residue `q + j` across lanes `l0 + 7` down to `l0`: codeword lanes `n - 8 - l0 ..`.
+            for (j, col) in transpose_8x8_avx512(lines).into_iter().enumerate() {
+                let at = (q + j) * n + n - 8 - l0;
+                // SAFETY: eight words of residue `q + j`'s row, inside `dst`.
+                unsafe { _mm512_storeu_si512(dst.as_mut_ptr().add(at).cast(), col) };
+            }
+        }
+    }
+    for l in whole..n {
+        for j in 0..residues {
+            // SAFETY: inside the message by the caller.
+            dst[j * n + n - 1 - l] = unsafe { *msg.add(l * msg_rows + row + j) };
+        }
+    }
+}
+
+/// Transpose eight rows of eight words: word `k` of output `j` is word `j` of input `k`.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[inline(always)]
+fn transpose_8x8_avx512(r: [__m512i; 8]) -> [__m512i; 8] {
+    // SAFETY: the arm is compiled only with AVX-512F; registers only.
+    unsafe {
+        // Pairs of rows, 128-bit lane c holding words 2c and 2c + 1 of both.
+        let t: [__m512i; 8] = std::array::from_fn(|i| {
+            let (a, b) = (r[i & !1], r[i | 1]);
+            if i % 2 == 0 {
+                _mm512_unpacklo_epi64(a, b)
+            } else {
+                _mm512_unpackhi_epi64(a, b)
+            }
+        });
+        // Four rows: u[c] holds words c and c + 4 of rows 0..4 (u[0..4]) or rows 4..8 (u[4..8]).
+        let u = [
+            _mm512_shuffle_i64x2::<0x88>(t[0], t[2]),
+            _mm512_shuffle_i64x2::<0x88>(t[1], t[3]),
+            _mm512_shuffle_i64x2::<0xDD>(t[0], t[2]),
+            _mm512_shuffle_i64x2::<0xDD>(t[1], t[3]),
+            _mm512_shuffle_i64x2::<0x88>(t[4], t[6]),
+            _mm512_shuffle_i64x2::<0x88>(t[5], t[7]),
+            _mm512_shuffle_i64x2::<0xDD>(t[4], t[6]),
+            _mm512_shuffle_i64x2::<0xDD>(t[5], t[7]),
+        ];
+        // Eight rows: words c from u[c] and u[4 + c], words c + 4 from their other halves.
+        [
+            _mm512_shuffle_i64x2::<0x88>(u[0], u[4]),
+            _mm512_shuffle_i64x2::<0x88>(u[1], u[5]),
+            _mm512_shuffle_i64x2::<0x88>(u[2], u[6]),
+            _mm512_shuffle_i64x2::<0x88>(u[3], u[7]),
+            _mm512_shuffle_i64x2::<0xDD>(u[0], u[4]),
+            _mm512_shuffle_i64x2::<0xDD>(u[1], u[5]),
+            _mm512_shuffle_i64x2::<0xDD>(u[2], u[6]),
+            _mm512_shuffle_i64x2::<0xDD>(u[3], u[7]),
+        ]
+    }
+}
+
 /// Words one L2-resident unit of work may span: a gathered row group or a deep sub-block.
 ///
 /// # Why this value
@@ -770,6 +970,21 @@ const LOG_SUBS_PER_WORKER: usize = 2;
 /// - Such a sub-block spills from L2 into L3.
 /// - That costs extra L3 traffic, but saves a whole sweep of DRAM.
 const L3_WORDS: usize = 1 << 18;
+
+/// Words a gathered task may span when the pool has one worker.
+///
+/// # Why this value
+///
+/// - 2^22 words is 32 MiB, a whole L3 without stacked cache: a lone worker shares its L3 with no one.
+/// - A gathered row group's layers cost no more from L3 than from L2, the butterflies being the bound.
+/// - So the group can take several residues, and with them longer runs in and out of memory.
+const LONE_GATHER_WORDS: usize = 1 << 22;
+
+/// Most residues one gathered group takes, as a log.
+///
+/// - Eight residues make a row-major group's runs whole cache lines, for any lane count.
+/// - Sixty-four make a lane-major message's reads eight lines of each lane.
+const MAX_LOG_RESIDUES: usize = 6;
 
 /// Buffers of at least this many words get streaming stores for data a pass does not read back.
 ///
@@ -1348,6 +1563,7 @@ mod tests {
         //     (12, 2048, 1)           two gathered passes, with streaming stores
         //
         // A non-zero start is the commit path, which enters at the rate layer.
+        // A lone worker's plan takes several residues per gathered group.
         let mut rng = Rng::new(0xC0FFEE);
         for (log_d, lanes, start_layer) in [
             (7usize, 3usize, 0usize),
@@ -1364,11 +1580,15 @@ mod tests {
             // Reference: one butterfly at a time.
             let mut want = original.clone();
             forward_scalar_from_layer(&ntt, &mut want, lanes, start_layer);
-            // Under test: the pass-planning driver.
-            let mut got = original;
-            ntt.transform(&mut got, lanes, start_layer, None, None);
-
-            assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, start_layer={start_layer}");
+            // Under test: the pass-planning driver, for the pool and for one worker.
+            for workers in [parallel::num_threads(), 1] {
+                let mut got = original.clone();
+                ntt.transform_for(&mut got, lanes, start_layer, None, None, workers);
+                assert_eq!(
+                    got, want,
+                    "log_d={log_d}, lanes={lanes}, start_layer={start_layer}, workers={workers}"
+                );
+            }
         }
     }
 
@@ -1408,35 +1628,38 @@ mod tests {
             forward_scalar_from_layer(&ntt, &mut want, lanes, log_inv_rate);
 
             // Under test: only the first replica holds the message, the rest is zero.
-            let mut got = vec![F64::ZERO; msg_len << log_inv_rate];
-            got[..msg_len].copy_from_slice(&msg);
-            let blocks = Mutex::new(Vec::new());
-            ntt.encode_interleaved_in_place_with(&mut got, lanes, log_inv_rate, &|row, rows| {
-                blocks.lock().unwrap().push((row, rows.to_vec()));
-            });
-            assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}");
+            for workers in [parallel::num_threads(), 1] {
+                let mut got = vec![F64::ZERO; msg_len << log_inv_rate];
+                got[..msg_len].copy_from_slice(&msg);
+                let blocks = Mutex::new(Vec::new());
+                let first = Message::Rows(SendPtr(got.as_mut_ptr()));
+                let sink = |row: usize, rows: &[F64]| blocks.lock().unwrap().push((row, rows.to_vec()));
+                ntt.transform_for(&mut got, lanes, log_inv_rate, Some(first), Some(&sink), workers);
+                assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}, workers={workers}");
 
-            let mut blocks = blocks.into_inner().unwrap();
-            blocks.sort_by_key(|b| b.0);
-            let mut next = 0;
-            for (row, rows) in blocks {
-                assert_eq!(row, next, "blocks tile the rows, log_d={log_d}");
-                assert_eq!(
-                    rows[..],
-                    want[row * lanes..][..rows.len()],
-                    "a handed-over block is final"
-                );
-                next += rows.len() / lanes;
+                let mut blocks = blocks.into_inner().unwrap();
+                blocks.sort_by_key(|b| b.0);
+                let mut next = 0;
+                for (row, rows) in blocks {
+                    assert_eq!(row, next, "blocks tile the rows, log_d={log_d}");
+                    assert_eq!(
+                        rows[..],
+                        want[row * lanes..][..rows.len()],
+                        "a handed-over block is final"
+                    );
+                    next += rows.len() / lanes;
+                }
+                assert_eq!(next, 1 << log_d, "every row handed over, log_d={log_d}");
             }
-            assert_eq!(next, 1 << log_d, "every row handed over, log_d={log_d}");
         }
     }
 
     /// Every lane of the codeword must be exactly the single-lane RS codeword of
     /// that lane's contiguous message block, which is what makes a commitment over
     /// `n_lanes` lanes equal to the `2^log_batch_size`-lane one with a zero tail.
-    /// The shapes cover the transposing fused first pass, its fallback, and lane
-    /// counts that are not powers of two (the padding-free commit's whole point).
+    /// The shapes cover the transposing fallback, the lone worker's first pass reading
+    /// the lanes in place (the last three, with and without lanes past a whole eight),
+    /// and lane counts that are not powers of two (the padding-free commit's whole point).
     #[test]
     fn lane_major_msg_encode_matches_per_lane_reference() {
         let mut rng = Rng::new(0x1A2E);
@@ -1447,29 +1670,39 @@ mod tests {
             (9, 1, 5),
             (12, 2, 37),
             (14, 1, 64),
+            (13, 1, 41),
+            (13, 1, 64),
+            (16, 1, 5),
         ] {
             let log_d = log_rows + log_inv_rate;
             let ntt = AdditiveNttF64::standard(log_d);
             let rows = 1usize << log_rows;
             let msg: Vec<F64> = (0..rows * n_lanes).map(|_| F64(rng.next_u64())).collect();
 
-            let mut got = vec![F64::ZERO; msg.len() << log_inv_rate];
-            transpose_lane_major(&mut got[..msg.len()], &msg, n_lanes, log_rows);
-            ntt.encode_interleaved_in_place(&mut got, n_lanes, log_inv_rate);
-
             let block_len = 1usize << log_d;
-            for lane in 0..n_lanes {
-                // Lane `lane` encodes message block `n_lanes - 1 - lane`.
-                let block = n_lanes - 1 - lane;
-                let mut want = vec![F64::ZERO; block_len];
-                replicate_rows(&mut want, &msg[block * rows..(block + 1) * rows]);
-                ntt.transform(&mut want, 1, log_inv_rate, None, None);
-                for pos in 0..block_len {
-                    assert_eq!(
-                        got[pos * n_lanes + lane],
-                        want[pos],
-                        "lane {lane} pos {pos} at log_rows={log_rows}, rate={log_inv_rate}, n_lanes={n_lanes}"
-                    );
+            let want: Vec<Vec<F64>> = (0..n_lanes)
+                .map(|lane| {
+                    // Lane `lane` encodes message block `n_lanes - 1 - lane`.
+                    let block = n_lanes - 1 - lane;
+                    let mut want = vec![F64::ZERO; block_len];
+                    replicate_rows(&mut want, &msg[block * rows..(block + 1) * rows]);
+                    ntt.transform(&mut want, 1, log_inv_rate, None, None);
+                    want
+                })
+                .collect();
+            for workers in [parallel::num_threads(), 1] {
+                let mut got = vec![F64::ZERO; msg.len() << log_inv_rate];
+                let lanes = Message::Lanes(SendPtr(msg.as_ptr().cast_mut()));
+                ntt.transform_for(&mut got, n_lanes, log_inv_rate, Some(lanes), Some(&|_, _| {}), workers);
+                for (lane, want) in want.iter().enumerate() {
+                    for (pos, want) in want.iter().enumerate() {
+                        assert_eq!(
+                            got[pos * n_lanes + lane],
+                            *want,
+                            "lane {lane} pos {pos} at log_rows={log_rows}, rate={log_inv_rate}, n_lanes={n_lanes}, \
+                             workers={workers}"
+                        );
+                    }
                 }
             }
         }

@@ -54,17 +54,14 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     let codeword_len = n_positions * n_lanes;
 
     // SAFETY: every codeword element is written before it is read.
-    // `transpose_lane_major` covers every word of the message region (its tiles are
-    // asserted to), and `encode_interleaved_in_place` writes every other replica from
-    // it before transforming that region in place.
+    // `encode_lane_major_with` writes every word of an uninitialized codeword before it reads it.
     let mut codeword = unsafe { primitives::uninit_vec::<F64>(codeword_len) };
 
     // Leaves are hashed as the encode finishes each block of rows.
     let tree = MerkleBuilder::new(n_positions, n_lanes, 1usize << log_batch_size);
     tracing::info_span!("NTT", kind = "base encode", log_domain = k_code, lanes = n_lanes).in_scope(|| {
-        crate::ntt::transpose_lane_major(&mut codeword[..message.len()], message, n_lanes, log_rows);
         let ntt = AdditiveNttF64::standard(k_code);
-        ntt.encode_interleaved_in_place_with(&mut codeword, n_lanes, log_inv_rate, &|row, rows| {
+        ntt.encode_lane_major_with(&mut codeword, message, n_lanes, log_inv_rate, &|row, rows| {
             tree.absorb(row, rows);
         });
     });
