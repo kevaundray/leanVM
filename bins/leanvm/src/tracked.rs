@@ -6,7 +6,8 @@
 //! PR's with its base's: they are the same on every machine. Proving on CI's GitHub-hosted
 //! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
 //! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
-//! base and head are proven in turns on one runner and compared there. A case's name is what
+//! base and head are proven in turns on one runner and compared there. leanXMSS at a quarter
+//! is also proven on one thread, in a process of its own (`ONE_THREAD`). A case's name is what
 //! a PR's results are matched by, so renaming one or changing its input shows it as new.
 //!
 //! An aggregation tree is tracked the same way: each kind of node's circuit counted without a
@@ -26,6 +27,7 @@ use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::io::Write as _;
 use std::path::Path;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 struct Case {
@@ -112,14 +114,23 @@ fn counted() -> Vec<Case> {
 type Build = fn(&'static str) -> Case;
 
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
-fn proven() -> [(&'static str, Build); 4] {
+fn proven() -> [(&'static str, Build); 5] {
     [
         ("fibonacci-asm-2000000", |name| Case::fibonacci(name, 2_000_000)),
         ("hash-50000", |name| Case::hash(name, 50_000)),
         ("leanxmss-100", |name| Case::workload(name, workload::leanxmss(100))),
+        ("leanxmss-100-1thread", |name| {
+            Case::workload(name, workload::leanxmss(100))
+        }),
         ("leansphincs-26", |name| Case::workload(name, workload::leansphincs(26))),
     ]
 }
+
+/// The cases of `proven()` proven on one thread: what one core costs, apart from how the
+/// prover scales over cores. The pool is sized once per process, from `LEANVM_NUM_THREADS`,
+/// so unless this process's pool is one thread already, such a case is proven by a child: this
+/// executable run again with `LEANVM_NUM_THREADS=1` (`on_one_thread`).
+const ONE_THREAD: [&str; 1] = ["leanxmss-100-1thread"];
 
 /// An aggregation tree over copies of one case's proof: first-level nodes of `arity_0` leaves,
 /// nodes of `arity` tree proofs. A tree's name ends `<N>to1` when both are `N`: every node
@@ -258,16 +269,55 @@ pub fn run(
             refuse(format_args!("no tracked case is named {}", only.unwrap_or_default()));
         }
         bench::time_stages("Prove");
-        let mut report: Vec<_> = cases
+        let mut reports: Vec<String> = cases
             .into_iter()
-            .map(|(name, case)| (name.to_string(), proved(&case(name), prover, plan)))
+            .map(|(name, case)| {
+                if ONE_THREAD.contains(&name) && parallel::num_threads() > 1 {
+                    on_one_thread(name, only.is_none())
+                } else {
+                    bencher_json(&[(name.to_string(), proved(&case(name), prover, plan))])
+                }
+            })
             .collect();
         for (name, tree) in trees {
-            report.extend(proved_tree(&tree(name), prover, plan));
+            reports.push(bencher_json(&proved_tree(&tree(name), prover, plan)));
         }
-        return println!("{}", bencher_json(&report));
+        return println!("{}", merged(&reports));
     };
     println!("{}", bencher_json(&report));
+}
+
+/// The case `name` proven by a child whose pool is one thread: this executable run again with
+/// this process's arguments, `--only name` added unless `add_only` is false (they name it
+/// already), and `LEANVM_NUM_THREADS=1`. Its JSON; its progress goes to this process's stderr.
+fn on_one_thread(name: &str, add_only: bool) -> String {
+    let exe = std::env::current_exe().unwrap_or_else(|e| refuse(format_args!("{name}: {e}")));
+    let mut child = Command::new(exe);
+    child
+        .args(std::env::args_os().skip(1))
+        .env("LEANVM_NUM_THREADS", "1")
+        .stderr(Stdio::inherit());
+    if add_only {
+        child.args(["--only", name]);
+    }
+    let output = child.output().unwrap_or_else(|e| refuse(format_args!("{name}: {e}")));
+    if !output.status.success() {
+        refuse(format_args!("{name}: the one-thread run failed: {}", output.status));
+    }
+    String::from_utf8(output.stdout).unwrap_or_else(|e| refuse(format_args!("{name}: {e}")))
+}
+
+/// One JSON object of the benchmarks of `objects`, each one as `bencher_json` prints it.
+fn merged(objects: &[String]) -> String {
+    let benchmarks: Vec<&str> = objects
+        .iter()
+        .map(|object| {
+            let object = object.trim().strip_prefix('{').and_then(|o| o.strip_suffix('}'));
+            object.expect("a JSON object").trim_matches('\n')
+        })
+        .filter(|benchmarks| !benchmarks.is_empty())
+        .collect();
+    format!("{{\n{}\n}}", benchmarks.join(",\n"))
 }
 
 /// `cycles` (the program's own instructions), `proven-rows` (the tables' heights once

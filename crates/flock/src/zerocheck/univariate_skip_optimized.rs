@@ -1,7 +1,7 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-core), MIT OR Apache-2.0.
 //! Round-1 prover message: fully optimized (shift_reduce + extract_c).
 //!
-//! Scalar Rust, with NEON and GFNI kernels for the inner sweep.
+//! Scalar Rust, with NEON, AVX2 and GFNI kernels for the inner sweep.
 //! Three layered optimizations:
 //!
 //! 1. **Geometric small-eq + shift_reduce inner** (3 inner-most rest-dims).
@@ -32,22 +32,28 @@
 
 use super::univariate_skip::{SplitEq, ntt_extend_vec};
 use super::{K_SKIP, N_INNER, PaddingSpec};
+#[cfg(target_arch = "aarch64")]
+use core::arch::aarch64::*;
+#[cfg(all(target_arch = "x86_64", any(target_feature = "gfni", target_feature = "avx2")))]
+use core::arch::x86_64::*;
+use pcs::ntt::InvNttTableByteSingleGf8;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use primitives::bit_fold::avx2;
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "gfni",
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use crate::zerocheck::bit_fold::gfni::{store_f192, weight_matrices};
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64::*;
-#[cfg(all(target_arch = "x86_64", target_feature = "gfni"))]
-use core::arch::x86_64::*;
-use pcs::ntt::InvNttTableByteSingleGf8;
+use primitives::bit_fold::gfni::{store_f192, weight_matrices};
 use primitives::bits::bit_transpose_64bytes;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "gfni")))]
+use primitives::field::gf2_8::avx2::gf8_mul_vec32;
 use primitives::field::gf2_8::gf8_reduce;
 #[cfg(target_arch = "aarch64")]
 use primitives::field::gf2_8::neon::{gf8_mul_vec16, gf8_reduce_vec16};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use primitives::field::mul4;
 use primitives::field::{F8, F192, PHI_8_TABLE_192 as PHI_8_TABLE, phi8_192 as phi8};
 #[cfg(all(
     target_arch = "x86_64",
@@ -55,7 +61,13 @@ use primitives::field::{F8, F192, PHI_8_TABLE_192 as PHI_8_TABLE, phi8_192 as ph
     target_feature = "avx512bw",
     target_feature = "avx512vbmi"
 ))]
-use primitives::field::{F64, mul_base8, mul4};
+use primitives::field::{F64, mul_base8};
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    not(all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"))
+))]
+use std::sync::LazyLock;
 use std::sync::OnceLock;
 
 // ---------------------------------------------------------------------------
@@ -148,20 +160,10 @@ const N_MEDIUM_VALUES: usize = 16;
 /// the address. Flat, each lookup costs a check, a branch and a multiply by the
 /// 24-byte element stride, and the branches keep the constant-trip loop around
 /// them from unrolling.
-#[cfg(not(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-)))]
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
 type ConvertTable = [[F192; 256]; N_MEDIUM_VALUES];
 
-#[cfg(not(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-)))]
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
 static CONVERT_TABLE_CACHE: OnceLock<Box<ConvertTable>> = OnceLock::new();
 
 /// `gamma^b` for each medium position `b`.
@@ -176,12 +178,7 @@ fn gamma_powers() -> &'static [F192; N_MEDIUM_VALUES] {
     })
 }
 
-#[cfg(not(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-)))]
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
 fn build_convert_table() -> Box<ConvertTable> {
     let mut table: Box<ConvertTable> = Box::new([[F192::ZERO; 256]; N_MEDIUM_VALUES]);
     for (row, &g_b) in table.iter_mut().zip(gamma_powers()) {
@@ -192,12 +189,7 @@ fn build_convert_table() -> Box<ConvertTable> {
     table
 }
 
-#[cfg(not(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-)))]
+#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
 fn convert_table() -> &'static ConvertTable {
     CONVERT_TABLE_CACHE.get_or_init(build_convert_table)
 }
@@ -448,7 +440,7 @@ fn shift_reduce_inner_ab_fused_neon(
     }
 }
 
-/// Dispatch helper: picks the fused NEON kernel when available, otherwise scalar.
+/// Dispatch helper: picks the widest SIMD kernel this target has, otherwise scalar.
 #[inline]
 fn shift_reduce_inner_ab(
     a_packed: &[u8],
@@ -467,12 +459,24 @@ fn shift_reduce_inner_ab(
         // SAFETY: gfni and avx512bw are statically enabled at compile time.
         unsafe { shift_reduce_inner_ab_gfni_512(a_packed, b_packed, inv_table, chunk_byte_base, b_med, out) };
     }
-    #[cfg(all(target_arch = "x86_64", target_feature = "gfni", not(target_feature = "avx512bw")))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        not(all(target_feature = "gfni", target_feature = "avx512bw"))
+    ))]
+    {
+        // SAFETY: avx2, and gfni where the kernel uses it, are statically enabled at compile time.
+        unsafe { shift_reduce_inner_ab_avx2(a_packed, b_packed, inv_table, chunk_byte_base, b_med, out) };
+    }
+    #[cfg(all(target_arch = "x86_64", target_feature = "gfni", not(target_feature = "avx2")))]
     {
         // SAFETY: gfni is statically enabled at compile time.
         unsafe { shift_reduce_inner_ab_gfni(a_packed, b_packed, inv_table, chunk_byte_base, b_med, out) };
     }
-    #[cfg(not(any(target_arch = "aarch64", all(target_arch = "x86_64", target_feature = "gfni"))))]
+    #[cfg(not(any(
+        target_arch = "aarch64",
+        all(target_arch = "x86_64", any(target_feature = "gfni", target_feature = "avx2"))
+    )))]
     {
         shift_reduce_inner_ab_scalar(a_packed, b_packed, inv_table, chunk_byte_base, b_med, out);
     }
@@ -497,23 +501,17 @@ unsafe fn shift_reduce_inner_ab_gfni_512(
     out: &mut [u8; 64],
 ) {
     let byte_base_b = chunk_byte_base + b_med * N_CHUNKS * 8;
-    // `inv_table.apply` overwrites every lane, so these need no re-zeroing per K.
-    let mut a_col = [F8::ZERO; ELL];
-    let mut b_col = [F8::ZERO; ELL];
+    let chunk = |k: usize| byte_base_b + k * N_CHUNKS..byte_base_b + (k + 1) * N_CHUNKS;
 
-    // SAFETY: the target features are carried by the function; the loads and
-    // stores stay within a_col/b_col/out, each exactly `ELL` bytes.
+    // SAFETY: the target features are carried by the function; the store covers exactly `out`.
     unsafe {
         let (mut acc_lo, mut acc_hi) = (_mm512_setzero_si512(), _mm512_setzero_si512());
         let zero = _mm512_setzero_si512();
 
         for k in 0..8 {
-            let chunk_off = byte_base_b + k * N_CHUNKS;
-            inv_table.apply(&a_packed[chunk_off..chunk_off + N_CHUNKS], &mut a_col);
-            inv_table.apply(&b_packed[chunk_off..chunk_off + N_CHUNKS], &mut b_col);
             let y = _mm512_gf2p8mul_epi8(
-                _mm512_loadu_si512(a_col.as_ptr().cast()),
-                _mm512_loadu_si512(b_col.as_ptr().cast()),
+                inv_table.apply_zmm(a_packed[chunk(k)].try_into().expect("one chunk")),
+                inv_table.apply_zmm(b_packed[chunk(k)].try_into().expect("one chunk")),
             );
             let shift = _mm_cvtsi32_si128(k as i32);
             acc_lo = _mm512_xor_si512(acc_lo, _mm512_sll_epi16(_mm512_unpacklo_epi8(y, zero), shift));
@@ -543,6 +541,76 @@ unsafe fn shift_reduce_inner_ab_gfni_512(
     }
 }
 
+/// The 512-bit kernel two registers wide. With GFNI the products are
+/// `gf2p8mulb`; without it, the shift-and-add of `gf2_8::avx2::gf8_mul_vec32`.
+///
+/// # Safety
+/// Requires the `avx2` target feature, and `gfni` where the target has it.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[cfg_attr(all(target_feature = "gfni", target_feature = "avx512bw"), allow(dead_code))]
+#[target_feature(enable = "avx2")]
+unsafe fn shift_reduce_inner_ab_avx2(
+    a_packed: &[u8],
+    b_packed: &[u8],
+    inv_table: &InvNttTableByteSingleGf8,
+    chunk_byte_base: usize,
+    b_med: usize,
+    out: &mut [u8; 64],
+) {
+    let byte_base_b = chunk_byte_base + b_med * N_CHUNKS * 8;
+    // `inv_table.apply` overwrites every lane, so these need no re-zeroing per K.
+    let mut a_col = [F8::ZERO; ELL];
+    let mut b_col = [F8::ZERO; ELL];
+
+    // SAFETY: the target features are carried by the function or enabled at
+    // compile time; the loads and stores stay within a_col/b_col/out, each
+    // exactly `ELL` bytes.
+    unsafe {
+        let mut acc = [[_mm256_setzero_si256(); 2]; 2];
+        let zero = _mm256_setzero_si256();
+
+        for k in 0..8 {
+            let chunk_off = byte_base_b + k * N_CHUNKS;
+            inv_table.apply(&a_packed[chunk_off..chunk_off + N_CHUNKS], &mut a_col);
+            inv_table.apply(&b_packed[chunk_off..chunk_off + N_CHUNKS], &mut b_col);
+            let shift = _mm_cvtsi32_si128(k as i32);
+            for (h, [lo, hi]) in acc.iter_mut().enumerate() {
+                let a = _mm256_loadu_si256(a_col.as_ptr().add(32 * h).cast());
+                let b = _mm256_loadu_si256(b_col.as_ptr().add(32 * h).cast());
+                #[cfg(target_feature = "gfni")]
+                let y = _mm256_gf2p8mul_epi8(a, b);
+                #[cfg(not(target_feature = "gfni"))]
+                let y = gf8_mul_vec32(a, b);
+                *lo = _mm256_xor_si256(*lo, _mm256_sll_epi16(_mm256_unpacklo_epi8(y, zero), shift));
+                *hi = _mm256_xor_si256(*hi, _mm256_sll_epi16(_mm256_unpackhi_epi8(y, zero), shift));
+            }
+        }
+
+        // Vectorized gf8_reduce over u16 lanes: two-step fold of the high byte
+        // h with h ^ (h<<1) ^ (h<<3) ^ (h<<4)  (x^8 = x^4+x^3+x+1).
+        let mask_ff = _mm256_set1_epi16(0xff);
+        let fold = |p: __m256i| -> __m256i {
+            let h = _mm256_srli_epi16::<8>(p);
+            _mm256_xor_si256(
+                _mm256_and_si256(p, mask_ff),
+                _mm256_xor_si256(
+                    _mm256_xor_si256(h, _mm256_slli_epi16::<1>(h)),
+                    _mm256_xor_si256(_mm256_slli_epi16::<3>(h), _mm256_slli_epi16::<4>(h)),
+                ),
+            )
+        };
+        // Two folds bring 15-bit accumulators down to 8 bits; the second fold's
+        // high byte is at most 0x0f, so lanes stay below 256 for `packus`.
+        let reduce = |p: __m256i| _mm256_and_si256(fold(fold(p)), mask_ff);
+        for (h, [lo, hi]) in acc.into_iter().enumerate() {
+            _mm256_storeu_si256(
+                out.as_mut_ptr().add(32 * h).cast(),
+                _mm256_packus_epi16(reduce(lo), reduce(hi)),
+            );
+        }
+    }
+}
+
 /// x86 GFNI kernel: same structure as the scalar fallback (SSE2 `apply` into
 /// `a_col`/`b_col`, then vectorized combine), with the per-lane F_8 products
 /// done 16-at-a-time by `gf2p8mulb` (`_mm_gf2p8mul_epi8`).
@@ -556,7 +624,7 @@ unsafe fn shift_reduce_inner_ab_gfni_512(
 ///
 /// # Safety
 /// Requires the `gfni` target feature (plus SSE2, baseline on x86_64).
-#[cfg(all(target_arch = "x86_64", target_feature = "gfni", not(target_feature = "avx512bw")))]
+#[cfg(all(target_arch = "x86_64", target_feature = "gfni", not(target_feature = "avx2")))]
 #[target_feature(enable = "gfni", enable = "sse2")]
 unsafe fn shift_reduce_inner_ab_gfni(
     a_packed: &[u8],
@@ -620,9 +688,9 @@ unsafe fn shift_reduce_inner_ab_gfni(
 }
 
 /// Kept under `#[allow(dead_code)]` because the dispatcher only reaches it when
-/// neither NEON nor GFNI is available, which is not any platform we build on
-/// today. It stays as that fallback AND as the cross-check oracle for
-/// `neon_fused_inner_matches_scalar_inner` / `gfni_inner_matches_scalar_inner`.
+/// neither NEON, AVX2 nor GFNI is available, which is not any platform we build
+/// on today. It stays as that fallback AND as the cross-check oracle for
+/// `neon_fused_inner_matches_scalar_inner` / `x86_inner_matches_scalar_inner`.
 #[allow(dead_code)]
 fn shift_reduce_inner_ab_scalar(
     a_packed: &[u8],
@@ -686,6 +754,7 @@ impl Convert {
     }
 
     /// Add one `x_outer`'s medium bytes, one 64-lane row per medium position, at weight `eq_lo`.
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
     #[inline(always)]
     fn accumulate(&mut self, ab: &[[u8; 64]], c: &[[u8; 64]], eq_lo: F192) {
         let convert = convert_table();
@@ -701,9 +770,66 @@ impl Convert {
         }
     }
 
+    /// Add one `x_outer`'s medium bytes, one 64-lane row per medium position, at weight `eq_lo`.
+    ///
+    /// The rows convert byte-sliced against fixed maps, then each lane takes its product by `eq_lo`.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[inline(always)]
+    fn accumulate(&mut self, ab: &[[u8; 64]], c: &[[u8; 64]], eq_lo: F192) {
+        static MAPS: LazyLock<ConvertMaps<avx2::Best>> = LazyLock::new(convert_maps::<avx2::Best>);
+        let maps = &*MAPS;
+        for (acc, rows) in [(&mut self.ab, ab), (&mut self.c, c)] {
+            // SAFETY: the function is compiled only with AVX2 enabled.
+            let cf = unsafe { convert_avx2::<avx2::Best>(rows, maps) };
+            for (acc, cf) in acc.as_chunks_mut::<4>().0.iter_mut().zip(cf.as_chunks::<4>().0) {
+                for (acc, p) in acc.iter_mut().zip(mul4(*cf, [eq_lo; 4])) {
+                    *acc += p;
+                }
+            }
+        }
+    }
+
     const fn values(&self) -> ([F192; ELL], [F192; ELL]) {
         (self.ab, self.c)
     }
+}
+
+/// The maps of each medium position `b`: the weights `gamma^b * phi_8(2^s)`.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+type ConvertMaps<P> = [[<P as avx2::Product>::Map; avx2::OUT_BYTES]; N_MEDIUM_VALUES];
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[cfg_attr(
+    all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"),
+    allow(dead_code)
+)]
+fn convert_maps<P: avx2::Product>() -> ConvertMaps<P> {
+    let units: [F192; 8] = std::array::from_fn(|s| PHI_8_TABLE[1 << s]);
+    gamma_powers().map(|g| P::maps(&units.map(|u| g * u)))
+}
+
+/// `sum_b gamma^b * phi_8(rows[b][lane])` for every lane, byte-sliced.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[cfg_attr(
+    all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"),
+    allow(dead_code)
+)]
+#[target_feature(enable = "avx2")]
+fn convert_avx2<P: avx2::Product>(rows: &[[u8; 64]], maps: &ConvertMaps<P>) -> [F192; ELL] {
+    let mut out = [F192::ZERO; ELL];
+    for (h, out) in out.as_chunks_mut::<{ avx2::HALF }>().0.iter_mut().enumerate() {
+        let mut acc = [_mm256_setzero_si256(); avx2::OUT_BYTES];
+        // Eight output bytes at a time keep their accumulators in registers.
+        for (o, acc) in acc.as_chunks_mut::<8>().0.iter_mut().enumerate() {
+            for (row, m) in rows.iter().zip(maps) {
+                // SAFETY: each half-row is 32 bytes.
+                let x = unsafe { _mm256_loadu_si256(row[avx2::HALF * h..].as_ptr().cast()) };
+                avx2::accumulate8::<P>(acc, P::input(x), &m[8 * o..]);
+            }
+        }
+        avx2::store_f192(&acc, out);
+    }
+    out
 }
 
 /// The per-`x_hi` sums of one worker, byte-sliced: register `o` holds byte `o` of every lane's sum.
@@ -1098,9 +1224,33 @@ mod tests {
         assert_eq!(partials.values(), (want_ab, want_c));
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "gfni"))]
+    /// Every AVX2 product this target compiles converts as the definition does, not only the dispatched one.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     #[test]
-    fn gfni_inner_matches_scalar_inner() {
+    fn convert_avx2_matches_definition() {
+        fn check<P: avx2::Product>(rng: &mut Rng) {
+            let maps = convert_maps::<P>();
+            for n in [16, 7] {
+                let rows: Vec<[u8; 64]> = (0..n).map(|_| std::array::from_fn(|_| rng.next_u64() as u8)).collect();
+                // SAFETY: the crate is built with AVX2.
+                let got = unsafe { convert_avx2::<P>(&rows, &maps) };
+                let want: [F192; ELL] = std::array::from_fn(|lane| {
+                    rows.iter()
+                        .zip(gamma_powers())
+                        .fold(F192::ZERO, |acc, (row, &gamma)| acc + gamma * phi8(F8(row[lane])))
+                });
+                assert_eq!(got, want, "n={n}");
+            }
+        }
+        let mut rng = Rng::new(0xA7_C04E);
+        check::<avx2::Shuffle>(&mut rng);
+        #[cfg(target_feature = "gfni")]
+        check::<avx2::Gfni>(&mut rng);
+    }
+
+    #[cfg(all(target_arch = "x86_64", any(target_feature = "gfni", target_feature = "avx2")))]
+    #[test]
+    fn x86_inner_matches_scalar_inner() {
         let mut seed = 0xDEADBEEFu64;
         let mut next = || {
             seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
@@ -1118,9 +1268,15 @@ mod tests {
 
             let mut out_scalar = [0u8; 64];
             shift_reduce_inner_ab_scalar(&a_packed, &b_packed, &inv_table, 0, 0, &mut out_scalar);
-            let mut out_gfni = [0u8; 64];
-            shift_reduce_inner_ab(&a_packed, &b_packed, &inv_table, 0, 0, &mut out_gfni);
-            assert_eq!(out_scalar, out_gfni);
+            let mut out_simd = [0u8; 64];
+            shift_reduce_inner_ab(&a_packed, &b_packed, &inv_table, 0, 0, &mut out_simd);
+            assert_eq!(out_scalar, out_simd, "dispatched");
+            #[cfg(target_feature = "avx2")]
+            {
+                // SAFETY: the crate is built with AVX2, and with GFNI where the kernel uses it.
+                unsafe { shift_reduce_inner_ab_avx2(&a_packed, &b_packed, &inv_table, 0, 0, &mut out_simd) };
+                assert_eq!(out_scalar, out_simd, "avx2");
+            }
         }
     }
 

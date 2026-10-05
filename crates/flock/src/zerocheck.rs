@@ -22,13 +22,13 @@
 //! is tested on honest witnesses; verify also rejects byte-mutated proofs and
 //! shape-corrupted ones.
 
-use bit_fold::BitFold;
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
 use multilinear::{
     PackedWitness, bit_round_materialize, bit_round_pair, fold_and_round_pair_into, fold_in_place_pair,
     fold_in_place_single, interpolate_at_z_combined, round_pair_naive, round_single_naive,
 };
 use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
+use primitives::bit_fold::BitFold;
 use primitives::field::{F8, F192};
 use primitives::multilinear::skip_lagrange_weights;
 use thiserror::Error;
@@ -36,7 +36,6 @@ use univariate_skip_optimized::{
     c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
 };
 
-pub mod bit_fold;
 pub mod multilinear;
 pub mod univariate_skip;
 pub mod univariate_skip_optimized;
@@ -52,9 +51,9 @@ pub const MIN_LOG_N: usize = K_SKIP + N_INNER;
 
 /// Passes over the packed bits, two rounds each, before the folded tables are stored.
 ///
-/// - A pass re-reads the three bit tables, `3 * 2^m` bits.
+/// - A pass re-reads the `a` and `b` bit tables, `2 * 2^m` bits; it derives `c = a AND b`.
 /// - Storing at level `t` writes three F192 tables, `3 * 192 * 2^(m - 6 - t)` bits, then reads them back.
-/// - On x86 a pass is bandwidth-bound, with GFNI or with the byte tables.
+/// - On x86 a pass is bandwidth-bound with GFNI, and the AVX2 nibble lookups keep it cheap enough for the same choice.
 /// - So storing pays once the tables are well below the bits: level 4, after two passes.
 /// - On aarch64 the byte-table fold is compute-bound, its tables growing with the level.
 /// - There a pass costs more than the stored tables' traffic: store at once.
@@ -164,6 +163,8 @@ fn send_round(
 
 /// THE zerocheck prover entry: proves `a·b ⊕ c = 0` over the padded cube,
 /// leaving `(â, b̂, ĉ)` claimed at one point for lincheck to batch.
+///
+/// Only round 1 reads `c_packed`: the later passes derive `c = a AND b`, which an honest witness satisfies.
 pub fn prove_packed_padded(
     a_packed: &[u8],
     b_packed: &[u8],
@@ -225,7 +226,7 @@ pub fn prove_packed_padded(
     //
     // Level `t` is the round with `rho_1..rho_t` already bound.
     //
-    //     bits of a, b, c    1 bit per slot, 3 * 2^m bits in all
+    //     bits of a, b       1 bit per slot, 2 * 2^m bits in all; c = a AND b is derived, not read
     //     one F192 table     192 bits per slot, 2^(m - 6 - t) slots each
     //
     // While the tables would be larger than the bits, re-reading the bits is the cheaper pass.
@@ -238,7 +239,6 @@ pub fn prove_packed_padded(
     let bits = PackedWitness {
         a: a_packed,
         b: b_packed,
-        c: c_packed,
     };
     let lagrange = skip_lagrange_weights(k_skip, z);
     // The running claim, mirrored from the verifier (same round-1 values, same z).

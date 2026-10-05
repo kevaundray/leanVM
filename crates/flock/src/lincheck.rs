@@ -86,23 +86,20 @@
 //!   `byte_idx` and apply it across all `i_inner` with one lookup + one XOR
 //!   per byte.
 
-#[cfg(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-))]
-use crate::zerocheck::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
-#[cfg(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-))]
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use core::arch::x86_64::*;
 use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
 use parallel::SendPtr;
 use pcs::ring_switch::inner_product_ext;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use primitives::bit_fold::avx2;
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "gfni",
+    target_feature = "avx512bw",
+    target_feature = "avx512vbmi"
+))]
+use primitives::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
 use primitives::field::F192;
 #[cfg(target_arch = "aarch64")]
 use primitives::field::neon::xor3_u64;
@@ -541,14 +538,9 @@ fn partial_fold_packed_z_oblock_padded(
     out
 }
 
-/// Stripes whose matrices one GFNI sweep holds at once.
-#[cfg(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-))]
-const GFNI_TILE: usize = 8;
+/// Stripes whose maps one byte-sliced sweep holds at once.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+const SWEEP_TILE: usize = 8;
 
 /// The partial fold with GFNI, outer-partitioned like the tiled fold.
 ///
@@ -577,7 +569,7 @@ fn partial_fold_packed_z_gfni(
     assert_eq!(z_packed.len(), n_stripes * k);
     assert_eq!(eq_outer.len(), 8 * n_stripes);
     assert!(
-        k >= 64 && n_stripes.is_multiple_of(GFNI_TILE),
+        k >= 64 && n_stripes.is_multiple_of(SWEEP_TILE),
         "whole registers and whole tiles"
     );
     // Rows past `useful_bits` are honest zeros; a group straddling the boundary folds them in harmlessly.
@@ -585,7 +577,7 @@ fn partial_fold_packed_z_gfni(
 
     // One byte-sliced accumulator per worker, one tile of stripes per task.
     let acc = parallel::map_reduce_with_state(
-        n_stripes / GFNI_TILE,
+        n_stripes / SWEEP_TILE,
         || (),
         // SAFETY: an all-zero bit pattern is a valid register value.
         || vec![unsafe { core::mem::zeroed::<[__m512i; OUT_BYTES]>() }; groups],
@@ -594,7 +586,7 @@ fn partial_fold_packed_z_gfni(
             fold_tile(
                 z_packed,
                 k,
-                &eq_outer[8 * GFNI_TILE * tile..][..8 * GFNI_TILE],
+                &eq_outer[8 * SWEEP_TILE * tile..][..8 * SWEEP_TILE],
                 tile,
                 acc,
             );
@@ -616,8 +608,8 @@ fn partial_fold_packed_z_gfni(
     #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
     fn fold_tile(z_packed: &[u8], k: usize, eq: &[F192], tile: usize, acc: &mut [[__m512i; OUT_BYTES]]) {
         let eq: &[[F192; 8]] = eq.as_chunks().0;
-        let matrices: [[u64; OUT_BYTES]; GFNI_TILE] = std::array::from_fn(|t| weight_matrices(&eq[t]));
-        let first = tile * GFNI_TILE;
+        let matrices: [[u64; OUT_BYTES]; SWEEP_TILE] = std::array::from_fn(|t| weight_matrices(&eq[t]));
+        let first = tile * SWEEP_TILE;
         for (g, acc) in acc.iter_mut().enumerate() {
             let mut r = *acc;
             for (t, m) in matrices.iter().enumerate() {
@@ -641,6 +633,95 @@ fn partial_fold_packed_z_gfni(
     out
 }
 
+/// The partial fold on AVX2: the AVX-512 fold's shape, one register being 32 consecutive `i_inner` of a stripe.
+///
+/// A group of 64 `i_inner` is two halves of 24 byte-sliced accumulators, each half swept eight output bytes at a time.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[cfg_attr(
+    all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"),
+    allow(dead_code)
+)]
+fn partial_fold_packed_z_avx2<P: avx2::Product>(
+    z_packed: &[u8],
+    m: usize,
+    k_log: usize,
+    useful_bits: usize,
+    eq_outer: &[F192],
+) -> Vec<F192> {
+    let (k, n_stripes) = (1usize << k_log, 1usize << (m - k_log - 3));
+    assert_eq!(z_packed.len(), n_stripes * k);
+    assert_eq!(eq_outer.len(), 8 * n_stripes);
+    assert!(
+        k >= 64 && n_stripes.is_multiple_of(SWEEP_TILE),
+        "whole registers and whole tiles"
+    );
+    // Rows past `useful_bits` are honest zeros; a group straddling the boundary folds them in harmlessly.
+    let groups = useful_bits.div_ceil(64);
+
+    // One byte-sliced accumulator per worker, one tile of stripes per task.
+    let acc = parallel::map_reduce_with_state(
+        n_stripes / SWEEP_TILE,
+        || (),
+        // SAFETY: an all-zero bit pattern is a valid register value.
+        || vec![unsafe { core::mem::zeroed::<[[__m256i; avx2::OUT_BYTES]; 2]>() }; groups],
+        // SAFETY: the function is compiled only with AVX2 enabled.
+        |(), acc, tile| unsafe {
+            fold_tile::<P>(
+                z_packed,
+                k,
+                &eq_outer[8 * SWEEP_TILE * tile..][..8 * SWEEP_TILE],
+                tile,
+                acc,
+            );
+        },
+        |mut x, y| {
+            for (x, y) in x.iter_mut().flatten().flatten().zip(y.iter().flatten().flatten()) {
+                // SAFETY: as above.
+                *x = unsafe { _mm256_xor_si256(*x, *y) };
+            }
+            x
+        },
+    );
+
+    #[target_feature(enable = "avx2")]
+    fn fold_tile<P: avx2::Product>(
+        z_packed: &[u8],
+        k: usize,
+        eq: &[F192],
+        tile: usize,
+        acc: &mut [[[__m256i; avx2::OUT_BYTES]; 2]],
+    ) {
+        let eq: &[[F192; 8]] = eq.as_chunks().0;
+        let maps: [[P::Map; avx2::OUT_BYTES]; SWEEP_TILE] = std::array::from_fn(|t| P::maps(&eq[t]));
+        let first = tile * SWEEP_TILE;
+        for (g, acc) in acc.iter_mut().enumerate() {
+            for (h, acc) in acc.iter_mut().enumerate() {
+                // Eight output bytes at a time keep their accumulators in registers.
+                for (o, acc) in acc.as_chunks_mut::<8>().0.iter_mut().enumerate() {
+                    let mut r = *acc;
+                    for (t, m) in maps.iter().enumerate() {
+                        let row = &z_packed[(first + t) * k + 64 * g + avx2::HALF * h..][..avx2::HALF];
+                        // SAFETY: the row is 32 bytes.
+                        let x = unsafe { _mm256_loadu_si256(row.as_ptr().cast()) };
+                        avx2::accumulate8::<P>(&mut r, P::input(x), &m[8 * o..]);
+                    }
+                    *acc = r;
+                }
+            }
+        }
+    }
+
+    // Rows past the last group stay zero.
+    let mut out = vec![F192::ZERO; k];
+    for (acc, out) in acc.iter().zip(out.as_chunks_mut::<64>().0) {
+        for (acc, out) in acc.iter().zip(out.as_chunks_mut::<{ avx2::HALF }>().0) {
+            // SAFETY: as above.
+            unsafe { avx2::store_f192(acc, out) };
+        }
+    }
+    out
+}
+
 /// Dispatch helper: pick the fastest single-matrix partial fold available
 /// for the given (m, k_log). Threads `useful_bits` through so the kernel
 /// can skip blocks past the useful region of each block (byte-identical to
@@ -658,8 +739,16 @@ fn partial_fold_packed_z_best(
         target_feature = "avx512bw",
         target_feature = "avx512vbmi"
     ))]
-    if k_log >= 6 && n_log_ok_for_tile(m, k_log, GFNI_TILE) {
+    if k_log >= 6 && n_log_ok_for_tile(m, k_log, SWEEP_TILE) {
         return partial_fold_packed_z_gfni(z_packed, m, k_log, useful_bits, eq_outer);
+    }
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        not(all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"))
+    ))]
+    if k_log >= 6 && n_log_ok_for_tile(m, k_log, SWEEP_TILE) {
+        return partial_fold_packed_z_avx2::<avx2::Best>(z_packed, m, k_log, useful_bits, eq_outer);
     }
     if n_log_ok_for_tile(m, k_log, NEON_TILE_T) {
         #[cfg(target_arch = "aarch64")]
@@ -1570,6 +1659,30 @@ mod tests {
             let best = partial_fold_packed_z_best(&z_packed, m, k_log, useful_bits, &eq);
             assert_eq!(serial, best, "m={m} k_log={k_log} useful={useful_bits}");
         }
+    }
+
+    /// Every AVX2 product this target compiles folds as the scalar reference does, not only the dispatched one.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[test]
+    fn partial_fold_avx2_matches_serial() {
+        fn check<P: avx2::Product>(name: &str) {
+            for &(m, k_log, useful_bits) in &[(16usize, 8usize, 1usize << 8), (20, 10, 597), (21, 14, 16_000)] {
+                let k = 1usize << k_log;
+                let mut rng = Rng::new(0xA7_2F01D + (m * 31 + useful_bits) as u64);
+                let mut z = rng.bits(1 << m);
+                for block in z.chunks_mut(k) {
+                    block[useful_bits..].fill(false);
+                }
+                let z_packed = pack_z_lincheck(&z, m, k_log);
+                let eq = build_eq(&rng.ext_vec(m - k_log));
+                let serial = partial_fold_packed_z(&z_packed, m, k_log, &eq);
+                let folded = partial_fold_packed_z_avx2::<P>(&z_packed, m, k_log, useful_bits, &eq);
+                assert_eq!(serial, folded, "{name}: m={m} k_log={k_log} useful={useful_bits}");
+            }
+        }
+        check::<avx2::Shuffle>("shuffle");
+        #[cfg(target_feature = "gfni")]
+        check::<avx2::Gfni>("gfni");
     }
 
     /// NEON single-matrix kernel matches the scalar reference.

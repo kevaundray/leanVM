@@ -59,8 +59,57 @@ jobs:
       - name: Clippy on the AVX-512 backends
         if: matrix.arch == 'x86-64'
         env:
-          RUSTFLAGS: -C target-feature=+avx512f,+avx512bw,+avx512vl,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes
+          RUSTFLAGS: -C target-feature=+avx512f,+avx512bw,+avx512vl,+avx512vbmi,+vpclmulqdq,+pclmulqdq,+gfni,+avx2,+aes
         run: cargo clippy --release --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings
+
+  # The haswell pin builds the AVX2 arms without VPCLMULQDQ or GFNI. These legs build, lint and test the arms that
+  # Zen 3 (AVX2 with VPCLMULQDQ) and Alder Lake and later (AVX2 with GFNI) dispatch to, which no other job compiles,
+  # and run the kernels' tests on the NEON arms, which the ARM64 clippy leg only lints.
+  simd:
+    name: SIMD (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AVX2 + VPCLMULQDQ
+            runner: ubuntu-latest
+            rustflags: -C target-cpu=x86-64-v3 -C target-feature=+vpclmulqdq,+pclmulqdq
+            cpu: avx2 vpclmulqdq pclmulqdq
+          - name: AVX2 + GFNI
+            runner: ubuntu-latest
+            rustflags: -C target-cpu=x86-64-v3 -C target-feature=+gfni,+vpclmulqdq,+pclmulqdq,+aes
+            cpu: avx2 gfni vpclmulqdq pclmulqdq aes
+          - name: NEON
+            runner: ubuntu-24.04-arm
+            rustflags: -C target-cpu=neoverse-n2 -C target-feature=+aes,+sha3
+            cpu: aes pmull sha3
+    runs-on: ${{ matrix.runner }}
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
+    steps:
+      - uses: actions/checkout@v4
+      # The tests run what the flags enable, so a runner without it dies of SIGILL. GitHub's EPYC 7763 has no GFNI:
+      # there the GFNI leg builds and lints only, and the tests run when it lands on a CPU that has it.
+      - name: CPU features
+        id: cpu
+        run: |
+          flags=$(grep -m1 -E '^(flags|Features)' /proc/cpuinfo)
+          missing=$(for f in ${{ matrix.cpu }}; do grep -qw "$f" <<<"$flags" || printf '%s ' "$f"; done)
+          if [ -n "$missing" ]; then
+            echo "::notice::this runner has no $missing; the tests are skipped"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippyall
+      - name: Test the kernels
+        if: steps.cpu.outputs.run == 'true'
+        run: cargo test --release -p primitives -p pcs -p flock
 
   clippy-guests:
     name: Clippy (RISC-V guests)

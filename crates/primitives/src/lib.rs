@@ -3,6 +3,7 @@
 
 use std::mem::{MaybeUninit, needs_drop};
 
+pub mod bit_fold;
 pub mod bits;
 pub mod field;
 pub mod hash;

@@ -11,7 +11,10 @@
 //! the witness is in `K`, so every product is a mixed one).
 
 use super::{Basis, FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, PRECOMPUTED_ROUNDS, SumcheckMessage, window};
-#[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+#[cfg(not(any(
+    all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+    all(target_arch = "aarch64", target_feature = "aes")
+)))]
 use primitives::field::gf2_64::mul_wide;
 use primitives::field::{F64, F192};
 use std::ops::Range;
@@ -106,7 +109,22 @@ impl ProductRow {
         unsafe {
             avx512::mul_acc(self, w, k);
         }
-        #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+        #[cfg(any(
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))
+            ),
+            all(target_arch = "aarch64", target_feature = "aes")
+        ))]
+        // SAFETY: the features of the target's arm are enabled at compile time.
+        unsafe {
+            lanes::mul_acc::<lanes::Best>(self, w, k);
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+            all(target_arch = "aarch64", target_feature = "aes")
+        )))]
         for j in 0..ROW / 2 {
             let (even, odd) = (k[2 * j], k[2 * j + 1]);
             let sums = [
@@ -264,6 +282,305 @@ mod avx512 {
             }
         }
     }
+}
+
+/// The AVX-512 kernels' products, one register of 128-bit lanes at a time, on narrower registers: 256-bit VPCLMULQDQ
+/// with AVX2, 128-bit PCLMULQDQ without, and PMULL on aarch64.
+///
+/// On an AVX-512 target only the tests use it.
+#[cfg(any(
+    all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+    all(target_arch = "aarch64", target_feature = "aes")
+))]
+#[cfg_attr(all(target_feature = "vpclmulqdq", target_feature = "avx512f"), allow(dead_code))]
+mod lanes {
+    use super::{F64, F192, LaneWeight, ProductRow, ROW, WeightRow};
+    #[cfg(target_arch = "aarch64")]
+    use core::arch::aarch64::*;
+    #[cfg(target_arch = "x86_64")]
+    use core::arch::x86_64::*;
+    #[cfg(target_arch = "aarch64")]
+    use primitives::field::neon::xor3_u64;
+
+    /// Registers of 128-bit lanes and the carry-less product within each lane.
+    pub(super) trait Clmul: Copy {
+        /// Qwords per register.
+        const WORDS: usize;
+
+        /// # Safety
+        ///
+        /// `p` must be readable for `WORDS` qwords.
+        unsafe fn load(p: *const u64) -> Self;
+
+        /// # Safety
+        ///
+        /// `p` must be writable for `WORDS` qwords.
+        unsafe fn store(self, p: *mut u64);
+
+        /// The register whose qword `i` is `word(i)`, packed from scalars.
+        fn from_words(word: impl Fn(usize) -> u64) -> Self;
+
+        /// In every lane, qword `IMM & 1` of `self` by qword `(IMM >> 4) & 1` of `other` (the x86 immediate).
+        fn mul<const IMM: i32>(self, other: Self) -> Self;
+
+        fn xor(self, other: Self) -> Self;
+
+        fn xor3(self, b: Self, c: Self) -> Self;
+    }
+
+    /// 256-bit VPCLMULQDQ.
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+    #[cfg_attr(target_feature = "avx512f", allow(dead_code))]
+    #[derive(Clone, Copy)]
+    pub(super) struct Ymm(__m256i);
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+    impl Clmul for Ymm {
+        const WORDS: usize = 4;
+
+        #[inline(always)]
+        unsafe fn load(p: *const u64) -> Self {
+            // SAFETY: the impl exists only when the crate is built with AVX2, and the caller guarantees four
+            // readable qwords at `p`; the load is unaligned.
+            Self(unsafe { _mm256_loadu_si256(p.cast()) })
+        }
+
+        #[inline(always)]
+        unsafe fn store(self, p: *mut u64) {
+            // SAFETY: as for `load`, writable.
+            unsafe { _mm256_storeu_si256(p.cast(), self.0) }
+        }
+
+        #[inline(always)]
+        fn from_words(word: impl Fn(usize) -> u64) -> Self {
+            // SAFETY: the impl exists only when the crate is built with AVX2; registers only.
+            Self(unsafe { _mm256_set_epi64x(word(3) as i64, word(2) as i64, word(1) as i64, word(0) as i64) })
+        }
+
+        #[inline(always)]
+        fn mul<const IMM: i32>(self, other: Self) -> Self {
+            // SAFETY: the impl exists only when the crate is built with VPCLMULQDQ and AVX2; registers only.
+            Self(unsafe { _mm256_clmulepi64_epi128::<IMM>(self.0, other.0) })
+        }
+
+        #[inline(always)]
+        fn xor(self, other: Self) -> Self {
+            // SAFETY: as for `from_words`.
+            Self(unsafe { _mm256_xor_si256(self.0, other.0) })
+        }
+
+        #[inline(always)]
+        fn xor3(self, b: Self, c: Self) -> Self {
+            // SAFETY: as for `from_words`.
+            Self(unsafe { _mm256_xor_si256(_mm256_xor_si256(self.0, b.0), c.0) })
+        }
+    }
+
+    /// 128-bit PCLMULQDQ.
+    #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+    #[cfg_attr(target_feature = "vpclmulqdq", allow(dead_code))]
+    #[derive(Clone, Copy)]
+    pub(super) struct Xmm(__m128i);
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+    impl Clmul for Xmm {
+        const WORDS: usize = 2;
+
+        #[inline(always)]
+        unsafe fn load(p: *const u64) -> Self {
+            // SAFETY: SSE2 is part of the x86-64 baseline, and the caller guarantees two readable qwords at `p`; the
+            // load is unaligned.
+            Self(unsafe { _mm_loadu_si128(p.cast()) })
+        }
+
+        #[inline(always)]
+        unsafe fn store(self, p: *mut u64) {
+            // SAFETY: as for `load`, writable.
+            unsafe { _mm_storeu_si128(p.cast(), self.0) }
+        }
+
+        #[inline(always)]
+        fn from_words(word: impl Fn(usize) -> u64) -> Self {
+            // SAFETY: SSE2 is part of the x86-64 baseline; registers only.
+            Self(unsafe { _mm_set_epi64x(word(1) as i64, word(0) as i64) })
+        }
+
+        #[inline(always)]
+        fn mul<const IMM: i32>(self, other: Self) -> Self {
+            // SAFETY: the impl exists only when the crate is built with PCLMULQDQ; registers only.
+            Self(unsafe { _mm_clmulepi64_si128::<IMM>(self.0, other.0) })
+        }
+
+        #[inline(always)]
+        fn xor(self, other: Self) -> Self {
+            // SAFETY: as for `from_words`.
+            Self(unsafe { _mm_xor_si128(self.0, other.0) })
+        }
+
+        #[inline(always)]
+        fn xor3(self, b: Self, c: Self) -> Self {
+            // SAFETY: as for `from_words`.
+            Self(unsafe { _mm_xor_si128(_mm_xor_si128(self.0, b.0), c.0) })
+        }
+    }
+
+    /// PMULL, with EOR3 where the target has it.
+    #[cfg(target_arch = "aarch64")]
+    #[derive(Clone, Copy)]
+    pub(super) struct Neon(uint64x2_t);
+
+    #[cfg(target_arch = "aarch64")]
+    impl Clmul for Neon {
+        const WORDS: usize = 2;
+
+        #[inline(always)]
+        unsafe fn load(p: *const u64) -> Self {
+            // SAFETY: NEON is part of the aarch64 baseline, and the caller guarantees two readable qwords at `p`.
+            Self(unsafe { vld1q_u64(p) })
+        }
+
+        #[inline(always)]
+        unsafe fn store(self, p: *mut u64) {
+            // SAFETY: as for `load`, writable.
+            unsafe { vst1q_u64(p, self.0) }
+        }
+
+        #[inline(always)]
+        fn from_words(word: impl Fn(usize) -> u64) -> Self {
+            // SAFETY: NEON is part of the aarch64 baseline; registers only.
+            Self(unsafe { vcombine_u64(vcreate_u64(word(0)), vcreate_u64(word(1))) })
+        }
+
+        #[inline(always)]
+        fn mul<const IMM: i32>(self, other: Self) -> Self {
+            // SAFETY: the impl exists only when the crate is built with `aes`, which carries PMULL; registers only.
+            unsafe {
+                let product = match IMM {
+                    0x00 => vmull_p64(vgetq_lane_u64::<0>(self.0), vgetq_lane_u64::<0>(other.0)),
+                    0x01 => vmull_p64(vgetq_lane_u64::<1>(self.0), vgetq_lane_u64::<0>(other.0)),
+                    0x10 => vmull_p64(vgetq_lane_u64::<0>(self.0), vgetq_lane_u64::<1>(other.0)),
+                    _ => vmull_high_p64(vreinterpretq_p64_u64(self.0), vreinterpretq_p64_u64(other.0)),
+                };
+                Self(vreinterpretq_u64_p128(product))
+            }
+        }
+
+        #[inline(always)]
+        fn xor(self, other: Self) -> Self {
+            // SAFETY: NEON is part of the aarch64 baseline; registers only.
+            Self(unsafe { veorq_u64(self.0, other.0) })
+        }
+
+        #[inline(always)]
+        fn xor3(self, b: Self, c: Self) -> Self {
+            // SAFETY: `xor3_u64` issues EOR3 only where the target enables `sha3`; registers only.
+            Self(unsafe { xor3_u64(self.0, b.0, c.0) })
+        }
+    }
+
+    /// The products of the AVX-512 `mul_acc`, a register at a time.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features of `V`.
+    #[inline(always)]
+    pub(super) unsafe fn mul_acc<V: Clmul>(acc: &mut ProductRow, w: &WeightRow, k: &[u64; ROW]) {
+        for c in (0..ROW).step_by(V::WORDS) {
+            // SAFETY: `c + V::WORDS <= ROW`, the length of every row read and written.
+            unsafe {
+                let kv = V::load(k.as_ptr().add(c));
+                let (lo, hi, c2) = (
+                    V::load(w.lo.as_ptr().add(c)),
+                    V::load(w.hi.as_ptr().add(c)),
+                    V::load(w.c2.as_ptr().add(c)),
+                );
+                let [s0, s1, s2] = &mut acc.0;
+                for (row, (p, q)) in [
+                    (s0, (lo.mul::<0x00>(kv), hi.mul::<0x10>(kv))),
+                    (s1, (lo.mul::<0x01>(kv), hi.mul::<0x11>(kv))),
+                    (s2, (c2.mul::<0x00>(kv), c2.mul::<0x11>(kv))),
+                ] {
+                    let at = row.as_mut_ptr().add(c);
+                    V::load(at).xor3(p, q).store(at);
+                }
+            }
+        }
+    }
+
+    /// The products of the AVX-512 `fold_acc`, a register at a time, each coefficient packed from scalars.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features of `V`.
+    #[inline(always)]
+    pub(super) unsafe fn fold_acc<V: Clmul>(acc: &mut [[u64; ROW]; 6], e: &LaneWeight, b: &[F192; ROW]) {
+        for c in (0..ROW).step_by(V::WORDS) {
+            let kv = |k: usize| V::from_words(|i| [b[c + i].c0, b[c + i].c1, b[c + i].c2][k]);
+            // SAFETY: as in `mul_acc`.
+            unsafe { mul_by_words(acc, e, c, [kv(0), kv(1), kv(2)].into_iter().enumerate()) };
+        }
+    }
+
+    /// The products of the AVX-512 `fold_base_acc`, a register at a time.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features of `V`.
+    #[inline(always)]
+    pub(super) unsafe fn fold_base_acc<V: Clmul>(acc: &mut [[u64; ROW]; 6], e: &LaneWeight, f: &[F64; ROW]) {
+        for c in (0..ROW).step_by(V::WORDS) {
+            // SAFETY: as in `mul_acc`; `F64` is a qword.
+            unsafe {
+                let kv = V::load(f.as_ptr().add(c).cast());
+                mul_by_words(acc, e, c, std::iter::once((0, kv)));
+            }
+        }
+    }
+
+    /// Add the six products of `e·y^k` by the words `kv`, for each `(k, kv)`, to qwords `c..` of the rows, in
+    /// [`super::WeightFold`]'s order.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features of `V`, and `c + V::WORDS <= ROW`.
+    #[inline(always)]
+    unsafe fn mul_by_words<V: Clmul>(
+        acc: &mut [[u64; ROW]; 6],
+        e: &LaneWeight,
+        c: usize,
+        words: impl Iterator<Item = (usize, V)>,
+    ) {
+        // SAFETY: the caller keeps `c + V::WORDS` within every row.
+        unsafe {
+            let [r0, r1, r2, r3, r4, r5] = acc.each_mut().map(|row| row.as_mut_ptr().add(c));
+            let (mut s0, mut s1, mut s2) = (V::load(r0), V::load(r1), V::load(r2));
+            let (mut s3, mut s4, mut s5) = (V::load(r3), V::load(r4), V::load(r5));
+            for (k, kv) in words {
+                let t01 = V::load(e.pairs[k].as_ptr().add(c));
+                let t2 = V::load(e.highs[k].as_ptr().add(c));
+                s0 = s0.xor(t01.mul::<0x00>(kv));
+                s1 = s1.xor(t01.mul::<0x01>(kv));
+                s2 = s2.xor(t01.mul::<0x10>(kv));
+                s3 = s3.xor(t01.mul::<0x11>(kv));
+                s4 = s4.xor(t2.mul::<0x00>(kv));
+                s5 = s5.xor(t2.mul::<0x11>(kv));
+            }
+            for (at, s) in [(r0, s0), (r1, s1), (r2, s2), (r3, s3), (r4, s4), (r5, s5)] {
+                s.store(at);
+            }
+        }
+    }
+
+    /// The arm this target dispatches to.
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+    pub(super) type Best = Ymm;
+    #[cfg(all(
+        target_arch = "x86_64",
+        not(all(target_feature = "vpclmulqdq", target_feature = "avx2"))
+    ))]
+    pub(super) type Best = Xmm;
+    #[cfg(target_arch = "aarch64")]
+    pub(super) type Best = Neon;
 }
 
 /// The sums of the first pass, from which the first `rounds` lane rounds' messages follow.
@@ -469,7 +786,22 @@ impl WeightFold {
             unsafe {
                 avx512::fold_acc(row, e, &b);
             }
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+            #[cfg(any(
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))
+                ),
+                all(target_arch = "aarch64", target_feature = "aes")
+            ))]
+            // SAFETY: the features of the target's arm are enabled at compile time.
+            unsafe {
+                lanes::fold_acc::<lanes::Best>(row, e, &b);
+            }
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+                all(target_arch = "aarch64", target_feature = "aes")
+            )))]
             for (x, w) in b.iter().enumerate() {
                 for (k, c) in [w.c0, w.c1, w.c2].into_iter().enumerate() {
                     Self::add_products(row, e, k, x, c);
@@ -487,7 +819,22 @@ impl WeightFold {
             unsafe {
                 avx512::fold_base_acc(row, e, &f);
             }
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+            #[cfg(any(
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))
+                ),
+                all(target_arch = "aarch64", target_feature = "aes")
+            ))]
+            // SAFETY: the features of the target's arm are enabled at compile time.
+            unsafe {
+                lanes::fold_base_acc::<lanes::Best>(row, e, &f);
+            }
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+                all(target_arch = "aarch64", target_feature = "aes")
+            )))]
             for (x, w) in f.iter().enumerate() {
                 Self::add_products(row, e, 0, x, w.0);
             }
@@ -495,10 +842,13 @@ impl WeightFold {
     }
 
     /// Add the products of word `c` by `e·y^k` to value `x` of `row`.
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    #[cfg(not(any(
+        all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+        all(target_arch = "aarch64", target_feature = "aes")
+    )))]
     fn add_products(row: &mut [[u64; ROW]; 6], e: &LaneWeight, k: usize, x: usize, c: u64) {
         let (j, slots) = (x / 2 * 2, if x.is_multiple_of(2) { [0, 1, 4] } else { [2, 3, 5] });
-        let products = [e.pairs[k][0], e.pairs[k][1], e.highs[k][0]].map(|t| primitives::field::gf2_64::mul_wide(t, c));
+        let products = [e.pairs[k][0], e.pairs[k][1], e.highs[k][0]].map(|t| mul_wide(t, c));
         for (s, p) in slots.into_iter().zip(products) {
             row[s][j] ^= p as u64;
             row[s][j + 1] ^= (p >> 64) as u64;
@@ -514,5 +864,62 @@ impl WeightFold {
                 .map(|s| primitives::field::gf2_64::reduce(u128::from(row[s][j + 1]) << 64 | u128::from(row[s][j])));
             *d = F192::new(c0, c1, c2);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use primitives::test_util::Rng;
+
+    /// Every arm this target compiles accumulates the products of the definition, not only the dispatched one.
+    #[cfg(any(
+        all(target_arch = "x86_64", target_feature = "pclmulqdq"),
+        all(target_arch = "aarch64", target_feature = "aes")
+    ))]
+    #[test]
+    fn every_lane_arm_matches_definition() {
+        fn check<V: lanes::Clmul>(name: &str) {
+            let mut rng = Rng::new(0xF125_79A5);
+            // The grid pass: the sum of every weight's product by its word.
+            let mut acc = ProductRow::default();
+            let mut want = F192::ZERO;
+            for _ in 0..4 {
+                let w = rng.ext_vec(ROW);
+                let k: [u64; ROW] = std::array::from_fn(|_| rng.next_u64());
+                // SAFETY: the caller compiles `V` only with its features.
+                unsafe { lanes::mul_acc::<V>(&mut acc, &WeightRow::pack(&w), &k) };
+                want += w.iter().zip(k).fold(F192::ZERO, |s, (w, k)| s + w.mul_base(F64(k)));
+            }
+            assert_eq!(acc.sum(), want, "{name}: grid pass");
+
+            // The many-bit fold: per value, the sum over lanes of the lane weight times the value.
+            let mut fold = WeightFold::default();
+            let (mut want, mut want_base) = ([F192::ZERO; ROW], [F192::ZERO; ROW]);
+            for _ in 0..3 {
+                let e = rng.ext();
+                let b: [F192; ROW] = std::array::from_fn(|_| rng.ext());
+                let f: [F64; ROW] = std::array::from_fn(|_| F64(rng.next_u64()));
+                // SAFETY: as above.
+                unsafe {
+                    lanes::fold_acc::<V>(&mut fold.0[0], &LaneWeight::new(e), &b);
+                    lanes::fold_base_acc::<V>(&mut fold.0[1], &LaneWeight::new(e), &f);
+                }
+                for x in 0..ROW {
+                    want[x] += e * b[x];
+                    want_base[x] += e.mul_base(f[x]);
+                }
+            }
+            let mut got = [F192::ZERO; 2 * ROW];
+            fold.write(&mut got);
+            assert_eq!(got[..ROW], want, "{name}: fold");
+            assert_eq!(got[ROW..], want_base, "{name}: fold of base words");
+        }
+        #[cfg(target_arch = "x86_64")]
+        check::<lanes::Xmm>("pclmulqdq");
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+        check::<lanes::Ymm>("vpclmulqdq");
+        #[cfg(target_arch = "aarch64")]
+        check::<lanes::Neon>("neon");
     }
 }

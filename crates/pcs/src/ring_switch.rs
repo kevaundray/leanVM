@@ -60,6 +60,7 @@ use super::pack::PACKING_WIDTH;
 use super::tensor_algebra::{DEGREE_E, transpose_s_hat};
 use super::whir::inner_product_base_ext;
 use fiat_shamir::transcript::Challenger;
+use primitives::bit_fold::{BLOCK, F192Map, Sliced};
 use primitives::field::{F64, F192};
 use primitives::multilinear::eq_table;
 
@@ -202,73 +203,43 @@ fn xor_accs(mut a: Vec<F192>, b: Vec<F192>) -> Vec<F192> {
     a
 }
 
-/// Number of bytes in an E element (= lookup tables for the fold).
-const FOLD_N_BYTES: usize = 24;
-/// Entries per byte-lookup table.
-const FOLD_TABLE_SIZE: usize = 256;
-
-/// Build the 24x256 byte-lookup table for [`fold_ext_elems`]:
-/// `table[k * 256 + v] = sum_{bit b set in v} coordinate_weights[k * 8 + b]`.
-/// Byte order: bytes 0..8 are the little-endian bytes of `c0` (bits 0..64),
-/// bytes 8..16 those of `c1` (bits 64..128), and bytes 16..24 those of `c2`.
-fn build_fold_byte_table_ext(coordinate_weights: &[F192]) -> Box<FoldByteTable> {
-    assert_eq!(coordinate_weights.len(), DEGREE_E);
-    let mut tables: Box<FoldByteTable> = Box::new([[F192::ZERO; FOLD_TABLE_SIZE]; FOLD_N_BYTES]);
-    for byte_idx in 0..FOLD_N_BYTES {
-        let bit_base = byte_idx * 8;
-        for value in 0..FOLD_TABLE_SIZE {
-            let mut acc = F192::ZERO;
-            for bit_in_byte in 0..8 {
-                if (value >> bit_in_byte) & 1 == 1 {
-                    acc += coordinate_weights[bit_base + bit_in_byte];
-                }
-            }
-            tables[byte_idx][value] = acc;
-        }
-    }
-    tables
-}
-
-/// The byte table as its shape rather than as a flat run: a `u8` cannot index a
-/// 256-entry row out of bounds and the row index is a constant of the unrolled
-/// loop, so neither lookup carries a bounds check and the row stride folds into
-/// the address. Flat, this is 24 bounds checks and 24 stride multiplies per
-/// output slot, and the address registers they force live do not fit.
-type FoldByteTable = [[F192; FOLD_TABLE_SIZE]; FOLD_N_BYTES];
-
-/// One folded output slot: `sum_{k=0..24} tables[k][byte_k(elem)]`, tree-reduced
-/// so the XORs pipeline.
-#[inline(always)]
-fn fold_one_slot_ext(elem: F192, tables: &FoldByteTable) -> F192 {
-    let bytes = [elem.c0.to_le_bytes(), elem.c1.to_le_bytes(), elem.c2.to_le_bytes()];
-    let mut acc = F192::ZERO;
-    for (word, word_bytes) in bytes.iter().enumerate() {
-        for (byte, &value) in word_bytes.iter().enumerate() {
-            acc += tables[8 * word + byte][value as usize];
-        }
-    }
-    acc
-}
-
 /// A claim's weight `Phi(scale·eq(point, ·))`, kept factored: the split eq
-/// tensor, its high half scaled, and the byte table of `Phi` on the
-/// coordinates, so combining claims needs only additions.
+/// tensor, its high half scaled, and `Phi` on the coordinates, so combining
+/// claims needs only additions.
 pub(crate) struct DeferredWeight {
     eq_lo: Vec<F192>,
     eq_hi: Vec<F192>,
-    table: Box<FoldByteTable>,
+    map: F192Map,
+    /// With a low table of whole blocks: those blocks in the map's layout, and `map` after each high entry's product.
+    ///
+    /// Entry `lo + |eq_lo| hi` is then `Phi(eq_hi[hi] · ·)` of `eq_lo[lo]`, with no product and no input transpose.
+    sliced: Option<(Vec<Sliced>, Vec<F192Map>)>,
+}
+
+/// High variables of a sliced weight: each costs one composed map, worth it only over long low runs.
+fn sliced_hi_bits(n: usize) -> usize {
+    n.saturating_sub(14).min(8)
 }
 
 /// The weight `Phi(scale·eq(point, ·))` of a claim, without materializing it.
 pub(crate) fn deferred_weight(point: &[F192], scale: F192, coordinate_weights: &[F192]) -> DeferredWeight {
-    let (eq_lo, mut eq_hi) = build_eq_split_ext(point);
+    let n = point.len();
+    let n_lo = if n >= 6 { n - sliced_hi_bits(n) } else { split_n_lo(n) };
+    let (eq_lo, mut eq_hi) = (eq_table(&point[..n_lo]), eq_table(&point[n_lo..]));
     for e in &mut eq_hi {
         *e *= scale;
     }
+    let map = F192Map::new(coordinate_weights);
+    let sliced = (n_lo >= 6).then(|| {
+        let blocks = eq_lo.as_chunks::<BLOCK>().0.iter().map(Sliced::new).collect();
+        let maps = eq_hi.iter().map(|&e| map.after_mul(e)).collect();
+        (blocks, maps)
+    });
     DeferredWeight {
         eq_lo,
         eq_hi,
-        table: build_fold_byte_table_ext(coordinate_weights),
+        map,
+        sliced,
     }
 }
 
@@ -277,19 +248,24 @@ pub(crate) fn deferred_weight(point: &[F192], scale: F192, coordinate_weights: &
 /// allocated or read back. `start` is an offset into the basis, which lets a
 /// caller cover it one cache-resident window at a time.
 pub(crate) fn combine_deferred_chunk(outputs: &[DeferredWeight], start: usize, out: &mut [F192]) {
+    let mut eq = [F192::ZERO; BLOCK];
     for claim in outputs {
         let block_len = claim.eq_lo.len();
         assert!(start + out.len() <= block_len * claim.eq_hi.len());
-        let mut done = 0;
-        while done < out.len() {
-            let index = start + done;
-            let lo = index % block_len;
-            let len = (block_len - lo).min(out.len() - done);
-            let e_hi = claim.eq_hi[index / block_len];
-            for (slot, &e_lo) in out[done..done + len].iter_mut().zip(&claim.eq_lo[lo..lo + len]) {
-                *slot += fold_one_slot_ext(e_lo * e_hi, &claim.table);
+        for (b, out) in out.chunks_mut(BLOCK).enumerate() {
+            let first = start + b * BLOCK;
+            match &claim.sliced {
+                Some((blocks, maps)) if first.is_multiple_of(BLOCK) => {
+                    maps[first / block_len].apply_sliced_add(&blocks[first % block_len / BLOCK], out);
+                }
+                _ => {
+                    for (i, e) in eq[..out.len()].iter_mut().enumerate() {
+                        let index = first + i;
+                        *e = claim.eq_lo[index % block_len] * claim.eq_hi[index / block_len];
+                    }
+                    claim.map.apply_add(&eq, out);
+                }
             }
-            done += len;
         }
     }
 }
@@ -593,11 +569,17 @@ mod tests {
         assert_eq!(apply_composed_map(value, &challenges), expanded);
     }
 
-    /// The byte-table fold of a dense tensor: the kernel `combine_deferred_chunk`
-    /// runs per slot, without its factored-eq slot generation.
+    /// `Phi` of a dense tensor: the kernel `combine_deferred_chunk` runs per
+    /// block, without its factored-eq slot generation.
     fn fold_dense(tensor: &[F192], coordinate_weights: &[F192]) -> Vec<F192> {
-        let tables = build_fold_byte_table_ext(coordinate_weights);
-        tensor.iter().map(|&e| fold_one_slot_ext(e, &tables)).collect()
+        let map = F192Map::new(coordinate_weights);
+        let mut out = vec![F192::ZERO; tensor.len()];
+        for (xs, out) in tensor.chunks(BLOCK).zip(out.chunks_mut(BLOCK)) {
+            let mut block = [F192::ZERO; BLOCK];
+            block[..xs.len()].copy_from_slice(xs);
+            map.apply_add(&block, out);
+        }
+        out
     }
 
     /// Reference s_hat_v: brute-force partial evaluation of each bit-column
