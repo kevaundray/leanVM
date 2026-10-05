@@ -13,8 +13,8 @@
 //! rows, in a stack of its own ([`live_windows`]): that is what the bus and the
 //! table sumcheck read, taking the rows past them as the last.
 
-use primitives::field::{F64, F192};
-use zk_alloc::ArenaVec;
+use crate::arith::Arith;
+use primitives::field::F64;
 
 /// What a column is, before it is placed.
 #[derive(Clone, Copy, Debug)]
@@ -70,18 +70,6 @@ pub fn pieces(row_vars: usize, rows: usize) -> Vec<(usize, usize)> {
     out
 }
 
-/// `eq(point[from..], first >> from)`: the weight a point puts on the aligned rows
-/// `[first, first + 2^from)`.
-fn eq_bits(point: &[F192], first: usize, from: usize) -> F192 {
-    point[from..].iter().enumerate().fold(F192::ONE, |e, (k, &r)| {
-        e * if (first >> (from + k)) & 1 == 1 {
-            r
-        } else {
-            F192::ONE + r
-        }
-    })
-}
-
 /// One aligned piece of a committed column: `2^log_rows` rows from `first_row`,
 /// at `offset` in the committed stack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,29 +93,31 @@ impl Column {
     /// `[a, a + 2^e)` takes `eq(row_point[e..], a >> e)`, the share of the point's
     /// equality weight its rows carry; the last committed row, when later rows repeat
     /// it, takes the weight of every row from it on, `1 - Σ` of the others.
-    pub fn scales(&self, row_point: &[F192]) -> Vec<F192> {
+    ///
+    /// Over the verifier's arithmetic, so the recursion machine's rows compute the same scales.
+    pub fn scales<A: Arith>(&self, a: &mut A, row_point: &[A::E]) -> Vec<A::E> {
         assert_eq!(row_point.len(), self.row_vars, "a row point names a row");
         if self.rows == 1 << self.row_vars {
-            return vec![F192::ONE];
+            return vec![a.one()];
         }
         let (live, last) = self.pieces.split_at(self.pieces.len() - 1);
-        let mut scales: Vec<F192> = live
+        let mut scales: Vec<A::E> = live
             .iter()
-            .map(|p| eq_bits(row_point, p.first_row, p.log_rows))
+            .map(|p| a.eq_bits(p.first_row >> p.log_rows, &row_point[p.log_rows..]))
             .collect();
         debug_assert_eq!(last[0].log_rows, 0);
-        scales.push(scales.iter().fold(F192::ONE, |acc, &s| acc + s));
+        let one = a.one();
+        let others = a.sum(&scales);
+        scales.push(a.add(one, others));
         scales
     }
 
     /// The stack terms of a claim on the column at `row_point`, whose first `low_vars`
-    /// coords are a row's own (`0` when the claim fixes them to a slot): one per piece
-    /// whose scale is not zero, each over its piece's rows and those coords.
-    pub fn terms(&self, row_point: &[F192], low_vars: usize) -> Vec<(usize, usize, F192)> {
-        self.pieces
-            .iter()
-            .zip(self.scales(row_point))
-            .filter(|&(_, scale)| scale != F192::ZERO)
+    /// coords are a row's own (`0` when the claim fixes them to a slot): one per piece,
+    /// each over its piece's rows and those coords, as `(offset, n_vars, scale)`.
+    pub fn terms<A: Arith>(&self, a: &mut A, row_point: &[A::E], low_vars: usize) -> Vec<(usize, usize, A::E)> {
+        (self.pieces.iter())
+            .zip(self.scales(a, row_point))
             .map(|(p, scale)| (p.offset, low_vars + p.log_rows, scale))
             .collect()
     }
@@ -324,25 +314,14 @@ pub fn live_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
     (windows, total)
 }
 
-/// The uninitialized `len`-word live stack. Arena-backed: it is born and dies inside
-/// one `cpu::Program::prove` phase.
-///
-/// # Safety
-/// Every slot must be written before it is read. [`split_stack`] hands out one
-/// window per committed column, which together cover the whole allocation, so the
-/// obligation reduces to each column's fill writing its own window.
-pub unsafe fn alloc_live(len: usize) -> ArenaVec<F64> {
-    // SAFETY: forwarded to the caller by the contract above.
-    unsafe { ArenaVec::<F64>::uninitialized(len) }
-}
-
 /// Carve the live stack into one mutable window per column that has one, in column
 /// order, and an empty window for the others.
 ///
 /// Writing each column into its final place is what lets the whole witness be
-/// written once. Safe despite [`alloc_live`]'s uninitialized allocation:
-/// [`live_windows`] tiles the columns from offset 0 with no gap, checked here, so
-/// consecutive `split_at_mut` hands out disjoint windows covering all of it.
+/// written once. The live stack may be allocated uninitialized
+/// ([`primitives::uninit_vec`]): [`live_windows`] tiles the columns from offset 0 with
+/// no gap, checked here, so consecutive `split_at_mut` hands out disjoint windows
+/// covering all of it, and each column's fill writes its own window.
 pub fn split_stack<'a>(q: &'a mut [F64], windows: &[Option<Window>]) -> Vec<&'a mut [F64]> {
     let mut out: Vec<&mut [F64]> = Vec::with_capacity(windows.len());
     let mut rest = q;
@@ -404,6 +383,7 @@ pub fn split_pieces<'a>(q: &'a mut [F64], placements: &[Placement]) -> (Vec<Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use primitives::field::F192;
 
     /// The shape has to cover the placed pieces with as few lanes as possible: the
     /// prover commits `committed_len()` words, so anything short of `placed` would
@@ -478,7 +458,7 @@ mod tests {
     /// the committed ones repeating the last.
     #[test]
     fn piece_terms_evaluate_the_padded_column() {
-        let mut rng = primitives::test_rng::Rng::new(7);
+        let mut rng = primitives::test_util::Rng::new(7);
         for (row_vars, rows) in [(5, 32), (5, 1), (5, 2), (5, 17), (5, 31), (6, 45), (3, 8)] {
             let column = Column {
                 row_vars,
@@ -497,17 +477,17 @@ mod tests {
             let padded: Vec<F64> = (0..1 << row_vars).map(|j| committed[j.min(rows - 1)]).collect();
             let point = rng.ext_vec(row_vars);
             let expected = primitives::multilinear::mle_eval(&padded, &point);
-            let actual = column
-                .terms(&point, 0)
-                .into_iter()
-                .fold(F192::ZERO, |acc, (offset, n_vars, scale)| {
+            let actual = column.terms(&mut crate::arith::Native, &point, 0).into_iter().fold(
+                F192::ZERO,
+                |acc, (offset, n_vars, scale)| {
                     let eq = primitives::multilinear::eq_table(&point[..n_vars]);
                     let dot = eq
                         .iter()
                         .zip(&committed[offset..offset + (1 << n_vars)])
                         .fold(F192::ZERO, |s, (&e, &v)| s + e.mul_base(v));
                     acc + scale * dot
-                });
+                },
+            );
             assert_eq!(actual, expected, "{rows} of 2^{row_vars} rows");
         }
     }

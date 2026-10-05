@@ -2,9 +2,9 @@
 //! Bit-packing and R1CS-row helpers for the monolithic hash R1CS modules
 //! (only `hash` in this vendored subset).
 
+use parallel::{Chunks, SendPtr};
 use primitives::bits::bit_transpose_64bytes;
 use primitives::stream::Stream;
-use zk_alloc::ArenaVec;
 
 /// OR the low 32 bits of `val` into `buf` starting at bit-offset `bit_off`.
 /// Handles u64 straddling when `bit_off % 64 > 32`.
@@ -136,11 +136,12 @@ pub(crate) struct GroupTables<'a> {
     pub stripes: &'a mut [u8],
 }
 
-/// Instances `first..` of a batch's packed `z`, which the driver writes here as well
-/// as into `z` itself: the batch's share of a committed stack laid out elsewhere,
-/// written as each group is built rather than copied out of `z` afterwards.
+/// Instances `first..` of a batch's packed `z`, which the driver writes here as well as into `z` itself.
+/// It is the batch's share of a committed stack laid out elsewhere, written as each group is built rather than copied out of `z` afterwards.
 pub struct ZCopy<'a> {
+    /// The first instance the copy holds.
     pub first: usize,
+    /// The copy's packed words, `2^k_log / 64` per instance.
     pub words: &'a mut [u64],
 }
 
@@ -160,7 +161,7 @@ pub(crate) fn drive_witness_groups<St, I, F>(
     copies: &mut [ZCopy<'_>],
     init: I,
     fill: F,
-) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>)
+) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>)
 where
     St: Send,
     I: Fn() -> St + Sync,
@@ -180,28 +181,28 @@ where
     // SAFETY: group `g` publishes chunk `g` of every table in full below, and the chunk counts match.
     let (mut z, mut a, mut b, mut z_lincheck) = unsafe {
         (
-            ArenaVec::<u64>::uninitialized(total_words),
-            ArenaVec::<u64>::uninitialized(total_words),
-            ArenaVec::<u64>::uninitialized(total_words),
-            ArenaVec::<u8>::uninitialized((n_total / 8) * k),
+            primitives::uninit_vec::<u64>(total_words),
+            primitives::uninit_vec::<u64>(total_words),
+            primitives::uninit_vec::<u64>(total_words),
+            primitives::uninit_vec::<u8>((n_total / 8) * k),
         )
     };
 
     // A group's share: its packed words in each table, and one stripe per 8 instances.
     let group_words = group * (k / 64);
     let group_bytes = (group / 8) * k;
-    let z_chunks = parallel::Chunks::new(&mut z, group_words);
-    let a_chunks = parallel::Chunks::new(&mut a, group_words);
-    let b_chunks = parallel::Chunks::new(&mut b, group_words);
-    let stripe_chunks = parallel::Chunks::new(&mut z_lincheck, group_bytes);
+    let z_chunks = Chunks::new(&mut z, group_words);
+    let a_chunks = Chunks::new(&mut a, group_words);
+    let b_chunks = Chunks::new(&mut b, group_words);
+    let stripe_chunks = Chunks::new(&mut z_lincheck, group_bytes);
     debug_assert_eq!(z_chunks.count(), stripe_chunks.count());
     // Each copy as `(first word, words, destination)` in `z`'s word indexing.
-    let copies: Vec<(usize, usize, parallel::SendPtr<u64>)> = copies
+    let copies: Vec<(usize, usize, SendPtr<u64>)> = copies
         .iter_mut()
         .map(|c| {
             let first = c.first * (k / 64);
             assert!(first + c.words.len() <= total_words, "a copy runs past the batch");
-            (first, c.words.len(), parallel::SendPtr(c.words.as_mut_ptr()))
+            (first, c.words.len(), SendPtr(c.words.as_mut_ptr()))
         })
         .collect();
 
@@ -237,8 +238,7 @@ where
             for &(first, len, dst) in &copies {
                 let (from, to) = (lo.max(first), hi.min(first + len));
                 if from < to {
-                    // SAFETY: distinct groups write disjoint words of each copy, which
-                    // the caller's `&mut` keeps borrowed for the whole dispatch.
+                    // SAFETY: distinct groups write disjoint words of each copy, which the caller's `&mut` keeps borrowed for the whole dispatch.
                     unsafe { stream.copy(dst.slice(from - first, to - from), &z_grp[from - lo..to - lo]) };
                 }
             }
@@ -274,7 +274,7 @@ pub(crate) fn drive_witness_packed_and_lincheck<S: Sync, F>(
     k_log: usize,
     copies: &mut [ZCopy<'_>],
     per_block: F,
-) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>)
+) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>)
 where
     F: Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
 {
@@ -326,7 +326,7 @@ pub(crate) fn drive_witness_batched<S: Sync>(
     k_log: usize,
     copies: &mut [ZCopy<'_>],
     batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
-) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
     assert!(rows.len() <= n_total, "more rows than instances");
     let words = (1usize << k_log) / 64;
     drive_witness_groups(

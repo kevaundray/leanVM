@@ -18,14 +18,14 @@
 //!
 //! Byte for byte the scheme of the leanSPHINCS specification, whose letters the code keeps.
 #![no_std]
+use leanvm_guest::{Template, hash_with};
+use thiserror::Error;
 
 mod fts;
 mod ots;
 mod sign;
 
-pub use sign::{SecretKey, SignError, key_gen};
-
-use leanvm_guest::Blake2s;
+pub use sign::{SecretKey, SphincsSignError, key_gen};
 
 /// `n`: a hash value, 128 bits.
 pub type Digest = [u64; 2];
@@ -184,8 +184,8 @@ impl<const HEIGHT: usize> LayerSignature<HEIGHT> {
 }
 
 /// Why a signature is rejected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum VerifyError {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum SphincsVerifyError {
     /// The message digest's last index is not zero.
     #[error("the message digest's last index is not zero")]
     InadmissibleDigest,
@@ -228,29 +228,32 @@ impl Pos {
 }
 
 /// `Ver`: 497 hash calls.
-pub fn verify(pk: &PublicKey, message: &Message, signature: &Signature) -> Result<(), VerifyError> {
+pub fn verify(pk: &PublicKey, message: &Message, signature: &Signature) -> Result<(), SphincsVerifyError> {
     let pp = &pk.public_param;
     // The digest picks the few-time key and the leaf it opens in each tree.
     let (idx, u) = message_digest(pp, &pk.root, &signature.randomizer, message);
     // The last tree is dropped, so its index must be zero (FORS+C).
     if u[K - 1] != 0 {
-        return Err(VerifyError::InadmissibleDigest);
+        return Err(SphincsVerifyError::InadmissibleDigest);
     }
-    // The few-time key is the message the bottom layer signs, and each root the next one up.
-    let mut message = fts::recover(pp, idx, &u, &signature.fts);
+    // The few-time key is the message the bottom layer signs, and each root the next one up. The hashes of one
+    // shape keep their blocks across trees and layers.
+    let (nodes, one_time) = (&mut NodeHash::new(pp), &mut ots::Ots::new(pp));
+    let mut message = fts::recover(pp, nodes, idx, &u, &signature.fts);
     for lay in (0..D).rev() {
         let pos = Pos::of(idx, lay);
         let (counter, ots, path) = signature.layer(lay);
         // A counter is 32 bits: a word holding more is no counter.
-        let inadmissible = VerifyError::InadmissibleEncoding { layer: lay };
+        let inadmissible = SphincsVerifyError::InadmissibleEncoding { layer: lay };
         let counter = u32::try_from(counter).map_err(|_| inadmissible)?;
-        let leaf = ots::leaf(pp, pos, &message, counter, ots).ok_or(inadmissible)?;
-        message = tree_fold(pp, pos, leaf, path);
+        let leaf = one_time.leaf(pp, pos, &message, counter, ots).ok_or(inadmissible)?;
+        let tw = tweak(TWEAK_NODE, lay, pos.tau, 0, 0);
+        message = fold(nodes, tw, u64::from(pos.e), leaf, path);
     }
     if message == pk.root {
         Ok(())
     } else {
-        Err(VerifyError::RootMismatch)
+        Err(SphincsVerifyError::RootMismatch)
     }
 }
 
@@ -269,70 +272,94 @@ fn tweak(t: u8, lay: usize, tau: u32, p: u32, j: u32) -> [u64; 2] {
     ]
 }
 
+/// A digest is the first 16 bytes of the 32.
+#[inline(always)]
+const fn digest([d0, d1, ..]: [u64; 4]) -> Digest {
+    [d0, d1]
+}
+
 /// `Th(P, tw, M)`, on a message of whole words.
-///
-/// Inlined with its length known, a call folds to the words it hashes and the compressions.
 #[inline(always)]
 fn th<const N: usize>(pp: &PublicParam, tw: &[u64; 2], message: &[u64; N]) -> Digest {
-    let mut hasher = Blake2s::new();
-    hasher.update_words(tw).update_words(pp).update_words(message);
-    // A digest is the first 16 bytes of the 32.
-    let digest = hasher.finalize_words();
-    [digest[0], digest[1]]
+    digest(hash_with(|m| {
+        m.write(*tw).write(*pp).write(*message);
+    }))
 }
+
+/// Where the message starts in a one-block `Th`, after `tw | P`.
+const PAYLOAD: usize = 4;
 
 /// The message digest, read as the index and the `k` few-time leaf indices.
 ///
 /// `h + ka = 176` bits: the index in the low 26, then 10 bits per leaf index.
-fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, message: &Message) -> (u64, [u32; K]) {
+fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, message: &Message) -> (u64, [usize; K]) {
     // `tw | P | randomizer | root | message`: 96 bytes, two compressions.
-    let mut hasher = Blake2s::new();
-    hasher.update_words(&tweak(TWEAK_MSG, 0, 0, 0, 0)).update_words(pp);
-    hasher.update_words(randomizer).update_words(root).update_words(message);
-    let digest = hasher.finalize_words();
+    let words = hash_with(|m| {
+        m.write(tweak(TWEAK_MSG, 0, 0, 0, 0))
+            .write(*pp)
+            .write(*randomizer)
+            .write(*root)
+            .write(*message);
+    });
     // Bits `offset..offset + len`, little-endian, which may straddle two words.
     let bits = |offset: usize, len: usize| {
         let (word, shift) = (offset / 64, offset % 64);
-        let mut x = digest[word] >> shift;
+        let mut x = words[word] >> shift;
         if shift + len > 64 {
-            x |= digest[word + 1] << (64 - shift);
+            x |= words[word + 1] << (64 - shift);
         }
         x & ((1 << len) - 1)
     };
-    (bits(0, H), core::array::from_fn(|kappa| bits(H + kappa * A, A) as u32))
-}
-
-/// A hypertree node: a level and an index within a layer's tree.
-fn node(pp: &PublicParam, lay: usize, tau: u32, level: usize, j: u64, left: &Digest, right: &Digest) -> Digest {
-    th(
-        pp,
-        &tweak(TWEAK_NODE, lay, tau, level as u32, j as u32),
-        &concat(left, right),
+    (
+        bits(0, H),
+        core::array::from_fn(|kappa| bits(H + kappa * A, A) as usize),
     )
 }
 
-/// Two digests as one message.
-const fn concat(left: &Digest, right: &Digest) -> [u64; 4] {
-    [left[0], left[1], right[0], right[1]]
+/// `Th` of tree nodes, `tw | P | left | right`, in one block kept across nodes, trees and layers: a node writes only
+/// its tweak and its children.
+struct NodeHash(Template<8>);
+
+impl NodeHash {
+    fn new(pp: &PublicParam) -> Self {
+        Self(Template::new([0, 0, pp[0], pp[1], 0, 0, 0, 0]))
+    }
+
+    /// The parent of `left` and `right` under `tw`.
+    #[inline(always)]
+    fn hash(&mut self, tw: [u64; 2], left: &Digest, right: &Digest) -> Digest {
+        self.0.set(0, tw);
+        self.0.set(PAYLOAD, [left[0], left[1], right[0], right[1]]);
+        digest(self.0.digest())
+    }
 }
 
-/// `Tree.fold`: a leaf folded up its path to its tree's root.
-fn tree_fold(pp: &PublicParam, pos: Pos, leaf: Digest, path: &[Digest]) -> Digest {
-    path.iter().enumerate().fold(leaf, |current, (level, sibling)| {
-        // The leaf's bit at this level says which child the current node is.
-        let (left, right) = if (pos.e >> level) & 1 == 0 {
+/// A hypertree node: a level and an index within a layer's tree.
+#[inline(always)]
+fn node(hash: &mut NodeHash, lay: usize, tau: u32, level: usize, j: u64, left: &Digest, right: &Digest) -> Digest {
+    hash.hash(tweak(TWEAK_NODE, lay, tau, level as u32, j as u32), left, right)
+}
+
+/// `Tree.fold`: leaf `e`'s value folded up its path to its tree's root, the node at level `p` and index `j` hashed
+/// under `tw` with `p` and `j` written in.
+///
+/// A loop that is never inlined, so that the level is a running sum in the tweak's first word, not a constant built
+/// for each node.
+#[inline(never)]
+fn fold(hash: &mut NodeHash, tw: [u64; 2], e: u64, leaf: Digest, path: &[Digest]) -> Digest {
+    let [mut first, tau] = tw;
+    let (mut j, mut current) = (e, leaf);
+    for sibling in path {
+        // The index's low bit says which child the current node is.
+        let (left, right) = if j & 1 == 0 {
             (&current, sibling)
         } else {
             (sibling, &current)
         };
-        node(
-            pp,
-            pos.lay,
-            pos.tau,
-            level + 1,
-            u64::from(pos.e >> (level + 1)),
-            left,
-            right,
-        )
-    })
+        // One level up: the position `p` in the high half of the tweak's first word, the index in its second's.
+        first += 1 << 32;
+        j >>= 1;
+        current = hash.hash([first, tau | j << 32], left, right);
+    }
+    current
 }

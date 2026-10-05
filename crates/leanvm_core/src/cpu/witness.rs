@@ -2,34 +2,33 @@
 
 use super::MAX_LOG_ROWS;
 use super::execute::Execution;
-use super::layout::{Layout, committed_rows};
-use super::layout::{Lookup, Schema, Shared, Sizes, q_column};
+use super::layout::{Layout, Lookup, Schema, Shared, Sizes, committed_rows, q_column};
 use super::program::Program;
-use crate::class_flock::{self, Prepared};
-use crate::tables::{self, FillCtx};
+use crate::class_flock::Prepared;
+use crate::tables::{ClassSpec, ClassTable, ColumnOut, FillContext};
 use crate::witness::Window;
+use crate::{class_flock, tables};
 use primitives::field::F64;
-use zk_alloc::ArenaVec;
 
 /// The prover's witness: the committed stack `q`, the live stack of the columns that commit only some of their rows, and the public layout.
 ///
 /// The bus and the table sumcheck read a table's columns in the live stack, or in `q` for a column committed whole.
 pub(crate) struct Witness {
     /// The stacked multilinear the commitment takes: every committed column's pieces at their placed offsets.
-    pub(crate) q: ArenaVec<F64>,
+    pub(crate) q: Vec<F64>,
     /// Every column that commits only some of its rows, at those rows, end to end.
-    pub(crate) live: ArenaVec<F64>,
+    pub(crate) live: Vec<F64>,
     /// Each column's window in `live`.
     pub(crate) windows: Vec<Option<Window>>,
     /// The ports' values, by global column index, at their tables' committed rows.
     ///
     /// They carry data for the bus but are not committed, so they are not in the stack.
-    pub(crate) virt: Vec<(usize, ArenaVec<F64>)>,
+    pub(crate) virt: Vec<(usize, Vec<F64>)>,
     /// The public structure the witness fills.
     pub(crate) layout: Layout,
     /// The clock the run ended on, which the prover announces.
     pub(crate) ts_final: u64,
-    /// Each circuit's flock batch, freed right after its reduction.
+    /// Every circuit's flock batch, freed right after the batched reduction.
     pub(crate) reductions: Vec<Prepared>,
 }
 
@@ -56,7 +55,7 @@ impl Witness {
                 table_rows.len(),
                 rows[t],
                 "the {} table is not its committed rows",
-                tables::CLASSES[t].name
+                ClassSpec::ALL[t].name
             );
         }
 
@@ -68,18 +67,18 @@ impl Witness {
         //
         // SAFETY: both allocations are uninitialized.
         // `split_pieces` hands out pieces tiling `q` but its tail, zeroed below, and `split_stack` windows tiling all of `live`.
-        // `fill_table` checks each table wrote every column it was given, the shared columns are written below, and each flock batch writes its pieces.
+        // Each table checks it wrote every column it was given, the shared columns are written below, and each flock batch writes its pieces.
         let sources = Sizes::of(p).column_sources(trace.heights);
         let (live_windows, live_len) = crate::witness::live_windows(&sources);
-        let mut live = unsafe { crate::witness::alloc_live(live_len) };
-        let mut q = unsafe { ArenaVec::<F64>::uninitialized(layout.shape.committed_len()) };
+        let mut live = unsafe { primitives::uninit_vec::<F64>(live_len) };
+        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
 
         // A port is not in the stack, so its values get a buffer of their own.
-        let mut virt: Vec<(usize, ArenaVec<F64>)> = Vec::new();
+        let mut virt: Vec<(usize, Vec<F64>)> = Vec::new();
         for (t, &(base, width)) in schema.spans.iter().enumerate() {
             for i in (base..base + width).filter(|&i| layout.placements[i].column().is_none()) {
-                // SAFETY: a port is a table column, which `fill_table` asserts its table writes in full.
-                virt.push((i, unsafe { ArenaVec::<F64>::uninitialized(rows[t]) }));
+                // SAFETY: each table checks that it writes every circuit port column in full.
+                virt.push((i, unsafe { primitives::uninit_vec::<F64>(rows[t]) }));
             }
         }
         let (pieces, tail) = crate::witness::split_pieces(&mut q, &layout.placements);
@@ -97,16 +96,16 @@ impl Witness {
             .map(|f| std::mem::take(&mut pieces[q_column(f)]))
             .collect();
         let mut windows = crate::witness::split_stack(&mut live, &live_windows);
-        let mut outs: Vec<tables::ColumnOut<'_>> = (windows.iter_mut().zip(pieces))
+        let mut outs: Vec<ColumnOut<'_>> = (windows.iter_mut().zip(pieces))
             .map(|(window, mut pieces)| {
                 if window.is_empty() && pieces.len() == 1 {
                     // Committed whole: its one piece is the column.
-                    tables::ColumnOut {
+                    ColumnOut {
                         rows: pieces.pop().expect("one piece").1,
                         pieces,
                     }
                 } else {
-                    tables::ColumnOut {
+                    ColumnOut {
                         rows: std::mem::take(window),
                         pieces,
                     }
@@ -119,10 +118,10 @@ impl Witness {
 
         crate::stage!("Fill columns", || {
             // Each table fills its own columns from the trace, in its global span.
-            for (t, table) in tables::tables().iter().enumerate() {
+            for (t, table) in ClassTable::all().iter().enumerate() {
                 let (base, n) = schema.spans[t];
-                let ctx = FillCtx::new(trace, p, rows[t], n);
-                tables::fill_table(table, &ctx, &mut outs[base..base + n]);
+                let ctx = FillContext::new(trace, p, rows[t], n);
+                table.fill(ctx, &mut outs[base..base + n]);
             }
 
             // Every shared column is written: the stack is uninitialized, so one left out would read garbage.
@@ -144,7 +143,7 @@ impl Witness {
             (flocks.into_iter().enumerate())
                 .map(|(f, pieces)| {
                     let t = class_flock::flock(f).0;
-                    Prepared::build(f, layout.taus[t], &trace.rows[t], p.entries(), pieces)
+                    Prepared::build(f, layout.taus[t], trace, p.entries(), pieces)
                 })
                 .collect()
         });

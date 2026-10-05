@@ -31,8 +31,8 @@
 //!
 //! See <https://ethresear.ch/t/leanda-design-and-benchmark/25642>.
 #![no_std]
-
-use leanvm_guest::{Blake2s, ext};
+use leanvm_guest::{ext, hash_with};
+use thiserror::Error;
 
 /// A BLAKE2s-256 digest, as four little-endian words.
 pub type Hash = [u64; 4];
@@ -53,8 +53,8 @@ pub const PAYLOAD_CELLS: usize = CELLS / 2;
 pub const MAX_ROWS: usize = 1024;
 
 /// Why a matrix is rejected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum Error {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum DaError {
     /// No rows, or more than a commitment holds.
     #[error("{rows} rows, and a commitment holds 1 to {MAX_ROWS}")]
     RowCount { rows: usize },
@@ -70,11 +70,11 @@ pub enum Error {
 /// # Errors
 ///
 /// A row count out of range, or the first row that is not a codeword.
-pub fn check(dual: &[Dual; M], rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -> Result<[Hash; 2], Error> {
+pub fn check(dual: &[Dual; M], rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -> Result<[Hash; 2], DaError> {
     // Membership first: the commitment is only worth computing over codewords.
     for (i, row) in rows.iter().enumerate() {
         if !is_orthogonal(dual, row) {
-            return Err(Error::NotACodeword { row: i });
+            return Err(DaError::NotACodeword { row: i });
         }
     }
     Ok([commit(rows, cells)?, dual_digest(dual)])
@@ -85,9 +85,9 @@ pub fn check(dual: &[Dual; M], rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -
 /// # Errors
 ///
 /// No rows, or more than a commitment holds.
-pub fn commit(rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -> Result<Hash, Error> {
+pub fn commit(rows: &[[u64; M]], cells: &mut [[Hash; CELLS]]) -> Result<Hash, DaError> {
     if rows.is_empty() || rows.len() > MAX_ROWS {
-        return Err(Error::RowCount { rows: rows.len() });
+        return Err(DaError::RowCount { rows: rows.len() });
     }
     // For example 3 rows pad to 4, the fourth a zero codeword.
     let padded = rows.len().next_power_of_two();
@@ -148,16 +148,21 @@ fn merkle_root(leaves: &mut [Hash]) -> Hash {
 
 /// BLAKE2s of two digests: a Merkle node, and the commitment's root.
 fn hash_pair(left: &Hash, right: &Hash) -> Hash {
-    let mut hasher = Blake2s::new();
-    hasher.update_words(left).update_words(right);
-    hasher.finalize_words()
+    hash_with(|stream| {
+        stream.write(*left).write(*right);
+    })
 }
 
-/// BLAKE2s of the little-endian bytes of some words.
+/// BLAKE2s of the little-endian bytes of some words, whole blocks of them.
+///
+/// The stream writes each block straight into the one the instruction reads, where the chaining value stays.
 fn hash(words: &[u64]) -> Hash {
-    let mut hasher = Blake2s::new();
-    hasher.update_words(words);
-    hasher.finalize_words()
+    let (blocks, []) = words.as_chunks::<8>() else {
+        unreachable!("whole blocks")
+    };
+    hash_with(|stream| {
+        stream.write_each(blocks.len(), |i| blocks[i]);
+    })
 }
 
 /// Whether `sum_x L_x * w_x`, in `GF(2^192)`, is zero.

@@ -15,10 +15,6 @@
 //! Both folds are GF(2)-linear, so they commute with XOR.
 //! A sum of products therefore accumulates after the y-fold and reduces once.
 
-use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
-
-use serde::{Deserialize, Serialize};
-
 use super::gf2_64::F64;
 #[cfg(not(any(
     all(target_arch = "aarch64", target_feature = "aes"),
@@ -27,6 +23,8 @@ use super::gf2_64::F64;
 use super::gf2_64::mul_wide;
 #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
 use super::gf2_64::{reduce, square_wide};
+use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
+use serde::{Deserialize, Serialize};
 
 /// An element `c0 + c1*y + c2*y^2`; bit `i` of each coefficient is its coefficient of `x^i`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -612,6 +610,8 @@ pub mod aarch64 {
 /// The batched kernels instead place one product per 128-bit lane and reduce every lane at once.
 #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
 pub mod x86_64 {
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    use super::Weights8;
     use super::{F192, F192Unreduced};
     use crate::field::gf2_64::F64;
     use core::arch::x86_64::*;
@@ -942,7 +942,7 @@ pub mod x86_64 {
     #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     #[inline]
     #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
-    pub unsafe fn dot_base(w: &[super::Weights8], k: &[F64]) -> F192Unreduced {
+    pub unsafe fn dot_base(w: &[Weights8], k: &[F64]) -> F192Unreduced {
         // SAFETY: the function carries both features; `Weights8` is 64-byte aligned, `k` holds 8 qwords per block.
         unsafe {
             let xor = |x, y| _mm512_xor_si512(x, y);
@@ -966,6 +966,114 @@ pub mod x86_64 {
                 let half = _mm256_xor_si256(_mm512_castsi512_si256(a), _mm512_extracti64x4_epi64::<1>(a));
                 let q = _mm_xor_si128(_mm256_castsi256_si128(half), _mm256_extracti128_si256::<1>(half));
                 transmute::<__m128i, [u64; 2]>(q)
+            });
+            F192Unreduced { coeffs: lanes }
+        }
+    }
+
+    /// Eight elements in coefficient planes: qword `l` of plane `k` is coefficient `k` of element `l`.
+    ///
+    /// A product needs no packing: CLMUL immediate 0x00 multiplies the even elements, 0x11 the odd ones.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[derive(Clone, Copy, Debug)]
+    pub struct F192x8(pub [__m512i; 3]);
+
+    /// A sum of [`F192x8`] products, unreduced: every 128-bit lane of plane `k` holds part of coefficient `k`.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[derive(Clone, Copy, Debug)]
+    pub struct F192x8Sum([__m512i; 3]);
+
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    impl F192x8 {
+        /// The lane-wise sum.
+        ///
+        /// # Safety
+        ///
+        /// Requires the features this impl is compiled with.
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub fn add(self, rhs: Self) -> Self {
+            Self([0, 1, 2].map(|k| _mm512_xor_si512(self.0[k], rhs.0[k])))
+        }
+
+        /// The y-folded Karatsuba products of the even (`IMM = 0x00`) or odd (`IMM = 0x11`) elements, one per lane.
+        #[inline]
+        #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+        fn karatsuba<const IMM: i32>(self, rhs: Self) -> [__m512i; 3] {
+            let ([a0, a1, a2], [b0, b1, b2]) = (self.0, rhs.0);
+            let mul = |x, y| _mm512_clmulepi64_epi128::<IMM>(x, y);
+            let xor = |x, y| _mm512_xor_si512(x, y);
+            fold(
+                mul(a0, b0),
+                mul(a1, b1),
+                mul(a2, b2),
+                mul(xor(a0, a1), xor(b0, b1)),
+                mul(xor(a0, a2), xor(b0, b2)),
+                mul(xor(a1, a2), xor(b1, b2)),
+                xor,
+            )
+        }
+
+        /// The eight lane-wise products.
+        ///
+        /// # Safety
+        ///
+        /// Requires the features this impl is compiled with.
+        #[inline]
+        #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+        pub fn mul(self, rhs: Self) -> Self {
+            let (even, odd) = (self.karatsuba::<0x00>(rhs), self.karatsuba::<0x11>(rhs));
+            // Lane j of `even` is element 2j's product and of `odd` element 2j + 1's: unpacking restores qword order.
+            // SAFETY: the function carries both features.
+            Self([0, 1, 2].map(|k| unsafe {
+                reduce_lanes512(
+                    _mm512_unpacklo_epi64(even[k], odd[k]),
+                    _mm512_unpackhi_epi64(even[k], odd[k]),
+                )
+            }))
+        }
+    }
+
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    impl F192x8Sum {
+        /// The empty sum.
+        ///
+        /// # Safety
+        ///
+        /// Requires the features this impl is compiled with.
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub fn zero() -> Self {
+            Self([_mm512_setzero_si512(); 3])
+        }
+
+        /// Add the eight lane-wise products of `a` and `b`.
+        ///
+        /// # Safety
+        ///
+        /// Requires the features this impl is compiled with.
+        #[inline]
+        #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+        pub fn mul_add(&mut self, a: F192x8, b: F192x8) {
+            let (even, odd) = (a.karatsuba::<0x00>(b), a.karatsuba::<0x11>(b));
+            for k in 0..3 {
+                self.0[k] = _mm512_ternarylogic_epi64::<0x96>(self.0[k], even[k], odd[k]);
+            }
+        }
+
+        /// The whole sum, its lanes folded together.
+        ///
+        /// # Safety
+        ///
+        /// Requires the features this impl is compiled with.
+        #[inline]
+        #[target_feature(enable = "avx512f")]
+        pub fn total(self) -> F192Unreduced {
+            let lanes = self.0.map(|a| {
+                let half = _mm256_xor_si256(_mm512_castsi512_si256(a), _mm512_extracti64x4_epi64::<1>(a));
+                let q = _mm_xor_si128(_mm256_castsi256_si128(half), _mm256_extracti128_si256::<1>(half));
+                // SAFETY: a 128-bit register is two qwords.
+                unsafe { transmute::<__m128i, [u64; 2]>(q) }
             });
             F192Unreduced { coeffs: lanes }
         }
@@ -1003,7 +1111,7 @@ pub mod software {
 mod tests {
     use super::*;
     use crate::field::gf2_64::R64;
-    use crate::test_rng::Rng;
+    use crate::test_util::Rng;
 
     /// Vectors generated by an independent Python implementation
     /// (scratchpad/fieldref.py): (a, b, a·b, a·a).

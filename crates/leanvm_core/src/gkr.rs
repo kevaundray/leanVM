@@ -7,18 +7,20 @@
 //! into `E` upstream, [`crate::leaf`]).
 
 use crate::PAR_THRESHOLD;
-use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
+use crate::arith::Verifier;
+use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
+use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
-use primitives::multilinear::{eq_table, interp, poly_eval};
+use primitives::multilinear::{SplitEq, interp};
 use primitives::stream::Stream;
-use zk_alloc::ArenaVec;
+use thiserror::Error;
 
 /// Why the bus's grand-product GKR rejects.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum GkrError {
     /// The proof stream is malformed.
     #[error(transparent)]
-    Transcript(#[from] fiat_shamir::transcript::Error),
+    Transcript(#[from] TranscriptError),
     /// A layer's sumcheck does not end at the product of the next layer's claims.
     #[error("the GKR layer {layer} does not reduce to the next")]
     LayerMismatch { layer: usize },
@@ -30,7 +32,6 @@ fn window_rows(total: usize) -> usize {
     let tasks = parallel::num_threads() * 16;
     total.div_ceil(tasks).clamp(64, 1 << 10)
 }
-
 /// One run of explicit rows of a level: `len` rows from row `first`, stored from row
 /// `at` of the level's buffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,7 +58,7 @@ impl Run {
 /// a table's padding rows (§sec:jagged) are never stored.
 #[derive(Default)]
 struct Rows {
-    values: ArenaVec<F192>,
+    values: Vec<F192>,
     runs: Vec<Run>,
 }
 
@@ -80,7 +81,7 @@ impl Rows {
 ///
 /// # Safety
 /// The spans' entries are left uninitialized.
-unsafe fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, ArenaVec<F192>, Vec<usize>) {
+unsafe fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, Vec<F192>, Vec<usize>) {
     let mut bounds: Vec<(usize, usize)> = Vec::new();
     for &(first, len) in spans.iter().filter(|s| s.1 > 0) {
         let (start, end) = (first & !7, (first + len).next_multiple_of(8));
@@ -91,7 +92,7 @@ unsafe fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, ArenaVec<F192>, Vec<us
     }
     let total = bounds.iter().map(|&(start, end)| end - start).sum();
     // SAFETY: the ones are written below, and the spans are the caller's.
-    let mut values = unsafe { ArenaVec::<F192>::uninitialized(total) };
+    let mut values = unsafe { primitives::uninit_vec::<F192>(total) };
     let mut runs = Vec::with_capacity(bounds.len());
     let mut places = Vec::with_capacity(spans.len());
     let mut spans = spans.iter().peekable();
@@ -198,7 +199,7 @@ fn products(below: &Rows) -> Rows {
                 .map(move |o| (r.at + o, size.min(r.len - o), place + o))
         })
         .collect();
-    let dst = parallel::SendPtr(values.as_mut_ptr());
+    let dst = SendPtr(values.as_mut_ptr());
     let task = |index: usize| {
         let (row, n, place) = tasks[index];
         // SAFETY: the tasks' places are disjoint and inside `values`.
@@ -219,70 +220,11 @@ fn products(below: &Rows) -> Rows {
     Rows { values, runs }
 }
 
-/// `eq(r, x)` as two tables, `eq(r, x) = low[x mod 2^L] · high[x >> L]`.
+/// Most low variables of the split eq table.
 ///
 /// The full table would be one E value per row pair of the layer, read every round and shrunk every round.
-/// The low table is at most 2^12 entries, 96 KiB, which every task reads from L2.
-struct SplitEq {
-    /// `eq` of the low `L` variables.
-    low: Vec<F192>,
-    /// `eq` of the rest.
-    high: Vec<F192>,
-    /// `L`.
-    low_log: usize,
-}
-
-impl SplitEq {
-    /// Most low variables: 2^12 entries of E is 96 KiB.
-    const MAX_LOW_LOG: usize = 12;
-
-    fn new(r: &[F192]) -> Self {
-        let low_log = r.len().min(Self::MAX_LOW_LOG);
-        Self {
-            low: eq_table(&r[..low_log]),
-            high: eq_table(&r[low_log..]),
-            low_log,
-        }
-    }
-
-    /// `eq(r, x)`.
-    #[cfg(test)]
-    fn at(&self, x: usize) -> F192 {
-        self.low[x & (self.low.len() - 1)] * self.high[x >> self.low_log]
-    }
-
-    /// `sum_x eq(r, x) · terms(x)` over a range of `x`.
-    ///
-    /// `terms(x, w)` returns its unreduced products already scaled by the low weight `w`.
-    /// Each run of `x` sharing a high weight is reduced once and scaled by it once.
-    fn weighted_sum(
-        &self,
-        range: std::ops::Range<usize>,
-        mut terms: impl FnMut(usize, F192) -> [F192Unreduced; 4],
-    ) -> [F192Unreduced; 4] {
-        let mask = self.low.len() - 1;
-        let mut total = [F192Unreduced::ZERO; 4];
-        let mut x = range.start;
-        while x < range.end {
-            // The run of `x` in this high block.
-            let high = x >> self.low_log;
-            let run_end = ((high + 1) << self.low_log).min(range.end);
-            let mut run = [F192Unreduced::ZERO; 4];
-            for y in x..run_end {
-                let t = terms(y, self.low[y & mask]);
-                for (acc, t) in run.iter_mut().zip(t) {
-                    *acc ^= t;
-                }
-            }
-            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
-            for (acc, t) in total.iter_mut().zip(scaled) {
-                *acc ^= t;
-            }
-            x = run_end;
-        }
-        total
-    }
-}
+/// 2^12 entries of E is 96 KiB, which every task reads from L2.
+const EQ_LOW_VARS: usize = 12;
 
 #[inline(always)]
 fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] {
@@ -344,7 +286,7 @@ struct QuaternaryLayerState {
     /// prover consume a product-tree level without first transposing it.
     rows: Rows,
     /// Where a fold writes, then swapped with `rows.values`.
-    next: ArenaVec<F192>,
+    next: Vec<F192>,
     /// Rows in all, the all-one ones included.
     logical_rows: usize,
 }
@@ -357,7 +299,7 @@ impl QuaternaryLayerState {
             rows,
             // SAFETY: a fold writes every row of the runs it leaves before anything reads
             // one, and nothing reads the rest.
-            next: unsafe { ArenaVec::uninitialized(4 * stored) },
+            next: unsafe { primitives::uninit_vec(4 * stored) },
             logical_rows: width,
         }
     }
@@ -404,7 +346,7 @@ impl QuaternaryLayerState {
         let runs = folded(old);
         let stored: usize = runs.iter().map(|r| r.len).sum();
         assert!(4 * stored <= self.next.len(), "a fold leaves at most the rows it reads");
-        let dst = parallel::SendPtr(self.next.as_mut_ptr());
+        let dst = SendPtr(self.next.as_mut_ptr());
         // `(run, pair range)` of the folded rows per task.
         let tasks: Vec<(Run, usize, usize)> = (runs.iter())
             .flat_map(|&r| {
@@ -481,10 +423,10 @@ impl QuaternaryLayerState {
 /// The result of a batched grand-product proof: the roots and leaf evaluations, all
 /// reduced to one shared point. `roots[0] == roots[1]` by construction rather than by
 /// a check.
-pub struct Products<const N: usize> {
-    pub roots: [F192; N],
-    pub point: Vec<F192>,
-    pub values: [F192; N],
+pub struct Products<const N: usize, E = F192> {
+    pub roots: [E; N],
+    pub point: Vec<E>,
+    pub values: [E; N],
 }
 
 /// `Σ_k λ^k·values[k]`, the batch's combination of one coefficient across the trees.
@@ -549,7 +491,7 @@ pub fn prove_products<const N: usize>(leaves: [Leaves; N], ps: &mut ProverState)
             QuaternaryLayerState::new(std::mem::take(&mut levels[tree][(layer - 2) / 2]), width)
         });
         // Round `j` of this layer weighs its rows by `eq(point[1 + j..], .)`.
-        let mut equality = SplitEq::new(if round_count > 0 { &point[1..] } else { &[] });
+        let mut equality = SplitEq::with_low_vars(if round_count > 0 { &point[1..] } else { &[] }, EQ_LOW_VARS);
         let mut round_point = Vec::with_capacity(round_count);
         let mut messages = if round_count > 0 {
             trees.each_ref().map(|tree| tree.round_message(&equality))
@@ -566,7 +508,7 @@ pub fn prove_products<const N: usize>(leaves: [Leaves; N], ps: &mut ProverState)
             let challenge = ps.sample();
             round_point.push(challenge);
             if round + 1 < round_count {
-                equality = SplitEq::new(&point[2 + round..]);
+                equality = SplitEq::with_low_vars(&point[2 + round..], EQ_LOW_VARS);
                 messages = trees
                     .each_mut()
                     .map(|tree| tree.fold_and_message(challenge, Some(&equality)));
@@ -601,38 +543,41 @@ pub fn prove_products<const N: usize>(leaves: [Leaves; N], ps: &mut ProverState)
 }
 
 /// Verify the RLC-batched radix-four proof of `N` trees of depth `mu`.
-pub fn verify_products<const N: usize>(mu: usize, vs: &mut VerifierState) -> Result<Products<N>, GkrError> {
+///
+/// # Errors
+///
+/// Returns the first layer whose sumcheck does not end at the next layer's claims, or a malformed stream.
+pub fn verify_products<V: Verifier, const N: usize>(v: &mut V, mu: usize) -> Result<Products<N, V::E>, GkrError> {
     const { assert!(N >= 2, "the first two trees are the bus's two sides") };
     // One root for both balancing trees, so their equality is structural: there is no
     // unbalanced pair a prover could state, and nothing for the caller to check.
-    let mut roots = [F192::ZERO; N];
-    for root in &mut roots[1..] {
-        *root = vs.next_scalar()?;
+    let first = v.next_scalar()?;
+    let mut roots = [first; N];
+    for root in &mut roots[2..] {
+        *root = v.next_scalar()?;
     }
-    roots[0] = roots[1];
-    let mut lambda = vs.sample();
+    let mut lambda = v.sample();
     let mut point = Vec::new();
     let mut values = roots;
 
     let mut layer = mu;
     while layer > 0 {
         let round_count = mu - layer;
-        let mut claim = poly_eval(&values, lambda);
+        let mut claim = v.poly_eval(&values, lambda);
         if layer % 2 == 1 {
             debug_assert_eq!(round_count, 0, "only the root-most layer may be binary");
-            let mut tails = [[F192::ZERO; 2]; N];
+            let mut tails = [[first; 2]; N];
             for value in tails.iter_mut().flatten() {
-                *value = vs.next_scalar()?;
+                *value = v.next_scalar()?;
             }
-            let products = tails.map(|[left, right]| left * right);
-            if claim != poly_eval(&products, lambda) {
-                return Err(GkrError::LayerMismatch { layer });
-            }
-            let challenge = vs.sample();
+            let products = tails.map(|[left, right]| v.mul(left, right));
+            let expected = v.poly_eval(&products, lambda);
+            v.ensure_eq(claim, expected, || GkrError::LayerMismatch { layer })?;
+            let challenge = v.sample();
             for (value, [left, right]) in values.iter_mut().zip(tails) {
-                *value = interp(left, right, challenge);
+                *value = v.interp(left, right, challenge);
             }
-            lambda = vs.sample();
+            lambda = v.sample();
             point = vec![challenge];
             layer -= 1;
             continue;
@@ -640,29 +585,26 @@ pub fn verify_products<const N: usize>(mu: usize, vs: &mut VerifierState) -> Res
 
         let mut round_point = Vec::with_capacity(round_count);
         for &equality_point in point.iter().take(round_count) {
-            let h = vs.next_round_poly(5, claim, Some(equality_point))?;
-            let challenge = vs.sample();
+            let h = v.next_round_poly(5, claim, Some(equality_point))?;
+            let challenge = v.sample();
             round_point.push(challenge);
-            claim = poly_eval(&h, challenge);
+            claim = v.poly_eval(&h, challenge);
         }
-        let mut tails = [[F192::ZERO; 4]; N];
+        let mut tails = [[first; 4]; N];
         for value in tails.iter_mut().flatten() {
-            *value = vs.next_scalar()?;
+            *value = v.next_scalar()?;
         }
-        let products = tails.map(|tail| tail[0] * tail[1] * tail[2] * tail[3]);
-        if claim != poly_eval(&products, lambda) {
-            return Err(GkrError::LayerMismatch { layer });
+        let products = tails.map(|tail| v.product(&tail));
+        let expected = v.poly_eval(&products, lambda);
+        v.ensure_eq(claim, expected, || GkrError::LayerMismatch { layer })?;
+        let low_challenge = v.sample();
+        let high_challenge = v.sample();
+        for (value, [a, b, c, d]) in values.iter_mut().zip(tails) {
+            let low = v.interp(a, b, low_challenge);
+            let high = v.interp(c, d, low_challenge);
+            *value = v.interp(low, high, high_challenge);
         }
-        let low_challenge = vs.sample();
-        let high_challenge = vs.sample();
-        for (value, tail) in values.iter_mut().zip(tails) {
-            *value = interp(
-                interp(tail[0], tail[1], low_challenge),
-                interp(tail[2], tail[3], low_challenge),
-                high_challenge,
-            );
-        }
-        lambda = vs.sample();
+        lambda = v.sample();
         point = vec![low_challenge, high_challenge];
         point.extend_from_slice(&round_point);
         layer -= 2;
@@ -674,6 +616,7 @@ pub fn verify_products<const N: usize>(mu: usize, vs: &mut VerifierState) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fiat_shamir::transcript::VerifierState;
 
     fn mle_eval_e(table: &[F192], point: &[F192]) -> F192 {
         assert_eq!(table.len(), 1 << point.len());
@@ -700,32 +643,6 @@ mod tests {
     }
 
     #[test]
-    fn split_eq_is_the_eq_table() {
-        // Invariant: the two tables weigh every row as the full eq table, and a weighted sum
-        // over a range equals the dense one, whether it crosses a high block or not.
-        //
-        // Fixture state: 14 variables, so the high table has 4 entries of 2^12 rows each.
-        let r: Vec<F192> = (0..14u64).map(|i| F192::new(3 * i + 1, i + 7, 5 * i + 2)).collect();
-        let (split, dense) = (SplitEq::new(&r), eq_table(&r));
-        for x in [0, 1, 4095, 4096, 4097, 12_345, (1 << 14) - 1] {
-            assert_eq!(split.at(x), dense[x], "x={x}");
-        }
-
-        // Terms of one coefficient: x itself, as a field element, scaled by the weight.
-        let terms = |x: usize, w: F192| {
-            let mut t = [F192Unreduced::ZERO; 4];
-            t[0] = w.mul_unreduced(F192::new(x as u64, 1, 0));
-            t
-        };
-        for range in [0..10, 4090..4100, 100..9000, 0..1 << 14] {
-            let want = range
-                .clone()
-                .fold(F192::ZERO, |sum, x| sum + dense[x] * F192::new(x as u64, 1, 0));
-            assert_eq!(split.weighted_sum(range.clone(), terms)[0].reduce(), want, "{range:?}");
-        }
-    }
-
-    #[test]
     fn quartic_round_message_matches_direct_evaluation() {
         for width in [2, 4, 8, 16] {
             let below: Vec<F192> = (0..4 * width)
@@ -736,7 +653,7 @@ mod tests {
             let r: Vec<F192> = (0..(width / 2).ilog2())
                 .map(|i| F192::new(u64::from(31 * i + 5), u64::from(7 * i + 1), u64::from(11 * i + 9)))
                 .collect();
-            let equality = SplitEq::new(&r);
+            let equality = SplitEq::with_low_vars(&r, EQ_LOW_VARS);
             let [difference, c2, c3, c4] = state.round_message(&equality);
             let direct = |point: F192| {
                 (0..width / 2).fold(F192::ZERO, |sum, row| {
@@ -777,7 +694,7 @@ mod tests {
                     let challenge = F192::new(reference.logical_rows as u64, 13, 19);
                     reference.fold_and_message(challenge, None);
                     bound += 1;
-                    let equality = SplitEq::new(&point[bound..]);
+                    let equality = SplitEq::with_low_vars(&point[bound..], EQ_LOW_VARS);
                     let message = fused.fold_and_message(challenge, Some(&equality));
                     assert_eq!(message, reference.round_message(&equality), "width={width}, len={len}");
                     assert_eq!(&*fused.rows.values, &*reference.rows.values, "width={width}, len={len}");
@@ -811,7 +728,7 @@ mod tests {
 
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(b"radix-four-gkr-test", &proof);
-            let verified = verify_products(mu, &mut vs).expect("GKR verifies");
+            let verified = verify_products::<_, 3>(&mut vs, mu).expect("GKR verifies");
             assert_eq!(verified.roots, proved.roots);
             assert_eq!(verified.point, proved.point);
             assert_eq!(verified.values, proved.values);
@@ -877,7 +794,7 @@ mod tests {
             assert_eq!(dense_proved.point, proved.point, "mu={mu}");
             assert_eq!(dense_ps.into_proof().stream, proof.stream, "mu={mu}");
             let mut vs = VerifierState::from_label(b"sparse-radix-four-gkr-test", &proof);
-            let verified = verify_products(mu, &mut vs).expect("GKR verifies");
+            let verified = verify_products::<_, 3>(&mut vs, mu).expect("GKR verifies");
             assert_eq!(verified.values, proved.values);
             vs.finish().expect("proof stream is consumed");
         }

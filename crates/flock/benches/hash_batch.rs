@@ -23,13 +23,20 @@ use bench::{Metric, Plan, Timing, bencher_json};
 use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
 use flock::hash::{
     Blake2sSetup, Compression, K_LOG, generate_witness_with_ab_packed_and_lincheck, min_n_blocks_log,
-    pinned_compression, ring_switch_open, ring_switch_verify,
+    pinned_compression,
 };
 use pcs::pack::LOG_PACKING;
-use pcs::stack_open::{open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
+use pcs::stack_open::{RingSwitch, open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
-use primitives::{field::F64, pretty_integer, test_rng::Rng};
+use primitives::{
+    field::{F64, F192},
+    pretty_integer,
+    test_util::Rng,
+};
+
+#[global_allocator]
+static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
 
 fn main() {
     bench::init_tracing_from_env();
@@ -61,14 +68,7 @@ fn main() {
     // One full prove pass: witness generation, commitment, zerocheck, lincheck,
     // and the stacked opening. Deterministic in `blocks`, so every pass is the
     // same work on the same shape and their timings are directly comparable.
-    //
-    // Each pass is one arena phase, matching how the VM prover runs. Only the
-    // transcript and the opening escape, and both are plain `Vec` proof data, so
-    // nothing here outlives its phase. `setup` is built above, outside any phase,
-    // because it is cached across passes.
-    zk_alloc::enable_arena();
     let prove_pass = || {
-        let _phase = zk_alloc::enter_phase();
         let _span = tracing::info_span!("Flock prove", n_log).entered();
         let t_pass = Instant::now();
         let t = Instant::now();
@@ -87,17 +87,20 @@ fn main() {
         ps.add_root(&commitment.root);
         let commit_s = t.elapsed().as_secs_f64();
 
+        let instance = [setup.instance(&z_packed, &a_packed, &b_packed, &z_lincheck)];
         let t = Instant::now();
-        let stage = setup.prove_zerocheck(&z_packed, &a_packed, &b_packed, &mut ps);
+        let stage = flock::reduction::prove_zerocheck(&instance, &mut ps);
         let zerocheck_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
-        let reduced = setup.prove_lincheck(stage, &z_lincheck, &mut ps);
+        let reduced = flock::reduction::prove_lincheck(&instance, stage, &mut ps)
+            .pop()
+            .expect("one circuit");
         let lincheck_s = t.elapsed().as_secs_f64();
         drop((a_packed, b_packed, z_lincheck));
 
         let t = Instant::now();
-        let ring = ring_switch_open(n, 0, &reduced);
+        let ring = RingSwitch::whole(0, mu, vec![reduced], F192::ONE);
         open_batch_mixed_whir_stacked(
             &mut ps,
             mu,
@@ -145,7 +148,7 @@ fn main() {
         let mut vs = VerifierState::from_label(b"flock-blake2s-batch", &transcript);
         let root = vs.next_root().expect("commitment root");
         let replay = setup.verify_reduction(&mut vs).expect("Flock reduction verifies");
-        let ring = ring_switch_verify(n, 0, &replay.claim);
+        let ring = RingSwitch::whole(0, mu, vec![replay.claim], F192::ONE);
         assert!(
             verify_opening_batch_mixed_whir_stacked(
                 &mut vs,

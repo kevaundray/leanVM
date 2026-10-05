@@ -6,7 +6,7 @@
 //!
 //! Flock still proves every row's instance, so that row has to be an honest one: a no-op of the table's class at clock zero, on zero registers, which the text carries for the purpose ([`append_noops`]).
 
-use crate::tables::{CLASSES, N_TABLES};
+use crate::tables::{ClassSpec, N_TABLES};
 
 /// The words the no-ops take in the text: one per table.
 pub const WORDS: usize = N_TABLES;
@@ -16,8 +16,11 @@ pub const WORDS: usize = N_TABLES;
 /// A no-op touches only `x0` and address zero, which a padding row at clock zero never touches for real.
 pub fn append_noops(text: &mut Vec<u32>) -> [usize; N_TABLES] {
     std::array::from_fn(|t| {
-        let nop = CLASSES[t].class.nop().expect("every table's class has an instruction");
-        text.push(nop.bits());
+        let nop = ClassSpec::ALL[t]
+            .class
+            .nop()
+            .expect("every table's class has an instruction");
+        text.push(nop.encode().bits());
         text.len() - 1
     })
 }

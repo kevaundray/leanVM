@@ -7,12 +7,13 @@
 //! larger circuits. Here the witness is not the generic walk of the gate list but
 //! word arithmetic on the structure the list is built from, one instance at a time.
 
-pub mod add;
-pub mod mul;
-
 use crate::circuit::{Builder, Circuit};
 use crate::reduction::Block;
-use zk_alloc::ArenaVec;
+use add::Adder;
+use mul::Multiplier;
+
+pub mod add;
+pub mod mul;
 
 pub const A_BASE: usize = 0;
 pub const B_BASE: usize = 64;
@@ -81,8 +82,8 @@ fn or_bits(buf: &mut [u64], at: usize, v: u128) {
 
 /// What an operation's witness is computed from, besides its inputs.
 enum Plan {
-    Add(add::Adder),
-    Mul(mul::Multiplier),
+    Add(Adder),
+    Mul(Multiplier),
 }
 
 pub struct U64Circuit {
@@ -98,11 +99,11 @@ impl U64Circuit {
         let (a, b) = (c.input(0), c.input(1));
         let (out, plan) = match op {
             U64Op::WrappingAdd => {
-                let (out, adder) = add::Adder::build(&mut c, &a, &b);
+                let (out, adder) = Adder::build(&mut c, &a, &b);
                 (out, Plan::Add(adder))
             }
             U64Op::WrappingMul | U64Op::WideningMul => {
-                let (out, multiplier) = mul::Multiplier::build(&mut c, &a, &b, n);
+                let (out, multiplier) = Multiplier::build(&mut c, &a, &b, n);
                 (out, Plan::Mul(multiplier))
             }
         };
@@ -137,7 +138,7 @@ impl U64Circuit {
         &self,
         pairs: &[(u64, u64)],
         n_blocks_log: usize,
-    ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
         self.witness_padded(pairs, &(0, 0), 1 << n_blocks_log)
     }
 
@@ -147,7 +148,7 @@ impl U64Circuit {
         pairs: &[(u64, u64)],
         padding: &(u64, u64),
         n_instances: usize,
-    ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
         let n = self.op.out_bits();
         self.circuit
             .generate_witness_with(pairs, padding, n_instances, &mut [], |&(a, b), z, az, bz| {
@@ -168,9 +169,10 @@ impl U64Circuit {
 mod tests {
     use super::*;
     use crate::lincheck::LincheckCircuit;
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use crate::reduction::{self, Instance, PAD_UNIT, Pad};
+    use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
     use primitives::field::F192;
-    use primitives::test_rng::Rng;
+    use primitives::test_util::Rng;
 
     const OPS: [U64Op; 3] = [U64Op::WrappingAdd, U64Op::WrappingMul, U64Op::WideningMul];
 
@@ -260,11 +262,20 @@ mod tests {
                     z_lincheck[bit] ^= 1;
                 }
                 let mut ps = ProverState::from_label(LABEL);
-                let stage = block.prove_zerocheck(n_log, &z, &a, &b, None, &mut ps);
-                let claim = block.prove_lincheck(n_log, stage, &z_lincheck, None, &mut ps);
+                let instance = Instance {
+                    block,
+                    n_blocks_log: n_log,
+                    z: &z,
+                    a: &a,
+                    b: &b,
+                    z_lincheck: &z_lincheck,
+                    pad: None,
+                };
+                let claims = reduction::prove(&[instance], &mut ps);
                 let proof = ps.into_proof();
                 let mut vs = VerifierState::from_label(LABEL, &proof);
-                block.verify(n_log, &mut vs).is_ok_and(|r| r.claim == claim) && vs.finish().is_ok()
+                reduction::verify(&[(block, n_log)], &mut vs).is_ok_and(|r| r[0].claim == claims[0])
+                    && vs.finish().is_ok()
             };
             assert!(run(None), "{op:?}");
             for bit in [
@@ -278,26 +289,150 @@ mod tests {
         }
     }
 
-    /// A batch whose instances past its explicit ones repeat its last row proves exactly
-    /// as the whole batch written out: the zerocheck and lincheck take the rest as copies
-    /// of one 64-instance unit, for any number of whole units.
+    /// **A batch of circuits proves each of them.** Circuits of three block sizes
+    /// (`k_log` 8, 12 and 13) and mixed instance counts and heights, from no rows at
+    /// all to a batch of rows in full: the verifier recovers each circuit's claim,
+    /// and each is its witness's true slices at its point. A flipped witness bit in
+    /// any one circuit, or a wrong claim of any one circuit on the stream, is
+    /// rejected.
+    #[test]
+    fn a_mixed_batch_proves_each_circuit() {
+        type Tables = (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>);
+        const LABEL: &[u8] = b"flock-arith-batch-test";
+        let ops = OPS.map(U64Circuit::new);
+        assert_eq!(ops.each_ref().map(U64Circuit::k_log), [8, 12, 13]);
+        // (operation, log instances, height)
+        let shapes = [(0, 9, 0), (1, 7, 40), (2, 3, 5), (0, 6, 64), (1, 8, 130)];
+        let blocks: Vec<(Block<'_>, usize)> = shapes.iter().map(|&(op, n_log, _)| (ops[op].block(), n_log)).collect();
+        let tables = |f: usize| -> Tables {
+            let (op, n_log, h) = shapes[f];
+            ops[op].generate_witness(&pairs(h, 0x3A15 + f as u64), n_log)
+        };
+        let whole: Vec<Tables> = (0..shapes.len()).map(tables).collect();
+        let prove = |tables: &[Tables]| {
+            let instances: Vec<Instance<'_>> = (tables.iter().zip(&blocks))
+                .map(|((z, a, b, z_lincheck), &(block, n_blocks_log))| Instance {
+                    block,
+                    n_blocks_log,
+                    z,
+                    a,
+                    b,
+                    z_lincheck,
+                    pad: None,
+                })
+                .collect();
+            let mut ps = ProverState::from_label(LABEL);
+            let claims = reduction::prove(&instances, &mut ps);
+            (ps.into_proof(), claims)
+        };
+        let accepts = |proof: &ProofTranscript| {
+            let mut vs = VerifierState::from_label(LABEL, proof);
+            reduction::verify(&blocks, &mut vs).ok().filter(|_| vs.finish().is_ok())
+        };
+
+        let (proof, claims) = prove(&whole);
+        let replays = accepts(&proof).expect("an honest batch verifies");
+        for (f, ((replay, claim), (z, ..))) in replays.iter().zip(&claims).zip(&whole).enumerate() {
+            assert_eq!(&replay.claim, claim, "circuit {f}'s claim");
+            // Word `w` of the packed witness is position `w` past the skip, bit `i` its slice `i`.
+            let eq = primitives::multilinear::eq_table(&claim.suffix_point);
+            let slices: Vec<F192> = (0..64)
+                .map(|i| {
+                    (z.iter().zip(&eq)).fold(F192::ZERO, |acc, (&w, &e)| if w >> i & 1 == 1 { acc + e } else { acc })
+                })
+                .collect();
+            assert_eq!(claim.s_hat_v, slices, "circuit {f}'s slices are its witness's");
+        }
+
+        // A flipped bit (an output bit of instance 1) in any one circuit.
+        for f in 0..shapes.len() {
+            let mut tampered: Vec<Tables> = (0..shapes.len()).map(tables).collect();
+            let k = 1usize << blocks[f].0.k_log;
+            let (z, _, _, z_lincheck) = &mut tampered[f];
+            let bit = k + OUT_BASE + 5;
+            z[bit / 64] ^= 1 << (bit % 64);
+            z_lincheck[OUT_BASE + 5] ^= 1 << 1;
+            let (bad, _) = prove(&tampered);
+            assert!(accepts(&bad).is_none(), "a flipped bit of circuit {f} must reject");
+        }
+
+        // A wrong claim of any one circuit: its zerocheck `â`, or one of its slices.
+        let n_zerocheck = shapes
+            .iter()
+            .map(|&(op, n_log, _)| ops[op].k_log() + n_log)
+            .max()
+            .unwrap()
+            - 6;
+        let n_lincheck = shapes.iter().map(|&(op, ..)| ops[op].k_log()).max().unwrap() - 6;
+        let zerocheck_len = 64 + 2 * n_zerocheck + 3 * shapes.len();
+        for f in 0..shapes.len() {
+            for word in [
+                64 + 2 * n_zerocheck + 3 * f,
+                zerocheck_len + 2 * n_lincheck + 64 * f + 3,
+            ] {
+                let mut bad = proof.clone();
+                bad.stream[word].c0 ^= 1;
+                assert!(
+                    accepts(&bad).is_none(),
+                    "a wrong claim of circuit {f} (word {word}) must reject"
+                );
+            }
+        }
+    }
+
+    /// **A batch short of its cube proves as the whole cube.** A batch whose instances past its explicit ones repeat its last row proves exactly as the batch written out in full, proof and claims alike.
+    /// The zerocheck and lincheck take the rest as copies of one unit of [`PAD_UNIT`] instances, for any number of whole units.
+    /// It rides in a batch of circuits of other sizes, one short of its cube as well and one whole, under the shared challenges.
     #[test]
     fn a_batch_short_of_its_cube_proves_as_the_whole_cube() {
-        type Tables = (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>);
+        type Tables = (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>);
+        /// One circuit's batch: its explicit tables, and the padding unit's when they stop short of the cube.
+        struct Batch {
+            op: usize,
+            n_log: usize,
+            tables: Tables,
+            unit: Option<Tables>,
+        }
         const LABEL: &[u8] = b"flock-arith-tail-test";
-        const UNIT: usize = 64;
-        let circuit = U64Circuit::new(U64Op::WrappingAdd);
-        let block = circuit.block();
-        let words = (1usize << circuit.k_log()) / 64;
-        let prove = |n_log: usize, (z, a, b, z_lincheck): Tables, unit: Option<&Tables>| {
-            let mut ps = ProverState::from_label(LABEL);
-            let pad = unit.map(|(z, a, b, _)| [&z[..], &a[..], &b[..]]);
-            let stage = block.prove_zerocheck(n_log, &z, &a, &b, pad, &mut ps);
-            let claim = block.prove_lincheck(n_log, stage, &z_lincheck, pad.map(|[z, ..]| &z[..words]), &mut ps);
-            (ps.into_proof(), claim)
+        let ops = OPS.map(U64Circuit::new);
+        // Operation `op`'s batch of `2^n_log` instances to height `h`, short of its cube or written out in full.
+        let batch = |op: usize, n_log: usize, h: usize, short: bool| {
+            let full = 1usize << n_log;
+            // The rows to the height, the last one the row every later instance repeats.
+            let rows = pairs(h + 1, 0x3A14 + (h + op) as u64);
+            let padding = rows[h];
+            let explicit = if short {
+                (h + 1).next_multiple_of(PAD_UNIT).min(full)
+            } else {
+                full
+            };
+            Batch {
+                op,
+                n_log,
+                tables: ops[op].witness_padded(&rows, &padding, explicit),
+                unit: (explicit < full).then(|| ops[op].witness_padded(&[], &padding, PAD_UNIT)),
+            }
         };
-        // A cube whose tail is gone by the table rounds, and one with paired table
-        // passes that grow the unit, more than once.
+        let prove = |batches: &[Batch]| {
+            let instances: Vec<Instance<'_>> = (batches.iter())
+                .map(|batch| {
+                    let (z, a, b, z_lincheck) = &batch.tables;
+                    Instance {
+                        block: ops[batch.op].block(),
+                        n_blocks_log: batch.n_log,
+                        z,
+                        a,
+                        b,
+                        z_lincheck,
+                        pad: batch.unit.as_ref().map(|(z, a, b, _)| Pad { z, a, b }),
+                    }
+                })
+                .collect();
+            let mut ps = ProverState::from_label(LABEL);
+            let claims = reduction::prove(&instances, &mut ps);
+            (ps.into_proof(), claims)
+        };
+        // A cube whose tail is gone by the table rounds, and one with paired table passes that grow the unit, more than once.
         for n_log in [7, 18] {
             let full = 1usize << n_log;
             let mut heights = vec![
@@ -322,13 +457,17 @@ mod tests {
             heights.sort_unstable();
             heights.dedup();
             for h in heights {
-                // The rows to the height, the last one the row every later instance repeats.
-                let rows = pairs(h + 1, 0x3A14 + h as u64);
-                let padding = rows[h];
-                let explicit = (h + 1).next_multiple_of(UNIT).min(full);
-                let unit = (explicit < full).then(|| circuit.witness_padded(&[], &padding, UNIT));
-                let short = prove(n_log, circuit.witness_padded(&rows, &padding, explicit), unit.as_ref());
-                let whole = prove(n_log, circuit.witness_padded(&rows, &padding, full), None);
+                // (operation, log instances, height): the batch under test, a larger cube short of itself (at `n_log` 7) or a smaller one (at 18), and a whole cube below one unit.
+                let shapes = [(0, n_log, h), (1, 9, 70), (2, 3, 5)];
+                let [short, whole] = [true, false].map(|short| {
+                    let batches = shapes.map(|(op, n_log, h)| batch(op, n_log, h, short));
+                    assert_eq!(
+                        batches.each_ref().map(|b| b.unit.is_some()),
+                        [short && h < full - PAD_UNIT, short, false],
+                        "which batches are short"
+                    );
+                    prove(&batches)
+                });
                 assert!(short == whole, "2^{n_log} instances, height {h}");
             }
         }

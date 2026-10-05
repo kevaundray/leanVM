@@ -9,6 +9,7 @@
 //! Its signatures are the specification's, and verify as any other.
 
 use crate::*;
+use thiserror::Error;
 
 /// Bound on the randomness a signer tries before giving up.
 const MAX_RANDOMIZER_TRIALS: u64 = 1 << 32;
@@ -25,8 +26,8 @@ pub struct SecretKey {
 }
 
 /// Why signing failed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum SignError {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum XmssSignError {
     /// No randomness within the trial bound gave a valid encoding.
     #[error("no randomness within the trial bound gives a valid encoding")]
     NoValidEncoding,
@@ -39,9 +40,10 @@ pub fn key_gen(seed: [u8; 32], leaf_index: LeafIndex) -> (SecretKey, PublicKey) 
     let public_param = tweak_hash(&[0; 2], TWEAK_PARAMETER, 0, 0, &seed);
     let pp = &public_param;
     // The one real leaf: every chain walked from its start to its end.
-    let ends =
-        core::array::from_fn(|i| chain(pp, leaf_index, i, 0, CHAIN_LENGTH - 1, secret(&seed, pp, leaf_index, i)));
-    let leaf = wots_leaf(pp, leaf_index, &ends);
+    let mut chains = Chains::new(pp, leaf_index);
+    let leaf = wots_leaf(pp, leaf_index, |i| {
+        chains.walk(i, 0..CHAIN_LENGTH - 1, secret(&seed, pp, leaf_index, i))
+    });
     // Its path is all fillers, which the root is the fold of.
     let merkle_root = merkle_root(pp, leaf_index, leaf, &filler_path(&seed, pp, leaf_index));
     let public_key = PublicKey {
@@ -66,7 +68,7 @@ impl SecretKey {
     /// Sign a message at the key's leaf index, deterministically.
     ///
     /// The signer tries randomness until the encoding is valid: about `2^15` tries.
-    pub fn sign(&self, message: &Message) -> Result<Signature, SignError> {
+    pub fn sign(&self, message: &Message) -> Result<Signature, XmssSignError> {
         let (seed, leaf_index, pp) = (&self.seed, self.leaf_index, &self.public_key.public_param);
         let (randomness, digits) = (0..MAX_RANDOMIZER_TRIALS)
             .find_map(|trial| {
@@ -78,19 +80,11 @@ impl SecretKey {
                 let randomness = [r0, r1, r2];
                 encode(pp, leaf_index, message, &randomness).map(|digits| (randomness, digits))
             })
-            .ok_or(SignError::NoValidEncoding)?;
+            .ok_or(XmssSignError::NoValidEncoding)?;
         // Chain `i` opened at value `digit_i`, and the path of fillers.
+        let mut chains = Chains::new(pp, leaf_index);
         Ok(Signature {
-            chain_tips: core::array::from_fn(|i| {
-                chain(
-                    pp,
-                    leaf_index,
-                    i,
-                    0,
-                    digits[i] as usize,
-                    secret(seed, pp, leaf_index, i),
-                )
-            }),
+            chain_tips: core::array::from_fn(|i| chains.walk(i, 0..digits.get(i), secret(seed, pp, leaf_index, i))),
             randomness,
             merkle_proof: filler_path(seed, pp, leaf_index),
         })

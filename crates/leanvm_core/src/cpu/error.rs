@@ -1,19 +1,25 @@
-//! Why a run has no proof, and why a proof does not verify.
+//! Why a run has no proof, why proof bytes decode to none, and why a proof does not verify.
 
-use crate::constraints;
-use crate::leaf;
+use super::deferred::MalformedClaim;
+use crate::constraints::ConstraintError;
+use crate::leaf::BusError;
 use crate::pcs;
-use crate::rv;
+use crate::pcs::Rate;
+use crate::rv::Trap;
 use crate::tables::Part;
+use ::pcs::whir::WhirError;
+use fiat_shamir::transcript::TranscriptError;
+use flock::verifier::FlockError;
+use thiserror::Error;
 
 /// Why a run has no proof.
 ///
 /// Every variant is a limit of the prover or a mistake of its caller, except a trap, which is the run's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
 pub enum ProveError {
     /// The run trapped.
     #[error(transparent)]
-    Trap(#[from] rv::Trap),
+    Trap(#[from] Trap),
     /// The run is longer than one proof holds, in cycles or in committed words.
     #[error("the run is longer than one proof holds (continuations are not implemented)")]
     TooLong,
@@ -28,7 +34,7 @@ pub enum ProveError {
 }
 
 /// Why a proof does not verify, by the stage that refuses it.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 #[non_exhaustive]
 pub enum CpuError {
     /// An announced size is not a canonical integer.
@@ -45,7 +51,7 @@ pub enum CpuError {
         max: usize,
     },
     /// The announced rate is one the commitment does not support.
-    #[error("the announced log_inv_rate {log_inv_rate} is not in {min}..={max}", min = pcs::Rate::MIN.log_inv_rate(), max = pcs::Rate::MAX.log_inv_rate())]
+    #[error("the announced log_inv_rate {log_inv_rate} is not in {min}..={max}", min = Rate::MIN.log_inv_rate(), max = Rate::MAX.log_inv_rate())]
     Rate {
         /// The announced base-two logarithm of the inverse rate.
         log_inv_rate: usize,
@@ -61,24 +67,59 @@ pub enum CpuError {
     },
     /// The proof stream is malformed.
     #[error(transparent)]
-    Transcript(#[from] fiat_shamir::transcript::Error),
+    Transcript(#[from] TranscriptError),
     /// The memory and lookup bus does not balance.
     #[error("the bus: {0}")]
-    Bus(leaf::Error),
+    Bus(BusError),
     /// The table constraints do not hold.
     #[error("the table constraints: {0}")]
-    Constraint(constraints::Error),
-    /// One of a table's circuit proofs is rejected.
+    Constraint(ConstraintError),
+    /// The circuits' batched reductions are rejected.
+    #[error("the circuits' reductions: {0}")]
+    Reductions(FlockError),
+    /// A table's circuit does not settle its matrix claim.
     #[error("the {table} table's {part:?} circuit: {error}")]
     Flock {
         /// The table.
         table: &'static str,
-        /// Which of its two circuits.
+        /// Which of its circuits.
         part: Part,
         /// Why flock rejects it.
-        error: flock::verifier::VerifyError,
+        error: FlockError,
     },
     /// The commitment opening is rejected.
     #[error("the opening: {0}")]
-    Open(::pcs::whir::VerifyError),
+    Open(WhirError),
+    /// A deferred claim has no shape a proof of the program gives.
+    #[error("the deferred claims: {0}")]
+    MalformedClaim(MalformedClaim),
 }
+
+/// Why bytes decode to no proof.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+#[non_exhaustive]
+pub enum DecodeError {
+    /// The bytes are no proof.
+    ///
+    /// The header is foreign or cut short, or the body is not exactly one proof.
+    #[error("the bytes are no proof")]
+    Malformed,
+
+    /// A proof of another protocol version.
+    #[error("a proof of protocol version {found}, and this verifier reads version {expected}")]
+    UnsupportedVersion {
+        /// The version the bytes announce.
+        found: u16,
+        /// The version this build reads.
+        expected: u16,
+    },
+}
+
+/// Why a proof does not verify.
+///
+/// The message names the verifier's stage that refused it, for a human to read.
+///
+/// A caller only needs to know that the proof is refused.
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+#[error("the proof does not verify: {0}")]
+pub struct VerifyError(#[from] pub(crate) CpuError);

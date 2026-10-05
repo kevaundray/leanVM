@@ -13,10 +13,9 @@ workspace = true
 parallel.workspace = true
 rand = { workspace = true, optional = true }
 serde.workspace = true
-zk_alloc.workspace = true
 
 [features]
-# Test-only helpers (`test_rng`) used by this and other crates' tests.
+# Shared test fixtures (`test_util`) used by this and other crates' tests.
 # Kept off the default build so `rand` stays out of the production graph.
 test-util = ["dep:rand"]
 
@@ -26,4 +25,8 @@ bench.workspace = true
 
 [[bench]]
 name = "hash_throughput"
+harness = false
+
+[[bench]]
+name = "kernels"
 harness = false

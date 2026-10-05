@@ -1,17 +1,15 @@
 //! Shared primitives: field kernels, bit transposes, multilinear helpers, and
 //! small integer utilities.
 
+pub mod bit_fold;
 pub mod bits;
 pub mod field;
 pub mod hash;
 pub mod multilinear;
 pub mod stream;
 
-use std::mem::{MaybeUninit, needs_drop};
-use zk_alloc::{alloc_uninit, assume_init};
-
 #[cfg(feature = "test-util")]
-pub mod test_rng;
+pub mod test_util;
 
 /// Format an integer with comma-separated groups of three decimal digits.
 ///
@@ -107,54 +105,28 @@ pub const fn log2_ceil_usize(n: usize) -> usize {
     if n <= 1 { 0 } else { (n - 1).ilog2() as usize + 1 }
 }
 
-/// Arena-backed parallel `(0..n).map(build).collect()`: one allocation on the
-/// calling thread, filled in place by the workers: no per-worker intermediate
-/// vectors to allocate and copy out of. This lives here rather than in
-/// `zk_alloc` so the allocator itself stays free of a thread-pool dependency.
-pub fn par_collect_arena<T: Send>(n: usize, build: impl Fn(usize) -> T + Sync) -> zk_alloc::ArenaVec<T> {
-    let mut out = alloc_uninit(n);
-    // Track partial initialization only when values require destruction.
-    if needs_drop::<T>() {
-        let mut initialized = vec![false; n];
-        let mut guard = PartialInit {
-            slots: &mut out,
-            initialized: &mut initialized,
-            armed: true,
-        };
-        let chunk_size = parallel::recommended_chunk_size(n);
-        parallel::chunks_mut2(guard.slots, guard.initialized, chunk_size, |chunk, slots, marks| {
-            let base = chunk * chunk_size;
-            for (offset, (slot, mark)) in slots.iter_mut().zip(marks).enumerate() {
-                slot.write(build(base + offset));
-                *mark = true;
-            }
-        });
-        guard.armed = false;
-    } else {
-        parallel::fill(&mut out, |i| MaybeUninit::new(build(i)));
-    }
-    // SAFETY: the dispatch joins and every slot is initialized before it returns successfully.
-    unsafe { assume_init(out) }
-}
+/// A vector of `len` uninitialized elements, to be filled in place.
+///
+/// It skips the zero-fill, which would cost one more pass over memory.
+///
+/// # Safety
+///
+/// Every element must be written before it is read.
+///
+/// Only plain-data elements are allowed, so dropping an unwritten one runs no code:
+///
+/// ```compile_fail
+/// unsafe { primitives::uninit_vec::<String>(1) };
+/// ```
+#[must_use]
+#[expect(clippy::uninit_vec, reason = "the caller writes every element before reading it")]
+pub unsafe fn uninit_vec<T: Copy>(len: usize) -> Vec<T> {
+    // Exactly `len` slots, so the vector never reallocates while it is filled.
+    let mut v = Vec::with_capacity(len);
 
-struct PartialInit<'a, T> {
-    slots: &'a mut [MaybeUninit<T>],
-    initialized: &'a mut [bool],
-    armed: bool,
-}
-
-impl<T> Drop for PartialInit<'_, T> {
-    fn drop(&mut self) {
-        if self.armed {
-            // The pool stops all writers before resuming a task panic on this thread.
-            for (slot, initialized) in self.slots.iter_mut().zip(self.initialized.iter()) {
-                if *initialized {
-                    // SAFETY: the mark is set only after this slot has received a valid value.
-                    unsafe { slot.assume_init_drop() };
-                }
-            }
-        }
-    }
+    // SAFETY: the capacity holds `len` elements, and the caller writes each one before reading it.
+    unsafe { v.set_len(len) };
+    v
 }
 
 #[cfg(test)]
@@ -187,52 +159,5 @@ mod formatting_tests {
         assert_eq!(pretty_f64(f64::INFINITY), "inf");
         assert_eq!(pretty_f64(f64::NEG_INFINITY), "-inf");
         assert_eq!(pretty_f64(f64::NAN), "NaN");
-    }
-}
-
-#[cfg(test)]
-mod collection_tests {
-    use super::par_collect_arena;
-    use std::panic::{AssertUnwindSafe, catch_unwind};
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[test]
-    fn collection_initializes_owned_values() {
-        assert!(par_collect_arena::<String>(0, |_| unreachable!()).is_empty());
-        let values = par_collect_arena(257, |i| i.to_string());
-        for (i, value) in values.iter().enumerate() {
-            assert_eq!(*value, i.to_string());
-        }
-    }
-
-    #[test]
-    fn panicking_collection_drops_only_initialized_values() {
-        struct Counted<'a> {
-            _value: String,
-            drops: &'a AtomicUsize,
-        }
-
-        impl Drop for Counted<'_> {
-            fn drop(&mut self) {
-                self.drops.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-
-        let built = AtomicUsize::new(0);
-        let drops = AtomicUsize::new(0);
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            par_collect_arena(257, |i| {
-                assert_ne!(i, 17, "construction failed");
-                built.fetch_add(1, Ordering::Relaxed);
-                Counted {
-                    _value: i.to_string(),
-                    drops: &drops,
-                }
-            })
-        }));
-        assert!(result.is_err());
-        assert!(built.load(Ordering::Relaxed) > 0);
-        assert_eq!(built.load(Ordering::Relaxed), drops.load(Ordering::Relaxed));
-        assert_eq!(&*par_collect_arena(3, |i| i as u64), &[0, 1, 2]);
     }
 }

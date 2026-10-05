@@ -24,7 +24,7 @@ pub fn compress(a: [F64; 4], b: [F64; 4]) -> [F64; 4] {
 
 /// A 32-byte digest as the four little-endian words the chain runs in.
 pub fn digest_words(digest: &[u8; 32]) -> [F64; 4] {
-    std::array::from_fn(|index| F64(u64::from_le_bytes(digest[8 * index..8 * index + 8].try_into().unwrap())))
+    primitives::hash::digest_words(digest).map(F64)
 }
 
 // Domain-separation tags. EVERY absorbed block puts its tag in lane 3 and its
@@ -32,10 +32,14 @@ pub fn digest_words(digest: &[u8; 32]) -> [F64; 4] {
 // never adversary-controlled, so distinct constants are all it takes to make two
 // roles unable to alias. The seeding block ([`FiatShamirState::new`]) is the
 // exception: it is fixed at the head of the chain, so its position is its tag.
-const DS_OBSERVE: F64 = F64(1);
-const DS_SQUEEZE: F64 = F64(2);
-const DS_POW_BASE: F64 = F64(3);
-const DS_POW_NONCE: F64 = F64(4);
+/// The tag of an absorbed scalar.
+pub const DS_OBSERVE: F64 = F64(1);
+/// The tag of a challenge.
+pub const DS_SQUEEZE: F64 = F64(2);
+/// The tag of the proof-of-work base.
+pub const DS_POW_BASE: F64 = F64(3);
+/// The tag of a grinding nonce.
+pub const DS_POW_NONCE: F64 = F64(4);
 
 /// `compress(base, (nonce.c0, nonce.c1, nonce.c2, DS_POW_NONCE))` has its low `bits`
 /// bits zero: the grinding predicate over the VM compression. A CONTIGUOUS
