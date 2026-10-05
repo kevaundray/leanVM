@@ -1,6 +1,6 @@
 //! Decoded instructions: the classes, and the entries the bytecode table holds.
 //!
-//! A class is one table and one circuit.
+//! A class is one table and, but for the extension-field product, one circuit.
 //!
 //! Its instructions differ only by a flag word, which selects what the class's one function does.
 //!
@@ -14,7 +14,7 @@ use super::semantics::{
 };
 use flock::circuit::Circuit;
 
-/// An instruction class: one table, one circuit.
+/// An instruction class: one table, and one circuit unless its table proves it by identities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Class {
     /// Add, subtract, compare, bitwise logic, branches and jumps.
@@ -95,7 +95,8 @@ impl Class {
     ///
     /// # Panics
     ///
-    /// Panics for the illegal class, which no table runs.
+    /// Panics for the illegal class, which no table runs, and for the extension-field product, which its table
+    /// proves by identities over `K` instead (`tables::ClassTable::identities`).
     pub fn circuit(self) -> Circuit {
         match self {
             Self::Alu => Alu::circuit(),
@@ -108,7 +109,7 @@ impl Class {
             Self::Mulh => Mulh::circuit(),
             Self::Div => Div::circuit(),
             Self::Hash => Hash::circuit(),
-            Self::Ext => Ext::circuit(),
+            Self::Ext => panic!("the extension-field product has no circuit"),
             Self::Illegal => panic!("the illegal class has no circuit"),
         }
     }

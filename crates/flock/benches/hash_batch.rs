@@ -31,6 +31,9 @@ use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
 use primitives::{field::F64, pretty_integer, test_util::Rng};
 
+#[global_allocator]
+static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+
 fn main() {
     bench::init_tracing_from_env();
     let requested_n_log: usize = std::env::var("FLOCK_N_LOG")
@@ -61,14 +64,7 @@ fn main() {
     // One full prove pass: witness generation, commitment, zerocheck, lincheck,
     // and the stacked opening. Deterministic in `blocks`, so every pass is the
     // same work on the same shape and their timings are directly comparable.
-    //
-    // Each pass is one arena phase, matching how the VM prover runs. Only the
-    // transcript and the opening escape, and both are plain `Vec` proof data, so
-    // nothing here outlives its phase. `setup` is built above, outside any phase,
-    // because it is cached across passes.
-    zk_alloc::enable_arena();
     let prove_pass = || {
-        let _phase = zk_alloc::enter_phase();
         let _span = tracing::info_span!("Flock prove", n_log).entered();
         let t_pass = Instant::now();
         let t = Instant::now();
@@ -87,12 +83,15 @@ fn main() {
         ps.add_root(&commitment.root);
         let commit_s = t.elapsed().as_secs_f64();
 
+        let instance = [setup.instance(&z_packed, &a_packed, &b_packed, &z_lincheck)];
         let t = Instant::now();
-        let stage = setup.prove_zerocheck(&z_packed, &a_packed, &b_packed, &mut ps);
+        let stage = flock::reduction::prove_zerocheck(&instance, &mut ps);
         let zerocheck_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
-        let reduced = setup.prove_lincheck(stage, &z_lincheck, &mut ps);
+        let reduced = flock::reduction::prove_lincheck(&instance, stage, &mut ps)
+            .pop()
+            .expect("one circuit");
         let lincheck_s = t.elapsed().as_secs_f64();
         drop((a_packed, b_packed, z_lincheck));
 

@@ -476,28 +476,33 @@ impl RingFamily {
 }
 
 /// Ring claims whose suffix points are all prefixes of the longest, `lead`.
-struct PrefixGroup<'a> {
-    lead: &'a [F192],
+///
+/// Its elements are values, or whatever a verifier holds them as: two points are prefixes of one another when their elements are equal.
+#[derive(Clone, Debug)]
+pub struct PrefixGroup<'a, E = F192> {
+    /// The longest point.
+    pub lead: &'a [E],
     /// The distinct prefix lengths its claims sit at.
-    lengths: Vec<usize>,
-    members: Vec<PrefixMember>,
+    pub lengths: Vec<usize>,
+    /// Its claims.
+    pub members: Vec<PrefixMember>,
 }
 
 /// One claim of a prefix group.
 #[derive(Clone, Copy, Debug)]
-struct PrefixMember {
+pub struct PrefixMember {
     /// Its index across every ring, which picks its scale.
-    claim: usize,
+    pub claim: usize,
     /// Its ring.
-    ring: usize,
+    pub ring: usize,
     /// Its entry in the group's lengths.
-    length: usize,
+    pub length: usize,
 }
 
-impl<'a> PrefixGroup<'a> {
+impl<'a, E: PartialEq> PrefixGroup<'a, E> {
     /// Every ring claim in a group whose lead point it is a prefix of, longest points first.
-    fn of(rings: &[RingSwitchVerify<'a>]) -> Vec<Self> {
-        let mut claims: Vec<(usize, usize, &'a [F192])> = rings
+    pub fn of(rings: &[RingSwitchVerify<'a, E>]) -> Vec<Self> {
+        let mut claims: Vec<(usize, usize, &'a [E])> = rings
             .iter()
             .enumerate()
             .flat_map(|(r, ring)| ring.claims.iter().map(move |claim| (r, claim.suffix_point)))
@@ -540,7 +545,7 @@ mod tests {
     use crate::whir::{INITIAL_BASIS_CHUNK, commit, inner_product_base_ext};
     use crate::whir_config::tests::{default_config, test_config_for};
     use basis::StackWeight;
-    use fiat_shamir::transcript::{Proof, ProverState, VerifierState};
+    use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
     use primitives::multilinear::eq_table;
     use primitives::test_util::Rng;
 
@@ -640,7 +645,7 @@ mod tests {
         rings: Vec<RingSwitchOpen>,
         /// The verifier's copy of each ring's one claim.
         ring_verify: Vec<RingSwitchClaim>,
-        fs: Proof,
+        fs: ProofTranscript,
     }
 
     /// Synthetic stack of 2^14 F64 words: three aligned 2^12-word columns
@@ -786,7 +791,7 @@ mod tests {
         inst: &Instance,
         point_claims: &[StackClaim],
         ring_claims: &[RingSwitchClaim],
-        fs: &Proof,
+        fs: &ProofTranscript,
     ) -> bool {
         let rings: Vec<RingSwitchVerify<'_>> = (inst.rings.iter().zip(ring_claims))
             .map(|(ring, claim)| RingSwitchVerify {

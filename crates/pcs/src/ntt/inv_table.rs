@@ -19,7 +19,7 @@
 //! Lookups per row: n_chunks (= ell/8), each load is `ell` contiguous bytes.
 
 use crate::ntt::AdditiveNttGf8;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use core::arch::x86_64::*;
 use primitives::field::F8;
 
@@ -115,6 +115,13 @@ impl InvNttTableByteSingleGf8 {
             unsafe { self.apply_avx512(bytes, out) };
             return;
         }
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "avx512f")))]
+        if self.ell == 64 {
+            // SAFETY: avx2 is enabled at compile time; the method validates
+            // slice lengths and requires exactly this `ell`.
+            unsafe { self.apply_avx2(bytes, out) };
+            return;
+        }
         #[cfg(target_arch = "x86_64")]
         if self.ell >= 16 {
             // SAFETY: x86_64 statically guarantees SSE2; ell ≥ 16 ⇒ at least
@@ -127,12 +134,6 @@ impl InvNttTableByteSingleGf8 {
 
     /// [`apply`](Self::apply) at the protocol's `ell = 64`, one register wide.
     ///
-    /// The whole accumulator is a single ZMM, so it never round-trips through
-    /// memory between chunks the way the 128-bit arm's four does, and the
-    /// `i' ⊕ 8b` permutation is one `vpermq`: an XOR of `8b` on a byte index is
-    /// an XOR of `b` on a qword index, which folds the chunk swap and the
-    /// half-swap the narrow arm does separately into one shuffle.
-    ///
     /// # Safety
     /// Requires AVX-512F, and `self.ell` must be 64. The method validates slice
     /// lengths.
@@ -140,21 +141,88 @@ impl InvNttTableByteSingleGf8 {
     #[inline]
     #[target_feature(enable = "avx512f")]
     unsafe fn apply_avx512(&self, bytes: &[u8], out: &mut [F8]) {
+        assert_eq!(out.len(), self.ell);
+        let bytes: &[u8; 8] = bytes.try_into().expect("8 bytes at ell = 64");
+        // SAFETY: the single store covers exactly `out`.
+        unsafe { _mm512_storeu_si512(out.as_mut_ptr().cast(), self.apply_zmm(bytes)) };
+    }
+
+    /// The 64 evaluations of one 8-byte row as one ZMM, at `ell = 64`.
+    ///
+    /// Byte `b`'s row enters permuted by `i' ⊕ 8b`, an XOR of `b` on the qword index.
+    /// The rows are summed as a tree, so each bit of `b` is one fixed shuffle:
+    /// bit 0 swaps the qwords of each 128-bit lane, bits 1 and 2 swap lanes, and only those two cross a lane.
+    ///
+    /// # Panics
+    /// Panics unless `self.ell` is 64.
+    ///
+    /// # Safety
+    /// Requires AVX-512F, which the target enables wherever this is compiled.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub fn apply_zmm(&self, bytes: &[u8; 8]) -> __m512i {
+        assert_eq!(self.ell, 64);
+        let base = self.data.as_ptr().cast::<u8>();
+        // SAFETY: every row offset is `byte * 64` into a `256 * 64` table.
+        let row = |b: usize| unsafe { _mm512_loadu_si512(base.add(bytes[b] as usize * 64).cast()) };
+        let swap_qwords = |v| _mm512_shuffle_epi32::<0x4E>(v);
+        let swap_lanes = |v| _mm512_shuffle_i64x2::<0xB1>(v, v);
+        let swap_halves = |v| _mm512_shuffle_i64x2::<0x4E>(v, v);
+        let pair = |b: usize| _mm512_xor_si512(row(b), swap_qwords(row(b + 1)));
+        let lo = _mm512_xor_si512(pair(0), swap_lanes(pair(2)));
+        let hi = _mm512_xor_si512(pair(4), swap_lanes(pair(6)));
+        _mm512_xor_si512(lo, swap_halves(hi))
+    }
+
+    /// [`apply`](Self::apply) at the protocol's `ell = 64`, two registers wide.
+    ///
+    /// The `i' ⊕ 8b` permutation is a qword-index XOR by `b`: bit 0 swaps the qwords of each lane, bit 1 the lanes, bit 2
+    /// the registers.
+    ///
+    /// # Safety
+    /// Requires AVX2, and `self.ell` must be 64. The method validates slice
+    /// lengths.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[cfg_attr(target_feature = "avx512f", allow(dead_code))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn apply_avx2(&self, bytes: &[u8], out: &mut [F8]) {
         assert_eq!(self.ell, 64);
         assert_eq!(bytes.len(), self.n_chunks);
         assert_eq!(out.len(), self.ell);
         // SAFETY: every row offset is `byte * 64` into a `256 * 64` table, and
-        // the single store covers exactly `out`.
+        // the two stores cover exactly `out`.
         unsafe {
             let base = self.data.as_ptr().cast::<u8>();
-            let iota = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 6, 7);
-            let row = |b: usize| _mm512_loadu_si512(base.add(bytes[b] as usize * 64).cast());
-            let mut acc = row(0);
-            for b in 1..self.n_chunks {
-                let idx = _mm512_xor_si512(iota, _mm512_set1_epi64(b as i64));
-                acc = _mm512_xor_si512(acc, _mm512_permutexvar_epi64(idx, row(b)));
+            let row = |b: usize| {
+                let p = base.add(bytes[b] as usize * 64);
+                (_mm256_loadu_si256(p.cast()), _mm256_loadu_si256(p.add(32).cast()))
+            };
+            let (mut lo, mut hi) = row(0);
+            for b in 1..8 {
+                let (mut l, mut h) = row(b);
+                if b & 1 != 0 {
+                    (l, h) = (
+                        _mm256_shuffle_epi32::<0b01_00_11_10>(l),
+                        _mm256_shuffle_epi32::<0b01_00_11_10>(h),
+                    );
+                }
+                if b & 2 != 0 {
+                    (l, h) = (
+                        _mm256_permute4x64_epi64::<0b01_00_11_10>(l),
+                        _mm256_permute4x64_epi64::<0b01_00_11_10>(h),
+                    );
+                }
+                if b & 4 != 0 {
+                    (l, h) = (h, l);
+                }
+                lo = _mm256_xor_si256(lo, l);
+                hi = _mm256_xor_si256(hi, h);
             }
-            _mm512_storeu_si512(out.as_mut_ptr().cast(), acc);
+            let dst = out.as_mut_ptr().cast::<u8>();
+            _mm256_storeu_si256(dst.cast(), lo);
+            _mm256_storeu_si256(dst.add(32).cast(), hi);
         }
     }
 
@@ -367,6 +435,12 @@ mod tests {
                     out_scalar, out_simd,
                     "scalar/simd apply disagree at k={k}, bytes={bytes:02x?}"
                 );
+                #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+                if table.ell == 64 {
+                    // SAFETY: the crate is built with AVX2, and `ell` is 64.
+                    unsafe { table.apply_avx2(&bytes, &mut out_simd) };
+                    assert_eq!(out_scalar, out_simd, "scalar/avx2 apply disagree, bytes={bytes:02x?}");
+                }
             }
         }
     }

@@ -11,7 +11,7 @@
 use super::claims::{DensePoly, NodeClaims};
 use crate::arith::Verifier;
 use crate::rec::circuit::{Limbs, digest_limbs};
-use fiat_shamir::transcript::{Proof, ProverState, TranscriptError, Transmitter};
+use fiat_shamir::transcript::{ProofTranscript, ProverState, TranscriptError, Transmitter};
 use primitives::field::{F64, F192};
 use std::ops::Add;
 use thiserror::Error;
@@ -23,7 +23,7 @@ pub(crate) use dense::{DenseProver, DenseReduced, DenseVars};
 pub(crate) use matrix::{MatrixProver, MatrixReduced};
 
 /// The label every node's reduction transcript starts from.
-pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction";
+pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-3";
 
 /// Why a node's reduction refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -59,7 +59,7 @@ pub(crate) fn initial_state() -> Limbs {
     digest_limbs(&primitives::hash::hash(LABEL))
 }
 
-impl<E: Copy> NodeClaims<E> {
+impl<E: Copy + PartialEq> NodeClaims<E> {
     /// Verify the reduction of these claims, the dense polynomials having the given variables.
     ///
     /// # Errors
@@ -79,7 +79,7 @@ impl<E: Copy> NodeClaims<E> {
 impl NodeClaims<F192> {
     /// Prove the reduction of these claims, which must be true of the given tables.
     #[tracing::instrument(name = "Reduce claims", skip_all)]
-    pub(crate) fn prove(&self, vars: &DenseVars, tables: &DenseTables) -> Proof {
+    pub(crate) fn prove(&self, vars: &DenseVars, tables: &DenseTables) -> ProofTranscript {
         let mut ps = ProverState::from_label(LABEL);
         ps.add_scalars(&self.bound);
         crate::stage!("Dense reduction", || DenseProver::prove(

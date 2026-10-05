@@ -127,7 +127,10 @@ impl RecShape {
         });
         let shape = class_flock::shape(HashFlock::index());
         let tau = self.layout.tau(Table::Hash);
-        let reduction = r.scope("flock", |r| Reduction::replay(r, shape, tau));
+        let [reduction] = r
+            .scope("flock", |r| Reduction::replay(r, &[(shape, tau)]))
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("a batch of one circuit"));
         let window = self.layout.hash_window();
         let rings = [::flock::reduction::ring_switch_verify(
             window.n_vars,

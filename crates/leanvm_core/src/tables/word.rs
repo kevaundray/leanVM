@@ -2,7 +2,7 @@
 
 use super::Clock;
 use crate::cpu::Row;
-use crate::rv::{Div, Entry, ExtResult};
+use crate::rv::{Div, Entry, Ext};
 
 /// A circuit port word represented by a virtual table column or a prover hint.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,16 +27,16 @@ pub enum Word {
     Taken,
     /// Load or store address carried on the memory bus.
     Address,
-    /// Indexed cell value before the instruction.
+    /// Indexed cell value before the instruction: the one cell of a load or a store, or one of the hash's block.
     Cell(u8),
     /// Indexed cell value after the instruction.
     CellNew(u8),
     /// Destination register's value, used as an extension-field output pointer.
     Dest,
-    /// Computed bus address of an extension-field limb beyond its pointer.
+    /// Bit `k` of the flags, a 0 or 1 field element: what a table with no class circuit selects with.
+    FlagBit(u8),
+    /// Computed bus address of an extension-field limb beyond its pointer ([`Ext::bus_address`]).
     LimbAddress(u8),
-    /// Bus domain of the second operand's high limbs: memory or register zero.
-    LimbSeparator,
     /// Circuit verdict bound to a public zero in the bytecode lookup.
     Bad,
     /// Prover-supplied quotient magnitude, not a table column.
@@ -67,32 +67,15 @@ impl Word {
             Self::Out => row.out,
             Self::Taken => row.taken as u64,
             Self::Address => row.ram.address,
-            Self::Cell(k) => match (&row.hash, &row.ext) {
-                (Some(h), _) => h.block[k as usize],
-                (_, Some(x)) => x.instance.limbs[k as usize],
-                _ => row.ram.old,
-            },
-            Self::CellNew(k) => match (&row.hash, &row.ext) {
-                (Some(h), _) => h.word_after(k as usize),
-                (_, Some(x)) => x.result.c[k as usize - 6],
-                _ => row.ram.new,
-            },
-            Self::Dest => {
-                let ext = row.ext();
-                ext.instance.pointers[2]
-            }
+            Self::Cell(k) => row.hash.as_ref().map_or(row.ram.old, |h| h.block[k as usize]),
+            Self::CellNew(k) => row.hash.as_ref().map_or(row.ram.new, |h| h.word_after(k as usize)),
+            Self::Dest => row.ext().instance.pointers[2],
+            Self::FlagBit(k) => entry.flags >> k & 1,
             Self::LimbAddress(k) => {
                 // Pointer limbs have register ports; only offset limbs have computed addresses.
-                let i = ExtResult::OFFSET_LIMBS
-                    .iter()
-                    .position(|&j| j == k as usize)
-                    .expect("a computed limb address");
-                let ext = row.ext();
-                ext.result.addresses[i]
-            }
-            Self::LimbSeparator => {
-                let ext = row.ext();
-                ext.result.separator
+                assert!(Ext::OFFSET_LIMBS.contains(&(k as usize)), "a computed limb address");
+                let x = &row.ext().instance;
+                Ext::bus_address(x.pointers, x.flags, k as usize)
             }
             Self::Bad => 0,
             Self::HintQ | Self::HintR => {
@@ -112,10 +95,9 @@ impl Word {
 #[cfg(test)]
 mod tests {
     use super::super::Clock;
-    use super::super::bus::Separator;
     use super::*;
     use crate::cpu::execute::{ExtRow, HashRow};
-    use crate::rv::{Class, Ext, InstructionClass, Region, WordAccess};
+    use crate::rv::{Class, InstructionClass, Region, WordAccess};
     use proptest::prelude::*;
 
     fn row() -> Row {
@@ -246,36 +228,27 @@ mod tests {
     }
 
     #[test]
-    fn word_extension_ports_bind_limbs_pointers_and_separators() {
-        // y * y^2 = 1 + y; multiplying y by the base-field word 2 gives 2y.
+    fn word_extension_ports_bind_pointers_flag_bits_and_limb_addresses() {
+        // The clock circuit's words of an extension-field row: the destination pointer, the flags' two bits, and
+        // where the limbs that are no pointer sit, b's high limbs at register zero in the base-field form.
         for &flags in Ext::LEGAL {
             for pointers in [[0x4000_0000, 0x4000_0020, 0x4000_0040], [u64::MAX - 7; 3]] {
                 let mut row = row();
                 let mut entry = entry();
                 entry.flags = flags;
-                let limbs = if flags & Ext::BASE != 0 {
-                    [0, 1, 0, 2, 0, 0, 3, 4, 5]
-                } else {
-                    [0, 1, 0, 0, 0, 1, 3, 4, 5]
+                let instance = Ext {
+                    flags,
+                    pointers,
+                    limbs: [0; 9],
                 };
-                let instance = Ext { flags, pointers, limbs };
                 row.ext = Some(Box::new(ExtRow {
-                    result: instance.eval(),
+                    c: instance.eval(),
                     instance,
                     prev: std::array::from_fn(|i| 400 + i as u64),
                 }));
                 assert_eq!(Word::Dest.value(&row, &entry, &[]), pointers[2]);
-                for k in 0..9 {
-                    assert_eq!(Word::Cell(k).value(&row, &entry, &[]), limbs[k as usize]);
-                }
-                let mut product = if flags & Ext::BASE != 0 { [0, 2, 0] } else { [1, 1, 0] };
-                for (i, value) in product.iter_mut().enumerate() {
-                    if flags & Ext::ACCUMULATE != 0 {
-                        *value ^= [3, 4, 5][i];
-                    }
-                    assert_eq!(Word::CellNew(6 + i as u8).value(&row, &entry, &[]), *value);
-                }
-                // Only b's two high limbs move from memory to register zero in the base-field form.
+                assert_eq!(Word::FlagBit(0).value(&row, &entry, &[]), flags & Ext::ACCUMULATE);
+                assert_eq!(Word::FlagBit(1).value(&row, &entry, &[]), flags >> 1);
                 for (k, p, offset) in [
                     (1, pointers[0], 8),
                     (2, pointers[0], 16),
@@ -291,12 +264,6 @@ mod tests {
                     };
                     assert_eq!(Word::LimbAddress(k).value(&row, &entry, &[]), expected);
                 }
-                let separator = if flags & Ext::BASE != 0 {
-                    Separator::Registers
-                } else {
-                    Separator::Memory
-                };
-                assert_eq!(Word::LimbSeparator.value(&row, &entry, &[]), separator.value().0);
                 for i in 0..12 {
                     assert_eq!(Word::Prev(i).value(&row, &entry, &[]), 400 + u64::from(i));
                 }
@@ -350,7 +317,7 @@ mod tests {
         };
         row.ext = Some(Box::new(ExtRow {
             instance,
-            result: instance.eval(),
+            c: instance.eval(),
             prev: [0; 12],
         }));
         Word::LimbAddress(0).value(&row, &entry(), &[]);

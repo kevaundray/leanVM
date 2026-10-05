@@ -15,12 +15,11 @@ use crate::gkr::GkrError;
 use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use primitives::field::{F64, F192, F192Unreduced};
-use primitives::multilinear::{eq_table_arena, mle_eval};
+use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
-use zk_alloc::ArenaVec;
 
 /// One tuple coordinate as a function of the block's row `z`.
 #[derive(Clone, Debug)]
@@ -33,6 +32,9 @@ pub enum Coord {
     /// committing it: the coordinate IS the product, so no column can disagree with
     /// it and no constraint has to say so (§sec:m3).
     Prod(usize, usize),
+    /// A committed column times a public constant, `c · col[z]`: what makes a coordinate depend on a 0 or 1 column
+    /// (an extension-field row's `base` bit choosing between two separators).
+    Scaled(F64, usize),
     /// The integer index column `base ^ (z << shift)` (§sec:idxcol), the element
     /// whose bits are that integer's: what addresses a region whose cell `z` sits at
     /// `base + (z << shift)`. Free, its MLE being linear.
@@ -45,7 +47,7 @@ pub enum Coord {
     /// §sec:memchan): the verifier evaluates it in time proportional to the blocks,
     /// not to the column.
     Sparse(Arc<SparseColumn>),
-    /// A sum of `Const`/`Col`/`Prod` terms: any degree-2 form over the
+    /// A sum of `Const`/`Col`/`Prod`/`Scaled` terms: any degree-2 form over the
     /// table's columns, which is all §sec:m3 asks of a coordinate. This is what
     /// carries a value a row DERIVES from its columns (a branch's successor, what a
     /// jump writes to `rd`, a hash row's block addresses) without committing a column for it, and
@@ -61,6 +63,7 @@ impl Coord {
         match self {
             Self::Col(i) => Self::Col(base + i),
             Self::Prod(i, j) => Self::Prod(base + i, base + j),
+            Self::Scaled(c, i) => Self::Scaled(c, base + i),
             Self::Sum(cs) => Self::Sum(cs.into_iter().map(|c| c.offset(base)).collect()),
             other => other,
         }
@@ -294,6 +297,7 @@ fn push_terms<'a>(c: &'a Coord, w: F192, terms: &mut Vec<Term<'a>>, constant: &m
         Coord::Const(v) => *constant += w.mul_base(*v),
         Coord::Col(i) => terms.push(Term::Col(*i, w)),
         Coord::Prod(i, j) => terms.push(Term::Prod(*i, *j, w)),
+        Coord::Scaled(c, i) => terms.push(Term::Col(*i, w.mul_base(*c))),
         Coord::IntIndex { base, shift } => {
             *constant += w.mul_base(*base);
             terms.push(Term::IntIndex(w, *shift));
@@ -345,10 +349,9 @@ fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &m
 const PRODUCER_CHUNK: usize = 1 << 12;
 
 /// A producer's entries' leaves, `β − π_α(e_x)`, which its bits raise to their powers.
-fn producer_leaves(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> ArenaVec<F192> {
-    let mut q = ArenaVec::with_capacity(1 << p.kappa);
+fn producer_leaves(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> Vec<F192> {
     // SAFETY: `fill_tuple` writes every slot before anything reads one.
-    unsafe { q.set_len(1 << p.kappa) };
+    let mut q = unsafe { primitives::uninit_vec(1 << p.kappa) };
     fill_tuple(&p.coords, cols, w, beta, &mut q);
     q
 }
@@ -364,7 +367,7 @@ pub fn build_leaves(
     cols: &[&[F64]],
     w: &[F192],
     beta: F192,
-) -> ArenaVec<F192> {
+) -> Vec<F192> {
     let kappas: Vec<usize> = blocks
         .iter()
         .map(|b| b.kappa)
@@ -385,14 +388,15 @@ pub fn build_leaves(
     // Capacity is rounded to whole four-tuples because `gkr::QuaternaryLayerState`
     // pads this level to that before reading it, and growing it here would copy it.
     let covered: usize = kappas.iter().map(|&kappa| 1usize << kappa).sum();
+    let capacity = explicit.next_multiple_of(4);
     let mut leaves = if covered == explicit {
-        let mut values = ArenaVec::with_capacity(explicit.next_multiple_of(4));
         // SAFETY: the per-block fills below cover `0..explicit` exactly, and each
         // joins before this function returns.
-        unsafe { values.set_len(explicit) };
+        let mut values = unsafe { primitives::uninit_vec(capacity) };
+        values.truncate(explicit);
         values
     } else {
-        let mut values = ArenaVec::with_capacity(explicit.next_multiple_of(4));
+        let mut values = Vec::with_capacity(capacity);
         values.resize(explicit, F192::ONE);
         values
     };
@@ -429,17 +433,17 @@ pub fn build_leaves(
 /// columns, then for each bit `i` the public column `(β − π_α(e_x))^{2^i} − 1`, so that
 /// bit `i`'s leaf is `1 + b_i·P'_i`. Prover-side; the verifier evaluates the public
 /// half itself, its program columns' share in a deferred claim.
-pub fn producer_columns(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> Vec<ArenaVec<F192>> {
+pub fn producer_columns(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> Vec<Vec<F192>> {
     let mut q = producer_leaves(p, cols, w, beta);
     let mult = cols[p.col];
     let bits = (0..p.bits).map(|bit| {
-        let mut column = ArenaVec::with_capacity(1 << p.kappa);
+        let mut column = Vec::with_capacity(1 << p.kappa);
         column.extend(mult.iter().map(|m| F192::from(F64((m.0 >> bit) & 1))));
         column
     });
     let mut public = Vec::with_capacity(p.bits);
     for _ in 0..p.bits {
-        let mut column = ArenaVec::with_capacity(1 << p.kappa);
+        let mut column = Vec::with_capacity(1 << p.kappa);
         column.extend(q.iter().map(|&v| v + F192::ONE));
         public.push(column);
         parallel::for_each_mut(&mut q, |_, v| *v = v.square());
@@ -556,7 +560,7 @@ pub struct BusForm<E = F192> {
 
 impl<E: Copy> BusForm<E> {
     /// The zero form over `n_cols` columns.
-    fn new(n_cols: usize, zero: E) -> Self {
+    pub(crate) fn new(n_cols: usize, zero: E) -> Self {
         Self {
             coeffs: vec![zero; n_cols],
             prods: Vec::new(),
@@ -683,6 +687,10 @@ impl<E: Copy> BusForm<E> {
             Coord::Prod(i, j) => {
                 let product = a.mul(selector, w);
                 self.prods.push((*i - base, *j - base, product));
+            }
+            Coord::Scaled(c, i) => {
+                let product = a.mul(selector, w);
+                self.coeffs[*i - base] = a.mul_const_add(product, F192::from(*c), self.coeffs[*i - base]);
             }
             Coord::Sum(cs) => {
                 for c in cs {
@@ -875,7 +883,7 @@ impl Side<'_> {
                         };
                         a.mul_add(w[i], x, leaf)
                     }
-                    Coord::Prod(..) | Coord::Sum(..) => {
+                    Coord::Prod(..) | Coord::Scaled(..) | Coord::Sum(..) => {
                         unreachable!("only a table's bus block carries a degree-2 coordinate")
                     }
                     Coord::Public(vals) => {
@@ -1042,7 +1050,7 @@ impl<'a> BusSetup<'a> {
 /// against `eq(ζ[..κ], ·)`.
 pub struct ProducerProof {
     pub coefficients: Vec<F192>,
-    pub columns: Vec<ArenaVec<F192>>,
+    pub columns: Vec<Vec<F192>>,
     pub sigma: F192,
 }
 
@@ -1124,7 +1132,7 @@ pub fn prove_balance(
         .zip(std::mem::take(&mut open.producers))
         .map(|(p, coefficients)| {
             let columns = producer_columns(p, cols, &w, beta);
-            let eq = eq_table_arena(&bus_gkr.point[..p.kappa]);
+            let eq = eq_table(&bus_gkr.point[..p.kappa]);
             let (bits, public) = columns.split_at(p.bits);
             // Bit `i`'s block at ζ: `Σ_x eq(ζ, x)·(1 + b_i(x)·P'_i(x))`, the eq weights summing to one.
             let sigma = parallel::map_reduce(
@@ -1211,7 +1219,7 @@ fn tables_and_prods_at(
             pairs.sort_unstable();
             pairs.dedup();
 
-            let eq = eq_table_arena(&zeta[..tau]);
+            let eq = eq_table(&zeta[..tau]);
             let n_acc = n_cols + pairs.len();
             let sums = parallel::fold_reduce(
                 (1usize << tau).div_ceil(ROWS),

@@ -7,7 +7,7 @@ use crate::arith::Arith;
 use crate::rec::circuit::{Builder, Ew};
 use ::pcs::pack::PACKING_WIDTH;
 use ::pcs::ring_switch::COMPOSITION_SHIFTS;
-use ::pcs::stack_open::RingSwitchVerify;
+use ::pcs::stack_open::{PrefixGroup, RingSwitchVerify};
 use primitives::field::{F64, F192};
 
 /// The ring-switching map `Phi`, as the coefficients `C_k^(2^-k)` of its Frobenius form, `k < 64`.
@@ -62,19 +62,31 @@ impl RingMap {
         Self::close(b, &terms)
     }
 
-    /// The terms `C_k^(2^-k) P_k` of a claim's weight at the suffix point `z`, `P_k = prod_n (1 + z_n + q_n^(2^-k))`.
+    /// The terms `C_k^(2^-k) P_k` of a claim's weight at several prefixes of one suffix point `z`, `P_k = prod_n (1 + z_n + q_n^(2^-k))`: entry `i` is at `z[..lengths[i]]`.
     ///
-    /// `ladders[n]` holds the query's `q_n^(2^-k)`.
-    fn terms(&self, b: &mut Builder, z: &[Ew], ladders: &[Vec<Ew>]) -> Vec<Ew> {
-        assert!(z.len() <= ladders.len(), "a claim's point is a prefix of the query");
+    /// `ladders[n]` holds the query's `q_n^(2^-k)`. The products of a prefix extend to the next coordinate by one product each, so one pass over the longest serves every length.
+    fn prefix_terms(&self, b: &mut Builder, z: &[Ew], ladders: &[Vec<Ew>], lengths: &[usize]) -> Vec<Vec<Ew>> {
+        let longest = lengths.iter().copied().max().unwrap_or(0);
+        assert!(
+            longest <= z.len() && longest <= ladders.len(),
+            "a claim's point is a prefix of the query"
+        );
+        let mut out = vec![Vec::new(); lengths.len()];
+        let take = |n: usize, terms: &[Ew], out: &mut [Vec<Ew>]| {
+            for (slot, _) in out.iter_mut().zip(lengths).filter(|&(_, &len)| len == n) {
+                *slot = terms.to_vec();
+            }
+        };
         let mut terms = self.coefficients.clone();
-        for (&zn, ladder) in z.iter().zip(ladders) {
+        take(0, &terms, &mut out);
+        for (n, (&zn, ladder)) in z.iter().zip(ladders).take(longest).enumerate() {
             for (term, &power) in terms.iter_mut().zip(ladder) {
                 let s = b.add(power, zn);
                 *term = b.times_one_plus(*term, s);
             }
+            take(n + 1, &terms, &mut out);
         }
-        terms
+        out
     }
 }
 
@@ -133,22 +145,25 @@ impl<'a, 'r> RingShare<'a, 'r> {
 
     /// The family's weight at the stack point `x`: `sum_j eq(sel_j, x_hi) MLE(Phi(gamma_rs^j eq(r_j, .)))(x_lo)`.
     ///
-    /// The claims of one region add their scaled terms and close once, the Frobenius being additive.
+    /// - Claims whose points are prefixes of one another, the same wires, share one pass over the longest.
+    /// - The claims of one region add their scaled terms and close once, the Frobenius being additive.
     pub(super) fn weight_at(&self, r: &mut Rows<'_, '_>, x: &[Ew]) -> Ew {
         let max_vars = self.rings.iter().map(|ring| ring.qflock_vars).max().unwrap_or(0);
         let ladders: Vec<Vec<Ew>> = x[..max_vars].iter().map(|&q| RingMap::ladder(r.b, q, 1)).collect();
-        let mut scales = self.scales.iter();
         let zero = r.zero();
-        let mut weight = zero;
-        for ring in self.rings {
-            let mut sum = vec![zero; PACKING_WIDTH];
-            for (claim, &scale) in ring.claims.iter().zip(scales.by_ref()) {
-                let terms = self.map.terms(r.b, claim.suffix_point, &ladders);
-                for (s, &term) in sum.iter_mut().zip(&terms) {
+        let mut sums = vec![vec![zero; PACKING_WIDTH]; self.rings.len()];
+        for group in PrefixGroup::of(self.rings) {
+            let at = self.map.prefix_terms(r.b, group.lead, &ladders, &group.lengths);
+            for member in group.members {
+                let scale = self.scales[member.claim];
+                for (s, &term) in sums[member.ring].iter_mut().zip(&at[member.length]) {
                     *s = r.mul_add(scale, term, *s);
                 }
             }
-            let part = RingMap::close(r.b, &sum);
+        }
+        let mut weight = zero;
+        for (ring, sum) in self.rings.iter().zip(&sums) {
+            let part = RingMap::close(r.b, sum);
             let sel_eq = r.eq_bits(ring.offset >> ring.qflock_vars, &x[ring.qflock_vars..]);
             weight = r.mul_add(sel_eq, part, weight);
         }

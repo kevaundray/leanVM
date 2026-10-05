@@ -5,7 +5,6 @@
 //! the column's offset.
 
 use primitives::field::F64;
-use zk_alloc::ArenaVec;
 
 /// What a column is, before it is placed.
 #[derive(Clone, Copy, Debug)]
@@ -150,20 +149,6 @@ pub fn placements_of(sources: &[Source]) -> (Vec<Placement>, StackShape) {
 /// small enough to spread one column across cores.
 const FILL_CHUNK: usize = 1 << 16;
 
-/// The uninitialized stacked witness: [`StackShape::committed_len`] slots, the
-/// placed columns rounded up to a whole lane rather than all the way to `2^mu`.
-/// Arena-backed: `q` is born and dies inside one `cpu::Program::prove` phase.
-///
-/// # Safety
-/// Every slot must be written before it is read. [`split_stack`] hands out one
-/// window per committed column and zeroes the pad tail, which together cover the
-/// whole allocation, so the obligation reduces to each column's fill writing its
-/// own window.
-pub unsafe fn alloc_stack(shape: StackShape) -> ArenaVec<F64> {
-    // SAFETY: forwarded to the caller by the contract above.
-    unsafe { ArenaVec::<F64>::uninitialized(shape.committed_len()) }
-}
-
 /// Carve the stack into one mutable window per committed column, in column order,
 /// and zero the pad tail past the last one. A port gets an empty window:
 /// it is not in the stack, so its values need storage of their own.
@@ -173,9 +158,9 @@ pub unsafe fn alloc_stack(shape: StackShape) -> ArenaVec<F64> {
 /// second time (a gigabyte at scale) for nothing, and allocating the stack zeroed
 /// would memset all `2^m` slots only for the columns to overwrite them.
 ///
-/// Safe despite [`alloc_stack`]'s uninitialized allocation: [`placements_of`]
-/// tiles the columns from offset 0, checked here, so consecutive `split_at_mut`
-/// hands out disjoint windows covering `[0, placed)` and this zeroes the rest.
+/// The columns must tile from offset zero without gaps.
+/// The returned windows are disjoint.
+/// The remaining tail is zeroed.
 pub fn split_stack<'a>(q: &'a mut [F64], placements: &[Placement]) -> Vec<&'a mut [F64]> {
     let mut order: Vec<(usize, Window)> = (placements.iter().enumerate())
         .filter_map(|(i, p)| Some((i, p.window()?)))

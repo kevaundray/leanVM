@@ -9,7 +9,7 @@ use crate::cpu::{CpuError, DeferredClaims, Layout, Program, TableReduction};
 use crate::pcs::Rate;
 use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::transcript::{ProofSource, Transcript};
-use crate::tables::{ClassSpec, Clock, N_TABLES};
+use crate::tables::{Clock, N_TABLES};
 use ::pcs::pack::PACKING_WIDTH;
 use ::pcs::stack_open::{RingSwitchVerify, RingSwitchVerifyClaim};
 use primitives::field::F192;
@@ -78,13 +78,10 @@ impl<'p> ProofShape<'p> {
         let reduced = r.scope("bus and tables", |r| {
             infallible(self.layout.reduce_tables(r, clock, &output))
         });
-        let reductions: Vec<Reduction> = (0..class_flock::N_FLOCKS)
-            .map(|f| {
-                let (table, part) = class_flock::flock(f);
-                let name = format!("flock {} {part:?}", ClassSpec::ALL[table].name);
-                r.scope(name, |r| Reduction::replay(r, class_flock::shape(f), self.taus[table]))
-            })
+        let circuits: Vec<_> = (0..class_flock::N_FLOCKS)
+            .map(|f| (class_flock::shape(f), self.taus[class_flock::flock(f).0]))
             .collect();
+        let reductions = r.scope("flock", |r| Reduction::replay(r, &circuits));
 
         r.scope("opening", |r| self.open(r, root, &reductions, &reduced));
         if !r.t.finished() {

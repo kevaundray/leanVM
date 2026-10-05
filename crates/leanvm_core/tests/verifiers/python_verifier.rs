@@ -163,17 +163,17 @@ fn test_python_verifier() {
     // full Merkle path instead of one octopus over the batch. A Rust verify
     // expands the wire form, so the pruning is written once.
     let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
-    let encoded = bincode::serialize(&proof).expect("serialize proof");
+    let encoded = bincode::serialize(&proof.0).expect("serialize proof");
     let statement = PythonStatement::new("tamper", &program, &output);
     let verification_started = Instant::now();
     statement.assert_accepts(&raw);
     let verification_time = verification_started.elapsed();
 
     let mut malformed_announcement = proof.clone();
-    malformed_announcement.stream[0].c1 = 1;
+    malformed_announcement.0.stream[0].c1 = 1;
     assert_eq!(
-        program.verify(&output, &malformed_announcement),
-        Err(CpuError::NonCanonicalSize)
+        program.verify(output.into(), &malformed_announcement),
+        Err(CpuError::NonCanonicalSize.into())
     );
     let mut raw_announcement = raw.clone();
     raw_announcement.stream[0].c1 = 1;
@@ -181,11 +181,11 @@ fn test_python_verifier() {
 
     // Neither a padding row's clock nor a failed row's can end the run.
     let final_clock = leanvm_core::tables::N_TABLES + 1;
-    let honest = proof.stream[final_clock].c0;
+    let honest = proof.0.stream[final_clock].c0;
     for clock in [0, honest ^ Clock::SEED_CLOCK, honest | 1 << Clock::FAIL_BIT] {
         let mut forged = proof.clone();
-        forged.stream[final_clock] = F192::new(clock, 0, 0);
-        assert_eq!(program.verify(&output, &forged), Err(CpuError::FinalClock));
+        forged.0.stream[final_clock] = F192::new(clock, 0, 0);
+        assert_eq!(program.verify(output.into(), &forged), Err(CpuError::FinalClock.into()));
         let mut raw_forged = raw.clone();
         raw_forged.stream[final_clock] = F192::new(clock, 0, 0);
         let refused = statement.verify(&raw_forged);
@@ -196,8 +196,8 @@ fn test_python_verifier() {
     let mut malformed_root = proof;
     // Past the announcement: the table heights, the rate, the final clock.
     let root_offset = leanvm_core::tables::N_TABLES + 2;
-    malformed_root.stream[root_offset].c2 = 1;
-    assert!(program.verify(&output, &malformed_root).is_err());
+    malformed_root.0.stream[root_offset].c2 = 1;
+    assert!(program.verify(output.into(), &malformed_root).is_err());
     let mut raw_root = raw.clone();
     raw_root.stream[root_offset].c2 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_root), "a noncanonical commitment root");
@@ -317,18 +317,18 @@ fn the_python_verifier_follows_the_slowest_rate() {
 }
 
 /// Every ring-switched claim joins the opening's one family through its slices: both verifiers reject a moved slice of
-/// the first, a middle and the last flock circuit, and a moved multiplicity bit. Python also rejects a family target off
-/// by one and a family combined by the wrong challenge.
+/// the first, a middle and the last flock circuit, the last circuit's form value, and a moved multiplicity bit. Python
+/// also rejects a family target off by one and a family combined by the wrong challenge.
 #[test]
 fn both_verifiers_bind_every_circuits_slices() {
     let (program, _) = super::programs::fibonacci();
     let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
     let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
-    assert_eq!(raw.stream, proof.stream, "the raw proof's scalars are the proof's");
+    assert_eq!(raw.stream, proof.0.stream, "the raw proof's scalars are the proof's");
     let statement = PythonStatement::new("slices", &program, &output);
 
-    // Where the table sumcheck (ending on the multiplicity bits) and each circuit's reduction (ending on its 64 slices)
-    // stop reading the stream, as the Python verifier reads it.
+    // Where the table sumcheck (ending on the multiplicity bits) and the batched reductions (ending on each circuit's
+    // 64 slices and its form's value, in circuit order) stop reading the stream, as the Python verifier reads it.
     let prelude = r#"import runpy, sys
 v = runpy.run_path(sys.argv[1])
 g = v['main'].__globals__
@@ -351,22 +351,30 @@ sys.exit(v['main'](sys.argv[2:]))
             .filter_map(|line| line.strip_prefix(name)?.trim().parse().ok())
             .collect()
     };
-    let flocks = ends("verify_flock");
     let n = leanvm_core::class_flock::N_FLOCKS;
-    assert_eq!(flocks.len(), n, "one reduction per circuit");
+    let [flock_end] = ends("verify_flock")[..] else {
+        panic!("one batched reduction")
+    };
     let [bits_end] = ends("table_sumcheck")[..] else {
         panic!("one table sumcheck")
     };
-    for at in [flocks[0] - 64, flocks[n / 2] - 64 + 7, flocks[n - 1] - 1, bits_end - 1] {
+    let slices = |f: usize| flock_end - (n - f) * 65;
+    for at in [
+        slices(0),
+        slices(n / 2) + 7,
+        slices(n - 1) + 63,
+        flock_end - 1,
+        bits_end - 1,
+    ] {
         let mut forged = proof.clone();
-        forged.stream[at] += F192::ONE;
+        forged.0.stream[at] += F192::ONE;
         assert!(
-            program.verify(&output, &forged).is_err(),
+            program.verify(output.into(), &forged).is_err(),
             "Rust accepted a moved scalar at {at}"
         );
         let mut raw_forged = raw.clone();
         raw_forged.stream[at] += F192::ONE;
-        PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice or bit");
+        PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice, form value or bit");
     }
 
     let shifted = r#"import runpy, sys

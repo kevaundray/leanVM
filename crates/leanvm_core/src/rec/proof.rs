@@ -15,10 +15,9 @@ use crate::arith::Verifier;
 use crate::constraints::{Columns, ConstraintError};
 use crate::pcs::{Rate, RingSwitchOpen, StackClaim};
 use crate::{constraints, pcs, witness};
-use fiat_shamir::transcript::{Challenger, Proof, ProverState, RawProof, VerifierState};
+use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
 use flock::reduction::SliceClaim;
 use primitives::field::{F64, F192};
-use zk_alloc::ArenaVec;
 
 /// The transcript's public input for a statement: the hash of its words' limbs, in order.
 pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
@@ -29,16 +28,16 @@ pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
 /// The hash table's flock batch, one instance per row.
 struct HashBatch {
     tau: usize,
-    z: ArenaVec<u64>,
-    a: ArenaVec<u64>,
-    b: ArenaVec<u64>,
-    z_lincheck: ArenaVec<u8>,
+    z: Vec<u64>,
+    a: Vec<u64>,
+    b: Vec<u64>,
+    z_lincheck: Vec<u8>,
 }
 
 /// The prover's stack, the hash table's ports by global column, and the hash table's batch.
 struct RecWitness {
-    q: ArenaVec<F64>,
-    ports: Vec<(usize, ArenaVec<F64>)>,
+    q: Vec<F64>,
+    ports: Vec<(usize, Vec<F64>)>,
     batch: HashBatch,
 }
 
@@ -64,12 +63,18 @@ impl HashBatch {
         }
     }
 
-    /// Prove every hash row: zerocheck, then lincheck, to one ring-switched claim on the packed witness.
+    /// Prove every hash row: zerocheck, then lincheck, a batch of one circuit, to one ring-switched claim on the packed witness.
     fn prove(self, layout: &RecLayout, ps: &mut ProverState) -> RingSwitchOpen {
-        let block = HashFlock::circuit().block();
         let window = layout.hash_window();
-        let stage = block.prove_zerocheck(self.tau, &self.z, &self.a, &self.b, ps);
-        let reduced = block.prove_lincheck(self.tau, stage, &self.z_lincheck, ps);
+        let instance = flock::reduction::Instance {
+            block: HashFlock::circuit().block(),
+            n_blocks_log: self.tau,
+            z: &self.z,
+            a: &self.a,
+            b: &self.b,
+            z_lincheck: &self.z_lincheck,
+        };
+        let [reduced] = <[_; 1]>::try_from(flock::reduction::prove(&[instance], ps)).expect("one circuit");
         flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
     }
 
@@ -77,22 +82,23 @@ impl HashBatch {
     ///
     /// The rows' matrices are settled here, against the circuit.
     fn verify(layout: &RecLayout, vs: &mut VerifierState) -> Result<SliceClaim, RecError> {
-        let replay = HashFlock::circuit().block().verify(layout.tau(Table::Hash), vs)?;
+        let circuits = [(HashFlock::circuit().block(), layout.tau(Table::Hash))];
+        let [replay] = <[_; 1]>::try_from(flock::reduction::verify(&circuits, vs)?).expect("one circuit");
         Ok(replay.claim)
     }
 }
 
 impl RecWitness {
     fn build(layout: &RecLayout, a: &Assignment) -> Self {
-        // SAFETY: `split_stack` zeroes the pad tail; every committed window is written below: each owned table's
-        // committed columns by its fill, and the packed witness from its batch.
-        let mut q = unsafe { witness::alloc_stack(layout.shape) };
+        // SAFETY: the owned tables and hash batch fill every committed window before it is read.
+        // The pad tail is zeroed.
+        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
         let ports_at = RecLayout::columns(Table::Hash).start;
         // SAFETY: each port's buffer is written in full from the batch below.
-        let mut ports: Vec<(usize, ArenaVec<F64>)> = (0..HashFlock::N_PORTS)
+        let mut ports: Vec<(usize, Vec<F64>)> = (0..HashFlock::N_PORTS)
             .map(|c| {
                 (ports_at + c, unsafe {
-                    ArenaVec::uninitialized(1 << layout.tau(Table::Hash))
+                    primitives::uninit_vec(1 << layout.tau(Table::Hash))
                 })
             })
             .collect();
@@ -207,7 +213,7 @@ impl Circuit {
     ///
     /// Panics if the assignment is not one of the circuit, or its bus does not balance.
     #[tracing::instrument(name = "Prove recursion", skip_all)]
-    pub fn prove(&self, a: &Assignment, iv: [F64; 4], rate: Rate) -> Result<Proof, RecError> {
+    pub fn prove(&self, a: &Assignment, iv: [F64; 4], rate: Rate) -> Result<ProofTranscript, RecError> {
         assert_eq!(a.statement.len(), self.statement_len, "the assignment's statement");
         assert!(
             Table::ALL
@@ -216,7 +222,6 @@ impl Circuit {
             "the assignment's rows are the circuit's"
         );
         let layout = RecLayout::new(self)?;
-        let _phase = zk_alloc::enter_phase();
         let log_inv_rate = rate.log_inv_rate().into();
         let mut ps = ProverState::new(iv, statement_seed(&a.statement));
 
@@ -236,7 +241,13 @@ impl Circuit {
     /// # Errors
     ///
     /// Returns the first check that refuses the proof.
-    pub fn verify(&self, statement: &[Limbs], iv: [F64; 4], rate: Rate, proof: &Proof) -> Result<(), RecError> {
+    pub fn verify(
+        &self,
+        statement: &[Limbs],
+        iv: [F64; 4],
+        rate: Rate,
+        proof: &ProofTranscript,
+    ) -> Result<(), RecError> {
         self.verify_to_raw(statement, iv, rate, proof).map(|_| ())
     }
 
@@ -252,7 +263,7 @@ impl Circuit {
         statement: &[Limbs],
         iv: [F64; 4],
         rate: Rate,
-        proof: &Proof,
+        proof: &ProofTranscript,
     ) -> Result<RawProof, RecError> {
         self.verify_seeded(statement, iv, statement_seed(statement), rate, proof)
     }
@@ -264,7 +275,7 @@ impl Circuit {
         iv: [F64; 4],
         public_input: [F64; 4],
         rate: Rate,
-        proof: &Proof,
+        proof: &ProofTranscript,
     ) -> Result<RawProof, RecError> {
         if statement.len() != self.statement_len {
             return Err(RecError::StatementLength {
@@ -304,13 +315,13 @@ mod tests {
 
     const IV: [F64; 4] = [F64(1), F64(2), F64(3), F64(4)];
 
-    fn prove_run(circuit: &Circuit, a: &Assignment) -> Proof {
+    fn prove_run(circuit: &Circuit, a: &Assignment) -> ProofTranscript {
         circuit
             .prove(a, IV, Rate::MIN)
             .expect("the circuit fits one commitment")
     }
 
-    fn verify_run(circuit: &Circuit, statement: &[Limbs], proof: &Proof) -> Result<(), RecError> {
+    fn verify_run(circuit: &Circuit, statement: &[Limbs], proof: &ProofTranscript) -> Result<(), RecError> {
         circuit.verify(statement, IV, Rate::MIN, proof)
     }
 

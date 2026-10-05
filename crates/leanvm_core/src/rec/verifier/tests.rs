@@ -16,12 +16,13 @@ use crate::rv::Region;
 use crate::rv::asm::*;
 use crate::tables::{ClassSpec, N_TABLES, Part};
 use crate::witness::StackShape;
-use ::flock::lincheck::MatrixForm;
+use ::flock::reduction::{Instance, Shape};
+use ::flock::zerocheck::K_SKIP;
 use ::pcs::pack::PACKING_WIDTH;
 use ::pcs::ring_switch::fold_1b_rows;
 use ::pcs::stack_open::{RingFamily, RingSwitchVerify, RingSwitchVerifyClaim};
 use ::pcs::whir::inner_product_base_ext;
-use fiat_shamir::transcript::{Proof, ProverState, RawProof, VerifierState};
+use fiat_shamir::transcript::{ProofTranscript, ProverState, RawProof, VerifierState};
 use primitives::field::{F64, F192};
 use primitives::test_util::Rng;
 
@@ -53,7 +54,7 @@ fn fixture() -> Fixture {
     let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
     let native = program.verify_core(&output, &proof).expect("an honest proof");
     let raw = program.verify_to_raw(&output, &proof).expect("an honest proof");
-    let taus = std::array::from_fn(|i| usize::try_from(proof.stream[i].c0).expect("a height"));
+    let taus = std::array::from_fn(|i| usize::try_from(proof.0.stream[i].c0).expect("a height"));
     Fixture {
         program,
         raw,
@@ -182,7 +183,7 @@ fn a_non_boolean_merkle_selector_is_refused() {
     let iv = [F64(7); 4];
     let statement = a.statement().to_vec();
     let prove = |a: &Assignment| circuit.prove(a, iv, Rate::MIN).expect("the circuit fits");
-    let verify = |proof: &Proof| circuit.verify(&statement, iv, Rate::MIN, proof);
+    let verify = |proof: &ProofTranscript| circuit.verify(&statement, iv, Rate::MIN, proof);
     assert_eq!(verify(&prove(&a)), Ok(()));
     a.values[bit.0 as usize][0] = 2;
     assert_eq!(
@@ -207,71 +208,146 @@ fn replay<T>(source: ProofSource<'_>, f: impl FnOnce(&mut Rows<'_, '_>) -> T) ->
     (b, out, finished)
 }
 
-fn raw(proof: &Proof) -> RawProof {
+fn raw(proof: &ProofTranscript) -> RawProof {
     RawProof {
         stream: proof.stream.clone(),
         merkle: Vec::new(),
     }
 }
 
-// The reduction of packed witness `f` over `rows`, proven natively.
-fn prove_reduction<const N: usize>(f: usize, rows: &[[u64; N]], n_blocks_log: usize) -> Proof {
-    let circuit = class_flock::circuit(f);
-    let (t, _) = class_flock::flock(f);
-    let (z, a, bz, zl) = ClassSpec::ALL[t].witness.map_or_else(
-        || circuit.generate_witness(rows, n_blocks_log),
-        |witness| circuit.generate_witness_with(rows, &[0; N], n_blocks_log, |row, z, az, bz| witness(row, z, az, bz)),
-    );
-    let block = circuit.block();
+// Packed witness `f`'s batch over `rows`: its instances' count, and its witness as the prover holds it.
+struct Batch {
+    f: usize,
+    n_blocks_log: usize,
+    witness: (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>),
+}
+
+impl Batch {
+    fn new<const N: usize>(f: usize, rows: &[[u64; N]]) -> Self {
+        let circuit = class_flock::circuit(f);
+        let (t, _) = class_flock::flock(f);
+        let n_blocks_log = class_flock::n_blocks_log(ClassSpec::ALL[t], rows.len());
+        let witness = ClassSpec::ALL[t].witness.map_or_else(
+            || circuit.generate_witness(rows, n_blocks_log),
+            |witness| {
+                circuit.generate_witness_with(rows, &[0; N], n_blocks_log, |row, z, az, bz| witness(row, z, az, bz))
+            },
+        );
+        Self {
+            f,
+            n_blocks_log,
+            witness,
+        }
+    }
+}
+
+// The batched reduction of the packed witnesses, proven natively.
+fn prove_reductions(batches: &[Batch]) -> ProofTranscript {
+    let instances: Vec<Instance<'_>> = (batches.iter())
+        .map(|batch| {
+            let (z, a, b, z_lincheck) = &batch.witness;
+            Instance {
+                block: class_flock::circuit(batch.f).block(),
+                n_blocks_log: batch.n_blocks_log,
+                z,
+                a,
+                b,
+                z_lincheck,
+            }
+        })
+        .collect();
     let mut ps = ProverState::from_label(LABEL);
-    let stage = block.prove_zerocheck(n_blocks_log, &z, &a, &bz, &mut ps);
-    block.prove_lincheck(n_blocks_log, stage, &zl, &mut ps);
+    ::flock::reduction::prove(&instances, &mut ps);
     ps.into_proof()
 }
 
-// The reduction in rows agrees with the native replay, and a tampered scalar leaves a claim that does not settle.
-fn check_reduction(f: usize, n_blocks_log: usize, proof: &Proof) {
-    let shape = class_flock::shape(f);
-    let native = |proof: &Proof| {
+// The reduction in rows agrees with the native replay, and a tampered scalar fails both, where the native verifier fails.
+fn check_reductions(batches: &[Batch]) {
+    let proof = prove_reductions(batches);
+    let circuits: Vec<(Shape, usize)> = (batches.iter())
+        .map(|batch| (class_flock::shape(batch.f), batch.n_blocks_log))
+        .collect();
+    let native = |proof: &ProofTranscript| {
         let mut vs = VerifierState::from_label(LABEL, proof);
-        class_flock::verify_reduction(f, n_blocks_log, &mut vs).expect("the replay runs")
+        ::flock::reduction::verify_deferred(&circuits, &mut vs)
     };
-    let rows = |proof: &RawProof| replay(ProofSource::Proof(proof), |r| Reduction::replay(r, shape, n_blocks_log));
+    let rows = |proof: &RawProof| replay(ProofSource::Proof(proof), |r| Reduction::replay(r, &circuits));
 
-    let (replay_native, matrices) = native(proof);
-    let (b, reduction, finished) = rows(&raw(proof));
+    let replays = native(&proof).expect("an honest batch");
+    let (b, reductions, finished) = rows(&raw(&proof));
     assert!(finished, "the rows read the whole stream");
-    assert_eq!(
-        reduction.slice.suffix_point.iter().map(|&w| b.e(w)).collect::<Vec<_>>(),
-        replay_native.claim.suffix_point
-    );
-    assert_eq!(reduction.matrix.point.map(|w| b.e(w)), matrices.form);
-    assert_eq!(b.e(reduction.matrix.value), matrices.value);
+    for ((batch, reduction), (replay, matrices)) in batches.iter().zip(&reductions).zip(&replays) {
+        let point: Vec<F192> = reduction.slice.suffix_point.iter().map(|&w| b.e(w)).collect();
+        assert_eq!(point, replay.claim.suffix_point, "circuit {}'s point", batch.f);
+        assert_eq!(reduction.matrix.point.map(|w| b.e(w)), matrices.form);
+        assert_eq!(b.e(reduction.matrix.value), matrices.value);
+        assert_eq!(matrices.form.evaluate(class_flock::circuit(batch.f)), matrices.value);
+    }
     let Finished { circuit, failures, .. } = b.finish();
     assert!(failures.is_empty(), "{failures:?}");
-    let shaped: Circuit = replay(ProofSource::Shape, |r| Reduction::replay(r, shape, n_blocks_log))
+    let shaped: Circuit = replay(ProofSource::Shape, |r| Reduction::replay(r, &circuits))
         .0
         .finish()
         .circuit;
     assert!(circuit == shaped, "the shape builds another circuit");
 
-    // The first scalar of the zerocheck's first round, and the last lincheck round's top coefficient.
-    for index in [0, proof.stream.len() - PACKING_WIDTH - 1] {
+    // The first scalar of the zerocheck's first round, the last circuit's `c` claim, the last lincheck round's top
+    // coefficient, the first circuit's first slice and its form's value.
+    let n = batches.len();
+    let tail = n * (PACKING_WIDTH + 1);
+    let n_rounds = (circuits.iter())
+        .map(|(shape, _)| shape.k_log - K_SKIP)
+        .max()
+        .unwrap_or(0);
+    let lincheck_start = proof.stream.len() - tail - 2 * n_rounds;
+    let len = proof.stream.len();
+    let tampers = [
+        (0, "zerocheck"),
+        (lincheck_start - 1, "zerocheck"),
+        (len - tail - 1, "lincheck"),
+        (len - tail, "lincheck"),
+        (len - tail + PACKING_WIDTH, "lincheck"),
+    ];
+    for (index, stage) in tampers {
         let mut forged = proof.clone();
         forged.stream[index] += F192::ONE;
-        let (_, matrices) = native(&forged);
-        let (b, reduction, _) = rows(&raw(&forged));
-        let form: MatrixForm = reduction.matrix.point.map(|w| b.e(w));
-        assert_eq!(
-            form, matrices.form,
-            "the rows replay the forged stream as the native verifier does"
+        assert!(native(&forged).is_err(), "the native verifier refuses scalar {index}");
+        let failures = rows(&raw(&forged)).0.finish().failures;
+        assert!(
+            failures.first().is_some_and(|f| f.starts_with(stage)),
+            "scalar {index}: {failures:?}"
         );
-        assert_eq!(b.e(reduction.matrix.value), matrices.value);
-        assert_ne!(
-            form.evaluate(class_flock::circuit(f)),
-            matrices.value,
-            "the forged claim does not settle"
-        );
+    }
+
+    // A value moved between two circuits' forms keeps the batch's identity: the core accepts, and the claims do not settle.
+    if n > 1 {
+        let lifts: Vec<F192> = {
+            let longest = (replays.iter().map(|(replay, _)| &replay.lc_claim.r_rounds))
+                .max_by_key(|r| r.len())
+                .expect("a batch");
+            let alpha_4 = replays[0].0.lc_claim.alpha.square().square();
+            let weights = primitives::field::powers(alpha_4, n);
+            (replays.iter().zip(weights))
+                .map(|((replay, _), w)| {
+                    longest[replay.lc_claim.r_rounds.len()..]
+                        .iter()
+                        .fold(w, |acc, &r| acc * r)
+                })
+                .collect()
+        };
+        let delta = F192::new(7, 0, 0);
+        let mut forged = proof;
+        forged.stream[len - tail + PACKING_WIDTH] += delta * lifts[1];
+        forged.stream[len - tail + 2 * PACKING_WIDTH + 1] += delta * lifts[0];
+        let moved = native(&forged).expect("the batch's identity holds");
+        let (b, reductions, _) = rows(&raw(&forged));
+        for (f, (reduction, (_, matrices))) in reductions.iter().zip(&moved).enumerate() {
+            assert_eq!(b.e(reduction.matrix.value), matrices.value);
+            let settles = matrices.form.evaluate(class_flock::circuit(batches[f].f)) == matrices.value;
+            assert_eq!(settles, f > 1, "circuit {f}'s moved claim");
+        }
+        let failures = b.finish().failures;
+        assert!(failures.is_empty(), "{failures:?}");
     }
 }
 
@@ -290,22 +366,27 @@ fn flock_index(name: &str, part: Part) -> usize {
     class_flock::flock_index(t, part)
 }
 
-#[test]
-fn the_hash_reduction_in_rows_is_the_native_one() {
-    let f = flock_index("HASH", Part::Class);
-    let n_blocks_log = class_flock::n_blocks_log(ClassSpec::ALL[class_flock::flock(f).0], 5);
-    let mut next = xorshift(0xA7);
+fn hash_batch(seed: u64) -> Batch {
+    let mut next = xorshift(seed);
     let rows: Vec<[u64; 14]> = (0..5).map(|_| std::array::from_fn(|_| next())).collect();
-    check_reduction(f, n_blocks_log, &prove_reduction(f, &rows, n_blocks_log));
+    Batch::new(flock_index("HASH", Part::Class), &rows)
+}
+
+fn ld_batch(seed: u64, n: usize) -> Batch {
+    let mut next = xorshift(seed);
+    let rows: Vec<[u64; 2]> = (0..n).map(|_| [next(), next()]).collect();
+    Batch::new(flock_index("LD", Part::Class), &rows)
 }
 
 #[test]
-fn a_small_reduction_in_rows_is_the_native_one() {
-    let f = flock_index("LD", Part::Class);
-    let n_blocks_log = class_flock::n_blocks_log(ClassSpec::ALL[class_flock::flock(f).0], 20);
-    let mut next = xorshift(0x5EED);
-    let rows: Vec<[u64; 2]> = (0..20).map(|_| [next(), next()]).collect();
-    check_reduction(f, n_blocks_log, &prove_reduction(f, &rows, n_blocks_log));
+fn the_hash_reduction_in_rows_is_the_native_one() {
+    check_reductions(&[hash_batch(0xA7)]);
+}
+
+// Two block sizes, and two batches of one circuit at different heights, so the claims sit at prefixes of one another.
+#[test]
+fn a_mixed_batch_in_rows_is_the_native_one() {
+    check_reductions(&[ld_batch(0x5EED, 20), hash_batch(0xA7), ld_batch(0xB0B, 300)]);
 }
 
 // Fewer lanes than a leaf holds, and not whole blocks of them, so the level-0 image has a zero prefix.
@@ -536,12 +617,33 @@ fn a_larger_opening_in_rows_is_the_native_one() {
 }
 
 // The family's share in rows is what the native verifier adds to the target and to the weight.
+//
+// Two more regions take claims at prefixes of the first claim's point, two at one length, on the same wires, as flock's circuits of one block size do.
 #[test]
 fn the_ring_family_in_rows_is_the_native_one() {
     let mut rng = Rng::new(9);
     let mu = 16;
     let q: Vec<F64> = (0..1 << mu).map(|_| F64(rng.next_u64())).collect();
-    let (_, rings) = opening_claims(mu, &q, &mut rng);
+    let (_, mut rings) = opening_claims(mu, &q, &mut rng);
+    let lead = rings[0].claims[0].0.clone();
+    let top = 1usize << mu;
+    for (offset, vars, lengths) in [
+        (top - (1 << (mu - 5)), mu - 5, &[mu - 5][..]),
+        (top - (1 << (mu - 5)) - (1 << (mu - 6)), mu - 6, &[mu - 6, mu - 6][..]),
+    ] {
+        let claims = (lengths.iter())
+            .map(|&len| {
+                let point = lead[..len].to_vec();
+                let eq = primitives::multilinear::eq_table(&point);
+                (point, fold_1b_rows(&q[offset..offset + (1 << vars)], &eq))
+            })
+            .collect();
+        rings.push(Ring {
+            offset,
+            qflock_vars: vars,
+            claims,
+        });
+    }
     let verifies: Vec<RingSwitchVerify<'_>> = rings.iter().map(Ring::verify).collect();
     let gamma_rs = rng.ext();
     let map: [F192; 6] = std::array::from_fn(|_| rng.ext());
@@ -554,14 +656,17 @@ fn the_ring_family_in_rows_is_the_native_one() {
     let weight = family.weight(&verifies, &x);
 
     let (b, (target_wire, weight_wire), _) = replay(ProofSource::Shape, |r| {
+        let lead_wires: Vec<Ew> = lead.iter().map(|&v| r.b.free_e(v)).collect();
         let claims: Vec<Vec<(Vec<Ew>, Vec<Ew>)>> = (rings.iter())
             .map(|ring| {
                 (ring.claims.iter())
                     .map(|(p, s)| {
-                        (
-                            p.iter().map(|&v| r.b.free_e(v)).collect(),
-                            s.iter().map(|&v| r.b.free_e(v)).collect(),
-                        )
+                        let point = if lead.starts_with(p) {
+                            lead_wires[..p.len()].to_vec()
+                        } else {
+                            p.iter().map(|&v| r.b.free_e(v)).collect()
+                        };
+                        (point, s.iter().map(|&v| r.b.free_e(v)).collect())
                     })
                     .collect()
             })

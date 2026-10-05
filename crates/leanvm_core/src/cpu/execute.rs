@@ -5,9 +5,7 @@
 //! Everything else comes back from the program's entry at the row's index.
 
 use crate::rv::machine::{MemoryAccess, Step};
-use crate::rv::{
-    BlockAccess, Class, Ext, ExtResult, Hash, InstructionClass, Limb, Machine, RegisterFile, RiscvProgram, WordAccess,
-};
+use crate::rv::{BlockAccess, Class, Ext, Hash, Limb, Machine, RegisterFile, RiscvProgram, WordAccess};
 use crate::tables;
 use crate::tables::{ClassSpec, ClassTable, Clock, N_TABLES};
 use primitives::field::F64;
@@ -137,7 +135,7 @@ impl TraceBuilder {
                 }
                 ext = Some(Box::new(ExtRow {
                     instance: *instance,
-                    result: instance.eval(),
+                    c: instance.eval(),
                     prev: all,
                 }));
             }
@@ -200,7 +198,7 @@ impl TraceBuilder {
             all.copy_from_slice(slots);
             Box::new(ExtRow {
                 instance,
-                result: instance.eval(),
+                c: instance.eval(),
                 prev: all,
             })
         });
@@ -268,8 +266,8 @@ impl HashRow {
 pub(crate) struct ExtRow {
     /// The instance as the row found it.
     pub(crate) instance: Ext,
-    /// What the instance computes, and where its limbs are on the bus.
-    pub(crate) result: ExtResult,
+    /// `c`'s limbs after the row.
+    pub(crate) c: [u64; 3],
     /// The previous timestamp of every access, the registers' first.
     pub(crate) prev: [u64; 3 + Ext::LIMBS],
 }
