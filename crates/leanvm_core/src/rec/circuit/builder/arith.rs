@@ -188,13 +188,25 @@ mod tests {
         let xk = b.mul_k_add(x, k, z);
         assert_eq!(b.mul_k_add(x, k, z), xk);
         assert_ne!(b.mul_k_add(z, k, x), xk, "a K row is not symmetric");
+        assert_ne!(b.mul_add(x, y, y), xy, "another addend is another row");
+        let (x_again, k_again) = (b.free_e(b.e(x)), b.free_k(b.k(k)));
+        assert_ne!(
+            b.mul_add(x_again, y, z),
+            xy,
+            "a row folds by its wires, never by their values"
+        );
+        assert_ne!(
+            b.mul_k_add(x, k_again, z),
+            xk,
+            "a row folds by its wires, never by their values"
+        );
         let finished = b.finish();
         assert!(finished.failures.is_empty(), "{:?}", finished.failures);
         let [emul, exk, ..] = finished.circuit.row_counts();
         assert_eq!(
             (emul, exk),
-            (4, 2),
-            "x·y + z, x·z + y, x + y, x·y + 1; then x·k + z, z·k + x"
+            (6, 3),
+            "x·y + z, x·z + y, x + y, x·y + 1, x·y + y, x'·y + z; then x·k + z, z·k + x, x·k' + z"
         );
     }
 }
