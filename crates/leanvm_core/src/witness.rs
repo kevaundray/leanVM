@@ -34,6 +34,8 @@ pub enum Source {
         port: usize,
         stride_log: usize,
     },
+    /// Not committed: a field of a committed word, which the opening reads through the word's bit slices.
+    Sliced,
 }
 
 impl Source {
@@ -142,6 +144,8 @@ pub enum Placement {
         port: usize,
         stride_log: usize,
     },
+    /// A field of a committed word: its claims are its bits', which the opening ring-switches.
+    Sliced,
 }
 
 impl Placement {
@@ -149,7 +153,7 @@ impl Placement {
     pub const fn column(&self) -> Option<&Column> {
         match self {
             Self::Committed(column) => Some(column),
-            Self::Port { .. } => None,
+            Self::Port { .. } | Self::Sliced => None,
         }
     }
 }
@@ -221,7 +225,7 @@ pub fn placements_of(sources: &[Source]) -> (Vec<Placement>, StackShape) {
                 stride_log,
                 rows,
             } => Some((row_vars, stride_log, rows)),
-            Source::Port { .. } => None,
+            Source::Port { .. } | Source::Sliced => None,
         })
         .collect();
     let cut: Vec<Vec<(usize, usize)>> = shapes
@@ -267,6 +271,7 @@ pub fn placements_of(sources: &[Source]) -> (Vec<Placement>, StackShape) {
                     stride_log,
                 }
             }
+            (Source::Sliced, _) => Placement::Sliced,
             (Source::Committed { .. }, None) => unreachable!("a committed column has a shape"),
         })
         .collect();
@@ -308,7 +313,7 @@ pub fn live_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
                 total += rows;
                 Some(window)
             }
-            Source::Committed { .. } | Source::Port { .. } => None,
+            Source::Committed { .. } | Source::Port { .. } | Source::Sliced => None,
         })
         .collect();
     (windows, total)
@@ -424,7 +429,7 @@ mod tests {
                 .iter()
                 .map(|s| match *s {
                     Source::Committed { stride_log, rows, .. } => rows << stride_log,
-                    Source::Port { .. } => 0,
+                    Source::Port { .. } | Source::Sliced => 0,
                 })
                 .sum();
             let (placements, shape) = placements_of(&sources);

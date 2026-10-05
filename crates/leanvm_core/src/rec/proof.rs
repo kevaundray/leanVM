@@ -140,7 +140,7 @@ impl RecWitness {
                     let (offset, n_vars) = layout.whole(col);
                     &self.q[offset..offset + (1 << n_vars)]
                 }
-                Placement::Port { .. } => &[][..],
+                Placement::Port { .. } | Placement::Sliced => &[][..],
             })
             .collect();
         for (i, buf) in &self.ports {

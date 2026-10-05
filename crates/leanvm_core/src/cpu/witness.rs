@@ -134,6 +134,11 @@ impl Witness {
 
             // What the run did not leave, the multiplicities, is counted from its rows.
             trace.count_reads(outs[Lookup::Bytecode.multiplicity().col()].rows);
+
+            // The tables' register numbers, packed into their words.
+            for word in &layout.registers {
+                word.pack(&mut outs);
+            }
         });
 
         // Release the borrows of the stacks and of the port buffers.

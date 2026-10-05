@@ -12,11 +12,11 @@ use super::MAX_LOG_ROWS;
 use super::error::CpuError;
 use super::execute::Trace;
 use crate::arith::Arith;
-use crate::constraints::Claims;
+use crate::constraints::{BitColumns, Claims};
 use crate::leaf::{Block, ColumnClaim, Coord, Producer, PublicColumn, SparseColumn};
 use crate::pcs::{Piece, Rate, RingClaim, RingSwitch, SliceClaim, StackClaim, Term};
 use crate::rv::{Entry, Reg, Region, RegisterFile, RiscvProgram, Syscall};
-use crate::tables::{ClassSpec, ClassTable, Clock, Part, Separator};
+use crate::tables::{ClassSpec, ClassTable, Clock, ColumnOut, Part, Separator};
 use crate::witness::{Placement, Source, StackShape};
 use crate::{class_flock, pcs, tables, witness};
 use ::pcs::pack::PACKING_WIDTH;
@@ -399,6 +399,8 @@ impl Sizes {
         }));
 
         // Each table's columns, its circuit words turned into ports of its packed witnesses.
+        //
+        // Its register numbers are fields of its packed register column instead.
         for (t, table) in ClassTable::all().iter().enumerate() {
             let base = sources.len();
             sources.resize(base + table.n_committed_columns(), jagged(t, 0));
@@ -411,6 +413,21 @@ impl Sizes {
                     };
                 }
             }
+            for f in table.register_bits().fields {
+                sources[base + f.col] = Source::Sliced;
+            }
+        }
+
+        // Each table's packed register numbers: committed where its word opens, a field of that word otherwise.
+        let base = sources.len();
+        sources.resize(base + tables::N_TABLES, Source::Sliced);
+        for word in RegisterWord::of(heights) {
+            let tau = taus[word.tables[0]];
+            sources[word.col] = Source::Committed {
+                row_vars: tau,
+                stride_log: 0,
+                rows: committed_rows(word.height, tau),
+            };
         }
         debug_assert_eq!(sources.len(), Schema::get().n);
         sources
@@ -427,15 +444,110 @@ pub const fn committed_rows(height: usize, tau: usize) -> usize {
     if height < 1 << tau { height + 1 } else { 1 << tau }
 }
 
+/// One committed register word: the register numbers of tables of one proven size, one word per row (§sec:regpack).
+///
+/// Each table's fields follow the previous table's, low bits first.
+///
+/// Tables of one proven size share their table-sumcheck point, so a word is one ring-switched claim whatever it holds.
+///
+/// It commits the rows of its tallest table (§sec:jagged): a shorter table's fields repeat its padding row from its height on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RegisterWord {
+    /// Its column: the register column of its first table.
+    pub(crate) col: usize,
+    /// Its tables, in table order.
+    pub(crate) tables: Vec<usize>,
+    /// Its height: its tallest table's.
+    pub(crate) height: usize,
+}
+
+impl RegisterWord {
+    /// The words of tables of these heights.
+    ///
+    /// In table order, each table joins the first word of its proven size with room for its fields, or opens one.
+    pub(crate) fn of(heights: [usize; tables::N_TABLES]) -> Vec<Self> {
+        let taus: [usize; tables::N_TABLES] = std::array::from_fn(|t| tau_of(t, heights[t]));
+        let bits = ClassTable::all()
+            .each_ref()
+            .map(|table| table.register_bits().n_slices());
+        let mut words: Vec<(Self, usize)> = Vec::new();
+        for t in 0..tables::N_TABLES {
+            let room = words
+                .iter_mut()
+                .find(|(word, used)| taus[word.tables[0]] == taus[t] && used + bits[t] <= PACKING_WIDTH);
+            match room {
+                Some((word, used)) => {
+                    word.tables.push(t);
+                    word.height = word.height.max(heights[t]);
+                    *used += bits[t];
+                }
+                None => words.push((
+                    Self {
+                        col: Schema::get().registers[t],
+                        tables: vec![t],
+                        height: heights[t],
+                    },
+                    bits[t],
+                )),
+            }
+        }
+        words.into_iter().map(|(word, _)| word).collect()
+    }
+
+    /// Fill the word's column from its tables' register numbers, at its committed rows, and copy them into its pieces.
+    ///
+    /// `outs` holds every column's values, the word's own column to be written; a table's rows past its committed ones repeat its last.
+    pub(crate) fn pack(&self, outs: &mut [ColumnOut<'_>]) {
+        let rows = std::mem::take(&mut outs[self.col].rows);
+        let pieces = std::mem::take(&mut outs[self.col].pieces);
+        let schema = Schema::get();
+        let tables: Vec<(BitColumns, Vec<&[F64]>)> = (self.tables.iter())
+            .map(|&t| {
+                let (base, n) = schema.spans[t];
+                let cols = outs[base..base + n].iter().map(|c| &*c.rows).collect();
+                (ClassTable::all()[t].register_bits(), cols)
+            })
+            .collect();
+        parallel::fill(rows, |x| {
+            let (packed, _) = tables.iter().fold((0, 0), |(packed, shift), (bits, cols)| {
+                let row = x.min(cols[bits.fields[0].col].len() - 1);
+                (packed | bits.packed(cols, row) << shift, shift + bits.n_slices())
+            });
+            F64(packed)
+        });
+        for (first, piece) in pieces {
+            piece.copy_from_slice(&rows[first..first + piece.len()]);
+        }
+    }
+
+    /// The word's claim at its tables' point: each table's register numbers' bits, then zeros up to 64.
+    ///
+    /// Why zeros: an unused bit of an honest word is zero, so a word with one set fails the opening.
+    fn claim<E: Copy>(&self, tables: &[Claims<E>], zero: E) -> SliceClaim<E> {
+        let mut s_hat_v: Vec<E> = (self.tables.iter())
+            .flat_map(|&t| tables[t].slices.iter().copied())
+            .collect();
+        s_hat_v.resize(PACKING_WIDTH, zero);
+        SliceClaim {
+            suffix_point: tables[self.tables[0]].chi.clone(),
+            s_hat_v,
+        }
+    }
+}
+
 /// Where each table's columns sit in the global column order.
 ///
-/// The shared columns and the packed witnesses come first.
-///
-/// Then each table, in table order, owns a contiguous span of columns.
+/// - The shared columns and the packed witnesses come first.
+/// - Then each table, in table order, owns a contiguous span of columns.
+/// - Then each table's packed register numbers, one column per table, committed only where a register word opens (§sec:regpack).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Schema {
     /// Each table's first column and its number of columns.
     pub spans: [(usize, usize); tables::N_TABLES],
+    /// Each table's packed register column: one word per row, its register numbers as bit fields.
+    ///
+    /// Tables of one height share the first one's word while it has room.
+    pub registers: [usize; tables::N_TABLES],
     /// The total number of columns.
     pub n: usize,
 }
@@ -452,7 +564,12 @@ impl Schema {
                 next += span.1;
                 span
             });
-            Self { spans, n: next }
+            let registers = std::array::from_fn(|t| next + t);
+            Self {
+                spans,
+                registers,
+                n: next + tables::N_TABLES,
+            }
         })
     }
 }
@@ -473,6 +590,8 @@ pub struct Layout {
     pub heights: [usize; tables::N_TABLES],
     /// Each table's base-two logarithm of rows as proven, its height padded.
     pub taus: [usize; tables::N_TABLES],
+    /// The committed register words.
+    pub(crate) registers: Vec<RegisterWord>,
 }
 
 impl Layout {
@@ -533,6 +652,7 @@ impl Layout {
             shape,
             heights,
             taus,
+            registers: RegisterWord::of(heights),
         }
     }
 
@@ -559,11 +679,13 @@ impl Layout {
     ///
     /// - Each packed witness, with its reduction's claim.
     /// - Each producer's multiplicity column, its bits' evaluations as the slices, then zeros up to 64.
+    /// - Each register word, its tables' register numbers' bits as the slices, then zeros up to 64.
     pub(crate) fn rings<A: Arith>(
         &self,
         a: &mut A,
         witnesses: impl IntoIterator<Item = SliceClaim<A::E>>,
         multiplicities: &[Claims<A::E>],
+        tables: &[Claims<A::E>],
     ) -> Vec<RingSwitch<A::E>> {
         let zero = a.zero();
         let mut rings: Vec<RingSwitch<A::E>> = (witnesses.into_iter().enumerate())
@@ -575,6 +697,12 @@ impl Layout {
                 s_hat_v: claims.evals_padded_with(PACKING_WIDTH, zero),
             };
             rings.push(ring(a, self.multiplicity_column(p), claim));
+        }
+        for word in &self.registers {
+            let column = self.placements[word.col]
+                .column()
+                .expect("a register word is committed");
+            rings.push(ring(a, column, word.claim(tables, zero)));
         }
         rings
     }
@@ -624,19 +752,22 @@ impl Layout {
             .chain((Reg::OUTPUTS.into_iter().zip(output)).map(|(reg, &value)| register_claim(reg, value)))
             .collect();
 
-        let mut slots: Vec<StackClaim<A::E>> = claims.into_iter().map(|c| self.slot_claim(a, c)).collect();
+        // A register number has no place in the stack: its bits' claim is its register word's ring-switched region.
+        let mut slots: Vec<StackClaim<A::E>> = claims.into_iter().filter_map(|c| self.slot_claim(a, c)).collect();
 
         // The row a table's padding rows repeat is the one at its height, one row of each of its columns.
+        //
+        // A register number's value there is bound by the bus instead (§sec:regpack).
         let one = a.one();
         for ((&(base, _), row), &height) in schema.spans.iter().zip(pads).zip(&self.heights) {
             let Some(row) = row else { continue };
             slots.extend(
                 row.iter()
                     .enumerate()
-                    .map(|(c, &value)| self.padding_claim(base + c, height, value, one)),
+                    .filter_map(|(c, &value)| self.padding_claim(base + c, height, value, one)),
             );
         }
-        slots.extend(exits.into_iter().map(|c| self.slot_claim(a, c)));
+        slots.extend(exits.into_iter().filter_map(|c| self.slot_claim(a, c)));
         slots
     }
 
@@ -648,8 +779,10 @@ impl Layout {
     /// The strided form freezes the low coordinates to the port's bits and the high ones to the claim's point.
     ///
     /// It is folded at the table's height, not the packed witness's, and joins the one opening.
-    fn slot_claim<A: Arith>(&self, a: &mut A, c: ColumnClaim<A::E>) -> StackClaim<A::E> {
-        match &self.placements[c.col] {
+    ///
+    /// - A register number has none: it is a field of a register word, whose bits' claim stands for it.
+    fn slot_claim<A: Arith>(&self, a: &mut A, c: ColumnClaim<A::E>) -> Option<StackClaim<A::E>> {
+        Some(match &self.placements[c.col] {
             Placement::Committed(column) => StackClaim {
                 terms: terms(a, column, &c.point, c.point.len() - column.row_vars),
                 point: c.point,
@@ -675,14 +808,17 @@ impl Layout {
                 stride_log,
                 value: c.value,
             },
-        }
+            Placement::Sliced => return None,
+        })
     }
 
     /// A claim on a column's padding row, the row `height`: one row of the column's last piece, which holds it.
     ///
     /// That piece is the row alone, or the whole column when the height is one short of it.
     /// At the Boolean point naming the row every other row weighs zero, so the claim is that one row, with no point.
-    fn padding_claim<E: Copy>(&self, col: usize, height: usize, value: E, one: E) -> StackClaim<E> {
+    ///
+    /// A register number has none: no column holds it.
+    fn padding_claim<E: Copy>(&self, col: usize, height: usize, value: E, one: E) -> Option<StackClaim<E>> {
         let (column, slot, stride_log) = match &self.placements[col] {
             Placement::Committed(column) => (column, 0, 0),
             &Placement::Port {
@@ -696,13 +832,14 @@ impl Layout {
                 port,
                 stride_log,
             ),
+            Placement::Sliced => return None,
         };
         let last = column.pieces.last().expect("a column has a piece");
         debug_assert!(
             (last.first_row..last.first_row + (1 << last.log_rows)).contains(&height),
             "a padded column's last piece holds its padding row"
         );
-        StackClaim {
+        Some(StackClaim {
             point: Vec::new(),
             slot,
             stride_log,
@@ -712,7 +849,7 @@ impl Layout {
                 scale: one,
             }],
             value,
-        }
+        })
     }
 }
 

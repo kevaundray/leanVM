@@ -42,7 +42,7 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-10";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-11";
 
     /// The cycles between two checks of a running trace against one commitment.
     const SIZE_CHECK_PERIOD: u64 = 1 << 16;
@@ -310,7 +310,8 @@ impl Program {
             class_flock::prove_reductions(&reductions, &mut ps)
         });
         drop(reductions);
-        let rings = l.rings(&mut Native, slices, &table_claims[tables::N_TABLES..]);
+        let (table_claims, producer_claims) = table_claims.split_at(tables::N_TABLES);
+        let rings = l.rings(&mut Native, slices, producer_claims, table_claims);
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &w.q, &slots, &rings));
         Proof(ps.into_proof())
     }
@@ -381,8 +382,8 @@ impl Program {
             .map(|(replay, matrices)| (replay.claim, matrices.into()))
             .unzip();
 
-        // The ring-switched regions: each packed witness, then each producer's multiplicity column.
-        let rings = l.rings(&mut vs, slices, &reduced.producers);
+        // The ring-switched regions: each packed witness, each producer's multiplicity column, each register word.
+        let rings = l.rings(&mut vs, slices, &reduced.producers, &reduced.tables);
 
         // The one opening, then nothing may be left on the stream.
         pcs::verify(
@@ -659,6 +660,16 @@ mod tests {
             }
             None => edit(&mut w.q[c.pieces[0].offset..c.pieces[0].offset + (1 << c.row_vars)]),
         }
+    }
+
+    /// A column the stack does not hold, a port or a register number, of a built witness, to forge it.
+    fn virtual_mut(w: &mut Witness, col: usize) -> &mut [F64] {
+        let (_, values) = w
+            .virt
+            .iter_mut()
+            .find(|(c, _)| *c == col)
+            .expect("a forged column is virtual");
+        values
     }
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.
@@ -952,9 +963,14 @@ mod tests {
             panic!("the ALU binds its destination to a column");
         };
         let row = forged.trace.rows[alu].iter().position(|r| r.index == addi).unwrap();
-        forge(&mut w, Schema::get().spans[alu].0 + destination, |col| {
-            col[row] = F64::ZERO
-        });
+        // The destination is a register number: its column and its field of the packed word both name `x0`.
+        virtual_mut(&mut w, Schema::get().spans[alu].0 + destination)[row] = F64::ZERO;
+        // The ALU's fields come first in its word, so its destination's sits after the reads'.
+        let fields = ClassTable::all()[alu].register_bits().fields;
+        let at = fields.iter().position(|f| f.col == destination).unwrap();
+        let shift: usize = fields[..at].iter().map(|f| f.width).sum();
+        let mask = (1 << fields[at].width) - 1;
+        forge(&mut w, Schema::get().registers[alu], |col| col[row].0 &= !(mask << shift));
         forge(&mut w, Shared::BytecodeMult.col(), |col| col[addi as usize].0 -= 1);
 
         // Registers, RAM and the multiplicities balance: only the read of an entry whose destination is 0 is left.
@@ -1296,6 +1312,73 @@ mod tests {
                 );
                 assert_unbalanced(&program, w, &exec.output);
             }
+        }
+    }
+
+    #[test]
+    fn a_forged_register_number_unbalances_the_bus() {
+        // Invariant: a row's register numbers are its entry's, which only the bytecode lookup says.
+        //
+        // Fixture state: `addi a0, x0, 5` at cycle 1, reading `x0` in slots 0 and 1, then the exit.
+        // Mutation: the `addi` row's slot-0 read names `ra` in place of `x0`, its packed word and its `a1` agreeing.
+        // `ra` holds zero too, and the timestamps follow: that read pulls `ra`'s seed, `ra` ends at the row's clock,
+        // and the slot-1 read of `x0` pulls `x0`'s seed.
+        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        let addi = &mut forged.trace.rows[alu][row];
+        assert_eq!(addi.prev[..2], [Clock::SEED_CLOCK, addi.ts]);
+        addi.prev[1] = Clock::SEED_CLOCK;
+        forged.trace.reg_ts[Reg::RA.index()] = F64(addi.ts);
+        let mut w = Witness::build(&program, &forged);
+        let table = &ClassTable::all()[alu];
+        let a1 = Schema::get().spans[alu].0 + table.register_bits().fields[0].col;
+        virtual_mut(&mut w, a1)[row] = F64(Reg::RA.index() as u64);
+        forge(&mut w, Schema::get().registers[alu], |col| col[row].0 ^= Reg::RA.index() as u64);
+        // The entry's count follows the reads, which no longer include this one.
+        forge(&mut w, Shared::BytecodeMult.col(), |col| col[0].0 -= 1);
+
+        // The row's bytecode read, and nothing else.
+        let unmatched = unmatched(&w);
+        assert_eq!(unmatched.len(), 1, "{unmatched:?}");
+        let (side, block, at) = unmatched[0];
+        assert_eq!((side, at), ("pull", row));
+        assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
+        assert_unbalanced(&program, w, &forged.output);
+    }
+
+    #[test]
+    fn a_packed_register_word_is_its_slices() {
+        // Invariant: the opening binds a row's packed word to the bits the table sumcheck read, its unused bits to zero.
+        //
+        // Fixture state: `addi a0, x0, 5; exit`, whose rows' register numbers are honest everywhere.
+        // Mutation: one bit of the `addi` row's packed word: `a1`'s lowest, the next table's first, the first no table
+        // uses, then the top one.
+        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let exec = program.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        // The ALU opens its word, which the tables of its height share after it.
+        let word = Witness::build(&program, &exec).layout.registers.swap_remove(0);
+        assert_eq!(word.tables[0], alu);
+        assert!(word.tables.len() > 1, "the tables of one height share the word");
+        let bits = |t: usize| ClassTable::all()[t].register_bits().n_slices();
+        let used: usize = word.tables.iter().map(|&t| bits(t)).sum();
+        for bit in [0, bits(alu), used, 63] {
+            let mut w = Witness::build(&program, &exec);
+            forge(&mut w, word.col, |col| col[row].0 ^= 1 << bit);
+            assert!(
+                unmatched(&w).is_empty(),
+                "the bus reads the register numbers, not the word"
+            );
+            let proof = program.prove_witness(w, &exec.output, Rate::MIN);
+            assert!(
+                matches!(program.verify_to_raw(&exec.output, &proof), Err(CpuError::Open(_))),
+                "bit {bit}"
+            );
         }
     }
 

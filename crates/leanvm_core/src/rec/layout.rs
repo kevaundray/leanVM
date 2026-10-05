@@ -3,7 +3,7 @@
 use super::RecError;
 use super::circuit::Circuit;
 use super::table::{HashFlock, Table};
-use crate::constraints::{Air, Claims};
+use crate::constraints::{Air, BitColumns, Claims};
 use crate::leaf::ColumnClaim;
 use crate::pcs::{RingSwitch, SliceClaim, StackClaim};
 use crate::witness::{Placement, Source, StackShape};
@@ -128,6 +128,7 @@ impl RecLayout {
                 tau: self.tau(table),
                 n_cols: table.n_cols(),
                 n_public: 0,
+                bits: BitColumns::default(),
                 summand,
             })
             .collect()
@@ -158,6 +159,7 @@ impl RecLayout {
                     port,
                     stride_log,
                 } => StackClaim::strided(self.whole(column).0, port, stride_log, c.point, c.value, one),
+                Placement::Sliced => unreachable!("the recursion machine packs no column into a word"),
             })
             .collect()
     }
