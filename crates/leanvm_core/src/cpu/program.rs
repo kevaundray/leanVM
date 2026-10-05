@@ -43,7 +43,7 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-11";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-13";
 
     /// The cycles between two checks of a running trace against one commitment.
     const SIZE_CHECK_PERIOD: u64 = 1 << 16;
@@ -537,7 +537,7 @@ mod tests {
     use crate::leaf::tests::unmatched_leaves;
     use crate::pcs::Rate;
     use crate::rv::asm::*;
-    use crate::rv::{Alu, Class, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
+    use crate::rv::{Class, Jump, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
     use crate::tables::{ClassSpec, ClassTable, Clock, Separator};
 
     #[test]
@@ -671,16 +671,32 @@ mod tests {
         );
     }
 
-    /// Put `row` in place of a padding row of `ALU` that is the lone jump of its fill, a jump to itself.
+    /// The table running `class`.
+    fn table(class: Class) -> usize {
+        ClassTable::index_of(class).expect("the class has a table")
+    }
+
+    /// Whether every tuple left unmatched is a state tuple of one of `tables`, or a framework block's in `framework`.
+    ///
+    /// A table's state tuples are its first block on each side.
+    fn only_states(w: &Witness, unmatched: &[(&str, usize, usize)], tables: &[usize], framework: &[usize]) -> bool {
+        unmatched.iter().all(|&(side, block, _)| {
+            let blocks = if side == "push" { &w.layout.push } else { &w.layout.pull };
+            framework.contains(&block)
+                || (tables.iter()).any(|&t| blocks.iter().position(|b| b.owner == Some(t)) == Some(block))
+        })
+    }
+
+    /// Put `row` in place of a padding row of JUMP that is the lone jump of its fill, a jump to itself.
     ///
     /// Both are closed walks of one row at clock zero, so the state channel does not see the swap.
     fn replace_lone_jump(program: &Program, exec: &mut Execution, row: Row) {
-        let lone = program.filler.get(JUMP, 0).expect("ALU has a lone jump").index;
-        let at = exec.trace.rows[0]
+        let lone = program.filler.get(JUMP, 0).expect("JUMP has a lone jump").index;
+        let at = exec.trace.rows[JUMP]
             .iter()
             .position(|r| r.index as usize == lone)
             .expect("the fill traverses the lone jump");
-        exec.trace.rows[0][at] = row;
+        exec.trace.rows[JUMP][at] = row;
     }
 
     /// The padding row a jump to itself makes, `jal rd, 0` at entry `index`, at clock zero.
@@ -688,7 +704,7 @@ mod tests {
         let e = &program.rv.entries()[index];
         let Outcome { out, taken, access } = e.evaluate(program.rv.pc_of(index), 0, 0, 0);
         let ram = access.unwrap_or_default();
-        let slots: Vec<u64> = ClassSpec::ALU.slots().into_iter().map(u64::from).collect();
+        let slots: Vec<u64> = ClassSpec::JUMP.slots().into_iter().map(u64::from).collect();
         Row {
             index: index as u32,
             ts: 0,
@@ -698,7 +714,7 @@ mod tests {
             taken,
             vd_old: program.rv.pc_of(index) + 4,
             ram,
-            prev: [slots[0], slots[1], slots[2], 0],
+            prev: [slots[0], slots[1], 0, 0],
         }
     }
 
@@ -767,41 +783,40 @@ mod tests {
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid jump program");
         assert!(matches!(program.execute(&[]), Err(ProveError::Trap(Trap::Illegal { pc })) if pc == halt));
 
-        // Mutation: the exit's row becomes the jump's, bypassing the interpreter's trap; it writes its link to the sink.
-        let mut execution = honest_program.execute(&[]).unwrap();
-        let row = execution.trace.rows[0]
-            .iter_mut()
+        // Mutation: the exit's row becomes the jump's, bypassing the interpreter's trap; each links `pc + 4` into the
+        // sink.
+        let execution = honest_program.execute(&[]).unwrap();
+        let jump = table(Class::Jump);
+        let row = execution.trace.rows[jump]
+            .iter()
             .find(|r| r.index as usize == exit_index)
             .unwrap();
-        row.out = pc + 4;
-        execution.trace.reg_fin[RegisterFile::SINK as usize] = F64(pc + 4);
+        assert_eq!(row.out, pc + 4);
         let witness = Witness::build(&program, &execution);
         let unmatched = unmatched(&witness);
-        // The final state on the pull side, and the ALU's state push, the push side's
-        // first block past its four framework blocks.
+        // The final state on the pull side, the first framework block, and the jump's state push.
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-        assert!(unmatched.iter().all(|(_, block, _)| *block == 0 || *block == 4));
+        assert!(only_states(&witness, &unmatched, &[jump], &[0]), "{unmatched:?}");
         assert_unbalanced(&program, witness, &execution.output);
     }
 
-    /// The jump's column on the ALU's state push, `pc + 4` plus the jump: a port of its class circuit.
-    fn jump_column() -> usize {
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let push = ClassTable::all()[alu].flushes().push.swap_remove(0);
+    /// The jump's column on table `t`'s state push, `pc + 4` plus the jump: a port of its class circuit.
+    fn jump_column(t: usize) -> usize {
+        let push = ClassTable::all()[t].flushes().push.swap_remove(0);
         let Coord::Sum(terms) = &push[1] else {
             panic!("pc + 4 plus the jump")
         };
         let [_, Coord::Col(jump)] = terms[..] else {
             panic!("pc + 4 plus the jump")
         };
-        Schema::get().spans[alu].0 + jump
+        Schema::get().spans[t].0 + jump
     }
 
-    /// Prove a forged run of `program` whose ALU jump at `row` is `value` on the bus alone, the circuit's witness keeping
-    /// what its inputs give.
+    /// Prove a forged run of `program` whose jump at `row` of table `t` is `value` on the bus alone, the circuit's
+    /// witness keeping what its inputs give.
     ///
     /// The bus is unbalanced until that column is forged, and balanced after, so what refuses it is the verifier.
-    fn forged_jump(program: &Program, forged: &Execution, row: usize, value: u64) -> CpuError {
+    fn forged_jump(program: &Program, forged: &Execution, t: usize, row: usize, value: u64) -> CpuError {
         let mut w = Witness::build(program, forged);
         // The row's state push, and the next row's pull.
         let left = unmatched(&w);
@@ -810,7 +825,7 @@ mod tests {
             left.iter().all(|&(_, block, _)| block >= Framework::ALL.len()),
             "{left:?}"
         );
-        column_mut(&mut w, jump_column())[row] = F64(value);
+        column_mut(&mut w, jump_column(t))[row] = F64(value);
         assert!(unmatched(&w).is_empty());
         let proof = program.prove_witness(w, &forged.output, Rate::MIN);
         program
@@ -839,10 +854,10 @@ mod tests {
         //
         // Its push names `pc + 4`, which the exit's pull does not meet, until the bus's jump is forged to the offset.
         let mut forged = taken.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
-        forged.trace.rows[alu][row].taken = false;
-        let error = forged_jump(&program, &forged, row, program.rv.dt_of(0));
+        let branch = table(Class::Branch);
+        let row = forged.trace.rows[branch].iter().position(|r| r.index == 0).unwrap();
+        forged.trace.rows[branch][row].taken = false;
+        let error = forged_jump(&program, &forged, branch, row, program.rv.dt_of(0));
         assert!(matches!(error, CpuError::Open(_)), "{error}");
     }
 
@@ -869,16 +884,16 @@ mod tests {
         //
         // Its push names `L`, which the exit's pull does not meet, until the bus's jump is forged to the exit's.
         let forged = skipping.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let jump = table(Class::Jump);
         let jalr = (0..)
-            .find(|&i| program.rv.entries()[i].flags == Alu::INDIRECT | Alu::ALWAYS)
+            .find(|&i| (program.rv.entries()[i].class, program.rv.entries()[i].flags) == (Class::Jump, Jump::INDIRECT))
             .unwrap();
-        let row = forged.trace.rows[alu]
+        let row = forged.trace.rows[jump]
             .iter()
             .position(|r| r.index as usize == jalr && r.ts != 0)
             .unwrap();
         let pc4 = program.rv.pc_of(jalr) + 4;
-        let error = forged_jump(&program, &forged, row, (target + 4) ^ pc4);
+        let error = forged_jump(&program, &forged, jump, row, (target + 4) ^ pc4);
         assert!(matches!(error, CpuError::Open(_)), "{error}");
     }
 
@@ -984,10 +999,10 @@ mod tests {
         //
         //     addi   writes x0 after its own read of it in slot 1; t3 keeps its seed
         //     ext    reads b = (9, 1, 1), and c and RAM follow it
-        //     ecall  reads 1 twice, and writes 1 + 1 to the sink
+        //     ecall  reads 1, and links into the sink as before
         let mut forged = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let write = forged.trace.rows[alu].iter_mut().find(|r| r.index == addi).unwrap();
+        let add = table(Class::Add);
+        let write = forged.trace.rows[add].iter_mut().find(|r| r.index == addi).unwrap();
         let ts = write.ts;
         (write.prev[2], write.vd_old) = (ts | 1, 0);
         let t3 = Reg::T3.index();
@@ -1001,24 +1016,24 @@ mod tests {
         for (k, word) in x.c.into_iter().enumerate() {
             forged.trace.ram_fin[4 + k] = F64(word);
         }
-        let exit = forged.trace.rows[alu].iter_mut().find(|r| r.index == ecall).unwrap();
-        (exit.v1, exit.v2, exit.out) = (1, 1, 2);
+        let jump = table(Class::Jump);
+        let exit = forged.trace.rows[jump].iter_mut().find(|r| r.index == ecall).unwrap();
+        exit.v1 = 1;
         forged.trace.reg_fin[0] = F64(1);
-        forged.trace.reg_fin[RegisterFile::SINK as usize] = F64(2);
         let mut w = Witness::build(&program, &forged);
-        let bus = ClassTable::all()[alu].flushes();
+        let bus = ClassTable::all()[add].flushes();
         let Coord::Col(destination) = bus.pull[1][ClassTable::DESTINATION_SLOT] else {
-            panic!("the ALU binds its destination to a column");
+            panic!("ADD binds its destination to a column");
         };
-        let row = forged.trace.rows[alu].iter().position(|r| r.index == addi).unwrap();
+        let row = forged.trace.rows[add].iter().position(|r| r.index == addi).unwrap();
         // The destination is a register number: its column and its field of the packed word both name `x0`.
-        virtual_mut(&mut w, Schema::get().spans[alu].0 + destination)[row] = F64::ZERO;
-        // The ALU's fields come first in its word, so its destination's sits after the reads'.
-        let fields = ClassTable::all()[alu].register_bits().fields;
+        virtual_mut(&mut w, Schema::get().spans[add].0 + destination)[row] = F64::ZERO;
+        // ADD's fields come first in its word, so its destination's sits after the reads'.
+        let fields = ClassTable::all()[add].register_bits().fields;
         let at = fields.iter().position(|f| f.col == destination).unwrap();
         let shift: usize = fields[..at].iter().map(|f| f.width).sum();
         let mask = (1 << fields[at].width) - 1;
-        column_mut(&mut w, Schema::get().registers[alu])[row].0 &= !(mask << shift);
+        column_mut(&mut w, Schema::get().registers[add])[row].0 &= !(mask << shift);
         column_mut(&mut w, Shared::BytecodeMult.col())[addi as usize].0 -= 1;
 
         // Registers, RAM and the multiplicities balance: only the read of an entry whose destination is 0 is left.
@@ -1309,20 +1324,27 @@ mod tests {
     /// the multiplicities for what the rows now read leaves its bytecode read unmatched.
     #[test]
     fn a_forged_bytecode_read_unbalances_the_bus() {
-        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        // Fixture: `a0 = 5`, then `beq a0, x0`, not taken.
+        let text = Asm::new()
+            .i(Addi, Reg::A0, Reg::ZERO, 5)
+            .branch(Beq, Reg::A0, Reg::ZERO, "skip")
+            .i(Addi, Reg::A1, Reg::ZERO, 1)
+            .label("skip")
+            .exit()
+            .finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        let branch = table(Class::Branch);
+        let row = exec.trace.rows[branch].iter().position(|r| r.index == 1).unwrap();
         let mut w = Witness::build(&program, &exec);
         // Bytecode slot 9 binds the decoded branch target offset.
-        let bus = ClassTable::all()[alu].flushes();
+        let bus = ClassTable::all()[branch].flushes();
         let Coord::Col(branch_offset) = bus.pull[1][9] else {
-            panic!("the ALU binds its branch offset to a column");
+            panic!("BRANCH binds its branch offset to a column");
         };
-        let offset = Schema::get().spans[alu].0 + branch_offset;
+        let offset = Schema::get().spans[branch].0 + branch_offset;
         column_mut(&mut w, offset)[row] = F64(8);
-        column_mut(&mut w, Shared::BytecodeMult.col())[0].0 -= 1;
+        column_mut(&mut w, Shared::BytecodeMult.col())[1].0 -= 1;
 
         let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 1, "{unmatched:?}");
@@ -1374,17 +1396,17 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
-        let addi = &mut forged.trace.rows[alu][row];
+        let add = table(Class::Add);
+        let row = forged.trace.rows[add].iter().position(|r| r.index == 0).unwrap();
+        let addi = &mut forged.trace.rows[add][row];
         assert_eq!(addi.prev[..2], [Clock::SEED_CLOCK, addi.ts]);
         addi.prev[1] = Clock::SEED_CLOCK;
         forged.trace.reg_ts[Reg::RA.index()] = F64(addi.ts);
         let mut w = Witness::build(&program, &forged);
-        let table = &ClassTable::all()[alu];
-        let a1 = Schema::get().spans[alu].0 + table.register_bits().fields[0].col;
+        let fields = ClassTable::all()[add].register_bits().fields;
+        let a1 = Schema::get().spans[add].0 + fields[0].col;
         virtual_mut(&mut w, a1)[row] = F64(Reg::RA.index() as u64);
-        column_mut(&mut w, Schema::get().registers[alu])[row].0 ^= Reg::RA.index() as u64;
+        column_mut(&mut w, Schema::get().registers[add])[row].0 ^= Reg::RA.index() as u64;
         // The entry's count follows the reads, which no longer include this one.
         column_mut(&mut w, Shared::BytecodeMult.col())[0].0 -= 1;
 
@@ -1407,15 +1429,15 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
-        // The ALU opens its word, which the tables of its height share after it.
+        let add = table(Class::Add);
+        let row = exec.trace.rows[add].iter().position(|r| r.index == 0).unwrap();
+        // ADD opens its word, which the tables of its height share after it.
         let word = Witness::build(&program, &exec).layout.registers.swap_remove(0);
-        assert_eq!(word.tables[0], alu);
+        assert_eq!(word.tables[0], add);
         assert!(word.tables.len() > 1, "the tables of one height share the word");
         let bits = |t: usize| ClassTable::all()[t].register_bits().n_slices();
         let used: usize = word.tables.iter().map(|&t| bits(t)).sum();
-        for bit in [0, bits(alu), used, 63] {
+        for bit in [0, bits(add), used, 63] {
             let mut w = Witness::build(&program, &exec);
             column_mut(&mut w, word.col)[row].0 ^= 1 << bit;
             assert!(
@@ -1444,15 +1466,17 @@ mod tests {
             .finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let row = &mut forged.trace.rows[0][1];
+        let (add, jump) = (table(Class::Add), table(Class::Jump));
+        let row = &mut forged.trace.rows[add][1];
         (row.v1, row.out, row.prev[0]) = (9, 9, row.ts);
         forged.output[0] = 9;
         forged.trace.reg_fin[Reg::A0.index()] = F64(9);
         forged.trace.reg_ts[Reg::T0.index()] = F64(Clock::CLOCK_START | 3);
-        // The read's row pushes a failed clock, which the next row's pull does not meet.
-        let unmatched = unmatched_run(&program, &forged);
+        // The read's row pushes a failed clock, which the next row's pull, the exit's, does not meet.
+        let w = Witness::build(&program, &forged);
+        let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-        assert!(unmatched.iter().all(|&(_, block, _)| block == Framework::ALL.len()));
+        assert!(only_states(&w, &unmatched, &[add, jump], &[]), "{unmatched:?}");
     }
 
     #[test]
@@ -1461,7 +1485,7 @@ mod tests {
         //
         // Fixture state: the run sets `a0 = 42` and exits, never touching `a1`.
         // Past the exit sits `jal a1, 0`, a jump to itself, which the run never reaches.
-        // The two no-ops size ALU's fill so that it ends on the lone jump.
+        // The two no-ops size the other tables' fill so that JUMP's ends on the lone jump.
         // Mutation: a padding instance of it takes the place of the fill's lone jump, its write pulling `a1`'s seed.
         // `a1`'s final value is what it pushes, so the output claims `a1 = pc + 4`.
         let text = Asm::new()
@@ -1476,16 +1500,17 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let spin = text.len() - 1;
         let mut row = padding_jump(&program, spin);
-        (row.prev[2], row.vd_old) = (Clock::SEED_CLOCK, 0);
+        (row.prev[1], row.vd_old) = (Clock::SEED_CLOCK, 0);
         replace_lone_jump(&program, &mut forged, row);
         let link = program.rv.pc_of(spin) + 4;
         forged.output[1] = link;
         forged.trace.reg_fin[Reg::A1.index()] = F64(link);
         forged.trace.reg_ts[Reg::A1.index()] = F64(3);
         // The row's failed clock leaves its own state tuples unmatched, and nothing else.
-        let unmatched = unmatched_run(&program, &forged);
+        let w = Witness::build(&program, &forged);
+        let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-        assert!(unmatched.iter().all(|&(_, block, _)| block == Framework::ALL.len()));
+        assert!(only_states(&w, &unmatched, &[JUMP], &[]), "{unmatched:?}");
     }
 
     #[test]
@@ -1493,15 +1518,13 @@ mod tests {
         // Invariant: a row of the run pulls only timestamps of the run, which have the live bit.
         //
         // Fixture state: `t0 = 5`, then `a0 = t0 + x0`; past the exit sits `jal t0, 0`, a jump to itself.
-        // The two no-ops size ALU's fill so that it ends on the lone jump.
+        // Its rows size the other tables' fill so that JUMP's ends on the lone jump.
         // Mutation: a padding instance of the jump pulls `t0`'s write and pushes `(t0, 3, pc + 4)`, which the run's read pulls.
         // The read's `prev` is 3, live bit clear, and the output claims `a0 = pc + 4`.
         let text = Asm::new()
             .i(Addi, Reg::T0, Reg::ZERO, 5)
             .r(Add, Reg::A0, Reg::T0, Reg::ZERO)
             .i(Addi, Reg::T1, Reg::ZERO, 0)
-            .i(Addi, Reg::ZERO, Reg::ZERO, 0)
-            .i(Addi, Reg::ZERO, Reg::ZERO, 0)
             .exit()
             .label("spin")
             .jal(Reg::T0, "spin")
@@ -1510,19 +1533,21 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let spin = text.len() - 1;
         let link = program.rv.pc_of(spin) + 4;
-        let read = &mut forged.trace.rows[0][1];
+        let add = table(Class::Add);
+        let read = &mut forged.trace.rows[add][1];
         let write = read.prev[0];
         (read.v1, read.out, read.prev[0]) = (link, link, 3);
         let mut row = padding_jump(&program, spin);
-        (row.prev[2], row.vd_old) = (write, 5);
+        (row.prev[1], row.vd_old) = (write, 5);
         replace_lone_jump(&program, &mut forged, row);
         forged.output[0] = link;
         forged.trace.reg_fin[Reg::A0.index()] = F64(link);
         forged.trace.reg_fin[Reg::T0.index()] = F64(link);
         // Both rows push failed clocks: the read's, and the padding row's, each a state tuple pushed and one not pulled.
-        let unmatched = unmatched_run(&program, &forged);
+        let w = Witness::build(&program, &forged);
+        let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 4, "{unmatched:?}");
-        assert!(unmatched.iter().all(|&(_, block, _)| block == Framework::ALL.len()));
+        assert!(only_states(&w, &unmatched, &[add, JUMP], &[]), "{unmatched:?}");
     }
 
     #[test]
@@ -1535,8 +1560,8 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 42).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let exit = forged.trace.rows[0].iter_mut().find(|r| r.index == 2).unwrap();
-        (exit.prev[2], exit.vd_old) = (exit.ts | 3, exit.out);
+        let exit = forged.trace.rows[JUMP].iter_mut().find(|r| r.index == 2).unwrap();
+        (exit.prev[1], exit.vd_old) = (exit.ts | 3, exit.out);
         let sink = RegisterFile::SINK as usize;
         (forged.trace.reg_ts[sink], forged.trace.reg_fin[sink]) = (F64(Clock::SEED_CLOCK), F64::ZERO);
         forged.trace.ts_final |= 1 << Clock::FAIL_BIT;

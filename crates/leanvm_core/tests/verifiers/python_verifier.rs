@@ -5,7 +5,7 @@
 use fiat_shamir::transcript::RawProof;
 use leanvm_core::cpu::{CpuError, Lookup, Program};
 use leanvm_core::pcs::Rate;
-use leanvm_core::rv::{Alu, Class, Region};
+use leanvm_core::rv::{Branch, Class, Jump, Region};
 use leanvm_core::tables::{ClassTable, Clock, EXIT_SLOT};
 use primitives::field::{F64, F192};
 use std::path::{Path, PathBuf};
@@ -217,19 +217,24 @@ fn test_python_verifier() {
         String::from_utf8_lossy(&python.stderr).contains("misnames a register"),
         "Python refused a table that writes x0 for the wrong reason"
     );
-    // A load reads no `rs2`, a store writes no `rd`, and a doubleword one has no flags: their tables hold those fields
-    // at constants, `x0`, the sink and zero, so an entry naming another register or a flag is refused.
-    for (class, slot, reason) in [
-        (Class::Load, 5, "reads an rs2"),
-        (Class::Store, 6, "writes an rd"),
-        (Class::Ld, 5, "reads an rs2"),
-        (Class::Sd, 6, "writes an rd"),
-        (Class::Ld, 3, "flags are not its class's"),
+    // A load and a jump read no `rs2`, a store and a branch write no `rd`, a branch has no immediate, and a doubleword
+    // load or store has no flags: their tables hold those fields at constants, `x0`, the sink and zero, so an entry
+    // naming another register, an immediate or a flag is refused. The other fields are set to the class's legal
+    // values, so that this is the first rule broken.
+    // The class tag `g^t`, which is `2^t` since `g = x`.
+    let tag = |class| 1u64 << ClassTable::index_of(class).expect("the class has a table");
+    for (class, fields, reason) in [
+        (Class::Load, vec![(3, 0), (5, 1)], "reads an rs2"),
+        (Class::Store, vec![(3, 0), (6, 1)], "writes an rd"),
+        (Class::Ld, vec![(3, 0), (5, 1)], "reads an rs2"),
+        (Class::Sd, vec![(3, 0), (6, 1)], "writes an rd"),
+        (Class::Ld, vec![(3, 1)], "flags are not its class's"),
+        (Class::Jump, vec![(3, Jump::INDIRECT), (9, 0), (5, 1)], "reads an rs2"),
+        (Class::Branch, vec![(3, Branch::EQ), (7, 0), (6, 1)], "writes an rd"),
+        (Class::Branch, vec![(3, Branch::EQ), (6, 32), (7, 4)], "has an immediate"),
     ] {
-        // The class tag `g^t`, which is `2^t` since `g = x`.
-        let tag = 1u64 << ClassTable::index_of(class).expect("the class has a table");
         let mut malformed = table.clone();
-        for (slot, value) in [(2, tag), (3, 0), (slot, 1)] {
+        for (slot, value) in std::iter::once((2, tag(class))).chain(fields) {
             malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
         }
         std::fs::write(&statement.bytecode, malformed).expect("write malformed register");
@@ -244,33 +249,26 @@ fn test_python_verifier() {
     let refused = statement.verify(&raw);
     PythonStatement::assert_rejects(&refused, "an ordinary instruction marked as an exit");
     assert!(String::from_utf8_lossy(&refused.stderr).contains("an exit entry is not ECALL"));
-    // A jump's shape is its flags': only a branch or a `jal` has an offset, and a `jal` links `pc + 4` as a constant
-    // added to `x0`. Entry 0's fields are set in full, so each case breaks that rule alone.
-    let alu = 1u64 << ClassTable::index_of(Class::Alu).unwrap();
-    let link = Region::TEXT.base() + 4;
+    // A jump's shape is its class's and its flags': only a branch, a `jal` or the exit has an offset, and a `jal` reads
+    // nothing, `x0` and no immediate, its link being `pc + 4`. Entry 0's fields are set in full, so each case breaks
+    // that rule alone.
+    let (add, jump, branch) = (tag(Class::Add), tag(Class::Jump), tag(Class::Branch));
     for (what, fields) in [
         (
             "an addition with an offset",
-            [(2, alu), (3, 0), (4, 0), (5, 0), (7, 0), (9, 0x44)],
+            [(2, add), (3, 0), (4, 0), (5, 0), (7, 0), (9, 0x44)],
         ),
         (
             "a jal reading a register",
-            [(2, alu), (3, Alu::ALWAYS), (4, 1), (5, 0), (7, link), (9, 0x44)],
+            [(2, jump), (3, 0), (4, 1), (5, 0), (7, 0), (9, 0x44)],
         ),
         (
-            "a jal linking another address",
-            [(2, alu), (3, Alu::ALWAYS), (4, 0), (5, 0), (7, link + 4), (9, 0x44)],
+            "a jal with an immediate",
+            [(2, jump), (3, 0), (4, 0), (5, 0), (7, 4), (9, 0x44)],
         ),
         (
             "a jalr with an offset",
-            [
-                (2, alu),
-                (3, Alu::INDIRECT | Alu::ALWAYS),
-                (4, 0),
-                (5, 0),
-                (7, 0),
-                (9, 0x44),
-            ],
+            [(2, jump), (3, Jump::INDIRECT), (4, 0), (5, 0), (7, 0), (9, 0x44)],
         ),
     ] {
         let mut malformed = table.clone();
@@ -297,15 +295,14 @@ data = Path(sys.argv[2]).read_bytes()
 words = [v['K'](int.from_bytes(data[i:i+8], 'little')) for i in range(0, len(data), 8)]
 v['check_bytecode'](words)
 n = len(words) // 16
-for fields in [[(2, {alu}), (3, {always}), (4, 0), (5, 0), (7, {link}), (9, 0)], [(2, {alu}), (3, {branch}), (9, 0x44)], [(2, {alu}), (3, {indirect}), (5, 0), (9, 0)]]:
+for fields in [[(2, {jump}), (3, 0), (4, 0), (5, 0), (7, 0), (9, 0)], [(2, {branch}), (3, {eq}), (6, 32), (7, 0), (9, 0x44)], [(2, {jump}), (3, {indirect}), (5, 0), (9, 0)]]:
     candidate = words.copy()
     for slot, value in fields:
         candidate[slot * n] = v['K'](value)
     v['check_bytecode'](candidate)
 "#,
-            always = Alu::ALWAYS,
-            branch = Alu::SUB | Alu::BR_EQ,
-            indirect = Alu::INDIRECT | Alu::ALWAYS,
+            eq = Branch::EQ,
+            indirect = Jump::INDIRECT,
         ))
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../python-verifier/verifier.py"))
         .arg(&statement.bytecode)
@@ -368,9 +365,9 @@ fn the_python_verifier_refuses_what_rust_cannot_express() {
             "an illegal entry is not in its one form",
         );
     }
-    // A halt slot tagged as an ALU entry is otherwise a well-formed `addi` to the sink.
-    let alu = 1u64 << ClassTable::index_of(Class::Alu).expect("the class has a table");
-    write(2, entries - 1, alu);
+    // A halt slot tagged as an ADD entry is otherwise a well-formed `addi` to the sink.
+    let add = 1u64 << ClassTable::index_of(Class::Add).expect("the class has a table");
+    write(2, entries - 1, add);
     refuses("a readable halt slot", "the halt slot is not an illegal entry");
     std::fs::write(&statement.bytecode, table).expect("restore bytecode");
 
