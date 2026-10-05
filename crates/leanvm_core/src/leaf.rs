@@ -19,6 +19,7 @@ use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
+use std::mem::MaybeUninit;
 use std::sync::{Arc, OnceLock};
 use thiserror::Error;
 
@@ -222,6 +223,9 @@ pub enum BusError {
     /// The grand products' GKR rejects.
     #[error(transparent)]
     Gkr(#[from] GkrError),
+    /// The layout has too many factors for the challenge field to give the bus its margin.
+    #[error("the bus layout gives {bits} bits of soundness, below {required}")]
+    Soundness { bits: u32, required: u32 },
 }
 
 /// The fingerprint weights `eq(α⃗, x)` over the `2^N_TUPLE_BITS` slots (§sec:gp).
@@ -244,6 +248,12 @@ pub fn fingerprint_weights(alphas: &[F192]) -> Vec<F192> {
 /// Bits indexing a bus tuple's coordinates: every tuple, the bytecode's widest at
 /// fourteen, lives in the `2^4` slots of the bytecode encoding (§sec:m3, §sec:e2e-bc).
 pub const N_TUPLE_BITS: usize = 4;
+
+/// Bits the bus must clear: the target, plus what the commitment's list costs.
+///
+/// The fingerprint and the GKR challenges are drawn after the root, which binds the prover only to a list of polynomials.
+/// Each challenge must hold against every member, so its error is multiplied by the list size (§sec:e2e-ledger).
+const BUS_SOUNDNESS_BITS: u32 = crate::SECURITY_BITS + ::pcs::whir::L0_LIST_BITS as u32;
 
 /// Conservative sum of the degree bounds for every random-challenge failure in
 /// the bus argument. A side's product has at most `factors` linear factors, counted
@@ -272,8 +282,17 @@ fn factors(blocks: &[Block], producers: &[Producer]) -> u128 {
         .sum::<u128>()
 }
 
-/// Check that the 192-bit challenge field supplies the target bus soundness.
-fn assert_grinding_unnecessary(push_blocks: &[Block], pull_blocks: &[Block], producers: &[Producer], mu: usize) {
+/// Check that the 192-bit challenge field gives the bus its margin with no grinding.
+///
+/// # Errors
+///
+/// A layout whose products have too many factors for the margin.
+fn check_soundness(
+    push_blocks: &[Block],
+    pull_blocks: &[Block],
+    producers: &[Producer],
+    mu: usize,
+) -> Result<(), BusError> {
     let widest = push_blocks
         .iter()
         .chain(pull_blocks)
@@ -283,10 +302,14 @@ fn assert_grinding_unnecessary(push_blocks: &[Block], pull_blocks: &[Block], pro
         .unwrap_or(0);
     assert!(widest <= 1 << N_TUPLE_BITS, "a tuple's coordinates index its slots");
     let factors = factors(push_blocks, producers).max(factors(pull_blocks, &[]));
-    assert!(
-        soundness_bits(factors, mu) >= crate::SECURITY_BITS,
-        "bus layout exceeds the unground F192 soundness budget"
-    );
+    let bits = soundness_bits(factors, mu);
+    if bits < BUS_SOUNDNESS_BITS {
+        return Err(BusError::Soundness {
+            bits,
+            required: BUS_SOUNDNESS_BITS,
+        });
+    }
+    Ok(())
 }
 
 /// Stack blocks largest-first at aligned offsets; `μ = ⌈log2 Σ 2^{κ_b}⌉`. A producer's
@@ -339,7 +362,7 @@ fn push_terms<'a>(c: &'a Coord, w: F192, terms: &mut Vec<Term<'a>>, constant: &m
 
 /// One tuple's leaves, `β − Σ_i w_i c_i(z)` for every row `z`, into `dst`. The
 /// row-invariant weights and constant coordinates are folded once into `const_part`.
-fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &mut [F192]) {
+fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &mut [MaybeUninit<F192>]) {
     let mut const_part = beta;
     let mut terms: Vec<Term> = Vec::with_capacity(coords.len());
     for (i, c) in coords.iter().enumerate() {
@@ -362,12 +385,20 @@ fn fill_tuple(coords: &[Coord], cols: &[&[F64]], w: &[F192], beta: F192, dst: &m
         const_part + acc.reduce()
     };
     if dst.len() >= PAR_THRESHOLD {
-        parallel::fill(dst, row);
+        parallel::fill(dst, |z| MaybeUninit::new(row(z)));
     } else {
         for (z, slot) in dst.iter_mut().enumerate() {
-            *slot = row(z);
+            slot.write(row(z));
         }
     }
+}
+
+/// One tuple's leaves over `2^kappa` rows, in a vector of their own.
+fn tuple_leaves(coords: &[Coord], kappa: usize, cols: &[&[F64]], w: &[F192], beta: F192) -> Vec<F192> {
+    let mut leaves = Box::new_uninit_slice(1 << kappa);
+    fill_tuple(coords, cols, w, beta, &mut leaves);
+    // SAFETY: the fill wrote every slot.
+    unsafe { leaves.assume_init() }.into_vec()
 }
 
 /// Rows per task of the producers' per-bit passes.
@@ -375,10 +406,7 @@ const PRODUCER_CHUNK: usize = 1 << 12;
 
 /// A producer's entries' leaves, `β − π_α(e_x)`, which its bits raise to their powers.
 fn producer_leaves(p: &Producer, cols: &[&[F64]], w: &[F192], beta: F192) -> Vec<F192> {
-    // SAFETY: `fill_tuple` writes every slot before anything reads one.
-    let mut q = unsafe { primitives::uninit_vec(1 << p.kappa) };
-    fill_tuple(&p.coords, cols, w, beta, &mut q);
-    q
+    tuple_leaves(&p.coords, p.kappa, cols, w, beta)
 }
 
 /// Build one side's leaf vector: block `b` row `z` holds `β − Σ_i w_i c_i(z)` for
@@ -409,28 +437,21 @@ pub fn build_leaves(
     // blocks tile `0..explicit` and every slot below is written by one of them: the
     // identity fill would be overwritten in full, and this is the largest buffer in
     // the proof. The `covered` test is what licenses skipping it, so a layout that
-    // ever left a hole falls back to filling rather than reading uninitialized rows.
+    // ever left a hole falls back to filling rather than leaving rows unwritten.
     // Capacity is rounded to whole four-tuples because `gkr::QuaternaryLayerState`
     // pads this level to that before reading it, and growing it here would copy it.
     let covered: usize = kappas.iter().map(|&kappa| 1usize << kappa).sum();
-    let capacity = explicit.next_multiple_of(4);
-    let mut leaves = if covered == explicit {
-        // SAFETY: the per-block fills below cover `0..explicit` exactly, and each
-        // joins before this function returns.
-        let mut values = unsafe { primitives::uninit_vec(capacity) };
-        values.truncate(explicit);
-        values
-    } else {
-        let mut values = Vec::with_capacity(capacity);
-        values.resize(explicit, F192::ONE);
-        values
-    };
+    let mut leaves = Vec::with_capacity(explicit.next_multiple_of(4));
+    let slots = &mut leaves.spare_capacity_mut()[..explicit];
+    if covered != explicit {
+        slots.fill(MaybeUninit::new(F192::ONE));
+    }
     // Every row of every block is a real row: a table's height is exactly the
     // number of rows it executed (`cpu::filler`), so no block has padding rows
     // whose tuples would have to be divided back out of the product.
     for (b, blk) in blocks.iter().enumerate() {
         let off = lay.offsets[b];
-        let dst = &mut leaves[off..off + (1usize << blk.kappa)];
+        let dst = &mut slots[off..off + (1usize << blk.kappa)];
         fill_tuple(&blk.coords, cols, w, beta, dst);
     }
     let mut b = blocks.len();
@@ -439,18 +460,20 @@ pub fn build_leaves(
         let mult = cols[p.col];
         for bit in 0..p.bits {
             let off = lay.offsets[b];
-            let dst = &mut leaves[off..off + (1usize << p.kappa)];
+            let dst = &mut slots[off..off + (1usize << p.kappa)];
             // Bit `bit`'s leaves, then `q` squared in place for the next bit.
             parallel::chunks_mut2(dst, &mut q, PRODUCER_CHUNK, |ci, dst, q| {
                 let mult = &mult[ci * PRODUCER_CHUNK..];
                 for ((slot, q), m) in dst.iter_mut().zip(q.iter_mut()).zip(mult) {
-                    *slot = if (m.0 >> bit) & 1 == 1 { *q } else { F192::ONE };
+                    slot.write(if (m.0 >> bit) & 1 == 1 { *q } else { F192::ONE });
                     *q = q.square();
                 }
             });
             b += 1;
         }
     }
+    // SAFETY: the blocks tile `0..explicit` when they cover it, and the identity fill wrote it otherwise.
+    unsafe { leaves.set_len(explicit) };
     leaves
 }
 
@@ -1039,13 +1062,17 @@ impl<'a> BusSetup<'a> {
     /// producers' bits, which no pull pairs with, so the two sides no longer match block
     /// for block: the shorter tree is padded to the taller's depth (identity leaves),
     /// and both run as ONE RLC-batched GKR at ONE shared point.
-    fn new(push: &'a [Block], pull: &'a [Block], producers: &'a [Producer]) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// A layout too large for the bus's soundness margin.
+    fn new(push: &'a [Block], pull: &'a [Block], producers: &'a [Producer]) -> Result<Self, BusError> {
         let mut push_lay = layout(push, producers);
         let mut pull_lay = layout(pull, &[]);
         let mu = push_lay.mu.max(pull_lay.mu);
-        assert_grinding_unnecessary(push, pull, producers, mu);
+        check_soundness(push, pull, producers, mu)?;
         (push_lay.mu, pull_lay.mu) = (mu, mu);
-        Self {
+        Ok(Self {
             sides: [
                 Side {
                     blocks: push,
@@ -1058,7 +1085,7 @@ impl<'a> BusSetup<'a> {
                     lay: pull_lay,
                 },
             ],
-        }
+        })
     }
 
     /// The depth of the batched GKR.
@@ -1115,7 +1142,7 @@ pub fn prove_balance(
     tables: &[(usize, usize)],
     ps: &mut ProverState,
 ) -> BusProof {
-    let setup = BusSetup::new(push, pull, producers);
+    let setup = BusSetup::new(push, pull, producers).expect("the size caps keep every bus layout sound");
     let alphas = ps.sample_vec(N_TUPLE_BITS);
     let fp = Fingerprint {
         w: fingerprint_weights(&alphas),
@@ -1314,7 +1341,7 @@ pub struct BusVerify<E = F192> {
 ///
 /// # Errors
 ///
-/// Returns the GKR's refusal or a malformed stream.
+/// Returns the GKR's refusal, a malformed stream, or a layout too large for the bus's soundness margin.
 pub fn verify_balance<V: Verifier>(
     v: &mut V,
     push: &[Block],
@@ -1322,7 +1349,7 @@ pub fn verify_balance<V: Verifier>(
     producers: &[Producer],
     tables: &[(usize, usize)],
 ) -> Result<BusVerify<V::E>, BusError> {
-    let setup = BusSetup::new(push, pull, producers);
+    let setup = BusSetup::new(push, pull, producers)?;
     let alphas = v.sample_vec(N_TUPLE_BITS);
     let fp = Fingerprint {
         w: v.eq_table(&alphas),
@@ -1375,9 +1402,13 @@ pub fn verify_balance<V: Verifier>(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{
-        Block, Coord, F64, F192, N_TUPLE_BITS, Producer, PublicColumn, SparseColumn, fill_tuple, fingerprint_weights,
-        prove_balance, soundness_bits, verify_balance,
+        BUS_SOUNDNESS_BITS, Block, BusError, BusSetup, Coord, F64, F192, N_TUPLE_BITS, Producer, PublicColumn,
+        SparseColumn, fingerprint_weights, prove_balance, soundness_bits, tuple_leaves, verify_balance,
     };
+    use crate::cpu::{Layout, MAX_LOG_BYTECODE, Program};
+    use crate::pcs::MAX_MU;
+    use crate::rv::Region;
+    use crate::tables::N_TABLES;
     use fiat_shamir::transcript::{ProverState, VerifierState};
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -1399,16 +1430,14 @@ pub(crate) mod tests {
         let side = |blocks: &[Block]| {
             let mut at = Vec::new();
             for (b, block) in blocks.iter().enumerate() {
-                let mut leaves = vec![F192::ZERO; 1 << block.kappa];
-                fill_tuple(&block.coords, cols, &w, beta, &mut leaves);
+                let leaves = tuple_leaves(&block.coords, block.kappa, cols, &w, beta);
                 at.extend(leaves.into_iter().enumerate().map(|(z, leaf)| (leaf, b, z)));
             }
             at
         };
         let (mut pushed, pulled) = (side(push), side(pull));
         for (p, producer) in producers.iter().enumerate() {
-            let mut leaves = vec![F192::ZERO; 1 << producer.kappa];
-            fill_tuple(&producer.coords, cols, &w, beta, &mut leaves);
+            let leaves = tuple_leaves(&producer.coords, producer.kappa, cols, &w, beta);
             for (x, leaf) in leaves.into_iter().enumerate() {
                 let m = cols[producer.col][x].0 & ((1u64 << producer.bits) - 1);
                 pushed.extend(std::iter::repeat_n((leaf, push.len() + p, x), m as usize));
@@ -1492,8 +1521,66 @@ pub(crate) mod tests {
     /// the tuple's width.
     #[test]
     fn bus_soundness_tracks_factors() {
-        assert!(soundness_bits(1 << 38, 38) >= crate::SECURITY_BITS);
-        assert!(soundness_bits(1 << 61, 61) >= crate::SECURITY_BITS);
-        assert!(soundness_bits(1 << 62, 62) < crate::SECURITY_BITS);
+        // 2^f factors of degree four cost f + 2 bits, and the GKR's terms one more.
+        let largest = (192 - BUS_SOUNDNESS_BITS - 3) as usize;
+        assert!(soundness_bits(1 << largest, largest) >= BUS_SOUNDNESS_BITS);
+        assert!(soundness_bits(1 << (largest + 1), largest + 1) < BUS_SOUNDNESS_BITS);
+    }
+
+    #[test]
+    fn every_layout_one_commitment_holds_keeps_the_margin() {
+        // Every block of a RISC-V layout at 2^MAX_MU rows, more than any block of a committed layout has.
+        let program = Program::new(&[0x0000_0073], Region::TEXT.base(), vec![], 0, 0).unwrap();
+        let layout = Layout::new(program.rv(), [0; N_TABLES], 0);
+        let widest = |blocks: &[Block]| -> Vec<Block> {
+            blocks
+                .iter()
+                .map(|b| Block {
+                    kappa: MAX_MU,
+                    ..b.clone()
+                })
+                .collect()
+        };
+        let (push, pull) = (widest(&layout.push), widest(&layout.pull));
+
+        // The multiplicity column and every table's packed witness share the commitment, so the rows, every one a
+        // bytecode read, number below 2^MAX_MU, and a multiplicity has at most MAX_MU bits.
+        let bytecode = |log_entries: usize| {
+            layout
+                .producers
+                .iter()
+                .map(|p| Producer {
+                    kappa: log_entries,
+                    bits: MAX_MU,
+                    ..p.clone()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // The bytecode cap keeps the margin, and one more bit of bytecode loses it.
+        assert!(BusSetup::new(&push, &pull, &bytecode(MAX_LOG_BYTECODE)).is_ok());
+        assert!(BusSetup::new(&push, &pull, &bytecode(MAX_LOG_BYTECODE + 1)).is_err());
+    }
+
+    #[test]
+    fn a_layout_past_the_margin_is_refused() {
+        // A producer of 2^30 entries whose multiplicities have 30 bits: about 2^60 factors.
+        let tuple = vec![Coord::Const(F64::ONE)];
+        let producers = [Producer {
+            kappa: 30,
+            coords: tuple.clone(),
+            col: 0,
+            bits: 30,
+        }];
+        let pull = [Block::framework(0, tuple)];
+
+        // The verifier's setup refuses it with an error, before drawing any challenge.
+        assert!(matches!(
+            BusSetup::new(&[], &pull, &producers),
+            Err(BusError::Soundness {
+                required: BUS_SOUNDNESS_BITS,
+                ..
+            })
+        ));
     }
 }
