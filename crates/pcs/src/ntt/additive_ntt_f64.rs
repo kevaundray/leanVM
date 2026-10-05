@@ -291,12 +291,12 @@ impl AdditiveNttF64 {
     /// - Each deep sub-block is final, and hands its rows to `on_rows` while they are in L2.
     /// - Without a split deep pass, the rows go over in parallel blocks at the end.
     ///
-    /// # One worker
+    /// # Few workers
     ///
-    /// - A lone worker has its core's whole L3, so a gathered group takes up to `2^MAX_LOG_RESIDUES` residues.
+    /// - Up to [`FEW_WORKERS`] workers, a gathered group takes up to `2^MAX_LOG_RESIDUES` residues.
     /// - Their rows are adjacent, so each copy in or out is one long run, and a row group has that many times
     ///   the lanes.
-    /// - Several workers keep one residue a group: their scratch then stays in their share of L2.
+    /// - More workers keep one residue a group: their scratch then stays in their share of L2.
     fn transform(
         &self,
         data: &mut [F64],
@@ -353,20 +353,21 @@ impl AdditiveNttF64 {
         //
         //     20 layers: 1 gathered sweep either way, so the deep pass stays in L2
         //
-        // A lone worker spills to an L3 it shares with no one, so it takes the L3 deep pass whenever it has one:
+        // Few workers share L3 with few others, so they take the L3 deep pass whenever there is one:
         // the layers it moves out of the gathered pass shrink the gathered groups, and their scattered reads.
+        let few = workers <= FEW_WORKERS;
         let gathered_sweeps = |deep: usize| (log_d - start).saturating_sub(deep).div_ceil(fit2);
-        let deep = if workers == 1 || gathered_sweeps(fit3) < gathered_sweeps(fit2) {
+        let deep = if few || gathered_sweeps(fit3) < gathered_sweeps(fit2) {
             fit3
         } else {
             fit2
         };
         let deep_start = log_d.saturating_sub(deep).max(par_log).max(start);
 
-        // Residues a gathered group takes, as a log: several only for a lone worker, within its L3 budget.
+        // Residues a gathered group takes, as a log: several only for few workers, within their L3 budget.
         let residues = |layer: usize, g: usize| {
-            if workers == 1 {
-                let room = (LONE_GATHER_WORDS / (num_ntts << g)).max(1).ilog2() as usize;
+            if few {
+                let room = (WIDE_GATHER_WORDS / (num_ntts << g)).max(1).ilog2() as usize;
                 room.min(MAX_LOG_RESIDUES).min(log_d - layer - g)
             } else {
                 0
@@ -999,14 +1000,24 @@ const LOG_SUBS_PER_WORKER: usize = 2;
 /// - That costs extra L3 traffic, but saves a whole sweep of DRAM.
 const L3_WORDS: usize = 1 << 18;
 
-/// Words a gathered task may span when the pool has one worker.
+/// Most workers whose transform takes wide gathered groups and the L3 deep pass.
 ///
 /// # Why this value
 ///
-/// - 2^22 words is 32 MiB, a whole L3 without stacked cache: a lone worker shares its L3 with no one.
-/// - A gathered row group's layers cost no more from L3 than from L2, the butterflies being the bound.
+/// - A wide group spills from L2 into L3, and in return copies long runs and reads a lane-major message in place.
+/// - With one or two workers the runs save more than the spill costs.
+/// - From four workers on, SMT siblings or not, their spills share L3 and memory with more of them, and the narrow
+///   plan is faster.
+const FEW_WORKERS: usize = 2;
+
+/// Words a gathered task may span when few workers run.
+///
+/// # Why this value
+///
+/// - 2^22 words is 32 MiB, a whole L3 without stacked cache.
+/// - With few workers, a gathered row group's layers cost no more from L3 than from L2, the butterflies being the bound.
 /// - So the group can take several residues, and with them longer runs in and out of memory.
-const LONE_GATHER_WORDS: usize = 1 << 22;
+const WIDE_GATHER_WORDS: usize = 1 << 22;
 
 /// Most residues one gathered group takes, as a log.
 ///
@@ -1666,7 +1677,7 @@ mod tests {
         //     (12, 2048, 1)           two gathered passes, with streaming stores
         //
         // A non-zero start is the commit path, which enters at the rate layer.
-        // A lone worker's plan takes several residues per gathered group.
+        // Up to `FEW_WORKERS` workers, the plan takes several residues per gathered group.
         let mut rng = Rng::new(0xC0FFEE);
         for (log_d, lanes, start_layer) in [
             (7usize, 3usize, 0usize),
@@ -1683,8 +1694,8 @@ mod tests {
             // Reference: one butterfly at a time.
             let mut want = original.clone();
             forward_scalar_from_layer(&ntt, &mut want, lanes, start_layer);
-            // Under test: the pass-planning driver, for the pool and for one worker.
-            for workers in [parallel::num_threads(), 1] {
+            // Under test: the pass-planning driver, planned for workers on both sides of `FEW_WORKERS`.
+            for workers in [1, FEW_WORKERS, FEW_WORKERS + 1] {
                 let mut got = original.clone();
                 ntt.transform_for(&mut got, lanes, start_layer, None, None, workers);
                 assert_eq!(
@@ -1731,7 +1742,7 @@ mod tests {
             forward_scalar_from_layer(&ntt, &mut want, lanes, log_inv_rate);
 
             // Under test: only the first replica holds the message, the rest is zero.
-            for workers in [parallel::num_threads(), 1] {
+            for workers in [1, FEW_WORKERS, FEW_WORKERS + 1] {
                 let mut got = vec![F64::ZERO; msg_len << log_inv_rate];
                 got[..msg_len].copy_from_slice(&msg);
                 let blocks = Mutex::new(Vec::new());
@@ -1763,7 +1774,7 @@ mod tests {
     /// Every lane of the codeword must be exactly the single-lane RS codeword of
     /// that lane's contiguous message block, which is what makes a commitment over
     /// `n_lanes` lanes equal to the `2^log_batch_size`-lane one with a zero tail.
-    /// The shapes cover the transposing fallback, the lone worker's first pass reading
+    /// The shapes cover the transposing fallback, the few-workers first pass reading
     /// the lanes in place (the last three, with and without lanes past a whole eight),
     /// and lane counts that are not powers of two (the padding-free commit's whole point).
     #[test]
@@ -1796,7 +1807,7 @@ mod tests {
                     want
                 })
                 .collect();
-            for workers in [parallel::num_threads(), 1] {
+            for workers in [1, FEW_WORKERS, FEW_WORKERS + 1] {
                 let mut got = vec![F64::ZERO; msg.len() << log_inv_rate];
                 let lanes = Message::Lanes(SendPtr(msg.as_ptr().cast_mut()));
                 ntt.transform_for(&mut got, n_lanes, log_inv_rate, Some(lanes), Some(&|_, _| {}), workers);
