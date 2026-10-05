@@ -17,6 +17,7 @@ use crate::pcs::{Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::{constraints, pcs, witness};
 use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
 use primitives::field::{F64, F192};
+use std::borrow::Cow;
 
 /// The transcript's public input for a statement: the hash of its words' limbs, in order.
 pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
@@ -146,11 +147,10 @@ impl<'a> TableArgument<'a> {
         Self { layout, blocks }
     }
 
-    /// The argument of a circuit and its statement, the public rows reading the statement.
-    fn of(circuit: &Circuit, statement: &[Limbs], layout: &'a RecLayout) -> Self {
-        let fixed = FixedColumns::of(circuit, &layout.taus);
+    /// The argument of a circuit's fixed columns and its statement, the public rows reading the statement.
+    fn of(fixed: &FixedColumns, statement: &[Limbs], layout: &'a RecLayout) -> Self {
         let public = fixed.public_values(statement);
-        Self::new(layout, BusBlocks::new(&fixed, public, layout))
+        Self::new(layout, BusBlocks::new(fixed, public, layout))
     }
 
     /// Prove the bus, then every owned table's summand at the bus's point.
@@ -211,8 +211,19 @@ impl Circuit {
     /// # Panics
     ///
     /// Panics if the assignment is not one of the circuit, or its bus does not balance.
-    #[tracing::instrument(name = "Prove recursion", skip_all)]
     pub fn prove(&self, a: &Assignment, iv: [F64; 4], rate: Rate) -> Result<ProofTranscript, RecError> {
+        self.prove_with(a, iv, rate, None)
+    }
+
+    /// [`Self::prove`], with the circuit's fixed columns at its heights if the caller has them already.
+    #[tracing::instrument(name = "Prove recursion", skip_all)]
+    pub(crate) fn prove_with(
+        &self,
+        a: &Assignment,
+        iv: [F64; 4],
+        rate: Rate,
+        fixed: Option<&FixedColumns>,
+    ) -> Result<ProofTranscript, RecError> {
         assert_eq!(a.statement.len(), self.statement_len, "the assignment's statement");
         assert!(
             Table::ALL
@@ -226,7 +237,8 @@ impl Circuit {
 
         let w = crate::stage!("Build witness", || RecWitness::build(&layout, a));
         let committed = crate::stage!("Commit", || pcs::commit(&mut ps, &w.q, layout.shape, log_inv_rate));
-        let slots = TableArgument::of(self, &a.statement, &layout).prove(&w, &mut ps);
+        let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
+        let slots = TableArgument::of(&fixed, &a.statement, &layout).prove(&w, &mut ps);
 
         let RecWitness { q, ports, batch } = w;
         drop(ports);
@@ -264,7 +276,19 @@ impl Circuit {
         rate: Rate,
         proof: &ProofTranscript,
     ) -> Result<RawProof, RecError> {
-        self.verify_seeded(statement, iv, statement_seed(statement), rate, proof)
+        self.verify_seeded(statement, iv, statement_seed(statement), rate, proof, None)
+    }
+
+    /// [`Self::verify_to_raw`], with the circuit's fixed columns at its heights.
+    pub(crate) fn verify_to_raw_with(
+        &self,
+        statement: &[Limbs],
+        iv: [F64; 4],
+        rate: Rate,
+        proof: &ProofTranscript,
+        fixed: &FixedColumns,
+    ) -> Result<RawProof, RecError> {
+        self.verify_seeded(statement, iv, statement_seed(statement), rate, proof, Some(fixed))
     }
 
     /// Verify a proof whose transcript absorbed the given public input in place of the statement.
@@ -275,6 +299,7 @@ impl Circuit {
         public_input: [F64; 4],
         rate: Rate,
         proof: &ProofTranscript,
+        fixed: Option<&FixedColumns>,
     ) -> Result<RawProof, RecError> {
         if statement.len() != self.statement_len {
             return Err(RecError::StatementLength {
@@ -285,7 +310,8 @@ impl Circuit {
         let layout = RecLayout::new(self)?;
         let mut vs = VerifierState::new(iv, proof, public_input);
         let root = pcs::read_commitment(&mut vs)?;
-        let slots = TableArgument::of(self, statement, &layout).verify(&mut vs)?;
+        let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
+        let slots = TableArgument::of(&fixed, statement, &layout).verify(&mut vs)?;
         let hash_claim = HashBatch::verify(&layout, &mut vs)?;
         let ring = layout.hash_window().ring(hash_claim);
         pcs::verify(
@@ -475,7 +501,11 @@ mod tests {
         }
 
         // Under the honest seed the bus accepts the forged words; seeded with them, the proof is refused.
-        assert!(circuit.verify_seeded(&forged, IV, seed, Rate::MIN, &proof).is_ok());
+        assert!(
+            circuit
+                .verify_seeded(&forged, IV, seed, Rate::MIN, &proof, None)
+                .is_ok()
+        );
         assert!(matches!(
             verify_run(&circuit, &forged, &proof),
             Err(RecError::Bus(BusError::Gkr(_)))
