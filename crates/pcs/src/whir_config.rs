@@ -13,18 +13,31 @@
 //! The table is what the floating-point soundness analysis (the PCS annex, Theorem `thm:rbr`) derives at every size and rate it covers.
 //! That analysis lives in the test-only `tests` module, and its test `the_table_is_the_derivation` checks every entry, so changing a constant it reads fails that test until the table is regenerated (AGENTS.md, "One protocol, three verifiers").
 
+use fiat_shamir::MAX_GRINDING_BITS;
 use thiserror::Error;
 
 // ===================================================================
 // Config
 // ===================================================================
 
-// The production WHIR configuration: rate-1/2 Johnson list decoding with
-// OOD binding and 128-bit round-by-round soundness over F192.
+// The production WHIR configuration: Johnson list decoding at rates 2^-1 to 2^-4 and 128-bit round-by-round soundness over F192.
+// L0 takes no OOD sample, so the commitment binds only to a list, whose size every challenge before the opening pays; every later level takes one OOD sample.
 
 /// Round-by-round soundness target (bits): every verifier-challenge transition
 /// must have conditional failure probability at most `2^-SECURITY_BITS`.
 pub const SECURITY_BITS: usize = 128;
+
+/// Bits a challenge drawn after the commitment loses to the commitment's list.
+///
+/// Level 0 takes no out-of-domain sample.
+/// So the root binds the prover to a list of up to `L_0 = 1/(2 eta_0 sqrt(rho_0))` polynomials (Johnson bound).
+///
+/// A challenge drawn between the root and the opening must hold against every list member.
+/// By a union bound its error grows by a factor `L_0`.
+///
+/// The value is `ceil(log2 L_0)` at its largest over every configured size and rate.
+/// A test pins it to the derivation.
+pub const L0_LIST_BITS: usize = 12;
 
 /// L0 code rate index: `rho_0 = 2^-LOG_INV_RATE_0` (rate 1/2).
 pub const LOG_INV_RATE_0: usize = 1;
@@ -77,6 +90,8 @@ pub fn validate_log_inv_rate(log_inv_rate: usize) -> Result<(), ConfigError> {
 /// level commitment and before its query positions are sampled, so the query
 /// count only needs to close the remaining `SECURITY_BITS - 17` bits.
 pub const QUERY_GRINDING_BITS: usize = 17;
+
+const _: () = assert!(QUERY_GRINDING_BITS <= MAX_GRINDING_BITS as usize);
 
 pub const INITIAL_FOLDING_FACTOR: usize = 6;
 pub const SUBSEQUENT_FOLDING_FACTOR: usize = 4;
@@ -147,6 +162,10 @@ impl ProverConfig {
         // `2^log_n` cube. Every claim weight vanishes on the absent lanes, but an OOD
         // weight `eq(z, .)` is a full tensor that does not, so L0 can take none.
         assert_eq!(ood_samples[0], 0, "L0 takes no OOD sample");
+        assert!(
+            grinding_bits.iter().all(|&g| g <= MAX_GRINDING_BITS as usize),
+            "a proof of work grinds at most the digest's low word"
+        );
         Self {
             initial_k,
             level_ks,
@@ -191,7 +210,7 @@ impl ProverConfig {
 
     /// Per-level out-of-domain samples (L0, L1, ..., L_r), taken right after the level's root enters the transcript.
     ///
-    /// L0 takes none: the opening's own post-commit evaluation claim binds it.
+    /// L0 takes none: the commitment binds only to a list, which every challenge before the opening pays for.
     pub fn ood_samples(&self) -> &[usize] {
         &self.ood_samples
     }

@@ -172,14 +172,9 @@ where
 
     let total_words = n_total * (k / 64);
     assert_eq!(z.len(), total_words, "z holds every instance's words");
-    // SAFETY: group `g` publishes chunk `g` of every table in full below, and the chunk counts match.
-    let (mut a, mut b, mut z_lincheck) = unsafe {
-        (
-            primitives::uninit_vec::<u64>(total_words),
-            primitives::uninit_vec::<u64>(total_words),
-            primitives::uninit_vec::<u8>((n_total / 8) * k),
-        )
-    };
+    let mut a = Box::<[u64]>::new_uninit_slice(total_words);
+    let mut b = Box::<[u64]>::new_uninit_slice(total_words);
+    let mut z_lincheck = Box::<[u8]>::new_uninit_slice((n_total / 8) * k);
 
     // A group's share: its packed words in each table, and one stripe per 8 instances.
     let group_words = group * (k / 64);
@@ -217,15 +212,22 @@ where
             // all four tables stay borrowed for the whole dispatch.
             unsafe {
                 stream.copy(z_chunks.get(g), z_grp);
-                stream.copy(a_chunks.get(g), a_grp);
-                stream.copy(b_chunks.get(g), b_grp);
-                stream.copy(stripe_chunks.get(g), stripes);
+                stream.write(a_chunks.get(g), a_grp);
+                stream.write(b_chunks.get(g), b_grp);
+                stream.write(stripe_chunks.get(g), stripes);
             }
         },
         |(), ()| (),
     );
 
-    (a, b, z_lincheck)
+    // SAFETY: group `g` wrote chunk `g` of every table in full, and the chunk counts match.
+    unsafe {
+        (
+            a.assume_init().into_vec(),
+            b.assume_init().into_vec(),
+            z_lincheck.assume_init().into_vec(),
+        )
+    }
 }
 
 /// The four tables of `2^n_blocks_log` instances of `2^k_log` bits, `z` allocated here, from a driver that writes the other three.
@@ -234,10 +236,11 @@ pub(crate) fn with_z(
     k_log: usize,
     drive: impl FnOnce(&mut [u64]) -> (Vec<u64>, Vec<u64>, Vec<u8>),
 ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
-    // SAFETY: every driver publishes all of `z`.
-    let mut z = unsafe { primitives::uninit_vec::<u64>((1usize << n_blocks_log) * ((1usize << k_log) / 64)) };
-    let (a, b, z_lincheck) = drive(&mut z);
-    (z, a, b, z_lincheck)
+    let mut z = Box::<[u64]>::new_uninit_slice((1usize << n_blocks_log) * ((1usize << k_log) / 64));
+    // SAFETY: every driver writes all of `z` and reads none of it first.
+    let (a, b, z_lincheck) = drive(unsafe { primitives::write_only(&mut z) });
+    // SAFETY: the driver wrote every word.
+    (unsafe { z.assume_init() }.into_vec(), a, b, z_lincheck)
 }
 
 /// Drive the parallel chunked witness build for `n_blocks` instances padded

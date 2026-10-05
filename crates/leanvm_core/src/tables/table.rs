@@ -3,9 +3,10 @@
 use super::bus::{FlushBuilder, Separator};
 use super::columns::Columns;
 use super::{BAD_SLOT, ClassSpec, EXIT_SLOT, N_TABLES, Part, Word};
+use crate::constraints::{BitColumns, BitField};
 use crate::leaf::BusForm;
 use crate::leaf::Coord::{self, Col, Const, Scaled};
-use crate::rv::{Class, Ext, Hash, RegisterFile};
+use crate::rv::{Class, Ext, Hash, Reg, RegisterFile};
 use primitives::field::{F64, F192, g_pow};
 use std::sync::OnceLock;
 
@@ -43,11 +44,59 @@ impl ClassTable {
         let spec = ClassSpec::ALL[index];
         spec.assert_valid();
         let cols = Columns::new(spec);
-        Self {
+        let table = Self {
             index,
             spec,
             cols,
             clock_ports: spec.clock_ports(),
+        };
+        table.assert_x0_is_constant();
+        table
+    }
+
+    /// Asserts that no access of the table can change register cell 0, `x0`.
+    ///
+    /// - A read pushes back the value it pulls.
+    /// - A register access that changes its cell does so at the entry's destination, which the decoder keeps in `1..=32`.
+    ///
+    /// So `x0` keeps its zero seed, which a base-field extension operand's high limbs read.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an access that may reach the registers changes its cell elsewhere than at the entry's destination.
+    fn assert_x0_is_constant(&self) {
+        let bus = self.flushes();
+        let destination = &bus.pull[1][Self::DESTINATION_SLOT];
+        // Pushes are the state, then the accesses; pulls are the state, the bytecode, then the accesses.
+        for (push, pull) in bus.push[1..].iter().zip(&bus.pull[2..]) {
+            let memory = matches!(push[0], Const(sep) if sep == Separator::Memory.value());
+            let read = matches!((&pull[3], &push[3]), (Col(old), Col(new)) if old == new);
+            let at_destination = matches!((&push[1], destination), (Col(at), Col(ad)) if at == ad);
+            assert!(
+                memory || read || at_destination,
+                "{} writes a register other than its destination",
+                self.spec.name
+            );
+        }
+    }
+
+    /// The register numbers a row reads off its entry: `a1`, then `a2` and `ad` where the row has them.
+    ///
+    /// - They are bit columns, packed into a committed word with the other tables' of the same height.
+    /// - A register read is below 32, five bits; a cell written may be the sink, 32, six bits.
+    pub(crate) fn register_bits(&self) -> BitColumns {
+        let c = &self.cols;
+        let read = |col| BitField { col, width: Reg::BITS };
+        let written = |col| BitField {
+            col,
+            width: RegisterFile::LOG_CELLS,
+        };
+        let ad = (c.rd.map(|rd| written(rd.ad))).or_else(|| c.pointer.map(|p| read(p.ad)));
+        BitColumns {
+            fields: [Some(read(c.a1)), c.rs2.map(|r| read(r.a2)), ad]
+                .into_iter()
+                .flatten()
+                .collect(),
         }
     }
 
@@ -94,6 +143,9 @@ impl ClassTable {
             .map_or(Const(F64::ZERO), |control| control.exit_marker(c.ts, c.step));
         bus.state(c.pc, c.ts, c.step, npc, exit);
     }
+
+    /// The bytecode tuple's coordinate holding the cell the entry writes.
+    pub(crate) const DESTINATION_SLOT: usize = 6;
 
     /// Read the public decoded entry, using constants for absent register and circuit ports.
     fn bytecode_tuple(&self) -> Vec<Coord> {
