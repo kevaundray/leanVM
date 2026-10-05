@@ -568,8 +568,13 @@ impl<'p> Tree<'p> {
     /// Verify a tree proof's recursion proof, short of its claims, returning it as its verifier read it.
     fn read(&self, p: &TreeProof) -> Result<RawProof, RecError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
-        self.circuit(p.kind)
-            .verify_to_raw(&limbs, self.design.iv, self.design.rate, &p.proof)
+        self.circuit(p.kind).verify_to_raw_with(
+            &limbs,
+            self.design.iv,
+            self.design.rate,
+            &p.proof,
+            &self.columns[p.kind as usize],
+        )
     }
 
     /// Prove a circuit's rows: its reduction, then its recursion proof.
@@ -587,7 +592,7 @@ impl<'p> Tree<'p> {
             return Err(TreeError::Unsatisfied(first));
         }
         let proof = (self.circuit(kind))
-            .prove(&assignment, d.iv, d.rate)
+            .prove_with(&assignment, d.iv, d.rate, Some(&self.columns[kind as usize]))
             .map_err(|_| TreeError::TooLarge)?;
         let words = (assignment.statement().iter())
             .map(|l| F192::new(l[0], l[1], l[2]))
