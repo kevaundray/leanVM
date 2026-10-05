@@ -57,7 +57,7 @@
 use super::pack::PACKING_WIDTH;
 use super::ring_switch;
 use super::ring_switch::RsEqQuery;
-use super::whir::{Basis, ProverConfig, ProverData, VerifierConfig, WhirError, recursive_verifier_with_basis_succinct};
+use super::whir::{ProverConfig, ProverData, VerifierConfig, WhirError, recursive_verifier_with_basis_succinct};
 use crate::merkle::Hash;
 use basis::StackWeight;
 use fiat_shamir::transcript::{Challenger, Receiver, Transmitter};
@@ -267,17 +267,18 @@ pub fn open_batch_mixed_whir_stacked(
             .zip(lambdas_pd)
             .fold(F192::ZERO, |sum, (claim, &lambda)| sum + lambda * claim.value());
 
-    // The lifted weight is never stored.
+    // The lifted weight is filled one chunk at a time:
     //
     //     first pass:  each chunk is filled, then feeds the first lane rounds' sums while hot
     //     first fold:  each chunk is filled again, then folded by those rounds' challenges
     //
-    // Filling costs less than writing the weight out and reading it back.
+    // On a small pool the first pass also writes each chunk out, and the first fold reads it back rather than filling
+    // it again.
     let lane_block = 1usize << (log_n - config.initial_k());
     let weight = StackWeight::new(stack.len(), lane_block, point_claims, lambdas_pd, rings, &rs_outputs);
     let fill = |start: usize, dst: &mut [F192]| weight.fill(start, dst);
-    let initial = tracing::info_span!("Basis")
-        .in_scope(|| super::whir::initial_rounds(stack, lane_block, config.initial_k(), &Basis::Virtual(&fill)));
+    let (initial, basis) = tracing::info_span!("Basis")
+        .in_scope(|| super::whir::initial_rounds_virtual(stack, lane_block, config.initial_k(), &fill));
 
     // 4. One WHIR over the full stack against the combined claim (the
     //    stack is borrowed by the prover; no copy).
@@ -285,7 +286,7 @@ pub fn open_batch_mixed_whir_stacked(
         config,
         log_n,
         stack,
-        Basis::Virtual(&fill),
+        basis,
         target,
         &prover_data.codeword,
         &prover_data.merkle_tree,
