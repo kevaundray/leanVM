@@ -195,6 +195,19 @@ impl<const W: usize> Template<W> {
         self.block.compress(8 * W as u64, true)
     }
 
+    /// The digest of the message's first `LEN` bytes, as four little-endian words: a message ending inside its last
+    /// word, whose bytes from `LEN` on must be zero, as BLAKE2s pads the last block with zeros.
+    #[inline(always)]
+    pub fn digest_prefix<const LEN: usize>(&mut self) -> [u64; 4] {
+        const {
+            assert!(
+                8 * W - 8 < LEN && LEN <= 8 * W,
+                "a length inside the message's last word"
+            );
+        };
+        self.block.compress(LEN as u64, true)
+    }
+
     /// A hash chain: for each `c` in `counters`, write `c` as the `u32` at message byte `COUNTER` and `value` at
     /// message byte `VALUE`, then `value` becomes the digest's first two words. Returns the last `value`, or `value`
     /// itself for no counters.
@@ -563,6 +576,28 @@ mod tests {
         hashes_its_message::<6>(&mut rng);
         hashes_its_message::<7>(&mut rng);
         hashes_its_message::<8>(&mut rng);
+    }
+
+    fn hashes_its_prefix<const LEN: usize>(rng: &mut Rng) {
+        let mut mirror = Mirror::<7>::new(core::array::from_fn(|_| rng.next_u64()));
+        // The last word keeps its first `LEN - 48` bytes.
+        let last = rng.next_u64() & (u64::MAX >> (8 * (56 - LEN)));
+        mirror.template.set(6, [last]);
+        mirror.put(48, &last.to_le_bytes());
+        assert_eq!(
+            mirror.template.digest_prefix::<LEN>(),
+            reference(&mirror.bytes[..LEN]),
+            "{LEN} bytes"
+        );
+    }
+
+    #[test]
+    fn a_template_prefix_is_the_blake2s_of_those_bytes() {
+        // Invariant: a message ending inside its last word, zero after it, hashes as BLAKE2s-256 of its bytes alone.
+        let mut rng = Rng::new(0x7E5);
+        hashes_its_prefix::<49>(&mut rng);
+        hashes_its_prefix::<52>(&mut rng);
+        hashes_its_prefix::<56>(&mut rng);
     }
 
     /// A random offset of a `size`-byte field, aligned to its size and inside a message of `W` words.
