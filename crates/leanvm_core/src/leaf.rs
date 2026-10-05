@@ -504,6 +504,7 @@ pub fn build_leaves(
         // A block of eight rows or more starts at a multiple of its size, so its
         // four-tuples are its own.
         if blk.kappa >= 3 {
+            debug_assert!(off.is_multiple_of(len), "a block starts at a multiple of its size");
             fill_tuple(
                 &blk.coords,
                 cols,
@@ -1527,8 +1528,8 @@ pub fn verify_balance<V: Verifier>(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{
-        Block, Coord, F64, F192, N_TUPLE_BITS, Producer, PublicColumn, SparseColumn, fill_tuple, fingerprint_weights,
-        prove_balance, soundness_bits, verify_balance,
+        Block, Coord, F64, F192, N_TUPLE_BITS, Producer, PublicColumn, SparseColumn, build_leaves, fill_tuple,
+        fingerprint_weights, gkr, layout, prove_balance, soundness_bits, verify_balance,
     };
     use fiat_shamir::transcript::{ProverState, VerifierState};
     use std::collections::HashMap;
@@ -1637,6 +1638,53 @@ pub(crate) mod tests {
             column.eval(&point),
             primitives::multilinear::mle_eval(column.dense(), &point)
         );
+    }
+
+    /// The first product level `build_leaves` returns is `gkr::next_level` of its leaves,
+    /// whichever way each four-tuple's product was formed: in a block's fill (eight rows
+    /// or more, a parallel one at `PAR_THRESHOLD`), or after it (smaller blocks, a
+    /// producer's bits, and the ragged last four-tuple).
+    #[test]
+    fn build_leaves_forms_the_first_product_level() {
+        let rows = 1u64 << 11;
+        let cols: Vec<Vec<F64>> = (0..3u64)
+            .map(|c| {
+                (0..rows)
+                    .map(|z| F64((z + 1).wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ (c << 40)))
+                    .collect()
+            })
+            .collect();
+        let cols: Vec<&[F64]> = cols.iter().map(Vec::as_slice).collect();
+        let coords = || {
+            vec![
+                Coord::Const(F64(7)),
+                Coord::IntIndex {
+                    base: F64(0x4000),
+                    shift: 3,
+                },
+                Coord::Col(0),
+                Coord::Prod(1, 2),
+            ]
+        };
+        // Out of size order, so the layout moves every block.
+        let blocks: Vec<Block> = [2, 0, 11, 3, 1]
+            .into_iter()
+            .map(|kappa| Block::framework(kappa, coords()))
+            .collect();
+        let producers = [Producer {
+            kappa: 4,
+            coords: vec![Coord::Col(1)],
+            col: 2,
+            bits: 2,
+        }];
+        let lay = layout(&blocks, &producers);
+        let alphas: Vec<F192> = (0..N_TUPLE_BITS as u64)
+            .map(|i| F192::new(3 + i, 5 + 7 * i, 11))
+            .collect();
+        let w = fingerprint_weights(&alphas);
+        let (leaves, products) = build_leaves(&blocks, &producers, &lay, &cols, &w, F192::new(13, 17, 19));
+        assert_eq!(leaves.len(), (1 << 11) + 8 + 2 * 16 + 4 + 2 + 1);
+        assert_eq!(products, gkr::next_level(&leaves));
     }
 
     /// The bound is `N_TUPLE_BITS` per linear factor plus the GKR terms: the
