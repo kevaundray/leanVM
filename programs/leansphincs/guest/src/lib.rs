@@ -18,7 +18,7 @@
 //!
 //! Byte for byte the scheme of the leanSPHINCS specification, whose letters the code keeps.
 #![no_std]
-use leanvm_guest::{Blake2s, Template, hash_with};
+use leanvm_guest::{Template, hash_with};
 use thiserror::Error;
 
 mod fts;
@@ -236,16 +236,19 @@ pub fn verify(pk: &PublicKey, message: &Message, signature: &Signature) -> Resul
     if u[K - 1] != 0 {
         return Err(SphincsVerifyError::InadmissibleDigest);
     }
-    // The few-time key is the message the bottom layer signs, and each root the next one up.
-    let mut message = fts::recover(pp, idx, &u, &signature.fts);
+    // The few-time key is the message the bottom layer signs, and each root the next one up. The hashes of one
+    // shape keep their blocks across trees and layers.
+    let (nodes, one_time) = (&mut NodeHash::new(pp), &mut ots::Ots::new(pp));
+    let mut message = fts::recover(pp, nodes, idx, &u, &signature.fts);
     for lay in (0..D).rev() {
         let pos = Pos::of(idx, lay);
         let (counter, ots, path) = signature.layer(lay);
         // A counter is 32 bits: a word holding more is no counter.
         let inadmissible = SphincsVerifyError::InadmissibleEncoding { layer: lay };
         let counter = u32::try_from(counter).map_err(|_| inadmissible)?;
-        let leaf = ots::leaf(pp, pos, &message, counter, ots).ok_or(inadmissible)?;
-        message = tree_fold(pp, pos, leaf, path);
+        let leaf = one_time.leaf(pp, pos, &message, counter, ots).ok_or(inadmissible)?;
+        let tw = tweak(TWEAK_NODE, lay, pos.tau, 0, 0);
+        message = fold(nodes, tw, u64::from(pos.e), leaf, path);
     }
     if message == pk.root {
         Ok(())
@@ -289,7 +292,7 @@ const PAYLOAD: usize = 4;
 /// The message digest, read as the index and the `k` few-time leaf indices.
 ///
 /// `h + ka = 176` bits: the index in the low 26, then 10 bits per leaf index.
-fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, message: &Message) -> (u64, [u32; K]) {
+fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, message: &Message) -> (u64, [usize; K]) {
     // `tw | P | randomizer | root | message`: 96 bytes, two compressions.
     let words = hash_with(|m| {
         m.write(tweak(TWEAK_MSG, 0, 0, 0, 0))
@@ -307,11 +310,14 @@ fn message_digest(pp: &PublicParam, root: &Digest, randomizer: &Randomizer, mess
         }
         x & ((1 << len) - 1)
     };
-    (bits(0, H), core::array::from_fn(|kappa| bits(H + kappa * A, A) as u32))
+    (
+        bits(0, H),
+        core::array::from_fn(|kappa| bits(H + kappa * A, A) as usize),
+    )
 }
 
-/// `Th` of tree nodes, `tw | P | left | right`, in one block kept across nodes: a node writes only its tweak and
-/// its children.
+/// `Th` of tree nodes, `tw | P | left | right`, in one block kept across nodes, trees and layers: a node writes only
+/// its tweak and its children.
 struct NodeHash(Template<8>);
 
 impl NodeHash {
@@ -334,24 +340,26 @@ fn node(hash: &mut NodeHash, lay: usize, tau: u32, level: usize, j: u64, left: &
     hash.hash(tweak(TWEAK_NODE, lay, tau, level as u32, j as u32), left, right)
 }
 
-/// `Tree.fold`: a leaf folded up its path to its tree's root.
-fn tree_fold(pp: &PublicParam, pos: Pos, leaf: Digest, path: &[Digest]) -> Digest {
-    let mut hash = NodeHash::new(pp);
-    path.iter().enumerate().fold(leaf, |current, (level, sibling)| {
-        // The leaf's bit at this level says which child the current node is.
-        let (left, right) = if (pos.e >> level) & 1 == 0 {
+/// `Tree.fold`: leaf `e`'s value folded up its path to its tree's root, the node at level `p` and index `j` hashed
+/// under `tw` with `p` and `j` written in.
+///
+/// A loop that is never inlined, so that the level is a running sum in the tweak's first word, not a constant built
+/// for each node.
+#[inline(never)]
+fn fold(hash: &mut NodeHash, tw: [u64; 2], e: u64, leaf: Digest, path: &[Digest]) -> Digest {
+    let [mut first, tau] = tw;
+    let (mut j, mut current) = (e, leaf);
+    for sibling in path {
+        // The index's low bit says which child the current node is.
+        let (left, right) = if j & 1 == 0 {
             (&current, sibling)
         } else {
             (sibling, &current)
         };
-        node(
-            &mut hash,
-            pos.lay,
-            pos.tau,
-            level + 1,
-            u64::from(pos.e >> (level + 1)),
-            left,
-            right,
-        )
-    })
+        // One level up: the position `p` in the high half of the tweak's first word, the index in its second's.
+        first += 1 << 32;
+        j >>= 1;
+        current = hash.hash([first, tau | j << 32], left, right);
+    }
+    current
 }

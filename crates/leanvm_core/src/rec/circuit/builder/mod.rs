@@ -8,6 +8,7 @@ use super::{Assignment, Circuit, Compression, Dw, Ew, Finished, Kw, Limbs, PubSo
 use crate::rec::table::Table;
 use primitives::field::F192;
 use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
 
 /// The constants arithmetic folds away, once created.
 #[derive(Clone, Copy, Debug, Default)]
@@ -25,10 +26,41 @@ struct Units {
     k_one: Option<u32>,
 }
 
+/// An arithmetic row's table and input wires as one key.
+fn row_key(table: Table, inputs: [u32; 3]) -> u128 {
+    (table as u128) << 96 | u128::from(inputs[0]) << 64 | u128::from(inputs[1]) << 32 | u128::from(inputs[2])
+}
+
+/// Hashes a row key: wire numbers the builder made, never adversarial, so two rounds of a 64-bit finalizer suffice.
+#[derive(Default)]
+struct RowHasher(u64);
+
+impl Hasher for RowHasher {
+    fn write(&mut self, _: &[u8]) {
+        unreachable!("a row key is one u128");
+    }
+
+    fn write_u128(&mut self, key: u128) {
+        const fn mix(mut x: u64) -> u64 {
+            x ^= x >> 33;
+            x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
+            x ^= x >> 33;
+            x = x.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+            x ^ (x >> 33)
+        }
+        self.0 = mix(mix(key as u64) ^ (key >> 64) as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
 /// Builds circuit rows and records an honest assignment to their wires.
 ///
 /// Arithmetic identities involving constant zero or one can avoid emitting rows.
-/// Folding depends on circuit constants, never on the values of unconstrained wires.
+/// An arithmetic row with the input wires of an earlier one emits no row either: its output is the earlier row's.
+/// Folding depends on circuit constants and wire numbers, never on the values of unconstrained wires.
 #[derive(Debug, Default)]
 pub struct Builder {
     /// Each wire's value.
@@ -51,6 +83,9 @@ pub struct Builder {
 
     /// Cached arithmetic identities used to fold operations.
     units: Units,
+
+    /// Each `EMUL` and `EXK` row's output by its `row_key`, `EMUL`'s two factors in order.
+    arith: HashMap<u128, u32, BuildHasherDefault<RowHasher>>,
 
     /// Each hash row's compression.
     hash: Vec<Compression>,

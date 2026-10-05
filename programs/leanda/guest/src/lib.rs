@@ -31,7 +31,7 @@
 //!
 //! See <https://ethresear.ch/t/leanda-design-and-benchmark/25642>.
 #![no_std]
-use leanvm_guest::{Blake2s, ext};
+use leanvm_guest::{ext, hash_with};
 use thiserror::Error;
 
 /// A BLAKE2s-256 digest, as four little-endian words.
@@ -148,16 +148,21 @@ fn merkle_root(leaves: &mut [Hash]) -> Hash {
 
 /// BLAKE2s of two digests: a Merkle node, and the commitment's root.
 fn hash_pair(left: &Hash, right: &Hash) -> Hash {
-    let mut hasher = Blake2s::new();
-    hasher.update_words(left).update_words(right);
-    hasher.finalize_words()
+    hash_with(|stream| {
+        stream.write(*left).write(*right);
+    })
 }
 
-/// BLAKE2s of the little-endian bytes of some words.
+/// BLAKE2s of the little-endian bytes of some words, whole blocks of them.
+///
+/// The stream writes each block straight into the one the instruction reads, where the chaining value stays.
 fn hash(words: &[u64]) -> Hash {
-    let mut hasher = Blake2s::new();
-    hasher.update_words(words);
-    hasher.finalize_words()
+    let (blocks, []) = words.as_chunks::<8>() else {
+        unreachable!("whole blocks")
+    };
+    hash_with(|stream| {
+        stream.write_each(blocks.len(), |i| blocks[i]);
+    })
 }
 
 /// Whether `sum_x L_x * w_x`, in `GF(2^192)`, is zero.
