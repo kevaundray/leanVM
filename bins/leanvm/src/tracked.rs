@@ -6,9 +6,10 @@
 //! PR's with its base's: they are the same on every machine. Proving on CI's GitHub-hosted
 //! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
 //! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
-//! base and head are proven in turns on one runner and compared there. leanXMSS at a quarter
-//! is also proven on one thread, in a process of its own (`ONE_THREAD`). A case's name is what
-//! a PR's results are matched by, so renaming one or changing its input shows it as new.
+//! base and head are proven in turns on one runner and compared there. leanXMSS at a quarter,
+//! and the 2-to-1 tree over it, are also proven on one thread, in a process of their own
+//! (`ONE_THREAD`). A case's name is what a PR's results are matched by, so renaming one or
+//! changing its input shows it as new.
 //!
 //! An aggregation tree is tracked the same way: each kind of node's circuit counted without a
 //! proof (the leaf's run measured gives the shape its proofs announce), and one node of each
@@ -126,15 +127,16 @@ fn proven() -> [(&'static str, Build); 5] {
     ]
 }
 
-/// The cases of `proven()` proven on one thread: what one core costs, apart from how the
-/// prover scales over cores. The pool is sized once per process, from `LEANVM_NUM_THREADS`,
-/// so unless this process's pool is one thread already, such a case is proven by a child: this
-/// executable run again with `LEANVM_NUM_THREADS=1` (`on_one_thread`).
-const ONE_THREAD: [&str; 1] = ["leanxmss-100-1thread"];
+/// The cases of `proven()` and `proven_trees()` proven on one thread: what one core costs,
+/// apart from how the prover scales over cores. The pool is sized once per process, from
+/// `LEANVM_NUM_THREADS`, so unless this process's pool is one thread already, such a case is
+/// proven by a child: this executable run again with `LEANVM_NUM_THREADS=1` (`on_one_thread`),
+/// a tree's leaf proof included.
+const ONE_THREAD: [&str; 2] = ["leanxmss-100-1thread", "aggregate-leanxmss-100-2to1-1thread"];
 
 /// An aggregation tree over copies of one case's proof: first-level nodes of `arity_0` leaves,
 /// nodes of `arity` tree proofs. A tree's name ends `<N>to1` when both are `N`: every node
-/// combines `N` proofs into 1.
+/// combines `N` proofs into 1; then `-1thread` when it is proven on one thread (`ONE_THREAD`).
 struct Aggregation {
     name: &'static str,
     leaf: Case,
@@ -196,15 +198,19 @@ fn counted_trees() -> Vec<Aggregation> {
 /// Builds an aggregation tree given its name.
 type BuildTree = fn(&'static str) -> Aggregation;
 
-/// Aggregation trees proven: the counted trees' arities over leaves of a size proven above.
-/// Each gives two benchmarks, `<name>-first` and `<name>-node`.
-fn proven_trees() -> [(&'static str, BuildTree); 2] {
+/// Aggregation trees proven: the counted trees' arities over leaves of a size proven above, and
+/// the 2-to-1 tree again on one thread. Each gives two benchmarks, `<name>-first` and
+/// `<name>-node`.
+fn proven_trees() -> [(&'static str, BuildTree); 3] {
     [
         ("aggregate-leanxmss-100-2to1", |name| {
             Aggregation::new(name, Case::workload("leanxmss-100", workload::leanxmss(100)), 2, 2)
         }),
         ("aggregate-leanxmss-100-4to1", |name| {
             Aggregation::new(name, Case::workload("leanxmss-100", workload::leanxmss(100)), 4, 4)
+        }),
+        ("aggregate-leanxmss-100-2to1-1thread", |name| {
+            Aggregation::new(name, Case::workload("leanxmss-100", workload::leanxmss(100)), 2, 2)
         }),
     ]
 }
@@ -269,10 +275,11 @@ pub fn run(
             refuse(format_args!("no tracked case is named {}", only.unwrap_or_default()));
         }
         bench::time_stages("Prove");
+        let one_thread = |name: &str| ONE_THREAD.contains(&name) && parallel::num_threads() > 1;
         let mut reports: Vec<String> = cases
             .into_iter()
             .map(|(name, case)| {
-                if ONE_THREAD.contains(&name) && parallel::num_threads() > 1 {
+                if one_thread(name) {
                     on_one_thread(name, only.is_none())
                 } else {
                     bencher_json(&[(name.to_string(), proved(&case(name), prover, plan))])
@@ -280,7 +287,11 @@ pub fn run(
             })
             .collect();
         for (name, tree) in trees {
-            reports.push(bencher_json(&proved_tree(&tree(name), prover, plan)));
+            reports.push(if one_thread(name) {
+                on_one_thread(name, only.is_none())
+            } else {
+                bencher_json(&proved_tree(&tree(name), prover, plan))
+            });
         }
         return println!("{}", merged(&reports));
     };
