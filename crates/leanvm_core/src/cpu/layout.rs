@@ -626,14 +626,14 @@ impl Layout {
 
         let mut slots: Vec<StackClaim<A::E>> = claims.into_iter().map(|c| self.slot_claim(a, c)).collect();
 
-        // The row a table's padding rows repeat is the one at its height: the last piece of each of its columns, one row long.
+        // The row a table's padding rows repeat is the one at its height, one row of each of its columns.
         let one = a.one();
-        for (&(base, _), row) in schema.spans.iter().zip(pads) {
+        for ((&(base, _), row), &height) in schema.spans.iter().zip(pads).zip(&self.heights) {
             let Some(row) = row else { continue };
             slots.extend(
                 row.iter()
                     .enumerate()
-                    .map(|(c, &value)| self.padding_claim(base + c, value, one)),
+                    .map(|(c, &value)| self.padding_claim(base + c, height, value, one)),
             );
         }
         slots.extend(exits.into_iter().map(|c| self.slot_claim(a, c)));
@@ -678,10 +678,11 @@ impl Layout {
         }
     }
 
-    /// A claim on a column's padding row, the row at its table's height: the column's last piece, which holds that row alone.
+    /// A claim on a column's padding row, the row `height`: one row of the column's last piece, which holds it.
     ///
-    /// At the Boolean point naming the row every other piece weighs zero, so the claim is that piece's one row, with no point.
-    fn padding_claim<E: Copy>(&self, col: usize, value: E, one: E) -> StackClaim<E> {
+    /// That piece is the row alone, or the whole column when the height is one short of it.
+    /// At the Boolean point naming the row every other row weighs zero, so the claim is that one row, with no point.
+    fn padding_claim<E: Copy>(&self, col: usize, height: usize, value: E, one: E) -> StackClaim<E> {
         let (column, slot, stride_log) = match &self.placements[col] {
             Placement::Committed(column) => (column, 0, 0),
             &Placement::Port {
@@ -697,13 +698,16 @@ impl Layout {
             ),
         };
         let last = column.pieces.last().expect("a column has a piece");
-        debug_assert_eq!(last.log_rows, 0, "a padded column's last piece is its padding row");
+        debug_assert!(
+            (last.first_row..last.first_row + (1 << last.log_rows)).contains(&height),
+            "a padded column's last piece holds its padding row"
+        );
         StackClaim {
             point: Vec::new(),
             slot,
             stride_log,
             terms: vec![Term {
-                offset: last.offset,
+                offset: last.offset + ((height - last.first_row) << stride_log),
                 n_vars: 0,
                 scale: one,
             }],

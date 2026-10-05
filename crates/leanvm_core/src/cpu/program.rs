@@ -1281,6 +1281,31 @@ mod tests {
     }
 
     #[test]
+    fn a_table_one_row_short_of_its_cube_proves() {
+        // Boundary: a height of `2^tau - 1` commits the whole cube in one piece, its padding row the last row of that piece rather than a piece of its own.
+        //
+        // Fixture: `addi`s ahead of the exit until the ALU's height is one short of a power of two.
+        let program = (1..64)
+            .map(|n| {
+                let mut a = Asm::new();
+                for _ in 0..n {
+                    a.i(Addi, Reg::A0, Reg::A0, 1);
+                }
+                Program::new(&a.exit().finish(), Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program")
+            })
+            .find(|program| {
+                let height = program.execute(&[]).unwrap().trace.heights[0];
+                height + 1 == 1 << tau_of(0, height)
+            })
+            .expect("some count of addi fills the ALU to one short of its cube");
+        let exec = program.execute(&[]).unwrap();
+        let (proof, _) = program.prove_execution(&exec, pcs::Rate::MIN);
+        program
+            .verify_core(&exec.output, &proof)
+            .expect("the padding row is the cube's last row");
+    }
+
+    #[test]
     fn a_forged_height_unbalances_the_bus() {
         // Invariant: a table's height names exactly the rows on the bus, so moving it moves rows on or off.
         //
