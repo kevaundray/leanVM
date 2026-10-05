@@ -5,7 +5,7 @@
 //! A signature then rebuilds a `2^6`-leaf subtree of it, not all `2^12` leaves.
 
 use crate::*;
-use ots::Chains;
+use ots::Ots;
 use thiserror::Error;
 
 /// `A_max`: message digests a signer tries.
@@ -133,13 +133,14 @@ impl SecretKey {
         message: &mut Digest,
     ) -> Result<LayerSignature<HEIGHT>, SphincsSignError> {
         let (pp, master, pos) = (&self.public_param, &self.master, Pos::of(idx, lay));
+        let mut one_time = Ots::new(pp);
+        one_time.key(pos);
         // The least counter with a codeword: a larger one would reveal a second codeword.
         let (counter, x) = (0..MAX_ENCODING_ATTEMPTS)
-            .find_map(|c| ots::encode(pp, pos, message, c as u32).map(|x| (c as u32, x)))
+            .find_map(|c| one_time.encode(message, c as u32).map(|x| (c as u32, x)))
             .ok_or(SphincsSignError::NoAdmissibleEncoding)?;
         // Chain `i` opened at value `x_i`.
-        let mut chains = Chains::new(pp, pos);
-        let ots = core::array::from_fn(|i| chains.walk(i, 0, x.get(i), ots::secret(pp, master, pos, i)));
+        let ots = core::array::from_fn(|i| one_time.walk(i, 0, x.get(i), ots::secret(pp, master, pos, i)));
         // The top layer's tree has the cache; the others are rebuilt whole.
         let mut path = [[0; 2]; HEIGHT];
         *message = if lay == 0 {
@@ -195,9 +196,10 @@ impl SecretKey {
 
 /// The leaf of a one-time key: every chain walked to its end.
 fn public_leaf(pp: &PublicParam, master: &[u64; 4], pos: Pos) -> Digest {
-    let mut chains = Chains::new(pp, pos);
+    let mut one_time = Ots::new(pp);
+    one_time.key(pos);
     ots::leaf_hash(pp, pos, |i| {
-        chains.walk(i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i))
+        one_time.walk(i, 0, CHAIN_LEN - 1, ots::secret(pp, master, pos, i))
     })
 }
 

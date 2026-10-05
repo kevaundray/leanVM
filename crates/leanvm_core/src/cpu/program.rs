@@ -16,8 +16,6 @@ use crate::pcs::Rate;
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
 use crate::tables::{ClassSpec, Clock};
 use crate::{class_flock, constraints, leaf, pcs, tables};
-use ::pcs::pack::PACKING_WIDTH;
-use ::pcs::stack_open::{RingSwitchClaim, RingSwitchOpen, RingSwitchVerify, RingSwitchVerifyClaim};
 use fiat_shamir::transcript::{Challenger, ProverState, RawProof, VerifierState};
 use primitives::field::{F64, F192};
 use primitives::hash::Hasher;
@@ -41,7 +39,7 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-7";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-9";
 
     /// The program of a guest's ELF executable.
     ///
@@ -258,35 +256,16 @@ impl Program {
             &output.map(|o| F192::from(F64(o))),
         );
 
-        // Each circuit's flock reduction, every class circuit then every clock circuit.
+        // Flock's reductions, batched over every class circuit then every clock circuit under shared challenges.
         //
-        // Each leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
+        // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
+        // Each producer's multiplicity column is a ring-switched region too.
         let reductions = w.reductions;
-        let mut rings: Vec<_> = crate::stage!("Flock reductions", || {
-            reductions
-                .iter()
-                .enumerate()
-                .map(|(f, prepared)| {
-                    let window = w.layout.witness_window(f);
-                    let reduced = prepared.prove(&mut ps);
-                    flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
-                })
-                .collect()
+        let slices = crate::stage!("Flock reductions", || {
+            class_flock::prove_reductions(&reductions, &mut ps)
         });
         drop(reductions);
-
-        // Each producer's multiplicity column, a ring-switched region too.
-        for (p, claims) in l.producers.iter().zip(&table_claims[tables::N_TABLES..]) {
-            let window = l.multiplicity_window(p);
-            rings.push(RingSwitchOpen {
-                offset: window.offset,
-                qflock_vars: window.n_vars,
-                claims: vec![RingSwitchClaim {
-                    suffix_point: claims.chi.clone(),
-                    s_hat_v: Some(claims.evals_padded::<PACKING_WIDTH>().to_vec()),
-                }],
-            });
-        }
+        let rings = l.rings(slices, &table_claims[tables::N_TABLES..], F192::ZERO);
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &w.q, &slots, &rings));
         Proof(ps.into_proof())
     }
@@ -347,47 +326,18 @@ impl Program {
         let clock = F192::from(F64(announcement.ts_final));
         let reduced = l.reduce_tables(&mut vs, clock, &output.map(|o| F192::from(F64(o))))?;
 
-        // Replay each circuit's flock reduction off the stream, to recover its validity claim on its packed witness.
+        // Replay the batched flock reductions off the stream, to recover each circuit's validity claim on its packed witness.
         //
         // Each leaves its matrices' form to its circuit.
-        let mut replays = Vec::with_capacity(class_flock::N_FLOCKS);
-        let mut circuit_claims = Vec::with_capacity(class_flock::N_FLOCKS);
-        for f in 0..class_flock::N_FLOCKS {
-            let (t, part) = class_flock::flock(f);
-            let (replay, matrices) =
-                class_flock::verify_reduction(f, l.taus[t], &mut vs).map_err(|error| CpuError::Flock {
-                    table: ClassSpec::ALL[t].name,
-                    part,
-                    error,
-                })?;
-            replays.push(replay);
-            circuit_claims.push(matrices.into());
-        }
+        let n_blocks_log = std::array::from_fn(|f| l.taus[class_flock::flock(f).0]);
+        let (slices, circuit_claims): (Vec<_>, Vec<_>) = class_flock::verify_reductions(&n_blocks_log, &mut vs)
+            .map_err(CpuError::Reductions)?
+            .into_iter()
+            .map(|(replay, matrices)| (replay.claim, matrices.into()))
+            .unzip();
 
         // The ring-switched regions: each packed witness, then each producer's multiplicity column.
-        let producer_claims = &reduced.producers;
-        let slices: Vec<[F192; PACKING_WIDTH]> = producer_claims.iter().map(|claims| claims.evals_padded()).collect();
-        let witnesses = replays.iter().enumerate().map(|(f, replay)| {
-            let window = l.witness_window(f);
-            flock::reduction::ring_switch_verify(window.n_vars, window.offset, &replay.claim)
-        });
-        let producers = l
-            .producers
-            .iter()
-            .zip(producer_claims)
-            .zip(&slices)
-            .map(|((p, claims), slices)| {
-                let window = l.multiplicity_window(p);
-                RingSwitchVerify {
-                    offset: window.offset,
-                    qflock_vars: window.n_vars,
-                    claims: vec![RingSwitchVerifyClaim {
-                        suffix_point: &claims.chi,
-                        s_hat_v: slices,
-                    }],
-                }
-            });
-        let rings: Vec<_> = witnesses.chain(producers).collect();
+        let rings = l.rings(slices, &reduced.producers, F192::ZERO);
 
         // The one opening, then nothing may be left on the stream.
         pcs::verify(
@@ -527,7 +477,7 @@ mod tests {
     use crate::leaf::tests::unmatched_leaves;
     use crate::pcs::Rate;
     use crate::rv::asm::*;
-    use crate::rv::{Class, Entry, InstructionClass, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
+    use crate::rv::{Class, Entry, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
     use crate::tables::{ClassSpec, ClassTable, Clock, Separator};
 
     #[test]
@@ -670,8 +620,6 @@ mod tests {
             vd_old: program.rv.pc_of(index) + 4,
             ram,
             prev: [slots[0], slots[1], slots[2], 0],
-            hash: None,
-            ext: None,
         }
     }
 
@@ -801,28 +749,28 @@ mod tests {
     fn a_base_field_operand_has_no_high_limbs() {
         // Invariant: `extmulk` multiplies by a base-field element, its high limbs read from `x0`, which holds zero.
         //
-        // Fixture state: a = (3, 5, 7) at RAM's base, the base-field b = 9 at word 4, c at word 8.
-        let image = vec![3, 5, 7, 0, 9, 0, 0, 0];
+        // Fixture state: a = (3, 5, 7) at RAM's base, the base-field b = 9 right after it, c after that, packed.
+        let image = vec![3, 5, 7, 9, 0, 0, 0];
         let ram = Region::RAM.base();
         let text = Asm::new()
             .li(Reg::T0, ram)
-            .li(Reg::T1, ram + 32)
-            .li(Reg::T2, ram + 64)
+            .li(Reg::T1, ram + 24)
+            .li(Reg::T2, ram + 32)
             .ext(Extmulk, Reg::T2, Reg::T0, Reg::T1)
             .exit()
             .finish();
-        let program = Program::new(&text, Region::TEXT.base(), image, 4, 0).expect("valid instruction program");
+        let program = Program::new(&text, Region::TEXT.base(), image, 3, 0).expect("valid instruction program");
         assert!(unmatched_run(&program, &program.execute(&[]).unwrap()).is_empty());
 
-        // Mutation: the row claims b_1 = 1, as if b were (9, 1, 0), and c and RAM follow it.
+        // Mutation: the row claims b_1 = 1, as if b were (9, 1, 0), and c and RAM follow it, so the identities hold.
         let mut forged = program.execute(&[]).unwrap();
         let ext = ClassTable::index_of(Class::Ext).unwrap();
-        let row = forged.trace.rows[ext].iter_mut().find(|r| r.ts != 0).unwrap();
-        let x = row.ext.as_mut().unwrap();
+        let at = forged.trace.rows[ext].iter().position(|r| r.ts != 0).unwrap();
+        let x = &mut forged.trace.ext[at];
         x.instance.limbs[4] = 1;
-        x.result = x.instance.eval();
-        for (k, word) in x.result.c.into_iter().enumerate() {
-            forged.trace.ram_fin[8 + k] = F64(word);
+        x.c = x.instance.eval();
+        for (k, word) in x.c.into_iter().enumerate() {
+            forged.trace.ram_fin[4 + k] = F64(word);
         }
 
         // Two tuples on each side: b_1's read of x0, and b_2's read right after it.
@@ -831,6 +779,154 @@ mod tests {
         //     b_2 pulls the 0 it found, which nothing pushed, and leaves the 1 unpulled
         let unmatched = unmatched_run(&program, &forged);
         assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    /// Extension-field products on packed elements: `x` at word 0, `y` at word 3, the base-field `w` at word 6, `c`
+    /// at word 7, and `d` at word 10, so that limb addresses carry: `y`'s second limb is at `+32`, `c`'s at `+64`.
+    ///
+    /// ```text
+    ///     extmul   c = x y             extmack  c = c + c w     (c is also a)
+    ///     a0..a2 = c                   extmul   d = y y         (b is a, and nothing reads d)
+    /// ```
+    fn extension_products() -> Program {
+        let mut image = vec![0; 13];
+        image[..3].copy_from_slice(&[0x0123_4567_89AB_CDEF, 0xFEDC_BA98_7654_3210, 0x0F1E_2D3C_4B5A_6978]);
+        image[3..6].copy_from_slice(&[3, 1 << 63, 0x1B]);
+        image[6] = 0xDEAD_BEEF_0BAD_F00D;
+        let ram = Region::RAM.base();
+        let text = Asm::new()
+            .li(Reg::T0, ram)
+            .li(Reg::T1, ram + 24)
+            .li(Reg::T2, ram + 48)
+            .li(Reg::T3, ram + 56)
+            .li(Reg::T4, ram + 80)
+            .ext(Extmul, Reg::T3, Reg::T0, Reg::T1)
+            .ext(Extmack, Reg::T3, Reg::T3, Reg::T2)
+            .load(Ld, Reg::A0, 0, Reg::T3)
+            .load(Ld, Reg::A1, 8, Reg::T3)
+            .load(Ld, Reg::A2, 16, Reg::T3)
+            .ext(Extmul, Reg::T4, Reg::T1, Reg::T1)
+            .exit()
+            .finish();
+        Program::new(&text, Region::TEXT.base(), image, 4, 0).expect("valid instruction program")
+    }
+
+    /// The verifier's verdict on the proof of a run forged into `exec`, whose bus balances.
+    fn verdict(program: &Program, exec: &Execution) -> Result<(), CpuError> {
+        let w = Witness::build(program, exec);
+        let unmatched = unmatched(&w);
+        assert!(unmatched.is_empty(), "the forged run balances: {unmatched:?}");
+        let proof = program.prove_witness(w, &exec.output, Rate::MIN);
+        program.verify_to_raw(&exec.output, &proof).map(drop)
+    }
+
+    #[test]
+    fn a_forged_extension_product_is_refused() {
+        // Invariant: an extension-field row writes its product, which only the table's identities say.
+        //
+        // Fixture state: the honest run proves.
+        let program = extension_products();
+        let honest = program.execute(&[]).unwrap();
+        assert_eq!(verdict(&program, &honest), Ok(()));
+
+        // Mutation: the last row's d forged in two limbs, and d's final words following it, so the bus balances.
+        let mut forged = program.execute(&[]).unwrap();
+        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let at = forged.trace.rows[ext].iter().rposition(|r| r.ts != 0).unwrap();
+        let x = &mut forged.trace.ext[at];
+        for (k, bit) in [(0, 1), (2, 1 << 63)] {
+            x.c[k] ^= bit;
+            forged.trace.ram_fin[10 + k].0 ^= bit;
+        }
+        assert_eq!(
+            verdict(&program, &forged),
+            Err(CpuError::Constraint(constraints::ConstraintError::FinalMismatch))
+        );
+    }
+
+    #[test]
+    fn a_forged_extension_padding_row_is_refused() {
+        // Invariant: a padding row is off the bus, so the identities are all that hold it.
+        //
+        // Mutation: a padding row of EXT multiplies a = b = 1 and claims c' = 0, every access still pulling what it pushes.
+        let program = extension_products();
+        let mut forged = program.execute(&[]).unwrap();
+        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let at = forged.trace.rows[ext].iter().position(|r| r.ts == 0).unwrap();
+        let x = &mut forged.trace.ext[at];
+        (x.instance.limbs[0], x.instance.limbs[3]) = (1, 1);
+        assert_eq!(
+            verdict(&program, &forged),
+            Err(CpuError::Constraint(constraints::ConstraintError::FinalMismatch))
+        );
+    }
+
+    #[test]
+    fn a_forged_extension_operand_unbalances_the_bus() {
+        // Invariant: an extension-field row multiplies what memory holds.
+        //
+        // Mutation: the last row reads b_0 = y_0 ^ 5, and its product and d's final words follow it, so the identities hold.
+        // Its a is the same element, read first, so the forgery is two accesses to y_0's word:
+        //
+        //     a_0 pushes (y_0, ts ^ 4)     which b_0 should pull, and pulls (y_0 ^ 5, ts ^ 4) instead
+        //     b_0 pushes (y_0 ^ 5, ts ^ 7) which the final word should pull, and pulls (y_0, ts ^ 7) instead
+        let program = extension_products();
+        let mut forged = program.execute(&[]).unwrap();
+        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let at = forged.trace.rows[ext].iter().rposition(|r| r.ts != 0).unwrap();
+        let x = &mut forged.trace.ext[at];
+        x.instance.limbs[3] ^= 5;
+        x.c = x.instance.eval();
+        for (k, word) in x.c.into_iter().enumerate() {
+            forged.trace.ram_fin[10 + k] = F64(word);
+        }
+        let w = Witness::build(&program, &forged);
+        let unmatched = unmatched(&w);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+        assert_unbalanced(&program, w, &forged.output);
+    }
+
+    #[test]
+    fn a_misaligned_extension_operand_unbalances_the_bus() {
+        // Invariant: a limb is a word, so an operand off its word names no cell.
+        //
+        // Fixture state: a's address comes from the advice, then `c = a b`; the advice holds RAM's base.
+        let ram = Region::RAM.base();
+        let text = Asm::new()
+            .li(Reg::T5, Region::ADVICE.base())
+            .load(Ld, Reg::T0, 0, Reg::T5)
+            .li(Reg::T1, ram + 24)
+            .li(Reg::T3, ram + 48)
+            .ext(Extmul, Reg::T3, Reg::T0, Reg::T1)
+            .exit()
+            .finish();
+        let image = vec![11, 13, 17, 19, 23, 29, 0, 0, 0];
+        let program = Program::new(&text, Region::TEXT.base(), image, 4, 0).expect("valid instruction program");
+        let misaligned = ram + 4;
+        assert!(matches!(
+            program.execute(&[misaligned]),
+            Err(ProveError::Trap(Trap::Misaligned { address, .. })) if address == misaligned
+        ));
+
+        // Mutation: the honest run with the advice holding `ram + 4`, and everything that follows from it: the load,
+        // `t0` and the row's pointer. a's limbs keep the values and timestamps of the words at `ram + 8j`.
+        let mut forged = program.execute(&[ram]).unwrap();
+        (forged.trace.adv_init[0], forged.trace.adv_fin[0]) = (F64(misaligned), F64(misaligned));
+        forged.trace.reg_fin[Reg::T0.index()] = F64(misaligned);
+        let load = ClassTable::index_of(Class::Ld).unwrap();
+        let row = forged.trace.rows[load].iter_mut().find(|r| r.ts != 0).unwrap();
+        (row.ram.old, row.ram.new, row.out) = (misaligned, misaligned, misaligned);
+        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let at = forged.trace.rows[ext].iter().position(|r| r.ts != 0).unwrap();
+        forged.trace.rows[ext][at].v1 = misaligned;
+        forged.trace.ext[at].instance.pointers[0] = misaligned;
+
+        // Each of a's limbs is at `ram + 4 + 8j`, which no cell is: the row's pull and push there, and the seed push
+        // and final pull of the word at `ram + 8j`, which the row no longer meets.
+        let w = Witness::build(&program, &forged);
+        let unmatched = unmatched(&w);
+        assert_eq!(unmatched.len(), 12, "{unmatched:?}");
+        assert_unbalanced(&program, w, &forged.output);
     }
 
     #[test]

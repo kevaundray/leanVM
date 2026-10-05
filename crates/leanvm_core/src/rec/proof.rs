@@ -13,10 +13,9 @@ use super::layout::RecLayout;
 use super::table::{HashFlock, Table};
 use crate::arith::Verifier;
 use crate::constraints::{Columns, ConstraintError};
-use crate::pcs::{Rate, RingSwitchOpen, StackClaim};
+use crate::pcs::{Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::{constraints, pcs, witness};
 use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
-use flock::reduction::SliceClaim;
 use primitives::field::{F64, F192};
 
 /// The transcript's public input for a statement: the hash of its words' limbs, in order.
@@ -63,29 +62,36 @@ impl HashBatch {
         }
     }
 
-    /// Prove every hash row: zerocheck, then lincheck, to one ring-switched claim on the packed witness.
-    fn prove(self, layout: &RecLayout, ps: &mut ProverState) -> RingSwitchOpen {
-        let block = HashFlock::circuit().block();
+    /// Prove every hash row: zerocheck, then lincheck, a batch of one circuit, to one ring-switched claim on the packed witness.
+    fn prove(self, layout: &RecLayout, ps: &mut ProverState) -> RingSwitch {
         let window = layout.hash_window();
-        let stage = block.prove_zerocheck(self.tau, &self.z, &self.a, &self.b, ps);
-        let reduced = block.prove_lincheck(self.tau, stage, &self.z_lincheck, ps);
-        flock::reduction::ring_switch_open(window.n_vars, window.offset, &reduced)
+        let instance = flock::reduction::Instance {
+            block: HashFlock::circuit().block(),
+            n_blocks_log: self.tau,
+            z: &self.z,
+            a: &self.a,
+            b: &self.b,
+            z_lincheck: &self.z_lincheck,
+        };
+        let [reduced] = <[_; 1]>::try_from(flock::reduction::prove(&[instance], ps)).expect("one circuit");
+        window.ring(reduced)
     }
 
     /// The verifier's replay of the hash rows' reduction, to the claim on the packed witness.
     ///
     /// The rows' matrices are settled here, against the circuit.
     fn verify(layout: &RecLayout, vs: &mut VerifierState) -> Result<SliceClaim, RecError> {
-        let replay = HashFlock::circuit().block().verify(layout.tau(Table::Hash), vs)?;
+        let circuits = [(HashFlock::circuit().block(), layout.tau(Table::Hash))];
+        let [replay] = <[_; 1]>::try_from(flock::reduction::verify(&circuits, vs)?).expect("one circuit");
         Ok(replay.claim)
     }
 }
 
 impl RecWitness {
     fn build(layout: &RecLayout, a: &Assignment) -> Self {
-        // SAFETY: `split_stack` zeroes the pad tail; every committed window is written below: each owned table's
-        // committed columns by its fill, and the packed witness from its batch.
-        let mut q = unsafe { witness::alloc_stack(layout.shape) };
+        // SAFETY: the owned tables and hash batch fill every committed window before it is read.
+        // The pad tail is zeroed.
+        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
         let ports_at = RecLayout::columns(Table::Hash).start;
         // SAFETY: each port's buffer is written in full from the batch below.
         let mut ports: Vec<(usize, Vec<F64>)> = (0..HashFlock::N_PORTS)
@@ -281,8 +287,7 @@ impl Circuit {
         let root = pcs::read_commitment(&mut vs)?;
         let slots = TableArgument::of(self, statement, &layout).verify(&mut vs)?;
         let hash_claim = HashBatch::verify(&layout, &mut vs)?;
-        let window = layout.hash_window();
-        let ring = flock::reduction::ring_switch_verify(window.n_vars, window.offset, &hash_claim);
+        let ring = layout.hash_window().ring(hash_claim);
         pcs::verify(
             &mut vs,
             &slots,

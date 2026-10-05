@@ -120,7 +120,7 @@ pub enum MalformedClaim {
     MatrixForm {
         /// The table.
         table: &'static str,
-        /// Which of its two circuits.
+        /// Which of its circuits.
         part: Part,
     },
 }

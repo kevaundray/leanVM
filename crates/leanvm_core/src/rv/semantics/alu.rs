@@ -62,22 +62,6 @@ impl Alu {
     const fn has_flag(&self, flag: u64) -> bool {
         self.flags & flag != 0
     }
-
-    /// The flag word of a branch with function `funct3`.
-    ///
-    /// Returns `None` for functions 2 and 3, which are reserved.
-    pub const fn branch_flags(funct3: u32) -> Option<u64> {
-        let condition = match funct3 {
-            0 => Self::BR_EQ,
-            1 => Self::BR_NE,
-            4 => Self::BR_LT,
-            5 => Self::BR_GE,
-            6 => Self::BR_LTU,
-            7 => Self::BR_GEU,
-            _ => return None,
-        };
-        Some(Self::SUB | condition)
-    }
 }
 
 impl InstructionClass for Alu {
@@ -313,11 +297,19 @@ mod tests {
                 z_lincheck[bit] ^= 1;
             }
             let mut ps = ProverState::from_label(LABEL);
-            let stage = block.prove_zerocheck(n_log, &z, &a, &b, &mut ps);
-            let claim = block.prove_lincheck(n_log, stage, &z_lincheck, &mut ps);
+            let instance = flock::reduction::Instance {
+                block,
+                n_blocks_log: n_log,
+                z: &z,
+                a: &a,
+                b: &b,
+                z_lincheck: &z_lincheck,
+            };
+            let claims = flock::reduction::prove(&[instance], &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(LABEL, &proof);
-            block.verify(n_log, &mut vs).is_ok_and(|r| r.claim == claim) && vs.finish().is_ok()
+            flock::reduction::verify(&[(block, n_log)], &mut vs).is_ok_and(|r| r[0].claim == claims[0])
+                && vs.finish().is_ok()
         };
         assert!(accepts(None));
 

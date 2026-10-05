@@ -10,7 +10,7 @@ use super::entry::{Class, Entry};
 use super::program::RiscvProgram;
 use super::region::Region;
 use super::register::{Reg, RegisterFile, Syscall};
-use super::semantics::{BlockAccess, Ext, Hash, InstructionClass, Limb, Load, WordAccess};
+use super::semantics::{BlockAccess, Ext, Hash, Limb, Load, WordAccess};
 use thiserror::Error;
 
 /// Why a run stops without halting: a fault of the ISA.
@@ -273,8 +273,7 @@ impl<'a> Machine<'a> {
             pointers,
             limbs: cells.map(|cell| cell.map_or(0, |cell| self.memory.get(cell))),
         };
-        let c = instance.eval().c;
-        for (cell, word) in cells[6..].iter().zip(c) {
+        for (cell, word) in cells[6..].iter().zip(instance.eval()) {
             self.memory.set(cell.expect("c is in memory"), word);
         }
         instance
@@ -568,7 +567,6 @@ mod tests {
                 limbs,
             }
             .eval()
-            .c
         };
         let run = |f: &dyn Fn(&mut Asm)| {
             let text = exiting(|a| {

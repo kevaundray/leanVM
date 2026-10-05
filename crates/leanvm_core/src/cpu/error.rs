@@ -76,12 +76,15 @@ pub enum CpuError {
     /// The table constraints do not hold.
     #[error("the table constraints: {0}")]
     Constraint(ConstraintError),
-    /// One of a table's circuit proofs is rejected.
+    /// The circuits' batched reductions are rejected.
+    #[error("the circuits' reductions: {0}")]
+    Reductions(FlockError),
+    /// A table's circuit does not settle its matrix claim.
     #[error("the {table} table's {part:?} circuit: {error}")]
     Flock {
         /// The table.
         table: &'static str,
-        /// Which of its two circuits.
+        /// Which of its circuits.
         part: Part,
         /// Why flock rejects it.
         error: FlockError,

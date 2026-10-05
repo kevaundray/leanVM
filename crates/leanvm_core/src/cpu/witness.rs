@@ -21,7 +21,7 @@ pub(crate) struct Witness {
     pub(crate) layout: Layout,
     /// The clock the run ended on, which the prover announces.
     pub(crate) ts_final: u64,
-    /// Each circuit's flock batch, freed right after its reduction.
+    /// Every circuit's flock batch, freed right after the batched reduction.
     pub(crate) reductions: Vec<Prepared>,
 }
 
@@ -62,10 +62,10 @@ impl Witness {
 
         // The stack is written exactly once: one window per committed column, each filled in place.
         //
-        // SAFETY: the allocation is uninitialized.
-        // `split_stack` zeroes the pad tail and hands out windows tiling the rest.
-        // Each table checks that it wrote every window it was given, and the shared columns are written below.
-        let mut q = unsafe { crate::witness::alloc_stack(layout.shape) };
+        // SAFETY: each table fills its column windows before they are read.
+        // The shared columns are filled below.
+        // The pad tail is zeroed.
+        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
 
         // A port is not in the stack, so its values get a buffer of their own.
         let mut virt: Vec<(usize, Vec<F64>)> = Vec::new();
@@ -102,10 +102,7 @@ impl Witness {
         // The packed witnesses, one instance per row of their table.
         let reductions = crate::stage!("Build flock witnesses", || {
             (0..class_flock::N_FLOCKS)
-                .map(|f| {
-                    let rows = &trace.rows[class_flock::flock(f).0];
-                    Prepared::build(f, rows, p.entries(), windows[q_column(f)])
-                })
+                .map(|f| Prepared::build(f, trace, p.entries(), windows[q_column(f)]))
                 .collect()
         });
 
