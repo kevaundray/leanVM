@@ -232,7 +232,7 @@ impl AdditiveNttF64 {
     ///
     /// # Finished rows
     ///
-    /// - Each deep sub-block is final, and hands its rows to `on_rows` while they are in L2.
+    /// - Each deep task's sub-blocks are final, and hand their rows to `on_rows` while they are in L2.
     /// - Without a split deep pass, the rows go over in parallel blocks at the end.
     fn transform(
         &self,
@@ -307,44 +307,54 @@ impl AdditiveNttF64 {
             replicate(data, m, data.len() >> start);
         }
 
-        // A lone sub-block runs on this thread, so its rows go over in parallel afterwards.
-        let fuse = 0 < deep_start && deep_start < log_d;
+        // A deep task takes whole sub-blocks, enough of them for `2^MIN_TASK_LOG` rows.
+        let log_sub = log_d - deep_start;
+        let log_group = MIN_TASK_LOG.saturating_sub(log_sub).min(deep_start);
+
+        // A lone task runs on this thread, so its rows go over in parallel afterwards.
+        let fuse = log_group < deep_start && deep_start < log_d;
         let deep_rows = on_rows.filter(|_| fuse);
 
-        // Phase 3: the deep pass, one task per contiguous sub-block.
+        // Phase 3: the deep pass, one task per run of contiguous sub-blocks.
         if deep_start < log_d {
-            let log_sub = log_d - deep_start;
             let sub_len = num_ntts << log_sub;
             let block_len = data.len() >> start;
-            parallel::chunks_mut(data, sub_len, |sub_idx, sub| match msg {
-                // A separate message: build the sub-block in scratch, then write it out once.
-                //
-                // Streamed out whole, the codeword is written without ever being read.
-                Some(m) => with_scratch(sub_len, |scratch| {
-                    // A sub-block sits at the same offset in every replica.
+            parallel::chunks_mut(data, sub_len << log_group, |task_idx, task| {
+                let first_sub = task_idx << log_group;
+                match msg {
+                    // A separate message: build the sub-blocks in scratch, then write them out once.
                     //
-                    //     sub-block at offset off of its replica  <-  message words [off, off + sub_len)
-                    let off = (sub_idx * sub_len) % block_len;
-                    // SAFETY:
-                    // - The external message is valid for one whole replica of words.
-                    // - It is disjoint from the codeword.
-                    // - This sub-block ends inside its replica, so the read stays in bounds.
-                    scratch.copy_from_slice(unsafe { std::slice::from_raw_parts(m.add(off), sub_len) });
-                    self.run_layers(scratch, log_d, num_ntts, deep_start, log_d, deep_start, sub_idx);
-                    if let Some(f) = deep_rows {
-                        f(sub_idx << log_sub, scratch);
-                    }
-                    if stream {
-                        Stream::new().copy(sub, scratch);
-                    } else {
-                        sub.copy_from_slice(scratch);
-                    }
-                }),
-                // The replicas are already in place: run the layers where they are.
-                None => {
-                    self.run_layers(sub, log_d, num_ntts, deep_start, log_d, deep_start, sub_idx);
-                    if let Some(f) = deep_rows {
-                        f(sub_idx << log_sub, sub);
+                    // Streamed out whole, the codeword is written without ever being read.
+                    Some(m) => with_scratch(task.len(), |scratch| {
+                        for (i, sub) in scratch.chunks_exact_mut(sub_len).enumerate() {
+                            // A sub-block sits at the same offset in every replica.
+                            //
+                            //     sub-block at offset off of its replica  <-  message words [off, off + sub_len)
+                            let off = ((first_sub + i) * sub_len) % block_len;
+                            // SAFETY:
+                            // - The external message is valid for one whole replica of words.
+                            // - It is disjoint from the codeword.
+                            // - This sub-block ends inside its replica, so the read stays in bounds.
+                            sub.copy_from_slice(unsafe { std::slice::from_raw_parts(m.add(off), sub_len) });
+                            self.run_layers(sub, log_d, num_ntts, deep_start, log_d, deep_start, first_sub + i);
+                        }
+                        if let Some(f) = deep_rows {
+                            f(first_sub << log_sub, scratch);
+                        }
+                        if stream {
+                            Stream::new().copy(task, scratch);
+                        } else {
+                            task.copy_from_slice(scratch);
+                        }
+                    }),
+                    // The replicas are already in place: run the layers where they are.
+                    None => {
+                        for (i, sub) in task.chunks_exact_mut(sub_len).enumerate() {
+                            self.run_layers(sub, log_d, num_ntts, deep_start, log_d, deep_start, first_sub + i);
+                        }
+                        if let Some(f) = deep_rows {
+                            f(first_sub << log_sub, task);
+                        }
                     }
                 }
             });
@@ -716,6 +726,13 @@ const L2_WORDS: usize = 1 << 21;
 const LOG_SUBS_PER_WORKER: usize = 0;
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 const LOG_SUBS_PER_WORKER: usize = 2;
+
+/// Fewest rows a deep task covers, as a log.
+///
+/// - A high-rate encode of a short message leaves sub-blocks of a few rows.
+/// - One task each would hand the Merkle tree a few leaves at a time, short of a hash batch, which it hashes one by one.
+/// - So a task takes enough contiguous sub-blocks for whole batches, which also spreads its fixed cost.
+const MIN_TASK_LOG: usize = 6;
 
 /// Words a deep sub-block may span when that saves a whole sweep.
 ///
