@@ -406,9 +406,9 @@ class PrunedMerklePaths:
 
 
 class ProofReader:
-    """The proof's bytes as Rust's `Proof::to_bytes` writes them, bincode's fixed-width little-endian encoding: an
-    integer is 8 bytes, a sequence its length then its items, a struct its fields in order, a field element its
-    three limbs and a digest its 32 bytes."""
+    """The proof's bytes as Rust's `ProofTranscript::to_bytes` writes them, the body behind the envelope of
+    `cpu::Proof::to_bytes`: bincode's fixed-width little-endian encoding, where an integer is 8 bytes, a sequence its
+    length then its items, a struct its fields in order, a field element its three limbs and a digest its 32 bytes."""
 
     def __init__(self, data: bytes) -> None:
         self.data = data
