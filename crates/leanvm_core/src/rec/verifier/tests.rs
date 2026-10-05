@@ -472,7 +472,9 @@ fn ring_claims(q: &[F64], pieces: &[(usize, usize)], n_claims: usize, whole: boo
     }
 }
 
-// Point, strided and jagged claims and three ring-switched regions, one jagged, on a stack of `N_LANES` lanes, their values read from `q`.
+// Point, strided and jagged claims and four ring-switched regions, two jagged, on a stack of `N_LANES` lanes, their values read from `q`.
+//
+// The second jagged region's two half lanes are siblings below its whole lane, which the rows close together.
 fn opening_claims(mu: usize, q: &[F64], rng: &mut Rng) -> (Vec<StackClaim>, Vec<RingSwitch>) {
     let lane = 1usize << (mu - crate::pcs::LOG_BATCH);
     let mut slots = Vec::new();
@@ -506,6 +508,18 @@ fn opening_claims(mu: usize, q: &[F64], rng: &mut Rng) -> (Vec<StackClaim>, Vec<
             q,
             &[(28 * lane, mu - 6), (29 * lane, mu - 8), (29 * lane + (lane >> 2), 0)],
             2,
+            false,
+            rng,
+        ),
+        ring_claims(
+            q,
+            &[
+                (31 * lane, mu - 6),
+                (30 * lane, mu - 7),
+                (30 * lane + (lane >> 1), mu - 7),
+                (32 * lane, 0),
+            ],
+            1,
             false,
             rng,
         ),
@@ -609,13 +623,15 @@ fn check_opening(mu: usize, log_inv_rate: usize, seed: u64) {
                 terminal(&failures),
                 "{what}: a wrong slice of ring {ring} claim {claim} passes: {failures:?}"
             );
-            let mut forged = rings.clone();
-            *forged[ring].claims[claim].scales.last_mut().unwrap() += F192::ONE;
-            let (_, failures, _) = rows(&slots, &forged, ProofSource::Proof(&raw));
-            assert!(
-                terminal(&failures),
-                "{what}: a wrong piece scale of ring {ring} claim {claim} passes: {failures:?}"
-            );
+            for piece in 0..rings[ring].pieces.len() {
+                let mut forged = rings.clone();
+                forged[ring].claims[claim].scales[piece] += F192::ONE;
+                let (_, failures, _) = rows(&slots, &forged, ProofSource::Proof(&raw));
+                assert!(
+                    terminal(&failures),
+                    "{what}: a wrong scale of ring {ring} claim {claim} on piece {piece} passes: {failures:?}"
+                );
+            }
         }
     }
     let mut forged = raw;
@@ -641,7 +657,8 @@ fn a_larger_opening_in_rows_is_the_native_one() {
 
 // The family's share in rows is what the native verifier adds to the target and to the weight.
 //
-// Two more regions take claims at prefixes of the first claim's point, two at one length, on the same wires, as flock's circuits of one block size do.
+// Three more regions take claims at prefixes of the first claim's point, two at one length, on the same wires, as flock's circuits of one block size do.
+// Two of them are siblings at one length, which the rows close together.
 #[test]
 fn the_ring_family_in_rows_is_the_native_one() {
     let mut rng = Rng::new(9);
@@ -653,6 +670,7 @@ fn the_ring_family_in_rows_is_the_native_one() {
     for (offset, vars, lengths) in [
         (top - (1 << (mu - 5)), mu - 5, &[mu - 5][..]),
         (top - (1 << (mu - 5)) - (1 << (mu - 6)), mu - 6, &[mu - 6, mu - 6][..]),
+        (top - (1 << (mu - 4)), mu - 6, &[mu - 6][..]),
     ] {
         let claims = (lengths.iter())
             .map(|&len| {

@@ -9,6 +9,7 @@ use ::pcs::pack::PACKING_WIDTH;
 use ::pcs::ring_switch::COMPOSITION_SHIFTS;
 use ::pcs::stack_open::{PrefixGroup, RingSwitch};
 use primitives::field::{F64, F192};
+use std::collections::BTreeMap;
 
 /// The ring-switching map `Phi`, as the coefficients `C_k^(2^-k)` of its Frobenius form, `k < 64`.
 pub(crate) struct RingMap {
@@ -148,34 +149,117 @@ impl<'a> RingShare<'a> {
     /// The family's weight at the stack point `x`: `sum_j sum_t eq(sel_t, x_hi) MLE(Phi(gamma_rs^j s_{j,t} eq(r_j[..n_t], .)))(x_lo)` over each claim `j` and each piece `t` of its region.
     ///
     /// - Claims whose points are prefixes of one another, the same wires, share one pass over the longest, which serves each piece's prefix too.
-    /// - The claims of one region add their scaled terms on each piece and close once per piece, the Frobenius being additive.
+    /// - On a piece, the claims of one group read one prefix's terms, so their scales add before the terms are scaled, and the piece closes once, the Frobenius being additive.
+    /// - Two sibling pieces of one length and one group close once together (see [`Self::sibling_terms`]).
     pub(super) fn weight_at(&self, r: &mut Rows<'_, '_>, x: &[Ew]) -> Ew {
         let max_vars = (self.rings.iter().flat_map(|ring| &ring.pieces))
             .map(|piece| piece.n_vars)
             .max()
             .unwrap_or(0);
         let ladders: Vec<Vec<Ew>> = x[..max_vars].iter().map(|&q| RingMap::ladder(r.b, q, 1)).collect();
-        let zero = r.zero();
-        let mut sums: Vec<Vec<Vec<Ew>>> = (self.rings.iter())
-            .map(|ring| vec![vec![zero; PACKING_WIDTH]; ring.pieces.len()])
+        let groups = PrefixGroup::of(self.rings);
+
+        // Each piece's scale on each group it reads, the claims of a group on it summed.
+        let mut scales: Vec<Vec<Vec<(usize, Ew)>>> = (self.rings.iter())
+            .map(|ring| vec![Vec::new(); ring.pieces.len()])
             .collect();
-        for group in PrefixGroup::of(self.rings) {
-            let at = self.map.prefix_terms(r.b, group.lead, &ladders, &group.lengths);
-            for member in group.members {
+        for (g, group) in groups.iter().enumerate() {
+            for member in &group.members {
                 let piece_scale = self.rings[member.ring].claims[member.ring_claim].scales[member.piece];
                 let scale = r.mul(self.scales[member.claim], piece_scale);
-                for (s, &term) in sums[member.ring][member.piece].iter_mut().zip(&at[member.length]) {
-                    *s = r.mul_add(scale, term, *s);
+                let parts = &mut scales[member.ring][member.piece];
+                match parts.iter_mut().find(|(h, _)| *h == g) {
+                    Some((_, sum)) => *sum = r.add(*sum, scale),
+                    None => parts.push((g, scale)),
                 }
             }
         }
+
+        // The sibling pairs: a piece at an even block of its length and the piece at the next block, both of one group alone, the group's terms reaching one coordinate further.
+        let mut pair_of: Vec<Vec<Option<(usize, usize)>>> =
+            (self.rings.iter()).map(|ring| vec![None; ring.pieces.len()]).collect();
+        let mut lengths: Vec<Vec<usize>> = groups.iter().map(|group| group.lengths.clone()).collect();
+        let mut alone: BTreeMap<(usize, usize), (usize, usize, usize)> = BTreeMap::new();
+        for (ring_index, ring) in self.rings.iter().enumerate() {
+            for (piece_index, piece) in ring.pieces.iter().enumerate() {
+                if let [(g, _)] = scales[ring_index][piece_index][..] {
+                    alone.insert((piece.offset, piece.n_vars), (g, ring_index, piece_index));
+                }
+            }
+        }
+        for (&(offset, n), &(g, ring, piece)) in &alone {
+            let longest = groups[g].lengths.iter().copied().max().unwrap_or(0);
+            let sibling = alone.get(&(offset + (1 << n), n));
+            if offset.is_multiple_of(2 << n)
+                && n < longest
+                && let Some(&(h, sibling_ring, sibling_piece)) = sibling
+                && h == g
+            {
+                pair_of[ring][piece] = Some((sibling_ring, sibling_piece));
+                pair_of[sibling_ring][sibling_piece] = Some((ring, piece));
+                if !lengths[g].contains(&(n + 1)) {
+                    lengths[g].push(n + 1);
+                }
+            }
+        }
+
+        let at: Vec<Vec<Vec<Ew>>> = (groups.iter().zip(&lengths))
+            .map(|(group, lengths)| self.map.prefix_terms(r.b, group.lead, &ladders, lengths))
+            .collect();
+        let terms_at = |g: usize, n: usize| -> &[Ew] {
+            let i = lengths[g].iter().position(|&m| m == n).expect("a length of the group");
+            &at[g][i]
+        };
+
+        let zero = r.zero();
         let mut weight = zero;
-        let pieces = (self.rings.iter().zip(&sums)).flat_map(|(ring, sums)| ring.pieces.iter().zip(sums));
-        for (piece, sum) in pieces {
-            let part = RingMap::close(r.b, sum);
-            let sel_eq = r.eq_bits(piece.offset >> piece.n_vars, &x[piece.n_vars..]);
-            weight = r.mul_add(sel_eq, part, weight);
+        for (ring_index, ring) in self.rings.iter().enumerate() {
+            for (piece_index, piece) in ring.pieces.iter().enumerate() {
+                let n = piece.n_vars;
+                let (terms, block) = match pair_of[ring_index][piece_index] {
+                    // The odd sibling closes with the even one.
+                    Some(_) if (piece.offset >> n) & 1 == 1 => continue,
+                    Some((sibling_ring, sibling_piece)) => {
+                        let [(g, even)] = scales[ring_index][piece_index][..] else {
+                            unreachable!("a paired piece reads one group")
+                        };
+                        let [(_, odd)] = scales[sibling_ring][sibling_piece][..] else {
+                            unreachable!("a paired piece reads one group")
+                        };
+                        let terms =
+                            Self::sibling_terms(r, even, odd, groups[g].lead[n], terms_at(g, n), terms_at(g, n + 1));
+                        (terms, n + 1)
+                    }
+                    None => {
+                        let mut terms = vec![zero; PACKING_WIDTH];
+                        for &(g, scale) in &scales[ring_index][piece_index] {
+                            for (t, &term) in terms.iter_mut().zip(terms_at(g, n)) {
+                                *t = r.mul_add(scale, term, *t);
+                            }
+                        }
+                        (terms, n)
+                    }
+                };
+                let part = RingMap::close(r.b, &terms);
+                let sel_eq = r.eq_bits(piece.offset >> block, &x[block..]);
+                weight = r.mul_add(sel_eq, part, weight);
+            }
         }
         weight
+    }
+
+    /// The terms whose close is two sibling pieces' weight, both at the prefix of length `n` of one group's point `z` and scaled by `even` and `odd`, without their selectors' bit `n`.
+    ///
+    /// That bit puts `1 + x_n` on the even piece and `x_n` on the odd one, and `c close(t) = close(c^(2^-k) t_k)`, so the pair's terms are `(even + d x_n^(2^-k)) a_k` with `d = even + odd`, `a_k` the terms at length `n`.
+    /// The terms one coordinate further are `a_k (1 + z_n + x_n^(2^-k))`, so `x_n^(2^-k) a_k` is a sum of the two lengths' terms, and the pair's terms are `(odd + d z_n) a_k + d b_k` with `b_k` the terms at length `n + 1`.
+    fn sibling_terms(r: &mut Rows<'_, '_>, even: Ew, odd: Ew, z_n: Ew, at_n: &[Ew], at_next: &[Ew]) -> Vec<Ew> {
+        let d = r.add(even, odd);
+        let c = r.mul_add(d, z_n, odd);
+        (at_n.iter().zip(at_next))
+            .map(|(&a, &b)| {
+                let ca = r.mul(c, a);
+                r.mul_add(d, b, ca)
+            })
+            .collect()
     }
 }
