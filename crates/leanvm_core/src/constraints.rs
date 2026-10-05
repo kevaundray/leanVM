@@ -190,7 +190,7 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
 /// rows fits 32 KiB, so the tiles stay in L1 for `E` rows as for `K` ones, and at least
 /// the 8 rows of one batched product. Elsewhere it is 64: on x86 the tiles of wide `E`
 /// rows outgrow L1 and still beat smaller ones.
-fn block_rows<T>(width: usize) -> usize {
+const fn block_rows<T>(width: usize) -> usize {
     let mut rows = 64;
     if cfg!(target_arch = "aarch64") {
         while rows > 8 && (2 * rows + 1) * width * size_of::<T>() > 32 << 10 {
