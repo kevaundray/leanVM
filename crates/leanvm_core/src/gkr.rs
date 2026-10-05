@@ -653,7 +653,6 @@ mod tests {
     }
 
     #[test]
-
     fn quartic_round_message_matches_direct_evaluation() {
         for width in [2, 4, 8, 16] {
             let below: Vec<F192> = (0..4 * width)
