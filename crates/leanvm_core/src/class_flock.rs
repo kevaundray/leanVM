@@ -267,7 +267,6 @@ impl Prepared {
                     },
                     check,
                 )
-
             }
             (Part::Class, None, Some(witness)) => circuit.generate_witness_with_into(
                 z,

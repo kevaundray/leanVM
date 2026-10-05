@@ -415,7 +415,14 @@ mod tests {
     #[test]
     fn the_word_witness_is_the_gate_walk() {
         // Every legal flag word on edge operands: `b` an edge word or its complement, equal to `v1` on the diagonal, `dt` and `pc4` each none or all of their bits.
-        let edges = grid(&[&EDGES, &EDGES, &[0, u64::MAX], Alu::LEGAL, &[0, u64::MAX], &[0, u64::MAX]]);
+        let edges = grid(&[
+            &EDGES,
+            &EDGES,
+            &[0, u64::MAX],
+            Alu::LEGAL,
+            &[0, u64::MAX],
+            &[0, u64::MAX],
+        ]);
         word_witness_is_the_walk::<Alu>(Alu::witness, edges);
     }
 
