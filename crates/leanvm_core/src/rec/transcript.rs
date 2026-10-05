@@ -188,21 +188,19 @@ impl<'a> Transcript<'a> {
             ProofSource::Shape => None,
         };
         self.phase += 1;
-        match paths {
-            Some(paths) => (paths.into_iter())
-                .map(|(row, path)| MerkleOpening {
-                    row: row.iter().map(|w| w.0).collect(),
-                    path: path.iter().map(digest_limbs).collect(),
-                })
-                .collect(),
-            None => vec![
-                MerkleOpening {
-                    row: vec![0; row_words],
-                    path: vec![[0; 4]; depth],
-                };
-                queries.len()
-            ],
-        }
+        let Some(paths) = paths else {
+            let zeros = MerkleOpening {
+                row: vec![0; row_words],
+                path: vec![[0; 4]; depth],
+            };
+            return vec![zeros; queries.len()];
+        };
+        (paths.into_iter())
+            .map(|(row, path)| MerkleOpening {
+                row: row.iter().map(|w| w.0).collect(),
+                path: path.iter().map(digest_limbs).collect(),
+            })
+            .collect()
     }
 
     /// Authenticate one Merkle phase, each query's row against `root`, and return the rows' words in `queries` order.
