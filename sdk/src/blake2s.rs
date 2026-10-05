@@ -5,6 +5,8 @@
 //! The machine moves a word in one instruction, and a byte-aligned value one byte at a time.
 
 use core::mem::MaybeUninit;
+use core::ops::Range;
+use plain::Plain;
 
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
@@ -201,7 +203,7 @@ impl<const W: usize> Template<W> {
     #[inline(always)]
     pub fn chain<const COUNTER: usize, const VALUE: usize>(
         &mut self,
-        counters: core::ops::Range<u32>,
+        counters: Range<u32>,
         value: [u64; 2],
     ) -> [u64; 2] {
         const {
@@ -248,7 +250,6 @@ mod plain {
     impl Plain for u64 {}
     impl<T: Plain, const N: usize> Plain for [T; N] {}
 }
-use plain::Plain;
 
 /// BLAKE2s-256 of the words `write` puts in a [`Stream`], as four little-endian words.
 ///
@@ -508,12 +509,12 @@ mod portable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::test_rng::Rng;
+    use primitives::hash::{digest_words, hash};
+    use primitives::test_util::Rng;
 
     /// The reference BLAKE2s-256 of `bytes`, as little-endian words.
     fn reference(bytes: &[u8]) -> [u64; 4] {
-        let digest = primitives::hash::hash(bytes);
-        core::array::from_fn(|k| u64::from_le_bytes(digest[8 * k..8 * k + 8].try_into().unwrap()))
+        digest_words(&hash(bytes))
     }
 
     /// A template and the bytes its message should be, rewritten together.

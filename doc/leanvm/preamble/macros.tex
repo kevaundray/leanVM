@@ -41,7 +41,15 @@
 \newcommand{\skipcoset}{\mathcal{H}'}         % 64 transmitted round-one nodes
 \newcommand{\fembed}{\varphi_{8}}             % embedding of F_{2^8} into E
 \newcommand{\zskip}{\upsilon_{\mathrm{zc}}}   % zerocheck univariate challenge
-\newcommand{\lcalpha}{\alpha_{\mathrm{lc}}}      % lincheck batching challenge (A, B, C, the pin)
+\newcommand{\lcalpha}{\alpha_{\mathrm{lc}}}      % lincheck batching challenge (A, B, C, the pin, and the circuits)
+\newcommand{\zcbatch}{\lambda_{\mathrm{zc}}}    % batched zerocheck's challenge: circuit f's polynomial takes its f-th power
+\newcommand{\nflockmax}{\kappa_{\flock}^{\max}}  % rounds of the batched zerocheck: the most any circuit has
+\newcommand{\klcmax}{\kappa_{\mathrm{lc}}^{\max}} % rounds of the batched lincheck: the most any circuit has
+\newcommand{\lcterm}[1]{\Upsilon_{#1}}          % circuit #1's lincheck terminal terms the circuit does not fix, in the batched check
+\newcommand{\lcmat}[1]{\mathsf{M}_{#1}}         % the value the prover sends for circuit #1's matrix form, its deferred claim
+\newcommand{\kblockf}[1]{\kappa_{\mathrm{block},#1}} % \kblock of circuit #1 of the batch
+\newcommand{\kbatchf}[1]{\kappa_{\mathrm{batch},#1}} % \kbatch of circuit #1 of the batch
+\newcommand{\nflockf}[1]{\kappa_{\flock,#1}}         % \nflock of circuit #1 of the batch
 \newcommand{\ksk}{k_{\mathrm{sk}}}              % row index, the skipped half
 \newcommand{\kin}{k_{\mathrm{in}}}              % row index, the within-block half
 \newcommand{\jsk}{j_{\mathrm{sk}}}              % column index, the skipped half
@@ -157,3 +165,30 @@
 \newcommand{\fcoord}{\mathsf{a}}          % an F_2 coordinate function  (was A_w)
 \newcommand{\cbar}{\bar c}                % coefficient c_k under the inverse Frobenius, c_k^(2^-k)
 \newcommand{\fprod}{\Pi}                  % running product of the weight's k-th Frobenius term
+\newcommand{\nrs}{J_{\mathrm{rs}}}        % ring-switched claims in one opening
+\newcommand{\rsgamma}{\gamma_{\mathrm{rs}}} % challenge combining the ring-switched claims into one family
+\newcommand{\rsscale}{\varsigma}          % a ring-switched claim's scale in the family, a power of \rsgamma
+\newcommand{\sfam}[1]{s^{\mathrm{rs}}_{#1}} % the family's slice #1
+
+% ---------- recursion (Annex E) ----------
+\newcommand{\rcirc}{\mathfrak{C}}         % a recursion circuit: rows over the recursion machine's tables, and their wires
+\newcommand{\rgid}{\mathsf{sl}}           % a slot's index among all tables' slots
+\newcommand{\slotkey}{\mathsf{key}}       % the bus key a recursion slot pulls at
+\newcommand{\slotnext}{\mathsf{next}}     % the key of the next slot of the slot's wire, where it pushes
+\newcommand{\rfirst}{\rcirc_{\mathrm{first}}} % the first-level node's circuit, verifying RISC-V proofs
+\newcommand{\rnode}{\rcirc_{\mathrm{node}}}   % the node's circuit, verifying recursion proofs
+\newcommand{\arityz}{\mathsf{n}_0}        % RISC-V proofs a first-level node verifies
+\newcommand{\arity}{\mathsf{n}}           % recursion proofs a node verifies
+\newcommand{\kbit}{\mathsf{k}}            % a tree proof's kind: 0 for the first level, 1 for a node
+\newcommand{\tdig}{\mathsf{dig}}          % a tree proof's digest of its leaves' outputs
+\newcommand{\bctab}{\mathsf{T}}           % the program's stacked bytecode table
+\newcommand{\imgpoly}{\mathsf{I}}         % RAM's image, zero padded to a power of two
+\newcommand{\fixnode}{W_{\mathrm{node}}}  % the nodes' fixed polynomial: both circuits' fixed columns
+\newcommand{\fixdim}{\kappa_{\mathrm{fix}}} % variables of one circuit's stack of fixed columns
+\newcommand{\taufix}{\tau^{\mathrm{node}}} % the table heights both tree circuits share
+\newcommand{\fdense}{\mathbf{x}_{\mathrm{d}}} % the point of a tree proof's dense claims
+\newcommand{\frow}{\mathbf{x}_{\mathrm{r}}}   % the row point of a tree proof's matrix claims
+\newcommand{\fcol}{\mathbf{x}_{\mathrm{c}}}   % the column point of a tree proof's matrix claims
+\newcommand{\rbat}{\vartheta}             % a node's reduction's batching challenge
+\newcommand{\dwt}[1]{\Xi_{#1}}            % dense polynomial #1's weight in the dense reduction
+\newcommand{\mwt}[2]{\Theta^{#2}_{#1}}    % circuit #1's column weight on matrix #2 in the matrix reduction

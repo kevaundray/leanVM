@@ -1,6 +1,7 @@
 //! Bridge to flock for the instruction tables.
 //!
-//! Each class's circuit and each table's clock circuit is proven over one packed witness of its own.
+//! Each class's circuit and each table's clock circuit is proven over one packed witness of its own. The
+//! extension-field product has no class circuit, so its table has its clock circuit's alone.
 //!
 //! That witness is one more committed column of the stacked witness: instance `j` of
 //! the batch is row `j` of the circuit's table, and flock's R1CS validity is discharged
@@ -11,17 +12,18 @@
 //! ([`ClassSpec::ports`]). The table's columns for them are therefore virtual, their
 //! claims routed to those words.
 
-use crate::cpu::Row;
-use crate::rv::{Div, Entry};
-use crate::tables::{CLASSES, ClassSpec, N_TABLES, Part, Word};
+use crate::cpu::{Payloads, RowRef, Trace};
+use crate::rv::Entry;
+use crate::tables::{ClassSpec, ClassTable, N_CIRCUITS, N_TABLES, Part};
 use ::pcs::pack::LOG_PACKING;
+use ::pcs::stack_open::SliceClaim;
 use fiat_shamir::transcript::{ProverState, VerifierState};
 use flock::circuit::Circuit;
-use flock::reduction::{ReductionReplay, SliceClaim};
-use flock::verifier::VerifyError;
+use flock::lincheck::MatrixClaim;
+use flock::reduction::{Instance, ReductionReplay, Shape, min_n_blocks_log};
+use flock::verifier::FlockError;
 use primitives::field::F64;
 use std::sync::OnceLock;
-use zk_alloc::ArenaVec;
 
 /// The zerocheck's cube has at least this many variables (flock's univariate skip
 /// plus its fixed-point dimensions), which floors the batch of a small circuit.
@@ -30,23 +32,31 @@ pub const MIN_CUBE_LOG: usize = flock::zerocheck::MIN_LOG_N;
 /// The most input ports a circuit with a word-level witness has: the hash's fourteen.
 const MAX_INPUT_WORDS: usize = 14;
 
-/// The packed witnesses: every table's class circuit in table order, then every table's clock circuit.
-pub const N_FLOCKS: usize = 2 * N_TABLES;
+/// The packed witnesses: every class circuit in table order (the tables that have one come first), then every
+/// table's clock circuit.
+pub const N_FLOCKS: usize = N_CIRCUITS + N_TABLES;
 
 /// The table and the circuit of packed witness `f`.
 pub const fn flock(f: usize) -> (usize, Part) {
-    if f < N_TABLES {
+    if f < N_CIRCUITS {
         (f, Part::Class)
     } else {
-        (f - N_TABLES, Part::Clock)
+        (f - N_CIRCUITS, Part::Clock)
     }
 }
 
 /// The packed witness of table `t`'s circuit `part`.
+///
+/// # Panics
+///
+/// Panics for the class circuit of a table that has none.
 pub const fn flock_index(t: usize, part: Part) -> usize {
     match part {
-        Part::Class => t,
-        Part::Clock => N_TABLES + t,
+        Part::Class => {
+            assert!(t < N_CIRCUITS, "the table has no class circuit");
+            t
+        }
+        Part::Clock => N_CIRCUITS + t,
     }
 }
 
@@ -64,20 +74,52 @@ pub const fn stride_log(spec: &ClassSpec, part: Part) -> usize {
     k_log(spec, part) - LOG_PACKING
 }
 
+/// The most variables any packed witness's circuit has per instance.
+pub fn max_k_log() -> usize {
+    (0..N_FLOCKS).map(|f| shape(f).k_log).max().unwrap_or(0)
+}
+
+/// What the verifier's replay of packed witness `f`'s reduction reads of its circuit short of its matrices.
+///
+/// - The instance's size.
+/// - The constant wire's column, the first after the port words.
+///
+/// The table's spec fixes both, so the replay builds no circuit, and building the circuit checks them.
+pub const fn shape(f: usize) -> Shape {
+    let (t, part) = flock(f);
+    let spec = ClassSpec::ALL[t];
+    let n_ports = match part {
+        Part::Class => spec.ports.len(),
+        // The clock, each access's previous timestamp and the clock's own inputs, then the step and its own outputs.
+        Part::Clock => spec.n_accesses() + 2 + spec.clock_inputs.len() + spec.clock_outputs.len(),
+    };
+    Shape {
+        k_log: k_log(spec, part),
+        const_pin_col: 64 * n_ports,
+    }
+}
+
 /// Packed witness `f`'s gate list, built once.
 pub fn circuit(f: usize) -> &'static Circuit {
     static CIRCUITS: [OnceLock<Circuit>; N_FLOCKS] = [const { OnceLock::new() }; N_FLOCKS];
     CIRCUITS[f].get_or_init(|| {
         let (t, part) = flock(f);
-        let spec = CLASSES[t];
+        let spec = ClassSpec::ALL[t];
         let (circuit, n_inputs) = match part {
             Part::Class => (spec.class.circuit(), spec.n_inputs),
-            Part::Clock => (crate::tables::clock_circuit(&spec.slots()), 1 + spec.n_accesses()),
+            Part::Clock => (spec.clock_circuit(), 1 + spec.n_accesses() + spec.clock_inputs.len()),
         };
+        let shape = shape(f);
         assert_eq!(
             circuit.k_log(),
-            k_log(spec, part),
+            shape.k_log,
             "{}'s {part:?} block size moved",
+            spec.name
+        );
+        assert_eq!(
+            circuit.const_pos(),
+            shape.const_pin_col,
+            "{}'s {part:?} constant wire moved",
             spec.name
         );
         assert_eq!(
@@ -91,65 +133,24 @@ pub fn circuit(f: usize) -> &'static Circuit {
 }
 
 /// `log2` of the batch proving `n_rows` instances: a power of two, at least flock's
-/// stripe floor and at least what the zerocheck's cube needs for both of the table's circuits.
+/// stripe floor and at least what the zerocheck's cube needs for each of the table's circuits.
 pub const fn n_blocks_log(spec: &ClassSpec, n_rows: usize) -> usize {
-    let n = if n_rows > 8 { n_rows } else { 8 };
-    let natural = n.next_power_of_two().trailing_zeros() as usize;
-    let smallest = if spec.clock_k_log < spec.k_log {
+    let smallest = if spec.clock_k_log < spec.k_log || !spec.has_circuit() {
         spec.clock_k_log
     } else {
         spec.k_log
     };
-    let floor = MIN_CUBE_LOG.saturating_sub(smallest);
-    if natural > floor { natural } else { floor }
+    batch_log(smallest, n_rows)
 }
 
-/// A row's value of one circuit word.
+/// `log2` of the batch proving a table's rows on one circuit, given `log2` of its bits per instance.
 ///
-/// `slots` are the clock slots of the row's accesses.
-fn word_of(word: Word, slots: &[u32], row: &Row, entry: &Entry) -> u64 {
-    // The division's honest hints, the circuit's two prover-supplied ports.
-    let hints = || {
-        Div {
-            flags: entry.flags,
-            v1: row.v1,
-            v2: row.v2,
-        }
-        .hints()
-    };
-    // An extension-field row's limbs.
-    let ext = || row.ext.as_ref().expect("an extension-field row has its limbs");
-    match word {
-        Word::Clock => row.ts,
-        Word::Prev(i) => row.prev()[i as usize],
-        Word::Step => crate::tables::clock_step(row.ts, &row.prev()[..slots.len()], slots),
-        Word::Flags => entry.flags,
-        Word::Imm => entry.imm,
-        Word::V1 => row.v1,
-        Word::V2 => row.v2,
-        Word::Out => row.out,
-        Word::Taken => row.taken as u64,
-        Word::Address => row.ram.address,
-        Word::Cell(k) => match (&row.hash, &row.ext) {
-            (Some(h), _) => h.block[k as usize],
-            (_, Some(x)) => x.instance.limbs[k as usize],
-            _ => row.ram.old,
-        },
-        Word::CellNew(k) => match (&row.hash, &row.ext) {
-            (Some(h), _) => h.word_after(k as usize),
-            (_, Some(x)) => x.result.c[k as usize - 6],
-            _ => row.ram.new,
-        },
-        Word::Dest => ext().instance.pointers[2],
-        Word::LimbAddress(k) => {
-            let i = crate::rv::ExtResult::OFFSET_LIMBS.iter().position(|&j| j == k as usize);
-            ext().result.addresses[i.expect("a computed limb address")]
-        }
-        Word::LimbSeparator => ext().result.separator,
-        Word::Bad => 0,
-        Word::HintQ => hints().0,
-        Word::HintR => hints().1,
-    }
+/// - At least flock's stripe floor of eight instances.
+/// - At least what the zerocheck's cube of `2^13` bits needs.
+pub const fn batch_log(k_log: usize, n_rows: usize) -> usize {
+    let natural = min_n_blocks_log(if n_rows > 1 { n_rows } else { 1 });
+    let floor = MIN_CUBE_LOG.saturating_sub(k_log);
+    if natural > floor { natural } else { floor }
 }
 
 /// The flock-native tables of one class's batch, kept from the pass that wrote its
@@ -157,18 +158,37 @@ fn word_of(word: Word, slots: &[u32], row: &Row, entry: &Entry) -> u64 {
 pub(crate) struct Prepared {
     flock: usize,
     n_blocks_log: usize,
-    z: ArenaVec<u64>,
-    a: ArenaVec<u64>,
-    b: ArenaVec<u64>,
-    z_lincheck: ArenaVec<u8>,
+    z: Vec<u64>,
+    a: Vec<u64>,
+    b: Vec<u64>,
+    z_lincheck: Vec<u8>,
 }
 
 impl Prepared {
     /// Build packed witness `f`'s batch, one instance per row of its table, and write it
     /// into `window`, its committed column.
-    pub(crate) fn build(f: usize, rows: &[Row], entries: &[Entry], window: &mut [F64]) -> Self {
+    pub(crate) fn build(f: usize, trace: &Trace, entries: &[Entry], window: &mut [F64]) -> Self {
+        let table = trace.table(flock(f).0);
+        match table.payloads {
+            Payloads::None => Self::build_from(f, table.rows, |r| RowRef::plain(r), entries, window),
+            // Why: the witness walk takes a slice, so a payload is paired with its row first.
+            _ => {
+                let refs: Vec<RowRef> = (0..table.rows.len()).map(|i| table.row(i)).collect();
+                Self::build_from(f, &refs, |r| *r, entries, window)
+            }
+        }
+    }
+
+    /// Build packed witness `f`'s batch from its table's rows, each seen through `view`.
+    fn build_from<S: Sync>(
+        f: usize,
+        rows: &[S],
+        view: impl for<'r> Fn(&'r S) -> RowRef<'r> + Sync,
+        entries: &[Entry],
+        window: &mut [F64],
+    ) -> Self {
         let (t, part) = flock(f);
-        let spec = CLASSES[t];
+        let spec = ClassSpec::ALL[t];
         let n_blocks_log = n_blocks_log(spec, rows.len());
         assert_eq!(
             rows.len(),
@@ -176,13 +196,14 @@ impl Prepared {
             "a table's rows fill its batch (cpu::filler)"
         );
         let circuit = circuit(f);
-        let ports = crate::tables::tables()[t].ports(part);
+        let ports = ClassTable::all()[t].ports(part);
         let n_inputs = circuit.n_input_words();
         let slots = spec.slots();
         // The row's input words, one per input port.
-        let input_words = |row: &Row, words: &mut [u64]| {
+        let input_words = |row: &S, words: &mut [u64]| {
+            let row = view(row);
             for (word, &port) in words.iter_mut().zip(ports) {
-                *word = word_of(port, &slots, row, &entries[row.index as usize]);
+                *word = port.value(row, &entries[row.row.index as usize], &slots);
             }
         };
         // A class with a word-level witness skips the walk of its gate list; the others
@@ -224,9 +245,9 @@ impl Prepared {
             for (j, src) in src.chunks_exact(stride).enumerate() {
                 // What the circuit computed is what the interpreter did, or the bus
                 // would carry one and flock prove the other.
-                let row = &rows[batch * BATCH + j];
+                let row = view(&rows[batch * BATCH + j]);
                 for (k, &port) in ports.iter().enumerate().skip(n_inputs) {
-                    let expected = word_of(port, &slots, row, &entries[row.index as usize]);
+                    let expected = port.value(row, &entries[row.row.index as usize], &slots);
                     assert_eq!(
                         src[k], expected,
                         "{}'s {part:?} circuit disagrees with the interpreter on {port:?}",
@@ -247,16 +268,36 @@ impl Prepared {
             z_lincheck,
         }
     }
-
-    /// Flock's zerocheck then lincheck, leaving the one claim on the committed column.
-    pub(crate) fn prove(&self, ps: &mut ProverState) -> SliceClaim {
-        let block = circuit(self.flock).block();
-        let stage = block.prove_zerocheck(self.n_blocks_log, &self.z, &self.a, &self.b, ps);
-        block.prove_lincheck(self.n_blocks_log, stage, &self.z_lincheck, ps)
-    }
 }
 
-/// The verifier's replay of packed witness `f`'s reduction: zerocheck, then lincheck.
-pub fn verify_reduction(f: usize, n_blocks_log: usize, vs: &mut VerifierState) -> Result<ReductionReplay, VerifyError> {
-    circuit(f).block().verify(n_blocks_log, vs)
+/// Flock's batched zerocheck then lincheck over every packed witness, every class
+/// circuit then every clock circuit, leaving one claim on each committed column.
+pub(crate) fn prove_reductions(batches: &[Prepared], ps: &mut ProverState) -> Vec<SliceClaim> {
+    let instances: Vec<Instance<'_>> = (batches.iter())
+        .map(|p| Instance {
+            block: circuit(p.flock).block(),
+            n_blocks_log: p.n_blocks_log,
+            z: &p.z,
+            a: &p.a,
+            b: &p.b,
+            z_lincheck: &p.z_lincheck,
+        })
+        .collect();
+    flock::reduction::prove(&instances, ps)
+}
+
+/// The verifier's replay of the batched reductions, zerocheck then lincheck, up to the circuits' matrices, packed witness `f`'s batch being `2^n_blocks_log[f]` instances.
+///
+/// Each circuit's form is left as a claim for the built circuit to settle.
+/// It reads only the circuits' shapes, and builds none.
+///
+/// # Errors
+///
+/// Returns the first stage that refuses the proof.
+pub fn verify_reductions(
+    n_blocks_log: &[usize; N_FLOCKS],
+    vs: &mut VerifierState,
+) -> Result<Vec<(ReductionReplay, MatrixClaim)>, FlockError> {
+    let circuits: Vec<(Shape, usize)> = (0..N_FLOCKS).map(|f| (shape(f), n_blocks_log[f])).collect();
+    flock::reduction::verify_deferred(&circuits, vs)
 }
