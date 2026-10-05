@@ -13,6 +13,7 @@ use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
 use primitives::multilinear::{SplitEq, interp};
 use primitives::stream::Stream;
+use std::mem::MaybeUninit;
 use thiserror::Error;
 
 /// Why the bus's grand-product GKR rejects.
@@ -77,11 +78,11 @@ impl Rows {
 /// Lay entries `spans` (`(first, len)`, in order and disjoint) out in the runs of rows
 /// holding them, each span widened to whole pairs of rows (eight entries) and merged
 /// with the one before where they meet, every other entry of the runs one. Returns the
-/// runs, their buffer, and each span's place in it.
+/// runs, their buffer, its length, and each span's place in it.
 ///
-/// # Safety
-/// The spans' entries are left uninitialized.
-unsafe fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, Vec<F192>, Vec<usize>) {
+/// The buffer is empty, its capacity the runs' entries: the ones are written, the
+/// spans' entries left to the caller, who sets the length once every one is.
+fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, Vec<F192>, usize, Vec<usize>) {
     let mut bounds: Vec<(usize, usize)> = Vec::new();
     for &(first, len) in spans.iter().filter(|s| s.1 > 0) {
         let (start, end) = (first & !7, (first + len).next_multiple_of(8));
@@ -91,8 +92,9 @@ unsafe fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, Vec<F192>, Vec<usize>)
         }
     }
     let total = bounds.iter().map(|&(start, end)| end - start).sum();
-    // SAFETY: the ones are written below, and the spans are the caller's.
-    let mut values = unsafe { primitives::uninit_vec::<F192>(total) };
+    let mut values = Vec::with_capacity(total);
+    let slots = &mut values.spare_capacity_mut()[..total];
+    let one = MaybeUninit::new(F192::ONE);
     let mut runs = Vec::with_capacity(bounds.len());
     let mut places = Vec::with_capacity(spans.len());
     let mut spans = spans.iter().peekable();
@@ -109,23 +111,26 @@ unsafe fn lay_out(spans: &[(usize, usize)]) -> (Vec<Run>, Vec<F192>, Vec<usize>)
                 break;
             }
             if len > 0 {
-                values[at + cursor - start..at + first - start].fill(F192::ONE);
+                slots[at + cursor - start..at + first - start].fill(one);
                 cursor = first + len;
             }
             places.push(at + first.saturating_sub(start));
             spans.next();
         }
-        values[at + cursor - start..at + end - start].fill(F192::ONE);
+        slots[at + cursor - start..at + end - start].fill(one);
         at += end - start;
     }
     places.extend(spans.map(|_| at));
-    (runs, values, places)
+    (runs, values, total, places)
 }
 
 /// One tree's leaves for [`prove_products`]: explicit on the spans the caller writes,
 /// one everywhere else, `n` of them in all (the tree's depth is `⌈log2 n⌉`).
 pub struct Leaves {
+    /// The stored leaves, their length zero until every span is written.
     rows: Rows,
+    /// How many entries `rows` stores.
+    stored: usize,
     n: usize,
     /// Each span's place and length in the stored leaves.
     spans: Vec<(usize, usize)>,
@@ -137,7 +142,7 @@ impl Leaves {
     ///
     /// # Safety
     /// Every leaf of every span must be written ([`Self::spans_mut`]) before the leaves
-    /// are read.
+    /// are proven ([`prove_products`]).
     pub unsafe fn new(n: usize, spans: &[(usize, usize)]) -> Self {
         assert!(n > 0, "a tree has a leaf");
         assert!(
@@ -145,19 +150,19 @@ impl Leaves {
                 && spans.last().is_none_or(|&(first, len)| first + len <= n),
             "the spans are in order, disjoint, and in the tree"
         );
-        // SAFETY: forwarded to the caller.
-        let (runs, values, places) = unsafe { lay_out(spans) };
+        let (runs, values, stored, places) = lay_out(spans);
         Self {
             rows: Rows { values, runs },
+            stored,
             n,
             spans: places.into_iter().zip(spans.iter().map(|s| s.1)).collect(),
         }
     }
 
     /// Each span's leaves, in order, for the caller to write.
-    pub fn spans_mut(&mut self) -> Vec<&mut [F192]> {
-        let mut out: Vec<&mut [F192]> = Vec::with_capacity(self.spans.len());
-        let mut rest: &mut [F192] = &mut self.rows.values;
+    pub fn spans_mut(&mut self) -> Vec<&mut [MaybeUninit<F192>]> {
+        let mut out: Vec<&mut [MaybeUninit<F192>]> = Vec::with_capacity(self.spans.len());
+        let mut rest = &mut self.rows.values.spare_capacity_mut()[..self.stored];
         let mut base = 0;
         for &(at, len) in &self.spans {
             if len == 0 {
@@ -170,6 +175,13 @@ impl Leaves {
             base = at + len;
         }
         out
+    }
+
+    /// The stored leaves, every span written.
+    fn into_rows(mut self) -> Rows {
+        // SAFETY: `lay_out` wrote the ones, and the caller of `new` every span.
+        unsafe { self.rows.values.set_len(self.stored) };
+        self.rows
     }
 }
 
@@ -187,8 +199,7 @@ fn build_levels(leaves: Rows, mu: usize) -> Vec<Rows> {
 /// The next radix-four level: each row's product, one entry of the level above.
 fn products(below: &Rows) -> Rows {
     let spans: Vec<(usize, usize)> = below.runs.iter().map(|r| (r.first, r.len)).collect();
-    // SAFETY: each run's products are written into its place below.
-    let (runs, mut values, places) = unsafe { lay_out(&spans) };
+    let (runs, mut values, stored, places) = lay_out(&spans);
     let total = below.values.len() / 4;
     let size = window_rows(total);
     // `(first row stored, rows, place)` per task.
@@ -199,17 +210,17 @@ fn products(below: &Rows) -> Rows {
                 .map(move |o| (r.at + o, size.min(r.len - o), place + o))
         })
         .collect();
-    let dst = SendPtr(values.as_mut_ptr());
+    let dst = SendPtr(values.spare_capacity_mut()[..stored].as_mut_ptr());
     let task = |index: usize| {
         let (row, n, place) = tasks[index];
-        // SAFETY: the tasks' places are disjoint and inside `values`.
+        // SAFETY: the tasks' places are disjoint and inside the stored entries.
         let out = unsafe { dst.slice(place, n) };
         for (o, c) in out
             .iter_mut()
             .zip(below.values[4 * row..4 * (row + n)].as_chunks::<4>().0)
         {
             let [left, right] = mul2([c[0], c[2]], [c[1], c[3]]);
-            *o = left * right;
+            o.write(left * right);
         }
     };
     if total >= PAR_THRESHOLD {
@@ -217,6 +228,8 @@ fn products(below: &Rows) -> Rows {
     } else {
         (0..tasks.len()).for_each(task);
     }
+    // SAFETY: `lay_out` wrote the ones, and the tasks each run's products.
+    unsafe { values.set_len(stored) };
     Rows { values, runs }
 }
 
@@ -285,7 +298,7 @@ struct QuaternaryLayerState {
     /// Four child tables interleaved in their original order. This lets the
     /// prover consume a product-tree level without first transposing it.
     rows: Rows,
-    /// Where a fold writes, then swapped with `rows.values`.
+    /// Scratch a fold writes into its spare capacity, then swaps with `rows.values`.
     next: Vec<F192>,
     /// Rows in all, the all-one ones included.
     logical_rows: usize,
@@ -297,9 +310,7 @@ impl QuaternaryLayerState {
         let stored = folded(&rows.runs).iter().map(|r| r.len).sum::<usize>();
         Self {
             rows,
-            // SAFETY: a fold writes every row of the runs it leaves before anything reads
-            // one, and nothing reads the rest.
-            next: unsafe { primitives::uninit_vec(4 * stored) },
+            next: Vec::with_capacity(4 * stored),
             logical_rows: width,
         }
     }
@@ -345,8 +356,12 @@ impl QuaternaryLayerState {
         let (old, values) = (&self.rows.runs, &self.rows.values);
         let runs = folded(old);
         let stored: usize = runs.iter().map(|r| r.len).sum();
-        assert!(4 * stored <= self.next.len(), "a fold leaves at most the rows it reads");
-        let dst = SendPtr(self.next.as_mut_ptr());
+        self.next.clear();
+        assert!(
+            4 * stored <= self.next.capacity(),
+            "a fold leaves at most the rows it reads"
+        );
+        let dst = SendPtr(self.next.spare_capacity_mut()[..4 * stored].as_mut_ptr());
         // `(run, pair range)` of the folded rows per task.
         let tasks: Vec<(Run, usize, usize)> = (runs.iter())
             .flat_map(|&r| {
@@ -398,8 +413,8 @@ impl QuaternaryLayerState {
             // The next round reads the destination; this round reads only the local stage.
             let stream = Stream::new();
             let len = 4 * (to - from);
-            // SAFETY: tasks write disjoint rows of the folded runs, all inside `next`.
-            unsafe { stream.copy(dst.slice(4 * (run.at + from - run.first), len), &stage[..len]) };
+            // SAFETY: tasks write disjoint rows of the folded runs, all inside the output's capacity.
+            unsafe { stream.write(dst.slice(4 * (run.at + from - run.first), len), &stage[..len]) };
             message
         };
         let message = if stored >= PAR_THRESHOLD {
@@ -407,8 +422,9 @@ impl QuaternaryLayerState {
         } else {
             (0..tasks.len()).map(task).fold([F192Unreduced::ZERO; 4], xor4)
         };
+        // SAFETY: the tasks wrote every row of the folded runs.
+        unsafe { self.next.set_len(4 * stored) };
         std::mem::swap(&mut self.rows.values, &mut self.next);
-        self.rows.values.truncate(4 * stored);
         self.rows.runs = runs;
         self.logical_rows /= 2;
         message.map(F192Unreduced::reduce)
@@ -448,7 +464,7 @@ pub fn prove_products<const N: usize>(leaves: [Leaves; N], ps: &mut ProverState)
         .map(|lane| crate::log2_ceil_usize(lane.n))
         .max()
         .expect("at least one tree");
-    let mut levels = leaves.map(|lane| build_levels(lane.rows, mu));
+    let mut levels = leaves.map(|lane| build_levels(lane.into_rows(), mu));
     // The root, or at an odd depth its two children's product.
     let roots: [F192; N] = std::array::from_fn(|tree| {
         let top = levels[tree].last().expect("the leaves");
@@ -637,7 +653,7 @@ mod tests {
         // SAFETY: every span is written below.
         let mut leaves = unsafe { Leaves::new(n, &bounds) };
         for (dst, &(_, values)) in leaves.spans_mut().into_iter().zip(spans) {
-            dst.copy_from_slice(values);
+            dst.write_copy_of_slice(values);
         }
         leaves
     }
@@ -648,7 +664,7 @@ mod tests {
             let below: Vec<F192> = (0..4 * width)
                 .map(|i| F192::new((17 * i + width + 1) as u64, (i * i + 3) as u64, (5 * i + 7) as u64))
                 .collect();
-            let state = QuaternaryLayerState::new(leaves(below.len(), &[(0, &below)]).rows, width);
+            let state = QuaternaryLayerState::new(leaves(below.len(), &[(0, &below)]).into_rows(), width);
             // Rows weighed by eq at a point of one variable per pair index bit.
             let r: Vec<F192> = (0..(width / 2).ilog2())
                 .map(|i| F192::new(u64::from(31 * i + 5), u64::from(7 * i + 1), u64::from(11 * i + 9)))
@@ -683,8 +699,8 @@ mod tests {
                 let values: Vec<F192> = (0..len)
                     .map(|i| F192::new((17 * i + 1) as u64, (i * i + 3) as u64, (5 * i + 7) as u64))
                     .collect();
-                let mut reference = QuaternaryLayerState::new(leaves(len, &[(0, &values)]).rows, width);
-                let mut fused = QuaternaryLayerState::new(leaves(len, &[(0, &values)]).rows, width);
+                let mut reference = QuaternaryLayerState::new(leaves(len, &[(0, &values)]).into_rows(), width);
+                let mut fused = QuaternaryLayerState::new(leaves(len, &[(0, &values)]).into_rows(), width);
                 let point: Vec<F192> = (0..width.ilog2() - 1)
                     .map(|i| F192::new(31 + u64::from(i), 7, 11))
                     .collect();

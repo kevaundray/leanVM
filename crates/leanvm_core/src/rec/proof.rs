@@ -95,27 +95,15 @@ impl HashBatch {
 
 impl RecWitness {
     fn build(layout: &RecLayout, a: &Assignment) -> Self {
+        let mut q = Box::new_uninit_slice(layout.shape.committed_len());
         // SAFETY: the owned tables and hash batch fill every committed window before it is read.
         // The pad tail is zeroed.
-        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
-        let ports_at = RecLayout::columns(Table::Hash).start;
-        // SAFETY: each port's buffer is written in full from the batch below.
-        let mut ports: Vec<(usize, Vec<F64>)> = (0..HashFlock::N_PORTS)
-            .map(|c| {
-                (ports_at + c, unsafe {
-                    primitives::uninit_vec(1 << layout.tau(Table::Hash))
-                })
-            })
-            .collect();
-        let (mut pieces, tail) = witness::split_pieces(&mut q, &layout.placements);
+        let (mut pieces, tail) = witness::split_pieces(unsafe { primitives::write_only(&mut q) }, &layout.placements);
         tail.fill(F64::ZERO);
         let mut windows: Vec<&mut [F64]> = pieces
             .iter_mut()
             .map(|p| p.pop().map_or(&mut [][..], |piece| piece))
             .collect();
-        for (i, buf) in &mut ports {
-            windows[*i] = buf;
-        }
         for table in Table::OWNED {
             table.fill(a, &mut windows[RecLayout::columns(table)]);
         }
@@ -126,13 +114,21 @@ impl RecWitness {
                 *d = F64(s);
             }
         });
-        let stride_log = HashFlock::stride_log();
-        for port in 0..HashFlock::N_PORTS {
-            for (j, cell) in windows[ports_at + port].iter_mut().enumerate() {
-                *cell = F64(batch.z[(j << stride_log) + port]);
-            }
-        }
         drop(windows);
+        // SAFETY: the windows tile the stack up to its zeroed tail, and each was filled above.
+        let q = unsafe { q.assume_init() }.into_vec();
+
+        // A port is not in the stack: its values are a buffer of their own, read off the batch.
+        let ports_at = RecLayout::columns(Table::Hash).start;
+        let stride_log = HashFlock::stride_log();
+        let ports = (0..HashFlock::N_PORTS)
+            .map(|port| {
+                let values = (0..1 << layout.tau(Table::Hash))
+                    .map(|j| F64(batch.z[(j << stride_log) + port]))
+                    .collect();
+                (ports_at + port, values)
+            })
+            .collect();
         Self { q, ports, batch }
     }
 

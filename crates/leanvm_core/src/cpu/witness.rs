@@ -9,6 +9,7 @@ use crate::tables::{ClassSpec, ClassTable, ColumnOut, FillContext};
 use crate::witness::Window;
 use crate::{class_flock, tables};
 use primitives::field::F64;
+use std::mem::MaybeUninit;
 
 /// The prover's witness: the committed stack `q`, the live stack of the columns that commit only some of their rows, and the public layout.
 ///
@@ -64,24 +65,22 @@ impl Witness {
         // A column that commits only some of its rows is written at those rows, and each piece copied while it is in cache.
         //
         // One committed whole is written into its piece alone.
-        //
-        // SAFETY: both allocations are uninitialized.
-        // `split_pieces` hands out pieces tiling `q` but its tail, zeroed below, and `split_stack` windows tiling all of `live`.
-        // Each table checks it wrote every column it was given, the shared columns are written below, and each flock batch writes its pieces.
         let sources = Sizes::of(p).column_sources(trace.heights);
         let (live_windows, live_len) = crate::witness::live_windows(&sources);
-        let mut live = unsafe { primitives::uninit_vec::<F64>(live_len) };
-        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
+        let mut live = Box::new_uninit_slice(live_len);
+        let mut q = Box::new_uninit_slice(layout.shape.committed_len());
 
         // A port is not in the stack, so its values get a buffer of their own.
-        let mut virt: Vec<(usize, Vec<F64>)> = Vec::new();
+        let mut virt: Vec<(usize, Box<[MaybeUninit<F64>]>)> = Vec::new();
         for (t, &(base, width)) in schema.spans.iter().enumerate() {
             for i in (base..base + width).filter(|&i| layout.placements[i].column().is_none()) {
-                // SAFETY: each table checks that it writes every circuit port column in full.
-                virt.push((i, unsafe { primitives::uninit_vec::<F64>(rows[t]) }));
+                virt.push((i, Box::new_uninit_slice(rows[t])));
             }
         }
-        let (pieces, tail) = crate::witness::split_pieces(&mut q, &layout.placements);
+        // SAFETY: `split_pieces` hands out pieces tiling `q` but its tail, zeroed below, and `split_stack` windows tiling all of `live`.
+        // Each table checks it wrote every column it was given, the shared columns are written below, and each flock batch writes its pieces.
+        let (pieces, tail) =
+            crate::witness::split_pieces(unsafe { primitives::write_only(&mut q) }, &layout.placements);
         parallel::chunks_mut(tail, 1 << 16, |_, chunk| chunk.fill(F64::ZERO));
 
         // Each column's pieces as `(first row, piece)`; the packed witnesses' go to their flock batches.
@@ -95,7 +94,8 @@ impl Witness {
         let flocks: Vec<Vec<(usize, &mut [F64])>> = (0..class_flock::N_FLOCKS)
             .map(|f| std::mem::take(&mut pieces[q_column(f)]))
             .collect();
-        let mut windows = crate::witness::split_stack(&mut live, &live_windows);
+        // SAFETY: as above.
+        let mut windows = crate::witness::split_stack(unsafe { primitives::write_only(&mut live) }, &live_windows);
         let mut outs: Vec<ColumnOut<'_>> = (windows.iter_mut().zip(pieces))
             .map(|(window, mut pieces)| {
                 if window.is_empty() && pieces.len() == 1 {
@@ -113,7 +113,8 @@ impl Witness {
             })
             .collect();
         for (i, buf) in virt.iter_mut() {
-            outs[*i].rows = buf;
+            // SAFETY: each table checks that it writes every circuit port column in full.
+            outs[*i].rows = unsafe { primitives::write_only(buf) };
         }
 
         crate::stage!("Fill columns", || {
@@ -147,6 +148,19 @@ impl Witness {
                 })
                 .collect()
         });
+
+        // Release the windows' borrow of the live stack.
+        drop(windows);
+        // SAFETY: the fills above wrote every piece, window and port buffer, and the stack's tail is zeroed.
+        let (q, live, virt) = unsafe {
+            (
+                q.assume_init().into_vec(),
+                live.assume_init().into_vec(),
+                virt.into_iter()
+                    .map(|(i, buf)| (i, buf.assume_init().into_vec()))
+                    .collect(),
+            )
+        };
         Self {
             q,
             live,

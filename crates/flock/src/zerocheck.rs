@@ -30,6 +30,7 @@ use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
 use primitives::bit_fold::BitFold;
 use primitives::field::{F8, F192, powers};
 use primitives::multilinear::{skip_lagrange_weights, tail_weight};
+use std::mem::MaybeUninit;
 use thiserror::Error;
 use univariate_skip_optimized::{
     c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
@@ -177,7 +178,7 @@ pub struct Unit<'a> {
 /// A single round covers the last round, and a round whose eq challenge is 1, which leaves G(0) to send.
 struct Tables {
     t: [Vec<F192>; 3],
-    /// Ping-pong scratch: a pass writes its folded tables here, then the two swap.
+    /// Ping-pong scratch: a pass writes its folded tables into the spare capacity here, then the two swap.
     nxt: [Vec<F192>; 3],
     pending: Vec<F192>,
     /// With a unit, `t` holds the explicit positions and `pad` the unit's, at the same level, whose copies fill the cube past them.
@@ -186,10 +187,16 @@ struct Tables {
 }
 
 impl Tables {
-    fn swap_in(&mut self, n_out: usize) {
+    /// Take the folded tables a pass wrote into the scratch, `n_out` values each.
+    ///
+    /// # Safety
+    ///
+    /// The pass wrote the first `n_out` slots of every scratch table.
+    unsafe fn swap_in(&mut self, n_out: usize) {
         for (t, nxt) in self.t.iter_mut().zip(&mut self.nxt) {
+            // SAFETY: the caller's pass wrote these slots, within the capacity it was handed.
+            unsafe { nxt.set_len(n_out) };
             std::mem::swap(t, nxt);
-            t.truncate(n_out);
         }
     }
 }
@@ -367,8 +374,7 @@ impl<'a> CircuitProver<'a> {
         });
         // With a unit the scratch also takes the units a paired pass appends to the explicit tables, under one quad of the unit (sixteen entries) a pass.
         let room = a.len() / 2 + if pad.is_some() { 16 } else { 0 };
-        // SAFETY: a pass writes every slot of the prefix it hands on, and nothing reads past it.
-        let nxt = std::array::from_fn(|_| unsafe { primitives::uninit_vec::<F192>(room) });
+        let nxt = std::array::from_fn(|_| Vec::with_capacity(room));
         self.tables = Some(Tables {
             t: [a, b, c],
             nxt,
@@ -404,28 +410,27 @@ impl<'a> CircuitProver<'a> {
             }
             let n_out = tb.t[0].len() >> k;
             let [a, b, c] = &tb.t;
-            let [an, bn, cn] = &mut tb.nxt;
-            let mut pair = fold_and_round_pair_into(
-                [a, b, c],
-                [&mut an[..n_out], &mut bn[..n_out], &mut cn[..n_out]],
-                &tb.pending,
-                &r[j + 1..],
-            );
+            let outs = tb.nxt.each_mut().map(|t| {
+                t.clear();
+                &mut t.spare_capacity_mut()[..n_out]
+            });
+            let mut pair = fold_and_round_pair_into([a, b, c], outs, &tb.pending, &r[j + 1..]);
             if let Some(pad) = &mut tb.pad {
                 let pad_out = pad[0].len() >> k;
                 let unit_log = pad_out.trailing_zeros() as usize;
-                let mut outs: [Vec<F192>; 3] = std::array::from_fn(|_| vec![F192::ZERO; pad_out]);
-                let [pa, pb, pc] = &mut outs;
+                let mut outs: [Box<[MaybeUninit<F192>]>; 3] = std::array::from_fn(|_| Box::new_uninit_slice(pad_out));
                 let pad_pair = fold_and_round_pair_into(
                     [&pad[0], &pad[1], &pad[2]],
-                    [pa, pb, pc],
+                    outs.each_mut().map(|o| &mut o[..]),
                     &tb.pending,
                     &r[j + 1..j + unit_log],
                 );
                 pair = pair.plus_scaled(pad_pair, tail_weight(&r[j + unit_log..], n_out / pad_out));
-                *pad = outs;
+                // SAFETY: the pass writes every slot of its outputs.
+                *pad = outs.map(|o| unsafe { o.assume_init() }.into_vec());
             }
-            tb.swap_in(n_out);
+            // SAFETY: the pass wrote the first `n_out` slots of each table.
+            unsafe { tb.swap_in(n_out) };
             tb.pending.clear();
             self.pair = Some(pair);
             return (None, pair.first.0, pair.first.1);
@@ -439,12 +444,10 @@ impl<'a> CircuitProver<'a> {
                     t.extend_from_slice(p);
                 }
             }
-            // The scratch holds half the whole tables, as a later paired pass needs.
+            // The scratch's capacity holds half the whole tables, as a later paired pass needs.
             for t in &mut tb.nxt {
-                if t.len() < cube / 2 {
-                    // SAFETY: as for the scratch the tables are stored with.
-                    *t = unsafe { primitives::uninit_vec(cube / 2) };
-                }
+                t.clear();
+                t.reserve(cube / 2);
             }
         }
         let [a, b, c] = &mut tb.t;

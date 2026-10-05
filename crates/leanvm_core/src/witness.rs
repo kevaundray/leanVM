@@ -318,8 +318,8 @@ pub fn live_windows(sources: &[Source]) -> (Vec<Option<Window>>, usize) {
 /// order, and an empty window for the others.
 ///
 /// Writing each column into its final place is what lets the whole witness be
-/// written once. The live stack may be allocated uninitialized
-/// ([`primitives::uninit_vec`]): [`live_windows`] tiles the columns from offset 0 with
+/// written once. The live stack may be unwritten slots (through
+/// [`primitives::write_only`]): [`live_windows`] tiles the columns from offset 0 with
 /// no gap, checked here, so consecutive `split_at_mut` hands out disjoint windows
 /// covering all of it, and each column's fill writes its own window.
 pub fn split_stack<'a>(q: &'a mut [F64], windows: &[Option<Window>]) -> Vec<&'a mut [F64]> {
