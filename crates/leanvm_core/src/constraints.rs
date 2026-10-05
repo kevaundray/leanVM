@@ -42,6 +42,8 @@ use primitives::multilinear::{eq_table, poly_eval, shrink_eq_high};
 use std::ops::Deref;
 use thiserror::Error;
 
+mod rows;
+
 /// One table's sent columns' evaluations at its table-sumcheck point.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Claims<E = F192> {
@@ -162,12 +164,14 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
     eqr: &[F192],
     at_one: bool,
 ) -> [F192; 2] {
+    if ROWS {
+        return rows::table_message(cols, summand, half, eqr, at_one);
+    }
     let width = padded_width(cols.len());
-    let block_rows = block_rows::<T>(width);
     let block = |scratch: &mut Vec<T>, acc: &mut [F192Unreduced; 2], b: usize| {
-        let (start, rows) = (b * block_rows, block_rows.min(half - b * block_rows));
-        let (lo, rest) = scratch.split_at_mut(block_rows * width);
-        let (hi, slope) = rest.split_at_mut(block_rows * width);
+        let (start, rows) = (b * BLOCK, BLOCK.min(half - b * BLOCK));
+        let (lo, rest) = scratch.split_at_mut(BLOCK * width);
+        let (hi, slope) = rest.split_at_mut(BLOCK * width);
         // Column by column, each a burst of consecutive rows, into row-major tiles.
         for (c, col) in cols.iter().enumerate() {
             let rows_lo = &col[start..start + rows];
@@ -179,36 +183,27 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
         }
         block_summand(summand, &eqr[start..start + rows], lo, hi, slope, at_one, acc);
     };
-    message_over_blocks(half, block_rows, (2 * block_rows + 1) * width, block)
+    message_over_blocks(half, (2 * BLOCK + 1) * width, block)
 }
 
-/// Rows per block of a message pass over rows of `width` values of `T`: each column is
-/// read in bursts of this many consecutive rows into row-major tiles, where a row at a
-/// time would keep a read stream open per column.
-///
-/// On aarch64 it is the largest power of two up to 64 whose scratch of `2 * rows + 1`
-/// rows fits 32 KiB, so the tiles stay in L1 for `E` rows as for `K` ones, and at least
-/// the 8 rows of one batched product. Elsewhere it is 64: on x86 the tiles of wide `E`
-/// rows outgrow L1 and still beat smaller ones.
-const fn block_rows<T>(width: usize) -> usize {
-    let mut rows = 64;
-    if cfg!(target_arch = "aarch64") {
-        while rows > 8 && (2 * rows + 1) * width * size_of::<T>() > 32 << 10 {
-            rows /= 2;
-        }
-    }
-    rows
-}
+/// Rows per block of a message pass: each column is read in bursts of this many
+/// consecutive rows into row-major tiles, where a row at a time would keep a read
+/// stream open per column. The tiles of a wide `E` row outgrow L1 at this size, and
+/// still beat smaller ones.
+const BLOCK: usize = 64;
 
-/// The message over `rows` rows, `block(scratch, acc, b)` adding rows `b * block_rows..`
+/// Whether the message passes go a row at a time, as [`rows`] does: on aarch64 the
+/// tiles lose to rows, at this block size and at L1-sized ones.
+const ROWS: bool = cfg!(target_arch = "aarch64");
+
+/// The message over `rows` rows, `block(scratch, acc, b)` adding rows `b * BLOCK..`
 /// with a zeroed `scratch` of `scratch_len` per worker.
 fn message_over_blocks<T: ColVal>(
     rows: usize,
-    block_rows: usize,
     scratch_len: usize,
     block: impl Fn(&mut Vec<T>, &mut [F192Unreduced; 2], usize) + Sync,
 ) -> [F192; 2] {
-    let blocks = rows.div_ceil(block_rows);
+    let blocks = rows.div_ceil(BLOCK);
     let acc = if rows >= PAR_THRESHOLD {
         // The scratch is per worker, not per block: `map_reduce_with_state` creates it
         // once and threads it through every block that worker claims.
@@ -366,22 +361,19 @@ pub fn prove<S: Summand>(
 /// Fold blocks of row pairs and accumulate their next-round summands before publishing the rows.
 ///
 /// `fold(start, rows, lo, hi)` writes the next low and high rows of `start..start + rows`
-/// into the tiles `lo` and `hi`, row `r` at `r * padded_width(ncols)`, in blocks of
-/// `block_rows` rows.
+/// into the tiles `lo` and `hi`, row `r` at `r * padded_width(ncols)`.
 fn folded_message(
     ncols: usize,
-    block_rows: usize,
     eqr: &[F192],
     summand: &impl Summand,
     at_one: bool,
     fold: impl Fn(usize, usize, &mut [F192], &mut [F192]) + Sync,
 ) -> [F192; 2] {
     let width = padded_width(ncols);
-    let scratch_len = (2 * block_rows + 1) * width;
-    message_over_blocks(eqr.len(), block_rows, scratch_len, |scratch: &mut Vec<F192>, acc, b| {
-        let (start, rows) = (b * block_rows, block_rows.min(eqr.len() - b * block_rows));
-        let (lo, rest) = scratch.split_at_mut(block_rows * width);
-        let (hi, slope) = rest.split_at_mut(block_rows * width);
+    message_over_blocks(eqr.len(), (2 * BLOCK + 1) * width, |scratch: &mut Vec<F192>, acc, b| {
+        let (start, rows) = (b * BLOCK, BLOCK.min(eqr.len() - b * BLOCK));
+        let (lo, rest) = scratch.split_at_mut(BLOCK * width);
+        let (hi, slope) = rest.split_at_mut(BLOCK * width);
         fold(start, rows, lo, hi);
         block_summand(summand, &eqr[start..start + rows], lo, hi, slope, at_one, acc);
     })
@@ -408,19 +400,22 @@ fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Syn
         return (out, None);
     }
     let pairs = half / 2;
+    if ROWS {
+        let message = rows::fold_columns_and_message(cols, &mut out, rk, summand, eqr, at_one);
+        return (out, Some(message));
+    }
     let width = padded_width(ncols);
-    let block_rows = block_rows::<F192>(width);
     let (lo, hi) = out.split_at_mut(pairs * ncols);
-    let lo = Chunks::new(lo, block_rows * ncols);
-    let hi = Chunks::new(hi, block_rows * ncols);
-    let message = folded_message(ncols, block_rows, eqr, summand, at_one, |start, rows, a, b| {
+    let lo = Chunks::new(lo, BLOCK * ncols);
+    let hi = Chunks::new(hi, BLOCK * ncols);
+    let message = folded_message(ncols, eqr, summand, at_one, |start, rows, a, b| {
         for (c, col) in cols.iter().enumerate() {
             let at = |offset: usize| &col[start + offset..start + offset + rows];
             interp_column(&mut a[c..], width, rk, at(0), at(half));
             interp_column(&mut b[c..], width, rk, at(pairs), at(pairs + half));
         }
-        // SAFETY: the task folding rows `start..` owns block `start / block_rows` of each output half.
-        let (lo, hi) = unsafe { (lo.get(start / block_rows), hi.get(start / block_rows)) };
+        // SAFETY: the task folding rows `start..` owns block `start / BLOCK` of each output half.
+        let (lo, hi) = unsafe { (lo.get(start / BLOCK), hi.get(start / BLOCK)) };
         for r in 0..rows {
             lo[r * ncols..(r + 1) * ncols].copy_from_slice(&a[r * width..r * width + ncols]);
             hi[r * ncols..(r + 1) * ncols].copy_from_slice(&b[r * width..r * width + ncols]);
@@ -449,15 +444,19 @@ fn fold_rows_and_message(
         return None;
     }
     let pairs = half / 2;
+    if ROWS {
+        let message = rows::fold_rows_and_message(table, ncols, rk, summand, eqr, at_one);
+        table.truncate(half * ncols);
+        return Some(message);
+    }
     let width = padded_width(ncols);
-    let block_rows = block_rows::<F192>(width);
     // Each task owns one block of rows in all four quarters, including its two output blocks.
     let (left, right) = table.split_at_mut(half * ncols);
     let (q0, q1) = left.split_at_mut(pairs * ncols);
     let (q2, q3) = right.split_at_mut(pairs * ncols);
-    let [q0, q1, q2, q3] = [q0, q1, q2, q3].map(|q| Chunks::new(q, block_rows * ncols));
-    let message = folded_message(ncols, block_rows, eqr, summand, at_one, |start, rows, a, b| {
-        let k = start / block_rows;
+    let [q0, q1, q2, q3] = [q0, q1, q2, q3].map(|q| Chunks::new(q, BLOCK * ncols));
+    let message = folded_message(ncols, eqr, summand, at_one, |start, rows, a, b| {
+        let k = start / BLOCK;
         // SAFETY: the task folding rows `start..` owns block `k` of every quarter.
         let (lo, hi, upper_lo, upper_hi) = unsafe { (q0.get(k), q1.get(k), q2.get(k), q3.get(k)) };
         for r in 0..rows {
@@ -874,32 +873,13 @@ mod tests {
     #[test]
     fn fused_rows_match_reference_transcript() {
         // Fixture state: ragged tables include constant tables and tables joining after several rounds.
-        // Forty columns, the last 36 unconstrained, take blocks shorter than 64 rows where tiles are budgeted.
-        for (taus, n_cols) in [
-            (&[5, 3, 5, 0, 1][..], 4),
-            (&[14, 12, 8, 1][..], 4),
-            (&[14, 12, 8, 1][..], 40),
-        ] {
+        for taus in [&[5, 3, 5, 0, 1][..], &[14, 12, 8, 1][..]] {
             let (xi, mut zeta) = xi_zeta(taus);
             for endpoint in [F192::ZERO, F192::ONE, F192::new(7, 11, 13)] {
                 // Exercise recovery of either endpoint, including the zero equality coordinate.
                 zeta.fill(endpoint);
-                let mut airs = airs_for(taus, true, xi);
-                for air in &mut airs {
-                    air.n_cols = n_cols;
-                }
-                let cols: Vec<_> = taus
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &t)| {
-                        let mut table = good_table(t, i as u64);
-                        let extra: Vec<Vec<F64>> = (4..n_cols)
-                            .map(|j| table[j % 4].iter().map(|&v| v * F64(j as u64)).collect())
-                            .collect();
-                        table.extend(extra);
-                        table
-                    })
-                    .collect();
+                let airs = airs_for(taus, true, xi);
+                let cols: Vec<_> = taus.iter().enumerate().map(|(i, &t)| good_table(t, i as u64)).collect();
                 for extension in [false, true] {
                     let views = || {
                         cols.iter()
