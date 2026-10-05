@@ -4,6 +4,7 @@ use super::Word;
 use super::clock::Clock;
 use crate::rv::{Class, Ext, Hash, Mul, Mulh};
 use crate::{class_flock, rv};
+use flock::circuit::Circuit;
 use std::ops::Range;
 
 /// How a class uses RAM.
@@ -71,10 +72,12 @@ pub struct ClassSpec {
     /// Eight-instance witness generation when native arithmetic supports batching.
     pub batch_witness: Option<BatchWitness>,
 
-    /// Base-two logarithm of the class circuit's bits per instance.
+    /// Base-two logarithm of the class circuit's bits per instance, zero for a class with no circuit.
     pub k_log: usize,
 
     /// Circuit port words in order, with inputs before outputs.
+    ///
+    /// Empty for a class with no circuit, whose table proves it by identities (`ClassTable::identities`).
     pub ports: &'static [Word],
 
     /// Number of input ports in the class circuit.
@@ -82,6 +85,12 @@ pub struct ClassSpec {
 
     /// Base-two logarithm of the clock circuit's bits per instance.
     pub clock_k_log: usize,
+
+    /// Words the clock circuit reads past the timestamps: what a class with no circuit checks of its operands.
+    pub clock_inputs: &'static [Word],
+
+    /// Words the clock circuit gives past the step.
+    pub clock_outputs: &'static [Word],
 }
 
 impl ClassSpec {
@@ -101,6 +110,8 @@ impl ClassSpec {
         ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out, Word::Taken],
         n_inputs: 4,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// Byte, halfword, and word loads with extension to 64 bits.
@@ -126,6 +137,8 @@ impl ClassSpec {
         ],
         n_inputs: 4,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// Byte, halfword, and word stores into a memory cell.
@@ -152,6 +165,8 @@ impl ClassSpec {
         ],
         n_inputs: 5,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// `ld`: the cell at `v1 + imm` is what `rd` receives.
@@ -170,6 +185,8 @@ impl ClassSpec {
         ports: &[Word::V1, Word::Imm, Word::Address],
         n_inputs: 2,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// `sd`: `v2` is what the cell at `v1 + imm` receives.
@@ -188,6 +205,8 @@ impl ClassSpec {
         ports: &[Word::V1, Word::Imm, Word::Address],
         n_inputs: 2,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// Logical and arithmetic shifts, including 32-bit word forms.
@@ -206,6 +225,8 @@ impl ClassSpec {
         ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
         n_inputs: 4,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// Low half of a register product.
@@ -228,6 +249,8 @@ impl ClassSpec {
         ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
         n_inputs: 3,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// High half of a register product with signedness selectors.
@@ -246,6 +269,8 @@ impl ClassSpec {
         ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
         n_inputs: 3,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// Quotients and remainders with prover-supplied magnitude hints.
@@ -272,6 +297,8 @@ impl ClassSpec {
         ],
         n_inputs: 5,
         clock_k_log: 9,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// BLAKE2s compression over sixteen memory words, rewriting the four output words.
@@ -309,9 +336,15 @@ impl ClassSpec {
         ],
         n_inputs: 14,
         clock_k_log: 11,
+        clock_inputs: &[],
+        clock_outputs: &[],
     };
 
     /// Extension-field multiplication, optionally accumulating or using a base-field operand.
+    ///
+    /// No class circuit: the limbs are committed columns, and the table's identities (`ClassTable::identities`) say the product.
+    ///
+    /// The clock circuit splits the flags into their bits and computes the limbs' addresses ([`Ext::clock_circuit`]).
     pub const EXT: Self = Self {
         class: Class::Ext,
         name: "EXT",
@@ -323,34 +356,21 @@ impl ClassSpec {
         copies: false,
         witness: None,
         batch_witness: None,
-        k_log: 13,
-        ports: &[
-            Word::V1,
-            Word::V2,
-            Word::Dest,
-            Word::Flags,
-            Word::Cell(0),
-            Word::Cell(1),
-            Word::Cell(2),
-            Word::Cell(3),
-            Word::Cell(4),
-            Word::Cell(5),
-            Word::Cell(6),
-            Word::Cell(7),
-            Word::Cell(8),
-            Word::CellNew(6),
-            Word::CellNew(7),
-            Word::CellNew(8),
+        k_log: 0,
+        ports: &[],
+        n_inputs: 0,
+        clock_k_log: 12,
+        clock_inputs: &[Word::V1, Word::V2, Word::Dest, Word::Flags],
+        clock_outputs: &[
+            Word::FlagBit(0),
+            Word::FlagBit(1),
             Word::LimbAddress(1),
             Word::LimbAddress(2),
             Word::LimbAddress(4),
             Word::LimbAddress(5),
             Word::LimbAddress(7),
             Word::LimbAddress(8),
-            Word::LimbSeparator,
         ],
-        n_inputs: 13,
-        clock_k_log: 11,
     };
 
     /// Specifications in protocol order, shared by execution and proving.
@@ -370,25 +390,16 @@ impl ClassSpec {
 
     /// Check that register accesses and copy semantics match the circuit ports.
     pub(super) fn assert_valid(&self) {
-        // Invariant: a register access exists exactly when its value is a circuit word, or a column a doubleword load or store moves.
-        assert_eq!(
-            self.reads_rs2 && !self.copies,
-            self.ports.contains(&Word::V2),
-            "{}: rs2 read",
-            self.name
-        );
+        // Invariant: a register access exists exactly when its value is a word of one of the table's circuits, or a column a doubleword load or store moves.
+        let has = |word: Word| self.words().any(|w| w == word);
+        assert_eq!(self.reads_rs2 && !self.copies, has(Word::V2), "{}: rs2 read", self.name);
         assert_eq!(
             self.writes_rd && !self.copies,
-            self.ports.contains(&Word::Out),
+            has(Word::Out),
             "{}: rd write",
             self.name
         );
-        assert_eq!(
-            self.reads_rd,
-            self.ports.contains(&Word::Dest),
-            "{}: rd read",
-            self.name
-        );
+        assert_eq!(self.reads_rd, has(Word::Dest), "{}: rd read", self.name);
         assert!(
             !(self.reads_rd && self.writes_rd),
             "{}: rd is read or written, not both",
@@ -428,7 +439,7 @@ impl ClassSpec {
         self.registers().len() + (ram.end - ram.start) as usize
     }
 
-    /// Smallest power-of-two height accepted by both circuits.
+    /// Smallest power-of-two height accepted by each of the table's circuits.
     ///
     /// A batch has at least eight instances and a zerocheck cube of at least 2^13 bits.
     pub const fn min_rows(&self) -> usize {
@@ -449,10 +460,38 @@ impl ClassSpec {
             .collect()
     }
 
-    /// The clock circuit's port words: the clock, each access's previous timestamp, then the step.
+    /// Whether the class is a flock circuit; otherwise its table's identities prove it.
+    pub const fn has_circuit(&self) -> bool {
+        !self.ports.is_empty()
+    }
+
+    /// The table's clock circuit.
+    pub fn clock_circuit(&self) -> Circuit {
+        match self.class {
+            Class::Ext => Ext::clock_circuit(&self.slots()),
+            _ => Clock::circuit(&self.slots()),
+        }
+    }
+
+    /// The clock circuit's port words: the clock, each access's previous timestamp and [`Self::clock_inputs`], then
+    /// the step and [`Self::clock_outputs`].
     pub fn clock_ports(&self) -> Vec<Word> {
         let prev = (0..self.n_accesses()).map(|i| Word::Prev(i as u8));
-        std::iter::once(Word::Clock).chain(prev).chain([Word::Step]).collect()
+        let inputs = std::iter::once(Word::Clock)
+            .chain(prev)
+            .chain(self.clock_inputs.iter().copied());
+        inputs
+            .chain([Word::Step])
+            .chain(self.clock_outputs.iter().copied())
+            .collect()
+    }
+
+    /// Every word of the table's circuits: its class circuit's, then its clock circuit's own.
+    pub(super) fn words(&self) -> impl Iterator<Item = Word> + '_ {
+        (self.ports.iter())
+            .chain(self.clock_inputs)
+            .chain(self.clock_outputs)
+            .copied()
     }
 }
 
@@ -466,3 +505,25 @@ pub const EXIT_SLOT: usize = 13;
 
 /// Number of instruction tables in the proof layout.
 pub const N_TABLES: usize = 11;
+
+/// Number of tables with a class circuit, which come first: table `t < N_CIRCUITS` has one, and its class circuit is
+/// packed witness `t`.
+pub const N_CIRCUITS: usize = {
+    let mut n = 0;
+    while n < N_TABLES && ClassSpec::ALL[n].has_circuit() {
+        n += 1;
+    }
+    n
+};
+
+// The tables with a class circuit come first.
+const _: () = {
+    let mut t = N_CIRCUITS;
+    while t < N_TABLES {
+        assert!(
+            !ClassSpec::ALL[t].has_circuit(),
+            "the tables with a class circuit come first"
+        );
+        t += 1;
+    }
+};

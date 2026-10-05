@@ -14,6 +14,7 @@ use crate::colval::ColVal;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use crate::colval::PackedCoeffs;
 use crate::gkr::GkrError;
+use crate::rec::FixedColumn;
 use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::Chunks;
@@ -38,6 +39,9 @@ pub enum Coord {
     /// committing it: the coordinate IS the product, so no column can disagree with
     /// it and no constraint has to say so (§sec:m3).
     Prod(usize, usize),
+    /// A committed column times a public constant, `c · col[z]`: what makes a coordinate depend on a 0 or 1 column
+    /// (an extension-field row's `base` bit choosing between two separators).
+    Scaled(F64, usize),
     /// The integer index column `base ^ (z << shift)` (§sec:idxcol), the element
     /// whose bits are that integer's: what addresses a region whose cell `z` sits at
     /// `base + (z << shift)`. Free, its MLE being linear.
@@ -45,12 +49,12 @@ pub enum Coord {
     /// A public column (the bytecode program, §sec:e2e-bc): not committed; both parties form
     /// its MLE directly, so it raises no claim. Shared rather than owned: a column is
     /// tens of megabytes at production sizes.
-    Public(Arc<Vec<F64>>),
+    Public(PublicColumn),
     /// A public column that is zero outside a few blocks (RAM as the run finds it,
     /// §sec:memchan): the verifier evaluates it in time proportional to the blocks,
     /// not to the column.
     Sparse(Arc<SparseColumn>),
-    /// A sum of `Const`/`Col`/`Prod` terms: any degree-2 form over the
+    /// A sum of `Const`/`Col`/`Prod`/`Scaled` terms: any degree-2 form over the
     /// table's columns, which is all §sec:m3 asks of a coordinate. This is what
     /// carries a value a row DERIVES from its columns (a branch's successor, what a
     /// jump writes to `rd`, a hash row's block addresses) without committing a column for it, and
@@ -60,12 +64,37 @@ pub enum Coord {
     Sum(Vec<Self>),
 }
 
+/// A public column's words, and which fixed column of a recursion circuit they are, if any.
+#[derive(Clone, Debug)]
+pub struct PublicColumn {
+    /// The words.
+    pub values: Arc<Vec<F64>>,
+    /// The recursion circuit's fixed column the words are, whose evaluation a recursive verifier takes as a hint.
+    pub(crate) fixed: Option<FixedColumn>,
+}
+
+impl PublicColumn {
+    /// A column that is no recursion circuit's fixed column.
+    pub const fn new(values: Arc<Vec<F64>>) -> Self {
+        Self { values, fixed: None }
+    }
+
+    /// A recursion circuit's fixed column.
+    pub(crate) const fn fixed(values: Arc<Vec<F64>>, column: FixedColumn) -> Self {
+        Self {
+            values,
+            fixed: Some(column),
+        }
+    }
+}
+
 impl Coord {
     /// The coordinate with every column index shifted by `base`: a table's local coordinate, made global.
     pub fn offset(self, base: usize) -> Self {
         match self {
             Self::Col(i) => Self::Col(base + i),
             Self::Prod(i, j) => Self::Prod(base + i, base + j),
+            Self::Scaled(c, i) => Self::Scaled(c, base + i),
             Self::Sum(cs) => Self::Sum(cs.into_iter().map(|c| c.offset(base)).collect()),
             other => other,
         }
@@ -299,11 +328,12 @@ fn push_terms<'a>(c: &'a Coord, w: F192, terms: &mut Vec<Term<'a>>, constant: &m
         Coord::Const(v) => *constant += w.mul_base(*v),
         Coord::Col(i) => terms.push(Term::Col(*i, w)),
         Coord::Prod(i, j) => terms.push(Term::Prod(*i, *j, w)),
+        Coord::Scaled(c, i) => terms.push(Term::Col(*i, w.mul_base(*c))),
         Coord::IntIndex { base, shift } => {
             *constant += w.mul_base(*base);
             terms.push(Term::IntIndex(w, *shift));
         }
-        Coord::Public(vals) => terms.push(Term::Public(vals.as_slice(), w)),
+        Coord::Public(column) => terms.push(Term::Public(column.values.as_slice(), w)),
         Coord::Sparse(column) => terms.push(Term::Public(column.dense(), w)),
         Coord::Sum(cs) => {
             for c in cs {
@@ -611,7 +641,9 @@ pub(crate) fn producer_public_twist(coords: &[Coord], w: &[F192], chi: &[F192], 
     let eq = primitives::multilinear::eq_table(chi);
     let mut total = F192::ZERO;
     for (c, &weight) in coords.iter().zip(w) {
-        let Coord::Public(vals) = c else { continue };
+        let Coord::Public(PublicColumn { values: vals, .. }) = c else {
+            continue;
+        };
         assert_eq!(vals.len(), eq.len());
         let mut slices = [F192::ZERO; 64];
         for (&e, v) in eq.iter().zip(vals.iter()) {
@@ -656,7 +688,7 @@ pub struct BusForm<E = F192> {
 
 impl<E: Copy> BusForm<E> {
     /// The zero form over `n_cols` columns.
-    fn new(n_cols: usize, zero: E) -> Self {
+    pub(crate) fn new(n_cols: usize, zero: E) -> Self {
         Self {
             coeffs: vec![zero; n_cols],
             prods: Vec::new(),
@@ -823,6 +855,10 @@ impl<E: Copy> BusForm<E> {
                 let product = a.mul(selector, w);
                 self.prods.push((*i - base, *j - base, product));
             }
+            Coord::Scaled(c, i) => {
+                let product = a.mul(selector, w);
+                self.coeffs[*i - base] = a.mul_const_add(product, F192::from(*c), self.coeffs[*i - base]);
+            }
             Coord::Sum(cs) => {
                 for c in cs {
                     self.accumulate(a, c, weight, base, constant);
@@ -865,12 +901,12 @@ struct Openings<E> {
 
 impl<E: Copy> Openings<E> {
     /// A public column at a prefix of the bus point, evaluated once per column and prefix length.
-    fn public<A: Arith<E = E>>(&mut self, a: &mut A, vals: &Arc<Vec<F64>>, point: &[E]) -> E {
-        let key = (Arc::as_ptr(vals) as usize, point.len());
+    fn public<A: Arith<E = E>>(&mut self, a: &mut A, column: &PublicColumn, point: &[E]) -> E {
+        let key = (Arc::as_ptr(&column.values) as usize, point.len());
         if let Some(&x) = self.public.get(&key) {
             return x;
         }
-        let x = a.public_mle(vals, point);
+        let x = a.public_mle(column, point);
         self.public.insert(key, x);
         x
     }
@@ -965,8 +1001,8 @@ impl Side<'_> {
                             let x = a.int_index(*base, *shift, zeta_lo);
                             known = a.mul_add(w[i], x, known);
                         }
-                        Coord::Public(vals) => {
-                            let x = open.public(a, vals, zeta_lo);
+                        Coord::Public(column) => {
+                            let x = open.public(a, column, zeta_lo);
                             known = a.mul_add(w[i], x, known);
                         }
                         _ => form.accumulate(
@@ -1014,11 +1050,11 @@ impl Side<'_> {
                         };
                         a.mul_add(w[i], x, leaf)
                     }
-                    Coord::Prod(..) | Coord::Sum(..) => {
+                    Coord::Prod(..) | Coord::Scaled(..) | Coord::Sum(..) => {
                         unreachable!("only a table's bus block carries a degree-2 coordinate")
                     }
-                    Coord::Public(vals) => {
-                        let x = open.public(a, vals, zeta_lo);
+                    Coord::Public(column) => {
+                        let x = open.public(a, column, zeta_lo);
                         a.mul_add(w[i], x, leaf)
                     }
                     Coord::Sparse(column) => {
@@ -1116,7 +1152,7 @@ pub const BYTECODE_PUBLIC_SLOT: usize = 2;
 pub fn stacked_bytecode_table(kbc: usize, coords: &[Coord]) -> Vec<F64> {
     let mut table = vec![F64::ZERO; 1 << (N_BYTECODE_SELECTORS + kbc)];
     for (slot, c) in coords.iter().enumerate() {
-        if let Coord::Public(vals) = c {
+        if let Coord::Public(PublicColumn { values: vals, .. }) = c {
             assert!(slot >= BYTECODE_PUBLIC_SLOT, "the program's columns follow the address");
             assert!(slot < 1 << N_BYTECODE_SELECTORS, "a public slot is a tuple coordinate");
             assert_eq!(vals.len(), 1 << kbc);
@@ -1491,8 +1527,8 @@ pub fn verify_balance<V: Verifier>(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{
-        Block, Coord, F64, F192, N_TUPLE_BITS, Producer, SparseColumn, fill_tuple, fingerprint_weights, prove_balance,
-        soundness_bits, verify_balance,
+        Block, Coord, F64, F192, N_TUPLE_BITS, Producer, PublicColumn, SparseColumn, fill_tuple, fingerprint_weights,
+        prove_balance, soundness_bits, verify_balance,
     };
     use fiat_shamir::transcript::{ProverState, VerifierState};
     use std::collections::HashMap;
@@ -1560,7 +1596,7 @@ pub(crate) mod tests {
                 base: F64(0x4000),
                 shift: 3,
             },
-            Coord::Public(public),
+            Coord::Public(PublicColumn::new(public)),
             Coord::Col(0),
         ];
         let push = [Block::table(0, kappa, coords.clone())];

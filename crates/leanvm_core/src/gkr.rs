@@ -13,12 +13,11 @@ use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use primitives::field::{F192x4, F192x4Unreduced};
-use primitives::multilinear::{eq_table, interp};
+use primitives::multilinear::{SplitEq, interp};
 use primitives::stream::Stream;
 use std::mem::MaybeUninit;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use std::ops::Mul;
-use std::ops::Range;
 use thiserror::Error;
 
 /// Why the bus's grand-product GKR rejects.
@@ -112,117 +111,11 @@ fn build_layers(leaves: Vec<F192>, first: Vec<F192>, mu: usize) -> Vec<Vec<F192>
     layers
 }
 
-/// `eq(r, x)` as two tables, `eq(r, x) = low[x mod 2^L] · high[x >> L]`.
+/// Most low variables of the split eq table.
 ///
 /// The full table would be one E value per row pair of the layer, read every round and shrunk every round.
-/// The low table is at most 2^12 entries, 96 KiB, which every task reads from L2.
-struct SplitEq {
-    /// `eq` of the low `L` variables.
-    low: Vec<F192>,
-    /// `eq` of the rest.
-    high: Vec<F192>,
-    /// `L`.
-    low_log: usize,
-}
-
-impl SplitEq {
-    /// Most low variables: 2^12 entries of E is 96 KiB.
-    const MAX_LOW_LOG: usize = 12;
-
-    fn new(r: &[F192]) -> Self {
-        let low_log = r.len().min(Self::MAX_LOW_LOG);
-        Self {
-            low: eq_table(&r[..low_log]),
-            high: eq_table(&r[low_log..]),
-            low_log,
-        }
-    }
-
-    /// `eq(r, x)`.
-    fn at(&self, x: usize) -> F192 {
-        self.low[x & (self.low.len() - 1)] * self.high[x >> self.low_log]
-    }
-
-    /// `sum_x eq(r, x) · terms(x)` over a range of `x`.
-    ///
-    /// `terms(x, w)` returns its unreduced products already scaled by the low weight `w`.
-    /// Each run of `x` sharing a high weight is reduced once and scaled by it once.
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
-    fn weighted_sum(
-        &self,
-        range: Range<usize>,
-        mut terms: impl FnMut(usize, F192) -> [F192Unreduced; 4],
-    ) -> [F192Unreduced; 4] {
-        let mask = self.low.len() - 1;
-        let mut total = [F192Unreduced::ZERO; 4];
-        let mut x = range.start;
-        while x < range.end {
-            // The run of `x` in this high block.
-            let high = x >> self.low_log;
-            let run_end = ((high + 1) << self.low_log).min(range.end);
-            let mut run = [F192Unreduced::ZERO; 4];
-            for y in x..run_end {
-                let t = terms(y, self.low[y & mask]);
-                for (acc, t) in run.iter_mut().zip(t) {
-                    *acc ^= t;
-                }
-            }
-            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
-            for (acc, t) in total.iter_mut().zip(scaled) {
-                *acc ^= t;
-            }
-            x = run_end;
-        }
-        total
-    }
-
-    /// `sum_x eq(r, x) · terms(x)` over a range of `x`, four `x` at a time in lanes.
-    ///
-    /// `terms(state, x, w)` returns its unreduced products already scaled by the low weight `w`;
-    /// `terms4(state, x, w)` does the same for `x..x + 4` at once, lane `j` for `x + j`, and
-    /// serves every four of a run below `wide_end`. Both are handed `state`.
-    /// Each run of `x` sharing a high weight is reduced once and scaled by it once.
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-    fn weighted_sum_lanes<S: ?Sized>(
-        &self,
-        range: Range<usize>,
-        wide_end: usize,
-        state: &mut S,
-        mut terms: impl FnMut(&mut S, usize, F192) -> [F192Unreduced; 4],
-        mut terms4: impl FnMut(&mut S, usize, F192x4) -> [F192x4Unreduced; 4],
-    ) -> [F192Unreduced; 4] {
-        let mask = self.low.len() - 1;
-        let mut total = [F192Unreduced::ZERO; 4];
-        let mut x = range.start;
-        while x < range.end {
-            // The run of `x` in this high block.
-            let high = x >> self.low_log;
-            let run_end = ((high + 1) << self.low_log).min(range.end);
-            let mut wide = [F192x4Unreduced::zero(); 4];
-            let mut y = x;
-            while y + 4 <= run_end.min(wide_end) {
-                let weights = F192x4::new(std::array::from_fn(|j| self.low[(y + j) & mask]));
-                for (acc, t) in wide.iter_mut().zip(terms4(state, y, weights)) {
-                    *acc ^= t;
-                }
-                y += 4;
-            }
-            let mut run = wide.map(F192x4Unreduced::sum);
-            for y in y..run_end {
-                let t = terms(state, y, self.low[y & mask]);
-                for (acc, t) in run.iter_mut().zip(t) {
-                    *acc ^= t;
-                }
-            }
-            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
-            for (acc, t) in total.iter_mut().zip(scaled) {
-                *acc ^= t;
-            }
-            x = run_end;
-        }
-        total
-    }
-}
+/// 2^12 entries of E is 96 KiB, which every task reads from L2.
+const EQ_LOW_VARS: usize = 12;
 
 #[inline(always)]
 fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] {
@@ -619,7 +512,7 @@ pub fn prove_products<const N: usize>(trees: [(Vec<F192>, Vec<F192>); N], ps: &m
         let mut trees: [QuaternaryLayerState; N] =
             std::array::from_fn(|tree| QuaternaryLayerState::new(std::mem::take(&mut layers[tree][layer - 2]), width));
         // Round `j` of this layer weighs its rows by `eq(point[1 + j..], .)`.
-        let mut equality = SplitEq::new(if round_count > 0 { &point[1..] } else { &[] });
+        let mut equality = SplitEq::with_low_vars(if round_count > 0 { &point[1..] } else { &[] }, EQ_LOW_VARS);
         let mut round_point = Vec::with_capacity(round_count);
         let mut messages = if round_count > 0 {
             trees.each_ref().map(|tree| tree.round_message(&equality))
@@ -636,7 +529,7 @@ pub fn prove_products<const N: usize>(trees: [(Vec<F192>, Vec<F192>); N], ps: &m
             let challenge = ps.sample();
             round_point.push(challenge);
             if round + 1 < round_count {
-                equality = SplitEq::new(&point[2 + round..]);
+                equality = SplitEq::with_low_vars(&point[2 + round..], EQ_LOW_VARS);
                 messages = trees.each_mut().map(|tree| tree.fold_and_message(challenge, &equality));
             } else {
                 // No variable is left to weigh a message by, so the final round
@@ -760,44 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn split_eq_is_the_eq_table() {
-        // Invariant: the two tables weigh every row as the full eq table, and a weighted sum
-        // over a range equals the dense one, whether it crosses a high block or not.
-        //
-        // Fixture state: 14 variables, so the high table has 4 entries of 2^12 rows each.
-        let r: Vec<F192> = (0..14u64).map(|i| F192::new(3 * i + 1, i + 7, 5 * i + 2)).collect();
-        let (split, dense) = (SplitEq::new(&r), eq_table(&r));
-        for x in [0, 1, 4095, 4096, 4097, 12_345, (1 << 14) - 1] {
-            assert_eq!(split.at(x), dense[x], "x={x}");
-        }
 
-        // Terms of one coefficient: x itself, as a field element, scaled by the weight.
-        let value = |x: usize| F192::new(x as u64, 1, 0);
-        let terms = |x: usize, w: F192| {
-            let mut t = [F192Unreduced::ZERO; 4];
-            t[0] = w.mul_unreduced(value(x));
-            t
-        };
-        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-        let terms4 = |_: &mut (), x: usize, w: F192x4| {
-            let mut t = [F192x4Unreduced::zero(); 4];
-            t[0] = w.mul_unreduced(F192x4::new(std::array::from_fn(|j| value(x + j))));
-            t
-        };
-        for range in [0..10, 4090..4100, 100..9000, 0..1 << 14] {
-            let want = range.clone().fold(F192::ZERO, |sum, x| sum + dense[x] * value(x));
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
-            assert_eq!(split.weighted_sum(range.clone(), terms)[0].reduce(), want, "{range:?}");
-            // Scalar terms only, lanes where they fit, and lanes stopped partway.
-            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
-            for wide_end in [0, range.end, range.start + 7] {
-                let got = split.weighted_sum_lanes(range.clone(), wide_end, &mut (), |_, x, w| terms(x, w), terms4);
-                assert_eq!(got[0].reduce(), want, "{range:?} {wide_end}");
-            }
-        }
-    }
-
-    #[test]
     fn quartic_round_message_matches_direct_evaluation() {
         for width in [2, 4, 8, 16] {
             let below: Vec<F192> = (0..4 * width)
@@ -808,7 +664,7 @@ mod tests {
             let r: Vec<F192> = (0..(width / 2).ilog2())
                 .map(|i| F192::new(u64::from(31 * i + 5), u64::from(7 * i + 1), u64::from(11 * i + 9)))
                 .collect();
-            let equality = SplitEq::new(&r);
+            let equality = SplitEq::with_low_vars(&r, EQ_LOW_VARS);
             let [difference, c2, c3, c4] = state.round_message(&equality);
             let direct = |point: F192| {
                 (0..width / 2).fold(F192::ZERO, |sum, row| {
@@ -849,7 +705,7 @@ mod tests {
                     let challenge = F192::new(reference.logical_rows as u64, 13, 19);
                     reference.fold(challenge);
                     bound += 1;
-                    let equality = SplitEq::new(&point[bound..]);
+                    let equality = SplitEq::with_low_vars(&point[bound..], EQ_LOW_VARS);
                     let message = fused.fold_and_message(challenge, &equality);
                     assert_eq!(message, reference.round_message(&equality), "width={width}, len={len}");
                     assert_eq!(&*fused.values, &*reference.values, "width={width}, len={len}");

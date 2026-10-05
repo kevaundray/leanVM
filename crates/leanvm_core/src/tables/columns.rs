@@ -2,7 +2,7 @@
 
 use super::{ClassSpec, Ram, Word};
 use crate::leaf::Coord::{self, Col, Prod};
-use crate::rv::{Ext, ExtResult, Hash};
+use crate::rv::{Ext, Hash};
 
 /// The `rs2` read's columns: the register's number and what it held.
 #[derive(Clone, Copy)]
@@ -112,6 +112,9 @@ impl BlockColumns {
 }
 
 /// Columns for extension-field operands, output, and computed limb locations.
+///
+/// The limbs and `c`'s new limbs are committed columns, which the table's identities relate; the addresses are the
+/// clock circuit's words.
 #[derive(Clone, Copy)]
 pub(super) struct LimbColumns {
     /// First operand limb column.
@@ -122,19 +125,16 @@ pub(super) struct LimbColumns {
 
     /// First computed limb address column.
     pub(super) addresses: usize,
-
-    /// Bus domain of the base operand's high limbs.
-    pub(super) separator: usize,
 }
 
 impl LimbColumns {
     /// The column of limb `k`'s computed bus address: every limb but an operand's first.
     pub(super) fn computed(&self, k: usize) -> Option<usize> {
-        let i = ExtResult::OFFSET_LIMBS.iter().position(|&j| j == k)?;
+        let i = Ext::OFFSET_LIMBS.iter().position(|&j| j == k)?;
         Some(self.addresses + i)
     }
 
-    /// The bus address of limb `k`: the operand's pointer for its first limb, else what the circuit computes.
+    /// The bus address of limb `k`: the operand's pointer for its first limb, else what the clock circuit computes.
     pub(super) fn address(&self, k: usize, pointers: [usize; 3]) -> usize {
         self.computed(k).unwrap_or(pointers[k / 3])
     }
@@ -192,6 +192,9 @@ pub(super) struct Columns {
     /// Optional extension-field memory accesses.
     pub(super) limbs: Option<LimbColumns>,
 
+    /// The flags' bits, one column each, for a table with no class circuit.
+    pub(super) flag_bits: Option<usize>,
+
     /// Circuit verdict bound to public zero.
     pub(super) bad: Option<usize>,
 
@@ -213,7 +216,7 @@ impl Columns {
             allocator.allocate(1),
             allocator.allocate(1),
         );
-        let flags = spec.ports.contains(&Word::Flags).then(|| allocator.allocate(1));
+        let flags = spec.words().any(|w| w == Word::Flags).then(|| allocator.allocate(1));
         let rs2 = spec.reads_rs2.then(|| SourceColumns {
             a2: allocator.allocate(1),
             v2: allocator.allocate(1),
@@ -237,7 +240,7 @@ impl Columns {
             taken: allocator.allocate(1),
             exit: allocator.allocate(1),
         });
-        let imm = spec.ports.contains(&Word::Imm).then(|| allocator.allocate(1));
+        let imm = spec.words().any(|w| w == Word::Imm).then(|| allocator.allocate(1));
         let (ram, block) = match spec.ram {
             Ram::None | Ram::Limbs => (None, None),
             Ram::Read | Ram::Write => {
@@ -268,10 +271,11 @@ impl Columns {
         let limbs = (spec.ram == Ram::Limbs).then(|| LimbColumns {
             limbs: allocator.allocate(Ext::LIMBS),
             new: allocator.allocate(3),
-            addresses: allocator.allocate(ExtResult::OFFSET_LIMBS.len()),
-            separator: allocator.allocate(1),
+            addresses: allocator.allocate(Ext::OFFSET_LIMBS.len()),
         });
-        let bad = spec.ports.contains(&Word::Bad).then(|| allocator.allocate(1));
+        let n_flag_bits = spec.words().filter(|w| matches!(w, Word::FlagBit(_))).count();
+        let flag_bits = (n_flag_bits > 0).then(|| allocator.allocate(n_flag_bits));
+        let bad = spec.words().any(|w| w == Word::Bad).then(|| allocator.allocate(1));
         let (prev, step) = (allocator.allocate(spec.n_accesses()), allocator.allocate(1));
         Self {
             pc,
@@ -288,6 +292,7 @@ impl Columns {
             ram,
             block,
             limbs,
+            flag_bits,
             bad,
             prev,
             step,
@@ -313,21 +318,19 @@ impl Columns {
             Word::Out => self.rd.map_or_else(missing, |rd| rd.out),
             Word::Taken => self.control.map_or_else(missing, |c| c.taken),
             Word::Address => self.ram.map_or_else(missing, |r| r.address),
-            Word::Cell(k) => match (self.ram, self.block, self.limbs) {
-                (Some(ram), _, _) => ram.cell,
-                (_, Some(block), _) => block.words + k as usize,
-                (_, _, Some(limbs)) => limbs.limbs + k as usize,
+            Word::Cell(k) => match (self.ram, self.block) {
+                (Some(ram), _) => ram.cell,
+                (_, Some(block)) => block.words + k as usize,
                 _ => missing(),
             },
-            Word::CellNew(k) => match (self.ram, self.block, self.limbs) {
-                (Some(ram), _, _) => ram.new,
-                (_, Some(block), _) => block.left(k as usize),
-                (_, _, Some(limbs)) => limbs.left(k as usize),
+            Word::CellNew(k) => match (self.ram, self.block) {
+                (Some(ram), _) => ram.new,
+                (_, Some(block)) => block.left(k as usize),
                 _ => missing(),
             },
             Word::Dest => self.pointer.map_or_else(missing, |p| p.vd),
+            Word::FlagBit(k) => self.flag_bits.map_or_else(missing, |b| b + k as usize),
             Word::LimbAddress(k) => self.limbs.and_then(|l| l.computed(k as usize)).unwrap_or_else(missing),
-            Word::LimbSeparator => self.limbs.map_or_else(missing, |l| l.separator),
             Word::Bad => self.bad.unwrap_or_else(missing),
             Word::HintQ | Word::HintR => return None,
         })

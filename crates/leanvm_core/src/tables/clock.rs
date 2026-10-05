@@ -66,7 +66,23 @@ impl Clock {
     ///
     /// Panics if an access slot does not fit in five bits.
     pub fn circuit(slots: &[u32]) -> Circuit {
-        let mut c = Builder::new(&vec![Self::CLOCK_BITS; 1 + slots.len()], &[Self::CLOCK_BITS + 1]);
+        Self::builder(slots, &[], &[]).finish()
+    }
+
+    /// [`Self::circuit`] before it is finished, with more input and output ports of these widths past its own, for
+    /// the caller to compute: a table with no class circuit checks what it needs of its operands there.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an access slot does not fit in five bits.
+    pub fn builder(slots: &[u32], inputs: &[usize], outputs: &[usize]) -> Builder {
+        let input_bits: Vec<usize> = std::iter::repeat_n(Self::CLOCK_BITS, 1 + slots.len())
+            .chain(inputs.iter().copied())
+            .collect();
+        let output_bits: Vec<usize> = std::iter::once(Self::CLOCK_BITS + 1)
+            .chain(outputs.iter().copied())
+            .collect();
+        let mut c = Builder::new(&input_bits, &output_bits);
         let ts = c.input(0);
         let live = ts[Self::LIVE_BIT as usize];
         let mut in_order = Vec::with_capacity(slots.len());
@@ -111,7 +127,7 @@ impl Clock {
             carry = c.and_output(0, bit + 1, timestamp, carry);
         }
         c.output(0, Self::FAIL_BIT as usize, fail);
-        c.finish()
+        c
     }
 
     /// Reference clock transition as an XOR mask, with bit 41 set on an ordering failure.
