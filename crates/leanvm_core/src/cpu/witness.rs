@@ -149,7 +149,7 @@ impl Witness {
             (flocks.into_iter().enumerate())
                 .map(|(f, pieces)| {
                     let t = class_flock::flock(f).0;
-                    Prepared::build(f, layout.taus[t], trace, p.entries(), pieces)
+                    Prepared::build(f, layout.taus[t], trace, p, pieces)
                 })
                 .collect()
         });
