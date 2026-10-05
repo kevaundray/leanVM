@@ -2565,7 +2565,9 @@ def verify_core(
         if row is not None:
             point = tuple(ONE if height >> bit & 1 else ZERO for bit in range(log))
             numbers = {local for local, _ in table.registers}
-            claims.extend(ColumnClaim(GLOBAL_COLUMN_BASES[table.opcode] + local, point, value) for local, value in enumerate(row) if local not in numbers)
+            claims.extend(
+                ColumnClaim(GLOBAL_COLUMN_BASES[table.opcode] + local, point, value) for local, value in enumerate(row) if local not in numbers
+            )
 
     # 7] the exit: a7 holds `exit` and a0..a3 the output when the run ends. A register's final value is the final
     # registers' column at the Boolean point naming it, a claim the verifier computes rather than receives.

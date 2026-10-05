@@ -970,7 +970,9 @@ mod tests {
         let at = fields.iter().position(|f| f.col == destination).unwrap();
         let shift: usize = fields[..at].iter().map(|f| f.width).sum();
         let mask = (1 << fields[at].width) - 1;
-        forge(&mut w, Schema::get().registers[alu], |col| col[row].0 &= !(mask << shift));
+        forge(&mut w, Schema::get().registers[alu], |col| {
+            col[row].0 &= !(mask << shift)
+        });
         forge(&mut w, Shared::BytecodeMult.col(), |col| col[addi as usize].0 -= 1);
 
         // Registers, RAM and the multiplicities balance: only the read of an entry whose destination is 0 is left.
@@ -1336,7 +1338,9 @@ mod tests {
         let table = &ClassTable::all()[alu];
         let a1 = Schema::get().spans[alu].0 + table.register_bits().fields[0].col;
         virtual_mut(&mut w, a1)[row] = F64(Reg::RA.index() as u64);
-        forge(&mut w, Schema::get().registers[alu], |col| col[row].0 ^= Reg::RA.index() as u64);
+        forge(&mut w, Schema::get().registers[alu], |col| {
+            col[row].0 ^= Reg::RA.index() as u64
+        });
         // The entry's count follows the reads, which no longer include this one.
         forge(&mut w, Shared::BytecodeMult.col(), |col| col[0].0 -= 1);
 
@@ -1380,6 +1384,42 @@ mod tests {
                 "bit {bit}"
             );
         }
+    }
+
+    #[test]
+    fn a_register_word_repeats_a_shorter_tables_padding_row() {
+        // Invariant: a word commits its tallest table's rows, and a shorter table's fields there are its padding row.
+        //
+        // Fixture state: `addi a0, x0, 5; exit`: the ALU opens its word, which tables with no rows share.
+        // Mutation: the lowest bit of such a table's field, on a word row past that table's height.
+        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let exec = program.execute(&[]).unwrap();
+        let layout = Witness::build(&program, &exec).layout;
+        let word = layout.registers[0].clone();
+        let heights = layout.heights;
+        let at = (word.tables.iter())
+            .position(|&t| heights[t] < word.height)
+            .expect("a table shorter than its word");
+        let bits = |t: usize| ClassTable::all()[t].register_bits().n_slices();
+        let shift: usize = word.tables[..at].iter().map(|&t| bits(t)).sum();
+        let row = heights[word.tables[at]] + 1;
+        assert!(
+            row <= word.height,
+            "the word commits a row past the table's padding row"
+        );
+
+        let mut w = Witness::build(&program, &exec);
+        forge(&mut w, word.col, |col| col[row].0 ^= 1 << shift);
+        assert!(
+            unmatched(&w).is_empty(),
+            "the bus reads the register numbers, not the word"
+        );
+        let proof = program.prove_witness(w, &exec.output, Rate::MIN);
+        assert!(matches!(
+            program.verify_to_raw(&exec.output, &proof),
+            Err(CpuError::Open(_))
+        ));
     }
 
     #[test]

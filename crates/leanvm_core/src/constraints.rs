@@ -1023,38 +1023,44 @@ mod tests {
 
     #[test]
     fn a_bit_column_is_sent_as_its_bits() {
-        // Fixture state: column 0 holds integers below 8, sent as its three bits' evaluations.
+        // Fixture state: column 0 holds integers below 8, sent as its three bits' evaluations, the table committing
+        // its whole cube, then a few rows, then its padding row alone, every later row repeating its last.
         let tau = 5;
-        let mut cols = good_table(tau, 0);
-        cols[0] = (0..1u64 << tau).map(|i| F64(i * 5 % 8)).collect();
-        cols[2] = cols[0].iter().zip(&cols[1]).map(|(&a, &b)| a * b).collect();
-        cols[3] = cols[0].clone();
+        let mut full = good_table(tau, 0);
+        full[0] = (0..1u64 << tau).map(|i| F64(i * 5 % 8)).collect();
+        full[2] = full[0].iter().zip(&full[1]).map(|(&a, &b)| a * b).collect();
+        full[3] = full[0].clone();
         let (xi, zeta) = xi_zeta(&[tau]);
         let mut airs = airs_for(&[tau], false, xi);
         airs[0].bits = BitColumns {
             fields: vec![BitField { col: 0, width: 3 }],
         };
-        let views = vec![Columns::K(cols.iter().map(|c| &c[..]).collect())];
-        let mut ps = ProverState::from_label(b"zc-bits");
-        let claims = prove(&airs, views, &zeta, &[F192::ZERO], &mut ps);
-        let proof = ps.into_proof();
+        for rows in [1 << tau, 20, 1] {
+            let cols: Vec<Vec<F64>> = full.iter().map(|c| c[..rows].to_vec()).collect();
+            let views = vec![Columns::K(cols.iter().map(|c| &c[..]).collect())];
+            let mut ps = ProverState::from_label(b"zc-bits");
+            let claims = prove(&airs, views, &zeta, &[F192::ZERO], &mut ps);
+            let proof = ps.into_proof();
 
-        // Each slice is its bit's evaluation at the table's point.
-        for (b, &slice) in claims[0].slices.iter().enumerate() {
-            let bit: Vec<F64> = cols[0].iter().map(|v| F64(v.0 >> b & 1)).collect();
-            assert_eq!(slice, mle_eval(&bit, &claims[0].chi));
-        }
-        let verdict = |proof: &ProofTranscript| {
-            let mut vs = VerifierState::from_label(b"zc-bits", proof);
-            verify(&mut vs, &airs, &zeta, F192::ZERO).and_then(Final::settle)
-        };
-        assert_eq!(verdict(&proof), Ok(claims));
+            // Each slice is its bit's evaluation at the table's point, over the cube the rows stand for.
+            for (b, &slice) in claims[0].slices.iter().enumerate() {
+                let bit: Vec<F64> = (0..1 << tau)
+                    .map(|z| F64(cols[0][z.min(rows - 1)].0 >> b & 1))
+                    .collect();
+                assert_eq!(slice, mle_eval(&bit, &claims[0].chi), "{rows} rows");
+            }
+            let verdict = |proof: &ProofTranscript| {
+                let mut vs = VerifierState::from_label(b"zc-bits", proof);
+                verify(&mut vs, &airs, &zeta, F192::ZERO).and_then(Final::settle)
+            };
+            assert_eq!(verdict(&proof), Ok(claims));
 
-        // Mutation: one slice moved, which the column's rebuilt evaluation carries into the final identity.
-        for at in proof.stream.len() - 3..proof.stream.len() {
-            let mut bad = proof.clone();
-            bad.stream[at] += F192::ONE;
-            assert_eq!(verdict(&bad), Err(ConstraintError::FinalMismatch), "slice {at}");
+            // Mutation: one slice moved, which the column's rebuilt evaluation carries into the final identity.
+            for at in proof.stream.len() - 3..proof.stream.len() {
+                let mut bad = proof.clone();
+                bad.stream[at] += F192::ONE;
+                assert_eq!(verdict(&bad), Err(ConstraintError::FinalMismatch), "slice {at}");
+            }
         }
     }
 }
