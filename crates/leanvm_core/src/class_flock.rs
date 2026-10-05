@@ -29,8 +29,8 @@ use std::sync::OnceLock;
 /// plus its fixed-point dimensions), which floors the batch of a small circuit.
 pub const MIN_CUBE_LOG: usize = flock::zerocheck::MIN_LOG_N;
 
-/// The most input ports a circuit with a word-level witness has: the hash's fourteen.
-const MAX_INPUT_WORDS: usize = 14;
+/// The most input ports a circuit with a word-level witness has: EXT's clock circuit's seventeen.
+const MAX_INPUT_WORDS: usize = 17;
 
 /// The packed witnesses: every class circuit in table order (the tables that have one come first), then every
 /// table's clock circuit.
@@ -222,10 +222,21 @@ impl Prepared {
         // A clock circuit, and a class with a word-level witness, skip the walk of the gate list;
         // the others walk it 64 instances at a time.
         let (a, b, z_lincheck) = match (part, spec.batch_witness, spec.witness) {
-            // The EXT clock circuit's extra ports (#400) have no generator: it walks.
-            (Part::Clock, _, _) if !spec.clock_inputs.is_empty() || !spec.clock_outputs.is_empty() => {
-                circuit.generate_witness_from_into(z, rows, &rows[0], n_blocks_log, input_words, check)
-            }
+            // A clock circuit with ports of its own (EXT's) takes its input words through its ports.
+            (Part::Clock, _, _) if !spec.clock_inputs.is_empty() => circuit.generate_witness_with_into(
+                z,
+                rows,
+                &rows[0],
+                n_blocks_log,
+                |row, z, az, bz| {
+                    let mut words = [0u64; MAX_INPUT_WORDS];
+                    let words = &mut words[..n_inputs];
+                    input_words(row, words);
+                    spec.clock_witness(&slots, words, z, az, bz);
+                },
+                check,
+            ),
+            // The others read the row's clock and previous timestamps straight off it.
             (Part::Clock, _, _) => circuit.generate_witness_with_into(
                 z,
                 rows,

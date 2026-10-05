@@ -473,6 +473,16 @@ impl ClassSpec {
         }
     }
 
+    /// One instance of [`Self::clock_circuit`]'s witness by word arithmetic, from its input words (the
+    /// [`Self::clock_ports`] before the step), into zeroed buffers: [`Clock::witness`], or EXT's
+    /// ([`Ext::clock_witness`]).
+    pub fn clock_witness(&self, slots: &[u32], inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        match self.class {
+            Class::Ext => Ext::clock_witness(slots, inputs, z, az, bz),
+            _ => Clock::witness(slots, inputs[0], &inputs[1..], z, az, bz),
+        }
+    }
+
     /// The clock circuit's port words: the clock, each access's previous timestamp and [`Self::clock_inputs`], then
     /// the step and [`Self::clock_outputs`].
     pub fn clock_ports(&self) -> Vec<Word> {

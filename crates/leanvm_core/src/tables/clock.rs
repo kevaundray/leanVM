@@ -168,8 +168,25 @@ impl Clock {
     ///     bits 5..40                               A·z = x_b ^ c_b    B·z = y_b ^ c_b
     /// ```
     pub fn witness(slots: &[u32], ts: u64, prev: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        Self::witness_with(slots, ts, prev, [0, 0], [z, az, bz], |_| {});
+    }
+
+    /// [`Self::witness`] for a circuit of [`Self::builder`] with `extra` more input and output ports past its own:
+    /// the clock's words and products, then the products `more` pushes.
+    ///
+    /// The extra ports' words are the caller's to write: the step is word `n + 1 + extra[0]`, the constant the first
+    /// bit of the word `extra[1]` past it.
+    pub(crate) fn witness_with(
+        slots: &[u32],
+        ts: u64,
+        prev: &[u64],
+        extra: [usize; 2],
+        [z, az, bz]: [&mut [u64]; 3],
+        more: impl FnOnce(&mut Products),
+    ) {
         let n = slots.len();
         assert_eq!(prev.len(), n);
+        let step_word = n + 1 + extra[0];
         const LOW: u64 = (1 << Clock::LIVE_BIT) - 1;
         const READ: u64 = (1 << Clock::CLOCK_BITS) - 1;
         const CYCLES: u32 = Clock::LIVE_BIT - Clock::SLOT_BITS;
@@ -181,8 +198,8 @@ impl Clock {
         let ts = ts & READ;
         let live = ts >> Self::LIVE_BIT;
 
-        // The constant, then the products, start word `n + 2`.
-        let mut products = Products::new([z, az, bz], n + 2);
+        // The constant, then the products, start past the output ports.
+        let mut products = Products::new([z, az, bz], step_word + 1 + extra[1]);
         products.push(1, 1, 1);
 
         let (mut in_order, mut disagree) = (0u32, 0);
@@ -226,8 +243,9 @@ impl Clock {
         let copies = live << Self::SLOT_BITS | fail << Self::FAIL_BIT;
         let ts_bits = cycle << (Self::SLOT_BITS + 1);
         let carry_bits = (carries & run(CYCLES)) << (Self::SLOT_BITS + 1);
+        more(&mut products);
         let [z, az, bz] = products.finish();
-        (z[n + 1], az[n + 1], bz[n + 1]) = (
+        (z[step_word], az[step_word], bz[step_word]) = (
             step,
             ts_bits | copies,
             carry_bits | 1 << Self::SLOT_BITS | 1 << Self::FAIL_BIT,
@@ -238,7 +256,8 @@ impl Clock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tables::ClassSpec;
+    use crate::rv::Ext;
+    use crate::tables::{ClassSpec, Word};
     use primitives::test_util::Rng;
 
     #[test]
@@ -293,13 +312,15 @@ mod tests {
     fn the_word_witness_is_the_gate_walk() {
         // Invariant: the word-level clock witness writes the tables the 64-lane walk of the clock circuit's gate list writes.
         //
-        // Fixture state: every table's clock circuit, and one with an access in each of the 32 slots.
+        // Fixture state: every table's clock circuit (EXT's with its own ports), and one with an access in each of the 32 slots.
         // Rows: padding rows (clock zero), the first and the last cycle, random cycles, all ones and random words; each previous timestamp at `ts ^ slot`, around it, with the live bit flipped, a padding tuple, a seed, zero, all ones, or a random word.
+        // EXT's operands: pointers at zero, all ones, the sign bit, one limb or two below a wrap of 2^64 or of the sign bit, with every low bit set, aligned random or random; flags every legal word or a random word.
         let mut rng = Rng::new(0xC10C);
         let n_log = 12;
-        let every_slot = (0..Clock::CYCLE as u32).collect();
-        for slots in ClassSpec::ALL.iter().map(|spec| spec.slots()).chain([every_slot]) {
-            let circuit = Clock::circuit(&slots);
+        for spec in ClassSpec::ALL.into_iter().map(Some).chain([None]) {
+            let slots = spec.map_or_else(|| (0..Clock::CYCLE as u32).collect(), |spec| spec.slots());
+            let circuit = spec.map_or_else(|| Clock::circuit(&slots), |spec| spec.clock_circuit());
+            let operands = spec.map_or(&[][..], |spec| spec.clock_inputs);
             let rows: Vec<Vec<u64>> = (0..1 << n_log)
                 .map(|r| {
                     let ts = match r % 6 {
@@ -310,32 +331,55 @@ mod tests {
                         4 => u64::MAX,
                         _ => rng.next_u64(),
                     };
-                    let prev = slots.iter().map(|&slot| {
-                        let at = ts ^ u64::from(slot);
-                        match rng.next_u64() % 10 {
-                            0 => at,
-                            1 => at.wrapping_sub(1),
-                            2 => at.wrapping_add(1),
-                            3 => at.wrapping_sub(Clock::CYCLE),
-                            4 => at ^ Clock::SEED_CLOCK,
-                            5 => u64::from(slot),
-                            6 => Clock::SEED_CLOCK,
-                            7 => 0,
-                            8 => u64::MAX,
+                    let prev: Vec<u64> = (slots.iter())
+                        .map(|&slot| {
+                            let at = ts ^ u64::from(slot);
+                            match rng.next_u64() % 10 {
+                                0 => at,
+                                1 => at.wrapping_sub(1),
+                                2 => at.wrapping_add(1),
+                                3 => at.wrapping_sub(Clock::CYCLE),
+                                4 => at ^ Clock::SEED_CLOCK,
+                                5 => u64::from(slot),
+                                6 => Clock::SEED_CLOCK,
+                                7 => 0,
+                                8 => u64::MAX,
+                                _ => rng.next_u64(),
+                            }
+                        })
+                        .collect();
+                    let operands: Vec<u64> = (operands.iter())
+                        .map(|&word| match (word, rng.next_u64() % 12) {
+                            (Word::Flags, k) if k < 8 => Ext::LEGAL[k as usize % Ext::LEGAL.len()],
+                            (Word::Flags, _) => rng.next_u64(),
+                            (_, 0) => 0,
+                            (_, 1) => u64::MAX,
+                            (_, 2) => 1 << 63,
+                            (_, 3) => 8u64.wrapping_neg(),
+                            (_, 4) => 16u64.wrapping_neg(),
+                            (_, 5) => (1 << 63) - 8,
+                            (_, 6) => (1 << 63) - 16,
+                            (_, 7) => (1 << 63) - 1,
+                            (_, 8) => 7,
+                            (_, 9) => rng.next_u64() & !7,
                             _ => rng.next_u64(),
-                        }
-                    });
-                    std::iter::once(ts).chain(prev).collect()
+                        })
+                        .collect();
+                    [vec![ts], prev, operands].concat()
                 })
                 .collect();
-            let walk = circuit.generate_witness_from(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
-            let words = circuit.generate_witness_with(&rows, &rows[0], n_log, |row, z, az, bz| {
-                Clock::witness(&slots, row[0], &row[1..], z, az, bz);
+            let walk = circuit.generate_witness_from(&rows, &rows[0], n_log, |row: &Vec<u64>, words| {
+                words.copy_from_slice(row)
             });
-            assert!(walk.0[..] == words.0[..], "z, slots {slots:?}");
-            assert!(walk.1[..] == words.1[..], "A·z, slots {slots:?}");
-            assert!(walk.2[..] == words.2[..], "B·z, slots {slots:?}");
-            assert!(walk.3[..] == words.3[..], "lincheck stripes, slots {slots:?}");
+            let words = circuit.generate_witness_with(&rows, &rows[0], n_log, |row: &Vec<u64>, z, az, bz| match spec {
+                Some(spec) => spec.clock_witness(&slots, row, z, az, bz),
+                None => Clock::witness(&slots, row[0], &row[1..], z, az, bz),
+            });
+            let name = spec.map_or("every slot", |spec| spec.name);
+            assert!(walk.0[..] == words.0[..], "z, {name}");
+            assert!(walk.1[..] == words.1[..], "A·z, {name}");
+            assert!(walk.2[..] == words.2[..], "B·z, {name}");
+            assert!(walk.3[..] == words.3[..], "lincheck stripes, {name}");
         }
     }
 }
