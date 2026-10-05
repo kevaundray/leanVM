@@ -221,11 +221,41 @@ pub mod neon {
     }
 }
 
+/// The AVX2 counterpart of the NEON helpers, for x86 without GFNI (whose `gf2p8mulb` is the field product itself).
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+pub mod avx2 {
+    use core::arch::x86_64::*;
+
+    /// Element-wise product of 32 pairs of GF(2^8) values, a bit of `b` at a time from the top (Horner).
+    ///
+    /// Each step doubles the running product (`xtime`, folding `x^8` back as `0x1B`) and adds `a` where the bit is set.
+    ///
+    /// # Safety
+    /// Requires the `avx2` target feature.
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn gf8_mul_vec32(a: __m256i, b: __m256i) -> __m256i {
+        let zero = _mm256_setzero_si256();
+        let poly = _mm256_set1_epi8(0x1B);
+        // A byte's top bit is its sign, so a signed compare against zero spreads it over the byte.
+        let top = |x: __m256i| _mm256_cmpgt_epi8(zero, x);
+        let (mut r, mut b) = (_mm256_and_si256(a, top(b)), _mm256_add_epi8(b, b));
+        for _ in 1..8 {
+            let doubled = _mm256_xor_si256(_mm256_add_epi8(r, r), _mm256_and_si256(poly, top(r)));
+            r = _mm256_xor_si256(doubled, _mm256_and_si256(a, top(b)));
+            b = _mm256_add_epi8(b, b);
+        }
+        r
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(target_arch = "aarch64")]
     use crate::test_util::Rng;
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    use core::arch::x86_64::*;
     #[cfg(target_arch = "aarch64")]
     use core::mem::transmute;
 
@@ -290,6 +320,25 @@ mod tests {
             // SAFETY: a `uint8x16_t` is 16 plain bytes.
             let result: [u8; 16] = unsafe { transmute(result_vec) };
             assert_eq!(result, expected, "a={:02x?}, b={:02x?}", a_arr, b_arr);
+        }
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[test]
+    fn avx2_gf8_mul_vec32_matches_scalar() {
+        // Every pair: `a` sweeps 0..256 for each `b`, 32 lanes at a time.
+        for b in 0u8..=255 {
+            for a0 in (0..256).step_by(32) {
+                let a: [u8; 32] = std::array::from_fn(|i| (a0 + i) as u8);
+                let expected: [u8; 32] = std::array::from_fn(|i| (F8(a[i]) * F8(b)).0);
+                let mut got = [0u8; 32];
+                // SAFETY: the crate is built with AVX2; each load and store is one 32-byte array.
+                unsafe {
+                    let r = avx2::gf8_mul_vec32(_mm256_loadu_si256(a.as_ptr().cast()), _mm256_set1_epi8(b as i8));
+                    _mm256_storeu_si256(got.as_mut_ptr().cast(), r);
+                }
+                assert_eq!(got, expected, "b={b:02x}");
+            }
         }
     }
 }

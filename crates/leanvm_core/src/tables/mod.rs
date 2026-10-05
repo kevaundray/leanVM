@@ -14,14 +14,14 @@ mod word;
 pub use bus::FlushBuilder;
 pub use clock::Clock;
 pub use fill::ColumnOut;
-pub use spec::{BAD_SLOT, BatchWitness, ClassSpec, EXIT_SLOT, InstanceWitness, N_TABLES, Ram};
+pub use spec::{BAD_SLOT, BatchWitness, ClassSpec, EXIT_SLOT, InstanceWitness, N_CIRCUITS, N_TABLES, Ram};
 pub use table::ClassTable;
 pub use word::Word;
 
 pub(crate) use bus::Separator;
 pub(crate) use fill::FillContext;
 
-/// One of the two flock circuits of a table: its class's function, or its clock.
+/// One of a table's flock circuits: its class's function, which the extension-field table has none of, or its clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
     /// Instruction semantics.

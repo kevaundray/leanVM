@@ -21,8 +21,11 @@ fn main() {
         "{:<6} {:>5} {:>10} {:>10} {:>8}",
         "class", "k_log", "walk", "64 lanes", "speedup"
     );
-    // Every class without a word-level witness of its own.
-    for spec in ClassSpec::ALL.iter().filter(|spec| spec.witness.is_none()) {
+    // Every class with a circuit and no word-level witness of its own.
+    for spec in ClassSpec::ALL
+        .iter()
+        .filter(|spec| spec.has_circuit() && spec.witness.is_none())
+    {
         let circuit = spec.class.circuit();
 
         // Random input words: the walk costs the same on any input.

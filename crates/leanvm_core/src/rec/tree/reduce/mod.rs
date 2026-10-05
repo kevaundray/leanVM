@@ -23,7 +23,7 @@ pub(crate) use dense::{DenseProver, DenseReduced, DenseVars};
 pub(crate) use matrix::{MatrixProver, MatrixReduced};
 
 /// The label every node's reduction transcript starts from.
-pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction";
+pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-3";
 
 /// Why a node's reduction refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -59,7 +59,7 @@ pub(crate) fn initial_state() -> Limbs {
     digest_limbs(&primitives::hash::hash(LABEL))
 }
 
-impl<E: Copy> NodeClaims<E> {
+impl<E: Copy + PartialEq> NodeClaims<E> {
     /// Verify the reduction of these claims, the dense polynomials having the given variables.
     ///
     /// # Errors

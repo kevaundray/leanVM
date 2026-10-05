@@ -317,8 +317,8 @@ fn the_python_verifier_follows_the_slowest_rate() {
 }
 
 /// Every ring-switched claim joins the opening's one family through its slices: both verifiers reject a moved slice of
-/// the first, a middle and the last flock circuit, and a moved multiplicity bit. Python also rejects a family target off
-/// by one and a family combined by the wrong challenge.
+/// the first, a middle and the last flock circuit, the last circuit's form value, and a moved multiplicity bit. Python
+/// also rejects a family target off by one and a family combined by the wrong challenge.
 #[test]
 fn both_verifiers_bind_every_circuits_slices() {
     let (program, _) = super::programs::fibonacci();
@@ -327,8 +327,8 @@ fn both_verifiers_bind_every_circuits_slices() {
     assert_eq!(raw.stream, proof.0.stream, "the raw proof's scalars are the proof's");
     let statement = PythonStatement::new("slices", &program, &output);
 
-    // Where the table sumcheck (ending on the multiplicity bits) and each circuit's reduction (ending on its 64 slices)
-    // stop reading the stream, as the Python verifier reads it.
+    // Where the table sumcheck (ending on the multiplicity bits) and the batched reductions (ending on each circuit's
+    // 64 slices and its form's value, in circuit order) stop reading the stream, as the Python verifier reads it.
     let prelude = r#"import runpy, sys
 v = runpy.run_path(sys.argv[1])
 g = v['main'].__globals__
@@ -351,13 +351,21 @@ sys.exit(v['main'](sys.argv[2:]))
             .filter_map(|line| line.strip_prefix(name)?.trim().parse().ok())
             .collect()
     };
-    let flocks = ends("verify_flock");
     let n = leanvm_core::class_flock::N_FLOCKS;
-    assert_eq!(flocks.len(), n, "one reduction per circuit");
+    let [flock_end] = ends("verify_flock")[..] else {
+        panic!("one batched reduction")
+    };
     let [bits_end] = ends("table_sumcheck")[..] else {
         panic!("one table sumcheck")
     };
-    for at in [flocks[0] - 64, flocks[n / 2] - 64 + 7, flocks[n - 1] - 1, bits_end - 1] {
+    let slices = |f: usize| flock_end - (n - f) * 65;
+    for at in [
+        slices(0),
+        slices(n / 2) + 7,
+        slices(n - 1) + 63,
+        flock_end - 1,
+        bits_end - 1,
+    ] {
         let mut forged = proof.clone();
         forged.0.stream[at] += F192::ONE;
         assert!(
@@ -366,7 +374,7 @@ sys.exit(v['main'](sys.argv[2:]))
         );
         let mut raw_forged = raw.clone();
         raw_forged.stream[at] += F192::ONE;
-        PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice or bit");
+        PythonStatement::assert_rejects(&statement.verify(&raw_forged), "a moved slice, form value or bit");
     }
 
     let shifted = r#"import runpy, sys

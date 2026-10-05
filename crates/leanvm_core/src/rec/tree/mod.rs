@@ -27,7 +27,7 @@ use crate::rec::table::Table;
 use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::{ClassSpec, N_TABLES, Part};
-use design::{ChildWitness, Design, LeafWitness, NodeRows, Witness};
+use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
 use fiat_shamir::transcript::{ProofTranscript, RawProof};
 use primitives::field::{F64, F192};
 use primitives::multilinear::{eq_table, mle_eval_par};
@@ -130,7 +130,7 @@ pub enum FalseClaim {
     Matrix {
         /// The table.
         table: &'static str,
-        /// Which of its two circuits.
+        /// Which of its circuits.
         part: Part,
     },
 }
@@ -282,7 +282,7 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 1);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 4);
 
     /// The kind of node that made the proof.
     #[must_use]
@@ -442,11 +442,11 @@ impl<'p> Tree<'p> {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let witness = Witness::Prove {
+        let inputs = NodeInputs::Prove {
             items: &items,
             tables: &self.tables,
         };
-        let rows = crate::stage!("Build circuit", || d.first(&witness));
+        let rows = crate::stage!("Build circuit", || d.first(&inputs));
         self.prove_rows(rows, Kind::First)
     }
 
@@ -476,11 +476,11 @@ impl<'p> Tree<'p> {
                 columns: &self.columns[c.kind as usize],
             })
             .collect();
-        let witness = Witness::Prove {
+        let inputs = NodeInputs::Prove {
             items: &items,
             tables: &self.tables,
         };
-        let rows = crate::stage!("Build circuit", || d.node(&witness));
+        let rows = crate::stage!("Build circuit", || d.node(&inputs));
         self.prove_rows(rows, Kind::Node)
     }
 

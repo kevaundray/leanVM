@@ -61,7 +61,19 @@ fn waiting<A: Arith>(a: &mut A, x: &[A::E], k: usize) -> A::E {
     x[k..].iter().fold(one, |acc, &x| a.mul(acc, x))
 }
 
-impl<E: Copy> MatrixReduced<E> {
+/// The value cached under `key`, or `value()` cached under it.
+///
+/// Claims at one point share their weights' factors: natively their elements are equal, in rows they are the same wires.
+fn shared<K: PartialEq, E: Copy>(cache: &mut Vec<(K, E)>, key: K, value: impl FnOnce() -> E) -> E {
+    if let Some(&(_, v)) = cache.iter().find(|(k, _)| *k == key) {
+        return v;
+    }
+    let v = value();
+    cache.push((key, v));
+    v
+}
+
+impl<E: Copy + PartialEq> MatrixReduced<E> {
     /// Verify the reduction of the claims.
     ///
     /// # Errors
@@ -97,6 +109,8 @@ impl<E: Copy> MatrixReduced<E> {
     }
 
     /// Each circuit's weights on `A` and `B` in the final identity: `sum_c theta^c u_c(r) w_c(s) (a_c, b_c)`, times what it waits on.
+    ///
+    /// A row weight is evaluated once for all its claims, as are its skip factor and a column weight's eq factor.
     pub(crate) fn final_weights<A: Arith<E = E>>(
         a: &mut A,
         claims: &[MatrixClaim<E>],
@@ -108,34 +122,40 @@ impl<E: Copy> MatrixReduced<E> {
         let skip_s = a.eq_table(&cols[..K_SKIP]);
         let zero = a.zero();
         let mut weights = vec![[zero; 2]; class_flock::N_FLOCKS];
+        let (mut row_values, mut skips, mut col_eqs) = (Vec::new(), Vec::new(), Vec::new());
         for (c, &power) in claims.iter().zip(powers) {
             let k = k_of(c.circuit);
-            let u = c.row.at(a, &rows[..k], &skip_r);
-            let w = c.col.at(a, &cols[..k], &skip_s);
+            let u = shared(&mut row_values, &c.row, || c.row.at(a, &rows[..k], &skip_r, &mut skips));
+            let w = c.col.at(a, &cols[..k], &skip_s, &mut col_eqs);
             let uw = a.mul(u, w);
             let g = a.mul(power, uw);
             let [wa, wb] = &mut weights[c.circuit];
             *wa = c.coefficients[0].times(a, g, *wa);
             *wb = c.coefficients[1].times(a, g, *wb);
         }
+        let mut lifts = Vec::new();
         for (f, pair) in weights.iter_mut().enumerate() {
             let k = k_of(f);
-            let lift_r = waiting(a, rows, k);
-            let lift_s = waiting(a, cols, k);
-            let lift = a.mul(lift_r, lift_s);
+            let lift = shared(&mut lifts, k, || {
+                let lift_r = waiting(a, rows, k);
+                let lift_s = waiting(a, cols, k);
+                a.mul(lift_r, lift_s)
+            });
             *pair = pair.map(|w| a.mul(w, lift));
         }
         weights
     }
 }
 
-impl<E: Copy> RowWeight<E> {
-    /// The weight's multilinear extension at `r`, given the eq table of its skip variables.
-    fn at<A: Arith<E = E>>(&self, a: &mut A, r: &[E], skip: &[E]) -> E {
+impl<E: Copy + PartialEq> RowWeight<E> {
+    /// The weight's multilinear extension at `r`, given the eq table of its skip variables and the skip factors so far.
+    fn at<A: Arith<E = E>>(&self, a: &mut A, r: &[E], skip: &[E], skips: &mut Vec<(E, E)>) -> E {
         match self {
             Self::Skip { z, rest } => {
-                let vanishing = SkipDomain::vanishing(a, *z);
-                let low = SkipDomain::lagrange_at(a, *z, vanishing, skip);
+                let low = shared(skips, *z, || {
+                    let vanishing = SkipDomain::vanishing(a, *z);
+                    SkipDomain::lagrange_at(a, *z, vanishing, skip)
+                });
                 let high = a.eq_eval(rest, &r[K_SKIP..]);
                 a.mul(low, high)
             }
@@ -144,17 +164,19 @@ impl<E: Copy> RowWeight<E> {
     }
 }
 
-impl<E: Copy> ColWeight<E> {
-    /// The weight's multilinear extension at `s`, given the eq table of its skip variables.
-    fn at<A: Arith<E = E>>(&self, a: &mut A, s: &[E], skip: &[E]) -> E {
+impl<E: Copy + PartialEq> ColWeight<E> {
+    /// The weight's multilinear extension at `s`, given the eq table of its skip variables and the eq factors so far.
+    ///
+    /// An eq factor is keyed by its point and by whether it starts past the skip variables.
+    fn at<'c, A: Arith<E = E>>(&'c self, a: &mut A, s: &[E], skip: &[E], eqs: &mut Vec<((bool, &'c [E]), E)>) -> E {
         match self {
             Self::Slices { slices, rest } => {
                 let zero = a.zero();
                 let low = (slices.iter().zip(skip)).fold(zero, |acc, (&x, &e)| a.mul_add(x, e, acc));
-                let high = a.eq_eval(rest, &s[K_SKIP..]);
+                let high = shared(eqs, (true, rest.as_slice()), || a.eq_eval(rest, &s[K_SKIP..]));
                 a.mul(low, high)
             }
-            Self::Point(p) => a.eq_eval(p, s),
+            Self::Point(p) => shared(eqs, (false, p.as_slice()), || a.eq_eval(p, s)),
         }
     }
 }
