@@ -3,8 +3,9 @@
 use super::python_verifier::PythonStatement;
 use leanvm_core::cpu::{Program, ProveError};
 use leanvm_core::pcs::Rate;
-use leanvm_core::rv::Region;
 use leanvm_core::rv::asm::*;
+use leanvm_core::rv::{Hash, Machine, Region, Trap};
+use primitives::field::{F64, F192};
 
 const STEPS: u64 = 1000;
 
@@ -41,13 +42,13 @@ fn proves_and_verifies(tag: &str, program: &Program, expected: [u64; 4]) {
 fn proves_and_verifies_with(tag: &str, program: &Program, advice: &[u64], expected: [u64; 4]) {
     let (proof, output, _) = program.prove(advice, Rate::MIN).expect("the run halts");
     assert_eq!(output, expected);
-    program.verify(&output, &proof).expect("honest proof verifies");
+    program.verify(output.into(), &proof).expect("honest proof verifies");
     PythonStatement::new(tag, program, &output).assert_accepts(&proof);
 
     // The proof is about this output.
     let mut wrong = output;
     wrong[0] ^= 1;
-    assert!(program.verify(&wrong, &proof).is_err());
+    assert!(program.verify(wrong.into(), &proof).is_err());
 }
 
 #[test]
@@ -104,9 +105,7 @@ fn alu_instructions_prove_and_verify() {
         .r(Add, Reg::A4, Reg::A4, Reg::A4)
         .jalr(Reg::ZERO, Reg::RA, 0);
     let program = Program::new(&a.finish(), Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
-    let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run()
-        .expect("the run halts");
+    let expected = Machine::new(program.rv(), &[]).run().expect("the run halts");
     assert_ne!(expected, [0; 4]);
     proves_and_verifies("alu", &program, expected);
 }
@@ -166,9 +165,7 @@ fn loads_and_stores_prove_and_verify() {
         .i(Addi, Reg::SP, Reg::SP, 16)
         .jalr(Reg::ZERO, Reg::RA, 0);
     let program = Program::new(&a.finish(), Region::TEXT.base(), image, LOG_RAM, 0).expect("valid instruction program");
-    let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run()
-        .expect("the run halts");
+    let expected = Machine::new(program.rv(), &[]).run().expect("the run halts");
     proves_and_verifies("memory", &program, expected);
 }
 
@@ -194,9 +191,7 @@ fn shifts_and_multiplications_prove_and_verify() {
     }
     let program =
         Program::new(&a.exit().finish(), Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
-    let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run()
-        .expect("the run halts");
+    let expected = Machine::new(program.rv(), &[]).run().expect("the run halts");
     assert!(expected.iter().all(|&word| word != 0));
     proves_and_verifies("shift-mul", &program, expected);
 }
@@ -224,15 +219,12 @@ fn divisions_prove_and_verify() {
     }
     let program =
         Program::new(&a.exit().finish(), Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
-    let expected = leanvm_core::rv::Machine::new(program.rv(), &[])
-        .run()
-        .expect("the run halts");
+    let expected = Machine::new(program.rv(), &[]).run().expect("the run halts");
     proves_and_verifies("div", &program, expected);
 }
 
 #[test]
 fn blake2s_precompile_proves_and_verifies() {
-    use leanvm_core::rv::Hash;
     // Hash 100 bytes in two compressions, using a block 128 bytes into RAM.
     const BLOCK: u64 = Region::RAM.base() + 128;
     let data: Vec<u8> = (0..100u32).map(|i| (i * 37 + 11) as u8).collect();
@@ -286,7 +278,7 @@ fn blake2s_precompile_proves_and_verifies() {
     let program = Program::new(&text, Region::TEXT.base(), vec![], 7, 0).expect("valid instruction program");
     assert_eq!(
         program.prove(&[], Rate::MIN).err(),
-        Some(ProveError::Trap(leanvm_core::rv::Trap::Misaligned {
+        Some(ProveError::Trap(Trap::Misaligned {
             pc: Region::TEXT.base() + 8,
             address: BLOCK + 4
         }))
@@ -299,13 +291,13 @@ fn blake2s_precompile_proves_and_verifies() {
 ///
 /// - `sum_i x_i * x_(i+1)`, by `extmac`.
 /// - `sum_i x_i * w_i`, by `extmack`.
-/// - `x_0` cubed, by `extmul` in place and then into a fresh element.
+/// - `x_2 * x_0^3`: `x_0` squared in place (`c` is `a` and `b`), times `x_0` into a fresh element, then times `x_2`
+///   into that same element (`c` is `b`), all by `extmul`.
 /// - `x_1 * w_1`, by `extmulk`.
 ///
 /// The four outputs are summed into `a0..a2`, limb by limb.
 #[test]
 fn extension_field_products_prove_and_verify() {
-    use primitives::field::{F64, F192};
     const N: usize = 16;
     let x: Vec<[u64; 3]> = (0..N as u64)
         .map(|i| std::array::from_fn(|c| 0x9E37_79B9_7F4A_7C15u64.wrapping_mul(3 * i + c as u64 + 1) ^ (i << 61)))
@@ -338,10 +330,13 @@ fn extension_field_products_prove_and_verify() {
             .i(Addi, Reg::T1, Reg::S1, 8 * i)
             .ext(Extmack, Reg::S3, Reg::T0, Reg::T1);
     }
-    // x_0 cubed: the scratch copy squared in place, then times x_0 into output 2.
-    a.i(Addi, Reg::T2, Reg::S2, 96).i(Addi, Reg::T0, Reg::S2, 48);
+    // x_2 x_0^3: the scratch copy squared in place, times x_0 into output 2, then x_2 times output 2 into itself.
+    a.i(Addi, Reg::T2, Reg::S2, 96)
+        .i(Addi, Reg::T0, Reg::S2, 48)
+        .i(Addi, Reg::T1, Reg::S0, 48);
     a.ext(Extmul, Reg::T2, Reg::T2, Reg::T2)
-        .ext(Extmul, Reg::T0, Reg::T2, Reg::S0);
+        .ext(Extmul, Reg::T0, Reg::T2, Reg::S0)
+        .ext(Extmul, Reg::T0, Reg::T1, Reg::T0);
     // x_1 * w_1 into output 3.
     a.i(Addi, Reg::T0, Reg::S0, 24)
         .i(Addi, Reg::T1, Reg::S1, 8)
@@ -361,7 +356,7 @@ fn extension_field_products_prove_and_verify() {
     let e = |v: [u64; 3]| F192::new(v[0], v[1], v[2]);
     let dot = (0..N - 1).fold(F192::ZERO, |acc, i| acc + e(x[i]) * e(x[i + 1]));
     let mixed = (0..N).fold(F192::ZERO, |acc, i| acc + e(x[i]).mul_base(F64(w[i])));
-    let cube = e(x[0]) * e(x[0]) * e(x[0]);
+    let cube = e(x[2]) * (e(x[0]) * e(x[0]) * e(x[0]));
     let scaled = e(x[1]).mul_base(F64(w[1]));
     let folded = dot + mixed + cube + scaled;
     proves_and_verifies("ext", &program, [folded.c0, folded.c1, folded.c2, 0]);
@@ -405,7 +400,7 @@ fn advice_proves_and_verifies() {
     let program = Program::new(&text, Region::TEXT.base(), vec![], 2, LOG_ADVICE).expect("valid instruction program");
     assert!(matches!(
         program.prove(&[], Rate::MIN).err(),
-        Some(ProveError::Trap(leanvm_core::rv::Trap::Unmapped { .. }))
+        Some(ProveError::Trap(Trap::Unmapped { .. }))
     ));
 }
 
@@ -416,7 +411,7 @@ fn a_trap_is_reported() {
     let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
     assert_eq!(
         program.prove(&[], Rate::MIN).err(),
-        Some(ProveError::Trap(leanvm_core::rv::Trap::Illegal {
+        Some(ProveError::Trap(Trap::Illegal {
             pc: Region::TEXT.base()
         }))
     );

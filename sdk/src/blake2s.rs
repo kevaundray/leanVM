@@ -5,6 +5,8 @@
 //! The machine moves a word in one instruction, and a byte-aligned value one byte at a time.
 
 use core::mem::MaybeUninit;
+use core::ops::Range;
+use plain::Plain;
 
 /// The initialization vector with the parameter block folded in, as little-endian words.
 ///
@@ -192,6 +194,64 @@ impl<const W: usize> Template<W> {
     pub fn digest(&mut self) -> [u64; 4] {
         self.block.compress(8 * W as u64, true)
     }
+
+    /// The digest of the message's first `LEN` bytes, as four little-endian words: a message ending inside its last
+    /// word, whose bytes from `LEN` on must be zero, as BLAKE2s pads the last block with zeros.
+    #[inline(always)]
+    pub fn digest_prefix<const LEN: usize>(&mut self) -> [u64; 4] {
+        const {
+            assert!(
+                8 * W - 8 < LEN && LEN <= 8 * W,
+                "a length inside the message's last word"
+            );
+        };
+        self.block.compress(LEN as u64, true)
+    }
+
+    /// A hash chain: for each `c` in `counters`, write `c` as the `u32` at message byte `COUNTER` and `value` at
+    /// message byte `VALUE`, then `value` becomes the digest's first two words. Returns the last `value`, or `value`
+    /// itself for no counters.
+    ///
+    /// On the VM the loop is written by hand: eight instructions a step, the compression one of them.
+    #[inline(always)]
+    pub fn chain<const COUNTER: usize, const VALUE: usize>(
+        &mut self,
+        counters: Range<u32>,
+        value: [u64; 2],
+    ) -> [u64; 2] {
+        const {
+            assert!(
+                COUNTER.is_multiple_of(4) && COUNTER + 4 <= 8 * W,
+                "a u32 field inside the message"
+            );
+        };
+        const {
+            assert!(
+                VALUE.is_multiple_of(8) && VALUE + 16 <= 8 * W,
+                "two words inside the message"
+            );
+        };
+        assert!(counters.start <= counters.end, "a chain of no negative length");
+        #[cfg(all(target_arch = "riscv64", target_os = "none"))]
+        // SAFETY: the block is this template's, its chaining value and message initialized, the fields inside the
+        // message (checked above), and the range is not reversed (checked above).
+        unsafe {
+            crate::precompile::blake2s_chain::<COUNTER, VALUE>(
+                &mut self.block,
+                8 * W as u64,
+                counters.start,
+                counters.end,
+                value,
+            )
+        }
+        #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+        counters.fold(value, |value, c| {
+            self.write(COUNTER, c);
+            self.write(VALUE, value);
+            let [d0, d1, ..] = self.digest();
+            [d0, d1]
+        })
+    }
 }
 
 /// What [`Template::write`] takes: an integer or an array of them, whose bytes are all initialized.
@@ -203,7 +263,6 @@ mod plain {
     impl Plain for u64 {}
     impl<T: Plain, const N: usize> Plain for [T; N] {}
 }
-use plain::Plain;
 
 /// BLAKE2s-256 of the words `write` puts in a [`Stream`], as four little-endian words.
 ///
@@ -212,11 +271,11 @@ use plain::Plain;
 /// each compression instead, which keeps a hasher that lives across calls in registers too.
 #[inline(always)]
 pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
-    let mut block = Block {
-        h: IV,
-        out: MaybeUninit::uninit(),
-        m: [0; 8],
-    };
+    // Only the chaining value is written here: the stream writes each message word before a compression reads it,
+    // padding the last block itself.
+    let mut block = MaybeUninit::<Block>::uninit();
+    // SAFETY: a field of the block this frame owns.
+    unsafe { (&raw mut (*block.as_mut_ptr()).h).write(IV) };
     let mut stream = Stream {
         block: &mut block,
         filled: 0,
@@ -228,7 +287,9 @@ pub fn hash_with(write: impl FnOnce(&mut Stream<'_>)) -> [u64; 4] {
 
 /// A message being written for [`hash_with`], in words: each full block absorbed once more of it follows.
 pub struct Stream<'a> {
-    block: &'a mut Block,
+    /// The block: its chaining value written, and its message's words below `filled`, which are all eight once a
+    /// block is full.
+    block: &'a mut MaybeUninit<Block>,
     /// Words in the message block.
     filled: usize,
     /// Bytes absorbed before it.
@@ -244,8 +305,7 @@ impl Stream<'_> {
             if self.filled == 8 {
                 self.absorb();
             }
-            self.block.m[self.filled] = word;
-            self.filled += 1;
+            self.put([word]);
         }
         self
     }
@@ -289,27 +349,47 @@ impl Stream<'_> {
     /// Write words where the block has room for them.
     #[inline(always)]
     fn put<const N: usize>(&mut self, words: [u64; N]) {
-        self.block.m[self.filled..self.filled + N].copy_from_slice(&words);
-        self.filled += N;
+        for word in words {
+            let filled = self.filled;
+            self.message()[filled].write(word);
+            self.filled += 1;
+        }
+    }
+
+    /// The message words, written or not.
+    #[inline(always)]
+    fn message(&mut self) -> &mut [MaybeUninit<u64>; 8] {
+        // SAFETY: the message of the block this stream holds, as words that need not be initialized.
+        unsafe { &mut *(&raw mut (*self.block.as_mut_ptr()).m).cast() }
+    }
+
+    /// The block, once its chaining value and its eight message words are written.
+    #[inline(always)]
+    fn full(&mut self) -> &mut Block {
+        debug_assert_eq!(self.filled, 8);
+        // SAFETY: the chaining value and every message word are written (`filled` is 8 only once each word below it
+        // is), and `out` may be uninitialized.
+        unsafe { self.block.assume_init_mut() }
     }
 
     /// Absorb the full message block, which more of the message follows.
     #[inline(always)]
     fn absorb(&mut self) {
         self.done += 64;
-        self.block.h = self.block.compress(self.done, false);
+        let done = self.done;
+        let block = self.full();
+        block.h = block.compress(done, false);
         self.filled = 0;
     }
 
     /// The digest: the last block zero-padded, the counter every byte of the message.
     #[inline(always)]
     fn finish(&mut self) -> [u64; 4] {
-        for (j, word) in self.block.m.iter_mut().enumerate() {
-            if j >= self.filled {
-                *word = 0;
-            }
+        let t = self.done + 8 * self.filled as u64;
+        while self.filled < 8 {
+            self.put([0]);
         }
-        self.block.compress(self.done + 8 * self.filled as u64, true)
+        self.full().compress(t, true)
     }
 }
 
@@ -338,7 +418,7 @@ impl Block {
         not(all(target_arch = "riscv64", target_os = "none")),
         allow(clippy::needless_pass_by_ref_mut)
     )]
-    fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
+    pub(crate) fn compress(&mut self, t: u64, last: bool) -> [u64; 4] {
         #[cfg(all(target_arch = "riscv64", target_os = "none"))]
         // SAFETY: the block is this borrow's, its chaining value and message initialized; the instruction writes
         // the compression.
@@ -442,12 +522,12 @@ mod portable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::test_rng::Rng;
+    use primitives::hash::{digest_words, hash};
+    use primitives::test_util::Rng;
 
     /// The reference BLAKE2s-256 of `bytes`, as little-endian words.
     fn reference(bytes: &[u8]) -> [u64; 4] {
-        let digest = primitives::hash::hash(bytes);
-        core::array::from_fn(|k| u64::from_le_bytes(digest[8 * k..8 * k + 8].try_into().unwrap()))
+        digest_words(&hash(bytes))
     }
 
     /// A template and the bytes its message should be, rewritten together.
@@ -496,6 +576,28 @@ mod tests {
         hashes_its_message::<6>(&mut rng);
         hashes_its_message::<7>(&mut rng);
         hashes_its_message::<8>(&mut rng);
+    }
+
+    fn hashes_its_prefix<const LEN: usize>(rng: &mut Rng) {
+        let mut mirror = Mirror::<7>::new(core::array::from_fn(|_| rng.next_u64()));
+        // The last word keeps its first `LEN - 48` bytes.
+        let last = rng.next_u64() & (u64::MAX >> (8 * (56 - LEN)));
+        mirror.template.set(6, [last]);
+        mirror.put(48, &last.to_le_bytes());
+        assert_eq!(
+            mirror.template.digest_prefix::<LEN>(),
+            reference(&mirror.bytes[..LEN]),
+            "{LEN} bytes"
+        );
+    }
+
+    #[test]
+    fn a_template_prefix_is_the_blake2s_of_those_bytes() {
+        // Invariant: a message ending inside its last word, zero after it, hashes as BLAKE2s-256 of its bytes alone.
+        let mut rng = Rng::new(0x7E5);
+        hashes_its_prefix::<49>(&mut rng);
+        hashes_its_prefix::<52>(&mut rng);
+        hashes_its_prefix::<56>(&mut rng);
     }
 
     /// A random offset of a `size`-byte field, aligned to its size and inside a message of `W` words.
@@ -598,6 +700,53 @@ mod tests {
         Template::new([0; 6]).write(usize::MAX, 0u8);
     }
 
+    /// `chain::<COUNTER, VALUE>` over every length from 0 to 16 and a few first counters, against the reference
+    /// BLAKE2s of each step's message; the template is left holding the last step's message.
+    fn chains<const W: usize, const COUNTER: usize, const VALUE: usize>(rng: &mut Rng) {
+        for first in [0, 1, 0x1234_5678, u32::MAX - 16] {
+            for len in 0..=16 {
+                let mut mirror = Mirror::<W>::new(core::array::from_fn(|_| rng.next_u64()));
+                let start = [rng.next_u64(), rng.next_u64()];
+                let mut value = start;
+                for c in first..first + len {
+                    mirror.put(COUNTER, &c.to_le_bytes());
+                    mirror.put(VALUE, &value[0].to_le_bytes());
+                    mirror.put(VALUE + 8, &value[1].to_le_bytes());
+                    let [d0, d1, ..] = reference(&mirror.bytes[..8 * W]);
+                    value = [d0, d1];
+                }
+                let chained = mirror.template.chain::<COUNTER, VALUE>(first..first + len, start);
+                assert_eq!(
+                    chained, value,
+                    "counter at {COUNTER}, value at {VALUE}, {len} steps from {first}"
+                );
+                mirror.check();
+            }
+        }
+    }
+
+    #[test]
+    fn a_chain_is_its_steps_hashed_in_turn() {
+        // Invariant: `chain` is the fold of its steps, each writing its counter and the value, the value becoming the
+        // digest's first two words; no steps return the value as given.
+        //
+        // Fixture: leanXMSS's and leanSPHINCS's shape (6 words, the counter in the tweak, the value after the
+        // parameter), the counter after the value and in the last word, a whole block, and counters up to `u32::MAX`.
+        let mut rng = Rng::new(0xC4A);
+        chains::<6, 4, 32>(&mut rng);
+        chains::<6, 44, 0>(&mut rng);
+        chains::<4, 24, 0>(&mut rng);
+        chains::<8, 0, 48>(&mut rng);
+        chains::<8, 60, 8>(&mut rng);
+    }
+
+    #[test]
+    #[should_panic(expected = "a chain of no negative length")]
+    fn chain_rejects_a_reversed_range() {
+        let (start, end) = (2, 1);
+        Template::new([0; 6]).chain::<4, 32>(start..end, [0; 2]);
+    }
+
     /// The reference BLAKE2s-256 of up to 256 words, as little-endian bytes.
     fn reference_of_words(words: &[u64]) -> [u64; 4] {
         let mut bytes = [0; 8 * 256];
@@ -629,7 +778,9 @@ mod tests {
         // Invariant: whatever the pieces it is written in, `hash_with` hashes as BLAKE2s-256 of the words' bytes.
         //
         // Fixture: every length from the empty message through one block, one block and a word, to five blocks, each
-        // starting its pieces at every offset within a block, so that pieces straddle every block boundary.
+        // starting its pieces at every offset within a block, so that pieces straddle every block boundary. The stream
+        // leaves the message unwritten until a word goes there, so a last block shorter than the one before still
+        // holds that block's words past its end: each length that ends short of a block checks they hash as zeros.
         let mut rng = Rng::new(0x5E6);
         let words: [u64; 40] = core::array::from_fn(|_| rng.next_u64());
         for len in 0..=40 {

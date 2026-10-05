@@ -2,17 +2,19 @@
 
 use crate::FiatShamirState;
 use crate::merkle::{Hash, PrunedMerklePaths, hash_to_scalars, scalars_to_hash};
-use bincode::Options;
+use bincode::{DefaultOptions, Options};
 use primitives::field::{F64, F192};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// A scalar stream and its Merkle opening phases.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Proof {
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProofTranscript {
     pub stream: Vec<F192>,
     pub merkle: Vec<PrunedMerklePaths>,
 }
 
-impl Proof {
+impl ProofTranscript {
     /// The proof's wire bytes: bincode's fixed-width little-endian encoding.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -27,14 +29,14 @@ impl Proof {
 
 /// `bincode::serialize`'s encoding, refusing trailing bytes when it decodes.
 fn encoding() -> impl Options {
-    bincode::DefaultOptions::new().with_fixint_encoding()
+    DefaultOptions::new().with_fixint_encoding()
 }
 
 /// Why a proof's transcript cannot be read.
 ///
 /// Each variant is a malformed proof, never a verifier bug.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum Error {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum TranscriptError {
     /// The stream ends before a scalar the verifier reads.
     #[error("the proof stream ends after {len} scalars")]
     ExceededStream { len: usize },
@@ -110,15 +112,15 @@ pub trait Receiver: Challenger {
         queries: &[usize],
         row_words: usize,
         leaf_words: usize,
-    ) -> Result<Vec<Vec<F64>>, Error>;
-    fn next_scalar(&mut self) -> Result<F192, Error>;
-    fn next_scalars(&mut self, n: usize) -> Result<Vec<F192>, Error> {
+    ) -> Result<Vec<Vec<F64>>, TranscriptError>;
+    fn next_scalar(&mut self) -> Result<F192, TranscriptError>;
+    fn next_scalars(&mut self, n: usize) -> Result<Vec<F192>, TranscriptError> {
         (0..n).map(|_| self.next_scalar()).collect()
     }
 
     /// Mirror of [`Transmitter::add_root`]. Both halves are prover-chosen, so a
     /// non-canonical one is rejected here rather than reaching a decoder.
-    fn next_root(&mut self) -> Result<Hash, Error> {
+    fn next_root(&mut self) -> Result<Hash, TranscriptError> {
         scalars_to_hash(&[self.next_scalar()?, self.next_scalar()?])
     }
 
@@ -129,8 +131,9 @@ pub trait Receiver: Challenger {
     /// inverse. A plain round has `h(0) + h(1) = Σ_{i≥1} c_i = claim`, which fixes
     /// `c_1`. A round whose `eq` weight `r` the caller factored out has
     /// `(1 + r)·h(0) + r·h(1) = c_0 + r·Σ_{i≥1} c_i = claim`, which fixes `c_0`.
-    fn next_round_poly(&mut self, n_coeffs: usize, claim: F192, eq: Option<F192>) -> Result<Vec<F192>, Error>;
-    fn grind_check(&mut self, bits: u32) -> Result<(), Error>;
+    fn next_round_poly(&mut self, n_coeffs: usize, claim: F192, eq: Option<F192>)
+    -> Result<Vec<F192>, TranscriptError>;
+    fn grind_check(&mut self, bits: u32) -> Result<(), TranscriptError>;
 }
 
 /// Prover side: writes scalars into the stream and opening phases to the side.
@@ -159,15 +162,15 @@ impl ProverState {
         }
     }
 
-    pub fn into_proof(self) -> Proof {
-        Proof {
+    pub fn into_proof(self) -> ProofTranscript {
+        ProofTranscript {
             stream: self.stream,
             merkle: self.merkle,
         }
     }
 }
 
-/// Verifier side: reads scalars from a received [`Proof`] (borrowed) and pulls
+/// Verifier side: reads scalars from a received [`ProofTranscript`] (borrowed) and pulls
 /// opening phases in order.
 pub struct VerifierState<'a> {
     fs: FiatShamirState,
@@ -180,16 +183,16 @@ pub struct VerifierState<'a> {
 impl<'a> VerifierState<'a> {
     /// `iv` and `public_input` seed the Fiat-Shamir state (see [`FiatShamirState::new`]).
     /// They must match the prover's, or the two states diverge and verification fails.
-    pub fn new(iv: [F64; 4], proof: &'a Proof, public_input: [F64; 4]) -> Self {
+    pub fn new(iv: [F64; 4], proof: &'a ProofTranscript, public_input: [F64; 4]) -> Self {
         Self::from_fs(FiatShamirState::new(iv, public_input), proof)
     }
 
     /// A protocol with no public input of its own, seeded from `label` alone.
-    pub fn from_label(label: &[u8], proof: &'a Proof) -> Self {
+    pub fn from_label(label: &[u8], proof: &'a ProofTranscript) -> Self {
         Self::from_fs(FiatShamirState::from_label(label), proof)
     }
 
-    fn from_fs(fs: FiatShamirState, proof: &'a Proof) -> Self {
+    fn from_fs(fs: FiatShamirState, proof: &'a ProofTranscript) -> Self {
         Self {
             fs,
             stream: &proof.stream,
@@ -203,11 +206,11 @@ impl<'a> VerifierState<'a> {
     /// counterpart of the raw nonce push in [`ProverState::grind`], and the first
     /// half of reading a round polynomial, whose coefficients bind in index order
     /// once they have all been read.
-    fn take_raw(&mut self) -> Result<F192, Error> {
+    fn take_raw(&mut self) -> Result<F192, TranscriptError> {
         let x = *self
             .stream
             .get(self.offset)
-            .ok_or(Error::ExceededStream { len: self.stream.len() })?;
+            .ok_or(TranscriptError::ExceededStream { len: self.stream.len() })?;
         self.offset += 1;
         Ok(x)
     }
@@ -218,11 +221,11 @@ impl<'a> VerifierState<'a> {
     }
 
     /// Assert the whole proof was consumed (no trailing/extra data).
-    pub const fn finish(&self) -> Result<(), Error> {
+    pub const fn finish(&self) -> Result<(), TranscriptError> {
         if self.offset == self.stream.len() && self.phase == self.merkle.len() {
             Ok(())
         } else {
-            Err(Error::NotFullyConsumed {
+            Err(TranscriptError::NotFullyConsumed {
                 scalars: self.stream.len() - self.offset,
                 phases: self.merkle.len() - self.phase,
             })
@@ -276,24 +279,29 @@ impl<'a> Receiver for VerifierState<'a> {
         queries: &[usize],
         row_words: usize,
         leaf_words: usize,
-    ) -> Result<Vec<Vec<F64>>, Error> {
+    ) -> Result<Vec<Vec<F64>>, TranscriptError> {
         let phase = self.phase;
-        let paths: &'a PrunedMerklePaths = self.merkle.get(phase).ok_or(Error::MissingHint { phase })?;
+        let paths: &'a PrunedMerklePaths = self.merkle.get(phase).ok_or(TranscriptError::MissingHint { phase })?;
         self.phase += 1;
         paths
             .open(root, num_leaves, queries, row_words, leaf_words)
-            .ok_or(Error::InvalidMerkleOpening { phase })
+            .ok_or(TranscriptError::InvalidMerkleOpening { phase })
     }
 
     /// Read the next scalar, binding it into the state (mirrors `add_scalar`).
     #[inline]
-    fn next_scalar(&mut self) -> Result<F192, Error> {
+    fn next_scalar(&mut self) -> Result<F192, TranscriptError> {
         let x = self.take_raw()?;
         self.bind(x);
         Ok(x)
     }
 
-    fn next_round_poly(&mut self, n_coeffs: usize, claim: F192, eq: Option<F192>) -> Result<Vec<F192>, Error> {
+    fn next_round_poly(
+        &mut self,
+        n_coeffs: usize,
+        claim: F192,
+        eq: Option<F192>,
+    ) -> Result<Vec<F192>, TranscriptError> {
         assert!(n_coeffs >= 2, "a round polynomial has at least two coefficients");
         let fixed = usize::from(eq.is_none());
         let mut coeffs = vec![F192::ZERO; n_coeffs];
@@ -322,14 +330,14 @@ impl<'a> Receiver for VerifierState<'a> {
     /// Verifier mirror of [`Transmitter::grind`]: read the transmitted nonce and
     /// check it clears the `bits` proof-of-work, then bind it (so the state
     /// stays in lockstep). Rejects a proof that skipped or under-did the grind.
-    fn grind_check(&mut self, bits: u32) -> Result<(), Error> {
+    fn grind_check(&mut self, bits: u32) -> Result<(), TranscriptError> {
         // Bound by the PoW absorb inside `verify_pow_field` rather than by
         // `observe`, but still a scalar the consumer reads at this position.
         let nonce = self.take_raw()?;
         if self.fs.verify_pow_field(nonce, bits) {
             Ok(())
         } else {
-            Err(Error::PowFailed { bits })
+            Err(TranscriptError::PowFailed { bits })
         }
     }
 }

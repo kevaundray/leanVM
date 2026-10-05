@@ -1,8 +1,9 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-core), MIT OR Apache-2.0.
 //! Digest encoding and Merkle openings carried by proofs.
 
-use crate::transcript::Error;
+use crate::transcript::TranscriptError;
 use primitives::field::{F64, F192};
+use serde::{Deserialize, Serialize};
 
 pub type Hash = [u8; 32];
 
@@ -23,9 +24,9 @@ pub fn hash_to_scalars(hash: &Hash) -> [F192; 2] {
 /// stream, where a malicious prover picks the third limb: a digest half is
 /// 128-bit, so a nonzero one is not a digest at all.
 #[inline]
-pub fn scalars_to_hash(scalars: &[F192; 2]) -> Result<Hash, Error> {
+pub fn scalars_to_hash(scalars: &[F192; 2]) -> Result<Hash, TranscriptError> {
     if scalars.iter().any(|s| s.c2 != 0) {
-        return Err(Error::NonCanonicalEncoding);
+        return Err(TranscriptError::NonCanonicalEncoding);
     }
     let mut hash = [0u8; 32];
     for (i, s) in scalars.iter().enumerate() {
@@ -85,7 +86,7 @@ fn sorted_unique(queries: &[usize]) -> Vec<usize> {
 /// the missing words being a zero prefix the caller also announces,
 /// which is what keeps a padding-free L0 commitment's absent lanes out of the
 /// proof.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrunedMerklePaths {
     pub leaf_data: Vec<Vec<F64>>,
     pub sibling_hashes: Vec<Hash>,
@@ -149,6 +150,60 @@ impl PrunedMerklePaths {
         Some((sorted, hashes))
     }
 
+    /// Rebuild every node on the queried paths bottom-up, from the distinct
+    /// queried leaves' hashes, and return those positions and the root.
+    ///
+    /// A level's nodes are sorted by position: two that are siblings fold into
+    /// their parent, and any other takes the next stored sibling. Each level's
+    /// parents overwrite its nodes in place. `fold(level, left_index, left,
+    /// right)` sees every pair hashed. `None` on a wrong row count or width, an
+    /// out-of-range query, or an octopus with too few or too many siblings.
+    fn walk(
+        &self,
+        num_leaves: usize,
+        queries: &[usize],
+        row_words: usize,
+        leaf_words: usize,
+        mut fold: impl FnMut(usize, usize, &Hash, &Hash),
+    ) -> Option<(Vec<usize>, Hash)> {
+        if !num_leaves.is_power_of_two() || num_leaves == 0 || queries.is_empty() {
+            return None;
+        }
+        let height = num_leaves.trailing_zeros() as usize;
+        let (sorted, leaf_hashes) = self.leaf_hashes(queries, row_words, leaf_words)?;
+        if sorted.last().is_some_and(|&p| p >= num_leaves) {
+            return None;
+        }
+
+        let mut supplied = self.sibling_hashes.iter();
+        let mut nodes: Vec<(usize, Hash)> = sorted.iter().copied().zip(leaf_hashes).collect();
+        for level in 0..height {
+            let (mut i, mut n) = (0, 0);
+            while i < nodes.len() {
+                let idx = nodes[i].0;
+                let paired = idx & 1 == 0 && nodes.get(i + 1).is_some_and(|&(j, _)| j == (idx | 1));
+                let (left, right) = if paired {
+                    (&nodes[i].1, &nodes[i + 1].1)
+                } else if idx & 1 == 0 {
+                    (&nodes[i].1, supplied.next()?)
+                } else {
+                    (supplied.next()?, &nodes[i].1)
+                };
+                fold(level, idx & !1, left, right);
+                let parent = hash_pair(left, right);
+                nodes[n] = (idx >> 1, parent);
+                n += 1;
+                i += if paired { 2 } else { 1 };
+            }
+            nodes.truncate(n);
+        }
+        // The last fold leaves exactly the root, and nothing may be left over.
+        if supplied.next().is_some() {
+            return None;
+        }
+        Some((sorted, nodes[0].1))
+    }
+
     /// Verifier side: authenticate this phase against `root`, and return each
     /// query's full leaf image, in `queries` order (duplicates included).
     ///
@@ -167,49 +222,60 @@ impl PrunedMerklePaths {
         row_words: usize,
         leaf_words: usize,
     ) -> Option<Vec<Vec<F64>>> {
-        if !num_leaves.is_power_of_two() || num_leaves == 0 || queries.is_empty() {
+        let (sorted, rebuilt) = self.walk(num_leaves, queries, row_words, leaf_words, |_, _, _, _| {})?;
+        if rebuilt != *root {
             return None;
         }
-        let height = num_leaves.trailing_zeros() as usize;
-        let (sorted, leaf_hashes) = self.leaf_hashes(queries, row_words, leaf_words)?;
-        if sorted.last().is_some_and(|&p| p >= num_leaves) {
-            return None;
-        }
-
-        // Rebuild every node on the queried paths bottom-up, pulling a stored
-        // sibling only where that sibling is not itself a queried subtree. Each
-        // level's parents overwrite its nodes in place.
-        let mut supplied = self.sibling_hashes.iter();
-        let mut nodes: Vec<(usize, Hash)> = sorted.iter().copied().zip(leaf_hashes).collect();
-        for _ in 0..height {
-            let (mut i, mut n) = (0, 0);
-            while i < nodes.len() {
-                let idx = nodes[i].0;
-                let paired = idx & 1 == 0 && nodes.get(i + 1).is_some_and(|&(j, _)| j == (idx | 1));
-                let (left, right) = if paired {
-                    (&nodes[i].1, &nodes[i + 1].1)
-                } else if idx & 1 == 0 {
-                    (&nodes[i].1, supplied.next()?)
-                } else {
-                    (supplied.next()?, &nodes[i].1)
-                };
-                let parent = hash_pair(left, right);
-                nodes[n] = (idx >> 1, parent);
-                n += 1;
-                i += if paired { 2 } else { 1 };
-            }
-            nodes.truncate(n);
-        }
-        // The last fold leaves exactly the root, and nothing may be left over.
-        if supplied.next().is_some() || nodes[0].1 != *root {
-            return None;
-        }
-
         queries
             .iter()
             .map(|q| {
                 let slot = sorted.binary_search(q).ok()?;
                 Some(leaf_image(&self.leaf_data[slot], leaf_words))
+            })
+            .collect()
+    }
+
+    /// Prover side of a verifier that hashes each query up a path of its own,
+    /// as the recursion circuit's rows do: each query's stored row and sibling
+    /// path, lowest first, in `queries` order (duplicates included).
+    ///
+    /// It authenticates nothing, [`Self::open`] being the way to read a phase:
+    /// the paths are what the phase's rows and octopus give, the root they lead
+    /// to unchecked. `None` if the phase does not walk: a wrong row count or
+    /// width, an out-of-range query, or an octopus with too few or too many
+    /// siblings.
+    pub fn paths(
+        &self,
+        num_leaves: usize,
+        queries: &[usize],
+        row_words: usize,
+        leaf_words: usize,
+    ) -> Option<Vec<(&[F64], Vec<Hash>)>> {
+        // Both children of every fold, ascending by position at each level.
+        let mut known: Vec<Vec<(usize, Hash)>> = Vec::new();
+        let (sorted, _) = self.walk(
+            num_leaves,
+            queries,
+            row_words,
+            leaf_words,
+            |level, left_index, left, right| {
+                if known.len() == level {
+                    known.push(Vec::new());
+                }
+                known[level].extend([(left_index, *left), (left_index | 1, *right)]);
+            },
+        )?;
+        queries
+            .iter()
+            .map(|&q| {
+                let slot = sorted.binary_search(&q).ok()?;
+                let path = (known.iter().enumerate())
+                    .map(|(level, nodes)| {
+                        let at = nodes.binary_search_by_key(&((q >> level) ^ 1), |&(j, _)| j).ok()?;
+                        Some(nodes[at].1)
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some((self.leaf_data[slot].as_slice(), path))
             })
             .collect()
     }
@@ -249,6 +315,21 @@ mod tests {
         assert_eq!(opened.len(), queries.len());
         for (row, &q) in opened.iter().zip(&queries) {
             assert_eq!(*row, rows[q], "row must follow query order");
+        }
+
+        // Each query's own path, written out, climbs from its row to the root.
+        let per_query = paths.paths(num_leaves, &queries, width, width).expect("paths");
+        assert_eq!(per_query.len(), queries.len());
+        for ((row, path), &q) in per_query.iter().zip(&queries) {
+            assert_eq!(*row, rows[q].as_slice(), "row must follow query order");
+            let climbed = path.iter().enumerate().fold(hash_words(row), |node, (level, sibling)| {
+                if (q >> level) & 1 == 0 {
+                    hash_pair(&node, sibling)
+                } else {
+                    hash_pair(sibling, &node)
+                }
+            });
+            assert_eq!(climbed, root, "query {q}'s path");
         }
     }
 
@@ -307,7 +388,7 @@ mod tests {
         assert_eq!(scalars_to_hash(&scalars), Ok(hash));
         assert_eq!(
             scalars_to_hash(&[F192::new(scalars[0].c0, scalars[0].c1, 1), scalars[1]]),
-            Err(Error::NonCanonicalEncoding)
+            Err(TranscriptError::NonCanonicalEncoding)
         );
     }
 }

@@ -7,10 +7,12 @@ use super::python_verifier::PythonStatement;
 use leanvm_core::cpu::Program;
 use leanvm_core::pcs::Rate;
 use leanvm_core::rv::{ElfError, Guest, Machine, Region};
+use leanvm_guest::PublicValues;
+use primitives::hash::{digest_words, hash};
 
 /// The output of a guest committing `values` in order.
 fn committed(values: &[&[u64]]) -> [u64; 4] {
-    let mut public = leanvm_guest::PublicValues::new();
+    let mut public = PublicValues::new();
     for &word in values.iter().copied().flatten() {
         public.commit(&word);
     }
@@ -26,22 +28,16 @@ fn proves_and_verifies(tag: &str, elf: &[u8], advice: &[u64], expected: [u64; 4]
     assert_eq!(output, expected);
     // Measuring a run reports what proving it does, without the proof.
     assert_eq!(program.measure(advice), Ok(stats.clone()), "{tag}: measure");
-    program.verify(&output, &proof).expect("honest proof verifies");
+    program.verify(output.into(), &proof).expect("honest proof verifies");
     PythonStatement::new(tag, &program, &output).assert_accepts(&proof);
     let mut wrong = output;
     wrong[3] ^= 1;
-    assert!(program.verify(&wrong, &proof).is_err());
+    assert!(program.verify(wrong.into(), &proof).is_err());
     println!(
         "{tag}: {} instructions, {}",
         program.rv().entries().len(),
         stats.details()
     );
-}
-
-/// The BLAKE2s digest of `message`, as four words.
-fn digest_words(message: &[u8]) -> [u64; 4] {
-    let digest = primitives::hash::hash(message);
-    std::array::from_fn(|i| u64::from_le_bytes(digest[8 * i..8 * i + 8].try_into().unwrap()))
 }
 
 #[test]
@@ -69,7 +65,7 @@ fn blake2s_guest() {
         "blake2s",
         include_bytes!("../../../../programs/blake2s/blake2s.elf"),
         &[length],
-        committed(&[&[length], &digest_words(&message)]),
+        committed(&[&[length], &digest_words(&hash(&message))]),
     );
 }
 
@@ -83,7 +79,7 @@ fn hash_guest() {
         "hash",
         include_bytes!("../../../../programs/hash/hash.elf"),
         &[length],
-        committed(&[&[length], &digest_words(&message)]),
+        committed(&[&[length], &digest_words(&hash(&message))]),
     );
 }
 
@@ -103,7 +99,7 @@ fn the_hash_guests_agree_with_the_host_at_every_block_boundary() {
         let program = Program::from_elf(elf).expect("a guest");
         for length in [0u64, 1, 55, 63, 64, 65, 127, 128, 129, 256] {
             let message: Vec<u8> = (0..length).map(|i| (i % 251) as u8).collect();
-            let expected = committed(&[&[length], &digest_words(&message)]);
+            let expected = committed(&[&[length], &digest_words(&hash(&message))]);
             let ran = Machine::new(program.rv(), &[length])
                 .run()
                 .unwrap_or_else(|trap| panic!("{name} on {length} bytes: {trap}"));
@@ -127,7 +123,7 @@ fn preimage_guest() {
         "preimage",
         include_bytes!("../../../../programs/preimage/preimage.elf"),
         &advice,
-        committed(&[&digest_words(&message)]),
+        committed(&[&digest_words(&hash(&message))]),
     );
 }
 
