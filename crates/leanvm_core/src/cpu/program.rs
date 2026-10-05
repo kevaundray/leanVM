@@ -1056,7 +1056,7 @@ mod tests {
         let shift: usize = fields[..at].iter().map(|f| f.width).sum();
         let mask = (1 << fields[at].width) - 1;
         forge(&mut w, Schema::get().registers[alu], |col| {
-            col[row].0 &= !(mask << shift)
+            col[row].0 &= !(mask << shift);
         });
         forge(&mut w, Shared::BytecodeMult.col(), |col| col[addi as usize].0 -= 1);
 
@@ -1425,7 +1425,7 @@ mod tests {
         let a1 = Schema::get().spans[alu].0 + table.register_bits().fields[0].col;
         virtual_mut(&mut w, a1)[row] = F64(Reg::RA.index() as u64);
         forge(&mut w, Schema::get().registers[alu], |col| {
-            col[row].0 ^= Reg::RA.index() as u64
+            col[row].0 ^= Reg::RA.index() as u64;
         });
         // The entry's count follows the reads, which no longer include this one.
         forge(&mut w, Shared::BytecodeMult.col(), |col| col[0].0 -= 1);
