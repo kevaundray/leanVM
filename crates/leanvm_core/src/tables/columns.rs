@@ -243,10 +243,7 @@ impl Columns {
         let rd = rd.map(|(ad, vd_old, out)| DestinationColumns {
             ad,
             vd_old,
-            out: out.unwrap_or_else(|| match ram {
-                Some(ram) => ram.cell,
-                None => pc4,
-            }),
+            out: out.unwrap_or_else(|| ram.map_or(pc4, |ram| ram.cell)),
         });
         let limbs = (spec.ram == Ram::Limbs).then(|| LimbColumns {
             limbs: allocator.allocate(Ext::LIMBS),
