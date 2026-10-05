@@ -215,6 +215,11 @@ impl Ood {
 }
 
 impl LevelCtx {
+    /// The recurrence steps whose `s_k` is also cast to a `K` word, each trading a `CAST` row and two `EXK` rows for two `EMUL` rows.
+    ///
+    /// Why not every step: the trees' circuits have room in `CAST` for the first few steps of each query, not for all of them.
+    const K_STEPS: usize = 3;
+
     /// The level's induced basis at `point`: `sum_i w_i prod_k (1 + p_k (1 + s_k(q_i) / s_k(v_k)))`, `q_i` the query index in `K`.
     fn basis_at(&self, r: &mut Rows<'_, '_>, point: &[Ew]) -> Ew {
         assert_eq!(point.len(), self.log_msg_cols, "a point of the level's cube");
@@ -228,16 +233,27 @@ impl LevelCtx {
             .collect();
         let zero = r.zero();
         (self.queries.iter().zip(&self.weights)).fold(zero, |acc, (bits, &w)| {
+            // `s_k(q)` is in `K` for `q` in `K`, so while `s_k` is held as a `K` word too, its factor and the next
+            // `s_k` take `EXK` rows rather than `EMUL` ones: `q` is one already, and each later `s_k` costs a cast,
+            // whose word is all of `s_k` since the rows above fix it in `K`.
             let q = r.b.pack(bits);
             let mut s = r.b.k_to_e1(q);
+            let mut s_word = Some(q);
             let mut product = r.one();
             for (k, &(a, c)) in lin.iter().enumerate() {
                 if k > 0 {
                     // The subspace polynomials' recurrence `s_k = s_{k-1}^2 + s_{k-1}(v_{k-1}) s_{k-1}`.
                     let u = r.mul_const(s, F192::from(sks[k - 1]));
-                    s = r.mul_add(s, s, u);
+                    s = match s_word {
+                        Some(word) => r.b.mul_k_add(s, word, u),
+                        None => r.mul_add(s, s, u),
+                    };
+                    s_word = (k <= Self::K_STEPS).then(|| r.b.e_to_k(s)[0]);
                 }
-                let f = r.mul_add(c, s, a);
+                let f = match s_word {
+                    Some(word) => r.b.mul_k_add(c, word, a),
+                    None => r.mul_add(c, s, a),
+                };
                 product = r.mul(product, f);
             }
             r.mul_add(w, product, acc)
