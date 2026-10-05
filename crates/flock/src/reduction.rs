@@ -7,7 +7,7 @@
 use crate::lincheck::{
     self, LincheckCircuit, LincheckClaim, LincheckInput, LincheckStatement, MatrixClaim, MatrixForm, QuirkyPoint,
 };
-use crate::verifier::VerifyError;
+use crate::verifier::FlockError;
 use crate::witness::packed_bytes;
 use crate::zerocheck::multilinear::PackedWitness;
 use crate::zerocheck::{self, K_SKIP, PaddingSpec, ZerocheckClaim, ZerocheckInput};
@@ -139,8 +139,8 @@ pub fn prove_zerocheck(instances: &[Instance<'_>], ps: &mut ProverState) -> Zero
                 bits: PackedWitness {
                     a: packed_bytes(i.a),
                     b: packed_bytes(i.b),
-                    c: packed_bytes(i.z), // C = I, so c == z
                 },
+                c: packed_bytes(i.z), // C = I, so c == z
                 m,
                 padding: PaddingSpec {
                     k_log: i.block.k_log,
@@ -222,9 +222,9 @@ impl Shape {
 pub fn verify_deferred(
     circuits: &[(Shape, usize)],
     vs: &mut VerifierState<'_>,
-) -> Result<Vec<(ReductionReplay, MatrixClaim)>, VerifyError> {
+) -> Result<Vec<(ReductionReplay, MatrixClaim)>, FlockError> {
     let log_ns: Vec<usize> = circuits.iter().map(|(shape, n)| shape.k_log + n).collect();
-    let zc_claims = zerocheck::verify(&log_ns, vs).map_err(VerifyError::Zerocheck)?;
+    let zc_claims = zerocheck::verify(&log_ns, vs).map_err(FlockError::Zerocheck)?;
 
     let x_abs: Vec<QuirkyPoint> = (circuits.iter().zip(&zc_claims))
         .map(|((shape, _), zc)| x_ab_of(zc, shape.k_log - K_SKIP))
@@ -241,7 +241,7 @@ pub fn verify_deferred(
             v_c: zc.c_eval,
         })
         .collect();
-    let lc_claims = lincheck::verify_deferred(&statements, vs).map_err(VerifyError::Lincheck)?;
+    let lc_claims = lincheck::verify_deferred(&statements, vs).map_err(FlockError::Lincheck)?;
 
     Ok((zc_claims.into_iter().zip(lc_claims).zip(&x_abs))
         .map(|((zc_claim, (lc_claim, matrices)), x_ab)| {
@@ -260,15 +260,12 @@ pub fn verify_deferred(
 /// # Errors
 ///
 /// Returns the first stage that refuses the proof.
-pub fn verify(
-    circuits: &[(Block<'_>, usize)],
-    vs: &mut VerifierState<'_>,
-) -> Result<Vec<ReductionReplay>, VerifyError> {
+pub fn verify(circuits: &[(Block<'_>, usize)], vs: &mut VerifierState<'_>) -> Result<Vec<ReductionReplay>, FlockError> {
     let shapes: Vec<(Shape, usize)> = circuits.iter().map(|(block, n)| (block.shape(), *n)).collect();
     let replays = verify_deferred(&shapes, vs)?;
     (replays.into_iter().zip(circuits))
         .map(|((replay, matrices), (block, _))| {
-            matrices.check(block.circuit).map_err(VerifyError::Lincheck)?;
+            matrices.check(block.circuit).map_err(FlockError::Lincheck)?;
             Ok(replay)
         })
         .collect()

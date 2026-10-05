@@ -7,12 +7,13 @@
 //! larger circuits. Here the witness is not the generic walk of the gate list but
 //! word arithmetic on the structure the list is built from, one instance at a time.
 
-pub mod add;
-pub mod mul;
-
 use crate::circuit::{Builder, Circuit};
 use crate::reduction::Block;
-use zk_alloc::ArenaVec;
+use add::Adder;
+use mul::Multiplier;
+
+pub mod add;
+pub mod mul;
 
 pub const A_BASE: usize = 0;
 pub const B_BASE: usize = 64;
@@ -81,8 +82,8 @@ fn or_bits(buf: &mut [u64], at: usize, v: u128) {
 
 /// What an operation's witness is computed from, besides its inputs.
 enum Plan {
-    Add(add::Adder),
-    Mul(mul::Multiplier),
+    Add(Adder),
+    Mul(Multiplier),
 }
 
 pub struct U64Circuit {
@@ -98,11 +99,11 @@ impl U64Circuit {
         let (a, b) = (c.input(0), c.input(1));
         let (out, plan) = match op {
             U64Op::WrappingAdd => {
-                let (out, adder) = add::Adder::build(&mut c, &a, &b);
+                let (out, adder) = Adder::build(&mut c, &a, &b);
                 (out, Plan::Add(adder))
             }
             U64Op::WrappingMul | U64Op::WideningMul => {
-                let (out, multiplier) = mul::Multiplier::build(&mut c, &a, &b, n);
+                let (out, multiplier) = Multiplier::build(&mut c, &a, &b, n);
                 (out, Plan::Mul(multiplier))
             }
         };
@@ -137,7 +138,7 @@ impl U64Circuit {
         &self,
         pairs: &[(u64, u64)],
         n_blocks_log: usize,
-    ) -> (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>) {
+    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
         let n = self.op.out_bits();
         self.circuit
             .generate_witness_with(pairs, &(0, 0), n_blocks_log, |&(a, b), z, az, bz| {
@@ -159,9 +160,9 @@ mod tests {
     use super::*;
     use crate::lincheck::LincheckCircuit;
     use crate::reduction::{self, Instance};
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
     use primitives::field::F192;
-    use primitives::test_rng::Rng;
+    use primitives::test_util::Rng;
 
     const OPS: [U64Op; 3] = [U64Op::WrappingAdd, U64Op::WrappingMul, U64Op::WideningMul];
 
@@ -285,7 +286,7 @@ mod tests {
     /// rejected.
     #[test]
     fn a_mixed_batch_proves_each_circuit() {
-        type Tables = (ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u64>, ArenaVec<u8>);
+        type Tables = (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>);
         const LABEL: &[u8] = b"flock-arith-batch-test";
         let ops = OPS.map(U64Circuit::new);
         assert_eq!(ops.each_ref().map(U64Circuit::k_log), [8, 12, 13]);
@@ -312,7 +313,7 @@ mod tests {
             let claims = reduction::prove(&instances, &mut ps);
             (ps.into_proof(), claims)
         };
-        let accepts = |proof: &fiat_shamir::transcript::Proof| {
+        let accepts = |proof: &ProofTranscript| {
             let mut vs = VerifierState::from_label(LABEL, proof);
             reduction::verify(&blocks, &mut vs).ok().filter(|_| vs.finish().is_ok())
         };

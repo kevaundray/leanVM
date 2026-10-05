@@ -13,8 +13,8 @@ use crate::hash::{
     param_iv,
 };
 use crate::reduction::{self, Block};
-use fiat_shamir::transcript::{ProverState, VerifierState};
-use primitives::test_rng::Rng;
+use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
+use primitives::test_util::Rng;
 
 const LABEL: &[u8] = b"flock-blake2s-reduction-test";
 
@@ -45,7 +45,7 @@ fn blocks_for(n: usize, seed: u64) -> Vec<Compression> {
 
 /// Prove. `tamper` may corrupt the packed witness first, in which case the
 /// transcript this returns must not verify.
-fn prove(n: usize, tamper: Option<usize>) -> (usize, fiat_shamir::transcript::Proof) {
+fn prove(n: usize, tamper: Option<usize>) -> (usize, ProofTranscript) {
     let n_log = min_n_blocks_log(n);
     let blocks = blocks_for(n, 0xB2_5E_ED ^ n as u64);
 
@@ -71,7 +71,7 @@ fn prove(n: usize, tamper: Option<usize>) -> (usize, fiat_shamir::transcript::Pr
 }
 
 /// Replay a transcript through the reduction verifier.
-fn verify(n_log: usize, transcript: &fiat_shamir::transcript::Proof) -> bool {
+fn verify(n_log: usize, transcript: &ProofTranscript) -> bool {
     let mut vs = VerifierState::from_label(LABEL, transcript);
     reduction::verify(&[(BLOCK, n_log)], &mut vs).is_ok() && vs.finish().is_ok()
 }

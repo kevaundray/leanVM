@@ -3,9 +3,10 @@
 use super::bus::{FlushBuilder, Separator};
 use super::columns::Columns;
 use super::{BAD_SLOT, ClassSpec, EXIT_SLOT, N_TABLES, Part, Word};
-use crate::leaf::Coord::{self, Col, Const};
-use crate::rv::{Class, Ext, ExtResult, Hash, RegisterFile};
-use primitives::field::{F64, g_pow};
+use crate::leaf::BusForm;
+use crate::leaf::Coord::{self, Col, Const, Scaled};
+use crate::rv::{Class, Ext, Hash, RegisterFile};
+use primitives::field::{F64, F192, g_pow};
 use std::sync::OnceLock;
 
 /// Circuit bindings and bus interactions for one instruction class.
@@ -168,14 +169,19 @@ impl ClassTable {
                 );
             }
         }
-        // The limbs: each operand's first at its pointer, the others where the circuit says.
+        // The limbs: each operand's first at its pointer, the others at the addresses the clock circuit computes.
         //
-        // A base-field `b`'s high limbs are reads of `x0`: the circuit's separator and address name it.
-        if let (Some(limbs), Some(r), Some(p)) = (c.limbs, c.rs2, c.pointer) {
+        // A base-field `b`'s high limbs are reads of `x0`, at the address zero the clock circuit gives them, under a
+        // separator that is a form in the bit `base`, which picks the registers over memory:
+        //
+        //     separator   memory + base·(memory + registers)
+        if let (Some(limbs), Some(r), Some(p), Some(bits)) = (c.limbs, c.rs2, c.pointer, c.flag_bits) {
             let pointers = [c.v1, r.v2, p.vd];
+            let (memory, registers) = (Separator::Memory.value(), Separator::Registers.value());
+            let base = bits + 1;
             for k in 0..Ext::LIMBS {
-                let sep = if ExtResult::SEPARATED_LIMBS.contains(&k) {
-                    Col(limbs.separator)
+                let sep = if k / 3 == 1 && k % 3 > 0 {
+                    Coord::Sum(vec![Const(memory), Scaled(memory + registers, base)])
                 } else {
                     Separator::Memory.coordinate()
                 };
@@ -184,6 +190,46 @@ impl ClassTable {
             }
         }
         accesses.finish();
+    }
+
+    /// The identities the table proves of every one of its rows, in local column indices: none for a class with a
+    /// circuit, and for the extension-field product its three new limbs.
+    ///
+    /// With `d_m = sum_{i + j = m} a_i b_j`, the product's coefficient of `y^m` (products in `K`), the reduction
+    /// `y^3 = y + 1`, `y^4 = y^2 + y` has coefficients in `GF(2)`, so each new limb is a sum of `K` products:
+    ///
+    /// ```text
+    ///     c'_0 = accumulate·c_0 + d_0 + d_3          d_3 = a_1 b_2 + a_2 b_1
+    ///     c'_1 = accumulate·c_1 + d_1 + d_3 + d_4    d_4 = a_2 b_2
+    ///     c'_2 = accumulate·c_2 + d_2 + d_4
+    /// ```
+    ///
+    /// Each form is the difference of the two sides, which vanishes on a row exactly when the row's new limb is its
+    /// product: degree 2, every coefficient one. A base-field `b`'s high limbs are zero, being reads of `x0`.
+    pub(crate) fn identities(&self) -> Vec<BusForm> {
+        let c = &self.cols;
+        let (Some(limbs), Some(bits)) = (c.limbs, c.flag_bits) else {
+            return Vec::new();
+        };
+        let (a, b, old) = (limbs.limbs, limbs.limbs + 3, limbs.limbs + 6);
+        (0..3)
+            .map(|i| {
+                let mut form = BusForm::new(self.n_committed_columns(), F192::ZERO);
+                form.coeffs[limbs.new + i] = F192::ONE;
+                form.prods.push((bits, old + i, F192::ONE));
+                for (j, k) in (0..3).flat_map(|j| (0..3).map(move |k| (j, k))) {
+                    let lands = match j + k {
+                        3 => i < 2,
+                        4 => i > 0,
+                        m => m == i,
+                    };
+                    if lands {
+                        form.prods.push((a + j, b + k, F192::ONE));
+                    }
+                }
+                form
+            })
+            .collect()
     }
 }
 
@@ -197,6 +243,7 @@ mod tests {
         match coordinate {
             Col(index) => assert!(*index < width),
             Coord::Prod(a, b) => assert!(*a < width && *b < width),
+            Scaled(_, index) => assert!(*index < width),
             Coord::Sum(terms) => terms.iter().for_each(|term| check_columns(term, width)),
             Const(_) => {}
             _ => panic!("a table tuple contains a nonlocal coordinate"),
@@ -225,6 +272,37 @@ mod tests {
                 for coordinate in tuple {
                     check_columns(coordinate, width);
                 }
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn the_identities_are_the_extension_product(
+            limbs in proptest::array::uniform9(proptest::prelude::any::<u64>()),
+            flags in proptest::sample::select(Ext::LEGAL),
+            wrong in 0usize..3,
+            bit in 0u32..64,
+        ) {
+            // Invariant: on a row, the identities vanish exactly when the new limbs are the reference's.
+            //
+            // Mutation: one bit of one new limb, which only that limb's identity reads.
+            let table = &ClassTable::all()[ClassTable::index_of(Class::Ext).unwrap()];
+            let (cols, bits) = (table.cols.limbs.unwrap(), table.cols.flag_bits.unwrap());
+            let mut limbs = limbs;
+            if flags & Ext::BASE != 0 {
+                (limbs[4], limbs[5]) = (0, 0);
+            }
+            let mut row = vec![F64::ZERO; table.n_committed_columns()];
+            row[cols.limbs..cols.limbs + 9].copy_from_slice(&limbs.map(F64));
+            row[cols.new..cols.new + 3].copy_from_slice(&Ext { flags, pointers: [0; 3], limbs }.eval().map(F64));
+            (row[bits], row[bits + 1]) = (F64(flags & 1), F64(flags >> 1));
+            let values = |row: &[F64]| table.identities().iter().map(|form| form.eval(row)).collect::<Vec<_>>();
+            proptest::prop_assert_eq!(values(&row), vec![F192::ZERO; 3]);
+            row[cols.new + wrong].0 ^= 1 << bit;
+            let values = values(&row);
+            for (i, value) in values.into_iter().enumerate() {
+                proptest::prop_assert_eq!(value == F192::ZERO, i != wrong);
             }
         }
     }

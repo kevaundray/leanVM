@@ -2,22 +2,21 @@
 
 use super::MAX_LOG_ROWS;
 use super::execute::Execution;
-use super::layout::Layout;
-use super::layout::{Lookup, Schema, Shared, q_column};
+use super::layout::{Layout, Lookup, Schema, Shared, q_column};
 use super::program::Program;
-use crate::class_flock::{self, Prepared};
-use crate::tables::{self, FillContext};
+use crate::class_flock::Prepared;
+use crate::tables::{ClassSpec, ClassTable, FillContext};
+use crate::{class_flock, tables};
 use primitives::field::F64;
-use zk_alloc::ArenaVec;
 
 /// The prover's witness: the stack `q` with every committed column at its placed offset, and the public layout.
 pub(crate) struct Witness {
     /// The stacked multilinear the commitment takes.
-    pub(crate) q: ArenaVec<F64>,
+    pub(crate) q: Vec<F64>,
     /// The ports' values, by global column index.
     ///
     /// They carry data for the bus but are not committed, so they are not in the stack.
-    pub(crate) virt: Vec<(usize, ArenaVec<F64>)>,
+    pub(crate) virt: Vec<(usize, Vec<F64>)>,
     /// The public structure the witness fills.
     pub(crate) layout: Layout,
     /// The clock the run ended on, which the prover announces.
@@ -48,12 +47,12 @@ impl Witness {
                 "a table has {r} rows, not a power of two: the fill blocks did not fill it"
             );
             let tau = crate::log2_strict_usize(r);
-            let floor = class_flock::n_blocks_log(tables::ClassSpec::ALL[t], r);
+            let floor = class_flock::n_blocks_log(ClassSpec::ALL[t], r);
             assert_eq!(
                 tau,
                 floor,
                 "the {} table must be filled to flock's instance floor",
-                tables::ClassSpec::ALL[t].name
+                ClassSpec::ALL[t].name
             );
             tau
         });
@@ -69,11 +68,11 @@ impl Witness {
         let mut q = unsafe { crate::witness::alloc_stack(layout.shape) };
 
         // A port is not in the stack, so its values get a buffer of their own.
-        let mut virt: Vec<(usize, ArenaVec<F64>)> = Vec::new();
+        let mut virt: Vec<(usize, Vec<F64>)> = Vec::new();
         for (t, &(base, width)) in schema.spans.iter().enumerate() {
             for i in (base..base + width).filter(|&i| layout.placements[i].window().is_none()) {
                 // SAFETY: each table checks that it writes every circuit port column in full.
-                virt.push((i, unsafe { ArenaVec::<F64>::uninitialized(1 << layout.taus[t]) }));
+                virt.push((i, unsafe { primitives::uninit_vec::<F64>(1 << layout.taus[t]) }));
             }
         }
         let mut windows = crate::witness::split_stack(&mut q, &layout.placements);
@@ -83,7 +82,7 @@ impl Witness {
 
         crate::stage!("Fill columns", || {
             // Each table fills its own columns from the trace, in its global span.
-            for (t, table) in tables::ClassTable::all().iter().enumerate() {
+            for (t, table) in ClassTable::all().iter().enumerate() {
                 let (base, n) = schema.spans[t];
                 let ctx = FillContext::new(trace, p, 1 << layout.taus[t], n);
                 table.fill(ctx, &mut windows[base..base + n]);

@@ -1,9 +1,8 @@
 //! Sequential registration and parallel execution of column writers.
 
-use super::ClassTable;
-use super::Clock;
+use super::{ClassTable, Clock};
 use crate::cpu::{Row, Trace};
-use crate::rv;
+use crate::rv::{Ext, RiscvProgram};
 use parallel::SendPtr;
 use primitives::field::F64;
 use std::ops::Range;
@@ -14,7 +13,7 @@ pub(crate) struct FillContext<'a> {
     trace: &'a Trace,
 
     /// Public decoded program supplying each row's bytecode fields.
-    program: &'a rv::Program,
+    program: &'a RiscvProgram,
 
     /// Number of rows in every destination column.
     rows: usize,
@@ -28,7 +27,7 @@ pub(crate) struct FillContext<'a> {
 
 impl<'a> FillContext<'a> {
     /// Start sequential registration for a table with fixed row and column counts.
-    pub(crate) fn new(trace: &'a Trace, program: &'a rv::Program, rows: usize, n_cols: usize) -> Self {
+    pub(crate) fn new(trace: &'a Trace, program: &'a RiscvProgram, rows: usize, n_cols: usize) -> Self {
         Self {
             trace,
             program,
@@ -206,9 +205,17 @@ impl ClassTable {
         }
         if let Some(limbs) = c.limbs {
             ctx.columns(out, rows, limbs.limbs, |r| r.ext().instance.limbs.map(F64));
-            ctx.columns(out, rows, limbs.new, |r| r.ext().result.c.map(F64));
-            ctx.columns(out, rows, limbs.addresses, |r| r.ext().result.addresses.map(F64));
-            ctx.column(out, rows, limbs.separator, |r| F64(r.ext().result.separator));
+            ctx.columns(out, rows, limbs.new, |r| r.ext().c.map(F64));
+            ctx.columns(out, rows, limbs.addresses, |r| {
+                let x = &r.ext().instance;
+                Ext::OFFSET_LIMBS.map(|k| F64(Ext::bus_address(x.pointers, x.flags, k)))
+            });
+        }
+        if let Some(bits) = c.flag_bits {
+            ctx.columns(out, rows, bits, move |r| {
+                let flags = entry(r).flags;
+                [F64(flags & 1), F64(flags >> 1 & 1)]
+            });
         }
         if let Some(bad) = c.bad {
             ctx.column(out, rows, bad, move |_| F64::ZERO);
@@ -229,10 +236,11 @@ impl ClassTable {
 mod tests {
     use super::*;
     use crate::cpu::{Execution, Program};
-    use crate::rv::{Region, asm::Asm};
+    use crate::rv::Region;
+    use crate::rv::asm::Asm;
 
     fn fixture() -> (Program, Execution) {
-        // A real trace supplies the context without opening a proving arena phase.
+        // A real trace supplies the context.
         let text = Asm::new().exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid exit program");
         let execution = program.execute(&[]).expect("the program exits");

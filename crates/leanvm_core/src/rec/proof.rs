@@ -12,13 +12,12 @@ use super::fixed::FixedColumns;
 use super::layout::RecLayout;
 use super::table::{HashFlock, Table};
 use crate::arith::Verifier;
-use crate::constraints::{self, Columns};
-use crate::pcs;
-use crate::witness;
-use fiat_shamir::transcript::{Challenger, Proof, ProverState, RawProof, VerifierState};
+use crate::constraints::{Columns, ConstraintError};
+use crate::pcs::{Rate, RingSwitchOpen, StackClaim};
+use crate::{constraints, pcs, witness};
+use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
 use flock::reduction::SliceClaim;
 use primitives::field::{F64, F192};
-use zk_alloc::ArenaVec;
 
 /// The transcript's public input for a statement: the hash of its words' limbs, in order.
 pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
@@ -29,16 +28,16 @@ pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
 /// The hash table's flock batch, one instance per row.
 struct HashBatch {
     tau: usize,
-    z: ArenaVec<u64>,
-    a: ArenaVec<u64>,
-    b: ArenaVec<u64>,
-    z_lincheck: ArenaVec<u8>,
+    z: Vec<u64>,
+    a: Vec<u64>,
+    b: Vec<u64>,
+    z_lincheck: Vec<u8>,
 }
 
 /// The prover's stack, the hash table's ports by global column, and the hash table's batch.
 struct RecWitness {
-    q: ArenaVec<F64>,
-    ports: Vec<(usize, ArenaVec<F64>)>,
+    q: Vec<F64>,
+    ports: Vec<(usize, Vec<F64>)>,
     batch: HashBatch,
 }
 
@@ -65,7 +64,7 @@ impl HashBatch {
     }
 
     /// Prove every hash row: zerocheck, then lincheck, a batch of one circuit, to one ring-switched claim on the packed witness.
-    fn prove(self, layout: &RecLayout, ps: &mut ProverState) -> pcs::RingSwitchOpen {
+    fn prove(self, layout: &RecLayout, ps: &mut ProverState) -> RingSwitchOpen {
         let window = layout.hash_window();
         let instance = flock::reduction::Instance {
             block: HashFlock::circuit().block(),
@@ -96,10 +95,10 @@ impl RecWitness {
         let mut q = unsafe { witness::alloc_stack(layout.shape) };
         let ports_at = RecLayout::columns(Table::Hash).start;
         // SAFETY: each port's buffer is written in full from the batch below.
-        let mut ports: Vec<(usize, ArenaVec<F64>)> = (0..HashFlock::N_PORTS)
+        let mut ports: Vec<(usize, Vec<F64>)> = (0..HashFlock::N_PORTS)
             .map(|c| {
                 (ports_at + c, unsafe {
-                    ArenaVec::uninitialized(1 << layout.tau(Table::Hash))
+                    primitives::uninit_vec(1 << layout.tau(Table::Hash))
                 })
             })
             .collect();
@@ -156,7 +155,7 @@ impl<'a> TableArgument<'a> {
     }
 
     /// Prove the bus, then every owned table's summand at the bus's point.
-    fn prove(&self, w: &RecWitness, ps: &mut ProverState) -> Vec<pcs::SlotClaim> {
+    fn prove(&self, w: &RecWitness, ps: &mut ProverState) -> Vec<StackClaim> {
         let cols = w.columns(self.layout);
         let bus = crate::stage!("Prove bus", || self.blocks.prove(&cols, ps));
         let tables = crate::stage!("Prove constraints", || {
@@ -178,7 +177,7 @@ impl<'a> TableArgument<'a> {
     /// # Errors
     ///
     /// Returns the bus's or the table sumcheck's refusal.
-    pub(crate) fn verify<V: Verifier>(&self, v: &mut V) -> Result<Vec<pcs::SlotClaim<V::E>>, RecError> {
+    pub(crate) fn verify<V: Verifier>(&self, v: &mut V) -> Result<Vec<StackClaim<V::E>>, RecError> {
         let bus = self.blocks.verify(v)?;
         let xi = v.sample();
         let target = v.mul_add(xi, bus.totals[1], bus.totals[0]);
@@ -186,7 +185,7 @@ impl<'a> TableArgument<'a> {
         let tables = constraints::verify(v, &airs, &bus.point, target)?;
         let zero = v.zero();
         v.ensure_eq(tables.residual, zero, || {
-            RecError::Constraint(constraints::Error::FinalMismatch)
+            RecError::Constraint(ConstraintError::FinalMismatch)
         })?;
         Ok(self.layout.opening_claims(bus.claims, &tables.claims))
     }
@@ -214,7 +213,7 @@ impl Circuit {
     ///
     /// Panics if the assignment is not one of the circuit, or its bus does not balance.
     #[tracing::instrument(name = "Prove recursion", skip_all)]
-    pub fn prove(&self, a: &Assignment, iv: [F64; 4], rate: pcs::Rate) -> Result<Proof, RecError> {
+    pub fn prove(&self, a: &Assignment, iv: [F64; 4], rate: Rate) -> Result<ProofTranscript, RecError> {
         assert_eq!(a.statement.len(), self.statement_len, "the assignment's statement");
         assert!(
             Table::ALL
@@ -223,7 +222,6 @@ impl Circuit {
             "the assignment's rows are the circuit's"
         );
         let layout = RecLayout::new(self)?;
-        let _phase = zk_alloc::enter_phase();
         let log_inv_rate = rate.log_inv_rate().into();
         let mut ps = ProverState::new(iv, statement_seed(&a.statement));
 
@@ -243,7 +241,13 @@ impl Circuit {
     /// # Errors
     ///
     /// Returns the first check that refuses the proof.
-    pub fn verify(&self, statement: &[Limbs], iv: [F64; 4], rate: pcs::Rate, proof: &Proof) -> Result<(), RecError> {
+    pub fn verify(
+        &self,
+        statement: &[Limbs],
+        iv: [F64; 4],
+        rate: Rate,
+        proof: &ProofTranscript,
+    ) -> Result<(), RecError> {
         self.verify_to_raw(statement, iv, rate, proof).map(|_| ())
     }
 
@@ -258,8 +262,8 @@ impl Circuit {
         &self,
         statement: &[Limbs],
         iv: [F64; 4],
-        rate: pcs::Rate,
-        proof: &Proof,
+        rate: Rate,
+        proof: &ProofTranscript,
     ) -> Result<RawProof, RecError> {
         self.verify_seeded(statement, iv, statement_seed(statement), rate, proof)
     }
@@ -270,8 +274,8 @@ impl Circuit {
         statement: &[Limbs],
         iv: [F64; 4],
         public_input: [F64; 4],
-        rate: pcs::Rate,
-        proof: &Proof,
+        rate: Rate,
+        proof: &ProofTranscript,
     ) -> Result<RawProof, RecError> {
         if statement.len() != self.statement_len {
             return Err(RecError::StatementLength {
@@ -302,20 +306,23 @@ impl Circuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::leaf;
+    use crate::constraints::ConstraintError;
+    use crate::leaf::BusError;
+    use crate::pcs::Rate;
     use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, PARAM_IV};
     use fiat_shamir::{DS_OBSERVE, DS_SQUEEZE};
+    use std::panic::AssertUnwindSafe;
 
     const IV: [F64; 4] = [F64(1), F64(2), F64(3), F64(4)];
 
-    fn prove_run(circuit: &Circuit, a: &Assignment) -> Proof {
+    fn prove_run(circuit: &Circuit, a: &Assignment) -> ProofTranscript {
         circuit
-            .prove(a, IV, pcs::Rate::MIN)
+            .prove(a, IV, Rate::MIN)
             .expect("the circuit fits one commitment")
     }
 
-    fn verify_run(circuit: &Circuit, statement: &[Limbs], proof: &Proof) -> Result<(), RecError> {
-        circuit.verify(statement, IV, pcs::Rate::MIN, proof)
+    fn verify_run(circuit: &Circuit, statement: &[Limbs], proof: &ProofTranscript) -> Result<(), RecError> {
+        circuit.verify(statement, IV, Rate::MIN, proof)
     }
 
     // Wires of the every-kind circuit a test forges.
@@ -470,10 +477,10 @@ mod tests {
         }
 
         // Under the honest seed the bus accepts the forged words; seeded with them, the proof is refused.
-        assert!(circuit.verify_seeded(&forged, IV, seed, pcs::Rate::MIN, &proof).is_ok());
+        assert!(circuit.verify_seeded(&forged, IV, seed, Rate::MIN, &proof).is_ok());
         assert!(matches!(
             verify_run(&circuit, &forged, &proof),
-            Err(RecError::Bus(leaf::Error::Gkr(_)))
+            Err(RecError::Bus(BusError::Gkr(_)))
         ));
     }
 
@@ -489,7 +496,7 @@ mod tests {
         let proof = prove_run(&circuit, &a);
         assert_eq!(
             verify_run(&circuit, &a.statement, &proof),
-            Err(RecError::Constraint(constraints::Error::FinalMismatch))
+            Err(RecError::Constraint(ConstraintError::FinalMismatch))
         );
     }
 
@@ -498,7 +505,7 @@ mod tests {
     fn a_forged_product_unbalances_the_bus() {
         let (circuit, mut a, wires) = every_kind();
         a.values[wires.product.0 as usize][0] ^= 1;
-        let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| prove_run(&circuit, &a)))
+        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| prove_run(&circuit, &a)))
             .expect_err("an unbalanced bus was proven");
         let message = refused.downcast_ref::<String>().map_or("", String::as_str);
         assert!(message.contains("the bus needs the two products to agree"), "{message}");
@@ -531,7 +538,7 @@ mod tests {
         merged.classes = merged.classes.map(|c| if c == cx { cy } else { c });
         assert_eq!(
             verify_run(&merged, &a.statement, &proof),
-            Err(RecError::Constraint(constraints::Error::FinalMismatch))
+            Err(RecError::Constraint(ConstraintError::FinalMismatch))
         );
     }
 
@@ -578,7 +585,7 @@ mod tests {
         let proof = prove_run(&circuit, &a);
         circuit.floor[Table::Emul as usize] = pcs::MAX_MU;
         let too_long = |e: &RecError| matches!(e, RecError::TooLong { mu } if *mu > pcs::MAX_MU);
-        assert!(circuit.prove(&a, IV, pcs::Rate::MIN).is_err_and(|e| too_long(&e)));
+        assert!(circuit.prove(&a, IV, Rate::MIN).is_err_and(|e| too_long(&e)));
         assert!(verify_run(&circuit, &a.statement, &proof).is_err_and(|e| too_long(&e)));
 
         circuit.floor[Table::Emul as usize] = 0;
@@ -587,7 +594,7 @@ mod tests {
             table: Table::Pub,
             tau: RecLayout::MAX_TAU + 1,
         });
-        assert_eq!(circuit.prove(&a, IV, pcs::Rate::MIN).map(|_| ()), too_many);
+        assert_eq!(circuit.prove(&a, IV, Rate::MIN).map(|_| ()), too_many);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), too_many);
     }
 }

@@ -35,23 +35,22 @@
 //! `current_claim = (1+r_now)·G(0) + r_now·G(1)`.
 
 use crate::zerocheck::PaddingSpec;
-use crate::zerocheck::bit_fold::{BLOCK, BitFold};
-#[cfg(test)]
-use crate::zerocheck::univariate_skip::pack_bits;
 use crate::zerocheck::univariate_skip::{SplitEq, build_eq};
+use parallel::Chunks;
+use primitives::bit_fold::{BLOCK, BitFold};
 use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
+use primitives::multilinear::{barycentric_sum, window_denominator};
 use primitives::stream::Stream;
-use zk_alloc::ArenaVec;
 
-/// Four independent products. Tuples keep the scalar and NEON paths in registers, while AVX-512 uses the batched helper.
+/// Four independent products. Tuples keep the scalar and NEON paths in registers, while VPCLMULQDQ uses the batched helper.
 #[inline(always)]
 fn mul_quad(a: (F192, F192, F192, F192), b: (F192, F192, F192, F192)) -> (F192, F192, F192, F192) {
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     {
         let r = primitives::field::mul4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
         (r[0], r[1], r[2], r[3])
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     (a.0 * b.0, a.1 * b.1, a.2 * b.2, a.3 * b.3)
 }
 
@@ -61,12 +60,12 @@ fn mul_quad_unreduced(
     a: (F192, F192, F192, F192),
     b: (F192, F192, F192, F192),
 ) -> (F192Unreduced, F192Unreduced, F192Unreduced, F192Unreduced) {
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     {
         let r = primitives::field::mul_unreduced4([a.0, a.1, a.2, a.3], [b.0, b.1, b.2, b.3]);
         (r[0], r[1], r[2], r[3])
     }
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     (
         a.0.mul_unreduced(b.0),
         a.1.mul_unreduced(b.1),
@@ -78,10 +77,6 @@ fn mul_quad_unreduced(
 // ---------------------------------------------------------------------------
 // Lagrange weights for the univariate-skip fold at z.
 // ---------------------------------------------------------------------------
-
-#[cfg(test)]
-use primitives::multilinear::skip_lagrange_weights;
-use primitives::multilinear::{barycentric_sum, window_denominator};
 
 /// Interpolate a degree-`< 2·2^k_skip` polynomial at z, given its `2^k_skip`
 /// evaluations on Λ and the assumption that it equals **zero on S**.
@@ -107,37 +102,6 @@ pub fn interpolate_at_z_combined(values_on_lambda: &[F192], k_skip: usize, z: F1
 // ---------------------------------------------------------------------------
 // Fold a Boolean witness at z.
 // ---------------------------------------------------------------------------
-
-/// Evaluate the univariate-skip polynomial at the fold point `z`, given the
-/// precomputed Lagrange `weights`. Returns the multilinear extension table
-/// `a_mlv` of length `2^(m − k_skip)` over F_{2^192}.
-///
-///   `a_mlv[x_rest] = Σ_s a(s, x_rest) · L_s(z)`
-///
-/// `a(s, x_rest)` is the witness bit at index `x_rest * 2^k_skip + s` (low
-/// bits = skip variable, high bits = rest variables).
-#[cfg(test)]
-fn fold_at_z_naive(witness: &[bool], m: usize, k_skip: usize, weights: &[F192]) -> ArenaVec<F192> {
-    assert!(k_skip <= m);
-    let ell = 1usize << k_skip;
-    let n_rest = 1usize << (m - k_skip);
-    assert_eq!(witness.len(), 1usize << m);
-    assert_eq!(weights.len(), ell);
-
-    // SAFETY: the loop below writes every one of the `n_rest` slots.
-    let mut folded = unsafe { ArenaVec::<F192>::uninitialized(n_rest) };
-    for x_rest in 0..n_rest {
-        let base = x_rest * ell;
-        let mut acc = F192::ZERO;
-        for s in 0..ell {
-            if witness[base + s] {
-                acc += weights[s];
-            }
-        }
-        folded[x_rest] = acc;
-    }
-    folded
-}
 
 // ---------------------------------------------------------------------------
 // Naive round-2 prover message (AB-pair multilinear sumcheck).
@@ -229,33 +193,48 @@ fn split_eq(r: &[F192]) -> (Vec<F192>, Vec<F192>) {
     (build_eq(&r[..n_lo]), build_eq(&r[n_lo..]))
 }
 
-/// The packed `a`, `b`, `c` witnesses, 64 skip bits per row.
+/// The packed `a` and `b` witnesses, 64 skip bits per row.
+///
+/// The kernels never read `c`: an honest witness has `c = a AND b`, derived from the rows already loaded.
 #[derive(Clone, Copy, Debug)]
 pub struct PackedWitness<'a> {
     /// The `A z` bits.
     pub a: &'a [u8],
     /// The `B z` bits.
     pub b: &'a [u8],
-    /// The `C z` bits.
-    pub c: &'a [u8],
 }
 
 impl<'a> PackedWitness<'a> {
-    /// The three witnesses cut into rows of `CHUNKS` bytes, one per position at this level.
-    fn rows<const CHUNKS: usize>(self) -> [&'a [[u8; CHUNKS]]; 3] {
-        let rows = [self.a, self.b, self.c].map(|packed| {
+    /// The two witnesses cut into rows of `CHUNKS` bytes, one per position at this level.
+    fn rows<const CHUNKS: usize>(self) -> [&'a [[u8; CHUNKS]]; 2] {
+        let rows = [self.a, self.b].map(|packed| {
             let (rows, rest) = packed.as_chunks::<CHUNKS>();
             assert!(rest.is_empty(), "packed witness is whole rows");
             rows
         });
         let n_pos = rows[0].len();
-        assert!(rows.iter().all(|r| r.len() == n_pos), "a, b, c have one length");
+        assert_eq!(rows[1].len(), n_pos, "a and b have one length");
         assert!(n_pos.is_power_of_two(), "a power-of-two number of positions");
         rows
     }
 }
 
+/// The `c = a AND b` rows of up to 64 positions, into the first `a.len()` rows of `c`.
+#[inline(always)]
+fn and_rows<const CHUNKS: usize>(a: &[[u8; CHUNKS]], b: &[[u8; CHUNKS]], c: &mut [[u8; CHUNKS]; BLOCK]) {
+    for ((c, a), b) in c
+        .as_flattened_mut()
+        .iter_mut()
+        .zip(a.as_flattened())
+        .zip(b.as_flattened())
+    {
+        *c = a & b;
+    }
+}
+
 /// The folded `a`, `b`, `c` values of up to 64 consecutive positions.
+///
+/// A task folds every block into one of these, so no block pays for zeroing or moving its tables.
 struct FoldedBlock {
     a: [F192; BLOCK],
     b: [F192; BLOCK],
@@ -263,19 +242,21 @@ struct FoldedBlock {
 }
 
 impl FoldedBlock {
-    /// Fold positions `first..first + len` of each witness.
+    const ZERO: Self = Self {
+        a: [F192::ZERO; BLOCK],
+        b: [F192::ZERO; BLOCK],
+        c: [F192::ZERO; BLOCK],
+    };
+
+    /// Fold positions `first..first + len` of each witness into the first `len` values.
     #[inline(always)]
-    fn new<const CHUNKS: usize>(fold: &BitFold, rows: [&[[u8; CHUNKS]]; 3], first: usize, len: usize) -> Self {
-        let mut block = Self {
-            a: [F192::ZERO; BLOCK],
-            b: [F192::ZERO; BLOCK],
-            c: [F192::ZERO; BLOCK],
-        };
-        let [a, b, c] = rows;
-        fold.fold_block(&a[first..first + len], &mut block.a);
-        fold.fold_block(&b[first..first + len], &mut block.b);
-        fold.fold_block(&c[first..first + len], &mut block.c);
-        block
+    fn fold<const CHUNKS: usize>(&mut self, fold: &BitFold, rows: [&[[u8; CHUNKS]]; 2], first: usize, len: usize) {
+        let [a, b] = rows.map(|r| &r[first..first + len]);
+        let mut c = [[0u8; CHUNKS]; BLOCK];
+        and_rows(a, b, &mut c);
+        fold.fold_block(a, &mut self.a);
+        fold.fold_block(b, &mut self.b);
+        fold.fold_block(&c[..len], &mut self.c);
     }
 }
 
@@ -368,7 +349,7 @@ pub fn bit_round_materialize(
     fold: &BitFold,
     r_eq: &[F192],
     padding: &PaddingSpec,
-) -> ((F192, F192), [ArenaVec<F192>; 3]) {
+) -> ((F192, F192), [Vec<F192>; 3]) {
     match fold.n_chunks() {
         8 => bit_round_store_kernel::<8>(bits, fold, r_eq, padding),
         16 => bit_round_store_kernel::<16>(bits, fold, r_eq, padding),
@@ -421,11 +402,35 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
     let (quad_in_block_mask, live_quads) = padding_pairs(padding, quad_log - 1);
     let live = |quad: usize| (quad & quad_in_block_mask) < live_quads;
 
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "gfni",
+        target_feature = "avx512bw",
+        target_feature = "avx512vbmi",
+        target_feature = "avx512f",
+        target_feature = "vpclmulqdq"
+    ))]
+    let eq_planes = (lo_size >= BLOCK / 4).then(|| planar::planes(&eq_lo));
+
     let sums = parallel::map_reduce(
         eq_hi.len(),
         || [F192::ZERO; 8],
         |hi| {
+            #[cfg(all(
+                target_arch = "x86_64",
+                target_feature = "gfni",
+                target_feature = "avx512bw",
+                target_feature = "avx512vbmi",
+                target_feature = "avx512f",
+                target_feature = "vpclmulqdq"
+            ))]
+            if let Some(eq_planes) = &eq_planes {
+                // SAFETY: the target features are enabled at compile time.
+                let acc = unsafe { planar::quad_sums(fold, rows, hi * lo_size, eq_planes, live) };
+                return acc.map(|s| eq_hi[hi] * s.reduce());
+            }
             let mut acc = [F192Unreduced::ZERO; 8];
+            let mut f = FoldedBlock::ZERO;
             // Sixteen quads per folded block.
             for lo_first in (0..lo_size).step_by(BLOCK / 4) {
                 let n = (lo_size - lo_first).min(BLOCK / 4);
@@ -434,7 +439,7 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
                 if !(quad_first..quad_first + n).any(live) {
                     continue;
                 }
-                let f = FoldedBlock::new(fold, rows, 4 * quad_first, 4 * n);
+                f.fold(fold, rows, 4 * quad_first, 4 * n);
                 for i in 0..n {
                     let quad = |t: &[F192; BLOCK]| -> [F192; 4] { t[4 * i..4 * i + 4].try_into().expect("a quad") };
                     let [lo, hi] = quad_pair_terms(quad(&f.a), quad(&f.b), quad(&f.c));
@@ -465,7 +470,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
     fold: &BitFold,
     r_eq: &[F192],
     padding: &PaddingSpec,
-) -> ((F192, F192), [ArenaVec<F192>; 3]) {
+) -> ((F192, F192), [Vec<F192>; 3]) {
     let rows = bits.rows::<CHUNKS>();
     let n_pos = rows[0].len();
     assert!(n_pos >= 2, "a round needs two positions");
@@ -479,12 +484,12 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
     let (pair_in_block_mask, live_pairs) = padding_pairs(padding, position_log);
     let live = |pair: usize| (pair & pair_in_block_mask) < live_pairs;
 
-    let mut out: [ArenaVec<F192>; 3] = std::array::from_fn(|_| {
+    let mut out: [Vec<F192>; 3] = std::array::from_fn(|_| {
         // SAFETY: every slot is written below, padding included.
-        unsafe { ArenaVec::uninitialized(n_pos) }
+        unsafe { primitives::uninit_vec(n_pos) }
     });
     let [out_a, out_b, out_c] = &mut out;
-    let chunks = [out_a, out_b, out_c].map(|o| parallel::Chunks::new(o, 2 * lo_size));
+    let chunks = [out_a, out_b, out_c].map(|o| Chunks::new(o, 2 * lo_size));
 
     let message = parallel::map_reduce(
         eq_hi.len(),
@@ -493,6 +498,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
             let [oa, ob, oc] = chunks.map(|ch| unsafe { ch.get(hi) });
             let stream = Stream::new();
+            let mut f = FoldedBlock::ZERO;
             let mut g1_acc = F192Unreduced::ZERO;
             let mut ginf_acc = F192Unreduced::ZERO;
             // Thirty-two pairs per folded block.
@@ -507,7 +513,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
                     }
                     continue;
                 }
-                let f = FoldedBlock::new(fold, rows, 2 * pair_first, o_len);
+                f.fold(fold, rows, 2 * pair_first, o_len);
 
                 // Four pairs per step: every product is one lane of a quad.
                 let mut i = 0;
@@ -618,7 +624,7 @@ fn fold_and_round_pair_kernel<const K: usize>(
     // One task per high eq index: `lo_size` quads, `4 * lo_size` outputs of each table.
     let (chunk_in, chunk_out) = ((4 * lo_size) << K, 4 * lo_size);
     let [out_a, out_b, out_c] = outs;
-    let chunks = [out_a, out_b, out_c].map(|o| parallel::Chunks::new(o, chunk_out));
+    let chunks = [out_a, out_b, out_c].map(|o| Chunks::new(o, chunk_out));
     let rho = |j: usize| (rhos[j], rhos[j], rhos[j], rhos[j]);
 
     // Four outputs of one table, each folded from its `2^K` inputs.
@@ -710,7 +716,7 @@ fn fold_and_round_pair_kernel<const K: usize>(
 /// In-place fold of a single multilinear polynomial table at `challenge`.
 /// Pairs `(a[2x], a[2x+1])` collapse to `a[x] = a[2x] + challenge · (a[2x+1] + a[2x])`.
 /// After the call, `a.len()` is halved.
-pub fn fold_in_place_single(a: &mut ArenaVec<F192>, challenge: F192) {
+pub fn fold_in_place_single(a: &mut Vec<F192>, challenge: F192) {
     let n = a.len();
     assert!(n.is_power_of_two() && n >= 2);
     let half = n / 2;
@@ -729,7 +735,7 @@ pub fn fold_in_place_single(a: &mut ArenaVec<F192>, challenge: F192) {
 ///
 /// Used at the tail of the multilinear-round sequence where the polynomial is
 /// small enough that parallel/fusion overhead outweighs benefit.
-pub fn fold_in_place_pair(a: &mut ArenaVec<F192>, b: &mut ArenaVec<F192>, challenge: F192) {
+pub fn fold_in_place_pair(a: &mut Vec<F192>, b: &mut Vec<F192>, challenge: F192) {
     let n = a.len();
     assert_eq!(b.len(), n);
     assert!(n.is_power_of_two() && n >= 2);
@@ -746,6 +752,99 @@ pub fn fold_in_place_pair(a: &mut ArenaVec<F192>, b: &mut ArenaVec<F192>, challe
     b.truncate(half);
 }
 
+/// The two-round pass on coefficient planes: eight quads per register, so no product packs or unpacks a value.
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "gfni",
+    target_feature = "avx512bw",
+    target_feature = "avx512vbmi",
+    target_feature = "avx512f",
+    target_feature = "vpclmulqdq"
+))]
+mod planar {
+    use core::arch::x86_64::__m512i;
+    use core::mem::transmute;
+
+    use primitives::bit_fold::{BLOCK, BitFold};
+    use primitives::field::gf2_64x3::x86_64::{F192x8, F192x8Sum};
+    use primitives::field::{F192, F192Unreduced};
+
+    /// Eight consecutive values per entry, in planes.
+    pub(super) fn planes(values: &[F192]) -> Vec<F192x8> {
+        let (groups, rest) = values.as_chunks::<8>();
+        assert!(rest.is_empty(), "whole groups of eight");
+        groups
+            .iter()
+            .map(|g| {
+                // SAFETY: eight qwords are one register.
+                let plane = |k: fn(&F192) -> u64| unsafe { transmute::<[u64; 8], __m512i>(g.each_ref().map(k)) };
+                F192x8([plane(|e| e.c0), plane(|e| e.c1), plane(|e| e.c2)])
+            })
+            .collect()
+    }
+
+    /// The eight sums of [`super::quad_pair_terms`] over the quads `quad_first..`, one per `eq` entry's eight.
+    ///
+    /// The eq weight multiplies the four `a` values first, so each sum's terms are products of `eq * a` combinations:
+    ///
+    /// ```text
+    ///     eq * (a_1 b_1 + c_1) = (eq a_1) b_1 + eq c_1          eq * du_0 eu_0 = (eq a_0 + eq a_1)(b_0 + b_1)
+    /// ```
+    ///
+    /// Fifteen products per quad, four of them reduced, against sixteen with eight reduced.
+    #[inline]
+    #[target_feature(
+        enable = "avx512f",
+        enable = "avx512bw",
+        enable = "avx512vbmi",
+        enable = "gfni",
+        enable = "vpclmulqdq"
+    )]
+    pub(super) fn quad_sums<const CHUNKS: usize>(
+        fold: &BitFold,
+        rows: [&[[u8; CHUNKS]]; 2],
+        quad_first: usize,
+        eq: &[F192x8],
+        live: impl Fn(usize) -> bool,
+    ) -> [F192Unreduced; 8] {
+        let mut acc = [F192x8Sum::zero(); 8];
+        // Sixteen quads per folded block, two registers of eight.
+        for (b, eq) in eq.as_chunks::<2>().0.iter().enumerate() {
+            let q0 = quad_first + (BLOCK / 4) * b;
+            // A block wholly in padding folds to zero.
+            if !(q0..q0 + BLOCK / 4).any(&live) {
+                continue;
+            }
+            let [ra, rb]: [&[[u8; CHUNKS]; BLOCK]; 2] =
+                rows.map(|t| t[4 * q0..4 * q0 + BLOCK].try_into().expect("a block"));
+            let mut rc = [[0u8; CHUNKS]; BLOCK];
+            super::and_rows(ra, rb, &mut rc);
+            let [pa, pb, pc] = [ra, rb, &rc].map(|t| fold.fold_quads::<CHUNKS>(t));
+            for (g, &e) in eq.iter().enumerate() {
+                let at =
+                    |p: &[[__m512i; 8]; 3], uv: usize| F192x8([p[0][uv + 4 * g], p[1][uv + 4 * g], p[2][uv + 4 * g]]);
+                let [a0, a1, a2, a3] = [0, 1, 2, 3].map(|uv| e.mul(at(&pa, uv)));
+                let [b0, b1, b2, b3] = [0, 1, 2, 3].map(|uv| at(&pb, uv));
+                let [c1, c2, c3] = [1, 2, 3].map(|uv| at(&pc, uv));
+                let (du0, du1, dv0, dv1) = (a0.add(a1), a2.add(a3), a0.add(a2), a1.add(a3));
+                let (eu0, eu1, ev0, ev1) = (b0.add(b1), b2.add(b3), b0.add(b2), b1.add(b3));
+                acc[0].mul_add(a1, b1);
+                acc[0].mul_add(e, c1);
+                acc[1].mul_add(a3, b3);
+                acc[1].mul_add(e, c3);
+                acc[2].mul_add(du0, eu0);
+                acc[3].mul_add(du1, eu1);
+                acc[4].mul_add(a2, b2);
+                acc[4].mul_add(e, c2);
+                acc[5].mul_add(dv0, ev0);
+                acc[6].mul_add(dv1, ev1);
+                acc[7].mul_add(du0.add(du1), eu0.add(eu1));
+            }
+        }
+        acc.map(|s| s.total())
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -753,7 +852,39 @@ pub fn fold_in_place_pair(a: &mut ArenaVec<F192>, b: &mut ArenaVec<F192>, challe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::test_rng::Rng;
+    use crate::zerocheck::univariate_skip::tests::pack_bits;
+    use crate::zerocheck::univariate_skip_optimized::{
+        c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
+    };
+    use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
+    use primitives::field::F8;
+    use primitives::multilinear::skip_lagrange_weights;
+    use primitives::test_util::Rng;
+
+    /// Evaluate the univariate-skip polynomial at the fold point `z`, given the
+    /// precomputed Lagrange `weights`. Returns the multilinear extension table
+    /// `a_mlv` of length `2^(m − k_skip)` over F_{2^192}.
+    ///
+    ///   `a_mlv[x_rest] = Σ_s a(s, x_rest) · L_s(z)`
+    ///
+    /// `a(s, x_rest)` is the witness bit at index `x_rest * 2^k_skip + s` (low
+    /// bits = skip variable, high bits = rest variables).
+    fn fold_at_z_naive(witness: &[bool], m: usize, k_skip: usize, weights: &[F192]) -> Vec<F192> {
+        assert!(k_skip <= m);
+        let ell = 1usize << k_skip;
+        let n_rest = 1usize << (m - k_skip);
+        assert_eq!(witness.len(), 1usize << m);
+        assert_eq!(weights.len(), ell);
+
+        (0..n_rest)
+            .map(|x_rest| {
+                let bits = &witness[x_rest * ell..][..ell];
+                (bits.iter().zip(weights))
+                    .filter(|&(&bit, _)| bit)
+                    .fold(F192::ZERO, |acc, (_, &w)| acc + w)
+            })
+            .collect()
+    }
 
     /// Interpolate a degree-`< 2^k_skip` polynomial at z, given its `2^k_skip`
     /// evaluations on the **extension domain** `Λ = {2^k_skip, …, 2^(k_skip+1) − 1}`
@@ -807,7 +938,7 @@ mod tests {
                 let rho_t = rng.ext();
 
                 // Reference: fold one challenge at a time, then sum each round from the tables.
-                let [mut a, mut b, mut c] = tables.clone().map(|t| ArenaVec::from_slice(&t));
+                let [mut a, mut b, mut c] = tables.clone().map(|t| t.to_vec());
                 for &rho in &rhos {
                     fold_in_place_pair(&mut a, &mut b, rho);
                     fold_in_place_single(&mut c, rho);
@@ -843,8 +974,8 @@ mod tests {
             let b_orig: Vec<F192> = (0..n).map(|_| rng.ext()).collect();
             let challenge = rng.ext();
 
-            let mut a = ArenaVec::from_slice(&a_orig);
-            let mut b = ArenaVec::from_slice(&b_orig);
+            let mut a = a_orig.to_vec();
+            let mut b = b_orig.to_vec();
             fold_in_place_pair(&mut a, &mut b, challenge);
 
             assert_eq!(a.len(), n / 2);
@@ -866,12 +997,6 @@ mod tests {
     /// sum with the AB half, so this is what pins that half on its own.
     #[test]
     fn c_eval_from_round1_c_matches_direct_fold() {
-        use crate::zerocheck::univariate_skip_optimized::{
-            c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
-        };
-        use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
-        use primitives::field::F8;
-
         const K_SKIP: usize = 6;
         const N_INNER: usize = 7;
 
@@ -933,23 +1058,21 @@ mod tests {
         }
     }
 
-    /// A random `a, b, c` witness over `2^m` slots, bits and packed.
+    /// A random honest `a, b, c = a AND b` witness over `2^m` slots, bits and packed.
     fn random_witness(rng: &mut Rng, m: usize) -> ([Vec<bool>; 3], [Vec<u8>; 3]) {
-        let bits = [rng.bits(1 << m), rng.bits(1 << m), rng.bits(1 << m)];
+        let (a, b) = (rng.bits(1 << m), rng.bits(1 << m));
+        let c = a.iter().zip(&b).map(|(x, y)| x & y).collect();
+        let bits = [a, b, c];
         let packed = [0, 1, 2].map(|i| pack_bits(&bits[i]));
         (bits, packed)
     }
 
     fn packed(p: &[Vec<u8>; 3]) -> PackedWitness<'_> {
-        PackedWitness {
-            a: &p[0],
-            b: &p[1],
-            c: &p[2],
-        }
+        PackedWitness { a: &p[0], b: &p[1] }
     }
 
     /// The naive message of one round on stored tables: `(G(1), G(inf))` with `c` added to `G(1)`.
-    fn naive_message(t: &[ArenaVec<F192>; 3], r_eq: &[F192]) -> (F192, F192) {
+    fn naive_message(t: &[Vec<F192>; 3], r_eq: &[F192]) -> (F192, F192) {
         let (g1, g_inf) = round_pair_naive(&t[0], &t[1], r_eq);
         (g1 + round_single_naive(&t[2], r_eq), g_inf)
     }

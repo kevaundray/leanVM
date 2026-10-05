@@ -2,8 +2,10 @@
 //!
 //! Commits and opens a random witness of `2^PCS_LOG_N` GF(2^64) elements at
 //! inverse-rate `1/2^PCS_LOG_INV_RATE`, times each phase, and reports GiB/s
-//! over the committed data. Each pass is one arena phase, as a proof is; the
-//! passes follow [`bench::Plan::from_env`] (`BENCH_REPEAT`, `BENCH_COOLDOWN`).
+//! over the committed data.
+//!
+//! The passes follow the environment's plan (`BENCH_REPEAT`, `BENCH_COOLDOWN`).
+//!
 //! It then times the commitment's additive NTT alone (the RS encode, without
 //! the transpose and the Merkle tree), as passes of its own.
 //!
@@ -26,18 +28,19 @@
 //! cargo bench -p pcs --bench throughput -- --json
 //! ```
 
+use bench::{Metric, Plan, Timing, bencher_json, env_usize};
+use fiat_shamir::transcript::ProverState;
+use pcs::ntt::AdditiveNttF64;
+use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis};
+use primitives::field::{F64, F192};
+use primitives::multilinear::eq_table;
+use primitives::pretty_integer;
+use primitives::test_util::Rng;
 use std::hint::black_box;
 use std::time::Instant;
 
-use bench::{Metric, Plan, Timing, bencher_json, env_usize};
-use pcs::ntt::AdditiveNttF64;
-use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis};
-use primitives::{
-    field::{F64, F192},
-    multilinear::eq_table,
-    pretty_integer,
-    test_rng::Rng,
-};
+#[global_allocator]
+static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
 
 fn main() {
     bench::init_tracing_from_env();
@@ -57,26 +60,22 @@ fn main() {
     let b_initial = eq_table(&point);
     let target = inner_product_base_ext(&witness, &b_initial);
 
-    // Nothing a pass allocates outlives it: the commitment and the proof are
-    // consumed inside, so every buffer dies with the pass's phase.
-    zk_alloc::enable_arena();
     let (mut commit_t, mut open_t) = (Timing::default(), Timing::default());
     plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        let _phase = zk_alloc::enter_phase();
 
         let t = Instant::now();
         let (cm, pd) = tracing::info_span!("Commit").in_scope(|| commit(&witness, log_n, pc.initial_k(), log_inv_rate));
         commit_t.push(t.elapsed().as_secs_f64());
 
-        let mut ch = fiat_shamir::transcript::ProverState::from_label(b"pcs-throughput");
+        let mut ch = ProverState::from_label(b"pcs-throughput");
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
             recursive_prover_with_basis(
                 &pc,
                 log_n,
                 &witness,
-                zk_alloc::ArenaVec::from_slice(&b_initial),
+                b_initial.to_vec(),
                 target,
                 &pd.codeword,
                 &pd.merkle_tree,
@@ -106,8 +105,8 @@ fn main() {
     // before printing the throughput report so the complete trace appears first.
     drop(trace_span);
 
-    // The commit's encode alone, on a buffer outside the arena: `2^initial_k` interleaved
-    // lanes, the message in the first replica.
+    // The commit's encode alone.
+    // Its buffer holds `2^initial_k` interleaved lanes, the message in the first replica.
     const ENCODES: usize = 4;
     let log_lanes = pc.initial_k();
     let ntt = AdditiveNttF64::standard(log_n - log_lanes + log_inv_rate);

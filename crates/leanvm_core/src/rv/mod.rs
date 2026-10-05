@@ -39,10 +39,10 @@ pub use elf::{ElfError, Guest};
 pub use entry::{Class, Entry, Target};
 pub use instruction::{BranchOp, ExtOp, ImmOp, Instruction, LoadOp, Opcode, RegOp, ShiftOp, StoreOp};
 pub use machine::{Machine, Trap};
-pub use program::{Program, ProgramError};
+pub use program::{ProgramError, RiscvProgram};
 pub use region::Region;
 pub use register::{Reg, RegisterFile, Syscall};
 pub use semantics::{
-    Alu, BlockAccess, Div, Ext, ExtResult, Hash, InstructionClass, Ld, Limb, Load, Mul, Mulh, Outcome, Sd, Shift,
-    Store, WordAccess,
+    Alu, BlockAccess, Div, Ext, Hash, InstructionClass, Ld, Limb, Load, Mul, Mulh, Outcome, Sd, Shift, Store,
+    WordAccess,
 };

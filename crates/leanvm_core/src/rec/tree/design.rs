@@ -5,11 +5,11 @@
 //!
 //! Both circuits have the same heights, so a node verifies a child of either kind with one set of rows.
 
-use super::TreeError;
 use super::claims::{Bits, DenseClaim, DensePoly, DenseTerm, MatrixClaim, NodeClaims};
 use super::fixed::FixedLayout;
-use super::reduce::{self, DenseTables, DenseVars, Reduced};
+use super::reduce::{DenseTables, DenseVars, Reduced};
 use super::statement::{Kind, Section, StatementLayout, TreeStatement, digest_halves_rows};
+use super::{TreeError, reduce};
 use crate::arith::Arith;
 use crate::class_flock;
 use crate::cpu::{Claim, ProgramPoint};
@@ -22,10 +22,11 @@ use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rec::verifier::{FixedHint, ProofShape, RecShape, RingMap, Rows, infallible};
 use fiat_shamir::transcript::RawProof;
 use primitives::field::{F64, F192};
+use primitives::hash::Hasher;
 use primitives::multilinear::mle_eval_par;
 
 /// The domain of every tree proof's transcript.
-const DOMAIN: &[u8] = b"leanvm-tree-2";
+const DOMAIN: &[u8] = b"leanvm-tree-3";
 
 /// What fixes a tree's circuits: the leaves' shape, the arities, the rate, and the nodes' heights.
 pub(crate) struct Design<'p> {
@@ -164,7 +165,7 @@ impl<'p> Design<'p> {
 
     /// The transcript's seed: everything that fixes the circuits.
     fn seed(&self) -> [F64; 4] {
-        let mut h = primitives::hash::Hasher::new();
+        let mut h = Hasher::new();
         h.update(DOMAIN);
         h.update(self.leaf.program().digest());
         let sizes = (self.leaf.taus().iter().copied())

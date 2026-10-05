@@ -21,26 +21,23 @@
 //! puts all three claims at ONE point and leaves lincheck a single family of
 //! bit slices per circuit for ring switching (doc/leanvm Annex C).
 
-use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
-use primitives::field::{F8, F192, powers};
-use zk_alloc::ArenaVec;
-
-use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
-
-pub mod bit_fold;
-pub mod multilinear;
-pub mod univariate_skip;
-pub mod univariate_skip_optimized;
-
-use bit_fold::BitFold;
+use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
 use multilinear::{
     PackedWitness, RoundPair, bit_round_materialize, bit_round_pair, fold_and_round_pair_into, fold_in_place_pair,
     fold_in_place_single, interpolate_at_z_combined, round_pair_naive, round_single_naive,
 };
+use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
+use primitives::bit_fold::BitFold;
+use primitives::field::{F8, F192, powers};
 use primitives::multilinear::skip_lagrange_weights;
+use thiserror::Error;
 use univariate_skip_optimized::{
     c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
 };
+
+pub mod multilinear;
+pub mod univariate_skip;
+pub mod univariate_skip_optimized;
 
 /// Number of variables folded in round 1 via the additive-NTT univariate skip.
 /// |Λ| = 2^K_SKIP = 64 elements, which is the round-1 prover message: one
@@ -53,9 +50,9 @@ pub const MIN_LOG_N: usize = K_SKIP + N_INNER;
 
 /// Passes over the packed bits, two rounds each, before the folded tables are stored.
 ///
-/// - A pass re-reads the three bit tables, `3 * 2^m` bits.
+/// - A pass re-reads the `a` and `b` bit tables, `2 * 2^m` bits; it derives `c = a AND b`.
 /// - Storing at level `t` writes three F192 tables, `3 * 192 * 2^(m - 6 - t)` bits, then reads them back.
-/// - On x86 a pass is bandwidth-bound, with GFNI or with the byte tables.
+/// - On x86 a pass is bandwidth-bound with GFNI, and the AVX2 nibble lookups keep it cheap enough for the same choice.
 /// - So storing pays once the tables are well below the bits: level 4, after two passes.
 /// - On aarch64 the byte-table fold is compute-bound, its tables growing with the level.
 /// - There a pass costs more than the stored tables' traffic: store at once.
@@ -126,8 +123,8 @@ pub struct ZerocheckClaim {
 }
 
 /// Why the zerocheck verifier rejects.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum VerifyError {
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum ZerocheckError {
     /// Fewer variables than the univariate skip takes.
     #[error("log_n {log_n} is below k_skip {k_skip}")]
     LogNTooSmall { log_n: usize, k_skip: usize },
@@ -136,7 +133,7 @@ pub enum VerifyError {
     TerminalMismatch,
     /// The proof stream is malformed.
     #[error(transparent)]
-    Transcript(#[from] fiat_shamir::transcript::Error),
+    Transcript(#[from] TranscriptError),
 }
 
 // ---------------------------------------------------------------------------
@@ -145,9 +142,12 @@ pub enum VerifyError {
 
 /// One circuit's witness in a batched zerocheck: the packed `a`, `b`, `c` bits over
 /// a cube of `2^m` bits.
+///
+/// Only round 1 reads `c`: the later passes derive `c = a AND b`, which an honest witness satisfies.
 #[derive(Clone, Copy, Debug)]
 pub struct ZerocheckInput<'a> {
     pub bits: PackedWitness<'a>,
+    pub c: &'a [u8],
     pub m: usize,
     pub padding: PaddingSpec,
 }
@@ -164,9 +164,9 @@ pub struct ZerocheckInput<'a> {
 /// A paired pass reads the tables once and writes a quarter of them for two rounds.
 /// A single round covers the last round, and a round whose eq challenge is 1, which leaves G(0) to send.
 struct Tables {
-    t: [ArenaVec<F192>; 3],
+    t: [Vec<F192>; 3],
     /// Ping-pong scratch: a pass writes its folded tables here, then the two swap.
-    nxt: [ArenaVec<F192>; 3],
+    nxt: [Vec<F192>; 3],
     pending: Vec<F192>,
 }
 
@@ -184,7 +184,7 @@ impl Tables {
 /// Level `t` is the round with `rho_1..rho_t` already bound.
 ///
 /// ```text
-/// bits of a, b, c    1 bit per slot, 3 * 2^m bits in all
+/// bits of a, b       1 bit per slot, 2 * 2^m bits in all; c = a AND b is derived, not read
 /// one F192 table     192 bits per slot, 2^(m - 6 - t) slots each
 /// ```
 ///
@@ -215,12 +215,12 @@ struct CircuitProver<'a> {
 impl<'a> CircuitProver<'a> {
     /// The prover and its round-1 message: `P` on the coset, `P^{AB}` and `P^C` summed.
     fn new(input: &ZerocheckInput<'a>, r: &'a [F192], inv_table: &InvNttTableByteSingleGf8) -> (Self, Vec<F192>) {
-        let ZerocheckInput { bits, m, padding } = *input;
+        let ZerocheckInput { bits, c, m, padding } = *input;
         assert!(m >= MIN_LOG_N, "prove requires m >= k_skip + N_INNER (= {MIN_LOG_N})");
         let cube_bytes = (1usize << m) / 8;
         assert_eq!(bits.a.len(), cube_bytes);
         assert_eq!(bits.b.len(), cube_bytes);
-        assert_eq!(bits.c.len(), cube_bytes);
+        assert_eq!(c.len(), cube_bytes);
         let n_mlv = m - K_SKIP;
         assert_eq!(r.len(), n_mlv);
 
@@ -229,8 +229,7 @@ impl<'a> CircuitProver<'a> {
         // C_s factor analysis in `univariate_skip_optimized`). The wire format
         // must be in "naive" convention so the verifier doesn't need to know
         // about this internal optimization; we restore the C_s factor here.
-        let (ab, c) =
-            round1_shift_reduce_extract_c_packed_padded(bits.a, bits.b, bits.c, m, K_SKIP, r, inv_table, &padding);
+        let (ab, c) = round1_shift_reduce_extract_c_packed_padded(bits.a, bits.b, c, m, K_SKIP, r, inv_table, &padding);
         let c_s = c_s();
         let round1 = ab.iter().zip(&c).map(|(x, y)| c_s * (*x + *y)).collect();
         let prover = Self {
@@ -300,7 +299,7 @@ impl<'a> CircuitProver<'a> {
         let ((g1, g_inf), [a, b, c]) = bit_round_materialize(bits, &fold, &r[j + 1..], &padding);
         let room = a.len() / 2;
         // SAFETY: a pass writes every slot of the prefix it hands on, and nothing reads past it.
-        let nxt = std::array::from_fn(|_| unsafe { ArenaVec::<F192>::uninitialized(room) });
+        let nxt = std::array::from_fn(|_| unsafe { primitives::uninit_vec::<F192>(room) });
         self.tables = Some(Tables {
             t: [a, b, c],
             nxt,
@@ -466,9 +465,9 @@ pub fn prove(inputs: &[ZerocheckInput<'_>], ps: &mut ProverState) -> Vec<Zeroche
 /// checked here: what makes the claims meaningful is lincheck, which pins every
 /// circuit's three against its committed witness. Never call this alone and treat
 /// `Ok` as acceptance.
-pub fn verify(log_ns: &[usize], vs: &mut VerifierState<'_>) -> Result<Vec<ZerocheckClaim>, VerifyError> {
+pub fn verify(log_ns: &[usize], vs: &mut VerifierState<'_>) -> Result<Vec<ZerocheckClaim>, ZerocheckError> {
     if let Some(&log_n) = log_ns.iter().find(|&&m| m < MIN_LOG_N) {
-        return Err(VerifyError::LogNTooSmall { log_n, k_skip: K_SKIP });
+        return Err(ZerocheckError::LogNTooSmall { log_n, k_skip: K_SKIP });
     }
     let n_mlv = log_ns.iter().max().expect("a batch has a circuit") - K_SKIP;
 
@@ -527,7 +526,7 @@ pub fn verify(log_ns: &[usize], vs: &mut VerifierState<'_>) -> Result<Vec<Zeroch
         });
     }
     if terminal != c_running {
-        return Err(VerifyError::TerminalMismatch);
+        return Err(ZerocheckError::TerminalMismatch);
     }
     Ok(claims)
 }
@@ -535,7 +534,8 @@ pub fn verify(log_ns: &[usize], vs: &mut VerifierState<'_>) -> Result<Vec<Zeroch
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::test_rng::Rng;
+    use primitives::test_util::Rng;
+    use univariate_skip::tests::pack_bits;
 
     /// Test shim: one dense circuit.
     fn prove_packed(
@@ -543,14 +543,14 @@ mod tests {
         b_packed: &[u8],
         c_packed: &[u8],
         m: usize,
-        ps: &mut fiat_shamir::transcript::ProverState,
+        ps: &mut ProverState,
     ) -> ZerocheckClaim {
         let input = ZerocheckInput {
             bits: PackedWitness {
                 a: a_packed,
                 b: b_packed,
-                c: c_packed,
             },
+            c: c_packed,
             m,
             padding: PaddingSpec::dense(m),
         };
@@ -558,7 +558,7 @@ mod tests {
     }
 
     /// Test shim: the replay of one circuit.
-    fn verify_one(m: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim, VerifyError> {
+    fn verify_one(m: usize, vs: &mut VerifierState<'_>) -> Result<ZerocheckClaim, ZerocheckError> {
         verify(&[m], vs).map(|mut claims| claims.pop().expect("one circuit"))
     }
 
@@ -583,7 +583,6 @@ mod tests {
     /// Pack three Boolean vectors into the (a_packed, b_packed, c_packed)
     /// shape that `prove_packed` consumes.
     fn pack_abc(a: &[bool], b: &[bool], c: &[bool]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-        use univariate_skip::pack_bits;
         (pack_bits(a), pack_bits(b), pack_bits(c))
     }
 
@@ -604,7 +603,7 @@ mod tests {
             let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
 
             let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-            let mut ps = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+            let mut ps = ProverState::from_label(b"flock-test-v0");
             let claim = prove_packed(&a_p, &b_p, &c_p, m, &mut ps);
 
             // Shape checks: the streamed proof is round1 ‖ (m − K_SKIP)
@@ -631,11 +630,11 @@ mod tests {
             let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
 
             let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-            let mut ch_prove = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+            let mut ch_prove = ProverState::from_label(b"flock-test-v0");
             let claim_p = prove_packed(&a_p, &b_p, &c_p, m, &mut ch_prove);
 
             let proof_t = ch_prove.into_proof();
-            let mut ch_verify = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+            let mut ch_verify = VerifierState::from_label(b"flock-test-v0", &proof_t);
             let result = verify_one(m, &mut ch_verify);
             let claim_v = result.unwrap_or_else(|e| panic!("verify rejected at m={m}: {e:?}"));
 
@@ -657,10 +656,10 @@ mod tests {
             let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
 
             let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-            let mut ch_prove = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+            let mut ch_prove = ProverState::from_label(b"flock-test-v0");
             let _ = prove_packed(&a_p, &b_p, &c_p, m, &mut ch_prove);
             let proof_t = ch_prove.into_proof();
-            let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+            let mut ch = VerifierState::from_label(b"flock-test-v0", &proof_t);
             let claim = verify_one(m, &mut ch).expect("honest proof");
 
             let chi = &claim.mlv_challenges;
@@ -692,10 +691,10 @@ mod tests {
                     c[idx] = !c[idx];
                 }
                 let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-                let mut ch_prove = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+                let mut ch_prove = ProverState::from_label(b"flock-test-v0");
                 let _ = prove_packed(&a_p, &b_p, &c_p, m, &mut ch_prove);
                 let proof_t = ch_prove.into_proof();
-                let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+                let mut ch = VerifierState::from_label(b"flock-test-v0", &proof_t);
                 let claim = verify_one(m, &mut ch).expect("shape is still valid");
                 let chi = &claim.mlv_challenges;
                 let all_true = claim.a_eval == quirky_eval(&a, claim.z, chi)
@@ -712,7 +711,7 @@ mod tests {
         let b = rng.bits(1 << m);
         let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
         let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-        let mut ch_prove = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+        let mut ch_prove = ProverState::from_label(b"flock-test-v0");
         let _ = prove_packed(&a_p, &b_p, &c_p, m, &mut ch_prove);
         let proof_t = ch_prove.into_proof();
 
@@ -730,9 +729,9 @@ mod tests {
         for (label, word) in mutations {
             let mut bad = proof_t.clone();
             bad.stream[word].c0 ^= 1;
-            let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
+            let mut ch = VerifierState::from_label(b"flock-test-v0", &bad);
             match verify_one(m, &mut ch) {
-                Err(VerifyError::TerminalMismatch) => {}
+                Err(ZerocheckError::TerminalMismatch) => {}
                 Err(e) => panic!("tampered proof ({label}) failed on its shape: {e:?}"),
                 Ok(claim) => {
                     let chi = &claim.mlv_challenges;
@@ -754,21 +753,21 @@ mod tests {
         let b = rng.bits(1 << m);
         let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
         let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-        let mut ch_prove = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+        let mut ch_prove = ProverState::from_label(b"flock-test-v0");
         let _ = prove_packed(&a_p, &b_p, &c_p, m, &mut ch_prove);
         let proof_t = ch_prove.into_proof();
 
         // Truncated stream: a clean Transcript error, not a panic.
         let mut bad = proof_t.clone();
         bad.stream.truncate(bad.stream.len() - 3);
-        let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
-        assert!(matches!(verify_one(m, &mut ch), Err(VerifyError::Transcript(_))));
+        let mut ch = VerifierState::from_label(b"flock-test-v0", &bad);
+        assert!(matches!(verify_one(m, &mut ch), Err(ZerocheckError::Transcript(_))));
 
         // log_n too small.
-        let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+        let mut ch = VerifierState::from_label(b"flock-test-v0", &proof_t);
         assert!(matches!(
             verify_one(K_SKIP + 6, &mut ch),
-            Err(VerifyError::LogNTooSmall { .. })
+            Err(ZerocheckError::LogNTooSmall { .. })
         ));
     }
 
@@ -797,13 +796,13 @@ mod tests {
         let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
         let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
 
-        let mut ch_prove = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+        let mut ch_prove = ProverState::from_label(b"flock-test-v0");
         let claim_p = prove_packed(&a_p, &b_p, &c_p, m, &mut ch_prove);
         let proof_t = ch_prove.into_proof();
 
         // Honest verify, then capture the next challenge the transcript feeds
         // downstream: this is exactly the slot lincheck samples α from.
-        let mut ch_honest = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+        let mut ch_honest = VerifierState::from_label(b"flock-test-v0", &proof_t);
         assert!(verify_one(m, &mut ch_honest).is_ok(), "honest verify rejected");
         let alpha_honest = ch_honest.sample();
 
@@ -826,7 +825,7 @@ mod tests {
         // Replay the tampered proof to move the transcript to the same slot. Its
         // claims are as consistent as the honest ones (same product, same ĉ),
         // so nothing local distinguishes them.
-        let mut ch_tampered = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
+        let mut ch_tampered = VerifierState::from_label(b"flock-test-v0", &bad);
         let tampered = verify_one(m, &mut ch_tampered).expect("the terminal identity still holds");
         assert_eq!(tampered.c_eval, claim_p.c_eval, "ĉ is untouched");
         let alpha_tampered = ch_tampered.sample();
@@ -852,8 +851,8 @@ mod tests {
         let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| *x & *y).collect();
 
         let (a_p, b_p, c_p) = pack_abc(&a, &b, &c);
-        let mut ch1 = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
-        let mut ch2 = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+        let mut ch1 = ProverState::from_label(b"flock-test-v0");
+        let mut ch2 = ProverState::from_label(b"flock-test-v0");
         let claim1 = prove_packed(&a_p, &b_p, &c_p, m, &mut ch1);
         let claim2 = prove_packed(&a_p, &b_p, &c_p, m, &mut ch2);
 
@@ -878,7 +877,7 @@ mod tests {
         let dense = [a, b, c];
         TestCircuit {
             m,
-            packed: dense.clone().map(|b| univariate_skip::pack_bits(&b)),
+            packed: dense.clone().map(|b| pack_bits(&b)),
             dense,
         }
     }
@@ -911,7 +910,8 @@ mod tests {
             .map(|c| {
                 let [a, b, cc] = &c.packed;
                 ZerocheckInput {
-                    bits: PackedWitness { a, b, c: cc },
+                    bits: PackedWitness { a, b },
+                    c: cc,
                     m: c.m,
                     padding,
                 }

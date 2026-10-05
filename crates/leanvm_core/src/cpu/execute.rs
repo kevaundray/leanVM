@@ -5,10 +5,9 @@
 //! Everything else comes back from the program's entry at the row's index.
 
 use crate::rv::machine::{MemoryAccess, Step};
-use crate::rv::{
-    self, BlockAccess, Class, Ext, ExtResult, Hash, InstructionClass, Limb, Machine, RegisterFile, WordAccess,
-};
-use crate::tables::{self, ClassSpec, Clock, N_TABLES};
+use crate::rv::{BlockAccess, Class, Ext, Hash, Limb, Machine, RegisterFile, RiscvProgram, WordAccess};
+use crate::tables;
+use crate::tables::{ClassSpec, ClassTable, Clock, N_TABLES};
 use primitives::field::F64;
 
 /// A finished run: its output, its rows, and what it left behind.
@@ -70,7 +69,7 @@ impl TraceBuilder {
     }
 
     /// The trace of a run of `p` about to start on this advice region.
-    pub(super) fn new(p: &rv::Program, advice: &[u64]) -> Self {
+    pub(super) fn new(p: &RiscvProgram, advice: &[u64]) -> Self {
         Self {
             regs: LastAccess::new(RegisterFile::CELLS),
             ram: LastAccess::new((1 << p.log_ram()) + (1 << p.log_advice())),
@@ -81,9 +80,9 @@ impl TraceBuilder {
     }
 
     /// Record the row of `step`, executed at clock `ts`.
-    pub(super) fn record(&mut self, p: &rv::Program, m: &Machine<'_>, step: Step, ts: u64) {
+    pub(super) fn record(&mut self, p: &RiscvProgram, m: &Machine<'_>, step: Step, ts: u64) {
         let e = &p.entries()[step.index];
-        let table = tables::ClassTable::index_of(e.class).expect("every class that runs has a table");
+        let table = ClassTable::index_of(e.class).expect("every class that runs has a table");
         let spec = ClassSpec::ALL[table];
 
         // The register accesses the class makes, in column order, each at its slot of the row's clock.
@@ -115,7 +114,7 @@ impl TraceBuilder {
                 all[..n].copy_from_slice(&prev[..n]);
                 for k in 0..Hash::WORDS {
                     let cell = cell_of(step.v1 ^ (8 * k as u64));
-                    all[n + k] = self.ram.access(cell, ts | u64::from(tables::Clock::block_slot(k)));
+                    all[n + k] = self.ram.access(cell, ts | u64::from(Clock::block_slot(k)));
                 }
                 hash = Some(Box::new(HashRow {
                     block: h.block,
@@ -128,7 +127,7 @@ impl TraceBuilder {
                 let mut all = [0; 3 + Ext::LIMBS];
                 all[..n].copy_from_slice(&prev[..n]);
                 for k in 0..Ext::LIMBS {
-                    let at = ts | u64::from(tables::Clock::limb_slot(k));
+                    let at = ts | u64::from(Clock::limb_slot(k));
                     all[n + k] = match Ext::limb(instance.pointers, instance.flags, k) {
                         Limb::Memory(address) => self.ram.access(cell_of(address), at),
                         Limb::Zero => self.regs.access(0, at),
@@ -136,7 +135,7 @@ impl TraceBuilder {
                 }
                 ext = Some(Box::new(ExtRow {
                     instance: *instance,
-                    result: instance.eval(),
+                    c: instance.eval(),
                     prev: all,
                 }));
             }
@@ -164,9 +163,9 @@ impl TraceBuilder {
     /// Its circuit instance is an honest one, on those zeros.
     ///
     /// An access in slot `k` pushes the timestamp `0 ^ k` and pulls that same timestamp, so the two tuples cancel.
-    pub(super) fn pad(&mut self, p: &rv::Program, index: usize) {
+    pub(super) fn pad(&mut self, p: &RiscvProgram, index: usize) {
         let e = &p.entries()[index];
-        let table = tables::ClassTable::index_of(e.class).expect("a fill block's class has a table");
+        let table = ClassTable::index_of(e.class).expect("a fill block's class has a table");
         let outcome = e.evaluate(0, 0, 0);
         let slots = &self.padding_prev[table];
 
@@ -199,7 +198,7 @@ impl TraceBuilder {
             all.copy_from_slice(slots);
             Box::new(ExtRow {
                 instance,
-                result: instance.eval(),
+                c: instance.eval(),
                 prev: all,
             })
         });
@@ -226,7 +225,7 @@ impl TraceBuilder {
     }
 
     /// The finished trace: the rows, and what the machine `m` left in each array when the clock stopped at `ts_final`.
-    pub(super) fn finish(self, p: &rv::Program, m: &Machine<'_>, ts_final: u64) -> Trace {
+    pub(super) fn finish(self, p: &RiscvProgram, m: &Machine<'_>, ts_final: u64) -> Trace {
         let ram_last = self.ram.timestamps();
         let (ram_ts, adv_ts) = ram_last.split_at(1 << p.log_ram());
         Trace {
@@ -267,8 +266,8 @@ impl HashRow {
 pub(crate) struct ExtRow {
     /// The instance as the row found it.
     pub(crate) instance: Ext,
-    /// What the instance computes, and where its limbs are on the bus.
-    pub(crate) result: ExtResult,
+    /// `c`'s limbs after the row.
+    pub(crate) c: [u64; 3],
     /// The previous timestamp of every access, the registers' first.
     pub(crate) prev: [u64; 3 + Ext::LIMBS],
 }

@@ -20,11 +20,22 @@
 //! - [`class_flock`]: the glue to flock: a class's circuit proven over its own packed witness, in the same commitment.
 //! - [`cpu`]: whole-program assembly and the prove/verify entry points.
 
+pub(crate) use primitives::{log2_ceil_usize, log2_strict_usize};
+/// `stage!("Commit", || …)`: one named prover stage, run inside its `tracing` span,
+/// which is what the CLI's `--tracing` tree shows.
+macro_rules! stage {
+    ($name:literal, $f:expr) => {
+        tracing::info_span!($name).in_scope($f)
+    };
+}
+pub(crate) use stage;
+
 pub mod arith;
 pub mod class_flock;
 pub mod colval;
 pub mod constraints;
 pub mod cpu;
+mod envelope;
 pub mod gkr;
 pub mod leaf;
 pub mod pcs;
@@ -33,34 +44,18 @@ pub mod rv;
 pub mod tables;
 pub mod witness;
 
-/// Prepare the process for proving: the worker pool ([`init_prover_pool`]) plus
-/// the proving arena ([`zk_alloc::enable_arena`]), which recycles the prover's
-/// large transient buffers across proofs instead of re-faulting them.
+/// Prepare the process for proving: spawn the worker pool up front.
 ///
-/// Call once at program or test start.
+/// - No kernel then pays the spawn cost inside a timed region.
+/// - Calling it again does nothing.
 ///
-/// Call [`init_prover_pool`] alone on a host where even the arena's recycled peak
-/// does not fit: every [`ArenaVec`](zk_alloc::ArenaVec) then falls back to the
-/// system allocator, which is slower where the arena fits, since the arena's
-/// pages stay faulted in across proofs.
+/// Thread placement is the pool's own business:
 ///
-/// # Contract
-/// The arena has one region per process, so two proofs must never run
-/// concurrently in one process; [`zk_alloc::enter_phase`] asserts this. Use
-/// separate processes to parallelize across proofs.
+/// - Performance-core workers run at `USER_INTERACTIVE`.
+/// - Efficiency-core workers (Apple silicon) run at `UTILITY`.
+/// - All of them draw from one claim counter.
+/// - `LEANVM_NUM_THREADS` sets the performance-worker count.
 pub fn init_prover() {
-    init_prover_pool();
-    zk_alloc::enable_arena();
-}
-
-/// Spawn the worker pool up front, so no kernel pays the spawn cost inside a
-/// timed region. Idempotent.
-///
-/// Thread placement is the pool's own business: performance-core workers run at
-/// `USER_INTERACTIVE` and (on Apple silicon) efficiency-core workers at `UTILITY`,
-/// all drawing from one claim counter. `LEANVM_NUM_THREADS` sets the
-/// performance-worker count. See the `parallel` crate.
-pub fn init_prover_pool() {
     parallel::init();
 }
 
@@ -72,14 +67,3 @@ pub const SECURITY_BITS: u32 = 128;
 /// Below this many parallelizable items a pass runs serially: the fan-out
 /// overhead is not worth it for small inputs. Shared by [`constraints`], [`gkr`], [`leaf`].
 pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
-
-/// `stage!("Commit", || …)`: one named prover stage, run inside its `tracing` span,
-/// which is what the CLI's `--tracing` tree shows.
-macro_rules! stage {
-    ($name:literal, $f:expr) => {
-        tracing::info_span!($name).in_scope($f)
-    };
-}
-pub(crate) use stage;
-
-pub(crate) use primitives::{log2_ceil_usize, log2_strict_usize};

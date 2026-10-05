@@ -8,23 +8,25 @@
 //!
 //! Each is a sumcheck: if an input claim is false, an output claim is false but with probability about `(claims + 2 rounds) / |E|`.
 
+use super::claims::{DensePoly, NodeClaims};
+use crate::arith::Verifier;
+use crate::rec::circuit::{Limbs, digest_limbs};
+use fiat_shamir::transcript::{ProofTranscript, ProverState, TranscriptError, Transmitter};
+use primitives::field::{F64, F192};
+use std::ops::Add;
+use thiserror::Error;
+
 mod dense;
 mod matrix;
 
 pub(crate) use dense::{DenseProver, DenseReduced, DenseVars};
 pub(crate) use matrix::{MatrixProver, MatrixReduced};
 
-use super::claims::NodeClaims;
-use crate::arith::Verifier;
-use crate::rec::circuit::{Limbs, digest_limbs};
-use fiat_shamir::transcript::{Error as TranscriptError, Proof, ProverState, Transmitter};
-use primitives::field::{F64, F192};
-
 /// The label every node's reduction transcript starts from.
-pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction";
+pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-3";
 
 /// Why a node's reduction refuses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
 pub(crate) enum ReduceError {
     /// The reduction's stream is malformed.
     #[error(transparent)]
@@ -50,7 +52,7 @@ pub(crate) struct Reduced<E> {
 
 /// The prover's dense polynomials, each a table of its values: the bytecode table, the image, the fixed polynomial.
 #[derive(Clone, Debug)]
-pub(crate) struct DenseTables(pub(crate) [Vec<F64>; super::claims::DensePoly::COUNT]);
+pub(crate) struct DenseTables(pub(crate) [Vec<F64>; DensePoly::COUNT]);
 
 /// The reduction transcript's starting state.
 pub(crate) fn initial_state() -> Limbs {
@@ -77,7 +79,7 @@ impl<E: Copy + PartialEq> NodeClaims<E> {
 impl NodeClaims<F192> {
     /// Prove the reduction of these claims, which must be true of the given tables.
     #[tracing::instrument(name = "Reduce claims", skip_all)]
-    pub(crate) fn prove(&self, vars: &DenseVars, tables: &DenseTables) -> Proof {
+    pub(crate) fn prove(&self, vars: &DenseVars, tables: &DenseTables) -> ProofTranscript {
         let mut ps = ProverState::from_label(LABEL);
         ps.add_scalars(&self.bound);
         crate::stage!("Dense reduction", || DenseProver::prove(
@@ -113,7 +115,7 @@ fn products(u: &[F192], g: &[F192]) -> [F192; 2] {
 /// The same sums across the pool, `g` of either field, with its product by an element of `E`.
 fn products_par<G>(u: &[F192], g: &[G], times: impl Fn(F192, G) -> F192 + Sync) -> [F192; 2]
 where
-    G: Copy + Sync + std::ops::Add<Output = G>,
+    G: Copy + Sync + Add<Output = G>,
 {
     let pairs = u.len() / 2;
     let task = |i: usize| {

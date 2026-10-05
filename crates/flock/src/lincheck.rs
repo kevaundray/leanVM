@@ -88,12 +88,27 @@
 //!   `byte_idx` and apply it across all `i_inner` with one lookup + one XOR
 //!   per byte.
 
-use fiat_shamir::transcript::{Challenger, ProverState, Receiver, Transmitter, VerifierState};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use core::arch::x86_64::*;
+use fiat_shamir::transcript::{Challenger, ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
+use parallel::SendPtr;
 use pcs::ring_switch::inner_product_ext;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use primitives::bit_fold::avx2;
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "gfni",
+    target_feature = "avx512bw",
+    target_feature = "avx512vbmi"
+))]
+use primitives::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
 use primitives::field::F192;
+#[cfg(target_arch = "aarch64")]
+use primitives::field::neon::xor3_u64;
 use primitives::multilinear::{eq_eval, eq_table as build_eq, skip_lagrange_weights};
-#[cfg(test)]
-use zk_alloc::ArenaVec;
+#[cfg(target_arch = "aarch64")]
+use std::arch::aarch64::*;
+use thiserror::Error;
 
 // ---------------------------------------------------------------------------
 // LincheckCircuit: the per-block linear structure lincheck consumes
@@ -199,8 +214,8 @@ pub struct LincheckClaim {
 }
 
 /// Why the lincheck verifier rejects.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum VerifyError {
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum LincheckError {
     /// The claim point's inner coordinates are not `k_log - k_skip` long.
     #[error("the claim point has {got} inner coordinates, and lincheck needs {expected}")]
     BadInnerRestLength { expected: usize, got: usize },
@@ -218,49 +233,12 @@ pub enum VerifyError {
     SumcheckMismatch,
     /// The proof stream is malformed.
     #[error(transparent)]
-    Transcript(#[from] fiat_shamir::transcript::Error),
+    Transcript(#[from] TranscriptError),
 }
 
 // ---------------------------------------------------------------------------
 // Core kernels
 // ---------------------------------------------------------------------------
-
-/// Partial fold of `z` at the outer half of a claim point, single-matrix,
-/// **scalar reference**. Uses the lincheck `z_packed` stripe layout
-/// (see module docs).
-///
-///   `output[i_inner] = Σ_{i_outer ∈ {0,1}^n_log}  z[i_inner, i_outer] · eq_outer[i_outer]`
-///
-/// Equivalently, `output[i_inner] = ẑ(i_inner_as_F192, x_outer)` for boolean
-/// `i_inner`. Used as the cross-check oracle for the production folds.
-#[cfg(test)]
-pub fn partial_fold_packed_z(z_packed: &[u8], m: usize, k_log: usize, eq_outer: &[F192]) -> Vec<F192> {
-    let n_log = m - k_log;
-    let k = 1usize << k_log;
-    let n_outer = 1usize << n_log;
-    assert_eq!(z_packed.len(), (1usize << m) / 8);
-    assert_eq!(eq_outer.len(), n_outer);
-    assert!(n_log >= 3, "need n_outer ≥ 8 for byte stripes");
-    let n_stripes = n_outer / 8;
-
-    let mut out = vec![F192::ZERO; k];
-    for byte_idx in 0..n_stripes {
-        let stripe = &z_packed[byte_idx * k..(byte_idx + 1) * k];
-        for (i_inner, &byte) in stripe.iter().enumerate() {
-            if byte == 0 {
-                continue;
-            }
-            let mut bits = byte;
-            while bits != 0 {
-                let r = bits.trailing_zeros() as usize;
-                let i_outer = 8 * byte_idx + r;
-                out[i_inner] += eq_outer[i_outer];
-                bits &= bits - 1;
-            }
-        }
-    }
-    out
-}
 
 /// Padding-aware variant of `partial_fold_packed_z_fast`. Skips rows
 /// `i_inner ∈ [useful_bits, k)`, since those rows hold zero in every block of an
@@ -334,8 +312,6 @@ unsafe fn process_block_neon_single(
     tables_ptr: *const F192,
     out_ptr: *mut F192,
 ) {
-    use primitives::field::neon::xor3_u64;
-    use std::arch::aarch64::*;
     const TILE_T: usize = NEON_TILE_T;
 
     let mut acc01 = [vdupq_n_u64(0); 8];
@@ -564,14 +540,9 @@ fn partial_fold_packed_z_oblock_padded(
     out
 }
 
-/// Stripes whose matrices one GFNI sweep holds at once.
-#[cfg(all(
-    target_arch = "x86_64",
-    target_feature = "gfni",
-    target_feature = "avx512bw",
-    target_feature = "avx512vbmi"
-))]
-const GFNI_TILE: usize = 8;
+/// Stripes whose maps one byte-sliced sweep holds at once.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+const SWEEP_TILE: usize = 8;
 
 /// The partial fold with GFNI, outer-partitioned like the tiled fold.
 ///
@@ -596,14 +567,11 @@ fn partial_fold_packed_z_gfni(
     useful_bits: usize,
     eq_outer: &[F192],
 ) -> Vec<F192> {
-    use crate::zerocheck::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
-    use core::arch::x86_64::*;
-
     let (k, n_stripes) = (1usize << k_log, 1usize << (m - k_log - 3));
     assert_eq!(z_packed.len(), n_stripes * k);
     assert_eq!(eq_outer.len(), 8 * n_stripes);
     assert!(
-        k >= 64 && n_stripes.is_multiple_of(GFNI_TILE),
+        k >= 64 && n_stripes.is_multiple_of(SWEEP_TILE),
         "whole registers and whole tiles"
     );
     // Rows past `useful_bits` are honest zeros; a group straddling the boundary folds them in harmlessly.
@@ -611,7 +579,7 @@ fn partial_fold_packed_z_gfni(
 
     // One byte-sliced accumulator per worker, one tile of stripes per task.
     let acc = parallel::map_reduce_with_state(
-        n_stripes / GFNI_TILE,
+        n_stripes / SWEEP_TILE,
         || (),
         // SAFETY: an all-zero bit pattern is a valid register value.
         || vec![unsafe { core::mem::zeroed::<[__m512i; OUT_BYTES]>() }; groups],
@@ -620,7 +588,7 @@ fn partial_fold_packed_z_gfni(
             fold_tile(
                 z_packed,
                 k,
-                &eq_outer[8 * GFNI_TILE * tile..][..8 * GFNI_TILE],
+                &eq_outer[8 * SWEEP_TILE * tile..][..8 * SWEEP_TILE],
                 tile,
                 acc,
             );
@@ -642,8 +610,8 @@ fn partial_fold_packed_z_gfni(
     #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
     fn fold_tile(z_packed: &[u8], k: usize, eq: &[F192], tile: usize, acc: &mut [[__m512i; OUT_BYTES]]) {
         let eq: &[[F192; 8]] = eq.as_chunks().0;
-        let matrices: [[u64; OUT_BYTES]; GFNI_TILE] = std::array::from_fn(|t| weight_matrices(&eq[t]));
-        let first = tile * GFNI_TILE;
+        let matrices: [[u64; OUT_BYTES]; SWEEP_TILE] = std::array::from_fn(|t| weight_matrices(&eq[t]));
+        let first = tile * SWEEP_TILE;
         for (g, acc) in acc.iter_mut().enumerate() {
             let mut r = *acc;
             for (t, m) in matrices.iter().enumerate() {
@@ -667,6 +635,95 @@ fn partial_fold_packed_z_gfni(
     out
 }
 
+/// The partial fold on AVX2: the AVX-512 fold's shape, one register being 32 consecutive `i_inner` of a stripe.
+///
+/// A group of 64 `i_inner` is two halves of 24 byte-sliced accumulators, each half swept eight output bytes at a time.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[cfg_attr(
+    all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"),
+    allow(dead_code)
+)]
+fn partial_fold_packed_z_avx2<P: avx2::Product>(
+    z_packed: &[u8],
+    m: usize,
+    k_log: usize,
+    useful_bits: usize,
+    eq_outer: &[F192],
+) -> Vec<F192> {
+    let (k, n_stripes) = (1usize << k_log, 1usize << (m - k_log - 3));
+    assert_eq!(z_packed.len(), n_stripes * k);
+    assert_eq!(eq_outer.len(), 8 * n_stripes);
+    assert!(
+        k >= 64 && n_stripes.is_multiple_of(SWEEP_TILE),
+        "whole registers and whole tiles"
+    );
+    // Rows past `useful_bits` are honest zeros; a group straddling the boundary folds them in harmlessly.
+    let groups = useful_bits.div_ceil(64);
+
+    // One byte-sliced accumulator per worker, one tile of stripes per task.
+    let acc = parallel::map_reduce_with_state(
+        n_stripes / SWEEP_TILE,
+        || (),
+        // SAFETY: an all-zero bit pattern is a valid register value.
+        || vec![unsafe { core::mem::zeroed::<[[__m256i; avx2::OUT_BYTES]; 2]>() }; groups],
+        // SAFETY: the function is compiled only with AVX2 enabled.
+        |(), acc, tile| unsafe {
+            fold_tile::<P>(
+                z_packed,
+                k,
+                &eq_outer[8 * SWEEP_TILE * tile..][..8 * SWEEP_TILE],
+                tile,
+                acc,
+            );
+        },
+        |mut x, y| {
+            for (x, y) in x.iter_mut().flatten().flatten().zip(y.iter().flatten().flatten()) {
+                // SAFETY: as above.
+                *x = unsafe { _mm256_xor_si256(*x, *y) };
+            }
+            x
+        },
+    );
+
+    #[target_feature(enable = "avx2")]
+    fn fold_tile<P: avx2::Product>(
+        z_packed: &[u8],
+        k: usize,
+        eq: &[F192],
+        tile: usize,
+        acc: &mut [[[__m256i; avx2::OUT_BYTES]; 2]],
+    ) {
+        let eq: &[[F192; 8]] = eq.as_chunks().0;
+        let maps: [[P::Map; avx2::OUT_BYTES]; SWEEP_TILE] = std::array::from_fn(|t| P::maps(&eq[t]));
+        let first = tile * SWEEP_TILE;
+        for (g, acc) in acc.iter_mut().enumerate() {
+            for (h, acc) in acc.iter_mut().enumerate() {
+                // Eight output bytes at a time keep their accumulators in registers.
+                for (o, acc) in acc.as_chunks_mut::<8>().0.iter_mut().enumerate() {
+                    let mut r = *acc;
+                    for (t, m) in maps.iter().enumerate() {
+                        let row = &z_packed[(first + t) * k + 64 * g + avx2::HALF * h..][..avx2::HALF];
+                        // SAFETY: the row is 32 bytes.
+                        let x = unsafe { _mm256_loadu_si256(row.as_ptr().cast()) };
+                        avx2::accumulate8::<P>(&mut r, P::input(x), &m[8 * o..]);
+                    }
+                    *acc = r;
+                }
+            }
+        }
+    }
+
+    // Rows past the last group stay zero.
+    let mut out = vec![F192::ZERO; k];
+    for (acc, out) in acc.iter().zip(out.as_chunks_mut::<64>().0) {
+        for (acc, out) in acc.iter().zip(out.as_chunks_mut::<{ avx2::HALF }>().0) {
+            // SAFETY: as above.
+            unsafe { avx2::store_f192(acc, out) };
+        }
+    }
+    out
+}
+
 /// Dispatch helper: pick the fastest single-matrix partial fold available
 /// for the given (m, k_log). Threads `useful_bits` through so the kernel
 /// can skip blocks past the useful region of each block (byte-identical to
@@ -684,8 +741,16 @@ fn partial_fold_packed_z_best(
         target_feature = "avx512bw",
         target_feature = "avx512vbmi"
     ))]
-    if k_log >= 6 && n_log_ok_for_tile(m, k_log, GFNI_TILE) {
+    if k_log >= 6 && n_log_ok_for_tile(m, k_log, SWEEP_TILE) {
         return partial_fold_packed_z_gfni(z_packed, m, k_log, useful_bits, eq_outer);
+    }
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        not(all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"))
+    ))]
+    if k_log >= 6 && n_log_ok_for_tile(m, k_log, SWEEP_TILE) {
+        return partial_fold_packed_z_avx2::<avx2::Best>(z_packed, m, k_log, useful_bits, eq_outer);
     }
     if n_log_ok_for_tile(m, k_log, NEON_TILE_T) {
         #[cfg(target_arch = "aarch64")]
@@ -740,70 +805,6 @@ fn build_sum_table(eq8: &[F192], table: &mut [F192]) {
             table[len + j] = table[j] + e;
         }
     }
-}
-
-/// Pack a logical Boolean witness vector into the lincheck `z_packed`
-/// stripe layout. The input `z_logical` is indexed linearly with
-/// `z_logical[i_inner + i_outer · k]` = z's value at `(i_inner, i_outer)`.
-/// The output `z_packed[byte_idx · k + i_inner]` holds 8 outer bits
-/// `z[i_inner, 8·byte_idx + r]` for `r ∈ 0..8`, with bit `r` within the byte.
-///
-/// See the module-level docs for the full bit-position decomposition.
-#[cfg(test)]
-pub fn pack_z_lincheck(z_logical: &[bool], m: usize, k_log: usize) -> ArenaVec<u8> {
-    let k = 1usize << k_log;
-    let n_total = 1usize << m;
-    assert_eq!(z_logical.len(), n_total);
-    let n_outer = n_total / k;
-    assert_eq!(n_outer % 8, 0, "need n_outer ≥ 8 for byte stripes");
-    let n_stripes = n_outer / 8;
-
-    let mut z_packed = zk_alloc::alloc_uninit(n_total / 8);
-    for byte_idx in 0..n_stripes {
-        for i_inner in 0..k {
-            let mut byte = 0u8;
-            for r in 0..8 {
-                let i_outer = 8 * byte_idx + r;
-                let logical_idx = i_inner + i_outer * k;
-                if z_logical[logical_idx] {
-                    byte |= 1u8 << r;
-                }
-            }
-            z_packed[byte_idx * k + i_inner].write(byte);
-        }
-    }
-    // SAFETY: the nested loops write every output byte exactly once.
-    unsafe { zk_alloc::assume_init(z_packed) }
-}
-
-/// Same output as `pack_z_lincheck`, but reads bits from the bit-packed `u64`
-/// witness: logical bit `i` is bit `i % 64` of `z_packed_words[i / 64]`.
-#[cfg(test)]
-pub fn pack_z_lincheck_from_packed(z_packed_words: &[u64], m: usize, k_log: usize) -> ArenaVec<u8> {
-    let k = 1usize << k_log;
-    let n_total = 1usize << m;
-    assert_eq!(z_packed_words.len(), n_total / 64);
-    let n_outer = n_total / k;
-    assert_eq!(n_outer % 8, 0, "need n_outer ≥ 8 for byte stripes");
-
-    let mut z_packed = zk_alloc::alloc_uninit(n_total / 8);
-    // Each stripe (byte_idx) writes a disjoint k-byte chunk, so process them in
-    // parallel. Inside one stripe, k independent output bytes.
-    parallel::chunks_mut(&mut z_packed, k, |byte_idx, chunk| {
-        for (i_inner, slot) in chunk.iter_mut().enumerate() {
-            let mut byte = 0u8;
-            for r in 0..8 {
-                let i_outer = 8 * byte_idx + r;
-                let logical_idx = i_inner + i_outer * k;
-                if (z_packed_words[logical_idx / 64] >> (logical_idx % 64)) & 1 == 1 {
-                    byte |= 1u8 << r;
-                }
-            }
-            slot.write(byte);
-        }
-    });
-    // SAFETY: every parallel chunk writes each of its output bytes exactly once.
-    unsafe { zk_alloc::assume_init(z_packed) }
 }
 
 /// Build the **quirky eq table** for a claim point on the inner half:
@@ -951,10 +952,10 @@ fn sumcheck_bind_both_and_eval_next(comb: &mut Vec<F192>, z: &mut Vec<F192>, r: 
         // The two written quarters are indexed rather than zipped: eight-way
         // `zip` of four mutable and four shared slices has no counterpart here,
         // and index `i` of each quarter is written by exactly one task.
-        let cq0_p = parallel::SendPtr(cq0.as_mut_ptr());
-        let cq1_p = parallel::SendPtr(cq1.as_mut_ptr());
-        let zq0_p = parallel::SendPtr(zq0.as_mut_ptr());
-        let zq1_p = parallel::SendPtr(zq1.as_mut_ptr());
+        let cq0_p = SendPtr(cq0.as_mut_ptr());
+        let cq1_p = SendPtr(cq1.as_mut_ptr());
+        let zq0_p = SendPtr(zq0.as_mut_ptr());
+        let zq1_p = SendPtr(zq1.as_mut_ptr());
         parallel::map_reduce(
             half2,
             || (F192::ZERO, F192::ZERO),
@@ -1220,23 +1221,23 @@ fn claim_of(alpha: F192, r_rounds: &[F192], s_hat_v: Vec<F192>) -> LincheckClaim
 pub fn verify_deferred(
     statements: &[LincheckStatement<'_>],
     vs: &mut VerifierState<'_>,
-) -> Result<Vec<(LincheckClaim, MatrixClaim)>, VerifyError> {
+) -> Result<Vec<(LincheckClaim, MatrixClaim)>, LincheckError> {
     for s in statements {
         let k_log = s.k_log;
         if s.k_skip > k_log {
-            return Err(VerifyError::KSkipExceedsKLog {
+            return Err(LincheckError::KSkipExceedsKLog {
                 k_skip: s.k_skip,
                 k_log,
             });
         }
         if s.x_ab.x_inner_rest.len() != k_log - s.k_skip {
-            return Err(VerifyError::BadInnerRestLength {
+            return Err(LincheckError::BadInnerRestLength {
                 expected: k_log - s.k_skip,
                 got: s.x_ab.x_inner_rest.len(),
             });
         }
         if s.x_ab.x_outer.len() != s.m - k_log {
-            return Err(VerifyError::BadOuterLength {
+            return Err(LincheckError::BadOuterLength {
                 expected: s.m - k_log,
                 got: s.x_ab.x_outer.len(),
             });
@@ -1301,7 +1302,7 @@ pub fn verify_deferred(
         out.push((claim, matrices));
     }
     if running != final_sum {
-        return Err(VerifyError::SumcheckMismatch);
+        return Err(LincheckError::SumcheckMismatch);
     }
 
     // 4. Each `z_partial` IS its circuit's output claim: the 64 bit-slice values of
@@ -1398,10 +1399,10 @@ impl MatrixClaim {
     /// # Errors
     ///
     /// Returns the circuit's width if it is not the form's, and a sumcheck mismatch when the form does not take the value.
-    pub fn check(&self, circuit: &dyn LincheckCircuit) -> Result<(), VerifyError> {
+    pub fn check(&self, circuit: &dyn LincheckCircuit) -> Result<(), LincheckError> {
         let n_cols = self.form.s_hat_v.len() << self.form.r_inner_rest.len();
         if circuit.n_cols() != n_cols {
-            return Err(VerifyError::BadNCols {
+            return Err(LincheckError::BadNCols {
                 expected: n_cols,
                 got: circuit.n_cols(),
             });
@@ -1409,7 +1410,7 @@ impl MatrixClaim {
         if self.form.evaluate(circuit) == self.value {
             Ok(())
         } else {
-            Err(VerifyError::SumcheckMismatch)
+            Err(LincheckError::SumcheckMismatch)
         }
     }
 }
@@ -1421,8 +1422,80 @@ impl MatrixClaim {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use primitives::field::F64;
-    use primitives::test_rng::Rng;
+    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use primitives::test_util::Rng;
+    use std::collections::HashSet;
+
+    /// Pack a logical Boolean witness vector into the lincheck `z_packed`
+    /// stripe layout. The input `z_logical` is indexed linearly with
+    /// `z_logical[i_inner + i_outer · k]` = z's value at `(i_inner, i_outer)`.
+    /// The output `z_packed[byte_idx · k + i_inner]` holds 8 outer bits
+    /// `z[i_inner, 8·byte_idx + r]` for `r ∈ 0..8`, with bit `r` within the byte.
+    ///
+    /// See the module-level docs for the full bit-position decomposition.
+    fn pack_z_lincheck(z_logical: &[bool], m: usize, k_log: usize) -> Vec<u8> {
+        let k = 1usize << k_log;
+        let n_total = 1usize << m;
+        assert_eq!(z_logical.len(), n_total);
+        let n_outer = n_total / k;
+        assert_eq!(n_outer % 8, 0, "need n_outer ≥ 8 for byte stripes");
+        let n_stripes = n_outer / 8;
+
+        let mut z_packed = Vec::with_capacity(n_total / 8);
+        let slots = &mut z_packed.spare_capacity_mut()[..n_total / 8];
+        for byte_idx in 0..n_stripes {
+            for i_inner in 0..k {
+                let mut byte = 0u8;
+                for r in 0..8 {
+                    let i_outer = 8 * byte_idx + r;
+                    let logical_idx = i_inner + i_outer * k;
+                    if z_logical[logical_idx] {
+                        byte |= 1u8 << r;
+                    }
+                }
+                slots[byte_idx * k + i_inner].write(byte);
+            }
+        }
+        // SAFETY: the nested loops write every output byte exactly once.
+        unsafe { z_packed.set_len(n_total / 8) };
+        z_packed
+    }
+
+    /// Partial fold of `z` at the outer half of a claim point, single-matrix,
+    /// **scalar reference**. Uses the lincheck `z_packed` stripe layout
+    /// (see module docs).
+    ///
+    ///   `output[i_inner] = Σ_{i_outer ∈ {0,1}^n_log}  z[i_inner, i_outer] · eq_outer[i_outer]`
+    ///
+    /// Equivalently, `output[i_inner] = ẑ(i_inner_as_F192, x_outer)` for boolean
+    /// `i_inner`. Used as the cross-check oracle for the production folds.
+    fn partial_fold_packed_z(z_packed: &[u8], m: usize, k_log: usize, eq_outer: &[F192]) -> Vec<F192> {
+        let n_log = m - k_log;
+        let k = 1usize << k_log;
+        let n_outer = 1usize << n_log;
+        assert_eq!(z_packed.len(), (1usize << m) / 8);
+        assert_eq!(eq_outer.len(), n_outer);
+        assert!(n_log >= 3, "need n_outer ≥ 8 for byte stripes");
+        let n_stripes = n_outer / 8;
+
+        let mut out = vec![F192::ZERO; k];
+        for byte_idx in 0..n_stripes {
+            let stripe = &z_packed[byte_idx * k..(byte_idx + 1) * k];
+            for (i_inner, &byte) in stripe.iter().enumerate() {
+                if byte == 0 {
+                    continue;
+                }
+                let mut bits = byte;
+                while bits != 0 {
+                    let r = bits.trailing_zeros() as usize;
+                    let i_outer = 8 * byte_idx + r;
+                    out[i_inner] += eq_outer[i_outer];
+                    bits &= bits - 1;
+                }
+            }
+        }
+        out
+    }
 
     /// Test shim: one dense circuit.
     fn prove(
@@ -1432,7 +1505,7 @@ mod tests {
         k_skip: usize,
         circuit: &dyn LincheckCircuit,
         x_ab: &QuirkyPoint,
-        ps: &mut fiat_shamir::transcript::ProverState,
+        ps: &mut ProverState,
     ) -> LincheckClaim {
         let input = LincheckInput {
             z_packed,
@@ -1461,7 +1534,7 @@ mod tests {
         v_b: F192,
         v_c: F192,
         vs: &mut VerifierState<'_>,
-    ) -> Result<LincheckClaim, VerifyError> {
+    ) -> Result<LincheckClaim, LincheckError> {
         let statement = LincheckStatement {
             m,
             k_log,
@@ -1625,7 +1698,7 @@ mod tests {
     /// `k × k` slots. Used for tests.
     fn random_sparse_matrix(k: usize, nnz: usize, rng: &mut Rng) -> SparseBinaryMatrix {
         let mut rows: Vec<Vec<usize>> = vec![Vec::new(); k];
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = HashSet::new();
         let mut count = 0;
         while count < nnz {
             let r = (rng.next_u64() as usize) % k;
@@ -1646,34 +1719,6 @@ mod tests {
     }
 
     // ---- Unit tests for the kernels ----
-
-    /// `partial_fold_packed_z` matches the direct sum.
-    #[test]
-    fn partial_fold_matches_direct() {
-        for &(m, k_log) in &[(10usize, 3), (12, 4), (14, 5), (16, 8)] {
-            let mut rng = Rng::new(33 + m as u64);
-            let z = rng.bits(1 << m);
-            let z_packed = pack_z_lincheck(&z, m, k_log);
-            let n_log = m - k_log;
-            let outer_point = rng.ext_vec(n_log);
-            let eq_outer = build_eq(&outer_point);
-
-            let got = partial_fold_packed_z(&z_packed, m, k_log, &eq_outer);
-
-            let k = 1usize << k_log;
-            assert_eq!(got.len(), k);
-            for (i_inner, &value) in got.iter().enumerate() {
-                let mut acc = F192::ZERO;
-                for (i_outer, &weight) in eq_outer.iter().enumerate() {
-                    let i = i_inner + i_outer * k;
-                    if z[i] {
-                        acc += weight;
-                    }
-                }
-                assert_eq!(value, acc, "mismatch at m={m}, i_inner={i_inner}");
-            }
-        }
-    }
 
     /// `partial_fold_packed_z_fast` (parallel lookup-table) matches the scalar
     /// reference `partial_fold_packed_z`.
@@ -1720,6 +1765,30 @@ mod tests {
             let best = partial_fold_packed_z_best(&z_packed, m, k_log, useful_bits, &eq);
             assert_eq!(serial, best, "m={m} k_log={k_log} useful={useful_bits}");
         }
+    }
+
+    /// Every AVX2 product this target compiles folds as the scalar reference does, not only the dispatched one.
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[test]
+    fn partial_fold_avx2_matches_serial() {
+        fn check<P: avx2::Product>(name: &str) {
+            for &(m, k_log, useful_bits) in &[(16usize, 8usize, 1usize << 8), (20, 10, 597), (21, 14, 16_000)] {
+                let k = 1usize << k_log;
+                let mut rng = Rng::new(0xA7_2F01D + (m * 31 + useful_bits) as u64);
+                let mut z = rng.bits(1 << m);
+                for block in z.chunks_mut(k) {
+                    block[useful_bits..].fill(false);
+                }
+                let z_packed = pack_z_lincheck(&z, m, k_log);
+                let eq = build_eq(&rng.ext_vec(m - k_log));
+                let serial = partial_fold_packed_z(&z_packed, m, k_log, &eq);
+                let folded = partial_fold_packed_z_avx2::<P>(&z_packed, m, k_log, useful_bits, &eq);
+                assert_eq!(serial, folded, "{name}: m={m} k_log={k_log} useful={useful_bits}");
+            }
+        }
+        check::<avx2::Shuffle>("shuffle");
+        #[cfg(target_feature = "gfni")]
+        check::<avx2::Gfni>("gfni");
     }
 
     /// NEON single-matrix kernel matches the scalar reference.
@@ -1888,11 +1957,11 @@ mod tests {
                 b_0: b_0.clone(),
                 pin: PIN_COL,
             };
-            let mut ch_p = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+            let mut ch_p = ProverState::from_label(b"flock-test-v0");
             let claim_p = prove(&z_packed, m, k_log, k_skip, &circuit, &x_ab, &mut ch_p);
 
             let proof_t = ch_p.into_proof();
-            let mut ch_v = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+            let mut ch_v = VerifierState::from_label(b"flock-test-v0", &proof_t);
             let claim_v = verify(m, k_log, k_skip, &circuit, &x_ab, v_a, v_b, v_c, &mut ch_v).unwrap_or_else(|e| {
                 panic!("verify rejected honest proof at m={m},k_log={k_log},k_skip={k_skip}: {e:?}")
             });
@@ -1953,7 +2022,7 @@ mod tests {
             b_0: b_0.clone(),
             pin: PIN_COL,
         };
-        let mut ch_p = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+        let mut ch_p = ProverState::from_label(b"flock-test-v0");
         let _ = prove(&z_packed, m, k_log, k_skip, &circuit, &x_ab, &mut ch_p);
         let proof_t = ch_p.into_proof();
 
@@ -1982,10 +2051,10 @@ mod tests {
             } else {
                 bad.stream[zp_word].c0 ^= 1;
             }
-            let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
+            let mut ch = VerifierState::from_label(b"flock-test-v0", &bad);
             let res = verify(m, k_log, k_skip, &circuit, &x_ab, v_a, v_b, v_c, &mut ch);
             assert!(
-                matches!(res, Err(VerifyError::SumcheckMismatch)),
+                matches!(res, Err(LincheckError::SumcheckMismatch)),
                 "verify did not reject z_partial[{skip_idx}].{label} bit-flip: got {res:?}"
             );
         }
@@ -2011,21 +2080,21 @@ mod tests {
         let v_c = mle_eval_bool_quirky(&z, m, k_log, k_skip, &x_ab);
 
         let circuit = SparseCircuit { a_0, b_0, pin: PIN_COL };
-        let mut ch_p = fiat_shamir::transcript::ProverState::from_label(b"flock-test-v0");
+        let mut ch_p = ProverState::from_label(b"flock-test-v0");
         let _ = prove(&z_packed, m, k_log, k_skip, &circuit, &x_ab, &mut ch_p);
         let proof_t = ch_p.into_proof();
 
         // Truncated stream (dropped last z_partial word): a clean Transcript error.
         let mut bad = proof_t.clone();
         bad.stream.pop();
-        let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &bad);
+        let mut ch = VerifierState::from_label(b"flock-test-v0", &bad);
         assert!(matches!(
             verify(m, k_log, k_skip, &circuit, &x_ab, v_a, v_b, v_c, &mut ch),
-            Err(VerifyError::Transcript(_))
+            Err(LincheckError::Transcript(_))
         ));
 
         // Wrong x_inner_rest length.
-        let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+        let mut ch = VerifierState::from_label(b"flock-test-v0", &proof_t);
         let bad_x_ab = QuirkyPoint {
             z_skip: x_ab.z_skip,
             x_inner_rest: x_ab.x_inner_rest[..x_ab.x_inner_rest.len() - 1].to_vec(),
@@ -2033,75 +2102,14 @@ mod tests {
         };
         assert!(matches!(
             verify(m, k_log, k_skip, &circuit, &bad_x_ab, v_a, v_b, v_c, &mut ch),
-            Err(VerifyError::BadInnerRestLength { .. })
+            Err(LincheckError::BadInnerRestLength { .. })
         ));
 
         // k_skip > k_log.
-        let mut ch = fiat_shamir::transcript::VerifierState::from_label(b"flock-test-v0", &proof_t);
+        let mut ch = VerifierState::from_label(b"flock-test-v0", &proof_t);
         assert!(matches!(
             verify(m, k_log, k_log + 1, &circuit, &x_ab, v_a, v_b, v_c, &mut ch),
-            Err(VerifyError::KSkipExceedsKLog { .. })
+            Err(LincheckError::KSkipExceedsKLog { .. })
         ));
-    }
-    /// Fold `z_vec`'s `2^|inner_rest_tail|` stripes of 64 slice values against the tail's eq table.
-    fn s_hat_v_from_z_vec(z_vec: &[F192], inner_rest_tail: &[F192]) -> Vec<F192> {
-        let eq = build_eq(inner_rest_tail);
-        assert_eq!(z_vec.len(), pcs::pack::PACKING_WIDTH * eq.len());
-        let mut s_hat_v = vec![F192::ZERO; pcs::pack::PACKING_WIDTH];
-        for (stripe, &weight) in z_vec.chunks(pcs::pack::PACKING_WIDTH).zip(&eq) {
-            for (slot, &value) in s_hat_v.iter_mut().zip(stripe) {
-                *slot += weight * value;
-            }
-        }
-        s_hat_v
-    }
-
-    /// AB-claim s_hat_v computed via `s_hat_v_from_z_vec` (reusing lincheck's
-    /// pre-sumcheck partial fold of `z` at `x_outer`) is byte-identical to the
-    /// general-purpose `fold_1b_rows` over the materialized suffix tensor.
-    #[test]
-    fn s_hat_v_from_z_vec_matches_fold_1b_rows_ab() {
-        const K_SKIP: usize = 6;
-        // (m, k_log), with K_SKIP fixed at 6 (so x_inner_rest has k_log − 6 coords;
-        // x_inner_rest[0] becomes ring-switch's prefix0 because
-        // K_SKIP + 1 = LOG_PACKING = 7). n_log = m − k_log must be ≥ 3 for
-        // partial_fold_packed_z's stripe layout.
-        let cases: &[(usize, usize)] = &[(13, 10), (15, 11), (17, 13)];
-        for &(m, k_log) in cases {
-            assert!(k_log >= pcs::pack::LOG_PACKING);
-            assert!(k_log >= K_SKIP);
-            let n_log = m - k_log;
-            assert!(n_log >= 3);
-            let mut rng = Rng::new(0xCAFE_u64.wrapping_add((m * 131 + k_log) as u64));
-
-            // Boolean witness in standard logical (linear) layout.
-            let z = rng.bits(1 << m);
-            let packed: Vec<F64> = z
-                .chunks(64)
-                .map(|c| F64(c.iter().rev().fold(0, |acc, &b| acc << 1 | b as u64)))
-                .collect();
-            let z_packed_lincheck = pack_z_lincheck(&z, m, k_log);
-
-            // AB-shaped quirky point: x_inner_rest has k_log − K_SKIP coords;
-            // x_outer has n_log coords.
-            let x_inner_rest: Vec<F192> = (0..(k_log - K_SKIP)).map(|_| rng.ext()).collect();
-            let x_outer: Vec<F192> = (0..n_log).map(|_| rng.ext()).collect();
-
-            // Reference: ring-switch's fold_1b_rows over the materialized
-            // suffix tensor, exactly the path open_batch hits today.
-            let mut x_outer_full = Vec::with_capacity(x_inner_rest.len() + x_outer.len());
-            x_outer_full.extend_from_slice(&x_inner_rest);
-            x_outer_full.extend_from_slice(&x_outer);
-            let suffix_tensor = primitives::multilinear::eq_table(&x_outer_full);
-            let want = pcs::ring_switch::fold_1b_rows(&packed, &suffix_tensor);
-
-            // New path: lincheck-shaped partial fold of z at x_outer, then a
-            // strided fold against the inner-rest tail.
-            let eq_x_outer = primitives::multilinear::eq_table(&x_outer);
-            let z_vec = partial_fold_packed_z(&z_packed_lincheck, m, k_log, &eq_x_outer);
-            let got = s_hat_v_from_z_vec(&z_vec, &x_inner_rest);
-
-            assert_eq!(got, want, "s_hat_v mismatch at m={m}, k_log={k_log}");
-        }
     }
 }

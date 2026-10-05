@@ -1,16 +1,20 @@
 //! Prove and verify a run of a guest's ELF executable.
 
 use bench::Plan;
-use leanvm::{Program, Proved, Prover, Rate, verify};
+use leanvm::{Program, ProvenRun, Prover};
 use primitives::{pretty_f64, pretty_integer};
+use std::error::Error;
+use std::fmt::Arguments;
+use std::num::ParseIntError;
+use std::path::Path;
 
-pub fn parse_word(word: &str) -> Result<u64, std::num::ParseIntError> {
+pub fn parse_word(word: &str) -> Result<u64, ParseIntError> {
     word.strip_prefix("0x")
         .map_or_else(|| word.parse(), |hex| u64::from_str_radix(hex, 16))
 }
 
 /// An error and its causes, outermost first.
-fn chain(error: &dyn std::error::Error) -> String {
+fn chain(error: &dyn Error) -> String {
     let mut text = error.to_string();
     let mut source = error.source();
     while let Some(cause) = source {
@@ -21,30 +25,30 @@ fn chain(error: &dyn std::error::Error) -> String {
 }
 
 /// What the user got wrong, said once and plainly: none of these is a bug here.
-pub fn refuse(what: std::fmt::Arguments) -> ! {
+pub fn refuse(what: Arguments) -> ! {
     eprintln!("{what}");
     std::process::exit(1)
 }
 
-pub fn run_guest(elf: &std::path::Path, advice: &[u64], prover: &Prover, rate: Rate, plan: Plan) {
+pub fn run_guest(elf: &Path, advice: &[u64], prover: &Prover, plan: Plan) {
     let bytes = std::fs::read(elf).unwrap_or_else(|e| refuse(format_args!("{}: {e}", elf.display())));
     let program =
         Program::from_elf(&bytes).unwrap_or_else(|e| refuse(format_args!("{}: {}", elf.display(), chain(&e))));
 
     let (
-        Proved {
+        ProvenRun {
             proof, output, stats, ..
         },
         prove_time,
     ) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
         prover
-            .prove(&program, advice, rate)
+            .prove(&program, advice)
             .unwrap_or_else(|e| refuse(format_args!("the run has no proof: {e}")))
     });
     let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        verify(&program, &output, &proof).unwrap();
+        program.verify(output, &proof).unwrap();
     });
 
     println!("{}", elf.display());
@@ -52,7 +56,7 @@ pub fn run_guest(elf: &std::path::Path, advice: &[u64], prover: &Prover, rate: R
         "  advice                      : {} words",
         pretty_integer(&(advice.len()))
     );
-    println!("  output                      : {output:x?}");
+    println!("  output                      : {output}");
     println!("  cycles (VM steps)           : {}", pretty_integer(&stats.cycles));
     println!("    details                   : {}", stats.details());
     let proof_bytes = proof.to_bytes().len();
