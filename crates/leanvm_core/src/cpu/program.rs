@@ -1360,7 +1360,8 @@ mod tests {
             panic!("the ALU binds its branch offset to a column");
         };
         let offset = Schema::get().spans[alu].0 + branch_offset;
-        forge(&mut w, offset, |col| col[row] = F64(8));
+        // The offset is a port of the ALU's circuit: its bus copy is forged, its circuit's witness keeping the decoded one.
+        virtual_mut(&mut w, offset)[row] = F64(8);
         forge(&mut w, Shared::BytecodeMult.col(), |col| col[0].0 -= 1);
 
         let unmatched = unmatched(&w);
@@ -1678,18 +1679,16 @@ mod tests {
         ));
     }
 
-    /// An honest witness of `a0 = 5` and its ALU table's branch-offset column, which is committed rather than a circuit word.
+    /// An honest witness of `a0 = 5` and its ALU table's first committed column, neither a circuit word nor a register number.
     fn witness_and_column() -> (Program, Execution, Witness, usize) {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
         let w = Witness::build(&program, &exec);
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let Coord::Col(branch_offset) = ClassTable::all()[alu].flushes().pull[1][9] else {
-            panic!("the ALU binds its branch offset to a column");
-        };
-        let col = Schema::get().spans[alu].0 + branch_offset;
-        assert!(w.layout.placements[col].column().is_some());
+        let (base, n) = Schema::get().spans[ClassTable::index_of(Class::Alu).unwrap()];
+        let col = (base..base + n)
+            .find(|&c| w.layout.placements[c].column().is_some())
+            .expect("the ALU commits a column");
         (program, exec, w, col)
     }
 
