@@ -135,11 +135,12 @@ impl Opening<'_> {
             prefix_eq.push(next);
         }
         let zero = r.zero();
+        // A table's columns share its point and their pieces' scales, so `scale * prefix_eq` is one row per table and piece.
         let terms = claim.terms.iter().fold(zero, |acc, t| {
             let block = s + t.n_vars;
             let sel = r.eq_bits(t.offset >> block, &x[block..]);
-            let low = r.mul(prefix_eq[t.n_vars], sel);
-            r.mul_add(t.scale, low, acc)
+            let weighted = r.mul(t.scale, prefix_eq[t.n_vars]);
+            r.mul_add(weighted, sel, acc)
         });
         let slot = r.eq_bits(claim.slot, &x[..s]);
         r.mul(slot, terms)

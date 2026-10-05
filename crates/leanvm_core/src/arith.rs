@@ -111,9 +111,11 @@ pub trait Arith {
     }
 
     /// `eq(bits, point)` for public bits, lowest first: `prod_j (bit_j ? z_j : 1 + z_j)`.
+    ///
+    /// It folds from the highest coordinate down: the aligned blocks a verifier weighs (a stack's pieces, a height's binary expansion) share their high bits, so in rows their folds share their first products, which the builder emits once.
     fn eq_bits(&mut self, bits: usize, point: &[Self::E]) -> Self::E {
         let one = self.one();
-        (point.iter().enumerate()).fold(one, |acc, (j, &z)| {
+        (point.iter().enumerate().rev()).fold(one, |acc, (j, &z)| {
             if bits >> j & 1 == 1 {
                 self.mul(acc, z)
             } else {
