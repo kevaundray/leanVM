@@ -244,7 +244,7 @@ impl Prepared {
                 n_blocks_log,
                 |row, z, az, bz| {
                     let row = view(row);
-                    Clock::witness(&slots, row.row.ts, &row.prev()[..slots.len()], z, az, bz)
+                    Clock::witness(&slots, row.row.ts, &row.prev()[..slots.len()], z, az, bz);
                 },
                 check,
             ),
