@@ -243,7 +243,7 @@ impl LeafShape {
     ///
     /// So a tree's key is built before any leaf is proven.
     #[must_use]
-    pub fn measured(stats: &Stats, rate: Rate) -> Self {
+    pub const fn measured(stats: &Stats, rate: Rate) -> Self {
         Self::new(stats.base_counts, rate)
     }
 

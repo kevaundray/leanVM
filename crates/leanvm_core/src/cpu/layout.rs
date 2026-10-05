@@ -418,7 +418,7 @@ impl Sizes {
 }
 
 /// A table's base-two logarithm of rows as proven: its height padded to a power of two, and to flock's instance floor.
-pub fn tau_of(t: usize, height: usize) -> usize {
+pub const fn tau_of(t: usize, height: usize) -> usize {
     class_flock::n_blocks_log(ClassSpec::ALL[t], height)
 }
 

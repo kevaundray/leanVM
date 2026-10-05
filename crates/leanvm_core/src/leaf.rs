@@ -1228,12 +1228,14 @@ pub fn prove_balance(
             );
         }
     });
-    let taus: Vec<usize> = match padding {
-        Some(padding) => padding.taus.to_vec(),
-        None => (tables.iter())
-            .map(|&(base, _)| crate::log2_strict_usize(cols[base].len()))
-            .collect(),
-    };
+    let taus: Vec<usize> = padding.map_or_else(
+        || {
+            (tables.iter())
+                .map(|&(base, _)| crate::log2_strict_usize(cols[base].len()))
+                .collect()
+        },
+        |padding| padding.taus.to_vec(),
+    );
     let (table_evals, prod_sums) = tables_and_prods_at(cols, tables, &taus, &forms, &bus_gkr.point);
     let Fingerprint { w, beta, .. } = fp;
     let producers: Vec<ProducerProof> = producers
