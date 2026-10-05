@@ -1215,6 +1215,87 @@ mod tests {
         }
     }
 
+    /// The run's row of entry `index` in table `t`.
+    fn row_of(exec: &mut Execution, t: usize, index: usize) -> &mut Row {
+        exec.trace.rows[t]
+            .iter_mut()
+            .find(|r| r.index as usize == index && r.ts != 0)
+            .expect("the entry ran in the table")
+    }
+
+    #[test]
+    fn a_forged_add_operand_unbalances_the_bus() {
+        // Invariant: an `ADD` row cannot use a value its `rs2` does not hold.
+        //
+        // Fixture state: `t0 = 5` and `t1 = 3`, then `a0 = t0 + t1`.
+        // Mutation: the add reads 4 from `t1`, and its result, `a0` and the output follow it, so its circuit's instance
+        // is honest. Only the read of `t1` is left to refuse it: it meets neither `t1`'s write nor its final value.
+        let text = Asm::new()
+            .i(Addi, Reg::T0, Reg::ZERO, 5)
+            .i(Addi, Reg::T1, Reg::ZERO, 3)
+            .r(Add, Reg::A0, Reg::T0, Reg::T1)
+            .exit()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let row = row_of(&mut forged, table(Class::Add), 2);
+        assert_eq!((row.v2, row.out), (3, 8));
+        (row.v2, row.out) = (4, 9);
+        forged.output[0] = 9;
+        forged.trace.reg_fin[Reg::A0.index()] = F64(9);
+        // Two tuples on each side: the read's pull and push.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    #[test]
+    fn a_forged_logic_operand_unbalances_the_bus() {
+        // Invariant: a `LOGIC` row cannot use a value its `rs1` does not hold.
+        //
+        // Fixture state: `t0 = 5`, then `a0 = t0 ^ 3`.
+        // Mutation: the XOR reads 6 from `t0`, and its result, `a0` and the output follow it, so its circuit's instance
+        // is honest. Only the read of `t0` is left to refuse it: it meets neither `t0`'s write nor its final value.
+        let text = Asm::new()
+            .i(Addi, Reg::T0, Reg::ZERO, 5)
+            .i(Xori, Reg::A0, Reg::T0, 3)
+            .exit()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let row = row_of(&mut forged, table(Class::Logic), 1);
+        assert_eq!((row.v1, row.out), (5, 6));
+        (row.v1, row.out) = (6, 5);
+        forged.output[0] = 5;
+        forged.trace.reg_fin[Reg::A0.index()] = F64(5);
+        // Two tuples on each side: the read's pull and push.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    #[test]
+    fn a_forged_jump_base_unbalances_the_bus() {
+        // Invariant: a `JUMP` row cannot read a value its `rs1` does not hold, even one the target it computes forgets.
+        //
+        // Fixture state: `t0` is the address of the exit, which `jalr x0, 0(t0)` jumps to.
+        // Mutation: the jump reads `t0` with bit 0 set, which `JALR` clears: its target, so every other tuple, and its
+        // circuit's instance are the honest ones. Only the read of `t0` is left to refuse it.
+        let text = Asm::new()
+            .auipc(Reg::T0, 0)
+            .i(Addi, Reg::T0, Reg::T0, 12)
+            .jalr(Reg::ZERO, Reg::T0, 0)
+            .exit()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let target = program.rv.pc_of(3);
+        let row = row_of(&mut forged, table(Class::Jump), 2);
+        assert_eq!(row.v1, target);
+        row.v1 = target | 1;
+        // Two tuples on each side: the read's pull and push.
+        let unmatched = unmatched_run(&program, &forged);
+        assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
     #[test]
     fn a_doubleword_moves_its_value_unchanged() {
         // Invariant: a doubleword load's `rd` receives the cell it reads, and a doubleword store's cell the `v2` it reads.

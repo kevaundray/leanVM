@@ -640,10 +640,7 @@ mod tests {
 
         // Every operation's entry obeys the bytecode table's rules.
         for &op in &ops {
-            assert!(
-                Entry::new(op, Region::TEXT.base()).is_well_formed(),
-                "{op:?}"
-            );
+            assert!(Entry::new(op, Region::TEXT.base()).is_well_formed(), "{op:?}");
         }
 
         // Invariant: a class's legal words are the words its operations use, no more and no fewer.

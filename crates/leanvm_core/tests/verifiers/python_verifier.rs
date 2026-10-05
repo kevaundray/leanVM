@@ -231,7 +231,11 @@ fn test_python_verifier() {
         (Class::Ld, vec![(3, 1)], "flags are not its class's"),
         (Class::Jump, vec![(3, Jump::INDIRECT), (9, 0), (5, 1)], "reads an rs2"),
         (Class::Branch, vec![(3, Branch::EQ), (7, 0), (6, 1)], "writes an rd"),
-        (Class::Branch, vec![(3, Branch::EQ), (6, 32), (7, 4)], "has an immediate"),
+        (
+            Class::Branch,
+            vec![(3, Branch::EQ), (6, 32), (7, 4)],
+            "has an immediate",
+        ),
     ] {
         let mut malformed = table.clone();
         for (slot, value) in std::iter::once((2, tag(class))).chain(fields) {

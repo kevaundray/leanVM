@@ -452,7 +452,13 @@ mod tests {
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with((): ()) -> Self::Strategy {
-            (select(Self::LEGAL), edge_word(), edge_word(), any::<u64>(), any::<u64>())
+            (
+                select(Self::LEGAL),
+                edge_word(),
+                edge_word(),
+                any::<u64>(),
+                any::<u64>(),
+            )
                 .prop_map(|(flags, v1, imm, dt, pc4)| Self {
                     flags,
                     v1,
@@ -537,11 +543,7 @@ mod tests {
         assert!(accepts(None));
 
         // Mutation: a bit of the jump, a spare bit of the flags' word, the last product.
-        for bit in [
-            64 * BRANCH.n_input_words() + 3,
-            64 * 2 + 7,
-            BRANCH.useful_bits() - 1,
-        ] {
+        for bit in [64 * BRANCH.n_input_words() + 3, 64 * 2 + 7, BRANCH.useful_bits() - 1] {
             assert!(!accepts(Some(bit)), "flipping bit {bit} must reject");
         }
     }
