@@ -20,7 +20,11 @@ use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmit
 use parallel::Chunks;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::MixedSums8;
-use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base, mul2, mul4};
+use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base};
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+use primitives::field::{F192x1, F192x1Unreduced};
+#[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+use primitives::field::{mul2, mul4};
 use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
@@ -396,6 +400,7 @@ fn fill_tuple(
     for (i, c) in coords.iter().enumerate() {
         push_terms(c, w[i], &mut terms, &mut const_part);
     }
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
     let row = |z: usize| -> F192 {
         // The α-weighted coordinate sum defers its reductions: each mixed
         // product contributes its three raw limb products (3 PMULL, no
@@ -428,8 +433,12 @@ fn fill_tuple(
         }
         sums.reduce().map(|s| const_part + s)
     };
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
+    #[cfg(not(any(
+        all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
+        all(target_arch = "aarch64", target_feature = "aes")
+    )))]
     let rows8 = |z: usize| -> [F192; 8] { std::array::from_fn(|r| row(z + r)) };
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
     let fill = |base: usize, dst: &mut [MaybeUninit<F192>], products: Option<&mut [MaybeUninit<F192>]>| {
         let (groups, tail) = dst.as_chunks_mut::<8>();
         let tail_start = base + 8 * groups.len();
@@ -448,6 +457,44 @@ fn fill_tuple(
         }
         for (r, slot) in tail.iter_mut().enumerate() {
             slot.write(row(tail_start + r));
+        }
+    };
+    // One row at a time with every value in vector registers from its load to its store: the
+    // terms' products summed unreduced and reduced once, and four rows' product formed from them.
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    let constant = F192x1::new(const_part);
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    let row = |z: usize| -> F192x1 {
+        let mut acc = F192x1Unreduced::zero();
+        for t in &terms {
+            let (c, k) = match t {
+                Term::Col(i, c) => (c, cols[*i][z]),
+                Term::Prod(i, j, c) => (c, cols[*i][z] * cols[*j][z]),
+                Term::IntIndex(c, shift) => (c, F64((z as u64) << shift)),
+                Term::Public(vals, c) => (c, vals[z]),
+            };
+            acc ^= F192x1::load(c).mul_base_unreduced(k);
+        }
+        constant + acc.reduce()
+    };
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    let fill = |base: usize, dst: &mut [MaybeUninit<F192>], products: Option<&mut [MaybeUninit<F192>]>| {
+        if let Some(products) = products {
+            let (quads, tail) = dst.as_chunks_mut::<4>();
+            debug_assert!(tail.is_empty() && products.len() == quads.len());
+            for ((q, [o0, o1, o2, o3]), product) in quads.iter_mut().enumerate().zip(products) {
+                let z = base + 4 * q;
+                let (a, b, c, d) = (row(z), row(z + 1), row(z + 2), row(z + 3));
+                a.store(o0);
+                b.store(o1);
+                c.store(o2);
+                d.store(o3);
+                ((a * b) * (c * d)).store(product);
+            }
+        } else {
+            for (r, slot) in dst.iter_mut().enumerate() {
+                row(base + r).store(slot);
+            }
         }
     };
     if dst.len() >= PAR_THRESHOLD {

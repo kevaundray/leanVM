@@ -624,7 +624,9 @@ pub mod aarch64 {
     use crate::field::gf2_64::{F64, R64};
     use crate::field::neon::xor3_u64;
     use core::arch::aarch64::*;
+    use core::mem::MaybeUninit;
     use core::mem::transmute;
+    use core::ops::{Add, BitXor, BitXorAssign, Mul};
 
     /// Carry-less product of the low qwords.
     #[inline(always)]
@@ -717,6 +719,12 @@ pub mod aarch64 {
     #[inline(always)]
     fn schoolbook(a: F192, b: F192) -> [uint64x2_t; 3] {
         let ((a01, a22), (b01, b22)) = (split(a), split(b));
+        products(a01, a22, b01, b22)
+    }
+
+    /// [`schoolbook`] of two elements already in their registers.
+    #[inline(always)]
+    fn products(a01: uint64x2_t, a22: uint64x2_t, b01: uint64x2_t, b22: uint64x2_t) -> [uint64x2_t; 3] {
         // SAFETY: NEON is part of the aarch64 baseline.
         let a10 = unsafe { vextq_u64::<1>(a01, a01) };
         // a_i b_j for every pair, named by (i, j).
@@ -791,6 +799,148 @@ pub mod aarch64 {
     pub fn reduce(u: F192Unreduced) -> F192 {
         // SAFETY: a `[u64; 2]` and a 128-bit register hold the same bits.
         reduce3(u.coeffs.map(|c| unsafe { transmute::<[u64; 2], uint64x2_t>(c) }))
+    }
+
+    /// One element in its two registers, for a kernel whose values stay there from load to store.
+    ///
+    /// An [`F192`] is three integer words: every sum of two runs on the integer side, and every
+    /// product moves its operands over and its result back, which costs more than the product.
+    /// These sums and products stay in vector registers. Keep them as named values or tuples: an
+    /// array of them is a memory object.
+    #[derive(Clone, Copy)]
+    pub struct F192x1 {
+        c01: uint64x2_t,
+        c22: uint64x2_t,
+    }
+
+    /// An unreduced product of [`F192x1`] values, or a sum of them: its three 128-bit coefficients
+    /// in registers.
+    #[derive(Clone, Copy)]
+    pub struct F192x1Unreduced([uint64x2_t; 3]);
+
+    impl F192x1 {
+        #[inline(always)]
+        pub fn new(e: F192) -> Self {
+            let (c01, c22) = split(e);
+            Self { c01, c22 }
+        }
+
+        /// The element at `e`, loaded into its registers.
+        #[inline(always)]
+        pub fn load(e: &F192) -> Self {
+            let words = (e as *const F192).cast::<u64>();
+            // SAFETY: `e` is three words, `c0` and `c1` adjacent under `repr(C)`.
+            unsafe {
+                Self {
+                    c01: vld1q_u64(words),
+                    c22: vld1q_dup_u64(words.add(2)),
+                }
+            }
+        }
+
+        /// Write the element to `out`, which need not be initialized.
+        #[inline(always)]
+        pub fn store(self, out: &mut MaybeUninit<F192>) {
+            let words = out.as_mut_ptr().cast::<u64>();
+            // SAFETY: `out` is three words, `c0` and `c1` adjacent under `repr(C)`.
+            unsafe {
+                vst1q_u64(words, self.c01);
+                vst1q_lane_u64::<0>(words.add(2), self.c22);
+            }
+        }
+
+        /// The product without the reduction.
+        #[inline(always)]
+        pub fn mul_unreduced(self, rhs: Self) -> F192x1Unreduced {
+            F192x1Unreduced(products(self.c01, self.c22, rhs.c01, rhs.c22))
+        }
+
+        /// The mixed product by a base-field scalar, without the reduction.
+        #[inline(always)]
+        pub fn mul_base_unreduced(self, k: F64) -> F192x1Unreduced {
+            // SAFETY: NEON is part of the aarch64 baseline.
+            let kk = unsafe { vdupq_n_u64(k.0) };
+            F192x1Unreduced([lo(self.c01, kk), hi(self.c01, kk), lo(self.c22, kk)])
+        }
+    }
+
+    impl Add for F192x1 {
+        type Output = Self;
+        #[inline(always)]
+        fn add(self, rhs: Self) -> Self {
+            Self {
+                c01: xor(self.c01, rhs.c01),
+                c22: xor(self.c22, rhs.c22),
+            }
+        }
+    }
+
+    impl Mul for F192x1 {
+        type Output = Self;
+        #[inline(always)]
+        fn mul(self, rhs: Self) -> Self {
+            self.mul_unreduced(rhs).reduce()
+        }
+    }
+
+    impl F192x1Unreduced {
+        #[inline(always)]
+        pub fn zero() -> Self {
+            // SAFETY: NEON is part of the aarch64 baseline.
+            Self([unsafe { vdupq_n_u64(0) }; 3])
+        }
+
+        /// Reduce each coefficient, into the element's two registers.
+        #[inline(always)]
+        pub fn reduce(self) -> F192x1 {
+            let [d0, d1, d2] = self.0;
+            // SAFETY: NEON is part of the aarch64 baseline.
+            unsafe {
+                let r = vdupq_n_u64(R64);
+                let (c0, c1, c2) = (reduce_lane(d0, r), reduce_lane(d1, r), reduce_lane(d2, r));
+                F192x1 {
+                    c01: vzip1q_u64(c0, c1),
+                    c22: vdupq_laneq_u64::<0>(c2),
+                }
+            }
+        }
+    }
+
+    impl BitXor for F192x1Unreduced {
+        type Output = Self;
+        #[inline(always)]
+        fn bitxor(self, rhs: Self) -> Self {
+            let ([a0, a1, a2], [b0, b1, b2]) = (self.0, rhs.0);
+            Self([xor(a0, b0), xor(a1, b1), xor(a2, b2)])
+        }
+    }
+
+    impl BitXorAssign for F192x1Unreduced {
+        #[inline(always)]
+        fn bitxor_assign(&mut self, rhs: Self) {
+            *self = *self ^ rhs;
+        }
+    }
+
+    impl From<F192x1Unreduced> for F192Unreduced {
+        #[inline(always)]
+        fn from(u: F192x1Unreduced) -> Self {
+            unreduced(u.0)
+        }
+    }
+
+    impl From<F192x1> for F192 {
+        #[inline(always)]
+        fn from(e: F192x1) -> Self {
+            // SAFETY: NEON is part of the aarch64 baseline.
+            unsafe {
+                Self::new(
+                    vgetq_lane_u64::<0>(e.c01),
+                    vgetq_lane_u64::<1>(e.c01),
+                    vgetq_lane_u64::<0>(e.c22),
+                )
+            }
+        }
     }
 }
 
@@ -1833,6 +1983,10 @@ mod tests {
     use super::*;
     use crate::field::gf2_64::R64;
     use crate::test_util::Rng;
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    use aarch64::{F192x1, F192x1Unreduced};
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    use core::mem::MaybeUninit;
 
     /// Vectors generated by an independent Python implementation
     /// (scratchpad/fieldref.py): (a, b, a·b, a·a).
@@ -1950,6 +2104,28 @@ mod tests {
             acc ^= F192x4::splat(a[0]).mul_unreduced(b4);
             let sum = (0..4).fold(F192::ZERO, |s, i| s + want[i] + software::mul(a[0], b[i]));
             assert_eq!(acc.sum().reduce(), sum);
+        }
+    }
+
+    /// Sums, products, unreduced sums and the loads and stores of elements held in registers,
+    /// every corner pair among the operands, and each corner's words as base-field scalars.
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[test]
+    fn register_products_match_software() {
+        for (a, b) in operand_pairs(12) {
+            let (a1, b1) = (F192x1::load(&a), F192x1::new(b));
+            assert_eq!(F192::from(a1 * b1), software::mul(a, b));
+            assert_eq!(F192::from(a1 + b1), a + b);
+            let mut acc = F192x1Unreduced::zero();
+            acc ^= a1.mul_unreduced(b1);
+            acc ^= b1.mul_base_unreduced(F64(a.c2));
+            let want = software::mul(a, b) + software::mul(b, F192::from(F64(a.c2)));
+            assert_eq!(F192::from(acc.reduce()), want);
+            assert_eq!(F192Unreduced::from(acc).reduce(), want);
+            let mut out = MaybeUninit::uninit();
+            a1.store(&mut out);
+            // SAFETY: `store` wrote it.
+            assert_eq!(unsafe { out.assume_init() }, a);
         }
     }
 

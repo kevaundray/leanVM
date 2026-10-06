@@ -11,6 +11,8 @@ use crate::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+use primitives::field::{F192x1, F192x1Unreduced};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::{F192x4, F192x4Unreduced};
 use primitives::multilinear::{SplitEq, interp};
@@ -48,12 +50,19 @@ pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
     let full_rows = current.len() / 4;
     let mut next = Vec::with_capacity(rows.next_multiple_of(4));
     let slots = &mut next.spare_capacity_mut()[..rows];
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
     let product = |row: usize| {
         let [left, right] = mul2(
             [current[4 * row], current[4 * row + 2]],
             [current[4 * row + 1], current[4 * row + 3]],
         );
         left * right
+    };
+    // Each value in vector registers from its load to the product's.
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    let product = |row: usize| {
+        let child = |c: usize| F192x1::load(&current[4 * row + c]);
+        F192::from((child(0) * child(1)) * (child(2) * child(3)))
     };
     if full_rows >= PAR_THRESHOLD {
         parallel::fill(&mut slots[..full_rows], |row| MaybeUninit::new(product(row)));
@@ -165,6 +174,36 @@ fn quartic_summand4(low: [F192x4; 4], high: [F192x4; 4], equality: F192x4) -> [F
     [c0 ^ at_one, c2, c3, c4].map(|c| equality.mul_unreduced(c.reduce()))
 }
 
+/// A row's four children, or a summand's four coefficients, held in vector registers.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+type Quad<T> = (T, T, T, T);
+
+/// [`quartic_summand4`]'s products for one row pair held in vector registers: `low` is the
+/// low row's four children, `high` the high row's.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[inline(always)]
+fn quartic_summand1(low: Quad<F192x1>, high: Quad<F192x1>, equality: F192x1) -> Quad<F192x1Unreduced> {
+    let ((l0, l1, l2, l3), (h0, h1, h2, h3)) = (low, high);
+    let (left0, left2) = (l0 * l1, (l0 + h0) * (l1 + h1));
+    let (right0, right2) = (l2 * l3, (l2 + h2) * (l3 + h3));
+    let (left_at_one, right_at_one) = (h0 * h1, h2 * h3);
+    let left1 = left_at_one + left0 + left2;
+    let right1 = right_at_one + right0 + right2;
+    let c0 = left0.mul_unreduced(right0);
+    let c4 = left2.mul_unreduced(right2);
+    let middle = left1.mul_unreduced(right1);
+    let at_one = left_at_one.mul_unreduced(right_at_one);
+    let cross_even = (left0 + left2).mul_unreduced(right0 + right2);
+    let cross_high = (left1 + left2).mul_unreduced(right1 + right2);
+    let scaled = |c: F192x1Unreduced| equality.mul_unreduced(c.reduce());
+    (
+        scaled(c0 ^ at_one),
+        scaled(cross_even ^ c0 ^ c4 ^ middle),
+        scaled(cross_high ^ middle ^ c4),
+        scaled(c4),
+    )
+}
+
 /// `slice` as the values it holds.
 ///
 /// # Safety
@@ -213,6 +252,7 @@ impl QuaternaryLayerState {
     fn round_message(&self, equality: &SplitEq) -> [F192; 4] {
         let stored_rows = self.values.len() / 4;
         let full_pairs = stored_rows / 2;
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
         let summand = |row: usize, weight: F192| -> [F192Unreduced; 4] {
             let (lo, hi) = (8 * row, 8 * row + 4);
             let lines = [0, 1, 2, 3].map(|child| {
@@ -238,12 +278,24 @@ impl QuaternaryLayerState {
             };
             quartic_summand4(rows(0), rows(1), weights)
         };
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        let summand1 = |row: usize, weight: F192x1| {
+            let v = &self.values[8 * row..8 * row + 8];
+            let child = |c: usize| F192x1::load(&v[c]);
+            let low = (child(0), child(1), child(2), child(3));
+            quartic_summand1(low, (child(4), child(5), child(6), child(7)), weight)
+        };
         let window = |index: usize| -> [F192Unreduced; 4] {
             let base = index * rows;
             let range = base..(base + rows).min(full_pairs);
             #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
             return equality.weighted_sum_lanes(range, full_pairs, &mut (), |_, row, w| summand(row, w), summand4);
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
+            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            return equality.weighted_sum_x1(range, summand1);
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
+                all(target_arch = "aarch64", target_feature = "aes")
+            )))]
             equality.weighted_sum(range, summand)
         };
         let windows = full_pairs.div_ceil(rows);
@@ -270,6 +322,7 @@ impl QuaternaryLayerState {
         self.next.clear();
         let values = &self.values;
         let next = &mut self.next.spare_capacity_mut()[..4 * rows];
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
         let fold_row = |row: usize| -> [F192; 4] {
             // One slice, not eight indexes: the bounds checks and the
             // index-by-24 multiplies fall out.
@@ -294,12 +347,24 @@ impl QuaternaryLayerState {
                 stream.write(slot, &both[..slot.len()]);
             }
         };
-        #[cfg(not(target_arch = "x86_64"))]
+        #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_feature = "aes"))))]
         let window = |base: usize, destination: &mut [MaybeUninit<F192>]| {
             for (pair, slot) in destination.chunks_mut(8).enumerate() {
                 slot[..4].write_copy_of_slice(&fold_row(base + 2 * pair));
                 if slot.len() == 8 {
                     slot[4..].write_copy_of_slice(&fold_row(base + 2 * pair + 1));
+                }
+            }
+        };
+        // Each value in vector registers from its load to its store.
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        let window = |base: usize, destination: &mut [MaybeUninit<F192>]| {
+            let challenge = F192x1::new(challenge);
+            for (r, slot) in destination.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+                let v = &values[8 * (base + r)..8 * (base + r) + 8];
+                for (c, slot) in slot.iter_mut().enumerate() {
+                    let (left, right) = (F192x1::load(&v[c]), F192x1::load(&v[4 + c]));
+                    (left + (left + right) * challenge).store(slot);
                 }
             }
         };
@@ -340,6 +405,8 @@ impl QuaternaryLayerState {
         let full_pairs = stored_rows / 4;
         #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
         let lanes = F192x4::splat(challenge);
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        let challenge1 = F192x1::new(challenge);
         let task = |index: usize| {
             let first = index * PAIRS;
             let end = (first + PAIRS).min(pairs);
@@ -347,6 +414,7 @@ impl QuaternaryLayerState {
             let len = 4 * (end_row - 2 * first);
             // Every slot is written before it is read, so the stage needs no zero fill.
             let mut stage = [MaybeUninit::<F192>::uninit(); 8 * PAIRS];
+            #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
             let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
                 let lo = 8 * row;
                 let left = &values[lo..lo + 4];
@@ -357,7 +425,21 @@ impl QuaternaryLayerState {
                     stage[offset + i].write(left[i] + product[i]);
                 }
             };
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
+            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
+                let lo = 8 * row;
+                let left = &values[lo..lo + 4];
+                let right = values.get(lo + 4..lo + 8).unwrap_or(&[F192::ONE; 4]);
+                let offset = 4 * (row - 2 * first);
+                for (c, slot) in stage[offset..offset + 4].iter_mut().enumerate() {
+                    let (left, right) = (F192x1::load(&left[c]), F192x1::load(&right[c]));
+                    (left + (left + right) * challenge1).store(slot);
+                }
+            };
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
+                all(target_arch = "aarch64", target_feature = "aes")
+            )))]
             let message = {
                 for row in 2 * first..end_row {
                     fold_row(&mut stage, row);
@@ -374,6 +456,26 @@ impl QuaternaryLayerState {
                     };
                     let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
                     quartic_summand(lines, weight)
+                })
+            };
+            // Each value in vector registers from its load to the summand's sums.
+            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            let message = {
+                for row in 2 * first..end_row {
+                    fold_row(&mut stage, row);
+                }
+                // SAFETY: the loop above wrote `stage[..len]`.
+                let stage = unsafe { assume_init(&stage[..len]) };
+                let one = F192x1::new(F192::ONE);
+                equality.weighted_sum_x1(first..end, |pair, weight| {
+                    let lo = 8 * (pair - first);
+                    let child = |c: usize| F192x1::load(&stage[lo + c]);
+                    let high = if 2 * pair + 1 < rows {
+                        (child(4), child(5), child(6), child(7))
+                    } else {
+                        (one, one, one, one)
+                    };
+                    quartic_summand1((child(0), child(1), child(2), child(3)), high, weight)
                 })
             };
             // Each pair folded where its summand reads it, four pairs at a time in lanes.
