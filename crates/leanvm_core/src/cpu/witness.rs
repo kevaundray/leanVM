@@ -8,6 +8,7 @@ use crate::class_flock::Prepared;
 use crate::tables::{ClassSpec, ClassTable, FillContext};
 use crate::{class_flock, tables};
 use primitives::field::F64;
+use std::mem::MaybeUninit;
 
 /// The prover's witness: the stack `q` with every committed column at its placed offset, and the public layout.
 pub(crate) struct Witness {
@@ -61,23 +62,22 @@ impl Witness {
         let layout = Layout::new(p, taus, trace.ts_final);
 
         // The stack is written exactly once: one window per committed column, each filled in place.
-        //
+        let mut q = Box::new_uninit_slice(layout.shape.committed_len());
+
+        // A port is not in the stack, so its values get a buffer of their own.
+        let mut virt: Vec<(usize, Box<[MaybeUninit<F64>]>)> = Vec::new();
+        for (t, &(base, width)) in schema.spans.iter().enumerate() {
+            for i in (base..base + width).filter(|&i| layout.placements[i].window().is_none()) {
+                virt.push((i, Box::new_uninit_slice(1 << layout.taus[t])));
+            }
+        }
         // SAFETY: each table fills its column windows before they are read.
         // The shared columns are filled below.
         // The pad tail is zeroed.
-        let mut q = unsafe { primitives::uninit_vec::<F64>(layout.shape.committed_len()) };
-
-        // A port is not in the stack, so its values get a buffer of their own.
-        let mut virt: Vec<(usize, Vec<F64>)> = Vec::new();
-        for (t, &(base, width)) in schema.spans.iter().enumerate() {
-            for i in (base..base + width).filter(|&i| layout.placements[i].window().is_none()) {
-                // SAFETY: each table checks that it writes every circuit port column in full.
-                virt.push((i, unsafe { primitives::uninit_vec::<F64>(1 << layout.taus[t]) }));
-            }
-        }
-        let mut windows = crate::witness::split_stack(&mut q, &layout.placements);
+        let mut windows = crate::witness::split_stack(unsafe { primitives::write_only(&mut q) }, &layout.placements);
         for (i, buf) in virt.iter_mut() {
-            windows[*i] = buf;
+            // SAFETY: each table checks that it writes every circuit port column in full.
+            windows[*i] = unsafe { primitives::write_only(buf) };
         }
 
         crate::stage!("Fill columns", || {
@@ -97,17 +97,31 @@ impl Witness {
 
             // What the run did not leave, the multiplicities, is counted from its rows.
             trace.count_reads(windows[Lookup::Bytecode.multiplicity().col()]);
+
+            // The tables' register numbers, packed into their words.
+            for word in &layout.registers {
+                word.pack(&mut windows);
+            }
         });
 
         // The packed witnesses, one instance per row of their table.
         let reductions = crate::stage!("Build flock witnesses", || {
             (0..class_flock::N_FLOCKS)
-                .map(|f| Prepared::build(f, trace, p.entries(), windows[q_column(f)]))
+                .map(|f| Prepared::build(f, trace, p, windows[q_column(f)]))
                 .collect()
         });
 
         // Release the windows' borrow of the stack and of the port buffers.
         drop(windows);
+        // SAFETY: the fills above wrote every window and port buffer, and the stack's tail is zeroed.
+        let (q, virt) = unsafe {
+            (
+                q.assume_init().into_vec(),
+                virt.into_iter()
+                    .map(|(i, buf)| (i, buf.assume_init().into_vec()))
+                    .collect(),
+            )
+        };
         Self {
             q,
             virt,

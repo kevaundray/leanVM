@@ -6,6 +6,7 @@ use crate::PAR_THRESHOLD;
 use crate::colval::ColVal;
 use parallel::Chunks;
 use primitives::field::{F192, F192Unreduced};
+use std::mem::MaybeUninit;
 use std::ops::Deref;
 
 /// [`super::table_message`], one row at a time.
@@ -91,10 +92,10 @@ fn folded_message(
     acc.map(F192Unreduced::reduce)
 }
 
-/// [`super::fold_columns_and_message`]'s row pairs, `half / 2` of them, into `out`.
+/// [`super::fold_columns_and_message`]'s row pairs, `half / 2` of them, written into every slot of `out`.
 pub(super) fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Sync>(
     cols: &[C],
-    out: &mut [F192],
+    out: &mut [MaybeUninit<F192>],
     rk: F192,
     summand: &impl Summand,
     eqr: &[F192],
@@ -114,8 +115,8 @@ pub(super) fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target =
         }
         // SAFETY: task i owns row i in each disjoint output half for the whole dispatch.
         unsafe {
-            lo.get(i).copy_from_slice(a);
-            hi.get(i).copy_from_slice(b);
+            lo.get(i).write_copy_of_slice(a);
+            hi.get(i).write_copy_of_slice(b);
         }
     })
 }

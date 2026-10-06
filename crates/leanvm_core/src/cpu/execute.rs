@@ -48,6 +48,45 @@ impl LastAccess {
     }
 }
 
+/// What a run keeps of each step it makes.
+pub(super) trait Recorder {
+    /// Record the row of `step`, executed at clock `ts`.
+    fn record(&mut self, p: &RiscvProgram, m: &Machine<'_>, step: Step, ts: u64);
+
+    /// The rows recorded so far, per table.
+    fn row_counts(&self) -> [usize; N_TABLES];
+}
+
+/// The rows a run makes per table, and nothing else.
+pub(super) struct RowCounter {
+    /// The table of each bytecode entry, or none for a class with no table.
+    tables: Vec<Option<usize>>,
+    /// The rows counted so far, per table.
+    counts: [usize; N_TABLES],
+}
+
+impl RowCounter {
+    /// A counter for runs of `p`.
+    pub(super) fn new(p: &RiscvProgram) -> Self {
+        Self {
+            tables: p.entries().iter().map(|e| ClassTable::index_of(e.class)).collect(),
+            counts: [0; N_TABLES],
+        }
+    }
+}
+
+impl Recorder for RowCounter {
+    #[inline(always)]
+    fn record(&mut self, _: &RiscvProgram, _: &Machine<'_>, step: Step, _: u64) {
+        let table = self.tables[step.index].expect("every class that runs has a table");
+        self.counts[table] += 1;
+    }
+
+    fn row_counts(&self) -> [usize; N_TABLES] {
+        self.counts
+    }
+}
+
 /// A trace being recorded: the rows so far, and each cell's last access timestamp.
 pub(super) struct TraceBuilder {
     /// The register file's cells.
@@ -66,12 +105,18 @@ pub(super) struct TraceBuilder {
     adv_init: Vec<F64>,
 }
 
-impl TraceBuilder {
-    /// The rows recorded so far, per table.
-    pub(super) fn row_counts(&self) -> [usize; N_TABLES] {
-        std::array::from_fn(|t| self.rows[t].len())
+impl Recorder for TraceBuilder {
+    #[inline(always)]
+    fn record(&mut self, p: &RiscvProgram, m: &Machine<'_>, step: Step, ts: u64) {
+        self.record_row(p, m, step, ts);
     }
 
+    fn row_counts(&self) -> [usize; N_TABLES] {
+        std::array::from_fn(|t| self.rows[t].len())
+    }
+}
+
+impl TraceBuilder {
     /// The trace of a run of `p` about to start on this advice region.
     pub(super) fn new(p: &RiscvProgram, advice: &[u64]) -> Self {
         Self {
@@ -86,7 +131,8 @@ impl TraceBuilder {
     }
 
     /// Record the row of `step`, executed at clock `ts`.
-    pub(super) fn record(&mut self, p: &RiscvProgram, m: &Machine<'_>, step: Step, ts: u64) {
+    #[inline(always)]
+    fn record_row(&mut self, p: &RiscvProgram, m: &Machine<'_>, step: Step, ts: u64) {
         let e = &p.entries()[step.index];
         let table = ClassTable::index_of(e.class).expect("every class that runs has a table");
         let spec = ClassSpec::ALL[table];
@@ -170,7 +216,7 @@ impl TraceBuilder {
     pub(super) fn pad(&mut self, p: &RiscvProgram, index: usize) {
         let e = &p.entries()[index];
         let table = ClassTable::index_of(e.class).expect("a fill block's class has a table");
-        let outcome = e.evaluate(0, 0, 0);
+        let outcome = e.evaluate(p.pc_of(index), 0, 0, 0);
         let slots = &self.padding_prev[table];
 
         // Its accesses' timestamps: in its payload for a hash or an extension-field row, in the row otherwise.
@@ -218,7 +264,7 @@ impl TraceBuilder {
             v2: 0,
             out: outcome.out,
             taken: outcome.taken,
-            vd_old: if e.link { p.pc_of(index) + 4 } else { outcome.out },
+            vd_old: outcome.out,
             ram: outcome.access.unwrap_or_default(),
             prev,
         });

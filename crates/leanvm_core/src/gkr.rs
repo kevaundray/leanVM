@@ -46,9 +46,8 @@ fn window_rows(total: usize) -> usize {
 pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
     let rows = current.len().div_ceil(4);
     let full_rows = current.len() / 4;
-    // SAFETY: the fill writes `next[..full_rows]` and the tail the one row after.
-    let mut next = unsafe { primitives::uninit_vec(rows.next_multiple_of(4)) };
-    next.truncate(rows);
+    let mut next = Vec::with_capacity(rows.next_multiple_of(4));
+    let slots = &mut next.spare_capacity_mut()[..rows];
     let product = |row: usize| {
         let [left, right] = mul2(
             [current[4 * row], current[4 * row + 2]],
@@ -57,15 +56,17 @@ pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
         left * right
     };
     if full_rows >= PAR_THRESHOLD {
-        parallel::fill(&mut next[..full_rows], product);
+        parallel::fill(&mut slots[..full_rows], |row| MaybeUninit::new(product(row)));
     } else {
-        for (row, slot) in next[..full_rows].iter_mut().enumerate() {
-            *slot = product(row);
+        for (row, slot) in slots[..full_rows].iter_mut().enumerate() {
+            slot.write(product(row));
         }
     }
     if full_rows < rows {
-        next[full_rows] = padded_product(current, full_rows);
+        slots[full_rows].write(padded_product(current, full_rows));
     }
+    // SAFETY: the fill wrote `next[..full_rows]`, and the tail the one row after.
+    unsafe { next.set_len(rows) };
     next
 }
 
@@ -184,6 +185,7 @@ struct QuaternaryLayerState {
     /// Four child tables interleaved in their original order. This lets the
     /// prover consume a product-tree level without first transposing it.
     values: Vec<F192>,
+    /// Scratch a fold writes into its spare capacity, then swaps with the values.
     next: Vec<F192>,
     /// Logical row count after identity padding. `values` stores an arbitrary
     /// prefix; every omitted row is the constant four-tuple one.
@@ -200,10 +202,7 @@ impl QuaternaryLayerState {
         let rows = (values.len() / 4).div_ceil(2);
         Self {
             values,
-            // SAFETY: the first `fold` writes every slot of `next[..4 * rows]` before
-            // any read (its windows cover the full pairs, its tail block the odd row),
-            // and neither `round_message` nor `children` reads `next`.
-            next: unsafe { primitives::uninit_vec(4 * rows) },
+            next: Vec::with_capacity(4 * rows),
             logical_rows: width,
         }
     }
@@ -266,8 +265,9 @@ impl QuaternaryLayerState {
         let stored_rows = self.values.len() / 4;
         let full_rows = stored_rows / 2;
         let rows = stored_rows.div_ceil(2);
-        self.next.truncate(4 * rows);
-        let (values, next) = (&self.values, &mut self.next);
+        self.next.clear();
+        let values = &self.values;
+        let next = &mut self.next.spare_capacity_mut()[..4 * rows];
         let fold_row = |row: usize| -> [F192; 4] {
             // One slice, not eight indexes: the bounds checks and the
             // index-by-24 multiplies fall out.
@@ -281,7 +281,7 @@ impl QuaternaryLayerState {
         // Where it does not, the stage buys nothing and costs a real call, the
         // `slot.len()` being one the compiler cannot fold away.
         #[cfg(target_arch = "x86_64")]
-        let window = |base: usize, destination: &mut [F192]| {
+        let window = |base: usize, destination: &mut [MaybeUninit<F192>]| {
             let stream = Stream::new();
             for (pair, slot) in destination.chunks_mut(8).enumerate() {
                 let mut both = [F192::ZERO; 8];
@@ -289,15 +289,15 @@ impl QuaternaryLayerState {
                 if slot.len() == 8 {
                     both[4..].copy_from_slice(&fold_row(base + 2 * pair + 1));
                 }
-                stream.copy(slot, &both[..slot.len()]);
+                stream.write(slot, &both[..slot.len()]);
             }
         };
         #[cfg(not(target_arch = "x86_64"))]
-        let window = |base: usize, destination: &mut [F192]| {
+        let window = |base: usize, destination: &mut [MaybeUninit<F192>]| {
             for (pair, slot) in destination.chunks_mut(8).enumerate() {
-                slot[..4].copy_from_slice(&fold_row(base + 2 * pair));
+                slot[..4].write_copy_of_slice(&fold_row(base + 2 * pair));
                 if slot.len() == 8 {
-                    slot[4..].copy_from_slice(&fold_row(base + 2 * pair + 1));
+                    slot[4..].write_copy_of_slice(&fold_row(base + 2 * pair + 1));
                 }
             }
         };
@@ -316,9 +316,11 @@ impl QuaternaryLayerState {
                 [challenge; 4],
             );
             for (child, fold) in folds.into_iter().enumerate() {
-                self.next[4 * full_rows + child] = self.values[lo + child] + fold;
+                next[4 * full_rows + child].write(self.values[lo + child] + fold);
             }
         }
+        // SAFETY: the windows wrote the full pairs, and the tail block the odd row.
+        unsafe { self.next.set_len(4 * rows) };
         std::mem::swap(&mut self.values, &mut self.next);
         self.logical_rows /= 2;
     }
@@ -326,9 +328,9 @@ impl QuaternaryLayerState {
     fn fold_and_message(&mut self, challenge: F192, equality: &SplitEq) -> [F192; 4] {
         let stored_rows = self.values.len() / 4;
         let rows = stored_rows.div_ceil(2);
-        self.next.truncate(4 * rows);
+        self.next.clear();
         let values = &self.values;
-        let dst = SendPtr(self.next.as_mut_ptr());
+        let dst = SendPtr(self.next.spare_capacity_mut()[..4 * rows].as_mut_ptr());
         const PAIRS: usize = 16;
         let pairs = rows.div_ceil(2);
         // A pair below this has both rows and both their halves stored.
@@ -413,8 +415,8 @@ impl QuaternaryLayerState {
             let stage = unsafe { assume_init(&stage[..len]) };
             // The next round reads the destination; this round reads only the local stage.
             let stream = Stream::new();
-            // SAFETY: tasks own disjoint initialized prefixes of the output, covering every row.
-            unsafe { stream.copy(dst.slice(8 * first, len), stage) };
+            // SAFETY: tasks own disjoint windows of the output's capacity, covering every row.
+            unsafe { stream.write(dst.slice(8 * first, len), stage) };
             message
         };
         let xor = |mut a: [F192Unreduced; 4], b: [F192Unreduced; 4]| {
@@ -429,6 +431,8 @@ impl QuaternaryLayerState {
         } else {
             (0..tasks).map(task).fold([F192Unreduced::ZERO; 4], xor)
         };
+        // SAFETY: the tasks wrote every row.
+        unsafe { self.next.set_len(4 * rows) };
         std::mem::swap(&mut self.values, &mut self.next);
         self.logical_rows /= 2;
         message.map(F192Unreduced::reduce)
