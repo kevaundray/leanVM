@@ -53,8 +53,8 @@ impl HashFlock {
     }
 
     /// Prove every hash row: zerocheck, then lincheck, a batch of one circuit, to one ring-switched claim on the packed witness.
-    fn prove(witness: Witness, layout: &RecLayout, ps: &mut ProverState) -> RingSwitch {
-        let instance = Instance::of(Self::circuit().block(), layout.tau(Table::Hash), &witness);
+    fn prove(witness: &Witness, layout: &RecLayout, ps: &mut ProverState) -> RingSwitch {
+        let instance = Instance::of(Self::circuit().block(), layout.tau(Table::Hash), witness);
         let [reduced] = <[_; 1]>::try_from(reduction::prove(&[instance], ps)).expect("one circuit");
         layout.hash_window().ring(reduced)
     }
@@ -225,7 +225,8 @@ impl Circuit {
 
         let RecWitness { q, ports, batch } = w;
         drop(ports);
-        let ring = crate::stage!("Flock reduction", || HashFlock::prove(batch, &layout, &mut ps));
+        let ring = crate::stage!("Flock reduction", || HashFlock::prove(&batch, &layout, &mut ps));
+        drop(batch);
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &[ring]));
         Ok(ps.into_proof())
     }
