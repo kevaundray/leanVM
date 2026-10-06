@@ -19,8 +19,8 @@ use crate::{constraints, pcs, witness};
 use ::pcs::verifier::OpeningVerifier;
 use fiat_shamir::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
-use flock::lincheck::MatrixClaim;
 use flock::Witness;
+use flock::lincheck::MatrixClaim;
 use flock::reduction::{self, Instance};
 use flock::verifier::FlockError;
 use primitives::field::{F64, F192};
@@ -71,16 +71,11 @@ impl RecWitness {
         }
 
         let batch = HashFlock::witness(&a.hash, layout.tau(Table::Hash));
-        parallel::chunks_mut_zip(
-            windows[RecLayout::HASH_WITNESS],
-            &batch.z,
-            1 << 16,
-            |_, dst, src| {
-                for (d, &s) in dst.iter_mut().zip(src) {
-                    *d = F64(s);
-                }
-            },
-        );
+        parallel::chunks_mut_zip(windows[RecLayout::HASH_WITNESS], &batch.z, 1 << 16, |_, dst, src| {
+            for (d, &s) in dst.iter_mut().zip(src) {
+                *d = F64(s);
+            }
+        });
         drop(windows);
         // SAFETY: the windows tile the stack up to its zeroed tail, and each was filled above.
         let q = unsafe { q.assume_init() }.into_vec();
