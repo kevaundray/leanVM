@@ -5,18 +5,19 @@
 use super::batch::{Batch, FormPowers};
 use super::deferred::DeferredClaims;
 use super::error::{CpuError, ProveError, VerifyError};
-use super::execute::{Execution, TraceBuilder};
+use super::execute::{Execution, Recorder, RowCounter, TraceBuilder};
 use super::filler::{FillBlocks, Plan};
 use super::layout::{Announcement, Lookup, Schema, Sizes};
+use super::reduce::TableClaims;
 use super::witness::Witness;
 use super::{Output, Proof};
 use crate::arith::Native;
-use crate::constraints::Columns;
+use crate::constraints::{Claims, Columns};
 use crate::pcs::Rate;
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
-use crate::tables::{ClassSpec, Clock};
+use crate::tables::{ClassSpec, ClassTable, Clock};
 use crate::{class_flock, constraints, leaf, pcs, tables};
-use fiat_shamir::transcript::{Challenger, ProverState, RawProof, VerifierState};
+use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, VerifierState};
 use primitives::field::{F64, F192};
 use primitives::hash::Hasher;
 use std::cmp::Reverse;
@@ -39,7 +40,10 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-9";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-11";
+
+    /// The cycles between two checks of a running trace against one commitment.
+    const SIZE_CHECK_PERIOD: u64 = 1 << 16;
 
     /// The program of a guest's ELF executable.
     ///
@@ -56,6 +60,16 @@ impl Program {
             guest.log_advice,
         )
         .map_err(ElfError::Program)
+    }
+
+    /// Whether a text of this many words fits the text region once its appended words are added.
+    ///
+    /// The appended words are the illegal word, the fill blocks, then the illegal slot and the halt slot.
+    fn text_fits(words: usize) -> bool {
+        words
+            .checked_add(1 + FillBlocks::WORDS + 2)
+            .and_then(usize::checked_next_power_of_two)
+            .is_some_and(|total| total <= 1 << Region::TEXT.max_log_words())
     }
 
     /// The program of instruction words, an entry point, a RAM image and the memory sizes.
@@ -75,13 +89,7 @@ impl Program {
         // Check the shape on the supplied text, before anything is appended to it.
         RiscvProgram::validate(text.len(), entry_pc, image.len(), log_ram, log_advice)?;
 
-        // What gets appended must fit too: the illegal word, the fill blocks, then the illegal slot and the halt slot.
-        let fits = text
-            .len()
-            .checked_add(1 + FillBlocks::WORDS + 2)
-            .and_then(usize::checked_next_power_of_two)
-            .is_some_and(|total| total <= 1 << Region::TEXT.max_log_words());
-        if !fits {
+        if !Self::text_fits(text.len()) {
             return Err(ProgramError::TextTooLarge);
         }
 
@@ -103,28 +111,13 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// Refuses more advice than the program's region holds, a run that traps, and one that outruns the clock.
+    /// Refuses more advice than the program's region holds, a run that traps, and one too long for one proof.
     #[doc(hidden)]
     pub fn execute(&self, advice: &[u64]) -> Result<Execution, ProveError> {
         let p = &self.rv;
-        let max = 1 << p.log_advice();
-        if advice.len() > max {
-            return Err(ProveError::AdviceTooLong { max, got: advice.len() });
-        }
-        let mut m = Machine::new(p, advice);
+        let mut m = self.machine(advice)?;
         let mut trace = TraceBuilder::new(p, m.memory().advice());
-
-        // The clock starts on cycle 1, so that the first access comes strictly after the seeds.
-        let mut ts = Clock::CLOCK_START;
-        while !m.halted() {
-            // The cycle count must not carry into the live bit.
-            if ts >> Clock::SLOT_BITS & Clock::MAX_CYCLES == Clock::MAX_CYCLES {
-                return Err(ProveError::TooLong);
-            }
-            let step = m.step()?;
-            trace.record(p, &m, step, ts);
-            ts += Clock::CYCLE;
-        }
+        let ts = self.run(&mut m, &mut trace)?;
         let output = m.output()?;
 
         // The padding rows, written out rather than executed.
@@ -147,6 +140,49 @@ impl Program {
         })
     }
 
+    /// The machine about to run the program on `advice`.
+    fn machine(&self, advice: &[u64]) -> Result<Machine<'_>, ProveError> {
+        let max = 1 << self.rv.log_advice();
+        if advice.len() > max {
+            return Err(ProveError::AdviceTooLong { max, got: advice.len() });
+        }
+        Ok(Machine::new(&self.rv, advice))
+    }
+
+    /// Run `m` to its halt, handing every step to `recorder`, and return the clock it stopped at.
+    ///
+    /// Every so many cycles the rows so far are checked against one commitment.
+    ///
+    /// So a run too long for one proof is refused while it runs, before its trace outgrows memory.
+    #[inline(always)]
+    fn run<R: Recorder>(&self, m: &mut Machine<'_>, recorder: &mut R) -> Result<u64, ProveError> {
+        // The clock starts on cycle 1, so that the first access comes strictly after the seeds.
+        let mut ts = Clock::CLOCK_START;
+
+        // The heights last checked: the stack grows only when one of them does.
+        let mut checked = [0; tables::N_TABLES];
+        while !m.halted() {
+            let cycle = ts >> Clock::SLOT_BITS & Clock::MAX_CYCLES;
+
+            // The cycle count must not carry into the live bit.
+            if cycle == Clock::MAX_CYCLES {
+                return Err(ProveError::TooLong);
+            }
+            if cycle.is_multiple_of(Self::SIZE_CHECK_PERIOD) {
+                let counts = recorder.row_counts();
+                let heights = std::array::from_fn(|t| ClassSpec::ALL[t].provable_height(counts[t]));
+                if heights != checked {
+                    self.committed_size(heights)?;
+                    checked = heights;
+                }
+            }
+            let step = m.step()?;
+            recorder.record(&self.rv, m, step, ts);
+            ts += Clock::CYCLE;
+        }
+        Ok(ts)
+    }
+
     /// Prove a run of the program on `advice`, the advice region's first words, at commitment rate `rate`.
     ///
     /// The statement says nothing about the advice.
@@ -160,32 +196,30 @@ impl Program {
     #[doc(hidden)]
     pub fn prove(&self, advice: &[u64], rate: Rate) -> Result<(Proof, [u64; 4], Stats), ProveError> {
         let exec = crate::stage!("Execute program", || self.execute(advice))?;
-        if self.stack_sizes(exec.trace.row_counts()).0 > pcs::MAX_MU {
-            return Err(ProveError::TooLong);
-        }
+        self.committed_size(exec.trace.row_counts())?;
         let (proof, stats) = self.prove_execution(&exec, rate);
         Ok((proof, exec.output, stats))
     }
 
     /// The statistics a proof of this run would report, from one execution and no proof.
     ///
-    /// The rows per table fix the layout, and the layout the committed size.
+    /// The run counts its rows without recording them, and the fill plan gives the heights they are proven at.
     ///
     /// # Errors
     ///
     /// What would refuse the proof itself, the rate aside.
     pub fn measure(&self, advice: &[u64]) -> Result<Stats, ProveError> {
-        let exec = self.execute(advice)?;
-        let counts = exec.trace.row_counts();
-        let (log_words, committed) = self.stack_sizes(counts);
-        if log_words > pcs::MAX_MU {
-            return Err(ProveError::TooLong);
-        }
+        let mut m = self.machine(advice)?;
+        let mut counter = RowCounter::new(&self.rv);
+        self.run(&mut m, &mut counter)?;
+        m.output()?;
+        let base_counts = counter.row_counts();
+        let counts = Plan::solve(base_counts).filled(base_counts);
         Ok(Stats {
-            cycles: exec.cycles,
+            cycles: counts.iter().sum(),
             counts,
-            base_counts: exec.base_counts,
-            committed,
+            base_counts,
+            committed: self.committed_size(counts)?,
         })
     }
 
@@ -220,39 +254,57 @@ impl Program {
         announcement.write(&mut ps);
         let committed = crate::stage!("Commit", || pcs::commit(&mut ps, &w.q, w.layout.shape, log_inv_rate));
 
-        // The bus, then the one batch over every table and producer, both reading the stack's windows in place.
+        // The bus, then the linear tables' columns at its point, then the one batch over the other tables and the
+        // producers, all reading the stack's windows in place.
         let spans = &Schema::get().spans;
         let (bus_claims, table_claims) = {
             let l = &w.layout;
             let cols = w.columns();
             let mut bus = crate::stage!("Prove bus", || {
-                leaf::prove_balance(&l.push, &l.pull, &l.producers, &cols, spans, &mut ps)
+                leaf::prove_balance(&l.push, &l.pull, &l.producers, l.grinding, &cols, spans, &mut ps)
             });
-            let table_claims = crate::stage!("Prove constraints", || {
+            // A settled table's columns at the bus point, short of its register numbers, which the batch folds.
+            let settled: Vec<Claims> = (ClassTable::all().iter().enumerate())
+                .filter(|(_, table)| table.settled_at_bus())
+                .map(|(t, table)| {
+                    let registers = table.summed_columns();
+                    let evals = &bus.evals[t];
+                    (evals.iter().enumerate())
+                        .filter(|(c, _)| !registers.contains(c))
+                        .for_each(|(_, &e)| ps.add_scalar(e));
+                    Claims {
+                        chi: bus.point[..l.taus[t]].to_vec(),
+                        evals: evals.clone(),
+                        slices: Vec::new(),
+                    }
+                })
+                .collect();
+            let summed = crate::stage!("Prove constraints", || {
                 let producers = std::mem::take(&mut bus.producers);
                 let coefficients: Vec<Vec<F192>> = producers.iter().map(|p| p.coefficients.clone()).collect();
 
                 // The batch's eq point is the bus's, which lets it settle the bus forms alongside the constraints.
                 let powers = FormPowers::new(&mut Native, ps.sample());
-                let mut sums = powers.table_sums(&bus.sigmas);
+                let mut sums = powers.table_sums(&bus);
                 sums.extend(producers.iter().map(|p| powers.push() * p.sigma));
 
-                // The tables' columns in the field they are committed in, then the producers' lifted columns.
-                let table_cols = spans
-                    .iter()
-                    .map(|&(base, n)| Columns::K((0..n).map(|c| cols[base + c]).collect()))
+                // The tables' summed columns in the field they are committed in, then the producers' lifted columns.
+                let table_cols = (ClassTable::all().iter().zip(spans))
+                    .map(|(table, &(base, _))| {
+                        Columns::K(table.summed_columns().iter().map(|&c| cols[base + c]).collect())
+                    })
                     .chain(producers.into_iter().map(|p| Columns::E(p.columns)))
                     .collect();
                 let batch = Batch::new(l, &bus.forms, &coefficients, &bus.weights, bus.beta, powers);
                 constraints::prove(batch.airs(), table_cols, &bus.point, &sums, &mut ps)
             });
-            (bus.claims, table_claims)
+            (bus.claims, TableClaims::new(settled, summed))
         };
         let l = &w.layout;
         let slots = l.opening_claims(
             &mut Native,
             bus_claims,
-            &table_claims,
+            &table_claims.columns,
             &output.map(|o| F192::from(F64(o))),
         );
 
@@ -265,7 +317,7 @@ impl Program {
             class_flock::prove_reductions(&reductions, &mut ps)
         });
         drop(reductions);
-        let rings = l.rings(slices, &table_claims[tables::N_TABLES..], F192::ZERO);
+        let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &w.q, &slots, &rings));
         Proof(ps.into_proof())
     }
@@ -336,8 +388,8 @@ impl Program {
             .map(|(replay, matrices)| (replay.claim, matrices.into()))
             .unzip();
 
-        // The ring-switched regions: each packed witness, then each producer's multiplicity column.
-        let rings = l.rings(slices, &reduced.producers, F192::ZERO);
+        // The ring-switched regions: each packed witness, each producer's multiplicity column, each table's register numbers.
+        let rings = l.rings(slices, &reduced.producers, &reduced.tables, F192::ZERO);
 
         // The one opening, then nothing may be left on the stream.
         pcs::verify(
@@ -379,13 +431,26 @@ impl Program {
         fiat_shamir::digest_words(&self.digest)
     }
 
-    /// The base-two logarithm of the stacked witness, and its committed size, for a run of these row counts.
+    /// The committed size of a run making these rows per table, each table taken at its provable height.
     ///
-    /// The layout depends on the program and the row counts alone, so no witness is built.
-    pub(super) fn stack_sizes(&self, row_counts: [usize; tables::N_TABLES]) -> (usize, usize) {
-        let taus = row_counts.map(|rows| crate::log2_ceil_usize(rows.max(1)));
+    /// The layout depends on the program and the heights alone, so no witness is built.
+    ///
+    /// # Why one check for a run in progress and a finished one
+    ///
+    /// - Rows only accumulate, and the fill only raises a table to a provable height.
+    /// - So the heights of a run in progress never exceed those it finishes at, nor does its stack.
+    /// - A run refused mid-way would therefore be refused at its end.
+    ///
+    /// # Errors
+    ///
+    /// Refuses a stack larger than one commitment.
+    fn committed_size(&self, row_counts: [usize; tables::N_TABLES]) -> Result<usize, ProveError> {
+        let taus = std::array::from_fn(|t| crate::log2_strict_usize(ClassSpec::ALL[t].provable_height(row_counts[t])));
         let (placements, shape) = Sizes::of(&self.rv).stack(taus);
-        (shape.mu, crate::witness::committed_len(&placements))
+        if shape.mu > pcs::MAX_MU {
+            return Err(ProveError::TooLong);
+        }
+        Ok(crate::witness::committed_len(&placements))
     }
 
     /// The digest of `rv`'s public statement.
@@ -394,17 +459,13 @@ impl Program {
     fn digest_of(rv: &RiscvProgram) -> [u8; 32] {
         let bytes = |words: &[u64]| -> Vec<u8> { words.iter().flat_map(|w| w.to_le_bytes()).collect() };
         let table = Lookup::Bytecode.table(rv);
-
-        // SAFETY: F64 is #[repr(transparent)] over u64.
-        // So the slice's bytes are the concatenation of its words' little-endian bytes on this target.
-        let table_bytes: &[u8] =
-            unsafe { core::slice::from_raw_parts(table.as_ptr().cast::<u8>(), core::mem::size_of_val(&table[..])) };
+        let table_bytes: Vec<u8> = table.iter().flat_map(|w| w.0.to_le_bytes()).collect();
 
         // The domain, the bytecode table, then the scalars and the image.
         let mut h = Hasher::new();
         h.update(Self::DIGEST_DOMAIN);
         h.update(&bytes(&[table.len() as u64]));
-        h.update(table_bytes);
+        h.update(&table_bytes);
         h.update(&bytes(&[
             rv.entry_pc(),
             rv.halt_pc(),
@@ -477,7 +538,7 @@ mod tests {
     use crate::leaf::tests::unmatched_leaves;
     use crate::pcs::Rate;
     use crate::rv::asm::*;
-    use crate::rv::{Class, Entry, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
+    use crate::rv::{Alu, Class, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
     use crate::tables::{ClassSpec, ClassTable, Clock, Separator};
 
     #[test]
@@ -521,12 +582,15 @@ mod tests {
     #[test]
     fn the_text_region_reserves_the_fill_blocks() {
         // The largest text that fits, after the illegal word, the fill blocks, and the two slots `rv` appends.
+        //
+        // Building a program that large takes gigabytes, so the boundary is checked on lengths.
         let limit = (1 << Region::TEXT.max_log_words()) - 1 - FillBlocks::WORDS - 2;
-        let program = |words: usize| Program::new(&vec![0; words], Region::TEXT.base(), vec![], 0, 0);
-        assert!(program(limit).is_ok());
+        assert!(Program::text_fits(limit));
+        assert!(!Program::text_fits(limit + 1));
 
-        // One word more no longer fits.
-        assert!(matches!(program(limit + 1), Err(ProgramError::TextTooLarge)));
+        // A text one word too long is refused before anything is built.
+        let too_long = Program::new(&vec![0; limit + 1], Region::TEXT.base(), vec![], 0, 0);
+        assert!(matches!(too_long, Err(ProgramError::TextTooLarge)));
     }
 
     #[test]
@@ -575,10 +639,29 @@ mod tests {
         unmatched_leaves(&w.layout.push, &w.layout.pull, &w.layout.producers, &w.columns())
     }
 
-    /// A committed column of a built witness, to forge it.
+    /// A column of a built witness, to forge it: its window in the stack, or a port's own buffer.
     fn column_mut(w: &mut Witness, col: usize) -> &mut [F64] {
-        let window = w.layout.placements[col].window().expect("a forged column is committed");
-        &mut w.q[window.offset..window.offset + (1 << window.n_vars)]
+        match w.layout.placements[col].window() {
+            Some(window) => &mut w.q[window.offset..window.offset + (1 << window.n_vars)],
+            None => {
+                &mut w
+                    .virt
+                    .iter_mut()
+                    .find(|(i, _)| *i == col)
+                    .expect("a port has a buffer")
+                    .1
+            }
+        }
+    }
+
+    /// A column the stack does not hold, a port or a register number, of a built witness, to forge it.
+    fn virtual_mut(w: &mut Witness, col: usize) -> &mut [F64] {
+        let (_, values) = w
+            .virt
+            .iter_mut()
+            .find(|(c, _)| *c == col)
+            .expect("a forged column is virtual");
+        values
     }
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.
@@ -607,7 +690,7 @@ mod tests {
     /// The padding row a jump to itself makes, `jal rd, 0` at entry `index`, at clock zero.
     fn padding_jump(program: &Program, index: usize) -> Row {
         let e = &program.rv.entries()[index];
-        let Outcome { out, taken, access } = e.evaluate(0, 0, 0);
+        let Outcome { out, taken, access } = e.evaluate(program.rv.pc_of(index), 0, 0, 0);
         let ram = access.unwrap_or_default();
         let slots: Vec<u64> = ClassSpec::ALU.slots().into_iter().map(u64::from).collect();
         Row {
@@ -644,63 +727,163 @@ mod tests {
     }
 
     #[test]
+    fn a_run_too_long_for_one_proof_is_refused_while_it_runs() {
+        // Fibonacci for 2^63 steps: only the cycle cap would stop it, after 2^35 rows.
+        let text = Asm::new()
+            .li(Reg::A0, 0)
+            .li(Reg::A1, 1)
+            .li(Reg::T0, 1 << 63)
+            .label("loop")
+            .r(Add, Reg::A2, Reg::A0, Reg::A1)
+            .i(Addi, Reg::A0, Reg::A1, 0)
+            .i(Addi, Reg::A1, Reg::A2, 0)
+            .i(Addi, Reg::T0, Reg::T0, -1)
+            .branch(Bne, Reg::T0, Reg::ZERO, "loop")
+            .exit()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        assert_eq!(program.measure(&[]), Err(ProveError::TooLong));
+
+        // The run stops before its rows outnumber the words of one commitment.
+        let mut m = program.machine(&[]).unwrap();
+        let mut counter = RowCounter::new(&program.rv);
+        assert_eq!(program.run(&mut m, &mut counter), Err(ProveError::TooLong));
+        let counts = counter.row_counts();
+        let rows: usize = counts.iter().sum();
+        assert!(rows < 1 << pcs::MAX_MU, "{rows} rows counted");
+        assert_eq!(program.committed_size(counts), Err(ProveError::TooLong));
+
+        // A period earlier, no table had more than these rows, and they fit.
+        let earlier = counts.map(|c| c.saturating_sub(Program::SIZE_CHECK_PERIOD as usize));
+        assert!(program.committed_size(earlier).is_ok());
+    }
+
+    #[test]
     fn only_ecall_can_terminate_the_state_channel() {
-        let prototype = Asm::new()
-            .li(Reg::T0, Region::TEXT.base())
-            .i(Addi, Reg::A0, Reg::ZERO, 42)
-            .exit()
-            .finish();
-        let halt = Program::new(&prototype, Region::TEXT.base(), vec![], 2, 0)
-            .expect("valid exit program")
-            .rv
-            .halt_pc();
-        let original = Asm::new()
-            .li(Reg::T0, halt)
-            .i(Addi, Reg::A0, Reg::ZERO, 42)
-            .exit()
-            .finish();
+        // Fixture: `a0 = 42; exit`, and the same program with the exit replaced by `j halt`.
+        let original = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 42).exit().finish();
         let honest_program = Program::new(&original, Region::TEXT.base(), vec![], 2, 0).expect("valid exit program");
-        assert_eq!(honest_program.rv.halt_pc(), halt);
+        let halt = honest_program.rv.halt_pc();
         let exit_index = original.len() - 1;
         let pc = honest_program.rv.pc_of(exit_index);
-        for instruction in [
-            Instruction::j(Reg::ZERO, (halt - pc) as i32),
-            Instruction::i(Opcode::Jalr, 0, Reg::ZERO, Reg::T0, 0),
-        ] {
-            let mut text = original.clone();
-            text[exit_index] = instruction.bits();
-            let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid jump program");
-            assert!(matches!(program.execute(&[]), Err(ProveError::Trap(Trap::Illegal { pc })) if pc == halt));
+        let mut text = original;
+        text[exit_index] = Instruction::j(Reg::ZERO, (halt - pc) as i32).bits();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid jump program");
+        assert!(matches!(program.execute(&[]), Err(ProveError::Trap(Trap::Illegal { pc })) if pc == halt));
 
-            // Forge the terminal row directly, bypassing the interpreter's trap.
-            let mut execution = honest_program.execute(&[]).unwrap();
-            let entry = program.rv.entries()[exit_index];
-            if entry.jalr {
-                // The jump reads `t0` in slot 0, where the exit read `x0`, which leaves `x0`'s slot-1 read pulling the cycle before.
-                let ts = Clock::CLOCK_START + exit_index as u64 * Clock::CYCLE;
-                let previous = original[..exit_index]
-                    .iter()
-                    .enumerate()
-                    .rev()
-                    .find_map(|(i, &word)| {
-                        (Entry::decode(word, program.rv.pc_of(i)).ad == Reg::T0.index() as u8)
-                            .then_some((Clock::CLOCK_START + i as u64 * Clock::CYCLE) | 3)
-                    })
-                    .unwrap();
-                let row = &mut execution.trace.rows[0][exit_index];
-                (row.v1, row.out, row.taken) = (halt, halt, false);
-                (row.prev[0], row.prev[1]) = (previous, ts - Clock::CYCLE + 1);
-                execution.trace.reg_ts[Reg::T0.index()] = F64(ts);
-            }
-            execution.trace.reg_fin[RegisterFile::SINK as usize] = F64(pc + 4);
-            let witness = Witness::build(&program, &execution);
-            let unmatched = unmatched(&witness);
-            // The final state on the pull side, and the ALU's state push, the push side's
-            // first block past its four framework blocks.
-            assert_eq!(unmatched.len(), 2, "{unmatched:?}");
-            assert!(unmatched.iter().all(|(_, block, _)| *block == 0 || *block == 4));
-            assert_unbalanced(&program, witness, &execution.output);
-        }
+        // Mutation: the exit's row becomes the jump's, bypassing the interpreter's trap; it writes its link to the sink.
+        let mut execution = honest_program.execute(&[]).unwrap();
+        let row = execution.trace.rows[0]
+            .iter_mut()
+            .find(|r| r.index as usize == exit_index)
+            .unwrap();
+        row.out = pc + 4;
+        execution.trace.reg_fin[RegisterFile::SINK as usize] = F64(pc + 4);
+        let witness = Witness::build(&program, &execution);
+        let unmatched = unmatched(&witness);
+        // The final state on the pull side, and the ALU's state push, the push side's
+        // first block past its four framework blocks.
+        assert_eq!(unmatched.len(), 2, "{unmatched:?}");
+        assert!(unmatched.iter().all(|(_, block, _)| *block == 0 || *block == 4));
+        assert_unbalanced(&program, witness, &execution.output);
+    }
+
+    /// The jump's column on the ALU's state push, `pc + 4` plus the jump: a port of its class circuit.
+    fn jump_column() -> usize {
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let push = ClassTable::all()[alu].flushes().push.swap_remove(0);
+        let Coord::Sum(terms) = &push[1] else {
+            panic!("pc + 4 plus the jump")
+        };
+        let [_, Coord::Col(jump)] = terms[..] else {
+            panic!("pc + 4 plus the jump")
+        };
+        Schema::get().spans[alu].0 + jump
+    }
+
+    /// Prove a forged run of `program` whose ALU jump at `row` is `value` on the bus alone, the circuit's witness keeping
+    /// what its inputs give.
+    ///
+    /// The bus is unbalanced until that column is forged, and balanced after, so what refuses it is the verifier.
+    fn forged_jump(program: &Program, forged: &Execution, row: usize, value: u64) -> CpuError {
+        let mut w = Witness::build(program, forged);
+        // The row's state push, and the next row's pull.
+        let left = unmatched(&w);
+        assert_eq!(left.len(), 2, "{left:?}");
+        assert!(
+            left.iter().all(|&(_, block, _)| block >= Framework::ALL.len()),
+            "{left:?}"
+        );
+        column_mut(&mut w, jump_column())[row] = F64(value);
+        assert!(unmatched(&w).is_empty());
+        let proof = program.prove_witness(w, &forged.output, Rate::MIN);
+        program
+            .verify_core(&forged.output, &proof)
+            .expect_err("a forged successor is refused")
+    }
+
+    #[test]
+    fn a_forged_branch_is_refused() {
+        // Invariant: a row goes where its circuit decides, the bus carrying the circuit's jump, never a free column.
+        //
+        // Fixture: `bne x0, x0, skip; a0 = 1; skip: exit`, which never branches, and the same with `beq`, which does.
+        let text = |op| {
+            Asm::new()
+                .branch(op, Reg::ZERO, Reg::ZERO, "skip")
+                .i(Addi, Reg::A0, Reg::ZERO, 1)
+                .label("skip")
+                .exit()
+                .finish()
+        };
+        let program = Program::new(&text(Bne), Region::TEXT.base(), vec![], 2, 0).expect("a valid program");
+        let taken = Program::new(&text(Beq), Region::TEXT.base(), vec![], 2, 0).expect("a valid program");
+        assert_eq!(program.execute(&[]).unwrap().output[0], 1);
+
+        // Mutation: the run of `beq` as one of `bne`, which outputs a0 = 0, its circuit deciding not to branch.
+        //
+        // Its push names `pc + 4`, which the exit's pull does not meet, until the bus's jump is forged to the offset.
+        let mut forged = taken.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        forged.trace.rows[alu][row].taken = false;
+        let error = forged_jump(&program, &forged, row, program.rv.dt_of(0));
+        assert!(matches!(error, CpuError::Open(_)), "{error}");
+    }
+
+    #[test]
+    fn a_forged_jalr_target_is_refused() {
+        // Invariant: a `jalr` goes to the target its circuit computes from its register and immediate.
+        //
+        // Fixture: `t0 = &L; jalr x0, 0(t0); L: a0 = 1; exit`, and the same with offset 4, which skips `L`.
+        let target = Region::TEXT.base() + 12;
+        let text = |offset| {
+            Asm::new()
+                .li(Reg::T0, target)
+                .jalr(Reg::ZERO, Reg::T0, offset)
+                .i(Addi, Reg::A0, Reg::ZERO, 1)
+                .exit()
+                .finish()
+        };
+        let program = Program::new(&text(0), Region::TEXT.base(), vec![], 2, 0).expect("a valid program");
+        let skipping = Program::new(&text(4), Region::TEXT.base(), vec![], 2, 0).expect("a valid program");
+        assert_eq!(program.rv.pc_of(3), target);
+        assert_eq!(program.execute(&[]).unwrap().output[0], 1);
+
+        // Mutation: the run with offset 4 as one with offset 0, which outputs a0 = 0, its circuit computing `L`.
+        //
+        // Its push names `L`, which the exit's pull does not meet, until the bus's jump is forged to the exit's.
+        let forged = skipping.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let jalr = (0..)
+            .find(|&i| program.rv.entries()[i].flags == Alu::INDIRECT | Alu::ALWAYS)
+            .unwrap();
+        let row = forged.trace.rows[alu]
+            .iter()
+            .position(|r| r.index as usize == jalr && r.ts != 0)
+            .unwrap();
+        let pc4 = program.rv.pc_of(jalr) + 4;
+        let error = forged_jump(&program, &forged, row, (target + 4) ^ pc4);
+        assert!(matches!(error, CpuError::Open(_)), "{error}");
     }
 
     /// The two families of loads and stores: the doubleword ones, whose value is a column, and the narrower ones, whose
@@ -779,6 +962,76 @@ mod tests {
         //     b_2 pulls the 0 it found, which nothing pushed, and leaves the 1 unpulled
         let unmatched = unmatched_run(&program, &forged);
         assert_eq!(unmatched.len(), 4, "{unmatched:?}");
+    }
+
+    #[test]
+    fn a_write_to_x0_unbalances_the_bytecode_read() {
+        // Invariant: no row writes `x0`, so a base-field operand's high limbs, which read it, are zero.
+        //
+        // Fixture state: `t3 = 1`, then `extmulk` of a = (3, 5, 7) by the base-field b = 9, then the `ecall`.
+        let image = vec![3, 5, 7, 9, 0, 0, 0];
+        let ram = Region::RAM.base();
+        let text = Asm::new()
+            .li(Reg::T0, ram)
+            .li(Reg::T1, ram + 24)
+            .li(Reg::T2, ram + 32)
+            .i(Addi, Reg::A7, Reg::ZERO, 93)
+            .i(Addi, Reg::T3, Reg::ZERO, 1)
+            .ext(Extmulk, Reg::T2, Reg::T0, Reg::T1)
+            .ecall()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), image, 3, 0).expect("valid instruction program");
+        assert!(unmatched_run(&program, &program.execute(&[]).unwrap()).is_empty());
+        let (addi, ecall) = (text.len() as u32 - 3, text.len() as u32 - 1);
+
+        // Mutation: the `addi` writes its 1 to `x0` instead of `t3`, and everything after reads it.
+        //
+        //     addi   writes x0 after its own read of it in slot 1; t3 keeps its seed
+        //     ext    reads b = (9, 1, 1), and c and RAM follow it
+        //     ecall  reads 1 twice, and writes 1 + 1 to the sink
+        let mut forged = program.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let write = forged.trace.rows[alu].iter_mut().find(|r| r.index == addi).unwrap();
+        let ts = write.ts;
+        (write.prev[2], write.vd_old) = (ts | 1, 0);
+        let t3 = Reg::T3.index();
+        (forged.trace.reg_fin[t3], forged.trace.reg_ts[t3]) = (F64::ZERO, F64(Clock::SEED_CLOCK));
+        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let at = forged.trace.rows[ext].iter().position(|r| r.ts != 0).unwrap();
+        let x = &mut forged.trace.ext[at];
+        (x.instance.limbs[4], x.instance.limbs[5]) = (1, 1);
+        x.prev[3 + 4] = ts | 3;
+        x.c = x.instance.eval();
+        for (k, word) in x.c.into_iter().enumerate() {
+            forged.trace.ram_fin[4 + k] = F64(word);
+        }
+        let exit = forged.trace.rows[alu].iter_mut().find(|r| r.index == ecall).unwrap();
+        (exit.v1, exit.v2, exit.out) = (1, 1, 2);
+        forged.trace.reg_fin[0] = F64(1);
+        forged.trace.reg_fin[RegisterFile::SINK as usize] = F64(2);
+        let mut w = Witness::build(&program, &forged);
+        let bus = ClassTable::all()[alu].flushes();
+        let Coord::Col(destination) = bus.pull[1][ClassTable::DESTINATION_SLOT] else {
+            panic!("the ALU binds its destination to a column");
+        };
+        let row = forged.trace.rows[alu].iter().position(|r| r.index == addi).unwrap();
+        // The destination is a register number: its column and its field of the packed word both name `x0`.
+        virtual_mut(&mut w, Schema::get().spans[alu].0 + destination)[row] = F64::ZERO;
+        // The ALU's fields come first in its word, so its destination's sits after the reads'.
+        let fields = ClassTable::all()[alu].register_bits().fields;
+        let at = fields.iter().position(|f| f.col == destination).unwrap();
+        let shift: usize = fields[..at].iter().map(|f| f.width).sum();
+        let mask = (1 << fields[at].width) - 1;
+        column_mut(&mut w, Schema::get().registers[alu])[row].0 &= !(mask << shift);
+        column_mut(&mut w, Shared::BytecodeMult.col())[addi as usize].0 -= 1;
+
+        // Registers, RAM and the multiplicities balance: only the read of an entry whose destination is 0 is left.
+        let unmatched = unmatched(&w);
+        assert_eq!(unmatched.len(), 1, "{unmatched:?}");
+        let (side, block, at) = unmatched[0];
+        assert_eq!((side, at), ("pull", row));
+        assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
+        assert_unbalanced(&program, w, &forged.output);
     }
 
     /// Extension-field products on packed elements: `x` at word 0, `y` at word 3, the base-field `w` at word 6, `c`
@@ -1111,6 +1364,73 @@ mod tests {
                 );
                 assert_unbalanced(&program, w, &exec.output);
             }
+        }
+    }
+
+    #[test]
+    fn a_forged_register_number_unbalances_the_bus() {
+        // Invariant: a row's register numbers are its entry's, which only the bytecode lookup says.
+        //
+        // Fixture state: `addi a0, x0, 5` at cycle 1, reading `x0` in slots 0 and 1, then the exit.
+        // Mutation: the `addi` row's slot-0 read names `ra` in place of `x0`, its packed word and its `a1` agreeing.
+        // `ra` holds zero too, and the timestamps follow: that read pulls `ra`'s seed, `ra` ends at the row's clock,
+        // and the slot-1 read of `x0` pulls `x0`'s seed.
+        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let mut forged = program.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        let addi = &mut forged.trace.rows[alu][row];
+        assert_eq!(addi.prev[..2], [Clock::SEED_CLOCK, addi.ts]);
+        addi.prev[1] = Clock::SEED_CLOCK;
+        forged.trace.reg_ts[Reg::RA.index()] = F64(addi.ts);
+        let mut w = Witness::build(&program, &forged);
+        let table = &ClassTable::all()[alu];
+        let a1 = Schema::get().spans[alu].0 + table.register_bits().fields[0].col;
+        virtual_mut(&mut w, a1)[row] = F64(Reg::RA.index() as u64);
+        column_mut(&mut w, Schema::get().registers[alu])[row].0 ^= Reg::RA.index() as u64;
+        // The entry's count follows the reads, which no longer include this one.
+        column_mut(&mut w, Shared::BytecodeMult.col())[0].0 -= 1;
+
+        // The row's bytecode read, and nothing else.
+        let unmatched = unmatched(&w);
+        assert_eq!(unmatched.len(), 1, "{unmatched:?}");
+        let (side, block, at) = unmatched[0];
+        assert_eq!((side, at), ("pull", row));
+        assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
+        assert_unbalanced(&program, w, &forged.output);
+    }
+
+    #[test]
+    fn a_packed_register_word_is_its_slices() {
+        // Invariant: the opening binds a row's packed word to the bits the table sumcheck read, its unused bits to zero.
+        //
+        // Fixture state: `addi a0, x0, 5; exit`, whose rows' register numbers are honest everywhere.
+        // Mutation: one bit of the `addi` row's packed word: `a1`'s lowest, the next table's first, the first no table
+        // uses, then the top one.
+        let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+        let exec = program.execute(&[]).unwrap();
+        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
+        // The ALU opens its word, which the tables of its height share after it.
+        let word = Witness::build(&program, &exec).layout.registers.swap_remove(0);
+        assert_eq!(word.tables[0], alu);
+        assert!(word.tables.len() > 1, "the tables of one height share the word");
+        let bits = |t: usize| ClassTable::all()[t].register_bits().n_slices();
+        let used: usize = word.tables.iter().map(|&t| bits(t)).sum();
+        for bit in [0, bits(alu), used, 63] {
+            let mut w = Witness::build(&program, &exec);
+            column_mut(&mut w, word.col)[row].0 ^= 1 << bit;
+            assert!(
+                unmatched(&w).is_empty(),
+                "the bus reads the register numbers, not the word"
+            );
+            let proof = program.prove_witness(w, &exec.output, Rate::MIN);
+            assert!(
+                matches!(program.verify_to_raw(&exec.output, &proof), Err(CpuError::Open(_))),
+                "bit {bit}"
+            );
         }
     }
 

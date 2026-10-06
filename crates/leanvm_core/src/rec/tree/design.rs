@@ -26,7 +26,7 @@ use primitives::hash::Hasher;
 use primitives::multilinear::mle_eval_par;
 
 /// The domain of every tree proof's transcript.
-const DOMAIN: &[u8] = b"leanvm-tree-4";
+const DOMAIN: &[u8] = b"leanvm-tree-6";
 
 /// What fixes a tree's circuits: the leaves' shape, the arities, the rate, and the nodes' heights.
 pub(crate) struct Design<'p> {
@@ -164,6 +164,9 @@ impl<'p> Design<'p> {
     }
 
     /// The transcript's seed: everything that fixes the circuits.
+    ///
+    /// Both kinds share it.
+    /// The kind is the statement's first word, and the statement's hash is the transcript's first block.
     fn seed(&self) -> [F64; 4] {
         let mut h = Hasher::new();
         h.update(DOMAIN);

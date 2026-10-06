@@ -48,6 +48,7 @@ fn rust_constants() -> String {
     scalar("QUERY_GRINDING_BITS", pcs::whir_config::QUERY_GRINDING_BITS as u64);
     scalar("RAM_BASE", Region::RAM.base());
     scalar("RAM_SLOT", Clock::RAM_SLOT as u64);
+    scalar("REGISTER_BITS", Reg::BITS as u64);
     scalar("RESIDUAL_MAX_LOG", pcs::whir_config::RESIDUAL_MAX_LOG as u64);
     let rs_domain = pcs::whir_config::RS_DOMAIN_INITIAL_REDUCTION_FACTOR;
     scalar("RS_DOMAIN_INITIAL_REDUCTION_FACTOR", rs_domain as u64);
@@ -63,6 +64,7 @@ fn rust_constants() -> String {
     scalar("SYSCALL_REGISTER", Reg::SYSCALL.index() as u64);
     scalar("SYS_EXIT", Syscall::Exit.number());
     scalar("TEXT_BASE", Region::TEXT.base());
+    scalar("UNGROUND_LOG_BYTECODE", leanvm_core::cpu::UNGROUND_LOG_BYTECODE as u64);
 
     let list = |values: &[u64]| values.iter().map(u64::to_string).collect::<Vec<_>>().join(",");
     lines.push(format!(

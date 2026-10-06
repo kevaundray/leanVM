@@ -47,3 +47,8 @@ pub(crate) use reduce::TableReduction;
 ///
 /// No counting argument needs them: they bound the layout an announcement describes.
 pub const MAX_LOG_ROWS: usize = 32;
+
+/// The base-two logarithm of the most bytecode entries whose bus needs no grinding.
+///
+/// Each bit of entries past it doubles the bus's degree, so it costs one bit of grinding (§sec:e2e-ledger).
+pub const UNGROUND_LOG_BYTECODE: usize = 21;

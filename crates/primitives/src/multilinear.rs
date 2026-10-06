@@ -13,6 +13,13 @@ use crate::field::gf2_64::{reduce, software::clmul};
 use crate::field::{
     F64, F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8, mul_unreduced4, mul4,
 };
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(target_arch = "x86_64", target_feature = "pclmulqdq")
+))]
+use crate::field::{F192x1, F192x1Unreduced};
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+use crate::field::{F192x4, F192x4Unreduced};
 
 /// Multilinear interpolation in one variable over `E`: `lo + t·(lo+hi)`, the
 /// char-2 form of `(1−t)·lo + t·hi`.
@@ -451,6 +458,91 @@ impl SplitEq {
         }
         total
     }
+
+    /// [`Self::weighted_sum`], four `x` at a time in lanes.
+    ///
+    /// - `terms(state, x, w)` returns the unreduced products at `x`, already scaled by the low weight `w`.
+    /// - `terms4(state, x, w)` does the same for `x..x + 4` at once, lane `j` for `x + j`, and serves every four of a run below `wide_end`.
+    /// - Both are handed `state`; each run of `x` sharing a high weight is reduced once and scaled by it once.
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+    #[inline]
+    pub fn weighted_sum_lanes<S: ?Sized>(
+        &self,
+        range: Range<usize>,
+        wide_end: usize,
+        state: &mut S,
+        mut terms: impl FnMut(&mut S, usize, F192) -> [F192Unreduced; 4],
+        mut terms4: impl FnMut(&mut S, usize, F192x4) -> [F192x4Unreduced; 4],
+    ) -> [F192Unreduced; 4] {
+        let mask = self.low.len() - 1;
+        let mut total = [F192Unreduced::ZERO; 4];
+        let mut x = range.start;
+        while x < range.end {
+            // The run of `x` in this high block.
+            let high = x >> self.low_log;
+            let run_end = ((high + 1) << self.low_log).min(range.end);
+            let mut wide = [F192x4Unreduced::zero(); 4];
+            let mut y = x;
+            while y + 4 <= run_end.min(wide_end) {
+                let weights = F192x4::new(std::array::from_fn(|j| self.low[(y + j) & mask]));
+                for (acc, t) in wide.iter_mut().zip(terms4(state, y, weights)) {
+                    *acc ^= t;
+                }
+                y += 4;
+            }
+            let mut run = wide.map(F192x4Unreduced::sum);
+            for y in y..run_end {
+                let t = terms(state, y, self.low[y & mask]);
+                for (acc, t) in run.iter_mut().zip(t) {
+                    *acc ^= t;
+                }
+            }
+            let scaled = mul_unreduced4([self.high[high]; 4], run.map(F192Unreduced::reduce));
+            for (acc, t) in total.iter_mut().zip(scaled) {
+                *acc ^= t;
+            }
+            x = run_end;
+        }
+        total
+    }
+
+    /// [`Self::weighted_sum`] with its values in vector registers: the terms, the weights and the
+    /// sums are [`F192x1`] values, which an [`F192`]'s integer words would move out of at every sum.
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq")
+    ))]
+    #[inline]
+    pub fn weighted_sum_x1(
+        &self,
+        range: Range<usize>,
+        mut terms: impl FnMut(usize, F192x1) -> (F192x1Unreduced, F192x1Unreduced, F192x1Unreduced, F192x1Unreduced),
+    ) -> [F192Unreduced; 4] {
+        let mask = self.low.len() - 1;
+        let zero = F192x1Unreduced::zero();
+        let mut total = (zero, zero, zero, zero);
+        let mut x = range.start;
+        while x < range.end {
+            // The run of `x` in this high block.
+            let high = x >> self.low_log;
+            let run_end = ((high + 1) << self.low_log).min(range.end);
+            let mut run = (zero, zero, zero, zero);
+            for y in x..run_end {
+                let t = terms(y, F192x1::load(&self.low[y & mask]));
+                run = (run.0 ^ t.0, run.1 ^ t.1, run.2 ^ t.2, run.3 ^ t.3);
+            }
+            let scale = F192x1::load(&self.high[high]);
+            let scaled = |sum: F192x1Unreduced| scale.mul_unreduced(sum.reduce());
+            total = (
+                total.0 ^ scaled(run.0),
+                total.1 ^ scaled(run.1),
+                total.2 ^ scaled(run.2),
+                total.3 ^ scaled(run.3),
+            );
+            x = run_end;
+        }
+        [total.0.into(), total.1.into(), total.2.into(), total.3.into()]
+    }
 }
 
 #[cfg(test)]
@@ -504,16 +596,46 @@ mod tests {
             }
 
             // Terms of one coefficient: x itself, as a field element, scaled by the weight.
+            let value = |x: usize| F192::new(x as u64, 1, 0);
             let terms = |x: usize, w: F192| {
                 let mut t = [F192Unreduced::ZERO; 4];
-                t[0] = w.mul_unreduced(F192::new(x as u64, 1, 0));
+                t[0] = w.mul_unreduced(value(x));
+                t
+            };
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+            let terms4 = |_: &mut (), x: usize, w: F192x4| {
+                let mut t = [F192x4Unreduced::zero(); 4];
+                t[0] = w.mul_unreduced(F192x4::new(std::array::from_fn(|j| value(x + j))));
                 t
             };
             for range in [0..10, 4090..4100, 100..9000, 0..1 << 14] {
-                let want = range
-                    .clone()
-                    .fold(F192::ZERO, |sum, x| sum + dense[x] * F192::new(x as u64, 1, 0));
+                let want = range.clone().fold(F192::ZERO, |sum, x| sum + dense[x] * value(x));
                 assert_eq!(split.weighted_sum(range.clone(), terms)[0].reduce(), want, "{range:?}");
+                // Scalar terms only, lanes where they fit, and lanes stopped partway.
+                #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+                for wide_end in [0, range.end, range.start + 7] {
+                    let got = split.weighted_sum_lanes(range.clone(), wide_end, &mut (), |_, x, w| terms(x, w), terms4);
+                    assert_eq!(got[0].reduce(), want, "{range:?} {wide_end}");
+                }
+                #[cfg(any(
+                    all(target_arch = "aarch64", target_feature = "aes"),
+                    all(target_arch = "x86_64", target_feature = "pclmulqdq")
+                ))]
+                {
+                    let zero = F192x1Unreduced::zero();
+                    let got = split.weighted_sum_x1(range.clone(), |x, w| {
+                        let shifted = F192x1::new(value(x) + F192::Y);
+                        (
+                            w.mul_unreduced(F192x1::new(value(x))),
+                            zero,
+                            zero,
+                            w.mul_unreduced(shifted),
+                        )
+                    });
+                    let shifted = range.clone().fold(want, |sum, x| sum + dense[x] * F192::Y);
+                    assert_eq!([got[0].reduce(), got[3].reduce()], [want, shifted], "{range:?}");
+                    assert!(got[1..3].iter().all(|u| u.reduce() == F192::ZERO));
+                }
             }
         }
 

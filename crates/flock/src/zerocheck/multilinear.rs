@@ -41,6 +41,7 @@ use primitives::bit_fold::{BLOCK, BitFold};
 use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
 use primitives::multilinear::{SplitEq, barycentric_sum, window_denominator};
 use primitives::stream::Stream;
+use std::mem::MaybeUninit;
 
 /// Four independent products. Tuples keep the scalar and NEON paths in registers, while VPCLMULQDQ uses the batched helper.
 #[inline(always)]
@@ -345,10 +346,7 @@ pub fn bit_round_materialize(
     padding: &PaddingSpec,
 ) -> ((F192, F192), [Vec<F192>; 3]) {
     let n_pos = bits.a.len() / fold.n_chunks();
-    let mut out: [Vec<F192>; 3] = std::array::from_fn(|_| {
-        // SAFETY: the kernel writes every slot, padding and tail included.
-        unsafe { primitives::uninit_vec(n_pos) }
-    });
+    let mut out: [Box<[MaybeUninit<F192>]>; 3] = std::array::from_fn(|_| Box::new_uninit_slice(n_pos));
     let outs = out.each_mut().map(|o| &mut o[..]);
     let message = match fold.n_chunks() {
         8 => bit_round_store_kernel::<8>(bits, fold, r_eq, padding, outs),
@@ -358,7 +356,8 @@ pub fn bit_round_materialize(
         128 => bit_round_store_kernel::<128>(bits, fold, r_eq, padding, outs),
         n => panic!("no bit-round kernel for {n}-byte rows"),
     };
-    (message, out)
+    // SAFETY: the kernel writes every slot, padding and tail included.
+    (message, out.map(|o| unsafe { o.assume_init() }.into_vec()))
 }
 
 /// The two-round pass, for rows of `CHUNKS` bytes: the eight sums [`RoundPair::from_sums`] reads.
@@ -491,7 +490,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
     fold: &BitFold,
     r_eq: &[F192],
     padding: &PaddingSpec,
-    mut outs: [&mut [F192]; 3],
+    mut outs: [&mut [MaybeUninit<F192>]; 3],
 ) -> (F192, F192) {
     let rows = bits.rows::<CHUNKS>();
     let n_pos = rows[0].len();
@@ -539,7 +538,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
                 // A block wholly in padding folds to zero.
                 if !(pair_first..pair_first + n).any(live) {
                     for o in [&mut *oa, &mut *ob, &mut *oc] {
-                        o[o_first..o_first + o_len].fill(F192::ZERO);
+                        o[o_first..o_first + o_len].fill(MaybeUninit::new(F192::ZERO));
                     }
                     continue;
                 }
@@ -588,13 +587,13 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
                             .iter_mut()
                             .zip(t.as_chunks::<8>().0)
                         {
-                            stream.copy(d, s);
+                            stream.write(d, s);
                         }
                     }
                 } else {
-                    oa[dst.clone()].copy_from_slice(&f.a[..o_len]);
-                    ob[dst.clone()].copy_from_slice(&f.b[..o_len]);
-                    oc[dst].copy_from_slice(&f.c[..o_len]);
+                    oa[dst.clone()].write_copy_of_slice(&f.a[..o_len]);
+                    ob[dst.clone()].write_copy_of_slice(&f.b[..o_len]);
+                    oc[dst].write_copy_of_slice(&f.c[..o_len]);
                 }
             }
             (eq_hi[hi] * g1_acc.reduce(), eq_hi[hi] * ginf_acc.reduce())
@@ -626,7 +625,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
 ///
 /// - `ins` are the `(a, b, c)` tables, `rhos.len()` variables short of level `t`: one or two.
 /// - `rhos` are those variables' challenges, lowest first; each output folds `2^rhos.len()` inputs.
-/// - `outs` receive the level-`t` tables, `ins.len() >> rhos.len()` values each.
+/// - `outs` receive the level-`t` tables, `ins.len() >> rhos.len()` values each, every slot written.
 /// - `r_eq` are the eq challenges of the variables round `t` does not bind.
 /// - `padding` is the witness's, and each output covers `2^out_log` of its bits.
 ///
@@ -638,7 +637,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
 /// The rounds are built from each quad of folded values while they are in registers, as in the bit pass.
 pub fn fold_and_round_pair_into(
     ins: [&[F192]; 3],
-    outs: [&mut [F192]; 3],
+    outs: [&mut [MaybeUninit<F192>]; 3],
     rhos: &[F192],
     r_eq: &[F192],
     padding: &PaddingSpec,
@@ -657,7 +656,7 @@ pub fn fold_and_round_pair_into(
 /// The identical tail's outputs are copies of its last group's.
 fn fold_and_round_pair_kernel<const K: usize>(
     ins: [&[F192]; 3],
-    mut outs: [&mut [F192]; 3],
+    mut outs: [&mut [MaybeUninit<F192>]; 3],
     rhos: [F192; 2],
     r_eq: &[F192],
     padding: &PaddingSpec,
@@ -763,11 +762,11 @@ fn fold_and_round_pair_kernel<const K: usize>(
                 }
                 if q % 2 == 1 {
                     for (out, stage) in outs.iter_mut().zip(&staged) {
-                        stream.copy(&mut out[4 * (q - 1)..4 * (q + 1)], stage);
+                        stream.write(&mut out[4 * (q - 1)..4 * (q + 1)], stage);
                     }
                 } else if q + 1 == n_q {
                     for (out, stage) in outs.iter_mut().zip(&staged) {
-                        out[4 * q..4 * q + 4].copy_from_slice(&stage[..4]);
+                        out[4 * q..4 * q + 4].write_copy_of_slice(&stage[..4]);
                     }
                 }
             }
@@ -797,11 +796,11 @@ fn fold_and_round_pair_kernel<const K: usize>(
 }
 
 /// Copy each table's last `group_len` values over its values from `head` on.
-fn copy_group<T: AsMut<[F192]>>(tables: [T; 3], head: usize, group_len: usize) {
+fn copy_group(tables: [&mut [MaybeUninit<F192>]; 3], head: usize, group_len: usize) {
     // Whole groups per copy task, about 2^12 values.
     let task = group_len.max(1 << 12);
-    for mut t in tables {
-        let tail = &mut t.as_mut()[head..];
+    for t in tables {
+        let tail = &mut t[head..];
         let (body, group) = tail.split_at_mut(tail.len() - group_len);
         let group = &*group;
         parallel::chunks_mut(body, task, |_, dst| {
@@ -1057,16 +1056,19 @@ mod tests {
                 let second = round(&a, &b, &c, &r_eq[1..]);
 
                 // The pass under test.
-                let mut outs: [Vec<F192>; 3] = std::array::from_fn(|_| vec![F192::ZERO; 1 << log_out]);
-                let [oa, ob, oc] = &mut outs;
+                let mut outs: [Box<[MaybeUninit<F192>]>; 3] =
+                    std::array::from_fn(|_| Box::new_uninit_slice(1 << log_out));
+                let ins = [&tables[0][..], &tables[1][..], &tables[2][..]];
                 let pair = fold_and_round_pair_into(
-                    [&tables[0], &tables[1], &tables[2]],
-                    [oa, ob, oc],
+                    ins,
+                    outs.each_mut().map(|o| &mut o[..]),
                     &rhos,
                     &r_eq,
                     &PaddingSpec::dense(log_out),
                     0,
                 );
+                // SAFETY: the pass writes every slot of its outputs.
+                let outs = outs.map(|o| unsafe { o.assume_init() }.into_vec());
                 assert_eq!(outs, [level_a, level_b, level_c], "tables, k={k}, log_out={log_out}");
                 assert_eq!(pair.first, first, "round t, k={k}, log_out={log_out}");
                 assert_eq!(pair.second(rho_t), second, "round t + 1, k={k}, log_out={log_out}");

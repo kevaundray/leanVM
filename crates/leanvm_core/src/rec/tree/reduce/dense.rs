@@ -16,7 +16,7 @@ use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
 use parallel::Chunks;
 use primitives::field::{F64, F192, F192Unreduced, mul_unreduced4};
 use primitives::multilinear::{eq_table, eq_table_seeded, mle_eval_par};
-use primitives::uninit_vec;
+use primitives::write_only;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -327,13 +327,15 @@ impl<'a> Part<'a> {
             spare: [Vec::new(), Vec::new()],
         };
         let len = part.len_at(0);
-        let (source, mut weights) = if factored > 0 {
-            (Source::Blocks(&blocks), Vec::new())
+        let (source, w_len) = if factored > 0 {
+            (Source::Blocks(&blocks), 0)
         } else {
-            // SAFETY: the pass writes every entry before any is read.
-            (Source::Write(&blocks), unsafe { uninit_vec(len) })
+            (Source::Write(&blocks), len)
         };
-        let wc = Chunks::new(&mut weights, PAR_LEN);
+        let mut weights = Vec::with_capacity(w_len);
+        // SAFETY: the pass writes every entry before any is read.
+        let w_slots = unsafe { write_only(&mut weights.spare_capacity_mut()[..w_len]) };
+        let wc = Chunks::new(w_slots, PAR_LEN);
         let message = chunked(len, |c| {
             let (from, to) = (c * PAR_LEN, len.min((c + 1) * PAR_LEN));
             let touching = source.touching(from, to);
@@ -345,6 +347,8 @@ impl<'a> Part<'a> {
                 xor(m, source.message(&touching, a, &base[a..b], wo, F192::ZERO))
             })
         });
+        // SAFETY: the pass wrote all `w_len` entries.
+        unsafe { weights.set_len(w_len) };
         part.blocks = blocks;
         part.weights = weights;
         (part, message)
@@ -385,11 +389,23 @@ impl<'a> Part<'a> {
         let [w_spare, t_spare] = &mut self.spare;
         let mut w = buffer(w_spare, w_len);
         let mut t = buffer(t_spare, len);
-        let message = if i == 0 {
-            fold_round(source, self.base, r, half, extra, &mut w, &mut t)
-        } else {
-            fold_round(source, &self.table, r, half, extra, &mut w, &mut t)
+        // SAFETY: the fold writes every entry of both before any is read.
+        let (w_out, t_out) = unsafe {
+            (
+                write_only(&mut w.spare_capacity_mut()[..w_len]),
+                write_only(&mut t.spare_capacity_mut()[..len]),
+            )
         };
+        let message = if i == 0 {
+            fold_round(source, self.base, r, half, extra, w_out, t_out)
+        } else {
+            fold_round(source, &self.table, r, half, extra, w_out, t_out)
+        };
+        // SAFETY: the fold wrote the first `w_len` and `len` entries.
+        unsafe {
+            w.set_len(w_len);
+            t.set_len(len);
+        }
         if i + 1 == self.factored {
             self.blocks = Vec::new();
         }
@@ -401,14 +417,13 @@ impl<'a> Part<'a> {
     }
 }
 
-/// A buffer of `len` entries the caller writes before reading, reusing `spare`'s allocation.
+/// An empty buffer with room for `len` entries, reusing `spare`'s allocation.
 fn buffer(spare: &mut Vec<F192>, len: usize) -> Vec<F192> {
     let mut v = std::mem::take(spare);
-    if v.len() < len {
-        // SAFETY: the fold writes every entry before any is read.
-        return unsafe { uninit_vec(len) };
+    if v.capacity() < len {
+        return Vec::with_capacity(len);
     }
-    v.truncate(len);
+    v.clear();
     v
 }
 

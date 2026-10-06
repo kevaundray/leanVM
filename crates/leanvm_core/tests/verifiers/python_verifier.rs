@@ -5,9 +5,9 @@
 use fiat_shamir::transcript::RawProof;
 use leanvm_core::cpu::{CpuError, Lookup, Program};
 use leanvm_core::pcs::Rate;
-use leanvm_core::rv::{Alu, Class};
-use leanvm_core::tables::{ClassTable, Clock};
-use primitives::field::F192;
+use leanvm_core::rv::{Alu, Class, Region};
+use leanvm_core::tables::{ClassTable, Clock, EXIT_SLOT};
+use primitives::field::{F64, F192};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -180,6 +180,8 @@ fn test_python_verifier() {
     PythonStatement::assert_rejects(&statement.verify(&raw_announcement), "a noncanonical announcement");
 
     // Neither a padding row's clock nor a failed row's can end the run.
+    //
+    // A padding row of the exit pushes the exit marker at its clock, zero, which only a final clock zero would meet.
     let final_clock = leanvm_core::tables::N_TABLES + 1;
     let honest = proof.0.stream[final_clock].c0;
     for clock in [0, honest ^ Clock::SEED_CLOCK, honest | 1 << Clock::FAIL_BIT] {
@@ -237,40 +239,57 @@ fn test_python_verifier() {
     }
     // Setting an exit selector on an ordinary instruction is a malformed public table.
     let mut forged_exit = table.clone();
-    forged_exit[8 * leanvm_core::tables::EXIT_SLOT * entries..][..8].copy_from_slice(&1u64.to_le_bytes());
+    forged_exit[8 * EXIT_SLOT * entries..][..8].copy_from_slice(&1u64.to_le_bytes());
     std::fs::write(&statement.bytecode, forged_exit).expect("write forged exit");
     let refused = statement.verify(&raw);
     PythonStatement::assert_rejects(&refused, "an ordinary instruction marked as an exit");
     assert!(String::from_utf8_lossy(&refused.stderr).contains("an exit entry is not ECALL"));
-    let branch = Alu::SUB | Alu::BR_EQ;
-    let always = Alu::ALWAYS;
-    let jalr = Alu::CLEAR_BIT0;
-    for (flags, dt, link, indirect) in [
-        (branch, 0x44, 1, 1),
-        (always, 0, 0, 0),
-        (0, 0x44, 0, 0),
-        (0, 0, 1, 0),
-        (0, 0, 0, 1),
-        (jalr, 0, 0, 1),
-        (jalr, 0, 1, 0),
-        (jalr, 0x44, 1, 1),
-        (branch, 0, 1, 0),
-        (branch, 0, 0, 1),
-        (always, 0x44, 1, 1),
+    // A jump's shape is its flags': only a branch or a `jal` has an offset, and a `jal` links `pc + 4` as a constant
+    // added to `x0`. Entry 0's fields are set in full, so each case breaks that rule alone.
+    let alu = 1u64 << ClassTable::index_of(Class::Alu).unwrap();
+    let link = Region::TEXT.base() + 4;
+    for (what, fields) in [
+        (
+            "an addition with an offset",
+            [(2, alu), (3, 0), (4, 0), (5, 0), (7, 0), (9, 0x44)],
+        ),
+        (
+            "a jal reading a register",
+            [(2, alu), (3, Alu::ALWAYS), (4, 1), (5, 0), (7, link), (9, 0x44)],
+        ),
+        (
+            "a jal linking another address",
+            [(2, alu), (3, Alu::ALWAYS), (4, 0), (5, 0), (7, link + 4), (9, 0x44)],
+        ),
+        (
+            "a jalr with an offset",
+            [
+                (2, alu),
+                (3, Alu::INDIRECT | Alu::ALWAYS),
+                (4, 0),
+                (5, 0),
+                (7, 0),
+                (9, 0x44),
+            ],
+        ),
     ] {
         let mut malformed = table.clone();
-        for (slot, value) in [(3, flags), (9, dt), (10, link), (11, indirect)] {
+        for (slot, value) in fields {
             malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
         }
         std::fs::write(&statement.bytecode, malformed).expect("write malformed control flow");
         let refused = statement.verify(&raw);
-        PythonStatement::assert_rejects(&refused, "malformed control flow");
-        assert!(String::from_utf8_lossy(&refused.stderr).contains("invalid control flow"));
+        PythonStatement::assert_rejects(&refused, what);
+        assert!(
+            String::from_utf8_lossy(&refused.stderr).contains("invalid control flow"),
+            "{what}"
+        );
     }
-    std::fs::write(&statement.bytecode, table).expect("restore bytecode");
+    std::fs::write(&statement.bytecode, &table).expect("restore bytecode");
+    // The legal shapes of entry 0: a `jal` to `pc + 4`, a branch with an offset, a `jalr`.
     let control_shapes = Command::new("python3")
         .arg("-c")
-        .arg(
+        .arg(format!(
             r#"import runpy, sys
 from pathlib import Path
 v = runpy.run_path(sys.argv[1])
@@ -278,13 +297,16 @@ data = Path(sys.argv[2]).read_bytes()
 words = [v['K'](int.from_bytes(data[i:i+8], 'little')) for i in range(0, len(data), 8)]
 v['check_bytecode'](words)
 n = len(words) // 16
-for flags, link, jalr in [(1 << 14, 1, 0), (1 | (1 << 8), 0, 0), (1 << 7, 1, 1)]:
+for fields in [[(2, {alu}), (3, {always}), (4, 0), (5, 0), (7, {link}), (9, 0)], [(2, {alu}), (3, {branch}), (9, 0x44)], [(2, {alu}), (3, {indirect}), (5, 0), (9, 0)]]:
     candidate = words.copy()
-    for slot, value in [(3, flags), (9, 0), (10, link), (11, jalr)]:
+    for slot, value in fields:
         candidate[slot * n] = v['K'](value)
     v['check_bytecode'](candidate)
 "#,
-        )
+            always = Alu::ALWAYS,
+            branch = Alu::SUB | Alu::BR_EQ,
+            indirect = Alu::INDIRECT | Alu::ALWAYS,
+        ))
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../python-verifier/verifier.py"))
         .arg(&statement.bytecode)
         .output()
@@ -304,6 +326,62 @@ for flags, link, jalr in [(1 << 14, 1, 0), (1 | (1 << 8), 0, 0), (1 << 7, 1, 1)]
     );
 }
 
+// What Rust refuses when it builds a program or reads a pruned opening, Python refuses on the files it is handed.
+#[test]
+fn the_python_verifier_refuses_what_rust_cannot_express() {
+    let (program, _) = super::programs::fibonacci();
+    let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
+    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
+    let statement = PythonStatement::new("shape", &program, &output);
+    let refuses = |what: &str, reason: &str| {
+        let refused = statement.verify(&raw);
+        PythonStatement::assert_rejects(&refused, what);
+        assert!(String::from_utf8_lossy(&refused.stderr).contains(reason), "{what}");
+    };
+
+    // The entry point is the first public word: misaligned, below the text, at the halt slot and past it.
+    let public = std::fs::read(&statement.public).expect("read the public words");
+    let (text_base, halt_pc) = (Region::TEXT.base(), program.rv().halt_pc());
+    for entry_pc in [program.rv().entry_pc() + 2, text_base - 4, halt_pc, halt_pc + 4] {
+        let mut forged = public.clone();
+        forged[..8].copy_from_slice(&entry_pc.to_le_bytes());
+        std::fs::write(&statement.public, forged).expect("write the public words");
+        refuses(
+            "an entry point off the text",
+            "the entry pc is not an instruction of the text",
+        );
+    }
+    std::fs::write(&statement.public, public).expect("restore the public words");
+
+    // The padding entry before the halt slot is illegal: its flags, `ad`, `pc4` and exit selector each have one value.
+    let table = std::fs::read(&statement.bytecode).expect("read bytecode");
+    let entries = table.len() / 8 / 16;
+    let write = |slot: usize, entry: usize, value: u64| {
+        let mut forged = table.clone();
+        forged[8 * (slot * entries + entry)..][..8].copy_from_slice(&value.to_le_bytes());
+        std::fs::write(&statement.bytecode, forged).expect("write bytecode");
+    };
+    for slot in [3, 6, 8, EXIT_SLOT] {
+        write(slot, entries - 2, 1);
+        refuses(
+            "a noncanonical illegal entry",
+            "an illegal entry is not in its one form",
+        );
+    }
+    // A halt slot tagged as an ALU entry is otherwise a well-formed `addi` to the sink.
+    let alu = 1u64 << ClassTable::index_of(Class::Alu).expect("the class has a table");
+    write(2, entries - 1, alu);
+    refuses("a readable halt slot", "the halt slot is not an illegal entry");
+    std::fs::write(&statement.bytecode, table).expect("restore bytecode");
+
+    // The first opening is a level-0 query, whose leaf leads with the lanes the stack never fills.
+    let mut forged = raw.clone();
+    forged.merkle[0].leaf_data[0] = F64(1);
+    let refused = statement.verify(&forged);
+    PythonStatement::assert_rejects(&refused, "a nonzero absent lane");
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("a leaf's absent lanes are not zero"));
+}
+
 /// The PCS rate changes WHIR's ladder: how many levels it folds through, how wide a leaf
 /// is and how many queries each level takes. Every other cross-check runs at the fastest
 /// rate, so the slowest one is checked here, where the two verifiers would otherwise
@@ -317,8 +395,9 @@ fn the_python_verifier_follows_the_slowest_rate() {
 }
 
 /// Every ring-switched claim joins the opening's one family through its slices: both verifiers reject a moved slice of
-/// the first, a middle and the last flock circuit, the last circuit's form value, and a moved multiplicity bit. Python
-/// also rejects a family target off by one and a family combined by the wrong challenge.
+/// the first, a middle and the last flock circuit, the last circuit's form value, a moved multiplicity bit, and a moved
+/// register bit of the last table and of the first, a table the bus point settles. Python also rejects a family target
+/// off by one and a family combined by the wrong challenge.
 #[test]
 fn both_verifiers_bind_every_circuits_slices() {
     let (program, _) = super::programs::fibonacci();
@@ -341,6 +420,13 @@ def recorded(name):
     g[name] = wrapped
 recorded('table_sumcheck')
 recorded('verify_flock')
+Table = g['Table']
+read_registers = Table.read_registers
+def read_recorded(table, transcript):
+    out = read_registers(table, transcript)
+    print('register_bits', transcript.stream_offset - len(out[1]))
+    return out
+Table.read_registers = read_recorded
 sys.exit(v['main'](sys.argv[2:]))
 "#;
     let traced = statement.verify_with(&raw, Some(prelude));
@@ -359,12 +445,19 @@ sys.exit(v['main'](sys.argv[2:]))
         panic!("one table sumcheck")
     };
     let slices = |f: usize| flock_end - (n - f) * 65;
+    // The announced heights lead the stream; the last table's register bits end right before the multiplicity bits.
+    let taus = std::array::from_fn(|t| proof.0.stream[t].c0 as usize);
+    let register_end = bits_end - Lookup::Bytecode.multiplicity_bits(taus);
+    // The first table's register bits, the only columns of a settled table the table sumcheck sends, come first.
+    let settled_bits = ends("register_bits")[0];
     for at in [
         slices(0),
         slices(n / 2) + 7,
         slices(n - 1) + 63,
         flock_end - 1,
         bits_end - 1,
+        register_end - 1,
+        settled_bits,
     ] {
         let mut forged = proof.clone();
         forged.0.stream[at] += F192::ONE;

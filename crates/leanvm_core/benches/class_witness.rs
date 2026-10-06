@@ -9,7 +9,7 @@ use leanvm_core::tables::ClassSpec;
 use primitives::test_util::Rng;
 
 #[global_allocator]
-static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 fn main() {
     // One batch of 2^16 instances per class, the size of a mid-sized run's table.

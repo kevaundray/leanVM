@@ -649,16 +649,16 @@ pub(crate) fn initial_rounds_virtual<'a>(
 
 /// [`initial_rounds`] over a regenerated weight, which it also writes out whole.
 fn initial_rounds_kept(f: &[F64], block: usize, initial_k: usize, fill: &BasisFill<'_>) -> (InitialRounds, Vec<F192>) {
-    // SAFETY: the first pass fills every window of every lane of `f` once, and keeps each in its slots.
-    let mut kept = unsafe { primitives::uninit_vec(f.len()) };
+    let mut kept = Box::<[F192]>::new_uninit_slice(f.len());
     let rounds = first_pass(
         f,
         block,
         initial_k,
         &Basis::Virtual(fill),
-        Some(SendPtr(kept.as_mut_ptr())),
+        Some(SendPtr(kept.as_mut_ptr().cast::<F192>())),
     );
-    (rounds, kept)
+    // SAFETY: the first pass filled every window of every lane of `f` once, and kept each in its slots.
+    (rounds, unsafe { kept.assume_init() }.into_vec())
 }
 
 /// [`initial_rounds`], writing each window of the weight it reads to `keep` when given.

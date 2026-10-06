@@ -40,7 +40,7 @@ use std::hint::black_box;
 use std::time::Instant;
 
 #[global_allocator]
-static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 fn main() {
     bench::init_tracing_from_env();

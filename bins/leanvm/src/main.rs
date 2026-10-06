@@ -9,7 +9,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 #[global_allocator]
-static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 mod aggregate;
 mod fibonacci;
@@ -72,6 +72,12 @@ enum Command {
         #[arg(long, default_value_t = 16, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
     },
+    /// Prove and verify a guest checking Falcon-512 signatures, one key each.
+    Falcon {
+        /// Signatures to verify.
+        #[arg(long, default_value_t = 4, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
+        n: usize,
+    },
     /// Prove and verify a guest checking leanDA blobs and computing their commitment.
     Leanda {
         /// Blobs of 128 KiB to check.
@@ -99,8 +105,9 @@ enum Command {
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
     /// A proven case reports `latency`, `proof-size`, `verify`, one `stage.<name>` per
-    /// top-level span of the proof (`--tracing`'s first level under `Prove`) and `peak-memory`;
-    /// an aggregation tree's case reports them for its first-level node and its node.
+    /// top-level span of the proof (`--tracing`'s first level under `Prove`), `peak-memory`,
+    /// and the proving passes' `heap-peak` and `allocations`, as the global allocator counts
+    /// them; an aggregation tree's case reports them for its first-level node and its node.
     ///
     /// The lists are `bins/leanvm/src/tracked.rs`.
     Bench {
@@ -136,6 +143,7 @@ fn main() {
         Command::Guest { elf, advice } => guest::run_guest(&elf, &advice, &prover, plan),
         Command::Leanxmss { n } => workload::run(&workload::leanxmss(n), &prover, plan),
         Command::Leansphincs { n } => workload::run(&workload::leansphincs(n), &prover, plan),
+        Command::Falcon { n } => workload::run(&workload::falcon(n), &prover, plan),
         Command::Leanda { blobs } => workload::run(&workload::leanda(blobs), &prover, plan),
         Command::Aggregate {
             program,

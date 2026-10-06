@@ -19,7 +19,7 @@ use crate::fibonacci::fibonacci_program;
 use crate::guest::refuse;
 use crate::workload;
 use crate::workload::Workload;
-use bench::{Metric, Plan, Timing, bencher_json};
+use bench::{Heap, Metric, Plan, Timing, bencher_json};
 use leanvm::aggregate::{CircuitStats, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof, TreeShape};
 use leanvm::{Output, Program, ProvenRun, Prover, Rate, Stats};
 use leanvm_guest::PublicValues;
@@ -107,6 +107,7 @@ fn counted() -> Vec<Case> {
         Case::workload("leanxmss-400", workload::leanxmss(400)),
         Case::workload("leansphincs-104", workload::leansphincs(104)),
         Case::workload("leanda-1", workload::leanda(1)),
+        Case::workload("falcon-28", workload::falcon(28)),
     ]
 }
 
@@ -114,7 +115,7 @@ fn counted() -> Vec<Case> {
 type Build = fn(&'static str) -> Case;
 
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
-fn proven() -> [(&'static str, Build); 5] {
+fn proven() -> [(&'static str, Build); 6] {
     [
         ("fibonacci-asm-2000000", |name| Case::fibonacci(name, 2_000_000)),
         ("hash-50000", |name| Case::hash(name, 50_000)),
@@ -123,6 +124,7 @@ fn proven() -> [(&'static str, Build); 5] {
             Case::workload(name, workload::leanxmss(100))
         }),
         ("leansphincs-26", |name| Case::workload(name, workload::leansphincs(26))),
+        ("falcon-7", |name| Case::workload(name, workload::falcon(7))),
     ]
 }
 
@@ -372,16 +374,17 @@ const VERIFY_PASSES: usize = 20;
 
 /// The proving time, the proof's size and the verifying time, after checking the proof: the
 /// output is the native reference's and it verifies. Then the time of each of the proof's
-/// stages (the `Prove` span's direct children, `--tracing`'s top level) and the process's peak
-/// resident memory so far.
+/// stages (the `Prove` span's direct children, `--tracing`'s top level), the process's peak
+/// resident memory so far and the measured passes' heap.
 fn proved(case: &Case, prover: &Prover, plan: Plan) -> Vec<(String, Metric)> {
     eprintln!("{}", case.name);
     let mut passes = Vec::new();
+    let mut heaps = Vec::new();
     let (ProvenRun { proof, output, .. }, time) = plan.warm_then_measure(|_| {
-        let proved = prover
-            .prove(&case.program, &case.advice)
-            .unwrap_or_else(|e| refuse(format_args!("{}: {e}", case.name)));
+        let (proved, heap) = bench::measure_heap(|| prover.prove(&case.program, &case.advice));
+        let proved = proved.unwrap_or_else(|e| refuse(format_args!("{}: {e}", case.name)));
         passes.push(bench::take_stages());
+        heaps.push(heap);
         proved
     });
     let peak_memory = bench::peak_rss_bytes();
@@ -392,17 +395,26 @@ fn proved(case: &Case, prover: &Prover, plan: Plan) -> Vec<(String, Metric)> {
     );
     let (verified, verify_time) = Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| case.program.verify(output, &proof));
     verified.expect("an honest proof verifies");
-    measures(&time, proof.to_bytes().len(), &verify_time, &passes[1..], peak_memory)
+    measures(
+        &time,
+        proof.to_bytes().len(),
+        &verify_time,
+        &passes[1..],
+        peak_memory,
+        &heaps[1..],
+    )
 }
 
 /// A proven case's measures: its proving time, proof size and verifying time, each of its
-/// stages over the measured passes, and the peak memory.
+/// stages over the measured passes, the peak memory, and the most any measured pass's heap
+/// held at once (`heap-peak`) and allocated (`allocations`).
 fn measures(
     time: &Timing,
     proof_size: usize,
     verify_time: &Timing,
     passes: &[Vec<(&'static str, Duration)>],
     peak_memory: u64,
+    heaps: &[Heap],
 ) -> Vec<(String, Metric)> {
     let mut report = vec![
         ("latency".to_string(), Metric::nanoseconds(time)),
@@ -411,6 +423,9 @@ fn measures(
     ];
     report.extend(stages(passes));
     report.push(("peak-memory".to_string(), Metric::exact(peak_memory as usize)));
+    let most = |measure: fn(&Heap) -> u64| Metric::exact(heaps.iter().map(measure).max().unwrap_or(0) as usize);
+    report.push(("heap-peak".to_string(), most(|heap| heap.peak)));
+    report.push(("allocations".to_string(), most(|heap| heap.allocations)));
     report
 }
 
@@ -452,15 +467,24 @@ fn proved_node(
     prove: impl Fn() -> Result<TreeProof, TreeError>,
 ) -> (TreeProof, Vec<(String, Metric)>) {
     let mut passes = Vec::new();
+    let mut heaps = Vec::new();
     let (proof, time) = plan.warm_then_measure(|_| {
-        let proof = (tracing::info_span!("Prove").in_scope(&prove)).expect("honest children");
+        let (proof, heap) = bench::measure_heap(|| tracing::info_span!("Prove").in_scope(&prove));
         passes.push(bench::take_stages());
-        proof
+        heaps.push(heap);
+        proof.expect("honest children")
     });
     let peak_memory = bench::peak_rss_bytes();
     let (verified, verify_time) = Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| tree.verify(&proof, outputs));
     verified.expect("an honest tree proof verifies");
-    let report = measures(&time, proof.to_bytes().len(), &verify_time, &passes[1..], peak_memory);
+    let report = measures(
+        &time,
+        proof.to_bytes().len(),
+        &verify_time,
+        &passes[1..],
+        peak_memory,
+        &heaps[1..],
+    );
     (proof, report)
 }
 
