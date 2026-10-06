@@ -9,7 +9,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 #[global_allocator]
-static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 mod aggregate;
 mod fibonacci;
@@ -105,8 +105,9 @@ enum Command {
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
     /// A proven case reports `latency`, `proof-size`, `verify`, one `stage.<name>` per
-    /// top-level span of the proof (`--tracing`'s first level under `Prove`) and `peak-memory`;
-    /// an aggregation tree's case reports them for its first-level node and its node.
+    /// top-level span of the proof (`--tracing`'s first level under `Prove`), `peak-memory`,
+    /// and the proving passes' `heap-peak` and `allocations`, as the global allocator counts
+    /// them; an aggregation tree's case reports them for its first-level node and its node.
     ///
     /// The lists are `bins/leanvm/src/tracked.rs`.
     Bench {
