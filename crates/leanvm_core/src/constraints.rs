@@ -296,6 +296,8 @@ pub fn xi_offsets(n_constraints: impl Iterator<Item = usize>) -> Vec<usize> {
 /// loop, and without it the generic stops inlining and costs measurable prover
 /// time. Nothing is lifted into `E`, so a `K` round evaluates the identity and the
 /// bus forms in 64-bit arithmetic, and its scratch is a third the size.
+///
+/// With `rows`, a row at a time ([`rows`]), else in tiles of [`BLOCK`] rows.
 #[inline(always)]
 fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
     cols: &[C],
@@ -303,8 +305,9 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
     half: usize,
     eqr: &[F192],
     at_one: bool,
+    rows: bool,
 ) -> [F192; 2] {
-    if ROWS {
+    if rows {
         return rows::table_message(cols, summand, half, eqr, at_one);
     }
     let width = padded_width(cols.len());
@@ -332,9 +335,14 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
 /// still beat smaller ones.
 const BLOCK: usize = 64;
 
-/// Whether the message passes go a row at a time, as [`rows`] does: on aarch64 the
-/// tiles lose to rows, at this block size and at L1-sized ones.
-const ROWS: bool = cfg!(target_arch = "aarch64");
+/// Whether the message passes go a row at a time, as [`rows`] does: everywhere but
+/// AVX-512, the only target whose packed forms take the tiles' padded rows. Elsewhere
+/// the tiles lose to rows, on aarch64 at this block size and at L1-sized ones.
+const ROWS: bool = !cfg!(all(
+    target_arch = "x86_64",
+    target_feature = "vpclmulqdq",
+    target_feature = "avx512f"
+));
 
 /// The message over `rows` rows, `block(scratch, acc, b)` adding rows `b * BLOCK..`
 /// with a zeroed `scratch` of `scratch_len` per worker.
@@ -412,6 +420,18 @@ pub fn prove<S: Summand>(
     sigma: &[F192],
     ps: &mut ProverState,
 ) -> Vec<Claims> {
+    prove_with(airs, cols, zeta, sigma, ps, ROWS)
+}
+
+/// [`prove`], its message passes a row at a time with `rows`, else in tiles.
+fn prove_with<S: Summand>(
+    airs: &[Air<S>],
+    cols: Vec<Columns<'_>>,
+    zeta: &[F192],
+    sigma: &[F192],
+    ps: &mut ProverState,
+    rows: bool,
+) -> Vec<Claims> {
     // The tallest table sets the common cube; shorter tables join after its high variables bind.
     let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
     debug_assert!(zeta.len() >= n, "the eq point must cover the tallest table");
@@ -445,9 +465,10 @@ pub fn prove<S: Summand>(
             if air.tau > m {
                 // An active table's preceding fold already produced this message.
                 let p = messages[t].take().unwrap_or_else(|| {
+                    let at_one = zeta[m].is_zero();
                     match pending[t].as_ref().expect("a joining table has columns") {
-                        Columns::K(c) => table_message(c, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
-                        Columns::E(c) => table_message(c, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                        Columns::K(c) => table_message(c, &air.summand, 1 << m, &eqr, at_one, rows),
+                        Columns::E(c) => table_message(c, &air.summand, 1 << m, &eqr, at_one, rows),
                     }
                 });
                 for i in 0..2 {
@@ -472,11 +493,11 @@ pub fn prove<S: Summand>(
             let at_one = m > 0 && zeta[m - 1].is_zero();
             // Folding two pairs produces the endpoints of the next round in worker scratch.
             if let Some(table) = &mut folded[t] {
-                messages[t] = fold_rows_and_message(table, air.n_cols, rk, &air.summand, &eqr, at_one);
+                messages[t] = fold_rows_and_message(table, air.n_cols, rk, &air.summand, &eqr, at_one, rows);
             } else {
                 let (table, message) = match pending[t].take().expect("a joining table has columns") {
-                    Columns::K(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one),
-                    Columns::E(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one),
+                    Columns::K(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one, rows),
+                    Columns::E(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one, rows),
                 };
                 folded[t] = Some(table);
                 messages[t] = message;
@@ -530,6 +551,7 @@ fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Syn
     summand: &impl Summand,
     eqr: &[F192],
     at_one: bool,
+    rows: bool,
 ) -> (Vec<F192>, Option<[F192; 2]>) {
     let ncols = cols.len();
     let half = cols[0].len() / 2;
@@ -544,7 +566,7 @@ fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Syn
         return (unsafe { out.assume_init() }.into_vec(), None);
     }
     let pairs = half / 2;
-    if ROWS {
+    if rows {
         let message = rows::fold_columns_and_message(cols, &mut out, rk, summand, eqr, at_one);
         // SAFETY: the `pairs` tasks wrote every row of both halves.
         return (unsafe { out.assume_init() }.into_vec(), Some(message));
@@ -578,6 +600,7 @@ fn fold_rows_and_message(
     summand: &impl Summand,
     eqr: &[F192],
     at_one: bool,
+    rows: bool,
 ) -> Option<[F192; 2]> {
     let half = table.len() / (2 * ncols);
     if half == 1 {
@@ -590,7 +613,7 @@ fn fold_rows_and_message(
         return None;
     }
     let pairs = half / 2;
-    if ROWS {
+    if rows {
         let message = rows::fold_rows_and_message(table, ncols, rk, summand, eqr, at_one);
         table.truncate(half * ncols);
         return Some(message);
@@ -801,8 +824,8 @@ mod tests {
             for (t, air) in airs.iter().enumerate() {
                 if air.tau > m {
                     let p = folded[t].as_ref().map_or_else(
-                        || table_message(&cols[t], &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
-                        |table| table_message(table, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                        || rows::table_message(&cols[t], &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                        |table| rows::table_message(table, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
                     );
                     for i in 0..2 {
                         msg[i] += weights[t] * p[i];
@@ -897,11 +920,13 @@ mod tests {
             };
             let waiting = F192::new(43, 47, 53);
             for zeta in [F192::ZERO, F192::ONE, F192::new(59, 61, 67)] {
-                let message = table_message(cols, &synth, 4, &eq, zeta.is_zero());
                 let claim = (F192::ONE + zeta) * full_eval(F192::ZERO) + zeta * full_eval(F192::ONE) + waiting;
-                let h = round_polynomial(message, zeta, claim, waiting);
-                for r in [F192::ZERO, F192::ONE, F192::new(31, 37, 41)] {
-                    assert_eq!(poly_eval(&h, r), (F192::ONE + zeta + r) * full_eval(r) + r * waiting);
+                for rows in [false, true] {
+                    let message = table_message(cols, &synth, 4, &eq, zeta.is_zero(), rows);
+                    let h = round_polynomial(message, zeta, claim, waiting);
+                    for r in [F192::ZERO, F192::ONE, F192::new(31, 37, 41)] {
+                        assert_eq!(poly_eval(&h, r), (F192::ONE + zeta + r) * full_eval(r) + r * waiting);
+                    }
                 }
             }
         }
@@ -1000,14 +1025,17 @@ mod tests {
                 if kinds >> t & 1 == 0 { Columns::K(base[t].iter().map(|c| &c[..]).collect()) }
                 else { Columns::E(c.iter().map(|c| c.to_vec()).collect()) }
             }).collect();
-            // Identical transcript seeds expose any changed message or challenge.
+            // Identical transcript seeds expose any changed message or challenge, in either pass shape.
             let mut original = ProverState::from_label(b"arbitrary-constraint-test");
             let expected = prove_reference(&airs, views(), &zeta, &sigma, &mut original);
-            let mut fused = ProverState::from_label(b"arbitrary-constraint-test");
-            let actual = prove(&airs, views(), &zeta, &sigma, &mut fused);
-            // Invariant: even a false statement produces the same messages before rejection.
-            prop_assert_eq!(actual, expected);
-            prop_assert_eq!(fused.into_proof().stream, original.into_proof().stream);
+            let stream = original.into_proof().stream;
+            for rows in [false, true] {
+                let mut fused = ProverState::from_label(b"arbitrary-constraint-test");
+                let actual = prove_with(&airs, views(), &zeta, &sigma, &mut fused, rows);
+                // Invariant: even a false statement produces the same messages before rejection.
+                prop_assert_eq!(&actual, &expected);
+                prop_assert_eq!(&fused.into_proof().stream, &stream);
+            }
         }
     }
 
@@ -1041,11 +1069,14 @@ mod tests {
                     let sigma: Vec<_> = (0..taus.len()).map(|i| F192::new(i as u64 + 1, 3, 5)).collect();
                     let mut reference = ProverState::from_label(b"fused-constraint-test");
                     let expected = prove_reference(&airs, views(), &zeta, &sigma, &mut reference);
-                    let mut fused = ProverState::from_label(b"fused-constraint-test");
-                    let actual = prove(&airs, views(), &zeta, &sigma, &mut fused);
-                    // Invariant: reordering exact field operations preserves all messages and final claims.
-                    assert_eq!(actual, expected);
-                    assert_eq!(fused.into_proof().stream, reference.into_proof().stream);
+                    let stream = reference.into_proof().stream;
+                    for rows in [false, true] {
+                        let mut fused = ProverState::from_label(b"fused-constraint-test");
+                        let actual = prove_with(&airs, views(), &zeta, &sigma, &mut fused, rows);
+                        // Invariant: reordering exact field operations preserves all messages and final claims.
+                        assert_eq!(actual, expected);
+                        assert_eq!(fused.into_proof().stream, stream);
+                    }
                 }
             }
         }
