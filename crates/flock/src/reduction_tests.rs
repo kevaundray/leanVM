@@ -49,11 +49,7 @@ fn prove(n: usize, tamper: Option<usize>) -> (usize, ProofTranscript) {
     }
 
     let mut ps = ProverState::from_label(LABEL);
-    let instance = Instance {
-        block: BLOCK,
-        n_blocks_log: n_log,
-        witness,
-    };
+    let instance = Instance::of(BLOCK, n_log, &witness);
     reduction::prove(&[instance], &mut ps);
     (n_log, ps.into_proof())
 }

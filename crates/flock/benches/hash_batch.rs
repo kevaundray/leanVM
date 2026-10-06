@@ -24,8 +24,8 @@ use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState}
 use flock::Witness;
 use flock::hash::{BLOCK, Compression, K_LOG, generate_witness, pinned_compression};
 use flock::reduction::{Instance, min_n_blocks_log};
-use pcs::pack::LOG_PACKING;
-use pcs::stack_open::{RingSwitch, open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
+use pcs::ring_switch::RingSwitch;
+use pcs::stack_open;
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
 use primitives::{field::F64, pretty_integer, test_util::Rng};
@@ -43,7 +43,7 @@ fn main() {
         .checked_shl(requested_n_log as u32)
         .expect("FLOCK_N_LOG exceeds the platform usize width");
     let n_log = min_n_blocks_log(n);
-    let mu = K_LOG + n_log - LOG_PACKING;
+    let mu = K_LOG + n_log - F64::DEGREE.ilog2() as usize;
     assert!(
         mu >= 15,
         "FLOCK_N_LOG too small: need a committed witness with mu >= 15"
@@ -78,20 +78,11 @@ fn main() {
         ps.add_root(&commitment.root);
         let commit_s = t.elapsed().as_secs_f64();
 
-        let instance = [Instance {
-            block: BLOCK,
-            n_blocks_log: n_log,
-            witness,
-        }];
+        let instance = [Instance::of(BLOCK, n_log, &witness)];
         let t = Instant::now();
         let reduced = flock::reduction::prove(&instance, &mut ps).pop().expect("one circuit");
         let reduction_s = t.elapsed().as_secs_f64();
-        let [
-            Instance {
-                witness: Witness { z, .. },
-                ..
-            },
-        ] = instance;
+        let Witness { z, .. } = witness;
 
         let t = Instant::now();
         let ring = RingSwitch {
@@ -99,7 +90,7 @@ fn main() {
             qflock_vars: mu,
             claims: vec![reduced],
         };
-        open_batch_mixed_whir_stacked(
+        stack_open::open(
             &mut ps,
             mu,
             q_flock(&z),
@@ -153,12 +144,12 @@ fn main() {
             claims: vec![replay.claim],
         };
         assert!(
-            verify_opening_batch_mixed_whir_stacked(
+            stack_open::verify(
                 &mut vs,
                 &config,
                 mu,
                 1 << INITIAL_FOLDING_FACTOR,
-                &root,
+                root,
                 &[],
                 std::slice::from_ref(&ring)
             )

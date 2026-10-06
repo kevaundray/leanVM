@@ -88,13 +88,9 @@ use crate::gf2::{
 };
 use crate::lincheck::LincheckCircuit;
 use crate::reduction::Block;
-use crate::witness::{Witness, drive_witness_packed_and_lincheck};
+use crate::witness::{Witness, drive_witness_packed_and_lincheck, with_z};
 use primitives::field::F192;
 use primitives::hash::{G_LANES, IV, SIGMA};
-
-// ---------------------------------------------------------------------------
-// Public constants
-// ---------------------------------------------------------------------------
 
 /// Block dim: one BLAKE2s compression occupies `2^K_LOG = 16,384` z slots.
 pub const K_LOG: usize = 14;
@@ -115,10 +111,6 @@ pub(crate) const WORD_BITS: usize = crate::gf2::WORD_BITS;
 /// Bits per G block: two fused three-operand ADDs and two two-operand ADDs,
 /// nothing materialized.
 pub(crate) const G_STRIDE: usize = 2 * ADD3_BITS + 2 * CARRY_BITS_PER_ADD; // 184
-
-// ---------------------------------------------------------------------------
-// Layout positions (bit indices into the per-block z slice of length K)
-// ---------------------------------------------------------------------------
 
 /// One 256-bit chaining value, `2^8`, so `cv` and `out` are aligned slots.
 pub const SLOT_BITS: usize = 256;
@@ -208,11 +200,9 @@ pub(crate) const fn padding_block() -> Compression {
     pinned_compression([0u32; 16])
 }
 
-// ---------------------------------------------------------------------------
 // Circuit-walk evaluation: `(uᵀ A_0 w, uᵀ B_0 w)` in O(circuit) field ops,
 // over matrices that are never materialized. The row assignment these walks
 // encode is specified in doc/leanvm, Annex C "Evaluating the matrices".
-// ---------------------------------------------------------------------------
 
 /// One forward pass of the circuit against column weights `w`, storing every row's operand pair.
 fn forward_walk(sink: &mut RowValues, w: &[F192]) {
@@ -476,11 +466,9 @@ impl LincheckCircuit for WalkLincheckCircuit {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Witness generation: emits the R1CS row-witnesses directly from the BLAKE2s
 // computation, as bit-packed u64 words. Row-witness semantics match the row
 // assignment of doc/leanvm, Annex C, the same one the walks above encode.
-// ---------------------------------------------------------------------------
 
 /// OR the low 32 bits of `val` into `buf` starting at bit-offset `bit_off`.
 /// Handles u64 straddling when `bit_off % 64 > 32`.
@@ -703,13 +691,17 @@ fn build_block_witness_ab_packed_into(
 /// The witness of `blocks.len()` compressions, padded to `2^n_blocks_log` instances.
 pub fn generate_witness(blocks: &[Compression], n_blocks_log: usize) -> Witness {
     let padding = padding_block();
-    drive_witness_packed_and_lincheck(
-        blocks,
-        Some(&padding),
-        n_blocks_log,
-        K_LOG,
-        |&(ref h, ref m, t, f0, f1), z, a, b| build_block_witness_ab_packed_into(h, m, t, f0, f1, z, a, b),
-    )
+    with_z(n_blocks_log, K_LOG, |z| {
+        drive_witness_packed_and_lincheck(
+            z,
+            blocks,
+            Some(&padding),
+            n_blocks_log,
+            K_LOG,
+            |&(ref h, ref m, t, f0, f1), z, a, b| build_block_witness_ab_packed_into(h, m, t, f0, f1, z, a, b),
+            |_, _| {},
+        )
+    })
 }
 
 /// The BLAKE2s circuit as the reduction sees it.

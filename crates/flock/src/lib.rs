@@ -37,4 +37,4 @@ pub mod verifier;
 mod witness;
 pub mod zerocheck;
 
-pub use witness::Witness;
+pub use witness::{Tables, Witness};

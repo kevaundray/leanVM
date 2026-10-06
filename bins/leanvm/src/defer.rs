@@ -10,7 +10,9 @@ use leanvm::{Assumption, Output, Program, ProvenRun, Prover};
 use primitives::pretty_integer;
 
 /// Prove `F(n + 2)` from proofs of `F(n)` and `F(n + 1)`, resolve the assumptions in a tree, and print the report.
-pub fn run(n: u64, prover: &Prover, plan: Plan) {
+///
+/// The three runs are leaves, proven at `leaf_prover`'s rate; the tree proof at `prover`'s.
+pub fn run(n: u64, leaf_prover: &Prover, prover: &Prover, plan: Plan) {
     let rate = prover.rate();
     let fibonacci = Program::from_elf(defer_host::FIBONACCI_ELF).expect("a guest's ELF file");
     let assuming = defer_host::run(fibonacci.digest_words(), n);
@@ -32,7 +34,7 @@ pub fn run(n: u64, prover: &Prover, plan: Plan) {
     let prove = |workload: &Workload| {
         let (proved, time) = plan.warm_then_measure(|last| {
             let _quiet = (!last).then(bench::suppress_tracing);
-            workload.prove(prover)
+            workload.prove(leaf_prover)
         });
         println!(
             "{}: {} cycles, proving {}",

@@ -21,7 +21,7 @@
 //! values' digest. The two programs then share the bytecode and image polynomials, one half each.
 
 use crate::class_flock::FlockId;
-use crate::cpu::{Assumption, DecodeError, Output, Program, Proof, ProvenRun, Stats, VerifyError};
+use crate::cpu::{Announcement, Assumption, DecodeError, Output, Program, Proof, ProvenRun, Stats, VerifyError};
 use crate::envelope::Envelope;
 use crate::pcs::Rate;
 use crate::rec::circuit::{Circuit, Finished};
@@ -30,7 +30,7 @@ use crate::rec::layout::RecLayout;
 use crate::rec::table::PerRecTable;
 use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
-use crate::tables::{N_TABLES, PerTable, TableId};
+use crate::tables::PerTable;
 use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
 use fiat_shamir::transcript::{ProofTranscript, RawProof};
 use primitives::field::F192;
@@ -295,7 +295,7 @@ impl LeafShape {
     ///
     /// # Errors
     ///
-    /// A proof whose announced heights or rate are not canonical.
+    /// A proof whose announcement is not valid.
     pub fn of(proof: &Proof) -> Result<Self, DecodeError> {
         Self::announced(proof).ok_or(DecodeError::Malformed)
     }
@@ -309,19 +309,11 @@ impl LeafShape {
         Self::new(stats.counts.map(|rows| rows.ilog2() as usize), rate)
     }
 
-    /// The shape a proof's first scalars announce, if they are canonical.
+    /// The shape a proof's first scalars announce, if they are a valid announcement.
     fn announced(proof: &Proof) -> Option<Self> {
-        // A size is one canonical integer in the low limb.
-        let size = |x: &F192| (x.c1 == 0 && x.c2 == 0).then(|| usize::try_from(x.c0).ok()).flatten();
-
-        // The stream opens with each table's height, then the rate.
-        let announced = proof.0.stream.get(..=N_TABLES)?;
-        let mut taus = PerTable::default();
-        for (t, x) in TableId::ALL.into_iter().zip(announced) {
-            taus[t] = size(x)?;
-        }
-        let rate = Rate::new(u8::try_from(size(&announced[N_TABLES])?).ok()?).ok()?;
-        Some(Self { taus, rate })
+        let scalars = proof.0.stream.get(..Announcement::LEN)?.try_into().ok()?;
+        let announcement = Announcement::decode(scalars).ok()?;
+        Some(Self::new(announcement.taus, announcement.rate))
     }
 }
 
@@ -382,7 +374,7 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 9);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 11);
 
     /// The kind of node that made the proof.
     #[must_use]

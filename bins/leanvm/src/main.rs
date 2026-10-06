@@ -25,6 +25,10 @@ struct Cli {
     #[arg(long = "log-inv-rate", value_name = "LOG_INV_RATE", global = true, default_value = "1", value_parser = parse_rate)]
     rate: Rate,
 
+    /// WHIR inverse-rate logarithm of an aggregation tree's leaf proofs (1 through 4); the tree's own proofs take `--log-inv-rate`.
+    #[arg(long = "leaf-log-inv-rate", value_name = "LOG_INV_RATE", global = true, default_value = "2", value_parser = parse_rate)]
+    leaf_rate: Rate,
+
     /// Enable hierarchical timing traces. Use RUST_LOG to adjust verbosity.
     #[arg(long, global = true)]
     tracing: bool,
@@ -84,6 +88,12 @@ enum Command {
     Stateproof {
         /// Reads to verify, each an account and one of its slots.
         #[arg(long, default_value_t = 4, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
+        n: usize,
+    },
+    /// Prove and verify a guest checking shielded transfers: privacy-pool spends, two notes in and two out.
+    Shielded {
+        /// Spends to check.
+        #[arg(long, default_value_t = 16, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
     },
     /// Prove and verify a guest checking leanDA blobs and computing their commitment.
@@ -171,6 +181,7 @@ fn refuse(what: Arguments) -> ! {
 fn main() {
     let cli = Cli::parse();
     let prover = Prover::new(cli.rate);
+    let leaf_prover = Prover::new(cli.leaf_rate);
     let plan = Plan::new(cli.repeat, cli.cooldown);
     if cli.tracing {
         bench::init_tracing();
@@ -182,6 +193,7 @@ fn main() {
         Command::Leansphincs { n } => Workload::leansphincs(n).run(&prover, plan),
         Command::Falcon { n } => Workload::falcon(n).run(&prover, plan),
         Command::Stateproof { n } => Workload::stateproof(n).run(&prover, plan),
+        Command::Shielded { n } => Workload::shielded(n).run(&prover, plan),
         Command::Leanda { blobs } => Workload::leanda(blobs).run(&prover, plan),
         Command::Aggregate {
             program,
@@ -189,8 +201,8 @@ fn main() {
             leaves,
             arity0,
             arity,
-        } => aggregate::run(&program.workload(n), leaves, arity0, arity, &prover, plan),
-        Command::Defer { n } => defer::run(n, &prover, plan),
+        } => aggregate::run(&program.workload(n), leaves, arity0, arity, &leaf_prover, &prover, plan),
+        Command::Defer { n } => defer::run(n, &leaf_prover, &prover, plan),
         Command::Bench {
             cycles_only,
             markdown,
@@ -201,6 +213,7 @@ fn main() {
             markdown,
             markdown_file.as_deref(),
             only.as_deref(),
+            &leaf_prover,
             &prover,
             plan,
         ),

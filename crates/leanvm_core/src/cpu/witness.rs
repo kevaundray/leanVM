@@ -6,7 +6,7 @@ use super::layout::{Layout, Lookup, Schema, Shared, q_column};
 use super::program::Program;
 use crate::class_flock::FlockId;
 use crate::tables::{ClassTable, FillContext, PerTable, TableId};
-use flock::reduction::Instance;
+use flock::Tables;
 use primitives::field::F64;
 use std::mem::MaybeUninit;
 
@@ -22,8 +22,9 @@ pub(crate) struct Witness {
     pub(crate) layout: Layout,
     /// The clock the run ended on, which the prover announces.
     pub(crate) ts_final: u64,
-    /// Every circuit's flock batch, freed right after the batched reduction.
-    pub(crate) reductions: Vec<Instance<'static>>,
+    /// Every circuit's flock batch but its `z`, which is its committed column, in [`FlockId::ALL`] order; freed right
+    /// after the batched reduction.
+    pub(crate) reductions: Vec<Tables>,
 }
 
 impl Witness {
@@ -107,7 +108,7 @@ impl Witness {
         // The packed witnesses, one instance per row of their table.
         let reductions = crate::stage!("Build flock witnesses", || {
             (FlockId::ALL.into_iter())
-                .map(|f| f.instance(trace, p, windows[q_column(f)]))
+                .map(|f| f.tables(trace, p, windows[q_column(f)]))
                 .collect()
         });
 

@@ -3,7 +3,7 @@
 //! A double word is its whole cell, so `ld` and `sd` are classes of their own, with no byte to select: [`Ld`] and [`Sd`].
 
 use super::InstructionClass;
-use crate::rv::circuits::{ClassCircuit, WordGadgets};
+use crate::rv::circuits::{ClassCircuit, Products, WordGadgets};
 use flock::circuit::{Builder, Circuit, Wire};
 
 /// One load instance of 1, 2 or 4 bytes: the width and extension in its flags, the address `v1 + imm`, the cell read there.
@@ -299,11 +299,166 @@ impl ClassCircuit for Sd {
     }
 }
 
+/// All ones if `bit` is set, else zero.
+const fn all(bit: u64) -> u64 {
+    (bit & 1).wrapping_neg()
+}
+
+/// The address `v1 + imm` and the rows of its adder, which makes no carry out of the top bit:
+/// `A·z = v1 ^ c`, `B·z = imm ^ c` on bits 0 to 62, `c` the carries.
+fn address_rows(v1: u64, imm: u64, rows: &mut Products<'_>) -> u64 {
+    let address = v1.wrapping_add(imm);
+    let carries = address ^ v1 ^ imm;
+    rows.push((v1 ^ carries) & (u64::MAX >> 1), (imm ^ carries) & (u64::MAX >> 1), 63);
+    address
+}
+
+/// The bus address of a load or a store of `2^log_width` bytes, `ge2` and `ge4` the width's thresholds, and its two rows.
+fn bus_rows(address: u64, ge2: u64, ge4: u64, rows: &mut Products<'_>) -> u64 {
+    let (a0, a1) = (address & 1, address >> 1 & 1);
+    rows.push(a0, ge2, 1);
+    rows.push(a1, ge4, 1);
+    address & !7 | a0 & ge2 | (a1 & ge4) << 1
+}
+
+impl Load {
+    /// One instance of the circuit's witness by word arithmetic: what the walk of [`Load::circuit`] writes, into zeroed buffers.
+    ///
+    /// After the adder and the bus address, the cell's right shift by `8 * (address & 7)` bits, three byte stages of `A·z` the stage's
+    /// address bit and `B·z` the shifted and kept words' difference, the sign by width, the extension, and the muxes of bytes 1 to 3.
+    pub(crate) fn witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        let (v1, imm, flags, cell) = (inputs[0], inputs[1], inputs[2] & 7, inputs[3]);
+        let (ge2, ge4) = ((flags ^ flags >> 1) & 1, flags >> 1 & 1);
+        let mut rows = Products::new([&mut z[6..], &mut az[6..], &mut bz[6..]], 0);
+        rows.push(1, 1, 1);
+        let address = address_rows(v1, imm, &mut rows);
+        let bus = bus_rows(address, ge2, ge4, &mut rows);
+
+        // The cell, right by whole bytes; the last stage makes only the low 32 bits.
+        let mut value = cell;
+        for (stage, bits) in [(0, 64), (1, 64), (2, 32)] {
+            let (by, s) = (8 << stage, address >> stage & 1);
+            let mask = u64::MAX >> (64 - bits);
+            let shifted = value >> by;
+            rows.push(all(s) & mask, (shifted ^ value) & mask, bits);
+            value = (if s == 1 { shifted } else { value }) & mask;
+        }
+
+        let (w1, w2, w4) = (ge2 ^ 1, ge2 ^ ge4, ge4);
+        let mut sign = 0;
+        for (width, bit) in [(w1, 7), (w2, 15), (w4, 31)] {
+            let top = value >> bit & 1;
+            rows.push(width, top, 1);
+            sign ^= width & top;
+        }
+        let signed = flags >> 2;
+        rows.push(signed, sign, 1);
+        let extension = all(signed & sign);
+        rows.push(all(ge2) & 0xff, (value >> 8 ^ extension) & 0xff, 8);
+        rows.push(all(ge4) & 0xffff, (value >> 16 ^ extension) & 0xffff, 16);
+        rows.finish();
+        let out = value & 0xff
+            | (if ge2 == 1 { value } else { extension }) & 0xff00
+            | (if ge4 == 1 { value } else { extension }) & 0xffff_0000
+            | extension & !0xffff_ffff;
+
+        let ports = [
+            (v1, u64::MAX),
+            (imm, u64::MAX),
+            (flags, 7),
+            (cell, u64::MAX),
+            (bus, !4),
+            (out, u64::MAX),
+        ];
+        for (i, (word, wired)) in ports.into_iter().enumerate() {
+            (z[i], az[i], bz[i]) = (word, word, wired);
+        }
+    }
+}
+
+impl Store {
+    /// One instance of the circuit's witness by word arithmetic: what the walk of [`Store::circuit`] writes, into zeroed buffers.
+    ///
+    /// After the adder and the bus address, the low half of `v2`'s left shift by `8 * (address & 7)` bits (three byte stages,
+    /// each making the bits a shifted or a kept bit can reach), the four ORs of the address's low bits with the thresholds,
+    /// then per byte whether it is written and its eight muxes.
+    pub(crate) fn witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        let (v1, v2, imm, flags, cell) = (inputs[0], inputs[1], inputs[2], inputs[3] & 3, inputs[4]);
+        let (ge2, ge4) = ((flags ^ flags >> 1) & 1, flags >> 1);
+        let mut rows = Products::new([&mut z[7..], &mut az[7..], &mut bz[7..]], 0);
+        rows.push(1, 1, 1);
+        let address = address_rows(v1, imm, &mut rows);
+        let bus = bus_rows(address, ge2, ge4, &mut rows);
+
+        // The low half of `v2`, left by whole bytes: stage `k` makes the bits below `32 + 8 * (2^(k + 1) - 1)`, at most 64.
+        let mut value = v2 & 0xffff_ffff;
+        for (stage, bits) in [(0, 40), (1, 56), (2, 64)] {
+            let (by, s) = (8 << stage, address >> stage & 1);
+            let mask = u64::MAX >> (64 - bits);
+            let shifted = value << by;
+            rows.push(all(s) & mask, (shifted ^ value) & mask, bits);
+            value = if s == 1 { shifted } else { value };
+        }
+
+        // Bit `k` of a written byte's index is the address's, wherever the width does not span it.
+        let (a0, a1, a2) = (address & 1, address >> 1 & 1, address >> 2 & 1);
+        let mut spans = [[0; 2]; 3];
+        for (k, (a, threshold)) in [(a0, ge2), (a1, ge4)].into_iter().enumerate() {
+            rows.push(a ^ 1, threshold, 1);
+            rows.push(a, threshold, 1);
+            spans[k] = [a ^ 1 | threshold, a | threshold];
+        }
+        spans[2] = [a2 ^ 1, a2];
+        let mut new = 0;
+        for j in 0..8 {
+            let low = spans[0][j & 1] & spans[1][j >> 1 & 1];
+            rows.push(spans[0][j & 1], spans[1][j >> 1 & 1], 1);
+            rows.push(low, spans[2][j >> 2], 1);
+            let written = all(low & spans[2][j >> 2]);
+            let byte = 0xff << (8 * j);
+            rows.push(written & 0xff, (value ^ cell) >> (8 * j) & 0xff, 8);
+            new |= (written & value | !written & cell) & byte;
+        }
+        rows.finish();
+
+        let ports = [
+            (v1, u64::MAX),
+            (v2, u64::MAX),
+            (imm, u64::MAX),
+            (flags, 3),
+            (cell, u64::MAX),
+            (bus, !4),
+            (new, u64::MAX),
+        ];
+        for (i, (word, wired)) in ports.into_iter().enumerate() {
+            (z[i], az[i], bz[i]) = (word, word, wired);
+        }
+    }
+}
+
+impl Ld {
+    /// One instance of the circuit's witness by word arithmetic, [`Sd`]'s too: what the walk of [`Ld::circuit`] writes, into zeroed buffers.
+    ///
+    /// The ports `v1`, `imm` and the address, the constant, then the adder's rows.
+    pub(crate) fn witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        let (v1, imm) = (inputs[0], inputs[1]);
+        let mut rows = Products::new([&mut z[3..], &mut az[3..], &mut bz[3..]], 0);
+        rows.push(1, 1, 1);
+        let address = address_rows(v1, imm, &mut rows);
+        rows.finish();
+        for (i, word) in [v1, imm, address].into_iter().enumerate() {
+            (z[i], az[i], bz[i]) = (word, word, u64::MAX);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::rv::Class;
-    use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word, run};
+    use crate::rv::semantics::tests::{
+        EDGES, Ports, circuit_matches_reference, edge_word, grid, run, word_witness_is_the_walk,
+    };
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -436,6 +591,32 @@ mod tests {
         // Any two words pin the shared adder to the reference's bus address.
         circuit_matches_reference::<Ld>(4096);
         circuit_matches_reference::<Sd>(4096);
+    }
+
+    /// Offsets that put an edge base at every byte of its cell, aligned or not, and carry through the whole adder.
+    const OFFSETS: [u64; 11] = [0, 1, 2, 3, 4, 5, 6, 7, u64::MAX, u64::MAX - 6, 1 << 63];
+
+    /// Cells and stored values: zero, all ones, every byte's sign bit set or clear, and two words with distinct bytes.
+    const BYTES: [u64; 6] = [
+        0,
+        u64::MAX,
+        0x8080_8080_8080_8080,
+        0x7f7f_7f7f_7f7f_7f7f,
+        0x0123_4567_89ab_cdef,
+        0xfedc_ba98_7654_3210,
+    ];
+
+    #[test]
+    fn the_word_witnesses_are_the_gate_walk() {
+        // Every legal flag word at every byte of a cell, signed or not, so each width's misalignments and sign bits are walked.
+        word_witness_is_the_walk::<Load>(Load::witness, grid(&[&EDGES, &OFFSETS, Load::LEGAL, &BYTES]));
+        word_witness_is_the_walk::<Store>(
+            Store::witness,
+            grid(&[&EDGES, &BYTES, &OFFSETS, Store::LEGAL, &BYTES[..3]]),
+        );
+        let addresses = [grid(&[&EDGES, &OFFSETS]), grid(&[&EDGES, &EDGES])].concat();
+        word_witness_is_the_walk::<Ld>(Ld::witness, addresses.clone());
+        word_witness_is_the_walk::<Sd>(Ld::witness, addresses);
     }
 
     proptest! {

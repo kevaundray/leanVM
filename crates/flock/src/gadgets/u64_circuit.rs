@@ -203,11 +203,7 @@ mod tests {
                     witness.stripes[bit] ^= 1;
                 }
                 let mut ps = ProverState::from_label(LABEL);
-                let instance = Instance {
-                    block,
-                    n_blocks_log: n_log,
-                    witness,
-                };
+                let instance = Instance::of(block, n_log, &witness);
                 let claims = reduction::prove(&[instance], &mut ps);
                 let proof = ps.into_proof();
                 let mut vs = VerifierState::from_label(LABEL, &proof);
@@ -246,13 +242,9 @@ mod tests {
             ops[op].generate_witness(&pairs(h, 0x3A15 + f as u64), n_log)
         };
         let whole: Vec<Witness> = (0..shapes.len()).map(tables).collect();
-        let prove = |tables: Vec<Witness>| {
-            let instances: Vec<Instance<'_>> = (tables.into_iter().zip(&blocks))
-                .map(|(witness, &(block, n_blocks_log))| Instance {
-                    block,
-                    n_blocks_log,
-                    witness,
-                })
+        let prove = |tables: &[Witness]| {
+            let instances: Vec<Instance<'_>> = (tables.iter().zip(&blocks))
+                .map(|(witness, &(block, n_blocks_log))| Instance::of(block, n_blocks_log, witness))
                 .collect();
             let mut ps = ProverState::from_label(LABEL);
             let claims = reduction::prove(&instances, &mut ps);
@@ -266,7 +258,7 @@ mod tests {
             (settled && vs.finish().is_ok()).then_some(replays)
         };
 
-        let (proof, claims) = prove(whole.clone());
+        let (proof, claims) = prove(&whole);
         let replays = accepts(&proof).expect("an honest batch verifies");
         for (f, ((replay, claim), Witness { z, .. })) in replays.iter().zip(&claims).zip(&whole).enumerate() {
             assert_eq!(&replay.claim, claim, "circuit {f}'s claim");
@@ -288,7 +280,7 @@ mod tests {
             let bit = k + OUT_BASE + 5;
             z[bit / 64] ^= 1 << (bit % 64);
             stripes[OUT_BASE + 5] ^= 1 << 1;
-            let (bad, _) = prove(tampered);
+            let (bad, _) = prove(&tampered);
             assert!(accepts(&bad).is_none(), "a flipped bit of circuit {f} must reject");
         }
 

@@ -40,4 +40,6 @@ pub use machine::{Machine, Trap};
 pub use program::{Fetched, ProgramError, RiscvProgram};
 pub use region::Region;
 pub use register::{Reg, RegisterFile, Syscall};
-pub use semantics::{Alu, BlockAccess, Div, Ext, Hash, InstructionClass, Limb, Mul, Mulh, WordAccess};
+pub use semantics::{
+    Alu, BlockAccess, Div, Ext, Hash, InstructionClass, Ld, Limb, Load, Mul, Mulh, Shift, Store, WordAccess,
+};

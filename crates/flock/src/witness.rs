@@ -31,6 +31,17 @@ pub struct Witness {
     pub stripes: Vec<u8>,
 }
 
+/// A circuit's witness over a batch but `z`, which the caller's buffer holds: what the `_into` generators return.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tables {
+    /// `A·z`.
+    pub az: Vec<u64>,
+    /// `B·z`.
+    pub bz: Vec<u64>,
+    /// `z` again in lincheck's byte stripes: `2^k_log` bytes per eight instances.
+    pub stripes: Vec<u8>,
+}
+
 /// One group's share of the four witness tables, in its worker's scratch.
 pub(crate) struct GroupTables<'a> {
     /// `z`, `A·z` and `B·z`: `2^k_log / 64` packed words per instance, instance-major.
@@ -41,21 +52,24 @@ pub(crate) struct GroupTables<'a> {
     pub stripes: &'a mut [u8],
 }
 
-/// The four witness tables of `2^n_blocks_log` instances, built `group` instances at a time.
+/// The four witness tables of `2^n_blocks_log` instances, built `group` instances at a time, `z` into the caller's buffer.
 ///
 /// - The fill closure writes every word and byte of the group starting at the instance it is given.
 /// - Each worker keeps one scratch state, built once and reused across its groups.
+/// - `check(i, z)` sees instance `i`'s `z` words while its group is still in cache.
 ///
 /// A group builds in its worker's buffers, which stay in cache, then streams out.
 ///
 /// Building in place instead would fetch every output line before writing it.
 pub(crate) fn drive_witness_groups<St, I, F>(
+    z: &mut [u64],
     n_blocks_log: usize,
     k_log: usize,
     group: usize,
     init: I,
     fill: F,
-) -> Witness
+    check: impl Fn(usize, &[u64]) + Sync,
+) -> Tables
 where
     St: Send,
     I: Fn() -> St + Sync,
@@ -73,7 +87,7 @@ where
     );
 
     let total_words = n_total * (k / 64);
-    let mut z = Box::<[u64]>::new_uninit_slice(total_words);
+    assert_eq!(z.len(), total_words, "z holds every instance's words");
     let mut a = Box::<[u64]>::new_uninit_slice(total_words);
     let mut b = Box::<[u64]>::new_uninit_slice(total_words);
     let mut all_stripes = Box::<[u8]>::new_uninit_slice((n_total / 8) * k);
@@ -81,7 +95,7 @@ where
     // A group's share: its packed words in each table, and one stripe per 8 instances.
     let group_words = group * (k / 64);
     let group_bytes = (group / 8) * k;
-    let z_chunks = Chunks::new(&mut z, group_words);
+    let z_chunks = Chunks::new(z, group_words);
     let a_chunks = Chunks::new(&mut a, group_words);
     let b_chunks = Chunks::new(&mut b, group_words);
     let stripe_chunks = Chunks::new(&mut all_stripes, group_bytes);
@@ -105,12 +119,15 @@ where
                     stripes,
                 },
             );
+            for (i, z) in z_grp.chunks_exact(k / 64).enumerate() {
+                check(g * group + i, z);
+            }
 
             let stream = Stream::new();
             // SAFETY: each group `g` takes chunk `g` of each table exactly once, and
             // all four tables stay borrowed for the whole dispatch.
             unsafe {
-                stream.write(z_chunks.get(g), z_grp);
+                stream.copy(z_chunks.get(g), z_grp);
                 stream.write(a_chunks.get(g), a_grp);
                 stream.write(b_chunks.get(g), b_grp);
                 stream.write(stripe_chunks.get(g), stripes);
@@ -121,8 +138,7 @@ where
 
     // SAFETY: group `g` wrote chunk `g` of every table in full, and the chunk counts match.
     unsafe {
-        Witness {
-            z: z.assume_init().into_vec(),
+        Tables {
             az: a.assume_init().into_vec(),
             bz: b.assume_init().into_vec(),
             stripes: all_stripes.assume_init().into_vec(),
@@ -130,8 +146,22 @@ where
     }
 }
 
+/// The four tables of `2^n_blocks_log` instances of `2^k_log` bits, `z` allocated here, from a driver that writes the other three.
+pub(crate) fn with_z(n_blocks_log: usize, k_log: usize, drive: impl FnOnce(&mut [u64]) -> Tables) -> Witness {
+    let mut z = Box::<[u64]>::new_uninit_slice((1usize << n_blocks_log) * ((1usize << k_log) / 64));
+    // SAFETY: every driver writes all of `z` and reads none of it first.
+    let Tables { az, bz, stripes } = drive(unsafe { primitives::write_only(&mut z) });
+    Witness {
+        // SAFETY: the driver wrote every word.
+        z: unsafe { z.assume_init() }.into_vec(),
+        az,
+        bz,
+        stripes,
+    }
+}
+
 /// Drive the parallel chunked witness build for `n_blocks` instances padded
-/// to `2^n_blocks_log` slots, one instance at a time.
+/// to `2^n_blocks_log` slots, one instance at a time, `z` into the caller's buffer.
 ///
 /// `per_block(initial, z_u64, a_u64, b_u64)` populates one block's worth of
 /// `(z, a, b)` data: 3 zero-initialized `u64`-buffers of length `K / 64`.
@@ -145,12 +175,14 @@ where
 ///   that pin a constant wire need this so the constant column is all-ones
 ///   across *every* batched instance (see `lincheck's `LincheckCircuit::const_pin_col``).
 pub(crate) fn drive_witness_packed_and_lincheck<S: Sync, F>(
+    z: &mut [u64],
     initial_states: &[S],
     padding: Option<&S>,
     n_blocks_log: usize,
     k_log: usize,
     per_block: F,
-) -> Witness
+    check: impl Fn(usize, &[u64]) + Sync,
+) -> Tables
 where
     F: Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
 {
@@ -163,6 +195,7 @@ where
 
     // Eight blocks per group, the lincheck stripe of one group being their bit transpose.
     drive_witness_groups(
+        z,
         n_blocks_log,
         k_log,
         8,
@@ -191,20 +224,24 @@ where
                 bit_transpose_64bytes(rows.as_flattened().try_into().expect("64 bytes"), out);
             }
         },
+        check,
     )
 }
 
-/// Build native witnesses eight instances at a time, then pack their byte stripe.
+/// Build native witnesses eight instances at a time, then pack their byte stripe; `z` into the caller's buffer.
 pub(crate) fn drive_witness_batched<S: Sync>(
+    z: &mut [u64],
     rows: &[S],
     padding: &S,
     n_blocks_log: usize,
     k_log: usize,
     batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
-) -> Witness {
+    check: impl Fn(usize, &[u64]) + Sync,
+) -> Tables {
     assert!(rows.len() <= 1 << n_blocks_log, "more rows than instances");
     let words = (1usize << k_log) / 64;
     drive_witness_groups(
+        z,
         n_blocks_log,
         k_log,
         8,
@@ -223,5 +260,6 @@ pub(crate) fn drive_witness_batched<S: Sync>(
                 bit_transpose_64bytes(bits.as_flattened().try_into().expect("eight word lanes"), out);
             }
         },
+        check,
     )
 }

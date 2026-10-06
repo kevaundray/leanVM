@@ -9,13 +9,9 @@
 
 pub mod merkle;
 pub mod ntt;
-pub mod pack;
 pub mod ring_switch;
 pub mod stack_open;
-pub(crate) mod tensor_algebra;
+#[cfg(test)]
+mod tensor_algebra;
+pub mod verifier;
 pub mod whir;
-pub mod whir_config;
-mod whir_induce;
-mod whir_ntt_ext;
-
-pub use pack::LOG_PACKING;

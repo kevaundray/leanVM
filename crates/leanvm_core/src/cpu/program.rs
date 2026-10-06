@@ -232,7 +232,7 @@ impl Program {
         let log_inv_rate = rate.log_inv_rate().into();
         let announcement = Announcement {
             taus: w.layout.taus,
-            log_inv_rate,
+            rate,
             ts_final: w.ts_final,
         };
         announcement.write(&mut ps);
@@ -305,7 +305,16 @@ impl Program {
         // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
         // Each producer's multiplicity column is a ring-switched region too.
         let reductions = w.reductions;
-        let slices = crate::stage!("Flock reductions", || reduction::prove(&reductions, &mut ps));
+        let slices = crate::stage!("Flock reductions", || {
+            let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
+                .map(|(f, tables)| {
+                    let window = l.witness_window(f);
+                    let column = &w.q[window.offset..window.offset + (1 << window.n_vars)];
+                    f.instance(column, l.taus[f.table()], tables)
+                })
+                .collect();
+            reduction::prove(&instances, &mut ps)
+        });
         drop(reductions);
         let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &w.q, &slots, &rings));
@@ -389,41 +398,12 @@ impl Program {
         // The public statement seeds the transcript, as on the prover's side.
         let mut vs = VerifierState::new(self.fs_seed(), &proof.0, output.words().map(F64));
 
-        // The announced sizes, then the layout they describe, then the commitment.
+        // The announced sizes, then the layout they describe, then the core.
         let announcement = Announcement::read(&mut vs)?;
         let l = announcement.layout(&self.rv)?;
-        let root = pcs::read_commitment(&mut vs)?;
-
         let clock = F192::from(F64(announcement.ts_final));
-        let reduced = l.reduce_tables(&mut vs, clock, &output.words().map(|o| F192::from(F64(o))))?;
-
-        // Replay the batched flock reductions off the stream, to recover each circuit's validity claim on its packed witness.
-        //
-        // Each leaves its matrices' form to its circuit.
-        let (slices, circuit_claims): (Vec<_>, Vec<_>) = reduction::verify(&FlockId::batches(&l.taus), &mut vs)
-            .map_err(CpuError::Reductions)?
-            .into_iter()
-            .map(|replay| (replay.claim, replay.matrices.into()))
-            .unzip();
-
-        // The ring-switched regions: each packed witness, each producer's multiplicity column, each table's register numbers.
-        let rings = l.rings(slices, &reduced.producers, &reduced.tables, F192::ZERO);
-
-        // The one opening, then nothing may be left on the stream.
-        pcs::verify(
-            &mut vs,
-            &reduced.slots,
-            &rings,
-            l.shape,
-            announcement.log_inv_rate,
-            &root,
-        )
-        .map_err(CpuError::Open)?;
-        vs.finish()?;
-        let claims = DeferredClaims {
-            program: reduced.program,
-            circuits: circuit_claims,
-        };
+        let output = output.words().map(|o| F192::from(F64(o)));
+        let claims = l.verify_core(&mut vs, clock, &output, announcement.rate)?;
         Ok((claims, vs.into_raw_proof()))
     }
 

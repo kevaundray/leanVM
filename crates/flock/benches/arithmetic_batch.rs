@@ -20,8 +20,8 @@ use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState}
 use flock::Witness;
 use flock::gadgets::{U64Circuit, U64Op};
 use flock::reduction::{Instance, min_n_blocks_log};
-use pcs::pack::LOG_PACKING;
-use pcs::stack_open::{RingSwitch, open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
+use pcs::ring_switch::RingSwitch;
+use pcs::stack_open;
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
 use primitives::{field::F64, pretty_integer, test_util::Rng};
@@ -76,7 +76,7 @@ fn bench(op: U64Op, quiet: bool) -> (usize, Timing) {
     let circuit = U64Circuit::new(op);
     let setup_ms = t.elapsed().as_secs_f64() * 1e3;
     let block = circuit.block();
-    let mu = circuit.k_log() + n_log - LOG_PACKING;
+    let mu = circuit.k_log() + n_log - F64::DEGREE.ilog2() as usize;
     assert!(
         mu >= 15,
         "FLOCK_N_LOG too small: need a committed witness with mu >= 15"
@@ -106,20 +106,11 @@ fn bench(op: U64Op, quiet: bool) -> (usize, Timing) {
         ps.add_root(&commitment.root);
         let commit_s = t.elapsed().as_secs_f64();
 
-        let instance = [Instance {
-            block,
-            n_blocks_log: n_log,
-            witness,
-        }];
+        let instance = [Instance::of(block, n_log, &witness)];
         let t = Instant::now();
         let reduced = flock::reduction::prove(&instance, &mut ps).pop().expect("one circuit");
         let reduction_s = t.elapsed().as_secs_f64();
-        let [
-            Instance {
-                witness: Witness { z, .. },
-                ..
-            },
-        ] = instance;
+        let Witness { z, .. } = witness;
 
         let t = Instant::now();
         let ring = RingSwitch {
@@ -127,7 +118,7 @@ fn bench(op: U64Op, quiet: bool) -> (usize, Timing) {
             qflock_vars: mu,
             claims: vec![reduced],
         };
-        open_batch_mixed_whir_stacked(
+        stack_open::open(
             &mut ps,
             mu,
             q_flock(&z),
@@ -176,12 +167,12 @@ fn bench(op: U64Op, quiet: bool) -> (usize, Timing) {
             claims: vec![replay.claim],
         };
         assert!(
-            verify_opening_batch_mixed_whir_stacked(
+            stack_open::verify(
                 &mut vs,
                 &config,
                 mu,
                 1 << INITIAL_FOLDING_FACTOR,
-                &root,
+                root,
                 &[],
                 std::slice::from_ref(&ring)
             )

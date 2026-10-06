@@ -1,13 +1,11 @@
 //! The verifier of a recursion proof as rows: the recursion machine verifying its own proofs.
 //!
 //! - The bus and the table sumcheck are the native verifier's code, over rows that hint every fixed column's evaluation.
-//! - The hash table's flock reduction and the opening are the replays a RISC-V proof's verifier uses.
+//! - The hash table's flock reduction and the opening are the native verifier's code.
 //!
 //! What the native verifier reads off the circuit, its fixed columns, is left as hinted evaluations.
 //! The hash rows' matrices are left as a claim, as a RISC-V proof's circuits' are.
 
-use super::flock::Reduction;
-use super::whir::Opening;
 use super::{Rows, infallible};
 use crate::cpu::Claim;
 use crate::pcs::Rate;
@@ -17,7 +15,7 @@ use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::fixed::{FixedColumn, FixedColumns};
 use crate::rec::layout::RecLayout;
 use crate::rec::proof::TableArgument;
-use crate::rec::table::{HashFlock, PerRecTable, Table};
+use crate::rec::table::PerRecTable;
 use crate::rec::transcript::{ProofSource, Transcript};
 use ::flock::lincheck::MatrixForm;
 use fiat_shamir::arith::Arith;
@@ -117,35 +115,13 @@ impl RecShape {
         };
         let mut r = Rows::hinting(b, &mut t, &mut hints);
 
-        let root = r.t.next_root(r.b);
         let constants = std::array::from_fn(|j| columns.public(FixedColumn::Constant(j)));
         let blocks = BusBlocks::new(columns, constants, &self.layout);
-        let slots = r.scope("bus and tables", |r| {
-            infallible(TableArgument::new(&self.layout, blocks).verify(r))
-        });
-        let shape = HashFlock::FLOCK.shape();
-        let tau = self.layout.tau(Table::Hash);
-        let [reduction] = r
-            .scope("flock", |r| Reduction::replay(r, &[(shape, tau)]))
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("a batch of one circuit"));
-        let rings = [self.layout.hash_window().ring(reduction.slice.clone())];
-        let opening = Opening {
-            slots: &slots,
-            rings: &rings,
-            shape: self.layout.shape,
-            log_inv_rate: self.rate.log_inv_rate().into(),
-        };
-        r.scope("opening", |r| opening.verify(r, root));
-        if !r.t.finished() {
-            r.scope("transcript", |r| {
-                r.b.fail("the proof has data the verifier never reads");
-            });
-        }
+        let matrices = infallible(TableArgument::new(&self.layout, blocks).verify_core(&mut r, self.rate));
         RecRows {
-            matrix: reduction.matrix,
+            matrix: matrices.into(),
             hints: hints.hints,
-            state: t.state(),
+            state: t.state(b),
         }
     }
 }

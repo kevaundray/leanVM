@@ -4,22 +4,20 @@
 //! witness, packaged for ring switching. A circuit supplies only its [`Block`]:
 //! the shape, and the walks behind its [`LincheckCircuit`].
 
-use crate::lincheck::{
-    self, LincheckCircuit, LincheckClaim, LincheckInput, LincheckStatement, MatrixClaim, MatrixForm, QuirkyPoint,
-};
+use crate::lincheck::{self, LincheckCircuit, LincheckClaim, LincheckInput, MatrixClaim, MatrixForm, QuirkyPoint};
 use crate::verifier::FlockError;
-use crate::witness::{Witness, packed_bytes};
+use crate::witness::{Tables, Witness, packed_bytes};
 use crate::zerocheck::multilinear::PackedWitness;
-use crate::zerocheck::{self, K_SKIP, PaddingSpec, ZerocheckClaim, ZerocheckInput};
-use fiat_shamir::transcript::{ProverState, VerifierState};
-use pcs::pack::LOG_PACKING;
-use pcs::stack_open::SliceClaim;
-use primitives::field::F192;
+use crate::zerocheck::{self, K_SKIP, PaddingSpec, SkipDomain, ZerocheckClaim, ZerocheckInput};
+use fiat_shamir::arith::Verifier;
+use fiat_shamir::transcript::ProverState;
+use pcs::ring_switch::SliceClaim;
+use primitives::field::{F64, F192};
 
 // A claim's `2^K_SKIP` slices are a ring-switch claim on `q_flock` only if that
 // matches the packing width.
 const _: () = assert!(
-    K_SKIP == LOG_PACKING,
+    K_SKIP == F64::DEGREE.ilog2() as usize,
     "the univariate skip must match the PCS packing width"
 );
 
@@ -53,19 +51,58 @@ pub struct Shape {
 }
 
 /// What the verifier's replay leaves of one circuit.
+///
+/// Its elements are values, or whatever a verifier holds them as.
 #[derive(Clone, Debug)]
-pub struct ReductionReplay {
+pub struct ReductionReplay<E = F192> {
     /// The claim on the circuit's packed witness, which the PCS discharges.
-    pub claim: SliceClaim,
+    pub claim: SliceClaim<E>,
     /// The claim on the circuit's matrices, which whoever holds the circuit settles.
-    pub matrices: MatrixClaim,
+    pub matrices: MatrixClaim<E>,
 }
 
 /// One circuit's batch as the prover holds it: `2^n_blocks_log` instances of its block, and their witness.
+///
+/// `z` is borrowed apart from the rest: a committed batch's `z` is its committed column, which the `_into` generators
+/// write in place.
+#[derive(Clone, Copy)]
 pub struct Instance<'a> {
     pub block: Block<'a>,
     pub n_blocks_log: usize,
-    pub witness: Witness,
+    /// The witness bits.
+    pub z: &'a [u64],
+    /// `A·z`.
+    pub az: &'a [u64],
+    /// `B·z`.
+    pub bz: &'a [u64],
+    /// `z` again in lincheck's byte stripes.
+    pub stripes: &'a [u8],
+}
+
+impl<'a> Instance<'a> {
+    /// A batch whose `z` the caller holds apart, the rest in `tables`.
+    pub fn new(block: Block<'a>, n_blocks_log: usize, z: &'a [u64], tables: &'a Tables) -> Self {
+        Self {
+            block,
+            n_blocks_log,
+            z,
+            az: &tables.az,
+            bz: &tables.bz,
+            stripes: &tables.stripes,
+        }
+    }
+
+    /// A batch whose whole witness is `witness`.
+    pub fn of(block: Block<'a>, n_blocks_log: usize, witness: &'a Witness) -> Self {
+        Self {
+            block,
+            n_blocks_log,
+            z: &witness.z,
+            az: &witness.az,
+            bz: &witness.bz,
+            stripes: &witness.stripes,
+        }
+    }
 }
 
 /// The lincheck input point carried over from the zerocheck claim: the
@@ -108,17 +145,16 @@ pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim
                 let m = i.block.k_log + i.n_blocks_log;
                 // The fused generator packs 64 Boolean coordinates per word.
                 let packed_len = 1usize << (m - 6);
-                let w = &i.witness;
-                assert_eq!(w.z.len(), packed_len, "wrong packed witness length");
-                assert_eq!(w.az.len(), packed_len, "wrong packed A·z length");
-                assert_eq!(w.bz.len(), packed_len, "wrong packed B·z length");
+                assert_eq!(i.z.len(), packed_len, "wrong packed witness length");
+                assert_eq!(i.az.len(), packed_len, "wrong packed A·z length");
+                assert_eq!(i.bz.len(), packed_len, "wrong packed B·z length");
                 ZerocheckInput {
                     bits: PackedWitness {
-                        a: packed_bytes(&w.az),
-                        b: packed_bytes(&w.bz),
+                        a: packed_bytes(i.az),
+                        b: packed_bytes(i.bz),
                     },
                     // `C = I`, so `c = z`.
-                    c: packed_bytes(&w.z),
+                    c: packed_bytes(i.z),
                     m,
                     padding: PaddingSpec {
                         k_log: i.block.k_log,
@@ -137,13 +173,9 @@ pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim
     let inputs: Vec<LincheckInput<'_>> = (instances.iter().zip(&x_abs))
         .map(|(i, x_ab)| {
             let m = i.block.k_log + i.n_blocks_log;
-            assert_eq!(
-                i.witness.stripes.len(),
-                (1usize << m) / 8,
-                "wrong lincheck stripe length"
-            );
+            assert_eq!(i.stripes.len(), (1usize << m) / 8, "wrong lincheck stripe length");
             LincheckInput {
-                z_packed: &i.witness.stripes,
+                z_packed: i.stripes,
                 m,
                 k_log: i.block.k_log,
                 k_skip: K_SKIP,
@@ -185,34 +217,33 @@ impl Shape {
 /// It reads only the circuits' shapes: their matrices' forms are left as claims
 /// for the built circuits to settle.
 ///
+/// The verifier's arithmetic is the native one or the recursion machine's rows, which run the same steps.
+///
 /// # Errors
 ///
 /// Returns the first stage that refuses the proof.
-pub fn verify(circuits: &[(Shape, usize)], vs: &mut VerifierState<'_>) -> Result<Vec<ReductionReplay>, FlockError> {
+pub fn verify<V: Verifier>(circuits: &[(Shape, usize)], v: &mut V) -> Result<Vec<ReductionReplay<V::E>>, FlockError> {
     let log_ns: Vec<usize> = circuits.iter().map(|(shape, n)| shape.k_log + n).collect();
-    let zc_claims = zerocheck::verify(&log_ns, vs).map_err(FlockError::Zerocheck)?;
-
-    let x_abs: Vec<QuirkyPoint> = (circuits.iter().zip(&zc_claims))
-        .map(|((shape, _), zc)| x_ab_of(zc, shape.k_log - K_SKIP))
-        .collect();
-    let statements: Vec<LincheckStatement<'_>> = (circuits.iter().zip(&log_ns).zip(&zc_claims).zip(&x_abs))
-        .map(|((((shape, _), &m), zc), x_ab)| LincheckStatement {
-            m,
-            k_log: shape.k_log,
-            k_skip: K_SKIP,
-            const_pin_col: shape.const_pin_col,
-            x_ab,
-            v_a: zc.a_eval,
-            v_b: zc.b_eval,
-            v_c: zc.c_eval,
+    let zc = v
+        .scope("zerocheck", |v| zerocheck::verify(&log_ns, v))
+        .map_err(FlockError::Zerocheck)?;
+    let shapes: Vec<Shape> = circuits.iter().map(|&(shape, _)| shape).collect();
+    let matrices = v
+        .scope("lincheck", |v| {
+            lincheck::verify_deferred(SkipDomain::FLOCK, &zc, &shapes, v)
         })
-        .collect();
-    let lc_claims = lincheck::verify_deferred(&statements, vs).map_err(FlockError::Lincheck)?;
-
-    Ok((lc_claims.into_iter().zip(&x_abs))
-        .map(|((lc_claim, matrices), x_ab)| ReductionReplay {
-            claim: reduction_claim(&lc_claim, &x_ab.x_outer),
-            matrices,
+        .map_err(FlockError::Lincheck)?;
+    Ok((matrices.into_iter().zip(&log_ns))
+        .map(|(matrices, &m)| {
+            // The witness's point: the lincheck's inner coordinates, then the zerocheck's outer ones.
+            let rest = matrices.form.r_inner_rest.len();
+            let mut suffix_point = matrices.form.r_inner_rest.clone();
+            suffix_point.extend_from_slice(&zc.mlv_challenges[rest..m - K_SKIP]);
+            let claim = SliceClaim {
+                suffix_point,
+                s_hat_v: matrices.form.s_hat_v.clone(),
+            };
+            ReductionReplay { claim, matrices }
         })
         .collect())
 }
