@@ -91,7 +91,7 @@ use crate::reduction;
 use crate::reduction::Block;
 use crate::verifier::FlockError;
 use crate::witness::{
-    BitRecord, add_carry_parts, add3_fused_parts, drive_witness_packed_and_lincheck, or_bit_at,
+    BitRecord, add_carry_parts, add3_fused_parts, drive_witness_packed_and_lincheck, or_bit_at, with_z,
     write_lin_word_ab_packed,
 };
 use fiat_shamir::transcript::{ProverState, VerifierState};
@@ -669,13 +669,17 @@ pub fn generate_witness_with_ab_packed_and_lincheck(
     n_blocks_log: usize,
 ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
     let padding = padding_block();
-    drive_witness_packed_and_lincheck(
-        blocks,
-        Some(&padding),
-        n_blocks_log,
-        K_LOG,
-        |&(ref h, ref m, t, f0, f1), z, a, b| build_block_witness_ab_packed_into(h, m, t, f0, f1, z, a, b),
-    )
+    with_z(n_blocks_log, K_LOG, |z| {
+        drive_witness_packed_and_lincheck(
+            z,
+            blocks,
+            Some(&padding),
+            n_blocks_log,
+            K_LOG,
+            |&(ref h, ref m, t, f0, f1), z, a, b| build_block_witness_ab_packed_into(h, m, t, f0, f1, z, a, b),
+            |_, _| {},
+        )
+    })
 }
 
 // ---------------------------------------------------------------------------

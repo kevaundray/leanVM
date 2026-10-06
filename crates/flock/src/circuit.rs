@@ -24,7 +24,9 @@
 
 use crate::lincheck::LincheckCircuit;
 use crate::reduction::Block;
-use crate::witness::{GroupTables, drive_witness_batched, drive_witness_groups, drive_witness_packed_and_lincheck};
+use crate::witness::{
+    GroupTables, drive_witness_batched, drive_witness_groups, drive_witness_packed_and_lincheck, with_z,
+};
 use primitives::bits::transpose_64x64;
 use primitives::field::F192;
 use std::ops::Range;
@@ -343,6 +345,22 @@ impl Circuit {
         n_blocks_log: usize,
         input_words: impl Fn(&S, &mut [u64]) + Sync,
     ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
+        with_z(n_blocks_log, self.k_log, |z| {
+            self.generate_witness_from_into(z, rows, padding, n_blocks_log, input_words, |_, _| {})
+        })
+    }
+
+    /// [`Self::generate_witness_from`] with `z` written into the caller's buffer, and `check(row, z)` shown each
+    /// instance's `z` words while they are in cache. Returns `(a, b, z_lincheck)`.
+    pub fn generate_witness_from_into<S: Sync>(
+        &self,
+        z: &mut [u64],
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        input_words: impl Fn(&S, &mut [u64]) + Sync,
+        check: impl Fn(&S, &[u64]) + Sync,
+    ) -> (Vec<u64>, Vec<u64>, Vec<u8>) {
         assert!(rows.len() <= 1 << n_blocks_log, "more rows than instances");
         // A batch below 64 instances is walked in full and stored in part.
         let lanes = LANES.min(1 << n_blocks_log);
@@ -352,6 +370,7 @@ impl Circuit {
         // Slot groups past the useful bits hold only zeros, so they skip the transpose.
         let live_words = self.useful_bits.div_ceil(64);
         drive_witness_groups(
+            z,
             n_blocks_log,
             self.k_log,
             lanes,
@@ -402,6 +421,7 @@ impl Circuit {
                     }
                 }
             },
+            |i, z| check(rows.get(i).unwrap_or(padding), z),
         )
     }
 
@@ -414,7 +434,25 @@ impl Circuit {
         n_blocks_log: usize,
         instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
     ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
-        drive_witness_packed_and_lincheck(rows, Some(padding), n_blocks_log, self.k_log, instance)
+        with_z(n_blocks_log, self.k_log, |z| {
+            self.generate_witness_with_into(z, rows, padding, n_blocks_log, instance, |_, _| {})
+        })
+    }
+
+    /// [`Self::generate_witness_with`] with `z` written into the caller's buffer, and `check(row, z)` shown each
+    /// instance's `z` words while they are in cache. Returns `(a, b, z_lincheck)`.
+    pub fn generate_witness_with_into<S: Sync>(
+        &self,
+        z: &mut [u64],
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
+        check: impl Fn(&S, &[u64]) + Sync,
+    ) -> (Vec<u64>, Vec<u64>, Vec<u8>) {
+        drive_witness_packed_and_lincheck(z, rows, Some(padding), n_blocks_log, self.k_log, instance, |i, z| {
+            check(rows.get(i).unwrap_or(padding), z);
+        })
     }
 
     /// Build native witnesses eight instances at a time.
@@ -427,8 +465,26 @@ impl Circuit {
         n_blocks_log: usize,
         batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
     ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
+        with_z(n_blocks_log, self.k_log, |z| {
+            self.generate_witness_batched_into(z, rows, padding, n_blocks_log, batch, |_, _| {})
+        })
+    }
+
+    /// [`Self::generate_witness_batched`] with `z` written into the caller's buffer, and `check(row, z)` shown each
+    /// instance's `z` words while they are in cache. Returns `(a, b, z_lincheck)`.
+    pub fn generate_witness_batched_into<S: Sync>(
+        &self,
+        z: &mut [u64],
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
+        check: impl Fn(&S, &[u64]) + Sync,
+    ) -> (Vec<u64>, Vec<u64>, Vec<u8>) {
         // Eight adjacent instances occupy one lincheck byte stripe.
-        drive_witness_batched(rows, padding, n_blocks_log, self.k_log, batch)
+        drive_witness_batched(z, rows, padding, n_blocks_log, self.k_log, batch, |i, z| {
+            check(rows.get(i).unwrap_or(padding), z);
+        })
     }
 
     /// The matrix-vector products `(A_0 w, B_0 w)`, by one forward walk.

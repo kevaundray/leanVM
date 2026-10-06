@@ -314,7 +314,14 @@ impl Program {
         // Each producer's multiplicity column is a ring-switched region too.
         let reductions = w.reductions;
         let slices = crate::stage!("Flock reductions", || {
-            class_flock::prove_reductions(&reductions, &mut ps)
+            class_flock::prove_reductions(
+                &reductions,
+                |f| {
+                    let window = l.witness_window(f);
+                    &w.q[window.offset..window.offset + (1 << window.n_vars)]
+                },
+                &mut ps,
+            )
         });
         drop(reductions);
         let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);

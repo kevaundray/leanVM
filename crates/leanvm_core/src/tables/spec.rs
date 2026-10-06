@@ -2,7 +2,7 @@
 
 use super::Word;
 use super::clock::Clock;
-use crate::rv::{Class, Ext, Hash, Mul, Mulh};
+use crate::rv::{Alu, Class, Ext, Hash, Ld, Load, Mul, Mulh, Shift, Store};
 use crate::{class_flock, rv};
 use flock::circuit::Circuit;
 use std::ops::Range;
@@ -104,7 +104,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
+        witness: Some(Alu::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[
@@ -133,7 +133,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Read,
         copies: false,
-        witness: None,
+        witness: Some(Load::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[
@@ -160,7 +160,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Write,
         copies: false,
-        witness: None,
+        witness: Some(Store::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[
@@ -188,7 +188,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Read,
         copies: true,
-        witness: None,
+        witness: Some(Ld::witness),
         batch_witness: None,
         k_log: 8,
         ports: &[Word::V1, Word::Imm, Word::Address],
@@ -208,7 +208,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Write,
         copies: true,
-        witness: None,
+        witness: Some(Ld::witness),
         batch_witness: None,
         k_log: 8,
         ports: &[Word::V1, Word::Imm, Word::Address],
@@ -228,7 +228,7 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
+        witness: Some(Shift::witness),
         batch_witness: None,
         k_log: 10,
         ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
@@ -491,6 +491,16 @@ impl ClassSpec {
         match self.class {
             Class::Ext => Ext::clock_circuit(&self.slots()),
             _ => Clock::circuit(&self.slots()),
+        }
+    }
+
+    /// One instance of [`Self::clock_circuit`]'s witness by word arithmetic, from its input words (the
+    /// [`Self::clock_ports`] before the step), into zeroed buffers: [`Clock::witness`], or EXT's
+    /// ([`Ext::clock_witness`]).
+    pub fn clock_witness(&self, slots: &[u32], inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        match self.class {
+            Class::Ext => Ext::clock_witness(slots, inputs, z, az, bz),
+            _ => Clock::witness(slots, inputs[0], &inputs[1..], z, az, bz),
         }
     }
 
