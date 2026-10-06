@@ -41,9 +41,10 @@ mod tables;
 mod witness;
 
 pub use self::pcs::{InvalidRate, Rate};
-pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
+pub use cpu::{Assumption, DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 pub use rec::tree::{
-    CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, TableStats, Tree, TreeError, TreeProof, TreeShape,
+    AssumedProofs, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, TableStats, Tree, TreeError, TreeProof,
+    TreeShape,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
 
