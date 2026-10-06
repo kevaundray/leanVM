@@ -12,6 +12,7 @@ use std::path::PathBuf;
 static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 mod aggregate;
+mod defer;
 mod fibonacci;
 mod guest;
 mod tracked;
@@ -108,6 +109,12 @@ enum Command {
         #[arg(long, default_value_t = 2)]
         arity: usize,
     },
+    /// Prove two Fibonacci runs and a guest that assumes them, then the tree that resolves its assumptions.
+    Defer {
+        /// The first Fibonacci run's `n`: the guest gives `F(n + 2)` from the runs on `n` and `n + 1`.
+        #[arg(long, default_value_t = 1000)]
+        n: u64,
+    },
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
     /// A proven case reports `latency`, `proof-size`, `verify`, one `stage.<name>` per
@@ -166,6 +173,7 @@ fn main() {
             };
             aggregate::run(program, n, shape, &prover, plan);
         }
+        Command::Defer { n } => defer::run(n, &prover, plan),
         Command::Bench {
             cycles_only,
             markdown,

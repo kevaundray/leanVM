@@ -381,7 +381,10 @@ mod tests {
     fn a_personalized_hash_is_blake2s_with_that_personalization() {
         // Known answers of Python's `hashlib.blake2s(data, person=b"assuming")`: a short message, and one past a block.
         let known = [
-            (b"abc".to_vec(), "c4761cb6f70aeb25ec8075dc3c50fa154f26b1927a10f86d2cd7920aa0e1a7a6"),
+            (
+                b"abc".to_vec(),
+                "c4761cb6f70aeb25ec8075dc3c50fa154f26b1927a10f86d2cd7920aa0e1a7a6",
+            ),
             (
                 (0..100).collect(),
                 "7aaae64f0ae218506ce106174943684995bb3b1de17feaa7d603594612bcec32",

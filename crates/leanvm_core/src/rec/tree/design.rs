@@ -140,9 +140,7 @@ impl<T> NodeInputs<'_, T> {
             Self::Shape => F192::ZERO,
             Self::Prove { tables, .. } => {
                 let bit = |i: usize| F192::new((bits.value >> i & 1) as u64, 0, 0);
-                let at: Vec<F192> = (point.iter().map(|&w| b.e(w)))
-                    .chain((0..bits.len).map(bit))
-                    .collect();
+                let at: Vec<F192> = (point.iter().map(|&w| b.e(w))).chain((0..bits.len).map(bit)).collect();
                 mle_eval_par(&tables.0[poly as usize], &at)
             }
         };
@@ -172,16 +170,16 @@ impl Slot {
     /// The public coordinates that place a point of `n` coordinates on this program's tables in a polynomial of `vars`:
     /// zeros past the program's own variables, then its half.
     fn bits(self, n: usize, vars: usize) -> Bits {
-        match self.half {
-            None => {
+        self.half.map_or_else(
+            || {
                 assert_eq!(n, vars, "a program alone fills its polynomial");
                 Bits::NONE
-            }
-            Some(half) => Bits {
+            },
+            |half| Bits {
                 value: half << (vars - 1 - n),
                 len: vars - n,
             },
-        }
+        )
     }
 }
 
@@ -267,10 +265,13 @@ impl<'p> Design<'p> {
     /// With assumed proofs, the leaves' program's table is the lower half of each of the first two, the assumed
     /// program's the upper.
     pub(crate) fn tables(&self, fixed: Vec<F64>) -> DenseTables {
-        let programs: Vec<&Program> = [Some(self.leaf.program()), self.assumed.as_ref().map(|a| a.shape.program())]
-            .into_iter()
-            .flatten()
-            .collect();
+        let programs: Vec<&Program> = [
+            Some(self.leaf.program()),
+            self.assumed.as_ref().map(|a| a.shape.program()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         let stack = |poly: DensePoly, table: fn(&Program) -> Vec<F64>| -> Vec<F64> {
             let half = (1 << self.vars.0[poly as usize]) / programs.len();
             (programs.iter())
@@ -302,28 +303,25 @@ impl<'p> Design<'p> {
             let output = b.scope(format!("leaf {i}"), |b| {
                 self.verified(b, (&self.leaf, self.slot), leaf, inputs, &mut claims)
             });
-            let stated = match &self.assumed {
-                None => output,
-                Some(a) => {
-                    let assumed: Vec<[Kw; 4]> = (0..a.count)
-                        .map(|j| {
-                            let proof = leaf.map(|l| &l.assumed[j]);
-                            b.scope(format!("leaf {i} assumption {j}"), |b| {
-                                self.verified(b, (&a.shape, a.slot), proof, inputs, &mut claims)
-                            })
+            let stated = self.assumed.as_ref().map_or(output, |a| {
+                let assumed: Vec<[Kw; 4]> = (0..a.count)
+                    .map(|j| {
+                        let proof = leaf.map(|l| &l.assumed[j]);
+                        b.scope(format!("leaf {i} assumption {j}"), |b| {
+                            self.verified(b, (&a.shape, a.slot), proof, inputs, &mut claims)
                         })
-                        .collect();
-                    let committed = leaf.map_or([0; 4], |l| l.committed).map(|w| b.free_k(w));
-                    b.scope(format!("leaf {i} assumptions"), |b| {
-                        let program = a.shape.program().digest_words().map(|w| b.k_const(w));
-                        let folded = assuming_rows(b, committed, program, &assumed);
-                        for (w, o) in b.d_to_k(folded).into_iter().zip(output) {
-                            b.eq_k(w, o);
-                        }
-                    });
-                    committed
-                }
-            };
+                    })
+                    .collect();
+                let committed = leaf.map_or([0; 4], |l| l.committed).map(|w| b.free_k(w));
+                b.scope(format!("leaf {i} assumptions"), |b| {
+                    let program = a.shape.program().digest_words().map(|w| b.k_const(w));
+                    let folded = assuming_rows(b, committed, program, &assumed);
+                    for (w, o) in b.d_to_k(folded).into_iter().zip(output) {
+                        b.eq_k(w, o);
+                    }
+                });
+                committed
+            });
             outputs.push(stated);
         }
         let digest = Kind::First.digest_rows(&mut b, &outputs);
@@ -439,7 +437,9 @@ impl<'p> Design<'p> {
             let twisted = (0..i).fold(d, |x, _| b.square(x));
             total = b.mul_add(mu, twisted, total);
             claims.bound.push(d);
-            claims.dense.push(DenseClaim::at_bits(DensePoly::Bytecode, point, bits, d));
+            claims
+                .dense
+                .push(DenseClaim::at_bits(DensePoly::Bytecode, point, bits, d));
         }
         let low = p.image_point[..slot.m].to_vec();
         let bits = slot.bits(slot.m, self.vars.0[DensePoly::Image as usize]);
@@ -448,7 +448,9 @@ impl<'p> Design<'p> {
         total = b.mul_add(above, image, total);
         b.eq_e(total, program.value);
         claims.bound.push(image);
-        claims.dense.push(DenseClaim::at_bits(DensePoly::Image, low, bits, image));
+        claims
+            .dense
+            .push(DenseClaim::at_bits(DensePoly::Image, low, bits, image));
     }
 
     /// A child's hinted fixed-column evaluations as claims on the fixed polynomial, in its circuit's half.

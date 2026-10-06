@@ -250,11 +250,20 @@ pub(crate) mod vm {
 
     /// The output `_start` loads into `a0..a3` when the run ends.
     pub(crate) static mut OUTPUT: [u64; 4] = [0; 4];
-    /// What the run has committed so far, streamed through the instruction's own block.
-    // SAFETY: only the address of the static's message is taken, nothing is read.
-    static mut PUBLIC: Public = Public::new(unsafe { (&raw mut PUBLIC.block.m).cast() });
-    /// The proofs the run has assumed so far.
-    static mut ASSUMPTIONS: Assumptions = Assumptions::new();
+    /// What the run states: what it commits and what it assumes, in one static so that `finish` reaches both from one
+    /// address.
+    #[repr(C)]
+    struct Statement {
+        /// What the run has committed so far, streamed through the instruction's own block.
+        public: Public,
+        /// The proofs the run has assumed so far.
+        assumptions: Assumptions,
+    }
+    static mut STATEMENT: Statement = Statement {
+        // SAFETY: only the address of the static's message is taken, nothing is read.
+        public: Public::new(unsafe { (&raw mut STATEMENT.public.block.m).cast() }),
+        assumptions: Assumptions::new(),
+    };
     /// The advice words read so far.
     static mut READ: usize = 0;
 
@@ -323,9 +332,9 @@ pub(crate) mod vm {
     /// Make a value public: the run's output is the digest of everything committed, in order.
     #[inline(always)]
     pub fn commit<T: Words>(value: &T) {
-        // SAFETY: one hart, no interrupts: nothing else touches `PUBLIC`, which is reached only by its address;
-        // `T` is words only (`Words`).
-        unsafe { Public::commit(&raw mut PUBLIC, as_words_unchecked(value)) }
+        // SAFETY: one hart, no interrupts: nothing else touches `STATEMENT`, whose `Public` is reached only by its
+        // address; `T` is words only (`Words`).
+        unsafe { Public::commit(&raw mut STATEMENT.public, as_words_unchecked(value)) }
     }
 
     /// Assume a proof: that a run of the program of digest `program` (its four little-endian words) exits with
@@ -335,19 +344,24 @@ pub(crate) mod vm {
     /// assumption is given, which an aggregation tree that resolves assumptions checks.
     #[inline(always)]
     pub fn verify_proof(program: &[u64; 4], output: &[u64; 4]) {
-        let assumptions = &raw mut ASSUMPTIONS;
-        // SAFETY: one hart, no interrupts: nothing else touches `ASSUMPTIONS`, so this reference is its only one.
-        unsafe { (*assumptions).assume(program, output) }
+        // SAFETY: one hart, no interrupts: nothing else touches `STATEMENT`, so this reference is the only one to its
+        // assumptions.
+        unsafe {
+            let assumptions = &raw mut STATEMENT.assumptions;
+            (*assumptions).assume(program, output);
+        }
     }
 
     /// Called by `_start` once `main` returns: the output is the digest of what was committed, folded with the
     /// assumptions if any.
     pub(crate) extern "C" fn finish() {
-        // SAFETY: as in `commit`; the run is over, so nothing touches `PUBLIC` after.
-        let digest = unsafe { Public::finish(&raw mut PUBLIC) };
-        let assumptions = &raw mut ASSUMPTIONS;
+        // SAFETY: as in `commit`; the run is over, so nothing touches `STATEMENT` after.
+        let digest = unsafe { Public::finish(&raw mut STATEMENT.public) };
         // SAFETY: as in `verify_proof`.
-        let output = unsafe { (*assumptions).finish(digest) };
+        let output = unsafe {
+            let assumptions = &raw mut STATEMENT.assumptions;
+            (*assumptions).finish(digest)
+        };
         // SAFETY: as above, for `OUTPUT`.
         unsafe { core::ptr::write_volatile(&raw mut OUTPUT, output) }
     }

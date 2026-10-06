@@ -853,7 +853,9 @@ fn a_tree_resolves_its_leaves_assumptions() {
 
     // The tree states each leaf's committed values, the assumptions proven, at every level.
     f.tree.verify(&f.root, &f.committed).expect("the root");
-    f.tree.verify(&f.firsts[1], &f.committed[1..]).expect("a first-level root");
+    f.tree
+        .verify(&f.firsts[1], &f.committed[1..])
+        .expect("a first-level root");
     let exits = [f.committed[0].assuming(&assumptions), f.committed[1]];
     assert_eq!(f.tree.verify(&f.root, &exits), Err(TreeError::Outputs));
 
@@ -868,10 +870,7 @@ fn a_tree_resolves_its_leaves_assumptions() {
         },
     )
     .expect("a tree");
-    assert!(matches!(
-        plain.verify(&f.root, &f.committed),
-        Err(TreeError::Root(_))
-    ));
+    assert!(matches!(plain.verify(&f.root, &f.committed), Err(TreeError::Root(_))));
 }
 
 // What a first-level prover is handed: every assumption named by the leaf's output, in order, each proven, and
@@ -880,7 +879,9 @@ fn a_tree_resolves_its_leaves_assumptions() {
 fn a_leaf_is_resolved_by_exactly_the_proofs_it_assumes() {
     let f = resolving();
     let first = |inner: &[Leaf<'_>]| {
-        (f.tree.prove_first(&[Leaf::assuming(&f.leaves[0], f.committed[0], inner)])).map(|p| p.kind())
+        (f.tree
+            .prove_first(&[Leaf::assuming(&f.leaves[0], f.committed[0], inner)]))
+        .map(|p| p.kind())
     };
     let leaf_refused = |r: Result<Kind, TreeError>| matches!(r, Err(TreeError::Leaf { index: 0, .. }));
     let [q11, q12, q13] = [0, 1, 2].map(|i| f.inner(i));
@@ -891,13 +892,26 @@ fn a_leaf_is_resolved_by_exactly_the_proofs_it_assumes() {
         assert!(leaf_refused(first(&inner)), "{:?}", inner.map(|l| l.output));
     }
     // One dropped, one added.
-    assert!(matches!(first(&[q11]), Err(TreeError::Assumptions { index: 0, expected: 2, got: 1 })));
+    assert!(matches!(
+        first(&[q11]),
+        Err(TreeError::Assumptions {
+            index: 0,
+            expected: 2,
+            got: 1
+        })
+    ));
     assert!(matches!(
         first(&[q11, q12, q13]),
-        Err(TreeError::Assumptions { index: 0, expected: 2, got: 3 })
+        Err(TreeError::Assumptions {
+            index: 0,
+            expected: 2,
+            got: 3
+        })
     ));
     // Another committed digest.
-    let other_committed = f.tree.prove_first(&[Leaf::assuming(&f.leaves[0], f.committed[1], &[q11, q12])]);
+    let other_committed = f
+        .tree
+        .prove_first(&[Leaf::assuming(&f.leaves[0], f.committed[1], &[q11, q12])]);
     assert!(matches!(other_committed, Err(TreeError::Leaf { index: 0, .. })));
 
     // A run of another program with a named output.
@@ -912,7 +926,9 @@ fn a_leaf_is_resolved_by_exactly_the_proofs_it_assumes() {
     let mut named = assume(program(), &f.outputs([0, 1]));
     named[1] = Assumption::new(other().digest_words(), f.assumed[1].1);
     let (renamed, _) = prove(outer(), f.committed[0].assuming(&named).words());
-    let refused = f.tree.prove_first(&[Leaf::assuming(&renamed, f.committed[0], &[q11, q12])]);
+    let refused = f
+        .tree
+        .prove_first(&[Leaf::assuming(&renamed, f.committed[0], &[q11, q12])]);
     assert!(matches!(refused, Err(TreeError::Leaf { index: 0, .. })));
 
     // An assumed proof that itself assumes proofs.
@@ -1001,7 +1017,14 @@ fn the_fold_in_rows_is_output_assuming() {
         let (c, p) = (wires(&mut b, committed), wires(&mut b, program));
         let o: Vec<[Kw; 4]> = outputs.iter().map(|&w| wires(&mut b, w)).collect();
         let folded = design::assuming_rows(&mut b, c, p, &o);
-        let assumptions: Vec<Assumption> = outputs.iter().map(|&w| Assumption::new(program, Output::new(w))).collect();
-        assert_eq!(b.d(folded), *Output::new(committed).assuming(&assumptions).words(), "{k} assumptions");
+        let assumptions: Vec<Assumption> = outputs
+            .iter()
+            .map(|&w| Assumption::new(program, Output::new(w)))
+            .collect();
+        assert_eq!(
+            b.d(folded),
+            *Output::new(committed).assuming(&assumptions).words(),
+            "{k} assumptions"
+        );
     }
 }

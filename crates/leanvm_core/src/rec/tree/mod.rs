@@ -530,13 +530,14 @@ impl<'p> Tree<'p> {
                                 if !inner.assumed.is_empty() {
                                     return Err(TreeError::NestedAssumption { leaf: index, index: j });
                                 }
-                                Self::witness(&a.shape, inner.proof, inner.output).map_err(|error| match error {
-                                    None => TreeError::ForeignAssumption { leaf: index, index: j },
-                                    Some(error) => TreeError::Assumption {
-                                        leaf: index,
-                                        index: j,
-                                        error,
-                                    },
+                                Self::witness(&a.shape, inner.proof, inner.output).map_err(|error| {
+                                    error.map_or(TreeError::ForeignAssumption { leaf: index, index: j }, |error| {
+                                        TreeError::Assumption {
+                                            leaf: index,
+                                            index: j,
+                                            error,
+                                        }
+                                    })
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?;
@@ -547,9 +548,11 @@ impl<'p> Tree<'p> {
                     }
                 };
                 let exit = leaf.output.assuming(&assumptions);
-                let witness = Self::witness(&d.leaf, leaf.proof, exit).map_err(|error| match error {
-                    None => TreeError::ForeignLeaf { index },
-                    Some(error) => TreeError::Leaf { index, error },
+                let witness = Self::witness(&d.leaf, leaf.proof, exit).map_err(|error| {
+                    error.map_or(TreeError::ForeignLeaf { index }, |error| TreeError::Leaf {
+                        index,
+                        error,
+                    })
                 })?;
                 Ok(LeafWitness {
                     committed: *leaf.output.words(),

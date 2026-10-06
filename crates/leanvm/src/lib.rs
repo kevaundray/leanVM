@@ -52,8 +52,8 @@
 //! Many proofs of one program aggregate into one proof through the aggregation module.
 
 pub use leanvm_core::{
-    Assumption, DecodeError, ElfError, InvalidRate, Output, Program, ProgramError, Proof, ProveError, ProvenRun, Prover,
-    Rate, Region, Stats, Trap, VerifyError, asm,
+    Assumption, DecodeError, ElfError, InvalidRate, Output, Program, ProgramError, Proof, ProveError, ProvenRun,
+    Prover, Rate, Region, Stats, Trap, VerifyError, asm,
 };
 
 /// Aggregation trees: many proofs of one program, verified as one.

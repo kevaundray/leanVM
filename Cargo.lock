@@ -1497,6 +1497,7 @@ version = "0.1.0"
 dependencies = [
  "bench",
  "clap",
+ "defer-host",
  "falcon-host",
  "leanda-host",
  "leansphincs-host",
