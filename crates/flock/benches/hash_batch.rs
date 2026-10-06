@@ -78,20 +78,11 @@ fn main() {
         ps.add_root(&commitment.root);
         let commit_s = t.elapsed().as_secs_f64();
 
-        let instance = [Instance {
-            block: BLOCK,
-            n_blocks_log: n_log,
-            witness,
-        }];
+        let instance = [Instance::of(BLOCK, n_log, &witness)];
         let t = Instant::now();
         let reduced = flock::reduction::prove(&instance, &mut ps).pop().expect("one circuit");
         let reduction_s = t.elapsed().as_secs_f64();
-        let [
-            Instance {
-                witness: Witness { z, .. },
-                ..
-            },
-        ] = instance;
+        let Witness { z, .. } = witness;
 
         let t = Instant::now();
         let ring = RingSwitch {

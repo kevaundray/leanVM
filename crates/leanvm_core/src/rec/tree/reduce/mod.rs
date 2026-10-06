@@ -12,8 +12,7 @@ use super::claims::{DensePoly, NodeClaims};
 use crate::rec::circuit::{Limbs, digest_limbs};
 use fiat_shamir::arith::Verifier;
 use fiat_shamir::transcript::{ProofTranscript, ProverState, TranscriptError, Transmitter};
-use primitives::field::{F64, F192};
-use std::ops::Add;
+use primitives::field::{F64, F192, F192Unreduced, mul_base8, mul_unreduced4, mul4};
 use thiserror::Error;
 
 mod dense;
@@ -93,43 +92,97 @@ impl NodeClaims<F192> {
     }
 }
 
-/// The table of `f(k)` for `k < n`, written across the pool.
-fn table_of(n: usize, f: impl Fn(usize) -> F192 + Sync) -> Vec<F192> {
-    if n < PAR_LEN {
-        return (0..n).map(f).collect();
+/// A round's message, `h(0)` and the leading coefficient, unreduced.
+type Msg = [F192Unreduced; 2];
+
+/// The zero message.
+const ZERO: Msg = [F192Unreduced::ZERO; 2];
+
+/// The sum of two messages.
+fn xor([a, b]: Msg, [c, d]: Msg) -> Msg {
+    [a ^ c, b ^ d]
+}
+
+/// The entries a pass keeps in L1 at once.
+const TILE: usize = 64;
+
+/// An entry of a table a round folds: in `K` before the first round, in `E` after.
+trait Entry: Copy + Sync {
+    /// `a + r (a + b)`.
+    fn fold(a: Self, b: Self, r: F192) -> F192;
+
+    /// The folds of `t`'s pairs into `out`.
+    fn fold_into(t: &[Self], r: F192, out: &mut [F192]);
+
+    /// The message of `sum_k w(X, k) t(X, k)` over the lowest variable: `sum_k w(2k) t(2k)` and
+    /// `sum_k (w(2k) + w(2k + 1)) (t(2k) + t(2k + 1))`.
+    fn dot(w: &[F192], t: &[Self]) -> Msg;
+}
+
+impl Entry for F192 {
+    fn fold(a: Self, b: Self, r: F192) -> F192 {
+        a + r * (a + b)
     }
-    parallel::map_collect(n, f)
+
+    fn fold_into(t: &[Self], r: F192, out: &mut [F192]) {
+        let (t8, t_rest) = t.as_chunks::<8>();
+        let (out4, out_rest) = out.as_chunks_mut::<4>();
+        for (o, x) in out4.iter_mut().zip(t8) {
+            let d = mul4([r; 4], [x[0] + x[1], x[2] + x[3], x[4] + x[5], x[6] + x[7]]);
+            *o = [x[0] + d[0], x[2] + d[1], x[4] + d[2], x[6] + d[3]];
+        }
+        for (o, x) in out_rest.iter_mut().zip(t_rest.as_chunks::<2>().0) {
+            *o = Self::fold(x[0], x[1], r);
+        }
+    }
+
+    fn dot(w: &[F192], t: &[Self]) -> Msg {
+        let (w4, w_rest) = w.as_chunks::<4>();
+        let (t4, t_rest) = t.as_chunks::<4>();
+        let mut m = ZERO;
+        for (a, b) in w4.iter().zip(t4) {
+            let p = mul_unreduced4(
+                [a[0], a[0] + a[1], a[2], a[2] + a[3]],
+                [b[0], b[0] + b[1], b[2], b[2] + b[3]],
+            );
+            m = xor(m, [p[0] ^ p[2], p[1] ^ p[3]]);
+        }
+        for (a, b) in w_rest.as_chunks::<2>().0.iter().zip(t_rest.as_chunks::<2>().0) {
+            m = xor(m, [a[0].mul_unreduced(b[0]), (a[0] + a[1]).mul_unreduced(b[0] + b[1])]);
+        }
+        m
+    }
 }
 
-/// Below this many entries a pass runs on the calling thread.
-const PAR_LEN: usize = 1 << 12;
+impl Entry for F64 {
+    fn fold(a: Self, b: Self, r: F192) -> F192 {
+        F192::from(a) + r.mul_base(a + b)
+    }
 
-/// `h(0)` and the leading coefficient of `sum_k u(X, k) g(X, k)` over the lowest variable, on the calling thread.
-fn products(u: &[F192], g: &[F192]) -> [F192; 2] {
-    (0..u.len() / 2).fold([F192::ZERO; 2], |[c0, c2], k| {
-        let (u0, u1, g0, g1) = (u[2 * k], u[2 * k + 1], g[2 * k], g[2 * k + 1]);
-        [c0 + u0 * g0, c2 + (u0 + u1) * (g0 + g1)]
-    })
-}
+    fn fold_into(t: &[Self], r: F192, out: &mut [F192]) {
+        let (t16, t_rest) = t.as_chunks::<16>();
+        let (out8, out_rest) = out.as_chunks_mut::<8>();
+        for (o, x) in out8.iter_mut().zip(t16) {
+            let d = mul_base8(r, std::array::from_fn(|k| x[2 * k] + x[2 * k + 1]));
+            *o = std::array::from_fn(|k| d[k] + F192::from(x[2 * k]));
+        }
+        for (o, x) in out_rest.iter_mut().zip(t_rest.as_chunks::<2>().0) {
+            *o = Self::fold(x[0], x[1], r);
+        }
+    }
 
-/// The same sums across the pool, `g` of either field, with its product by an element of `E`.
-fn products_par<G>(u: &[F192], g: &[G], times: impl Fn(F192, G) -> F192 + Sync) -> [F192; 2]
-where
-    G: Copy + Sync + Add<Output = G>,
-{
-    let pairs = u.len() / 2;
-    let task = |i: usize| {
-        (i * PAR_LEN..pairs.min((i + 1) * PAR_LEN)).fold([F192::ZERO; 2], |[c0, c2], k| {
-            let (u0, u1, g0, g1) = (u[2 * k], u[2 * k + 1], g[2 * k], g[2 * k + 1]);
-            [c0 + times(u0, g0), c2 + times(u0 + u1, g0 + g1)]
+    fn dot(w: &[F192], t: &[Self]) -> Msg {
+        let pairs = w.as_chunks::<2>().0.iter().zip(t.as_chunks::<2>().0);
+        pairs.fold(ZERO, |m, (a, b)| {
+            xor(
+                m,
+                [
+                    a[0].mul_base_unreduced(b[0]),
+                    (a[0] + a[1]).mul_base_unreduced(b[0] + b[1]),
+                ],
+            )
         })
-    };
-    let chunks = pairs.div_ceil(PAR_LEN);
-    if chunks <= 1 {
-        return task(0);
     }
-    let add = |[a, b]: [F192; 2], [c, d]: [F192; 2]| [a + c, b + d];
-    parallel::map_reduce(chunks, || [F192::ZERO; 2], task, add)
 }
 
 /// A table the prover folds one variable at a time, lowest first, into a second buffer it then swaps with.
@@ -150,19 +203,25 @@ impl FoldTable {
         }
     }
 
-    /// Bind the lowest variable to `r`, on the calling thread or across the pool.
-    fn fold(&mut self, r: F192, par: bool) {
-        let n = self.values.len() / 2;
-        self.spare.resize(n, F192::ZERO);
-        let t = &self.values;
-        let at = |k: usize| t[2 * k] + r * (t[2 * k] + t[2 * k + 1]);
-        if par && n >= PAR_LEN {
-            parallel::fill(&mut self.spare, at);
-        } else {
-            for (k, slot) in self.spare.iter_mut().enumerate() {
-                *slot = at(k);
-            }
-        }
-        std::mem::swap(&mut self.values, &mut self.spare);
+    /// The message of `sum_k u(X, k) g(X, k)` over the lowest variable, on the calling thread.
+    fn message(u: &Self, g: &Self) -> Msg {
+        F192::dot(&u.values, &g.values)
+    }
+
+    /// Bind the lowest variable of `u` and `g` to `r`, and the next round's message from the folded pairs.
+    fn fold_pair(u: &mut Self, g: &mut Self, r: F192) -> Msg {
+        let n = u.values.len() / 2;
+        u.spare.resize(n, F192::ZERO);
+        g.spare.resize(n, F192::ZERO);
+        let outs = u.spare.chunks_mut(TILE).zip(g.spare.chunks_mut(TILE));
+        let ins = u.values.chunks(2 * TILE).zip(g.values.chunks(2 * TILE));
+        let m = (outs.zip(ins)).fold(ZERO, |m, ((uo, go), (ui, gi))| {
+            F192::fold_into(ui, r, uo);
+            F192::fold_into(gi, r, go);
+            xor(m, F192::dot(uo, go))
+        });
+        std::mem::swap(&mut u.values, &mut u.spare);
+        std::mem::swap(&mut g.values, &mut g.spare);
+        m
     }
 }

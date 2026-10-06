@@ -2,7 +2,7 @@
 
 use super::clock::Clock;
 use super::{N_TABLES, TableId, Word};
-use crate::rv::{Class, Ext, Hash, Mul, Mulh};
+use crate::rv::{Alu, Class, Ext, Hash, Ld, Load, Mul, Mulh, Shift, Store};
 use crate::{class_flock, rv};
 use flock::circuit::Circuit;
 use std::ops::Range;
@@ -120,7 +120,7 @@ impl ClassSpec {
             k_log: 10,
             inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Dt, Word::Pc4],
             outputs: &[Word::Out, Word::Jump],
-            fill: Fill::Walk,
+            fill: Fill::Instance(Alu::witness),
         }),
         clock_k_log: 9,
         clock_inputs: &[],
@@ -141,7 +141,7 @@ impl ClassSpec {
             k_log: 10,
             inputs: &[Word::V1, Word::Imm, Word::Flags, Word::Cell(0)],
             outputs: &[Word::Address, Word::Out],
-            fill: Fill::Walk,
+            fill: Fill::Instance(Load::witness),
         }),
         clock_k_log: 9,
         clock_inputs: &[],
@@ -162,7 +162,7 @@ impl ClassSpec {
             k_log: 10,
             inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Cell(0)],
             outputs: &[Word::Address, Word::CellNew(0)],
-            fill: Fill::Walk,
+            fill: Fill::Instance(Store::witness),
         }),
         clock_k_log: 9,
         clock_inputs: &[],
@@ -183,7 +183,7 @@ impl ClassSpec {
             k_log: 8,
             inputs: &[Word::V1, Word::Imm],
             outputs: &[Word::Address],
-            fill: Fill::Walk,
+            fill: Fill::Instance(Ld::witness),
         }),
         clock_k_log: 9,
         clock_inputs: &[],
@@ -204,7 +204,7 @@ impl ClassSpec {
             k_log: 8,
             inputs: &[Word::V1, Word::Imm],
             outputs: &[Word::Address],
-            fill: Fill::Walk,
+            fill: Fill::Instance(Ld::witness),
         }),
         clock_k_log: 9,
         clock_inputs: &[],
@@ -225,7 +225,7 @@ impl ClassSpec {
             k_log: 10,
             inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags],
             outputs: &[Word::Out],
-            fill: Fill::Walk,
+            fill: Fill::Instance(Shift::witness),
         }),
         clock_k_log: 9,
         clock_inputs: &[],
@@ -475,6 +475,16 @@ impl ClassSpec {
         match self.class {
             Class::Ext => Ext::clock_circuit(&self.slots()),
             _ => Clock::circuit(&self.slots()),
+        }
+    }
+
+    /// One instance of [`Self::clock_circuit`]'s witness by word arithmetic, from its input words (the
+    /// [`Self::clock_ports`] before the step), into zeroed buffers: [`Clock::witness`], or EXT's
+    /// ([`Ext::clock_witness`]).
+    pub fn clock_witness(&self, slots: &[u32], inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        match self.class {
+            Class::Ext => Ext::clock_witness(slots, inputs, z, az, bz),
+            _ => Clock::witness(slots, inputs[0], &inputs[1..], z, az, bz),
         }
     }
 

@@ -406,7 +406,7 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
     let mut dense = DenseProver::new(vars, tables, &claims.dense, theta);
     let point: Vec<F192> = (0..dense.rounds())
         .map(|i| {
-            ps.add_scalars(&dense.round(i));
+            ps.add_scalars(&dense.message());
             let r = ps.sample();
             dense.bind(i, r);
             r
@@ -428,7 +428,7 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
     let mut rows = MatrixProver::new(&claims.matrices, theta);
     let r: Vec<F192> = (0..FlockId::MAX_K_LOG)
         .map(|i| {
-            ps.add_scalars(&rows.round(i));
+            ps.add_scalars(&rows.message());
             let x = ps.sample();
             rows.bind(i, x);
             x
@@ -437,7 +437,7 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
     let mut cols = rows.columns(&claims.matrices, &r);
     let s: Vec<F192> = (0..FlockId::MAX_K_LOG)
         .map(|i| {
-            ps.add_scalars(&cols.round(i));
+            ps.add_scalars(&cols.message());
             let x = ps.sample();
             cols.bind(i, x);
             x
@@ -614,7 +614,7 @@ fn the_dense_reduction_reduces_to_the_polynomials() {
             });
             let point: Vec<F192> = (0..p.rounds())
                 .map(|i| {
-                    let [c0, c2] = p.round(i);
+                    let [c0, c2] = p.message();
                     ps.add_scalars(&[c0, c2]);
                     let r = ps.sample();
                     claim = c0 + (claim + c2) * r + c2 * r * r;
@@ -663,6 +663,73 @@ fn the_dense_reduction_reduces_to_the_polynomials() {
         reduced.values[poly as usize] != Some(mle_eval(&tables.0[poly as usize], point))
     });
     assert!(falsified.count() > 0, "a false claim reduced to true values");
+}
+
+// A claim on `poly` whose terms each weigh one block: `(n_low, bits)` names the `2^n_low` entries at `bits << n_low`.
+fn block_claim(
+    rng: &mut Rng,
+    tables: &DenseTables,
+    vars: &DenseVars,
+    poly: DensePoly,
+    blocks: &[(usize, usize)],
+) -> DenseClaim<F192> {
+    let n = vars.0[poly as usize];
+    let low = rng.ext_vec(n);
+    let mut terms = Vec::new();
+    for &(n_low, bits) in blocks {
+        let mut point = low[..n_low].to_vec();
+        point.extend((0..n - n_low).map(|i| F192::new((bits >> i & 1) as u64, 0, 0)));
+        terms.push(DenseTerm {
+            n_low,
+            bits: Bits {
+                value: bits,
+                len: n - n_low,
+            },
+            top: None,
+            scale: Some(rng.ext()),
+            value: mle_eval(&tables.0[poly as usize], &point),
+        });
+    }
+    DenseClaim { poly, low, terms }
+}
+
+#[test]
+fn the_dense_reduction_reduces_claims_on_a_prefix() {
+    // Weights zero past a prefix whose length is odd at several rounds, so the prover evaluates the table past it. The
+    // blocks of the image and the fixed polynomial have one or two low points, so their weights stay factored for a few
+    // rounds; the bytecode's has three, written out at once.
+    let mut rng = Rng::new(23);
+    let vars = DenseVars([3, 5, 14]);
+    let tables = DenseTables(vars.0.map(|n| (0..1 << n).map(|_| F64(rng.next_u64())).collect()));
+    let mut claims: Vec<DenseClaim<F192>> = (0..3)
+        .map(|_| {
+            let point = rng.ext_vec(3);
+            let value = mle_eval(&tables.0[DensePoly::Bytecode as usize], &point);
+            DenseClaim::at(DensePoly::Bytecode, point, None, value)
+        })
+        .collect();
+    claims.push(block_claim(&mut rng, &tables, &vars, DensePoly::Image, &[(1, 2)]));
+    claims.push(block_claim(
+        &mut rng,
+        &tables,
+        &vars,
+        DensePoly::Fixed,
+        &[(2, 0xAAA), (5, 7), (2, 0xAAA)],
+    ));
+    claims.push(block_claim(&mut rng, &tables, &vars, DensePoly::Fixed, &[(5, 7)]));
+    let mut ps = ProverState::from_label(LABEL);
+    DenseProver::prove(&mut ps, &vars, &tables, &claims);
+    let proof = ps.into_proof();
+    let mut vs = VerifierState::from_label(LABEL, &proof);
+    let reduced = vars.verify(&mut vs, &claims).expect("an honest reduction");
+    for poly in DensePoly::ALL {
+        let point = &reduced.point[..vars.0[poly as usize]];
+        assert_eq!(
+            reduced.values[poly as usize],
+            Some(mle_eval(&tables.0[poly as usize], point)),
+            "{poly:?}"
+        );
+    }
 }
 
 // Each circuit's matrices at random points: lincheck claims and both carried claims, on three circuits.

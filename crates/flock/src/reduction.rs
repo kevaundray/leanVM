@@ -8,7 +8,7 @@ use crate::lincheck::{
     self, LincheckCircuit, LincheckClaim, LincheckInput, LincheckStatement, MatrixClaim, MatrixForm, QuirkyPoint,
 };
 use crate::verifier::FlockError;
-use crate::witness::{Witness, packed_bytes};
+use crate::witness::{Tables, Witness, packed_bytes};
 use crate::zerocheck::multilinear::PackedWitness;
 use crate::zerocheck::{self, K_SKIP, PaddingSpec, ZerocheckClaim, ZerocheckInput};
 use fiat_shamir::transcript::{ProverState, VerifierState};
@@ -29,6 +29,18 @@ pub const fn min_n_blocks_log(n_blocks: usize) -> usize {
     assert!(n_blocks >= 1, "n_blocks must be ≥ 1");
     let n = if n_blocks > 8 { n_blocks } else { 8 };
     n.next_power_of_two().trailing_zeros() as usize
+}
+
+/// The instances before a packed witness's identical tail: from the returned index on, every
+/// instance's `z` is the last one's, and so are its `A·z` and `B·z`.
+pub fn live_instances(z: &[u64], k_log: usize) -> usize {
+    assert!(k_log >= 6, "an instance is whole words");
+    let words = 1usize << (k_log - 6);
+    let Some(last) = z.rchunks_exact(words).next() else {
+        return 0;
+    };
+    let copies = z.rchunks_exact(words).skip(1).take_while(|w| *w == last).count();
+    z.len() / words - 1 - copies
 }
 
 /// A circuit as the reduction sees it: `2^k_log` witness bits per instance, of
@@ -62,10 +74,53 @@ pub struct ReductionReplay {
 }
 
 /// One circuit's batch as the prover holds it: `2^n_blocks_log` instances of its block, and their witness.
+///
+/// `z` is borrowed apart from the rest: a committed batch's `z` is its committed column, which the `_into` generators
+/// write in place.
+///
+/// The instances from `live` on are copies of one instance, which the zerocheck sums once while it binds bits inside an instance.
+/// Nothing of the proof depends on `live`: `1 << n_blocks_log` claims no such tail.
+#[derive(Clone, Copy)]
 pub struct Instance<'a> {
     pub block: Block<'a>,
     pub n_blocks_log: usize,
-    pub witness: Witness,
+    pub live: usize,
+    /// The witness bits.
+    pub z: &'a [u64],
+    /// `A·z`.
+    pub az: &'a [u64],
+    /// `B·z`.
+    pub bz: &'a [u64],
+    /// `z` again in lincheck's byte stripes.
+    pub stripes: &'a [u8],
+}
+
+impl<'a> Instance<'a> {
+    /// A batch whose `z` the caller holds apart, the rest in `tables`; its identical tail is read off `z`.
+    pub fn new(block: Block<'a>, n_blocks_log: usize, z: &'a [u64], tables: &'a Tables) -> Self {
+        Self {
+            block,
+            n_blocks_log,
+            live: live_instances(z, block.k_log),
+            z,
+            az: &tables.az,
+            bz: &tables.bz,
+            stripes: &tables.stripes,
+        }
+    }
+
+    /// A batch whose whole witness is `witness`; its identical tail is read off its `z`.
+    pub fn of(block: Block<'a>, n_blocks_log: usize, witness: &'a Witness) -> Self {
+        Self {
+            block,
+            n_blocks_log,
+            live: live_instances(&witness.z, block.k_log),
+            z: &witness.z,
+            az: &witness.az,
+            bz: &witness.bz,
+            stripes: &witness.stripes,
+        }
+    }
 }
 
 /// The lincheck input point carried over from the zerocheck claim: the
@@ -108,21 +163,21 @@ pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim
                 let m = i.block.k_log + i.n_blocks_log;
                 // The fused generator packs 64 Boolean coordinates per word.
                 let packed_len = 1usize << (m - 6);
-                let w = &i.witness;
-                assert_eq!(w.z.len(), packed_len, "wrong packed witness length");
-                assert_eq!(w.az.len(), packed_len, "wrong packed A·z length");
-                assert_eq!(w.bz.len(), packed_len, "wrong packed B·z length");
+                assert_eq!(i.z.len(), packed_len, "wrong packed witness length");
+                assert_eq!(i.az.len(), packed_len, "wrong packed A·z length");
+                assert_eq!(i.bz.len(), packed_len, "wrong packed B·z length");
                 ZerocheckInput {
                     bits: PackedWitness {
-                        a: packed_bytes(&w.az),
-                        b: packed_bytes(&w.bz),
+                        a: packed_bytes(i.az),
+                        b: packed_bytes(i.bz),
                     },
                     // `C = I`, so `c = z`.
-                    c: packed_bytes(&w.z),
+                    c: packed_bytes(i.z),
                     m,
                     padding: PaddingSpec {
                         k_log: i.block.k_log,
                         useful_bits_per_block: i.block.useful_bits,
+                        live_blocks: i.live,
                     },
                 }
             })
@@ -137,13 +192,9 @@ pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim
     let inputs: Vec<LincheckInput<'_>> = (instances.iter().zip(&x_abs))
         .map(|(i, x_ab)| {
             let m = i.block.k_log + i.n_blocks_log;
-            assert_eq!(
-                i.witness.stripes.len(),
-                (1usize << m) / 8,
-                "wrong lincheck stripe length"
-            );
+            assert_eq!(i.stripes.len(), (1usize << m) / 8, "wrong lincheck stripe length");
             LincheckInput {
-                z_packed: &i.witness.stripes,
+                z_packed: i.stripes,
                 m,
                 k_log: i.block.k_log,
                 k_skip: K_SKIP,

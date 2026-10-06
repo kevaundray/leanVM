@@ -10,13 +10,18 @@
 //! precomputation of Bagad, Dao, Domb and Thaler, <https://eprint.iacr.org/2025/1117>:
 //! the witness is in `K`, so every product is a mixed one).
 
-use super::{Basis, FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, PRECOMPUTED_ROUNDS, SumcheckMessage, window};
+use super::{
+    Basis, BasisFill, FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, KEEP_WEIGHT_MAX_THREADS, PRECOMPUTED_ROUNDS,
+    SumcheckMessage, window,
+};
+use parallel::SendPtr;
 #[cfg(not(any(
     all(target_arch = "x86_64", target_feature = "pclmulqdq"),
     all(target_arch = "aarch64", target_feature = "aes")
 )))]
 use primitives::field::gf2_64::mul_wide;
 use primitives::field::{F64, F192};
+use primitives::stream::Stream;
 use std::ops::Range;
 
 /// Lanes per group, and points of `{0, 1, inf}^R`, `R` being [`PRECOMPUTED_ROUNDS`].
@@ -618,6 +623,46 @@ impl InitialRounds {
 
 /// The first pass: the grid sums of the first `min(PRECOMPUTED_ROUNDS, initial_k)` lane rounds.
 pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basis<'_>) -> InitialRounds {
+    first_pass(f, block, initial_k, b, None)
+}
+
+/// [`initial_rounds`] over a regenerated weight, and the weight the first fold then reads.
+///
+/// On a small pool the pass also writes the weight out, so the fold reads it back rather than refilling it; on a
+/// larger one the refill, spread over the workers, costs less than the memory traffic.
+pub(crate) fn initial_rounds_virtual<'a>(
+    f: &[F64],
+    block: usize,
+    initial_k: usize,
+    fill: &'a BasisFill<'a>,
+) -> (InitialRounds, Basis<'a>) {
+    if parallel::num_threads() <= KEEP_WEIGHT_MAX_THREADS {
+        let (rounds, kept) = initial_rounds_kept(f, block, initial_k, fill);
+        (rounds, Basis::Dense(kept))
+    } else {
+        (
+            first_pass(f, block, initial_k, &Basis::Virtual(fill), None),
+            Basis::Virtual(fill),
+        )
+    }
+}
+
+/// [`initial_rounds`] over a regenerated weight, which it also writes out whole.
+fn initial_rounds_kept(f: &[F64], block: usize, initial_k: usize, fill: &BasisFill<'_>) -> (InitialRounds, Vec<F192>) {
+    let mut kept = Box::<[F192]>::new_uninit_slice(f.len());
+    let rounds = first_pass(
+        f,
+        block,
+        initial_k,
+        &Basis::Virtual(fill),
+        Some(SendPtr(kept.as_mut_ptr().cast::<F192>())),
+    );
+    // SAFETY: the first pass filled every window of every lane of `f` once, and kept each in its slots.
+    (rounds, unsafe { kept.assume_init() }.into_vec())
+}
+
+/// [`initial_rounds`], writing each window of the weight it reads to `keep` when given.
+fn first_pass(f: &[F64], block: usize, initial_k: usize, b: &Basis<'_>, keep: Option<SendPtr<F192>>) -> InitialRounds {
     if let Basis::Dense(b) = b {
         assert_eq!(b.len(), f.len());
     }
@@ -627,7 +672,7 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
     let n_lanes = f.len() / block;
     let whole = n_lanes >> rounds << rounds;
     let mut grid = if whole > 0 {
-        grid_pass(rounds, f, block, b, 0..whole)
+        grid_pass(rounds, f, block, b, 0..whole, keep)
     } else {
         vec![F192::ZERO; 3usize.pow(rounds as u32)]
     };
@@ -635,7 +680,7 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
     // lane bit is clear: at 1 the group has nothing, and at 0 and at inf it has those sums.
     if whole < n_lanes {
         let digits = (n_lanes - whole).next_power_of_two().ilog2() as usize;
-        let tail = grid_pass(digits, f, block, b, whole..n_lanes);
+        let tail = grid_pass(digits, f, block, b, whole..n_lanes, keep);
         let low = tail.len();
         for &high in &LANE_IN_GRID[..1 << (rounds - digits)] {
             let base = low * 2 * high;
@@ -649,18 +694,31 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
 
 /// The grid sums over `lanes`, `rounds` digits at a time: whole groups, or one group whose
 /// missing lanes are zero.
-fn grid_pass(rounds: usize, f: &[F64], block: usize, b: &Basis<'_>, lanes: Range<usize>) -> Vec<F192> {
+fn grid_pass(
+    rounds: usize,
+    f: &[F64],
+    block: usize,
+    b: &Basis<'_>,
+    lanes: Range<usize>,
+    keep: Option<SendPtr<F192>>,
+) -> Vec<F192> {
     match rounds {
-        0 => grid_pass_with::<0>(f, block, b, lanes),
-        1 => grid_pass_with::<1>(f, block, b, lanes),
-        2 => grid_pass_with::<2>(f, block, b, lanes),
-        3 => grid_pass_with::<3>(f, block, b, lanes),
-        4 => grid_pass_with::<4>(f, block, b, lanes),
+        0 => grid_pass_with::<0>(f, block, b, lanes, keep),
+        1 => grid_pass_with::<1>(f, block, b, lanes, keep),
+        2 => grid_pass_with::<2>(f, block, b, lanes, keep),
+        3 => grid_pass_with::<3>(f, block, b, lanes, keep),
+        4 => grid_pass_with::<4>(f, block, b, lanes, keep),
         _ => unreachable!("at most PRECOMPUTED_ROUNDS digits"),
     }
 }
 
-fn grid_pass_with<const R: usize>(f: &[F64], block: usize, b: &Basis<'_>, lanes: Range<usize>) -> Vec<F192> {
+fn grid_pass_with<const R: usize>(
+    f: &[F64],
+    block: usize,
+    b: &Basis<'_>,
+    lanes: Range<usize>,
+    keep: Option<SendPtr<F192>>,
+) -> Vec<F192> {
     let group = 1 << R;
     let points = 3usize.pow(R as u32);
     // A regenerated weight is filled one aligned chunk at a time, or one whole block below that.
@@ -689,6 +747,10 @@ fn grid_pass_with<const R: usize>(f: &[F64], block: usize, b: &Basis<'_>, lanes:
                 let at = lane * block + x0;
                 fs[l] = &f[at..at + chunk];
                 bs[l] = window(b, raw, at, chunk);
+                if let Some(keep) = keep {
+                    // SAFETY: `keep` holds `f.len()` weights, and no other task fills the window at `at`.
+                    Stream::new().copy(unsafe { keep.slice(at, chunk) }, bs[l]);
+                }
             }
         }
         for x in (0..chunk).step_by(ROW) {
@@ -870,7 +932,26 @@ impl WeightFold {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::whir::INITIAL_FOLDING_FACTOR;
     use primitives::test_util::Rng;
+
+    #[test]
+    fn the_kept_weight_is_the_filled_one() {
+        // Invariant: writing the weight out leaves the sums alone and keeps every word of every lane, partial groups
+        // and blocks below one fill chunk included.
+        let mut rng = Rng::new(0x6EE9);
+        for block in [1, 16, INITIAL_BASIS_CHUNK, 4 * INITIAL_BASIS_CHUNK] {
+            for lanes in [1, 3, 5, GROUP - 1, GROUP, GROUP + 1, 37] {
+                let f: Vec<F64> = (0..block * lanes).map(|_| F64(rng.next_u64())).collect();
+                let weight = rng.ext_vec(f.len());
+                let fill = |start: usize, out: &mut [F192]| out.copy_from_slice(&weight[start..start + out.len()]);
+                let (rounds, kept) = initial_rounds_kept(&f, block, INITIAL_FOLDING_FACTOR, &fill);
+                let expected = initial_rounds(&f, block, INITIAL_FOLDING_FACTOR, &Basis::Dense(weight.clone()));
+                assert_eq!(rounds.grid, expected.grid, "block={block}, lanes={lanes}");
+                assert_eq!(kept, weight, "block={block}, lanes={lanes}");
+            }
+        }
+    }
 
     /// Every arm this target compiles accumulates the products of the definition, not only the dispatched one.
     #[cfg(any(

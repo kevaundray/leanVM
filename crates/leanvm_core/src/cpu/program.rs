@@ -305,7 +305,16 @@ impl Program {
         // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
         // Each producer's multiplicity column is a ring-switched region too.
         let reductions = w.reductions;
-        let slices = crate::stage!("Flock reductions", || reduction::prove(&reductions, &mut ps));
+        let slices = crate::stage!("Flock reductions", || {
+            let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
+                .map(|(f, tables)| {
+                    let window = l.witness_window(f);
+                    let column = &w.q[window.offset..window.offset + (1 << window.n_vars)];
+                    f.instance(column, l.taus[f.table()], tables)
+                })
+                .collect();
+            reduction::prove(&instances, &mut ps)
+        });
         drop(reductions);
         let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &w.q, &slots, &rings));

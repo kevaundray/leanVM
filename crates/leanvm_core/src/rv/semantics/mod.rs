@@ -66,14 +66,16 @@ const fn sext32(x: u64) -> u64 {
 pub(super) mod tests {
     use super::*;
     use crate::rv::Class;
+    use crate::tables::spec::InstanceWitness;
     use flock::circuit::Circuit;
     use proptest::prelude::*;
     use proptest::sample::select;
+    use proptest::strategy::ValueTree;
     use proptest::test_runner::{Config, TestRunner};
     use std::fmt::Debug;
 
     /// The words arithmetic most often gets wrong: zero, one, all ones, and the sign bits.
-    const EDGES: [u64; 8] = [
+    pub(super) const EDGES: [u64; 8] = [
         0,
         1,
         u64::MAX,
@@ -158,5 +160,63 @@ pub(super) mod tests {
                 Ok(())
             })
             .unwrap();
+    }
+
+    /// Every combination of one word per input port, the first port varying fastest.
+    pub(super) fn grid(ports: &[&[u64]]) -> Vec<Vec<u64>> {
+        ports.iter().fold(vec![vec![]], |rows, port| {
+            port.iter()
+                .flat_map(|&word| {
+                    rows.iter().map(move |row| {
+                        let mut row = row.clone();
+                        row.push(word);
+                        row
+                    })
+                })
+                .collect()
+        })
+    }
+
+    /// Check a class's word-level witness: on every instance, the tables it writes are the ones the walk of the circuit's gate list writes.
+    ///
+    /// The instances are `edges`, then 4096 random ones: every other one an instance the decoder can make, the rest edge-biased words in every input port, flags included.
+    /// Each instance is checked alone against the bit-by-bit walk, then the whole batch's packed tables and lincheck stripes against the 64-lane walk.
+    pub(super) fn word_witness_is_the_walk<C: Ports + Arbitrary>(witness: InstanceWitness, edges: Vec<Vec<u64>>) {
+        let circuit = C::circuit();
+        let n_in = circuit.n_input_words();
+        let mut runner = TestRunner::deterministic();
+        let random = (0..4096).map(|i| {
+            if i % 2 == 0 {
+                any::<C>().new_tree(&mut runner).unwrap().current().input_words()
+            } else {
+                (0..n_in)
+                    .map(|_| edge_word().new_tree(&mut runner).unwrap().current())
+                    .collect()
+            }
+        });
+        let rows: Vec<Vec<u64>> = edges.into_iter().chain(random).collect();
+
+        let words = 1 << (circuit.k_log() - 6);
+        let tables = || [vec![0u64; words], vec![0; words], vec![0; words]];
+        for row in &rows {
+            assert_eq!(row.len(), n_in, "an edge instance has the wrong number of input words");
+            let [mut z, mut az, mut bz] = tables();
+            circuit.witness_instance(row, &mut z, &mut az, &mut bz);
+            let walk = [z, az, bz];
+            let [mut z, mut az, mut bz] = tables();
+            witness(row, &mut z, &mut az, &mut bz);
+            for (name, (walk, word)) in ["z", "A·z", "B·z"].into_iter().zip(walk.iter().zip([z, az, bz])) {
+                let at = walk.iter().zip(&word).position(|(a, b)| a != b);
+                assert!(at.is_none(), "{name} word {at:?} on inputs {row:#x?}");
+            }
+        }
+
+        let n_log = rows.len().next_power_of_two().trailing_zeros() as usize;
+        let walk = circuit.generate_witness_from(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
+        let words = circuit.generate_witness_with(&rows, &rows[0], n_log, |row, z, az, bz| witness(row, z, az, bz));
+        assert!(walk.z == words.z, "z");
+        assert!(walk.az == words.az, "A·z");
+        assert!(walk.bz == words.bz, "B·z");
+        assert!(walk.stripes == words.stripes, "lincheck stripes");
     }
 }
