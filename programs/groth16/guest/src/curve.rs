@@ -263,7 +263,7 @@ jacobian!(G2Jacobian, Fp2, G2Affine);
 
 impl G1Jacobian {
     /// The affine point, or `None` at infinity.
-    pub const fn to_affine(&self) -> Option<G1Affine> {
+    pub const fn to_affine(self) -> Option<G1Affine> {
         match self.z.inverse() {
             Some(z_inv) => {
                 let z_inv2 = z_inv.square();

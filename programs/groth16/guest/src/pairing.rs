@@ -71,7 +71,7 @@ impl NormalizedLine {
 
     /// `f` times this line's value at the point `p` stands for.
     #[inline(always)]
-    fn evaluate(&self, f: &Fp12, p: &Scaled) -> Fp12 {
+    const fn evaluate(&self, f: &Fp12, p: &Scaled) -> Fp12 {
         f.mul_by_34(&self.c1.mul_by_fp(&p.x_over_y), &self.c2.mul_by_fp(&p.y_inv))
     }
 }

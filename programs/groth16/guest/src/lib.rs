@@ -79,21 +79,22 @@ pub fn verify(proof: &Proof, inputs: &Inputs) -> Result<(), Error> {
         x_over_y: p.x.mul(&y_inv),
         y_inv,
     };
-    let f = match l {
-        Some(l) => {
-            let inverse = c.y.mul(&l.y).inverse().expect("y is not zero");
-            let fixed = [
-                (scaled(&c, inverse.mul(&l.y)), &vk::DELTA_NEG_LINES),
-                (scaled(&l, inverse.mul(&c.y)), &vk::GAMMA_NEG_LINES),
-            ];
-            multi_miller_loop(&a, &b, &fixed)
-        }
-        None => {
-            let fixed = [(scaled(&c, c.y.inverse().expect("y is not zero")), &vk::DELTA_NEG_LINES)];
-            multi_miller_loop(&a, &b, &fixed)
-        }
-    }
-    .mul(&vk::ALPHA_BETA_NEG);
+    let f = l
+        .map_or_else(
+            || {
+                let fixed = [(scaled(&c, c.y.inverse().expect("y is not zero")), &vk::DELTA_NEG_LINES)];
+                multi_miller_loop(&a, &b, &fixed)
+            },
+            |l| {
+                let inverse = c.y.mul(&l.y).inverse().expect("y is not zero");
+                let fixed = [
+                    (scaled(&c, inverse.mul(&l.y)), &vk::DELTA_NEG_LINES),
+                    (scaled(&l, inverse.mul(&c.y)), &vk::GAMMA_NEG_LINES),
+                ];
+                multi_miller_loop(&a, &b, &fixed)
+            },
+        )
+        .mul(&vk::ALPHA_BETA_NEG);
     match f.final_exponentiation() {
         Some(e) if e == Fp12::ONE => Ok(()),
         _ => Err(Error::Rejected),
