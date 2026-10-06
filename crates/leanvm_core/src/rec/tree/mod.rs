@@ -17,17 +17,16 @@
 //! Each node reduces the claims its children leave and carry to one of each, and only the root's verifier evaluates them.
 
 use crate::class_flock::FlockId;
-use crate::cpu::{CpuError, DecodeError, Lookup, Output, Program, Proof, ProvenRun, Stats, VerifyError};
+use crate::cpu::{DecodeError, Lookup, Output, Program, Proof, ProvenRun, Stats, VerifyError};
 use crate::envelope::Envelope;
 use crate::pcs::Rate;
-use crate::rec::RecError;
 use crate::rec::circuit::{Circuit, Finished};
 use crate::rec::fixed::FixedColumns;
 use crate::rec::layout::RecLayout;
 use crate::rec::table::PerRecTable;
 use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
-use crate::tables::{N_TABLES, Part, PerTable, TableId};
+use crate::tables::{N_TABLES, PerTable, TableId};
 use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
 use fiat_shamir::transcript::{ProofTranscript, RawProof};
 use primitives::field::{F64, F192};
@@ -45,6 +44,8 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
+pub use crate::rec::circuit::Unsatisfied;
+pub use crate::tables::Part;
 pub use claims::DensePoly;
 pub use statement::Kind;
 pub use stats::{CircuitStats, TableStats};
@@ -93,6 +94,8 @@ pub struct TreeShape {
 ///
 /// It is built from the program and the shape alone, before any proof exists.
 pub struct Tree<'p> {
+    /// How it is shaped.
+    shape: TreeShape,
     /// What fixes the circuits.
     design: Design<'p>,
     /// Each kind's circuit, the first level's first.
@@ -149,7 +152,7 @@ pub enum TreeError {
     },
     /// No RISC-V proof of the program has the leaves' shape.
     #[error("the leaves' shape: {0}")]
-    LeafShape(CpuError),
+    LeafShape(VerifyError),
     /// No recursion circuit of the shapes fits one commitment.
     #[error("the tree's circuits fit no commitment")]
     TooLarge,
@@ -186,23 +189,27 @@ pub enum TreeError {
         error: VerifyError,
     },
     /// A child proof does not verify.
-    #[error("child {index} does not verify: {error}")]
+    #[error("child {index}: {error}")]
     Child {
         /// The child's index among its node's.
         index: usize,
         /// Why its verifier refuses it.
-        error: RecError,
+        error: VerifyError,
     },
-    /// The circuit's rows do not hold on the prover's values: a check, named by its scope, fails.
+    /// The circuit's rows do not hold on the prover's values.
     #[error("the circuit does not hold: {0}")]
-    Unsatisfied(String),
+    Unsatisfied(Unsatisfied),
     /// A proof at another rate than the tree's.
-    #[error("a proof at log-inv-rate {got}, and the tree's is {expected}")]
+    #[error(
+        "a proof at log-inv-rate {}, and the tree's is {}",
+        .got.log_inv_rate(),
+        .expected.log_inv_rate()
+    )]
     Rate {
         /// The tree's.
-        expected: u8,
+        expected: Rate,
         /// The proof's.
-        got: u8,
+        got: Rate,
     },
     /// The root is not of the kind its number of leaves gives.
     #[error("{leaves} leaves have a {expected:?} root, and the proof is a {got:?}")]
@@ -215,8 +222,8 @@ pub enum TreeError {
         got: Kind,
     },
     /// The root's recursion proof does not verify.
-    #[error("the root does not verify: {0}")]
-    Root(RecError),
+    #[error("the root: {0}")]
+    Root(VerifyError),
     /// The root's digest is not that of the given leaves' outputs.
     #[error("the root does not state these leaf outputs")]
     Outputs,
@@ -265,6 +272,30 @@ impl LeafShape {
     }
 }
 
+impl TreeShape {
+    /// The kind of the root over this many leaves: a first-level node over `n_0`, a node over `n_0 n^d`.
+    ///
+    /// # Errors
+    ///
+    /// A number of leaves no tree of these arities has.
+    pub fn root_kind(&self, leaves: usize) -> Result<Kind, TreeError> {
+        let Self { arity_0, arity, .. } = *self;
+        let count = TreeError::LeafCount { leaves, arity_0, arity };
+        if leaves == 0 || arity < 2 || !leaves.is_multiple_of(arity_0) {
+            return Err(count);
+        }
+        let mut nodes = leaves / arity_0;
+        while nodes > 1 && nodes.is_multiple_of(arity) {
+            nodes /= arity;
+        }
+        match (nodes, leaves == arity_0) {
+            (1, true) => Ok(Kind::First),
+            (1, false) => Ok(Kind::Node),
+            _ => Err(count),
+        }
+    }
+}
+
 impl<'a> Leaf<'a> {
     /// The leaf of a proof and the output it proves.
     #[must_use]
@@ -283,7 +314,7 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 9);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 10);
 
     /// The kind of node that made the proof.
     #[must_use]
@@ -366,7 +397,7 @@ impl<'p> Tree<'p> {
         if arity_0 == 0 || arity < 2 {
             return Err(TreeError::Arity { arity_0, arity });
         }
-        let leaf = || ProofShape::new(program, leaves.taus, leaves.rate).map_err(TreeError::LeafShape);
+        let leaf = || ProofShape::new(program, leaves.taus, leaves.rate).map_err(|e| TreeError::LeafShape(e.into()));
         let (design, circuits) = Self::converge(|taus| Design::new(leaf()?, arity_0, arity, rate, taus))?;
         let columns = circuits.each_ref().map(|c| FixedColumns::of(c, &design.taus));
         let fixed = design.fixed.polynomial([&columns[0], &columns[1]]);
@@ -375,6 +406,7 @@ impl<'p> Tree<'p> {
         image.resize(1 << design.vars.0[DensePoly::Image as usize], F64::ZERO);
         let tables = DenseTables([Lookup::Bytecode.table(rv), image, fixed]);
         Ok(Self {
+            shape,
             design,
             circuits,
             columns,
@@ -433,7 +465,7 @@ impl<'p> Tree<'p> {
                 if LeafShape::announced(proof) != Some(shape) {
                     return Err(TreeError::ForeignLeaf { index });
                 }
-                let raw = (program.verify_to_raw(output.words(), proof)).map_err(|error| TreeError::Leaf {
+                let raw = (program.verify_to_raw(output, proof)).map_err(|error| TreeError::Leaf {
                     index,
                     error: error.into(),
                 })?;
@@ -493,7 +525,7 @@ impl<'p> Tree<'p> {
     ///
     /// A number of leaves no tree of the arities has, or a leaf the first level refuses.
     pub fn prove(&self, leaves: &[Leaf<'_>]) -> Result<TreeProof, TreeError> {
-        self.levels(leaves.len())?;
+        self.shape.root_kind(leaves.len())?;
         let (arity_0, arity) = (self.design.arity_0, self.design.arity);
         let mut level: Vec<TreeProof> = (leaves.chunks(arity_0))
             .map(|leaves| self.prove_first(leaves))
@@ -517,11 +549,11 @@ impl<'p> Tree<'p> {
         let d = &self.design;
         if root.rate != d.rate {
             return Err(TreeError::Rate {
-                expected: d.rate.log_inv_rate(),
-                got: root.rate.log_inv_rate(),
+                expected: d.rate,
+                got: root.rate,
             });
         }
-        let expected = self.levels(outputs.len())?;
+        let expected = self.shape.root_kind(outputs.len())?;
         if root.kind != expected {
             return Err(TreeError::Kind {
                 leaves: outputs.len(),
@@ -537,24 +569,6 @@ impl<'p> Tree<'p> {
         self.settle(&statement, root.kind)
     }
 
-    /// The kind of the root over this many leaves: a first-level node over `n_0`, a node over `n_0 n^d`.
-    fn levels(&self, leaves: usize) -> Result<Kind, TreeError> {
-        let (arity_0, arity) = (self.design.arity_0, self.design.arity);
-        let count = TreeError::LeafCount { leaves, arity_0, arity };
-        if leaves == 0 || !leaves.is_multiple_of(arity_0) {
-            return Err(count);
-        }
-        let mut nodes = leaves / arity_0;
-        while nodes > 1 && nodes.is_multiple_of(arity) {
-            nodes /= arity;
-        }
-        match (nodes, leaves == arity_0) {
-            (1, true) => Ok(Kind::First),
-            (1, false) => Ok(Kind::Node),
-            _ => Err(count),
-        }
-    }
-
     /// The digest the root over these leaf outputs states.
     fn digest(&self, outputs: &[Output]) -> [u64; 4] {
         let (arity_0, arity) = (self.design.arity_0, self.design.arity);
@@ -567,10 +581,12 @@ impl<'p> Tree<'p> {
     }
 
     /// Verify a tree proof's recursion proof, short of its claims, returning it as its verifier read it.
-    fn read(&self, p: &TreeProof) -> Result<RawProof, RecError> {
+    fn read(&self, p: &TreeProof) -> Result<RawProof, VerifyError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
-        self.circuit(p.kind)
-            .verify_to_raw(&limbs, self.design.iv, self.design.rate, &p.proof)
+        let raw = self
+            .circuit(p.kind)
+            .verify_to_raw(&limbs, self.design.iv, self.design.rate, &p.proof)?;
+        Ok(raw)
     }
 
     /// Prove a circuit's rows: its reduction, then its recursion proof.

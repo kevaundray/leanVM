@@ -1,5 +1,6 @@
-//! Fiat-Shamir state and proof transport. The state is a domain-separated chain of BLAKE2s compressions, each one VM hash opcode: the seed from the parameter IV, then every step keyed by the state.
+//! Fiat-Shamir state, proof transport, and the verifier's arithmetic over them. The state is a domain-separated chain of BLAKE2s compressions, each one VM hash opcode: the seed from the parameter IV, then every step keyed by the state.
 
+pub mod arith;
 pub mod merkle;
 pub mod transcript;
 
