@@ -132,8 +132,9 @@ impl RecWitness {
 
         let tau = layout.tau(Table::Hash);
         // A port is not in the stack: its values are a buffer of their own, written by the batch.
-        let mut ports: Vec<Box<[MaybeUninit<F64>]>> =
-            (0..HashFlock::N_PORTS).map(|_| Box::new_uninit_slice(1 << tau)).collect();
+        let mut ports: Vec<Box<[MaybeUninit<F64>]>> = (0..HashFlock::N_PORTS)
+            .map(|_| Box::new_uninit_slice(1 << tau))
+            .collect();
         let batch = HashBatch::build(&a.hash, tau, windows[RecLayout::HASH_WITNESS], &mut ports);
         drop(windows);
         // SAFETY: the windows tile the stack up to its zeroed tail, and each was filled above.
