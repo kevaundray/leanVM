@@ -102,9 +102,13 @@ mod tests {
         // against the program with no hint at all, its markers replaced by what they decode to.
         let program = Program::from_elf(ELF).unwrap();
         let run_ = run(BY_HINT, &elements(2));
-        let proven = Prover::new(Rate::MIN).prove(&program, &run_.advice).expect("the run halts");
+        let proven = Prover::new(Rate::MIN)
+            .prove(&program, &run_.advice)
+            .expect("the run halts");
         assert_eq!(proven.output, run_.expected);
-        program.verify(proven.output, &proven.proof).expect("an honest proof verifies");
+        program
+            .verify(proven.output, &proven.proof)
+            .expect("an honest proof verifies");
 
         let guest = Guest::from_elf(ELF).unwrap();
         let text = without_markers(&guest.text);
