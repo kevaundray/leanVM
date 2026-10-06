@@ -14,6 +14,11 @@ use primitives::pretty_integer;
 /// The three runs are leaves, proven at `leaf_prover`'s rate; the tree proof at `prover`'s.
 pub fn run(n: u64, leaf_prover: &Prover, prover: &Prover, plan: Plan) {
     let rate = prover.rate();
+    println!(
+        "Assumptions resolved in a tree: the runs at log-inv-rate {}, the tree proof at {}",
+        leaf_prover.rate().log_inv_rate(),
+        rate.log_inv_rate()
+    );
     let fibonacci = Program::from_elf(defer_host::FIBONACCI_ELF).expect("a guest's ELF file");
     let assuming = defer_host::run(fibonacci.digest_words(), n);
     // The three runs, each checked against the output its host computed.

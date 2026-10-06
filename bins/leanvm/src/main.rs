@@ -121,6 +121,8 @@ enum Command {
         arity: usize,
     },
     /// Prove two Fibonacci runs and a guest that assumes them, then the tree that resolves its assumptions.
+    ///
+    /// The three runs are proven at `--leaf-log-inv-rate`, the tree proof at `--log-inv-rate`.
     Defer {
         /// The first Fibonacci run's `n`: the guest gives `F(n + 2)` from the runs on `n` and `n + 1`.
         #[arg(long, default_value_t = 1000)]
