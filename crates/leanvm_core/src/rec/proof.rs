@@ -16,8 +16,10 @@ use crate::constraints::{Columns, ConstraintError};
 use crate::pcs::{Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::{constraints, pcs, witness};
 use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
+use parallel::SendPtr;
 use primitives::field::{F64, F192};
 use std::borrow::Cow;
+use std::mem::MaybeUninit;
 
 /// The transcript's public input for a statement: the hash of its words' limbs, in order.
 pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
@@ -25,12 +27,11 @@ pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
     chain(&limbs).map(F64)
 }
 
-/// The hash table's flock batch, one instance per row.
+/// The hash table's flock batch, one instance per row; its `z` is the stack's packed-witness window.
 struct HashBatch {
     tau: usize,
     /// The rows, before the padding rows: every instance from here on is the padding compression's.
     live: usize,
-    z: Vec<u64>,
     a: Vec<u64>,
     b: Vec<u64>,
     z_lincheck: Vec<u8>,
@@ -50,16 +51,40 @@ pub(crate) struct TableArgument<'a> {
 }
 
 impl HashBatch {
-    /// Every hash row's packed witness, at the hash table's height.
-    fn build(hash: &[Compression], tau: usize) -> Self {
-        let (z, a, b, z_lincheck) =
-            HashFlock::circuit().generate_witness_with(hash, &Compression::PADDING, tau, |row, z, az, bz| {
-                crate::rv::circuits::blake2s_witness(row.inputs(), z, az, bz);
-            });
+    /// Every hash row's packed witness, at the hash table's height, written into `z`, and each row's ports into
+    /// `ports`, every slot of which it writes.
+    fn build(hash: &[Compression], tau: usize, z: &mut [F64], ports: &mut [Box<[MaybeUninit<F64>]>]) -> Self {
+        // SAFETY: `F64` is `repr(transparent)` over `u64`, and the packing is bit `i` at position `i` on both sides.
+        let z = unsafe { std::slice::from_raw_parts_mut(z.as_mut_ptr().cast::<u64>(), z.len()) };
+        let port_ptrs: Vec<SendPtr<F64>> = ports.iter_mut().map(|p| SendPtr(p.as_mut_ptr().cast())).collect();
+        // A live row's ports are copied while its words are in cache; the padding rows' after.
+        let ports_of = |row: &Compression, z: &[u64]| {
+            let offset = std::ptr::from_ref(row).addr().wrapping_sub(hash.as_ptr().addr());
+            let j = offset / size_of::<Compression>();
+            if j < hash.len() && std::ptr::eq(&hash[j], row) {
+                for (ptr, &word) in port_ptrs.iter().zip(z) {
+                    // SAFETY: row `j` is visited once, and each port buffer holds every row.
+                    unsafe { ptr.0.add(j).write(F64(word)) };
+                }
+            }
+        };
+        let (a, b, z_lincheck) = HashFlock::circuit().generate_witness_with_into(
+            z,
+            hash,
+            &Compression::PADDING,
+            tau,
+            |row, z, az, bz| crate::rv::circuits::blake2s_witness(row.inputs(), z, az, bz),
+            ports_of,
+        );
+        if hash.len() < 1 << tau {
+            let padding = &z[hash.len() << HashFlock::stride_log()..];
+            for (port, &word) in ports.iter_mut().zip(padding) {
+                port[hash.len()..].fill(MaybeUninit::new(F64(word)));
+            }
+        }
         Self {
             tau,
             live: hash.len(),
-            z,
             a,
             b,
             z_lincheck,
@@ -67,13 +92,16 @@ impl HashBatch {
     }
 
     /// Prove every hash row: zerocheck, then lincheck, a batch of one circuit, to one ring-switched claim on the packed witness.
-    fn prove(self, layout: &RecLayout, ps: &mut ProverState) -> RingSwitch {
+    fn prove(self, layout: &RecLayout, q: &[F64], ps: &mut ProverState) -> RingSwitch {
         let window = layout.hash_window();
+        let z = &q[window.offset..window.offset + (1 << window.n_vars)];
+        // SAFETY: `F64` is `repr(transparent)` over `u64`.
+        let z = unsafe { std::slice::from_raw_parts(z.as_ptr().cast::<u64>(), z.len()) };
         let instance = flock::reduction::Instance {
             block: HashFlock::circuit().block(),
             n_blocks_log: self.tau,
             live: self.live,
-            z: &self.z,
+            z,
             a: &self.a,
             b: &self.b,
             z_lincheck: &self.z_lincheck,
@@ -102,26 +130,19 @@ impl RecWitness {
             table.fill(a, &mut windows[RecLayout::columns(table)]);
         }
 
-        let batch = HashBatch::build(&a.hash, layout.tau(Table::Hash));
-        parallel::chunks_mut_zip(windows[RecLayout::HASH_WITNESS], &batch.z, 1 << 16, |_, dst, src| {
-            for (d, &s) in dst.iter_mut().zip(src) {
-                *d = F64(s);
-            }
-        });
+        let tau = layout.tau(Table::Hash);
+        // A port is not in the stack: its values are a buffer of their own, written by the batch.
+        let mut ports: Vec<Box<[MaybeUninit<F64>]>> =
+            (0..HashFlock::N_PORTS).map(|_| Box::new_uninit_slice(1 << tau)).collect();
+        let batch = HashBatch::build(&a.hash, tau, windows[RecLayout::HASH_WITNESS], &mut ports);
         drop(windows);
         // SAFETY: the windows tile the stack up to its zeroed tail, and each was filled above.
         let q = unsafe { q.assume_init() }.into_vec();
 
-        // A port is not in the stack: its values are a buffer of their own, read off the batch.
         let ports_at = RecLayout::columns(Table::Hash).start;
-        let stride_log = HashFlock::stride_log();
-        let ports = (0..HashFlock::N_PORTS)
-            .map(|port| {
-                let values = (0..1 << layout.tau(Table::Hash))
-                    .map(|j| F64(batch.z[(j << stride_log) + port]))
-                    .collect();
-                (ports_at + port, values)
-            })
+        let ports = (ports.into_iter().enumerate())
+            // SAFETY: the batch wrote every row of every port.
+            .map(|(port, values)| (ports_at + port, unsafe { values.assume_init() }.into_vec()))
             .collect();
         Self { q, ports, batch }
     }
@@ -242,7 +263,7 @@ impl Circuit {
 
         let RecWitness { q, ports, batch } = w;
         drop(ports);
-        let ring = crate::stage!("Flock reduction", || batch.prove(&layout, &mut ps));
+        let ring = crate::stage!("Flock reduction", || batch.prove(&layout, &q, &mut ps));
         crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &[ring]));
         Ok(ps.into_proof())
     }
