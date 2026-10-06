@@ -24,7 +24,7 @@
 //! value, paired by the round message and the fold.
 //!
 //! For `[r_0, …, r_{n-1}]` (one eq challenge per multilinear variable, built so
-//! `build_eq` places `r_i` at bit i), **round r=2 binds the variable of `r_0`**
+//! `eq_table` places `r_i` at bit i), **round r=2 binds the variable of `r_0`**
 //! and takes eq over `r_1..` for the remaining variables. Subsequent rounds peel
 //! off one more.
 //!
@@ -35,11 +35,11 @@
 //! `current_claim = (1+r_now)·G(0) + r_now·G(1)`.
 
 use crate::zerocheck::PaddingSpec;
-use crate::zerocheck::univariate_skip::{EQ_HIGH_VARS, build_eq};
+use crate::zerocheck::round1::EQ_HIGH_VARS;
 use parallel::Chunks;
 use primitives::bit_fold::{BLOCK, BitFold};
-use primitives::field::{F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE};
-use primitives::multilinear::{SplitEq, barycentric_sum, window_denominator};
+use primitives::field::{F192, F192Unreduced};
+use primitives::multilinear::{SplitEq, eq_table};
 use primitives::stream::Stream;
 use std::mem::MaybeUninit;
 
@@ -75,46 +75,13 @@ fn mul_quad_unreduced(
     )
 }
 
-// ---------------------------------------------------------------------------
-// Lagrange weights for the univariate-skip fold at z.
-// ---------------------------------------------------------------------------
-
-/// Interpolate a degree-`< 2·2^k_skip` polynomial at z, given its `2^k_skip`
-/// evaluations on Λ and the assumption that it equals **zero on S**.
-///
-/// This is the verifier's round-1 reconstruction trick: for an honest prover
-/// the combined polynomial `P = P^{AB} + P^C` satisfies `P(λ) = 0` for every
-/// `λ ∈ S` (the zerocheck identity at S). Together with the `2^k_skip`
-/// evaluations on Λ that the prover sends, that's `2·2^k_skip` evaluations -
-/// enough to interpolate the degree-`< 2·2^k_skip` polynomial uniquely.
-///
-/// Over the window `S ∪ Λ` the zeros on S drop out of the Lagrange sum, and the
-/// weight of every node of Λ carries the factor `∏_{s∈S} (z + s)`.
-pub fn interpolate_at_z_combined(values_on_lambda: &[F192], k_skip: usize, z: F192) -> F192 {
-    let ell = 1usize << k_skip;
-    assert_eq!(values_on_lambda.len(), ell);
-    assert!(2 * ell <= 256, "Λ ∪ S must fit in F_8 (need k_skip ≤ 7)");
-    let (s, lambda) = PHI_8_TABLE[..2 * ell].split_at(ell);
-    let vanishing_on_s = s[1..].iter().fold(z + s[0], |acc, &node| acc * (z + node));
-    let scale = vanishing_on_s * window_denominator(2 * ell);
-    barycentric_sum(lambda, values_on_lambda, z, scale)
-}
-
-// ---------------------------------------------------------------------------
-// Fold a Boolean witness at z.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Naive round-2 prover message (AB-pair multilinear sumcheck).
-// ---------------------------------------------------------------------------
-
 /// Single-table sibling of [`round_pair_naive`], for the linear `c` term:
 /// `G_c(1) = Σ_{x'} eq(r_eq, x') · c_mlv(1, x')`. Linear, so no `G(∞)`.
-pub fn round_single_naive(c_mlv: &[F192], r_eq: &[F192]) -> F192 {
+pub(crate) fn round_single_naive(c_mlv: &[F192], r_eq: &[F192]) -> F192 {
     let n = c_mlv.len();
     assert!(n.is_power_of_two() && n >= 2);
     assert_eq!(r_eq.len(), n.trailing_zeros() as usize - 1);
-    let eq_remaining = build_eq(r_eq);
+    let eq_remaining = eq_table(r_eq);
     let mut g_one = F192::ZERO;
     for (x_prime, &eq_x) in eq_remaining.iter().enumerate() {
         g_one += eq_x * c_mlv[2 * x_prime + 1];
@@ -132,14 +99,14 @@ pub fn round_single_naive(c_mlv: &[F192], r_eq: &[F192]) -> F192 {
 /// Output: `(G(1), G(∞))` for the round polynomial `G(X) = Σ_{x'} eq(r_eq, x')
 /// · a_mlv(X, x') · b_mlv(X, x')`, where `a_mlv(0, x') = a_mlv[2x']` and
 /// `a_mlv(1, x') = a_mlv[2x' + 1]` (low bit bound).
-pub fn round_pair_naive(a_mlv: &[F192], b_mlv: &[F192], r_eq: &[F192]) -> (F192, F192) {
+pub(crate) fn round_pair_naive(a_mlv: &[F192], b_mlv: &[F192], r_eq: &[F192]) -> (F192, F192) {
     let n = a_mlv.len();
     assert_eq!(b_mlv.len(), n);
     assert!(n.is_power_of_two() && n >= 2);
     let half = n / 2;
     assert_eq!(r_eq.len(), n.trailing_zeros() as usize - 1);
 
-    let eq_remaining = build_eq(r_eq);
+    let eq_remaining = eq_table(r_eq);
     assert_eq!(eq_remaining.len(), half);
 
     let mut g_one = F192::ZERO;
@@ -156,10 +123,6 @@ pub fn round_pair_naive(a_mlv: &[F192], b_mlv: &[F192], r_eq: &[F192]) -> (F192,
     }
     (g_one, g_inf)
 }
-
-// ---------------------------------------------------------------------------
-// Bit-resident rounds: fold and message straight from the packed witness.
-// ---------------------------------------------------------------------------
 
 /// Returns `(pair_in_block_mask, live_pairs)` for a round whose positions each cover `2^position_log` witness bits.
 ///
@@ -191,7 +154,7 @@ const EQ_LO_VARS: usize = 10;
 ///
 /// The kernels never read `c`: an honest witness has `c = a AND b`, derived from the rows already loaded.
 #[derive(Clone, Copy, Debug)]
-pub struct PackedWitness<'a> {
+pub(crate) struct PackedWitness<'a> {
     /// The `A z` bits.
     pub a: &'a [u8],
     /// The `B z` bits.
@@ -260,7 +223,7 @@ impl FoldedBlock {
 ///
 /// Its polynomial is quadratic in that `rho`, so one pass stores its three coefficients per evaluation point.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RoundPair {
+pub(crate) struct RoundPair {
     /// Round `t`'s `(G(1), G(inf))`.
     pub first: (F192, F192),
     /// Round `t + 1` at `Y = 1` and `Y = inf`, each as `[S_0, S_1, S_2]`.
@@ -273,7 +236,7 @@ pub struct RoundPair {
 
 impl RoundPair {
     /// Round `t + 1`'s `(G(1), G(inf))`, once round `t`'s challenge `rho` is known.
-    pub fn second(&self, rho: F192) -> (F192, F192) {
+    pub(crate) fn second(&self, rho: F192) -> (F192, F192) {
         let [one, inf] = self
             .second
             .map(|[s0, s1, s2]| s0 + rho * (s0 + s1) + rho * (F192::ONE + rho) * s2);
@@ -324,7 +287,12 @@ impl RoundPair {
 /// ```
 ///
 /// The linear `c` term reaches `G(1)` only.
-pub fn bit_round_pair(bits: PackedWitness<'_>, fold: &BitFold, r_eq: &[F192], padding: &PaddingSpec) -> RoundPair {
+pub(crate) fn bit_round_pair(
+    bits: PackedWitness<'_>,
+    fold: &BitFold,
+    r_eq: &[F192],
+    padding: &PaddingSpec,
+) -> RoundPair {
     match fold.n_chunks() {
         8 => bit_round_pair_kernel::<8>(bits, fold, r_eq, padding),
         16 => bit_round_pair_kernel::<16>(bits, fold, r_eq, padding),
@@ -338,7 +306,7 @@ pub fn bit_round_pair(bits: PackedWitness<'_>, fold: &BitFold, r_eq: &[F192], pa
 /// One round straight from the packed bits, storing the folded `(a, b, c)` tables for the rounds that follow.
 ///
 /// Returns the round's `(G(1), G(inf))`, then the three tables.
-pub fn bit_round_materialize(
+pub(crate) fn bit_round_materialize(
     bits: PackedWitness<'_>,
     fold: &BitFold,
     r_eq: &[F192],
@@ -587,7 +555,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
 /// ```
 ///
 /// The rounds are built from each quad of folded values while they are in registers, as in the bit pass.
-pub fn fold_and_round_pair_into(
+pub(crate) fn fold_and_round_pair_into(
     ins: [&[F192]; 3],
     outs: [&mut [MaybeUninit<F192>]; 3],
     rhos: &[F192],
@@ -716,14 +684,10 @@ fn fold_and_round_pair_kernel<const K: usize>(
     RoundPair::from_sums(sums, r_v)
 }
 
-// ---------------------------------------------------------------------------
-// Subsequent multilinear rounds (3..(m−k_skip+1)): fold + next message.
-// ---------------------------------------------------------------------------
-
 /// In-place fold of a single multilinear polynomial table at `challenge`.
 /// Pairs `(a[2x], a[2x+1])` collapse to `a[x] = a[2x] + challenge · (a[2x+1] + a[2x])`.
 /// After the call, `a.len()` is halved.
-pub fn fold_in_place_single(a: &mut Vec<F192>, challenge: F192) {
+pub(crate) fn fold_in_place_single(a: &mut Vec<F192>, challenge: F192) {
     let n = a.len();
     assert!(n.is_power_of_two() && n >= 2);
     let half = n / 2;
@@ -742,7 +706,7 @@ pub fn fold_in_place_single(a: &mut Vec<F192>, challenge: F192) {
 ///
 /// Used at the tail of the multilinear-round sequence where the polynomial is
 /// small enough that parallel/fusion overhead outweighs benefit.
-pub fn fold_in_place_pair(a: &mut Vec<F192>, b: &mut Vec<F192>, challenge: F192) {
+pub(crate) fn fold_in_place_pair(a: &mut Vec<F192>, b: &mut Vec<F192>, challenge: F192) {
     let n = a.len();
     assert_eq!(b.len(), n);
     assert!(n.is_power_of_two() && n >= 2);
@@ -852,20 +816,17 @@ mod planar {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::zerocheck::univariate_skip::tests::pack_bits;
-    use crate::zerocheck::univariate_skip_optimized::{
+    use crate::zerocheck::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
+    use crate::zerocheck::round1::tests::pack_bits;
+    use crate::zerocheck::round1::{
         c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
     };
-    use pcs::ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
     use primitives::field::F8;
-    use primitives::multilinear::skip_lagrange_weights;
+    use primitives::field::PHI_8_TABLE_192;
+    use primitives::multilinear::{barycentric_sum, skip_lagrange_weights, window_denominator};
     use primitives::test_util::Rng;
 
     /// Evaluate the univariate-skip polynomial at the fold point `z`, given the
@@ -904,30 +865,7 @@ mod tests {
         let ell = 1usize << k_skip;
         assert_eq!(values.len(), ell);
         assert!(2 * ell <= 256, "Λ ∪ S must fit in F_8 (need k_skip ≤ 7)");
-        barycentric_sum(&PHI_8_TABLE[ell..2 * ell], values, z, window_denominator(ell))
-    }
-
-    /// The round-1 claim, interpolated over Λ alone with S's vanishing product factored out, equals the
-    /// interpolation of the zeros on S and the values on Λ over the whole window, at random points and
-    /// at every node of either half.
-    #[test]
-    fn combined_interpolation_matches_the_whole_window() {
-        let mut rng = Rng::new(0x0C0B_14ED);
-        for k_skip in 0..=7 {
-            let ell = 1usize << k_skip;
-            let values_on_lambda = rng.ext_vec(ell);
-            for z in rng.ext_vec(4).into_iter().chain(PHI_8_TABLE[..2 * ell].iter().copied()) {
-                let whole_window = skip_lagrange_weights(k_skip + 1, z)[ell..]
-                    .iter()
-                    .zip(&values_on_lambda)
-                    .fold(F192::ZERO, |acc, (&w, &v)| acc + w * v);
-                assert_eq!(
-                    interpolate_at_z_combined(&values_on_lambda, k_skip, z),
-                    whole_window,
-                    "k_skip {k_skip}"
-                );
-            }
-        }
+        barycentric_sum(&PHI_8_TABLE_192[ell..2 * ell], values, z, window_denominator(ell))
     }
 
     #[test]
@@ -1042,7 +980,6 @@ mod tests {
                 &b_packed,
                 &c_packed,
                 m,
-                K_SKIP,
                 &r,
                 &inv_table,
                 &PaddingSpec::dense(m),
@@ -1195,7 +1132,7 @@ mod tests {
 
         let n = a_mlv.len();
         let half = n / 2;
-        let eq_remaining = build_eq(&r_eq);
+        let eq_remaining = eq_table(&r_eq);
 
         // G(0), G(1), G(∞) by direct definition.
         let mut g0 = F192::ZERO;

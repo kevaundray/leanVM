@@ -62,10 +62,8 @@ pub fn chain(words: &[u64]) -> Limbs {
     let n_blocks = words.len().div_ceil(8).max(1);
     let bytes = 8 * words.len() as u64;
     (0..n_blocks).fold(PARAM_IV, |h, j| {
-        let mut m = [0; 8];
-        for (slot, &w) in m.iter_mut().zip(words.iter().skip(8 * j)) {
-            *slot = w;
-        }
+        // The final block retains the message's words and zero-pads its unused slots.
+        let m = std::array::from_fn(|k| words.get(8 * j + k).copied().unwrap_or(0));
         Compression::new(h, m, (64 * (j as u64 + 1)).min(bytes), j + 1 == n_blocks).output()
     })
 }

@@ -22,7 +22,7 @@ mod deferred;
 mod error;
 pub(crate) mod execute;
 pub mod filler;
-mod layout;
+pub(crate) mod layout;
 mod output;
 mod program;
 mod proof;
@@ -32,14 +32,13 @@ mod witness;
 
 pub use deferred::{Claim, DeferredClaims, MalformedClaim, ProgramPoint};
 pub use error::{CpuError, DecodeError, ProveError, VerifyError};
-pub use execute::Execution;
 pub(crate) use execute::{Payload, Payloads, Row, RowRef, Trace};
-pub use layout::{Framework, Layout, Lookup, N_BYTECODE_COLUMNS, N_SHARED, Q_BASE, Schema, Shared, Sizes};
+pub(crate) use layout::Announcement;
+pub use layout::{Layout, Lookup, Q_BASE};
 pub use output::Output;
 pub use program::{Program, Stats};
 pub use proof::Proof;
 pub use prover::{ProvenRun, Prover};
-pub(crate) use reduce::TableReduction;
 
 /// Each table holds at most `2^MAX_LOG_ROWS` rows: its class's executed instructions.
 ///

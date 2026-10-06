@@ -2,18 +2,12 @@
 //! guest's library run natively, where a hint is its closure run in place.
 
 use inverse::{from_canonical, inverse_by_hint, to_canonical};
-use leanvm_guest::PublicValues;
+use leanvm_guest::{PublicValues, Run};
 
 pub use inverse::{BY_EXPONENT, BY_HINT, BY_WRONG_HINT};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../inverse.elf");
-
-/// What one run of the guest is given, and what it must output.
-pub struct Run {
-    pub advice: Vec<u64>,
-    pub expected: [u64; 4],
-}
 
 /// The guest inverting `elements`, each nonzero and below `p`, the way `how` says (`BY_EXPONENT`, `BY_HINT`, ...).
 pub fn run(how: u64, elements: &[[u64; 4]]) -> Run {
@@ -33,9 +27,8 @@ pub fn run(how: u64, elements: &[[u64; 4]]) -> Run {
 mod tests {
     use super::*;
     use inverse::inverse;
-    use leanvm_core::cpu::{Program, ProveError};
-    use leanvm_core::pcs::Rate;
-    use leanvm_core::rv::{Guest, ImmOp, Instruction, Machine, Op, Reg, Trap};
+    use leanvm_core::asm::{ImmOp, Instruction, Op, Reg};
+    use leanvm_core::{Guest, Machine, Program, ProveError, Prover, Rate, Trap};
     use primitives::test_util::Rng;
 
     /// `n` elements below `p`, from a seed.
@@ -109,16 +102,16 @@ mod tests {
         // against the program with no hint at all, its markers replaced by what they decode to.
         let program = Program::from_elf(ELF).unwrap();
         let run_ = run(BY_HINT, &elements(2));
-        let (proof, output, _) = program.prove(&run_.advice, Rate::MIN).expect("the run halts");
-        assert_eq!(output, run_.expected);
-        program.verify(output.into(), &proof).expect("an honest proof verifies");
+        let proven = Prover::new(Rate::MIN).prove(&program, &run_.advice).expect("the run halts");
+        assert_eq!(proven.output, run_.expected);
+        program.verify(proven.output, &proven.proof).expect("an honest proof verifies");
 
         let guest = Guest::from_elf(ELF).unwrap();
         let text = without_markers(&guest.text);
         assert_ne!(text, guest.text);
         let plain = Program::new(&text, guest.entry_pc, guest.image, guest.log_ram, guest.log_advice).unwrap();
         plain
-            .verify(output.into(), &proof)
+            .verify(proven.output, &proven.proof)
             .expect("the proof is of the decoded program");
 
         // Mutation: the hint, its every word flipped in its lowest bit.
@@ -126,7 +119,7 @@ mod tests {
         //     the guest's check fails → it panics → an illegal instruction → no proof
         let wrong = run(BY_WRONG_HINT, &elements(2));
         assert!(matches!(
-            program.prove(&wrong.advice, Rate::MIN),
+            Prover::new(Rate::MIN).prove(&program, &wrong.advice),
             Err(ProveError::Trap(Trap::Illegal { .. }))
         ));
     }

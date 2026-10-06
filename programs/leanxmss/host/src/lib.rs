@@ -3,17 +3,11 @@
 //!
 //! One message at one leaf index for all signers is the Ethereum shape: validators attest to one block.
 
-use leanvm_guest::{PublicValues, as_words_unchecked};
+use leanvm_guest::{PublicValues, Run, as_words_unchecked};
 use leanxmss::{LeafIndex, Message, PublicKey, Signature};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leanxmss.elf");
-
-/// What one run of the guest is given, and what it must output.
-pub struct Run {
-    pub advice: Vec<u64>,
-    pub expected: [u64; 4],
-}
 
 /// The message every signer signs.
 const MESSAGE: Message = [0x4242_4242_4242_4242; 4];
@@ -71,8 +65,7 @@ const fn words_of_signature(signature: &Signature) -> &[u64] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leanvm_core::cpu::Program;
-    use leanvm_core::rv::{Machine, Trap};
+    use leanvm_core::{Machine, Program, Trap};
     use leanxmss::XmssVerifyError::{InvalidEncoding, InvalidMerklePath};
     use leanxmss::{PublicKey, Signature};
     use primitives::hash::{digest_words, hash};
