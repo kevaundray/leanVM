@@ -9,14 +9,14 @@
 //! fingerprint challenges `α, β` are `E`-valued, so a leaf accumulates via the mixed
 //! `mul_base` product (2 PMULL per coordinate).
 
-use crate::arith::{Arith, Native, Verifier};
 use crate::colval::ColVal;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use crate::colval::PackedCoeffs;
 use crate::gkr::GkrError;
 use crate::rec::FixedColumn;
 use crate::{PAR_THRESHOLD, gkr};
-use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
+use fiat_shamir::arith::{Arith, Native, Verifier};
+use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter, VerifierState};
 use parallel::Chunks;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::MixedSums8;
@@ -106,6 +106,20 @@ impl PublicColumn {
         }
     }
 }
+
+/// Arithmetic that evaluates public columns.
+///
+/// A recursive verifier takes a fixed column's evaluation as a hint rather than computing it.
+pub(crate) trait PublicColumns: Arith {
+    /// The multilinear extension of a public column at `point`, lowest coordinate first.
+    fn column_mle(&mut self, column: &PublicColumn, point: &[Self::E]) -> Self::E {
+        self.public_mle(&column.values, point)
+    }
+}
+
+impl PublicColumns for Native {}
+
+impl PublicColumns for VerifierState<'_> {}
 
 impl Coord {
     /// Whether the coordinate is linear in the columns: it multiplies no column by another.
@@ -927,11 +941,6 @@ impl BusForm {
         (self.prods.iter()).fold(acc, |acc, &(a, b, c)| acc ^ (evals[a] * evals[b]).mul_e_unreduced(c))
     }
 
-    /// [`eval_unreduced`](Self::eval_unreduced) on its own.
-    pub fn eval<T: ColVal>(&self, evals: &[T]) -> F192 {
-        T::reduce(self.eval_unreduced(evals, false))
-    }
-
     /// What the form sums to over the table's rows against `eq(ζ, ·)`, the target the
     /// zerocheck settles. The linear part factors through the columns' evaluations at
     /// `ζ`, which is the whole point of a form; a product coordinate does NOT, so
@@ -1051,12 +1060,12 @@ struct Openings<E> {
 
 impl<E: Copy> Openings<E> {
     /// A public column at a prefix of the bus point, evaluated once per column and prefix length.
-    fn public<A: Arith<E = E>>(&mut self, a: &mut A, column: &PublicColumn, point: &[E]) -> E {
+    fn public<A: PublicColumns<E = E>>(&mut self, a: &mut A, column: &PublicColumn, point: &[E]) -> E {
         let key = (Arc::as_ptr(&column.values) as usize, point.len());
         if let Some(&x) = self.public.get(&key) {
             return x;
         }
-        let x = a.public_mle(column, point);
+        let x = a.column_mle(column, point);
         self.public.insert(key, x);
         x
     }
@@ -1109,7 +1118,7 @@ impl Side<'_> {
         clippy::too_many_arguments,
         reason = "the side's fingerprint, point and the claims it extends"
     )]
-    fn decompose<A: Arith, Er>(
+    fn decompose<A: PublicColumns, Er>(
         &self,
         a: &mut A,
         fp: &Fingerprint<A::E>,
@@ -1633,7 +1642,7 @@ pub struct BusVerify<E = F192> {
 /// # Errors
 ///
 /// Returns the GKR's refusal, a malformed stream, a nonce short of the proof of work, or a layout too large for the bus's margin at this grinding.
-pub fn verify_balance<V: Verifier>(
+pub fn verify_balance<V: Verifier + PublicColumns>(
     v: &mut V,
     push: &[Block],
     pull: &[Block],
@@ -1651,7 +1660,7 @@ pub fn verify_balance<V: Verifier>(
         alphas,
         beta: v.sample(),
     };
-    let bus_gkr = gkr::verify_products::<V, 2>(v, setup.mu())?;
+    let bus_gkr = gkr::verify_products(v, setup.mu())?;
     // Every row of every table is a real row (`cpu::filler`), so the two sides balance
     // outright: no padding tuples to divide back out, and no announced row counts whose
     // truthfulness the soundness argument would have to establish. The GKR sends ONE root
@@ -1701,10 +1710,11 @@ pub(crate) mod tests {
         SparseColumn, build_leaves, fingerprint_weights, gkr, layout, prove_balance, soundness_bits, tuple_leaves,
         verify_balance,
     };
-    use crate::cpu::{Layout, Lookup, Program, Sizes, UNGROUND_LOG_BYTECODE};
+    use crate::cpu::layout::Sizes;
+    use crate::cpu::{Layout, Lookup, Program, UNGROUND_LOG_BYTECODE};
     use crate::pcs::MAX_MU;
     use crate::rv::Region;
-    use crate::tables::N_TABLES;
+    use crate::tables::PerTable;
     use fiat_shamir::transcript::{ProverState, VerifierState};
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -1874,7 +1884,7 @@ pub(crate) mod tests {
     fn every_layout_one_commitment_holds_keeps_the_margin_with_its_grinding() {
         // Every block of a RISC-V layout at 2^MAX_MU rows, more than any block of a committed layout has.
         let program = Program::new(&[0x0000_0073], Region::TEXT.base(), vec![], 0, 0).unwrap();
-        let layout = Layout::new(program.rv(), [0; N_TABLES], 0);
+        let layout = Layout::new(program.rv(), PerTable::default(), 0);
         let widest = |blocks: &[Block]| -> Vec<Block> {
             blocks
                 .iter()

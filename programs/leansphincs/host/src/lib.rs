@@ -4,16 +4,10 @@
 //! One message for all signers is the Ethereum shape: validators attest to one block.
 
 use leansphincs::{Message, PublicKey, Signature};
-use leanvm_guest::{PublicValues, as_words_unchecked};
+use leanvm_guest::{PublicValues, Run, as_words_unchecked};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leansphincs.elf");
-
-/// What one run of the guest is given, and what it must output.
-pub struct Run {
-    pub advice: Vec<u64>,
-    pub expected: [u64; 4],
-}
 
 /// The message every signer signs.
 const MESSAGE: Message = [0x4242_4242_4242_4242; 4];
@@ -66,8 +60,7 @@ mod tests {
     use super::*;
     use leansphincs::SphincsVerifyError::{InadmissibleDigest, InadmissibleEncoding, RootMismatch};
     use leansphincs::{Signature, SphincsVerifyError};
-    use leanvm_core::cpu::Program;
-    use leanvm_core::rv::{Machine, Trap};
+    use leanvm_core::{Machine, Program, Trap};
     use primitives::hash::digest_words;
 
     fn hex(bytes: impl IntoIterator<Item = u8>) -> String {

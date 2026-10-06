@@ -35,8 +35,8 @@ use univariate_skip_optimized::{
     c_s, medium_challenges, round1_shift_reduce_extract_c_packed_padded, small_challenges,
 };
 
-pub mod multilinear;
-pub mod univariate_skip;
+pub(crate) mod multilinear;
+pub(crate) mod univariate_skip;
 pub mod univariate_skip_optimized;
 
 /// Number of variables folded in round 1 via the additive-NTT univariate skip.
@@ -83,25 +83,16 @@ fn equality_tail(m: usize, mut sample_vec: impl FnMut(usize) -> Vec<F192>) -> Ve
 ///
 /// The blocks from `live_blocks` on are copies of one padding block: while the rounds bind variables inside a block, they sum one copy, weighted by the tail's eq mass.
 #[derive(Clone, Copy, Debug)]
-pub struct PaddingSpec {
+pub(crate) struct PaddingSpec {
     /// Log of the bits in one block.
     pub k_log: usize,
     /// Bits at the start of each block that carry data; the rest are zero.
-    pub useful_bits_per_block: usize,
+    pub(crate) useful_bits_per_block: usize,
     /// Blocks before the identical tail; at least the block count when there is none.
-    pub live_blocks: usize,
+    pub(crate) live_blocks: usize,
 }
 
 impl PaddingSpec {
-    /// Treat every bit as useful.
-    pub const fn dense(m: usize) -> Self {
-        Self {
-            k_log: m,
-            useful_bits_per_block: 1usize << m,
-            live_blocks: 1,
-        }
-    }
-
     /// The same blocks, with no tail known.
     pub(crate) const fn without_tail(self) -> Self {
         Self {
@@ -155,7 +146,7 @@ pub(crate) struct Tail {
 
 impl Tail {
     /// The last group's bytes of a packed witness.
-    pub fn group<'a>(&self, packed: &'a [u8]) -> &'a [u8] {
+    pub(crate) fn group<'a>(&self, packed: &'a [u8]) -> &'a [u8] {
         &packed[packed.len() - (1 << self.group_log) / 8..]
     }
 }
@@ -187,19 +178,19 @@ fn eq_mass_from(r: &[F192], from: usize) -> F192 {
 /// three claims share the point its challenges define, and lincheck can batch
 /// them into one reduction.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ZerocheckClaim {
+pub(crate) struct ZerocheckClaim {
     /// Univariate-skip challenge sampled after round 1 (binds the K_SKIP
     /// skip variables), represented directly in `F192`.
     pub z: F192,
     /// Sumcheck bind challenges, the batch's first `m - K_SKIP`.
     pub mlv_challenges: Vec<F192>,
     /// `â(z, mlv_challenges)`.
-    pub a_eval: F192,
+    pub(crate) a_eval: F192,
     /// `b̂(z, mlv_challenges)`.
-    pub b_eval: F192,
+    pub(crate) b_eval: F192,
     /// `ĉ(z, mlv_challenges)`. The batch's terminal identity ties it to the other
     /// claims, and lincheck's α-batched identity pins all three.
-    pub c_eval: F192,
+    pub(crate) c_eval: F192,
 }
 
 /// Why the zerocheck verifier rejects.
@@ -225,7 +216,7 @@ pub enum ZerocheckError {
 ///
 /// Only round 1 reads `c`: the later passes derive `c = a AND b`, which an honest witness satisfies.
 #[derive(Clone, Copy, Debug)]
-pub struct ZerocheckInput<'a> {
+pub(crate) struct ZerocheckInput<'a> {
     pub bits: PackedWitness<'a>,
     pub c: &'a [u8],
     pub m: usize,
@@ -467,7 +458,7 @@ impl<'a> CircuitProver<'a> {
 /// `f` is done after its `n_f` rounds: from then on it adds the constant `G` it
 /// ended on, which reaches only the coefficient the claim fixes. Each circuit's
 /// claims sit at the batch's challenges' first `n_f`.
-pub fn prove(inputs: &[ZerocheckInput<'_>], ps: &mut ProverState) -> Vec<ZerocheckClaim> {
+pub(crate) fn prove(inputs: &[ZerocheckInput<'_>], ps: &mut ProverState) -> Vec<ZerocheckClaim> {
     let n_mlv = inputs.iter().map(|i| i.m).max().expect("a batch has a circuit") - K_SKIP;
 
     // r_rest layout:
@@ -550,7 +541,7 @@ pub fn prove(inputs: &[ZerocheckInput<'_>], ps: &mut ProverState) -> Vec<Zeroche
 /// checked here: what makes the claims meaningful is lincheck, which pins every
 /// circuit's three against its committed witness. Never call this alone and treat
 /// `Ok` as acceptance.
-pub fn verify(log_ns: &[usize], vs: &mut VerifierState<'_>) -> Result<Vec<ZerocheckClaim>, ZerocheckError> {
+pub(crate) fn verify(log_ns: &[usize], vs: &mut VerifierState<'_>) -> Result<Vec<ZerocheckClaim>, ZerocheckError> {
     if let Some(&log_n) = log_ns.iter().find(|&&m| m < MIN_LOG_N) {
         return Err(ZerocheckError::LogNTooSmall { log_n, k_skip: K_SKIP });
     }
@@ -621,6 +612,17 @@ mod tests {
     use super::*;
     use primitives::test_util::Rng;
     use univariate_skip::tests::pack_bits;
+
+    impl PaddingSpec {
+        // Every bit useful.
+        pub(crate) const fn dense(m: usize) -> Self {
+            Self {
+                k_log: m,
+                useful_bits_per_block: 1usize << m,
+                live_blocks: 1,
+            }
+        }
+    }
 
     /// Test shim: one dense circuit.
     fn prove_packed(

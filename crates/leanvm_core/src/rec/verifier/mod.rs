@@ -7,8 +7,8 @@
 
 use super::circuit::{Builder, Ew};
 use super::transcript::Transcript;
-use crate::arith::{Arith, Verifier};
-use crate::leaf::PublicColumn;
+use crate::leaf::{PublicColumn, PublicColumns};
+use fiat_shamir::arith::{Arith, Verifier};
 use fiat_shamir::transcript::TranscriptError;
 use primitives::field::F192;
 use recursion::FixedHints;
@@ -26,7 +26,7 @@ mod tests;
 pub(crate) use flock::SkipDomain;
 pub(crate) use recursion::{FixedHint, RecShape};
 pub(crate) use ring::RingMap;
-pub use riscv::{CoreRows, ProofShape};
+pub use riscv::ProofShape;
 
 /// The verifier's arithmetic and transcript as rows: a circuit being built, and a transcript replayed in it.
 ///
@@ -131,11 +131,13 @@ impl Arith for Rows<'_, '_> {
     fn mul(&mut self, a: Ew, b: Ew) -> Ew {
         self.b.mul(a, b)
     }
+}
 
-    fn public_mle(&mut self, column: &PublicColumn, point: &[Ew]) -> Ew {
+impl PublicColumns for Rows<'_, '_> {
+    fn column_mle(&mut self, column: &PublicColumn, point: &[Ew]) -> Ew {
         match (self.fixed.as_deref_mut(), column.fixed) {
             (Some(hints), Some(fixed)) => hints.evaluate(self.b, fixed, point),
-            _ => Arith::public_mle(&mut *self.b, column, point),
+            _ => self.b.public_mle(&column.values, point),
         }
     }
 }

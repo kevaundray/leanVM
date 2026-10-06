@@ -4,11 +4,12 @@ use super::batch::{FormPowers, VerifierBatch};
 use super::deferred::{Claim, ProgramPoint};
 use super::error::CpuError;
 use super::layout::{Framework, Layout, Schema};
-use crate::arith::Verifier;
 use crate::constraints::Claims;
+use crate::leaf::PublicColumns;
 use crate::pcs::StackClaim;
 use crate::tables::{ClassTable, N_TABLES};
 use crate::{constraints, leaf};
+use fiat_shamir::arith::Verifier;
 
 /// What the bus and the table sumcheck leave to the rest of the verifier.
 pub(crate) struct TableReduction<E> {
@@ -58,7 +59,7 @@ impl Layout {
     /// # Errors
     ///
     /// Returns the bus's or the table sumcheck's refusal.
-    pub(crate) fn reduce_tables<V: Verifier>(
+    pub(crate) fn reduce_tables<V: Verifier + PublicColumns>(
         &self,
         v: &mut V,
         clock: V::E,
@@ -70,7 +71,7 @@ impl Layout {
             &self.pull,
             &self.producers,
             self.grinding,
-            &Schema::get().spans,
+            Schema::get().spans.as_slice(),
         )
         .map_err(CpuError::Bus)?;
         let per_tick = v.mul(
@@ -85,7 +86,7 @@ impl Layout {
         // Its forms there, its register numbers taken as zero, are its share of each side short of their part, which
         // leaves the rest owed: in characteristic two, the sum.
         let mut settled = Vec::with_capacity(N_TABLES);
-        for (t, table) in ClassTable::all().iter().enumerate() {
+        for (t, table) in ClassTable::all().iter() {
             if !table.settled_at_bus() {
                 continue;
             }
@@ -102,7 +103,7 @@ impl Layout {
                 })
                 .collect();
             for (total, forms) in bus.totals.iter_mut().zip(&bus.forms) {
-                let share = forms[t].at(v, &evals);
+                let share = forms[t.index()].at(v, &evals);
                 *total = v.add(*total, share);
             }
             settled.push(Claims {

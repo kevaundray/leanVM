@@ -4,8 +4,10 @@ mod arith;
 mod bits;
 mod hash;
 
-use super::{Assignment, Circuit, Compression, Dw, Ew, Finished, Kw, Limbs, PubSource, TableSlots, WireKind};
-use crate::rec::table::Table;
+use super::{
+    Assignment, Circuit, Compression, Dw, Ew, Finished, Kw, Limbs, PubSource, TableSlots, Unsatisfied, WireKind,
+};
+use crate::rec::table::{PerRecTable, Table};
 use primitives::field::F192;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
@@ -97,10 +99,7 @@ pub struct Builder {
     scope: Vec<String>,
 
     /// Failed checks collected with their enclosing scope names, the first few only.
-    failures: Vec<String>,
-
-    /// How many failed checks were past the recorded ones.
-    unrecorded: usize,
+    failures: Vec<Unsatisfied>,
 }
 
 impl Builder {
@@ -121,18 +120,18 @@ impl Builder {
     }
 
     /// Record a check that failed on the values and that no equality expresses.
-    pub fn fail(&mut self, what: &str) {
+    pub fn fail(&mut self, check: &'static str) {
         if self.failures.len() < Self::RECORDED_FAILURES {
-            self.failures.push(format!("{}: {what}", self.scope.join(" / ")));
-        } else {
-            self.unrecorded += 1;
+            self.failures.push(Unsatisfied {
+                scope: self.scope.clone(),
+                check,
+            });
         }
     }
 
     /// The circuit, its values, and the checks that failed on them.
     ///
     /// A wire class is numbered by its first slot, so a circuit is the same however it was built.
-    /// Past the recorded failures, a last entry counts the others.
     pub fn finish(mut self) -> Finished {
         let (wires, pubs) = self.statement_first();
         let mut number: Vec<Option<u32>> = vec![None; self.values.len()];
@@ -144,14 +143,11 @@ impl Builder {
                 n_classes - 1
             })
         });
-        if self.unrecorded > 0 {
-            self.failures.push(format!("{} more failed checks", self.unrecorded));
-        }
         let circuit = Circuit {
             classes,
             pubs,
             statement_len: self.statement.len(),
-            floor: [0; Table::COUNT],
+            floor: PerRecTable::default(),
         };
         let assignment = Assignment {
             wires,
@@ -340,14 +336,19 @@ impl Builder {
     pub fn expose_e(&mut self, w: Ew) -> usize {
         self.expose(w.0)
     }
+}
 
-    /// Make `w` a word of the statement.
-    pub fn expose_k(&mut self, w: Kw) -> usize {
-        self.expose(w.0)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    /// Make `w` a word of the statement.
-    pub fn expose_d(&mut self, w: Dw) -> usize {
-        self.expose(w.0)
+    impl Builder {
+        pub(crate) fn expose_k(&mut self, w: Kw) -> usize {
+            self.expose(w.0)
+        }
+
+        pub(crate) fn expose_d(&mut self, w: Dw) -> usize {
+            self.expose(w.0)
+        }
     }
 }

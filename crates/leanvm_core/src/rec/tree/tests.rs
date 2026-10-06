@@ -2,14 +2,14 @@ use super::claims::{Bits, DenseClaim, DenseTerm, MatrixClaim, NodeClaims};
 use super::reduce::{DenseProver, DenseVars, LABEL, MatrixProver, MatrixReduced, ReduceError};
 use super::statement::{Section, digest_halves_rows};
 use super::*;
-use crate::arith::{Arith, Native};
-use crate::cpu::Claim;
+use crate::cpu::{Claim, Prover};
 use crate::rec::circuit::{Assignment, Builder, Kw};
 use crate::rec::table::HashFlock;
 use crate::rv::Region;
 use crate::rv::asm::*;
-use crate::tables::ClassSpec;
+use crate::tables::TableId;
 use design::NodeRows;
+use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::{Challenger, ProverState, Transmitter, VerifierState};
 use flock::lincheck::MatrixForm;
 use primitives::multilinear::mle_eval;
@@ -46,8 +46,10 @@ fn fixture() -> &'static Fixture {
     FIXTURE.get_or_init(|| {
         let leaves: Vec<(Proof, Output)> = (1..=4)
             .map(|advice| {
-                let (proof, output, _) = program().prove(&[advice], Rate::MIN).expect("the run halts");
-                (proof, Output::new(output))
+                let run = Prover::new(Rate::MIN)
+                    .prove(program(), &[advice])
+                    .expect("the run halts");
+                (run.proof, run.output)
             })
             .collect();
         let shape = LeafShape::of(&leaves[0].0).expect("a canonical announcement");
@@ -181,13 +183,11 @@ fn what_a_prover_is_handed_is_checked() {
         f.tree.prove_first(&[pairs[0], Leaf::new(&forged, f.leaves[1].1)]),
         Err(TreeError::Leaf { index: 1, .. })
     ));
-    let (longer, output, _) = program()
-        .prove(&[7], Rate::new(2).expect("a rate"))
-        .expect("the run halts");
+    let ProvenRun {
+        proof: longer, output, ..
+    } = (Prover::new(Rate::new(2).expect("a rate")).prove(program(), &[7])).expect("the run halts");
     assert_eq!(
-        f.tree
-            .prove_first(&[Leaf::new(&longer, Output::new(output)), pairs[1]])
-            .map(|_| ()),
+        f.tree.prove_first(&[Leaf::new(&longer, output), pairs[1]]).map(|_| ()),
         Err(TreeError::ForeignLeaf { index: 0 })
     );
 
@@ -244,7 +244,7 @@ fn a_proven_circuit_is_the_shapes() {
     let d = &f.tree.design;
     let leaves: Vec<LeafWitness> = (f.leaves[..2].iter())
         .map(|(proof, output)| LeafWitness {
-            raw: program().verify_to_raw(output.words(), proof).expect("an honest leaf"),
+            raw: program().verify_to_raw(*output, proof).expect("an honest leaf"),
             output: *output.words(),
         })
         .collect();
@@ -352,7 +352,7 @@ fn a_fake_child_circuit_is_refused_at_the_root() {
     // An honest reduction over the tree's polynomials fails on the fake's hints.
     let honest = f.tree.prove_rows(d.node(&inputs(&f.tree.tables)), Kind::Node);
     assert!(
-        matches!(&honest, Err(TreeError::Unsatisfied(check)) if check.starts_with("reduction")),
+        matches!(&honest, Err(TreeError::Unsatisfied(check)) if check.scope()[0] == "reduction"),
         "{:?}",
         honest.map(|p| p.kind())
     );
@@ -426,7 +426,7 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
 
     let theta = ps.sample();
     let mut rows = MatrixProver::new(&claims.matrices, theta);
-    let r: Vec<F192> = (0..crate::class_flock::max_k_log())
+    let r: Vec<F192> = (0..FlockId::MAX_K_LOG)
         .map(|i| {
             ps.add_scalars(&rows.message());
             let x = ps.sample();
@@ -435,7 +435,7 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
         })
         .collect();
     let mut cols = rows.columns(&claims.matrices, &r);
-    let s: Vec<F192> = (0..crate::class_flock::max_k_log())
+    let s: Vec<F192> = (0..FlockId::MAX_K_LOG)
         .map(|i| {
             ps.add_scalars(&cols.message());
             let x = ps.sample();
@@ -462,7 +462,7 @@ fn forged_first(f: &Fixture, forge: Forge) -> TreeProof {
     let d = &f.tree.design;
     let items: Vec<LeafWitness> = (f.leaves[..2].iter())
         .map(|(proof, output)| LeafWitness {
-            raw: program().verify_to_raw(output.words(), proof).expect("an honest leaf"),
+            raw: program().verify_to_raw(*output, proof).expect("an honest leaf"),
             output: *output.words(),
         })
         .collect();
@@ -495,7 +495,7 @@ fn forged_reduced_claims_are_refused() {
         (
             Forge::Matrix,
             FalseClaim::Matrix {
-                table: ClassSpec::ALL[0].name,
+                table: TableId::ALU.name(),
                 part: Part::Class,
             },
         ),
@@ -508,7 +508,7 @@ fn forged_reduced_claims_are_refused() {
         );
         let carried = f.tree.prove_node(&[forged, f.firsts[1].clone()]);
         assert!(
-            matches!(&carried, Err(TreeError::Unsatisfied(check)) if check.starts_with("reduction")),
+            matches!(&carried, Err(TreeError::Unsatisfied(check)) if check.scope()[0] == "reduction"),
             "{forge:?}: {:?}",
             carried.map(|p| p.kind())
         );
@@ -741,8 +741,12 @@ fn matrix_claims(rng: &mut Rng) -> Vec<MatrixClaim<F192>> {
     let (alpha, z_skip) = (rng.ext(), rng.ext());
     let (x, r) = (rng.ext_vec(16), rng.ext_vec(16));
     let mut claims = Vec::new();
-    for (i, f) in [0, 0, 3, HashFlock::index()].into_iter().enumerate() {
-        let circuit = crate::class_flock::circuit(f);
+    let first = FlockId::ALL[0];
+    for (i, f) in [first, first, FlockId::ALL[3], HashFlock::FLOCK]
+        .into_iter()
+        .enumerate()
+    {
+        let circuit = f.circuit();
         let k = circuit.k_log();
         let form = MatrixForm {
             alpha,
@@ -780,13 +784,13 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
     };
     let proof = prove(&claims);
     let reduced = verify(&claims, &proof).expect("an honest reduction");
-    for (f, values) in reduced.values.iter().enumerate() {
-        let circuit = crate::class_flock::circuit(f);
+    for (f, values) in FlockId::ALL.into_iter().zip(&reduced.values) {
+        let circuit = f.circuit();
         let k = circuit.k_log();
         let (ra, rb) = circuit.row_values(&eq_table(&reduced.cols[..k]));
         let u = eq_table(&reduced.rows[..k]);
         let dot = |r: &[F192]| u.iter().zip(r).fold(F192::ZERO, |acc, (&x, &y)| acc + x * y);
-        assert_eq!(*values, [dot(&ra), dot(&rb)], "circuit {f}");
+        assert_eq!(*values, [dot(&ra), dot(&rb)], "{f:?}");
     }
     for c in [0, 2] {
         let mut false_claims = claims.clone();

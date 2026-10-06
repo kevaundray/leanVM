@@ -8,18 +8,12 @@
 use fiat_shamir::FiatShamirState;
 use fiat_shamir::merkle::hash_to_scalars;
 use leanda::{CELLS, Dual, Hash, LOG_K, M};
-use leanvm_guest::PublicValues;
+use leanvm_guest::{PublicValues, Run};
 use pcs::ntt::AdditiveNttF64;
 use primitives::field::{F64, F192};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leanda.elf");
-
-/// What one run of the guest is given, and what it must output.
-pub struct Run {
-    pub advice: Vec<u64>,
-    pub expected: [u64; 4],
-}
 
 /// Transcript label, so a membership challenge is never any other challenge.
 const LABEL: &[u8] = b"leanDA/rs-membership/v1";
@@ -119,8 +113,7 @@ const fn as_field(words: &mut [u64]) -> &mut [F64] {
 mod tests {
     use super::*;
     use leanda::{DaError, Hash};
-    use leanvm_core::cpu::Program;
-    use leanvm_core::rv::{Machine, Trap};
+    use leanvm_core::{Machine, Program, Trap};
 
     fn hex(words: &[u64]) -> String {
         words

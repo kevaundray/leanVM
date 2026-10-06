@@ -31,9 +31,9 @@
 //!
 //! It never carries them, because they are never built. The committed block is
 //! 2^14 bits whatever the density, and nothing reads a matrix entry: the two
-//! directions a proof needs are walks of this circuit, [`bilinear_walk_pair`]
-//! forwards (also [`row_values_walk`], the same pass keeping its per-row values)
-//! and [`marginal_walk`] backwards. Density is therefore free, which is what
+//! directions a proof needs are walks of this circuit, `bilinear_walk_pair`
+//! forwards (also `row_values_walk`, the same pass keeping its per-row values)
+//! and `marginal_walk` backwards. Density is therefore free, which is what
 //! makes the slot-minimal encoding above the right trade. See doc/leanvm,
 //! Annex C "Evaluating the matrices".
 //!
@@ -87,26 +87,10 @@ use crate::gf2::{
     walk_add3_fused, wire_from_const, wire_from_slot_base, wire_rotl, wire_rotr, wire_xor,
 };
 use crate::lincheck::LincheckCircuit;
-use crate::reduction;
 use crate::reduction::Block;
-use crate::verifier::FlockError;
-use crate::witness::{
-    BitRecord, add_carry_parts, add3_fused_parts, drive_witness_packed_and_lincheck, or_bit_at, with_z,
-    write_lin_word_ab_packed,
-};
-use fiat_shamir::transcript::{ProverState, VerifierState};
-use pcs::pack::LOG_PACKING;
-use pcs::stack_open::SliceClaim;
+use crate::witness::{Witness, drive_witness_packed_and_lincheck, with_z};
 use primitives::field::F192;
-
-pub use crate::reduction::{Instance, ReductionReplay, min_n_blocks_log};
-
-/// BLAKE2s initial values, the SHA-256 IV.
-pub use primitives::hash::IV as BLAKE2S_IV;
-
-/// BLAKE2s message schedule and per-G lane assignment, from the native hash so
-/// the circuit provably encodes the same schedule the prover computes.
-pub use primitives::hash::{G_LANES, SIGMA};
+use primitives::hash::{G_LANES, IV, SIGMA};
 
 // ---------------------------------------------------------------------------
 // Public constants
@@ -120,17 +104,17 @@ pub const K: usize = 1 << K_LOG;
 pub const K_SKIP: usize = 6;
 
 /// Number of BLAKE2s rounds.
-pub const N_ROUNDS: usize = primitives::hash::ROUNDS;
+pub(crate) const N_ROUNDS: usize = primitives::hash::ROUNDS;
 /// Number of G calls per round (4 column + 4 diagonal).
-pub const N_G_PER_ROUND: usize = 8;
+pub(crate) const N_G_PER_ROUND: usize = 8;
 /// Total G calls per compression.
-pub const N_G: usize = N_ROUNDS * N_G_PER_ROUND; // 80
+pub(crate) const N_G: usize = N_ROUNDS * N_G_PER_ROUND; // 80
 /// Bits per BLAKE2s word.
-pub const WORD_BITS: usize = crate::gf2::WORD_BITS;
+pub(crate) const WORD_BITS: usize = crate::gf2::WORD_BITS;
 
 /// Bits per G block: two fused three-operand ADDs and two two-operand ADDs,
 /// nothing materialized.
-pub const G_STRIDE: usize = 2 * ADD3_BITS + 2 * CARRY_BITS_PER_ADD; // 184
+pub(crate) const G_STRIDE: usize = 2 * ADD3_BITS + 2 * CARRY_BITS_PER_ADD; // 184
 
 // ---------------------------------------------------------------------------
 // Layout positions (bit indices into the per-block z slice of length K)
@@ -138,16 +122,16 @@ pub const G_STRIDE: usize = 2 * ADD3_BITS + 2 * CARRY_BITS_PER_ADD; // 184
 
 /// One 256-bit chaining value, `2^8`, so `cv` and `out` are aligned slots.
 pub const SLOT_BITS: usize = 256;
-pub const CV_BASE: usize = 0; // the input chaining value, slot 0: [0, 256)
-pub const OUT_BASE: usize = SLOT_BITS; // the compression result, slot 1: [256, 512)
-pub const Z_CONST_POS: usize = 2 * SLOT_BITS; // 512
-pub const MSG_BASE: usize = (Z_CONST_POS + 1).div_ceil(128) * 128; // the 512-bit message block, 640 (128-aligned)
-pub const COUNTER_LO_BASE: usize = MSG_BASE + 16 * WORD_BITS; // 1152
-pub const COUNTER_HI_BASE: usize = COUNTER_LO_BASE + WORD_BITS; // 1184
-pub const FINAL_BASE: usize = COUNTER_HI_BASE + WORD_BITS; // 1216
-pub const LAST_NODE_BASE: usize = FINAL_BASE + WORD_BITS; // 1248
-pub const GS_BASE: usize = LAST_NODE_BASE + WORD_BITS; // 1280
-pub const USEFUL_BITS: usize = GS_BASE + N_G * G_STRIDE; // 16,000
+pub(crate) const CV_BASE: usize = 0; // the input chaining value, slot 0: [0, 256)
+pub(crate) const OUT_BASE: usize = SLOT_BITS; // the compression result, slot 1: [256, 512)
+pub(crate) const Z_CONST_POS: usize = 2 * SLOT_BITS; // 512
+pub(crate) const MSG_BASE: usize = (Z_CONST_POS + 1).div_ceil(128) * 128; // the 512-bit message block, 640 (128-aligned)
+pub(crate) const COUNTER_LO_BASE: usize = MSG_BASE + 16 * WORD_BITS; // 1152
+pub(crate) const COUNTER_HI_BASE: usize = COUNTER_LO_BASE + WORD_BITS; // 1184
+pub(crate) const FINAL_BASE: usize = COUNTER_HI_BASE + WORD_BITS; // 1216
+pub(crate) const LAST_NODE_BASE: usize = FINAL_BASE + WORD_BITS; // 1248
+pub(crate) const GS_BASE: usize = LAST_NODE_BASE + WORD_BITS; // 1280
+pub(crate) const USEFUL_BITS: usize = GS_BASE + N_G * G_STRIDE; // 16,000
 
 const _: () = assert!(USEFUL_BITS <= K, "BLAKE2s does not fit the 2^K_LOG block");
 
@@ -181,47 +165,18 @@ fn g_slot(g: usize, off: usize) -> usize {
     GS_BASE + G_STRIDE * g + off
 }
 
-// ---------------------------------------------------------------------------
-// Reference BLAKE2s compression, the witness oracle.
-// ---------------------------------------------------------------------------
-
-#[inline]
-const fn g_fn(v: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
-    v[a] = v[a].wrapping_add(v[b]).wrapping_add(mx);
-    v[d] = (v[d] ^ v[a]).rotate_right(16);
-    v[c] = v[c].wrapping_add(v[d]);
-    v[b] = (v[b] ^ v[c]).rotate_right(12);
-    v[a] = v[a].wrapping_add(v[b]).wrapping_add(my);
-    v[d] = (v[d] ^ v[a]).rotate_right(8);
-    v[c] = v[c].wrapping_add(v[d]);
-    v[b] = (v[b] ^ v[c]).rotate_right(7);
-}
-
 /// The 16-word working state a compression starts from: the chaining value,
 /// the first four IV words, and the last four IV words XOR'd with the counter
 /// and the finalization flags.
 fn initial_state(h: &[u32; 8], t: u64, f0: u32, f1: u32) -> [u32; 16] {
     let mut v = [0u32; 16];
     v[..8].copy_from_slice(h);
-    v[8..12].copy_from_slice(&BLAKE2S_IV[..4]);
-    v[12] = BLAKE2S_IV[4] ^ (t as u32);
-    v[13] = BLAKE2S_IV[5] ^ ((t >> 32) as u32);
-    v[14] = BLAKE2S_IV[6] ^ f0;
-    v[15] = BLAKE2S_IV[7] ^ f1;
+    v[8..12].copy_from_slice(&IV[..4]);
+    v[12] = IV[4] ^ (t as u32);
+    v[13] = IV[5] ^ ((t >> 32) as u32);
+    v[14] = IV[6] ^ f0;
+    v[15] = IV[7] ^ f1;
     v
-}
-
-/// BLAKE2s compression function (RFC 7693 §3.2). Returns the new chaining
-/// value `h'[i] = h[i] ^ v[i] ^ v[i+8]`.
-pub fn blake2s_compress(h: &[u32; 8], m: &[u32; 16], t: u64, f0: u32, f1: u32) -> [u32; 8] {
-    let mut v = initial_state(h, t, f0, f1);
-    for r in 0..N_ROUNDS {
-        for g in 0..N_G_PER_ROUND {
-            let [la, lb, lc, ld] = G_LANES[g];
-            g_fn(&mut v, la, lb, lc, ld, m[SIGMA[r][2 * g]], m[SIGMA[r][2 * g + 1]]);
-        }
-    }
-    std::array::from_fn(|i| h[i] ^ v[i] ^ v[i + 8])
 }
 
 /// One BLAKE2s compression input: `(h, m, t, f0, f1)`.
@@ -229,14 +184,14 @@ pub type Compression = ([u32; 8], [u32; 16], u64, u32, u32);
 
 /// BLAKE2s-256's initial chaining value: the IV with the parameter block
 /// (digest length 32, no key, fanout/depth 1) folded into word 0.
-pub const fn param_iv() -> [u32; 8] {
+pub(crate) const fn param_iv() -> [u32; 8] {
     primitives::hash::PARAM_IV
 }
 
 /// The byte counter of a single 64-byte block.
-pub const PINNED_T: u64 = 64;
+pub(crate) const PINNED_T: u64 = 64;
 /// The final-block flag `f0`: a one-block message is also its last block.
-pub const PINNED_F0: u32 = u32::MAX;
+pub(crate) const PINNED_F0: u32 = u32::MAX;
 
 /// A convenient one-block standard hash [`Compression`] of `m`: exactly
 /// `blake2s(m)` for a 64-byte message, which is the configuration the VM's
@@ -249,30 +204,9 @@ pub const fn pinned_compression(m: [u32; 16]) -> Compression {
 /// The padding instance: `blake2s(0^64)`. Fills unused trailing slots so every
 /// batched block is a valid instance with constant wire 1, as the lincheck
 /// const-wire pin requires.
-pub const fn padding_block() -> Compression {
+pub(crate) const fn padding_block() -> Compression {
     pinned_compression([0u32; 16])
 }
-
-/// Domain separator for this circuit in the Fiat-Shamir seed
-/// (`leanvm_core::cpu`), baked as an opaque constant.
-///
-/// **Provenance.** It is the old `BlockR1cs::r1cs_digest` (a since-deleted struct) at `n_blocks_log = 3`,
-/// under the tag `flock-r1cs-digest-v3`, absorbing in order: `k_log = 14`,
-/// `k_skip = 6` (little-endian `u64`s), the layout byte `0` for `RowMajor`, the
-/// pin marker `1` and `const_pin = 512` (little-endian `u64`), then the dense
-/// bit images of `A_0`, `B_0` and `C_0 = I`. That recipe needed the materialized
-/// matrices, which this module no longer builds: nothing on a prove or verify
-/// path reads a matrix entry now (both directions are circuit walks,
-/// `bilinear_walk_pair` and `marginal_walk`), so the memory and the time they
-/// cost bought only this constant. To recompute it, check out the last
-/// commit that still had `build_matrices` and run `r1cs_digest_matches_baked`.
-///
-/// The value is mirrored in `python-verifier/verifier.py`, which never could
-/// rebuild the matrices, so a deliberate circuit change means bumping both by hand.
-pub const R1CS_DIGEST: [u8; 32] = [
-    0x53, 0x7a, 0xd2, 0x07, 0x90, 0x30, 0x8f, 0x8e, 0xb8, 0xc0, 0xe8, 0xbd, 0x3e, 0x6c, 0x58, 0xee, 0x64, 0x57, 0x33,
-    0x71, 0xe3, 0xd5, 0x3c, 0x30, 0x61, 0x3d, 0xd0, 0x4d, 0x87, 0xc0, 0xb7, 0xea,
-];
 
 // ---------------------------------------------------------------------------
 // Circuit-walk evaluation: `(uᵀ A_0 w, uᵀ B_0 w)` in O(circuit) field ops,
@@ -299,14 +233,14 @@ fn forward_walk(sink: &mut RowValues, w: &[F192]) {
         *slot = wire_from_slot_base(w, h_bit(wd, 0));
     }
     for i in 0..4 {
-        state[8 + i] = wire_from_const(w, BLAKE2S_IV[i], Z_CONST_POS);
+        state[8 + i] = wire_from_const(w, IV[i], Z_CONST_POS);
     }
     for (i, base) in [COUNTER_LO_BASE, COUNTER_HI_BASE, FINAL_BASE, LAST_NODE_BASE]
         .into_iter()
         .enumerate()
     {
         state[12 + i] = wire_xor(
-            &wire_from_const(w, BLAKE2S_IV[4 + i], Z_CONST_POS),
+            &wire_from_const(w, IV[4 + i], Z_CONST_POS),
             &wire_from_slot_base(w, base),
         );
     }
@@ -347,7 +281,7 @@ fn forward_walk(sink: &mut RowValues, w: &[F192]) {
     }
 }
 
-pub fn bilinear_walk_pair(u: &[F192], w: &[F192]) -> (F192, F192) {
+pub(crate) fn bilinear_walk_pair(u: &[F192], w: &[F192]) -> (F192, F192) {
     assert_eq!(u.len(), K);
     assert_eq!(w.len(), K);
     let (a, b) = row_values_walk(w);
@@ -363,7 +297,7 @@ pub fn bilinear_walk_pair(u: &[F192], w: &[F192]) -> (F192, F192) {
 /// The matrix-vector products `(A_0 w, B_0 w)`, i.e. every row's inner product
 /// with `w`, by one forward walk. This takes O(circuit) additions instead of one
 /// pass over the nonzeros, and neither matrix is materialized.
-pub fn row_values_walk(w: &[F192]) -> (Vec<F192>, Vec<F192>) {
+pub(crate) fn row_values_walk(w: &[F192]) -> (Vec<F192>, Vec<F192>) {
     assert_eq!(w.len(), K);
     let mut sink = RowValues::new(K, w[Z_CONST_POS]);
     forward_walk(&mut sink, w);
@@ -372,7 +306,7 @@ pub fn row_values_walk(w: &[F192]) -> (Vec<F192>, Vec<F192>) {
 
 /// `(uᵀ A_0 w) + α·(uᵀ B_0 w)`, the α-batched form lincheck's verifier
 /// consumes.
-pub fn bilinear_walk(alpha: F192, u: &[F192], w: &[F192]) -> F192 {
+pub(crate) fn bilinear_walk(alpha: F192, u: &[F192], w: &[F192]) -> F192 {
     let (va, vb) = bilinear_walk_pair(u, w);
     va + alpha * vb
 }
@@ -480,7 +414,7 @@ fn marginal_walk_side(side: MatrixSide, u: &[F192]) -> Vec<F192> {
     let mut const_adj = F192::ZERO;
     for i in 0..4 {
         for (b, &bit) in adj[8 + i].iter().enumerate() {
-            if (BLAKE2S_IV[i] >> b) & 1 == 1 {
+            if (IV[i] >> b) & 1 == 1 {
                 const_adj += bit;
             }
         }
@@ -491,7 +425,7 @@ fn marginal_walk_side(side: MatrixSide, u: &[F192]) -> Vec<F192> {
     {
         for b in 0..WORD_BITS {
             m[base + b] += adj[12 + i][b];
-            if (BLAKE2S_IV[4 + i] >> b) & 1 == 1 {
+            if (IV[4 + i] >> b) & 1 == 1 {
                 const_adj += adj[12 + i][b];
             }
         }
@@ -504,7 +438,7 @@ fn marginal_walk_side(side: MatrixSide, u: &[F192]) -> Vec<F192> {
 
 /// The two column marginals `(A_0ᵀ u, B_0ᵀ u)`, by one backward walk per matrix.
 /// Neither matrix is materialized.
-pub fn marginal_walk_pair(u: &[F192]) -> (Vec<F192>, Vec<F192>) {
+pub(crate) fn marginal_walk_pair(u: &[F192]) -> (Vec<F192>, Vec<F192>) {
     (
         marginal_walk_side(MatrixSide::A, u),
         marginal_walk_side(MatrixSide::B, u),
@@ -512,7 +446,7 @@ pub fn marginal_walk_pair(u: &[F192]) -> (Vec<F192>, Vec<F192>) {
 }
 
 /// The α-batched column marginal `(A_0 + α B_0)ᵀ u` used by lincheck.
-pub fn marginal_walk(alpha: F192, u: &[F192]) -> Vec<F192> {
+pub(crate) fn marginal_walk(alpha: F192, u: &[F192]) -> Vec<F192> {
     let (mut a, b) = marginal_walk_pair(u);
     for (a, b) in a.iter_mut().zip(b) {
         *a += alpha * b;
@@ -525,7 +459,7 @@ pub fn marginal_walk(alpha: F192, u: &[F192]) -> Vec<F192> {
 /// verifier never materializes the substituted matrices' column
 /// marginal. `fold_alpha_batched` walks the circuit backwards
 /// ([`marginal_walk`]), so this circuit needs no matrices on either side.
-pub struct WalkLincheckCircuit;
+pub(crate) struct WalkLincheckCircuit;
 
 impl LincheckCircuit for WalkLincheckCircuit {
     fn n_cols(&self) -> usize {
@@ -547,6 +481,111 @@ impl LincheckCircuit for WalkLincheckCircuit {
 // computation, as bit-packed u64 words. Row-witness semantics match the row
 // assignment of doc/leanvm, Annex C, the same one the walks above encode.
 // ---------------------------------------------------------------------------
+
+/// OR the low 32 bits of `val` into `buf` starting at bit-offset `bit_off`.
+/// Handles u64 straddling when `bit_off % 64 > 32`.
+#[inline(always)]
+const fn or_u32_at_bit(buf: &mut [u64], bit_off: usize, val: u32) {
+    let u64_idx = bit_off >> 6;
+    let shift = bit_off & 63;
+    buf[u64_idx] |= (val as u64) << shift;
+    if shift > 32 {
+        buf[u64_idx + 1] |= (val as u64) >> (64 - shift);
+    }
+}
+
+/// Set bit `bit_off` of `buf` (low-bit-first within each u64).
+#[inline(always)]
+const fn or_bit_at(buf: &mut [u64], bit_off: usize) {
+    buf[bit_off >> 6] |= 1u64 << (bit_off & 63);
+}
+
+/// A `64·NW`-bit record composed in registers and flushed into the block once.
+struct BitRecord<const NW: usize> {
+    w: [u64; NW],
+}
+
+impl<const NW: usize> BitRecord<NW> {
+    #[inline(always)]
+    const fn new() -> Self {
+        Self { w: [0u64; NW] }
+    }
+
+    /// OR a (pre-masked) value into record bits `[POS, POS + width)`.
+    /// `POS` is const so the straddle branch and shifts fold at compile time.
+    #[inline(always)]
+    const fn push<const POS: usize>(&mut self, val: u32) {
+        let v = val as u64;
+        let idx = POS >> 6;
+        let s = POS & 63;
+        self.w[idx] |= v << s;
+        if s > 32 {
+            self.w[idx + 1] |= v >> (64 - s);
+        }
+    }
+
+    /// OR the record into `buf` starting at bit `base_bit`.
+    #[inline(always)]
+    pub(crate) fn flush(&self, buf: &mut [u64], base_bit: usize) {
+        let bi = base_bit >> 6;
+        let s = base_bit & 63;
+        let mut spill = 0u64;
+        for j in 0..NW {
+            buf[bi + j] |= (self.w[j] << s) | spill;
+            // `(x >> 1) >> (63 - s)` = `x >> (64 - s)` without the s = 0 UB.
+            spill = (self.w[j] >> 1) >> (63 - s);
+        }
+        buf[bi + NW] |= spill;
+    }
+}
+
+/// One 32-bit ADD's witness parts: `(sum, left, right, carry_aux)` with
+/// `left/right/carry_aux` masked to the low 31 bits (bit 31 is the discarded
+/// mod-2³² carry-out; the carry slot is 31 bits wide).
+#[inline(always)]
+const fn add_carry_parts(x: u32, y: u32) -> (u32, u32, u32, u32) {
+    let sum = x.wrapping_add(y);
+    let cin = sum ^ x ^ y;
+    const MASK_LO31: u32 = 0x7FFF_FFFF;
+    let left = (x ^ cin) & MASK_LO31;
+    let right = (y ^ cin) & MASK_LO31;
+    let carry_aux = left & right;
+    (sum, left, right, carry_aux)
+}
+
+/// One fused three-operand ADD's witness parts (see
+/// `gf2::walk_add3_fused` for the row algebra): the sum, then each
+/// layer's `(left, right, product)` triple.
+///
+/// The majority triple is masked to bits 0..=30. The ripple triple is masked
+/// to bits 1..=30 **and shifted down by one**, so its slot `j` holds bit
+/// `j + 1`, matching the 30-slot ripple run.
+#[inline(always)]
+const fn add3_fused_parts(x: u32, y: u32, z: u32) -> (u32, (u32, u32, u32), (u32, u32, u32)) {
+    const MASK_LO31: u32 = 0x7FFF_FFFF;
+    const MASK_LO30: u32 = 0x3FFF_FFFF;
+    let maj_left = (x ^ z) & MASK_LO31;
+    let maj_right = (y ^ z) & MASK_LO31;
+    let maj_aux = maj_left & maj_right;
+    // p + 2·maj, where maj[i] = maj_aux[i] ⊕ z[i] is the bitwise majority.
+    let p = x ^ y ^ z;
+    let q = (maj_aux ^ (z & MASK_LO31)) << 1;
+    let sum = p.wrapping_add(q);
+    let cin = sum ^ p ^ q;
+    let rip_left = ((p ^ cin) >> 1) & MASK_LO30;
+    let rip_right = ((q ^ cin) >> 1) & MASK_LO30;
+    let rip_aux = rip_left & rip_right;
+    (sum, (maj_left, maj_right, maj_aux), (rip_left, rip_right, rip_aux))
+}
+
+/// Write a 32-bit lin-id (or input) slot: (z, a) = val, b = all-ones.
+/// **c is not written**: since `C = I`, `c == z` byte-for-byte.
+#[inline]
+const fn write_lin_word_ab_packed(bit_off: usize, val: u32, z: &mut [u64], a: &mut [u64], b: &mut [u64]) {
+    or_u32_at_bit(z, bit_off, val);
+    or_u32_at_bit(a, bit_off, val);
+    or_u32_at_bit(b, bit_off, 0xFFFF_FFFF);
+}
 
 // Record-relative positions, mirroring the `G_*` sub-block offsets.
 const REC_MAJ_A1: usize = G_ADD3_A1;
@@ -661,13 +700,8 @@ fn build_block_witness_ab_packed_into(
     }
 }
 
-/// Produce `(z, a, b, z_lincheck)` for `blocks.len()` compressions padded to
-/// `2^n_blocks_log` slots. Mirror of `blake2s`'s generator; see it for the
-/// buffer shapes and the lincheck stripe indexing.
-pub fn generate_witness_with_ab_packed_and_lincheck(
-    blocks: &[Compression],
-    n_blocks_log: usize,
-) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
+/// The witness of `blocks.len()` compressions, padded to `2^n_blocks_log` instances.
+pub fn generate_witness(blocks: &[Compression], n_blocks_log: usize) -> Witness {
     let padding = padding_block();
     with_z(n_blocks_log, K_LOG, |z| {
         drive_witness_packed_and_lincheck(
@@ -682,106 +716,19 @@ pub fn generate_witness_with_ab_packed_and_lincheck(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Convenience API: Blake2sSetup
-// ---------------------------------------------------------------------------
-
-/// Bundles the monolithic BLAKE2s compression R1CS for the smallest supported
-/// power-of-two shape that can hold `n_blocks` compressions.
-#[derive(Clone, Debug)]
-pub struct Blake2sSetup {
-    n_blocks_log: usize,
-}
-
-impl Blake2sSetup {
-    /// Build a setup for `n_blocks` BLAKE2s compressions.
-    pub const fn new(n_blocks: usize) -> Self {
-        Self {
-            n_blocks_log: min_n_blocks_log(n_blocks),
-        }
-    }
-
-    pub const fn m(&self) -> usize {
-        K_LOG + self.n_blocks_log
-    }
-    pub const fn n_blocks_log(&self) -> usize {
-        self.n_blocks_log
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-// The zerocheck, lincheck, and ring-switch scalars use the shared transcript;
-// the caller carries the WHIR opening.
-
 /// The BLAKE2s circuit as the reduction sees it.
-const BLOCK: Block<'static> = Block {
+pub const BLOCK: Block<'static> = Block {
     k_log: K_LOG,
     useful_bits: USEFUL_BITS,
     circuit: &WalkLincheckCircuit,
 };
 
-/// The variable count (`log2` length) of the committed `q_flock` column for
-/// `n_blocks` executed compressions: `K_LOG + min_n_blocks_log − LOG_PACKING`.
-/// Always at least one instance: `n_blocks = 0` still commits one padding
-/// instance, keeping the proof shape uniform.
-pub fn qflock_kappa(n_blocks: usize) -> usize {
-    K_LOG + min_n_blocks_log(n_blocks.max(1)) - LOG_PACKING
-}
-
-impl Blake2sSetup {
-    /// The compressions' batch for the reduction: the packed `z`, `A·z`, `B·z`, and
-    /// lincheck-stripe buffers the embedder generated
-    /// (`generate_witness_with_ab_packed_and_lincheck`) before committing the
-    /// flattened witness.
-    pub const fn instance<'a>(&self, z: &'a [u64], a: &'a [u64], b: &'a [u64], z_lincheck: &'a [u8]) -> Instance<'a> {
-        Instance {
-            block: BLOCK,
-            n_blocks_log: self.n_blocks_log,
-            live: 1 << self.n_blocks_log,
-            z,
-            a,
-            b,
-            z_lincheck,
-        }
-    }
-
-    /// **Flock reduction (prover).** Run the BLAKE2s zerocheck and lincheck on
-    /// the shared transcript, reducing R1CS validity of the blocks to ONE
-    /// evaluation claim on the committed packed witness `q_flock`. (The
-    /// statement is already transcript-bound: the embedding protocol seeds
-    /// with the R1CS digest and announces the count.)
-    ///
-    /// Does NOT open the PCS; the caller discharges the returned claim in the
-    /// one stacked opening (`leanvm_core`'s `pcs::open`).
-    pub fn prove_reduction_precomputed(
-        &self,
-        z_packed: &[u64],
-        a_packed_words: &[u64],
-        b_packed_words: &[u64],
-        z_packed_lincheck: &[u8],
-        ps: &mut ProverState,
-    ) -> SliceClaim {
-        let instance = self.instance(z_packed, a_packed_words, b_packed_words, z_packed_lincheck);
-        reduction::prove(&[instance], ps).pop().expect("one circuit")
-    }
-
-    /// **Flock reduction (verifier).** Replay the BLAKE2s zerocheck and
-    /// lincheck straight off the shared transcript stream, recovering the one
-    /// evaluation claim on the committed witness `q_flock`. Mirror of
-    /// [`Self::prove_reduction_precomputed`]; the PCS then discharges the returned claim.
-    pub fn verify_reduction(&self, vs: &mut VerifierState<'_>) -> Result<ReductionReplay, FlockError> {
-        reduction::verify(&[(BLOCK, self.n_blocks_log)], vs).map(|mut replays| replays.pop().expect("one circuit"))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lincheck::LincheckCircuit;
-    use primitives::test_util::{Rng, test_vectors};
+    use primitives::hash::compress;
+    use primitives::test_util::Rng;
 
     /// Does `z` satisfy the block-diagonal R1CS, `(A_0 z) ⊙ (B_0 z) = z` per block?
     ///
@@ -803,41 +750,9 @@ mod tests {
         (0..n_bits).map(|i| (z[i / 64] >> (i % 64)) & 1 == 1).collect()
     }
 
-    fn generate_witness(blocks: &[Compression], n_blocks_log: usize) -> Vec<bool> {
-        let z = generate_witness_with_ab_packed_and_lincheck(blocks, n_blocks_log).0;
+    fn witness_bits(blocks: &[Compression], n_blocks_log: usize) -> Vec<bool> {
+        let z = generate_witness(blocks, n_blocks_log).z;
         unpack_bits(&z, (1usize << n_blocks_log) * K)
-    }
-
-    /// Full BLAKE2s-256 over the compression function, so the known-answer
-    /// vectors below exercise `blake2s_compress` end to end (multi-block,
-    /// counter, and the final-block flag).
-    fn blake2s_256(data: &[u8]) -> [u8; 32] {
-        let mut h = param_iv();
-        let n_blocks = data.len().div_ceil(64).max(1);
-        for i in 0..n_blocks {
-            let chunk = &data[i * 64..data.len().min((i + 1) * 64)];
-            let mut block = [0u8; 64];
-            block[..chunk.len()].copy_from_slice(chunk);
-            let m: [u32; 16] = std::array::from_fn(|w| u32::from_le_bytes(block[4 * w..4 * w + 4].try_into().unwrap()));
-            let t = (i * 64 + chunk.len()) as u64;
-            let last = i + 1 == n_blocks;
-            h = blake2s_compress(&h, &m, t, if last { u32::MAX } else { 0 }, 0);
-        }
-        let mut out = [0u8; 32];
-        for (w, word) in h.iter().enumerate() {
-            out[4 * w..4 * w + 4].copy_from_slice(&word.to_le_bytes());
-        }
-        out
-    }
-
-    /// The official BLAKE2s-256 vectors. Pins SIGMA, the lane schedule, the
-    /// state init and the finalization: a single wrong entry in any of them
-    /// changes these digests.
-    #[test]
-    fn compress_matches_blake2s_vectors() {
-        for (input, digest) in test_vectors() {
-            assert_eq!(blake2s_256(&input), digest, "{} bytes", input.len());
-        }
     }
 
     /// Every slot a layout region claims is the output of one non-degenerate
@@ -883,8 +798,9 @@ mod tests {
         let h: [u32; 8] = std::array::from_fn(|_| rng.next_u32());
         let m: [u32; 16] = std::array::from_fn(|_| rng.next_u32());
         let blocks = vec![(h, m, 0x1234_5678_9ABC_DEF0u64, u32::MAX, 0u32)];
-        let z = generate_witness(&blocks, 3);
-        let expected = blake2s_compress(&h, &m, 0x1234_5678_9ABC_DEF0, u32::MAX, 0);
+        let z = witness_bits(&blocks, 3);
+        let mut expected = h;
+        compress(&mut expected, &m, 0x1234_5678_9ABC_DEF0, true);
         for w in 0..8 {
             let got = (0..WORD_BITS).fold(0u32, |acc, b| acc | ((z[out_bit(w, b)] as u32) << b));
             assert_eq!(got, expected[w], "out[{w}] mismatch");
@@ -906,7 +822,7 @@ mod tests {
                     )
                 })
                 .collect();
-            let z = generate_witness(&blocks, 3);
+            let z = witness_bits(&blocks, 3);
             assert_eq!(z.len(), K << 3);
             assert!(satisfies(&z, 3), "witness for {n_blocks} compressions fails R1CS");
         }
@@ -916,7 +832,7 @@ mod tests {
     fn mutated_witness_fails() {
         let mut rng = Rng::new(0xB2DEAD);
         let blocks = vec![(param_iv(), std::array::from_fn(|_| rng.next_u32()), 64, 0, 0)];
-        let mut z = generate_witness(&blocks, 3);
+        let mut z = witness_bits(&blocks, 3);
         assert!(satisfies(&z, 3));
         // One bit in each layer of a fused ADD, and one in a two-operand ADD,
         // in the last round where the affine cascade is deepest.
@@ -936,7 +852,7 @@ mod tests {
         assert_eq!(WalkLincheckCircuit.const_pin_col(), Z_CONST_POS);
         let z_zero = vec![false; K << 3];
         assert!(satisfies(&z_zero, 3), "homogeneous rows accept zero without the pin");
-        let z = generate_witness(&[padding_block()], 3);
+        let z = witness_bits(&[padding_block()], 3);
         assert!(z[Z_CONST_POS], "the pinned constant wire must be 1 in every block");
     }
 }

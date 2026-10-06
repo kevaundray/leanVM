@@ -2,7 +2,6 @@
 
 use super::{InstructionClass, sext32};
 use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
-use crate::rv::entry::Class;
 use flock::circuit::{Builder, Circuit};
 
 /// One ALU instance: add, subtract, compare, bitwise logic, branches and jumps.
@@ -85,8 +84,6 @@ impl Alu {
 }
 
 impl InstructionClass for Alu {
-    const CLASS: Class = Class::Alu;
-
     /// At most one output selector and at most one branch condition is set.
     const LEGAL: &'static [u64] = &[
         0,
@@ -154,15 +151,6 @@ impl InstructionClass for Alu {
             || (self.has_flag(Self::BR_LTU) && ltu)
             || (self.has_flag(Self::BR_GEU) && !ltu);
         (out, taken)
-    }
-
-    fn input_words(&self) -> Vec<u64> {
-        vec![self.v1, self.v2, self.imm, self.flags, self.dt, self.pc4]
-    }
-
-    /// The output, and the offset the successor adds to `pc + 4`.
-    fn output_words(&self, &(out, taken): &(u64, bool)) -> Vec<u64> {
-        vec![out, self.jump(taken)]
     }
 }
 
@@ -365,8 +353,12 @@ impl Alu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{EDGES, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk};
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{
+        EDGES, Ports, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk,
+    };
     use fiat_shamir::transcript::{ProverState, VerifierState};
+    use flock::reduction::{self, Instance};
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -447,25 +439,18 @@ mod tests {
 
         // Prove the batch, optionally flipping one witness bit first, and verify.
         let accepts = |tamper: Option<usize>| {
-            let (mut z, a, b, mut z_lincheck) = ALU.generate_witness(&rows, n_log);
+            let mut witness = ALU.generate_witness(&rows, n_log);
             if let Some(bit) = tamper {
-                z[bit / 64] ^= 1 << (bit % 64);
-                z_lincheck[bit] ^= 1;
+                witness.z[bit / 64] ^= 1 << (bit % 64);
+                witness.stripes[bit] ^= 1;
             }
             let mut ps = ProverState::from_label(LABEL);
-            let instance = flock::reduction::Instance {
-                block,
-                n_blocks_log: n_log,
-                live: 1 << n_log,
-                z: &z,
-                a: &a,
-                b: &b,
-                z_lincheck: &z_lincheck,
-            };
-            let claims = flock::reduction::prove(&[instance], &mut ps);
+            let instance = Instance::of(block, n_log, &witness);
+            let claims = reduction::prove(&[instance], &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(LABEL, &proof);
-            flock::reduction::verify(&[(block, n_log)], &mut vs).is_ok_and(|r| r[0].claim == claims[0])
+            reduction::verify(&[(block.shape(), n_log)], &mut vs)
+                .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(block.circuit).is_ok())
                 && vs.finish().is_ok()
         };
         assert!(accepts(None));
@@ -477,6 +462,19 @@ mod tests {
             ALU.useful_bits() - 1,
         ] {
             assert!(!accepts(Some(bit)), "flipping bit {bit} must reject");
+        }
+    }
+
+    impl Ports for Alu {
+        const CLASS: Class = Class::Alu;
+
+        fn input_words(&self) -> Vec<u64> {
+            vec![self.v1, self.v2, self.imm, self.flags, self.dt, self.pc4]
+        }
+
+        // The output, and the offset the successor adds to `pc + 4`.
+        fn output_words(&self, &(out, taken): &(u64, bool)) -> Vec<u64> {
+            vec![out, self.jump(taken)]
         }
     }
 }

@@ -2,7 +2,6 @@
 
 use super::{InstructionClass, sext32};
 use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
-use crate::rv::entry::Class;
 use flock::circuit::{Builder, Circuit};
 
 /// One shifter instance.
@@ -30,8 +29,6 @@ impl Shift {
 }
 
 impl InstructionClass for Shift {
-    const CLASS: Class = Class::Shift;
-
     /// An arithmetic shift is always a right shift.
     const LEGAL: &'static [u64] = &[
         0,
@@ -64,14 +61,6 @@ impl InstructionClass for Shift {
             (true, true) => ((x as i64) >> amount) as u64,
         };
         if word { sext32(out) } else { out }
-    }
-
-    fn input_words(&self) -> Vec<u64> {
-        vec![self.v1, self.v2, self.imm, self.flags]
-    }
-
-    fn output_words(&self, &out: &u64) -> Vec<u64> {
-        vec![out]
     }
 }
 
@@ -178,7 +167,10 @@ impl Shift {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{EDGES, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk};
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{
+        EDGES, Ports, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk,
+    };
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -220,5 +212,17 @@ mod tests {
         let amounts: Vec<u64> = (0..=64).chain([u64::MAX]).collect();
         let edges = grid(&[&operands, &amounts, &[0, !63], Shift::LEGAL]);
         word_witness_is_the_walk::<Shift>(Shift::witness, edges);
+    }
+
+    impl Ports for Shift {
+        const CLASS: Class = Class::Shift;
+
+        fn input_words(&self) -> Vec<u64> {
+            vec![self.v1, self.v2, self.imm, self.flags]
+        }
+
+        fn output_words(&self, &out: &u64) -> Vec<u64> {
+            vec![out]
+        }
     }
 }
