@@ -8,7 +8,7 @@
 //! come out of one pass, in [`first_pass`].
 
 use core::ops::BitXorAssign;
-use fiat_shamir::transcript::{Receiver, TranscriptError, Transmitter};
+use fiat_shamir::transcript::Transmitter;
 use first_pass::{LaneWeight, WeightFold};
 use parallel::SendPtr;
 use primitives::field::{F64, F192, F192Unreduced};
@@ -23,9 +23,7 @@ mod first_pass;
 
 pub(crate) use first_pass::{InitialRounds, initial_rounds, initial_rounds_virtual};
 
-// ===================================================================
 // Tuning constants
-// ===================================================================
 //
 // Prover-side work sizes, gathered here so they can be found and tuned together.
 // The round messages do not depend on them.
@@ -55,10 +53,7 @@ const DENSE_STAGE: usize = 128;
 
 /// Pool sizes up to which the first pass writes out a regenerated weight for the first fold.
 const KEEP_WEIGHT_MAX_THREADS: usize = 4;
-
-// ===================================================================
 // Stateful sumcheck over E with a two-phase (Base then Ext) witness
-// ===================================================================
 //
 // Each round sends (u_0, u_2) of the quadratic
 // q(X) = u_0 + u_1 X + u_2 X^2 with q(0) + q(1) = T_r, verifier derives
@@ -79,18 +74,7 @@ pub(super) fn send_msg(ps: &mut impl Transmitter, m: SumcheckMessage, claim: F19
     ps.add_round_poly(&[m.u_0, claim + m.u_2, m.u_2], false);
 }
 
-/// Verifier mirror of [`send_msg`]. The round polynomial already travels in the
-/// coefficient form the folds use.
-pub(super) fn recv_quad(vs: &mut impl Receiver, claim: F192) -> Result<RoundQuad, TranscriptError> {
-    let h = vs.next_round_poly(3, claim, None)?;
-    Ok(RoundQuad {
-        c: h[0],
-        b: h[1],
-        a: h[2],
-    })
-}
-
-/// Round-quadratic in coefficient form `c + b X + a X^2` (verifier side).
+/// Round-quadratic in coefficient form `c + b X + a X^2`, the prover's copy of the verifier's running round.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct RoundQuad {
     c: F192, // u_0
@@ -470,9 +454,7 @@ fn fold_and_msg_lsb<T: RoundWitness>(f: &[T], b: &[F192], r: F192) -> (Vec<F192>
     )
 }
 
-// ===================================================================
 // Lane rounds: the L0 fold binds whole lanes, not adjacent words
-// ===================================================================
 //
 // The committed witness is stored lane-major (lane `l` is the contiguous stack
 // block `q[l·H .. (l+1)·H)`, `H = 2^(log_n − initial_k)`), because that is what
@@ -923,7 +905,7 @@ impl<'a> SumcheckProver<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::whir_config::INITIAL_FOLDING_FACTOR;
+    use crate::whir::config::INITIAL_FOLDING_FACTOR;
     use primitives::multilinear::inner_product;
     use primitives::test_util::Rng;
 

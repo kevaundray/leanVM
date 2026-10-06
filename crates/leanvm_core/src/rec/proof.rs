@@ -13,12 +13,14 @@ use super::layout::RecLayout;
 use super::table::{HashFlock, Table};
 use crate::constraints::{Columns, ConstraintError};
 use crate::leaf::PublicColumns;
-use crate::pcs::{Rate, RingSwitch, SliceClaim, StackClaim};
+use crate::pcs::{Rate, RingSwitch, StackClaim};
 use crate::rv::circuits::blake2s_witness;
 use crate::{constraints, pcs, witness};
+use ::pcs::verifier::OpeningVerifier;
 use fiat_shamir::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
 use flock::Tables;
+use flock::lincheck::MatrixClaim;
 use flock::reduction::{self, Instance};
 use flock::verifier::FlockError;
 use parallel::SendPtr;
@@ -90,16 +92,6 @@ impl HashFlock {
             live: hash.len(),
             tables,
         }
-    }
-
-    /// The verifier's replay of the hash rows' reduction, to the claim on the packed witness.
-    ///
-    /// The rows' matrices are settled here, against the circuit.
-    fn verify(layout: &RecLayout, vs: &mut VerifierState) -> Result<SliceClaim, RecError> {
-        let batch = (Self::FLOCK.shape(), layout.tau(Table::Hash));
-        let [replay] = <[_; 1]>::try_from(reduction::verify(&[batch], vs)?).expect("one circuit");
-        replay.matrices.check(Self::circuit()).map_err(FlockError::Lincheck)?;
-        Ok(replay.claim)
     }
 }
 
@@ -214,6 +206,32 @@ impl<'a> TableArgument<'a> {
         })?;
         Ok(self.layout.opening_claims(bus.claims, &tables.claims))
     }
+
+    /// The verifier's core: the commitment, the bus and the tables, the hash rows' reduction and the opening, then nothing left to read.
+    ///
+    /// It returns the hash rows' claim on their matrices, which whoever holds the circuit settles.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first stage that refuses the proof.
+    pub(crate) fn verify_core<V: OpeningVerifier + PublicColumns>(
+        &self,
+        v: &mut V,
+        rate: Rate,
+    ) -> Result<MatrixClaim<V::E>, RecError> {
+        let root = pcs::read_commitment(v)?;
+        let slots = v.scope("bus and tables", |v| self.verify(v))?;
+        let batch = (HashFlock::FLOCK.shape(), self.layout.tau(Table::Hash));
+        let [replay] = <[_; 1]>::try_from(v.scope("flock", |v| reduction::verify(&[batch], v))?)
+            .unwrap_or_else(|_| unreachable!("a batch of one circuit"));
+        let ring = self.layout.hash_window().ring(replay.claim);
+        let log_inv_rate = rate.log_inv_rate().into();
+        v.scope("opening", |v| {
+            pcs::verify(v, &slots, &[ring], self.layout.shape, log_inv_rate, root)
+        })?;
+        v.finish()?;
+        Ok(replay.matrices)
+    }
 }
 
 impl Circuit {
@@ -324,20 +342,9 @@ impl Circuit {
         }
         let layout = RecLayout::new(self)?;
         let mut vs = VerifierState::new(iv, proof, public_input);
-        let root = pcs::read_commitment(&mut vs)?;
         let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
-        let slots = TableArgument::of(&fixed, statement, &layout).verify(&mut vs)?;
-        let hash_claim = HashFlock::verify(&layout, &mut vs)?;
-        let ring = layout.hash_window().ring(hash_claim);
-        pcs::verify(
-            &mut vs,
-            &slots,
-            &[ring],
-            layout.shape,
-            rate.log_inv_rate().into(),
-            &root,
-        )?;
-        vs.finish()?;
+        let matrices = TableArgument::of(&fixed, statement, &layout).verify_core(&mut vs, rate)?;
+        matrices.check(HashFlock::circuit()).map_err(FlockError::Lincheck)?;
         Ok(vs.into_raw_proof())
     }
 }

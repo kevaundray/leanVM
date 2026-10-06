@@ -59,17 +59,25 @@ fn report(name: &str, tree: &Tree<'_>, kind: Kind, proof: &TreeProof, prove: &Ti
     println!("  verifying as a root         : {}", ms(verify));
 }
 
-/// Prove the leaf, then the tree of `leaves` over copies of its proof, every proof at the prover's rate, and print the report.
+/// Prove the leaf at `leaf_prover`'s rate, then the tree of `leaves` over copies of its proof, every tree proof at `prover`'s rate, and print the report.
 ///
 /// The tree's first level verifies `arity_0` leaves, each node `arity` children.
-pub fn run(leaf: &Workload, leaves: usize, arity_0: usize, arity: usize, prover: &Prover, plan: Plan) {
+pub fn run(
+    leaf: &Workload,
+    leaves: usize,
+    arity_0: usize,
+    arity: usize,
+    leaf_prover: &Prover,
+    prover: &Prover,
+    plan: Plan,
+) {
     let rate = prover.rate();
     let title = &leaf.title;
 
     // The leaf's run, measured, gives the shape its proofs announce: the tree is checked before anything is proven.
     let stats = leaf.measure();
     let shape = TreeShape {
-        leaf: LeafShape::measured(&stats, rate),
+        leaf: LeafShape::measured(&stats, leaf_prover.rate()),
         arity_0,
         arity,
         rate,
@@ -78,7 +86,7 @@ pub fn run(leaf: &Workload, leaves: usize, arity_0: usize, arity: usize, prover:
 
     let (proved, leaf_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        leaf.prove(prover)
+        leaf.prove(leaf_prover)
     });
     let (proof, output) = (&proved.proof, proved.output);
     let quiet = Plan::new(plan.repeat, 0);
@@ -90,7 +98,8 @@ pub fn run(leaf: &Workload, leaves: usize, arity_0: usize, arity: usize, prover:
     let leaves_proofs = vec![Leaf::new(proof, output); leaves];
 
     println!(
-        "Aggregation tree over {leaves} x {title}, first level {arity_0}, arity {arity}, log-inv-rate {}",
+        "Aggregation tree over {leaves} x {title}, first level {arity_0}, arity {arity}, leaves at log-inv-rate {}, tree proofs at {}",
+        leaf_prover.rate().log_inv_rate(),
         rate.log_inv_rate()
     );
     println!("leaf");

@@ -25,7 +25,8 @@ use flock::Witness;
 use flock::hash::{BLOCK, Compression, K_LOG, generate_witness, pinned_compression};
 use flock::reduction::{Instance, min_n_blocks_log};
 use pcs::pack::LOG_PACKING;
-use pcs::stack_open::{RingSwitch, open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
+use pcs::ring_switch::RingSwitch;
+use pcs::stack_open;
 use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0};
 use pcs::whir::{commit, config_for_rate};
 use primitives::{field::F64, pretty_integer, test_util::Rng};
@@ -90,7 +91,7 @@ fn main() {
             qflock_vars: mu,
             claims: vec![reduced],
         };
-        open_batch_mixed_whir_stacked(
+        stack_open::open(
             &mut ps,
             mu,
             q_flock(&z),
@@ -144,12 +145,12 @@ fn main() {
             claims: vec![replay.claim],
         };
         assert!(
-            verify_opening_batch_mixed_whir_stacked(
+            stack_open::verify(
                 &mut vs,
                 &config,
                 mu,
                 1 << INITIAL_FOLDING_FACTOR,
-                &root,
+                root,
                 &[],
                 std::slice::from_ref(&ring)
             )

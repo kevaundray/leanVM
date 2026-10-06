@@ -26,13 +26,15 @@
 //! - The base-field commitment only shrinks the level-0 symbols to 8 bytes; every random ingredient is sampled from `E`.
 
 use crate::witness::StackShape;
-use ::pcs::stack_open::{open_batch_mixed_whir_stacked, verify_opening_batch_mixed_whir_stacked};
+use ::pcs::stack_open;
+use ::pcs::verifier::OpeningVerifier;
 use ::pcs::whir::{self, ProverConfig, ProverData, WhirError, config_for_rate};
-use fiat_shamir::transcript::{ProverState, Receiver, TranscriptError, Transmitter, VerifierState};
+use fiat_shamir::transcript::{ProverState, TranscriptError, Transmitter};
 use primitives::field::F64;
 use thiserror::Error;
 
-pub use ::pcs::stack_open::{RingSwitch, SliceClaim, StackClaim};
+pub use ::pcs::ring_switch::{RingSwitch, SliceClaim};
+pub use ::pcs::stack_open::StackClaim;
 
 /// Row-batch lanes `2^LOG_BATCH`: the Merkle leaf width (`2^LOG_BATCH` F64
 /// = 512 bytes/leaf) IS WHIR's INITIAL folding factor: the L0 commit is
@@ -149,8 +151,12 @@ pub fn commit(ps: &mut ProverState, witness: &[F64], shape: StackShape, log_inv_
 
 /// Verifier counterpart of [`commit`]'s root binding: read the committed root
 /// from the stream at the start of verification, before sampling any challenge.
-pub fn read_commitment(vs: &mut VerifierState) -> Result<[u8; 32], TranscriptError> {
-    vs.next_root()
+///
+/// # Errors
+///
+/// Returns an error past the end of the stream, or on a root that is no digest.
+pub fn read_commitment<V: OpeningVerifier>(v: &mut V) -> Result<V::Root, TranscriptError> {
+    v.next_root()
 }
 
 /// Open the committed witness: discharge the `points` (leanVM's bus / constraint /
@@ -168,20 +174,26 @@ pub fn open(ps: &mut ProverState, c: &Committed, q: &[F64], points: &[StackClaim
     assert_eq!(q.len() % lane_block, 0, "witness must be whole committed lanes");
     assert!(q.len() <= 1usize << c.mu, "witness must fit the announced size");
     let cfg = whir_config(c.mu, c.log_inv_rate);
-    open_batch_mixed_whir_stacked(ps, c.mu, q, &c.prover_data, &cfg, points, rings);
+    stack_open::open(ps, c.mu, q, &c.prover_data, &cfg, points, rings);
 }
 
 /// Verify the opening (mirror of [`open`]): flock's ring-switched claim
 /// and every `points` slot evaluation are checked together in the ONE stacked
 /// WHIR against `root`, pulling its Merkle phases off the transcript.
-pub fn verify(
-    vs: &mut VerifierState,
-    points: &[StackClaim],
-    rings: &[RingSwitch],
+///
+/// The verifier is the native one or the recursion machine's rows.
+///
+/// # Errors
+///
+/// Returns a size and rate with no configuration, then the stacked opening's refusal.
+pub fn verify<V: OpeningVerifier>(
+    v: &mut V,
+    points: &[StackClaim<V::E>],
+    rings: &[RingSwitch<V::E>],
     shape: StackShape,
     log_inv_rate: usize,
-    root: &[u8; 32],
+    root: V::Root,
 ) -> Result<(), WhirError> {
-    let cfg = whir_config(shape.mu, log_inv_rate);
-    verify_opening_batch_mixed_whir_stacked(vs, &cfg, shape.mu, shape.n_lanes, root, points, rings)
+    let cfg = config_for_rate(shape.mu, log_inv_rate)?;
+    stack_open::verify(v, &cfg, shape.mu, shape.n_lanes, root, points, rings)
 }

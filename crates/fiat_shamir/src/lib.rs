@@ -1,4 +1,4 @@
-//! Fiat-Shamir state, proof transport, and the verifier's arithmetic over them. The state is a domain-separated BLAKE2s chain whose 64-byte steps match the VM's hash opcode.
+//! Fiat-Shamir state, proof transport, and the verifier's arithmetic over them. The state is a domain-separated chain of BLAKE2s compressions, each one VM hash opcode: the seed from the parameter IV, then every step keyed by the state.
 
 pub mod arith;
 pub mod merkle;
@@ -7,9 +7,9 @@ pub mod transcript;
 use primitives::field::{F64, F192};
 
 /// `f(a, b) = BLAKE2s(a‖b)` on two 256-bit halves laid out little-endian into
-/// 64 bytes, *exactly* the VM's `Blake2s` opcode: 64 input bytes → 32-byte
-/// digest, split back into four field words. THE primitive; the chain is a
-/// chain of these, so a VM program replays it with one `BLAKE2S` row per step.
+/// 64 bytes, *exactly* the VM's `Blake2s` opcode from the parameter IV: 64 input bytes → 32-byte
+/// digest, split back into four field words. It seeds the chain and checks a proof of work;
+/// every later step is [`step`], keyed by the state.
 ///
 /// A 64-byte input is one compression, so this is `compress(PARAM_IV, m,
 /// t = 64, last = true)` and nothing about the byte-level padding rules can
@@ -27,8 +27,8 @@ pub fn digest_words(digest: &[u8; 32]) -> [F64; 4] {
     primitives::hash::digest_words(digest).map(F64)
 }
 
-// Domain-separation tags. EVERY absorbed block puts its tag in lane 3 and its
-// data in lanes 0..=2, so one role is one constant in one place. The tag lane is
+// Domain-separation tags. EVERY step's block puts its tag in word 7 and its scalar count in word 3
+// ([`step_block`]), so one role is one constant in one place. The tag word is
 // never adversary-controlled, so distinct constants are all it takes to make two
 // roles unable to alias. The seeding block ([`FiatShamirState::new`]) is the
 // exception: it is fixed at the head of the chain, so its position is its tag.
@@ -58,16 +58,69 @@ fn pow_bits_ok(base: [F64; 4], nonce: F192, bits: u32) -> bool {
     digest.0 & ((1u64 << bits) - 1) == 0
 }
 
+/// The most scalars one transcript step absorbs.
+pub const MAX_PENDING: usize = 2;
+
+/// The 64-byte block of a transcript step absorbing `scalars` (at most [`MAX_PENDING`]) under `tag`.
+///
+/// The last scalar fills words 4 to 6, the one before it (if any) words 0 to 2; word 3 is their count and word 7 the tag, so a block names its role and its data alone.
+///
+/// # Panics
+///
+/// Panics if more than [`MAX_PENDING`] scalars are given.
+pub fn step_block(scalars: &[F192], tag: F64) -> [F64; 8] {
+    let (first, last) = match *scalars {
+        [a, b] => (a, b),
+        [b] => (F192::ZERO, b),
+        [] => (F192::ZERO, F192::ZERO),
+        _ => panic!("a step absorbs at most {MAX_PENDING} scalars"),
+    };
+    let count = F64(scalars.len() as u64);
+    [
+        F64(first.c0),
+        F64(first.c1),
+        F64(first.c2),
+        count,
+        F64(last.c0),
+        F64(last.c1),
+        F64(last.c2),
+        tag,
+    ]
+}
+
+/// A transcript step: the BLAKE2s compression of `block` into the chaining value `h`, at byte counter 64 and final, one VM hash opcode.
+pub fn step(h: [F64; 4], scalars: &[F192], tag: F64) -> [F64; 4] {
+    let halves = |w: [F64; 4]| -> [u32; 8] { std::array::from_fn(|i| (w[i / 2].0 >> (32 * (i % 2))) as u32) };
+    let mut state = halves(h);
+    let block = step_block(scalars, tag);
+    let m: [u32; 16] = std::array::from_fn(|i| (block[i / 2].0 >> (32 * (i % 2))) as u32);
+    primitives::hash::compress(&mut state, &m, 64, true);
+    std::array::from_fn(|i| F64(u64::from(state[2 * i]) | u64::from(state[2 * i + 1]) << 32))
+}
+
 /// The shared Fiat-Shamir state (see the module docs). Protocol functions take
 /// `&mut FiatShamirState`; all proof DATA travels on separate transport channels (the
 /// callers'), so the state only ever absorbs and squeezes.
+///
+/// An absorbed scalar waits for the next step, which takes up to [`MAX_PENDING`] of them: a squeeze absorbs the waiting scalars in its own step, and a third scalar first absorbs the two before it.
 #[derive(Clone)]
 pub struct FiatShamirState {
-    /// The 256-bit chaining value: a Merkle-Damgård hash of the transcript so far.
+    /// The 256-bit chaining value: a Merkle-Damgård hash of the transcript's steps so far.
     cv: [F64; 4],
+    /// The scalars absorbed since the last step, the first `n_pending`.
+    pending: [F192; MAX_PENDING],
+    n_pending: usize,
 }
 
 impl FiatShamirState {
+    const fn at(cv: [F64; 4]) -> Self {
+        Self {
+            cv,
+            pending: [F192::ZERO; MAX_PENDING],
+            n_pending: 0,
+        }
+    }
+
     /// Seed from two 256-bit digests: `iv` names everything fixed about the
     /// proving environment (the domain, the circuit, the program) and IS the
     /// starting chaining value, and `public_input` is the one block absorbed
@@ -75,34 +128,44 @@ impl FiatShamirState {
     /// the whole statement is bound before anything is sampled; there is no
     /// mid-protocol "observe public data" step to get wrong (or forget).
     pub fn new(iv: [F64; 4], public_input: [F64; 4]) -> Self {
-        Self {
-            cv: compress(iv, public_input),
-        }
+        Self::at(compress(iv, public_input))
     }
 
     /// Seed a protocol that has no public input of its own: `BLAKE2s(label)` is
     /// the chaining value, which is all a domain separator has to be.
     pub fn from_label(label: &[u8]) -> Self {
-        Self {
-            cv: digest_words(&primitives::hash::hash(label)),
-        }
+        Self::at(digest_words(&primitives::hash::hash(label)))
     }
 
-    /// Absorb one 24-byte scalar (three little-endian `K` limbs):
-    /// `cv ← compress(cv, (c0, c1, c2, DS_OBSERVE))`.
+    /// The waiting scalars.
+    fn pending(&self) -> &[F192] {
+        &self.pending[..self.n_pending]
+    }
+
+    /// Absorb the waiting scalars, if any, in one `OBSERVE` step.
+    fn flush(&mut self) {
+        self.cv = self.state();
+        self.n_pending = 0;
+    }
+
+    /// Absorb one 24-byte scalar (three little-endian `K` limbs). It waits for the next step.
     pub fn observe(&mut self, x: F192) {
-        self.cv = compress(self.cv, [F64(x.c0), F64(x.c1), F64(x.c2), DS_OBSERVE]);
+        if self.n_pending == MAX_PENDING {
+            self.flush();
+        }
+        self.pending[self.n_pending] = x;
+        self.n_pending += 1;
     }
 
     /// Squeeze a challenge and ratchet: the challenge's three limbs are the
-    /// first three words of `compress(cv, (0, 0, 0, DS_SQUEEZE))`, whose full output
+    /// first three words of the `SQUEEZE` step absorbing the waiting scalars, whose full output
     /// becomes the new state, domain-separated from absorbs, so a challenge
     /// cannot be confused with a continued absorb. In Fiat-Shamir everything is
     /// public; soundness comes from each challenge being a random-oracle image
     /// of the entire prior transcript.
     pub fn sample(&mut self) -> F192 {
-        let out = compress(self.cv, [F64::ZERO, F64::ZERO, F64::ZERO, DS_SQUEEZE]);
-        self.cv = out;
+        let out = step(self.cv, self.pending(), DS_SQUEEZE);
+        *self = Self::at(out);
         F192::new(out[0].0, out[1].0, out[2].0)
     }
 
@@ -111,20 +174,25 @@ impl FiatShamirState {
         (0..n).map(|_| self.sample()).collect()
     }
 
-    /// The PoW base `compress(cv, (0, 0, 0, DS_POW_BASE))`, read without mutating
+    /// The PoW base, the `POW_BASE` step from [`Self::state`], read without mutating
     /// the live state (the nonce is bound separately by [`Self::absorb_nonce`]).
     fn pow_base(&self) -> [F64; 4] {
-        compress(self.cv, [F64::ZERO, F64::ZERO, F64::ZERO, DS_POW_BASE])
+        step(self.state(), &[], DS_POW_BASE)
     }
 
-    /// The current 256-bit chaining value.
-    pub const fn state(&self) -> [F64; 4] {
-        self.cv
+    /// The 256-bit chaining value once the waiting scalars are absorbed.
+    pub fn state(&self) -> [F64; 4] {
+        if self.n_pending == 0 {
+            self.cv
+        } else {
+            step(self.cv, self.pending(), DS_OBSERVE)
+        }
     }
 
-    /// Bind a grinding nonce into the state (both sides, so they stay in lockstep).
+    /// Bind a grinding nonce into the state (both sides, so they stay in lockstep), after the waiting scalars.
     fn absorb_nonce(&mut self, nonce: F192) {
-        self.cv = compress(self.cv, [F64(nonce.c0), F64(nonce.c1), F64(nonce.c2), DS_POW_NONCE]);
+        self.flush();
+        self.cv = step(self.cv, &[nonce], DS_POW_NONCE);
     }
 
     /// Prover-side PoW grind: find the smallest `u64` nonce whose PoW hash clears
@@ -235,6 +303,17 @@ mod tests {
         a.observe(f(2));
         let mut b = FiatShamirState::from_label(b"t");
         b.observe(f(2));
+        b.observe(f(1));
+        assert_ne!(a.sample(), b.sample());
+    }
+
+    #[test]
+    fn fs_binds_how_many_scalars_a_step_absorbs() {
+        // `[x]` and `[0, x]` fill the same scalar words; only the count tells them apart.
+        let mut a = FiatShamirState::from_label(b"t");
+        a.observe(f(1));
+        let mut b = FiatShamirState::from_label(b"t");
+        b.observe(F192::ZERO);
         b.observe(f(1));
         assert_ne!(a.sample(), b.sample());
     }
