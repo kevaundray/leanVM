@@ -42,7 +42,9 @@ fn both_verifiers_bind_the_assumptions_in_order() {
         Assumption::new(program.digest_words(), Output::new([1, 2, 3, 4])),
     ];
     let folded = committed.assuming(&assumptions);
-    let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN).prove(&program, folded.words()).expect("the run halts");
+    let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN)
+        .prove(&program, folded.words())
+        .expect("the run halts");
     assert_eq!(folded, output);
     let unresolved = program
         .verify_assuming(committed, &assumptions, &proof)
