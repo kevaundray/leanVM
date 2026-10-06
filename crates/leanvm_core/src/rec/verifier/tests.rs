@@ -21,7 +21,7 @@ use ::flock::reduction::{self, Instance, ReductionReplay, Shape};
 use ::flock::zerocheck::K_SKIP;
 use ::pcs::pack::PACKING_WIDTH;
 use ::pcs::stack_open::RingFamily;
-use ::pcs::whir::inner_product_base_ext;
+use ::pcs::whir::{inner_product_base_ext, strata};
 use fiat_shamir::transcript::{ProofTranscript, ProverState, RawProof, TranscriptError, VerifierState};
 use primitives::field::{F64, F192};
 use primitives::test_util::Rng;
@@ -134,6 +134,27 @@ fn a_tampered_proof_fails_where_the_native_verifier_does() {
             first(&forged).starts_with("opening / whir / rows"),
             "{}",
             first(&forged)
+        );
+    }
+}
+
+// The level-0 batch: the largest group's first query feeds the shared subtree's bottom level, and the first query of
+// the next group reaches a node inside it. A wrong sibling right under either node breaks the tie to the subtree.
+#[test]
+fn a_wrong_sibling_under_the_shared_subtree_is_refused() {
+    let f = fixture();
+    let depth = f.raw.merkle[0].path.len();
+    let count = f.raw.merkle.iter().take_while(|o| o.path.len() == depth).count();
+    let strata = strata(count, depth);
+    let inner = strata.iter().position(|s| s.bits < strata[0].bits && s.bits > 0);
+    let inner = inner.expect("the batch has a second group with fixed bits");
+    for q in [0, inner] {
+        let mut forged = f.raw.clone();
+        forged.merkle[q].path[depth - strata[q].bits - 1][0] ^= 1;
+        let failures = f.failures(&forged);
+        assert!(
+            failures.first().is_some_and(|e| e.starts_with("opening / whir / rows")),
+            "query {q}: {failures:?}"
         );
     }
 }

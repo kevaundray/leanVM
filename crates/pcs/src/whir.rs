@@ -71,13 +71,37 @@ pub fn inner_product_base_ext(witness: &[F64], b: &[F192]) -> F192 {
     )
 }
 
-/// Sample `count` query positions in transcript order: no dedup, no sort.
-/// `block_len = 2^d`; each squeezed field element yields `⌊192/d⌋` positions as
-/// its disjoint d-bit chunks (low bits first) (fixed `192/d` per
-/// squeeze, dup-tolerant: soundness matches the deployed PCS with the same
-/// `config.queries`). Duplicates are harmless, a repeated position re-opens the
-/// same Merkle-authenticated row.
+/// Where a query of a batch lands: the top `bits` bits of its position are `index`, the rest uniform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stratum {
+    /// How many of the position's top bits are fixed.
+    pub bits: usize,
+    /// Their value.
+    pub index: usize,
+}
+
+/// The strata of a batch of `count` queries into `2^depth` positions, in query order.
 ///
+/// The batch is cut by the binary digits of `count`, highest first. A group of `2^g` queries fixes the top `s = min(g, depth)` bits of its `j`-th query's position to `j mod 2^s`, so each of the `2^s` cosets of those bits holds equally many of the group's queries.
+/// A set of positions every query misses with probability at most `1 - delta` then is missed by the whole batch with probability at most `(1 - delta)^count`, as by i.i.d. queries (the PCS annex, `thm:rbr`), and the top `s` levels of the group's Merkle paths are a complete subtree the verifier hashes once.
+pub fn strata(count: usize, depth: usize) -> Vec<Stratum> {
+    let mut out = Vec::with_capacity(count);
+    for g in (0..usize::BITS as usize).rev().filter(|&g| count >> g & 1 == 1) {
+        let bits = g.min(depth);
+        out.extend((0..1usize << g).map(|j| Stratum {
+            bits,
+            index: j & ((1 << bits) - 1),
+        }));
+    }
+    out
+}
+
+/// Sample `count` query positions in transcript order: no dedup, no sort.
+/// `block_len = 2^d`; each squeezed field element yields `⌊192/d⌋` uniform positions as
+/// its disjoint d-bit chunks (low bits first) (fixed `192/d` per
+/// squeeze), each then placed in its [`strata`] coset: its top bits replaced by its stratum's.
+/// Duplicates are harmless, a repeated position re-opens the
+/// same Merkle-authenticated row.
 fn sample_queries_ordered(ch: &mut impl Challenger, block_len: usize, count: usize) -> Vec<usize> {
     let d = block_len.trailing_zeros() as usize;
     let per = 192 / d;
@@ -94,6 +118,10 @@ fn sample_queries_ordered(ch: &mut impl Challenger, block_len: usize, count: usi
             }
             out.push(chunk as usize & (block_len - 1));
         }
+    }
+    for (x, s) in out.iter_mut().zip(strata(count, d)) {
+        let low = d - s.bits;
+        *x = (*x & ((1 << low) - 1)) | s.index << low;
     }
     out
 }

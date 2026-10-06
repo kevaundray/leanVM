@@ -23,6 +23,10 @@ struct Cli {
     #[arg(long = "log-inv-rate", value_name = "LOG_INV_RATE", global = true, default_value = "1", value_parser = parse_rate)]
     rate: Rate,
 
+    /// WHIR inverse-rate logarithm of an aggregation tree's leaf proofs (1 through 4); the tree's own proofs take `--log-inv-rate`.
+    #[arg(long = "leaf-log-inv-rate", value_name = "LOG_INV_RATE", global = true, default_value = "2", value_parser = parse_rate)]
+    leaf_rate: Rate,
+
     /// Enable hierarchical timing traces. Use RUST_LOG to adjust verbosity.
     #[arg(long, global = true)]
     tracing: bool,
@@ -140,6 +144,7 @@ fn parse_rate(log_inv_rate: &str) -> Result<Rate, Box<dyn Error + Send + Sync>> 
 fn main() {
     let cli = Cli::parse();
     let prover = Prover::new(cli.rate);
+    let leaf_prover = Prover::new(cli.leaf_rate);
     let plan = Plan::new(cli.repeat, cli.cooldown);
     if cli.tracing {
         bench::init_tracing();
@@ -164,7 +169,7 @@ fn main() {
                 arity_0: arity0,
                 arity,
             };
-            aggregate::run(program, n, shape, &prover, plan);
+            aggregate::run(program, n, shape, &leaf_prover, &prover, plan);
         }
         Command::Bench {
             cycles_only,
@@ -176,6 +181,7 @@ fn main() {
             markdown,
             markdown_file.as_deref(),
             only.as_deref(),
+            &leaf_prover,
             &prover,
             plan,
         ),

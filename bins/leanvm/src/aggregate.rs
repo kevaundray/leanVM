@@ -96,8 +96,8 @@ fn report(name: &str, tree: &Tree<'_>, kind: Kind, proof: &TreeProof, prove: &Ti
     println!("  verifying as a root         : {}", ms(verify));
 }
 
-/// Prove the leaf program, then the tree over copies of its proof, every proof at the prover's rate, and print the report.
-pub fn run(leaf: LeafProgram, n: usize, shape: Shape, prover: &Prover, plan: Plan) {
+/// Prove the leaf program at `leaf_prover`'s rate, then the tree over copies of its proof, every tree proof at `prover`'s rate, and print the report.
+pub fn run(leaf: LeafProgram, n: usize, shape: Shape, leaf_prover: &Prover, prover: &Prover, plan: Plan) {
     let rate = prover.rate();
     let Shape { leaves, arity_0, arity } = shape;
     if !shape.is_tree() {
@@ -108,7 +108,7 @@ pub fn run(leaf: LeafProgram, n: usize, shape: Shape, prover: &Prover, plan: Pla
     let (title, program, advice, expected) = leaf.run(n);
     let (proved, leaf_time) = plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
-        (prover.prove(&program, &advice)).unwrap_or_else(|e| refuse(format_args!("{title} has no proof: {e}")))
+        (leaf_prover.prove(&program, &advice)).unwrap_or_else(|e| refuse(format_args!("{title} has no proof: {e}")))
     });
     let ProvenRun {
         proof, output, stats, ..
@@ -133,7 +133,8 @@ pub fn run(leaf: LeafProgram, n: usize, shape: Shape, prover: &Prover, plan: Pla
     let leaves_proofs = vec![Leaf::new(&proof, output); leaves];
 
     println!(
-        "Aggregation tree over {leaves} x {title}, first level {arity_0}, arity {arity}, log-inv-rate {}",
+        "Aggregation tree over {leaves} x {title}, first level {arity_0}, arity {arity}, leaves at log-inv-rate {}, tree proofs at {}",
+        leaf_prover.rate().log_inv_rate(),
         rate.log_inv_rate()
     );
     println!("leaf");

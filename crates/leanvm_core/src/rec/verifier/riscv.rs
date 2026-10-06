@@ -92,7 +92,7 @@ impl<'p> ProofShape<'p> {
                 program: reduced.program,
                 circuits,
             },
-            state: t.state(),
+            state: t.state(b),
         }
     }
 

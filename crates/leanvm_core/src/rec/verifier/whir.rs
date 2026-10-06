@@ -1,6 +1,7 @@
 //! The stacked opening in rows: the claims batched under one challenge, then the succinct WHIR verifier.
 //!
-//! Every query opens a full Merkle path whose directions are the query's bits, so the rows never depend on which rows are opened.
+//! Every query is stratified (`pcs::whir::strata`): its position's top bits are a constant of the shape, the rest the query's sampled bits.
+//! A query's leaf is hashed up its own path to its stratum's node, and the strata's nodes, a complete subtree, are hashed once up to the root, so the rows never depend on which rows are opened.
 
 use super::ring::RingShare;
 use super::{Rows, infallible};
@@ -10,7 +11,7 @@ use crate::rec::circuit::{Dw, Ew, Kw};
 use crate::witness::StackShape;
 use ::pcs::ring_switch::COMPOSITION_SHIFTS;
 use ::pcs::stack_open::RingSwitch;
-use ::pcs::whir::{VerifierConfig, config_for_rate, eval_sk_at_vks};
+use ::pcs::whir::{Stratum, VerifierConfig, config_for_rate, eval_sk_at_vks, strata};
 use primitives::field::{F64, F192};
 
 /// One opening of the committed stack: its point claims and its ring-switched regions.
@@ -243,7 +244,7 @@ impl LevelCtx {
 }
 
 impl QueryPhase {
-    /// Each query's index bits, lowest first, cut from the 192 bits of a challenge `c0 | c1 << 64 | c2 << 128`.
+    /// Each query's index bits, lowest first: the low bits cut from the 192 bits of a challenge `c0 | c1 << 64 | c2 << 128`, the top bits its stratum's constants.
     fn sample(self, r: &mut Rows<'_, '_>) -> Vec<Vec<Kw>> {
         let per = 192 / self.depth;
         let mut out = Vec::with_capacity(self.count);
@@ -257,8 +258,51 @@ impl QueryPhase {
             }
             out.extend((0..n).map(|j| bits[j * self.depth..(j + 1) * self.depth].to_vec()));
         }
+        for (bits, s) in out.iter_mut().zip(strata(self.count, self.depth)) {
+            let low = self.depth - s.bits;
+            for (i, bit) in bits[low..].iter_mut().enumerate() {
+                *bit = r.b.k_const((s.index >> i) as u64 & 1);
+            }
+        }
         out
     }
+}
+
+/// Open each query's row with `open`, which hashes it up the bits it is given and returns the node reached, then tie every node to `root`.
+///
+/// A query of stratum `(s, j)` is hashed up its `depth - s` low levels to node `j` of the subtree's level `s`.
+/// The batch's largest group reaches every node of the subtree's bottom level, which is hashed once up to the root; every other query's node is the subtree's.
+/// So each leaf sits `depth` levels below the root, as the shape fixes.
+fn authenticate<T>(
+    r: &mut Rows<'_, '_>,
+    root: Dw,
+    queries: &[Vec<Kw>],
+    mut open: impl FnMut(&mut Rows<'_, '_>, &[Kw]) -> (Dw, Vec<T>),
+) -> OpenedRows<T> {
+    let depth = queries[0].len();
+    let strata: Vec<Stratum> = strata(queries.len(), depth);
+    let top = strata[0].bits;
+    let mut nodes: Vec<Vec<Option<Dw>>> = (0..=top).map(|s| vec![None; 1 << s]).collect();
+    let tie = |r: &mut Rows<'_, '_>, slot: &mut Option<Dw>, node: Dw| match *slot {
+        Some(known) => r.b.eq_d(known, node),
+        None => *slot = Some(node),
+    };
+    let rows = (queries.iter().zip(&strata))
+        .map(|(bits, s)| {
+            let (node, row) = open(r, &bits[..depth - s.bits]);
+            tie(r, &mut nodes[s.bits][s.index], node);
+            row
+        })
+        .collect();
+    for s in (1..=top).rev() {
+        for j in 0..1 << (s - 1) {
+            let [left, right] = [2 * j, 2 * j + 1].map(|i| nodes[s][i].expect("the largest group covers its level"));
+            let node = r.b.parent(left, right);
+            tie(r, &mut nodes[s - 1][j], node);
+        }
+    }
+    tie(r, &mut nodes[0][0], root);
+    OpenedRows(rows)
 }
 
 impl Oracle {
@@ -270,13 +314,11 @@ impl Oracle {
     /// Open each query's row of `E` elements, three words each.
     fn open_e_rows(&self, r: &mut Rows<'_, '_>, queries: &[Vec<Kw>]) -> OpenedRows<Ew> {
         let leaf_words = 3 << self.log_num_interleaved;
-        let rows = (queries.iter())
-            .map(|bits| {
-                let words = r.t.open_row(r.b, self.root, bits, leaf_words, leaf_words);
-                words.chunks(3).map(|c| r.b.k_to_e([c[0], c[1], c[2]])).collect()
-            })
-            .collect();
-        OpenedRows(rows)
+        authenticate(r, self.root, queries, |r, bits| {
+            let (node, words) = r.t.open_row(r.b, bits, leaf_words, leaf_words);
+            let row = words.chunks(3).map(|c| r.b.k_to_e([c[0], c[1], c[2]])).collect();
+            (node, row)
+        })
     }
 }
 
@@ -316,14 +358,12 @@ impl<'c> WhirReplay<'c> {
         let phase = w.phase(0, n_current + config.log_inv_rates()[0]);
         // The proof stores the committed lanes, the image's tail; the image is lane-descending.
         w.query(r, phase, oods, n_current, |r, queries, weights| {
-            let rows: Vec<Vec<Kw>> = (queries.iter())
-                .map(|bits| {
-                    let mut row = r.t.open_row(r.b, root, bits, shape.n_lanes, max);
-                    row.reverse();
-                    row
-                })
-                .collect();
-            OpenedRows(rows).enforced_sum(r, &lane_fold, weights)
+            let rows = authenticate(r, root, queries, |r, bits| {
+                let (node, mut row) = r.t.open_row(r.b, bits, shape.n_lanes, max);
+                row.reverse();
+                (node, row)
+            });
+            rows.enforced_sum(r, &lane_fold, weights)
         });
 
         let mut oracle = w.oracle(root_1, 0, n_current);

@@ -365,3 +365,29 @@ fn the_residual_closed_form_is_the_induced_basis() {
         }
     }
 }
+
+// The soundness of stratified queries rests on each group covering every coset of its fixed bits equally often.
+#[test]
+fn each_group_of_strata_covers_its_cosets_equally() {
+    for depth in [1usize, 3, 7, 22] {
+        for count in 1..=300usize {
+            let strata = strata(count, depth);
+            assert_eq!(strata.len(), count);
+            let mut at = 0;
+            for g in (0..usize::BITS as usize).rev().filter(|&g| count >> g & 1 == 1) {
+                let group = &strata[at..at + (1 << g)];
+                let bits = g.min(depth);
+                let mut hits = vec![0usize; 1 << bits];
+                for s in group {
+                    assert_eq!(s.bits, bits, "count {count}, depth {depth}");
+                    hits[s.index] += 1;
+                }
+                assert!(
+                    hits.iter().all(|&h| h == 1 << (g - bits)),
+                    "count {count}, depth {depth}"
+                );
+                at += 1 << g;
+            }
+        }
+    }
+}

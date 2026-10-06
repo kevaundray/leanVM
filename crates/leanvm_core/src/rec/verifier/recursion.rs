@@ -145,7 +145,7 @@ impl RecShape {
         RecRows {
             matrix: reduction.matrix,
             hints: hints.hints,
-            state: t.state(),
+            state: t.state(b),
         }
     }
 }

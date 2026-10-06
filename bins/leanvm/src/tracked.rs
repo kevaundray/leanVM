@@ -227,6 +227,7 @@ pub fn run(
     markdown: bool,
     markdown_file: Option<&Path>,
     only: Option<&str>,
+    leaf_prover: &Prover,
     prover: &Prover,
     plan: Plan,
 ) {
@@ -241,7 +242,7 @@ pub fn run(
         let trees: Vec<_> = counted_trees()
             .into_iter()
             .map(|tree| {
-                let circuits = circuits(&tree, prover.rate());
+                let circuits = circuits(&tree, leaf_prover.rate(), prover.rate());
                 (tree, circuits)
             })
             .collect();
@@ -293,7 +294,7 @@ pub fn run(
             reports.push(if one_thread(name) {
                 on_one_thread(name, only.is_none())
             } else {
-                bencher_json(&proved_tree(&tree(name), prover, plan))
+                bencher_json(&proved_tree(&tree(name), leaf_prover, prover, plan))
             });
         }
         return println!("{}", merged(&reports));
@@ -346,9 +347,9 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
 }
 
 /// Each kind of node's circuit, without a proof: the leaf's run, measured, gives the shape its
-/// proofs announce.
-fn circuits(tree: &Aggregation, rate: Rate) -> [(Kind, CircuitStats); 2] {
-    let shape = LeafShape::measured(&tree.leaf.measure(), rate);
+/// proofs announce at `leaf_rate`; the tree's proofs are at `rate`.
+fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> [(Kind, CircuitStats); 2] {
+    let shape = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
     let built = tree.tree(shape, rate);
     Kind::ALL.map(|kind| (kind, built.stats(kind)))
 }
@@ -431,14 +432,19 @@ fn measures(
     report
 }
 
-/// Prove the leaf once, then one first-level node over copies of its proof and one node over
-/// copies of that, each reported as `proved` reports a case: its stages are the children of a
+/// Prove the leaf once at `leaf_prover`'s rate, then one first-level node over copies of its
+/// proof and one node over copies of that at `prover`'s, each reported as `proved` reports a case: its stages are the children of a
 /// `Prove` span around it, its verifying time is as a root, and its peak memory is the
 /// process's so far, the node's including the first-level node's.
-fn proved_tree(tree: &Aggregation, prover: &Prover, plan: Plan) -> Vec<(String, Vec<(String, Metric)>)> {
+fn proved_tree(
+    tree: &Aggregation,
+    leaf_prover: &Prover,
+    prover: &Prover,
+    plan: Plan,
+) -> Vec<(String, Vec<(String, Metric)>)> {
     eprintln!("{}", tree.name);
     let leaf = &tree.leaf;
-    let ProvenRun { proof, output, .. } = prover
+    let ProvenRun { proof, output, .. } = leaf_prover
         .prove(&leaf.program, &leaf.advice)
         .unwrap_or_else(|e| refuse(format_args!("{}: {e}", leaf.name)));
     assert_eq!(
