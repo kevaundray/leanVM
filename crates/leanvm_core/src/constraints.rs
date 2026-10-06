@@ -190,16 +190,19 @@ impl BitColumns {
             .iter()
             .flat_map(|f| {
                 let (col, values) = (cols[f.col], 1usize << f.width);
-                let buckets = parallel::map_reduce(
+                // A row block sums into its worker's scratch buckets, so no block allocates.
+                let buckets = parallel::map_reduce_with_state(
                     eq.high.len(),
                     || vec![F192::ZERO; values],
-                    |h| {
-                        let mut run = vec![F192::ZERO; values];
+                    || vec![F192::ZERO; values],
+                    |run, acc, h| {
+                        run.fill(F192::ZERO);
                         for (x, value) in col[h << low..(h + 1) << low].iter().enumerate() {
                             run[value.0 as usize] += eq.low[x];
                         }
-                        run.iter_mut().for_each(|b| *b *= eq.high[h]);
-                        run
+                        for (a, &r) in acc.iter_mut().zip(run.iter()) {
+                            *a += r * eq.high[h];
+                        }
                     },
                     |mut a, b| {
                         a.iter_mut().zip(b).for_each(|(a, b)| *a += b);
