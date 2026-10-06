@@ -7,13 +7,26 @@
 //! into `E` upstream, [`crate::leaf`]).
 
 use crate::PAR_THRESHOLD;
-use crate::arith::Verifier;
+use fiat_shamir::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
+use primitives::field::{F192x1, F192x1Unreduced};
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+use primitives::field::{F192x4, F192x4Unreduced};
 use primitives::multilinear::{SplitEq, interp};
 use primitives::stream::Stream;
 use std::mem::MaybeUninit;
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+use std::ops::Mul;
 use thiserror::Error;
 
 /// Why the bus's grand-product GKR rejects.
@@ -34,43 +47,90 @@ fn window_rows(total: usize) -> usize {
     total.div_ceil(tasks).clamp(64, 1 << 10)
 }
 
+/// The next radix-four level: entry `k` is the product of `current[4k..4k + 4]`, the last
+/// four-tuple padded with ones.
+///
+/// Allocated at its final size in whole four-tuples, since [`QuaternaryLayerState::new`]
+/// pads a level to that and growing it would copy it.
+pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
+    let rows = current.len().div_ceil(4);
+    let full_rows = current.len() / 4;
+    let mut next = Vec::with_capacity(rows.next_multiple_of(4));
+    let slots = &mut next.spare_capacity_mut()[..rows];
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    )))]
+    let product = |row: usize| {
+        let [left, right] = mul2(
+            [current[4 * row], current[4 * row + 2]],
+            [current[4 * row + 1], current[4 * row + 3]],
+        );
+        left * right
+    };
+    // Each value in vector registers from its load to the product's.
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    ))]
+    let product = |row: usize| {
+        let child = |c: usize| F192x1::load(&current[4 * row + c]);
+        F192::from((child(0) * child(1)) * (child(2) * child(3)))
+    };
+    if full_rows >= PAR_THRESHOLD {
+        parallel::fill(&mut slots[..full_rows], |row| MaybeUninit::new(product(row)));
+    } else {
+        for (row, slot) in slots[..full_rows].iter_mut().enumerate() {
+            slot.write(product(row));
+        }
+    }
+    if full_rows < rows {
+        slots[full_rows].write(padded_product(current, full_rows));
+    }
+    // SAFETY: the fill wrote `next[..full_rows]`, and the tail the one row after.
+    unsafe { next.set_len(rows) };
+    next
+}
+
+/// Entry `row` of [`next_level`]: the product of `current[4 * row..]`'s first four, ones past its end.
+pub(crate) fn padded_product(current: &[F192], row: usize) -> F192 {
+    let child = |index| current.get(4 * row + index).copied().unwrap_or(F192::ONE);
+    let [left, right] = mul2([child(0), child(2)], [child(1), child(3)]);
+    left * right
+}
+
 /// Build only the levels consumed by radix four: `0,2,4,…`, plus a final
-/// binary root when the logical depth is odd.
-fn build_layers(leaves: Vec<F192>, mu: usize) -> Vec<Vec<F192>> {
+/// binary root when the logical depth is odd. `first` is level 2, [`next_level`]
+/// of the leaves, which the caller builds alongside them.
+fn build_layers(leaves: Vec<F192>, first: Vec<F192>, mu: usize) -> Vec<Vec<F192>> {
     assert!(!leaves.is_empty());
     assert!(leaves.len() <= 1usize << mu);
+    assert_eq!(
+        first.len(),
+        leaves.len().div_ceil(4),
+        "the first level is the leaves' products"
+    );
     // At mu = 22 the leaf level alone is hundreds of megabytes, and every level
     // dies with the proof.
     let mut layers: Vec<Vec<F192>> = (0..=mu).map(|_| Vec::new()).collect();
     layers[0] = leaves;
-    let mut level = 0;
+    let mut level = if mu >= 2 {
+        layers[2] = first;
+        2
+    } else {
+        0
+    };
     while level + 2 <= mu {
-        let current = &layers[level];
-        let full_rows = current.len() / 4;
-        let product = |row: usize| {
-            let [left, right] = mul2(
-                [current[4 * row], current[4 * row + 2]],
-                [current[4 * row + 1], current[4 * row + 3]],
-            );
-            left * right
-        };
-        let mut next: Vec<F192> = if current.len() == 1 {
-            Vec::from_iter([current[0]])
-        } else if current.len() == 2 {
-            Vec::from_iter([current[0] * current[1]])
-        } else if full_rows >= PAR_THRESHOLD {
-            parallel::map_collect(full_rows, product)
-        } else {
-            (0..full_rows).map(product).collect()
-        };
-        if !current.len().is_multiple_of(4) && current.len() > 2 {
-            let row = full_rows;
-            let child = |index| current.get(4 * row + index).copied().unwrap_or(F192::ONE);
-            let [left, right] = mul2([child(0), child(2)], [child(1), child(3)]);
-            next.push(left * right);
-        }
+        layers[level + 2] = next_level(&layers[level]);
         level += 2;
-        layers[level] = next;
     }
     if level < mu {
         layers[mu] = match layers[level].as_slice() {
@@ -109,6 +169,93 @@ fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] 
     mul_unreduced4([equality; 4], [c0 + at_one, c2, c3, c4])
 }
 
+/// [`quartic_summand`] of four row pairs at once, lane `j` for pair `j`: `low[c]` is
+/// child `c` of each pair's low row, `high[c]` of its high row.
+///
+/// The same products, each one lane-wise product for the four pairs.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[inline(always)]
+fn quartic_summand4(low: [F192x4; 4], high: [F192x4; 4], equality: F192x4) -> [F192x4Unreduced; 4] {
+    let slope: [F192x4; 4] = std::array::from_fn(|c| low[c] + high[c]);
+    let (left0, left2) = (low[0].mul(low[1]), slope[0].mul(slope[1]));
+    let (right0, right2) = (low[2].mul(low[3]), slope[2].mul(slope[3]));
+    // A line at one is the high row, and a product's three coefficients sum to it there.
+    let (left_at_one, right_at_one) = (high[0].mul(high[1]), high[2].mul(high[3]));
+    let left1 = left_at_one + left0 + left2;
+    let right1 = right_at_one + right0 + right2;
+    // These six products meet only in the four sums, so each sum is reduced once.
+    let c0 = left0.mul_unreduced(right0);
+    let c4 = left2.mul_unreduced(right2);
+    let middle = left1.mul_unreduced(right1);
+    let at_one = left_at_one.mul_unreduced(right_at_one);
+    let cross_even = (left0 + left2).mul_unreduced(right0 + right2);
+    let cross_high = (left1 + left2).mul_unreduced(right1 + right2);
+    let c2 = cross_even ^ c0 ^ c4 ^ middle;
+    let c3 = cross_high ^ middle ^ c4;
+    [c0 ^ at_one, c2, c3, c4].map(|c| equality.mul_unreduced(c.reduce()))
+}
+
+/// A row's four children, or a summand's four coefficients, held in vector registers.
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
+type Quad<T> = (T, T, T, T);
+
+/// [`quartic_summand4`]'s products for one row pair held in vector registers: `low` is the
+/// low row's four children, `high` the high row's.
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
+#[inline(always)]
+fn quartic_summand1(low: Quad<F192x1>, high: Quad<F192x1>, equality: F192x1) -> Quad<F192x1Unreduced> {
+    let ((l0, l1, l2, l3), (h0, h1, h2, h3)) = (low, high);
+    let (left0, left2) = (l0 * l1, (l0 + h0) * (l1 + h1));
+    let (right0, right2) = (l2 * l3, (l2 + h2) * (l3 + h3));
+    let (left_at_one, right_at_one) = (h0 * h1, h2 * h3);
+    let left1 = left_at_one + left0 + left2;
+    let right1 = right_at_one + right0 + right2;
+    let c0 = left0.mul_unreduced(right0);
+    let c4 = left2.mul_unreduced(right2);
+    let middle = left1.mul_unreduced(right1);
+    let at_one = left_at_one.mul_unreduced(right_at_one);
+    let cross_even = (left0 + left2).mul_unreduced(right0 + right2);
+    let cross_high = (left1 + left2).mul_unreduced(right1 + right2);
+    let scaled = |c: F192x1Unreduced| equality.mul_unreduced(c.reduce());
+    (
+        scaled(c0 ^ at_one),
+        scaled(cross_even ^ c0 ^ c4 ^ middle),
+        scaled(cross_high ^ middle ^ c4),
+        scaled(c4),
+    )
+}
+
+/// `slice` as the values it holds.
+///
+/// # Safety
+///
+/// Every element of `slice` is initialized.
+const unsafe fn assume_init(slice: &[MaybeUninit<F192>]) -> &[F192] {
+    // SAFETY: `MaybeUninit<F192>` has `F192`'s layout, and the caller vouches for the values.
+    unsafe { std::slice::from_raw_parts(slice.as_ptr().cast(), slice.len()) }
+}
+
+/// Row `r` of a level: its four children.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[inline(always)]
+fn row(values: &[F192], r: usize) -> &[F192; 4] {
+    values[4 * r..4 * r + 4].as_array().unwrap()
+}
+
 /// Two binary product levels contracted into one degree-four layer.
 struct QuaternaryLayerState {
     /// Four child tables interleaved in their original order. This lets the
@@ -140,6 +287,14 @@ impl QuaternaryLayerState {
     fn round_message(&self, equality: &SplitEq) -> [F192; 4] {
         let stored_rows = self.values.len() / 4;
         let full_pairs = stored_rows / 2;
+        #[cfg(not(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(target_feature = "vpclmulqdq")
+            )
+        )))]
         let summand = |row: usize, weight: F192| -> [F192Unreduced; 4] {
             let (lo, hi) = (8 * row, 8 * row + 4);
             let lines = [0, 1, 2, 3].map(|child| {
@@ -155,9 +310,54 @@ impl QuaternaryLayerState {
             left
         };
         let rows = window_rows(full_pairs);
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+        let summand4 = |_: &mut (), pair: usize, weights: F192x4| -> [F192x4Unreduced; 4] {
+            // Each row as its four children in lanes, turned to put the four pairs in lanes.
+            let rows = |half: usize| {
+                F192x4::transpose(std::array::from_fn(|j| {
+                    F192x4::load(row(&self.values, 2 * (pair + j) + half))
+                }))
+            };
+            quartic_summand4(rows(0), rows(1), weights)
+        };
+        #[cfg(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(target_feature = "vpclmulqdq")
+            )
+        ))]
+        let summand1 = |row: usize, weight: F192x1| {
+            let v = &self.values[8 * row..8 * row + 8];
+            let child = |c: usize| F192x1::load(&v[c]);
+            let low = (child(0), child(1), child(2), child(3));
+            quartic_summand1(low, (child(4), child(5), child(6), child(7)), weight)
+        };
         let window = |index: usize| -> [F192Unreduced; 4] {
             let base = index * rows;
-            equality.weighted_sum(base..(base + rows).min(full_pairs), summand)
+            let range = base..(base + rows).min(full_pairs);
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+            return equality.weighted_sum_lanes(range, full_pairs, &mut (), |_, row, w| summand(row, w), summand4);
+            #[cfg(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            ))]
+            return equality.weighted_sum_x1(range, summand1);
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            )))]
+            equality.weighted_sum(range, summand)
         };
         let windows = full_pairs.div_ceil(rows);
         let mut message = if full_pairs >= PAR_THRESHOLD {
@@ -183,6 +383,7 @@ impl QuaternaryLayerState {
         self.next.clear();
         let values = &self.values;
         let next = &mut self.next.spare_capacity_mut()[..4 * rows];
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
         let fold_row = |row: usize| -> [F192; 4] {
             // One slice, not eight indexes: the bounds checks and the
             // index-by-24 multiplies fall out.
@@ -207,12 +408,24 @@ impl QuaternaryLayerState {
                 stream.write(slot, &both[..slot.len()]);
             }
         };
-        #[cfg(not(target_arch = "x86_64"))]
+        #[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", target_feature = "aes"))))]
         let window = |base: usize, destination: &mut [MaybeUninit<F192>]| {
             for (pair, slot) in destination.chunks_mut(8).enumerate() {
                 slot[..4].write_copy_of_slice(&fold_row(base + 2 * pair));
                 if slot.len() == 8 {
                     slot[4..].write_copy_of_slice(&fold_row(base + 2 * pair + 1));
+                }
+            }
+        };
+        // Each value in vector registers from its load to its store.
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        let window = |base: usize, destination: &mut [MaybeUninit<F192>]| {
+            let challenge = F192x1::new(challenge);
+            for (r, slot) in destination.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+                let v = &values[8 * (base + r)..8 * (base + r) + 8];
+                for (c, slot) in slot.iter_mut().enumerate() {
+                    let (left, right) = (F192x1::load(&v[c]), F192x1::load(&v[4 + c]));
+                    (left + (left + right) * challenge).store(slot);
                 }
             }
         };
@@ -248,37 +461,160 @@ impl QuaternaryLayerState {
         let dst = SendPtr(self.next.spare_capacity_mut()[..4 * rows].as_mut_ptr());
         const PAIRS: usize = 16;
         let pairs = rows.div_ceil(2);
+        // A pair below this has both rows and both their halves stored.
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+        let full_pairs = stored_rows / 4;
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+        let lanes = F192x4::splat(challenge);
+        #[cfg(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(target_feature = "vpclmulqdq")
+            )
+        ))]
+        let challenge1 = F192x1::new(challenge);
         let task = |index: usize| {
             let first = index * PAIRS;
             let end = (first + PAIRS).min(pairs);
-            let mut stage = [F192::ZERO; 8 * PAIRS];
             let end_row = (2 * end).min(rows);
-            for row in 2 * first..end_row {
+            let len = 4 * (end_row - 2 * first);
+            // Every slot is written before it is read, so the stage needs no zero fill.
+            let mut stage = [MaybeUninit::<F192>::uninit(); 8 * PAIRS];
+            #[cfg(not(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            )))]
+            let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
                 let lo = 8 * row;
                 let left = &values[lo..lo + 4];
                 let right = values.get(lo + 4..lo + 8).unwrap_or(&[F192::ONE; 4]);
                 let product = mul4(std::array::from_fn(|i| left[i] + right[i]), [challenge; 4]);
                 let offset = 4 * (row - 2 * first);
                 for i in 0..4 {
-                    stage[offset + i] = left[i] + product[i];
+                    stage[offset + i].write(left[i] + product[i]);
                 }
-            }
-            let message = equality.weighted_sum(first..end, |pair, weight| {
-                let lo = 8 * (pair - first);
-                let left = &stage[lo..lo + 4];
-                let right = if 2 * pair + 1 < rows {
-                    &stage[lo + 4..lo + 8]
-                } else {
-                    &[F192::ONE; 4]
-                };
-                let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
-                quartic_summand(lines, weight)
-            });
+            };
+            #[cfg(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            ))]
+            let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
+                let lo = 8 * row;
+                let left = &values[lo..lo + 4];
+                let right = values.get(lo + 4..lo + 8).unwrap_or(&[F192::ONE; 4]);
+                let offset = 4 * (row - 2 * first);
+                for (c, slot) in stage[offset..offset + 4].iter_mut().enumerate() {
+                    let (left, right) = (F192x1::load(&left[c]), F192x1::load(&right[c]));
+                    (left + (left + right) * challenge1).store(slot);
+                }
+            };
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            )))]
+            let message = {
+                for row in 2 * first..end_row {
+                    fold_row(&mut stage, row);
+                }
+                // SAFETY: the loop above wrote `stage[..len]`.
+                let stage = unsafe { assume_init(&stage[..len]) };
+                equality.weighted_sum(first..end, |pair, weight| {
+                    let lo = 8 * (pair - first);
+                    let left = &stage[lo..lo + 4];
+                    let right = if 2 * pair + 1 < rows {
+                        &stage[lo + 4..lo + 8]
+                    } else {
+                        &[F192::ONE; 4]
+                    };
+                    let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
+                    quartic_summand(lines, weight)
+                })
+            };
+            // Each value in vector registers from its load to the summand's sums.
+            #[cfg(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            ))]
+            let message = {
+                for row in 2 * first..end_row {
+                    fold_row(&mut stage, row);
+                }
+                // SAFETY: the loop above wrote `stage[..len]`.
+                let stage = unsafe { assume_init(&stage[..len]) };
+                let one = F192x1::new(F192::ONE);
+                equality.weighted_sum_x1(first..end, |pair, weight| {
+                    let lo = 8 * (pair - first);
+                    let child = |c: usize| F192x1::load(&stage[lo + c]);
+                    let high = if 2 * pair + 1 < rows {
+                        (child(4), child(5), child(6), child(7))
+                    } else {
+                        (one, one, one, one)
+                    };
+                    quartic_summand1((child(0), child(1), child(2), child(3)), high, weight)
+                })
+            };
+            // Each pair folded where its summand reads it, four pairs at a time in lanes.
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+            let message = equality.weighted_sum_lanes(
+                first..end,
+                full_pairs,
+                &mut stage,
+                |stage, pair, weight| {
+                    let has_right = 2 * pair + 1 < rows;
+                    fold_row(stage, 2 * pair);
+                    if has_right {
+                        fold_row(stage, 2 * pair + 1);
+                    }
+                    let lo = 8 * (pair - first);
+                    // SAFETY: the pair's rows, written just above.
+                    let pair_rows = unsafe { assume_init(&stage[lo..lo + if has_right { 8 } else { 4 }]) };
+                    let left = &pair_rows[..4];
+                    let right = if has_right { &pair_rows[4..8] } else { &[F192::ONE; 4] };
+                    let lines = std::array::from_fn(|i| [left[i], left[i] + right[i]]);
+                    quartic_summand(lines, weight)
+                },
+                |stage, pair, weights| {
+                    // Each pair's two rows, folded with their children in lanes and staged,
+                    // then turned to put the four pairs in lanes.
+                    let folded = [0, 1].map(|k| {
+                        F192x4::transpose(std::array::from_fn(|j| {
+                            let n = 2 * (pair + j) + k;
+                            let (left, right) =
+                                (F192x4::load(row(values, 2 * n)), F192x4::load(row(values, 2 * n + 1)));
+                            let folded = left + (left + right).mul(lanes);
+                            let slot = 4 * (n - 2 * first);
+                            folded.store(stage[slot..slot + 4].as_mut_array().unwrap());
+                            folded
+                        }))
+                    });
+                    quartic_summand4(folded[0], folded[1], weights)
+                },
+            );
+            // SAFETY: every row of the task is folded into `stage[..len]` above.
+            let stage = unsafe { assume_init(&stage[..len]) };
             // The next round reads the destination; this round reads only the local stage.
             let stream = Stream::new();
-            let len = 4 * (end_row - 2 * first);
             // SAFETY: tasks own disjoint windows of the output's capacity, covering every row.
-            unsafe { stream.write(dst.slice(8 * first, len), &stage[..len]) };
+            unsafe { stream.write(dst.slice(8 * first, len), stage) };
             message
         };
         let xor = |mut a: [F192Unreduced; 4], b: [F192Unreduced; 4]| {
@@ -307,41 +643,39 @@ impl QuaternaryLayerState {
     }
 }
 
-/// The result of a batched grand-product proof: the roots and leaf evaluations, all
-/// reduced to one shared point. `roots[0] == roots[1]` by construction rather than by
-/// a check.
-pub struct Products<const N: usize, E = F192> {
-    pub roots: [E; N],
+/// The result of a batched grand-product proof: the two trees' leaf evaluations, at one shared point.
+pub struct Products<E = F192> {
     pub point: Vec<E>,
-    pub values: [E; N],
+    pub values: [E; 2],
 }
 
-/// `Σ_k λ^k·values[k]`, the batch's combination of one coefficient across the trees.
-fn combine<const N: usize>(values: [F192; N], lambda: F192) -> F192 {
-    values.iter().rev().fold(F192::ZERO, |acc, &v| acc * lambda + v)
+/// `values[0] + λ·values[1]`, the batch's combination of one coefficient across the two trees.
+fn combine([first, second]: [F192; 2], lambda: F192) -> F192 {
+    first + lambda * second
 }
 
-/// Prove `N` identity-padded grand products as one RLC-batched radix-four GKR, over the
-/// depth of the tallest tree.
+/// Prove two identity-padded grand products as one RLC-batched radix-four GKR, over the
+/// depth of the taller tree.
 ///
-/// The first two trees share a product by construction, as the bus's two sides do
+/// The two trees share a product by construction, as the bus's two sides do
 /// (`cpu::filler` fills every table to a power of two, so they balance outright). ONE root
 /// is sent for both, and no verifier can be handed an unbalanced pair to check.
-pub fn prove_products<const N: usize>(leaves: [Vec<F192>; N], ps: &mut ProverState) -> Products<N> {
-    const { assert!(N >= 2, "the first two trees are the bus's two sides") };
-    let mu = leaves
+///
+/// Each tree comes as its leaves and their first product level, `gkr::next_level`.
+pub fn prove_products(trees: [(Vec<F192>, Vec<F192>); 2], ps: &mut ProverState) -> Products {
+    let mu = trees
         .iter()
-        .map(|lane| crate::log2_ceil_usize(lane.len()))
+        .map(|(lane, _)| crate::log2_ceil_usize(lane.len()))
         .max()
         .expect("at least one tree");
     assert!(
-        leaves.iter().all(|lane| !lane.is_empty()),
+        trees.iter().all(|(lane, _)| !lane.is_empty()),
         "batched trees must be nonempty"
     );
-    let mut layers = leaves.map(|lane| build_layers(lane, mu));
-    let roots: [F192; N] = std::array::from_fn(|tree| layers[tree][mu][0]);
+    let mut layers = trees.map(|(lane, first)| build_layers(lane, first, mu));
+    let roots = [0, 1].map(|tree| layers[tree][mu][0]);
     assert_eq!(roots[0], roots[1], "the bus needs the two products to agree");
-    ps.add_scalars(&roots[1..]);
+    ps.add_scalar(roots[0]);
     let mut lambda = ps.sample();
     let mut point = Vec::new();
     let mut values = roots;
@@ -351,7 +685,7 @@ pub fn prove_products<const N: usize>(leaves: [Vec<F192>; N], ps: &mut ProverSta
         let round_count = mu - layer;
         if layer % 2 == 1 {
             debug_assert_eq!(round_count, 0, "only the root-most layer may be binary");
-            let tails: [[F192; 2]; N] = std::array::from_fn(|tree| {
+            let tails: [[F192; 2]; 2] = std::array::from_fn(|tree| {
                 let below = &layers[tree][layer - 1];
                 match below.as_slice() {
                     [left, right] => [*left, *right],
@@ -373,7 +707,7 @@ pub fn prove_products<const N: usize>(leaves: [Vec<F192>; N], ps: &mut ProverSta
         }
 
         let width = 1usize << round_count;
-        let mut trees: [QuaternaryLayerState; N] =
+        let mut trees: [QuaternaryLayerState; 2] =
             std::array::from_fn(|tree| QuaternaryLayerState::new(std::mem::take(&mut layers[tree][layer - 2]), width));
         // Round `j` of this layer weighs its rows by `eq(point[1 + j..], .)`.
         let mut equality = SplitEq::with_low_vars(if round_count > 0 { &point[1..] } else { &[] }, EQ_LOW_VARS);
@@ -381,7 +715,7 @@ pub fn prove_products<const N: usize>(leaves: [Vec<F192>; N], ps: &mut ProverSta
         let mut messages = if round_count > 0 {
             trees.each_ref().map(|tree| tree.round_message(&equality))
         } else {
-            [[F192::ZERO; 4]; N]
+            [[F192::ZERO; 4]; 2]
         };
         for round in 0..round_count {
             let mut coeffs = [0, 1, 2, 3].map(|coefficient| combine(messages.map(|m| m[coefficient]), lambda));
@@ -424,26 +758,21 @@ pub fn prove_products<const N: usize>(leaves: [Vec<F192>; N], ps: &mut ProverSta
         layer -= 2;
     }
 
-    Products { roots, point, values }
+    Products { point, values }
 }
 
-/// Verify the RLC-batched radix-four proof of `N` trees of depth `mu`.
+/// Verify the RLC-batched radix-four proof of two trees of depth `mu`.
 ///
 /// # Errors
 ///
 /// Returns the first layer whose sumcheck does not end at the next layer's claims, or a malformed stream.
-pub fn verify_products<V: Verifier, const N: usize>(v: &mut V, mu: usize) -> Result<Products<N, V::E>, GkrError> {
-    const { assert!(N >= 2, "the first two trees are the bus's two sides") };
+pub fn verify_products<V: Verifier>(v: &mut V, mu: usize) -> Result<Products<V::E>, GkrError> {
     // One root for both balancing trees, so their equality is structural: there is no
     // unbalanced pair a prover could state, and nothing for the caller to check.
     let first = v.next_scalar()?;
-    let mut roots = [first; N];
-    for root in &mut roots[2..] {
-        *root = v.next_scalar()?;
-    }
     let mut lambda = v.sample();
     let mut point = Vec::new();
-    let mut values = roots;
+    let mut values = [first; 2];
 
     let mut layer = mu;
     while layer > 0 {
@@ -451,7 +780,7 @@ pub fn verify_products<V: Verifier, const N: usize>(v: &mut V, mu: usize) -> Res
         let mut claim = v.poly_eval(&values, lambda);
         if layer % 2 == 1 {
             debug_assert_eq!(round_count, 0, "only the root-most layer may be binary");
-            let mut tails = [[first; 2]; N];
+            let mut tails = [[first; 2]; 2];
             for value in tails.iter_mut().flatten() {
                 *value = v.next_scalar()?;
             }
@@ -475,7 +804,7 @@ pub fn verify_products<V: Verifier, const N: usize>(v: &mut V, mu: usize) -> Res
             round_point.push(challenge);
             claim = v.poly_eval(&h, challenge);
         }
-        let mut tails = [[first; 4]; N];
+        let mut tails = [[first; 4]; 2];
         for value in tails.iter_mut().flatten() {
             *value = v.next_scalar()?;
         }
@@ -495,7 +824,7 @@ pub fn verify_products<V: Verifier, const N: usize>(v: &mut V, mu: usize) -> Res
         layer -= 2;
     }
 
-    Ok(Products { roots, point, values })
+    Ok(Products { point, values })
 }
 
 #[cfg(test)]
@@ -583,19 +912,13 @@ mod tests {
     #[test]
     fn radix_four_roundtrip_at_even_and_odd_depths() {
         for mu in 0..=10 {
-            let mut leaves: [Vec<F192>; 3] = [0, 1, 2].map(|lane| {
-                (0..1usize << mu)
-                    .map(|row| F192::new((1 + row + lane * 100_003) as u64, row as u64, lane as u64))
-                    .collect()
-            });
-            // The first two trees share their product.
-            leaves[1] = leaves[0].iter().rev().copied().collect();
-            let expected_roots = leaves
-                .each_ref()
-                .map(|lane| lane.iter().copied().fold(F192::ONE, |product, value| product * value));
+            let first: Vec<F192> = (0..1usize << mu)
+                .map(|row| F192::new((1 + row) as u64, row as u64, 0))
+                .collect();
+            // The two trees share their product.
+            let leaves = [first.clone(), first.into_iter().rev().collect()];
             let mut ps = ProverState::from_label(b"radix-four-gkr-test");
-            let proved = prove_products(leaves.each_ref().map(|l| l.to_vec()), &mut ps);
-            assert_eq!(proved.roots, expected_roots);
+            let proved = prove_products(leaves.each_ref().map(|l| (l.to_vec(), next_level(l))), &mut ps);
             for (lane, leaf) in leaves.iter().enumerate() {
                 assert_eq!(proved.values[lane], mle_eval_e(leaf, &proved.point));
             }
@@ -603,7 +926,6 @@ mod tests {
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(b"radix-four-gkr-test", &proof);
             let verified = verify_products(&mut vs, mu).expect("GKR verifies");
-            assert_eq!(verified.roots, proved.roots);
             assert_eq!(verified.point, proved.point);
             assert_eq!(verified.values, proved.values);
             vs.finish().expect("proof stream is consumed");
@@ -613,13 +935,13 @@ mod tests {
     #[test]
     fn implicit_identity_suffix_matches_dense_padding() {
         for mu in 3..=10 {
-            let lengths = [(1usize << mu) - 3, (1usize << (mu - 1)) + 1, (1usize << (mu - 2)) + 3];
-            let mut leaves: [Vec<F192>; 3] = std::array::from_fn(|lane| {
+            let lengths = [(1usize << mu) - 3, (1usize << (mu - 1)) + 1];
+            let mut leaves: [Vec<F192>; 2] = std::array::from_fn(|lane| {
                 (0..lengths[lane])
                     .map(|row| F192::new((3 + row + lane * 10_007) as u64, row as u64, lane as u64))
                     .collect()
             });
-            // The first two trees share their product: the second's last leaf makes up the difference.
+            // The two trees share their product: the second's last leaf makes up the difference.
             let product = |lane: &[F192]| lane.iter().fold(F192::ONE, |p, &v| p * v);
             let last = leaves[1].len() - 1;
             leaves[1][last] = product(&leaves[0]) * product(&leaves[1][..last]).inv();
@@ -629,24 +951,18 @@ mod tests {
                 padded
             });
             let mut sparse_ps = ProverState::from_label(b"sparse-radix-four-gkr-test");
-            let proved = prove_products(leaves.each_ref().map(|l| l.to_vec()), &mut sparse_ps);
+            let proved = prove_products(leaves.each_ref().map(|l| (l.to_vec(), next_level(l))), &mut sparse_ps);
             for (lane, values) in dense.iter().enumerate() {
                 assert_eq!(proved.values[lane], mle_eval_e(values, &proved.point));
-                assert_eq!(
-                    proved.roots[lane],
-                    values.iter().copied().fold(F192::ONE, |product, value| product * value)
-                );
             }
             let proof = sparse_ps.into_proof();
             let mut dense_ps = ProverState::from_label(b"sparse-radix-four-gkr-test");
-            let dense_proved = prove_products(dense.each_ref().map(|l| l.to_vec()), &mut dense_ps);
-            assert_eq!(dense_proved.roots, proved.roots);
+            let dense_proved = prove_products(dense.each_ref().map(|l| (l.to_vec(), next_level(l))), &mut dense_ps);
             assert_eq!(dense_proved.point, proved.point);
             assert_eq!(dense_proved.values, proved.values);
             assert_eq!(dense_ps.into_proof().stream, proof.stream);
             let mut vs = VerifierState::from_label(b"sparse-radix-four-gkr-test", &proof);
             let verified = verify_products(&mut vs, mu).expect("GKR verifies");
-            assert_eq!(verified.roots, proved.roots);
             assert_eq!(verified.point, proved.point);
             assert_eq!(verified.values, proved.values);
             vs.finish().expect("proof stream is consumed");

@@ -2,8 +2,8 @@
 
 use super::RecError;
 use super::circuit::Circuit;
-use super::table::{HashFlock, Table};
-use crate::constraints::{Air, Claims};
+use super::table::{HashFlock, PerRecTable, Table};
+use crate::constraints::{Air, BitColumns, Claims};
 use crate::leaf::ColumnClaim;
 use crate::pcs::StackClaim;
 use crate::witness::{Placement, Source, StackShape, Window};
@@ -17,7 +17,7 @@ use std::ops::Range;
 #[derive(Clone, Debug)]
 pub(crate) struct RecLayout {
     /// Each table's base-two logarithm of rows, the public table's included.
-    pub(crate) taus: [usize; Table::COUNT],
+    pub(crate) taus: PerRecTable<usize>,
     pub(crate) placements: Vec<Placement>,
     pub(crate) shape: StackShape,
 }
@@ -56,12 +56,9 @@ impl RecLayout {
     /// # Errors
     ///
     /// Returns an error if a table has more rows than its keys name, or the witness exceeds one commitment.
-    pub(crate) fn from_taus(taus: [usize; Table::COUNT]) -> Result<Self, RecError> {
-        if let Some(table) = Table::ALL.into_iter().find(|&t| taus[t as usize] > Self::MAX_TAU) {
-            return Err(RecError::TooManyRows {
-                table,
-                tau: taus[table as usize],
-            });
+    pub(crate) fn from_taus(taus: PerRecTable<usize>) -> Result<Self, RecError> {
+        if let Some((table, &tau)) = taus.iter().find(|&(_, &tau)| tau > Self::MAX_TAU) {
+            return Err(RecError::TooManyRows { table, tau });
         }
         let (placements, shape) = witness::placements_of(&Self::sources(&taus));
         if shape.mu > pcs::MAX_MU {
@@ -75,9 +72,9 @@ impl RecLayout {
     }
 
     /// Every global column's source: the packed witness, then each owned table's ports and committed columns.
-    fn sources(taus: &[usize; Table::COUNT]) -> Vec<Source> {
+    fn sources(taus: &PerRecTable<usize>) -> Vec<Source> {
         let stride_log = HashFlock::stride_log();
-        let mut sources = vec![Source::Committed(taus[Table::Hash as usize] + stride_log)];
+        let mut sources = vec![Source::Committed(taus[Table::Hash] + stride_log)];
         for table in Table::OWNED {
             debug_assert_eq!(sources.len(), Self::columns(table).start);
             sources.extend((0..table.n_cols()).map(|c| {
@@ -88,7 +85,7 @@ impl RecLayout {
                         stride_log,
                     }
                 } else {
-                    Source::Committed(taus[table as usize])
+                    Source::Committed(taus[table])
                 }
             }));
         }
@@ -102,8 +99,8 @@ impl RecLayout {
     }
 
     /// A table's base-two logarithm of rows.
-    pub(crate) const fn tau(&self, table: Table) -> usize {
-        self.taus[table as usize]
+    pub(crate) fn tau(&self, table: Table) -> usize {
+        self.taus[table]
     }
 
     /// The packed witness's window in the stack.
@@ -120,6 +117,7 @@ impl RecLayout {
                 tau: self.tau(table),
                 n_cols: table.n_cols(),
                 n_public: 0,
+                bits: BitColumns::default(),
                 summand,
             })
             .collect()
@@ -138,24 +136,7 @@ impl RecLayout {
             }));
         }
         (claims.into_iter())
-            .map(|c| match self.placements[c.col] {
-                Placement::Committed(window) => StackClaim::Point {
-                    offset: window.offset,
-                    low_point: c.point,
-                    value: c.value,
-                },
-                Placement::Port {
-                    offset,
-                    port,
-                    stride_log,
-                } => StackClaim::Strided {
-                    offset,
-                    slot: port,
-                    stride_log,
-                    point: c.point,
-                    value: c.value,
-                },
-            })
+            .filter_map(|c| self.placements[c.col].claim(c.point, c.value))
             .collect()
     }
 }

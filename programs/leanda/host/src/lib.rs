@@ -5,21 +5,15 @@
 //!
 //! The dual codeword `L` then follows from the root, by Fiat-Shamir.
 
-use fiat_shamir::FiatShamirState;
 use fiat_shamir::merkle::hash_to_scalars;
+use fiat_shamir::{DS_OBSERVE, DS_SQUEEZE, compress, digest_words};
 use leanda::{CELLS, Dual, Hash, LOG_K, M};
-use leanvm_guest::PublicValues;
+use leanvm_guest::{PublicValues, Run};
 use pcs::ntt::AdditiveNttF64;
 use primitives::field::{F64, F192};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leanda.elf");
-
-/// What one run of the guest is given, and what it must output.
-pub struct Run {
-    pub advice: Vec<u64>,
-    pub expected: [u64; 4],
-}
 
 /// Transcript label, so a membership challenge is never any other challenge.
 const LABEL: &[u8] = b"leanDA/rs-membership/v1";
@@ -86,11 +80,15 @@ fn encode(payload: &[u64]) -> Vec<u64> {
 fn dual_codeword(root: &Hash) -> Vec<Dual> {
     // The challenges: the root's two halves observed, then 14 samples in `GF(2^192)`.
     let root: [u8; 32] = std::array::from_fn(|i| (root[i / 8] >> (8 * (i % 8))) as u8);
-    let mut fs = FiatShamirState::from_label(LABEL);
-    for scalar in hash_to_scalars(&root) {
-        fs.observe(scalar);
+    // The scheme's own chain, from `BLAKE2s(LABEL)`: one compression per absorbed scalar and per sample.
+    let mut cv = digest_words(&primitives::hash::hash(LABEL));
+    for x in hash_to_scalars(&root) {
+        cv = compress(cv, [F64(x.c0), F64(x.c1), F64(x.c2), DS_OBSERVE]);
     }
-    let z = fs.sample_vec(LOG_K);
+    let z: [F192; LOG_K] = std::array::from_fn(|_| {
+        cv = compress(cv, [F64::ZERO, F64::ZERO, F64::ZERO, DS_SQUEEZE]);
+        F192::new(cv[0].0, cv[1].0, cv[2].0)
+    });
 
     // The tensor, built by doubling: after step `j` its first `2^(j+1)` entries are set.
     //
@@ -119,8 +117,7 @@ const fn as_field(words: &mut [u64]) -> &mut [F64] {
 mod tests {
     use super::*;
     use leanda::{DaError, Hash};
-    use leanvm_core::cpu::Program;
-    use leanvm_core::rv::{Machine, Trap};
+    use leanvm_core::{Machine, Program, Trap};
 
     fn hex(words: &[u64]) -> String {
         words

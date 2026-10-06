@@ -13,7 +13,6 @@
 //! - `tables`: the instruction tables, one per class (columns, bus tuples, clock circuits).
 //! - `class_flock`: the glue to flock: each circuit proven over its own packed witness, in the same commitment.
 //! - `cpu`: whole-program assembly and the prove/verify entry points.
-//! - `arith`: the verifier's arithmetic, shared by the native verifier and its replay in rows.
 //! - `rec`: the recursion machine and the aggregation trees (§annex:rec).
 
 pub(crate) use primitives::{log2_ceil_usize, log2_strict_usize};
@@ -26,19 +25,41 @@ macro_rules! stage {
 }
 pub(crate) use stage;
 
-pub mod arith;
-pub mod class_flock;
-pub mod colval;
-pub mod constraints;
-pub mod cpu;
+mod class_flock;
+mod colval;
+mod constraints;
+mod cpu;
 mod envelope;
-pub mod gkr;
-pub mod leaf;
-pub mod pcs;
-pub mod rec;
-pub mod rv;
-pub mod tables;
-pub mod witness;
+mod gkr;
+mod leaf;
+mod pcs;
+mod rec;
+mod rv;
+mod tables;
+mod witness;
+
+pub use self::pcs::{InvalidRate, Rate};
+pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
+pub use rec::tree::{
+    CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
+    TreeShape, Unsatisfied,
+};
+pub use rv::{ElfError, ProgramError, Region, Trap, asm};
+
+#[doc(hidden)]
+pub use self::pcs::{MAX_MU, MIN_MU};
+#[doc(hidden)]
+pub use class_flock::{FlockId, MIN_CUBE_LOG, N_FLOCKS};
+#[doc(hidden)]
+pub use constraints::ConstraintError;
+#[doc(hidden)]
+pub use cpu::{CpuError, DeferredClaims, Lookup, MAX_LOG_ROWS, MalformedClaim, Q_BASE, UNGROUND_LOG_BYTECODE};
+#[doc(hidden)]
+pub use leaf::{BusError, N_TUPLE_BITS};
+#[doc(hidden)]
+pub use rv::{Alu, Class, Guest, Hash, Machine, Reg, RegisterFile, Syscall};
+#[doc(hidden)]
+pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId};
 
 /// Prepare the process for proving: spawn the worker pool up front.
 ///
