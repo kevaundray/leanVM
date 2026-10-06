@@ -11,12 +11,12 @@ use crate::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::{F192x4, F192x4Unreduced};
 use primitives::multilinear::{SplitEq, interp};
 use primitives::stream::Stream;
 use std::mem::MaybeUninit;
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use std::ops::Mul;
 use thiserror::Error;
 
@@ -143,7 +143,7 @@ fn quartic_summand(lines: [[F192; 2]; 4], equality: F192) -> [F192Unreduced; 4] 
 /// child `c` of each pair's low row, `high[c]` of its high row.
 ///
 /// The same products, each one lane-wise product for the four pairs.
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 #[inline(always)]
 fn quartic_summand4(low: [F192x4; 4], high: [F192x4; 4], equality: F192x4) -> [F192x4Unreduced; 4] {
     let slope: [F192x4; 4] = std::array::from_fn(|c| low[c] + high[c]);
@@ -151,16 +151,18 @@ fn quartic_summand4(low: [F192x4; 4], high: [F192x4; 4], equality: F192x4) -> [F
     let (right0, right2) = (low[2].mul(low[3]), slope[2].mul(slope[3]));
     // A line at one is the high row, and a product's three coefficients sum to it there.
     let (left_at_one, right_at_one) = (high[0].mul(high[1]), high[2].mul(high[3]));
-    let (c0, c4) = (left0.mul(right0), left2.mul(right2));
     let left1 = left_at_one + left0 + left2;
     let right1 = right_at_one + right0 + right2;
-    let middle = left1.mul(right1);
-    let at_one = left_at_one.mul(right_at_one);
-    let cross_even = (left0 + left2).mul(right0 + right2);
-    let cross_high = (left1 + left2).mul(right1 + right2);
-    let c2 = cross_even + c0 + c4 + middle;
-    let c3 = cross_high + middle + c4;
-    [c0 + at_one, c2, c3, c4].map(|c| equality.mul_unreduced(c))
+    // These six products meet only in the four sums, so each sum is reduced once.
+    let c0 = left0.mul_unreduced(right0);
+    let c4 = left2.mul_unreduced(right2);
+    let middle = left1.mul_unreduced(right1);
+    let at_one = left_at_one.mul_unreduced(right_at_one);
+    let cross_even = (left0 + left2).mul_unreduced(right0 + right2);
+    let cross_high = (left1 + left2).mul_unreduced(right1 + right2);
+    let c2 = cross_even ^ c0 ^ c4 ^ middle;
+    let c3 = cross_high ^ middle ^ c4;
+    [c0 ^ at_one, c2, c3, c4].map(|c| equality.mul_unreduced(c.reduce()))
 }
 
 /// `slice` as the values it holds.
@@ -174,7 +176,7 @@ const unsafe fn assume_init(slice: &[MaybeUninit<F192>]) -> &[F192] {
 }
 
 /// Row `r` of a level: its four children.
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 #[inline(always)]
 fn row(values: &[F192], r: usize) -> &[F192; 4] {
     values[4 * r..4 * r + 4].as_array().unwrap()
@@ -226,7 +228,7 @@ impl QuaternaryLayerState {
             left
         };
         let rows = window_rows(full_pairs);
-        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
         let summand4 = |_: &mut (), pair: usize, weights: F192x4| -> [F192x4Unreduced; 4] {
             // Each row as its four children in lanes, turned to put the four pairs in lanes.
             let rows = |half: usize| {
@@ -239,9 +241,9 @@ impl QuaternaryLayerState {
         let window = |index: usize| -> [F192Unreduced; 4] {
             let base = index * rows;
             let range = base..(base + rows).min(full_pairs);
-            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
             return equality.weighted_sum_lanes(range, full_pairs, &mut (), |_, row, w| summand(row, w), summand4);
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
             equality.weighted_sum(range, summand)
         };
         let windows = full_pairs.div_ceil(rows);
@@ -334,9 +336,9 @@ impl QuaternaryLayerState {
         const PAIRS: usize = 16;
         let pairs = rows.div_ceil(2);
         // A pair below this has both rows and both their halves stored.
-        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
         let full_pairs = stored_rows / 4;
-        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+        #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
         let lanes = F192x4::splat(challenge);
         let task = |index: usize| {
             let first = index * PAIRS;
@@ -355,7 +357,7 @@ impl QuaternaryLayerState {
                     stage[offset + i].write(left[i] + product[i]);
                 }
             };
-            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+            #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
             let message = {
                 for row in 2 * first..end_row {
                     fold_row(&mut stage, row);
@@ -375,7 +377,7 @@ impl QuaternaryLayerState {
                 })
             };
             // Each pair folded where its summand reads it, four pairs at a time in lanes.
-            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
             let message = equality.weighted_sum_lanes(
                 first..end,
                 full_pairs,

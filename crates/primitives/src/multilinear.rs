@@ -13,7 +13,7 @@ use crate::field::gf2_64::{reduce, software::clmul};
 use crate::field::{
     F64, F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8, mul_unreduced4, mul4,
 };
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use crate::field::{F192x4, F192x4Unreduced};
 
 /// Multilinear interpolation in one variable over `E`: `lo + t·(lo+hi)`, the
@@ -459,7 +459,7 @@ impl SplitEq {
     /// - `terms(state, x, w)` returns the unreduced products at `x`, already scaled by the low weight `w`.
     /// - `terms4(state, x, w)` does the same for `x..x + 4` at once, lane `j` for `x + j`, and serves every four of a run below `wide_end`.
     /// - Both are handed `state`; each run of `x` sharing a high weight is reduced once and scaled by it once.
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     #[inline]
     pub fn weighted_sum_lanes<S: ?Sized>(
         &self,
@@ -559,7 +559,7 @@ mod tests {
                 t[0] = w.mul_unreduced(value(x));
                 t
             };
-            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+            #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
             let terms4 = |_: &mut (), x: usize, w: F192x4| {
                 let mut t = [F192x4Unreduced::zero(); 4];
                 t[0] = w.mul_unreduced(F192x4::new(std::array::from_fn(|j| value(x + j))));
@@ -569,7 +569,7 @@ mod tests {
                 let want = range.clone().fold(F192::ZERO, |sum, x| sum + dense[x] * value(x));
                 assert_eq!(split.weighted_sum(range.clone(), terms)[0].reduce(), want, "{range:?}");
                 // Scalar terms only, lanes where they fit, and lanes stopped partway.
-                #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+                #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
                 for wide_end in [0, range.end, range.start + 7] {
                     let got = split.weighted_sum_lanes(range.clone(), wide_end, &mut (), |_, x, w| terms(x, w), terms4);
                     assert_eq!(got[0].reduce(), want, "{range:?} {wide_end}");

@@ -18,7 +18,7 @@ use crate::rec::FixedColumn;
 use crate::{PAR_THRESHOLD, gkr};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::Chunks;
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::MixedSums8;
 use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base, mul2, mul4};
 use primitives::multilinear::{eq_table, mle_eval};
@@ -414,7 +414,7 @@ fn fill_tuple(
     };
     // Eight rows at once: each term's coefficient meets eight words in one batched
     // product, and the eight sums reduce together. Elsewhere one row at a time.
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     let rows8 = |z: usize| -> [F192; 8] {
         let mut sums = MixedSums8::new();
         for t in &terms {
@@ -428,7 +428,7 @@ fn fill_tuple(
         }
         sums.reduce().map(|s| const_part + s)
     };
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     let rows8 = |z: usize| -> [F192; 8] { std::array::from_fn(|r| row(z + r)) };
     let fill = |base: usize, dst: &mut [MaybeUninit<F192>], products: Option<&mut [MaybeUninit<F192>]>| {
         let (groups, tail) = dst.as_chunks_mut::<8>();

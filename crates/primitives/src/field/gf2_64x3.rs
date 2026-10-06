@@ -23,7 +23,7 @@ use super::gf2_64::F64;
 use super::gf2_64::mul_wide;
 #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
 use super::gf2_64::{reduce, square_wide};
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use core::mem::MaybeUninit;
 use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
 use serde::{Deserialize, Serialize};
@@ -279,15 +279,16 @@ pub fn mul_base8(t: F192, k: [F64; 8]) -> [F192; 8] {
 
 /// Eight sums of mixed products, `sum_t t_t * k_t[i]` for each `i < 8`, every `t_t` shared by the eight.
 ///
-/// A term costs six CLMULs for all eight sums, and the eight reduce together once. AVX-512 only:
-/// elsewhere a caller sums each row's [`F192::mul_base_unreduced`] products itself.
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+/// A term costs six CLMULs for all eight sums on AVX-512, twelve on AVX2 (two sums per 128-bit
+/// lane either way), and the eight reduce together once. Only with VPCLMULQDQ: elsewhere a caller
+/// sums each row's [`F192::mul_base_unreduced`] products itself.
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 #[derive(Clone, Copy)]
 pub struct MixedSums8 {
-    acc: [core::arch::x86_64::__m512i; 6],
+    acc: x86_64::MixedAcc8,
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl Default for MixedSums8 {
     #[inline(always)]
     fn default() -> Self {
@@ -295,14 +296,14 @@ impl Default for MixedSums8 {
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl MixedSums8 {
     /// Eight empty sums.
     #[inline(always)]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            // SAFETY: avx512f is enabled at compile time.
-            acc: unsafe { [core::arch::x86_64::_mm512_setzero_si512(); 6] },
+            // SAFETY: every register is plain bits, and all-zero ones are the empty sums.
+            acc: unsafe { core::mem::zeroed() },
         }
     }
 
@@ -324,25 +325,25 @@ impl MixedSums8 {
 /// Four independent elements with lane-wise arithmetic, for a computation run on four
 /// inputs at once whose intermediate values stay in registers.
 ///
-/// Element `i` is 128-bit lane `i` of two registers, `[c0, c1]` and `[c2, c2]`: a product
-/// reads its operands where they are and leaves its result in the same form, so nothing
-/// crosses a lane between products, where [`mul4`] packs its operands from scalars and
-/// unpacks its results on every call. AVX-512 only: elsewhere a caller batches its
-/// products with [`mul4`].
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+/// Element `i` is 128-bit lane `i` of two registers, `[c0, c1]` and `[c2, c2]` (on AVX2, of two
+/// pairs of registers, elements 0 and 1 in the first): a product reads its operands where they
+/// are and leaves its result in the same form, so nothing crosses a lane between products, where
+/// [`mul4`] packs its operands from scalars and unpacks its results on every call. Only with
+/// VPCLMULQDQ: elsewhere a caller batches its products with [`mul4`].
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 #[derive(Clone, Copy)]
 pub struct F192x4 {
-    lanes: [core::arch::x86_64::__m512i; 2],
+    lanes: x86_64::Lanes4,
 }
 
 /// Four unreduced products, lane-wise, for XOR accumulation.
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 #[derive(Clone, Copy)]
 pub struct F192x4Unreduced {
-    lanes: [core::arch::x86_64::__m512i; 3],
+    lanes: x86_64::Wide4,
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl F192x4 {
     #[inline(always)]
     pub fn new(v: [F192; 4]) -> Self {
@@ -389,7 +390,7 @@ impl F192x4 {
     /// Lane `j` of `out[i]` is lane `i` of `rows[j]`.
     #[inline(always)]
     pub fn transpose(rows: [Self; 4]) -> [Self; 4] {
-        // SAFETY: avx512f is enabled at compile time.
+        // SAFETY: both features are enabled at compile time.
         unsafe { x86_64::transpose_lanes4(rows.map(|r| r.lanes)) }.map(|lanes| Self { lanes })
     }
 
@@ -403,20 +404,20 @@ impl F192x4 {
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl Add for F192x4 {
     type Output = Self;
     #[inline(always)]
     fn add(self, rhs: Self) -> Self {
         Self {
-            // SAFETY: avx512f is enabled at compile time.
+            // SAFETY: both features are enabled at compile time.
             lanes: unsafe { x86_64::xor_lanes(self.lanes, rhs.lanes) },
         }
     }
 }
 
 /// The lane-wise products, reduced and in lanes again.
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl Mul for F192x4 {
     type Output = Self;
     #[inline(always)]
@@ -428,13 +429,13 @@ impl Mul for F192x4 {
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl F192x4Unreduced {
     #[inline(always)]
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self {
-            // SAFETY: avx512f is enabled at compile time.
-            lanes: unsafe { [core::arch::x86_64::_mm512_setzero_si512(); 3] },
+            // SAFETY: every register is plain bits, and all-zero ones are the zero products.
+            lanes: unsafe { core::mem::zeroed() },
         }
     }
 
@@ -444,14 +445,33 @@ impl F192x4Unreduced {
         // SAFETY: both features are enabled at compile time.
         unsafe { x86_64::sum_lanes4(self.lanes) }
     }
+
+    /// The lane-wise reductions.
+    #[inline(always)]
+    pub fn reduce(self) -> F192x4 {
+        F192x4 {
+            // SAFETY: both features are enabled at compile time.
+            lanes: unsafe { x86_64::reduce_lanes4(self.lanes) },
+        }
+    }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 impl BitXorAssign for F192x4Unreduced {
     #[inline(always)]
     fn bitxor_assign(&mut self, rhs: Self) {
-        // SAFETY: avx512f is enabled at compile time.
+        // SAFETY: both features are enabled at compile time.
         self.lanes = unsafe { x86_64::xor_lanes(self.lanes, rhs.lanes) };
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+impl BitXor for F192x4Unreduced {
+    type Output = Self;
+    #[inline(always)]
+    fn bitxor(mut self, rhs: Self) -> Self {
+        self ^= rhs;
+        self
     }
 }
 
@@ -795,7 +815,7 @@ pub mod x86_64 {
     use super::{F192, F192Unreduced};
     use crate::field::gf2_64::F64;
     use core::arch::x86_64::*;
-    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2"))]
     use core::mem::MaybeUninit;
     use core::mem::transmute;
 
@@ -1186,6 +1206,18 @@ pub mod x86_64 {
         }
     }
 
+    /// [`super::MixedSums8`]'s registers on AVX-512: [`mul_by_pairs`]'s six products.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    pub type MixedAcc8 = [__m512i; 6];
+
+    /// [`super::F192x4`]'s registers on AVX-512: [`lanes4`]'s form.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    pub type Lanes4 = [__m512i; 2];
+
+    /// [`super::F192x4Unreduced`]'s registers on AVX-512: [`mul_lanes4`]'s three coefficients.
+    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    pub type Wide4 = [__m512i; 3];
+
     /// Four elements in lanes: `[c0, c1]` and `[c2, c2]` in lane `i` for element `i`.
     ///
     /// # Safety
@@ -1356,6 +1388,308 @@ pub mod x86_64 {
     pub unsafe fn sum_lanes4(d: [__m512i; 3]) -> F192Unreduced {
         let coeffs = d.map(|a| {
             let half = _mm256_xor_si256(_mm512_castsi512_si256(a), _mm512_extracti64x4_epi64::<1>(a));
+            let q = _mm_xor_si128(_mm256_castsi256_si128(half), _mm256_extracti128_si256::<1>(half));
+            // SAFETY: the reinterpret is between 128-bit values.
+            unsafe { transmute::<__m128i, [u64; 2]>(q) }
+        });
+        F192Unreduced { coeffs }
+    }
+
+    // AVX2 with VPCLMULQDQ: the same kernels on two YMM halves, two elements or two sums per
+    // instruction, so the types above and the callers stay as on AVX-512.
+
+    /// [`super::MixedSums8`]'s registers on AVX2: [`mul_by_pairs256`]'s six products for rows
+    /// `0..4`, then six for rows `4..8`.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    pub type MixedAcc8 = [[__m256i; 6]; 2];
+
+    /// [`super::F192x4`]'s registers on AVX2: half `h` holds elements `2h` and `2h + 1`, lane `i`
+    /// of its two registers being `[c0, c1]` and `[c2, c2]` of element `2h + i`.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    pub type Lanes4 = [[__m256i; 2]; 2];
+
+    /// [`super::F192x4Unreduced`]'s registers on AVX2: [`mul_lanes4`]'s three coefficients per half.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    pub type Wide4 = [[__m256i; 3]; 2];
+
+    /// The six products of a shared pair of operand registers against four packed scalars, as
+    /// [`mul_by_pairs`] does against eight.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx2` target features.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+    unsafe fn mul_by_pairs256(lo: __m256i, hi: __m256i, c2: __m256i, k: __m256i) -> [__m256i; 6] {
+        [
+            _mm256_clmulepi64_epi128::<0x00>(lo, k),
+            _mm256_clmulepi64_epi128::<0x01>(lo, k),
+            _mm256_clmulepi64_epi128::<0x10>(hi, k),
+            _mm256_clmulepi64_epi128::<0x11>(hi, k),
+            _mm256_clmulepi64_epi128::<0x00>(c2, k),
+            _mm256_clmulepi64_epi128::<0x11>(c2, k),
+        ]
+    }
+
+    /// Add the eight mixed products `t * k[i]` to [`MixedAcc8`].
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx2` target features.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+    pub unsafe fn mul_base8_add(acc: &mut MixedAcc8, t: F192, k: [F64; 8]) {
+        // `t` in both lanes: [c0, c1] for both pair registers, [c2, c2] for the last.
+        let t01 = _mm256_broadcastsi128_si256(pair(t.c0, t.c1));
+        let t2 = _mm256_set1_epi64x(t.c2 as i64);
+        for (half, acc) in acc.iter_mut().enumerate() {
+            // SAFETY: the function carries both features; `k` is eight qwords.
+            unsafe {
+                let kv = _mm256_loadu_si256(k.as_ptr().add(4 * half).cast());
+                for (acc, p) in acc.iter_mut().zip(mul_by_pairs256(t01, t01, t2, kv)) {
+                    *acc = _mm256_xor_si256(*acc, p);
+                }
+            }
+        }
+    }
+
+    /// Reduce [`MixedAcc8`] into the eight sums.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx2` target features.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+    pub unsafe fn mul_base8_reduce(acc: MixedAcc8) -> [F192; 8] {
+        let halves = acc.map(|[e0, e1, o0, o1, e2, o2]| {
+            // SAFETY: the function carries both features; the reinterprets are between 256-bit values.
+            unsafe {
+                // Gather each product's low and high halves into qword-wise vectors, then reduce.
+                let red = |x, y| reduce_lanes256(_mm256_unpacklo_epi64(x, y), _mm256_unpackhi_epi64(x, y));
+                let even = transmute::<__m256i, [u64; 4]>(red(e0, e1));
+                let odd = transmute::<__m256i, [u64; 4]>(red(o0, o1));
+                let c2 = transmute::<__m256i, [u64; 4]>(red(e2, o2));
+                std::array::from_fn::<F192, 4, _>(|i| {
+                    let (j, w) = (i / 2, if i % 2 == 0 { &even } else { &odd });
+                    F192::new(w[2 * j], w[2 * j + 1], c2[i])
+                })
+            }
+        });
+        *halves.as_flattened().as_array().unwrap()
+    }
+
+    /// Four elements in [`Lanes4`]'s form.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn lanes4(v: [F192; 4]) -> Lanes4 {
+        let half = |a: F192, b: F192| {
+            [
+                _mm256_set_epi64x(b.c1 as i64, b.c0 as i64, a.c1 as i64, a.c0 as i64),
+                _mm256_set_epi64x(b.c2 as i64, b.c2 as i64, a.c2 as i64, a.c2 as i64),
+            ]
+        };
+        [half(v[0], v[1]), half(v[2], v[3])]
+    }
+
+    /// Four consecutive elements, twelve words, into [`Lanes4`]'s form.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn load_lanes4(v: &[F192; 4]) -> Lanes4 {
+        let words = v.as_ptr().cast::<i64>();
+        // Half `h` is words `6h..6h + 6`: `[c0, c1]` at 0 and 3, `[c2, c2]` from qwords 0 and 3 of
+        // the four at 2, picked within their lanes.
+        let half = |h: usize| {
+            // SAFETY: words `6h..6h + 6` are in `v`.
+            unsafe {
+                let w = words.add(6 * h);
+                let c22 = _mm256_permutevar_pd(_mm256_loadu_pd(w.add(2).cast()), _mm256_set_epi64x(2, 2, 0, 0));
+                [_mm256_loadu2_m128i(w.add(3).cast(), w.cast()), _mm256_castpd_si256(c22)]
+            }
+        };
+        [half(0), half(1)]
+    }
+
+    /// [`Lanes4`]'s form back to twelve consecutive words, the inverse of [`load_lanes4`].
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn store_lanes4(lanes: Lanes4, out: &mut [MaybeUninit<F192>; 4]) {
+        let words = out.as_mut_ptr().cast::<i64>();
+        for (h, [c01, c22]) in lanes.into_iter().enumerate() {
+            // Words 2..6 of the half: `c2` of its first element, then `c0, c1, c2` of its second.
+            let tail = _mm256_blend_epi32::<0xC3>(_mm256_permute4x64_epi64::<0xF8>(c01), c22);
+            // SAFETY: words `6h..6h + 6` are in `out`.
+            unsafe {
+                _mm_storeu_si128(words.add(6 * h).cast(), _mm256_castsi256_si128(c01));
+                _mm256_storeu_si256(words.add(6 * h + 2).cast(), tail);
+            }
+        }
+    }
+
+    /// The 4x4 transpose of [`Lanes4`] values: lane `j` of `out[i]` is lane `i` of `rows[j]`.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn transpose_lanes4(rows: [Lanes4; 4]) -> [Lanes4; 4] {
+        // Half `h` of `out[i]` pairs lane `i` of `rows[2h]` with lane `i` of `rows[2h + 1]`.
+        let pick = |i: usize, h: usize, p: usize| {
+            let (a, b) = (rows[2 * h][i / 2][p], rows[2 * h + 1][i / 2][p]);
+            if i.is_multiple_of(2) {
+                _mm256_permute2x128_si256::<0x20>(a, b)
+            } else {
+                _mm256_permute2x128_si256::<0x31>(a, b)
+            }
+        };
+        std::array::from_fn(|i| std::array::from_fn(|h| [pick(i, h, 0), pick(i, h, 1)]))
+    }
+
+    /// Lane-wise XOR.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn xor_lanes<const N: usize>(a: [[__m256i; N]; 2], b: [[__m256i; N]; 2]) -> [[__m256i; N]; 2] {
+        std::array::from_fn(|h| std::array::from_fn(|i| _mm256_xor_si256(a[h][i], b[h][i])))
+    }
+
+    /// The y-folded Karatsuba products of two [`Lanes4`] operands, lane by lane.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx2` target features.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+    pub unsafe fn mul_lanes4(a: Lanes4, b: Lanes4) -> Wide4 {
+        std::array::from_fn(|h| {
+            let ([a01, a22], [b01, b22]) = (a[h], b[h]);
+            // `[c0 + c2, c1 + c2]`, and `c0 + c1` in both qwords (the swap stays in its lane).
+            let (a_s, b_s) = (_mm256_xor_si256(a01, a22), _mm256_xor_si256(b01, b22));
+            let a_x = _mm256_xor_si256(a01, _mm256_shuffle_epi32::<0x4E>(a01));
+            let b_x = _mm256_xor_si256(b01, _mm256_shuffle_epi32::<0x4E>(b01));
+            fold(
+                _mm256_clmulepi64_epi128::<0x00>(a01, b01),
+                _mm256_clmulepi64_epi128::<0x11>(a01, b01),
+                _mm256_clmulepi64_epi128::<0x00>(a22, b22),
+                _mm256_clmulepi64_epi128::<0x00>(a_x, b_x),
+                _mm256_clmulepi64_epi128::<0x00>(a_s, b_s),
+                _mm256_clmulepi64_epi128::<0x11>(a_s, b_s),
+                |x, y| _mm256_xor_si256(x, y),
+            )
+        })
+    }
+
+    /// Reduce [`mul_lanes4`]'s products into [`Lanes4`]'s form.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `vpclmulqdq` and `avx2` target features.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
+    pub unsafe fn reduce_lanes4(d: Wide4) -> Lanes4 {
+        d.map(|[d0, d1, d2]| {
+            // SAFETY: the function carries both features.
+            unsafe {
+                [
+                    reduce_lanes256(_mm256_unpacklo_epi64(d0, d1), _mm256_unpackhi_epi64(d0, d1)),
+                    reduce_lanes256(_mm256_unpacklo_epi64(d2, d2), _mm256_unpackhi_epi64(d2, d2)),
+                ]
+            }
+        })
+    }
+
+    /// The sum of the four 128-bit lanes of [`mul_lanes4`]'s coefficients.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `avx2` target feature.
+    #[cfg(all(
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn sum_lanes4([d0, d1]: Wide4) -> F192Unreduced {
+        let coeffs = std::array::from_fn(|k| {
+            let half = _mm256_xor_si256(d0[k], d1[k]);
             let q = _mm_xor_si128(_mm256_castsi256_si128(half), _mm256_extracti128_si256::<1>(half));
             // SAFETY: the reinterpret is between 128-bit values.
             unsafe { transmute::<__m128i, [u64; 2]>(q) }
@@ -1588,10 +1922,16 @@ mod tests {
         }
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     #[test]
     fn lane_products_match_software() {
         let pairs = operand_pairs(11);
+        // Padded to whole batches, so the last corner pair is tested too.
+        let pairs = [
+            pairs.as_slice(),
+            &pairs[..pairs.len().next_multiple_of(4) - pairs.len()],
+        ]
+        .concat();
         for batch in pairs.as_chunks::<4>().0 {
             let a = batch.map(|(a, _)| a);
             let b = batch.map(|(_, b)| b);
@@ -1657,7 +1997,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
     #[test]
     fn mixed_sums_match_software() {
         let mut rng = Rng::new(10);
