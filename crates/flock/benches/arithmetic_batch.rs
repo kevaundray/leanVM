@@ -108,6 +108,7 @@ fn bench(op: U64Op, quiet: bool) -> (usize, Timing) {
         let instance = [flock::reduction::Instance {
             block,
             n_blocks_log: n_log,
+            live: 1 << n_log,
             z: &z_packed,
             a: &a_packed,
             b: &b_packed,

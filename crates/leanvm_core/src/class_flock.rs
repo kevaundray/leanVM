@@ -20,7 +20,7 @@ use ::pcs::stack_open::SliceClaim;
 use fiat_shamir::transcript::{ProverState, VerifierState};
 use flock::circuit::Circuit;
 use flock::lincheck::MatrixClaim;
-use flock::reduction::{Instance, ReductionReplay, Shape, min_n_blocks_log};
+use flock::reduction::{Instance, ReductionReplay, Shape, live_instances, min_n_blocks_log};
 use flock::verifier::FlockError;
 use primitives::field::F64;
 use std::sync::OnceLock;
@@ -272,15 +272,21 @@ impl Prepared {
 
 /// Flock's batched zerocheck then lincheck over every packed witness, every class
 /// circuit then every clock circuit, leaving one claim on each committed column.
+///
+/// A table's padding rows are alike, so its batch ends in an identical tail the zerocheck sums once.
 pub(crate) fn prove_reductions(batches: &[Prepared], ps: &mut ProverState) -> Vec<SliceClaim> {
     let instances: Vec<Instance<'_>> = (batches.iter())
-        .map(|p| Instance {
-            block: circuit(p.flock).block(),
-            n_blocks_log: p.n_blocks_log,
-            z: &p.z,
-            a: &p.a,
-            b: &p.b,
-            z_lincheck: &p.z_lincheck,
+        .map(|p| {
+            let block = circuit(p.flock).block();
+            Instance {
+                block,
+                n_blocks_log: p.n_blocks_log,
+                live: live_instances(&p.z, block.k_log),
+                z: &p.z,
+                a: &p.a,
+                b: &p.b,
+                z_lincheck: &p.z_lincheck,
+            }
         })
         .collect();
     flock::reduction::prove(&instances, ps)

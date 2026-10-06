@@ -255,6 +255,7 @@ mod tests {
                 let instance = Instance {
                     block,
                     n_blocks_log: n_log,
+                    live: 1 << n_log,
                     z: &z,
                     a: &a,
                     b: &b,
@@ -303,6 +304,7 @@ mod tests {
                 .map(|((z, a, b, z_lincheck), &(block, n_blocks_log))| Instance {
                     block,
                     n_blocks_log,
+                    live: 1 << n_blocks_log,
                     z,
                     a,
                     b,
