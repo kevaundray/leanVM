@@ -300,6 +300,7 @@ mod tests {
             let instance = flock::reduction::Instance {
                 block,
                 n_blocks_log: n_log,
+                live: 1 << n_log,
                 z: &z,
                 a: &a,
                 b: &b,

@@ -61,6 +61,7 @@ fn prove(n: usize, tamper: Option<usize>) -> (usize, ProofTranscript) {
     let instance = reduction::Instance {
         block: BLOCK,
         n_blocks_log: n_log,
+        live: 1 << n_log,
         z: &z,
         a: &a,
         b: &b,

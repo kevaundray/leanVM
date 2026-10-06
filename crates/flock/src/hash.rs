@@ -736,6 +736,7 @@ impl Blake2sSetup {
         Instance {
             block: BLOCK,
             n_blocks_log: self.n_blocks_log,
+            live: 1 << self.n_blocks_log,
             z,
             a,
             b,

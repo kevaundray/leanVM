@@ -253,6 +253,7 @@ fn prove_reductions(batches: &[Batch]) -> ProofTranscript {
             Instance {
                 block: class_flock::circuit(batch.f).block(),
                 n_blocks_log: batch.n_blocks_log,
+                live: 1 << batch.n_blocks_log,
                 z,
                 a,
                 b,

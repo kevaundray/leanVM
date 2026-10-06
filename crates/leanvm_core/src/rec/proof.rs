@@ -28,6 +28,8 @@ pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
 /// The hash table's flock batch, one instance per row.
 struct HashBatch {
     tau: usize,
+    /// The rows, before the padding rows: every instance from here on is the padding compression's.
+    live: usize,
     z: Vec<u64>,
     a: Vec<u64>,
     b: Vec<u64>,
@@ -56,6 +58,7 @@ impl HashBatch {
             });
         Self {
             tau,
+            live: hash.len(),
             z,
             a,
             b,
@@ -69,6 +72,7 @@ impl HashBatch {
         let instance = flock::reduction::Instance {
             block: HashFlock::circuit().block(),
             n_blocks_log: self.tau,
+            live: self.live,
             z: &self.z,
             a: &self.a,
             b: &self.b,
