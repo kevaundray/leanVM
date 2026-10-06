@@ -2,7 +2,6 @@
 
 use super::InstructionClass;
 use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
-use crate::rv::entry::Class;
 use flock::circuit::{Builder, Circuit, Wire};
 use primitives::hash::{G_LANES, IV, SIGMA};
 
@@ -49,8 +48,6 @@ impl Hash {
 }
 
 impl InstructionClass for Hash {
-    const CLASS: Class = Class::Hash;
-
     /// Not the last block, or the last.
     const LEGAL: &'static [u64] = &[0, Self::FINAL];
 
@@ -68,18 +65,6 @@ impl InstructionClass for Hash {
         // Compress, then pair the halves back into words.
         primitives::hash::compress(&mut h, &m, self.t, self.flags == Self::FINAL);
         std::array::from_fn(|i| h[2 * i] as u64 | (h[2 * i + 1] as u64) << 32)
-    }
-
-    /// The counter, the finalization word, the chaining value, then the message.
-    fn input_words(&self) -> Vec<u64> {
-        [self.t, self.flags]
-            .into_iter()
-            .chain(self.block[..4].iter().chain(&self.block[8..]).copied())
-            .collect()
-    }
-
-    fn output_words(&self, out: &[u64; 4]) -> Vec<u64> {
-        out.to_vec()
     }
 }
 
@@ -269,7 +254,8 @@ fn add(rows: &mut Products<'_>, x: u32, y: u32, low: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{circuit_matches_reference, edge_word, run};
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word};
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -341,23 +327,22 @@ mod tests {
         let walk = BLAKE2S.generate_witness(&rows, n_log);
         let fast =
             BLAKE2S.generate_witness_with(&rows, &[0; 14], n_log, |row, z, az, bz| blake2s_witness(row, z, az, bz));
-        assert!(walk.0[..] == fast.0[..], "z");
-        assert!(walk.1[..] == fast.1[..], "A*z");
-        assert!(walk.2[..] == fast.2[..], "B*z");
-        assert!(walk.3[..] == fast.3[..], "lincheck stripes");
+        assert!(walk == fast, "the witness tables");
     }
 
-    proptest! {
-        #[test]
-        fn any_finalization_word_is_xored_in(hash in any::<Hash>(), f0 in any::<u32>()) {
-            // Any 32-bit finalization word, against flock's compression, which takes one.
-            let half = |w: &[u64]| -> Vec<u32> { w.iter().flat_map(|&w| [w as u32, (w >> 32) as u32]).collect() };
-            let h = half(&hash.block[..4]).try_into().unwrap();
-            let m = half(&hash.block[8..]).try_into().unwrap();
-            let out = flock::hash::blake2s_compress(&h, &m, hash.t, f0, 0);
-            let expected: Vec<u64> = (0..4).map(|i| out[2 * i] as u64 | (out[2 * i + 1] as u64) << 32).collect();
-            let inputs = Hash { flags: f0 as u64, ..hash }.input_words();
-            prop_assert_eq!(run(&BLAKE2S, &inputs, 4), expected);
+    impl Ports for Hash {
+        const CLASS: Class = Class::Hash;
+
+        // The counter, the finalization word, the chaining value, then the message.
+        fn input_words(&self) -> Vec<u64> {
+            [self.t, self.flags]
+                .into_iter()
+                .chain(self.block[..4].iter().chain(&self.block[8..]).copied())
+                .collect()
+        }
+
+        fn output_words(&self, out: &[u64; 4]) -> Vec<u64> {
+            out.to_vec()
         }
     }
 }

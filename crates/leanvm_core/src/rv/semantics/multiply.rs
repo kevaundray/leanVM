@@ -2,9 +2,8 @@
 
 use super::{InstructionClass, sext32};
 use crate::rv::circuits::{ClassCircuit, Word, WordGadgets};
-use crate::rv::entry::Class;
-use flock::arith::mul::Multiplier;
 use flock::circuit::{Builder, Circuit};
+use flock::gadgets::mul::Multiplier;
 use std::sync::OnceLock;
 
 /// One low multiplication instance.
@@ -24,8 +23,6 @@ impl Mul {
 }
 
 impl InstructionClass for Mul {
-    const CLASS: Class = Class::Mul;
-
     /// With or without the word form.
     const LEGAL: &'static [u64] = &[0, Self::WORD];
 
@@ -39,14 +36,6 @@ impl InstructionClass for Mul {
         } else {
             product
         }
-    }
-
-    fn input_words(&self) -> Vec<u64> {
-        vec![self.v1, self.v2, self.flags]
-    }
-
-    fn output_words(&self, &out: &u64) -> Vec<u64> {
-        vec![out]
     }
 }
 
@@ -69,8 +58,6 @@ impl Mulh {
 }
 
 impl InstructionClass for Mulh {
-    const CLASS: Class = Class::Mulh;
-
     /// `mulh`, `mulhsu`, `mulhu`.
     const LEGAL: &'static [u64] = &[Self::SIGNED_1 | Self::SIGNED_2, Self::SIGNED_1, 0];
 
@@ -81,14 +68,6 @@ impl InstructionClass for Mulh {
         let widen = |v: u64, signed: bool| if signed { v as i64 as i128 } else { v as i128 };
         let (s1, s2) = (self.flags & Self::SIGNED_1 != 0, self.flags & Self::SIGNED_2 != 0);
         (widen(self.v1, s1).wrapping_mul(widen(self.v2, s2)) >> 64) as u64
-    }
-
-    fn input_words(&self) -> Vec<u64> {
-        vec![self.v1, self.v2, self.flags]
-    }
-
-    fn output_words(&self, &out: &u64) -> Vec<u64> {
-        vec![out]
     }
 }
 
@@ -283,8 +262,9 @@ fn product_rows(z: &mut [u64], az: &mut [u64], bz: &mut [u64], slot: usize, left
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{circuit_matches_reference, edge_word};
-    use crate::tables::InstanceWitness;
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word};
+    use crate::tables::spec::InstanceWitness;
     use primitives::test_util::Rng;
     use proptest::prelude::*;
     use proptest::sample::select;
@@ -367,10 +347,10 @@ mod tests {
                 let walk = circuit.generate_witness_from(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
                 let native =
                     circuit.generate_witness_with(&rows, &padding, 8, |row, z, az, bz| witness(row, z, az, bz));
-                assert_eq!(&native.0[..], &walk.0[..], "committed bits, flags {flag}");
-                assert_eq!(&native.1[..], &walk.1[..], "left factors, flags {flag}");
-                assert_eq!(&native.2[..], &walk.2[..], "right factors, flags {flag}");
-                assert_eq!(&native.3[..], &walk.3[..], "byte stripes, flags {flag}");
+                assert_eq!(native.z, walk.z, "committed bits, flags {flag}");
+                assert_eq!(native.az, walk.az, "left factors, flags {flag}");
+                assert_eq!(native.bz, walk.bz, "right factors, flags {flag}");
+                assert_eq!(native.stripes, walk.stripes, "byte stripes, flags {flag}");
             }
         }
     }
@@ -393,10 +373,10 @@ mod tests {
             let inputs = rows.map(|row| row.as_slice());
             Mul::witness_batch(&inputs, z, az, bz);
         });
-        assert_eq!(&batched.0[..], &generic.0[..], "committed bits");
-        assert_eq!(&batched.1[..], &generic.1[..], "left factors");
-        assert_eq!(&batched.2[..], &generic.2[..], "right factors");
-        assert_eq!(&batched.3[..], &generic.3[..], "byte stripes");
+        assert_eq!(batched.z, generic.z, "committed bits");
+        assert_eq!(batched.az, generic.az, "left factors");
+        assert_eq!(batched.bz, generic.bz, "right factors");
+        assert_eq!(batched.stripes, generic.stripes, "byte stripes");
     }
 
     #[test]
@@ -409,5 +389,29 @@ mod tests {
     fn mulh_circuit_matches_the_reference() {
         // Legal flags and edge-biased operands pin the gate list to the reference function.
         circuit_matches_reference::<Mulh>(512);
+    }
+
+    impl Ports for Mul {
+        const CLASS: Class = Class::Mul;
+
+        fn input_words(&self) -> Vec<u64> {
+            vec![self.v1, self.v2, self.flags]
+        }
+
+        fn output_words(&self, &out: &u64) -> Vec<u64> {
+            vec![out]
+        }
+    }
+
+    impl Ports for Mulh {
+        const CLASS: Class = Class::Mulh;
+
+        fn input_words(&self) -> Vec<u64> {
+            vec![self.v1, self.v2, self.flags]
+        }
+
+        fn output_words(&self, &out: &u64) -> Vec<u64> {
+            vec![out]
+        }
     }
 }

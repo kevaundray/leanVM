@@ -1,15 +1,18 @@
 //! The benchmark harness of the CLI and the `benches/` targets: repeated timing with
-//! warmup, cooldown and confidence intervals, the trace tree `--tracing` prints, the prover's
-//! stage times, and Bencher Metric Format output. Nothing the prover or verifier links.
+//! warmup, cooldown and confidence intervals, the heap the global allocator counts, the trace
+//! tree `--tracing` prints, the prover's stage times, and Bencher Metric Format output. Nothing
+//! the prover or verifier links.
 
 use std::fmt::Display;
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
 
 mod allocator;
+mod heap;
 mod stages;
 mod trace;
 pub use allocator::Jemalloc;
+pub use heap::{Counting, Heap, HeapWindow, measure_heap};
 pub use stages::{take_stages, time_stages};
 
 pub use trace::{TraceSuppressed, init_tracing, init_tracing_from_env, suppress_tracing};

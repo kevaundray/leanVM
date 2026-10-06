@@ -31,17 +31,11 @@ pub use multiply::{Mul, Mulh};
 pub use shift::Shift;
 
 use super::circuits::ClassCircuit;
-use super::entry::Class;
 
 /// An instruction class: its flag words, its function, and the circuit that proves it.
 ///
-/// The circuit's ports are the instance's input words, then the result's output words.
-///
 /// The reference function and the circuit agree on every instance with a legal flag word.
 pub trait InstructionClass: ClassCircuit {
-    /// The class an entry of this kind names.
-    const CLASS: Class;
-
     /// The flag words the class defines.
     const LEGAL: &'static [u64];
 
@@ -50,12 +44,6 @@ pub trait InstructionClass: ClassCircuit {
 
     /// What the class computes on this instance.
     fn eval(&self) -> Self::Output;
-
-    /// The circuit's input words for this instance, in port order.
-    fn input_words(&self) -> Vec<u64>;
-
-    /// The circuit's output words for this instance's result, in port order.
-    fn output_words(&self, output: &Self::Output) -> Vec<u64>;
 }
 
 /// What an entry computes from the values it reads.
@@ -77,7 +65,8 @@ const fn sext32(x: u64) -> u64 {
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
-    use crate::tables::InstanceWitness;
+    use crate::rv::Class;
+    use crate::tables::spec::InstanceWitness;
     use flock::circuit::Circuit;
     use proptest::prelude::*;
     use proptest::sample::select;
@@ -132,6 +121,16 @@ pub(super) mod tests {
         }
     }
 
+    // A class's circuit ports: the instance's input words, then the result's output words.
+    pub(super) trait Ports: InstructionClass {
+        // The class an entry of this kind names.
+        const CLASS: Class;
+
+        fn input_words(&self) -> Vec<u64>;
+
+        fn output_words(&self, output: &Self::Output) -> Vec<u64>;
+    }
+
     /// The circuit's first `n` output words on `inputs`, read off the witness the gate walk writes.
     pub(super) fn run(circuit: &Circuit, inputs: &[u64], n: usize) -> Vec<u64> {
         // One instance's tables, zeroed.
@@ -145,7 +144,7 @@ pub(super) mod tests {
     }
 
     /// Check a class: its dispatch, then `cases` random instances on which its circuit computes its reference function.
-    pub(super) fn circuit_matches_reference<C: InstructionClass + Arbitrary + Debug>(cases: u32) {
+    pub(super) fn circuit_matches_reference<C: Ports + Arbitrary + Debug>(cases: u32) {
         let circuit = C::circuit();
 
         // The runtime dispatch on the class names this type's flags and circuit.
@@ -182,10 +181,7 @@ pub(super) mod tests {
     ///
     /// The instances are `edges`, then 4096 random ones: every other one an instance the decoder can make, the rest edge-biased words in every input port, flags included.
     /// Each instance is checked alone against the bit-by-bit walk, then the whole batch's packed tables and lincheck stripes against the 64-lane walk.
-    pub(super) fn word_witness_is_the_walk<C: InstructionClass + Arbitrary>(
-        witness: InstanceWitness,
-        edges: Vec<Vec<u64>>,
-    ) {
+    pub(super) fn word_witness_is_the_walk<C: Ports + Arbitrary>(witness: InstanceWitness, edges: Vec<Vec<u64>>) {
         let circuit = C::circuit();
         let n_in = circuit.n_input_words();
         let mut runner = TestRunner::deterministic();
@@ -218,9 +214,9 @@ pub(super) mod tests {
         let n_log = rows.len().next_power_of_two().trailing_zeros() as usize;
         let walk = circuit.generate_witness_from(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
         let words = circuit.generate_witness_with(&rows, &rows[0], n_log, |row, z, az, bz| witness(row, z, az, bz));
-        assert!(walk.0[..] == words.0[..], "z");
-        assert!(walk.1[..] == words.1[..], "A·z");
-        assert!(walk.2[..] == words.2[..], "B·z");
-        assert!(walk.3[..] == words.3[..], "lincheck stripes");
+        assert!(walk.z == words.z, "z");
+        assert!(walk.az == words.az, "A·z");
+        assert!(walk.bz == words.bz, "B·z");
+        assert!(walk.stripes == words.stripes, "lincheck stripes");
     }
 }

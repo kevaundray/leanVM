@@ -264,7 +264,7 @@ impl Clock {
 mod tests {
     use super::*;
     use crate::rv::Ext;
-    use crate::tables::{ClassSpec, Word};
+    use crate::tables::{TableId, Word};
     use flock::lincheck::LincheckCircuit;
     use primitives::field::F192;
     use primitives::test_util::Rng;
@@ -326,7 +326,7 @@ mod tests {
         // EXT's operands: pointers at zero, all ones, the sign bit, one limb or two below a wrap of 2^64 or of the sign bit, with every low bit set, aligned random or random; flags every legal word or a random word.
         let mut rng = Rng::new(0xC10C);
         let n_log = 12;
-        for spec in ClassSpec::ALL.into_iter().map(Some).chain([None]) {
+        for spec in TableId::ALL.into_iter().map(|t| Some(t.spec())).chain([None]) {
             let slots = spec.map_or_else(|| (0..Clock::CYCLE as u32).collect(), |spec| spec.slots());
             let circuit = spec.map_or_else(|| Clock::circuit(&slots), |spec| spec.clock_circuit());
             let operands = spec.map_or(&[][..], |spec| spec.clock_inputs);
@@ -385,10 +385,10 @@ mod tests {
                 None => Clock::witness(&slots, row[0], &row[1..], z, az, bz),
             });
             let name = spec.map_or("every slot", |spec| spec.name);
-            assert!(walk.0[..] == words.0[..], "z, {name}");
-            assert!(walk.1[..] == words.1[..], "A·z, {name}");
-            assert!(walk.2[..] == words.2[..], "B·z, {name}");
-            assert!(walk.3[..] == words.3[..], "lincheck stripes, {name}");
+            assert!(walk.z == words.z, "z, {name}");
+            assert!(walk.az == words.az, "A·z, {name}");
+            assert!(walk.bz == words.bz, "B·z, {name}");
+            assert!(walk.stripes == words.stripes, "lincheck stripes, {name}");
         }
     }
 

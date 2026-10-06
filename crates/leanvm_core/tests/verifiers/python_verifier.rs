@@ -1,12 +1,11 @@
-//! Pins `python-verifier/verifier.py` against `leanvm_core::cpu::Program::verify`: the same
+//! Pins `python-verifier/verifier.py` against `leanvm_core::Program::verify`: the same
 //! protocol is written out in Rust and in Python, so any protocol change must land
 //! in both, and this is what catches the Python one drifting.
 
 use fiat_shamir::transcript::RawProof;
-use leanvm_core::cpu::{CpuError, Lookup, Program};
-use leanvm_core::pcs::Rate;
-use leanvm_core::rv::{Alu, Class, Region};
-use leanvm_core::tables::{ClassTable, Clock, EXIT_SLOT};
+use leanvm_core::{
+    Alu, Class, Clock, CpuError, EXIT_SLOT, Lookup, PerTable, Program, ProvenRun, Prover, Rate, Region, TableId,
+};
 use primitives::field::{F64, F192};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -158,13 +157,15 @@ impl Drop for PythonStatement {
 #[test]
 fn test_python_verifier() {
     let (program, _) = super::programs::fibonacci();
-    let (proof, output, stats) = program.prove(&[], Rate::MIN).expect("the run halts");
+    let ProvenRun {
+        proof, output, stats, ..
+    } = Prover::new(Rate::MIN).prove(&program, &[]).expect("the run halts");
     // Python reads the RAW proof: same protocol, each query carrying its own
     // full Merkle path instead of one octopus over the batch. A Rust verify
     // expands the wire form, so the pruning is written once.
-    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
+    let raw = program.verify_to_raw(output, &proof).expect("honest proof verifies");
     let encoded = bincode::serialize(&proof.0).expect("serialize proof");
-    let statement = PythonStatement::new("tamper", &program, &output);
+    let statement = PythonStatement::new("tamper", &program, output.words());
     let verification_started = Instant::now();
     statement.assert_accepts(&raw);
     let verification_time = verification_started.elapsed();
@@ -172,7 +173,7 @@ fn test_python_verifier() {
     let mut malformed_announcement = proof.clone();
     malformed_announcement.0.stream[0].c1 = 1;
     assert_eq!(
-        program.verify(output.into(), &malformed_announcement),
+        program.verify(output, &malformed_announcement),
         Err(CpuError::NonCanonicalSize.into())
     );
     let mut raw_announcement = raw.clone();
@@ -182,12 +183,12 @@ fn test_python_verifier() {
     // Neither a padding row's clock nor a failed row's can end the run.
     //
     // A padding row of the exit pushes the exit marker at its clock, zero, which only a final clock zero would meet.
-    let final_clock = leanvm_core::tables::N_TABLES + 1;
+    let final_clock = leanvm_core::N_TABLES + 1;
     let honest = proof.0.stream[final_clock].c0;
     for clock in [0, honest ^ Clock::SEED_CLOCK, honest | 1 << Clock::FAIL_BIT] {
         let mut forged = proof.clone();
         forged.0.stream[final_clock] = F192::new(clock, 0, 0);
-        assert_eq!(program.verify(output.into(), &forged), Err(CpuError::FinalClock.into()));
+        assert_eq!(program.verify(output, &forged), Err(CpuError::FinalClock.into()));
         let mut raw_forged = raw.clone();
         raw_forged.stream[final_clock] = F192::new(clock, 0, 0);
         let refused = statement.verify(&raw_forged);
@@ -197,9 +198,9 @@ fn test_python_verifier() {
 
     let mut malformed_root = proof;
     // Past the announcement: the table heights, the rate, the final clock.
-    let root_offset = leanvm_core::tables::N_TABLES + 2;
+    let root_offset = leanvm_core::N_TABLES + 2;
     malformed_root.0.stream[root_offset].c2 = 1;
-    assert!(program.verify(output.into(), &malformed_root).is_err());
+    assert!(program.verify(output, &malformed_root).is_err());
     let mut raw_root = raw.clone();
     raw_root.stream[root_offset].c2 = 1;
     PythonStatement::assert_rejects(&statement.verify(&raw_root), "a noncanonical commitment root");
@@ -227,7 +228,7 @@ fn test_python_verifier() {
         (Class::Ld, 3, "flags are not its class's"),
     ] {
         // The class tag `g^t`, which is `2^t` since `g = x`.
-        let tag = 1u64 << ClassTable::index_of(class).expect("the class has a table");
+        let tag = 1u64 << TableId::of(class).expect("the class has a table").index();
         let mut malformed = table.clone();
         for (slot, value) in [(2, tag), (3, 0), (slot, 1)] {
             malformed[8 * slot * entries..][..8].copy_from_slice(&value.to_le_bytes());
@@ -246,7 +247,7 @@ fn test_python_verifier() {
     assert!(String::from_utf8_lossy(&refused.stderr).contains("an exit entry is not ECALL"));
     // A jump's shape is its flags': only a branch or a `jal` has an offset, and a `jal` links `pc + 4` as a constant
     // added to `x0`. Entry 0's fields are set in full, so each case breaks that rule alone.
-    let alu = 1u64 << ClassTable::index_of(Class::Alu).unwrap();
+    let alu = 1u64 << TableId::ALU.index();
     let link = Region::TEXT.base() + 4;
     for (what, fields) in [
         (
@@ -320,7 +321,7 @@ for fields in [[(2, {alu}), (3, {always}), (4, 0), (5, 0), (7, {link}), (9, 0)],
     println!(
         "{} instructions; proved {} cycles in {} bytes; Python verified in {:.2?}",
         program.rv().entries().len(),
-        stats.cycles,
+        stats.cycles(),
         encoded.len(),
         verification_time,
     );
@@ -330,9 +331,9 @@ for fields in [[(2, {alu}), (3, {always}), (4, 0), (5, 0), (7, {link}), (9, 0)],
 #[test]
 fn the_python_verifier_refuses_what_rust_cannot_express() {
     let (program, _) = super::programs::fibonacci();
-    let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
-    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
-    let statement = PythonStatement::new("shape", &program, &output);
+    let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN).prove(&program, &[]).expect("the run halts");
+    let raw = program.verify_to_raw(output, &proof).expect("honest proof verifies");
+    let statement = PythonStatement::new("shape", &program, output.words());
     let refuses = |what: &str, reason: &str| {
         let refused = statement.verify(&raw);
         PythonStatement::assert_rejects(&refused, what);
@@ -369,7 +370,7 @@ fn the_python_verifier_refuses_what_rust_cannot_express() {
         );
     }
     // A halt slot tagged as an ALU entry is otherwise a well-formed `addi` to the sink.
-    let alu = 1u64 << ClassTable::index_of(Class::Alu).expect("the class has a table");
+    let alu = 1u64 << TableId::ALU.index();
     write(2, entries - 1, alu);
     refuses("a readable halt slot", "the halt slot is not an illegal entry");
     std::fs::write(&statement.bytecode, table).expect("restore bytecode");
@@ -389,9 +390,9 @@ fn the_python_verifier_refuses_what_rust_cannot_express() {
 #[test]
 fn the_python_verifier_follows_the_slowest_rate() {
     let (program, _) = super::programs::fibonacci();
-    let (proof, output, _) = program.prove(&[], Rate::MAX).expect("the run halts");
-    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
-    PythonStatement::new("rate", &program, &output).assert_accepts(&raw);
+    let ProvenRun { proof, output, .. } = Prover::new(Rate::MAX).prove(&program, &[]).expect("the run halts");
+    let raw = program.verify_to_raw(output, &proof).expect("honest proof verifies");
+    PythonStatement::new("rate", &program, output.words()).assert_accepts(&raw);
 }
 
 /// Every ring-switched claim joins the opening's one family through its slices: both verifiers reject a moved slice of
@@ -401,10 +402,10 @@ fn the_python_verifier_follows_the_slowest_rate() {
 #[test]
 fn both_verifiers_bind_every_circuits_slices() {
     let (program, _) = super::programs::fibonacci();
-    let (proof, output, _) = program.prove(&[], Rate::MIN).expect("the run halts");
-    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
+    let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN).prove(&program, &[]).expect("the run halts");
+    let raw = program.verify_to_raw(output, &proof).expect("honest proof verifies");
     assert_eq!(raw.stream, proof.0.stream, "the raw proof's scalars are the proof's");
-    let statement = PythonStatement::new("slices", &program, &output);
+    let statement = PythonStatement::new("slices", &program, output.words());
 
     // Where the table sumcheck (ending on the multiplicity bits) and the batched reductions (ending on each circuit's
     // 64 slices and its form's value, in circuit order) stop reading the stream, as the Python verifier reads it.
@@ -437,7 +438,7 @@ sys.exit(v['main'](sys.argv[2:]))
             .filter_map(|line| line.strip_prefix(name)?.trim().parse().ok())
             .collect()
     };
-    let n = leanvm_core::class_flock::N_FLOCKS;
+    let n = leanvm_core::N_FLOCKS;
     let [flock_end] = ends("verify_flock")[..] else {
         panic!("one batched reduction")
     };
@@ -446,8 +447,8 @@ sys.exit(v['main'](sys.argv[2:]))
     };
     let slices = |f: usize| flock_end - (n - f) * 65;
     // The announced heights lead the stream; the last table's register bits end right before the multiplicity bits.
-    let taus = std::array::from_fn(|t| proof.0.stream[t].c0 as usize);
-    let register_end = bits_end - Lookup::Bytecode.multiplicity_bits(taus);
+    let taus = PerTable::from_fn(|t: TableId| proof.0.stream[t.index()].c0 as usize);
+    let register_end = bits_end - Lookup::Bytecode.multiplicity_bits(&taus);
     // The first table's register bits, the only columns of a settled table the table sumcheck sends, come first.
     let settled_bits = ends("register_bits")[0];
     for at in [
@@ -462,7 +463,7 @@ sys.exit(v['main'](sys.argv[2:]))
         let mut forged = proof.clone();
         forged.0.stream[at] += F192::ONE;
         assert!(
-            program.verify(output.into(), &forged).is_err(),
+            program.verify(output, &forged).is_err(),
             "Rust accepted a moved scalar at {at}"
         );
         let mut raw_forged = raw.clone();

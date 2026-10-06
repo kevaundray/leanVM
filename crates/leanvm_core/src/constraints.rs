@@ -33,14 +33,16 @@
 //! are no rounds in which no table has joined.
 
 use crate::PAR_THRESHOLD;
-use crate::arith::{Arith, Verifier};
-use crate::colval::ColVal;
+use crate::colval::{ColVal, padded_width};
+use fiat_shamir::arith::{Arith, Verifier};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter, VerifierState};
 use parallel::Chunks;
 use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::{SplitEq, eq_table, poly_eval, shrink_eq_high};
 use std::ops::Deref;
 use thiserror::Error;
+
+mod rows;
 
 /// One table's columns' evaluations at its table-sumcheck point.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,20 +52,6 @@ pub struct Claims<E = F192> {
     pub evals: Vec<E>,
     /// The bit columns' bits' evaluations, column after column, low bit first.
     pub slices: Vec<E>,
-}
-
-impl<E: Copy> Claims<E> {
-    /// The evaluations, then `zero`s up to `n`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there are more than `n` evaluations.
-    pub fn evals_padded_with(&self, n: usize, zero: E) -> Vec<E> {
-        assert!(self.evals.len() <= n, "more evaluations than slots");
-        let mut out = self.evals.clone();
-        out.resize(n, zero);
-        out
-    }
 }
 
 /// Why the table constraints reject.
@@ -294,6 +282,8 @@ pub fn xi_offsets(n_constraints: impl Iterator<Item = usize>) -> Vec<usize> {
 /// loop, and without it the generic stops inlining and costs measurable prover
 /// time. Nothing is lifted into `E`, so a `K` round evaluates the identity and the
 /// bus forms in 64-bit arithmetic, and its scratch is a third the size.
+///
+/// With `rows`, a row at a time ([`rows`]), else in tiles of [`BLOCK`] rows.
 #[inline(always)]
 fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
     cols: &[C],
@@ -301,38 +291,97 @@ fn table_message<T: ColVal, C: Deref<Target = [T]> + Sync>(
     half: usize,
     eqr: &[F192],
     at_one: bool,
+    rows: bool,
 ) -> [F192; 2] {
-    let ncols = cols.len();
-    // The X² coefficient is Q(hi + lo); linear and constant terms cannot contribute.
-    let summand = |i: usize, scratch: &mut [T]| -> [F192Unreduced; 2] {
-        let e = eqr[i];
-        let (endpoint, slope) = scratch.split_at_mut(ncols);
-        for (ci, c) in cols.iter().enumerate() {
-            let (lo, hi) = (c[i], c[i + half]);
-            endpoint[ci] = if at_one { hi } else { lo };
-            slope[ci] = lo + hi;
+    if rows {
+        return rows::table_message(cols, summand, half, eqr, at_one);
+    }
+    let width = padded_width(cols.len());
+    let block = |scratch: &mut Vec<T>, acc: &mut [F192Unreduced; 2], b: usize| {
+        let (start, rows) = (b * BLOCK, BLOCK.min(half - b * BLOCK));
+        let (lo, rest) = scratch.split_at_mut(BLOCK * width);
+        let (hi, slope) = rest.split_at_mut(BLOCK * width);
+        // Column by column, each a burst of consecutive rows, into row-major tiles.
+        for (c, col) in cols.iter().enumerate() {
+            let rows_lo = &col[start..start + rows];
+            let rows_hi = &col[start + half..start + half + rows];
+            for (r, (&l, &h)) in rows_lo.iter().zip(rows_hi).enumerate() {
+                lo[r * width + c] = l;
+                hi[r * width + c] = h;
+            }
         }
-        [
-            e.mul_unreduced(summand.eval(endpoint, false)),
-            e.mul_unreduced(summand.eval(slope, true)),
-        ]
+        block_summand(summand, &eqr[start..start + rows], lo, hi, slope, at_one, acc);
     };
-    let xor = |a: [F192Unreduced; 2], b: [F192Unreduced; 2]| [a[0] ^ b[0], a[1] ^ b[1]];
-    let acc = if half >= PAR_THRESHOLD {
-        // The `2 * ncols` scratch is per-worker, not per-row: `map_reduce_with_state`
-        // creates it once and threads it through every row that worker claims.
+    message_over_blocks(half, (2 * BLOCK + 1) * width, block)
+}
+
+/// Rows per block of a message pass: each column is read in bursts of this many
+/// consecutive rows into row-major tiles, where a row at a time would keep a read
+/// stream open per column. The tiles of a wide `E` row outgrow L1 at this size, and
+/// still beat smaller ones.
+const BLOCK: usize = 64;
+
+/// Whether the message passes go a row at a time, as [`rows`] does: everywhere but
+/// AVX-512, the only target whose packed forms take the tiles' padded rows. Elsewhere
+/// the tiles lose to rows, on aarch64 at this block size and at L1-sized ones.
+const ROWS: bool = !cfg!(all(
+    target_arch = "x86_64",
+    target_feature = "vpclmulqdq",
+    target_feature = "avx512f"
+));
+
+/// The message over `rows` rows, `block(scratch, acc, b)` adding rows `b * BLOCK..`
+/// with a zeroed `scratch` of `scratch_len` per worker.
+fn message_over_blocks<T: ColVal>(
+    rows: usize,
+    scratch_len: usize,
+    block: impl Fn(&mut Vec<T>, &mut [F192Unreduced; 2], usize) + Sync,
+) -> [F192; 2] {
+    let blocks = rows.div_ceil(BLOCK);
+    let acc = if rows >= PAR_THRESHOLD {
+        // The scratch is per worker, not per block: `map_reduce_with_state` creates it
+        // once and threads it through every block that worker claims.
         parallel::map_reduce_with_state(
-            half,
-            || vec![T::ZERO; 2 * ncols],
+            blocks,
+            || vec![T::ZERO; scratch_len],
             || [F192Unreduced::ZERO; 2],
-            |scratch, acc, i| *acc = xor(*acc, summand(i, scratch)),
-            xor,
+            block,
+            |a, b| [a[0] ^ b[0], a[1] ^ b[1]],
         )
     } else {
-        let mut scratch = vec![T::ZERO; 2 * ncols];
-        (0..half).fold([F192Unreduced::ZERO; 2], |acc, i| xor(acc, summand(i, &mut scratch)))
+        let mut scratch = vec![T::ZERO; scratch_len];
+        let mut acc = [F192Unreduced::ZERO; 2];
+        for b in 0..blocks {
+            block(&mut scratch, &mut acc, b);
+        }
+        acc
     };
     acc.map(F192Unreduced::reduce)
+}
+
+/// Add one block's summands: `lo` and `hi` hold its rows at stride `width`, padded
+/// with zero columns, and `slope` is one row of scratch.
+#[inline(always)]
+fn block_summand<T: ColVal>(
+    summand: &impl Summand,
+    eqr: &[F192],
+    lo: &[T],
+    hi: &[T],
+    slope: &mut [T],
+    at_one: bool,
+    acc: &mut [F192Unreduced; 2],
+) {
+    let width = slope.len();
+    for (r, &e) in eqr.iter().enumerate() {
+        let (l, h) = (&lo[r * width..(r + 1) * width], &hi[r * width..(r + 1) * width]);
+        for ((s, &l), &h) in slope.iter_mut().zip(l).zip(h) {
+            *s = l + h;
+        }
+        let endpoint = if at_one { h } else { l };
+        // The quadratic coefficient depends only on the difference of the endpoint rows.
+        acc[0] ^= e.mul_unreduced(summand.eval(endpoint, false));
+        acc[1] ^= e.mul_unreduced(summand.eval(slope, true));
+    }
 }
 
 fn round_polynomial([endpoint, quadratic]: [F192; 2], zeta: F192, claim: F192, waiting: F192) -> [F192; 4] {
@@ -356,6 +405,18 @@ pub fn prove<S: Summand>(
     zeta: &[F192],
     sigma: &[F192],
     ps: &mut ProverState,
+) -> Vec<Claims> {
+    prove_with(airs, cols, zeta, sigma, ps, ROWS)
+}
+
+/// [`prove`], its message passes a row at a time with `rows`, else in tiles.
+fn prove_with<S: Summand>(
+    airs: &[Air<S>],
+    cols: Vec<Columns<'_>>,
+    zeta: &[F192],
+    sigma: &[F192],
+    ps: &mut ProverState,
+    rows: bool,
 ) -> Vec<Claims> {
     // The tallest table sets the common cube; shorter tables join after its high variables bind.
     let n = airs.iter().map(|a| a.tau).max().unwrap_or(0);
@@ -390,9 +451,10 @@ pub fn prove<S: Summand>(
             if air.tau > m {
                 // An active table's preceding fold already produced this message.
                 let p = messages[t].take().unwrap_or_else(|| {
+                    let at_one = zeta[m].is_zero();
                     match pending[t].as_ref().expect("a joining table has columns") {
-                        Columns::K(c) => table_message(c, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
-                        Columns::E(c) => table_message(c, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                        Columns::K(c) => table_message(c, &air.summand, 1 << m, &eqr, at_one, rows),
+                        Columns::E(c) => table_message(c, &air.summand, 1 << m, &eqr, at_one, rows),
                     }
                 });
                 for i in 0..2 {
@@ -417,11 +479,11 @@ pub fn prove<S: Summand>(
             let at_one = m > 0 && zeta[m - 1].is_zero();
             // Folding two pairs produces the endpoints of the next round in worker scratch.
             if let Some(table) = &mut folded[t] {
-                messages[t] = fold_rows_and_message(table, air.n_cols, rk, &air.summand, &eqr, at_one);
+                messages[t] = fold_rows_and_message(table, air.n_cols, rk, &air.summand, &eqr, at_one, rows);
             } else {
                 let (table, message) = match pending[t].take().expect("a joining table has columns") {
-                    Columns::K(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one),
-                    Columns::E(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one),
+                    Columns::K(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one, rows),
+                    Columns::E(c) => fold_columns_and_message(&c, rk, &air.summand, &eqr, at_one, rows),
                 };
                 folded[t] = Some(table);
                 messages[t] = message;
@@ -447,45 +509,25 @@ pub fn prove<S: Summand>(
         .collect()
 }
 
-/// Fold two row pairs and accumulate their next-round summand before publishing the rows.
+/// Fold blocks of row pairs and accumulate their next-round summands before publishing the rows.
+///
+/// `fold(start, rows, lo, hi)` writes the next low and high rows of `start..start + rows`
+/// into the tiles `lo` and `hi`, row `r` at `r * padded_width(ncols)`.
 fn folded_message(
     ncols: usize,
     eqr: &[F192],
     summand: &impl Summand,
     at_one: bool,
-    fold: impl Fn(usize, &mut [F192], &mut [F192]) + Sync,
+    fold: impl Fn(usize, usize, &mut [F192], &mut [F192]) + Sync,
 ) -> [F192; 2] {
-    let accumulate = |scratch: &mut Vec<F192>, acc: &mut [F192Unreduced; 2], i: usize| {
-        // Layout: [next low row | next high row | their difference].
-        let (lo, rest) = scratch.split_at_mut(ncols);
-        let (hi, slope) = rest.split_at_mut(ncols);
-        fold(i, lo, hi);
-        for c in 0..ncols {
-            slope[c] = lo[c] + hi[c];
-        }
-        let endpoint = if at_one { &*hi } else { &*lo };
-        // The quadratic coefficient depends only on the difference of the endpoint rows.
-        acc[0] ^= eqr[i].mul_unreduced(summand.eval(endpoint, false));
-        acc[1] ^= eqr[i].mul_unreduced(summand.eval(slope, true));
-    };
-    let acc = if eqr.len() >= PAR_THRESHOLD {
-        parallel::map_reduce_with_state(
-            eqr.len(),
-            || vec![F192::ZERO; 3 * ncols],
-            || [F192Unreduced::ZERO; 2],
-            accumulate,
-            |a, b| [a[0] ^ b[0], a[1] ^ b[1]],
-        )
-    } else {
-        // Reuse scratch across the small final rounds without dispatching workers.
-        let mut scratch = vec![F192::ZERO; 3 * ncols];
-        let mut acc = [F192Unreduced::ZERO; 2];
-        for i in 0..eqr.len() {
-            accumulate(&mut scratch, &mut acc, i);
-        }
-        acc
-    };
-    acc.map(F192Unreduced::reduce)
+    let width = padded_width(ncols);
+    message_over_blocks(eqr.len(), (2 * BLOCK + 1) * width, |scratch: &mut Vec<F192>, acc, b| {
+        let (start, rows) = (b * BLOCK, BLOCK.min(eqr.len() - b * BLOCK));
+        let (lo, rest) = scratch.split_at_mut(BLOCK * width);
+        let (hi, slope) = rest.split_at_mut(BLOCK * width);
+        fold(start, rows, lo, hi);
+        block_summand(summand, &eqr[start..start + rows], lo, hi, slope, at_one, acc);
+    })
 }
 
 /// Convert the joining table's column layout into folded rows and its next message.
@@ -495,6 +537,7 @@ fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Syn
     summand: &impl Summand,
     eqr: &[F192],
     at_one: bool,
+    rows: bool,
 ) -> (Vec<F192>, Option<[F192; 2]>) {
     let ncols = cols.len();
     let half = cols[0].len() / 2;
@@ -509,18 +552,26 @@ fn fold_columns_and_message<T: ColVal + Into<F192>, C: Deref<Target = [T]> + Syn
         return (unsafe { out.assume_init() }.into_vec(), None);
     }
     let pairs = half / 2;
+    if rows {
+        let message = rows::fold_columns_and_message(cols, &mut out, rk, summand, eqr, at_one);
+        // SAFETY: the `pairs` tasks wrote every row of both halves.
+        return (unsafe { out.assume_init() }.into_vec(), Some(message));
+    }
+    let width = padded_width(ncols);
     let (lo, hi) = out.split_at_mut(pairs * ncols);
-    let lo = Chunks::new(lo, ncols);
-    let hi = Chunks::new(hi, ncols);
-    let message = folded_message(ncols, eqr, summand, at_one, |i, a, b| {
+    let lo = Chunks::new(lo, BLOCK * ncols);
+    let hi = Chunks::new(hi, BLOCK * ncols);
+    let message = folded_message(ncols, eqr, summand, at_one, |start, rows, a, b| {
         for (c, col) in cols.iter().enumerate() {
-            a[c] = interp(col[i], col[i + half]);
-            b[c] = interp(col[i + pairs], col[i + pairs + half]);
+            let at = |offset: usize| &col[start + offset..start + offset + rows];
+            interp_column(&mut a[c..], width, rk, at(0), at(half));
+            interp_column(&mut b[c..], width, rk, at(pairs), at(pairs + half));
         }
-        // SAFETY: task i owns row i in each disjoint output half for the whole dispatch.
-        unsafe {
-            lo.get(i).write_copy_of_slice(a);
-            hi.get(i).write_copy_of_slice(b);
+        // SAFETY: the task folding rows `start..` owns block `start / BLOCK` of each output half.
+        let (lo, hi) = unsafe { (lo.get(start / BLOCK), hi.get(start / BLOCK)) };
+        for r in 0..rows {
+            lo[r * ncols..(r + 1) * ncols].write_copy_of_slice(&a[r * width..r * width + ncols]);
+            hi[r * ncols..(r + 1) * ncols].write_copy_of_slice(&b[r * width..r * width + ncols]);
         }
     });
     // SAFETY: the `pairs` tasks wrote every row of both halves.
@@ -535,6 +586,7 @@ fn fold_rows_and_message(
     summand: &impl Summand,
     eqr: &[F192],
     at_one: bool,
+    rows: bool,
 ) -> Option<[F192; 2]> {
     let half = table.len() / (2 * ncols);
     if half == 1 {
@@ -547,27 +599,65 @@ fn fold_rows_and_message(
         return None;
     }
     let pairs = half / 2;
-    // Each task owns one row in all four quarters, including its two output rows.
+    if rows {
+        let message = rows::fold_rows_and_message(table, ncols, rk, summand, eqr, at_one);
+        table.truncate(half * ncols);
+        return Some(message);
+    }
+    let width = padded_width(ncols);
+    // Each task owns one block of rows in all four quarters, including its two output blocks.
     let (left, right) = table.split_at_mut(half * ncols);
     let (q0, q1) = left.split_at_mut(pairs * ncols);
     let (q2, q3) = right.split_at_mut(pairs * ncols);
-    let q0 = Chunks::new(q0, ncols);
-    let q1 = Chunks::new(q1, ncols);
-    let q2 = Chunks::new(q2, ncols);
-    let q3 = Chunks::new(q3, ncols);
-    let message = folded_message(ncols, eqr, summand, at_one, |i, a, b| {
-        // SAFETY: task i exclusively borrows row i in each disjoint quarter exactly once.
-        let (lo, hi, upper_lo, upper_hi) = unsafe { (q0.get(i), q1.get(i), q2.get(i), q3.get(i)) };
-        for c in 0..ncols {
-            a[c] = lo[c] + (lo[c] + upper_lo[c]) * rk;
-            b[c] = hi[c] + (hi[c] + upper_hi[c]) * rk;
+    let [q0, q1, q2, q3] = [q0, q1, q2, q3].map(|q| Chunks::new(q, BLOCK * ncols));
+    let message = folded_message(ncols, eqr, summand, at_one, |start, rows, a, b| {
+        let k = start / BLOCK;
+        // SAFETY: the task folding rows `start..` owns block `k` of every quarter.
+        let (lo, hi, upper_lo, upper_hi) = unsafe { (q0.get(k), q1.get(k), q2.get(k), q3.get(k)) };
+        for r in 0..rows {
+            let row = r * ncols..(r + 1) * ncols;
+            let (a, b) = (
+                &mut a[r * width..r * width + ncols],
+                &mut b[r * width..r * width + ncols],
+            );
+            interp_row(a, rk, &lo[row.clone()], &upper_lo[row.clone()]);
+            interp_row(b, rk, &hi[row.clone()], &upper_hi[row.clone()]);
+            // Read all four input rows before overwriting either output row.
+            lo[row.clone()].copy_from_slice(a);
+            hi[row].copy_from_slice(b);
         }
-        // Read all four input rows before overwriting either output row.
-        lo.copy_from_slice(a);
-        hi.copy_from_slice(b);
     });
     table.truncate(half * ncols);
     Some(message)
+}
+
+/// `out[r * stride] = lo[r] + (lo[r] + hi[r])·rk` down one column, eight rows per batched product.
+#[inline(always)]
+fn interp_column<T: ColVal + Into<F192>>(out: &mut [F192], stride: usize, rk: F192, lo: &[T], hi: &[T]) {
+    let (lo8, lo_tail) = lo.as_chunks::<8>();
+    let (hi8, hi_tail) = hi.as_chunks::<8>();
+    for (g, (l, h)) in lo8.iter().zip(hi8).enumerate() {
+        let products = T::mul_e8(std::array::from_fn(|j| l[j] + h[j]), rk);
+        for j in 0..8 {
+            out[(8 * g + j) * stride] = l[j].into() + products[j];
+        }
+    }
+    for (j, (&l, &h)) in lo_tail.iter().zip(hi_tail).enumerate() {
+        out[(8 * lo8.len() + j) * stride] = l.into() + (l + h).mul_e(rk);
+    }
+}
+
+/// `out[c] = lo[c] + (lo[c] + hi[c])·rk` along one row, eight columns per batched product.
+#[inline(always)]
+fn interp_row(out: &mut [F192], rk: F192, lo: &[F192], hi: &[F192]) {
+    for ((dst, lo), hi) in out.chunks_mut(8).zip(lo.chunks(8)).zip(hi.chunks(8)) {
+        // A short last group is padded with zeros, whose products are dropped.
+        let at = |s: &[F192], j: usize| s.get(j).copied().unwrap_or(F192::ZERO);
+        let products = F192::mul_e8(std::array::from_fn(|j| at(lo, j) + at(hi, j)), rk);
+        for (j, d) in dst.iter_mut().enumerate() {
+            *d = lo[j] + products[j];
+        }
+    }
 }
 
 /// What the table sumcheck's verifier establishes.
@@ -588,21 +678,6 @@ pub struct Final<E = F192> {
     ///
     /// It is the product of the round challenges, since each round's claim fixes the linear coefficient of its polynomial.
     pub target_weight: E,
-}
-
-impl Final {
-    /// The claims, when nothing was left out.
-    ///
-    /// # Errors
-    ///
-    /// Returns a final mismatch when the residual is not zero.
-    pub fn settle(self) -> Result<Vec<Claims>, ConstraintError> {
-        if self.residual.is_zero() {
-            Ok(self.claims)
-        } else {
-            Err(ConstraintError::FinalMismatch)
-        }
-    }
 }
 
 /// Verify the table sumcheck.
@@ -681,6 +756,17 @@ mod tests {
     use primitives::test_util::Rng;
     use proptest::prelude::*;
 
+    impl Final {
+        // The claims, when nothing was left out.
+        fn settle(self) -> Result<Vec<Claims>, ConstraintError> {
+            if self.residual.is_zero() {
+                Ok(self.claims)
+            } else {
+                Err(ConstraintError::FinalMismatch)
+            }
+        }
+    }
+
     /// Reference prover with separate column-message and column-fold passes.
     fn prove_reference<S: Summand>(
         airs: &[Air<S>],
@@ -720,8 +806,8 @@ mod tests {
             for (t, air) in airs.iter().enumerate() {
                 if air.tau > m {
                     let p = folded[t].as_ref().map_or_else(
-                        || table_message(&cols[t], &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
-                        |table| table_message(table, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                        || rows::table_message(&cols[t], &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
+                        |table| rows::table_message(table, &air.summand, 1 << m, &eqr, zeta[m].is_zero()),
                     );
                     for i in 0..2 {
                         msg[i] += weights[t] * p[i];
@@ -816,11 +902,13 @@ mod tests {
             };
             let waiting = F192::new(43, 47, 53);
             for zeta in [F192::ZERO, F192::ONE, F192::new(59, 61, 67)] {
-                let message = table_message(cols, &synth, 4, &eq, zeta.is_zero());
                 let claim = (F192::ONE + zeta) * full_eval(F192::ZERO) + zeta * full_eval(F192::ONE) + waiting;
-                let h = round_polynomial(message, zeta, claim, waiting);
-                for r in [F192::ZERO, F192::ONE, F192::new(31, 37, 41)] {
-                    assert_eq!(poly_eval(&h, r), (F192::ONE + zeta + r) * full_eval(r) + r * waiting);
+                for rows in [false, true] {
+                    let message = table_message(cols, &synth, 4, &eq, zeta.is_zero(), rows);
+                    let h = round_polynomial(message, zeta, claim, waiting);
+                    for r in [F192::ZERO, F192::ONE, F192::new(31, 37, 41)] {
+                        assert_eq!(poly_eval(&h, r), (F192::ONE + zeta + r) * full_eval(r) + r * waiting);
+                    }
                 }
             }
         }
@@ -919,14 +1007,17 @@ mod tests {
                 if kinds >> t & 1 == 0 { Columns::K(base[t].iter().map(|c| &c[..]).collect()) }
                 else { Columns::E(c.iter().map(|c| c.to_vec()).collect()) }
             }).collect();
-            // Identical transcript seeds expose any changed message or challenge.
+            // Identical transcript seeds expose any changed message or challenge, in either pass shape.
             let mut original = ProverState::from_label(b"arbitrary-constraint-test");
             let expected = prove_reference(&airs, views(), &zeta, &sigma, &mut original);
-            let mut fused = ProverState::from_label(b"arbitrary-constraint-test");
-            let actual = prove(&airs, views(), &zeta, &sigma, &mut fused);
-            // Invariant: even a false statement produces the same messages before rejection.
-            prop_assert_eq!(actual, expected);
-            prop_assert_eq!(fused.into_proof().stream, original.into_proof().stream);
+            let stream = original.into_proof().stream;
+            for rows in [false, true] {
+                let mut fused = ProverState::from_label(b"arbitrary-constraint-test");
+                let actual = prove_with(&airs, views(), &zeta, &sigma, &mut fused, rows);
+                // Invariant: even a false statement produces the same messages before rejection.
+                prop_assert_eq!(&actual, &expected);
+                prop_assert_eq!(&fused.into_proof().stream, &stream);
+            }
         }
     }
 
@@ -960,11 +1051,14 @@ mod tests {
                     let sigma: Vec<_> = (0..taus.len()).map(|i| F192::new(i as u64 + 1, 3, 5)).collect();
                     let mut reference = ProverState::from_label(b"fused-constraint-test");
                     let expected = prove_reference(&airs, views(), &zeta, &sigma, &mut reference);
-                    let mut fused = ProverState::from_label(b"fused-constraint-test");
-                    let actual = prove(&airs, views(), &zeta, &sigma, &mut fused);
-                    // Invariant: reordering exact field operations preserves all messages and final claims.
-                    assert_eq!(actual, expected);
-                    assert_eq!(fused.into_proof().stream, reference.into_proof().stream);
+                    let stream = reference.into_proof().stream;
+                    for rows in [false, true] {
+                        let mut fused = ProverState::from_label(b"fused-constraint-test");
+                        let actual = prove_with(&airs, views(), &zeta, &sigma, &mut fused, rows);
+                        // Invariant: reordering exact field operations preserves all messages and final claims.
+                        assert_eq!(actual, expected);
+                        assert_eq!(fused.into_proof().stream, stream);
+                    }
                 }
             }
         }
