@@ -21,9 +21,23 @@ use parallel::Chunks;
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::MixedSums8;
 use primitives::field::{F64, F192, F192Unreduced, Weights8, dot_base};
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
 use primitives::field::{F192x1, F192x1Unreduced};
-#[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+#[cfg(not(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+)))]
 use primitives::field::{mul2, mul4};
 use primitives::multilinear::{eq_table, mle_eval};
 use std::collections::{HashMap, HashSet};
@@ -400,7 +414,14 @@ fn fill_tuple(
     for (i, c) in coords.iter().enumerate() {
         push_terms(c, w[i], &mut terms, &mut const_part);
     }
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    )))]
     let row = |z: usize| -> F192 {
         // The α-weighted coordinate sum defers its reductions: each mixed
         // product contributes its three raw limb products (3 PMULL, no
@@ -435,10 +456,22 @@ fn fill_tuple(
     };
     #[cfg(not(any(
         all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
-        all(target_arch = "aarch64", target_feature = "aes")
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
     )))]
     let rows8 = |z: usize| -> [F192; 8] { std::array::from_fn(|r| row(z + r)) };
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    )))]
     let fill = |base: usize, dst: &mut [MaybeUninit<F192>], products: Option<&mut [MaybeUninit<F192>]>| {
         let (groups, tail) = dst.as_chunks_mut::<8>();
         let tail_start = base + 8 * groups.len();
@@ -461,9 +494,23 @@ fn fill_tuple(
     };
     // One row at a time with every value in vector registers from its load to its store: the
     // terms' products summed unreduced and reduced once, and four rows' product formed from them.
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    ))]
     let constant = F192x1::new(const_part);
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    ))]
     let row = |z: usize| -> F192x1 {
         let mut acc = F192x1Unreduced::zero();
         for t in &terms {
@@ -477,7 +524,14 @@ fn fill_tuple(
         }
         constant + acc.reduce()
     };
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    ))]
     let fill = |base: usize, dst: &mut [MaybeUninit<F192>], products: Option<&mut [MaybeUninit<F192>]>| {
         if let Some(products) = products {
             let (quads, tail) = dst.as_chunks_mut::<4>();

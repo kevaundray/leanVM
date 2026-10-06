@@ -965,9 +965,9 @@ pub mod x86_64 {
     use super::{F192, F192Unreduced};
     use crate::field::gf2_64::F64;
     use core::arch::x86_64::*;
-    #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2"))]
     use core::mem::MaybeUninit;
     use core::mem::transmute;
+    use core::ops::{Add, BitXor, BitXorAssign, Mul};
 
     /// Two 64-bit words as one register, `lo` in the low qword.
     #[inline(always)]
@@ -1055,6 +1055,198 @@ pub mod x86_64 {
             F192Unreduced {
                 coeffs: products.map(|p| transmute::<__m128i, [u64; 2]>(p)),
             }
+        }
+    }
+
+    /// The batched kernels' lane-wise reduction on one register: qword `i` of the result is the
+    /// reduction of `hi[i] * x^64 + lo[i]`.
+    #[inline(always)]
+    fn reduce_lanes128(lo: __m128i, hi: __m128i) -> __m128i {
+        // SAFETY: SSE2 is part of the x86-64 baseline.
+        unsafe {
+            let spill = _mm_xor_si128(
+                _mm_xor_si128(_mm_srli_epi64::<63>(hi), _mm_srli_epi64::<61>(hi)),
+                _mm_srli_epi64::<60>(hi),
+            );
+            let v = _mm_xor_si128(hi, spill);
+            let f = _mm_xor_si128(
+                _mm_xor_si128(v, _mm_slli_epi64::<1>(v)),
+                _mm_xor_si128(_mm_slli_epi64::<3>(v), _mm_slli_epi64::<4>(v)),
+            );
+            _mm_xor_si128(lo, f)
+        }
+    }
+
+    /// One element in two registers, `[c0, c1]` and `[c2, c2]`, for a kernel whose values stay
+    /// there from load to store, as the aarch64 kernels' `F192x1`; for x86 without the wide
+    /// CLMUL, where the batched products leave no lanes to fill.
+    ///
+    /// An [`F192`] is three integer words: its sums run on the integer side, and every product
+    /// moves its operands over and reduces its result there. These sums, products and reductions
+    /// stay in vector registers.
+    #[derive(Clone, Copy)]
+    pub struct F192x1 {
+        c01: __m128i,
+        c22: __m128i,
+    }
+
+    /// An unreduced product of [`F192x1`] values, or a sum of them: its three 128-bit coefficients
+    /// in registers.
+    #[derive(Clone, Copy)]
+    pub struct F192x1Unreduced([__m128i; 3]);
+
+    impl F192x1 {
+        #[inline(always)]
+        pub fn new(e: F192) -> Self {
+            // SAFETY: SSE2 is part of the x86-64 baseline.
+            Self {
+                c01: pair(e.c0, e.c1),
+                c22: unsafe { _mm_set1_epi64x(e.c2 as i64) },
+            }
+        }
+
+        /// The element at `e`, loaded into its registers.
+        #[inline(always)]
+        pub fn load(e: &F192) -> Self {
+            let words = (e as *const F192).cast::<u64>();
+            // SAFETY: `e` is three words, `c0` and `c1` adjacent under `repr(C)`.
+            unsafe {
+                Self {
+                    c01: _mm_loadu_si128(words.cast()),
+                    c22: _mm_set1_epi64x(*words.add(2) as i64),
+                }
+            }
+        }
+
+        /// Write the element to `out`, which need not be initialized.
+        #[inline(always)]
+        pub fn store(self, out: &mut MaybeUninit<F192>) {
+            let words = out.as_mut_ptr().cast::<u64>();
+            // SAFETY: `out` is three words, `c0` and `c1` adjacent under `repr(C)`.
+            unsafe {
+                _mm_storeu_si128(words.cast(), self.c01);
+                _mm_storel_epi64(words.add(2).cast(), self.c22);
+            }
+        }
+
+        /// The product without the reduction, Karatsuba's six from the registers.
+        #[inline(always)]
+        pub fn mul_unreduced(self, rhs: Self) -> F192x1Unreduced {
+            let ((a01, a22), (b01, b22)) = ((self.c01, self.c22), (rhs.c01, rhs.c22));
+            // SAFETY: the module's cfg enables pclmulqdq; the rest is SSE2.
+            unsafe {
+                // `[c0 + c2, c1 + c2]`, and `c0 + c1` in both qwords.
+                let (a_s, b_s) = (_mm_xor_si128(a01, a22), _mm_xor_si128(b01, b22));
+                let a_x = _mm_xor_si128(a01, _mm_shuffle_epi32::<0x4E>(a01));
+                let b_x = _mm_xor_si128(b01, _mm_shuffle_epi32::<0x4E>(b01));
+                F192x1Unreduced(fold(
+                    _mm_clmulepi64_si128::<0x00>(a01, b01),
+                    _mm_clmulepi64_si128::<0x11>(a01, b01),
+                    _mm_clmulepi64_si128::<0x00>(a22, b22),
+                    _mm_clmulepi64_si128::<0x00>(a_x, b_x),
+                    _mm_clmulepi64_si128::<0x00>(a_s, b_s),
+                    _mm_clmulepi64_si128::<0x11>(a_s, b_s),
+                    |x, y| _mm_xor_si128(x, y),
+                ))
+            }
+        }
+
+        /// The mixed product by a base-field scalar, without the reduction.
+        #[inline(always)]
+        pub fn mul_base_unreduced(self, k: F64) -> F192x1Unreduced {
+            // SAFETY: the module's cfg enables pclmulqdq; the rest is SSE2.
+            unsafe {
+                let k = _mm_cvtsi64_si128(k.0 as i64);
+                F192x1Unreduced([
+                    _mm_clmulepi64_si128::<0x00>(self.c01, k),
+                    _mm_clmulepi64_si128::<0x01>(self.c01, k),
+                    _mm_clmulepi64_si128::<0x00>(self.c22, k),
+                ])
+            }
+        }
+    }
+
+    impl Add for F192x1 {
+        type Output = Self;
+        #[inline(always)]
+        fn add(self, rhs: Self) -> Self {
+            // SAFETY: SSE2 is part of the x86-64 baseline.
+            unsafe {
+                Self {
+                    c01: _mm_xor_si128(self.c01, rhs.c01),
+                    c22: _mm_xor_si128(self.c22, rhs.c22),
+                }
+            }
+        }
+    }
+
+    impl Mul for F192x1 {
+        type Output = Self;
+        #[inline(always)]
+        fn mul(self, rhs: Self) -> Self {
+            self.mul_unreduced(rhs).reduce()
+        }
+    }
+
+    impl F192x1Unreduced {
+        #[inline(always)]
+        pub fn zero() -> Self {
+            // SAFETY: SSE2 is part of the x86-64 baseline.
+            Self([unsafe { _mm_setzero_si128() }; 3])
+        }
+
+        /// Reduce each coefficient, into the element's two registers.
+        #[inline(always)]
+        pub fn reduce(self) -> F192x1 {
+            let [d0, d1, d2] = self.0;
+            // SAFETY: SSE2 is part of the x86-64 baseline.
+            unsafe {
+                F192x1 {
+                    c01: reduce_lanes128(_mm_unpacklo_epi64(d0, d1), _mm_unpackhi_epi64(d0, d1)),
+                    c22: reduce_lanes128(_mm_unpacklo_epi64(d2, d2), _mm_unpackhi_epi64(d2, d2)),
+                }
+            }
+        }
+    }
+
+    impl BitXor for F192x1Unreduced {
+        type Output = Self;
+        #[inline(always)]
+        fn bitxor(self, rhs: Self) -> Self {
+            let ([a0, a1, a2], [b0, b1, b2]) = (self.0, rhs.0);
+            // SAFETY: SSE2 is part of the x86-64 baseline.
+            unsafe { Self([_mm_xor_si128(a0, b0), _mm_xor_si128(a1, b1), _mm_xor_si128(a2, b2)]) }
+        }
+    }
+
+    impl BitXorAssign for F192x1Unreduced {
+        #[inline(always)]
+        fn bitxor_assign(&mut self, rhs: Self) {
+            *self = *self ^ rhs;
+        }
+    }
+
+    impl From<F192x1Unreduced> for F192Unreduced {
+        #[inline(always)]
+        fn from(u: F192x1Unreduced) -> Self {
+            Self {
+                // SAFETY: the reinterprets are between 128-bit values.
+                coeffs: u.0.map(|d| unsafe { transmute::<__m128i, [u64; 2]>(d) }),
+            }
+        }
+    }
+
+    impl From<F192x1> for F192 {
+        #[inline(always)]
+        fn from(e: F192x1) -> Self {
+            // SAFETY: the reinterprets are between 128-bit values.
+            let ([c0, c1], [c2, _]) = unsafe {
+                (
+                    transmute::<__m128i, [u64; 2]>(e.c01),
+                    transmute::<__m128i, [u64; 2]>(e.c22),
+                )
+            };
+            Self::new(c0, c1, c2)
         }
     }
 
@@ -1985,8 +2177,13 @@ mod tests {
     use crate::test_util::Rng;
     #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
     use aarch64::{F192x1, F192x1Unreduced};
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq")
+    ))]
     use core::mem::MaybeUninit;
+    #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+    use x86_64::{F192x1, F192x1Unreduced};
 
     /// Vectors generated by an independent Python implementation
     /// (scratchpad/fieldref.py): (a, b, a·b, a·a).
@@ -2109,7 +2306,10 @@ mod tests {
 
     /// Sums, products, unreduced sums and the loads and stores of elements held in registers,
     /// every corner pair among the operands, and each corner's words as base-field scalars.
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq")
+    ))]
     #[test]
     fn register_products_match_software() {
         for (a, b) in operand_pairs(12) {

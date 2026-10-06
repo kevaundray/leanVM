@@ -11,7 +11,14 @@ use crate::arith::Verifier;
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use primitives::field::{F192, F192Unreduced, mul_unreduced4, mul2, mul4};
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
 use primitives::field::{F192x1, F192x1Unreduced};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::{F192x4, F192x4Unreduced};
@@ -50,7 +57,14 @@ pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
     let full_rows = current.len() / 4;
     let mut next = Vec::with_capacity(rows.next_multiple_of(4));
     let slots = &mut next.spare_capacity_mut()[..rows];
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    )))]
     let product = |row: usize| {
         let [left, right] = mul2(
             [current[4 * row], current[4 * row + 2]],
@@ -59,7 +73,14 @@ pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
         left * right
     };
     // Each value in vector registers from its load to the product's.
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(
+            target_arch = "x86_64",
+            target_feature = "pclmulqdq",
+            not(target_feature = "vpclmulqdq")
+        )
+    ))]
     let product = |row: usize| {
         let child = |c: usize| F192x1::load(&current[4 * row + c]);
         F192::from((child(0) * child(1)) * (child(2) * child(3)))
@@ -175,12 +196,26 @@ fn quartic_summand4(low: [F192x4; 4], high: [F192x4; 4], equality: F192x4) -> [F
 }
 
 /// A row's four children, or a summand's four coefficients, held in vector registers.
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
 type Quad<T> = (T, T, T, T);
 
 /// [`quartic_summand4`]'s products for one row pair held in vector registers: `low` is the
 /// low row's four children, `high` the high row's.
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(
+        target_arch = "x86_64",
+        target_feature = "pclmulqdq",
+        not(target_feature = "vpclmulqdq")
+    )
+))]
 #[inline(always)]
 fn quartic_summand1(low: Quad<F192x1>, high: Quad<F192x1>, equality: F192x1) -> Quad<F192x1Unreduced> {
     let ((l0, l1, l2, l3), (h0, h1, h2, h3)) = (low, high);
@@ -252,7 +287,14 @@ impl QuaternaryLayerState {
     fn round_message(&self, equality: &SplitEq) -> [F192; 4] {
         let stored_rows = self.values.len() / 4;
         let full_pairs = stored_rows / 2;
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        #[cfg(not(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(target_feature = "vpclmulqdq")
+            )
+        )))]
         let summand = |row: usize, weight: F192| -> [F192Unreduced; 4] {
             let (lo, hi) = (8 * row, 8 * row + 4);
             let lines = [0, 1, 2, 3].map(|child| {
@@ -278,7 +320,14 @@ impl QuaternaryLayerState {
             };
             quartic_summand4(rows(0), rows(1), weights)
         };
-        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        #[cfg(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(target_feature = "vpclmulqdq")
+            )
+        ))]
         let summand1 = |row: usize, weight: F192x1| {
             let v = &self.values[8 * row..8 * row + 8];
             let child = |c: usize| F192x1::load(&v[c]);
@@ -290,11 +339,23 @@ impl QuaternaryLayerState {
             let range = base..(base + rows).min(full_pairs);
             #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
             return equality.weighted_sum_lanes(range, full_pairs, &mut (), |_, row, w| summand(row, w), summand4);
-            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            #[cfg(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            ))]
             return equality.weighted_sum_x1(range, summand1);
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
-                all(target_arch = "aarch64", target_feature = "aes")
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
             )))]
             equality.weighted_sum(range, summand)
         };
@@ -405,7 +466,14 @@ impl QuaternaryLayerState {
         let full_pairs = stored_rows / 4;
         #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
         let lanes = F192x4::splat(challenge);
-        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        #[cfg(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(
+                target_arch = "x86_64",
+                target_feature = "pclmulqdq",
+                not(target_feature = "vpclmulqdq")
+            )
+        ))]
         let challenge1 = F192x1::new(challenge);
         let task = |index: usize| {
             let first = index * PAIRS;
@@ -414,7 +482,14 @@ impl QuaternaryLayerState {
             let len = 4 * (end_row - 2 * first);
             // Every slot is written before it is read, so the stage needs no zero fill.
             let mut stage = [MaybeUninit::<F192>::uninit(); 8 * PAIRS];
-            #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+            #[cfg(not(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            )))]
             let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
                 let lo = 8 * row;
                 let left = &values[lo..lo + 4];
@@ -425,7 +500,14 @@ impl QuaternaryLayerState {
                     stage[offset + i].write(left[i] + product[i]);
                 }
             };
-            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            #[cfg(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            ))]
             let fold_row = |stage: &mut [MaybeUninit<F192>], row: usize| {
                 let lo = 8 * row;
                 let left = &values[lo..lo + 4];
@@ -438,7 +520,12 @@ impl QuaternaryLayerState {
             };
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"),
-                all(target_arch = "aarch64", target_feature = "aes")
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
             )))]
             let message = {
                 for row in 2 * first..end_row {
@@ -459,7 +546,14 @@ impl QuaternaryLayerState {
                 })
             };
             // Each value in vector registers from its load to the summand's sums.
-            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            #[cfg(any(
+                all(target_arch = "aarch64", target_feature = "aes"),
+                all(
+                    target_arch = "x86_64",
+                    target_feature = "pclmulqdq",
+                    not(target_feature = "vpclmulqdq")
+                )
+            ))]
             let message = {
                 for row in 2 * first..end_row {
                     fold_row(&mut stage, row);

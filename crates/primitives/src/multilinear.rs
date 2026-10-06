@@ -13,7 +13,10 @@ use crate::field::gf2_64::{reduce, software::clmul};
 use crate::field::{
     F64, F192, F192Unreduced, PHI_8_TABLE_192 as PHI_8_TABLE, Weights8, dot_base, mul_base8, mul_unreduced4, mul4,
 };
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[cfg(any(
+    all(target_arch = "aarch64", target_feature = "aes"),
+    all(target_arch = "x86_64", target_feature = "pclmulqdq")
+))]
 use crate::field::{F192x1, F192x1Unreduced};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use crate::field::{F192x4, F192x4Unreduced};
@@ -505,7 +508,10 @@ impl SplitEq {
 
     /// [`Self::weighted_sum`] with its values in vector registers: the terms, the weights and the
     /// sums are [`F192x1`] values, which an [`F192`]'s integer words would move out of at every sum.
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq")
+    ))]
     #[inline]
     pub fn weighted_sum_x1(
         &self,
@@ -611,7 +617,10 @@ mod tests {
                     let got = split.weighted_sum_lanes(range.clone(), wide_end, &mut (), |_, x, w| terms(x, w), terms4);
                     assert_eq!(got[0].reduce(), want, "{range:?} {wide_end}");
                 }
-                #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+                #[cfg(any(
+                    all(target_arch = "aarch64", target_feature = "aes"),
+                    all(target_arch = "x86_64", target_feature = "pclmulqdq")
+                ))]
                 {
                     let zero = F192x1Unreduced::zero();
                     let got = split.weighted_sum_x1(range.clone(), |x, w| {
