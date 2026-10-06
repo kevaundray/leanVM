@@ -96,10 +96,8 @@ fn x_ab_of(zc: &ZerocheckClaim, inner_rest_len: usize) -> QuirkyPoint {
 /// 64 slice values are `lc.s_hat_v`. Prover and verifier must derive it
 /// identically, so they share this one derivation.
 fn reduction_claim(lc: &LincheckClaim, x_outer: &[F192]) -> SliceClaim {
-    let mut suffix_point = lc.r_inner_rest.clone();
-    suffix_point.extend_from_slice(x_outer);
     SliceClaim {
-        suffix_point,
+        suffix_point: [lc.r_inner_rest.as_slice(), x_outer].concat(),
         s_hat_v: lc.s_hat_v.clone(),
     }
 }

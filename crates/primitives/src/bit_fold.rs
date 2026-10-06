@@ -80,10 +80,9 @@ impl BitFold {
     ///     w[64 u + s] = eq(rho, u) * L_s(z)        u in 0..2^t, s in 0..64
     /// ```
     pub fn at_level(lagrange: &[F192], rho: &[F192]) -> Self {
-        let weights: Vec<F192> = eq_table(rho)
-            .iter()
-            .flat_map(|&e| lagrange.iter().map(move |&l| e * l))
-            .collect();
+        let eq = eq_table(rho);
+        let mut weights = Vec::with_capacity(eq.len() * lagrange.len());
+        weights.extend(eq.iter().flat_map(|&e| lagrange.iter().map(move |&l| e * l)));
         Self::new(&weights)
     }
 
