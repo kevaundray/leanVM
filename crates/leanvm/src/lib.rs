@@ -84,7 +84,7 @@ pub use leanvm_core::{
 /// values' digest, with nothing left assumed.
 pub mod aggregate {
     pub use leanvm_core::{
-        AssumedProofs, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, TableStats, Tree, TreeError,
-        TreeProof, TreeShape,
+        AssumedProofs, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError,
+        TreeProof, TreeShape, Unsatisfied,
     };
 }

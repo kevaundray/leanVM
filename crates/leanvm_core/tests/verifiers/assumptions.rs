@@ -4,7 +4,7 @@
 use super::programs::fibonacci;
 use super::python_verifier::PythonStatement;
 use leanvm_core::asm::*;
-use leanvm_core::{Assumption, Output, Program, Rate, Region};
+use leanvm_core::{Assumption, Output, Program, ProvenRun, Prover, Rate, Region};
 
 /// The program exiting with its four advice words.
 fn echo() -> Program {
@@ -42,14 +42,14 @@ fn both_verifiers_bind_the_assumptions_in_order() {
         Assumption::new(program.digest_words(), Output::new([1, 2, 3, 4])),
     ];
     let folded = committed.assuming(&assumptions);
-    let (proof, output, _) = program.prove(folded.words(), Rate::MIN).expect("the run halts");
+    let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN).prove(&program, folded.words()).expect("the run halts");
     assert_eq!(folded, output);
     let unresolved = program
         .verify_assuming(committed, &assumptions, &proof)
         .expect("honest proof verifies");
     assert_eq!(unresolved, assumptions);
 
-    let raw = program.verify_to_raw(&output, &proof).expect("honest proof verifies");
+    let raw = program.verify_to_raw(output, &proof).expect("honest proof verifies");
     let python = PythonStatement::new("assuming", &program, committed.words());
     let accepted = python.verify_assuming(&raw, &words(&assumptions));
     assert!(

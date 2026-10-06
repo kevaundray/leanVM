@@ -1,48 +1,54 @@
 //! Assumptions: prove two runs of the Fibonacci guest and a guest that assumes them (`programs/defer`), check the
 //! latter alone, then prove the tree that resolves its assumptions.
 
+use crate::aggregate::{report, secs};
+use crate::refuse;
+use crate::workload::Workload;
 use bench::Plan;
 use leanvm::aggregate::{AssumedProofs, Kind, Leaf, LeafShape, Tree, TreeShape};
 use leanvm::{Assumption, Output, Program, ProvenRun, Prover};
 use primitives::pretty_integer;
 
-use crate::aggregate::{report, secs};
-use crate::guest::refuse;
-
 /// Prove `F(n + 2)` from proofs of `F(n)` and `F(n + 1)`, resolve the assumptions in a tree, and print the report.
 pub fn run(n: u64, prover: &Prover, plan: Plan) {
     let rate = prover.rate();
-    let load = |elf| Program::from_elf(elf).unwrap_or_else(|e| refuse(format_args!("{e}")));
-    let (fibonacci, outer) = (load(defer_host::FIBONACCI_ELF), load(defer_host::ELF));
-    let run = defer_host::run(fibonacci.digest_words(), n);
-    let prove = |program: &Program, advice: &[u64], what: &str| {
-        plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            (prover.prove(program, advice)).unwrap_or_else(|e| refuse(format_args!("{what} has no proof: {e}")))
-        })
+    let fibonacci = Program::from_elf(defer_host::FIBONACCI_ELF).expect("a guest's ELF file");
+    let assuming = defer_host::run(fibonacci.digest_words(), n);
+    // The three runs, each checked against the output its host computed.
+    let runs: [Workload; 2] = std::array::from_fn(|i| Workload {
+        title: format!("the Fibonacci guest, n = {}", n + i as u64),
+        program: fibonacci.clone(),
+        advice: vec![n + i as u64],
+        expected: Some(Output::new(assuming.assumed[i].1)),
+        items: None,
+    });
+    let outer = Workload {
+        title: "the guest assuming both".into(),
+        program: Program::from_elf(defer_host::ELF).expect("a guest's ELF file"),
+        advice: assuming.run.advice,
+        expected: Some(Output::new(assuming.run.expected)),
+        items: None,
     };
-
-    let inner: Vec<ProvenRun> = (0..2)
-        .map(|i| {
-            let (proved, time) = prove(&fibonacci, &[n + i], "the Fibonacci run");
-            assert_eq!(proved.output, run.assumed[i as usize].1, "the assumed run's output");
-            println!("Fibonacci, n = {}: proving {}", n + i, secs(&time));
-            proved
-        })
-        .collect();
-    let (proved, time) = prove(&outer, &run.advice, "the assuming guest");
-    assert_eq!(proved.output, run.expected, "the guest's output is the host's");
-    println!(
-        "guest assuming both: {} cycles, proving {}",
-        pretty_integer(&proved.stats.base_counts.values().sum::<usize>()),
-        secs(&time)
-    );
+    let prove = |workload: &Workload| {
+        let (proved, time) = plan.warm_then_measure(|last| {
+            let _quiet = (!last).then(bench::suppress_tracing);
+            workload.prove(prover)
+        });
+        println!(
+            "{}: {} cycles, proving {}",
+            workload.title,
+            pretty_integer(&proved.stats.cycles()),
+            secs(&time)
+        );
+        proved
+    };
+    let inner: Vec<ProvenRun> = runs.iter().map(prove).collect();
+    let proved = prove(&outer);
+    let outer = &outer.program;
 
     // Alone, the guest's proof shows its committed values only under its assumptions.
-    let committed = Output::new(run.committed);
-    let assumptions = run
-        .assumed
-        .map(|(program, output)| Assumption::new(program, Output::new(output)));
+    let committed = Output::new(assuming.committed);
+    let assumptions = (assuming.assumed).map(|(program, output)| Assumption::new(program, Output::new(output)));
     let unresolved = (outer.verify_assuming(committed, &assumptions, &proved.proof))
         .unwrap_or_else(|e| refuse(format_args!("the guest's proof: {e}")));
     println!(
@@ -63,7 +69,7 @@ pub fn run(n: u64, prover: &Prover, plan: Plan) {
         rate,
     };
     let tree = Tree::assuming(
-        &outer,
+        outer,
         tree_shape,
         AssumedProofs {
             program: &fibonacci,
@@ -93,7 +99,7 @@ pub fn run(n: u64, prover: &Prover, plan: Plan) {
     );
 
     // The same guest's proof alone, its assumptions left in its output: what resolving them adds.
-    let alone = Tree::new(&outer, tree_shape).unwrap_or_else(|e| refuse(format_args!("{e}")));
+    let alone = Tree::new(outer, tree_shape).unwrap_or_else(|e| refuse(format_args!("{e}")));
     let rows = |tree: &Tree<'_>| -> Vec<(&'static str, i64)> {
         (tree.stats(Kind::First).tables.iter())
             .map(|t| (t.name, i64::try_from(t.rows).expect("rows fit")))

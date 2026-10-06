@@ -2,14 +2,14 @@ use super::claims::{Bits, DenseClaim, DenseTerm, MatrixClaim, NodeClaims};
 use super::reduce::{DenseProver, DenseVars, LABEL, MatrixProver, MatrixReduced, ReduceError};
 use super::statement::{Section, digest_halves_rows};
 use super::*;
-use crate::arith::{Arith, Native};
-use crate::cpu::Claim;
+use crate::cpu::{Claim, Prover};
 use crate::rec::circuit::{Assignment, Builder, Kw};
 use crate::rec::table::HashFlock;
 use crate::rv::Region;
 use crate::rv::asm::*;
 use crate::tables::TableId;
 use design::NodeRows;
+use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::{Challenger, ProverState, Transmitter, VerifierState};
 use flock::lincheck::MatrixForm;
 use primitives::field::F64;
@@ -47,8 +47,10 @@ fn fixture() -> &'static Fixture {
     FIXTURE.get_or_init(|| {
         let leaves: Vec<(Proof, Output)> = (1..=4)
             .map(|advice| {
-                let (proof, output, _) = program().prove(&[advice], Rate::MIN).expect("the run halts");
-                (proof, Output::new(output))
+                let run = Prover::new(Rate::MIN)
+                    .prove(program(), &[advice])
+                    .expect("the run halts");
+                (run.proof, run.output)
             })
             .collect();
         let shape = LeafShape::of(&leaves[0].0).expect("a canonical announcement");
@@ -182,13 +184,11 @@ fn what_a_prover_is_handed_is_checked() {
         f.tree.prove_first(&[pairs[0], Leaf::new(&forged, f.leaves[1].1)]),
         Err(TreeError::Leaf { index: 1, .. })
     ));
-    let (longer, output, _) = program()
-        .prove(&[7], Rate::new(2).expect("a rate"))
-        .expect("the run halts");
+    let ProvenRun {
+        proof: longer, output, ..
+    } = (Prover::new(Rate::new(2).expect("a rate")).prove(program(), &[7])).expect("the run halts");
     assert_eq!(
-        f.tree
-            .prove_first(&[Leaf::new(&longer, Output::new(output)), pairs[1]])
-            .map(|_| ()),
+        f.tree.prove_first(&[Leaf::new(&longer, output), pairs[1]]).map(|_| ()),
         Err(TreeError::ForeignLeaf { index: 0 })
     );
 
@@ -350,7 +350,7 @@ fn a_fake_child_circuit_is_refused_at_the_root() {
     // An honest reduction over the tree's polynomials fails on the fake's hints.
     let honest = f.tree.prove_rows(d.node(&inputs(&f.tree.tables)), Kind::Node);
     assert!(
-        matches!(&honest, Err(TreeError::Unsatisfied(check)) if check.starts_with("reduction")),
+        matches!(&honest, Err(TreeError::Unsatisfied(check)) if check.scope()[0] == "reduction"),
         "{:?}",
         honest.map(|p| p.kind())
     );
@@ -503,7 +503,7 @@ fn forged_reduced_claims_are_refused() {
         );
         let carried = f.tree.prove_node(&[forged, f.firsts[1].clone()]);
         assert!(
-            matches!(&carried, Err(TreeError::Unsatisfied(check)) if check.starts_with("reduction")),
+            matches!(&carried, Err(TreeError::Unsatisfied(check)) if check.scope()[0] == "reduction"),
             "{forge:?}: {:?}",
             carried.map(|p| p.kind())
         );
@@ -765,8 +765,8 @@ fn other() -> &'static Program {
 }
 
 fn prove(program: &Program, advice: &[u64]) -> (Proof, Output) {
-    let (proof, output, _) = program.prove(advice, Rate::MIN).expect("the run halts");
-    (proof, Output::new(output))
+    let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN).prove(program, advice).expect("the run halts");
+    (proof, output)
 }
 
 // That runs of `program` exit with `outputs`, in order.
@@ -969,7 +969,7 @@ fn the_rows_bind_each_assumption_to_its_proof() {
     };
     let names = assume(program(), &f.outputs([0, 1]));
     let honest = || leaf(&f.leaves[0], f.committed[0], &names, vec![inner(0), inner(1)]);
-    assert_eq!(failures(honest()), Vec::<String>::new());
+    assert_eq!(failures(honest()), Vec::<Unsatisfied>::new());
 
     // Another committed digest than the one folded.
     let committed = LeafWitness {

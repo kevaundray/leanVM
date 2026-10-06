@@ -1,26 +1,25 @@
 //! The defer program off the VM: the advice for the next Fibonacci number from two proven ones, the runs it assumes,
 //! and the output the guest must give.
 
-use leanvm_guest::PublicValues;
+use leanvm_guest::{PublicValues, Run};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../defer.elf");
 /// The Fibonacci guest (`programs/fibonacci/guest`), whose runs the defer guest assumes.
 pub const FIBONACCI_ELF: &[u8] = include_bytes!("../../../fibonacci/fibonacci.elf");
 
-/// What one run of the guest is given, what it assumes, and what it must output.
-pub struct Run {
-    pub advice: Vec<u64>,
+/// One run of the guest: what it is given and must output, what it assumes, and what it states once they are proven.
+pub struct Assuming {
+    /// The advice, and the output: the digest of the committed values, folded with the assumptions.
+    pub run: Run,
     /// The assumptions the run makes, in order: each a program's digest and the output of a run of it.
     pub assumed: [([u64; 4], [u64; 4]); 2],
-    /// The output: the digest of the committed values, folded with the assumptions.
-    pub expected: [u64; 4],
     /// The digest of the committed values: what the run states once its assumptions are proven.
     pub committed: [u64; 4],
 }
 
 /// The run giving `F(n + 2)` from `F(n)` and `F(n + 1)`, `fibonacci` the Fibonacci program's digest.
-pub fn run(fibonacci: [u64; 4], n: u64) -> Run {
+pub fn run(fibonacci: [u64; 4], n: u64) -> Assuming {
     let (mut f0, mut f1) = (0u64, 1u64);
     for _ in 0..n {
         (f0, f1) = (f1, f0.wrapping_add(f1));
@@ -36,10 +35,12 @@ pub fn run(fibonacci: [u64; 4], n: u64) -> Run {
     public.commit(&fibonacci).commit(&defer::next(n, f0, f1));
     let mut advice = fibonacci.to_vec();
     advice.extend([n, f0, f1]);
-    Run {
-        advice,
+    Assuming {
+        run: Run {
+            advice,
+            expected: public.clone().digest(),
+        },
         assumed,
-        expected: public.clone().digest(),
         committed: public.committed(),
     }
 }
@@ -69,12 +70,12 @@ mod tests {
     fn the_guest_folds_its_assumptions_as_the_core_does() {
         // Invariant: the guest exits with its committed digest folded with its assumptions, as the SDK computes it off
         // the VM and as the core's `Output::assuming`, which a verifier checks against, computes it.
-        let run = run(fibonacci(), 90);
+        let assuming = run(fibonacci(), 90);
         assert_eq!(
-            Output::new(run.committed).assuming(&assumptions(run.assumed)),
-            run.expected
+            Output::new(assuming.committed).assuming(&assumptions(assuming.assumed)),
+            assuming.run.expected
         );
-        assert_eq!(on_the_vm(ELF, &run.advice), Ok(run.expected));
+        assert_eq!(on_the_vm(ELF, &assuming.run.advice), Ok(assuming.run.expected));
     }
 
     #[test]
@@ -98,16 +99,16 @@ mod tests {
         //
         //     the committed values are unchanged (the sum is), the assumed outputs are not
         //     → the guest exits, as it checks nothing, but its output folds the wrong assumptions
-        let run = run(fibonacci(), 90);
-        let mut advice = run.advice.clone();
+        let assuming = run(fibonacci(), 90);
+        let mut advice = assuming.run.advice.clone();
         advice[5] = advice[5].wrapping_add(1);
         advice[6] = advice[6].wrapping_sub(1);
         let wrong = [
-            (run.assumed[0].0, defer::fibonacci_output(90, advice[5])),
-            (run.assumed[1].0, defer::fibonacci_output(91, advice[6])),
+            (assuming.assumed[0].0, defer::fibonacci_output(90, advice[5])),
+            (assuming.assumed[1].0, defer::fibonacci_output(91, advice[6])),
         ];
         let output = on_the_vm(ELF, &advice).expect("the guest checks nothing itself");
-        assert_ne!(output, run.expected);
-        assert_eq!(Output::new(run.committed).assuming(&assumptions(wrong)), output);
+        assert_ne!(output, assuming.run.expected);
+        assert_eq!(Output::new(assuming.committed).assuming(&assumptions(wrong)), output);
     }
 }
