@@ -8,6 +8,8 @@ use leanvm::{Prover, Rate};
 use std::error::Error;
 use std::path::PathBuf;
 
+/// jemalloc, unless `system-alloc` leaves the system allocator for a heap profiler (AGENTS.md, Profiling).
+#[cfg(not(feature = "system-alloc"))]
 #[global_allocator]
 static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
 
