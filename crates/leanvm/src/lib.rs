@@ -78,10 +78,10 @@ pub use leanvm_core::{
 /// # Assumptions
 ///
 /// A guest that verifies proofs with `leanvm_guest::verify_proof` assumes them: its proof alone shows its run only
-/// under those assumptions ([`crate::Program::verify_assuming`]). A tree built with [`Tree::assuming`] resolves them:
-/// its first level verifies, beside each leaf's proof, the proofs that leaf's run assumed, and checks that they are
-/// exactly the assumptions its output folds in, in order. Its root then states each leaf's committed values' digest,
-/// with nothing left assumed.
+/// under those assumptions ([`crate::Program::verify_assuming`]). A tree built with [`aggregate::Tree::assuming`]
+/// resolves them: its first level verifies, beside each leaf's proof, the proofs that leaf's run assumed, and checks
+/// that they are exactly the assumptions its output folds in, in order. Its root then states each leaf's committed
+/// values' digest, with nothing left assumed.
 pub mod aggregate {
     pub use leanvm_core::{
         AssumedProofs, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, TableStats, Tree, TreeError,
