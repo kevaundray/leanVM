@@ -10,13 +10,14 @@
 //! ```
 //!
 //! `read` takes values from the advice, which the prover fills and the guest has to check;
-//! `commit` makes values public, and the run's output is their digest.
+//! `commit` makes values public, and the run's output is their digest. `hint` computes a
+//! value outside the proof, as advice the guest asks for while it runs and then checks.
 //!
 //! The environment has no traps to handle: an illegal instruction, a misaligned or
 //! unmapped access, or an `ecall` that is not `exit` leave a run with no proof. So a
 //! panic is one illegal instruction, and nothing else is needed.
 //!
-//! Off the VM the hashers, the extension field, [`Words`] and [`PublicValues`] remain, in portable Rust.
+//! Off the VM the hashers, the extension field, `hint`, [`Words`] and [`PublicValues`] remain, in portable Rust.
 //!
 //! So a guest's library code also runs natively, as its own reference, and a host computes
 //! the output a guest must give.
@@ -24,8 +25,10 @@
 
 mod blake2s;
 pub mod ext;
+mod hint;
 mod io;
 pub use blake2s::{Blake2s, Stream, Template, hash_with};
+pub use hint::{Hint, hint};
 pub use io::{PublicValues, Words, as_words_unchecked};
 
 // Reading, committing, the entry point and the precompiles exist on the VM only.

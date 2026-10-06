@@ -283,6 +283,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "inverse"
+version = "0.1.0"
+dependencies = [
+ "leanvm_guest",
+]
+
+[[package]]
+name = "inverse-host"
+version = "0.1.0"
+dependencies = [
+ "inverse",
+ "leanvm_core",
+ "leanvm_guest",
+ "primitives",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
