@@ -12,12 +12,10 @@ workspace = true
 [dependencies]
 groth16 = { path = "../guest" }
 leanvm_guest.workspace = true
-# The calldata's points are compressed: their square roots, as the contract takes them.
-ark-bn254 = { version = "0.5", default-features = false, features = ["curve"] }
-ark-ff = { version = "0.5", default-features = false }
+# The calldata's points are compressed: their square roots, as the contract takes them. And the
+# tests' reference, the pairing check of Ethereum's precompile.
+bn = { package = "substrate-bn", version = "0.6", default-features = false }
 
 [dev-dependencies]
-ark-ec = { version = "0.5", default-features = false }
-ark-groth16 = { version = "0.5", default-features = false }
 leanvm_core.workspace = true
 primitives.workspace = true

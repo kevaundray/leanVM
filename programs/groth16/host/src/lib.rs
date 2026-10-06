@@ -6,8 +6,7 @@
 //! The host decompresses the points as the contract does, so the guest reads `A`, `B` and `C`
 //! whole and checks them itself.
 
-use ark_bn254::{Fq, Fq2};
-use ark_ff::{BigInt, Field, PrimeField};
+use bn::{Fq, Fq2, G2};
 use groth16::{G1Point, G2Point, Inputs, N_INPUTS, Proof};
 use leanvm_guest::{PublicValues, as_words_unchecked};
 
@@ -85,35 +84,55 @@ fn shr(x: &[u64; 4], k: u32) -> [u64; 4] {
     std::array::from_fn(|i| x[i] >> k | x.get(i + 1).map_or(0, |high| high << (64 - k)))
 }
 
+/// A 256-bit word as big-endian bytes.
+fn big_endian(limbs: &[u64; 4]) -> [u8; 32] {
+    let mut bytes = [0; 32];
+    for (chunk, limb) in bytes.chunks_mut(8).zip(limbs.iter().rev()) {
+        chunk.copy_from_slice(&limb.to_be_bytes());
+    }
+    bytes
+}
+
 fn fq(limbs: [u64; 4]) -> Fq {
-    Fq::from_bigint(BigInt(limbs)).expect("a coordinate below p")
+    Fq::from_slice(&big_endian(&limbs)).expect("a coordinate below p")
 }
 
 fn limbs(x: Fq) -> [u64; 4] {
-    x.into_bigint().0
+    let mut bytes = [0; 32];
+    x.to_big_endian(&mut bytes).expect("32 bytes");
+    std::array::from_fn(|i| u64::from_be_bytes(bytes[24 - 8 * i..32 - 8 * i].try_into().expect("8 bytes")))
+}
+
+/// `p`, little-endian limbs.
+fn modulus() -> [u64; 4] {
+    let mut bytes = [0; 32];
+    Fq::modulus().to_big_endian(&mut bytes).expect("32 bytes");
+    std::array::from_fn(|i| u64::from_be_bytes(bytes[24 - 8 * i..32 - 8 * i].try_into().expect("8 bytes")))
 }
 
 /// The contract's square root, `a^((p + 1) / 4)`, if `a` is a square.
 fn sqrt(a: Fq) -> Option<Fq> {
-    let mut exponent = Fq::MODULUS.0;
+    let mut exponent = modulus();
     exponent[0] += 1;
-    let x = a.pow(shr(&exponent, 2));
-    (x.square() == a).then_some(x)
+    let x = a.pow(fq(shr(&exponent, 2)));
+    (x * x == a).then_some(x)
 }
 
 /// The contract's square root in `F_p2`: `hint` picks the sign of the norm's root.
 fn sqrt2(a: Fq2, hint: bool) -> Option<Fq2> {
-    let d = sqrt(a.c0.square() + a.c1.square())?;
+    let (a0, a1) = (a.real(), a.imaginary());
+    let d = sqrt(a0 * a0 + a1 * a1)?;
     let d = if hint { -d } else { d };
-    let x0 = sqrt((a.c0 + d) / Fq::from(2))?;
-    let x = Fq2::new(x0, a.c1 / (x0 + x0));
-    (x.square() == a).then_some(x)
+    let two = Fq::one() + Fq::one();
+    let x0 = sqrt((a0 + d) * two.inverse()?)?;
+    let x = Fq2::new(x0, a1 * (x0 + x0).inverse()?);
+    (x * x == a).then_some(x)
 }
 
 /// The contract's `decompress_g1`: `x` with the sign of `y` in its low bit.
 fn decompress_g1(c: &[u64; 4]) -> G1Point {
     let x = fq(shr(c, 1));
-    let y = sqrt(x.square() * x + Fq::from(3)).expect("a point on G1");
+    let y = sqrt(x * x * x + bn::G1::b()).expect("a point on G1");
     let y = if c[0] & 1 == 1 { -y } else { y };
     G1Point {
         x: limbs(x),
@@ -124,12 +143,11 @@ fn decompress_g1(c: &[u64; 4]) -> G1Point {
 /// The contract's `decompress_g2`: `x`'s real part with the hint and the sign in its low bits.
 fn decompress_g2(c0: &[u64; 4], c1: &[u64; 4]) -> G2Point {
     let x = Fq2::new(fq(shr(c0, 2)), fq(*c1));
-    let b = Fq2::from(3) / Fq2::new(Fq::from(9), Fq::ONE);
-    let y = sqrt2(x.square() * x + b, c0[0] & 2 == 2).expect("a point on the twist");
+    let y = sqrt2(x * x * x + G2::b(), c0[0] & 2 == 2).expect("a point on the twist");
     let y = if c0[0] & 1 == 1 { -y } else { y };
     G2Point {
-        x: [limbs(x.c0), limbs(x.c1)],
-        y: [limbs(y.c0), limbs(y.c1)],
+        x: [limbs(x.real()), limbs(x.imaginary())],
+        y: [limbs(y.real()), limbs(y.imaginary())],
     }
 }
 
@@ -145,46 +163,44 @@ fn decompress(words: &[[u64; 4]]) -> Proof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_bn254::{Bn254, Fr, G1Affine, G2Affine};
-    use ark_ec::AffineRepr;
-    use ark_groth16::{Groth16, PreparedVerifyingKey, VerifyingKey, prepare_verifying_key};
+    use bn::{AffineG1, AffineG2, Fr, G1, GroupError, Gt, pairing_batch};
     use groth16::Error::{InputNotInField, NotInField, NotInSubgroup, NotOnCurve, Rejected};
     use groth16::vk;
     use leanvm_core::cpu::Program;
     use leanvm_core::rv::{Machine, Trap};
     use primitives::hash::{digest_words, hash};
 
-    fn g1(p: &G1Point) -> G1Affine {
-        G1Affine::new(fq(p.x), fq(p.y))
+    fn g1(p: &G1Point) -> G1 {
+        AffineG1::new(fq(p.x), fq(p.y)).expect("a point of G1").into()
     }
 
-    fn g2(p: &G2Point) -> G2Affine {
-        G2Affine::new(Fq2::new(fq(p.x[0]), fq(p.x[1])), Fq2::new(fq(p.y[0]), fq(p.y[1])))
+    fn g2(p: &G2Point) -> G2 {
+        let (x, y) = (Fq2::new(fq(p.x[0]), fq(p.x[1])), Fq2::new(fq(p.y[0]), fq(p.y[1])));
+        AffineG2::new(x, y).expect("a point of G2").into()
     }
 
-    /// arkworks' verifier, with the guest's key.
-    fn reference() -> PreparedVerifyingKey<Bn254> {
-        prepare_verifying_key(&VerifyingKey {
-            alpha_g1: g1(&vk::ALPHA),
-            beta_g2: -g2(&vk::BETA_NEG),
-            gamma_g2: -g2(&vk::GAMMA_NEG),
-            delta_g2: -g2(&vk::DELTA_NEG),
-            gamma_abc_g1: vk::IC.iter().map(g1).collect(),
-        })
+    /// The pairing check as Ethereum's precompile makes it (substrate-bn, the precompile's
+    /// implementation in Parity's and Substrate's clients), with the guest's key.
+    fn accepts(proof: &Proof, inputs: &Inputs) -> bool {
+        let mut l = g1(&vk::IC[0]);
+        for (x, base) in inputs.iter().zip(&vk::IC[1..]) {
+            l = l + g1(base) * Fr::from_slice(&big_endian(x)).expect("an input below r");
+        }
+        pairing_batch(&[
+            (g1(&proof.a), g2(&proof.b)),
+            (g1(&proof.c), g2(&vk::DELTA_NEG)),
+            (g1(&vk::ALPHA), g2(&vk::BETA_NEG)),
+            (l, g2(&vk::GAMMA_NEG)),
+        ]) == Gt::one()
     }
 
-    fn accepts(pvk: &PreparedVerifyingKey<Bn254>, proof: &Proof, inputs: &Inputs) -> bool {
-        let proof = ark_groth16::Proof {
-            a: g1(&proof.a),
-            b: g2(&proof.b),
-            c: g1(&proof.c),
-        };
-        let inputs: Vec<Fr> = inputs
-            .iter()
-            .map(|x| Fr::from_bigint(BigInt(*x)).expect("an input below r"))
-            .collect();
-        Groth16::<Bn254>::verify_proof(pvk, &proof, &inputs).expect("well-formed")
-    }
+    /// `r`, the groups' order, little-endian limbs.
+    const R: [u64; 4] = [
+        0x43e1_f593_f000_0001,
+        0x2833_e848_79b9_7091,
+        0xb850_45b6_8181_585d,
+        0x3064_4e72_e131_a029,
+    ];
 
     fn negated(y: [u64; 4]) -> [u64; 4] {
         limbs(-fq(y))
@@ -193,10 +209,9 @@ mod tests {
     #[test]
     fn the_chains_proofs_verify_and_nothing_near_them() {
         // Fixture: proofs World Chain accepted, from different transactions.
-        let pvk = reference();
         let fixtures = fixtures();
         for f in &fixtures {
-            assert!(accepts(&pvk, &f.proof, &f.inputs), "{}: arkworks", f.tx);
+            assert!(accepts(&f.proof, &f.inputs), "{}: substrate-bn", f.tx);
             assert_eq!(groth16::verify(&f.proof, &f.inputs), Ok(()), "{}", f.tx);
 
             // Mutation: A negated, still on the curve.
@@ -204,13 +219,13 @@ mod tests {
             //     e(-A, B) = e(A, B)^-1 → the product is e(A, B)^-2, not one
             let mut proof = f.proof;
             proof.a.y = negated(proof.a.y);
-            assert!(!accepts(&pvk, &proof, &f.inputs));
+            assert!(!accepts(&proof, &f.inputs));
             assert_eq!(groth16::verify(&proof, &f.inputs), Err(Rejected), "{}", f.tx);
 
             // Mutation: B negated, still in G2; then C.
             let mut proof = f.proof;
             proof.b.y = [negated(proof.b.y[0]), negated(proof.b.y[1])];
-            assert!(!accepts(&pvk, &proof, &f.inputs));
+            assert!(!accepts(&proof, &f.inputs));
             assert_eq!(groth16::verify(&proof, &f.inputs), Err(Rejected), "{}", f.tx);
             let mut proof = f.proof;
             proof.c.y = negated(proof.c.y);
@@ -222,7 +237,7 @@ mod tests {
             for i in 0..N_INPUTS {
                 let mut inputs = f.inputs;
                 inputs[i][0] ^= 1;
-                assert!(!accepts(&pvk, &f.proof, &inputs));
+                assert!(!accepts(&f.proof, &inputs));
                 assert_eq!(groth16::verify(&f.proof, &inputs), Err(Rejected), "{}: input {i}", f.tx);
             }
         }
@@ -236,7 +251,7 @@ mod tests {
         // A's x plus p: the same point mod p, but not canonical.
         let mut proof = f.proof;
         let mut carry = 0;
-        for (x, p) in proof.a.x.iter_mut().zip(Fq::MODULUS.0) {
+        for (x, p) in proof.a.x.iter_mut().zip(modulus()) {
             let sum = u128::from(*x) + u128::from(p) + carry;
             (*x, carry) = (sum as u64, sum >> 64);
         }
@@ -253,24 +268,24 @@ mod tests {
         proof.b.x[1][0] ^= 1;
         assert_eq!(refused(&proof, &f.inputs), NotOnCurve);
 
-        // B on the twist, outside G2: the first such x of the form k.
-        let outside = (1..)
-            .find_map(|k| {
-                G2Affine::get_point_from_x_unchecked(Fq2::from(k), false)
-                    .filter(|q| !q.is_in_correct_subgroup_assuming_on_curve())
+        // B on the twist, outside G2: the first such x of the form k, as substrate-bn finds it.
+        let (x, y) = (1..)
+            .find_map(|k: u64| {
+                let x = Fq2::new(fq([k, 0, 0, 0]), Fq::zero());
+                let y = (x * x * x + G2::b()).sqrt()?;
+                matches!(AffineG2::new(x, y), Err(GroupError::NotInSubgroup)).then_some((x, y))
             })
             .expect("a twist point outside G2");
-        let (x, y) = outside.xy().expect("not infinity");
         let mut proof = f.proof;
         proof.b = G2Point {
-            x: [limbs(x.c0), limbs(x.c1)],
-            y: [limbs(y.c0), limbs(y.c1)],
+            x: [limbs(x.real()), limbs(x.imaginary())],
+            y: [limbs(y.real()), limbs(y.imaginary())],
         };
         assert_eq!(refused(&proof, &f.inputs), NotInSubgroup);
 
         // An input equal to r, which reduces to zero.
         let mut inputs = f.inputs;
-        inputs[3] = Fr::MODULUS.0;
+        inputs[3] = R;
         assert_eq!(refused(&f.proof, &inputs), InputNotInField);
     }
 
