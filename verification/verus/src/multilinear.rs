@@ -16,6 +16,8 @@
 //! of `x` (LSB first, [`cube_point`], [`eq_at`]).
 use crate::gf2_64::*;
 use crate::gf2_64x3::*;
+use crate::ntt::lemma_k_no_zero_divisors;
+use crate::phi8_tower::*;
 use vstd::arithmetic::div_mod::*;
 use vstd::arithmetic::power2::*;
 use vstd::bits::*;
@@ -1697,6 +1699,217 @@ pub fn mle_eval(table: &[F64], point: &[F192]) -> (e: F192)
         lemma_mle_blocks(f, point@, low_vars, rows@);
     }
     fold_ladder(rows, &point[low_vars..])
+}
+
+// ---------------------------------------------------------------------------------------------
+// The skip domain's shared barycentric weight
+// ---------------------------------------------------------------------------------------------
+/// `prod_{k=1}^{n-1} φ₈(k)` in `K`.
+pub open spec fn phi8_prod(n: nat) -> u64
+    decreases n,
+{
+    if n <= 1 {
+        1
+    } else {
+        k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as usize))
+    }
+}
+
+/// The weight of a window of `2^log` nodes: `(prod_{k=1}^{2^log - 1} φ₈(k))^(2^64 - 2)`, its inverse in `K`
+/// ([`lemma_denominator_inverts`]).
+pub open spec fn denominator_spec(log: nat) -> F192 {
+    e_from_k(k_pow(phi8_prod(pow2(log)), (pow2(64) - 2) as nat))
+}
+
+/// The product in `K` the table is built with.
+///
+/// A `const fn` inside the `DENOMINATORS` initializer in production; Verus wants it at module level.
+const fn mul(a: u64, b: u64) -> (r: u64)
+    ensures
+        r == k_mul(a, b),
+{
+    reduce(crate::gf2_64::software::clmul(a, b))
+}
+
+/// The barycentric weight every node of an aligned `size`-node window of the φ₈ table shares,
+/// `1 / ∏_{k≠0} φ₈(k)`. φ₈ is F2-linear on its index, so `nodes[a] + nodes[b] = φ₈(a ^ b)` (the window's
+/// offset cancels) and `b ↦ a ^ b` only permutes the window, leaving every node the same product.
+/// Computed once for every window size.
+///
+/// Production's `debug_assert!` that `size` is a power of two at most 256 is a `requires`; `usize::trailing_zeros`
+/// (which vstd does not specify) is `u64::trailing_zeros` of the same value.
+pub fn window_denominator(size: usize) -> (d: F192)
+    requires
+        exists|log: nat| log <= 8 && size == #[trigger] pow2(log),
+    ensures
+        forall|log: nat| log <= 8 && size == #[trigger] pow2(log) ==> d == denominator_spec(log),
+{
+    let ghost log = choose|log: nat| log <= 8 && size == #[trigger] pow2(log);
+    let tz = (size as u64).trailing_zeros();
+    proof {
+        lemma_pow2_injective_upto8(log);
+        lemma_pow2_tz(size as u64, log);
+    }
+    DENOMINATORS[tz as usize]
+}
+
+/// The trailing zeros of `2^log` are `log`.
+proof fn lemma_pow2_tz(x: u64, log: nat)
+    requires
+        log <= 8,
+        x == pow2(log),
+    ensures
+        x.trailing_zeros() == log,
+{
+    lemma_pow2_shl(log);
+    let t = x.trailing_zeros();
+    broadcast use vstd::std_specs::bits::axiom_u64_trailing_zeros;
+    let l = log as u64;
+    assert(x == (1u64 << l));
+    lemma_pow2_pos(log);
+    assert(x != 0);
+    assert(t < 64);
+    assert((x >> (t as u64)) & 1u64 == 1u64);
+    assert(forall|j: u64| 0 <= j < t ==> #[trigger] (x >> j) & 1u64 == 0u64);
+    if (t as u64) < l {
+        assert((x >> (t as u64)) & 1u64 == 0u64) by (bit_vector)
+            requires
+                x == (1u64 << l),
+                (t as u64) < l,
+                l <= 8,
+        ;
+    } else if (t as u64) > l {
+        assert((x >> l) & 1u64 == 1u64) by (bit_vector)
+            requires
+                x == (1u64 << l),
+                l <= 8,
+        ;
+    }
+}
+
+proof fn lemma_pow2_shl(log: nat)
+    requires
+        log <= 8,
+    ensures
+        pow2(log) == (1u64 << (log as u64)),
+        pow2(log) == (1usize << (log as usize)),
+        pow2(log) <= 256,
+{
+    lemma2_to64();
+    let l = log as u64;
+    assert(l <= 8 ==> (1u64 << l) == (if l == 0 { 1u64 } else if l == 1 { 2 } else if l == 2 { 4 } else if l == 3 { 8 } else if l == 4 { 16 } else if l == 5 { 32 } else if l == 6 { 64 } else if l == 7 { 128 } else { 256 })) by (bit_vector);
+    let u = log as usize;
+    assert(u <= 8 ==> (1usize << u) == (if u == 0 { 1usize } else if u == 1 { 2 } else if u == 2 { 4 } else if u == 3 { 8 } else if u == 4 { 16 } else if u == 5 { 32 } else if u == 6 { 64 } else if u == 7 { 128 } else { 256 })) by (bit_vector);
+}
+
+proof fn lemma_pow2_injective_upto8(log: nat)
+    requires
+        log <= 8,
+    ensures
+        forall|m: nat| m <= 8 && #[trigger] pow2(m) == pow2(log) ==> m == log,
+{
+    lemma2_to64();
+}
+
+/// [`window_denominator`] for every window size, at compile time. The nodes lie in `F64`, so the
+/// product and its inverse (Fermat, `a^(2^64 - 2)`) stay there.
+///
+/// Verus's `exec const` form, to state what the table holds; the body is production's.
+pub exec const DENOMINATORS: [F192; 9]
+    ensures
+        forall|log: int| 0 <= log < 9 ==> #[trigger] DENOMINATORS[log] == denominator_spec(log as nat),
+{
+    let mut out = [F192::ZERO; 9];
+    let mut log = 0;
+    while log < out.len()
+        invariant
+            log <= 9,
+            forall|m: int| 0 <= m < log ==> #[trigger] out[m] == denominator_spec(m as nat),
+        decreases 9 - log,
+    {
+        proof {
+            lemma_pow2_shl(log as nat);
+            lemma_pow2_pos(log as nat);
+        }
+        let mut product = 1;
+        let mut k = 1;
+        while k < 1 << log
+            invariant
+                log < 9,
+                (1usize << log) == pow2(log as nat),
+                (1usize << log) <= 256,
+                1 <= k <= (1usize << log),
+                product == phi8_prod(k as nat),
+            decreases (1usize << log) - k,
+        {
+            product = mul(product, PHI_8_TABLE_192[k].c0);
+            k += 1;
+        }
+        let ghost p = product;
+        proof {
+            lemma2_to64();
+            assert(p == k_pow(p, 1)) by {
+                lemma_k_mul_one(p);
+                reveal_with_fuel(k_pow, 2);
+            }
+        }
+        let (mut inverse, mut bit) = (1, 1);
+        while bit < 64
+            invariant
+                1 <= bit <= 64,
+                product == k_pow(p, pow2((bit - 1) as nat)),
+                inverse == k_pow(p, (pow2(bit as nat) - 2) as nat),
+                pow2(bit as nat) >= 2,
+            decreases 64 - bit,
+        {
+            proof {
+                lemma_pow2_unfold(bit as nat);
+                lemma_pow2_unfold((bit + 1) as nat);
+                lemma_k_pow_add(p, pow2((bit - 1) as nat), pow2((bit - 1) as nat));
+                lemma_k_pow_add(p, (pow2(bit as nat) - 2) as nat, pow2(bit as nat));
+            }
+            product = mul(product, product);
+            inverse = mul(inverse, product);
+            bit += 1;
+        }
+        out[log] = F192::new(inverse, 0, 0);
+        log += 1;
+    }
+    out
+}
+
+/// The weight inverts the product of the nonzero nodes of its window: `D * prod_{k=1}^{2^log - 1} φ₈(k) = 1`.
+pub proof fn lemma_denominator_inverts(log: nat)
+    requires
+        log <= 8,
+    ensures
+        phi8_prod(pow2(log)) != 0,
+        e_mul(denominator_spec(log), e_from_k(phi8_prod(pow2(log)))) == F192::ONE,
+{
+    lemma_pow2_shl(log);
+    lemma_phi8_prod_nonzero(pow2(log));
+    let p = phi8_prod(pow2(log));
+    let w = k_pow(p, (pow2(64) - 2) as nat);
+    lemma_k_inverse(p);
+    lemma_k_mul_comm(p, w);
+    lemma_e_from_k_mul(w, p);
+}
+
+/// A product of nonzero nodes is nonzero.
+pub proof fn lemma_phi8_prod_nonzero(n: nat)
+    requires
+        n <= 256,
+    ensures
+        phi8_prod(n) != 0,
+    decreases n,
+{
+    if n > 1 {
+        lemma_phi8_prod_nonzero((n - 1) as nat);
+        lemma_phi8_nonzero((n - 1) as usize);
+        if phi8_prod(n) == 0 {
+            lemma_k_no_zero_divisors(phi8_prod((n - 1) as nat), phi8((n - 1) as usize));
+        }
+    }
 }
 
 } // verus!
