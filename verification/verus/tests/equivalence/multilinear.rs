@@ -136,3 +136,12 @@ fn mle_evals_match() {
         }
     }
 }
+
+#[test]
+fn window_denominators_match() {
+    for log in 0..=8 {
+        let size = 1usize << log;
+        assert_eq!(from_vs(&[verified::window_denominator(size)]), [production::window_denominator(size)], "size {size}");
+        assert_eq!(from_vs(&[verified::DENOMINATORS[log]]), [production::window_denominator(size)], "log {log}");
+    }
+}

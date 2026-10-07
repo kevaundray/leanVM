@@ -16,7 +16,6 @@
 //! of `x` (LSB first, [`cube_point`], [`eq_at`]).
 use crate::gf2_64::*;
 use crate::gf2_64x3::*;
-use crate::ntt::lemma_k_no_zero_divisors;
 use crate::phi8_tower::*;
 use vstd::arithmetic::div_mod::*;
 use vstd::arithmetic::power2::*;
@@ -1907,7 +1906,7 @@ pub proof fn lemma_phi8_prod_nonzero(n: nat)
         lemma_phi8_prod_nonzero((n - 1) as nat);
         lemma_phi8_nonzero((n - 1) as usize);
         if phi8_prod(n) == 0 {
-            lemma_k_no_zero_divisors(phi8_prod((n - 1) as nat), phi8((n - 1) as usize));
+            crate::ntt::lemma_k_no_zero_divisors(phi8_prod((n - 1) as nat), phi8((n - 1) as usize));
         }
     }
 }
