@@ -1880,4 +1880,1042 @@ pub fn load_weights(w: &Weights8) -> (r: (__m512i, __m512i, __m512i))
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Lane-major kernels (`F192x4`, `MixedSums8`) on AVX-512
+// ---------------------------------------------------------------------------------------------
+/// Every `u64` survives the round trip through `i64`.
+pub proof fn lemma_i64_round_trip_all()
+    ensures
+        forall|a: u64| #[trigger] ((a as i64) as u64) == a,
+{
+    assert forall|a: u64| #[trigger] ((a as i64) as u64) == a by {
+        lemma_i64_round_trip(a);
+    }
+}
+
+/// Word `n` of four consecutive elements, as they lie in memory (`repr(C)`: `c0, c1, c2` of each).
+pub open spec fn f192_word(v: [F192; 4], n: int) -> u64 {
+    coef(v[n / 3], n % 3)
+}
+
+/// The element whose words are `3i .. 3i + 3` of `head` (words 0 to 7) then `tail` (words 8 to 11).
+pub open spec fn words12_elem(head: Seq<u64>, tail: Seq<u64>, i: int) -> F192 {
+    let w = |n: int|
+        if n < 8 {
+            head[n]
+        } else {
+            tail[n - 8]
+        };
+    F192 { c0: w(3 * i), c1: w(3 * i + 1), c2: w(3 * i + 2) }
+}
+
+/// The index bits `_mm512_permutex2var_epi64` reads, for the indices below 16.
+pub proof fn lemma_idx(x: u64)
+    requires
+        x < 16,
+    ensures
+        x & 7 == x % 8,
+        (x & 8 == 0) == (x < 8),
+{
+    assert(x < 16 ==> (x & 7) == x % 8 && ((x & 8) == 0) == (x < 8)) by (bit_vector);
+}
+
+/// [`super::MixedSums8`]'s registers on AVX-512: [`mul_by_pairs`]'s six products.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub type MixedAcc8 = [__m512i; 6];
+
+/// [`super::F192x4`]'s registers on AVX-512: [`lanes4`]'s form.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub type Lanes4 = [__m512i; 2];
+
+/// [`super::F192x4Unreduced`]'s registers on AVX-512: [`mul_lanes4`]'s three coefficients.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub type Wide4 = [__m512i; 3];
+
+/// Row `i` of [`MixedAcc8`].
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn acc8_row(acc: MixedAcc8, i: int) -> F192Unreduced {
+    row512(acc, i)
+}
+
+/// Element `i` of [`Lanes4`]: `[c0, c1]` in lane `i` of the first register, `c2` in the low word of lane `i` of
+/// the second.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn lanes4_elem(l: Lanes4, i: int) -> F192 {
+    F192 { c0: m512(l[0])[2 * i], c1: m512(l[0])[2 * i + 1], c2: m512(l[1])[2 * i] }
+}
+
+/// The form [`lanes4`] documents: lane `i` of the second register is `[c2, c2]`.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn lanes4_ok(l: Lanes4) -> bool {
+    forall|i: int| 0 <= i < 4 ==> #[trigger] m512(l[1])[2 * i + 1] == m512(l[1])[2 * i]
+}
+
+/// The unreduced value in lane `i` of [`Wide4`].
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn wide4_value(d: Wide4, i: int) -> F192Unreduced {
+    F192Unreduced {
+        coeffs: [
+            [m512(d[0])[2 * i], m512(d[0])[2 * i + 1]],
+            [m512(d[1])[2 * i], m512(d[1])[2 * i + 1]],
+            [m512(d[2])[2 * i], m512(d[2])[2 * i + 1]],
+        ],
+    }
+}
+
+/// The sum of the four lanes' values of [`Wide4`].
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn wide4_sum(d: Wide4) -> F192 {
+    e_add(
+        e_add(e_add(e_value(wide4_value(d, 0)), e_value(wide4_value(d, 1))), e_value(wide4_value(d, 2))),
+        e_value(wide4_value(d, 3)),
+    )
+}
+
+/// Four elements in lanes: `[c0, c1]` and `[c2, c2]` in lane `i` for element `i`.
+///
+/// # Safety
+///
+/// Requires the `avx512f` target feature.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn lanes4(v: [F192; 4]) -> (r: [__m512i; 2])
+    ensures
+        lanes4_ok(r),
+        forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_elem(r, i) == v[i],
+{
+    proof {
+        lemma_i64_round_trip_all();
+    }
+    let w = |i: usize| -> (e: F192)
+        requires
+            i < 4,
+        ensures
+            e == v[i as int],
+        { v[i] };
+    [
+        _mm512_set_epi64(
+            w(3).c1 as i64,
+            w(3).c0 as i64,
+            w(2).c1 as i64,
+            w(2).c0 as i64,
+            w(1).c1 as i64,
+            w(1).c0 as i64,
+            w(0).c1 as i64,
+            w(0).c0 as i64,
+        ),
+        _mm512_set_epi64(
+            w(3).c2 as i64,
+            w(3).c2 as i64,
+            w(2).c2 as i64,
+            w(2).c2 as i64,
+            w(1).c2 as i64,
+            w(1).c2 as i64,
+            w(0).c2 as i64,
+            w(0).c2 as i64,
+        ),
+    ]
+}
+
+/// Words 0 to 7 of four consecutive elements.
+///
+/// Trusted (`external_body`): the body is production's load; `tests/equivalence/gf2_64x3.rs` checks it.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[verifier::external_body]
+#[inline(always)]
+pub fn load_head8(v: &[F192; 4]) -> (r: __m512i)
+    ensures
+        forall|i: int| 0 <= i < 8 ==> #[trigger] m512(r)[i] == f192_word(*v, i),
+{
+    let words = v.as_ptr().cast::<i64>();
+    // SAFETY: `v` is twelve words.
+    unsafe { _mm512_loadu_si512(words.cast()) }
+}
+
+/// Words 8 to 11 of four consecutive elements.
+///
+/// Trusted (`external_body`): the body is production's load; `tests/equivalence/gf2_64x3.rs` checks it.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[verifier::external_body]
+#[inline(always)]
+pub fn load_tail4(v: &[F192; 4]) -> (r: __m256i)
+    ensures
+        forall|i: int| 0 <= i < 4 ==> #[trigger] m256(r)[i] == f192_word(*v, 8 + i),
+{
+    let words = v.as_ptr().cast::<i64>();
+    // SAFETY: `v` is twelve words.
+    unsafe { _mm256_loadu_si256(words.add(8).cast()) }
+}
+
+/// Four consecutive elements, twelve words, into [`lanes4`]'s form.
+///
+/// Rewritten for Verus: the two loads through the cast pointer are the helpers [`load_head8`] and [`load_tail4`].
+///
+/// # Safety
+///
+/// Requires the `avx512f` target feature.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn load_lanes4(v: &[F192; 4]) -> (r: [__m512i; 2])
+    ensures
+        lanes4_ok(r),
+        forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_elem(r, i) == v[i],
+{
+    // `v` is twelve words, words 0..8 and 8..12 (the helpers hold production's `unsafe` loads).
+    let (head, tail) = (load_head8(v), _mm512_castsi256_si512(load_tail4(v)));
+    // An index of 8 or more takes word `index - 8` of `tail`.
+    let c01 = _mm512_set_epi64(10, 9, 7, 6, 4, 3, 1, 0);
+    let c22 = _mm512_set_epi64(11, 11, 8, 8, 5, 5, 2, 2);
+    let r = [_mm512_permutex2var_epi64(head, c01, tail), _mm512_permutex2var_epi64(head, c22, tail)];
+    proof {
+        lemma_idx(0);
+        lemma_idx(1);
+        lemma_idx(2);
+        lemma_idx(3);
+        lemma_idx(4);
+        lemma_idx(5);
+        lemma_idx(6);
+        lemma_idx(7);
+        lemma_idx(8);
+        lemma_idx(9);
+        lemma_idx(10);
+        lemma_idx(11);
+        let (a, b) = (r[0], r[1]);
+        assert(m512(a)[0] == v[0].c0 && m512(a)[1] == v[0].c1 && m512(b)[0] == v[0].c2 && m512(b)[1] == v[0].c2);
+        assert(m512(a)[2] == v[1].c0 && m512(a)[3] == v[1].c1 && m512(b)[2] == v[1].c2 && m512(b)[3] == v[1].c2);
+        assert(m512(a)[4] == v[2].c0 && m512(a)[5] == v[2].c1 && m512(b)[4] == v[2].c2 && m512(b)[5] == v[2].c2);
+        assert(m512(a)[6] == v[3].c0 && m512(a)[7] == v[3].c1 && m512(b)[6] == v[3].c2 && m512(b)[7] == v[3].c2);
+    }
+    r
+}
+
+/// Store the twelve words `head[0..8]`, `tail[0..4]` as four consecutive elements.
+///
+/// Trusted (`external_body`): the body is production's two stores; `tests/equivalence/gf2_64x3.rs` checks it.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[verifier::external_body]
+#[inline(always)]
+pub fn store_head_tail(out: &mut [MaybeUninit<F192>; 4], head: __m512i, tail: __m256i)
+    ensures
+        forall|i: int|
+            0 <= i < 4 ==> #[trigger] final(out)[i].mem_contents() == MemContents::Init(
+                words12_elem(m512(head)@, m256(tail)@, i),
+            ),
+{
+    let words = out.as_mut_ptr().cast::<i64>();
+    // SAFETY: `out` is twelve words, words 0..8 and 8..12.
+    unsafe {
+        _mm512_storeu_si512(words.cast(), head);
+        _mm256_storeu_si256(words.add(8).cast(), tail);
+    }
+}
+
+/// [`lanes4`]'s form back to twelve consecutive words, the inverse of [`load_lanes4`].
+///
+/// Rewritten for Verus: the parameter pattern `[c01, c22]` is the parameter `lanes`, indexed; the two stores
+/// through the cast pointer are the helper [`store_head_tail`].
+///
+/// # Safety
+///
+/// Requires the `avx512f` target feature.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn store_lanes4(lanes: [__m512i; 2], out: &mut [MaybeUninit<F192>; 4])
+    ensures
+        forall|i: int| 0 <= i < 4 ==> #[trigger] final(out)[i].mem_contents() == MemContents::Init(lanes4_elem(lanes, i)),
+{
+    let (c01, c22) = (lanes[0], lanes[1]);
+    // An index of 8 or more takes word `index - 8` of `c22`.
+    let head = _mm512_permutex2var_epi64(c01, _mm512_set_epi64(5, 4, 10, 3, 2, 8, 1, 0), c22);
+    let tail = _mm512_permutex2var_epi64(c01, _mm512_set_epi64(0, 0, 0, 0, 14, 7, 6, 12), c22);
+    proof {
+        lemma_idx(0);
+        lemma_idx(1);
+        lemma_idx(2);
+        lemma_idx(3);
+        lemma_idx(4);
+        lemma_idx(5);
+        lemma_idx(6);
+        lemma_idx(7);
+        lemma_idx(8);
+        lemma_idx(10);
+        lemma_idx(12);
+        lemma_idx(14);
+    }
+    // `out` is twelve words, words 0..8 and 8..12 (the helper holds production's `unsafe` stores).
+    let t = _mm512_castsi512_si256(tail);
+    store_head_tail(out, head, t);
+    proof {
+        assert forall|i: int| 0 <= i < 4 implies #[trigger] words12_elem(m512(head)@, m256(t)@, i) == lanes4_elem(
+            lanes,
+            i,
+        ) by {
+            assert(m512(head)[0] == m512(c01)[0] && m512(head)[1] == m512(c01)[1] && m512(head)[2] == m512(c22)[0]);
+            assert(m512(head)[3] == m512(c01)[2] && m512(head)[4] == m512(c01)[3] && m512(head)[5] == m512(c22)[2]);
+            assert(m512(head)[6] == m512(c01)[4] && m512(head)[7] == m512(c01)[5]);
+            assert(m256(t)[0] == m512(c22)[4] && m256(t)[1] == m512(c01)[6] && m256(t)[2] == m512(c01)[7]);
+            assert(m256(t)[3] == m512(c22)[6]);
+        }
+    }
+}
+
+/// The 4x4 transpose of [`lanes4`] values: lane `j` of `out[i]` is lane `i` of `rows[j]`.
+///
+/// Rewritten for Verus: `rows.map(|r| r[p])` and its array pattern become indexing; `std::array::from_fn` becomes an
+/// array literal; the closure carries its specification.
+///
+/// # Safety
+///
+/// Requires the `avx512f` target feature.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn transpose_lanes4(rows: [[__m512i; 2]; 4]) -> (r: [[__m512i; 2]; 4])
+    ensures
+        forall|i: int, j: int, p: int, x: int|
+            0 <= i < 4 && 0 <= j < 4 && 0 <= p < 2 && 0 <= x < 2 ==> #[trigger] m512(r[i][p])[2 * j + x] == m512(
+                rows[j][p],
+            )[2 * i + x],
+{
+    let part = |p: usize| -> (o: [__m512i; 4])
+        requires
+            p < 2,
+        ensures
+            forall|i: int, j: int, x: int|
+                0 <= i < 4 && 0 <= j < 4 && 0 <= x < 2 ==> #[trigger] m512(o[i])[2 * j + x] == m512(
+                    rows[j][p as int],
+                )[2 * i + x],
+        {
+            let (a, b, c, d) = (rows[0][p], rows[1][p], rows[2][p], rows[3][p]);
+            // `[a0, a1, b0, b1]`, `[a2, a3, b2, b3]`, and the same of `c` and `d`.
+            let (ab01, ab23) = (_mm512_shuffle_i64x2::<0x44>(a, b), _mm512_shuffle_i64x2::<0xEE>(a, b));
+            let (cd01, cd23) = (_mm512_shuffle_i64x2::<0x44>(c, d), _mm512_shuffle_i64x2::<0xEE>(c, d));
+            let o = [
+                _mm512_shuffle_i64x2::<0x88>(ab01, cd01),
+                _mm512_shuffle_i64x2::<0xDD>(ab01, cd01),
+                _mm512_shuffle_i64x2::<0x88>(ab23, cd23),
+                _mm512_shuffle_i64x2::<0xDD>(ab23, cd23),
+            ];
+            proof {
+                lemma_shuffle_sel(0);
+                lemma_shuffle_sel(1);
+                lemma_shuffle_sel(2);
+                lemma_shuffle_sel(3);
+                assert forall|i: int, j: int, x: int| 0 <= i < 4 && 0 <= j < 4 && 0 <= x < 2 implies #[trigger] m512(
+                    o[i],
+                )[2 * j + x] == m512(rows[j][p as int])[2 * i + x] by {
+                    assert((2 * j + x) / 2 == j && (2 * j + x) % 2 == x);
+                    assert((2 * i + x) / 2 == i);
+                    let (s, h) = (i / 2, i % 2);
+                    assert(2 * i + x == 2 * (2 * s + h) + x);
+                }
+            }
+            o
+        };
+    let (c01, c22) = (part(0), part(1));
+    [[c01[0], c22[0]], [c01[1], c22[1]], [c01[2], c22[2]], [c01[3], c22[3]]]
+}
+
+/// The lane selections of the four `_mm512_shuffle_i64x2` immediates [`transpose_lanes4`] uses.
+pub proof fn lemma_shuffle_sel(q: int)
+    requires
+        0 <= q < 4,
+    ensures
+        ((0x44i32 as u8) >> ((2 * q) as u8)) & 3 == q % 2,
+        ((0xEEi32 as u8) >> ((2 * q) as u8)) & 3 == 2 + q % 2,
+        ((0x88i32 as u8) >> ((2 * q) as u8)) & 3 == 2 * (q % 2),
+        ((0xDDi32 as u8) >> ((2 * q) as u8)) & 3 == 2 * (q % 2) + 1,
+{
+    if q == 0 {
+        assert((0x44u8 >> 0u8) & 3 == 0 && (0xEEu8 >> 0u8) & 3 == 2 && (0x88u8 >> 0u8) & 3 == 0 && (0xDDu8 >> 0u8) & 3
+            == 1) by (bit_vector);
+    } else if q == 1 {
+        assert((0x44u8 >> 2u8) & 3 == 1 && (0xEEu8 >> 2u8) & 3 == 3 && (0x88u8 >> 2u8) & 3 == 2 && (0xDDu8 >> 2u8) & 3
+            == 3) by (bit_vector);
+    } else if q == 2 {
+        assert((0x44u8 >> 4u8) & 3 == 0 && (0xEEu8 >> 4u8) & 3 == 2 && (0x88u8 >> 4u8) & 3 == 0 && (0xDDu8 >> 4u8) & 3
+            == 1) by (bit_vector);
+    } else {
+        assert((0x44u8 >> 6u8) & 3 == 1 && (0xEEu8 >> 6u8) & 3 == 3 && (0x88u8 >> 6u8) & 3 == 2 && (0xDDu8 >> 6u8) & 3
+            == 3) by (bit_vector);
+    }
+}
+
+/// Lane-wise XOR.
+///
+/// Rewritten for Verus: `std::array::from_fn` becomes a loop over a copy of `a`.
+///
+/// # Safety
+///
+/// Requires the `avx512f` target feature.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn xor_lanes<const N: usize>(a: [__m512i; N], b: [__m512i; N]) -> (r: [__m512i; N])
+    ensures
+        forall|i: int, x: int| 0 <= i < N && 0 <= x < 8 ==> #[trigger] m512(r[i])[x] == m512(a[i])[x] ^ m512(b[i])[x],
+{
+    let mut r = a;
+    for i in 0..N
+        invariant
+            forall|j: int, x: int| 0 <= j < i && 0 <= x < 8 ==> #[trigger] m512(r[j])[x] == m512(a[j])[x] ^ m512(b[j])[x],
+            forall|j: int| i <= j < N ==> #[trigger] r[j] == a[j],
+    {
+        r[i] = _mm512_xor_si512(a[i], b[i]);
+    }
+    r
+}
+
+/// The y-folded Karatsuba products of two [`lanes4`] operands, lane by lane.
+///
+/// Rewritten for Verus: the parameter patterns `[a01, a22]`, `[b01, b22]` are the parameters `a`, `b`, indexed;
+/// the six products and the XOR closure are bound to names before `fold`.
+///
+/// # Safety
+///
+/// Requires the `vpclmulqdq` and `avx512f` target features.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+pub unsafe fn mul_lanes4(a: [__m512i; 2], b: [__m512i; 2]) -> (r: [__m512i; 3])
+    requires
+        lanes4_ok(a),
+        lanes4_ok(b),
+    ensures
+        forall|i: int|
+            0 <= i < 4 ==> #[trigger] wide4_value(r, i) == prod_unreduced(lanes4_elem(a, i), lanes4_elem(b, i)),
+{
+    proof {
+        lemma_clmul_sel();
+        lemma_cw_all();
+    }
+    let (a01, a22, b01, b22) = (a[0], a[1], b[0], b[1]);
+    // `[c0 + c2, c1 + c2]`, and `c0 + c1` in both qwords (the swap stays in its lane).
+    let (a_s, b_s) = (_mm512_xor_si512(a01, a22), _mm512_xor_si512(b01, b22));
+    let a_x = _mm512_xor_si512(a01, _mm512_shuffle_epi32::<0x4E>(a01));
+    let b_x = _mm512_xor_si512(b01, _mm512_shuffle_epi32::<0x4E>(b01));
+    let p0 = _mm512_clmulepi64_epi128::<0x00>(a01, b01);
+    let p1 = _mm512_clmulepi64_epi128::<0x11>(a01, b01);
+    let p2 = _mm512_clmulepi64_epi128::<0x00>(a22, b22);
+    let p01 = _mm512_clmulepi64_epi128::<0x00>(a_x, b_x);
+    let p02 = _mm512_clmulepi64_epi128::<0x00>(a_s, b_s);
+    let p12 = _mm512_clmulepi64_epi128::<0x11>(a_s, b_s);
+    let xor = |x: __m512i, y: __m512i| -> (z: __m512i)
+        ensures
+            forall|i: int| 0 <= i < 8 ==> #[trigger] m512(z)[i] == m512(x)[i] ^ m512(y)[i],
+        { _mm512_xor_si512(x, y) };
+    let r = fold(p0, p1, p2, p01, p02, p12, xor);
+    proof {
+        lemma_fold(xor, |v: __m512i| m512(v)@, 8, p0, p1, p2, p01, p02, p12, r);
+        assert forall|i: int| 0 <= i < 4 implies #[trigger] wide4_value(r, i) == prod_unreduced(
+            lanes4_elem(a, i),
+            lanes4_elem(b, i),
+        ) by {
+            let (x, y) = (lanes4_elem(a, i), lanes4_elem(b, i));
+            lemma_karatsuba_words(x, y);
+            lemma_swap_words(m512(a01)@, 2 * i);
+            lemma_swap_words(m512(b01)@, 2 * i);
+            assert(m512(a22)[2 * i + 1] == x.c2 && m512(b22)[2 * i + 1] == y.c2);
+            assert(m512(a_x)[2 * i] == x.c0 ^ x.c1 && m512(b_x)[2 * i] == y.c0 ^ y.c1);
+            assert(m512(a_s)[2 * i + 1] == x.c1 ^ x.c2 && m512(b_s)[2 * i + 1] == y.c1 ^ y.c2);
+            assert forall|k: int, w: int| 0 <= k < 3 && 0 <= w < 2 implies #[trigger] wide4_value(r, i).coeffs[k][w]
+                == prod_unreduced(x, y).coeffs[k][w] by {
+                assert((2 * i + w) / 2 == i && (2 * i + w) % 2 == w);
+                assert(m512(p0)[2 * i + w] == cw(x.c0, y.c0, w));
+                assert(m512(p1)[2 * i + w] == cw(x.c1, y.c1, w));
+                assert(m512(p2)[2 * i + w] == cw(x.c2, y.c2, w));
+                assert(m512(p01)[2 * i + w] == cw(x.c0 ^ x.c1, y.c0 ^ y.c1, w));
+                assert(m512(p02)[2 * i + w] == cw(x.c0 ^ x.c2, y.c0 ^ y.c2, w));
+                assert(m512(p12)[2 * i + w] == cw(x.c1 ^ x.c2, y.c1 ^ y.c2, w));
+                assert(m512(r[k])[2 * i + w] == kara_word(x, y, k, w));
+                assert(prod_unreduced(x, y).coeffs[k][w] == split(prod_coeffs(x, y)[k])[w]);
+                assert(wide4_value(r, i).coeffs[k][w] == m512(r[k])[2 * i + w]);
+            }
+            lemma_unreduced_ext(wide4_value(r, i), prod_unreduced(x, y));
+        }
+    }
+    r
+}
+
+/// Reduce [`mul_lanes4`]'s products into [`lanes4`]'s form.
+///
+/// Rewritten for Verus: the parameter pattern `[d0, d1, d2]` is the parameter `d`, indexed.
+///
+/// # Safety
+///
+/// Requires the `vpclmulqdq` and `avx512f` target features.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+pub unsafe fn reduce_lanes4(d: [__m512i; 3]) -> (r: [__m512i; 2])
+    ensures
+        lanes4_ok(r),
+        forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_elem(r, i) == e_value(wide4_value(d, i)),
+{
+    let (d0, d1, d2) = (d[0], d[1], d[2]);
+    // SAFETY: the function carries both features.
+    unsafe {
+        let r = [
+            reduce_lanes512(_mm512_unpacklo_epi64(d0, d1), _mm512_unpackhi_epi64(d0, d1)),
+            reduce_lanes512(_mm512_unpacklo_epi64(d2, d2), _mm512_unpackhi_epi64(d2, d2)),
+        ];
+        proof {
+            assert forall|i: int| 0 <= i < 4 implies #[trigger] m512(r[1])[2 * i + 1] == m512(r[1])[2 * i] by {
+                assert(m512(r[1])[2 * i] == reduce_word(m512(d2)[2 * i], m512(d2)[2 * i + 1]));
+            }
+            assert forall|i: int| 0 <= i < 4 implies #[trigger] lanes4_elem(r, i) == e_value(wide4_value(d, i)) by {
+                assert(m512(r[0])[2 * i] == reduce_word(m512(d0)[2 * i], m512(d0)[2 * i + 1]));
+                assert(m512(r[0])[2 * i + 1] == reduce_word(m512(d1)[2 * i], m512(d1)[2 * i + 1]));
+                assert(m512(r[1])[2 * i] == reduce_word(m512(d2)[2 * i], m512(d2)[2 * i + 1]));
+            }
+        }
+        r
+    }
+}
+
+/// The four lanes' sum: XOR of the lanes, then the lazy-reduction identity.
+pub proof fn lemma_sum_lanes512(d: [__m512i; 3])
+    ensures
+        e_value(sum_lanes512(d)) == e_add(
+            e_add(e_add(e_value(wide512_lane(d, 0)), e_value(wide512_lane(d, 1))), e_value(wide512_lane(d, 2))),
+            e_value(wide512_lane(d, 3)),
+        ),
+{
+    let w = |i: int| wide512_lane(d, i);
+    let u = u_xor(u_xor(u_xor(w(0), w(1)), w(2)), w(3));
+    assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] sum_lanes512(d).coeffs[c][x]
+        == u.coeffs[c][x] by {
+        let (l0, l1, l2, l3) = (m512(d[c])[x], m512(d[c])[2 + x], m512(d[c])[4 + x], m512(d[c])[6 + x]);
+        assert((l0 ^ l2) ^ (l1 ^ l3) == ((l0 ^ l1) ^ l2) ^ l3) by (bit_vector);
+    }
+    lemma_unreduced_ext(sum_lanes512(d), u);
+    lemma_e_value_xor(w(0), w(1));
+    lemma_e_value_xor(u_xor(w(0), w(1)), w(2));
+    lemma_e_value_xor(u_xor(u_xor(w(0), w(1)), w(2)), w(3));
+}
+
+/// The unreduced value in lane `i` of three 512-bit coefficient registers.
+pub open spec fn wide512_lane(d: [__m512i; 3], i: int) -> F192Unreduced {
+    F192Unreduced {
+        coeffs: [
+            [m512(d[0])[2 * i], m512(d[0])[2 * i + 1]],
+            [m512(d[1])[2 * i], m512(d[1])[2 * i + 1]],
+            [m512(d[2])[2 * i], m512(d[2])[2 * i + 1]],
+        ],
+    }
+}
+
+/// The sum of the four 128-bit lanes of each of three unreduced coefficient registers: of [`mul_lanes4`]'s lanes, or of an [`F192x8Sum`].
+///
+/// Rewritten for Verus: the lane fold mapped over `d` is its closure called on each register; the closure carries
+/// its specification.
+///
+/// # Safety
+///
+/// Requires the `avx512f` target feature.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[inline]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn sum_lanes4(d: [__m512i; 3]) -> (r: F192Unreduced)
+    ensures
+        r == sum_lanes512(d),
+        e_value(r) == wide4_sum(d),
+{
+    let lane = |a: __m512i| -> (q: [u64; 2])
+        ensures
+            q[0] == sum4(a, 0),
+            q[1] == sum4(a, 1),
+        {
+            let half = _mm256_xor_si256(_mm512_castsi512_si256(a), _mm512_extracti64x4_epi64::<1>(a));
+            let q = _mm_xor_si128(_mm256_castsi256_si128(half), _mm256_extracti128_si256::<1>(half));
+            proof {
+                lemma_imm_one();
+                assert(m128(q)[0] == sum4(a, 0) && m128(q)[1] == sum4(a, 1));
+            }
+            // SAFETY: the reinterpret is between 128-bit values.
+            unsafe { transmute::<__m128i, [u64; 2]>(q) }
+        };
+    let coeffs = [lane(d[0]), lane(d[1]), lane(d[2])];
+    let r = F192Unreduced { coeffs };
+    proof {
+        lemma_unreduced_ext(r, sum_lanes512(d));
+        lemma_sum_lanes512(d);
+        assert(wide512_lane(d, 0) == wide4_value(d, 0) && wide512_lane(d, 1) == wide4_value(d, 1));
+        assert(wide512_lane(d, 2) == wide4_value(d, 2) && wide512_lane(d, 3) == wide4_value(d, 3));
+    }
+    r
+}
+
+// ---------------------------------------------------------------------------------------------
+// Planar kernels: eight elements in coefficient planes
+// ---------------------------------------------------------------------------------------------
+/// The word [`F192x8::karatsuba`]'s immediate selects in each lane: 0 for `0x00`, 1 for `0x11`.
+pub open spec fn imm_sel(imm: i32) -> int {
+    if imm == 0 {
+        0
+    } else {
+        1
+    }
+}
+
+/// `vpternlogq` with immediate `0x96` is the three-way XOR.
+pub proof fn lemma_ternlog_96(a: u64, b: u64, c: u64)
+    ensures
+        ternlog(0x96i32 as u8, a, b, c) == a ^ b ^ c,
+{
+    assert((0x96u8 >> 0u8) & 1 == 0 && (0x96u8 >> 1u8) & 1 == 1 && (0x96u8 >> 2u8) & 1 == 1 && (0x96u8 >> 3u8) & 1
+        == 0) by (bit_vector);
+    assert((0x96u8 >> 4u8) & 1 == 1 && (0x96u8 >> 5u8) & 1 == 0 && (0x96u8 >> 6u8) & 1 == 0 && (0x96u8 >> 7u8) & 1
+        == 1) by (bit_vector);
+    let (z, o) = (0u64, !0u64);
+    assert((z & !a & !b & !c) | (o & !a & !b & c) | (o & !a & b & !c) | (z & !a & b & c) | (o & a & !b & !c) | (z & a
+        & !b & c) | (z & a & b & !c) | (o & a & b & c) == a ^ b ^ c) by (bit_vector)
+        requires
+            z == 0u64,
+            o == !0u64,
+    ;
+}
+
+/// Eight elements in coefficient planes: qword `l` of plane `k` is coefficient `k` of element `l`.
+///
+/// A product needs no packing: CLMUL immediate 0x00 multiplies the even elements, 0x11 the odd ones.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[derive(Clone, Copy, Debug)]
+pub struct F192x8(pub [__m512i; 3]);
+
+/// A sum of [`F192x8`] products, unreduced: every 128-bit lane of plane `k` holds part of coefficient `k`.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[derive(Clone, Copy, Debug)]
+pub struct F192x8Sum([__m512i; 3]);
+
+/// Element `l` of an [`F192x8`].
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn x8_elem(v: F192x8, l: int) -> F192 {
+    F192 { c0: m512(v.0[0])[l], c1: m512(v.0[1])[l], c2: m512(v.0[2])[l] }
+}
+
+/// `s` plus the first `n` lane-wise products of `a` and `b`, added in lane order.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn add_prods(s: F192, a: F192x8, b: F192x8, n: nat) -> F192
+    decreases n,
+{
+    if n == 0 {
+        s
+    } else {
+        e_add(add_prods(s, a, b, (n - 1) as nat), e_mul(x8_elem(a, n - 1), x8_elem(b, n - 1)))
+    }
+}
+
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+impl F192x8 {
+    /// The lane-wise sum.
+    ///
+    /// Rewritten for Verus: `[0, 1, 2].map(..)` is its closure called on each plane.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features this impl is compiled with.
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub fn add(self, rhs: Self) -> (r: Self)
+        ensures
+            forall|l: int| 0 <= l < 8 ==> #[trigger] x8_elem(r, l) == e_add(x8_elem(self, l), x8_elem(rhs, l)),
+    {
+        let f = |k: usize| -> (v: __m512i)
+            requires
+                k < 3,
+            ensures
+                forall|l: int| 0 <= l < 8 ==> #[trigger] m512(v)[l] == m512(self.0[k as int])[l] ^ m512(rhs.0[k as int])[l],
+            { _mm512_xor_si512(self.0[k], rhs.0[k]) };
+        Self([f(0), f(1), f(2)])
+    }
+
+    /// The y-folded Karatsuba products of the even (`IMM = 0x00`) or odd (`IMM = 0x11`) elements, one per lane.
+    ///
+    /// Rewritten for Verus: the array patterns become indexing; the closures carry their specifications; the six
+    /// products are bound to names before `fold`.
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+    fn karatsuba<const IMM: i32>(self, rhs: Self) -> (r: [__m512i; 3])
+        requires
+            IMM == 0x00 || IMM == 0x11,
+        ensures
+            forall|k: int, i: int|
+                0 <= k < 3 && 0 <= i < 8 ==> #[trigger] m512(r[k])[i] == split(
+                    prod_coeffs(x8_elem(self, 2 * (i / 2) + imm_sel(IMM)), x8_elem(rhs, 2 * (i / 2) + imm_sel(IMM)))[k],
+                )[i % 2],
+    {
+        let ((a0, a1, a2), (b0, b1, b2)) = ((self.0[0], self.0[1], self.0[2]), (rhs.0[0], rhs.0[1], rhs.0[2]));
+        let mul = |x: __m512i, y: __m512i| -> (z: __m512i)
+            requires
+                IMM == 0x00 || IMM == 0x11,
+            ensures
+                forall|i: int|
+                    0 <= i < 8 ==> #[trigger] m512(z)[i] == cw(
+                        m512(x)[2 * (i / 2) + imm_sel(IMM)],
+                        m512(y)[2 * (i / 2) + imm_sel(IMM)],
+                        i % 2,
+                    ),
+            {
+                proof {
+                    lemma_clmul_sel();
+                    lemma_cw_all();
+                }
+                _mm512_clmulepi64_epi128::<IMM>(x, y)
+            };
+        let xor = |x: __m512i, y: __m512i| -> (z: __m512i)
+            ensures
+                forall|i: int| 0 <= i < 8 ==> #[trigger] m512(z)[i] == m512(x)[i] ^ m512(y)[i],
+            { _mm512_xor_si512(x, y) };
+        let p0 = mul(a0, b0);
+        let p1 = mul(a1, b1);
+        let p2 = mul(a2, b2);
+        let p01 = mul(xor(a0, a1), xor(b0, b1));
+        let p02 = mul(xor(a0, a2), xor(b0, b2));
+        let p12 = mul(xor(a1, a2), xor(b1, b2));
+        let r = fold(p0, p1, p2, p01, p02, p12, xor);
+        proof {
+            lemma_fold(xor, |v: __m512i| m512(v)@, 8, p0, p1, p2, p01, p02, p12, r);
+            assert forall|k: int, i: int| 0 <= k < 3 && 0 <= i < 8 implies #[trigger] m512(r[k])[i] == split(
+                prod_coeffs(x8_elem(self, 2 * (i / 2) + imm_sel(IMM)), x8_elem(rhs, 2 * (i / 2) + imm_sel(IMM)))[k],
+            )[i % 2] by {
+                let l = 2 * (i / 2) + imm_sel(IMM);
+                let (x, y) = (x8_elem(self, l), x8_elem(rhs, l));
+                let w = i % 2;
+                lemma_karatsuba_words(x, y);
+                assert(m512(p0)[i] == cw(x.c0, y.c0, w));
+                assert(m512(p1)[i] == cw(x.c1, y.c1, w));
+                assert(m512(p2)[i] == cw(x.c2, y.c2, w));
+                assert(m512(p01)[i] == cw(x.c0 ^ x.c1, y.c0 ^ y.c1, w));
+                assert(m512(p02)[i] == cw(x.c0 ^ x.c2, y.c0 ^ y.c2, w));
+                assert(m512(p12)[i] == cw(x.c1 ^ x.c2, y.c1 ^ y.c2, w));
+                assert(m512(r[k])[i] == kara_word(x, y, k, w));
+            }
+        }
+        r
+    }
+
+    /// The eight lane-wise products.
+    ///
+    /// Rewritten for Verus: `[0, 1, 2].map(..)` is its closure called on each plane.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features this impl is compiled with.
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+    pub fn mul(self, rhs: Self) -> (r: Self)
+        ensures
+            forall|l: int| 0 <= l < 8 ==> #[trigger] x8_elem(r, l) == e_mul(x8_elem(self, l), x8_elem(rhs, l)),
+    {
+        let (even, odd) = (self.karatsuba::<0x00>(rhs), self.karatsuba::<0x11>(rhs));
+        // Lane j of `even` is element 2j's product and of `odd` element 2j + 1's: unpacking restores qword order.
+        // SAFETY: the function carries both features.
+        let f = |k: usize| -> (v: __m512i)
+            requires
+                k < 3,
+            ensures
+                forall|i: int|
+                    0 <= i < 8 ==> #[trigger] m512(v)[i] == if i % 2 == 0 {
+                        reduce_word(m512(even[k as int])[i], m512(even[k as int])[i + 1])
+                    } else {
+                        reduce_word(m512(odd[k as int])[i - 1], m512(odd[k as int])[i])
+                    },
+            {
+                unsafe {
+                    reduce_lanes512(_mm512_unpacklo_epi64(even[k], odd[k]), _mm512_unpackhi_epi64(even[k], odd[k]))
+                }
+            };
+        let r = Self([f(0), f(1), f(2)]);
+        proof {
+            assert forall|l: int| 0 <= l < 8 implies #[trigger] x8_elem(r, l) == e_mul(x8_elem(self, l), x8_elem(rhs, l)) by {
+                let (j, h) = (l / 2, l % 2);
+                let (x, y) = (x8_elem(self, l), x8_elem(rhs, l));
+                lemma_coeffs_reduce(x, y);
+                let pc = prod_coeffs(x, y);
+                if h == 0 {
+                    assert(m512(even[0])[l] == split(pc[0])[0] && m512(even[0])[l + 1] == split(pc[0])[1]);
+                    assert(m512(even[1])[l] == split(pc[1])[0] && m512(even[1])[l + 1] == split(pc[1])[1]);
+                    assert(m512(even[2])[l] == split(pc[2])[0] && m512(even[2])[l + 1] == split(pc[2])[1]);
+                } else {
+                    assert(m512(odd[0])[l - 1] == split(pc[0])[0] && m512(odd[0])[l] == split(pc[0])[1]);
+                    assert(m512(odd[1])[l - 1] == split(pc[1])[0] && m512(odd[1])[l] == split(pc[1])[1]);
+                    assert(m512(odd[2])[l - 1] == split(pc[2])[0] && m512(odd[2])[l] == split(pc[2])[1]);
+                }
+                assert(m512(r.0[0])[l] == reduce_word(split(pc[0])[0], split(pc[0])[1]));
+                assert(m512(r.0[1])[l] == reduce_word(split(pc[1])[0], split(pc[1])[1]));
+                assert(m512(r.0[2])[l] == reduce_word(split(pc[2])[0], split(pc[2])[1]));
+            }
+        }
+        r
+    }
+}
+
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+impl F192x8Sum {
+    /// The unreduced value held: each plane's four lanes summed.
+    pub closed spec fn value(self) -> F192Unreduced {
+        sum_lanes512(self.0)
+    }
+
+    /// The empty sum.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features this impl is compiled with.
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub fn zero() -> (r: Self)
+        ensures
+            r.value() == F192Unreduced::ZERO,
+            e_value(r.value()) == F192::ZERO,
+    {
+        let r = Self([_mm512_setzero_si512(); 3]);
+        proof {
+            assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] r.value().coeffs[c][x]
+                == F192Unreduced::ZERO.coeffs[c][x] by {
+                assert(m512(r.0[c])[x] == 0 && m512(r.0[c])[4 + x] == 0 && m512(r.0[c])[2 + x] == 0 && m512(r.0[c])[6
+                    + x] == 0);
+                assert((0u64 ^ 0u64) ^ (0u64 ^ 0u64) == 0u64) by (bit_vector);
+            }
+            lemma_unreduced_ext(r.value(), F192Unreduced::ZERO);
+            lemma_u_zero();
+        }
+        r
+    }
+
+    /// Add the eight lane-wise products of `a` and `b`.
+    ///
+    /// Rewritten for Verus: the plane loop writes through a copy of the registers.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features this impl is compiled with.
+    #[inline]
+    #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
+    pub fn mul_add(&mut self, a: F192x8, b: F192x8)
+        ensures
+            e_value(final(self).value()) == add_prods(e_value(old(self).value()), a, b, 8),
+    {
+        let (even, odd) = (a.karatsuba::<0x00>(b), a.karatsuba::<0x11>(b));
+        let ghost before = *self;
+        let mut planes = self.0;
+        for k in 0..3usize
+            invariant
+                forall|c: int, x: int|
+                    0 <= c < k && 0 <= x < 8 ==> #[trigger] m512(planes[c])[x] == m512(before.0[c])[x] ^ m512(even[c])[x]
+                        ^ m512(odd[c])[x],
+                forall|c: int| k <= c < 3 ==> #[trigger] planes[c] == before.0[c],
+        {
+            let v = _mm512_ternarylogic_epi64::<0x96>(planes[k], even[k], odd[k]);
+            proof {
+                assert forall|x: int| 0 <= x < 8 implies #[trigger] m512(v)[x] == m512(planes[k as int])[x] ^ m512(
+                    even[k as int],
+                )[x] ^ m512(odd[k as int])[x] by {
+                    lemma_ternlog_96(m512(planes[k as int])[x], m512(even[k as int])[x], m512(odd[k as int])[x]);
+                }
+            }
+            planes[k] = v;
+        }
+        self.0 = planes;
+        proof {
+            lemma_x8_mul_add(before, *self, a, b, even, odd);
+        }
+    }
+
+    /// The whole sum, its lanes folded together.
+    ///
+    /// # Safety
+    ///
+    /// Requires the features this impl is compiled with.
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    pub fn total(self) -> (r: F192Unreduced)
+        ensures
+            r == self.value(),
+    {
+        // SAFETY: the function carries `avx512f`.
+        unsafe { sum_lanes4(self.0) }
+    }
+}
+
+/// `u` with the first `n` lane-wise unreduced products of `a` and `b` XORed on, in lane order.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn u_prods(u: F192Unreduced, a: F192x8, b: F192x8, n: nat) -> F192Unreduced
+    decreases n,
+{
+    if n == 0 {
+        u
+    } else {
+        u_xor(u_prods(u, a, b, (n - 1) as nat), prod_unreduced(x8_elem(a, n - 1), x8_elem(b, n - 1)))
+    }
+}
+
+/// Word `x` of coefficient `c` of [`u_prods`], from word `s` of `u`.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn w_prods(s: u64, a: F192x8, b: F192x8, n: nat, c: int, x: int) -> u64
+    decreases n,
+{
+    if n == 0 {
+        s
+    } else {
+        w_prods(s, a, b, (n - 1) as nat, c, x) ^ split(prod_coeffs(x8_elem(a, n - 1), x8_elem(b, n - 1))[c])[x]
+    }
+}
+
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+proof fn lemma_u_prods_words(u: F192Unreduced, a: F192x8, b: F192x8, n: nat)
+    ensures
+        forall|c: int, x: int|
+            0 <= c < 3 && 0 <= x < 2 ==> #[trigger] u_prods(u, a, b, n).coeffs[c][x] == w_prods(u.coeffs[c][x], a, b, n, c, x),
+    decreases n,
+{
+    if n > 0 {
+        lemma_u_prods_words(u, a, b, (n - 1) as nat);
+        lemma_u_xor_words(u_prods(u, a, b, (n - 1) as nat), prod_unreduced(x8_elem(a, n - 1), x8_elem(b, n - 1)));
+        lemma_prod_unreduced_words(x8_elem(a, n - 1), x8_elem(b, n - 1));
+    }
+}
+
+/// The lazy-reduction identity for the products: reducing once equals adding the reduced products.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+proof fn lemma_u_prods_value(u: F192Unreduced, a: F192x8, b: F192x8, n: nat)
+    ensures
+        e_value(u_prods(u, a, b, n)) == add_prods(e_value(u), a, b, n),
+    decreases n,
+{
+    if n > 0 {
+        lemma_u_prods_value(u, a, b, (n - 1) as nat);
+        lemma_e_value_xor(u_prods(u, a, b, (n - 1) as nat), prod_unreduced(x8_elem(a, n - 1), x8_elem(b, n - 1)));
+        lemma_prod_unreduced(x8_elem(a, n - 1), x8_elem(b, n - 1));
+    }
+}
+
+/// [`F192x8Sum::mul_add`]'s registers hold the old sum plus the eight products.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+proof fn lemma_x8_mul_add(before: F192x8Sum, after: F192x8Sum, a: F192x8, b: F192x8, even: [__m512i; 3], odd: [__m512i; 3])
+    requires
+        forall|c: int, x: int|
+            0 <= c < 3 && 0 <= x < 8 ==> #[trigger] m512(after.0[c])[x] == m512(before.0[c])[x] ^ m512(even[c])[x]
+                ^ m512(odd[c])[x],
+        forall|k: int, i: int|
+            0 <= k < 3 && 0 <= i < 8 ==> #[trigger] m512(even[k])[i] == split(
+                prod_coeffs(x8_elem(a, 2 * (i / 2)), x8_elem(b, 2 * (i / 2)))[k],
+            )[i % 2],
+        forall|k: int, i: int|
+            0 <= k < 3 && 0 <= i < 8 ==> #[trigger] m512(odd[k])[i] == split(
+                prod_coeffs(x8_elem(a, 2 * (i / 2) + 1), x8_elem(b, 2 * (i / 2) + 1))[k],
+            )[i % 2],
+    ensures
+        e_value(after.value()) == add_prods(e_value(before.value()), a, b, 8),
+{
+    let u = before.value();
+    lemma_u_prods_words(u, a, b, 8);
+    assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] after.value().coeffs[c][x] == u_prods(
+        u,
+        a,
+        b,
+        8,
+    ).coeffs[c][x] by {
+        lemma_x8_word(before, after, a, b, even, odd, c, x);
+    }
+    lemma_unreduced_ext(after.value(), u_prods(u, a, b, 8));
+    lemma_u_prods_value(u, a, b, 8);
+}
+
+/// The words of a XOR of unreduced values.
+pub proof fn lemma_u_xor_words(u: F192Unreduced, v: F192Unreduced)
+    ensures
+        forall|c: int, x: int|
+            0 <= c < 3 && 0 <= x < 2 ==> #[trigger] u_xor(u, v).coeffs[c][x] == u.coeffs[c][x] ^ v.coeffs[c][x],
+{
+    assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] u_xor(u, v).coeffs[c][x] == u.coeffs[c][x]
+        ^ v.coeffs[c][x] by {
+        if c == 0 {
+            if x == 0 {
+            } else {
+            }
+        } else if c == 1 {
+            if x == 0 {
+            } else {
+            }
+        } else {
+            if x == 0 {
+            } else {
+            }
+        }
+    }
+}
+
+/// The words of the schoolbook unreduced product.
+pub proof fn lemma_prod_unreduced_words(a: F192, b: F192)
+    ensures
+        forall|c: int, x: int|
+            0 <= c < 3 && 0 <= x < 2 ==> #[trigger] prod_unreduced(a, b).coeffs[c][x] == split(prod_coeffs(a, b)[c])[x],
+{
+    assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] prod_unreduced(a, b).coeffs[c][x] == split(
+        prod_coeffs(a, b)[c],
+    )[x] by {
+        if c == 0 {
+            if x == 0 {
+            } else {
+            }
+        } else if c == 1 {
+            if x == 0 {
+            } else {
+            }
+        } else {
+            if x == 0 {
+            } else {
+            }
+        }
+    }
+}
+
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+proof fn lemma_x8_word(
+    before: F192x8Sum,
+    after: F192x8Sum,
+    a: F192x8,
+    b: F192x8,
+    even: [__m512i; 3],
+    odd: [__m512i; 3],
+    c: int,
+    x: int,
+)
+    requires
+        0 <= c < 3,
+        0 <= x < 2,
+        forall|c: int, x: int|
+            0 <= c < 3 && 0 <= x < 8 ==> #[trigger] m512(after.0[c])[x] == m512(before.0[c])[x] ^ m512(even[c])[x]
+                ^ m512(odd[c])[x],
+        forall|k: int, i: int|
+            0 <= k < 3 && 0 <= i < 8 ==> #[trigger] m512(even[k])[i] == split(
+                prod_coeffs(x8_elem(a, 2 * (i / 2)), x8_elem(b, 2 * (i / 2)))[k],
+            )[i % 2],
+        forall|k: int, i: int|
+            0 <= k < 3 && 0 <= i < 8 ==> #[trigger] m512(odd[k])[i] == split(
+                prod_coeffs(x8_elem(a, 2 * (i / 2) + 1), x8_elem(b, 2 * (i / 2) + 1))[k],
+            )[i % 2],
+    ensures
+        after.value().coeffs[c][x] == w_prods(before.value().coeffs[c][x], a, b, 8, c, x),
+{
+    reveal_with_fuel(w_prods, 9);
+    let t = |l: int| split(prod_coeffs(x8_elem(a, l), x8_elem(b, l))[c])[x];
+    assert(m512(even[c])[x] == t(0) && m512(odd[c])[x] == t(1));
+    assert(m512(even[c])[2 + x] == t(2) && m512(odd[c])[2 + x] == t(3));
+    assert(m512(even[c])[4 + x] == t(4) && m512(odd[c])[4 + x] == t(5));
+    assert(m512(even[c])[6 + x] == t(6) && m512(odd[c])[6 + x] == t(7));
+    let s = |l: int| m512(before.0[c])[2 * l + x];
+    let (s0, s1, s2, s3) = (s(0), s(1), s(2), s(3));
+    let (t0, t1, t2, t3, t4, t5, t6, t7) = (t(0), t(1), t(2), t(3), t(4), t(5), t(6), t(7));
+    assert(((s0 ^ t0 ^ t1) ^ (s2 ^ t4 ^ t5)) ^ ((s1 ^ t2 ^ t3) ^ (s3 ^ t6 ^ t7)) == ((s0 ^ s2) ^ (s1 ^ s3)) ^ t0 ^ t1 ^ t2
+        ^ t3 ^ t4 ^ t5 ^ t6 ^ t7) by (bit_vector);
+    assert(after.value().coeffs[c][x] == sum4(after.0[c], x));
+    assert(before.value().coeffs[c][x] == sum4(before.0[c], x));
+}
+
 } // verus!
