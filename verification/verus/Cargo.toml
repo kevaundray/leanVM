@@ -14,6 +14,8 @@ vstd = "=0.0.0-2026-10-04-0306"
 [dev-dependencies]
 primitives = { path = "../../crates/primitives", features = ["test-util"] }
 pcs = { path = "../../crates/pcs" }
+fiat_shamir = { path = "../../crates/fiat_shamir" }
+flock = { path = "../../crates/flock" }
 
 [package.metadata.verus]
 verify = true

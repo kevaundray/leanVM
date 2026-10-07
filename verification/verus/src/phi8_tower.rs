@@ -125,6 +125,17 @@ pub proof fn lemma_phi8_injective(a: u8, b: u8)
     assert(phi8_closed(a) == phi8_closed(b) ==> a == b) by (bit_vector);
 }
 
+/// `φ₈(a)` is zero only at zero.
+pub proof fn lemma_phi8_nonzero(a: u8)
+    requires
+        a != 0,
+    ensures
+        phi8(a) != 0,
+{
+    lemma_phi8_injective(a, 0);
+    lemma_phi8_zero_one();
+}
+
 /// `φ₈(x^i)` is the basis constant.
 pub proof fn lemma_phi8_monomial(i: u8)
     requires
