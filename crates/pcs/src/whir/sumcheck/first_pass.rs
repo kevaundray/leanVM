@@ -629,7 +629,8 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
 /// [`initial_rounds`] over a regenerated weight, and the weight the first fold then reads.
 ///
 /// On a small pool the pass also writes the weight out, so the fold reads it back rather than refilling it; on a
-/// larger one the refill, spread over the workers, costs less than the memory traffic.
+/// larger one the refill, spread over the workers, costs less than the memory traffic, unless the map is the
+/// portable byte tables (`KEEP_WEIGHT_MAX_THREADS`).
 pub(crate) fn initial_rounds_virtual<'a>(
     f: &[F64],
     block: usize,

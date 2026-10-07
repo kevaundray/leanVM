@@ -45,6 +45,9 @@ use avx2::{self as imp, Imp};
 /// Rows folded per call.
 pub const BLOCK: usize = 64;
 
+/// Whether the folds and maps run on the portable byte tables rather than a SIMD backend.
+pub const PORTABLE: bool = cfg!(not(all(target_arch = "x86_64", target_feature = "avx2")));
+
 /// The weights of every bit of a row, prepared for folding.
 #[derive(Clone, Debug)]
 pub struct BitFold {
