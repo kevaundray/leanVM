@@ -69,3 +69,59 @@ fn transpose_8x8_bits_matches() {
         }
     }
 }
+
+/// The definition, one bit at a time.
+fn reference(input: &[u8; 64]) -> [u8; 64] {
+    let mut output = [0u8; 64];
+    for x in 0..8 {
+        for b in 0..8 {
+            for t in 0..8 {
+                output[b * 8 + t] |= ((input[x * 8 + b] >> t) & 1) << x;
+            }
+        }
+    }
+    output
+}
+
+/// Every verified arm this build compiles, against the definition and against production's dispatched function
+/// (production's arms are private), like production's `every_arm_matches_reference`. Built with
+/// `target-cpu=native` on an AVX-512 VBMI and GFNI machine this runs the three x86 arms; under `--target aarch64-*`
+/// the NEON one.
+#[test]
+fn every_arm_matches_reference() {
+    for input in blocks() {
+        let want = reference(&input);
+        let mut p = [0u8; 64];
+        production::bit_transpose_64bytes(&input, &mut p);
+        assert_eq!(p, want, "production");
+        let mut got = [0u8; 64];
+        verified::bit_transpose_64bytes(&input, &mut got);
+        assert_eq!(got, want, "dispatched");
+        verified::bit_transpose_64bytes_portable(&input, &mut got);
+        assert_eq!(got, want, "portable");
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx512vbmi", target_feature = "gfni"))]
+        {
+            // SAFETY: compiled only with the features enabled.
+            unsafe { verified::bit_transpose_64bytes_gfni(&input, &mut got) };
+            assert_eq!(got, want, "gfni");
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "gfni"))]
+        {
+            // SAFETY: compiled only with the features enabled.
+            unsafe { verified::bit_transpose_64bytes_gfni_avx2(&input, &mut got) };
+            assert_eq!(got, want, "gfni avx2");
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+        {
+            // SAFETY: compiled only with the feature enabled.
+            unsafe { verified::bit_transpose_64bytes_avx2(&input, &mut got) };
+            assert_eq!(got, want, "avx2");
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            // SAFETY: aarch64 always has NEON.
+            unsafe { verified::bit_transpose_64bytes_neon(&input, &mut got) };
+            assert_eq!(got, want, "neon");
+        }
+    }
+}

@@ -24,11 +24,13 @@
 //! `AdditiveNttF64::standard(dim)` without hypothesis.
 //!
 //! The parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
-//! `transpose_lane_major`) and the SIMD butterflies are not copied: they are out of scope.
+//! `transpose_lane_major`) is not copied: it is out of scope. The SIMD butterflies `lane_butterflies` dispatches
+//! to are in `crate::ntt_simd`.
 // `global size_of usize` expands to a braced block.
 #![allow(unused_braces)]
 
 use crate::gf2_64::*;
+use crate::ntt_simd::*;
 use core::ops::{Add, AddAssign, Mul, MulAssign};
 use vstd::arithmetic::div_mod::*;
 use vstd::arithmetic::mul::*;
@@ -916,8 +918,16 @@ pub fn transposed_butterfly_lanes(top: &mut [F64], bot: &mut [F64], twiddle: F64
 
 /// The butterflies of every lane of a row pair, forward or transposed.
 ///
-/// Only the portable path: no SIMD kernel runs (`done = 0`), and the `zip` of the rows' `iter_mut` is an
-/// index loop.
+/// On NEON this processes eight lanes per iteration. Four independent pair
+/// reductions stay in the vector register file, exposing their PMULL chains
+/// in parallel and amortizing the loop branch and constant setup. The pair
+/// kernel handles a short even tail, and the scalar path handles an odd tail.
+///
+/// Rewritten for Verus: the SIMD kernels (`crate::ntt_simd`) take the rows and the offset instead of
+/// `top.as_mut_ptr().add(..)` and `bot.as_mut_ptr().add(..)`; the NEON pair loop tests `top.len() - lane >= 2`
+/// instead of `lane + 2 <= top.len()` (the same for `lane <= top.len()`, and Verus has no bound on a slice's
+/// length that rules out the overflow of `lane + 2`); the `zip` of the rows' `iter_mut` from `done` is an index
+/// loop; `debug_assert_eq!(top.len(), bot.len())` is the `requires`.
 #[inline]
 pub fn lane_butterflies<const TRANSPOSED: bool>(top: &mut [F64], bot: &mut [F64], twiddle: F64)
     requires
@@ -934,6 +944,113 @@ pub fn lane_butterflies<const TRANSPOSED: bool>(top: &mut [F64], bot: &mut [F64]
             ),
 {
     let ghost (top0, bot0) = (top@, bot@);
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    let done = {
+        let vectors = top.len() / 8;
+        // SAFETY: the target features are enabled at compile time and each
+        // iteration reads and writes exactly eight elements from both rows.
+        unsafe {
+            for i in 0..vectors
+                invariant
+                    vectors == top0.len() / 8,
+                    bot0.len() == top0.len(),
+                    top0.len() <= usize::MAX,
+                    butterflied(TRANSPOSED, top0, bot0, top@, bot@, 0, 8 * i, twiddle.0),
+            {
+                let ghost (top1, bot1) = (top@, bot@);
+                proof {
+                    lemma_fundamental_div_mod(top0.len() as int, 8);
+                    assert(8 * i + 8 <= top0.len());
+                }
+                butterfly_lanes_avx512::<TRANSPOSED>(top, bot, 8 * i, twiddle.0);
+                proof {
+                    lemma_butterflied_extend(TRANSPOSED, top0, bot0, top1, bot1, top@, bot@, 0, 8 * i, 8 * i + 8, twiddle.0);
+                }
+            }
+        }
+        8 * vectors
+    };
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "vpclmulqdq",
+        target_feature = "avx2",
+        not(target_feature = "avx512f")
+    ))]
+    let done = {
+        let vectors = top.len() / 4;
+        // SAFETY: the target features are enabled at compile time and each
+        // iteration reads and writes exactly four elements from both rows.
+        unsafe {
+            for i in 0..vectors
+                invariant
+                    vectors == top0.len() / 4,
+                    bot0.len() == top0.len(),
+                    top0.len() <= usize::MAX,
+                    butterflied(TRANSPOSED, top0, bot0, top@, bot@, 0, 4 * i, twiddle.0),
+            {
+                let ghost (top1, bot1) = (top@, bot@);
+                proof {
+                    lemma_fundamental_div_mod(top0.len() as int, 4);
+                    assert(4 * i + 4 <= top0.len());
+                }
+                butterfly_lanes_avx2::<TRANSPOSED>(top, bot, 4 * i, twiddle.0);
+                proof {
+                    lemma_butterflied_extend(TRANSPOSED, top0, bot0, top1, bot1, top@, bot@, 0, 4 * i, 4 * i + 4, twiddle.0);
+                }
+            }
+        }
+        4 * vectors
+    };
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    let done = {
+        let vectors = top.len() / 8;
+        let mut lane = 8 * vectors;
+        // SAFETY: aes target feature is enabled at compile time; the kernels
+        // read and write lanes [8i, 8i+8), then pairs below the rows' length.
+        unsafe {
+            for i in 0..vectors
+                invariant
+                    vectors == top0.len() / 8,
+                    lane == 8 * vectors,
+                    bot0.len() == top0.len(),
+                    top0.len() <= usize::MAX,
+                    butterflied(TRANSPOSED, top0, bot0, top@, bot@, 0, 8 * i, twiddle.0),
+            {
+                let ghost (top1, bot1) = (top@, bot@);
+                proof {
+                    lemma_fundamental_div_mod(top0.len() as int, 8);
+                    assert(8 * i + 8 <= top0.len());
+                }
+                butterfly_lanes_neon_8::<TRANSPOSED>(top, bot, 8 * i, twiddle.0);
+                proof {
+                    lemma_butterflied_extend(TRANSPOSED, top0, bot0, top1, bot1, top@, bot@, 0, 8 * i, 8 * i + 8, twiddle.0);
+                }
+            }
+            proof {
+                lemma_fundamental_div_mod(top0.len() as int, 8);
+            }
+            while top.len() - lane >= 2
+                invariant
+                    lane <= top0.len(),
+                    bot0.len() == top0.len(),
+                    top0.len() <= usize::MAX,
+                    butterflied(TRANSPOSED, top0, bot0, top@, bot@, 0, lane as int, twiddle.0),
+                decreases top0.len() - lane,
+            {
+                let ghost (top1, bot1) = (top@, bot@);
+                butterfly_lane_pair_neon::<TRANSPOSED>(top, bot, lane, twiddle.0);
+                proof {
+                    lemma_butterflied_extend(TRANSPOSED, top0, bot0, top1, bot1, top@, bot@, 0, lane as int, lane + 2, twiddle.0);
+                }
+                lane += 2;
+            }
+        }
+        lane
+    };
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")
+    )))]
     let done = 0;
     let n = top.len();
     for i in done..n
@@ -1050,7 +1167,7 @@ pub open spec fn inverse_layers(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_
     }
 }
 
-proof fn lemma_compose(blk: int, r: int, lane: int, m: nat, h: nat)
+pub proof fn lemma_compose(blk: int, r: int, lane: int, m: nat, h: nat)
     requires
         0 <= blk,
         0 <= r < 2 * h,
@@ -1099,7 +1216,7 @@ proof fn lemma_decompose(p: int, m: nat, h: nat)
     ;
 }
 
-proof fn lemma_bound(blk: int, r: int, lane: int, m: nat, h: nat, nb: nat)
+pub proof fn lemma_bound(blk: int, r: int, lane: int, m: nat, h: nat, nb: nat)
     requires
         0 <= blk < nb,
         0 <= r < 2 * h,
@@ -1122,7 +1239,7 @@ proof fn lemma_bound(blk: int, r: int, lane: int, m: nat, h: nat, nb: nat)
     ;
 }
 
-proof fn lemma_blk_bound(p: int, m: nat, h: nat, nb: nat)
+pub proof fn lemma_blk_bound(p: int, m: nat, h: nat, nb: nat)
     requires
         0 <= p < nb * (2 * h) * m,
         m > 0,
@@ -1378,7 +1495,7 @@ proof fn lemma_sweep_step(
 }
 
 /// The exec shape of one layer of a `2^log_d`-row transform: `2^layer` blocks of `2h` rows.
-proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
+pub proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
     requires
         layer < log_d,
     ensures
@@ -1404,7 +1521,7 @@ proof fn lemma_layer_map_len(data: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) ->
 {
 }
 
-proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, start: nat, end: nat)
+pub proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, start: nat, end: nat)
     ensures
         forward_layers(tab, data, m, log_d, start, end).len() == data.len(),
     decreases end,
@@ -1414,7 +1531,7 @@ proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, lo
     }
 }
 
-proof fn lemma_inverse_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, lo: nat)
+pub proof fn lemma_inverse_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, lo: nat)
     ensures
         inverse_layers(tab, data, m, log_d, lo).len() == data.len(),
     decreases log_d - lo,
