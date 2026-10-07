@@ -115,6 +115,15 @@ jobs:
         run: |
           lscpu | grep -E '^(Vendor ID|Model name|CPU\(s\)|Thread\(s\) per core|Core\(s\) per (socket|cluster)|L1d cache|L2 cache|L3 cache):'
           free -g | grep -E '^Mem:'
+          uname -srvm
+          echo "Page size (bytes): $(getconf PAGESIZE)"
+          for path in \
+            /sys/kernel/mm/transparent_hugepage/{enabled,defrag,hpage_pmd_size} \
+            /sys/devices/system/cpu/cpufreq/policy*/{scaling_driver,scaling_governor,scaling_cur_freq,cpuinfo_cur_freq,cpuinfo_min_freq,cpuinfo_max_freq}; do
+            if value=$(cat "$path" 2>/dev/null); then
+              printf '%s: %s\n' "$path" "$value"
+            fi
+          done
           if [ "$RUNNER_ARCH" = ARM64 ]; then
             flags=$(grep -m1 -E '^Features' /proc/cpuinfo)
             wanted="asimd aes pmull sha3 sve sve2 svepmull svebitperm i8mm bf16"
@@ -158,4 +167,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ab-${{ matrix.testbed.name }}-${{ matrix.benchmark.name }}
-          path: ab/ab-${{ matrix.testbed.name }}-${{ matrix.benchmark.name }}/ab.json
+          path: |
+            ab/ab-${{ matrix.testbed.name }}-${{ matrix.benchmark.name }}/ab.json
+            ab/ab-${{ matrix.testbed.name }}-${{ matrix.benchmark.name }}/trace-*.log

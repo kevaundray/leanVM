@@ -18,6 +18,8 @@
 # then printed by main's .github/scripts/pr_comment.py, read from upstream/main or origin/main.
 # With --ci (or GITHUB_ACTIONS=true), as bench.yml runs it: the head is the commit checked out,
 # the base `--base` or else HEAD^1, checked out in place, and nothing is printed.
+# The CI runs are capped at 16 GiB with no swap via a systemd user scope. After its timed
+# rounds, leanxmss-100-1thread traces each runnable side once into trace-{base,head}.log.
 #
 # Needs git, python3 and cargo (or $CARGO).
 set -euo pipefail
@@ -74,12 +76,14 @@ build() {
 # Runs benchmark $1's side $2 once, printing its JSON.
 run() {
   local exe=$work/$2/$1
+  local -a scope=()
+  if [ "$ci" = true ]; then scope=(systemd-run --user --scope -q -p MemoryMax=16G -p MemorySwapMax=0); fi
   if [ "$1" = counts ]; then
-    "$exe" bench --cycles-only
+    "${scope[@]}" "$exe" bench --cycles-only
   elif [ -n "$(target_of "$1")" ]; then
-    "$exe" --json
+    "${scope[@]}" "$exe" --json
   else
-    "$exe" bench --only "$1" --repeat 1 --cooldown 0
+    "${scope[@]}" "$exe" bench --only "$1" --repeat 1 --cooldown 0
   fi
 }
 
@@ -126,6 +130,15 @@ runs = [json.loads(line) for line in open(runs)]
 json.dump({"pr": int(pr), "base": base, "testbed": testbed, "cpu": cpu, "runs": runs}, sys.stdout, indent=2)' \
     "$pr" "$base" "$testbed" "$cpu" "$dir/runs.jsonl" > "$dir/ab.json"
   rm "$dir/runs.jsonl"
+  if [ "$ci" = true ] && [ "$1" = leanxmss-100-1thread ]; then
+    for side in base head; do
+      if [ "$side" = base ] && [ "$has_base" = false ]; then continue; fi
+      say "$1: tracing $side after the timed rounds"
+      systemd-run --user --scope -q -p MemoryMax=16G -p MemorySwapMax=0 \
+        env LEANVM_NUM_THREADS=1 "$work/$side/$1" leanxmss --n 100 --repeat 1 --tracing \
+        2>&1 | tee "$dir/trace-$side.log"
+    done
+  fi
 }
 
 # Counts both sides once and saves them as counts.json, counts.yml's artifact.
