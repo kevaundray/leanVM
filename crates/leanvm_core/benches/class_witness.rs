@@ -5,11 +5,11 @@
 //! ```
 
 use bench::Plan;
-use leanvm_core::tables::ClassSpec;
+use leanvm_core::{Fill, TableId};
 use primitives::test_util::Rng;
 
 #[global_allocator]
-static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 fn main() {
     // One batch of 2^16 instances per class, the size of a mid-sized run's table.
@@ -22,10 +22,11 @@ fn main() {
         "class", "k_log", "walk", "64 lanes", "speedup"
     );
     // Every class with a circuit and no word-level witness of its own.
-    for spec in ClassSpec::ALL
-        .iter()
-        .filter(|spec| spec.has_circuit() && spec.witness.is_none())
-    {
+    for spec in TableId::ALL.map(TableId::spec).into_iter().filter(|spec| {
+        spec.circuit
+            .as_ref()
+            .is_some_and(|c| !matches!(c.fill, Fill::Instance(_)))
+    }) {
         let circuit = spec.class.circuit();
 
         // Random input words: the walk costs the same on any input.

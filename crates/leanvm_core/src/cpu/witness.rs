@@ -4,9 +4,9 @@ use super::MAX_LOG_ROWS;
 use super::execute::Execution;
 use super::layout::{Layout, Lookup, Schema, Shared, q_column};
 use super::program::Program;
-use crate::class_flock::Prepared;
-use crate::tables::{ClassSpec, ClassTable, FillContext};
-use crate::{class_flock, tables};
+use crate::class_flock::FlockId;
+use crate::tables::{ClassTable, FillContext, PerTable, TableId};
+use flock::Tables;
 use primitives::field::F64;
 use std::mem::MaybeUninit;
 
@@ -22,8 +22,9 @@ pub(crate) struct Witness {
     pub(crate) layout: Layout,
     /// The clock the run ended on, which the prover announces.
     pub(crate) ts_final: u64,
-    /// Every circuit's flock batch, freed right after the batched reduction.
-    pub(crate) reductions: Vec<Prepared>,
+    /// Every circuit's flock batch but its `z`, which is its committed column, in [`FlockId::ALL`] order; freed right
+    /// after the batched reduction.
+    pub(crate) reductions: Vec<Tables>,
 }
 
 impl Witness {
@@ -38,22 +39,22 @@ impl Witness {
         // Every table's rows are real, filled to a power of two at flock's floor, so its height is its row count.
         let row_counts = trace.row_counts();
         assert!(
-            row_counts.iter().all(|&r| r <= 1 << MAX_LOG_ROWS),
+            row_counts.values().all(|&r| r <= 1 << MAX_LOG_ROWS),
             "a table exceeds 2^{MAX_LOG_ROWS} rows"
         );
-        let taus: [usize; tables::N_TABLES] = std::array::from_fn(|t| {
+        let taus = PerTable::from_fn(|t: TableId| {
             let r = row_counts[t];
             assert!(
                 r.is_power_of_two(),
                 "a table has {r} rows, not a power of two: the fill blocks did not fill it"
             );
             let tau = crate::log2_strict_usize(r);
-            let floor = class_flock::n_blocks_log(ClassSpec::ALL[t], r);
+            let floor = t.spec().n_blocks_log(r);
             assert_eq!(
                 tau,
                 floor,
                 "the {} table must be filled to flock's instance floor",
-                ClassSpec::ALL[t].name
+                t.name()
             );
             tau
         });
@@ -66,7 +67,7 @@ impl Witness {
 
         // A port is not in the stack, so its values get a buffer of their own.
         let mut virt: Vec<(usize, Box<[MaybeUninit<F64>]>)> = Vec::new();
-        for (t, &(base, width)) in schema.spans.iter().enumerate() {
+        for (t, &(base, width)) in schema.spans.iter() {
             for i in (base..base + width).filter(|&i| layout.placements[i].window().is_none()) {
                 virt.push((i, Box::new_uninit_slice(1 << layout.taus[t])));
             }
@@ -82,7 +83,7 @@ impl Witness {
 
         crate::stage!("Fill columns", || {
             // Each table fills its own columns from the trace, in its global span.
-            for (t, table) in ClassTable::all().iter().enumerate() {
+            for (t, table) in ClassTable::all().iter() {
                 let (base, n) = schema.spans[t];
                 let ctx = FillContext::new(trace, p, 1 << layout.taus[t], n);
                 table.fill(ctx, &mut windows[base..base + n]);
@@ -106,8 +107,8 @@ impl Witness {
 
         // The packed witnesses, one instance per row of their table.
         let reductions = crate::stage!("Build flock witnesses", || {
-            (0..class_flock::N_FLOCKS)
-                .map(|f| Prepared::build(f, trace, p, windows[q_column(f)]))
+            (FlockId::ALL.into_iter())
+                .map(|f| f.tables(trace, p, windows[q_column(f)]))
                 .collect()
         });
 

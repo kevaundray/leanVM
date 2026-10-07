@@ -11,11 +11,11 @@
 use super::fixed::{FixedColumn, FixedColumns};
 use super::layout::RecLayout;
 use super::table::Table;
-use crate::arith::{Arith, Verifier};
 use crate::colval::ColVal;
 use crate::constraints::{Residual, Summand};
-use crate::leaf::{Block, BusError, BusForm, BusProof, BusVerify, Coord, PublicColumn};
+use crate::leaf::{Block, BusError, BusForm, BusProof, BusVerify, Coord, PackedForm, PublicColumn, PublicColumns};
 use crate::{constraints, leaf};
+use fiat_shamir::arith::{Arith, Verifier};
 use fiat_shamir::transcript::ProverState;
 use primitives::field::{F64, F192};
 
@@ -31,7 +31,7 @@ pub(crate) struct BusBlocks {
 }
 
 /// A table's whole summand in the prover's constraint batch: its bus forms and its identities, already weighted.
-pub(crate) struct TableSummand(BusForm);
+pub(crate) struct TableSummand(PackedForm);
 
 /// A table's summand as the verifiers evaluate it at the batch's point: its two bus forms and its weighted identities.
 pub(crate) struct TableResidual<'a, E> {
@@ -109,7 +109,7 @@ impl BusBlocks {
 
     /// Prove the bus balances over the global columns.
     pub(crate) fn prove(&self, cols: &[&[F64]], ps: &mut ProverState) -> BusProof {
-        leaf::prove_balance(&self.push, &self.pull, &[], cols, &RecLayout::TABLE_COLUMNS, ps)
+        leaf::prove_balance(&self.push, &self.pull, &[], 0, cols, &RecLayout::TABLE_COLUMNS, ps)
     }
 
     /// Verify the bus balances.
@@ -117,8 +117,8 @@ impl BusBlocks {
     /// # Errors
     ///
     /// Returns the first check of the balance that refuses.
-    pub(crate) fn verify<V: Verifier>(&self, v: &mut V) -> Result<BusVerify<V::E>, BusError> {
-        let bus = leaf::verify_balance(v, &self.push, &self.pull, &[], &RecLayout::TABLE_COLUMNS)?;
+    pub(crate) fn verify<V: Verifier + PublicColumns>(&self, v: &mut V) -> Result<BusVerify<V::E>, BusError> {
+        let bus = leaf::verify_balance(v, &self.push, &self.pull, &[], 0, &RecLayout::TABLE_COLUMNS)?;
         debug_assert!(
             bus.sparse.iter().all(Vec::is_empty) && bus.producers.is_empty(),
             "the machine's target has no share for sparse columns or producers"
@@ -143,7 +143,7 @@ impl TableSummand {
                     parts.push(id.scaled(power));
                     power *= xi;
                 }
-                Self(BusForm::sum(parts))
+                Self(PackedForm::new(BusForm::sum(parts)))
             })
             .collect()
     }

@@ -149,6 +149,64 @@ impl Ext {
         }
         c.finish()
     }
+
+    /// One instance of [`Self::clock_circuit`]'s witness by word arithmetic: what the walk of its gate list writes,
+    /// into zeroed buffers, from its input words (`ts`, each access's previous timestamp, `v1`, `v2`, `vd`, `flags`).
+    ///
+    /// The clock's words and products are [`Clock::witness`]'s; its own ports and products, `n` being the accesses:
+    ///
+    /// ```text
+    ///     words n + 1 ..= n + 3   v1, v2, vd     z = A·z = the word,              B·z = all ones
+    ///     word n + 4              flags          z = A·z = its two bits,          B·z = 0b11
+    ///     word n + 5              step           the clock's
+    ///     words n + 6, n + 7      accumulate, base, copies of the flag bits:  z = A·z = the bit,  B·z = 1
+    ///     words n + 8 ..= n + 13  p + 8, p + 16 for p = v1, v2, vd: copies,   z = A·z = the sum,  B·z = all ones,
+    ///                             but v2's products:                          A·z = !base on every bit,  B·z = the sum
+    ///     then                    products       after the clock's, the same order: each incrementer's carries
+    /// ```
+    ///
+    /// Adding `2^bit` to `p` carries `c_i = p_bit & .. & p_{i-1}` into bit `i > bit`, so the products of bits
+    /// `bit + 1 ..= 62` are `A·z = p_i`, `B·z = c_i`, and the carries are those of the native sum.
+    pub fn clock_witness(slots: &[u32], inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        const BITS: [u32; 2] = [3, 4];
+        let n = slots.len();
+        let [pointers @ .., flags]: [u64; 4] = inputs[n + 1..].try_into().expect("the clock's inputs, then four");
+        let base = flags >> 1 & 1;
+        let sums = pointers.map(|p| BITS.map(|bit| p.wrapping_add(1 << bit)));
+        let tables = [&mut *z, &mut *az, &mut *bz];
+        Clock::witness_with(
+            slots,
+            inputs[0],
+            &inputs[1..=n],
+            [4, 2 + Self::OFFSET_LIMBS.len()],
+            tables,
+            |products| {
+                for (&p, sums) in pointers.iter().zip(&sums) {
+                    for (bit, sum) in BITS.into_iter().zip(sums) {
+                        let carries = sum ^ p ^ 1 << bit;
+                        let rows = 62 - bit;
+                        let run = (1 << rows) - 1;
+                        products.push(p >> (bit + 1) & run, carries >> (bit + 1) & run, rows);
+                    }
+                }
+            },
+        );
+        for (k, &p) in pointers.iter().enumerate() {
+            (z[n + 1 + k], az[n + 1 + k], bz[n + 1 + k]) = (p, p, !0);
+        }
+        (z[n + 4], az[n + 4], bz[n + 4]) = (flags & 3, flags & 3, 3);
+        (z[n + 6], az[n + 6], bz[n + 6]) = (flags & 1, flags & 1, 1);
+        (z[n + 7], az[n + 7], bz[n + 7]) = (base, base, 1);
+        let not_base = base.wrapping_sub(1);
+        for (k, &sum) in sums.as_flattened().iter().enumerate() {
+            let w = n + 8 + k;
+            (z[w], az[w], bz[w]) = if k / 2 == 1 {
+                (not_base & sum, not_base, sum)
+            } else {
+                (sum, sum, !0)
+            };
+        }
+    }
 }
 
 /// `x + 2^bit` modulo `2^64`.

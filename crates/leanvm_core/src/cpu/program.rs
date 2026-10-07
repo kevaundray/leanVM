@@ -10,20 +10,19 @@ use super::filler::{FillBlocks, Plan};
 use super::layout::{Announcement, Lookup, Schema, Sizes};
 use super::reduce::TableClaims;
 use super::witness::Witness;
-use super::{MAX_LOG_BYTECODE, Output, Proof};
-use crate::arith::Native;
+use super::{Output, Proof};
+use crate::class_flock::FlockId;
 use crate::constraints::{Claims, Columns};
 use crate::pcs::Rate;
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
-use crate::tables::{ClassSpec, ClassTable, Clock};
-use crate::{class_flock, constraints, leaf, pcs, tables};
+use crate::tables::{ClassTable, Clock, PerTable, TableId};
+use crate::{constraints, leaf, pcs};
+use fiat_shamir::arith::Native;
 use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, VerifierState};
+use flock::reduction;
 use primitives::field::{F64, F192};
 use primitives::hash::Hasher;
 use std::cmp::Reverse;
-
-// The bytecode lives in the text region.
-const _: () = assert!(MAX_LOG_BYTECODE <= Region::TEXT.max_log_words());
 
 /// A validated program, its fill blocks, and the digest of everything public about it.
 ///
@@ -65,13 +64,23 @@ impl Program {
         .map_err(ElfError::Program)
     }
 
+    /// Whether a text of this many words fits the text region once its appended words are added.
+    ///
+    /// The appended words are the illegal word, the fill blocks, then the illegal slot and the halt slot.
+    fn text_fits(words: usize) -> bool {
+        words
+            .checked_add(1 + FillBlocks::WORDS + 2)
+            .and_then(usize::checked_next_power_of_two)
+            .is_some_and(|total| total <= 1 << Region::TEXT.max_log_words())
+    }
+
     /// The program of instruction words, an entry point, a RAM image and the memory sizes.
     ///
     /// The text gets an illegal word, then the fill blocks.
     ///
     /// # Errors
     ///
-    /// Refuses an entry outside the supplied text, a text past the bytecode cap, and sizes exceeding the machine's regions.
+    /// Refuses an entry outside the supplied text, and sizes exceeding the machine's regions.
     pub fn new(
         text: &[u32],
         entry_pc: u64,
@@ -82,13 +91,7 @@ impl Program {
         // Check the shape on the supplied text, before anything is appended to it.
         RiscvProgram::validate(text.len(), entry_pc, image.len(), log_ram, log_advice)?;
 
-        // The bytecode cap holds what gets appended too: the illegal word, the fill blocks, then the illegal slot and the halt slot.
-        let fits = text
-            .len()
-            .checked_add(1 + FillBlocks::WORDS + 2)
-            .and_then(usize::checked_next_power_of_two)
-            .is_some_and(|total| total <= 1 << MAX_LOG_BYTECODE);
-        if !fits {
+        if !Self::text_fits(text.len()) {
             return Err(ProgramError::TextTooLarge);
         }
 
@@ -130,10 +133,10 @@ impl Program {
         }
 
         let trace = trace.finish(p, &m, ts);
-        let cycles = trace.rows.iter().map(Vec::len).sum();
+        let proven_rows = trace.rows.values().map(Vec::len).sum();
         Ok(Execution {
             output,
-            cycles,
+            proven_rows,
             base_counts,
             trace,
         })
@@ -159,7 +162,7 @@ impl Program {
         let mut ts = Clock::CLOCK_START;
 
         // The heights last checked: the stack grows only when one of them does.
-        let mut checked = [0; tables::N_TABLES];
+        let mut checked = PerTable::default();
         while !m.halted() {
             let cycle = ts >> Clock::SLOT_BITS & Clock::MAX_CYCLES;
 
@@ -169,7 +172,7 @@ impl Program {
             }
             if cycle.is_multiple_of(Self::SIZE_CHECK_PERIOD) {
                 let counts = recorder.row_counts();
-                let heights = std::array::from_fn(|t| ClassSpec::ALL[t].provable_height(counts[t]));
+                let heights = PerTable::from_fn(|t: TableId| t.spec().provable_height(counts[t]));
                 if heights != checked {
                     self.committed_size(heights)?;
                     checked = heights;
@@ -180,24 +183,6 @@ impl Program {
             ts += Clock::CYCLE;
         }
         Ok(ts)
-    }
-
-    /// Prove a run of the program on `advice`, the advice region's first words, at commitment rate `rate`.
-    ///
-    /// The statement says nothing about the advice.
-    ///
-    /// Returns the proof, the run's public output (`a0` to `a3` at the exit), and its statistics.
-    ///
-    /// # Errors
-    ///
-    /// Refuses a run that traps, one too long for one proof, and more advice than the program's region holds.
-    #[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate = rate.log_inv_rate()))]
-    #[doc(hidden)]
-    pub fn prove(&self, advice: &[u64], rate: Rate) -> Result<(Proof, [u64; 4], Stats), ProveError> {
-        let exec = crate::stage!("Execute program", || self.execute(advice))?;
-        self.committed_size(exec.trace.row_counts())?;
-        let (proof, stats) = self.prove_execution(&exec, rate);
-        Ok((proof, exec.output, stats))
     }
 
     /// The statistics a proof of this run would report, from one execution and no proof.
@@ -215,7 +200,7 @@ impl Program {
         let base_counts = counter.row_counts();
         let counts = Plan::solve(base_counts).filled(base_counts);
         Ok(Stats {
-            cycles: counts.iter().sum(),
+            proven_rows: counts.values().sum(),
             counts,
             base_counts,
             committed: self.committed_size(counts)?,
@@ -223,15 +208,15 @@ impl Program {
     }
 
     /// Prove a finished run, which a test may have forged.
-    fn prove_execution(&self, exec: &Execution, rate: Rate) -> (Proof, Stats) {
+    pub(super) fn prove_execution(&self, exec: &Execution, rate: Rate) -> (Proof, Stats) {
         let w = crate::stage!("Build witness", || Witness::build(self, exec));
         let stats = Stats {
-            cycles: exec.cycles,
+            proven_rows: exec.proven_rows,
             counts: w.layout.taus.map(|t| 1usize << t),
             base_counts: exec.base_counts,
             committed: w.committed_size(),
         };
-        (self.prove_witness(w, &exec.output, rate), stats)
+        (self.prove_witness(w, Output::new(exec.output), rate), stats)
     }
 
     /// Prove a built witness, which a test may have forged.
@@ -239,15 +224,15 @@ impl Program {
     /// # Panics
     ///
     /// Panics if the witness's bus does not balance: an honest run's always does.
-    fn prove_witness(&self, w: Witness, output: &[u64; 4], rate: Rate) -> Proof {
+    fn prove_witness(&self, w: Witness, output: Output, rate: Rate) -> Proof {
         // The public statement, the program's digest and the output, seeds the transcript.
-        let mut ps = ProverState::new(self.fs_seed(), output.map(F64));
+        let mut ps = ProverState::new(self.fs_seed(), output.words().map(F64));
 
         // Announce the sizes, then commit, before any challenge.
         let log_inv_rate = rate.log_inv_rate().into();
         let announcement = Announcement {
             taus: w.layout.taus,
-            log_inv_rate,
+            rate,
             ts_final: w.ts_final,
         };
         announcement.write(&mut ps);
@@ -260,14 +245,22 @@ impl Program {
             let l = &w.layout;
             let cols = w.columns();
             let mut bus = crate::stage!("Prove bus", || {
-                leaf::prove_balance(&l.push, &l.pull, &l.producers, &cols, spans, &mut ps)
+                leaf::prove_balance(
+                    &l.push,
+                    &l.pull,
+                    &l.producers,
+                    l.grinding,
+                    &cols,
+                    spans.as_slice(),
+                    &mut ps,
+                )
             });
             // A settled table's columns at the bus point, short of its register numbers, which the batch folds.
-            let settled: Vec<Claims> = (ClassTable::all().iter().enumerate())
+            let settled: Vec<Claims> = (ClassTable::all().iter())
                 .filter(|(_, table)| table.settled_at_bus())
                 .map(|(t, table)| {
                     let registers = table.summed_columns();
-                    let evals = &bus.evals[t];
+                    let evals = &bus.evals[t.index()];
                     (evals.iter().enumerate())
                         .filter(|(c, _)| !registers.contains(c))
                         .for_each(|(_, &e)| ps.add_scalar(e));
@@ -288,7 +281,7 @@ impl Program {
                 sums.extend(producers.iter().map(|p| powers.push() * p.sigma));
 
                 // The tables' summed columns in the field they are committed in, then the producers' lifted columns.
-                let table_cols = (ClassTable::all().iter().zip(spans))
+                let table_cols = (ClassTable::all().values().zip(spans.values()))
                     .map(|(table, &(base, _))| {
                         Columns::K(table.summed_columns().iter().map(|&c| cols[base + c]).collect())
                     })
@@ -304,7 +297,7 @@ impl Program {
             &mut Native,
             bus_claims,
             &table_claims.columns,
-            &output.map(|o| F192::from(F64(o))),
+            &output.words().map(|o| F192::from(F64(o))),
         );
 
         // Flock's reductions, batched over every class circuit then every clock circuit under shared challenges.
@@ -313,7 +306,14 @@ impl Program {
         // Each producer's multiplicity column is a ring-switched region too.
         let reductions = w.reductions;
         let slices = crate::stage!("Flock reductions", || {
-            class_flock::prove_reductions(&reductions, &mut ps)
+            let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
+                .map(|(f, tables)| {
+                    let window = l.witness_window(f);
+                    let column = &w.q[window.offset..window.offset + (1 << window.n_vars)];
+                    f.instance(column, l.taus[f.table()], tables)
+                })
+                .collect();
+            reduction::prove(&instances, &mut ps)
         });
         drop(reductions);
         let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);
@@ -332,7 +332,7 @@ impl Program {
     /// The proof is not one of this program and this output.
     #[tracing::instrument(name = "Verify", skip_all)]
     pub fn verify(&self, output: Output, proof: &Proof) -> Result<(), VerifyError> {
-        let claims = self.verify_core(output.words(), proof)?;
+        let claims = self.verify_core(output, proof)?;
         Ok(self.check_deferred(&claims)?)
     }
 
@@ -343,7 +343,7 @@ impl Program {
     /// Returns the first stage that refuses the proof.
     #[tracing::instrument(name = "Verify", skip_all)]
     #[doc(hidden)]
-    pub fn verify_to_raw(&self, output: &[u64; 4], proof: &Proof) -> Result<RawProof, CpuError> {
+    pub fn verify_to_raw(&self, output: Output, proof: &Proof) -> Result<RawProof, CpuError> {
         let (claims, raw) = self.replay(output, proof)?;
         self.check_deferred(&claims)?;
         Ok(raw)
@@ -359,52 +359,22 @@ impl Program {
     ///
     /// Returns the first stage that refuses the proof.
     #[doc(hidden)]
-    pub fn verify_core(&self, output: &[u64; 4], proof: &Proof) -> Result<DeferredClaims, CpuError> {
+    pub fn verify_core(&self, output: Output, proof: &Proof) -> Result<DeferredClaims, CpuError> {
         self.replay(output, proof).map(|(claims, _)| claims)
     }
 
     /// The verifier's core, and the proof it replayed with its Merkle paths written out.
     #[tracing::instrument(name = "Verify core", skip_all)]
-    fn replay(&self, output: &[u64; 4], proof: &Proof) -> Result<(DeferredClaims, RawProof), CpuError> {
+    fn replay(&self, output: Output, proof: &Proof) -> Result<(DeferredClaims, RawProof), CpuError> {
         // The public statement seeds the transcript, as on the prover's side.
-        let mut vs = VerifierState::new(self.fs_seed(), &proof.0, output.map(F64));
+        let mut vs = VerifierState::new(self.fs_seed(), &proof.0, output.words().map(F64));
 
-        // The announced sizes, then the layout they describe, then the commitment.
+        // The announced sizes, then the layout they describe, then the core.
         let announcement = Announcement::read(&mut vs)?;
         let l = announcement.layout(&self.rv)?;
-        let root = pcs::read_commitment(&mut vs)?;
-
         let clock = F192::from(F64(announcement.ts_final));
-        let reduced = l.reduce_tables(&mut vs, clock, &output.map(|o| F192::from(F64(o))))?;
-
-        // Replay the batched flock reductions off the stream, to recover each circuit's validity claim on its packed witness.
-        //
-        // Each leaves its matrices' form to its circuit.
-        let n_blocks_log = std::array::from_fn(|f| l.taus[class_flock::flock(f).0]);
-        let (slices, circuit_claims): (Vec<_>, Vec<_>) = class_flock::verify_reductions(&n_blocks_log, &mut vs)
-            .map_err(CpuError::Reductions)?
-            .into_iter()
-            .map(|(replay, matrices)| (replay.claim, matrices.into()))
-            .unzip();
-
-        // The ring-switched regions: each packed witness, each producer's multiplicity column, each table's register numbers.
-        let rings = l.rings(slices, &reduced.producers, &reduced.tables, F192::ZERO);
-
-        // The one opening, then nothing may be left on the stream.
-        pcs::verify(
-            &mut vs,
-            &reduced.slots,
-            &rings,
-            l.shape,
-            announcement.log_inv_rate,
-            &root,
-        )
-        .map_err(CpuError::Open)?;
-        vs.finish()?;
-        let claims = DeferredClaims {
-            program: reduced.program,
-            circuits: circuit_claims,
-        };
+        let output = output.words().map(|o| F192::from(F64(o)));
+        let claims = l.verify_core(&mut vs, clock, &output, announcement.rate)?;
         Ok((claims, vs.into_raw_proof()))
     }
 
@@ -443,9 +413,9 @@ impl Program {
     /// # Errors
     ///
     /// Refuses a stack larger than one commitment.
-    fn committed_size(&self, row_counts: [usize; tables::N_TABLES]) -> Result<usize, ProveError> {
-        let taus = std::array::from_fn(|t| crate::log2_strict_usize(ClassSpec::ALL[t].provable_height(row_counts[t])));
-        let (placements, shape) = Sizes::of(&self.rv).stack(taus);
+    pub(super) fn committed_size(&self, row_counts: PerTable<usize>) -> Result<usize, ProveError> {
+        let taus = PerTable::from_fn(|t: TableId| crate::log2_strict_usize(t.spec().provable_height(row_counts[t])));
+        let (placements, shape) = Sizes::of(&self.rv).stack(&taus);
         if shape.mu > pcs::MAX_MU {
             return Err(ProveError::TooLong);
         }
@@ -477,21 +447,27 @@ impl Program {
     }
 }
 
-/// What a run costs: its cycles, its rows per table, and its committed witness size.
+/// What a run costs: its rows per table, and its committed witness size.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Stats {
     /// The rows proven, padding rows included.
-    pub cycles: usize,
+    pub proven_rows: usize,
     /// The rows per table as proven: each a power of two, the fill blocks having filled them.
-    pub counts: [usize; tables::N_TABLES],
+    pub counts: PerTable<usize>,
     /// The rows per table before that filling: the work the program itself does.
-    pub base_counts: [usize; tables::N_TABLES],
+    pub base_counts: PerTable<usize>,
     /// The committed witness size: the columns' total length, before the stack's zero pad.
     pub committed: usize,
 }
 
 impl Stats {
+    /// The cycles the run took: one row per instruction it executed, before any padding.
+    #[must_use]
+    pub fn cycles(&self) -> usize {
+        self.base_counts.values().sum()
+    }
+
     /// One line of per-table counts and shares, largest first, then the committed size.
     ///
     /// The counts are the program's own work: the proven counts are all powers of two, which say nothing of it.
@@ -499,17 +475,15 @@ impl Stats {
     /// Tables with no rows are left out.
     #[must_use]
     pub fn details(&self) -> String {
-        if self.cycles == 0 {
+        if self.proven_rows == 0 {
             return "-".to_string();
         }
 
         // Each table's share of the program's own rows, largest first.
-        let base_cycles: usize = self.base_counts.iter().sum();
-        let mut shares: Vec<(&str, usize)> = ClassSpec::ALL
-            .iter()
-            .zip(&self.base_counts)
+        let base_cycles = self.cycles();
+        let mut shares: Vec<(&str, usize)> = (self.base_counts.iter())
             .filter(|&(_, &c)| c > 0)
-            .map(|(spec, &c)| (spec.name, c))
+            .map(|(t, &c)| (t.name(), c))
             .collect();
         shares.sort_unstable_by_key(|&(_, c)| Reverse(c));
         let mut parts: Vec<String> = shares
@@ -537,8 +511,10 @@ mod tests {
     use crate::leaf::tests::unmatched_leaves;
     use crate::pcs::Rate;
     use crate::rv::asm::*;
-    use crate::rv::{Alu, Class, Machine, Outcome, ProgramError, Reg, RegisterFile, Trap};
+    use crate::rv::semantics::Outcome;
+    use crate::rv::{Alu, Class, Machine, ProgramError, Reg, RegisterFile, Trap};
     use crate::tables::{ClassSpec, ClassTable, Clock, Separator};
+    use std::panic::AssertUnwindSafe;
 
     #[test]
     fn construction_refuses_an_entry_or_a_size_out_of_range() {
@@ -581,12 +557,15 @@ mod tests {
     #[test]
     fn the_text_region_reserves_the_fill_blocks() {
         // The largest text that fits, after the illegal word, the fill blocks, and the two slots `rv` appends.
-        let limit = (1 << MAX_LOG_BYTECODE) - 1 - FillBlocks::WORDS - 2;
-        let program = |words: usize| Program::new(&vec![0; words], Region::TEXT.base(), vec![], 0, 0);
-        assert!(program(limit).is_ok());
+        //
+        // Building a program that large takes gigabytes, so the boundary is checked on lengths.
+        let limit = (1 << Region::TEXT.max_log_words()) - 1 - FillBlocks::WORDS - 2;
+        assert!(Program::text_fits(limit));
+        assert!(!Program::text_fits(limit + 1));
 
-        // One word more no longer fits.
-        assert!(matches!(program(limit + 1), Err(ProgramError::TextTooLarge)));
+        // A text one word too long is refused before anything is built.
+        let too_long = Program::new(&vec![0; limit + 1], Region::TEXT.base(), vec![], 0, 0);
+        assert!(matches!(too_long, Err(ProgramError::TextTooLarge)));
     }
 
     #[test]
@@ -661,8 +640,8 @@ mod tests {
     }
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.
-    fn assert_unbalanced(program: &Program, w: Witness, output: &[u64; 4]) {
-        let refused = std::panic::catch_unwind(|| program.prove_witness(w, output, Rate::MIN))
+    fn assert_unbalanced(program: &Program, w: Witness, output: Output) {
+        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| program.prove_witness(w, output, Rate::MIN)))
             .expect_err("an unbalanced bus was proven");
         let message = refused.downcast_ref::<String>().map(String::as_str).unwrap_or("");
         assert!(
@@ -676,11 +655,11 @@ mod tests {
     /// Both are closed walks of one row at clock zero, so the state channel does not see the swap.
     fn replace_lone_jump(program: &Program, exec: &mut Execution, row: Row) {
         let lone = program.filler.get(JUMP, 0).expect("ALU has a lone jump").index;
-        let at = exec.trace.rows[0]
+        let at = exec.trace.rows[TableId::ALU]
             .iter()
             .position(|r| r.index as usize == lone)
             .expect("the fill traverses the lone jump");
-        exec.trace.rows[0][at] = row;
+        exec.trace.rows[TableId::ALU][at] = row;
     }
 
     /// The padding row a jump to itself makes, `jal rd, 0` at entry `index`, at clock zero.
@@ -745,7 +724,7 @@ mod tests {
         let mut counter = RowCounter::new(&program.rv);
         assert_eq!(program.run(&mut m, &mut counter), Err(ProveError::TooLong));
         let counts = counter.row_counts();
-        let rows: usize = counts.iter().sum();
+        let rows: usize = counts.values().sum();
         assert!(rows < 1 << pcs::MAX_MU, "{rows} rows counted");
         assert_eq!(program.committed_size(counts), Err(ProveError::TooLong));
 
@@ -769,7 +748,7 @@ mod tests {
 
         // Mutation: the exit's row becomes the jump's, bypassing the interpreter's trap; it writes its link to the sink.
         let mut execution = honest_program.execute(&[]).unwrap();
-        let row = execution.trace.rows[0]
+        let row = execution.trace.rows[TableId::ALU]
             .iter_mut()
             .find(|r| r.index as usize == exit_index)
             .unwrap();
@@ -781,13 +760,13 @@ mod tests {
         // first block past its four framework blocks.
         assert_eq!(unmatched.len(), 2, "{unmatched:?}");
         assert!(unmatched.iter().all(|(_, block, _)| *block == 0 || *block == 4));
-        assert_unbalanced(&program, witness, &execution.output);
+        assert_unbalanced(&program, witness, execution.output.into());
     }
 
     /// The jump's column on the ALU's state push, `pc + 4` plus the jump: a port of its class circuit.
     fn jump_column() -> usize {
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
-        let push = ClassTable::all()[alu].flushes().push.swap_remove(0);
+        let alu = TableId::ALU;
+        let push = alu.class_table().flushes().push.swap_remove(0);
         let Coord::Sum(terms) = &push[1] else {
             panic!("pc + 4 plus the jump")
         };
@@ -812,9 +791,9 @@ mod tests {
         );
         column_mut(&mut w, jump_column())[row] = F64(value);
         assert!(unmatched(&w).is_empty());
-        let proof = program.prove_witness(w, &forged.output, Rate::MIN);
+        let proof = program.prove_witness(w, forged.output.into(), Rate::MIN);
         program
-            .verify_core(&forged.output, &proof)
+            .verify_core(forged.output.into(), &proof)
             .expect_err("a forged successor is refused")
     }
 
@@ -839,7 +818,7 @@ mod tests {
         //
         // Its push names `pc + 4`, which the exit's pull does not meet, until the bus's jump is forged to the offset.
         let mut forged = taken.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let alu = TableId::ALU;
         let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
         forged.trace.rows[alu][row].taken = false;
         let error = forged_jump(&program, &forged, row, program.rv.dt_of(0));
@@ -869,7 +848,7 @@ mod tests {
         //
         // Its push names `L`, which the exit's pull does not meet, until the bus's jump is forged to the exit's.
         let forged = skipping.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let alu = TableId::ALU;
         let jalr = (0..)
             .find(|&i| program.rv.entries()[i].flags == Alu::INDIRECT | Alu::ALWAYS)
             .unwrap();
@@ -888,7 +867,7 @@ mod tests {
         [(Sd, Ld, [Class::Sd, Class::Ld]), (Sw, Lw, [Class::Store, Class::Load])];
 
     /// `t1 = 5` stored in RAM's fifth word then loaded into `a0`, run honestly, and its store's and load's tables.
-    fn store_then_load(store: StoreOp, load: LoadOp, classes: [Class; 2]) -> (Program, Execution, [usize; 2]) {
+    fn store_then_load(store: StoreOp, load: LoadOp, classes: [Class; 2]) -> (Program, Execution, [TableId; 2]) {
         let text = Asm::new()
             .li(Reg::T0, Region::RAM.base() + 32)
             .i(Addi, Reg::T1, Reg::ZERO, 5)
@@ -899,7 +878,7 @@ mod tests {
         let program = Program::new(&text, Region::TEXT.base(), vec![], 3, 0).expect("valid instruction program");
         let run = program.execute(&[]).unwrap();
         assert_eq!(run.output, [5, 0, 0, 0]);
-        (program, run, classes.map(|c| ClassTable::index_of(c).unwrap()))
+        (program, run, classes.map(|c| TableId::of(c).unwrap()))
     }
 
     /// The first row of the run among `rows`, past the padding rows at clock zero.
@@ -943,7 +922,7 @@ mod tests {
 
         // Mutation: the row claims b_1 = 1, as if b were (9, 1, 0), and c and RAM follow it, so the identities hold.
         let mut forged = program.execute(&[]).unwrap();
-        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let ext = TableId::EXT;
         let at = forged.trace.rows[ext].iter().position(|r| r.ts != 0).unwrap();
         let x = &mut forged.trace.ext[at];
         x.instance.limbs[4] = 1;
@@ -986,13 +965,13 @@ mod tests {
         //     ext    reads b = (9, 1, 1), and c and RAM follow it
         //     ecall  reads 1 twice, and writes 1 + 1 to the sink
         let mut forged = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let alu = TableId::ALU;
         let write = forged.trace.rows[alu].iter_mut().find(|r| r.index == addi).unwrap();
         let ts = write.ts;
         (write.prev[2], write.vd_old) = (ts | 1, 0);
         let t3 = Reg::T3.index();
         (forged.trace.reg_fin[t3], forged.trace.reg_ts[t3]) = (F64::ZERO, F64(Clock::SEED_CLOCK));
-        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let ext = TableId::EXT;
         let at = forged.trace.rows[ext].iter().position(|r| r.ts != 0).unwrap();
         let x = &mut forged.trace.ext[at];
         (x.instance.limbs[4], x.instance.limbs[5]) = (1, 1);
@@ -1006,7 +985,7 @@ mod tests {
         forged.trace.reg_fin[0] = F64(1);
         forged.trace.reg_fin[RegisterFile::SINK as usize] = F64(2);
         let mut w = Witness::build(&program, &forged);
-        let bus = ClassTable::all()[alu].flushes();
+        let bus = alu.class_table().flushes();
         let Coord::Col(destination) = bus.pull[1][ClassTable::DESTINATION_SLOT] else {
             panic!("the ALU binds its destination to a column");
         };
@@ -1014,7 +993,7 @@ mod tests {
         // The destination is a register number: its column and its field of the packed word both name `x0`.
         virtual_mut(&mut w, Schema::get().spans[alu].0 + destination)[row] = F64::ZERO;
         // The ALU's fields come first in its word, so its destination's sits after the reads'.
-        let fields = ClassTable::all()[alu].register_bits().fields;
+        let fields = alu.class_table().register_bits().fields;
         let at = fields.iter().position(|f| f.col == destination).unwrap();
         let shift: usize = fields[..at].iter().map(|f| f.width).sum();
         let mask = (1 << fields[at].width) - 1;
@@ -1027,7 +1006,7 @@ mod tests {
         let (side, block, at) = unmatched[0];
         assert_eq!((side, at), ("pull", row));
         assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
-        assert_unbalanced(&program, w, &forged.output);
+        assert_unbalanced(&program, w, forged.output.into());
     }
 
     /// Extension-field products on packed elements: `x` at word 0, `y` at word 3, the base-field `w` at word 6, `c`
@@ -1065,8 +1044,8 @@ mod tests {
         let w = Witness::build(program, exec);
         let unmatched = unmatched(&w);
         assert!(unmatched.is_empty(), "the forged run balances: {unmatched:?}");
-        let proof = program.prove_witness(w, &exec.output, Rate::MIN);
-        program.verify_to_raw(&exec.output, &proof).map(drop)
+        let proof = program.prove_witness(w, exec.output.into(), Rate::MIN);
+        program.verify_to_raw(exec.output.into(), &proof).map(drop)
     }
 
     #[test]
@@ -1080,7 +1059,7 @@ mod tests {
 
         // Mutation: the last row's d forged in two limbs, and d's final words following it, so the bus balances.
         let mut forged = program.execute(&[]).unwrap();
-        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let ext = TableId::EXT;
         let at = forged.trace.rows[ext].iter().rposition(|r| r.ts != 0).unwrap();
         let x = &mut forged.trace.ext[at];
         for (k, bit) in [(0, 1), (2, 1 << 63)] {
@@ -1100,7 +1079,7 @@ mod tests {
         // Mutation: a padding row of EXT multiplies a = b = 1 and claims c' = 0, every access still pulling what it pushes.
         let program = extension_products();
         let mut forged = program.execute(&[]).unwrap();
-        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let ext = TableId::EXT;
         let at = forged.trace.rows[ext].iter().position(|r| r.ts == 0).unwrap();
         let x = &mut forged.trace.ext[at];
         (x.instance.limbs[0], x.instance.limbs[3]) = (1, 1);
@@ -1121,7 +1100,7 @@ mod tests {
         //     b_0 pushes (y_0 ^ 5, ts ^ 7) which the final word should pull, and pulls (y_0, ts ^ 7) instead
         let program = extension_products();
         let mut forged = program.execute(&[]).unwrap();
-        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let ext = TableId::EXT;
         let at = forged.trace.rows[ext].iter().rposition(|r| r.ts != 0).unwrap();
         let x = &mut forged.trace.ext[at];
         x.instance.limbs[3] ^= 5;
@@ -1132,7 +1111,7 @@ mod tests {
         let w = Witness::build(&program, &forged);
         let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 4, "{unmatched:?}");
-        assert_unbalanced(&program, w, &forged.output);
+        assert_unbalanced(&program, w, forged.output.into());
     }
 
     #[test]
@@ -1162,10 +1141,10 @@ mod tests {
         let mut forged = program.execute(&[ram]).unwrap();
         (forged.trace.adv_init[0], forged.trace.adv_fin[0]) = (F64(misaligned), F64(misaligned));
         forged.trace.reg_fin[Reg::T0.index()] = F64(misaligned);
-        let load = ClassTable::index_of(Class::Ld).unwrap();
+        let load = TableId::LD;
         let row = forged.trace.rows[load].iter_mut().find(|r| r.ts != 0).unwrap();
         (row.ram.old, row.ram.new, row.out) = (misaligned, misaligned, misaligned);
-        let ext = ClassTable::index_of(Class::Ext).unwrap();
+        let ext = TableId::EXT;
         let at = forged.trace.rows[ext].iter().position(|r| r.ts != 0).unwrap();
         forged.trace.rows[ext][at].v1 = misaligned;
         forged.trace.ext[at].instance.pointers[0] = misaligned;
@@ -1175,7 +1154,7 @@ mod tests {
         let w = Witness::build(&program, &forged);
         let unmatched = unmatched(&w);
         assert_eq!(unmatched.len(), 12, "{unmatched:?}");
-        assert_unbalanced(&program, w, &forged.output);
+        assert_unbalanced(&program, w, forged.output.into());
     }
 
     #[test]
@@ -1253,13 +1232,13 @@ mod tests {
                 Err(ProveError::Trap(Trap::Misaligned { address, .. })) if address == cell + 1
             ));
             let mut forged = program(0).execute(&[]).unwrap();
-            let row = real(&mut forged.trace.rows[ClassTable::index_of(class).unwrap()]);
+            let row = real(&mut forged.trace.rows[TableId::of(class).unwrap()]);
             row.ram.address = cell + 1;
             (forged.trace.ram_fin[4], forged.trace.ram_ts[4]) = (F64::ZERO, F64(Clock::SEED_CLOCK));
             let w = Witness::build(&misaligned, &forged);
             // The access's pull and push, at an address no cell has.
             assert_eq!(unmatched(&w).len(), 2, "{class:?}: {:?}", unmatched(&w));
-            assert_unbalanced(&misaligned, w, &forged.output);
+            assert_unbalanced(&misaligned, w, forged.output.into());
         }
     }
 
@@ -1285,7 +1264,7 @@ mod tests {
             .expect("the honest run verifies");
 
         let mut forged = program.execute(&[]).unwrap();
-        let row = &mut forged.trace.rows[0][3];
+        let row = &mut forged.trace.rows[TableId::ALU][3];
         // The read happens at cycle 4; the first write happened at cycle 1, the second at 2, each in slot 3.
         let write = |cycle: u64| Clock::SEED_CLOCK | (cycle * Clock::CYCLE) | 3;
         assert_eq!((row.v1, row.prev[0]), (9, write(2)));
@@ -1300,7 +1279,7 @@ mod tests {
                 .iter()
                 .all(|&(side, block, _)| side == "pull" || block < push)
         );
-        assert_unbalanced(&program, w, &forged.output);
+        assert_unbalanced(&program, w, forged.output.into());
     }
 
     /// A row can only read an instruction the program has: one claiming a branch offset
@@ -1312,11 +1291,11 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let alu = TableId::ALU;
         let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
         let mut w = Witness::build(&program, &exec);
         // Bytecode slot 9 binds the decoded branch target offset.
-        let bus = ClassTable::all()[alu].flushes();
+        let bus = alu.class_table().flushes();
         let Coord::Col(branch_offset) = bus.pull[1][9] else {
             panic!("the ALU binds its branch offset to a column");
         };
@@ -1329,7 +1308,7 @@ mod tests {
         let (side, block, at) = unmatched[0];
         assert_eq!((side, at), ("pull", row));
         assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
-        assert_unbalanced(&program, w, &exec.output);
+        assert_unbalanced(&program, w, exec.output.into());
     }
 
     /// The multiplicities are the producers' whole claim, so one that does not count the
@@ -1358,7 +1337,7 @@ mod tests {
                         .all(|&(side, block, row)| side == "pull" || (block, row) == (producer, 0)),
                     "{unmatched:?}"
                 );
-                assert_unbalanced(&program, w, &exec.output);
+                assert_unbalanced(&program, w, exec.output.into());
             }
         }
     }
@@ -1374,14 +1353,14 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let alu = TableId::ALU;
         let row = forged.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
         let addi = &mut forged.trace.rows[alu][row];
         assert_eq!(addi.prev[..2], [Clock::SEED_CLOCK, addi.ts]);
         addi.prev[1] = Clock::SEED_CLOCK;
         forged.trace.reg_ts[Reg::RA.index()] = F64(addi.ts);
         let mut w = Witness::build(&program, &forged);
-        let table = &ClassTable::all()[alu];
+        let table = alu.class_table();
         let a1 = Schema::get().spans[alu].0 + table.register_bits().fields[0].col;
         virtual_mut(&mut w, a1)[row] = F64(Reg::RA.index() as u64);
         column_mut(&mut w, Schema::get().registers[alu])[row].0 ^= Reg::RA.index() as u64;
@@ -1394,7 +1373,7 @@ mod tests {
         let (side, block, at) = unmatched[0];
         assert_eq!((side, at), ("pull", row));
         assert!(matches!(w.layout.pull[block].coords[0], Coord::Const(sep) if sep == Separator::Bytecode.value()));
-        assert_unbalanced(&program, w, &forged.output);
+        assert_unbalanced(&program, w, forged.output.into());
     }
 
     #[test]
@@ -1407,13 +1386,13 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 5).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let exec = program.execute(&[]).unwrap();
-        let alu = ClassTable::index_of(Class::Alu).unwrap();
+        let alu = TableId::ALU;
         let row = exec.trace.rows[alu].iter().position(|r| r.index == 0).unwrap();
         // The ALU opens its word, which the tables of its height share after it.
         let word = Witness::build(&program, &exec).layout.registers.swap_remove(0);
         assert_eq!(word.tables[0], alu);
         assert!(word.tables.len() > 1, "the tables of one height share the word");
-        let bits = |t: usize| ClassTable::all()[t].register_bits().n_slices();
+        let bits = |t: TableId| t.class_table().register_bits().n_slices();
         let used: usize = word.tables.iter().map(|&t| bits(t)).sum();
         for bit in [0, bits(alu), used, 63] {
             let mut w = Witness::build(&program, &exec);
@@ -1422,9 +1401,12 @@ mod tests {
                 unmatched(&w).is_empty(),
                 "the bus reads the register numbers, not the word"
             );
-            let proof = program.prove_witness(w, &exec.output, Rate::MIN);
+            let proof = program.prove_witness(w, exec.output.into(), Rate::MIN);
             assert!(
-                matches!(program.verify_to_raw(&exec.output, &proof), Err(CpuError::Open(_))),
+                matches!(
+                    program.verify_to_raw(exec.output.into(), &proof),
+                    Err(CpuError::Open(_))
+                ),
                 "bit {bit}"
             );
         }
@@ -1444,7 +1426,7 @@ mod tests {
             .finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let row = &mut forged.trace.rows[0][1];
+        let row = &mut forged.trace.rows[TableId::ALU][1];
         (row.v1, row.out, row.prev[0]) = (9, 9, row.ts);
         forged.output[0] = 9;
         forged.trace.reg_fin[Reg::A0.index()] = F64(9);
@@ -1510,7 +1492,7 @@ mod tests {
         let mut forged = program.execute(&[]).unwrap();
         let spin = text.len() - 1;
         let link = program.rv.pc_of(spin) + 4;
-        let read = &mut forged.trace.rows[0][1];
+        let read = &mut forged.trace.rows[TableId::ALU][1];
         let write = read.prev[0];
         (read.v1, read.out, read.prev[0]) = (link, link, 3);
         let mut row = padding_jump(&program, spin);
@@ -1535,7 +1517,10 @@ mod tests {
         let text = Asm::new().i(Addi, Reg::A0, Reg::ZERO, 42).exit().finish();
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let mut forged = program.execute(&[]).unwrap();
-        let exit = forged.trace.rows[0].iter_mut().find(|r| r.index == 2).unwrap();
+        let exit = forged.trace.rows[TableId::ALU]
+            .iter_mut()
+            .find(|r| r.index == 2)
+            .unwrap();
         (exit.prev[2], exit.vd_old) = (exit.ts | 3, exit.out);
         let sink = RegisterFile::SINK as usize;
         (forged.trace.reg_ts[sink], forged.trace.reg_fin[sink]) = (F64(Clock::SEED_CLOCK), F64::ZERO);

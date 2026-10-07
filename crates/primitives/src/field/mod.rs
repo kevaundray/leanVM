@@ -19,7 +19,13 @@ pub mod phi8_tower;
 
 pub use gf2_8::F8;
 pub use gf2_64::F64;
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+pub use gf2_64x3::aarch64::{F192x1, F192x1Unreduced};
+#[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+pub use gf2_64x3::x86_64::{F192x1, F192x1Unreduced};
 pub use gf2_64x3::{F192, F192Unreduced, Weights8, dot_base, mul_base8, mul_unreduced4, mul2, mul4};
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+pub use gf2_64x3::{F192x4, F192x4Unreduced, MixedSums8};
 pub use phi8_tower::{PHI_8_TABLE_192, phi8_192};
 
 /// `[x^0, x^1, …, x^{n-1}]`: the weights of a random linear combination batched
