@@ -164,17 +164,33 @@ impl Lanes32 for Scalar8 {
     }
 }
 
-/// Interleave the four independent G functions, keeping message loads off the later `b` dependency.
+/// On aarch64, interleave independent G functions and keep message loads off the later `b` dependency.
 macro_rules! g4 {
     ($(($v:ident, $m:ident, $a:expr, $b:expr, $c:expr, $d:expr, $x:expr, $y:expr)),*) => {{
-        $( $v[$a] = $v[$a].add($m[$x]).add($v[$b]); )*
-        $( $v[$d] = $v[$d].xor($v[$a]).rotr::<16>(); )*
-        $( $v[$c] = $v[$c].add($v[$d]); )*
-        $( $v[$b] = $v[$b].xor($v[$c]).rotr::<12>(); )*
-        $( $v[$a] = $v[$a].add($m[$y]).add($v[$b]); )*
-        $( $v[$d] = $v[$d].xor($v[$a]).rotr::<8>(); )*
-        $( $v[$c] = $v[$c].add($v[$d]); )*
-        $( $v[$b] = $v[$b].xor($v[$c]).rotr::<7>(); )*
+        #[cfg(target_arch = "aarch64")]
+        {
+            $( $v[$a] = $v[$a].add($m[$x]).add($v[$b]); )*
+            $( $v[$d] = $v[$d].xor($v[$a]).rotr::<16>(); )*
+            $( $v[$c] = $v[$c].add($v[$d]); )*
+            $( $v[$b] = $v[$b].xor($v[$c]).rotr::<12>(); )*
+            $( $v[$a] = $v[$a].add($m[$y]).add($v[$b]); )*
+            $( $v[$d] = $v[$d].xor($v[$a]).rotr::<8>(); )*
+            $( $v[$c] = $v[$c].add($v[$d]); )*
+            $( $v[$b] = $v[$b].xor($v[$c]).rotr::<7>(); )*
+        }
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            $(
+                $v[$a] = $v[$a].add($v[$b]).add($m[$x]);
+                $v[$d] = $v[$d].xor($v[$a]).rotr::<16>();
+                $v[$c] = $v[$c].add($v[$d]);
+                $v[$b] = $v[$b].xor($v[$c]).rotr::<12>();
+                $v[$a] = $v[$a].add($v[$b]).add($m[$y]);
+                $v[$d] = $v[$d].xor($v[$a]).rotr::<8>();
+                $v[$c] = $v[$c].add($v[$d]);
+                $v[$b] = $v[$b].xor($v[$c]).rotr::<7>();
+            )*
+        }
     }};
 }
 
