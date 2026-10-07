@@ -50,10 +50,9 @@ def U64.Insts.Leanvm_guestPlainPlain.SIZE : Result Std.Usize := ok 8#usize
 def Array.Insts.Leanvm_guestPlainPlain.byte {T : Type} {N : Std.Usize}
     (PlainInst : leanvm_guest.plain.Plain T) (a : Std.Array T N) (i : Std.Usize) : Result Std.U8 := do
   let size ← PlainInst.SIZE
-  let k ← i / size
-  let x ← Std.Array.index_usize a k
-  let j ← i % size
-  PlainInst.byte x j
+  match a.val[i.val / size.val]? with
+  | some x => PlainInst.byte x ⟨BitVec.ofNat _ (i.val % size.val)⟩
+  | none => fail .arrayOutOfBounds
 
 @[rust_const "leanvm_guest::plain::{leanvm_guest::plain::Plain<[@T; @N]>}::ALIGN"]
 def Array.Insts.Leanvm_guestPlainPlain.ALIGN {T : Type} (_N : Std.Usize)
@@ -64,7 +63,7 @@ def Array.Insts.Leanvm_guestPlainPlain.ALIGN {T : Type} (_N : Std.Usize)
 def Array.Insts.Leanvm_guestPlainPlain.SIZE {T : Type} (N : Std.Usize)
     (PlainInst : leanvm_guest.plain.Plain T) : Result Std.Usize := do
   let size ← PlainInst.SIZE
-  N * size
+  ok ⟨BitVec.ofNat _ (N.val * size.val)⟩
 
 /-! ## `Template` -/
 
@@ -129,11 +128,13 @@ class leanvm_guest.HashWithClosure (R : Type) (O : outParam Type) where
   /-- What `hash_with` returns, from the digest. -/
   output : R → Std.Array Std.U64 4#usize → O
 
-instance : leanvm_guest.HashWithClosure leanvm_guest.Stream (Std.Array Std.U64 4#usize) where
+instance leanvm_guest.HashWithClosure.ofStream :
+    leanvm_guest.HashWithClosure leanvm_guest.Stream (Std.Array Std.U64 4#usize) where
   stream s := s
   output _ d := d
 
-instance {C : Type} : leanvm_guest.HashWithClosure (C × leanvm_guest.Stream) (Std.Array Std.U64 4#usize × C) where
+instance leanvm_guest.HashWithClosure.ofPair {C : Type} :
+    leanvm_guest.HashWithClosure (C × leanvm_guest.Stream) (Std.Array Std.U64 4#usize × C) where
   stream r := r.2
   output r d := (d, r.1)
 
