@@ -7,14 +7,15 @@
 //!
 //! A circuit of fewer variables waits on the rest in each phase, as the dense reduction's smaller polynomials do.
 
-use super::{FoldTable, ReduceError, products};
+use super::{FoldTable, Msg, ReduceError, ZERO, xor};
 use crate::class_flock::{FlockId, N_FLOCKS};
 use crate::rec::tree::claims::{Coefficient, ColWeight, MatrixClaim, RowWeight};
 use fiat_shamir::arith::{Arith, Verifier};
 use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
 use flock::lincheck::{LincheckCircuit, build_quirky_eq_table};
 use flock::zerocheck::{K_SKIP, SkipDomain};
-use primitives::field::F192;
+use parallel::Chunks;
+use primitives::field::{F192, F192Unreduced};
 use primitives::multilinear::eq_table;
 
 /// What the matrix reduction leaves: the row and column points, and each circuit's `A` and `B` at its prefixes of them.
@@ -31,12 +32,16 @@ pub(crate) struct MatrixReduced<E> {
 pub(crate) struct MatrixProver {
     /// Each claim's tables.
     claims: Vec<RowTables>,
+    /// The next round's message.
+    message: [F192; 2],
 }
 
 /// The matrix reduction's prover, in its column phase: per circuit, `A(r, .)`, `Theta_A`, `B(r, .)` and `Theta_B`.
 pub(crate) struct ColumnPhase {
     /// Each circuit's four tables.
     circuits: Vec<[FoldTable; 4]>,
+    /// The next round's message.
+    message: [F192; 2],
 }
 
 /// One claim's tables in the row phase.
@@ -224,7 +229,7 @@ impl MatrixProver {
         let mut rows = Self::new(claims, theta);
         let r: Vec<F192> = (0..FlockId::MAX_K_LOG)
             .map(|i| {
-                ps.add_scalars(&rows.round(i));
+                ps.add_scalars(&rows.message());
                 let x = ps.sample();
                 rows.bind(i, x);
                 x
@@ -232,7 +237,7 @@ impl MatrixProver {
             .collect();
         let mut cols = rows.columns(claims, &r);
         for i in 0..FlockId::MAX_K_LOG {
-            ps.add_scalars(&cols.round(i));
+            ps.add_scalars(&cols.message());
             let x = ps.sample();
             cols.bind(i, x);
         }
@@ -244,7 +249,7 @@ impl MatrixProver {
         let powers: Vec<F192> = std::iter::successors(Some(F192::ONE), |&p| Some(p * theta))
             .take(claims.len())
             .collect();
-        let claims = parallel::map_collect(claims.len(), |i| {
+        let mut claims = parallel::map_collect(claims.len(), |i| {
             let c = &claims[i];
             let u: Vec<F192> = c.row.table().into_iter().map(|x| powers[i] * x).collect();
             let (ra, rb) = c.circuit.circuit().row_values(&c.col.table());
@@ -256,40 +261,32 @@ impl MatrixProver {
                 g: FoldTable::new(g),
             }
         });
-        Self { claims }
+        let message = each_mut(
+            &mut claims,
+            |_, t| if t.k > 0 { FoldTable::message(&t.u, &t.g) } else { ZERO },
+        );
+        Self { claims, message }
     }
 
-    /// Row round `i`'s message: `h(0)` and the leading coefficient.
-    pub(crate) fn round(&self, i: usize) -> [F192; 2] {
-        let add = |[a, b]: [F192; 2], [c, d]: [F192; 2]| [a + c, b + d];
-        parallel::map_reduce(
-            self.claims.len(),
-            || [F192::ZERO; 2],
-            |c| {
-                let t = &self.claims[c];
-                if t.k > i {
-                    products(&t.u.values, &t.g.values)
-                } else {
-                    [F192::ZERO; 2]
-                }
-            },
-            add,
-        )
+    /// The next row round's message: `h(0)` and the leading coefficient.
+    pub(crate) const fn message(&self) -> [F192; 2] {
+        self.message
     }
 
-    /// Bind row round `i`'s variable to `x`.
+    /// Bind row round `i`'s variable to `x`, and build the next round's message from the folded pairs.
     pub(crate) fn bind(&mut self, i: usize, x: F192) {
-        parallel::for_each_mut(&mut self.claims, |_, t| {
+        self.message = each_mut(&mut self.claims, |_, t| {
             if t.k > i {
-                t.u.fold(x, false);
-                t.g.fold(x, false);
+                FoldTable::fold_pair(&mut t.u, &mut t.g, x)
+            } else {
+                ZERO
             }
         });
     }
 
     /// The column phase at the row point `r`: per circuit, two backward walks for `A(r, .)` and `B(r, .)`, and the claims' column weights.
     pub(crate) fn columns(&self, claims: &[MatrixClaim<F192>], r: &[F192]) -> ColumnPhase {
-        let circuits = parallel::map_collect(N_FLOCKS, |f| {
+        let mut circuits = parallel::map_collect(N_FLOCKS, |f| {
             let f = FlockId::ALL[f];
             let k = f.k_log();
             let circuit = f.circuit();
@@ -310,33 +307,40 @@ impl MatrixProver {
             }
             [at, wa, bt, wb].map(FoldTable::new)
         });
-        ColumnPhase { circuits }
+        let message = each_mut(&mut circuits, |f, [at, wa, bt, wb]| {
+            if FlockId::ALL[f].k_log() > 0 {
+                xor(FoldTable::message(wa, at), FoldTable::message(wb, bt))
+            } else {
+                ZERO
+            }
+        });
+        ColumnPhase { circuits, message }
     }
 }
 
+/// The sum of `f(i, item)` over the items, each on a task of the pool, reduced.
+fn each_mut<T: Send>(items: &mut [T], f: impl Fn(usize, &mut T) -> Msg + Sync) -> [F192; 2] {
+    let chunks = Chunks::new(items, 1);
+    let task = |i: usize| {
+        // SAFETY: each item is taken once, and the items outlive the dispatch.
+        f(i, &mut unsafe { chunks.get(i) }[0])
+    };
+    parallel::map_reduce(chunks.count(), || ZERO, task, xor).map(F192Unreduced::reduce)
+}
+
 impl ColumnPhase {
-    /// Column round `i`'s message.
-    pub(crate) fn round(&self, i: usize) -> [F192; 2] {
-        let add = |[a, b]: [F192; 2], [c, d]: [F192; 2]| [a + c, b + d];
-        parallel::map_reduce(
-            self.circuits.len(),
-            || [F192::ZERO; 2],
-            |f| {
-                if FlockId::ALL[f].k_log() <= i {
-                    return [F192::ZERO; 2];
-                }
-                let [at, wa, bt, wb] = &self.circuits[f];
-                add(products(&wa.values, &at.values), products(&wb.values, &bt.values))
-            },
-            add,
-        )
+    /// The next column round's message.
+    pub(crate) const fn message(&self) -> [F192; 2] {
+        self.message
     }
 
-    /// Bind column round `i`'s variable to `x`.
+    /// Bind column round `i`'s variable to `x`, and build the next round's message from the folded pairs.
     pub(crate) fn bind(&mut self, i: usize, x: F192) {
-        parallel::for_each_mut(&mut self.circuits, |f, tables| {
+        self.message = each_mut(&mut self.circuits, |f, [at, wa, bt, wb]| {
             if FlockId::ALL[f].k_log() > i {
-                tables.iter_mut().for_each(|t| t.fold(x, false));
+                xor(FoldTable::fold_pair(wa, at, x), FoldTable::fold_pair(wb, bt, x))
+            } else {
+                ZERO
             }
         });
     }

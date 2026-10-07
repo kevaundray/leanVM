@@ -293,14 +293,15 @@ pub(crate) fn bit_round_pair(
     r_eq: &[F192],
     padding: &PaddingSpec,
 ) -> RoundPair {
-    match fold.n_chunks() {
+    let sums = match fold.n_chunks() {
         8 => bit_round_pair_kernel::<8>(bits, fold, r_eq, padding),
         16 => bit_round_pair_kernel::<16>(bits, fold, r_eq, padding),
         32 => bit_round_pair_kernel::<32>(bits, fold, r_eq, padding),
         64 => bit_round_pair_kernel::<64>(bits, fold, r_eq, padding),
         128 => bit_round_pair_kernel::<128>(bits, fold, r_eq, padding),
         n => panic!("no bit-round kernel for {n}-byte rows"),
-    }
+    };
+    RoundPair::from_sums(sums, r_eq[0])
 }
 
 /// One round straight from the packed bits, storing the folded `(a, b, c)` tables for the rounds that follow.
@@ -312,17 +313,22 @@ pub(crate) fn bit_round_materialize(
     r_eq: &[F192],
     padding: &PaddingSpec,
 ) -> ((F192, F192), [Vec<F192>; 3]) {
-    match fold.n_chunks() {
-        8 => bit_round_store_kernel::<8>(bits, fold, r_eq, padding),
-        16 => bit_round_store_kernel::<16>(bits, fold, r_eq, padding),
-        32 => bit_round_store_kernel::<32>(bits, fold, r_eq, padding),
-        64 => bit_round_store_kernel::<64>(bits, fold, r_eq, padding),
-        128 => bit_round_store_kernel::<128>(bits, fold, r_eq, padding),
+    let n_pos = bits.a.len() / fold.n_chunks();
+    let mut out: [Box<[MaybeUninit<F192>]>; 3] = std::array::from_fn(|_| Box::new_uninit_slice(n_pos));
+    let outs = out.each_mut().map(|o| &mut o[..]);
+    let message = match fold.n_chunks() {
+        8 => bit_round_store_kernel::<8>(bits, fold, r_eq, padding, outs),
+        16 => bit_round_store_kernel::<16>(bits, fold, r_eq, padding, outs),
+        32 => bit_round_store_kernel::<32>(bits, fold, r_eq, padding, outs),
+        64 => bit_round_store_kernel::<64>(bits, fold, r_eq, padding, outs),
+        128 => bit_round_store_kernel::<128>(bits, fold, r_eq, padding, outs),
         n => panic!("no bit-round kernel for {n}-byte rows"),
-    }
+    };
+    // SAFETY: the kernel writes every slot, padding and tail included.
+    (message, out.map(|o| unsafe { o.assume_init() }.into_vec()))
 }
 
-/// The two-round pass, for rows of `CHUNKS` bytes.
+/// The two-round pass, for rows of `CHUNKS` bytes: the eight sums [`RoundPair::from_sums`] reads.
 ///
 /// Positions group in quads `4k + u + 2v`: `u` is round `t`'s variable and `v` round `t + 1`'s.
 ///
@@ -348,14 +354,14 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
     fold: &BitFold,
     r_eq: &[F192],
     padding: &PaddingSpec,
-) -> RoundPair {
+) -> [F192; 8] {
     let rows = bits.rows::<CHUNKS>();
     let n_quads = rows[0].len() / 4;
     assert!(n_quads >= 1, "two rounds need four positions");
     assert_eq!(r_eq.len(), n_quads.trailing_zeros() as usize + 1);
 
     // `r_eq[0]` weights round `t`'s split by `v`; the rest weight the quads.
-    let (r_v, r_quad) = (r_eq[0], &r_eq[1..]);
+    let r_quad = &r_eq[1..];
     let SplitEq {
         low: eq_lo,
         high: eq_hi,
@@ -366,7 +372,11 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
     // A quad covers 2^6 skip bits times its 4 * 2^t bound rows.
     let quad_log = (32 * CHUNKS).trailing_zeros() as usize;
     let (quad_in_block_mask, live_quads) = padding_pairs(padding, quad_log - 1);
-    let live = |quad: usize| (quad & quad_in_block_mask) < live_quads;
+    // The quads before the tail, in whole folded blocks of sixteen.
+    let m = quad_log + n_quads.trailing_zeros() as usize;
+    let tail = padding.tail(m, quad_log, quad_log + 4, r_eq);
+    let head_quads = tail.map_or(n_quads, |t| t.head >> quad_log);
+    let live = |quad: usize| quad < head_quads && (quad & quad_in_block_mask) < live_quads;
 
     #[cfg(all(
         target_arch = "x86_64",
@@ -378,8 +388,8 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
     ))]
     let eq_planes = (lo_size >= BLOCK / 4).then(|| planar::planes(&eq_lo));
 
-    let sums = parallel::map_reduce(
-        eq_hi.len(),
+    let mut sums = parallel::map_reduce(
+        head_quads.div_ceil(lo_size),
         || [F192::ZERO; 8],
         |hi| {
             #[cfg(all(
@@ -401,7 +411,7 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
             for lo_first in (0..lo_size).step_by(BLOCK / 4) {
                 let n = (lo_size - lo_first).min(BLOCK / 4);
                 let quad_first = hi * lo_size + lo_first;
-                // A block wholly in padding folds to zero.
+                // A block wholly in padding folds to zero, and the tail is summed apart.
                 if !(quad_first..quad_first + n).any(live) {
                     continue;
                 }
@@ -425,18 +435,31 @@ fn bit_round_pair_kernel<const CHUNKS: usize>(
         |x, y| std::array::from_fn(|i| x[i] + y[i]),
     );
 
-    RoundPair::from_sums(sums, r_v)
+    if let Some(tail) = tail {
+        let group = PackedWitness {
+            a: tail.group(bits.a),
+            b: tail.group(bits.b),
+        };
+        let group_sums = bit_round_pair_kernel::<CHUNKS>(group, fold, &r_eq[..tail.r_inner], &padding.without_tail());
+        for (s, g) in sums.iter_mut().zip(group_sums) {
+            *s += tail.weight * g;
+        }
+    }
+    sums
 }
 
-/// The storing single-round pass, for rows of `CHUNKS` bytes.
+/// The storing single-round pass, for rows of `CHUNKS` bytes, writing the folded tables to `outs`.
 ///
 /// Positions pair up as `(2k, 2k + 1)`, the low index bit being the variable this round binds.
+///
+/// The identical tail's tables are copies of its last group's.
 fn bit_round_store_kernel<const CHUNKS: usize>(
     bits: PackedWitness<'_>,
     fold: &BitFold,
     r_eq: &[F192],
     padding: &PaddingSpec,
-) -> ((F192, F192), [Vec<F192>; 3]) {
+    mut outs: [&mut [MaybeUninit<F192>]; 3],
+) -> (F192, F192) {
     let rows = bits.rows::<CHUNKS>();
     let n_pos = rows[0].len();
     assert!(n_pos >= 2, "a round needs two positions");
@@ -453,13 +476,16 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
     let position_log = (8 * CHUNKS).trailing_zeros() as usize;
     let (pair_in_block_mask, live_pairs) = padding_pairs(padding, position_log);
     let live = |pair: usize| (pair & pair_in_block_mask) < live_pairs;
+    // The pairs before the tail, in whole folded blocks of thirty-two.
+    let m = position_log + n_pos.trailing_zeros() as usize;
+    let tail = padding.tail(m, position_log + 1, position_log + 6, r_eq);
+    let head_pairs = tail.map_or(n_pos / 2, |t| t.head >> (position_log + 1));
 
-    let mut out: [Box<[MaybeUninit<F192>]>; 3] = std::array::from_fn(|_| Box::new_uninit_slice(n_pos));
-    let [out_a, out_b, out_c] = &mut out;
-    let chunks = [out_a, out_b, out_c].map(|o| Chunks::new(o, 2 * lo_size));
+    assert!(outs.iter().all(|o| o.len() == n_pos), "one output per position");
+    let chunks = outs.each_mut().map(|o| Chunks::new(o, 2 * lo_size));
 
-    let message = parallel::map_reduce(
-        eq_hi.len(),
+    let mut message = parallel::map_reduce(
+        head_pairs.div_ceil(lo_size),
         || (F192::ZERO, F192::ZERO),
         |hi| {
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
@@ -472,6 +498,10 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
             for lo_first in (0..lo_size).step_by(BLOCK / 2) {
                 let n = (lo_size - lo_first).min(BLOCK / 2);
                 let pair_first = hi * lo_size + lo_first;
+                // The tail is copied after the dispatch.
+                if pair_first >= head_pairs {
+                    break;
+                }
                 let (o_first, o_len) = (2 * lo_first, 2 * n);
                 // A block wholly in padding folds to zero.
                 if !(pair_first..pair_first + n).any(live) {
@@ -538,8 +568,25 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
         },
         |(s1, si), (t1, ti)| (s1 + t1, si + ti),
     );
-    // SAFETY: task `hi` wrote every block of its chunks, padding included, and the chunks tile each table.
-    (message, out.map(|o| unsafe { o.assume_init() }.into_vec()))
+    if let Some(tail) = tail {
+        // The last group is stored in place, then copied over the rest of the tail.
+        let group_len = 1 << (tail.group_log - position_log);
+        let group = PackedWitness {
+            a: tail.group(bits.a),
+            b: tail.group(bits.b),
+        };
+        let (g1, g_inf) = bit_round_store_kernel::<CHUNKS>(
+            group,
+            fold,
+            &r_eq[..tail.r_inner],
+            &padding.without_tail(),
+            outs.each_mut().map(|o| &mut o[n_pos - group_len..]),
+        );
+        message.0 += tail.weight * g1;
+        message.1 += tail.weight * g_inf;
+        copy_group(outs, 2 * head_pairs, group_len);
+    }
+    message
 }
 
 /// Rounds `t` and `t + 1` from the stored tables, folding the challenges still pending on them first.
@@ -548,6 +595,7 @@ fn bit_round_store_kernel<const CHUNKS: usize>(
 /// - `rhos` are those variables' challenges, lowest first; each output folds `2^rhos.len()` inputs.
 /// - `outs` receive the level-`t` tables, `ins.len() >> rhos.len()` values each, every slot written.
 /// - `r_eq` are the eq challenges of the variables round `t` does not bind.
+/// - `padding` is the witness's, and each output covers `2^out_log` of its bits.
 ///
 /// ```text
 ///     two pending:  read level t - 2 (n)  ->  write level t (n / 4)  +  rounds t, t + 1
@@ -560,21 +608,28 @@ pub(crate) fn fold_and_round_pair_into(
     outs: [&mut [MaybeUninit<F192>]; 3],
     rhos: &[F192],
     r_eq: &[F192],
+    padding: &PaddingSpec,
+    out_log: usize,
 ) -> RoundPair {
-    match *rhos {
-        [rho] => fold_and_round_pair_kernel::<1>(ins, outs, [rho, F192::ZERO], r_eq),
-        [rho_0, rho_1] => fold_and_round_pair_kernel::<2>(ins, outs, [rho_0, rho_1], r_eq),
+    let sums = match *rhos {
+        [rho] => fold_and_round_pair_kernel::<1>(ins, outs, [rho, F192::ZERO], r_eq, padding, out_log),
+        [rho_0, rho_1] => fold_and_round_pair_kernel::<2>(ins, outs, [rho_0, rho_1], r_eq, padding, out_log),
         _ => panic!("one or two pending challenges"),
-    }
+    };
+    RoundPair::from_sums(sums, r_eq[0])
 }
 
-/// The paired pass for `K` pending challenges, `rhos[..K]`.
+/// The paired pass for `K` pending challenges, `rhos[..K]`: the eight sums [`RoundPair::from_sums`] reads.
+///
+/// The identical tail's outputs are copies of its last group's.
 fn fold_and_round_pair_kernel<const K: usize>(
     ins: [&[F192]; 3],
-    outs: [&mut [MaybeUninit<F192>]; 3],
+    mut outs: [&mut [MaybeUninit<F192>]; 3],
     rhos: [F192; 2],
     r_eq: &[F192],
-) -> RoundPair {
+    padding: &PaddingSpec,
+    out_log: usize,
+) -> [F192; 8] {
     let n_out = ins[0].len() >> K;
     assert!(ins.iter().all(|t| t.len() == n_out << K), "a, b, c have one length");
     assert!(
@@ -588,7 +643,7 @@ fn fold_and_round_pair_kernel<const K: usize>(
     // `r_eq[0]` weighs round `t`'s split by `v`; the rest weigh the quads.
     //
     // Up to 2^7 high eq indices, one task each: enough tasks for every worker at every table size.
-    let (r_v, r_quad) = (r_eq[0], &r_eq[1..]);
+    let r_quad = &r_eq[1..];
     let SplitEq {
         low: eq_lo,
         high: eq_hi,
@@ -596,10 +651,15 @@ fn fold_and_round_pair_kernel<const K: usize>(
     } = SplitEq::with_high_vars(r_quad, EQ_HIGH_VARS);
     let lo_size = eq_lo.len();
 
+    // The quads before the tail, in the pairs the outputs are published in.
+    let quad_log = out_log + 2;
+    let m = quad_log + n_quads.trailing_zeros() as usize;
+    let tail = padding.tail(m, quad_log, quad_log + 1, r_eq);
+    let head_quads = tail.map_or(n_quads, |t| t.head >> quad_log);
+
     // One task per high eq index: `lo_size` quads, `4 * lo_size` outputs of each table.
     let (chunk_in, chunk_out) = ((4 * lo_size) << K, 4 * lo_size);
-    let [out_a, out_b, out_c] = outs;
-    let chunks = [out_a, out_b, out_c].map(|o| Chunks::new(o, chunk_out));
+    let chunks = outs.each_mut().map(|o| Chunks::new(o, chunk_out));
     let rho = |j: usize| (rhos[j], rhos[j], rhos[j], rhos[j]);
 
     // Four outputs of one table, each folded from its `2^K` inputs.
@@ -638,8 +698,8 @@ fn fold_and_round_pair_kernel<const K: usize>(
         [lo[0] + f.0, lo[1] + f.1, lo[2] + f.2, lo[3] + f.3]
     };
 
-    let sums = parallel::map_reduce(
-        eq_hi.len(),
+    let mut sums = parallel::map_reduce(
+        head_quads.div_ceil(lo_size),
         || [F192::ZERO; 8],
         |hi| {
             // SAFETY: task `hi` takes chunk `hi` of each output once, and the buffers outlive the dispatch.
@@ -649,7 +709,8 @@ fn fold_and_round_pair_kernel<const K: usize>(
             let mut acc = [F192Unreduced::ZERO; 8];
             // Two quads of a table are eight outputs, three whole cache lines, published at once.
             let mut staged = [[F192::ZERO; 8]; 3];
-            for q in 0..lo_size {
+            let n_q = lo_size.min(head_quads - hi * lo_size);
+            for q in 0..n_q {
                 let [a, b, c] = ins.map(|t| fold_quad(&t[(4 * q) << K..(4 * (q + 1)) << K]));
                 let [lo, hi] = quad_pair_terms(a, b, c);
 
@@ -671,7 +732,7 @@ fn fold_and_round_pair_kernel<const K: usize>(
                     for (out, stage) in outs.iter_mut().zip(&staged) {
                         stream.write(&mut out[4 * (q - 1)..4 * (q + 1)], stage);
                     }
-                } else if q + 1 == lo_size {
+                } else if q + 1 == n_q {
                     for (out, stage) in outs.iter_mut().zip(&staged) {
                         out[4 * q..4 * q + 4].write_copy_of_slice(&stage[..4]);
                     }
@@ -681,7 +742,41 @@ fn fold_and_round_pair_kernel<const K: usize>(
         },
         |x, y| std::array::from_fn(|i| x[i] + y[i]),
     );
-    RoundPair::from_sums(sums, r_v)
+
+    if let Some(tail) = tail {
+        // The last group is folded in place, then copied over the rest of the tail.
+        let group_len = 1 << (tail.group_log - out_log);
+        let group_ins = ins.map(|t| &t[t.len() - (group_len << K)..]);
+        let group_sums = fold_and_round_pair_kernel::<K>(
+            group_ins,
+            outs.each_mut().map(|o| &mut o[n_out - group_len..]),
+            rhos,
+            &r_eq[..tail.r_inner],
+            &padding.without_tail(),
+            out_log,
+        );
+        for (s, g) in sums.iter_mut().zip(group_sums) {
+            *s += tail.weight * g;
+        }
+        copy_group(outs, head_quads * 4, group_len);
+    }
+    sums
+}
+
+/// Copy each table's last `group_len` values over its values from `head` on.
+fn copy_group(tables: [&mut [MaybeUninit<F192>]; 3], head: usize, group_len: usize) {
+    // Whole groups per copy task, about 2^12 values.
+    let task = group_len.max(1 << 12);
+    for t in tables {
+        let tail = &mut t[head..];
+        let (body, group) = tail.split_at_mut(tail.len() - group_len);
+        let group = &*group;
+        parallel::chunks_mut(body, task, |_, dst| {
+            for d in dst.chunks_exact_mut(group_len) {
+                d.copy_from_slice(group);
+            }
+        });
+    }
 }
 
 /// In-place fold of a single multilinear polynomial table at `challenge`.
@@ -902,7 +997,14 @@ mod tests {
                 let mut outs: [Box<[MaybeUninit<F192>]>; 3] =
                     std::array::from_fn(|_| Box::new_uninit_slice(1 << log_out));
                 let ins = [&tables[0][..], &tables[1][..], &tables[2][..]];
-                let pair = fold_and_round_pair_into(ins, outs.each_mut().map(|o| &mut o[..]), &rhos, &r_eq);
+                let pair = fold_and_round_pair_into(
+                    ins,
+                    outs.each_mut().map(|o| &mut o[..]),
+                    &rhos,
+                    &r_eq,
+                    &PaddingSpec::dense(log_out),
+                    0,
+                );
                 // SAFETY: the pass writes every slot of its outputs.
                 let outs = outs.map(|o| unsafe { o.assume_init() }.into_vec());
                 assert_eq!(outs, [level_a, level_b, level_c], "tables, k={k}, log_out={log_out}");
@@ -1086,6 +1188,7 @@ mod tests {
             let padding = PaddingSpec {
                 k_log,
                 useful_bits_per_block: useful,
+                live_blocks: usize::MAX,
             };
             let lagrange = skip_lagrange_weights(K_SKIP, rng.ext());
             let r_rest = rng.ext_vec(m - K_SKIP);

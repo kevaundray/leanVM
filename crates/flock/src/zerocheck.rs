@@ -75,19 +75,100 @@ fn equality_tail(m: usize, mut sample_vec: impl FnMut(usize) -> Vec<F192>) -> Ve
         .collect()
 }
 
-/// Where the zero padding of a batched witness lies, so the zerocheck can skip it.
+/// Where the padding of a batched witness lies, so the zerocheck can skip it.
 ///
 /// The witness is `2^(m - k_log)` blocks of `2^k_log` bits.
 ///
 /// Each block holds its data first and zero padding after it.
 ///
 /// A chunk of zero bits adds nothing to a round message, so skipping it leaves the output unchanged.
+///
+/// The blocks from `live_blocks` on are copies of one padding block: while the rounds bind variables inside a block, they sum one copy, weighted by the tail's eq mass.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PaddingSpec {
     /// Log of the bits in one block.
     pub k_log: usize,
     /// Bits at the start of each block that carry data; the rest are zero.
     pub(crate) useful_bits_per_block: usize,
+    /// Blocks before the identical tail; at least the block count when there is none.
+    pub(crate) live_blocks: usize,
+}
+
+impl PaddingSpec {
+    /// The same blocks, with no tail known.
+    pub(crate) const fn without_tail(self) -> Self {
+        Self {
+            live_blocks: usize::MAX,
+            ..self
+        }
+    }
+
+    /// Split a kernel's cube of `2^m` bits at the tail, or `None` when it saves nothing.
+    ///
+    /// - The head is a whole number of groups and of `2^step_log`-bit steps, the kernel's unit of work.
+    /// - A group is a block, or enough whole blocks for the kernel's smallest cube, `2^min_group_log` bits.
+    /// - `r` are the kernel's eq challenges, the last of which index the groups.
+    /// - The cube's last group stands for every group past the head: they are all copies of it.
+    pub(crate) fn tail(&self, m: usize, min_group_log: usize, step_log: usize, r: &[F192]) -> Option<Tail> {
+        let group_log = self.k_log.max(min_group_log);
+        if group_log >= m {
+            return None;
+        }
+        let n_groups_log = m - group_log;
+        let live_groups = self.live_blocks.div_ceil(1 << (group_log - self.k_log));
+        if live_groups >= 1 << n_groups_log {
+            return None;
+        }
+        let first = live_groups.next_multiple_of(1 << step_log.saturating_sub(group_log));
+        if first >= 1 << n_groups_log {
+            return None;
+        }
+        let head = first << group_log;
+        Some(Tail {
+            head,
+            group_log,
+            r_inner: r.len() - n_groups_log,
+            weight: eq_mass_from(&r[r.len() - n_groups_log..], first),
+        })
+    }
+}
+
+/// A kernel's cube split by [`PaddingSpec::tail`]: the head it sums as is, then its last group once for the rest.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Tail {
+    /// Bits in the head.
+    pub head: usize,
+    /// Log of the bits in a group.
+    pub group_log: usize,
+    /// The eq challenges inside a group, the first `r_inner` of the kernel's.
+    pub r_inner: usize,
+    /// The eq mass of the groups past the head.
+    pub weight: F192,
+}
+
+impl Tail {
+    /// The last group's bytes of a packed witness.
+    pub(crate) fn group<'a>(&self, packed: &'a [u8]) -> &'a [u8] {
+        &packed[packed.len() - (1 << self.group_log) / 8..]
+    }
+}
+
+/// `sum_{x >= from} eq(r, x)`, `x` read low bit first.
+///
+/// The whole cube's mass is one, so this is one plus the mass below `from`.
+fn eq_mass_from(r: &[F192], from: usize) -> F192 {
+    let mut below = F192::ZERO;
+    // The eq factor of the bits above the current one, set to `from`'s.
+    let mut above = F192::ONE;
+    for (k, &r_k) in r.iter().enumerate().rev() {
+        if from >> k & 1 == 1 {
+            below += above * (F192::ONE + r_k);
+            above *= r_k;
+        } else {
+            above *= F192::ONE + r_k;
+        }
+    }
+    F192::ONE + below
 }
 
 /// Evaluation claims on the multilinear extensions of a, b, c, all three at the
@@ -300,7 +381,7 @@ impl<'a> CircuitProver<'a> {
 
     /// A round on the stored tables: the first of a paired pass, or a single round.
     fn table_round(&mut self, j: usize) -> (Option<F192>, F192, F192) {
-        let r = self.r;
+        let (r, padding) = (self.r, self.padding);
         let n_mlv = r.len();
         let tb = self.tables.as_mut().expect("the tables are stored");
 
@@ -313,7 +394,8 @@ impl<'a> CircuitProver<'a> {
                 t.clear();
                 &mut t.spare_capacity_mut()[..n_out]
             });
-            let pair = fold_and_round_pair_into([a, b, c], outs, &tb.pending, &r[j + 1..]);
+            // A level-`j` value covers `2^(K_SKIP + j)` bits of the witness.
+            let pair = fold_and_round_pair_into([a, b, c], outs, &tb.pending, &r[j + 1..], &padding, K_SKIP + j);
             // SAFETY: the pass wrote the first `n_out` slots of each table.
             unsafe { tb.swap_in(n_out) };
             tb.pending.clear();
@@ -535,6 +617,7 @@ mod tests {
             Self {
                 k_log: m,
                 useful_bits_per_block: 1usize << m,
+                live_blocks: 1,
             }
         }
     }
@@ -917,6 +1000,7 @@ mod tests {
         let padding = PaddingSpec {
             k_log: 9,
             useful_bits_per_block: 400,
+            live_blocks: usize::MAX,
         };
         let inputs: Vec<ZerocheckInput<'_>> = (circuits.iter())
             .map(|c| {
@@ -1000,5 +1084,59 @@ mod tests {
             );
         }
         vs.finish().unwrap();
+    }
+
+    /// **Telling the prover of an identical tail changes no word of the proof.**
+    ///
+    /// Each circuit's blocks from `live` on are copies of one padding block, and the tails start at a block, inside a kernel's step or task, past every step (so no kernel skips), and at block 0.
+    /// Shapes: BLAKE2s blocks deep enough for table passes folding one and two pending challenges, blocks smaller than a round-1 window over a table pass, and blocks the size of a window.
+    #[test]
+    fn an_identical_tail_changes_no_word() {
+        let shapes = [(23usize, 14usize, 16_000usize), (21, 9, 400), (19, 13, 7_000)];
+        let mut rng = Rng::new(0x7A11_5EED);
+        for (trial, frac) in [(0, 0.27), (1, 0.6), (2, 1.0 - 1e-9), (3, 0.0), (4, 0.51)] {
+            let lives: Vec<usize> = (shapes.iter())
+                .map(|&(m, k_log, _)| ((frac * (1usize << (m - k_log)) as f64) as usize) | usize::from(trial == 4))
+                .collect();
+            let witnesses: Vec<[Vec<u8>; 3]> = (shapes.iter().zip(&lives))
+                .map(|(&(m, k_log, useful), &live)| {
+                    let block = 1usize << k_log;
+                    let pad = [rng.bits(block), rng.bits(block)];
+                    let [a, b]: [Vec<bool>; 2] = std::array::from_fn(|w| {
+                        (0..1usize << m)
+                            .map(|i| {
+                                let (blk, off) = (i / block, i % block);
+                                let bit = if blk < live {
+                                    rng.next_u64() & 1 == 1
+                                } else {
+                                    pad[w][off]
+                                };
+                                off < useful && bit
+                            })
+                            .collect()
+                    });
+                    let c: Vec<bool> = a.iter().zip(&b).map(|(x, y)| x & y).collect();
+                    [pack_bits(&a), pack_bits(&b), pack_bits(&c)]
+                })
+                .collect();
+            let run = |tail: bool| {
+                let inputs: Vec<ZerocheckInput<'_>> = (shapes.iter().zip(&lives).zip(&witnesses))
+                    .map(|((&(m, k_log, useful), &live), [a, b, c])| ZerocheckInput {
+                        bits: PackedWitness { a, b },
+                        c,
+                        m,
+                        padding: PaddingSpec {
+                            k_log,
+                            useful_bits_per_block: useful,
+                            live_blocks: if tail { live } else { usize::MAX },
+                        },
+                    })
+                    .collect();
+                let mut ps = ProverState::from_label(b"flock-test-v0");
+                let claims = prove(&inputs, &mut ps);
+                (claims, ps.into_proof().stream)
+            };
+            assert_eq!(run(true), run(false), "trial {trial}, live {lives:?}");
+        }
     }
 }

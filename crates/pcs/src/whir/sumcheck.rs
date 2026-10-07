@@ -21,7 +21,7 @@ use std::ops::Add;
 
 mod first_pass;
 
-pub(crate) use first_pass::{InitialRounds, initial_rounds};
+pub(crate) use first_pass::{InitialRounds, initial_rounds, initial_rounds_virtual};
 
 // Tuning constants
 //
@@ -51,6 +51,8 @@ pub(crate) const INITIAL_BASIS_CHUNK: usize = 256;
 /// Elements a stored (dense) weight's lane fold stages in L1 before publishing them.
 const DENSE_STAGE: usize = 128;
 
+/// Pool sizes up to which the first pass writes out a regenerated weight for the first fold.
+const KEEP_WEIGHT_MAX_THREADS: usize = 4;
 // Stateful sumcheck over E with a two-phase (Base then Ext) witness
 //
 // Each round sends (u_0, u_2) of the quadratic
@@ -527,7 +529,7 @@ pub(crate) enum Basis<'a> {
     Dense(Vec<F192>),
     /// Regenerated when read, by chunks of the initial fill size.
     ///
-    /// Only the first pass and the first fold read it, so it is never stored.
+    /// Only the first pass and the first fold read it.
     Virtual(&'a BasisFill<'a>),
 }
 

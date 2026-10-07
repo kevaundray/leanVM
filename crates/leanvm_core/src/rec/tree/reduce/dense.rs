@@ -9,13 +9,17 @@
 //! lowest variable first.
 //! A polynomial of fewer variables is bound early, and its share then waits on the rest: each later round multiplies it by its challenge.
 
-use super::{DenseTables, FoldTable, PAR_LEN, ReduceError, products_par, table_of};
+use super::{DenseTables, Entry, Msg, ReduceError, TILE, ZERO, xor};
 use crate::rec::tree::claims::{DenseClaim, DensePoly, DenseTerm};
 use fiat_shamir::arith::{Arith, Verifier};
 use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
-use primitives::field::{F64, F192};
-use primitives::multilinear::eq_table;
+use parallel::Chunks;
+use primitives::field::{F64, F192, F192Unreduced, mul_unreduced4};
+use primitives::multilinear::{eq_table, eq_table_seeded, mle_eval_par};
+use primitives::write_only;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::ops::Range;
 
 /// Each dense polynomial's variables: the bytecode table's, the image's, the fixed polynomial's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,24 +39,38 @@ pub(crate) struct DenseReduced<E> {
 pub(crate) struct DenseProver<'a> {
     /// The reduced polynomials, in order.
     parts: Vec<Part<'a>>,
+    /// The challenges so far.
+    point: Vec<F192>,
+    /// The next round's message.
+    message: [F192; 2],
 }
 
 /// One reduced polynomial in the prover: its variables, its table, and its weight table `Xi_j`.
+///
+/// The weight table is zero past the prefix its terms touch, so each round folds and sums that prefix alone. Where the
+/// prefix's last entry pairs with one past it, that entry is the polynomial's value on its block at the challenges so
+/// far, evaluated from the table as given.
+///
+/// When each of its blocks is a sum of few low tables times high ones, the weight table stays factored while the low
+/// tables have variables left: a round sums each low table against the table, then scales by the high one. Past that,
+/// or from the start otherwise, it is a table.
 struct Part<'a> {
     /// The polynomial's variables.
     n_vars: usize,
-    /// Its values, folded.
-    table: Table<'a>,
-    /// Its weight table, folded.
-    weights: FoldTable,
-}
-
-/// A polynomial's table: its values in `K` until the first round binds a variable.
-enum Table<'a> {
-    /// The polynomial as given.
-    Base(&'a [F64]),
-    /// The polynomial folded by at least one round.
-    Ext(FoldTable),
+    /// Its values as given.
+    base: &'a [F64],
+    /// The length of the prefix its terms touch, at least one.
+    live: usize,
+    /// The rounds before its weight table is written out.
+    factored: usize,
+    /// Its weight table's blocks, folded, until it is written out.
+    blocks: Vec<Block>,
+    /// Its weight table once written out, folded.
+    weights: Vec<F192>,
+    /// Its values, folded from the first round on.
+    table: Vec<F192>,
+    /// The buffers the next fold writes.
+    spare: [Vec<F192>; 2],
 }
 
 /// One term of a weight table: `c eq(p, .)` on one aligned block of the table.
@@ -210,7 +228,7 @@ impl<'a> DenseProver<'a> {
         let theta = ps.sample();
         let mut prover = Self::new(vars, tables, claims, theta);
         for i in 0..prover.rounds() {
-            ps.add_scalars(&prover.round(i));
+            ps.add_scalars(&prover.message());
             let r = ps.sample();
             prover.bind(i, r);
         }
@@ -231,20 +249,23 @@ impl<'a> DenseProver<'a> {
                 power *= theta;
             }
         }
-        let parts = (DensePoly::ALL.into_iter().zip(placed))
+        let mut message = ZERO;
+        let parts: Vec<Part> = (DensePoly::ALL.into_iter().zip(placed))
             .filter(|&(p, _)| reduced[p as usize])
             .map(|(p, terms)| {
                 let n_vars = vars.0[p as usize];
-                let table = &tables.0[p as usize];
-                assert_eq!(table.len(), 1 << n_vars, "a dense table has its variables");
-                Part {
-                    n_vars,
-                    table: Table::Base(table),
-                    weights: FoldTable::new(weight_table(n_vars, &terms)),
-                }
+                let base = &tables.0[p as usize];
+                assert_eq!(base.len(), 1 << n_vars, "a dense table has its variables");
+                let (part, first) = Part::new(n_vars, base, &terms);
+                message = xor(message, first);
+                part
             })
             .collect();
-        Self { parts }
+        Self {
+            point: Vec::with_capacity(parts.iter().map(|p| p.n_vars).max().unwrap_or(0)),
+            parts,
+            message: message.map(F192Unreduced::reduce),
+        }
     }
 
     /// The number of rounds.
@@ -252,86 +273,375 @@ impl<'a> DenseProver<'a> {
         self.parts.iter().map(|p| p.n_vars).max().unwrap_or(0)
     }
 
-    /// Round `i`'s message: `h(0)` and the leading coefficient, the claim fixing the linear one.
+    /// The next round's message: `h(0)` and the leading coefficient, the claim fixing the linear one.
     ///
     /// A polynomial bound already contributes a linear term only, which the claim accounts for.
-    pub(crate) fn round(&self, i: usize) -> [F192; 2] {
-        (self.parts.iter().filter(|p| p.n_vars > i)).fold([F192::ZERO; 2], |[c0, c2], p| {
-            let w = &p.weights.values;
-            let [a, b] = match &p.table {
-                Table::Base(t) => products_par(w, t, F192::mul_base),
-                Table::Ext(t) => products_par(w, &t.values, |x, y| x * y),
-            };
-            [c0 + a, c2 + b]
-        })
+    pub(crate) const fn message(&self) -> [F192; 2] {
+        self.message
     }
 
-    /// Bind round `i`'s variable to `r`.
+    /// Bind round `i`'s variable to `r`, and build the next round's message from the folded pairs.
     pub(crate) fn bind(&mut self, i: usize, r: F192) {
-        for p in self.parts.iter_mut().filter(|p| p.n_vars > i) {
-            p.weights.fold(r, true);
-            match &mut p.table {
-                Table::Base(t) => {
-                    let t = *t;
-                    let folded = table_of(t.len() / 2, |k| {
-                        r.mul_base(t[2 * k] + t[2 * k + 1]) + F192::from(t[2 * k])
-                    });
-                    p.table = Table::Ext(FoldTable::new(folded));
-                }
-                Table::Ext(t) => t.fold(r, true),
-            }
-        }
+        assert_eq!(i, self.point.len(), "rounds come in order");
+        self.point.push(r);
+        let point = &self.point;
+        let message = (self.parts.iter_mut().filter(|p| p.n_vars > i)).fold(ZERO, |acc, p| xor(acc, p.bind(point)));
+        self.message = message.map(F192Unreduced::reduce);
     }
 
     /// Each reduced polynomial's value at its prefix of the point.
     pub(crate) fn finals(&self) -> Vec<F192> {
         (self.parts.iter())
-            .map(|p| match &p.table {
-                Table::Base(t) => F192::from(t[0]),
-                Table::Ext(t) => t.values[0],
-            })
+            .map(|p| p.table.first().copied().unwrap_or_else(|| F192::from(p.base[0])))
             .collect()
     }
 }
 
-/// `Xi(x) = sum_t coef_t eq(p_t, x)` over `2^n` entries, each block's terms added in one pass.
-fn weight_table(n: usize, terms: &[Placed]) -> Vec<F192> {
-    let mut table = table_of(1 << n, |_| F192::ZERO);
-    let mut blocks: BTreeMap<(usize, usize), Vec<&Placed>> = BTreeMap::new();
-    for t in terms {
-        blocks.entry((t.offset, t.point.len())).or_default().push(t);
+impl<'a> Part<'a> {
+    /// The part of the polynomial `base` of `n_vars` variables, weighed by `terms`, and its first round's message.
+    fn new(n_vars: usize, base: &'a [F64], terms: &[Placed]) -> (Self, Msg) {
+        let blocks = Block::all(terms);
+        let factored = if blocks.iter().all(|b| b.groups.len() <= FACTORED_GROUPS) {
+            blocks
+                .iter()
+                .map(|b| b.row.trailing_zeros() as usize)
+                .min()
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        let live = terms
+            .iter()
+            .map(|t| t.offset + (1 << t.point.len()))
+            .max()
+            .unwrap_or(0)
+            .max(1);
+        let mut part = Self {
+            n_vars,
+            base,
+            live,
+            factored,
+            blocks: Vec::new(),
+            weights: Vec::new(),
+            table: Vec::new(),
+            spare: [Vec::new(), Vec::new()],
+        };
+        let len = part.len_at(0);
+        let (source, w_len) = if factored > 0 {
+            (Source::Blocks(&blocks), 0)
+        } else {
+            (Source::Write(&blocks), len)
+        };
+        let mut weights = Vec::with_capacity(w_len);
+        // SAFETY: the pass writes every entry before any is read.
+        let w_slots = unsafe { write_only(&mut weights.spare_capacity_mut()[..w_len]) };
+        let wc = Chunks::new(w_slots, PAR_LEN);
+        let message = chunked(len, |c| {
+            let (from, to) = (c * PAR_LEN, len.min((c + 1) * PAR_LEN));
+            let touching = source.touching(from, to);
+            // SAFETY: each chunk index is taken once, and the table outlives the dispatch.
+            let wo: &mut [F192] = if wc.count() == 0 { &mut [] } else { unsafe { wc.get(c) } };
+            (from..to).step_by(TILE).fold(ZERO, |m, a| {
+                let b = to.min(a + TILE);
+                let wo = wo.get_mut(a - from..b - from).unwrap_or_default();
+                xor(m, source.message(&touching, a, &base[a..b], wo, F192::ZERO))
+            })
+        });
+        // SAFETY: the pass wrote all `w_len` entries.
+        unsafe { weights.set_len(w_len) };
+        part.blocks = blocks;
+        part.weights = weights;
+        (part, message)
     }
-    for block in blocks.values() {
-        add_eqs(&mut table, block);
+
+    /// The entries kept after `i` rounds: the pairs covering the live prefix, or the value once bound.
+    const fn len_at(&self, i: usize) -> usize {
+        if i < self.n_vars {
+            2 * self.live.div_ceil(2 << i)
+        } else {
+            1
+        }
     }
-    table
+
+    /// Bind the next variable to the last challenge of `point`; the next round's message, zero after the last.
+    fn bind(&mut self, point: &[F192]) -> Msg {
+        let i = point.len() - 1;
+        let r = point[i];
+        if i < self.factored {
+            self.blocks.iter_mut().for_each(|b| b.fold(r));
+        }
+        let half = self.live.div_ceil(2 << i);
+        let len = self.len_at(i + 1);
+        let extra = (len > half).then(|| {
+            let size = 2 << i;
+            mle_eval_par(&self.base[half * size..(half + 1) * size], point)
+        });
+        let source = match (i + 1).cmp(&self.factored) {
+            Ordering::Less => Source::Blocks(&self.blocks),
+            Ordering::Equal => Source::Write(&self.blocks),
+            Ordering::Greater => Source::Fold(&self.weights),
+        };
+        let w_len = if matches!(source, Source::Blocks(_)) || len == 1 {
+            0
+        } else {
+            len
+        };
+        let [w_spare, t_spare] = &mut self.spare;
+        let mut w = buffer(w_spare, w_len);
+        let mut t = buffer(t_spare, len);
+        // SAFETY: the fold writes every entry of both before any is read.
+        let (w_out, t_out) = unsafe {
+            (
+                write_only(&mut w.spare_capacity_mut()[..w_len]),
+                write_only(&mut t.spare_capacity_mut()[..len]),
+            )
+        };
+        let message = if i == 0 {
+            fold_round(source, self.base, r, half, extra, w_out, t_out)
+        } else {
+            fold_round(source, &self.table, r, half, extra, w_out, t_out)
+        };
+        // SAFETY: the fold wrote the first `w_len` and `len` entries.
+        unsafe {
+            w.set_len(w_len);
+            t.set_len(len);
+        }
+        if i + 1 == self.factored {
+            self.blocks = Vec::new();
+        }
+        self.spare = [
+            std::mem::replace(&mut self.weights, w),
+            std::mem::replace(&mut self.table, t),
+        ];
+        message
+    }
 }
 
-/// The variables of the low eq tables a weight table's pass keeps in L1.
-const LOW_VARS: usize = 10;
+/// An empty buffer with room for `len` entries, reusing `spare`'s allocation.
+fn buffer(spare: &mut Vec<F192>, len: usize) -> Vec<F192> {
+    let mut v = std::mem::take(spare);
+    if v.capacity() < len {
+        return Vec::with_capacity(len);
+    }
+    v.clear();
+    v
+}
 
-/// `table[offset + x] += sum_t coef_t eq(p_t, x)` for terms of one block.
-///
-/// Each term's eq table is the tensor of a low one and a high one, the coefficient in the high one.
-fn add_eqs(table: &mut [F192], terms: &[&Placed]) {
-    let k = terms[0].point.len();
-    let l = k.min(LOW_VARS);
-    let lows: Vec<Vec<F192>> = terms.iter().map(|t| eq_table(&t.point[..l])).collect();
-    let highs: Vec<Vec<F192>> = (terms.iter())
-        .map(|t| eq_table(&t.point[l..]).into_iter().map(|e| e * t.coef).collect())
-        .collect();
-    let row = |h: usize, dst: &mut [F192]| {
-        for (low, high) in lows.iter().zip(&highs) {
-            for (slot, &e) in dst.iter_mut().zip(low) {
-                *slot += high[h] * e;
+/// Below this many entries a pass runs on the calling thread; a task of the pool takes this many.
+const PAR_LEN: usize = 1 << 12;
+
+/// The sum of `task(c)` over the chunks of `n` entries, `PAR_LEN` each, across the pool.
+fn chunked(n: usize, task: impl Fn(usize) -> Msg + Sync) -> Msg {
+    match n.div_ceil(PAR_LEN) {
+        0 => ZERO,
+        1 => task(0),
+        count => parallel::map_reduce(count, || ZERO, task, xor),
+    }
+}
+
+/// Where a pass finds the weights of the entries it reaches.
+#[derive(Clone, Copy)]
+enum Source<'w> {
+    /// The blocks, at the pass's level: the weights stay factored.
+    Blocks(&'w [Block]),
+    /// The blocks, at the pass's level: the pass writes the weights out.
+    Write(&'w [Block]),
+    /// The table one level up: the pass folds it.
+    Fold(&'w [F192]),
+}
+
+impl Source<'_> {
+    /// The blocks reaching entries `from..to`.
+    fn touching(&self, from: usize, to: usize) -> Vec<&Block> {
+        match *self {
+            Self::Blocks(blocks) | Self::Write(blocks) => (blocks.iter())
+                .filter(|b| b.start < to && from < b.start + b.len)
+                .collect(),
+            Self::Fold(_) => Vec::new(),
+        }
+    }
+
+    /// The message of the table's entries `a..a + t.len()`, `touching` the blocks reaching them. Unless the weights stay
+    /// factored, the pass writes them to `w`: from the blocks, or folding the table one level up by `r`.
+    fn message<T: Entry>(&self, touching: &[&Block], a: usize, t: &[T], w: &mut [F192], r: F192) -> Msg {
+        match *self {
+            Self::Blocks(_) => touching.iter().fold(ZERO, |m, b| xor(m, b.message(a, t))),
+            Self::Write(_) => {
+                let mut acc = [F192Unreduced::ZERO; TILE];
+                let acc = &mut acc[..w.len()];
+                for b in touching {
+                    b.add_to(a, acc);
+                }
+                for (w, x) in w.iter_mut().zip(acc) {
+                    *w = x.reduce();
+                }
+                T::dot(w, t)
+            }
+            Self::Fold(table) => {
+                F192::fold_into(&table[2 * a..2 * (a + w.len())], r, w);
+                T::dot(w, t)
             }
         }
-    };
-    let offset = terms[0].offset;
-    let dst = &mut table[offset..offset + (1 << k)];
-    if dst.len() < PAR_LEN {
-        dst.chunks_mut(1 << l).enumerate().for_each(|(h, d)| row(h, d));
-    } else {
-        parallel::chunks_mut(dst, 1 << l, row);
+    }
+}
+
+/// One round's fold of a part's table `t` into `t_out`, its weights as `source` says into `w_out`, and the next
+/// round's message.
+///
+/// The first `half` entries fold from pairs. Past them, when `t_out` is one longer, are the weight's zero and the
+/// table's `extra`. The message is over the folded pairs, none when one entry is left.
+fn fold_round<T: Entry>(
+    source: Source,
+    t: &[T],
+    r: F192,
+    half: usize,
+    extra: Option<F192>,
+    w_out: &mut [F192],
+    t_out: &mut [F192],
+) -> Msg {
+    if t_out.len() == 1 {
+        t_out[0] = T::fold(t[0], t[1], r);
+        return ZERO;
+    }
+    let pairs = half & !1;
+    let tc = Chunks::new(&mut t_out[..pairs], PAR_LEN);
+    let w_pairs = pairs.min(w_out.len());
+    let wc = Chunks::new(&mut w_out[..w_pairs], PAR_LEN);
+    let mut message = chunked(pairs, |c| {
+        let (from, to) = (c * PAR_LEN, pairs.min((c + 1) * PAR_LEN));
+        let touching = source.touching(from, to);
+        // SAFETY: each chunk index is taken once, and both tables outlive the dispatch.
+        let (tables, wo): (&mut [F192], &mut [F192]) =
+            unsafe { (tc.get(c), if wc.count() == 0 { &mut [] } else { wc.get(c) }) };
+        (from..to).step_by(TILE).fold(ZERO, |m, a| {
+            let b = to.min(a + TILE);
+            let tile = &mut tables[a - from..b - from];
+            T::fold_into(&t[2 * a..2 * b], r, tile);
+            let wo = wo.get_mut(a - from..b - from).unwrap_or_default();
+            xor(m, source.message(&touching, a, tile, wo, r))
+        })
+    });
+    if let Some(extra) = extra {
+        let k = half - 1;
+        t_out[k..].copy_from_slice(&[T::fold(t[2 * k], t[2 * k + 1], r), extra]);
+        let w = &mut w_out[k..];
+        w[0] = match source {
+            Source::Blocks(_) => unreachable!("a factored level's prefix is whole pairs"),
+            Source::Write(blocks) => {
+                let mut acc = [F192Unreduced::ZERO];
+                blocks.iter().for_each(|b| b.add_to(k, &mut acc));
+                acc[0].reduce()
+            }
+            Source::Fold(table) => F192::fold(table[2 * k], table[2 * k + 1], r),
+        };
+        w[1] = F192::ZERO;
+        message = xor(message, F192::dot(w, &t_out[k..]));
+    }
+    message
+}
+
+/// The variables of a block's low tables, which a pass keeps in L1.
+const LOW_VARS: usize = 10;
+
+/// The most groups a block may have for its part's weights to stay factored.
+const FACTORED_GROUPS: usize = 2;
+
+/// One aligned block of a weight table at the current level, `sum_g low_g ⊗ high_g`: terms sharing their low
+/// coordinates share the low table, against the sum of their high ones scaled by their coefficients.
+struct Block {
+    /// The block's first entry.
+    start: usize,
+    /// Its entries.
+    len: usize,
+    /// The entries of its low tables, one row of the block.
+    row: usize,
+    /// Each group's low and high tables.
+    groups: Vec<(Vec<F192>, Vec<F192>)>,
+}
+
+impl Block {
+    /// The blocks of a weight table's terms, at the first level.
+    fn all(terms: &[Placed]) -> Vec<Self> {
+        let mut by_block: BTreeMap<(usize, usize), Vec<&Placed>> = BTreeMap::new();
+        for t in terms {
+            by_block.entry((t.offset, t.point.len())).or_default().push(t);
+        }
+        by_block.values().map(|terms| Self::new(terms)).collect()
+    }
+
+    /// The block of these terms, which share their offset and length.
+    fn new(terms: &[&Placed]) -> Self {
+        let k = terms[0].point.len();
+        let l = k.min(LOW_VARS);
+        let mut groups: Vec<(&[F192], Vec<F192>)> = Vec::new();
+        for t in terms {
+            let (low, high) = t.point.split_at(l);
+            let high = eq_table_seeded(high, t.coef);
+            match groups.iter_mut().find(|(p, _)| *p == low) {
+                Some((_, sum)) => sum.iter_mut().zip(high).for_each(|(s, e)| *s += e),
+                None => groups.push((low, high)),
+            }
+        }
+        Self {
+            start: terms[0].offset,
+            len: 1 << k,
+            row: 1 << l,
+            groups: groups.into_iter().map(|(p, high)| (eq_table(p), high)).collect(),
+        }
+    }
+
+    /// Bind the lowest variable, one of the low tables', to `r`.
+    fn fold(&mut self, r: F192) {
+        for (low, _) in &mut self.groups {
+            let mut folded = vec![F192::ZERO; low.len() / 2];
+            F192::fold_into(low, r, &mut folded);
+            *low = folded;
+        }
+        (self.start, self.len, self.row) = (self.start / 2, self.len / 2, self.row / 2);
+    }
+
+    /// `f(h, x, run)` for each run of entries `a..a + n` in the block, `run` in row `h` from column `x`.
+    fn runs(&self, a: usize, n: usize, mut f: impl FnMut(usize, usize, Range<usize>)) {
+        let (mut lo, hi) = (a.max(self.start), (a + n).min(self.start + self.len));
+        while lo < hi {
+            let (h, x) = ((lo - self.start) / self.row, (lo - self.start) % self.row);
+            let end = hi.min(lo - x + self.row);
+            f(h, x, lo..end);
+            lo = end;
+        }
+    }
+
+    /// `acc[y] += Xi(a + y)` over the block.
+    fn add_to(&self, a: usize, acc: &mut [F192Unreduced]) {
+        self.runs(a, acc.len(), |h, x, run| {
+            let acc = &mut acc[run.start - a..run.end - a];
+            for (low, high) in &self.groups {
+                let (e, low) = (high[h], &low[x..x + acc.len()]);
+                let (quads, rest) = low.as_chunks::<4>();
+                let (acc_quads, acc_rest) = acc.as_chunks_mut::<4>();
+                for (s, &q) in acc_quads.iter_mut().zip(quads) {
+                    for (s, p) in s.iter_mut().zip(mul_unreduced4([e; 4], q)) {
+                        *s ^= p;
+                    }
+                }
+                for (s, &l) in acc_rest.iter_mut().zip(rest) {
+                    *s ^= e.mul_unreduced(l);
+                }
+            }
+        });
+    }
+
+    /// The message of the table's entries `a..a + t.len()` against the block's weights: each row's run is summed
+    /// against the low tables, then scaled by the high ones. A run is whole pairs while a row has two entries.
+    fn message<T: Entry>(&self, a: usize, t: &[T]) -> Msg {
+        let mut m = ZERO;
+        self.runs(a, t.len(), |h, x, run| {
+            let t = &t[run.start - a..run.end - a];
+            for (low, high) in &self.groups {
+                let [c0, c2] = T::dot(&low[x..x + t.len()], t).map(F192Unreduced::reduce);
+                m = xor(m, [high[h].mul_unreduced(c0), high[h].mul_unreduced(c2)]);
+            }
+        });
+        m
     }
 }

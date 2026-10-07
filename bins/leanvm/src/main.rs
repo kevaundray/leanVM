@@ -11,8 +11,13 @@ use std::num::ParseIntError;
 use std::path::PathBuf;
 use workload::Workload;
 
+/// jemalloc, or under `system-alloc` the system allocator for a heap profiler that hooks `malloc` (AGENTS.md, Profiling); counted either way.
+#[cfg(not(feature = "system-alloc"))]
 #[global_allocator]
 static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
+#[cfg(feature = "system-alloc")]
+#[global_allocator]
+static ALLOCATOR: bench::Counting<std::alloc::System> = bench::Counting(std::alloc::System);
 
 mod aggregate;
 mod tracked;

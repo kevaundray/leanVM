@@ -54,7 +54,7 @@ pub use commit::{Commitment, ProverData, commit};
 pub use induce::eval_sk_at_vks;
 pub use prove::recursive_prover_with_basis;
 pub(crate) use prove::recursive_prover_with_prepared_basis;
-pub(crate) use sumcheck::{Basis, INITIAL_BASIS_CHUNK, initial_rounds};
+pub(crate) use sumcheck::{INITIAL_BASIS_CHUNK, initial_rounds_virtual};
 pub use verify::WhirError;
 pub(crate) use verify::recursive_verifier_with_basis_succinct;
 

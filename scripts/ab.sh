@@ -17,7 +17,7 @@
 # worktree into DIR/base-target, so neither the tree nor its build is touched. The comparison is
 # then printed by main's .github/scripts/pr_comment.py, read from upstream/main or origin/main.
 # With --ci (or GITHUB_ACTIONS=true), as bench.yml runs it: the head is the commit checked out,
-# the base HEAD^1, checked out in place, and nothing is printed.
+# the base `--base` or else HEAD^1, checked out in place, and nothing is printed.
 #
 # Needs git, python3 and cargo (or $CARGO).
 set -euo pipefail

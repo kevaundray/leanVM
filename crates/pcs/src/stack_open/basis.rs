@@ -77,7 +77,7 @@ impl<'a> PointWeight<'a> {
 /// - each ring-switched region's combined weight, over that region;
 /// - each point claim's equality weight, over its own support.
 ///
-/// It is never stored whole: the opening's first pass and its first fold each refill the chunks they read.
+/// It is filled one chunk at a time, as the opening reads it.
 pub(super) struct StackWeight<'a> {
     /// Each point claim's weight, its high equality table built once.
     weights: Vec<PointWeight<'a>>,

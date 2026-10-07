@@ -29,6 +29,18 @@ pub const fn min_n_blocks_log(n_blocks: usize) -> usize {
     n.next_power_of_two().trailing_zeros() as usize
 }
 
+/// The instances before a packed witness's identical tail: from the returned index on, every
+/// instance's `z` is the last one's, and so are its `A·z` and `B·z`.
+pub fn live_instances(z: &[u64], k_log: usize) -> usize {
+    assert!(k_log >= 6, "an instance is whole words");
+    let words = 1usize << (k_log - 6);
+    let Some(last) = z.rchunks_exact(words).next() else {
+        return 0;
+    };
+    let copies = z.rchunks_exact(words).skip(1).take_while(|w| *w == last).count();
+    z.len() / words - 1 - copies
+}
+
 /// A circuit as the reduction sees it: `2^k_log` witness bits per instance, of
 /// which `[useful_bits, 2^k_log)` are zero padding the prover skips.
 #[derive(Clone, Copy)]
@@ -65,10 +77,14 @@ pub struct ReductionReplay<E = F192> {
 ///
 /// `z` is borrowed apart from the rest: a committed batch's `z` is its committed column, which the `_into` generators
 /// write in place.
+///
+/// The instances from `live` on are copies of one instance, which the zerocheck sums once while it binds bits inside an instance.
+/// Nothing of the proof depends on `live`: `1 << n_blocks_log` claims no such tail.
 #[derive(Clone, Copy)]
 pub struct Instance<'a> {
     pub block: Block<'a>,
     pub n_blocks_log: usize,
+    pub live: usize,
     /// The witness bits.
     pub z: &'a [u64],
     /// `A·z`.
@@ -80,11 +96,12 @@ pub struct Instance<'a> {
 }
 
 impl<'a> Instance<'a> {
-    /// A batch whose `z` the caller holds apart, the rest in `tables`.
+    /// A batch whose `z` the caller holds apart, the rest in `tables`; its identical tail is read off `z`.
     pub fn new(block: Block<'a>, n_blocks_log: usize, z: &'a [u64], tables: &'a Tables) -> Self {
         Self {
             block,
             n_blocks_log,
+            live: live_instances(z, block.k_log),
             z,
             az: &tables.az,
             bz: &tables.bz,
@@ -92,11 +109,12 @@ impl<'a> Instance<'a> {
         }
     }
 
-    /// A batch whose whole witness is `witness`.
+    /// A batch whose whole witness is `witness`; its identical tail is read off its `z`.
     pub fn of(block: Block<'a>, n_blocks_log: usize, witness: &'a Witness) -> Self {
         Self {
             block,
             n_blocks_log,
+            live: live_instances(&witness.z, block.k_log),
             z: &witness.z,
             az: &witness.az,
             bz: &witness.bz,
@@ -159,6 +177,7 @@ pub fn prove(instances: &[Instance<'_>], ps: &mut ProverState) -> Vec<SliceClaim
                     padding: PaddingSpec {
                         k_log: i.block.k_log,
                         useful_bits_per_block: i.block.useful_bits,
+                        live_blocks: i.live,
                     },
                 }
             })

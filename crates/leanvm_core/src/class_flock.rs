@@ -207,6 +207,8 @@ impl FlockId {
     }
 
     /// The batch for the reduction: `column` is the witness's committed column, its `z`, and `tables` the rest.
+    ///
+    /// A table's padding rows are alike, so its batch ends in an identical tail the zerocheck sums once.
     pub(crate) fn instance<'a>(self, column: &'a [F64], n_blocks_log: usize, tables: &'a Tables) -> Instance<'a> {
         // SAFETY: `F64` is `repr(transparent)` over `u64`.
         let z = unsafe { std::slice::from_raw_parts(column.as_ptr().cast::<u64>(), column.len()) };

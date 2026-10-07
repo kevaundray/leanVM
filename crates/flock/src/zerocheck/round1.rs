@@ -976,7 +976,7 @@ fn accumulate_x_outer<const FULL: bool>(
     );
 }
 
-/// Process one outer value.
+/// Process one outer value, up to `n_windows` windows of the cube.
 #[inline]
 #[expect(
     clippy::too_many_arguments,
@@ -985,6 +985,7 @@ fn accumulate_x_outer<const FULL: bool>(
 fn process_one_x_hi(
     x_hi: usize,
     big_lo_size: usize,
+    n_windows: usize,
     n_lo_and_inner: usize,
     within_outer_mask: usize,
     b_med_counts: &[u8],
@@ -999,8 +1000,9 @@ fn process_one_x_hi(
     state.partials = Convert::new();
 
     let n_lo = n_lo_and_inner - N_INNER;
+    let lo_len = big_lo_size.min(n_windows - x_hi * big_lo_size);
 
-    for (x_outer_lo, &eq_lo_val) in eq_lo_scaled.iter().enumerate().take(big_lo_size) {
+    for (x_outer_lo, &eq_lo_val) in eq_lo_scaled.iter().enumerate().take(lo_len) {
         let x_outer = x_outer_lo | (x_hi << n_lo);
         let within_hash_outer = x_outer & within_outer_mask;
         let n_b_med = b_med_counts[within_hash_outer] as usize;
@@ -1088,7 +1090,8 @@ fn build_b_med_counts(padding: &PaddingSpec) -> (usize, Vec<u8>) {
 ///
 /// Skips 512-bit b_med sub-windows that fall entirely in the zero padding of
 /// every witness block per `padding`, which is byte-identical to the dense
-/// path when those bits are honestly zero.
+/// path when those bits are honestly zero. The identical tail of blocks is
+/// summed once, its last group weighted by the tail's eq mass.
 pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
     a_packed: &[u8],
     b_packed: &[u8],
@@ -1098,6 +1101,8 @@ pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
     inv_table: &InvNttTableByteSingleGf8,
     padding: &PaddingSpec,
 ) -> (Vec<F192>, Vec<F192>) {
+    // The bits of one `x_outer` window, the smallest cube.
+    const WINDOW_LOG: usize = K_SKIP + N_INNER;
     assert!(
         m >= K_SKIP + N_INNER,
         "m must be ≥ K_SKIP + N_INNER ({}) for the shift_reduce optimization",
@@ -1110,9 +1115,12 @@ pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
     assert_eq!(r_rest.len(), m - K_SKIP);
     assert_eq!(inv_table.k, K_SKIP);
 
+    let tail = padding.tail(m, WINDOW_LOG, WINDOW_LOG, r_rest);
+    let n_windows = tail.map_or(1 << (m - WINDOW_LOG), |t| t.head >> WINDOW_LOG);
+
     let eq = SplitEq::with_high_vars(&r_rest[N_INNER..], EQ_HIGH_VARS);
     let big_lo_size = eq.low.len();
-    let hi_size = eq.high.len();
+    let hi_size = n_windows.div_ceil(big_lo_size);
     let n_lo_and_inner = eq.low_log() + N_INNER;
 
     let d_inv_val = d_inv();
@@ -1131,6 +1139,7 @@ pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
             process_one_x_hi(
                 x_hi,
                 big_lo_size,
+                n_windows,
                 n_lo_and_inner,
                 within_outer_mask,
                 &b_med_counts,
@@ -1153,8 +1162,27 @@ pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
     )
     .into_results();
 
-    let res_c_lifted = ntt_extend_vec(&res_c_s, inv_table);
-    (res_ab.to_vec(), res_c_lifted)
+    let mut res_c_lifted = ntt_extend_vec(&res_c_s, inv_table);
+    let mut res_ab = res_ab.to_vec();
+    if let Some(tail) = tail {
+        let [a, b, c] = [a_packed, b_packed, c_packed].map(|p| tail.group(p));
+        let (group_ab, group_c) = round1_shift_reduce_extract_c_packed_padded(
+            a,
+            b,
+            c,
+            tail.group_log,
+            &r_rest[..tail.r_inner],
+            inv_table,
+            &padding.without_tail(),
+        );
+        for (x, y) in res_ab.iter_mut().zip(group_ab) {
+            *x += tail.weight * y;
+        }
+        for (x, y) in res_c_lifted.iter_mut().zip(group_c) {
+            *x += tail.weight * y;
+        }
+    }
+    (res_ab, res_c_lifted)
 }
 
 #[cfg(test)]
@@ -1517,6 +1545,7 @@ pub(crate) mod tests {
             let padding = PaddingSpec {
                 k_log,
                 useful_bits_per_block: useful_bits,
+                live_blocks: usize::MAX,
             };
             let (padded_ab, padded_c) =
                 round1_shift_reduce_extract_c_packed_padded(&a_p, &b_p, &c_p, m, &r, &table, &padding);
