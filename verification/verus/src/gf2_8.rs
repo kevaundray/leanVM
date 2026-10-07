@@ -1,13 +1,18 @@
 //! The field `GF(2^8) = GF(2)[x] / (x^8 + x^4 + x^3 + x + 1)`.
 //!
 //! The executable functions are the portable paths of `crates/primitives/src/field/gf2_8.rs`, copied
-//! with the same bodies; `tests/equivalence/gf2_8.rs` checks the two agree.
+//! with the same bodies, and its SIMD arms (`clmul8_neon`, the NEON `neon` and the AVX2 `avx2` helpers);
+//! `tests/equivalence/gf2_8.rs` checks the two agree.
 //!
 //! Specification: an element is a polynomial over GF(2) of degree below 8, bit `i` its coefficient of
 //! `x^i`. The product [`f8_mul`] is the carry-less product ([`clmul`], the one of `crate::clmul`) reduced
 //! modulo `M = x^8 + x^4 + x^3 + x + 1`, where "reduced" is the definition of a remainder
 //! ([`is_remainder8`]).
 use crate::clmul::*;
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+use core::arch::aarch64::*;
+#[cfg(all(verus_keep_ghost, target_arch = "aarch64"))]
+use crate::intrinsics::aarch64_gfneon::*;
 use core::ops::{Add, AddAssign, Mul, MulAssign};
 use vstd::arithmetic::power2::*;
 use vstd::prelude::*;
@@ -722,13 +727,42 @@ impl MulAssign for F8 {
 
 /// Carry-less product of two bytes; result fits in 15 bits.
 ///
-/// The portable arm only: the NEON arm (`clmul8_neon`, PMULL) is out of scope.
+/// Production's `cfg_attr(.., expect(clippy::missing_const_for_fn))` is dropped: the copy allows `clippy::all`.
 #[inline]
-fn clmul8(a: u8, b: u8) -> (r: u16)
+pub fn clmul8(a: u8, b: u8) -> (r: u16)
     ensures
         r as u128 == clmul(a as u64, b as u128),
 {
-    clmul8_software(a, b)
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    {
+        // SAFETY: `aes` target feature is enabled at compile time.
+        unsafe { clmul8_neon(a, b) }
+    }
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+    {
+        clmul8_software(a, b)
+    }
+}
+
+/// PMULL on two broadcast bytes: lane 0 of the eight byte products is `a * b`.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[target_feature(enable = "aes")]
+#[inline]
+pub unsafe fn clmul8_neon(a: u8, b: u8) -> (r: u16)
+    ensures
+        r as u128 == clmul(a as u64, b as u128),
+{
+    let va = vdup_n_p8(a);
+    let vb = vdup_n_p8(b);
+    let prod = vmull_p8(va, vb);
+    proof {
+        lemma_clmul8_closed(a, b);
+        let c = clmul(a as u64, b as u128);
+        let x = clmul8_closed(a, b);
+        assert(c == x as u128 ==> (c as u16) as u128 == c) by (bit_vector);
+        assert(p16x8(prod)[0] == vmull_p8_lane(p8x8(va)[0], p8x8(vb)[0]));
+    }
+    vgetq_lane_u16::<0>(vreinterpretq_u16_p16(prod))
 }
 
 /// Software fallback / test oracle. Used when `aes` is off, and as the
@@ -791,6 +825,414 @@ pub const fn gf8_reduce(p: u16) -> (r: u8)
     let t: u16 = (p & 0xff) ^ h ^ (h << 1) ^ (h << 3) ^ (h << 4);
     let h2: u16 = t >> 8;
     ((t & 0xff) ^ h2 ^ (h2 << 1) ^ (h2 << 3) ^ (h2 << 4)) as u8
+}
+
+// aarch64 NEON helpers: 16-lane GF(2^8) mul and reduce.
+//
+// These are the building blocks for the round-1 URM shift_reduce inner kernel.
+//
+// `vmull_p8` is a baseline NEON instruction (no aes feature needed), so the
+// only cfg gate is `target_arch = "aarch64"`.
+#[cfg(target_arch = "aarch64")]
+pub mod neon {
+    use core::arch::aarch64::*;
+    use core::mem::transmute;
+    #[cfg(verus_keep_ghost)]
+    use super::{clmul8_closed, f8_mod, f8_mul, lemma_clmul8_closed, lemma_f8_mod, reduce8_formula};
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::aarch64_gfneon::*;
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::transmuted;
+    use vstd::prelude::*;
+
+    /// Polynomial lane `i < 16` of the interleaved layout `(c0, c1)`: the low byte at `2 (i % 8)` and the high
+    /// byte at `2 (i % 8) + 1`, of `c0` for `i < 8` and of `c1` after.
+    pub open spec fn poly_lane(c0: uint8x16_t, c1: uint8x16_t, i: int) -> u16 {
+        let c = if i < 8 {
+            u8x16(c0)
+        } else {
+            u8x16(c1)
+        };
+        let j = i % 8;
+        (c[2 * j] as u16) | ((c[2 * j + 1] as u16) << 8u16)
+    }
+
+    /// One lane of [`gf8_reduce_vec16`]: the quotient `q` is the high byte of `hi * 0x8d * x` (Barrett, with
+    /// `x^16 / M = x^8 + x^4 + x^3 + x`), and the remainder is `lo + (q * 0x1b mod x^8)`.
+    pub open spec fn reduce_vec16_lane(lo: u8, hi: u8) -> u8 {
+        let q = ((vmull_p8_lane(hi, 0x8d) << 1u16) >> 8u16) as u8;
+        lo ^ (vmull_p8_lane(q, 0x1b) as u8)
+    }
+
+    /// The Barrett quotient is exact for every high byte: the lane is the remainder of `lo + hi x^8`.
+    pub proof fn lemma_reduce_vec16_lane(lo: u8, hi: u8)
+        ensures
+            reduce_vec16_lane(lo, hi) == f8_mod((lo as u16) | ((hi as u16) << 8u16)),
+    {
+        lemma_clmul8_closed(hi, 0x8d);
+        let t = clmul8_closed(hi, 0x8d);
+        assert(crate::clmul::clmul(hi as u64, 0x8du8 as u128) == t as u128 ==> (crate::clmul::clmul(
+            hi as u64,
+            0x8du8 as u128,
+        ) as u16) == t) by (bit_vector);
+        let q = ((t << 1u16) >> 8u16) as u8;
+        lemma_clmul8_closed(q, 0x1b);
+        let u = clmul8_closed(q, 0x1b);
+        assert(crate::clmul::clmul(q as u64, 0x1bu8 as u128) == u as u128 ==> (crate::clmul::clmul(
+            q as u64,
+            0x1bu8 as u128,
+        ) as u16) == u) by (bit_vector);
+        let p = (lo as u16) | ((hi as u16) << 8u16);
+        lemma_f8_mod(p);
+        assert(reduce8_formula((lo as u16) | ((hi as u16) << 8u16)) == lo ^ (clmul8_closed(
+            ((clmul8_closed(hi, 0x8d) << 1u16) >> 8u16) as u8,
+            0x1b,
+        ) as u8)) by (bit_vector);
+    }
+
+    /// Byte `k` of 16-bit lanes: the low byte of lane `k / 2` at even `k`, its high byte at odd `k`.
+    proof fn lemma_u16_bytes()
+        ensures
+            forall|w: Seq<u16>, k: int|
+                0 <= k < 2 * w.len() ==> #[trigger] u16_byte(w, k) == if k % 2 == 0 {
+                    w[k / 2] as u8
+                } else {
+                    (w[k / 2] >> 8u16) as u8
+                },
+    {
+        assert forall|w: Seq<u16>, k: int| 0 <= k < 2 * w.len() implies #[trigger] u16_byte(w, k) == if k % 2 == 0 {
+            w[k / 2] as u8
+        } else {
+            (w[k / 2] >> 8u16) as u8
+        } by {
+            let x = w[k / 2];
+            assert((x >> 0u16) as u8 == x as u8) by (bit_vector);
+        }
+    }
+
+    /// The 16 lanes of a broadcast byte constant.
+    proof fn lemma_splat(x: u64, c: u8)
+        requires
+            x == 0x8d8d8d8d8d8d8d8du64 && c == 0x8d || x == 0x1b1b1b1b1b1b1b1bu64 && c == 0x1b,
+        ensures
+            forall|i: int| 0 <= i < 8 ==> #[trigger] p8x8(transmuted::<u64, poly8x8_t>(x))[i] == c,
+    {
+        assert forall|i: int| 0 <= i < 8 implies #[trigger] p8x8(transmuted::<u64, poly8x8_t>(x))[i] == c by {
+            axiom_u64_as_p8x8(x, i);
+            let s = (8 * i) as u64;
+            assert(s == 0 || s == 8 || s == 16 || s == 24 || s == 32 || s == 40 || s == 48 || s == 56);
+            assert((s == 0 || s == 8 || s == 16 || s == 24 || s == 32 || s == 40 || s == 48 || s == 56) ==> (
+            0x8d8d8d8d8d8d8d8du64 >> s) as u8 == 0x8d && (0x1b1b1b1b1b1b1b1bu64 >> s) as u8 == 0x1b)
+                by (bit_vector);
+        }
+    }
+
+    /// Reduce 16 polynomial products (in interleaved layout `[lo0,hi0, lo1,hi1, ...]`,
+    /// passed as `(c0, c1)`) modulo `x^8 + x^4 + x^3 + x + 1`, returning 16 reduced
+    /// GF(2^8) values.
+    ///
+    /// Two-stage reduction:
+    ///   Stage 1: ch · QPLUS_RSH1 then ·2 (corrects for /x in QPLUS_RSH1)
+    ///   Stage 2: high bytes of stage-1 · QSTAR; take low bytes only.
+    ///
+    /// Constants:
+    ///   QPLUS_RSH1 = (x^8+x^4+x^3+x)/x = 0x8d
+    ///   QSTAR      = x^4+x^3+x+1       = 0x1b
+    ///
+    /// Proven for every 16-bit lane, not only products of two bytes: lane `i` of the result is the remainder
+    /// of polynomial lane `i` ([`poly_lane`]) modulo `M`.
+    ///
+    /// # Safety
+    /// Uses `core::arch::aarch64` NEON intrinsics; only call on `aarch64`.
+    #[inline]
+    pub unsafe fn gf8_reduce_vec16(c0: uint8x16_t, c1: uint8x16_t) -> (r: uint8x16_t)
+        ensures
+            forall|i: int| 0 <= i < 16 ==> #[trigger] u8x16(r)[i] == f8_mod(poly_lane(c0, c1, i)),
+    {
+        // SAFETY: NEON, PMULL's `vmull_p8` included, is part of the aarch64 baseline, and nothing here touches
+        // memory; the transmutes are between same-size vector and integer types.
+        unsafe {
+            let q_plus_rsh1: poly8x8_t = transmute::<u64, poly8x8_t>(0x8d8d8d8d8d8d8d8d_u64);
+            let q_star: poly8x8_t = transmute::<u64, poly8x8_t>(0x1b1b1b1b1b1b1b1b_u64);
+
+            let cl = vuzp1q_u8(c0, c1); // low bytes of all 16 products
+            let ch = vuzp2q_u8(c0, c1); // high bytes of all 16 products
+
+            // Stage 1.
+            let t0 = vreinterpretq_u8_u16(vshlq_n_u16::<1>(vreinterpretq_u16_p16(vmull_p8(
+                transmute::<uint8x8_t, poly8x8_t>(vget_low_u8(ch)),
+                q_plus_rsh1,
+            ))));
+            let t1 = vreinterpretq_u8_u16(vshlq_n_u16::<1>(vreinterpretq_u16_p16(vmull_p8(
+                transmute::<uint8x8_t, poly8x8_t>(vget_high_u8(ch)),
+                q_plus_rsh1,
+            ))));
+
+            // Stage 2.
+            let tmp_hi = vuzp2q_u8(t0, t1);
+            let r0 = vreinterpretq_u8_u16(vreinterpretq_u16_p16(vmull_p8(
+                transmute::<uint8x8_t, poly8x8_t>(vget_low_u8(tmp_hi)),
+                q_star,
+            )));
+            let r1 = vreinterpretq_u8_u16(vreinterpretq_u16_p16(vmull_p8(
+                transmute::<uint8x8_t, poly8x8_t>(vget_high_u8(tmp_hi)),
+                q_star,
+            )));
+
+            proof {
+                broadcast use axiom_u8x8_as_p8x8;
+                lemma_splat(0x8d8d8d8d8d8d8d8d_u64, 0x8d);
+                lemma_splat(0x1b1b1b1b1b1b1b1b_u64, 0x1b);
+                lemma_u16_bytes();
+                // The low and high bytes of each polynomial lane.
+                assert forall|k: int| 0 <= k < 16 implies {
+                    let c = if k < 8 {
+                        u8x16(c0)
+                    } else {
+                        u8x16(c1)
+                    };
+                    &&& #[trigger] u8x16(cl)[k] == c[2 * (k % 8)]
+                    &&& u8x16(ch)[k] == c[2 * (k % 8) + 1]
+                } by {}
+                // Stage 1: the quotient is the high byte of each shifted product.
+                assert forall|k: int| 0 <= k < 16 implies #[trigger] u8x16(tmp_hi)[k] == ((vmull_p8_lane(
+                    u8x16(ch)[k],
+                    0x8d,
+                ) << 1u16) >> 8u16) as u8 by {
+                    if k < 8 {
+                        assert(u8x16(tmp_hi)[k] == u8x16(t0)[2 * k + 1]);
+                    } else {
+                        assert(u8x16(tmp_hi)[k] == u8x16(t1)[2 * (k - 8) + 1]);
+                    }
+                }
+                // Stage 2: the low byte of each quotient times `0x1b`.
+                assert forall|k: int| 0 <= k < 16 implies #[trigger] uzp_u8_lane(u8x16(r0)@, u8x16(r1)@, 0, k) == (
+                vmull_p8_lane(u8x16(tmp_hi)[k], 0x1b) as u8) by {
+                    if k < 8 {
+                        assert(u8x16(r0)[2 * k] == vmull_p8_lane(u8x16(tmp_hi)[k], 0x1b) as u8);
+                    } else {
+                        assert(u8x16(r1)[2 * (k - 8)] == vmull_p8_lane(u8x16(tmp_hi)[k], 0x1b) as u8);
+                    }
+                }
+                assert forall|k: int| 0 <= k < 16 implies u8x16(cl)[k] ^ (vmull_p8_lane(u8x16(tmp_hi)[k], 0x1b) as u8) == f8_mod(#[trigger] poly_lane(c0, c1, k)) by {
+                    lemma_reduce_vec16_lane(u8x16(cl)[k], u8x16(ch)[k]);
+                }
+            }
+            veorq_u8(cl, vuzp1q_u8(r0, r1))
+        }
+    }
+
+    /// Element-wise multiply 16 pairs of GF(2^8) values (binius64 13-op NEON kernel).
+    ///
+    /// # Safety
+    /// Uses `core::arch::aarch64` NEON intrinsics (PMULL); only call on `aarch64`.
+    #[inline]
+    pub unsafe fn gf8_mul_vec16(a: uint8x16_t, b: uint8x16_t) -> (r: uint8x16_t)
+        ensures
+            forall|i: int| 0 <= i < 16 ==> #[trigger] u8x16(r)[i] == f8_mul(u8x16(a)[i], u8x16(b)[i]),
+    {
+        // SAFETY: as in the reduction above: baseline NEON on registers only.
+        unsafe {
+            let c0 = vreinterpretq_u8_u16(vreinterpretq_u16_p16(vmull_p8(
+                transmute::<uint8x8_t, poly8x8_t>(vget_low_u8(a)),
+                transmute::<uint8x8_t, poly8x8_t>(vget_low_u8(b)),
+            )));
+            let c1 = vreinterpretq_u8_u16(vreinterpretq_u16_p16(vmull_p8(
+                transmute::<uint8x8_t, poly8x8_t>(vget_high_u8(a)),
+                transmute::<uint8x8_t, poly8x8_t>(vget_high_u8(b)),
+            )));
+            proof {
+                broadcast use axiom_u8x8_as_p8x8;
+                lemma_u16_bytes();
+                assert forall|i: int| 0 <= i < 16 implies #[trigger] poly_lane(c0, c1, i) == vmull_p8_lane(
+                    u8x16(a)[i],
+                    u8x16(b)[i],
+                ) by {
+                    let c = if i < 8 {
+                        c0
+                    } else {
+                        c1
+                    };
+                    let j = i % 8;
+                    let x = vmull_p8_lane(u8x16(a)[i], u8x16(b)[i]);
+                    assert(u8x16(c)[2 * j] == x as u8 && u8x16(c)[2 * j + 1] == (x >> 8u16) as u8);
+                    assert(((x as u8) as u16) | ((((x >> 8u16) as u8) as u16) << 8u16) == x) by (bit_vector);
+                }
+            }
+            gf8_reduce_vec16(c0, c1)
+        }
+    }
+}
+
+/// The AVX2 counterpart of the NEON helpers, for x86 without GFNI (whose `gf2p8mulb` is the field product itself).
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+pub mod avx2 {
+    use core::arch::x86_64::*;
+    #[cfg(verus_keep_ghost)]
+    use super::{f8_mul, lemma_f8_mul_mulx, lemma_f8_mul_one, lemma_f8_mul_xor_right, lemma_f8_mul_zero, mulx8};
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::x86::{m256, m256_bytes};
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::x86_gfneon::*;
+    use vstd::prelude::*;
+
+    /// The top `s` bits of `b`, as a polynomial of degree below `s`.
+    pub open spec fn top_bits(b: u8, s: u8) -> u8 {
+        b >> sub(8u8, s)
+    }
+
+    /// One Horner step on a byte lane: from `r = a * top_bits(b, s)`, doubling `r` and adding `a` where the top
+    /// bit of `b << s` is set gives `a * top_bits(b, s + 1)`.
+    proof fn lemma_horner_step(a: u8, b: u8, s: u8, r: u8)
+        requires
+            1 <= s < 8,
+            r == f8_mul(a, top_bits(b, s)),
+        ensures
+            mulx8(r) ^ (if (b << s) >> 7u8 == 1 {
+                a
+            } else {
+                0u8
+            }) == f8_mul(a, top_bits(b, add(s, 1))),
+    {
+        let c = top_bits(b, s);
+        let bit: u8 = if (b << s) >> 7u8 == 1 {
+            1
+        } else {
+            0
+        };
+        assert(1 <= s < 8 ==> b >> sub(8u8, add(s, 1)) == mulx8(b >> sub(8u8, s)) ^ (if (b << s) >> 7u8 == 1 {
+            1u8
+        } else {
+            0u8
+        })) by (bit_vector);
+        lemma_f8_mul_xor_right(a, mulx8(c), bit);
+        lemma_f8_mul_mulx(a, c);
+        lemma_f8_mul_one(a);
+        lemma_f8_mul_zero(a);
+        let x = f8_mul(a, c);
+        assert(x ^ 0 == x) by (bit_vector);
+    }
+
+    /// The byte operations of one step: `x + x` with `0x1B` where `x`'s top bit is set is [`mulx8`], and `a`
+    /// masked by `y`'s spread top bit is `a` or zero.
+    proof fn lemma_byte_ops(x: u8, y: u8, a: u8)
+        ensures
+            ((x + x) as u8) ^ (0x1Bu8 & cmpgt_epi8_lane(0, x)) == mulx8(x),
+            a & cmpgt_epi8_lane(0, y) == (if y >> 7u8 == 1 {
+                a
+            } else {
+                0u8
+            }),
+            ((y + y) as u8) == y << 1u8,
+    {
+        lemma_cmpgt_zero(x);
+        lemma_cmpgt_zero(y);
+        assert(((x + x) as u8) == x << 1u8) by (bit_vector);
+        assert(((x << 1u8) ^ (0x1Bu8 & (if x >= 128 {
+            0xFFu8
+        } else {
+            0u8
+        }))) == mulx8(x)) by (bit_vector);
+        assert(a & (if y >= 128 {
+            0xFFu8
+        } else {
+            0u8
+        }) == (if y >> 7u8 == 1 {
+            a
+        } else {
+            0u8
+        })) by (bit_vector);
+        assert(((y + y) as u8) == y << 1u8) by (bit_vector);
+    }
+
+    /// Element-wise product of 32 pairs of GF(2^8) values, a bit of `b` at a time from the top (Horner).
+    ///
+    /// Each step doubles the running product (`xtime`, folding `x^8` back as `0x1B`) and adds `a` where the bit is set.
+    ///
+    /// Rewritten for Verus: the loop counter `_` is named `i`, which the invariant needs, and the nested intrinsic
+    /// calls are bound to names (`tb`, `rr`, `tr`, `pr`, `ab`), so the proof can read each register bytewise.
+    ///
+    /// # Safety
+    /// Requires the `avx2` target feature.
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    pub unsafe fn gf8_mul_vec32(a: __m256i, b: __m256i) -> (r: __m256i)
+        ensures
+            forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(r)[k] == f8_mul(m256_bytes(a)[k], m256_bytes(b)[k]),
+    {
+        let ghost b0 = b;
+        let zero = _mm256_setzero_si256();
+        let poly = _mm256_set1_epi8(0x1B);
+        proof {
+            lemma_m256_zero_bytes(zero);
+        }
+        // A byte's top bit is its sign, so a signed compare against zero spreads it over the byte.
+        let top = |x: __m256i| -> (t: __m256i)
+            ensures
+                forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(t)[k] == cmpgt_epi8_lane(m256_bytes(zero)[k], m256_bytes(x)[k]),
+            { _mm256_cmpgt_epi8(zero, x) };
+        let tb = top(b);
+        let (mut r, mut b) = (_mm256_and_si256(a, tb), _mm256_add_epi8(b, b));
+        proof {
+            lemma_m256_and_bytes(a, tb, r);
+            assert forall|k: int| 0 <= k < 32 implies #[trigger] m256_bytes(r)[k] == f8_mul(m256_bytes(a)[k], top_bits(m256_bytes(b0)[k], 1u8)) by {
+                let (av, bv) = (m256_bytes(a)[k], m256_bytes(b0)[k]);
+                lemma_byte_ops(av, bv, av);
+                assert(top_bits(bv, 1u8) == (if bv >> 7u8 == 1 { 1u8 } else { 0u8 })) by (bit_vector);
+                lemma_f8_mul_one(av);
+                lemma_f8_mul_zero(av);
+            }
+            assert forall|k: int| 0 <= k < 32 implies #[trigger] m256_bytes(b)[k] == m256_bytes(b0)[k] << 1u8 by {
+                lemma_byte_ops(0, m256_bytes(b0)[k], 0);
+            }
+        }
+        for i in 1..8
+            invariant
+                forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(zero)[k] == 0,
+                forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(poly)[k] == 0x1B,
+                forall|x: __m256i| #[trigger] top.requires((x,)),
+                forall|x: __m256i, t: __m256i| #[trigger] top.ensures((x,), t) ==> forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(t)[k] == cmpgt_epi8_lane(m256_bytes(zero)[k], m256_bytes(x)[k]),
+                forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(r)[k] == f8_mul(m256_bytes(a)[k], top_bits(m256_bytes(b0)[k], i as u8)),
+                forall|k: int| 0 <= k < 32 ==> #[trigger] m256_bytes(b)[k] == m256_bytes(b0)[k] << (i as u8),
+        {
+            let ghost (r_in, b_in) = (r, b);
+            let rr = _mm256_add_epi8(r, r);
+            let tr = top(r);
+            let pr = _mm256_and_si256(poly, tr);
+            let doubled = _mm256_xor_si256(rr, pr);
+            let tb = top(b);
+            let ab = _mm256_and_si256(a, tb);
+            r = _mm256_xor_si256(doubled, ab);
+            b = _mm256_add_epi8(b, b);
+            proof {
+                lemma_m256_and_bytes(poly, tr, pr);
+                lemma_m256_xor_bytes(rr, pr, doubled);
+                lemma_m256_and_bytes(a, tb, ab);
+                lemma_m256_xor_bytes(doubled, ab, r);
+                assert forall|k: int| 0 <= k < 32 implies #[trigger] m256_bytes(r)[k] == f8_mul(m256_bytes(a)[k], top_bits(m256_bytes(b0)[k], (i + 1) as u8)) by {
+                    let (x, y, av, bv) = (m256_bytes(r_in)[k], m256_bytes(b_in)[k], m256_bytes(a)[k], m256_bytes(b0)[k]);
+                    let s = i as u8;
+                    lemma_byte_ops(x, y, av);
+                    lemma_horner_step(av, bv, s, x);
+                    assert(add(s, 1) == (i + 1) as u8);
+                }
+                assert forall|k: int| 0 <= k < 32 implies #[trigger] m256_bytes(b)[k] == m256_bytes(b0)[k] << ((i + 1) as u8) by {
+                    let (y, bv) = (m256_bytes(b_in)[k], m256_bytes(b0)[k]);
+                    let s = i as u8;
+                    lemma_byte_ops(0, y, 0);
+                    assert(add(s, 1) == (i + 1) as u8);
+                    assert(1 <= s < 8 ==> (bv << s) << 1u8 == bv << add(s, 1)) by (bit_vector);
+                }
+            }
+        }
+        proof {
+            assert forall|k: int| 0 <= k < 32 implies #[trigger] m256_bytes(r)[k] == f8_mul(m256_bytes(a)[k], m256_bytes(b0)[k]) by {
+                let bv = m256_bytes(b0)[k];
+                assert(top_bits(bv, 8u8) == bv) by (bit_vector);
+            }
+        }
+        r
+    }
 }
 
 } // verus!

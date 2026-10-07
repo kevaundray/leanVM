@@ -81,6 +81,15 @@ Polynomials over GF(2) are machine words, bit `i` the coefficient of `x^i`. The 
 - `F8 * F8` is that product, a commutative ring as for `K`; `F8::inv(a)` is `a^254` and `a * inv(a) = 1` for
   every nonzero `a`.
 
+### SIMD kernels of `E` on aarch64 and of `GF(2^8)` (`src/gf2_64x3/aarch64.rs`, `src/gf2_8.rs`)
+
+Copies of `crates/primitives/src/field/gf2_64x3/aarch64.rs` (all of it), of the aarch64 dispatch arms of `gf2_64x3.rs`, and of the SIMD arms of `gf2_8.rs`, proven against the portable specifications given the intrinsic specifications of `src/intrinsics/aarch64_gfneon.rs` and `src/intrinsics/x86_gfneon.rs` (and the shared `aarch64.rs`, `x86.rs`). They verify in the configurations that compile them: the `E` kernels and the NEON helpers in `neon` and `neon-no-sha3` (EOR3 and its two-XOR fallback), `gf8_mul_vec32` in `haswell`, `avx2-vpclmulqdq`, `avx2-gfni` and `avx512`. A register holding a 128-bit coefficient is read as one polynomial (`v128`, its two lanes).
+
+- `E` products: `aarch64::mul(a, b) = e_mul(a, b)`; `mul_unreduced` and `mul_base_unreduced` return an `F192Unreduced` whose value (`e_value`) is `e_mul(a, b)`, `e_mul(a, k)`; `mul_base(a, k) = e_mul(a, k)`; `square(a) = e_mul(a, a)`; `reduce(u) = e_value(u)`. The nine PMULL products of `products`, y-folded, are the three coefficients the portable `software::mul_unreduced` builds (`lemma_products_fold`, `folded`), whatever the operand words. `reduce_lane` (two PMULL2 by `0x1B` and a three-way XOR) is `k_mod` of the coefficient (`lemma_clmul_fold_reduction`).
+- With those arms, `F192 * F192`, `F192::mul_unreduced`, `mul_base`, `mul_base_unreduced`, `square` and `F192Unreduced::reduce` keep their specifications on aarch64 with `aes`, so everything proven above on top of them (`inv`, the batched portable arms, `dot_base`, ...) holds there too.
+- Register-resident values: `F192x1` holds an element (`value()`), with the type invariant that both lanes of its `c22` register hold `c2` (the high-lane products read it); `new`, `load`, `store` (which initializes the `MaybeUninit`), `+` and `*` are `e_add` and `e_mul` of the values, `mul_unreduced` and `mul_base_unreduced` give an `F192x1Unreduced` whose value reduces to the product; `F192x1Unreduced` XOR and `^=` are `u_xor`, `zero()` is `F192Unreduced::ZERO`, `reduce` is `e_value`, and the conversions to `F192` and `F192Unreduced` return the values. So an XOR-accumulated sum of register products reduces to the sum of the products (`lemma_lazy_reduction`).
+- `GF(2^8)`: `clmul8_neon` (PMULL on bytes) and the `clmul8` dispatch compute `clmul`. `neon::gf8_reduce_vec16(c0, c1)` returns, in lane `i`, the remainder modulo `M` of polynomial lane `i` (low byte `2 (i % 8)`, high byte `2 (i % 8) + 1` of `c0` for `i < 8`, of `c1` after), for every 16-bit lane, not only products of two bytes: its Barrett quotient (the high byte of `hi * 0x8d * x`) is exact for every high byte (`lemma_reduce_vec16_lane`, one bit-vector query). `neon::gf8_mul_vec16(a, b)` is `f8_mul` lane by lane. `avx2::gf8_mul_vec32(a, b)` is `f8_mul` on each of the 32 bytes: after step `s` of the Horner loop each byte is `a * (b >> (8 - s))` (`lemma_horner_step`, from `a * (x c) = x (a * c)` and linearity).
+
 ### Bit transposes (`src/bits.rs`)
 
 - `transpose_8x8_bits`: bit `8r + c` of the result is bit `8c + r` of the input; it is an involution.
@@ -149,6 +158,7 @@ The portable arm of `crates/primitives/src/bit_fold.rs` (`bit_fold/portable.rs`)
 - The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
   are stated as lemmas over `clmul`; no SIMD code is verified.
 - `src/bit_fold.rs` relies on `vstd`'s specification of `u8::trailing_zeros` (with its proven `axiom_u8_trailing_zeros`) and of `Vec::push`, `Vec::as_slice` and `Vec::as_mut_slice`.
+- `src/intrinsics/aarch64_gfneon.rs` and `src/intrinsics/x86_gfneon.rs` (the `E` aarch64 kernels and the `GF(2^8)` SIMD arms): `assume_specification`s of `vreinterpretq_p64_u64`, `vcreate_u64`, `vcombine_u64`, `vextq_u64`, `vdupq_laneq_u64`, `vdup_n_p8`, `vmull_p8`, `vreinterpretq_u16_p16`, `vreinterpretq_u8_u16`, `vgetq_lane_u16`, `vshlq_n_u16`, `vget_low_u8`, `vget_high_u8`, `vuzp1q_u8`, `vuzp2q_u8`, `veorq_u8`, `_mm256_setzero_si256`, `_mm256_set1_epi8`, `_mm256_add_epi8`, `_mm256_cmpgt_epi8`; the layout axioms `axiom_u8x8_as_p8x8`, `axiom_u64_as_p8x8`, `axiom_words_as_u64x2`; and the `external_body` memory helpers `gf2_64x3::aarch64::load_f192` and `store_f192`, whose bodies are production's loads and stores. Each is compared with the hardware in `tests/equivalence/intrinsics_aarch64_gfneon.rs` and `intrinsics_x86_gfneon.rs` (under `qemu-aarch64-static` for NEON), through the executable twins `model_vmull_p8_lane`, `model_uzp_u8_lane`, `model_ext_u64_lane`, `model_u16_byte`, `model_cmpgt_epi8_lane` where the lane semantics is more than a move. `vstd`'s `MaybeUninit` specification (`as_option`) states what `store` writes.
 
 ## Not covered
 
@@ -156,13 +166,11 @@ The portable arm of `crates/primitives/src/bit_fold.rs` (`bit_fold/portable.rs`)
   calls Verus has no model of. Each is tested against the portable path in production:
   - `K`: `field::gf2_64::tests::mul_and_square_match_the_reference` (PCLMULQDQ and PMULL products, `pdep` square),
     `neon_variants_match_software`.
-  - `E`: `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`,
+  - `E`: the aarch64 kernels are verified (above); the x86 ones are tested by `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`,
     `lane_products_match_software`, `register_products_match_software`, `batched_mixed_products_match_scalar`,
     `mixed_sums_match_software`, `planar_products_match_software` (added with this crate: the AVX-512
     `F192x8` kernels had no direct test).
-  - `GF(2^8)`: `software_matches_neon`, `neon_gf8_mul_vec16_matches_scalar`, `avx2_gf8_mul_vec32_matches_scalar`,
-    `neon_gf8_reduce_vec16_matches_scalar` (added with this crate: the reduction alone, on every 16-bit input,
-    as its callers in flock use it).
+  - `GF(2^8)`: the SIMD arms are verified (above); production also tests them with `software_matches_neon`, `neon_gf8_mul_vec16_matches_scalar`, `avx2_gf8_mul_vec32_matches_scalar`, `neon_gf8_reduce_vec16_matches_scalar`.
   - Bit transposes: `bits::tests::every_arm_matches_reference`.
   - Bit folds and `F192Map`: `bit_fold::tests::fold_block_matches_definition`, `f192_map_matches_definition`, `composed_map_is_the_map_after_the_product`, `avx2_products_match_definition` (every AVX2 product, also on GFNI machines). The equivalence tests of this crate compare the verified portable copies with whatever arm the machine dispatches.
   - NTT butterflies: `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` and the other driver
