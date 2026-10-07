@@ -54,6 +54,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Clippy
         run: cargo clippyall
+      # The CLI's heap-profiling build (AGENTS.md, Profiling); it recompiles the CLI alone.
+      - name: Clippy with the system allocator
+        run: cargo clippy --release -p leanvm-cli --all-targets --features system-alloc -- -D warnings
       # The haswell pin leaves the AVX-512 backends uncompiled; lint them here (`clippyall` with a `--target`).
       # A step `RUSTFLAGS` replaces the job's, which would otherwise beat the target's flags.
       - name: Clippy on the AVX-512 backends

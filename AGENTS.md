@@ -81,7 +81,7 @@ ruff format --line-length 150 python-verifier/verifier.py   # and `ruff check` i
 
 Heavy benches are `benches/` targets (`harness = false`), which `cargo test` never builds; run one with `cargo bench -p <crate> --bench <name>`: flock's `hash_batch` and `arithmetic_batch` (with `--features bench`, the feature that builds the code only they and the tests run; an argument picks the operations, e.g. `-- mul_wrapping`), pcs's `throughput` (commit, open, and the commit's NTT alone), primitives' `hash_throughput` and `kernels` (the field products, squares and inverses, `mul4`, and the bit transposes, each alone on one thread, as time per call). All of them, and the CLI, time through `bench::Plan` (one warmup pass, then `BENCH_REPEAT`/`--repeat` measured ones, each after a cooldown, reported as mean ± 95% interval). With `-- --json` each prints, in place of its report, Bencher Metric Format JSON, what CI compares.
 
-**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). Each span shows its time, its share of its parent's, its heap peak (the most bytes live while it was open, above those live when the root opened, so a parent's equals that of the child holding it) and the allocations made in it. A new stage worth timing gets an `info_span!` (in `leanvm_core`, `stage!`), never an `Instant` behind an env var.
+**Where a proof's time goes is the `tracing` span tree, and only that**: `--tracing` on the CLI, `BENCH_TRACING=1` on the `benches/` targets, `RUST_LOG` to change the level. It records the final measured pass only (`bench::suppress_tracing`). Each span shows its time, its share of its parent's, its heap peak (the most bytes live while it was open, above those live when the root opened, so a parent's equals that of the child holding it) and the allocations made in it. A new stage worth timing gets an `info_span!` (in `leanvm_core`, `stage!`), never an `Instant` behind an env var. To look inside one stage, see Profiling below.
 
 ## Benchmarking
 
@@ -103,6 +103,50 @@ scripts/ab.sh kernels --rounds 3            # a `benches/` target, 3 rounds a si
 scripts/ab.sh counts leanxmss-100           # the exact counts, then a case
 scripts/ab.sh --base HEAD~2 pcs-throughput  # against another base
 ```
+
+## Profiling
+
+The span tree says which stage the time goes to and which stage holds the heap peak, and it stays the only place for stage timings. Two tools look inside a stage, with no code change and no `perf`: gperftools' sampling profiler says which functions, and which of their callers, a stage's time is in; heaptrack says which allocation sites hold the peak heap. Start from the span tree, then profile the stage it points at.
+
+Install them with the package manager (`apt install google-perftools heaptrack valgrind`, the last for `callgrind_annotate`, then `export L=/usr/lib/x86_64-linux-gnu`), or without root by unpacking the packages (Ubuntu 24.04's names; `ldd` on a tool names any library still missing, fetched the same way):
+
+```bash
+T=/tmp/prof-tools && mkdir -p $T && (cd $T && apt-get download google-perftools libgoogle-perftools4t64 libunwind8 \
+  heaptrack libheaptrack libboost-program-options1.83.0 libboost-filesystem1.83.0 libboost-iostreams1.83.0 valgrind \
+  && for d in *.deb; do dpkg -x "$d" root; done)
+export PATH=$T/root/usr/bin:$PATH L=$T/root/usr/lib/x86_64-linux-gnu
+```
+
+**Function profile**: build with frame pointers, preload `libprofiler` into the CLI, read the profile with `google-pprof`.
+
+```bash
+RUSTFLAGS="-C target-cpu=native -C force-frame-pointers=yes" cargo build --release -p leanvm-cli --target-dir target/fp
+LD_PRELOAD=$L/libprofiler.so.0 LD_LIBRARY_PATH=$L CPUPROFILE=/tmp/leanvm.prof CPUPROFILE_FREQUENCY=1000 \
+  LEANVM_NUM_THREADS=1 target/fp/release/leanvm --cooldown 0 leanxmss --n 100
+google-pprof --text --no_strip_temp --focus='::prove$' target/fp/release/leanvm /tmp/leanvm.prof | head -40
+google-pprof --collapsed --no_strip_temp --focus='::prove$' target/fp/release/leanvm /tmp/leanvm.prof > /tmp/leanvm.folded
+google-pprof --callgrind --no_strip_temp --focus='::prove$' target/fp/release/leanvm /tmp/leanvm.prof > /tmp/leanvm.cg
+callgrind_annotate --tree=caller /tmp/leanvm.cg
+```
+
+- `--text` lists samples per function, self then with callees; `--collapsed` is the input of a flame graph (`inferno-flamegraph`, speedscope); `callgrind_annotate --tree=caller` gives every function's callers, which is how a hot `memcpy` or `memset` gets a name.
+- `--focus='::prove$'` keeps the samples under `Program::prove`, dropping the host's own work (leanXMSS's signing, the verification); focus on another symbol to look inside one stage. `--no_strip_temp` keeps what is between `<` and `>`, which in a Rust name is the type of every method.
+- `RUSTFLAGS` replaces the `target-cpu=native` of `.cargo/config.toml`, so it is repeated. Without frame pointers most samples get no callers. `--target-dir` keeps the normal build's cache.
+- `LEANVM_NUM_THREADS=1`: a pool worker's stack starts at the pool, not at the stage that dispatched to it, so with more threads `--focus` keeps the dispatching thread's samples only.
+- `LD_PRELOAD` goes on `leanvm` itself, never on a wrapper: after `taskset`, `flock` or `systemd-run` write `env LD_PRELOAD=... target/fp/release/leanvm ...`. Preloaded into the wrapper, the profiler's timer survives its `exec` and the first `SIGPROF` kills `leanvm` before it has a handler.
+
+**Allocation sites**: `--tracing`'s heap columns say which stage holds the peak and which allocates most, but not which allocation sites inside it; heaptrack says that. It intercepts `malloc`, so it sees nothing of jemalloc. The CLI's `system-alloc` feature wraps the system allocator in `bench::Counting` in jemalloc's place, so heaptrack sees every allocation while `heap-peak`, `allocations` and the span tree's heap columns still count them:
+
+```bash
+cargo build --release -p leanvm-cli --features system-alloc --target-dir target/heap
+LD_LIBRARY_PATH=$L heaptrack -o /tmp/leanvm-heap target/heap/release/leanvm --cooldown 0 leanxmss --n 100
+LD_LIBRARY_PATH=$L heaptrack_print -f /tmp/leanvm-heap.zst --print-allocators 0 --print-temporary 0 --peak-limit 10 \
+  --sub-peak-limit 2 | c++filt
+```
+
+- The report lists the peak's consumers, each allocation site with the bytes it held at the peak and its callers. `heaptrack --analyze /tmp/leanvm-heap.zst` opens the same data in `heaptrack_gui` where it is installed (`heaptrack-gui`), and otherwise prints `heaptrack_print`'s full report (peaks, sites by number of calls, temporary allocations).
+- `c++filt` demangles the Rust names heaptrack prints raw.
+- The system allocator returns freed pages to the kernel, so this build is much slower (Memory, below) and its timings mean nothing: use it for memory questions only.
 
 ## Read-write arrays
 
@@ -164,7 +208,7 @@ A second machine, proven by the same bus, table sumcheck, flock and opening as a
 
 ## Memory
 
-A proof's buffers are plain `Vec`s on the global allocator. The prover allocates gigabytes of short-lived buffers per proof, so what costs time is the kernel faulting fresh pages in, not the allocator's bookkeeping: an allocator that returns freed pages to the kernel makes every proof fault them in again. The CLI and every proving `benches/` target therefore install jemalloc with dirty pages that never decay (`bench::Jemalloc` and its `malloc_conf` in `crates/bench/src/allocator.rs`, one `#[global_allocator]` line in each binary), so a freed buffer's pages serve the next proof; the price is that the process keeps its peak resident until it exits. On Linux the same configuration asks for transparent huge pages on jemalloc's mappings (`thp:always,metadata_thp:always`), so a first touch faults a 2 MiB page rather than a 4 KiB one; other targets leave it out, since jemalloc would warn there. The libraries impose no allocator: a host embedding `leanvm` picks its own, and a retaining one is what makes repeated proofs fast (`leanvm::Prover`'s doc says so). glibc's default is the slow case: it unmaps a large block on free.
+A proof's buffers are plain `Vec`s on the global allocator. The prover allocates gigabytes of short-lived buffers per proof, so what costs time is the kernel faulting fresh pages in, not the allocator's bookkeeping: an allocator that returns freed pages to the kernel makes every proof fault them in again. The CLI and every proving `benches/` target therefore install jemalloc with dirty pages that never decay (`bench::Jemalloc` and its `malloc_conf` in `crates/bench/src/allocator.rs`, one `#[global_allocator]` line in each binary, where the CLI's `system-alloc` feature puts the system allocator instead for heaptrack), so a freed buffer's pages serve the next proof; the price is that the process keeps its peak resident until it exits. On Linux the same configuration asks for transparent huge pages on jemalloc's mappings (`thp:always,metadata_thp:always`), so a first touch faults a 2 MiB page rather than a 4 KiB one; other targets leave it out, since jemalloc would warn there. The libraries impose no allocator: a host embedding `leanvm` picks its own, and a retaining one is what makes repeated proofs fast (`leanvm::Prover`'s doc says so). glibc's default is the slow case: it unmaps a large block on free.
 
 Resident memory (`peak-memory`) therefore mixes what the code needs with what jemalloc keeps and how the kernel rounds its mappings, and is the process's maximum, setup included. Each binary wraps its allocator in `bench::Counting` (`crates/bench/src/heap.rs`), which counts the bytes live and the allocations made, over any allocator it wraps: `heap-peak` and the span tree's heap say what the code needs, so a change can lower them and still raise `peak-memory`, and `allocations` measures churn (fresh buffers, regrowth), exact on one thread and varying slightly with the pool's scheduling on many.
 
