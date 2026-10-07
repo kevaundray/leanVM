@@ -2,7 +2,8 @@
 
 This crate proves, with [Verus](https://verus-lang.github.io/verus/guide/overview.html), that the portable
 (non-SIMD) code of `crates/primitives` (the fields `K = GF(2^64)`, `E = GF(2^192)` and `GF(2^8)`, the bit
-transposes) and of `crates/pcs/src/ntt` (the additive NTT) computes the mathematics it is meant to.
+transposes), of `crates/pcs/src/ntt` (the additive NTT) and of `crates/flock/src/zerocheck/ntt` (the `GF(2^8)` NTT of
+flock's zerocheck) computes the mathematics it is meant to.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
@@ -20,8 +21,9 @@ is rebound). SIMD arms are not copied.
 `tests/equivalence/` then runs every copy against the production function it copies: exhaustively where the
 domain is small (all `GF(2^8)` pairs, all 16-bit reductions), and otherwise on 10k to 100k random inputs plus
 edge cases (zero, one, all ones, top bits only, the reduction constant). Production functions that are private
-are reached through the nearest public function that calls them (each test says which). An edit to one side
-without the other fails these tests. CI's `Verus proofs` job runs both the proofs and these tests.
+are reached through the nearest public function that calls them (each test says which); flock's zerocheck NTT has
+no public path at all, so its two source files are compiled into the test binary by `#[path]` and called directly.
+An edit to one side without the other fails these tests. CI's `Verus proofs` job runs both the proofs and these tests.
 
 Production is compiled natively there, so the tests also compare the dispatched SIMD arms of the machine (on
 CI's runners the AVX2 arms) with the verified portable copies.
@@ -117,13 +119,37 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### Lane-interleaved NTT (`src/ntt_lanes.rs`)
+
+A buffer of `m` interleaved lanes holds word `v` of lane `l` at word `m v + l` (`lane(data, m, l)`).
+
+- One layer commutes with taking a lane: lane `l` of a forward or inverse layer's output is the same layer applied to lane `l` alone (`lemma_lane_layer`), so the forward layers `start..end` and the inverse layers transform every lane independently (`lemma_lane_forward_layers`, `lemma_lane_inverse_layers`). This holds for any table and any lane count, and `forward_scalar_from_layer` computes `forward_layers` for any lane count.
+- Evaluation: for `AdditiveNttF64::standard(dim)` on `m` lanes of `2^dim` rows, output word `m v + l` is `P_l(v) = sum_j a_(m j + l) X_j(v)`, lane `l`'s novel-basis polynomial at the domain point `v` (`lemma_standard_lanes_forward_evaluates`).
+- Encoding: the encoder at rate `2^-r` on `m` lanes (layers `r..dim` on `2^r` copies of an `m`-lane message of `2^(dim - r)` rows, as `encode_interleaved_in_place` lays it out) gives at word `m v + l` the evaluation at `v` of the polynomial whose coefficients are lane `l` of the message, zero-padded: every lane is Reed-Solomon encoded (`lemma_standard_lanes_encode_evaluates`).
+- No new executable copy: the lanes theorems are about `forward_scalar_from_layer`, already checked against `encode_interleaved_in_place` for 1, 2, 3, 5 and 8 lanes, at rate 1 and at several rates, in `tests/equivalence/ntt.rs`.
+
+### `GF(2^8)` additive NTT of flock's zerocheck (`src/flock_ntt.rs`)
+
+Over the field of `src/gf2_8.rs`, with the standard basis `b_i = x^i` (the byte with bit `i` alone), the subspace polynomials `s_0(x) = x`, `s_i(x) = s_(i-1)(x) (s_(i-1)(x) + s_(i-1)(b_(i-1)))` and `Ŵ_i(x) = s_i(b_i)^(-1) s_i(x)`. `novel8(m, a, x)` is the novel-basis polynomial `sum_(j < 2^m) a_j X_j(x)`, `X_j = prod_(i < m) Ŵ_i(x)^(bit_i(j))`, written by its split on the top bit of `j`; `lemma_novel8_flat` proves it equal to the flat sum `novel8_sum`. `fft_spec` and `ifft_spec` are the recursions of `fft_rec` and `ifft_rec`.
+
+- Subspace polynomials: each `s_i` and `Ŵ_i` is GF(2)-linear, `s_i` vanishes exactly on `{0, .., 2^i - 1}` (`lemma_subspace_poly8_vanishes`, `lemma_subspace_poly8_roots`, from `GF(2^8)` having no zero divisors), so `Ŵ_i(b_i) = 1` for every `i < 8` (`lemma_normalized_poly8_at_basis`).
+- Twiddles: `compute_twiddles(k, β)` (any `k <= 8`, any offset `β`) returns `2^k - 1` entries, entry `2^d - 1 + j` (depth `d < k`, block `j < 2^d`) being `Ŵ_(k-1-d)(β + j 2^(k-d))`, `Ŵ` of the first point of the block, as its documentation's layout says (`twiddles_of`, the postcondition).
+- Butterflies and recursions: `fft_butterfly`, `ifft_butterfly`, `fft_rec` and `ifft_rec` compute `fft_spec` and `ifft_spec` on every power-of-two length; `AdditiveNttGf8::forward` and `inverse` are `fft_rec` and `ifft_rec` from the root.
+- Evaluation: with the table of `new(k, β)`, output word `u` of `forward` on `2^k` coefficients is `P(β + u)` (the point `β ⊕ u`, no bit reversal), the novel-basis polynomial of the input at the `u`-th point of the domain `β + span{1, 2, .., 2^(k-1)}`, as the struct's documentation claims (`lemma_fft_evaluates`).
+- Inverse: `inverse` undoes `forward` and `forward` undoes `inverse`, for any table and any buffer (`lemma_ifft_after_fft`, `lemma_fft_after_ifft`), so `inverse` interpolates: on the evaluations of `P` it returns `P`'s coefficients (`lemma_ifft_interpolates`).
+- The extension matrix: let `M = forward_Λ ∘ inverse_S` for any two `2^k`-point NTTs (offsets `β_s`, `β_l`), column `t` being the image of `e_t` (`lde_column`). Then `M[i][j] = M[i ⊕ j][0]` (`lemma_lde_shift`): the interpolant of `e_j` on `S` is the interpolant of `e_0` translated by `j`, because a translate of a novel-basis polynomial is again one (`translate`, `lemma_translate`) and the transform is injective. This is the "XOR-shift relation" `inv_table.rs` relies on.
+- The table: `InvNttTableByteSingleGf8::new(ntt_s, ntt_l)` (`3 <= k <= 7`) holds, at row `w`, the XOR of the columns `t < 8` of `M` over the set bits `t` of `w`, as its field's documentation claims (`table_row`, the postcondition), for any two NTTs of the same `k`.
+- `apply_scalar` applies `M`: its output word `i` on a row of `ell / 8` bytes is `sum_b T[bytes[b]][i ⊕ 8b]` (the postcondition), which equals `sum_j x_j M[i][j]`, `x_(8b+t)` being bit `t` of byte `b`, for the table of two NTTs built by `new` (`lemma_table_applies_lde`).
+- Copies: `compute_twiddles` and `new` take `k <= 8` as a precondition (the domain lies in `GF(2^8)`; production does not check it), `fft_rec` and `ifft_rec` take a power-of-two length and in-table twiddle reads (production's only caller guarantees both), the `assert!`s become `requires`, iterator loops and `copy_from_slice` become index loops, the `continue` of `new`'s last loop becomes an `if` (Verus's `for` has no `continue`), and `w.trailing_zeros()` is taken on `w as u64` (vstd specifies it for `u64`, not `usize`).
+
 ## Trust base and assumptions
 
 - No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
 - `vstd`'s specifications of what the copies call are trusted: integer `From`, the operator traits, `Vec` and
-  slice indexing, `slice_to_vec`, and its proven `pow2` and division lemmas.
+  slice indexing (by index and by range), `slice_to_vec`, `vec![x; n]`, `Vec::clone`, `split_at_mut`,
+  `u64::trailing_zeros`, and its proven `pow2` and division lemmas.
 - `src/ntt.rs` declares `global size_of usize == 8`: the NTT proofs are for 64-bit targets, which Verus checks
   when it compiles the crate.
 - The copies equal the production functions by test, not by proof (see above).
@@ -146,6 +172,7 @@ Following annex `d` of the leanVM document:
   - Bit transposes: `bits::tests::every_arm_matches_reference`.
   - NTT butterflies: `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` and the other driver
     tests (forward), `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed).
+  - flock's LDE table (`apply_v128` on NEON and SSE2, `apply_avx2`, `apply_avx512`/`apply_zmm`): `zerocheck::ntt::inv_table::tests::apply_simd_matches_apply_scalar`, and `tests/equivalence/flock_ntt.rs`, which compares the dispatched `apply` with the verified `apply_scalar` on every single-byte row and on random rows. The round-1 kernels that read the table through `data_ptr` and `apply_zmm` (`zerocheck/round1.rs`) are not covered.
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.

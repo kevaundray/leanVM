@@ -4,6 +4,7 @@
 //! random inputs and on the edge cases, so an edit to one side without the other fails here.
 
 mod bits;
+mod flock_ntt;
 mod gf2_64;
 mod gf2_64x3;
 mod gf2_8;

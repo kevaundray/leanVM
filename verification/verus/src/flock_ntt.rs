@@ -18,10 +18,13 @@
 //!
 //! Main results: `compute_twiddles`' postcondition; [`lemma_fft_evaluates`] (the forward transform of an
 //! NTT built with offset `β` maps the coefficients to the evaluations at `β + v`, `v < 2^k`);
-//! [`lemma_ifft_after_fft`] and [`lemma_fft_after_ifft`] (the two transforms undo each other);
-//! [`lemma_lde_shift`] (the columns of `M = forward_Λ ∘ inverse_S` satisfy `M[i][j] = M[i ⊕ j][0]`);
-//! `InvNttTableByteSingleGf8::new`'s postcondition (row `w` of the table is the XOR of the columns `t < 8` of
-//! `M` over the set bits `t` of `w`) and `apply_scalar`'s (it multiplies `M` by the row's bits).
+//! [`lemma_ifft_after_fft`] and [`lemma_fft_after_ifft`] (the two transforms undo each other, so
+//! [`lemma_ifft_interpolates`]); [`lemma_lde_shift`] (the columns of `M = forward_Λ ∘ inverse_S` satisfy
+//! `M[i][j] = M[i ⊕ j][0]`); `InvNttTableByteSingleGf8::new`'s postcondition (row `w` of the table is the XOR of
+//! the columns `t < 8` of `M` over the set bits `t` of `w`); and [`lemma_table_applies_lde`] (`apply_scalar`
+//! multiplies `M` by the row's bits).
+//!
+//! The SIMD arms of `apply` are not copied.
 use crate::gf2_8::*;
 use vstd::arithmetic::div_mod::*;
 use vstd::arithmetic::mul::*;
