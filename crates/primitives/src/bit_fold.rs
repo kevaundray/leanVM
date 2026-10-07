@@ -24,7 +24,13 @@ use crate::multilinear::eq_table;
 ))]
 use core::arch::x86_64::__m512i;
 
-#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+#[cfg(all(target_arch = "aarch64", target_feature = "sha3"))]
+use arm::{self as imp, Imp};
+
+#[cfg(not(any(
+    all(target_arch = "x86_64", target_feature = "avx2"),
+    all(target_arch = "aarch64", target_feature = "sha3")
+)))]
 use portable::{self as imp, Imp};
 
 #[cfg(all(
@@ -187,7 +193,13 @@ impl Sliced {
     }
 }
 
-#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2")))]
+#[cfg(all(target_arch = "aarch64", target_feature = "sha3"))]
+mod arm;
+
+#[cfg(not(any(
+    all(target_arch = "x86_64", target_feature = "avx2"),
+    all(target_arch = "aarch64", target_feature = "sha3")
+)))]
 mod portable;
 
 #[cfg(all(
