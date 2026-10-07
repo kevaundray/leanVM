@@ -10,3 +10,4 @@ pub mod gf2_8;
 pub mod multilinear;
 pub mod ntt;
 pub mod phi8_tower;
+pub mod skip_domain;
