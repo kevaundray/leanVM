@@ -98,11 +98,11 @@ impl SkipDomain {
         a.mul(scale, sum)
     }
 
-    /// The first round's message, known on `Lambda` and zero on `S`, interpolated at `z` over the window `S + Lambda`.
+    /// The first round's message, known on `Lambda` and zero on `S`, interpolated at `z` over the window `S ∪ Lambda`.
     ///
     /// Its value is `D_2l · V_S(z) · V_Lambda(z) · sum_i values_i / (z + lambda_i)`, `l` the domain's size, with `V_Lambda(z) = V_S(z) + V_S(phi_8(l))`.
     ///
-    /// This barycentric form is the interpolant only for `z` off the window `S + Lambda`: at a node the vanishing factor is zero and `1 / 0` is taken as zero, so it gives 0 rather than the node's value. `z` is the verifier's challenge, so it lands on a node with probability at most `128 / 2^192`, where an honest proof would be rejected.
+    /// This barycentric form returns zero on both `S` and `Lambda`. That is the required value on `S`, but at a node of `Lambda` it need not equal the message value, since `1 / 0` is taken as zero. The interpolation guarantee excludes `Lambda`. For a uniformly distributed challenge in `E`, hitting `Lambda` has probability at most `128 / 2^192` and can cause rejection of an honest proof.
     pub(crate) fn first_round_at<A: Arith>(self, a: &mut A, z: A::E, vanishing: A::E, values: &[A::E]) -> A::E {
         let size = self.size();
         let lambda = &PHI_8_TABLE_192[size..2 * size];
@@ -121,7 +121,7 @@ impl SkipDomain {
 
     /// `sum_i L_i(z) values_i` over `S`, `L_i` its Lagrange basis: `D_l · V_S(z) · sum_i values_i / (z + s_i)`.
     ///
-    /// This barycentric form is the interpolant only for `z` off `S`: at a node `V_S(z)` is zero and `1 / 0` is taken as zero, so it gives 0 rather than the node's value. `z` is the verifier's challenge, so it lands on a node with probability at most `128 / 2^192`, where an honest proof would be rejected.
+    /// This barycentric form is guaranteed to be the interpolant only for `z` off `S`: at a node `V_S(z)` is zero and `1 / 0` is taken as zero, so it gives 0, which need not equal the node's value. For a uniformly distributed challenge in `E`, hitting `S` has probability at most `128 / 2^192` and can cause rejection of an honest proof.
     pub fn lagrange_at<A: Arith>(self, a: &mut A, z: A::E, vanishing: A::E, values: &[A::E]) -> A::E {
         let scaled = self.lagrange_scale(a, vanishing);
         let inverses = self.inverses(a, z);
