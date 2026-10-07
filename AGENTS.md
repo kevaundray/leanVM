@@ -97,6 +97,8 @@ The benchmarks we care about:
 
 To compare a change with its base on this machine the way CI does, run `scripts/ab.sh`: it builds the working tree, uncommitted changes included, and the merge-base with `upstream/riscv-exploration` (in a temporary worktree with its own target directory, so the tree and its build are left alone), runs each benchmark on both in turns, and prints what moved as the PR's comment would (main's `pr_comment.py --dry-run`). A benchmark is named as in CI: a case of `proven()`, a `benches/` target's name in the script (`kernels`, `blake2s-batch`, ...), or `counts`, the exact counts. `--help` says the rest.
 
+CI also records the kernel, page size, transparent huge page settings and available CPU frequency policies; absent or unreadable optional sysfs files are skipped. Its benchmark processes run in systemd user scopes capped at 16 GiB with no swap. After the `leanxmss-100-1thread` job's timed A/B rounds, each runnable side runs `leanxmss --n 100 --repeat 1 --tracing` with `LEANVM_NUM_THREADS=1`. The existing benchmark artifact includes `trace-base.log` when the base completed the benchmark and `trace-head.log`, separate from `ab.json`; the traces do not contribute to the A/B samples. Local comparisons retain their portable execution path and do not collect these extra traces.
+
 ```bash
 scripts/ab.sh hash-50000                    # a case of `proven()`, against the merge-base
 scripts/ab.sh kernels --rounds 3            # a `benches/` target, 3 rounds a side
