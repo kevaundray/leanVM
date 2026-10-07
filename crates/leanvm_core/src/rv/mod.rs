@@ -32,17 +32,15 @@ mod instruction;
 mod program;
 mod region;
 mod register;
-mod semantics;
+pub(crate) mod semantics;
 
-pub use circuits::ClassCircuit;
 pub use elf::{ElfError, Guest};
-pub use entry::{Class, Entry, Target};
-pub use instruction::{BranchOp, ExtOp, ImmOp, Instruction, LoadOp, Op, Opcode, RegOp, ShiftOp, StoreOp};
+pub use entry::{Class, Entry};
 pub use machine::{Machine, Trap};
 pub use program::{Fetched, ProgramError, RiscvProgram};
 pub use region::Region;
 pub use register::{Reg, RegisterFile, Syscall};
 pub use semantics::{
-    Add, BlockAccess, Branch, Div, Ext, Hash, InstructionClass, Jump, Ld, Limb, Load, Logic, Mul, Mulh, Outcome, Sd,
-    Shift, Store, WordAccess,
+    Add, BlockAccess, Branch, Div, Ext, Hash, InstructionClass, Jump, Ld, Limb, Load, Logic, Mul, Mulh, Shift, Store,
+    WordAccess,
 };

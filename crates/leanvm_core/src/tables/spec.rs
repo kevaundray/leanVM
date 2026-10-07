@@ -1,8 +1,8 @@
 //! Instruction-class specifications in protocol table order.
 
-use super::Word;
 use super::clock::Clock;
-use crate::rv::{Class, Ext, Hash, Mul, Mulh};
+use super::{N_TABLES, TableId, Word};
+use crate::rv::{Add, Branch, Class, Ext, Hash, Jump, Ld, Load, Logic, Mul, Mulh, Shift, Store};
 use crate::{class_flock, rv};
 use flock::circuit::Circuit;
 use std::ops::Range;
@@ -55,6 +55,32 @@ pub type InstanceWitness = fn(&[u64], &mut [u64], &mut [u64], &mut [u64]);
 /// Eight instances' packed witness by native word arithmetic.
 pub type BatchWitness = fn(&[&[u64]; 8], &mut [u64], &mut [u64], &mut [u64]);
 
+/// How a class circuit's witness is generated.
+#[derive(Clone, Copy, Debug)]
+pub enum Fill {
+    /// The generic walk of the gate list, 64 instances at a time.
+    Walk,
+    /// Word arithmetic one instance at a time, checked against the walk.
+    Instance(InstanceWitness),
+    /// Word arithmetic eight instances at a time, checked against the walk.
+    Batch8(BatchWitness),
+}
+
+/// A class's flock circuit: its size, its ports, and how its witness is generated.
+pub struct ClassCircuit {
+    /// Base-two logarithm of the circuit's bits per instance.
+    pub k_log: usize,
+
+    /// The words the circuit reads, in port order.
+    pub inputs: &'static [Word],
+
+    /// The words the circuit gives, in port order after the inputs.
+    pub outputs: &'static [Word],
+
+    /// How the witness is generated.
+    pub fill: Fill,
+}
+
 /// Register accesses, memory shape, and circuit ports of one instruction class.
 pub struct ClassSpec {
     /// Instruction class executed by this table.
@@ -81,22 +107,8 @@ pub struct ClassSpec {
     /// Whether a doubleword is moved unchanged through a shared column.
     pub copies: bool,
 
-    /// Word-level witness generation, checked against the generic circuit walk.
-    pub witness: Option<InstanceWitness>,
-
-    /// Eight-instance witness generation when native arithmetic supports batching.
-    pub batch_witness: Option<BatchWitness>,
-
-    /// Base-two logarithm of the class circuit's bits per instance, zero for a class with no circuit.
-    pub k_log: usize,
-
-    /// Circuit port words in order, with inputs before outputs.
-    ///
-    /// Empty for a class with no circuit, whose table proves it by identities (`ClassTable::identities`).
-    pub ports: &'static [Word],
-
-    /// Number of input ports in the class circuit.
-    pub n_inputs: usize,
+    /// The class's flock circuit, or none for a class whose table proves it by identities (`ClassTable::identities`).
+    pub circuit: Option<ClassCircuit>,
 
     /// Base-two logarithm of the clock circuit's bits per instance.
     pub clock_k_log: usize,
@@ -119,11 +131,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 9,
-        ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
-        n_inputs: 4,
+        circuit: Some(ClassCircuit {
+            k_log: 9,
+            inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags],
+            outputs: &[Word::Out],
+            fill: Fill::Instance(Add::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -139,11 +152,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 9,
-        ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
-        n_inputs: 4,
+        circuit: Some(ClassCircuit {
+            k_log: 9,
+            inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags],
+            outputs: &[Word::Out],
+            fill: Fill::Instance(Logic::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -161,11 +175,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 9,
-        ports: &[Word::V1, Word::V2, Word::Flags, Word::Dt, Word::Jump],
-        n_inputs: 4,
+        circuit: Some(ClassCircuit {
+            k_log: 9,
+            inputs: &[Word::V1, Word::V2, Word::Flags, Word::Dt],
+            outputs: &[Word::Jump],
+            fill: Fill::Instance(Branch::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -183,11 +198,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 9,
-        ports: &[Word::V1, Word::Imm, Word::Flags, Word::Dt, Word::Pc4, Word::Jump],
-        n_inputs: 5,
+        circuit: Some(ClassCircuit {
+            k_log: 9,
+            inputs: &[Word::V1, Word::Imm, Word::Flags, Word::Dt, Word::Pc4],
+            outputs: &[Word::Jump],
+            fill: Fill::Instance(Jump::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -203,18 +219,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Read,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 10,
-        ports: &[
-            Word::V1,
-            Word::Imm,
-            Word::Flags,
-            Word::Cell(0),
-            Word::Address,
-            Word::Out,
-        ],
-        n_inputs: 4,
+        circuit: Some(ClassCircuit {
+            k_log: 10,
+            inputs: &[Word::V1, Word::Imm, Word::Flags, Word::Cell(0)],
+            outputs: &[Word::Address, Word::Out],
+            fill: Fill::Instance(Load::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -230,19 +240,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Write,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 10,
-        ports: &[
-            Word::V1,
-            Word::V2,
-            Word::Imm,
-            Word::Flags,
-            Word::Cell(0),
-            Word::Address,
-            Word::CellNew(0),
-        ],
-        n_inputs: 5,
+        circuit: Some(ClassCircuit {
+            k_log: 10,
+            inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Cell(0)],
+            outputs: &[Word::Address, Word::CellNew(0)],
+            fill: Fill::Instance(Store::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -258,11 +261,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Read,
         copies: true,
-        witness: None,
-        batch_witness: None,
-        k_log: 8,
-        ports: &[Word::V1, Word::Imm, Word::Address],
-        n_inputs: 2,
+        circuit: Some(ClassCircuit {
+            k_log: 8,
+            inputs: &[Word::V1, Word::Imm],
+            outputs: &[Word::Address],
+            fill: Fill::Instance(Ld::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -278,11 +282,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Write,
         copies: true,
-        witness: None,
-        batch_witness: None,
-        k_log: 8,
-        ports: &[Word::V1, Word::Imm, Word::Address],
-        n_inputs: 2,
+        circuit: Some(ClassCircuit {
+            k_log: 8,
+            inputs: &[Word::V1, Word::Imm],
+            outputs: &[Word::Address],
+            fill: Fill::Instance(Ld::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -298,11 +303,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 10,
-        ports: &[Word::V1, Word::V2, Word::Imm, Word::Flags, Word::Out],
-        n_inputs: 4,
+        circuit: Some(ClassCircuit {
+            k_log: 10,
+            inputs: &[Word::V1, Word::V2, Word::Imm, Word::Flags],
+            outputs: &[Word::Out],
+            fill: Fill::Instance(Shift::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -318,15 +324,16 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: if cfg!(all(target_arch = "x86_64", target_feature = "avx2")) {
-            Some(Mul::witness_batch)
-        } else {
-            None
-        },
-        k_log: 12,
-        ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
-        n_inputs: 3,
+        circuit: Some(ClassCircuit {
+            k_log: 12,
+            inputs: &[Word::V1, Word::V2, Word::Flags],
+            outputs: &[Word::Out],
+            fill: if cfg!(all(target_arch = "x86_64", target_feature = "avx2")) {
+                Fill::Batch8(Mul::witness_batch)
+            } else {
+                Fill::Walk
+            },
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -342,11 +349,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: Some(Mulh::witness),
-        batch_witness: None,
-        k_log: 13,
-        ports: &[Word::V1, Word::V2, Word::Flags, Word::Out],
-        n_inputs: 3,
+        circuit: Some(ClassCircuit {
+            k_log: 13,
+            inputs: &[Word::V1, Word::V2, Word::Flags],
+            outputs: &[Word::Out],
+            fill: Fill::Instance(Mulh::witness),
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -362,19 +370,12 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::None,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 13,
-        ports: &[
-            Word::V1,
-            Word::V2,
-            Word::Flags,
-            Word::HintQ,
-            Word::HintR,
-            Word::Out,
-            Word::Bad,
-        ],
-        n_inputs: 5,
+        circuit: Some(ClassCircuit {
+            k_log: 13,
+            inputs: &[Word::V1, Word::V2, Word::Flags, Word::HintQ, Word::HintR],
+            outputs: &[Word::Out, Word::Bad],
+            fill: Fill::Walk,
+        }),
         clock_k_log: 9,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -390,30 +391,27 @@ impl ClassSpec {
         reads_rd: false,
         ram: Ram::Block,
         copies: false,
-        witness: Some(rv::circuits::blake2s_witness),
-        batch_witness: None,
-        k_log: 14,
-        ports: &[
-            Word::V2,
-            Word::Flags,
-            Word::Cell(0),
-            Word::Cell(1),
-            Word::Cell(2),
-            Word::Cell(3),
-            Word::Cell(8),
-            Word::Cell(9),
-            Word::Cell(10),
-            Word::Cell(11),
-            Word::Cell(12),
-            Word::Cell(13),
-            Word::Cell(14),
-            Word::Cell(15),
-            Word::CellNew(4),
-            Word::CellNew(5),
-            Word::CellNew(6),
-            Word::CellNew(7),
-        ],
-        n_inputs: 14,
+        circuit: Some(ClassCircuit {
+            k_log: 14,
+            inputs: &[
+                Word::V2,
+                Word::Flags,
+                Word::Cell(0),
+                Word::Cell(1),
+                Word::Cell(2),
+                Word::Cell(3),
+                Word::Cell(8),
+                Word::Cell(9),
+                Word::Cell(10),
+                Word::Cell(11),
+                Word::Cell(12),
+                Word::Cell(13),
+                Word::Cell(14),
+                Word::Cell(15),
+            ],
+            outputs: &[Word::CellNew(4), Word::CellNew(5), Word::CellNew(6), Word::CellNew(7)],
+            fill: Fill::Instance(rv::circuits::blake2s_witness),
+        }),
         clock_k_log: 11,
         clock_inputs: &[],
         clock_outputs: &[],
@@ -433,11 +431,7 @@ impl ClassSpec {
         reads_rd: true,
         ram: Ram::Limbs,
         copies: false,
-        witness: None,
-        batch_witness: None,
-        k_log: 0,
-        ports: &[],
-        n_inputs: 0,
+        circuit: None,
         clock_k_log: 12,
         clock_inputs: &[Word::V1, Word::V2, Word::Dest, Word::Flags],
         clock_outputs: &[
@@ -451,24 +445,6 @@ impl ClassSpec {
             Word::LimbAddress(8),
         ],
     };
-
-    /// Specifications in protocol order, shared by execution and proving.
-    pub const ALL: [&'static Self; N_TABLES] = [
-        &Self::ADD,
-        &Self::LOGIC,
-        &Self::BRANCH,
-        &Self::JUMP,
-        &Self::LOAD,
-        &Self::STORE,
-        &Self::LD,
-        &Self::SD,
-        &Self::SHIFT,
-        &Self::MUL,
-        &Self::MULH,
-        &Self::DIV,
-        &Self::HASH,
-        &Self::EXT,
-    ];
 
     /// Check that register accesses and copy semantics match the circuit ports.
     pub(super) fn assert_valid(&self) {
@@ -506,7 +482,7 @@ impl ClassSpec {
             };
             let ports = [Word::V1, Word::Imm, Word::Address];
             assert!(
-                moves && self.control == Control::None && !self.reads_rd && self.ports == ports,
+                moves && self.control == Control::None && !self.reads_rd && self.ports().eq(ports),
                 "{}: a copy",
                 self.name
             );
@@ -535,7 +511,17 @@ impl ClassSpec {
     ///
     /// A batch has at least eight instances and a zerocheck cube of at least 2^13 bits.
     pub const fn min_rows(&self) -> usize {
-        1 << class_flock::n_blocks_log(self, 1)
+        1 << self.n_blocks_log(1)
+    }
+
+    /// `log2` of the batch proving `n_rows` of the table's rows: a power of two, at least flock's stripe floor and at
+    /// least what the zerocheck's cube needs for each of the table's circuits.
+    pub const fn n_blocks_log(&self, n_rows: usize) -> usize {
+        let smallest = match &self.circuit {
+            Some(circuit) if circuit.k_log < self.clock_k_log => circuit.k_log,
+            _ => self.clock_k_log,
+        };
+        class_flock::batch_log(smallest, n_rows)
     }
 
     /// The height the table is proven at when the run makes `rows` of its rows: the next power of two at or above its floor.
@@ -560,7 +546,14 @@ impl ClassSpec {
 
     /// Whether the class is a flock circuit; otherwise its table's identities prove it.
     pub const fn has_circuit(&self) -> bool {
-        !self.ports.is_empty()
+        self.circuit.is_some()
+    }
+
+    /// The class circuit's port words, inputs then outputs: none for a class with no circuit.
+    pub fn ports(&self) -> impl Iterator<Item = Word> + '_ {
+        (self.circuit.iter())
+            .flat_map(|c| c.inputs.iter().chain(c.outputs))
+            .copied()
     }
 
     /// The table's clock circuit.
@@ -568,6 +561,16 @@ impl ClassSpec {
         match self.class {
             Class::Ext => Ext::clock_circuit(&self.slots()),
             _ => Clock::circuit(&self.slots()),
+        }
+    }
+
+    /// One instance of [`Self::clock_circuit`]'s witness by word arithmetic, from its input words (the
+    /// [`Self::clock_ports`] before the step), into zeroed buffers: [`Clock::witness`], or EXT's
+    /// ([`Ext::clock_witness`]).
+    pub fn clock_witness(&self, slots: &[u32], inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        match self.class {
+            Class::Ext => Ext::clock_witness(slots, inputs, z, az, bz),
+            _ => Clock::witness(slots, inputs[0], &inputs[1..], z, az, bz),
         }
     }
 
@@ -586,10 +589,8 @@ impl ClassSpec {
 
     /// Every word of the table's circuits: its class circuit's, then its clock circuit's own.
     pub(super) fn words(&self) -> impl Iterator<Item = Word> + '_ {
-        (self.ports.iter())
-            .chain(self.clock_inputs)
-            .chain(self.clock_outputs)
-            .copied()
+        self.ports()
+            .chain(self.clock_inputs.iter().chain(self.clock_outputs).copied())
     }
 }
 
@@ -601,9 +602,6 @@ pub const BAD_SLOT: usize = 10;
 /// Bytecode slot binding the exit selector.
 pub const EXIT_SLOT: usize = 11;
 
-/// Number of instruction tables in the proof layout.
-pub const N_TABLES: usize = 14;
-
 /// Number of tables with a class circuit, which come first: table `t < N_CIRCUITS` has one, and its class circuit is
 /// packed witness `t`.
 ///
@@ -612,7 +610,7 @@ pub const N_TABLES: usize = 14;
 /// The tables past them prove identities of their own, in the table sumcheck.
 pub const N_CIRCUITS: usize = {
     let mut n = 0;
-    while n < N_TABLES && ClassSpec::ALL[n].has_circuit() {
+    while n < N_TABLES && TableId::ALL[n].spec().has_circuit() {
         n += 1;
     }
     n
@@ -623,7 +621,7 @@ const _: () = {
     let mut t = N_CIRCUITS;
     while t < N_TABLES {
         assert!(
-            !ClassSpec::ALL[t].has_circuit(),
+            !TableId::ALL[t].spec().has_circuit(),
             "the tables with a class circuit come first"
         );
         t += 1;

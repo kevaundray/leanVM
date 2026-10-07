@@ -362,6 +362,7 @@ DS_OBSERVE = 1
 DS_SQUEEZE = 2
 DS_POW_BASE = 3
 DS_POW_NONCE = 4
+MAX_PENDING = 2  # the most scalars one transcript step absorbs
 
 
 def compress(left: Sequence[K | int], right: Sequence[K | int]) -> tuple[int, int, int, int]:
@@ -369,18 +370,59 @@ def compress(left: Sequence[K | int], right: Sequence[K | int]) -> tuple[int, in
     return unpack("<4Q", blake2s_hash(b"".join(int(x).to_bytes(8, "little") for x in (*left, *right))).value)
 
 
+def blake2s_compress(h: Sequence[int], block: bytes, t: int, last: bool) -> list[int]:
+    """The BLAKE2s compression (RFC 7693) of a 64-byte block into the chaining value `h`, eight 32-bit words."""
+    m = unpack("<16I", block)
+    v = [*h, *BLAKE2S_IV[:4], BLAKE2S_IV[4] ^ (t & 0xFFFFFFFF), BLAKE2S_IV[5] ^ (t >> 32), BLAKE2S_IV[6] ^ (0xFFFFFFFF if last else 0), BLAKE2S_IV[7]]
+
+    def rotr(x: int, r: int) -> int:
+        return (x >> r | x << (32 - r)) & 0xFFFFFFFF
+
+    for sigma in BLAKE2S_SIGMA:
+        for g, (a, b, c, d) in enumerate(BLAKE2S_G_LANES):
+            for x, r1, r2 in ((m[sigma[2 * g]], 16, 12), (m[sigma[2 * g + 1]], 8, 7)):
+                v[a] = (v[a] + v[b] + x) & 0xFFFFFFFF
+                v[d] = rotr(v[d] ^ v[a], r1)
+                v[c] = (v[c] + v[d]) & 0xFFFFFFFF
+                v[b] = rotr(v[b] ^ v[c], r2)
+    return [h[i] ^ v[i] ^ v[i + 8] for i in range(8)]
+
+
+def step(state: Sequence[int], scalars: Sequence[E], tag: int) -> tuple[int, int, int, int]:
+    """A transcript step: the block of up to two scalars (the last in words 4 to 6, the one before it in words 0 to 2,
+    their count in word 3, the tag in word 7) compressed into the chaining value `state`, at counter 64 and final."""
+    require(len(scalars) <= MAX_PENDING, "a step absorbs at most two scalars")
+    first = scalars[0] if len(scalars) == 2 else ZERO
+    last = scalars[-1] if scalars else ZERO
+    block = pack("<8Q", first.c0, first.c1, first.c2, len(scalars), last.c0, last.c1, last.c2, tag)
+    out = blake2s_compress(unpack("<8I", pack("<4Q", *state)), block, 64, True)
+    return unpack("<4Q", pack("<8I", *out))
+
+
 class Transcript:
+    """An absorbed scalar waits for the next step, which takes up to two: a squeeze absorbs the waiting scalars in its
+    own step, and a third scalar first absorbs the two before it."""
+
     def __init__(self, proof: Proof, fiat_shamir_IV: Digest, public_input: Sequence[K]) -> None:
         self.proof = proof
         self.state = compress(fiat_shamir_IV.words(), public_input)
+        self.pending: list[E] = []
         self.stream_offset = 0  # in E field elements
         self.opening_offset = 0  # in bytes
 
+    def _flush(self) -> None:
+        if self.pending:
+            self.state = step(self.state, self.pending, DS_OBSERVE)
+            self.pending = []
+
     def observe(self, value: E) -> None:
-        self.state = compress(self.state, (value.c0, value.c1, value.c2, DS_OBSERVE))
+        if len(self.pending) == MAX_PENDING:
+            self._flush()
+        self.pending.append(value)
 
     def sample(self) -> E:
-        self.state = compress(self.state, (0, 0, 0, DS_SQUEEZE))
+        self.state = step(self.state, self.pending, DS_SQUEEZE)
+        self.pending = []
         return E(*self.state[:3])
 
     def samples(self, count: int) -> list[E]:
@@ -401,11 +443,11 @@ class Transcript:
         return [self.next_scalar() for _ in range(count)]
 
     def grind_check(self, bits: int) -> None:
+        self._flush()
         nonce = self._next()
-        block = (nonce.c0, nonce.c1, nonce.c2, DS_POW_NONCE)
-        digest = compress(compress(self.state, (0, 0, 0, DS_POW_BASE)), block)[0]
+        digest = compress(step(self.state, [], DS_POW_BASE), (nonce.c0, nonce.c1, nonce.c2, DS_POW_NONCE))[0]
         valid = nonce == ZERO if bits == 0 else digest & (2**bits - 1) == 0
-        self.state = compress(self.state, block)
+        self.state = step(self.state, [nonce], DS_POW_NONCE)
         require(valid, "invalid grinding nonce")
 
     def _merkle_data(self, length: int) -> bytes:
@@ -627,6 +669,10 @@ def verify_bus_balance(layout: Layout, transcript: Transcript) -> BusResult:
     # Both trees run over the taller one's depth: the producers' bits push with no pull of their own.
     depth = max(push_layout.depth, pull_layout.depth)
 
+    # A proof of work before the fingerprint challenges, for a program too large for the field alone; none otherwise.
+    grinding = max(0, layout.log_bytecode - UNGROUND_LOG_BYTECODE)
+    if grinding:
+        transcript.grind_check(grinding)
     alphas = transcript.samples(BUS_BITS)
     weights = eq_kernel(alphas)
     beta = transcript.sample()
@@ -780,7 +826,7 @@ NUM_FRAMEWORK_COLUMNS = len(SHARED_COLUMNS)
 
 K_BITS = 64
 FLOCK_K_SKIP = log2_ceil(K_BITS)
-LOG_PACKING = log2_ceil(K_BITS)  # bits per committed K-element (pcs::pack::LOG_PACKING)
+LOG_PACKING = log2_ceil(K_BITS)  # variables packed into each committed K-element
 # Flock's zerocheck runs over a cube of at least this many variables: the skip, then seven fixed coordinates.
 FLOCK_MIN_LOG_SIZE = 13
 
@@ -790,9 +836,11 @@ TEXT_BASE = 0x1000_0000
 RAM_BASE = 0x4000_0000  # RAM's word z sits at RAM_BASE + 8z; the program's image is its first words
 ADVICE_BASE = 0x2000_0000  # the advice's word z sits at ADVICE_BASE + 8z; what it holds before the run is the prover's
 # What the regions hold at most, and the most rows a table may announce. These bound the counting arguments the
-# memory and lookup proofs rest on, so the verifier checks them before it runs any reduction. The bytecode's cap, below
-# its region's, keeps the bus's degree within its margin over the commitment's list for every layout one commitment holds.
-MAX_LOG_BYTECODE = 21
+# memory and lookup proofs rest on, so the verifier checks them before it runs any reduction.
+MAX_LOG_TEXT = 26
+# The most bytecode entries, log2, whose bus keeps its margin over the commitment's list with no grinding. Each bit of
+# entries past it doubles the bus's degree, so the bus grinds one bit for it before its fingerprint challenges.
+UNGROUND_LOG_BYTECODE = 21
 MAX_LOG_RAM = 27
 MAX_LOG_ADVICE = 26
 MAX_LOG_ROWS = 32
@@ -1234,7 +1282,20 @@ def _ext_row(words: Sequence[K]) -> tuple[E, ...]:
     return tuple(E(*words[i : i + 3]) for i in range(0, len(words), 3))
 
 
+def strata(count: int, depth: int) -> list[tuple[int, int]]:
+    """Each query's stratum `(bits, index)`, in query order: its position's top `bits` bits are `index`. The batch is
+    cut by the binary digits of `count`, highest first; a group of `2^g` queries puts its `j`-th in the coset
+    `j mod 2^s` of its top `s = min(g, depth)` bits, so each coset holds equally many of the group's queries."""
+    result: list[tuple[int, int]] = []
+    for g in reversed(range(count.bit_length())):
+        if count >> g & 1:
+            bits = min(g, depth)
+            result += [(bits, j % 2**bits) for j in range(2**g)]
+    return result
+
+
 def sample_queries(transcript: Transcript, block_length: int, count: int) -> list[int]:
+    """Uniform positions, `192 // depth` from each challenge, each then moved into its stratum's coset."""
     depth = log2_strict(block_length)
     per_word = 192 // depth
     result: list[int] = []
@@ -1242,7 +1303,7 @@ def sample_queries(transcript: Transcript, block_length: int, count: int) -> lis
         bits = int(transcript.sample())
         for chunk in range(min(per_word, count - len(result))):
             result.append((bits >> (chunk * depth)) & (block_length - 1))
-    return result
+    return [position % 2 ** (depth - top) + (index << (depth - top)) for position, (top, index) in zip(result, strata(count, depth), strict=True)]
 
 
 def _enforced_sum(rows: Sequence[Sequence[K | E]], folds: Sequence[E], query_weights: Sequence[E]) -> E:
@@ -2199,7 +2260,7 @@ def build_layout(
     log_bytecode = log2_strict(len(bytecode)) - BUS_BITS
     require(
         all(table.min_log_height <= log_height <= MAX_LOG_ROWS for table, log_height in zip(TABLES, table_log_heights, strict=True))
-        and 0 <= log_bytecode <= MAX_LOG_BYTECODE,
+        and 0 <= log_bytecode <= MAX_LOG_TEXT,
         "invalid announced table sizes",
     )
     require(
@@ -2456,7 +2517,7 @@ def verify_core(
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
     require(entry_pc % 4 == 0 and TEXT_BASE <= entry_pc < halt_pc, "the entry pc is not an instruction of the text")
-    preimage = b"leanvm-rv64im-13" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
+    preimage = b"leanvm-rv64im-12" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
     transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 
@@ -2597,9 +2658,9 @@ def protocol_constants() -> str:
         "LIVE_BIT": LIVE_BIT,
         "LOG_REGISTERS": LOG_REGISTERS,
         "MAX_LOG_ADVICE": MAX_LOG_ADVICE,
-        "MAX_LOG_BYTECODE": MAX_LOG_BYTECODE,
         "MAX_LOG_RAM": MAX_LOG_RAM,
         "MAX_LOG_ROWS": MAX_LOG_ROWS,
+        "MAX_LOG_TEXT": MAX_LOG_TEXT,
         "MAX_STACKED_LOG": MAX_STACKED_LOG,
         "MIN_STACKED_LOG": MIN_STACKED_LOG,
         "NUM_FRAMEWORK_COLUMNS": NUM_FRAMEWORK_COLUMNS,
@@ -2617,6 +2678,7 @@ def protocol_constants() -> str:
         "SYSCALL_REGISTER": SYSCALL_REGISTER,
         "SYS_EXIT": SYS_EXIT,
         "TEXT_BASE": TEXT_BASE,
+        "UNGROUND_LOG_BYTECODE": UNGROUND_LOG_BYTECODE,
     }
     lines = [f"{name} {value}" for name, value in scalars.items()]
     lines.append("OUTPUT_REGISTERS " + ",".join(str(r) for r in OUTPUT_REGISTERS))

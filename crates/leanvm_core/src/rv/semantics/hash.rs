@@ -1,11 +1,9 @@
 //! The BLAKE2s compression instruction, and its access to its block.
 
 use super::InstructionClass;
-use crate::rv::circuits::{ClassCircuit, Word, WordGadgets};
-use crate::rv::entry::Class;
+use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
 use flock::circuit::{Builder, Circuit, Wire};
 use primitives::hash::{G_LANES, IV, SIGMA};
-use std::sync::OnceLock;
 
 /// One BLAKE2s compression instance, `blake2s rs1, rs2`: the finalization word, the counter, the block.
 ///
@@ -50,8 +48,6 @@ impl Hash {
 }
 
 impl InstructionClass for Hash {
-    const CLASS: Class = Class::Hash;
-
     /// Not the last block, or the last.
     const LEGAL: &'static [u64] = &[0, Self::FINAL];
 
@@ -69,18 +65,6 @@ impl InstructionClass for Hash {
         // Compress, then pair the halves back into words.
         primitives::hash::compress(&mut h, &m, self.t, self.flags == Self::FINAL);
         std::array::from_fn(|i| h[2 * i] as u64 | (h[2 * i + 1] as u64) << 32)
-    }
-
-    /// The counter, the finalization word, the chaining value, then the message.
-    fn input_words(&self) -> Vec<u64> {
-        [self.t, self.flags]
-            .into_iter()
-            .chain(self.block[..4].iter().chain(&self.block[8..]).copied())
-            .collect()
-    }
-
-    fn output_words(&self, out: &[u64; 4]) -> Vec<u64> {
-        out.to_vec()
     }
 }
 
@@ -122,22 +106,6 @@ impl ClassCircuit for Hash {
         let h: Vec<Word> = (0..8).map(|i| half(&c, 2 + i / 2, i)).collect();
         let m: Vec<Word> = (0..16).map(|i| half(&c, 6 + i / 2, i)).collect();
 
-        // Each addition records where its products went.
-        //
-        // Its products are its top bits, from the first bit where both operands exist.
-        // Once one product is made, the carry is a wire, so every later bit has one too.
-        let mut carries = Vec::with_capacity(SIGMA.len() * 8 * 6);
-        let mut add32 = |c: &mut Builder, x: &[Wire], y: &[Wire]| -> Word {
-            let slot = c.next_slot();
-            let sum = c.add_wrapping(x, y);
-            let products = (c.next_slot() - slot) as u32;
-            carries.push(Carries {
-                slot: slot as u32,
-                low: 31 - products,
-            });
-            sum
-        };
-
         // The working vector: h, the IV, with the counter and the finalization word XORed in.
         let mut v = h.clone();
         v.extend(IV[..4].iter().map(|&x| literal(&c, x)));
@@ -150,11 +118,11 @@ impl ClassCircuit for Hash {
         for round in &SIGMA {
             for (g, &[a, b, cc, d]) in G_LANES.iter().enumerate() {
                 for (x, r1, r2) in [(&m[round[2 * g]], 16, 12), (&m[round[2 * g + 1]], 8, 7)] {
-                    let ab = add32(&mut c, &v[a], &v[b]);
-                    v[a] = add32(&mut c, &ab, x);
+                    let ab = c.add_wrapping(&v[a], &v[b]);
+                    v[a] = c.add_wrapping(&ab, x);
                     let da = c.xor_word(&v[d], &v[a]);
                     v[d] = rotr(&da, r1);
-                    v[cc] = add32(&mut c, &v[cc], &v[d]);
+                    v[cc] = c.add_wrapping(&v[cc], &v[d]);
                     let bc = c.xor_word(&v[b], &v[cc]);
                     v[b] = rotr(&bc, r2);
                 }
@@ -169,30 +137,12 @@ impl ClassCircuit for Hash {
                 c.output(i / 2, 32 * (i % 2) + bit, wire);
             }
         }
-        // Publish the carry runs for the word witness; every build records the same runs.
-        let _ = CARRIES.set(carries);
         c.finish()
     }
 }
 
 /// The input ports in bits: `t`, `f0`, then the four words of `h` and the eight of `m`.
 const INPUT_BITS: [usize; 14] = [64, 32, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64];
-
-/// The hash circuit's carry runs, one per 32-bit addition, in the order the circuit makes them.
-///
-/// Building the circuit records them, and the word witness reads them.
-static CARRIES: OnceLock<Vec<Carries>> = OnceLock::new();
-
-/// Where one 32-bit addition put its carry products.
-#[derive(Clone, Copy, Debug)]
-struct Carries {
-    /// The slot of the first product.
-    slot: u32,
-    /// The lowest bit with a product.
-    ///
-    /// The bits below are structural zeros: a literal operand's low zero bits, with no carry yet.
-    low: u32,
-}
 
 /// One instance of the circuit's witness, by word arithmetic instead of the gate walk.
 ///
@@ -203,9 +153,11 @@ struct Carries {
 /// - words 0 to 13 are the inputs: `z` and `A*z` hold the word, `B*z` its wired bits;
 /// - words 14 to 17 are the outputs: `z` and `A*z` hold the word, `B*z` all ones;
 /// - bit 1152 is the constant, one in all three;
-/// - from bit 1153, each 32-bit addition has a run of carry products.
+/// - from bit 1153, each 32-bit addition has a run of carry products, one after another.
 ///
-/// An addition `x + y` has carries `c = (x + y) ^ x ^ y`.
+/// An addition `x + y` has carries `c = (x + y) ^ x ^ y`. Its run covers bits `low..31`, the carry out of bit 31 being no product;
+/// `low` is zero but where a literal operand's low zero bits leave no carry yet, round 0's first `c + d` of a column G, whose `c` is
+/// still the IV.
 ///
 /// At bit `i` of its run:
 ///
@@ -216,18 +168,6 @@ struct Carries {
 /// ```
 pub fn blake2s_witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
     assert_eq!(inputs.len(), INPUT_BITS.len());
-
-    // The carry runs, recorded by building the circuit, once.
-    let carries = CARRIES.get().unwrap_or_else(|| {
-        Hash::circuit();
-        CARRIES.get().expect("building the circuit records its carry runs")
-    });
-
-    // Input ports: the word, masked to the port's width.
-    for (i, &bits) in INPUT_BITS.iter().enumerate() {
-        let wired = u64::MAX >> (64 - bits);
-        (z[i], az[i], bz[i]) = (inputs[i] & wired, inputs[i] & wired, wired);
-    }
 
     // The working vector, as the circuit starts it.
     let half = |w: u64, i: usize| (w >> (32 * (i % 2))) as u32;
@@ -241,34 +181,40 @@ pub fn blake2s_witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [
     v[13] ^= (t >> 32) as u32;
     v[14] ^= f0;
 
-    // Each addition writes its run of carries, in the order the circuit made them.
-    let mut runs = carries.iter();
-    let mut add = |x: u32, y: u32| -> u32 {
-        let Carries { slot, low } = *runs.next().expect("one run per addition");
-        let sum = x.wrapping_add(y);
-        let carry = sum ^ x ^ y;
-
-        // The run covers bits low..31: the carry out of bit 31 is no product.
-        let mask = (1u64 << (31 - low)) - 1;
-        let left = u64::from(x ^ carry) >> low & mask;
-        let right = u64::from(y ^ carry) >> low & mask;
-        or_run(z, slot, left & right);
-        or_run(az, slot, left);
-        or_run(bz, slot, right);
-        sum
-    };
+    // The constant, right after the ports, then each addition's run of carries, in the order the circuit made them.
+    let n_ports = INPUT_BITS.len() + 4;
+    let mut rows = Products::new([&mut z[n_ports..], &mut az[n_ports..], &mut bz[n_ports..]], 0);
+    rows.push(1, 1, 1);
 
     // Ten rounds of eight G's, the working vector updated as the circuit updates it.
-    for round in &SIGMA {
-        for (g, &[a, b, c, d]) in G_LANES.iter().enumerate() {
-            for (x, r1, r2) in [(m[round[2 * g]], 16, 12), (m[round[2 * g + 1]], 8, 7)] {
-                let ab = add(v[a], v[b]);
-                v[a] = add(ab, x);
-                v[d] = (v[d] ^ v[a]).rotate_right(r1);
-                v[c] = add(v[c], v[d]);
-                v[b] = (v[b] ^ v[c]).rotate_right(r2);
-            }
-        }
+    //
+    // Unrolled, every run's place is a constant, so the rows are written with no branch.
+    macro_rules! round {
+        ($r:literal) => {
+            round!(@g $r 0); round!(@g $r 1); round!(@g $r 2); round!(@g $r 3);
+            round!(@g $r 4); round!(@g $r 5); round!(@g $r 6); round!(@g $r 7);
+        };
+        (@g $r:literal $g:literal) => {
+            let low = if $r == 0 && $g < 4 { IV[$g].trailing_zeros() } else { 0 };
+            g(&mut v, &mut rows, G_LANES[$g], [m[SIGMA[$r][2 * $g]], m[SIGMA[$r][2 * $g + 1]]], low);
+        };
+    }
+    round!(0);
+    round!(1);
+    round!(2);
+    round!(3);
+    round!(4);
+    round!(5);
+    round!(6);
+    round!(7);
+    round!(8);
+    round!(9);
+    rows.finish();
+
+    // Input ports: the word, masked to the port's width.
+    for (i, &bits) in INPUT_BITS.iter().enumerate() {
+        let wired = u64::MAX >> (64 - bits);
+        (z[i], az[i], bz[i]) = (inputs[i] & wired, inputs[i] & wired, wired);
     }
 
     // Output ports: the new chaining value, every bit copied out.
@@ -278,28 +224,38 @@ pub fn blake2s_witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [
         let out = word(2 * i) | word(2 * i + 1) << 32;
         (z[n_in + i], az[n_in + i], bz[n_in + i]) = (out, out, u64::MAX);
     }
+}
 
-    // The constant wire, right after the ports.
-    let one = 64 * (n_in + 4);
-    for buf in [z, az, bz] {
-        buf[one / 64] |= 1 << (one % 64);
+/// One G on the working vector: its two halves, each three additions, the first `c + d`'s run from bit `low`.
+#[inline(always)]
+fn g(v: &mut [u32; 16], rows: &mut Products<'_>, [a, b, c, d]: [usize; 4], [x0, x1]: [u32; 2], low: u32) {
+    for (x, r1, r2, low) in [(x0, 16, 12, low), (x1, 8, 7, 0)] {
+        let ab = add(rows, v[a], v[b], 0);
+        v[a] = add(rows, ab, x, 0);
+        v[d] = (v[d] ^ v[a]).rotate_right(r1);
+        v[c] = add(rows, v[c], v[d], low);
+        v[b] = (v[b] ^ v[c]).rotate_right(r2);
     }
 }
 
-/// OR a run of at most 32 bits into `buf`, from bit `slot`.
+/// `x + y`, its run of carry rows from bit `low`: `A*z = x ^ c = sum ^ y`, `B*z = y ^ c = sum ^ x`.
 #[inline(always)]
-const fn or_run(buf: &mut [u64], slot: u32, bits: u64) {
-    let (word, shift) = (slot as usize / 64, slot % 64);
-    buf[word] |= bits << shift;
-
-    // The run's spill into the next word: (x >> 1) >> (63 - s) is x >> (64 - s), with no overflow at s = 0.
-    buf[word + 1] |= (bits >> 1) >> (63 - shift);
+fn add(rows: &mut Products<'_>, x: u32, y: u32, low: u32) -> u32 {
+    let sum = x.wrapping_add(y);
+    let mask = (1u64 << (31 - low)) - 1;
+    rows.push(
+        u64::from(sum ^ y) >> low & mask,
+        u64::from(sum ^ x) >> low & mask,
+        31 - low,
+    );
+    sum
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{circuit_matches_reference, edge_word, run};
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word};
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -334,7 +290,7 @@ mod tests {
         // Invariant: the word-level witness writes the tables the gate walk writes.
         //
         // The walk is the reference: it reads the circuit itself, slot by slot.
-        let n_log = 5;
+        let n_log = 8;
         let mut state = 0xA7u64;
         let mut next = || {
             state ^= state << 13;
@@ -346,6 +302,7 @@ mod tests {
         // Fixture: counters at the edges of their halves, then random ones.
         //
         // Finalization words: the legal two, and any word, whose high half the port drops.
+        // Chaining values and messages: all zero, all ones, every half's sign bit alone or clear, then random words.
         let rows: Vec<[u64; 14]> = (0..1 << n_log)
             .map(|i| {
                 let t = [0, u32::MAX as u64, 1 << 32, u64::MAX]
@@ -353,9 +310,14 @@ mod tests {
                     .copied()
                     .unwrap_or_else(&mut next);
                 let flags = [0, Hash::FINAL, next()][i % 3];
-                std::array::from_fn(|k| match k {
-                    0 => t,
-                    1 => flags,
+                let block = i % 8;
+                std::array::from_fn(|k| match (k, block) {
+                    (0, _) => t,
+                    (1, _) => flags,
+                    (_, 0) => 0,
+                    (_, 1) => u64::MAX,
+                    (_, 2) => 0x8000_0000_8000_0000,
+                    (_, 3) => 0x7fff_ffff_7fff_ffff,
                     _ => next(),
                 })
             })
@@ -365,23 +327,22 @@ mod tests {
         let walk = BLAKE2S.generate_witness(&rows, n_log);
         let fast =
             BLAKE2S.generate_witness_with(&rows, &[0; 14], n_log, |row, z, az, bz| blake2s_witness(row, z, az, bz));
-        assert!(walk.0[..] == fast.0[..], "z");
-        assert!(walk.1[..] == fast.1[..], "A*z");
-        assert!(walk.2[..] == fast.2[..], "B*z");
-        assert!(walk.3[..] == fast.3[..], "lincheck stripes");
+        assert!(walk == fast, "the witness tables");
     }
 
-    proptest! {
-        #[test]
-        fn any_finalization_word_is_xored_in(hash in any::<Hash>(), f0 in any::<u32>()) {
-            // Any 32-bit finalization word, against flock's compression, which takes one.
-            let half = |w: &[u64]| -> Vec<u32> { w.iter().flat_map(|&w| [w as u32, (w >> 32) as u32]).collect() };
-            let h = half(&hash.block[..4]).try_into().unwrap();
-            let m = half(&hash.block[8..]).try_into().unwrap();
-            let out = flock::hash::blake2s_compress(&h, &m, hash.t, f0, 0);
-            let expected: Vec<u64> = (0..4).map(|i| out[2 * i] as u64 | (out[2 * i + 1] as u64) << 32).collect();
-            let inputs = Hash { flags: f0 as u64, ..hash }.input_words();
-            prop_assert_eq!(run(&BLAKE2S, &inputs, 4), expected);
+    impl Ports for Hash {
+        const CLASS: Class = Class::Hash;
+
+        // The counter, the finalization word, the chaining value, then the message.
+        fn input_words(&self) -> Vec<u64> {
+            [self.t, self.flags]
+                .into_iter()
+                .chain(self.block[..4].iter().chain(&self.block[8..]).copied())
+                .collect()
+        }
+
+        fn output_words(&self, out: &[u64; 4]) -> Vec<u64> {
+            out.to_vec()
         }
     }
 }

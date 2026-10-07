@@ -1,23 +1,19 @@
 //! The verifier's core of one RISC-V proof, in rows: every check that depends on the proof.
 
-use super::flock::Reduction;
-use super::whir::Opening;
 use super::{Rows, infallible};
-use crate::arith::{Arith, Verifier};
-use crate::class_flock;
-use crate::cpu::{CpuError, DeferredClaims, Layout, Program, TableReduction};
+use crate::cpu::{Announcement, CpuError, DeferredClaims, Layout, Program};
 use crate::pcs::Rate;
 use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::transcript::{ProofSource, Transcript};
-use crate::tables::{Clock, N_TABLES};
-use primitives::field::F192;
+use crate::tables::{Clock, PerTable};
+use fiat_shamir::arith::Verifier;
 
 /// What fixes the rows of a RISC-V proof's verifier: the program, each table's height, and the commitment's rate.
 ///
 /// Two proofs of one shape are verified by one circuit.
 pub struct ProofShape<'p> {
     program: &'p Program,
-    taus: [usize; N_TABLES],
+    taus: PerTable<usize>,
     rate: Rate,
     layout: Layout,
 }
@@ -36,7 +32,7 @@ impl<'p> ProofShape<'p> {
     /// # Errors
     ///
     /// Refuses what the native verifier refuses of an announcement: a height out of range, or a witness the commitment does not take.
-    pub fn new(program: &'p Program, taus: [usize; N_TABLES], rate: Rate) -> Result<Self, CpuError> {
+    pub fn new(program: &'p Program, taus: PerTable<usize>, rate: Rate) -> Result<Self, CpuError> {
         let layout = Layout::announced(program.rv(), taus)?;
         Ok(Self {
             program,
@@ -52,7 +48,7 @@ impl<'p> ProofShape<'p> {
     }
 
     /// Each table's base-two logarithm of rows.
-    pub const fn taus(&self) -> &[usize; N_TABLES] {
+    pub const fn taus(&self) -> &PerTable<usize> {
         &self.taus
     }
 
@@ -71,56 +67,21 @@ impl<'p> ProofShape<'p> {
         let mut r = Rows::new(b, &mut t);
 
         let clock = r.scope("announcement", |r| self.read_announcement(r));
-        let root = r.t.next_root(r.b);
         let output = output.map(|o| r.b.k_to_e1(o));
-        let reduced = r.scope("bus and tables", |r| {
-            infallible(self.layout.reduce_tables(r, clock, &output))
-        });
-        let circuits: Vec<_> = (0..class_flock::N_FLOCKS)
-            .map(|f| (class_flock::shape(f), self.taus[class_flock::flock(f).0]))
-            .collect();
-        let reductions = r.scope("flock", |r| Reduction::replay(r, &circuits));
-
-        r.scope("opening", |r| self.open(r, root, &reductions, &reduced));
-        if !r.t.finished() {
-            r.scope("transcript", |r| {
-                r.b.fail("the proof has data the verifier never reads");
-            });
-        }
-
-        let circuits = reductions.into_iter().map(|reduction| reduction.matrix).collect();
+        let claims = infallible(self.layout.verify_core(&mut r, clock, &output, self.rate));
         CoreRows {
-            claims: DeferredClaims {
-                program: reduced.program,
-                circuits,
-            },
-            state: t.state(),
+            claims,
+            state: t.state(b),
         }
-    }
-
-    /// The one opening: the point claims, then the ring-switched regions.
-    ///
-    /// They are each packed witness, each producer's multiplicity column, then each table's register numbers.
-    fn open(&self, r: &mut Rows<'_, '_>, root: Dw, reductions: &[Reduction], reduced: &TableReduction<Ew>) {
-        let slices = reductions.iter().map(|reduction| reduction.slice.clone());
-        let rings = self.layout.rings(slices, &reduced.producers, &reduced.tables, r.zero());
-        let opening = Opening {
-            slots: &reduced.slots,
-            rings: &rings,
-            shape: self.layout.shape,
-            log_inv_rate: self.rate.log_inv_rate().into(),
-        };
-        opening.verify(r, root);
     }
 
     /// The announced sizes: every height and the rate the shape's, the final clock a live clock at slot zero.
     ///
     /// Returns the clock, which closes the run's last state on the bus.
     fn read_announcement(&self, r: &mut Rows<'_, '_>) -> Ew {
-        let sizes = self.taus.into_iter().chain([usize::from(self.rate.log_inv_rate())]);
-        for size in sizes {
+        for size in Announcement::sizes(&self.taus, self.rate) {
             let x = infallible(r.next_scalar());
-            r.b.eq_e_const(x, F192::new(size as u64, 0, 0));
+            r.b.eq_e_const(x, size);
         }
         let clock = infallible(r.next_scalar());
         let [word, high, top] = r.b.e_to_k(clock);
