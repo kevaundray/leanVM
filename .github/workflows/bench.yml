@@ -8,8 +8,9 @@ name: Bench
 # A job is one CLI benchmark, or one `benches/` target with all the benchmarks it prints.
 # scripts/ab.sh does all of it, and runs the same comparison on a developer's machine.
 #
-# The x86-64 testbed is the self-hosted runner `size-attester7870-x64` (an Intel Xeon Gold 6548N,
-# 32 vCPUs, 64 GB): base and PR build and run on that one machine, so it is built for
+# The x86-64 testbed is the self-hosted runner `size-attester7870-x64` (with `self-hosted-ghr`,
+# an ephemeral VM per job: an Intel Xeon Gold 6548N, 32 vCPUs, 64 GB): base and PR build and
+# run on that one machine, so it is built for
 # `target-cpu=native`, AVX-512, VPCLMULQDQ and GFNI included, and its cache is keyed on the CPU
 # model so a native build never lands on another CPU. A fork has no such runner, so in a fork's
 # own repository the testbed falls back to a GitHub-hosted runner built for haswell (a fork's PR
@@ -56,7 +57,7 @@ jobs:
       matrix:
         testbed:
           - name: x86-64
-            runner: ${{ github.repository == 'leanEthereum/leanVM' && 'size-attester7870-x64' || 'ubuntu-latest' }}
+            runner: ${{ github.repository == 'leanEthereum/leanVM' && fromJSON('["size-attester7870-x64", "self-hosted-ghr"]') || 'ubuntu-latest' }}
             rustflags: ${{ github.repository == 'leanEthereum/leanVM' && '-C target-cpu=native' || '-C target-cpu=haswell' }}
           # The NEON kernels, which are chosen at compile time on `aes` (PMULL) and `sha3`
           # (EOR3), neither of which a generic aarch64 target enables.
