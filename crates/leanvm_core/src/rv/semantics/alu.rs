@@ -66,7 +66,6 @@ impl InstructionClass for Add {
             if on(Self::WORD) { sext32(sum) } else { sum }
         }
     }
-
 }
 
 impl ClassCircuit for Add {
@@ -201,7 +200,6 @@ impl InstructionClass for Logic {
             _ => v1 ^ b,
         }
     }
-
 }
 
 impl ClassCircuit for Logic {
@@ -319,7 +317,6 @@ impl InstructionClass for Branch {
             _ => !ltu,
         }
     }
-
 }
 
 impl ClassCircuit for Branch {
@@ -470,7 +467,6 @@ impl InstructionClass for Jump {
             self.dt ^ ((self.v1.wrapping_add(self.imm) ^ self.pc4) & !1)
         }
     }
-
 }
 
 impl ClassCircuit for Jump {
