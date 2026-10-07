@@ -1434,3 +1434,8 @@ pub proof fn lemma_karatsuba_fold(a: F192, b: F192)
 }
 
 } // verus!
+
+/// x86-64 kernels (production's `gf2_64x3/x86_64.rs`).
+#[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+#[path = "gf2_64x3_x86.rs"]
+pub mod x86_64;
