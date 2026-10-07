@@ -8,3 +8,4 @@ pub mod gf2_64x3;
 pub mod gf2_8;
 pub mod ntt;
 pub mod phi8_tower;
+pub mod bit_fold;

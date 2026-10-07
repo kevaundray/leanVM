@@ -452,6 +452,9 @@ const fn build_phi8_table_192() -> (table: [F192; 256])
 
 /// The unique GF(2^8) subfield embedded in F192. It lies in the F64 base, so
 /// both higher extension coordinates are zero.
+///
+/// Production's `static` with the initializer `build_phi8_table_192()`, written as Verus's `exec static` with
+/// that initializer as its body so that its value has a specification.
 pub exec static PHI_8_TABLE_192: [F192; 256]
     ensures
         forall|v: int| 0 <= v < 256 ==> #[trigger] PHI_8_TABLE_192[v] == phi8_e(v as u8),
