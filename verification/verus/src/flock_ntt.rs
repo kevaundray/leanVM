@@ -1514,7 +1514,12 @@ pub open spec fn lde_apply(tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, bytes: Seq<u8>,
 
 /// What `apply_scalar` computes at word `i`: `Σ_b T[bytes[b]][i ⊕ 8b]`, `T` the table of `ell`-word rows.
 pub open spec fn apply_formula(data: Seq<F8>, ell: nat, bytes: Seq<u8>, i: int) -> u8 {
-    xor_sum8(|b: int| data[(bytes[b] as int) * ell + (((i as usize) ^ ((8 * b) as usize)) as int)].0, bytes.len())
+    apply_partial(data, ell, bytes, i, bytes.len())
+}
+
+/// The first `nb` terms of [`apply_formula`].
+pub open spec fn apply_partial(data: Seq<F8>, ell: nat, bytes: Seq<u8>, i: int, nb: nat) -> u8 {
+    xor_sum8(|b: int| data[(bytes[b] as int) * ell + (((i as usize) ^ ((8 * b) as usize)) as int)].0, nb)
 }
 
 proof fn lemma_xor_sum8_ext(f: spec_fn(int) -> u8, g: spec_fn(int) -> u8, n: nat)
@@ -2216,6 +2221,145 @@ impl InvNttTableByteSingleGf8 {
         }
         Self { k, ell, n_chunks, data }
     }
+
+    /// The number of input bytes per row.
+    pub closed spec fn n_chunks_spec(&self) -> nat {
+        self.n_chunks as nat
+    }
+
+    /// Scalar reference. Kept public so tests can use it as the cross-check
+    /// oracle for the NEON variant.
+    ///
+    /// Rewritten: the two `assert_eq!`s are preconditions; `out.iter_mut().for_each(..)` and the
+    /// `bytes.iter().enumerate()` loop are index loops.
+    pub fn apply_scalar(&self, bytes: &[u8], out: &mut [F8])
+        requires
+            self.well_formed(),
+            bytes.len() == self.n_chunks_spec(),
+            old(out).len() == self.ell_spec(),
+        ensures
+            final(out).len() == self.ell_spec(),
+            forall|i: int|
+                0 <= i < self.ell_spec() ==> (#[trigger] final(out)@[i]).0 == apply_formula(
+                    self.data_spec(),
+                    self.ell_spec(),
+                    bytes@,
+                    i,
+                ),
+    {
+        let ghost (data, ell) = (self.data_spec(), self.ell_spec());
+        let ghost ku = self.k;
+        proof {
+            lemma_pow2_le_256(self.k as nat);
+            lemma_usize_shl_is_mul(1, ku);
+            lemma2_to64();
+            if self.k > 3 {
+                lemma_pow2_strictly_increases(3, self.k as nat);
+            }
+        }
+        let n = out.len();
+        for x in 0..n
+            invariant
+                out.len() == n,
+                forall|p: int| 0 <= p < x ==> #[trigger] out@[p] == F8(0),
+        {
+            out[x] = F8::ZERO;
+        }
+        assert forall|i: int| 0 <= i < ell implies (#[trigger] out@[i]).0 == apply_partial(data, ell, bytes@, i, 0) by {
+        }
+        for b in 0..bytes.len()
+            invariant
+                self.well_formed(),
+                data == self.data_spec(),
+                ell == self.ell_spec(),
+                ku == self.k,
+                ell == (1usize << ku),
+                8 <= ell <= 128,
+                bytes.len() == ell / 8,
+                out.len() == ell,
+                forall|i: int| 0 <= i < ell ==> (#[trigger] out@[i]).0 == apply_partial(data, ell, bytes@, i, b as nat),
+        {
+            let byte_b = bytes[b];
+            proof {
+                assert((byte_b as usize) * self.ell + self.ell <= 256 * self.ell) by (nonlinear_arith)
+                    requires
+                        byte_b < 256,
+                ;
+            }
+            let row_off = byte_b as usize * self.ell;
+            let row = &self.data[row_off..row_off + self.ell];
+            let shift = 8 * b;
+            let ghost before = out@;
+            for i in 0..self.ell
+                invariant
+                    ell == self.ell,
+                    ku < 64,
+                    ell == (1usize << ku),
+                    8 <= ell <= 128,
+                    shift == 8 * b,
+                    shift < ell,
+                    row@ == data.subrange(row_off as int, row_off + ell),
+                    row_off == (byte_b as int) * ell,
+                    row_off + ell <= data.len(),
+                    byte_b == bytes@[b as int],
+                    b < bytes.len(),
+                    out.len() == ell,
+                    before.len() == ell,
+                    forall|i0: int| 0 <= i0 < ell ==> (#[trigger] before[i0]).0 == apply_partial(data, ell, bytes@, i0, b as nat),
+                    forall|i0: int| i <= i0 < ell ==> #[trigger] out@[i0] == before[i0],
+                    forall|i0: int|
+                        0 <= i0 < i ==> (#[trigger] out@[i0]).0 == apply_partial(data, ell, bytes@, i0, (b + 1) as nat),
+            {
+                proof {
+                    assert(i < (1usize << ku) && shift < (1usize << ku) ==> (i ^ shift) < (1usize << ku)) by (bit_vector)
+                        requires
+                            ku < 64,
+                    ;
+                    assert((i ^ shift) < ell);
+                    assert(row.len() == ell);
+                    assert(row@[(i ^ shift) as int] == data[row_off + ((i ^ shift) as int)]);
+                    assert(apply_partial(data, ell, bytes@, i as int, (b + 1) as nat) == apply_partial(
+                        data,
+                        ell,
+                        bytes@,
+                        i as int,
+                        b as nat,
+                    ) ^ data[row_off + ((i ^ shift) as int)].0);
+                }
+                out[i] += row[i ^ shift];
+            }
+        }
+    }
+}
+
+/// `apply_scalar` applies `M`: for the table of two `2^k`-point NTTs (twiddles `tw_s` of offset `β_s`, `tw_l` of
+/// offset `β_l`), its output word `i` on an input row of `ell / 8` bytes is `Σ_j x_j M[i][j]`, `x` the row's
+/// bits ([`lde_apply`]).
+pub proof fn lemma_table_applies_lde(
+    table: InvNttTableByteSingleGf8,
+    tw_s: Seq<F8>,
+    tw_l: Seq<F8>,
+    beta_s: u8,
+    beta_l: u8,
+    bytes: Seq<u8>,
+    i: int,
+)
+    requires
+        table.is_table_of(tw_s, tw_l),
+        twiddles_of(tw_s, table.k_spec(), beta_s),
+        twiddles_of(tw_l, table.k_spec(), beta_l),
+        bytes.len() == table.n_chunks_spec(),
+        0 <= i < table.ell_spec(),
+    ensures
+        apply_formula(table.data_spec(), table.ell_spec(), bytes, i) == lde_apply(tw_s, tw_l, table.ell_spec(), bytes, i),
+{
+    let k = table.k_spec();
+    lemma_pow2_le_256(k);
+    lemma2_to64();
+    if k > 3 {
+        lemma_pow2_strictly_increases(3, k);
+    }
+    lemma_apply_formula(tw_s, tw_l, k, beta_s, beta_l, table.data_spec(), bytes, i);
 }
 
 } // verus!
