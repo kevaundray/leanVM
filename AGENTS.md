@@ -214,6 +214,8 @@ Resident memory (`peak-memory`) therefore mixes what the code needs with what je
 
 A buffer every slot of which the caller writes before reading skips the zero-fill: it is `Box::new_uninit_slice` (or a `Vec`'s `spare_capacity_mut`), written through its `MaybeUninit` slots and made a vector by `assume_init` (or `set_len`) only once every slot is written. A kernel typed over `&mut [T]` that writes before it reads takes those slots through `primitives::write_only` (`T: Copy`).
 
+The first WHIR pass retains its regenerated ring-switch weight at every pool size on the portable byte-table backend. SIMD backends retain it only on small pools; larger pools refill it during the first fold.
+
 ## The thread pool (`parallel`)
 
 No rayon. Every parallel site is "N independent items, each writing its own disjoint slice", so the pool is a claim counter, not a work-stealing deque: `NUM_THREADS-1` workers plus the dispatcher inline, and a dispatch allocates nothing (a reduction allocates its per-worker slots once per call, the slot type being the caller's). Primitives: `for_each{,_chunk}`, `chunks_mut{,2,_zip}`, `Chunks`, `fill`, `map_collect`, `map_reduce`, `fold_reduce`, `map_reduce_with_state`, `find_first`, `SendPtr`.
