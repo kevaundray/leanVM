@@ -3,8 +3,6 @@ use super::*;
 use super::x86_64::*;
 use core::mem::MaybeUninit;
 #[cfg(verus_keep_ghost)]
-use crate::intrinsics::x86_gfx86::zeroed_value;
-#[cfg(verus_keep_ghost)]
 use vstd::raw_ptr::MemContents;
 #[cfg(verus_keep_ghost)]
 use vstd::std_specs::maybe_uninit::MaybeUninitAdditionalSpecFns;

@@ -100,8 +100,13 @@ pub proof fn lemma_move_selectors()
         ((0xC3u8 >> 6u8) & 1u8) == 1u8, ((0xC3u8 >> 7u8) & 1u8) == 1u8,
         (0x20u8 & 15u8) == 0u8, ((0x20u8 >> 4u8) & 15u8) == 2u8,
         (0x31u8 & 15u8) == 1u8, ((0x31u8 >> 4u8) & 15u8) == 3u8,
-        forall|v: u8| v < 4 ==> (#[trigger] (v & 8u8)) == 0u8 && (v & 3u8) == v,
+        (0u8 & 8u8) == 0u8, (1u8 & 8u8) == 0u8, (2u8 & 8u8) == 0u8, (3u8 & 8u8) == 0u8,
+        (0u8 & 3u8) == 0u8, (1u8 & 3u8) == 1u8, (2u8 & 3u8) == 2u8, (3u8 & 3u8) == 3u8,
+        ((0xC3u8 >> 0u8) & 1u8) == 1u8,
+        ((0x20u8 >> 0u8) & 15u8) == 0u8, ((0x31u8 >> 0u8) & 15u8) == 1u8,
 {
+    assert(((0xC3u8 >> 0u8) & 1u8) == 1u8 && ((0x20u8 >> 0u8) & 15u8) == 0u8
+        && ((0x31u8 >> 0u8) & 15u8) == 1u8) by (bit_vector);
     assert(((0xF8u8 >> 2u8) & 3u8) == 2u8 && ((0xF8u8 >> 4u8) & 3u8) == 3u8) by (bit_vector);
     assert((0xC3u8 & 1u8) == 1u8 && ((0xC3u8 >> 1u8) & 1u8) == 1u8
         && ((0xC3u8 >> 2u8) & 1u8) == 0u8 && ((0xC3u8 >> 3u8) & 1u8) == 0u8
@@ -109,9 +114,8 @@ pub proof fn lemma_move_selectors()
         && ((0xC3u8 >> 6u8) & 1u8) == 1u8 && ((0xC3u8 >> 7u8) & 1u8) == 1u8) by (bit_vector);
     assert((0x20u8 & 15u8) == 0u8 && ((0x20u8 >> 4u8) & 15u8) == 2u8
         && (0x31u8 & 15u8) == 1u8 && ((0x31u8 >> 4u8) & 15u8) == 3u8) by (bit_vector);
-    assert forall|v: u8| v < 4 implies (#[trigger] (v & 8u8)) == 0u8 && (v & 3u8) == v by {
-        assert(v < 4 ==> (v & 8u8) == 0u8 && (v & 3u8) == v) by (bit_vector);
-    }
+    assert((0u8 & 8u8) == 0u8 && (1u8 & 8u8) == 0u8 && (2u8 & 8u8) == 0u8 && (3u8 & 8u8) == 0u8
+        && (0u8 & 3u8) == 0u8 && (1u8 & 3u8) == 1u8 && (2u8 & 3u8) == 2u8 && (3u8 & 3u8) == 3u8) by (bit_vector);
 }
 
 #[inline]
@@ -130,13 +134,15 @@ pub unsafe fn store_lanes4(lanes: Lanes4, out: &mut [MaybeUninit<F192>;4])
             lemma_move_selectors();
             assert(half_ok(lanes[h as int]));
             assert(m256(perm)[1] == m256(c01)[2] && m256(perm)[2] == m256(c01)[3]);
-            assert forall|i: int| 0 <= i < 4 implies blend_epi32_lane(m256(perm)@,m256(c22)@,0xC3,i)
-                == if i == 0 || i == 3 { m256(c22)[i] } else { m256(perm)[i] } by {
-                let (a,b) = (m256(perm)[i],m256(c22)[i]);
-                assert((a & 0xFFFF_FFFFu64) | (a & 0xFFFF_FFFF_0000_0000u64) == a) by (bit_vector);
-                assert((b & 0xFFFF_FFFFu64) | (b & 0xFFFF_FFFF_0000_0000u64) == b) by (bit_vector);
-                if i == 0 {} else if i == 1 {} else if i == 2 {} else {}
-            }
+            let (a,b,c,d) = (m256(c22)[0],m256(perm)[1],m256(perm)[2],m256(c22)[3]);
+            assert((a & 0xFFFF_FFFFu64) | (a & 0xFFFF_FFFF_0000_0000u64) == a
+                && (b & 0xFFFF_FFFFu64) | (b & 0xFFFF_FFFF_0000_0000u64) == b
+                && (c & 0xFFFF_FFFFu64) | (c & 0xFFFF_FFFF_0000_0000u64) == c
+                && (d & 0xFFFF_FFFFu64) | (d & 0xFFFF_FFFF_0000_0000u64) == d) by (bit_vector);
+            assert(blend_epi32_lane(m256(perm)@,m256(c22)@,0xC3,0) == a);
+            assert(blend_epi32_lane(m256(perm)@,m256(c22)@,0xC3,1) == b);
+            assert(blend_epi32_lane(m256(perm)@,m256(c22)@,0xC3,2) == c);
+            assert(blend_epi32_lane(m256(perm)@,m256(c22)@,0xC3,3) == d);
             assert(m256(tail)[0] == m256(c22)[0] && m256(tail)[1] == m256(c01)[2]
                 && m256(tail)[2] == m256(c01)[3] && m256(tail)[3] == m256(c22)[3]);
         }
@@ -147,46 +153,61 @@ pub unsafe fn store_lanes4(lanes: Lanes4, out: &mut [MaybeUninit<F192>;4])
 #[inline]
 pub unsafe fn transpose_lanes4(rows: [Lanes4;4]) -> (r: [Lanes4;4])
     ensures
-        forall|i: int,j: int,p: int,x: int| 0 <= i < 4 && 0 <= j < 4 && 0 <= p < 2 && 0 <= x < 2 ==>
-            #[trigger] m256(r[i][j/2][p])[2*(j%2)+x] == m256(rows[j][i/2][p])[2*(i%2)+x],
+        forall|i: int,h: int,p: int,x: int| 0 <= i < 4 && 0 <= h < 2 && 0 <= p < 2 && 0 <= x < 4 ==>
+            #[trigger] m256(r[i][h][p])[x] == m256(rows[2*h+x/2][i/2][p])[2*(i%2)+x%2],
         forall|i: int,j: int| 0 <= i < 4 && 0 <= j < 4 ==> #[trigger] lanes4_elem(r[i],j) == lanes4_elem(rows[j],i),
         (forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_ok(rows[i])) ==> forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_ok(r[i]),
 {
     let pick = |i: usize,h: usize,p: usize| -> (r: __m256i)
         requires i < 4,h < 2,p < 2,
-        ensures forall|j: int,x: int| 0 <= j < 2 && 0 <= x < 2 ==> #[trigger] m256(r)[2*j+x] == m256(rows[2*h+j][(i/2) as int][p as int])[2*(i%2)+x],
+        ensures forall|x: int| 0 <= x < 4 ==> #[trigger] m256(r)[x] == m256(rows[2*h+x/2][(i/2) as int][p as int])[2*(i%2)+x%2],
     {
         let (a,b) = (rows[2*h][i/2][p],rows[2*h+1][i/2][p]);
-        let r = if i%2 == 0 { _mm256_permute2x128_si256::<0x20>(a,b) }
-            else { _mm256_permute2x128_si256::<0x31>(a,b) };
-        proof {
-            lemma_move_selectors();
-            assert forall|j: int,x: int| 0 <= j < 2 && 0 <= x < 2 implies #[trigger] m256(r)[2*j+x] ==
-                m256(rows[2*h+j][(i/2) as int][p as int])[2*(i%2)+x] by {
-                if j == 0 {} else {}
-                if x == 0 {} else {}
+        proof { lemma_move_selectors(); }
+        if i%2 == 0 {
+            let r = _mm256_permute2x128_si256::<0x20>(a,b);
+            proof {
+                assert(m256(r)[0] == m256(a)[0]); assert(m256(r)[1] == m256(a)[1]);
+                assert(m256(r)[2] == m256(b)[0]); assert(m256(r)[3] == m256(b)[1]);
             }
+            r
+        } else {
+            let r = _mm256_permute2x128_si256::<0x31>(a,b);
+            proof {
+                assert(m256(r)[0] == m256(a)[2]); assert(m256(r)[1] == m256(a)[3]);
+                assert(m256(r)[2] == m256(b)[2]); assert(m256(r)[3] == m256(b)[3]);
+            }
+            r
         }
-        r
     };
     let mut r = rows;
     for i in 0..4usize
         invariant
             forall|a: usize,h: usize,p: usize| a < 4 && h < 2 && p < 2 ==> #[trigger] pick.requires((a,h,p)),
             forall|a: usize,h: usize,p: usize,v: __m256i| a < 4 && h < 2 && p < 2 && #[trigger] pick.ensures((a,h,p),v) ==>
-                forall|j: int,x: int| 0 <= j < 2 && 0 <= x < 2 ==> #[trigger] m256(v)[2*j+x] == m256(rows[2*h+j][(a/2) as int][p as int])[2*(a%2)+x],
-            forall|a: int,j: int,p: int,x: int| 0 <= a < i && 0 <= j < 4 && 0 <= p < 2 && 0 <= x < 2 ==>
-                #[trigger] m256(r[a][j/2][p])[2*(j%2)+x] == m256(rows[j][a/2][p])[2*(a%2)+x],
+                forall|x: int| 0 <= x < 4 ==> #[trigger] m256(v)[x] == m256(rows[2*h+x/2][(a/2) as int][p as int])[2*(a%2)+x%2],
+            forall|a: int,h: int,p: int,x: int| 0 <= a < i && 0 <= h < 2 && 0 <= p < 2 && 0 <= x < 4 ==>
+                #[trigger] m256(r[a][h][p])[x] == m256(rows[2*h+x/2][a/2][p])[2*(a%2)+x%2],
     {
         r[i] = [[pick(i,0,0),pick(i,0,1)],[pick(i,1,0),pick(i,1,1)]];
     }
     proof {
         assert forall|i: int,j: int| 0 <= i < 4 && 0 <= j < 4 implies #[trigger] lanes4_elem(r[i],j) == lanes4_elem(rows[j],i) by {
-            if i == 0 {} else if i == 1 {} else if i == 2 {} else {}
-            if j == 0 {} else if j == 1 {} else if j == 2 {} else {}
             assert(m256(r[i][j/2][0])[2*(j%2)] == m256(rows[j][i/2][0])[2*(i%2)]);
             assert(m256(r[i][j/2][0])[2*(j%2)+1] == m256(rows[j][i/2][0])[2*(i%2)+1]);
             assert(m256(r[i][j/2][1])[2*(j%2)] == m256(rows[j][i/2][1])[2*(i%2)]);
+        }
+        if forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_ok(rows[i]) {
+            assert forall|i: int| 0 <= i < 4 implies #[trigger] lanes4_ok(r[i]) by {
+                assert forall|h: int,j: int| 0 <= h < 2 && 0 <= j < 2 implies
+                    #[trigger] m256(r[i][h][1])[2*j+1] == m256(r[i][h][1])[2*j] by {
+                    assert(lanes4_ok(rows[2*h+j]));
+                    assert(half_ok(rows[2*h+j][i/2]));
+                    assert(m256(rows[2*h+j][i/2][1])[2*(i%2)+1] == m256(rows[2*h+j][i/2][1])[2*(i%2)]);
+                    assert(m256(r[i][h][1])[2*j+1] == m256(rows[2*h+j][i/2][1])[2*(i%2)+1]);
+                    assert(m256(r[i][h][1])[2*j] == m256(rows[2*h+j][i/2][1])[2*(i%2)]);
+                }
+            }
         }
     }
     r
@@ -411,17 +432,37 @@ pub unsafe fn mul_base8_reduce(acc: MixedAcc8) -> (r: [F192;8])
         invariant forall|i: int| 0 <= i < 4*h ==> #[trigger] r[i] == e_value(acc8_row(acc,i)),
     {
         let a = acc[h];
-        let even = transmute::<__m256i,[u64;4]>(reduce_lanes256(_mm256_unpacklo_epi64(a[0],a[1]),_mm256_unpackhi_epi64(a[0],a[1])));
-        let odd = transmute::<__m256i,[u64;4]>(reduce_lanes256(_mm256_unpacklo_epi64(a[2],a[3]),_mm256_unpackhi_epi64(a[2],a[3])));
-        let c2 = transmute::<__m256i,[u64;4]>(reduce_lanes256(_mm256_unpacklo_epi64(a[4],a[5]),_mm256_unpackhi_epi64(a[4],a[5])));
-        proof {
-            assert forall|j: int| 0 <= j < 4 implies #[trigger] even[j] == reduce_word(m256(a[j%2])[2*(j/2)],m256(a[j%2])[2*(j/2)+1]) by {
-                if j == 0 {} else if j == 1 {} else if j == 2 {} else {}
+        let red = |x: __m256i,y: __m256i| -> (r: [u64;4])
+            ensures forall|j: int| 0 <= j < 4 ==> #[trigger] r[j] == (if j%2 == 0 {
+                reduce_word(m256(x)[j],m256(x)[j+1])
+            } else { reduce_word(m256(y)[j-1],m256(y)[j]) }),
+        {
+            let lo = _mm256_unpacklo_epi64(x,y);
+            let hi = _mm256_unpackhi_epi64(x,y);
+            let v = reduce_lanes256(lo,hi);
+            proof {
+                assert forall|j: int| 0 <= j < 4 implies #[trigger] m256(v)[j] == (if j%2 == 0 {
+                    reduce_word(m256(x)[j],m256(x)[j+1])
+                } else { reduce_word(m256(y)[j-1],m256(y)[j]) }) by {
+                    assert(m256(v)[j] == reduce_word(m256(lo)[j],m256(hi)[j]));
+                    assert(m256(lo)[j] == unpacklo_lane(m256(x)@,m256(y)@,j));
+                    assert(m256(hi)[j] == unpackhi_lane(m256(x)@,m256(y)@,j));
+                }
             }
-            assert forall|j: int| 0 <= j < 4 implies #[trigger] c2[j] == reduce_word(m256(a[4+j%2])[2*(j/2)],m256(a[4+j%2])[2*(j/2)+1]) by {
-                if j == 0 {} else if j == 1 {} else if j == 2 {} else {}
+            let r = transmute::<__m256i,[u64;4]>(v);
+            proof {
+                assert(r == m256(v));
+                assert forall|j: int| 0 <= j < 4 implies #[trigger] r[j] == (if j%2 == 0 {
+                    reduce_word(m256(x)[j],m256(x)[j+1])
+                } else { reduce_word(m256(y)[j-1],m256(y)[j]) }) by {
+                    assert(m256(v)[j] == reduce_word(m256(lo)[j],m256(hi)[j]));
+                }
             }
-        }
+            r
+        };
+        let even = red(a[0],a[1]);
+        let odd = red(a[2],a[3]);
+        let c2 = red(a[4],a[5]);
         for i in 0..4usize
             invariant h < 2,
                 forall|j: int| 0 <= j < 4*h+i ==> #[trigger] r[j] == e_value(acc8_row(acc,j)),
