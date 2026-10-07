@@ -16,6 +16,7 @@
 //! of `x` (LSB first, [`cube_point`], [`eq_at`]).
 use crate::gf2_64::*;
 use crate::gf2_64x3::*;
+use vstd::arithmetic::div_mod::*;
 use vstd::arithmetic::power2::*;
 use vstd::bits::*;
 use vstd::prelude::*;
@@ -851,6 +852,851 @@ fn fill_eq_doubling(r: &[F192], seed: F192, out: &mut [F192])
     proof {
         assert(r@.subrange(0, n as int) =~= r@);
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Marginalizing a variable out of a table
+// ---------------------------------------------------------------------------------------------
+/// The one-variable table: `eq([r0], 0) = 1 + r0`, `eq([r0], 1) = r0`.
+proof fn lemma_eq_at_one(s: Seq<F192>)
+    requires
+        s.len() == 1,
+    ensures
+        eq_at(s, 0) == e_add(F192::ONE, s[0]),
+        eq_at(s, 1) == s[0],
+{
+    assert(((0usize >> 0usize) & 1) == 0 && ((1usize >> 0usize) & 1) == 1) by (bit_vector);
+    assert(s.drop_last().len() == 0);
+    assert(eq_poly(s.drop_last(), cube_point(1, 0).drop_last()) == F192::ONE);
+    assert(eq_poly(s.drop_last(), cube_point(1, 1).drop_last()) == F192::ONE);
+    assert(cube_point(1, 0).last() == F192::ZERO);
+    assert(cube_point(1, 1).last() == F192::ONE);
+    lemma_eq_factor_bits(s[0]);
+    lemma_e_mul_one(e_add(F192::ONE, s[0]));
+    lemma_e_mul_one(s[0]);
+}
+
+/// `2i = (i << 1) | 0` and `2i + 1 = (i << 1) | 1`.
+proof fn lemma_double_index(i: usize)
+    requires
+        i < 0x4000_0000_0000_0000usize,
+    ensures
+        2 * i == (i << 1usize) | 0usize,
+        2 * i + 1 == (i << 1usize) | 1usize,
+        (1usize << 1usize) == 2,
+{
+    assert(2 * i == (i << 1usize) | 0usize && 2 * i + 1 == (i << 1usize) | 1usize && (1usize << 1usize) == 2)
+        by (bit_vector)
+        requires
+            i < 0x4000_0000_0000_0000usize,
+    ;
+}
+
+/// The two entries of a table sharing all but the lowest variable: `eq(r, 2i) = (1 + r0) eq(r[1..], i)` and
+/// `eq(r, 2i + 1) = r0 eq(r[1..], i)`.
+pub proof fn lemma_eq_at_low(r: Seq<F192>, i: usize)
+    requires
+        1 <= r.len() < 64,
+        i < (1usize << ((r.len() - 1) as usize)),
+    ensures
+        eq_at(r, (2 * i) as usize) == e_mul(e_add(F192::ONE, r[0]), eq_at(r.subrange(1, r.len() as int), i)),
+        eq_at(r, (2 * i + 1) as usize) == e_mul(r[0], eq_at(r.subrange(1, r.len() as int), i)),
+{
+    let m = (r.len() - 1) as usize;
+    assert((1usize << m) <= 0x4000_0000_0000_0000usize) by (bit_vector)
+        requires
+            m < 63,
+    ;
+    lemma_double_index(i);
+    lemma_eq_at_tensor(r, 1, i, 0);
+    lemma_eq_at_tensor(r, 1, i, 1);
+    lemma_eq_at_one(r.subrange(0, 1));
+}
+
+/// Summing the two entries of each low pair of `seed * eq(r, .)` gives `seed * eq(r[1..], .)`: `eq(r_0, 0) +
+/// eq(r_0, 1) = 1`.
+pub proof fn lemma_shrink_low_eq(t: Seq<F192>, r: Seq<F192>, seed: F192)
+    requires
+        is_eq_table(t, r, seed),
+        r.len() >= 1,
+    ensures
+        is_eq_table(Seq::new(t.len() / 2, |i: int| e_add(t[2 * i], t[2 * i + 1])), r.subrange(1, r.len() as int), seed),
+{
+    let n = r.len();
+    let rest = r.subrange(1, n as int);
+    lemma_shl_double((n - 1) as usize);
+    assert forall|i: int| 0 <= i < t.len() / 2 implies #[trigger] e_add(t[2 * i], t[2 * i + 1]) == e_mul(
+        seed,
+        eq_at(rest, i as usize),
+    ) by {
+        lemma_eq_at_low(r, i as usize);
+        let e = eq_at(rest, i as usize);
+        let (c0, c1) = (e_add(F192::ONE, r[0]), r[0]);
+        lemma_e_mul_distrib(seed, e_mul(c0, e), e_mul(c1, e));
+        lemma_e_mul_distrib(e, c0, c1);
+        lemma_e_add(F192::ONE, r[0], r[0]);
+        lemma_e_add(r[0], r[0], r[0]);
+        lemma_e_mul_one(e);
+        assert(e_add(c0, c1) == F192::ONE);
+        assert(e_add(e_mul(c0, e), e_mul(c1, e)) == e);
+    }
+}
+
+/// Summing each entry of the low half of `seed * eq(r, .)` with its partner in the high half gives
+/// `seed * eq(r[..n-1], .)`.
+pub proof fn lemma_shrink_high_eq(t: Seq<F192>, r: Seq<F192>, seed: F192)
+    requires
+        is_eq_table(t, r, seed),
+        r.len() >= 1,
+    ensures
+        is_eq_table(Seq::new(t.len() / 2, |i: int| e_add(t[i], t[i + t.len() / 2])), r.drop_last(), seed),
+{
+    let n = r.len();
+    let half = 1usize << ((n - 1) as usize);
+    lemma_shl_double((n - 1) as usize);
+    assert forall|i: int| 0 <= i < t.len() / 2 implies #[trigger] e_add(t[i], t[i + t.len() / 2]) == e_mul(
+        seed,
+        eq_at(r.drop_last(), i as usize),
+    ) by {
+        lemma_eq_at_high(r, i as usize);
+        let e = eq_at(r.drop_last(), i as usize);
+        let (c0, c1) = (e_add(F192::ONE, r.last()), r.last());
+        lemma_e_mul_distrib(seed, e_mul(e, c0), e_mul(e, c1));
+        lemma_e_mul_distrib(e, c0, c1);
+        lemma_e_add(F192::ONE, c1, c1);
+        lemma_e_add(c1, c1, c1);
+        lemma_e_mul_one(e);
+        assert(e_add(c0, c1) == F192::ONE);
+    }
+}
+
+/// Marginalize the lowest variable out of an `eq` table (in place). `eq(r_0, 0) +
+/// eq(r_0, 1) = 1`, so summing adjacent entries drops `r_0` with no multiplies,
+/// versus `2^{n-1}` to rebuild the table.
+///
+/// The pairwise sums of any table; on `seed * eq(r, .)` they are `seed * eq(r[1..], .)` ([`lemma_shrink_low_eq`]).
+/// Production reborrows the vector as a slice to index it; the copy indexes the vector.
+pub fn shrink_eq_low(table: &mut Vec<F192>)
+    ensures
+        final(table)@ == Seq::new(old(table)@.len() / 2, |i: int| e_add(old(table)@[2 * i], old(table)@[2 * i + 1])),
+        forall|r: Seq<F192>, seed: F192|
+            #[trigger] is_eq_table(old(table)@, r, seed) && r.len() >= 1 ==> is_eq_table(
+                final(table)@,
+                r.subrange(1, r.len() as int),
+                seed,
+            ),
+{
+    let ghost before = table@;
+    let half = table.len() / 2;
+    {
+        for i in 0..half
+            invariant
+                half == before.len() / 2,
+                table.len() == before.len(),
+                forall|j: int| 0 <= j < i ==> #[trigger] table@[j] == e_add(before[2 * j], before[2 * j + 1]),
+                forall|j: int| i <= j < before.len() ==> #[trigger] table@[j] == before[j],
+        {
+            let (a, b) = (table[2 * i], table[2 * i + 1]);
+            table[i] = a + b;
+        }
+    }
+    table.truncate(half);
+    proof {
+        assert(table@ =~= Seq::new(before.len() / 2, |i: int| e_add(before[2 * i], before[2 * i + 1])));
+        assert forall|r: Seq<F192>, seed: F192| #[trigger] is_eq_table(before, r, seed) && r.len() >= 1 implies is_eq_table(
+            table@,
+            r.subrange(1, r.len() as int),
+            seed,
+        ) by {
+            lemma_shrink_low_eq(before, r, seed);
+        }
+    }
+}
+
+/// Marginalize the highest variable out of an `eq` table (in place), the
+/// [`shrink_eq_low`] counterpart for a top-down sumcheck.
+///
+/// Each low entry plus its high partner; on `seed * eq(r, .)` that is `seed * eq(r[..n-1], .)`
+/// ([`lemma_shrink_high_eq`]). Production splits the slice with `split_at_mut` and zips the halves; the copy
+/// indexes `lo[i] = table[i]`, `hi[i] = table[half + i]`.
+pub fn shrink_eq_high(table: &mut Vec<F192>)
+    ensures
+        final(table)@ == Seq::new(old(table)@.len() / 2, |i: int| e_add(old(table)@[i], old(table)@[i + old(table)@.len() / 2])),
+        forall|r: Seq<F192>, seed: F192|
+            #[trigger] is_eq_table(old(table)@, r, seed) && r.len() >= 1 ==> is_eq_table(
+                final(table)@,
+                r.drop_last(),
+                seed,
+            ),
+{
+    let ghost before = table@;
+    let half = table.len() / 2;
+    {
+        for i in 0..half
+            invariant
+                half == before.len() / 2,
+                table.len() == before.len(),
+                forall|j: int| 0 <= j < i ==> #[trigger] table@[j] == e_add(before[j], before[j + half]),
+                forall|j: int| i <= j < before.len() ==> #[trigger] table@[j] == before[j],
+        {
+            let h = table[half + i];
+            table[i] = table[i] + h;
+        }
+    }
+    table.truncate(half);
+    proof {
+        assert(table@ =~= Seq::new(before.len() / 2, |i: int| e_add(before[i], before[i + before.len() / 2])));
+        assert forall|r: Seq<F192>, seed: F192| #[trigger] is_eq_table(before, r, seed) && r.len() >= 1 implies is_eq_table(
+            table@,
+            r.drop_last(),
+            seed,
+        ) by {
+            lemma_shrink_high_eq(before, r, seed);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The split table
+// ---------------------------------------------------------------------------------------------
+/// The table `eq(r, .)` as two smaller tables, `eq(r, x) = low[x mod 2^L] * high[x >> L]`.
+///
+/// - The low table is `eq` over the first `L` variables of `r`, the high table over the rest.
+/// - Together they hold `2^L + 2^(n - L)` entries instead of `2^n`.
+/// - Products are exact, so every entry equals the full table's.
+#[verifier::allow(autoderive_clone_without_spec)]
+#[derive(Clone, Debug)]
+pub struct SplitEq {
+    /// The table over the low `L` variables.
+    pub low: Vec<F192>,
+    /// The table over the remaining variables.
+    pub high: Vec<F192>,
+    /// `L`.
+    low_log: usize,
+}
+
+impl SplitEq {
+    /// The split of `eq(r, .)` after `L = low_log` variables.
+    pub closed spec fn splits(self, r: Seq<F192>) -> bool {
+        &&& self.low_log <= r.len() < 64
+        &&& is_eq_table(self.low@, r.subrange(0, self.low_log as int), F192::ONE)
+        &&& is_eq_table(self.high@, r.subrange(self.low_log as int, r.len() as int), F192::ONE)
+    }
+
+    /// `L`.
+    pub closed spec fn spec_low_log(self) -> usize {
+        self.low_log
+    }
+
+    /// The split with at most `max_low` low variables.
+    ///
+    /// Production's `r.len().min(max_low)` is an `if`.
+    pub fn with_low_vars(r: &[F192], max_low: usize) -> (s: Self)
+        requires
+            r.len() < 64,
+        ensures
+            s.splits(r@),
+            s.spec_low_log() == (if r.len() < max_low { r.len() } else { max_low }),
+    {
+        Self::at_split(r, if r.len() < max_low { r.len() } else { max_low })
+    }
+
+    /// The split with at most `max_high` high variables.
+    ///
+    /// Production's `r.len().min(max_high)` is an `if`.
+    pub fn with_high_vars(r: &[F192], max_high: usize) -> (s: Self)
+        requires
+            r.len() < 64,
+        ensures
+            s.splits(r@),
+            s.spec_low_log() == r.len() - (if r.len() < max_high { r.len() } else { max_high }),
+    {
+        Self::at_split(r, r.len() - if r.len() < max_high { r.len() } else { max_high })
+    }
+
+    fn at_split(r: &[F192], low_log: usize) -> (s: Self)
+        requires
+            low_log <= r.len() < 64,
+        ensures
+            s.splits(r@),
+            s.spec_low_log() == low_log,
+    {
+        Self { low: eq_table(&r[..low_log]), high: eq_table(&r[low_log..]), low_log }
+    }
+
+    /// The number of low variables `L`.
+    pub const fn low_log(&self) -> (l: usize)
+        ensures
+            l == self.spec_low_log(),
+    {
+        self.low_log
+    }
+
+    /// `eq(r, x)`.
+    ///
+    /// The split of `eq(r, .)` for some `r` with `x` on its cube, a `requires`; the result is that entry.
+    #[inline]
+    pub fn at(&self, x: usize) -> (e: F192)
+        requires
+            exists|r: Seq<F192>| #[trigger] self.splits(r) && x < (1usize << r.len()),
+        ensures
+            forall|r: Seq<F192>| #[trigger] self.splits(r) && x < (1usize << r.len()) ==> e == eq_at(r, x),
+    {
+        let ghost r0 = choose|r: Seq<F192>| #[trigger] self.splits(r) && x < (1usize << r.len());
+        proof {
+            lemma_index_parts(x, self.low_log, r0.len() as usize);
+            lemma_split_at(*self, r0, x);
+        }
+        self.low[x & (self.low.len() - 1)] * self.high[x >> self.low_log]
+    }
+}
+
+/// The entry `at` reads, for any `r` the split is of.
+proof fn lemma_split_at(s: SplitEq, r0: Seq<F192>, x: usize)
+    requires
+        s.splits(r0),
+        x < (1usize << r0.len()),
+    ensures
+        s.low.len() >= 1,
+        (x & sub(s.low@.len() as usize, 1)) < s.low.len(),
+        (x >> s.spec_low_log()) < s.high.len(),
+        forall|r: Seq<F192>| #[trigger] s.splits(r) && x < (1usize << r.len()) ==> e_mul(
+            s.low@[(x & sub(s.low@.len() as usize, 1)) as int],
+            s.high@[(x >> s.spec_low_log()) as int],
+        ) == eq_at(r, x),
+{
+    let low = s.spec_low_log();
+    lemma_index_parts(x, low, r0.len() as usize);
+    assert forall|r: Seq<F192>| #[trigger] s.splits(r) && x < (1usize << r.len()) implies e_mul(
+        s.low@[(x & sub(s.low@.len() as usize, 1)) as int],
+        s.high@[(x >> low) as int],
+    ) == eq_at(r, x) by {
+        lemma_index_parts(x, low, r.len() as usize);
+        let (l, h) = (x & sub(1usize << low, 1), x >> low);
+        lemma_eq_at_tensor(r, low, h, l);
+        lemma_e_mul_one(eq_at(r.subrange(0, low as int), l));
+        lemma_e_mul_one(eq_at(r.subrange(low as int, r.len() as int), h));
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sums over the cube, and the multilinear extension
+// ---------------------------------------------------------------------------------------------
+/// `sum_{i < n} g(i)`, from the first term up.
+pub open spec fn e_sum_fn(g: spec_fn(int) -> F192, n: nat) -> F192
+    decreases n,
+{
+    if n == 0 {
+        F192::ZERO
+    } else {
+        e_add(e_sum_fn(g, (n - 1) as nat), g(n - 1))
+    }
+}
+
+/// The multilinear extension of the table `f` at `p`: `sum_x eq(p, x) f[x]` over the cube.
+pub open spec fn mle(f: Seq<F192>, p: Seq<F192>) -> F192 {
+    e_sum_fn(|x: int| e_mul(eq_at(p, x as usize), f[x]), f.len())
+}
+
+/// A table of `K` words lifted into `E`.
+pub open spec fn lift(t: Seq<F64>) -> Seq<F192> {
+    t.map_values(|w: F64| e_from_k(w.0))
+}
+
+/// `(1 + t) lo + t hi`, the line through `(0, lo)` and `(1, hi)` at `t`.
+pub open spec fn interp_spec(lo: F192, hi: F192, t: F192) -> F192 {
+    e_add(e_mul(e_add(F192::ONE, t), lo), e_mul(t, hi))
+}
+
+/// The table with its lowest variable bound to `t`.
+pub open spec fn fold_low(f: Seq<F192>, t: F192) -> Seq<F192> {
+    Seq::new(f.len() / 2, |i: int| interp_spec(f[2 * i], f[2 * i + 1], t))
+}
+
+pub proof fn lemma_sum_ext(g1: spec_fn(int) -> F192, g2: spec_fn(int) -> F192, n: nat)
+    requires
+        forall|i: int| 0 <= i < n ==> #[trigger] g1(i) == g2(i),
+    ensures
+        e_sum_fn(g1, n) == e_sum_fn(g2, n),
+    decreases n,
+{
+    if n > 0 {
+        lemma_sum_ext(g1, g2, (n - 1) as nat);
+    }
+}
+
+/// A sum of pairs: `sum_{x < 2m} g(x) = sum_{i < m} (g(2i) + g(2i + 1))`.
+pub proof fn lemma_sum_pairs(g: spec_fn(int) -> F192, m: nat)
+    ensures
+        e_sum_fn(g, 2 * m) == e_sum_fn(|i: int| e_add(g(2 * i), g(2 * i + 1)), m),
+    decreases m,
+{
+    if m > 0 {
+        lemma_sum_pairs(g, (m - 1) as nat);
+        let s = e_sum_fn(g, (2 * m - 2) as nat);
+        assert(e_sum_fn(g, (2 * m - 1) as nat) == e_add(s, g(2 * m - 2)));
+        lemma_e_add(s, g(2 * m - 2), g(2 * m - 1));
+    }
+}
+
+/// The terms of `g` from `m` on.
+pub open spec fn shifted(g: spec_fn(int) -> F192, m: int) -> spec_fn(int) -> F192 {
+    |l: int| g(m + l)
+}
+
+/// The sums of `g` over consecutive blocks of `b` terms.
+pub open spec fn block_sums(g: spec_fn(int) -> F192, b: nat) -> spec_fn(int) -> F192 {
+    |h: int| e_sum_fn(shifted(g, h * b), b)
+}
+
+/// A sum split after `m` terms.
+pub proof fn lemma_sum_split(g: spec_fn(int) -> F192, m: nat, k: nat)
+    ensures
+        e_sum_fn(g, m + k) == e_add(e_sum_fn(g, m), e_sum_fn(shifted(g, m as int), k)),
+    decreases k,
+{
+    if k == 0 {
+        lemma_e_add(e_sum_fn(g, m), F192::ZERO, F192::ZERO);
+    } else {
+        lemma_sum_split(g, m, (k - 1) as nat);
+        assert(shifted(g, m as int)(k - 1) == g(m + k - 1));
+        lemma_e_add(e_sum_fn(g, m), e_sum_fn(shifted(g, m as int), (k - 1) as nat), g(m + k - 1));
+    }
+}
+
+/// A sum over `a` blocks of `b`: `sum_{x < ab} g(x) = sum_{h < a} sum_{l < b} g(hb + l)`.
+pub proof fn lemma_sum_blocks(g: spec_fn(int) -> F192, a: nat, b: nat)
+    ensures
+        e_sum_fn(g, a * b) == e_sum_fn(block_sums(g, b), a),
+    decreases a,
+{
+    if a > 0 {
+        lemma_sum_blocks(g, (a - 1) as nat, b);
+        let m = ((a - 1) * b) as nat;
+        assert(a * b == m + b) by (nonlinear_arith)
+            requires
+                m == (a - 1) * b,
+                a > 0,
+        ;
+        assert((a - 1) * b >= 0) by (nonlinear_arith)
+            requires
+                a > 0,
+        ;
+        assert(m as int == (a - 1) * b);
+        lemma_sum_split(g, m, b);
+        let bs = block_sums(g, b);
+        assert(bs(a - 1) == e_sum_fn(shifted(g, m as int), b));
+        assert(e_sum_fn(bs, a) == e_add(e_sum_fn(bs, (a - 1) as nat), bs(a - 1)));
+        assert(e_sum_fn(g, ((a - 1) as nat) * b) == e_sum_fn(bs, (a - 1) as nat));
+        assert(e_sum_fn(g, m) == e_sum_fn(bs, (a - 1) as nat));
+    } else {
+        assert(a * b == 0) by (nonlinear_arith)
+            requires
+                a == 0,
+        ;
+    }
+}
+
+/// A factor out of a sum: `c * sum_i g(i) = sum_i c g(i)`.
+pub proof fn lemma_sum_scale(c: F192, g: spec_fn(int) -> F192, n: nat)
+    ensures
+        e_mul(c, e_sum_fn(g, n)) == e_sum_fn(|i: int| e_mul(c, g(i)), n),
+    decreases n,
+{
+    if n == 0 {
+        lemma_e_mul_zero(c);
+    } else {
+        lemma_sum_scale(c, g, (n - 1) as nat);
+        lemma_e_mul_distrib(c, e_sum_fn(g, (n - 1) as nat), g(n - 1));
+    }
+}
+
+/// Binding the lowest variable: `mle(f, p) = mle(fold_low(f, p_0), p[1..])`.
+pub proof fn lemma_mle_fold_low(f: Seq<F192>, p: Seq<F192>)
+    requires
+        1 <= p.len() < 64,
+        f.len() == (1usize << p.len()),
+    ensures
+        mle(f, p) == mle(fold_low(f, p[0]), p.subrange(1, p.len() as int)),
+{
+    let n = p.len();
+    let rest = p.subrange(1, n as int);
+    let g = fold_low(f, p[0]);
+    let m = f.len() / 2;
+    lemma_shl_double((n - 1) as usize);
+    let big = |x: int| e_mul(eq_at(p, x as usize), f[x]);
+    let small = |i: int| e_mul(eq_at(rest, i as usize), g[i]);
+    lemma_sum_pairs(big, m as nat);
+    assert forall|i: int| 0 <= i < m implies #[trigger] e_add(big(2 * i), big(2 * i + 1)) == small(i) by {
+        lemma_eq_at_low(p, i as usize);
+        let e = eq_at(rest, i as usize);
+        let (c0, c1, a, b) = (e_add(F192::ONE, p[0]), p[0], f[2 * i], f[2 * i + 1]);
+        lemma_e_mul_comm(c0, e);
+        lemma_e_mul_comm(c1, e);
+        lemma_e_mul_assoc(e, c0, a);
+        lemma_e_mul_assoc(e, c1, b);
+        lemma_e_mul_distrib(e, e_mul(c0, a), e_mul(c1, b));
+    }
+    lemma_sum_ext(|i: int| e_add(big(2 * i), big(2 * i + 1)), small, m as nat);
+    assert(2 * m == f.len());
+}
+
+/// One term of the blocked sum: `eq(p, h 2^L + l) f[h 2^L + l] = eq(p_high, h) (eq(p_low, l) f[h 2^L + l])`.
+proof fn lemma_mle_block_term(f: Seq<F192>, p: Seq<F192>, low: usize, h: int, l: int)
+    requires
+        low <= p.len() < 64,
+        0 <= l < (1usize << low),
+        0 <= h < (1usize << ((p.len() - low) as usize)),
+    ensures
+        h * (1usize << low) + l < (1usize << p.len()),
+        e_mul(eq_at(p, (h * (1usize << low) + l) as usize), f[h * (1usize << low) + l]) == e_mul(
+            eq_at(p.subrange(low as int, p.len() as int), h as usize),
+            e_mul(eq_at(p.subrange(0, low as int), l as usize), f[h * (1usize << low) + l]),
+        ),
+{
+    lemma_index_split(h as usize, l as usize, low, p.len() as usize);
+    lemma_eq_at_tensor(p, low, h as usize, l as usize);
+    let (el, eh) = (eq_at(p.subrange(0, low as int), l as usize), eq_at(p.subrange(low as int, p.len() as int), h as usize));
+    lemma_e_mul_comm(el, eh);
+    lemma_e_mul_assoc(eh, el, f[h * (1usize << low) + l]);
+}
+
+/// One block of the blocked sum is its row's value scaled by `eq(p_high, h)`.
+proof fn lemma_mle_block_row(f: Seq<F192>, p: Seq<F192>, low: usize, h: int)
+    requires
+        low <= p.len() < 64,
+        f.len() == (1usize << p.len()),
+        0 <= h < (1usize << ((p.len() - low) as usize)),
+    ensures
+        block_sums(|x: int| e_mul(eq_at(p, x as usize), f[x]), (1usize << low) as nat)(h) == e_mul(
+            eq_at(p.subrange(low as int, p.len() as int), h as usize),
+            mle(f.subrange(h * (1usize << low), (h + 1) * (1usize << low)), p.subrange(0, low as int)),
+        ),
+{
+    let n = p.len();
+    let b = (1usize << low) as nat;
+    let big = |x: int| e_mul(eq_at(p, x as usize), f[x]);
+    assert((1usize << low) >= 1) by (bit_vector)
+        requires
+            low < 64,
+    ;
+    lemma_index_split(h as usize, 0, low, n as usize);
+    lemma_index_split(h as usize, (b - 1) as usize, low, n as usize);
+    assert((h + 1) * b == h * b + b) by (nonlinear_arith);
+    let blk = f.subrange(h * b, (h + 1) * b);
+    let pl = p.subrange(0, low as int);
+    let eh = eq_at(p.subrange(low as int, n as int), h as usize);
+    let inner = |l: int| e_mul(eq_at(pl, l as usize), blk[l]);
+    lemma_sum_scale(eh, inner, b);
+    assert forall|l: int| 0 <= l < b implies #[trigger] shifted(big, h * b)(l) == e_mul(eh, inner(l)) by {
+        lemma_mle_block_term(f, p, low, h, l);
+    }
+    lemma_sum_ext(shifted(big, h * b), |l: int| e_mul(eh, inner(l)), b);
+}
+
+/// Binding the low `L` variables at once: `mle(f, p) = mle(rows, p[L..])` with `rows[h] = mle(block h of f,
+/// p[..L])`, the blocks being the `2^(n - L)` runs of `2^L` entries.
+pub proof fn lemma_mle_blocks(f: Seq<F192>, p: Seq<F192>, low: usize, rows: Seq<F192>)
+    requires
+        low <= p.len() < 64,
+        f.len() == (1usize << p.len()),
+        rows.len() == (1usize << ((p.len() - low) as usize)),
+        forall|h: int| 0 <= h < rows.len() ==> #[trigger] rows[h] == mle(
+            f.subrange(h * (1usize << low), (h + 1) * (1usize << low)),
+            p.subrange(0, low as int),
+        ),
+    ensures
+        mle(f, p) == mle(rows, p.subrange(low as int, p.len() as int)),
+{
+    let n = p.len();
+    let ph = p.subrange(low as int, n as int);
+    let b = (1usize << low) as nat;
+    let a = rows.len();
+    lemma_shl_sum(((n - low) as usize), low);
+    assert(a * b == f.len());
+    let big = |x: int| e_mul(eq_at(p, x as usize), f[x]);
+    lemma_sum_blocks(big, a, b);
+    assert forall|h: int| 0 <= h < a implies #[trigger] block_sums(big, b)(h) == e_mul(eq_at(ph, h as usize), rows[h]) by {
+        lemma_mle_block_row(f, p, low, h);
+    }
+    lemma_sum_ext(block_sums(big, b), |h: int| e_mul(eq_at(ph, h as usize), rows[h]), a);
+}
+
+/// A one-entry table over no variables is its entry.
+proof fn lemma_mle_one(f: Seq<F192>, p: Seq<F192>)
+    requires
+        f.len() == 1,
+        p.len() == 0,
+    ensures
+        mle(f, p) == f[0],
+{
+    assert(eq_at(p, 0) == F192::ONE);
+    lemma_e_mul_one(f[0]);
+    lemma_e_add(f[0], F192::ZERO, F192::ZERO);
+    let g = |x: int| e_mul(eq_at(p, x as usize), f[x]);
+    assert(e_sum_fn(g, 0) == F192::ZERO);
+    assert(e_sum_fn(g, 1) == e_add(F192::ZERO, g(0)));
+}
+
+/// The mixed fold: bind the lowest variable of a `K`-table to an
+/// `E`-challenge, producing the `E`-table the remaining rounds fold. One
+/// `mul_base` per output entry.
+///
+/// Production maps `0..table.len() / 2` and collects, after a `debug_assert_eq!` on the parity (a `requires`).
+fn fold_low_k(table: &[F64], chi: F192) -> (g: Vec<F192>)
+    requires
+        table.len() % 2 == 0,
+    ensures
+        g@ == fold_low(lift(table@), chi),
+{
+    let mut out: Vec<F192> = Vec::new();
+    for i in 0..table.len() / 2
+        invariant
+            table.len() % 2 == 0,
+            out@ == fold_low(lift(table@), chi).subrange(0, i as int),
+    {
+        out.push(interp_k(table[2 * i], table[2 * i + 1], chi));
+        proof {
+            assert(out@ =~= fold_low(lift(table@), chi).subrange(0, i + 1));
+        }
+    }
+    proof {
+        assert(out@ =~= fold_low(lift(table@), chi));
+    }
+    out
+}
+
+/// Bind the remaining variables of a half-folded `E`-table, LSB-first.
+///
+/// `for &p in point` is a loop over the indices, and the `mut cur` argument is rebound. The table has one entry
+/// per point of the cube, a `requires`.
+fn fold_ladder(cur: Vec<F192>, point: &[F192]) -> (e: F192)
+    requires
+        point.len() < 64,
+        cur.len() == (1usize << point.len()),
+    ensures
+        e == mle(cur@, point@),
+{
+    let mut cur = cur;
+    let ghost n = point.len();
+    let ghost orig = cur@;
+    let mut len = cur.len();
+    proof {
+        assert(cur@.subrange(0, len as int) =~= orig);
+        assert(point@.subrange(0, n as int) =~= point@);
+    }
+    for k in 0..point.len()
+        invariant
+            n == point.len(),
+            n < 64,
+            cur.len() == orig.len(),
+            orig.len() == (1usize << n),
+            len == (1usize << ((n - k) as usize)),
+            len <= cur.len(),
+            mle(cur@.subrange(0, len as int), point@.subrange(k as int, n as int)) == mle(orig, point@),
+    {
+        let p = point[k];
+        let ghost before = cur@.subrange(0, len as int);
+        let ghost all = cur@;
+        proof {
+            lemma_shl_double((n - k - 1) as usize);
+            lemma_mle_fold_low(before, point@.subrange(k as int, n as int));
+            assert(point@.subrange(k as int, n as int).subrange(1, (n - k) as int) =~= point@.subrange(k + 1, n as int));
+        }
+        len /= 2;
+        for i in 0..len
+            invariant
+                cur.len() == all.len(),
+                all.len() == orig.len(),
+                2 * len <= all.len(),
+                before == all.subrange(0, 2 * len),
+                forall|j: int| 0 <= j < i ==> #[trigger] cur@[j] == interp_spec(before[2 * j], before[2 * j + 1], p),
+                forall|j: int| i <= j < all.len() ==> #[trigger] cur@[j] == all[j],
+        {
+            cur[i] = interp(cur[2 * i], cur[2 * i + 1], p);
+        }
+        proof {
+            assert(cur@.subrange(0, len as int) =~= fold_low(before, p));
+        }
+    }
+    proof {
+        assert((1usize << 0usize) == 1) by (bit_vector);
+        lemma_mle_one(cur@.subrange(0, 1), point@.subrange(n as int, n as int));
+    }
+    cur[0]
+}
+
+/// The variables of the L1-resident low `eq` table of an MLE evaluation.
+pub const MLE_LOW_VARS: usize = 10;
+
+/// `eq(r, .)` packed eight weights at a time for [`dot_base`]. Needs `r.len() >= 3`.
+///
+/// Production maps `Weights8::new` over `as_chunks::<8>` of the table and collects; the copy loops over the
+/// chunks.
+fn packed_eq(r: &[F192]) -> (w: Vec<Weights8>)
+    requires
+        3 <= r.len() < 64,
+    ensures
+        8 * w.len() == (1usize << r.len()),
+        forall|x: int| 0 <= x < (1usize << r.len()) ==> #[trigger] w8_get(w@[x / 8], x % 8) == eq_at(r@, x as usize),
+{
+    let t = eq_table(r);
+    let ghost n = r.len();
+    proof {
+        assert((1usize << n) % 8 == 0) by (bit_vector)
+            requires
+                3 <= n < 64,
+        ;
+    }
+    let mut out: Vec<Weights8> = Vec::new();
+    for c in 0..t.len() / 8
+        invariant
+            n == r.len(),
+            3 <= n < 64,
+            is_eq_table(t@, r@, F192::ONE),
+            t.len() % 8 == 0,
+            out.len() == c,
+            forall|x: int| 0 <= x < 8 * c ==> #[trigger] w8_get(out@[x / 8], x % 8) == t@[x],
+    {
+        let chunk = [t[8 * c], t[8 * c + 1], t[8 * c + 2], t[8 * c + 3], t[8 * c + 4], t[8 * c + 5], t[8 * c + 6], t[8 * c + 7]];
+        out.push(Weights8::new(&chunk));
+        proof {
+            assert forall|x: int| 0 <= x < 8 * (c + 1) implies #[trigger] w8_get(out@[x / 8], x % 8) == t@[x] by {
+                if x >= 8 * c {
+                    assert(x / 8 == c && x % 8 == x - 8 * c) by (nonlinear_arith)
+                        requires
+                            8 * c <= x < 8 * c + 8,
+                    ;
+                } else {
+                    assert(x / 8 < c) by (nonlinear_arith)
+                        requires
+                            0 <= x < 8 * c,
+                    ;
+                }
+            }
+        }
+    }
+    proof {
+        assert forall|x: int| 0 <= x < (1usize << n) implies #[trigger] w8_get(out@[x / 8], x % 8) == eq_at(r@, x as usize) by {
+            lemma_e_mul_one(eq_at(r@, x as usize));
+        }
+    }
+    out
+}
+
+/// The packed dot product is the `eq`-weighted sum of the lifted row.
+proof fn lemma_dot_is_mle(w: Seq<Weights8>, row: Seq<F64>, pl: Seq<F192>, k: nat)
+    requires
+        pl.len() < 64,
+        k <= row.len(),
+        row.len() == (1usize << pl.len()),
+        8 * w.len() == row.len(),
+        forall|x: int| 0 <= x < row.len() ==> #[trigger] w8_get(w[x / 8], x % 8) == eq_at(pl, x as usize),
+    ensures
+        dot_spec(w, row, k) == e_sum_fn(|x: int| e_mul(eq_at(pl, x as usize), lift(row)[x]), k),
+    decreases k,
+{
+    if k > 0 {
+        lemma_dot_is_mle(w, row, pl, (k - 1) as nat);
+    }
+}
+
+/// Evaluate the MLE of a `K`-valued truth table at an `E`-point (length `log2(len)`).
+///
+/// The `eq` weights factor into a low and a high table:
+///
+/// ```text
+///     f(point) = sum_h eq(point_high, h) * sum_l eq(point_low, l) * f[h * 2^L + l]
+/// ```
+///
+/// Each row's inner sum is one [`dot_base`] against the packed low table, reduced once.
+/// The table is read once and never lifted into `E`.
+///
+/// Production's `debug_assert_eq!` on the length is a `requires`; `match point.split_first()` tests the length;
+/// `point.len().min(MLE_LOW_VARS)` is an `if`; `chunks_exact(..).map(..).collect()` is a loop pushing each row's
+/// reduced dot product.
+pub fn mle_eval(table: &[F64], point: &[F192]) -> (e: F192)
+    requires
+        point.len() < 64,
+        table.len() == (1usize << point.len()),
+    ensures
+        e == mle(lift(table@), point@),
+{
+    let ghost n = point.len();
+    let ghost f = lift(table@);
+    if point.len() < 3 {
+        if point.len() == 0 {
+            proof {
+                assert((1usize << 0usize) == 1) by (bit_vector);
+                lemma_mle_one(f, point@);
+            }
+            return F192::from(table[0]);
+        }
+        let p0 = point[0];
+        let rest = &point[1..];
+        proof {
+            lemma_shl_double((n - 1) as usize);
+            lemma_mle_fold_low(f, point@);
+            assert(fold_low(f, p0).len() == table.len() / 2);
+        }
+        return fold_ladder(fold_low_k(table, p0), rest);
+    }
+    let low_vars = if point.len() < MLE_LOW_VARS { point.len() } else { MLE_LOW_VARS };
+    let low = packed_eq(&point[..low_vars]);
+    let width = 1usize << low_vars;
+    let ghost pl = point@.subrange(0, low_vars as int);
+    let ghost hl = (n - low_vars) as usize;
+    proof {
+        lemma_shl_sum(hl, low_vars);
+        assert((1usize << low_vars) >= 1) by (bit_vector)
+            requires
+                low_vars < 64,
+        ;
+        lemma_div_by_multiple((1usize << hl) as int, width as int);
+    }
+    let mut rows: Vec<F192> = Vec::new();
+    let mut h = 0;
+    while h < table.len() / width
+        invariant
+            n == point.len(),
+            3 <= n < 64,
+            low_vars <= n,
+            hl == n - low_vars,
+            width == (1usize << low_vars),
+            width >= 1,
+            table.len() == (1usize << n),
+            (1usize << hl) * width == table.len(),
+            table.len() / width == (1usize << hl),
+            pl == point@.subrange(0, low_vars as int),
+            f == lift(table@),
+            8 * low.len() == width,
+            forall|x: int| 0 <= x < width ==> #[trigger] w8_get(low@[x / 8], x % 8) == eq_at(pl, x as usize),
+            h <= table.len() / width,
+            rows.len() == h,
+            forall|j: int| 0 <= j < h ==> #[trigger] rows@[j] == mle(f.subrange(j * width, (j + 1) * width), pl),
+        decreases table.len() / width - h,
+    {
+        proof {
+            assert(h * width <= (h + 1) * width <= table.len() && (h + 1) * width - h * width == width) by (nonlinear_arith)
+                requires
+                    h < (1usize << hl),
+                    (1usize << hl) * width == table.len(),
+            ;
+        }
+        let row = &table[h * width..(h + 1) * width];
+        assert(row@ == table@.subrange(h * width, (h + 1) * width));
+        let d = dot_base(&low, row).reduce();
+        proof {
+            lemma_dot_is_mle(low@, row@, pl, width as nat);
+            assert(lift(row@) =~= f.subrange(h * width, (h + 1) * width));
+        }
+        rows.push(d);
+        h += 1;
+    }
+    proof {
+        lemma_mle_blocks(f, point@, low_vars, rows@);
+    }
+    fold_ladder(rows, &point[low_vars..])
 }
 
 } // verus!
