@@ -1,4 +1,4 @@
-//! Verus proofs of leanVM's portable field arithmetic, bit transposes and additive NTT.
+//! Verus proofs of annotated leanVM arithmetic and kernel copies, with explicit intrinsic trust contracts.
 #![allow(unused_parens, unused_imports, unused_variables, dead_code, clippy::all)]
 
 pub mod bit_fold;
