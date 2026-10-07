@@ -106,12 +106,15 @@ Following annex `d` of the leanVM document:
   production tests' reference, which they compare with the parallel `transform`) followed by the inverse layers
   is the identity, for every number of interleaved lanes and every size up to the table's; with one lane the
   inverse layers are `inverse_transform`.
-- Evaluation: on a `2^L`-point domain, output word `v` of the forward transform is `P(x_v)`, where
-  `P(x) = sum_j a_j X_j(x)` with novel basis `X_j = prod_i Ŵ_i(x)^(bit_i(j))`, the input `a` read as its
-  coefficients, and `x_v = sum_c bit_c(v) b_c` (bit 0 first, no bit reversal; for the standard basis
-  `x_v = v`). Encoding at rate `2^-r` (layers `r..L` on `2^r` copies of the message) gives the evaluations of the
-  polynomial whose coefficients are the message: the Reed-Solomon codeword (`lemma_forward_evaluates`,
-  `lemma_encode_evaluates`).
+- Evaluation: for the table `AdditiveNttF64::standard(dim)` builds (`1 <= dim <= 63`), output word `v` of the
+  forward transform on `2^dim` words is `P(v)`, where `P(x) = sum_j a_j X_j(x)` with novel basis
+  `X_j = prod_i Ŵ_i(x)^(bit_i(j))` and the input `a` read as its coefficients; the domain point of index `v` is
+  the field element `v` itself (no bit reversal). Encoding at rate `2^-r` (layers `r..dim` on `2^r` copies of the
+  message) gives the evaluations of the polynomial whose coefficients are the message, zero-padded: the
+  Reed-Solomon codeword (`lemma_standard_forward_evaluates`, `lemma_standard_encode_evaluates`). The proof
+  needs every row of the table to start with one, `Ŵ_i(b_i) = 1`; it is proven for the standard basis, from
+  `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
+  theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
 ## Trust base and assumptions
 
