@@ -6,29 +6,29 @@
 //! compute the portable specification: [`mul`] is [`e_mul`], [`mul_unreduced`] stands for it ([`e_value`]),
 //! the reductions are `k_mod` of each coefficient, and [`F192x1`] / [`F192x1Unreduced`] carry an element and
 //! an unreduced value through sums and products.
-use super::{F192, F192Unreduced};
-use crate::gf2_64::{F64, R64};
-use crate::neon::xor3_u64;
-use core::arch::aarch64::*;
-use core::mem::MaybeUninit;
-use core::mem::transmute;
-use core::ops::{Add, BitXor, BitXorAssign, Mul};
 #[cfg(verus_keep_ghost)]
 use super::{
     e_add, e_from_k, e_mul, e_value, lemma_mul_base_spec, lemma_mul_unreduced_value, lemma_square_spec,
     lemma_u_from_wide, sched, u_from_wide, u_xor, wide,
 };
+use super::{F192Unreduced, F192};
 #[cfg(verus_keep_ghost)]
 use crate::clmul::clmul;
 #[cfg(verus_keep_ghost)]
 use crate::gf2_64::{k_mod, k_mul, lemma_clmul_fold_reduction, lemma_k_mod_xor};
+use crate::gf2_64::{F64, R64};
 #[cfg(verus_keep_ghost)]
 use crate::intrinsics::aarch64::*;
 #[cfg(verus_keep_ghost)]
 use crate::intrinsics::aarch64_gfneon::*;
+use crate::neon::xor3_u64;
+use core::arch::aarch64::*;
+use core::mem::transmute;
+use core::mem::MaybeUninit;
+use core::ops::{Add, BitXor, BitXorAssign, Mul};
+use vstd::prelude::*;
 #[cfg(verus_keep_ghost)]
 use vstd::std_specs::maybe_uninit::MaybeUninitAdditionalSpecFns;
-use vstd::prelude::*;
 
 verus! {
 

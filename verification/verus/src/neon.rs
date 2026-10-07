@@ -1,8 +1,8 @@
 //! The AArch64 helper shared by the NEON kernels, `crates/primitives/src/field/neon.rs`, copied with the same
 //! bodies.
-use core::arch::aarch64::*;
 #[cfg(verus_keep_ghost)]
 use crate::intrinsics::aarch64::*;
+use core::arch::aarch64::*;
 use vstd::prelude::*;
 
 verus! {

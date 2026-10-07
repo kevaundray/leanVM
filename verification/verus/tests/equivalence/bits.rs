@@ -13,7 +13,9 @@ fn matrices() -> impl Iterator<Item = [u64; 64]> {
         [1 << 37; 64],
     ];
     let mut rng = Rng::new(0x6464_7777);
-    edges.into_iter().chain((0..10_000).map(move |_| std::array::from_fn(|_| rng.next_u64())))
+    edges
+        .into_iter()
+        .chain((0..10_000).map(move |_| std::array::from_fn(|_| rng.next_u64())))
 }
 
 #[test]
@@ -28,9 +30,16 @@ fn transpose_64x64_matches() {
 
 /// Zero, all ones, one bit per byte, then random blocks.
 fn blocks() -> impl Iterator<Item = [u8; 64]> {
-    let edges: [[u8; 64]; 4] = [[0; 64], [0xFF; 64], std::array::from_fn(|i| 1 << (i % 8)), std::array::from_fn(|i| i as u8)];
+    let edges: [[u8; 64]; 4] = [
+        [0; 64],
+        [0xFF; 64],
+        std::array::from_fn(|i| 1 << (i % 8)),
+        std::array::from_fn(|i| i as u8),
+    ];
     let mut rng = Rng::new(0xB17_7777);
-    edges.into_iter().chain((0..10_000).map(move |_| std::array::from_fn(|_| rng.next_u8())))
+    edges
+        .into_iter()
+        .chain((0..10_000).map(move |_| std::array::from_fn(|_| rng.next_u8())))
 }
 
 /// Production's portable arm is private: the verified copy is compared with the dispatched public function, whichever
@@ -50,7 +59,10 @@ fn bit_transpose_64bytes_matches() {
 #[test]
 fn transpose_8x8_bits_matches() {
     let mut rng = Rng::new(0x88_7777);
-    for x in [0, u64::MAX, 1, 1 << 63, 0x8040_2010_0804_0201].into_iter().chain((0..10_000).map(|_| rng.next_u64())) {
+    for x in [0, u64::MAX, 1, 1 << 63, 0x8040_2010_0804_0201]
+        .into_iter()
+        .chain((0..10_000).map(|_| rng.next_u64()))
+    {
         let mut want = 0u64;
         for r in 0..8 {
             for c in 0..8 {

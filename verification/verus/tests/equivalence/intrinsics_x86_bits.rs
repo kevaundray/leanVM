@@ -72,7 +72,11 @@ fn affine_byte_matches_intel_pseudocode() {
         let a = words::<1>(&mut rng, k)[0];
         for x in [0u8, 1, 0x80, 0xFF, 0x55, rng.next_u8()] {
             for imm8 in [0u8, 1, 0x63, 0x80, 0xFF, rng.next_u8()] {
-                assert_eq!(spec::model_affine_byte(a, x, imm8), affine_reference(a, x, imm8), "a={a:#x} x={x:#x} imm8={imm8:#x}");
+                assert_eq!(
+                    spec::model_affine_byte(a, x, imm8),
+                    affine_reference(a, x, imm8),
+                    "a={a:#x} x={x:#x} imm8={imm8:#x}"
+                );
             }
         }
     }
@@ -86,20 +90,39 @@ fn avx2_byte_unpacks_and_memory() {
     #[target_feature(enable = "avx2")]
     fn run(a: [u64; 4], b: [u64; 4], block: [u8; 64], small: [u8; 16], fill: [u8; 64]) {
         let (ba, bb): ([u8; 32], [u8; 32]) = unsafe { (transmute(a), transmute(b)) };
-        let (lo, hi) = (b256(_mm256_unpacklo_epi8(m256(a), m256(b))), b256(_mm256_unpackhi_epi8(m256(a), m256(b))));
+        let (lo, hi) = (
+            b256(_mm256_unpacklo_epi8(m256(a), m256(b))),
+            b256(_mm256_unpackhi_epi8(m256(a), m256(b))),
+        );
         for k in 0..32 {
-            assert_eq!(lo[k], spec::model_unpacklo_epi8_lane(&ba, &bb, k), "unpacklo_epi8 byte {k}");
-            assert_eq!(hi[k], spec::model_unpackhi_epi8_lane(&ba, &bb, k), "unpackhi_epi8 byte {k}");
+            assert_eq!(
+                lo[k],
+                spec::model_unpacklo_epi8_lane(&ba, &bb, k),
+                "unpacklo_epi8 byte {k}"
+            );
+            assert_eq!(
+                hi[k],
+                spec::model_unpackhi_epi8_lane(&ba, &bb, k),
+                "unpackhi_epi8 byte {k}"
+            );
         }
         unsafe {
-            assert_eq!(transmute::<__m128i, [u8; 16]>(spec::load128_bytes(&small)), small, "load128_bytes");
+            assert_eq!(
+                transmute::<__m128i, [u8; 16]>(spec::load128_bytes(&small)),
+                small,
+                "load128_bytes"
+            );
             for offset in [0, 1, 7, 16, 31, 32] {
                 let v = spec::load256_bytes_at(&block, offset);
                 assert_eq!(b256(v)[..], block[offset..offset + 32], "load256_bytes_at {offset}");
                 let mut out = fill;
                 spec::store256_bytes_at(&mut out, offset, m256(a));
                 for k in 0..64 {
-                    let want = if (offset..offset + 32).contains(&k) { ba[k - offset] } else { fill[k] };
+                    let want = if (offset..offset + 32).contains(&k) {
+                        ba[k - offset]
+                    } else {
+                        fill[k]
+                    };
                     assert_eq!(out[k], want, "store256_bytes_at {offset} byte {k}");
                 }
             }
@@ -115,7 +138,10 @@ fn avx2_byte_unpacks_and_memory() {
 
 #[test]
 fn avx512vbmi_byte_permute_and_memory() {
-    if !has(is_x86_feature_detected!("avx512vbmi") && is_x86_feature_detected!("avx512f"), "avx512vbmi") {
+    if !has(
+        is_x86_feature_detected!("avx512vbmi") && is_x86_feature_detected!("avx512f"),
+        "avx512vbmi",
+    ) {
         return;
     }
     #[target_feature(enable = "avx512f,avx512vbmi")]
@@ -123,7 +149,11 @@ fn avx512vbmi_byte_permute_and_memory() {
         let (vi, va): (__m512i, __m512i) = unsafe { (transmute(idx), transmute(a)) };
         let r = b512(_mm512_permutexvar_epi8(vi, va));
         for k in 0..64 {
-            assert_eq!(r[k], spec::model_permutexvar_epi8_lane(&idx, &a, k), "permutexvar_epi8 byte {k}");
+            assert_eq!(
+                r[k],
+                spec::model_permutexvar_epi8_lane(&idx, &a, k),
+                "permutexvar_epi8 byte {k}"
+            );
         }
         unsafe {
             assert_eq!(b512(spec::load512_bytes(&a)), a, "load512_bytes");
@@ -159,12 +189,27 @@ macro_rules! check_affine {
 
 #[test]
 fn gfni_affine_avx2() {
-    if !has(is_x86_feature_detected!("gfni") && is_x86_feature_detected!("avx2"), "gfni with avx2") {
+    if !has(
+        is_x86_feature_detected!("gfni") && is_x86_feature_detected!("avx2"),
+        "gfni with avx2",
+    ) {
         return;
     }
     #[target_feature(enable = "gfni,avx2")]
     fn run(x: [u64; 4], a: [u64; 4]) {
-        check_affine!(_mm256_gf2p8affine_epi64_epi8, b256, m256, x, a, 0, 1, 0x63, 0x80, 0xAA, 0xFF);
+        check_affine!(
+            _mm256_gf2p8affine_epi64_epi8,
+            b256,
+            m256,
+            x,
+            a,
+            0,
+            1,
+            0x63,
+            0x80,
+            0xAA,
+            0xFF
+        );
     }
     let mut rng = Rng::new(0x6F_256);
     for k in 0..N {
@@ -175,12 +220,27 @@ fn gfni_affine_avx2() {
 
 #[test]
 fn gfni_affine_avx512() {
-    if !has(is_x86_feature_detected!("gfni") && is_x86_feature_detected!("avx512f"), "gfni with avx512f") {
+    if !has(
+        is_x86_feature_detected!("gfni") && is_x86_feature_detected!("avx512f"),
+        "gfni with avx512f",
+    ) {
         return;
     }
     #[target_feature(enable = "gfni,avx512f")]
     fn run(x: [u64; 8], a: [u64; 8]) {
-        check_affine!(_mm512_gf2p8affine_epi64_epi8, b512, m512, x, a, 0, 1, 0x63, 0x80, 0xAA, 0xFF);
+        check_affine!(
+            _mm512_gf2p8affine_epi64_epi8,
+            b512,
+            m512,
+            x,
+            a,
+            0,
+            1,
+            0x63,
+            0x80,
+            0xAA,
+            0xFF
+        );
     }
     let mut rng = Rng::new(0x6F_512);
     for k in 0..N {

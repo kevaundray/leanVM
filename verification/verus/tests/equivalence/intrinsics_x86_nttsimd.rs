@@ -29,7 +29,11 @@ macro_rules! check_load_store {
                 let mut stored = row.clone();
                 unsafe { helpers::$store(&mut stored, at, transmute::<[u64; $w], $reg>(words)) };
                 for j in 0..row.len() {
-                    let want = if (at..at + $w).contains(&j) { words[j - at] } else { row[j].0 };
+                    let want = if (at..at + $w).contains(&j) {
+                        words[j - at]
+                    } else {
+                        row[j].0
+                    };
                     assert_eq!(stored[j].0, want, "{} at {at} word {j}", stringify!($store));
                 }
             }
@@ -54,6 +58,9 @@ fn byte_table_load() {
     let mut rng = Rng::new(0x128);
     for _ in 0..N {
         let bytes: [u8; 16] = std::array::from_fn(|_| rng.next_u64() as u8);
-        assert_eq!(unsafe { transmute::<__m128i, [u8; 16]>(helpers::loadu128_bytes(&bytes)) }, bytes);
+        assert_eq!(
+            unsafe { transmute::<__m128i, [u8; 16]>(helpers::loadu128_bytes(&bytes)) },
+            bytes
+        );
     }
 }

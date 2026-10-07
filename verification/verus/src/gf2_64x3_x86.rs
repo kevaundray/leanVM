@@ -6,31 +6,31 @@
 //! coefficient; a sum of products in registers reduces to the sum of the products.
 #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use super::Weights8;
-use super::{F192, F192Unreduced};
 #[cfg(verus_keep_ghost)]
 use super::{
     dot_spec, e_add, e_from_k, e_mul, e_value, lemma_e_value_xor, lemma_karatsuba_fold, lemma_mul_base_spec,
     lemma_mul_unreduced_value, lemma_u_from_wide, lemma_u_zero, lemma_wide_split, sched, u_from_wide, u_xor, w8_get,
     wide,
 };
+use super::{F192Unreduced, F192};
 #[cfg(verus_keep_ghost)]
 use crate::clmul::clmul;
+use crate::gf2_64::F64;
 #[cfg(verus_keep_ghost)]
 use crate::gf2_64::{k_mod, k_mul, lemma_k_mod, lemma_k_mod_xor, reduce_formula};
-use crate::gf2_64::F64;
-use core::arch::x86_64::*;
-use core::mem::MaybeUninit;
-use core::mem::transmute;
-use core::ops::{Add, BitXor, BitXorAssign, Mul};
 #[cfg(verus_keep_ghost)]
 use crate::intrinsics::x86::*;
 #[cfg(verus_keep_ghost)]
 use crate::intrinsics::x86_gfx86::*;
+use core::arch::x86_64::*;
+use core::mem::transmute;
+use core::mem::MaybeUninit;
+use core::ops::{Add, BitXor, BitXorAssign, Mul};
+use vstd::prelude::*;
 #[cfg(verus_keep_ghost)]
 use vstd::raw_ptr::MemContents;
 #[cfg(verus_keep_ghost)]
 use vstd::std_specs::maybe_uninit::MaybeUninitAdditionalSpecFns;
-use vstd::prelude::*;
 
 verus! {
 
@@ -3042,8 +3042,16 @@ proof fn lemma_x8_word(
 
 } // verus!
 
-#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2", not(target_feature = "avx512f")))]
+#[cfg(all(
+    target_feature = "vpclmulqdq",
+    target_feature = "avx2",
+    not(target_feature = "avx512f")
+))]
 #[path = "gf2_64x3_x86_avx2.rs"]
 mod avx2;
-#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2", not(target_feature = "avx512f")))]
+#[cfg(all(
+    target_feature = "vpclmulqdq",
+    target_feature = "avx2",
+    not(target_feature = "avx512f")
+))]
 pub use avx2::*;

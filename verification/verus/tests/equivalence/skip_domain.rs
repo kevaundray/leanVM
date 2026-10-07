@@ -7,7 +7,7 @@
 //! production with (`skip_domain::tests`): the product `prod_i (z + s_i)` and the weights of
 //! `primitives::multilinear::skip_lagrange_weights`.
 use fiat_shamir::arith::Native;
-use flock::zerocheck::{K_SKIP, SkipDomain};
+use flock::zerocheck::{SkipDomain, K_SKIP};
 use leanvm_verus::gf2_64x3::F192 as VF192;
 use leanvm_verus::skip_domain as verified;
 use primitives::field::{F192, PHI_8_TABLE_192};
@@ -34,7 +34,10 @@ fn the_flock_domain_matches() {
     let mut rng = Rng::new(0x5D0);
     let domain = SkipDomain::FLOCK;
     let vdomain = verified::SkipDomain::FLOCK;
-    assert_eq!((verified::K_SKIP, vdomain.k_skip(), vdomain.size()), (K_SKIP, K_SKIP, 1 << K_SKIP));
+    assert_eq!(
+        (verified::K_SKIP, vdomain.k_skip(), vdomain.size()),
+        (K_SKIP, K_SKIP, 1 << K_SKIP)
+    );
     for z in points(&mut rng) {
         let vanishing = domain.vanishing(&mut Native, z);
         let vvanishing = vdomain.vanishing(&mut verified::Native, to_v(z));
@@ -61,14 +64,23 @@ fn every_size_matches_the_references() {
 
             let values = rng.ext_vec(size);
             let vvalues: Vec<VF192> = values.iter().copied().map(to_v).collect();
-            let lagrange = (skip_lagrange_weights(k_skip, z).iter().zip(&values)).fold(F192::ZERO, |acc, (&w, &v)| acc + w * v);
-            assert_eq!(from_v(domain.lagrange_at(&mut verified::Native, vz, vanishing, &vvalues)), lagrange, "k_skip {k_skip}");
+            let lagrange =
+                (skip_lagrange_weights(k_skip, z).iter().zip(&values)).fold(F192::ZERO, |acc, (&w, &v)| acc + w * v);
+            assert_eq!(
+                from_v(domain.lagrange_at(&mut verified::Native, vz, vanishing, &vvalues)),
+                lagrange,
+                "k_skip {k_skip}"
+            );
 
             let window = skip_lagrange_weights(k_skip + 1, z)[size..]
                 .iter()
                 .zip(&values)
                 .fold(F192::ZERO, |acc, (&w, &v)| acc + w * v);
-            assert_eq!(from_v(domain.first_round_at(&mut verified::Native, vz, vanishing, &vvalues)), window, "k_skip {k_skip}");
+            assert_eq!(
+                from_v(domain.first_round_at(&mut verified::Native, vz, vanishing, &vvalues)),
+                window,
+                "k_skip {k_skip}"
+            );
         }
     }
 }

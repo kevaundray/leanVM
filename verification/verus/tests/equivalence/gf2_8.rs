@@ -9,12 +9,19 @@ fn products_match_exhaustively() {
         for b in 0..=u8::MAX {
             let want = (production::F8(a) * production::F8(b)).0;
             assert_eq!((verified::F8(a) * verified::F8(b)).0, want, "mul {a:#x} {b:#x}");
-            assert_eq!(production::gf8_reduce(verified::clmul8_software(a, b)), want, "clmul8 {a:#x} {b:#x}");
+            assert_eq!(
+                production::gf8_reduce(verified::clmul8_software(a, b)),
+                want,
+                "clmul8 {a:#x} {b:#x}"
+            );
             let (mut v, mut p) = (verified::F8(a), production::F8(a));
             v *= verified::F8(b);
             p *= production::F8(b);
             assert_eq!(v.0, p.0, "mul_assign {a:#x} {b:#x}");
-            assert_eq!((verified::F8(a) + verified::F8(b)).0, (production::F8(a) + production::F8(b)).0);
+            assert_eq!(
+                (verified::F8(a) + verified::F8(b)).0,
+                (production::F8(a) + production::F8(b)).0
+            );
             let (mut v, mut p) = (verified::F8(a), production::F8(a));
             v += verified::F8(b);
             p += production::F8(b);
@@ -70,16 +77,36 @@ fn neon_helpers_match_exhaustively() {
     for first in (0..=u16::MAX).step_by(16) {
         let p: [u16; 16] = std::array::from_fn(|i| first + i as u16);
         let (lo, hi): ([u16; 8], [u16; 8]) = (p[..8].try_into().unwrap(), p[8..].try_into().unwrap());
-        let (c0, c1) = unsafe { (transmute::<[u16; 8], uint8x16_t>(lo), transmute::<[u16; 8], uint8x16_t>(hi)) };
-        let (v, q) = unsafe { (b16(verified::neon::gf8_reduce_vec16(c0, c1)), b16(production::neon::gf8_reduce_vec16(c0, c1))) };
+        let (c0, c1) = unsafe {
+            (
+                transmute::<[u16; 8], uint8x16_t>(lo),
+                transmute::<[u16; 8], uint8x16_t>(hi),
+            )
+        };
+        let (v, q) = unsafe {
+            (
+                b16(verified::neon::gf8_reduce_vec16(c0, c1)),
+                b16(production::neon::gf8_reduce_vec16(c0, c1)),
+            )
+        };
         assert_eq!(v, q, "gf8_reduce_vec16 first={first:#06x}");
     }
     for b in 0..=u8::MAX {
         for a0 in (0..=u8::MAX).step_by(16) {
             let a: [u8; 16] = std::array::from_fn(|i| a0.wrapping_add(i as u8));
             let bs: [u8; 16] = std::array::from_fn(|i| b.wrapping_add((i as u8).wrapping_mul(17)));
-            let (va, vb) = unsafe { (transmute::<[u8; 16], uint8x16_t>(a), transmute::<[u8; 16], uint8x16_t>(bs)) };
-            let (v, q) = unsafe { (b16(verified::neon::gf8_mul_vec16(va, vb)), b16(production::neon::gf8_mul_vec16(va, vb))) };
+            let (va, vb) = unsafe {
+                (
+                    transmute::<[u8; 16], uint8x16_t>(a),
+                    transmute::<[u8; 16], uint8x16_t>(bs),
+                )
+            };
+            let (v, q) = unsafe {
+                (
+                    b16(verified::neon::gf8_mul_vec16(va, vb)),
+                    b16(production::neon::gf8_mul_vec16(va, vb)),
+                )
+            };
             assert_eq!(v, q, "gf8_mul_vec16 a={a:x?} b={bs:x?}");
         }
     }

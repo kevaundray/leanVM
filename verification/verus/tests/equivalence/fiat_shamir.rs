@@ -7,7 +7,7 @@
 use leanvm_verus::fiat_shamir as verified;
 use leanvm_verus::gf2_64::F64 as VF64;
 use leanvm_verus::gf2_64x3::F192 as VF192;
-use primitives::field::{F64, F192};
+use primitives::field::{F192, F64};
 use primitives::test_util::Rng;
 
 fn to_v(e: F192) -> VF192 {
@@ -31,10 +31,18 @@ fn step_blocks_match() {
     let tags = [0, 1, 2, 3, 4, u64::MAX];
     for round in 0..20_000 {
         let s = scalars(&mut rng);
-        let tag = if round % 2 == 0 { tags[round / 2 % tags.len()] } else { rng.next_u64() };
+        let tag = if round % 2 == 0 {
+            tags[round / 2 % tags.len()]
+        } else {
+            rng.next_u64()
+        };
         let want = fiat_shamir::step_block(&s, F64(tag)).map(|w| w.0);
         let vs: Vec<VF192> = s.iter().copied().map(to_v).collect();
-        assert_eq!(verified::step_block(&vs, VF64(tag)).map(|w| w.0), want, "{s:?} {tag:#x}");
+        assert_eq!(
+            verified::step_block(&vs, VF64(tag)).map(|w| w.0),
+            want,
+            "{s:?} {tag:#x}"
+        );
         assert_eq!(verified::builder_step_message(&vs, tag), want, "{s:?} {tag:#x}");
     }
 }

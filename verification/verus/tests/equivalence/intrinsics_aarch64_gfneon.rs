@@ -12,7 +12,16 @@ use primitives::test_util::Rng;
 
 const N: usize = 20_000;
 
-const EDGES: [u64; 8] = [0, 1, u64::MAX, 1 << 63, 0x1B, 0x5555_5555_5555_5555, 0xAAAA_AAAA_AAAA_AAAA, 0x8080_8080_8080_8080];
+const EDGES: [u64; 8] = [
+    0,
+    1,
+    u64::MAX,
+    1 << 63,
+    0x1B,
+    0x5555_5555_5555_5555,
+    0xAAAA_AAAA_AAAA_AAAA,
+    0x8080_8080_8080_8080,
+];
 
 fn words<const W: usize>(rng: &mut Rng, k: usize) -> [u64; W] {
     if k < EDGES.len() * EDGES.len() {
@@ -58,9 +67,20 @@ fn neon_u64_lane_moves() {
     for k in 0..N {
         let (a, b) = (words::<2>(&mut rng, k), words::<2>(&mut rng, k + 3));
         unsafe {
-            assert_eq!(transmute::<poly64x2_t, [u64; 2]>(vreinterpretq_p64_u64(v(a))), a, "vreinterpretq_p64_u64");
-            assert_eq!(transmute::<uint64x1_t, [u64; 1]>(vcreate_u64(a[0])), [a[0]], "vcreate_u64");
-            let (x, y) = (transmute::<[u64; 1], uint64x1_t>([a[1]]), transmute::<[u64; 1], uint64x1_t>([b[0]]));
+            assert_eq!(
+                transmute::<poly64x2_t, [u64; 2]>(vreinterpretq_p64_u64(v(a))),
+                a,
+                "vreinterpretq_p64_u64"
+            );
+            assert_eq!(
+                transmute::<uint64x1_t, [u64; 1]>(vcreate_u64(a[0])),
+                [a[0]],
+                "vcreate_u64"
+            );
+            let (x, y) = (
+                transmute::<[u64; 1], uint64x1_t>([a[1]]),
+                transmute::<[u64; 1], uint64x1_t>([b[0]]),
+            );
             assert_eq!(w(vcombine_u64(x, y)), [a[1], b[0]], "vcombine_u64");
             let ext0: [u64; 2] = std::array::from_fn(|i| model_ext_u64_lane(a, b, 0, i));
             let ext1: [u64; 2] = std::array::from_fn(|i| model_ext_u64_lane(a, b, 1, i));
@@ -84,15 +104,26 @@ fn neon_byte_lanes() {
             let uzp2: [u8; 16] = std::array::from_fn(|i| model_uzp_u8_lane(&a, &b, 1, i));
             assert_eq!(b16(vuzp1q_u8(vb(a), vb(b))), uzp1, "vuzp1q_u8");
             assert_eq!(b16(vuzp2q_u8(vb(a), vb(b))), uzp2, "vuzp2q_u8");
-            assert_eq!(b16(veorq_u8(vb(a), vb(b))), std::array::from_fn(|i| a[i] ^ b[i]), "veorq_u8");
+            assert_eq!(
+                b16(veorq_u8(vb(a), vb(b))),
+                std::array::from_fn(|i| a[i] ^ b[i]),
+                "veorq_u8"
+            );
             assert_eq!(b8(vget_low_u8(vb(a))), std::array::from_fn(|i| a[i]), "vget_low_u8");
-            assert_eq!(b8(vget_high_u8(vb(a))), std::array::from_fn(|i| a[i + 8]), "vget_high_u8");
+            assert_eq!(
+                b8(vget_high_u8(vb(a))),
+                std::array::from_fn(|i| a[i + 8]),
+                "vget_high_u8"
+            );
             assert_eq!(p8(vdup_n_p8(a[3])), [a[3]; 8], "vdup_n_p8");
             // The layout axioms: a `uint8x8_t` read as a `poly8x8_t`, and a `u64` read as a `poly8x8_t`.
             let lo = vget_low_u8(vb(a));
             assert_eq!(p8(transmute::<uint8x8_t, poly8x8_t>(lo)), b8(lo));
             let x = u64::from_le_bytes(std::array::from_fn(|i| b[i]));
-            assert_eq!(p8(transmute::<u64, poly8x8_t>(x)), std::array::from_fn(|i| (x >> (8 * i)) as u8));
+            assert_eq!(
+                p8(transmute::<u64, poly8x8_t>(x)),
+                std::array::from_fn(|i| (x >> (8 * i)) as u8)
+            );
         }
     }
     // The two constants the reduction reinterprets.

@@ -21,7 +21,15 @@ fn weight_sets(rng: &mut Rng, n: usize, random: usize) -> Vec<Vec<F192>> {
     let mut sets: Vec<Vec<F192>> = (0..random).map(|_| rng.ext_vec(n)).collect();
     sets.push(vec![F192::ZERO; n]);
     sets.push(vec![F192::new(u64::MAX, u64::MAX, u64::MAX); n]);
-    sets.push((0..n).map(|b| { let mut w = [0u64; 3]; w[(b / 64) % 3] = 1 << (b % 64); F192::new(w[0], w[1], w[2]) }).collect());
+    sets.push(
+        (0..n)
+            .map(|b| {
+                let mut w = [0u64; 3];
+                w[(b / 64) % 3] = 1 << (b % 64);
+                F192::new(w[0], w[1], w[2])
+            })
+            .collect(),
+    );
     sets
 }
 
@@ -32,8 +40,7 @@ fn check_fold<const CHUNKS: usize>(rng: &mut Rng) {
         let (fv, fp) = (verified::BitFold::new(&vw), production::BitFold::new(&weights));
         assert_eq!(fv.n_chunks(), fp.n_chunks());
         for len in [BLOCK, BLOCK, 5, 1, 0] {
-            let mut rows: Vec<[u8; CHUNKS]> =
-                (0..len).map(|_| std::array::from_fn(|_| rng.next_u8())).collect();
+            let mut rows: Vec<[u8; CHUNKS]> = (0..len).map(|_| std::array::from_fn(|_| rng.next_u8())).collect();
             // Edge rows: all clear, all set, one set bit.
             if len == BLOCK {
                 rows[0] = [0; CHUNKS];
@@ -105,7 +112,10 @@ fn f192_map_matches() {
                 let mut op = before.clone();
                 mv.apply_sliced_add(&sv, &mut ov);
                 mp.apply_sliced_add(&sp, &mut op);
-                assert!(ov.iter().zip(&op).all(|(&v, &p)| same(v, p)), "apply_sliced_add, len={len}");
+                assert!(
+                    ov.iter().zip(&op).all(|(&v, &p)| same(v, p)),
+                    "apply_sliced_add, len={len}"
+                );
 
                 let mut ov: Vec<vx::F192> = before.iter().map(|&b| to_v(b)).collect();
                 let mut op = before.clone();

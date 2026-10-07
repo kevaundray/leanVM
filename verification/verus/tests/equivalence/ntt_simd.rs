@@ -13,8 +13,18 @@ use primitives::field::F64;
 use primitives::test_util::Rng;
 
 /// Edge words: zero, one, all ones, the top bit, the reduction constant, alternating bits, every top nibble.
-const EDGES: [u64; 10] =
-    [0, 1, u64::MAX, 1 << 63, 0x1B, 0x5555_5555_5555_5555, 0xAAAA_AAAA_AAAA_AAAA, 0xF << 60, 0x7 << 60, 1 << 60];
+const EDGES: [u64; 10] = [
+    0,
+    1,
+    u64::MAX,
+    1 << 63,
+    0x1B,
+    0x5555_5555_5555_5555,
+    0xAAAA_AAAA_AAAA_AAAA,
+    0xF << 60,
+    0x7 << 60,
+    1 << 60,
+];
 
 /// Twiddles: the edge ones first (0, 1, all ones, ...), then random.
 fn twiddles(rng: &mut Rng) -> Vec<u64> {
@@ -57,8 +67,16 @@ fn check_kernel(name: &str, width: usize, transposed: bool, kernel: impl Fn(&mut
                 let mut bot: Vec<VF64> = v.iter().map(|&x| VF64(x)).collect();
                 kernel(&mut top, &mut bot, at, t);
                 for j in 0..n {
-                    let want = if (at..at + width).contains(&j) { production_butterfly(transposed, u[j], v[j], t) } else { (u[j], v[j]) };
-                    assert_eq!((top[j].0, bot[j].0), want, "{name} transposed={transposed} t={t:#x} at={at} word {j}");
+                    let want = if (at..at + width).contains(&j) {
+                        production_butterfly(transposed, u[j], v[j], t)
+                    } else {
+                        (u[j], v[j])
+                    };
+                    assert_eq!(
+                        (top[j].0, bot[j].0),
+                        want,
+                        "{name} transposed={transposed} t={t:#x} at={at} word {j}"
+                    );
                 }
             }
         }
@@ -69,8 +87,12 @@ fn check_kernel(name: &str, width: usize, transposed: bool, kernel: impl Fn(&mut
 #[test]
 fn avx512_kernel_matches_production_butterfly() {
     use leanvm_verus::ntt_simd::butterfly_lanes_avx512;
-    check_kernel("avx512", 8, false, |t, b, at, tw| unsafe { butterfly_lanes_avx512::<false>(t, b, at, tw) });
-    check_kernel("avx512", 8, true, |t, b, at, tw| unsafe { butterfly_lanes_avx512::<true>(t, b, at, tw) });
+    check_kernel("avx512", 8, false, |t, b, at, tw| unsafe {
+        butterfly_lanes_avx512::<false>(t, b, at, tw)
+    });
+    check_kernel("avx512", 8, true, |t, b, at, tw| unsafe {
+        butterfly_lanes_avx512::<true>(t, b, at, tw)
+    });
 }
 
 #[cfg(all(
@@ -86,18 +108,30 @@ fn avx2_kernel_matches_production_butterfly() {
     for n in 0..16u8 {
         assert_eq!(SPILL[n as usize], n ^ (n >> 1) ^ (n >> 3));
     }
-    check_kernel("avx2", 4, false, |t, b, at, tw| unsafe { butterfly_lanes_avx2::<false>(t, b, at, tw) });
-    check_kernel("avx2", 4, true, |t, b, at, tw| unsafe { butterfly_lanes_avx2::<true>(t, b, at, tw) });
+    check_kernel("avx2", 4, false, |t, b, at, tw| unsafe {
+        butterfly_lanes_avx2::<false>(t, b, at, tw)
+    });
+    check_kernel("avx2", 4, true, |t, b, at, tw| unsafe {
+        butterfly_lanes_avx2::<true>(t, b, at, tw)
+    });
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
 #[test]
 fn neon_kernels_match_production_butterfly() {
     use leanvm_verus::ntt_simd::{butterfly_lane_pair_neon, butterfly_lanes_neon_8};
-    check_kernel("neon_8", 8, false, |t, b, at, tw| unsafe { butterfly_lanes_neon_8::<false>(t, b, at, tw) });
-    check_kernel("neon_8", 8, true, |t, b, at, tw| unsafe { butterfly_lanes_neon_8::<true>(t, b, at, tw) });
-    check_kernel("pair", 2, false, |t, b, at, tw| unsafe { butterfly_lane_pair_neon::<false>(t, b, at, tw) });
-    check_kernel("pair", 2, true, |t, b, at, tw| unsafe { butterfly_lane_pair_neon::<true>(t, b, at, tw) });
+    check_kernel("neon_8", 8, false, |t, b, at, tw| unsafe {
+        butterfly_lanes_neon_8::<false>(t, b, at, tw)
+    });
+    check_kernel("neon_8", 8, true, |t, b, at, tw| unsafe {
+        butterfly_lanes_neon_8::<true>(t, b, at, tw)
+    });
+    check_kernel("pair", 2, false, |t, b, at, tw| unsafe {
+        butterfly_lane_pair_neon::<false>(t, b, at, tw)
+    });
+    check_kernel("pair", 2, true, |t, b, at, tw| unsafe {
+        butterfly_lane_pair_neon::<true>(t, b, at, tw)
+    });
 }
 
 /// `lane_butterflies` (through `butterfly_lanes` and `transposed_butterfly_lanes`), whatever arm this build
@@ -146,7 +180,11 @@ fn verified_lane_butterflies_reproduce_the_encoder() {
                     let rows = &mut data[block * block_size * lanes..(block + 1) * block_size * lanes];
                     let (tops, bots) = rows.split_at_mut(half * lanes);
                     for r in 0..half {
-                        verified::butterfly_lanes(&mut tops[r * lanes..(r + 1) * lanes], &mut bots[r * lanes..(r + 1) * lanes], twiddle);
+                        verified::butterfly_lanes(
+                            &mut tops[r * lanes..(r + 1) * lanes],
+                            &mut bots[r * lanes..(r + 1) * lanes],
+                            twiddle,
+                        );
                     }
                 }
             }

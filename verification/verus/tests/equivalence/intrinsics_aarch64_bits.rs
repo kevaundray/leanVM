@@ -10,7 +10,16 @@ use primitives::test_util::Rng;
 
 const N: usize = 20_000;
 
-const EDGES: [u64; 8] = [0, 1, u64::MAX, 1 << 63, 0x00AA_00AA_00AA_00AA, 0x5555_5555_5555_5555, 0xF0F0_F0F0_0000_CCCC, 1 << 32];
+const EDGES: [u64; 8] = [
+    0,
+    1,
+    u64::MAX,
+    1 << 63,
+    0x00AA_00AA_00AA_00AA,
+    0x5555_5555_5555_5555,
+    0xF0F0_F0F0_0000_CCCC,
+    1 << 32,
+];
 
 fn words(rng: &mut Rng, k: usize) -> [u64; 2] {
     if k < EDGES.len() * EDGES.len() {
@@ -60,7 +69,12 @@ fn neon_table_lookup() {
         );
         let r = b8(unsafe { vqtbl4q_u8(t, v8(idx)) });
         for i in 0..16 {
-            assert_eq!(r[i], spec::model_tbl4_byte(&table, idx[i]), "vqtbl4q_u8 byte {i}, index {}", idx[i]);
+            assert_eq!(
+                r[i],
+                spec::model_tbl4_byte(&table, idx[i]),
+                "vqtbl4q_u8 byte {i}, index {}",
+                idx[i]
+            );
         }
     }
 }
@@ -105,11 +119,19 @@ fn neon_byte_memory() {
         let (block, small, fill) = (bytes::<64>(&mut rng), bytes::<16>(&mut rng), bytes::<16>(&mut rng));
         assert_eq!(b8(spec::vld1q_u8_16(&small)), small, "vld1q_u8_16");
         for offset in [0, 1, 15, 16, 32, 47, 48] {
-            assert_eq!(b8(spec::vld1q_u8_at(&block, offset))[..], block[offset..offset + 16], "vld1q_u8_at {offset}");
+            assert_eq!(
+                b8(spec::vld1q_u8_at(&block, offset))[..],
+                block[offset..offset + 16],
+                "vld1q_u8_at {offset}"
+            );
             let mut out = block;
             spec::vst1q_u8_at(&mut out, offset, v8(fill));
             for k in 0..64 {
-                let want = if (offset..offset + 16).contains(&k) { fill[k - offset] } else { block[k] };
+                let want = if (offset..offset + 16).contains(&k) {
+                    fill[k - offset]
+                } else {
+                    block[k]
+                };
                 assert_eq!(out[k], want, "vst1q_u8_at {offset} byte {k}");
             }
         }

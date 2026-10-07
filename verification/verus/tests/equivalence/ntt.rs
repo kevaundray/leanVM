@@ -43,15 +43,31 @@ fn forward_reference_matches_encoder_at_a_rate() {
     // The encoder reads the message from the first replica; the reference replicates it, then runs the
     // layers from the rate layer on.
     let mut rng = Rng::new(0x4A7E);
-    for (log_d, lanes, log_inv_rate) in [(3usize, 1usize, 1usize), (6, 3, 2), (9, 8, 1), (10, 2, 3), (12, 4, 2), (4, 8, 4)] {
+    for (log_d, lanes, log_inv_rate) in [
+        (3usize, 1usize, 1usize),
+        (6, 3, 2),
+        (9, 8, 1),
+        (10, 2, 3),
+        (12, 4, 2),
+        (4, 8, 4),
+    ] {
         let msg_len = (lanes << log_d) >> log_inv_rate;
         let msg = random(&mut rng, msg_len);
         let mut want: Vec<VF64> = to_verified(&msg).repeat(1 << log_inv_rate);
-        verified::forward_scalar_from_layer(&verified::AdditiveNttF64::standard(log_d), &mut want, lanes, log_inv_rate);
+        verified::forward_scalar_from_layer(
+            &verified::AdditiveNttF64::standard(log_d),
+            &mut want,
+            lanes,
+            log_inv_rate,
+        );
         let mut got = vec![F64::ZERO; msg_len << log_inv_rate];
         got[..msg_len].copy_from_slice(&msg);
         Production::standard(log_d).encode_interleaved_in_place(&mut got, lanes, log_inv_rate);
-        assert_eq!(got, from_verified(&want), "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}");
+        assert_eq!(
+            got,
+            from_verified(&want),
+            "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}"
+        );
     }
 }
 
@@ -105,8 +121,11 @@ fn fused_forward(ntt: &verified::AdditiveNttF64, data: &mut [VF64]) {
         } else if layer + 1 < log_d && block_size >= 4 {
             let quarter = block_size >> 2;
             for block in 0..num_blocks {
-                let (t_outer, t_inner_a, t_inner_b) =
-                    (ntt.twiddle(layer, block), ntt.twiddle(layer + 1, 2 * block), ntt.twiddle(layer + 1, 2 * block + 1));
+                let (t_outer, t_inner_a, t_inner_b) = (
+                    ntt.twiddle(layer, block),
+                    ntt.twiddle(layer + 1, 2 * block),
+                    ntt.twiddle(layer + 1, 2 * block + 1),
+                );
                 for r in 0..quarter {
                     let at = |k: usize| block * block_size + r + k * quarter;
                     let mut rows = [0, 1, 2, 3].map(|k| data[at(k)]);
@@ -166,6 +185,9 @@ fn transposed_butterfly_matches_its_formula() {
 #[test]
 fn log2_matches_production() {
     for k in 0..usize::BITS as usize {
-        assert_eq!(verified::log2_strict_usize(1 << k), primitives::log2_strict_usize(1 << k));
+        assert_eq!(
+            verified::log2_strict_usize(1 << k),
+            primitives::log2_strict_usize(1 << k)
+        );
     }
 }

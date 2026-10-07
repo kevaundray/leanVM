@@ -1,6 +1,6 @@
 //! Copies of the public lane-major wrappers in `gf2_64x3.rs`, using the configured x86 kernels.
-use super::*;
 use super::x86_64::*;
+use super::*;
 use core::mem::MaybeUninit;
 #[cfg(verus_keep_ghost)]
 use vstd::raw_ptr::MemContents;

@@ -60,77 +60,21 @@ Polynomials over GF(2) are machine words, bit `i` the coefficient of `x^i`. The 
 
 #### x86 GF(2^192) SIMD copies
 
-`src/gf2_64x3_x86.rs`, `src/gf2_64x3_x86_avx2.rs`, and
-`src/gf2_64x3_x86_wrappers.rs` cover the PCLMULQDQ scalar-register kernels,
-AVX2/VPCLMULQDQ two-product and lane-major kernels, and AVX-512 four-product,
-lane-major, mixed-product and planar kernels. These are proofs of annotated
-copies, not proofs obtained by verifying the production source directly.
+`src/gf2_64x3_x86.rs`, `src/gf2_64x3_x86_avx2.rs`, and `src/gf2_64x3_x86_wrappers.rs` cover the PCLMULQDQ scalar-register kernels, AVX2/VPCLMULQDQ two-product and lane-major kernels, and AVX-512 four-product, lane-major, mixed-product and planar kernels. These are proofs of annotated copies, not proofs obtained by verifying production source directly.
 
-- `pair`, `karatsuba`, `fold`, `mul_unreduced`, `mul_base_unreduced`,
-  `F192x1` and `F192x1Unreduced` specify the exact coefficient words or held
-  field element. `reduce_lanes128/256/512` reduce arbitrary low/high word
-  pairs, not only outputs of multiplication.
-- `karatsuba_vec2/4`, `mul_vec2/4`, `mul_unreduced_vec2/4`, `mul_by_pairs`
-  and `mul_by_pairs256` specify every product lane. The configured `F192`
-  and batched dispatch copies call these kernels. Squaring uses the existing
-  base-field square/reduce copies, as production's x86 arm does.
-- `Lanes4` holds `[c0,c1]` and `[c2,c2]` in each 128-bit lane. AVX-512 has
-  four such lanes per register; AVX2 has two registers per plane, with
-  elements `2h` and `2h+1` in half `h`. Loads, stores, XOR, multiplication,
-  reduction, and transpose preserve this representation. Transpose moves
-  both words of each plane: output lane `j` of row `i` is input lane `i`
-  of row `j`. Multiplication and AVX2 stores require the duplicated `c2`
-  invariant; the safe wrapper's type invariant enforces it.
-- `F192x4` and its unreduced wrapper prove lane-wise arithmetic, memory
-  round trips and transpose; sums use the lazy-reduction identity.
-  `MixedSums8` has eight independently specified sums. `mul_base8_add`
-  updates each by `t * k[i]`, and `mul_base8_reduce` reduces each once.
-- AVX-512 `F192x8` stores coefficient `c` of element `i` in qword `i` of
-  plane `c`. Its products are lane-wise `e_mul`; `F192x8Sum::mul_add`
-  adds all eight products to the held sum. `dot_base` is the mixed inner
-  product for `k.len() == 8 * w.len()`. The proof has this precondition;
-  production rejects mismatched lengths. No correctness claim is made
-  for violating a precondition or running code without its required ISA.
+- `pair`, `karatsuba`, `fold`, `mul_unreduced`, `mul_base_unreduced`, `F192x1` and `F192x1Unreduced` specify the exact coefficient words or held field element. `reduce_lanes128/256/512` reduce arbitrary low/high word pairs, not only multiplication outputs.
+- `karatsuba_vec2/4`, `mul_vec2/4`, `mul_unreduced_vec2/4`, `mul_by_pairs` and `mul_by_pairs256` specify every product lane. The configured `F192` and batched dispatch copies call these kernels. Squaring uses the existing base-field square/reduce copies, as production's x86 arm does.
+- `Lanes4` holds `[c0,c1]` and `[c2,c2]` in each 128-bit lane. AVX-512 has four such lanes per register; AVX2 has two registers per plane, with elements `2h` and `2h+1` in half `h`. Loads, stores, XOR, multiplication, reduction, and transpose preserve this representation. Transpose moves both words of each plane: output lane `j` of row `i` is input lane `i` of row `j`. Multiplication and AVX2 stores require the duplicated `c2` invariant; the safe wrapper's type invariant enforces it.
+- `F192x4` and its unreduced wrapper prove lane-wise arithmetic, memory round trips and transpose; sums use the lazy-reduction identity. `MixedSums8` has eight independently specified sums. `mul_base8_add` updates each by `t * k[i]`, and `mul_base8_reduce` reduces each once.
+- AVX-512 `F192x8` stores coefficient `c` of element `i` in qword `i` of plane `c`. Its products are lane-wise `e_mul`; `F192x8Sum::mul_add` adds all eight products to the held sum. `dot_base` is the mixed inner product for `k.len() == 8 * w.len()`. The proof has this precondition; production rejects mismatched lengths. No correctness claim is made for violating a precondition or running code without its required ISA.
 
 Trust inventory added by these copies:
 
-- Existing `intrinsics::x86` register views, layout axioms and intrinsic
-  specifications remain assumptions, including carry-less multiplication,
-  XOR, unpacking, shifts, permutation, broadcast and ternary logic.
-  `intrinsics::x86_bits` retains its own registrations; no intrinsic is
-  specified a second time by the GF192 extension.
-- `intrinsics::x86_gfx86` adds specifications for `_mm_setzero_si128`,
-  `_mm_set1_epi64x`, `_mm_slli_epi64`, `_mm_srli_epi64`,
-  `_mm_shuffle_epi32`, `_mm256_shuffle_epi32`, `_mm512_shuffle_epi32`,
-  `_mm256_blend_epi32`, `_mm256_permute2x128_si256`,
-  `_mm256_permutevar_pd`, `_mm256_castpd_si256`,
-  `_mm256_castsi256_si128`, `_mm256_extracti128_si256`,
-  `_mm512_setzero_si512`, `_mm512_broadcast_i32x4`,
-  `_mm512_castsi512_si256`, `_mm512_castsi256_si512`, and
-  `_mm512_extracti64x4_epi64`. The widening cast constrains only its
-  low half; unspecified upper words are never used as initialized data.
-  The `__m256d` bit view and the all-zero register-array layout axioms
-  for `core::mem::zeroed` are also trusted.
-- Raw pointer helpers are `external_body`: `load_c01`, `load_c2`,
-  `store_c01_c2`, `load_k8`, `load_k_at`, `load_weights`, `load_head8`,
-  `load_tail4`, `store_head_tail`, and AVX2 `load_half`, `store_half`,
-  `load_k4`. Their contracts assume the documented `repr(C)` field
-  layout, transparent `F64` layout, 64-byte `Weights8` alignment and
-  in-bounds reads/writes.
-  Arithmetic, permutations and accumulation outside these helpers are
-  proved, not assumed.
+- Existing `intrinsics::x86` register views, layout axioms and intrinsic specifications remain assumptions, including carry-less multiplication, XOR, unpacking, shifts, permutation, broadcast and ternary logic. `intrinsics::x86_bits` retains its own registrations; no intrinsic is specified a second time by the GF192 extension.
+- `intrinsics::x86_gfx86` adds specifications for `_mm_setzero_si128`, `_mm_set1_epi64x`, `_mm_slli_epi64`, `_mm_srli_epi64`, `_mm_shuffle_epi32`, `_mm256_shuffle_epi32`, `_mm512_shuffle_epi32`, `_mm256_blend_epi32`, `_mm256_permute2x128_si256`, `_mm256_permutevar_pd`, `_mm256_castpd_si256`, `_mm256_castsi256_si128`, `_mm256_extracti128_si256`, `_mm512_setzero_si512`, `_mm512_broadcast_i32x4`, `_mm512_castsi512_si256`, `_mm512_castsi256_si512`, and `_mm512_extracti64x4_epi64`. The widening cast constrains only its low half; unspecified upper words are never used as initialized data. The `__m256d` bit view and the all-zero register-array layout axioms for `core::mem::zeroed` are also trusted.
+- Raw pointer helpers are `external_body`: `load_c01`, `load_c2`, `store_c01_c2`, `load_k8`, `load_k_at`, `load_weights`, `load_head8`, `load_tail4`, `store_head_tail`, and AVX2 `load_half`, `store_half`, `load_k4`. Their contracts assume the documented `repr(C)` field layout, transparent `F64` layout, 64-byte `Weights8` alignment and in-bounds reads/writes. Arithmetic, permutations and accumulation outside these helpers are proved, not assumed.
 
-`tests/equivalence/intrinsics_x86_gfx86.rs` checks each added intrinsic
-assumption against hardware, including shift boundaries, lane selectors,
-casts and zeroed arrays. The executable shuffle model takes even word slices
-of at most eight words, matching the register widths and bounding its index
-arithmetic. `tests/equivalence/gf2_64x3.rs` checks the copies
-against production through scalar and batched dispatch, register operators,
-loads/stores, arbitrary wide reductions, transposes, mixed accumulation,
-dot products and planar products/sums. Private helpers are exercised through
-those callers. These deterministic edge/random comparisons are evidence for
-the tested inputs only; they neither prove the assumptions nor prevent
-future source drift.
+`tests/equivalence/intrinsics_x86_gfx86.rs` checks each added intrinsic assumption against hardware, including shift boundaries, lane selectors, casts and zeroed arrays. The executable shuffle model takes even word slices of at most eight words, matching the register widths and bounding its index arithmetic. `tests/equivalence/gf2_64x3.rs` checks the copies against production through scalar and batched dispatch, register operators, loads/stores, arbitrary wide reductions, transposes, mixed accumulation, dot products and planar products/sums. Private helpers are exercised through those callers. These deterministic edge/random comparisons are evidence for the tested inputs only; they neither prove the assumptions nor prevent future source drift.
 
 ### `GF(2^8)` (`src/gf2_8.rs`)
 
@@ -322,10 +266,7 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
 - Production-source equivalence, compiler correctness, CPU correctness and absence of undefined behavior in trusted memory helpers are not established by these proofs. Production differential coverage includes:
   - `K`: `field::gf2_64::tests::mul_and_square_match_the_reference` (PCLMULQDQ and PMULL products, `pdep` square),
     `neon_variants_match_software`.
-  - `E`: the aarch64 kernels are verified (above); the x86 ones are tested by `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`,
-    `lane_products_match_software`, `register_products_match_software`, `batched_mixed_products_match_scalar`,
-    `mixed_sums_match_software`, `planar_products_match_software` (added with this crate: the AVX-512
-    `F192x8` kernels had no direct test).
+  - `E`: the AArch64 and x86 SIMD copies are verified as described above. Production also checks them with `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`, `lane_products_match_software`, `register_products_match_software`, `batched_mixed_products_match_scalar`, `mixed_sums_match_software`, and `planar_products_match_software`.
   - `GF(2^8)`: the SIMD arms are verified (above); production also tests them with `software_matches_neon`, `neon_gf8_mul_vec16_matches_scalar`, `avx2_gf8_mul_vec32_matches_scalar`, `neon_gf8_reduce_vec16_matches_scalar`.
   - Bit transposes: `bits::tests::every_arm_matches_reference`; the SIMD arms of `bit_transpose_64bytes` are also verified (see above).
   - Bit folds and `F192Map`: `bit_fold::tests::fold_block_matches_definition`, `f192_map_matches_definition`, `composed_map_is_the_map_after_the_product`, `avx2_products_match_definition` (every AVX2 product, also on GFNI machines). The equivalence tests of this crate compare the verified portable copies with whatever arm the machine dispatches.

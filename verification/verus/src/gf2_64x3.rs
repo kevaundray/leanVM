@@ -9,8 +9,8 @@
 //! `y^4 = y^2 + y`.
 use crate::clmul::*;
 use crate::gf2_64::*;
-use vstd::arithmetic::power2::*;
 use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
+use vstd::arithmetic::power2::*;
 use vstd::prelude::*;
 
 /// aarch64 kernels.

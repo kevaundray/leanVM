@@ -11,24 +11,24 @@
 //! Specification: a word is a row of bits, bit `i` of `x` being `(x >> i) & 1` ([`bit64`], [`bit8`]). Every
 //! transpose is stated bit by bit: which input bit lands at which output bit. The arms of the 64-byte transpose
 //! all prove [`is_bit_transpose_64bytes`], given the intrinsic specifications of `crate::intrinsics`.
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64::*;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-use core::arch::x86_64::*;
-#[cfg(target_arch = "aarch64")]
-use crate::intrinsics::aarch64_bits::{vld1q_u8_16, vld1q_u8_at, vst1q_u8_at};
 #[cfg(all(target_arch = "aarch64", verus_keep_ghost))]
 use crate::intrinsics::aarch64::*;
 #[cfg(all(target_arch = "aarch64", verus_keep_ghost))]
 use crate::intrinsics::aarch64_bits::*;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-use crate::intrinsics::x86_bits::{load128_bytes, load256_bytes_at, store256_bytes_at};
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512vbmi", target_feature = "gfni"))]
-use crate::intrinsics::x86_bits::{load512_bytes, store512_bytes};
+#[cfg(target_arch = "aarch64")]
+use crate::intrinsics::aarch64_bits::{vld1q_u8_16, vld1q_u8_at, vst1q_u8_at};
 #[cfg(all(target_arch = "x86_64", verus_keep_ghost))]
 use crate::intrinsics::x86::*;
 #[cfg(all(target_arch = "x86_64", verus_keep_ghost))]
 use crate::intrinsics::x86_bits::*;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use crate::intrinsics::x86_bits::{load128_bytes, load256_bytes_at, store256_bytes_at};
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512vbmi", target_feature = "gfni"))]
+use crate::intrinsics::x86_bits::{load512_bytes, store512_bytes};
+#[cfg(target_arch = "aarch64")]
+use core::arch::aarch64::*;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+use core::arch::x86_64::*;
 use vstd::prelude::*;
 
 verus! {

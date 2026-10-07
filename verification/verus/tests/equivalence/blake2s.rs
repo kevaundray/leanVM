@@ -33,15 +33,32 @@ fn rotate_right_is_the_rfc_rotation() {
 #[test]
 fn compress_matches() {
     let mut rng = Rng::new(0xB2_7777);
-    let counters = [0u64, 1, 64, u32::MAX as u64, 1 << 32, (1 << 32) + 64, u64::MAX - 63, u64::MAX];
+    let counters = [
+        0u64,
+        1,
+        64,
+        u32::MAX as u64,
+        1 << 32,
+        (1 << 32) + 64,
+        u64::MAX - 63,
+        u64::MAX,
+    ];
     for i in 0..20_000 {
-        let h: [u32; 8] = if i == 0 { [0; 8] } else { std::array::from_fn(|_| rng.next_u32()) };
+        let h: [u32; 8] = if i == 0 {
+            [0; 8]
+        } else {
+            std::array::from_fn(|_| rng.next_u32())
+        };
         let m: [u32; 16] = match i {
             0 => [0; 16],
             1 => [u32::MAX; 16],
             _ => std::array::from_fn(|_| rng.next_u32()),
         };
-        let t = if i < counters.len() * 4 { counters[i % counters.len()] } else { rng.next_u64() };
+        let t = if i < counters.len() * 4 {
+            counters[i % counters.len()]
+        } else {
+            rng.next_u64()
+        };
         let last = rng.bit();
         let (mut v, mut p) = (h, h);
         verified::compress(&mut v, &m, t, last);
@@ -69,7 +86,9 @@ fn byte_conversions_are_little_endian() {
 #[test]
 fn hash_matches() {
     let mut rng = Rng::new(0x4A54_7777);
-    let lengths: Vec<usize> = (0..=320).chain((0..300).map(|_| (rng.next_u32() % 4096) as usize)).collect();
+    let lengths: Vec<usize> = (0..=320)
+        .chain((0..300).map(|_| (rng.next_u32() % 4096) as usize))
+        .collect();
     for n in lengths {
         let data = random_bytes(&mut rng, n);
         assert_eq!(verified::hash(&data), production::hash(&data), "{n} bytes");
@@ -126,7 +145,10 @@ fn zero_prefix_and_continuation_match() {
         for rest_blocks in 1..5 {
             let rest = random_bytes(&mut rng, rest_blocks * 64);
             let t = (z * 64) as u64;
-            assert_eq!(verified::hash_from_state(&rest, &state, t), production::hash_from_state(&rest, &state, t));
+            assert_eq!(
+                verified::hash_from_state(&rest, &state, t),
+                production::hash_from_state(&rest, &state, t)
+            );
         }
     }
     // Arbitrary states and offsets, the counter's high word included.
@@ -136,6 +158,9 @@ fn zero_prefix_and_continuation_match() {
         let t = t.min(u64::MAX - 1024);
         let n = 64 * (1 + (rng.next_u32() % 8) as usize);
         let rest = random_bytes(&mut rng, n);
-        assert_eq!(verified::hash_from_state(&rest, &state, t), production::hash_from_state(&rest, &state, t));
+        assert_eq!(
+            verified::hash_from_state(&rest, &state, t),
+            production::hash_from_state(&rest, &state, t)
+        );
     }
 }

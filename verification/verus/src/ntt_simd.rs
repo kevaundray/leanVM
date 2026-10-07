@@ -23,26 +23,26 @@ use crate::gf2_64::{k_mod, k_mul, lemma_k_mod, reduce_formula};
 use crate::ntt::butterfly_spec;
 use vstd::prelude::*;
 
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64::*;
 #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
 use crate::gf2_64::aarch64::reduce_pair_pmull4;
 #[cfg(all(target_arch = "aarch64", verus_keep_ghost))]
 use crate::gf2_64::aarch64::u64x2_u128;
+#[cfg(all(target_arch = "x86_64", verus_keep_ghost))]
+use crate::gf2_64::x86_64::lemma_i64_round_trip;
 #[cfg(all(target_arch = "aarch64", verus_keep_ghost))]
 use crate::intrinsics::aarch64::*;
 #[cfg(target_arch = "aarch64")]
 use crate::intrinsics::aarch64_nttsimd::*;
-#[cfg(all(target_arch = "x86_64", verus_keep_ghost))]
-use crate::gf2_64::x86_64::lemma_i64_round_trip;
+#[cfg(verus_keep_ghost)]
+use crate::intrinsics::transmuted;
 #[cfg(all(target_arch = "x86_64", verus_keep_ghost))]
 use crate::intrinsics::x86::*;
 #[cfg(target_arch = "x86_64")]
 use crate::intrinsics::x86_nttsimd::*;
+#[cfg(target_arch = "aarch64")]
+use core::arch::aarch64::*;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
-#[cfg(verus_keep_ghost)]
-use crate::intrinsics::transmuted;
 
 verus! {
 

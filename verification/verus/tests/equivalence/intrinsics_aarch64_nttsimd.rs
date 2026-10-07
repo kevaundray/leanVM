@@ -21,7 +21,11 @@ fn neon_row_loads_and_stores() {
             let mut stored = row.clone();
             unsafe { helpers::vst1q_u64_at(&mut stored, at, transmute::<[u64; 2], uint64x2_t>(words)) };
             for j in 0..row.len() {
-                let want = if (at..at + 2).contains(&j) { words[j - at] } else { row[j].0 };
+                let want = if (at..at + 2).contains(&j) {
+                    words[j - at]
+                } else {
+                    row[j].0
+                };
                 assert_eq!(stored[j].0, want, "vst1q_u64_at at {at} word {j}");
             }
         }

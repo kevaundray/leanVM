@@ -3,7 +3,17 @@ use primitives::field::gf2_64 as production;
 use primitives::test_util::Rng;
 
 /// Operands that exercise the reduction's spill and the identities.
-const CORNERS: [u64; 9] = [0, 1, 2, u64::MAX, 1 << 63, 0xF000_0000_0000_0000, 0x1B, 0x8000_0000_0000_001B, 0x5555_5555_5555_5555];
+const CORNERS: [u64; 9] = [
+    0,
+    1,
+    2,
+    u64::MAX,
+    1 << 63,
+    0xF000_0000_0000_0000,
+    0x1B,
+    0x8000_0000_0000_001B,
+    0x5555_5555_5555_5555,
+];
 
 fn pairs() -> impl Iterator<Item = (u64, u64)> {
     let mut rng = Rng::new(0x6464_6464);
@@ -15,9 +25,21 @@ fn pairs() -> impl Iterator<Item = (u64, u64)> {
 #[test]
 fn products_and_reduction_match() {
     for (a, b) in pairs() {
-        assert_eq!(verified::software::clmul(a, b), production::software::clmul(a, b), "clmul {a:#x} {b:#x}");
-        assert_eq!(verified::mul_wide(a, b), production::mul_wide(a, b), "mul_wide {a:#x} {b:#x}");
-        assert_eq!(verified::square_wide(a), production::square_wide(a), "square_wide {a:#x}");
+        assert_eq!(
+            verified::software::clmul(a, b),
+            production::software::clmul(a, b),
+            "clmul {a:#x} {b:#x}"
+        );
+        assert_eq!(
+            verified::mul_wide(a, b),
+            production::mul_wide(a, b),
+            "mul_wide {a:#x} {b:#x}"
+        );
+        assert_eq!(
+            verified::square_wide(a),
+            production::square_wide(a),
+            "square_wide {a:#x}"
+        );
         let wide = (u128::from(a) << 64) | u128::from(b);
         assert_eq!(verified::reduce(wide), production::reduce(wide), "reduce {wide:#x}");
         let p = verified::software::clmul(a, b);
@@ -27,8 +49,15 @@ fn products_and_reduction_match() {
             (production::F64(a) * production::F64(b)).0,
             "mul {a:#x} {b:#x}"
         );
-        assert_eq!((verified::F64(a) + verified::F64(b)).0, (production::F64(a) + production::F64(b)).0);
-        assert_eq!(verified::F64(a).square().0, production::F64(a).square().0, "square {a:#x}");
+        assert_eq!(
+            (verified::F64(a) + verified::F64(b)).0,
+            (production::F64(a) + production::F64(b)).0
+        );
+        assert_eq!(
+            verified::F64(a).square().0,
+            production::F64(a).square().0,
+            "square {a:#x}"
+        );
     }
 }
 
@@ -59,9 +88,21 @@ fn x86_kernels_match() {
     }
     for (a, b) in pairs() {
         unsafe {
-            assert_eq!(verified::x86_64::mul(a, b), production::x86_64::mul(a, b), "mul {a:#x} {b:#x}");
-            assert_eq!(verified::x86_64::clmul(a, b), production::x86_64::clmul(a, b), "clmul {a:#x} {b:#x}");
-            assert_eq!(verified::x86_64::spread(a), production::x86_64::spread(a), "spread {a:#x}");
+            assert_eq!(
+                verified::x86_64::mul(a, b),
+                production::x86_64::mul(a, b),
+                "mul {a:#x} {b:#x}"
+            );
+            assert_eq!(
+                verified::x86_64::clmul(a, b),
+                production::x86_64::clmul(a, b),
+                "clmul {a:#x} {b:#x}"
+            );
+            assert_eq!(
+                verified::x86_64::spread(a),
+                production::x86_64::spread(a),
+                "spread {a:#x}"
+            );
         }
     }
 }
@@ -78,10 +119,22 @@ fn aarch64_kernels_match() {
         unsafe {
             assert_eq!(w(verified::aarch64::pmull(a, b)), w(production::aarch64::pmull(a, b)));
             let (p, q) = (production::aarch64::pmull(a, b), production::aarch64::pmull(b ^ a, a));
-            assert_eq!(w(verified::aarch64::pmull_hi(p, q)), w(production::aarch64::pmull_hi(p, q)));
-            assert_eq!(w(verified::aarch64::reduce_pair_pmull4(p, q)), w(production::aarch64::reduce_pair_pmull4(p, q)));
-            let (x, y) = (transmute::<[u64; 2], uint64x2_t>([rng.next_u64(), rng.next_u64()]), transmute([rng.next_u64(), rng.next_u64()]));
-            assert_eq!(w(verified::aarch64::reduce_pair_pmull4(x, y)), w(production::aarch64::reduce_pair_pmull4(x, y)));
+            assert_eq!(
+                w(verified::aarch64::pmull_hi(p, q)),
+                w(production::aarch64::pmull_hi(p, q))
+            );
+            assert_eq!(
+                w(verified::aarch64::reduce_pair_pmull4(p, q)),
+                w(production::aarch64::reduce_pair_pmull4(p, q))
+            );
+            let (x, y) = (
+                transmute::<[u64; 2], uint64x2_t>([rng.next_u64(), rng.next_u64()]),
+                transmute([rng.next_u64(), rng.next_u64()]),
+            );
+            assert_eq!(
+                w(verified::aarch64::reduce_pair_pmull4(x, y)),
+                w(production::aarch64::reduce_pair_pmull4(x, y))
+            );
             assert_eq!(
                 verified::aarch64::mul_shift_tail(verified::F64(a), verified::F64(b)).0,
                 production::aarch64::mul_shift_tail(production::F64(a), production::F64(b)).0

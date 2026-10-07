@@ -6,11 +6,11 @@
 //! is more than a move or a XOR, with an executable twin `model_<name>` that `tests/equivalence/
 //! intrinsics_aarch64_gfneon.rs` runs against the hardware.
 #[cfg(verus_keep_ghost)]
-use super::transmuted;
-#[cfg(verus_keep_ghost)]
 use super::aarch64::{p64x2, u64x2};
 #[cfg(verus_keep_ghost)]
 use super::aarch64_bits::u8x16;
+#[cfg(verus_keep_ghost)]
+use super::transmuted;
 #[cfg(verus_keep_ghost)]
 use crate::clmul::clmul;
 use core::arch::aarch64::*;

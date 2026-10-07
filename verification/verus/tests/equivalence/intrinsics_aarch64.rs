@@ -12,7 +12,16 @@ use std::arch::is_aarch64_feature_detected;
 
 const N: usize = 20_000;
 
-const EDGES: [u64; 8] = [0, 1, u64::MAX, 1 << 63, 0x1B, 0x5555_5555_5555_5555, 0xAAAA_AAAA_AAAA_AAAA, 1 << 32];
+const EDGES: [u64; 8] = [
+    0,
+    1,
+    u64::MAX,
+    1 << 63,
+    0x1B,
+    0x5555_5555_5555_5555,
+    0xAAAA_AAAA_AAAA_AAAA,
+    1 << 32,
+];
 
 fn words<const W: usize>(rng: &mut Rng, k: usize) -> [u64; W] {
     if k < EDGES.len() * EDGES.len() {
@@ -51,7 +60,10 @@ fn neon_moves_and_xor() {
             let x = u128::from(a[0]) | u128::from(a[1]) << 64;
             assert_eq!(w(transmute::<u128, uint64x2_t>(x)), a);
             assert_eq!(transmute::<uint64x2_t, u128>(v(a)), x);
-            assert_eq!(transmute::<poly64x2_t, [u64; 2]>(transmute::<uint64x2_t, poly64x2_t>(v(a))), a);
+            assert_eq!(
+                transmute::<poly64x2_t, [u64; 2]>(transmute::<uint64x2_t, poly64x2_t>(v(a))),
+                a
+            );
         }
     }
 }
@@ -64,7 +76,12 @@ fn pmull() {
     #[target_feature(enable = "aes")]
     fn run(a: [u64; 2], b: [u64; 2]) {
         assert_eq!(vmull_p64(a[0], b[0]), clmul(a[0], b[0]), "vmull_p64");
-        let (pa, pb) = unsafe { (transmute::<[u64; 2], poly64x2_t>(a), transmute::<[u64; 2], poly64x2_t>(b)) };
+        let (pa, pb) = unsafe {
+            (
+                transmute::<[u64; 2], poly64x2_t>(a),
+                transmute::<[u64; 2], poly64x2_t>(b),
+            )
+        };
         assert_eq!(vmull_high_p64(pa, pb), clmul(a[1], b[1]), "vmull_high_p64");
     }
     let mut rng = Rng::new(0x9_0001);
@@ -81,11 +98,18 @@ fn sha3_eor3() {
     }
     #[target_feature(enable = "sha3")]
     fn run(a: [u64; 2], b: [u64; 2], c: [u64; 2]) {
-        assert_eq!(w(veor3q_u64(v(a), v(b), v(c))), [a[0] ^ b[0] ^ c[0], a[1] ^ b[1] ^ c[1]]);
+        assert_eq!(
+            w(veor3q_u64(v(a), v(b), v(c))),
+            [a[0] ^ b[0] ^ c[0], a[1] ^ b[1] ^ c[1]]
+        );
     }
     let mut rng = Rng::new(0xE0_3);
     for k in 0..N {
-        let (a, b, c) = (words::<2>(&mut rng, k), words::<2>(&mut rng, k + 5), words::<2>(&mut rng, k + 2));
+        let (a, b, c) = (
+            words::<2>(&mut rng, k),
+            words::<2>(&mut rng, k + 5),
+            words::<2>(&mut rng, k + 2),
+        );
         unsafe { run(a, b, c) };
     }
 }

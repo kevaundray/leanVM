@@ -82,7 +82,11 @@ fn compress_groups_is_lanewise_compress() {
         let h = states.map(|rows| verified::transpose_words(&rows));
         let blocks = messages.map(|rows| verified::transpose_words(&rows));
         let counters = [0, 64, u32::MAX as u64, 1 << 32, (1 << 32) + 64, u64::MAX];
-        let t = if i < counters.len() * 2 { counters[i / 2] } else { rng.next_u64() };
+        let t = if i < counters.len() * 2 {
+            counters[i / 2]
+        } else {
+            rng.next_u64()
+        };
         let last = i % 2 == 0;
         let mut got = h;
         verified::compress_groups::<Scalar8, 2>(&mut got, [&blocks[0], &blocks[1]], t, last);
@@ -95,7 +99,11 @@ fn compress_groups_is_lanewise_compress() {
                 let mut want = states[g][l];
                 let m = messages[g][l];
                 scalar::compress(&mut want, &m, t, last);
-                assert_eq!(std::array::from_fn::<u32, 8, _>(|w| got[g][w].0[l]), want, "group {g} lane {l}");
+                assert_eq!(
+                    std::array::from_fn::<u32, 8, _>(|w| got[g][w].0[l]),
+                    want,
+                    "group {g} lane {l}"
+                );
                 assert_eq!(digests[l], scalar::state_bytes(&want), "scatter group {g} lane {l}");
                 if g == 1 {
                     assert_eq!(row_digests[l], digests[l], "composed layout lane {l}");

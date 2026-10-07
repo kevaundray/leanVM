@@ -40,7 +40,10 @@ fn forward_and_inverse_match_production() {
     let mut rng = Rng::new(0xF8_0717);
     for k in 0..=8usize {
         for beta in 0..=255u8 {
-            let (ours, theirs) = (verified::AdditiveNttGf8::new(k, VF8(beta)), Production::new(k, F8(beta)));
+            let (ours, theirs) = (
+                verified::AdditiveNttGf8::new(k, VF8(beta)),
+                Production::new(k, F8(beta)),
+            );
             assert_eq!(ours.k(), theirs.k());
             let mut inputs: Vec<Vec<F8>> = (0..2).map(|_| random(&mut rng, 1 << k)).collect();
             if beta % 51 == 0 {
@@ -81,7 +84,10 @@ fn lde_table_matches_production() {
                 &verified::AdditiveNttGf8::new(k, VF8(beta_l)),
             );
             let theirs = ProductionTable::new(&Production::new(k, F8(beta_s)), &Production::new(k, F8(beta_l)));
-            assert_eq!((ours.k, ours.ell, ours.n_chunks), (theirs.k, theirs.ell, theirs.n_chunks));
+            assert_eq!(
+                (ours.k, ours.ell, ours.n_chunks),
+                (theirs.k, theirs.ell, theirs.n_chunks)
+            );
 
             let mut rows: Vec<Vec<u8>> = Vec::new();
             // Single-byte rows: byte `w` at chunk `b`, every `w` and `b`, so every table row at every shift.
@@ -101,10 +107,16 @@ fn lde_table_matches_production() {
                 let want = from_verified(&want);
                 let mut got = vec![F8::ZERO; ell];
                 theirs.apply_scalar(&bytes, &mut got);
-                assert_eq!(got, want, "apply_scalar k={k}, betas=({beta_s:#04x}, {beta_l:#04x}), bytes={bytes:02x?}");
+                assert_eq!(
+                    got, want,
+                    "apply_scalar k={k}, betas=({beta_s:#04x}, {beta_l:#04x}), bytes={bytes:02x?}"
+                );
                 let mut got = vec![F8::ZERO; ell];
                 theirs.apply(&bytes, &mut got);
-                assert_eq!(got, want, "apply k={k}, betas=({beta_s:#04x}, {beta_l:#04x}), bytes={bytes:02x?}");
+                assert_eq!(
+                    got, want,
+                    "apply k={k}, betas=({beta_s:#04x}, {beta_l:#04x}), bytes={bytes:02x?}"
+                );
             }
         }
     }

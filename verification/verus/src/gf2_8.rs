@@ -9,10 +9,10 @@
 //! modulo `M = x^8 + x^4 + x^3 + x + 1`, where "reduced" is the definition of a remainder
 //! ([`is_remainder8`]).
 use crate::clmul::*;
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
-use core::arch::aarch64::*;
 #[cfg(all(verus_keep_ghost, target_arch = "aarch64"))]
 use crate::intrinsics::aarch64_gfneon::*;
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+use core::arch::aarch64::*;
 use core::ops::{Add, AddAssign, Mul, MulAssign};
 use vstd::arithmetic::power2::*;
 use vstd::prelude::*;

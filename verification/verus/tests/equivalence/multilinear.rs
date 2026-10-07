@@ -6,7 +6,7 @@
 use leanvm_verus::gf2_64::F64 as VF64;
 use leanvm_verus::gf2_64x3::F192 as VF192;
 use leanvm_verus::multilinear as verified;
-use primitives::field::{F64, F192};
+use primitives::field::{F192, F64};
 use primitives::multilinear as production;
 use primitives::test_util::Rng;
 use std::mem::MaybeUninit;
@@ -39,7 +39,10 @@ fn interpolations_match() {
     let mut rng = Rng::new(0x1A7E);
     for _ in 0..20_000 {
         let (lo, hi, t) = (rng.ext(), rng.ext(), point(&mut rng, 1)[0]);
-        assert_eq!(from_vs(&[verified::interp(to_v(lo), to_v(hi), to_v(t))]), [production::interp(lo, hi, t)]);
+        assert_eq!(
+            from_vs(&[verified::interp(to_v(lo), to_v(hi), to_v(t))]),
+            [production::interp(lo, hi, t)]
+        );
         let (a, b) = (rng.next_u64(), rng.next_u64());
         assert_eq!(
             from_vs(&[verified::interp_k(VF64(a), VF64(b), to_v(t))]),
@@ -54,7 +57,11 @@ fn eq_evals_match() {
     for n in 0..12 {
         for _ in 0..200 {
             let (r, x) = (point(&mut rng, n), point(&mut rng, n));
-            assert_eq!(from_vs(&[verified::eq_eval(&to_vs(&r), &to_vs(&x))]), [production::eq_eval(&r, &x)], "n={n}");
+            assert_eq!(
+                from_vs(&[verified::eq_eval(&to_vs(&r), &to_vs(&x))]),
+                [production::eq_eval(&r, &x)],
+                "n={n}"
+            );
         }
     }
 }
@@ -67,9 +74,17 @@ fn eq_tables_match() {
         let rounds = if n < 12 { 20 } else { 2 };
         for _ in 0..rounds {
             let (r, seed) = (point(&mut rng, n), rng.ext());
-            assert_eq!(from_vs(&verified::eq_table(&to_vs(&r))), production::eq_table(&r), "n={n}");
+            assert_eq!(
+                from_vs(&verified::eq_table(&to_vs(&r))),
+                production::eq_table(&r),
+                "n={n}"
+            );
             let want = production::eq_table_seeded(&r, seed);
-            assert_eq!(from_vs(&verified::eq_table_seeded(&to_vs(&r), to_v(seed))), want, "n={n}");
+            assert_eq!(
+                from_vs(&verified::eq_table_seeded(&to_vs(&r), to_v(seed))),
+                want,
+                "n={n}"
+            );
 
             let mut out = vec![MaybeUninit::<F192>::uninit(); 1 << n];
             production::fill_eq_table_uninit(&r, seed, &mut out);
@@ -88,7 +103,11 @@ fn shrinks_match() {
     for n in 0..=12 {
         for _ in 0..10 {
             // Any table, not only an `eq` table: the copies are the pairwise sums of whatever they get.
-            let t: Vec<F192> = if rng.bit() { production::eq_table_seeded(&point(&mut rng, n), rng.ext()) } else { rng.ext_vec(1 << n) };
+            let t: Vec<F192> = if rng.bit() {
+                production::eq_table_seeded(&point(&mut rng, n), rng.ext())
+            } else {
+                rng.ext_vec(1 << n)
+            };
             let (mut p, mut v) = (t.clone(), to_vs(&t));
             production::shrink_eq_low(&mut p);
             verified::shrink_eq_low(&mut v);
@@ -108,13 +127,25 @@ fn split_tables_match() {
         let r = point(&mut rng, n);
         let vr = to_vs(&r);
         for max in [0, 1, 3, 5, 12, 20] {
-            let (p, v) = (production::SplitEq::with_low_vars(&r, max), verified::SplitEq::with_low_vars(&vr, max));
-            assert_eq!((from_vs(&v.low), from_vs(&v.high), v.low_log()), (p.low.clone(), p.high.clone(), p.low_log()));
+            let (p, v) = (
+                production::SplitEq::with_low_vars(&r, max),
+                verified::SplitEq::with_low_vars(&vr, max),
+            );
+            assert_eq!(
+                (from_vs(&v.low), from_vs(&v.high), v.low_log()),
+                (p.low.clone(), p.high.clone(), p.low_log())
+            );
             for x in 0..1usize << n {
                 assert_eq!(from_vs(&[v.at(x)]), [p.at(x)], "n={n} max_low={max} x={x}");
             }
-            let (p, v) = (production::SplitEq::with_high_vars(&r, max), verified::SplitEq::with_high_vars(&vr, max));
-            assert_eq!((from_vs(&v.low), from_vs(&v.high), v.low_log()), (p.low.clone(), p.high.clone(), p.low_log()));
+            let (p, v) = (
+                production::SplitEq::with_high_vars(&r, max),
+                verified::SplitEq::with_high_vars(&vr, max),
+            );
+            assert_eq!(
+                (from_vs(&v.low), from_vs(&v.high), v.low_log()),
+                (p.low.clone(), p.high.clone(), p.low_log())
+            );
             for x in 0..1usize << n {
                 assert_eq!(from_vs(&[v.at(x)]), [p.at(x)], "n={n} max_high={max} x={x}");
             }
@@ -132,7 +163,11 @@ fn mle_evals_match() {
             let table: Vec<F64> = (0..1usize << n).map(|_| F64(rng.next_u64())).collect();
             let p = point(&mut rng, n);
             let vt: Vec<VF64> = table.iter().map(|w| VF64(w.0)).collect();
-            assert_eq!(from_vs(&[verified::mle_eval(&vt, &to_vs(&p))]), [production::mle_eval(&table, &p)], "n={n}");
+            assert_eq!(
+                from_vs(&[verified::mle_eval(&vt, &to_vs(&p))]),
+                [production::mle_eval(&table, &p)],
+                "n={n}"
+            );
         }
     }
 }
@@ -141,7 +176,15 @@ fn mle_evals_match() {
 fn window_denominators_match() {
     for log in 0..=8 {
         let size = 1usize << log;
-        assert_eq!(from_vs(&[verified::window_denominator(size)]), [production::window_denominator(size)], "size {size}");
-        assert_eq!(from_vs(&[verified::DENOMINATORS[log]]), [production::window_denominator(size)], "log {log}");
+        assert_eq!(
+            from_vs(&[verified::window_denominator(size)]),
+            [production::window_denominator(size)],
+            "size {size}"
+        );
+        assert_eq!(
+            from_vs(&[verified::DENOMINATORS[log]]),
+            [production::window_denominator(size)],
+            "log {log}"
+        );
     }
 }
