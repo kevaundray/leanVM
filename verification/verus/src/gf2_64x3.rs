@@ -743,13 +743,12 @@ impl F192 {
             e_value(r) == e_mul(self, rhs),
     {
         #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
-        {
-            aarch64::mul_unreduced(self, rhs)
-        }
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
-        {
-            software::mul_unreduced(self, rhs)
-        }
+        return aarch64::mul_unreduced(self, rhs);
+        #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+        return unsafe { x86_64::mul_unreduced(self, rhs) };
+        #[cfg(not(any(all(target_arch = "aarch64", target_feature = "aes"),
+            all(target_arch = "x86_64", target_feature = "pclmulqdq"))))]
+        software::mul_unreduced(self, rhs)
     }
 
     /// Mixed product by a base-field scalar.
@@ -787,12 +786,16 @@ impl F192 {
     {
         #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
         {
-            proof {
-                lemma_mul_base_spec(self, k.0);
-            }
-            aarch64::mul_base_unreduced(self, k)
+            proof { lemma_mul_base_spec(self, k.0); }
+            return aarch64::mul_base_unreduced(self, k);
         }
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+        {
+            proof { lemma_mul_base_spec(self, k.0); }
+            return unsafe { x86_64::mul_base_unreduced(self, k) };
+        }
+        #[cfg(not(any(all(target_arch = "aarch64", target_feature = "aes"),
+            all(target_arch = "x86_64", target_feature = "pclmulqdq"))))]
         {
             let (w0, w1, w2) = (mul_wide(self.c0, k.0), mul_wide(self.c1, k.0), mul_wide(self.c2, k.0));
             proof {
@@ -1208,6 +1211,9 @@ pub fn mul2(a: [F192; 2], b: [F192; 2]) -> (r: [F192; 2])
     ensures
         forall|i: int| 0 <= i < 2 ==> #[trigger] r[i] == e_mul(a[i], b[i]),
 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+    return unsafe { x86_64::mul_vec2(a, b) };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     [a[0] * b[0], a[1] * b[1]]
 }
 
@@ -1217,9 +1223,14 @@ pub fn mul4(a: [F192; 4], b: [F192; 4]) -> (r: [F192; 4])
     ensures
         forall|i: int| 0 <= i < 4 ==> #[trigger] r[i] == e_mul(a[i], b[i]),
 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    return unsafe { x86_64::mul_vec4(a, b) };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    {
     let lo = mul2([a[0], a[1]], [b[0], b[1]]);
     let hi = mul2([a[2], a[3]], [b[2], b[3]]);
     [lo[0], lo[1], hi[0], hi[1]]
+    }
 }
 
 /// Four independent products without the reduction, for a caller XOR-accumulating many products.
@@ -1230,6 +1241,15 @@ pub fn mul_unreduced4(a: [F192; 4], b: [F192; 4]) -> (r: [F192Unreduced; 4])
     ensures
         forall|i: int| 0 <= i < 4 ==> #[trigger] e_value(r[i]) == e_mul(a[i], b[i]),
 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    return unsafe { x86_64::mul_unreduced_vec4(a, b) };
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2", not(target_feature = "avx512f")))]
+    return unsafe {
+        let lo = x86_64::mul_unreduced_vec2([a[0], a[1]], [b[0], b[1]]);
+        let hi = x86_64::mul_unreduced_vec2([a[2], a[3]], [b[2], b[3]]);
+        [lo[0], lo[1], hi[0], hi[1]]
+    };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2")))]
     [a[0].mul_unreduced(b[0]), a[1].mul_unreduced(b[1]), a[2].mul_unreduced(b[2]), a[3].mul_unreduced(b[3])]
 }
 
@@ -1241,6 +1261,9 @@ pub fn mul_base8(t: F192, k: [F64; 8]) -> (r: [F192; 8])
     ensures
         forall|i: int| 0 <= i < 8 ==> #[trigger] r[i] == e_mul(t, e_from_k(k[i].0)),
 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    return unsafe { x86_64::mul_base8(t, k) };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
     [
         t.mul_base(k[0]),
         t.mul_base(k[1]),
@@ -1349,6 +1372,10 @@ pub fn dot_base(w: &[Weights8], k: &[F64]) -> (r: F192Unreduced)
     ensures
         e_value(r) == dot_spec(w@, k@, k.len() as nat),
 {
+    #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+    return unsafe { x86_64::dot_base(w, k) };
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f")))]
+    {
     let mut acc = F192Unreduced::ZERO;
     proof {
         lemma_u_zero();
@@ -1374,6 +1401,7 @@ pub fn dot_base(w: &[Weights8], k: &[F64]) -> (r: F192Unreduced)
         }
     }
     acc
+    }
 }
 
 pub mod software {
@@ -1486,3 +1514,14 @@ pub proof fn lemma_karatsuba_fold(a: F192, b: F192)
 }
 
 } // verus!
+
+/// x86-64 kernels (production's `gf2_64x3/x86_64.rs`).
+#[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+#[path = "gf2_64x3_x86.rs"]
+pub mod x86_64;
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[path = "gf2_64x3_x86_wrappers.rs"]
+mod x86_wrappers;
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+pub use x86_wrappers::{F192x4, F192x4Unreduced, MixedSums8};

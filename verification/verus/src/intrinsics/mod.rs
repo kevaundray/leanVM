@@ -29,6 +29,8 @@ pub mod aarch64_nttsimd;
 #[cfg(target_arch = "x86_64")]
 pub mod x86;
 #[cfg(target_arch = "x86_64")]
+pub mod x86_gfx86;
+#[cfg(target_arch = "x86_64")]
 pub mod x86_bits;
 #[cfg(target_arch = "x86_64")]
 pub mod x86_gfneon;

@@ -25,6 +25,8 @@ mod intrinsics_x86;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_bits;
 #[cfg(target_arch = "x86_64")]
+mod intrinsics_x86_gfx86;
+#[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_gfneon;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_nttsimd;
