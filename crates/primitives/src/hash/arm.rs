@@ -15,7 +15,7 @@ pub(super) struct Neon(uint32x4_t);
 impl Lanes32 for Neon {
     const WIDTH: usize = 4;
     // Independent groups cover the G dependency chain.
-    const GROUPS: usize = 4;
+    const GROUPS: usize = 2;
     // Transposing ahead measured slower here, most of all on inputs streamed from DRAM.
     const TRANSPOSE_AHEAD: bool = false;
 
