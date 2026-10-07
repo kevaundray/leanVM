@@ -10,3 +10,5 @@ pub mod intrinsics;
 #[cfg(target_arch = "aarch64")]
 pub mod neon;
 pub mod ntt;
+pub mod phi8_tower;
+pub mod bit_fold;

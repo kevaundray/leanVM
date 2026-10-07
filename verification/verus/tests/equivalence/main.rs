@@ -12,3 +12,5 @@ mod intrinsics_aarch64;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86;
 mod ntt;
+mod phi8_tower;
+mod bit_fold;

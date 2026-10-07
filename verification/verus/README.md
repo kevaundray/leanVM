@@ -2,7 +2,8 @@
 
 This crate proves, with [Verus](https://verus-lang.github.io/verus/guide/overview.html), that the portable
 (non-SIMD) code of `crates/primitives` (the fields `K = GF(2^64)`, `E = GF(2^192)` and `GF(2^8)`, the bit
-transposes) and of `crates/pcs/src/ntt` (the additive NTT) computes the mathematics it is meant to.
+transposes, the embedding `φ₈` and the bit folds) and of `crates/pcs/src/ntt` (the additive NTT) computes the
+mathematics it is meant to.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
@@ -117,6 +118,24 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### The embedding `φ₈` (`src/phi8_tower.rs`)
+
+`φ₈` (`phi8`) is the GF(2)-linear map sending the byte `x^i` to `PHI_8_BASIS[i]` in `K` (`phi8_basis`); `phi8_e(a)` is `φ₈(a)` in `E`. Annex `c` calls it the subfield embedding of `GF(2^8)` in `E`, and flock's univariate skip domain is `φ₈(0..64)`.
+
+- `build_phi8_table_192` fills entry `v` with `φ₈(v)` embedded in `E`; so does the static `PHI_8_TABLE_192`, and `phi8_192(a)` returns `phi8_e(a)`.
+- `φ₈` is GF(2)-linear (`lemma_phi8_xor`), so `φ₈(0..64)` is the span of `φ₈(1), φ₈(2), .., φ₈(32)`.
+- `φ₈` is multiplicative into `K`: `φ₈(a * b) = φ₈(a) φ₈(b)` for all bytes, `a * b` the product of `GF(2^8)` (`f8_mul`) and the right side `k_mul` (`lemma_phi8_mul`). The proof: `φ₈(x a) = φ₈(x) φ₈(a)` (`lemma_phi8_mulx`), which by linearity needs only the eight monomials, eight products of concrete constants in `K` checked by bit-vector evaluation of the closed-form carry-less product (`clmul64_closed`, `lemma_k_mul_closed`); then `φ₈(x^i b) = φ₈(x^i) φ₈(b)` by induction on `i` and associativity in `K`, and the general product by linearity in the left factor.
+- So `φ₈` is a ring homomorphism into `E`, `φ₈(1) = 1`, `φ₈(0) = 0`, and it is injective (the eight basis images are GF(2)-independent), with image in `K` (`c1 = c2 = 0`) (`lemma_phi8_e_homomorphism`). Its image is therefore a subfield of `E` with 256 elements. That it is the only one (production's doc comment) is not proven: it would need that a polynomial of degree 256 has at most 256 roots.
+
+### Bit folds and linear maps of `E` (`src/bit_fold.rs`)
+
+The portable arm of `crates/primitives/src/bit_fold.rs` (`bit_fold/portable.rs`) and the wrappers `BitFold`, `F192Map`, `Sliced`. Bit `s` of a row of bytes is bit `s % 8` of byte `s / 8`; coordinate bit `b` of an `E` value is bit `b % 64` of coefficient `b / 64`.
+
+- Tables: `lookup_tables(w)` returns one table per whole chunk of 8 weights, entry `[j][v]` the sum of `w[8j + i]` over the set bits `i` of `v` (`byte_sum`); the lowest-set-bit recurrence is proven to build exactly that (`lemma_byte_sum_clear`). The weight of bit `s` is recovered as table `s / 8` at the single bit `s % 8` (`lemma_byte_sum_monomial`), so `Imp::new(w)` holds the weights `w`, truncated to whole chunks.
+- Fold: `BitFold::new(w)` (for 8, 16, 32, 64 or 128 bytes per row, production's `assert!` being the `requires`) then `fold_block(rows, out)` sets `out[p] = sum_{s : bit s of rows[p]} w_s` (`fold_spec`) for every `p < rows.len()`, the definition the module doc states, and leaves `out[rows.len()..]` unchanged. The table lookups add up to that sum byte by byte (`lemma_tables_fold`).
+- Linear maps: `F192Map::new(w)` then `apply_add(xs, out)` (and `apply_sliced_add` on `Sliced::new(xs)`) adds `map(w, xs[p]) = sum_{b : coordinate bit b of xs[p]} w_b` (`map_spec`) to `out[p]` for every `p < out.len()`: the 24 little-endian bytes of a value fold to its map (`lemma_row_sum_le_row`). The map is GF(2)-linear (`lemma_coord_sum_add`, `lemma_coord_sum_zero`) and every element is the sum of the coordinate vectors of its set bits (`lemma_units_sum`), so a GF(2)-linear `Φ: E -> E` is the `F192Map` of the weights `Φ(unit(b))`, which is how ring switching uses it.
+- `after_mul(c)` returns the map with weights `map(w, unit(b) * c)` and, for every `x`, `after_mul(c)(x) = map(w, x * c)` (`lemma_after_mul`, from the linearity of the map and the distributivity `(a + b) c = a c + b c` in `E`, `lemma_e_mul_add_left`). This is the identity production's `composed_map_is_the_map_after_the_product` tests.
+
 ## Trust base and assumptions
 
 - No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
@@ -129,6 +148,7 @@ Following annex `d` of the leanVM document:
 - The copies equal the production functions by test, not by proof (see above).
 - The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
   are stated as lemmas over `clmul`; no SIMD code is verified.
+- `src/bit_fold.rs` relies on `vstd`'s specification of `u8::trailing_zeros` (with its proven `axiom_u8_trailing_zeros`) and of `Vec::push`, `Vec::as_slice` and `Vec::as_mut_slice`.
 
 ## Not covered
 
@@ -144,12 +164,13 @@ Following annex `d` of the leanVM document:
     `neon_gf8_reduce_vec16_matches_scalar` (added with this crate: the reduction alone, on every 16-bit input,
     as its callers in flock use it).
   - Bit transposes: `bits::tests::every_arm_matches_reference`.
+  - Bit folds and `F192Map`: `bit_fold::tests::fold_block_matches_definition`, `f192_map_matches_definition`, `composed_map_is_the_map_after_the_product`, `avx2_products_match_definition` (every AVX2 product, also on GFNI machines). The equivalence tests of this crate compare the verified portable copies with whatever arm the machine dispatches.
   - NTT butterflies: `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` and the other driver
     tests (forward), `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed).
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.
-- `phi8_tower.rs` and `bit_fold` are not covered.
+- Bit folds (`crates/primitives/src/bit_fold.rs`): `BitFold::at_level`, which builds its weights with `multilinear::eq_table` (not copied) and then calls `BitFold::new`, and `BitFold::fold_quads` (AVX-512 with GFNI only) are not copied. Only `out[..rows.len()]` of `fold_block` is documented and compared: past it the portable arm leaves `out` as it was (proven) and the SIMD arms store the fold of a zero row.
 
 ## Reproduce
 
