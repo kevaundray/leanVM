@@ -16,13 +16,18 @@ mod intrinsics_aarch64;
 mod intrinsics_aarch64_bits;
 #[cfg(target_arch = "aarch64")]
 mod intrinsics_aarch64_gfneon;
+#[cfg(target_arch = "aarch64")]
+mod intrinsics_aarch64_nttsimd;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_bits;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_gfneon;
+#[cfg(target_arch = "x86_64")]
+mod intrinsics_x86_nttsimd;
 mod multilinear;
 mod ntt;
+mod ntt_simd;
 mod phi8_tower;
 mod skip_domain;

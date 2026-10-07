@@ -15,5 +15,6 @@ pub mod multilinear;
 pub mod neon;
 pub mod ntt;
 pub mod ntt_lanes;
+pub mod ntt_simd;
 pub mod phi8_tower;
 pub mod skip_domain;
