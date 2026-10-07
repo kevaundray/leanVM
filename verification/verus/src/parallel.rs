@@ -658,7 +658,7 @@ where
 }
 
 /// Key `k` falls in chunk `i` exactly when it lies in `i * w .. (i + 1) * w`.
-proof fn lemma_chunk_keys(k: int, i: int, w: int)
+pub proof fn lemma_chunk_keys(k: int, i: int, w: int)
     requires
         w > 0,
     ensures
