@@ -949,6 +949,68 @@ pub proof fn lemma_k_fermat_upto(a: u64, n: nat)
 }
 
 // ---------------------------------------------------------------------------------------------
+// K is a field: the inverse is an inverse
+// ---------------------------------------------------------------------------------------------
+/// The only idempotents of `K` are 0 and 1 (Berlekamp: the Frobenius fixes only `GF(2)`, so `M` has a
+/// single irreducible factor; with Fermat, `K` is a field).
+pub proof fn lemma_k_idempotent(e: u64)
+    requires
+        k_mul(e, e) == e,
+    ensures
+        e == 0 || e == 1,
+{
+    lemma_k_square(e);
+    assert(reduce_formula(spread(e)) == e ==> e == 0 || e == 1) by (bit_vector);
+}
+
+pub proof fn lemma_k_pow_zero(n: nat)
+    requires
+        n > 0,
+    ensures
+        k_pow(0, n) == 0,
+{
+    lemma_k_mul_zero(k_pow(0, (n - 1) as nat));
+}
+
+/// `a^(2^64 - 2)` is the inverse of every nonzero `a`, and zero's image is zero.
+pub proof fn lemma_k_inverse(a: u64)
+    ensures
+        a != 0 ==> k_mul(a, k_pow(a, (pow2(64) - 2) as nat)) == 1,
+        a == 0 ==> k_pow(a, (pow2(64) - 2) as nat) == 0,
+{
+    lemma2_to64();
+    let q = pow2(64);
+    let w = k_pow(a, (q - 2) as nat);
+    let u = k_pow(a, (q - 1) as nat);
+    if a == 0 {
+        lemma_k_pow_zero((q - 2) as nat);
+    } else {
+        // u = a^(q-1) = a * w.
+        assert(u == k_mul(w, a));
+        lemma_k_mul_comm(w, a);
+        // a^q = a by Fermat.
+        lemma_k_sq_iter_pow(a, 1, 64);
+        assert(k_pow(a, 1) == a) by {
+            assert(k_pow(a, 0) == 1);
+            lemma_k_mul_one(a);
+        }
+        lemma_k_fermat(a);
+        assert(k_pow(a, q) == a);
+        // u^2 = a^(2q - 2) = a^q a^(q-2) = u, so u is 0 or 1.
+        lemma_k_pow_add(a, (q - 1) as nat, (q - 1) as nat);
+        lemma_k_pow_add(a, q, (q - 2) as nat);
+        assert((q - 1) as nat + (q - 1) as nat == q + (q - 2) as nat);
+        lemma_k_idempotent(u);
+        // u = 0 would give a = a^q = u a = 0.
+        lemma_k_pow_add(a, (q - 1) as nat, 1);
+        assert((q - 1) as nat + 1 == q);
+        if u == 0 {
+            lemma_k_mul_zero(a);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Executable code: the portable paths of `crates/primitives/src/field/gf2_64.rs`
 // ---------------------------------------------------------------------------------------------
 /// Reduction constant of the base field: `x^64 = x^4 + x^3 + x + 1 = 0x1B`.
@@ -993,7 +1055,12 @@ impl F64 {
     pub fn inv(self) -> (r: Self)
         ensures
             r.0 == k_pow(self.0, (pow2(64) - 2) as nat),
+            self.0 != 0 ==> k_mul(self.0, r.0) == 1,
+            self.0 == 0 ==> r.0 == 0,
     {
+        proof {
+            lemma_k_inverse(self.0);
+        }
         // Square `v` a total of `n` times.
         let sq = |v: Self, n: u32| -> (r: Self)
             ensures

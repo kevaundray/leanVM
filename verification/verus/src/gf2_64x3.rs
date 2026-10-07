@@ -612,6 +612,88 @@ pub proof fn lemma_inv_exponent(a: F192)
 }
 
 // ---------------------------------------------------------------------------------------------
+// E is a field: the inverse is an inverse
+// ---------------------------------------------------------------------------------------------
+/// The only idempotents of `E` are 0 and 1.
+pub proof fn lemma_e_idempotent(e: F192)
+    requires
+        e_mul(e, e) == e,
+    ensures
+        e == F192::ZERO || e == F192::ONE,
+{
+    lemma_square_spec(e);
+    lemma_k_idempotent(e.c0);
+    lemma_k_square(e.c1);
+    lemma_k_square(e.c2);
+    let (c1, c2) = (e.c1, e.c2);
+    assert(reduce_formula(spread(c2)) == c1 && reduce_formula(spread(c1)) ^ reduce_formula(spread(c2)) == c2
+        ==> c1 == 0 && c2 == 0) by (bit_vector);
+}
+
+pub proof fn lemma_e_pow_zero(n: nat)
+    requires
+        n > 0,
+    ensures
+        e_pow(F192::ZERO, n) == F192::ZERO,
+{
+    let p = e_pow(F192::ZERO, (n - 1) as nat);
+    lemma_k_mul_zero(p.c0);
+    lemma_k_mul_zero(p.c1);
+    lemma_k_mul_zero(p.c2);
+    assert(0u64 ^ (0u64 ^ 0u64) == 0u64 && (0u64 ^ 0u64) ^ (0u64 ^ 0u64) ^ 0u64 == 0u64 && (0u64 ^ 0u64 ^ 0u64)
+        ^ 0u64 == 0u64) by (bit_vector);
+}
+
+/// `a^(2^192 - 2)` is the inverse of every nonzero `a` of `E`, and zero's image is zero.
+pub proof fn lemma_e_inverse(a: F192)
+    ensures
+        a != F192::ZERO ==> e_mul(a, e_pow(a, (pow2(192) - 2) as nat)) == F192::ONE,
+        a == F192::ZERO ==> e_pow(a, (pow2(192) - 2) as nat) == F192::ZERO,
+{
+    lemma2_to64();
+    lemma_pow2_adds(64, 64);
+    lemma_pow2_adds(128, 64);
+    let q = pow2(64);
+    let big = pow2(192);
+    assert(big == q * q * q);
+    let w = e_pow(a, (big - 2) as nat);
+    let u = e_pow(a, (big - 1) as nat);
+    if a == F192::ZERO {
+        lemma_e_pow_zero((big - 2) as nat);
+    } else {
+        assert(u == e_mul(w, a));
+        lemma_e_mul_comm(w, a);
+        // a^(q^3) = φ³(a) = a.
+        let fa = e_frobenius(a);
+        lemma_e_frobenius(a);
+        lemma_e_frobenius(fa);
+        lemma_e_frobenius(e_frobenius(fa));
+        lemma_e_pow_mul(a, q, q);
+        lemma_e_pow_mul(a, q * q, q);
+        assert(e_frobenius(e_frobenius(fa)) == a) by {
+            let (x1, x2) = (a.c1, a.c2);
+            assert(x2 ^ (x1 ^ x2) == x1 && (x1 ^ x2) ^ (x2 ^ (x1 ^ x2)) == x2) by (bit_vector);
+        }
+        assert(e_pow(a, big) == a);
+        // u^2 = u, so u is 0 or 1; u = 0 would give a = 0.
+        lemma_e_pow_add(a, (big - 1) as nat, (big - 1) as nat);
+        lemma_e_pow_add(a, big, (big - 2) as nat);
+        assert((big - 1) as nat + (big - 1) as nat == big + (big - 2) as nat);
+        lemma_e_idempotent(u);
+        lemma_e_pow_add(a, (big - 1) as nat, 1);
+        lemma_e_pow_one(a);
+        assert((big - 1) as nat + 1 == big);
+        if u == F192::ZERO {
+            lemma_k_mul_zero(a.c0);
+            lemma_k_mul_zero(a.c1);
+            lemma_k_mul_zero(a.c2);
+            assert(0u64 ^ (0u64 ^ 0u64) == 0u64 && (0u64 ^ 0u64) ^ (0u64 ^ 0u64) ^ 0u64 == 0u64 && (0u64 ^ 0u64
+                ^ 0u64) ^ 0u64 == 0u64) by (bit_vector);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Executable code: the portable paths
 // ---------------------------------------------------------------------------------------------
 /// An element `c0 + c1*y + c2*y^2`; bit `i` of each coefficient is its coefficient of `x^i`.
@@ -736,7 +818,12 @@ impl F192 {
     pub fn inv(self) -> (r: Self)
         ensures
             r == e_pow(self, (pow2(192) - 2) as nat),
+            self != F192::ZERO ==> e_mul(self, r) == F192::ONE,
+            self == F192::ZERO ==> r == F192::ZERO,
     {
+        proof {
+            lemma_e_inverse(self);
+        }
         let m = self.frobenius() * self.frobenius().frobenius();
         let norm = self * m;
         proof {
