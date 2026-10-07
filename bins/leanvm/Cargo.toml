@@ -23,7 +23,7 @@ system-alloc = []
 leanvm.workspace = true
 primitives.workspace = true
 bench.workspace = true
-# The pool's size: a one-thread case is proven in a process of its own.
+# The pool's size: a case pinned to a thread count is proven in a process of its own.
 parallel.workspace = true
 leanvm_guest.workspace = true
 # The programs' host sides: their guests' inputs and expected outputs.
@@ -35,5 +35,5 @@ shielded-host.workspace = true
 leanda-host.workspace = true
 tracing.workspace = true
 clap = { version = "4", features = ["derive"] }
-# The one-thread cases' benchmarks, merged with this process's.
+# The pinned cases' benchmarks, merged with this process's.
 serde_json = "1"

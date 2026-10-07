@@ -7,9 +7,9 @@
 //! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
 //! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
 //! base and head are proven in turns on one runner and compared there. leanXMSS at a quarter,
-//! and the 2-to-1 and 4-to-1 trees over it, are also proven on one thread, in a process of
-//! their own (`ONE_THREAD`). A case's name is what a PR's results are matched by, so renaming
-//! one or changing its input shows it as new.
+//! and the 2-to-1 and 4-to-1 trees over it, are also proven on 1, 4 and 8 threads, each in a
+//! process of its own (`THREADS`). A case's name is what a PR's results are matched by, so
+//! renaming one or changing its input shows it as new.
 //!
 //! An aggregation tree is tracked the same way: each kind of node's circuit counted without a
 //! proof (the leaf's run measured gives the shape its proofs announce), and one node of each
@@ -64,7 +64,7 @@ fn counted() -> Vec<Case> {
 type Build = fn(&'static str) -> Case;
 
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
-fn proven() -> [(&'static str, Build); 8] {
+fn proven() -> [(&'static str, Build); 10] {
     [
         ("fibonacci-asm-2000000", |name| {
             Case::new(name, Workload::fibonacci(2_000_000))
@@ -72,6 +72,8 @@ fn proven() -> [(&'static str, Build); 8] {
         ("hash-50000", |name| Case::new(name, Workload::hash(50_000))),
         ("leanxmss-100", |name| Case::new(name, Workload::leanxmss(100))),
         ("leanxmss-100-1thread", |name| Case::new(name, Workload::leanxmss(100))),
+        ("leanxmss-100-4thread", |name| Case::new(name, Workload::leanxmss(100))),
+        ("leanxmss-100-8thread", |name| Case::new(name, Workload::leanxmss(100))),
         ("leansphincs-26", |name| Case::new(name, Workload::leansphincs(26))),
         ("falcon-7", |name| Case::new(name, Workload::falcon(7))),
         ("stateproof-5", |name| Case::new(name, Workload::stateproof(5))),
@@ -79,20 +81,27 @@ fn proven() -> [(&'static str, Build); 8] {
     ]
 }
 
-/// The cases of `proven()` and `proven_trees()` proven on one thread: what one core costs,
-/// apart from how the prover scales over cores. The pool is sized once per process, from
-/// `LEANVM_NUM_THREADS`, so unless this process's pool is one thread already, such a case is
-/// proven by a child: this executable run again with `LEANVM_NUM_THREADS=1` (`on_one_thread`),
-/// a tree's leaf proof included.
-const ONE_THREAD: [&str; 3] = [
-    "leanxmss-100-1thread",
-    "aggregate-leanxmss-100-2to1-1thread",
-    "aggregate-leanxmss-100-4to1-1thread",
+/// The cases of `proven()` and `proven_trees()` proven on a set number of threads, and that
+/// number: on one, what one core costs, apart from how the prover scales over cores; on 4 and
+/// 8, how it scales. The pool is sized once per process, from `LEANVM_NUM_THREADS` (the
+/// performance workers, which on Linux are all of them), so unless this process's pool is that
+/// size already, such a case is proven by a child: this executable run again with
+/// `LEANVM_NUM_THREADS` set to it (`on_threads`), a tree's leaf proof included.
+const THREADS: [(&str, usize); 9] = [
+    ("leanxmss-100-1thread", 1),
+    ("leanxmss-100-4thread", 4),
+    ("leanxmss-100-8thread", 8),
+    ("aggregate-leanxmss-100-2to1-1thread", 1),
+    ("aggregate-leanxmss-100-2to1-4thread", 4),
+    ("aggregate-leanxmss-100-2to1-8thread", 8),
+    ("aggregate-leanxmss-100-4to1-1thread", 1),
+    ("aggregate-leanxmss-100-4to1-4thread", 4),
+    ("aggregate-leanxmss-100-4to1-8thread", 8),
 ];
 
 /// An aggregation tree over copies of one case's proof: first-level nodes of `arity_0` leaves,
 /// nodes of `arity` tree proofs. A tree's name ends `<N>to1` when both are `N`: every node
-/// combines `N` proofs into 1; then `-1thread` when it is proven on one thread (`ONE_THREAD`).
+/// combines `N` proofs into 1; then `-<T>thread` when it is proven on `T` threads (`THREADS`).
 struct Aggregation {
     name: &'static str,
     leaf: Workload,
@@ -155,8 +164,9 @@ fn counted_trees() -> Vec<Aggregation> {
 type BuildTree = fn(&'static str) -> Aggregation;
 
 /// Aggregation trees proven: the counted trees' arities over leaves of a size proven above, and
-/// both trees again on one thread. Each gives two benchmarks, `<name>-first` and `<name>-node`.
-fn proven_trees() -> [(&'static str, BuildTree); 4] {
+/// both trees again on 1, 4 and 8 threads. Each gives two benchmarks, `<name>-first` and
+/// `<name>-node`.
+fn proven_trees() -> [(&'static str, BuildTree); 8] {
     [
         ("aggregate-leanxmss-100-2to1", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
@@ -167,7 +177,19 @@ fn proven_trees() -> [(&'static str, BuildTree); 4] {
         ("aggregate-leanxmss-100-2to1-1thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
         }),
+        ("aggregate-leanxmss-100-2to1-4thread", |name| {
+            Aggregation::new(name, Workload::leanxmss(100), 2, 2)
+        }),
+        ("aggregate-leanxmss-100-2to1-8thread", |name| {
+            Aggregation::new(name, Workload::leanxmss(100), 2, 2)
+        }),
         ("aggregate-leanxmss-100-4to1-1thread", |name| {
+            Aggregation::new(name, Workload::leanxmss(100), 4, 4)
+        }),
+        ("aggregate-leanxmss-100-4to1-4thread", |name| {
+            Aggregation::new(name, Workload::leanxmss(100), 4, 4)
+        }),
+        ("aggregate-leanxmss-100-4to1-8thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 4, 4)
         }),
     ]
@@ -234,23 +256,25 @@ pub fn run(
             refuse(format_args!("no tracked case is named {}", only.unwrap_or_default()));
         }
         bench::time_stages("Prove");
-        let one_thread = |name: &str| ONE_THREAD.contains(&name) && parallel::num_threads() > 1;
+        // The thread count a case names, if this process's pool is not that size.
+        let threads = |name: &str| {
+            let &(_, threads) = THREADS.iter().find(|(case, _)| *case == name)?;
+            (threads != parallel::topology().perf).then_some(threads)
+        };
         // Every case's benchmarks, proven here or by a child, as one JSON object.
         let mut benchmarks = Map::new();
         for (name, case) in cases {
-            let json = if one_thread(name) {
-                on_one_thread(name, only.is_none())
-            } else {
-                bencher_json(&[(name.to_string(), proved(&case(name), prover, plan))])
-            };
+            let json = threads(name).map_or_else(
+                || bencher_json(&[(name.to_string(), proved(&case(name), prover, plan))]),
+                |threads| on_threads(name, threads, only.is_none()),
+            );
             benchmarks.extend(parsed(name, &json));
         }
         for (name, tree) in trees {
-            let json = if one_thread(name) {
-                on_one_thread(name, only.is_none())
-            } else {
-                bencher_json(&proved_tree(&tree(name), leaf_prover, prover, plan))
-            };
+            let json = threads(name).map_or_else(
+                || bencher_json(&proved_tree(&tree(name), leaf_prover, prover, plan)),
+                |threads| on_threads(name, threads, only.is_none()),
+            );
             benchmarks.extend(parsed(name, &json));
         }
         let json = serde_json::to_string_pretty(&Value::Object(benchmarks)).expect("JSON values print");
@@ -259,22 +283,26 @@ pub fn run(
     println!("{}", bencher_json(&report));
 }
 
-/// The case `name` proven by a child whose pool is one thread: this executable run again with
-/// this process's arguments, `--only name` added unless `add_only` is false (they name it
-/// already), and `LEANVM_NUM_THREADS=1`. Its JSON; its progress goes to this process's stderr.
-fn on_one_thread(name: &str, add_only: bool) -> String {
+/// The case `name` proven by a child whose pool is `threads` threads: this executable run again
+/// with this process's arguments, `--only name` added unless `add_only` is false (they name it
+/// already), and `LEANVM_NUM_THREADS=threads`. Its JSON; its progress goes to this process's
+/// stderr.
+fn on_threads(name: &str, threads: usize, add_only: bool) -> String {
     let exe = std::env::current_exe().unwrap_or_else(|e| refuse(format_args!("{name}: {e}")));
     let mut child = Command::new(exe);
     child
         .args(std::env::args_os().skip(1))
-        .env("LEANVM_NUM_THREADS", "1")
+        .env("LEANVM_NUM_THREADS", threads.to_string())
         .stderr(Stdio::inherit());
     if add_only {
         child.args(["--only", name]);
     }
     let output = child.output().unwrap_or_else(|e| refuse(format_args!("{name}: {e}")));
     if !output.status.success() {
-        refuse(format_args!("{name}: the one-thread run failed: {}", output.status));
+        refuse(format_args!(
+            "{name}: the {threads}-thread run failed: {}",
+            output.status
+        ));
     }
     String::from_utf8(output.stdout).unwrap_or_else(|e| refuse(format_args!("{name}: {e}")))
 }
