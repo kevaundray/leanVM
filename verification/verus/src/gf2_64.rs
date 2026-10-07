@@ -623,6 +623,56 @@ impl Mul for F64 {
     }
 }
 
+#[cfg(verus_keep_ghost)]
+impl vstd::std_specs::ops::AddAssignSpecImpl for F64 {
+    open spec fn obeys_add_assign_spec() -> bool {
+        true
+    }
+
+    open spec fn add_assign_req(&self, rhs: F64) -> bool {
+        true
+    }
+
+    open spec fn add_assign_spec(&self, rhs: F64) -> &F64 {
+        &F64(self.0 ^ rhs.0)
+    }
+}
+
+impl AddAssign for F64 {
+    #[inline]
+    fn add_assign(&mut self, rhs: Self)
+        ensures
+            final(self).0 == old(self).0 ^ rhs.0,
+    {
+        self.0 ^= rhs.0;
+    }
+}
+
+#[cfg(verus_keep_ghost)]
+impl vstd::std_specs::ops::MulAssignSpecImpl for F64 {
+    open spec fn obeys_mul_assign_spec() -> bool {
+        true
+    }
+
+    open spec fn mul_assign_req(&self, rhs: F64) -> bool {
+        true
+    }
+
+    open spec fn mul_assign_spec(&self, rhs: F64) -> &F64 {
+        &F64(k_mul(self.0, rhs.0))
+    }
+}
+
+impl MulAssign for F64 {
+    #[inline]
+    fn mul_assign(&mut self, rhs: Self)
+        ensures
+            final(self).0 == k_mul(old(self).0, rhs.0),
+    {
+        *self = *self * rhs;
+    }
+}
+
 /// The carry-less product of two 64-bit polynomials, as a 128-bit polynomial.
 #[inline]
 pub fn mul_wide(a: u64, b: u64) -> (r: u128)
