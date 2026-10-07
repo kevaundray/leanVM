@@ -5,6 +5,8 @@
 
 mod bit_fold;
 mod bits;
+mod blake2s;
+mod blake2s_batch;
 mod fiat_shamir;
 mod flock_ntt;
 mod gf2_64;

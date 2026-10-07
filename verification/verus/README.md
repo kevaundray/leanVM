@@ -1,6 +1,6 @@
-# Verus proofs of the field arithmetic, bit transposes and additive NTT
+# Verus proofs of leanVM arithmetic, kernel models and BLAKE2s
 
-This standalone crate verifies annotated executable copies and mathematical models of leanVM arithmetic using [Verus](https://verus-lang.github.io/verus/guide/overview.html). Coverage includes portable field arithmetic, selected SIMD field and reduction kernels, bit transposes, the embedding `φ₈`, bit-fold linear maps, equality tables and multilinear evaluation, additive NTT kernels and evaluation theorems, the `GF(2^8)` NTT used by flock, skip-domain interpolation, and Fiat-Shamir block encoding. Each theorem applies to its stated preconditions and the checked copy, not directly to production source.
+This standalone crate verifies annotated executable copies and mathematical models of leanVM arithmetic using [Verus](https://verus-lang.github.io/verus/guide/overview.html). Coverage includes portable field arithmetic, selected SIMD field and reduction kernels, bit transposes, the embedding `φ₈`, bit-fold linear maps, equality tables and multilinear evaluation, additive NTT kernels and evaluation theorems, the `GF(2^8)` NTT used by flock, skip-domain interpolation, Fiat-Shamir block encoding, and portable scalar/batched BLAKE2s. Each theorem applies to its stated preconditions and the checked copy, not directly to production source.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
@@ -155,6 +155,33 @@ Following annex `d` of the leanVM document:
   widths and deep splits. Separate processes configure the real pool for 1, 2 and 4 workers.
   These finite differential checks neither prove production equivalence nor prevent future drift.
 
+### BLAKE2s (`src/blake2s.rs`, `src/blake2s_batch.rs`)
+
+- The model transcribes [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693), sections 2 and 3: 32-bit modular
+  addition, G with rotations 16, 12, 8, 7, IV, SIGMA, ten rounds, counter injection, final-block flag and
+  feed-forward. The message model is unkeyed BLAKE2s-256, including parameter initialization,
+  little-endian encoding, zero padding, and the empty message's single final block.
+- The scalar executable copies prove `compress = f_spec`, `hash = blake2s_spec`, and streaming
+  `Hasher::finalize = blake2s_spec` of all bytes absorbed. The streaming invariant retains a full last
+  block until more input arrives. Message lengths and continued counters must remain below `2^64`.
+  `hash_from_state` proves whole-block continuation from arbitrary states;
+  `lemma_zero_prefix_continuation` connects the zero-prefix state to the full message hash.
+- `compress_groups` proves RFC compression separately for every group and every lane of a transposed
+  state, for all group counts. Both the single-group inline rounds and interleaved multi-group rounds
+  are covered. The theorem is generic over the `Lanes32` arithmetic contracts; `Scalar8` proves those
+  contracts. G and group loops are factored into inline helpers to isolate their proof contexts.
+- Safe array models `transpose_words` and `store_digests` prove the state/message transpose and
+  little-endian digest scatter. `compress_rows` composes these with compression and proves each lane's
+  output is the RFC compression digest of that input lane. These layout models replace raw-pointer
+  operations; they do not prove production's pointer manipulation or batched driver.
+- Equivalence tests compare scalar compression, one-shot and streaming hashes, prefix states and
+  continuation with production. The RFC Appendix B `"abc"` known answer checks both copies and production.
+  Batch tests compare groups 1, 2 and 4 through production's public batched hash and compare arbitrary
+  transposed compression states lane by lane, including both counter halves and final flags.
+- These are functional-correctness results relative to the RFC model, not proofs of collision resistance,
+  preimage resistance, constant-time execution, or cryptographic security. Keyed and variable-output
+  BLAKE2 modes are not modeled.
+
 ### SIMD butterflies of the additive NTT (`src/ntt_simd.rs`)
 
 The kernels of `crates/pcs/src/ntt/additive_ntt_f64.rs` that `lane_butterflies` dispatches to, `butterfly_lanes_avx512` (VPCLMULQDQ with AVX-512F), `butterfly_lanes_avx2` (VPCLMULQDQ with AVX2, no AVX-512F), `butterfly_lanes_neon_8` and `butterfly_lane_pair_neon` (AES, so PMULL; EOR3 or its two-EOR fallback in `reduce_pair_pmull4`), each for `TRANSPOSED` false and true, and `lane_butterflies` with production's `cfg` arms. Each `cfg` arm is checked in the `verify.sh` configuration that compiles it: `avx512`, `avx2-vpclmulqdq` and `avx2-gfni`, `neon` and `neon-no-sha3`; the others (`portable`, `haswell`) check the scalar arm.
@@ -239,6 +266,9 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
   specifications, worker count, and exactly-once joined dispatch. `with_scratch` trusts the
   thread-local scratch borrow and callback contract. Their `external_body`/`assume_specification`
   annotations are trust boundaries, not solved proof obligations.
+- `src/blake2s.rs` retains an explicit `assume_specification` for `u32::rotate_right`, absent from the
+  pinned `vstd`: for `0 < n < 32` it equals `(x >> n) ^ (x << (32 - n))`. A deterministic test checks
+  samples and edge cases against Rust's implementation, but does not prove this trusted library contract.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
 - `vstd`'s specifications of what the copies call are trusted: integer `From`, the operator traits, `Vec` and
@@ -277,6 +307,8 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
   store ordering, and `transpose_lane_major` are not proved. The parallel refinement above proves
   populated-replica computation with explicit plan inputs. The inverse reference in `ntt.rs` remains
   covered; the separate transposed driver is outside this refinement.
+- BLAKE2s's raw-pointer batch driver, pointer load/store safety, dispatch and SIMD implementations are
+  not verified. Batch comparisons exercise the backend selected by the test build.
 - Bit folds (`crates/primitives/src/bit_fold.rs`): `BitFold::at_level`, which builds its weights with `multilinear::eq_table` (copied in `src/multilinear.rs`) and then calls `BitFold::new`, and `BitFold::fold_quads` (AVX-512 with GFNI only) are not copied. Only `out[..rows.len()]` of `fold_block` is documented and compared: past it the portable arm leaves `out` as it was (proven) and the SIMD arms store the fold of a zero row.
 - Of `multilinear.rs`, the parallel `mle_eval_par`, `SplitEq::weighted_sum` and its SIMD variants, the high folds (`fold_high_k`, `fold_high_inplace`, `interp_into`), `barycentric_sum`, `skip_lagrange_weights`, `poly_eval` and the inner products are not copied.
 - The circuit's constraints (that the hash row's wires carry the message `builder_step_message` computes) are not modeled; only the message is.
@@ -295,3 +327,5 @@ verification/verus/verify.sh gf2_64                   # one module
 ```
 
 `verify.sh` downloads the pinned Linux x86-64 release if needed, installs its Rust toolchain with `rustup`, and checks every configuration listed above. Set `VERUS_HOME` to install elsewhere, `VERUS_THREADS` to control solver parallelism (default 4), and `VERUS_CONFIGS` to select configurations. Solver and equivalence counts belong in the PR verification report, not a performance claim.
+
+The script isolates whole-crate and per-module proof caches, because changing the forwarded module argument must not reuse a different module's cached result. `CARGO_TARGET_DIR` selects the cache root; configuration and proof-selection directories are appended.

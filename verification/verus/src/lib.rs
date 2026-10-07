@@ -3,6 +3,8 @@
 
 pub mod bit_fold;
 pub mod bits;
+pub mod blake2s;
+pub mod blake2s_batch;
 pub mod clmul;
 pub mod fiat_shamir;
 pub mod flock_ntt;
