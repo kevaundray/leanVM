@@ -2,7 +2,9 @@
 
 This crate proves, with [Verus](https://verus-lang.github.io/verus/guide/overview.html), that the portable
 (non-SIMD) code of `crates/primitives` (the fields `K = GF(2^64)`, `E = GF(2^192)` and `GF(2^8)`, the bit
-transposes) and of `crates/pcs/src/ntt` (the additive NTT) computes the mathematics it is meant to.
+transposes, the equality polynomial and multilinear evaluation) and of `crates/pcs/src/ntt` (the additive NTT), the
+Fiat-Shamir step block of `crates/fiat_shamir` and the univariate-skip domain of `crates/flock` compute the
+mathematics they are meant to.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
@@ -117,6 +119,35 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### Fiat-Shamir step block (`src/fiat_shamir.rs`)
+
+- `step_block(scalars, tag)` (and `builder_step_message`, the message the circuit's `Builder::step` hashes for the same step, over its wires' values) puts the last scalar in words 4 to 6, the one before it (if any) in words 0 to 2, their count in word 3 and the tag in word 7, zero elsewhere (`block_word`). So the circuit hashes exactly the native block, as `hash.rs` documents.
+- On the domain production takes (at most `MAX_PENDING = 2` scalars, longer slices panic) the block names its scalars and its tag (`lemma_step_block_decodes`), so two steps with the same block absorb the same scalars, so the same count, under the same tag (`lemma_step_block_injective`). This holds for every tag word; the four `DS_*` tags are pairwise distinct (`lemma_tags_distinct`).
+
+### The equality polynomial and multilinear evaluation (`src/multilinear.rs`)
+
+Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_factor`; `1 - a = 1 + a` in characteristic 2), and a table over `n` variables holds at index `x` the value at the cube point whose coordinate `i` is bit `i` of `x` (`cube_point`, `eq_at`). `is_eq_table(t, r, seed)` says `t[x] = seed * eq(r, x)` for all `2^n` indices.
+
+- `eq_eval(r, x)`, the product of `1 + r_i + x_i`, is `eq(r, x)` for every `x` in `E^n`, not only on the cube (`lemma_eq_factor_sum`).
+- `eq_table`, `eq_table_seeded` and `fill_eq_table_uninit` build `seed * eq(r, .)` entry by entry, LSB first, for `n < 64`: the doubling build below `2^16` entries (each level writes `v r_i` to the high child and `v (1 + r_i)` to the low one, `lemma_eq_at_high`) and the tensor build above (`eq(r, (h << L) | l) = eq(r[..L], l) eq(r[L..], h)`, `lemma_eq_at_tensor`).
+- `shrink_eq_low` and `shrink_eq_high` sum the low pairs, or the two halves, of any table; on `seed * eq(r, .)` the result is `seed * eq(r[1..], .)`, or `seed * eq(r[..n-1], .)` (`lemma_shrink_low_eq`, `lemma_shrink_high_eq`).
+- `SplitEq::with_low_vars`, `with_high_vars`: the two tables are `eq` over `r[..L]` and `r[L..]`; `at(x)` is `eq(r, x)`.
+- `interp(lo, hi, t) = (1 + t) lo + t hi`, and `interp_k` the same on `K` endpoints.
+- `mle_eval(table, point)` is the multilinear extension `sum_x eq(point, x) table[x]` (`mle`) of the `K`-valued table, on both paths: folding the lowest variable (`fold_low_k`, then `fold_ladder`, by `lemma_mle_fold_low`), and from three variables the packed low `eq` table, one `dot_base` per row, then the ladder over the rows (`lemma_mle_blocks`).
+- `window_denominator(2^log)` (and the table `DENOMINATORS` it reads, computed at compile time) is `(prod_{k=1}^{2^log - 1} φ₈(k))^(2^64 - 2)`, the inverse in `K` of the product of the window's nonzero nodes (`lemma_denominator_inverts`; the product is nonzero since the nodes are and `K` has no zero divisors).
+
+### The φ₈ table (`src/phi8_tower.rs`)
+
+- `build_phi8_table_192` (and the static `PHI_8_TABLE_192`) holds at index `i` the XOR of the eight basis words selected by the bits of `i`, in `K` (`phi8`). So the table is `F_2`-linear in its index (`lemma_phi8_xor`) and zero only at index 0 (`lemma_phi8_nonzero`, one `by (compute_only)` over the 255 nonzero indices): its first `2^k` entries are a subspace of `K` of `2^k` distinct elements.
+
+### The univariate-skip domain (`src/skip_domain.rs`)
+
+`SkipDomain` of `crates/flock/src/zerocheck/skip_domain.rs` is generic over `fiat_shamir::arith::Arith`; the copy is instantiated at `Native` (its trait methods and the defaults it inherits copied as inherent methods). The domain of `l = 2^k` nodes (`k < 8`) is `S = {s_i = φ₈(i)}`; `V_l(z) = prod_i (z + s_i)` (`vanishing_spec`) and `L_i(z) = prod_{k != i} (z + s_k) / prod_{k != i} (s_i + s_k)` (`lagrange_basis`), the textbook Lagrange basis, with `L_i(s_j) = [i = j]` (`lemma_lagrange_basis_at_nodes`).
+
+- `vanishing_coefficients` returns the coefficients of `V_l` as a linearized polynomial, `V_l(x) = sum_j c_j x^(2^j)` for every `x`, and it is monic (production's `debug_assert!`); adding a basis element `a` takes `V` to `V(x)^2 + V(a) V(x)` (`lemma_lin_step`, `lemma_vanishing_double`). `vanishing(z)` is `V_l(z)`.
+- Every node of a window sees the same `prod_{k != i} (s_i + s_k)`: `k -> i ^ k` permutes the window (`lemma_prod_xor`), so it is the product of the nonzero nodes, which `window_denominator` inverts (`lemma_weight_inverts`).
+- `lagrange_at(z, V_l(z), values)` (through `lagrange_scale`, `inverses`, `lagrange_with`) is `sum_i values_i L_i(z)` (`lagrange_sum`), and `first_round_at(z, V_l(z), values)` is `sum_i values_i L_(l+i)(z)` over the window of `2l` nodes (`window_sum`): the interpolant of `values` on the coset `{s_l, .., s_(2l-1)}` and of zero on `S`, for every `z` off the nodes. At a node `s_j` production returns 0 (it divides by `z + s_j` with `1 / 0 = 0`) rather than the interpolant's value, as its documentation now says; `z` is the verifier's challenge, so this happens with probability at most `128 / 2^192`, where an honest proof would be rejected.
+
 ## Trust base and assumptions
 
 - No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
@@ -126,7 +157,9 @@ Following annex `d` of the leanVM document:
   slice indexing, `slice_to_vec`, and its proven `pow2` and division lemmas.
 - `src/ntt.rs` declares `global size_of usize == 8`: the NTT proofs are for 64-bit targets, which Verus checks
   when it compiles the crate.
-- The copies equal the production functions by test, not by proof (see above).
+- The copies equal the production functions by test, not by proof (see above). Two copies have no public production counterpart to run: `builder_step_message` (`Builder` is in `leanvm_core`'s private `rec` module) is tied by `rec::transcript::tests::the_circuit_replays_the_native_transcript`, the circuit's steps hashing to the native ones; `SkipDomain::first_round_at` (crate-private, run only inside a whole zerocheck) and `SkipDomain::new` are compared with the references production's own `skip_domain::tests` compare production with.
+- `PHI_8_TABLE_192`, `DENOMINATORS` and `SkipDomain::FLOCK` are written in Verus's `exec static` / `exec const` form, which states what the initializer returns; Verus checks the initializer like a function body. The parallel pass of `fill_eq_table_uninit` is copied as a loop over the same rows in order.
+- `vstd`'s specifications of `vec!`, `Vec::truncate`, `Vec::as_mut_slice`, slice range indexing and `u64::trailing_zeros` (which stands in for `usize::trailing_zeros` in `window_denominator`).
 - The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
   are stated as lemmas over `clmul`; no SIMD code is verified.
 
@@ -149,7 +182,9 @@ Following annex `d` of the leanVM document:
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.
-- `phi8_tower.rs` and `bit_fold` are not covered.
+- `bit_fold` is not covered; of `phi8_tower.rs` only the table is (that `φ₈` is a field embedding, multiplicative, is not proven).
+- Of `multilinear.rs`, the parallel `mle_eval_par`, `SplitEq::weighted_sum` and its SIMD variants, the high folds (`fold_high_k`, `fold_high_inplace`, `interp_into`), `barycentric_sum`, `skip_lagrange_weights`, `poly_eval` and the inner products are not copied.
+- The circuit's constraints (that the hash row's wires carry the message `builder_step_message` computes) are not modeled; only the message is.
 
 ## Reproduce
 
@@ -165,4 +200,4 @@ verification/verus/verify.sh gf2_64                   # one module
 
 `verify.sh` downloads the release from GitHub (Linux x86-64), installs its Rust toolchain with `rustup`, and runs
 `cargo verus verify`. Set `VERUS_HOME` to install elsewhere and `VERUS_THREADS` to change the solver's parallelism
-(default 4). The whole crate verifies in under a minute on one machine.
+(default 4). The whole crate verifies in under two minutes on one machine with two solver threads.

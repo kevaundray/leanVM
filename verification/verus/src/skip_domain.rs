@@ -985,6 +985,8 @@ impl SkipDomain {
     ///
     /// Its value is `D_2l · V_S(z) · V_Lambda(z) · sum_i values_i / (z + lambda_i)`, `l` the domain's size, with `V_Lambda(z) = V_S(z) + V_S(phi_8(l))`.
     ///
+    /// This barycentric form is the interpolant only for `z` off the window `S + Lambda`: at a node the vanishing factor is zero and `1 / 0` is taken as zero, so it gives 0 rather than the node's value. `z` is the verifier's challenge, so it lands on a node with probability at most `128 / 2^192`, where an honest proof would be rejected.
+    ///
     /// The generic `A: Arith` is `Native`. `z` off the window's nodes and `vanishing = V_S(z)` are `requires`. The
     /// coefficients `self.vanishing_coefficients()` are bound to a name before `linearized` reads them.
     pub fn first_round_at(self, a: &mut Native, z: F192, vanishing: F192, values: &[F192]) -> (r: F192)
@@ -1051,6 +1053,8 @@ impl SkipDomain {
     }
 
     /// `sum_i L_i(z) values_i` over `S`, `L_i` its Lagrange basis: `D_l · V_S(z) · sum_i values_i / (z + s_i)`.
+    ///
+    /// This barycentric form is the interpolant only for `z` off `S`: at a node `V_S(z)` is zero and `1 / 0` is taken as zero, so it gives 0 rather than the node's value. `z` is the verifier's challenge, so it lands on a node with probability at most `128 / 2^192`, where an honest proof would be rejected.
     ///
     /// The generic `A: Arith` is `Native`. `z` off the nodes and `vanishing = V_S(z)` are `requires`.
     pub fn lagrange_at(self, a: &mut Native, z: F192, vanishing: F192, values: &[F192]) -> (r: F192)
