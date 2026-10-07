@@ -1515,7 +1515,7 @@ pub proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
     ;
 }
 
-proof fn lemma_layer_map_len(data: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) -> u64, inverse: bool)
+pub proof fn lemma_layer_map_len(data: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) -> u64, inverse: bool)
     ensures
         layer_map(data, m, h, tw, inverse).len() == data.len(),
 {

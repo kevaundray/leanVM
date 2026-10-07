@@ -16,7 +16,9 @@ pub mod multilinear;
 #[cfg(target_arch = "aarch64")]
 pub mod neon;
 pub mod ntt;
+pub mod ntt_driver;
 pub mod ntt_lanes;
 pub mod ntt_simd;
+pub mod parallel;
 pub mod phi8_tower;
 pub mod skip_domain;
