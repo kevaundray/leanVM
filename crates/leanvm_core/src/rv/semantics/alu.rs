@@ -525,7 +525,8 @@ impl Jump {
         // The constant, then the products in the order the circuit makes them.
         let mut rows = Products::new([z, az, bz], 6);
         rows.push(1, 1, 1);
-        rows.push(v1 ^ carries, imm ^ carries, 63);
+        let low = u64::MAX >> 1;
+        rows.push((v1 ^ carries) & low, (imm ^ carries) & low, 63);
         rows.push(indirect >> 1, link >> 1, 63);
         rows.finish();
     }
