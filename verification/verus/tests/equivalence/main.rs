@@ -9,8 +9,12 @@ mod gf2_64x3;
 mod gf2_8;
 #[cfg(target_arch = "aarch64")]
 mod intrinsics_aarch64;
+#[cfg(target_arch = "aarch64")]
+mod intrinsics_aarch64_bits;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86;
+#[cfg(target_arch = "x86_64")]
+mod intrinsics_x86_bits;
 mod ntt;
 mod phi8_tower;
 mod bit_fold;
