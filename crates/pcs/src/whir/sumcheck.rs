@@ -11,7 +11,6 @@ use core::ops::BitXorAssign;
 use fiat_shamir::transcript::Transmitter;
 use first_pass::{LaneWeight, WeightFold};
 use parallel::SendPtr;
-use primitives::bit_fold;
 use primitives::field::{F64, F192, F192Unreduced};
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
 use primitives::field::{F192x4, F192x4Unreduced};
@@ -52,10 +51,8 @@ pub(crate) const INITIAL_BASIS_CHUNK: usize = 256;
 /// Elements a stored (dense) weight's lane fold stages in L1 before publishing them.
 const DENSE_STAGE: usize = 128;
 
-/// Pool sizes up to which the first pass writes out a regenerated weight for the first fold.
-///
-/// The portable byte tables regenerate the ring-switch weight slower than any pool reads it back, so they keep it.
-const KEEP_WEIGHT_MAX_THREADS: usize = if bit_fold::PORTABLE { usize::MAX } else { 4 };
+/// SIMD pool sizes up to which the first pass writes out a regenerated weight for the first fold.
+const KEEP_WEIGHT_MAX_THREADS: usize = 4;
 // Stateful sumcheck over E with a two-phase (Base then Ext) witness
 //
 // Each round sends (u_0, u_2) of the quadratic

@@ -15,6 +15,7 @@ use super::{
     SumcheckMessage, window,
 };
 use parallel::SendPtr;
+use primitives::bit_fold;
 #[cfg(not(any(
     all(target_arch = "x86_64", target_feature = "pclmulqdq"),
     all(target_arch = "aarch64", target_feature = "aes")
@@ -628,16 +629,14 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
 
 /// [`initial_rounds`] over a regenerated weight, and the weight the first fold then reads.
 ///
-/// On a small pool the pass also writes the weight out, so the fold reads it back rather than refilling it; on a
-/// larger one the refill, spread over the workers, costs less than the memory traffic, unless the map is the
-/// portable byte tables (`KEEP_WEIGHT_MAX_THREADS`).
+/// The byte tables always keep the weight. SIMD backends keep it on small pools and refill it on larger ones.
 pub(crate) fn initial_rounds_virtual<'a>(
     f: &[F64],
     block: usize,
     initial_k: usize,
     fill: &'a BasisFill<'a>,
 ) -> (InitialRounds, Basis<'a>) {
-    if parallel::num_threads() <= KEEP_WEIGHT_MAX_THREADS {
+    if bit_fold::PORTABLE || parallel::num_threads() <= KEEP_WEIGHT_MAX_THREADS {
         let (rounds, kept) = initial_rounds_kept(f, block, initial_k, fill);
         (rounds, Basis::Dense(kept))
     } else {
