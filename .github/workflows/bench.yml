@@ -10,13 +10,13 @@ name: Bench
 #
 # The testbeds are the self-hosted runners `size-attester7870-x64` and `size-attester7870-arm64`
 # (with `self-hosted-ghr`, an ephemeral VM per job; x86-64 an Intel Xeon Gold 6548N, 32 vCPUs,
-# 64 GB): base and PR build and run on one machine, so each is built for `target-cpu=native`
-# (on x86-64 AVX-512, VPCLMULQDQ and GFNI included), and its cache is keyed on the CPU model so a
-# native build never lands on another CPU. A fork has no such runners, so in a fork's own
-# repository the testbeds fall back to GitHub-hosted runners with a pinned ISA, x86-64 built for
-# haswell and arm64 for neoverse-n2 (a fork's PR to this repository runs here, on the self-hosted
-# runners): `target-cpu=native` would build for whichever CPU the job lands on, and a cached
-# build then dies of SIGILL on an older one (see rust.yml).
+# 64 GB; arm64 an Arm Neoverse-V2, 16 vCPUs, 64 GB): base and PR build and run on one machine, so
+# each is built for `target-cpu=native` (on x86-64 AVX-512, VPCLMULQDQ and GFNI included), and
+# its cache is keyed on the CPU model so a native build never lands on another CPU. A fork has no
+# such runners, so in a fork's own repository the testbeds fall back to GitHub-hosted runners with
+# a pinned ISA, x86-64 built for haswell and arm64 for neoverse-n2 (a fork's PR to this repository
+# runs here, on the self-hosted runners): `target-cpu=native` would build for whichever CPU the
+# job lands on, and a cached build then dies of SIGILL on an older one (see rust.yml).
 #
 # Run from the Actions tab (`workflow_dispatch`), it compares any two refs the same way: `head`
 # (default: the branch it is run on) against `base` (default: the head's first parent). Such a
