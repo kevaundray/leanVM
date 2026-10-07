@@ -195,31 +195,58 @@ macro_rules! round {
             ($v, $m, 3, 4, 9, 14, $s14, $s15)
         );
     }};
+    ($v:ident, $m:ident, $w:ident, $n:ident, [$s0:expr, $s1:expr, $s2:expr, $s3:expr, $s4:expr, $s5:expr, $s6:expr, $s7:expr,
+      $s8:expr, $s9:expr, $s10:expr, $s11:expr, $s12:expr, $s13:expr, $s14:expr, $s15:expr]) => {{
+        g4!(
+            ($v, $m, 0, 4, 8, 12, $s0, $s1),
+            ($v, $m, 1, 5, 9, 13, $s2, $s3),
+            ($v, $m, 2, 6, 10, 14, $s4, $s5),
+            ($v, $m, 3, 7, 11, 15, $s6, $s7),
+            ($w, $n, 0, 4, 8, 12, $s0, $s1),
+            ($w, $n, 1, 5, 9, 13, $s2, $s3),
+            ($w, $n, 2, 6, 10, 14, $s4, $s5),
+            ($w, $n, 3, 7, 11, 15, $s6, $s7)
+        );
+        g4!(
+            ($v, $m, 0, 5, 10, 15, $s8, $s9),
+            ($v, $m, 1, 6, 11, 12, $s10, $s11),
+            ($v, $m, 2, 7, 8, 13, $s12, $s13),
+            ($v, $m, 3, 4, 9, 14, $s14, $s15),
+            ($w, $n, 0, 5, 10, 15, $s8, $s9),
+            ($w, $n, 1, 6, 11, 12, $s10, $s11),
+            ($w, $n, 2, 7, 8, 13, $s12, $s13),
+            ($w, $n, 3, 4, 9, 14, $s14, $s15)
+        );
+    }};
 }
 
 /// The ten rounds as out-of-line functions, for interleaving groups.
 macro_rules! round_fns {
-    ($($name:ident [$($s:expr),*],)*) => {
+    ($($name:ident $pair:ident [$($s:expr),*],)*) => {
         $(
             #[inline(never)]
             fn $name<S: Lanes32>(v: &mut [S; 16], m: &[S; 16]) {
                 round!(v, m, [$($s),*])
+            }
+            #[inline(never)]
+            fn $pair<S: Lanes32>(v: &mut [S; 16], m: &[S; 16], w: &mut [S; 16], n: &[S; 16]) {
+                round!(v, m, w, n, [$($s),*])
             }
         )*
     };
 }
 
 round_fns! {
-    round_0 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    round_1 [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
-    round_2 [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
-    round_3 [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
-    round_4 [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
-    round_5 [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
-    round_6 [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
-    round_7 [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
-    round_8 [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
-    round_9 [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+    round_0 pair_0 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    round_1 pair_1 [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+    round_2 pair_2 [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
+    round_3 pair_3 [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+    round_4 pair_4 [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
+    round_5 pair_5 [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+    round_6 pair_6 [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
+    round_7 pair_7 [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+    round_8 pair_8 [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
+    round_9 pair_9 [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
 }
 
 /// The working state of one compression (RFC 7693, section 3.2).
@@ -247,11 +274,11 @@ fn init<S: Lanes32>(h: &[S; 8], t: u64, last: bool) -> [S; 16] {
 
 /// Compress `G` groups.
 ///
-/// One group runs its ten rounds inline, in registers.
+/// One group runs its ten rounds inline.
 ///
-/// Several groups keep their states in memory, one out-of-line call per round.
+/// Several groups keep their states in memory between out-of-line rounds.
 ///
-/// Each call fits the register file, and the calls of a round fill each other's stalls.
+/// On aarch64, each call interleaves two groups to expose eight independent G chains.
 ///
 /// # Safety
 /// Every `m[g]` must be valid for reads.
@@ -263,7 +290,7 @@ pub(super) unsafe fn compress_groups<S: Lanes32, const G: usize>(
     last: bool,
 ) {
     let mut v: [[S; 16]; G] = std::array::from_fn(|g| init(&h[g], t, last));
-    // `G` is a constant, so only one of the two arms survives monomorphization.
+    // `G` is a constant, so only the selected arm survives monomorphization.
     if G == 1 {
         let (v, m) = (&mut v[0], m[0]);
         round!(v, m, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
@@ -276,6 +303,16 @@ pub(super) unsafe fn compress_groups<S: Lanes32, const G: usize>(
         round!(v, m, [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10]);
         round!(v, m, [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5]);
         round!(v, m, [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0]);
+    } else if cfg!(target_arch = "aarch64") && G.is_multiple_of(2) {
+        macro_rules! round_pairs {
+            ($($name:ident),*) => { $( for g in (0..G).step_by(2) {
+                let (lo, hi) = v.split_at_mut(g + 1);
+                $name(&mut lo[g], m[g], &mut hi[0], m[g + 1]);
+            } )* };
+        }
+        round_pairs!(
+            pair_0, pair_1, pair_2, pair_3, pair_4, pair_5, pair_6, pair_7, pair_8, pair_9
+        );
     } else {
         macro_rules! round_all {
             ($($name:ident),*) => { $( for g in 0..G { $name(&mut v[g], m[g]); } )* };
