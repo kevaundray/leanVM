@@ -126,34 +126,12 @@ Following annex `d` of the leanVM document:
 
 ### Parallel NTT driver refinement (`src/ntt_driver.rs`, `src/parallel.rs`)
 
-- `run_layers` proves the fused radix-8/radix-4/single-layer sweeps equal `sub_layers` for every
-  well-formed table, positive lane count and valid sub-block. `lemma_gather_layer` and
-  `lemma_gather_sub_layers` prove that gathering rows paired by a band of layers commutes with it.
-- `group` proves gather/transform/scatter with permissions for every accessed word. Its input can
-  come from the codeword, its first replica, or a separate read-only message, under the explicit
-  permission and source-content preconditions. This is a single-group theorem, not a proof that
-  production's fused-message scheduler establishes those preconditions.
-- `gathered_pass` partitions words by `(block, residue)`, dispatches groups through the real pool,
-  and proves equality to the corresponding global layers. `deep_pass` proves the same for the
-  remaining layers on disjoint contiguous sub-blocks. `transform` composes them into
-  `forward_layers`, the verified layer reference, for any positive gathered width and
-  `start <= deep_start <= log_d <= table.len()`, with `2^log_d` rows and any positive lane count
-  whose buffer length fits `usize`. The zero-layer domain is included with a well-formed table.
-- These are executable refinements, not production-source proofs. The top-level refinement takes
-  the cache plan as arguments and expects replicas already populated. It does not implement
-  production's cache planner, fused message replication, row callbacks, or streaming-store fences.
-  Gathered work is dispatched per group rather than borrowing scratch once per claimed range;
-  the deep pass dispatches individual sub-blocks instead of explicitly batching adjacent ones.
-  Streaming stores become ordinary copies. Function comments document the other Rust rewrites.
-- `PointsTo` maps are split by task owner and returned with their postconditions. Different owners
-  have disjoint keys and only receive their own permissions. Bounds and pointer addresses are
-  checked before constructing row slices. `for_each` and `chunks_mut` are proved adapters over
-  the trusted `for_each_chunk` contract: disjoint claims cover every item exactly once and join
-  before return. The actual pool's atomic claim counter and synchronization are not verified.
-- `tests/equivalence/ntt_driver.rs` executes the refinement, layer reference and production public
-  encoder word for word on seeded random inputs, rates, lane counts, domain/table sizes, gathered
-  widths and deep splits. Separate processes configure the real pool for 1, 2 and 4 workers.
-  These finite differential checks neither prove production equivalence nor prevent future drift.
+- `run_layers` proves the fused radix-8/radix-4/single-layer sweeps equal `sub_layers` for every well-formed table, positive lane count and valid sub-block. `lemma_gather_layer` and `lemma_gather_sub_layers` prove that gathering rows paired by a band of layers commutes with it.
+- `group` proves gather/transform/scatter with permissions for every accessed word. Its input can come from the codeword, its first replica, or a separate read-only message, under the explicit permission and source-content preconditions. This is a single-group theorem, not a proof that production's fused-message scheduler establishes those preconditions.
+- `gathered_pass` partitions words by `(block, residue)`, dispatches groups through the real pool, and proves equality to the corresponding global layers. `deep_pass` proves the same for the remaining layers on disjoint contiguous sub-blocks. `transform` composes them into `forward_layers`, the verified layer reference, for any positive gathered width and `start <= deep_start <= log_d <= table.len()`, with `2^log_d` rows and any positive lane count whose buffer length fits `usize`. The zero-layer domain is included with a well-formed table.
+- These are executable refinements, not production-source proofs. The top-level refinement takes the cache plan as arguments and expects replicas already populated. It does not implement production's cache planner, fused message replication, row callbacks, or streaming-store fences. Gathered work is dispatched per group rather than borrowing scratch once per claimed range; the deep pass dispatches individual sub-blocks instead of explicitly batching adjacent ones. Streaming stores become ordinary copies. Function comments document the other Rust rewrites.
+- `PointsTo` maps are split by task owner and returned with their postconditions. Different owners have disjoint keys and only receive their own permissions. Bounds and pointer addresses are checked before constructing row slices. `for_each` and `chunks_mut` are proved adapters over the trusted `for_each_chunk` contract: disjoint claims cover every item exactly once and join before return. The actual pool's atomic claim counter and synchronization are not verified; the conditional permission proof is not a formal safety proof of production's pool.
+- `tests/equivalence/ntt_driver.rs` executes the refinement, layer reference and production public encoder word for word on seeded random inputs, rates, lane counts, domain/table sizes, gathered widths and deep splits. Separate processes configure the real pool for 1, 2 and 4 workers. These finite differential checks neither prove production equivalence nor prevent future drift.
 
 ### BLAKE2s (`src/blake2s.rs`, `src/blake2s_batch.rs`)
 
