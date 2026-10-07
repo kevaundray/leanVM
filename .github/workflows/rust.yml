@@ -161,11 +161,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  # The Verus proofs of the field arithmetic, bit transposes and additive NTT (`verification/verus`, a workspace of its
-  # own), and the tests that hold each verified copy equal to the production function it copies. `verify.sh` checks
-  # the proofs once per ISA configuration (portable, AVX2 with and without VPCLMULQDQ and GFNI, AVX-512, NEON), so
-  # every SIMD arm is verified. The tests run the copies against production, and the intrinsic specifications the
-  # proofs assume against the hardware, here and on ARM64 below; a test whose ISA extension the runner lacks says so.
+  # Verifies annotated kernel copies once per ISA configuration, with explicit trusted intrinsic contracts.
+  # Differential tests detect some copy drift and check supported intrinsic contracts on x86 and ARM64.
+  # They do not prove source equivalence, compiler correctness or hardware semantics.
   verus:
     name: Verus proofs
     runs-on: ubuntu-latest

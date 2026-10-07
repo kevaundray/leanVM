@@ -1,34 +1,17 @@
-# Verus proofs of the field arithmetic, bit transposes and additive NTT
+# Verus proofs of leanVM arithmetic, kernel models and BLAKE2s
 
-This crate proves, with [Verus](https://verus-lang.github.io/verus/guide/overview.html), that the portable
-(non-SIMD) code of `crates/primitives` (the fields `K = GF(2^64)`, `E = GF(2^192)` and `GF(2^8)`, the bit
-transposes, the embedding `φ₈`, the bit folds, the equality polynomial and multilinear evaluation), of
-`crates/pcs/src/ntt` (the additive NTT), of `crates/flock/src/zerocheck/ntt` (the `GF(2^8)` NTT of flock's
-zerocheck) and `crates/flock/src/zerocheck/skip_domain.rs` (the univariate-skip domain), and the Fiat-Shamir step
-block of `crates/fiat_shamir`, compute the mathematics they are meant to.
+This standalone crate verifies annotated executable copies and mathematical models of leanVM arithmetic using [Verus](https://verus-lang.github.io/verus/guide/overview.html). Coverage includes portable field arithmetic, selected SIMD field and reduction kernels, bit transposes, the embedding `φ₈`, bit-fold linear maps, equality tables and multilinear evaluation, additive NTT kernels and evaluation theorems, the `GF(2^8)` NTT used by flock, skip-domain interpolation, Fiat-Shamir block encoding, and portable scalar/batched BLAKE2s. Each theorem applies to its stated preconditions and the checked copy, not directly to production source.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
 
 ## How it is tied to the production code
 
-Verus verifies code written inside `verus! { }`. Rather than putting `vstd` and the macro into the production
-crates, each module here holds a copy of the production functions, with the same names, signatures and bodies
-wherever Verus accepts them, and attaches its specification to the copy. A copy differs from production only
-where Verus needs another form; each difference is noted at the function (iterator chains and
-`array::map`/`from_fn` become index loops or explicit arrays, `step_by` becomes a `while`, slice patterns become
-indexing, `assert!` on an argument becomes a `requires`, `debug_assert!` becomes a proven `assert`, `mut self`
-is rebound). SIMD arms are not copied.
+Verus checks functions inside `verus! { }`. Production does not depend on `vstd`: modules here copy production operations and attach specifications. Source adaptations are documented at each function: iterator chains, array maps and patterns become loops or explicit arrays; argument assertions become preconditions; debug assertions become proved assertions. SIMD copies call real intrinsics with trusted lane specifications and trusted memory wrappers where pointer operations cannot be expressed directly.
 
-`tests/equivalence/` then runs every copy against the production function it copies: exhaustively where the
-domain is small (all `GF(2^8)` pairs, all 16-bit reductions), and otherwise on 10k to 100k random inputs plus
-edge cases (zero, one, all ones, top bits only, the reduction constant). Production functions that are private
-are reached through the nearest public function that calls them (each test says which); flock's zerocheck NTT has
-no public path at all, so its two source files are compiled into the test binary by `#[path]` and called directly.
-An edit to one side without the other fails these tests. CI's `Verus proofs` job runs both the proofs and these tests.
+`tests/equivalence/` compares executable copies with production on exhaustive small domains and deterministic edge and random inputs. Private functions use reachable public callers or source modules compiled into the test binary, with exceptions recorded below. These tests can detect drift, but do not prove source equivalence or guarantee that future divergence will be caught. A verified model or copy is not verified production source.
 
-Production is compiled natively there, so the tests also compare the dispatched SIMD arms of the machine (on
-CI's runners the AVX2 arms) with the verified portable copies.
+The proof matrix covers portable x86, Haswell, AVX2 with VPCLMULQDQ (with and without GFNI), AVX-512, and AArch64 with and without SHA3. Native tests exercise available hardware; AArch64 tests under QEMU exercise an emulator rather than physical ARM hardware. CI additionally runs the equivalence suite on an ARM64 runner. Runtime feature checks skip unavailable x86 instructions; a passing skipped test is not hardware evidence for that instruction.
 
 ## What is proven
 
@@ -54,9 +37,8 @@ Polynomials over GF(2) are machine words, bit `i` the coefficient of `x^i`. The 
 - Fermat: `a^(2^64) = a` for every `a`.
 - So `K` is a field, with no assumption on `M`: the proof shows the only idempotents (`e^2 = e`) are 0 and 1,
   one bit-vector query on the squaring map, then `a^(2^64 - 1)` is an idempotent that is not 0 when `a` is not.
-- The reduction of the scalar SIMD products (`x86_64::mul`, `aarch64::mul_shift_tail`,
-  `aarch64::reduce_pair_pmull4`: `t = hi(p) * 0x1B`, `u = hi(t) * 0x1B`, `lo(p ^ t ^ u)`) equals `reduce`, given
-  that PCLMULQDQ and PMULL compute `clmul` (`lemma_clmul_fold_reduction`).
+- SIMD copies of `x86_64::mul` and `aarch64::mul_shift_tail` compute `k_mul`; x86 `clmul` and NEON `pmull`/`pmull_hi` compute the specified carry-less product. `aarch64::reduce_pair_pmull4` returns the two `k_mod` remainders lane by lane, for arbitrary 128-bit inputs. BMI2 `spread` equals the carry-less square by depositing each input bit into an even output position. The dispatched `F64` operations retain their field contracts in each configuration.
+- These proofs use `lemma_clmul_fold_reduction` for the two high-word folds by `0x1B` and the explicit intrinsic assumptions below. The empty NEON assembly barrier is represented by the trusted identity wrapper `hide_lanes`, not verified assembly.
 
 ### `E = GF(2^192)` (`src/gf2_64x3.rs`)
 
@@ -154,6 +136,15 @@ future source drift.
 - `F8 * F8` is that product, a commutative ring as for `K`; `F8::inv(a)` is `a^254` and `a * inv(a) = 1` for
   every nonzero `a`.
 
+### SIMD kernels of `E` on aarch64 and of `GF(2^8)` (`src/gf2_64x3/aarch64.rs`, `src/gf2_8.rs`)
+
+Copies of `crates/primitives/src/field/gf2_64x3/aarch64.rs` (all of it), of the aarch64 dispatch arms of `gf2_64x3.rs`, and of the SIMD arms of `gf2_8.rs`, proven against the portable specifications given the intrinsic specifications of `src/intrinsics/aarch64_gfneon.rs` and `src/intrinsics/x86_gfneon.rs` (and the shared `aarch64.rs`, `x86.rs`). They verify in the configurations that compile them: the `E` kernels and the NEON helpers in `neon` and `neon-no-sha3` (EOR3 and its two-XOR fallback), `gf8_mul_vec32` in `haswell`, `avx2-vpclmulqdq`, `avx2-gfni` and `avx512`. A register holding a 128-bit coefficient is read as one polynomial (`v128`, its two lanes).
+
+- `E` products: `aarch64::mul(a, b) = e_mul(a, b)`; `mul_unreduced` and `mul_base_unreduced` return an `F192Unreduced` whose value (`e_value`) is `e_mul(a, b)`, `e_mul(a, k)`; `mul_base(a, k) = e_mul(a, k)`; `square(a) = e_mul(a, a)`; `reduce(u) = e_value(u)`. The nine PMULL products of `products`, y-folded, are the three coefficients the portable `software::mul_unreduced` builds (`lemma_products_fold`, `folded`), whatever the operand words. `reduce_lane` (two PMULL2 by `0x1B` and a three-way XOR) is `k_mod` of the coefficient (`lemma_clmul_fold_reduction`).
+- With those arms, `F192 * F192`, `F192::mul_unreduced`, `mul_base`, `mul_base_unreduced`, `square` and `F192Unreduced::reduce` keep their specifications on aarch64 with `aes`, so everything proven above on top of them (`inv`, the batched portable arms, `dot_base`, ...) holds there too.
+- Register-resident values: `F192x1` holds an element (`value()`), with the type invariant that both lanes of its `c22` register hold `c2` (the high-lane products read it); `new`, `load`, `store` (which initializes the `MaybeUninit`), `+` and `*` are `e_add` and `e_mul` of the values, `mul_unreduced` and `mul_base_unreduced` give an `F192x1Unreduced` whose value reduces to the product; `F192x1Unreduced` XOR and `^=` are `u_xor`, `zero()` is `F192Unreduced::ZERO`, `reduce` is `e_value`, and the conversions to `F192` and `F192Unreduced` return the values. So an XOR-accumulated sum of register products reduces to the sum of the products (`lemma_lazy_reduction`).
+- `GF(2^8)`: `clmul8_neon` (PMULL on bytes) and the `clmul8` dispatch compute `clmul`. `neon::gf8_reduce_vec16(c0, c1)` returns, in lane `i`, the remainder modulo `M` of polynomial lane `i` (low byte `2 (i % 8)`, high byte `2 (i % 8) + 1` of `c0` for `i < 8`, of `c1` after), for every 16-bit lane, not only products of two bytes: its Barrett quotient (the high byte of `hi * 0x8d * x`) is exact for every high byte (`lemma_reduce_vec16_lane`, one bit-vector query). `neon::gf8_mul_vec16(a, b)` is `f8_mul` lane by lane. `avx2::gf8_mul_vec32(a, b)` is `f8_mul` on each of the 32 bytes: after step `s` of the Horner loop each byte is `a * (b >> (8 - s))` (`lemma_horner_step`, from `a * (x c) = x (a * c)` and linearity).
+
 ### Bit transposes (`src/bits.rs`)
 
 - `transpose_8x8_bits`: bit `8r + c` of the result is bit `8c + r` of the input; it is an involution.
@@ -202,6 +193,44 @@ Following annex `d` of the leanVM document:
   needs every row of the table to start with one, `Ŵ_i(b_i) = 1`; it is proven for the standard basis, from
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
+
+### BLAKE2s (`src/blake2s.rs`, `src/blake2s_batch.rs`)
+
+- The model transcribes [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693), sections 2 and 3: 32-bit modular
+  addition, G with rotations 16, 12, 8, 7, IV, SIGMA, ten rounds, counter injection, final-block flag and
+  feed-forward. The message model is unkeyed BLAKE2s-256, including parameter initialization,
+  little-endian encoding, zero padding, and the empty message's single final block.
+- The scalar executable copies prove `compress = f_spec`, `hash = blake2s_spec`, and streaming
+  `Hasher::finalize = blake2s_spec` of all bytes absorbed. The streaming invariant retains a full last
+  block until more input arrives. Message lengths and continued counters must remain below `2^64`.
+  `hash_from_state` proves whole-block continuation from arbitrary states;
+  `lemma_zero_prefix_continuation` connects the zero-prefix state to the full message hash.
+- `compress_groups` proves RFC compression separately for every group and every lane of a transposed
+  state, for all group counts. Both the single-group inline rounds and interleaved multi-group rounds
+  are covered. The theorem is generic over the `Lanes32` arithmetic contracts; `Scalar8` proves those
+  contracts. G and group loops are factored into inline helpers to isolate their proof contexts.
+- Safe array models `transpose_words` and `store_digests` prove the state/message transpose and
+  little-endian digest scatter. `compress_rows` composes these with compression and proves each lane's
+  output is the RFC compression digest of that input lane. These layout models replace raw-pointer
+  operations; they do not prove production's pointer manipulation or batched driver.
+- Equivalence tests compare scalar compression, one-shot and streaming hashes, prefix states and
+  continuation with production. The RFC Appendix B `"abc"` known answer checks both copies and production.
+  Batch tests compare groups 1, 2 and 4 through production's public batched hash and compare arbitrary
+  transposed compression states lane by lane, including both counter halves and final flags.
+- These are functional-correctness results relative to the RFC model, not proofs of collision resistance,
+  preimage resistance, constant-time execution, or cryptographic security. Keyed and variable-output
+  BLAKE2 modes are not modeled.
+
+### SIMD butterflies of the additive NTT (`src/ntt_simd.rs`)
+
+The kernels of `crates/pcs/src/ntt/additive_ntt_f64.rs` that `lane_butterflies` dispatches to, `butterfly_lanes_avx512` (VPCLMULQDQ with AVX-512F), `butterfly_lanes_avx2` (VPCLMULQDQ with AVX2, no AVX-512F), `butterfly_lanes_neon_8` and `butterfly_lane_pair_neon` (AES, so PMULL; EOR3 or its two-EOR fallback in `reduce_pair_pmull4`), each for `TRANSPOSED` false and true, and `lane_butterflies` with production's `cfg` arms. Each `cfg` arm is checked in the `verify.sh` configuration that compiles it: `avx512`, `avx2-vpclmulqdq` and `avx2-gfni`, `neon` and `neon-no-sha3`; the others (`portable`, `haswell`) check the scalar arm.
+
+- Each kernel at offset `at` of width `w` (8, 4, 8, 2) leaves word `j` of the rows, for `at <= j < at + w`, as `butterfly_spec(TRANSPOSED, u_j, v_j, t)` (forward `u' = u + t v, v' = v + u'`, transposed `u' = u + v, v' = v + t u'`, products by `k_mul`, the specification of the portable `butterfly_one`), and every other word unchanged (`butterflied`).
+- The products: PCLMULQDQ `0x00` and `0x11` unpacked low with high give word `i`'s 128-bit product in lane order (`lemma_products_in_lane_order`); PMULL and PMULL2 read back as `uint64x2_t` give it as the register's two lanes (`lemma_pmull_products`, `lemma_reduced_products`), reduced by the already verified `reduce_pair_pmull4`.
+- The x86 reduction `lo ^ g(hi ^ spill)`, `g(x) = x ^ x<<1 ^ x<<3 ^ x<<4`, `spill = hi>>63 ^ hi>>61 ^ hi>>60`, is `k_mod` of the product (`lemma_shift_reduction`, from `lemma_k_mod`). On AVX-512 the XORs are `vpternlogq 0x96`, the three-way XOR (`lemma_ternlog_xor3`); on AVX2 the shifts are doublings by addition (`lemma_avx2_lane`) and the spill is one byte shuffle of a 16-entry table by the top nibbles, proven word by word from the shuffle's byte semantics and the register layout (`lemma_spill_shuffle`, `lemma_spill_table`, `lemma_word_of_low_byte`).
+- `lane_butterflies` (and so `butterfly_lanes`, `transposed_butterfly_lanes`) keeps its specification in every configuration: the kernel blocks compose (`lemma_butterflied_extend`), then the NEON pair tail and the scalar tail finish the row.
+- Rewrites, noted at each function: the kernels take the rows and the offset their pointers point to instead of `*mut F64`, and load and store through the helpers below (Verus cannot obtain pointer permissions from the `&mut [F64]` borrows `lane_butterflies` holds); production's function-local constants `XOR3` and `SPILL` are module constants, `SPILL` listed rather than computed by a `while` loop in a `const` block; the AVX2 kernel names the nibble shift and the table load (`nibbles`, `t128`) so the proof can refer to them; the NEON pair loop tests `top.len() - lane >= 2` instead of `lane + 2 <= top.len()`.
+- Tests (`tests/equivalence/ntt_simd.rs`): each kernel, both directions, every offset of short rows, edge rows and twiddles (0, 1, all ones, the top bit, every top nibble) and random ones, against production's butterfly in the production field; `butterfly_lanes` and `transposed_butterfly_lanes` on every row length up to 40; and production's own kernels, which are private, through `encode_interleaved_in_place` on 8 to 31 lanes, reproduced by a layer-by-layer driver built from the verified `butterfly_lanes`. Run natively (AVX-512), with the AVX2 flags, and under qemu with and without SHA3.
 
 ### The embedding `φ₈` (`src/phi8_tower.rs`)
 
@@ -266,11 +295,14 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
 
 - `vanishing_coefficients` returns the coefficients of `V_l` as a linearized polynomial, `V_l(x) = sum_j c_j x^(2^j)` for every `x`, and it is monic (production's `debug_assert!`); adding a basis element `a` takes `V` to `V(x)^2 + V(a) V(x)` (`lemma_lin_step`, `lemma_vanishing_double`). `vanishing(z)` is `V_l(z)`.
 - Every node of a window sees the same `prod_{k != i} (s_i + s_k)`: `k -> i ^ k` permutes the window (`lemma_prod_xor`), so it is the product of the nonzero nodes, which `window_denominator` inverts (`lemma_weight_inverts`).
-- `lagrange_at(z, V_l(z), values)` (through `lagrange_scale`, `inverses`, `lagrange_with`) is `sum_i values_i L_i(z)` (`lagrange_sum`), and `first_round_at(z, V_l(z), values)` is `sum_i values_i L_(l+i)(z)` over the window of `2l` nodes (`window_sum`): the interpolant of `values` on the coset `{s_l, .., s_(2l-1)}` and of zero on `S`, for every `z` off the nodes. At a node `s_j` production returns 0 (it divides by `z + s_j` with `1 / 0 = 0`) rather than the interpolant's value, as its documentation now says; `z` is the verifier's challenge, so this happens with probability at most `128 / 2^192`, where an honest proof would be rejected.
+- `lagrange_at(z, V_l(z), values)` (through `lagrange_scale`, `inverses`, `lagrange_with`) is `sum_i values_i L_i(z)` (`lagrange_sum`), and `first_round_at(z, V_l(z), values)` is `sum_i values_i L_(l+i)(z)` over the window of `2l` nodes (`window_sum`): the interpolant of `values` on the coset `{s_l, .., s_(2l-1)}` and of zero on `S`, for every `z` off the respective theorem's excluded nodes. At a node production returns zero because its vanishing factor is zero and `1 / 0 = 0`. This need not equal the supplied value on `S` for `lagrange_at` or on `Lambda` for `first_round_at`; zero is the correct first-round value on `S`. Under a uniform challenge in `E`, the exceptional set for each operation has at most `128 / 2^192` probability and can cause rejection of an honest proof. The proofs do not establish transcript challenge uniformity.
 
 ## Trust base and assumptions
 
-- No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
+- Kernel theorems do not use `assume` or `admit` to discharge their obligations. The trust boundary explicitly includes `assume_specification`, external vector type declarations, `axiom fn` layout facts, and `#[verifier::external_body]` memory helpers in the intrinsic modules. These are assumptions, not proved ISA or pointer-safety results.
+- `src/blake2s.rs` retains an explicit `assume_specification` for `u32::rotate_right`, absent from the
+  pinned `vstd`: for `0 < n < 32` it equals `(x >> n) ^ (x << (32 - n))`. A deterministic test checks
+  samples and edge cases against Rust's implementation, but does not prove this trusted library contract.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
 - `vstd`'s specifications of what the copies call are trusted: integer `From`, the operator traits, `Vec` and
@@ -278,40 +310,42 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
   `Vec::as_mut_slice`, `split_at_mut`, `u64::trailing_zeros`, and its proven `pow2` and division lemmas.
 - `src/ntt.rs` declares `global size_of usize == 8`: the NTT proofs are for 64-bit targets, which Verus checks
   when it compiles the crate.
-- The copies equal the production functions by test, not by proof (see above). Two copies have no public production counterpart to run: `builder_step_message` (`Builder` is in `leanvm_core`'s private `rec` module) is tied by `rec::transcript::tests::the_circuit_replays_the_native_transcript`, the circuit's steps hashing to the native ones; `SkipDomain::first_round_at` (crate-private, run only inside a whole zerocheck) and `SkipDomain::new` are compared with the references production's own `skip_domain::tests` compare production with.
+- Copy-to-production correspondence is tested, not proved. `builder_step_message` has no public production counterpart (`Builder` is in `leanvm_core`'s private `rec` module); production's `rec::transcript::tests::the_circuit_replays_the_native_transcript` checks the circuit/native transcript relationship separately. `SkipDomain::first_round_at` and `SkipDomain::new` are compared with the references used by production's own tests.
 - `PHI_8_TABLE_192`, `DENOMINATORS` and `SkipDomain::FLOCK` are written in Verus's `exec static` / `exec const` form, which states what the initializer returns; Verus checks the initializer like a function body. The parallel pass of `fill_eq_table_uninit` is copied as a loop over the same rows in order.
-- The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
-  are stated as lemmas over `clmul`; no SIMD code is verified.
+- `src/intrinsics/mod.rs` trusts `core::mem::transmute` through the uninterpreted `transmuted` view. Per-architecture layout axioms relate byte, word and polynomial views in little-endian lane order. Intrinsic specifications and memory contracts are compared with their executable models, not proved from ISA semantics, compiler lowering or hardware.
+- Shared x86 contracts in `src/intrinsics/x86.rs`, exercised by `tests/equivalence/intrinsics_x86.rs`, specify scalar/register conversion, word constructors, XOR/AND, wrapping 64-bit addition, PCLMULQDQ and VPCLMULQDQ per 128-bit lane (immediate bits 0 and 4 choose operands), BMI2 bit deposit, low/high word unpacking, lane shifts, lane-local byte shuffles, broadcast, 64-bit permutations, two-source permutations, 128-bit-block shuffles, and ternary Boolean logic. Layout axioms are `axiom_m128_bytes`, `axiom_m256_bytes`, `axiom_m512_bytes`, `axiom_m128_as_u128`, `axiom_m256_as_pairs`, `axiom_m512_as_pairs`, and `axiom_m512_from_words`. Their source declarations enumerate each intrinsic and immediate domain.
+- Shared AArch64 contracts in `src/intrinsics/aarch64.rs`, exercised by `tests/equivalence/intrinsics_aarch64.rs`, specify `vmull_p64`, `vmull_high_p64`, `vdupq_n_u64`, `veorq_u64`, `veor3q_u64`, `vzip1q_u64`, and `vgetq_lane_u64`. Layout axioms are `axiom_u128_as_u64x2`, `axiom_u64x2_as_u128`, and `axiom_u64x2_as_p64x2`. `gf2_64::aarch64::hide_lanes` trusts the empty inline-assembly barrier to preserve its registers; reduction tests exercise that wrapper through `reduce_pair_pmull4`.
 - `src/bit_fold.rs` relies on `vstd`'s specification of `u8::trailing_zeros` (with its proven `axiom_u8_trailing_zeros`) and of `Vec::push`, `Vec::as_slice` and `Vec::as_mut_slice`.
+- `src/intrinsics/aarch64_gfneon.rs` and `src/intrinsics/x86_gfneon.rs` (the `E` aarch64 kernels and the `GF(2^8)` SIMD arms): `assume_specification`s of `vreinterpretq_p64_u64`, `vcreate_u64`, `vcombine_u64`, `vextq_u64`, `vdupq_laneq_u64`, `vdup_n_p8`, `vmull_p8`, `vreinterpretq_u16_p16`, `vreinterpretq_u8_u16`, `vgetq_lane_u16`, `vshlq_n_u16`, `vget_low_u8`, `vget_high_u8`, `vuzp1q_u8`, `vuzp2q_u8`, `veorq_u8`, `_mm256_setzero_si256`, `_mm256_set1_epi8`, `_mm256_add_epi8`, `_mm256_cmpgt_epi8`; the layout axioms `axiom_u8x8_as_p8x8`, `axiom_u64_as_p8x8`, `axiom_words_as_u64x2`; and the `external_body` memory helpers `gf2_64x3::aarch64::load_f192` and `store_f192`, whose bodies are production's loads and stores. Each is compared with the hardware in `tests/equivalence/intrinsics_aarch64_gfneon.rs` and `intrinsics_x86_gfneon.rs` (under `qemu-aarch64-static` for NEON), through the executable twins `model_vmull_p8_lane`, `model_uzp_u8_lane`, `model_ext_u64_lane`, `model_u16_byte`, `model_cmpgt_epi8_lane` where the lane semantics is more than a move. `vstd`'s `MaybeUninit` specification (`as_option`) states what `store` writes.
 - The SIMD arms of the bit transposes assume the specifications of the intrinsics they call, each tied to the hardware by a differential test that runs the real intrinsic on edge and random operands and compares every lane with the specification's executable twin:
   - `src/intrinsics/x86_bits.rs`, tested by `tests/equivalence/intrinsics_x86_bits.rs`: `_mm256_unpacklo_epi8`, `_mm256_unpackhi_epi8` (`unpacklo_epi8_lane`, `unpackhi_epi8_lane`), `_mm512_permutexvar_epi8` (`permutexvar_epi8_lane`: byte `idx[k] & 63`, tested with the top index bits set), and `_mm256_gf2p8affine_epi64_epi8`, `_mm512_gf2p8affine_epi64_epi8` (`gf2p8affine_lane`: per byte, bit `i` is the parity of `A.byte[7 - i] & x` XOR bit `i` of the immediate, `A` the 64-bit word holding the byte; tested on random and edge matrices with the immediates `0, 1, 0x63, 0x80, 0xAA, 0xFF`, and the twin `model_affine_byte` against Intel's pseudocode written with `count_ones`). The memory helpers `load128_bytes`, `load256_bytes_at`, `store256_bytes_at`, `load512_bytes`, `store512_bytes` (`external_body`, each body the production load or store) are tested at several offsets, the stores also for leaving the other bytes alone.
   - `src/intrinsics/aarch64_bits.rs`, tested by `tests/equivalence/intrinsics_aarch64_bits.rs` (under `qemu-aarch64-static` from x86): `vqtbl4q_u8` (`tbl4_byte`: the 64-byte table, zero from index 64 on), `vreinterpretq_u64_u8`, `vreinterpretq_u8_u64` (the little-endian layout, `u64x2_byte`), `vandq_u64`, `vshrq_n_u64` (zero at 64), `vshlq_n_u64`, and the helpers `vld1q_u8_16`, `vld1q_u8_at`, `vst1q_u8_at`. The view `u8x16` of `uint8x16_t` is the `transmute` to `[u8; 16]`; `uint8x16x4_t` is a transparent external type (its four public fields).
   - The shared ones of `src/intrinsics/x86.rs` (`_mm256_shuffle_epi8`, `_mm256_permute4x64_epi64`, `_mm256_broadcastsi128_si256`, `_mm256_set1_epi64x`, `_mm256_and_si256`, `_mm256_xor_si256`, the 64-bit lane shifts, `_mm512_set1_epi64`, and the byte layout axioms `axiom_m128_bytes`, `axiom_m256_bytes`, `axiom_m512_bytes`) and `src/intrinsics/aarch64.rs` (`vdupq_n_u64`, `veorq_u64`).
+- `src/ntt_simd.rs` relies on the intrinsic specifications of `src/intrinsics/x86.rs` (`_mm512_set1_epi64`, `_mm512_xor_si512`, `_mm512_clmulepi64_epi128`, `_mm512_unpacklo_epi64`, `_mm512_unpackhi_epi64`, `_mm512_srli_epi64`, `_mm512_slli_epi64`, `_mm512_ternarylogic_epi64`; `_mm256_set1_epi64x`, `_mm256_xor_si256`, `_mm256_clmulepi64_epi128`, `_mm256_unpacklo_epi64`, `_mm256_unpackhi_epi64`, `_mm256_broadcastsi128_si256`, `_mm256_srli_epi64`, `_mm256_shuffle_epi8`, `_mm256_add_epi64`, with the byte layout axioms `axiom_m128_bytes`, `axiom_m256_bytes`) and `src/intrinsics/aarch64.rs` (`vdupq_n_u64`, `veorq_u64`, `vgetq_lane_u64`, `vmull_p64`, `vmull_high_p64`, with `axiom_u128_as_u64x2`, `axiom_u64x2_as_p64x2`, and those `reduce_pair_pmull4` uses), and on the trusted memory helpers of `src/intrinsics/x86_nttsimd.rs` (`loadu512_at`, `storeu512_at`, `loadu256_at`, `storeu256_at`, `loadu128_bytes`) and `src/intrinsics/aarch64_nttsimd.rs` (`vld1q_u64_at`, `vst1q_u64_at`): `external_body` functions whose bodies are production's load or store at the offset and whose specification is the words they read or write. `tests/equivalence/intrinsics_x86_nttsimd.rs` and `intrinsics_aarch64_nttsimd.rs` check each helper at every offset of random rows.
 
 ## Not covered
 
-- The SIMD arms (AVX-512, AVX2, GFNI, NEON, BMI2's `pdep` spread) are out of Verus's reach: they are intrinsic
-  calls Verus has no model of. Each is tested against the portable path in production:
+- Production-source equivalence, compiler correctness, CPU correctness and absence of undefined behavior in trusted memory helpers are not established by these proofs. Production differential coverage includes:
   - `K`: `field::gf2_64::tests::mul_and_square_match_the_reference` (PCLMULQDQ and PMULL products, `pdep` square),
     `neon_variants_match_software`.
-  - `E`: `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`,
+  - `E`: the aarch64 kernels are verified (above); the x86 ones are tested by `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`,
     `lane_products_match_software`, `register_products_match_software`, `batched_mixed_products_match_scalar`,
     `mixed_sums_match_software`, `planar_products_match_software` (added with this crate: the AVX-512
     `F192x8` kernels had no direct test).
-  - `GF(2^8)`: `software_matches_neon`, `neon_gf8_mul_vec16_matches_scalar`, `avx2_gf8_mul_vec32_matches_scalar`,
-    `neon_gf8_reduce_vec16_matches_scalar` (added with this crate: the reduction alone, on every 16-bit input,
-    as its callers in flock use it).
+  - `GF(2^8)`: the SIMD arms are verified (above); production also tests them with `software_matches_neon`, `neon_gf8_mul_vec16_matches_scalar`, `avx2_gf8_mul_vec32_matches_scalar`, `neon_gf8_reduce_vec16_matches_scalar`.
   - Bit transposes: `bits::tests::every_arm_matches_reference`; the SIMD arms of `bit_transpose_64bytes` are also verified (see above).
   - Bit folds and `F192Map`: `bit_fold::tests::fold_block_matches_definition`, `f192_map_matches_definition`, `composed_map_is_the_map_after_the_product`, `avx2_products_match_definition` (every AVX2 product, also on GFNI machines). The equivalence tests of this crate compare the verified portable copies with whatever arm the machine dispatches.
-  - NTT butterflies: `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` and the other driver
-    tests (forward), `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed).
+  - NTT butterflies: verified (`src/ntt_simd.rs`, above); production's driver tests `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` (forward) and `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed) run them too.
   - flock's LDE table (`apply_v128` on NEON and SSE2, `apply_avx2`, `apply_avx512`/`apply_zmm`): `zerocheck::ntt::inv_table::tests::apply_simd_matches_apply_scalar`, and `tests/equivalence/flock_ntt.rs`, which compares the dispatched `apply` with the verified `apply_scalar` on every single-byte row and on random rows. The round-1 kernels that read the table through `data_ptr` and `apply_zmm` (`zerocheck/round1.rs`) are not covered.
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.
+- BLAKE2s's raw-pointer batch driver, pointer load/store safety, dispatch and SIMD implementations are
+  not verified. Batch comparisons exercise the backend selected by the test build.
 - Bit folds (`crates/primitives/src/bit_fold.rs`): `BitFold::at_level`, which builds its weights with `multilinear::eq_table` (copied in `src/multilinear.rs`) and then calls `BitFold::new`, and `BitFold::fold_quads` (AVX-512 with GFNI only) are not copied. Only `out[..rows.len()]` of `fold_block` is documented and compared: past it the portable arm leaves `out` as it was (proven) and the SIMD arms store the fold of a zero row.
 - Of `multilinear.rs`, the parallel `mle_eval_par`, `SplitEq::weighted_sum` and its SIMD variants, the high folds (`fold_high_k`, `fold_high_inplace`, `interp_into`), `barycentric_sum`, `skip_lagrange_weights`, `poly_eval` and the inner products are not copied.
 - The circuit's constraints (that the hash row's wires carry the message `builder_step_message` computes) are not modeled; only the message is.
+- `AdditiveNttF64::standard(0)` panics while building an empty first table row. The supported constructor domain is `1 <= dim <= 63`, now stated in its production documentation; zero-dimensional construction is not proved or fixed here.
 
 ## Reproduce
 
@@ -325,6 +359,6 @@ verification/verus/verify.sh gf2_64                   # one module
 (cd verification/verus && cargo test --release)       # the verified copies against production
 ```
 
-`verify.sh` downloads the release from GitHub (Linux x86-64), installs its Rust toolchain with `rustup`, and runs
-`cargo verus verify`. Set `VERUS_HOME` to install elsewhere and `VERUS_THREADS` to change the solver's parallelism
-(default 4). The whole crate verifies in about a minute and a half per configuration on one machine with two solver threads.
+`verify.sh` downloads the pinned Linux x86-64 release if needed, installs its Rust toolchain with `rustup`, and checks every configuration listed above. Set `VERUS_HOME` to install elsewhere, `VERUS_THREADS` to control solver parallelism (default 4), and `VERUS_CONFIGS` to select configurations. Solver and equivalence counts belong in the PR verification report, not a performance claim.
+
+The script isolates whole-crate and per-module proof caches, because changing the forwarded module argument must not reuse a different module's cached result. `CARGO_TARGET_DIR` selects the cache root; configuration and proof-selection directories are appended.

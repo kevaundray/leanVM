@@ -40,14 +40,21 @@ export PATH="$home/verus-x86-linux:$PATH"
 cd "$(dirname "$0")"
 threads=(--num-threads "${VERUS_THREADS:-4}")
 selected="${VERUS_CONFIGS:-}"
+target_root="${CARGO_TARGET_DIR:-target/verus}"
+# `cargo verus focus` can replay a cached root-package result with different forwarded module arguments.
+# Keep each requested module separate from other focus queries and from the whole-crate proof.
+scope=all
+if [ $# -gt 0 ]; then
+  scope="focus/$1"
+fi
 for config in "${CONFIGS[@]}"; do
   IFS='|' read -r name triple flags <<<"$config"
   if [ -n "$selected" ] && [[ " $selected " != *" $name "* ]]; then
     continue
   fi
   echo "== $name ($flags)"
-  # One target directory per configuration, so switching flags does not rebuild the others.
-  export RUSTFLAGS="$flags" CARGO_TARGET_DIR="target/verus/$name"
+  # Isolate the ISA flags and proof selection, while reusing each selection's dependency cache.
+  export RUSTFLAGS="$flags" CARGO_TARGET_DIR="$target_root/$name/$scope"
   if [ $# -gt 0 ]; then
     cargo verus focus --target "$triple" -- "${threads[@]}" --verify-module "$1"
   else

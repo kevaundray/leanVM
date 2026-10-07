@@ -1,8 +1,10 @@
-//! Verus proofs of leanVM's portable field arithmetic, bit transposes and additive NTT.
+//! Verus proofs of annotated leanVM arithmetic and kernel copies, with explicit intrinsic trust contracts.
 #![allow(unused_parens, unused_imports, unused_variables, dead_code, clippy::all)]
 
 pub mod bit_fold;
 pub mod bits;
+pub mod blake2s;
+pub mod blake2s_batch;
 pub mod clmul;
 pub mod fiat_shamir;
 pub mod flock_ntt;
@@ -15,5 +17,6 @@ pub mod multilinear;
 pub mod neon;
 pub mod ntt;
 pub mod ntt_lanes;
+pub mod ntt_simd;
 pub mod phi8_tower;
 pub mod skip_domain;
