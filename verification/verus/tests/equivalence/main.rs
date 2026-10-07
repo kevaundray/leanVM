@@ -1,7 +1,7 @@
-//! The verified copies agree with the production functions they were copied from.
+//! Differential checks between executable verified copies, intrinsic models and production.
 //!
-//! Each verified function in `src/` is a copy of a portable production function. These tests run both on
-//! random inputs and on the edge cases, so an edit to one side without the other fails here.
+//! Edge, exhaustive small-domain and deterministic random cases can detect divergence but do not prove
+//! source equivalence or guarantee that future copy drift will be caught.
 
 mod bit_fold;
 mod bits;

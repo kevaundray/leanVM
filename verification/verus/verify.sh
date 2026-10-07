@@ -40,6 +40,7 @@ export PATH="$home/verus-x86-linux:$PATH"
 cd "$(dirname "$0")"
 threads=(--num-threads "${VERUS_THREADS:-4}")
 selected="${VERUS_CONFIGS:-}"
+target_root="${CARGO_TARGET_DIR:-target/verus}"
 for config in "${CONFIGS[@]}"; do
   IFS='|' read -r name triple flags <<<"$config"
   if [ -n "$selected" ] && [[ " $selected " != *" $name "* ]]; then
@@ -47,7 +48,7 @@ for config in "${CONFIGS[@]}"; do
   fi
   echo "== $name ($flags)"
   # One target directory per configuration, so switching flags does not rebuild the others.
-  export RUSTFLAGS="$flags" CARGO_TARGET_DIR="target/verus/$name"
+  export RUSTFLAGS="$flags" CARGO_TARGET_DIR="$target_root/$name"
   if [ $# -gt 0 ]; then
     cargo verus focus --target "$triple" -- "${threads[@]}" --verify-module "$1"
   else

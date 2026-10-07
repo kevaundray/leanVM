@@ -1,34 +1,17 @@
 # Verus proofs of the field arithmetic, bit transposes and additive NTT
 
-This crate proves, with [Verus](https://verus-lang.github.io/verus/guide/overview.html), that the portable
-(non-SIMD) code of `crates/primitives` (the fields `K = GF(2^64)`, `E = GF(2^192)` and `GF(2^8)`, the bit
-transposes, the embedding `φ₈`, the bit folds, the equality polynomial and multilinear evaluation), of
-`crates/pcs/src/ntt` (the additive NTT), of `crates/flock/src/zerocheck/ntt` (the `GF(2^8)` NTT of flock's
-zerocheck) and `crates/flock/src/zerocheck/skip_domain.rs` (the univariate-skip domain), and the Fiat-Shamir step
-block of `crates/fiat_shamir`, compute the mathematics they are meant to.
+This standalone crate verifies annotated executable copies and mathematical models of leanVM arithmetic using [Verus](https://verus-lang.github.io/verus/guide/overview.html). Coverage includes portable field arithmetic, selected SIMD field and reduction kernels, bit transposes, the embedding `φ₈`, bit-fold linear maps, equality tables and multilinear evaluation, additive NTT kernels and evaluation theorems, the `GF(2^8)` NTT used by flock, skip-domain interpolation, and Fiat-Shamir block encoding. Each theorem applies to its stated preconditions and the checked copy, not directly to production source.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
 
 ## How it is tied to the production code
 
-Verus verifies code written inside `verus! { }`. Rather than putting `vstd` and the macro into the production
-crates, each module here holds a copy of the production functions, with the same names, signatures and bodies
-wherever Verus accepts them, and attaches its specification to the copy. A copy differs from production only
-where Verus needs another form; each difference is noted at the function (iterator chains and
-`array::map`/`from_fn` become index loops or explicit arrays, `step_by` becomes a `while`, slice patterns become
-indexing, `assert!` on an argument becomes a `requires`, `debug_assert!` becomes a proven `assert`, `mut self`
-is rebound). SIMD arms are not copied.
+Verus checks functions inside `verus! { }`. Production does not depend on `vstd`: modules here copy production operations and attach specifications. Source adaptations are documented at each function: iterator chains, array maps and patterns become loops or explicit arrays; argument assertions become preconditions; debug assertions become proved assertions. SIMD copies call real intrinsics with trusted lane specifications and trusted memory wrappers where pointer operations cannot be expressed directly.
 
-`tests/equivalence/` then runs every copy against the production function it copies: exhaustively where the
-domain is small (all `GF(2^8)` pairs, all 16-bit reductions), and otherwise on 10k to 100k random inputs plus
-edge cases (zero, one, all ones, top bits only, the reduction constant). Production functions that are private
-are reached through the nearest public function that calls them (each test says which); flock's zerocheck NTT has
-no public path at all, so its two source files are compiled into the test binary by `#[path]` and called directly.
-An edit to one side without the other fails these tests. CI's `Verus proofs` job runs both the proofs and these tests.
+`tests/equivalence/` compares executable copies with production on exhaustive small domains and deterministic edge and random inputs. Private functions use reachable public callers or source modules compiled into the test binary, with exceptions recorded below. These tests can detect drift, but do not prove source equivalence or guarantee that future divergence will be caught. A verified model or copy is not verified production source.
 
-Production is compiled natively there, so the tests also compare the dispatched SIMD arms of the machine (on
-CI's runners the AVX2 arms) with the verified portable copies.
+The proof matrix covers portable x86, Haswell, AVX2 with VPCLMULQDQ (with and without GFNI), AVX-512, and AArch64 with and without SHA3. Native tests exercise available hardware; AArch64 tests under QEMU exercise an emulator rather than physical ARM hardware. CI additionally runs the equivalence suite on an ARM64 runner. Runtime feature checks skip unavailable x86 instructions; a passing skipped test is not hardware evidence for that instruction.
 
 ## What is proven
 
@@ -54,9 +37,8 @@ Polynomials over GF(2) are machine words, bit `i` the coefficient of `x^i`. The 
 - Fermat: `a^(2^64) = a` for every `a`.
 - So `K` is a field, with no assumption on `M`: the proof shows the only idempotents (`e^2 = e`) are 0 and 1,
   one bit-vector query on the squaring map, then `a^(2^64 - 1)` is an idempotent that is not 0 when `a` is not.
-- The reduction of the scalar SIMD products (`x86_64::mul`, `aarch64::mul_shift_tail`,
-  `aarch64::reduce_pair_pmull4`: `t = hi(p) * 0x1B`, `u = hi(t) * 0x1B`, `lo(p ^ t ^ u)`) equals `reduce`, given
-  that PCLMULQDQ and PMULL compute `clmul` (`lemma_clmul_fold_reduction`).
+- SIMD copies of `x86_64::mul` and `aarch64::mul_shift_tail` compute `k_mul`; x86 `clmul` and NEON `pmull`/`pmull_hi` compute the specified carry-less product. `aarch64::reduce_pair_pmull4` returns the two `k_mod` remainders lane by lane, for arbitrary 128-bit inputs. BMI2 `spread` equals the carry-less square by depositing each input bit into an even output position. The dispatched `F64` operations retain their field contracts in each configuration.
+- These proofs use `lemma_clmul_fold_reduction` for the two high-word folds by `0x1B` and the explicit intrinsic assumptions below. The empty NEON assembly barrier is represented by the trusted identity wrapper `hide_lanes`, not verified assembly.
 
 ### `E = GF(2^192)` (`src/gf2_64x3.rs`)
 
@@ -220,7 +202,7 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
 
 ## Trust base and assumptions
 
-- No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
+- Kernel theorems do not use `assume` or `admit` to discharge their obligations. The trust boundary explicitly includes `assume_specification`, external vector type declarations, `axiom fn` layout facts, and `#[verifier::external_body]` memory helpers in the intrinsic modules. These are assumptions, not proved ISA or pointer-safety results.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
 - `vstd`'s specifications of what the copies call are trusted: integer `From`, the operator traits, `Vec` and
@@ -228,10 +210,11 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
   `Vec::as_mut_slice`, `split_at_mut`, `u64::trailing_zeros`, and its proven `pow2` and division lemmas.
 - `src/ntt.rs` declares `global size_of usize == 8`: the NTT proofs are for 64-bit targets, which Verus checks
   when it compiles the crate.
-- The copies equal the production functions by test, not by proof (see above). Two copies have no public production counterpart to run: `builder_step_message` (`Builder` is in `leanvm_core`'s private `rec` module) is tied by `rec::transcript::tests::the_circuit_replays_the_native_transcript`, the circuit's steps hashing to the native ones; `SkipDomain::first_round_at` (crate-private, run only inside a whole zerocheck) and `SkipDomain::new` are compared with the references production's own `skip_domain::tests` compare production with.
+- Copy-to-production correspondence is tested, not proved. `builder_step_message` has no public production counterpart (`Builder` is in `leanvm_core`'s private `rec` module); production's `rec::transcript::tests::the_circuit_replays_the_native_transcript` checks the circuit/native transcript relationship separately. `SkipDomain::first_round_at` and `SkipDomain::new` are compared with the references used by production's own tests.
 - `PHI_8_TABLE_192`, `DENOMINATORS` and `SkipDomain::FLOCK` are written in Verus's `exec static` / `exec const` form, which states what the initializer returns; Verus checks the initializer like a function body. The parallel pass of `fill_eq_table_uninit` is copied as a loop over the same rows in order.
-- The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
-  are stated as lemmas over `clmul`; no SIMD code is verified.
+- `src/intrinsics/mod.rs` trusts `core::mem::transmute` through the uninterpreted `transmuted` view. Per-architecture layout axioms relate byte, word and polynomial views in little-endian lane order. Intrinsic specifications and memory contracts are compared with their executable models, not proved from ISA semantics, compiler lowering or hardware.
+- Shared x86 contracts in `src/intrinsics/x86.rs`, exercised by `tests/equivalence/intrinsics_x86.rs`, specify scalar/register conversion, word constructors, XOR/AND, wrapping 64-bit addition, PCLMULQDQ and VPCLMULQDQ per 128-bit lane (immediate bits 0 and 4 choose operands), BMI2 bit deposit, low/high word unpacking, lane shifts, lane-local byte shuffles, broadcast, 64-bit permutations, two-source permutations, 128-bit-block shuffles, and ternary Boolean logic. Layout axioms are `axiom_m128_bytes`, `axiom_m256_bytes`, `axiom_m512_bytes`, `axiom_m128_as_u128`, `axiom_m256_as_pairs`, `axiom_m512_as_pairs`, and `axiom_m512_from_words`. Their source declarations enumerate each intrinsic and immediate domain.
+- Shared AArch64 contracts in `src/intrinsics/aarch64.rs`, exercised by `tests/equivalence/intrinsics_aarch64.rs`, specify `vmull_p64`, `vmull_high_p64`, `vdupq_n_u64`, `veorq_u64`, `veor3q_u64`, `vzip1q_u64`, and `vgetq_lane_u64`. Layout axioms are `axiom_u128_as_u64x2`, `axiom_u64x2_as_u128`, and `axiom_u64x2_as_p64x2`. `gf2_64::aarch64::hide_lanes` trusts the empty inline-assembly barrier to preserve its registers; reduction tests exercise that wrapper through `reduce_pair_pmull4`.
 - `src/bit_fold.rs` relies on `vstd`'s specification of `u8::trailing_zeros` (with its proven `axiom_u8_trailing_zeros`) and of `Vec::push`, `Vec::as_slice` and `Vec::as_mut_slice`.
 - `src/intrinsics/aarch64_gfneon.rs` and `src/intrinsics/x86_gfneon.rs` (the `E` aarch64 kernels and the `GF(2^8)` SIMD arms): `assume_specification`s of `vreinterpretq_p64_u64`, `vcreate_u64`, `vcombine_u64`, `vextq_u64`, `vdupq_laneq_u64`, `vdup_n_p8`, `vmull_p8`, `vreinterpretq_u16_p16`, `vreinterpretq_u8_u16`, `vgetq_lane_u16`, `vshlq_n_u16`, `vget_low_u8`, `vget_high_u8`, `vuzp1q_u8`, `vuzp2q_u8`, `veorq_u8`, `_mm256_setzero_si256`, `_mm256_set1_epi8`, `_mm256_add_epi8`, `_mm256_cmpgt_epi8`; the layout axioms `axiom_u8x8_as_p8x8`, `axiom_u64_as_p8x8`, `axiom_words_as_u64x2`; and the `external_body` memory helpers `gf2_64x3::aarch64::load_f192` and `store_f192`, whose bodies are production's loads and stores. Each is compared with the hardware in `tests/equivalence/intrinsics_aarch64_gfneon.rs` and `intrinsics_x86_gfneon.rs` (under `qemu-aarch64-static` for NEON), through the executable twins `model_vmull_p8_lane`, `model_uzp_u8_lane`, `model_ext_u64_lane`, `model_u16_byte`, `model_cmpgt_epi8_lane` where the lane semantics is more than a move. `vstd`'s `MaybeUninit` specification (`as_option`) states what `store` writes.
 - The SIMD arms of the bit transposes assume the specifications of the intrinsics they call, each tied to the hardware by a differential test that runs the real intrinsic on edge and random operands and compares every lane with the specification's executable twin:
@@ -242,8 +225,7 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
 
 ## Not covered
 
-- The SIMD arms (AVX-512, AVX2, GFNI, NEON, BMI2's `pdep` spread) are out of Verus's reach: they are intrinsic
-  calls Verus has no model of. Each is tested against the portable path in production:
+- Production-source equivalence, compiler correctness, CPU correctness and absence of undefined behavior in trusted memory helpers are not established by these proofs. Production differential coverage includes:
   - `K`: `field::gf2_64::tests::mul_and_square_match_the_reference` (PCLMULQDQ and PMULL products, `pdep` square),
     `neon_variants_match_software`.
   - `E`: the aarch64 kernels are verified (above); the x86 ones are tested by `field::gf2_64x3::tests::products_match_software`, `batched_products_match_software`,
@@ -261,6 +243,7 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
 - Bit folds (`crates/primitives/src/bit_fold.rs`): `BitFold::at_level`, which builds its weights with `multilinear::eq_table` (copied in `src/multilinear.rs`) and then calls `BitFold::new`, and `BitFold::fold_quads` (AVX-512 with GFNI only) are not copied. Only `out[..rows.len()]` of `fold_block` is documented and compared: past it the portable arm leaves `out` as it was (proven) and the SIMD arms store the fold of a zero row.
 - Of `multilinear.rs`, the parallel `mle_eval_par`, `SplitEq::weighted_sum` and its SIMD variants, the high folds (`fold_high_k`, `fold_high_inplace`, `interp_into`), `barycentric_sum`, `skip_lagrange_weights`, `poly_eval` and the inner products are not copied.
 - The circuit's constraints (that the hash row's wires carry the message `builder_step_message` computes) are not modeled; only the message is.
+- `AdditiveNttF64::standard(0)` panics while building an empty first table row. The supported constructor domain is `1 <= dim <= 63`, now stated in its production documentation; zero-dimensional construction is not proved or fixed here.
 
 ## Reproduce
 
@@ -274,6 +257,4 @@ verification/verus/verify.sh gf2_64                   # one module
 (cd verification/verus && cargo test --release)       # the verified copies against production
 ```
 
-`verify.sh` downloads the release from GitHub (Linux x86-64), installs its Rust toolchain with `rustup`, and runs
-`cargo verus verify`. Set `VERUS_HOME` to install elsewhere and `VERUS_THREADS` to change the solver's parallelism
-(default 4). The whole crate verifies in about a minute and a half per configuration on one machine with two solver threads.
+`verify.sh` downloads the pinned Linux x86-64 release if needed, installs its Rust toolchain with `rustup`, and checks every configuration listed above. Set `VERUS_HOME` to install elsewhere, `VERUS_THREADS` to control solver parallelism (default 4), and `VERUS_CONFIGS` to select configurations. Solver and equivalence counts belong in the PR verification report, not a performance claim.
