@@ -30,6 +30,10 @@ On the way, each part of verification is proven equal to the specification's:
 
 `scripts/Axioms.lean` prints the axioms each theorem rests on.
 
+## Status
+
+Everything above is proven except one lemma: `encode_spec` (`Encoding.lean`), the target-sum encoding, is stated and used but still has a `sorry`, with two of its sub-lemmas (`fold6`, `fold12`, the last two folds of `Digits::sum`'s field-wise digit sum). So `verify_spec`, `verify_ok_iff`, `main_spec` and `main_terminates` rest on it (`scripts/Axioms.lean` shows `sorryAx` for them and for nothing else); `tweak_hash_spec`, `wots_leaf_spec`, `merkle_root_spec` and the `Words.lean` theorems are complete. Proven toward it: `Digits::get` (`get_ok`) and the first step of `Digits::sum` (`land_even`, `land_odd`). What remains: the two folds, relating the digest's words to the specification's `digestWord`, `padded` to the guest's top-bit test, and the 42-term `onTarget` sum to `Digits::sum`. A monolithic `bv_decide` of the SWAR identity does not finish in 10 minutes.
+
 ## What is trusted
 
 - **Charon and Aeneas**: that the Lean translation in `Leanxmss/Types.lean` and `Leanxmss/Funs.lean` means what the Rust means (with Rust's debug semantics: an overflowing `+` or a shift past the width is a panic; the proofs show none happens).

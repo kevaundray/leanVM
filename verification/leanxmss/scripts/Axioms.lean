@@ -9,3 +9,7 @@ import LeanxmssProofs
 #print axioms leanxmss.Proofs.Words.publicKey_onto
 #print axioms leanxmss.Proofs.Words.signature_onto
 #print axioms leanxmss.Proofs.Words.message_onto
+#print axioms leanxmss.Proofs.wots_leaf_spec
+#print axioms leanxmss.Proofs.merkle_root_spec
+#print axioms leanxmss.Proofs.tweak_hash_spec
+#print axioms leanxmss.Proofs.encode_spec
