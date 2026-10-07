@@ -3,7 +3,7 @@ name = "leanvm-verus"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Verus proofs of leanVM's portable field arithmetic, bit transposes and additive NTT"
+description = "Verus proofs of leanVM's portable arithmetic, transposes, additive NTT and BLAKE2s copies/models"
 
 # Its own workspace: not a member of the leanVM one, so `cargo build` and the main CI never see it.
 [workspace]

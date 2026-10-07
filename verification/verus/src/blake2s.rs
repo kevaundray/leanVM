@@ -42,6 +42,9 @@ pub open spec fn add_mod(x: u32, y: u32, z: u32) -> u32 {
 }
 
 /// The mixing function G (RFC 7693, section 3.1), with BLAKE2s's rotations `R1..R4 = 16, 12, 8, 7`.
+///
+/// Opaque: proofs above one G treat it as a function.
+#[verifier::opaque]
 pub open spec fn g_spec(v: Seq<u32>, a: int, b: int, c: int, d: int, x: u32, y: u32) -> Seq<u32> {
     let v = v.update(a, add_mod(v[a], v[b], x));
     let v = v.update(d, rotr(v[d] ^ v[a], 16));
@@ -429,6 +432,7 @@ pub fn compress(h: &mut [u32; 8], m: &[u32; 16], t: u64, last: bool)
             v[b] = (v[b] ^ v[c]).rotate_right(7);
             proof {
                 broadcast use lemma_add_mod3, lemma_add_mod2;
+                reveal(g_spec);
                 assert(v@ =~= g_of_round(vg, m@, r as int, g as int));
             }
         }

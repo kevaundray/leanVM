@@ -1,8 +1,8 @@
-# Verus proofs of the field arithmetic, bit transposes and additive NTT
+# Verus proofs of field arithmetic, bit transposes, additive NTT and BLAKE2s
 
-This crate proves, with [Verus](https://verus-lang.github.io/verus/guide/overview.html), that the portable
-(non-SIMD) code of `crates/primitives` (the fields `K = GF(2^64)`, `E = GF(2^192)` and `GF(2^8)`, the bit
-transposes) and of `crates/pcs/src/ntt` (the additive NTT) computes the mathematics it is meant to.
+This crate uses [Verus](https://verus-lang.github.io/verus/guide/overview.html) to verify executable copies
+of portable code from `crates/primitives` and `crates/pcs/src/ntt` against mathematical specifications.
+It does not verify the production source itself.
 
 It is a workspace of its own, outside the leanVM one: `cargo build`, `cargo testall` and the other CI jobs never
 see it, and the production crates do not depend on Verus.
@@ -17,11 +17,11 @@ where Verus needs another form; each difference is noted at the function (iterat
 indexing, `assert!` on an argument becomes a `requires`, `debug_assert!` becomes a proven `assert`, `mut self`
 is rebound). SIMD arms are not copied.
 
-`tests/equivalence/` then runs every copy against the production function it copies: exhaustively where the
-domain is small (all `GF(2^8)` pairs, all 16-bit reductions), and otherwise on 10k to 100k random inputs plus
-edge cases (zero, one, all ones, top bits only, the reduction constant). Production functions that are private
-are reached through the nearest public function that calls them (each test says which). An edit to one side
-without the other fails these tests. CI's `Verus proofs` job runs both the proofs and these tests.
+`tests/equivalence/` compares the executable copies with production: exhaustively where the domain is
+small (all `GF(2^8)` pairs, all 16-bit reductions), and otherwise on deterministic samples and edge cases.
+Production functions that are private are reached through the nearest public function that calls them
+(each test says which). These comparisons can detect drift on exercised inputs, but do not prove equivalence
+or prevent drift. CI's `Verus proofs` job runs both the proofs and these tests.
 
 Production is compiled natively there, so the tests also compare the dispatched SIMD arms of the machine (on
 CI's runners the AVX2 arms) with the verified portable copies.
@@ -117,16 +117,46 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### BLAKE2s (`src/blake2s.rs`, `src/blake2s_batch.rs`)
+
+- The model transcribes [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693), sections 2 and 3: 32-bit modular
+  addition, G with rotations 16, 12, 8, 7, IV, SIGMA, ten rounds, counter injection, final-block flag and
+  feed-forward. The message model is unkeyed BLAKE2s-256, including parameter initialization,
+  little-endian encoding, zero padding, and the empty message's single final block.
+- The scalar executable copies prove `compress = f_spec`, `hash = blake2s_spec`, and streaming
+  `Hasher::finalize = blake2s_spec` of all bytes absorbed. The streaming invariant retains a full last
+  block until more input arrives. Message lengths and continued counters must remain below `2^64`.
+  `hash_from_state` proves whole-block continuation from arbitrary states;
+  `lemma_zero_prefix_continuation` connects the zero-prefix state to the full message hash.
+- `compress_groups` proves RFC compression separately for every group and every lane of a transposed
+  state, for all group counts. Both the single-group inline rounds and interleaved multi-group rounds
+  are covered. The theorem is generic over the `Lanes32` arithmetic contracts; `Scalar8` proves those
+  contracts. G and group loops are factored into inline helpers to isolate their proof contexts.
+- Safe array models `transpose_words` and `store_digests` prove the state/message transpose and
+  little-endian digest scatter. `compress_rows` composes these with compression and proves each lane's
+  output is the RFC compression digest of that input lane. These layout models replace raw-pointer
+  operations; they do not prove production's pointer manipulation or batched driver.
+- Equivalence tests compare scalar compression, one-shot and streaming hashes, prefix states and
+  continuation with production. The RFC Appendix B `"abc"` known answer checks both copies and production.
+  Batch tests compare groups 1, 2 and 4 through production's public batched hash and compare arbitrary
+  transposed compression states lane by lane, including both counter halves and final flags.
+- These are functional-correctness results relative to the RFC model, not proofs of collision resistance,
+  preimage resistance, constant-time execution, or cryptographic security. Keyed and variable-output
+  BLAKE2 modes are not modeled.
+
 ## Trust base and assumptions
 
-- No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
+- No `assume`, `admit`, or `#[verifier::external_body]` proof escape is used. `src/blake2s.rs` has one
+  explicit `assume_specification` for `u32::rotate_right`, absent from the pinned `vstd`: for
+  `0 < n < 32` it equals `(x >> n) ^ (x << (32 - n))`. A deterministic test checks samples and edge
+  cases against Rust's implementation, but does not prove this trusted library contract.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
 - `vstd`'s specifications of what the copies call are trusted: integer `From`, the operator traits, `Vec` and
   slice indexing, `slice_to_vec`, and its proven `pow2` and division lemmas.
 - `src/ntt.rs` declares `global size_of usize == 8`: the NTT proofs are for 64-bit targets, which Verus checks
   when it compiles the crate.
-- The copies equal the production functions by test, not by proof (see above).
+- The connection between copies and production is tested on selected inputs, not proved.
 - The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
   are stated as lemmas over `clmul`; no SIMD code is verified.
 
@@ -149,6 +179,8 @@ Following annex `d` of the leanVM document:
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.
+- BLAKE2s's raw-pointer batch driver, pointer load/store safety, dispatch and SIMD implementations are
+  not verified. Batch comparisons exercise the backend selected by the test build.
 - `phi8_tower.rs` and `bit_fold` are not covered.
 
 ## Reproduce
@@ -165,4 +197,4 @@ verification/verus/verify.sh gf2_64                   # one module
 
 `verify.sh` downloads the release from GitHub (Linux x86-64), installs its Rust toolchain with `rustup`, and runs
 `cargo verus verify`. Set `VERUS_HOME` to install elsewhere and `VERUS_THREADS` to change the solver's parallelism
-(default 4). The whole crate verifies in under a minute on one machine.
+(default 4).

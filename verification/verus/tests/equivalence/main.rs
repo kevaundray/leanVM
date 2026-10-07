@@ -1,10 +1,11 @@
-//! The verified copies agree with the production functions they were copied from.
+//! Differential checks between verified executable copies/models and production.
 //!
-//! Each verified function in `src/` is a copy of a portable production function. These tests run both on
-//! random inputs and on the edge cases, so an edit to one side without the other fails here.
+//! Deterministic samples and edge cases can detect disagreement on exercised inputs, but neither
+//! prove production-source equivalence nor prevent drift.
 
 mod bits;
 mod blake2s;
+mod blake2s_batch;
 mod gf2_64;
 mod gf2_64x3;
 mod gf2_8;
