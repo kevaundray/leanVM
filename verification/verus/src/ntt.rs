@@ -1378,7 +1378,7 @@ proof fn lemma_sweep_step(
 }
 
 /// The exec shape of one layer of a `2^log_d`-row transform: `2^layer` blocks of `2h` rows.
-proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
+pub proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
     requires
         layer < log_d,
     ensures
@@ -1398,13 +1398,13 @@ proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
     ;
 }
 
-proof fn lemma_layer_map_len(data: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) -> u64, inverse: bool)
+pub proof fn lemma_layer_map_len(data: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) -> u64, inverse: bool)
     ensures
         layer_map(data, m, h, tw, inverse).len() == data.len(),
 {
 }
 
-proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, start: nat, end: nat)
+pub proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, start: nat, end: nat)
     ensures
         forward_layers(tab, data, m, log_d, start, end).len() == data.len(),
     decreases end,

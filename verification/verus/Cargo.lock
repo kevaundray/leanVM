@@ -72,6 +72,7 @@ dependencies = [
 name = "leanvm-verus"
 version = "0.1.0"
 dependencies = [
+ "parallel",
  "pcs",
  "primitives",
  "vstd",
