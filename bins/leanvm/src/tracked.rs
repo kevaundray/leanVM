@@ -7,9 +7,9 @@
 //! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
 //! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
 //! base and head are proven in turns on one runner and compared there. leanXMSS at a quarter,
-//! and the 2-to-1 tree over it, are also proven on one thread, in a process of their own
-//! (`ONE_THREAD`). A case's name is what a PR's results are matched by, so renaming one or
-//! changing its input shows it as new.
+//! and the 2-to-1 and 4-to-1 trees over it, are also proven on one thread, in a process of
+//! their own (`ONE_THREAD`). A case's name is what a PR's results are matched by, so renaming
+//! one or changing its input shows it as new.
 //!
 //! An aggregation tree is tracked the same way: each kind of node's circuit counted without a
 //! proof (the leaf's run measured gives the shape its proofs announce), and one node of each
@@ -84,7 +84,11 @@ fn proven() -> [(&'static str, Build); 8] {
 /// `LEANVM_NUM_THREADS`, so unless this process's pool is one thread already, such a case is
 /// proven by a child: this executable run again with `LEANVM_NUM_THREADS=1` (`on_one_thread`),
 /// a tree's leaf proof included.
-const ONE_THREAD: [&str; 2] = ["leanxmss-100-1thread", "aggregate-leanxmss-100-2to1-1thread"];
+const ONE_THREAD: [&str; 3] = [
+    "leanxmss-100-1thread",
+    "aggregate-leanxmss-100-2to1-1thread",
+    "aggregate-leanxmss-100-4to1-1thread",
+];
 
 /// An aggregation tree over copies of one case's proof: first-level nodes of `arity_0` leaves,
 /// nodes of `arity` tree proofs. A tree's name ends `<N>to1` when both are `N`: every node
@@ -151,9 +155,8 @@ fn counted_trees() -> Vec<Aggregation> {
 type BuildTree = fn(&'static str) -> Aggregation;
 
 /// Aggregation trees proven: the counted trees' arities over leaves of a size proven above, and
-/// the 2-to-1 tree again on one thread. Each gives two benchmarks, `<name>-first` and
-/// `<name>-node`.
-fn proven_trees() -> [(&'static str, BuildTree); 3] {
+/// both trees again on one thread. Each gives two benchmarks, `<name>-first` and `<name>-node`.
+fn proven_trees() -> [(&'static str, BuildTree); 4] {
     [
         ("aggregate-leanxmss-100-2to1", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
@@ -163,6 +166,9 @@ fn proven_trees() -> [(&'static str, BuildTree); 3] {
         }),
         ("aggregate-leanxmss-100-2to1-1thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
+        }),
+        ("aggregate-leanxmss-100-4to1-1thread", |name| {
+            Aggregation::new(name, Workload::leanxmss(100), 4, 4)
         }),
     ]
 }
