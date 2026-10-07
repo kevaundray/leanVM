@@ -3,6 +3,7 @@
 
 pub mod bits;
 pub mod clmul;
+pub mod flock_ntt;
 pub mod gf2_64;
 pub mod gf2_64x3;
 pub mod gf2_8;
