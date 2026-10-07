@@ -1,10 +1,12 @@
-//! The parallel driver of the additive NTT: `transform`, `gathered_pass`, `run_layers`, `fused_rows`,
-//! `replicate` and the fused row groups of `crates/pcs/src/ntt/additive_ntt_f64.rs`.
+//! Permission-backed executable refinement of the parallel additive NTT driver.
+//! `run_layers`, `fused_rows` and row groups copy the portable production operations;
+//! `transform` composes a caller-supplied gathered/deep plan on populated replicas.
 //!
-//! The copies keep production's bodies, with the buffer's memory held as permissions
-//! ([`crate::parallel::owns`]): every raw pointer access goes through the permission of the element it
-//! touches, and the pool's tasks receive disjoint permission maps, so the tasks cannot race and no access
-//! is out of bounds. `tests/equivalence/ntt_driver.rs` checks the copies against production.
+//! Memory is held as [`crate::parallel::owns`] permissions. Raw accesses require the
+//! touched elements' permissions; distinct dispatched tasks receive disjoint maps.
+//! The real pool's exactly-once joined dispatch is trusted, not proved. Production's
+//! cache planner, fused replication, row sinks and streaming fences are not verified.
+//! Function comments document rewrites; differential tests supply finite evidence only.
 //!
 //! Specification:
 //!
@@ -21,6 +23,7 @@
 
 use crate::gf2_64::*;
 use crate::ntt::*;
+use crate::parallel;
 use crate::parallel::*;
 use vstd::arithmetic::div_mod::*;
 use vstd::arithmetic::mul::*;
@@ -2671,6 +2674,1060 @@ impl AdditiveNttF64 {
                 assert(buf@ =~= target);
                 lemma_sub_layers_split(tab, b0, m, log_d as nat, outer_log as nat, sub_idx as int, first_layer as nat, (layer - tw_layers) as nat, layer as nat);
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The gathered pass
+// ---------------------------------------------------------------------------------------------
+/// Word `k` is in the gather of the rows `base_row + r + i * step`, `i < cnt`.
+pub open spec fn in_gather(k: int, m: nat, base_row: int, r: int, step: int, cnt: nat) -> bool {
+    &&& 0 <= k
+    &&& base_row <= k / (m as int) < base_row + cnt * step
+    &&& (k / (m as int) - base_row) % step == r
+}
+
+/// Row `i` of a gather: its word offset, and the gather words it holds.
+proof fn lemma_gather_row(m: nat, base_row: int, r: int, step: int, cnt: nat, i: int)
+    requires
+        m > 0,
+        base_row >= 0,
+        0 <= r < step,
+        0 <= i < cnt,
+    ensures
+        (base_row + r + i * step) * m >= 0,
+        (base_row + r + i * step) * m + m <= (base_row + cnt * step) * m,
+        forall|lane: int| 0 <= lane < m ==> #[trigger] gidx(m, base_row, r, step, i * m + lane) == (base_row + r + i * step) * m + lane,
+{
+    let mi = m as int;
+    assert(base_row + r + i * step >= 0) by (nonlinear_arith)
+        requires
+            base_row >= 0,
+            r >= 0,
+            i >= 0,
+            step > 0,
+    ;
+    assert(base_row + r + i * step + 1 <= base_row + cnt * step) by (nonlinear_arith)
+        requires
+            i + 1 <= cnt,
+            0 <= r < step,
+    ;
+    assert((base_row + r + i * step) * mi >= 0) by (nonlinear_arith)
+        requires
+            base_row + r + i * step >= 0,
+            mi > 0,
+    ;
+    assert((base_row + r + i * step) * mi + mi <= (base_row + cnt * step) * mi) by (nonlinear_arith)
+        requires
+            base_row + r + i * step + 1 <= base_row + cnt * step,
+            mi > 0,
+    ;
+    assert forall|lane: int| 0 <= lane < m implies #[trigger] gidx(m, base_row, r, step, i * m + lane) == (base_row + r + i * step) * m + lane by {
+        lemma_word(i, lane, mi);
+    }
+}
+
+/// The words of row `i` of a gather are in it.
+proof fn lemma_row_in_gather(k: int, m: nat, base_row: int, r: int, step: int, cnt: nat, i: int)
+    requires
+        m > 0,
+        base_row >= 0,
+        0 <= r < step,
+        0 <= i < cnt,
+        (base_row + r + i * step) * m <= k < (base_row + r + i * step) * m + m,
+    ensures
+        in_gather(k, m, base_row, r, step, cnt),
+{
+    let mi = m as int;
+    lemma_gather_row(m, base_row, r, step, cnt, i);
+    lemma_word(base_row + r + i * step, k - (base_row + r + i * step) * mi, mi);
+    assert(base_row + r + i * step + 1 <= base_row + cnt * step) by (nonlinear_arith)
+        requires
+            i + 1 <= cnt,
+            0 <= r < step,
+    ;
+    assert(i * step >= 0) by (nonlinear_arith)
+        requires
+            i >= 0,
+            step > 0,
+    ;
+    lemma_fundamental_div_mod_converse(r + i * step, step, i, r);
+}
+
+/// Every word of a gather is word `q` of row `q / m`.
+proof fn lemma_in_gather_index(k: int, m: nat, base_row: int, r: int, step: int, cnt: nat)
+    requires
+        m > 0,
+        base_row >= 0,
+        0 <= r < step,
+        in_gather(k, m, base_row, r, step, cnt),
+    ensures
+        ({
+            let q = ((k / (m as int) - base_row) / step) * m + k % (m as int);
+            &&& 0 <= q < cnt * m
+            &&& gidx(m, base_row, r, step, q) == k
+        }),
+{
+    let mi = m as int;
+    let row = k / mi;
+    let i = (row - base_row) / step;
+    let lane = k % mi;
+    lemma_split_word(k, mi);
+    lemma_fundamental_div_mod(row - base_row, step);
+    lemma_div_pos_is_pos(row - base_row, step);
+    assert(row - base_row == i * step + r) by {
+        lemma_mul_is_commutative(step, i);
+    }
+    assert(i < cnt) by (nonlinear_arith)
+        requires
+            row - base_row == i * step + r,
+            r >= 0,
+            row < base_row + cnt * step,
+            step > 0,
+    ;
+    lemma_gather_row(m, base_row, r, step, cnt, i);
+    lemma_word(i, lane, mi);
+    assert(i * mi + lane < cnt * mi) by (nonlinear_arith)
+        requires
+            i + 1 <= cnt,
+            lane < mi,
+            mi > 0,
+    ;
+    assert(i * mi + lane >= 0) by (nonlinear_arith)
+        requires
+            i >= 0,
+            lane >= 0,
+            mi > 0,
+    ;
+}
+
+/// Lend this thread's scratch buffer, grown to the requested length.
+///
+/// - It is cache-line aligned, so a full-width load never splits a line.
+/// - It lives as long as the thread, so no pass allocates in its hot loop.
+///
+/// Trusted (`external_body`): Verus has no model of `thread_local!` and `RefCell`. Specification: `f`
+/// runs once, on a slice of exactly `len` words. Rewritten: `f` also takes a `state` argument, which
+/// `with_scratch` hands it untouched; Verus does not support closures that capture a mutable
+/// reference, which the deep pass's closure does (its task's slice).
+#[verifier::external_body]
+fn with_scratch<S, R, F: FnOnce(&mut [F64], S) -> R>(len: usize, state: S, f: F) -> (r: R)
+    requires
+        forall|s: &mut [F64]| s@.len() == len ==> #[trigger] f.requires((s, state)),
+    ensures
+        exists|s: &mut [F64]| s@.len() == len && #[trigger] f.ensures((s, state), r),
+{
+    // One cache line of words.
+    #[derive(Clone, Copy)]
+    #[repr(C, align(64))]
+    struct Line([F64; 8]);
+    thread_local! {
+        static SCRATCH: std::cell::RefCell<Vec<Line>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    SCRATCH.with_borrow_mut(|lines| {
+        // Grow only; a later, smaller request reuses the same lines.
+        if lines.len() * 8 < len {
+            lines.resize(len.div_ceil(8), Line([F64(0); 8]));
+        }
+        // SAFETY:
+        // - A line is exactly eight contiguous words, with no padding.
+        // - The buffer holds at least the requested words, all initialized.
+        f(unsafe { std::slice::from_raw_parts_mut(lines.as_mut_ptr().cast::<F64>(), len) }, state)
+    })
+}
+
+/// What a group reads: the gathered input `src`, from the codeword (no message) or from the message
+/// (`in_place`: block 0 of the codeword; otherwise its own buffer).
+pub open spec fn group_src(
+    own: Map<int, PointsTo<F64>>,
+    mperms: Map<int, PointsTo<F64>>,
+    base: *mut F64,
+    msg: Option<SendPtr<F64>>,
+    in_place: bool,
+    m: nat,
+    block_row: int,
+    r: int,
+    step: int,
+    rows: nat,
+    src: Seq<F64>,
+) -> bool {
+    &&& src.len() == rows * m
+    &&& base@.addr + (block_row + rows * step) * m * size_of::<F64>() <= usize::MAX
+    &&& match msg {
+        None => forall|q: int|
+            0 <= q < rows * m ==> #[trigger] own[gidx(m, block_row, r, step, q)].value() == src[q],
+        Some(mp) => if in_place {
+            &&& mp.0 == base
+            &&& forall|q: int|
+                0 <= q < rows * m ==> own.dom().contains(#[trigger] gidx(m, 0, r, step, q)) && own[gidx(m, 0, r, step, q)].ptr() == ptr_at(
+                    base,
+                    gidx(m, 0, r, step, q),
+                ) && own[gidx(m, 0, r, step, q)].is_init() && own[gidx(m, 0, r, step, q)].value() == src[q]
+        } else {
+            &&& covers(mperms, mp.0, 0, rows * step * m)
+            &&& forall|q: int| 0 <= q < rows * m ==> #[trigger] mperms[gidx(m, 0, r, step, q)].value() == src[q]
+        },
+    }
+}
+
+/// The words of row `i` of a gather, all held by a map that holds the whole gather.
+proof fn lemma_row_keys_in(own: Map<int, PointsTo<F64>>, m: nat, base_row: int, r: int, step: int, cnt: nat, i: int)
+    requires
+        m > 0,
+        base_row >= 0,
+        0 <= r < step,
+        0 <= i < cnt,
+        forall|q: int| 0 <= q < cnt * m ==> own.dom().contains(#[trigger] gidx(m, base_row, r, step, q)),
+    ensures
+        Set::range((base_row + r + i * step) * m, (base_row + r + i * step) * m + m) <= own.dom(),
+{
+    let mi = m as int;
+    lemma_gather_row(m, base_row, r, step, cnt, i);
+    assert forall|k: int| Set::range((base_row + r + i * step) * m, (base_row + r + i * step) * m + m).contains(k) implies own.dom().contains(k) by {
+        let lane = k - (base_row + r + i * step) * mi;
+        assert(gidx(m, base_row, r, step, i * m + lane) == k);
+        assert(i * mi + lane < cnt * mi) by (nonlinear_arith)
+            requires
+                i + 1 <= cnt,
+                0 <= lane < mi,
+        ;
+        assert(i * mi + lane >= 0) by (nonlinear_arith)
+            requires
+                i >= 0,
+                lane >= 0,
+                mi > 0,
+        ;
+    }
+}
+
+/// `a` holds the permissions of `b`, with the same values.
+pub open spec fn same_vals(a: Map<int, PointsTo<F64>>, b: Map<int, PointsTo<F64>>) -> bool {
+    &&& a.dom() == b.dom()
+    &&& forall|k: int|
+        #[trigger] b.dom().contains(k) ==> a[k].ptr() == b[k].ptr() && a[k].is_init() && a[k].value() == b[k].value()
+}
+
+impl AdditiveNttF64 {
+    /// One row group of a gathered pass: gather, transform, scatter.
+    ///
+    /// This is production's `group` closure inside `gathered_pass`, as a function: Verus does not support
+    /// closures that capture mutable state (the scratch buffer). Its body is the closure's, with
+    /// `chunks_exact(_mut)(num_ntts).enumerate()` as index loops and the permissions of each row taken
+    /// out for its slice and put back (ghost). Streaming stores are not modeled: `Stream::copy` copies
+    /// `src` over `dst` as `copy_from_slice` does (`primitives::stream`), so both arms are
+    /// `copy_from_slice` here.
+    #[allow(clippy::too_many_arguments)]
+    fn group(
+        &self,
+        scratch: &mut [F64],
+        base: SendPtr<F64>,
+        msg: Option<SendPtr<F64>>,
+        log_d: usize,
+        num_ntts: usize,
+        layer: usize,
+        g: usize,
+        log_step: usize,
+        block: usize,
+        r: usize,
+        Tracked(own): Tracked<&mut Map<int, PointsTo<F64>>>,
+        Tracked(mperms): Tracked<&Map<int, PointsTo<F64>>>,
+        Ghost(in_place): Ghost<bool>,
+        Ghost(src): Ghost<Seq<F64>>,
+    )
+        requires
+            self.well_formed(),
+            num_ntts > 0,
+            0 < g,
+            layer + g <= log_d <= self.table().len(),
+            log_step == log_d - layer - g,
+            block < pow2(layer as nat),
+            r < pow2(log_step as nat),
+            old(scratch)@.len() == pow2(g as nat) * num_ntts,
+            num_ntts * pow2(log_d as nat) <= usize::MAX,
+            base.0@.addr + num_ntts * pow2(log_d as nat) * size_of::<F64>() <= usize::MAX,
+            forall|q: int|
+                0 <= q < pow2(g as nat) * num_ntts ==> old(own).dom().contains(
+                    #[trigger] gidx(num_ntts as nat, block * pow2((log_d - layer) as nat), r as int, pow2(log_step as nat) as int, q),
+                ),
+            forall|k: int| #[trigger] old(own).dom().contains(k) ==> old(own)[k].ptr() == ptr_at(base.0, k) && old(own)[k].is_init(),
+            group_src(
+                *old(own),
+                *mperms,
+                base.0,
+                msg,
+                in_place,
+                num_ntts as nat,
+                block * pow2((log_d - layer) as nat),
+                r as int,
+                pow2(log_step as nat) as int,
+                pow2(g as nat),
+                src,
+            ),
+        ensures
+            final(own).dom() == old(own).dom(),
+            forall|k: int| #[trigger] old(own).dom().contains(k) ==> final(own)[k].ptr() == old(own)[k].ptr() && final(own)[k].is_init(),
+            forall|q: int|
+                0 <= q < pow2(g as nat) * num_ntts ==> #[trigger] final(own)[gidx(
+                    num_ntts as nat,
+                    block * pow2((log_d - layer) as nat),
+                    r as int,
+                    pow2(log_step as nat) as int,
+                    q,
+                )].value() == sub_layers(
+                    self.table(),
+                    src,
+                    num_ntts as nat,
+                    (layer + g) as nat,
+                    layer as nat,
+                    block as int,
+                    layer as nat,
+                    (layer + g) as nat,
+                )[q],
+            forall|k: int|
+                #[trigger] old(own).dom().contains(k) && !in_gather(
+                    k,
+                    num_ntts as nat,
+                    block * pow2((log_d - layer) as nat),
+                    r as int,
+                    pow2(log_step as nat) as int,
+                    pow2(g as nat),
+                ) ==> final(own)[k] == old(own)[k],
+    {
+        let ghost m = num_ntts as nat;
+        let ghost stp = pow2(log_step as nat) as int;
+        let ghost rws = pow2(g as nat);
+        let ghost bs = pow2((log_d - layer) as nat) as int;
+        let ghost brow = block * bs;
+        let ghost own0 = *own;
+        proof {
+            lemma_pow2_adds(g as nat, log_step as nat);
+            assert(g as nat + log_step as nat == (log_d - layer) as nat);
+            lemma_pow2_adds(layer as nat, (log_d - layer) as nat);
+            assert(layer as nat + (log_d - layer) as nat == log_d as nat);
+            lemma_pow2_pos(log_step as nat);
+            lemma_pow2_pos(g as nat);
+            lemma_usize_pow2_no_overflow(log_step as nat);
+            lemma_usize_pow2_no_overflow((log_d - layer) as nat);
+            lemma_usize_shl_is_mul(1, log_step);
+            assert(brow + bs <= pow2(log_d as nat)) by (nonlinear_arith)
+                requires
+                    block + 1 <= pow2(layer as nat),
+                    brow == block * bs,
+                    pow2(log_d as nat) == pow2(layer as nat) * bs,
+            ;
+            assert(brow >= 0) by (nonlinear_arith)
+                requires
+                    brow == block * bs,
+                    block >= 0,
+                    bs > 0,
+            ;
+            assert((brow + bs) * m <= num_ntts * pow2(log_d as nat)) by (nonlinear_arith)
+                requires
+                    brow + bs <= pow2(log_d as nat),
+                    m == num_ntts,
+            ;
+            assert(bs == rws * stp);
+            assert(pow2(log_d as nat) <= num_ntts * pow2(log_d as nat)) by (nonlinear_arith)
+                requires
+                    num_ntts > 0,
+            ;
+            lemma_usize_shl_is_mul(block, (log_d - layer) as usize);
+            assert(brow * m <= (brow + bs) * m) by (nonlinear_arith)
+                requires
+                    bs > 0,
+            ;
+            assert(rws * m <= (brow + bs) * m) by (nonlinear_arith)
+                requires
+                    bs == rws * stp,
+                    stp >= 1,
+                    rws > 0,
+                    brow >= 0,
+            ;
+        }
+        // Row `i` of the group, as a word offset inside its block.
+        let row = |i: usize| -> (o: usize)
+            requires
+                i < rws,
+                r < stp,
+                stp == 1usize << log_step,
+                (r + i * stp) * m <= usize::MAX,
+                log_step < 64,
+                num_ntts > 0,
+                m == num_ntts,
+            ensures
+                o == (r + i * stp) * m,
+            {
+                proof {
+                    assert(i * stp >= 0) by (nonlinear_arith)
+                        requires
+                            stp > 0,
+                    ;
+                    assert(r + i * stp <= (r + i * stp) * m) by (nonlinear_arith)
+                        requires
+                            m >= 1,
+                            r >= 0,
+                            i * stp >= 0,
+                    ;
+                    lemma_usize_shl_is_mul(i, log_step);
+                }
+                (r + (i << log_step)) * num_ntts
+            };
+        let block_off = (block << (log_d - layer)) * num_ntts;
+        proof {
+            assert(0 * m == 0);
+            assert forall|i: usize| i < rws implies #[trigger] row.requires((i,)) by {
+                lemma_gather_row(m, 0, r as int, stp, rws, i as int);
+                assert((r + i * stp) * m + m <= bs * m) by (nonlinear_arith)
+                    requires
+                        (0 + r + i * stp) * m + m <= (0 + rws * stp) * m,
+                        bs == rws * stp,
+                ;
+                assert(bs * m <= (brow + bs) * m) by (nonlinear_arith)
+                    requires
+                        brow >= 0,
+                        m > 0,
+                ;
+            }
+        }
+        // Gather: the scattered rows become one contiguous 2^g-row buffer.
+        //
+        // Rewritten from `for (i, dst) in scratch.chunks_exact_mut(num_ntts).enumerate()`.
+        let rows = 1usize << g;
+        proof {
+            lemma_usize_pow2_no_overflow(g as nat);
+            lemma_usize_shl_is_mul(1, g);
+        }
+        for i in 0..rows
+            invariant
+                // ...
+                rows == rws,
+                m == num_ntts,
+                num_ntts > 0,
+                stp > 0,
+                0 <= r < stp,
+                bs == rws * stp,
+                brow == block * bs,
+                brow >= 0,
+                block_off == brow * m,
+                (brow + bs) * m <= num_ntts * pow2(log_d as nat),
+                num_ntts * pow2(log_d as nat) <= usize::MAX,
+                base.0@.addr + num_ntts * pow2(log_d as nat) * size_of::<F64>() <= usize::MAX,
+                scratch@.len() == rws * m,
+                rws * m <= usize::MAX,
+                same_vals(*own, own0),
+                forall|k: int| #[trigger] own0.dom().contains(k) && !in_gather(k, m, brow, r as int, stp, rws) ==> own[k] == own0[k],
+                forall|q: int| 0 <= q < rws * num_ntts ==> own0.dom().contains(#[trigger] gidx(m, brow, r as int, stp, q)),
+                forall|k: int| #[trigger] own0.dom().contains(k) ==> own0[k].ptr() == ptr_at(base.0, k) && own0[k].is_init(),
+                group_src(own0, *mperms, base.0, msg, in_place, m, brow, r as int, stp, rws, src),
+                forall|q: int| 0 <= q < i * m ==> #[trigger] scratch@[q] == src[q],
+                forall|i: usize| i < rws ==> #[trigger] row.requires((i,)),
+                forall|i: usize, o: usize| #[trigger] row.ensures((i,), o) ==> o == (r + i * stp) * m,
+        {
+            proof {
+                lemma_gather_row(m, brow, r as int, stp, rws, i as int);
+                lemma_gather_row(m, 0, r as int, stp, rws, i as int);
+                assert((i + 1) * m <= rws * m) by (nonlinear_arith)
+                    requires
+                        i + 1 <= rws,
+                ;
+                assert((i + 1) * m == i * m + m) by (nonlinear_arith);
+                assert((r + i * stp) * m + m <= bs * m) by (nonlinear_arith)
+                    requires
+                        (0 + r + i * stp) * m + m <= (0 + rws * stp) * m,
+                        bs == rws * stp,
+                ;
+                assert(bs * m <= (brow + bs) * m) by (nonlinear_arith)
+                    requires
+                        brow >= 0,
+                        m > 0,
+                ;
+                assert(block_off + (r + i * stp) * m == (brow + r + i * stp) * m) by (nonlinear_arith)
+                    requires
+                        block_off == brow * m,
+                ;
+            }
+            let dst = &mut scratch[i * num_ntts..(i + 1) * num_ntts];
+            let ghost lo = (brow + r + i * stp) * m;
+            proof {
+                lemma_mul_le(lo + m, num_ntts * pow2(log_d as nat), size_of::<F64>() as int);
+                lemma_row_keys_in(own0, m, brow, r as int, stp, rws, i as int);
+            }
+            let ghost lo0 = (r + i * stp) * m;
+            let ghost cur = *own;
+            proof {
+                lemma_gather_row(m, 0, r as int, stp, rws, i as int);
+                lemma_mul_le(lo0 + m, num_ntts * pow2(log_d as nat), size_of::<F64>() as int);
+                lemma_mul_le(lo0, num_ntts * pow2(log_d as nat), size_of::<F64>() as int);
+                assert(lo0 + m <= bs * m) by (nonlinear_arith)
+                    requires
+                        (0 + r + i * stp) * m + m <= (0 + rws * stp) * m,
+                        lo0 == (r + i * stp) * m,
+                        bs == rws * stp,
+                ;
+                if let Some(mp) = msg {
+                    assert forall|k: int| lo0 <= k < lo0 + m implies {
+                        if in_place {
+                            &&& #[trigger] own.dom().contains(k)
+                            &&& own[k].ptr() == ptr_at(mp.0, k)
+                            &&& own[k].is_init()
+                            &&& own[k].value() == src[i * m + (k - lo0)]
+                        } else {
+                            mperms[k].value() == src[i * m + (k - lo0)]
+                        }
+                    } by {
+                        let lane = k - lo0;
+                        assert(gidx(m, 0, r as int, stp, i * m + lane) == k);
+                        assert(i * m + lane < rws * m) by (nonlinear_arith)
+                            requires
+                                i + 1 <= rws,
+                                0 <= lane < m,
+                        ;
+                        assert(i * m + lane >= 0) by (nonlinear_arith)
+                            requires
+                                lane >= 0,
+                        ;
+                        if in_place {
+                            assert(own0.dom().contains(k));
+                        }
+                    }
+                    if !in_place {
+                        lemma_mul_le(lo0 + m, rws * stp * m, size_of::<F64>() as int);
+                        lemma_mul_le(lo0, rws * stp * m, size_of::<F64>() as int);
+                        assert(covers(*mperms, mp.0, lo0, m as int));
+                    } else {
+                        assert(mp.0 == base.0);
+                        assert(lo0 >= 0) by (nonlinear_arith)
+                            requires r >= 0, i >= 0, stp > 0, m > 0, lo0 == (r + i * stp) * m;
+                        assert forall|k: int| lo0 <= k < lo0 + m implies
+                            #[trigger] own.dom().contains(k) && own[k].ptr() == ptr_at(mp.0, k) && own[k].is_init() by {
+                            let lane = k - lo0;
+                            let q = i * m + lane;
+                            lemma_word(i as int, lane, m as int);
+                            assert(0 <= q < rws * m) by (nonlinear_arith)
+                                requires q == i * m + lane, 0 <= lane < m, 0 <= i < rws, m > 0;
+                            assert(gidx(m, 0, r as int, stp, q) == k);
+                            assert(own0.dom().contains(gidx(m, 0, r as int, stp, q)));
+                        }
+                        assert(m as int >= 0);
+                        lemma_mul_le(lo0 + m, num_ntts * pow2(log_d as nat), size_of::<F64>() as int);
+                        assert(mp.0@.addr + (lo0 + m) * size_of::<F64>() <= usize::MAX);
+                        assert(covers(*own, mp.0, lo0, m as int));
+                    }
+                }
+            }
+            let tracked mut rowp = Map::<int, PointsTo<F64>>::tracked_empty();
+            proof {
+                if msg is None {
+                    rowp = take_row(own, base.0, lo, m);
+                }
+            }
+            // SAFETY:
+            // - The message and the codeword both cover every row addressed here.
+            // - Tasks own disjoint residues, so no other task writes these rows.
+            // - Block 0 is written last, after every read of the message in it.
+            let src_row = unsafe {
+                match msg {
+                    Some(mp) => parallel::from_raw_parts(
+                        mp.add(row(i)),
+                        num_ntts,
+                        Ghost(mp.0),
+                        Ghost(lo0),
+                        Tracked(
+                            if in_place {
+                                &*own
+                            } else {
+                                mperms
+                            },
+                        ),
+                    ),
+                    None => base.slice(block_off + row(i), num_ntts, Tracked(&mut rowp)),
+                }
+            };
+            dst.copy_from_slice(src_row);
+            proof {
+                if msg is None {
+                    let rp = rowp;
+                    own.tracked_union_prefer_right(rowp);
+                    assert(own.dom() =~= own0.dom());
+                    assert forall|k: int| #[trigger] own0.dom().contains(k) implies own[k].ptr() == own0[k].ptr() && own[k].is_init()
+                        && own[k].value() == own0[k].value() by {
+                        if lo <= k < lo + m {
+                            assert(own[k] == rp[k]);
+                            assert(vals(rp, lo, m as int)[k - lo] == rp[k].value());
+                        }
+                    }
+                }
+                assert(same_vals(*own, own0));
+                assert forall|k: int| #[trigger] own0.dom().contains(k) && !in_gather(k, m, brow, r as int, stp, rws) implies own[k] == own0[k] by {
+                    if lo <= k < lo + m {
+                        lemma_row_in_gather(k, m, brow, r as int, stp, rws, i as int);
+                    }
+                }
+                assert forall|q: int| 0 <= q < (i + 1) * m implies #[trigger] scratch@[q] == src[q] by {
+                    if q >= i * m {
+                        lemma_word(i as int, q - i * m, m as int);
+                        assert(gidx(m, brow, r as int, stp, i * m + (q - i * m)) == lo + (q - i * m));
+                        assert(gidx(m, 0, r as int, stp, i * m + (q - i * m)) == lo0 + (q - i * m));
+                    }
+                }
+            }
+        }
+        // Transform: a (layer + g)-layer domain whose sub-block index is the global block.
+        proof {
+            assert(scratch@ =~= src);
+            lemma_pow2_adds(layer as nat, g as nat);
+            assert(pow2(((layer + g) - layer) as nat) == rws);
+        }
+        self.run_layers(scratch, layer + g, num_ntts, layer, layer + g, layer, block);
+        let ghost out = scratch@;
+        proof {
+            lemma_sub_layers_len(self.table(), src, m, (layer + g) as nat, layer as nat, block as int, layer as nat, (layer + g) as nat);
+        }
+        // Scatter: every row returns to its place.
+        //
+        // Rewritten from `for (i, src) in scratch.chunks_exact(num_ntts).enumerate()`; both arms of the
+        // `stream` match are `copy_from_slice` (see above).
+        for i in 0..rows
+            invariant
+                rows == rws,
+                m == num_ntts,
+                num_ntts > 0,
+                stp > 0,
+                0 <= r < stp,
+                bs == rws * stp,
+                brow == block * bs,
+                brow >= 0,
+                block_off == brow * m,
+                (brow + bs) * m <= num_ntts * pow2(log_d as nat),
+                num_ntts * pow2(log_d as nat) <= usize::MAX,
+                base.0@.addr + num_ntts * pow2(log_d as nat) * size_of::<F64>() <= usize::MAX,
+                scratch@ == out,
+                out.len() == rws * m,
+                rws * m <= usize::MAX,
+                own.dom() == own0.dom(),
+                forall|q: int| 0 <= q < rws * num_ntts ==> own0.dom().contains(#[trigger] gidx(m, brow, r as int, stp, q)),
+                forall|k: int| #[trigger] own0.dom().contains(k) ==> own0[k].ptr() == ptr_at(base.0, k) && own0[k].is_init(),
+                forall|k: int| #[trigger] own0.dom().contains(k) ==> own[k].ptr() == ptr_at(base.0, k) && own[k].is_init(),
+                forall|q: int| 0 <= q < i * m ==> #[trigger] own[gidx(m, brow, r as int, stp, q)].value() == out[q],
+                forall|k: int| #[trigger] own0.dom().contains(k) && !in_gather(k, m, brow, r as int, stp, rws) ==> own[k] == own0[k],
+                forall|i: usize| i < rws ==> #[trigger] row.requires((i,)),
+                forall|i: usize, o: usize| #[trigger] row.ensures((i,), o) ==> o == (r + i * stp) * m,
+        {
+            proof {
+                lemma_gather_row(m, brow, r as int, stp, rws, i as int);
+                lemma_gather_row(m, 0, r as int, stp, rws, i as int);
+                assert((i + 1) * m <= rws * m) by (nonlinear_arith)
+                    requires
+                        i + 1 <= rws,
+                ;
+                assert((i + 1) * m == i * m + m) by (nonlinear_arith);
+                assert((r + i * stp) * m + m <= bs * m) by (nonlinear_arith)
+                    requires
+                        (0 + r + i * stp) * m + m <= (0 + rws * stp) * m,
+                        bs == rws * stp,
+                ;
+                assert(bs * m <= (brow + bs) * m) by (nonlinear_arith)
+                    requires
+                        brow >= 0,
+                        m > 0,
+                ;
+                assert(block_off + (r + i * stp) * m == (brow + r + i * stp) * m) by (nonlinear_arith)
+                    requires
+                        block_off == brow * m,
+                ;
+            }
+            let src_row = &scratch[i * num_ntts..(i + 1) * num_ntts];
+            let ghost lo = (brow + r + i * stp) * m;
+            proof {
+                lemma_mul_le(lo + m, num_ntts * pow2(log_d as nat), size_of::<F64>() as int);
+                lemma_row_keys_in(own0, m, brow, r as int, stp, rws, i as int);
+            }
+            let ghost cur = *own;
+            let tracked mut rowp = take_row(own, base.0, lo, m);
+            // SAFETY: this group alone owns these rows of the codeword.
+            let dst = unsafe { base.slice(block_off + row(i), num_ntts, Tracked(&mut rowp)) };
+            dst.copy_from_slice(src_row);
+            proof {
+                own.tracked_union_prefer_right(rowp);
+                assert(own.dom() =~= own0.dom());
+                let rp = rowp;
+                assert forall|q: int| 0 <= q < (i + 1) * m implies #[trigger] own[gidx(m, brow, r as int, stp, q)].value() == out[q] by {
+                    if q >= i * m {
+                        let lane = q - i * m;
+                        lemma_word(i as int, lane, m as int);
+                        assert(gidx(m, brow, r as int, stp, i * m + lane) == lo + lane);
+                        assert(own[lo + lane] == rp[lo + lane]);
+                        assert(vals(rp, lo, m as int)[lane] == rp[lo + lane].value());
+                        assert(out.subrange(i * m, (i + 1) * m)[lane] == out[q]);
+                    } else {
+                        lemma_split_word(q, m as int);
+                        let iq = q / (m as int);
+                        assert(iq < i) by (nonlinear_arith)
+                            requires
+                                q == iq * m + q % (m as int),
+                                q % (m as int) >= 0,
+                                q < i * m,
+                                m > 0,
+                        ;
+                        lemma_gather_row(m, brow, r as int, stp, rws, iq);
+                        lemma_word(iq, q % (m as int), m as int);
+                        assert(gidx(m, brow, r as int, stp, q) < lo) by (nonlinear_arith)
+                            requires
+                                gidx(m, brow, r as int, stp, q) == (brow + r + iq * stp) * m + q % (m as int),
+                                q % (m as int) < m,
+                                lo == (brow + r + i * stp) * m,
+                                iq + 1 <= i,
+                                stp > 0,
+                        ;
+                    }
+                }
+                assert forall|k: int| #[trigger] own0.dom().contains(k) && !in_gather(k, m, brow, r as int, stp, rws) implies own[k] == own0[k] by {
+                    if lo <= k < lo + m {
+                        lemma_row_in_gather(k, m, brow, r as int, stp, rws, i as int);
+                    }
+                }
+            }
+        }
+        proof {
+            let s_out = sub_layers(self.table(), src, m, (layer + g) as nat, layer as nat, block as int, layer as nat, (layer + g) as nat);
+            assert(out == s_out);
+            assert forall|k: int|
+                #[trigger] own0.dom().contains(k) && !in_gather(k, m, brow, r as int, stp, rws) implies own[k] == own0[k] by {}
+            assert(rws * num_ntts == rws * m);
+        }
+    }
+}
+
+/// A gathered task owns one residue in one block.
+pub open spec fn gather_owner(m: int, bs: int, step: int, k: int) -> int {
+    (k / m / bs) * step + (k / m) % step
+}
+
+proof fn lemma_gather_partition(m: int, bs: int, step: int, rows: int, blocks: int, k: int)
+    requires m > 0, step > 0, rows > 0, blocks > 0, bs == rows * step,
+        0 <= k < blocks * bs * m,
+    ensures
+        0 <= k / m / bs < blocks,
+        0 <= (k / m) % step < step,
+        0 <= gather_owner(m, bs, step, k) < blocks * step,
+        in_gather(k, m as nat, (k / m / bs) * bs, (k / m) % step, step, rows as nat),
+{
+    assert(bs > 0) by (nonlinear_arith) requires bs == rows * step, rows > 0, step > 0;
+    lemma_split_word(k, m);
+    let row = k / m;
+    lemma_fundamental_div_mod(row, bs);
+    lemma_mod_bound(row, bs);
+    lemma_div_pos_is_pos(row, bs);
+    lemma_mod_bound(row, step);
+    assert(0 <= row < blocks * bs) by (nonlinear_arith)
+        requires k == row * m + k % m, 0 <= k % m < m,
+            0 <= k < blocks * bs * m, m > 0;
+    assert(row / bs < blocks) by (nonlinear_arith)
+        requires row == bs * (row / bs) + row % bs, 0 <= row % bs,
+            row < blocks * bs, bs > 0;
+    lemma_mod_multiples_basic((row / bs) * rows, step);
+    assert((row / bs) * bs == ((row / bs) * rows) * step) by (nonlinear_arith)
+        requires bs == rows * step;
+    lemma_mod_multiples_vanish(-((row / bs) * rows), row, step);
+    assert(step * -((row / bs) * rows) + row == row - (row / bs) * bs) by (nonlinear_arith)
+        requires bs == rows * step;
+    assert(0 <= gather_owner(m, bs, step, k) < blocks * step) by (nonlinear_arith)
+        requires 0 <= row / bs < blocks, 0 <= row % step < step, step > 0,
+            gather_owner(m, bs, step, k) == (row / bs) * step + row % step;
+}
+
+proof fn lemma_gather_owner(m: nat, bs: int, step: int, rows: nat, block: int, r: int, q: int)
+    requires m > 0, step > 0, rows > 0, bs == rows * step,
+        block >= 0, 0 <= r < step, 0 <= q < rows * m,
+    ensures
+        0 <= gidx(m, block * bs, r, step, q) < (block + 1) * bs * m,
+        gather_owner(m as int, bs, step, gidx(m, block * bs, r, step, q)) == block * step + r,
+{
+    lemma_split_word(q, m as int);
+    let i = q / (m as int);
+    let lane = q % (m as int);
+    assert(i < rows) by (nonlinear_arith)
+        requires q == i * m + lane, lane >= 0, q < rows * m, m > 0;
+    lemma_gather_row(m, block * bs, r, step, rows, i);
+    assert(0 <= r + i * step < bs) by (nonlinear_arith)
+        requires 0 <= i < rows, 0 <= r < step, bs == rows * step, step > 0;
+    lemma_word(block * bs + r + i * step, lane, m as int);
+    lemma_fundamental_div_mod_converse(block * bs + r + i * step, bs, block, r + i * step);
+    assert(block * bs + r + i * step == (block * rows + i) * step + r) by (nonlinear_arith)
+        requires bs == rows * step;
+    lemma_fundamental_div_mod_converse(block * bs + r + i * step, step, block * rows + i, r);
+    assert((block * bs + rows * step) * m == (block + 1) * bs * m) by (nonlinear_arith)
+        requires bs == rows * step;
+}
+
+impl AdditiveNttF64 {
+    /// Gather, run and scatter a band of layers after its input replicas exist.
+    ///
+    /// Executable refinement of production's no-message pass: `for_each` replaces
+    /// the chunk loop and borrows scratch once per group rather than once per claimed
+    /// range. The dispatcher still runs the real pool. Streaming stores are replaced
+    /// by ordinary copies. These changes do not verify production's cache policy.
+    pub fn gathered_pass(
+        &self, data: &mut [F64], log_d: usize, num_ntts: usize, layer: usize, g: usize,
+    )
+        requires self.well_formed(), num_ntts > 0,
+            0 < g, layer + g <= log_d <= self.table().len(),
+            old(data)@.len() == num_ntts * pow2(log_d as nat),
+            old(data)@.len() <= usize::MAX,
+        ensures final(data)@ == sub_layers(self.table(), old(data)@, num_ntts as nat,
+            log_d as nat, 0, 0, layer as nat, (layer + g) as nat),
+    {
+        let ghost x = data@;
+        let ghost m = num_ntts as nat;
+        let ghost target = sub_layers(self.table(), x, m, log_d as nat, 0, 0, layer as nat, (layer + g) as nat);
+        let log_step = log_d - layer - g;
+        proof {
+            lemma_usize_pow2_no_overflow(g as nat);
+            lemma_usize_pow2_no_overflow(log_step as nat);
+            lemma_usize_pow2_no_overflow(layer as nat);
+            lemma_usize_pow2_no_overflow((log_d - layer) as nat);
+            lemma_usize_shl_is_mul(1, g);
+            lemma_usize_shl_is_mul(1, log_step);
+            lemma_usize_shl_is_mul(1, layer);
+            lemma_usize_shl_is_mul(1, (log_d - layer) as usize);
+            lemma_pow2_adds(g as nat, log_step as nat);
+            lemma_pow2_adds(layer as nat, (log_d - layer) as nat);
+            lemma_pow2_pos(g as nat);
+            lemma_pow2_pos(log_step as nat);
+            lemma_pow2_pos(layer as nat);
+            lemma_sub_layers_len(self.table(), x, m, log_d as nat, 0, 0, layer as nat, (layer + g) as nat);
+        }
+        let rows = 1usize << g;
+        let step = 1usize << log_step;
+        let blocks = 1usize << layer;
+        let bs = 1usize << (log_d - layer);
+        proof {
+            assert(bs == rows * step);
+            assert(x.len() == blocks * bs * m) by (nonlinear_arith)
+                requires x.len() == m * pow2(log_d as nat),
+                    pow2(log_d as nat) == blocks * bs;
+            assert(blocks * step <= x.len() && rows * m <= x.len()) by (nonlinear_arith)
+                requires x.len() == blocks * bs * m, bs == rows * step,
+                    blocks > 0, rows > 0, step > 0, m > 0;
+        }
+        let n_tasks = blocks * step;
+        let scratch_len = rows * num_ntts;
+        let (ptr, Tracked(perms)) = slice_as_mut_ptr(data);
+        let base = SendPtr(ptr);
+        let ghost p0 = *perms;
+        let ghost owner = |k: int| gather_owner(m as int, bs as int, step as int, k);
+        let ghost post = |t: int, p: Map<int, PointsTo<F64>>| group_post(p, claimed(p0, owner, t, t + 1), target);
+        proof {
+            assert forall|k: int| #[trigger] p0.dom().contains(k) implies 0 <= owner(k) < n_tasks by {
+                lemma_gather_partition(m as int, bs as int, step as int, rows as int, blocks as int, k);
+            }
+        }
+        let tracked all = perms.tracked_remove_keys(perms.dom());
+        proof { assert(all =~= p0); }
+        let Tracked(out) = parallel::for_each(n_tasks,
+            |t: usize, tp: Tracked<Map<int, PointsTo<F64>>>| -> (res: Tracked<Map<int, PointsTo<F64>>>)
+                requires t < n_tasks, tp@ == claimed(p0, owner, t as int, t + 1),
+                ensures res@.dom() == keys_of(p0, owner, t as int, t + 1), post(t as int, res@),
+            {
+                let block = t / step;
+                let r = t % step;
+                let ghost src = gather(x, m, block * bs, r as int, step as int, rows as nat);
+                let tracked mut own = tp.get();
+                let ghost before = own;
+                proof {
+                    lemma_fundamental_div_mod(t as int, step as int);
+                    assert(block < blocks) by (nonlinear_arith)
+                        requires t == block * step + r, r >= 0, t < blocks * step, step > 0;
+                    assert forall|q: int| 0 <= q < rows * m implies own.dom().contains(
+                        #[trigger] gidx(m, block * bs, r as int, step as int, q)) by {
+                        lemma_gather_owner(m, bs as int, step as int, rows as nat, block as int, r as int, q);
+                        assert((block + 1) * bs * m <= x.len()) by (nonlinear_arith)
+                            requires block + 1 <= blocks, x.len() == blocks * bs * m, bs > 0, m > 0;
+                    }
+                    assert((block * bs + rows * step) * m <= x.len()) by (nonlinear_arith)
+                        requires block + 1 <= blocks, x.len() == blocks * bs * m,
+                            bs == rows * step, bs > 0, m > 0;
+                    lemma_mul_le((block * bs + rows * step) * m, x.len() as int, size_of::<F64>() as int);
+                    assert forall|q: int| 0 <= q < rows * m implies
+                        #[trigger] own[gidx(m, block * bs, r as int, step as int, q)].value() == src[q] by {
+                        let k = gidx(m, block * bs, r as int, step as int, q);
+                        assert(own.dom().contains(k));
+                        assert(p0[k].value() == vals(p0, 0, x.len() as int)[k]);
+                    }
+                    assert(group_src(own, Map::empty(), base.0, None, false, m, block * bs,
+                        r as int, step as int, rows as nat, src));
+                }
+                let Tracked(result) = with_scratch(scratch_len, Tracked(own),
+                    |scratch: &mut [F64], tp: Tracked<Map<int, PointsTo<F64>>>| -> (res: Tracked<Map<int, PointsTo<F64>>>)
+                        requires scratch@.len() == scratch_len, tp@ == before,
+                        ensures res@.dom() == before.dom(), post(t as int, res@),
+                    {
+                        let tracked mut p = tp.get();
+                        let tracked empty = Map::tracked_empty();
+                        self.group(scratch, base, None, log_d, num_ntts, layer, g, log_step,
+                            block, r, Tracked(&mut p), Tracked(&empty), Ghost(false), Ghost(src));
+                        proof {
+                            lemma_gather_sub_layers(self.table(), x, m, log_d as nat, 0, 0,
+                                (layer + g) as nat, layer as nat, block as int, r as int,
+                                layer as nat, (layer + g) as nat);
+                            assert forall|k: int| #[trigger] before.dom().contains(k) implies
+                                p[k].ptr() == before[k].ptr() && p[k].is_init() && p[k].value() == target[k] by {
+                                lemma_gather_partition(m as int, bs as int, step as int, rows as int, blocks as int, k);
+                                let b = k / (m as int) / (bs as int);
+                                let rr = (k / (m as int)) % (step as int);
+                                lemma_fundamental_div_mod_converse(t as int, step as int, b, rr);
+                                assert(b == block && rr == r);
+                                lemma_in_gather_index(k, m, block * bs, r as int, step as int, rows as nat);
+                                let q = ((k / (m as int) - block * bs) / (step as int)) * m + k % (m as int);
+                                assert(gather(target, m, block * bs, r as int, step as int, rows as nat)[q] == target[k]);
+                            }
+                        }
+                        Tracked(p)
+                    });
+                proof {
+                    assert(post(t as int, result));
+                    assert(result.dom() =~= keys_of(p0, owner, t as int, t + 1));
+                }
+                Tracked(result)
+            }, Tracked(all), Ghost(owner), Ghost(post));
+        proof {
+            perms.tracked_union_prefer_right(out);
+            assert(perms.dom() =~= p0.dom());
+            assert forall|k: int| 0 <= k < x.len() implies
+                (#[trigger] perms[k]).ptr() == ptr_at(ptr, k) && perms[k].is_init() && perms[k].value() == target[k] by {
+                lemma_gather_partition(m as int, bs as int, step as int, rows as int, blocks as int, k);
+                let t = owner(k);
+                let p = out.restrict(keys_of(p0, owner, t, t + 1));
+                assert(post(t, p));
+                let orig = claimed(p0, owner, t, t + 1);
+                assert(orig.dom().contains(k));
+                assert(orig[k] == p0[k]);
+                assert(p0[k].ptr() == ptr_at(ptr, k));
+                assert(perms[k] == out[k]);
+                assert(p[k] == out[k]);
+            }
+            assert(owns(*perms, ptr, 0, x.len() as int));
+            assert(vals(*perms, 0, x.len() as int) =~= target);
+        }
+    }
+    /// Contiguous deep pass, one pool item per sub-block. Production batches
+    /// adjacent sub-blocks; here the pool's claim coalescing is the only batching.
+    pub fn deep_pass(&self, data: &mut [F64], log_d: usize, num_ntts: usize, first: usize)
+        requires self.well_formed(), num_ntts > 0, first <= log_d <= self.table().len(),
+            old(data)@.len() == num_ntts * pow2(log_d as nat), old(data)@.len() <= usize::MAX,
+        ensures final(data)@ == sub_layers(self.table(), old(data)@, num_ntts as nat,
+            log_d as nat, 0, 0, first as nat, log_d as nat),
+    {
+        let ghost x = data@;
+        let ghost m = num_ntts as nat;
+        let ghost target = sub_layers(self.table(), x, m, log_d as nat, 0, 0, first as nat, log_d as nat);
+        proof {
+            lemma_usize_pow2_no_overflow((log_d - first) as nat);
+            lemma_usize_shl_is_mul(1, (log_d - first) as usize);
+            lemma_pow2_pos((log_d - first) as nat);
+            lemma_pow2_pos(first as nat);
+            lemma_pow2_adds(first as nat, (log_d - first) as nat);
+            lemma_sub_layers_len(self.table(), x, m, log_d as nat, 0, 0, first as nat, log_d as nat);
+            assert(pow2((log_d - first) as nat) * m <= x.len()) by (nonlinear_arith)
+                requires x.len() == m * (pow2(first as nat) * pow2((log_d - first) as nat)),
+                    pow2(first as nat) >= 1, m > 0, pow2((log_d - first) as nat) > 0;
+        }
+        let chunk = (1usize << (log_d - first)) * num_ntts;
+        let ghost count = pow2(first as nat) as int;
+        proof {
+            assert(chunk > 0) by (nonlinear_arith)
+                requires chunk == pow2((log_d - first) as nat) * m,
+                    pow2((log_d - first) as nat) > 0, m > 0;
+            assert(x.len() == count * chunk) by (nonlinear_arith)
+                requires x.len() == m * (pow2(first as nat) * pow2((log_d - first) as nat)),
+                    chunk == pow2((log_d - first) as nat) * m, count == pow2(first as nat);
+            lemma_div_multiples_vanish_fancy(count, chunk - 1, chunk as int);
+            assert((x.len() + chunk - 1) / (chunk as int) == count);
+            assert forall|i: int| 0 <= i < count implies
+                #[trigger] chunk_len(x.len(), chunk as nat, i) == chunk by {
+                assert((i + 1) * chunk <= x.len()) by (nonlinear_arith)
+                    requires i + 1 <= count, x.len() == count * chunk, chunk > 0;
+                assert(x.len() - i * chunk >= chunk) by (nonlinear_arith)
+                    requires (i + 1) * chunk <= x.len();
+                assert(i * chunk + chunk == (i + 1) * chunk) by (nonlinear_arith);
+            }
+        }
+        let ghost post = |i: int, before: Seq<F64>, after: Seq<F64>|
+            after == target.subrange(i * chunk, (i + 1) * chunk);
+        parallel::chunks_mut(data, chunk,
+            |i: usize, sub: &mut [F64]|
+                requires i < count, sub@ == x.subrange(i * chunk, i * chunk + chunk_len(x.len(), chunk as nat, i as int)),
+                ensures final(sub)@.len() == old(sub)@.len(), post(i as int, old(sub)@, final(sub)@),
+            {
+                let ghost before = sub@;
+                proof {
+                    assert(chunk_len(x.len(), chunk as nat, i as int) == chunk);
+                    assert(i * chunk + chunk == (i + 1) * chunk) by (nonlinear_arith);
+                    lemma_block_target(self.table(), x, m, log_d as nat, 0, 0, first as nat,
+                        (log_d - first) as nat, i as int);
+                }
+                self.run_layers(sub, log_d, num_ntts, first, log_d, first, i);
+                proof {
+                    lemma_sub_layers_len(self.table(), before, m, log_d as nat, first as nat,
+                        i as int, first as nat, log_d as nat);
+                }
+            }, Ghost(post));
+        proof {
+            assert(data@ =~= target) by {
+                assert forall|k: int| 0 <= k < x.len() implies data@[k] == target[k] by {
+                    lemma_split_word(k, chunk as int);
+                    let i = k / (chunk as int);
+                    assert(i < count) by (nonlinear_arith)
+                        requires k == i * chunk + k % (chunk as int), k % (chunk as int) >= 0,
+                            k < x.len(), x.len() == count * chunk, chunk > 0;
+                    assert(chunk_len(x.len(), chunk as nat, i) == chunk);
+                    assert(i * chunk + chunk == (i + 1) * chunk) by (nonlinear_arith);
+                    assert(post(i, x.subrange(i * chunk, (i + 1) * chunk),
+                        data@.subrange(i * chunk, (i + 1) * chunk)));
+                    assert(data@.subrange(i * chunk, (i + 1) * chunk)[k - i * chunk] == data@[k]);
+                }
+            }
+        }
+    }
+
+    /// Execute any valid gathered/deep plan on populated replicas. The cache
+    /// planner is an explicit input. Message replication, row sinks and streaming
+    /// store fences are not performed by this entry point.
+    pub fn transform(&self, data: &mut [F64], log_d: usize, num_ntts: usize,
+        start: usize, deep_start: usize, gathered_width: usize)
+        requires self.well_formed(), num_ntts > 0, gathered_width > 0,
+            start <= deep_start <= log_d <= self.table().len(),
+            old(data)@.len() == num_ntts * pow2(log_d as nat), old(data)@.len() <= usize::MAX,
+        ensures final(data)@ == forward_layers(self.table(), old(data)@, num_ntts as nat,
+            log_d as nat, start as nat, log_d as nat),
+    {
+        let ghost x = data@;
+        let ghost m = num_ntts as nat;
+        let mut layer = start;
+        while layer < deep_start
+            invariant self.well_formed(), num_ntts > 0, gathered_width > 0,
+                start <= layer <= deep_start <= log_d <= self.table().len(),
+                x.len() == num_ntts * pow2(log_d as nat), x.len() <= usize::MAX,
+                m == num_ntts,
+                data@ == sub_layers(self.table(), x, m, log_d as nat, 0, 0, start as nat, layer as nat),
+            decreases deep_start - layer,
+        {
+            proof { lemma_sub_layers_len(self.table(), x, m, log_d as nat, 0, 0, start as nat, layer as nat); }
+            let g = if deep_start - layer < gathered_width { deep_start - layer } else { gathered_width };
+            self.gathered_pass(data, log_d, num_ntts, layer, g);
+            proof {
+                lemma_sub_layers_split(self.table(), x, m, log_d as nat, 0, 0,
+                    start as nat, layer as nat, (layer + g) as nat);
+            }
+            layer += g;
+        }
+        proof { lemma_sub_layers_len(self.table(), x, m, log_d as nat, 0, 0, start as nat, deep_start as nat); }
+        self.deep_pass(data, log_d, num_ntts, deep_start);
+        proof {
+            lemma_sub_layers_split(self.table(), x, m, log_d as nat, 0, 0,
+                start as nat, deep_start as nat, log_d as nat);
+            lemma_forward_is_sub(self.table(), x, m, log_d as nat, start as nat, log_d as nat);
         }
     }
 }

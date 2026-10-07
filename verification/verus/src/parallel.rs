@@ -8,9 +8,9 @@
 //! The trusted specifications are collected under "Trust base" below: the dispatch of the pool
 //! ([`for_each_chunk`]), the passage between a slice and the permissions it stands for
 //! ([`slice_as_mut_ptr`], [`slice_as_ptr`], [`from_raw_parts_mut`], [`from_raw_parts`]), and the core
-//! functions vstd does not specify (`<*mut T>::add`, `<*const T>::cast_mut`, `ilog2`, `div_ceil`,
-//! `next_power_of_two`, `std::ptr::eq`). Everything else is verified: [`for_each`], [`SendPtr`],
-//! [`Chunks`] and [`chunks_mut`] are copies of production with their specifications.
+//! functions vstd does not specify (`<*mut T>::add`, `<*const T>::cast_mut`, `div_ceil`,
+//! `std::ptr::eq`), plus the worker count. [`for_each`], [`SendPtr`], [`RawMut`],
+//! [`Chunks`] and [`chunks_mut`] are verified copies/adapters with explicit specifications.
 use vstd::prelude::*;
 use vstd::raw_ptr::*;
 
@@ -58,6 +58,16 @@ pub open spec fn keys_of<V>(perms: Map<int, V>, owner: spec_fn(int) -> int, lo: 
 /// The permissions of the items `lo..hi`, item `owner(k)` holding key `k`.
 pub open spec fn claimed<V>(perms: Map<int, V>, owner: spec_fn(int) -> int, lo: int, hi: int) -> Map<int, V> {
     perms.restrict(keys_of(perms, owner, lo, hi))
+}
+
+/// Disjoint item ranges cannot receive any of the same element permissions.
+pub proof fn lemma_claims_disjoint<V>(perms: Map<int, V>, owner: spec_fn(int) -> int,
+    a: int, b: int, c: int, d: int)
+    requires a <= b <= c <= d,
+    ensures claimed(perms, owner, a, b).dom().disjoint(claimed(perms, owner, c, d).dom()),
+{
+    assert forall|k: int| claimed(perms, owner, a, b).dom().contains(k)
+        implies !claimed(perms, owner, c, d).dom().contains(k) by {}
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -174,8 +184,8 @@ pub fn num_threads() -> (r: usize)
 /// call `f(lo, hi)` receives the permissions of its items and returns them, satisfying `post` for every
 /// item of its range. The dispatcher gets back the permissions of every item, each satisfying `post`.
 ///
-/// The body is production's `parallel::for_each_chunk`, which hands `f` ranges claimed from one shared
-/// counter (see [`crate::parallel::Pool`] for the claim counter's proof).
+/// The body delegates to production's `parallel::for_each_chunk`. Its atomic claim counter,
+/// worker lifetime, synchronization and exactly-once behavior are trusted, not verified here.
 #[verifier::external_body]
 pub fn for_each_chunk<V: Send + Sync, F: Fn(usize, usize, Tracked<Map<int, V>>) -> Tracked<Map<int, V>> + Sync>(
     n_tasks: usize,
@@ -357,6 +367,63 @@ impl<T> SendPtr<T> {
         }
         // SAFETY: the caller guarantees `off..off + len` is in bounds, borrowed by no other task, and alive for `'a`.
         unsafe { from_raw_parts_mut(self.0.add(off), len, Ghost(self.0), Ghost(off as int), Tracked(perms)) }
+    }
+}
+
+/// A mutable slice in raw parts, its address and length; its permissions travel beside it as a ghost
+/// argument.
+///
+/// Not in production: the verified driver passes its buffer this way where production passes
+/// `&mut [F64]`, because the in-place message is that very address, and Verus does not relate the
+/// pointers of two `as_mut_ptr` calls on one slice. `len` and `as_mut_ptr` keep the call sites' text.
+#[derive(Clone, Copy)]
+#[verifier::allow(autoderive_clone_without_spec)]
+pub struct RawMut<T> {
+    pub ptr: *mut T,
+    pub len: usize,
+}
+
+impl<T> RawMut<T> {
+    /// The slice's raw parts, and the permissions it lends for `'a`.
+    pub fn new<'a>(data: &'a mut [T]) -> (r: (Self, Tracked<&'a mut Map<int, PointsTo<T>>>))
+        ensures
+            r.0.len == old(data)@.len(),
+            owns(*r.1@, r.0.ptr, 0, old(data)@.len() as int),
+            vals(*r.1@, 0, old(data)@.len() as int) == old(data)@,
+            owns(*final(r.1@), r.0.ptr, 0, old(data)@.len() as int) ==> final(data)@ == vals(*final(r.1@), 0, old(data)@.len() as int),
+    {
+        let len = data.len();
+        let (ptr, perms) = slice_as_mut_ptr(data);
+        (Self { ptr, len }, perms)
+    }
+
+    pub fn len(&self) -> (r: usize)
+        ensures
+            r == self.len,
+    {
+        self.len
+    }
+
+    pub fn as_mut_ptr(&self) -> (r: *mut T)
+        ensures
+            r == self.ptr,
+    {
+        self.ptr
+    }
+
+    /// The slice again, borrowing its permissions for `'a`.
+    pub fn as_mut_slice<'a>(&self, Tracked(perms): Tracked<&'a mut Map<int, PointsTo<T>>>) -> (s: &'a mut [T])
+        requires
+            owns(*old(perms), self.ptr, 0, self.len as int),
+        ensures
+            s@ == vals(*old(perms), 0, self.len as int),
+            owns(*final(perms), self.ptr, 0, self.len as int),
+            final(s)@ == vals(*final(perms), 0, self.len as int),
+    {
+        proof {
+            assert(ptr_at(self.ptr, 0) == self.ptr);
+        }
+        from_raw_parts_mut(self.ptr, self.len, Ghost(self.ptr), Ghost(0), Tracked(perms))
     }
 }
 

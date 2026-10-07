@@ -117,9 +117,44 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### Parallel NTT driver refinement (`src/ntt_driver.rs`, `src/parallel.rs`)
+
+- `run_layers` proves the fused radix-8/radix-4/single-layer sweeps equal `sub_layers` for every
+  well-formed table, positive lane count and valid sub-block. `lemma_gather_layer` and
+  `lemma_gather_sub_layers` prove that gathering rows paired by a band of layers commutes with it.
+- `group` proves gather/transform/scatter with permissions for every accessed word. Its input can
+  come from the codeword, its first replica, or a separate read-only message, under the explicit
+  permission and source-content preconditions. This is a single-group theorem, not a proof that
+  production's fused-message scheduler establishes those preconditions.
+- `gathered_pass` partitions words by `(block, residue)`, dispatches groups through the real pool,
+  and proves equality to the corresponding global layers. `deep_pass` proves the same for the
+  remaining layers on disjoint contiguous sub-blocks. `transform` composes them into
+  `forward_layers`, the verified layer reference, for any positive gathered width and
+  `start <= deep_start <= log_d <= table.len()`, with `2^log_d` rows and any positive lane count
+  whose buffer length fits `usize`. The zero-layer domain is included with a well-formed table.
+- These are executable refinements, not production-source proofs. The top-level refinement takes
+  the cache plan as arguments and expects replicas already populated. It does not implement
+  production's cache planner, fused message replication, row callbacks, or streaming-store fences.
+  Gathered work is dispatched per group rather than borrowing scratch once per claimed range;
+  the deep pass dispatches individual sub-blocks instead of explicitly batching adjacent ones.
+  Streaming stores become ordinary copies. Function comments document the other Rust rewrites.
+- `PointsTo` maps are split by task owner and returned with their postconditions. Different owners
+  have disjoint keys and only receive their own permissions. Bounds and pointer addresses are
+  checked before constructing row slices. `for_each` and `chunks_mut` are proved adapters over
+  the trusted `for_each_chunk` contract: disjoint claims cover every item exactly once and join
+  before return. The actual pool's atomic claim counter and synchronization are not verified.
+- `tests/equivalence/ntt_driver.rs` executes the refinement, layer reference and production public
+  encoder word for word on seeded random inputs, rates, lane counts, domain/table sizes, gathered
+  widths and deep splits. Separate processes configure the real pool for 1, 2 and 4 workers.
+  These finite differential checks neither prove production equivalence nor prevent future drift.
+
 ## Trust base and assumptions
 
-- No `assume`, `admit`, `#[verifier::external_body]` or `assume_specification` appears in this crate.
+- The arithmetic modules do not add axioms. The driver has explicit trusted adapters in
+  `src/parallel.rs`: slice/permission borrowing, raw slice construction, core pointer/integer
+  specifications, worker count, and exactly-once joined dispatch. `with_scratch` trusts the
+  thread-local scratch borrow and callback contract. Their `external_body`/`assume_specification`
+  annotations are trust boundaries, not solved proof obligations.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
 - `vstd`'s specifications of what the copies call are trusted: integer `From`, the operator traits, `Vec` and
@@ -146,9 +181,10 @@ Following annex `d` of the leanVM document:
   - Bit transposes: `bits::tests::every_arm_matches_reference`.
   - NTT butterflies: `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` and the other driver
     tests (forward), `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed).
-- The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
-  `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
-  tests compare it with the layer-by-layer reference this crate verifies.
+- Production's NTT cache planner, fused-message scheduling/replication, row callbacks, streaming
+  store ordering, and `transpose_lane_major` are not proved. The parallel refinement above proves
+  populated-replica computation with explicit plan inputs. The inverse reference in `ntt.rs` remains
+  covered; the separate transposed driver is outside this refinement.
 - `phi8_tower.rs` and `bit_fold` are not covered.
 
 ## Reproduce
@@ -165,4 +201,4 @@ verification/verus/verify.sh gf2_64                   # one module
 
 `verify.sh` downloads the release from GitHub (Linux x86-64), installs its Rust toolchain with `rustup`, and runs
 `cargo verus verify`. Set `VERUS_HOME` to install elsewhere and `VERUS_THREADS` to change the solver's parallelism
-(default 4). The whole crate verifies in under a minute on one machine.
+(default 4).
