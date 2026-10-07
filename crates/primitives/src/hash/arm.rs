@@ -8,14 +8,14 @@ use core::arch::aarch64::*;
 ///
 /// At this width the G dependency chain, not the four SIMD pipes, bounds the backend.
 ///
-/// So it interleaves groups, and picks each rotation for latency.
+/// So it interleaves independent G chains, and picks each rotation for latency.
 #[derive(Clone, Copy)]
 pub(super) struct Neon(uint32x4_t);
 
 impl Lanes32 for Neon {
     const WIDTH: usize = 4;
-    // Independent groups cover the G dependency chain.
-    const GROUPS: usize = 4;
+    // Keep one four-message compression inline.
+    const GROUPS: usize = 1;
     // Transposing ahead measured slower here, most of all on inputs streamed from DRAM.
     const TRANSPOSE_AHEAD: bool = false;
 
