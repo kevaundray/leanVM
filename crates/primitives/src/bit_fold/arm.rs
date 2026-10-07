@@ -1,23 +1,39 @@
 //! AArch64 byte tables with a power-of-two entry stride.
 //!
 //! Each entry holds the three field limbs and one initialized zero limb. This
-//! trades a third more table storage for shift-only lookup addressing.
+//! trades a third more table storage for shift-only lookup addressing. Two
+//! lookups at a time feed each EOR3 accumulator, using two NEON registers per row.
 
 use super::{BLOCK, F192};
+use core::arch::aarch64::{vdupq_n_u64, veor3q_u64, veorq_u64, vgetq_lane_u64, vld1q_u64};
 
 type Entry = [u64; 4];
 
 #[inline(always)]
 fn fold_row<const CHUNKS: usize>(tables: &[[Entry; 256]], row: &[u8; CHUNKS]) -> F192 {
     let tables: &[[Entry; 256]; CHUNKS] = tables.try_into().expect("one table per byte");
-    let mut acc = F192::ZERO;
-    for (&byte, table) in row.iter().zip(tables) {
-        let v = table[usize::from(byte)];
-        acc.c0 ^= v[0];
-        acc.c1 ^= v[1];
-        acc.c2 ^= v[2];
+    // SAFETY: This module requires aarch64 SHA3. Each entry contains four
+    // initialized u64s, so both 16-byte loads remain inside the selected entry.
+    unsafe {
+        let mut lo = vdupq_n_u64(0);
+        let mut hi = vdupq_n_u64(0);
+        for j in 0..CHUNKS / 2 {
+            let a = tables[2 * j][usize::from(row[2 * j])].as_ptr();
+            let b = tables[2 * j + 1][usize::from(row[2 * j + 1])].as_ptr();
+            lo = veor3q_u64(lo, vld1q_u64(a), vld1q_u64(b));
+            hi = veor3q_u64(hi, vld1q_u64(a.add(2)), vld1q_u64(b.add(2)));
+        }
+        if CHUNKS % 2 != 0 {
+            let a = tables[CHUNKS - 1][usize::from(row[CHUNKS - 1])].as_ptr();
+            lo = veorq_u64(lo, vld1q_u64(a));
+            hi = veorq_u64(hi, vld1q_u64(a.add(2)));
+        }
+        F192 {
+            c0: vgetq_lane_u64::<0>(lo),
+            c1: vgetq_lane_u64::<1>(lo),
+            c2: vgetq_lane_u64::<0>(hi),
+        }
     }
-    acc
 }
 
 #[derive(Clone, Debug)]
