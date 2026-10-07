@@ -482,6 +482,135 @@ pub proof fn lemma_novel8_lincomb(m: nat, a: Seq<F8>, t: u8, b: Seq<F8>, x: u8)
 }
 
 // ---------------------------------------------------------------------------------------------
+// The novel-basis polynomial as a flat sum
+// ---------------------------------------------------------------------------------------------
+/// The novel basis polynomial `X_j(x) = Π_{i < m} Ŵ_i(x)^(bit_i(j))`, bit `i` of `j` being `(j / 2^i) mod 2`.
+pub open spec fn novel_basis8(m: nat, j: int, x: u8) -> u8
+    decreases m,
+{
+    if m == 0 {
+        1
+    } else {
+        let rest = novel_basis8((m - 1) as nat, j, x);
+        if (j / pow2((m - 1) as nat) as int) % 2 == 1 {
+            f8_mul(rest, normalized_poly8((m - 1) as nat, x))
+        } else {
+            rest
+        }
+    }
+}
+
+/// The novel-basis polynomial with coefficients `a`, as the flat sum `Σ_{j < 2^m} a_j X_j(x)`.
+pub open spec fn novel8_sum(m: nat, a: Seq<F8>, x: u8) -> u8 {
+    xor_sum8(|j: int| f8_mul(a[j].0, novel_basis8(m, j, x)), pow2(m))
+}
+
+/// `X_j` reads only the low `n` bits of `j`.
+proof fn lemma_novel_basis8_periodic(n: nat, j: int, q: int, x: u8)
+    requires
+        j >= 0,
+        q >= 0,
+    ensures
+        novel_basis8(n, j + q * pow2(n), x) == novel_basis8(n, j, x),
+    decreases n,
+{
+    if n > 0 {
+        let p = pow2((n - 1) as nat) as int;
+        lemma_pow2_unfold(n);
+        lemma_pow2_pos((n - 1) as nat);
+        assert(j + q * pow2(n) == j + (2 * q) * p) by (nonlinear_arith)
+            requires
+                pow2(n) == 2 * p,
+        ;
+        lemma_novel_basis8_periodic((n - 1) as nat, j, 2 * q, x);
+        lemma_mod_multiples_vanish(q, j / p, 2);
+        assert((j + (2 * q) * p) / p == 2 * q + j / p) by {
+            lemma_fundamental_div_mod(j, p);
+            lemma_mod_pos_bound(j, p);
+            assert(j + (2 * q) * p == p * (2 * q + j / p) + j % p) by (nonlinear_arith)
+                requires
+                    j == p * (j / p) + j % p,
+            ;
+            lemma_fundamental_div_mod_converse(j + (2 * q) * p, p, 2 * q + j / p, j % p);
+        }
+    }
+}
+
+/// Multiplication distributes over a sum.
+proof fn lemma_xor_sum8_scale(c: u8, f: spec_fn(int) -> u8, n: nat)
+    ensures
+        f8_mul(c, xor_sum8(f, n)) == xor_sum8(|j: int| f8_mul(c, f(j)), n),
+    decreases n,
+{
+    if n == 0 {
+        lemma_f8_mul_zero(c);
+    } else {
+        lemma_xor_sum8_scale(c, f, (n - 1) as nat);
+        lemma_f8_mul_xor_right(c, xor_sum8(f, (n - 1) as nat), f(n - 1));
+    }
+}
+
+/// The top-bit split is the flat sum: `novel8(m, a, x) = Σ_{j < 2^m} a_j X_j(x)`.
+pub proof fn lemma_novel8_flat(m: nat, a: Seq<F8>, x: u8)
+    requires
+        a.len() == pow2(m),
+    ensures
+        novel8(m, a, x) == novel8_sum(m, a, x),
+    decreases m,
+{
+    if m == 0 {
+        lemma2_to64();
+        lemma_f8_mul_one(a[0].0);
+        let y = a[0].0;
+        assert(0u8 ^ y == y) by (bit_vector);
+        let f = |j: int| f8_mul(a[j].0, novel_basis8(0, j, x));
+        assert(novel_basis8(0, 0, x) == 1);
+        assert(xor_sum8(f, 1) == xor_sum8(f, 0) ^ f(0));
+        assert(novel8_sum(0, a, x) == xor_sum8(f, 1));
+    } else {
+        let n = (m - 1) as nat;
+        let h = pow2(n) as int;
+        lemma_pow2_unfold(m);
+        lemma_pow2_pos(n);
+        let (al, ah) = (a.subrange(0, h), a.subrange(h, 2 * h));
+        lemma_novel8_flat(n, al, x);
+        lemma_novel8_flat(n, ah, x);
+        let w = normalized_poly8(n, x);
+        let f = |j: int| f8_mul(a[j].0, novel_basis8(m, j, x));
+        lemma_xor_sum8_split(f, h as nat, h as nat);
+        // The low half: bit `m - 1` of `j < 2^(m-1)` is zero.
+        let fl = |j: int| f8_mul(al[j].0, novel_basis8(n, j, x));
+        assert forall|j: int| 0 <= j < h implies #[trigger] f(j) == fl(j) by {
+            assert(j / h == 0) by {
+                lemma_fundamental_div_mod_converse(j, h, 0, j);
+            }
+        }
+        lemma_xor_sum8_ext(f, fl, h as nat);
+        // The high half: bit `m - 1` of `2^(m-1) + t` is one, and the lower bits are those of `t`.
+        let fh = |t: int| f8_mul(ah[t].0, novel_basis8(n, t, x));
+        let g = |t: int| f(h + t);
+        assert forall|t: int| 0 <= t < h implies #[trigger] g(t) == f8_mul(w, fh(t)) by {
+            lemma_novel_basis8_periodic(n, t, 1, x);
+            assert((h + t) / h == 1) by {
+                lemma_fundamental_div_mod_converse(h + t, h, 1, t);
+            }
+            assert(t + 1 * pow2(n) == h + t);
+            let (c, b) = (ah[t].0, novel_basis8(n, t, x));
+            assert(a[h + t].0 == c);
+            // c (b w) = w (c b)
+            lemma_f8_mul_comm(b, w);
+            lemma_f8_mul_swap(c, w, b);
+        }
+        lemma_xor_sum8_ext(g, |t: int| f8_mul(w, fh(t)), h as nat);
+        lemma_xor_sum8_scale(w, fh, h as nat);
+        lemma_xor_sum8_ext(|t: int| f((h as nat) + t), g, h as nat);
+        assert(novel8_sum(n, al, x) == xor_sum8(fl, h as nat));
+        assert(novel8_sum(n, ah, x) == xor_sum8(fh, h as nat));
+        assert(novel8_sum(m, a, x) == xor_sum8(f, (h as nat) + (h as nat)));
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // The forward transform evaluates, the inverse undoes it
 // ---------------------------------------------------------------------------------------------
 proof fn lemma_fft_spec_len(v: Seq<F8>, tw: Seq<F8>, idx: int)
