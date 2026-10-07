@@ -2006,4 +2006,673 @@ proof fn lemma_small_div(row: int, n: int)
     lemma_fundamental_div_mod_converse(row, n, 0, row);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Layers on one sub-block
+// ---------------------------------------------------------------------------------------------
+/// `buf` is `prev` with its first `n_done` words replaced by those of `target`.
+pub open spec fn swept_to(buf: Seq<F64>, prev: Seq<F64>, target: Seq<F64>, n_done: int) -> bool {
+    &&& buf.len() == prev.len()
+    &&& target.len() == prev.len()
+    &&& forall|p: int| 0 <= p < n_done ==> #[trigger] buf[p] == target[p]
+    &&& forall|p: int| n_done <= p < prev.len() ==> #[trigger] buf[p] == prev[p]
+}
+
+/// Layers with twiddles that agree on the blocks of the buffer are equal.
+pub proof fn lemma_layer_map_tw_n(x: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) -> u64, tw2: spec_fn(int) -> u64, nb: nat)
+    requires
+        m > 0,
+        h > 0,
+        x.len() == nb * (2 * h * m),
+        forall|b: int| 0 <= b < nb ==> #[trigger] tw(b) == tw2(b),
+    ensures
+        layer_map(x, m, h, tw, false) == layer_map(x, m, h, tw2, false),
+{
+    assert forall|p: int| 0 <= p < x.len() implies layer_map(x, m, h, tw, false)[p] == layer_map(x, m, h, tw2, false)[p] by {
+        let mi = m as int;
+        lemma_split_word(p, mi);
+        let row = p / mi;
+        assert(row < nb * (2 * h)) by (nonlinear_arith)
+            requires
+                p == row * mi + p % mi,
+                p % mi >= 0,
+                p < nb * (2 * h * m),
+                mi == m,
+                m > 0,
+        ;
+        lemma_div_pos_is_pos(row, 2 * h as int);
+        lemma_div_is_ordered(row, nb * (2 * h) - 1, 2 * h as int);
+        assert(nb * (2 * h) - 1 == (nb - 1) * (2 * h) + (2 * h - 1)) by (nonlinear_arith)
+            requires
+                nb >= 1,
+        ;
+        lemma_div_multiples_vanish_fancy(nb - 1, 2 * h - 1, 2 * h as int);
+        assert((nb - 1) * (2 * h) == (2 * h) * (nb - 1)) by (nonlinear_arith);
+    }
+    assert(layer_map(x, m, h, tw, false) =~= layer_map(x, m, h, tw2, false));
+}
+
+/// Block `b` of a layer of a sub-block: the target layers, restricted to it, are the layers of the block
+/// as sub-block `s * 2^(layer - o) + b` of `2^layer`.
+proof fn lemma_block_target(tab: Seq<Seq<F64>>, prev: Seq<F64>, m: nat, log_d: nat, o: nat, s: int, layer: nat, c: nat, b: int)
+    requires
+        m > 0,
+        o <= layer,
+        layer + c <= log_d,
+        s >= 0,
+        0 <= b < pow2((layer - o) as nat),
+        prev.len() == m * pow2((log_d - o) as nat),
+    ensures
+        ({
+            let be = pow2((log_d - layer) as nat) * m;
+            let s2 = s * pow2((layer - o) as nat) + b;
+            &&& (b + 1) * be <= prev.len()
+            &&& b * be + be == (b + 1) * be
+            &&& b * be >= 0
+            &&& be > 0
+            &&& sub_layers(tab, prev, m, log_d, o, s, layer, layer + c).subrange(b * be, b * be + be) == sub_layers(
+                tab,
+                prev.subrange(b * be, b * be + be),
+                m,
+                log_d,
+                layer,
+                s2,
+                layer,
+                layer + c,
+            )
+        }),
+{
+    let bs = pow2((log_d - layer) as nat) as int;
+    let be = bs * m;
+    let po = pow2((layer - o) as nat) as int;
+    let s2 = s * po + b;
+    let target = sub_layers(tab, prev, m, log_d, o, s, layer, layer + c);
+    lemma_sub_layers_len(tab, prev, m, log_d, o, s, layer, layer + c);
+    lemma_pow2_pos((log_d - layer) as nat);
+    lemma_pow2_adds((layer - o) as nat, (log_d - layer) as nat);
+    assert((layer - o) as nat + (log_d - layer) as nat == (log_d - o) as nat);
+    assert(pow2(0) == 1) by {
+        lemma2_to64();
+    }
+    assert(s * po <= s2 < (s + 1) * po) by (nonlinear_arith)
+        requires
+            s2 == s * po + b,
+            0 <= b < po,
+    ;
+    lemma_gather_sub_layers(tab, prev, m, log_d, o, s, log_d, layer, s2, 0, layer, layer + c);
+    assert((b + 1) * bs * m <= prev.len()) by (nonlinear_arith)
+        requires
+            b + 1 <= po,
+            prev.len() == m * (po * bs),
+            bs > 0,
+    ;
+    assert(b * bs >= 0) by (nonlinear_arith)
+        requires
+            b >= 0,
+            bs > 0,
+    ;
+    assert((b * bs + bs) * m == (b + 1) * bs * m) by (nonlinear_arith);
+    lemma_gather_contiguous(target, m, b * bs, bs as nat);
+    lemma_gather_contiguous(prev, m, b * bs, bs as nat);
+    assert(b * bs * m == b * be && (b * bs + bs) * m == b * be + be && (b + 1) * be == b * be + be) by (nonlinear_arith)
+        requires
+            be == bs * m,
+    ;
+    assert(be > 0) by (nonlinear_arith)
+        requires
+            be == bs * m,
+            bs > 0,
+            m > 0,
+    ;
+    assert(b * be >= 0) by (nonlinear_arith)
+        requires
+            b >= 0,
+            be > 0,
+    ;
+    assert(s2 - s * po == b);
+}
+
+/// One block done: the sweep moves past it.
+proof fn lemma_block_swept(before: Seq<F64>, after: Seq<F64>, prev: Seq<F64>, target: Seq<F64>, start: int, be: int)
+    requires
+        0 <= start,
+        0 <= be,
+        start + be <= prev.len(),
+        swept_to(before, prev, target, start),
+        after == before.subrange(0, start) + target.subrange(start, start + be) + before.subrange(start + be, before.len() as int),
+    ensures
+        swept_to(after, prev, target, start + be),
+{
+    assert forall|p: int| 0 <= p < start + be implies #[trigger] after[p] == target[p] by {
+        if p < start {
+            assert(after[p] == before.subrange(0, start)[p]);
+        } else {
+            assert(after[p] == target.subrange(start, start + be)[p - start]);
+        }
+    }
+    assert forall|p: int| start + be <= p < prev.len() implies #[trigger] after[p] == prev[p] by {
+        assert(after[p] == before.subrange(start + be, before.len() as int)[p - start - be]);
+    }
+}
+
+/// Three layers on one block, as the fused sweep runs them with `twiddles_radix8`'s twiddles.
+proof fn lemma_sub3(tab: Seq<Seq<F64>>, blk: Seq<F64>, m: nat, log_d: nat, layer: nat, s2: int, t: Seq<F64>)
+    requires
+        m > 0,
+        layer + 3 <= log_d,
+        blk.len() == m * pow2((log_d - layer) as nat),
+        t.len() == 7,
+        t[0].0 == twiddle_spec(tab, layer, s2 as usize),
+        t[1].0 == twiddle_spec(tab, layer + 1, (2 * s2) as usize),
+        t[2].0 == twiddle_spec(tab, layer + 1, (2 * s2 + 1) as usize),
+        t[3].0 == twiddle_spec(tab, layer + 2, (4 * s2) as usize),
+        t[4].0 == twiddle_spec(tab, layer + 2, (4 * s2 + 1) as usize),
+        t[5].0 == twiddle_spec(tab, layer + 2, (4 * s2 + 2) as usize),
+        t[6].0 == twiddle_spec(tab, layer + 2, (4 * s2 + 3) as usize),
+    ensures
+        sub_layers(tab, blk, m, log_d, layer, s2, layer, layer + 3) == layer3(blk, m, pow2((log_d - layer - 3) as nat), t),
+{
+    let e = pow2((log_d - layer - 3) as nat);
+    lemma_pow2_unfold((log_d - layer) as nat);
+    lemma_pow2_unfold((log_d - layer - 1) as nat);
+    lemma_pow2_unfold((log_d - layer - 2) as nat);
+    lemma_pow2_pos((log_d - layer - 3) as nat);
+    lemma2_to64();
+    assert(layer_half(log_d, layer) == 4 * e);
+    assert(layer_half(log_d, layer + 1) == 2 * e);
+    assert(layer_half(log_d, layer + 2) == e);
+    let x0 = blk;
+    let x1 = layer_map(x0, m, 4 * e, sub_twiddles(tab, layer, layer, s2), false);
+    let y1 = layer_map(x0, m, 4 * e, |b: int| t[0].0, false);
+    assert(blk.len() == 1 * (2 * (4 * e) * m)) by (nonlinear_arith)
+        requires
+            blk.len() == m * (2 * (2 * (2 * e))),
+    ;
+    lemma_layer_map_tw_n(x0, m, 4 * e, sub_twiddles(tab, layer, layer, s2), |b: int| t[0].0, 1);
+    assert(x1.len() == 2 * (2 * (2 * e) * m)) by (nonlinear_arith)
+        requires
+            x1.len() == 1 * (2 * (4 * e) * m),
+    ;
+    let x2 = layer_map(x1, m, 2 * e, sub_twiddles(tab, layer + 1, layer, s2), false);
+    assert forall|b: int| 0 <= b < 2 implies #[trigger] (sub_twiddles(tab, layer + 1, layer, s2))(b) == (|b: int| t[1 + b].0)(b) by {
+        assert(pow2(((layer + 1) - layer) as nat) == 2);
+        if b == 0 {} else {}
+    }
+    lemma_layer_map_tw_n(x1, m, 2 * e, sub_twiddles(tab, layer + 1, layer, s2), |b: int| t[1 + b].0, 2);
+    assert(x2.len() == 4 * (2 * e * m)) by (nonlinear_arith)
+        requires
+            x2.len() == 2 * (2 * (2 * e) * m),
+    ;
+    assert forall|b: int| 0 <= b < 4 implies #[trigger] (sub_twiddles(tab, layer + 2, layer, s2))(b) == (|b: int| t[3 + b].0)(b) by {
+        assert(pow2(((layer + 2) - layer) as nat) == 4);
+        if b == 0 {} else if b == 1 {} else if b == 2 {} else {}
+    }
+    lemma_layer_map_tw_n(x2, m, e, sub_twiddles(tab, layer + 2, layer, s2), |b: int| t[3 + b].0, 4);
+    reveal_with_fuel(sub_layers, 4);
+    assert(sub_layers(tab, blk, m, log_d, layer, s2, layer, layer + 3) == layer_map(
+        x2,
+        m,
+        e,
+        sub_twiddles(tab, layer + 2, layer, s2),
+        false,
+    ));
+}
+
+/// Two layers on one block, as the fused sweep runs them with the block's three twiddles.
+proof fn lemma_sub2(tab: Seq<Seq<F64>>, blk: Seq<F64>, m: nat, log_d: nat, layer: nat, s2: int, t_outer: u64, t_inner_a: u64, t_inner_b: u64)
+    requires
+        m > 0,
+        layer + 2 <= log_d,
+        blk.len() == m * pow2((log_d - layer) as nat),
+        t_outer == twiddle_spec(tab, layer, s2 as usize),
+        t_inner_a == twiddle_spec(tab, layer + 1, (2 * s2) as usize),
+        t_inner_b == twiddle_spec(tab, layer + 1, (2 * s2 + 1) as usize),
+    ensures
+        sub_layers(tab, blk, m, log_d, layer, s2, layer, layer + 2) == layer2(
+            blk,
+            m,
+            pow2((log_d - layer - 2) as nat),
+            t_outer,
+            t_inner_a,
+            t_inner_b,
+        ),
+{
+    let e = pow2((log_d - layer - 2) as nat);
+    lemma_pow2_unfold((log_d - layer) as nat);
+    lemma_pow2_unfold((log_d - layer - 1) as nat);
+    lemma_pow2_pos((log_d - layer - 2) as nat);
+    lemma2_to64();
+    assert(layer_half(log_d, layer) == 2 * e);
+    assert(layer_half(log_d, layer + 1) == e);
+    let x0 = blk;
+    let x1 = layer_map(x0, m, 2 * e, sub_twiddles(tab, layer, layer, s2), false);
+    assert(blk.len() == 1 * (2 * (2 * e) * m)) by (nonlinear_arith)
+        requires
+            blk.len() == m * (2 * (2 * e)),
+    ;
+    assert(pow2((layer - layer) as nat) == 1);
+    assert(s2 * pow2((layer - layer) as nat) == s2) by {
+        lemma_mul_basics(s2);
+    }
+    assert((sub_twiddles(tab, layer, layer, s2))(0) == t_outer);
+    lemma_layer_map_tw_n(x0, m, 2 * e, sub_twiddles(tab, layer, layer, s2), |b: int| t_outer, 1);
+    assert(x1.len() == 2 * (2 * e * m)) by (nonlinear_arith)
+        requires
+            x1.len() == 1 * (2 * (2 * e) * m),
+    ;
+    assert forall|b: int| 0 <= b < 2 implies #[trigger] (sub_twiddles(tab, layer + 1, layer, s2))(b) == (pick2(t_inner_a, t_inner_b))(b) by {
+        assert(pow2(((layer + 1) - layer) as nat) == 2);
+        if b == 0 {} else {}
+    }
+    lemma_layer_map_tw_n(x1, m, e, sub_twiddles(tab, layer + 1, layer, s2), pick2(t_inner_a, t_inner_b), 2);
+    reveal_with_fuel(sub_layers, 3);
+    assert(sub_layers(tab, blk, m, log_d, layer, s2, layer, layer + 2) == layer_map(
+        x1,
+        m,
+        e,
+        sub_twiddles(tab, layer + 1, layer, s2),
+        false,
+    ));
+}
+
+/// One layer on one block.
+proof fn lemma_sub1(tab: Seq<Seq<F64>>, blk: Seq<F64>, m: nat, log_d: nat, layer: nat, s2: int, t: u64)
+    requires
+        m > 0,
+        layer + 1 <= log_d,
+        blk.len() == m * pow2((log_d - layer) as nat),
+        t == twiddle_spec(tab, layer, s2 as usize),
+    ensures
+        sub_layers(tab, blk, m, log_d, layer, s2, layer, layer + 1) == layer_map(
+            blk,
+            m,
+            pow2((log_d - layer - 1) as nat),
+            |b: int| t,
+            false,
+        ),
+{
+    let h = pow2((log_d - layer - 1) as nat);
+    lemma_pow2_unfold((log_d - layer) as nat);
+    lemma_pow2_pos((log_d - layer - 1) as nat);
+    lemma2_to64();
+    assert(blk.len() == 1 * (2 * h * m)) by (nonlinear_arith)
+        requires
+            blk.len() == m * (2 * h),
+    ;
+    assert(pow2((layer - layer) as nat) == 1);
+    lemma_layer_map_tw_n(blk, m, h, sub_twiddles(tab, layer, layer, s2), |b: int| t, 1);
+    reveal_with_fuel(sub_layers, 2);
+}
+
+/// The table rows a layer's twiddles read.
+proof fn lemma_table_rows(ntt: &AdditiveNttF64, layer: nat)
+    requires
+        ntt.well_formed(),
+        layer < ntt.table().len(),
+    ensures
+        ntt.table()[ntt.table().len() - layer - 1].len() == layer + 1,
+        ntt.table().len() <= 63,
+{
+}
+
+/// The global index of block `b` of sub-block `s` is below the layer's block count.
+proof fn lemma_global_block(s: int, o: nat, layer: nat, b: int)
+    requires
+        o <= layer,
+        0 <= s < pow2(o),
+        0 <= b < pow2((layer - o) as nat),
+    ensures
+        0 <= s * pow2((layer - o) as nat) + b < pow2(layer),
+{
+    lemma_pow2_adds(o, (layer - o) as nat);
+    assert(o + (layer - o) as nat == layer);
+    assert(0 <= s * pow2((layer - o) as nat) + b < pow2(o) * pow2((layer - o) as nat)) by (nonlinear_arith)
+        requires
+            0 <= s < pow2(o),
+            0 <= b < pow2((layer - o) as nat),
+    ;
+}
+
+impl AdditiveNttF64 {
+    /// Run a range of layers in place over one sub-block of the domain.
+    ///
+    /// - The domain has `2^d` rows and splits into `2^o` equal sub-blocks.
+    /// - The buffer is one of them; its index fixes the global block index, and so the twiddle, of each block.
+    /// - Three layers fuse into one radix-8 sweep where blocks are wide enough, then two, then one.
+    ///
+    /// Verified: the buffer ends as [`sub_layers`]. Rewritten: the `global` closure carries its
+    /// specification (a ghost addition).
+    #[allow(clippy::too_many_arguments)]
+    pub fn run_layers(
+        &self,
+        buf: &mut [F64],
+        log_d: usize,
+        num_ntts: usize,
+        first_layer: usize,
+        end_layer: usize,
+        outer_log: usize,
+        sub_idx: usize,
+    )
+        requires
+            self.well_formed(),
+            num_ntts > 0,
+            outer_log <= first_layer <= end_layer <= log_d <= self.table().len(),
+            sub_idx < pow2(outer_log as nat),
+            old(buf)@.len() == num_ntts * pow2((log_d - outer_log) as nat),
+            old(buf)@.len() <= usize::MAX,
+        ensures
+            final(buf)@ == sub_layers(
+                self.table(),
+                old(buf)@,
+                num_ntts as nat,
+                log_d as nat,
+                outer_log as nat,
+                sub_idx as int,
+                first_layer as nat,
+                end_layer as nat,
+            ),
+    {
+        let ghost tab = self.table();
+        let ghost b0 = buf@;
+        let ghost m = num_ntts as nat;
+        let ghost len = b0.len() as int;
+        let mut layer = first_layer;
+        while layer < end_layer
+            invariant
+                self.well_formed(),
+                tab == self.table(),
+                m == num_ntts,
+                num_ntts > 0,
+                outer_log <= first_layer <= layer <= end_layer <= log_d <= tab.len(),
+                sub_idx < pow2(outer_log as nat),
+                len == b0.len(),
+                len == num_ntts * pow2((log_d - outer_log) as nat),
+                len <= usize::MAX,
+                buf@ == sub_layers(tab, b0, m, log_d as nat, outer_log as nat, sub_idx as int, first_layer as nat, layer as nat),
+            decreases end_layer - layer,
+        {
+            let ghost prev = buf@;
+            proof {
+                lemma_sub_layers_len(tab, b0, m, log_d as nat, outer_log as nat, sub_idx as int, first_layer as nat, layer as nat);
+                lemma_table_rows(self, layer as nat);
+                lemma_usize_pow2_no_overflow((layer - outer_log) as nat);
+                lemma_usize_pow2_no_overflow((log_d - layer) as nat);
+                lemma_usize_shl_is_mul(1, (layer - outer_log) as usize);
+                lemma_usize_shl_is_mul(1, (log_d - layer) as usize);
+                lemma_pow2_adds((layer - outer_log) as nat, (log_d - layer) as nat);
+                assert((layer - outer_log) as nat + (log_d - layer) as nat == (log_d - outer_log) as nat);
+                lemma_pow2_pos((layer - outer_log) as nat);
+                lemma_pow2_pos((log_d - layer) as nat);
+                assert(pow2((log_d - layer) as nat) * num_ntts <= len) by (nonlinear_arith)
+                    requires
+                        len == num_ntts * (pow2((layer - outer_log) as nat) * pow2((log_d - layer) as nat)),
+                        pow2((layer - outer_log) as nat) >= 1,
+                ;
+            }
+            // This layer's blocks inside the buffer: how many, and their size in rows and words.
+            let num_blocks_in_buf = 1usize << (layer - outer_log);
+            let block_size = 1usize << (log_d - layer);
+            let block_elems = block_size * num_ntts;
+            // A block's index in the whole domain, which picks its twiddle.
+            let global = |block_in_buf: usize| -> (r: usize)
+                requires
+                    block_in_buf < num_blocks_in_buf,
+                    num_blocks_in_buf == pow2((layer - outer_log) as nat),
+                    sub_idx < pow2(outer_log as nat),
+                    outer_log <= layer < 64,
+                ensures
+                    r == sub_idx * num_blocks_in_buf + block_in_buf,
+                    r < pow2(layer as nat),
+                {
+                    proof {
+                        lemma_global_block(sub_idx as int, outer_log as nat, layer as nat, block_in_buf as int);
+                        lemma_usize_pow2_no_overflow(layer as nat);
+                    }
+                    sub_idx * num_blocks_in_buf + block_in_buf
+                };
+            let ghost tw_layers: nat = if layer + 2 < end_layer && block_size >= 8 {
+                3
+            } else if layer + 1 < end_layer && block_size >= 4 {
+                2
+            } else {
+                1
+            };
+            let ghost target = sub_layers(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, (layer + tw_layers) as nat);
+            proof {
+                lemma_sub_layers_len(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, (layer + tw_layers) as nat);
+            }
+            if layer + 2 < end_layer && block_size >= 8 {
+                // Three layers to go and blocks of at least 8 rows: one radix-8 sweep.
+                let eighth = block_size >> 3;
+                proof {
+                    lemma_usize_shr_is_div(block_size, 3);
+                    lemma_pow2_unfold((log_d - layer) as nat);
+                    lemma_pow2_unfold((log_d - layer - 1) as nat);
+                    lemma_pow2_unfold((log_d - layer - 2) as nat);
+                    lemma2_to64();
+                    lemma_div_multiples_vanish(pow2((log_d - layer - 3) as nat) as int, 8);
+                    assert(eighth == pow2((log_d - layer - 3) as nat));
+                    lemma_table_rows(self, (layer + 1) as nat);
+                    lemma_table_rows(self, (layer + 2) as nat);
+                    assert(0 * block_elems == 0);
+                }
+                for block_in_buf in 0..num_blocks_in_buf
+                    invariant
+                        self.well_formed(),
+                        tab == self.table(),
+                        num_ntts > 0,
+                        m == num_ntts,
+                        outer_log <= layer,
+                        layer + 3 <= end_layer <= log_d <= tab.len() <= 63,
+                        sub_idx < pow2(outer_log as nat),
+                        num_blocks_in_buf == pow2((layer - outer_log) as nat),
+                        block_size == pow2((log_d - layer) as nat),
+                        block_elems == block_size * num_ntts,
+                        eighth == pow2((log_d - layer - 3) as nat),
+                        block_size == 8 * eighth,
+                        prev.len() == len,
+                        len == num_ntts * pow2((log_d - outer_log) as nat),
+                        len <= usize::MAX,
+                        target == sub_layers(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, (layer + 3) as nat),
+                        swept_to(buf@, prev, target, block_in_buf * block_elems),
+                        forall|b: usize| b < num_blocks_in_buf ==> #[trigger] global.requires((b,)),
+                        forall|b: usize, r: usize|
+                            #[trigger] global.ensures((b,), r) ==> r == sub_idx * num_blocks_in_buf + b && r < pow2(layer as nat),
+                {
+                    proof {
+                        lemma_block_target(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, 3, block_in_buf as int);
+                        assert(block_elems == m * pow2((log_d - layer) as nat)) by (nonlinear_arith)
+                            requires
+                                block_elems == block_size * num_ntts,
+                                block_size == pow2((log_d - layer) as nat),
+                                m == num_ntts,
+                        ;
+                    }
+                    let t = self.twiddles_radix8(layer, global(block_in_buf));
+                    let start = block_in_buf * block_elems;
+                    let ghost before = buf@;
+                    proof {
+                        let s2 = sub_idx * pow2((layer - outer_log) as nat) + block_in_buf;
+                        lemma_sub3(tab, prev.subrange(start as int, start + block_elems), m, log_d as nat, layer as nat, s2, t@);
+                        assert(before.subrange(start as int, start + block_elems) =~= prev.subrange(start as int, start + block_elems));
+                        assert(block_elems == 8 * (eighth * num_ntts)) by (nonlinear_arith)
+                            requires
+                                block_elems == block_size * num_ntts,
+                                block_size == 8 * eighth,
+                        ;
+                    }
+                    butterfly_interleaved_fused_3layer(&mut buf[start..start + block_elems], &t, eighth, num_ntts);
+                    proof {
+                        lemma_block_swept(before, buf@, prev, target, start as int, block_elems as int);
+                        assert((block_in_buf + 1) * block_elems == start + block_elems) by (nonlinear_arith)
+                            requires
+                                start == block_in_buf * block_elems,
+                        ;
+                    }
+                }
+                layer += 3;
+            } else if layer + 1 < end_layer && block_size >= 4 {
+                // Two layers to go: one radix-4 sweep.
+                let quarter = block_size >> 2;
+                proof {
+                    lemma_usize_shr_is_div(block_size, 2);
+                    lemma_pow2_unfold((log_d - layer) as nat);
+                    lemma_pow2_unfold((log_d - layer - 1) as nat);
+                    lemma2_to64();
+                    lemma_div_multiples_vanish(pow2((log_d - layer - 2) as nat) as int, 4);
+                    assert(quarter == pow2((log_d - layer - 2) as nat));
+                    lemma_table_rows(self, (layer + 1) as nat);
+                    assert(0 * block_elems == 0);
+                }
+                for block_in_buf in 0..num_blocks_in_buf
+                    invariant
+                        self.well_formed(),
+                        tab == self.table(),
+                        num_ntts > 0,
+                        m == num_ntts,
+                        outer_log <= layer,
+                        layer + 2 <= end_layer <= log_d <= tab.len() <= 63,
+                        sub_idx < pow2(outer_log as nat),
+                        num_blocks_in_buf == pow2((layer - outer_log) as nat),
+                        block_size == pow2((log_d - layer) as nat),
+                        block_elems == block_size * num_ntts,
+                        quarter == pow2((log_d - layer - 2) as nat),
+                        block_size == 4 * quarter,
+                        prev.len() == len,
+                        len == num_ntts * pow2((log_d - outer_log) as nat),
+                        len <= usize::MAX,
+                        target == sub_layers(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, (layer + 2) as nat),
+                        swept_to(buf@, prev, target, block_in_buf * block_elems),
+                        forall|b: usize| b < num_blocks_in_buf ==> #[trigger] global.requires((b,)),
+                        forall|b: usize, r: usize|
+                            #[trigger] global.ensures((b,), r) ==> r == sub_idx * num_blocks_in_buf + b && r < pow2(layer as nat),
+                {
+                    proof {
+                        lemma_block_target(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, 2, block_in_buf as int);
+                        assert(block_elems == m * pow2((log_d - layer) as nat)) by (nonlinear_arith)
+                            requires
+                                block_elems == block_size * num_ntts,
+                                block_size == pow2((log_d - layer) as nat),
+                                m == num_ntts,
+                        ;
+                    }
+                    let global_block = global(block_in_buf);
+                    proof {
+                        lemma_pow2_unfold((layer + 1) as nat);
+                        lemma_usize_pow2_no_overflow((layer + 1) as nat);
+                    }
+                    let t_outer = self.twiddle(layer, global_block);
+                    let t_inner_a = self.twiddle(layer + 1, 2 * global_block);
+                    let t_inner_b = self.twiddle(layer + 1, 2 * global_block + 1);
+                    let start = block_in_buf * block_elems;
+                    let ghost before = buf@;
+                    proof {
+                        let s2 = sub_idx * pow2((layer - outer_log) as nat) + block_in_buf;
+                        lemma_sub2(tab, prev.subrange(start as int, start + block_elems), m, log_d as nat, layer as nat, s2, t_outer.0, t_inner_a.0, t_inner_b.0);
+                        assert(before.subrange(start as int, start + block_elems) =~= prev.subrange(start as int, start + block_elems));
+                        assert(block_elems == 4 * (quarter * num_ntts)) by (nonlinear_arith)
+                            requires
+                                block_elems == block_size * num_ntts,
+                                block_size == 4 * quarter,
+                        ;
+                    }
+                    butterfly_interleaved_fused_2layer(
+                        &mut buf[start..start + block_elems],
+                        t_outer,
+                        t_inner_a,
+                        t_inner_b,
+                        quarter,
+                        num_ntts,
+                    );
+                    proof {
+                        lemma_block_swept(before, buf@, prev, target, start as int, block_elems as int);
+                        assert((block_in_buf + 1) * block_elems == start + block_elems) by (nonlinear_arith)
+                            requires
+                                start == block_in_buf * block_elems,
+                        ;
+                    }
+                }
+                layer += 2;
+            } else {
+                // One layer: a plain butterfly sweep.
+                let block_size_half = block_size >> 1;
+                proof {
+                    lemma_usize_shr_is_div(block_size, 1);
+                    lemma_pow2_unfold((log_d - layer) as nat);
+                    lemma2_to64();
+                    lemma_div_multiples_vanish(pow2((log_d - layer - 1) as nat) as int, 2);
+                    assert(block_size_half == pow2((log_d - layer - 1) as nat));
+                    lemma_pow2_pos((log_d - layer - 1) as nat);
+                    assert(0 * block_elems == 0);
+                }
+                for block_in_buf in 0..num_blocks_in_buf
+                    invariant
+                        self.well_formed(),
+                        tab == self.table(),
+                        num_ntts > 0,
+                        m == num_ntts,
+                        outer_log <= layer,
+                        layer + 1 <= end_layer <= log_d <= tab.len() <= 63,
+                        sub_idx < pow2(outer_log as nat),
+                        num_blocks_in_buf == pow2((layer - outer_log) as nat),
+                        block_size == pow2((log_d - layer) as nat),
+                        block_elems == block_size * num_ntts,
+                        block_size_half == pow2((log_d - layer - 1) as nat),
+                        block_size == 2 * block_size_half,
+                        block_size_half > 0,
+                        prev.len() == len,
+                        len == num_ntts * pow2((log_d - outer_log) as nat),
+                        len <= usize::MAX,
+                        target == sub_layers(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, (layer + 1) as nat),
+                        swept_to(buf@, prev, target, block_in_buf * block_elems),
+                        forall|b: usize| b < num_blocks_in_buf ==> #[trigger] global.requires((b,)),
+                        forall|b: usize, r: usize|
+                            #[trigger] global.ensures((b,), r) ==> r == sub_idx * num_blocks_in_buf + b && r < pow2(layer as nat),
+                {
+                    proof {
+                        lemma_block_target(tab, prev, m, log_d as nat, outer_log as nat, sub_idx as int, layer as nat, 1, block_in_buf as int);
+                        assert(block_elems == m * pow2((log_d - layer) as nat)) by (nonlinear_arith)
+                            requires
+                                block_elems == block_size * num_ntts,
+                                block_size == pow2((log_d - layer) as nat),
+                                m == num_ntts,
+                        ;
+                    }
+                    let twiddle = self.twiddle(layer, global(block_in_buf));
+                    let start = block_in_buf * block_elems;
+                    let ghost before = buf@;
+                    proof {
+                        let s2 = sub_idx * pow2((layer - outer_log) as nat) + block_in_buf;
+                        lemma_sub1(tab, prev.subrange(start as int, start + block_elems), m, log_d as nat, layer as nat, s2, twiddle.0);
+                        assert(before.subrange(start as int, start + block_elems) =~= prev.subrange(start as int, start + block_elems));
+                        assert(block_elems == 2 * (block_size_half * num_ntts)) by (nonlinear_arith)
+                            requires
+                                block_elems == block_size * num_ntts,
+                                block_size == 2 * block_size_half,
+                        ;
+                    }
+                    butterfly_interleaved_block(&mut buf[start..start + block_elems], twiddle, block_size_half, num_ntts);
+                    proof {
+                        lemma_block_swept(before, buf@, prev, target, start as int, block_elems as int);
+                        assert((block_in_buf + 1) * block_elems == start + block_elems) by (nonlinear_arith)
+                            requires
+                                start == block_in_buf * block_elems,
+                        ;
+                    }
+                }
+                layer += 1;
+            }
+            proof {
+                assert(num_blocks_in_buf * block_elems == len) by (nonlinear_arith)
+                    requires
+                        num_blocks_in_buf == pow2((layer - tw_layers - outer_log) as nat),
+                        block_elems == pow2((log_d - (layer - tw_layers)) as nat) * num_ntts,
+                        len == num_ntts * (pow2((layer - tw_layers - outer_log) as nat) * pow2((log_d - (layer - tw_layers)) as nat)),
+                ;
+                assert(buf@ =~= target);
+                lemma_sub_layers_split(tab, b0, m, log_d as nat, outer_log as nat, sub_idx as int, first_layer as nat, (layer - tw_layers) as nat, layer as nat);
+            }
+        }
+    }
+}
+
 } // verus!
