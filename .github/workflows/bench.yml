@@ -8,15 +8,15 @@ name: Bench
 # A job is one CLI benchmark, or one `benches/` target with all the benchmarks it prints.
 # scripts/ab.sh does all of it, and runs the same comparison on a developer's machine.
 #
-# The x86-64 testbed is the self-hosted runner `size-attester7870-x64` (with `self-hosted-ghr`,
-# an ephemeral VM per job: an Intel Xeon Gold 6548N, 32 vCPUs, 64 GB): base and PR build and
-# run on that one machine, so it is built for
-# `target-cpu=native`, AVX-512, VPCLMULQDQ and GFNI included, and its cache is keyed on the CPU
-# model so a native build never lands on another CPU. A fork has no such runner, so in a fork's
-# own repository the testbed falls back to a GitHub-hosted runner built for haswell (a fork's PR
-# to this repository runs here, on the self-hosted runner). The arm64 testbed is GitHub-hosted
-# and pins its ISA: `target-cpu=native` would build for whichever CPU the job lands on, and a
-# cached build then dies of SIGILL on an older one (see rust.yml).
+# The testbeds are the self-hosted runners `size-attester7870-x64` and `size-attester7870-arm64`
+# (with `self-hosted-ghr`, an ephemeral VM per job; x86-64 an Intel Xeon Gold 6548N, 32 vCPUs,
+# 64 GB): base and PR build and run on one machine, so each is built for `target-cpu=native`
+# (on x86-64 AVX-512, VPCLMULQDQ and GFNI included), and its cache is keyed on the CPU model so a
+# native build never lands on another CPU. A fork has no such runners, so in a fork's own
+# repository the testbeds fall back to GitHub-hosted runners with a pinned ISA, x86-64 built for
+# haswell and arm64 for neoverse-n2 (a fork's PR to this repository runs here, on the self-hosted
+# runners): `target-cpu=native` would build for whichever CPU the job lands on, and a cached
+# build then dies of SIGILL on an older one (see rust.yml).
 #
 # Run from the Actions tab (`workflow_dispatch`), it compares any two refs the same way: `head`
 # (default: the branch it is run on) against `base` (default: the head's first parent). Such a
@@ -59,11 +59,14 @@ jobs:
           - name: x86-64
             runner: ${{ github.repository == 'leanEthereum/leanVM' && fromJSON('["size-attester7870-x64", "self-hosted-ghr"]') || 'ubuntu-latest' }}
             rustflags: ${{ github.repository == 'leanEthereum/leanVM' && '-C target-cpu=native' || '-C target-cpu=haswell' }}
-          # The NEON kernels, which are chosen at compile time on `aes` (PMULL) and `sha3`
-          # (EOR3), neither of which a generic aarch64 target enables.
+          # The NEON kernels are chosen at compile time on `aes` (PMULL) and `sha3` (EOR3), which
+          # a generic aarch64 target does not enable: the native build enables them where the CPU
+          # has them, the fork's neoverse-n2 pin names them, and the job fails early without them.
           - name: arm64
-            runner: ubuntu-24.04-arm
-            rustflags: -C target-cpu=neoverse-n2 -C target-feature=+aes,+sha3
+            runner: ${{ github.repository == 'leanEthereum/leanVM' && fromJSON('["size-attester7870-arm64", "self-hosted-ghr"]') || 'ubuntu-24.04-arm' }}
+            rustflags: ${{ github.repository == 'leanEthereum/leanVM' && '-C target-cpu=native' || '-C target-cpu=neoverse-n2 -C target-feature=+aes,+sha3' }}
+            # What the CPU must have to run that build.
+            cpu: ${{ github.repository == 'leanEthereum/leanVM' && 'aes pmull sha3' || 'aes pmull sha3 sve2' }}
         # The cases of `proven()` and `proven_trees()` in bins/leanvm/src/tracked.rs, run by the
         # CLI (`-1thread`, one thread: the CLI proves it, a tree's leaf included, with
         # `LEANVM_NUM_THREADS=1`; a tree's case, `Nto1` for N proofs combined into 1, prints two
@@ -97,26 +100,37 @@ jobs:
           # The head (a PR's merge commit) and its first parent, the default base.
           fetch-depth: 2
       - uses: dtolnay/rust-toolchain@stable
-      # What the x86 build can use, so the PR comment's numbers can be read against the hardware.
+      # What the build can use, so the PR comment's numbers can be read against the hardware.
       # The model goes into the cache key: a native build is only reused on the CPU it was built for.
       - name: CPU
         id: cpu
-        if: runner.arch == 'X64'
         run: |
-          lscpu | grep -E '^(Model name|CPU\(s\)|Thread\(s\) per core|Core\(s\) per socket|L2 cache|L3 cache):'
+          lscpu | grep -E '^(Vendor ID|Model name|CPU\(s\)|Thread\(s\) per core|Core\(s\) per (socket|cluster)|L1d cache|L2 cache|L3 cache):'
           free -g | grep -E '^Mem:'
-          flags=$(grep -m1 -E '^flags' /proc/cpuinfo)
-          for f in avx2 avx512f avx512bw avx512vl avx512vbmi avx512ifma vpclmulqdq gfni; do
+          if [ "$RUNNER_ARCH" = ARM64 ]; then
+            flags=$(grep -m1 -E '^Features' /proc/cpuinfo)
+            wanted="asimd aes pmull sha3 sve sve2 svepmull svebitperm i8mm bf16"
+          else
+            flags=$(grep -m1 -E '^flags' /proc/cpuinfo)
+            wanted="avx2 avx512f avx512bw avx512vl avx512vbmi avx512ifma vpclmulqdq gfni"
+          fi
+          for f in $wanted; do
             if grep -qw "$f" <<<"$flags"; then echo "$f: yes"; else echo "$f: no"; fi
           done
           echo "model=-$(lscpu | sed -n 's/^Model name: *//p' | head -n1 | tr -c 'A-Za-z0-9\n' '-')" >> "$GITHUB_OUTPUT"
-      # The CPU the testbed's ISA is pinned for must have what it enables, or it dies of SIGILL.
-      - name: CPU features
-        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+      # The build must enable the NEON kernels' features, and the CPU must have what the build
+      # enables, or the comparison measures the fallback or dies of SIGILL.
+      - name: NEON kernels
+        if: runner.arch == 'ARM64'
+        env:
+          CPU_FEATURES: ${{ matrix.testbed.cpu }}
         run: |
-          grep -m1 -E '^Features' /proc/cpuinfo
-          for f in aes pmull sha3 sve2; do grep -qw "$f" <(grep -m1 -E '^Features' /proc/cpuinfo) || { echo "::error::no $f on this runner"; exit 1; }; done
-      # One cache per testbed, and on x86 per CPU model; RUSTFLAGS is part of its key.
+          read -ra flags <<<"$RUSTFLAGS"
+          cfg=$(rustc --print cfg "${flags[@]}")
+          for f in aes sha3; do grep -qx "target_feature=\"$f\"" <<<"$cfg" || { echo "::error::$RUSTFLAGS does not enable $f"; exit 1; }; done
+          features=$(grep -m1 -E '^Features' /proc/cpuinfo)
+          for f in $CPU_FEATURES; do grep -qw "$f" <<<"$features" || { echo "::error::no $f on this runner"; exit 1; }; done
+      # One cache per testbed and CPU model; RUSTFLAGS is part of its key.
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.testbed.name }}${{ steps.cpu.outputs.model }}
