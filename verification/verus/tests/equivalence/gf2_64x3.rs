@@ -127,6 +127,14 @@ fn weights_and_dot_base_match() {
 }
 
 #[test]
+fn inverses_match() {
+    let mut rng = Rng::new(0x1A7);
+    for a in elements(&mut rng, 1_000) {
+        assert!(same(to_v(a).inv(), a.inv()), "inv {a:?}");
+    }
+}
+
+#[test]
 fn constants_match() {
     assert!(same(verified::F192::ZERO, production::F192::ZERO));
     assert!(same(verified::F192::ONE, production::F192::ONE));

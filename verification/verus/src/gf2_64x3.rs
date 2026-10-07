@@ -9,6 +9,7 @@
 //! `y^4 = y^2 + y`.
 use crate::clmul::*;
 use crate::gf2_64::*;
+use vstd::arithmetic::power2::*;
 use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
 use vstd::prelude::*;
 
@@ -95,7 +96,7 @@ pub proof fn lemma_e_value_xor(u: F192Unreduced, v: F192Unreduced)
         e_value(u_xor(u, v)) == e_add(e_value(u), e_value(v)),
 {
     let w = u_xor(u, v);
-    assert forall|k: int| 0 <= k < 3 implies wide(w.coeffs[k]) == wide(u.coeffs[k]) ^ wide(v.coeffs[k]) by {
+    assert forall|k: int| 0 <= k < 3 implies #[trigger] wide(w.coeffs[k]) == wide(u.coeffs[k]) ^ wide(v.coeffs[k]) by {
         let (a0, a1, b0, b1) = (u.coeffs[k][0], u.coeffs[k][1], v.coeffs[k][0], v.coeffs[k][1]);
         assert((((a1 ^ b1) as u128) << 64u128) | ((a0 ^ b0) as u128) == (((a1 as u128) << 64u128) | (
         a0 as u128)) ^ (((b1 as u128) << 64u128) | (b0 as u128))) by (bit_vector);
@@ -229,6 +230,388 @@ pub proof fn lemma_mul_unreduced_value(a: F192, b: F192)
 }
 
 // ---------------------------------------------------------------------------------------------
+// E is a commutative ring, and its Frobenius
+// ---------------------------------------------------------------------------------------------
+/// `a^n` in `E`.
+pub open spec fn e_pow(a: F192, n: nat) -> F192
+    decreases n,
+{
+    if n == 0 {
+        F192::ONE
+    } else {
+        e_mul(e_pow(a, (n - 1) as nat), a)
+    }
+}
+
+/// `a` squared `n` times in `E`.
+pub open spec fn e_sq_iter(a: F192, n: nat) -> F192
+    decreases n,
+{
+    if n == 0 {
+        a
+    } else {
+        let v = e_sq_iter(a, (n - 1) as nat);
+        e_mul(v, v)
+    }
+}
+
+/// The Frobenius shuffle `c0 + c2 y + (c1 + c2) y^2`.
+pub open spec fn e_frobenius(a: F192) -> F192 {
+    F192 { c0: a.c0, c1: a.c2, c2: a.c1 ^ a.c2 }
+}
+
+pub proof fn lemma_e_mul_one(a: F192)
+    ensures
+        e_mul(a, F192::ONE) == a,
+        e_mul(F192::ONE, a) == a,
+{
+    lemma_k_mul_one(a.c0);
+    lemma_k_mul_one(a.c1);
+    lemma_k_mul_one(a.c2);
+    lemma_k_mul_zero(a.c0);
+    lemma_k_mul_zero(a.c1);
+    lemma_k_mul_zero(a.c2);
+    let (x0, x1, x2) = (a.c0, a.c1, a.c2);
+    assert(x0 ^ (0u64 ^ 0u64) == x0 && (0u64 ^ x1) ^ (0u64 ^ 0u64) ^ 0u64 == x1 && (0u64 ^ 0u64 ^ x2) ^ 0u64
+        == x2) by (bit_vector);
+    assert(x0 ^ (0u64 ^ 0u64) == x0 && (0u64 ^ x1) ^ (0u64 ^ 0u64) ^ 0u64 == x1 && (0u64 ^ 0u64 ^ x2) ^ 0u64
+        == x2) by (bit_vector);
+    assert(x0 ^ (0u64 ^ 0u64) == x0 && (x1 ^ 0u64) ^ (0u64 ^ 0u64) ^ 0u64 == x1 && (x2 ^ 0u64 ^ 0u64) ^ 0u64
+        == x2) by (bit_vector);
+}
+
+pub proof fn lemma_e_mul_comm(a: F192, b: F192)
+    ensures
+        e_mul(a, b) == e_mul(b, a),
+{
+    lemma_k_mul_comm(a.c0, b.c0);
+    lemma_k_mul_comm(a.c0, b.c1);
+    lemma_k_mul_comm(a.c0, b.c2);
+    lemma_k_mul_comm(a.c1, b.c0);
+    lemma_k_mul_comm(a.c1, b.c1);
+    lemma_k_mul_comm(a.c1, b.c2);
+    lemma_k_mul_comm(a.c2, b.c0);
+    lemma_k_mul_comm(a.c2, b.c1);
+    lemma_k_mul_comm(a.c2, b.c2);
+    let (p00, p01, p02, p10, p11, p12, p20, p21, p22) = (
+        k_mul(a.c0, b.c0),
+        k_mul(a.c0, b.c1),
+        k_mul(a.c0, b.c2),
+        k_mul(a.c1, b.c0),
+        k_mul(a.c1, b.c1),
+        k_mul(a.c1, b.c2),
+        k_mul(a.c2, b.c0),
+        k_mul(a.c2, b.c1),
+        k_mul(a.c2, b.c2),
+    );
+    assert(p00 ^ (p12 ^ p21) == p00 ^ (p21 ^ p12) && (p01 ^ p10) ^ (p12 ^ p21) ^ p22 == (p10 ^ p01) ^ (p21 ^ p12)
+        ^ p22 && (p02 ^ p11 ^ p20) ^ p22 == (p20 ^ p11 ^ p02) ^ p22) by (bit_vector);
+}
+
+/// Associativity, by expanding both sides into the 27 triple products of coefficients.
+pub proof fn lemma_e_mul_assoc(a: F192, b: F192, c: F192)
+    ensures
+        e_mul(e_mul(a, b), c) == e_mul(a, e_mul(b, c)),
+{
+    let t000 = k_mul(k_mul(a.c0, b.c0), c.c0);
+    lemma_k_mul_assoc(a.c0, b.c0, c.c0);
+    let t001 = k_mul(k_mul(a.c0, b.c0), c.c1);
+    lemma_k_mul_assoc(a.c0, b.c0, c.c1);
+    let t002 = k_mul(k_mul(a.c0, b.c0), c.c2);
+    lemma_k_mul_assoc(a.c0, b.c0, c.c2);
+    let t010 = k_mul(k_mul(a.c0, b.c1), c.c0);
+    lemma_k_mul_assoc(a.c0, b.c1, c.c0);
+    let t011 = k_mul(k_mul(a.c0, b.c1), c.c1);
+    lemma_k_mul_assoc(a.c0, b.c1, c.c1);
+    let t012 = k_mul(k_mul(a.c0, b.c1), c.c2);
+    lemma_k_mul_assoc(a.c0, b.c1, c.c2);
+    let t020 = k_mul(k_mul(a.c0, b.c2), c.c0);
+    lemma_k_mul_assoc(a.c0, b.c2, c.c0);
+    let t021 = k_mul(k_mul(a.c0, b.c2), c.c1);
+    lemma_k_mul_assoc(a.c0, b.c2, c.c1);
+    let t022 = k_mul(k_mul(a.c0, b.c2), c.c2);
+    lemma_k_mul_assoc(a.c0, b.c2, c.c2);
+    let t100 = k_mul(k_mul(a.c1, b.c0), c.c0);
+    lemma_k_mul_assoc(a.c1, b.c0, c.c0);
+    let t101 = k_mul(k_mul(a.c1, b.c0), c.c1);
+    lemma_k_mul_assoc(a.c1, b.c0, c.c1);
+    let t102 = k_mul(k_mul(a.c1, b.c0), c.c2);
+    lemma_k_mul_assoc(a.c1, b.c0, c.c2);
+    let t110 = k_mul(k_mul(a.c1, b.c1), c.c0);
+    lemma_k_mul_assoc(a.c1, b.c1, c.c0);
+    let t111 = k_mul(k_mul(a.c1, b.c1), c.c1);
+    lemma_k_mul_assoc(a.c1, b.c1, c.c1);
+    let t112 = k_mul(k_mul(a.c1, b.c1), c.c2);
+    lemma_k_mul_assoc(a.c1, b.c1, c.c2);
+    let t120 = k_mul(k_mul(a.c1, b.c2), c.c0);
+    lemma_k_mul_assoc(a.c1, b.c2, c.c0);
+    let t121 = k_mul(k_mul(a.c1, b.c2), c.c1);
+    lemma_k_mul_assoc(a.c1, b.c2, c.c1);
+    let t122 = k_mul(k_mul(a.c1, b.c2), c.c2);
+    lemma_k_mul_assoc(a.c1, b.c2, c.c2);
+    let t200 = k_mul(k_mul(a.c2, b.c0), c.c0);
+    lemma_k_mul_assoc(a.c2, b.c0, c.c0);
+    let t201 = k_mul(k_mul(a.c2, b.c0), c.c1);
+    lemma_k_mul_assoc(a.c2, b.c0, c.c1);
+    let t202 = k_mul(k_mul(a.c2, b.c0), c.c2);
+    lemma_k_mul_assoc(a.c2, b.c0, c.c2);
+    let t210 = k_mul(k_mul(a.c2, b.c1), c.c0);
+    lemma_k_mul_assoc(a.c2, b.c1, c.c0);
+    let t211 = k_mul(k_mul(a.c2, b.c1), c.c1);
+    lemma_k_mul_assoc(a.c2, b.c1, c.c1);
+    let t212 = k_mul(k_mul(a.c2, b.c1), c.c2);
+    lemma_k_mul_assoc(a.c2, b.c1, c.c2);
+    let t220 = k_mul(k_mul(a.c2, b.c2), c.c0);
+    lemma_k_mul_assoc(a.c2, b.c2, c.c0);
+    let t221 = k_mul(k_mul(a.c2, b.c2), c.c1);
+    lemma_k_mul_assoc(a.c2, b.c2, c.c1);
+    let t222 = k_mul(k_mul(a.c2, b.c2), c.c2);
+    lemma_k_mul_assoc(a.c2, b.c2, c.c2);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c0), (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1)), c.c0);
+    lemma_k_mul_xor_left(k_mul(a.c1, b.c2), k_mul(a.c2, b.c1), c.c0);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c0), (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1)), c.c1);
+    lemma_k_mul_xor_left(k_mul(a.c1, b.c2), k_mul(a.c2, b.c1), c.c1);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c0), (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1)), c.c2);
+    lemma_k_mul_xor_left(k_mul(a.c1, b.c2), k_mul(a.c2, b.c1), c.c2);
+    lemma_k_mul_xor_left(((k_mul(a.c0, b.c1) ^ k_mul(a.c1, b.c0)) ^ (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1))), k_mul(a.c2, b.c2), c.c0);
+    lemma_k_mul_xor_left((k_mul(a.c0, b.c1) ^ k_mul(a.c1, b.c0)), (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1)), c.c0);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c1), k_mul(a.c1, b.c0), c.c0);
+    lemma_k_mul_xor_left(k_mul(a.c1, b.c2), k_mul(a.c2, b.c1), c.c0);
+    lemma_k_mul_xor_left(((k_mul(a.c0, b.c1) ^ k_mul(a.c1, b.c0)) ^ (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1))), k_mul(a.c2, b.c2), c.c1);
+    lemma_k_mul_xor_left((k_mul(a.c0, b.c1) ^ k_mul(a.c1, b.c0)), (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1)), c.c1);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c1), k_mul(a.c1, b.c0), c.c1);
+    lemma_k_mul_xor_left(k_mul(a.c1, b.c2), k_mul(a.c2, b.c1), c.c1);
+    lemma_k_mul_xor_left(((k_mul(a.c0, b.c1) ^ k_mul(a.c1, b.c0)) ^ (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1))), k_mul(a.c2, b.c2), c.c2);
+    lemma_k_mul_xor_left((k_mul(a.c0, b.c1) ^ k_mul(a.c1, b.c0)), (k_mul(a.c1, b.c2) ^ k_mul(a.c2, b.c1)), c.c2);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c1), k_mul(a.c1, b.c0), c.c2);
+    lemma_k_mul_xor_left(k_mul(a.c1, b.c2), k_mul(a.c2, b.c1), c.c2);
+    lemma_k_mul_xor_left(((k_mul(a.c0, b.c2) ^ k_mul(a.c1, b.c1)) ^ k_mul(a.c2, b.c0)), k_mul(a.c2, b.c2), c.c0);
+    lemma_k_mul_xor_left((k_mul(a.c0, b.c2) ^ k_mul(a.c1, b.c1)), k_mul(a.c2, b.c0), c.c0);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c2), k_mul(a.c1, b.c1), c.c0);
+    lemma_k_mul_xor_left(((k_mul(a.c0, b.c2) ^ k_mul(a.c1, b.c1)) ^ k_mul(a.c2, b.c0)), k_mul(a.c2, b.c2), c.c1);
+    lemma_k_mul_xor_left((k_mul(a.c0, b.c2) ^ k_mul(a.c1, b.c1)), k_mul(a.c2, b.c0), c.c1);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c2), k_mul(a.c1, b.c1), c.c1);
+    lemma_k_mul_xor_left(((k_mul(a.c0, b.c2) ^ k_mul(a.c1, b.c1)) ^ k_mul(a.c2, b.c0)), k_mul(a.c2, b.c2), c.c2);
+    lemma_k_mul_xor_left((k_mul(a.c0, b.c2) ^ k_mul(a.c1, b.c1)), k_mul(a.c2, b.c0), c.c2);
+    lemma_k_mul_xor_left(k_mul(a.c0, b.c2), k_mul(a.c1, b.c1), c.c2);
+    lemma_k_mul_xor_right(a.c0, k_mul(b.c0, c.c0), (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1)));
+    lemma_k_mul_xor_right(a.c0, k_mul(b.c1, c.c2), k_mul(b.c2, c.c1));
+    lemma_k_mul_xor_right(a.c0, ((k_mul(b.c0, c.c1) ^ k_mul(b.c1, c.c0)) ^ (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1))), k_mul(b.c2, c.c2));
+    lemma_k_mul_xor_right(a.c0, (k_mul(b.c0, c.c1) ^ k_mul(b.c1, c.c0)), (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1)));
+    lemma_k_mul_xor_right(a.c0, k_mul(b.c0, c.c1), k_mul(b.c1, c.c0));
+    lemma_k_mul_xor_right(a.c0, k_mul(b.c1, c.c2), k_mul(b.c2, c.c1));
+    lemma_k_mul_xor_right(a.c0, ((k_mul(b.c0, c.c2) ^ k_mul(b.c1, c.c1)) ^ k_mul(b.c2, c.c0)), k_mul(b.c2, c.c2));
+    lemma_k_mul_xor_right(a.c0, (k_mul(b.c0, c.c2) ^ k_mul(b.c1, c.c1)), k_mul(b.c2, c.c0));
+    lemma_k_mul_xor_right(a.c0, k_mul(b.c0, c.c2), k_mul(b.c1, c.c1));
+    lemma_k_mul_xor_right(a.c1, k_mul(b.c0, c.c0), (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1)));
+    lemma_k_mul_xor_right(a.c1, k_mul(b.c1, c.c2), k_mul(b.c2, c.c1));
+    lemma_k_mul_xor_right(a.c1, ((k_mul(b.c0, c.c1) ^ k_mul(b.c1, c.c0)) ^ (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1))), k_mul(b.c2, c.c2));
+    lemma_k_mul_xor_right(a.c1, (k_mul(b.c0, c.c1) ^ k_mul(b.c1, c.c0)), (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1)));
+    lemma_k_mul_xor_right(a.c1, k_mul(b.c0, c.c1), k_mul(b.c1, c.c0));
+    lemma_k_mul_xor_right(a.c1, k_mul(b.c1, c.c2), k_mul(b.c2, c.c1));
+    lemma_k_mul_xor_right(a.c1, ((k_mul(b.c0, c.c2) ^ k_mul(b.c1, c.c1)) ^ k_mul(b.c2, c.c0)), k_mul(b.c2, c.c2));
+    lemma_k_mul_xor_right(a.c1, (k_mul(b.c0, c.c2) ^ k_mul(b.c1, c.c1)), k_mul(b.c2, c.c0));
+    lemma_k_mul_xor_right(a.c1, k_mul(b.c0, c.c2), k_mul(b.c1, c.c1));
+    lemma_k_mul_xor_right(a.c2, k_mul(b.c0, c.c0), (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1)));
+    lemma_k_mul_xor_right(a.c2, k_mul(b.c1, c.c2), k_mul(b.c2, c.c1));
+    lemma_k_mul_xor_right(a.c2, ((k_mul(b.c0, c.c1) ^ k_mul(b.c1, c.c0)) ^ (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1))), k_mul(b.c2, c.c2));
+    lemma_k_mul_xor_right(a.c2, (k_mul(b.c0, c.c1) ^ k_mul(b.c1, c.c0)), (k_mul(b.c1, c.c2) ^ k_mul(b.c2, c.c1)));
+    lemma_k_mul_xor_right(a.c2, k_mul(b.c0, c.c1), k_mul(b.c1, c.c0));
+    lemma_k_mul_xor_right(a.c2, k_mul(b.c1, c.c2), k_mul(b.c2, c.c1));
+    lemma_k_mul_xor_right(a.c2, ((k_mul(b.c0, c.c2) ^ k_mul(b.c1, c.c1)) ^ k_mul(b.c2, c.c0)), k_mul(b.c2, c.c2));
+    lemma_k_mul_xor_right(a.c2, (k_mul(b.c0, c.c2) ^ k_mul(b.c1, c.c1)), k_mul(b.c2, c.c0));
+    lemma_k_mul_xor_right(a.c2, k_mul(b.c0, c.c2), k_mul(b.c1, c.c1));
+    assert(((t000 ^ (t120 ^ t210)) ^ ((((t012 ^ t102) ^ (t122 ^ t212)) ^ t222) ^ (((t021 ^ t111) ^ t201) ^ t221))) == ((t000 ^ (t012 ^ t021)) ^ ((((t102 ^ t111) ^ t120) ^ t122) ^ (((t201 ^ t210) ^ (t212 ^ t221)) ^ t222))) && ((((t001 ^ (t121 ^ t211)) ^ (((t010 ^ t100) ^ (t120 ^ t210)) ^ t220)) ^ ((((t012 ^ t102) ^ (t122 ^ t212)) ^ t222) ^ (((t021 ^ t111) ^ t201) ^ t221))) ^ (((t022 ^ t112) ^ t202) ^ t222)) == ((((((t001 ^ t010) ^ (t012 ^ t021)) ^ t022) ^ (t100 ^ (t112 ^ t121))) ^ ((((t102 ^ t111) ^ t120) ^ t122) ^ (((t201 ^ t210) ^ (t212 ^ t221)) ^ t222))) ^ (((t202 ^ t211) ^ t220) ^ t222)) && ((((t002 ^ (t122 ^ t212)) ^ (((t011 ^ t101) ^ (t121 ^ t211)) ^ t221)) ^ (((t020 ^ t110) ^ t200) ^ t220)) ^ (((t022 ^ t112) ^ t202) ^ t222)) == ((((((t002 ^ t011) ^ t020) ^ t022) ^ (((t101 ^ t110) ^ (t112 ^ t121)) ^ t122)) ^ (t200 ^ (t212 ^ t221))) ^ (((t202 ^ t211) ^ t220) ^ t222))) by (bit_vector);
+}
+
+pub proof fn lemma_e_pow_add(a: F192, m: nat, n: nat)
+    ensures
+        e_mul(e_pow(a, m), e_pow(a, n)) == e_pow(a, m + n),
+    decreases n,
+{
+    if n == 0 {
+        lemma_e_mul_one(e_pow(a, m));
+    } else {
+        lemma_e_pow_add(a, m, (n - 1) as nat);
+        lemma_e_mul_assoc(e_pow(a, m), e_pow(a, (n - 1) as nat), a);
+        assert((m + n - 1) as nat + 1 == m + n);
+    }
+}
+
+pub proof fn lemma_e_pow_mul(a: F192, m: nat, n: nat)
+    ensures
+        e_pow(e_pow(a, m), n) == e_pow(a, m * n),
+    decreases n,
+{
+    if n == 0 {
+        assert(m * 0 == 0) by (nonlinear_arith);
+    } else {
+        lemma_e_pow_mul(a, m, (n - 1) as nat);
+        lemma_e_pow_add(a, m * (n - 1) as nat, m);
+        assert(m * (n - 1) as nat + m == m * n) by (nonlinear_arith)
+            requires
+                n > 0,
+        ;
+    }
+}
+
+pub proof fn lemma_e_pow_one(a: F192)
+    ensures
+        e_pow(a, 1) == a,
+{
+    assert(e_pow(a, 0) == F192::ONE);
+    lemma_e_mul_one(a);
+}
+
+pub proof fn lemma_e_sq_iter_pow(a: F192, n: nat)
+    ensures
+        e_sq_iter(a, n) == e_pow(a, pow2(n)),
+    decreases n,
+{
+    if n == 0 {
+        lemma2_to64();
+        lemma_e_pow_one(a);
+    } else {
+        lemma_e_sq_iter_pow(a, (n - 1) as nat);
+        let e = pow2((n - 1) as nat);
+        lemma_e_pow_add(a, e, e);
+        lemma_pow2_unfold(n);
+    }
+}
+
+/// The Galois action on the y-coefficients after `n` squarings: `(c1, c2) -> (c2, c1 + c2)` has order 3.
+pub open spec fn rot(n: nat, x1: u64, x2: u64) -> (u64, u64) {
+    if n % 3 == 0 {
+        (x1, x2)
+    } else if n % 3 == 1 {
+        (x2, x1 ^ x2)
+    } else {
+        (x1 ^ x2, x1)
+    }
+}
+
+/// `n` squarings in `E` square each coefficient `n` times and rotate the y-coefficients.
+pub proof fn lemma_e_sq_iter_shape(a: F192, n: nat)
+    ensures
+        ({
+            let r = rot(n, k_sq_iter(a.c1, n), k_sq_iter(a.c2, n));
+            e_sq_iter(a, n) == (F192 { c0: k_sq_iter(a.c0, n), c1: r.0, c2: r.1 })
+        }),
+    decreases n,
+{
+    if n > 0 {
+        let i = (n - 1) as nat;
+        lemma_e_sq_iter_shape(a, i);
+        let v = e_sq_iter(a, i);
+        lemma_square_spec(v);
+        let (x, y) = (k_sq_iter(a.c1, i), k_sq_iter(a.c2, i));
+        lemma_k_square_xor(x, y);
+        let (sx, sy) = (k_mul(x, x), k_mul(y, y));
+        assert(sy ^ (sx ^ sy) == sx && (sx ^ sy) ^ sx == sy) by (bit_vector);
+    }
+}
+
+/// The Frobenius shuffle is the 64th squaring, `a^(2^64)`, by Fermat in `K`.
+pub proof fn lemma_e_frobenius(a: F192)
+    ensures
+        e_frobenius(a) == e_sq_iter(a, 64),
+        e_frobenius(a) == e_pow(a, pow2(64)),
+{
+    lemma_e_sq_iter_shape(a, 64);
+    lemma_k_fermat(a.c0);
+    lemma_k_fermat(a.c1);
+    lemma_k_fermat(a.c2);
+    lemma_e_sq_iter_pow(a, 64);
+}
+
+/// The embedding of `K` is multiplicative.
+pub proof fn lemma_e_from_k_mul(x: u64, y: u64)
+    ensures
+        e_mul(e_from_k(x), e_from_k(y)) == e_from_k(k_mul(x, y)),
+{
+    lemma_k_mul_zero(x);
+    lemma_k_mul_zero(y);
+    lemma_k_mul_zero(0);
+    let p = k_mul(x, y);
+    assert(p ^ (0u64 ^ 0u64) == p && (0u64 ^ 0u64) ^ (0u64 ^ 0u64) ^ 0u64 == 0u64 && (0u64 ^ 0u64 ^ 0u64)
+        ^ 0u64 == 0u64) by (bit_vector);
+}
+
+pub proof fn lemma_e_from_k_pow(x: u64, n: nat)
+    ensures
+        e_from_k(k_pow(x, n)) == e_pow(e_from_k(x), n),
+    decreases n,
+{
+    if n > 0 {
+        lemma_e_from_k_pow(x, (n - 1) as nat);
+        lemma_e_from_k_mul(k_pow(x, (n - 1) as nat), x);
+    }
+}
+
+/// The norm `a φ(a) φ²(a) = a^(1 + q + q^2)`, `q = 2^64`, lies in `K`: it is fixed by the Frobenius.
+pub proof fn lemma_norm(a: F192)
+    ensures
+        ({
+            let m = e_mul(e_frobenius(a), e_frobenius(e_frobenius(a)));
+            let q = pow2(64);
+            &&& m == e_pow(a, q + q * q)
+            &&& e_mul(a, m) == e_pow(a, 1 + q + q * q)
+            &&& e_mul(a, m).c1 == 0
+            &&& e_mul(a, m).c2 == 0
+        }),
+{
+    let q = pow2(64);
+    let fa = e_frobenius(a);
+    lemma_e_frobenius(a);
+    lemma_e_frobenius(fa);
+    lemma_e_pow_mul(a, q, q);
+    lemma_e_pow_add(a, q, q * q);
+    let m = e_mul(fa, e_frobenius(fa));
+    lemma_e_pow_one(a);
+    lemma_e_pow_add(a, 1, q + q * q);
+    assert(1 + (q + q * q) == 1 + q + q * q);
+    let norm = e_mul(a, m);
+    // φ(norm) = a^(q + q^2 + q^3), and a^(q^3) = φ³(a) = a.
+    lemma_e_frobenius(norm);
+    lemma_e_pow_mul(a, 1 + q + q * q, q);
+    lemma_e_frobenius(e_frobenius(fa));
+    lemma_e_pow_mul(a, q * q, q);
+    assert(e_frobenius(e_frobenius(fa)) == a) by {
+        let (x1, x2) = (a.c1, a.c2);
+        assert(x2 ^ (x1 ^ x2) == x1 && (x1 ^ x2) ^ (x2 ^ (x1 ^ x2)) == x2) by (bit_vector);
+    }
+    lemma_e_pow_add(a, q + q * q, q * q * q);
+    assert((1 + q + q * q) * q == (q + q * q) + q * q * q) by (nonlinear_arith);
+    lemma_e_mul_comm(m, a);
+    let (n1, n2) = (norm.c1, norm.c2);
+    assert(n2 == n1 && (n1 ^ n2) == n2 ==> n1 == 0 && n2 == 0) by (bit_vector);
+}
+
+/// `m N^(q-2) = a^(q^3 - 2)`, the exponent bookkeeping of `F192::inv`.
+pub proof fn lemma_inv_exponent(a: F192)
+    ensures
+        ({
+            let m = e_mul(e_frobenius(a), e_frobenius(e_frobenius(a)));
+            let norm = e_mul(a, m);
+            e_mul(m, e_from_k(k_pow(norm.c0, (pow2(64) - 2) as nat))) == e_pow(a, (pow2(192) - 2) as nat)
+        }),
+{
+    let q = pow2(64);
+    lemma2_to64();
+    lemma_pow2_adds(64, 64);
+    lemma_pow2_adds(128, 64);
+    lemma_norm(a);
+    let m = e_mul(e_frobenius(a), e_frobenius(e_frobenius(a)));
+    let norm = e_mul(a, m);
+    assert(e_from_k(norm.c0) == norm);
+    lemma_e_from_k_pow(norm.c0, (q - 2) as nat);
+    lemma_e_pow_mul(a, 1 + q + q * q, (q - 2) as nat);
+    lemma_e_pow_add(a, q + q * q, ((1 + q + q * q) * (q - 2)) as nat);
+    assert(pow2(192) == q * q * q);
+    assert((q + q * q) + (1 + q + q * q) * (q - 2) == q * q * q - 2) by (nonlinear_arith);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Executable code: the portable paths
 // ---------------------------------------------------------------------------------------------
 /// An element `c0 + c1*y + c2*y^2`; bit `i` of each coefficient is its coefficient of `x^i`.
@@ -333,11 +716,35 @@ impl F192 {
 
     /// The Frobenius `self^(2^64)`, as the coefficient shuffle `c0 + c2·y + (c1 + c2)·y²`.
     #[inline]
+    ///
+    /// `r == e_pow(self, 2^64)` is [`lemma_e_frobenius`].
     pub const fn frobenius(self) -> (r: Self)
         ensures
-            r == (F192 { c0: self.c0, c1: self.c2, c2: self.c1 ^ self.c2 }),
+            r == e_frobenius(self),
     {
         Self { c0: self.c0, c1: self.c2, c2: self.c1 ^ self.c2 }
+    }
+
+    /// Multiplicative inverse: `self^(2^192 − 2)`. `ZERO.inv() == ZERO`.
+    ///
+    /// Via the norm to the base field. With `φ` the Frobenius and
+    /// `m = φ(self)·φ²(self)`, the product `self·m` is the norm `N(self) ∈ K`,
+    /// so `self⁻¹ = m·N(self)⁻¹` needs two extension multiplies, one base-field
+    /// inverse and one base-field scaling.
+    ///
+    /// Production checks `N(self) ∈ K` with a `debug_assert!`; here it is proven ([`lemma_norm`]).
+    pub fn inv(self) -> (r: Self)
+        ensures
+            r == e_pow(self, (pow2(192) - 2) as nat),
+    {
+        let m = self.frobenius() * self.frobenius().frobenius();
+        let norm = self * m;
+        proof {
+            lemma_norm(self);
+            assert(norm.c1 == 0 && norm.c2 == 0);
+            lemma_inv_exponent(self);
+        }
+        m.mul_base(F64(norm.c0).inv())
     }
 }
 
