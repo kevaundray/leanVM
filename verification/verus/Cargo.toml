@@ -3,7 +3,7 @@ name = "leanvm-verus"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Verus proofs of leanVM's portable field arithmetic, bit transposes and additive NTT"
+description = "Verus proofs of leanVM arithmetic and kernel models"
 
 # Its own workspace: not a member of the leanVM one, so `cargo build` and the main CI never see it.
 [workspace]
@@ -16,6 +16,8 @@ parallel = { path = "../../crates/parallel" }
 [dev-dependencies]
 primitives = { path = "../../crates/primitives", features = ["test-util"] }
 pcs = { path = "../../crates/pcs" }
+fiat_shamir = { path = "../../crates/fiat_shamir" }
+flock = { path = "../../crates/flock" }
 
 [package.metadata.verus]
 verify = true

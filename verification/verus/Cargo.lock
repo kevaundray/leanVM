@@ -41,6 +41,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "flock"
+version = "0.1.0"
+dependencies = [
+ "fiat_shamir",
+ "parallel",
+ "pcs",
+ "primitives",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -72,6 +84,8 @@ dependencies = [
 name = "leanvm-verus"
 version = "0.1.0"
 dependencies = [
+ "fiat_shamir",
+ "flock",
  "parallel",
  "pcs",
  "primitives",

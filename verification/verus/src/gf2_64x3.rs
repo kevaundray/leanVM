@@ -1,8 +1,8 @@
 //! The extension field `E = K[y] / (y^3 + y + 1)` over the base field `K = GF(2^64)`.
 //!
 //! The executable functions are the portable paths of `crates/primitives/src/field/gf2_64x3.rs` and
-//! `gf2_64x3/software.rs`, copied with the same bodies where Verus accepts them; `tests/equivalence.rs`
-//! checks the two agree.
+//! `gf2_64x3/software.rs`, and the aarch64 kernels of `gf2_64x3/aarch64.rs` ([`aarch64`]), copied with the
+//! same bodies where Verus accepts them; `tests/equivalence.rs` checks the two agree.
 //!
 //! Specification: an element is `c0 + c1 y + c2 y^2` with `c_i` in `K`. The product [`e_mul`] is the
 //! product of polynomials in `y` over `K` (coefficients by [`k_mul`]), folded by `y^3 = y + 1` and
@@ -12,6 +12,10 @@ use crate::gf2_64::*;
 use vstd::arithmetic::power2::*;
 use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign};
 use vstd::prelude::*;
+
+/// aarch64 kernels.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+pub mod aarch64;
 
 verus! {
 
@@ -738,7 +742,14 @@ impl F192 {
         ensures
             e_value(r) == e_mul(self, rhs),
     {
-        software::mul_unreduced(self, rhs)
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            aarch64::mul_unreduced(self, rhs)
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            software::mul_unreduced(self, rhs)
+        }
     }
 
     /// Mixed product by a base-field scalar.
@@ -750,7 +761,17 @@ impl F192 {
             r == e_mul(self, e_from_k(k.0)),
             r == (F192 { c0: k_mul(self.c0, k.0), c1: k_mul(self.c1, k.0), c2: k_mul(self.c2, k.0) }),
     {
-        self.mul_base_unreduced(k).reduce()
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            proof {
+                lemma_mul_base_spec(self, k.0);
+            }
+            aarch64::mul_base(self, k)
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            self.mul_base_unreduced(k).reduce()
+        }
     }
 
     /// Mixed product by a base-field scalar without the reduction, for XOR accumulation.
@@ -764,12 +785,22 @@ impl F192 {
                 c2: k_mul(self.c2, k.0),
             }),
     {
-        let (w0, w1, w2) = (mul_wide(self.c0, k.0), mul_wide(self.c1, k.0), mul_wide(self.c2, k.0));
-        proof {
-            lemma_u_from_wide(w0, w1, w2);
-            lemma_mul_base_spec(self, k.0);
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            proof {
+                lemma_mul_base_spec(self, k.0);
+            }
+            aarch64::mul_base_unreduced(self, k)
         }
-        F192Unreduced::from_wide([w0, w1, w2])
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            let (w0, w1, w2) = (mul_wide(self.c0, k.0), mul_wide(self.c1, k.0), mul_wide(self.c2, k.0));
+            proof {
+                lemma_u_from_wide(w0, w1, w2);
+                lemma_mul_base_spec(self, k.0);
+            }
+            F192Unreduced::from_wide([w0, w1, w2])
+        }
     }
 
     /// Squaring, with 3 base-field squarings instead of 6 products.
@@ -785,15 +816,22 @@ impl F192 {
         ensures
             r == e_mul(self, self),
     {
-        // Square each coefficient as a 128-bit polynomial.
-        let (s0, s1, s2) = (square_wide(self.c0), square_wide(self.c1), square_wide(self.c2));
-        proof {
-            lemma_u_from_wide(s0, s2, s1 ^ s2);
-            lemma_k_mod_xor(s1, s2);
-            lemma_square_spec(self);
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            aarch64::square(self)
         }
-        // Fold y^4 back onto y^2 and y, then reduce each coefficient once.
-        F192Unreduced::from_wide([s0, s2, s1 ^ s2]).reduce()
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            // Square each coefficient as a 128-bit polynomial.
+            let (s0, s1, s2) = (square_wide(self.c0), square_wide(self.c1), square_wide(self.c2));
+            proof {
+                lemma_u_from_wide(s0, s2, s1 ^ s2);
+                lemma_k_mod_xor(s1, s2);
+                lemma_square_spec(self);
+            }
+            // Fold y^4 back onto y^2 and y, then reduce each coefficient once.
+            F192Unreduced::from_wide([s0, s2, s1 ^ s2]).reduce()
+        }
     }
 
     /// The Frobenius `self^(2^64)`, as the coefficient shuffle `c0 + c2·y + (c1 + c2)·y²`.
@@ -916,7 +954,14 @@ impl Mul for F192 {
         ensures
             r == e_mul(self, rhs),
     {
-        self.mul_unreduced(rhs).reduce()
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            aarch64::mul(self, rhs)
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            self.mul_unreduced(rhs).reduce()
+        }
     }
 }
 
@@ -1024,13 +1069,20 @@ impl F192Unreduced {
         ensures
             r == e_value(self),
     {
-        // Production maps this over the three coefficients.
-        let reduce_one = |w: [u64; 2]| -> (r: u64)
-            ensures
-                r == k_mod(wide(w)),
-            { reduce(u128::from(w[1]) << 64 | u128::from(w[0])) };
-        let (c0, c1, c2) = (reduce_one(self.coeffs[0]), reduce_one(self.coeffs[1]), reduce_one(self.coeffs[2]));
-        F192 { c0, c1, c2 }
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            aarch64::reduce(self)
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            // Production maps this over the three coefficients.
+            let reduce_one = |w: [u64; 2]| -> (r: u64)
+                ensures
+                    r == k_mod(wide(w)),
+                { reduce(u128::from(w[1]) << 64 | u128::from(w[0])) };
+            let (c0, c1, c2) = (reduce_one(self.coeffs[0]), reduce_one(self.coeffs[1]), reduce_one(self.coeffs[2]));
+            F192 { c0, c1, c2 }
+        }
     }
 }
 

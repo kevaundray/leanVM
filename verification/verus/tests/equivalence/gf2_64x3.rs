@@ -141,3 +141,53 @@ fn constants_match() {
     assert!(same(verified::F192::Y, production::F192::Y));
     assert!(same_unreduced(&verified::F192Unreduced::ZERO, &production::F192Unreduced::ZERO));
 }
+
+/// The aarch64 kernels, each against production's, and the register-resident `F192x1` / `F192x1Unreduced`
+/// (whose fields are private on both sides) through their conversions to `F192` and `F192Unreduced`.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[test]
+fn aarch64_kernels_match() {
+    use core::mem::MaybeUninit;
+    use production::gf2_64x3::aarch64 as pa;
+    use verified::aarch64 as va;
+    let mut rng = Rng::new(0xA192);
+    let xs = elements(&mut rng, 10_000);
+    let ys = elements(&mut rng, 10_000);
+    let mut acc_v = va::F192x1Unreduced::zero();
+    let mut acc_p = pa::F192x1Unreduced::zero();
+    assert!(same_unreduced(&verified::F192Unreduced::from(acc_v), &production::F192Unreduced::from(acc_p)));
+    for (&a, &b) in xs.iter().zip(&ys) {
+        let (vx, vy) = (to_v(a), to_v(b));
+        let k = a.c2 ^ b.c0;
+        assert!(same(va::mul(vx, vy), pa::mul(a, b)), "mul {a:?} {b:?}");
+        assert!(same_unreduced(&va::mul_unreduced(vx, vy), &pa::mul_unreduced(a, b)), "mul_unreduced {a:?} {b:?}");
+        assert!(same(va::mul_base(vx, vk::F64(k)), pa::mul_base(a, production::F64(k))));
+        assert!(same_unreduced(&va::mul_base_unreduced(vx, vk::F64(k)), &pa::mul_base_unreduced(a, production::F64(k))));
+        assert!(same(va::square(vx), pa::square(a)), "square {a:?}");
+        // An unreduced sum, as an accumulator holds (production's fields and `from_wide` are private).
+        let u = va::mul_unreduced(vx, vy) ^ verified::F192Unreduced::from(vy);
+        let up = pa::mul_unreduced(a, b) ^ production::F192Unreduced::from(b);
+        assert!(same_unreduced(&u, &up));
+        assert!(same(va::reduce(u), pa::reduce(up)), "reduce {u:?}");
+        // Registers.
+        let (x1, y1) = (va::F192x1::load(&vx), va::F192x1::new(vy));
+        let (px1, py1) = (pa::F192x1::load(&a), pa::F192x1::new(b));
+        assert!(same(verified::F192::from(x1), production::F192::from(px1)));
+        assert!(same(verified::F192::from(x1 + y1), production::F192::from(px1 + py1)));
+        assert!(same(verified::F192::from(x1 * y1), production::F192::from(px1 * py1)));
+        let (mut out_v, mut out_p) = (MaybeUninit::uninit(), MaybeUninit::uninit());
+        (x1 * y1).store(&mut out_v);
+        (px1 * py1).store(&mut out_p);
+        assert!(same(unsafe { out_v.assume_init() }, unsafe { out_p.assume_init() }), "store");
+        let (pv, pp) = (x1.mul_unreduced(y1), px1.mul_unreduced(py1));
+        let (bv, bp) = (y1.mul_base_unreduced(vk::F64(k)), py1.mul_base_unreduced(production::F64(k)));
+        assert!(same_unreduced(&verified::F192Unreduced::from(pv ^ bv), &production::F192Unreduced::from(pp ^ bp)));
+        assert!(same(verified::F192::from((pv ^ bv).reduce()), production::F192::from((pp ^ bp).reduce())));
+        acc_v ^= pv;
+        acc_v ^= bv;
+        acc_p ^= pp;
+        acc_p ^= bp;
+        assert!(same_unreduced(&verified::F192Unreduced::from(acc_v), &production::F192Unreduced::from(acc_p)));
+        assert!(same(verified::F192::from(acc_v.reduce()), production::F192::from(acc_p.reduce())));
+    }
+}
