@@ -258,3 +258,5 @@ verification/verus/verify.sh gf2_64                   # one module
 ```
 
 `verify.sh` downloads the pinned Linux x86-64 release if needed, installs its Rust toolchain with `rustup`, and checks every configuration listed above. Set `VERUS_HOME` to install elsewhere, `VERUS_THREADS` to control solver parallelism (default 4), and `VERUS_CONFIGS` to select configurations. Solver and equivalence counts belong in the PR verification report, not a performance claim.
+
+The script isolates whole-crate and per-module proof caches, because changing the forwarded module argument must not reuse a different module's cached result. `CARGO_TARGET_DIR` selects the cache root; configuration and proof-selection directories are appended.
