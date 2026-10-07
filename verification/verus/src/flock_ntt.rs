@@ -665,4 +665,290 @@ pub proof fn lemma_fft_after_ifft(v: Seq<F8>, tw: Seq<F8>, idx: int)
     }
 }
 
+/// `2^k <= 256` for `k <= 8`.
+proof fn lemma_pow2_le_256(k: nat)
+    requires
+        k <= 8,
+    ensures
+        pow2(k) <= 256,
+        pow2(k) >= 1,
+{
+    lemma2_to64();
+    if k < 8 {
+        lemma_pow2_strictly_increases(k, 8);
+    }
+}
+
+/// The first point of the high half of a block: `blk 2^m + 2^(m-1) = (blk 2^m) ⊕ b_(m-1)`.
+proof fn lemma_block_offset_halves(blk: nat, m: nat)
+    requires
+        1 <= m <= 8,
+        blk * pow2(m) + pow2(m) <= 256,
+    ensures
+        block_offset(2 * blk, (m - 1) as nat) == block_offset(blk, m),
+        block_offset(2 * blk + 1, (m - 1) as nat) == block_offset(blk, m) ^ basis8((m - 1) as nat),
+{
+    let j = (m - 1) as nat;
+    let h = pow2(j);
+    lemma_pow2_unfold(m);
+    lemma_pow2_pos(j);
+    lemma_shl8(j);
+    let x = blk * pow2(m);
+    assert(2 * blk * h == x) by (nonlinear_arith)
+        requires
+            x == blk * pow2(m),
+            pow2(m) == 2 * h,
+    ;
+    assert((2 * blk + 1) * h == x + h) by (nonlinear_arith)
+        requires
+            x == blk * pow2(m),
+            pow2(m) == 2 * h,
+    ;
+    assert(x + h < 256) by (nonlinear_arith)
+        requires
+            x + 2 * h <= 256,
+            h >= 1,
+    ;
+    let xb = x as u8;
+    lemma_u8_shr_is_div(xb, j as u8);
+    lemma_div_multiples_vanish((2 * blk) as int, h as int);
+    assert(x as int == h * (2 * blk)) by (nonlinear_arith)
+        requires
+            2 * blk * h == x,
+    ;
+    assert(xb >> (j as u8) == 2 * blk);
+    let q = (2 * blk) as u8;
+    assert(q == ((2 * blk) % 256) as u8);
+    assert(((2 * blk) as u8) & 1u8 == 0u8) by {
+        lemma_mod_multiples_basic(blk as int, 2);
+        assert((2 * blk) % 2 == 0);
+        let qq = (2 * blk) as u8;
+        assert(qq % 2 == 0) by {
+            lemma_mod_mod((2 * blk) as int, 2, 128);
+        }
+        assert(qq % 2 == 0 ==> qq & 1u8 == 0u8) by (bit_vector);
+    }
+    lemma_bit8(xb, j as u8);
+}
+
+/// The twiddle table of offset `β` holds the twiddles of every subtree: at depth `d`, block `blk` covers the
+/// `2^(k-d)` points from `β + blk 2^(k-d)` on.
+proof fn lemma_twiddles_node_ok(tw: Seq<F8>, k: nat, beta: u8, d: nat, blk: nat)
+    requires
+        twiddles_of(tw, k, beta),
+        k <= 8,
+        d <= k,
+        blk < pow2(d),
+    ensures
+        node_ok(tw, (pow2(d) + blk) as int, (k - d) as nat, beta ^ block_offset(blk, (k - d) as nat)),
+    decreases k - d,
+{
+    if d < k {
+        let m = (k - d) as nat;
+        let j = (m - 1) as nat;
+        let idx = (pow2(d) + blk) as int;
+        let y = beta ^ block_offset(blk, m);
+        assert(tw[pow2(d) - 1 + blk] == tw[idx - 1]);
+        lemma_pow2_unfold(d + 1);
+        lemma_twiddles_node_ok(tw, k, beta, d + 1, 2 * blk);
+        lemma_twiddles_node_ok(tw, k, beta, d + 1, 2 * blk + 1);
+        assert(2 * idx == pow2(d + 1) + 2 * blk);
+        assert(2 * idx + 1 == pow2(d + 1) + (2 * blk + 1));
+        assert((k - (d + 1)) as nat == j);
+        // The block lies inside the domain of `2^k <= 256` points.
+        lemma_pow2_adds(d, m);
+        lemma_pow2_le_256(k);
+        assert(blk * pow2(m) + pow2(m) <= 256) by (nonlinear_arith)
+            requires
+                blk + 1 <= pow2(d),
+                pow2(d) * pow2(m) == pow2(k),
+                pow2(k) <= 256,
+        ;
+        lemma_block_offset_halves(blk, m);
+        let b = basis8(j);
+        let o = block_offset(blk, m);
+        assert((beta ^ o) ^ b == beta ^ (o ^ b)) by (bit_vector);
+    }
+}
+
+/// The forward transform of a `2^k`-point NTT with offset `β` (`fft_rec` from the root) evaluates the
+/// novel-basis polynomial on the domain `β + {0, .., 2^k - 1}`: output word `u` is `P(β + u)`, the point of
+/// index `u` being `β ⊕ u` (no bit reversal).
+pub proof fn lemma_fft_evaluates(tw: Seq<F8>, k: nat, beta: u8, v: Seq<F8>)
+    requires
+        twiddles_of(tw, k, beta),
+        k <= 8,
+        v.len() == pow2(k),
+    ensures
+        fft_spec(v, tw, 1).len() == v.len(),
+        forall|u: int| 0 <= u < v.len() ==> (#[trigger] fft_spec(v, tw, 1)[u]).0 == novel8(k, v, beta ^ (u as u8)),
+{
+    lemma2_to64();
+    lemma_twiddles_node_ok(tw, k, beta, 0, 0);
+    assert(block_offset(0, k) == 0);
+    assert(beta ^ 0u8 == beta) by (bit_vector);
+    lemma_fft_evaluates_from(v, tw, 1, k, beta);
+}
+
+/// The inverse transform interpolates: if `e` holds the evaluations of `P` on the domain `β + {0, .., 2^k - 1}`
+/// (word `u` is `P(β + u)`), then `ifft_rec` from the root returns the novel-basis coefficients of `P`.
+pub proof fn lemma_ifft_interpolates(tw: Seq<F8>, k: nat, beta: u8, a: Seq<F8>, e: Seq<F8>)
+    requires
+        twiddles_of(tw, k, beta),
+        k <= 8,
+        a.len() == pow2(k),
+        e.len() == pow2(k),
+        forall|u: int| 0 <= u < e.len() ==> (#[trigger] e[u]).0 == novel8(k, a, beta ^ (u as u8)),
+    ensures
+        ifft_spec(e, tw, 1) == a,
+{
+    lemma_fft_evaluates(tw, k, beta, a);
+    assert(fft_spec(a, tw, 1) =~= e);
+    lemma_ifft_after_fft(a, tw, 1);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Translating a polynomial stays in the novel basis
+// ---------------------------------------------------------------------------------------------
+/// The novel-basis coefficients of `x -> P_a(x + c)`: on the top-bit split `P_a = A + Ŵ_(m-1) B`,
+/// `P_a(x + c) = A(x + c) + Ŵ_(m-1)(c) B(x + c) + Ŵ_(m-1)(x) B(x + c)`, with `A` and `B` translated recursively.
+pub open spec fn translate(m: nat, a: Seq<F8>, c: u8) -> Seq<F8>
+    decreases m,
+{
+    if m == 0 {
+        a
+    } else {
+        let h = pow2((m - 1) as nat) as int;
+        let qa = translate((m - 1) as nat, a.subrange(0, h), c);
+        let qb = translate((m - 1) as nat, a.subrange(h, 2 * h), c);
+        lincomb(qa, normalized_poly8((m - 1) as nat, c), qb) + qb
+    }
+}
+
+/// `P_(translate(a, c))(x) = P_a(x + c)` for every `x`.
+pub proof fn lemma_translate(m: nat, a: Seq<F8>, c: u8, x: u8)
+    requires
+        a.len() == pow2(m),
+    ensures
+        translate(m, a, c).len() == pow2(m),
+        novel8(m, translate(m, a, c), x) == novel8(m, a, x ^ c),
+    decreases m,
+{
+    if m > 0 {
+        let j = (m - 1) as nat;
+        let h = pow2(j) as int;
+        lemma_pow2_unfold(m);
+        let (al, ah) = (a.subrange(0, h), a.subrange(h, 2 * h));
+        let qa = translate(j, al, c);
+        let qb = translate(j, ah, c);
+        lemma_translate(j, al, c, x);
+        lemma_translate(j, ah, c, x);
+        let wc = normalized_poly8(j, c);
+        let wx = normalized_poly8(j, x);
+        let t = translate(m, a, c);
+        assert(t.subrange(0, h) =~= lincomb(qa, wc, qb));
+        assert(t.subrange(h, 2 * h) =~= qb);
+        lemma_novel8_lincomb(j, qa, wc, qb, x);
+        lemma_normalized_poly8_additive(j, x, c);
+        let nb = novel8(j, ah, x ^ c);
+        lemma_f8_mul_xor_left(wx, wc, nb);
+        let (na, p, q) = (novel8(j, al, x ^ c), f8_mul(wc, nb), f8_mul(wx, nb));
+        assert((na ^ p) ^ q == na ^ (q ^ p)) by (bit_vector);
+    } else {
+        lemma2_to64();
+        assert(x ^ c == x ^ c);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The columns of `forward_Λ ∘ inverse_S` are XOR shifts of one another
+// ---------------------------------------------------------------------------------------------
+/// The unit vector `e_t` of length `n`.
+pub open spec fn unit(n: nat, t: int) -> Seq<F8> {
+    Seq::new(n, |i: int| if i == t { F8(1) } else { F8(0) })
+}
+
+/// Column `t` of `M = forward_Λ ∘ inverse_S`: the forward transform with twiddles `tw_l` of the inverse
+/// transform with twiddles `tw_s` of `e_t`, on `n` words.
+pub open spec fn lde_column(tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, t: int) -> Seq<F8> {
+    fft_spec(ifft_spec(unit(n, t), tw_s, 1), tw_l, 1)
+}
+
+/// Below `2^k`, indices stay below `2^k` under XOR.
+proof fn lemma_xor_below(i: int, j: int, k: nat)
+    requires
+        k <= 8,
+        0 <= i < pow2(k),
+        0 <= j < pow2(k),
+    ensures
+        (((i as u8) ^ (j as u8)) as int) < pow2(k),
+{
+    if k < 8 {
+        lemma_shl8(k);
+        let (x, y, s) = (i as u8, j as u8, k as u8);
+        assert(x < (1u8 << s) && y < (1u8 << s) ==> (x ^ y) < (1u8 << s)) by (bit_vector)
+            requires
+                s < 8,
+        ;
+    } else {
+        lemma2_to64();
+    }
+}
+
+/// The `S`-to-`Λ` extension matrix commutes with XOR shifts: `M[i][j] = M[i ⊕ j][0]`, for any two `2^k`-point
+/// NTTs (offsets `β_s` and `β_l`). The column of `e_j` is the column of `e_0` read at `i ⊕ j`.
+///
+/// The interpolant of `e_j` on `S` is the interpolant of `e_0` translated by `j` ([`lemma_translate`]: the
+/// translate has the right evaluations on `S`, and the inverse transform is injective), so its value at
+/// `β_l + i` is the value of the interpolant of `e_0` at `β_l + (i ⊕ j)`.
+pub proof fn lemma_lde_shift(tw_s: Seq<F8>, tw_l: Seq<F8>, k: nat, beta_s: u8, beta_l: u8, i: int, j: int)
+    requires
+        twiddles_of(tw_s, k, beta_s),
+        twiddles_of(tw_l, k, beta_l),
+        k <= 8,
+        0 <= i < pow2(k),
+        0 <= j < pow2(k),
+    ensures
+        lde_column(tw_s, tw_l, pow2(k), j).len() == pow2(k),
+        lde_column(tw_s, tw_l, pow2(k), j)[i] == lde_column(tw_s, tw_l, pow2(k), 0)[((i as u8) ^ (j as u8)) as int],
+{
+    let n = pow2(k);
+    let (e0, ej) = (unit(n, 0), unit(n, j));
+    let (p0, pj) = (ifft_spec(e0, tw_s, 1), ifft_spec(ej, tw_s, 1));
+    lemma_ifft_spec_len(e0, tw_s, 1);
+    lemma_ifft_spec_len(ej, tw_s, 1);
+    lemma_fft_after_ifft(e0, tw_s, 1);
+    lemma_fft_evaluates(tw_s, k, beta_s, p0);
+    lemma_fft_evaluates(tw_l, k, beta_l, p0);
+    lemma_fft_evaluates(tw_l, k, beta_l, pj);
+    let j8 = j as u8;
+    let q = translate(k, p0, j8);
+    lemma_translate(k, p0, j8, 0);
+    // `q` interpolates `e_j` on `S`.
+    lemma_fft_evaluates(tw_s, k, beta_s, q);
+    assert forall|u: int| 0 <= u < n implies #[trigger] fft_spec(q, tw_s, 1)[u] == ej[u] by {
+        let u8v = u as u8;
+        lemma_translate(k, p0, j8, beta_s ^ u8v);
+        assert((beta_s ^ u8v) ^ j8 == beta_s ^ (u8v ^ j8)) by (bit_vector);
+        lemma_xor_below(u, j, k);
+        let w = (u8v ^ j8) as int;
+        assert(w as u8 == u8v ^ j8);
+        assert(fft_spec(p0, tw_s, 1)[w] == e0[w]);
+        lemma_pow2_le_256(k);
+        assert((u8v ^ j8 == 0u8) == (u8v == j8)) by (bit_vector);
+        assert((u as u8 == j as u8) == (u == j));
+    }
+    assert(fft_spec(q, tw_s, 1) =~= ej);
+    lemma_ifft_after_fft(q, tw_s, 1);
+    assert(q == pj);
+    // So `M[i][j] = P_q(β_l + i) = P_(p0)(β_l + (i ⊕ j)) = M[i ⊕ j][0]`.
+    let i8 = i as u8;
+    lemma_translate(k, p0, j8, beta_l ^ i8);
+    assert((beta_l ^ i8) ^ j8 == beta_l ^ (i8 ^ j8)) by (bit_vector);
+    lemma_xor_below(i, j, k);
+    let w = (i8 ^ j8) as int;
+    assert(w as u8 == i8 ^ j8);
+    assert(lde_column(tw_s, tw_l, n, j)[i].0 == lde_column(tw_s, tw_l, n, 0)[w].0);
+}
+
 } // verus!
