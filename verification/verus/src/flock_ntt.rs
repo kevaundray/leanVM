@@ -951,4 +951,532 @@ pub proof fn lemma_lde_shift(tw_s: Seq<F8>, tw_l: Seq<F8>, k: nat, beta_s: u8, b
     assert(lde_column(tw_s, tw_l, n, j)[i].0 == lde_column(tw_s, tw_l, n, 0)[w].0);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Executable code: the portable paths of `crates/flock/src/zerocheck/ntt.rs`
+// ---------------------------------------------------------------------------------------------
+/// Twiddle recurrence used to build the next subspace layer's evaluation points:
+/// `next_s(s, root) = s² + root · s = s · (s + root)`.
+#[inline]
+pub fn next_s(s: F8, s_at_root: F8) -> (r: F8)
+    ensures
+        r.0 == f8_mul(s.0, s.0 ^ s_at_root.0),
+{
+    s * (s + s_at_root)
+}
+
+#[inline]
+pub fn fft_butterfly(v: &mut [F8], lambda: F8)
+    ensures
+        final(v)@ == fft_butterfly_spec(old(v)@, lambda.0),
+{
+    let ghost v0 = v@;
+    let n = v.len();
+    let half = n >> 1;
+    proof {
+        assert(n >> 1 == n / 2) by (bit_vector);
+    }
+    for i in 0..half
+        invariant
+            v.len() == n,
+            v0.len() == n,
+            half == n / 2,
+            forall|p: int|
+                0 <= p < n ==> #[trigger] v@[p] == if (0 <= p < i) || (half <= p < half + i) {
+                    fft_butterfly_spec(v0, lambda.0)[p]
+                } else {
+                    v0[p]
+                },
+    {
+        let w = v[half + i];
+        v[i] += lambda * w;
+        v[half + i] = w + v[i];
+    }
+    assert(v@ =~= fft_butterfly_spec(v0, lambda.0));
+}
+
+/// Whether `n` is a power of two.
+pub open spec fn is_pow2_len(n: nat) -> bool {
+    exists|m: nat| n == pow2(m)
+}
+
+/// A power of two other than one halves to a power of two.
+proof fn lemma_pow2_half(n: nat)
+    requires
+        is_pow2_len(n),
+        n != 1,
+    ensures
+        n >= 2,
+        n % 2 == 0,
+        is_pow2_len(n / 2),
+{
+    let m = choose|m: nat| n == pow2(m);
+    lemma2_to64();
+    assert(m > 0);
+    lemma_pow2_unfold(m);
+    lemma_pow2_pos((m - 1) as nat);
+    assert(n / 2 == pow2((m - 1) as nat));
+}
+
+/// Rewritten: the requirement that `v` be a power-of-two length (production's only caller passes `2^k`
+/// words) and that every twiddle read lie in the table are preconditions.
+pub fn fft_rec(v: &mut [F8], tw: &[F8], idx: usize)
+    requires
+        is_pow2_len(old(v).len() as nat),
+        idx >= 1,
+        (idx + 1) * old(v).len() <= 2 * (tw.len() + 1),
+        tw.len() < 256,
+    ensures
+        final(v)@ == fft_spec(old(v)@, tw@, idx as int),
+    decreases old(v).len(),
+{
+    let ghost v0 = v@;
+    let n = v.len();
+    if n == 1 {
+        return;
+    }
+    proof {
+        lemma_pow2_half(n as nat);
+        assert(idx + 1 <= tw.len() + 1) by (nonlinear_arith)
+            requires
+                (idx + 1) * n <= 2 * (tw.len() + 1),
+                n >= 2,
+        ;
+    }
+    fft_butterfly(v, tw[idx - 1]);
+    let half = n >> 1;
+    proof {
+        assert(n >> 1 == n / 2) by (bit_vector);
+        assert((2 * idx + 1) * half <= (idx + 1) * n && (2 * idx + 1 + 1) * half <= (idx + 1) * n) by (nonlinear_arith)
+            requires
+                n == 2 * half,
+        ;
+    }
+    let ghost w = v@;
+    let (lo, hi) = v.split_at_mut(half);
+    fft_rec(lo, tw, 2 * idx);
+    fft_rec(hi, tw, 2 * idx + 1);
+    proof {
+        assert(w.subrange(half as int, n as int).len() == half);
+    }
+}
+
+#[inline]
+pub fn ifft_butterfly(v: &mut [F8], lambda: F8)
+    ensures
+        final(v)@ == ifft_butterfly_spec(old(v)@, lambda.0),
+{
+    let ghost v0 = v@;
+    let n = v.len();
+    let half = n >> 1;
+    proof {
+        assert(n >> 1 == n / 2) by (bit_vector);
+    }
+    for i in 0..half
+        invariant
+            v.len() == n,
+            v0.len() == n,
+            half == n / 2,
+            forall|p: int|
+                0 <= p < n ==> #[trigger] v@[p] == if (0 <= p < i) || (half <= p < half + i) {
+                    ifft_butterfly_spec(v0, lambda.0)[p]
+                } else {
+                    v0[p]
+                },
+    {
+        v[half + i] += v[i];
+        v[i] += lambda * v[half + i];
+    }
+    assert(v@ =~= ifft_butterfly_spec(v0, lambda.0));
+}
+
+/// Rewritten: the same preconditions as [`fft_rec`].
+pub fn ifft_rec(v: &mut [F8], tw: &[F8], idx: usize)
+    requires
+        is_pow2_len(old(v).len() as nat),
+        idx >= 1,
+        (idx + 1) * old(v).len() <= 2 * (tw.len() + 1),
+        tw.len() < 256,
+    ensures
+        final(v)@ == ifft_spec(old(v)@, tw@, idx as int),
+    decreases old(v).len(),
+{
+    let ghost v0 = v@;
+    let n = v.len();
+    if n == 1 {
+        return;
+    }
+    proof {
+        lemma_pow2_half(n as nat);
+        assert(idx + 1 <= tw.len() + 1) by (nonlinear_arith)
+            requires
+                (idx + 1) * n <= 2 * (tw.len() + 1),
+                n >= 2,
+        ;
+    }
+    let half = n >> 1;
+    proof {
+        assert(n >> 1 == n / 2) by (bit_vector);
+        assert((2 * idx + 1) * half <= (idx + 1) * n && (2 * idx + 1 + 1) * half <= (idx + 1) * n) by (nonlinear_arith)
+            requires
+                n == 2 * half,
+        ;
+    }
+    let (lo, hi) = v.split_at_mut(half);
+    ifft_rec(lo, tw, 2 * idx);
+    ifft_rec(hi, tw, 2 * idx + 1);
+    ifft_butterfly(v, tw[idx - 1]);
+}
+
+/// The levels of the twiddle table occupy disjoint ranges: entry `2^d - 1 + j`, `j < 2^d`, names its level.
+proof fn lemma_levels_disjoint(d: nat, j: nat, d2: nat, j2: nat)
+    requires
+        j < pow2(d),
+        j2 < pow2(d2),
+        pow2(d) + j == pow2(d2) + j2,
+    ensures
+        d == d2,
+        j == j2,
+{
+    if d < d2 {
+        lemma_pow2_strictly_increases(d, d2);
+        lemma_pow2_unfold(d + 1);
+        if d + 1 < d2 {
+            lemma_pow2_strictly_increases(d + 1, d2);
+        }
+    } else if d2 < d {
+        lemma_pow2_strictly_increases(d2, d);
+        lemma_pow2_unfold(d2 + 1);
+        if d2 + 1 < d {
+            lemma_pow2_strictly_increases(d2 + 1, d);
+        }
+    }
+}
+
+/// Level `d < k` of the table lies inside its `2^k - 1` entries.
+proof fn lemma_level_in_table(d: nat, j: nat, k: nat)
+    requires
+        d < k,
+        j < pow2(d),
+    ensures
+        pow2(d) - 1 + j < pow2(k) - 1,
+        pow2(d) >= 1,
+{
+    lemma_pow2_pos(d);
+    lemma_pow2_unfold(d + 1);
+    if d + 1 < k {
+        lemma_pow2_strictly_increases(d + 1, k);
+    }
+}
+
+/// Build the size-(2^k − 1) twiddle table for the additive NTT.
+///
+/// Layout: level-L twiddles live at offset (2^L − 1).
+/// Level 0 has 2^{k-1} twiddles, level 1 has 2^{k-2}, …, level k−1 has 1.
+///
+/// Rewritten: `k <= 8` is a precondition (the domain lies in `GF(2^8)`); the `collect` of the first layer
+/// and the `copy_from_slice` of it are index loops, and the unnamed loop variable is named.
+pub fn compute_twiddles(k: usize, beta: F8) -> (twiddles: Vec<F8>)
+    requires
+        k <= 8,
+    ensures
+        twiddles_of(twiddles@, k as nat, beta.0),
+{
+    if k == 0 {
+        proof {
+            lemma2_to64();
+        }
+        return Vec::new();
+    }
+    let ghost b = beta.0;
+    proof {
+        lemma_pow2_le_256(k as nat);
+        lemma_pow2_le_256((k - 1) as nat);
+        lemma_usize_shl_is_mul(1, k);
+        lemma_usize_shl_is_mul(1, (k - 1) as usize);
+        lemma_pow2_unfold(k as nat);
+        lemma2_to64();
+    }
+    let n = 1usize << k;
+    let mut twiddles = vec![F8::ZERO; n - 1];
+
+    // Layer 0: 2^{k-1} points beta + {0, 2, 4, ..., 2(write_at-1)}.
+    let mut write_at = 1usize << (k - 1);
+    let mut layer: Vec<F8> = Vec::new();
+    for i in 0..write_at
+        invariant
+            b == beta.0,
+            write_at == pow2((k - 1) as nat),
+            write_at <= 128,
+            pow2(1) == 2,
+            layer.len() == i,
+            forall|p: int| 0 <= p < i ==> (#[trigger] layer@[p]).0 == subspace_poly8(0, b ^ block_offset(p as nat, 1)),
+    {
+        proof {
+            assert(block_offset(i as nat, 1) == (2 * i) as u8);
+        }
+        layer.push(beta + F8((2 * i) as u8));
+    }
+    let mut s_at_root = F8::ONE;
+
+    // Write layer 0 directly (s_at_root = 1 ⇒ no scaling needed).
+    for j in 0..write_at
+        invariant
+            1 <= k <= 8,
+            write_at == pow2((k - 1) as nat),
+            layer.len() == write_at,
+            twiddles.len() + 1 == pow2(k as nat),
+            forall|p: int| 0 <= p < write_at ==> (#[trigger] layer@[p]).0 == subspace_poly8(0, b ^ block_offset(p as nat, 1)),
+            forall|j0: nat|
+                j0 < j ==> (#[trigger] twiddles@[pow2((k - 1) as nat) - 1 + j0]).0 == normalized_poly8(
+                    0,
+                    b ^ block_offset(j0, 1),
+                ),
+    {
+        proof {
+            lemma_level_in_table((k - 1) as nat, j as nat, k as nat);
+            lemma_normalized_poly8_zero(b ^ block_offset(j as nat, 1));
+        }
+        twiddles[write_at - 1 + j] = layer[j];
+    }
+    proof {
+        assert(basis8(0) == 1) by {
+            assert((1u8 << 0u8) == 1u8) by (bit_vector);
+        }
+        assert forall|d: nat, j: nat| (k - 1) as nat <= d < k && j < pow2(d) implies (#[trigger] twiddles@[pow2(d) - 1
+            + j]).0 == normalized_poly8((k - 1 - d) as nat, b ^ block_offset(j, (k - d) as nat)) by {
+            assert(d == k - 1);
+        }
+    }
+
+    for step in 1..k
+        invariant
+            1 <= k <= 8,
+            twiddles.len() + 1 == pow2(k as nat),
+            write_at == pow2((k - step) as nat),
+            layer.len() == pow2((k - 1) as nat),
+            forall|p: int|
+                0 <= p < write_at ==> (#[trigger] layer@[p]).0 == subspace_poly8(
+                    (step - 1) as nat,
+                    b ^ block_offset(p as nat, step as nat),
+                ),
+            s_at_root.0 == subspace_poly8((step - 1) as nat, basis8((step - 1) as nat)),
+            forall|d: nat, j: nat|
+                (k - step) as nat <= d < k && j < pow2(d) ==> (#[trigger] twiddles@[pow2(d) - 1 + j]).0 == normalized_poly8(
+                    (k - 1 - d) as nat,
+                    b ^ block_offset(j, (k - d) as nat),
+                ),
+    {
+        let ghost dn = (k - 1 - step) as nat;
+        proof {
+            lemma_pow2_unfold((k - step) as nat);
+            lemma_pow2_pos(dn);
+            lemma_usize_shr_is_div(write_at, 1);
+            lemma2_to64();
+            if dn + 1 < k - 1 {
+                lemma_pow2_strictly_increases(dn + 1, (k - 1) as nat);
+            }
+        }
+        write_at >>= 1;
+        assert(write_at == pow2(dn));
+        // The root: `s_(step-1)(β + b_step) + s_(step-1)(β) = s_(step-1)(b_step)`.
+        let ghost (l0, l1) = (layer@[0].0, layer@[1].0);
+        proof {
+            lemma_shl8(step as nat);
+            let o1 = block_offset(1, step as nat);
+            assert(o1 == basis8(step as nat));
+            assert(block_offset(0, step as nat) == 0);
+            lemma_subspace_poly8_additive((step - 1) as nat, b ^ o1, b);
+            assert(b ^ 0u8 == b && (b ^ o1) ^ b == o1) by (bit_vector);
+        }
+        let next_s_root = next_s(layer[1] + layer[0], s_at_root);
+        assert(next_s_root.0 == subspace_poly8(step as nat, basis8(step as nat)));
+        let ghost prev = layer@;
+        for i in 0..write_at
+            invariant
+                1 <= step < k <= 8,
+                write_at == pow2(dn),
+                dn == k - 1 - step,
+                2 * write_at <= pow2((k - 1) as nat),
+                prev.len() == pow2((k - 1) as nat),
+                layer.len() == pow2((k - 1) as nat),
+                s_at_root.0 == subspace_poly8((step - 1) as nat, basis8((step - 1) as nat)),
+                forall|p: int|
+                    0 <= p < 2 * write_at ==> (#[trigger] prev[p]).0 == subspace_poly8(
+                        (step - 1) as nat,
+                        b ^ block_offset(p as nat, step as nat),
+                    ),
+                forall|p: int| i <= p < layer.len() ==> #[trigger] layer@[p] == prev[p],
+                forall|p: int|
+                    0 <= p < i ==> (#[trigger] layer@[p]).0 == subspace_poly8(
+                        step as nat,
+                        b ^ block_offset(p as nat, (step + 1) as nat),
+                    ),
+        {
+            proof {
+                lemma_pow2_unfold((step + 1) as nat);
+                assert(2 * i * pow2(step as nat) == i * pow2((step + 1) as nat)) by (nonlinear_arith)
+                    requires
+                        pow2((step + 1) as nat) == 2 * pow2(step as nat),
+                ;
+                assert(block_offset((2 * i) as nat, step as nat) == block_offset(i as nat, (step + 1) as nat));
+            }
+            layer[i] = next_s(layer[2 * i], s_at_root);
+        }
+        s_at_root = next_s_root;
+
+        let s_inv = s_at_root.inv();
+        let ghost done = twiddles@;
+        for j in 0..write_at
+            invariant
+                1 <= step < k <= 8,
+                write_at == pow2(dn),
+                dn == k - 1 - step,
+                layer.len() == pow2((k - 1) as nat),
+                write_at <= layer.len(),
+                done.len() + 1 == pow2(k as nat),
+                twiddles.len() + 1 == pow2(k as nat),
+                s_inv.0 == f8_inv(subspace_poly8(step as nat, basis8(step as nat))),
+                forall|p: int|
+                    0 <= p < write_at ==> (#[trigger] layer@[p]).0 == subspace_poly8(
+                        step as nat,
+                        b ^ block_offset(p as nat, (step + 1) as nat),
+                    ),
+                forall|q: int| 0 <= q < twiddles.len() && !(write_at - 1 <= q < write_at - 1 + j) ==> #[trigger] twiddles@[q] == done[q],
+                forall|j0: nat|
+                    j0 < j ==> (#[trigger] twiddles@[pow2(dn) - 1 + j0]).0 == normalized_poly8(
+                        step as nat,
+                        b ^ block_offset(j0, (step + 1) as nat),
+                    ),
+        {
+            proof {
+                lemma_level_in_table(dn, j as nat, k as nat);
+            }
+            twiddles[write_at - 1 + j] = s_inv * layer[j];
+        }
+        proof {
+            assert forall|d: nat, j: nat| (k - (step + 1)) as nat <= d < k && j < pow2(d) implies (#[trigger] twiddles@[pow2(
+                d,
+            ) - 1 + j]).0 == normalized_poly8((k - 1 - d) as nat, b ^ block_offset(j, (k - d) as nat)) by {
+                lemma_level_in_table(d, j, k as nat);
+                if d != dn {
+                    let q = pow2(d) - 1 + j;
+                    if pow2(dn) - 1 <= q < pow2(dn) - 1 + pow2(dn) {
+                        lemma_levels_disjoint(d, j, dn, (q - (pow2(dn) - 1)) as nat);
+                    }
+                    assert(twiddles@[q] == done[q]);
+                }
+            }
+        }
+    }
+    twiddles
+}
+
+/// Additive NTT over GF(2^8) with domain of size 2^k.
+///
+/// Evaluation domain `W = β + span{1, 2, …, 2^{k-1}}` (additive coset of an
+/// F_2 subspace of F_{2^8}). Maximum useful `k` is 7 (|W| = 128); k = 8 would
+/// exhaust all 256 elements of F_{2^8}.
+///
+/// Internal LCH basis: the forward transform maps coefficients in the
+/// Lin-Chung-Han basis to evaluations at the 2^k points of the domain.
+/// `inverse` is the exact reverse.
+#[derive(Clone, Debug)]
+#[verifier::allow(autoderive_clone_without_spec)]
+pub struct AdditiveNttGf8 {
+    k: usize,
+    twiddles: Vec<F8>,
+}
+
+impl AdditiveNttGf8 {
+    /// The domain has `2^k_spec()` points.
+    pub closed spec fn k_spec(&self) -> nat {
+        self.k as nat
+    }
+
+    /// The twiddle table.
+    pub closed spec fn tw(&self) -> Seq<F8> {
+        self.twiddles@
+    }
+
+    /// At most `2^8` points, and a table of `2^k - 1` twiddles.
+    pub open spec fn well_formed(&self) -> bool {
+        self.k_spec() <= 8 && self.tw().len() + 1 == pow2(self.k_spec())
+    }
+
+    /// Build an NTT for a 2^k-point domain with offset β.
+    ///
+    /// Rewritten: `k <= 8` is a precondition, as for [`compute_twiddles`].
+    pub fn new(k: usize, beta: F8) -> (r: Self)
+        requires
+            k <= 8,
+        ensures
+            r.k_spec() == k,
+            r.well_formed(),
+            twiddles_of(r.tw(), k as nat, beta.0),
+    {
+        Self { k, twiddles: compute_twiddles(k, beta) }
+    }
+
+    pub const fn k(&self) -> (r: usize)
+        ensures
+            r == self.k_spec(),
+    {
+        self.k
+    }
+
+    /// Rewritten: `k <= 8` (well-formedness) is a precondition, for the shift.
+    pub const fn domain_size(&self) -> (r: usize)
+        requires
+            self.well_formed(),
+        ensures
+            r == pow2(self.k_spec()),
+    {
+        proof {
+            lemma_pow2_le_256(self.k as nat);
+            lemma_usize_shl_is_mul(1, self.k);
+        }
+        1usize << self.k
+    }
+
+    /// The forward transform: `fft_rec` from the root. With the table of `new(k, β)`, word `u` of the output
+    /// is the novel-basis polynomial of the input at `β + u` ([`lemma_fft_evaluates`]).
+    ///
+    /// Rewritten: the `assert_eq!` on the length is a precondition.
+    pub fn forward(&self, v: &mut [F8])
+        requires
+            self.well_formed(),
+            old(v).len() == pow2(self.k_spec()),
+        ensures
+            final(v)@ == fft_spec(old(v)@, self.tw(), 1),
+    {
+        if v.len() <= 1 {
+            return;
+        }
+        proof {
+            lemma_pow2_le_256(self.k as nat);
+        }
+        fft_rec(v, &self.twiddles, 1);
+    }
+
+    /// The inverse transform: `ifft_rec` from the root, which undoes `forward` ([`lemma_ifft_after_fft`],
+    /// [`lemma_fft_after_ifft`]) and so interpolates ([`lemma_ifft_interpolates`]).
+    ///
+    /// Rewritten: the `assert_eq!` on the length is a precondition.
+    pub fn inverse(&self, v: &mut [F8])
+        requires
+            self.well_formed(),
+            old(v).len() == pow2(self.k_spec()),
+        ensures
+            final(v)@ == ifft_spec(old(v)@, self.tw(), 1),
+    {
+        if v.len() <= 1 {
+            return;
+        }
+        proof {
+            lemma_pow2_le_256(self.k as nat);
+        }
+        ifft_rec(v, &self.twiddles, 1);
+    }
+}
+
 } // verus!
