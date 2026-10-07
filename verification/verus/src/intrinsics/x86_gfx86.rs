@@ -235,6 +235,7 @@ pub fn model_imm2(imm8: u8, k: usize) -> (r: usize)
 pub fn model_shuffle_epi32_lane(a: &[u64], imm8: u8, i: usize) -> (r: u64)
     requires
         a.len() % 2 == 0,
+        a.len() <= 8,
         i < a.len(),
     ensures
         r == shuffle_epi32_lane(a@, imm8, i as int),

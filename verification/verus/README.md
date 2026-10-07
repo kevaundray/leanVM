@@ -79,7 +79,8 @@ copies, not proofs obtained by verifying the production source directly.
   elements `2h` and `2h+1` in half `h`. Loads, stores, XOR, multiplication,
   reduction, and transpose preserve this representation. Transpose moves
   both words of each plane: output lane `j` of row `i` is input lane `i`
-  of row `j`. Multiplication requires the duplicated `c2` invariant.
+  of row `j`. Multiplication and AVX2 stores require the duplicated `c2`
+  invariant; the safe wrapper's type invariant enforces it.
 - `F192x4` and its unreduced wrapper prove lane-wise arithmetic, memory
   round trips and transpose; sums use the lazy-reduction identity.
   `MixedSums8` has eight independently specified sums. `mul_base8_add`
@@ -114,13 +115,16 @@ Trust inventory added by these copies:
   `store_c01_c2`, `load_k8`, `load_k_at`, `load_weights`, `load_head8`,
   `load_tail4`, `store_head_tail`, and AVX2 `load_half`, `store_half`,
   `load_k4`. Their contracts assume the documented `repr(C)` field
-  layout, 64-byte `Weights8` alignment and in-bounds reads/writes.
+  layout, transparent `F64` layout, 64-byte `Weights8` alignment and
+  in-bounds reads/writes.
   Arithmetic, permutations and accumulation outside these helpers are
   proved, not assumed.
 
 `tests/equivalence/intrinsics_x86_gfx86.rs` checks each added intrinsic
 assumption against hardware, including shift boundaries, lane selectors,
-casts and zeroed arrays. `tests/equivalence/gf2_64x3.rs` checks the copies
+casts and zeroed arrays. The executable shuffle model takes even word slices
+of at most eight words, matching the register widths and bounding its index
+arithmetic. `tests/equivalence/gf2_64x3.rs` checks the copies
 against production through scalar and batched dispatch, register operators,
 loads/stores, arbitrary wide reductions, transposes, mixed accumulation,
 dot products and planar products/sums. Private helpers are exercised through

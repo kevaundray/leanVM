@@ -253,7 +253,8 @@ fn x86_planar_products_and_sums_match() {
     use production::gf2_64x3::x86_64 as p;
     let mut rng = Rng::new(0x192_08);
     let xs = elements(&mut rng, 4096);
-    let (mut vs,mut ps) = (v::F192x8Sum::zero(),p::F192x8Sum::zero());
+    // SAFETY: this test is compiled only with both required target features.
+    let (mut vs,mut ps) = unsafe { (v::F192x8Sum::zero(),p::F192x8Sum::zero()) };
     let mut expected = production::F192::ZERO;
     for c in xs.chunks_exact(16) {
         let pack = |slice: &[production::F192]| -> [__m512i;3] {
@@ -262,8 +263,11 @@ fn x86_planar_products_and_sums_match() {
             })
         };
         let (a,b) = (pack(&c[..8]),pack(&c[8..]));
-        for (vr,pr,mul) in [(v::F192x8(a).add(v::F192x8(b)),p::F192x8(a).add(p::F192x8(b)),false),
-            (v::F192x8(a).mul(v::F192x8(b)),p::F192x8(a).mul(p::F192x8(b)),true)] {
+        let results = unsafe {
+            [(v::F192x8(a).add(v::F192x8(b)),p::F192x8(a).add(p::F192x8(b)),false),
+             (v::F192x8(a).mul(v::F192x8(b)),p::F192x8(a).mul(p::F192x8(b)),true)]
+        };
+        for (vr,pr,mul) in results {
             let vw: [[u64;8];3] = vr.0.map(|v| unsafe { transmute(v) });
             let pw: [[u64;8];3] = pr.0.map(|v| unsafe { transmute(v) });
             assert_eq!(vw,pw);
@@ -272,11 +276,14 @@ fn x86_planar_products_and_sums_match() {
                 assert_eq!([vw[0][i],vw[1][i],vw[2][i]],[e.c0,e.c1,e.c2]);
             }
         }
-        vs.mul_add(v::F192x8(a),v::F192x8(b));
-        ps.mul_add(p::F192x8(a),p::F192x8(b));
+        unsafe {
+            vs.mul_add(v::F192x8(a),v::F192x8(b));
+            ps.mul_add(p::F192x8(a),p::F192x8(b));
+        }
         for i in 0..8 { expected += production::gf2_64x3::software::mul(c[i],c[8+i]); }
-        assert!(same_unreduced(&vs.total(),&ps.total()));
-        assert!(same(vs.total().reduce(),expected));
+        let (vt,pt) = unsafe { (vs.total(),ps.total()) };
+        assert!(same_unreduced(&vt,&pt));
+        assert!(same(vt.reduce(),expected));
     }
 }
 
