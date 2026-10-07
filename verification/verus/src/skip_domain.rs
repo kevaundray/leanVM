@@ -44,7 +44,7 @@ pub open spec fn e_prod_fn(f: spec_fn(int) -> F192, n: nat) -> F192
 
 /// Node `k` of the domain, `φ₈(k)`.
 pub open spec fn node(k: int) -> F192 {
-    phi8_e(k as usize)
+    phi8_e(k as u8)
 }
 
 /// `V_l(z) = prod_{k < l} (z + s_k)`, the vanishing polynomial of the first `l` nodes.
@@ -365,7 +365,9 @@ pub proof fn lemma_node_add(i: int, k: int)
     ensures
         e_add(node(i), node(k)) == node(((i as usize) ^ (k as usize)) as int),
 {
-    lemma_phi8_xor(i as usize, k as usize);
+    let (iu, ku) = (i as usize, k as usize);
+    assert(iu < 256 && ku < 256 ==> (iu ^ ku) < 256 && ((iu ^ ku) as u8) == (iu as u8) ^ (ku as u8)) by (bit_vector);
+    lemma_phi8_xor(i as u8, k as u8);
     assert(0u64 ^ 0u64 == 0u64) by (bit_vector);
 }
 
@@ -387,10 +389,10 @@ proof fn lemma_prod_nonzero_nodes(n: nat)
         assert(e_from_k(1) == F192::ONE);
     } else {
         lemma_prod_nonzero_nodes((n - 1) as nat);
-        lemma_e_from_k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as usize));
-        assert(h(n - 1) == e_from_k(phi8((n - 1) as usize)));
+        lemma_e_from_k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as u8));
+        assert(h(n - 1) == e_from_k(phi8((n - 1) as u8)));
         assert(e_prod_fn(h, n) == e_mul(e_prod_fn(h, (n - 1) as nat), h(n - 1)));
-        assert(phi8_prod(n) == k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as usize)));
+        assert(phi8_prod(n) == k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as u8)));
     }
 }
 
@@ -775,7 +777,7 @@ impl SkipDomain {
         c[0] = F192::ONE;
         proof {
             lemma2_to64();
-            lemma_phi8_zero();
+            lemma_phi8_zero_one();
             assert forall|t: int| 1 <= t < c.len() implies #[trigger] c@[t] == F192::ZERO by {}
             assert forall|x: F192| #[trigger] lin(c@, x) == vanishing_spec(pow2(0), x) by {
                 lemma_lin_first(c@, x, n as nat);

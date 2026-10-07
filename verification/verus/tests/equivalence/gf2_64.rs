@@ -48,3 +48,44 @@ fn constants_match() {
     assert_eq!(verified::F64::ONE.0, production::F64::ONE.0);
     assert_eq!(verified::F64::G.0, production::F64::G.0);
 }
+
+/// The x86-64 kernels, each against production's on this CPU (whatever the build's flags).
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn x86_kernels_match() {
+    if !is_x86_feature_detected!("pclmulqdq") || !is_x86_feature_detected!("bmi2") {
+        eprintln!("this CPU has no pclmulqdq or bmi2: the x86-64 kernels are not compared here");
+        return;
+    }
+    for (a, b) in pairs() {
+        unsafe {
+            assert_eq!(verified::x86_64::mul(a, b), production::x86_64::mul(a, b), "mul {a:#x} {b:#x}");
+            assert_eq!(verified::x86_64::clmul(a, b), production::x86_64::clmul(a, b), "clmul {a:#x} {b:#x}");
+            assert_eq!(verified::x86_64::spread(a), production::x86_64::spread(a), "spread {a:#x}");
+        }
+    }
+}
+
+/// The aarch64 kernels, each against production's.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[test]
+fn aarch64_kernels_match() {
+    use core::arch::aarch64::uint64x2_t;
+    use core::mem::transmute;
+    let w = |v: uint64x2_t| unsafe { transmute::<uint64x2_t, [u64; 2]>(v) };
+    let mut rng = Rng::new(0xA64);
+    for (a, b) in pairs() {
+        unsafe {
+            assert_eq!(w(verified::aarch64::pmull(a, b)), w(production::aarch64::pmull(a, b)));
+            let (p, q) = (production::aarch64::pmull(a, b), production::aarch64::pmull(b ^ a, a));
+            assert_eq!(w(verified::aarch64::pmull_hi(p, q)), w(production::aarch64::pmull_hi(p, q)));
+            assert_eq!(w(verified::aarch64::reduce_pair_pmull4(p, q)), w(production::aarch64::reduce_pair_pmull4(p, q)));
+            let (x, y) = (transmute::<[u64; 2], uint64x2_t>([rng.next_u64(), rng.next_u64()]), transmute([rng.next_u64(), rng.next_u64()]));
+            assert_eq!(w(verified::aarch64::reduce_pair_pmull4(x, y)), w(production::aarch64::reduce_pair_pmull4(x, y)));
+            assert_eq!(
+                verified::aarch64::mul_shift_tail(verified::F64(a), verified::F64(b)).0,
+                production::aarch64::mul_shift_tail(production::F64(a), production::F64(b)).0
+            );
+        }
+    }
+}

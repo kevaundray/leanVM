@@ -1050,7 +1050,7 @@ pub open spec fn inverse_layers(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_
     }
 }
 
-proof fn lemma_compose(blk: int, r: int, lane: int, m: nat, h: nat)
+pub proof fn lemma_compose(blk: int, r: int, lane: int, m: nat, h: nat)
     requires
         0 <= blk,
         0 <= r < 2 * h,
@@ -1099,7 +1099,7 @@ proof fn lemma_decompose(p: int, m: nat, h: nat)
     ;
 }
 
-proof fn lemma_bound(blk: int, r: int, lane: int, m: nat, h: nat, nb: nat)
+pub proof fn lemma_bound(blk: int, r: int, lane: int, m: nat, h: nat, nb: nat)
     requires
         0 <= blk < nb,
         0 <= r < 2 * h,
@@ -1122,7 +1122,7 @@ proof fn lemma_bound(blk: int, r: int, lane: int, m: nat, h: nat, nb: nat)
     ;
 }
 
-proof fn lemma_blk_bound(p: int, m: nat, h: nat, nb: nat)
+pub proof fn lemma_blk_bound(p: int, m: nat, h: nat, nb: nat)
     requires
         0 <= p < nb * (2 * h) * m,
         m > 0,
@@ -1378,7 +1378,7 @@ proof fn lemma_sweep_step(
 }
 
 /// The exec shape of one layer of a `2^log_d`-row transform: `2^layer` blocks of `2h` rows.
-proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
+pub proof fn lemma_layer_shape(log_d: nat, layer: nat, m: nat)
     requires
         layer < log_d,
     ensures
@@ -1404,7 +1404,7 @@ proof fn lemma_layer_map_len(data: Seq<F64>, m: nat, h: nat, tw: spec_fn(int) ->
 {
 }
 
-proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, start: nat, end: nat)
+pub proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, start: nat, end: nat)
     ensures
         forward_layers(tab, data, m, log_d, start, end).len() == data.len(),
     decreases end,
@@ -1414,7 +1414,7 @@ proof fn lemma_forward_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, lo
     }
 }
 
-proof fn lemma_inverse_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, lo: nat)
+pub proof fn lemma_inverse_layers_len(tab: Seq<Seq<F64>>, data: Seq<F64>, m: nat, log_d: nat, lo: nat)
     ensures
         inverse_layers(tab, data, m, log_d, lo).len() == data.len(),
     decreases log_d - lo,

@@ -1710,7 +1710,7 @@ pub open spec fn phi8_prod(n: nat) -> u64
     if n <= 1 {
         1
     } else {
-        k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as usize))
+        k_mul(phi8_prod((n - 1) as nat), phi8((n - 1) as u8))
     }
 }
 
@@ -1904,9 +1904,9 @@ pub proof fn lemma_phi8_prod_nonzero(n: nat)
 {
     if n > 1 {
         lemma_phi8_prod_nonzero((n - 1) as nat);
-        lemma_phi8_nonzero((n - 1) as usize);
+        lemma_phi8_nonzero((n - 1) as u8);
         if phi8_prod(n) == 0 {
-            crate::ntt::lemma_k_no_zero_divisors(phi8_prod((n - 1) as nat), phi8((n - 1) as usize));
+            crate::ntt::lemma_k_no_zero_divisors(phi8_prod((n - 1) as nat), phi8((n - 1) as u8));
         }
     }
 }
