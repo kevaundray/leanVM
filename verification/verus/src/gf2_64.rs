@@ -1041,12 +1041,23 @@ impl F64 {
     }
 
     /// Squaring, as a bit spread followed by one reduction.
+    ///
+    /// Cross terms vanish in characteristic 2, so the square moves bit `i` to bit `2i`.
+    /// On aarch64 it is the product with itself instead: its PMULL folds stay in the vector register,
+    /// where [`reduce`] would cross to integer registers and back.
     #[inline]
     pub fn square(self) -> (r: Self)
         ensures
             r.0 == k_mul(self.0, self.0),
     {
-        Self(reduce(square_wide(self.0)))
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            self * self
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+        {
+            Self(reduce(square_wide(self.0)))
+        }
     }
 
     /// Multiplicative inverse `x^(2^64 - 2)`, mapping zero to zero.
@@ -1190,7 +1201,23 @@ impl Mul for F64 {
         ensures
             r.0 == k_mul(self.0, rhs.0),
     {
-        Self(reduce(mul_wide(self.0, rhs.0)))
+        #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+        {
+            // SAFETY: aes target feature is enabled at compile time.
+            unsafe { aarch64::mul_shift_tail(self, rhs) }
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+        {
+            // SAFETY: pclmulqdq is enabled at compile time.
+            unsafe { Self(x86_64::mul(self.0, rhs.0)) }
+        }
+        #[cfg(not(any(
+            all(target_arch = "aarch64", target_feature = "aes"),
+            all(target_arch = "x86_64", target_feature = "pclmulqdq")
+        )))]
+        {
+            Self(reduce(mul_wide(self.0, rhs.0)))
+        }
     }
 }
 
@@ -1250,7 +1277,28 @@ pub fn mul_wide(a: u64, b: u64) -> (r: u128)
     ensures
         r == clmul(a, b as u128),
 {
-    software::clmul(a, b)
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    {
+        proof {
+            broadcast use crate::intrinsics::aarch64::axiom_u64x2_as_u128;
+            let p = clmul(a, b as u128);
+            assert(((p as u64) as u128) | ((((p >> 64u128) as u64) as u128) << 64u128) == p) by (bit_vector);
+        }
+        // SAFETY: aes is enabled at compile time; the reinterpret is between 128-bit values.
+        unsafe { core::mem::transmute::<core::arch::aarch64::uint64x2_t, u128>(aarch64::pmull(a, b)) }
+    }
+    #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+    {
+        // SAFETY: pclmulqdq is enabled at compile time.
+        unsafe { x86_64::clmul(a, b) }
+    }
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq")
+    )))]
+    {
+        software::clmul(a, b)
+    }
 }
 
 /// The carry-less square of a 64-bit polynomial: bit `i` moves to bit `2i`.
@@ -1259,7 +1307,15 @@ pub fn square_wide(a: u64) -> (r: u128)
     ensures
         r == clmul(a, a as u128),
 {
-    mul_wide(a, a)
+    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    {
+        // SAFETY: bmi2 is enabled at compile time.
+        unsafe { x86_64::spread(a) }
+    }
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    {
+        mul_wide(a, a)
+    }
 }
 
 /// Reduce a 128-bit carry-less product modulo `x^64 + x^4 + x^3 + x + 1`.
@@ -1310,6 +1366,362 @@ pub mod software {
             i += 1;
         }
         acc
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+pub mod aarch64 {
+    use super::{F64, R64};
+    use crate::neon::xor3_u64;
+    use core::arch::aarch64::*;
+    use core::mem::transmute;
+    #[cfg(verus_keep_ghost)]
+    use super::{k_mul, k_mod, lemma_clmul_fold_reduction};
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::aarch64::*;
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::transmuted;
+    use vstd::prelude::*;
+
+    /// 64x64 carry-less product as a 128-bit NEON vector.
+    ///
+    /// # Safety
+    /// Requires the `aes` target feature (compiles to PMULL); only call where
+    /// `aes` is statically enabled or has been runtime-detected.
+    #[inline]
+    #[target_feature(enable = "aes")]
+    pub unsafe fn pmull(a: u64, b: u64) -> (r: uint64x2_t)
+        ensures
+            u64x2(r)[0] == crate::clmul::clmul(a, b as u128) as u64,
+            u64x2(r)[1] == (crate::clmul::clmul(a, b as u128) >> 64u128) as u64,
+    {
+        proof {
+            broadcast use axiom_u128_as_u64x2;
+        }
+        // SAFETY: u128 and uint64x2_t are both 128-bit values.
+        unsafe { transmute::<u128, uint64x2_t>(vmull_p64(a, b)) }
+    }
+
+    /// Carry-less product of the two *high* lanes: PMULL2 on the register
+    /// pair, no lane extraction (the lane-crossing-free way to fold a
+    /// product's high half).
+    ///
+    /// # Safety
+    /// Requires the `aes` target feature; see [`pmull`].
+    #[inline]
+    #[target_feature(enable = "aes")]
+    pub unsafe fn pmull_hi(a: uint64x2_t, b: uint64x2_t) -> (r: uint64x2_t)
+        ensures
+            u64x2(r)[0] == crate::clmul::clmul(u64x2(a)[1], u64x2(b)[1] as u128) as u64,
+            u64x2(r)[1] == (crate::clmul::clmul(u64x2(a)[1], u64x2(b)[1] as u128) >> 64u128) as u64,
+    {
+        proof {
+            broadcast use axiom_u128_as_u64x2, axiom_u64x2_as_p64x2;
+        }
+        // SAFETY: bit-level reinterprets between 128-bit vector types.
+        unsafe {
+            transmute::<u128, uint64x2_t>(vmull_high_p64(
+                transmute::<uint64x2_t, poly64x2_t>(a),
+                transmute::<uint64x2_t, poly64x2_t>(b),
+            ))
+        }
+    }
+
+    /// The two lanes of a register as one 128-bit polynomial, lane 0 the low word.
+    pub open spec fn u64x2_u128(v: uint64x2_t) -> u128 {
+        (u64x2(v)[0] as u128) | ((u64x2(v)[1] as u128) << 64u128)
+    }
+
+    proof fn lemma_u64x2_u128(v: uint64x2_t)
+        ensures
+            u64x2(v)[0] == u64x2_u128(v) as u64,
+            u64x2(v)[1] == (u64x2_u128(v) >> 64u128) as u64,
+    {
+        let (a, b) = (u64x2(v)[0], u64x2(v)[1]);
+        assert(a == (((a as u128) | ((b as u128) << 64u128)) as u64) && b == ((((a as u128) | ((b as u128) << 64u128))
+            >> 64u128) as u64)) by (bit_vector);
+    }
+
+    /// The reduction of one product in a register: `p ^ t ^ u` with `t = hi(p) * 0x1B`, `u = hi(t) * 0x1B`,
+    /// whose low lane is `k_mod` of the product, given `p`'s lanes are the product's words.
+    proof fn lemma_fold_lanes(p: uint64x2_t, r: uint64x2_t, t: uint64x2_t, u: uint64x2_t, pp: u128)
+        requires
+            u64x2(p)[0] == pp as u64,
+            u64x2(p)[1] == (pp >> 64u128) as u64,
+            u64x2(r)[1] == R64,
+            u64x2(t)[0] == crate::clmul::clmul(u64x2(p)[1], u64x2(r)[1] as u128) as u64,
+            u64x2(t)[1] == (crate::clmul::clmul(u64x2(p)[1], u64x2(r)[1] as u128) >> 64u128) as u64,
+            u64x2(u)[0] == crate::clmul::clmul(u64x2(t)[1], u64x2(r)[1] as u128) as u64,
+        ensures
+            u64x2(p)[0] ^ u64x2(t)[0] ^ u64x2(u)[0] == k_mod(pp),
+    {
+        lemma_clmul_fold_reduction(pp);
+        let tt = crate::clmul::clmul((pp >> 64u128) as u64, 0x1Bu128);
+        let uu = crate::clmul::clmul((tt >> 64u128) as u64, 0x1Bu128);
+        assert((pp ^ tt ^ uu) as u64 == (pp as u64) ^ (tt as u64) ^ (uu as u64)) by (bit_vector);
+    }
+
+    /// Reduce two 128-bit carry-less products into one lane pair: `[reduce(p0), reduce(p1)]`.
+    ///
+    /// Seven instructions for the pair.
+    ///
+    /// Rewritten for Verus: the empty `asm!` block that hides the lanes from LLVM is in [`hide_lanes`], whose
+    /// body is that block and whose specification is that it leaves both registers unchanged.
+    ///
+    /// # Safety
+    /// Requires the `aes` target feature; see [`pmull`].
+    #[inline]
+    #[target_feature(enable = "aes")]
+    pub unsafe fn reduce_pair_pmull4(p0: uint64x2_t, p1: uint64x2_t) -> (r: uint64x2_t)
+        ensures
+            u64x2(r)[0] == k_mod(u64x2_u128(p0)),
+            u64x2(r)[1] == k_mod(u64x2_u128(p1)),
+    {
+        // SAFETY: function carries the aes target feature.
+        unsafe {
+            let r = vdupq_n_u64(R64);
+            let (t0, t1) = (pmull_hi(p0, r), pmull_hi(p1, r));
+            let (u0, u1) = (pmull_hi(t0, r), pmull_hi(t1, r));
+            let (e0, e1) = (xor3_u64(p0, t0, u0), xor3_u64(p1, t1, u1));
+            // Why: only lane 0 of each sum survives the zip.
+            // LLVM would gather the six low lanes with three inserts and XOR once: one instruction more.
+            // An empty asm block hides the lanes from it, and emits nothing.
+            let (e0, e1) = hide_lanes(e0, e1);
+            proof {
+                lemma_u64x2_u128(p0);
+                lemma_u64x2_u128(p1);
+                lemma_fold_lanes(p0, r, t0, u0, u64x2_u128(p0));
+                lemma_fold_lanes(p1, r, t1, u1, u64x2_u128(p1));
+            }
+            vzip1q_u64(e0, e1)
+        }
+    }
+
+    /// The empty `asm!` block of [`reduce_pair_pmull4`]: it emits nothing, so both registers keep their value.
+    #[verifier::external_body]
+    #[inline(always)]
+    fn hide_lanes(mut e0: uint64x2_t, mut e1: uint64x2_t) -> (r: (uint64x2_t, uint64x2_t))
+        ensures
+            r == (e0, e1),
+    {
+        // SAFETY: an empty block, which reads and writes nothing.
+        unsafe {
+            core::arch::asm!(
+                "/* {0:v} {1:v} */",
+                inout(vreg) e0,
+                inout(vreg) e1,
+                options(pure, nomem, nostack, preserves_flags)
+            );
+        }
+        (e0, e1)
+    }
+
+    /// The default `Mul` kernel on aarch64. 3-PMULL multiply: product, then two
+    /// PMULL-by-0x1B folds, the second taking the first's <=4-bit overflow
+    /// exactly (`ov*0x1B` fits in 8 bits).
+    ///
+    /// # Safety
+    /// Requires the `aes` target feature; see [`pmull`].
+    #[inline]
+    #[target_feature(enable = "aes")]
+    pub unsafe fn mul_shift_tail(a: F64, b: F64) -> (r: F64)
+        ensures
+            r.0 == k_mul(a.0, b.0),
+    {
+        // SAFETY: function carries the aes target feature.
+        unsafe {
+            let r = vdupq_n_u64(R64);
+            let p = pmull(a.0, b.0);
+            let t = pmull_hi(p, r);
+            let u = pmull_hi(t, r);
+            proof {
+                lemma_fold_lanes(p, r, t, u, crate::clmul::clmul(a.0, b.0 as u128));
+            }
+            F64(vgetq_lane_u64::<0>(veorq_u64(veorq_u64(p, t), u)))
+        }
+    }
+}
+
+/// The x86-64 products.
+#[cfg(target_arch = "x86_64")]
+pub mod x86_64 {
+    use super::R64;
+    use core::arch::x86_64::*;
+    #[cfg(verus_keep_ghost)]
+    use super::{k_mul, lemma_clmul_fold_reduction, lemma_clmul_square_upto, lemma_k_mod};
+    #[cfg(verus_keep_ghost)]
+    use crate::clmul::low;
+    use vstd::prelude::*;
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::x86::*;
+    #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::transmuted;
+    #[cfg(verus_keep_ghost)]
+    use crate::clmul::lemma_u64_bits_eq;
+
+    /// One field product: the carry-less product, then two carry-less folds of its high word by `0x1B`.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `pclmulqdq` target feature.
+    #[inline]
+    #[target_feature(enable = "pclmulqdq")]
+    pub unsafe fn mul(a: u64, b: u64) -> (r: u64)
+        ensures
+            r == k_mul(a, b),
+    {
+        proof {
+            lemma_clmul_sel();
+            lemma_i64_round_trip(a);
+            lemma_i64_round_trip(b);
+            lemma_i64_round_trip(R64);
+        }
+        let r = _mm_cvtsi64_si128(R64 as i64);
+        let p = _mm_clmulepi64_si128::<0x00>(_mm_cvtsi64_si128(a as i64), _mm_cvtsi64_si128(b as i64));
+        // hi * 0x1B, at most 68 bits.
+        let t = _mm_clmulepi64_si128::<0x01>(p, r);
+        // Its spill past x^63, times 0x1B: at most 8 bits.
+        let u = _mm_clmulepi64_si128::<0x01>(t, r);
+        proof {
+            lemma_clmul_words_split(m128(p), a, b);
+            lemma_clmul_words_split(m128(t), m128(p)[1], R64);
+            lemma_clmul_words_split(m128(u), m128(t)[1], R64);
+            let pp = crate::clmul::clmul(a, b as u128);
+            lemma_clmul_fold_reduction(pp);
+            let tt = crate::clmul::clmul((pp >> 64u128) as u64, 0x1Bu128);
+            let uu = crate::clmul::clmul((tt >> 64u128) as u64, 0x1Bu128);
+            assert((pp ^ tt ^ uu) as u64 == (pp as u64) ^ (tt as u64) ^ (uu as u64)) by (bit_vector);
+        }
+        _mm_cvtsi128_si64(_mm_xor_si128(_mm_xor_si128(p, t), u)) as u64
+    }
+
+    /// 64x64 carry-less product.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `pclmulqdq` target feature.
+    #[inline]
+    #[target_feature(enable = "pclmulqdq")]
+    pub unsafe fn clmul(a: u64, b: u64) -> (r: u128)
+        ensures
+            r == crate::clmul::clmul(a, b as u128),
+    {
+        proof {
+            lemma_i64_round_trip(a);
+            lemma_i64_round_trip(b);
+        }
+        // Move both operands into the low qword of a vector register.
+        let (a, b) = (_mm_cvtsi64_si128(a as i64), _mm_cvtsi64_si128(b as i64));
+        proof {
+            let (x, y) = (m128(a)[0], m128(b)[0]);
+            lemma_clmul_sel();
+            let pp = crate::clmul::clmul(x, y as u128);
+            assert(((pp as u64) as u128) | ((((pp >> 64u128) as u64) as u128) << 64u128) == pp) by (bit_vector);
+            broadcast use axiom_m128_as_u128;
+        }
+        // SAFETY: both types are 128 bits wide with no invalid bit patterns.
+        unsafe { core::mem::transmute::<__m128i, u128>(_mm_clmulepi64_si128::<0x00>(a, b)) }
+    }
+
+    /// Carry-less square by bit deposit: `pdep` spreads each 32-bit half onto the even bits of one word.
+    ///
+    /// # Safety
+    ///
+    /// Requires the `bmi2` target feature.
+    #[inline]
+    #[target_feature(enable = "bmi2")]
+    pub unsafe fn spread(a: u64) -> (r: u128)
+        ensures
+            r == crate::clmul::clmul(a, a as u128),
+    {
+        // Bits 0, 2, 4, ...: where a square puts the input bits.
+        const EVEN: u64 = 0x5555_5555_5555_5555;
+        // Low half of `a` into the low word, high half into the high word.
+        let lo = _pdep_u64(a, EVEN);
+        let hi = _pdep_u64(a >> 32, EVEN);
+        proof {
+            lemma_pdep_even(a, lo);
+            lemma_pdep_even(a >> 32, hi);
+            lemma_spread_halves(a, lo, hi);
+            assert(low(a, 64) == a);
+            lemma_clmul_square_upto(a, 64);
+        }
+        lo as u128 | (hi as u128) << 64
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Proof helpers
+    // -----------------------------------------------------------------------------------------
+    pub proof fn lemma_i64_round_trip(a: u64)
+        ensures
+            (a as i64) as u64 == a,
+    {
+        assert((a as i64) as u64 == a) by (bit_vector);
+    }
+
+    /// PCLMULQDQ's two result words are the low and high words of the carry-less product.
+    pub proof fn lemma_clmul_words_split(w: [u64; 2], a: u64, b: u64)
+        requires
+            w[0] == clmul_words(a, b)[0],
+            w[1] == clmul_words(a, b)[1],
+        ensures
+            w[0] == crate::clmul::clmul(a, b as u128) as u64,
+            w[1] == (crate::clmul::clmul(a, b as u128) >> 64u128) as u64,
+    {
+    }
+
+    /// The set bits of `0x5555...`: the even positions, and so `ones_below(EVEN, j) = ceil(j / 2)`.
+    pub proof fn lemma_ones_below_even(j: nat)
+        requires
+            j <= 64,
+        ensures
+            ones_below(0x5555_5555_5555_5555u64, j) == (j + 1) / 2,
+        decreases j,
+    {
+        if j > 0 {
+            lemma_ones_below_even((j - 1) as nat);
+            let s = (j - 1) as u64;
+            assert(s < 64 ==> (((0x5555_5555_5555_5555u64 >> s) & 1 == 1) == (s % 2 == 0))) by (bit_vector);
+        }
+    }
+
+    /// Bit `j` of `pdep(a, EVEN)` is bit `j / 2` of `a` for even `j`, zero for odd `j`.
+    pub proof fn lemma_pdep_even(a: u64, d: u64)
+        requires
+            forall|j: nat| j < 64 ==> #[trigger] crate::clmul::bit(d, j) == pdep_bit(a, 0x5555_5555_5555_5555u64, j),
+        ensures
+            d == spread_word(a),
+    {
+        assert forall|j: nat| j < 64 implies #[trigger] crate::clmul::bit(d, j) == crate::clmul::bit(spread_word(a), j) by {
+            lemma_ones_below_even(j);
+            let s = j as u64;
+            assert(s < 64 ==> (((0x5555_5555_5555_5555u64 >> s) & 1 == 1) == (s % 2 == 0))) by (bit_vector);
+            assert(s < 64 ==> (((spread_word(a) >> s) & 1 == 1) == (s % 2 == 0 && (a >> ((s + 1) / 2)) & 1 == 1)))
+                by (bit_vector);
+            assert((s + 1) / 2 == ((j + 1) / 2) as u64);
+        }
+        lemma_u64_bits_eq(d, spread_word(a));
+    }
+
+    /// The low 32 bits of `a` spread onto the even bits of a word.
+    pub open spec fn spread_word(a: u64) -> u64 {
+        let x = a & 0xFFFF_FFFF;
+        let x = (x | (x << 16u64)) & 0x0000_FFFF_0000_FFFFu64;
+        let x = (x | (x << 8u64)) & 0x00FF_00FF_00FF_00FFu64;
+        let x = (x | (x << 4u64)) & 0x0F0F_0F0F_0F0F_0F0Fu64;
+        let x = (x | (x << 2u64)) & 0x3333_3333_3333_3333u64;
+        (x | (x << 1u64)) & 0x5555_5555_5555_5555u64
+    }
+
+    /// The two spread halves make the spread of the whole word.
+    pub proof fn lemma_spread_halves(a: u64, lo: u64, hi: u64)
+        requires
+            lo == spread_word(a),
+            hi == spread_word(a >> 32u64),
+        ensures
+            lo as u128 | (hi as u128) << 64u128 == super::spread(a),
+    {
+        assert(spread_word(a) as u128 | (spread_word(a >> 32u64) as u128) << 64u128 == super::spread(a)) by (bit_vector);
     }
 }
 

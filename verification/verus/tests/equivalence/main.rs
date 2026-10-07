@@ -7,4 +7,8 @@ mod bits;
 mod gf2_64;
 mod gf2_64x3;
 mod gf2_8;
+#[cfg(target_arch = "aarch64")]
+mod intrinsics_aarch64;
+#[cfg(target_arch = "x86_64")]
+mod intrinsics_x86;
 mod ntt;

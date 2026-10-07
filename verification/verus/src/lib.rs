@@ -6,4 +6,7 @@ pub mod clmul;
 pub mod gf2_64;
 pub mod gf2_64x3;
 pub mod gf2_8;
+pub mod intrinsics;
+#[cfg(target_arch = "aarch64")]
+pub mod neon;
 pub mod ntt;
