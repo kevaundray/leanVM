@@ -10,15 +10,13 @@ use super::transmuted;
 #[cfg(verus_keep_ghost)]
 use super::aarch64::{p64x2, u64x2};
 #[cfg(verus_keep_ghost)]
+use super::aarch64_bits::u8x16;
+#[cfg(verus_keep_ghost)]
 use crate::clmul::clmul;
 use core::arch::aarch64::*;
 use vstd::prelude::*;
 
 verus! {
-
-#[verifier::external_type_specification]
-#[verifier::external_body]
-pub struct ExUint8x16(uint8x16_t);
 
 #[verifier::external_type_specification]
 #[verifier::external_body]
@@ -43,11 +41,6 @@ pub struct ExUint64x1(uint64x1_t);
 // ---------------------------------------------------------------------------------------------
 // Views and layout
 // ---------------------------------------------------------------------------------------------
-/// The 16 bytes of a `uint8x16_t`, lane 0 first.
-pub open spec fn u8x16(v: uint8x16_t) -> [u8; 16] {
-    transmuted::<uint8x16_t, [u8; 16]>(v)
-}
-
 /// The 8 bytes of a `uint8x8_t`, lane 0 first.
 pub open spec fn u8x8(v: uint8x8_t) -> [u8; 8] {
     transmuted::<uint8x8_t, [u8; 8]>(v)

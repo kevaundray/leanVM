@@ -21,9 +21,13 @@ use vstd::prelude::*;
 #[cfg(target_arch = "aarch64")]
 pub mod aarch64;
 #[cfg(target_arch = "aarch64")]
+pub mod aarch64_bits;
+#[cfg(target_arch = "aarch64")]
 pub mod aarch64_gfneon;
 #[cfg(target_arch = "x86_64")]
 pub mod x86;
+#[cfg(target_arch = "x86_64")]
+pub mod x86_bits;
 #[cfg(target_arch = "x86_64")]
 pub mod x86_gfneon;
 

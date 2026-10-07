@@ -840,6 +840,8 @@ pub mod neon {
     #[cfg(verus_keep_ghost)]
     use super::{clmul8_closed, f8_mod, f8_mul, lemma_clmul8_closed, lemma_f8_mod, reduce8_formula};
     #[cfg(verus_keep_ghost)]
+    use crate::intrinsics::aarch64_bits::u8x16;
+    #[cfg(verus_keep_ghost)]
     use crate::intrinsics::aarch64_gfneon::*;
     #[cfg(verus_keep_ghost)]
     use crate::intrinsics::transmuted;
