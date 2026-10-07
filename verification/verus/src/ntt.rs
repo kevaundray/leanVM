@@ -12,7 +12,8 @@
 //! - [`normalized_subspace_poly`]: `Ŵ_i(x) = s_i(x) · s_i(b_i)^(-1)`, with the inverse `y^(2^64 - 2)`.
 //! - [`layer_map`]: one layer of butterflies on a buffer of interleaved lanes, by row index;
 //!   [`forward_layers`] and [`inverse_layers`] compose them.
-//! - [`novel_eval`]: the novel-basis polynomial `Σ_j a_j X_j(x)`, `X_j = Π_i Ŵ_i(x)^(bit_i(j))`.
+//! - [`novel_eval`]: the novel-basis polynomial `Σ_j a_j X_j(x)`, `X_j = Π_i Ŵ_i(x)^(bit_i(j))`, in its
+//!   even-odd form; [`lemma_novel_eval_flat`] proves it equal to the flat sum [`novel_sum`].
 //!
 //! Main results: [`lemma_inverse_butterfly`], [`lemma_span_xor`], `twiddles_radix8`'s postcondition,
 //! [`lemma_subspace_poly_additive`], [`lemma_twiddle_is_subspace_poly`], `generate_evals_from_subspace`'s
@@ -1988,7 +1989,8 @@ proof fn lemma_small_rows(n: int, h: nat)
 ///
 /// written by its even-odd split on the lowest bit of `j` (annex `d`, Lemma "Even-odd refinement"):
 /// `novel_eval(i, l, x) = novel_eval(i+1, l, x) + Ŵ_i(x) · novel_eval(i+1, l + 2^i, x)`.
-/// The polynomial itself is `P(x) = novel_eval(0, 0, x) = Σ_j a_j X_j(x)` with `X_j = Π_i Ŵ_i^(bit_i(j))`.
+/// The polynomial itself is `P(x) = novel_eval(0, 0, x) = Σ_j a_j X_j(x)` with `X_j = Π_i Ŵ_i^(bit_i(j))`;
+/// [`lemma_novel_eval_flat`] proves this equality with the flat sum [`novel_sum`].
 pub open spec fn novel_eval(basis: Seq<F64>, a: Seq<F64>, d: nat, i: nat, l: int, x: u64) -> u64
     decreases d - i,
 {
@@ -2714,7 +2716,8 @@ proof fn lemma_standard_span(n: nat, v: usize)
 }
 
 /// The forward transform of `AdditiveNttF64::standard(dim)` evaluates the novel-basis polynomial on the
-/// domain `{0, .., 2^dim - 1}`: output word `v` is `P(v) = Σ_j a_j X_j(v)`, with no hypothesis.
+/// domain `{0, .., 2^dim - 1}`: output word `v` is `P(v) = Σ_{j < 2^dim} a_j X_j(v)` ([`novel_sum`]), with
+/// no hypothesis.
 pub proof fn lemma_standard_forward_evaluates(tab: Seq<Seq<F64>>, dim: nat, a: Seq<F64>)
     requires
         AdditiveNttF64::is_table_of(tab, standard_basis(dim)),
@@ -2722,17 +2725,23 @@ pub proof fn lemma_standard_forward_evaluates(tab: Seq<Seq<F64>>, dim: nat, a: S
         a.len() == pow2(dim),
     ensures
         forall|v: int|
-            0 <= v < a.len() ==> (#[trigger] forward_layers(tab, a, 1, dim, 0, dim)[v]).0 == novel_eval(
+            0 <= v < a.len() ==> (#[trigger] forward_layers(tab, a, 1, dim, 0, dim)[v]).0 == novel_sum(
                 standard_basis(dim),
                 a,
                 dim,
-                0,
-                0,
                 v as u64,
             ),
 {
     lemma_standard_rows_start_with_one(dim);
     lemma_forward_evaluates(tab, standard_basis(dim), a);
+    assert forall|v: int| 0 <= v < a.len() implies novel_eval(standard_basis(dim), a, dim, 0, 0, v as u64) == #[trigger] novel_sum(
+        standard_basis(dim),
+        a,
+        dim,
+        v as u64,
+    ) by {
+        lemma_novel_eval_flat(standard_basis(dim), a, dim, v as u64);
+    }
     assert forall|v: int| 0 <= v < a.len() implies #[trigger] span(standard_basis(dim), v as usize) == v as u64 by {
         lemma2_to64();
         lemma2_to64_rest();
@@ -2755,24 +2764,213 @@ pub proof fn lemma_standard_encode_evaluates(tab: Seq<Seq<F64>>, dim: nat, msg: 
             let codeword = forward_layers(tab, replicate(msg, pow2(dim)), 1, dim, r, dim);
             &&& codeword.len() == pow2(dim)
             &&& forall|v: int|
-                0 <= v < pow2(dim) ==> (#[trigger] codeword[v]).0 == novel_eval(
+                0 <= v < pow2(dim) ==> (#[trigger] codeword[v]).0 == novel_sum(
                     standard_basis(dim),
                     zero_pad(msg, pow2(dim)),
                     dim,
-                    0,
-                    0,
                     v as u64,
                 )
         }),
 {
     lemma_standard_rows_start_with_one(dim);
     lemma_encode_evaluates(tab, standard_basis(dim), msg, r);
+    let x = zero_pad(msg, pow2(dim));
+    assert forall|v: int| 0 <= v < pow2(dim) implies novel_eval(standard_basis(dim), x, dim, 0, 0, v as u64) == #[trigger] novel_sum(
+        standard_basis(dim),
+        x,
+        dim,
+        v as u64,
+    ) by {
+        lemma_novel_eval_flat(standard_basis(dim), x, dim, v as u64);
+    }
     assert forall|v: int| 0 <= v < pow2(dim) implies #[trigger] span(standard_basis(dim), v as usize) == v as u64 by {
         lemma2_to64();
         lemma2_to64_rest();
         lemma_pow2_strictly_increases(dim, 64);
         lemma_standard_point(dim, v as usize);
     }
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// The novel-basis polynomial as a flat sum
+// ---------------------------------------------------------------------------------------------
+/// `XOR_{j < n} f(j)`.
+pub open spec fn xor_sum(f: spec_fn(int) -> u64, n: nat) -> u64
+    decreases n,
+{
+    if n == 0 {
+        0
+    } else {
+        xor_sum(f, (n - 1) as nat) ^ f(n - 1)
+    }
+}
+
+/// `Π_{c < n} Ŵ_(i+c)(x)^(bit_c(j))`, bit `c` of `j` being `(j / 2^c) mod 2`.
+pub open spec fn novel_basis_from(basis: Seq<F64>, i: nat, n: nat, j: nat, x: u64) -> u64
+    decreases n,
+{
+    if n == 0 {
+        1
+    } else {
+        k_mul(
+            if j % 2 == 1 {
+                normalized_subspace_poly(basis, i, x)
+            } else {
+                1
+            },
+            novel_basis_from(basis, i + 1, (n - 1) as nat, j / 2, x),
+        )
+    }
+}
+
+/// The novel basis polynomial `X_j(x) = Π_{i < d} Ŵ_i(x)^(bit_i(j))`.
+pub open spec fn novel_basis(basis: Seq<F64>, d: nat, j: nat, x: u64) -> u64 {
+    novel_basis_from(basis, 0, d, j, x)
+}
+
+/// `Σ_{j < 2^(d-i)} a[l + 2^i j] · Π_{c < d-i} Ŵ_(i+c)(x)^(bit_c(j))`.
+pub open spec fn novel_sum_from(basis: Seq<F64>, a: Seq<F64>, d: nat, i: nat, l: int, x: u64) -> u64 {
+    xor_sum(
+        |j: int| k_mul(a[l + pow2(i) * j].0, novel_basis_from(basis, i, (d - i) as nat, j as nat, x)),
+        pow2((d - i) as nat),
+    )
+}
+
+/// The novel-basis polynomial with coefficients `a`, as the flat sum `Σ_{j < 2^d} a_j X_j(x)`.
+pub open spec fn novel_sum(basis: Seq<F64>, a: Seq<F64>, d: nat, x: u64) -> u64 {
+    xor_sum(|j: int| k_mul(a[j].0, novel_basis(basis, d, j as nat, x)), pow2(d))
+}
+
+proof fn lemma_xor_sum_ext(f: spec_fn(int) -> u64, g: spec_fn(int) -> u64, n: nat)
+    requires
+        forall|j: int| 0 <= j < n ==> #[trigger] f(j) == g(j),
+    ensures
+        xor_sum(f, n) == xor_sum(g, n),
+    decreases n,
+{
+    if n > 0 {
+        lemma_xor_sum_ext(f, g, (n - 1) as nat);
+    }
+}
+
+/// A sum over `2n` terms is the sum of its even terms plus the sum of its odd terms.
+proof fn lemma_xor_sum_split(f: spec_fn(int) -> u64, n: nat)
+    ensures
+        xor_sum(f, 2 * n) == xor_sum(|j: int| f(2 * j), n) ^ xor_sum(|j: int| f(2 * j + 1), n),
+    decreases n,
+{
+    let fe = |j: int| f(2 * j);
+    let fo = |j: int| f(2 * j + 1);
+    if n == 0 {
+        lemma_xor_facts(0, 0, 0);
+    } else {
+        lemma_xor_sum_split(f, (n - 1) as nat);
+        let (a, b) = (xor_sum(fe, (n - 1) as nat), xor_sum(fo, (n - 1) as nat));
+        let (e, o) = (f(2 * n - 2), f(2 * n - 1));
+        assert(xor_sum(f, (2 * n - 1) as nat) == xor_sum(f, (2 * (n - 1)) as nat) ^ e);
+        assert(xor_sum(f, 2 * n) == xor_sum(f, (2 * (n - 1)) as nat) ^ e ^ o);
+        assert((a ^ b) ^ e ^ o == (a ^ e) ^ (b ^ o)) by (bit_vector);
+    }
+}
+
+/// Multiplication distributes over a sum.
+proof fn lemma_xor_sum_scale(c: u64, f: spec_fn(int) -> u64, n: nat)
+    ensures
+        k_mul(c, xor_sum(f, n)) == xor_sum(|j: int| k_mul(c, f(j)), n),
+    decreases n,
+{
+    if n == 0 {
+        lemma_k_mul_zero(c);
+    } else {
+        lemma_xor_sum_scale(c, f, (n - 1) as nat);
+        lemma_k_mul_xor_right(c, xor_sum(f, (n - 1) as nat), f(n - 1));
+    }
+}
+
+/// `a (w p) = w (a p)`.
+proof fn lemma_k_mul_swap(a: u64, w: u64, p: u64)
+    ensures
+        k_mul(a, k_mul(w, p)) == k_mul(w, k_mul(a, p)),
+{
+    lemma_k_mul_assoc(a, w, p);
+    lemma_k_mul_comm(a, w);
+    lemma_k_mul_assoc(w, a, p);
+}
+
+proof fn lemma_novel_eval_flat_from(basis: Seq<F64>, a: Seq<F64>, d: nat, i: nat, l: int, x: u64)
+    requires
+        i <= d,
+    ensures
+        novel_eval(basis, a, d, i, l, x) == novel_sum_from(basis, a, d, i, l, x),
+    decreases d - i,
+{
+    let n = (d - i) as nat;
+    let f = |j: int| k_mul(a[l + pow2(i) * j].0, novel_basis_from(basis, i, n, j as nat, x));
+    if i == d {
+        lemma2_to64();
+        assert(pow2(i) * 0 == 0);
+        lemma_k_mul_one(a[l].0);
+        lemma_xor_facts(a[l].0, 0, 0);
+        assert(xor_sum(f, 0) == 0);
+        assert(xor_sum(f, 1) == 0 ^ f(0));
+    } else {
+        let m = (n - 1) as nat;
+        let half = pow2(m);
+        let w = normalized_subspace_poly(basis, i, x);
+        let li = l + pow2(i);
+        lemma_novel_eval_flat_from(basis, a, d, i + 1, l, x);
+        lemma_novel_eval_flat_from(basis, a, d, i + 1, li, x);
+        let g0 = |j: int| k_mul(a[l + pow2(i + 1) * j].0, novel_basis_from(basis, i + 1, m, j as nat, x));
+        let g1 = |j: int| k_mul(a[li + pow2(i + 1) * j].0, novel_basis_from(basis, i + 1, m, j as nat, x));
+        assert((d - (i + 1)) as nat == m);
+        lemma_pow2_unfold(n);
+        lemma_pow2_unfold(i + 1);
+        lemma_xor_sum_split(f, half);
+        let fe = |j: int| f(2 * j);
+        let fo = |j: int| f(2 * j + 1);
+        assert forall|j: int| 0 <= j < half implies #[trigger] fe(j) == g0(j) by {
+            assert(pow2(i) * (2 * j) == pow2(i + 1) * j) by (nonlinear_arith)
+                requires
+                    pow2(i + 1) == 2 * pow2(i),
+            ;
+            assert((2 * j) % 2 == 0 && (2 * j) / 2 == j);
+            assert(((2 * j) as nat) / 2 == j as nat);
+            lemma_k_mul_one(novel_basis_from(basis, i + 1, m, j as nat, x));
+        }
+        assert forall|j: int| 0 <= j < half implies #[trigger] fo(j) == k_mul(w, g1(j)) by {
+            assert(pow2(i) * (2 * j + 1) == pow2(i) + pow2(i + 1) * j) by (nonlinear_arith)
+                requires
+                    pow2(i + 1) == 2 * pow2(i),
+            ;
+            assert((2 * j + 1) % 2 == 1 && (2 * j + 1) / 2 == j);
+            assert(((2 * j + 1) as nat) / 2 == j as nat);
+            lemma_k_mul_swap(
+                a[li + pow2(i + 1) * j].0,
+                w,
+                novel_basis_from(basis, i + 1, m, j as nat, x),
+            );
+        }
+        lemma_xor_sum_ext(fe, g0, half);
+        lemma_xor_sum_ext(fo, |j: int| k_mul(w, g1(j)), half);
+        lemma_xor_sum_scale(w, g1, half);
+        assert(2 * half == pow2(n));
+    }
+}
+
+/// The even-odd form is the flat sum: `novel_eval(0, 0, x) = Σ_{j < 2^d} a_j X_j(x)`.
+pub proof fn lemma_novel_eval_flat(basis: Seq<F64>, a: Seq<F64>, d: nat, x: u64)
+    ensures
+        novel_eval(basis, a, d, 0, 0, x) == novel_sum(basis, a, d, x),
+{
+    lemma_novel_eval_flat_from(basis, a, d, 0, 0, x);
+    lemma2_to64();
+    let f = |j: int| k_mul(a[0 + pow2(0) * j].0, novel_basis_from(basis, 0, (d - 0) as nat, j as nat, x));
+    let g = |j: int| k_mul(a[j].0, novel_basis(basis, d, j as nat, x));
+    assert forall|j: int| 0 <= j < pow2(d) implies #[trigger] f(j) == g(j) by {
+        assert(0 + pow2(0) * j == j);
+    }
+    lemma_xor_sum_ext(f, g, pow2(d));
 }
 
 } // verus!

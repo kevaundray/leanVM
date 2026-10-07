@@ -111,7 +111,8 @@ Following annex `d` of the leanVM document:
   `X_j = prod_i Ŵ_i(x)^(bit_i(j))` and the input `a` read as its coefficients; the domain point of index `v` is
   the field element `v` itself (no bit reversal). Encoding at rate `2^-r` (layers `r..dim` on `2^r` copies of the
   message) gives the evaluations of the polynomial whose coefficients are the message, zero-padded: the
-  Reed-Solomon codeword (`lemma_standard_forward_evaluates`, `lemma_standard_encode_evaluates`). The proof
+  Reed-Solomon codeword (`lemma_standard_forward_evaluates`, `lemma_standard_encode_evaluates`; the sum is
+  `novel_sum`, equal to the annex's even-odd recurrence `novel_eval` by `lemma_novel_eval_flat`). The proof
   needs every row of the table to start with one, `Ŵ_i(b_i) = 1`; it is proven for the standard basis, from
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
@@ -148,8 +149,6 @@ Following annex `d` of the leanVM document:
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.
-- `novel_eval` is defined by the even-odd split of annex `d`; that it equals the flat sum `sum_j a_j X_j(x)` its
-  documentation gives is not proven.
 - `phi8_tower.rs` and `bit_fold` are not covered.
 
 ## Reproduce
