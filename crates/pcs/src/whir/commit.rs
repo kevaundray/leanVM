@@ -8,7 +8,7 @@
 
 use crate::merkle::{Hash, MerkleBuilder};
 use crate::ntt::AdditiveNttF64;
-use crate::whir_ntt_ext::encode_interleaved_ext;
+use crate::whir::ntt_ext::encode_interleaved_ext;
 use primitives::field::{F64, F192};
 
 /// Public commitment for an `F64` message: the L0 Merkle root.
@@ -53,21 +53,23 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     let n_positions = 1usize << k_code;
     let codeword_len = n_positions * n_lanes;
 
-    // SAFETY: every codeword element is written before it is read.
-    // `transpose_lane_major` covers every word of the message region (its tiles are
-    // asserted to), and `encode_interleaved_in_place` writes every other replica from
-    // it before transforming that region in place.
-    let mut codeword = unsafe { primitives::uninit_vec::<F64>(codeword_len) };
+    let mut codeword = Box::new_uninit_slice(codeword_len);
 
     // Leaves are hashed as the encode finishes each block of rows.
     let tree = MerkleBuilder::new(n_positions, n_lanes, 1usize << log_batch_size);
     tracing::info_span!("NTT", kind = "base encode", log_domain = k_code, lanes = n_lanes).in_scope(|| {
+        // SAFETY: every codeword element is written before it is read.
+        // The transpose covers every word of the message region (its tiles are asserted to).
+        // The encode writes every other replica from it before transforming that region in place.
+        let codeword = unsafe { primitives::write_only(&mut codeword) };
         crate::ntt::transpose_lane_major(&mut codeword[..message.len()], message, n_lanes, log_rows);
         let ntt = AdditiveNttF64::standard(k_code);
-        ntt.encode_interleaved_in_place_with(&mut codeword, n_lanes, log_inv_rate, &|row, rows| {
+        ntt.encode_interleaved_in_place_with(codeword, n_lanes, log_inv_rate, &|row, rows| {
             tree.absorb(row, rows);
         });
     });
+    // SAFETY: the encode wrote the whole codeword.
+    let codeword = unsafe { codeword.assume_init() }.into_vec();
     let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = *merkle_tree.last().expect("merkle tree non-empty");
 
@@ -78,21 +80,21 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
 /// `mat[pos * num_interleaved + lane]`; each row (one `pos` across all lanes)
 /// is one Merkle leaf of `num_interleaved * 16` bytes.
 pub(crate) struct LigeroWitness {
-    pub mat: Vec<F192>,
+    pub(crate) mat: Vec<F192>,
     pub tree: Vec<Hash>,
-    pub block_len: usize,
-    pub num_interleaved: usize,
+    pub(crate) block_len: usize,
+    pub(crate) num_interleaved: usize,
 }
 
 impl LigeroWitness {
     #[inline]
-    pub fn row(&self, pos: usize) -> &[F192] {
+    pub(super) fn row(&self, pos: usize) -> &[F192] {
         let start = pos * self.num_interleaved;
         &self.mat[start..start + self.num_interleaved]
     }
 
     #[inline]
-    pub fn root(&self) -> Hash {
+    pub(super) fn root(&self) -> Hash {
         self.tree[self.tree.len() - 1]
     }
 }
@@ -116,10 +118,8 @@ pub(crate) fn ligero_commit_ext(
     assert!(log_block_len <= ntt.log_domain_size());
 
     let codeword_len = block_len * num_interleaved;
-    // The encode builds the replicas itself, so the codeword starts uninitialized.
-    //
-    // SAFETY: the encode writes every matrix element before reading it.
-    let mut mat = unsafe { primitives::uninit_vec::<F192>(codeword_len) };
+    // The encode builds the replicas itself, so the codeword starts unwritten.
+    let mut mat = Box::new_uninit_slice(codeword_len);
 
     // One leaf per row, its F192s as K words: hashed as the encode finishes each block.
     let row_words = 3 * num_interleaved;
@@ -131,10 +131,14 @@ pub(crate) fn ligero_commit_ext(
         lanes = num_interleaved
     )
     .in_scope(|| {
-        encode_interleaved_ext(ntt, &mut mat, poly, num_interleaved, log_inv_rate, &|row, rows| {
+        // SAFETY: the encode writes every matrix element before reading it.
+        let mat = unsafe { primitives::write_only(&mut mat) };
+        encode_interleaved_ext(ntt, mat, poly, num_interleaved, log_inv_rate, &|row, rows| {
             builder.absorb(row, rows);
         });
     });
+    // SAFETY: the encode wrote the whole matrix.
+    let mat = unsafe { mat.assume_init() }.into_vec();
     let tree = tracing::info_span!("Merkle").in_scope(|| builder.finish());
 
     LigeroWitness {

@@ -39,6 +39,45 @@ impl Builder {
         self.single_block(acc, bit, x, ds, m)
     }
 
+    /// One transcript step keyed by the chaining value: `compress(h, block)` at counter 64, final.
+    ///
+    /// The block is `fiat_shamir::step_block`'s: the last scalar in words 4 to 6, the one before it in words 0 to 2, their count in word 3, the tag in word 7.
+    /// Returns the output and its first three words as a challenge.
+    ///
+    /// # Panics
+    ///
+    /// Panics if more than two scalars are absorbed.
+    pub fn step(&mut self, h: Dw, scalars: &[Ew], tag: u64) -> (Dw, Ew) {
+        assert!(scalars.len() <= 2, "a step absorbs at most two scalars");
+        let count = scalars.len() as u64;
+        let zero = self.zero();
+        let (first, last) = match *scalars {
+            [a, b] => (Some(a), b),
+            [b] => (None, b),
+            _ => (None, zero),
+        };
+        let (a, b) = (first.map_or(F192::ZERO, |a| self.e(a)), self.e(last));
+        let mux = match first {
+            Some(a) => {
+                let count = self.k_const(count);
+                self.e_and_k_to_d(a, count)
+            }
+            None => self.d_const([0, 0, 0, count]),
+        };
+        let m = [a.c0, a.c1, a.c2, count, b.c0, b.c1, b.c2, tag];
+        let head = HashHead {
+            h,
+            tf: self.d_const([64, Hash::FINAL, 0, 0]),
+            mux,
+            bit: self.k_zero(),
+            x: last,
+            ds: self.k_const(tag),
+        };
+        let words = m.map(|v| self.free_k(v).0);
+        let compression = Compression::new(self.d(h), m, 64, true);
+        self.hash_row(head, words, compression)
+    }
+
     /// One Merkle node: the parent of `acc` and `sibling`, `acc` on the right if `bit` is set.
     pub fn node(&mut self, acc: Dw, bit: Kw, sibling: Limbs) -> Dw {
         let a = self.d(acc);
@@ -49,6 +88,15 @@ impl Builder {
         let x = self.free_e(F192::new(m[4], m[5], m[6]));
         let ds = self.free_k(m[7]);
         self.single_block(acc, bit, x, ds, m).0
+    }
+
+    /// One Merkle node over two wired children: the parent of `left` and `right`.
+    pub fn parent(&mut self, left: Dw, right: Dw) -> Dw {
+        let (l, rv) = (self.d(left), self.d(right));
+        let m = [l[0], l[1], l[2], l[3], rv[0], rv[1], rv[2], rv[3]];
+        let (x, ds) = self.d_to_e_and_k(right);
+        let bit = self.k_zero();
+        self.single_block(left, bit, x, ds, m).0
     }
 
     /// One block of a long message: `m` absorbed into `h` at byte counter `t`, final if `last`.
@@ -70,10 +118,11 @@ impl Builder {
     pub fn chain(&mut self, words: &[Kw]) -> Dw {
         let n_blocks = words.len().div_ceil(8).max(1);
         let zero = self.k_zero();
+        let bytes = 8 * words.len() as u64;
         let mut h = self.d_const(PARAM_IV);
         for j in 0..n_blocks {
             let m: [Kw; 8] = std::array::from_fn(|i| words.get(8 * j + i).copied().unwrap_or(zero));
-            h = self.leaf_block(h, m, 64 * (j as u64 + 1), j + 1 == n_blocks);
+            h = self.leaf_block(h, m, (64 * (j as u64 + 1)).min(bytes), j + 1 == n_blocks);
         }
         h
     }
@@ -110,16 +159,23 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rec::circuit::chain;
+    use crate::rec::circuit::{chain, digest_limbs};
 
     #[test]
     fn the_chain_in_rows_is_the_native_chain() {
-        for n in [0, 3, 8, 13] {
+        for n in [0, 3, 8, 13, 16] {
             let words: Vec<u64> = (0..n).map(|i| 0x9e37_79b9_7f4a_7c15u64.wrapping_mul(i + 1)).collect();
             let mut b = Builder::new();
             let wires: Vec<Kw> = words.iter().map(|&w| b.free_k(w)).collect();
             let h = b.chain(&wires);
             assert_eq!(b.d(h), chain(&words), "{n} words");
+            // The native chain is BLAKE2s of the words' bytes, so its length is hashed.
+            let bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
+            assert_eq!(
+                chain(&words),
+                digest_limbs(&primitives::hash::hash(&bytes)),
+                "{n} words"
+            );
         }
     }
 }

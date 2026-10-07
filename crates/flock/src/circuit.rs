@@ -1,4 +1,4 @@
-//! Boolean circuits as gate lists over word ports: what [`crate::arith`] and the
+//! Boolean circuits as gate lists over word ports: what [`crate::gadgets`] and the
 //! VM's instruction classes are written in.
 //!
 //! ## Witness layout per block
@@ -16,7 +16,7 @@
 //! ports to something outside (memory words, in the VM) relies on exactly this.
 //!
 //! A circuit is one gate list, where a wire is the gate driving it and each
-//! committed wire is a row. As in [`crate::hash`], no matrix is ever built: the
+//! committed wire is a row. As in the BLAKE2s circuit, no matrix is ever built: the
 //! verifier walks the list forwards and the prover backwards (doc/leanvm, Annex
 //! C "Evaluating the matrices"). Across implementations what has to agree is the
 //! port layout and the order products are made in, which fixes their slots; the
@@ -24,9 +24,13 @@
 
 use crate::lincheck::LincheckCircuit;
 use crate::reduction::Block;
-use crate::witness::{GroupTables, drive_witness_batched, drive_witness_groups, drive_witness_packed_and_lincheck};
+use crate::witness::{
+    GroupTables, Tables, Witness, drive_witness_batched, drive_witness_groups, drive_witness_packed_and_lincheck,
+    with_z,
+};
 use primitives::bits::transpose_64x64;
 use primitives::field::F192;
+use std::ops::Range;
 
 /// Instances one word-wide walk of the gate list computes.
 ///
@@ -63,8 +67,17 @@ impl Builder {
     /// Ports of the given widths in bits, each rounded up to whole words: the inputs,
     /// whose bits are free wires, then the outputs.
     pub fn new(input_bits: &[usize], output_bits: &[usize]) -> Self {
+        let inputs: Vec<Range<usize>> = input_bits.iter().map(|&bits| 0..bits).collect();
+        Self::with_input_ranges(&inputs, output_bits)
+    }
+
+    /// Ports as above, each input port given as the range of its free bits, and as wide as the range's end.
+    ///
+    /// An input bit below its range is a structural zero: its empty row forces it to zero.
+    pub fn with_input_ranges(inputs: &[Range<usize>], output_bits: &[usize]) -> Self {
+        let input_bits: Vec<usize> = inputs.iter().map(|bits| bits.end).collect();
         let words = |bits: &[usize]| bits.iter().map(|b| b.div_ceil(64)).sum::<usize>();
-        let n_input_words = words(input_bits);
+        let n_input_words = words(&input_bits);
         let const_pos = 64 * (n_input_words + words(output_bits));
         let mut c = Self {
             gates: Vec::new(),
@@ -76,10 +89,12 @@ impl Builder {
         };
         c.one = Some(c.push(Gate::Free(const_pos as u32)));
         let mut base = 0;
-        for &bits in input_bits {
-            let wires = (0..bits).map(|i| Some(c.push(Gate::Free((base + i) as u32)))).collect();
+        for bits in inputs {
+            let wires = (0..bits.end)
+                .map(|i| bits.contains(&i).then(|| c.push(Gate::Free((base + i) as u32))))
+                .collect();
             c.inputs.push(wires);
-            base += 64 * bits.div_ceil(64);
+            base += 64 * bits.end.div_ceil(64);
         }
         for &bits in output_bits {
             c.outputs.push((base, bits));
@@ -190,6 +205,8 @@ impl Circuit {
         self.k_log
     }
 
+    /// The bits of an instance that carry data; the rest are zero.
+    #[cfg(any(test, feature = "bench"))]
     pub const fn useful_bits(&self) -> usize {
         self.useful_bits
     }
@@ -197,11 +214,6 @@ impl Circuit {
     /// The constant wire's position.
     pub const fn const_pos(&self) -> usize {
         self.const_pos
-    }
-
-    /// Products, which is what an instance pays beyond its ports.
-    pub const fn n_products(&self) -> usize {
-        self.useful_bits - self.const_pos - 1
     }
 
     pub const fn n_input_words(&self) -> usize {
@@ -297,14 +309,9 @@ impl Circuit {
         }
     }
 
-    /// `(z, a, b, z_lincheck)` for `rows` of input words, padded with all-zero inputs
-    /// to `2^n_blocks_log` instances: the bit-packed `z`, `A·z` and `B·z`
-    /// (`2^k_log / 64` words per instance), and lincheck's byte stripes.
-    pub fn generate_witness<const N: usize>(
-        &self,
-        rows: &[[u64; N]],
-        n_blocks_log: usize,
-    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
+    /// The witness of `rows` of input words, padded with all-zero inputs to `2^n_blocks_log` instances.
+    #[cfg(any(test, feature = "bench"))]
+    pub fn generate_witness<const N: usize>(&self, rows: &[[u64; N]], n_blocks_log: usize) -> Witness {
         assert_eq!(N, self.n_input_words);
         self.generate_witness_from(rows, &[0; N], n_blocks_log, |row, words| words.copy_from_slice(row))
     }
@@ -330,7 +337,23 @@ impl Circuit {
         padding: &S,
         n_blocks_log: usize,
         input_words: impl Fn(&S, &mut [u64]) + Sync,
-    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
+    ) -> Witness {
+        with_z(n_blocks_log, self.k_log, |z| {
+            self.generate_witness_from_into(z, rows, padding, n_blocks_log, input_words, |_, _| {})
+        })
+    }
+
+    /// [`Self::generate_witness_from`] with `z` written into the caller's buffer, and `check(row, z)` shown each
+    /// instance's `z` words while they are in cache.
+    pub fn generate_witness_from_into<S: Sync>(
+        &self,
+        z: &mut [u64],
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        input_words: impl Fn(&S, &mut [u64]) + Sync,
+        check: impl Fn(&S, &[u64]) + Sync,
+    ) -> Tables {
         assert!(rows.len() <= 1 << n_blocks_log, "more rows than instances");
         // A batch below 64 instances is walked in full and stored in part.
         let lanes = LANES.min(1 << n_blocks_log);
@@ -340,6 +363,7 @@ impl Circuit {
         // Slot groups past the useful bits hold only zeros, so they skip the transpose.
         let live_words = self.useful_bits.div_ceil(64);
         drive_witness_groups(
+            z,
             n_blocks_log,
             self.k_log,
             lanes,
@@ -390,10 +414,11 @@ impl Circuit {
                     }
                 }
             },
+            |i, z| check(rows.get(i).unwrap_or(padding), z),
         )
     }
 
-    /// [`Self::generate_witness`] with the caller's own rows, padding row and way to
+    /// The walk's tables with the caller's own rows, padding row and way to
     /// fill an instance, for a circuit whose witness is cheaper as word arithmetic.
     pub fn generate_witness_with<S: Sync>(
         &self,
@@ -401,8 +426,26 @@ impl Circuit {
         padding: &S,
         n_blocks_log: usize,
         instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
-    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
-        drive_witness_packed_and_lincheck(rows, Some(padding), n_blocks_log, self.k_log, instance)
+    ) -> Witness {
+        with_z(n_blocks_log, self.k_log, |z| {
+            self.generate_witness_with_into(z, rows, padding, n_blocks_log, instance, |_, _| {})
+        })
+    }
+
+    /// [`Self::generate_witness_with`] with `z` written into the caller's buffer, and `check(row, z)` shown each
+    /// instance's `z` words while they are in cache.
+    pub fn generate_witness_with_into<S: Sync>(
+        &self,
+        z: &mut [u64],
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        instance: impl Fn(&S, &mut [u64], &mut [u64], &mut [u64]) + Sync,
+        check: impl Fn(&S, &[u64]) + Sync,
+    ) -> Tables {
+        drive_witness_packed_and_lincheck(z, rows, Some(padding), n_blocks_log, self.k_log, instance, |i, z| {
+            check(rows.get(i).unwrap_or(padding), z);
+        })
     }
 
     /// Build native witnesses eight instances at a time.
@@ -414,9 +457,27 @@ impl Circuit {
         padding: &S,
         n_blocks_log: usize,
         batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
-    ) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u8>) {
+    ) -> Witness {
+        with_z(n_blocks_log, self.k_log, |z| {
+            self.generate_witness_batched_into(z, rows, padding, n_blocks_log, batch, |_, _| {})
+        })
+    }
+
+    /// [`Self::generate_witness_batched`] with `z` written into the caller's buffer, and `check(row, z)` shown each
+    /// instance's `z` words while they are in cache.
+    pub fn generate_witness_batched_into<S: Sync>(
+        &self,
+        z: &mut [u64],
+        rows: &[S],
+        padding: &S,
+        n_blocks_log: usize,
+        batch: impl Fn([&S; 8], &mut [u64], &mut [u64], &mut [u64]) + Sync,
+        check: impl Fn(&S, &[u64]) + Sync,
+    ) -> Tables {
         // Eight adjacent instances occupy one lincheck byte stripe.
-        drive_witness_batched(rows, padding, n_blocks_log, self.k_log, batch)
+        drive_witness_batched(z, rows, padding, n_blocks_log, self.k_log, batch, |i, z| {
+            check(rows.get(i).unwrap_or(padding), z);
+        })
     }
 
     /// The matrix-vector products `(A_0 w, B_0 w)`, by one forward walk.
@@ -614,10 +675,10 @@ mod tests {
                 circuit.witness_instance(row, z, az, bz);
             });
             let sliced = circuit.generate_witness_from(&rows, &padding, n_log, |row, words| words.copy_from_slice(row));
-            assert!(walk.0[..] == sliced.0[..], "z, round {round}");
-            assert!(walk.1[..] == sliced.1[..], "A·z, round {round}");
-            assert!(walk.2[..] == sliced.2[..], "B·z, round {round}");
-            assert!(walk.3[..] == sliced.3[..], "lincheck stripes, round {round}");
+            assert!(walk.z == sliced.z, "z, round {round}");
+            assert!(walk.az == sliced.az, "A·z, round {round}");
+            assert!(walk.bz == sliced.bz, "B·z, round {round}");
+            assert!(walk.stripes == sliced.stripes, "lincheck stripes, round {round}");
         }
     }
 }

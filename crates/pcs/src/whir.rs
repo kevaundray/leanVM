@@ -31,6 +31,9 @@
 //! ```
 
 mod commit;
+pub mod config;
+mod induce;
+mod ntt_ext;
 mod prove;
 mod sumcheck;
 #[cfg(test)]
@@ -41,18 +44,19 @@ use fiat_shamir::transcript::Challenger;
 use primitives::field::{F64, F192};
 use primitives::multilinear::inner_product_base;
 
-pub use super::whir_config::{
-    ConfigError, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE, MIN_LOG_N,
+pub use config::{
+    INITIAL_FOLDING_FACTOR, L0_LIST_BITS, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE, MIN_LOG_N,
     ProverConfig, QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, SECURITY_BITS,
-    SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, config_for_rate, validate_log_inv_rate,
+    SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, config_for_rate,
 };
 
-pub use crate::whir_induce::*;
 pub use commit::{Commitment, ProverData, commit};
+pub use induce::eval_sk_at_vks;
 pub use prove::recursive_prover_with_basis;
 pub(crate) use prove::recursive_prover_with_prepared_basis;
 pub(crate) use sumcheck::{Basis, INITIAL_BASIS_CHUNK, initial_rounds};
-pub use verify::{WhirError, recursive_verifier_with_basis_succinct};
+pub use verify::WhirError;
+pub(crate) use verify::recursive_verifier_with_basis_succinct;
 
 /// Mixed inner product `Σ_i b[i] · witness[i]` (E x K via `mul_base`). The
 /// evaluation-claim `target` for a K-witness against an E-basis.
@@ -70,14 +74,38 @@ pub fn inner_product_base_ext(witness: &[F64], b: &[F192]) -> F192 {
     )
 }
 
-/// Sample `count` query positions in transcript order: no dedup, no sort.
-/// `block_len = 2^d`; each squeezed field element yields `⌊192/d⌋` positions as
-/// its disjoint d-bit chunks (low bits first) (fixed `192/d` per
-/// squeeze, dup-tolerant: soundness matches the deployed PCS with the same
-/// `config.queries`). Duplicates are harmless, a repeated position re-opens the
-/// same Merkle-authenticated row.
+/// Where a query of a batch lands: the top `bits` bits of its position are `index`, the rest uniform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stratum {
+    /// How many of the position's top bits are fixed.
+    pub bits: usize,
+    /// Their value.
+    pub index: usize,
+}
+
+/// The strata of a batch of `count` queries into `2^depth` positions, in query order.
 ///
-fn sample_queries_ordered(ch: &mut impl Challenger, block_len: usize, count: usize) -> Vec<usize> {
+/// The batch is cut by the binary digits of `count`, highest first. A group of `2^g` queries fixes the top `s = min(g, depth)` bits of its `j`-th query's position to `j mod 2^s`, so each of the `2^s` cosets of those bits holds equally many of the group's queries.
+/// A set of positions every query misses with probability at most `1 - delta` then is missed by the whole batch with probability at most `(1 - delta)^count`, as by i.i.d. queries (the PCS annex, `thm:rbr`), and the top `s` levels of the group's Merkle paths are a complete subtree the verifier hashes once.
+pub fn strata(count: usize, depth: usize) -> Vec<Stratum> {
+    let mut out = Vec::with_capacity(count);
+    for g in (0..usize::BITS as usize).rev().filter(|&g| count >> g & 1 == 1) {
+        let bits = g.min(depth);
+        out.extend((0..1usize << g).map(|j| Stratum {
+            bits,
+            index: j & ((1 << bits) - 1),
+        }));
+    }
+    out
+}
+
+/// Sample `count` query positions in transcript order: no dedup, no sort.
+/// `block_len = 2^d`; each squeezed field element yields `⌊192/d⌋` uniform positions as
+/// its disjoint d-bit chunks (low bits first) (fixed `192/d` per
+/// squeeze), each then placed in its [`strata`] coset: its top bits replaced by its stratum's.
+/// Duplicates are harmless, a repeated position re-opens the
+/// same Merkle-authenticated row.
+pub(crate) fn sample_queries_ordered(ch: &mut impl Challenger, block_len: usize, count: usize) -> Vec<usize> {
     let d = block_len.trailing_zeros() as usize;
     let per = 192 / d;
     let mut out = Vec::with_capacity(count);
@@ -93,6 +121,10 @@ fn sample_queries_ordered(ch: &mut impl Challenger, block_len: usize, count: usi
             }
             out.push(chunk as usize & (block_len - 1));
         }
+    }
+    for (x, s) in out.iter_mut().zip(strata(count, d)) {
+        let low = d - s.bits;
+        *x = (*x & ((1 << low) - 1)) | s.index << low;
     }
     out
 }

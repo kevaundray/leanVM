@@ -5,14 +5,17 @@
 //! A table's summand is its two bus forms, then its own identities (`ClassTable::identities`), each at a power of
 //! `xi` past the bus forms' that no other form uses: their sums are zero, so the target does not change, and matching
 //! it pins each of them to zero.
+//!
+//! A table with a class circuit has no identities and linear bus forms, so the bus point settles all but its register
+//! numbers: its summand is its forms' part on them alone, which the batch folds so that their bits share its point.
 
 use super::layout::Layout;
-use crate::arith::{Arith, Native};
 use crate::colval::ColVal;
-use crate::constraints::{Air, Residual, Summand};
+use crate::constraints::{Air, BitColumns, Residual, Summand};
 use crate::leaf;
-use crate::leaf::{BusForm, BusVerify, Producer};
+use crate::leaf::{BusForm, BusProof, BusVerify, PackedForm, Producer};
 use crate::tables::ClassTable;
+use fiat_shamir::arith::{Arith, Native};
 use primitives::field::F192;
 
 /// The two bus sides' weights in the batch, `1` and `xi`, shared by every table.
@@ -59,12 +62,26 @@ impl<E: Copy> FormPowers<E> {
 }
 
 impl FormPowers {
-    /// Each table's claimed sum: its two bus forms, weighted.
+    /// Each table's claimed sum: its two summed bus forms, weighted.
+    ///
+    /// - A settled table's forms on its register numbers are worth their values at the bus point.
+    /// - Another table's are its whole forms' sums.
     ///
     /// The prover needs them to build each round; the verifier only their total, which it derives.
-    pub(super) fn table_sums(self, bus: &[Vec<F192>; 2]) -> Vec<F192> {
-        (0..ClassTable::all().len())
-            .map(|t| self.combine(&mut Native, [bus[0][t], bus[1][t]]))
+    pub(super) fn table_sums(self, bus: &BusProof) -> Vec<F192> {
+        (ClassTable::all().iter())
+            .map(|(t, table)| {
+                let t = t.index();
+                let sides = std::array::from_fn(|s| {
+                    if table.settled_at_bus() {
+                        let values: Vec<F192> = table.summed_columns().iter().map(|&c| bus.evals[t][c]).collect();
+                        table.summed_form(&bus.forms[s][t], F192::ZERO).at(&mut Native, &values)
+                    } else {
+                        bus.sigmas[s][t]
+                    }
+                });
+                self.combine(&mut Native, sides)
+            })
             .collect()
     }
 }
@@ -91,31 +108,36 @@ impl Batch {
         powers: FormPowers,
     ) -> Self {
         // A table's term is one form, not two: the batch adds the sides' evaluations anyway, and its identities join it.
-        let identities: Vec<Vec<BusForm>> = ClassTable::all().iter().map(ClassTable::identities).collect();
+        let identities: Vec<Vec<BusForm>> = ClassTable::all().values().map(ClassTable::identities).collect();
         let weights_of_identities = powers.identities(&mut Native, identities.iter().map(Vec::len).sum());
         let mut weights_of_identities = weights_of_identities.into_iter();
-        let tables = (ClassTable::all().iter().zip(&layout.taus).zip(identities).enumerate()).map(
-            |(t, ((table, &tau), identities))| {
-                let sides = (0..2).map(|s| forms[s][t].scaled(powers.0[s]));
-                let own = identities
-                    .into_iter()
-                    .zip(weights_of_identities.by_ref())
-                    .map(|(form, weight)| form.scaled(weight));
-                let summand = BusForm::sum(sides.chain(own));
-                Air {
-                    tau,
-                    n_cols: table.n_committed_columns(),
-                    n_public: 0,
-                    summand: Term::Table(summand),
-                }
-            },
-        );
+        let tables = (ClassTable::all()
+            .values()
+            .zip(layout.taus.values())
+            .zip(identities)
+            .enumerate())
+        .map(|(t, ((table, &tau), identities))| {
+            let sides = (0..2).map(|s| table.summed_form(&forms[s][t], F192::ZERO).scaled(powers.0[s]));
+            let own = identities
+                .into_iter()
+                .zip(weights_of_identities.by_ref())
+                .map(|(form, weight)| form.scaled(weight));
+            let summand = BusForm::sum(sides.chain(own));
+            Air {
+                tau,
+                n_cols: table.summed_columns().len(),
+                n_public: 0,
+                bits: table.summed_bits(),
+                summand: Term::Table(PackedForm::new(summand)),
+            }
+        });
 
         // A producer's term: its bits, then its public columns.
         let producers = layout.producers.iter().zip(coefficients).map(|(p, coefficients)| Air {
             tau: p.kappa,
             n_cols: 2 * p.bits,
             n_public: p.bits,
+            bits: BitColumns::default(),
             summand: Term::Producer(ProducerTerm {
                 coefficients: coefficients.iter().map(|&c| c * powers.push()).collect(),
                 producer: p.clone(),
@@ -135,7 +157,7 @@ impl Batch {
 /// One term of the batch: a table's, or a lookup producer's.
 pub(super) enum Term {
     /// A table's two bus forms, already summed with their side weights.
-    Table(BusForm),
+    Table(PackedForm),
     /// A producer's share of the push side.
     Producer(ProducerTerm),
 }
@@ -194,8 +216,8 @@ impl Summand for Term {
 pub(crate) enum OwedTerm<'a, E> {
     /// A table's bus form on each side, the sides' weights, and its identities with their weights.
     Table {
-        /// The push side's form, then the pull side's.
-        forms: [&'a BusForm<E>; 2],
+        /// The push side's summed form, then the pull side's.
+        forms: [BusForm<E>; 2],
         /// The sides' weights.
         powers: FormPowers<E>,
         /// The table's identities, each with its power of `xi`.
@@ -227,27 +249,33 @@ impl<'a, E: Copy> VerifierBatch<'a, E> {
         bus: &'a BusVerify<E>,
         powers: FormPowers<E>,
     ) -> Self {
-        let identities: Vec<Vec<BusForm>> = ClassTable::all().iter().map(ClassTable::identities).collect();
+        let identities: Vec<Vec<BusForm>> = ClassTable::all().values().map(ClassTable::identities).collect();
         let weights_of_identities = powers.identities(a, identities.iter().map(Vec::len).sum());
         let mut weights_of_identities = weights_of_identities.into_iter();
-        let tables = (ClassTable::all().iter().zip(&layout.taus).zip(identities).enumerate()).map(
-            |(t, ((table, &tau), identities))| Air {
-                tau,
-                n_cols: table.n_committed_columns(),
-                n_public: 0,
-                summand: OwedTerm::Table {
-                    forms: [&bus.forms[0][t], &bus.forms[1][t]],
-                    powers,
-                    identities: identities.into_iter().zip(weights_of_identities.by_ref()).collect(),
-                },
+        let zero = a.zero();
+        let tables = (ClassTable::all()
+            .values()
+            .zip(layout.taus.values())
+            .zip(identities)
+            .enumerate())
+        .map(|(t, ((table, &tau), identities))| Air {
+            tau,
+            n_cols: table.summed_columns().len(),
+            n_public: 0,
+            bits: table.summed_bits(),
+            summand: OwedTerm::Table {
+                forms: [0, 1].map(|s| table.summed_form(&bus.forms[s][t], zero)),
+                powers,
+                identities: identities.into_iter().zip(weights_of_identities.by_ref()).collect(),
             },
-        );
+        });
         let mut airs: Vec<_> = tables.collect();
         for (p, coefficients) in layout.producers.iter().zip(&bus.producers) {
             airs.push(Air {
                 tau: p.kappa,
                 n_cols: 2 * p.bits,
                 n_public: p.bits,
+                bits: BitColumns::default(),
                 summand: OwedTerm::Producer {
                     coefficients: coefficients.iter().map(|&c| a.mul(c, powers.push())).collect(),
                     producer: p,

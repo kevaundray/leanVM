@@ -1,19 +1,20 @@
 //! Benchmark CLI.
 
-use aggregate::{LeafProgram, Shape};
+use aggregate::LeafProgram;
 use bench::Plan;
 use clap::builder::RangedU64ValueParser;
 use clap::{Parser, Subcommand};
 use leanvm::{Prover, Rate};
 use std::error::Error;
+use std::fmt::Arguments;
+use std::num::ParseIntError;
 use std::path::PathBuf;
+use workload::Workload;
 
 #[global_allocator]
-static ALLOCATOR: bench::Jemalloc = bench::Jemalloc;
+static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 mod aggregate;
-mod fibonacci;
-mod guest;
 mod tracked;
 mod workload;
 
@@ -22,6 +23,10 @@ struct Cli {
     /// WHIR inverse-rate logarithm (1 through 4).
     #[arg(long = "log-inv-rate", value_name = "LOG_INV_RATE", global = true, default_value = "1", value_parser = parse_rate)]
     rate: Rate,
+
+    /// WHIR inverse-rate logarithm of an aggregation tree's leaf proofs (1 through 4); the tree's own proofs take `--log-inv-rate`.
+    #[arg(long = "leaf-log-inv-rate", value_name = "LOG_INV_RATE", global = true, default_value = "2", value_parser = parse_rate)]
+    leaf_rate: Rate,
 
     /// Enable hierarchical timing traces. Use RUST_LOG to adjust verbosity.
     #[arg(long, global = true)]
@@ -57,7 +62,7 @@ enum Command {
         /// The guest's ELF executable.
         elf: PathBuf,
         /// The advice: the words the guest reads, decimal or 0x-prefixed. The statement does not cover it.
-        #[arg(long, value_delimiter = ',', value_parser = guest::parse_word)]
+        #[arg(long, value_delimiter = ',', value_parser = parse_word)]
         advice: Vec<u64>,
     },
     /// Prove and verify a guest checking leanXMSS signatures, one key each.
@@ -69,6 +74,24 @@ enum Command {
     /// Prove and verify a guest checking leanSPHINCS signatures, one key each.
     Leansphincs {
         /// Signatures to verify.
+        #[arg(long, default_value_t = 16, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
+        n: usize,
+    },
+    /// Prove and verify a guest checking Falcon-512 signatures, one key each.
+    Falcon {
+        /// Signatures to verify.
+        #[arg(long, default_value_t = 4, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
+        n: usize,
+    },
+    /// Prove and verify a guest checking L1 state proofs: mainnet accounts and storage slots at one block.
+    Stateproof {
+        /// Reads to verify, each an account and one of its slots.
+        #[arg(long, default_value_t = 4, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
+        n: usize,
+    },
+    /// Prove and verify a guest checking shielded transfers: privacy-pool spends, two notes in and two out.
+    Shielded {
+        /// Spends to check.
         #[arg(long, default_value_t = 16, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
     },
@@ -99,8 +122,9 @@ enum Command {
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
     /// A proven case reports `latency`, `proof-size`, `verify`, one `stage.<name>` per
-    /// top-level span of the proof (`--tracing`'s first level under `Prove`) and `peak-memory`;
-    /// an aggregation tree's case reports them for its first-level node and its node.
+    /// top-level span of the proof (`--tracing`'s first level under `Prove`), `peak-memory`,
+    /// and the proving passes' `heap-peak` and `allocations`, as the global allocator counts
+    /// them; an aggregation tree's case reports them for its first-level node and its node.
     ///
     /// The lists are `bins/leanvm/src/tracked.rs`.
     Bench {
@@ -124,33 +148,53 @@ fn parse_rate(log_inv_rate: &str) -> Result<Rate, Box<dyn Error + Send + Sync>> 
     Ok(Rate::new(log_inv_rate.parse()?)?)
 }
 
+/// A word, decimal or 0x-prefixed.
+fn parse_word(word: &str) -> Result<u64, ParseIntError> {
+    word.strip_prefix("0x")
+        .map_or_else(|| word.parse(), |hex| u64::from_str_radix(hex, 16))
+}
+
+/// An error and its causes, outermost first.
+fn chain(error: &dyn Error) -> String {
+    let mut text = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        text = format!("{text}: {cause}");
+        source = cause.source();
+    }
+    text
+}
+
+/// What the user got wrong, said once and plainly: none of these is a bug here.
+fn refuse(what: Arguments) -> ! {
+    eprintln!("{what}");
+    std::process::exit(1)
+}
+
 fn main() {
     let cli = Cli::parse();
     let prover = Prover::new(cli.rate);
+    let leaf_prover = Prover::new(cli.leaf_rate);
     let plan = Plan::new(cli.repeat, cli.cooldown);
     if cli.tracing {
         bench::init_tracing();
     }
     match cli.command {
-        Command::Fibonacci { n } => fibonacci::run_fibonacci(n, &prover, plan),
-        Command::Guest { elf, advice } => guest::run_guest(&elf, &advice, &prover, plan),
-        Command::Leanxmss { n } => workload::run(&workload::leanxmss(n), &prover, plan),
-        Command::Leansphincs { n } => workload::run(&workload::leansphincs(n), &prover, plan),
-        Command::Leanda { blobs } => workload::run(&workload::leanda(blobs), &prover, plan),
+        Command::Fibonacci { n } => Workload::fibonacci(n).run(&prover, plan),
+        Command::Guest { elf, advice } => Workload::guest(&elf, advice).run(&prover, plan),
+        Command::Leanxmss { n } => Workload::leanxmss(n).run(&prover, plan),
+        Command::Leansphincs { n } => Workload::leansphincs(n).run(&prover, plan),
+        Command::Falcon { n } => Workload::falcon(n).run(&prover, plan),
+        Command::Stateproof { n } => Workload::stateproof(n).run(&prover, plan),
+        Command::Shielded { n } => Workload::shielded(n).run(&prover, plan),
+        Command::Leanda { blobs } => Workload::leanda(blobs).run(&prover, plan),
         Command::Aggregate {
             program,
             n,
             leaves,
             arity0,
             arity,
-        } => {
-            let shape = Shape {
-                leaves,
-                arity_0: arity0,
-                arity,
-            };
-            aggregate::run(program, n, shape, &prover, plan);
-        }
+        } => aggregate::run(&program.workload(n), leaves, arity0, arity, &leaf_prover, &prover, plan),
         Command::Bench {
             cycles_only,
             markdown,
@@ -161,6 +205,7 @@ fn main() {
             markdown,
             markdown_file.as_deref(),
             only.as_deref(),
+            &leaf_prover,
             &prover,
             plan,
         ),

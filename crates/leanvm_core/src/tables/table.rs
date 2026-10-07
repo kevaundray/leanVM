@@ -2,10 +2,11 @@
 
 use super::bus::{FlushBuilder, Separator};
 use super::columns::Columns;
-use super::{BAD_SLOT, ClassSpec, EXIT_SLOT, N_TABLES, Part, Word};
+use super::{BAD_SLOT, EXIT_SLOT, Part, PerTable, TableId, Word};
+use crate::constraints::{BitColumns, BitField};
 use crate::leaf::BusForm;
 use crate::leaf::Coord::{self, Col, Const, Scaled};
-use crate::rv::{Class, Ext, Hash, RegisterFile};
+use crate::rv::{Ext, Hash, Reg, RegisterFile};
 use primitives::field::{F64, F192, g_pow};
 use std::sync::OnceLock;
 
@@ -13,14 +14,14 @@ use std::sync::OnceLock;
 ///
 /// Column indices are local to this table, including its virtual circuit columns.
 pub struct ClassTable {
-    /// Table position in the protocol's fixed instruction-class order.
-    pub(super) index: usize,
-
-    /// Register accesses, memory shape, and circuit ports of this class.
-    pub(super) spec: &'static ClassSpec,
+    /// The table.
+    pub(super) id: TableId,
 
     /// Local column layout, including aliases for unchanged memory values.
     pub(super) cols: Columns,
+
+    /// Class circuit ports in input-then-output order.
+    class_ports: Vec<Word>,
 
     /// Clock circuit ports in input-then-output order.
     clock_ports: Vec<Word>,
@@ -28,27 +29,131 @@ pub struct ClassTable {
 
 impl ClassTable {
     /// All instruction tables, built once in protocol order.
-    pub fn all() -> &'static [Self; N_TABLES] {
-        static TABLES: OnceLock<[ClassTable; N_TABLES]> = OnceLock::new();
-        TABLES.get_or_init(|| std::array::from_fn(Self::new))
+    pub fn all() -> &'static PerTable<Self> {
+        static TABLES: OnceLock<PerTable<ClassTable>> = OnceLock::new();
+        TABLES.get_or_init(|| PerTable::from_fn(Self::new))
     }
 
-    /// Protocol table index of an instruction class, if supported.
-    pub fn index_of(class: Class) -> Option<usize> {
-        ClassSpec::ALL.iter().position(|spec| spec.class == class)
-    }
-
-    /// Build the columns and clock ports of a validated class specification.
-    pub(super) fn new(index: usize) -> Self {
-        let spec = ClassSpec::ALL[index];
+    /// Build the columns and ports of a validated class specification.
+    fn new(id: TableId) -> Self {
+        let spec = id.spec();
         spec.assert_valid();
         let cols = Columns::new(spec);
-        Self {
-            index,
-            spec,
+        let table = Self {
+            id,
             cols,
+            class_ports: spec.ports().collect(),
             clock_ports: spec.clock_ports(),
+        };
+        table.assert_x0_is_constant();
+        table.assert_linear_if_circuit();
+        table
+    }
+
+    /// Asserts that no access of the table can change register cell 0, `x0`.
+    ///
+    /// - A read pushes back the value it pulls.
+    /// - A register access that changes its cell does so at the entry's destination, which the decoder keeps in `1..=32`.
+    ///
+    /// So `x0` keeps its zero seed, which a base-field extension operand's high limbs read.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an access that may reach the registers changes its cell elsewhere than at the entry's destination.
+    fn assert_x0_is_constant(&self) {
+        let bus = self.flushes();
+        let destination = &bus.pull[1][Self::DESTINATION_SLOT];
+        // Pushes are the state, then the accesses; pulls are the state, the bytecode, then the accesses.
+        for (push, pull) in bus.push[1..].iter().zip(&bus.pull[2..]) {
+            let memory = matches!(push[0], Const(sep) if sep == Separator::Memory.value());
+            let read = matches!((&pull[3], &push[3]), (Col(old), Col(new)) if old == new);
+            let at_destination = matches!((&push[1], destination), (Col(at), Col(ad)) if at == ad);
+            assert!(
+                memory || read || at_destination,
+                "{} writes a register other than its destination",
+                self.id.spec().name
+            );
         }
+    }
+
+    /// The register numbers a row reads off its entry: `a1`, then `a2` and `ad` where the row has them.
+    ///
+    /// - They are bit columns, packed into a committed word with the other tables' of the same height.
+    /// - A register read is below 32, five bits; a cell written may be the sink, 32, six bits.
+    pub(crate) fn register_bits(&self) -> BitColumns {
+        let c = &self.cols;
+        let read = |col| BitField { col, width: Reg::BITS };
+        let written = |col| BitField {
+            col,
+            width: RegisterFile::LOG_CELLS,
+        };
+        let ad = (c.rd.map(|rd| written(rd.ad))).or_else(|| c.pointer.map(|p| read(p.ad)));
+        BitColumns {
+            fields: [Some(read(c.a1)), c.rs2.map(|r| read(r.a2)), ad]
+                .into_iter()
+                .flatten()
+                .collect(),
+        }
+    }
+
+    /// Whether the bus point settles the table: a table with a class circuit flushes only linear tuples.
+    pub(crate) const fn settled_at_bus(&self) -> bool {
+        self.id.spec().has_circuit()
+    }
+
+    /// The columns the table sumcheck folds, in order: all of them, or only the register numbers of a settled table.
+    ///
+    /// Why: a settled table's other columns are sent at the bus point, but its register numbers are read through their
+    /// word's bits, which share the table sumcheck's point with the other words.
+    pub(crate) fn summed_columns(&self) -> Vec<usize> {
+        if self.settled_at_bus() {
+            self.register_bits().fields.iter().map(|f| f.col).collect()
+        } else {
+            (0..self.n_committed_columns()).collect()
+        }
+    }
+
+    /// The register numbers among the summed columns, each at its place among them.
+    pub(crate) fn summed_bits(&self) -> BitColumns {
+        let cols = self.summed_columns();
+        let at = |col| {
+            cols.iter()
+                .position(|&c| c == col)
+                .expect("a register number is summed")
+        };
+        BitColumns {
+            fields: (self.register_bits().fields.into_iter())
+                .map(|f| BitField { col: at(f.col), ..f })
+                .collect(),
+        }
+    }
+
+    /// A bus form of the table as the table sumcheck folds it, over the summed columns.
+    ///
+    /// A settled table's is the form's part on its register numbers: the bus point settles the rest.
+    pub(crate) fn summed_form<E: Copy>(&self, form: &BusForm<E>, zero: E) -> BusForm<E> {
+        if self.settled_at_bus() {
+            form.on(&self.summed_columns(), zero)
+        } else {
+            form.clone()
+        }
+    }
+
+    /// Asserts that a table with a class circuit puts no product of columns on the bus.
+    ///
+    /// Such a table is settled at the bus's point, where only a linear form factors through its columns.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a product in a table with a class circuit.
+    fn assert_linear_if_circuit(&self) {
+        let bus = self.flushes();
+        let linear = bus.push.iter().chain(&bus.pull).flatten().all(Coord::is_linear);
+        assert!(
+            !self.id.spec().has_circuit() || linear,
+            "{}: a product on the bus",
+            self.id.spec().name
+        );
     }
 
     /// Number of columns, the virtual ones included.
@@ -59,7 +164,7 @@ impl ClassTable {
     /// The port words of one of the table's circuits.
     pub fn ports(&self, part: Part) -> &[Word] {
         match part {
-            Part::Class => self.spec.ports,
+            Part::Class => &self.class_ports,
             Part::Clock => &self.clock_ports,
         }
     }
@@ -82,18 +187,17 @@ impl ClassTable {
     }
 
     /// Bind the next instruction and clock to the current state.
+    ///
+    /// The successor is linear in the row's columns: `pc + 4`, plus the circuit's jump for a class with control flow.
     fn flush_state(&self, bus: &mut FlushBuilder) {
         let c = &self.cols;
-        // Branches and jumps derive the successor as a degree-two bus form.
-        let npc = match (c.control, c.rd) {
-            (Some(control), Some(rd)) => control.next_pc(c.pc4, rd.out),
-            _ => Col(c.pc4),
-        };
-        let exit = c
-            .control
-            .map_or(Const(F64::ZERO), |control| control.exit_marker(c.ts, c.step));
+        let npc = c.control.map_or(Col(c.pc4), |control| control.next_pc(c.pc4));
+        let exit = c.control.map_or(Const(F64::ZERO), |control| Col(control.exit));
         bus.state(c.pc, c.ts, c.step, npc, exit);
     }
+
+    /// The bytecode tuple's coordinate holding the cell the entry writes.
+    pub(crate) const DESTINATION_SLOT: usize = 6;
 
     /// Read the public decoded entry, using constants for absent register and circuit ports.
     fn bytecode_tuple(&self) -> Vec<Coord> {
@@ -103,7 +207,7 @@ impl ClassTable {
         let mut entry = vec![
             Separator::Bytecode.coordinate(),
             Col(c.pc),
-            Const(g_pow(self.index)),
+            Const(g_pow(self.id.index())),
             c.flags.map_or(Const(F64::ZERO), Col),
             Col(c.a1),
             c.rs2.map_or(Const(F64::ZERO), |r| Col(r.a2)),
@@ -115,8 +219,8 @@ impl ClassTable {
             c.imm.map_or(Const(F64::ZERO), Col),
             Col(c.pc4),
         ];
-        if let (Some(control), Some(_)) = (c.control, c.rd) {
-            entry.extend([Col(control.dt), Col(control.link), Col(control.jalr)]);
+        if let Some(control) = c.control {
+            entry.push(Col(control.dt));
         }
         if let Some(bad) = c.bad {
             entry.resize(BAD_SLOT, Const(F64::ZERO));
@@ -131,17 +235,19 @@ impl ClassTable {
     fn flush_accesses(&self, bus: &mut FlushBuilder) {
         let c = &self.cols;
         // The accesses' columns are in the order the row makes them.
-        let mut accesses = bus.accesses(c.ts, c.prev, self.spec.slots());
-        let vd = c.rd.map(|rd| {
-            c.control
-                .map_or(Col(rd.out), |control| control.destination(c.pc4, rd.out))
-        });
+        let mut accesses = bus.accesses(c.ts, c.prev, self.id.spec().slots());
         accesses.read(Separator::Registers.coordinate(), Col(c.a1), Col(c.v1));
         if let Some(r) = c.rs2 {
             accesses.read(Separator::Registers.coordinate(), Col(r.a2), Col(r.v2));
         }
-        if let (Some(rd), Some(vd)) = (c.rd, vd) {
-            accesses.write(Separator::Registers.coordinate(), Col(rd.ad), Col(rd.vd_old), vd);
+        // The destination receives the circuit's output, which is the link of a jump that links.
+        if let Some(rd) = c.rd {
+            accesses.write(
+                Separator::Registers.coordinate(),
+                Col(rd.ad),
+                Col(rd.vd_old),
+                Col(rd.out),
+            );
         }
         // An address in `rd` is read and written back as found.
         if let Some(p) = c.pointer {
@@ -237,6 +343,7 @@ impl ClassTable {
 mod tests {
     use super::super::Clock;
     use super::*;
+    use crate::colval::ColVal;
 
     fn check_columns(coordinate: &Coord, width: usize) {
         // Every table-side coordinate must use its own local span of columns.
@@ -252,10 +359,10 @@ mod tests {
 
     #[test]
     fn every_table_binds_its_ports_and_accesses_within_its_local_columns() {
-        for table in ClassTable::all() {
+        for (_, table) in ClassTable::all().iter() {
             let width = table.n_committed_columns();
-            let accesses = table.spec.n_accesses();
-            let slots = table.spec.slots();
+            let accesses = table.id.spec().n_accesses();
+            let slots = table.id.spec().slots();
             assert_eq!(slots.len(), accesses);
             assert!(slots.iter().all(|&slot| slot < 1 << Clock::SLOT_BITS));
             for part in [Part::Class, Part::Clock] {
@@ -287,7 +394,7 @@ mod tests {
             // Invariant: on a row, the identities vanish exactly when the new limbs are the reference's.
             //
             // Mutation: one bit of one new limb, which only that limb's identity reads.
-            let table = &ClassTable::all()[ClassTable::index_of(Class::Ext).unwrap()];
+            let table = TableId::EXT.class_table();
             let (cols, bits) = (table.cols.limbs.unwrap(), table.cols.flag_bits.unwrap());
             let mut limbs = limbs;
             if flags & Ext::BASE != 0 {
@@ -297,7 +404,7 @@ mod tests {
             row[cols.limbs..cols.limbs + 9].copy_from_slice(&limbs.map(F64));
             row[cols.new..cols.new + 3].copy_from_slice(&Ext { flags, pointers: [0; 3], limbs }.eval().map(F64));
             (row[bits], row[bits + 1]) = (F64(flags & 1), F64(flags >> 1));
-            let values = |row: &[F64]| table.identities().iter().map(|form| form.eval(row)).collect::<Vec<_>>();
+            let values = |row: &[F64]| table.identities().iter().map(|form| <F64 as ColVal>::reduce(form.eval_unreduced(row, false))).collect::<Vec<_>>();
             proptest::prop_assert_eq!(values(&row), vec![F192::ZERO; 3]);
             row[cols.new + wrong].0 ^= 1 << bit;
             let values = values(&row);

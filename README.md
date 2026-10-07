@@ -110,9 +110,9 @@ programs/hash/hash.elf
   verifying                   : 7.796 ms
 ```
 
-### leanXMSS, leanSPHINCS and leanDA
+### leanXMSS, leanSPHINCS, leanDA, Falcon-512, L1 state proofs and shielded transfers
 
-Three programs check what an Ethereum node would: leanXMSS signatures, leanSPHINCS signatures, and leanDA blobs (`programs/leanxmss`, `programs/leansphincs`, `programs/leanda`).
+Three programs check what an Ethereum node would: leanXMSS signatures, leanSPHINCS signatures, and leanDA blobs (`programs/leanxmss`, `programs/leansphincs`, `programs/leanda`). A fourth verifies Falcon-512 signatures as the round-3 specification defines them (`programs/falcon`), pinned to NIST's known answers. A fifth verifies Ethereum L1 state proofs (`programs/stateproof`): accounts and storage slots at one mainnet block, as `eth_getProof` (EIP-1186) proves them, from the block hash down, keccak256 and RLP in software. A sixth checks shielded transfers (`programs/shielded`): privacy-pool spends of two notes into two over a depth-20 tree, the statement of soispoke's [minimal shielded pool](https://github.com/soispoke/evm-spend-challenge/blob/main/SPEC.md), BLAKE2s edition, whose digests it reproduces.
 
 Each guest is a `no_std` library, byte-compatible with the schemes' reference implementations, plus the `main` that runs it. Each host runs the same library natively to build the inputs and the expected output.
 
@@ -120,24 +120,27 @@ Each guest is a `no_std` library, byte-compatible with the schemes' reference im
 cargo leanvm leanxmss --n 451 --repeat 3
 cargo leanvm leansphincs --n 104 --repeat 3
 cargo leanvm leanda --blobs 1 --repeat 3
+cargo leanvm falcon --n 28 --repeat 3
+cargo leanvm stateproof --n 21 --repeat 3
+cargo leanvm shielded --n 1035 --repeat 3
 ```
 
-The report gives the RISC-V cycles per signature or per blob, the rows per table and the committed witness, then the proving and verifying times.
+The report gives the RISC-V cycles per signature, per blob, per read or per spend, the rows per table and the committed witness, then the proving and verifying times.
 
 A batch is capped first by its guest's advice region (`leanvm_guest::advice_words!` in its `main.rs`), then by what one proof commits (`pcs::MAX_MU`): continuations are not implemented. leanXMSS's batch is the largest whose tables keep their padded heights, leanSPHINCS's fills its advice region, and leanDA's one blob is what one proof holds.
 
-To get the cost of all three without proving, exact and the same on every machine:
+To get the cost of all six without proving, exact and the same on every machine:
 
 ```bash
 cargo leanvm bench --cycles-only --markdown
 ```
 
-It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words, for these three and the other benchmarks, then one of the recursion circuits of two aggregation trees over leanXMSS proofs (`cargo leanvm aggregate`), 2 to 1 and 4 to 1 (`aggregate-leanxmss-400-2to1` and `aggregate-leanxmss-400-4to1`: every node combines 2, or 4, proofs into 1): each kind of node's rows per table and committed words, `-first` for a first-level node (the RISC-V verifier in rows over its leaf proofs) and `-node` for a higher node (the recursion verifier in rows over its child proofs). CI adds them to each run's summary, compares the same counts on every PR with the PR's base, comments with the ones that changed, and fails a PR that raises any of them; without `--markdown` it prints them as JSON (Bencher Metric Format), `--markdown-file <path>` appending the tables to a file from the same pass, and without `--cycles-only` it proves each program, and one node of each kind of both trees over leanXMSS-100 leaves, too.
+It prints a markdown table of the RISC-V cycles, per item and in all, and the committed witness words, for these three and the other benchmarks, then one of the recursion circuits of two aggregation trees over leanXMSS proofs (`cargo leanvm aggregate`; the leaves at `--leaf-log-inv-rate`, 2 by default, the tree's proofs at `--log-inv-rate`), 2 to 1 and 4 to 1 (`aggregate-leanxmss-400-2to1` and `aggregate-leanxmss-400-4to1`: every node combines 2, or 4, proofs into 1): each kind of node's rows per table and committed words, `-first` for a first-level node (the RISC-V verifier in rows over its leaf proofs) and `-node` for a higher node (the recursion verifier in rows over its child proofs). CI adds them to each run's summary, compares the same counts on every PR with the PR's base, comments with the ones that changed, and fails a PR that raises any of them; without `--markdown` it prints them as JSON (Bencher Metric Format), `--markdown-file <path>` appending the tables to a file from the same pass, and without `--cycles-only` it proves each program, and one node of each kind of both trees over leanXMSS-100 leaves, too.
 
 ### hashing
 
 ```bash
-BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p flock --bench hash_batch
+BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p flock --features bench --bench hash_batch
 ```
 
 ```

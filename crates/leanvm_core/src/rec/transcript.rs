@@ -2,7 +2,7 @@
 
 use super::circuit::{Builder, Dw, Ew, Kw, Limbs, digest_limbs, zero_prefix};
 use fiat_shamir::transcript::RawProof;
-use fiat_shamir::{DS_OBSERVE, DS_POW_BASE, DS_POW_NONCE, DS_SQUEEZE};
+use fiat_shamir::{DS_OBSERVE, DS_POW_BASE, DS_POW_NONCE, DS_SQUEEZE, MAX_GRINDING_BITS, MAX_PENDING};
 use primitives::field::F192;
 
 /// What the circuit reads: the proof when it has one, zeros when it is built from the shape alone.
@@ -25,10 +25,11 @@ pub struct MerkleOpening {
     pub path: Vec<Limbs>,
 }
 
-/// The transcript's chaining value as a wire, and where the proof is read.
+/// The transcript's chaining value as a wire, the scalars it has yet to absorb, and where the proof is read.
 #[derive(Debug)]
 pub struct Transcript<'a> {
     cv: Dw,
+    pending: Vec<Ew>,
     source: ProofSource<'a>,
     offset: usize,
     opening: usize,
@@ -45,14 +46,16 @@ impl<'a> Transcript<'a> {
     pub const fn from_state(cv: Dw, source: ProofSource<'a>) -> Self {
         Self {
             cv,
+            pending: Vec::new(),
             source,
             offset: 0,
             opening: 0,
         }
     }
 
-    /// The chaining value.
-    pub const fn state(&self) -> Dw {
+    /// The chaining value, once every pending scalar is absorbed.
+    pub fn state(&mut self, b: &mut Builder) -> Dw {
+        self.flush(b);
         self.cv
     }
 
@@ -74,14 +77,20 @@ impl<'a> Transcript<'a> {
         b.free_e(v)
     }
 
-    fn absorb(&mut self, b: &mut Builder, x: Ew, ds: u64) {
-        let ds = b.k_const(ds);
-        self.cv = b.compress(self.cv, x, ds).0;
+    /// Absorb the pending scalars, if any, in one step.
+    fn flush(&mut self, b: &mut Builder) {
+        if !self.pending.is_empty() {
+            let pending = std::mem::take(&mut self.pending);
+            self.cv = b.step(self.cv, &pending, DS_OBSERVE.0).0;
+        }
     }
 
-    /// Absorb `x`.
+    /// Absorb `x`: it waits for the next step, which absorbs up to two scalars.
     pub fn observe(&mut self, b: &mut Builder, x: Ew) {
-        self.absorb(b, x, DS_OBSERVE.0);
+        if self.pending.len() == MAX_PENDING {
+            self.flush(b);
+        }
+        self.pending.push(x);
     }
 
     /// The next scalar of the stream, bound into the transcript.
@@ -91,23 +100,12 @@ impl<'a> Transcript<'a> {
         x
     }
 
-    /// The next `n` scalars, each bound.
-    pub fn next_scalars(&mut self, b: &mut Builder, n: usize) -> Vec<Ew> {
-        (0..n).map(|_| self.next_scalar(b)).collect()
-    }
-
-    /// A challenge: the first three words of `compress(cv, (0, 0, 0, SQUEEZE))`, whose output becomes the state.
+    /// A challenge: the first three words of the step absorbing the pending scalars under `SQUEEZE`, whose output becomes the state.
     pub fn sample(&mut self, b: &mut Builder) -> Ew {
-        let zero = b.zero();
-        let ds = b.k_const(DS_SQUEEZE.0);
-        let (cv, ch) = b.compress(self.cv, zero, ds);
+        let pending = std::mem::take(&mut self.pending);
+        let (cv, ch) = b.step(self.cv, &pending, DS_SQUEEZE.0);
         self.cv = cv;
         ch
-    }
-
-    /// `n` challenges.
-    pub fn sample_vec(&mut self, b: &mut Builder, n: usize) -> Vec<Ew> {
-        (0..n).map(|_| self.sample(b)).collect()
     }
 
     /// A Merkle root as its two 128-bit halves, each bound, their top limbs zero.
@@ -142,19 +140,19 @@ impl<'a> Transcript<'a> {
 
     /// A grinding nonce: its proof of work checked, then bound.
     ///
-    /// The check holds the low `bits` bits of `compress(base, (nonce, POW_NONCE))` to zero.
-    /// A digest word has 64 bits, so more than 63 is a failure of the circuit.
+    /// The pending scalars are absorbed first. The check holds the low `bits` bits of `compress(base, (nonce, POW_NONCE))` to zero, `base` the `POW_BASE` step's output.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the grinding exceeds the digest's low word, as the native check does.
     pub fn grind_check(&mut self, b: &mut Builder, bits: u32) {
+        assert!(bits <= MAX_GRINDING_BITS, "grinding past the digest's low word");
+        self.flush(b);
         let nonce = self.take(b);
         if bits == 0 {
             b.eq_e_const(nonce, F192::ZERO);
         } else {
-            if bits >= 64 {
-                b.fail("grinding past the digest's low word");
-            }
-            let zero = b.zero();
-            let base_tag = b.k_const(DS_POW_BASE.0);
-            let (base, _) = b.compress(self.cv, zero, base_tag);
+            let (base, _) = b.step(self.cv, &[], DS_POW_BASE.0);
             let nonce_tag = b.k_const(DS_POW_NONCE.0);
             let (digest, _) = b.compress(base, nonce, nonce_tag);
             let [word, ..] = b.d_to_k(digest);
@@ -162,10 +160,10 @@ impl<'a> Transcript<'a> {
                 b.eq_k_const(bit, 0);
             }
         }
-        self.absorb(b, nonce, DS_POW_NONCE.0);
+        self.cv = b.step(self.cv, &[nonce], DS_POW_NONCE.0).0;
     }
 
-    /// The next query's opening, its image and path padded with zeros to the given lengths.
+    /// The next query's opening, its image padded with zeros to `leaf_words` and its path cut or padded to `depth` siblings.
     fn next_opening(&mut self, leaf_words: usize, depth: usize) -> MerkleOpening {
         let opening = match self.source {
             ProofSource::Proof(p) => p.merkle.get(self.opening).map(|o| MerkleOpening {
@@ -184,16 +182,23 @@ impl<'a> Transcript<'a> {
         opening
     }
 
-    /// Authenticate one query's row against a root and return the row's words.
+    /// Hash one query's row up its path's lowest `bits.len()` levels, returning the node reached and the row's words.
     ///
     /// The leaf image ends with the row, every word before it zero.
     /// It is hashed from the shared state of its whole zero blocks, then up the path.
     /// The direction at each level is the query's bit there, lowest first.
+    /// The caller ties the node to the root, so that every leaf sits at the tree's height, which the shape fixes.
+    ///
+    /// # Why the height is the shape's
+    ///
+    /// - A one-block leaf and a node are one compression from the parameter IV at counter 64.
+    /// - So the root of a tree is also the root of the tree one level shorter whose leaves are node preimages.
+    /// - Only the path's length tells them apart: the levels must number the tree's height.
     ///
     /// # Panics
     ///
     /// Panics if the leaf is not whole blocks of eight words, or the row is longer than it.
-    pub fn open_row(&mut self, b: &mut Builder, root: Dw, bits: &[Kw], row_words: usize, leaf_words: usize) -> Vec<Kw> {
+    pub fn open_row(&mut self, b: &mut Builder, bits: &[Kw], row_words: usize, leaf_words: usize) -> (Dw, Vec<Kw>) {
         assert!(
             leaf_words.is_multiple_of(8) && row_words <= leaf_words,
             "a leaf of whole blocks holds the row"
@@ -214,16 +219,17 @@ impl<'a> Transcript<'a> {
         for (&bit, sibling) in bits.iter().zip(&opening.path) {
             h = b.node(h, bit, *sibling);
         }
-        b.eq_d(h, root);
-        words[prefix - zero_blocks * 8..].to_vec()
+        (h, words[prefix - zero_blocks * 8..].to_vec())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rec::circuit::Circuit;
+    use crate::rec::circuit::{Circuit, Unsatisfied};
+    use fiat_shamir::merkle::{Hash, RawMerklePath, hash_leaf, hash_pair};
     use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
+    use primitives::field::F64;
 
     const LABEL: &[u8] = b"rec-transcript-test";
     const POLY: [F192; 4] = [
@@ -251,11 +257,11 @@ mod tests {
     }
 
     // The native transcript above, in rows: the claims are the sums the scalars read make.
-    fn replay(source: ProofSource<'_>) -> (Circuit, Vec<F192>, Vec<String>) {
+    fn replay(source: ProofSource<'_>) -> (Circuit, Vec<F192>, Vec<Unsatisfied>) {
         let mut b = Builder::new();
         let iv = b.d_const(digest_limbs(&primitives::hash::hash(LABEL)));
         let mut t = Transcript::from_state(iv, source);
-        let scalars = t.next_scalars(&mut b, 2);
+        let scalars: Vec<Ew> = (0..2).map(|_| t.next_scalar(&mut b)).collect();
         let c0 = t.sample(&mut b);
         // `g(0) + g(1)` of the honest polynomial, as a hint the round derives its linear coefficient from.
         let claim = b.free_e(match source {
@@ -293,5 +299,39 @@ mod tests {
     fn the_circuit_from_the_shape_is_the_circuit_from_the_proof() {
         let (raw, _) = native();
         assert_eq!(replay(ProofSource::Proof(&raw)).0, replay(ProofSource::Shape).0);
+    }
+
+    // Opens one row of eight words at index 0 of a tree of the given depth, returning the rows' failures.
+    fn open(leaf: &[u64; 8], path: &[Hash], root: &Hash, depth: usize) -> Vec<Unsatisfied> {
+        let raw = RawProof {
+            stream: Vec::new(),
+            merkle: vec![RawMerklePath {
+                leaf_index: 0,
+                leaf_data: leaf.map(F64).to_vec(),
+                path: path.to_vec(),
+            }],
+        };
+        let mut b = Builder::new();
+        let root = b.d_const(digest_limbs(root));
+        let bits = vec![b.k_const(0); depth];
+        let (node, _) = Transcript::from_state(root, ProofSource::Proof(&raw)).open_row(&mut b, &bits, 8, 8);
+        b.eq_d(node, root);
+        b.finish().failures
+    }
+
+    #[test]
+    fn a_node_opened_as_a_leaf_is_refused_at_the_shapes_depth() {
+        // Four one-block leaves under a root of depth two.
+        let words = |i: u64| -> [u64; 8] { std::array::from_fn(|j| 8 * i + j as u64) };
+        let bytes = |w: [u64; 8]| -> Vec<u8> { w.iter().flat_map(|x| x.to_le_bytes()).collect() };
+        let leaves: Vec<Hash> = (0..4).map(|i| hash_leaf(&bytes(words(i)))).collect();
+        let nodes = [hash_pair(&leaves[0], &leaves[1]), hash_pair(&leaves[2], &leaves[3])];
+        let root = hash_pair(&nodes[0], &nodes[1]);
+        assert!(open(&words(0), &[leaves[1], nodes[1]], &root, 2).is_empty());
+
+        // The first node's preimage, its children's digests, is a one-block leaf of the same hash.
+        let preimage: [u64; 8] = std::array::from_fn(|j| digest_limbs(&leaves[j / 4])[j % 4]);
+        assert!(open(&preimage, &[nodes[1]], &root, 1).is_empty());
+        assert!(!open(&preimage, &[nodes[1]], &root, 2).is_empty());
     }
 }

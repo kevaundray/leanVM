@@ -11,8 +11,8 @@ use super::sample_queries_ordered;
 use super::sumcheck::{Basis, InitialRounds, SumcheckProver, send_msg};
 use crate::merkle::Hash;
 use crate::ntt::AdditiveNttF64;
-use crate::whir_config::ProverConfig;
-use crate::whir_induce::{
+use crate::whir::config::ProverConfig;
+use crate::whir::induce::{
     eval_sk_at_vks, induce_sumcheck_enforced_sum, induce_sumcheck_evaluate_at_residual, induce_sumcheck_poly,
     induce_sumcheck_poly_auto_base,
 };
@@ -186,8 +186,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     // MLE evaluation is introduced into the running sumcheck.
     send_ood(&mut sc_prover, ps, n1, ood_count(1));
 
-    // Query-phase PoW grinding for L0 (0 bits in the production profile; the
-    // canonical 0 nonce is still absorbed to keep the transcript in lockstep).
+    // PoW grinding for L0's query phase.
     ps.grind(config.grinding_bits()[0] as u32);
 
     // Open L0; lane-fold weights = r_lane_fold.

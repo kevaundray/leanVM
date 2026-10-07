@@ -1,8 +1,7 @@
 //! The ALU: sums, differences, comparisons, bitwise logic, branches and jumps.
 
 use super::{InstructionClass, sext32};
-use crate::rv::circuits::{ClassCircuit, Word, WordGadgets};
-use crate::rv::entry::Class;
+use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
 use flock::circuit::{Builder, Circuit};
 
 /// One ALU instance: add, subtract, compare, bitwise logic, branches and jumps.
@@ -20,6 +19,12 @@ pub struct Alu {
     pub v2: u64,
     /// The immediate.
     pub imm: u64,
+    /// The jump's offset: the fixed target XOR `pc + 4`, zero for an entry with none.
+    ///
+    /// The decision does not read it; the circuit gates it by the decision.
+    pub dt: u64,
+    /// The fall-through address `pc + 4`: what an indirect jump links, and what its target is taken against.
+    pub pc4: u64,
 }
 
 impl Alu {
@@ -39,8 +44,8 @@ impl Alu {
     pub const SEL_OR: u64 = 1 << 5;
     /// Output `v1 ^ b`.
     pub const SEL_XOR: u64 = 1 << 6;
-    /// Clear bit 0 of the output, as `JALR` does to its target.
-    pub const CLEAR_BIT0: u64 = 1 << 7;
+    /// Jump to the sum with bit 0 cleared and output `pc + 4`, as `JALR` does; set with `ALWAYS`.
+    pub const INDIRECT: u64 = 1 << 7;
     /// Branch when `v1 == b`.
     pub const BR_EQ: u64 = 1 << 8;
     /// Branch when `v1 != b`.
@@ -62,11 +67,23 @@ impl Alu {
     const fn has_flag(&self, flag: u64) -> bool {
         self.flags & flag != 0
     }
+
+    /// What the successor adds to `pc + 4`, given the decision: zero when the jump is not taken.
+    ///
+    /// - A fixed jump adds its offset, the target XOR `pc + 4`.
+    /// - An indirect jump has offset zero and adds the sum XOR `pc + 4`, bit 0 left out.
+    /// - Its successor is then the sum with bit 0 cleared, since `pc + 4` is even.
+    pub const fn jump(&self, taken: bool) -> u64 {
+        let indirect = if self.has_flag(Self::INDIRECT) {
+            (self.v1.wrapping_add(self.v2 ^ self.imm) ^ self.pc4) & !1
+        } else {
+            0
+        };
+        if taken { self.dt ^ indirect } else { 0 }
+    }
 }
 
 impl InstructionClass for Alu {
-    const CLASS: Class = Class::Alu;
-
     /// At most one output selector and at most one branch condition is set.
     const LEGAL: &'static [u64] = &[
         0,
@@ -78,7 +95,7 @@ impl InstructionClass for Alu {
         Self::SEL_AND,
         Self::SEL_OR,
         Self::SEL_XOR,
-        Self::CLEAR_BIT0,
+        Self::INDIRECT | Self::ALWAYS,
         Self::SUB | Self::BR_EQ,
         Self::SUB | Self::BR_NE,
         Self::SUB | Self::BR_LT,
@@ -89,6 +106,8 @@ impl InstructionClass for Alu {
     ];
 
     /// The output, and whether the jump is taken.
+    ///
+    /// The output of an indirect jump is its link, `pc + 4`.
     type Output = (u64, bool);
 
     fn eval(&self) -> (u64, bool) {
@@ -105,7 +124,7 @@ impl InstructionClass for Alu {
         let (lt, ltu, eq) = ((v1 as i64) < (b as i64), v1 < b, v1 == b);
 
         // The output: one selector, or the sum when none is set.
-        let mut out = if self.has_flag(Self::SEL_LT) {
+        let out = if self.has_flag(Self::SEL_LT) {
             lt as u64
         } else if self.has_flag(Self::SEL_LTU) {
             ltu as u64
@@ -115,16 +134,13 @@ impl InstructionClass for Alu {
             v1 | b
         } else if self.has_flag(Self::SEL_XOR) {
             v1 ^ b
+        } else if self.has_flag(Self::INDIRECT) {
+            self.pc4
         } else if self.has_flag(Self::WORD) {
             sext32(sum)
         } else {
             sum
         };
-
-        // A JALR target drops its low bit.
-        if self.has_flag(Self::CLEAR_BIT0) {
-            out &= !1;
-        }
 
         // The jump: unconditional, or the one branch condition set.
         let taken = self.has_flag(Self::ALWAYS)
@@ -136,28 +152,22 @@ impl InstructionClass for Alu {
             || (self.has_flag(Self::BR_GEU) && !ltu);
         (out, taken)
     }
-
-    fn input_words(&self) -> Vec<u64> {
-        vec![self.v1, self.v2, self.imm, self.flags]
-    }
-
-    fn output_words(&(out, taken): &(u64, bool)) -> Vec<u64> {
-        vec![out, taken as u64]
-    }
 }
 
 impl ClassCircuit for Alu {
-    /// The ALU: `(v1, v2, imm, flags) -> (out, taken)`.
+    /// The ALU: `(v1, v2, imm, flags, dt, pc4) -> (out, jump)`.
     ///
     /// It mirrors the reference function on every legal flag word.
     ///
     /// - The second operand is `b = v2 ^ imm`.
     /// - One adder gives `v1 + b`, or `v1 - b` for the comparisons.
     /// - The output is that sum, unless a selector picks a comparison or a bitwise operation.
+    /// - An indirect jump outputs `pc + 4` instead, and adds to `dt` the sum XOR `pc + 4` but for bit 0.
     /// - The jump is taken always, or when the one branch condition set holds.
+    /// - `jump` is that offset gated by the decision, so the successor `pc + 4 + jump` is linear in the row's columns.
     fn circuit() -> Circuit {
-        let mut c = Builder::new(&[64, 64, 64, 15], &[64, 1]);
-        let (v1, v2, imm, f) = (c.input(0), c.input(1), c.input(2), c.input(3));
+        let mut c = Builder::new(&[64, 64, 64, 15, 64, 64], &[64, 64]);
+        let (v1, v2, imm, f, dt, pc4) = (c.input(0), c.input(1), c.input(2), c.input(3), c.input(4), c.input(5));
         let flag = |bit: u64| f[bit.trailing_zeros() as usize];
         let b = c.xor_word(&v2, &imm);
 
@@ -205,9 +215,20 @@ impl ClassCircuit for Alu {
         let compared = c.xor(lt_term, ltu_term);
         out[0] = c.xor(out[0], compared);
 
-        // A JALR target drops its low bit.
-        let keep_bit0 = c.not(flag(Self::CLEAR_BIT0));
-        out[0] = c.and(keep_bit0, out[0]);
+        // An indirect jump outputs its link, and offsets the successor by the sum's difference from it.
+        //
+        //     out  = out ^ indirect * (out ^ pc4)            = pc4 when indirect
+        //     jump = dt  ^ indirect * (out ^ pc4), bit 0 kept = the sum with bit 0 cleared, XOR pc4
+        let indirect = flag(Self::INDIRECT);
+        let mut offset = dt;
+        for i in 0..64 {
+            let d = c.xor(out[i], pc4[i]);
+            let moved = c.and(indirect, d);
+            out[i] = c.xor(out[i], moved);
+            if i > 0 {
+                offset[i] = c.xor(offset[i], moved);
+            }
+        }
 
         // The jump: unconditional, or the one branch condition set.
         let (ge, geu) = (c.not(lt), c.not(ltu));
@@ -225,17 +246,119 @@ impl ClassCircuit for Alu {
             c.xor(acc, term)
         });
 
+        // Each bit of the jump is a product written at its output position, so it costs no copy.
         c.output_word(0, &out);
-        c.output(1, 0, taken);
+        for (i, &bit) in offset.iter().enumerate() {
+            c.and_output(1, i, taken, bit);
+        }
         c.finish()
+    }
+}
+
+impl Alu {
+    /// One instance of the circuit's witness by word arithmetic: what the walk of [`Alu::circuit`] writes, into zeroed buffers.
+    ///
+    /// Inputs `v1`, `v2`, `imm`, the flags' 15 bits, `dt` and `pc4`, the outputs `out` and `jump` (each bit of `jump` the product `taken * offset`), the constant at bit 512, then the products:
+    ///
+    /// ```text
+    ///     adder        64   A·z = v1 ^ c,   B·z = (b ^ sub) ^ c,  c the carries of v1 + (b ^ sub) + sub
+    ///     any          63   A·z = the OR of diff's bits below,  B·z = diff's bit
+    ///     sext32       32   A·z = word,  B·z = sum_31 ^ sum_i
+    ///     none         64   A·z = none,  B·z = the sign-extended sum
+    ///     logic       192   per bit: v1 * b, and_or * that, or_xor * diff
+    ///     comparisons   2   SEL_LT * lt, SEL_LTU * ltu
+    ///     indirect     64   INDIRECT * (out ^ pc4)
+    ///     branches      6   each condition's flag * whether it holds
+    /// ```
+    pub(crate) fn witness(inputs: &[u64], z: &mut [u64], az: &mut [u64], bz: &mut [u64]) {
+        const FLAG_BITS: u64 = (1 << 15) - 1;
+        let (v1, v2, imm, flags) = (inputs[0], inputs[1], inputs[2], inputs[3] & FLAG_BITS);
+        let (dt, pc4) = (inputs[4], inputs[5]);
+        let flag = |bit: u64| u64::from(flags & bit != 0);
+        let all = |bit: u64| u64::from(bit != 0).wrapping_neg();
+        let b = v2 ^ imm;
+        let sub = flag(Self::SUB);
+
+        // The adder: the carry into each bit, and out of the top.
+        let y = b ^ all(sub);
+        let (partial, o1) = v1.overflowing_add(y);
+        let (sum, o2) = partial.overflowing_add(sub);
+        let carries = sum ^ v1 ^ y;
+        let ltu = u64::from(!(o1 | o2));
+        let lt = ltu ^ (v1 ^ b) >> 63;
+        let diff = v1 ^ b;
+        let ne = u64::from(diff != 0);
+
+        let word = all(flag(Self::WORD));
+        let sext_diff = ((sum >> 31 & 1).wrapping_neg() ^ sum) >> 32;
+        let extended = sum ^ (word & sext_diff) << 32;
+        let none = 1
+            ^ flag(Self::SEL_LT)
+            ^ flag(Self::SEL_LTU)
+            ^ flag(Self::SEL_AND)
+            ^ flag(Self::SEL_OR)
+            ^ flag(Self::SEL_XOR);
+        let and_or = all(flag(Self::SEL_AND) ^ flag(Self::SEL_OR));
+        let or_xor = all(flag(Self::SEL_OR) ^ flag(Self::SEL_XOR));
+        let both = v1 & b;
+        let (lt_term, ltu_term) = (flag(Self::SEL_LT) & lt, flag(Self::SEL_LTU) & ltu);
+        let selected = all(none) & extended ^ and_or & both ^ or_xor & diff ^ lt_term ^ ltu_term;
+
+        // An indirect jump moves the output to `pc4` and the offset by the same difference but for bit 0.
+        let indirect = all(flag(Self::INDIRECT));
+        let link = selected ^ pc4;
+        let moved = indirect & link;
+        let out = selected ^ moved;
+        let offset = dt ^ moved & !1;
+
+        let conditions = [
+            (Self::BR_EQ, ne ^ 1),
+            (Self::BR_NE, ne),
+            (Self::BR_LT, lt),
+            (Self::BR_GE, lt ^ 1),
+            (Self::BR_LTU, ltu),
+            (Self::BR_GEU, ltu ^ 1),
+        ];
+        let taken = all(conditions
+            .iter()
+            .fold(flag(Self::ALWAYS), |acc, &(when, holds)| acc ^ flag(when) & holds));
+
+        // The ports.
+        let bits = [u64::MAX, u64::MAX, u64::MAX, FLAG_BITS, u64::MAX, u64::MAX];
+        for (i, bits) in bits.into_iter().enumerate() {
+            (z[i], az[i], bz[i]) = (inputs[i] & bits, inputs[i] & bits, bits);
+        }
+        (z[6], az[6], bz[6]) = (out, out, u64::MAX);
+        (z[7], az[7], bz[7]) = (taken & offset, taken, offset);
+
+        // The constant, then the products in the order the circuit makes them.
+        let mut rows = Products::new([z, az, bz], 8);
+        rows.push(1, 1, 1);
+        rows.push(v1 ^ carries, y ^ carries, 64);
+        let below = diff.isolate_lowest_one().wrapping_neg();
+        rows.push(below & (u64::MAX >> 1), diff >> 1, 63);
+        rows.push(word >> 32, sext_diff, 32);
+        rows.push(all(none), extended, 64);
+        rows.push_interleaved3([v1, and_or, or_xor], [b, both, diff]);
+        rows.push(flag(Self::SEL_LT), lt, 1);
+        rows.push(flag(Self::SEL_LTU), ltu, 1);
+        rows.push(indirect, link, 64);
+        for (when, holds) in conditions {
+            rows.push(flag(when), holds, 1);
+        }
+        rows.finish();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{circuit_matches_reference, edge_word};
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{
+        EDGES, Ports, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk,
+    };
     use fiat_shamir::transcript::{ProverState, VerifierState};
+    use flock::reduction::{self, Instance};
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -254,11 +377,20 @@ mod tests {
                 edge_word(),
                 any::<bool>(),
                 any::<bool>(),
+                any::<u64>(),
+                any::<u64>(),
             )
-                .prop_map(|(flags, v1, v2, equal, immediate)| {
+                .prop_map(|(flags, v1, v2, equal, immediate, dt, pc4)| {
                     let v2 = if equal { v1 } else { v2 };
                     let (v2, imm) = if immediate { (0, v2) } else { (v2, 0) };
-                    Self { flags, v1, v2, imm }
+                    Self {
+                        flags,
+                        v1,
+                        v2,
+                        imm,
+                        dt,
+                        pc4,
+                    }
                 })
                 .boxed()
         }
@@ -273,53 +405,76 @@ mod tests {
     }
 
     #[test]
+    fn the_word_witness_is_the_gate_walk() {
+        // Every legal flag word on edge operands: `b` an edge word or its complement, equal to `v1` on the diagonal, `dt` and `pc4` each none or all of their bits.
+        let edges = grid(&[
+            &EDGES,
+            &EDGES,
+            &[0, u64::MAX],
+            Alu::LEGAL,
+            &[0, u64::MAX],
+            &[0, u64::MAX],
+        ]);
+        word_witness_is_the_walk::<Alu>(Alu::witness, edges);
+    }
+
+    #[test]
     fn flock_proves_honest_alu_instances_and_refuses_a_flipped_bit() {
         // Fixture: 16 instances cycling through the legal words.
         const LABEL: &[u8] = b"rv-alu-reduction-test";
         let block = ALU.block();
         let n_log = 4;
-        let rows: Vec<[u64; 4]> = (0..1u64 << n_log)
+        let rows: Vec<[u64; 6]> = (0..1u64 << n_log)
             .map(|i| {
                 [
                     i.wrapping_mul(0x9e37_79b9_7f4a_7c15),
                     !i,
                     0,
                     Alu::LEGAL[i as usize % Alu::LEGAL.len()],
+                    i << 2,
+                    i << 3,
                 ]
             })
             .collect();
 
         // Prove the batch, optionally flipping one witness bit first, and verify.
         let accepts = |tamper: Option<usize>| {
-            let (mut z, a, b, mut z_lincheck) = ALU.generate_witness(&rows, n_log);
+            let mut witness = ALU.generate_witness(&rows, n_log);
             if let Some(bit) = tamper {
-                z[bit / 64] ^= 1 << (bit % 64);
-                z_lincheck[bit] ^= 1;
+                witness.z[bit / 64] ^= 1 << (bit % 64);
+                witness.stripes[bit] ^= 1;
             }
             let mut ps = ProverState::from_label(LABEL);
-            let instance = flock::reduction::Instance {
-                block,
-                n_blocks_log: n_log,
-                z: &z,
-                a: &a,
-                b: &b,
-                z_lincheck: &z_lincheck,
-            };
-            let claims = flock::reduction::prove(&[instance], &mut ps);
+            let instance = Instance::of(block, n_log, &witness);
+            let claims = reduction::prove(&[instance], &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::from_label(LABEL, &proof);
-            flock::reduction::verify(&[(block, n_log)], &mut vs).is_ok_and(|r| r[0].claim == claims[0])
+            reduction::verify(&[(block.shape(), n_log)], &mut vs)
+                .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(block.circuit).is_ok())
                 && vs.finish().is_ok()
         };
         assert!(accepts(None));
 
-        // Mutation: an output bit, a spare bit of taken's word, the last product.
+        // Mutation: an output bit, a bit of the jump, the last product.
         for bit in [
             64 * ALU.n_input_words() + 5,
-            64 * (ALU.n_input_words() + 1) + 1,
+            64 * (ALU.n_input_words() + 1) + 3,
             ALU.useful_bits() - 1,
         ] {
             assert!(!accepts(Some(bit)), "flipping bit {bit} must reject");
+        }
+    }
+
+    impl Ports for Alu {
+        const CLASS: Class = Class::Alu;
+
+        fn input_words(&self) -> Vec<u64> {
+            vec![self.v1, self.v2, self.imm, self.flags, self.dt, self.pc4]
+        }
+
+        // The output, and the offset the successor adds to `pc + 4`.
+        fn output_words(&self, &(out, taken): &(u64, bool)) -> Vec<u64> {
+            vec![out, self.jump(taken)]
         }
     }
 }

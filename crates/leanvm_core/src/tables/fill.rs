@@ -1,7 +1,7 @@
 //! Sequential registration and parallel execution of column writers.
 
-use super::{ClassTable, Clock};
-use crate::cpu::{Row, Trace};
+use super::{ClassTable, Clock, Word};
+use crate::cpu::{Row, RowRef, Trace};
 use crate::rv::{Ext, RiscvProgram};
 use parallel::SendPtr;
 use primitives::field::F64;
@@ -151,7 +151,7 @@ impl ClassTable {
             "the fill context has the wrong number of columns"
         );
         let c = &self.cols;
-        let rows: &[Row] = &ctx.trace.rows[self.index];
+        let rows: &[Row] = &ctx.trace.rows[self.id];
         let p = ctx.program;
         let entry = move |r: &Row| &p.entries()[r.index as usize];
         ctx.columns(out, rows, c.pc, move |r| {
@@ -187,14 +187,12 @@ impl ClassTable {
             ctx.column(out, ext, p.vd, |x| F64(x.instance.pointers[2]));
         }
         if let Some(k) = c.control {
-            ctx.columns_at(out, rows, [k.dt, k.link, k.jalr, k.taken, k.exit], move |r| {
-                let e = entry(r);
+            ctx.columns_at(out, rows, [k.dt, k.jump, k.exit], move |r| {
+                let at = p.fetch(r.index as usize);
                 [
-                    F64(p.dt_of(r.index as usize)),
-                    F64(e.link as u64),
-                    F64(e.jalr as u64),
-                    F64(r.taken as u64),
-                    F64((e.is_exit()) as u64),
+                    F64(at.dt),
+                    F64(Word::Jump.value(RowRef::plain(r), at, &[])),
+                    F64(at.entry.is_exit() as u64),
                 ]
             });
         }
@@ -231,12 +229,12 @@ impl ClassTable {
         if let Some(bad) = c.bad {
             ctx.column(out, rows, bad, move |_| F64::ZERO);
         }
-        let table = ctx.trace.table(self.index);
-        let n = self.spec.n_accesses();
+        let table = ctx.trace.table(self.id);
+        let n = self.id.spec().n_accesses();
         for i in 0..n {
             ctx.indexed(out, [c.prev + i], move |j| [F64(table.row(j).prev()[i])]);
         }
-        let slots = self.spec.slots();
+        let slots = self.id.spec().slots();
         ctx.indexed(out, [c.step], move |j| {
             let r = table.row(j);
             [F64(Clock { timestamp: r.row.ts }.step(&r.prev()[..n], &slots))]
@@ -248,7 +246,8 @@ impl ClassTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::{Execution, Program};
+    use crate::cpu::Program;
+    use crate::cpu::execute::Execution;
     use crate::rv::Region;
     use crate::rv::asm::Asm;
 

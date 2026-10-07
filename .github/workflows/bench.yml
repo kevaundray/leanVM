@@ -58,6 +58,9 @@ jobs:
           - name: leanxmss-112
           - name: leanxmss-112-1thread
           - name: leansphincs-26
+          - name: falcon-7
+          - name: stateproof-5
+          - name: shielded-258
           - name: aggregate-leanxmss-100-2to1
           - name: aggregate-leanxmss-100-4to1
           - name: aggregate-leanxmss-100-2to1-1thread

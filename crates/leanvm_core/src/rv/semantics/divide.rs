@@ -2,9 +2,8 @@
 
 use super::{InstructionClass, sext32};
 use crate::rv::circuits::{ClassCircuit, Word, WordGadgets};
-use crate::rv::entry::Class;
-use flock::arith::mul::Multiplier;
 use flock::circuit::{Builder, Circuit, Wire};
+use flock::gadgets::mul::Multiplier;
 
 /// One division instance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,8 +45,6 @@ impl Div {
 }
 
 impl InstructionClass for Div {
-    const CLASS: Class = Class::Div;
-
     /// Every combination.
     const LEGAL: &'static [u64] = &[0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -82,17 +79,6 @@ impl InstructionClass for Div {
         };
         let out = if rem { r } else { q };
         if word { sext32(out) } else { out }
-    }
-
-    /// The operands, the flags, then the honest hints.
-    fn input_words(&self) -> Vec<u64> {
-        let (q, r) = self.hints();
-        vec![self.v1, self.v2, self.flags, q, r]
-    }
-
-    /// The result, then the circuit's verdict on the hints, which honest hints keep at zero.
-    fn output_words(&out: &u64) -> Vec<u64> {
-        vec![out, 0]
     }
 }
 
@@ -176,7 +162,8 @@ impl ClassCircuit for Div {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rv::semantics::tests::{circuit_matches_reference, edge_word, run};
+    use crate::rv::Class;
+    use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word, run};
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -262,7 +249,7 @@ mod tests {
         ] {
             assert_eq!(
                 run(&DIV, &div.input_words(), 2),
-                Div::output_words(&div.eval()),
+                div.output_words(&div.eval()),
                 "{div:?}"
             );
         }
@@ -287,10 +274,25 @@ mod tests {
             // A nonzero divisor refuses them; a zero divisor ignores them.
             let by_zero = if div.flags & Div::WORD != 0 { div.v2 as u32 == 0 } else { div.v2 == 0 };
             if by_zero {
-                prop_assert_eq!(got, Div::output_words(&div.eval()));
+                prop_assert_eq!(got, div.output_words(&div.eval()));
             } else {
                 prop_assert_eq!(got[1], 1);
             }
+        }
+    }
+
+    impl Ports for Div {
+        const CLASS: Class = Class::Div;
+
+        // The operands, the flags, then the honest hints.
+        fn input_words(&self) -> Vec<u64> {
+            let (q, r) = self.hints();
+            vec![self.v1, self.v2, self.flags, q, r]
+        }
+
+        // The result, then the circuit's verdict on the hints, which honest hints keep at zero.
+        fn output_words(&self, &out: &u64) -> Vec<u64> {
+            vec![out, 0]
         }
     }
 }
