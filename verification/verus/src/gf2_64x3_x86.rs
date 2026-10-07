@@ -2179,6 +2179,8 @@ pub unsafe fn transpose_lanes4(rows: [[__m512i; 2]; 4]) -> (r: [[__m512i; 2]; 4]
             0 <= i < 4 && 0 <= j < 4 && 0 <= p < 2 && 0 <= x < 2 ==> #[trigger] m512(r[i][p])[2 * j + x] == m512(
                 rows[j][p],
             )[2 * i + x],
+        forall|i: int, j: int| 0 <= i < 4 && 0 <= j < 4 ==> #[trigger] lanes4_elem(r[i], j) == lanes4_elem(rows[j], i),
+        (forall|j: int| 0 <= j < 4 ==> #[trigger] lanes4_ok(rows[j])) ==> forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_ok(r[i]),
 {
     let part = |p: usize| -> (o: [__m512i; 4])
         requires
@@ -2216,7 +2218,37 @@ pub unsafe fn transpose_lanes4(rows: [[__m512i; 2]; 4]) -> (r: [[__m512i; 2]; 4]
             o
         };
     let (c01, c22) = (part(0), part(1));
-    [[c01[0], c22[0]], [c01[1], c22[1]], [c01[2], c22[2]], [c01[3], c22[3]]]
+    let r = [[c01[0], c22[0]], [c01[1], c22[1]], [c01[2], c22[2]], [c01[3], c22[3]]];
+    proof {
+        assert forall|i: int, j: int, p: int, x: int|
+            0 <= i < 4 && 0 <= j < 4 && 0 <= p < 2 && 0 <= x < 2 implies #[trigger] m512(r[i][p])[2 * j + x] == m512(
+            rows[j][p],
+        )[2 * i + x] by {
+            if p == 0 {
+                assert(r[i][p] == c01[i]);
+            } else {
+                assert(r[i][p] == c22[i]);
+            }
+        }
+        assert forall|i: int, j: int| 0 <= i < 4 && 0 <= j < 4 implies #[trigger] lanes4_elem(r[i], j) == lanes4_elem(
+            rows[j],
+            i,
+        ) by {
+            assert(m512(r[i][0])[2 * j + 0] == m512(rows[j][0])[2 * i + 0]);
+            assert(m512(r[i][0])[2 * j + 1] == m512(rows[j][0])[2 * i + 1]);
+            assert(m512(r[i][1])[2 * j + 0] == m512(rows[j][1])[2 * i + 0]);
+        }
+        if forall|j: int| 0 <= j < 4 ==> #[trigger] lanes4_ok(rows[j]) {
+            assert forall|i: int| 0 <= i < 4 implies #[trigger] lanes4_ok(r[i]) by {
+                assert forall|j: int| 0 <= j < 4 implies #[trigger] m512(r[i][1])[2 * j + 1] == m512(r[i][1])[2 * j] by {
+                    assert(lanes4_ok(rows[j]));
+                    assert(m512(r[i][1])[2 * j + 1] == m512(rows[j][1])[2 * i + 1]);
+                    assert(m512(r[i][1])[2 * j + 0] == m512(rows[j][1])[2 * i + 0]);
+                }
+            }
+        }
+    }
+    r
 }
 
 /// The lane selections of the four `_mm512_shuffle_i64x2` immediates [`transpose_lanes4`] uses.
@@ -2256,7 +2288,7 @@ pub proof fn lemma_shuffle_sel(q: int)
 #[target_feature(enable = "avx512f")]
 pub unsafe fn xor_lanes<const N: usize>(a: [__m512i; N], b: [__m512i; N]) -> (r: [__m512i; N])
     ensures
-        forall|i: int, x: int| 0 <= i < N && 0 <= x < 8 ==> #[trigger] m512(r[i])[x] == m512(a[i])[x] ^ m512(b[i])[x],
+        lanes_xor(a, b, r),
 {
     let mut r = a;
     for i in 0..N
@@ -2267,6 +2299,96 @@ pub unsafe fn xor_lanes<const N: usize>(a: [__m512i; N], b: [__m512i; N]) -> (r:
         r[i] = _mm512_xor_si512(a[i], b[i]);
     }
     r
+}
+
+/// [`xor_lanes`]'s result: every word of `r` is the XOR of those of `a` and `b`.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub open spec fn lanes_xor<const N: usize>(a: [__m512i; N], b: [__m512i; N], r: [__m512i; N]) -> bool {
+    forall|i: int, x: int| 0 <= i < N && 0 <= x < 8 ==> #[trigger] m512(r[i])[x] == m512(a[i])[x] ^ m512(b[i])[x]
+}
+
+/// [`xor_lanes`] on [`Lanes4`] adds the elements and keeps the form.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub proof fn lemma_lanes4_xor(a: Lanes4, b: Lanes4, r: Lanes4)
+    requires
+        lanes_xor(a, b, r),
+    ensures
+        forall|i: int| 0 <= i < 4 ==> #[trigger] lanes4_elem(r, i) == e_add(lanes4_elem(a, i), lanes4_elem(b, i)),
+        lanes4_ok(a) && lanes4_ok(b) ==> lanes4_ok(r),
+{
+    assert forall|i: int| 0 <= i < 4 implies #[trigger] lanes4_elem(r, i) == e_add(lanes4_elem(a, i), lanes4_elem(b, i)) by {
+        assert(m512(r[0])[2 * i] == m512(a[0])[2 * i] ^ m512(b[0])[2 * i]);
+        assert(m512(r[0])[2 * i + 1] == m512(a[0])[2 * i + 1] ^ m512(b[0])[2 * i + 1]);
+        assert(m512(r[1])[2 * i] == m512(a[1])[2 * i] ^ m512(b[1])[2 * i]);
+    }
+    if lanes4_ok(a) && lanes4_ok(b) {
+        assert forall|i: int| 0 <= i < 4 implies #[trigger] m512(r[1])[2 * i + 1] == m512(r[1])[2 * i] by {
+            assert(m512(r[1])[2 * i] == m512(a[1])[2 * i] ^ m512(b[1])[2 * i]);
+            assert(m512(r[1])[2 * i + 1] == m512(a[1])[2 * i + 1] ^ m512(b[1])[2 * i + 1]);
+        }
+    }
+}
+
+/// [`xor_lanes`] on [`Wide4`] XORs the unreduced values.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub proof fn lemma_wide4_xor(a: Wide4, b: Wide4, r: Wide4)
+    requires
+        lanes_xor(a, b, r),
+    ensures
+        forall|i: int| 0 <= i < 4 ==> #[trigger] wide4_value(r, i) == u_xor(wide4_value(a, i), wide4_value(b, i)),
+{
+    assert forall|i: int| 0 <= i < 4 implies #[trigger] wide4_value(r, i) == u_xor(wide4_value(a, i), wide4_value(b, i)) by {
+        lemma_u_xor_words(wide4_value(a, i), wide4_value(b, i));
+        assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] wide4_value(r, i).coeffs[c][x] == u_xor(
+            wide4_value(a, i),
+            wide4_value(b, i),
+        ).coeffs[c][x] by {
+            assert(m512(r[c])[2 * i + x] == m512(a[c])[2 * i + x] ^ m512(b[c])[2 * i + x]);
+            assert(wide4_value(r, i).coeffs[c][x] == m512(r[c])[2 * i + x]);
+            assert(wide4_value(a, i).coeffs[c][x] == m512(a[c])[2 * i + x]);
+            assert(wide4_value(b, i).coeffs[c][x] == m512(b[c])[2 * i + x]);
+        }
+        lemma_unreduced_ext(wide4_value(r, i), u_xor(wide4_value(a, i), wide4_value(b, i)));
+    }
+}
+
+/// All-zero [`Wide4`] registers hold zero products.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub proof fn lemma_zeroed_wide4()
+    ensures
+        forall|i: int| 0 <= i < 4 ==> #[trigger] wide4_value(zeroed_value::<Wide4>(), i) == F192Unreduced::ZERO,
+{
+    axiom_zeroed_m512::<3>();
+    let z = zeroed_value::<Wide4>();
+    assert forall|i: int| 0 <= i < 4 implies #[trigger] wide4_value(z, i) == F192Unreduced::ZERO by {
+        assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] wide4_value(z, i).coeffs[c][x]
+            == F192Unreduced::ZERO.coeffs[c][x] by {
+            assert(m512(z[c])[2 * i + x] == 0);
+            assert(wide4_value(z, i).coeffs[c][x] == m512(z[c])[2 * i + x]);
+        }
+        lemma_unreduced_ext(wide4_value(z, i), F192Unreduced::ZERO);
+    }
+}
+
+/// All-zero [`MixedAcc8`] registers hold zero sums.
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+pub proof fn lemma_zeroed_acc8()
+    ensures
+        forall|i: int| 0 <= i < 8 ==> #[trigger] acc8_row(zeroed_value::<MixedAcc8>(), i) == F192Unreduced::ZERO,
+{
+    axiom_zeroed_m512::<6>();
+    let z = zeroed_value::<MixedAcc8>();
+    assert forall|i: int| 0 <= i < 8 implies #[trigger] acc8_row(z, i) == F192Unreduced::ZERO by {
+        assert forall|c: int, x: int| 0 <= c < 3 && 0 <= x < 2 implies #[trigger] acc8_row(z, i).coeffs[c][x]
+            == F192Unreduced::ZERO.coeffs[c][x] by {
+            assert(m512(z[acc_reg(i, c)])[2 * (i / 2) + x] == 0);
+            if c == 0 {
+            } else if c == 1 {
+            } else {
+            }
+        }
+        lemma_unreduced_ext(acc8_row(z, i), F192Unreduced::ZERO);
+    }
 }
 
 /// The y-folded Karatsuba products of two [`lanes4`] operands, lane by lane.
