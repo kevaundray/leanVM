@@ -1406,4 +1406,604 @@ fn radix8_group(
     Tracked(gp)
 }
 
+/// The body of the closure that `butterfly_interleaved_fused_2layer` hands `fused_rows`: layers L and
+/// L+1 on one group of four rows.
+///
+/// Rewritten: the four rows are four arguments (production's `let [row_a, row_b, row_c, row_d] = rows`).
+fn radix4_rows(row_a: &mut [F64], row_b: &mut [F64], row_c: &mut [F64], row_d: &mut [F64], t_outer: F64, t_inner_a: F64, t_inner_b: F64)
+    requires
+        rows_shape(seq![old(row_a)@, old(row_b)@, old(row_c)@, old(row_d)@], 4, old(row_a)@.len()),
+    ensures
+        rows_shape(seq![final(row_a)@, final(row_b)@, final(row_c)@, final(row_d)@], 4, old(row_a)@.len()),
+        rows_seq(seq![final(row_a)@, final(row_b)@, final(row_c)@, final(row_d)@], old(row_a)@.len()) == layer2(
+            rows_seq(seq![old(row_a)@, old(row_b)@, old(row_c)@, old(row_d)@], old(row_a)@.len()),
+            old(row_a)@.len(),
+            1,
+            t_outer.0,
+            t_inner_a.0,
+            t_inner_b.0,
+        ),
+{
+    let ghost m = row_a@.len();
+    let ghost s0 = seq![row_a@, row_b@, row_c@, row_d@];
+    // Layer L: rows 2 apart, one twiddle for the block.
+    butterfly_lanes(row_a, row_c, t_outer);
+    butterfly_lanes(row_b, row_d, t_outer);
+    let ghost s1 = seq![row_a@, row_b@, row_c@, row_d@];
+    // Layer L+1: adjacent rows, one twiddle per half.
+    butterfly_lanes(row_a, row_b, t_inner_a);
+    butterfly_lanes(row_c, row_d, t_inner_b);
+    let ghost s2 = seq![row_a@, row_b@, row_c@, row_d@];
+    proof {
+        let tw0 = |b: int| t_outer.0;
+        let tw1 = pick2(t_inner_a.0, t_inner_b.0);
+        assert(rows_shape(s1, 4, m) && rows_shape(s2, 4, m));
+        lemma_radix4_layer_a(s0, s1, m, tw0);
+        lemma_radix4_layer_b(s1, s2, m, tw1);
+        if m > 0 {
+            assert(4nat % (2 * 2nat) == 0 && 4nat % (2 * 1nat) == 0) by (compute);
+            lemma_rows_layer(s0, s1, m, 2, tw0);
+            lemma_rows_layer(s1, s2, m, 1, tw1);
+        } else {
+            assert(rows_seq(s2, m) =~= layer2(rows_seq(s0, m), m, 1, t_outer.0, t_inner_a.0, t_inner_b.0));
+        }
+    }
+}
+
+/// The rows of group `off` of a block of four slabs, built as `fused_rows` builds them, through the
+/// radix-4 butterflies: production's `fused_rows` loop body for `N = 4`, written out per row as
+/// [`radix8_group`] is.
+fn radix4_group(
+    base: *mut F64,
+    stride: usize,
+    off: usize,
+    num_ntts: usize,
+    gp: Tracked<Map<int, PointsTo<F64>>>,
+    t_outer: F64,
+    t_inner_a: F64,
+    t_inner_b: F64,
+) -> (res: Tracked<Map<int, PointsTo<F64>>>)
+    requires
+        num_ntts > 0,
+        holds_group(gp@, base, off as int, stride as int, 4, num_ntts as nat),
+    ensures
+        res@.dom() == gp@.dom(),
+        forall|k: int| #[trigger] gp@.dom().contains(k) ==> res@[k].ptr() == gp@[k].ptr() && res@[k].is_init(),
+        group_seq(res@, off as int, stride as int, 4, num_ntts as nat) == layer2(
+            group_seq(gp@, off as int, stride as int, 4, num_ntts as nat),
+            num_ntts as nat,
+            1,
+            t_outer.0,
+            t_inner_a.0,
+            t_inner_b.0,
+        ),
+{
+    let ghost g0 = gp@;
+    let ghost m = num_ntts as nat;
+    let tracked mut gp = gp.get();
+    proof {
+        lemma_row_in_group(g0, base, off as int, stride as int, 4, m, 0);
+        lemma_row_in_group(g0, base, off as int, stride as int, 4, m, 1);
+        lemma_row_in_group(g0, base, off as int, stride as int, 4, m, 2);
+        lemma_row_in_group(g0, base, off as int, stride as int, 4, m, 3);
+    }
+    let tracked mut p0 = take_row(&mut gp, base, (0 * stride + off) as int, m);
+    let tracked mut p1 = take_row(&mut gp, base, (1 * stride + off) as int, m);
+    let tracked mut p2 = take_row(&mut gp, base, (2 * stride + off) as int, m);
+    let tracked mut p3 = take_row(&mut gp, base, (3 * stride + off) as int, m);
+    // SAFETY:
+    // - The groups are disjoint, as argued above.
+    // - The row ends inside its slab, since the row index is below the slab height.
+    let row_a = unsafe { from_raw_parts_mut(base.add(0 * stride + off), num_ntts, Ghost(base), Ghost((0 * stride + off) as int), Tracked(&mut p0)) };
+    let row_b = unsafe { from_raw_parts_mut(base.add(1 * stride + off), num_ntts, Ghost(base), Ghost((1 * stride + off) as int), Tracked(&mut p1)) };
+    let row_c = unsafe { from_raw_parts_mut(base.add(2 * stride + off), num_ntts, Ghost(base), Ghost((2 * stride + off) as int), Tracked(&mut p2)) };
+    let row_d = unsafe { from_raw_parts_mut(base.add(3 * stride + off), num_ntts, Ghost(base), Ghost((3 * stride + off) as int), Tracked(&mut p3)) };
+    let ghost s0 = seq![row_a@, row_b@, row_c@, row_d@];
+    radix4_rows(row_a, row_b, row_c, row_d, t_outer, t_inner_a, t_inner_b);
+    let ghost s2 = seq![row_a@, row_b@, row_c@, row_d@];
+    proof {
+        let fs = seq![p0, p1, p2, p3];
+        let rest = gp;
+        gp.tracked_union_prefer_right(p0);
+        gp.tracked_union_prefer_right(p1);
+        gp.tracked_union_prefer_right(p2);
+        gp.tracked_union_prefer_right(p3);
+        reveal_with_fuel(union_all, 5);
+        assert(gp == union_all(rest, fs, 4));
+        assert forall|i: int| 0 <= i < 4 implies owns(#[trigger] fs[i], base, i * stride + off, m as int) && s2[i] == vals(
+            fs[i],
+            i * stride + off,
+            m as int,
+        ) by {
+            if i == 0 {} else if i == 1 {} else if i == 2 {} else {}
+        }
+        assert forall|i: int, lane: int| 0 <= i < 4 && 0 <= lane < m implies (#[trigger] s0[i][lane]) == g0[i * stride + off + lane].value() by {
+            if i == 0 {} else if i == 1 {} else if i == 2 {} else {}
+        }
+        lemma_group_rows_back(g0, rest, fs, base, off as int, stride as int, 4, m, s0, s2);
+    }
+    Tracked(gp)
+}
+
+/// Group `r` of a block of slabs `stride` words long takes row `r` of every slab: the words whose offset in
+/// their slab, divided by the row width `m`, is `r`.
+pub open spec fn group_owner(stride: int, m: int) -> spec_fn(int) -> int {
+    |k: int| (k % stride) / m
+}
+
+/// The permissions of group `r` of a block: a group as [`holds_group`] describes it.
+proof fn lemma_group_of_block(perms: Map<int, PointsTo<F64>>, base: *mut F64, x: Seq<F64>, n: nat, stride_rows: nat, m: nat, r: int)
+    requires
+        n > 0,
+        m > 0,
+        0 <= r < stride_rows,
+        owns(perms, base, 0, (n * (stride_rows * m)) as int),
+        x.len() == n * (stride_rows * m),
+        n * (stride_rows * m) <= usize::MAX,
+        forall|k: int|
+            0 <= k < x.len() && (group_owner((stride_rows * m) as int, m as int))(k) >= r ==> #[trigger] perms[k].value() == x[k],
+    ensures
+        ({
+            let gp = perms.restrict(keys_of(perms, group_owner((stride_rows * m) as int, m as int), r, r + 1));
+            group_pre(gp, base, r * m, (stride_rows * m) as int, n, m, x)
+        }),
+{
+    let stride = (stride_rows * m) as int;
+    let owner = group_owner(stride, m as int);
+    let gp = perms.restrict(keys_of(perms, owner, r, r + 1));
+    assert(stride > 0) by (nonlinear_arith)
+        requires
+            stride == stride_rows * m,
+            r < stride_rows,
+            r >= 0,
+            m > 0,
+    ;
+    assert(r * m + m <= stride) by (nonlinear_arith)
+        requires
+            stride == stride_rows * m,
+            r + 1 <= stride_rows,
+    ;
+    assert(r * m >= 0) by (nonlinear_arith)
+        requires
+            r >= 0,
+    ;
+    assert forall|k: int| #[trigger] gp.dom().contains(k) <==> 0 <= k < n * stride && r * m <= k % stride < r * m + m by {
+        if 0 <= k {
+            lemma_mod_bound(k, stride);
+            lemma_chunk_keys(k % stride, r, m as int);
+        }
+    }
+    assert((r * m) % (m as int) == 0) by {
+        lemma_mod_multiples_basic(r, m as int);
+    }
+    assert forall|k: int| #[trigger] gp.dom().contains(k) implies gp[k].value() == x[k] by {
+        lemma_mod_bound(k, stride);
+        lemma_chunk_keys(k % stride, r, m as int);
+    }
+}
+
+/// Visit every row group of a fused multi-layer block.
+///
+/// ```text
+///     the block is N slabs of equal height
+///
+///     slab 0:     row 0   row 1   ...   row r   ...
+///     slab 1:     row 0   row 1   ...   row r   ...
+///     ...
+///     slab N-1:   row 0   row 1   ...   row r   ...
+///
+///     group r  =  row r of every slab
+/// ```
+///
+/// # Why the rows are disjoint
+///
+/// - Distinct groups take distinct rows inside each slab.
+/// - The slabs do not overlap.
+/// - So the groups are pairwise disjoint, and one base pointer can stand in for N nested splits.
+///
+/// Verified: group `r` receives exactly the permissions of its rows, taken from the block's; `do_one`
+/// returns them with the values `target`, so the block ends as `target`. Rewritten: production builds the
+/// `N` rows here with `std::array::from_fn` and passes `&mut rows`; Verus supports neither, so `do_one`
+/// receives the base pointer, the stride, the row offset and the group's permissions, and builds the rows
+/// itself ([`radix8_group`], [`radix4_group`]). The `debug_assert_eq!` is a proven `assert`, and the target
+/// is a ghost argument.
+fn fused_rows<const N: usize, F>(block: &mut [F64], stride_rows: usize, num_ntts: usize, do_one: F, Ghost(target): Ghost<Seq<F64>>)
+where
+    F: Fn(*mut F64, usize, usize, Tracked<Map<int, PointsTo<F64>>>) -> Tracked<Map<int, PointsTo<F64>>>,
+    requires
+        N > 0,
+        num_ntts > 0,
+        stride_rows > 0,
+        old(block)@.len() == N * (stride_rows * num_ntts),
+        old(block)@.len() <= usize::MAX,
+        target.len() == old(block)@.len(),
+        forall|base: *mut F64, off: usize, gp: Map<int, PointsTo<F64>>|
+            group_pre(gp, base, off as int, (stride_rows * num_ntts) as int, N as nat, num_ntts as nat, old(block)@)
+                ==> #[trigger] do_one.requires((base, (stride_rows * num_ntts) as usize, off, Tracked(gp))),
+        forall|base: *mut F64, off: usize, gp: Map<int, PointsTo<F64>>, res: Tracked<Map<int, PointsTo<F64>>>|
+            group_pre(gp, base, off as int, (stride_rows * num_ntts) as int, N as nat, num_ntts as nat, old(block)@)
+                && #[trigger] do_one.ensures((base, (stride_rows * num_ntts) as usize, off, Tracked(gp)), res) ==> group_post(
+                res@,
+                gp,
+                target,
+            ),
+    ensures
+        final(block)@ == target,
+{
+    let ghost x0 = block@;
+    let ghost len = x0.len() as int;
+    // Words from one slab to the next.
+    proof {
+        assert(stride_rows * num_ntts <= N * (stride_rows * num_ntts)) by (nonlinear_arith)
+            requires
+                N > 0,
+        ;
+    }
+    let stride = stride_rows * num_ntts;
+    assert(block.len() == N * stride);
+    // Rewritten from `block.as_mut_ptr()`: the pointer comes with the block's permissions.
+    let (base, Tracked(perms)) = slice_as_mut_ptr(block);
+    let ghost owner = group_owner(stride as int, num_ntts as int);
+    for r in 0..stride_rows
+        invariant
+            N > 0,
+            num_ntts > 0,
+            stride == stride_rows * num_ntts,
+            len == N * stride,
+            x0.len() == len,
+            len <= usize::MAX,
+            target.len() == len,
+            owner == group_owner(stride as int, num_ntts as int),
+            owns(*perms, base, 0, len),
+            forall|k: int| 0 <= k < len && owner(k) < r ==> #[trigger] perms[k].value() == target[k],
+            forall|k: int| 0 <= k < len && owner(k) >= r ==> #[trigger] perms[k].value() == x0[k],
+            forall|base: *mut F64, off: usize, gp: Map<int, PointsTo<F64>>|
+                group_pre(gp, base, off as int, stride as int, N as nat, num_ntts as nat, x0)
+                    ==> #[trigger] do_one.requires((base, stride, off, Tracked(gp))),
+            forall|base: *mut F64, off: usize, gp: Map<int, PointsTo<F64>>, res: Tracked<Map<int, PointsTo<F64>>>|
+                group_pre(gp, base, off as int, stride as int, N as nat, num_ntts as nat, x0)
+                    && #[trigger] do_one.ensures((base, stride, off, Tracked(gp)), res) ==> group_post(res@, gp, target),
+    {
+        proof {
+            assert(r * num_ntts < stride) by (nonlinear_arith)
+                requires
+                    r < stride_rows,
+                    stride == stride_rows * num_ntts,
+                    num_ntts > 0,
+            ;
+        }
+        // Row `r` of each slab starts this many words into it.
+        let off = r * num_ntts;
+        let ghost cur = *perms;
+        proof {
+            lemma_group_of_block(cur, base, x0, N as nat, stride_rows as nat, num_ntts as nat, r as int);
+        }
+        let tracked gp = perms.tracked_remove_keys(keys_of(cur, owner, r as int, r + 1));
+        let ghost g = gp;
+        let Tracked(res) = do_one(base, stride, off, Tracked(gp));
+        proof {
+            perms.tracked_union_prefer_right(res);
+            assert(perms.dom() =~= cur.dom());
+            assert forall|k: int| 0 <= k < len implies (#[trigger] perms[k]).ptr() == ptr_at(base, k) && perms[k].is_init() && (owner(k) < r + 1 ==> perms[k].value() == target[k]) && (owner(k) >= r + 1 ==> perms[k].value() == x0[k]) by {
+                if owner(k) == r {
+                    assert(g.dom().contains(k));
+                } else {
+                    assert(!g.dom().contains(k));
+                }
+            }
+        }
+    }
+    proof {
+        assert forall|k: int| 0 <= k < len implies perms[k].value() == target[k] by {
+            lemma_mod_bound(k, stride as int);
+            lemma_div_is_ordered(k % (stride as int), stride as int, num_ntts as int);
+            lemma_div_multiples_vanish(stride_rows as int, num_ntts as int);
+            lemma_mul_is_commutative(stride_rows as int, num_ntts as int);
+            if owner(k) >= stride_rows {
+                lemma_fundamental_div_mod(k % (stride as int), num_ntts as int);
+                lemma_mod_bound(k % (stride as int), num_ntts as int);
+                assert(false) by (nonlinear_arith)
+                    requires
+                        k % (stride as int) == num_ntts * owner(k) + (k % (stride as int)) % (num_ntts as int),
+                        (k % (stride as int)) % (num_ntts as int) >= 0,
+                        owner(k) >= stride_rows,
+                        k % (stride as int) < stride,
+                        stride == stride_rows * num_ntts,
+                        num_ntts > 0,
+                ;
+            }
+        }
+        assert(vals(*perms, 0, len) =~= target);
+    }
+}
+
+/// Layers L, L+1 and L+2 fused into one sweep over a layer-L block.
+///
+/// ```text
+///     a group is 8 rows, e = (block rows) / 8 apart:  r, r + e, ..., r + 7e
+///
+///     layer L     pairs rows 4e apart
+///     layer L+1   pairs rows 2e apart
+///     layer L+2   pairs rows  e apart
+/// ```
+///
+/// - The eight rows stay in L1 across all twelve butterflies.
+/// - The seven twiddles are breadth-first: one for layer L, two for L+1, four for L+2.
+///
+/// The closure builds its group's rows from the permissions `fused_rows` hands it (see [`fused_rows`]).
+fn butterfly_interleaved_fused_3layer(block: &mut [F64], t: &[F64; 7], eighth: usize, num_ntts: usize)
+    requires
+        eighth > 0,
+        num_ntts > 0,
+        old(block)@.len() == 8 * (eighth * num_ntts),
+        old(block)@.len() <= usize::MAX,
+    ensures
+        final(block)@ == layer3(old(block)@, num_ntts as nat, eighth as nat, t@),
+{
+    let ghost x0 = block@;
+    let ghost target = layer3(x0, num_ntts as nat, eighth as nat, t@);
+    proof {
+        lemma_layer3_len(x0, num_ntts as nat, eighth as nat, t@);
+    }
+    fused_rows::<8, _>(
+        block,
+        eighth,
+        num_ntts,
+        |base: *mut F64, stride: usize, off: usize, gp: Tracked<Map<int, PointsTo<F64>>>| -> (res: Tracked<Map<int, PointsTo<F64>>>)
+            requires
+                eighth > 0,
+                num_ntts > 0,
+                stride == eighth * num_ntts,
+                x0.len() == 8 * stride,
+                group_pre(gp@, base, off as int, stride as int, 8, num_ntts as nat, x0),
+            ensures
+                group_post(res@, gp@, layer3(x0, num_ntts as nat, eighth as nat, t@)),
+        {
+            let res = radix8_group(base, stride, off, num_ntts, gp, t);
+            proof {
+                let m = num_ntts as nat;
+                let e = eighth as nat;
+                let r = off / num_ntts;
+                lemma_group_seq(gp@, base, x0, off as int, 8, m, e);
+                lemma_fundamental_div_mod(off as int, num_ntts as int);
+                assert(r < e) by (nonlinear_arith)
+                    requires
+                        off as int == num_ntts * r + (off as int) % (num_ntts as int),
+                        (off as int) % (num_ntts as int) == 0,
+                        off + num_ntts <= stride,
+                        stride == e * num_ntts,
+                        num_ntts > 0,
+                ;
+                assert(x0.len() == 8 * e * m) by (nonlinear_arith)
+                    requires
+                        x0.len() == 8 * stride,
+                        stride == e * m,
+                ;
+                lemma_gather_layer3(x0, m, e, t@, r as int);
+                lemma_layer3_len(x0, m, e, t@);
+                lemma_group_back(gp@, res@, base, layer3(x0, m, e, t@), off as int, 8, m, e);
+            }
+            res
+        },
+        Ghost(target),
+    );
+}
+
+proof fn lemma_layer3_len(x: Seq<F64>, m: nat, e: nat, t: Seq<F64>)
+    ensures
+        layer3(x, m, e, t).len() == x.len(),
+{
+}
+
+proof fn lemma_layer2_len(x: Seq<F64>, m: nat, e: nat, a: u64, b: u64, c: u64)
+    ensures
+        layer2(x, m, e, a, b, c).len() == x.len(),
+{
+}
+
+/// Layers L and L+1 fused into one sweep over a layer-L block, four rows at a time.
+///
+/// The closure builds its group's rows from the permissions `fused_rows` hands it (see [`fused_rows`]);
+/// its four butterflies are [`radix4_rows`].
+fn butterfly_interleaved_fused_2layer(
+    block: &mut [F64],
+    t_outer: F64,
+    t_inner_a: F64,
+    t_inner_b: F64,
+    quarter: usize,
+    num_ntts: usize,
+)
+    requires
+        quarter > 0,
+        num_ntts > 0,
+        old(block)@.len() == 4 * (quarter * num_ntts),
+        old(block)@.len() <= usize::MAX,
+    ensures
+        final(block)@ == layer2(old(block)@, num_ntts as nat, quarter as nat, t_outer.0, t_inner_a.0, t_inner_b.0),
+{
+    let ghost x0 = block@;
+    let ghost target = layer2(x0, num_ntts as nat, quarter as nat, t_outer.0, t_inner_a.0, t_inner_b.0);
+    fused_rows::<4, _>(
+        block,
+        quarter,
+        num_ntts,
+        |base: *mut F64, stride: usize, off: usize, gp: Tracked<Map<int, PointsTo<F64>>>| -> (res: Tracked<Map<int, PointsTo<F64>>>)
+            requires
+                quarter > 0,
+                num_ntts > 0,
+                stride == quarter * num_ntts,
+                x0.len() == 4 * stride,
+                group_pre(gp@, base, off as int, stride as int, 4, num_ntts as nat, x0),
+            ensures
+                group_post(res@, gp@, layer2(x0, num_ntts as nat, quarter as nat, t_outer.0, t_inner_a.0, t_inner_b.0)),
+        {
+            let res = radix4_group(base, stride, off, num_ntts, gp, t_outer, t_inner_a, t_inner_b);
+            proof {
+                let m = num_ntts as nat;
+                let e = quarter as nat;
+                let r = off / num_ntts;
+                lemma_group_seq(gp@, base, x0, off as int, 4, m, e);
+                lemma_fundamental_div_mod(off as int, num_ntts as int);
+                assert(r < e) by (nonlinear_arith)
+                    requires
+                        off as int == num_ntts * r + (off as int) % (num_ntts as int),
+                        (off as int) % (num_ntts as int) == 0,
+                        off + num_ntts <= stride,
+                        stride == e * num_ntts,
+                        num_ntts > 0,
+                ;
+                assert(x0.len() == 4 * e * m) by (nonlinear_arith)
+                    requires
+                        x0.len() == 4 * stride,
+                        stride == e * m,
+                ;
+                lemma_gather_layer2(x0, m, e, t_outer.0, t_inner_a.0, t_inner_b.0, r as int);
+                lemma_layer2_len(x0, m, e, t_outer.0, t_inner_a.0, t_inner_b.0);
+                lemma_group_back(gp@, res@, base, layer2(x0, m, e, t_outer.0, t_inner_a.0, t_inner_b.0), off as int, 4, m, e);
+            }
+            res
+        },
+        Ghost(target),
+    );
+}
+
+/// One layer on one block of `2 * block_size_half` rows.
+///
+/// Rewritten: the `split_at_mut` halves are bound to their lengths once more for the proof (no exec change).
+#[inline]
+fn butterfly_interleaved_block(block: &mut [F64], twiddle: F64, block_size_half: usize, num_ntts: usize)
+    requires
+        num_ntts > 0,
+        block_size_half > 0,
+        old(block)@.len() == 2 * (block_size_half * num_ntts),
+        old(block)@.len() <= usize::MAX,
+    ensures
+        final(block)@ == layer_map(old(block)@, num_ntts as nat, block_size_half as nat, |b: int| twiddle.0, false),
+{
+    let ghost x0 = block@;
+    let ghost m = num_ntts as int;
+    let ghost h = block_size_half as int;
+    proof {
+        assert(block_size_half * num_ntts <= 2 * (block_size_half * num_ntts)) by (nonlinear_arith);
+    }
+    let half_offset = block_size_half * num_ntts;
+    let (top, bot) = block.split_at_mut(half_offset);
+    let ghost (top0, bot0) = (top@, bot@);
+    assert(0 * m == 0);
+    for r in 0..block_size_half
+        invariant
+            m == num_ntts,
+            h == block_size_half,
+            m > 0,
+            half_offset == h * m,
+            top0.len() == half_offset,
+            bot0.len() == half_offset,
+            top@.len() == half_offset,
+            bot@.len() == half_offset,
+            forall|p: int|
+                0 <= p < r * m ==> (#[trigger] top@[p]).0 == bf_top(top0[p].0, bot0[p].0, twiddle.0) && bot@[p].0 == bf_bot(
+                    top0[p].0,
+                    bot0[p].0,
+                    twiddle.0,
+                ),
+            forall|p: int| r * m <= p < half_offset ==> #[trigger] top@[p] == top0[p] && bot@[p] == bot0[p],
+    {
+        proof {
+            assert((r + 1) * m <= h * m) by (nonlinear_arith)
+                requires
+                    r + 1 <= h,
+                    m > 0,
+            ;
+            assert((r + 1) * m == r * m + m) by (nonlinear_arith);
+        }
+        let off = r * num_ntts;
+        let ghost (t1, b1) = (top@, bot@);
+        butterfly_lanes(&mut top[off..off + num_ntts], &mut bot[off..off + num_ntts], twiddle);
+        proof {
+            assert forall|p: int| 0 <= p < (r + 1) * m implies (#[trigger] top@[p]).0 == bf_top(top0[p].0, bot0[p].0, twiddle.0)
+                && bot@[p].0 == bf_bot(top0[p].0, bot0[p].0, twiddle.0) by {
+                if p >= r * m {
+                    let j = p - off;
+                    assert(top@[p] == top@.subrange(off as int, off + m)[j]);
+                    assert(bot@[p] == bot@.subrange(off as int, off + m)[j]);
+                    assert(t1.subrange(off as int, off + m)[j] == t1[p]);
+                    assert(b1.subrange(off as int, off + m)[j] == b1[p]);
+                    assert((top@.subrange(off as int, off + m)[j].0, bot@.subrange(off as int, off + m)[j].0) == butterfly_spec(
+                        false,
+                        t1.subrange(off as int, off + m)[j].0,
+                        b1.subrange(off as int, off + m)[j].0,
+                        twiddle.0,
+                    ));
+                } else {
+                    assert(top@[p] == top@.subrange(0, off as int)[p]);
+                    assert(bot@[p] == bot@.subrange(0, off as int)[p]);
+                }
+            }
+            assert forall|p: int| (r + 1) * m <= p < half_offset implies #[trigger] top@[p] == top0[p] && bot@[p] == bot0[p] by {
+                assert(top@[p] == top@.subrange(off + m, half_offset as int)[p - off - m]);
+                assert(bot@[p] == bot@.subrange(off + m, half_offset as int)[p - off - m]);
+            }
+        }
+    }
+    proof {
+        let y = layer_map(x0, num_ntts as nat, block_size_half as nat, |b: int| twiddle.0, false);
+        assert(x0 == top0 + bot0);
+        let fin = top@ + bot@;
+        assert forall|p: int| 0 <= p < x0.len() implies fin[p] == y[p] by {
+            lemma_split_word(p, m);
+            let row = p / m;
+            assert(row < 2 * h) by (nonlinear_arith)
+                requires
+                    p == row * m + p % m,
+                    p % m >= 0,
+                    p < 2 * (h * m),
+                    m > 0,
+            ;
+            lemma_small_div(row, 2 * h);
+            assert(row_of(p, num_ntts as nat) == row);
+            assert(blk_of(p, num_ntts as nat, block_size_half as nat) == 0);
+            assert(r_of(p, num_ntts as nat, block_size_half as nat) == row);
+            if row < h {
+                assert(p < h * m) by (nonlinear_arith)
+                    requires
+                        p == row * m + p % m,
+                        p % m < m,
+                        row + 1 <= h,
+                ;
+                assert(x0[p + h * m] == bot0[p]);
+                assert(x0[p] == top0[p]);
+                assert(fin[p] == top@[p]);
+                assert(top@[p].0 == bf_top(top0[p].0, bot0[p].0, twiddle.0));
+                assert(y[p] == F64(bf_top(x0[p].0, x0[p + h * m].0, twiddle.0)));
+            } else {
+                assert(p >= h * m) by (nonlinear_arith)
+                    requires
+                        p == row * m + p % m,
+                        p % m >= 0,
+                        row >= h,
+                        m > 0,
+                ;
+                assert(x0[p - h * m] == top0[p - h * m]);
+                assert(x0[p] == bot0[p - h * m]);
+                assert(fin[p] == bot@[p - h * m]);
+                assert(top@[p - h * m].0 == bf_top(top0[p - h * m].0, bot0[p - h * m].0, twiddle.0));
+                assert(bot@[p - h * m].0 == bf_bot(top0[p - h * m].0, bot0[p - h * m].0, twiddle.0));
+                assert(y[p] == F64(bf_bot(x0[p - h * m].0, x0[p].0, twiddle.0)));
+            }
+        }
+        assert(fin =~= y);
+    }
+}
+
+/// A row below the block size is in block 0, at itself.
+proof fn lemma_small_div(row: int, n: int)
+    requires
+        0 <= row < n,
+    ensures
+        row / n == 0,
+        row % n == row,
+{
+    lemma_fundamental_div_mod_converse(row, n, 0, row);
+}
+
 } // verus!
