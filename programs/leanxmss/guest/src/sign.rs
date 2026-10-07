@@ -46,7 +46,7 @@ pub fn key_gen(seed: [u8; 32], leaf_index: LeafIndex) -> (SecretKey, PublicKey) 
     });
     // Its path is all fillers, which the root is the fold of.
     let merkle_root = merkle_root(
-        pp,
+        &mut merkle_template(pp),
         leaf_index,
         &parent_indices(leaf_index),
         leaf,

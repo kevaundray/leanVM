@@ -131,12 +131,17 @@ pub fn verify(
 }
 
 /// A verifier of many signatures, which keeps what depends on the leaf index alone for the next signature at the same
-/// one: signers attesting to one slot all sign at one leaf index.
+/// one (signers attesting to one slot all sign at one leaf index), and its hash templates, whose fixed words it writes
+/// once.
 pub struct Verifier {
     /// The leaf index `parents` is for, or one no `LeafIndex` is before the first signature.
     leaf_index: u64,
     /// The tweak index at each Merkle level: the parent's index, `leaf_index >> (level + 1)`.
     parents: [u64; LOG_LIFETIME],
+    /// The chain step's template, its tweak at leaf index `leaf_index`: a signature writes only its parameter.
+    chains: Chains,
+    /// The Merkle node's template: a signature writes only its parameter, and each level its tweak's fields.
+    node: Template<8>,
 }
 
 impl Default for Verifier {
@@ -146,10 +151,12 @@ impl Default for Verifier {
 }
 
 impl Verifier {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             leaf_index: u64::MAX,
             parents: [0; LOG_LIFETIME],
+            chains: Chains::new(&[0; 2], 0),
+            node: merkle_template(&[0; 2]),
         }
     }
 
@@ -166,29 +173,28 @@ impl Verifier {
         let digits = encode(pp, leaf_index, message, &signature.randomness).ok_or(XmssVerifyError::InvalidEncoding)?;
         // Walk each chain the rest of the way, chain `i` from value `digit_i` to value 7: its end is the leaf's. The
         // leaf takes the chains one by one, unrolled, so each position is a constant.
-        let mut chains = Chains::new(pp, leaf_index);
+        let bits = u64::from(leaf_index);
+        if self.leaf_index != bits {
+            self.leaf_index = bits;
+            self.parents = parent_indices(leaf_index);
+            self.chains.step.set(1, [bits << 32]);
+        }
+        let Self {
+            parents, chains, node, ..
+        } = self;
+        chains.step.set(2, *pp);
+        node.set(2, *pp);
         let (mut remaining, mut counter) = (Remaining::new(digits), Chains::counter());
         let leaf = wots_leaf(pp, leaf_index, |i| {
             chains.walk_to_end(&mut counter, remaining.next(i), signature.chain_tips[i])
         });
         // The chain ends are the one-time public key: its leaf, folded up to the root.
-        let root = merkle_root(pp, leaf_index, self.parents(leaf_index), leaf, &signature.merkle_proof);
+        let root = merkle_root(node, leaf_index, parents, leaf, &signature.merkle_proof);
         if root == pk.merkle_root {
             Ok(())
         } else {
             Err(XmssVerifyError::InvalidMerklePath)
         }
-    }
-
-    /// The tweak index at each Merkle level for `leaf_index`, computed only when it is not the last one's.
-    #[inline(always)]
-    fn parents(&mut self, leaf_index: LeafIndex) -> &[u64; LOG_LIFETIME] {
-        let bits = u64::from(leaf_index);
-        if self.leaf_index != bits {
-            self.leaf_index = bits;
-            self.parents = parent_indices(leaf_index);
-        }
-        &self.parents
     }
 }
 
@@ -277,7 +283,7 @@ impl Digits {
 struct Remaining([u64; 6]);
 
 impl Remaining {
-    fn new(Digits([low, high]): Digits) -> Self {
+    const fn new(Digits([low, high]): Digits) -> Self {
         let (low, high) = (!low, !high);
         Self([low << 32, low << 2, low >> 1, high << 32, high << 2, high >> 1])
     }
@@ -384,24 +390,30 @@ fn wots_leaf(pp: &PublicParam, leaf_index: LeafIndex, mut end: impl FnMut(usize)
 /// Fold a leaf, at index `leaf_index`, up its authentication path: each node `tweak | pp | left | right`, `parents`
 /// the tweak index at each level.
 ///
-/// Unrolled, so each level's tweak position and shifts are constants and the loop bookkeeping is gone. Across levels
-/// only the tweak's position and index fields change, so each is one 32-bit store.
+/// Unrolled, so each level's shifts are constants and the loop bookkeeping is gone. Across levels only the tweak's
+/// fields change: its first word, the position in its high half, is one 64-bit store of a running sum, and its index
+/// one 32-bit store.
 fn merkle_root(
-    pp: &PublicParam,
+    node: &mut Template<8>,
     leaf_index: LeafIndex,
     parents: &[u64; LOG_LIFETIME],
     leaf: Digest,
     path: &[Digest; LOG_LIFETIME],
 ) -> Digest {
     const { assert!(LOG_LIFETIME == 32, "one node a level below") };
-    let [t0, t1] = tweak(TWEAK_MERKLE, 0, 0);
-    let mut node = Template::new([t0, t1, pp[0], pp[1], 0, 0, 0, 0]);
     let (bits, mut child) = (u64::from(leaf_index), leaf);
+    let (mut first, one) = (tweak(TWEAK_MERKLE, 0, 0)[0], opaque(1 << 32));
     macro_rules! levels {
-        ($($level:literal)*) => { $( child = merkle_node::<$level>(&mut node, bits, parents, child, &path[$level]); )* };
+        ($($level:literal)*) => { $( first = opaque(first + one); child = merkle_node::<$level>(node, bits, first, parents, child, &path[$level]); )* };
     }
     levels!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31);
     child
+}
+
+/// The Merkle node's template under a parameter: its tweak's fields are written at each level.
+fn merkle_template(pp: &PublicParam) -> Template<8> {
+    let [t0, t1] = tweak(TWEAK_MERKLE, 0, 0);
+    Template::new([t0, t1, pp[0], pp[1], 0, 0, 0, 0])
 }
 
 /// The tweak index at each Merkle level for a leaf index: the parent's index, `leaf_index >> (level + 1)`.
@@ -413,8 +425,8 @@ fn parent_indices(leaf_index: LeafIndex) -> [u64; LOG_LIFETIME] {
 /// Bytes 12..16 of a tweak: its index.
 const TWEAK_INDEX: usize = 12;
 
-/// The parent of `child` at level `LEVEL`, the leaves being level 0, and its `sibling`, `bits` the leaf index and
-/// `parents` the tweak index at each level.
+/// The parent of `child` at level `LEVEL`, the leaves being level 0, and its `sibling`, `bits` the leaf index, `first`
+/// the tweak's first word at this level and `parents` the tweak index at each level.
 ///
 /// Bit `LEVEL` of the leaf index is the child's side: the child and the sibling go to the slots it picks, with no
 /// branch. The side is kept in bytes, a multiple of a word, so turning it into an address takes no shift: from level 5
@@ -423,6 +435,7 @@ const TWEAK_INDEX: usize = 12;
 fn merkle_node<const LEVEL: usize>(
     node: &mut Template<8>,
     bits: u64,
+    first: u64,
     parents: &[u64; LOG_LIFETIME],
     child: Digest,
     sibling: &Digest,
@@ -433,7 +446,7 @@ fn merkle_node<const LEVEL: usize>(
         bits << 4 >> LEVEL & 16
     } as usize;
     // The parent is at the next level up, at half the index.
-    node.write(TWEAK_POSITION, (LEVEL + 1) as u32);
+    node.write(0, first);
     node.write(TWEAK_INDEX, parents[LEVEL] as u32);
     node.write(8 * PAYLOAD + side, child);
     node.write(8 * PAYLOAD + 16 - side, *sibling);
