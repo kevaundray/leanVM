@@ -988,6 +988,7 @@ pub open spec fn unpack1_src(k: int) -> int {
 
 /// The two unpack rounds of [`gather_columns_avx2`] put input byte [`unpacked_src`] at each byte.
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[verifier::rlimit(30)]
 proof fn lemma_unpack_rounds(
     input: [u8; 64],
     v0: __m256i,

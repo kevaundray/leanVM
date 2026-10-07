@@ -765,6 +765,7 @@ pub proof fn lemma_ifft_after_fft(v: Seq<F8>, tw: Seq<F8>, idx: int)
 }
 
 /// The forward transform undoes the inverse one, for every twiddle table and every buffer.
+#[verifier::rlimit(30)]
 pub proof fn lemma_fft_after_ifft(v: Seq<F8>, tw: Seq<F8>, idx: int)
     ensures
         fft_spec(ifft_spec(v, tw, idx), tw, idx) == v,

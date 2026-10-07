@@ -215,6 +215,7 @@ Over the field of `src/gf2_8.rs`, with the standard basis `b_i = x^i` (the byte 
 
 - `step_block(scalars, tag)` and `builder_step_message`, a value-level model of the message the circuit's `Builder::step` hashes, put the last scalar in words 4 to 6, the preceding scalar (if present) in words 0 to 2, the count in word 3 and the tag in word 7, with zero elsewhere (`block_word`). For equal scalar/tag inputs these models produce the same block. This does not prove the circuit constraints bind its wires to those inputs.
 - On the domain production takes (at most `MAX_PENDING = 2` scalars, longer slices panic) the block names its scalars and its tag (`lemma_step_block_decodes`), so two steps with the same block absorb the same scalars, so the same count, under the same tag (`lemma_step_block_injective`). This holds for every tag word; the four `DS_*` tags are pairwise distinct (`lemma_tags_distinct`).
+- This is injectivity of the current two-scalar step encoding, not a security theorem for the Fiat-Shamir transform or a proof about any replacement transcript or duplex design.
 
 ### The equality polynomial and multilinear evaluation (`src/multilinear.rs`)
 

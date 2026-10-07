@@ -3191,14 +3191,14 @@ impl AdditiveNttF64 {
                             assert(own0.dom().contains(k));
                         }
                     }
+                    assert(lo0 >= 0) by (nonlinear_arith)
+                        requires r >= 0, i >= 0, stp > 0, m > 0, lo0 == (r + i * stp) * m;
                     if !in_place {
                         lemma_mul_le(lo0 + m, rws * stp * m, size_of::<F64>() as int);
                         lemma_mul_le(lo0, rws * stp * m, size_of::<F64>() as int);
                         assert(covers(*mperms, mp.0, lo0, m as int));
                     } else {
                         assert(mp.0 == base.0);
-                        assert(lo0 >= 0) by (nonlinear_arith)
-                            requires r >= 0, i >= 0, stp > 0, m > 0, lo0 == (r + i * stp) * m;
                         assert forall|k: int| lo0 <= k < lo0 + m implies
                             #[trigger] own.dom().contains(k) && own[k].ptr() == ptr_at(mp.0, k) && own[k].is_init() by {
                             let lane = k - lo0;
@@ -3536,7 +3536,7 @@ impl AdditiveNttF64 {
                 let tracked mut own = tp.get();
                 let ghost before = own;
                 proof {
-                    lemma_fundamental_div_mod(t as int, step as int);
+                    lemma_split_word(t as int, step as int);
                     assert(block < blocks) by (nonlinear_arith)
                         requires t == block * step + r, r >= 0, t < blocks * step, step > 0;
                     assert forall|q: int| 0 <= q < rows * m implies own.dom().contains(
