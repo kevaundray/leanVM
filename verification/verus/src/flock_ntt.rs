@@ -1479,4 +1479,743 @@ impl AdditiveNttGf8 {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// The single-table collapse of `M = forward_Λ ∘ inverse_S` (`ntt/inv_table.rs`)
+// ---------------------------------------------------------------------------------------------
+/// `XOR_{j < n} f(j)`.
+pub open spec fn xor_sum8(f: spec_fn(int) -> u8, n: nat) -> u8
+    decreases n,
+{
+    if n == 0 {
+        0
+    } else {
+        xor_sum8(f, (n - 1) as nat) ^ f(n - 1)
+    }
+}
+
+/// Bit `t < 8` of the byte `w`.
+pub open spec fn byte_bit(w: usize, t: int) -> bool {
+    0 <= t < 8 && (w >> (t as usize)) & 1 == 1
+}
+
+/// Word `i` of row `w` of the table: `Σ_{t < 8, bit_t(w) = 1} M[i][t]`, the XOR of the columns `t < 8` of `M`
+/// over the set bits of `w`.
+pub open spec fn table_row(tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, w: usize, i: int) -> u8 {
+    xor_sum8(|t: int| if byte_bit(w, t) { lde_column(tw_s, tw_l, n, t)[i].0 } else { 0 }, 8)
+}
+
+/// Word `i` of `M x`, `x` the bits of `bytes` (bit `t` of byte `b` is `x_(8b+t)`): `Σ_{j < 8 len} x_j M[i][j]`.
+pub open spec fn lde_apply(tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, bytes: Seq<u8>, i: int) -> u8 {
+    xor_sum8(
+        |j: int| if byte_bit(bytes[j / 8] as usize, j % 8) { lde_column(tw_s, tw_l, n, j)[i].0 } else { 0 },
+        8 * bytes.len(),
+    )
+}
+
+/// What `apply_scalar` computes at word `i`: `Σ_b T[bytes[b]][i ⊕ 8b]`, `T` the table of `ell`-word rows.
+pub open spec fn apply_formula(data: Seq<F8>, ell: nat, bytes: Seq<u8>, i: int) -> u8 {
+    xor_sum8(|b: int| data[(bytes[b] as int) * ell + (((i as usize) ^ ((8 * b) as usize)) as int)].0, bytes.len())
+}
+
+proof fn lemma_xor_sum8_ext(f: spec_fn(int) -> u8, g: spec_fn(int) -> u8, n: nat)
+    requires
+        forall|j: int| 0 <= j < n ==> #[trigger] f(j) == g(j),
+    ensures
+        xor_sum8(f, n) == xor_sum8(g, n),
+    decreases n,
+{
+    if n > 0 {
+        lemma_xor_sum8_ext(f, g, (n - 1) as nat);
+    }
+}
+
+/// Changing one term of a sum by `c` changes the sum by `c`.
+proof fn lemma_xor_sum8_one_term(f: spec_fn(int) -> u8, g: spec_fn(int) -> u8, n: nat, t: int, c: u8)
+    requires
+        0 <= t < n,
+        forall|j: int| 0 <= j < n && j != t ==> #[trigger] f(j) == g(j),
+        f(t) == g(t) ^ c,
+    ensures
+        xor_sum8(f, n) == xor_sum8(g, n) ^ c,
+    decreases n,
+{
+    let (a, b) = (xor_sum8(f, (n - 1) as nat), xor_sum8(g, (n - 1) as nat));
+    if t == n - 1 {
+        lemma_xor_sum8_ext(f, g, (n - 1) as nat);
+        let x = g(t);
+        assert(a ^ (x ^ c) == (a ^ x) ^ c) by (bit_vector);
+    } else {
+        lemma_xor_sum8_one_term(f, g, (n - 1) as nat, t, c);
+        let x = f(n - 1);
+        assert((b ^ c) ^ x == (b ^ x) ^ c) by (bit_vector);
+    }
+}
+
+/// A sum of zeros is zero.
+proof fn lemma_xor_sum8_zero(f: spec_fn(int) -> u8, n: nat)
+    requires
+        forall|j: int| 0 <= j < n ==> #[trigger] f(j) == 0,
+    ensures
+        xor_sum8(f, n) == 0,
+    decreases n,
+{
+    if n > 0 {
+        lemma_xor_sum8_zero(f, (n - 1) as nat);
+        assert(0u8 ^ 0u8 == 0u8) by (bit_vector);
+    }
+}
+
+/// `Σ_{j < a + c} f(j) = Σ_{j < a} f(j) + Σ_{t < c} f(a + t)`.
+proof fn lemma_xor_sum8_split(f: spec_fn(int) -> u8, a: nat, c: nat)
+    ensures
+        xor_sum8(f, a + c) == xor_sum8(f, a) ^ xor_sum8(|t: int| f(a + t), c),
+    decreases c,
+{
+    let g = |t: int| f(a + t);
+    if c == 0 {
+        let x = xor_sum8(f, a);
+        assert(x ^ 0u8 == x) by (bit_vector);
+    } else {
+        lemma_xor_sum8_split(f, a, (c - 1) as nat);
+        assert(xor_sum8(f, a + c) == xor_sum8(f, (a + c - 1) as nat) ^ f(a + c - 1));
+        assert(g(c - 1) == f(a + c - 1));
+        let (x, y, z) = (xor_sum8(f, a), xor_sum8(g, (c - 1) as nat), f(a + c - 1));
+        assert((x ^ y) ^ z == x ^ (y ^ z)) by (bit_vector);
+    }
+}
+
+/// A sum over `8 n` terms, regrouped by bytes: `Σ_{j < 8n} f(j) = Σ_{b < n} Σ_{t < 8} f(8b + t)`.
+proof fn lemma_xor_sum8_bytes(f: spec_fn(int) -> u8, n: nat)
+    ensures
+        xor_sum8(f, 8 * n) == xor_sum8(|b: int| xor_sum8(|t: int| f(8 * b + t), 8), n),
+    decreases n,
+{
+    if n > 0 {
+        let m = (n - 1) as nat;
+        lemma_xor_sum8_bytes(f, m);
+        lemma_xor_sum8_split(f, 8 * m, 8);
+        assert(8 * m + 8 == 8 * n);
+        lemma_xor_sum8_ext(|t: int| f(8 * m + t), |t: int| f(8 * (n - 1) + t), 8);
+    }
+}
+
+/// Flipping a set bit `t` of `w` removes column `t` from row `w`.
+proof fn lemma_table_row_flip(tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, w: usize, t: usize, i: int)
+    requires
+        t < 8,
+        (w >> t) & 1 == 1,
+    ensures
+        table_row(tw_s, tw_l, n, w, i) == table_row(tw_s, tw_l, n, w ^ (1usize << t), i) ^ lde_column(
+            tw_s,
+            tw_l,
+            n,
+            t as int,
+        )[i].0,
+{
+    let w2 = w ^ (1usize << t);
+    let f = |t0: int| if byte_bit(w, t0) { lde_column(tw_s, tw_l, n, t0)[i].0 } else { 0 };
+    let g = |t0: int| if byte_bit(w2, t0) { lde_column(tw_s, tw_l, n, t0)[i].0 } else { 0 };
+    assert forall|j: int| 0 <= j < 8 && j != t implies #[trigger] f(j) == g(j) by {
+        let ju = j as usize;
+        assert(((w ^ (1usize << t)) >> ju) & 1 == (w >> ju) & 1) by (bit_vector)
+            requires
+                ju < 8,
+                t < 8,
+                ju != t,
+        ;
+    }
+    assert(((w ^ (1usize << t)) >> t) & 1 == 0) by (bit_vector)
+        requires
+            t < 8,
+            (w >> t) & 1 == 1,
+    ;
+    let c = lde_column(tw_s, tw_l, n, t as int)[i].0;
+    assert(0u8 ^ c == c) by (bit_vector);
+    lemma_xor_sum8_one_term(f, g, 8, t as int, c);
+}
+
+/// Row `0` is zero, and row `2^t` is column `t`.
+proof fn lemma_table_row_units(tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, t: usize, i: int)
+    requires
+        t < 8,
+    ensures
+        table_row(tw_s, tw_l, n, 0, i) == 0,
+        table_row(tw_s, tw_l, n, 1usize << t, i) == lde_column(tw_s, tw_l, n, t as int)[i].0,
+{
+    let f = |t0: int| if byte_bit(0, t0) { lde_column(tw_s, tw_l, n, t0)[i].0 } else { 0 };
+    assert forall|j: int| 0 <= j < 8 implies #[trigger] f(j) == 0 by {
+        let ju = j as usize;
+        assert((0usize >> ju) & 1 == 0) by (bit_vector);
+    }
+    lemma_xor_sum8_zero(f, 8);
+    let w = 1usize << t;
+    assert((w >> t) & 1 == 1 && w ^ (1usize << t) == 0) by (bit_vector)
+        requires
+            t < 8,
+            w == 1usize << t,
+    ;
+    lemma_table_row_flip(tw_s, tw_l, n, w, t, i);
+    let c = lde_column(tw_s, tw_l, n, t as int)[i].0;
+    assert(0u8 ^ c == c) by (bit_vector);
+}
+
+/// XOR of indices below `2^8`, as bytes or as words.
+proof fn lemma_xor_index(i: int, j: int)
+    requires
+        0 <= i < 256,
+        0 <= j < 256,
+    ensures
+        (((i as u8) ^ (j as u8)) as int) == (((i as usize) ^ (j as usize)) as int),
+{
+    let (x, y) = (i as usize, j as usize);
+    assert(x < 256 && y < 256 ==> ((x as u8) ^ (y as u8)) as usize == x ^ y) by (bit_vector);
+    assert(x as u8 == i as u8 && y as u8 == j as u8);
+}
+
+/// `apply_scalar`'s sum is `M` applied to the row's bits: with the table of two `2^k`-point NTTs (offsets `β_s`
+/// and `β_l`), `Σ_b T[bytes[b]][i ⊕ 8b] = Σ_j x_j M[i][j]`. Each byte's row read at `i ⊕ 8b` is the sum of the
+/// columns `8b + t` by [`lemma_lde_shift`].
+pub proof fn lemma_apply_formula(
+    tw_s: Seq<F8>,
+    tw_l: Seq<F8>,
+    k: nat,
+    beta_s: u8,
+    beta_l: u8,
+    data: Seq<F8>,
+    bytes: Seq<u8>,
+    i: int,
+)
+    requires
+        twiddles_of(tw_s, k, beta_s),
+        twiddles_of(tw_l, k, beta_l),
+        3 <= k <= 7,
+        data.len() == 256 * pow2(k),
+        forall|w: int, i0: int|
+            0 <= w < 256 && 0 <= i0 < pow2(k) ==> (#[trigger] data[w * pow2(k) + i0]).0 == table_row(
+                tw_s,
+                tw_l,
+                pow2(k),
+                w as usize,
+                i0,
+            ),
+        8 * bytes.len() == pow2(k),
+        0 <= i < pow2(k),
+    ensures
+        apply_formula(data, pow2(k), bytes, i) == lde_apply(tw_s, tw_l, pow2(k), bytes, i),
+{
+    let n = pow2(k);
+    let nc = bytes.len();
+    lemma_pow2_le_256(k);
+    lemma_usize_shl_is_mul(1, k as usize);
+    let ku = k as usize;
+    assert(n == (1usize << ku));
+    let f = |j: int| if byte_bit(bytes[j / 8] as usize, j % 8) { lde_column(tw_s, tw_l, n, j)[i].0 } else { 0 };
+    lemma_xor_sum8_bytes(f, nc);
+    let lhs = |b: int| data[(bytes[b] as int) * n + (((i as usize) ^ ((8 * b) as usize)) as int)].0;
+    let rhs = |b: int| xor_sum8(|t: int| f(8 * b + t), 8);
+    assert forall|b: int| 0 <= b < nc implies #[trigger] lhs(b) == rhs(b) by {
+        let w = bytes[b] as usize;
+        let (iu, sh) = (i as usize, (8 * b) as usize);
+        assert(8 * b < n);
+        assert(iu < (1usize << ku) && sh < (1usize << ku) ==> (iu ^ sh) < (1usize << ku)) by (bit_vector)
+            requires
+                ku < 64,
+        ;
+        let ip = (iu ^ sh) as int;
+        assert(lhs(b) == table_row(tw_s, tw_l, n, w, ip));
+        let g = |t: int| if byte_bit(w, t) { lde_column(tw_s, tw_l, n, t)[ip].0 } else { 0 };
+        assert forall|t: int| 0 <= t < 8 implies #[trigger] g(t) == f(8 * b + t) by {
+            let j = 8 * b + t;
+            assert(j / 8 == b && j % 8 == t);
+            lemma_lde_shift(tw_s, tw_l, k, beta_s, beta_l, ip, t);
+            lemma_lde_shift(tw_s, tw_l, k, beta_s, beta_l, i, j);
+            lemma_xor_index(ip, t);
+            lemma_xor_index(i, j);
+            let (tu, bu, ju) = (t as usize, b as usize, j as usize);
+            assert(pow2(3) == 8) by {
+                lemma2_to64();
+            }
+            lemma_usize_shl_is_mul(bu, 3);
+            assert(sh == bu << 3usize);
+            assert(ju == add(bu << 3usize, tu));
+            assert(((iu ^ sh) ^ tu) == (iu ^ ju)) by (bit_vector)
+                requires
+                    sh == bu << 3usize,
+                    ju == add(bu << 3usize, tu),
+                    tu < 8,
+                    bu < 256,
+            ;
+        }
+        lemma_xor_sum8_ext(g, |t: int| f(8 * b + t), 8);
+    }
+    lemma_xor_sum8_ext(lhs, rhs, nc);
+}
+
+/// Row `w` of `data` (rows of `n` words) is row `w` of the table.
+pub open spec fn row_ok(data: Seq<F8>, tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, w: int) -> bool {
+    forall|i: int| 0 <= i < n ==> (#[trigger] data[w * n + i]).0 == table_row(tw_s, tw_l, n, w as usize, i)
+}
+
+/// Rows of `n` words do not overlap.
+proof fn lemma_row_disjoint(w0: int, i: int, r: int, n: nat)
+    requires
+        0 <= w0,
+        0 <= r,
+        0 <= i < n,
+        w0 != r,
+    ensures
+        !(r * n <= w0 * n + i < r * n + n),
+{
+    if w0 < r {
+        assert(w0 * n + i < r * n) by (nonlinear_arith)
+            requires
+                w0 + 1 <= r,
+                i < n,
+        ;
+    } else {
+        assert(w0 * n + i >= r * n + n) by (nonlinear_arith)
+            requires
+                w0 >= r + 1,
+                i >= 0,
+        ;
+    }
+}
+
+/// Writing row `r` keeps every other row.
+proof fn lemma_row_kept(before: Seq<F8>, after: Seq<F8>, tw_s: Seq<F8>, tw_l: Seq<F8>, n: nat, r: int, w0: int)
+    requires
+        0 <= r < 256,
+        0 <= w0 < 256,
+        w0 != r,
+        before.len() == 256 * n,
+        after.len() == 256 * n,
+        row_ok(before, tw_s, tw_l, n, w0),
+        forall|q: int| 0 <= q < after.len() && !(r * n <= q < r * n + n) ==> #[trigger] after[q] == before[q],
+    ensures
+        row_ok(after, tw_s, tw_l, n, w0),
+{
+    assert forall|i: int| 0 <= i < n implies (#[trigger] after[w0 * n + i]).0 == table_row(tw_s, tw_l, n, w0 as usize, i) by {
+        lemma_row_disjoint(w0, i, r, n);
+        assert(w0 * n + i < 256 * n) by (nonlinear_arith)
+            requires
+                w0 < 256,
+                i < n,
+        ;
+        assert(0 <= w0 * n + i) by (nonlinear_arith)
+            requires
+                w0 >= 0,
+                i >= 0,
+        ;
+        assert(before[w0 * n + i].0 == table_row(tw_s, tw_l, n, w0 as usize, i));
+    }
+}
+
+/// A byte with one bit set is a power of two.
+proof fn lemma_byte_pow2(w0: usize)
+    requires
+        1 <= w0 < 256,
+        w0 & sub(w0, 1) == 0,
+    ensures
+        exists|t0: usize| t0 < 8 && w0 == 1usize << t0,
+{
+    broadcast use vstd::std_specs::bits::axiom_u64_trailing_zeros;
+    let wl = w0 as u64;
+    let z = vstd::std_specs::bits::u64_trailing_zeros(wl) as u64;
+    assert(z < 64 && (wl >> z) & 1u64 == 1u64 && wl << sub(64, z) == 0);
+    assert(z < 8 && w0 == 1usize << (z as usize)) by (bit_vector)
+        requires
+            wl == w0 as u64,
+            z < 64,
+            (wl >> z) & 1u64 == 1u64,
+            wl << sub(64, z) == 0,
+            w0 & sub(w0, 1) == 0,
+            w0 < 256,
+    ;
+    assert((z as usize) < 8 && w0 == 1usize << (z as usize));
+}
+
+/// The lowest set bit of a nonzero byte, as `w.trailing_zeros()` finds it: below 8, set, and clearing it
+/// lowers `w`.
+proof fn lemma_low_bit(w: usize)
+    requires
+        1 <= w < 256,
+    ensures
+        ({
+            let z = vstd::std_specs::bits::u64_trailing_zeros(w as u64) as usize;
+            &&& z < 8
+            &&& (w >> z) & 1 == 1
+            &&& (w ^ (1usize << z)) < w
+            &&& 1 <= (1usize << z) < 256
+            &&& (1usize << z) & sub(1usize << z, 1) == 0
+        }),
+{
+    broadcast use vstd::std_specs::bits::axiom_u64_trailing_zeros;
+    let wl = w as u64;
+    let z = vstd::std_specs::bits::u64_trailing_zeros(wl) as u64;
+    assert(z < 64 && (wl >> z) & 1u64 == 1u64);
+    assert(z < 8) by (bit_vector)
+        requires
+            (wl >> z) & 1u64 == 1u64,
+            wl < 256,
+            z < 64,
+    ;
+    let zu = z as usize;
+    assert((w >> zu) & 1 == 1 && (w ^ (1usize << zu)) < w && 1 <= (1usize << zu) < 256 && (1usize << zu) & sub(1usize
+        << zu, 1) == 0) by (bit_vector)
+        requires
+            wl == w as u64,
+            zu == z as usize,
+            z < 8,
+            (wl >> z) & 1u64 == 1u64,
+            w < 256,
+    ;
+}
+
+/// The table that collapses the round-1 extension through the NTT, one row of `ell` words per byte value.
+#[derive(Clone, Debug)]
+#[verifier::allow(autoderive_clone_without_spec)]
+pub struct InvNttTableByteSingleGf8 {
+    pub k: usize,
+    pub ell: usize,
+    pub n_chunks: usize,
+    /// `data[w * ell .. (w+1) * ell]` = T_0[w], the XOR-sum of columns of `M`
+    /// indexed by the set bits of `w`.
+    data: Vec<F8>,
+}
+
+impl InvNttTableByteSingleGf8 {
+    /// The table, row after row.
+    pub closed spec fn data_spec(&self) -> Seq<F8> {
+        self.data@
+    }
+
+    /// The number of words per row.
+    pub closed spec fn ell_spec(&self) -> nat {
+        self.ell as nat
+    }
+
+    /// The domain has `2^k_spec()` points.
+    pub closed spec fn k_spec(&self) -> nat {
+        self.k as nat
+    }
+
+    /// The shape `new` builds: `ell = 2^k` words per row, `n_chunks = ell / 8` bytes per input row, 256 rows.
+    pub closed spec fn well_formed(&self) -> bool {
+        &&& 3 <= self.k <= 7
+        &&& self.ell == pow2(self.k as nat)
+        &&& self.n_chunks == self.ell / 8
+        &&& self.data_spec().len() == 256 * self.ell
+    }
+
+    /// Built from the NTTs with twiddles `tw_s` (input domain) and `tw_l` (output domain): row `w` is
+    /// [`table_row`].
+    pub closed spec fn is_table_of(&self, tw_s: Seq<F8>, tw_l: Seq<F8>) -> bool {
+        &&& self.well_formed()
+        &&& forall|w: int, i: int|
+            0 <= w < 256 && 0 <= i < self.ell ==> (#[trigger] self.data_spec()[w * self.ell + i]).0 == table_row(
+                tw_s,
+                tw_l,
+                self.ell as nat,
+                w as usize,
+                i,
+            )
+    }
+
+    /// Build the table given the two NTT instances: `ntt_S` over the input
+    /// domain, `ntt_L` over the output (extension) domain. Both must have the
+    /// same `k`.
+    ///
+    /// Rewritten: the three `assert!`s are preconditions; `tmp.iter_mut().for_each(..)`, the
+    /// `cols.iter().enumerate()` loop and the `copy_from_slice` are index loops; `w.trailing_zeros()` is
+    /// taken on `w as u64` (equal for every `w`; vstd specifies `trailing_zeros` for `u64`, not `usize`).
+    pub fn new(ntt_s: &AdditiveNttGf8, ntt_l: &AdditiveNttGf8) -> (r: Self)
+        requires
+            ntt_s.well_formed(),
+            ntt_l.well_formed(),
+            ntt_s.k_spec() == ntt_l.k_spec(),
+            3 <= ntt_s.k_spec() <= 7,
+        ensures
+            r.k_spec() == ntt_s.k_spec(),
+            r.ell_spec() == pow2(ntt_s.k_spec()),
+            r.is_table_of(ntt_s.tw(), ntt_l.tw()),
+    {
+        let ghost (tw_s, tw_l) = (ntt_s.tw(), ntt_l.tw());
+        let k = ntt_s.k();
+        proof {
+            lemma_pow2_le_256(k as nat);
+            lemma_usize_shl_is_mul(1, k);
+            lemma2_to64();
+            if k > 3 {
+                lemma_pow2_strictly_increases(3, k as nat);
+            }
+        }
+        let ell = 1usize << k;
+        let n_chunks = ell / 8;
+        let ghost n = ell as nat;
+
+        let mut data = vec![F8::ZERO; 256 * ell];
+        assert(forall|q: int| 0 <= q < data.len() ==> #[trigger] data@[q] == F8(0));
+
+        // Compute the 8 unit-column images cols[t] = fwd_NTT_Λ ∘ inv_NTT_S (e_t)
+        // for t ∈ 0..8. The remaining columns of M are XOR-shifted versions.
+        let mut tmp = vec![F8::ZERO; ell];
+        let mut cols: Vec<Vec<F8>> = Vec::with_capacity(8);
+        for t in 0..8
+            invariant
+                ntt_s.well_formed(),
+                ntt_l.well_formed(),
+                tw_s == ntt_s.tw(),
+                tw_l == ntt_l.tw(),
+                ell == n,
+                n == pow2(ntt_s.k_spec()),
+                n == pow2(ntt_l.k_spec()),
+                8 <= n <= 128,
+                data.len() == 256 * n,
+                forall|q: int| 0 <= q < data.len() ==> #[trigger] data@[q] == F8(0),
+                tmp.len() == n,
+                cols.len() == t,
+                forall|t0: int| 0 <= t0 < t ==> (#[trigger] cols@[t0])@ == lde_column(tw_s, tw_l, n, t0),
+        {
+            for x in 0..ell
+                invariant
+                    tmp.len() == ell,
+                    forall|p: int| 0 <= p < x ==> #[trigger] tmp@[p] == F8(0),
+            {
+                tmp[x] = F8::ZERO;
+            }
+            tmp[t] = F8::ONE;
+            assert(tmp@ =~= unit(n, t as int));
+            ntt_s.inverse(&mut tmp);
+            proof {
+                lemma_ifft_spec_len(unit(n, t as int), tw_s, 1);
+            }
+            ntt_l.forward(&mut tmp);
+            proof {
+                lemma_fft_spec_len(ifft_spec(unit(n, t as int), tw_s, 1), tw_l, 1);
+            }
+            let ghost before = cols@;
+            cols.push(tmp.clone());
+            proof {
+                assert(cols@[t as int]@ =~= lde_column(tw_s, tw_l, n, t as int));
+                assert forall|t0: int| 0 <= t0 < t + 1 implies (#[trigger] cols@[t0])@ == lde_column(tw_s, tw_l, n, t0) by {
+                    if t0 < t {
+                        assert(cols@[t0] == before[t0]);
+                    }
+                }
+            }
+        }
+        proof {
+            assert forall|t0: int| 0 <= t0 < 8 implies (#[trigger] cols@[t0])@.len() == n by {
+                lemma_fft_spec_len(ifft_spec(unit(n, t0), tw_s, 1), tw_l, 1);
+                lemma_ifft_spec_len(unit(n, t0), tw_s, 1);
+            }
+        }
+
+        // T_0[0] already zero. T_0[2^t] = cols[t]. Then for non-power-of-two w,
+        // T_0[w] = T_0[w ^ lo_bit] ⊕ T_0[lo_bit]; this builds all 256 entries
+        // with one XOR per entry.
+        proof {
+            assert forall|i: int| 0 <= i < n implies (#[trigger] data@[0 * n + i]).0 == table_row(tw_s, tw_l, n, 0usize, i) by {
+                lemma_table_row_units(tw_s, tw_l, n, 0, i);
+            }
+            assert(row_ok(data@, tw_s, tw_l, n, 0));
+        }
+        for t in 0..8
+            invariant
+                ell == n,
+                8 <= n <= 128,
+                data.len() == 256 * n,
+                cols.len() == 8,
+                forall|t0: int| 0 <= t0 < 8 ==> (#[trigger] cols@[t0])@ == lde_column(tw_s, tw_l, n, t0),
+                forall|t0: int| 0 <= t0 < 8 ==> (#[trigger] cols@[t0])@.len() == n,
+                row_ok(data@, tw_s, tw_l, n, 0),
+                forall|t0: usize| t0 < t ==> #[trigger] row_ok(data@, tw_s, tw_l, n, (1usize << t0) as int),
+        {
+            proof {
+                lemma2_to64();
+                if t < 7 {
+                    lemma_pow2_strictly_increases(t as nat, 7);
+                }
+                lemma_usize_shl_is_mul(1, t);
+                assert((1usize << t) * ell <= 128 * 128) by (nonlinear_arith)
+                    requires
+                        (1usize << t) <= 128,
+                        ell <= 128,
+                ;
+            }
+            let ghost row = (1usize << t) as int;
+            let ghost before = data@;
+            let entry_start = (1usize << t) * ell;
+            for i in 0..ell
+                invariant
+                    ell == n,
+                    8 <= n <= 128,
+                    t < 8,
+                    1 <= row < 256,
+                    entry_start == row * n,
+                    data.len() == 256 * n,
+                    before.len() == 256 * n,
+                    cols.len() == 8,
+                    cols@[t as int]@.len() == n,
+                    forall|i0: int| 0 <= i0 < i ==> #[trigger] data@[entry_start + i0] == cols@[t as int]@[i0],
+                    forall|q: int| 0 <= q < data.len() && !(entry_start <= q < entry_start + i) ==> #[trigger] data@[q] == before[q],
+            {
+                proof {
+                    assert(entry_start + i < 256 * n) by (nonlinear_arith)
+                        requires
+                            entry_start == row * n,
+                            row < 256,
+                            i < n,
+                    ;
+                }
+                data[entry_start + i] = cols[t][i];
+            }
+            proof {
+                assert forall|i: int| 0 <= i < n implies (#[trigger] data@[row * n + i]).0 == table_row(tw_s, tw_l, n, row as usize, i) by {
+                    lemma_table_row_units(tw_s, tw_l, n, t, i);
+                }
+                lemma_row_kept(before, data@, tw_s, tw_l, n, row, 0);
+                assert forall|t0: usize| t0 < t + 1 implies #[trigger] row_ok(data@, tw_s, tw_l, n, (1usize << t0) as int) by {
+                    if t0 < t {
+                        let r0 = (1usize << t0) as int;
+                        assert(t0 < 8 && t0 != t ==> (1usize << t0) != (1usize << t)) by (bit_vector);
+                        if t0 < 7 {
+                            lemma_pow2_strictly_increases(t0 as nat, 7);
+                        }
+                        lemma_usize_shl_is_mul(1, t0);
+                        lemma_row_kept(before, data@, tw_s, tw_l, n, row, r0);
+                    }
+                }
+            }
+        }
+        proof {
+            assert forall|w0: usize| w0 < 256 && (w0 < 3 || (w0 >= 1 && w0 & sub(w0, 1) == 0)) implies #[trigger] row_ok(
+                data@,
+                tw_s,
+                tw_l,
+                n,
+                w0 as int,
+            ) by {
+                if w0 != 0 {
+                    assert(w0 < 3 ==> w0 & sub(w0, 1) == 0) by (bit_vector);
+                    lemma_byte_pow2(w0);
+                    let t0 = choose|t0: usize| t0 < 8 && w0 == 1usize << t0;
+                    assert(row_ok(data@, tw_s, tw_l, n, (1usize << t0) as int));
+                }
+            }
+        }
+        for w in 3usize..256
+            invariant
+                ell == n,
+                8 <= n <= 128,
+                data.len() == 256 * n,
+                forall|w0: usize|
+                    w0 < 256 && (w0 < w || (w0 >= 1 && w0 & sub(w0, 1) == 0)) ==> #[trigger] row_ok(
+                        data@,
+                        tw_s,
+                        tw_l,
+                        n,
+                        w0 as int,
+                    ),
+        {
+            // Rewritten: `if (w & (w - 1)) == 0 { continue; }` (Verus's `for` has no `continue`) guards the rest.
+            if (w & (w - 1)) != 0 {
+                let ghost tz = vstd::std_specs::bits::u64_trailing_zeros(w as u64);
+                proof {
+                    lemma_low_bit(w);
+                }
+                let lo_bit = 1usize << (w as u64).trailing_zeros();
+                let parent = w ^ lo_bit;
+                proof {
+                    let zu = tz as usize;
+                    assert(lo_bit == 1usize << zu);
+                    assert(row_ok(data@, tw_s, tw_l, n, parent as int));
+                    assert(row_ok(data@, tw_s, tw_l, n, lo_bit as int));
+                    assert(parent * ell <= 256 * 128 && lo_bit * ell <= 256 * 128 && w * ell <= 256 * 128) by (nonlinear_arith)
+                        requires
+                            parent < 256,
+                            lo_bit < 256,
+                            w < 256,
+                            ell <= 128,
+                    ;
+                }
+                // Borrow-checker friendly: read parent + bit_v slices, then write entry.
+                let (parent_off, bit_off, entry_off) = (parent * ell, lo_bit * ell, w * ell);
+                let ghost before = data@;
+                for i in 0..ell
+                    invariant
+                        ell == n,
+                        8 <= n <= 128,
+                        3 <= w < 256,
+                        parent < 256,
+                        lo_bit < 256,
+                        parent != w,
+                        lo_bit != w,
+                        parent_off == parent * n,
+                        bit_off == lo_bit * n,
+                        entry_off == w * n,
+                        data.len() == 256 * n,
+                        before.len() == 256 * n,
+                        forall|i0: int|
+                            0 <= i0 < i ==> (#[trigger] data@[entry_off + i0]).0 == before[parent_off + i0].0 ^ before[bit_off
+                                + i0].0,
+                        forall|q: int| 0 <= q < data.len() && !(entry_off <= q < entry_off + i) ==> #[trigger] data@[q] == before[q],
+                {
+                    proof {
+                        assert(entry_off + i < 256 * n && parent_off + i < 256 * n && bit_off + i < 256 * n) by (nonlinear_arith)
+                            requires
+                                entry_off == w * n,
+                                parent_off == parent * n,
+                                bit_off == lo_bit * n,
+                                w < 256,
+                                parent < 256,
+                                lo_bit < 256,
+                                i < n,
+                        ;
+                        lemma_row_disjoint(parent as int, i as int, w as int, n);
+                        lemma_row_disjoint(lo_bit as int, i as int, w as int, n);
+                    }
+                    let v = data[parent_off + i] + data[bit_off + i];
+                    data[entry_off + i] = v;
+                }
+                proof {
+                    let zu = tz as usize;
+                    assert forall|i: int| 0 <= i < n implies (#[trigger] data@[(w as int) * n + i]).0 == table_row(
+                        tw_s,
+                        tw_l,
+                        n,
+                        w,
+                        i,
+                    ) by {
+                        assert(before[(parent as int) * n + i].0 == table_row(tw_s, tw_l, n, parent, i));
+                        assert(before[(lo_bit as int) * n + i].0 == table_row(tw_s, tw_l, n, lo_bit, i));
+                        lemma_table_row_flip(tw_s, tw_l, n, w, zu, i);
+                        lemma_table_row_units(tw_s, tw_l, n, zu, i);
+                    }
+                    assert forall|w0: usize|
+                        w0 < 256 && (w0 < w + 1 || (w0 >= 1 && w0 & sub(w0, 1) == 0)) implies #[trigger] row_ok(
+                        data@,
+                        tw_s,
+                        tw_l,
+                        n,
+                        w0 as int,
+                    ) by {
+                        if w0 != w {
+                            assert(row_ok(before, tw_s, tw_l, n, w0 as int));
+                            lemma_row_kept(before, data@, tw_s, tw_l, n, w as int, w0 as int);
+                        }
+                    }
+                }
+            }
+        }
+        proof {
+            assert forall|w0: int, i: int| 0 <= w0 < 256 && 0 <= i < ell implies (#[trigger] data@[w0 * ell + i]).0
+                == table_row(tw_s, tw_l, ell as nat, w0 as usize, i) by {
+                assert(row_ok(data@, tw_s, tw_l, n, (w0 as usize) as int));
+            }
+        }
+        Self { k, ell, n_chunks, data }
+    }
+}
+
 } // verus!
