@@ -10,6 +10,8 @@ description = "Verus proofs of leanVM arithmetic and kernel models"
 
 [dependencies]
 vstd = "=0.0.0-2026-10-04-0306"
+# The pool, which the trusted dispatch specification of `src/parallel.rs` runs.
+parallel = { path = "../../crates/parallel" }
 
 [dev-dependencies]
 primitives = { path = "../../crates/primitives", features = ["test-util"] }

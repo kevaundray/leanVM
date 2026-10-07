@@ -124,6 +124,37 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### Parallel NTT driver refinement (`src/ntt_driver.rs`, `src/parallel.rs`)
+
+- `run_layers` proves the fused radix-8/radix-4/single-layer sweeps equal `sub_layers` for every
+  well-formed table, positive lane count and valid sub-block. `lemma_gather_layer` and
+  `lemma_gather_sub_layers` prove that gathering rows paired by a band of layers commutes with it.
+- `group` proves gather/transform/scatter with permissions for every accessed word. Its input can
+  come from the codeword, its first replica, or a separate read-only message, under the explicit
+  permission and source-content preconditions. This is a single-group theorem, not a proof that
+  production's fused-message scheduler establishes those preconditions.
+- `gathered_pass` partitions words by `(block, residue)`, dispatches groups through the real pool,
+  and proves equality to the corresponding global layers. `deep_pass` proves the same for the
+  remaining layers on disjoint contiguous sub-blocks. `transform` composes them into
+  `forward_layers`, the verified layer reference, for any positive gathered width and
+  `start <= deep_start <= log_d <= table.len()`, with `2^log_d` rows and any positive lane count
+  whose buffer length fits `usize`. The zero-layer domain is included with a well-formed table.
+- These are executable refinements, not production-source proofs. The top-level refinement takes
+  the cache plan as arguments and expects replicas already populated. It does not implement
+  production's cache planner, fused message replication, row callbacks, or streaming-store fences.
+  Gathered work is dispatched per group rather than borrowing scratch once per claimed range;
+  the deep pass dispatches individual sub-blocks instead of explicitly batching adjacent ones.
+  Streaming stores become ordinary copies. Function comments document the other Rust rewrites.
+- `PointsTo` maps are split by task owner and returned with their postconditions. Different owners
+  have disjoint keys and only receive their own permissions. Bounds and pointer addresses are
+  checked before constructing row slices. `for_each` and `chunks_mut` are proved adapters over
+  the trusted `for_each_chunk` contract: disjoint claims cover every item exactly once and join
+  before return. The actual pool's atomic claim counter and synchronization are not verified.
+- `tests/equivalence/ntt_driver.rs` executes the refinement, layer reference and production public
+  encoder word for word on seeded random inputs, rates, lane counts, domain/table sizes, gathered
+  widths and deep splits. Separate processes configure the real pool for 1, 2 and 4 workers.
+  These finite differential checks neither prove production equivalence nor prevent future drift.
+
 ### BLAKE2s (`src/blake2s.rs`, `src/blake2s_batch.rs`)
 
 - The model transcribes [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693), sections 2 and 3: 32-bit modular addition, G with rotations 16, 12, 8, 7, IV, SIGMA, ten rounds, counter injection, final-block flag and feed-forward. The message model is unkeyed BLAKE2s-256, including parameter initialization, little-endian encoding, zero padding, and the empty message's single final block.
@@ -212,6 +243,7 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
 ## Trust base and assumptions
 
 - Kernel theorems do not use `assume` or `admit` to discharge their obligations. The trust boundary explicitly includes `assume_specification`, external vector type declarations, `axiom fn` layout facts, and `#[verifier::external_body]` memory helpers in the intrinsic modules. These are assumptions, not proved ISA or pointer-safety results.
+- The driver has explicit trusted adapters in `src/parallel.rs`: slice/permission borrowing, raw slice construction, core pointer/integer specifications, worker count, and exactly-once joined dispatch. `with_scratch` trusts the thread-local scratch borrow and callback contract. Their `external_body`/`assume_specification` annotations are trust boundaries, not solved proof obligations.
 - `src/blake2s.rs` retains an explicit `assume_specification` for `u32::rotate_right`, absent from the pinned `vstd`: for `0 < n < 32` it equals `(x >> n) ^ (x << (32 - n))`. A deterministic test checks samples and edge cases against Rust's implementation, but does not prove this trusted library contract.
 - Verus and Z3 are trusted: Verus's encoding of Rust (machine integers, the truncating casts and shifts the code
   uses, arrays, `Vec`) and Z3's answers, in both its integer and its bit-vector modes.
@@ -247,9 +279,7 @@ Over `E`, `eq(r, x) = prod_i (r_i x_i + (1 + r_i)(1 + x_i))` (`eq_poly`, `eq_fac
   - Bit folds and `F192Map`: `bit_fold::tests::fold_block_matches_definition`, `f192_map_matches_definition`, `composed_map_is_the_map_after_the_product`, `avx2_products_match_definition` (every AVX2 product, also on GFNI machines). The equivalence tests of this crate compare the verified portable copies with whatever arm the machine dispatches.
   - NTT butterflies: verified (`src/ntt_simd.rs`, above); production's driver tests `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` (forward) and `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed) run them too.
   - flock's LDE table (`apply_v128` on NEON and SSE2, `apply_avx2`, `apply_avx512`/`apply_zmm`): `zerocheck::ntt::inv_table::tests::apply_simd_matches_apply_scalar`, and `tests/equivalence/flock_ntt.rs`, which compares the dispatched `apply` with the verified `apply_scalar` on every single-byte row and on random rows. The round-1 kernels that read the table through `data_ptr` and `apply_zmm` (`zerocheck/round1.rs`) are not covered.
-- The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
-  `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
-  tests compare it with the layer-by-layer reference this crate verifies.
+- Production's NTT cache planner, fused-message scheduling/replication, row callbacks, streaming store ordering, and `transpose_lane_major` are not proved. The parallel refinement above proves populated-replica computation with explicit plan inputs. The inverse reference in `ntt.rs` remains covered; the separate transposed driver is outside this refinement.
 - BLAKE2s's raw-pointer batch driver, pointer load/store safety, dispatch and SIMD implementations are not verified. Batch comparisons exercise the backend selected by the test build.
 - Bit folds (`crates/primitives/src/bit_fold.rs`): `BitFold::at_level`, which builds its weights with `multilinear::eq_table` (copied in `src/multilinear.rs`) and then calls `BitFold::new`, and `BitFold::fold_quads` (AVX-512 with GFNI only) are not copied. Only `out[..rows.len()]` of `fold_block` is documented and compared: past it the portable arm leaves `out` as it was (proven) and the SIMD arms store the fold of a zero row.
 - Of `multilinear.rs`, the parallel `mle_eval_par`, `SplitEq::weighted_sum` and its SIMD variants, the high folds (`fold_high_k`, `fold_high_inplace`, `interp_into`), `barycentric_sum`, `skip_lagrange_weights`, `poly_eval` and the inner products are not copied.

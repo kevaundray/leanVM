@@ -30,6 +30,7 @@ mod intrinsics_x86_gfneon;
 mod intrinsics_x86_nttsimd;
 mod multilinear;
 mod ntt;
+mod ntt_driver;
 mod ntt_simd;
 mod phi8_tower;
 mod skip_domain;
