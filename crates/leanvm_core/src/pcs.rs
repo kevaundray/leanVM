@@ -28,7 +28,7 @@
 use crate::witness::StackShape;
 use ::pcs::stack_open;
 use ::pcs::verifier::OpeningVerifier;
-use ::pcs::whir::{self, ProverConfig, ProverData, WhirError, config_for_rate};
+use ::pcs::whir::{self, Hiding, ProverConfig, ProverData, WhirError, config_for_rate, config_for_rate_hiding};
 use fiat_shamir::transcript::{ProverState, TranscriptError, Transmitter};
 use primitives::field::F64;
 use thiserror::Error;
@@ -93,10 +93,19 @@ pub const MIN_MU: usize = ::pcs::whir::MIN_LOG_N;
 /// Largest committed size accepted by all verifiers, the largest the WHIR table configures.
 pub const MAX_MU: usize = ::pcs::whir::MAX_LOG_N;
 
-/// The shared WHIR config for a `2^μ`-word witness.
-fn whir_config(mu: usize, log_inv_rate: usize) -> ProverConfig {
-    config_for_rate(mu, log_inv_rate)
-        .unwrap_or_else(|e| panic!("whir config for mu={mu}, log_inv_rate={log_inv_rate}: {e}"))
+/// The shared WHIR config for a `2^μ`-word witness, hiding or not.
+fn whir_config(mu: usize, log_inv_rate: usize, hiding: bool) -> ProverConfig {
+    let config = if hiding {
+        config_for_rate_hiding(mu, log_inv_rate)
+    } else {
+        config_for_rate(mu, log_inv_rate)
+    };
+    config.unwrap_or_else(|e| panic!("whir config for mu={mu}, log_inv_rate={log_inv_rate}, hiding={hiding}: {e}"))
+}
+
+/// The padding coefficients a hiding commitment of a `2^μ`-word witness takes per lane.
+pub(crate) fn padding(mu: usize, log_inv_rate: usize) -> usize {
+    whir_config(mu, log_inv_rate, true).padding()
 }
 
 /// A committed `K`-valued witness plus the data needed to open it. The witness
@@ -142,6 +151,31 @@ pub fn commit(ps: &mut ProverState, witness: &[F64], shape: StackShape, log_inv_
     }
 }
 
+/// Commit a zero-knowledge proof's witness: its lanes padded past their power of two with `pads`, `padding(mu, rate)`
+/// uniform words per committed lane, its last lane uniform (doc `leanvm` Annex B, the hiding commitment).
+pub fn commit_hiding(
+    ps: &mut ProverState,
+    witness: &[F64],
+    shape: StackShape,
+    log_inv_rate: usize,
+    pads: &[F64],
+) -> Committed {
+    assert!(shape.random_lane, "a hiding commitment's last lane is random");
+    assert_eq!(
+        witness.len(),
+        shape.committed_len(),
+        "witness must be the committed lanes"
+    );
+    assert_eq!(pads.len(), shape.committed_lanes() * padding(shape.mu, log_inv_rate));
+    let (commitment, prover_data) = whir::commit_hiding(witness, shape.mu, LOG_BATCH, log_inv_rate, pads);
+    ps.add_root(&commitment.root);
+    Committed {
+        prover_data,
+        mu: shape.mu,
+        log_inv_rate,
+    }
+}
+
 // The batching challenges are just `sample()`d inside the stacked opener: every
 // claim they combine is already bound: the values rode the stream
 // (`add_scalar`) during the bus / constraint sub-protocols or, for the exit
@@ -169,12 +203,19 @@ pub fn read_commitment<V: OpeningVerifier>(v: &mut V) -> Result<V::Root, Transcr
 ///
 /// There is no plain (non-ring-switch) path: the witness ALWAYS carries a `q_flock`
 /// sub-block (≥ 1 padding instance, §cpu), so every opening is stacked.
-pub fn open(ps: &mut ProverState, c: &Committed, q: &[F64], points: &[StackClaim], rings: &[RingSwitch]) {
+pub fn open(
+    ps: &mut ProverState,
+    c: &Committed,
+    q: &[F64],
+    points: &[StackClaim],
+    rings: &[RingSwitch],
+    hiding: Option<Hiding>,
+) {
     let lane_block = 1usize << (c.mu - LOG_BATCH);
     assert_eq!(q.len() % lane_block, 0, "witness must be whole committed lanes");
     assert!(q.len() <= 1usize << c.mu, "witness must fit the announced size");
-    let cfg = whir_config(c.mu, c.log_inv_rate);
-    stack_open::open(ps, c.mu, q, &c.prover_data, &cfg, points, rings);
+    let cfg = whir_config(c.mu, c.log_inv_rate, hiding.is_some());
+    stack_open::open(ps, c.mu, q, &c.prover_data, &cfg, points, rings, hiding);
 }
 
 /// Verify the opening (mirror of [`open`]): flock's ring-switched claim
@@ -194,6 +235,13 @@ pub fn verify<V: OpeningVerifier>(
     log_inv_rate: usize,
     root: V::Root,
 ) -> Result<(), WhirError> {
-    let cfg = config_for_rate(shape.mu, log_inv_rate)?;
-    stack_open::verify(v, &cfg, shape.mu, shape.n_lanes, root, points, rings)
+    // A zero-knowledge proof's stack is the hiding commitment, and every scalar before its lane fold's end is hidden.
+    let (cfg, hiding) = if shape.random_lane {
+        let cfg = config_for_rate_hiding(shape.mu, log_inv_rate)?;
+        let k = cfg.padding();
+        (cfg, Some(Hiding { k, hidden_claim: true }))
+    } else {
+        (config_for_rate(shape.mu, log_inv_rate)?, None)
+    };
+    stack_open::verify(v, &cfg, shape.mu, shape.committed_lanes(), root, points, rings, hiding)
 }

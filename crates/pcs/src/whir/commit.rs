@@ -7,7 +7,8 @@
 //! level's extension-field encode, both Merkle-committed one leaf per row.
 
 use crate::merkle::{Hash, MerkleBuilder};
-use crate::ntt::AdditiveNttF64;
+use crate::ntt::{AdditiveNttF64, Pad};
+use crate::whir::induce::padding_shift;
 use crate::whir::ntt_ext::encode_interleaved_ext;
 use primitives::field::{F64, F192};
 
@@ -22,6 +23,8 @@ pub struct Commitment {
 pub struct ProverData {
     pub codeword: Vec<F64>,
     pub merkle_tree: Vec<Hash>,
+    /// The padding of a hiding commitment, lane block `u`'s `k` coefficients at `[u k, (u + 1) k)`; empty otherwise.
+    pub pads: Vec<F64>,
 }
 
 /// Commit to the `F64` message of a `2^log_n`-word witness: the message is its
@@ -40,6 +43,26 @@ pub struct ProverData {
 /// rides the proof, so a verifier derives `n_lanes` from the announced layout to
 /// read a row and supplies the prefix itself.
 pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate: usize) -> (Commitment, ProverData) {
+    commit_hiding(message, log_n, log_batch_size, log_inv_rate, &[])
+}
+
+/// [`commit`] with each lane padded past its power of two: the hiding commitment.
+///
+/// With `m = log_n - log_batch_size`, `r = log_inv_rate` and `k = pads.len() / n_lanes`, lane block `u` encodes `P_u(X) + W_m(X + s) R_u(X)`: `P_u` its `2^m` words as novel-basis coefficients, `R_u` its padding `pads[u k..(u + 1) k]`, and `s = F64(2^(m + r))`.
+/// Since `W_m(X + s) = W_m(X) + W_m(s)` and `X_{2^m + j} = W_m X_j`, that is `2^m + k` coefficients, so the codeword stays on the same `2^(m + r)` points, and the encode is the one butterfly layer more that pairs the message with the padding (`AdditiveNttF64::encode_interleaved_in_place_with`).
+/// The shift by `s` keeps the factor nonzero on the whole domain, where `W_m` alone vanishes on its first `2^m` points: any `k` symbols of a lane are then uniform, whatever its message.
+/// Empty `pads` is [`commit`].
+///
+/// # Panics
+///
+/// Panics as [`commit`] does, or unless the padding is `k <= 2^m` coefficients for every lane.
+pub fn commit_hiding(
+    message: &[F64],
+    log_n: usize,
+    log_batch_size: usize,
+    log_inv_rate: usize,
+    pads: &[F64],
+) -> (Commitment, ProverData) {
     assert!(log_inv_rate >= 1, "log_inv_rate must be >= 1 for a non-trivial RS code");
     assert!(log_n > log_batch_size, "witness must be wider than the interleaving");
     let log_rows = log_n - log_batch_size;
@@ -52,7 +75,17 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     let k_code = log_rows + log_inv_rate;
     let n_positions = 1usize << k_code;
     let codeword_len = n_positions * n_lanes;
-
+    let k = pads.len() / n_lanes;
+    assert_eq!(pads.len(), k * n_lanes, "every lane takes as many padding coefficients");
+    assert!(k <= 1 << log_rows, "a lane's padding is at most its message's length");
+    // Row `j` of the padding is coefficient `j` of every codeword lane's `R`, lane `t` being block `n_lanes - 1 - t`.
+    let pad_rows: Vec<F64> = (0..k * n_lanes)
+        .map(|w| pads[(n_lanes - 1 - w % n_lanes) * k + w / n_lanes])
+        .collect();
+    let pad = (k > 0).then(|| Pad {
+        rows: &pad_rows,
+        offset: padding_shift(log_rows, log_inv_rate),
+    });
     let mut codeword = Box::new_uninit_slice(codeword_len);
 
     // Leaves are hashed as the encode finishes each block of rows.
@@ -64,7 +97,7 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
         let codeword = unsafe { primitives::write_only(&mut codeword) };
         crate::ntt::transpose_lane_major(&mut codeword[..message.len()], message, n_lanes, log_rows);
         let ntt = AdditiveNttF64::standard(k_code);
-        ntt.encode_interleaved_in_place_with(codeword, n_lanes, log_inv_rate, &|row, rows| {
+        ntt.encode_interleaved_in_place_with(codeword, n_lanes, log_inv_rate, pad, &|row, rows| {
             tree.absorb(row, rows);
         });
     });
@@ -73,7 +106,15 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = *merkle_tree.last().expect("merkle tree non-empty");
 
-    (Commitment { root }, ProverData { codeword, merkle_tree })
+    let pads = pads.to_vec();
+    (
+        Commitment { root },
+        ProverData {
+            codeword,
+            merkle_tree,
+            pads,
+        },
+    )
 }
 
 /// Codeword + Merkle tree for one deeper WHIR commitment level.

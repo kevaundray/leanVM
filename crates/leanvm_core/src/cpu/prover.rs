@@ -2,12 +2,18 @@
 
 use super::{Output, Program, Proof, ProveError, Stats};
 use crate::pcs::Rate;
+use crate::zk::randomness::Randomness;
 
-/// A prover: it proves runs at one commitment rate.
+/// A prover: it proves runs at one commitment rate, in zero knowledge or not.
 ///
 /// The rate trades proving time for proof size.
 ///
 /// The verifier needs no rate: each proof announces its own.
+///
+/// # Zero knowledge
+///
+/// A zero-knowledge proof (doc `leanvm` §sec:zk) hides the advice and the run, but not the run's shape: each table's height and the rate are public.
+/// A program whose advice is private must prove at a fixed public shape, so that its heights say nothing about the advice.
 ///
 /// # Performance
 ///
@@ -22,6 +28,8 @@ use crate::pcs::Rate;
 pub struct Prover {
     /// The commitment rate every proof is made at.
     rate: Rate,
+    /// Where a zero-knowledge proof draws its randomness, for a zero-knowledge prover.
+    zk: Option<Randomness>,
 }
 
 impl Prover {
@@ -32,13 +40,28 @@ impl Prover {
     pub fn new(rate: Rate) -> Self {
         // Spawning up front keeps the spawn cost out of the first proof.
         crate::init_prover();
-        Self { rate }
+        Self { rate, zk: None }
+    }
+
+    /// The same prover, making zero-knowledge proofs from this randomness.
+    #[must_use]
+    pub const fn zk(self, randomness: Randomness) -> Self {
+        Self {
+            rate: self.rate,
+            zk: Some(randomness),
+        }
     }
 
     /// The commitment rate every proof is made at.
     #[must_use]
     pub const fn rate(&self) -> Rate {
         self.rate
+    }
+
+    /// Whether the prover makes zero-knowledge proofs.
+    #[must_use]
+    pub const fn is_zk(&self) -> bool {
+        self.zk.is_some()
     }
 
     /// Run the program on the advice, and prove the run.
@@ -53,11 +76,11 @@ impl Prover {
     /// - The run traps.
     /// - The run is longer than one proof holds.
     /// - The advice is longer than the program's region.
-    #[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate = self.rate.log_inv_rate()))]
+    #[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate = self.rate.log_inv_rate(), zk = self.is_zk()))]
     pub fn prove(&self, program: &Program, advice: &[u64]) -> Result<ProvenRun, ProveError> {
         let exec = crate::stage!("Execute program", || program.execute(advice))?;
         program.committed_size(exec.trace.row_counts())?;
-        let (proof, stats) = program.prove_execution(&exec, self.rate);
+        let (proof, stats) = program.prove_execution(&exec, self.rate, self.zk);
         Ok(ProvenRun {
             proof,
             output: Output::new(exec.output),

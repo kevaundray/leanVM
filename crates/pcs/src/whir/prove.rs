@@ -6,15 +6,15 @@
 //! The recursive prover: the lane fold, then one commit, query phase and induce
 //! per level, down to the residual sent in the clear.
 
-use super::commit::ligero_commit_ext;
+use super::Hiding;
+use super::commit::{ProverData, ligero_commit_ext};
 use super::sample_queries_ordered;
 use super::sumcheck::{Basis, InitialRounds, SumcheckProver, send_msg};
-use crate::merkle::Hash;
 use crate::ntt::AdditiveNttF64;
 use crate::whir::config::ProverConfig;
 use crate::whir::induce::{
     eval_sk_at_vks, induce_sumcheck_enforced_sum, induce_sumcheck_evaluate_at_residual, induce_sumcheck_poly,
-    induce_sumcheck_poly_auto_base,
+    induce_sumcheck_poly_auto_base, padding_correction,
 };
 use fiat_shamir::merkle::PrunedMerklePaths;
 use fiat_shamir::transcript::Transmitter;
@@ -42,7 +42,7 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
 }
 
 /// Prove `Σ_x witness(x) · b_initial(x) = target` against the L0 commitment
-/// produced by [`commit`](super::commit()) (with `log_batch_size = config.initial_k()` and
+/// `l0` produced by [`commit`](super::commit()) or [`commit_hiding`](super::commit_hiding()) (with `log_batch_size = config.initial_k()` and
 /// `log_inv_rate = config.log_inv_rates()[0]`).
 ///
 /// `witness` is borrowed: it is only READ (round-0 message + the first lane
@@ -59,7 +59,13 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
 /// by `stack.len()`; `ood_samples[0] == 0` is what keeps a full-tensor OOD weight
 /// out of these rounds.
 ///
+/// With `hiding`, `l0` is a hiding commitment whose padding is `hiding.k` coefficients a lane, and the opening reveals the padding's lane fold after the lane fold (the module docs of [`crate::stack_open`]).
+///
 /// Scalars enter the shared transcript as they are transmitted, and authenticated Merkle openings travel as one phase per level. The caller has already bound the initial commitment and target.
+///
+/// # Panics
+///
+/// Panics on a shape the commitment does not have, or with `hiding` on a padding of another length than `hiding.k` a lane or than the configuration's.
 #[expect(
     clippy::too_many_arguments,
     reason = "The proof kernel keeps its independent inputs explicit."
@@ -70,8 +76,8 @@ pub fn recursive_prover_with_basis(
     witness: &[F64],
     b_initial: Vec<F192>,
     target: F192,
-    l0_codeword: &[F64],
-    l0_tree: &[Hash],
+    l0: &ProverData,
+    hiding: Option<Hiding>,
     ps: &mut impl Transmitter,
 ) {
     recursive_prover_with_prepared_basis(
@@ -80,9 +86,9 @@ pub fn recursive_prover_with_basis(
         witness,
         Basis::Dense(b_initial),
         target,
-        l0_codeword,
-        l0_tree,
+        l0,
         None,
+        hiding,
         ps,
     );
 }
@@ -97,11 +103,12 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     witness: &[F64],
     b_initial: Basis<'_>,
     target: F192,
-    l0_codeword: &[F64],
-    l0_tree: &[Hash],
+    l0: &ProverData,
     initial: Option<InitialRounds>,
+    hiding: Option<Hiding>,
     ps: &mut impl Transmitter,
 ) {
+    let (l0_codeword, l0_tree) = (&l0.codeword[..], &l0.merkle_tree[..]);
     let r = config.level_steps();
     let initial_k = config.initial_k();
 
@@ -123,6 +130,16 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     }
     assert_eq!(l0_codeword.len(), block_len_0 * n_lanes);
     assert_eq!(l0_tree.len(), 2 * block_len_0 - 1);
+    let pad_k = hiding.map_or(0, |h| h.k);
+    assert_eq!(
+        l0.pads.len(),
+        pad_k * n_lanes,
+        "the commitment's padding is the opening's"
+    );
+    assert!(
+        hiding.is_none_or(|h| h.k == config.padding()),
+        "a hiding opening pads as its configuration"
+    );
 
     // Nothing is absorbed on entry. The commitment was bound by the `add_root`/`next_root` that
     // transmitted it, and the target is `sum_i lambda^i * claim_i` over claim values bound by their
@@ -156,11 +173,27 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     send_msg(ps, start_msg, target);
 
     let mut r_lane_fold = Vec::with_capacity(initial_k);
+    let mut g1 = Vec::new();
     for j in 0..initial_k {
         let r_j = ps.sample();
         let msg = sumcheck_span.in_scope(|| sc_prover.fold_lane(r_j, lane_block, j + 1 == initial_k));
-        send_msg(ps, msg, sc_prover.claim());
         r_lane_fold.push(r_j);
+        if j + 1 == initial_k
+            && let Some(h) = hiding
+        {
+            // The running claim in the clear, which every later message is public after.
+            if h.hidden_claim {
+                ps.set_hidden(false);
+                ps.add_scalar(sc_prover.claim());
+            }
+            // The padding's lane fold `g_1[j] = Σ_u eq(fold, u) pad_u[j]`, with level 0's lane eq table.
+            let eq = eq_table(&r_lane_fold);
+            g1 = (0..h.k)
+                .map(|j| (0..n_lanes).fold(F192::ZERO, |acc, u| acc + eq[u].mul_base(l0.pads[u * h.k + j])))
+                .collect();
+            ps.add_scalars(&g1);
+        }
+        send_msg(ps, msg, sc_prover.claim());
     }
     drop(sumcheck_span);
 
@@ -209,7 +242,7 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     // it (deeper levels stay dense), mirroring the original.
     let sks_vks_n1 = eval_sk_at_vks(n1);
     let span = tracing::info_span!("Induce", level = 0).entered();
-    let (basis_0_induced, enforced_sum_0) = induce_sumcheck_poly_auto_base(
+    let (basis_0_induced, mut enforced_sum_0) = induce_sumcheck_poly_auto_base(
         n1,
         log_inv_rate_0,
         &sks_vks_n1,
@@ -218,6 +251,10 @@ pub(crate) fn recursive_prover_with_prepared_basis(
         &queries_0,
         &weights_0,
     );
+    // The rows fold the padded codeword: take the padding's share off each query, the basis unchanged.
+    if hiding.is_some() {
+        enforced_sum_0 += padding_correction(n1, log_inv_rate_0, &queries_0, &weights_0, &g1);
+    }
     drop(span);
 
     // Introduce basis_0, then batch the level's claims with powers of lambda_0.

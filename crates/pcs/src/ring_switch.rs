@@ -445,6 +445,8 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
                 *f = a.mul_add(scale, s, *f);
             }
         }
+        // Each slice enters every one of the map's 64 terms.
+        let family: Vec<E> = family.into_iter().map(|f| a.bind(f)).collect();
         self.map.target(a, &family)
     }
 
@@ -901,8 +903,8 @@ pub(crate) mod tests {
             &packed,
             rs_eq_ind.to_vec(),
             sumcheck_claim,
-            &pd.codeword,
-            &pd.merkle_tree,
+            &pd,
+            None,
             &mut ps,
         );
         E2e {
@@ -948,6 +950,7 @@ pub(crate) mod tests {
             1 << e.vc.initial_k(),
             sumcheck_claim,
             e.root,
+            None,
             |_, point| inner_product_ext(&rs_eq_ind, &eq_table(point)),
         )
         .is_ok()
@@ -968,6 +971,7 @@ pub(crate) mod tests {
             1 << e.vc.initial_k(),
             sumcheck_claim,
             e.root,
+            None,
             |_, point| eval_rs_eq(&e.suffix_point, F192::ONE, &map, point),
         )
         .is_ok()

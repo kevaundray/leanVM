@@ -46,17 +46,27 @@ use primitives::multilinear::inner_product_base;
 
 pub use config::{
     INITIAL_FOLDING_FACTOR, L0_LIST_BITS, LOG_INV_RATE_0, MAX_LOG_INV_RATE, MAX_LOG_N, MIN_LOG_INV_RATE, MIN_LOG_N,
-    ProverConfig, QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR, SECURITY_BITS,
-    SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, config_for_rate,
+    MIN_LOG_N_HIDING, ProverConfig, QUERY_GRINDING_BITS, RESIDUAL_MAX_LOG, RS_DOMAIN_INITIAL_REDUCTION_FACTOR,
+    SECURITY_BITS, SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, config_for_rate, config_for_rate_hiding,
 };
 
-pub use commit::{Commitment, ProverData, commit};
+pub use commit::{Commitment, ProverData, commit, commit_hiding};
 pub use induce::eval_sk_at_vks;
 pub use prove::recursive_prover_with_basis;
 pub(crate) use prove::recursive_prover_with_prepared_basis;
 pub(crate) use sumcheck::{INITIAL_BASIS_CHUNK, initial_rounds_virtual};
-pub use verify::WhirError;
-pub(crate) use verify::recursive_verifier_with_basis_succinct;
+pub use verify::{WhirError, recursive_verifier_with_basis_succinct};
+
+/// The opening of a commitment made by [`commit_hiding`].
+///
+/// After the lane fold's last challenge the prover sends the padding's fold `g_1`, `k` scalars, and level 0's queries take it off the folded codeword (the module docs of [`crate::stack_open`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hiding {
+    /// Padding coefficients per committed lane: the configuration's [`ProverConfig::padding`].
+    pub k: usize,
+    /// The scalars before the lane fold's end travelled under one-time keys: first turn hiding off and send the running claim in the clear, which the verifier checks against the one it holds and continues from.
+    pub hidden_claim: bool,
+}
 
 /// Mixed inner product `Σ_i b[i] · witness[i]` (E x K via `mul_base`). The
 /// evaluation-claim `target` for a K-witness against an E-basis.

@@ -26,6 +26,12 @@
 //!
 //! What a program reads there, it must check itself.
 //!
+//! # Zero knowledge
+//!
+//! A plain proof is no secret: a verifier who can guess the advice recomputes the proof and compares.
+//! A prover made with [`Prover::zk`] makes zero-knowledge proofs, which reveal nothing of the advice or the run beyond the statement and the run's shape (each table's height and the rate).
+//! A program whose advice is private must therefore prove at a fixed public shape.
+//!
 //! # Examples
 //!
 //! ```no_run
@@ -44,8 +50,8 @@
 //! Many proofs of one program aggregate into one proof through the aggregation module.
 
 pub use leanvm_core::{
-    DecodeError, ElfError, InvalidRate, Output, Program, ProgramError, Proof, ProveError, ProvenRun, Prover, Rate,
-    Region, Stats, Trap, VerifyError, asm,
+    DecodeError, ElfError, InvalidRate, Output, Program, ProgramError, Proof, ProveError, ProvenRun, Prover,
+    Randomness, Rate, Region, Stats, Trap, VerifyError, asm,
 };
 
 /// Aggregation trees: many proofs of one program, verified as one.

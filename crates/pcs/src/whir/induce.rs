@@ -91,6 +91,47 @@ fn invert_sks(sks_vks: &[F64]) -> Vec<F64> {
         .collect()
 }
 
+/// `W_m(s)` for `s = F64(2^(m + r))`, the first basis element past a `2^(m + r)`-point domain.
+///
+/// A hiding commitment's padding is `W_m(X + s) = W_m(X) + W_m(s)` times its polynomial: `W_m` vanishes on the domain's first `2^m` points and maps it onto the span of `W_m(F64(2^b))`, `m <= b < m + r`, which `W_m(s)` lies outside, so the factor vanishes nowhere on the domain.
+pub(crate) fn padding_shift(log_msg_cols: usize, log_inv_rate: usize) -> F64 {
+    let sks_vks = eval_sk_at_vks(log_msg_cols);
+    let s = (0..log_msg_cols).fold(F64(1 << (log_msg_cols + log_inv_rate)), |s, b| next_s(s, sks_vks[b]));
+    s * sks_vks[log_msg_cols].inv()
+}
+
+/// `Σ_i w_i W_m(q_i + s) Σ_{j<k} g_1[j] X_j(q_i)`, `q_i = F64(queries[i])` and `s` as in [`padding_shift`]: what a padding whose lane fold is `g_1` adds to level 0's enforced sum over lanes of `2^m` words at rate `2^-r`.
+pub(crate) fn padding_correction(
+    log_msg_cols: usize,
+    log_inv_rate: usize,
+    queries: &[usize],
+    weights: &[F192],
+    g1: &[F192],
+) -> F192 {
+    let sks_vks = eval_sk_at_vks(log_msg_cols);
+    let inv_sks_vks = invert_sks(&sks_vks);
+    let shift = padding_shift(log_msg_cols, log_inv_rate);
+    let mut w = vec![F64::ZERO; log_msg_cols + 1];
+    let mut g = Vec::with_capacity(g1.len());
+    (queries.iter().zip(weights)).fold(F192::ZERO, |acc, (&q, &weight)| {
+        normalized_sks_at(F64(q as u64), &sks_vks, &inv_sks_vks, &mut w);
+        // `Σ_j g_1[j] X_j`, folding the top bit of `j` at a time: `X_j` is the product of the `W_b` over the bits `b` of `j`.
+        g.clear();
+        g.extend_from_slice(g1);
+        while g.len() > 1 {
+            let half = g.len().next_power_of_two() >> 1;
+            let w_b = w[half.trailing_zeros() as usize];
+            let (lo, hi) = g.split_at_mut(half);
+            for (l, &h) in lo.iter_mut().zip(hi.iter()) {
+                *l += h.mul_base(w_b);
+            }
+            g.truncate(half);
+        }
+        let p = g.first().copied().unwrap_or(F192::ZERO);
+        acc + weight * p.mul_base(w[log_msg_cols] + shift)
+    })
+}
+
 /// Dense induce: `basis_poly[j] = Σ_i w_i · W-hat_j(q_i)`,
 /// `enforced_sum = Σ_i w_i · <row_i, eq(v_challenges, ·)>`, for the per-query
 /// batching weights `w` of the level.

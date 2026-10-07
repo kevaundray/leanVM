@@ -71,16 +71,7 @@ fn main() {
         let mut ch = ProverState::from_label(b"pcs-throughput");
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
-            recursive_prover_with_basis(
-                &pc,
-                log_n,
-                &witness,
-                b_initial.to_vec(),
-                target,
-                &pd.codeword,
-                &pd.merkle_tree,
-                &mut ch,
-            );
+            recursive_prover_with_basis(&pc, log_n, &witness, b_initial.to_vec(), target, &pd, None, &mut ch);
         });
         open_t.push(t.elapsed().as_secs_f64());
         black_box((cm, ch.into_proof()));

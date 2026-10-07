@@ -548,13 +548,17 @@ fn opening_rows(
 fn check_opening(mu: usize, log_inv_rate: usize, seed: u64) {
     let what = format!("mu {mu}, log_inv_rate {log_inv_rate}");
     let mut rng = Rng::new(seed);
-    let shape = StackShape { mu, n_lanes: N_LANES };
+    let shape = StackShape {
+        mu,
+        n_lanes: N_LANES,
+        random_lane: false,
+    };
     let q: Vec<F64> = (0..shape.committed_len()).map(|_| F64(rng.next_u64())).collect();
     let (slots, rings) = opening_claims(mu, &q, &mut rng);
 
     let mut ps = ProverState::from_label(LABEL);
     let committed = crate::pcs::commit(&mut ps, &q, shape, log_inv_rate);
-    crate::pcs::open(&mut ps, &committed, &q, &slots, &rings);
+    crate::pcs::open(&mut ps, &committed, &q, &slots, &rings, None);
     let proof = ps.into_proof();
     let native = |slots: &[StackClaim], rings: &[RingSwitch], proof: &ProofTranscript| {
         let mut vs = VerifierState::from_label(LABEL, proof);

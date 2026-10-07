@@ -53,10 +53,22 @@
 //! challenge, as the table sumcheck's xi ranges do (the batching step of `thm:rbr`).
 //! `lambda` is drawn after the map, so the family's error is fixed by then and is the
 //! constant term of the batched error, which is what lets it take `lambda^0 = 1`.
+//!
+//! ## The hiding opening
+//!
+//! A commitment made by [`super::whir::commit_hiding`] pads each committed lane past its power of two `2^m` with `k` uniform coefficients, `k = q_0 + 2` ([`super::whir::ProverConfig::padding`]), and the caller makes its last committed lane `R` uniform, outside every claim. Opened with [`Hiding`], the opening is the one above with three changes:
+//!
+//! - after the lane fold's last challenge, with `hidden_claim`, the prover turns its transcript's hiding off and sends the running claim `a` in the clear, which the verifier checks against the claim it holds (an expression of keyed scalars in the zero-knowledge proof) and continues from;
+//! - the prover then sends `g_1[j] = sum_u eq(fold, u) pad_u[j]`, `j < k`, the padding folded as the lanes are;
+//! - a level-0 query's folded row is the folded padded codeword at its point `x`, from which the verifier takes `W_m(x) sum_j g_1[j] X_j(x)` before weighting it, leaving the codeword of the folded message the rest of WHIR proves about.
+//!
+//! What the opening reveals is then hidden as follows (the PCS annex, `sec:pcs-zk`). Any `q_0 + 1` symbols of a padded lane are uniform, so level 0's opened rows are; a root hides each unopened leaf behind the uniform symbol each lane keeps there, in the random-oracle model. The claim's weight is zero on `R`, so the lane fold mixes `R` into the folded vector with the coefficient `eq(fold, R)`, and every later message (the round messages, `a`, the out-of-domain answers, the opened rows of later levels, the residual) is a linear functional of a vector `R` masks, and every later root a random-oracle hash of one: as long as the functionals span at most half the lane's `2^m` dimensions over `K`, they are uniform. This last step adapts VEIL's Lemma 4.7 to an `E`-fold of `K` lanes and is argued, not proven. `g_1` is uniform and independent of the rest, by the padding.
 
 use super::ring_switch::{self, RingFamily, RingSwitch, SliceClaim};
 use super::verifier::OpeningVerifier;
-use super::whir::{ProverConfig, ProverData, VerifierConfig, WhirError, recursive_verifier_with_basis_succinct};
+use super::whir::{
+    Hiding, ProverConfig, ProverData, VerifierConfig, WhirError, recursive_verifier_with_basis_succinct,
+};
 use basis::StackWeight;
 use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::Transmitter;
@@ -156,6 +168,12 @@ impl<E: Copy> StackClaim<E> {
 /// exactly the weight's zero region. `config.initial_k` / `config.log_inv_rates[0]`
 /// must match the commit's `log_batch_size` / `log_inv_rate` (enforced by shape
 /// asserts inside the WHIR prover).
+///
+/// With `hiding`, `prover_data` is a [`super::whir::commit_hiding`] commitment, padded by `hiding.k` coefficients a lane (the module docs).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The opening keeps its independent inputs explicit."
+)]
 pub fn open(
     ps: &mut impl Transmitter,
     log_n: usize,
@@ -164,6 +182,7 @@ pub fn open(
     config: &ProverConfig,
     point_claims: &[StackClaim],
     rings: &[RingSwitch],
+    hiding: Option<Hiding>,
 ) {
     for ring in rings {
         let qflock_len = 1usize << ring.qflock_vars;
@@ -239,9 +258,9 @@ pub fn open(
         stack,
         basis,
         target,
-        &prover_data.codeword,
-        &prover_data.merkle_tree,
+        prover_data,
         Some(initial),
+        hiding,
         ps,
     );
 }
@@ -254,9 +273,15 @@ pub fn open(
 ///
 /// The verifier is the native one or the recursion machine's rows, which run the same steps.
 ///
+/// `hiding` is the opening's, as [`open`] was given it.
+///
 /// # Errors
 ///
 /// Returns a statement whose regions or claims leave the committed cube, then the WHIR verifier's refusal.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The opening keeps its independent inputs explicit."
+)]
 pub fn verify<V: OpeningVerifier>(
     v: &mut V,
     config: &VerifierConfig,
@@ -265,6 +290,7 @@ pub fn verify<V: OpeningVerifier>(
     root: V::Root,
     point_claims: &[StackClaim<V::E>],
     rings: &[RingSwitch<V::E>],
+    hiding: Option<Hiding>,
 ) -> Result<(), WhirError> {
     check_statement(log_n, point_claims, rings)?;
 
@@ -289,7 +315,7 @@ pub fn verify<V: OpeningVerifier>(
         })
     };
     v.scope("whir", |v| {
-        recursive_verifier_with_basis_succinct(v, config, log_n, n_lanes, target, root, weight_at)
+        recursive_verifier_with_basis_succinct(v, config, log_n, n_lanes, target, root, hiding, weight_at)
     })
 }
 
@@ -324,7 +350,10 @@ mod tests {
     use super::*;
     use crate::ring_switch::tests::s_hat_v_reference;
     use crate::whir::config::tests::{default_config, test_config_for};
-    use crate::whir::{INITIAL_BASIS_CHUNK, commit, inner_product_base_ext};
+    use crate::whir::{
+        Hiding, INITIAL_BASIS_CHUNK, MIN_LOG_N_HIDING, commit, commit_hiding, config_for_rate_hiding,
+        inner_product_base_ext,
+    };
     use basis::StackWeight;
     use fiat_shamir::merkle::Hash;
     use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
@@ -532,7 +561,7 @@ mod tests {
         );
         let (cm, pd) = commit(&stack, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
         let mut ps = ProverState::from_label(DOMAIN);
-        open(&mut ps, log_n, &stack, &pd, &pc, &point_claims, &rings);
+        open(&mut ps, log_n, &stack, &pd, &pc, &point_claims, &rings, None);
 
         Instance {
             vc: pc,
@@ -559,6 +588,7 @@ mod tests {
             inst.root,
             point_claims,
             rings,
+            None,
         )
         .is_ok()
     }
@@ -688,6 +718,7 @@ mod tests {
             &pc,
             &point_claims,
             std::slice::from_ref(&ring),
+            None,
         );
         let fs = ps.into_proof();
 
@@ -700,7 +731,8 @@ mod tests {
                 1 << pc.initial_k(),
                 cm.root,
                 &point_claims,
-                std::slice::from_ref(&ring)
+                std::slice::from_ref(&ring),
+                None,
             )
             .is_ok(),
             "honest crossing-regime opening rejected"
@@ -718,10 +750,187 @@ mod tests {
                 1 << pc.initial_k(),
                 cm.root,
                 &point_claims,
-                std::slice::from_ref(&bad_ring)
+                std::slice::from_ref(&bad_ring),
+                None,
             )
             .is_err(),
             "tampered crossing-regime ring slice accepted"
+        );
+    }
+
+    /// A hiding statement: data lanes, then one uniform lane `R` no claim touches.
+    struct HidingStatement {
+        log_n: usize,
+        config: ProverConfig,
+        stack: Vec<F64>,
+        point_claims: Vec<StackClaim>,
+        rings: Vec<RingSwitch>,
+    }
+
+    impl HidingStatement {
+        fn new(log_inv_rate: usize, n_lanes: usize, seed: u64) -> Self {
+            let log_n = MIN_LOG_N_HIDING;
+            let config = config_for_rate_hiding(log_n, log_inv_rate).unwrap();
+            let lane_vars = log_n - config.initial_k();
+            let mut rng = Rng::new(seed);
+            let stack: Vec<F64> = (0..n_lanes << lane_vars).map(|_| F64(rng.next_u64())).collect();
+            // A ring-switched claim on the first two lanes, a point claim on the next: none reaches `R`, the last.
+            let qflock_vars = lane_vars + 1;
+            let suffix_point = rng.ext_vec(qflock_vars);
+            let s_hat_v = s_hat_v_reference(&stack[..1 << qflock_vars], &suffix_point);
+            let rings = vec![RingSwitch {
+                offset: 0,
+                qflock_vars,
+                claims: vec![SliceClaim { suffix_point, s_hat_v }],
+            }];
+            let offset = 2 << lane_vars;
+            let low_point = rng.ext_vec(lane_vars);
+            let value = inner_product_base_ext(&stack[offset..offset + (1 << lane_vars)], &eq_table(&low_point));
+            let point_claims = vec![StackClaim::Point {
+                offset,
+                low_point,
+                value,
+            }];
+            assert!(n_lanes > 3, "the claims leave the last lane alone");
+            Self {
+                log_n,
+                config,
+                stack,
+                point_claims,
+                rings,
+            }
+        }
+
+        const fn n_lanes(&self) -> usize {
+            self.stack.len() >> (self.log_n - self.config.initial_k())
+        }
+
+        /// Each lane's `k` uniform padding coefficients.
+        fn pads(&self, seed: u64) -> Vec<F64> {
+            let mut rng = Rng::new(seed);
+            (0..self.config.padding() * self.n_lanes())
+                .map(|_| F64(rng.next_u64()))
+                .collect()
+        }
+
+        const fn hiding(&self, hidden_claim: bool) -> Hiding {
+            Hiding {
+                k: self.config.padding(),
+                hidden_claim,
+            }
+        }
+
+        /// Commit with these pads and open, the prover holding `prover_pads` as the commitment's.
+        fn prove(&self, pads: &[F64], prover_pads: Option<Vec<F64>>, hidden_claim: bool) -> (Hash, ProofTranscript) {
+            let (cm, mut pd) = commit_hiding(
+                &self.stack,
+                self.log_n,
+                self.config.initial_k(),
+                self.config.log_inv_rates()[0],
+                pads,
+            );
+            if let Some(prover_pads) = prover_pads {
+                pd.pads = prover_pads;
+            }
+            let mut ps = ProverState::from_label(DOMAIN);
+            open(
+                &mut ps,
+                self.log_n,
+                &self.stack,
+                &pd,
+                &self.config,
+                &self.point_claims,
+                &self.rings,
+                Some(self.hiding(hidden_claim)),
+            );
+            (cm.root, ps.into_proof())
+        }
+
+        fn verify(&self, root: Hash, fs: &ProofTranscript, hidden_claim: bool) -> Result<(), WhirError> {
+            let mut vs = VerifierState::from_label(DOMAIN, fs);
+            verify(
+                &mut vs,
+                &self.config,
+                self.log_n,
+                self.n_lanes(),
+                root,
+                &self.point_claims,
+                &self.rings,
+                Some(self.hiding(hidden_claim)),
+            )
+        }
+
+        /// Where the revealed scalars start in the stream: after the first round's message and the lane rounds' but the last.
+        const fn revealed_at(&self) -> usize {
+            2 * self.config.initial_k()
+        }
+    }
+
+    #[test]
+    fn a_hiding_opening_verifies_and_binds_what_it_reveals() {
+        for (log_inv_rate, n_lanes, hidden_claim) in [(1usize, 5usize, false), (1, 64, true), (2, 37, true)] {
+            let st = HidingStatement::new(log_inv_rate, n_lanes, 0x41D + n_lanes as u64);
+            let pads = st.pads(7);
+            let (root, fs) = st.prove(&pads, None, hidden_claim);
+            let what = format!("rate 2^-{log_inv_rate}, {n_lanes} lanes, hidden claim {hidden_claim}");
+            assert_eq!(st.verify(root, &fs, hidden_claim), Ok(()), "honest opening, {what}");
+
+            // The revealed claim, then each end of the padding's fold.
+            let k = st.config.padding();
+            let g1 = st.revealed_at() + usize::from(hidden_claim);
+            if hidden_claim {
+                let mut bad = fs.clone();
+                bad.stream[g1 - 1] += F192::ONE;
+                assert_eq!(
+                    st.verify(root, &bad, hidden_claim),
+                    Err(WhirError::RevealedClaim),
+                    "tampered claim, {what}"
+                );
+            }
+            for j in [g1, g1 + k - 1] {
+                let mut bad = fs.clone();
+                bad.stream[j] += F192::ONE;
+                assert!(st.verify(root, &bad, hidden_claim).is_err(), "tampered g_1, {what}");
+            }
+
+            // A prover folding other pads than the committed ones sends a consistent transcript around a wrong `g_1`: the level-0 correction catches it.
+            let mut other = pads.clone();
+            other[(n_lanes - 1) * k] += F64::ONE;
+            let (root, fs) = st.prove(&pads, Some(other), hidden_claim);
+            assert!(st.verify(root, &fs, hidden_claim).is_err(), "g_1 of other pads, {what}");
+
+            // The opening pads as its configuration does.
+            let mut vs = VerifierState::from_label(DOMAIN, &fs);
+            let short = Hiding { k: k - 1, hidden_claim };
+            assert_eq!(
+                verify(
+                    &mut vs,
+                    &st.config,
+                    st.log_n,
+                    n_lanes,
+                    root,
+                    &st.point_claims,
+                    &st.rings,
+                    Some(short)
+                ),
+                Err(WhirError::Padding { k: k - 1, padding: k })
+            );
+        }
+    }
+
+    #[test]
+    fn a_hiding_opening_is_a_function_of_its_pads() {
+        let st = HidingStatement::new(1, 6, 0x5EED);
+        let pads = st.pads(1);
+        let (root, fs) = st.prove(&pads, None, true);
+        assert_eq!(st.prove(&pads, None, true), (root, fs.clone()), "same pads, same proof");
+
+        let (other_root, other_fs) = st.prove(&st.pads(2), None, true);
+        assert_eq!(st.verify(other_root, &other_fs, true), Ok(()));
+        let g1 = st.revealed_at() + 1..st.revealed_at() + 1 + st.config.padding();
+        assert!(
+            (fs.stream[g1.clone()].iter().zip(&other_fs.stream[g1])).all(|(a, b)| a != b),
+            "other pads, another g_1"
         );
     }
 }

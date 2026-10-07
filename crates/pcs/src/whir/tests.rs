@@ -33,16 +33,7 @@ fn prove_instance(log_n: usize, seed: u64) -> Instance {
     let b_initial = eq_table(&point);
     let target = inner_product_base_ext(&witness, &b_initial);
     let mut ps = ProverState::from_label(b"whir-test");
-    recursive_prover_with_basis(
-        &pc,
-        log_n,
-        &witness,
-        b_initial.to_vec(),
-        target,
-        &pd.codeword,
-        &pd.merkle_tree,
-        &mut ps,
-    );
+    recursive_prover_with_basis(&pc, log_n, &witness, b_initial.to_vec(), target, &pd, None, &mut ps);
     Instance {
         vc: pc,
         log_n,
@@ -68,6 +59,7 @@ fn verify_with(inst: &Instance, fs: &ProofTranscript, eval_b_at: impl Fn(&[F192]
         1 << inst.vc.initial_k(),
         inst.target,
         inst.root,
+        None,
         |_, point| eval_b_at(point),
     )
 }
@@ -239,16 +231,7 @@ fn truncated_lanes_match_an_explicit_zero_tail() {
             let prove = |msg: &[F64], b: &[F192]| {
                 let (cm, pd) = commit(msg, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
                 let mut ps = ProverState::from_label(b"whir-test");
-                recursive_prover_with_basis(
-                    &pc,
-                    log_n,
-                    msg,
-                    b.to_vec(),
-                    target,
-                    &pd.codeword,
-                    &pd.merkle_tree,
-                    &mut ps,
-                );
+                recursive_prover_with_basis(&pc, log_n, msg, b.to_vec(), target, &pd, None, &mut ps);
                 (cm.root, ps.into_proof())
             };
             let (root_trunc, fs_trunc) = prove(&witness[..used], &b_initial[..used]);
@@ -276,9 +259,16 @@ fn truncated_lanes_match_an_explicit_zero_tail() {
             // The verifier evaluates the weight over the whole `2^log_n` cube.
             let verify = |fs: &ProofTranscript| {
                 let mut vs = VerifierState::from_label(b"whir-test", fs);
-                recursive_verifier_with_basis_succinct(&mut vs, &pc, log_n, n_lanes, target, root_trunc, |_, point| {
-                    dense_mle(&b_initial, point)
-                })
+                recursive_verifier_with_basis_succinct(
+                    &mut vs,
+                    &pc,
+                    log_n,
+                    n_lanes,
+                    target,
+                    root_trunc,
+                    None,
+                    |_, point| dense_mle(&b_initial, point),
+                )
             };
             assert_eq!(verify(&fs_trunc), Ok(()), "verify failed at n_lanes = {n_lanes}");
 
@@ -294,6 +284,81 @@ fn truncated_lanes_match_an_explicit_zero_tail() {
                 );
             }
         }
+    }
+}
+
+/// The novel basis at the point of codeword position `p` (the field element `F64(p)`): `X_j(p)` for `j < 2^m`, then `W_m(p)`.
+///
+/// `X_j` is the product of the normalized subspace polynomials `W_b = s_b / s_b(v_b)` over the bits `b` of `j`, `s_b = s_{b-1} (s_{b-1} + s_{b-1}(v_{b-1}))`.
+fn novel_basis_at(p: usize, m: usize) -> (Vec<F64>, F64) {
+    let sks = eval_sk_at_vks(m);
+    let mut s = F64(p as u64);
+    let mut w = Vec::with_capacity(m + 1);
+    for b in 0..=m {
+        if b > 0 {
+            s *= s + sks[b - 1];
+        }
+        w.push(s * sks[b].inv());
+    }
+    let mut x = vec![F64::ONE];
+    for &w_b in &w[..m] {
+        let high: Vec<F64> = x.iter().map(|&v| v * w_b).collect();
+        x.extend(high);
+    }
+    (x, w[m])
+}
+
+/// Every lane of a hiding commitment is its `2^m + k` coefficients evaluated at every domain point: `Σ_j msg_j X_j(x) + W_m(x + s) Σ_j pad_j X_j(x)`, `s = F64(2^(m + r))`.
+///
+/// The shapes take the encode's plans: replicas copied before a deep pass, and a gathered first pass at the rate layer (many lanes), at `r = 1` and beyond, the padding at most a whole lane.
+#[test]
+fn a_hiding_commitment_encodes_the_padded_lanes() {
+    let mut rng = Rng::new(0x9AD);
+    for (m, log_inv_rate, log_batch_size, n_lanes, k) in [
+        (3usize, 1usize, 2usize, 3usize, 8usize),
+        (5, 2, 3, 7, 5),
+        (6, 4, 1, 2, 64),
+        (9, 1, 3, 5, 37),
+        (8, 1, 11, 2048, 13),
+        (8, 2, 11, 2048, 9),
+    ] {
+        let log_n = m + log_batch_size;
+        let msg: Vec<F64> = (0..n_lanes << m).map(|_| F64(rng.next_u64())).collect();
+        let pads: Vec<F64> = (0..n_lanes * k).map(|_| F64(rng.next_u64())).collect();
+        let (_, pd) = commit_hiding(&msg, log_n, log_batch_size, log_inv_rate, &pads);
+        assert_eq!(pd.pads, pads);
+        // Every lane of a narrow commitment; the ends and a spread of a wide one's.
+        let lanes: Vec<usize> = (0..n_lanes)
+            .filter(|&u| n_lanes < 64 || u % 97 == 0 || u + 1 == n_lanes)
+            .collect();
+        let s = 1usize << (m + log_inv_rate);
+        for p in 0..s {
+            let (x, _) = novel_basis_at(p, m);
+            let (_, w_m_shifted) = novel_basis_at(p ^ s, m);
+            for &u in &lanes {
+                let at = |coeffs: &[F64]| coeffs.iter().zip(&x).fold(F64::ZERO, |acc, (&c, &x_j)| acc + c * x_j);
+                let want = at(&msg[u << m..(u + 1) << m]) + w_m_shifted * at(&pads[u * k..(u + 1) * k]);
+                assert_eq!(
+                    pd.codeword[p * n_lanes + n_lanes - 1 - u],
+                    want,
+                    "lane {u}, position {p}, m={m}, rate={log_inv_rate}, n_lanes={n_lanes}, k={k}"
+                );
+            }
+        }
+    }
+}
+
+/// No domain point escapes the padding: a zero message padded by the constant one is nonzero everywhere.
+///
+/// Padded by `W_m` alone, the first `2^m` points would show the message unmasked to any query landing there.
+#[test]
+fn a_hiding_commitment_pads_every_point() {
+    for (m, log_inv_rate) in [(3usize, 1usize), (6, 2), (10, 1), (8, 4)] {
+        let (_, pd) = commit_hiding(&vec![F64::ZERO; 1 << m], m + 1, 1, log_inv_rate, &[F64::ONE]);
+        assert!(
+            pd.codeword.iter().all(|&w| w != F64::ZERO),
+            "an unpadded point at m={m}, rate={log_inv_rate}"
+        );
     }
 }
 

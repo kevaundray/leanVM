@@ -98,6 +98,7 @@ fn main() {
             &config,
             &[],
             std::slice::from_ref(&ring),
+            None,
         );
         let open_s = t.elapsed().as_secs_f64();
         let prove_s = t_prove.elapsed().as_secs_f64();
@@ -151,7 +152,8 @@ fn main() {
                 1 << INITIAL_FOLDING_FACTOR,
                 root,
                 &[],
-                std::slice::from_ref(&ring)
+                std::slice::from_ref(&ring),
+                None
             )
             .is_ok(),
             "stacked PCS opening verifies"

@@ -4,7 +4,7 @@ use aggregate::LeafProgram;
 use bench::Plan;
 use clap::builder::RangedU64ValueParser;
 use clap::{Parser, Subcommand};
-use leanvm::{Prover, Rate};
+use leanvm::{Prover, Randomness, Rate};
 use std::error::Error;
 use std::fmt::Arguments;
 use std::num::ParseIntError;
@@ -36,6 +36,10 @@ struct Cli {
     /// Enable hierarchical timing traces. Use RUST_LOG to adjust verbosity.
     #[arg(long, global = true)]
     tracing: bool,
+
+    /// Make zero-knowledge proofs, from fresh randomness the OS gives each proof.
+    #[arg(long, global = true)]
+    zk: bool,
 
     /// Measured proving passes after warmup.
     #[arg(
@@ -178,7 +182,13 @@ fn refuse(what: Arguments) -> ! {
 
 fn main() {
     let cli = Cli::parse();
+    if cli.zk && matches!(cli.command, Command::Aggregate { .. } | Command::Bench { .. }) {
+        refuse(format_args!(
+            "--zk proves single runs: an aggregation tree does not verify zero-knowledge leaves, and the benchmark tracks its own zero-knowledge case"
+        ));
+    }
     let prover = Prover::new(cli.rate);
+    let prover = if cli.zk { prover.zk(Randomness::Os) } else { prover };
     let leaf_prover = Prover::new(cli.leaf_rate);
     let plan = Plan::new(cli.repeat, cli.cooldown);
     if cli.tracing {

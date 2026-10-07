@@ -13,9 +13,10 @@ use super::witness::Witness;
 use super::{Output, Proof};
 use crate::class_flock::FlockId;
 use crate::constraints::{Claims, Columns};
-use crate::pcs::Rate;
+use crate::pcs::{Rate, RingSwitch, StackClaim};
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
 use crate::tables::{ClassTable, Clock, PerTable, TableId};
+use crate::zk::randomness::Randomness;
 use crate::{constraints, leaf, pcs};
 use fiat_shamir::arith::Native;
 use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, VerifierState};
@@ -43,6 +44,9 @@ const _: () = assert!(cfg!(target_endian = "little"));
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
     const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-11";
+
+    /// The domain a zero-knowledge proof's transcript seed is hashed under, with the protocol's version.
+    const ZK_DOMAIN: &'static [u8] = b"leanvm-rv64im-zk";
 
     /// The cycles between two checks of a running trace against one commitment.
     const SIZE_CHECK_PERIOD: u64 = 1 << 16;
@@ -207,16 +211,16 @@ impl Program {
         })
     }
 
-    /// Prove a finished run, which a test may have forged.
-    pub(super) fn prove_execution(&self, exec: &Execution, rate: Rate) -> (Proof, Stats) {
-        let w = crate::stage!("Build witness", || Witness::build(self, exec));
+    /// Prove a finished run, which a test may have forged, in zero knowledge when given its randomness.
+    pub(super) fn prove_execution(&self, exec: &Execution, rate: Rate, zk: Option<Randomness>) -> (Proof, Stats) {
+        let w = crate::stage!("Build witness", || Witness::build_for(self, exec, zk.is_some()));
         let stats = Stats {
             proven_rows: exec.proven_rows,
             counts: w.layout.taus.map(|t| 1usize << t),
             base_counts: exec.base_counts,
             committed: w.committed_size(),
         };
-        (self.prove_witness(w, Output::new(exec.output), rate), stats)
+        (self.prove_witness(w, Output::new(exec.output), rate, zk), stats)
     }
 
     /// Prove a built witness, which a test may have forged.
@@ -224,7 +228,10 @@ impl Program {
     /// # Panics
     ///
     /// Panics if the witness's bus does not balance: an honest run's always does.
-    fn prove_witness(&self, w: Witness, output: Output, rate: Rate) -> Proof {
+    fn prove_witness(&self, mut w: Witness, output: Output, rate: Rate, zk: Option<Randomness>) -> Proof {
+        if let Some(randomness) = zk {
+            return super::zk::prove(self, w, output, rate, randomness);
+        }
         // The public statement, the program's digest and the output, seeds the transcript.
         let mut ps = ProverState::new(self.fs_seed(), output.words().map(F64));
 
@@ -237,7 +244,21 @@ impl Program {
         };
         announcement.write(&mut ps);
         let committed = crate::stage!("Commit", || pcs::commit(&mut ps, &w.q, w.layout.shape, log_inv_rate));
+        let (slots, rings) = self.prove_reductions(&mut ps, &mut w, output);
+        crate::stage!("PCS open", || pcs::open(
+            &mut ps, &committed, &w.q, &slots, &rings, None
+        ));
+        Proof(ps.into_proof(), false)
+    }
 
+    /// The bus, the table sumcheck and flock's reductions over the committed witness: the opening's point claims and its
+    /// ring-switched regions.
+    pub(super) fn prove_reductions(
+        &self,
+        ps: &mut ProverState,
+        w: &mut Witness,
+        output: Output,
+    ) -> (Vec<StackClaim>, Vec<RingSwitch>) {
         // The bus, then the linear tables' columns at its point, then the one batch over the other tables and the
         // producers, all reading the stack's windows in place.
         let spans = &Schema::get().spans;
@@ -245,15 +266,7 @@ impl Program {
             let l = &w.layout;
             let cols = w.columns();
             let mut bus = crate::stage!("Prove bus", || {
-                leaf::prove_balance(
-                    &l.push,
-                    &l.pull,
-                    &l.producers,
-                    l.grinding,
-                    &cols,
-                    spans.as_slice(),
-                    &mut ps,
-                )
+                leaf::prove_balance(&l.push, &l.pull, &l.producers, l.grinding, &cols, spans.as_slice(), ps)
             });
             // A settled table's columns at the bus point, short of its register numbers, which the batch folds.
             let settled: Vec<Claims> = (ClassTable::all().iter())
@@ -288,7 +301,7 @@ impl Program {
                     .chain(producers.into_iter().map(|p| Columns::E(p.columns)))
                     .collect();
                 let batch = Batch::new(l, &bus.forms, &coefficients, &bus.weights, bus.beta, powers);
-                constraints::prove(batch.airs(), table_cols, &bus.point, &sums, &mut ps)
+                constraints::prove(batch.airs(), table_cols, &bus.point, &sums, ps)
             });
             (bus.claims, TableClaims::new(settled, summed))
         };
@@ -304,7 +317,7 @@ impl Program {
         //
         // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
         // Each producer's multiplicity column is a ring-switched region too.
-        let reductions = w.reductions;
+        let reductions = std::mem::take(&mut w.reductions);
         let slices = crate::stage!("Flock reductions", || {
             let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
                 .map(|(f, tables)| {
@@ -313,12 +326,11 @@ impl Program {
                     f.instance(column, l.taus[f.table()], tables)
                 })
                 .collect();
-            reduction::prove(&instances, &mut ps)
+            reduction::prove(&instances, ps)
         });
         drop(reductions);
         let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);
-        crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &w.q, &slots, &rings));
-        Proof(ps.into_proof())
+        (slots, rings)
     }
 
     /// Check that the proof shows this program, run on some advice, exiting with this output.
@@ -332,6 +344,9 @@ impl Program {
     /// The proof is not one of this program and this output.
     #[tracing::instrument(name = "Verify", skip_all)]
     pub fn verify(&self, output: Output, proof: &Proof) -> Result<(), VerifyError> {
+        if proof.is_zk() {
+            return Ok(super::zk::verify(self, output, proof).map(drop)?);
+        }
         let claims = self.verify_core(output, proof)?;
         Ok(self.check_deferred(&claims)?)
     }
@@ -344,9 +359,23 @@ impl Program {
     #[tracing::instrument(name = "Verify", skip_all)]
     #[doc(hidden)]
     pub fn verify_to_raw(&self, output: Output, proof: &Proof) -> Result<RawProof, CpuError> {
+        if proof.is_zk() {
+            return super::zk::verify(self, output, proof);
+        }
         let (claims, raw) = self.replay(output, proof)?;
         self.check_deferred(&claims)?;
         Ok(raw)
+    }
+
+    /// Verify a zero-knowledge proof and render the outer constraint system its verifier recorded, the form the Python
+    /// verifier renders too.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first stage that refuses the proof.
+    #[doc(hidden)]
+    pub fn zk_constraints(&self, output: Output, proof: &Proof) -> Result<String, CpuError> {
+        super::zk::render_constraints(self, output, proof)
     }
 
     /// The verifier's core: every check that depends on the proof.
@@ -357,7 +386,8 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// Returns the first stage that refuses the proof.
+    /// Returns the first stage that refuses the proof, and refuses a zero-knowledge proof, whose claims are settled
+    /// inside its outer proof.
     #[doc(hidden)]
     pub fn verify_core(&self, output: Output, proof: &Proof) -> Result<DeferredClaims, CpuError> {
         self.replay(output, proof).map(|(claims, _)| claims)
@@ -366,6 +396,9 @@ impl Program {
     /// The verifier's core, and the proof it replayed with its Merkle paths written out.
     #[tracing::instrument(name = "Verify core", skip_all)]
     fn replay(&self, output: Output, proof: &Proof) -> Result<(DeferredClaims, RawProof), CpuError> {
+        if proof.is_zk() {
+            return Err(CpuError::ZkCore);
+        }
         // The public statement seeds the transcript, as on the prover's side.
         let mut vs = VerifierState::new(self.fs_seed(), &proof.0, output.words().map(F64));
 
@@ -398,6 +431,20 @@ impl Program {
     #[doc(hidden)]
     pub fn fs_seed(&self) -> [F64; 4] {
         fiat_shamir::digest_words(&self.digest)
+    }
+
+    /// The transcript's seed for a proof of either kind.
+    ///
+    /// A zero-knowledge proof's is the digest hashed under its protocol's own domain, so no challenge of one kind of proof is ever one of the other.
+    pub(super) fn seed(&self, zk: bool) -> [F64; 4] {
+        if !zk {
+            return self.fs_seed();
+        }
+        let mut h = Hasher::new();
+        h.update(Self::ZK_DOMAIN);
+        h.update(&Proof::ZK_VERSION.to_le_bytes());
+        h.update(&self.digest);
+        fiat_shamir::digest_words(&h.finalize())
     }
 
     /// The committed size of a run making these rows per table, each table taken at its provable height.
@@ -641,7 +688,7 @@ mod tests {
 
     /// The prover refuses a witness whose bus does not balance: its two products differ.
     fn assert_unbalanced(program: &Program, w: Witness, output: Output) {
-        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| program.prove_witness(w, output, Rate::MIN)))
+        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| program.prove_witness(w, output, Rate::MIN, None)))
             .expect_err("an unbalanced bus was proven");
         let message = refused.downcast_ref::<String>().map(String::as_str).unwrap_or("");
         assert!(
@@ -791,7 +838,7 @@ mod tests {
         );
         column_mut(&mut w, jump_column())[row] = F64(value);
         assert!(unmatched(&w).is_empty());
-        let proof = program.prove_witness(w, forged.output.into(), Rate::MIN);
+        let proof = program.prove_witness(w, forged.output.into(), Rate::MIN, None);
         program
             .verify_core(forged.output.into(), &proof)
             .expect_err("a forged successor is refused")
@@ -1044,7 +1091,7 @@ mod tests {
         let w = Witness::build(program, exec);
         let unmatched = unmatched(&w);
         assert!(unmatched.is_empty(), "the forged run balances: {unmatched:?}");
-        let proof = program.prove_witness(w, exec.output.into(), Rate::MIN);
+        let proof = program.prove_witness(w, exec.output.into(), Rate::MIN, None);
         program.verify_to_raw(exec.output.into(), &proof).map(drop)
     }
 
@@ -1258,7 +1305,7 @@ mod tests {
         let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
         let honest = program.execute(&[]).unwrap();
         assert_eq!(honest.output, [12, 0, 0, 0]);
-        let (proof, _) = program.prove_execution(&honest, Rate::MIN);
+        let (proof, _) = program.prove_execution(&honest, Rate::MIN, None);
         program
             .verify(honest.output.into(), &proof)
             .expect("the honest run verifies");
@@ -1401,7 +1448,7 @@ mod tests {
                 unmatched(&w).is_empty(),
                 "the bus reads the register numbers, not the word"
             );
-            let proof = program.prove_witness(w, exec.output.into(), Rate::MIN);
+            let proof = program.prove_witness(w, exec.output.into(), Rate::MIN, None);
             assert!(
                 matches!(
                     program.verify_to_raw(exec.output.into(), &proof),
@@ -1526,7 +1573,7 @@ mod tests {
         (forged.trace.reg_ts[sink], forged.trace.reg_fin[sink]) = (F64(Clock::SEED_CLOCK), F64::ZERO);
         forged.trace.ts_final |= 1 << Clock::FAIL_BIT;
         assert!(unmatched_run(&program, &forged).is_empty());
-        let (proof, _) = program.prove_execution(&forged, Rate::MIN);
+        let (proof, _) = program.prove_execution(&forged, Rate::MIN, None);
         assert_eq!(
             program.verify(forged.output.into(), &proof),
             Err(CpuError::FinalClock.into())

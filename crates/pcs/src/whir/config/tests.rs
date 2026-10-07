@@ -33,9 +33,10 @@
 )]
 use super::{
     ConfigError, INITIAL_FOLDING_FACTOR, L0_LIST_BITS, LOG_INV_RATE_0, LadderError, MAX_LOG_INV_RATE, MAX_LOG_N,
-    MIN_LOG_INV_RATE, MIN_LOG_N, ProverConfig, QUERY_GRINDING_BITS, RS_DOMAIN_INITIAL_REDUCTION_FACTOR,
-    RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR, SECURITY_BITS, WHIR_QUERIES, config_for_rate, derive_ladder,
-    derive_ladder_shape, validate_log_inv_rate,
+    MIN_LOG_INV_RATE, MIN_LOG_N, MIN_LOG_N_HIDING, ProverConfig, QUERY_GRINDING_BITS,
+    RS_DOMAIN_INITIAL_REDUCTION_FACTOR, RS_DOMAIN_SUBSEQUENT_REDUCTION_FACTOR, SECURITY_BITS, WHIR_QUERIES,
+    WHIR_QUERIES_HIDING, config_for_rate, config_for_rate_hiding, derive_ladder, derive_ladder_shape,
+    validate_log_inv_rate,
 };
 use primitives::field::F64;
 use std::fmt::Write;
@@ -188,12 +189,36 @@ pub(crate) fn default_config(
         queries,
         vec![0usize; n_levels],
         vec![0usize; n_levels],
+        0,
     ))
 }
 
 /// The configuration the derivation gives a `2^log_n`-word witness at L0 rate `2^-log_inv_rate`, which the table must hold.
 fn derive_config(log_n: usize, log_inv_rate: usize) -> Result<ProverConfig, DerivationError> {
-    WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + F64::DEGREE.ilog2() as usize, log_inv_rate)?.to_config()
+    WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + F64::DEGREE.ilog2() as usize, log_inv_rate, 0)?
+        .to_config()
+}
+
+/// The derivation of a hiding opening: L0's code padded by `k = q_0 + 2` past each lane's power of two, `q_0` its own query count.
+///
+/// A larger code needs more queries, so `k` starts from the unpadded `q_0 + 2` and grows until the query count it gives keeps it.
+fn derive_hiding_security(log_n: usize, log_inv_rate: usize) -> Result<WhirSecurityConfig, DerivationError> {
+    let m = log_n + F64::DEGREE.ilog2() as usize;
+    let mut padding = WhirSecurityConfig::derive_config_with_log_inv_rate(m, log_inv_rate, 0)?.levels[0].queries + 2;
+    loop {
+        let cfg = WhirSecurityConfig::derive_config_with_log_inv_rate(m, log_inv_rate, padding)?;
+        let next = cfg.levels[0].queries + 2;
+        if next == padding {
+            return Ok(cfg);
+        }
+        assert!(next > padding, "the padded query count grows with the padding");
+        padding = next;
+    }
+}
+
+/// The configuration the hiding table must hold.
+fn derive_hiding_config(log_n: usize, log_inv_rate: usize) -> Result<ProverConfig, DerivationError> {
+    derive_hiding_security(log_n, log_inv_rate)?.to_config()
 }
 
 /// Shared config for a `2^log_n`-word witness, preferring the production profile at [`LOG_INV_RATE_0`] and falling back to [`default_config`] below its feasibility floor.
@@ -241,6 +266,8 @@ struct WhirLevelConfig {
     /// Message dimension at this level (log of the number of field columns in
     /// the codeword). `log_msg_cols + log_inv_rate = log_2(block_len)`.
     log_msg_cols: usize,
+    /// Coefficients a hiding commitment adds past each lane's `2^log_msg_cols`: nonzero only at L0 of a hiding opening.
+    padding: usize,
     /// Log of lane width per Merkle leaf at this level. For L0 = `initial_k`;
     /// for L_i (i ≥ 1) = the previous level's `k`.
     log_num_interleaved: usize,
@@ -309,13 +336,36 @@ struct WhirSecurityConfig {
 /// Extension-field size used for soundness analysis: `q = 2^192`.
 const ANALYSIS_LOG_Q: f64 = 192.0;
 
+/// A level's Reed-Solomon code: block length `2^(log_msg_cols + log_inv_rate)`, dimension `2^log_msg_cols + padding`.
+#[derive(Clone, Copy, Debug)]
+struct Code {
+    log_inv_rate: usize,
+    log_msg_cols: usize,
+    padding: usize,
+}
+
+impl Code {
+    const fn plain(log_inv_rate: usize, log_msg_cols: usize) -> Self {
+        Self {
+            log_inv_rate,
+            log_msg_cols,
+            padding: 0,
+        }
+    }
+
+    /// Base-two logarithm of the block length.
+    const fn log_block_len(self) -> usize {
+        self.log_msg_cols + self.log_inv_rate
+    }
+}
+
 /// BCHKS25 parameter `rho = k/n` for an RS code of dimension `k + 1`.
-/// Our message has `2^log_msg_cols` coefficients (degree strictly below that
-/// value), so `k = 2^log_msg_cols - 1`. This differs perceptibly from the
+/// Our message has `2^log_msg_cols + padding` coefficients (degree strictly below that
+/// value), so `k = 2^log_msg_cols + padding - 1`. This differs perceptibly from the
 /// nominal code rate at the small recursive levels.
-fn reduced_rate(log_inv_rate: usize, log_msg_cols: usize) -> f64 {
-    let dimension = (log_msg_cols as f64).exp2();
-    (dimension - 1.0) / ((log_msg_cols + log_inv_rate) as f64).exp2()
+fn reduced_rate(code: Code) -> f64 {
+    let dimension = (code.log_msg_cols as f64).exp2() + code.padding as f64;
+    (dimension - 1.0) / (code.log_block_len() as f64).exp2()
 }
 
 /// Proximity-gap exceptional set for the list-decoding (Johnson) regime, per
@@ -335,17 +385,17 @@ fn reduced_rate(log_inv_rate: usize, log_msg_cols: usize) -> f64 {
     clippy::suboptimal_flops,
     reason = "Keep the rounding of the protocol parameter formulas unchanged."
 )]
-fn paper_thm_ca_johnson_log_a(log_inv_rate: usize, eta: f64, log_msg_cols: usize) -> f64 {
-    let rho = reduced_rate(log_inv_rate, log_msg_cols);
+fn paper_thm_ca_johnson_log_a(code: Code, eta: f64) -> f64 {
+    let rho = reduced_rate(code);
     let sqrt_rho = rho.sqrt();
     let gamma = 1.0 - sqrt_rho - eta;
     // BCHKS25 Thm 4.6: m = ⌈√ρ/(1−√ρ−γ)⌉ = ⌈√ρ/η⌉, floored at 3.
-    let m_param = johnson_m_param(log_inv_rate, log_msg_cols, eta);
+    let m_param = johnson_m_param(code, eta);
     let half = m_param + 0.5;
     let half5 = half.powi(5);
     let numerator = 2.0 * half5 + 3.0 * half * gamma * rho;
     let denominator = 3.0 * rho.powf(1.5);
-    let n = ((log_msg_cols + log_inv_rate) as f64).exp2();
+    let n = (code.log_block_len() as f64).exp2();
     let a = (numerator / denominator) * n + half / sqrt_rho;
     a.log2()
 }
@@ -356,15 +406,15 @@ fn paper_thm_ca_johnson_log_a(log_inv_rate: usize, eta: f64, log_msg_cols: usize
 /// Flock's Thm 8 quotes Thm 4.6 with that non-list parameter; the list form
 /// costs a factor 2 of slack (see the footnote in the PCS annex
 /// Thm `thm:mca-johnson`).
-fn johnson_m_param(log_inv_rate: usize, log_msg_cols: usize, eta: f64) -> f64 {
-    let sqrt_rho = reduced_rate(log_inv_rate, log_msg_cols).sqrt();
+fn johnson_m_param(code: Code, eta: f64) -> f64 {
+    let sqrt_rho = reduced_rate(code).sqrt();
     ((sqrt_rho / eta).ceil() as usize).max(3) as f64
 }
 
 /// Per-query log₂(1/(1−γ)) under the Johnson regime: each query closes
 /// `log_2(1/(1-γ))` bits of soundness against a γ-far adversary.
-fn paper_per_query_bits(log_inv_rate: usize, log_msg_cols: usize, eta: f64) -> f64 {
-    let rho = reduced_rate(log_inv_rate, log_msg_cols);
+fn paper_per_query_bits(code: Code, eta: f64) -> f64 {
+    let rho = reduced_rate(code);
     let gamma = 1.0 - rho.sqrt() - eta;
     (1.0 / (1.0 - gamma)).log2()
 }
@@ -397,9 +447,9 @@ fn udr_per_query_bits_asymptotic(log_inv_rate: usize) -> f64 {
 /// `θ = 1 − √ρ − η`, strictly below the Johnson radius by slack `η > 0`, so
 /// that regime never applies and the plain Johnson bound is both correct and
 /// far tighter (it dominates GGR throughout the regime RS can reach).
-fn johnson_interleaved_list_log2(log_inv_rate: usize, log_msg_cols: usize, eta: f64) -> f64 {
+fn johnson_interleaved_list_log2(code: Code, eta: f64) -> f64 {
     debug_assert!(eta > 0.0, "η must be > 0 to stay strictly below the Johnson radius");
-    let rho = reduced_rate(log_inv_rate, log_msg_cols);
+    let rho = reduced_rate(code);
     let sqrt_rho = rho.sqrt();
     let l_base = 1.0 / (2.0 * eta * sqrt_rho);
     l_base.log2()
@@ -415,15 +465,8 @@ fn johnson_interleaved_list_log2(log_inv_rate: usize, log_msg_cols: usize, eta: 
 ///   The claims it batches are the ones the PREVIOUS level's query phase raised (`thm:rbr`: `J_i = n_{i-1} + 2`, one per query plus the residual and the OOD claim), so this level's own query count is the wrong quantity: query counts fall with depth, so using it would understate the degree;
 ///   the ring switch is no term here, since this level's oracle and list come after its challenges;
 /// - 2 for quadratic sumcheck.
-fn johnson_algebraic_bits_for(
-    level: usize,
-    log_inv_rate: usize,
-    log_msg_cols: usize,
-    eta: f64,
-    prev_queries: usize,
-    ood_samples: usize,
-) -> f64 {
-    let log2_l = johnson_interleaved_list_log2(log_inv_rate, log_msg_cols, eta);
+fn johnson_algebraic_bits_for(level: usize, code: Code, eta: f64, prev_queries: usize, ood_samples: usize) -> f64 {
+    let log2_l = johnson_interleaved_list_log2(code, eta);
     let batch_degree = if level == 0 {
         crate::ring_switch::tests::RING_SWITCH_SOUNDNESS_DEGREE
     } else {
@@ -435,14 +478,7 @@ fn johnson_algebraic_bits_for(
 
 /// `prev_queries` is `levels[i-1].queries`, and 0 for `i = 0`.
 fn johnson_algebraic_bits(level: usize, config: &WhirLevelConfig, prev_queries: usize) -> f64 {
-    johnson_algebraic_bits_for(
-        level,
-        config.log_inv_rate,
-        config.log_msg_cols,
-        config.eta,
-        prev_queries,
-        config.ood_samples,
-    )
+    johnson_algebraic_bits_for(level, config.code(), config.eta, prev_queries, config.ood_samples)
 }
 
 /// The query count the batch at `levels[i]` carries claims from.
@@ -467,8 +503,8 @@ const fn prev_queries_at(levels: &[WhirLevelConfig], i: usize) -> usize {
     clippy::suboptimal_flops,
     reason = "Keep the rounding of the protocol parameter formulas unchanged."
 )]
-fn paper_ood_bits(log_inv_rate: usize, log_msg_cols: usize, eta: f64, mu_vars: usize, ood_samples: usize) -> f64 {
-    let log2_l = johnson_interleaved_list_log2(log_inv_rate, log_msg_cols, eta);
+fn paper_ood_bits(code: Code, eta: f64, mu_vars: usize, ood_samples: usize) -> f64 {
+    let log2_l = johnson_interleaved_list_log2(code, eta);
     let log2_mu = (mu_vars as f64).log2();
     if ood_samples == 0 {
         ANALYSIS_LOG_Q - log2_l - log2_mu
@@ -495,14 +531,14 @@ struct OptimizedJohnsonLevel {
     clippy::while_float,
     reason = "Advance by one ULP until the rounded theorem parameter satisfies the integer bound."
 )]
-fn johnson_eta_for_m(log_inv_rate: usize, log_msg_cols: usize, m: usize) -> f64 {
+fn johnson_eta_for_m(code: Code, m: usize) -> f64 {
     debug_assert!(m >= 3);
-    let sqrt_rho = reduced_rate(log_inv_rate, log_msg_cols).sqrt();
+    let sqrt_rho = reduced_rate(code).sqrt();
     let mut eta = sqrt_rho / m as f64;
-    while johnson_m_param(log_inv_rate, log_msg_cols, eta) > m as f64 {
+    while johnson_m_param(code, eta) > m as f64 {
         eta = f64::from_bits(eta.to_bits() + 1);
     }
-    debug_assert_eq!(johnson_m_param(log_inv_rate, log_msg_cols, eta), m as f64);
+    debug_assert_eq!(johnson_m_param(code, eta), m as f64);
     eta
 }
 
@@ -512,8 +548,7 @@ fn johnson_eta_for_m(log_inv_rate: usize, log_msg_cols: usize, m: usize) -> f64 
 /// 128-bit term and the proximity-gap target without fold grinding.
 fn optimize_johnson_level(
     level: usize,
-    log_inv_rate: usize,
-    log_msg_cols: usize,
+    code: Code,
     log_num_interleaved: usize,
     target_bits: usize,
     query_grinding_bits: usize,
@@ -521,25 +556,26 @@ fn optimize_johnson_level(
 ) -> Result<OptimizedJohnsonLevel, DerivationError> {
     let target = target_bits as f64;
     let query_target = target_bits.saturating_sub(query_grinding_bits).max(1) as f64;
-    let mu = log_msg_cols + log_num_interleaved;
-    let block_len = 1usize << (log_msg_cols + log_inv_rate);
+    let mu = code.log_msg_cols + log_num_interleaved;
+    let block_len = 1usize << code.log_block_len();
+    let log_inv_rate = code.log_inv_rate;
     let mut best: Option<OptimizedJohnsonLevel> = None;
 
     for m in 3..=JOHNSON_ETA_SEARCH_MAX_M {
-        let eta = johnson_eta_for_m(log_inv_rate, log_msg_cols, m);
-        let max_eta = 1.0 - reduced_rate(log_inv_rate, log_msg_cols).sqrt();
+        let eta = johnson_eta_for_m(code, m);
+        let max_eta = 1.0 - reduced_rate(code).sqrt();
         if eta >= max_eta {
             continue;
         }
 
-        let eps_pg = ANALYSIS_LOG_Q - paper_thm_ca_johnson_log_a(log_inv_rate, eta, log_msg_cols);
+        let eps_pg = ANALYSIS_LOG_Q - paper_thm_ca_johnson_log_a(code, eta);
         // At the theorem-parameter boundaries a grows monotonically with m;
         // no later candidate can recover once the proximity-gap target fails.
         if eps_pg + 1e-12 < target {
             break;
         }
 
-        let per_q = paper_per_query_bits(log_inv_rate, log_msg_cols, eta);
+        let per_q = paper_per_query_bits(code, eta);
         if !per_q.is_finite() || per_q <= 0.0 {
             continue;
         }
@@ -551,15 +587,14 @@ fn optimize_johnson_level(
         let ood_samples = if level == 0 {
             0
         } else {
-            match (1..=8usize).find(|&s| paper_ood_bits(log_inv_rate, log_msg_cols, eta, mu, s) + 1e-12 >= target) {
+            match (1..=8usize).find(|&s| paper_ood_bits(code, eta, mu, s) + 1e-12 >= target) {
                 Some(samples) => samples,
                 None => continue,
             }
         };
-        let eps_ood = paper_ood_bits(log_inv_rate, log_msg_cols, eta, mu, ood_samples);
+        let eps_ood = paper_ood_bits(code, eta, mu, ood_samples);
         if eps_ood + 1e-12 < target
-            || johnson_algebraic_bits_for(level, log_inv_rate, log_msg_cols, eta, prev_queries, ood_samples) + 1e-12
-                < target
+            || johnson_algebraic_bits_for(level, code, eta, prev_queries, ood_samples) + 1e-12 < target
         {
             continue;
         }
@@ -578,17 +613,26 @@ fn optimize_johnson_level(
 }
 
 impl WhirLevelConfig {
+    /// The level's code.
+    const fn code(&self) -> Code {
+        Code {
+            log_inv_rate: self.log_inv_rate,
+            log_msg_cols: self.log_msg_cols,
+            padding: self.padding,
+        }
+    }
+
     /// Proximity-gap and per-query soundness bits this level delivers:
     ///   eps_pg_bits    = log₂(q/a) under the Johnson threshold-a formula
     ///   eps_query_bits = Q · log₂(1/(1−γ))
     fn paper_predicted_bits(&self) -> (f64, f64) {
         // Why: fold row of `thm:rbr`, MCA part, the same at every round whatever the interleaving (`lem:fold-list`).
-        let log_a = paper_thm_ca_johnson_log_a(self.log_inv_rate, self.eta, self.log_msg_cols);
+        let log_a = paper_thm_ca_johnson_log_a(self.code(), self.eta);
         let eps_pg = ANALYSIS_LOG_Q - log_a;
         // Per-query soundness WITHOUT a list union bound: the OOD binding (see
         // `paper_ood_bits`) pins the prover to a single codeword of the
         // interleaved list before queries are drawn.
-        let per_q = paper_per_query_bits(self.log_inv_rate, self.log_msg_cols, self.eta);
+        let per_q = paper_per_query_bits(self.code(), self.eta);
         let eps_query = self.queries as f64 * per_q;
         (eps_pg, eps_query)
     }
@@ -596,7 +640,7 @@ impl WhirLevelConfig {
     /// OOD binding bits this level delivers. See `paper_ood_bits`.
     fn paper_predicted_ood_bits(&self) -> f64 {
         let mu = self.log_msg_cols + self.log_num_interleaved;
-        paper_ood_bits(self.log_inv_rate, self.log_msg_cols, self.eta, mu, self.ood_samples)
+        paper_ood_bits(self.code(), self.eta, mu, self.ood_samples)
     }
 }
 
@@ -679,7 +723,7 @@ impl WhirSecurityConfig {
             }
 
             // eta within the Johnson range for this level's (reduced) rate.
-            let max_eta = 1.0 - reduced_rate(lv.log_inv_rate, lv.log_msg_cols).sqrt();
+            let max_eta = 1.0 - reduced_rate(lv.code()).sqrt();
             if !lv.eta.is_finite() || lv.eta <= 0.0 || lv.eta >= max_eta {
                 return Err(DerivationError::EtaOutOfRange {
                     level,
@@ -775,7 +819,9 @@ impl WhirSecurityConfig {
     /// soundness**, i.e. every verifier-challenge error term (pg + fold
     /// grinding, query + query grinding, OOD, and algebraic checks) clears the
     /// target individually.
-    fn derive_config_with_log_inv_rate(m: usize, log_inv_rate: usize) -> Result<Self, DerivationError> {
+    ///
+    /// L0's code is padded by `padding` coefficients past each lane's power of two, a hiding commitment's; every deeper level commits an unpadded fold.
+    fn derive_config_with_log_inv_rate(m: usize, log_inv_rate: usize, padding: usize) -> Result<Self, DerivationError> {
         validate_log_inv_rate(log_inv_rate)?;
         let target_bits = SECURITY_BITS;
         let query_grind: usize = QUERY_GRINDING_BITS;
@@ -803,11 +849,16 @@ impl WhirSecurityConfig {
             let ilv = shape.k_levels[i];
             cols -= ilv;
             let prev_queries = prev_queries_at(&levels, i);
-            let optimized = optimize_johnson_level(i, rate, cols, ilv, target_bits, query_grind, prev_queries)?;
+            let code = Code {
+                padding: if i == 0 { padding } else { 0 },
+                ..Code::plain(rate, cols)
+            };
+            let optimized = optimize_johnson_level(i, code, ilv, target_bits, query_grind, prev_queries)?;
 
             levels.push(WhirLevelConfig {
                 log_inv_rate: rate,
                 log_msg_cols: cols,
+                padding: code.padding,
                 log_num_interleaved: ilv,
                 k: shape.k_levels[i],
                 eta: optimized.eta,
@@ -840,6 +891,7 @@ impl WhirSecurityConfig {
             self.levels.iter().map(|lv| lv.queries).collect(),
             self.levels.iter().map(|lv| lv.grinding_bits).collect(),
             self.levels.iter().map(|lv| lv.ood_samples).collect(),
+            self.levels[0].padding,
         ))
     }
 }
@@ -850,11 +902,11 @@ fn johnson_bound_uses_theorem_parameter_and_reduced_rate() {
     // m = ceil(sqrt(rho) / eta). The factor-two-smaller ceil(sqrt(rho) / (2 eta))
     // belongs to the plain, non-list Thm 1.5; Flock's Thm 8 quotes Thm 4.6
     // with that non-list parameter, which would overstate eps_pg by ~5 bits.
-    assert_eq!(johnson_m_param(1, 16, 0.02), 36.0);
+    assert_eq!(johnson_m_param(Code::plain(1, 16), 0.02), 36.0);
 
     // A message of dimension 16 has maximum degree 15, so the theorem's
     // reduced rate at block length 512 is 15/512, not the nominal 1/32.
-    assert_eq!(reduced_rate(5, 4), 15.0 / 512.0);
+    assert_eq!(reduced_rate(Code::plain(5, 4)), 15.0 / 512.0);
 }
 
 #[test]
@@ -862,7 +914,7 @@ fn production_profile_is_128_bit_johnson_with_query_grinding() {
     let mut min_pg_bits = f64::INFINITY;
     for log_inv_rate in MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE {
         for m in 22 + F64::DEGREE.ilog2() as usize..=28 + F64::DEGREE.ilog2() as usize {
-            let cfg = WhirSecurityConfig::derive_config_with_log_inv_rate(m, log_inv_rate).unwrap();
+            let cfg = WhirSecurityConfig::derive_config_with_log_inv_rate(m, log_inv_rate, 0).unwrap();
             assert_eq!(cfg.target_security_bits, 128);
             assert_eq!(cfg.levels[0].log_inv_rate, log_inv_rate);
             assert_eq!(cfg.levels[0].ood_samples, 0);
@@ -890,15 +942,27 @@ fn production_profile_is_128_bit_johnson_with_query_grinding() {
 
 #[test]
 fn l0_list_bits_bound_every_l0_list() {
-    // Every configured size and rate: its L0 list, which every challenge before the opening is unioned over.
-    let largest = (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE)
-        .flat_map(|log_inv_rate| (MIN_LOG_N..=MAX_LOG_N).map(move |log_n| (log_inv_rate, log_n)))
-        .map(|(log_inv_rate, log_n)| {
-            let cfg =
-                WhirSecurityConfig::derive_config_with_log_inv_rate(log_n + F64::DEGREE.ilog2() as usize, log_inv_rate)
-                    .unwrap_or_else(|e| panic!("rate 2^-{log_inv_rate}, log_n {log_n}: {e}"));
+    // Every configured size and rate, hiding or not: its L0 list, which every challenge before the opening is unioned over.
+    // The padded code has the larger rate, and the list bound its own slack.
+    let plain = (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE)
+        .flat_map(|log_inv_rate| (MIN_LOG_N..=MAX_LOG_N).map(move |log_n| (log_inv_rate, log_n, false)));
+    let hiding = (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE)
+        .flat_map(|log_inv_rate| (MIN_LOG_N_HIDING..=MAX_LOG_N).map(move |log_n| (log_inv_rate, log_n, true)));
+    let largest = plain
+        .chain(hiding)
+        .map(|(log_inv_rate, log_n, hides)| {
+            let cfg = if hides {
+                derive_hiding_security(log_n, log_inv_rate)
+            } else {
+                WhirSecurityConfig::derive_config_with_log_inv_rate(
+                    log_n + F64::DEGREE.ilog2() as usize,
+                    log_inv_rate,
+                    0,
+                )
+            };
+            let cfg = cfg.unwrap_or_else(|e| panic!("rate 2^-{log_inv_rate}, log_n {log_n}, hiding {hides}: {e}"));
             let l0 = &cfg.levels[0];
-            johnson_interleaved_list_log2(l0.log_inv_rate, l0.log_msg_cols, l0.eta)
+            johnson_interleaved_list_log2(l0.code(), l0.eta)
         })
         .fold(f64::NEG_INFINITY, f64::max);
 
@@ -911,12 +975,12 @@ fn l0_list_bits_bound_every_l0_list() {
     );
 }
 
-/// `WHIR_QUERIES`'s rows as `config.rs` writes them, with `queries(log_inv_rate, log_n)` in each entry.
-fn table_rows(queries: impl Fn(usize, usize) -> Vec<usize>) -> String {
+/// A query table's rows as `config.rs` writes them, from size `2^min_log_n`, with `queries(log_inv_rate, log_n)` in each entry.
+fn table_rows(min_log_n: usize, queries: impl Fn(usize, usize) -> Vec<usize>) -> String {
     let mut rows = String::new();
     for log_inv_rate in MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE {
         writeln!(rows, "    // Rate 2^-{log_inv_rate}.\n    [").unwrap();
-        for log_n in MIN_LOG_N..=MAX_LOG_N {
+        for log_n in min_log_n..=MAX_LOG_N {
             let row: Vec<String> = queries(log_inv_rate, log_n).iter().map(usize::to_string).collect();
             writeln!(rows, "        &[{}],", row.join(", ")).unwrap();
         }
@@ -932,9 +996,12 @@ fn the_table_is_the_derivation() {
     let derived = |log_inv_rate: usize, log_n: usize| {
         derive_config(log_n, log_inv_rate).unwrap_or_else(|e| panic!("rate 2^-{log_inv_rate}, log_n {log_n}: {e}"))
     };
-    let rows = table_rows(|log_inv_rate, log_n| derived(log_inv_rate, log_n).queries().to_vec());
-    let tabulated =
-        table_rows(|log_inv_rate, log_n| WHIR_QUERIES[log_inv_rate - MIN_LOG_INV_RATE][log_n - MIN_LOG_N].to_vec());
+    let rows = table_rows(MIN_LOG_N, |log_inv_rate, log_n| {
+        derived(log_inv_rate, log_n).queries().to_vec()
+    });
+    let tabulated = table_rows(MIN_LOG_N, |log_inv_rate, log_n| {
+        WHIR_QUERIES[log_inv_rate - MIN_LOG_INV_RATE][log_n - MIN_LOG_N].to_vec()
+    });
     assert!(
         tabulated == rows,
         "WHIR_QUERIES is stale, replace its rows in crates/pcs/src/whir/config.rs with:\n{rows}"
@@ -955,4 +1022,92 @@ fn the_table_is_the_derivation() {
             }
         }
     }
+}
+
+/// The hiding table is the derivation with L0's code padded at its fixed point `k = q_0 + 2`, and the configuration pads by that `k`.
+/// A stale table fails with the rows to paste over it.
+#[test]
+fn the_hiding_table_is_the_derivation() {
+    let derived = |log_inv_rate: usize, log_n: usize| {
+        derive_hiding_config(log_n, log_inv_rate)
+            .unwrap_or_else(|e| panic!("hiding, rate 2^-{log_inv_rate}, log_n {log_n}: {e}"))
+    };
+    let configs: Vec<Vec<ProverConfig>> = (MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE)
+        .map(|log_inv_rate| {
+            (MIN_LOG_N_HIDING..=MAX_LOG_N)
+                .map(|log_n| derived(log_inv_rate, log_n))
+                .collect()
+        })
+        .collect();
+    let at = |log_inv_rate: usize, log_n: usize| &configs[log_inv_rate - MIN_LOG_INV_RATE][log_n - MIN_LOG_N_HIDING];
+    let rows = table_rows(MIN_LOG_N_HIDING, |log_inv_rate, log_n| {
+        at(log_inv_rate, log_n).queries().to_vec()
+    });
+    let tabulated = table_rows(MIN_LOG_N_HIDING, |log_inv_rate, log_n| {
+        WHIR_QUERIES_HIDING[log_inv_rate - MIN_LOG_INV_RATE][log_n - MIN_LOG_N_HIDING].to_vec()
+    });
+    assert!(
+        tabulated == rows,
+        "WHIR_QUERIES_HIDING is stale, replace its rows in crates/pcs/src/whir/config.rs with:\n{rows}"
+    );
+    for log_inv_rate in MIN_LOG_INV_RATE - 1..=MAX_LOG_INV_RATE + 1 {
+        for log_n in 0..=MAX_LOG_N + 8 {
+            let tabulated = config_for_rate_hiding(log_n, log_inv_rate);
+            if !(MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE).contains(&log_inv_rate) {
+                assert_eq!(tabulated, Err(ConfigError::RateOutOfRange { log_inv_rate }));
+            } else if !(MIN_LOG_N_HIDING..=MAX_LOG_N).contains(&log_n) {
+                assert_eq!(tabulated, Err(ConfigError::HidingSizeOutOfRange { log_n }));
+            } else {
+                let derived = at(log_inv_rate, log_n);
+                assert_eq!(
+                    derived.padding(),
+                    derived.queries()[0] + 2,
+                    "the padding is at its fixed point"
+                );
+                assert_eq!(
+                    tabulated.as_ref(),
+                    Ok(derived),
+                    "hiding, rate 2^-{log_inv_rate}, log_n {log_n}"
+                );
+            }
+        }
+    }
+}
+
+/// `K` dimensions a hiding opening reveals after the lane fold, three per `E` scalar: the running claim `a`, the round messages, the out-of-domain answers, level 0's folded query values, every later level's opened rows, and the residual.
+fn revealed_dimensions(log_n: usize, config: &ProverConfig) -> usize {
+    let (queries, ks) = (config.queries(), config.level_ks());
+    let residual = log_n - config.initial_k() - ks.iter().sum::<usize>();
+    // `a`, then the message of the round after the lane fold.
+    let mut scalars = 1 + 2;
+    // Each committed level's out-of-domain answers, each with its intro message.
+    scalars += 3 * config.ood_samples()[1..].iter().sum::<usize>();
+    // Level 0's folded query values and their intro message.
+    scalars += queries[0] + 2;
+    // Each later level: its fold rounds, its opened rows (a fold's worth of elements each) and their intro message.
+    for (i, &k) in ks.iter().enumerate() {
+        scalars += 2 * k + (queries[i + 1] << k) + 2;
+    }
+    // The residual, and the closing rounds but the last, which the residual answers.
+    scalars += (1 << residual) + 2 * residual.saturating_sub(1);
+    3 * scalars
+}
+
+/// One random lane of `2^m` uniform words masks every functional the opening reveals after the lane fold only while they span at most half its dimensions (VEIL's Lemma 4.7, adapted), which is what bounds the hiding opening below at `2^MIN_LOG_N_HIDING` words.
+#[test]
+fn a_hiding_opening_reveals_at_most_half_a_lane() {
+    for log_inv_rate in MIN_LOG_INV_RATE..=MAX_LOG_INV_RATE {
+        for log_n in MIN_LOG_N_HIDING..=MAX_LOG_N {
+            let config = config_for_rate_hiding(log_n, log_inv_rate).unwrap();
+            let lane = 1usize << (log_n - config.initial_k());
+            let revealed = revealed_dimensions(log_n, &config);
+            assert!(
+                2 * revealed <= lane,
+                "rate 2^-{log_inv_rate}, log_n {log_n}: {revealed} dimensions revealed, lane of {lane}"
+            );
+        }
+    }
+    // Below the hiding floor the same opening would reveal more than half a lane.
+    let config = config_for_rate(MIN_LOG_N_HIDING - 1, MIN_LOG_INV_RATE).unwrap();
+    assert!(2 * revealed_dimensions(MIN_LOG_N_HIDING - 1, &config) > 1 << (MIN_LOG_N_HIDING - 1 - config.initial_k()));
 }

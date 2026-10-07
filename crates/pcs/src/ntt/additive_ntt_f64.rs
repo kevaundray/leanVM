@@ -66,6 +66,45 @@ fn span_get(basis: &[F64], idx: usize) -> F64 {
 /// Receives a finished block of codeword rows, as `(first_row, rows)`.
 pub(crate) type RowSink<'a> = dyn Fn(usize, &[F64]) + Sync + 'a;
 
+/// A padding past the power of two `2^m` of each interleaved lane's message.
+///
+/// - `rows` is `k` rows of the lanes, the padding's coefficient `j` of every lane in row `j`.
+/// - Each lane then encodes `sum_j msg_j X_j + (W_m + offset) sum_j pad_j X_j`, of `2^m + k` coefficients in the novel basis since `X_{2^m + j} = W_m X_j`.
+/// - `W_m` vanishes on the first replica's points, so only an `offset` outside `W_m`'s image of the domain leaves no point unpadded.
+#[derive(Clone, Copy)]
+pub(crate) struct Pad<'a> {
+    pub(crate) rows: &'a [F64],
+    pub(crate) offset: F64,
+}
+
+/// A padding, and the factor each replica takes it with.
+///
+/// `W_m` is constant on each replica's coset of the domain, so replica `c` of the message starts as the message plus `scales[c] = W_m(c 2^m) + offset` times the padding.
+#[derive(Clone, Copy)]
+struct Padding<'a> {
+    words: &'a [F64],
+    scales: &'a [F64],
+}
+
+impl Padding<'_> {
+    /// Add replica `replica`'s padding to `dst`, which holds the replica's words from `first` on.
+    fn add(&self, dst: &mut [F64], replica: usize, first: usize) {
+        let scale = self.scales[replica];
+        if let Some(tail) = self.words.get(first..) {
+            for (d, &p) in dst.iter_mut().zip(tail) {
+                *d += scale * p;
+            }
+        }
+    }
+}
+
+/// Where the first pass of an encode reads its message, and the padding it adds.
+#[derive(Clone, Copy)]
+struct Source<'a> {
+    msg: SendPtr<F64>,
+    pad: Option<Padding<'a>>,
+}
+
 /// Additive NTT over F_{2^64} with the standard polynomial-basis subspace
 /// `{1, x, x², …}`: the F_2-subspace is `{0, 1, …, 2^ℓ−1}` under the natural
 /// integer encoding, exactly as in the extension-field version (whose domain already
@@ -129,6 +168,13 @@ impl AdditiveNttF64 {
         [t0, a, a + d, c, c + e0, c + e1, c + e0 + e1]
     }
 
+    /// `W_m` on replica `c`'s coset, for an encode entering at layer `start`.
+    ///
+    /// It is what layer `start - 1`'s butterfly `u' = u + t v, v' = u' + v` gives a message `u` over a padding `v`.
+    fn pad_scale(&self, start: usize, replica: usize) -> F64 {
+        self.twiddle(start - 1, replica >> 1) + if replica & 1 == 1 { F64::ONE } else { F64::ZERO }
+    }
+
     /// RS-encode a message already stored in the codeword's first replica.
     ///
     /// # Overview
@@ -152,7 +198,7 @@ impl AdditiveNttF64 {
     pub fn encode_interleaved_in_place(&self, data: &mut [F64], num_ntts: usize, log_inv_rate: usize) {
         // The message is the buffer's own first replica.
         let msg = SendPtr(data.as_mut_ptr());
-        self.transform(data, num_ntts, log_inv_rate, Some(msg), None);
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), None, None);
     }
 
     /// Encode in place, handing `on_rows` every finished block of rows.
@@ -161,15 +207,22 @@ impl AdditiveNttF64 {
     /// - Each row is handed over exactly once.
     /// - Blocks are aligned, and all of one power-of-two size.
     /// - A block is handed over while its rows are still in cache.
+    ///
+    /// With a [`Pad`], each lane encodes its `2^m + k` coefficients on the same domain: layer `r - 1` is the one butterfly that pairs the message with the padding, folded into the first pass's read.
+    ///
+    /// # Panics
+    ///
+    /// With a padding, panics unless `r >= 1`, the NTT's domain is the codeword's, and `k <= 2^m`.
     pub(crate) fn encode_interleaved_in_place_with(
         &self,
         data: &mut [F64],
         num_ntts: usize,
         log_inv_rate: usize,
+        pad: Option<Pad<'_>>,
         on_rows: &RowSink<'_>,
     ) {
         let msg = SendPtr(data.as_mut_ptr());
-        self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), pad, Some(on_rows));
     }
 
     /// RS-encode a message held in a buffer of its own, handing `on_rows` every finished block of rows.
@@ -196,7 +249,7 @@ impl AdditiveNttF64 {
         );
         // Read-only from here on: the pointer only feeds the first pass's reads.
         let msg = SendPtr(msg.as_ptr().cast_mut());
-        self.transform(data, num_ntts, log_inv_rate, Some(msg), Some(on_rows));
+        self.transform(data, num_ntts, log_inv_rate, Some(msg), None, Some(on_rows));
     }
 
     /// Run layers `start..d` of a `2^d`-row transform in as few sweeps of the buffer as possible.
@@ -223,6 +276,7 @@ impl AdditiveNttF64 {
     ///
     /// - The layer-`start` blocks are not in the buffer yet: each is a copy of the message.
     /// - The first pass reads its rows from the message instead.
+    /// - With a padding, it adds each replica's share of it to the rows it reads, so the padding costs no sweep.
     ///
     /// # Why block 0 goes last
     ///
@@ -240,6 +294,7 @@ impl AdditiveNttF64 {
         num_ntts: usize,
         start: usize,
         msg: Option<SendPtr<F64>>,
+        pad: Option<Pad<'_>>,
         on_rows: Option<&RowSink<'_>>,
     ) {
         // The buffer is 2^log_d rows of `num_ntts` words.
@@ -248,6 +303,27 @@ impl AdditiveNttF64 {
         let log_d = log2_strict_usize(data.len() / num_ntts);
         assert!(log_d <= self.log_domain_size());
         assert!(start <= log_d);
+
+        // The padding's factor on each replica, which the layers before `start` would have given it.
+        let scales: Vec<F64> = pad.map_or_else(Vec::new, |pad| {
+            assert!(msg.is_some() && start >= 1, "a padding rides an encode's message");
+            assert_eq!(
+                log_d,
+                self.log_domain_size(),
+                "a padding needs the codeword's own domain"
+            );
+            assert!(
+                pad.rows.len().is_multiple_of(num_ntts) && pad.rows.len() <= data.len() >> start,
+                "a padding is at most one replica of whole rows"
+            );
+            (0..1usize << start)
+                .map(|c| self.pad_scale(start, c) + pad.offset)
+                .collect()
+        });
+        let pad = pad.map(|pad| Padding {
+            words: pad.rows,
+            scales: &scales,
+        });
 
         /// Below this domain the transform is too small to split across the pool.
         const PARALLEL_FLOOR_LOG_D: usize = 12;
@@ -291,7 +367,7 @@ impl AdditiveNttF64 {
         // Phase 1: gathered passes, each at most one L2 group of layers.
         //
         // Only the first one reads the message.
-        let mut msg = msg;
+        let mut msg = msg.map(|msg| Source { msg, pad });
         let mut layer = start;
         while layer < deep_start {
             let g = (deep_start - layer).min(fit2);
@@ -303,7 +379,7 @@ impl AdditiveNttF64 {
         //
         //     message is block 0 of the buffer  ->  a task could overwrite it while others still copy it
         //     no layer left to run              ->  no deep task would write the buffer at all
-        if let Some(m) = msg.take_if(|m| std::ptr::eq(m.0, data.as_mut_ptr()) || deep_start == log_d) {
+        if let Some(m) = msg.take_if(|m| std::ptr::eq(m.msg.0, data.as_mut_ptr()) || deep_start == log_d) {
             replicate(data, m, data.len() >> start);
         }
 
@@ -335,7 +411,10 @@ impl AdditiveNttF64 {
                             // - The external message is valid for one whole replica of words.
                             // - It is disjoint from the codeword.
                             // - This sub-block ends inside its replica, so the read stays in bounds.
-                            sub.copy_from_slice(unsafe { std::slice::from_raw_parts(m.add(off), sub_len) });
+                            sub.copy_from_slice(unsafe { std::slice::from_raw_parts(m.msg.add(off), sub_len) });
+                            if let Some(pad) = m.pad {
+                                pad.add(sub, (first_sub + i) * sub_len / block_len, off);
+                            }
                             self.run_layers(sub, log_d, num_ntts, deep_start, log_d, deep_start, first_sub + i);
                         }
                         if let Some(f) = deep_rows {
@@ -392,7 +471,7 @@ impl AdditiveNttF64 {
     ///
     /// # With a message
     ///
-    /// - Every block's rows come from the message.
+    /// - Every block's rows come from the message, plus the block's share of the padding.
     /// - One task takes one residue across all blocks, block 0 last.
     #[allow(clippy::too_many_arguments)]
     fn gathered_pass(
@@ -402,7 +481,7 @@ impl AdditiveNttF64 {
         num_ntts: usize,
         layer: usize,
         g: usize,
-        msg: Option<SendPtr<F64>>,
+        msg: Option<Source<'_>>,
         stream: bool,
     ) {
         // A group is 2^g rows, `step` rows apart.
@@ -421,6 +500,8 @@ impl AdditiveNttF64 {
                     // Row `i` of the group, as a word offset inside its block.
                     let row = |i: usize| (r + (i << log_step)) * num_ntts;
                     let block_off = (block << (log_d - layer)) * num_ntts;
+                    // The first pass enters at the message's layer, so a block is a replica.
+                    let pad = msg.and_then(|m| m.pad).filter(|p| row(0) < p.words.len());
                     // Gather: the scattered rows become one contiguous 2^g-row buffer.
                     for (i, dst) in scratch.chunks_exact_mut(num_ntts).enumerate() {
                         // SAFETY:
@@ -429,11 +510,14 @@ impl AdditiveNttF64 {
                         // - Block 0 is written last, after every read of the message in it.
                         let src = unsafe {
                             match msg {
-                                Some(m) => std::slice::from_raw_parts(m.add(row(i)), num_ntts),
+                                Some(m) => std::slice::from_raw_parts(m.msg.add(row(i)), num_ntts),
                                 None => base.slice(block_off + row(i), num_ntts),
                             }
                         };
                         dst.copy_from_slice(src);
+                        if let Some(pad) = pad {
+                            pad.add(dst, block, row(i));
+                        }
                     }
                     // Transform: a (layer + g)-layer domain whose sub-block index is the global block.
                     self.run_layers(scratch, layer + g, num_ntts, layer, layer + g, layer, block);
@@ -776,14 +860,15 @@ fn with_scratch<R>(len: usize, f: impl FnOnce(&mut [F64]) -> R) -> R {
     })
 }
 
-/// Fill every replica of the buffer with a copy of the message.
+/// Fill every replica of the buffer with a copy of the message, plus the replica's share of any padding.
 ///
 /// - This is the unfused form of a gathered first pass.
-/// - The message may be the buffer's own first replica, which is then left as it is.
-fn replicate(data: &mut [F64], msg: SendPtr<F64>, msg_len: usize) {
+/// - The message may be the buffer's own first replica, which then takes its share of a padding once every copy of it is made.
+fn replicate(data: &mut [F64], src: Source<'_>, msg_len: usize) {
     // Copy granularity: small enough to spread a short message over every worker.
     const CHUNK: usize = 1 << 14;
     let replicas = data.len() / msg_len;
+    let msg = src.msg;
     let in_place = std::ptr::eq(msg.0, data.as_mut_ptr());
     let chunks = msg_len.div_ceil(CHUNK);
     let dst = SendPtr(data.as_mut_ptr());
@@ -799,11 +884,19 @@ fn replicate(data: &mut [F64], msg: SendPtr<F64>, msg_len: usize) {
         // SAFETY:
         // - Only this task writes this range.
         // - The range skips replica 0, so it never overlaps a message stored there.
-        unsafe {
-            let src = std::slice::from_raw_parts(msg.add(start), len);
-            dst.slice(replica * msg_len + start, len).copy_from_slice(src);
+        let out = unsafe {
+            let words = std::slice::from_raw_parts(msg.add(start), len);
+            let out = dst.slice(replica * msg_len + start, len);
+            out.copy_from_slice(words);
+            out
+        };
+        if let Some(pad) = src.pad {
+            pad.add(out, replica, start);
         }
     });
+    if in_place && let Some(pad) = src.pad {
+        pad.add(&mut data[..msg_len], 0, 0);
+    }
 }
 
 /// Layers L and L+1 fused into one sweep over a layer-L block, four rows at a time.
@@ -1269,7 +1362,7 @@ mod tests {
             let mut a = orig.clone();
             forward_scalar_from_layer(&ntt, &mut a, 1, 0);
             let mut c = orig.clone();
-            ntt.transform(&mut c, 1, 0, None, None);
+            ntt.transform(&mut c, 1, 0, None, None, None);
             assert_eq!(a, c, "parallel == scalar at log_d={log_d}");
 
             ntt.inverse_transform(&mut a);
@@ -1309,7 +1402,7 @@ mod tests {
             forward_scalar_from_layer(&ntt, &mut want, lanes, start_layer);
             // Under test: the pass-planning driver.
             let mut got = original;
-            ntt.transform(&mut got, lanes, start_layer, None, None);
+            ntt.transform(&mut got, lanes, start_layer, None, None, None);
 
             assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, start_layer={start_layer}");
         }
@@ -1354,7 +1447,7 @@ mod tests {
             let mut got = vec![F64::ZERO; msg_len << log_inv_rate];
             got[..msg_len].copy_from_slice(&msg);
             let blocks = Mutex::new(Vec::new());
-            ntt.encode_interleaved_in_place_with(&mut got, lanes, log_inv_rate, &|row, rows| {
+            ntt.encode_interleaved_in_place_with(&mut got, lanes, log_inv_rate, None, &|row, rows| {
                 blocks.lock().unwrap().push((row, rows.to_vec()));
             });
             assert_eq!(got, want, "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}");
@@ -1372,6 +1465,41 @@ mod tests {
                 next += rows.len() / lanes;
             }
             assert_eq!(next, 1 << log_d, "every row handed over, log_d={log_d}");
+        }
+    }
+
+    #[test]
+    fn a_padded_encode_is_the_same_from_a_message_held_elsewhere() {
+        // Invariant: the padding lands the same whichever pass first reads the message.
+        //
+        //     (log_d, lanes, rate, k)   in place                     held elsewhere
+        //     (7, 7, 2, 5)              replicate, then deep pass    deep pass copying the message
+        //     (9, 2048, 1, 13)          gathered first pass          gathered first pass
+        //     (4, 8, 4, 1)              replicate, no layer left     replicate, no layer left
+        //
+        // The in-place encode is checked against direct evaluation by the hiding commitment's test.
+        let mut rng = Rng::new(0x9AD5);
+        for (log_d, lanes, log_inv_rate, k) in [(7usize, 7usize, 2usize, 5usize), (9, 2048, 1, 13), (4, 8, 4, 1)] {
+            let ntt = AdditiveNttF64::standard(log_d);
+            let msg_len = (lanes << log_d) >> log_inv_rate;
+            let msg: Vec<F64> = (0..msg_len).map(|_| F64(rng.next_u64())).collect();
+            let pad: Vec<F64> = (0..k * lanes).map(|_| F64(rng.next_u64())).collect();
+
+            let mut in_place = vec![F64::ZERO; msg_len << log_inv_rate];
+            in_place[..msg_len].copy_from_slice(&msg);
+            let pad = Some(Pad {
+                rows: &pad,
+                offset: F64(rng.next_u64()),
+            });
+            ntt.encode_interleaved_in_place_with(&mut in_place, lanes, log_inv_rate, pad, &|_, _| {});
+
+            let mut elsewhere = vec![F64::ZERO; msg_len << log_inv_rate];
+            let src = SendPtr(msg.as_ptr().cast_mut());
+            ntt.transform(&mut elsewhere, lanes, log_inv_rate, Some(src), pad, None);
+            assert_eq!(
+                elsewhere, in_place,
+                "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}, k={k}"
+            );
         }
     }
 
@@ -1406,7 +1534,7 @@ mod tests {
                 let block = n_lanes - 1 - lane;
                 let mut want = vec![F64::ZERO; block_len];
                 replicate_rows(&mut want, &msg[block * rows..(block + 1) * rows]);
-                ntt.transform(&mut want, 1, log_inv_rate, None, None);
+                ntt.transform(&mut want, 1, log_inv_rate, None, None, None);
                 for pos in 0..block_len {
                     assert_eq!(
                         got[pos * n_lanes + lane],
@@ -1433,7 +1561,7 @@ mod tests {
 
         // The whole interleaved buffer through the planner.
         let mut got = soa.clone();
-        ntt.transform(&mut got, lanes, 0, None, None);
+        ntt.transform(&mut got, lanes, 0, None, None, None);
 
         // Each lane on its own through the scalar transform.
         for lane in 0..lanes {
@@ -1462,7 +1590,7 @@ mod tests {
                     per_lane[lane][pos] = v;
                 }
             }
-            ntt.transform(&mut soa, lanes, 0, None, None);
+            ntt.transform(&mut soa, lanes, 0, None, None, None);
             for (lane, lane_data) in per_lane.iter_mut().enumerate() {
                 forward_scalar_from_layer(&ntt, lane_data, 1, 0);
                 for pos in 0..n {

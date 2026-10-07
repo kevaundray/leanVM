@@ -289,7 +289,7 @@ impl Circuit {
         let RecWitness { q, ports, batch } = w;
         drop(ports);
         let ring = crate::stage!("Flock reduction", || batch.prove(&layout, &q, &mut ps));
-        crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &[ring]));
+        crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &[ring], None));
         Ok(ps.into_proof())
     }
 
