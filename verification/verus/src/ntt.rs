@@ -17,8 +17,10 @@
 //! Main results: [`lemma_inverse_butterfly`], [`lemma_span_xor`], `twiddles_radix8`'s postcondition,
 //! [`lemma_subspace_poly_additive`], [`lemma_twiddle_is_subspace_poly`], `generate_evals_from_subspace`'s
 //! postcondition, `radix8_butterflies`' postcondition, [`lemma_inverse_after_forward`],
-//! [`lemma_forward_evaluates`] and [`lemma_encode_evaluates`]. The last two assume that every row of the
-//! table starts with one (`Ŵ_i(b_i) = 1`), which needs `K` to be a field; that is not proven here.
+//! [`lemma_forward_evaluates`] and [`lemma_encode_evaluates`]. The last two hold for any basis whose table
+//! rows start with one (`Ŵ_i(b_i) = 1`); [`lemma_standard_rows_start_with_one`] proves that for the standard
+//! basis, so [`lemma_standard_forward_evaluates`] and [`lemma_standard_encode_evaluates`] state them for
+//! `AdditiveNttF64::standard(dim)` without hypothesis.
 //!
 //! The parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
 //! `transpose_lane_major`) and the SIMD butterflies are not copied: they are out of scope.
@@ -2383,8 +2385,8 @@ proof fn lemma_forward_step_word(
 /// coefficients and `x_v = Σ_c bit_c(v) b_c` the point of index `v`, bit 0 first (no bit reversal).
 ///
 /// Hypothesis: every normalizer works, `Ŵ_i(b_i) = 1`, i.e. every row of the table starts with one
-/// (`tab[i][0] = 1`). It holds if each `s_i(b_i)` is a unit of `K`; that `x^64 + x^4 + x^3 + x + 1` is
-/// irreducible, so that `K` is a field, is not proven here.
+/// (`tab[i][0] = 1`); it holds when every `s_i(b_i)` is nonzero. [`lemma_standard_rows_start_with_one`]
+/// discharges it for the standard basis.
 pub proof fn lemma_forward_evaluates(tab: Seq<Seq<F64>>, basis: Seq<F64>, a: Seq<F64>)
     requires
         AdditiveNttF64::is_table_of(tab, basis),
@@ -2569,6 +2571,208 @@ pub proof fn lemma_encode_evaluates(tab: Seq<Seq<F64>>, basis: Seq<F64>, msg: Se
     lemma_forward_layers_split(tab, x, 1, ll, r, ll);
     lemma_forward_layers_len(tab, rep, 1, ll, r, ll);
     lemma_forward_evaluates(tab, basis, x);
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// The standard basis: every row of the table starts with one
+// ---------------------------------------------------------------------------------------------
+/// `K` has no zero divisors.
+pub proof fn lemma_k_no_zero_divisors(a: u64, b: u64)
+    requires
+        k_mul(a, b) == 0,
+        a != 0,
+    ensures
+        b == 0,
+{
+    let ai = k_pow(a, (pow2(64) - 2) as nat);
+    lemma_k_inverse(a);
+    lemma_k_mul_comm(a, ai);
+    lemma_k_mul_assoc(ai, a, b);
+    lemma_k_mul_one(b);
+    lemma_k_mul_zero(ai);
+}
+
+proof fn lemma_below_pow(x: u64, k: u64)
+    requires
+        k < 63,
+    ensures
+        x < (1u64 << k) ==> x < (1u64 << ((k + 1) as u64)),
+        (x ^ (1u64 << k)) < (1u64 << k) ==> x < (1u64 << ((k + 1) as u64)),
+        !((1u64 << ((k + 1) as u64)) < (1u64 << ((k + 1) as u64))),
+{
+    assert((x < (1u64 << k) ==> x < (1u64 << ((k + 1) as u64))) && ((x ^ (1u64 << k)) < (1u64 << k) ==> x < (1u64
+        << ((k + 1) as u64)))) by (bit_vector)
+        requires
+            k < 63,
+    ;
+}
+
+/// The roots of `s_i` for the standard basis lie below `2^i`: `s_i(x) = 0` only on `{0, .., 2^i - 1}`.
+pub proof fn lemma_standard_roots(dim: nat, i: nat, x: u64)
+    requires
+        i <= dim <= 63,
+        subspace_poly(standard_basis(dim), i, x) == 0,
+    ensures
+        x < (1u64 << (i as u64)),
+    decreases i,
+{
+    let basis = standard_basis(dim);
+    if i == 0 {
+        assert(x == 0);
+        assert(0u64 < (1u64 << 0u64)) by (bit_vector);
+    } else {
+        let j = (i - 1) as nat;
+        let b = basis[j as int].0;
+        assert(b == 1u64 << (j as u64));
+        let p = subspace_poly(basis, j, x);
+        let c = subspace_poly(basis, j, b);
+        lemma_below_pow(x, j as u64);
+        if p == 0 {
+            lemma_standard_roots(dim, j, x);
+        } else {
+            lemma_k_no_zero_divisors(p, p ^ c);
+            lemma_subspace_poly_additive(basis, j, x, b);
+            lemma_standard_roots(dim, j, x ^ b);
+        }
+    }
+}
+
+/// For the standard basis every normalizer works: `Ŵ_i(b_i) = 1`, so every row of the table starts with one.
+pub proof fn lemma_standard_rows_start_with_one(dim: nat)
+    requires
+        dim <= 63,
+    ensures
+        forall|i: nat|
+            i < dim ==> normalized_subspace_poly(standard_basis(dim), i, #[trigger] standard_basis(dim)[i as int].0)
+                == 1,
+{
+    assert forall|i: nat| i < dim implies normalized_subspace_poly(
+        standard_basis(dim),
+        i,
+        #[trigger] standard_basis(dim)[i as int].0,
+    ) == 1 by {
+        let basis = standard_basis(dim);
+        let y = subspace_poly(basis, i, basis[i as int].0);
+        assert(basis[i as int].0 == 1u64 << (i as u64));
+        if y == 0 {
+            lemma_standard_roots(dim, i, basis[i as int].0);
+            let k = i as u64;
+            assert(!((1u64 << k) < (1u64 << k))) by (bit_vector);
+        }
+        lemma_k_inverse(y);
+    }
+}
+
+/// The point of index `v` in the standard basis is `v` itself: the domain is `{0, .., 2^dim - 1}` under the
+/// natural integer encoding.
+pub proof fn lemma_standard_point(n: nat, v: usize)
+    requires
+        n <= 63,
+        v < pow2(n),
+    ensures
+        span(standard_basis(n), v) == v as u64,
+{
+    lemma_standard_span(n, v);
+    let k = n as u64;
+    lemma_u64_pow2_no_overflow(n);
+    assert(1 * pow2(n) == pow2(n));
+    lemma_u64_shl_is_mul(1, k);
+    let w = v as u64;
+    assert(w < (1u64 << k) ==> w & sub(1u64 << k, 1) == w) by (bit_vector);
+}
+
+proof fn lemma_standard_span(n: nat, v: usize)
+    requires
+        n <= 63,
+    ensures
+        span(standard_basis(n), v) == (v as u64) & sub(1u64 << (n as u64), 1),
+    decreases n,
+{
+    let w = v as u64;
+    if n == 0 {
+        assert(w & sub(1u64 << 0u64, 1) == 0) by (bit_vector);
+    } else {
+        let k = (n - 1) as u64;
+        lemma_standard_span((n - 1) as nat, v);
+        assert(standard_basis(n).drop_last() =~= standard_basis((n - 1) as nat));
+        assert(standard_basis(n).last().0 == 1u64 << k);
+        let kk = k as usize;
+        assert(((v >> kk) & 1 == 1) == ((w >> k) & 1 == 1)) by (bit_vector)
+            requires
+                w == v as u64,
+                kk == k as usize,
+                k < 63,
+        ;
+        assert(((w >> k) & 1 == 1 ==> (w & sub(1u64 << k, 1)) ^ (1u64 << k) == w & sub(1u64 << ((k + 1) as u64), 1))
+            && (!((w >> k) & 1 == 1) ==> (w & sub(1u64 << k, 1)) ^ 0 == w & sub(1u64 << ((k + 1) as u64), 1)))
+            by (bit_vector)
+            requires
+                k < 63,
+        ;
+    }
+}
+
+/// The forward transform of `AdditiveNttF64::standard(dim)` evaluates the novel-basis polynomial on the
+/// domain `{0, .., 2^dim - 1}`: output word `v` is `P(v) = Σ_j a_j X_j(v)`, with no hypothesis.
+pub proof fn lemma_standard_forward_evaluates(tab: Seq<Seq<F64>>, dim: nat, a: Seq<F64>)
+    requires
+        AdditiveNttF64::is_table_of(tab, standard_basis(dim)),
+        1 <= dim <= 63,
+        a.len() == pow2(dim),
+    ensures
+        forall|v: int|
+            0 <= v < a.len() ==> (#[trigger] forward_layers(tab, a, 1, dim, 0, dim)[v]).0 == novel_eval(
+                standard_basis(dim),
+                a,
+                dim,
+                0,
+                0,
+                v as u64,
+            ),
+{
+    lemma_standard_rows_start_with_one(dim);
+    lemma_forward_evaluates(tab, standard_basis(dim), a);
+    assert forall|v: int| 0 <= v < a.len() implies #[trigger] span(standard_basis(dim), v as usize) == v as u64 by {
+        lemma2_to64();
+        lemma2_to64_rest();
+        lemma_pow2_strictly_increases(dim, 64);
+        lemma_standard_point(dim, v as usize);
+    }
+}
+
+/// The encoder of `AdditiveNttF64::standard(dim)` at rate `2^-r` is the Reed-Solomon encoding of the
+/// message: word `v` of the codeword is `P(v)`, `P` the novel-basis polynomial whose coefficients are the
+/// message (degree below `2^(dim - r)`), with no hypothesis.
+pub proof fn lemma_standard_encode_evaluates(tab: Seq<Seq<F64>>, dim: nat, msg: Seq<F64>, r: nat)
+    requires
+        AdditiveNttF64::is_table_of(tab, standard_basis(dim)),
+        1 <= dim <= 63,
+        r <= dim,
+        msg.len() == pow2((dim - r) as nat),
+    ensures
+        ({
+            let codeword = forward_layers(tab, replicate(msg, pow2(dim)), 1, dim, r, dim);
+            &&& codeword.len() == pow2(dim)
+            &&& forall|v: int|
+                0 <= v < pow2(dim) ==> (#[trigger] codeword[v]).0 == novel_eval(
+                    standard_basis(dim),
+                    zero_pad(msg, pow2(dim)),
+                    dim,
+                    0,
+                    0,
+                    v as u64,
+                )
+        }),
+{
+    lemma_standard_rows_start_with_one(dim);
+    lemma_encode_evaluates(tab, standard_basis(dim), msg, r);
+    assert forall|v: int| 0 <= v < pow2(dim) implies #[trigger] span(standard_basis(dim), v as usize) == v as u64 by {
+        lemma2_to64();
+        lemma2_to64_rest();
+        lemma_pow2_strictly_increases(dim, 64);
+        lemma_standard_point(dim, v as usize);
+    }
 }
 
 } // verus!

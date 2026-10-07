@@ -169,16 +169,3 @@ fn log2_matches_production() {
         assert_eq!(verified::log2_strict_usize(1 << k), primitives::log2_strict_usize(1 << k));
     }
 }
-
-#[test]
-fn standard_table_rows_start_with_one() {
-    // The rows are normalized: entry 0 of row i is Ŵ_i(b_i) = s_i(b_i) · s_i(b_i)^(2^64 - 2), which is
-    // one exactly when s_i(b_i) is a unit. The verified table computes this value; check it is one.
-    for dim in 1..=63usize {
-        let basis: Vec<VF64> = (0..dim).map(|i| VF64(1u64 << i)).collect();
-        let table = verified::generate_evals_from_subspace(&basis);
-        for (i, row) in table.iter().enumerate() {
-            assert_eq!(row[0].0, 1, "dim={dim}, row {i}");
-        }
-    }
-}
