@@ -3,7 +3,10 @@
 //! Each verified function in `src/` is a copy of a portable production function. These tests run both on
 //! random inputs and on the edge cases, so an edit to one side without the other fails here.
 
+mod bit_fold;
 mod bits;
+mod fiat_shamir;
+mod flock_ntt;
 mod gf2_64;
 mod gf2_64x3;
 mod gf2_8;
@@ -15,7 +18,8 @@ mod intrinsics_aarch64_nttsimd;
 mod intrinsics_x86;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_nttsimd;
+mod multilinear;
 mod ntt;
 mod ntt_simd;
 mod phi8_tower;
-mod bit_fold;
+mod skip_domain;
