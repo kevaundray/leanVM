@@ -141,3 +141,141 @@ fn constants_match() {
     assert!(same(verified::F192::Y, production::F192::Y));
     assert!(same_unreduced(&verified::F192Unreduced::ZERO, &production::F192Unreduced::ZERO));
 }
+
+#[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
+#[test]
+fn x86_register_products_and_memory_match() {
+    use verified::x86_64 as v;
+    use production::gf2_64x3::x86_64 as p;
+    use core::mem::MaybeUninit;
+    let mut rng = Rng::new(0x192_01);
+    let xs = elements(&mut rng, 4096);
+    let mut va = v::F192x1Unreduced::zero();
+    let mut pa = p::F192x1Unreduced::zero();
+    for pair in xs.windows(2) {
+        let (a,b) = (pair[0],pair[1]);
+        let (vx,vy) = (v::F192x1::load(&to_v(a)),v::F192x1::new(to_v(b)));
+        let (px,py) = (p::F192x1::load(&a),p::F192x1::new(b));
+        assert!(same(verified::F192::from(vx),a));
+        assert!(same(verified::F192::from(vx+vy),production::F192::from(px+py)));
+        assert!(same(verified::F192::from(vx*vy),production::F192::from(px*py)));
+        let (vu,pu) = (vx.mul_unreduced(vy),px.mul_unreduced(py));
+        assert!(same_unreduced(&vu.into(),&pu.into()));
+        va ^= vu;
+        pa ^= pu;
+        va = va ^ vx.mul_base_unreduced(vk::F64(b.c2));
+        pa = pa ^ px.mul_base_unreduced(production::F64(b.c2));
+        assert!(same_unreduced(&va.into(),&pa.into()));
+        let (mut vo,mut po) = (MaybeUninit::uninit(),MaybeUninit::uninit());
+        va.reduce().store(&mut vo);
+        pa.reduce().store(&mut po);
+        assert!(same(unsafe { vo.assume_init() },unsafe { po.assume_init() }));
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[test]
+fn x86_lane_wrappers_transpose_and_accumulation_match() {
+    use core::mem::MaybeUninit;
+    let mut rng = Rng::new(0x192_04);
+    let xs = elements(&mut rng, 4096);
+    let (mut vu,mut pu) = (verified::F192x4Unreduced::zero(),production::F192x4Unreduced::zero());
+    let (mut vs,mut ps) = (verified::MixedSums8::default(),production::MixedSums8::default());
+    for c in xs.chunks_exact(16) {
+        let rows: [[production::F192;4];4] = std::array::from_fn(|i| std::array::from_fn(|j| c[4*i+j]));
+        let vr = rows.map(|row| verified::F192x4::load(&row.map(to_v)));
+        let pr = rows.map(|row| production::F192x4::load(&row));
+        let (vt,pt) = (verified::F192x4::transpose(vr),production::F192x4::transpose(pr));
+        for i in 0..4 {
+            let (v,p) = (vt[i].to_array(),pt[i].to_array());
+            for j in 0..4 { assert!(same(v[j],p[j])); assert_eq!(p[j],rows[j][i]); }
+        }
+        let (v,p) = (verified::F192x4::new(rows[0].map(to_v)),production::F192x4::new(rows[0]));
+        let (vb,pb) = (verified::F192x4::splat(to_v(c[7])),production::F192x4::splat(c[7]));
+        for (v,p) in [(v+vb,p+pb),(v*vb,p*pb)] {
+            let mut vo = [MaybeUninit::uninit();4];
+            let mut po = [MaybeUninit::uninit();4];
+            v.store(&mut vo); p.store(&mut po);
+            for i in 0..4 { assert!(same(unsafe { vo[i].assume_init() },unsafe { po[i].assume_init() })); }
+        }
+        vu ^= v.mul_unreduced(vb);
+        pu ^= p.mul_unreduced(pb);
+        vu = vu ^ vr[1].mul_unreduced(vr[2]);
+        pu = pu ^ pr[1].mul_unreduced(pr[2]);
+        assert!(same_unreduced(&vu.sum(),&pu.sum()));
+        for (v,p) in vu.reduce().to_array().into_iter().zip(pu.reduce().to_array()) { assert!(same(v,p)); }
+        let k: [u64;8] = std::array::from_fn(|i| c[i].c1);
+        vs.add(to_v(c[0]),k.map(vk::F64)); ps.add(c[0],k.map(production::F64));
+        for (v,p) in vs.reduce().into_iter().zip(ps.reduce()) { assert!(same(v,p)); }
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[test]
+fn x86_arbitrary_wide_reductions_match() {
+    use core::arch::x86_64::*;
+    use core::mem::{transmute,MaybeUninit};
+    use verified::x86_64 as v;
+    use production::gf2_64x3::x86_64 as p;
+    let mut rng = Rng::new(0x192_ffff);
+    for n in 0..512 {
+        let words: [[[u64;2];3];4] = std::array::from_fn(|i| std::array::from_fn(|j| std::array::from_fn(|k|
+            if n < 6 { CORNER_WORDS[(n+i+j+k)%6] } else { rng.next_u64() })));
+        #[cfg(target_feature = "avx512f")]
+        let d: v::Wide4 = std::array::from_fn(|c| unsafe {
+            transmute::<[u64;8],__m512i>(std::array::from_fn(|j| words[j/2][c][j%2]))
+        });
+        #[cfg(not(target_feature = "avx512f"))]
+        let d: v::Wide4 = std::array::from_fn(|h| std::array::from_fn(|c| unsafe {
+            transmute::<[u64;4],__m256i>(std::array::from_fn(|j| words[2*h+j/2][c][j%2]))
+        }));
+        unsafe {
+            let mut vo = [MaybeUninit::uninit();4];
+            let mut po = [MaybeUninit::uninit();4];
+            v::store_lanes4(v::reduce_lanes4(d),&mut vo);
+            p::store_lanes4(p::reduce_lanes4(d),&mut po);
+            for i in 0..4 {
+                let expected = verified::F192Unreduced { coeffs:words[i] }.reduce();
+                assert_eq!(vo[i].assume_init(),expected);
+                assert!(same(expected,po[i].assume_init()));
+            }
+            assert!(same_unreduced(&v::sum_lanes4(d),&p::sum_lanes4(d)));
+        }
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
+#[test]
+fn x86_planar_products_and_sums_match() {
+    use core::arch::x86_64::__m512i;
+    use core::mem::transmute;
+    use verified::x86_64 as v;
+    use production::gf2_64x3::x86_64 as p;
+    let mut rng = Rng::new(0x192_08);
+    let xs = elements(&mut rng, 4096);
+    let (mut vs,mut ps) = (v::F192x8Sum::zero(),p::F192x8Sum::zero());
+    let mut expected = production::F192::ZERO;
+    for c in xs.chunks_exact(16) {
+        let pack = |slice: &[production::F192]| -> [__m512i;3] {
+            std::array::from_fn(|k| unsafe {
+                transmute::<[u64;8],__m512i>(std::array::from_fn(|i| [slice[i].c0,slice[i].c1,slice[i].c2][k]))
+            })
+        };
+        let (a,b) = (pack(&c[..8]),pack(&c[8..]));
+        for (vr,pr,mul) in [(v::F192x8(a).add(v::F192x8(b)),p::F192x8(a).add(p::F192x8(b)),false),
+            (v::F192x8(a).mul(v::F192x8(b)),p::F192x8(a).mul(p::F192x8(b)),true)] {
+            let vw: [[u64;8];3] = vr.0.map(|v| unsafe { transmute(v) });
+            let pw: [[u64;8];3] = pr.0.map(|v| unsafe { transmute(v) });
+            assert_eq!(vw,pw);
+            for i in 0..8 {
+                let e = if mul { production::gf2_64x3::software::mul(c[i],c[8+i]) } else { c[i]+c[8+i] };
+                assert_eq!([vw[0][i],vw[1][i],vw[2][i]],[e.c0,e.c1,e.c2]);
+            }
+        }
+        vs.mul_add(v::F192x8(a),v::F192x8(b));
+        ps.mul_add(p::F192x8(a),p::F192x8(b));
+        for i in 0..8 { expected += production::gf2_64x3::software::mul(c[i],c[8+i]); }
+        assert!(same_unreduced(&vs.total(),&ps.total()));
+        assert!(same(vs.total().reduce(),expected));
+    }
+}

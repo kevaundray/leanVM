@@ -18,6 +18,8 @@ mod intrinsics_aarch64_bits;
 mod intrinsics_x86;
 #[cfg(target_arch = "x86_64")]
 mod intrinsics_x86_bits;
+#[cfg(target_arch = "x86_64")]
+mod intrinsics_x86_gfx86;
 mod multilinear;
 mod ntt;
 mod phi8_tower;

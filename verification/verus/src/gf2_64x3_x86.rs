@@ -3041,3 +3041,9 @@ proof fn lemma_x8_word(
 }
 
 } // verus!
+
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2", not(target_feature = "avx512f")))]
+#[path = "gf2_64x3_x86_avx2.rs"]
+mod avx2;
+#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2", not(target_feature = "avx512f")))]
+pub use avx2::*;
