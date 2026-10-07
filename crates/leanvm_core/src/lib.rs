@@ -16,14 +16,6 @@
 //! - `rec`: the recursion machine and the aggregation trees (§annex:rec).
 
 pub(crate) use primitives::{log2_ceil_usize, log2_strict_usize};
-/// `stage!("Commit", || …)`: one named prover stage, run inside its `tracing` span,
-/// which is what the CLI's `--tracing` tree shows.
-macro_rules! stage {
-    ($name:literal, $f:expr) => {
-        tracing::info_span!($name).in_scope($f)
-    };
-}
-pub(crate) use stage;
 
 mod class_flock;
 mod colval;
@@ -61,6 +53,11 @@ pub use rv::{Alu, Class, Guest, Hash, Machine, Reg, RegisterFile, Syscall};
 #[doc(hidden)]
 pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId};
 
+/// The proof's soundness target, in bits.
+///
+/// WHIR parameters and the bus soundness check share this target.
+pub const SECURITY_BITS: u32 = ::pcs::whir::SECURITY_BITS as u32;
+
 /// Prepare the process for proving: spawn the worker pool up front.
 ///
 /// - No kernel then pays the spawn cost inside a timed region.
@@ -75,11 +72,6 @@ pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId};
 pub fn init_prover() {
     parallel::init();
 }
-
-/// Target soundness of the whole proof, in bits. Every algebraic challenge is
-/// sampled in F192, and the PCS derives a WHIR configuration whose query,
-/// proximity-gap, and OOD-binding terms each clear this target.
-pub const SECURITY_BITS: u32 = 128;
 
 /// Below this many parallelizable items a pass runs serially: the fan-out
 /// overhead is not worth it for small inputs. Shared by [`constraints`], [`gkr`], [`leaf`].
