@@ -118,6 +118,17 @@ Following annex `d` of the leanVM document:
   `K` being a field and `s_i` vanishing only on the span of `b_0 .. b_(i-1)`. For an arbitrary basis the same
   theorems (`lemma_forward_evaluates`, `lemma_encode_evaluates`) take that as a hypothesis.
 
+### SIMD butterflies of the additive NTT (`src/ntt_simd.rs`)
+
+The kernels of `crates/pcs/src/ntt/additive_ntt_f64.rs` that `lane_butterflies` dispatches to, `butterfly_lanes_avx512` (VPCLMULQDQ with AVX-512F), `butterfly_lanes_avx2` (VPCLMULQDQ with AVX2, no AVX-512F), `butterfly_lanes_neon_8` and `butterfly_lane_pair_neon` (AES, so PMULL; EOR3 or its two-EOR fallback in `reduce_pair_pmull4`), each for `TRANSPOSED` false and true, and `lane_butterflies` with production's `cfg` arms. Each `cfg` arm is checked in the `verify.sh` configuration that compiles it: `avx512`, `avx2-vpclmulqdq` and `avx2-gfni`, `neon` and `neon-no-sha3`; the others (`portable`, `haswell`) check the scalar arm.
+
+- Each kernel at offset `at` of width `w` (8, 4, 8, 2) leaves word `j` of the rows, for `at <= j < at + w`, as `butterfly_spec(TRANSPOSED, u_j, v_j, t)` (forward `u' = u + t v, v' = v + u'`, transposed `u' = u + v, v' = v + t u'`, products by `k_mul`, the specification of the portable `butterfly_one`), and every other word unchanged (`butterflied`).
+- The products: PCLMULQDQ `0x00` and `0x11` unpacked low with high give word `i`'s 128-bit product in lane order (`lemma_products_in_lane_order`); PMULL and PMULL2 read back as `uint64x2_t` give it as the register's two lanes (`lemma_pmull_products`, `lemma_reduced_products`), reduced by the already verified `reduce_pair_pmull4`.
+- The x86 reduction `lo ^ g(hi ^ spill)`, `g(x) = x ^ x<<1 ^ x<<3 ^ x<<4`, `spill = hi>>63 ^ hi>>61 ^ hi>>60`, is `k_mod` of the product (`lemma_shift_reduction`, from `lemma_k_mod`). On AVX-512 the XORs are `vpternlogq 0x96`, the three-way XOR (`lemma_ternlog_xor3`); on AVX2 the shifts are doublings by addition (`lemma_avx2_lane`) and the spill is one byte shuffle of a 16-entry table by the top nibbles, proven word by word from the shuffle's byte semantics and the register layout (`lemma_spill_shuffle`, `lemma_spill_table`, `lemma_word_of_low_byte`).
+- `lane_butterflies` (and so `butterfly_lanes`, `transposed_butterfly_lanes`) keeps its specification in every configuration: the kernel blocks compose (`lemma_butterflied_extend`), then the NEON pair tail and the scalar tail finish the row.
+- Rewrites, noted at each function: the kernels take the rows and the offset their pointers point to instead of `*mut F64`, and load and store through the helpers below (Verus cannot obtain pointer permissions from the `&mut [F64]` borrows `lane_butterflies` holds); production's function-local constants `XOR3` and `SPILL` are module constants, `SPILL` listed rather than computed by a `while` loop in a `const` block; the AVX2 kernel names the nibble shift and the table load (`nibbles`, `t128`) so the proof can refer to them; the NEON pair loop tests `top.len() - lane >= 2` instead of `lane + 2 <= top.len()`.
+- Tests (`tests/equivalence/ntt_simd.rs`): each kernel, both directions, every offset of short rows, edge rows and twiddles (0, 1, all ones, the top bit, every top nibble) and random ones, against production's butterfly in the production field; `butterfly_lanes` and `transposed_butterfly_lanes` on every row length up to 40; and production's own kernels, which are private, through `encode_interleaved_in_place` on 8 to 31 lanes, reproduced by a layer-by-layer driver built from the verified `butterfly_lanes`. Run natively (AVX-512), with the AVX2 flags, and under qemu with and without SHA3.
+
 ### The embedding `φ₈` (`src/phi8_tower.rs`)
 
 `φ₈` (`phi8`) is the GF(2)-linear map sending the byte `x^i` to `PHI_8_BASIS[i]` in `K` (`phi8_basis`); `phi8_e(a)` is `φ₈(a)` in `E`. Annex `c` calls it the subfield embedding of `GF(2^8)` in `E`, and flock's univariate skip domain is `φ₈(0..64)`.
@@ -149,6 +160,7 @@ The portable arm of `crates/primitives/src/bit_fold.rs` (`bit_fold/portable.rs`)
 - The two lemmas about SIMD reductions assume that the carry-less multiply instructions compute `clmul`. They
   are stated as lemmas over `clmul`; no SIMD code is verified.
 - `src/bit_fold.rs` relies on `vstd`'s specification of `u8::trailing_zeros` (with its proven `axiom_u8_trailing_zeros`) and of `Vec::push`, `Vec::as_slice` and `Vec::as_mut_slice`.
+- `src/ntt_simd.rs` relies on the intrinsic specifications of `src/intrinsics/x86.rs` (`_mm512_set1_epi64`, `_mm512_xor_si512`, `_mm512_clmulepi64_epi128`, `_mm512_unpacklo_epi64`, `_mm512_unpackhi_epi64`, `_mm512_srli_epi64`, `_mm512_slli_epi64`, `_mm512_ternarylogic_epi64`; `_mm256_set1_epi64x`, `_mm256_xor_si256`, `_mm256_clmulepi64_epi128`, `_mm256_unpacklo_epi64`, `_mm256_unpackhi_epi64`, `_mm256_broadcastsi128_si256`, `_mm256_srli_epi64`, `_mm256_shuffle_epi8`, `_mm256_add_epi64`, with the byte layout axioms `axiom_m128_bytes`, `axiom_m256_bytes`) and `src/intrinsics/aarch64.rs` (`vdupq_n_u64`, `veorq_u64`, `vgetq_lane_u64`, `vmull_p64`, `vmull_high_p64`, with `axiom_u128_as_u64x2`, `axiom_u64x2_as_p64x2`, and those `reduce_pair_pmull4` uses), and on the trusted memory helpers of `src/intrinsics/x86_nttsimd.rs` (`loadu512_at`, `storeu512_at`, `loadu256_at`, `storeu256_at`, `loadu128_bytes`) and `src/intrinsics/aarch64_nttsimd.rs` (`vld1q_u64_at`, `vst1q_u64_at`): `external_body` functions whose bodies are production's load or store at the offset and whose specification is the words they read or write. `tests/equivalence/intrinsics_x86_nttsimd.rs` and `intrinsics_aarch64_nttsimd.rs` check each helper at every offset of random rows.
 
 ## Not covered
 
@@ -165,8 +177,7 @@ The portable arm of `crates/primitives/src/bit_fold.rs` (`bit_fold/portable.rs`)
     as its callers in flock use it).
   - Bit transposes: `bits::tests::every_arm_matches_reference`.
   - Bit folds and `F192Map`: `bit_fold::tests::fold_block_matches_definition`, `f192_map_matches_definition`, `composed_map_is_the_map_after_the_product`, `avx2_products_match_definition` (every AVX2 product, also on GFNI machines). The equivalence tests of this crate compare the verified portable copies with whatever arm the machine dispatches.
-  - NTT butterflies: `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` and the other driver
-    tests (forward), `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed).
+  - NTT butterflies: verified (`src/ntt_simd.rs`, above); production's driver tests `ntt::additive_ntt_f64::tests::interleaved_parallel_matches_scalar` (forward) and `whir::induce::tests::blocked_and_gathered_transposes_match_layer_by_layer` (transposed) run them too.
 - The NTT's parallel driver (`transform`, `gathered_pass`, `run_layers`, `fused_rows`, `replicate`,
   `transpose_lane_major`), which reorders and gathers rows through raw pointers, is not copied. The production
   tests compare it with the layer-by-layer reference this crate verifies.
