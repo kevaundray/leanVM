@@ -112,6 +112,7 @@ pub proof fn lemma_cmpgt_zero(x: u8)
             0u8
         },
 {
+    assert((0u8 as i8) > (x as i8) <==> x >= 128) by (bit_vector);
 }
 
 } // verus!
