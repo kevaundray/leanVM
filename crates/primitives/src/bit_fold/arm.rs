@@ -1,19 +1,21 @@
-//! AArch64 byte tables with a power-of-two entry stride.
+//! AArch64 byte tables with NEON EOR3 accumulation.
 //!
-//! Each entry holds the three field limbs and one initialized zero limb. This
-//! trades a third more table storage for shift-only lookup addressing. Two
-//! lookups at a time feed each EOR3 accumulator, using two NEON registers per row.
+//! Entries retain the portable backend's compact three-limb layout. Pairs of
+//! lookups feed two EOR3 accumulators. The high limb uses an eight-byte load,
+//! never an overread of the final table entry.
 
 use super::{BLOCK, F192};
-use core::arch::aarch64::{vdupq_n_u64, veor3q_u64, veorq_u64, vgetq_lane_u64, vld1q_u64};
+use core::arch::aarch64::{
+    vcombine_u64, vdup_n_u64, vdupq_n_u64, veor3q_u64, veorq_u64, vgetq_lane_u64, vld1_u64, vld1q_u64,
+};
 
-type Entry = [u64; 4];
+type Entry = [u64; 3];
 
 #[inline(always)]
 fn fold_row<const CHUNKS: usize>(tables: &[[Entry; 256]], row: &[u8; CHUNKS]) -> F192 {
     let tables: &[[Entry; 256]; CHUNKS] = tables.try_into().expect("one table per byte");
-    // SAFETY: This module requires aarch64 SHA3. Each entry contains four
-    // initialized u64s, so both 16-byte loads remain inside the selected entry.
+    // SAFETY: This module requires aarch64 SHA3. The low two limbs use a
+    // 16-byte load and the high limb an 8-byte load, both within the entry.
     unsafe {
         let mut lo = vdupq_n_u64(0);
         let mut hi = vdupq_n_u64(0);
@@ -21,12 +23,16 @@ fn fold_row<const CHUNKS: usize>(tables: &[[Entry; 256]], row: &[u8; CHUNKS]) ->
             let a = tables[2 * j][usize::from(row[2 * j])].as_ptr();
             let b = tables[2 * j + 1][usize::from(row[2 * j + 1])].as_ptr();
             lo = veor3q_u64(lo, vld1q_u64(a), vld1q_u64(b));
-            hi = veor3q_u64(hi, vld1q_u64(a.add(2)), vld1q_u64(b.add(2)));
+            hi = veor3q_u64(
+                hi,
+                vcombine_u64(vld1_u64(a.add(2)), vdup_n_u64(0)),
+                vcombine_u64(vld1_u64(b.add(2)), vdup_n_u64(0)),
+            );
         }
         if !CHUNKS.is_multiple_of(2) {
             let a = tables[CHUNKS - 1][usize::from(row[CHUNKS - 1])].as_ptr();
             lo = veorq_u64(lo, vld1q_u64(a));
-            hi = veorq_u64(hi, vld1q_u64(a.add(2)));
+            hi = veorq_u64(hi, vcombine_u64(vld1_u64(a.add(2)), vdup_n_u64(0)));
         }
         F192 {
             c0: vgetq_lane_u64::<0>(lo),
@@ -48,12 +54,12 @@ impl Imp {
             .0
             .iter()
             .map(|weights| {
-                let mut sums = [[0; 4]; 256];
+                let mut sums = [[0; 3]; 256];
                 for v in 1..256usize {
                     let low = v.isolate_lowest_one();
                     let w = weights[low.trailing_zeros() as usize];
                     let prev = sums[v ^ low];
-                    sums[v] = [prev[0] ^ w.c0, prev[1] ^ w.c1, prev[2] ^ w.c2, 0];
+                    sums[v] = [prev[0] ^ w.c0, prev[1] ^ w.c1, prev[2] ^ w.c2];
                 }
                 sums
             })
