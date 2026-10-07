@@ -224,6 +224,8 @@ No rayon. Every parallel site is "N independent items, each writing its own disj
 
 `LEANVM_NUM_THREADS` sets the **performance**-worker count, leaving E-workers in place. `1` = strictly sequential.
 
+Ring-switch claims are prepared serially in `stack_open::open`; each `ring_switch::deferred_weight` dispatches the independent high-coordinate map compositions internally, so the claim loop must not add an outer dispatch.
+
 ## One protocol, three verifiers
 
 The same verification algorithm is written out three times. Any change to the snark protocol has to land in all three: nothing fails at compile time when one is left behind, and the pinning tests catch a divergence only where they exercise it.
