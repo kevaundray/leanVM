@@ -29,7 +29,7 @@ fn fold_rows<const CHUNKS: usize, const ROWS: usize>(
                 hi[r] = veor3q_u64(hi[r], vld1q_u64(a.add(2)), vld1q_u64(b.add(2)));
             }
         }
-        if CHUNKS % 2 != 0 {
+        if !CHUNKS.is_multiple_of(2) {
             for r in 0..ROWS {
                 let a = tables[CHUNKS - 1][usize::from(rows[r][CHUNKS - 1])].as_ptr();
                 lo[r] = veorq_u64(lo[r], vld1q_u64(a));
