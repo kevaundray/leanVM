@@ -12,7 +12,12 @@ ROOT = Path.cwd()
 OUT = ROOT / 'round1-evidence'
 OUT.mkdir(exist_ok=True)
 BASE = os.environ.get('BASE') or 'f52bd991c8623894e7b03a2e50bede6c248ea1ad'
-HEAD = os.environ.get('CANDIDATE') or '721c4ce1'
+VARIANTS = [
+    ('base', BASE),
+    ('medium', '721c4ce10127bada00046b8bec03825f5efd1c78'),
+    ('tile4', 'ea9bb2dafc350964dcf5bbee9a91090c6708a6e2'),
+    ('horner', '0e210861d2f18bacabcdf4a2b0b4835482b4a848'),
+]
 SCOPE = ['systemd-run', '--user', '--scope', '-q', '-p', 'MemoryMax=16G', '-p', 'MemorySwapMax=0']
 ENV = dict(os.environ, CARGO_BUILD_JOBS='4', CARGO_TERM_COLOR='never', RUSTFLAGS='-C target-cpu=native')
 
@@ -23,7 +28,7 @@ def command(args, name, cwd=ROOT, env=None):
         print((OUT / name).read_text()[-20000:], flush=True)
         raise RuntimeError(f'{name}: {p.returncode}')
 
-metadata = dict(base=BASE, head=HEAD, flags=ENV['RUSTFLAGS'], affinity=sorted(os.sched_getaffinity(0)), files={})
+metadata = dict(base=BASE, variants=VARIANTS, flags=ENV['RUSTFLAGS'], affinity=sorted(os.sched_getaffinity(0)), files={})
 for path in ['/proc/cpuinfo', '/proc/sys/kernel/perf_event_paranoid', '/proc/meminfo']:
     metadata['files'][path] = Path(path).read_text()
 (OUT / 'metadata.json').write_text(json.dumps(metadata, indent=2))
@@ -31,7 +36,7 @@ command(['rustc', '+1.99.0', '-vV'], 'rustc.txt')
 command(['lscpu'], 'lscpu.txt')
 binaries = {}
 tests = {}
-for side, revision in [('base', BASE), ('head', HEAD)]:
+for side, revision in VARIANTS:
     tree = Path('/tmp/round1-hardware-' + side)
     command(['git', 'worktree', 'add', '--detach', tree, revision], f'checkout-{side}.log')
     # Both variants receive identical capture code outside timed proof spans.
@@ -95,14 +100,14 @@ def measured(side, name, workers, args, extra=None, proof=True):
 
 for workers in [1, 4, 8, 'default']:
     for pair in range(5):
-        for side in (['base', 'head'] if pair % 2 == 0 else ['head', 'base']):
+        for side in (list(binaries) if pair % 2 == 0 else list(reversed(binaries))):
             measured(side, f'proof-w{workers}-p{pair}-{side}', workers, [binaries[side], 'leanxmss', '--n', '100', '--repeat', '1', '--cooldown', '0', '--tracing'])
 
 capture = OUT / 'round1-inputs'
 measured('base', 'capture', 1, [binaries['base'], 'leanxmss', '--n', '100', '--repeat', '1', '--cooldown', '0'], {'ARM_ATTRIBUTION_INPUT_DIR': str(capture)})
 for cls in [9, 0, 19]:
     for pair in range(5):
-        for side in (['base', 'head'] if pair % 2 == 0 else ['head', 'base']):
+        for side in (list(binaries) if pair % 2 == 0 else list(reversed(binaries))):
             measured(side, f'components-class{cls}-p{pair}-{side}', 1,
                      [tests[side], 'zerocheck::round1::tests::diagnostic_round1_components', '--exact', '--ignored', '--nocapture'],
                      {'ROUND1_INPUT_DIR': str(capture / f'class{cls}'), 'ROUND1_REPEATS': '3', 'ROUND1_SAMPLE_WINDOWS': '64'}, proof=False)

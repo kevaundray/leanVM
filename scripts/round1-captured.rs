@@ -284,7 +284,7 @@
                 step!(0); step!(1); step!(2); step!(3);
                 step!(4); step!(5); step!(6); step!(7);
                 for (h, [lo, hi]) in acc.into_iter().enumerate() {
-                    vst1q_u8(out.as_mut_ptr().add(16 * h), gf8_reduce_vec16(vreinterpretq_u8_u16(lo), vreinterpretq_u8_u16(hi)));
+                    vst1q_u8(out.as_mut_ptr().add(16 * h), primitives::field::gf2_8::neon::gf8_reduce_vec16(vreinterpretq_u8_u16(lo), vreinterpretq_u8_u16(hi)));
                 }
             }
         }
