@@ -80,8 +80,8 @@ def check_ios_bundle(archive, bundle):
     if info.get("CFBundleSupportedPlatforms") != ["iPhoneOS"]:
         raise ValueError(f"{archive.filename}: {bundle} is not a physical iOS device bundle")
     minimum = tuple(int(part) for part in info["MinimumOSVersion"].split("."))
-    if minimum[0] != 16 or any(minimum[1:]):
-        raise ValueError(f"{archive.filename}: {bundle} does not target iOS 16.0")
+    if minimum[0] > 16 or (minimum[0] == 16 and any(minimum[1:])):
+        raise ValueError(f"{archive.filename}: {bundle} requires iOS {info['MinimumOSVersion']}, newer than 16.0")
     executable = info["CFBundleExecutable"]
     with tempfile.TemporaryDirectory(prefix="mobile-bench-ios-check-") as directory:
         binary_path = Path(directory) / "executable"
