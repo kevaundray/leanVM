@@ -17,6 +17,7 @@ VARIANTS = [
     ('medium', '721c4ce10127bada00046b8bec03825f5efd1c78'),
     ('tile4', 'ea9bb2dafc350964dcf5bbee9a91090c6708a6e2'),
     ('horner', '0e210861d2f18bacabcdf4a2b0b4835482b4a848'),
+    ('bitperm', '03f6d4b8bc46d8c827b3833093f1ffdbcff4eefb'),
 ]
 SCOPE = ['systemd-run', '--user', '--scope', '-q', '-p', 'MemoryMax=16G', '-p', 'MemorySwapMax=0']
 ENV = dict(os.environ, CARGO_BUILD_JOBS='4', CARGO_TERM_COLOR='never', RUSTFLAGS='-C target-cpu=native')

@@ -5,6 +5,8 @@
     #[test]
     #[ignore = "temporary native-hardware Round1 attribution; requires captured input or traced shape"]
     fn diagnostic_round1_components() {
+        #[cfg(target_arch = "aarch64")]
+        eprintln!("round1_diag sve2_bitperm={}", std::arch::is_aarch64_feature_detected!("sve2-bitperm"));
         use std::hint::black_box;
         use std::time::Instant;
 
