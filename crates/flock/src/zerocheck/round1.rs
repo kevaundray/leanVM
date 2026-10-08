@@ -63,7 +63,7 @@ use primitives::bit_fold::avx2;
     target_feature = "avx512vbmi"
 ))]
 use primitives::bit_fold::gfni::{store_f192, weight_matrices};
-use primitives::bits::bit_transpose_64bytes;
+use primitives::bits::bit_transpose_64bytes as transpose_fallback;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "gfni")))]
 use primitives::field::gf2_8::avx2::gf8_mul_vec32;
 use primitives::field::gf2_8::gf8_reduce;
@@ -91,6 +91,68 @@ use std::sync::OnceLock;
 const ELL: usize = 64;
 const N_CHUNKS: usize = 8;
 const N_MEDIUM: usize = 4;
+
+#[inline]
+fn bit_transpose_64bytes(input: &[u8; 64], output: &mut [u8; 64]) {
+    #[cfg(target_arch = "aarch64")]
+    if std::arch::is_aarch64_feature_detected!("sve2-bitperm") {
+        // SAFETY: the optional bit-permutation extension was detected above.
+        unsafe { transpose_bitperm(input, output) };
+        return;
+    }
+    transpose_fallback(input, output);
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "sve2-bitperm")]
+unsafe fn transpose_bitperm(input: &[u8; 64], output: &mut [u8; 64]) {
+    // SAFETY: all vector loads/stores cover exactly the arrays, and BGRP only
+    // permutes bits within each 64-bit element, independently of the SVE width.
+    unsafe {
+        let table = uint8x16x4_t(
+            vld1q_u8(input.as_ptr()),
+            vld1q_u8(input.as_ptr().add(16)),
+            vld1q_u8(input.as_ptr().add(32)),
+            vld1q_u8(input.as_ptr().add(48)),
+        );
+        const INDEX: [[u8; 16]; 4] = [
+            [0, 8, 16, 24, 32, 40, 48, 56, 1, 9, 17, 25, 33, 41, 49, 57],
+            [2, 10, 18, 26, 34, 42, 50, 58, 3, 11, 19, 27, 35, 43, 51, 59],
+            [4, 12, 20, 28, 36, 44, 52, 60, 5, 13, 21, 29, 37, 45, 53, 61],
+            [6, 14, 22, 30, 38, 46, 54, 62, 7, 15, 23, 31, 39, 47, 55, 63],
+        ];
+        let mut a = vqtbl4q_u8(table, vld1q_u8(INDEX[0].as_ptr()));
+        let mut b = vqtbl4q_u8(table, vld1q_u8(INDEX[1].as_ptr()));
+        let mut c = vqtbl4q_u8(table, vld1q_u8(INDEX[2].as_ptr()));
+        let mut d = vqtbl4q_u8(table, vld1q_u8(INDEX[3].as_ptr()));
+        // Grouping even then odd bits rotates one bit of the six-bit index.
+        // Three rotations exchange its row and column coordinates.
+        core::arch::asm!(
+            "bgrp z0.d, z0.d, z4.d",
+            "bgrp z1.d, z1.d, z4.d",
+            "bgrp z2.d, z2.d, z4.d",
+            "bgrp z3.d, z3.d, z4.d",
+            "bgrp z0.d, z0.d, z4.d",
+            "bgrp z1.d, z1.d, z4.d",
+            "bgrp z2.d, z2.d, z4.d",
+            "bgrp z3.d, z3.d, z4.d",
+            "bgrp z0.d, z0.d, z4.d",
+            "bgrp z1.d, z1.d, z4.d",
+            "bgrp z2.d, z2.d, z4.d",
+            "bgrp z3.d, z3.d, z4.d",
+            inout("v0") a,
+            inout("v1") b,
+            inout("v2") c,
+            inout("v3") d,
+            in("v4") vdupq_n_u64(0x5555_5555_5555_5555),
+            options(pure, nomem, nostack, preserves_flags),
+        );
+        vst1q_u8(output.as_mut_ptr(), a);
+        vst1q_u8(output.as_mut_ptr().add(16), b);
+        vst1q_u8(output.as_mut_ptr().add(32), c);
+        vst1q_u8(output.as_mut_ptr().add(48), d);
+    }
+}
 
 /// The three small-eq challenges (as F_8 values, then embedded via φ_8).
 /// Choosing these specific values is what makes `eq_small[K] = C_s · α^K`.
@@ -1146,6 +1208,19 @@ pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    #[test]
+    fn c_transpose_preserves_every_bit_position() {
+        for bit in 0..512 {
+            let mut input = [0u8; 64];
+            input[bit / 8] = 1 << (bit % 8);
+            let mut output = [0u8; 64];
+            super::bit_transpose_64bytes(&input, &mut output);
+            let mut expected = [0u8; 64];
+            expected[bit % 64] = 1 << (bit / 64);
+            assert_eq!(output, expected, "input bit {bit}");
+        }
+    }
+
     use super::*;
     use crate::zerocheck::PaddingSpec;
     use crate::zerocheck::ntt::AdditiveNttGf8;
