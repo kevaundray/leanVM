@@ -1,0 +1,96 @@
+# Executable WHIR model and checked algebra
+
+This isolated Lean project models leanVM's binary-field, interleaved WHIR variant at production revision [`edafd396120f453de6f75013f231bfda2049f217`](https://github.com/leanEthereum/leanVM/tree/edafd396120f453de6f75013f231bfda2049f217). It contains an executable concrete model, generic checked algebra, exact layout/query arithmetic, finite soundness lemmas, and live Rust differential checks. It does **not** prove the Rust source correct, full PCS list binding, or security of the concrete Fiat-Shamir transcript.
+
+## Reproduce
+
+Dependencies are pinned by `lean-toolchain`, `lakefile.toml`, `lake-manifest.json`, and the external Rust harness's `Cargo.lock`. Lean is 4.34.0; Mathlib is `5ed2965256430c3649e86755f9576b54eca72435`. The Rust harness uses toolchain 1.97 and the production crates through relative path dependencies, without changing their APIs. Linux reproduction requires a working user systemd session; scopes cap each command at 16 GiB with no swap.
+
+```sh
+cd verification/whir
+systemd-run --user --scope -q -p MemoryMax=16G -p MemorySwapMax=0 lake update
+systemd-run --user --scope -q -p MemoryMax=16G -p MemorySwapMax=0 lake build --wfail
+systemd-run --user --scope -q -p MemoryMax=16G -p MemorySwapMax=0 lake env lean Audit.lean
+python3 differential/run.py
+```
+
+The runner builds and executes `whirModel`, executes the production Rust harness in release mode, and compares newly computed records. Its query mode also feeds actual production challenge limbs to Lean. It uses `/tmp/whir-lean-target`, two Cargo jobs, and one leanVM worker. There are no accepted-output snapshots to regenerate. Lean proof checking is separate from executable differential evidence.
+
+## Protocol to code to theorem map
+
+Paths below are relative to `crates/pcs/src`, except the Python mirror, `python-verifier/verifier.py`.
+
+| Protocol step | Production implementation and mirror | Lean executable/specification | Checked guarantee and boundary |
+| --- | --- | --- | --- |
+| Shapes and rate ladder | `whir/config.rs`, Python `WhirConfig` | `Protocol.productionConfig`, `Layout.Shape` | Exact bounded index arithmetic; production tables are compared for every supported log-size/rate, not formally derived from a security target. |
+| K/E arithmetic and embedding | `primitives::field::{F64,F192}` | `Concrete.kmul`, `Concrete.E`; `Algebra.novelEncode_lift` | Concrete arithmetic is executable and differentially checked. Generic embedding theorem requires an explicit ring homomorphism; there is no asserted concrete `Field` instance. |
+| Interleaved commitment | `whir/commit.rs`, `ntt/additive_ntt_f64.rs` | `Concrete.encodeBase`, `Concrete.encodeExt`, `Layout.transposeIndex`, `Algebra.novelEncode` | Reversed-lane permutation/inverse and padding restoration are proved. Generic encoder is the tensor product of normalized novel-basis factors. NTT-to-spec universal refinement is not proved. |
+| Equality weights and MLE | `primitives::multilinear`, Python `eq_kernel` | `Algebra.eqWeight`, `mle`, `foldFirst` | Partition of unity, Boolean interpolation, partial evaluation, constant evaluation, batching linearity. |
+| Compact quadratic round | `whir/sumcheck.rs`, `verify.rs::Quad`, Python transcript round reader | `Algebra.compactRound`, `roundConstant`, `roundQuadratic` | Characteristic-two endpoint relation, reconstruction, honest round preservation, all-round sumcheck terminal equality. |
+| Lane fold and later folds | `whir/prove.rs`, `sumcheck.rs`, `commit.rs` | `Concrete.foldLane`, `foldLow`, `Completeness.foldBlock` | Generic block folding is linear; encoding commutes with multilinear folds; all sizes, including empty algebraic blocks, are handled. Production-valid schedules are a subset. |
+| OOD and query claims | `verify.rs::Ood`, `LevelCtx`, `induce.rs`; Python `_induced_weight` | `Protocol.prove/verify`, `Algebra.inducedWeight`, `Completeness.nextWeight` | Opened-column/induced inner-product identity and factorized MLE are proved for normalized factors. OOD enters only after subsequent commitments. |
+| Query sampling | `whir.rs::strata/sample_queries_ordered`, public `OpeningVerifier`; Python `strata/sample_queries` | `Layout.strataBits`, `rawQuery`, `sampleQueries`; `Concrete.deriveQueries` | Exact counts, bounds, bit-chunk safety, fixed top bits, repeated full-domain groups, order and duplicate row behavior. Product/AM-GM miss bound is separate in `QuerySoundness`. |
+| Pruned row authentication | `merkle.rs`, verifier `open_base` operations; Python `Transcript.merkle` | `Layout.prunedLeaf/restoreLeaf`, ideal oracle rows in `Protocol` | Leading-zero restoration and reversed live-lane ordering proved. Authentication in the executable model is exact ideal row lookup, not BLAKE2 or Merkle collision resistance. |
+| Terminal point | `verify.rs::terminal`, Python `verify_whir` | `Layout.terminalPoint/levelPoint`, `Concrete.rotatePoint` | Caller weight receives the left-rotated point; per-level suffix stays in round order. Rotation length, permutation, inverse and slices are proved. |
+| Last-level closure | `verify.rs::last_level/terminal` | `Protocol.verify`, `Completeness.finalWeight/finalClaim/replay` | Final consistency powers start at one, without OOD; honest residual plus query batching and all-level algebraic terminal equality are proved. |
+| Ring switching and stack | `ring_switch.rs::RingFamily/RingShare`, `stack_open.rs`, Python `ring_switch` | `RingSwitch.composedMap`, `honest_family`, `stacked_claim` | Frobenius-map additivity, honest binary-slice reduction, arbitrary-point family batching with scale **inside** the map, overlapping-region addition, padding noninterference. Concrete optimized inverse-Frobenius/prefix-sharing refinement and map injectivity/soundness are not proved. |
+| Interactive errors | Annex B `thm:rbr` | `Soundness` | Root counts, RS evaluation distance, false-claim quadratic round bound, adaptive-history product-space root count, list union bound, first escape and finite RBR error accumulation. This does not instantiate the whole WHIR invariant. |
+
+`Completeness.Schedule` is an ideal algebraic schedule with supplied challenges and honest mathematical column answers. Its `all_levels_complete` theorem proves preservation through arbitrary fold blocks, residual/OOD/query batching and closing sumcheck. It is not a theorem about `Protocol.verify`'s arrays or serialization. The executable model and the mathematical specification are deliberately separate where a refinement bridge is missing.
+
+## Intentional differences from original WHIR
+
+The implementation commits in K = GF(2^64), challenges in E = GF(2^192), and uses additive domains and the novel polynomial basis. The original multiplicative WHIR folding formulas cannot be copied into characteristic two. Quadratic messages contain only the constant and quadratic coefficient; the linear coefficient is reconstructed as `claim + quadratic`.
+
+There is no commitment-time OOD sample, following Flock. The appropriate security relation is **list binding**, not unique binding. Subsequent OOD claims occur after new commitments. The production protocol sends intro polynomials one message ahead; the interactive executable supplies challenges explicitly rather than claiming to reproduce that byte-level binding order or the concurrent transcript rewrite.
+
+L0 folds the top witness variables because each interleaved lane is a contiguous stack block. Codeword lane order is reversed, so missing zero-tail lanes become leading zeros in a leaf. Only the live suffix is transported. Caller-coordinate rotation must not be applied to per-level induced weights.
+
+Queries are sampled with replacement in binary-sized stratified groups. They are not iid uniform columns and are not deduplicated. Independent raw chunks give independent draws *within their assigned cosets*; `QuerySoundness` proves the product/AM-GM inequality and repeated-coset exponent accounting. The theorem does not prove independence of the concrete transcript's squeezes. `Soundness.conditioned_bound` retains the permitted-tape denominator for grinding rather than treating grinding-conditioned randomness as unconditioned uniform randomness.
+
+Ring switching combines all 64-slice claims by a gamma challenge before drawing the six-stage additive map. Each claim's scale remains inside that map. Claim points need not be prefixes of one another. The family reduction here proves this algebraic requirement, not the full DP24 compiler.
+
+## Why this formalization approach
+
+The inspected ArkLib revision is [`35ddcaa83f683011f944f58904be779495a5709a`](https://github.com/Verified-zkEVM/ArkLib/tree/35ddcaa83f683011f944f58904be779495a5709a/ArkLib). Its `ProofSystem/Sumcheck/Impl/Representation.lean` separates executable coefficient messages/Horner evaluation from polynomial interpretation and proves `evaluate_eq`. The modern `Interaction/ComputableSoundness.lean` proves an actual executor/adversarial-strategy bound, unlike several legacy admitted wrappers. `Data/CodingTheory/ProximityGenerator/Interleaving.lean` contains a source proof of exact MCA transfer under an explicit seed-cardinality bound, and `ReedSolomon/MutualCorrelatedAgreement/Johnson/Probability.lean` contains Johnson MCA endpoints with certificate hypotheses. These are useful precedents, not imported conclusions here.
+
+Source inspection also found admitted FRI input/output relations, admitted generic sequential security/RBR contracts, and admitted Fiat-Shamir interfaces. There is no inspected finished WHIR executor/security endpoint to reuse wholesale. Importing ArkLib's umbrella would not establish an admission-free WHIR proof. This project instead reuses Mathlib algebra/root/finite-sum/AM-GM results and directly audits its own dependency chains. ArkLib itself was inspected, not rebuilt or transitively audited by this project.
+
+The inspected Ironwood revision is [`86e3c7026db8c9af27ca731e6b5c7f2d8fc7f0fc`](https://github.com/zcash/ironwood/tree/86e3c7026db8c9af27ca731e6b5c7f2d8fc7f0fc/Zcash). `Arithmetic/NatKernelEquiv.lean` uses a representation map instead of an assumed implementation/spec isomorphism. `Arithmetic/FftSpec.lean` decomposes actual FFT refinement into bit reversal, twiddles and rounds. `Arithmetic/FastMsm.lean` uses a proved `csimp` equality rather than an unchecked implementation replacement. `Meta/AxiomCheck.lean`, `TrustBoundary.lean` and `CensusCheck.lean` motivate direct endpoint and elaborated-environment auditing. Ironwood's multiplicative FFT theorem is not an additive-NTT proof for leanVM.
+
+## Original papers and version limits
+
+- [WHIR, ePrint 2024/1586](https://eprint.iacr.org/2024/1586): substantive full-paper sections read from the November 21, 2024 PDF. Lemma 4.4 is the interleaved Johnson bound; Definition 4.9 defines MCA; Definition 4.14 and Claim 4.15 concern multiplicative folding; Construction 5.1/Theorem 5.2 give conditional RBR soundness. This numbering is not silently attributed to every later proceedings revision.
+- [Ligerito, ePrint 2025/1187](https://eprint.iacr.org/2025/1187): full [author PDF](https://angeris.github.io/papers/ligerito.pdf), dated May 2025, read including the matrix-vector/partial-sumcheck construction and recursive protocol section 6. An immutable ePrint revision identifier was not obtained.
+- [Ring switching, ePrint 2024/504](https://eprint.iacr.org/2024/504): packing/security sections read from a cached full PDF. Definition 2.2 is packing and Theorem 3.5 is the compiler security statement in that inspected copy. Its precise dated ePrint revision was not established; the inspected bytes are identified by SHA-256 below.
+- [LCH14, arXiv 1404.3458v2](https://arxiv.org/abs/1404.3458v2): July 24, 2014 version. Section II-B equations (3)-(4) give additive subspace polynomials; II-C gives the normalized product basis and the subsequent sections the transform recurrence.
+- [BCHKS25, ePrint 2025/2055](https://eprint.iacr.org/2025/2055): recovered and read from [ECCC TR25-169](https://eccc.weizmann.ac.il/report/2025/169/download/), title-page November 7, 2025. Corollary 1.4 is ordinary correlated agreement, so Annex B's stronger same-agreement-set adaptation needs its own argument. Theorem 4.6, pages 28-29, is the required list-correlated-agreement statement. Its rate is `(dimension - 1)/block length` and its multiplicity denominator is the Johnson slack, not twice the slack from Theorem 1.5. Section 3.2 explicitly charges content-factor exceptional roots omitted in an older proof. These security conclusions are not imported as Lean axioms here.
+- [DT24, ePrint 2024/1038](https://eprint.iacr.org/2024/1038): complete author PDF read and [pinned to hosting commit `3c36f36aa545f514a967a4f157e8476ad2be335b`](https://github.com/quangvdao/quangvdao.github.io/blob/3c36f36aa545f514a967a4f157e8476ad2be335b/papers/authored/constraint-packing-binary-tower-fields.pdf), Git blob `58244673916d0f7c7b140c5c936cb1493b3eae5c`. Claim 1 and equations (11)-(13) use basis independence for deterministic coordinate packing; characteristic two alone does not suffice. Algorithm 3's Wiedemann-tower arithmetic is not leanVM's representation.
+- [LFKN92, primary author manuscript](https://lance.fortnow.com/papers/files/ip.pdf): recovered through a real browser after the reader's HTTP 406; full protocol/security sections read. Rendered pages 3-4 confirm Theorem 1 (interactive proofs for P raised to a #P oracle), Lemma 3 (reduction to permanent checking), and Lemma 4 (degree-r polynomial agreement bounded by r/p). The manuscript proves the permanent expand/shrink protocol, not a named modern Boolean-cube sumcheck theorem. Its first-escape proof motivates `rbr_composition`; its footnote explicitly distinguishes ideal uniform field sampling from bit-based rejection sampling.
+- [Jo26, ePrint 2026/891](https://eprint.iacr.org/2026/891) and [Gru24](https://eprint.iacr.org/2024/108): full originals remain unavailable after ePrint/publisher, author-site, archive and repository searches. The Jo26 PDF additionally remained behind a Cloudflare security-verification page in a real browser. Jo26 Theorem 4.4 is verified only as a local citation. No unverified original theorem numbering is asserted.
+
+The unavailable originals and incomplete revision pins above are explicit research limitations, not claimed completed source readings.
+
+SHA-256 of the inspected PDF bytes: WHIR `ccacc62cf5529ff95c3cf115cf730b020336f8d95c310c8deb64e3beac30ce61`; ring switching `e0c9dd03a2e9b4a9c6b88dd3df077db6400668a6e8234b877d046bc60c9949d9`; LFKN `926388d68334bc8cdcd586c70f0b97b2b7e957fe0f360858f4574e91a36622ab`. The PDFs are research inputs, not vendored dependencies.
+
+## Trust boundary and unproved goals
+
+`Audit.lean` discovers every exported theorem in the elaborated `Whir` namespace and computes its transitive axioms. It rejects project axioms and every dependency axiom except `propext`, `Classical.choice` and `Quot.sound`. Selected principal algebra endpoints additionally retain `#print axioms` commands. No `sorry`, `admit`, `native_decide`, unsafe proof execution, or new correctness axiom is used in completed chains. Running the compiled model and Rust still trusts their compilers/runtime; differential testing is evidence for tested inputs, not a kernel proof of their correspondence.
+
+Outstanding proof boundaries are concrete K/E irreducibility and field-law refinement, the optimized additive NTT's universal refinement to the generic encoder, full array/length-checked executable verifier refinement, the concrete ring-map injectivity/error bound, Johnson list size/MCA and OOD-separation instantiation, the complete adaptive WHIR list-binding invariant, transcript-prefix binding, Merkle collision resistance, grinding/Fiat-Shamir compilation, and concrete BLAKE2 random-oracle security. `ListExplains` records a list-opening relation; it is not a theorem that commitments satisfy that relation. `rbr_composition` proves error accumulation from individual escape bounds, not those missing WHIR escape bounds.
+
+`ListBinding` makes the security quantifiers explicit: for every commitment there must be a bounded candidate list fixed before every adversarial strategy, with failure probability over the finite uniform randomness tape of a supplied verifier experiment. It is a game definition, not a proved WHIR instance. The abstract strategy and verifier interfaces keep challenge correlations and implementation-specific transcript semantics from being assumed away.
+
+Malformed proof/query counts, final scalar counts, OOD point dimensions and answers are exercised by the executable model. The ideal transport has explicit structured failure results; it does not claim the same byte-decoding error taxonomy or underflow behavior as production `TranscriptError`. The Rust smoke separately uses the actual stack-opening prover/verifier and its malformed/tampered inputs. No byte-for-byte full transcript refinement is claimed.
+
+No production bug is established merely by disagreement with a hand port. Findings must first distinguish model errors, supported-input contracts and genuine Rust discrepancies. This verification addition does not modify production Rust, Python, recursion verifiers, protocol versions, or the LaTeX specification.
+
+## Exercised validation
+
+The delivered branch passed `lake build --wfail` and the elaborated axiom census: every discovered theorem declaration, including generated equations and auxiliary proofs, depended only on the three permitted standard axioms. The protocol properties are enumerated above rather than counting generated declarations as independently substantial results.
+
+The live differential runner matched 71 record groups: 15 arithmetic/encoding/folding/weight groups plus all 56 production configurations. Six additional production query batches covered `(depth,count)` = `(1,9)`, `(5,47)`, `(7,29)`, `(17,31)`, `(63,8)`, `(8,0)`, including cross-limb extraction, uneven groups and repeated queries. Lean's three-level opening accepted and rejected wrong targets, short openings/final residuals, changed final residuals, missing queries, changed rows, changed/missing OOD answers, missing challenges and invalid layouts. Rust's real minimum-size stacked opening exercised ring-switch and point claims, truncated lanes, Merkle authentication, Fiat-Shamir and grinding; it rejected short/trailing streams, changed round/OOD/final scalars, missing authentication and invalid layouts.
+
+The standalone Rust harness also passed release Clippy with warnings denied and rustdoc with warnings denied. Its Rust code was formatted; the Python runner passed Ruff and `ty`. No production Rust or Python verifier was changed, so full VM suites, Python verifier conformance suites, guest fixture rebuilds and LaTeX builds were intentionally not run.
+
+No Rust discrepancy was found in this explored scope. That statement is not a proof that untested inputs or the Rust protocol are correct, and no speculative bug-fix PR is warranted.

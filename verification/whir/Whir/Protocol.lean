@@ -1,0 +1,253 @@
+import Whir.Concrete
+
+/-! Dense executable replay of the production WHIR opening schedule.
+Commitments are ideal immutable row arrays and authentication is exact lookup.
+Challenges are an explicit independent input. This is not a hash, Fiat-Shamir,
+proof-of-work, succinct verifier, or cryptographic soundness implementation. -/
+namespace Whir.Protocol
+open Concrete
+
+structure Config where
+  logN : Nat
+  folds : Array Nat
+  rates : Array Nat
+  queries : Array Nat
+  oodCounts : Array Nat
+  deriving Repr, Inhabited
+
+def Config.valid (c : Config) : Bool := Id.run do
+  let levels := c.folds.size
+  if levels < 2 || c.rates.size != levels || c.queries.size != levels ||
+      c.oodCounts.size != levels || c.oodCounts[0]! != 0 then return false
+  let mut n := c.logN
+  for i in [:levels] do
+    if c.folds[i]! == 0 || c.folds[i]! >= n || c.rates[i]! == 0 || c.queries[i]! == 0 then return false
+    n := n-c.folds[i]!
+    if n+c.rates[i]! >= 64 then return false
+  return true
+
+/-- The production query table, not a floating-point soundness derivation. -/
+def productionQueries : Array (Array (Array Nat)) := #[
+  #[#[222,55], #[223,56,30], #[223,56,31], #[223,56,32], #[223,56,32],
+    #[223,56,32,22], #[223,56,32,22], #[224,56,32,23], #[224,56,32,23],
+    #[224,56,32,23,17], #[224,56,32,23,17], #[224,56,32,23,18],
+    #[225,56,32,23,18], #[225,56,32,23,18,14]],
+  #[#[111,45], #[112,45,27], #[112,45,28], #[112,45,28], #[112,45,28],
+    #[112,45,28,20], #[112,45,28,20], #[112,45,28,21], #[112,45,28,21],
+    #[112,45,28,21,16], #[112,45,28,21,16], #[112,45,28,21,16],
+    #[112,45,28,21,16], #[112,45,28,21,16,13]],
+  #[#[75,37], #[75,37,24], #[75,37,25], #[75,38,25], #[75,38,25],
+    #[75,38,25,18], #[75,38,25,19], #[75,38,25,19], #[75,38,25,19],
+    #[75,38,25,19,15], #[75,38,25,19,15], #[75,38,25,19,15],
+    #[75,38,25,19,15], #[75,38,25,19,15,13]],
+  #[#[56,32], #[56,32,22], #[56,32,22], #[56,32,23], #[56,32,23],
+    #[56,32,23,17], #[56,32,23,17], #[56,32,23,18], #[56,32,23,18],
+    #[56,32,23,18,14], #[56,32,23,18,14], #[56,32,23,18,14],
+    #[56,32,23,18,15], #[56,32,23,18,15,12]]]
+
+/-- Production integer ladder. Grinding is deliberately external to this model. -/
+def productionConfig (logN rate : Nat) : Option Config := Id.run do
+  if logN < 15 || logN > 28 || rate < 1 || rate > 4 then return none
+  let mut n := logN-6
+  let mut folds := #[6]
+  let mut rates := #[rate]
+  let mut currentRate := rate
+  for _ in [:logN] do
+    if n > 5 then
+      let k := min 4 n
+      currentRate := currentRate + 3
+      folds := folds.push k
+      rates := rates.push currentRate
+      n := n-k
+  return some ⟨logN, folds, rates, productionQueries[rate-1]![logN-15]!,
+    tab folds.size (fun i => if i == 0 then 0 else 1)⟩
+
+structure LevelChallenges where
+  folds : Array E
+  oodPoints : Array (Array E)
+  querySqueezes : Array E
+  lambda : E
+  deriving Repr, Inhabited
+
+structure Challenges where
+  levels : Array LevelChallenges
+  tail : Array E
+  deriving Repr, Inhabited
+
+def Challenges.valid (c : Config) (ch : Challenges) : Bool := Id.run do
+  if !c.valid || ch.levels.size != c.folds.size then return false
+  let mut n := c.logN
+  for i in [:c.folds.size] do
+    n := n-c.folds[i]!
+    let l := ch.levels[i]!
+    let count := if i+1 < c.folds.size then c.oodCounts[i+1]! else 0
+    if l.folds.size != c.folds[i]! || l.oodPoints.size != count then return false
+    if !(l.oodPoints.all fun p => p.size == n) then return false
+    if (deriveQueries (n+c.rates[i]!) c.queries[i]! l.querySqueezes).isNone then return false
+  return ch.tail.size == n
+
+/-- The actual two transmitted coefficients. The linear coefficient is claim+u2. -/
+structure Message where
+  u0 : E
+  u2 : E
+  deriving Repr, Inhabited, BEq
+
+def Message.eval (m : Message) (claim r : E) : E :=
+  m.u0 + r * (claim + m.u2) + (r*r) * m.u2
+
+def Message.glue (m other : Message) (s : E) : Message :=
+  ⟨m.u0 + s*other.u0, m.u2 + s*other.u2⟩
+
+def roundMessage (f b : Array E) (block : Nat := 1) : Message := Id.run do
+  let mut m := Message.mk E.zero E.zero
+  for i in [:f.size/2] do
+    let offset := (i/block)*(2*block)+i%block
+    let a := f[offset]!
+    let a' := f[offset+block]!
+    let w := b[offset]!
+    let w' := b[offset+block]!
+    m := ⟨m.u0 + a*w, m.u2 + (a+a')*(w+w')⟩
+  return m
+
+abbrev Oracle := Array (Array E)
+
+structure OodClaim where
+  value : E
+  intro : Message
+  deriving Repr, Inhabited
+
+structure LevelProof where
+  afterFold : Array Message
+  nextOracle : Option Oracle
+  oods : Array OodClaim
+  rows : Array (Array E)
+  intro : Message
+  deriving Repr, Inhabited
+
+structure Opening where
+  initial : Message
+  levels : Array LevelProof
+  residual : Array E
+  tailMessages : Array Message
+  deriving Repr, Inhabited
+
+def weightGlue (b other : Array E) (s : E) : Array E :=
+  tab b.size fun j => b[j]! + s*other[j]!
+
+def enforced (rows : Array (Array E)) (rs weights : Array E) (base : Bool) : E :=
+  let eq := eqTable rs
+  (tab rows.size fun i => weights[i]! * dot (if base then rows[i]!.reverse else rows[i]!) eq).foldl (· + ·) E.zero
+
+def shapeValid (c : Config) (lanes : Nat) (b : Array E) : Bool :=
+  c.valid && lanes > 0 && lanes ≤ 2^c.folds[0]! && b.size == 2^c.logN &&
+    (b.extract (lanes * 2^(c.logN-c.folds[0]!)) b.size).all (· == E.zero)
+
+def oracleValid (o : Oracle) (rows width : Nat) : Bool :=
+  o.size == rows && o.all (fun row => row.size == width)
+
+/-- Honest prover, with the same lane-first, OOD-before-query, intro/glue schedule. -/
+def prove (c : Config) (ch : Challenges) (witness : Array K) (bInitial : Array E)
+    (target : E) : Except String (Oracle × Opening) := do
+  if !ch.valid c then throw "configuration/challenges"
+  let block := 2^(c.logN-c.folds[0]!)
+  let lanes := witness.size/block
+  if witness.size != lanes*block || !shapeValid c lanes bInitial then throw "witness/weight shape"
+  let mut f := tab (2^c.logN) fun i => E.ofK (witness[i]?.getD 0)
+  let mut b := bInitial
+  if dot f b != target then throw "incorrect target"
+  let root := encodeBase witness c.logN c.folds[0]! c.rates[0]!
+  let mut oracle := root
+  let initial := roundMessage f b block
+  let mut levels := #[]
+  let mut residual := #[]
+  let mut n := c.logN
+  for i in [:c.folds.size] do
+    let cs := ch.levels[i]!
+    let mut afterFold := #[]
+    for j in [:cs.folds.size] do
+      let r := cs.folds[j]!
+      f := if i == 0 then foldLane f block r else foldLow f r
+      b := if i == 0 then foldLane b block r else foldLow b r
+      n := n-1
+      afterFold := afterFold.push (roundMessage f b (if i == 0 && j+1 < cs.folds.size then block else 1))
+    let nextOracle := if i+1 < c.folds.size then some (encodeExt f n c.folds[i+1]! c.rates[i+1]!) else none
+    if i+1 == c.folds.size then residual := f
+    let mut oods := #[]
+    let mut pending : Array (Array E) := #[]
+    for z in cs.oodPoints do
+      let weight := eqTable z
+      oods := oods.push ⟨dot f weight, roundMessage f weight⟩
+      pending := pending.push weight
+    let qs ← (deriveQueries (n+c.rates[i]!) c.queries[i]! cs.querySqueezes).elim (throw "query challenges") pure
+    let ws := powers cs.lambda qs.size
+    let rows := qs.map fun q => oracle[q]!
+    let basis := induced n qs ws
+    let intro := roundMessage f basis
+    let mut scalar := E.one
+    for weight in pending do
+      scalar := scalar*cs.lambda
+      b := weightGlue b weight scalar
+    scalar := scalar*cs.lambda
+    b := weightGlue b basis scalar
+    levels := levels.push ⟨afterFold, nextOracle, oods, rows, intro⟩
+    oracle := nextOracle.getD #[]
+  let mut tailMessages := #[]
+  for j in [:ch.tail.size] do
+    f := foldLow f ch.tail[j]!
+    b := foldLow b ch.tail[j]!
+    if j+1 < ch.tail.size then tailMessages := tailMessages.push (roundMessage f b)
+  return (root, ⟨initial, levels, residual, tailMessages⟩)
+
+/-- Untrusted opening verifier. No access to the original witness or prover state.
+The dense weight is retained for clarity; production evaluates it succinctly. -/
+def verify (c : Config) (ch : Challenges) (lanes : Nat) (root : Oracle)
+    (bInitial : Array E) (target : E) (proof : Opening) : Except String Unit := do
+  if !ch.valid c || !shapeValid c lanes bInitial then throw "configuration/challenges/weight"
+  let block := 2^(c.logN-c.folds[0]!)
+  if !oracleValid root (2^(c.logN-c.folds[0]!+c.rates[0]!)) lanes then throw "root shape"
+  if proof.levels.size != c.folds.size || proof.tailMessages.size+1 != ch.tail.size then throw "proof length"
+  let mut n := c.logN
+  let mut b := bInitial
+  let mut oracle := root
+  let mut claim := target
+  let mut msg := proof.initial
+  for i in [:c.folds.size] do
+    let cs := ch.levels[i]!
+    let p := proof.levels[i]!
+    if p.afterFold.size != cs.folds.size || p.oods.size != cs.oodPoints.size then throw "round/OOD length"
+    for j in [:cs.folds.size] do
+      claim := msg.eval claim cs.folds[j]!
+      msg := p.afterFold[j]!
+      b := if i == 0 then foldLane b block cs.folds[j]! else foldLow b cs.folds[j]!
+      n := n-1
+    if i+1 < c.folds.size then
+      let next ← p.nextOracle.elim (throw "missing commitment") pure
+      if !oracleValid next (2^(n-c.folds[i+1]!+c.rates[i+1]!)) (2^c.folds[i+1]!) then throw "commitment shape"
+    else
+      if p.nextOracle.isSome || proof.residual.size != 2^n then throw "final length"
+    let qs ← (deriveQueries (n+c.rates[i]!) c.queries[i]! cs.querySqueezes).elim (throw "query challenges") pure
+    if p.rows.size != qs.size then throw "query length"
+    for j in [:qs.size] do
+      if p.rows[j]! != oracle[qs[j]!]! then throw "authentication"
+    let ws := powers cs.lambda qs.size
+    let sum := enforced p.rows cs.folds ws (i == 0)
+    let mut scalar := E.one
+    for j in [:p.oods.size] do
+      scalar := scalar*cs.lambda
+      let ood := p.oods[j]!
+      claim := claim + scalar*ood.value
+      msg := msg.glue ood.intro scalar
+      b := weightGlue b (eqTable cs.oodPoints[j]!) scalar
+    scalar := scalar*cs.lambda
+    claim := claim + scalar*sum
+    msg := msg.glue p.intro scalar
+    b := weightGlue b (induced n qs ws) scalar
+    oracle := p.nextOracle.getD #[]
+  for j in [:ch.tail.size] do
+    claim := msg.eval claim ch.tail[j]!
+    b := foldLow b ch.tail[j]!
+    if j+1 < ch.tail.size then msg := proof.tailMessages[j]!
+  if claim != mle proof.residual ch.tail * b[0]! then throw "terminal mismatch"
+  return ()
+
+end Whir.Protocol
