@@ -695,14 +695,20 @@ impl Convert {
         let convert = convert_table();
         #[cfg(target_arch = "aarch64")]
         {
-            // Consume one table row across the lanes before advancing to the next
-            // medium position, keeping the active lookup table bounded to one row.
+            // Keep a bounded group of conversion rows active while amortizing
+            // scratch updates across its medium positions.
             let mut converted_ab = [F192::ZERO; ELL];
             let mut converted_c = [F192::ZERO; ELL];
-            for ((row, ab), c) in convert.iter().zip(ab).zip(c) {
+            for ((rows, ab), c) in convert.chunks(4).zip(ab.chunks(4)).zip(c.chunks(4)) {
                 for lane in 0..ELL {
-                    converted_ab[lane] += row[ab[lane] as usize];
-                    converted_c[lane] += row[c[lane] as usize];
+                    let mut cf_ab = F192::ZERO;
+                    let mut cf_c = F192::ZERO;
+                    for ((row, ab), c) in rows.iter().zip(ab).zip(c) {
+                        cf_ab += row[ab[lane] as usize];
+                        cf_c += row[c[lane] as usize];
+                    }
+                    converted_ab[lane] += cf_ab;
+                    converted_c[lane] += cf_c;
                 }
             }
             for lane in 0..ELL {
