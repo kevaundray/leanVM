@@ -68,7 +68,7 @@ use primitives::bits::bit_transpose_64bytes;
 use primitives::field::gf2_8::avx2::gf8_mul_vec32;
 use primitives::field::gf2_8::gf8_reduce;
 #[cfg(target_arch = "aarch64")]
-use primitives::field::gf2_8::neon::{gf8_mul_vec16, gf8_reduce_vec16};
+use primitives::field::gf2_8::neon::gf8_mul_vec16;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use primitives::field::mul4;
 use primitives::field::{F8, F192, PHI_8_TABLE_192, phi8_192};
@@ -232,15 +232,10 @@ fn convert_table() -> &'static ConvertTable {
 // Fused NEON inner kernel: inv_NTT apply + F_8 mul + shift_reduce, all in
 // NEON registers (no Vec<F8> round-trip).
 //
-// `xor_apply_byte_into_8_regs::<BH, ODD>` handles one byte position (b ≥ 1).
-// `BH` (= b >> 1) selects which chunk-index XOR to apply; `ODD` (= b & 1)
-// switches on the within-chunk half-swap. Both const-generic so the compiler
-// dead-code-eliminates the if-branch and folds the chunk-index XORs.
-//
-// `fused_apply_one_k::<K>` runs one full K-row: the initial b=0 plain load,
-// 7 calls to the byte helper for b=1..7 (with the specific protocol BH/ODD
-// pattern), one 16-lane F_8 mul per output chunk, and finally widen-shift-XOR
-// into the per-(K, lane) 16-bit accumulators.
+// `xor_apply_byte_into_8_regs::<BH>` folds one byte position into the
+// expanded A/B rows. Odd positions share one half-swap before the even
+// positions are added. `fused_apply_one_k::<K>` then multiplies corresponding
+// lanes and folds the coefficient into the byte-wide Horner accumulators.
 
 /// # Safety
 /// `table_base` points to a `256 * 64`-byte table, and `BH < 4`.
@@ -297,22 +292,14 @@ unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
 /// `table_base` points to a `256 * 64`-byte table, and `a_row` and `b_row` to `N_CHUNKS` readable bytes each.
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Separate NEON accumulators preserve the register layout of the fused kernel."
-)]
 unsafe fn fused_apply_one_k<const K: i32>(
     table_base: *const u8,
     a_row: *const u8,
     b_row: *const u8,
-    acc0_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc0_hi: &mut core::arch::aarch64::uint16x8_t,
-    acc1_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc1_hi: &mut core::arch::aarch64::uint16x8_t,
-    acc2_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc2_hi: &mut core::arch::aarch64::uint16x8_t,
-    acc3_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc3_hi: &mut core::arch::aarch64::uint16x8_t,
+    acc0: &mut core::arch::aarch64::uint8x16_t,
+    acc1: &mut core::arch::aarch64::uint8x16_t,
+    acc2: &mut core::arch::aarch64::uint8x16_t,
+    acc3: &mut core::arch::aarch64::uint8x16_t,
 ) {
     // SAFETY: NEON is part of the aarch64 baseline; the caller guarantees `N_CHUNKS` readable bytes at `a_row` and
     // `b_row` and a `256 * 64`-byte table, and every load is a table row plus an offset below 64.
@@ -380,15 +367,20 @@ unsafe fn fused_apply_one_k<const K: i32>(
         let y2 = gf8_mul_vec16(da2, db2);
         let y3 = gf8_mul_vec16(da3, db3);
 
-        // Widen-shift by K, XOR into the 16-bit accumulators.
-        *acc0_lo = veorq_u16(*acc0_lo, vshll_n_u8::<K>(vget_low_u8(y0)));
-        *acc0_hi = veorq_u16(*acc0_hi, vshll_n_u8::<K>(vget_high_u8(y0)));
-        *acc1_lo = veorq_u16(*acc1_lo, vshll_n_u8::<K>(vget_low_u8(y1)));
-        *acc1_hi = veorq_u16(*acc1_hi, vshll_n_u8::<K>(vget_high_u8(y1)));
-        *acc2_lo = veorq_u16(*acc2_lo, vshll_n_u8::<K>(vget_low_u8(y2)));
-        *acc2_hi = veorq_u16(*acc2_hi, vshll_n_u8::<K>(vget_high_u8(y2)));
-        *acc3_lo = veorq_u16(*acc3_lo, vshll_n_u8::<K>(vget_low_u8(y3)));
-        *acc3_hi = veorq_u16(*acc3_hi, vshll_n_u8::<K>(vget_high_u8(y3)));
+        // Horner order keeps the running polynomial in four byte registers.
+        let combine = |acc, y| {
+            if K == 7 {
+                y
+            } else {
+                let high = vreinterpretq_u8_s8(vshrq_n_s8::<7>(vreinterpretq_s8_u8(acc)));
+                let reduction = vandq_u8(high, vdupq_n_u8(0x1b));
+                veorq_u8(y, veorq_u8(vshlq_n_u8::<1>(acc), reduction))
+            }
+        };
+        *acc0 = combine(*acc0, y0);
+        *acc1 = combine(*acc1, y1);
+        *acc2 = combine(*acc2, y2);
+        *acc3 = combine(*acc3, y3);
     }
 }
 
@@ -409,17 +401,12 @@ fn shift_reduce_inner_ab_fused_neon(
     // at the entry point). The row windows `byte_base_b + K * N_CHUNKS .. + N_CHUNKS` for `K < 8` lie in both packed
     // tables, whose lengths the entry point asserts against the windows it walks. `out` is 64 bytes.
     unsafe {
-        let mut acc0_lo = vdupq_n_u16(0);
-        let mut acc0_hi = vdupq_n_u16(0);
-        let mut acc1_lo = vdupq_n_u16(0);
-        let mut acc1_hi = vdupq_n_u16(0);
-        let mut acc2_lo = vdupq_n_u16(0);
-        let mut acc2_hi = vdupq_n_u16(0);
-        let mut acc3_lo = vdupq_n_u16(0);
-        let mut acc3_hi = vdupq_n_u16(0);
+        let mut acc0 = vdupq_n_u8(0);
+        let mut acc1 = vdupq_n_u8(0);
+        let mut acc2 = vdupq_n_u8(0);
+        let mut acc3 = vdupq_n_u8(0);
 
-        // 8 K-iterations: each consumes N_CHUNKS = 8 packed witness bytes
-        // for `a` and `b`. K is a const generic so `vshll_n_u8::<K>` specializes.
+        // Descending coefficients evaluate the same polynomial by Horner's rule.
         macro_rules! do_k {
             ($k:literal) => {{
                 let off = byte_base_b + $k * N_CHUNKS;
@@ -427,37 +414,27 @@ fn shift_reduce_inner_ab_fused_neon(
                     table_base,
                     a_packed.as_ptr().add(off),
                     b_packed.as_ptr().add(off),
-                    &mut acc0_lo,
-                    &mut acc0_hi,
-                    &mut acc1_lo,
-                    &mut acc1_hi,
-                    &mut acc2_lo,
-                    &mut acc2_hi,
-                    &mut acc3_lo,
-                    &mut acc3_hi,
+                    &mut acc0,
+                    &mut acc1,
+                    &mut acc2,
+                    &mut acc3,
                 );
             }};
         }
-        do_k!(0);
-        do_k!(1);
-        do_k!(2);
-        do_k!(3);
-        do_k!(4);
-        do_k!(5);
-        do_k!(6);
         do_k!(7);
-
-        // Reduce 16-bit accs → 16-byte F_8 results (4 × 16 lanes).
-        let r0 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc0_lo), vreinterpretq_u8_u16(acc0_hi));
-        let r1 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc1_lo), vreinterpretq_u8_u16(acc1_hi));
-        let r2 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc2_lo), vreinterpretq_u8_u16(acc2_hi));
-        let r3 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc3_lo), vreinterpretq_u8_u16(acc3_hi));
+        do_k!(6);
+        do_k!(5);
+        do_k!(4);
+        do_k!(3);
+        do_k!(2);
+        do_k!(1);
+        do_k!(0);
 
         let p = out.as_mut_ptr();
-        vst1q_u8(p, r0);
-        vst1q_u8(p.add(16), r1);
-        vst1q_u8(p.add(32), r2);
-        vst1q_u8(p.add(48), r3);
+        vst1q_u8(p, acc0);
+        vst1q_u8(p.add(16), acc1);
+        vst1q_u8(p.add(32), acc2);
+        vst1q_u8(p.add(48), acc3);
     }
 }
 
