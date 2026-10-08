@@ -39,17 +39,14 @@ theorem publicEvents_actual (Q : Nat) (iv : Digest32) (cache : RawKey Q → Opti
     ((compile_counted source Q).mpr counted)
   exact ⟨suffix,eq.symm⟩
 
-/-- Failed commitment-order bookkeeping is sticky. Previously captured commitments remain available, but an invalid source chronology is never silently repaired by later announcements. -/
+/-- A failed commitment-order check records the first error, but does not stop observing later public compression calls. Otherwise a later root could capture a stale log even though the underlying source execution continued. Claims never install their purported family or point metadata. -/
 def replayTracked (state : CausalBindingState.State cap) :
     List (Event cap) → CausalBindingState.State cap
   | [] => state
   | event :: rest =>
-      match state.sourceError with
-      | some _ => state
-      | none =>
-          match step state event with
-          | .error root => {state with sourceError := some root}
-          | .ok next => replayTracked next rest
+      match step state event with
+      | .error root => replayTracked {state with sourceError := state.sourceError.or (some root)} rest
+      | .ok next => replayTracked next rest
 
 theorem replayTracked_extends (state : CausalBindingState.State cap) (events : List (Event cap)) :
     CausalBindingState.Extends state (replayTracked state events) := by
@@ -57,18 +54,63 @@ theorem replayTracked_extends (state : CausalBindingState.State cap) (events : L
   | nil => exact .refl _
   | cons event rest ih =>
       unfold replayTracked
-      cases failed : state.sourceError with
-      | some root => exact .refl _
-      | none =>
-          cases progress : step state event with
-          | error root => exact ⟨fun _ _ h => h,fun _ _ h => h,fun _ _ _ => rfl,
-              fun _ _ _ h => h,fun _ _ _ => rfl⟩
-          | ok next => exact (step_extends state next event progress).trans (ih next)
+      cases progress : step state event with
+      | error root =>
+          exact (show CausalBindingState.Extends state
+            {state with sourceError := state.sourceError.or (some root)} from
+            ⟨fun _ _ h => h,fun _ _ h => h,fun _ _ _ => rfl,
+              fun _ _ _ h => h,fun _ _ _ => rfl⟩).trans (ih _)
+      | ok next => exact (step_extends state next event progress).trans (ih next)
 
-theorem replayTracked_failed (state : CausalBindingState.State cap) (events : List (Event cap))
+@[simp] theorem observeRecords_sourceError (state : CausalBindingState.State cap)
+    (records : MerkleTransport.Commitments.Records) :
+    (observeRecords state records).sourceError = state.sourceError := by
+  induction records generalizing state with
+  | nil => rfl
+  | cons record rest ih =>
+      change (observeRecords (CausalBindingState.observe state record.1 record.2) rest).sourceError = _
+      rw [ih]
+      unfold CausalBindingState.observe
+      split <;> rfl
+
+@[simp] theorem observePublic_sourceError (state : CausalBindingState.State cap)
+    (input : DuplexFraming.Node) (answer : Digest32) :
+    (observePublic state input answer).sourceError = state.sourceError := by
+  simp [observePublic]
+
+@[simp] theorem registerRoot_sourceError (state : CausalBindingState.State cap) (root : Digest32) :
+    (CausalBindingState.registerRoot state root).sourceError = state.sourceError := by
+  unfold CausalBindingState.registerRoot
+  split <;> rfl
+
+theorem step_sourceError (state next : CausalBindingState.State cap) (event : Event cap)
+    (success : step state event = .ok next) : next.sourceError = state.sourceError := by
+  cases event with
+  | answer query value =>
+      cases query with
+      | primitive purpose input => cases success; exact observePublic_sourceError _ _ _
+      | construction coordinate valid => cases success; rfl
+  | commit root => cases success; exact registerRoot_sourceError _ _
+  | claims profile entry request =>
+      unfold step at success
+      cases found : MerkleTransport.Commitments.lookup request.root state.registry with
+      | none => simp [found] at success
+      | some snapshot =>
+          simp only [found] at success
+          cases success
+          rfl
+
+/-- Observing subsequent events cannot repair or replace the first chronology error. -/
+theorem replayTracked_error_sticky (state : CausalBindingState.State cap) (events : List (Event cap))
     (root : Digest32) (failed : state.sourceError = some root) :
-    replayTracked state events = state := by
-  cases events <;> simp [replayTracked,failed]
+    (replayTracked state events).sourceError = some root := by
+  induction events generalizing state with
+  | nil => exact failed
+  | cons event rest ih =>
+      unfold replayTracked
+      cases progress : step state event with
+      | error later => exact ih _ (by simp [failed])
+      | ok next => exact ih next ((step_sourceError state next event progress).trans failed)
 
 def publicReplay (Q : Nat) (iv : Digest32) (cache : RawKey Q → Option Digest32)
     (view : View (Result cap R)) (state : CausalBindingState.State cap) :

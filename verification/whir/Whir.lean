@@ -139,3 +139,5 @@ import Whir.WHIRNativeArithmeticRegression
 import Whir.WHIRNativeErasure
 import Whir.WHIRSourceChronology
 import Whir.WHIRSourceObserver
+import Whir.WHIRNativeSecurity
+import Whir.WHIRPhysicalRowsRegression
