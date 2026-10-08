@@ -87,19 +87,20 @@ def Challenges.valid (c : Config) (ch : Challenges) : Bool := Id.run do
   return ch.tail.size == n
 
 /-- The actual two transmitted coefficients. The linear coefficient is claim+u2. -/
-structure Message where
-  u0 : E
-  u2 : E
+structure Message (R : Type u) where
+  u0 : R
+  u2 : R
   deriving Repr, Inhabited, BEq
 
-def Message.eval (m : Message) (claim r : E) : E :=
+def Message.eval {R : Type u} [Add R] [Mul R] (m : Message R) (claim r : R) : R :=
   m.u0 + r * (claim + m.u2) + (r*r) * m.u2
 
-def Message.glue (m other : Message) (s : E) : Message :=
+def Message.glue {R : Type u} [Add R] [Mul R] (m other : Message R) (s : R) : Message R :=
   ⟨m.u0 + s*other.u0, m.u2 + s*other.u2⟩
 
-def roundMessage (f b : Array E) (block : Nat := 1) : Message := Id.run do
-  let mut m := Message.mk E.zero E.zero
+def roundMessage {R : Type u} [Zero R] [Add R] [Mul R] [Inhabited R]
+    (f b : Array R) (block : Nat := 1) : Message R := Id.run do
+  let mut m := Message.mk (0 : R) 0
   for i in [:f.size/2] do
     let offset := (i/block)*(2*block)+i%block
     let a := f[offset]!
@@ -113,26 +114,52 @@ abbrev Oracle := Array (Array E)
 
 structure OodClaim where
   value : E
-  intro : Message
+  intro : Message E
   deriving Repr, Inhabited
 
 structure LevelProof where
-  afterFold : Array Message
+  afterFold : Array (Message E)
   nextOracle : Option Oracle
   oods : Array OodClaim
   rows : Array (Array E)
-  intro : Message
+  intro : Message E
   deriving Repr, Inhabited
 
 structure Opening where
-  initial : Message
+  initial : Message E
   levels : Array LevelProof
   residual : Array E
-  tailMessages : Array Message
+  tailMessages : Array (Message E)
   deriving Repr, Inhabited
 
-def weightGlue (b other : Array E) (s : E) : Array E :=
+def weightGlue {R : Type u} [Add R] [Mul R] [Inhabited R]
+    (b other : Array R) (s : R) : Array R :=
   tab b.size fun j => b[j]! + s*other[j]!
+
+/-- The same low- or top-lane fold used by the prover and verifier. -/
+def foldValues {R : Type u} [Add R] [Mul R] [Inhabited R]
+    (values : Array R) (block : Nat) (r : R) : Array R :=
+  if block == 1 then foldLow values r else foldLane values block r
+
+structure VerifierState (R : Type u) where
+  weight : Array R
+  claim : R
+  message : Message R
+  deriving Repr, Inhabited
+
+def VerifierState.fold {R : Type u} [Add R] [Mul R] [Inhabited R]
+    (state : VerifierState R) (block : Nat) (r : R) (next : Message R) : VerifierState R :=
+  ⟨foldValues state.weight block r, state.message.eval state.claim r, next⟩
+
+def VerifierState.batch {R : Type u} [Add R] [Mul R] [Inhabited R]
+    (state : VerifierState R) (basis : Array R) (value scale : R)
+    (intro : Message R) : VerifierState R :=
+  ⟨weightGlue state.weight basis scale, state.claim + scale * value,
+    state.message.glue intro scale⟩
+
+def VerifierState.checkTerminal {R : Type u} [Mul R] [BEq R] [Inhabited R]
+    (state : VerifierState R) (value : R) : Bool :=
+  state.claim == value * state.weight[0]!
 
 def enforced (rows : Array (Array E)) (rs weights : Array E) (base : Bool) : E :=
   let eq := eqTable rs
@@ -166,8 +193,8 @@ def prove (c : Config) (ch : Challenges) (witness : Array K) (bInitial : Array E
     let mut afterFold := #[]
     for j in [:cs.folds.size] do
       let r := cs.folds[j]!
-      f := if i == 0 then foldLane f block r else foldLow f r
-      b := if i == 0 then foldLane b block r else foldLow b r
+      f := foldValues f (if i == 0 then block else 1) r
+      b := foldValues b (if i == 0 then block else 1) r
       n := n-1
       afterFold := afterFold.push (roundMessage f b (if i == 0 && j+1 < cs.folds.size then block else 1))
     let nextOracle := if i+1 < c.folds.size then some (encodeExt f n c.folds[i+1]! c.rates[i+1]!) else none
@@ -193,8 +220,8 @@ def prove (c : Config) (ch : Challenges) (witness : Array K) (bInitial : Array E
     oracle := nextOracle.getD #[]
   let mut tailMessages := #[]
   for j in [:ch.tail.size] do
-    f := foldLow f ch.tail[j]!
-    b := foldLow b ch.tail[j]!
+    f := foldValues f 1 ch.tail[j]!
+    b := foldValues b 1 ch.tail[j]!
     if j+1 < ch.tail.size then tailMessages := tailMessages.push (roundMessage f b)
   return (root, ⟨initial, levels, residual, tailMessages⟩)
 
@@ -207,18 +234,14 @@ def verify (c : Config) (ch : Challenges) (lanes : Nat) (root : Oracle)
   if !oracleValid root (2^(c.logN-c.folds[0]!+c.rates[0]!)) lanes then throw "root shape"
   if proof.levels.size != c.folds.size || proof.tailMessages.size+1 != ch.tail.size then throw "proof length"
   let mut n := c.logN
-  let mut b := bInitial
+  let mut state : VerifierState E := ⟨bInitial, target, proof.initial⟩
   let mut oracle := root
-  let mut claim := target
-  let mut msg := proof.initial
   for i in [:c.folds.size] do
     let cs := ch.levels[i]!
     let p := proof.levels[i]!
     if p.afterFold.size != cs.folds.size || p.oods.size != cs.oodPoints.size then throw "round/OOD length"
     for j in [:cs.folds.size] do
-      claim := msg.eval claim cs.folds[j]!
-      msg := p.afterFold[j]!
-      b := if i == 0 then foldLane b block cs.folds[j]! else foldLow b cs.folds[j]!
+      state := state.fold (if i == 0 then block else 1) cs.folds[j]! p.afterFold[j]!
       n := n-1
     if i+1 < c.folds.size then
       let next ← p.nextOracle.elim (throw "missing commitment") pure
@@ -235,19 +258,14 @@ def verify (c : Config) (ch : Challenges) (lanes : Nat) (root : Oracle)
     for j in [:p.oods.size] do
       scalar := scalar*cs.lambda
       let ood := p.oods[j]!
-      claim := claim + scalar*ood.value
-      msg := msg.glue ood.intro scalar
-      b := weightGlue b (eqTable cs.oodPoints[j]!) scalar
+      state := state.batch (eqTable cs.oodPoints[j]!) ood.value scalar ood.intro
     scalar := scalar*cs.lambda
-    claim := claim + scalar*sum
-    msg := msg.glue p.intro scalar
-    b := weightGlue b (induced n qs ws) scalar
+    state := state.batch (induced n qs ws) sum scalar p.intro
     oracle := p.nextOracle.getD #[]
   for j in [:ch.tail.size] do
-    claim := msg.eval claim ch.tail[j]!
-    b := foldLow b ch.tail[j]!
-    if j+1 < ch.tail.size then msg := proof.tailMessages[j]!
-  if claim != mle proof.residual ch.tail * b[0]! then throw "terminal mismatch"
+    let next := if j+1 < ch.tail.size then proof.tailMessages[j]! else state.message
+    state := state.fold 1 ch.tail[j]! next
+  if !state.checkTerminal (mle proof.residual ch.tail) then throw "terminal mismatch"
   return ()
 
 end Whir.Protocol

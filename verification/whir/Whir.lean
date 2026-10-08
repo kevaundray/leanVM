@@ -6,3 +6,6 @@ import Whir.QuerySoundness
 import Whir.Completeness
 import Whir.Concrete
 import Whir.Protocol
+import Whir.ArrayLayout
+import Whir.ArrayAlgebra
+import Whir.ReplayRefinement

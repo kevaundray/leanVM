@@ -55,11 +55,13 @@ end E
 
 instance : Add E := ⟨E.add⟩
 instance : Mul E := ⟨E.mul⟩
+instance : Zero E := ⟨E.zero⟩
+instance : One E := ⟨E.one⟩
 
 def tab (n : Nat) (f : Nat → α) : Array α := (List.range n).toArray.map f
 
-def dot (a b : Array E) : E :=
-  (tab (min a.size b.size) fun i => a[i]! * b[i]!).foldl (· + ·) E.zero
+def dot {R : Type u} [Zero R] [Add R] [Mul R] [Inhabited R] (a b : Array R) : R :=
+  (tab (min a.size b.size) fun i => a[i]! * b[i]!).foldl (· + ·) 0
 
 def powers (a : E) (n : Nat) : Array E := Id.run do
   let mut out := #[]
@@ -70,26 +72,28 @@ def powers (a : E) (n : Nat) : Array E := Id.run do
   return out
 
 /-- Coordinates and table indices are least-significant-bit first. -/
-def eqTable (point : Array E) : Array E := Id.run do
-  let mut out := #[E.one]
+def eqTable {R : Type u} [One R] [Add R] [Mul R] (point : Array R) : Array R := Id.run do
+  let mut out := #[(1 : R)]
   for r in point do
-    out := (out.map fun x => x * (E.one + r)) ++ (out.map fun x => x * r)
+    out := (out.map fun x => x * (1 + r)) ++ (out.map fun x => x * r)
   return out
 
-def foldPair (a b r : E) : E := a + r * (a + b)
+def foldPair {R : Type u} [Add R] [Mul R] (a b r : R) : R := a + r * (a + b)
 
-def foldLow (a : Array E) (r : E) : Array E :=
+def foldLow {R : Type u} [Add R] [Mul R] [Inhabited R] (a : Array R) (r : R) : Array R :=
   tab (a.size / 2) fun i => foldPair a[2*i]! a[2*i+1]! r
 
 /-- One of the top-lane rounds: adjacent lane blocks, not adjacent words. -/
-def foldLane (a : Array E) (block : Nat) (r : E) : Array E :=
+def foldLane {R : Type u} [Add R] [Mul R] [Inhabited R]
+    (a : Array R) (block : Nat) (r : R) : Array R :=
   tab (a.size / 2) fun i =>
     let offset := (i / block) * (2*block) + i % block
     foldPair a[offset]! a[offset+block]! r
 
-def mle (a : Array E) (point : Array E) : E := dot a (eqTable point)
+def mle {R : Type u} [Zero R] [One R] [Add R] [Mul R] [Inhabited R]
+    (a : Array R) (point : Array R) : R := dot a (eqTable point)
 
-def rotatePoint (initialK : Nat) (point : Array E) : Array E :=
+def rotatePoint {R : Type u} (initialK : Nat) (point : Array R) : Array R :=
   point.extract initialK point.size ++ point.extract 0 initialK
 
 /-- s_i(v_i), including i=n, using the standard polynomial basis v_i=x^i. -/
