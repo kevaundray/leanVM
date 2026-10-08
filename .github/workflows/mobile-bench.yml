@@ -234,10 +234,15 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: needs.android.outputs.has_results == 'true'
         with:
-          pattern: mobile-bench-*-results
-          path: mobile-results
-          merge-multiple: false
+          name: mobile-bench-android-results
+          path: mobile-results/android
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: needs.ios.outputs.has_results == 'true'
+        with:
+          name: mobile-bench-ios-results
+          path: mobile-results/ios
       - name: Update the matching current-head PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -18,6 +18,8 @@ The workflow pins Rust 1.99.0, `cargo-ndk` 4.1.2, Android SDK 34, build-tools 34
 
 iOS packaging runs on the macOS 15 image with Xcode 16.4 (iPhoneOS SDK 18.5), XcodeGen 2.44.1 by checksum, and Rust targets `aarch64-apple-ios`, `aarch64-apple-ios-sim` and `x86_64-apple-ios`. The physical workload targets iOS 16.0; the build SDK version is not the phone's OS version. `ios.xcconfig` sets Swift language mode 5 through `XCODE_XCCONFIG_FILE`, because the pinned toolkit template uses the compiler version `5.9` where Xcode expects a language mode. No Apple developer credentials or provisioning profile are configured; the toolkit packages for BrowserStack ad-hoc re-signing.
 
+The isolated lockfile retains libc 0.2.189 for the pinned mobench SDK's iOS resource sampler. libc 0.2.190 restricts its `mach_task_self` binding to macOS, while mobench 0.1.49 calls it on iOS too. The iPhoneOS 18.5 SDK still declares and exports the underlying `mach_task_self_` API; this compatibility pin preserves the real `task_info` memory measurement rather than disabling it. Revisit the pin when upgrading mobench.
+
 Use the standalone `mobench` executable. Source scanning can warn that there are no `#[benchmark]` attributes because these setup/teardown benchmarks register `BenchFunction` entries directly. Runtime registration is checked by the native smoke executable, not by source scanning.
 
 Install host tools with neutral flags, rather than the repository's native CPU flags:
