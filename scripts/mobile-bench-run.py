@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run trusted mobile benchmarks without publishing provider logs or signed URLs."""
 
+import argparse
 import base64
 import json
 import os
@@ -12,9 +13,10 @@ import tempfile
 from urllib.parse import quote
 
 
-DEVICE_MODEL = "Google Pixel 7"
-DEVICE_OS = "13.0"
-DEVICE = f"{DEVICE_MODEL}-{DEVICE_OS}"
+DEVICES = {
+    "android": ("Google Pixel 7", "13.0"),
+    "ios": ("iPhone 14", "16"),
+}
 FUNCTIONS = ("leanvm_mobile_bench::shielded_prove",)
 MOBENCH_REV = "217cfd4f78db1284276a1a1da44e3bf473729f5c"
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s<>\"'`]+")
@@ -89,9 +91,21 @@ def export_sessions(source, destination, clean):
     (destination / "sessions.json").write_text(json.dumps(clean(sessions), indent=2) + "\n")
 
 
-def results_complete(summary):
+def results_complete(summary, platform):
+    model, os_version = DEVICES[platform]
+    requested = f"{model}-{os_version}"
     devices = summary["device_summaries"]
-    if summary["devices"] != [DEVICE] or [device["device"] for device in devices] != [DEVICE_MODEL]:
+    # mobench preserves requested IDs separately from BrowserStack's device names.
+    # The provider returns either a model-only name or the full requested ID.
+    if (
+        summary["target"] != platform
+        or summary["function"] != FUNCTIONS[0]
+        or summary["iterations"] != 3
+        or summary["warmup"] != 1
+        or summary["devices"] != [requested]
+        or len(devices) != 1
+        or devices[0]["device"] not in (model, requested)
+    ):
         return False
     benchmarks = devices[0]["benchmarks"]
     measured = {benchmark["function"]: benchmark for benchmark in benchmarks}
@@ -113,30 +127,36 @@ def export_diagnostics(private, destination, text):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--platform", required=True, choices=DEVICES)
+    platform = parser.parse_args().platform
+    device_model, device_os = DEVICES[platform]
+    device_id = f"{device_model}-{device_os}"
     os.umask(0o077)
-    destination = Path("target/mobile-bench-results")
+    destination = Path("target/mobile-bench-results") / platform
     destination.mkdir(parents=True, exist_ok=False)
     text, clean = redactor()
     metadata = {
-        "source_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "platform": platform,
+        "source_sha": None,
         "source_repository": os.environ.get("GITHUB_REPOSITORY"),
         "trigger_ref": os.environ.get("GITHUB_REF"),
         "event": os.environ.get("GITHUB_EVENT_NAME"),
         "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
         "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-        "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
+        "rustc": None,
         "mobench_revision": MOBENCH_REV,
-        "cargo_ndk_version": "4.1.2",
-        "android_ndk_version": "26.1.10909125",
-        "android_sdk": 34,
-        "android_build_tools": "34.0.0",
-        "target": "aarch64-linux-android",
+        "target": "aarch64-linux-android" if platform == "android" else "aarch64-apple-ios",
         "profile": "release",
         "rustflags": os.environ.get("RUSTFLAGS"),
         "thread_policy": "available_parallelism",
         "threads": None,
         "available_parallelism": None,
-        "candidate_device": DEVICE,
+        "verified_proofs": None,
+        "candidate_device": device_id,
+        "requested_device": device_model,
+        "requested_os": platform,
+        "requested_os_version": device_os,
         "device_validated": False,
         "functions": list(FUNCTIONS),
         "spends_per_leaf": 2,
@@ -148,6 +168,30 @@ def main():
     }
     exit_code = 1
     try:
+        metadata["source_sha"] = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+        metadata["rustc"] = subprocess.check_output(["rustc", "--version"], text=True, stderr=subprocess.DEVNULL).strip()
+        if platform == "android":
+            metadata.update(
+                {
+                    "cargo_ndk_version": "4.1.2",
+                    "android_ndk_version": "26.1.10909125",
+                    "android_sdk": 34,
+                    "android_build_tools": "34.0.0",
+                }
+            )
+        else:
+            os.environ["XCODE_XCCONFIG_FILE"] = str(Path("ios.xcconfig").resolve(strict=True))
+            metadata.update(
+                {
+                    "ios_deployment_target": "16.0",
+                    "ios_runner": "swiftui",
+                    "swift_language_version": "5",
+                    "xcode_version": subprocess.check_output(["xcodebuild", "-version"], text=True, stderr=subprocess.DEVNULL).strip(),
+                    "ios_sdk_version": subprocess.check_output(
+                        ["xcrun", "--sdk", "iphoneos", "--show-sdk-version"], text=True, stderr=subprocess.DEVNULL
+                    ).strip(),
+                }
+            )
         if not all(os.environ.get(name) for name in ("BROWSERSTACK_USERNAME", "BROWSERSTACK_ACCESS_KEY")):
             metadata["status"] = "missing_credentials"
             print("BrowserStack credentials are missing. App Automate access and both repository secrets are required.")
@@ -156,8 +200,8 @@ def main():
             private = Path(private)
             reports = private / "reports"
             commands = (
-                ("device_catalog", ["mobench", "devices", "--platform", "android", "--json"]),
-                ("device_validation", ["mobench", "devices", "--platform", "android", "--validate", DEVICE]),
+                ("device_catalog", ["mobench", "devices", "--platform", platform, "--json"]),
+                ("device_validation", ["mobench", "devices", "--platform", platform, "--validate", device_id]),
                 (
                     "benchmark_run",
                     [
@@ -165,13 +209,13 @@ def main():
                         "ci",
                         "run",
                         "--target",
-                        "android",
+                        platform,
                         "--crate-path",
                         ".",
                         "--functions",
                         ",".join(FUNCTIONS),
                         "--devices",
-                        DEVICE,
+                        device_id,
                         "--release",
                         "--iterations",
                         "3",
@@ -180,8 +224,11 @@ def main():
                         "--fetch",
                         "--plots",
                         "off",
-                        "--android-benchmark-timeout-secs",
-                        "1200",
+                        *(
+                            ["--android-benchmark-timeout-secs", "1200"]
+                            if platform == "android"
+                            else ["--ios-completion-timeout-secs", "1200", "--ios-deployment-target", "16.0", "--ios-runner", "swiftui"]
+                        ),
                         "--fetch-timeout-secs",
                         "1500",
                         "--output-dir",
@@ -217,20 +264,20 @@ def main():
                     matches = [
                         device
                         for device in catalog
-                        if device.get("device") == DEVICE_MODEL and device.get("os_version") == DEVICE_OS and device.get("os") == "android"
+                        if device.get("device") == device_model and device.get("os_version") == device_os and device.get("os") == platform
                     ]
                     metadata["catalog_matches"] = [
                         {key: device.get(key) for key in ("device", "os", "os_version", "available")} for device in matches
                     ]
                     if not matches or all(device.get("available") is False for device in matches):
                         metadata["status"] = "candidate_device_unavailable"
-                        print("The candidate Pixel 7 / Android 13.0 is not available in the authenticated device catalog.")
+                        print(f"The candidate {device_model} / {platform} {device_os} is not available in the authenticated device catalog.")
                         break
                 if stage == "device_validation":
                     metadata["device_validated"] = True
             else:
                 summary = json.loads((reports / "summary.json").read_text())["summary"]
-                if not results_complete(summary):
+                if not results_complete(summary, platform):
                     metadata["status"] = "incomplete_results"
                     print("BrowserStack did not return three successful samples for the requested shielded workload and device.")
                 else:
@@ -252,14 +299,14 @@ def main():
                 ):
                     metadata["status"] = "incomplete_results"
                     exit_code = 1
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
         metadata["status"] = "execution_or_report_error"
         exit_code = 1
         print("Mobile benchmark execution or report export failed. No raw provider diagnostics are published.")
     finally:
         (destination / "metadata.json").write_text(json.dumps(clean(metadata), indent=2) + "\n")
     if exit_code == 0:
-        print("The two-spend shielded benchmark completed; sanitized reports are in target/mobile-bench-results.")
+        print(f"The two-spend shielded benchmark completed; sanitized reports are in {destination}.")
     return exit_code
 
 

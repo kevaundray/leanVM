@@ -13,6 +13,10 @@ import subprocess
 
 MARKER = "<!-- leanvm-mobile-bench -->"
 FUNCTION = "leanvm_mobile_bench::shielded_prove"
+DEVICES = {
+    "android": ("Google Pixel 7", "13.0", "Android"),
+    "ios": ("iPhone 14", "16", "iOS"),
+}
 
 
 def require(condition, message):
@@ -32,12 +36,15 @@ def render(directory, repository, head, run_id):
     require(metadata["source_repository"] == repository, "source repository mismatch")
     require(metadata["source_sha"] == head, "source commit mismatch")
     require(metadata["workflow_run_id"] == run_id, "workflow run mismatch")
+    platform = metadata["platform"]
+    require(platform in DEVICES, "unexpected platform")
+    model, version, os_name = DEVICES[platform]
     link = f"https://github.com/{repository}/actions/runs/{run_id}"
-    prefix = f"### Mobile benchmarks\n\n[Actions run and full artifacts]({link}) · Source `{head}`.\n\n"
+    prefix = f"### Mobile benchmarks: {model} / {os_name} {version}\n\n[Actions run and full artifacts]({link}) · Source `{head}`.\n\n"
     if metadata["status"] != "complete":
-        return prefix + "The device benchmark did not complete successfully. No performance result is published.\n", False
+        return prefix + "The device benchmark did not complete successfully. No performance result is published.\n", False, platform
     require(metadata["device_validated"] is True, "device was not validated")
-    require(metadata["candidate_device"] == "Google Pixel 7-13.0", "unexpected device")
+    require(metadata["candidate_device"] == f"{model}-{version}", "unexpected device")
     require(metadata["functions"] == [FUNCTION], "unexpected workload")
     require(metadata["spends_per_leaf"] == 2 and metadata["warmup"] == 1 and metadata["iterations"] == 3, "unexpected workload shape")
     require(metadata["verified_proofs"] == 4, "not all proofs verified")
@@ -46,8 +53,10 @@ def render(directory, repository, head, run_id):
     raw = json.loads((directory / "raw-results.json").read_text())
     require(len(raw) == 1, "expected one report")
     devices = raw[0]["benchmark_results"]
-    require(list(devices) == ["Google Pixel 7"] and len(devices["Google Pixel 7"]) == 1, "unexpected measured device")
-    result = devices["Google Pixel 7"][0]
+    require(len(devices) == 1, "unexpected measured device")
+    measured_device = next(iter(devices))
+    require(measured_device in (model, f"{model}-{version}") and len(devices[measured_device]) == 1, "unexpected measured device")
+    result = devices[measured_device][0]
     require(result["function"] == FUNCTION, "unexpected measured function")
     require(result["spec"] == {"name": FUNCTION, "warmup": 1, "iterations": 3}, "unexpected measured specification")
     metrics = result["custom_metrics"]["run_u64"]
@@ -61,7 +70,7 @@ def render(directory, repository, head, run_id):
         [
             "| Benchmark | Device / OS | Threads | Median | Sample range | Verified proofs |",
             "|---|---|---:|---:|---:|---:|",
-            f"| Shielded, 2 spends | Google Pixel 7 / Android 13.0 | {threads} | {median:.3f} s | {min(samples) / 1e9:.3f} to {max(samples) / 1e9:.3f} s | 4 / 4 |",
+            f"| Shielded, 2 spends | {model} / {os_name} {version} | {threads} | {median:.3f} s | {min(samples) / 1e9:.3f} to {max(samples) / 1e9:.3f} s | 4 / 4 |",
             "",
             "One standalone proof contains two spends (four input notes). No aggregation. One warmup and three measured proofs; verification is outside timing.",
             "",
@@ -71,7 +80,7 @@ def render(directory, repository, head, run_id):
             "",
         ]
     )
-    return body, True
+    return body, True, platform
 
 
 def gh(endpoint, method="GET", payload=None):
@@ -116,14 +125,18 @@ def post(repository, source_repository, head, body):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path)
+    parser.add_argument("directory", type=Path, nargs="+")
     parser.add_argument("--repository", required=True)
     parser.add_argument("--head", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--comment-repository")
     args = parser.parse_args()
-    body, complete = render(args.directory, args.repository, args.head, args.run_id)
-    (args.directory / "ci-summary.md").write_text(body)
+    reports = [render(directory, args.repository, args.head, args.run_id) for directory in args.directory]
+    require(len({platform for _, _, platform in reports}) == len(reports), "duplicate platform reports")
+    for directory, (section, _, _) in zip(args.directory, reports):
+        (directory / "ci-summary.md").write_text(section)
+    body = "\n".join(section for section, _, _ in reports)
+    complete = any(success for _, success, _ in reports)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(summary, "a") as output:
             output.write(body)
