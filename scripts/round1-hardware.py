@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Temporary paired Round1 experiment, removed before shipping."""
+"""Temporary missing-rate and aggregation confirmation for the selected conversion."""
 import fcntl
 import hashlib
 import json
@@ -12,13 +12,7 @@ ROOT = Path.cwd()
 OUT = ROOT / 'round1-evidence'
 OUT.mkdir(exist_ok=True)
 BASE = os.environ.get('BASE') or 'f52bd991c8623894e7b03a2e50bede6c248ea1ad'
-VARIANTS = [
-    ('base', BASE),
-    ('medium', '721c4ce10127bada00046b8bec03825f5efd1c78'),
-    ('tile4', 'ea9bb2dafc350964dcf5bbee9a91090c6708a6e2'),
-    ('horner', '0e210861d2f18bacabcdf4a2b0b4835482b4a848'),
-    ('bitperm', '0c1fc5bf12c25699021bae5630f89f840784e57d'),
-]
+HEAD = 'f19e7b084abad98b6e9d7fc51f07c5e96532c004'
 SCOPE = ['systemd-run', '--user', '--scope', '-q', '-p', 'MemoryMax=16G', '-p', 'MemorySwapMax=0']
 ENV = dict(os.environ, CARGO_BUILD_JOBS='4', CARGO_TERM_COLOR='never', RUSTFLAGS='-C target-cpu=native')
 
@@ -29,59 +23,57 @@ def command(args, name, cwd=ROOT, env=None):
         print((OUT / name).read_text()[-20000:], flush=True)
         raise RuntimeError(f'{name}: {p.returncode}')
 
-metadata = dict(base=BASE, variants=VARIANTS, flags=ENV['RUSTFLAGS'], affinity=sorted(os.sched_getaffinity(0)), files={})
-for path in ['/proc/cpuinfo', '/proc/sys/kernel/perf_event_paranoid', '/proc/meminfo']:
-    metadata['files'][path] = Path(path).read_text()
-(OUT / 'metadata.json').write_text(json.dumps(metadata, indent=2))
+def insert(path, needle, addition):
+    source = path.read_text()
+    assert source.count(needle) == 1, (path, needle)
+    path.write_text(source.replace(needle, needle + addition))
+
+def dump(value, filename, indent=4):
+    space = ' ' * indent
+    return '\n' + space + 'if let Some(dir) = std::env::var_os("ROUND1_PROOF_DIR") {\n' + space + f'    std::fs::write(std::path::Path::new(&dir).join({filename}), {value}.to_bytes()).unwrap();\n' + space + '}\n'
+
+metadata = dict(base=BASE, head=HEAD, flags=ENV['RUSTFLAGS'], affinity=sorted(os.sched_getaffinity(0)), files={})
+for path in ['/proc/cpuinfo', '/proc/sys/kernel/perf_event_paranoid', '/proc/meminfo', '/sys/fs/cgroup/cpu.max']:
+    if Path(path).exists():
+        metadata['files'][path] = Path(path).read_text()
 command(['rustc', '+1.99.0', '-vV'], 'rustc.txt')
 command(['lscpu'], 'lscpu.txt')
+worker_source = OUT / 'worker-count.rs'
+worker_source.write_text('fn main() { println!("{}", std::thread::available_parallelism().unwrap()); }\n')
+command(SCOPE + ['rustc', '+1.99.0', worker_source, '-o', OUT / 'worker-count'], 'worker-build.log')
+command(SCOPE + [OUT / 'worker-count'], 'worker-count.txt')
+metadata['default_workers'] = int((OUT / 'worker-count.txt').read_text().strip())
+(OUT / 'metadata.json').write_text(json.dumps(metadata, indent=2))
+
 binaries = {}
-tests = {}
-for side, revision in VARIANTS:
-    tree = Path('/tmp/round1-hardware-' + side)
+for side, revision in [('base', BASE), ('head', HEAD)]:
+    tree = Path('/tmp/round1-confirm-' + side)
     command(['git', 'worktree', 'add', '--detach', tree, revision], f'checkout-{side}.log')
-    # Both variants receive identical capture code outside timed proof spans.
+    # Identical serialization hooks execute after timed proving and verification.
     path = tree / 'bins/leanvm/src/workload.rs'
-    source = path.read_text()
-    needle = '        let proof_bytes = proof.to_bytes().len();'
-    assert source.count(needle) == 1
-    source = source.replace(needle, '        if let Some(path) = std::env::var_os("ARM_ATTRIBUTION_PROOF") {\n            std::fs::write(path, proof.to_bytes()).unwrap();\n        }\n' + needle)
-    path.write_text(source)
-    path = tree / 'crates/flock/src/zerocheck.rs'
-    source = path.read_text()
-    needle = '    ps.add_scalars(&round1);'
-    assert source.count(needle) == 1
-    source = source.replace(needle, (ROOT / 'scripts/round1-capture-hook.rs').read_text() + needle)
-    path.write_text(source)
-    path = tree / 'crates/flock/src/zerocheck/round1.rs'
-    source = path.read_text()
-    assert source.rstrip().endswith('}')
-    capture_test = (ROOT / 'scripts/round1-captured.rs').read_text()
-    if side == 'bitperm':
-        capture_test = capture_test.replace('        use std::hint::black_box;', '''
-        #[cfg(target_arch = "aarch64")]
-        let bitperm = std::arch::is_aarch64_feature_detected!("sve2-bitperm");
-        #[cfg(target_arch = "aarch64")]
-        let bit_transpose_64bytes = |input: &[u8; 64], output: &mut [u8; 64]| {
-            unsafe { transpose_c(input, output, bitperm) }
-        };
-        use std::hint::black_box;''')
-    source = source.rstrip()[:-1] + capture_test + '\n}\n'
-    path.write_text(source)
-    target = Path('/tmp/round1-native-' + side)
+    insert(path, '        let proof_bytes = proof.to_bytes().len();', dump('proof', '"leaf.bin"', 8))
+    path = tree / 'bins/leanvm/src/aggregate.rs'
+    insert(path, '    let (proof, output) = (&proved.proof, proved.output);', dump('proof', '"leaf.bin"'))
+    insert(path, '    let stats = tree.stats(kind);', dump('proof', 'format!("{}.bin", name.replace(\' \', "_"))'))
+    insert(path, '    let (_, root_verify) = quiet.measure_quiet(|_| tree.verify(&root, &outputs).expect("the root verifies"));', dump('root', '"root.bin"'))
+    target = Path('/tmp/round1-confirm-native-' + side)
     env = dict(ENV, CARGO_TARGET_DIR=str(target))
+    if os.environ.get('ROUND1_PREPARE_ONLY'):
+        continue
     command(SCOPE + ['cargo', '+1.99.0', 'build', '--release', '-p', 'leanvm-cli'], f'build-{side}.log', tree, env)
     binaries[side] = target / 'release/leanvm'
     command(['objdump', '-d', '-C', binaries[side]], f'assembly-{side}.txt')
     command(['nm', '-C', binaries[side]], f'symbols-{side}.txt')
-    command(SCOPE + ['cargo', '+1.99.0', 'test', '--release', '-p', 'flock', '--lib', '--no-run', '--message-format=json'], f'build-test-{side}.log', tree, env)
-    artifacts = [json.loads(line) for line in (OUT / f'build-test-{side}.log').read_text().splitlines() if line.startswith('{')]
-    tests[side], = [a['executable'] for a in artifacts if a.get('reason') == 'compiler-artifact' and a.get('executable') and a['profile']['test']]
-    command(SCOPE + [tests[side], 'zerocheck::round1::tests', '--test-threads=4'], f'correctness-{side}.log', env=dict(env, LEANVM_NUM_THREADS='4'))
+if os.environ.get('ROUND1_PREPARE_ONLY'):
+    raise SystemExit(0)
 
 records = []
+references = {}
 
-def measured(side, name, workers, args, extra=None, proof=True):
+def measured(side, case, pair, workers, args, timed=True):
+    name = f'{case}-w{workers}-p{pair}-{side}'
+    proof_dir = OUT / 'proofs' / name
+    proof_dir.mkdir(parents=True)
     with open('/tmp/leanvm-bench.lock', 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         deadline = time.monotonic() + 600
@@ -90,41 +82,45 @@ def measured(side, name, workers, args, extra=None, proof=True):
                 raise RuntimeError('load remained above 12')
             time.sleep(5)
         before = os.getloadavg()
-        env = dict(ENV)
+        env = dict(ENV, ROUND1_PROOF_DIR=str(proof_dir))
         env.pop('LEANVM_NUM_THREADS', None)
         if workers != 'default':
             env['LEANVM_NUM_THREADS'] = str(workers)
-        if proof:
-            env['ARM_ATTRIBUTION_PROOF'] = str(OUT / (name + '.bin'))
-        env.update(extra or {})
-        command(SCOPE + ['/usr/bin/time', '-v'] + args, name + '.log', env=env)
+        command(SCOPE + ['/usr/bin/time', '-v', binaries[side]] + args + ['--repeat', '1', '--cooldown', '0', '--tracing'], name + '.log', env=env)
         after = os.getloadavg()
-        record = dict(name=name, side=side, workers=workers, load_before=before, load_after=after, accepted=max(before[0], after[0]) <= 20)
-        if proof:
-            data = (OUT / (name + '.bin')).read_bytes()
-            record.update(proof_bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
+        record = dict(name=name, case=case, pair=pair, side=side, workers=workers, timed=timed, load_before=before, load_after=after, accepted=max(before[0], after[0]) <= 20, proofs={})
+        files = sorted(proof_dir.glob('*.bin'))
+        assert len(files) == (4 if case.startswith('tree') else 1), (case, files)
+        for path in files:
+            data = path.read_bytes()
+            key = (case, path.name)
+            if key in references:
+                assert data == references[key], f'literal proof mismatch: {name}/{path.name}'
+            else:
+                references[key] = data
+            record['proofs'][path.name] = dict(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
         records.append(record)
         (OUT / 'records.json').write_text(json.dumps(records, indent=2))
         print(json.dumps(record), flush=True)
         if not record['accepted']:
             raise RuntimeError('overloaded sample discarded')
 
-for workers in [1, 4, 8, 'default']:
-    for pair in range(5):
-        for side in (list(binaries) if pair % 2 == 0 else list(reversed(binaries))):
-            measured(side, f'proof-w{workers}-p{pair}-{side}', workers, [binaries[side], 'leanxmss', '--n', '100', '--repeat', '1', '--cooldown', '0', '--tracing'])
+# The already-measured rate-one leaf matrix is not repeated.
+cases = [
+    ('leaf-rate2', ['leanxmss', '--n', '100', '--log-inv-rate', '2']),
+    ('tree-rate2', ['aggregate', '--program', 'leanxmss', '--n', '2', '--leaves', '4', '--arity0', '2', '--arity', '2', '--leaf-log-inv-rate', '2', '--log-inv-rate', '2']),
+]
+for case, args in cases:
+    for workers in [1, 4, 8, 'default']:
+        for pair in range(5):
+            for side in (['base', 'head'] if pair % 2 == 0 else ['head', 'base']):
+                measured(side, case, pair, workers, args)
 
-capture = OUT / 'round1-inputs'
-measured('base', 'capture', 1, [binaries['base'], 'leanxmss', '--n', '100', '--repeat', '1', '--cooldown', '0'], {'ARM_ATTRIBUTION_INPUT_DIR': str(capture)})
-for cls in [9, 0, 19]:
-    for pair in range(5):
-        for side in (list(binaries) if pair % 2 == 0 else list(reversed(binaries))):
-            measured(side, f'components-class{cls}-p{pair}-{side}', 1,
-                     [tests[side], 'zerocheck::round1::tests::diagnostic_round1_components', '--exact', '--ignored', '--nocapture'],
-                     {'ROUND1_INPUT_DIR': str(capture / f'class{cls}'), 'ROUND1_REPEATS': '3', 'ROUND1_SAMPLE_WINDOWS': '64'}, proof=False)
+# Boundary rates are correctness/byte-identity smokes, not timing distributions.
+for rate in [1, 3, 4]:
+    for side in ['base', 'head']:
+        measured(side, f'leaf-smoke-rate{rate}', 0, 4, ['leanxmss', '--n', '2', '--log-inv-rate', str(rate)], timed=False)
+        measured(side, f'tree-smoke-rate{rate}', 0, 4, ['aggregate', '--program', 'leanxmss', '--n', '2', '--leaves', '4', '--arity0', '2', '--arity', '2', '--leaf-log-inv-rate', str(rate), '--log-inv-rate', str(rate)], timed=False)
 
-proofs = [OUT / (r['name'] + '.bin') for r in records if 'sha256' in r]
-expected = proofs[0].read_bytes()
-assert all(p.read_bytes() == expected for p in proofs), 'literal proof byte mismatch'
-(OUT / 'proof-equality.json').write_text(json.dumps(dict(files=len(proofs), bytes=len(expected), sha256=hashlib.sha256(expected).hexdigest(), literal_equal=True)))
-print('Literal equality and production verification passed for every paired proof.', flush=True)
+(OUT / 'proof-equality.json').write_text(json.dumps(dict(files=sum(len(r['proofs']) for r in records), cases=len(references), literal_equal=True), indent=2))
+print('All leaf, first-node, higher-node and root proofs literally equal per case; production verification passed.', flush=True)
