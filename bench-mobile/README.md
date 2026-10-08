@@ -48,6 +48,14 @@ A host-only correctness smoke, not a mobile measurement, is available from this 
 
 BrowserStack **App Automate real-device** access is required. A generic BrowserStack account or browser-automation entitlement alone does not establish access. The two credential names are `BROWSERSTACK_USERNAME` and `BROWSERSTACK_ACCESS_KEY`. They must already be available to the trusted workflow or exported privately for a local run. No source file contains credentials, and this integration does not change repository settings, create secrets, purchase access, or require manually creating an app in the dashboard. `mobench ci run` builds and uploads the app and instrumentation package automatically.
 
+An authorized administrator should add those two **repository Actions secrets** in the repository that will execute the workflow, under Settings > Secrets and variables > Actions > New repository secret. For this fork, that repository is `kevaundray/leanVM`; upstream secrets are not inherited. Obtain the values from the existing BrowserStack account's access-key page, with App Automate access already enabled. Do not paste values into workflow files, issue comments, or command arguments, and do not change billing or permissions to bypass an entitlement failure.
+
+After the secrets are available in the fork, request the trusted branch run:
+
+```sh
+gh workflow run mobile-bench.yml --repo kevaundray/leanVM --ref kw/mobile-bench-browserstack
+```
+
 The fixed initial candidate is `Google Pixel 7-13.0`. It is not assumed available: the runner first queries the authenticated Android catalog, records only the matching model/OS/availability fields, and validates the identifier before submission. Missing credentials, missing device availability, or provider entitlement errors fail the run instead of falling back to a different phone or emulator. Catalog validation is not proof of a completed hardware run; successful device reports are required for that.
 
 From this directory, after providing both credentials privately, run `python3 ../scripts/mobile-bench-run.py`. It requests both fully qualified functions through the supported `mobench ci run --functions` option, release mode, one warmup, three samples, and artifact fetching. The pinned CLI executes functions sequentially, so this is two serial device sessions with one concurrent session, not two parallel devices. The harness watchdog is 1200 seconds and fetching is bounded at 1500 seconds. The output directory must not already exist, preventing stale results from being mistaken for a new run; move an earlier `target/mobile-bench-results` directory aside before running again.
