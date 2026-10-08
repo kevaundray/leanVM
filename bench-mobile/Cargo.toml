@@ -18,7 +18,7 @@ name = "mobile-bench-smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
-leanvm = { path = "../crates/leanvm" }
+leanvm = { path = "../crates/leanvm_core" }
 parallel = { path = "../crates/parallel" }
 shielded-host = { path = "../programs/shielded/host" }
 mobench-sdk = { git = "https://github.com/worldcoin/mobile-bench-rs", rev = "217cfd4f78db1284276a1a1da44e3bf473729f5c", default-features = false, features = ["registry"] }
