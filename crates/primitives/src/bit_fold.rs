@@ -9,6 +9,7 @@
 //! The map is GF(2)-linear in the row's bits, so it splits into one 8-bit piece per byte.
 //!
 //! - Portable: a 256-entry subset-sum table per byte, one lookup per byte.
+//! - ARM with SHA3: the same compact three-limb byte tables, with pairs of lookups accumulated by NEON EOR3.
 //! - AVX-512 with GFNI: an 8x8 bit matrix per (input byte, output byte), applied to 64 rows by one instruction.
 //! - AVX2: the same byte-sliced shape 32 rows wide, each map one affine instruction with GFNI, else two nibble lookups.
 
