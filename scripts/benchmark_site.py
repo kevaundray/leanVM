@@ -191,31 +191,81 @@ def mobile_rows(metadata, raw, run, selected):
     require(metadata["source_repository"] == selected["repository"], "mobile repository mismatch")
     require(str(metadata["workflow_run_id"]) == str(run["id"]), "mobile run mismatch")
     require(metadata["trigger_ref"] == f"refs/heads/{selected['branch']}", "mobile branch mismatch")
-    require(metadata["spends_per_leaf"] == 2, "unsupported mobile input size")
-    require(metadata["functions"] == ["leanvm_mobile_bench::shielded_prove"], "unsupported mobile function")
-    require(len(raw) == 1 and len(raw[0]["benchmark_results"]) == 1, "ambiguous mobile results")
-    device, functions = next(iter(raw[0]["benchmark_results"].items()))
-    require(device == metadata["requested_device"] and len(functions) == 1, "mobile device mismatch")
-    result = functions[0]
-    require(result["function"] == metadata["functions"][0], "mobile function mismatch")
-    metrics = result["custom_metrics"]["run_u64"]
-    require(metrics["spends_per_leaf"] == 2 and metrics["leaf_log_inv_rate"] == 2, "mobile workload mismatch")
-    count = metadata["threads"]
-    require(type(count) is int and 0 < count <= 1024 and metrics["threads"] == count, "mobile thread mismatch")
-    samples = result["samples_ns"]
-    require(len(samples) == metadata["iterations"] == result["spec"]["iterations"], "incomplete mobile samples")
-    require(result["spec"]["warmup"] == metadata["warmup"], "mobile warmup mismatch")
-    total = metadata["warmup"] + len(samples)
-    require(metadata["verified_proofs"] == metrics["verified_proofs"] == total, "mobile proofs not all verified")
-    samples = [positive(sample) / 1e9 for sample in samples]
+    definitions = {
+        "leanvm_mobile_bench::shielded_prove": (
+            "Shielded transfers", "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
+            "programs/shielded/guest/src/main.rs", "program",
+            {"spends_per_leaf": 2, "leaf_log_inv_rate": 2}),
+        "leanvm_mobile_bench::shielded_aggregate": (
+            "Shielded aggregation",
+            "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 2, tree rate 1",
+            "bench-mobile/src/lib.rs", "aggregation",
+            {"spends_per_leaf": 2, "leaf_log_inv_rate": 2, "aggregation_leaves": 2,
+             "aggregation_log_inv_rate": 1, "verified_leaves": 2}),
+    }
+    expected = metadata["functions"]
+    require(expected and len(set(expected)) == len(expected) and set(expected) <= definitions.keys(), "unsupported mobile functions")
+    per_function = metadata.get("benchmarks")
+    if per_function is not None:
+        require(set(per_function) == set(expected), "incomplete per-function metadata")
+    else:
+        require(expected == ["leanvm_mobile_bench::shielded_prove"], "missing per-function metadata")
+    device = metadata["requested_device"]
+    device_version = f"{device}-{metadata['requested_os_version']}"
+    measured = {}
+    for report in raw:
+        require(len(report["benchmark_results"]) == 1, "ambiguous mobile device")
+        observed_device, functions = next(iter(report["benchmark_results"].items()))
+        require(observed_device in (device, device_version) and functions, "mobile device mismatch")
+        if per_function is not None:
+            summary = report["summary"]
+            require(summary["target"] == metadata["requested_os"] and summary["devices"] == [device_version], "mobile platform mismatch")
+            require(summary["warmup"] == metadata["warmup"] and summary["iterations"] == metadata["iterations"], "mobile summary specification mismatch")
+            names = [result["function"] for result in functions]
+            require(summary["function"] == (names[0] if len(names) == 1 else "multiple"), "mobile summary function mismatch")
+            devices = summary["device_summaries"]
+            require(len(devices) == 1 and devices[0]["device"] in (device, device_version), "mobile summary device mismatch")
+            summaries = devices[0]["benchmarks"]
+            require(len(summaries) == len(names) and {item["function"] for item in summaries} == set(names), "incomplete mobile summary")
+            require(all(item["samples"] == metadata["iterations"] and not item.get("failure") for item in summaries), "failed mobile summary")
+        for result in functions:
+            function = result["function"]
+            require(function in expected and function not in measured, "unexpected or duplicate mobile function")
+            require(not result.get("failure"), "failed mobile benchmark")
+            measured[function] = result
+    require(set(measured) == set(expected), "missing mobile function")
     machine = {"name": device, "arch": "aarch64", "os": f"{metadata['requested_os']} {metadata['requested_os_version']}",
                "cpu": metadata.get("soc"), "logical_cpus": None, "memory_bytes": None}
-    measured = datetime.fromtimestamp(result["resources"]["timestamp_ms"] / 1000, timezone.utc).isoformat().replace("+00:00", "Z")
-    source = {"repository": selected["repository"], "branch": selected["branch"], "commit": selected["commit"],
-              "run_url": run["html_url"], "measured_at": measured, "kind": "pull_request", "label": selected["label"]}
-    return [row("Shielded transfers", "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
-                "programs/shielded/guest/src/main.rs", "program", count, samples, machine, source,
-                {"verified_proofs": total, "total_proofs": total})]
+    rows = []
+    for function in expected:
+        result = measured[function]
+        title, description, path, category, required = definitions[function]
+        metrics = result["custom_metrics"]["run_u64"]
+        recorded = per_function[function] if per_function is not None else metadata
+        for key, value in required.items():
+            require(type(metrics[key]) is int and metrics[key] == value, f"mobile {key} mismatch")
+            if key in recorded:
+                require(recorded[key] == value, f"mobile recorded {key} mismatch")
+        if per_function is not None:
+            require(all(type(value) is int and metrics.get(key) == value for key, value in recorded.items()), "mobile metrics mismatch")
+            require(set(required) | {"threads", "available_parallelism", "verified_proofs"} <= recorded.keys(), "missing mobile metrics")
+            require([sample["duration_ns"] for sample in result["samples"]] == result["samples_ns"], "mobile sample records disagree")
+        count = recorded["threads"]
+        require(type(count) is int and 0 < count <= 1024 and metrics["threads"] == count, "mobile thread mismatch")
+        if "available_parallelism" in recorded:
+            require(recorded["available_parallelism"] == count == metrics["available_parallelism"], "mobile parallelism mismatch")
+        samples = result["samples_ns"]
+        require(len(samples) == metadata["iterations"] == result["spec"]["iterations"], "incomplete mobile samples")
+        require(result["spec"]["warmup"] == metadata["warmup"], "mobile warmup mismatch")
+        total = metadata["warmup"] + len(samples)
+        require(recorded["verified_proofs"] == metrics["verified_proofs"] == total, "mobile proofs not all verified")
+        samples = [positive(sample) / 1e9 for sample in samples]
+        timestamp = datetime.fromtimestamp(result["resources"]["timestamp_ms"] / 1000, timezone.utc).isoformat().replace("+00:00", "Z")
+        source = {"repository": selected["repository"], "branch": selected["branch"], "commit": selected["commit"],
+                  "run_url": run["html_url"], "measured_at": timestamp, "kind": "pull_request", "label": selected["label"]}
+        rows.append(row(title, description, path, category, count, samples, machine, source,
+                        {"verified_proofs": total, "total_proofs": total}))
+    return rows
 
 
 def validate(snapshot):

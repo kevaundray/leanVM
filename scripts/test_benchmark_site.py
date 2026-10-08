@@ -89,6 +89,46 @@ class CollectionTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 site.mobile_rows(dict(metadata, **{field: value}), raw, run, selected)
 
+    def test_dual_mobile_reports_keep_setup_and_measurements_separate(self):
+        functions = ["leanvm_mobile_bench::shielded_prove", "leanvm_mobile_bench::shielded_aggregate"]
+        selected = {"repository": "owner/repo", "branch": "mobile", "commit": "a" * 40, "label": "Mobile PR"}
+        run = dict(self.run, head_sha="a" * 40)
+        metadata = {"status": "complete", "device_validated": True, "source_sha": "a" * 40,
+                    "source_repository": "owner/repo", "workflow_run_id": "123", "trigger_ref": "refs/heads/mobile",
+                    "functions": functions, "requested_device": "Phone", "iterations": 3, "warmup": 1,
+                    "requested_os": "android", "requested_os_version": "13", "benchmarks": {}}
+        raw = []
+        for index, function in enumerate(functions):
+            metrics = {"spends_per_leaf": 2, "leaf_log_inv_rate": 2, "threads": 6,
+                       "available_parallelism": 6, "verified_proofs": 4}
+            if index:
+                metrics.update(aggregation_leaves=2, aggregation_log_inv_rate=1, verified_leaves=2)
+            metadata["benchmarks"][function] = metrics.copy()
+            durations = [int(n * 1e9) for n in ((1, 3, 2) if index == 0 else (4, 6, 5))]
+            result = {"function": function, "custom_metrics": {"run_u64": metrics},
+                      "samples_ns": durations, "samples": [{"duration_ns": n} for n in durations],
+                      "spec": {"name": function, "warmup": 1, "iterations": 3},
+                      "resources": {"timestamp_ms": 1767312000000}}
+            summary = {"target": "android", "function": function, "devices": ["Phone-13"],
+                       "warmup": 1, "iterations": 3,
+                       "device_summaries": [{"device": "Phone", "benchmarks": [{"function": function, "samples": 3}]}]}
+            raw.append({"summary": summary, "benchmark_results": {"Phone": [result]}})
+        rows = site.mobile_rows(metadata, raw, run, selected)
+        self.assertEqual([(row["category"], row["median_seconds"]) for row in rows], [("program", 2), ("aggregation", 5)])
+        self.assertNotEqual(rows[0]["id"], rows[1]["id"])
+        for reports in (raw[:1], raw + [raw[1]]):
+            with self.subTest(reports=reports), self.assertRaises(ValueError):
+                site.mobile_rows(metadata, reports, run, selected)
+        inconsistent = copy.deepcopy(raw)
+        inconsistent[1]["benchmark_results"]["Phone"][0]["samples"][0]["duration_ns"] = 1
+        with self.assertRaises(ValueError):
+            site.mobile_rows(metadata, inconsistent, run, selected)
+        combined = copy.deepcopy(raw[0])
+        combined["summary"]["function"] = "multiple"
+        combined["summary"]["device_summaries"][0]["benchmarks"].extend(raw[1]["summary"]["device_summaries"][0]["benchmarks"])
+        combined["benchmark_results"]["Phone"].extend(raw[1]["benchmark_results"]["Phone"])
+        self.assertEqual(site.mobile_rows(metadata, [combined], run, selected), rows)
+
     def test_archive_paths_are_never_extracted_or_accepted_as_root_json(self):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
