@@ -198,7 +198,7 @@ def mobile_rows(metadata, raw, run, selected):
             {"spends_per_leaf": 2, "leaf_log_inv_rate": 2}),
         "leanvm_mobile_bench::shielded_aggregate": (
             "Shielded aggregation",
-            "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 2, tree rate 1",
+            "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
             "bench-mobile/src/lib.rs", "aggregation",
             {"spends_per_leaf": 2, "leaf_log_inv_rate": 2, "aggregation_leaves": 2,
              "aggregation_log_inv_rate": 1, "verified_leaves": 2}),

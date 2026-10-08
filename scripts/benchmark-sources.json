@@ -11,8 +11,8 @@
       "repository": "kevaundray/leanVM",
       "branch": "kw/mobile-bench-browserstack",
       "workflow": "mobile-bench.yml",
-      "run_id": 37832115771,
-      "commit": "04e330b7851beef8511788a541abf9ca07b8f601",
+      "run_id": 37839582246,
+      "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
       "label": "PR #564 mobile"
     }
   ]

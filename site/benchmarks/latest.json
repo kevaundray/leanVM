@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-08T20:16:17.892260Z",
+  "generated_at": "2026-10-08T21:06:26.517625Z",
   "results": [
     {
       "id": "df06bdd0cf101b605eb16533",
@@ -23,22 +23,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.311225394,
-      "min_seconds": 0.310864609,
-      "max_seconds": 0.316990607,
+      "median_seconds": 0.303255421,
+      "min_seconds": 0.302511182,
+      "max_seconds": 0.326719568,
       "samples_seconds": [
-        0.316990607,
-        0.310864609,
-        0.313984077,
-        0.311225394,
-        0.311082876
+        0.303255421,
+        0.302511182,
+        0.302578881,
+        0.326719568,
+        0.304317391
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -66,22 +66,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.550556223,
-      "min_seconds": 0.549715679,
-      "max_seconds": 0.557677418,
+      "median_seconds": 0.546777329,
+      "min_seconds": 0.542908551,
+      "max_seconds": 0.549877493,
       "samples_seconds": [
-        0.550048687,
-        0.557677418,
-        0.555670796,
-        0.550556223,
-        0.549715679
+        0.546777329,
+        0.548024708,
+        0.549877493,
+        0.542908551,
+        0.543113782
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -109,22 +109,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.289193037,
-      "min_seconds": 0.282446967,
-      "max_seconds": 0.304308983,
+      "median_seconds": 0.319514189,
+      "min_seconds": 0.319320631,
+      "max_seconds": 0.321958759,
       "samples_seconds": [
-        0.288344927,
-        0.282446967,
-        0.289193037,
-        0.304308983,
-        0.295536793
+        0.31950981,
+        0.319514189,
+        0.319320631,
+        0.321958759,
+        0.320117429
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -152,22 +152,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.578125296,
-      "min_seconds": 0.576655058,
-      "max_seconds": 0.581298397,
+      "median_seconds": 0.570676815,
+      "min_seconds": 0.570331238,
+      "max_seconds": 0.57370264,
       "samples_seconds": [
-        0.578958858,
-        0.581298397,
-        0.576655058,
-        0.578125296,
-        0.576853103
+        0.570331238,
+        0.570676815,
+        0.571209498,
+        0.570456205,
+        0.57370264
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -195,22 +195,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.477962185,
-      "min_seconds": 0.47477034,
-      "max_seconds": 0.516213387,
+      "median_seconds": 0.47798577,
+      "min_seconds": 0.477676787,
+      "max_seconds": 0.490506779,
       "samples_seconds": [
-        0.47684028,
-        0.516213387,
-        0.480738393,
-        0.47477034,
-        0.477962185
+        0.477838794,
+        0.490506779,
+        0.477676787,
+        0.478099138,
+        0.47798577
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -238,22 +238,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.909390139,
-      "min_seconds": 0.886681538,
-      "max_seconds": 0.918276022,
+      "median_seconds": 0.87591222,
+      "min_seconds": 0.867297968,
+      "max_seconds": 0.87817939,
       "samples_seconds": [
-        0.886681538,
-        0.918276022,
-        0.913912567,
-        0.904787855,
-        0.909390139
+        0.877949651,
+        0.87591222,
+        0.868797542,
+        0.87817939,
+        0.867297968
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -281,22 +281,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.706246381,
-      "min_seconds": 0.704122783,
-      "max_seconds": 0.720921907,
+      "median_seconds": 0.702165318,
+      "min_seconds": 0.700360588,
+      "max_seconds": 0.713106252,
       "samples_seconds": [
-        0.706246381,
-        0.704122783,
-        0.707804788,
-        0.705219017,
-        0.720921907
+        0.702320533,
+        0.700360588,
+        0.702007965,
+        0.702165318,
+        0.713106252
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -324,22 +324,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 1.287664097,
-      "min_seconds": 1.24049558,
-      "max_seconds": 1.307779474,
+      "median_seconds": 1.234817244,
+      "min_seconds": 1.233228448,
+      "max_seconds": 1.238876008,
       "samples_seconds": [
-        1.288410225,
-        1.307779474,
-        1.287664097,
-        1.241339707,
-        1.24049558
+        1.236066093,
+        1.234817244,
+        1.234344003,
+        1.233228448,
+        1.238876008
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -347,10 +347,96 @@
       "verification": null
     },
     {
+      "id": "cee8fc04a5192c03b07213fb",
+      "program": {
+        "name": "Shielded aggregation",
+        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/bench-mobile/src/lib.rs"
+      },
+      "workload": "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
+      "category": "aggregation",
+      "machine": {
+        "name": "iPhone 14",
+        "arch": "aarch64",
+        "os": "ios 16",
+        "cpu": null,
+        "logical_cpus": null,
+        "memory_bytes": null,
+        "id": "2dae0d93cc598a0d"
+      },
+      "threads": {
+        "count": 6,
+        "label": "6 threads"
+      },
+      "median_seconds": 15.006693041,
+      "min_seconds": 14.753002542,
+      "max_seconds": 15.110008334,
+      "samples_seconds": [
+        14.753002542,
+        15.006693041,
+        15.110008334
+      ],
+      "source": {
+        "repository": "kevaundray/leanVM",
+        "branch": "kw/mobile-bench-browserstack",
+        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
+        "measured_at": "2026-10-08T20:43:33.710000Z",
+        "kind": "pull_request",
+        "label": "PR #564 mobile"
+      },
+      "verification": {
+        "verified_proofs": 4,
+        "total_proofs": 4
+      }
+    },
+    {
+      "id": "7cd6e55c4f6aa1d0a0cdbfc5",
+      "program": {
+        "name": "Shielded aggregation",
+        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/bench-mobile/src/lib.rs"
+      },
+      "workload": "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
+      "category": "aggregation",
+      "machine": {
+        "name": "Google Pixel 7",
+        "arch": "aarch64",
+        "os": "android 13.0",
+        "cpu": null,
+        "logical_cpus": null,
+        "memory_bytes": null,
+        "id": "6795afdc72ad4684"
+      },
+      "threads": {
+        "count": 6,
+        "label": "6 threads"
+      },
+      "median_seconds": 54.575307237,
+      "min_seconds": 54.246274237,
+      "max_seconds": 55.333485582,
+      "samples_seconds": [
+        54.246274237,
+        54.575307237,
+        55.333485582
+      ],
+      "source": {
+        "repository": "kevaundray/leanVM",
+        "branch": "kw/mobile-bench-browserstack",
+        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
+        "measured_at": "2026-10-08T21:00:47.931000Z",
+        "kind": "pull_request",
+        "label": "PR #564 mobile"
+      },
+      "verification": {
+        "verified_proofs": 4,
+        "total_proofs": 4
+      }
+    },
+    {
       "id": "dc4adc6ceab854ca804d9e92",
       "program": {
         "name": "Shielded transfers",
-        "source_url": "https://github.com/kevaundray/leanVM/blob/04e330b7851beef8511788a541abf9ca07b8f601/programs/shielded/guest/src/main.rs"
+        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/programs/shielded/guest/src/main.rs"
       },
       "workload": "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
       "category": "program",
@@ -367,20 +453,20 @@
         "count": 6,
         "label": "6 threads"
       },
-      "median_seconds": 4.696778917,
-      "min_seconds": 4.580193875,
-      "max_seconds": 4.783414709,
+      "median_seconds": 4.38278775,
+      "min_seconds": 4.263838375,
+      "max_seconds": 4.416157375,
       "samples_seconds": [
-        4.580193875,
-        4.696778917,
-        4.783414709
+        4.263838375,
+        4.38278775,
+        4.416157375
       ],
       "source": {
         "repository": "kevaundray/leanVM",
         "branch": "kw/mobile-bench-browserstack",
-        "commit": "04e330b7851beef8511788a541abf9ca07b8f601",
-        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37832115771",
-        "measured_at": "2026-10-08T19:37:29.988000Z",
+        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
+        "measured_at": "2026-10-08T20:39:43.067000Z",
         "kind": "pull_request",
         "label": "PR #564 mobile"
       },
@@ -393,7 +479,7 @@
       "id": "586c3420defd44e296ebc1b8",
       "program": {
         "name": "Shielded transfers",
-        "source_url": "https://github.com/kevaundray/leanVM/blob/04e330b7851beef8511788a541abf9ca07b8f601/programs/shielded/guest/src/main.rs"
+        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/programs/shielded/guest/src/main.rs"
       },
       "workload": "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
       "category": "program",
@@ -410,20 +496,20 @@
         "count": 6,
         "label": "6 threads"
       },
-      "median_seconds": 13.038460903,
-      "min_seconds": 12.71639702,
-      "max_seconds": 13.166169847,
+      "median_seconds": 13.062063768,
+      "min_seconds": 12.944781215,
+      "max_seconds": 13.329489346,
       "samples_seconds": [
-        13.166169847,
-        13.038460903,
-        12.71639702
+        12.944781215,
+        13.329489346,
+        13.062063768
       ],
       "source": {
         "repository": "kevaundray/leanVM",
         "branch": "kw/mobile-bench-browserstack",
-        "commit": "04e330b7851beef8511788a541abf9ca07b8f601",
-        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37832115771",
-        "measured_at": "2026-10-08T19:46:46.211000Z",
+        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
+        "measured_at": "2026-10-08T20:54:20.286000Z",
         "kind": "pull_request",
         "label": "PR #564 mobile"
       },
@@ -453,22 +539,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.450375301,
-      "min_seconds": 0.44758455,
-      "max_seconds": 0.454536691,
+      "median_seconds": 0.45576847,
+      "min_seconds": 0.453071255,
+      "max_seconds": 0.459725886,
       "samples_seconds": [
-        0.450375301,
-        0.449683188,
-        0.454536691,
-        0.44758455,
-        0.451480018
+        0.45772149,
+        0.453071255,
+        0.459725886,
+        0.45576847,
+        0.454857595
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -496,22 +582,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.770697041,
-      "min_seconds": 0.769921012,
-      "max_seconds": 0.774974628,
+      "median_seconds": 0.779347846,
+      "min_seconds": 0.770576038,
+      "max_seconds": 0.788545014,
       "samples_seconds": [
-        0.774974628,
-        0.770057829,
-        0.770697041,
-        0.771446031,
-        0.769921012
+        0.788545014,
+        0.783982543,
+        0.776046441,
+        0.770576038,
+        0.779347846
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -539,22 +625,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.123986455,
-      "min_seconds": 0.123578925,
-      "max_seconds": 0.125280866,
+      "median_seconds": 0.124248109,
+      "min_seconds": 0.123977833,
+      "max_seconds": 0.125623914,
       "samples_seconds": [
-        0.124901713,
-        0.123578925,
-        0.123986455,
-        0.123926313,
-        0.125280866
+        0.123977833,
+        0.124910398,
+        0.125623914,
+        0.124014473,
+        0.124248109
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -582,22 +668,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.191903578,
-      "min_seconds": 0.190414636,
-      "max_seconds": 0.195555179,
+      "median_seconds": 0.191110238,
+      "min_seconds": 0.190405229,
+      "max_seconds": 0.19321797,
       "samples_seconds": [
-        0.191903578,
-        0.195555179,
-        0.190414636,
-        0.192376128,
-        0.190767421
+        0.19321797,
+        0.191303805,
+        0.190992696,
+        0.191110238,
+        0.190405229
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -648,6 +734,49 @@
       "verification": null
     },
     {
+      "id": "310230e0c29fe16e858b3c98",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.115761716,
+      "min_seconds": 0.1151522,
+      "max_seconds": 0.1165693,
+      "samples_seconds": [
+        0.1151522,
+        0.1165693,
+        0.115761716,
+        0.115680199,
+        0.116000561
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
       "id": "21a7893fdf01f5e049c0e4c2",
       "program": {
         "name": "leanXMSS",
@@ -668,22 +797,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 1.035913608,
-      "min_seconds": 1.027630134,
-      "max_seconds": 1.050644166,
+      "median_seconds": 0.94189337,
+      "min_seconds": 0.930792604,
+      "max_seconds": 0.947861401,
       "samples_seconds": [
-        1.035913608,
-        1.027630134,
-        1.035140068,
-        1.050644166,
-        1.040482335
+        0.942236975,
+        0.94189337,
+        0.947861401,
+        0.930970242,
+        0.930792604
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -711,22 +840,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.3076213,
-      "min_seconds": 0.30650017,
-      "max_seconds": 0.312157793,
+      "median_seconds": 0.29526262,
+      "min_seconds": 0.291455486,
+      "max_seconds": 0.296547556,
       "samples_seconds": [
-        0.306562136,
-        0.30650017,
-        0.3076213,
-        0.312060604,
-        0.312157793
+        0.293953453,
+        0.296547556,
+        0.291455486,
+        0.295725897,
+        0.29526262
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -754,22 +883,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.167295055,
-      "min_seconds": 0.165824912,
-      "max_seconds": 0.171845498,
+      "median_seconds": 0.18458132,
+      "min_seconds": 0.184402722,
+      "max_seconds": 0.187085441,
       "samples_seconds": [
-        0.167295055,
-        0.171845498,
-        0.166303118,
-        0.165824912,
-        0.16825786
+        0.18458132,
+        0.187085441,
+        0.184402722,
+        0.184488606,
+        0.184729252
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -797,22 +926,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.172636356,
-      "min_seconds": 0.172388829,
-      "max_seconds": 0.175771146,
+      "median_seconds": 0.171338675,
+      "min_seconds": 0.171022657,
+      "max_seconds": 0.199803101,
       "samples_seconds": [
-        0.172388829,
-        0.172619066,
-        0.173247791,
-        0.172636356,
-        0.175771146
+        0.199803101,
+        0.171022657,
+        0.171120698,
+        0.177397811,
+        0.171338675
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -840,22 +969,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 1.957628325,
-      "min_seconds": 1.939931085,
-      "max_seconds": 1.977586118,
+      "median_seconds": 1.927759245,
+      "min_seconds": 1.920404702,
+      "max_seconds": 1.932471925,
       "samples_seconds": [
-        1.939931085,
-        1.977586118,
-        1.953317394,
-        1.969221038,
-        1.957628325
+        1.920404702,
+        1.932071474,
+        1.920496463,
+        1.927759245,
+        1.932471925
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -883,22 +1012,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.502166756,
-      "min_seconds": 0.500841383,
-      "max_seconds": 0.503280581,
+      "median_seconds": 0.511274102,
+      "min_seconds": 0.508364962,
+      "max_seconds": 0.514089095,
       "samples_seconds": [
-        0.501715173,
-        0.503280581,
-        0.502166756,
-        0.502863003,
-        0.500841383
+        0.514089095,
+        0.511274102,
+        0.508364962,
+        0.511452238,
+        0.509924249
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -926,22 +1055,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.284321496,
-      "min_seconds": 0.283538968,
-      "max_seconds": 0.285460243,
+      "median_seconds": 0.283755281,
+      "min_seconds": 0.281209499,
+      "max_seconds": 0.287678278,
       "samples_seconds": [
-        0.283538968,
-        0.284972681,
-        0.284223267,
-        0.285460243,
-        0.284321496
+        0.281209499,
+        0.283755281,
+        0.284021196,
+        0.281466253,
+        0.287678278
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -992,6 +1121,49 @@
       "verification": null
     },
     {
+      "id": "a5a181e0021a2e65a10cbb7e",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.084306113,
+      "min_seconds": 0.083692268,
+      "max_seconds": 0.088354553,
+      "samples_seconds": [
+        0.088354553,
+        0.084244238,
+        0.087793357,
+        0.084306113,
+        0.083692268
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
       "id": "80028c808e81b67fb3e1d74d",
       "program": {
         "name": "leanXMSS aggregation",
@@ -1012,22 +1184,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 0.532896075,
-      "min_seconds": 0.525867107,
-      "max_seconds": 0.538510656,
+      "median_seconds": 0.589112155,
+      "min_seconds": 0.580312912,
+      "max_seconds": 0.595405388,
       "samples_seconds": [
-        0.538022163,
-        0.531332096,
-        0.525867107,
-        0.532896075,
-        0.538510656
+        0.592581975,
+        0.583418363,
+        0.580312912,
+        0.595405388,
+        0.589112155
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1055,22 +1227,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.181263943,
-      "min_seconds": 0.175065118,
-      "max_seconds": 0.187538327,
+      "median_seconds": 0.183497644,
+      "min_seconds": 0.181045673,
+      "max_seconds": 0.185211184,
       "samples_seconds": [
-        0.180477296,
-        0.181263943,
-        0.187538327,
-        0.175065118,
-        0.186730985
+        0.183497644,
+        0.184485918,
+        0.185211184,
+        0.181447416,
+        0.181045673
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1098,22 +1270,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.121848469,
-      "min_seconds": 0.119653903,
-      "max_seconds": 0.123832387,
+      "median_seconds": 0.119306396,
+      "min_seconds": 0.11777994,
+      "max_seconds": 0.129903336,
       "samples_seconds": [
-        0.119854948,
-        0.119653903,
-        0.122446095,
-        0.121848469,
-        0.123832387
+        0.119435249,
+        0.11777994,
+        0.129903336,
+        0.119008565,
+        0.119306396
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1141,22 +1313,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.110410315,
-      "min_seconds": 0.109452254,
-      "max_seconds": 0.110783291,
+      "median_seconds": 0.107581063,
+      "min_seconds": 0.107315655,
+      "max_seconds": 0.119485805,
       "samples_seconds": [
-        0.109452254,
-        0.11004344,
-        0.110410315,
-        0.110783291,
-        0.110681972
+        0.119485805,
+        0.107315655,
+        0.107418796,
+        0.107955416,
+        0.107581063
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1184,22 +1356,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 0.986712803,
-      "min_seconds": 0.983987232,
-      "max_seconds": 0.98813429,
+      "median_seconds": 0.988891999,
+      "min_seconds": 0.987692214,
+      "max_seconds": 0.991043168,
       "samples_seconds": [
-        0.983987232,
-        0.98813429,
-        0.985741437,
-        0.986712803,
-        0.987795057
+        0.990526292,
+        0.9879469,
+        0.991043168,
+        0.987692214,
+        0.988891999
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1227,22 +1399,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.277416288,
-      "min_seconds": 0.276930723,
-      "max_seconds": 0.278494868,
+      "median_seconds": 0.2781069,
+      "min_seconds": 0.277320737,
+      "max_seconds": 0.295317729,
       "samples_seconds": [
-        0.277695119,
-        0.278494868,
-        0.276930723,
-        0.277416288,
-        0.276975834
+        0.277320737,
+        0.2781069,
+        0.277804242,
+        0.2827554,
+        0.295317729
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1270,22 +1442,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.162800945,
-      "min_seconds": 0.161861473,
-      "max_seconds": 0.164364224,
+      "median_seconds": 0.164750413,
+      "min_seconds": 0.164335599,
+      "max_seconds": 0.164894843,
       "samples_seconds": [
-        0.164364224,
-        0.163095839,
-        0.162598456,
-        0.161861473,
-        0.162800945
+        0.164508674,
+        0.164861122,
+        0.164894843,
+        0.164335599,
+        0.164750413
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1336,6 +1508,49 @@
       "verification": null
     },
     {
+      "id": "dde738854aba6330ab10f544",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.089609675,
+      "min_seconds": 0.08808729,
+      "max_seconds": 0.090944481,
+      "samples_seconds": [
+        0.089609675,
+        0.089931304,
+        0.08808729,
+        0.088812385,
+        0.090944481
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
       "id": "54352d0da623f4e77c34406c",
       "program": {
         "name": "leanXMSS aggregation",
@@ -1356,22 +1571,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 0.562180481,
-      "min_seconds": 0.556717742,
-      "max_seconds": 0.571778186,
+      "median_seconds": 0.623222669,
+      "min_seconds": 0.618654162,
+      "max_seconds": 0.634611342,
       "samples_seconds": [
-        0.560697724,
-        0.556717742,
-        0.562180481,
-        0.571778186,
-        0.569301808
+        0.623222669,
+        0.620555411,
+        0.618654162,
+        0.634611342,
+        0.634043661
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1399,22 +1614,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.188214608,
-      "min_seconds": 0.18288845,
-      "max_seconds": 0.19138266,
+      "median_seconds": 0.19314441,
+      "min_seconds": 0.190937415,
+      "max_seconds": 0.19552426,
       "samples_seconds": [
-        0.19138266,
-        0.189866416,
-        0.18288845,
-        0.186589813,
-        0.188214608
+        0.19314441,
+        0.193160745,
+        0.19552426,
+        0.191413324,
+        0.190937415
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1442,22 +1657,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.126471309,
-      "min_seconds": 0.122528746,
-      "max_seconds": 0.132089987,
+      "median_seconds": 0.123678983,
+      "min_seconds": 0.123526083,
+      "max_seconds": 0.128038392,
       "samples_seconds": [
-        0.122528746,
-        0.132089987,
-        0.128213087,
-        0.123655251,
-        0.126471309
+        0.126898019,
+        0.128038392,
+        0.123678983,
+        0.123526083,
+        0.12365527
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1485,22 +1700,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.113945743,
-      "min_seconds": 0.113639779,
-      "max_seconds": 0.11594749,
+      "median_seconds": 0.113295203,
+      "min_seconds": 0.111693185,
+      "max_seconds": 0.113580464,
       "samples_seconds": [
-        0.114718714,
-        0.113639779,
-        0.113945743,
-        0.11594749,
-        0.113726001
+        0.111749135,
+        0.113570406,
+        0.113580464,
+        0.111693185,
+        0.113295203
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1528,22 +1743,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 1.037551902,
-      "min_seconds": 1.036476649,
-      "max_seconds": 1.040683817,
+      "median_seconds": 1.036476347,
+      "min_seconds": 1.033687856,
+      "max_seconds": 1.04007063,
       "samples_seconds": [
-        1.036476649,
-        1.040683817,
-        1.03666131,
-        1.037551902,
-        1.040455127
+        1.039478444,
+        1.033687856,
+        1.036276334,
+        1.04007063,
+        1.036476347
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1571,22 +1786,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.289426561,
-      "min_seconds": 0.28936266,
-      "max_seconds": 0.291140695,
+      "median_seconds": 0.292629023,
+      "min_seconds": 0.289000856,
+      "max_seconds": 0.298257996,
       "samples_seconds": [
-        0.289763089,
-        0.291140695,
-        0.28936266,
-        0.289426561,
-        0.28941765
+        0.290596487,
+        0.289000856,
+        0.295022804,
+        0.298257996,
+        0.292629023
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1614,22 +1829,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.170384492,
-      "min_seconds": 0.169689876,
-      "max_seconds": 0.172252508,
+      "median_seconds": 0.172467494,
+      "min_seconds": 0.172276594,
+      "max_seconds": 0.17329382,
       "samples_seconds": [
-        0.172252508,
-        0.171398097,
-        0.170205499,
-        0.169689876,
-        0.170384492
+        0.172489184,
+        0.17329382,
+        0.172276594,
+        0.172467494,
+        0.172283286
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1657,22 +1872,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.16268974,
-      "min_seconds": 0.158802558,
-      "max_seconds": 0.167594418,
+      "median_seconds": 0.154032213,
+      "min_seconds": 0.153427159,
+      "max_seconds": 0.155596666,
       "samples_seconds": [
-        0.166235276,
-        0.16268974,
-        0.158970325,
-        0.167594418,
-        0.158802558
+        0.153427159,
+        0.154006543,
+        0.155112855,
+        0.155596666,
+        0.154032213
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1700,22 +1915,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 1.170064589,
-      "min_seconds": 1.166163762,
-      "max_seconds": 1.182696522,
+      "median_seconds": 1.092215014,
+      "min_seconds": 1.077685092,
+      "max_seconds": 1.129910484,
       "samples_seconds": [
-        1.182696522,
-        1.170064589,
-        1.167145,
-        1.166163762,
-        1.176765279
+        1.105187446,
+        1.092215014,
+        1.129910484,
+        1.077685092,
+        1.085844335
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1743,22 +1958,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.34661532,
-      "min_seconds": 0.342922959,
-      "max_seconds": 0.346886082,
+      "median_seconds": 0.347993566,
+      "min_seconds": 0.346578459,
+      "max_seconds": 0.349777428,
       "samples_seconds": [
-        0.346566944,
-        0.34661532,
-        0.346886082,
-        0.346618136,
-        0.342922959
+        0.349777428,
+        0.346578459,
+        0.347993566,
+        0.348128728,
+        0.347935266
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1786,22 +2001,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.225283439,
-      "min_seconds": 0.221382563,
-      "max_seconds": 0.22949327,
+      "median_seconds": 0.222370771,
+      "min_seconds": 0.221546654,
+      "max_seconds": 0.233404927,
       "samples_seconds": [
-        0.228375389,
-        0.221382563,
-        0.22949327,
-        0.222093469,
-        0.225283439
+        0.233404927,
+        0.223487066,
+        0.221546654,
+        0.222370771,
+        0.222324594
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1829,22 +2044,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.201980054,
-      "min_seconds": 0.201572815,
-      "max_seconds": 0.204897107,
+      "median_seconds": 0.202496811,
+      "min_seconds": 0.200493742,
+      "max_seconds": 0.205430933,
       "samples_seconds": [
-        0.201980054,
-        0.201606921,
-        0.202272975,
-        0.201572815,
-        0.204897107
+        0.202496811,
+        0.205430933,
+        0.200551632,
+        0.200493742,
+        0.204965696
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1872,22 +2087,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 1.984319709,
-      "min_seconds": 1.980211824,
-      "max_seconds": 2.012072733,
+      "median_seconds": 1.972840966,
+      "min_seconds": 1.971163762,
+      "max_seconds": 1.97731304,
       "samples_seconds": [
-        1.989035681,
-        1.984319709,
-        1.980211824,
-        2.012072733,
-        1.984095551
+        1.972004678,
+        1.975336823,
+        1.971163762,
+        1.97731304,
+        1.972840966
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1915,22 +2130,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.553691117,
-      "min_seconds": 0.552933724,
-      "max_seconds": 0.55555618,
+      "median_seconds": 0.552115851,
+      "min_seconds": 0.543987447,
+      "max_seconds": 0.559101595,
       "samples_seconds": [
-        0.552933724,
-        0.553327186,
-        0.553691117,
-        0.555301149,
-        0.55555618
+        0.543987447,
+        0.553176172,
+        0.550576957,
+        0.552115851,
+        0.559101595
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -1958,22 +2173,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.320739068,
-      "min_seconds": 0.319913208,
-      "max_seconds": 0.322560846,
+      "median_seconds": 0.321991949,
+      "min_seconds": 0.319600961,
+      "max_seconds": 0.323711807,
       "samples_seconds": [
-        0.319913208,
-        0.321108318,
-        0.320250572,
-        0.320739068,
-        0.322560846
+        0.322753409,
+        0.321290135,
+        0.323711807,
+        0.319600961,
+        0.321991949
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2001,22 +2216,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.171245898,
-      "min_seconds": 0.167021884,
-      "max_seconds": 0.175066162,
+      "median_seconds": 0.166184637,
+      "min_seconds": 0.164713756,
+      "max_seconds": 0.167764057,
       "samples_seconds": [
-        0.175066162,
-        0.172102181,
-        0.169290698,
-        0.171245898,
-        0.167021884
+        0.167302468,
+        0.167764057,
+        0.166184637,
+        0.165462835,
+        0.164713756
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2044,22 +2259,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 1.274128656,
-      "min_seconds": 1.26795784,
-      "max_seconds": 1.279372915,
+      "median_seconds": 1.211282153,
+      "min_seconds": 1.184270666,
+      "max_seconds": 1.260465722,
       "samples_seconds": [
-        1.279372915,
-        1.26795784,
-        1.274128656,
-        1.275922431,
-        1.271310307
+        1.260465722,
+        1.211282153,
+        1.184270666,
+        1.212867119,
+        1.208533002
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2087,22 +2302,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.369531398,
-      "min_seconds": 0.365856682,
-      "max_seconds": 0.373089393,
+      "median_seconds": 0.377884879,
+      "min_seconds": 0.377073839,
+      "max_seconds": 0.380476476,
       "samples_seconds": [
-        0.365856682,
-        0.372011551,
-        0.368394597,
-        0.369531398,
-        0.373089393
+        0.377884879,
+        0.380041272,
+        0.380476476,
+        0.377868279,
+        0.377073839
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2130,22 +2345,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.239880476,
-      "min_seconds": 0.236917225,
-      "max_seconds": 0.241576238,
+      "median_seconds": 0.239066988,
+      "min_seconds": 0.238246405,
+      "max_seconds": 0.260491352,
       "samples_seconds": [
-        0.239880476,
-        0.241576238,
-        0.236917225,
-        0.239637862,
-        0.240332094
+        0.239829995,
+        0.238975792,
+        0.239066988,
+        0.238246405,
+        0.260491352
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2173,22 +2388,22 @@
         "count": null,
         "label": "Default (not recorded)"
       },
-      "median_seconds": 0.219309776,
-      "min_seconds": 0.218412735,
-      "max_seconds": 0.22111017,
+      "median_seconds": 0.220046735,
+      "min_seconds": 0.217855304,
+      "max_seconds": 0.228208382,
       "samples_seconds": [
-        0.21915858,
-        0.219309776,
-        0.220751486,
-        0.218412735,
-        0.22111017
+        0.220046735,
+        0.22269413,
+        0.228208382,
+        0.218634821,
+        0.217855304
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2216,22 +2431,22 @@
         "count": 1,
         "label": "1 thread"
       },
-      "median_seconds": 2.150307325,
-      "min_seconds": 2.139979438,
-      "max_seconds": 2.164336394,
+      "median_seconds": 2.142658595,
+      "min_seconds": 2.13857222,
+      "max_seconds": 2.148626576,
       "samples_seconds": [
-        2.150307325,
-        2.146682558,
-        2.15078524,
-        2.139979438,
-        2.164336394
+        2.13857222,
+        2.148626576,
+        2.142658595,
+        2.141735159,
+        2.143529955
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2259,22 +2474,22 @@
         "count": 4,
         "label": "4 threads"
       },
-      "median_seconds": 0.599147079,
-      "min_seconds": 0.59577591,
-      "max_seconds": 0.60094064,
+      "median_seconds": 0.602060509,
+      "min_seconds": 0.595943828,
+      "max_seconds": 0.610469428,
       "samples_seconds": [
-        0.59577591,
-        0.598913501,
-        0.599328574,
-        0.60094064,
-        0.599147079
+        0.595943828,
+        0.602060509,
+        0.610469428,
+        0.599905272,
+        0.602275029
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
@@ -2302,22 +2517,22 @@
         "count": 8,
         "label": "8 threads"
       },
-      "median_seconds": 0.346492208,
-      "min_seconds": 0.345853011,
-      "max_seconds": 0.348470819,
+      "median_seconds": 0.349204631,
+      "min_seconds": 0.345452072,
+      "max_seconds": 0.350222237,
       "samples_seconds": [
-        0.345853011,
-        0.347747788,
-        0.346254173,
-        0.346492208,
-        0.348470819
+        0.349408419,
+        0.349204631,
+        0.346967015,
+        0.350222237,
+        0.345452072
       ],
       "source": {
         "repository": "leanEthereum/leanVM",
         "branch": "riscv-exploration",
         "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
-        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
-        "measured_at": "2026-10-08T19:32:09Z",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37840704293",
+        "measured_at": "2026-10-08T20:36:27Z",
         "kind": "branch",
         "label": "riscv-exploration baseline (PR #563 base)",
         "timestamp_basis": "workflow start; individual sample timestamps not recorded"
