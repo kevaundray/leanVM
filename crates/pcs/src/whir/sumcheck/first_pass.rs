@@ -543,7 +543,7 @@ mod lanes {
     }
 
     /// Fuse the final extension digit with its three product updates, without storing the infinity rows.
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes", not(leanvm_grid_registers)))]
     #[inline(always)]
     pub(super) unsafe fn finish_grid<const R: usize>(
         fg: &[[u64; ROW]; GRID],
@@ -586,6 +586,68 @@ mod lanes {
                         c20.xor(c21),
                     );
                 }
+            }
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes", leanvm_grid_registers))]
+    #[inline(always)]
+    pub(super) unsafe fn finish_grid<const R: usize>(
+        fg: &[[u64; ROW]; GRID],
+        bg: &[WeightRow; GRID],
+        acc: &mut [ProductRow; GRID],
+    ) {
+        #[inline(always)]
+        fn update(s: (Neon, Neon, Neon), k: Neon, lo: Neon, hi: Neon, c2: Neon) -> (Neon, Neon, Neon) {
+            (
+                s.0.xor3(lo.mul::<0x00>(k), hi.mul::<0x10>(k)),
+                s.1.xor3(lo.mul::<0x01>(k), hi.mul::<0x11>(k)),
+                s.2.xor3(c2.mul::<0x00>(k), c2.mul::<0x11>(k)),
+            )
+        }
+        #[inline(always)]
+        unsafe fn load(acc: &ProductRow) -> (Neon, Neon, Neon) {
+            // SAFETY: every coefficient has a complete pair; only the first pair holds this path's sum.
+            unsafe {
+                (
+                    Neon::load(acc.0[0].as_ptr()),
+                    Neon::load(acc.0[1].as_ptr()),
+                    Neon::load(acc.0[2].as_ptr()),
+                )
+            }
+        }
+        #[inline(always)]
+        unsafe fn store(s: (Neon, Neon, Neon), acc: &mut ProductRow) {
+            // SAFETY: as for load; remaining pairs stay zero.
+            unsafe {
+                s.0.store(acc.0[0].as_mut_ptr());
+                s.1.store(acc.0[1].as_mut_ptr());
+                s.2.store(acc.0[2].as_mut_ptr());
+            }
+        }
+        let stride = 3usize.pow((R - 1) as u32);
+        for at in 0..stride {
+            // SAFETY: R is in 1..=PRECOMPUTED_ROUNDS; the three points and each pair lie within their rows.
+            unsafe {
+                let mut s0 = load(&acc[at]);
+                let mut s1 = load(&acc[at + stride]);
+                let mut s2 = load(&acc[at + 2 * stride]);
+                for c in (0..ROW).step_by(2) {
+                    let k0 = Neon::load(fg[at].as_ptr().add(c));
+                    let k1 = Neon::load(fg[at + stride].as_ptr().add(c));
+                    let lo0 = Neon::load(bg[at].lo.as_ptr().add(c));
+                    let lo1 = Neon::load(bg[at + stride].lo.as_ptr().add(c));
+                    let hi0 = Neon::load(bg[at].hi.as_ptr().add(c));
+                    let hi1 = Neon::load(bg[at + stride].hi.as_ptr().add(c));
+                    let c20 = Neon::load(bg[at].c2.as_ptr().add(c));
+                    let c21 = Neon::load(bg[at + stride].c2.as_ptr().add(c));
+                    s0 = update(s0, k0, lo0, hi0, c20);
+                    s1 = update(s1, k1, lo1, hi1, c21);
+                    s2 = update(s2, k0.xor(k1), lo0.xor(lo1), hi0.xor(hi1), c20.xor(c21));
+                }
+                store(s0, &mut acc[at]);
+                store(s1, &mut acc[at + stride]);
+                store(s2, &mut acc[at + 2 * stride]);
             }
         }
     }

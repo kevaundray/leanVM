@@ -116,11 +116,18 @@ fn captured_basis_components() {
     );
     let shape = std::fs::read(directory.join("shape.bin")).expect("read Basis shape");
     assert_eq!(shape.len(), 24, "three little-endian u64 shape words");
-    let (n, block, initial_k) = (word(&shape[..8]) as usize, word(&shape[8..16]) as usize, word(&shape[16..]) as usize);
+    let (n, block, initial_k) = (
+        word(&shape[..8]) as usize,
+        word(&shape[8..16]) as usize,
+        word(&shape[16..]) as usize,
+    );
     assert_eq!(PRECOMPUTED_ROUNDS, 4);
     assert!(initial_k >= PRECOMPUTED_ROUNDS);
     assert!(block.is_power_of_two() && block / ROW >= ROWS_PER_GROUP);
-    assert!(n.is_multiple_of(block) && n / block >= 2 * GROUP, "two complete real lane groups");
+    assert!(
+        n.is_multiple_of(block) && n / block >= 2 * GROUP,
+        "two complete real lane groups"
+    );
     let witness_file = std::fs::File::open(directory.join("witness.bin")).expect("open Basis witness");
     let weight_file = std::fs::File::open(directory.join("weight.bin")).expect("open Basis weight");
     assert_eq!(witness_file.metadata().unwrap().len(), (n * size_of::<F64>()) as u64);
@@ -150,16 +157,21 @@ fn captured_basis_components() {
         }
     }
     drop((witness, weight));
-    let mut expanded: Vec<_> = inputs.iter().map(|_| Expanded {
-        k: [[0; ROW]; GRID],
-        e: [WeightRow::default(); GRID],
-    }).collect();
+    let mut expanded: Vec<_> = inputs
+        .iter()
+        .map(|_| Expanded {
+            k: [[0; ROW]; GRID],
+            e: [WeightRow::default(); GRID],
+        })
+        .collect();
     pack_k(&inputs, &mut expanded);
     pack_e(&inputs, &mut expanded);
     // Reconstruct each Boolean lane's ternary index without LANE_IN_GRID.
     for (input, grid) in inputs.iter().zip(&expanded) {
         for lane in 0..GROUP {
-            let at = (0..PRECOMPUTED_ROUNDS).map(|bit| ((lane >> bit) & 1) * 3usize.pow(bit as u32)).sum::<usize>();
+            let at = (0..PRECOMPUTED_ROUNDS)
+                .map(|bit| ((lane >> bit) & 1) * 3usize.pow(bit as u32))
+                .sum::<usize>();
             assert_eq!(grid.k[at], input.k[lane]);
             for x in 0..ROW {
                 assert_eq!(unpack(&grid.e[at], x), input.e[lane][x]);
@@ -202,7 +214,9 @@ fn captured_basis_components() {
     eprintln!(
         "basis_component_reference checked=true words={n} block={block} initial_k={initial_k} rows={SAMPLE_ROWS} \
          input_bytes={} expanded_bytes={} accumulator_bytes={} offsets={offsets:?}",
-        inputs.len() * size_of::<Input>(), expanded.len() * size_of::<Expanded>(), size_of_val(&acc),
+        inputs.len() * size_of::<Input>(),
+        expanded.len() * size_of::<Expanded>(),
+        size_of_val(&acc),
     );
     // The expanded batch intentionally changes cache/scheduling from the fused production loop.
     // All buffers are allocated before measurement; product accumulation is XOR, so odd repeats retain the sum.
@@ -223,7 +237,10 @@ fn captured_basis_components() {
         products(black_box(&expanded), black_box(&mut acc));
     });
     sums(&acc, &mut output);
-    assert_eq!(output, expected, "odd timed product repetitions preserve the reference sum");
+    assert_eq!(
+        output, expected,
+        "odd timed product repetitions preserve the reference sum"
+    );
     measure("final_sums", 4097, GRID, "grid_point", || {
         sums(black_box(&acc), black_box(&mut output));
     });
@@ -267,23 +284,38 @@ fn captured_dense_pass() {
     let shape = std::fs::read(directory.join("shape.bin")).unwrap();
     let word = |b: &[u8]| u64::from_le_bytes(b.try_into().unwrap()) as usize;
     let (n, block, initial_k) = (word(&shape[..8]), word(&shape[8..16]), word(&shape[16..]));
-    let f: Vec<_> = std::fs::read(directory.join("witness.bin")).unwrap().chunks_exact(8)
-        .map(|b| F64(u64::from_le_bytes(b.try_into().unwrap()))).collect();
-    let b = Basis::Dense(std::fs::read(directory.join("weight.bin")).unwrap().chunks_exact(24)
-        .map(|b| F192::new(word(&b[..8]) as u64, word(&b[8..16]) as u64, word(&b[16..]) as u64)).collect());
+    let f: Vec<_> = std::fs::read(directory.join("witness.bin"))
+        .unwrap()
+        .chunks_exact(8)
+        .map(|b| F64(u64::from_le_bytes(b.try_into().unwrap())))
+        .collect();
+    let b = Basis::Dense(
+        std::fs::read(directory.join("weight.bin"))
+            .unwrap()
+            .chunks_exact(24)
+            .map(|b| F192::new(word(&b[..8]) as u64, word(&b[8..16]) as u64, word(&b[16..]) as u64))
+            .collect(),
+    );
     assert_eq!(f.len(), n);
     let mut result = None;
     for sample in 0..6 {
         let start = std::time::Instant::now();
         let grid = initial_rounds(std::hint::black_box(&f), block, initial_k, std::hint::black_box(&b)).grid;
-        eprintln!("dense_pass sample={sample} elapsed_ns={} grid={grid:?}", start.elapsed().as_nanos());
+        eprintln!(
+            "dense_pass sample={sample} elapsed_ns={} grid={grid:?}",
+            start.elapsed().as_nanos()
+        );
         if let Some(expected) = &result {
             assert_eq!(&grid, expected);
         }
         result = Some(grid);
     }
     if let Some(path) = std::env::var_os("GRID_RESULT") {
-        let bytes: Vec<u8> = result.unwrap().iter().flat_map(|e| [e.c0, e.c1, e.c2].into_iter().flat_map(u64::to_le_bytes)).collect();
+        let bytes: Vec<u8> = result
+            .unwrap()
+            .iter()
+            .flat_map(|e| [e.c0, e.c1, e.c2].into_iter().flat_map(u64::to_le_bytes))
+            .collect();
         std::fs::write(path, bytes).unwrap();
     }
 }

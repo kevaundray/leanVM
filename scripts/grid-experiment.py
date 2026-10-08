@@ -13,12 +13,13 @@ ROOT = Path.cwd()
 OUT = ROOT / 'grid-evidence'
 OUT.mkdir(exist_ok=True)
 BASE = os.environ.get('BASE', 'f52bd991c8623894e7b03a2e50bede6c248ea1ad')
-PRODUCTION = '4b3b3d17'
+PRODUCTION = '4b3b3d1728b95b5acc2a7e9300303d9da4d9a76d'
+DIAGNOSTIC = 'ceb165c833f16df100776168f84849fbe5e7ec2c'
 HEAD = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 SCOPE = ['systemd-run', '--user', '--scope', '-q', '-p', 'MemoryMax=16G', '-p', 'MemorySwapMax=0']
 ENV = dict(os.environ, CARGO_BUILD_JOBS='4', CARGO_TERM_COLOR='never')
 ENV.pop('LEANVM_NUM_THREADS', None)
-FLAGS = '-C target-cpu=native --check-cfg=cfg(leanvm_grid_candidate)'
+FLAGS = '-C target-cpu=native --check-cfg=cfg(leanvm_grid_candidate) --check-cfg=cfg(leanvm_grid_registers)'
 records = []
 
 def run(args, name, cwd=ROOT, env=None):
@@ -47,10 +48,13 @@ def measured(args, name, env):
 
 for command, name in [(['rustc', '-vV'], 'compiler.txt'), (['lscpu'], 'cpu.txt'), (['rustc', '--print', 'cfg', '-C', 'target-cpu=native'], 'cfg.txt')]:
     run(command, name)
+if os.uname().machine == 'aarch64':
+    cfg = (OUT / 'cfg.txt').read_text()
+    assert 'target_feature="aes"' in cfg and 'target_feature="sha3"' in cfg
 (OUT / 'metadata.json').write_text(json.dumps(dict(base=BASE, head=HEAD, production=PRODUCTION, flags=FLAGS, affinity=sorted(os.sched_getaffinity(0)), phase=os.getenv('PHASE', 'screen')), indent=2))
 base = Path('/tmp/grid-base')
 run(['git', 'worktree', 'add', '--detach', base, BASE], 'checkout.log')
-patch = subprocess.check_output(['git', 'diff', PRODUCTION, HEAD, '--', 'crates/pcs/src/whir/sumcheck/first_pass.rs', 'crates/pcs/src/whir/sumcheck/grid_diagnostic.rs', 'bins/leanvm/src/tracked.rs'])
+patch = subprocess.check_output(['git', 'diff', PRODUCTION, DIAGNOSTIC, '--', 'crates/pcs/src/whir/sumcheck/first_pass.rs', 'crates/pcs/src/whir/sumcheck/grid_diagnostic.rs', 'bins/leanvm/src/tracked.rs'])
 (OUT / 'diagnostic.patch').write_bytes(patch)
 run(['git', 'apply', OUT / 'diagnostic.patch'], 'apply.log', cwd=base)
 # Use the original production input captures, not a newly generated or synthetic workload.
@@ -64,9 +68,14 @@ for name, size in [('witness.bin', 81788928), ('weight.bin', 245366784), ('shape
         receipt.write(f'{name} {len(data)} {hashlib.sha256(data).hexdigest()}\n')
 executables = {}
 tests = {}
-for side, cwd in [('base', base), ('head', ROOT)]:
+variants = ['base', 'head', 'registers']
+for side in variants:
+    cwd = base if side == 'base' else ROOT
     target = Path('/tmp/grid-target-' + side)
-    env = dict(ENV, CARGO_TARGET_DIR=str(target), RUSTFLAGS=FLAGS + (' --cfg leanvm_grid_candidate' if side == 'head' else ''))
+    extra = '' if side == 'base' else ' --cfg leanvm_grid_candidate'
+    if side == 'registers':
+        extra += ' --cfg leanvm_grid_registers'
+    env = dict(ENV, CARGO_TARGET_DIR=str(target), RUSTFLAGS=FLAGS + extra)
     run(SCOPE + ['cargo', 'build', '--release', '-p', 'leanvm-cli'], f'build-{side}.log', cwd, env)
     run(SCOPE + ['cargo', 'test', '--release', '-p', 'pcs', '--lib', '--no-run', '--message-format=json'], f'test-build-{side}.log', cwd, env)
     messages = [json.loads(line) for line in (OUT / f'test-build-{side}.log').read_text().splitlines() if line.startswith('{')]
@@ -82,24 +91,26 @@ for workers in ['1', '4', '8', 'default']:
     if workers != 'default':
         env['LEANVM_NUM_THREADS'] = workers
     for pair in range(5):
-        for side in (['base', 'head'] if pair % 2 == 0 else ['head', 'base']):
+        for side in (variants if pair % 2 == 0 else list(reversed(variants))):
             name = f'dense-{workers}-{pair}-{side}'
             measured([tests[side], 'grid_diagnostic::captured_dense_pass', '--ignored', '--nocapture', '--test-threads=1'], name + '.log', dict(env, GRID_RESULT=str(OUT / (name + '.bin'))))
-        assert (OUT / f'dense-{workers}-{pair}-base.bin').read_bytes() == (OUT / f'dense-{workers}-{pair}-head.bin').read_bytes()
+        for side in variants[1:]:
+            assert (OUT / f'dense-{workers}-{pair}-base.bin').read_bytes() == (OUT / f'dense-{workers}-{pair}-{side}.bin').read_bytes()
     cases = [('leanxmss-100', 1)]
     if os.getenv('PHASE') == 'final':
         cases += [('leanxmss-100', 2), ('aggregate-leanxmss-100-2to1', 1), ('aggregate-leanxmss-100-2to1', 2)]
     for case, rate in cases:
         for pair in range(5):
-            for side in (['base', 'head'] if pair % 2 == 0 else ['head', 'base']):
+            for side in (variants if pair % 2 == 0 else list(reversed(variants))):
                 name = f'{case}-rate{rate}-{workers}-{pair}-{side}'
                 proofs = OUT / (name + '-proofs')
                 measured([executables[side], 'bench', '--only', case, '--log-inv-rate', str(rate), '--repeat', '1', '--cooldown', '0', '--tracing'], name + '.log', dict(env, GRID_PROOFS=str(proofs)))
             a = OUT / f'{case}-rate{rate}-{workers}-{pair}-base-proofs'
-            b = OUT / f'{case}-rate{rate}-{workers}-{pair}-head-proofs'
-            assert sorted(p.name for p in a.iterdir()) == sorted(p.name for p in b.iterdir())
-            for proof in a.iterdir():
-                assert proof.read_bytes() == (b / proof.name).read_bytes(), proof
-                with (OUT / 'proof-equality.jsonl').open('a') as receipt:
-                    receipt.write(json.dumps(dict(case=case, rate=rate, workers=workers, pair=pair, file=proof.name, bytes=proof.stat().st_size, sha256=hashlib.sha256(proof.read_bytes()).hexdigest())) + '\n')
+            for side in variants[1:]:
+                b = OUT / f'{case}-rate{rate}-{workers}-{pair}-{side}-proofs'
+                assert sorted(p.name for p in a.iterdir()) == sorted(p.name for p in b.iterdir())
+                for proof in a.iterdir():
+                    assert proof.read_bytes() == (b / proof.name).read_bytes(), proof
+                    with (OUT / 'proof-equality.jsonl').open('a') as receipt:
+                        receipt.write(json.dumps(dict(case=case, rate=rate, workers=workers, pair=pair, side=side, file=proof.name, bytes=proof.stat().st_size, sha256=hashlib.sha256(proof.read_bytes()).hexdigest())) + '\n')
 print('All captured-grid references, paired grids, production verification and literal paired proof bytes passed.', flush=True)
