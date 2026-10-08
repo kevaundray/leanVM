@@ -1,0 +1,2328 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-08T20:16:17.892260Z",
+  "results": [
+    {
+      "id": "df06bdd0cf101b605eb16533",
+      "program": {
+        "name": "BLAKE2s guest",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/hash/guest/src/main.rs"
+      },
+      "workload": "Hash 50,000 bytes through the precompile",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.311225394,
+      "min_seconds": 0.310864609,
+      "max_seconds": 0.316990607,
+      "samples_seconds": [
+        0.316990607,
+        0.310864609,
+        0.313984077,
+        0.311225394,
+        0.311082876
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "0ab0933543ca700b8b31b9a3",
+      "program": {
+        "name": "BLAKE2s guest",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/hash/guest/src/main.rs"
+      },
+      "workload": "Hash 50,000 bytes through the precompile",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.550556223,
+      "min_seconds": 0.549715679,
+      "max_seconds": 0.557677418,
+      "samples_seconds": [
+        0.550048687,
+        0.557677418,
+        0.555670796,
+        0.550556223,
+        0.549715679
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "c48dc658b429e9488e0a0c0e",
+      "program": {
+        "name": "Falcon-512",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/falcon/guest/src/main.rs"
+      },
+      "workload": "Verify 7 signatures",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.289193037,
+      "min_seconds": 0.282446967,
+      "max_seconds": 0.304308983,
+      "samples_seconds": [
+        0.288344927,
+        0.282446967,
+        0.289193037,
+        0.304308983,
+        0.295536793
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "d2062871da28d16361e738cb",
+      "program": {
+        "name": "Falcon-512",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/falcon/guest/src/main.rs"
+      },
+      "workload": "Verify 7 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.578125296,
+      "min_seconds": 0.576655058,
+      "max_seconds": 0.581298397,
+      "samples_seconds": [
+        0.578958858,
+        0.581298397,
+        0.576655058,
+        0.578125296,
+        0.576853103
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "acb4a34cae7e1895549d6f6c",
+      "program": {
+        "name": "Fibonacci",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/bins/leanvm/src/workload.rs"
+      },
+      "workload": "2,000,000 steps modulo 2^64",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.477962185,
+      "min_seconds": 0.47477034,
+      "max_seconds": 0.516213387,
+      "samples_seconds": [
+        0.47684028,
+        0.516213387,
+        0.480738393,
+        0.47477034,
+        0.477962185
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "02ce0b7fb30ed62a229afdcc",
+      "program": {
+        "name": "Fibonacci",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/bins/leanvm/src/workload.rs"
+      },
+      "workload": "2,000,000 steps modulo 2^64",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.909390139,
+      "min_seconds": 0.886681538,
+      "max_seconds": 0.918276022,
+      "samples_seconds": [
+        0.886681538,
+        0.918276022,
+        0.913912567,
+        0.904787855,
+        0.909390139
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "5616bd78e1779bf1435fa738",
+      "program": {
+        "name": "L1 state proofs",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/stateproof/guest/src/main.rs"
+      },
+      "workload": "Verify 5 account and storage reads",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.706246381,
+      "min_seconds": 0.704122783,
+      "max_seconds": 0.720921907,
+      "samples_seconds": [
+        0.706246381,
+        0.704122783,
+        0.707804788,
+        0.705219017,
+        0.720921907
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "0ba2d69e83af2b485e2d787b",
+      "program": {
+        "name": "L1 state proofs",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/stateproof/guest/src/main.rs"
+      },
+      "workload": "Verify 5 account and storage reads",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 1.287664097,
+      "min_seconds": 1.24049558,
+      "max_seconds": 1.307779474,
+      "samples_seconds": [
+        1.288410225,
+        1.307779474,
+        1.287664097,
+        1.241339707,
+        1.24049558
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "dc4adc6ceab854ca804d9e92",
+      "program": {
+        "name": "Shielded transfers",
+        "source_url": "https://github.com/kevaundray/leanVM/blob/04e330b7851beef8511788a541abf9ca07b8f601/programs/shielded/guest/src/main.rs"
+      },
+      "workload": "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
+      "category": "program",
+      "machine": {
+        "name": "iPhone 14",
+        "arch": "aarch64",
+        "os": "ios 16",
+        "cpu": null,
+        "logical_cpus": null,
+        "memory_bytes": null,
+        "id": "2dae0d93cc598a0d"
+      },
+      "threads": {
+        "count": 6,
+        "label": "6 threads"
+      },
+      "median_seconds": 4.696778917,
+      "min_seconds": 4.580193875,
+      "max_seconds": 4.783414709,
+      "samples_seconds": [
+        4.580193875,
+        4.696778917,
+        4.783414709
+      ],
+      "source": {
+        "repository": "kevaundray/leanVM",
+        "branch": "kw/mobile-bench-browserstack",
+        "commit": "04e330b7851beef8511788a541abf9ca07b8f601",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37832115771",
+        "measured_at": "2026-10-08T19:37:29.988000Z",
+        "kind": "pull_request",
+        "label": "PR #564 mobile"
+      },
+      "verification": {
+        "verified_proofs": 4,
+        "total_proofs": 4
+      }
+    },
+    {
+      "id": "586c3420defd44e296ebc1b8",
+      "program": {
+        "name": "Shielded transfers",
+        "source_url": "https://github.com/kevaundray/leanVM/blob/04e330b7851beef8511788a541abf9ca07b8f601/programs/shielded/guest/src/main.rs"
+      },
+      "workload": "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
+      "category": "program",
+      "machine": {
+        "name": "Google Pixel 7",
+        "arch": "aarch64",
+        "os": "android 13.0",
+        "cpu": null,
+        "logical_cpus": null,
+        "memory_bytes": null,
+        "id": "6795afdc72ad4684"
+      },
+      "threads": {
+        "count": 6,
+        "label": "6 threads"
+      },
+      "median_seconds": 13.038460903,
+      "min_seconds": 12.71639702,
+      "max_seconds": 13.166169847,
+      "samples_seconds": [
+        13.166169847,
+        13.038460903,
+        12.71639702
+      ],
+      "source": {
+        "repository": "kevaundray/leanVM",
+        "branch": "kw/mobile-bench-browserstack",
+        "commit": "04e330b7851beef8511788a541abf9ca07b8f601",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37832115771",
+        "measured_at": "2026-10-08T19:46:46.211000Z",
+        "kind": "pull_request",
+        "label": "PR #564 mobile"
+      },
+      "verification": {
+        "verified_proofs": 4,
+        "total_proofs": 4
+      }
+    },
+    {
+      "id": "7333c6c51886f64593c4217f",
+      "program": {
+        "name": "Shielded transfers",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/shielded/guest/src/main.rs"
+      },
+      "workload": "258 spends, 516 input notes",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.450375301,
+      "min_seconds": 0.44758455,
+      "max_seconds": 0.454536691,
+      "samples_seconds": [
+        0.450375301,
+        0.449683188,
+        0.454536691,
+        0.44758455,
+        0.451480018
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "433e40ea8ee1bd25169539e5",
+      "program": {
+        "name": "Shielded transfers",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/shielded/guest/src/main.rs"
+      },
+      "workload": "258 spends, 516 input notes",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.770697041,
+      "min_seconds": 0.769921012,
+      "max_seconds": 0.774974628,
+      "samples_seconds": [
+        0.774974628,
+        0.770057829,
+        0.770697041,
+        0.771446031,
+        0.769921012
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "81a5cdf51c014afe0b59f676",
+      "program": {
+        "name": "leanSPHINCS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leansphincs/guest/src/main.rs"
+      },
+      "workload": "Verify 26 signatures",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.123986455,
+      "min_seconds": 0.123578925,
+      "max_seconds": 0.125280866,
+      "samples_seconds": [
+        0.124901713,
+        0.123578925,
+        0.123986455,
+        0.123926313,
+        0.125280866
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "48f03d8b4a1a7bad884b55b5",
+      "program": {
+        "name": "leanSPHINCS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leansphincs/guest/src/main.rs"
+      },
+      "workload": "Verify 26 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.191903578,
+      "min_seconds": 0.190414636,
+      "max_seconds": 0.195555179,
+      "samples_seconds": [
+        0.191903578,
+        0.195555179,
+        0.190414636,
+        0.192376128,
+        0.190767421
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "7b8294296a8b94fd6e73c3a4",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "2e1d45318fd9f6d1"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.147392213,
+      "min_seconds": 0.145416525,
+      "max_seconds": 0.154738772,
+      "samples_seconds": [
+        0.145416525,
+        0.146491726,
+        0.147392213,
+        0.154738772,
+        0.153863536
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "21a7893fdf01f5e049c0e4c2",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 1.035913608,
+      "min_seconds": 1.027630134,
+      "max_seconds": 1.050644166,
+      "samples_seconds": [
+        1.035913608,
+        1.027630134,
+        1.035140068,
+        1.050644166,
+        1.040482335
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "266c212796dc18f3f61321ec",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.3076213,
+      "min_seconds": 0.30650017,
+      "max_seconds": 0.312157793,
+      "samples_seconds": [
+        0.306562136,
+        0.30650017,
+        0.3076213,
+        0.312060604,
+        0.312157793
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "009ace705dc45f282c89edef",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.167295055,
+      "min_seconds": 0.165824912,
+      "max_seconds": 0.171845498,
+      "samples_seconds": [
+        0.167295055,
+        0.171845498,
+        0.166303118,
+        0.165824912,
+        0.16825786
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "77b47bdfb11d7a2198219070",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.172636356,
+      "min_seconds": 0.172388829,
+      "max_seconds": 0.175771146,
+      "samples_seconds": [
+        0.172388829,
+        0.172619066,
+        0.173247791,
+        0.172636356,
+        0.175771146
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "185afbdbbbbc57211222dd94",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 1.957628325,
+      "min_seconds": 1.939931085,
+      "max_seconds": 1.977586118,
+      "samples_seconds": [
+        1.939931085,
+        1.977586118,
+        1.953317394,
+        1.969221038,
+        1.957628325
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "4a39340a8cd699e023400724",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.502166756,
+      "min_seconds": 0.500841383,
+      "max_seconds": 0.503280581,
+      "samples_seconds": [
+        0.501715173,
+        0.503280581,
+        0.502166756,
+        0.502863003,
+        0.500841383
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "5127ea2906f1f6f966e5737d",
+      "program": {
+        "name": "leanXMSS",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/programs/leanxmss/guest/src/main.rs"
+      },
+      "workload": "Verify 100 signatures",
+      "category": "program",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.284321496,
+      "min_seconds": 0.283538968,
+      "max_seconds": 0.285460243,
+      "samples_seconds": [
+        0.283538968,
+        0.284972681,
+        0.284223267,
+        0.285460243,
+        0.284321496
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "11b0f500690914ea78c4a4a0",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "2e1d45318fd9f6d1"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.108960443,
+      "min_seconds": 0.108135749,
+      "max_seconds": 0.110546845,
+      "samples_seconds": [
+        0.109123384,
+        0.108960443,
+        0.108135749,
+        0.110546845,
+        0.108536486
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "80028c808e81b67fb3e1d74d",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 0.532896075,
+      "min_seconds": 0.525867107,
+      "max_seconds": 0.538510656,
+      "samples_seconds": [
+        0.538022163,
+        0.531332096,
+        0.525867107,
+        0.532896075,
+        0.538510656
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "81fe1184724da9e29ad42182",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.181263943,
+      "min_seconds": 0.175065118,
+      "max_seconds": 0.187538327,
+      "samples_seconds": [
+        0.180477296,
+        0.181263943,
+        0.187538327,
+        0.175065118,
+        0.186730985
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "5a1ef6555f220792b4788a79",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.121848469,
+      "min_seconds": 0.119653903,
+      "max_seconds": 0.123832387,
+      "samples_seconds": [
+        0.119854948,
+        0.119653903,
+        0.122446095,
+        0.121848469,
+        0.123832387
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "71b06790ee60c0aa484b9568",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.110410315,
+      "min_seconds": 0.109452254,
+      "max_seconds": 0.110783291,
+      "samples_seconds": [
+        0.109452254,
+        0.11004344,
+        0.110410315,
+        0.110783291,
+        0.110681972
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "72667fd68c97bba693473d39",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 0.986712803,
+      "min_seconds": 0.983987232,
+      "max_seconds": 0.98813429,
+      "samples_seconds": [
+        0.983987232,
+        0.98813429,
+        0.985741437,
+        0.986712803,
+        0.987795057
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "3eefd28feb0be3310e563145",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.277416288,
+      "min_seconds": 0.276930723,
+      "max_seconds": 0.278494868,
+      "samples_seconds": [
+        0.277695119,
+        0.278494868,
+        0.276930723,
+        0.277416288,
+        0.276975834
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "1dea48211370282869b65208",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, first-level node over 2 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.162800945,
+      "min_seconds": 0.161861473,
+      "max_seconds": 0.164364224,
+      "samples_seconds": [
+        0.164364224,
+        0.163095839,
+        0.162598456,
+        0.161861473,
+        0.162800945
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "1341637bea080d5eaca14e28",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "2e1d45318fd9f6d1"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.114132174,
+      "min_seconds": 0.113284049,
+      "max_seconds": 0.119222298,
+      "samples_seconds": [
+        0.119222298,
+        0.11559827,
+        0.114015691,
+        0.114132174,
+        0.113284049
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "54352d0da623f4e77c34406c",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 0.562180481,
+      "min_seconds": 0.556717742,
+      "max_seconds": 0.571778186,
+      "samples_seconds": [
+        0.560697724,
+        0.556717742,
+        0.562180481,
+        0.571778186,
+        0.569301808
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "e6a183bd9391a6b2be0b44f0",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.188214608,
+      "min_seconds": 0.18288845,
+      "max_seconds": 0.19138266,
+      "samples_seconds": [
+        0.19138266,
+        0.189866416,
+        0.18288845,
+        0.186589813,
+        0.188214608
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "5c15bb04f884d385a58c9fba",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.126471309,
+      "min_seconds": 0.122528746,
+      "max_seconds": 0.132089987,
+      "samples_seconds": [
+        0.122528746,
+        0.132089987,
+        0.128213087,
+        0.123655251,
+        0.126471309
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "c8aba83be01c9fab856c7dce",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.113945743,
+      "min_seconds": 0.113639779,
+      "max_seconds": 0.11594749,
+      "samples_seconds": [
+        0.114718714,
+        0.113639779,
+        0.113945743,
+        0.11594749,
+        0.113726001
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "bfaf4fa8ce758b31458f3fe3",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 1.037551902,
+      "min_seconds": 1.036476649,
+      "max_seconds": 1.040683817,
+      "samples_seconds": [
+        1.036476649,
+        1.040683817,
+        1.03666131,
+        1.037551902,
+        1.040455127
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "4b986fee9d24bf86eed58de9",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.289426561,
+      "min_seconds": 0.28936266,
+      "max_seconds": 0.291140695,
+      "samples_seconds": [
+        0.289763089,
+        0.291140695,
+        0.28936266,
+        0.289426561,
+        0.28941765
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "da95c0bf3076aea5b15c49c6",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "2 to 1, higher node over 2 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.170384492,
+      "min_seconds": 0.169689876,
+      "max_seconds": 0.172252508,
+      "samples_seconds": [
+        0.172252508,
+        0.171398097,
+        0.170205499,
+        0.169689876,
+        0.170384492
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "d4b9eadc8b538ec535f75aed",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.16268974,
+      "min_seconds": 0.158802558,
+      "max_seconds": 0.167594418,
+      "samples_seconds": [
+        0.166235276,
+        0.16268974,
+        0.158970325,
+        0.167594418,
+        0.158802558
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "efaeef63d4184c8c78ef1943",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 1.170064589,
+      "min_seconds": 1.166163762,
+      "max_seconds": 1.182696522,
+      "samples_seconds": [
+        1.182696522,
+        1.170064589,
+        1.167145,
+        1.166163762,
+        1.176765279
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "af4953ccbcae5f72824eb445",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.34661532,
+      "min_seconds": 0.342922959,
+      "max_seconds": 0.346886082,
+      "samples_seconds": [
+        0.346566944,
+        0.34661532,
+        0.346886082,
+        0.346618136,
+        0.342922959
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "45707f0a6cd1f9cc1b1b97cb",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.225283439,
+      "min_seconds": 0.221382563,
+      "max_seconds": 0.22949327,
+      "samples_seconds": [
+        0.228375389,
+        0.221382563,
+        0.22949327,
+        0.222093469,
+        0.225283439
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "d8c3ddd02e85c517b68b753d",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.201980054,
+      "min_seconds": 0.201572815,
+      "max_seconds": 0.204897107,
+      "samples_seconds": [
+        0.201980054,
+        0.201606921,
+        0.202272975,
+        0.201572815,
+        0.204897107
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "99572d0ccd2b36d9e24ebd6e",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 1.984319709,
+      "min_seconds": 1.980211824,
+      "max_seconds": 2.012072733,
+      "samples_seconds": [
+        1.989035681,
+        1.984319709,
+        1.980211824,
+        2.012072733,
+        1.984095551
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "9bb16fb9af14993ddaaca74a",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.553691117,
+      "min_seconds": 0.552933724,
+      "max_seconds": 0.55555618,
+      "samples_seconds": [
+        0.552933724,
+        0.553327186,
+        0.553691117,
+        0.555301149,
+        0.55555618
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "9aeabfe797c174251b5cec59",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, first-level node over 4 copies of a 100-signature leaf proof",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.320739068,
+      "min_seconds": 0.319913208,
+      "max_seconds": 0.322560846,
+      "samples_seconds": [
+        0.319913208,
+        0.321108318,
+        0.320250572,
+        0.320739068,
+        0.322560846
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "6f4a48e5bac7b2a37de37bc7",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.171245898,
+      "min_seconds": 0.167021884,
+      "max_seconds": 0.175066162,
+      "samples_seconds": [
+        0.175066162,
+        0.172102181,
+        0.169290698,
+        0.171245898,
+        0.167021884
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "c493b7ce87d8f41dbdce05b4",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 1.274128656,
+      "min_seconds": 1.26795784,
+      "max_seconds": 1.279372915,
+      "samples_seconds": [
+        1.279372915,
+        1.26795784,
+        1.274128656,
+        1.275922431,
+        1.271310307
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "0eb86189f83ad860bab16ed4",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.369531398,
+      "min_seconds": 0.365856682,
+      "max_seconds": 0.373089393,
+      "samples_seconds": [
+        0.365856682,
+        0.372011551,
+        0.368394597,
+        0.369531398,
+        0.373089393
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "75a8b0778dec132c78ba50f2",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "INTEL(R) XEON(R) GOLD 6548N",
+        "arch": "x86-64",
+        "os": "Linux 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:24:27 UTC 2026 x86_64",
+        "cpu": "INTEL(R) XEON(R) GOLD 6548N",
+        "logical_cpus": 32,
+        "memory_bytes": null,
+        "id": "bf5cab8f6443ab52"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.239880476,
+      "min_seconds": 0.236917225,
+      "max_seconds": 0.241576238,
+      "samples_seconds": [
+        0.239880476,
+        0.241576238,
+        0.236917225,
+        0.239637862,
+        0.240332094
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "9392b5a99a25812736fb45b0",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": null,
+        "label": "Default (not recorded)"
+      },
+      "median_seconds": 0.219309776,
+      "min_seconds": 0.218412735,
+      "max_seconds": 0.22111017,
+      "samples_seconds": [
+        0.21915858,
+        0.219309776,
+        0.220751486,
+        0.218412735,
+        0.22111017
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "ef8d9e17446efaa2b60dc5fb",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 1,
+        "label": "1 thread"
+      },
+      "median_seconds": 2.150307325,
+      "min_seconds": 2.139979438,
+      "max_seconds": 2.164336394,
+      "samples_seconds": [
+        2.150307325,
+        2.146682558,
+        2.15078524,
+        2.139979438,
+        2.164336394
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "a00bc4fafa3c237d4b9e8099",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 4,
+        "label": "4 threads"
+      },
+      "median_seconds": 0.599147079,
+      "min_seconds": 0.59577591,
+      "max_seconds": 0.60094064,
+      "samples_seconds": [
+        0.59577591,
+        0.598913501,
+        0.599328574,
+        0.60094064,
+        0.599147079
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    },
+    {
+      "id": "19b3b6ebabe250d249c41366",
+      "program": {
+        "name": "leanXMSS aggregation",
+        "source_url": "https://github.com/leanEthereum/leanVM/blob/a956c82ac711b2f4dbb3793ef2679fa47f3d6435/crates/leanvm_core/src/rec/tree/mod.rs"
+      },
+      "workload": "4 to 1, higher node over 4 tree proofs; 100-signature leaves",
+      "category": "aggregation",
+      "machine": {
+        "name": "Neoverse-V2",
+        "arch": "arm64",
+        "os": "Linux 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:50:22 UTC 2026 aarch64",
+        "cpu": "Neoverse-V2",
+        "logical_cpus": 16,
+        "memory_bytes": null,
+        "id": "f6370af9ead24ea0"
+      },
+      "threads": {
+        "count": 8,
+        "label": "8 threads"
+      },
+      "median_seconds": 0.346492208,
+      "min_seconds": 0.345853011,
+      "max_seconds": 0.348470819,
+      "samples_seconds": [
+        0.345853011,
+        0.347747788,
+        0.346254173,
+        0.346492208,
+        0.348470819
+      ],
+      "source": {
+        "repository": "leanEthereum/leanVM",
+        "branch": "riscv-exploration",
+        "commit": "a956c82ac711b2f4dbb3793ef2679fa47f3d6435",
+        "run_url": "https://github.com/leanEthereum/leanVM/actions/runs/37832677929",
+        "measured_at": "2026-10-08T19:32:09Z",
+        "kind": "branch",
+        "label": "riscv-exploration baseline (PR #563 base)",
+        "timestamp_basis": "workflow start; individual sample timestamps not recorded"
+      },
+      "verification": null
+    }
+  ]
+}

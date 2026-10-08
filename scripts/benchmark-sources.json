@@ -1,0 +1,19 @@
+{
+  "desktop": {
+    "repository": "leanEthereum/leanVM",
+    "branch": "riscv-exploration",
+    "workflow": "bench.yml",
+    "recent_runs": 10,
+    "rounds": 5
+  },
+  "mobile": [
+    {
+      "repository": "kevaundray/leanVM",
+      "branch": "kw/mobile-bench-browserstack",
+      "workflow": "mobile-bench.yml",
+      "run_id": 37832115771,
+      "commit": "04e330b7851beef8511788a541abf9ca07b8f601",
+      "label": "PR #564 mobile"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Program benchmarks for leanVM, with measured runtimes, machine details, source code and reproducible provenance.">
+  <title>Benchmarks | leanVM</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#results">Skip to results</a>
+  <header class="site-header wrap">
+    <a class="wordmark" href="https://github.com/leanEthereum/leanVM" aria-label="leanVM repository">lean<span>VM</span></a>
+    <nav aria-label="Project links">
+      <a href="https://github.com/leanEthereum/leanVM">Repository <span aria-hidden="true">↗</span></a>
+      <a href="./latest.json">Results JSON <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main class="wrap">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Performance / program benchmarks</p>
+        <h1 id="page-title">Small VM.<br>Measured performance.</h1>
+        <p class="lede">Real program workloads, on real hardware. Explore the latest available measurements for each workload, machine and thread configuration.</p>
+      </div>
+      <aside class="reading-note" aria-label="How to read these results">
+        <span class="note-marker" aria-hidden="true"></span>
+        <h2>Context comes first.</h2>
+        <p>Times are in seconds. Compare the same workload and revision before drawing conclusions. Desktop and mobile inputs can differ.</p>
+        <p>Program and aggregation results only. No field or kernel microbenchmarks.</p>
+      </aside>
+    </section>
+
+    <section id="dataset-summary" class="dataset-summary" aria-label="Dataset overview" hidden>
+      <div><span id="result-count" class="stat-value"></span><span class="stat-label">configurations</span></div>
+      <div><span id="workload-count" class="stat-value"></span><span class="stat-label">program workloads</span></div>
+      <div><span id="machine-count" class="stat-value"></span><span class="stat-label">machines &amp; devices</span></div>
+      <div class="publication"><span class="stat-label">Dataset published</span><span id="published-at"></span><span id="revision-note" class="muted"></span></div>
+    </section>
+
+    <section id="results" class="results-section" aria-labelledby="results-title" aria-busy="true">
+      <div class="section-heading">
+        <div><p class="eyebrow">Explore the data</p><h2 id="results-title">Benchmark results</h2></div>
+        <span class="units-note">Runtime in seconds</span>
+      </div>
+      <form id="filters" class="filters" aria-label="Filter benchmark results" hidden>
+        <div class="filter"><label for="program-filter">Program</label><select id="program-filter"><option value="">All programs</option></select></div>
+        <div class="filter"><label for="machine-filter">Machine / device</label><select id="machine-filter"><option value="">All machines &amp; devices</option></select></div>
+        <div class="filter"><label for="thread-filter">Threads</label><select id="thread-filter"><option value="">All thread configurations</option></select></div>
+        <div class="filter"><label for="sort-order">Order by</label><select id="sort-order"><option value="program">Program &amp; workload</option><option value="recent">Most recently measured</option></select></div>
+        <button type="reset" class="text-button">Reset filters</button>
+      </form>
+      <p id="status" class="status" role="status" aria-live="polite">Loading benchmark measurements…</p>
+      <div id="error-state" class="empty-state" hidden>
+        <h3>Measurements could not be loaded.</h3>
+        <p>Please try again, or inspect the <a href="./latest.json">published JSON</a>.</p>
+        <button id="retry" type="button" class="primary-button">Try again</button>
+      </div>
+      <div id="empty-state" class="empty-state" hidden>
+        <h3 id="empty-title">No matching measurements.</h3>
+        <p id="empty-description">Try a different program, machine or thread configuration.</p>
+      </div>
+      <div id="table-container" class="table-container" hidden>
+        <table>
+          <caption class="visually-hidden">Program benchmark runtimes, hardware, thread configurations and measurement provenance. Each row is a distinct workload and machine configuration.</caption>
+          <thead><tr><th scope="col">Program / workload</th><th scope="col">Machine / device</th><th scope="col">Threads</th><th scope="col">Median <span class="muted">(seconds)</span></th><th scope="col">Provenance</th></tr></thead>
+          <tbody id="result-rows"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="methodology" aria-labelledby="methodology-title">
+      <h2 id="methodology-title">Reading a measurement</h2>
+      <div>
+        <p><strong>Median, not a best-case run.</strong> Each result shows the median and observed minimum to maximum. Expand samples to inspect every measured runtime.</p>
+        <p><strong>Latest available is not one shared revision.</strong> Each configuration retains its own measurement date, source revision and run. Branch and pull-request results are labeled separately when provided by the source.</p>
+        <p><strong>Dates identify the evidence.</strong> Desktop dates are workflow start times, not individual sample timestamps. Mobile dates come from the device result. Mobile verification counts include the discarded warmup proof.</p>
+        <p><strong>Unknown means unknown.</strong> Missing hardware metadata is not inferred. Logical CPU count describes the machine, not how many threads the benchmark used.</p>
+      </div>
+    </section>
+    <noscript><p class="empty-state">JavaScript is needed to filter and display the measurements. All results and source metadata are available in the <a href="./latest.json">results JSON</a>.</p></noscript>
+  </main>
+  <footer class="wrap site-footer"><span>leanVM <span class="muted">/ minimal hash-based zkVM</span></span><a href="./latest.json">Inspect the source data <span aria-hidden="true">↗</span></a></footer>
+</body>
+</html>

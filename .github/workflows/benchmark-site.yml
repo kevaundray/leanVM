@@ -1,0 +1,109 @@
+name: Benchmark website
+
+on:
+  pull_request:
+    paths:
+      - 'site/benchmarks/**'
+      - 'scripts/benchmark_site.py'
+      - 'scripts/test_benchmark_site.py'
+      - 'scripts/benchmark-sources.json'
+      - '.github/workflows/benchmark-site.yml'
+  push:
+    branches: [riscv-exploration]
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: benchmark-site-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check collector and committed snapshot
+        run: |
+          python3 -m unittest discover -s scripts -p test_benchmark_site.py
+          python3 scripts/benchmark_site.py --check
+          node --check site/benchmarks/app.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-site-preview
+          path: site/benchmarks
+
+  collect:
+    # Schedules run from the default branch. The collector always comes from the
+    # maintained branch, never an artifact-producing PR or workflow input.
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.repository == 'leanEthereum/leanVM' &&
+      (github.event_name == 'schedule' || github.ref == 'refs/heads/riscv-exploration')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      pages: ${{ steps.hosting.outputs.pages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: riscv-exploration
+          persist-credentials: false
+      - name: Check collector
+        run: python3 -m unittest discover -s scripts -p test_benchmark_site.py
+      - name: Refresh approved benchmark data
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/benchmark_site.py --restore-repository leanEthereum/leanVM
+          python3 scripts/benchmark_site.py --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-data
+          path: site/benchmarks/latest.json
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-site
+          path: site/benchmarks
+          retention-days: 90
+      - name: Check Pages prerequisite without changing settings
+        id: hosting
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGES_ENABLED: ${{ vars.BENCHMARK_PAGES_ENABLED }}
+        run: |
+          if [ "$PAGES_ENABLED" = true ]; then
+            echo 'pages=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'pages=false' >> "$GITHUB_OUTPUT"
+            echo 'Static site uploaded. To deploy, enable GitHub Pages with GitHub Actions as source and set BENCHMARK_PAGES_ENABLED=true.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.hosting.outputs.pages == 'true'
+        with:
+          path: site/benchmarks
+
+  deploy:
+    needs: collect
+    if: needs.collect.outputs.pages == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy static website
+        id: deployment
+        uses: actions/deploy-pages@v4
