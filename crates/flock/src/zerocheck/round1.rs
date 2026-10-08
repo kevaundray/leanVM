@@ -63,7 +63,7 @@ use primitives::bit_fold::avx2;
     target_feature = "avx512vbmi"
 ))]
 use primitives::bit_fold::gfni::{store_f192, weight_matrices};
-use primitives::bits::bit_transpose_64bytes as transpose_fallback;
+use primitives::bits::bit_transpose_64bytes;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2", not(target_feature = "gfni")))]
 use primitives::field::gf2_8::avx2::gf8_mul_vec32;
 use primitives::field::gf2_8::gf8_reduce;
@@ -92,15 +92,16 @@ const ELL: usize = 64;
 const N_CHUNKS: usize = 8;
 const N_MEDIUM: usize = 4;
 
+/// `bitperm` may only be set after detecting the optional ISA extension.
+#[cfg(target_arch = "aarch64")]
 #[inline]
-fn bit_transpose_64bytes(input: &[u8; 64], output: &mut [u8; 64]) {
-    #[cfg(target_arch = "aarch64")]
-    if std::arch::is_aarch64_feature_detected!("sve2-bitperm") {
-        // SAFETY: the optional bit-permutation extension was detected above.
+unsafe fn transpose_c(input: &[u8; 64], output: &mut [u8; 64], bitperm: bool) {
+    if bitperm {
+        // SAFETY: the caller carries the result of feature detection.
         unsafe { transpose_bitperm(input, output) };
-        return;
+    } else {
+        bit_transpose_64bytes(input, output);
     }
-    transpose_fallback(input, output);
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -931,6 +932,8 @@ struct WorkerState {
     chunk_c_bytes: [[u8; 64]; 1 << N_MEDIUM],
     local_res_ab: [F192; ELL],
     local_res_c_s: [F192; ELL],
+    #[cfg(target_arch = "aarch64")]
+    bitperm_c: bool,
 }
 
 impl WorkerState {
@@ -939,13 +942,15 @@ impl WorkerState {
         (self.local_res_ab, self.local_res_c_s)
     }
 
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             partials: Convert::new(),
             chunk_ab_bytes: [[0u8; 64]; 1 << N_MEDIUM],
             chunk_c_bytes: [[0u8; 64]; 1 << N_MEDIUM],
             local_res_ab: [F192::ZERO; ELL],
             local_res_c_s: [F192::ZERO; ELL],
+            #[cfg(target_arch = "aarch64")]
+            bitperm_c: std::arch::is_aarch64_feature_detected!("sve2-bitperm"),
         }
     }
 }
@@ -985,6 +990,12 @@ fn accumulate_x_outer<const FULL: bool>(
         let c_in: &[u8; 64] = (&c_packed[byte_base_b..byte_base_b + 64])
             .try_into()
             .expect("64 c-bytes per medium position");
+        #[cfg(target_arch = "aarch64")]
+        // SAFETY: WorkerState sets bitperm_c only after feature detection.
+        unsafe {
+            transpose_c(c_in, &mut state.chunk_c_bytes[b_med], state.bitperm_c);
+        }
+        #[cfg(not(target_arch = "aarch64"))]
         bit_transpose_64bytes(c_in, &mut state.chunk_c_bytes[b_med]);
     }
 
@@ -1208,16 +1219,20 @@ pub(crate) fn round1_shift_reduce_extract_c_packed_padded(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    #[cfg(target_arch = "aarch64")]
     #[test]
     fn c_transpose_preserves_every_bit_position() {
-        for bit in 0..512 {
-            let mut input = [0u8; 64];
-            input[bit / 8] = 1 << (bit % 8);
-            let mut output = [0u8; 64];
-            super::bit_transpose_64bytes(&input, &mut output);
-            let mut expected = [0u8; 64];
-            expected[bit % 64] = 1 << (bit / 64);
-            assert_eq!(output, expected, "input bit {bit}");
+        for bitperm in [false, std::arch::is_aarch64_feature_detected!("sve2-bitperm")] {
+            for bit in 0..512 {
+                let mut input = [0u8; 64];
+                input[bit / 8] = 1 << (bit % 8);
+                let mut output = [0u8; 64];
+                // SAFETY: the optional path is tested only when detected.
+                unsafe { super::transpose_c(&input, &mut output, bitperm) };
+                let mut expected = [0u8; 64];
+                expected[bit % 64] = 1 << (bit / 64);
+                assert_eq!(output, expected, "input bit {bit}, bitperm={bitperm}");
+            }
         }
     }
 
