@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Temporary missing-rate and aggregation confirmation for the selected conversion."""
+"""Temporary default-worker small-tree control for the selected conversion."""
 import fcntl
 import hashlib
 import json
@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import subprocess
 import time
+import itertools
+import random
 
 ROOT = Path.cwd()
 OUT = ROOT / 'round1-evidence'
@@ -33,6 +35,7 @@ def dump(value, filename, indent=4):
     return '\n' + space + 'if let Some(dir) = std::env::var_os("ROUND1_PROOF_DIR") {\n' + space + f'    std::fs::write(std::path::Path::new(&dir).join({filename}), {value}.to_bytes()).unwrap();\n' + space + '}\n'
 
 metadata = dict(base=BASE, head=HEAD, flags=ENV['RUSTFLAGS'], affinity=sorted(os.sched_getaffinity(0)), files={})
+metadata['design'] = 'Twelve balanced triplets: base, head, identical-base control. Every permutation appears twice, shuffled once with seed 42; no outcome-dependent retries.'
 for path in ['/proc/cpuinfo', '/proc/sys/kernel/perf_event_paranoid', '/proc/meminfo', '/sys/fs/cgroup/cpu.max']:
     if Path(path).exists():
         metadata['files'][path] = Path(path).read_text()
@@ -88,7 +91,11 @@ def measured(side, case, pair, workers, args, timed=True):
             env['LEANVM_NUM_THREADS'] = str(workers)
         command(SCOPE + ['/usr/bin/time', '-v', binaries[side]] + args + ['--repeat', '1', '--cooldown', '0', '--tracing'], name + '.log', env=env)
         after = os.getloadavg()
-        record = dict(name=name, case=case, pair=pair, side=side, workers=workers, timed=timed, load_before=before, load_after=after, accepted=max(before[0], after[0]) <= 20, proofs={})
+        record_context = {}
+        for path in ['/proc/pressure/cpu', '/proc/pressure/memory']:
+            if Path(path).exists():
+                record_context[path] = Path(path).read_text()
+        record = dict(name=name, case=case, pair=pair, side=side, workers=workers, timed=timed, load_before=before, load_after=after, context=record_context, accepted=max(before[0], after[0]) <= 20, proofs={})
         files = sorted(proof_dir.glob('*.bin'))
         assert len(files) == (4 if case.startswith('tree') else 1), (case, files)
         for path in files:
@@ -105,22 +112,16 @@ def measured(side, case, pair, workers, args, timed=True):
         if not record['accepted']:
             raise RuntimeError('overloaded sample discarded')
 
-# The already-measured rate-one leaf matrix is not repeated.
-cases = [
-    ('leaf-rate2', ['leanxmss', '--n', '100', '--log-inv-rate', '2']),
-    ('tree-rate2', ['aggregate', '--program', 'leanxmss', '--n', '2', '--leaves', '4', '--arity0', '2', '--arity', '2', '--leaf-log-inv-rate', '2', '--log-inv-rate', '2']),
-]
-for case, args in cases:
-    for workers in [1, 4, 8, 'default']:
-        for pair in range(5):
-            for side in (['base', 'head'] if pair % 2 == 0 else ['head', 'base']):
-                measured(side, case, pair, workers, args)
-
-# Boundary rates are correctness/byte-identity smokes, not timing distributions.
-for rate in [1, 3, 4]:
-    for side in ['base', 'head']:
-        measured(side, f'leaf-smoke-rate{rate}', 0, 4, ['leanxmss', '--n', '2', '--log-inv-rate', str(rate)], timed=False)
-        measured(side, f'tree-smoke-rate{rate}', 0, 4, ['aggregate', '--program', 'leanxmss', '--n', '2', '--leaves', '4', '--arity0', '2', '--arity', '2', '--leaf-log-inv-rate', str(rate), '--log-inv-rate', str(rate)], timed=False)
+# The control invokes the identical baseline executable under a different label.
+# Balance execution position and preserve every predeclared sample, including regressions.
+binaries['control'] = binaries['base']
+orders = list(itertools.permutations(['base', 'head', 'control'])) * 2
+random.Random(42).shuffle(orders)
+(OUT / 'orders.json').write_text(json.dumps(orders, indent=2))
+args = ['aggregate', '--program', 'leanxmss', '--n', '2', '--leaves', '4', '--arity0', '2', '--arity', '2', '--leaf-log-inv-rate', '2', '--log-inv-rate', '2']
+for pair, order in enumerate(orders):
+    for side in order:
+        measured(side, 'tree-control-rate2', pair, 'default', args)
 
 (OUT / 'proof-equality.json').write_text(json.dumps(dict(files=sum(len(r['proofs']) for r in records), cases=len(references), literal_equal=True), indent=2))
 print('All leaf, first-node, higher-node and root proofs literally equal per case; production verification passed.', flush=True)
