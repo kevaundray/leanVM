@@ -21,7 +21,7 @@
 use super::AdditiveNttGf8;
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 use core::arch::x86_64::*;
-use primitives::field::F8;
+use primitives::field::{F8, F64, F192, phi8_192};
 
 #[derive(Clone, Debug)]
 pub(crate) struct InvNttTableByteSingleGf8 {
@@ -31,6 +31,9 @@ pub(crate) struct InvNttTableByteSingleGf8 {
     /// `data[w * ell .. (w+1) * ell]` = T_0[w], the XOR-sum of columns of `M`
     /// indexed by the set bits of `w`.
     data: Vec<F8>,
+    /// The same S/Λ butterflies, lifted through φ₈ into the base field, for
+    /// extending the reduced E-valued C vector without Boolean bit planes.
+    twiddles: Vec<F64>,
 }
 
 impl InvNttTableByteSingleGf8 {
@@ -80,7 +83,67 @@ impl InvNttTableByteSingleGf8 {
             }
         }
 
-        Self { k, ell, n_chunks, data }
+        Self {
+            k,
+            ell,
+            n_chunks,
+            data,
+            twiddles: ntt_s
+                .twiddles
+                .iter()
+                .chain(&ntt_l.twiddles)
+                .map(|&t| F64(phi8_192(t).c0))
+                .collect(),
+        }
+    }
+
+    /// Extend E-valued evaluations from S to Λ in place. The GF8 embedding
+    /// lies in K, so each butterfly multiplies the three E limbs by one K
+    /// twiddle. These are the original GF8 domains and LCH basis, not the
+    /// polynomial-basis domains of the GF64 NTT.
+    pub(crate) fn extend_lifted(&self, v: &mut [F192]) {
+        assert_eq!(v.len(), self.ell);
+        let (twiddles_s, twiddles_l) = self.twiddles.split_at(self.ell - 1);
+
+        // Inverse on S: children before parents in the twiddle tree.
+        for level in (0..self.k).rev() {
+            let nodes = 1usize << level;
+            let size = self.ell >> level;
+            let twiddles = &twiddles_s[nodes - 1..2 * nodes - 1];
+            for (block, &lambda) in v.chunks_exact_mut(size).zip(twiddles) {
+                let (lo, hi) = block.split_at_mut(size / 2);
+                if lambda == F64::ZERO {
+                    for (a, b) in lo.iter().zip(hi) {
+                        *b += *a;
+                    }
+                } else {
+                    for (a, b) in lo.iter_mut().zip(hi) {
+                        *b += *a;
+                        *a += b.mul_base(lambda);
+                    }
+                }
+            }
+        }
+
+        // Forward on Λ: parents before children, with the same point order.
+        for level in 0..self.k {
+            let nodes = 1usize << level;
+            let size = self.ell >> level;
+            let twiddles = &twiddles_l[nodes - 1..2 * nodes - 1];
+            for (block, &lambda) in v.chunks_exact_mut(size).zip(twiddles) {
+                let (lo, hi) = block.split_at_mut(size / 2);
+                if lambda == F64::ZERO {
+                    for (a, b) in lo.iter().zip(hi) {
+                        *b += *a;
+                    }
+                } else {
+                    for (a, b) in lo.iter_mut().zip(hi) {
+                        *a += b.mul_base(lambda);
+                        *b += *a;
+                    }
+                }
+            }
+        }
     }
 
     /// Raw pointer to the table data (`256 × ell` bytes, row-major). Used by

@@ -164,54 +164,13 @@ fn d_inv() -> F192 {
 /// Most high variables of a split eq table capped on its high side: few high weights keep the outer products cheap.
 pub(crate) const EQ_HIGH_VARS: usize = 7;
 
-/// Extend a length-`ell` F192 vector from the input domain S to the extension
-/// domain Λ using bit-plane decomposition: for each of the 192 bit positions
-/// of F192, run the bit-input NTT (`inv_NTT_S` then `fwd_NTT_Λ` via the
-/// precomputed table) on that bit-plane, scale by γ^b, and accumulate.
-///
-/// Ports `ntt_extend_vec` (scalar form). The NTT is F_2-linear and
-/// φ_8 commutes with that linearity, which is what makes the bit-by-bit
-/// decomposition equal to the direct F_8-valued NTT extension.
+/// Extend a length-`ell` F192 vector from S to Λ with the original GF8
+/// butterflies lifted through φ₈. Only the returned vector is allocated;
+/// the Boolean A/B lookup table remains the bulk-row path.
 pub(crate) fn ntt_extend_vec(in_s: &[F192], inv_table: &InvNttTableByteSingleGf8) -> Vec<F192> {
-    let ell = inv_table.ell;
-    assert_eq!(in_s.len(), ell);
-    assert_eq!(ell, 1usize << inv_table.k);
-
-    let mut out = vec![F192::ZERO; ell];
-    let n_chunks = inv_table.n_chunks;
-
-    let mut input_bits = vec![0u8; n_chunks];
-    let mut out_bytes = vec![F8::ZERO; ell];
-
-    for b in 0..192 {
-        // Pack bit b of each in_s[z] into z-indexed LSB-first byte form.
-        input_bits.iter_mut().for_each(|x| *x = 0);
-        for z in 0..ell {
-            let bit = match b / 64 {
-                0 => (in_s[z].c0 >> b) & 1,
-                1 => (in_s[z].c1 >> (b - 64)) & 1,
-                2 => (in_s[z].c2 >> (b - 128)) & 1,
-                _ => unreachable!(),
-            };
-            if bit != 0 {
-                input_bits[z / 8] |= 1u8 << (z % 8);
-            }
-        }
-
-        // Bit-input NTT.
-        inv_table.apply(&input_bits, &mut out_bytes);
-
-        let basis = match b / 64 {
-            0 => F192::new(1u64 << b, 0, 0),
-            1 => F192::new(0, 1u64 << (b - 64), 0),
-            2 => F192::new(0, 0, 1u64 << (b - 128)),
-            _ => unreachable!(),
-        };
-        for lambda in 0..ell {
-            out[lambda] += basis * phi8_192(out_bytes[lambda]);
-        }
-    }
-
+    assert_eq!(in_s.len(), inv_table.ell);
+    let mut out = in_s.to_vec();
+    inv_table.extend_lifted(&mut out);
     out
 }
 
@@ -1192,6 +1151,86 @@ pub(crate) mod tests {
     use crate::zerocheck::ntt::AdditiveNttGf8;
     use primitives::multilinear::eq_table;
     use primitives::test_util::Rng;
+
+    /// Direct monomial Lagrange interpolation, independent of the NTT
+    /// recurrence, its LCH basis, and the collapsed Boolean lookup table.
+    fn lagrange_extension_matrix(k: usize, beta_s: F8, beta_l: F8) -> Vec<Vec<F192>> {
+        let ell = 1usize << k;
+        let s: Vec<F8> = (0..ell).map(|j| beta_s + F8(j as u8)).collect();
+        let denominators: Vec<F8> = s
+            .iter()
+            .enumerate()
+            .map(|(j, &s_j)| {
+                s.iter()
+                    .enumerate()
+                    .filter(|&(h, _)| h != j)
+                    .fold(F8::ONE, |acc, (_, &s_h)| acc * (s_j + s_h))
+                    .inv()
+            })
+            .collect();
+        (0..ell)
+            .map(|i| {
+                let x = beta_l + F8(i as u8);
+                let numerator = s.iter().fold(F8::ONE, |acc, &s_h| acc * (x + s_h));
+                s.iter()
+                    .zip(&denominators)
+                    .map(|(&s_j, &denominator)| phi8_192(numerator * (x + s_j).inv() * denominator))
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn lifted_extension_matches_lagrange_arbitrary_e() {
+        let mut rng = Rng::new(0x0011_f7ed);
+        // All supported table sizes, including the byte-packing boundary and
+        // the two halves of the full GF8 domain. Reversing/offsetting the
+        // cosets also checks that we lift the supplied transforms' twiddles.
+        for k in 3..=7 {
+            for beta_s in [F8::ZERO, F8(0xff)] {
+                let beta_l = beta_s + F8(1u8 << k);
+                let ntt_s = AdditiveNttGf8::new(k, beta_s);
+                let ntt_l = AdditiveNttGf8::new(k, beta_l);
+                let table = InvNttTableByteSingleGf8::new(&ntt_s, &ntt_l);
+                let matrix = lagrange_extension_matrix(k, beta_s, beta_l);
+                for _ in 0..4 {
+                    let input = rng.ext_vec(1 << k);
+                    let expected: Vec<F192> = matrix
+                        .iter()
+                        .map(|row| {
+                            row.iter()
+                                .zip(&input)
+                                .fold(F192::ZERO, |acc, (&weight, &value)| acc + weight * value)
+                        })
+                        .collect();
+                    assert_eq!(ntt_extend_vec(&input, &table), expected, "k={k}, beta_s={beta_s:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn lifted_extension_preserves_tower_basis() {
+        for k in 3..=7 {
+            let ell = 1usize << k;
+            let ntt_s = AdditiveNttGf8::new(k, F8::ZERO);
+            let ntt_l = AdditiveNttGf8::new(k, F8(ell as u8));
+            let table = InvNttTableByteSingleGf8::new(&ntt_s, &ntt_l);
+            let matrix = lagrange_extension_matrix(k, F8::ZERO, F8(ell as u8));
+            // Each of the 192 tower-coordinate bits, including both limb
+            // boundaries, and every evaluation position at each supported size.
+            for bit in 0..192 {
+                let mut limbs = [0u64; 3];
+                limbs[bit / 64] = 1u64 << (bit % 64);
+                let basis = F192::new(limbs[0], limbs[1], limbs[2]);
+                let position = bit % ell;
+                let mut input = vec![F192::ZERO; ell];
+                input[position] = basis;
+                let expected: Vec<F192> = matrix.iter().map(|row| basis * row[position]).collect();
+                assert_eq!(ntt_extend_vec(&input, &table), expected, "k={k}, bit={bit}");
+            }
+        }
+    }
 
     /// Compute the round-1 prover message naively (no shift-reduce, no fused
     /// inner, no deferred reduction: direct algorithmic translation of the

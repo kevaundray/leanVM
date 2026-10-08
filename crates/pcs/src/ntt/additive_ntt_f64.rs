@@ -873,6 +873,18 @@ fn butterfly_one<const TRANSPOSED: bool>(u: &mut F64, v: &mut F64, t: F64) {
 #[inline]
 fn lane_butterflies<const TRANSPOSED: bool>(top: &mut [F64], bot: &mut [F64], twiddle: F64) {
     debug_assert_eq!(top.len(), bot.len());
+    if twiddle == F64::ZERO {
+        if TRANSPOSED {
+            for (u, v) in top.iter_mut().zip(bot) {
+                *u += *v;
+            }
+        } else {
+            for (u, v) in top.iter().zip(bot) {
+                *v += *u;
+            }
+        }
+        return;
+    }
     #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
     let done = {
         let vectors = top.len() / 8;
