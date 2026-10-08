@@ -72,10 +72,6 @@ def render(directory, repository, head, run_id):
             "|---|---|---:|---:|---:|---:|",
             f"| Shielded, 2 spends | {model} / {os_name} {version} | {threads} | {median:.3f} s | {min(samples) / 1e9:.3f} to {max(samples) / 1e9:.3f} s | 4 / 4 |",
             "",
-            "One standalone proof contains two spends (four input notes). No aggregation. One warmup and three measured proofs; verification is outside timing.",
-            "",
-            "**Absolute measurements, not a paired base-versus-PR comparison.** No regression threshold is applied. Compare only matching device, OS, thread count, workload, compiler and build flags.",
-            "",
             "Samples: " + ", ".join(f"{value / 1e9:.9f} s" for value in samples) + ".",
             "",
         ]

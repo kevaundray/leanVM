@@ -57,7 +57,6 @@ class MobileReportTests(unittest.TestCase):
         body, complete, _ = self.render()
         self.assertTrue(complete)
         self.assertIn("| 6 | 2.000 s | 1.000 to 9.000 s | 4 / 4 |", body)
-        self.assertIn("not a paired base-versus-PR comparison", body)
 
     def test_incomplete_run_publishes_no_latency(self):
         self.metadata["status"] = "incomplete_results"
