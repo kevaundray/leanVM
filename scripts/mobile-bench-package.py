@@ -89,7 +89,7 @@ def check_ios_bundle(archive, bundle):
             shutil.copyfileobj(source, destination)
         # Accept both thin and universal device binaries, including Apple's
         # XCUITest runner, but require a real ARM64 Mach-O slice in each bundle.
-        subprocess.run(["xcrun", "lipo", "-verify_arch", "arm64", str(binary_path)], check=True)
+        subprocess.run(["xcrun", "lipo", str(binary_path), "-verify_arch", "arm64"], check=True)
 
 
 if args.platform == "android":
