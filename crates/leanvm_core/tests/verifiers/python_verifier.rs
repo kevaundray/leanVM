@@ -2,7 +2,7 @@
 //! protocol is written out in Rust and in Python, so any protocol change must land
 //! in both, and this is what catches the Python one drifting.
 
-use fiat_shamir::transcript::RawProof;
+use fiat_shamir::transcript::{RAW_STREAM_HEADER, RawProof};
 use leanvm_core::{
     Alu, Class, Clock, CpuError, EXIT_SLOT, Lookup, PerTable, Program, ProvenRun, Prover, Rate, Region, TableId,
 };
@@ -59,7 +59,7 @@ impl PythonStatement {
     }
 
     /// Write `raw` as the two files Python reads and run the verifier on it: the
-    /// scalar stream as 24-byte little-endian elements, and every opening's leaf
+    /// scalar stream with its version header and 24-byte little-endian elements, and every opening's leaf
     /// words followed by its sibling digests. Neither file carries a length, the
     /// reader deriving every leaf width and tree height from the protocol it is
     /// replaying.
@@ -92,7 +92,8 @@ impl PythonStatement {
     }
 
     fn command(&self, raw: &RawProof, prelude: Option<&str>) -> Command {
-        let mut stream = Vec::new();
+        let mut stream = Vec::with_capacity(RAW_STREAM_HEADER.len() + 24 * raw.stream.len());
+        stream.extend_from_slice(RAW_STREAM_HEADER);
         for scalar in &raw.stream {
             for limb in [scalar.c0, scalar.c1, scalar.c2] {
                 stream.extend(limb.to_le_bytes());

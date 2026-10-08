@@ -89,13 +89,6 @@ impl Builder {
         std::array::from_fn(|i| Kw(w[WORDS + i]))
     }
 
-    /// The digest whose first three words are `e`'s limbs and whose last is `k`.
-    pub fn e_and_k_to_d(&mut self, e: Ew, k: Kw) -> Dw {
-        let v = self.e(e);
-        let w = self.cast_row(&[(ELEMENT, e.0), (WORDS + 3, k.0)], [v.c0, v.c1, v.c2, self.k(k)]);
-        Dw(w[DIGEST])
-    }
-
     /// A digest's first three words as an element, and its last word.
     pub fn d_to_e_and_k(&mut self, d: Dw) -> (Ew, Kw) {
         let v = self.d(d);

@@ -1,6 +1,6 @@
 //! Fiat-Shamir proof transport. `add_scalar` and `next_scalar` transmit and bind together, which is the only way anything enters the state: a transmitted value needs no separate absorb, a value derived from transmitted ones needs none either, and the statement rides the seed the state starts from. So there is no absorb-only method at all. Merkle hints are authenticated by their trees and are not absorbed separately.
 
-use crate::FiatShamirState;
+use crate::Duplex;
 use crate::merkle::{Hash, PrunedMerklePaths, RawMerklePath, hash_to_scalars, scalars_to_hash};
 use bincode::{DefaultOptions, Options};
 use primitives::field::{F64, F192};
@@ -21,16 +21,28 @@ pub struct ProofTranscript<M = PrunedMerklePaths> {
 /// ([`VerifierState::into_raw_proof`]), so that expansion is written once, in Rust.
 pub type RawProof = ProofTranscript<RawMerklePath>;
 
+/// The standalone bincode transcript format, incompatible with the unversioned chain format.
+const TRANSCRIPT_HEADER: &[u8; 8] = b"LVFS\x01\0\0\0";
+/// The scalar-stream format consumed by the independent Python verifier.
+pub const RAW_STREAM_HEADER: &[u8; 8] = b"LVRF\x01\0\0\0";
+
 impl<M: Serialize + DeserializeOwned> ProofTranscript<M> {
-    /// The proof's wire bytes: bincode's fixed-width little-endian encoding.
+    /// A version header followed by bincode's fixed-width little-endian encoding.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
-        encoding().serialize(self).expect("a proof is plain data")
+        let size = encoding().serialized_size(self).expect("a proof is plain data") as usize;
+        let mut bytes = Vec::with_capacity(TRANSCRIPT_HEADER.len() + size);
+        bytes.extend_from_slice(TRANSCRIPT_HEADER);
+        encoding()
+            .serialize_into(&mut bytes, self)
+            .expect("a proof is plain data");
+        bytes
     }
 
     /// The proof these bytes encode, if they encode one and nothing more.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        encoding().with_limit(bytes.len() as u64).deserialize(bytes).ok()
+        let payload = bytes.strip_prefix(TRANSCRIPT_HEADER)?;
+        encoding().with_limit(payload.len() as u64).deserialize(payload).ok()
     }
 }
 
@@ -145,23 +157,23 @@ pub trait Receiver: Challenger {
 
 /// Prover side: writes scalars into the stream and opening phases to the side.
 pub struct ProverState {
-    fs: FiatShamirState,
+    fs: Duplex,
     stream: Vec<F192>,
     merkle: Vec<PrunedMerklePaths>,
 }
 
 impl ProverState {
-    /// `iv` and `public_input` seed the Fiat-Shamir state (see [`FiatShamirState::new`]).
+    /// `iv` and `public_input` seed the duplex (see [`Duplex::new`]).
     pub fn new(iv: [F64; 4], public_input: [F64; 4]) -> Self {
-        Self::from_fs(FiatShamirState::new(iv, public_input))
+        Self::from_fs(Duplex::new(iv, public_input))
     }
 
     /// A protocol with no public input of its own, seeded from `label` alone.
     pub fn from_label(label: &[u8]) -> Self {
-        Self::from_fs(FiatShamirState::from_label(label))
+        Self::from_fs(Duplex::from_label(label))
     }
 
-    const fn from_fs(fs: FiatShamirState) -> Self {
+    const fn from_fs(fs: Duplex) -> Self {
         Self {
             fs,
             stream: Vec::new(),
@@ -180,7 +192,7 @@ impl ProverState {
 /// Verifier side: reads scalars from a received [`ProofTranscript`] (borrowed) and pulls
 /// opening phases in order.
 pub struct VerifierState<'a> {
-    fs: FiatShamirState,
+    fs: Duplex,
     stream: &'a [F192],
     offset: usize,
     merkle: &'a [PrunedMerklePaths],
@@ -189,18 +201,18 @@ pub struct VerifierState<'a> {
 }
 
 impl<'a> VerifierState<'a> {
-    /// `iv` and `public_input` seed the Fiat-Shamir state (see [`FiatShamirState::new`]).
+    /// `iv` and `public_input` seed the duplex (see [`Duplex::new`]).
     /// They must match the prover's, or the two states diverge and verification fails.
     pub fn new(iv: [F64; 4], proof: &'a ProofTranscript, public_input: [F64; 4]) -> Self {
-        Self::from_fs(FiatShamirState::new(iv, public_input), proof)
+        Self::from_fs(Duplex::new(iv, public_input), proof)
     }
 
     /// A protocol with no public input of its own, seeded from `label` alone.
     pub fn from_label(label: &[u8], proof: &'a ProofTranscript) -> Self {
-        Self::from_fs(FiatShamirState::from_label(label), proof)
+        Self::from_fs(Duplex::from_label(label), proof)
     }
 
-    fn from_fs(fs: FiatShamirState, proof: &'a ProofTranscript) -> Self {
+    fn from_fs(fs: Duplex, proof: &'a ProofTranscript) -> Self {
         Self {
             fs,
             stream: &proof.stream,
@@ -390,6 +402,24 @@ mod tests {
 
     fn f(k: u64) -> F192 {
         F192::new(k, k ^ 0x1234, k.rotate_left(17))
+    }
+
+    #[test]
+    fn wire_format_rejects_legacy_versions_and_trailing_data() {
+        let proof = ProofTranscript::<PrunedMerklePaths> {
+            stream: vec![f(1), f(2)],
+            merkle: Vec::new(),
+        };
+        let encoded = proof.to_bytes();
+        assert_eq!(ProofTranscript::from_bytes(&encoded), Some(proof.clone()));
+        let legacy = encoding().serialize(&proof).unwrap();
+        assert!(ProofTranscript::<PrunedMerklePaths>::from_bytes(&legacy).is_none());
+        let mut wrong_version = encoded.clone();
+        wrong_version[4] = 0;
+        assert!(ProofTranscript::<PrunedMerklePaths>::from_bytes(&wrong_version).is_none());
+        let mut trailing = encoded;
+        trailing.push(0);
+        assert!(ProofTranscript::<PrunedMerklePaths>::from_bytes(&trailing).is_none());
     }
 
     #[test]

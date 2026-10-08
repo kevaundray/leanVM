@@ -352,22 +352,22 @@ class Proof:
     @classmethod
     def load(cls, stream: Path, merkle_openings: Path) -> Proof:
         data = stream.read_bytes()
+        header = b"LVRF\x01\0\0\0"
+        require(data.startswith(header), "unsupported Fiat-Shamir scalar-stream format")
+        data = data[len(header) :]
         require(len(data) % 24 == 0, "the stream is not a whole number of field elements")
         return cls(tuple(E.from_bytes(data[at : at + 24]) for at in range(0, len(data), 24)), merkle_openings.read_bytes())
 
 
 # Fiat--Shamir ---------------------------------------------------------------
 
-DS_OBSERVE = 1
-DS_SQUEEZE = 2
-DS_POW_BASE = 3
-DS_POW_NONCE = 4
-MAX_PENDING = 2  # the most scalars one transcript step absorbs
-
-
-def compress(left: Sequence[K | int], right: Sequence[K | int]) -> tuple[int, int, int, int]:
-    """Hash two four-word operands, a word being a plain integer or the K element standing for it."""
-    return unpack("<4Q", blake2s_hash(b"".join(int(x).to_bytes(8, "little") for x in (*left, *right))).value)
+SEED = 1 << 56
+OUTPUT = 6 << 56
+COMMIT = 7 << 56
+POW_BASE = 8 << 56
+NONCE = 9 << 56
+POW_TAG = 0x31574F502D534646
+MAX_SQUEEZE_BYTES = (1 << 49) - 1
 
 
 def blake2s_compress(h: Sequence[int], block: bytes, t: int, last: bool) -> list[int]:
@@ -388,42 +388,102 @@ def blake2s_compress(h: Sequence[int], block: bytes, t: int, last: bool) -> list
     return [h[i] ^ v[i] ^ v[i + 8] for i in range(8)]
 
 
-def step(state: Sequence[int], scalars: Sequence[E], tag: int) -> tuple[int, int, int, int]:
-    """A transcript step: the block of up to two scalars (the last in words 4 to 6, the one before it in words 0 to 2,
-    their count in word 3, the tag in word 7) compressed into the chaining value `state`, at counter 64 and final."""
-    require(len(scalars) <= MAX_PENDING, "a step absorbs at most two scalars")
-    first = scalars[0] if len(scalars) == 2 else ZERO
-    last = scalars[-1] if scalars else ZERO
-    block = pack("<8Q", first.c0, first.c1, first.c2, len(scalars), last.c0, last.c1, last.c2, tag)
-    out = blake2s_compress(unpack("<8I", pack("<4Q", *state)), block, 64, True)
-    return unpack("<4Q", pack("<8I", *out))
+class Duplex:
+    """Byte duplex, independently replaying the framed BLAKE2s compression mode."""
+
+    def __init__(self, domain: bytes, statement: bytes) -> None:
+        require(len(domain) == len(statement) == 32, "duplex seeds must be digests")
+        initial: list[int] = list(BLAKE2S_IV)
+        initial[0] ^= 0x01010020
+        self.cv = blake2s_compress(initial, domain + statement, SEED, True)
+        self.pending = bytearray()
+        self.first = True
+        self.previous = 0
+        self.squeezed = 0
+        self.output = b""
+
+    @classmethod
+    def from_label(cls, label: bytes) -> Duplex:
+        return cls(hashlib.blake2s(label).digest(), bytes(32))
+
+    def _absorb_block(self, last: bool) -> list[int]:
+        role = (4 if self.first else 5) if last else (2 if self.first else 3)
+        tweak = role << 56 | len(self.pending) << 49 | self.previous
+        return blake2s_compress(self.cv, bytes(self.pending).ljust(64, b"\0"), tweak, True)
+
+    def absorb(self, data: bytes) -> None:
+        if not data:
+            return
+        if self.squeezed:
+            self.previous, self.squeezed = self.squeezed, 0
+        offset = 0
+        while offset < len(data):
+            if len(self.pending) == 64:
+                self.cv = self._absorb_block(False)
+                self.pending.clear()
+                self.first, self.previous = False, 0
+            take = min(64 - len(self.pending), len(data) - offset)
+            self.pending.extend(data[offset : offset + take])
+            offset += take
+
+    def _finalized(self) -> list[int]:
+        return self._absorb_block(True) if self.pending else self.cv
+
+    def _flush(self) -> None:
+        self.cv = self._finalized()
+        self.pending.clear()
+        self.first, self.previous = True, 0
+
+    def squeeze(self, count: int) -> bytes:
+        require(0 <= count <= MAX_SQUEEZE_BYTES - self.squeezed, "squeeze request exceeds cursor")
+        if not count:
+            return b""
+        self._flush()
+        result = bytearray()
+        while len(result) < count:
+            offset = self.squeezed % 32
+            if offset == 0:
+                block = pack("<Q", self.squeezed // 32) + bytes(56)
+                self.output = pack("<8I", *blake2s_compress(self.cv, block, OUTPUT, True))
+            take = min(count - len(result), 32 - offset)
+            result.extend(self.output[offset : offset + take])
+            self.squeezed += take
+        return bytes(result)
+
+    def commitment(self) -> bytes:
+        block = pack("<Q", self.squeezed) + bytes(56)
+        return pack("<8I", *blake2s_compress(self._finalized(), block, COMMIT, True))
+
+    def verify_pow(self, nonce: E, bits: int) -> bool:
+        require(0 <= bits <= 63, "grinding past the digest's low word")
+        self._flush()
+        if bits == 0:
+            valid = nonce == ZERO
+        else:
+            block = pack("<2Q", self.squeezed, bits) + bytes(48)
+            base = pack("<8I", *blake2s_compress(self.cv, block, POW_BASE, True))
+            digest = hashlib.blake2s(base + nonce.to_bytes() + pack("<Q", POW_TAG)).digest()
+            valid = int.from_bytes(digest[:8], "little") & (2**bits - 1) == 0
+        block = nonce.to_bytes() + pack("<2Q", self.squeezed, bits) + bytes(24)
+        self.cv = blake2s_compress(self.cv, block, NONCE, True)
+        self.squeezed = 0
+        return valid
 
 
 class Transcript:
-    """An absorbed scalar waits for the next step, which takes up to two: a squeeze absorbs the waiting scalars in its
-    own step, and a third scalar first absorbs the two before it."""
+    """Proof transport whose scalar reads also absorb into the byte duplex."""
 
     def __init__(self, proof: Proof, fiat_shamir_IV: Digest, public_input: Sequence[K]) -> None:
         self.proof = proof
-        self.state = compress(fiat_shamir_IV.words(), public_input)
-        self.pending: list[E] = []
+        self.duplex = Duplex(fiat_shamir_IV.value, pack("<4Q", *(int(x) for x in public_input)))
         self.stream_offset = 0  # in E field elements
         self.opening_offset = 0  # in bytes
 
-    def _flush(self) -> None:
-        if self.pending:
-            self.state = step(self.state, self.pending, DS_OBSERVE)
-            self.pending = []
-
     def observe(self, value: E) -> None:
-        if len(self.pending) == MAX_PENDING:
-            self._flush()
-        self.pending.append(value)
+        self.duplex.absorb(value.to_bytes())
 
     def sample(self) -> E:
-        self.state = step(self.state, self.pending, DS_SQUEEZE)
-        self.pending = []
-        return E(*self.state[:3])
+        return E.from_bytes(self.duplex.squeeze(24))
 
     def samples(self, count: int) -> list[E]:
         return [self.sample() for _ in range(count)]
@@ -443,12 +503,7 @@ class Transcript:
         return [self.next_scalar() for _ in range(count)]
 
     def grind_check(self, bits: int) -> None:
-        self._flush()
-        nonce = self._next()
-        digest = compress(step(self.state, [], DS_POW_BASE), (nonce.c0, nonce.c1, nonce.c2, DS_POW_NONCE))[0]
-        valid = nonce == ZERO if bits == 0 else digest & (2**bits - 1) == 0
-        self.state = step(self.state, [nonce], DS_POW_NONCE)
-        require(valid, "invalid grinding nonce")
+        require(self.duplex.verify_pow(self._next(), bits), "invalid grinding nonce")
 
     def _merkle_data(self, length: int) -> bytes:
         end = self.opening_offset + length
@@ -2481,7 +2536,7 @@ def verify_core(
     # Everything public and fixed is one digest, which seeds the transcript; every variable-length part is length-framed.
     halt_pc = TEXT_BASE + 4 * (len(bytecode) // 2**BUS_BITS - 1)
     require(entry_pc % 4 == 0 and TEXT_BASE <= entry_pc < halt_pc, "the entry pc is not an instruction of the text")
-    preimage = b"leanvm-rv64im-11" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
+    preimage = b"leanvm-rv64im-13" + pack("<Q", len(bytecode)) + b"".join(word.to_bytes() for word in bytecode)
     preimage += pack("<5Q", entry_pc, halt_pc, log_ram, log_advice, len(image)) + pack(f"<{len(image)}Q", *image)
     transcript = Transcript(proof, blake2s_hash(preimage), [K(word) for word in output])
 
@@ -2679,7 +2734,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="little-endian 64-bit words: the entry pc, log2 of RAM's words, log2 of the advice's, the program's image (its length, then its words), the four output words",
     )
-    parser.add_argument("stream", type=Path, help="the proof's scalar stream, 24-byte little-endian field elements")
+    parser.add_argument("stream", type=Path, help="LVRF v1 header followed by 24-byte little-endian field elements")
     parser.add_argument("merkle_openings", type=Path, help="every Merkle opening: its leaf's words, then its sibling digests")
     parser.add_argument("--deferred", action="store_true", help="print the deferred claims before the verdict, one field a line")
     arguments = parser.parse_args(argv)

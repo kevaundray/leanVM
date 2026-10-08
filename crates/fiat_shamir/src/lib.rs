@@ -1,270 +1,353 @@
-//! Fiat-Shamir state, proof transport, and the verifier's arithmetic over them. The state is a domain-separated chain of BLAKE2s compressions, each one VM hash opcode: the seed from the parameter IV, then every step keyed by the state.
+//! Proof transport and a byte-oriented BLAKE2s compression duplex.
+//!
+//! Absorption maintains a framed chaining value. Domain-separated terminal nodes produce output
+//! blocks without exposing that chaining value. Consecutive calls concatenate within each mode;
+//! switching back to absorption binds the number of output bytes actually consumed.
 
 pub mod arith;
 pub mod merkle;
 pub mod transcript;
 
 use primitives::field::{F64, F192};
+use std::sync::atomic::{AtomicU64, Ordering};
 
-/// `f(a, b) = BLAKE2s(a‖b)` on two 256-bit halves laid out little-endian into
-/// 64 bytes, *exactly* the VM's `Blake2s` opcode from the parameter IV: 64 input bytes → 32-byte
-/// digest, split back into four field words. It seeds the chain and checks a proof of work;
-/// every later step is [`step`], keyed by the state.
-///
-/// A 64-byte input is one compression, so this is `compress(PARAM_IV, m,
-/// t = 64, last = true)` and nothing about the byte-level padding rules can
-/// leak into the in-circuit version.
-pub fn compress(a: [F64; 4], b: [F64; 4]) -> [F64; 4] {
-    let mut input = [0u8; 64];
-    for (slot, w) in input.as_chunks_mut::<8>().0.iter_mut().zip(a.into_iter().chain(b)) {
-        *slot = w.0.to_le_bytes();
-    }
-    digest_words(&primitives::hash::hash(&input))
-}
-
-/// A 32-byte digest as the four little-endian words the chain runs in.
+/// A 32-byte digest as four little-endian field words.
 pub fn digest_words(digest: &[u8; 32]) -> [F64; 4] {
     primitives::hash::digest_words(digest).map(F64)
 }
 
-// Domain-separation tags. EVERY step's block puts its tag in word 7 and its scalar count in word 3
-// ([`step_block`]), so one role is one constant in one place. The tag word is
-// never adversary-controlled, so distinct constants are all it takes to make two
-// roles unable to alias. The seeding block ([`FiatShamirState::new`]) is the
-// exception: it is fixed at the head of the chain, so its position is its tag.
-/// The tag of an absorbed scalar.
-pub const DS_OBSERVE: F64 = F64(1);
-/// The tag of a challenge.
-pub const DS_SQUEEZE: F64 = F64(2);
-/// The tag of the proof-of-work base.
-pub const DS_POW_BASE: F64 = F64(3);
-/// The tag of a grinding nonce.
-pub const DS_POW_NONCE: F64 = F64(4);
-
-/// The most grinding bits a proof of work takes: its window is the digest's low word.
+/// The seed node, the only leaf in a transcript's compression tree.
+pub const SEED: u64 = 1 << 56;
+/// An output block. Its result is never a chaining value.
+pub const OUTPUT: u64 = 6 << 56;
+/// A commitment to the transcript, including its output cursor.
+pub const COMMIT: u64 = 7 << 56;
+/// A proof-of-work base, separate from live challenges.
+pub const POW_BASE: u64 = 8 << 56;
+/// An internal node binding a nonce, its difficulty, and the output cursor.
+pub const NONCE: u64 = 9 << 56;
+/// The last word in the ordinary one-block BLAKE2s proof-of-work input.
+pub const POW_TAG: u64 = 0x31574f502d534646;
+/// The maximum number of bytes consumed in one uninterrupted squeeze run.
+pub const MAX_SQUEEZE_BYTES: u64 = (1 << 49) - 1;
+/// Grinding tests a contiguous window of the digest's low word.
 pub const MAX_GRINDING_BITS: u32 = 63;
 
-/// `compress(base, (nonce.c0, nonce.c1, nonce.c2, DS_POW_NONCE))` has its low `bits`
-/// bits zero: the grinding predicate over the VM compression. A CONTIGUOUS
-/// low-bit window rather than byte-wise leading zeros.
+/// The counter word for an absorption node, shared with the row verifier.
+///
+/// `previous` is the preceding squeeze run's consumed byte count on the first block only.
+/// The final block's exact length distinguishes zero padding from message bytes.
 ///
 /// # Panics
 ///
-/// Panics if the grinding exceeds the digest's low word, whose mask would wrap to accept any nonce.
-#[inline]
-fn pow_bits_ok(base: [F64; 4], nonce: F192, bits: u32) -> bool {
-    assert!(bits <= MAX_GRINDING_BITS, "grinding past the digest's low word");
-    let digest = compress(base, [F64(nonce.c0), F64(nonce.c1), F64(nonce.c2), DS_POW_NONCE])[0];
-    digest.0 & ((1u64 << bits) - 1) == 0
-}
-
-/// The most scalars one transcript step absorbs.
-pub const MAX_PENDING: usize = 2;
-
-/// The 64-byte block of a transcript step absorbing `scalars` (at most [`MAX_PENDING`]) under `tag`.
-///
-/// The last scalar fills words 4 to 6, the one before it (if any) words 0 to 2; word 3 is their count and word 7 the tag, so a block names its role and its data alone.
-///
-/// # Panics
-///
-/// Panics if more than [`MAX_PENDING`] scalars are given.
-pub fn step_block(scalars: &[F192], tag: F64) -> [F64; 8] {
-    let (first, last) = match *scalars {
-        [a, b] => (a, b),
-        [b] => (F192::ZERO, b),
-        [] => (F192::ZERO, F192::ZERO),
-        _ => panic!("a step absorbs at most {MAX_PENDING} scalars"),
+/// Invalid lengths, noncanonical continuation cursors, and exhausted cursors are refused.
+pub const fn absorb_tweak(first: bool, last: bool, len: usize, previous: u64) -> u64 {
+    assert!(
+        len > 0 && len <= 64 && (last || len == 64),
+        "invalid absorb block length"
+    );
+    assert!(
+        previous <= MAX_SQUEEZE_BYTES && (first || previous == 0),
+        "invalid absorb cursor"
+    );
+    let role = match (first, last) {
+        (true, false) => 2,
+        (false, false) => 3,
+        (true, true) => 4,
+        (false, true) => 5,
     };
-    let count = F64(scalars.len() as u64);
-    [
-        F64(first.c0),
-        F64(first.c1),
-        F64(first.c2),
-        count,
-        F64(last.c0),
-        F64(last.c1),
-        F64(last.c2),
-        tag,
-    ]
+    (role << 56) | ((len as u64) << 49) | previous
 }
 
-/// A transcript step: the BLAKE2s compression of `block` into the chaining value `h`, at byte counter 64 and final, one VM hash opcode.
-pub fn step(h: [F64; 4], scalars: &[F192], tag: F64) -> [F64; 4] {
-    let halves = |w: [F64; 4]| -> [u32; 8] { std::array::from_fn(|i| (w[i / 2].0 >> (32 * (i % 2))) as u32) };
-    let mut state = halves(h);
-    let block = step_block(scalars, tag);
-    let m: [u32; 16] = std::array::from_fn(|i| (block[i / 2].0 >> (32 * (i % 2))) as u32);
-    primitives::hash::compress(&mut state, &m, 64, true);
-    std::array::from_fn(|i| F64(u64::from(state[2 * i]) | u64::from(state[2 * i + 1]) << 32))
+fn compress_block(mut cv: [u32; 8], block: &[u8; 64], tweak: u64) -> [u32; 8] {
+    let words = std::array::from_fn(|i| u32::from_le_bytes(block[4 * i..4 * i + 4].try_into().unwrap()));
+    primitives::hash::compress(&mut cv, &words, tweak, true);
+    cv
 }
 
-/// The shared Fiat-Shamir state (see the module docs). Protocol functions take
-/// `&mut FiatShamirState`; all proof DATA travels on separate transport channels (the
-/// callers'), so the state only ever absorbs and squeezes.
+fn words(cv: [u32; 8]) -> [F64; 4] {
+    std::array::from_fn(|i| F64(u64::from(cv[2 * i]) | u64::from(cv[2 * i + 1]) << 32))
+}
+
+fn pow_bits_ok(base: [F64; 4], nonce: F192, bits: u32) -> bool {
+    let mut input = [0u8; 64];
+    let values = [
+        base[0].0, base[1].0, base[2].0, base[3].0, nonce.c0, nonce.c1, nonce.c2, POW_TAG,
+    ];
+    for (slot, value) in input.as_chunks_mut::<8>().0.iter_mut().zip(values) {
+        *slot = value.to_le_bytes();
+    }
+    let digest = primitives::hash::hash(&input);
+    u64::from_le_bytes(digest[..8].try_into().unwrap()) & ((1u64 << bits) - 1) == 0
+}
+
+/// A reusable byte duplex with bounded, allocation-free buffering.
 ///
-/// An absorbed scalar waits for the next step, which takes up to [`MAX_PENDING`] of them: a squeeze absorbs the waiting scalars in its own step, and a third scalar first absorbs the two before it.
+/// Empty calls do nothing. Positive absorb calls concatenate until a positive squeeze or a nonce
+/// event. Positive squeeze calls concatenate until absorption or a nonce event. Cloning preserves
+/// pending input and unused output bytes; it does not expose an injectable chaining value.
 #[derive(Clone)]
-pub struct FiatShamirState {
-    /// The 256-bit chaining value: a Merkle-Damgård hash of the transcript's steps so far.
-    cv: [F64; 4],
-    /// The scalars absorbed since the last step, the first `n_pending`.
-    pending: [F192; MAX_PENDING],
+pub struct Duplex {
+    cv: [u32; 8],
+    pending: [u8; 64],
     n_pending: usize,
+    first: bool,
+    previous: u64,
+    squeezed: u64,
+    output: [u8; 32],
 }
 
-impl FiatShamirState {
-    const fn at(cv: [F64; 4]) -> Self {
+impl Duplex {
+    /// Bind both the protocol/domain digest and public-statement digest before any output.
+    pub fn new(domain: [F64; 4], statement: [F64; 4]) -> Self {
+        let mut input = [0u8; 64];
+        for (slot, word) in input
+            .as_chunks_mut::<8>()
+            .0
+            .iter_mut()
+            .zip(domain.into_iter().chain(statement))
+        {
+            *slot = word.0.to_le_bytes();
+        }
         Self {
-            cv,
-            pending: [F192::ZERO; MAX_PENDING],
+            cv: compress_block(primitives::hash::PARAM_IV, &input, SEED),
+            pending: [0; 64],
             n_pending: 0,
+            first: true,
+            previous: 0,
+            squeezed: 0,
+            output: [0; 32],
         }
     }
 
-    /// Seed from two 256-bit digests: `iv` names everything fixed about the
-    /// proving environment (the domain, the circuit, the program) and IS the
-    /// starting chaining value, and `public_input` is the one block absorbed
-    /// before any challenge. So a transcript opens on a single compression, and
-    /// the whole statement is bound before anything is sampled; there is no
-    /// mid-protocol "observe public data" step to get wrong (or forget).
-    pub fn new(iv: [F64; 4], public_input: [F64; 4]) -> Self {
-        Self::at(compress(iv, public_input))
-    }
-
-    /// Seed a protocol that has no public input of its own: `BLAKE2s(label)` is
-    /// the chaining value, which is all a domain separator has to be.
+    /// A labeled protocol with the zero statement digest.
     pub fn from_label(label: &[u8]) -> Self {
-        Self::at(digest_words(&primitives::hash::hash(label)))
+        Self::new(digest_words(&primitives::hash::hash(label)), [F64::ZERO; 4])
     }
 
-    /// The waiting scalars.
-    fn pending(&self) -> &[F192] {
-        &self.pending[..self.n_pending]
-    }
-
-    /// Absorb the waiting scalars, if any, in one `OBSERVE` step.
-    fn flush(&mut self) {
-        self.cv = self.state();
-        self.n_pending = 0;
-    }
-
-    /// Absorb one 24-byte scalar (three little-endian `K` limbs). It waits for the next step.
-    pub fn observe(&mut self, x: F192) {
-        if self.n_pending == MAX_PENDING {
-            self.flush();
+    /// Absorb an arbitrary byte string, preserving full blocks until their finality is known.
+    pub fn absorb(&mut self, mut input: &[u8]) {
+        if input.is_empty() {
+            return;
         }
-        self.pending[self.n_pending] = x;
-        self.n_pending += 1;
+        if self.squeezed != 0 {
+            self.previous = self.squeezed;
+            self.squeezed = 0;
+        }
+        while !input.is_empty() {
+            if self.n_pending == 64 {
+                self.cv = compress_block(
+                    self.cv,
+                    &self.pending,
+                    absorb_tweak(self.first, false, 64, self.previous),
+                );
+                self.first = false;
+                self.previous = 0;
+                self.n_pending = 0;
+            }
+            let take = input.len().min(64 - self.n_pending);
+            self.pending[self.n_pending..self.n_pending + take].copy_from_slice(&input[..take]);
+            self.n_pending += take;
+            input = &input[take..];
+        }
     }
 
-    /// Squeeze a challenge and ratchet: the challenge's three limbs are the
-    /// first three words of the `SQUEEZE` step absorbing the waiting scalars, whose full output
-    /// becomes the new state, domain-separated from absorbs, so a challenge
-    /// cannot be confused with a continued absorb. In Fiat-Shamir everything is
-    /// public; soundness comes from each challenge being a random-oracle image
-    /// of the entire prior transcript.
+    fn finalized(&self) -> [u32; 8] {
+        if self.n_pending == 0 {
+            return self.cv;
+        }
+        let mut block = self.pending;
+        block[self.n_pending..].fill(0);
+        compress_block(
+            self.cv,
+            &block,
+            absorb_tweak(self.first, true, self.n_pending, self.previous),
+        )
+    }
+
+    fn finish_absorb(&mut self) {
+        if self.n_pending == 0 {
+            return;
+        }
+        self.pending[self.n_pending..].fill(0);
+        self.cv = compress_block(
+            self.cv,
+            &self.pending,
+            absorb_tweak(self.first, true, self.n_pending, self.previous),
+        );
+        self.n_pending = 0;
+        self.first = true;
+        self.previous = 0;
+    }
+
+    /// Consume output bytes, retaining the unused suffix of each output block.
+    ///
+    /// # Panics
+    ///
+    /// A request exceeding [`MAX_SQUEEZE_BYTES`] in this run fails before modifying the state.
+    pub fn squeeze(&mut self, mut output: &mut [u8]) {
+        if output.is_empty() {
+            return;
+        }
+        let len = u64::try_from(output.len()).expect("squeeze request exceeds cursor");
+        assert!(
+            len <= MAX_SQUEEZE_BYTES - self.squeezed,
+            "squeeze request exceeds cursor"
+        );
+        self.finish_absorb();
+        while !output.is_empty() {
+            let offset = (self.squeezed % 32) as usize;
+            if offset == 0 {
+                let mut block = [0u8; 64];
+                block[..8].copy_from_slice(&(self.squeezed / 32).to_le_bytes());
+                let digest = compress_block(self.cv, &block, OUTPUT);
+                for (slot, word) in self.output.as_chunks_mut::<4>().0.iter_mut().zip(digest) {
+                    *slot = word.to_le_bytes();
+                }
+            }
+            let take = output.len().min(32 - offset);
+            output[..take].copy_from_slice(&self.output[offset..offset + take]);
+            self.squeezed += take as u64;
+            output = &mut output[take..];
+        }
+    }
+
+    /// Absorb the scalar's three little-endian limbs, with no additional transport observation.
+    pub fn observe(&mut self, x: F192) {
+        let mut bytes = [0u8; 24];
+        for (slot, word) in bytes.as_chunks_mut::<8>().0.iter_mut().zip([x.c0, x.c1, x.c2]) {
+            *slot = word.to_le_bytes();
+        }
+        self.absorb(&bytes);
+    }
+
+    /// Consume the next three little-endian limbs as an unbiased binary-field challenge.
     pub fn sample(&mut self) -> F192 {
-        let out = step(self.cv, self.pending(), DS_SQUEEZE);
-        *self = Self::at(out);
-        F192::new(out[0].0, out[1].0, out[2].0)
+        let mut bytes = [0u8; 24];
+        self.squeeze(&mut bytes);
+        let [a, b, c] = std::array::from_fn(|i| u64::from_le_bytes(bytes[8 * i..8 * i + 8].try_into().unwrap()));
+        F192::new(a, b, c)
     }
 
-    /// Squeeze `n` challenges, in order.
+    /// Consume `n` scalar challenges in order.
+    ///
+    /// # Panics
+    ///
+    /// Refuses an exhausted output cursor before allocating or consuming any challenge.
     pub fn sample_vec(&mut self, n: usize) -> Vec<F192> {
+        let count = u64::try_from(n).expect("squeeze request exceeds cursor");
+        assert!(
+            count <= (MAX_SQUEEZE_BYTES - self.squeezed) / 24,
+            "squeeze request exceeds cursor"
+        );
         (0..n).map(|_| self.sample()).collect()
     }
 
-    /// The PoW base, the `POW_BASE` step from [`Self::state`], read without mutating
-    /// the live state (the nonce is bound separately by [`Self::absorb_nonce`]).
-    fn pow_base(&self) -> [F64; 4] {
-        step(self.state(), &[], DS_POW_BASE)
+    /// Commit to the current history and cursor without changing either or revealing the CV.
+    pub fn commitment(&self) -> [F64; 4] {
+        let mut block = [0u8; 64];
+        block[..8].copy_from_slice(&self.squeezed.to_le_bytes());
+        words(compress_block(self.finalized(), &block, COMMIT))
     }
 
-    /// The 256-bit chaining value once the waiting scalars are absorbed.
-    pub fn state(&self) -> [F64; 4] {
-        if self.n_pending == 0 {
-            self.cv
-        } else {
-            step(self.cv, self.pending(), DS_OBSERVE)
+    fn pow_base(&self, bits: u32) -> [F64; 4] {
+        let mut block = [0u8; 64];
+        block[..8].copy_from_slice(&self.squeezed.to_le_bytes());
+        block[8..16].copy_from_slice(&u64::from(bits).to_le_bytes());
+        words(compress_block(self.finalized(), &block, POW_BASE))
+    }
+
+    fn absorb_nonce(&mut self, nonce: F192, bits: u32) {
+        self.finish_absorb();
+        let mut block = [0u8; 64];
+        for (slot, value) in
+            block
+                .as_chunks_mut::<8>()
+                .0
+                .iter_mut()
+                .zip([nonce.c0, nonce.c1, nonce.c2, self.squeezed, u64::from(bits)])
+        {
+            *slot = value.to_le_bytes();
         }
+        self.cv = compress_block(self.cv, &block, NONCE);
+        self.squeezed = 0;
     }
 
-    /// Bind a grinding nonce into the state (both sides, so they stay in lockstep), after the waiting scalars.
-    fn absorb_nonce(&mut self, nonce: F192) {
-        self.flush();
-        self.cv = step(self.cv, &[nonce], DS_POW_NONCE);
-    }
-
-    /// Prover-side PoW grind: find the smallest `u64` nonce whose PoW hash clears
-    /// `bits` low zero bits, then bind it so later challenges depend on it.
-    /// `bits = 0` is the canonical no-work nonce `0`. Parallel search for the
-    /// larger grinds.
+    /// Find and bind the smallest `u64` nonce. Zero difficulty binds the canonical nonce zero.
+    ///
+    /// # Panics
+    ///
+    /// Difficulties above [`MAX_GRINDING_BITS`] and exhaustion of the nonce space are refused.
     pub fn grind_pow(&mut self, bits: u32) -> u64 {
         const PARALLEL_GRIND_MIN_HASHES: u64 = 1 << 13;
-        let base = self.pow_base();
+        assert!(bits <= MAX_GRINDING_BITS, "grinding past the digest's low word");
+        self.finish_absorb();
         let nonce = if bits == 0 {
             0
-        } else if (1u64 << bits.min(63)) < PARALLEL_GRIND_MIN_HASHES {
-            let mut n: u64 = 0;
-            loop {
-                if pow_bits_ok(base, F192::new(n, 0, 0), bits) {
-                    break n;
-                }
-                n = n.wrapping_add(1);
-            }
         } else {
-            const BATCH: usize = 2 * primitives::hash::LANES;
-            let mut template = [[0u8; 64]; BATCH];
-            for input in &mut template {
-                for (slot, word) in input[..32].as_chunks_mut::<8>().0.iter_mut().zip(base) {
-                    *slot = word.0.to_le_bytes();
+            let base = self.pow_base(bits);
+            if (1u64 << bits) < PARALLEL_GRIND_MIN_HASHES {
+                let mut n = 0u64;
+                loop {
+                    if pow_bits_ok(base, F192::new(n, 0, 0), bits) {
+                        break n;
+                    }
+                    n = n.checked_add(1).expect("grinding exhausted nonce space");
                 }
-                input[56..].copy_from_slice(&DS_POW_NONCE.0.to_le_bytes());
-            }
-            let batch = |first: u64| {
-                let mut inputs = template;
-                for (i, input) in inputs.iter_mut().enumerate() {
-                    input[32..40].copy_from_slice(&(first + i as u64).to_le_bytes());
+            } else {
+                const BATCH: usize = 2 * primitives::hash::LANES;
+                let mut template = [[0u8; 64]; BATCH];
+                for input in &mut template {
+                    for (slot, word) in input[..32].as_chunks_mut::<8>().0.iter_mut().zip(base) {
+                        *slot = word.0.to_le_bytes();
+                    }
+                    input[56..].copy_from_slice(&POW_TAG.to_le_bytes());
                 }
-                let mut digests = [[0u8; 32]; BATCH];
-                primitives::hash::hash_many::<64>(inputs.as_flattened(), digests.as_flattened_mut());
-                digests
-                    .iter()
-                    .position(|d| u64::from_le_bytes(d[..8].try_into().unwrap()) & ((1u64 << bits) - 1) == 0)
-            };
-            // The smallest matching batch and its first match give the smallest nonce.
-            let block: u64 = 1 << (bits.min(24) + 1);
-            let mut start: u64 = 0;
-            loop {
-                if let Some(i) =
-                    parallel::find_first(block as usize / BATCH, |i| batch(start + (i * BATCH) as u64).is_some())
-                {
-                    let first = start + (i * BATCH) as u64;
-                    break first + batch(first).unwrap() as u64;
+                // Keep the nonce as well as the batch index: do not hash the winning batch twice.
+                let best = AtomicU64::new(u64::MAX);
+                let batch = |first: u64| {
+                    let mut inputs = template;
+                    for (i, input) in inputs.iter_mut().enumerate() {
+                        input[32..40].copy_from_slice(&(first + i as u64).to_le_bytes());
+                    }
+                    let mut digests = [[0u8; 32]; BATCH];
+                    primitives::hash::hash_many::<64>(inputs.as_flattened(), digests.as_flattened_mut());
+                    digests
+                        .iter()
+                        .position(|d| u64::from_le_bytes(d[..8].try_into().unwrap()) & ((1u64 << bits) - 1) == 0)
+                        .is_some_and(|i| {
+                            best.fetch_min(first + i as u64, Ordering::Relaxed);
+                            true
+                        })
+                };
+                let block = 1u64 << (bits.min(24) + 1);
+                let mut start = 0u64;
+                loop {
+                    if parallel::find_first(block as usize / BATCH, |i| batch(start + (i * BATCH) as u64)).is_some() {
+                        break best.load(Ordering::Relaxed);
+                    }
+                    start = start.checked_add(block).expect("grinding exhausted nonce space");
                 }
-                start = start.saturating_add(block);
             }
         };
-        self.absorb_nonce(F192::new(nonce, 0, 0));
+        self.absorb_nonce(F192::new(nonce, 0, 0), bits);
         nonce
     }
 
-    /// Verifier-side mirror of [`Self::grind_pow`]: check `nonce` clears the `bits`
-    /// PoW against the current state, then bind it regardless (so the state stays
-    /// in lockstep with an honest prover; a failed check rejects at the call
-    /// site). `bits = 0` accepts only the canonical nonce `0`, which keeps proofs
-    /// non-malleable at zero-bit grinding sites. Allowing the complete field
-    /// domain does not weaken grinding: each candidate still requires one hash
-    /// and succeeds with probability 2^-bits. Honest provers remain canonical
-    /// and search the deterministic u64 subset in [`Self::grind_pow`].
+    /// Check and bind a full-field nonce. A failed check must cause the caller to reject the proof.
+    ///
+    /// # Panics
+    ///
+    /// Difficulties above [`MAX_GRINDING_BITS`] are refused before changing the transcript.
     pub fn verify_pow_field(&mut self, nonce: F192, bits: u32) -> bool {
-        let base = self.pow_base();
+        assert!(bits <= MAX_GRINDING_BITS, "grinding past the digest's low word");
+        self.finish_absorb();
         let ok = if bits == 0 {
             nonce == F192::ZERO
         } else {
-            pow_bits_ok(base, nonce, bits)
+            pow_bits_ok(self.pow_base(bits), nonce, bits)
         };
-        self.absorb_nonce(nonce);
+        self.absorb_nonce(nonce, bits);
         ok
     }
 }
@@ -273,91 +356,182 @@ impl FiatShamirState {
 mod tests {
     use super::*;
 
-    fn f(k: u64) -> F192 {
-        F192::new(k, k ^ 0x1234, k.rotate_left(17))
+    fn fresh() -> Duplex {
+        Duplex::from_label(b"duplex-test")
     }
 
-    fn pi(k: u64) -> [F64; 4] {
-        std::array::from_fn(|i| F64(k + i as u64))
-    }
-
-    #[test]
-    fn fs_binds_the_public_input() {
-        let iv = digest_words(&primitives::hash::hash(b"t"));
-        let mut a = FiatShamirState::new(iv, pi(1));
-        let mut b = FiatShamirState::new(iv, pi(2));
-        assert_ne!(a.sample(), b.sample());
+    fn decode_hex(text: &str) -> Vec<u8> {
+        text.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
     }
 
     #[test]
-    fn fs_binds_the_iv() {
-        let mut a = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
-        let mut b = FiatShamirState::new(digest_words(&primitives::hash::hash(b"u")), pi(1));
-        assert_ne!(a.sample(), b.sample());
+    fn independent_full_run_known_answers() {
+        let domain = digest_words(&primitives::hash::hash(b"duplex-kat"));
+        let statement = digest_words(&std::array::from_fn(|i| i as u8));
+        let mut duplex = Duplex::new(domain, statement);
+        duplex.absorb(&(0..131).collect::<Vec<u8>>());
+        let mut first = [0u8; 97];
+        duplex.squeeze(&mut first);
+        assert_eq!(
+            first.as_slice(),
+            decode_hex(
+                "eddf1764576c00950c9c492af01495de8b8e79efc1aab14061c0a6cd9e5d95166444228f37f0cf64f29b5ae1b7d1e852e80cadbd3fac6774bb2277975954becbf4d24ebb6faeb39d11332d425bd36b9549b1d522004ea004e6609fae6c32b0cf88"
+            )
+        );
+        duplex.absorb(&[0, b'x'].repeat(33));
+        let mut second = [0u8; 73];
+        duplex.squeeze(&mut second);
+        assert_eq!(
+            second.as_slice(),
+            decode_hex(
+                "56ec3e8860bd2f6cc4ec3bd92213935e3218ff7acbd76f336b3f4635e7aa66f716d4a9a90e317a1944f24c05474f9cf09a9c3488bf181324c2deab88e59c1114b5d7c19c25f89a759c"
+            )
+        );
+        let commitment: Vec<u8> = duplex
+            .commitment()
+            .into_iter()
+            .flat_map(|word| word.0.to_le_bytes())
+            .collect();
+        assert_eq!(
+            commitment,
+            decode_hex("7a4c608370b4c73d53f4fb25e5dc647926cd422ed267ee11e04e02a6abefeaff")
+        );
     }
 
     #[test]
-    fn fs_binds_order() {
-        let mut a = FiatShamirState::from_label(b"t");
-        a.observe(f(1));
-        a.observe(f(2));
-        let mut b = FiatShamirState::from_label(b"t");
-        b.observe(f(2));
-        b.observe(f(1));
-        assert_ne!(a.sample(), b.sample());
-    }
-
-    #[test]
-    fn fs_binds_how_many_scalars_a_step_absorbs() {
-        // `[x]` and `[0, x]` fill the same scalar words; only the count tells them apart.
-        let mut a = FiatShamirState::from_label(b"t");
-        a.observe(f(1));
-        let mut b = FiatShamirState::from_label(b"t");
-        b.observe(F192::ZERO);
-        b.observe(f(1));
-        assert_ne!(a.sample(), b.sample());
-    }
-
-    #[test]
-    fn pow_predicate() {
-        let sp = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
-        let base = sp.pow_base();
-        for bits in [0, 8, 13, 17] {
-            let mut clone = sp.clone();
-            let good = clone.grind_pow(bits);
-            let expected = (0..=good)
-                .find(|&n| pow_bits_ok(base, F192::new(n, 0, 0), bits))
-                .unwrap();
-            assert_eq!(good, expected, "smallest nonce at {bits} bits");
-            let mut verifier = sp.clone();
-            assert!(verifier.verify_pow_field(F192::new(good, 0, 0), bits));
-            assert_eq!(clone.state(), verifier.state());
+    fn exporting_does_not_end_an_absorb_run_or_consume_output() {
+        for size in [1, 63, 64, 65, 128] {
+            let mut plain = fresh();
+            plain.absorb(&vec![9; size]);
+            let mut exported = plain.clone();
+            exported.commitment();
+            plain.absorb(b"continued");
+            exported.absorb(b"continued");
+            assert_eq!(plain.sample(), exported.sample());
+            exported.commitment();
+            assert_eq!(plain.sample_vec(5), exported.sample_vec(5));
         }
     }
 
     #[test]
-    fn pow_accepts_and_binds_full_field_nonce() {
-        let mut verifier = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
-        let base = verifier.pow_base();
+    fn chunking_and_empty_calls_preserve_long_streams() {
+        let input: Vec<u8> = (0..4097).map(|i| i as u8).collect();
+        let mut whole = fresh();
+        whole.absorb(&input);
+        let mut expected = [0u8; 1025];
+        whole.squeeze(&mut expected);
+        for chunk in [1, 23, 24, 31, 32, 63, 64, 65, 193] {
+            let mut split = fresh();
+            for part in input.chunks(chunk) {
+                split.absorb(part);
+                split.squeeze(&mut []);
+            }
+            let mut actual = [0u8; 1025];
+            for part in actual.chunks_mut(chunk) {
+                split.absorb(&[]);
+                split.squeeze(part);
+            }
+            assert_eq!(actual, expected);
+            assert_eq!(split.commitment(), whole.commitment());
+            split.absorb(b"next");
+            let mut reference = whole.clone();
+            reference.absorb(b"next");
+            assert_eq!(split.sample(), reference.sample());
+        }
+    }
+
+    #[test]
+    fn padding_cursor_domains_and_statement_are_bound() {
+        let challenge = |data: &[u8], count: usize| {
+            let mut state = fresh();
+            state.squeeze(&mut vec![0; count]);
+            state.absorb(data);
+            state.sample()
+        };
+        assert_ne!(challenge(&[1], 0), challenge(&[1, 0], 0));
+        assert_ne!(challenge(&[0; 63], 0), challenge(&[0; 64], 0));
+        assert_ne!(challenge(&[0; 64], 0), challenge(&[0; 65], 0));
+        assert_ne!(challenge(b"x", 1), challenge(b"x", 2));
+        assert_ne!(challenge(b"x", 31), challenge(b"x", 32));
+        let d = [F64(1); 4];
+        let s = [F64(2); 4];
+        assert_ne!(Duplex::new(d, s).sample(), Duplex::new(s, d).sample());
+        assert_ne!(Duplex::new(d, s).sample(), Duplex::new(d, d).sample());
+    }
+
+    #[test]
+    fn cloning_preserves_pending_input_and_unused_output() {
+        for absorbed in [0, 1, 63, 64, 65, 127, 128, 129] {
+            for consumed in [0, 1, 23, 24, 31, 32, 33, 95] {
+                let mut original = fresh();
+                original.absorb(&vec![7; absorbed]);
+                original.squeeze(&mut vec![0; consumed]);
+                let mut clone = original.clone();
+                let before = original.commitment();
+                assert_eq!(before, clone.commitment());
+                assert_eq!(original.sample_vec(5), clone.sample_vec(5));
+                original.absorb(b"left");
+                clone.absorb(b"right");
+                assert_ne!(original.sample(), clone.sample());
+            }
+        }
+    }
+
+    #[test]
+    fn overflow_is_rejected_before_mutation() {
+        let mut state = fresh();
+        state.absorb(b"pending");
+        state.squeezed = MAX_SQUEEZE_BYTES;
+        let before = state.commitment();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| state.squeeze(&mut [0])));
+        assert!(result.is_err());
+        assert_eq!(state.commitment(), before);
+        state.squeeze(&mut []);
+        assert_eq!(state.commitment(), before);
+    }
+
+    #[test]
+    fn grinding_is_minimal_and_binds_difficulty_and_full_nonce() {
+        let mut initial = fresh();
+        initial.observe(F192::new(7, 8, 9));
+        initial.sample();
+        initial.observe(F192::new(10, 11, 12));
+        for bits in [0, 8, 13, 17] {
+            let mut prover = initial.clone();
+            let nonce = prover.grind_pow(bits);
+            let base = initial.pow_base(bits);
+            let expected = (0..=nonce)
+                .find(|&n| pow_bits_ok(base, F192::new(n, 0, 0), bits))
+                .unwrap();
+            assert_eq!(nonce, expected);
+            let mut verifier = initial.clone();
+            assert!(verifier.verify_pow_field(F192::new(nonce, 0, 0), bits));
+            assert_eq!(prover.sample_vec(5), verifier.sample_vec(5));
+        }
+        let bits = 8;
+        let base = initial.pow_base(bits);
         let nonce = (0..u64::MAX)
-            .map(|lo| F192::new(lo, 1, 2))
-            .find(|&nonce| pow_bits_ok(base, nonce, 8))
-            .expect("an 8-bit grind has a solution");
-
-        let mut expected = verifier.clone();
-        expected.absorb_nonce(nonce);
-        assert!(verifier.verify_pow_field(nonce, 8));
-        assert_eq!(verifier.state(), expected.state());
-
-        let mut zero_bits = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
-        assert!(!zero_bits.verify_pow_field(F192::new(0, 1, 0), 0));
+            .map(|n| F192::new(n, 1, 2))
+            .find(|&n| pow_bits_ok(base, n, bits))
+            .unwrap();
+        let mut verifier = initial.clone();
+        assert!(verifier.verify_pow_field(nonce, bits));
+        let mut expected = initial.clone();
+        expected.absorb_nonce(nonce, bits);
+        assert_eq!(verifier.sample(), expected.sample());
+        let mut other_difficulty = initial.clone();
+        other_difficulty.absorb_nonce(nonce, bits + 1);
+        other_difficulty.sample();
+        assert_ne!(expected.sample(), other_difficulty.sample());
+        assert!(!initial.verify_pow_field(F192::new(0, 1, 0), 0));
     }
 
     #[test]
     #[should_panic(expected = "grinding past the digest's low word")]
     fn grinding_past_the_low_word_is_refused() {
-        // A 64-bit mask would wrap to zero and accept any nonce.
-        let mut verifier = FiatShamirState::new(digest_words(&primitives::hash::hash(b"t")), pi(1));
-        verifier.verify_pow_field(F192::new(1, 0, 0), 64);
+        fresh().verify_pow_field(F192::new(1, 0, 0), 64);
     }
 }
