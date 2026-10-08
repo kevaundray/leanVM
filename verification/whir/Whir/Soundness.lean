@@ -1,6 +1,10 @@
-import Mathlib.Algebra.Polynomial.Roots
-import Mathlib.Data.Fintype.BigOperators
-import Mathlib.Tactic
+module
+
+public import Mathlib.Algebra.Polynomial.Roots
+public import Mathlib.Data.Fintype.BigOperators
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace Whir.Soundness
 

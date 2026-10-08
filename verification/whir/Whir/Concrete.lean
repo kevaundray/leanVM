@@ -141,9 +141,13 @@ def encodeExt (message : Array E) (logN foldK rate : Nat) : Array (Array E) :=
     (tab (2^n) fun j => message[j*lanes+lane]!)
   tab (2^(n+rate)) fun q => tab lanes fun lane => codes[lane]![q]!
 
+/-- Executable weighted column combination, retaining default indexing on malformed inputs. -/
+def inducedColumns {R : Type u} [Zero R] [Add R] [Mul R] [Inhabited R]
+    (width : Nat) (cols : Array (Array R)) (weights : Array R) : Array R :=
+  tab width fun j => (tab cols.size fun i => weights[i]! * cols[i]![j]!).foldl (· + ·) 0
+
 def induced (n : Nat) (queries : Array Nat) (weights : Array E) : Array E :=
-  let cols := queries.map (column n)
-  tab (2^n) fun j => (tab queries.size fun i => weights[i]! * cols[i]![j]!).foldl (· + ·) E.zero
+  inducedColumns (2^n) (queries.map (column n)) weights
 
 def inducedAt (n : Nat) (queries : Array Nat) (weights point : Array E) : E := Id.run do
   let mut out := E.zero

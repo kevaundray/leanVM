@@ -1,4 +1,5 @@
 import Whir.Protocol
+import Whir.CausalGame
 
 open Whir.Concrete Whir.Protocol
 
@@ -47,7 +48,13 @@ def smoke : IO Unit := do
   let badCh := {ch with levels := ch.levels.set! 0 {ch.levels[0]! with querySqueezes := #[]}}
   requireIO (!(verify c badCh 3 root b target p).isOk) "missing query challenge accepted"
   requireIO (!(verify c ch 0 root b target p).isOk) "empty lane layout accepted"
-  IO.println "lean_smoke=honest,multilevel,truncated_lanes,bad_target,short_opening,short_final,bad_final,missing_query,bad_row,bad_ood,missing_ood,missing_challenge,bad_layout"
+  let badPublic : Whir.CausalGame.Public := ⟨c, 3, #[], #[⟨b.pop, target⟩]⟩
+  let tape : Whir.CausalGame.Tape c := ⟨E.zero,
+    (fun _ => ⟨(fun _ => E.zero), (fun _ _ => E.zero), (fun _ => E.zero), E.zero⟩),
+    fun _ => E.zero⟩
+  requireIO (!Whir.CausalGame.experiment badPublic (fun _ _ _ => .initial default) tape)
+    "malformed public claim accepted"
+  IO.println "lean_smoke=honest,multilevel,truncated_lanes,bad_target,short_opening,short_final,bad_final,missing_query,bad_row,bad_ood,missing_ood,missing_challenge,bad_layout,malformed_public_claim"
 
 def vectors : IO Unit := do
   emitN "kmul" (tab 40 fun i => (kmul (seed i) (seed (i+41))).toNat)

@@ -161,9 +161,10 @@ def VerifierState.checkTerminal {R : Type u} [Mul R] [BEq R] [Inhabited R]
     (state : VerifierState R) (value : R) : Bool :=
   state.claim == value * state.weight[0]!
 
-def enforced (rows : Array (Array E)) (rs weights : Array E) (base : Bool) : E :=
+def enforced {R : Type u} [Zero R] [One R] [Add R] [Mul R] [Inhabited R]
+    (rows : Array (Array R)) (rs weights : Array R) (base : Bool) : R :=
   let eq := eqTable rs
-  (tab rows.size fun i => weights[i]! * dot (if base then rows[i]!.reverse else rows[i]!) eq).foldl (· + ·) E.zero
+  (tab rows.size fun i => weights[i]! * dot (if base then rows[i]!.reverse else rows[i]!) eq).foldl (· + ·) 0
 
 def shapeValid (c : Config) (lanes : Nat) (b : Array E) : Bool :=
   c.valid && lanes > 0 && lanes ≤ 2^c.folds[0]! && b.size == 2^c.logN &&
@@ -225,47 +226,109 @@ def prove (c : Config) (ch : Challenges) (witness : Array K) (bInitial : Array E
     if j+1 < ch.tail.size then tailMessages := tailMessages.push (roundMessage f b)
   return (root, ⟨initial, levels, residual, tailMessages⟩)
 
-/-- Untrusted opening verifier. No access to the original witness or prover state.
-The dense weight is retained for clarity; production evaluates it succinctly. -/
+/-- Allocation-free indexed replay; indices increase from `start`. -/
+def runSteps {S : Type u} (step : Nat → S → S) : Nat → Nat → S → S
+  | 0, _, s => s
+  | count+1, start, s => runSteps step count (start+1) (step start s)
+
+/-- Checked replay stops at the first error, without executing later transitions. -/
+def runChecked {S : Type u} (step : Nat → S → Except String S) :
+    Nat → Nat → S → Except String S
+  | 0, _, s => .ok s
+  | count+1, start, s => do
+      let next ← step start s
+      runChecked step count (start+1) next
+
+structure CheckedState where
+  n : Nat
+  state : VerifierState E
+  oracle : Oracle
+  deriving Repr, Inhabited
+
+/-- One transmitted fold message, without any honesty requirement. -/
+def foldStep (block : Nat) (cs : LevelChallenges) (p : LevelProof)
+    (j : Nat) (s : CheckedState) : CheckedState :=
+  { s with n := s.n-1, state := s.state.fold block cs.folds[j]! p.afterFold[j]! }
+
+def foldBlock (block : Nat) (cs : LevelChallenges) (p : LevelProof)
+    (s : CheckedState) : CheckedState :=
+  runSteps (foldStep block cs p) cs.folds.size 0 s
+
+/-- The scalar is carried explicitly: the first OOD has coefficient lambda. -/
+def oodStep (cs : LevelChallenges) (p : LevelProof)
+    (j : Nat) (s : VerifierState E × E) : VerifierState E × E :=
+  let scalar := s.2 * cs.lambda
+  let ood := p.oods[j]!
+  (s.1.batch (eqTable cs.oodPoints[j]!) ood.value scalar ood.intro, scalar)
+
+def oodBatch (cs : LevelChallenges) (p : LevelProof) (s : VerifierState E) :
+    VerifierState E × E :=
+  runSteps (oodStep cs p) p.oods.size 0 (s, E.one)
+
+def queryBatch (n i : Nat) (cs : LevelChallenges) (p : LevelProof)
+    (qs : Array Nat) (s : VerifierState E × E) : VerifierState E :=
+  let ws := powers cs.lambda qs.size
+  s.1.batch (induced n qs ws) (enforced p.rows cs.folds ws (i == 0))
+    (s.2 * cs.lambda) p.intro
+
+def authenticateRow (oracle : Oracle) (qs : Array Nat) (p : LevelProof)
+    (j : Nat) (_ : Unit) : Except String Unit := do
+  if p.rows[j]! != oracle[qs[j]!]! then throw "authentication"
+
+/-- One actual checked level. All length and authentication checks precede batching;
+the commitment/final-length check precedes query derivation, as in the wire schedule. -/
+def verifyLevel (c : Config) (ch : Challenges) (proof : Opening)
+    (i : Nat) (s : CheckedState) : Except String CheckedState := do
+  let cs := ch.levels[i]!
+  let p := proof.levels[i]!
+  if p.afterFold.size != cs.folds.size || p.oods.size != cs.oodPoints.size then
+    throw "round/OOD length"
+  let s := foldBlock (if i == 0 then 2^(c.logN-c.folds[0]!) else 1) cs p s
+  if i+1 < c.folds.size then
+    let next ← p.nextOracle.elim (throw "missing commitment") pure
+    if !oracleValid next (2^(s.n-c.folds[i+1]!+c.rates[i+1]!)) (2^c.folds[i+1]!) then
+      throw "commitment shape"
+  else
+    if p.nextOracle.isSome || proof.residual.size != 2^s.n then throw "final length"
+  let qs ← (deriveQueries (s.n+c.rates[i]!) c.queries[i]! cs.querySqueezes).elim
+    (throw "query challenges") pure
+  if p.rows.size != qs.size then throw "query length"
+  let _ ← runChecked (authenticateRow s.oracle qs p) qs.size 0 ()
+  let batched := queryBatch s.n i cs p qs (oodBatch cs p s.state)
+  return ⟨s.n, batched, p.nextOracle.getD #[]⟩
+
+def initializeVerifier (c : Config) (ch : Challenges) (lanes : Nat) (root : Oracle)
+    (bInitial : Array E) (target : E) (proof : Opening) : Except String CheckedState := do
+  if !ch.valid c || !shapeValid c lanes bInitial then throw "configuration/challenges/weight"
+  if !oracleValid root (2^(c.logN-c.folds[0]!+c.rates[0]!)) lanes then throw "root shape"
+  if proof.levels.size != c.folds.size || proof.tailMessages.size+1 != ch.tail.size then
+    throw "proof length"
+  return ⟨c.logN, ⟨bInitial, target, proof.initial⟩, root⟩
+
+def replayLevels (c : Config) (ch : Challenges) (proof : Opening)
+    (s : CheckedState) : Except String CheckedState :=
+  runChecked (verifyLevel c ch proof) c.folds.size 0 s
+
+def tailStep (ch : Challenges) (proof : Opening) (j : Nat)
+    (s : VerifierState E) : VerifierState E :=
+  let next := if j+1 < ch.tail.size then proof.tailMessages[j]! else s.message
+  s.fold 1 ch.tail[j]! next
+
+def closeTail (ch : Challenges) (proof : Opening) (s : VerifierState E) :
+    VerifierState E :=
+  runSteps (tailStep ch proof) ch.tail.size 0 s
+
+def checkClosing (ch : Challenges) (proof : Opening) (s : VerifierState E) :
+    Except String Unit := do
+  if !s.checkTerminal (mle proof.residual ch.tail) then throw "terminal mismatch"
+  return ()
+
+/-- Untrusted opening verifier. The shared transitions consume arbitrary messages;
+no access to a witness, honest-message constructor, or prover state is needed. -/
 def verify (c : Config) (ch : Challenges) (lanes : Nat) (root : Oracle)
     (bInitial : Array E) (target : E) (proof : Opening) : Except String Unit := do
-  if !ch.valid c || !shapeValid c lanes bInitial then throw "configuration/challenges/weight"
-  let block := 2^(c.logN-c.folds[0]!)
-  if !oracleValid root (2^(c.logN-c.folds[0]!+c.rates[0]!)) lanes then throw "root shape"
-  if proof.levels.size != c.folds.size || proof.tailMessages.size+1 != ch.tail.size then throw "proof length"
-  let mut n := c.logN
-  let mut state : VerifierState E := ⟨bInitial, target, proof.initial⟩
-  let mut oracle := root
-  for i in [:c.folds.size] do
-    let cs := ch.levels[i]!
-    let p := proof.levels[i]!
-    if p.afterFold.size != cs.folds.size || p.oods.size != cs.oodPoints.size then throw "round/OOD length"
-    for j in [:cs.folds.size] do
-      state := state.fold (if i == 0 then block else 1) cs.folds[j]! p.afterFold[j]!
-      n := n-1
-    if i+1 < c.folds.size then
-      let next ← p.nextOracle.elim (throw "missing commitment") pure
-      if !oracleValid next (2^(n-c.folds[i+1]!+c.rates[i+1]!)) (2^c.folds[i+1]!) then throw "commitment shape"
-    else
-      if p.nextOracle.isSome || proof.residual.size != 2^n then throw "final length"
-    let qs ← (deriveQueries (n+c.rates[i]!) c.queries[i]! cs.querySqueezes).elim (throw "query challenges") pure
-    if p.rows.size != qs.size then throw "query length"
-    for j in [:qs.size] do
-      if p.rows[j]! != oracle[qs[j]!]! then throw "authentication"
-    let ws := powers cs.lambda qs.size
-    let sum := enforced p.rows cs.folds ws (i == 0)
-    let mut scalar := E.one
-    for j in [:p.oods.size] do
-      scalar := scalar*cs.lambda
-      let ood := p.oods[j]!
-      state := state.batch (eqTable cs.oodPoints[j]!) ood.value scalar ood.intro
-    scalar := scalar*cs.lambda
-    state := state.batch (induced n qs ws) sum scalar p.intro
-    oracle := p.nextOracle.getD #[]
-  for j in [:ch.tail.size] do
-    let next := if j+1 < ch.tail.size then proof.tailMessages[j]! else state.message
-    state := state.fold 1 ch.tail[j]! next
-  if !state.checkTerminal (mle proof.residual ch.tail) then throw "terminal mismatch"
-  return ()
+  let initial ← initializeVerifier c ch lanes root bInitial target proof
+  let final ← replayLevels c ch proof initial
+  checkClosing ch proof (closeTail ch proof final.state)
 
 end Whir.Protocol
