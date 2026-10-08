@@ -1129,3 +1129,7 @@ mod tests {
         check::<lanes::Neon>("neon");
     }
 }
+
+#[cfg(test)]
+#[path = "grid_diagnostic.rs"]
+mod grid_diagnostic;
