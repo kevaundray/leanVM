@@ -36,6 +36,11 @@
 //!    `β_i = γ^{2^{i-1}} / (1 + γ^{2^{i-1}})`, which makes
 //!    `eq_med[b] = γ^b / D` for `D = ∏(1+γ^{2^{i-1}})`.
 //!    A precomputed `convert[b][v] = γ^b · φ_8(v)` table replaces field multiplications with lookups and XORs.
+//!    On ARM, conversion visits all lanes for a bounded group of four medium rows before
+//!    advancing to the next group. Two stack-resident lane arrays retain the unweighted
+//!    sums across groups; the equality weight is applied only after the complete window,
+//!    including a partial final group. This traversal leaves the packed AB sweep and C
+//!    transpose unchanged.
 //!
 //! 3. **D⁻¹ absorbed into eq_lo.**
 //!    Pre-scale `eq_lo[i] ← eq_lo[i] · D⁻¹` once before the loop; this cancels
