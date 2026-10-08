@@ -693,6 +693,24 @@ impl Convert {
     #[inline(always)]
     fn accumulate(&mut self, ab: &[[u8; 64]], c: &[[u8; 64]], eq_lo: F192) {
         let convert = convert_table();
+        #[cfg(target_arch = "aarch64")]
+        {
+            // Consume one table row across the lanes before advancing to the next
+            // medium position, keeping the active lookup table bounded to one row.
+            let mut converted_ab = [F192::ZERO; ELL];
+            let mut converted_c = [F192::ZERO; ELL];
+            for ((row, ab), c) in convert.iter().zip(ab).zip(c) {
+                for lane in 0..ELL {
+                    converted_ab[lane] += row[ab[lane] as usize];
+                    converted_c[lane] += row[c[lane] as usize];
+                }
+            }
+            for lane in 0..ELL {
+                self.ab[lane] += converted_ab[lane] * eq_lo;
+                self.c[lane] += converted_c[lane] * eq_lo;
+            }
+        }
+        #[cfg(not(target_arch = "aarch64"))]
         for lane in 0..ELL {
             let mut cf_ab = F192::ZERO;
             let mut cf_c = F192::ZERO;
@@ -1325,8 +1343,8 @@ pub(crate) mod tests {
         let mut rng = Rng::new(0xC0_4E27);
         let mut partials = Convert::new();
         let (mut want_ab, mut want_c) = ([F192::ZERO; ELL], [F192::ZERO; ELL]);
-        // Two full windows of 16 medium positions, then a boundary window of 7.
-        for n in [16, 16, 7] {
+        // Repeated full windows followed by every possible boundary length.
+        for n in [16, 16].into_iter().chain(0..16) {
             let ab: Vec<[u8; 64]> = (0..n).map(|_| std::array::from_fn(|_| rng.next_u64() as u8)).collect();
             let c: Vec<[u8; 64]> = (0..n).map(|_| std::array::from_fn(|_| rng.next_u64() as u8)).collect();
             let eq = rng.ext();
