@@ -58,9 +58,19 @@ const ROW: usize = 8;
 /// a multilinear's `inf` is the sum of its `0` and `1`.
 #[inline(always)]
 fn extend_grid<T: Copy, const R: usize>(grid: &mut [T; GRID], add: impl Fn(&T, &T) -> T) {
-    extend_grid_digits::<T, R>(grid, R, add);
+    let mut stride = 1;
+    for i in 0..R {
+        for &high in &LANE_IN_GRID[..1 << (R - 1 - i)] {
+            let base = 3 * stride * high;
+            for at in base..base + stride {
+                grid[at + 2 * stride] = add(&grid[at], &grid[at + stride]);
+            }
+        }
+        stride *= 3;
+    }
 }
 
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
 #[inline(always)]
 fn extend_grid_digits<T: Copy, const R: usize>(grid: &mut [T; GRID], digits: usize, add: impl Fn(&T, &T) -> T) {
     let mut stride = 1;
@@ -76,13 +86,13 @@ fn extend_grid_digits<T: Copy, const R: usize>(grid: &mut [T; GRID], digits: usi
 }
 
 /// Finish each row's extension at the point where its products are consumed.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
 #[inline(always)]
 fn accumulate_grid<const R: usize>(
     fg: &mut [[u64; ROW]; GRID],
     bg: &mut [WeightRow; GRID],
     acc: &mut [ProductRow; GRID],
 ) {
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
     if R > 0 {
         extend_grid_digits::<_, R>(fg, R - 1, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
         extend_grid_digits::<_, R>(bg, R - 1, WeightRow::add);
@@ -861,7 +871,16 @@ fn grid_pass_with<const R: usize>(
                 }
                 bg[LANE_IN_GRID[l]] = WeightRow::pack(&bs[l][x..x + width]);
             }
+            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
             accumulate_grid::<R>(fg, bg, acc);
+            #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+            {
+                extend_grid::<_, R>(fg, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
+                extend_grid::<_, R>(bg, WeightRow::add);
+                for (a, (k, w)) in acc.iter_mut().zip(fg.iter().zip(bg.iter())).take(points) {
+                    a.mul_acc(w, k);
+                }
+            }
         }
     };
 
