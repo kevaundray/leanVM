@@ -2,11 +2,14 @@
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 use core::ffi::CStr;
+use std::num::NonZeroUsize;
 use std::sync::OnceLock;
+
+static TOPOLOGY: OnceLock<Topology> = OnceLock::new();
 
 /// Worker counts for the pool: performance cores first, then the efficiency
 /// cores that join the same work queue at a lower scheduling class.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Topology {
     /// Workers scheduled on performance cores, including the dispatcher.
     pub perf: usize,
@@ -31,7 +34,6 @@ impl Topology {
 /// single-threaded debugging run really is one thread.
 #[must_use]
 pub fn topology() -> Topology {
-    static TOPOLOGY: OnceLock<Topology> = OnceLock::new();
     *TOPOLOGY.get_or_init(|| {
         let requested = std::env::var("LEANVM_NUM_THREADS")
             .ok()
@@ -46,6 +48,15 @@ pub fn topology() -> Topology {
             None => default_topology(),
         }
     })
+}
+
+pub(crate) fn configure_threads(threads: NonZeroUsize) -> Result<(), Topology> {
+    let requested = Topology {
+        perf: threads.get(),
+        efficiency: 0,
+    };
+    let actual = *TOPOLOGY.get_or_init(|| requested);
+    if actual == requested { Ok(()) } else { Err(actual) }
 }
 
 /// Worker count including the dispatcher.
