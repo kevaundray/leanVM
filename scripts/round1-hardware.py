@@ -17,7 +17,7 @@ VARIANTS = [
     ('medium', '721c4ce10127bada00046b8bec03825f5efd1c78'),
     ('tile4', 'ea9bb2dafc350964dcf5bbee9a91090c6708a6e2'),
     ('horner', '0e210861d2f18bacabcdf4a2b0b4835482b4a848'),
-    ('bitperm', '03f6d4b8bc46d8c827b3833093f1ffdbcff4eefb'),
+    ('bitperm', '0c1fc5bf12c25699021bae5630f89f840784e57d'),
 ]
 SCOPE = ['systemd-run', '--user', '--scope', '-q', '-p', 'MemoryMax=16G', '-p', 'MemorySwapMax=0']
 ENV = dict(os.environ, CARGO_BUILD_JOBS='4', CARGO_TERM_COLOR='never', RUSTFLAGS='-C target-cpu=native')
@@ -56,7 +56,17 @@ for side, revision in VARIANTS:
     path = tree / 'crates/flock/src/zerocheck/round1.rs'
     source = path.read_text()
     assert source.rstrip().endswith('}')
-    source = source.rstrip()[:-1] + (ROOT / 'scripts/round1-captured.rs').read_text() + '\n}\n'
+    capture_test = (ROOT / 'scripts/round1-captured.rs').read_text()
+    if side == 'bitperm':
+        capture_test = capture_test.replace('        use std::hint::black_box;', '''
+        #[cfg(target_arch = "aarch64")]
+        let bitperm = std::arch::is_aarch64_feature_detected!("sve2-bitperm");
+        #[cfg(target_arch = "aarch64")]
+        let bit_transpose_64bytes = |input: &[u8; 64], output: &mut [u8; 64]| {
+            unsafe { transpose_c(input, output, bitperm) }
+        };
+        use std::hint::black_box;''')
+    source = source.rstrip()[:-1] + capture_test + '\n}\n'
     path.write_text(source)
     target = Path('/tmp/round1-native-' + side)
     env = dict(ENV, CARGO_TARGET_DIR=str(target))
