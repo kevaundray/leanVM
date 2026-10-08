@@ -9,7 +9,7 @@ import subprocess
 import zipfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("function", choices=("shielded_prove", "shielded_aggregate"))
+parser.add_argument("function", choices=("shielded_prove",))
 args = parser.parse_args()
 name = f"leanvm_mobile_bench::{args.function}"
 subprocess.run(

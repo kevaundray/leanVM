@@ -1,7 +1,4 @@
-use leanvm_mobile_bench::{
-    AGGREGATE_BENCHMARK, AGGREGATION_LEAVES, DEFAULT_ITERATIONS, DEFAULT_WARMUP, PROVE_BENCHMARK, SPENDS_PER_LEAF,
-    THREADS,
-};
+use leanvm_mobile_bench::{DEFAULT_ITERATIONS, DEFAULT_WARMUP, PROVE_BENCHMARK, SPENDS_PER_LEAF};
 use mobench_sdk::{BenchSpec, MobenchBuf};
 use serde_json::Value;
 use std::error::Error;
@@ -32,30 +29,22 @@ fn run(name: &str) -> Result<Value, Box<dyn Error>> {
         DEFAULT_ITERATIONS as usize
     );
     let metrics = &report["custom_metrics"]["run_u64"];
-    assert_eq!(metrics["threads"], THREADS as u64);
+    assert_eq!(metrics["threads"], std::thread::available_parallelism()?.get() as u64);
+    assert_eq!(metrics["available_parallelism"], metrics["threads"]);
     assert_eq!(metrics["spends_per_leaf"], SPENDS_PER_LEAF as u64);
     assert_eq!(
         metrics["verified_proofs"],
         u64::from(DEFAULT_WARMUP + DEFAULT_ITERATIONS)
     );
-    if name == AGGREGATE_BENCHMARK {
-        assert_eq!(metrics["aggregation_leaves"], AGGREGATION_LEAVES as u64);
-        assert_eq!(metrics["verified_setup_leaves"], AGGREGATION_LEAVES as u64);
-    } else {
-        assert_eq!(metrics["aggregation_leaves"], 0);
-        assert!(metrics.get("verified_setup_leaves").is_none());
-    }
     Ok(report)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let names = mobench_sdk::registry::list_benchmark_names();
-    assert_eq!(names, [AGGREGATE_BENCHMARK, PROVE_BENCHMARK]);
+    assert_eq!(names, [PROVE_BENCHMARK]);
     for pass in 1..=2 {
-        for name in [PROVE_BENCHMARK, AGGREGATE_BENCHMARK] {
-            let report = run(name)?;
-            println!("{}", serde_json::json!({ "smoke_pass": pass, "report": report }));
-        }
+        let report = run(PROVE_BENCHMARK)?;
+        println!("{}", serde_json::json!({ "smoke_pass": pass, "report": report }));
     }
     Ok(())
 }

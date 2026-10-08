@@ -12,11 +12,10 @@ import tempfile
 from urllib.parse import quote
 
 
-DEVICE = "Google Pixel 7-13.0"
-FUNCTIONS = (
-    "leanvm_mobile_bench::shielded_prove",
-    "leanvm_mobile_bench::shielded_aggregate",
-)
+DEVICE_MODEL = "Google Pixel 7"
+DEVICE_OS = "13.0"
+DEVICE = f"{DEVICE_MODEL}-{DEVICE_OS}"
+FUNCTIONS = ("leanvm_mobile_bench::shielded_prove",)
 MOBENCH_REV = "217cfd4f78db1284276a1a1da44e3bf473729f5c"
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s<>\"'`]+")
 PRIVATE_KEY = re.compile(r"url|uri|token|password|credential|authorization|access.?key|username", re.IGNORECASE)
@@ -63,6 +62,44 @@ def export_reports(source, destination, clean, text):
             if sibling.is_file():
                 output.with_name(name).write_text(text(sibling.read_text()))
     (destination / "raw-results.json").write_text(json.dumps(raw, indent=2) + "\n")
+    return raw
+
+
+def export_sessions(source, destination, clean):
+    sessions = []
+    for path in sorted(source.rglob("session.json")):
+        report = json.loads(path.read_text())
+        fields = []
+
+        def collect(value):
+            if isinstance(value, dict):
+                selected = {
+                    key: item for key, item in value.items() if key in ("device", "os", "os_version", "status") and isinstance(item, (str, int, bool))
+                }
+                if selected:
+                    fields.append(selected)
+                for item in value.values():
+                    collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+
+        collect(report)
+        sessions.append({"source": str(path.relative_to(source)), "session_id": path.parent.name.removeprefix("session-"), "fields": fields})
+    (destination / "sessions.json").write_text(json.dumps(clean(sessions), indent=2) + "\n")
+
+
+def results_complete(summary):
+    devices = summary["device_summaries"]
+    if summary["devices"] != [DEVICE] or [device["device"] for device in devices] != [DEVICE_MODEL]:
+        return False
+    benchmarks = devices[0]["benchmarks"]
+    measured = {benchmark["function"]: benchmark for benchmark in benchmarks}
+    return (
+        len(benchmarks) == len(FUNCTIONS)
+        and set(measured) == set(FUNCTIONS)
+        and all(measured[function].get("samples") == 3 and not measured[function].get("failure") for function in FUNCTIONS)
+    )
 
 
 def export_diagnostics(private, destination, text):
@@ -96,12 +133,13 @@ def main():
         "target": "aarch64-linux-android",
         "profile": "release",
         "rustflags": os.environ.get("RUSTFLAGS"),
-        "threads": 1,
+        "thread_policy": "available_parallelism",
+        "threads": None,
+        "available_parallelism": None,
         "candidate_device": DEVICE,
         "device_validated": False,
         "functions": list(FUNCTIONS),
-        "spends_per_leaf": 1,
-        "aggregation_leaves": 2,
+        "spends_per_leaf": 2,
         "warmup": 1,
         "iterations": 3,
         "soc": None,
@@ -179,7 +217,7 @@ def main():
                     matches = [
                         device
                         for device in catalog
-                        if device.get("device") == "Google Pixel 7" and device.get("os_version") == "13.0" and device.get("os") == "android"
+                        if device.get("device") == DEVICE_MODEL and device.get("os_version") == DEVICE_OS and device.get("os") == "android"
                     ]
                     metadata["catalog_matches"] = [
                         {key: device.get(key) for key in ("device", "os", "os_version", "available")} for device in matches
@@ -192,19 +230,28 @@ def main():
                     metadata["device_validated"] = True
             else:
                 summary = json.loads((reports / "summary.json").read_text())["summary"]
-                devices = [device["device"] for device in summary["device_summaries"]]
-                measured = {benchmark["function"]: benchmark for device in summary["device_summaries"] for benchmark in device["benchmarks"]}
-                if (
-                    devices != [DEVICE]
-                    or set(measured) != set(FUNCTIONS)
-                    or any(measured[function].get("samples") != 3 or measured[function].get("failure") for function in FUNCTIONS)
-                ):
+                if not results_complete(summary):
                     metadata["status"] = "incomplete_results"
-                    print("BrowserStack did not return three successful samples for both benchmarks on the requested model and OS.")
+                    print("BrowserStack did not return three successful samples for the requested shielded workload and device.")
                 else:
                     metadata["status"] = "complete"
                     exit_code = 0
-            export_reports(reports, destination, clean, text)
+            raw = export_reports(reports, destination, clean, text)
+            export_sessions(private / "browserstack", destination, clean)
+            if exit_code == 0:
+                entries = [entry for report in raw for entries in report["benchmark_results"].values() for entry in entries]
+                if len(entries) != 1:
+                    raise ValueError("expected one standalone benchmark report")
+                metrics = entries[0]["custom_metrics"]["run_u64"]
+                metadata.update({key: metrics[key] for key in ("threads", "available_parallelism", "verified_proofs")})
+                if (
+                    metrics["threads"] < 1
+                    or metrics["threads"] != metrics["available_parallelism"]
+                    or metrics["spends_per_leaf"] != 2
+                    or metrics["verified_proofs"] != 4
+                ):
+                    metadata["status"] = "incomplete_results"
+                    exit_code = 1
     except (OSError, ValueError, KeyError, TypeError):
         metadata["status"] = "execution_or_report_error"
         exit_code = 1
@@ -212,7 +259,7 @@ def main():
     finally:
         (destination / "metadata.json").write_text(json.dumps(clean(metadata), indent=2) + "\n")
     if exit_code == 0:
-        print("Both shielded benchmarks completed; sanitized reports are in target/mobile-bench-results.")
+        print("The two-spend shielded benchmark completed; sanitized reports are in target/mobile-bench-results.")
     return exit_code
 
 
