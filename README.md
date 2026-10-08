@@ -139,7 +139,7 @@ It prints a markdown table of the RISC-V cycles, per item and in all, and the co
 
 ### Hosted Android and iPhone benchmarks
 
-The isolated [mobile benchmark integration](bench-mobile/README.md) packages a real two-spend shielded-transfer proof with pinned `mobench` tooling, using the device's available parallelism and no aggregation. It uses native ARM64 release builds on BrowserStack App Automate physical devices, with credential-free PR package checks and trusted scheduled or manual device runs. Benchmark inputs, timing boundaries, account requirements and downloadable result artifacts are documented there; these are not emulator performance measurements.
+The isolated [mobile benchmark integration](bench-mobile/README.md) packages a real two-spend shielded-transfer proof and a separate 2-to-1 aggregation of two such leaves, using pinned `mobench` tooling and the device's available parallelism. Aggregation prepares and verifies its leaves once outside the measured interval. It uses native ARM64 release builds on BrowserStack App Automate physical devices, with credential-free PR package checks and trusted scheduled or manual device runs. Benchmark inputs, timing boundaries, account requirements and downloadable result artifacts are documented there; these are not emulator performance measurements.
 
 ### hashing
 

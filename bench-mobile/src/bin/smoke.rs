@@ -1,4 +1,7 @@
-use leanvm_mobile_bench::{DEFAULT_ITERATIONS, DEFAULT_WARMUP, PROVE_BENCHMARK, SPENDS_PER_LEAF};
+use leanvm_mobile_bench::{
+    AGGREGATE_BENCHMARK, AGGREGATION_LEAVES, AGGREGATION_LOG_INV_RATE, DEFAULT_ITERATIONS, DEFAULT_WARMUP,
+    LEAF_LOG_INV_RATE, PROVE_BENCHMARK, SPENDS_PER_LEAF,
+};
 use mobench_sdk::{BenchSpec, MobenchBuf};
 use serde_json::Value;
 use std::error::Error;
@@ -32,19 +35,32 @@ fn run(name: &str) -> Result<Value, Box<dyn Error>> {
     assert_eq!(metrics["threads"], std::thread::available_parallelism()?.get() as u64);
     assert_eq!(metrics["available_parallelism"], metrics["threads"]);
     assert_eq!(metrics["spends_per_leaf"], SPENDS_PER_LEAF as u64);
+    assert_eq!(metrics["leaf_log_inv_rate"], u64::from(LEAF_LOG_INV_RATE));
     assert_eq!(
         metrics["verified_proofs"],
         u64::from(DEFAULT_WARMUP + DEFAULT_ITERATIONS)
     );
+    if name == AGGREGATE_BENCHMARK {
+        assert_eq!(metrics["aggregation_leaves"], AGGREGATION_LEAVES as u64);
+        assert_eq!(metrics["aggregation_log_inv_rate"], u64::from(AGGREGATION_LOG_INV_RATE));
+        assert_eq!(metrics["verified_leaves"], AGGREGATION_LEAVES as u64);
+    } else {
+        assert!(metrics.get("aggregation_leaves").is_none());
+        assert!(metrics.get("aggregation_log_inv_rate").is_none());
+        assert!(metrics.get("verified_leaves").is_none());
+    }
     Ok(report)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let names = mobench_sdk::registry::list_benchmark_names();
-    assert_eq!(names, [PROVE_BENCHMARK]);
+    let mut names = mobench_sdk::registry::list_benchmark_names();
+    names.sort_unstable();
+    assert_eq!(names, [AGGREGATE_BENCHMARK, PROVE_BENCHMARK]);
     for pass in 1..=2 {
-        let report = run(PROVE_BENCHMARK)?;
-        println!("{}", serde_json::json!({ "smoke_pass": pass, "report": report }));
+        for name in [PROVE_BENCHMARK, AGGREGATE_BENCHMARK] {
+            let report = run(name)?;
+            println!("{}", serde_json::json!({ "smoke_pass": pass, "report": report }));
+        }
     }
     Ok(())
 }

@@ -13,6 +13,23 @@ import subprocess
 
 MARKER = "<!-- leanvm-mobile-bench -->"
 FUNCTION = "leanvm_mobile_bench::shielded_prove"
+AGGREGATE_FUNCTION = "leanvm_mobile_bench::shielded_aggregate"
+FUNCTIONS = (FUNCTION, AGGREGATE_FUNCTION)
+WORKLOADS = {
+    FUNCTION: {"spends_per_leaf": 2, "leaf_log_inv_rate": 2, "verified_proofs": 4},
+    AGGREGATE_FUNCTION: {
+        "spends_per_leaf": 2,
+        "leaf_log_inv_rate": 2,
+        "verified_proofs": 4,
+        "aggregation_leaves": 2,
+        "aggregation_log_inv_rate": 1,
+        "verified_leaves": 2,
+    },
+}
+LABELS = {
+    FUNCTION: "Shielded, 2 spends",
+    AGGREGATE_FUNCTION: "Shielded 2-to-1, two 2-spend leaves / 4 spends total",
+}
 DEVICES = {
     "android": ("Google Pixel 7", "13.0", "Android"),
     "ios": ("iPhone 14", "16", "iOS"),
@@ -26,6 +43,62 @@ def require(condition, message):
 
 def positive(value):
     return type(value) is int and value > 0
+
+
+def validate_summary(summary, platform, functions):
+    model, version, _ = DEVICES[platform]
+    require(summary["target"] == platform, "unexpected measured platform")
+    require(summary["function"] == (functions[0] if len(functions) == 1 else "multiple"), "unexpected summary function")
+    require(type(summary["warmup"]) is int and summary["warmup"] == 1, "unexpected warmup")
+    require(type(summary["iterations"]) is int and summary["iterations"] == 3, "unexpected iterations")
+    require(summary["devices"] == [f"{model}-{version}"], "unexpected requested device")
+    devices = summary["device_summaries"]
+    require(len(devices) == 1 and devices[0]["device"] in (model, f"{model}-{version}"), "unexpected measured device")
+    entries = devices[0]["benchmarks"]
+    require(len(entries) == len(functions) and {entry["function"] for entry in entries} == set(functions), "missing or duplicate summary function")
+    require(
+        all(type(entry["samples"]) is int and entry["samples"] == 3 and not entry.get("failure") for entry in entries), "incomplete summary samples"
+    )
+
+
+def validate_results(raw, platform):
+    model, version, _ = DEVICES[platform]
+    measured = {}
+    for report in raw:
+        devices = report["benchmark_results"]
+        require(len(devices) == 1, "unexpected measured device")
+        device, entries = next(iter(devices.items()))
+        require(device in (model, f"{model}-{version}"), "unexpected measured device")
+        require(bool(entries), "empty benchmark report")
+        functions = [entry["function"] for entry in entries]
+        validate_summary(report["summary"], platform, functions)
+        for result in entries:
+            function = result["function"]
+            require(function in FUNCTIONS and function not in measured, "unexpected or duplicate measured function")
+            require(result["spec"] == {"name": function, "warmup": 1, "iterations": 3}, "unexpected measured specification")
+            require(not result.get("failure"), "failed benchmark")
+            metrics = result["custom_metrics"]["run_u64"]
+            for key, value in WORKLOADS[function].items():
+                require(type(metrics[key]) is int and metrics[key] == value, f"invalid {key}")
+            require(
+                positive(metrics["threads"])
+                and type(metrics["available_parallelism"]) is int
+                and metrics["threads"] == metrics["available_parallelism"],
+                "invalid thread count",
+            )
+            samples = result["samples_ns"]
+            require(len(samples) == 3 and all(positive(value) and math.isfinite(value) for value in samples), "invalid samples")
+            require([sample["duration_ns"] for sample in result["samples"]] == samples, "sample records disagree")
+            measured[function] = result
+    require(set(measured) == set(FUNCTIONS), "missing benchmark function")
+    return measured
+
+
+def benchmark_metrics(measured):
+    return {
+        function: {key: result["custom_metrics"]["run_u64"][key] for key in ("threads", "available_parallelism", *WORKLOADS[function])}
+        for function, result in measured.items()
+    }
 
 
 def render(directory, repository, head, run_id):
@@ -45,38 +118,33 @@ def render(directory, repository, head, run_id):
         return prefix + "The device benchmark did not complete successfully. No performance result is published.\n", False, platform
     require(metadata["device_validated"] is True, "device was not validated")
     require(metadata["candidate_device"] == f"{model}-{version}", "unexpected device")
-    require(metadata["functions"] == [FUNCTION], "unexpected workload")
-    require(metadata["spends_per_leaf"] == 2 and metadata["warmup"] == 1 and metadata["iterations"] == 3, "unexpected workload shape")
-    require(metadata["verified_proofs"] == 4, "not all proofs verified")
-    threads = metadata["threads"]
-    require(positive(threads) and threads == metadata["available_parallelism"], "invalid thread count")
+    require(metadata["functions"] == list(FUNCTIONS), "unexpected workload")
+    require(metadata["warmup"] == 1 and metadata["iterations"] == 3, "unexpected workload shape")
     raw = json.loads((directory / "raw-results.json").read_text())
-    require(len(raw) == 1, "expected one report")
-    devices = raw[0]["benchmark_results"]
-    require(len(devices) == 1, "unexpected measured device")
-    measured_device = next(iter(devices))
-    require(measured_device in (model, f"{model}-{version}") and len(devices[measured_device]) == 1, "unexpected measured device")
-    result = devices[measured_device][0]
-    require(result["function"] == FUNCTION, "unexpected measured function")
-    require(result["spec"] == {"name": FUNCTION, "warmup": 1, "iterations": 3}, "unexpected measured specification")
-    metrics = result["custom_metrics"]["run_u64"]
-    for key in ("threads", "available_parallelism", "spends_per_leaf", "verified_proofs"):
-        require(type(metrics[key]) is int and metrics[key] == metadata[key], f"{key} mismatch")
-    samples = result["samples_ns"]
-    require(len(samples) == 3 and all(positive(value) and math.isfinite(value) for value in samples), "invalid samples")
-    require([sample["duration_ns"] for sample in result["samples"]] == samples, "sample records disagree")
-    median = statistics.median(samples) / 1e9
-    body = prefix + "\n".join(
-        [
-            "| Benchmark | Device / OS | Threads | Median | Sample range | Verified proofs |",
-            "|---|---|---:|---:|---:|---:|",
-            f"| Shielded, 2 spends | {model} / {os_name} {version} | {threads} | {median:.3f} s | {min(samples) / 1e9:.3f} to {max(samples) / 1e9:.3f} s | 4 / 4 |",
-            "",
-            "Samples: " + ", ".join(f"{value / 1e9:.9f} s" for value in samples) + ".",
-            "",
-        ]
-    )
-    return body, True, platform
+    measured = validate_results(raw, platform)
+    observed = benchmark_metrics(measured)
+    require(metadata["benchmarks"] == observed, "benchmark metrics mismatch")
+    require(all(type(value) is int for metrics in metadata["benchmarks"].values() for value in metrics.values()), "invalid benchmark metrics")
+    for key in ("threads", "available_parallelism"):
+        values = {metrics[key] for metrics in observed.values()}
+        if len(values) == 1:
+            require(type(metadata[key]) is int and metadata[key] == next(iter(values)), f"{key} mismatch")
+        else:
+            require(key not in metadata, f"inconsistent shared {key}")
+    rows = [
+        "| Benchmark | Device / OS | Threads | Median | Sample range | Verified proofs |",
+        "|---|---|---:|---:|---:|---:|",
+    ]
+    sample_rows = []
+    for function in FUNCTIONS:
+        samples = measured[function]["samples_ns"]
+        threads = observed[function]["threads"]
+        median = statistics.median(samples) / 1e9
+        rows.append(
+            f"| {LABELS[function]} | {model} / {os_name} {version} | {threads} | {median:.3f} s | {min(samples) / 1e9:.3f} to {max(samples) / 1e9:.3f} s | 4 / 4 |"
+        )
+        sample_rows.append(f"`{function.rsplit('::', 1)[1]}` samples: " + ", ".join(f"{value / 1e9:.9f} s" for value in samples) + ".")
+    return prefix + "\n".join([*rows, "", *sample_rows, ""]), True, platform
 
 
 def gh(endpoint, method="GET", payload=None):

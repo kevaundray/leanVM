@@ -76,6 +76,7 @@ jobs:
       - name: Build baseline ARM64 runner and test APKs without credentials
         run: |
           python3 ../scripts/mobile-bench-package.py --platform android shielded_prove
+          python3 ../scripts/mobile-bench-package.py --platform android shielded_aggregate
       - name: Save credential-free release packages
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -172,7 +173,9 @@ jobs:
           RUSTFLAGS: ''
         run: cargo install mobench --git https://github.com/worldcoin/mobile-bench-rs --rev 217cfd4f78db1284276a1a1da44e3bf473729f5c --locked
       - name: Build release IPA and XCUITest without credentials
-        run: python3 ../scripts/mobile-bench-package.py --platform ios shielded_prove
+        run: |
+          python3 ../scripts/mobile-bench-package.py --platform ios shielded_prove
+          python3 ../scripts/mobile-bench-package.py --platform ios shielded_aggregate
       - name: Save credential-free release packages
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:

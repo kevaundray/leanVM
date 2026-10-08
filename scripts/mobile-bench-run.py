@@ -3,6 +3,7 @@
 
 import argparse
 import base64
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -17,7 +18,10 @@ DEVICES = {
     "android": ("Google Pixel 7", "13.0"),
     "ios": ("iPhone 14", "16"),
 }
-FUNCTIONS = ("leanvm_mobile_bench::shielded_prove",)
+SPEC = importlib.util.spec_from_file_location("mobile_report", Path(__file__).with_name("mobile-bench-report.py"))
+reporting = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(reporting)
+FUNCTIONS = reporting.FUNCTIONS
 MOBENCH_REV = "217cfd4f78db1284276a1a1da44e3bf473729f5c"
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s<>\"'`]+")
 PRIVATE_KEY = re.compile(r"url|uri|token|password|credential|authorization|access.?key|username", re.IGNORECASE)
@@ -49,20 +53,57 @@ def redactor():
     return text, clean
 
 
-def export_reports(source, destination, clean, text):
-    raw = []
+def normalize_reports(reports, platform):
+    raw = {}
+    references = set()
+
+    def add(source, report):
+        reporting.require("benchmark_results" in report, "missing raw benchmark results")
+        reporting.require(source not in raw, "duplicate raw report")
+        raw[source] = {"source": source, "summary": report["summary"], "benchmark_results": report["benchmark_results"]}
+
+    for source, report in reports.items():
+        if "benchmark_results" in report:
+            add(source, report)
+        elif "targets" not in report:
+            raise ValueError("missing raw benchmark results")
+    for source, report in reports.items():
+        if "targets" not in report:
+            continue
+        reporting.require(set(report["targets"]) == {platform}, "unexpected report platform")
+        reporting.validate_summary(report["summary"], platform, FUNCTIONS)
+        target = report["targets"][platform]
+        reporting.validate_summary(target["summary"], platform, FUNCTIONS)
+        # The pinned CLI embeds exact copies of its per-function files in the root.
+        # Reconcile only these explicit copies, never arbitrary duplicate measurements.
+        slugs = {function.replace("_", "__").replace("::", "_"): function for function in FUNCTIONS}
+        reporting.require(set(target["functions"]) == set(slugs), "missing or unexpected embedded function")
+        for slug, embedded in target["functions"].items():
+            reporting.validate_summary(embedded["summary"], platform, (slugs[slug],))
+            child = str(Path(source).parent / platform / slug / "summary.json")
+            reporting.require(child not in references, "duplicate embedded report")
+            references.add(child)
+            if child in reports:
+                reporting.require(reports[child] == embedded, "embedded and file reports disagree")
+            else:
+                add(child, embedded)
+    return list(raw.values())
+
+
+def export_reports(source, destination, clean, text, platform):
+    reports = {}
     for path in sorted(source.rglob("summary.json")):
         report = json.loads(path.read_text())
         relative = path.relative_to(source)
+        reports[str(relative)] = report
         output = destination / relative
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(clean(report), indent=2) + "\n")
-        if "benchmark_results" in report:
-            raw.append({"source": str(relative), "benchmark_results": clean(report["benchmark_results"])})
         for name in ("summary.md", "results.csv"):
             sibling = path.with_name(name)
             if sibling.is_file():
                 output.with_name(name).write_text(text(sibling.read_text()))
+    raw = clean(normalize_reports(reports, platform))
     (destination / "raw-results.json").write_text(json.dumps(raw, indent=2) + "\n")
     return raw
 
@@ -92,28 +133,11 @@ def export_sessions(source, destination, clean):
 
 
 def results_complete(summary, platform):
-    model, os_version = DEVICES[platform]
-    requested = f"{model}-{os_version}"
-    devices = summary["device_summaries"]
-    # mobench preserves requested IDs separately from BrowserStack's device names.
-    # The provider returns either a model-only name or the full requested ID.
-    if (
-        summary["target"] != platform
-        or summary["function"] != FUNCTIONS[0]
-        or summary["iterations"] != 3
-        or summary["warmup"] != 1
-        or summary["devices"] != [requested]
-        or len(devices) != 1
-        or devices[0]["device"] not in (model, requested)
-    ):
+    try:
+        reporting.validate_summary(summary, platform, FUNCTIONS)
+    except (ValueError, KeyError, TypeError):
         return False
-    benchmarks = devices[0]["benchmarks"]
-    measured = {benchmark["function"]: benchmark for benchmark in benchmarks}
-    return (
-        len(benchmarks) == len(FUNCTIONS)
-        and set(measured) == set(FUNCTIONS)
-        and all(measured[function].get("samples") == 3 and not measured[function].get("failure") for function in FUNCTIONS)
-    )
+    return True
 
 
 def export_diagnostics(private, destination, text):
@@ -150,16 +174,13 @@ def main():
         "profile": "release",
         "rustflags": os.environ.get("RUSTFLAGS"),
         "thread_policy": "available_parallelism",
-        "threads": None,
-        "available_parallelism": None,
-        "verified_proofs": None,
+        "benchmarks": {},
         "candidate_device": device_id,
         "requested_device": device_model,
         "requested_os": platform,
         "requested_os_version": device_os,
         "device_validated": False,
         "functions": list(FUNCTIONS),
-        "spends_per_leaf": 2,
         "warmup": 1,
         "iterations": 3,
         "soc": None,
@@ -279,26 +300,19 @@ def main():
                 summary = json.loads((reports / "summary.json").read_text())["summary"]
                 if not results_complete(summary, platform):
                     metadata["status"] = "incomplete_results"
-                    print("BrowserStack did not return three successful samples for the requested shielded workload and device.")
+                    print("BrowserStack did not return three successful samples for both requested shielded workloads and device.")
                 else:
                     metadata["status"] = "complete"
                     exit_code = 0
-            raw = export_reports(reports, destination, clean, text)
+            raw = export_reports(reports, destination, clean, text, platform)
             export_sessions(private / "browserstack", destination, clean)
             if exit_code == 0:
-                entries = [entry for report in raw for entries in report["benchmark_results"].values() for entry in entries]
-                if len(entries) != 1:
-                    raise ValueError("expected one standalone benchmark report")
-                metrics = entries[0]["custom_metrics"]["run_u64"]
-                metadata.update({key: metrics[key] for key in ("threads", "available_parallelism", "verified_proofs")})
-                if (
-                    metrics["threads"] < 1
-                    or metrics["threads"] != metrics["available_parallelism"]
-                    or metrics["spends_per_leaf"] != 2
-                    or metrics["verified_proofs"] != 4
-                ):
-                    metadata["status"] = "incomplete_results"
-                    exit_code = 1
+                measured = reporting.validate_results(raw, platform)
+                metadata["benchmarks"] = reporting.benchmark_metrics(measured)
+                for key in ("threads", "available_parallelism"):
+                    values = {metrics[key] for metrics in metadata["benchmarks"].values()}
+                    if len(values) == 1:
+                        metadata[key] = next(iter(values))
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
         metadata["status"] = "execution_or_report_error"
         exit_code = 1
@@ -306,7 +320,7 @@ def main():
     finally:
         (destination / "metadata.json").write_text(json.dumps(clean(metadata), indent=2) + "\n")
     if exit_code == 0:
-        print(f"The two-spend shielded benchmark completed; sanitized reports are in {destination}.")
+        print(f"Both shielded benchmarks completed; sanitized reports are in {destination}.")
     return exit_code
 
 
