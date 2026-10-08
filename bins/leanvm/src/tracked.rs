@@ -371,7 +371,6 @@ fn proved(case: &Case, prover: &Prover, plan: Plan) -> Vec<(String, Metric)> {
     let (verified, verify_time) =
         Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| workload.program.verify(output, &proof));
     verified.expect("an honest proof verifies");
-    diagnostic_save(&proof.to_bytes());
     measures(
         &time,
         proof.to_bytes().len(),
@@ -418,7 +417,6 @@ fn proved_tree(
 ) -> Vec<(String, Vec<(String, Metric)>)> {
     eprintln!("{}", tree.name);
     let ProvenRun { proof, output, .. } = tree.leaf.prove(leaf_prover);
-    diagnostic_save(&proof.to_bytes());
     let built = tree.tree(LeafShape::of(&proof).expect("an honest announcement"), prover.rate());
     // The leaf's stages.
     bench::take_stages();
@@ -452,7 +450,6 @@ fn proved_node(
     let peak_memory = bench::peak_rss_bytes();
     let (verified, verify_time) = Plan::new(VERIFY_PASSES, 0).measure_quiet(|_| tree.verify(&proof, outputs));
     verified.expect("an honest tree proof verifies");
-    diagnostic_save(&proof.to_bytes());
     let report = measures(
         &time,
         proof.to_bytes().len(),
@@ -545,15 +542,4 @@ fn tree_table(trees: &[(Aggregation, [(Kind, CircuitStats); 2])]) -> String {
         }
     }
     table
-}
-
-fn diagnostic_save(bytes: &[u8]) {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    if let Some(directory) = std::env::var_os("GRID_PROOFS") {
-        let directory = std::path::PathBuf::from(directory);
-        std::fs::create_dir_all(&directory).unwrap();
-        let index = NEXT.fetch_add(1, Ordering::Relaxed);
-        std::fs::write(directory.join(format!("{index}.bin")), bytes).unwrap();
-    }
 }

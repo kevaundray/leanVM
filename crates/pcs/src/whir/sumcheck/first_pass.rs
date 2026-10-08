@@ -9,6 +9,12 @@
 //! drawn, and one more pass folds all `R` lane bits at once (the small-value
 //! precomputation of Bagad, Dao, Domb and Thaler, <https://eprint.iacr.org/2025/1117>:
 //! the witness is in `K`, so every product is a mixed one).
+//!
+//! On PMULL targets, the grid's final extension digit is consumed directly by
+//! mixed-product accumulation. Its zero, one and infinity sums stay in registers
+//! across the offsets in a row, so neither the infinity weights nor intermediate
+//! partial sums need a separate memory pass. Wider x86 kernels retain their
+//! lane-parallel layout.
 
 use super::{
     Basis, BasisFill, FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, KEEP_WEIGHT_MAX_THREADS, PRECOMPUTED_ROUNDS,
@@ -542,55 +548,11 @@ mod lanes {
         }
     }
 
-    /// Fuse the final extension digit with its three product updates, without storing the infinity rows.
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes", not(leanvm_grid_registers)))]
-    #[inline(always)]
-    pub(super) unsafe fn finish_grid<const R: usize>(
-        fg: &[[u64; ROW]; GRID],
-        bg: &[WeightRow; GRID],
-        acc: &mut [ProductRow; GRID],
-    ) {
-        #[inline(always)]
-        unsafe fn update(acc: &mut ProductRow, c: usize, k: Neon, lo: Neon, hi: Neon, c2: Neon) {
-            // SAFETY: c names a complete pair in each row, and PMULL is enabled by the module's caller.
-            unsafe {
-                let s0 = acc.0[0].as_mut_ptr().add(c);
-                let s1 = acc.0[1].as_mut_ptr().add(c);
-                let s2 = acc.0[2].as_mut_ptr().add(c);
-                Neon::load(s0).xor3(lo.mul::<0x00>(k), hi.mul::<0x10>(k)).store(s0);
-                Neon::load(s1).xor3(lo.mul::<0x01>(k), hi.mul::<0x11>(k)).store(s1);
-                Neon::load(s2).xor3(c2.mul::<0x00>(k), c2.mul::<0x11>(k)).store(s2);
-            }
-        }
-        let stride = 3usize.pow((R - 1) as u32);
-        for at in 0..stride {
-            for c in (0..ROW).step_by(2) {
-                // SAFETY: R is in 1..=PRECOMPUTED_ROUNDS, and c indexes two words in a ROW-word row.
-                unsafe {
-                    let k0 = Neon::load(fg[at].as_ptr().add(c));
-                    let k1 = Neon::load(fg[at + stride].as_ptr().add(c));
-                    let lo0 = Neon::load(bg[at].lo.as_ptr().add(c));
-                    let lo1 = Neon::load(bg[at + stride].lo.as_ptr().add(c));
-                    let hi0 = Neon::load(bg[at].hi.as_ptr().add(c));
-                    let hi1 = Neon::load(bg[at + stride].hi.as_ptr().add(c));
-                    let c20 = Neon::load(bg[at].c2.as_ptr().add(c));
-                    let c21 = Neon::load(bg[at + stride].c2.as_ptr().add(c));
-                    update(&mut acc[at], c, k0, lo0, hi0, c20);
-                    update(&mut acc[at + stride], c, k1, lo1, hi1, c21);
-                    update(
-                        &mut acc[at + 2 * stride],
-                        c,
-                        k0.xor(k1),
-                        lo0.xor(lo1),
-                        hi0.xor(hi1),
-                        c20.xor(c21),
-                    );
-                }
-            }
-        }
-    }
-
-    #[cfg(all(target_arch = "aarch64", target_feature = "aes", leanvm_grid_registers))]
+    /// Consume the final extension digit and keep each point's sums in registers across the row.
+    ///
+    /// Only the first pair of each coefficient stores this path's sum; the remaining pairs stay zero.
+    /// Reducing or combining a ProductRow therefore uses the same representation as the other paths.
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
     #[inline(always)]
     pub(super) unsafe fn finish_grid<const R: usize>(
         fg: &[[u64; ROW]; GRID],
@@ -1191,7 +1153,3 @@ mod tests {
         check::<lanes::Neon>("neon");
     }
 }
-
-#[cfg(test)]
-#[path = "grid_diagnostic.rs"]
-mod grid_diagnostic;
