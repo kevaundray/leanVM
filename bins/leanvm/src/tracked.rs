@@ -204,7 +204,8 @@ fn proven_trees() -> [(&'static str, BuildTree); 8] {
 /// With `cycles_only`, count every case without a proof and print the counts as JSON, or with
 /// `markdown` as a table, or as JSON with the table appended to `markdown_file`; otherwise
 /// prove, verify and time the proven cases, or only the one named `only`, as JSON (one case
-/// per process makes its `peak-memory` that case's alone).
+/// per process makes its `peak-memory` that case's alone). `leanda-1-16thread` is opt-in through
+/// `only`, since it requires the website's larger runners.
 pub fn run(
     cycles_only: bool,
     markdown: bool,
@@ -250,10 +251,13 @@ pub fn run(
             .chain(circuits)
             .collect()
     } else {
-        let cases: Vec<_> = proven()
+        let mut cases: Vec<_> = proven()
             .into_iter()
             .filter(|(name, _)| only.is_none_or(|only| only == *name))
             .collect();
+        if only == Some("leanda-1-16thread") {
+            cases.push(("leanda-1-16thread", (|name| Case::new(name, Workload::leanda(1))) as Build));
+        }
         let trees: Vec<_> = proven_trees()
             .into_iter()
             .filter(|(name, _)| only.is_none_or(|only| only == *name))

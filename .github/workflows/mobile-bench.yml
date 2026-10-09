@@ -2,11 +2,17 @@ name: Mobile benchmarks
 
 on:
   pull_request:
-  push:
-    branches: [kw/mobile-bench-browserstack]
-  schedule:
-    - cron: '23 3 * * *'
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact upstream riscv-exploration commit to benchmark
+        required: true
+        type: string
+    secrets:
+      BROWSERSTACK_USERNAME:
+        required: true
+      BROWSERSTACK_ACCESS_KEY:
+        required: true
 
 permissions:
   contents: read
@@ -24,22 +30,69 @@ env:
   CARGO_BUILD_JOBS: '2'
 
 jobs:
+  source:
+    name: Validate mobile benchmark source
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Validate caller before checkout
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            exit 0
+          fi
+          case "$GITHUB_REPOSITORY" in
+            leanEthereum/leanVM) ;;
+            *) echo 'Mobile collection requires an upstream repository.' >&2; exit 1 ;;
+          esac
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            schedule:refs/heads/main|schedule:refs/heads/riscv-exploration|workflow_dispatch:refs/heads/main|workflow_dispatch:refs/heads/riscv-exploration) ;;
+            *) echo 'Mobile collection requires a trusted scheduled or manual caller.' >&2; exit 1 ;;
+          esac
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected an exact source SHA.' >&2; exit 1; }
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.sha || inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify upstream ancestry and record source
+        id: source
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          actual_sha=$(git rev-parse HEAD)
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            test "$actual_sha" = "$SOURCE_SHA"
+            git fetch --no-tags origin refs/heads/riscv-exploration:refs/remotes/origin/riscv-exploration
+            git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/riscv-exploration
+          fi
+          echo "sha=$actual_sha" >> "$GITHUB_OUTPUT"
+      - name: Require BrowserStack credentials for collection
+        if: github.event_name != 'pull_request'
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+        run: |
+          if [ -z "$BROWSERSTACK_USERNAME" ] || [ -z "$BROWSERSTACK_ACCESS_KEY" ]; then
+            echo 'Both BrowserStack credentials are required for the complete snapshot.' >&2
+            exit 1
+          fi
+
   android:
     name: Android ARM64 release
-    # Keep provider sessions sequential and use the source already resolved by iOS.
-    needs: ios
-    if: always() && !cancelled() && needs.ios.outputs.source_sha != ''
+    # Keep provider sessions sequential; both platforms use the validated caller SHA.
+    needs: [source, ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    outputs:
-      has_results: ${{ steps.results.outputs.exists }}
     defaults:
       run:
         working-directory: bench-mobile
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ needs.ios.outputs.source_sha }}
+          ref: ${{ needs.source.outputs.sha }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
@@ -84,55 +137,36 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Validate candidate device and run trusted benchmarks
-        if: >-
-          (github.repository == 'kevaundray/leanVM' || github.repository == 'leanEthereum/leanVM') &&
-          ((github.event_name == 'schedule' &&
-            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/riscv-exploration')) ||
-           (github.event_name == 'workflow_dispatch' &&
-            (github.ref == 'refs/heads/riscv-exploration' || github.ref == 'refs/heads/kw/mobile-bench-browserstack')))
+        if: github.event_name != 'pull_request'
         timeout-minutes: 65
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-        run: python3 ../scripts/mobile-bench-run.py --platform android
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+        run: python3 ../scripts/mobile-bench-run.py --platform android --source-sha "$SOURCE_SHA"
       - name: Publish mobile results in the Actions summary
-        id: results
-        if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+        if: github.event_name != 'pull_request'
         env:
-          SOURCE_SHA: ${{ needs.ios.outputs.source_sha }}
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
         run: |
-          if [ -f target/mobile-bench-results/android/metadata.json ]; then
-            echo 'exists=true' >> "$GITHUB_OUTPUT"
-            python3 ../scripts/mobile-bench-report.py target/mobile-bench-results/android \
-              --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID"
-          else
-            echo '### Mobile benchmarks' >> "$GITHUB_STEP_SUMMARY"
-            echo 'No device results were produced. See the failed build or device step.' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          python3 ../scripts/mobile-bench-report.py target/mobile-bench-results/android \
+            --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Save sanitized results and provenance
-        if: always() && github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: mobile-bench-android-results
-          path: bench-mobile/target/mobile-bench-results/android/
-          if-no-files-found: warn
+          name: snapshot-result-mobile-android
+          path: |
+            bench-mobile/target/mobile-bench-results/android/metadata.json
+            bench-mobile/target/mobile-bench-results/android/raw-results.json
+          if-no-files-found: error
           retention-days: 30
 
   ios:
     name: iOS ARM64 release
-    if: >-
-      github.event_name == 'pull_request' ||
-      ((github.repository == 'kevaundray/leanVM' || github.repository == 'leanEthereum/leanVM') &&
-       ((github.event_name == 'schedule' &&
-         (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/riscv-exploration')) ||
-        (github.event_name == 'workflow_dispatch' &&
-         (github.ref == 'refs/heads/riscv-exploration' || github.ref == 'refs/heads/kw/mobile-bench-browserstack')) ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/kw/mobile-bench-browserstack')))
+    needs: source
     runs-on: macos-15
     timeout-minutes: 150
-    outputs:
-      source_sha: ${{ steps.source.outputs.sha }}
-      has_results: ${{ steps.results.outputs.exists }}
     defaults:
       run:
         working-directory: bench-mobile
@@ -143,11 +177,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event_name == 'schedule' && 'riscv-exploration' || github.sha }}
+          ref: ${{ needs.source.outputs.sha }}
           persist-credentials: false
-      - name: Record benchmark source
-        id: source
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Check mobile report integrity
         run: python3 ../scripts/test_mobile_bench_report.py
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
@@ -183,73 +214,27 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Validate iPhone 14 iOS 16 and run trusted benchmarks
-        if: >-
-          (github.repository == 'kevaundray/leanVM' || github.repository == 'leanEthereum/leanVM') &&
-          ((github.event_name == 'schedule' &&
-            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/riscv-exploration')) ||
-           (github.event_name == 'workflow_dispatch' &&
-            (github.ref == 'refs/heads/riscv-exploration' || github.ref == 'refs/heads/kw/mobile-bench-browserstack')))
+        if: github.event_name != 'pull_request'
         timeout-minutes: 65
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-        run: python3 ../scripts/mobile-bench-run.py --platform ios
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+        run: python3 ../scripts/mobile-bench-run.py --platform ios --source-sha "$SOURCE_SHA"
       - name: Publish mobile results in the Actions summary
-        id: results
-        if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+        if: github.event_name != 'pull_request'
         env:
-          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
         run: |
-          if [ -f target/mobile-bench-results/ios/metadata.json ]; then
-            echo 'exists=true' >> "$GITHUB_OUTPUT"
-            python3 ../scripts/mobile-bench-report.py target/mobile-bench-results/ios \
-              --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID"
-          else
-            echo '### Mobile benchmarks: iOS' >> "$GITHUB_STEP_SUMMARY"
-            echo 'No device results were produced. See the failed build or device step.' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          python3 ../scripts/mobile-bench-report.py target/mobile-bench-results/ios \
+            --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Save sanitized results and provenance
-        if: always() && github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: mobile-bench-ios-results
-          path: bench-mobile/target/mobile-bench-results/ios/
-          if-no-files-found: warn
+          name: snapshot-result-mobile-ios
+          path: |
+            bench-mobile/target/mobile-bench-results/ios/metadata.json
+            bench-mobile/target/mobile-bench-results/ios/raw-results.json
+          if-no-files-found: error
           retention-days: 30
-
-  comment:
-    name: Publish mobile benchmark PR comment
-    needs: [android, ios]
-    if: >-
-      always() && !cancelled() &&
-      (needs.android.outputs.has_results == 'true' || needs.ios.outputs.has_results == 'true') &&
-      (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
-    runs-on: ubuntu-24.04
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ needs.ios.outputs.source_sha }}
-          persist-credentials: false
-          sparse-checkout: scripts
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        if: needs.android.outputs.has_results == 'true'
-        with:
-          name: mobile-bench-android-results
-          path: mobile-results/android
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        if: needs.ios.outputs.has_results == 'true'
-        with:
-          name: mobile-bench-ios-results
-          path: mobile-results/ios
-      - name: Update the matching current-head PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ needs.ios.outputs.source_sha }}
-        run: |
-          python3 scripts/mobile-bench-report.py mobile-results/* \
-            --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID" \
-            --comment-repository "$GITHUB_REPOSITORY"
