@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-08T21:06:26.517625Z",
+  "generated_at": "2026-10-09T10:12:23.520833Z",
   "results": [
     {
       "id": "df06bdd0cf101b605eb16533",
@@ -350,7 +350,7 @@
       "id": "cee8fc04a5192c03b07213fb",
       "program": {
         "name": "Shielded aggregation",
-        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/bench-mobile/src/lib.rs"
+        "source_url": "https://github.com/kevaundray/leanVM/blob/e2435259e2286f581bc5d406d84c32fa9a56ea13/bench-mobile/src/lib.rs"
       },
       "workload": "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
       "category": "aggregation",
@@ -367,20 +367,20 @@
         "count": 6,
         "label": "6 threads"
       },
-      "median_seconds": 15.006693041,
-      "min_seconds": 14.753002542,
-      "max_seconds": 15.110008334,
+      "median_seconds": 0.361068375,
+      "min_seconds": 0.357846958,
+      "max_seconds": 0.374025917,
       "samples_seconds": [
-        14.753002542,
-        15.006693041,
-        15.110008334
+        0.357846958,
+        0.374025917,
+        0.361068375
       ],
       "source": {
         "repository": "kevaundray/leanVM",
         "branch": "kw/mobile-bench-browserstack",
-        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
-        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
-        "measured_at": "2026-10-08T20:43:33.710000Z",
+        "commit": "e2435259e2286f581bc5d406d84c32fa9a56ea13",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37913334555",
+        "measured_at": "2026-10-09T09:58:06.345000Z",
         "kind": "pull_request",
         "label": "PR #564 mobile"
       },
@@ -393,7 +393,7 @@
       "id": "7cd6e55c4f6aa1d0a0cdbfc5",
       "program": {
         "name": "Shielded aggregation",
-        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/bench-mobile/src/lib.rs"
+        "source_url": "https://github.com/kevaundray/leanVM/blob/e2435259e2286f581bc5d406d84c32fa9a56ea13/bench-mobile/src/lib.rs"
       },
       "workload": "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
       "category": "aggregation",
@@ -410,20 +410,20 @@
         "count": 6,
         "label": "6 threads"
       },
-      "median_seconds": 54.575307237,
-      "min_seconds": 54.246274237,
-      "max_seconds": 55.333485582,
+      "median_seconds": 1.912341635,
+      "min_seconds": 1.862925131,
+      "max_seconds": 2.045743368,
       "samples_seconds": [
-        54.246274237,
-        54.575307237,
-        55.333485582
+        2.045743368,
+        1.912341635,
+        1.862925131
       ],
       "source": {
         "repository": "kevaundray/leanVM",
         "branch": "kw/mobile-bench-browserstack",
-        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
-        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
-        "measured_at": "2026-10-08T21:00:47.931000Z",
+        "commit": "e2435259e2286f581bc5d406d84c32fa9a56ea13",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37913334555",
+        "measured_at": "2026-10-09T10:09:21.759000Z",
         "kind": "pull_request",
         "label": "PR #564 mobile"
       },
@@ -436,7 +436,7 @@
       "id": "dc4adc6ceab854ca804d9e92",
       "program": {
         "name": "Shielded transfers",
-        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/programs/shielded/guest/src/main.rs"
+        "source_url": "https://github.com/kevaundray/leanVM/blob/e2435259e2286f581bc5d406d84c32fa9a56ea13/programs/shielded/guest/src/main.rs"
       },
       "workload": "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
       "category": "program",
@@ -453,20 +453,20 @@
         "count": 6,
         "label": "6 threads"
       },
-      "median_seconds": 4.38278775,
-      "min_seconds": 4.263838375,
-      "max_seconds": 4.416157375,
+      "median_seconds": 0.128067708,
+      "min_seconds": 0.12759325,
+      "max_seconds": 0.130277958,
       "samples_seconds": [
-        4.263838375,
-        4.38278775,
-        4.416157375
+        0.12759325,
+        0.130277958,
+        0.128067708
       ],
       "source": {
         "repository": "kevaundray/leanVM",
         "branch": "kw/mobile-bench-browserstack",
-        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
-        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
-        "measured_at": "2026-10-08T20:39:43.067000Z",
+        "commit": "e2435259e2286f581bc5d406d84c32fa9a56ea13",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37913334555",
+        "measured_at": "2026-10-09T09:56:28.344000Z",
         "kind": "pull_request",
         "label": "PR #564 mobile"
       },
@@ -479,7 +479,7 @@
       "id": "586c3420defd44e296ebc1b8",
       "program": {
         "name": "Shielded transfers",
-        "source_url": "https://github.com/kevaundray/leanVM/blob/246d02a7c295122e8b27c25275f8d3e8a3569278/programs/shielded/guest/src/main.rs"
+        "source_url": "https://github.com/kevaundray/leanVM/blob/e2435259e2286f581bc5d406d84c32fa9a56ea13/programs/shielded/guest/src/main.rs"
       },
       "workload": "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
       "category": "program",
@@ -496,20 +496,20 @@
         "count": 6,
         "label": "6 threads"
       },
-      "median_seconds": 13.062063768,
-      "min_seconds": 12.944781215,
-      "max_seconds": 13.329489346,
+      "median_seconds": 0.635945394,
+      "min_seconds": 0.504295085,
+      "max_seconds": 0.712996664,
       "samples_seconds": [
-        12.944781215,
-        13.329489346,
-        13.062063768
+        0.712996664,
+        0.504295085,
+        0.635945394
       ],
       "source": {
         "repository": "kevaundray/leanVM",
         "branch": "kw/mobile-bench-browserstack",
-        "commit": "246d02a7c295122e8b27c25275f8d3e8a3569278",
-        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37839582246",
-        "measured_at": "2026-10-08T20:54:20.286000Z",
+        "commit": "e2435259e2286f581bc5d406d84c32fa9a56ea13",
+        "run_url": "https://github.com/kevaundray/leanVM/actions/runs/37913334555",
+        "measured_at": "2026-10-09T10:07:24.488000Z",
         "kind": "pull_request",
         "label": "PR #564 mobile"
       },
