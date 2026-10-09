@@ -63,6 +63,8 @@ Expect leanVM to change significantly:
 
 ## benchmarks
 
+GitHub PR benchmark comments use one table per program family, with separate columns for the named thread configuration, runner and measure. Thread suffixes are hidden only in display names; comparisons still match the complete benchmark IDs, and `default` means no thread configuration is encoded in the ID. Prover stages and the complete results remain expandable. The trusted comment renderer runs from `main`, never from a PR checkout.
+
 **machine**: M4 Max MacBook Pro (12 performance cores, 4 efficiency cores, 48GB RAM)
 
 **note**: The Metal GPU was not used.

@@ -43,6 +43,9 @@ jobs:
         with:
           sparse-checkout: .github/scripts
           persist-credentials: false
+      - name: Test comment renderer
+        if: steps.results.outputs.found == 'true'
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
       - uses: actions/download-artifact@v4
         if: steps.results.outputs.found == 'true'
         with:

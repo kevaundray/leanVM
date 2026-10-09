@@ -43,6 +43,8 @@ MEASURES = {
     "per-op": "Time per operation",
     "proof-size": "Proof size",
     "peak-memory": "Peak memory",
+    "heap-peak": "Peak heap",
+    "allocations": "Allocations",
 }
 
 
@@ -153,36 +155,74 @@ class Row:
     change: str = field(compare=False)
 
 
+def benchmark_label(benchmark):
+    """Split the named thread configuration for display, never for matching results."""
+    match = re.search(r"-(\d+)thread(?=-(?:first|node)$|$)", benchmark)
+    if match:
+        return benchmark[:match.start()] + benchmark[match.end():], int(match[1])
+    return benchmark, None
+
+
+def family(benchmark):
+    name, _ = benchmark_label(benchmark)
+    prefix = name.removeprefix("aggregate-").split("-", 1)[0]
+    return {
+        "leanxmss": "leanXMSS",
+        "xmss": "leanXMSS",
+        "leansphincs": "leanSPHINCS",
+        "sphincs": "leanSPHINCS",
+        "falcon": "Falcon",
+        "fibonacci": "Fibonacci",
+        "leanda": "Data availability",
+        "stateproof": "L1 state proofs",
+        "shielded": "Shielded transfers",
+        "hash": "BLAKE2s",
+        "blake2s": "BLAKE2s",
+        "flock": "Flock",
+        "pcs": "PCS",
+        "ntt": "PCS",
+        "f64": "Field and transpose kernels",
+        "f192": "Field and transpose kernels",
+        "transpose": "Field and transpose kernels",
+    }.get(prefix, "Other benchmarks")
+
+
+def presentation_order(row):
+    name, threads = benchmark_label(row.benchmark)
+    return row.rank, row.group, name, row.testbed, threads or 0, row.order, row.benchmark
+
+
 def table(rows, cpu, stages=()):
-    """A group's table; with `stages`, each case's stage rows follow its row, indented."""
-    columns = ["benchmark", "runner", *(["CPU"] if cpu else [])]
+    """A family's measures, or proving totals with their own stage rows indented."""
+    columns = ["benchmark", "threads", "runner", *(["CPU"] if cpu else []), *([] if stages else ["measure"])]
     lines = [f"| {' | '.join(columns)} | base | this PR | change |", "|" + "---|" * len(columns) + "---:|" * 3]
-    for r in rows:
-        name = f"**{r.benchmark}**" if stages else r.benchmark
-        lines.append(f"| {' | '.join([name, r.testbed, *([r.cpu] if cpu else [])])} | {r.base} | {r.pr} | {r.change} |")
+    for r in sorted(rows, key=presentation_order):
+        name, threads = benchmark_label(r.benchmark)
+        name = f"**{name}**" if stages else name
+        cells = [name, str(threads) if threads is not None else "default", r.testbed, *([r.cpu] if cpu else [])]
+        if not stages:
+            cells.append(MEASURES.get(r.group, r.group))
+        lines.append(f"| {' | '.join(cells)} | {r.base} | {r.pr} | {r.change} |")
         for s in stages:
             if (s.benchmark, s.testbed) == (r.benchmark, r.testbed):
-                cells = [f"&emsp;↳ {s.stage}", "", *([""] if cpu else [])]
+                cells = [f"&emsp;↳ {s.stage}", "", "", *([""] if cpu else [])]
                 lines.append(f"| {' | '.join(cells)} | {s.base} | {s.pr} | {s.change} |")
     return lines
 
 
 def tables(rows, cpu, everything):
-    """One table per group, in `MEASURES` order, the rows sorted by benchmark and runner. Prover stages follow the
-    proving times, collapsed: each case whose time or any stage is in `rows`, its time over all its stages from
-    `everything`."""
+    """One table per program family; comparisons still use the complete benchmark ID."""
     lines = []
-    groups = {group: list(grouped) for (_, group), grouped in itertools.groupby(sorted(rows), key=lambda row: (row.rank, row.group))}
     staged = {(r.benchmark, r.testbed) for r in everything if r.group == STAGES}
-    cases = staged & {(r.benchmark, r.testbed) for r in groups.get("latency", []) + groups.pop(STAGES, [])}
-    if cases and "latency" not in groups:
-        groups = {"latency": [], **groups}
-    for group, grouped in groups.items():
-        lines += [f"#### {MEASURES.get(group, group)}", ""]
-        if grouped:
-            lines += [*table(grouped, cpu), ""]
-        if group == "latency" and cases:
-            totals = sorted(r for r in everything if r.group == "latency" and (r.benchmark, r.testbed) in cases)
+    for title, grouped in itertools.groupby(sorted(rows, key=lambda r: family(r.benchmark)), key=lambda r: family(r.benchmark)):
+        grouped = list(grouped)
+        lines += [f"#### {title}", ""]
+        measures = [r for r in grouped if r.group != STAGES]
+        if measures:
+            lines += [*table(measures, cpu), ""]
+        cases = staged & {(r.benchmark, r.testbed) for r in grouped if r.group in ("latency", STAGES)}
+        if cases:
+            totals = [r for r in everything if r.group == "latency" and (r.benchmark, r.testbed) in cases]
             stages = sorted(r for r in everything if r.group == STAGES)
             lines += ["<details><summary>Prover stages</summary>", "", *table(totals, cpu, stages), "", "</details>", ""]
     return lines
@@ -194,7 +234,11 @@ def cell(measure, by_round):
     if measure == "proof-size":
         return " or ".join(f"{v:,} B" for v in sorted(set(by_round.values())))
     median = statistics.median(by_round.values())
-    return f"{median / 2**20:.2f} MiB" if measure == "peak-memory" else seconds(median)
+    if measure in ("peak-memory", "heap-peak"):
+        return f"{median / 2**20:.2f} MiB"
+    if measure == "allocations":
+        return f"{median:,}"
+    return seconds(median)
 
 
 def compare(measure, base, head):
@@ -258,6 +302,8 @@ def bench(docs, head):
                 f"base and PR {rounds} times each. A size is shown when it changed; a time or a peak memory when it moved the same way "
                 f"in every round and its median by at least {THRESHOLD:.0%} (the change is the median ratio, with the rounds' range)."
             ),
+            "",
+            "Threads shows the named configuration; `default` means no thread count is encoded in the benchmark ID.",
             "",
             *tables([row for row in rows if row.shown], cpu=False, everything=rows),
             "<details><summary>Every result</summary>",
