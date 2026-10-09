@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render verified mobile results in Actions and update the matching current-head PR comment."""
+"""Validate and render mobile results in the caller's Actions summary."""
 
 import argparse
 import json
@@ -8,10 +8,8 @@ import os
 from pathlib import Path
 import re
 import statistics
-import subprocess
 
 
-MARKER = "<!-- leanvm-mobile-bench -->"
 FUNCTION = "leanvm_mobile_bench::shielded_prove"
 AGGREGATE_FUNCTION = "leanvm_mobile_bench::shielded_aggregate"
 FUNCTIONS = (FUNCTION, AGGREGATE_FUNCTION)
@@ -147,67 +145,23 @@ def render(directory, repository, head, run_id):
     return prefix + "\n".join([*rows, "", *sample_rows, ""]), True, platform
 
 
-def gh(endpoint, method="GET", payload=None):
-    command = ["gh", "api", endpoint, "--method", method]
-    if payload is not None:
-        command += ["--input", "-"]
-    output = subprocess.check_output(command, input=None if payload is None else json.dumps(payload), text=True)
-    return json.loads(output) if output.strip() else None
-
-
-def pages(endpoint):
-    page = 1
-    while True:
-        rows = gh(f"{endpoint}{'&' if '?' in endpoint else '?'}per_page=100&page={page}")
-        yield from rows
-        if len(rows) < 100:
-            break
-        page += 1
-
-
-def post(repository, source_repository, head, body):
-    # The artifact cannot select a PR. GitHub supplies candidates, and each current head is checked again before writing.
-    owner = source_repository.split("/")[0]
-    prs = [pr for pr in pages(f"repos/{repository}/pulls?state=open") if pr["head"]["sha"] == head]
-    for pr in prs:
-        number = pr["number"]
-        current = gh(f"repos/{repository}/pulls/{number}")
-        if current["head"]["sha"] != head or current["head"]["repo"]["full_name"] != source_repository:
-            continue
-        comments = list(pages(f"repos/{repository}/issues/{number}/comments"))
-        mine = [c for c in comments if c["user"]["login"] in ("github-actions[bot]", owner) and c["body"].startswith(MARKER)]
-        # Recheck after fetching comments so an updated PR does not receive a stale measurement.
-        if gh(f"repos/{repository}/pulls/{number}")["head"]["sha"] != head:
-            continue
-        payload = {"body": MARKER + "\n" + body}
-        if mine:
-            gh(f"repos/{repository}/issues/comments/{mine[0]['id']}", "PATCH", payload)
-        else:
-            gh(f"repos/{repository}/issues/{number}/comments", "POST", payload)
-        print(f"Published mobile results on {repository}#{number}")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path, nargs="+")
     parser.add_argument("--repository", required=True)
     parser.add_argument("--head", required=True)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--comment-repository")
     args = parser.parse_args()
     reports = [render(directory, args.repository, args.head, args.run_id) for directory in args.directory]
     require(len({platform for _, _, platform in reports}) == len(reports), "duplicate platform reports")
     for directory, (section, _, _) in zip(args.directory, reports):
         (directory / "ci-summary.md").write_text(section)
     body = "\n".join(section for section, _, _ in reports)
-    complete = any(success for _, success, _ in reports)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(summary, "a") as output:
             output.write(body)
     print(body)
-    if args.comment_repository and complete:
-        require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.comment_repository), "invalid comment repository")
-        post(args.comment_repository, args.repository, args.head, body)
+    require(all(success for _, success, _ in reports), "incomplete mobile results")
 
 
 if __name__ == "__main__":

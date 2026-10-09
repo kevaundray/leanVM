@@ -24,6 +24,7 @@
         <h1 id="page-title">Benchmarks</h1>
         <p class="lede">Benchmarks for consensus layer, execution layer, data layer and client side proving.</p>
       </div>
+      <p id="snapshot-provenance" class="snapshot-provenance" aria-label="Benchmark snapshot source" hidden></p>
     </section>
 
     <section id="results" class="results-section" aria-labelledby="results-title" aria-busy="true">
@@ -73,23 +74,22 @@
         <p id="empty-description">Try a different program, machine or thread configuration.</p>
         <button id="clear-filters" type="button" class="primary-button">Clear filters</button>
       </div>
-      <div id="table-container" class="table-container" hidden>
-        <table>
-          <caption class="visually-hidden">Program benchmark runtimes, hardware, thread configurations and measurement provenance. Each row is a distinct workload and machine configuration.</caption>
-          <thead><tr><th scope="col">Program / workload</th><th scope="col">Machine / device</th><th scope="col">Threads</th><th scope="col">Median <span class="muted">(seconds)</span></th><th scope="col">Provenance</th></tr></thead>
-          <tbody id="result-rows"></tbody>
-        </table>
-      </div>
+      <div id="result-rows" class="results-list" hidden></div>
+    </section>
+    <section id="hardware-reference" class="hardware-reference" aria-labelledby="hardware-title" hidden>
+      <h2 id="hardware-title">Hardware reference</h2>
+      <p>Machine names in the results link here. These are the recorded specifications; logical CPU count describes the hardware, while thread count belongs to each measurement.</p>
+      <div id="hardware-list" class="hardware-list"></div>
     </section>
     <section class="methodology" aria-labelledby="methodology-title">
       <h2 id="methodology-title">Reading a measurement</h2>
       <div>
-        <p><strong>Median, not a best-case run.</strong> Each result shows the median and observed minimum to maximum. Expand samples to inspect every measured runtime.</p>
-        <p><strong>Latest available is not one shared revision.</strong> Each configuration retains its own measurement date, source revision and run. Branch and pull-request results are labeled separately when provided by the source.</p>
-        <p><strong>Dates identify the evidence.</strong> Desktop dates are workflow start times, not individual sample timestamps. Mobile dates come from the device result. Mobile verification counts include the discarded warmup proof.</p>
-        <p><strong>Unknown means unknown.</strong> Missing hardware metadata is not inferred. Logical CPU count describes the machine, not how many threads the benchmark used.</p>
+        <p><strong>Median, not a best-case run.</strong> Each thread subrow shows its median runtime. Open Measurement details for the observed minimum to maximum, individual samples and proof verification counts for each thread configuration.</p>
+        <p><strong>One run, one source revision.</strong> Every result belongs to the commit and benchmark run linked above. A fresh snapshot is published only when every required desktop and mobile job succeeds. Failed runs leave the previous complete publication in place.</p>
+        <p><strong>Dates stay with the evidence.</strong> Collection dates remain in Measurement details. They describe collection, not code freshness; the snapshot commit identifies the code. Mobile verification counts include the discarded warmup proof.</p>
+        <p><strong>Hardware is recorded once.</strong> Follow a machine name to its entry in the Hardware reference. Missing specifications are marked Not recorded, never inferred. Logical CPU count describes the machine, not how many threads the benchmark used.</p>
         <p><strong>Categories follow the use case.</strong> leanDA belongs to Data layer. Other Pixel and iPhone measurements, including on-device aggregation, belong to Client-side proving, as do Falcon and L1 state proofs on any machine. Other leanXMSS, leanSPHINCS and aggregation results belong to Consensus layer. Everything else stays in Misc.</p>
-        <p><strong>Counts are configurations, not rankings.</strong> Each row represents a workload, machine and thread configuration. Filters apply within the selected category and clear when you switch categories. All benchmarks shows the complete dataset.</p>
+        <p><strong>Workload first, then machine and threads.</strong> Each workload has one heading. Configurations from the same recorded hardware share compact thread subrows; different inputs stay separate. Recent ordering uses each workload's newest measurement. Counts refer to configurations, and switching categories clears filters.</p>
       </div>
     </section>
     <noscript><p class="empty-state">JavaScript is needed to filter and display the measurements. All results and source metadata are available in the <a href="./latest.json">results JSON</a>.</p></noscript>

@@ -120,12 +120,8 @@
     return node;
   }
 
-  function cell(label) {
-    const node = element("td");
-    const mobileLabel = element("span", "cell-label", label);
-    mobileLabel.setAttribute("aria-hidden", "true");
-    node.append(mobileLabel);
-    return node;
+  function hardwareId(machine) {
+    return `hardware-${encodeURIComponent(machine.id)}`;
   }
 
   function hardwareDetails(machine) {
@@ -141,78 +137,151 @@
       ["Memory", memory],
     ];
     for (const [label, value] of fields) list.append(element("dt", "", label), element("dd", "", value));
-    return details("Hardware details", list);
+    const entry = details(text(machine.name, machine.id), list);
+    entry.id = hardwareId(machine);
+    entry.className = "hardware-entry";
+    return entry;
   }
 
-  function repositoryUrl(repository) {
-    const value = text(repository, "");
-    if (/^[\w.-]+\/[\w.-]+$/.test(value)) return `https://github.com/${value}`;
-    return safeUrl(value);
+  function revealHardwareReference() {
+    const entry = byId(location.hash.slice(1));
+    if (entry?.classList.contains("hardware-entry")) {
+      entry.open = true;
+      entry.scrollIntoView({ block: "start" });
+    }
   }
 
-  function provenance(row) {
-    const node = cell("Provenance");
-    const source = row.source || {};
-    const label = text(source.label, source.kind === "pull_request" ? "Pull-request result" : source.kind === "branch" ? "Branch result" : "Source result");
-    const labelClass = source.kind === "pull_request" ? "provenance-label pull-request" : "provenance-label";
-    node.append(element("span", labelClass, label));
-    node.append(dateNode(source.measured_at, "measured-at", "Measurement date not recorded"));
-    const links = element("div", "provenance-links");
-    const repository = repositoryUrl(source.repository);
-    const commit = text(source.commit, "");
-    const commitUrl = repository && /^[a-f0-9]{7,64}$/i.test(commit)
-      ? `${repository.replace(/\/$/, "")}/commit/${commit}` : null;
-    const revision = link(commit ? commit.slice(0, 8) : "Revision not recorded", commitUrl, "revision");
-    if (commit) {
-      revision.title = commit;
-      revision.setAttribute("aria-label", `Source revision ${commit}`);
-    }
-    node.append(revision);
-    if (safeUrl(source.run_url)) links.append(link("Benchmark run ↗", source.run_url));
-    const metadata = element("div", "source-details");
-    metadata.append(element("span", "provenance-source", text(source.repository, "Repository not recorded")));
-    metadata.append(element("span", "provenance-source", `Branch: ${text(source.branch)}`));
-    const verification = row.verification;
-    if (Number.isInteger(verification?.verified_proofs) && Number.isInteger(verification?.total_proofs)
-      && verification.verified_proofs >= 0 && verification.total_proofs > 0) {
-      metadata.append(element("span", "verification", `${verification.verified_proofs} / ${verification.total_proofs} proofs verified`));
-    }
-    metadata.prepend(links);
-    node.append(details("Source & verification", metadata));
-    return node;
+  function updateHardwareReference() {
+    const machines = [...new Map(measurements.map((row) => [row.machine.id, row.machine])).values()];
+    machines.sort((left, right) => text(left.name, left.id).localeCompare(text(right.name, right.id)));
+    byId("hardware-list").replaceChildren(...machines.map(hardwareDetails));
+    byId("hardware-reference").hidden = machines.length === 0;
+    revealHardwareReference();
   }
 
-  function resultRow(row) {
-    const node = element("tr");
-    const program = cell("Program / workload");
-    program.append(element("h3", "row-title", row.program.name));
-    program.append(element("p", "workload", row.workload));
-    program.append(link(safeUrl(row.program.source_url) ? "Program source ↗" : "Program source not recorded", row.program.source_url, "source-link"));
-    if (row.category === "aggregation") program.append(element("span", "category", "Aggregation workload"));
-    if (selectedCategory === "all") {
-      const category = categoryOf(row);
-      program.append(element("span", `use-case ${category}`, categories[category].name));
-    }
+  function updateSnapshot(source) {
+    const node = byId("snapshot-provenance");
+    node.replaceChildren();
+    node.hidden = source === null;
+    if (source === null) return;
+    const revision = link(source.commit.slice(0, 8), `https://github.com/${source.repository}/commit/${source.commit}`, "revision");
+    revision.title = source.commit;
+    revision.setAttribute("aria-label", `Snapshot revision ${source.commit}`);
+    node.append(element("span", "", source.branch), revision, link("Benchmark run ↗", source.run_url));
+  }
 
-    const machine = cell("Machine / device");
-    machine.append(element("p", "row-title", text(row.machine.name, row.machine.id)));
-    if (text(row.machine.arch, "")) machine.append(element("p", "machine-platform", row.machine.arch));
-    machine.append(hardwareDetails(row.machine));
+  function measurementDetails(rows) {
+    const metadata = element("div");
+    for (const row of rows) metadata.append(measurementSamples(row));
+    return details("Measurement details", metadata);
+  }
 
-    const threads = cell("Threads");
-    threads.append(element("span", "chip", threadLabel(row)));
-
-    const runtime = cell("Median runtime");
-    const median = element("div", "timing", seconds(row.median_seconds));
-    median.append(element("span", "timing-unit", " s"));
-    median.setAttribute("aria-label", `Median ${row.median_seconds} seconds`);
-    const range = element("span", "range", `${seconds(row.min_seconds)} to ${seconds(row.max_seconds)} s`);
+  function measurementSamples(row) {
+    const panel = element("section", "sample-set");
+    panel.append(element("h5", "", `${threadLabel(row)}: ${row.samples_seconds.length} recorded ${row.samples_seconds.length === 1 ? "sample" : "samples"}`));
+    panel.append(dateNode(row.measured_at, "measured-at", "Measurement date not recorded"));
+    const range = element("p", "range", `${seconds(row.min_seconds)} to ${seconds(row.max_seconds)} s`);
     range.append(element("span", "range-label", "Observed min to max"));
     const samples = element("ol", "samples");
     for (const sample of row.samples_seconds) samples.append(element("li", "", `${sample} s`));
-    runtime.append(median, range, details(`${row.samples_seconds.length} ${row.samples_seconds.length === 1 ? "sample" : "samples"}`, samples));
-    node.append(program, machine, threads, runtime, provenance(row));
-    return node;
+    panel.append(range, samples);
+    const verification = row.verification;
+    if (Number.isInteger(verification?.verified_proofs) && Number.isInteger(verification?.total_proofs)
+      && verification.verified_proofs >= 0 && verification.total_proofs > 0) {
+      panel.append(element("span", "verification", `${verification.verified_proofs} / ${verification.total_proofs} proofs verified`));
+    }
+    return panel;
+  }
+
+  function resultWorkload(machineGroups) {
+    const row = machineGroups[0][0];
+    const section = element("section", "workload-section");
+    const header = element("header", "workload-heading");
+    const title = element("h3", "workload-title", row.program.name);
+    title.id = `workload-${encodeURIComponent(row.id)}`;
+    section.setAttribute("aria-labelledby", title.id);
+    const description = element("div");
+    description.append(title, element("p", "workload", row.workload));
+    if (row.category === "aggregation") description.append(element("span", "category", "Aggregation workload"));
+    if (selectedCategory === "all") {
+      const category = categoryOf(row);
+      description.append(element("span", `use-case ${category}`, categories[category].name));
+    }
+    header.append(description, link(safeUrl(row.program.source_url) ? "Program source ↗" : "Program source not recorded", row.program.source_url, "source-link"));
+    section.append(header);
+    for (const rows of machineGroups) section.append(resultMachine(rows));
+    return section;
+  }
+
+  function resultMachine(rows) {
+    const row = rows[0];
+    const section = element("section", "machine-group");
+    const context = element("div", "machine-context");
+    const title = element("h4", "machine-title");
+    title.id = `machine-${encodeURIComponent(row.id)}`;
+    section.setAttribute("aria-labelledby", title.id);
+    const reference = element("a", "machine-link", text(row.machine.name, row.machine.id));
+    reference.href = `#${hardwareId(row.machine)}`;
+    reference.addEventListener("click", () => { byId(hardwareId(row.machine)).open = true; });
+    title.append(reference);
+    context.append(title, measurementDetails(rows));
+    section.append(context, threadTable(rows));
+    return section;
+  }
+
+  function threadTable(rows) {
+    const table = element("table", "thread-table");
+    const first = rows[0];
+    table.append(element("caption", "visually-hidden", `Thread configurations for ${first.program.name}: ${first.workload}, on ${text(first.machine.name, first.machine.id)}`));
+    const head = element("thead");
+    const headings = element("tr");
+    for (const label of ["Threads", "Median (s)"]) {
+      const heading = element("th", "", label);
+      heading.scope = "col";
+      headings.append(heading);
+    }
+    head.append(headings);
+    const body = element("tbody");
+    for (const row of rows) {
+      const node = element("tr", "thread-row");
+      const threads = element("th", "thread-count", threadLabel(row));
+      threads.scope = "row";
+      const runtime = element("td");
+      const median = element("span", "timing", seconds(row.median_seconds));
+      median.setAttribute("aria-label", `Median ${row.median_seconds} seconds`);
+      runtime.append(median);
+      node.append(threads, runtime);
+      body.append(node);
+    }
+    table.append(head, body);
+    return table;
+  }
+
+  function groupRows(rows) {
+    const groups = new Map();
+    for (const row of rows) {
+      const key = JSON.stringify([
+        row.program.name, row.program.source_url, row.workload, row.category,
+        ...["id", "name", "arch", "os", "cpu", "logical_cpus", "memory_bytes"].map((field) => row.machine[field]),
+      ]);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+    return groups.values();
+  }
+
+  function groupWorkloads(rows) {
+    const workloads = new Map();
+    for (const group of groupRows(rows)) {
+      const row = group[0];
+      const key = JSON.stringify([
+        row.program.name, row.program.source_url, row.workload, row.category,
+        categoryOf(row),
+      ]);
+      if (!workloads.has(key)) workloads.set(key, []);
+      workloads.get(key).push(group);
+    }
+    return workloads.values();
   }
 
   function compareRows(left, right) {
@@ -233,7 +302,7 @@
       && (!threadFilter.value || threadKey(row) === threadFilter.value));
     shown.sort((left, right) => {
       if (sortOrder.value === "recent") {
-        const difference = (timestamp(right.source?.measured_at) ?? -Infinity) - (timestamp(left.source?.measured_at) ?? -Infinity);
+        const difference = (timestamp(right.measured_at) ?? -Infinity) - (timestamp(left.measured_at) ?? -Infinity);
         if (difference && !Number.isNaN(difference)) return difference;
       }
       if (selectedCategory === "all" && sortOrder.value === "program") {
@@ -243,14 +312,14 @@
       return compareRows(left, right);
     });
     const fragment = document.createDocumentFragment();
-    for (const row of shown) fragment.append(resultRow(row));
+    for (const groups of groupWorkloads(shown)) fragment.append(resultWorkload(groups));
     byId("result-rows").replaceChildren(fragment);
-    byId("table-container").hidden = shown.length === 0;
+    byId("result-rows").hidden = shown.length === 0;
     byId("empty-state").hidden = shown.length !== 0;
     const emptyDataset = measurements.length === 0;
     byId("empty-title").textContent = available.length === 0 ? "No published measurements yet." : "No matching measurements.";
     byId("empty-description").textContent = emptyDataset
-      ? "This dataset does not contain any program or aggregation measurements."
+      ? "A complete desktop, iPhone and Pixel run must finish before a snapshot is published."
       : available.length === 0
         ? `The current dataset has no measurements for ${categories[selectedCategory].name}.`
         : "Try a different program, machine or thread configuration.";
@@ -282,16 +351,30 @@
   }
 
   function parseDataset(dataset) {
-    if (!dataset || dataset.schema_version !== 1 || !Array.isArray(dataset.results)) throw new Error("Unsupported results format");
-    const rows = dataset.results.filter((row) => row && ["program", "aggregation"].includes(row.category));
-    const validTime = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+    if (!dataset || dataset.schema_version !== 2 || !Array.isArray(dataset.results)) throw new Error("Unsupported results format");
+    const rows = dataset.results;
+    if (rows.length === 0 && dataset.snapshot === null && dataset.generated_at === null) return rows;
+    const source = dataset.snapshot;
+    if (!rows.length || !source || !/^[\w.-]+\/[\w.-]+$/.test(source.repository)
+      || source.branch !== "riscv-exploration" || !/^[a-f0-9]{40}$/.test(source.commit)
+      || !Number.isSafeInteger(source.run_id) || source.run_id <= 0
+      || source.run_url !== `https://github.com/${source.repository}/actions/runs/${source.run_id}`
+      || timestamp(dataset.generated_at) === null) {
+      throw new Error("Invalid snapshot provenance");
+    }
+    const sourcePrefix = `https://github.com/${source.repository}/blob/${source.commit}/`;
+    const validTime = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+    const ids = new Set();
     for (const row of rows) {
-      if (!text(row.id, "") || !text(row.program?.name, "") || !text(row.workload, "") || !text(row.machine?.id, "")
+      if (!row || !["program", "aggregation"].includes(row.category) || "source" in row
+        || !text(row.id, "") || ids.has(row.id) || !text(row.program?.name, "") || !text(row.workload, "") || !text(row.machine?.id, "")
+        || !text(row.program?.source_url, "").startsWith(sourcePrefix) || timestamp(row.measured_at) === null
         || ![row.median_seconds, row.min_seconds, row.max_seconds].every(validTime)
         || row.min_seconds > row.median_seconds || row.median_seconds > row.max_seconds
         || !Array.isArray(row.samples_seconds) || !row.samples_seconds.length || !row.samples_seconds.every(validTime)) {
         throw new Error("Invalid measurement record");
       }
+      ids.add(row.id);
     }
     return rows;
   }
@@ -300,7 +383,9 @@
     results.setAttribute("aria-busy", "true");
     byId("error-state").hidden = true;
     byId("empty-state").hidden = true;
-    byId("table-container").hidden = true;
+    byId("result-rows").hidden = true;
+    byId("hardware-reference").hidden = true;
+    byId("snapshot-provenance").hidden = true;
     categoryBrowser.hidden = true;
     filters.hidden = true;
     byId("status").textContent = "Loading benchmark measurements…";
@@ -309,12 +394,14 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const dataset = await response.json();
       measurements = parseDataset(dataset);
+      updateSnapshot(dataset.snapshot);
       populateFilters();
       sortOrder.value = "program";
       updateCategoryCounts();
       filters.hidden = measurements.length === 0;
       categoryBrowser.hidden = measurements.length === 0;
       render();
+      updateHardwareReference();
     } catch {
       measurements = [];
       byId("result-rows").replaceChildren();
@@ -324,6 +411,7 @@
       results.setAttribute("aria-busy", "false");
     }
   }
+  window.addEventListener("hashchange", revealHardwareReference);
 
   categoryBrowser.addEventListener("click", (event) => {
     const button = event.target.closest("[data-category]");

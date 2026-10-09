@@ -3,6 +3,7 @@
 
 import argparse
 import base64
+from datetime import datetime, timezone
 import importlib.util
 import json
 import os
@@ -153,7 +154,9 @@ def export_diagnostics(private, destination, text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", required=True, choices=DEVICES)
-    platform = parser.parse_args().platform
+    parser.add_argument("--source-sha", required=True, help="Exact source commit selected by the snapshot workflow")
+    args = parser.parse_args()
+    platform = args.platform
     device_model, device_os = DEVICES[platform]
     device_id = f"{device_model}-{device_os}"
     target = "aarch64-linux-android" if platform == "android" else "aarch64-apple-ios"
@@ -191,6 +194,13 @@ def main():
     exit_code = 1
     try:
         metadata["source_sha"] = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+        reporting.require(re.fullmatch(r"[0-9a-f]{40}", args.source_sha), "invalid source commit")
+        reporting.require(metadata["source_sha"] == args.source_sha, "source commit mismatch")
+        reporting.require(
+            re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", metadata["source_repository"] or ""),
+            "missing source repository",
+        )
+        reporting.require((metadata["workflow_run_id"] or "").isdecimal() and int(metadata["workflow_run_id"]) > 0, "missing workflow run")
         metadata["rustc"] = subprocess.check_output(["rustc", "--version"], text=True, stderr=subprocess.DEVNULL).strip()
         if platform == "android":
             metadata.update(
@@ -314,6 +324,8 @@ def main():
                     values = {metrics[key] for metrics in metadata["benchmarks"].values()}
                     if len(values) == 1:
                         metadata[key] = next(iter(values))
+                metadata["measured_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                metadata["timestamp_basis"] = "collection_completed_at"
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
         metadata["status"] = "execution_or_report_error"
         exit_code = 1

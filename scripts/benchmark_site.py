@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""Collect inert benchmark JSON from explicitly selected GitHub Actions sources."""
+"""Plan, measure and atomically publish one complete, fresh benchmark snapshot."""
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
-import io
+import importlib.util
 import json
 import math
+import os
+from pathlib import Path
+import platform
 import re
 import statistics
 import subprocess
 import sys
-import zipfile
-from datetime import datetime, timezone
-from pathlib import Path
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_JSON = 4 * 1024 * 1024
-MAX_ARCHIVE = 32 * 1024 * 1024
+MAX_JSON = 8 * 1024 * 1024
+SHA = re.compile(r"[0-9a-f]{40}")
+REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+TESTBEDS = ("x86-64", "arm64")
 PROGRAMS = {
     "fibonacci-asm-2000000": ("Fibonacci", "2,000,000 steps modulo 2^64", "bins/leanvm/src/workload.rs"),
     "hash-50000": ("BLAKE2s guest", "Hash 50,000 bytes through the precompile", "programs/hash/guest/src/main.rs"),
@@ -24,9 +28,11 @@ PROGRAMS = {
     "leansphincs-26": ("leanSPHINCS", "Verify 26 signatures", "programs/leansphincs/guest/src/main.rs"),
     "falcon-7": ("Falcon-512", "Verify 7 signatures", "programs/falcon/guest/src/main.rs"),
     "stateproof-5": ("L1 state proofs", "Verify 5 account and storage reads", "programs/stateproof/guest/src/main.rs"),
-    "shielded-258": ("Shielded transfers", "258 spends, 516 input notes", "programs/shielded/guest/src/main.rs"),
+    "leanda-1": ("leanDA", "Check 1 blob of 128 KiB and compute its commitment", "programs/leanda/guest/src/main.rs"),
 }
-SHA = re.compile(r"[0-9a-f]{40}")
+_SPEC = importlib.util.spec_from_file_location("mobile_report", Path(__file__).with_name("mobile-bench-report.py"))
+mobile_report = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(mobile_report)
 
 
 def require(condition, message):
@@ -34,46 +40,82 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def warn(message):
-    print(f"benchmark-site: {message}", file=sys.stderr)
-
-
-def api(path, binary=False):
-    result = subprocess.run(["gh", "api", path], capture_output=True, timeout=120, check=True)
-    require(len(result.stdout) <= MAX_ARCHIVE, "API response too large")
-    return result.stdout if binary else json.loads(result.stdout)
-
-
-def archive_json(data, name):
-    # Never extract archives or execute downloaded files, including PR artifacts.
-    require(len(data) <= MAX_ARCHIVE, "archive too large")
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        matches = [entry for entry in archive.infolist() if entry.filename == name]
-        require(len(matches) == 1, f"expected one {name}")
-        require(matches[0].file_size <= MAX_JSON, f"{name} too large")
-        return json.loads(archive.read(matches[0]))
-
-
-def artifact_bytes(repo, artifact):
-    require(not artifact["expired"], "artifact expired")
-    require(artifact["size_in_bytes"] <= MAX_ARCHIVE, "artifact too large")
-    return api(f"repos/{repo}/actions/artifacts/{artifact['id']}/zip", binary=True)
-
-
-def artifacts(repo, run_id):
-    return api(f"repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
-
-
 def positive(value):
-    require(type(value) in (int, float) and math.isfinite(value) and value > 0, "invalid timing")
+    require(type(value) in (int, float) and math.isfinite(value) and value > 0, "invalid positive measurement")
+    return value
+
+
+def integer(value, maximum=None):
+    require(type(value) is int and value > 0 and (maximum is None or value <= maximum), "invalid positive integer")
+    return value
+
+
+def text(value):
+    require(isinstance(value, str) and 0 < len(value) <= 500, "invalid text")
     return value
 
 
 def instant(value):
     require(isinstance(value, str), "missing timestamp")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    require(parsed.tzinfo is not None, "timestamp must include timezone")
+    require(parsed.tzinfo is not None and parsed.utcoffset().total_seconds() == 0, "timestamp must be UTC")
     return parsed
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def decode(data):
+    require(len(data) <= MAX_JSON, "JSON too large")
+    return json.loads(data, object_pairs_hook=unique_object)
+
+
+def load(path):
+    path = Path(path)
+    require(path.is_file() and not path.is_symlink(), f"missing or unsafe file: {path}")
+    require(path.stat().st_size <= MAX_JSON, "JSON too large")
+    return decode(path.read_text())
+
+
+def atomic_write(path, document, immutable=False):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, prefix=f".{path.name}.", delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(document, stream, indent=2, allow_nan=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        if immutable:
+            os.link(temporary, path)  # Atomic create, never replace an existing plan.
+        else:
+            os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def expected_benchmarks():
+    names = set(PROGRAMS)
+    names.update(f"leanxmss-100-{count}thread" for count in (1, 4, 8))
+    names.update(f"aggregate-leanxmss-100-{arity}to1{suffix}"
+                 for arity in (2, 4) for suffix in ("", "-1thread", "-4thread", "-8thread"))
+    return sorted(names)
+
+
+def expected_results(benchmark):
+    return [benchmark + "-first", benchmark + "-node"] if benchmark.startswith("aggregate-") else [benchmark]
 
 
 def workload(name):
@@ -81,8 +123,7 @@ def workload(name):
     count = int(threads[1]) if threads else None
     clean = re.sub(r"-\d+thread", "", name)
     if clean in PROGRAMS:
-        title, description, path = PROGRAMS[clean]
-        return title, description, path, "program", count
+        return (*PROGRAMS[clean], "program", count)
     tree = re.fullmatch(r"aggregate-leanxmss-100-(2|4)to1-(first|node)", clean)
     if tree:
         arity, level = tree.groups()
@@ -93,325 +134,330 @@ def workload(name):
     return None
 
 
-def expected_benchmarks():
-    names = set(PROGRAMS)
-    names.update(f"leanxmss-100-{n}thread" for n in (1, 4, 8))
-    names.update(f"aggregate-leanxmss-100-{arity}to1{suffix}"
-                 for arity in (2, 4) for suffix in ("", "-1thread", "-4thread", "-8thread"))
-    return names
+def provenance(repository, commit, run_id):
+    return {"repository": repository, "branch": "riscv-exploration", "commit": commit,
+            "run_id": run_id, "run_url": f"https://github.com/{repository}/actions/runs/{run_id}"}
+
+
+def validate_source(source):
+    require(set(source) == {"repository", "branch", "commit", "run_id", "run_url"}, "invalid snapshot provenance")
+    require(isinstance(source["repository"], str) and REPOSITORY.fullmatch(source["repository"]), "invalid repository")
+    require(isinstance(source["commit"], str) and SHA.fullmatch(source["commit"]), "invalid commit")
+    integer(source["run_id"])
+    require(source == provenance(source["repository"], source["commit"], source["run_id"]), "invalid snapshot provenance")
+
+
+def make_plan(repository, commit, run_id, rounds=5):
+    plan = {"schema_version": 2, "created_at": now(), "snapshot": provenance(repository, commit, run_id),
+            "rounds": rounds, "desktop": {"testbeds": list(TESTBEDS), "benchmarks": expected_benchmarks()},
+            "mobile": {"platforms": ["ios", "android"], "functions": list(mobile_report.FUNCTIONS),
+                       "warmup": 1, "iterations": 3}}
+    return validate_plan(plan)
+
+
+def validate_plan(plan):
+    require(set(plan) == {"schema_version", "created_at", "snapshot", "rounds", "desktop", "mobile"}, "invalid plan fields")
+    require(type(plan["schema_version"]) is int and plan["schema_version"] == 2, "unsupported plan schema")
+    instant(plan["created_at"])
+    validate_source(plan["snapshot"])
+    integer(plan["rounds"], 100)
+    require(plan["desktop"] == {"testbeds": list(TESTBEDS), "benchmarks": expected_benchmarks()}, "incomplete desktop plan")
+    require(plan["mobile"] == {"platforms": ["ios", "android"], "functions": list(mobile_report.FUNCTIONS),
+                               "warmup": 1, "iterations": 3}, "incomplete mobile plan")
+    return plan
+
+
+def digest(document, length=64):
+    return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:length]
 
 
 def machine_id(machine):
-    fields = {key: machine[key] for key in ("name", "arch", "os", "cpu", "logical_cpus", "memory_bytes")}
-    return hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()[:16]
+    return digest({key: machine[key] for key in ("name", "arch", "os", "cpu", "logical_cpus", "memory_bytes")}, 16)
 
 
-def row(name, description, path, category, count, samples, machine, source, verification=None):
-    require(samples and len(samples) <= 100, "invalid sample count")
-    samples = [positive(sample) for sample in samples]
-    machine = dict(machine, id=machine_id(machine))
-    identity = [name, description, category, machine["id"], count, source["kind"]]
-    return {
-        "id": hashlib.sha256(json.dumps(identity).encode()).hexdigest()[:24],
-        "program": {"name": name, "source_url": f"https://github.com/{source['repository']}/blob/{source['commit']}/{path}"},
-        "workload": description,
-        "category": category,
-        "machine": machine,
-        "threads": {"count": count, "label": f"{count} thread{'s' if count != 1 else ''}" if count else "Default (not recorded)"},
-        "median_seconds": statistics.median(samples),
-        "min_seconds": min(samples),
-        "max_seconds": max(samples),
-        "samples_seconds": samples,
-        "source": source,
-        "verification": verification,
-    }
+def validate_machine(machine, desktop=False):
+    require(set(machine) == {"id", "name", "arch", "os", "cpu", "logical_cpus", "memory_bytes"}, "invalid machine fields")
+    for key in ("name", "arch", "os"):
+        text(machine[key])
+    if desktop or machine["cpu"] is not None:
+        text(machine["cpu"])
+    for key in ("logical_cpus", "memory_bytes"):
+        if desktop or machine[key] is not None:
+            integer(machine[key])
+    require(machine["id"] == machine_id(machine), "machine identity mismatch")
 
 
-def log_machines(data):
-    """Read each job's own CPU log, not another job's nominal runner specification."""
-    machines = {}
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        for entry in archive.infolist():
-            match = re.fullmatch(r"(.+) \((x86-64|arm64)\)/\d+_CPU.txt", entry.filename)
-            if not match or entry.file_size > MAX_JSON:
-                continue
-            text = archive.read(entry).decode("utf-8-sig")
-            cpu = re.search(r"Z Model name:\s+([^\r\n]+)", text)
-            count = re.search(r"Z CPU\(s\):\s+(\d+)", text)
-            os = re.search(r"Z (Linux [^\r\n]+)", text)
-            machines[(match[1], match[2])] = {
-                "cpu": cpu[1].strip() if cpu else None,
-                "logical_cpus": int(count[1]) if count else None,
-                "os": os[1] if os else None,
-            }
-    return machines
+def hardware(testbed):
+    require(platform.system() == "Linux", "desktop measurement requires a Linux native runner")
+    arch = {"x86_64": "x86-64", "aarch64": "arm64"}.get(platform.machine())
+    require(arch == testbed, "runner architecture does not match testbed")
+    fields = {}
+    for line in Path("/proc/cpuinfo").read_text().splitlines():
+        key, separator, value = line.partition(":")
+        if separator:
+            fields.setdefault(key.strip(), value.strip())
+    cpu = fields.get("model name") or fields.get("Model") or fields.get("Hardware")
+    if not cpu and "CPU implementer" in fields and "CPU part" in fields:
+        cpu = f"ARM implementer {fields['CPU implementer']}, part {fields['CPU part']}, revision {fields.get('CPU revision', 'unknown')}"
+    text(cpu)
+    machine = {"name": cpu, "cpu": cpu, "arch": arch, "os": f"Linux {platform.release()}",
+               "logical_cpus": os.cpu_count(),
+               "memory_bytes": os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")}
+    machine["id"] = machine_id(machine)
+    validate_machine(machine, desktop=True)
+    return machine
 
 
-def desktop_rows(document, benchmark, run, config, hardware):
-    repo, branch = config["repository"], config["branch"]
-    require(SHA.fullmatch(document["base"]), "invalid base revision")
-    prs = [pr for pr in run["pull_requests"] if pr["number"] == document["pr"] and pr["base"]["ref"] == branch]
-    require(run["event"] == "pull_request" and len(prs) == 1, "not a selected baseline PR run")
-    arch = document["testbed"]
-    require(arch in ("x86-64", "arm64"), "unknown testbed")
-    cpu = document["cpu"]
-    require(isinstance(cpu, str) and 0 < len(cpu) <= 200, "missing CPU model")
-    if hardware.get("cpu"):
-        require(cpu == hardware["cpu"], "CPU log and artifact disagree")
-    machine = {"name": cpu, "arch": arch, "os": hardware.get("os"), "cpu": cpu,
-               "logical_cpus": hardware.get("logical_cpus"), "memory_bytes": None}
-    expected = {benchmark + "-first", benchmark + "-node"} if benchmark.startswith("aggregate-") else {benchmark}
-    rounds = [sample for sample in document["runs"] if sample["side"] == "base"]
-    require(len(rounds) == config["rounds"], "incomplete baseline rounds")
-    require({sample["round"] for sample in rounds} == set(range(1, config["rounds"] + 1)), "duplicate/missing rounds")
-    for sample in rounds:
-        require(set(sample["results"]) == expected, "unexpected workload or incomplete aggregation")
-    source = {"repository": repo, "branch": branch, "commit": document["base"],
-              "run_url": run["html_url"], "measured_at": run["created_at"],
-              "kind": "branch", "label": f"{branch} baseline (PR #{document['pr']} base)",
-              "timestamp_basis": "workflow start; individual sample timestamps not recorded"}
-    results = []
-    for name in sorted(expected):
-        definition = workload(name)
-        require(definition is not None, "unsupported workload")
-        samples = []
-        for sample in sorted(rounds, key=lambda item: item["round"]):
-            metric = sample["results"][name]["latency"]
-            # Each A/B round must represent one measurement, not a mean of several.
-            require(metric["value"] == metric["lower_value"] == metric["upper_value"], "round is not a single sample")
-            samples.append(positive(metric["value"]) / 1e9)
-        title, description, path, category, count = definition
-        results.append(row(title, description, path, category, count, samples, machine, source))
-    return results
+def validate_metrics(results, benchmark):
+    require(set(results) == set(expected_results(benchmark)), "unexpected workload or incomplete aggregation")
+    for metrics in results.values():
+        latency = metrics["latency"]
+        positive(latency["value"])
+        require(latency["value"] == latency["lower_value"] == latency["upper_value"], "round is not one timing sample")
+        verify = metrics["verify"]
+        require(positive(verify["lower_value"]) <= positive(verify["value"]) <= positive(verify["upper_value"]), "invalid verification timing")
+        positive(metrics["proof-size"]["value"])
 
 
-def mobile_rows(metadata, raw, run, selected):
-    require(metadata["status"] == "complete" and metadata["device_validated"] is True, "incomplete mobile run")
-    require(metadata["source_sha"] == selected["commit"] == run["head_sha"], "mobile revision mismatch")
-    require(metadata["source_repository"] == selected["repository"], "mobile repository mismatch")
-    require(str(metadata["workflow_run_id"]) == str(run["id"]), "mobile run mismatch")
-    require(metadata["trigger_ref"] == f"refs/heads/{selected['branch']}", "mobile branch mismatch")
-    definitions = {
-        "leanvm_mobile_bench::shielded_prove": (
-            "Shielded transfers", "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
-            "programs/shielded/guest/src/main.rs", "program",
-            {"spends_per_leaf": 2, "leaf_log_inv_rate": 2}),
-        "leanvm_mobile_bench::shielded_aggregate": (
-            "Shielded aggregation",
-            "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
-            "bench-mobile/src/lib.rs", "aggregation",
-            {"spends_per_leaf": 2, "leaf_log_inv_rate": 2, "aggregation_leaves": 2,
-             "aggregation_log_inv_rate": 1, "verified_leaves": 2}),
-    }
-    expected = metadata["functions"]
-    require(expected and len(set(expected)) == len(expected) and set(expected) <= definitions.keys(), "unsupported mobile functions")
-    per_function = metadata.get("benchmarks")
-    if per_function is not None:
-        require(set(per_function) == set(expected), "incomplete per-function metadata")
-    else:
-        require(expected == ["leanvm_mobile_bench::shielded_prove"], "missing per-function metadata")
-    device = metadata["requested_device"]
-    device_version = f"{device}-{metadata['requested_os_version']}"
-    measured = {}
-    for report in raw:
-        require(len(report["benchmark_results"]) == 1, "ambiguous mobile device")
-        observed_device, functions = next(iter(report["benchmark_results"].items()))
-        require(observed_device in (device, device_version) and functions, "mobile device mismatch")
-        if per_function is not None:
-            summary = report["summary"]
-            require(summary["target"] == metadata["requested_os"] and summary["devices"] == [device_version], "mobile platform mismatch")
-            require(summary["warmup"] == metadata["warmup"] and summary["iterations"] == metadata["iterations"], "mobile summary specification mismatch")
-            names = [result["function"] for result in functions]
-            require(summary["function"] == (names[0] if len(names) == 1 else "multiple"), "mobile summary function mismatch")
-            devices = summary["device_summaries"]
-            require(len(devices) == 1 and devices[0]["device"] in (device, device_version), "mobile summary device mismatch")
-            summaries = devices[0]["benchmarks"]
-            require(len(summaries) == len(names) and {item["function"] for item in summaries} == set(names), "incomplete mobile summary")
-            require(all(item["samples"] == metadata["iterations"] and not item.get("failure") for item in summaries), "failed mobile summary")
-        for result in functions:
-            function = result["function"]
-            require(function in expected and function not in measured, "unexpected or duplicate mobile function")
-            require(not result.get("failure"), "failed mobile benchmark")
-            measured[function] = result
-    require(set(measured) == set(expected), "missing mobile function")
-    machine = {"name": device, "arch": "aarch64", "os": f"{metadata['requested_os']} {metadata['requested_os_version']}",
-               "cpu": metadata.get("soc"), "logical_cpus": None, "memory_bytes": None}
+def run_desktop(plan, testbed, benchmark, executable):
+    validate_plan(plan)
+    require(testbed in TESTBEDS and benchmark in plan["desktop"]["benchmarks"], "unplanned desktop case")
+    source = plan["snapshot"]
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    require(head == source["commit"], "checkout revision does not match plan")
+    if os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI"):
+        require(os.environ.get("GITHUB_REPOSITORY") == source["repository"], "CI repository does not match plan")
+        require(os.environ.get("GITHUB_RUN_ID") == str(source["run_id"]), "CI run does not match plan")
+    machine = hardware(testbed)
+    explicit = workload(expected_results(benchmark)[0])[4]
+    count = explicit or len(os.sched_getaffinity(0))
+    integer(count, 1024)
+    environment = dict(os.environ, LEANVM_NUM_THREADS=str(count))
+    document = {"schema_version": 2, "snapshot": source, "plan_id": digest(plan), "testbed": testbed,
+                "benchmark": benchmark, "machine": machine, "threads": count, "samples": []}
+    for number in range(1, plan["rounds"] + 1):
+        completed = subprocess.run([str(Path(executable).resolve()), "bench", "--only", benchmark,
+                                    "--repeat", "1", "--cooldown", "0"],
+                                   cwd=ROOT, env=environment, stdout=subprocess.PIPE, text=True, check=True)
+        results = decode(completed.stdout)
+        validate_metrics(results, benchmark)
+        document["samples"].append({"round": number, "measured_at": now(), "exit_code": completed.returncode,
+                                    "threads": count, "results": results})
+    desktop_rows(document, plan, testbed, benchmark)
+    return document
+
+
+def row(title, description, path, category, count, samples, machine, source, measured_at, verification, thread_label=None):
+    identity = [title, description, category, machine["id"], count, thread_label]
+    return {"id": digest(identity, 24), "program": {"name": title,
+            "source_url": f"https://github.com/{source['repository']}/blob/{source['commit']}/{path}"},
+            "workload": description, "category": category, "machine": machine,
+            "threads": {"count": count, "label": thread_label or f"{count} thread{'s' if count != 1 else ''}"},
+            "median_seconds": statistics.median(samples), "min_seconds": min(samples), "max_seconds": max(samples),
+            "samples_seconds": samples, "measured_at": measured_at, "verification": verification}
+
+
+def desktop_rows(document, plan, testbed, benchmark):
+    require(type(document["schema_version"]) is int and document["schema_version"] == 2, "unsupported desktop schema")
+    validate_source(document["snapshot"])
+    require(document["snapshot"] == plan["snapshot"] and document["plan_id"] == digest(plan), "desktop source or plan mismatch")
+    require(document["testbed"] == testbed and document["benchmark"] == benchmark, "desktop case mismatch")
+    machine = document["machine"]
+    validate_machine(machine, desktop=True)
+    require(machine["arch"] == testbed, "desktop architecture mismatch")
+    count = integer(document["threads"], 1024)
+    explicit = workload(expected_results(benchmark)[0])[4]
+    require(explicit is None or explicit == count, "named thread count mismatch")
+    samples = document["samples"]
+    require(len(samples) == plan["rounds"], "incomplete desktop rounds")
+    require(all(type(sample["round"]) is int for sample in samples), "invalid round")
+    require({sample["round"] for sample in samples} == set(range(1, plan["rounds"] + 1)), "duplicate or missing rounds")
+    samples = sorted(samples, key=lambda sample: sample["round"])
+    previous = instant(plan["created_at"])
+    for sample in samples:
+        measured = instant(sample["measured_at"])
+        require(previous <= measured <= datetime.now(timezone.utc), "stale or unordered desktop sample")
+        previous = measured
+        require(type(sample["exit_code"]) is int and sample["exit_code"] == 0, "failed desktop proof")
+        require(type(sample["threads"]) is int and sample["threads"] == count, "inconsistent desktop threads")
+        validate_metrics(sample["results"], benchmark)
     rows = []
-    for function in expected:
+    for name in expected_results(benchmark):
+        title, description, path, category, _ = workload(name)
+        timings = [sample["results"][name]["latency"]["value"] / 1e9 for sample in samples]
+        verification = {"verified_proofs": len(samples), "total_proofs": len(samples),
+                        "method": "Successful leanvm bench process and proof verification timing for every independent round",
+                        "verify_seconds": [sample["results"][name]["verify"]["value"] / 1e9 for sample in samples]}
+        label = None if explicit else f"{count} threads (default runner allocation)"
+        rows.append(row(title, description, path, category, count, timings, machine, plan["snapshot"],
+                        samples[-1]["measured_at"], verification, label))
+    return rows
+
+
+def mobile_rows(directory, plan, platform_name):
+    metadata = load(directory / "metadata.json")
+    raw = load(directory / "raw-results.json")
+    source = plan["snapshot"]
+    # Share the mobile reporter's full device, function, metrics and sample validation.
+    _, complete, observed_platform = mobile_report.render(directory, source["repository"], source["commit"], str(source["run_id"]))
+    require(complete and observed_platform == platform_name, "missing or wrong mobile platform")
+    measured = mobile_report.validate_results(raw, platform_name)
+    timestamp = metadata["measured_at"]
+    require(instant(plan["created_at"]) <= instant(timestamp) <= datetime.now(timezone.utc), "stale mobile sample")
+    require(metadata["timestamp_basis"] == "collection_completed_at", "unexpected mobile timestamp basis")
+    model, version, os_name = mobile_report.DEVICES[platform_name]
+    machine = {"name": model, "arch": "aarch64", "os": f"{os_name} {version}", "cpu": metadata.get("soc"),
+               "logical_cpus": None, "memory_bytes": None}
+    machine["id"] = machine_id(machine)
+    definitions = {
+        mobile_report.FUNCTION: ("Shielded transfers", "2 spends, 4 input notes; standalone proof, leaf log inverse rate 2",
+                                 "programs/shielded/guest/src/main.rs", "program"),
+        mobile_report.AGGREGATE_FUNCTION: ("Shielded aggregation",
+            "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
+            "bench-mobile/src/lib.rs", "aggregation"),
+    }
+    rows = []
+    for function in mobile_report.FUNCTIONS:
         result = measured[function]
-        title, description, path, category, required = definitions[function]
-        metrics = result["custom_metrics"]["run_u64"]
-        recorded = per_function[function] if per_function is not None else metadata
-        for key, value in required.items():
-            require(type(metrics[key]) is int and metrics[key] == value, f"mobile {key} mismatch")
-            if key in recorded:
-                require(recorded[key] == value, f"mobile recorded {key} mismatch")
-        if per_function is not None:
-            require(all(type(value) is int and metrics.get(key) == value for key, value in recorded.items()), "mobile metrics mismatch")
-            require(set(required) | {"threads", "available_parallelism", "verified_proofs"} <= recorded.keys(), "missing mobile metrics")
-            require([sample["duration_ns"] for sample in result["samples"]] == result["samples_ns"], "mobile sample records disagree")
-        count = recorded["threads"]
-        require(type(count) is int and 0 < count <= 1024 and metrics["threads"] == count, "mobile thread mismatch")
-        if "available_parallelism" in recorded:
-            require(recorded["available_parallelism"] == count == metrics["available_parallelism"], "mobile parallelism mismatch")
-        samples = result["samples_ns"]
-        require(len(samples) == metadata["iterations"] == result["spec"]["iterations"], "incomplete mobile samples")
-        require(result["spec"]["warmup"] == metadata["warmup"], "mobile warmup mismatch")
-        total = metadata["warmup"] + len(samples)
-        require(recorded["verified_proofs"] == metrics["verified_proofs"] == total, "mobile proofs not all verified")
-        samples = [positive(sample) / 1e9 for sample in samples]
-        timestamp = datetime.fromtimestamp(result["resources"]["timestamp_ms"] / 1000, timezone.utc).isoformat().replace("+00:00", "Z")
-        source = {"repository": selected["repository"], "branch": selected["branch"], "commit": selected["commit"],
-                  "run_url": run["html_url"], "measured_at": timestamp, "kind": "pull_request", "label": selected["label"]}
-        rows.append(row(title, description, path, category, count, samples, machine, source,
-                        {"verified_proofs": total, "total_proofs": total}))
+        metrics = metadata["benchmarks"][function]
+        verification = {"verified_proofs": metrics["verified_proofs"], "total_proofs": metadata["warmup"] + metadata["iterations"],
+                        "parameters": metrics}
+        result_row = row(*definitions[function], metrics["threads"], [value / 1e9 for value in result["samples_ns"]],
+                         machine, source, timestamp, verification)
+        result_row["timestamp_basis"] = metadata["timestamp_basis"]
+        rows.append(result_row)
     return rows
 
 
 def validate(snapshot):
-    require(snapshot["schema_version"] == 1, "unsupported schema")
-    instant(snapshot["generated_at"])
-    require(isinstance(snapshot["results"], list) and len(snapshot["results"]) <= 10000, "invalid results")
-    seen = set()
-    for result in snapshot["results"]:
+    require(set(snapshot) == {"schema_version", "generated_at", "snapshot", "results"}, "invalid snapshot fields")
+    require(type(snapshot["schema_version"]) is int and snapshot["schema_version"] == 2, "unsupported schema")
+    results = snapshot["results"]
+    require(isinstance(results, list) and len(results) <= 10000, "invalid results")
+    if snapshot["snapshot"] is None:
+        require(snapshot["generated_at"] is None and results == [], "invalid unpublished snapshot")
+        return snapshot
+    validate_source(snapshot["snapshot"])
+    generated = instant(snapshot["generated_at"])
+    require(results, "published snapshot cannot be empty")
+    source = snapshot["snapshot"]
+    prefix = f"https://github.com/{source['repository']}/blob/{source['commit']}/"
+    seen, identities = set(), set()
+    required = {"id", "program", "workload", "category", "machine", "threads", "median_seconds", "min_seconds",
+                "max_seconds", "samples_seconds", "measured_at", "verification"}
+    for result in results:
+        require(required <= result.keys() and result.keys() <= required | {"timestamp_basis"}, "invalid result fields")
+        require(isinstance(result["id"], str) and re.fullmatch(r"[0-9a-f]{24}", result["id"]), "invalid result id")
         require(result["id"] not in seen, "duplicate result")
         seen.add(result["id"])
         require(result["category"] in ("program", "aggregation"), "unsupported category")
-        require(result["program"]["source_url"].startswith("https://github.com/"), "invalid source link")
-        require(SHA.fullmatch(result["source"]["commit"]), "invalid revision")
-        instant(result["source"]["measured_at"])
+        require(set(result["program"]) == {"name", "source_url"}, "invalid program fields")
+        text(result["program"]["name"])
+        url = result["program"]["source_url"]
+        require(isinstance(url, str) and url.startswith(prefix) and len(url) > len(prefix)
+                and not any(part in (".", "..") for part in url[len(prefix):].split("/")), "source link does not pin snapshot")
+        text(result["workload"])
+        validate_machine(result["machine"])
+        require(set(result["threads"]) == {"count", "label"}, "invalid thread fields")
+        integer(result["threads"]["count"], 1024)
+        text(result["threads"]["label"])
+        identity = (result["program"]["name"], result["workload"], result["category"], result["machine"]["id"],
+                    result["threads"]["count"], result["threads"]["label"])
+        require(identity not in identities, "duplicate configuration")
+        identities.add(identity)
+        require(instant(result["measured_at"]) <= generated, "measurement after publication")
+        if "timestamp_basis" in result:
+            text(result["timestamp_basis"])
         samples = result["samples_seconds"]
-        require(samples and len(samples) <= 100, "invalid samples")
+        require(isinstance(samples, list) and 0 < len(samples) <= 100, "invalid samples")
         for sample in samples:
             positive(sample)
+        for field in ("median_seconds", "min_seconds", "max_seconds"):
+            positive(result[field])
         require(result["median_seconds"] == statistics.median(samples), "median mismatch")
         require(result["min_seconds"] == min(samples) and result["max_seconds"] == max(samples), "range mismatch")
-        count = result["threads"]["count"]
-        require(count is None or type(count) is int and 0 < count <= 1024, "invalid threads")
+        verification = result["verification"]
+        verified = integer(verification["verified_proofs"])
+        require(verified == integer(verification["total_proofs"]) and verified >= len(samples), "unverified samples")
+        if "verify_seconds" in verification:
+            require(len(verification["verify_seconds"]) == len(samples), "missing verification evidence")
+            for value in verification["verify_seconds"]:
+                positive(value)
+        if "parameters" in verification:
+            parameters = verification["parameters"]
+            require(parameters["threads"] == parameters["available_parallelism"] == result["threads"]["count"], "inconsistent mobile threads")
+            require(parameters["verified_proofs"] == verified, "inconsistent verification evidence")
     return snapshot
 
 
-def merge(previous, candidates):
-    results = {result["id"]: result for result in previous["results"]}
-    for candidate in candidates:
-        old = results.get(candidate["id"])
-        if old is None or instant(candidate["source"]["measured_at"]) > instant(old["source"]["measured_at"]):
-            results[candidate["id"]] = candidate
-    ordered = sorted(results.values(), key=lambda item: (item["program"]["name"], item["workload"], item["machine"]["id"], item["threads"]["count"] or 0))
-    if ordered == previous["results"]:
-        return previous
-    return validate({"schema_version": 1, "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "results": ordered})
-
-
-def restore(repo, branch):
-    default_branch = api(f"repos/{repo}")["default_branch"]
-    runs = api(f"repos/{repo}/actions/workflows/benchmark-site.yml/runs?status=success&per_page=10")["workflow_runs"]
-    for run in runs:
-        trusted = (run["event"] in ("push", "workflow_dispatch") and run["head_branch"] == branch
-                   or run["event"] == "schedule" and run["head_branch"] == default_branch)
-        if not trusted:
-            continue
-        for artifact in artifacts(repo, run["id"]):
-            if artifact["name"] == "benchmark-data" and not artifact["expired"]:
-                return validate(archive_json(artifact_bytes(repo, artifact), "latest.json"))["results"]
-    return []
-
-
-def collect_desktop(config):
-    repo, branch = config["repository"], config["branch"]
-    runs = api(f"repos/{repo}/actions/workflows/{config['workflow']}/runs?status=success&event=pull_request&per_page={config['recent_runs']}")["workflow_runs"]
-    accepted = set()
-    revisions = {}
-    candidates = []
-    expected = expected_benchmarks()
-    for run in runs:
-        if run["conclusion"] != "success" or run["path"] != f".github/workflows/{config['workflow']}":
-            continue
-        if not any(pr["base"]["ref"] == branch for pr in run["pull_requests"]):
-            continue
-        run_artifacts = artifacts(repo, run["id"])
-        try:
-            hardware = log_machines(api(f"repos/{repo}/actions/runs/{run['id']}/logs", binary=True))
-        except (ValueError, KeyError, subprocess.SubprocessError, zipfile.BadZipFile) as error:
-            warn(f"run {run['id']}: hardware logs unavailable ({error}); retaining existing results")
-            continue
-        for artifact in run_artifacts:
-            match = re.fullmatch(r"ab-(x86-64|arm64)-(.+)", artifact["name"])
-            if not match or match[2] not in expected:
-                continue
-            try:
-                machine = hardware.get((match[2], match[1]))
-                require(machine and machine["cpu"] and machine["logical_cpus"] and machine["os"], "missing hardware evidence")
-                configuration = (match.groups(), json.dumps(machine, sort_keys=True))
-                if configuration in accepted:
-                    continue
-                document = archive_json(artifact_bytes(repo, artifact), "ab.json")
-                require(document["testbed"] == match[1], "artifact testbed mismatch")
-                revision = document["base"]
-                require(SHA.fullmatch(revision), "invalid base revision")
-                if revision not in revisions:
-                    comparison = api(f"repos/{repo}/compare/{revision}...{branch}")
-                    revisions[revision] = comparison["status"] in ("ahead", "identical")
-                require(revisions[revision], "base is not on the selected branch")
-                candidates.extend(desktop_rows(document, match[2], run, config, machine))
-                accepted.add(configuration)
-            except (ValueError, KeyError, TypeError, subprocess.SubprocessError, zipfile.BadZipFile) as error:
-                warn(f"{artifact['name']}: retaining prior data ({error})")
-    print(f"Collected {len(candidates)} desktop rows from {len(accepted)} benchmark artifacts")
-    return candidates
-
-
-def collect_mobile(selected):
-    repo = selected["repository"]
-    run = api(f"repos/{repo}/actions/runs/{selected['run_id']}")
-    require(run["conclusion"] == "success" and run["head_sha"] == selected["commit"], "unapproved mobile run")
-    require(run["path"] == f".github/workflows/{selected['workflow']}" and run["head_branch"] == selected["branch"], "mobile workflow mismatch")
-    candidates = []
-    for artifact in artifacts(repo, run["id"]):
-        if artifact["name"] not in ("mobile-bench-ios-results", "mobile-bench-android-results"):
-            continue
-        try:
-            data = artifact_bytes(repo, artifact)
-            candidates.extend(mobile_rows(archive_json(data, "metadata.json"), archive_json(data, "raw-results.json"), run, selected))
-        except (ValueError, KeyError, TypeError, subprocess.SubprocessError, zipfile.BadZipFile) as error:
-            warn(f"{artifact['name']}: retaining prior data ({error})")
-    print(f"Collected {len(candidates)} mobile rows from approved run {run['id']}")
-    return candidates
+def publish(plan, artifacts, output):
+    validate_plan(plan)
+    artifacts = Path(artifacts)
+    expected = {f"snapshot-result-desktop-{testbed}-{benchmark}": (testbed, benchmark)
+                for testbed in TESTBEDS for benchmark in plan["desktop"]["benchmarks"]}
+    mobile = {f"snapshot-result-mobile-{name}": name for name in plan["mobile"]["platforms"]}
+    require({entry.name for entry in artifacts.iterdir()} == expected.keys() | mobile.keys(), "missing, duplicate or unexpected result artifacts")
+    rows = []
+    machines = {}
+    default_threads = {}
+    for name, (testbed, benchmark) in expected.items():
+        directory = artifacts / name
+        require(directory.is_dir() and not directory.is_symlink(), "unsafe desktop artifact")
+        require({entry.name for entry in directory.iterdir()} == {"result.json"}, "unexpected desktop artifact files")
+        document = load(directory / "result.json")
+        rows.extend(desktop_rows(document, plan, testbed, benchmark))
+        require(machines.setdefault(testbed, document["machine"]) == document["machine"], "inconsistent testbed hardware")
+        if workload(expected_results(benchmark)[0])[4] is None:
+            require(default_threads.setdefault(testbed, document["threads"]) == document["threads"], "inconsistent default thread allocation")
+    for name, platform_name in mobile.items():
+        directory = artifacts / name
+        require(directory.is_dir() and not directory.is_symlink(), "unsafe mobile artifact")
+        require({entry.name for entry in directory.iterdir()} == {"metadata.json", "raw-results.json"}, "unexpected mobile artifact files")
+        rows.extend(mobile_rows(directory, plan, platform_name))
+    snapshot = validate({"schema_version": 2, "generated_at": now(), "snapshot": plan["snapshot"],
+                         "results": sorted(rows, key=lambda result: result["id"])})
+    atomic_write(output, snapshot)
+    return snapshot
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "site/benchmarks/latest.json")
-    parser.add_argument("--sources", type=Path, default=ROOT / "scripts/benchmark-sources.json")
-    parser.add_argument("--check", action="store_true", help="validate the existing snapshot without network access")
-    parser.add_argument("--restore-repository", help="restore prior published data before collecting")
-    parser.add_argument("--restore-branch", default="riscv-exploration")
+    commands = parser.add_subparsers(dest="command", required=True)
+    plan = commands.add_parser("plan", help="Create an immutable complete fresh-run plan")
+    plan.add_argument("--repository", required=True)
+    plan.add_argument("--commit", required=True)
+    plan.add_argument("--run-id", required=True, type=int)
+    plan.add_argument("--rounds", type=int, default=5)
+    plan.add_argument("--output", type=Path, required=True)
+    desktop = commands.add_parser("run-desktop", help="Measure one planned case on its native runner")
+    desktop.add_argument("--plan", type=Path, required=True)
+    desktop.add_argument("--testbed", choices=TESTBEDS, required=True)
+    desktop.add_argument("--benchmark", required=True)
+    desktop.add_argument("--executable", type=Path, required=True)
+    desktop.add_argument("--output", type=Path, required=True)
+    publication = commands.add_parser("publish", help="Validate all fresh artifacts and atomically replace the snapshot")
+    publication.add_argument("--plan", type=Path, required=True)
+    publication.add_argument("--artifacts", type=Path, required=True)
+    publication.add_argument("--output", type=Path, required=True)
+    check = commands.add_parser("check", help="Validate a schema-2 snapshot or the honest unpublished bootstrap")
+    check.add_argument("--input", type=Path, required=True)
     args = parser.parse_args()
-    snapshot = validate(json.loads(args.output.read_text())) if args.output.exists() else {
-        "schema_version": 1, "generated_at": datetime.now(timezone.utc).isoformat(), "results": []}
-    if args.check:
-        require(snapshot["results"], "snapshot is empty")
-        print(f"Valid snapshot: {len(snapshot['results'])} rows")
-        return
-    config = json.loads(args.sources.read_text())
-    if args.restore_repository:
-        try:
-            snapshot = merge(snapshot, restore(args.restore_repository, args.restore_branch))
-        except (ValueError, KeyError, TypeError, subprocess.SubprocessError, zipfile.BadZipFile) as error:
-            warn(f"previous publication unavailable, keeping committed snapshot ({error})")
-    collectors = [(collect_desktop, config["desktop"])] + [(collect_mobile, selected) for selected in config["mobile"]]
-    for collect, selected in collectors:
-        try:
-            snapshot = merge(snapshot, collect(selected))
-        except (ValueError, KeyError, TypeError, subprocess.SubprocessError, zipfile.BadZipFile) as error:
-            warn(f"source unavailable, keeping prior valid data ({error})")
-    require(snapshot["results"], "no valid results available")
-    validate(snapshot)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = args.output.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(snapshot, indent=2, allow_nan=False) + "\n")
-    temporary.replace(args.output)
-    print(f"Published {len(snapshot['results'])} rows to {args.output}")
+    try:
+        if args.command == "plan":
+            document = make_plan(args.repository, args.commit, args.run_id, args.rounds)
+            atomic_write(args.output, document, immutable=True)
+            print(json.dumps(document["desktop"]["benchmarks"]))
+        elif args.command == "run-desktop":
+            document = run_desktop(load(args.plan), args.testbed, args.benchmark, args.executable)
+            atomic_write(args.output, document)
+        elif args.command == "publish":
+            snapshot = publish(load(args.plan), args.artifacts, args.output)
+            print(f"Published {len(snapshot['results'])} rows to {args.output}")
+        else:
+            snapshot = validate(load(args.input))
+            print(f"Valid schema-2 snapshot: {len(snapshot['results'])} rows")
+    except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:
+        parser.exit(1, f"benchmark-site: {error}\n")
 
 
 if __name__ == "__main__":

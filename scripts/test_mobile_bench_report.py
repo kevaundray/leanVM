@@ -125,6 +125,18 @@ class MobileReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source commit mismatch"):
             self.render("b" * 40)
 
+    def test_wrong_repository_or_workflow_run_is_rejected(self):
+        for key, value, message in (
+            ("source_repository", "other/leanVM", "source repository mismatch"),
+            ("workflow_run_id", "124", "workflow run mismatch"),
+        ):
+            with self.subTest(key=key):
+                original = self.metadata[key]
+                self.metadata[key] = value
+                with self.assertRaisesRegex(ValueError, message):
+                    self.render()
+                self.metadata[key] = original
+
     def test_unverified_proof_or_changed_thread_count_is_rejected(self):
         for key, value in (("verified_proofs", 3), ("threads", 8)):
             with self.subTest(key=key):
@@ -229,12 +241,14 @@ class MobileReportTests(unittest.TestCase):
         summary["device_summaries"][0]["benchmarks"][1]["failure"] = "verification failed"
         self.assertFalse(runner.results_complete(summary, "android"))
 
-    def test_pr_updated_during_publication_is_not_written(self):
-        current = {"number": 7, "head": {"sha": HEAD, "repo": {"full_name": REPO}}}
-        updated = {"head": {"sha": "b" * 40}}
-        with patch.object(report, "pages", side_effect=[[current], []]), patch.object(report, "gh", side_effect=[current, updated]) as api:
-            report.post(REPO, REPO, HEAD, "measured result")
-        self.assertTrue(all(len(call.args) == 1 for call in api.call_args_list), "a stale result performed an API write")
+    def test_provider_credentials_and_signed_urls_are_redacted(self):
+        with patch.dict("os.environ", {"BROWSERSTACK_USERNAME": "private-user", "BROWSERSTACK_ACCESS_KEY": "private-key"}):
+            text, clean = runner.redactor()
+            self.assertEqual(text("private-user private-key https://provider.example/result?signature=secret"), "[redacted] [redacted] [URL removed]")
+            self.assertEqual(
+                clean({"access_key": "private-key", "session_url": "https://provider.example", "message": "private-user", "samples_ns": [1, 2, 3]}),
+                {"message": "[redacted]", "samples_ns": [1, 2, 3]},
+            )
 
     def test_failed_iphone_does_not_erase_android_results(self):
         self.render()
@@ -245,7 +259,8 @@ class MobileReportTests(unittest.TestCase):
         argv = ["report", str(self.directory), str(ios), "--repository", REPO, "--head", HEAD, "--run-id", "123"]
         output = io.StringIO()
         with patch("sys.argv", argv), patch("sys.stdout", output), patch.dict("os.environ", {}, clear=True):
-            report.main()
+            with self.assertRaisesRegex(ValueError, "incomplete mobile results"):
+                report.main()
         self.assertIn("| Google Pixel 7 / Android 13.0 | 6 | 2.000 s |", output.getvalue())
         self.assertIn("### Mobile benchmarks: iPhone 14 / iOS 16", output.getvalue())
         self.assertNotIn("| iPhone 14", output.getvalue())
