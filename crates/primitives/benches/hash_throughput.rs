@@ -1,4 +1,4 @@
-//! Batched BLAKE2s throughput across the thread pool, 64-byte blocks to 32-byte digests.
+//! Batched BLAKE2s throughput across exactly 16 pool threads, 64-byte blocks to 32-byte digests.
 //! The passes follow [`bench::Plan::from_env`] (`BENCH_REPEAT`, `BENCH_COOLDOWN`).
 //!
 //! ```text
@@ -6,15 +6,18 @@
 //! ```
 //!
 //! With `-- --json` it prints, in place of the report, the time per hashed block across the pool
-//! (benchmark `blake2s-batch`, measure `per-op`) as Bencher Metric Format JSON, for CI.
+//! (benchmark `blake2s-batch-16thread`, measure `per-op`) and actual `threads` count as Bencher Metric Format JSON, for CI.
 //!
 //! ```text
 //! cargo bench -p primitives --bench hash_throughput -- --json
 //! ```
 
 use bench::{Metric, Plan, bencher_json};
+use std::num::NonZeroUsize;
 
 fn main() {
+    parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
+
     const K: usize = 1 << 10; // hashes per call: 96 KiB in+out per task, cache-resident
     const ITERS: usize = 1 << 5; // rehash rounds per task per dispatch
     const TASKS: usize = 1 << 10;
@@ -33,8 +36,11 @@ fn main() {
     });
     if std::env::args().any(|arg| arg == "--json") {
         let report = [(
-            "blake2s-batch".to_string(),
-            vec![("per-op", Metric::nanoseconds_per_op(&time, HASHES))],
+            "blake2s-batch-16thread".to_string(),
+            vec![
+                ("per-op", Metric::nanoseconds_per_op(&time, HASHES)),
+                ("threads", Metric::exact(parallel::num_threads())),
+            ],
         )];
         println!("{}", bencher_json(&report));
         return;

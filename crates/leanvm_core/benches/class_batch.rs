@@ -1,4 +1,4 @@
-//! Each instruction class's flock circuit proven alone, on a batch of its instances.
+//! Each instruction class's flock circuit proven alone, on a batch of its instances with exactly 16 pool threads.
 //!
 //! The circuits and witness generators are the VM's own, so this is a proof's flock stage, one class at a time:
 //!
@@ -17,8 +17,9 @@
 //!
 //! `BENCH_TRACING=1` prints the final pass's span tree (`RUST_LOG` adjusts it).
 //! With `-- --json` it prints, in place of the reports, each class's proving time as Bencher Metric Format JSON.
-//! The time excludes the witness, and each benchmark is named `flock-<class>-batch-<n>`, measure `latency`.
+//! The time excludes the witness, and each benchmark is named `flock-<class>-batch-<n>-16thread`, measure `latency`, with the actual `threads` count.
 
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 use bench::{Metric, Plan, Timing, bencher_json};
@@ -47,8 +48,8 @@ type Row = [u64; ROW_WORDS];
 const STAGES: [&str; 4] = ["witness", "commit", "reduction", "opening"];
 
 fn main() {
+    parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
     bench::init_tracing_from_env();
-    leanvm::init_prover();
     let json = std::env::args().any(|arg| arg == "--json");
     let filters: Vec<String> = std::env::args()
         .skip(1)
@@ -68,8 +69,11 @@ fn main() {
         };
         let (prove, n) = batch.bench(json);
         report.push((
-            format!("flock-{}-batch-{n}", name.to_lowercase()),
-            vec![("latency", Metric::nanoseconds(&prove))],
+            format!("flock-{}-batch-{n}-16thread", name.to_lowercase()),
+            vec![
+                ("latency", Metric::nanoseconds(&prove)),
+                ("threads", Metric::exact(parallel::num_threads())),
+            ],
         ));
     }
     if json {
@@ -222,10 +226,11 @@ impl ClassBatch {
         if !quiet {
             let ms = |t: &Timing| format!("{:>8.1} ms{}", t.mean() * 1e3, t.spread());
             println!(
-                "\n{}: {} instances of 2^{} bits",
+                "\n{}: {} instances of 2^{} bits, {} threads",
                 self.name,
                 pretty_integer(&n),
-                self.circuit.k_log()
+                self.circuit.k_log(),
+                parallel::num_threads()
             );
             for (stage, timing) in STAGES.iter().zip(&stages) {
                 println!("  {stage:<26}: {}", ms(timing));

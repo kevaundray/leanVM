@@ -7,8 +7,9 @@
 //! runners (16 GB, `.github/workflows/bench.yml`) takes the sizes that fit them (leanXMSS and
 //! leanSPHINCS at a quarter, and no leanDA, whose one blob is its smallest run), and a PR's
 //! base and head are proven in turns on one runner and compared there. leanXMSS at a quarter,
-//! and the 2-to-1 and 4-to-1 trees over it, are also proven on 1, 4 and 8 threads, each in a
-//! process of its own (`THREADS`). A case's name is what a PR's results are matched by, so
+//! and the 2-to-1 and 4-to-1 trees over it, retain their 1, 4 and 8 performance-worker cases.
+//! Other cases use exactly 16 total threads, each in a process of its own (`THREADS`).
+//! A case's name is what a PR's results are matched by, so
 //! renaming one or changing its input shows it as new.
 //!
 //! An aggregation tree is tracked the same way: each kind of node's circuit counted without a
@@ -66,28 +67,35 @@ type Build = fn(&'static str) -> Case;
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
 fn proven() -> [(&'static str, Build); 10] {
     [
-        ("fibonacci-asm-2000000", |name| {
+        ("fibonacci-asm-2000000-16thread", |name| {
             Case::new(name, Workload::fibonacci(2_000_000))
         }),
-        ("hash-50000", |name| Case::new(name, Workload::hash(50_000))),
-        ("leanxmss-100", |name| Case::new(name, Workload::leanxmss(100))),
+        ("hash-50000-16thread", |name| Case::new(name, Workload::hash(50_000))),
+        ("leanxmss-100-16thread", |name| Case::new(name, Workload::leanxmss(100))),
         ("leanxmss-100-1thread", |name| Case::new(name, Workload::leanxmss(100))),
         ("leanxmss-100-4thread", |name| Case::new(name, Workload::leanxmss(100))),
         ("leanxmss-100-8thread", |name| Case::new(name, Workload::leanxmss(100))),
-        ("leansphincs-26", |name| Case::new(name, Workload::leansphincs(26))),
-        ("falcon-7", |name| Case::new(name, Workload::falcon(7))),
-        ("stateproof-5", |name| Case::new(name, Workload::stateproof(5))),
-        ("shielded-258", |name| Case::new(name, Workload::shielded(258))),
+        ("leansphincs-26-16thread", |name| {
+            Case::new(name, Workload::leansphincs(26))
+        }),
+        ("falcon-7-16thread", |name| Case::new(name, Workload::falcon(7))),
+        ("stateproof-5-16thread", |name| Case::new(name, Workload::stateproof(5))),
+        ("shielded-258-16thread", |name| Case::new(name, Workload::shielded(258))),
     ]
 }
 
-/// The cases of `proven()` and `proven_trees()` proven on a set number of threads, and that
-/// number: on one, what one core costs, apart from how the prover scales over cores; on 4 and
-/// 8, how it scales. The pool is sized once per process, from `LEANVM_NUM_THREADS` (the
-/// performance workers, which on Linux are all of them), so unless this process's pool is that
-/// size already, such a case is proven by a child: this executable run again with
-/// `LEANVM_NUM_THREADS` set to it (`on_threads`), a tree's leaf proof included.
-const THREADS: [(&str, usize); 9] = [
+/// Every timed case's pool size. Legacy 1/4/8 cases select performance workers through
+/// `LEANVM_NUM_THREADS`; 16-thread children initialize an exact total pool at CLI startup.
+const THREADS: [(&str, usize); 18] = [
+    ("fibonacci-asm-2000000-16thread", 16),
+    ("hash-50000-16thread", 16),
+    ("leanxmss-100-16thread", 16),
+    ("leansphincs-26-16thread", 16),
+    ("falcon-7-16thread", 16),
+    ("stateproof-5-16thread", 16),
+    ("shielded-258-16thread", 16),
+    ("aggregate-leanxmss-100-2to1-16thread", 16),
+    ("aggregate-leanxmss-100-4to1-16thread", 16),
     ("leanxmss-100-1thread", 1),
     ("leanxmss-100-4thread", 4),
     ("leanxmss-100-8thread", 8),
@@ -164,14 +172,14 @@ fn counted_trees() -> Vec<Aggregation> {
 type BuildTree = fn(&'static str) -> Aggregation;
 
 /// Aggregation trees proven: the counted trees' arities over leaves of a size proven above, and
-/// both trees again on 1, 4 and 8 threads. Each gives two benchmarks, `<name>-first` and
+/// both trees on 16 total threads and on the legacy 1, 4 and 8 performance workers. Each gives two benchmarks, `<name>-first` and
 /// `<name>-node`.
 fn proven_trees() -> [(&'static str, BuildTree); 8] {
     [
-        ("aggregate-leanxmss-100-2to1", |name| {
+        ("aggregate-leanxmss-100-2to1-16thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
         }),
-        ("aggregate-leanxmss-100-4to1", |name| {
+        ("aggregate-leanxmss-100-4to1-16thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 4, 4)
         }),
         ("aggregate-leanxmss-100-2to1-1thread", |name| {
@@ -259,7 +267,8 @@ pub fn run(
         // The thread count a case names, if this process's pool is not that size.
         let threads = |name: &str| {
             let &(_, threads) = THREADS.iter().find(|(case, _)| *case == name)?;
-            (threads != parallel::topology().perf).then_some(threads)
+            let topology = parallel::topology();
+            (threads != topology.perf || (threads == 16 && topology.efficiency != 0)).then_some(threads)
         };
         // Every case's benchmarks, proven here or by a child, as one JSON object.
         let mut benchmarks = Map::new();
@@ -396,6 +405,15 @@ fn measures(
         ("latency".to_string(), Metric::nanoseconds(time)),
         ("proof-size".to_string(), Metric::exact(proof_size)),
         ("verify".to_string(), Metric::nanoseconds(verify_time)),
+        ("threads".to_string(), Metric::exact(parallel::num_threads())),
+        (
+            "performance-threads".to_string(),
+            Metric::exact(parallel::topology().perf),
+        ),
+        (
+            "efficiency-threads".to_string(),
+            Metric::exact(parallel::topology().efficiency),
+        ),
     ];
     report.extend(stages(passes));
     report.push(("peak-memory".to_string(), Metric::exact(peak_memory as usize)));

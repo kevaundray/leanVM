@@ -4,7 +4,7 @@
 #
 #   scripts/ab.sh [--base REF] [--rounds N] [--out DIR] [--testbed NAME] [--pr N] [--ci] BENCHMARK...
 #
-# A benchmark is a case of `proven()` in bins/leanvm/src/tracked.rs (`hash-50000`), proven by the
+# A benchmark is a case of `proven()` in bins/leanvm/src/tracked.rs (`hash-50000-16thread`), proven by the
 # CLI; a `benches/` target named in `target_of` below (`kernels`), run with `--json`; or `counts`,
 # the exact counts counts.yml compares (`bench --cycles-only`, once a side). Each is built on both
 # sides and run N times a side (`--rounds`, default `ROUNDS` or 5) in the order base, head, head,
@@ -27,9 +27,9 @@ set -euo pipefail
 # The `benches/` targets, by benchmark name: package, target, then any build flags. Any other name is a CLI case.
 target_of() {
   case $1 in
-    flock-class-batch) echo leanvm class_batch ;;
-    pcs-throughput) echo pcs throughput ;;
-    blake2s-batch) echo primitives hash_throughput ;;
+    flock-class-batch-16thread) echo leanvm class_batch ;;
+    pcs-throughput-16thread) echo pcs throughput ;;
+    blake2s-batch-16thread) echo primitives hash_throughput ;;
     kernels) echo primitives kernels ;;
   esac
 }
@@ -85,14 +85,36 @@ run() {
   fi
 }
 
-# The run in file $1 as a line of runs.jsonl, `{round, side, results}`; fails unless it is one object.
+# The run in file $1 as a line of runs.jsonl, with pool sizes kept as topology metadata, not timings.
+# Fixed16 selections also require matching identifiers and measured pool size, never old default results.
 wrap() {
   python3 -c '
-import json, sys
+import json, re, sys
 results = json.load(open(sys.argv[1]))
 if not isinstance(results, dict):
     sys.exit(1)
-print(json.dumps({"round": int(sys.argv[2]), "side": sys.argv[3], "results": results}, separators=(",", ":")))' "$@" 2> /dev/null
+if sys.argv[4].endswith("-16thread"):
+    if not results or any(
+        re.search(r"-16thread(?:-(?:first|node))?$", name) is None
+        or not isinstance(measures, dict)
+        or not isinstance(measures.get("threads"), dict)
+        or measures["threads"].get("value") != 16
+        for name, measures in results.items()
+    ):
+        sys.exit(1)
+topology = {}
+for name, measures in results.items():
+    pool = {
+        key: measures.pop(key)["value"]
+        for key in ("threads", "performance-threads", "efficiency-threads")
+        if key in measures
+    }
+    if pool:
+        topology[name] = pool
+run = {"round": int(sys.argv[2]), "side": sys.argv[3], "results": results}
+if topology:
+    run["topology"] = topology
+print(json.dumps(run, separators=(",", ":")))' "$@" 2> /dev/null
 }
 
 # Proves benchmark $1 in turns and saves the runs as ab.json.
@@ -107,9 +129,9 @@ prove() {
       if [ "$side" = base ] && [ "$has_base" = false ]; then continue; fi
       say "$1: round $round, $side"
       # A base that cannot run the benchmark at all (one the head adds, a base older than
-      # `--only`, or a target whose base prints no JSON) fails its first run, and the head's runs
+      # `--only`, or a target whose base prints incompatible JSON) fails its first run, and the head's runs
       # are then compared with nothing: the comment shows them as new. Any other failure is fatal.
-      if ! run "$1" "$side" > "$work/result.json" || ! line=$(wrap "$work/result.json" "$round" "$side"); then
+      if ! run "$1" "$side" > "$work/result.json" || ! line=$(wrap "$work/result.json" "$round" "$side" "$1"); then
         if [ "$side" = head ] || [ "$round" != 1 ]; then die "$1: the $side's run in round $round failed"; fi
         warn "the base cannot run $1: the PR's runs are compared with nothing"
         has_base=false
@@ -275,4 +297,4 @@ main() {
   if [ "$ci" = false ]; then render; fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

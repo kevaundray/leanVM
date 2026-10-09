@@ -1,4 +1,5 @@
 //! The generic class witness: the gate list walked one instance at a time, against 64 at a time.
+//! Both existing witness paths use exactly 16 pool threads including the dispatcher.
 //!
 //! ```text
 //! BENCH_REPEAT=5 BENCH_COOLDOWN=0 cargo bench -p leanvm --bench class_witness
@@ -7,15 +8,17 @@
 use bench::Plan;
 use leanvm::{Fill, TableId};
 use primitives::test_util::Rng;
+use std::num::NonZeroUsize;
 
 #[global_allocator]
 static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 fn main() {
+    parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
     // One batch of 2^16 instances per class, the size of a mid-sized run's table.
     let n_log = bench::env_usize("WITNESS_N_LOG", 16);
     let plan = Plan::from_env();
-    leanvm::init_prover();
+    println!("Class witness: {} threads", parallel::num_threads());
 
     println!(
         "{:<6} {:>5} {:>10} {:>10} {:>8}",

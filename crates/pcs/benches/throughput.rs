@@ -2,7 +2,7 @@
 //!
 //! Commits and opens a random witness of `2^PCS_LOG_N` GF(2^64) elements at
 //! inverse-rate `1/2^PCS_LOG_INV_RATE`, times each phase, and reports GiB/s
-//! over the committed data.
+//! over the committed data, using exactly 16 pool threads including the dispatcher.
 //!
 //! The passes follow the environment's plan (`BENCH_REPEAT`, `BENCH_COOLDOWN`).
 //!
@@ -21,8 +21,8 @@
 //! the witness, and the open copies the basis table each pass.
 //!
 //! With `-- --json` it prints, in place of the report, Bencher Metric Format JSON for CI:
-//! `pcs-commit-<PCS_LOG_N>` and `pcs-open-<PCS_LOG_N>` (measure `latency`), and
-//! `ntt-forward-<PCS_LOG_N>` (measure `per-op`, one encode).
+//! `pcs-commit-<PCS_LOG_N>-16thread` and `pcs-open-<PCS_LOG_N>-16thread` (measure `latency`), and
+//! `ntt-forward-<PCS_LOG_N>-16thread` (measure `per-op`, one encode), each with the actual `threads` count.
 //!
 //! ```text
 //! cargo bench -p pcs --bench throughput -- --json
@@ -37,12 +37,14 @@ use primitives::multilinear::eq_table;
 use primitives::pretty_integer;
 use primitives::test_util::Rng;
 use std::hint::black_box;
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 #[global_allocator]
 static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 fn main() {
+    parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
     bench::init_tracing_from_env();
 
     let log_n = env_usize("PCS_LOG_N", 22);
@@ -121,16 +123,25 @@ fn main() {
     if std::env::args().any(|arg| arg == "--json") {
         let report = [
             (
-                format!("pcs-commit-{log_n}"),
-                vec![("latency", Metric::nanoseconds(&commit_t))],
+                format!("pcs-commit-{log_n}-16thread"),
+                vec![
+                    ("latency", Metric::nanoseconds(&commit_t)),
+                    ("threads", Metric::exact(parallel::num_threads())),
+                ],
             ),
             (
-                format!("pcs-open-{log_n}"),
-                vec![("latency", Metric::nanoseconds(&open_t))],
+                format!("pcs-open-{log_n}-16thread"),
+                vec![
+                    ("latency", Metric::nanoseconds(&open_t)),
+                    ("threads", Metric::exact(parallel::num_threads())),
+                ],
             ),
             (
-                format!("ntt-forward-{log_n}"),
-                vec![("per-op", Metric::nanoseconds_per_op(&ntt_t, ENCODES))],
+                format!("ntt-forward-{log_n}-16thread"),
+                vec![
+                    ("per-op", Metric::nanoseconds_per_op(&ntt_t, ENCODES)),
+                    ("threads", Metric::exact(parallel::num_threads())),
+                ],
             ),
         ];
         println!("{}", bencher_json(&report));
@@ -138,7 +149,8 @@ fn main() {
     }
 
     println!(
-        "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, mean of {}",
+        "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, {} threads, mean of {}",
+        parallel::num_threads(),
         pretty_integer(&plan.repeat)
     );
     println!(

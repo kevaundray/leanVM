@@ -83,6 +83,10 @@ Heavy benches are `benches/` targets (`harness = false`), which `cargo test` nev
 
 ## Benchmarking
 
+Desktop timing cases without an explicit thread count now use exactly 16 total pool threads, dispatcher included, through `parallel::init_with_threads`, with no extra efficiency workers. Tracked proof and tree names end in `-16thread` (before a tree's `-first` or `-node`), replacing the old unspecified names rather than aliasing their history. The existing `-1thread`, `-4thread` and `-8thread` cases still select performance workers through `LEANVM_NUM_THREADS`, including efficiency workers where that setting already did. Raw JSON records `threads`, `performance-threads` and `efficiency-threads` for tracked cases; standalone pooled targets record `threads`. The A/B artifacts keep these counts in each run's per-benchmark `topology` metadata, separate from timed metrics. An old base without compatible fixed-16 identifiers and actual 16-thread evidence has no comparable baseline and is shown as new, never relabeled.
+
+Direct CLI timing commands default to an exact 16-thread pool unless `LEANVM_NUM_THREADS` explicitly requests the existing performance-worker behavior. The standalone pooled targets (`class_batch`, `class_witness`, `throughput`, `hash_throughput`) always initialize exactly 16 threads, regardless of that variable; `kernels` remains inherently serial. `bench --cycles-only` keeps its original names and one count row per workload or node kind. Mobile continues to use the device's available parallelism.
+
 The benchmarks we care about:
 
 - `cargo leanvm fibonacci --n 2000000 --log-inv-rate 1 --repeat 3` (Fibonacci mod 2^64, on registers)
@@ -93,15 +97,15 @@ The benchmarks we care about:
 - `BENCH_REPEAT=3 FLOCK_N_LOG=18 cargo bench -p leanvm --bench class_batch` (flock alone, on every class circuit of the VM)
 - `cargo bench -p primitives --bench kernels` (the field and bit kernels, one thread, time per call)
 
-To compare a change with its base on this machine the way CI does, run `scripts/ab.sh`: it builds the working tree, uncommitted changes included, and the merge-base with `upstream/riscv-exploration` (in a temporary worktree with its own target directory, so the tree and its build are left alone), runs each benchmark on both in turns, and prints what moved as the PR's comment would (main's `pr_comment.py --dry-run`). A benchmark is named as in CI: a case of `proven()`, a `benches/` target's name in the script (`kernels`, `blake2s-batch`, ...), or `counts`, the exact counts. `--help` says the rest.
+To compare a change with its base on this machine the way CI does, run `scripts/ab.sh`: it builds the working tree, uncommitted changes included, and the merge-base with `upstream/riscv-exploration` (in a temporary worktree with its own target directory, so the tree and its build are left alone), runs each benchmark on both in turns, and prints what moved as the PR's comment would (main's `pr_comment.py --dry-run`). A benchmark is named as in CI: a case of `proven()`, a `benches/` target's name in the script (`kernels`, `blake2s-batch-16thread`, ...), or `counts`, the exact counts. `--help` says the rest.
 
 CI also records the kernel, page size, transparent huge page settings and available CPU frequency policies; absent or unreadable optional sysfs files are skipped. Its benchmark processes run in systemd user scopes capped at 16 GiB with no swap. After the `leanxmss-100-1thread` job's timed A/B rounds, each runnable side runs `leanxmss --n 100 --repeat 1 --tracing` with `LEANVM_NUM_THREADS=1`. The existing benchmark artifact includes `trace-base.log` when the base completed the benchmark and `trace-head.log`, separate from `ab.json`; the traces do not contribute to the A/B samples. Local comparisons retain their portable execution path and do not collect these extra traces.
 
 ```bash
-scripts/ab.sh hash-50000                    # a case of `proven()`, against the merge-base
-scripts/ab.sh kernels --rounds 3            # a `benches/` target, 3 rounds a side
-scripts/ab.sh counts leanxmss-100           # the exact counts, then a case
-scripts/ab.sh --base HEAD~2 pcs-throughput  # against another base
+scripts/ab.sh hash-50000-16thread                    # a case of `proven()`, against the merge-base
+scripts/ab.sh kernels --rounds 3                     # a `benches/` target, 3 rounds a side
+scripts/ab.sh counts leanxmss-100-16thread           # the exact counts, then a case
+scripts/ab.sh --base HEAD~2 pcs-throughput-16thread  # against another base
 ```
 
 ## Profiling
