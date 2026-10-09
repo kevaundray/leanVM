@@ -21,29 +21,39 @@
   <main class="wrap">
     <section class="intro" aria-labelledby="page-title">
       <div>
-        <p class="eyebrow">Performance / program benchmarks</p>
-        <h1 id="page-title">Small VM.<br>Measured performance.</h1>
-        <p class="lede">Real program workloads, on real hardware. Explore the latest available measurements for each workload, machine and thread configuration.</p>
+        <h1 id="page-title">Benchmarks</h1>
+        <p class="lede">Benchmarks for consensus layer, execution layer, data layer and client side proving.</p>
       </div>
-      <aside class="reading-note" aria-label="How to read these results">
-        <span class="note-marker" aria-hidden="true"></span>
-        <h2>Context comes first.</h2>
-        <p>Times are in seconds. Compare the same workload and revision before drawing conclusions. Desktop and mobile inputs can differ.</p>
-        <p>Program and aggregation results only. No field or kernel microbenchmarks.</p>
-      </aside>
-    </section>
-
-    <section id="dataset-summary" class="dataset-summary" aria-label="Dataset overview" hidden>
-      <div><span id="result-count" class="stat-value"></span><span class="stat-label">configurations</span></div>
-      <div><span id="workload-count" class="stat-value"></span><span class="stat-label">program workloads</span></div>
-      <div><span id="machine-count" class="stat-value"></span><span class="stat-label">machines &amp; devices</span></div>
-      <div class="publication"><span class="stat-label">Dataset published</span><span id="published-at"></span><span id="revision-note" class="muted"></span></div>
     </section>
 
     <section id="results" class="results-section" aria-labelledby="results-title" aria-busy="true">
+      <div id="category-browser" class="category-browser" hidden>
+        <div class="category-heading">
+          <h2>Browse by use case</h2>
+          <button type="button" class="all-categories" data-category="all" aria-pressed="false" aria-controls="result-rows">All benchmarks <span id="all-count" class="category-count"></span></button>
+        </div>
+        <div id="category-options" class="category-options" role="group" aria-label="Benchmark category">
+          <button type="button" class="category-option" data-category="client" aria-pressed="true" aria-controls="result-rows">
+            <span class="category-option-heading"><span>Client-side proving</span><span id="client-count" class="category-count"></span></span>
+            <span class="category-description">Pixel, iPhone, Falcon and L1 state proofs</span>
+          </button>
+          <button type="button" class="category-option" data-category="consensus" aria-pressed="false" aria-controls="result-rows">
+            <span class="category-option-heading"><span>Consensus layer</span><span id="consensus-count" class="category-count"></span></span>
+            <span class="category-description">leanXMSS, leanSPHINCS and aggregation</span>
+          </button>
+          <button type="button" class="category-option" data-category="data" aria-pressed="false" aria-controls="result-rows">
+            <span class="category-option-heading"><span>Data layer</span><span id="data-count" class="category-count"></span></span>
+            <span class="category-description">leanDA workloads</span>
+          </button>
+          <button type="button" class="category-option" data-category="misc" aria-pressed="false" aria-controls="result-rows">
+            <span class="category-option-heading"><span>Misc</span><span id="misc-count" class="category-count"></span></span>
+            <span class="category-description">Other workloads, ready to sort</span>
+          </button>
+        </div>
+      </div>
       <div class="section-heading">
-        <div><p class="eyebrow">Explore the data</p><h2 id="results-title">Benchmark results</h2></div>
-        <span class="units-note">Runtime in seconds</span>
+        <div><h2 id="results-title">Client-side proving</h2><p id="category-description" class="results-description">On-device measurements, Falcon signature verification and L1 state proofs.</p></div>
+        <span class="units-note">Median runtime · seconds</span>
       </div>
       <form id="filters" class="filters" aria-label="Filter benchmark results" hidden>
         <div class="filter"><label for="program-filter">Program</label><select id="program-filter"><option value="">All programs</option></select></div>
@@ -61,6 +71,7 @@
       <div id="empty-state" class="empty-state" hidden>
         <h3 id="empty-title">No matching measurements.</h3>
         <p id="empty-description">Try a different program, machine or thread configuration.</p>
+        <button id="clear-filters" type="button" class="primary-button">Clear filters</button>
       </div>
       <div id="table-container" class="table-container" hidden>
         <table>
@@ -77,6 +88,8 @@
         <p><strong>Latest available is not one shared revision.</strong> Each configuration retains its own measurement date, source revision and run. Branch and pull-request results are labeled separately when provided by the source.</p>
         <p><strong>Dates identify the evidence.</strong> Desktop dates are workflow start times, not individual sample timestamps. Mobile dates come from the device result. Mobile verification counts include the discarded warmup proof.</p>
         <p><strong>Unknown means unknown.</strong> Missing hardware metadata is not inferred. Logical CPU count describes the machine, not how many threads the benchmark used.</p>
+        <p><strong>Categories follow the use case.</strong> leanDA belongs to Data layer. Other Pixel and iPhone measurements, including on-device aggregation, belong to Client-side proving, as do Falcon and L1 state proofs on any machine. Other leanXMSS, leanSPHINCS and aggregation results belong to Consensus layer. Everything else stays in Misc.</p>
+        <p><strong>Counts are configurations, not rankings.</strong> Each row represents a workload, machine and thread configuration. Filters apply within the selected category and clear when you switch categories. All benchmarks shows the complete dataset.</p>
       </div>
     </section>
     <noscript><p class="empty-state">JavaScript is needed to filter and display the measurements. All results and source metadata are available in the <a href="./latest.json">results JSON</a>.</p></noscript>

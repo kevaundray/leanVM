@@ -8,6 +8,15 @@
   const machineFilter = byId("machine-filter");
   const threadFilter = byId("thread-filter");
   const sortOrder = byId("sort-order");
+  const categoryBrowser = byId("category-browser");
+  const categories = {
+    client: { name: "Client-side proving", description: "On-device measurements, Falcon signature verification and L1 state proofs." },
+    consensus: { name: "Consensus layer", description: "leanXMSS, leanSPHINCS and aggregation workloads, excluding on-device results." },
+    data: { name: "Data layer", description: "leanDA workloads." },
+    misc: { name: "Misc", description: "Other workloads, kept together until they find a home." },
+    all: { name: "All benchmarks", description: "Every published configuration, grouped by use case." },
+  };
+  let selectedCategory = "client";
   const numberFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 6 });
   const dateFormat = new Intl.DateTimeFormat("en", {
     year: "numeric", month: "short", day: "numeric", timeZone: "UTC",
@@ -76,6 +85,35 @@
     return Number.isInteger(count) && count > 0 ? `count:${count}` : `label:${threadLabel(row)}`;
   }
 
+  function categoryOf(row) {
+    if (/^leanda\b/i.test(row.program.name)) return "data";
+    if (/pixel|iphone/i.test(text(row.machine.name, row.machine.id))
+      || /^falcon\b/i.test(row.program.name) || /^L1 state proofs$/i.test(row.program.name)) return "client";
+    if (/^lean(?:xmss|sphincs)\b/i.test(row.program.name) || row.category === "aggregation") return "consensus";
+    return "misc";
+  }
+
+  function categoryRows() {
+    return measurements.filter((row) => selectedCategory === "all" || categoryOf(row) === selectedCategory);
+  }
+
+  function populateFilters() {
+    const sorted = categoryRows().sort(compareRows);
+    populate(programFilter, new Map(sorted.map((row) => [row.program.name, row.program.name])), "All programs");
+    populate(machineFilter, [...new Map(sorted.map((row) => [row.machine.id, text(row.machine.name, row.machine.id)]))].sort((a, b) => a[1].localeCompare(b[1])), "All machines & devices");
+    const threads = [...new Map(sorted.map((row) => [threadKey(row), threadLabel(row)]))];
+    threads.sort((a, b) => a[1].localeCompare(b[1], "en", { numeric: true }));
+    populate(threadFilter, threads, "All thread configurations");
+  }
+
+  function resetFilters() {
+    programFilter.value = "";
+    machineFilter.value = "";
+    threadFilter.value = "";
+    sortOrder.value = "program";
+    render();
+  }
+
   function details(label, child) {
     const node = element("details");
     node.append(element("summary", "", label), child);
@@ -129,16 +167,18 @@
       revision.title = commit;
       revision.setAttribute("aria-label", `Source revision ${commit}`);
     }
-    links.append(revision);
+    node.append(revision);
     if (safeUrl(source.run_url)) links.append(link("Benchmark run ↗", source.run_url));
-    node.append(links);
-    node.append(element("span", "provenance-source", text(source.repository, "Repository not recorded")));
-    node.append(element("span", "provenance-source", `Branch: ${text(source.branch)}`));
+    const metadata = element("div", "source-details");
+    metadata.append(element("span", "provenance-source", text(source.repository, "Repository not recorded")));
+    metadata.append(element("span", "provenance-source", `Branch: ${text(source.branch)}`));
     const verification = row.verification;
     if (Number.isInteger(verification?.verified_proofs) && Number.isInteger(verification?.total_proofs)
       && verification.verified_proofs >= 0 && verification.total_proofs > 0) {
-      node.append(element("span", "verification", `${verification.verified_proofs} / ${verification.total_proofs} proofs verified`));
+      metadata.append(element("span", "verification", `${verification.verified_proofs} / ${verification.total_proofs} proofs verified`));
     }
+    metadata.prepend(links);
+    node.append(details("Source & verification", metadata));
     return node;
   }
 
@@ -149,11 +189,14 @@
     program.append(element("p", "workload", row.workload));
     program.append(link(safeUrl(row.program.source_url) ? "Program source ↗" : "Program source not recorded", row.program.source_url, "source-link"));
     if (row.category === "aggregation") program.append(element("span", "category", "Aggregation workload"));
+    if (selectedCategory === "all") {
+      const category = categoryOf(row);
+      program.append(element("span", `use-case ${category}`, categories[category].name));
+    }
 
     const machine = cell("Machine / device");
     machine.append(element("p", "row-title", text(row.machine.name, row.machine.id)));
-    const platform = [row.machine.arch, row.machine.os].filter((value) => typeof value === "string" && value.trim());
-    machine.append(element("p", "machine-platform", platform.length ? platform.join(" · ") : "Platform not recorded"));
+    if (text(row.machine.arch, "")) machine.append(element("p", "machine-platform", row.machine.arch));
     machine.append(hardwareDetails(row.machine));
 
     const threads = cell("Threads");
@@ -182,7 +225,9 @@
   }
 
   function render() {
-    const shown = measurements.filter((row) =>
+    const available = categoryRows();
+    const categoryOrder = Object.keys(categories);
+    const shown = available.filter((row) =>
       (!programFilter.value || row.program.name === programFilter.value)
       && (!machineFilter.value || row.machine.id === machineFilter.value)
       && (!threadFilter.value || threadKey(row) === threadFilter.value));
@@ -190,6 +235,10 @@
       if (sortOrder.value === "recent") {
         const difference = (timestamp(right.source?.measured_at) ?? -Infinity) - (timestamp(left.source?.measured_at) ?? -Infinity);
         if (difference && !Number.isNaN(difference)) return difference;
+      }
+      if (selectedCategory === "all" && sortOrder.value === "program") {
+        const difference = categoryOrder.indexOf(categoryOf(left)) - categoryOrder.indexOf(categoryOf(right));
+        if (difference) return difference;
       }
       return compareRows(left, right);
     });
@@ -199,11 +248,19 @@
     byId("table-container").hidden = shown.length === 0;
     byId("empty-state").hidden = shown.length !== 0;
     const emptyDataset = measurements.length === 0;
-    byId("empty-title").textContent = emptyDataset ? "No published measurements yet." : "No matching measurements.";
+    byId("empty-title").textContent = available.length === 0 ? "No published measurements yet." : "No matching measurements.";
     byId("empty-description").textContent = emptyDataset
       ? "This dataset does not contain any program or aggregation measurements."
-      : "Try a different program, machine or thread configuration.";
-    byId("status").textContent = `Showing ${shown.length} of ${measurements.length} configurations. Each row is a separate workload, machine and thread configuration.`;
+      : available.length === 0
+        ? `The current dataset has no measurements for ${categories[selectedCategory].name}.`
+        : "Try a different program, machine or thread configuration.";
+    byId("clear-filters").hidden = available.length === 0;
+    byId("results-title").textContent = categories[selectedCategory].name;
+    byId("category-description").textContent = categories[selectedCategory].description;
+    byId("status").textContent = `${shown.length} of ${available.length} configurations · ${new Set(shown.map((row) => row.program.name)).size} programs · ${new Set(shown.map((row) => row.machine.id)).size} machines & devices`;
+    for (const button of categoryBrowser.querySelectorAll("[data-category]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.category === selectedCategory));
+    }
   }
 
   function populate(select, values, allLabel) {
@@ -216,24 +273,12 @@
     }
   }
 
-  function updateOverview(dataset) {
-    byId("result-count").textContent = measurements.length;
-    byId("workload-count").textContent = new Set(measurements.map((row) => JSON.stringify([row.program.name, row.workload, row.category]))).size;
-    byId("machine-count").textContent = new Set(measurements.map((row) => row.machine.id)).size;
-    byId("published-at").replaceChildren(dateNode(dataset.generated_at, "", "Publication date not recorded"));
-    const revisions = new Set(measurements.map((row) => text(row.source?.commit, "")).filter(Boolean));
-    const dates = measurements.map((row) => timestamp(row.source?.measured_at)).filter((value) => value !== null).sort((a, b) => a - b);
-    const notes = [];
-    if (revisions.size > 1) notes.push(`${revisions.size} source revisions, not a single snapshot.`);
-    else if (revisions.size === 1) notes.push("1 recorded source revision.");
-    if (dates.length) {
-      const first = dateFormat.format(dates[0]);
-      const last = dateFormat.format(dates[dates.length - 1]);
-      notes.push(`Measured ${first === last ? first : `${first} to ${last}`} (UTC).`);
+  function updateCategoryCounts() {
+    for (const category of Object.keys(categories)) {
+      const count = category === "all" ? measurements.length : measurements.filter((row) => categoryOf(row) === category).length;
+      byId(`${category}-count`).textContent = count;
+      byId(`${category}-count`).setAttribute("aria-label", `${count} configurations`);
     }
-    if (dates.length < measurements.length) notes.push("Some measurement dates are unknown.");
-    byId("revision-note").textContent = notes.join(" ");
-    byId("dataset-summary").hidden = false;
   }
 
   function parseDataset(dataset) {
@@ -256,7 +301,7 @@
     byId("error-state").hidden = true;
     byId("empty-state").hidden = true;
     byId("table-container").hidden = true;
-    byId("dataset-summary").hidden = true;
+    categoryBrowser.hidden = true;
     filters.hidden = true;
     byId("status").textContent = "Loading benchmark measurements…";
     try {
@@ -264,15 +309,11 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const dataset = await response.json();
       measurements = parseDataset(dataset);
-      const sorted = [...measurements].sort(compareRows);
-      populate(programFilter, new Map(sorted.map((row) => [row.program.name, row.program.name])), "All programs");
-      populate(machineFilter, [...new Map(sorted.map((row) => [row.machine.id, text(row.machine.name, row.machine.id)]))].sort((a, b) => a[1].localeCompare(b[1])), "All machines & devices");
-      const threads = [...new Map(sorted.map((row) => [threadKey(row), threadLabel(row)]))];
-      threads.sort((a, b) => a[1].localeCompare(b[1], "en", { numeric: true }));
-      populate(threadFilter, threads, "All thread configurations");
+      populateFilters();
       sortOrder.value = "program";
-      updateOverview(dataset);
+      updateCategoryCounts();
       filters.hidden = measurements.length === 0;
+      categoryBrowser.hidden = measurements.length === 0;
       render();
     } catch {
       measurements = [];
@@ -284,16 +325,20 @@
     }
   }
 
+  categoryBrowser.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-category]");
+    if (!button || button.dataset.category === selectedCategory) return;
+    selectedCategory = button.dataset.category;
+    populateFilters();
+    render();
+  });
   filters.addEventListener("submit", (event) => event.preventDefault());
   filters.addEventListener("change", render);
   filters.addEventListener("reset", (event) => {
     event.preventDefault();
-    programFilter.value = "";
-    machineFilter.value = "";
-    threadFilter.value = "";
-    sortOrder.value = "program";
-    render();
+    resetFilters();
   });
+  byId("clear-filters").addEventListener("click", resetFilters);
   byId("retry").addEventListener("click", load);
   load();
 })();
