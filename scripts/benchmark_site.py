@@ -329,6 +329,10 @@ def mobile_rows(directory, plan, platform_name):
         mobile_report.AGGREGATE_FUNCTION: ("Shielded aggregation",
             "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
             "bench-mobile/src/lib.rs", "aggregation"),
+        mobile_report.FALCON_FUNCTION: ("Falcon-512", "Verify 1 signature",
+                                       "programs/falcon/guest/src/main.rs", "program"),
+        mobile_report.STATEPROOF_FUNCTION: ("L1 state proofs", "Verify 1 account and 1 storage slot",
+                                           "programs/stateproof/guest/src/main.rs", "program"),
     }
     rows = []
     for function in mobile_report.FUNCTIONS:
