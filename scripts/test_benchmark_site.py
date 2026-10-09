@@ -24,7 +24,9 @@ def desktop_fixture(plan, testbed, benchmark):
         value = (1, 9, 2)[(number - 1) % 3] * 1_000_000_000
         results = {name: {"latency": {"value": value, "lower_value": value, "upper_value": value},
                           "verify": {"value": 10, "lower_value": 5, "upper_value": 15},
-                          "proof-size": {"value": 1024}} for name in site.expected_results(benchmark)}
+                          "proof-size": {"value": 1024},
+                          "peak-memory": {"value": (7, 3, 5)[(number - 1) % 3] * 1024 ** 2}}
+                   for name in site.expected_results(benchmark)}
         samples.append({"round": number, "measured_at": MEASURED, "exit_code": 0, "threads": count, "results": results})
     return {"schema_version": 2, "snapshot": deepcopy(plan["snapshot"]), "plan_id": site.digest(plan),
             "testbed": testbed, "benchmark": benchmark, "machine": machine, "threads": count, "samples": samples}
@@ -39,12 +41,13 @@ def mobile_fixture(plan, platform):
                 "warmup": 1, "iterations": 3, "threads": 6, "available_parallelism": 6,
                 "measured_at": MEASURED, "timestamp_basis": "collection_completed_at", "trigger_ref": "refs/heads/main"}
     entries = []
-    for function in report.FUNCTIONS:
+    for index, function in enumerate(report.FUNCTIONS, 1):
         metrics = dict(report.WORKLOADS[function], threads=6, available_parallelism=6)
         samples = [1_000_000_000, 9_000_000_000, 2_000_000_000]
         entries.append({"function": function, "spec": {"name": function, "warmup": 1, "iterations": 3},
                         "custom_metrics": {"run_u64": metrics}, "samples_ns": samples,
-                        "samples": [{"duration_ns": value} for value in samples]})
+                        "samples": [{"duration_ns": value, "process_peak_memory_kb": peak * index}
+                                    for value, peak in zip(samples, (2048, 1024, 3072))]})
     metadata["benchmarks"] = report.benchmark_metrics({entry["function"]: entry for entry in entries})
     raw = [{"summary": {"target": platform, "function": "multiple", "warmup": 1, "iterations": 3,
                         "devices": [metadata["candidate_device"]],
@@ -93,6 +96,7 @@ class SnapshotTests(unittest.TestCase):
     def test_complete_snapshot_has_global_provenance_and_independent_samples(self):
         snapshot = self.publish()
         self.assertEqual(snapshot["snapshot"], self.plan["snapshot"])
+        self.assertEqual(snapshot["schema_version"], 3)
         self.assertEqual(len(snapshot["results"]), 56)
         for row in snapshot["results"]:
             self.assertEqual(row["samples_seconds"], [1, 9, 2])
@@ -100,11 +104,52 @@ class SnapshotTests(unittest.TestCase):
             self.assertNotIn("source", row)
             self.assertIn(f"/blob/{self.plan['snapshot']['commit']}/", row["program"]["source_url"])
             self.assertEqual(row["verification"]["verified_proofs"], row["verification"]["total_proofs"])
+            expected_peak = (6 if row["category"] == "aggregation" else 3) if row["machine"]["arch"] == "aarch64" else 7
+            self.assertEqual(row["peak_memory_bytes"], expected_peak * 1024 ** 2)
+            self.assertTrue(row["peak_memory_method"].strip())
         self.assertEqual(site.load(self.output), snapshot)
         aggregate = [row for row in snapshot["results"] if row["program"]["name"] == "Shielded aggregation"]
         self.assertEqual(len(aggregate), 2)
         self.assertEqual(aggregate[0]["verification"]["parameters"]["verified_leaves"], 2)
         self.assertEqual(aggregate[0]["verification"]["parameters"]["aggregation_log_inv_rate"], 1)
+
+    def test_aggregation_keeps_each_levels_round_maximum(self):
+        benchmark = "aggregate-leanxmss-100-2to1"
+        document = desktop_fixture(self.plan, "x86-64", benchmark)
+        for sample, first, node in zip(document["samples"], (11, 4, 8), (13, 17, 12)):
+            sample["results"][benchmark + "-first"]["peak-memory"]["value"] = first * 1024
+            sample["results"][benchmark + "-node"]["peak-memory"]["value"] = node * 1024
+        rows = site.desktop_rows(document, self.plan, "x86-64", benchmark)
+        self.assertEqual([row["peak_memory_bytes"] for row in rows], [11 * 1024, 17 * 1024])
+
+    def test_missing_or_invalid_desktop_memory_cannot_replace_snapshot(self):
+        original = site.load(self.desktop)
+        for value in (None, 0, -1, True, 1.5, "1024", float("nan"), float("inf"), 2 ** 53):
+            with self.subTest(value=value):
+                document = deepcopy(original)
+                document["samples"][1]["results"][document["benchmark"]]["peak-memory"]["value"] = value
+                self.save(self.desktop, document)
+                self.assert_refused_without_mutation()
+        document = deepcopy(original)
+        del document["samples"][1]["results"][document["benchmark"]]["peak-memory"]
+        self.save(self.desktop, document)
+        self.assert_refused_without_mutation()
+
+    def test_missing_or_invalid_mobile_memory_cannot_replace_snapshot(self):
+        path = self.mobile / "raw-results.json"
+        original = site.load(path)
+        for value in (None, 0, -1, True, 1.5, "1024", float("nan"), float("inf"), 2 ** 43):
+            with self.subTest(value=value):
+                raw = deepcopy(original)
+                entries = next(iter(raw[0]["benchmark_results"].values()))
+                entries[1]["samples"][1]["process_peak_memory_kb"] = value
+                self.save(path, raw)
+                self.assert_refused_without_mutation()
+        raw = deepcopy(original)
+        entries = next(iter(raw[0]["benchmark_results"].values()))
+        del entries[1]["samples"][1]["process_peak_memory_kb"]
+        self.save(path, raw)
+        self.assert_refused_without_mutation()
 
     def test_missing_desktop_case_or_device_does_not_publish(self):
         for directory in (self.desktop.parent, self.mobile):
@@ -264,10 +309,29 @@ class SnapshotTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     site.validate(snapshot)
 
+    def test_public_memory_requires_safe_integer_bytes_and_nonempty_method(self):
+        original = self.publish()
+        for field, values in (
+            ("peak_memory_bytes", (None, 0, -1, True, 1.5, "1024", float("nan"), float("inf"), 2 ** 53)),
+            ("peak_memory_method", (None, "", " \t\n", 123, "x" * 501)),
+        ):
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    snapshot = deepcopy(original)
+                    snapshot["results"][0][field] = value
+                    with self.assertRaises(ValueError):
+                        site.validate(snapshot)
+            snapshot = deepcopy(original)
+            del snapshot["results"][0][field]
+            with self.assertRaises(ValueError):
+                site.validate(snapshot)
+        original["results"][0]["peak_memory_bytes"] = 2 ** 53 - 1
+        self.assertEqual(site.validate(original), original)
+
     def test_only_honest_unpublished_bootstrap_is_allowed(self):
-        empty = {"schema_version": 2, "generated_at": None, "snapshot": None, "results": []}
+        empty = {"schema_version": 3, "generated_at": None, "snapshot": None, "results": []}
         self.assertEqual(site.validate(empty), empty)
-        for mutation in ({"generated_at": CREATED}, {"snapshot": self.plan["snapshot"]}, {"schema_version": 1}):
+        for mutation in ({"generated_at": CREATED}, {"snapshot": self.plan["snapshot"]}, {"schema_version": 2}):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 site.validate(dict(empty, **mutation))
 

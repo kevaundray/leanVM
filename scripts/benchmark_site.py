@@ -217,6 +217,7 @@ def validate_metrics(results, benchmark):
         verify = metrics["verify"]
         require(positive(verify["lower_value"]) <= positive(verify["value"]) <= positive(verify["upper_value"]), "invalid verification timing")
         positive(metrics["proof-size"]["value"])
+        integer(metrics["peak-memory"]["value"], mobile_report.MAX_SAFE_INTEGER)
 
 
 def run_desktop(plan, testbed, benchmark, executable):
@@ -247,13 +248,15 @@ def run_desktop(plan, testbed, benchmark, executable):
     return document
 
 
-def row(title, description, path, category, count, samples, machine, source, measured_at, verification, thread_label=None):
+def row(title, description, path, category, count, samples, machine, source, measured_at, verification,
+        peak_memory_bytes, peak_memory_method, thread_label=None):
     identity = [title, description, category, machine["id"], count, thread_label]
     return {"id": digest(identity, 24), "program": {"name": title,
             "source_url": f"https://github.com/{source['repository']}/blob/{source['commit']}/{path}"},
             "workload": description, "category": category, "machine": machine,
             "threads": {"count": count, "label": thread_label or f"{count} thread{'s' if count != 1 else ''}"},
             "median_seconds": statistics.median(samples), "min_seconds": min(samples), "max_seconds": max(samples),
+            "peak_memory_bytes": peak_memory_bytes, "peak_memory_method": peak_memory_method,
             "samples_seconds": samples, "measured_at": measured_at, "verification": verification}
 
 
@@ -285,12 +288,19 @@ def desktop_rows(document, plan, testbed, benchmark):
     for name in expected_results(benchmark):
         title, description, path, category, _ = workload(name)
         timings = [sample["results"][name]["latency"]["value"] / 1e9 for sample in samples]
+        peak_memory = max(sample["results"][name]["peak-memory"]["value"] for sample in samples)
+        memory_method = (
+            "Maximum Linux process RSS high-water mark across independent rounds, from CLI BMF peak-memory.value "
+            "in bytes (getrusage(RUSAGE_SELF).ru_maxrss, KiB converted to bytes). Includes process setup and prior work."
+        )
+        if category == "aggregation":
+            memory_method += " Aggregation includes leaf preparation; higher-node peaks can include preceding first-level work."
         verification = {"verified_proofs": len(samples), "total_proofs": len(samples),
                         "method": "Successful leanvm bench process and proof verification timing for every independent round",
                         "verify_seconds": [sample["results"][name]["verify"]["value"] / 1e9 for sample in samples]}
         label = None if explicit else f"{count} threads (default runner allocation)"
         rows.append(row(title, description, path, category, count, timings, machine, plan["snapshot"],
-                        samples[-1]["measured_at"], verification, label))
+                        samples[-1]["measured_at"], verification, peak_memory, memory_method, label))
     return rows
 
 
@@ -323,7 +333,8 @@ def mobile_rows(directory, plan, platform_name):
         verification = {"verified_proofs": metrics["verified_proofs"], "total_proofs": metadata["warmup"] + metadata["iterations"],
                         "parameters": metrics}
         result_row = row(*definitions[function], metrics["threads"], [value / 1e9 for value in result["samples_ns"]],
-                         machine, source, timestamp, verification)
+                         machine, source, timestamp, verification, mobile_report.peak_memory_bytes(result),
+                         mobile_report.peak_memory_method(platform_name))
         result_row["timestamp_basis"] = metadata["timestamp_basis"]
         rows.append(result_row)
     return rows
@@ -331,7 +342,7 @@ def mobile_rows(directory, plan, platform_name):
 
 def validate(snapshot):
     require(set(snapshot) == {"schema_version", "generated_at", "snapshot", "results"}, "invalid snapshot fields")
-    require(type(snapshot["schema_version"]) is int and snapshot["schema_version"] == 2, "unsupported schema")
+    require(type(snapshot["schema_version"]) is int and snapshot["schema_version"] == 3, "unsupported schema")
     results = snapshot["results"]
     require(isinstance(results, list) and len(results) <= 10000, "invalid results")
     if snapshot["snapshot"] is None:
@@ -344,7 +355,7 @@ def validate(snapshot):
     prefix = f"https://github.com/{source['repository']}/blob/{source['commit']}/"
     seen, identities = set(), set()
     required = {"id", "program", "workload", "category", "machine", "threads", "median_seconds", "min_seconds",
-                "max_seconds", "samples_seconds", "measured_at", "verification"}
+                "max_seconds", "samples_seconds", "measured_at", "verification", "peak_memory_bytes", "peak_memory_method"}
     for result in results:
         require(required <= result.keys() and result.keys() <= required | {"timestamp_basis"}, "invalid result fields")
         require(isinstance(result["id"], str) and re.fullmatch(r"[0-9a-f]{24}", result["id"]), "invalid result id")
@@ -374,6 +385,8 @@ def validate(snapshot):
             positive(sample)
         for field in ("median_seconds", "min_seconds", "max_seconds"):
             positive(result[field])
+        integer(result["peak_memory_bytes"], mobile_report.MAX_SAFE_INTEGER)
+        require(text(result["peak_memory_method"]).strip(), "empty peak memory method")
         require(result["median_seconds"] == statistics.median(samples), "median mismatch")
         require(result["min_seconds"] == min(samples) and result["max_seconds"] == max(samples), "range mismatch")
         verification = result["verification"]
@@ -414,7 +427,7 @@ def publish(plan, artifacts, output):
         require(directory.is_dir() and not directory.is_symlink(), "unsafe mobile artifact")
         require({entry.name for entry in directory.iterdir()} == {"metadata.json", "raw-results.json"}, "unexpected mobile artifact files")
         rows.extend(mobile_rows(directory, plan, platform_name))
-    snapshot = validate({"schema_version": 2, "generated_at": now(), "snapshot": plan["snapshot"],
+    snapshot = validate({"schema_version": 3, "generated_at": now(), "snapshot": plan["snapshot"],
                          "results": sorted(rows, key=lambda result: result["id"])})
     atomic_write(output, snapshot)
     return snapshot
@@ -439,7 +452,7 @@ def main():
     publication.add_argument("--plan", type=Path, required=True)
     publication.add_argument("--artifacts", type=Path, required=True)
     publication.add_argument("--output", type=Path, required=True)
-    check = commands.add_parser("check", help="Validate a schema-2 snapshot or the honest unpublished bootstrap")
+    check = commands.add_parser("check", help="Validate a schema-3 snapshot or the honest unpublished bootstrap")
     check.add_argument("--input", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -455,7 +468,7 @@ def main():
             print(f"Published {len(snapshot['results'])} rows to {args.output}")
         else:
             snapshot = validate(load(args.input))
-            print(f"Valid schema-2 snapshot: {len(snapshot['results'])} rows")
+            print(f"Valid schema-3 snapshot: {len(snapshot['results'])} rows")
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:
         parser.exit(1, f"benchmark-site: {error}\n")
 

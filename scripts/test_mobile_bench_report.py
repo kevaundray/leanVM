@@ -46,7 +46,8 @@ class MobileReportTests(unittest.TestCase):
                 "run_u64": {"threads": 6, "available_parallelism": 6, "spends_per_leaf": 2, "leaf_log_inv_rate": 2, "verified_proofs": 4}
             },
             "samples_ns": [1_000_000_000, 9_000_000_000, 2_000_000_000],
-            "samples": [{"duration_ns": value} for value in (1_000_000_000, 9_000_000_000, 2_000_000_000)],
+            "samples": [{"duration_ns": value, "process_peak_memory_kb": peak, "peak_memory_kb": 12}
+                        for value, peak in zip((1_000_000_000, 9_000_000_000, 2_000_000_000), (2048, 1024, 3072))],
             # Never trust a separately supplied aggregate instead of the samples.
             "median_ns": 999,
         }
@@ -54,7 +55,8 @@ class MobileReportTests(unittest.TestCase):
         self.aggregate.update(function=report.AGGREGATE_FUNCTION, spec={"name": report.AGGREGATE_FUNCTION, "warmup": 1, "iterations": 3})
         self.aggregate["custom_metrics"]["run_u64"].update(aggregation_leaves=2, aggregation_log_inv_rate=1, verified_leaves=2)
         self.aggregate["samples_ns"] = [10_000_000_000, 30_000_000_000, 20_000_000_000]
-        self.aggregate["samples"] = [{"duration_ns": value} for value in self.aggregate["samples_ns"]]
+        self.aggregate["samples"] = [{"duration_ns": value, "process_peak_memory_kb": peak}
+                                     for value, peak in zip(self.aggregate["samples_ns"], (4096, 6144, 5120))]
         self.results = [self.result, self.aggregate]
         self.metadata["benchmarks"] = {result["function"]: deepcopy(result["custom_metrics"]["run_u64"]) for result in self.results}
 
@@ -96,6 +98,30 @@ class MobileReportTests(unittest.TestCase):
         self.assertIn("| 6 | 2.000 s | 1.000 to 9.000 s | 4 / 4 |", body)
         self.assertIn("| 6 | 20.000 s | 10.000 to 30.000 s | 4 / 4 |", body)
         self.assertIn("10.000000000 s, 30.000000000 s, 20.000000000 s", body)
+
+    def test_memory_uses_absolute_sample_maximum_and_binary_units(self):
+        measured = report.validate_results([self.raw_report(self.results)], "android")
+        self.assertEqual(report.peak_memory_bytes(measured[report.FUNCTION]), 3072 * 1024)
+        self.assertEqual(report.peak_memory_bytes(measured[report.AGGREGATE_FUNCTION]), 6144 * 1024)
+        # Neither baseline-adjusted growth nor a separately supplied aggregate
+        # can replace the per-iteration SDK observations.
+        self.result["resources"] = {"process_peak_memory_kb": 999999, "total_pss_kb": 888888}
+        self.assertEqual(report.peak_memory_bytes(self.result), 3072 * 1024)
+
+    def test_every_memory_sample_is_required_and_must_convert_to_safe_bytes(self):
+        for index in range(3):
+            for value in (None, 0, -1, True, 1.5, "1024", float("nan"), float("inf"), 2 ** 43):
+                with self.subTest(index=index, value=value):
+                    entries = deepcopy(self.results)
+                    entries[0]["samples"][index]["process_peak_memory_kb"] = value
+                    with self.assertRaisesRegex(ValueError, "peak memory"):
+                        self.render(raw=[self.raw_report(entries)])
+            entries = deepcopy(self.results)
+            del entries[0]["samples"][index]["process_peak_memory_kb"]
+            with self.assertRaisesRegex(ValueError, "peak memory"):
+                self.render(raw=[self.raw_report(entries)])
+        self.result["samples"][0]["process_peak_memory_kb"] = (2 ** 53 - 1) // 1024
+        self.assertEqual(report.peak_memory_bytes(self.result), ((2 ** 53 - 1) // 1024) * 1024)
 
     def test_incomplete_run_publishes_no_latency(self):
         self.metadata["status"] = "incomplete_results"
@@ -208,6 +234,9 @@ class MobileReportTests(unittest.TestCase):
         text, clean = runner.redactor()
         raw = runner.export_reports(source, destination, clean, text, "android")
         body, complete, _ = self.render(raw=raw)
+        measured = report.validate_results(raw, "android")
+        self.assertEqual(report.peak_memory_bytes(measured[report.FUNCTION]), 3072 * 1024)
+        self.assertEqual(report.peak_memory_bytes(measured[report.AGGREGATE_FUNCTION]), 6144 * 1024)
         self.assertTrue(complete)
         self.assertEqual(body.count("| 6 | 2.000 s |"), 1)
         self.assertEqual(body.count("| 6 | 20.000 s |"), 1)

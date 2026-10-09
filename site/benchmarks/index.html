@@ -54,7 +54,7 @@
       </div>
       <div class="section-heading">
         <div><h2 id="results-title">Client-side proving</h2><p id="category-description" class="results-description">On-device measurements, Falcon signature verification and L1 state proofs.</p></div>
-        <span class="units-note">Median runtime · seconds</span>
+        <span class="units-note">Median · s / Peak memory · MiB</span>
       </div>
       <form id="filters" class="filters" aria-label="Filter benchmark results" hidden>
         <div class="filter"><label for="program-filter">Program</label><select id="program-filter"><option value="">All programs</option></select></div>
@@ -84,7 +84,7 @@
     <section class="methodology" aria-labelledby="methodology-title">
       <h2 id="methodology-title">Reading a measurement</h2>
       <div>
-        <p><strong>Median, not a best-case run.</strong> Each thread subrow shows its median runtime. Open Measurement details for the observed minimum to maximum, individual samples and proof verification counts for each thread configuration.</p>
+        <p><strong>Median, not a best-case run.</strong> Each thread subrow shows its median runtime and peak memory in mebibytes (MiB). Open Measurement details for the observed minimum to maximum, individual samples, proof verification counts and peak memory measurement method for each thread configuration.</p>
         <p><strong>One run, one source revision.</strong> Every result belongs to the commit and benchmark run linked above. A fresh snapshot is published only when every required desktop and mobile job succeeds. Failed runs leave the previous complete publication in place.</p>
         <p><strong>Dates stay with the evidence.</strong> Collection dates remain in Measurement details. They describe collection, not code freshness; the snapshot commit identifies the code. Mobile verification counts include the discarded warmup proof.</p>
         <p><strong>Hardware is recorded once.</strong> Follow a machine name to its entry in the Hardware reference. Missing specifications are marked Not recorded, never inferred. Logical CPU count describes the machine, not how many threads the benchmark used.</p>

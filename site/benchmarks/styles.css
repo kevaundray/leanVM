@@ -73,10 +73,11 @@ h1 { font-size: clamp(38px, 4vw, 56px); line-height: 1.08; font-weight: 650; let
 .thread-table th { text-align: left; }
 .thread-table th, .thread-table td { padding: 12px 8px; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 12px; }
 .thread-table thead th { padding-block: 8px; color: var(--muted); font-size: 11px; font-weight: 500; }
-.thread-table thead th:nth-child(1) { width: 60%; }
-.thread-table thead th:nth-child(2) { width: 40%; }
-.thread-table th:nth-child(2), .thread-table td:nth-child(2) { text-align: right; }
-.thread-count { font-weight: 500; }
+.thread-table thead th:nth-child(1) { width: 34%; }
+.thread-table thead th:nth-child(2) { width: 30%; }
+.thread-table thead th:nth-child(3) { width: 36%; }
+.thread-table th:not(:first-child), .thread-table td { text-align: right; }
+.thread-count { font-weight: 500; overflow-wrap: anywhere; }
 .thread-row:hover { background: #f3f7f4; }
 .thread-row:last-child > * { border-bottom: 0; }
 .sample-set { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 14px; }
@@ -90,7 +91,8 @@ h1 { font-size: clamp(38px, 4vw, 56px); line-height: 1.08; font-weight: 650; let
 .use-case.consensus { background: #edf2fb; color: #3457a0; }
 .use-case.data { background: #f3eef8; color: #735096; }
 .use-case.misc { background: #eef0f3; color: #5c6470; }
-.timing { font-size: 20px; line-height: 1.2; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.timing, .peak-memory { font-size: 20px; line-height: 1.2; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.memory-method { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .range { display: block; font-size: 11px; color: var(--muted); margin: 7px 0 10px; font-variant-numeric: tabular-nums; }
 .range-label { display: block; }
 details { font-size: 12px; }
@@ -132,7 +134,7 @@ summary:hover { text-decoration: underline; text-underline-offset: 3px; }
   .category-option-heading { font-size: 15px; }
   .text-button { justify-self: start; padding-left: 0; }
   .machine-group { gap: 24px; padding-inline: 20px; }
-  .timing { font-size: 19px; }
+  .timing, .peak-memory { font-size: 19px; }
   .methodology { grid-template-columns: 1fr; gap: 18px; }
 }
 @media (max-width: 800px) {
@@ -163,7 +165,7 @@ summary:hover { text-decoration: underline; text-underline-offset: 3px; }
   .hardware-list { grid-template-columns: minmax(0, 1fr); }
   .hardware { grid-template-columns: 90px minmax(0, 1fr); }
   .thread-table th, .thread-table td { padding-inline: 4px; }
-  .timing { font-size: 17px; }
+  .timing, .peak-memory { font-size: 17px; }
   .methodology { margin-top: 32px; padding-top: 24px; }
   .methodology > div { grid-template-columns: 1fr; gap: 14px; }
   .site-footer { margin-top: 35px; font-size: 11px; flex-direction: column; gap: 8px; }
@@ -174,6 +176,10 @@ summary:hover { text-decoration: underline; text-underline-offset: 3px; }
   .category-heading h2 { font-size: 13px; }
   .filters { grid-template-columns: 1fr; }
   .machine-group, .workload-heading { padding-inline: 14px; }
+  .thread-table thead th:nth-child(1) { width: 26%; }
+  .thread-table thead th:nth-child(2) { width: 34%; }
+  .thread-table thead th:nth-child(3) { width: 40%; }
+  .timing, .peak-memory { font-size: 14px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   a, button { transition: color .15s, background-color .15s; }

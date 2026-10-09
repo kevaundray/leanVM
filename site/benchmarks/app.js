@@ -185,6 +185,7 @@
     const samples = element("ol", "samples");
     for (const sample of row.samples_seconds) samples.append(element("li", "", `${sample} s`));
     panel.append(range, samples);
+    panel.append(element("p", "memory-method", `Peak memory method: ${row.peak_memory_method}`));
     const verification = row.verification;
     if (Number.isInteger(verification?.verified_proofs) && Number.isInteger(verification?.total_proofs)
       && verification.verified_proofs >= 0 && verification.total_proofs > 0) {
@@ -235,7 +236,7 @@
     table.append(element("caption", "visually-hidden", `Thread configurations for ${first.program.name}: ${first.workload}, on ${text(first.machine.name, first.machine.id)}`));
     const head = element("thead");
     const headings = element("tr");
-    for (const label of ["Threads", "Median (s)"]) {
+    for (const label of ["Threads", "Median (s)", "Peak memory (MiB)"]) {
       const heading = element("th", "", label);
       heading.scope = "col";
       headings.append(heading);
@@ -250,7 +251,12 @@
       const median = element("span", "timing", seconds(row.median_seconds));
       median.setAttribute("aria-label", `Median ${row.median_seconds} seconds`);
       runtime.append(median);
-      node.append(threads, runtime);
+      const memory = element("td");
+      const peak = element("span", "peak-memory", numberFormat.format(row.peak_memory_bytes / 1024 ** 2));
+      peak.setAttribute("aria-label", `Peak memory ${row.peak_memory_bytes / 1024 ** 2} mebibytes`);
+      peak.title = `${numberFormat.format(row.peak_memory_bytes)} bytes`;
+      memory.append(peak);
+      node.append(threads, runtime, memory);
       body.append(node);
     }
     table.append(head, body);
@@ -351,7 +357,7 @@
   }
 
   function parseDataset(dataset) {
-    if (!dataset || dataset.schema_version !== 2 || !Array.isArray(dataset.results)) throw new Error("Unsupported results format");
+    if (!dataset || dataset.schema_version !== 3 || !Array.isArray(dataset.results)) throw new Error("Unsupported results format");
     const rows = dataset.results;
     if (rows.length === 0 && dataset.snapshot === null && dataset.generated_at === null) return rows;
     const source = dataset.snapshot;
@@ -371,6 +377,7 @@
         || !text(row.program?.source_url, "").startsWith(sourcePrefix) || timestamp(row.measured_at) === null
         || ![row.median_seconds, row.min_seconds, row.max_seconds].every(validTime)
         || row.min_seconds > row.median_seconds || row.median_seconds > row.max_seconds
+        || !Number.isSafeInteger(row.peak_memory_bytes) || row.peak_memory_bytes <= 0 || !text(row.peak_memory_method, "")
         || !Array.isArray(row.samples_seconds) || !row.samples_seconds.length || !row.samples_seconds.every(validTime)) {
         throw new Error("Invalid measurement record");
       }

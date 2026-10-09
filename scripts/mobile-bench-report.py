@@ -32,6 +32,11 @@ DEVICES = {
     "android": ("Google Pixel 7", "13.0", "Android"),
     "ios": ("iPhone 14", "16", "iOS"),
 }
+MAX_SAFE_INTEGER = 2 ** 53 - 1
+MEMORY_READERS = {
+    "android": "Android /proc/self/statm resident pages",
+    "ios": "iOS task_info(MACH_TASK_BASIC_INFO) resident_size",
+}
 
 
 def require(condition, message):
@@ -41,6 +46,25 @@ def require(condition, message):
 
 def positive(value):
     return type(value) is int and value > 0
+
+
+def peak_memory_bytes(result):
+    # Pinned mobench timing.rs serializes absolute RSS separately from the
+    # legacy peak_memory_kb field, which is only baseline-adjusted growth.
+    peaks = [sample.get("process_peak_memory_kb") for sample in result["samples"]]
+    require(bool(peaks) and all(positive(value) and value <= MAX_SAFE_INTEGER // 1024 for value in peaks),
+            "missing or invalid sampled process peak memory")
+    return max(peaks) * 1024
+
+
+def peak_memory_method(platform):
+    return (
+        f"Maximum sampled process RSS across this function's three measured iterations; "
+        f"mobench samples {MEMORY_READERS[platform]} at 1 ms intervals and iteration boundaries "
+        "(KiB converted to bytes). Setup, warmup and teardown are outside the sampling windows, "
+        "but their resident allocations, retained proofs and allocator residency can be included. "
+        "Not baseline-adjusted growth or an OS lifetime high-water mark; brief peaks may be missed."
+    )
 
 
 def validate_summary(summary, platform, functions):
@@ -87,6 +111,7 @@ def validate_results(raw, platform):
             samples = result["samples_ns"]
             require(len(samples) == 3 and all(positive(value) and math.isfinite(value) for value in samples), "invalid samples")
             require([sample["duration_ns"] for sample in result["samples"]] == samples, "sample records disagree")
+            peak_memory_bytes(result)
             measured[function] = result
     require(set(measured) == set(FUNCTIONS), "missing benchmark function")
     return measured
