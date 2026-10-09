@@ -81,17 +81,6 @@
       <p>Machine names in the results link here. These are the recorded specifications; logical CPU count describes the hardware, while thread count belongs to each measurement.</p>
       <div id="hardware-list" class="hardware-list"></div>
     </section>
-    <section class="methodology" aria-labelledby="methodology-title">
-      <h2 id="methodology-title">Reading a measurement</h2>
-      <div>
-        <p><strong>Median, not a best-case run.</strong> Each thread subrow shows its median runtime and peak memory in mebibytes (MiB). Open Measurement details for the observed minimum to maximum, individual samples, proof verification counts and peak memory measurement method for each thread configuration.</p>
-        <p><strong>One run, one source revision.</strong> Every result belongs to the commit and benchmark run linked above. A fresh snapshot is published only when every required desktop and mobile job succeeds. Failed runs leave the previous complete publication in place.</p>
-        <p><strong>Dates stay with the evidence.</strong> Collection dates remain in Measurement details. They describe collection, not code freshness; the snapshot commit identifies the code. Mobile verification counts include the discarded warmup proof.</p>
-        <p><strong>Hardware is recorded once.</strong> Follow a machine name to its entry in the Hardware reference. Missing specifications are marked Not recorded, never inferred. Logical CPU count describes the machine, not how many threads the benchmark used.</p>
-        <p><strong>Categories follow the use case.</strong> leanDA belongs to Data layer. Other Pixel and iPhone measurements, including on-device aggregation, belong to Client-side proving, as do Falcon and L1 state proofs on any machine. Other leanXMSS, leanSPHINCS and aggregation results belong to Consensus layer. Everything else stays in Misc.</p>
-        <p><strong>Workload first, then machine and threads.</strong> Each workload has one heading. Configurations from the same recorded hardware share compact thread subrows; different inputs stay separate. Recent ordering uses each workload's newest measurement. Counts refer to configurations, and switching categories clears filters.</p>
-      </div>
-    </section>
     <noscript><p class="empty-state">JavaScript is needed to filter and display the measurements. All results and source metadata are available in the <a href="./latest.json">results JSON</a>.</p></noscript>
   </main>
   <footer class="wrap site-footer"><span>leanVM <span class="muted">/ minimal hash-based zkVM</span></span><a href="./latest.json">Inspect the source data <span aria-hidden="true">↗</span></a></footer>

@@ -118,11 +118,6 @@ summary:hover { text-decoration: underline; text-underline-offset: 3px; }
 .empty-state p { color: var(--muted); font-size: 14px; line-height: 1.6; }
 .primary-button { background: var(--accent); color: white; border: 0; border-radius: 6px; min-height: 44px; padding: 10px 18px; }
 .primary-button:hover { background: #103f2d; }
-.methodology { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 30px; display: grid; grid-template-columns: 1fr 3fr; gap: 30px; }
-.methodology h2 { font-size: 16px; font-weight: 600; margin: 3px 0 0; }
-.methodology > div { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 28px; }
-.methodology p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.8; }
-.methodology strong { font-weight: 600; color: #192c27; }
 .site-footer { margin-top: 55px; padding: 26px 0 30px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 20px; font-size: 12px; line-height: 1.6; }
 .visually-hidden, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .skip-link:focus { position: fixed; z-index: 2; top: 10px; left: 10px; padding: 12px; background: white; }
@@ -135,7 +130,6 @@ summary:hover { text-decoration: underline; text-underline-offset: 3px; }
   .text-button { justify-self: start; padding-left: 0; }
   .machine-group { gap: 24px; padding-inline: 20px; }
   .timing, .peak-memory { font-size: 19px; }
-  .methodology { grid-template-columns: 1fr; gap: 18px; }
 }
 @media (max-width: 800px) {
   .wrap { width: calc(100% - 36px); }
@@ -166,8 +160,6 @@ summary:hover { text-decoration: underline; text-underline-offset: 3px; }
   .hardware { grid-template-columns: 90px minmax(0, 1fr); }
   .thread-table th, .thread-table td { padding-inline: 4px; }
   .timing, .peak-memory { font-size: 17px; }
-  .methodology { margin-top: 32px; padding-top: 24px; }
-  .methodology > div { grid-template-columns: 1fr; gap: 14px; }
   .site-footer { margin-top: 35px; font-size: 11px; flex-direction: column; gap: 8px; }
 }
 @media (max-width: 380px) {
