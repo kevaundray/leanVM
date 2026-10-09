@@ -25,6 +25,8 @@ The isolated lockfile retains libc 0.2.189 for the pinned mobench SDK's iOS reso
 
 The library emits a `staticlib` for the iOS XCFramework, a `cdylib` for Android and an `rlib` for the native correctness smoke.
 
+ARM64 mobile packages use `-C target-cpu=generic -C target-feature=+aes,+sha3`, enabling PMULL field multiplication and EOR3 XORs. These builds require both extensions on the device; they do not fall back to software at runtime. Flags are scoped to Cargo target triples, including the ARM64 iOS simulator; the x86 iOS simulator stays generic and host tools receive no mobile flags. The repository's native CPU setting excludes iOS and Android. Do not set global `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS` when packaging: they override the target-specific flags. Device result metadata records the target's compiler flags.
+
 Use the standalone `mobench` executable. Source scanning can warn that there are no `#[benchmark]` attributes because these setup/teardown benchmarks register `BenchFunction` entries directly. Runtime registration is checked by the native smoke executable, not by source scanning.
 
 Install host tools with neutral flags, rather than the repository's native CPU flags:
@@ -39,20 +41,21 @@ With the pinned Android tools, Java, and Gradle installed, run from this directo
 
 ```sh
 export RUSTUP_TOOLCHAIN=1.99.0
-export RUSTFLAGS='-C target-cpu=generic'
+unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS='-C target-cpu=generic -C target-feature=+aes,+sha3'
 export CARGO_BUILD_JOBS=2
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
 python3 ../scripts/mobile-bench-package.py --platform android shielded_prove
 python3 ../scripts/mobile-bench-package.py --platform android shielded_aggregate
 ```
 
-`mobench.toml` is discovered as project configuration; do not pass it as `--config`, which accepts a different run-spec schema. `project.output_dir = "."` places generated Android files directly under this isolated workspace, so the pinned Gradle template finds the persisted `target/mobile-spec/android/bench_spec.json` after runner regeneration. The generated `android/` directory is ignored. `mobench run` without devices packages the real shielded specification without contacting BrowserStack; its package-check report is not a performance result. The app/test APKs are under `android/app/build/outputs/apk/`. The benchmark library is built only for `arm64-v8a`; the upstream JNA dependency also bundles its own support libraries for other ABIs. Explicit `RUSTFLAGS` overrides the repository's `target-cpu=native` setting. The generic ARM64 package includes baseline NEON support without assuming optional AES/PMULL or SHA3 instructions. CI separately checks compilation of those optional crypto kernels with `-C target-feature=+aes,+sha3`; that build is not the device package.
+`mobench.toml` is discovered as project configuration; do not pass it as `--config`, which accepts a different run-spec schema. `project.output_dir = "."` places generated Android files directly under this isolated workspace, so the pinned Gradle template finds the persisted `target/mobile-spec/android/bench_spec.json` after runner regeneration. The generated `android/` directory is ignored. `mobench run` without devices packages the real shielded specification without contacting BrowserStack; its package-check report is not a performance result. The app/test APKs are under `android/app/build/outputs/apk/`. The benchmark library is built only for `arm64-v8a`; the upstream JNA dependency also bundles its own support libraries for other ABIs.
 
 The Android package path uses the supported `mobench run` command without `--devices`, then `mobench verify`, and checks both APKs' embedded function, warmup and iteration count. It also checks the app contains the ARM64 benchmark library. Checked artifacts are retained separately under `target/mobile-bench-packages/android/<function>/`.
 
 A host-only correctness smoke, not a mobile measurement, is available from this directory with `RUSTFLAGS='-C target-cpu=generic' cargo +1.99.0 run --release --locked --bin mobile-bench-smoke`.
 
-On a Mac with the pinned Xcode and XcodeGen, install the same mobench revision and the three iOS Rust targets, then run `RUSTUP_TOOLCHAIN=1.99.0 RUSTFLAGS='-C target-cpu=generic' python3 ../scripts/mobile-bench-package.py --platform ios <function>` for each of `shielded_prove` and `shielded_aggregate`. The credential-free path builds the native C ABI XCFramework and packages the device IPA and XCUITest bundle using `mobench package-ipa` and `mobench package-xcuitest`. It checks the app's embedded benchmark specification, device platform, deployment target and ARM64 binaries, including the test runner. Upload packages are retained separately under `target/mobile-bench-packages/ios/<function>/`. Generated `ios/` files are ignored.
+On a Mac with the pinned Xcode and XcodeGen, install the same mobench revision and the three iOS Rust targets. Unset `RUSTFLAGS` and `CARGO_ENCODED_RUSTFLAGS`, export `CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS` and `CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUSTFLAGS` as `-C target-cpu=generic -C target-feature=+aes,+sha3`, and export `CARGO_TARGET_X86_64_APPLE_IOS_RUSTFLAGS` as `-C target-cpu=generic`. Then run `RUSTUP_TOOLCHAIN=1.99.0 python3 ../scripts/mobile-bench-package.py --platform ios <function>` for each of `shielded_prove` and `shielded_aggregate`. The credential-free path builds the native C ABI XCFramework and packages the device IPA and XCUITest bundle using `mobench package-ipa` and `mobench package-xcuitest`. It checks the app's embedded benchmark specification, device platform, deployment target and ARM64 binaries, including the test runner. Upload packages are retained separately under `target/mobile-bench-packages/ios/<function>/`. Generated `ios/` files are ignored.
 
 ## BrowserStack execution
 

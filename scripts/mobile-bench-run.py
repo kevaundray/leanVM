@@ -156,6 +156,7 @@ def main():
     platform = parser.parse_args().platform
     device_model, device_os = DEVICES[platform]
     device_id = f"{device_model}-{device_os}"
+    target = "aarch64-linux-android" if platform == "android" else "aarch64-apple-ios"
     os.umask(0o077)
     destination = Path("target/mobile-bench-results") / platform
     destination.mkdir(parents=True, exist_ok=False)
@@ -170,9 +171,9 @@ def main():
         "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
         "rustc": None,
         "mobench_revision": MOBENCH_REV,
-        "target": "aarch64-linux-android" if platform == "android" else "aarch64-apple-ios",
+        "target": target,
         "profile": "release",
-        "rustflags": os.environ.get("RUSTFLAGS"),
+        "rustflags": os.environ.get("RUSTFLAGS", os.environ.get(f"CARGO_TARGET_{target.upper().replace('-', '_')}_RUSTFLAGS")),
         "thread_policy": "available_parallelism",
         "benchmarks": {},
         "candidate_device": device_id,

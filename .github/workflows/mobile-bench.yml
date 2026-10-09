@@ -16,7 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RUSTFLAGS: -C target-cpu=generic
+  CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
+  CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
+  CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
+  CARGO_TARGET_X86_64_APPLE_IOS_RUSTFLAGS: -C target-cpu=generic
   CARGO_TERM_COLOR: never
   CARGO_BUILD_JOBS: '2'
 
@@ -69,11 +72,7 @@ jobs:
         run: |
           cargo install cargo-ndk --version 4.1.2 --locked
           cargo install mobench --git https://github.com/worldcoin/mobile-bench-rs --rev 217cfd4f78db1284276a1a1da44e3bf473729f5c --locked
-      - name: Compile optional NEON crypto kernels
-        env:
-          RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
-        run: cargo check --target aarch64-linux-android --release --locked --lib
-      - name: Build baseline ARM64 runner and test APKs without credentials
+      - name: Build crypto-enabled ARM64 runner and test APKs without credentials
         run: |
           python3 ../scripts/mobile-bench-package.py --platform android shielded_prove
           python3 ../scripts/mobile-bench-package.py --platform android shielded_aggregate
