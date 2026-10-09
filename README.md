@@ -180,3 +180,11 @@ Each instruction class's circuit proven alone by flock, on `2^FLOCK_N_LOG` rando
 - [WHIR](https://eprint.iacr.org/2024/1586) PCS, aka [Ligerito](https://eprint.iacr.org/2025/1187)
 - [Flock](https://github.com/succinctlabs/flock/tree/main) hash proving
 - [Binius](https://github.com/IrreducibleOSS/binius)/[Binius64](https://github.com/binius-zk/binius64) ring switching, M3 arithmetisation, and more (see [DP23](https://eprint.iacr.org/2023/1784) and [DP24](https://eprint.iacr.org/2024/504))
+
+### Immutable PCS commitment anchors
+
+PCS commitment identity is now the complete immutable Merkle root, public shape, commitment-time extension-field point and advertised MLE value. `whir::commit` takes the prover transcript and binds the `whir-anchor-v1` marker, dimension/interleaving/rate tuple and occupied lane count before the root and the one anchor challenge. `whir::receive_commitment` checks the same context, derives that point once and reads its value. The proof wire format changes; root-only legacy proofs are not accepted.
+
+Every stacked opening and the public `whir::open_with_basis` / `whir::verify_with_basis` advanced interfaces require this complete record and additionally check the same anchored value. Root-only WHIR kernels are private protocol building blocks, not alternate public PCS verification paths. Reuse the immutable record and its public transcript context across sessions; opening never replaces the point or value. Advanced callers must bind their public opening claims before the opening batch challenge. Omitted lanes remain mandated zero, and the anchor's linear weight is restricted to the occupied prefix in both native and row arithmetic.
+
+The separate Lean investigation proves ideal uniform-anchor candidate uniqueness with a commitment-fixed list, including arbitrary malicious advertised values and cross-session reuse. Its anchor ambiguity term is separate from opening, Fiat-Shamir, Merkle and concrete cryptographic losses. This cutover does not claim a proved whole-system security level, successful efficient knowledge extraction, or universal Rust-to-Lean equivalence. It does not incorporate the separately proposed malformed-selector guard change.

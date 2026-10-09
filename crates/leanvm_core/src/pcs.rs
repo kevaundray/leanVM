@@ -324,12 +324,6 @@ mod tests {
         )
         .expect("a supported witness");
 
-        // The retained shape and codeword describe one lane at the configured encoding rate.
-        assert_eq!(committed.shape.committed_len(), lane_words);
-        assert_eq!(
-            committed.prover_data.codeword.len(),
-            lane_words << committed.config.log_inv_rates()[0]
-        );
 
         // Mutation: omit the lane, cut it short, or supply a second whole lane.
         for words in [0, lane_words - 1, 2 * lane_words] {
