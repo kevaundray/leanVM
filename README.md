@@ -63,32 +63,6 @@ Expect leanVM to change significantly:
 
 ## benchmarks
 
-The **Benchmark website** workflow on `main` registers a six-hourly schedule
-(`23 */6 * * *`, UTC) and a manual Actions entrypoint. It benchmarks the upstream
-`riscv-exploration` branch, not `main`: each run resolves that branch once and uses
-the same commit for desktop and mobile results. Only a complete snapshot from that
-run is published. The implementation in
-[#567](https://github.com/leanEthereum/leanVM/pull/567) must land on
-`riscv-exploration` before this scheduler is installed. Both `benchmark-site.yml`
-and its reusable `mobile-bench.yml` must remain on `main`, because a relative
-reusable workflow is loaded from the caller's revision. Their main-branch copies
-have no PR entrypoints; runtime code and PR checks remain on `riscv-exploration`.
-
-Collection requires the self-hosted runner label pairs
-`[size-attester7870-x64, self-hosted-ghr]` and
-`[size-attester7870-arm64, self-hosted-ghr]`, GitHub-hosted `ubuntu-24.04` and
-`macos-15` runners (Xcode 16.4), and the repository secrets
-`BROWSERSTACK_USERNAME` and `BROWSERSTACK_ACCESS_KEY` with access to the required
-devices. Mobile provider sessions run sequentially. Every successful run uploads
-`benchmark-data` and `benchmark-site` artifacts. Deployment is opt-in: configure
-GitHub Pages to use GitHub Actions, allow the trusted branch through the
-`github-pages` environment, and set `BENCHMARK_PAGES_ENABLED=true` as a repository
-variable. Only the separate deploy job receives Pages write and OIDC permissions.
-The installer does not change repository settings or secrets.
-
-The measurements below are the existing `main` benchmarks, separate from the
-scheduled `riscv-exploration` snapshots.
-
 **machine**: M4 Max MacBook Pro (12 performance cores, 4 efficiency cores, 48GB RAM)
 
 **note**: The Metal GPU was not used.
