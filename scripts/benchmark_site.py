@@ -172,7 +172,7 @@ def digest(document, length=64):
 
 
 def machine_id(machine):
-    return digest({key: machine[key] for key in ("name", "arch", "os", "cpu", "logical_cpus", "memory_bytes")}, 16)
+    return digest({key: machine[key] for key in ("name", "arch", "os", "cpu", "logical_cpus")}, 16)
 
 
 def validate_machine(machine, desktop=False):
@@ -422,7 +422,8 @@ def publish(plan, artifacts, output):
         require({entry.name for entry in directory.iterdir()} == {"result.json"}, "unexpected desktop artifact files")
         document = load(directory / "result.json")
         rows.extend(desktop_rows(document, plan, testbed, benchmark))
-        require(machines.setdefault(testbed, document["machine"]) == document["machine"], "inconsistent testbed hardware")
+        identity = document["machine"]["id"]
+        require(machines.setdefault(testbed, identity) == identity, "inconsistent testbed hardware")
     for name, platform_name in mobile.items():
         directory = artifacts / name
         require(directory.is_dir() and not directory.is_symlink(), "unsafe mobile artifact")
