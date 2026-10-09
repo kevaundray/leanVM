@@ -56,6 +56,8 @@ The statement a proof makes is the program (an ELF file) and its four output wor
 
 Desktop timing benchmarks now use exactly 16 total pool threads, dispatcher included, with no extra efficiency workers. The tracked CLI cases and parallel standalone JSON benchmarks use explicit `-16thread` names, for example `cargo leanvm bench --only hash-50000-16thread`. The existing leanXMSS and aggregation `-1thread`, `-4thread` and `-8thread` cases retain their performance-worker settings; on heterogeneous hosts their actual total can include efficiency workers, recorded in the JSON thread metrics. Direct CLI timing commands default to 16 unless `LEANVM_NUM_THREADS` explicitly selects the existing performance-worker behavior. Standalone pooled targets always use 16; the inherently serial `kernels` benchmark remains single-threaded. Instruction counts and mobile device parallelism are unchanged.
 
+The desktop timing matrix has 17 tracked proof/tree selectors: eight converted from unspecified pools to explicit `-16thread` cases, plus nine existing 1/4/8-thread scaling cases. Shielded transfers are excluded from these desktop timings; their exact counts, direct CLI command and mobile proving and aggregation benchmarks remain available.
+
 The sample timings below are historical measurements with the configuration used when they were recorded, not newly measured fixed-16 results. Their values have not been relabeled as 16-thread measurements.
 
 **machine**: M4 Max MacBook Pro (12 performance cores, 4 efficiency cores, 48GB RAM)
@@ -143,6 +145,8 @@ It prints a markdown table of the RISC-V cycles, per item and in all, and the co
 ### Hosted Android and iPhone benchmarks
 
 The isolated [mobile benchmark integration](bench-mobile/README.md) packages a real two-spend shielded-transfer proof and a separate 2-to-1 aggregation of two such leaves, using pinned `mobench` tooling and the device's available parallelism. Aggregation prepares and verifies its leaves once outside the measured interval. It uses native ARM64 release builds on BrowserStack App Automate physical devices, with credential-free PR package checks and trusted scheduled or manual device runs. Benchmark inputs, timing boundaries, account requirements and downloadable result artifacts are documented there; these are not emulator performance measurements.
+
+CI tracks shielded-transfer proving and aggregation timings only on these phones, not on desktop runners. Desktop CI retains the exact shielded instruction and witness counts. The standalone `cargo leanvm shielded` command remains available for local runs.
 
 ### flock
 

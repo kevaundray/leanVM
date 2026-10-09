@@ -84,7 +84,6 @@ jobs:
           - name: leansphincs-26-16thread
           - name: falcon-7-16thread
           - name: stateproof-5-16thread
-          - name: shielded-258-16thread
           - name: aggregate-leanxmss-100-2to1-16thread
           - name: aggregate-leanxmss-100-4to1-16thread
           - name: aggregate-leanxmss-100-2to1-1thread

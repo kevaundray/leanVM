@@ -65,7 +65,7 @@ fn counted() -> Vec<Case> {
 type Build = fn(&'static str) -> Case;
 
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
-fn proven() -> [(&'static str, Build); 10] {
+fn proven() -> [(&'static str, Build); 9] {
     [
         ("fibonacci-asm-2000000-16thread", |name| {
             Case::new(name, Workload::fibonacci(2_000_000))
@@ -80,20 +80,18 @@ fn proven() -> [(&'static str, Build); 10] {
         }),
         ("falcon-7-16thread", |name| Case::new(name, Workload::falcon(7))),
         ("stateproof-5-16thread", |name| Case::new(name, Workload::stateproof(5))),
-        ("shielded-258-16thread", |name| Case::new(name, Workload::shielded(258))),
     ]
 }
 
 /// Every timed case's pool size. Legacy 1/4/8 cases select performance workers through
 /// `LEANVM_NUM_THREADS`; 16-thread children initialize an exact total pool at CLI startup.
-const THREADS: [(&str, usize); 18] = [
+const THREADS: [(&str, usize); 17] = [
     ("fibonacci-asm-2000000-16thread", 16),
     ("hash-50000-16thread", 16),
     ("leanxmss-100-16thread", 16),
     ("leansphincs-26-16thread", 16),
     ("falcon-7-16thread", 16),
     ("stateproof-5-16thread", 16),
-    ("shielded-258-16thread", 16),
     ("aggregate-leanxmss-100-2to1-16thread", 16),
     ("aggregate-leanxmss-100-4to1-16thread", 16),
     ("leanxmss-100-1thread", 1),
