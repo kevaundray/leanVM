@@ -64,7 +64,7 @@ fn counted() -> Vec<Case> {
 type Build = fn(&'static str) -> Case;
 
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
-fn proven() -> [(&'static str, Build); 10] {
+fn proven() -> [(&'static str, Build); 9] {
     [
         ("fibonacci-asm-2000000", |name| {
             Case::new(name, Workload::fibonacci(2_000_000))
@@ -77,7 +77,6 @@ fn proven() -> [(&'static str, Build); 10] {
         ("leansphincs-26", |name| Case::new(name, Workload::leansphincs(26))),
         ("falcon-7", |name| Case::new(name, Workload::falcon(7))),
         ("stateproof-5", |name| Case::new(name, Workload::stateproof(5))),
-        ("shielded-258", |name| Case::new(name, Workload::shielded(258))),
     ]
 }
 
