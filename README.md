@@ -140,26 +140,13 @@ It prints a markdown table of the RISC-V cycles, per item and in all, and the co
 
 The isolated [mobile benchmark integration](bench-mobile/README.md) packages a real two-spend shielded-transfer proof and a separate 2-to-1 aggregation of two such leaves, using pinned `mobench` tooling and the device's available parallelism. Aggregation prepares and verifies its leaves once outside the measured interval. It uses native ARM64 release builds on BrowserStack App Automate physical devices, with credential-free PR package checks and trusted scheduled or manual device runs. Benchmark inputs, timing boundaries, account requirements and downloadable result artifacts are documented there; these are not emulator performance measurements.
 
-### hashing
+### flock
 
 ```bash
-BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p flock --features bench --bench hash_batch
+BENCH_REPEAT=3 BENCH_COOLDOWN=2 FLOCK_N_LOG=18 cargo bench -p leanvm --bench class_batch -- hash
 ```
 
-```
-Flock BLAKE2s batch proving, 262,144 compressions (2^18 slots)
-  setup (preprocessing, excluded) :      0.0 ms
-  witness-gen                     :     64.6 ms ± 7.8%   10.6%
-  commit                          :    101.2 ms ± 0.4%   16.6%
-  zerocheck                       :    238.3 ms ± 3.9%   39.0%
-  lincheck                        :     20.3 ms ± 12.2%   3.3%
-  pcs opening                     :    186.0 ms ± 2.9%   30.5%
-  other                           :      0.0 ms           0.0%
-  ------------------------------------------
-  prove TOTAL (witness excluded)  :    545.8 ms ± 1.1%   89.4%
-  verify                          :      1.9 ms
-  throughput                      :        480,319 compressions/s ± 1.1%
-```
+Each instruction class's circuit proven alone by flock, on `2^FLOCK_N_LOG` random instances: the VM's own circuit and witness generator, the commitment, the zerocheck and lincheck, and the opening, each timed, then the verifying time and the instances proven per second. An argument keeps the classes whose name contains it (`hash`, `mul`, ...); none runs every class with a circuit.
 
 ## SNARK machinery
 
