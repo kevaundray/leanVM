@@ -33,6 +33,10 @@ import Whir.CausalStrategy
 import Whir.CausalTerminal
 import Whir.CodingBounds
 import Whir.ConcreteCandidates
+import Whir.CommitmentAmbiguity
+import Whir.CommitmentAnchor
+import Whir.ConcreteSecurityBudget
+import Whir.KnowledgeExtraction
 import Whir.DuplexCompression
 import Whir.DuplexEncoding
 import Whir.DuplexFraming

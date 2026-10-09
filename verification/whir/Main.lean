@@ -1,5 +1,6 @@
 import Whir.Protocol
 import Whir.CausalGame
+import Whir.CommitmentAmbiguity
 
 open Whir.Concrete Whir.Protocol
 
@@ -56,6 +57,40 @@ def smoke : IO Unit := do
     "malformed public claim accepted"
   IO.println "lean_smoke=honest,multilevel,truncated_lanes,bad_target,short_opening,short_final,bad_final,missing_query,bad_row,bad_ood,missing_ood,missing_challenge,bad_layout,malformed_public_claim"
 
+def ambiguitySmoke : IO Unit := do
+  requireIO (Whir.CommitmentAmbiguity.smallSession false).isOk
+    "zero branch of immutable spliced commitment rejected"
+  requireIO (Whir.CommitmentAmbiguity.smallSession true).isOk
+    "one branch of immutable spliced commitment rejected"
+  let c := (productionConfig 15 4).getD default
+  let block := 2^(c.logN-c.folds[0]!)
+  let mixed := tab (2^(c.logN-c.folds[0]!+c.rates[0]!)) fun q =>
+    #[if q % 2 == 0 then E.zero else E.one]
+  let weight := tab (2^c.logN) fun i => if i == 0 then E.one else E.zero
+  for branch in #[false,true] do
+    let ch : Challenges := ⟨tab c.folds.size (fun i =>
+      let n := c.logN-(c.folds.toList.take (i+1)).sum
+      let depth := n+c.rates[i]!
+      let per := 192/depth
+      let chunks := (c.queries[i]!+per-1)/per
+      let raw := if i == 0 && branch then
+        (List.range per).foldl (fun out j => out+2^(j*depth)) 0 else 0
+      let squeeze : E := ⟨UInt64.ofNat raw, UInt64.ofNat (raw/2^64),
+        UInt64.ofNat (raw/2^128)⟩
+      ⟨tab c.folds[i]! (fun _ => fixture (i+1)),
+        tab (if i+1 < c.folds.size then c.oodCounts[i+1]! else 0)
+          (fun _ => tab n (fun j => fixture (20+i+j))),
+        tab chunks (fun _ => squeeze), fixture (60+i)⟩),
+      tab (c.logN-c.folds.toList.sum) (fun j => fixture (80+j))⟩
+    let target := if branch then E.one else E.zero
+    let witness := tab block fun i => if branch && i == 0 then (1 : K) else 0
+    let (_, proof) ← match prove c ch witness weight target with
+      | .ok result => pure result
+      | .error e => throw (IO.userError ("production splice prover: " ++ e))
+    requireIO (verify c ch 1 mixed weight target proof).isOk
+      "production immutable splice branch rejected"
+  IO.println "ambiguity_smoke=same_immutable_root,incompatible_claims,small_kernel_fixture,production_15_rate4,both_sessions_accepted"
+
 def vectors : IO Unit := do
   emitN "kmul" (tab 40 fun i => (kmul (seed i) (seed (i+41))).toNat)
   emitN "kinv" (tab 12 fun i => (kinv (seed i)).toNat)
@@ -104,5 +139,6 @@ def main (args : List String) : IO Unit := do
     match deriveQueries depth count squeezes with
     | none => throw (IO.userError "malformed query challenge vector")
     | some qs => emitN "queries" qs
+  | ["ambiguity"] => ambiguitySmoke
   | [] => vectors; smoke
-  | _ => throw (IO.userError "usage: whirModel [query DEPTH COUNT LIMB ...]")
+  | _ => throw (IO.userError "usage: whirModel [ambiguity | query DEPTH COUNT LIMB ...]")
