@@ -8,7 +8,7 @@
 use super::circuit::{Builder, Dw, Ew, Kw};
 use super::transcript::Transcript;
 use crate::leaf::{PublicColumn, PublicColumns};
-use fiat_shamir::arith::{Arith, Verifier};
+use fiat_shamir::arith::{Arith, Stage, Verifier};
 use fiat_shamir::transcript::TranscriptError;
 use pcs::verifier::OpeningVerifier;
 use pcs::whir::{Stratum, strata};
@@ -171,18 +171,32 @@ impl Verifier for Rows<'_, '_> {
 
     fn finish(&mut self) -> Result<(), TranscriptError> {
         if !self.t.finished() {
-            self.scope("transcript", |r| {
-                r.b.fail("the proof has data the verifier never reads");
-            });
+            self.begin_scope(Stage::Transcript);
+            self.b.fail("the proof has data the verifier never reads");
+            self.end_scope();
         }
         Ok(())
     }
 
-    fn scope<T>(&mut self, name: &'static str, f: impl FnOnce(&mut Self) -> T) -> T {
+    fn begin_scope(&mut self, stage: Stage) {
+        let name = match stage {
+            Stage::Announcement => "announcement",
+            Stage::BusAndTables => "bus and tables",
+            Stage::Flock => "flock",
+            Stage::Lincheck => "lincheck",
+            Stage::Opening => "opening",
+            Stage::Rows => "rows",
+            Stage::Target => "target",
+            Stage::Terminal => "terminal",
+            Stage::Transcript => "transcript",
+            Stage::Whir => "whir",
+            Stage::Zerocheck => "zerocheck",
+        };
         self.b.enter(name);
-        let out = f(self);
+    }
+
+    fn end_scope(&mut self) {
         self.b.leave();
-        out
     }
 }
 

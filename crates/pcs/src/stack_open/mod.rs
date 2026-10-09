@@ -274,11 +274,16 @@ pub fn verify<V: OpeningVerifier>(
     let lambda = v.sample();
     let lambdas = v.powers(lambda, 1 + point_claims.len());
     let share = family.share(v, rings);
-    let target = v.scope("target", |v| {
-        let family_target = share.target(v);
-        (point_claims.iter().zip(&lambdas[1..]))
-            .fold(family_target, |acc, (claim, &g)| v.mul_add(g, claim.value(), acc))
-    });
+    let target = {
+        v.begin_scope(fiat_shamir::arith::Stage::Target);
+        let scoped_result = {
+            let family_target = share.target(v);
+            (point_claims.iter().zip(&lambdas[1..]))
+                .fold(family_target, |acc, (claim, &g)| v.mul_add(g, claim.value(), acc))
+        };
+        v.end_scope();
+        scoped_result
+    };
 
     // The lifted weight, evaluated once at the terminal sumcheck point.
     let weight_at = |v: &mut V, x: &[V::E]| {
@@ -288,9 +293,13 @@ pub fn verify<V: OpeningVerifier>(
             v.mul_add(g, eq, acc)
         })
     };
-    v.scope("whir", |v| {
-        recursive_verifier_with_basis_succinct(v, config, log_n, n_lanes, target, root, weight_at)
-    })
+    {
+        v.begin_scope(fiat_shamir::arith::Stage::Whir);
+        let scoped_result =
+            { recursive_verifier_with_basis_succinct(v, config, log_n, n_lanes, target, root, weight_at) };
+        v.end_scope();
+        scoped_result
+    }
 }
 
 /// The statement's invariants: a ring-switched claim, and every region and claim an aligned slice of the committed cube.
@@ -300,23 +309,53 @@ fn check_statement<E: Copy>(
     rings: &[RingSwitch<E>],
 ) -> Result<(), WhirError> {
     let cube = 1usize << log_n;
-    if rings.iter().all(|ring| ring.claims.is_empty()) {
+    let mut empty = true;
+    let mut i = 0;
+    while i < rings.len() {
+        if rings[i].claims.len() != 0 {
+            empty = false;
+            break;
+        }
+        i += 1;
+    }
+    if empty {
         return Err(WhirError::NoRingClaim);
     }
-    for (index, ring) in rings.iter().enumerate() {
+    let mut index = 0;
+    let mut error = None;
+    while index < rings.len() {
+        let ring = &rings[index];
         let len = 1usize << ring.qflock_vars;
-        let spans = ring
-            .claims
-            .iter()
-            .all(|claim| claim.suffix_point.len() == ring.qflock_vars);
-        if ring.qflock_vars > log_n || !ring.offset.is_multiple_of(len) || ring.offset + len > cube || !spans {
-            return Err(WhirError::Region { index });
+        let mut spans = true;
+        let mut j = 0;
+        while j < ring.claims.len() {
+            if ring.claims[j].suffix_point.len() != ring.qflock_vars {
+                spans = false;
+                break;
+            }
+            j += 1;
         }
+        if ring.qflock_vars > log_n || !ring.offset.is_multiple_of(len) || ring.offset + len > cube || !spans {
+            error = Some(WhirError::Region { index });
+            break;
+        }
+        index += 1;
     }
-    if let Some(index) = point_claims.iter().position(|claim| claim.range().1 > cube) {
-        return Err(WhirError::PointClaim { index });
+    if let Some(error) = error {
+        return Err(error);
     }
-    Ok(())
+    let mut index = 0;
+    while index < point_claims.len() {
+        if point_claims[index].range().1 > cube {
+            error = Some(WhirError::PointClaim { index });
+            break;
+        }
+        index += 1;
+    }
+    match error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
 }
 
 #[cfg(test)]
