@@ -2,8 +2,12 @@
 
 import copy
 import io
+import json
+import tempfile
 import unittest
 import zipfile
+from pathlib import Path
+from unittest.mock import patch
 
 import benchmark_site as site
 
@@ -61,6 +65,56 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(merged["results"][0]["source"]["commit"], "b" * 40)
         self.assertEqual(len(merged["results"]), 1)
 
+    def test_desktop_shielded_artifacts_are_not_eligible(self):
+        for benchmark in ("shielded-258", "shielded-258-4thread"):
+            with self.subTest(benchmark=benchmark):
+                document = copy.deepcopy(self.document)
+                for sample in document["runs"]:
+                    sample["results"] = {benchmark: next(iter(sample["results"].values()))}
+                with self.assertRaises(ValueError):
+                    site.desktop_rows(document, benchmark, self.run, self.config, self.hardware)
+
+    def test_refresh_removes_previous_and_restored_desktop_shielded_when_sources_fail(self):
+        desktop = self.desktop()[0]
+        stale = site.row("Shielded transfers", "258 spends, 516 input notes",
+                         "programs/shielded/guest/src/main.rs", "program", None, [1, 2, 3],
+                         desktop["machine"], desktop["source"])
+        mobile = []
+        for platform in ("ios 16", "android 13"):
+            machine = dict(desktop["machine"], name="Test phone", os=platform, arch="aarch64")
+            source = dict(desktop["source"], kind="pull_request")
+            for name, category, samples in (("Shielded transfers", "program", [2, 3, 4]),
+                                            ("Shielded aggregation", "aggregation", [5, 6, 7])):
+                mobile.append(site.row(name, "Mobile workload", "bench-mobile/src/lib.rs",
+                                       category, 6, samples, machine, source,
+                                       {"verified_proofs": 4, "total_proofs": 4}))
+        retained = [desktop, *mobile]
+        previous = {"schema_version": 1, "generated_at": "2026-01-03T00:00:00Z",
+                    "results": [*retained, stale]}
+        expected = {result["id"]: result for result in retained}
+        for candidates in ([], previous["results"]):
+            with self.subTest(restored=bool(candidates)):
+                merged = site.merge(previous, candidates)
+                self.assertEqual({result["id"]: result for result in merged["results"]}, expected)
+                self.assertEqual(site.merge(merged, candidates), merged)
+        for restore_error in (None, ValueError("unavailable")):
+            with self.subTest(restore_error=restore_error), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "latest.json"
+                sources = Path(directory) / "sources.json"
+                output.write_text(json.dumps(previous))
+                sources.write_text(json.dumps({"desktop": {}, "mobile": [{}]}))
+                args = ["benchmark_site.py", "--output", str(output), "--sources", str(sources),
+                        "--restore-repository", "owner/repo"]
+                with patch.object(site.sys, "argv", args), \
+                        patch.object(site, "restore", return_value=previous["results"], side_effect=restore_error), \
+                        patch.object(site, "collect_desktop", side_effect=ValueError("unavailable")), \
+                        patch.object(site, "collect_mobile", side_effect=ValueError("unavailable")), \
+                        patch.object(site.sys, "stdout", io.StringIO()), \
+                        patch.object(site.sys, "stderr", io.StringIO()):
+                    site.main()
+                refreshed = json.loads(output.read_text())
+                self.assertEqual({result["id"]: result for result in refreshed["results"]}, expected)
+
     def test_aggregation_levels_and_inputs_remain_distinct(self):
         first = site.workload("aggregate-leanxmss-100-2to1-4thread-first")
         higher = site.workload("aggregate-leanxmss-100-2to1-4thread-node")
@@ -84,7 +138,6 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(result["median_seconds"], 2)
         self.assertEqual(result["verification"], {"verified_proofs": 4, "total_proofs": 4})
         self.assertIsNone(result["machine"]["logical_cpus"])
-        self.assertNotEqual(result["workload"], site.workload("shielded-258")[1])
         for field, value in (("verified_proofs", 3), ("source_sha", "b" * 40), ("iterations", 4)):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 site.mobile_rows(dict(metadata, **{field: value}), raw, run, selected)

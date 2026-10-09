@@ -24,7 +24,6 @@ PROGRAMS = {
     "leansphincs-26": ("leanSPHINCS", "Verify 26 signatures", "programs/leansphincs/guest/src/main.rs"),
     "falcon-7": ("Falcon-512", "Verify 7 signatures", "programs/falcon/guest/src/main.rs"),
     "stateproof-5": ("L1 state proofs", "Verify 5 account and storage reads", "programs/stateproof/guest/src/main.rs"),
-    "shielded-258": ("Shielded transfers", "258 spends, 516 input notes", "programs/shielded/guest/src/main.rs"),
 }
 SHA = re.compile(r"[0-9a-f]{40}")
 
@@ -291,9 +290,17 @@ def validate(snapshot):
     return snapshot
 
 
+def publishable(result):
+    # Shielded transfers are mobile-only, including in restored historical data.
+    platform = (result["machine"]["os"] or "").split(" ", 1)[0].lower()
+    return result["program"]["name"] != "Shielded transfers" or platform in ("ios", "android")
+
+
 def merge(previous, candidates):
-    results = {result["id"]: result for result in previous["results"]}
+    results = {result["id"]: result for result in previous["results"] if publishable(result)}
     for candidate in candidates:
+        if not publishable(candidate):
+            continue
         old = results.get(candidate["id"])
         if old is None or instant(candidate["source"]["measured_at"]) > instant(old["source"]["measured_at"]):
             results[candidate["id"]] = candidate
@@ -393,6 +400,7 @@ def main():
         require(snapshot["results"], "snapshot is empty")
         print(f"Valid snapshot: {len(snapshot['results'])} rows")
         return
+    snapshot = merge(snapshot, [])
     config = json.loads(args.sources.read_text())
     if args.restore_repository:
         try:
