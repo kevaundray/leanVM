@@ -248,6 +248,37 @@ class SnapshotTests(unittest.TestCase):
         self.save(path, document)
         self.assert_refused_without_mutation()
 
+    def test_os_visible_ram_variation_preserves_platform_and_exact_observations(self):
+        original = site.load(self.desktop)
+        varied = deepcopy(original)
+        varied["machine"]["memory_bytes"] -= 24 * 1024
+        varied["machine"]["id"] = site.machine_id(varied["machine"])
+        self.save(self.desktop, varied)
+        snapshot = self.publish()
+        rows = [row for row in snapshot["results"] if row["machine"]["arch"] == "x86-64"]
+        self.assertEqual(len({row["machine"]["id"] for row in rows}), 1)
+        self.assertEqual({row["machine"]["memory_bytes"] for row in rows},
+                         {original["machine"]["memory_bytes"], varied["machine"]["memory_bytes"]})
+        self.assertEqual(len(snapshot["results"]), 56)
+
+    def test_changed_platform_or_default_allocation_cannot_replace_snapshot(self):
+        path = self.artifacts / "snapshot-result-desktop-x86-64-hash-50000" / "result.json"
+        original = site.load(path)
+        for field, value in (("cpu", "Other CPU"), ("os", "Linux other"),
+                             ("logical_cpus", 32), ("arch", "arm64")):
+            with self.subTest(field=field):
+                document = deepcopy(original)
+                document["machine"][field] = value
+                document["machine"]["id"] = site.machine_id(document["machine"])
+                self.save(path, document)
+                self.assert_refused_without_mutation()
+        document = deepcopy(original)
+        document["threads"] = 8
+        for sample in document["samples"]:
+            sample["threads"] = 8
+        self.save(path, document)
+        self.assert_refused_without_mutation()
+
     def test_inconsistent_machine_or_thread_metadata_is_rejected(self):
         original = site.load(self.desktop)
         for mutation in ("named", "sample", "machine", "verification"):

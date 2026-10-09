@@ -124,17 +124,25 @@
     return `hardware-${encodeURIComponent(machine.id)}`;
   }
 
-  function hardwareDetails(machine) {
+  function hardwareDetails(machines) {
+    const machine = machines[0];
     const list = element("dl", "hardware");
-    const memory = typeof machine.memory_bytes === "number" && machine.memory_bytes > 0
-      ? `${numberFormat.format(machine.memory_bytes / 1024 ** 3)} GiB`
-      : "Not recorded";
+    const memoryValues = machines.map((entry) => entry.memory_bytes).filter((value) => typeof value === "number" && value > 0);
+    let memory = "Not recorded";
+    if (memoryValues.length) {
+      const minimum = Math.min(...memoryValues);
+      const maximum = Math.max(...memoryValues);
+      memory = `${numberFormat.format(minimum / 1024 ** 3)} GiB`;
+      if (minimum !== maximum) {
+        memory += ` (observed ${minimum.toLocaleString("en")} to ${maximum.toLocaleString("en")} bytes)`;
+      }
+    }
     const fields = [
       ["CPU / SoC", text(machine.cpu)],
       ["Architecture", text(machine.arch)],
       ["Operating system", text(machine.os)],
       ["Logical CPUs", Number.isInteger(machine.logical_cpus) && machine.logical_cpus > 0 ? String(machine.logical_cpus) : "Not recorded"],
-      ["Memory", memory],
+      ["OS-visible RAM", memory],
     ];
     for (const [label, value] of fields) list.append(element("dt", "", label), element("dd", "", value));
     const entry = details(text(machine.name, machine.id), list);
@@ -152,8 +160,13 @@
   }
 
   function updateHardwareReference() {
-    const machines = [...new Map(measurements.map((row) => [row.machine.id, row.machine])).values()];
-    machines.sort((left, right) => text(left.name, left.id).localeCompare(text(right.name, right.id)));
+    const platforms = new Map();
+    for (const row of measurements) {
+      if (!platforms.has(row.machine.id)) platforms.set(row.machine.id, []);
+      platforms.get(row.machine.id).push(row.machine);
+    }
+    const machines = [...platforms.values()];
+    machines.sort((left, right) => text(left[0].name, left[0].id).localeCompare(text(right[0].name, right[0].id)));
     byId("hardware-list").replaceChildren(...machines.map(hardwareDetails));
     byId("hardware-reference").hidden = machines.length === 0;
     revealHardwareReference();
@@ -268,7 +281,7 @@
     for (const row of rows) {
       const key = JSON.stringify([
         row.program.name, row.program.source_url, row.workload, row.category,
-        ...["id", "name", "arch", "os", "cpu", "logical_cpus", "memory_bytes"].map((field) => row.machine[field]),
+        ...["id", "name", "arch", "os", "cpu", "logical_cpus"].map((field) => row.machine[field]),
       ]);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(row);
