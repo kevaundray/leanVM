@@ -26,8 +26,6 @@ PROGRAMS = {
     "hash-50000": ("BLAKE2s guest", "Hash 50,000 bytes through the precompile", "programs/hash/guest/src/main.rs"),
     "leanxmss-100": ("leanXMSS", "Verify 100 signatures", "programs/leanxmss/guest/src/main.rs"),
     "leansphincs-26": ("leanSPHINCS", "Verify 26 signatures", "programs/leansphincs/guest/src/main.rs"),
-    "falcon-7": ("Falcon-512", "Verify 7 signatures", "programs/falcon/guest/src/main.rs"),
-    "stateproof-5": ("L1 state proofs", "Verify 5 account and storage reads", "programs/stateproof/guest/src/main.rs"),
     "leanda-1": ("leanDA", "Check 1 blob of 128 KiB and compute its commitment", "programs/leanda/guest/src/main.rs"),
 }
 _SPEC = importlib.util.spec_from_file_location("mobile_report", Path(__file__).with_name("mobile-bench-report.py"))
