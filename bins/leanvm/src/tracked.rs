@@ -256,7 +256,10 @@ pub fn run(
             .filter(|(name, _)| only.is_none_or(|only| only == *name))
             .collect();
         if only == Some("leanda-1-16thread") {
-            cases.push(("leanda-1-16thread", (|name| Case::new(name, Workload::leanda(1))) as Build));
+            cases.push((
+                "leanda-1-16thread",
+                (|name| Case::new(name, Workload::leanda(1))) as Build,
+            ));
         }
         let trees: Vec<_> = proven_trees()
             .into_iter()
