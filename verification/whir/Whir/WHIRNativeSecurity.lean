@@ -63,8 +63,8 @@ private theorem real_union_bound [Fintype Coins] [Nonempty Coins]
       WHIRSourceMerkleSecurity.probability registry.publicRegistry Q (sources registry Q attackers) select whole := by
   classical
   unfold realProbability
-  rw [WHIRObservableSecurity.distinguish_average (inferInstance : Fintype (PrimitiveOracle × Coins)),
-    WHIRObservableSecurity.distinguish_average (inferInstance : Fintype (PrimitiveOracle × Coins))]
+  rw [FiatShamirGame.distinguish_average (inferInstance : Fintype (PrimitiveOracle × Coins)),
+    FiatShamirGame.distinguish_average (inferInstance : Fintype (PrimitiveOracle × Coins))]
   simp only [WHIRObservableSecurity.average_product (X := PrimitiveOracle) (Y := Coins)]
   rw [RawOracleCoupling.average_comm (X := PrimitiveOracle) (Y := Coins),
     RawOracleCoupling.average_comm (X := PrimitiveOracle) (Y := Coins)]
@@ -154,7 +154,11 @@ theorem random_compression_list_binding [Fintype Coins] [Nonempty Coins]
     (verifyAfter cap registry Q (attackers coins)) sourceA envelope
   exact WHIRPhysicalBinding.nativeFailure_or_frozen registry Q cap C (attackers coins) sourceQ (whole coins) failed
 
-/-- Deterministic BLAKE2s adds one separate primitive replacement gap for the final public native-acceptance event. No replacement assumption is made for the unobservable full-compression Merkle event, and no correctness/coverage premise is delegated to a cryptographic assumption. -/
+/-- Formal conditional deterministic-BLAKE2s inequality. The full-view primitive
+replacement premise is not a standard efficient-adversary hash assumption:
+`DuplexModeGame.concretePrimitiveGap_knownAnswer_lower_bound` forces a nearly
+unit loss when its class contains the elementary known-answer observer.
+No correctness/coverage premise is delegated to this replacement game. -/
 theorem concrete_list_binding [Fintype Coins] [Nonempty Coins]
     [Fintype DuplexPublicSimulator.Seed]
     (registry : ProductionRegistry) (Q a b Mf free : Nat)

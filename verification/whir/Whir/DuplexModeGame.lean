@@ -239,23 +239,20 @@ noncomputable def ModeAdv {Q : Nat} {Seed State AdvCoins Result : Type}
     (D : View Result → Bool) : ℚ :=
   |realProbability iv adversary D - idealProbability sim iv adversary counted D|
 
-/-- Precise remaining DMV18 Theorem 1 boundary for the proved concrete mode.
-It is universally quantified over adaptive programs and view distinguishers,
-not a PCS acceptance assertion. The actual simulator's RO calls are bounded. -/
+/-- Precise remaining stochastic DMV18 Theorem 1 boundary for the proved mode.
+Only the view-distinguishing inequality is assumed. The pinned simulator's
+query bound is proved separately, never a cryptographic certificate field. -/
 structure PublicRandomCompressionDMV (Q : Nat) (Seed State : Type) [Fintype Seed]
     (sim : Simulator Q Seed State) (iv : Digest32) : Prop where
-  simulatorBound : ∀ (AdvCoins Result : Type) [Fintype AdvCoins]
-    (adversary : AdvCoins → Program Result) (counted : ∀ a, Counts Q (adversary a))
-    (ro : RawKey Q → Digest32) (seed : Seed) (a : AdvCoins),
-    (runIdeal sim ro iv (sim.initial seed) (adversary a) Q (by omega) (counted a)).simulatorQueries ≤ Q
   distinguishing : ∀ (AdvCoins Result : Type) [Fintype AdvCoins]
     (adversary : AdvCoins → Program Result) (counted : ∀ a, Counts Q (adversary a))
     (D : View Result → Bool),
     ModeAdv sim iv adversary counted D ≤ dmvLoss Q
 
-/-- An explicit concrete-primitive idealization game, with its own loss and
-permitted computational class. No small bound for deterministic public BLAKE2s
-is asserted: in particular this is not an unconditional random-oracle theorem. -/
+/-- An explicit full-public-view deterministic-primitive replacement game.
+The known-answer theorem below rules out a small loss for any permitted class
+containing the elementary local-evaluation observer, including ordinary
+efficient classes. This is not a standard computational hash assumption. -/
 def ConcretePrimitiveGap (Q : Nat) (iv : Digest32) (loss : ℚ)
     (Allowed : (AdvCoins : Type) → [Fintype AdvCoins] → (Result : Type) →
       (AdvCoins → Program Result) → (View Result → Bool) → Prop) : Prop :=
@@ -263,6 +260,61 @@ def ConcretePrimitiveGap (Q : Nat) (iv : Digest32) (loss : ℚ)
     (D : View Result → Bool), Allowed AdvCoins Result adversary D →
     (∀ a, Counts Q (adversary a)) →
     |concreteProbability iv adversary D - realProbability iv adversary D| ≤ loss
+
+/-- One public primitive call, with no construction queries or hidden work. -/
+def knownAnswerAdversary (input : Node) : Unit → Program Digest32 :=
+  fun _ => .ask (.primitive .direct input) .done
+
+/-- The observer can evaluate the same public deterministic implementation
+locally. Resource bounds on oracle calls do not exclude this distinguisher. -/
+def knownAnswerDistinguisher (input : Node) (view : View Digest32) : Bool :=
+  decide (view.result = blake2sOracle input)
+
+theorem knownAnswer_counted (input : Node) (Q : Nat) (budget : 1 ≤ Q) :
+    ∀ coins, Counts Q (knownAnswerAdversary input coins) := by
+  intro coins
+  exact ⟨budget, fun _ => trivial⟩
+
+theorem knownAnswer_concreteProbability (iv : Digest32) (input : Node) :
+    concreteProbability iv (knownAnswerAdversary input) (knownAnswerDistinguisher input) = 1 := by
+  unfold concreteProbability
+  rw [distinguish_average (inferInstance : Fintype Unit)]
+  simp [knownAnswerAdversary, knownAnswerDistinguisher, runReal, realAnswer, prepend,
+    average]
+
+theorem knownAnswer_realProbability (iv : Digest32) (input : Node) :
+    realProbability iv (knownAnswerAdversary input) (knownAnswerDistinguisher input) =
+      1 / (2^256 : ℚ) := by
+  classical
+  unfold realProbability
+  rw [distinguish_average (inferInstance : Fintype (PrimitiveOracle × Unit))]
+  simp only [knownAnswerAdversary, knownAnswerDistinguisher, runReal, realAnswer, prepend,
+    decide_eq_true_eq]
+  have product (f : PrimitiveOracle → ℚ) :
+      average (fun coins : PrimitiveOracle × Unit => f coins.1) = average f := by
+    simp [average, Fintype.sum_prod_type, Fintype.card_prod]
+  rw [product (fun oracle => if oracle input = blake2sOracle input then 1 else 0)]
+  rw [fresh_coordinate input
+    (fun (_ : {j : Node // j ≠ input} → Digest32) d =>
+      if d = blake2sOracle input then (1 : ℚ) else 0)]
+  simp [average]
+  norm_num
+
+/-- The exact public-oracle replacement premise forces an essentially unit
+loss whenever its permitted class includes the elementary known-answer
+observer. This is an unconditional finite-game fact, not a hash conjecture. -/
+theorem concretePrimitiveGap_knownAnswer_lower_bound (Q : Nat) (iv : Digest32)
+    (input : Node) (loss : ℚ)
+    (Allowed : (AdvCoins : Type) → [Fintype AdvCoins] → (Result : Type) →
+      (AdvCoins → Program Result) → (View Result → Bool) → Prop)
+    (gap : ConcretePrimitiveGap Q iv loss Allowed) (budget : 1 ≤ Q)
+    (permitted : Allowed Unit Digest32 (knownAnswerAdversary input)
+      (knownAnswerDistinguisher input)) :
+    1 - 1 / (2^256 : ℚ) ≤ loss := by
+  have h := gap Unit Digest32 (knownAnswerAdversary input)
+    (knownAnswerDistinguisher input) permitted (knownAnswer_counted input Q budget)
+  rw [knownAnswer_concreteProbability, knownAnswer_realProbability] at h
+  exact (le_abs_self _).trans h
 
 /-- The structural prerequisites and executable construction equation are
 checked facts, never fields in either external cryptographic assumption. -/

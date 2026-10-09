@@ -395,7 +395,7 @@ abbrev StackAnswer {p : Profile} {cap : Nat} : StackRequest p cap → Type
   | .initial _ => RingPCSGame.Prefix × E
   | .later r _ => Answer r
 
-instance {p : Profile} {cap : Nat} (r : StackRequest p cap) : Fintype (StackAnswer r) := by
+noncomputable instance {p : Profile} {cap : Nat} (r : StackRequest p cap) : Fintype (StackAnswer r) := by
   cases r <;> unfold StackAnswer <;> infer_instance
 
 instance {p : Profile} {cap : Nat} (r : StackRequest p cap) : Nonempty (StackAnswer r) := by

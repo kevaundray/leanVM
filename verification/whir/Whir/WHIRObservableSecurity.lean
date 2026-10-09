@@ -51,14 +51,6 @@ theorem adversary_counted (registry : Public) (Q A Mf : Nat) (sources : Coins �
     (WHIRSourceBackfill.counted_reachable (context registry) Q A Mf (sources coins) select
       (before coins) (paths coins)) envelope
 
-theorem distinguish_average {C V : Type} {old : Fintype C} (new : Fintype C)
-    (experiment : C → V) (D : V → Bool) :
-    @distinguishProbability C V old experiment D =
-      @average C new (fun coin => if D (experiment coin) = true then 1 else 0) := by
-  classical
-  cases Subsingleton.elim old new
-  simp only [distinguishProbability,Soundness.uniformProb,average,Finset.sum_boole]
-
 theorem average_product {X Y : Type} [Fintype X] [Fintype Y] (f : X × Y → ℚ) :
     average f = average (fun x => average (fun y => f (x,y))) := by
   classical

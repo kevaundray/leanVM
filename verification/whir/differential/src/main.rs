@@ -158,11 +158,22 @@ fn production_smoke() {
             s_hat_v: slices,
         }],
     }];
-    let claims = vec![StackClaim::Point {
-        offset: 0,
-        low_point: point.clone(),
-        value: mle_eval(&stack, &point),
-    }];
+    let strided_point: Vec<_> = (0..vars - 2).map(|i| fixture(i + 90)).collect();
+    let strided_values: Vec<_> = stack[..1 << (vars - 1)].iter().skip(1).step_by(2).copied().collect();
+    let claims = vec![
+        StackClaim::Point {
+            offset: 0,
+            low_point: point[..vars - 1].to_vec(),
+            value: mle_eval(&stack[..1 << (vars - 1)], &point[..vars - 1]),
+        },
+        StackClaim::Strided {
+            offset: 0,
+            slot: 1,
+            stride_log: 1,
+            point: strided_point.clone(),
+            value: mle_eval(&strided_values, &strided_point),
+        },
+    ];
     let (commitment, pd) = whir::commit(&stack, log_n, config.initial_k(), 1);
     let label = b"whir-lean-production-smoke-fixed-statement-v1";
     let mut prover = ProverState::from_label(label);
@@ -171,10 +182,12 @@ fn production_smoke() {
     for ring in &rings {
         prover.add_scalars(&ring.claims[0].s_hat_v);
     }
-    prover.add_scalar(claims[0].value());
+    for claim in &claims {
+        prover.add_scalar(claim.value());
+    }
     stack_open::open(&mut prover, log_n, &stack, &pd, &config, &claims, &rings);
     let proof = prover.into_proof();
-    let accepts = |proof: &ProofTranscript, lanes: usize| -> bool {
+    let accepts_statement = |proof: &ProofTranscript, lanes: usize, point_claims: &[StackClaim], rings: &[RingSwitch]| -> bool {
         let mut verifier = VerifierState::from_label(label, proof);
         let Ok(root) = Receiver::next_root(&mut verifier) else {
             return false;
@@ -187,12 +200,15 @@ fn production_smoke() {
                 return false;
             }
         }
-        if Receiver::next_scalar(&mut verifier).ok() != Some(claims[0].value()) {
-            return false;
+        for claim in point_claims {
+            if Receiver::next_scalar(&mut verifier).ok() != Some(claim.value()) {
+                return false;
+            }
         }
-        stack_open::verify(&mut verifier, &config, log_n, lanes, root, &claims, &rings).is_ok()
+        stack_open::verify(&mut verifier, &config, log_n, lanes, root, point_claims, rings).is_ok()
             && verifier.finish().is_ok()
     };
+    let accepts = |proof: &ProofTranscript, lanes: usize| accepts_statement(proof, lanes, &claims, &rings);
     assert!(accepts(&proof, 1), "production honest opening rejected");
     let opening_start = 2 + rings[0].claims[0].s_hat_v.len() + claims.len();
     let first_ood = opening_start + 2 + 2 * config.initial_k() + 2;
@@ -222,12 +238,65 @@ fn production_smoke() {
     bad.merkle.pop();
     assert!(!accepts(&bad, 1), "production missing authentication accepted");
     assert!(!accepts(&proof, 0), "production zero lanes accepted");
+    // Current upstream checks range ends, but eq_at drops low offset bits and
+    // high slot bits. PR565 adds the missing checks; it is NOT integrated here.
+    // Keep these observations separate from the valid-domain Lean comparison.
+    for (name, index) in [("point_offset", 0), ("strided_offset", 1), ("strided_slot", 1)] {
+        let mut malformed = claims.clone();
+        let actual = match &mut malformed[index] {
+            StackClaim::Point { offset, low_point, .. } => {
+                *offset = 1;
+                mle_eval(&stack[*offset..*offset + (1 << low_point.len())], low_point)
+            }
+            StackClaim::Strided { offset, slot, stride_log, point, .. } => {
+                if name == "strided_slot" {
+                    *slot += 1 << *stride_log;
+                } else {
+                    *offset = 1;
+                }
+                let values: Vec<_> = (0..1 << point.len())
+                    .map(|j| stack[*offset + *slot + (j << *stride_log)])
+                    .collect();
+                mle_eval(&values, point)
+            }
+        };
+        assert_ne!(actual, malformed[index].value(), "selector fixture did not change the mathematical claim");
+        let observed = if accepts_statement(&proof, 1, &malformed, &rings) { "accepted" } else { "rejected" };
+        println!("rust_selector_{name}={observed}_incorrect_claim");
+    }
+    // Exercise checks that ARE present in current production before transcript
+    // reads, requiring the right error instead of an unrelated later refusal.
+    let empty = ProofTranscript { stream: vec![], merkle: vec![] };
+    let check_shape = |point_claims: &[StackClaim], rings: &[RingSwitch]| {
+        let mut verifier = VerifierState::from_label(label, &empty);
+        stack_open::verify(&mut verifier, &config, log_n, 1, commitment.root, point_claims, rings)
+    };
+    for index in 0..claims.len() {
+        let mut outside = claims.clone();
+        match &mut outside[index] {
+            StackClaim::Point { offset, .. } | StackClaim::Strided { offset, .. } => *offset = 1 << log_n,
+        }
+        assert!(matches!(check_shape(&outside, &rings), Err(whir::WhirError::PointClaim { index: i }) if i == index));
+    }
+    let mut bad_ring = rings.clone();
+    bad_ring[0].offset = 1;
+    assert!(matches!(check_shape(&claims, &bad_ring), Err(whir::WhirError::Region { index: 0 })));
+    let mut bad_ring = rings.clone();
+    bad_ring[0].claims[0].suffix_point.pop();
+    assert!(matches!(check_shape(&claims, &bad_ring), Err(whir::WhirError::Region { index: 0 })));
+    assert!(matches!(check_shape(&claims, &[]), Err(whir::WhirError::NoRingClaim)));
     println!(
-        "rust_smoke=honest,ring_switch,point_claim,truncated_lanes,short_stream,trailing_stream,bad_round,bad_ood,bad_final,missing_authentication,bad_layout"
+        "rust_smoke=honest,ring_switch,point_claim,strided_claim,truncated_lanes,short_stream,trailing_stream,bad_round,bad_ood,bad_final,missing_authentication,bad_layout,point_outside_cube,strided_outside_cube,unaligned_ring,ring_dimension,no_ring_claim"
     );
 }
 
 fn main() {
+    // These deployed APIs are removed by PR552's incompatible duplex cutover.
+    println!(
+        "rust_transcript=deployed_keyed_step,max_pending:{},squeeze_tag:{}",
+        fiat_shamir::MAX_PENDING,
+        fiat_shamir::DS_SQUEEZE.0,
+    );
     vectors();
     queries();
     production_smoke();

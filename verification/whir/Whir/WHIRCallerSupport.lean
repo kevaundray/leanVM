@@ -464,7 +464,7 @@ theorem production_point_nativeShape (sources : Array Source) (ps : Array Placem
         simp only [placeClaim,Option.some.injEq] at placed
         subst claim
         simpa only [SuccinctPointWeight.Shape,List.size_toArray] using
-          window_nativeShape sources w (List.mem_of_find?_eq_some hw) n c.point.length hl bound
+          (window_nativeShape sources w (List.mem_of_find?_eq_some hw) n c.point.length hl bound).2
     | port packed slot stride =>
       cases hw : lookupWindow sources packed with
       | none => simp [hs,hw] at hp
@@ -479,7 +479,7 @@ theorem production_point_nativeShape (sources : Array Source) (ps : Array Placem
           subst p
           simp only [placeClaim,Option.some.injEq] at placed
           subst claim
-          exact ⟨hshape.1,hshape.2.1,hshape.2.2,hf.1⟩
+          exact ⟨hshape.2.1,hshape.2.2,hf.1⟩
         · simp [columnFits,portSlotFits,columnDimension,hs,hw,hd] at fits
     | sliced =>
       simp [hs] at hp

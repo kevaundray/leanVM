@@ -74,4 +74,14 @@ theorem E_field_zero_def : (0 : E) = E.zero := rfl
 theorem E_field_one_def : (1 : E) = E.one := rfl
 
 end
+
+/-- Executable ring kernels must not synthesize their operation dictionaries
+through the noncomputable finite-field inverse. These are exactly the
+previously proved concrete ring's superclass dictionaries, not new operations. -/
+instance : AddZeroClass E := instCommRingE.toAddZeroClass
+instance : AddCommMonoid E := instCommRingE.toAddCommMonoid
+instance : CommMonoid E := instCommRingE.toCommMonoid
+instance : Monoid E := instCommRingE.toMonoid
+instance : Sub E := instCommRingE.toSub
+
 end Whir.FieldModel

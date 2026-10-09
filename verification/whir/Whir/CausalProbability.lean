@@ -24,7 +24,7 @@ abbrev Sample {c : Config} : Coordinate c → Type
   | .query i => (Fin (queryChunks c i.val) → E) × E
   | .tail _ => E
 
-instance {c : Config} (q : Coordinate c) : Fintype (Sample q) := by
+noncomputable instance {c : Config} (q : Coordinate c) : Fintype (Sample q) := by
   cases q <;> unfold Sample <;> infer_instance
 
 instance {c : Config} (q : Coordinate c) : Zero (Sample q) := by

@@ -10,7 +10,7 @@ open WHIRHistory (Pending)
 
 abbrev Sample {c : Config} : Coordinate c → Type := WHIRHistory.StackSample
 
-instance {c : Config} (q : Coordinate c) : Fintype (Sample q) := by
+noncomputable instance {c : Config} (q : Coordinate c) : Fintype (Sample q) := by
   cases q <;> unfold Sample <;> infer_instance
 instance {c : Config} (q : Coordinate c) : Nonempty (Sample q) := by
   cases q <;> unfold Sample <;> infer_instance

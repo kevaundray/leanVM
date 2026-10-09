@@ -140,6 +140,28 @@ lemma alignedRegion_mle {d h : Nat} (q : Nat) (bound : q < 2^h)
   rw [← hchosen, eqBits_cubeIndex]
   exact mul_comm _ _
 
+/-- No coordinate-length assumption is needed: a complete block fitting inside
+the cube cannot have more coordinates than the cube. This uses unbounded natural
+arithmetic, not unchecked Rust `usize` shifts or additions. -/
+theorem dimension_le_of_block_bound (offset d n : Nat)
+    (bounded : offset + 2^d ≤ 2^n) : d ≤ n := by
+  exact (Nat.pow_le_pow_iff_right (by decide : 1 < 2)).mp
+    ((Nat.le_add_left (2^d) offset).trans bounded)
+
+/-- The high selector fits in precisely the suffix coordinates consumed by
+`eq_bits`; no high bits are silently discarded. -/
+theorem selector_lt_of_block_bound (offset d n : Nat)
+    (aligned : offset % 2^d = 0) (bounded : offset + 2^d ≤ 2^n) :
+    offset >>> d < 2^(n-d) := by
+  have dimension := dimension_le_of_block_bound offset d n bounded
+  have positive : 0 < 2^d := by positivity
+  have offset_eq : offset = 2^d*(offset/2^d) := by
+    have h := Nat.mod_add_div offset (2^d)
+    omega
+  rw [show n = d + (n-d) by omega, pow_add, offset_eq] at bounded
+  rw [Nat.shiftRight_eq_div_pow]
+  nlinarith
+
 /-- Arbitrary low-dimensional weights scatter onto an aligned dyadic region.
 The arithmetic selector and full cube bound are proved, not bridge premises. -/
 theorem region_mle {d h : Nat} (offset : Nat) (f : Nat → R)
@@ -147,13 +169,12 @@ theorem region_mle {d h : Nat} (offset : Nat) (f : Nat → R)
     (aligned : offset % 2^d = 0) (bounded : offset+2^d ≤ 2^(d+h)) :
     natMle (d+h) (region offset d f) (Fin.addCases lo hi) =
       natMle d f lo * eqBits (offset/2^d) hi := by
-  have positive : 0 < 2^d := by positivity
   have offset_eq : offset = 2^d*(offset/2^d) := by
     have h := Nat.mod_add_div offset (2^d)
     omega
   have bound : offset/2^d < 2^h := by
-    rw [pow_add, offset_eq] at bounded
-    nlinarith
+    simpa only [Nat.shiftRight_eq_div_pow, Nat.add_sub_cancel_left] using
+      selector_lt_of_block_bound offset d (d+h) aligned bounded
   conv_lhs => rw [offset_eq]
   exact alignedRegion_mle _ bound _ _ _
 
@@ -275,12 +296,32 @@ def eqAt : RingPCSGame.PointClaim → Array Concrete.E → Concrete.E
       (eqBitsAt slot x 0 stride * eqEval point x stride) *
         eqBitsAt (offset >>> (stride+point.size)) x (stride+point.size) (x.size-(stride+point.size))
 
+/-- Exact dyadic selector guards. The block range already implies that every
+coordinate slice used by `eqAt` is in bounds; dimension is not a separate premise. -/
 def Shape (n : Nat) : RingPCSGame.PointClaim → Prop
   | .point offset point _ =>
-      point.size ≤ n ∧ offset % 2^point.size = 0 ∧ offset+2^point.size ≤ 2^n
+      offset % 2^point.size = 0 ∧ offset+2^point.size ≤ 2^n
   | .strided offset slot stride point _ =>
-      stride+point.size ≤ n ∧ offset % 2^(stride+point.size) = 0 ∧
+      offset % 2^(stride+point.size) = 0 ∧
         offset+2^(stride+point.size) ≤ 2^n ∧ slot < 2^stride
+
+theorem Shape.point_iff (n offset : Nat) (point : Array Concrete.E) (value : Concrete.E) :
+    Shape n (.point offset point value) ↔
+      point.size ≤ n ∧ offset % 2^point.size = 0 ∧ offset+2^point.size ≤ 2^n := by
+  constructor
+  · intro shape
+    exact ⟨dimension_le_of_block_bound offset point.size n shape.2, shape⟩
+  · exact fun shape => shape.2
+
+theorem Shape.strided_iff (n offset slot stride : Nat)
+    (point : Array Concrete.E) (value : Concrete.E) :
+    Shape n (.strided offset slot stride point value) ↔
+      stride+point.size ≤ n ∧ offset % 2^(stride+point.size) = 0 ∧
+        offset+2^(stride+point.size) ≤ 2^n ∧ slot < 2^stride := by
+  constructor
+  · intro shape
+    exact ⟨dimension_le_of_block_bound offset (stride+point.size) n shape.2.1, shape⟩
+  · exact fun shape => shape.2
 
 instance (n : Nat) (claim : RingPCSGame.PointClaim) : Decidable (Shape n claim) := by
   cases claim <;> unfold Shape <;> infer_instance
@@ -357,7 +398,7 @@ theorem eqAt_eq_natMle (n : Nat) (claim : RingPCSGame.PointClaim) (x : Fin n →
     eqAt claim (Array.ofFn x) = natMle n (RingPCSGame.pointWeight claim) x := by
   cases claim with
   | point offset point value =>
-    obtain ⟨dimension,aligned,bounded⟩ := shape
+    obtain ⟨dimension,aligned,bounded⟩ := (Shape.point_iff n offset point value).mp shape
     obtain ⟨h,rfl⟩ := Nat.exists_eq_add_of_le dimension
     have split : x = Fin.addCases (fun i => x (Fin.castAdd h i)) (fun i => x (Fin.natAdd point.size i)) := by
       ext i
@@ -365,7 +406,7 @@ theorem eqAt_eq_natMle (n : Nat) (claim : RingPCSGame.PointClaim) (x : Fin n →
     rw [split]
     exact (point_mle offset point value _ _ aligned bounded).symm
   | strided offset slot stride point value =>
-    obtain ⟨dimension,aligned,bounded,valid⟩ := shape
+    obtain ⟨dimension,aligned,bounded,valid⟩ := (Shape.strided_iff n offset slot stride point value).mp shape
     obtain ⟨h,rfl⟩ := Nat.exists_eq_add_of_le dimension
     let low : Fin stride → Concrete.E := fun i => x (Fin.castAdd h (Fin.castAdd point.size i))
     let middle : Fin point.size → Concrete.E := fun i => x (Fin.castAdd h (Fin.natAdd stride i))

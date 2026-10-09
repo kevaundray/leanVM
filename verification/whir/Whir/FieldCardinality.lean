@@ -15,7 +15,9 @@ def wordEquiv : K ≃ Fin (2^64) where
   left_inv := by intro a; rfl
   right_inv := by intro a; rfl
 
-instance : Fintype K := Fintype.ofEquiv (Fin (2^64)) wordEquiv.symm
+/-- Cardinality evidence is proof-only: compiling this enumeration would
+eagerly allocate all 2^64 elements during executable module initialization. -/
+noncomputable instance : Fintype K := Fintype.ofEquiv (Fin (2^64)) wordEquiv.symm
 
 /-- The extension carrier has three independent machine-word coordinates. -/
 def extensionEquiv : E ≃ K × K × K where
@@ -24,7 +26,7 @@ def extensionEquiv : E ≃ K × K × K where
   left_inv := by intro a; cases a; rfl
   right_inv := by intro a; rcases a with ⟨a,b,c⟩; rfl
 
-instance : Fintype E := Fintype.ofEquiv (K × K × K) extensionEquiv.symm
+noncomputable instance : Fintype E := Fintype.ofEquiv (K × K × K) extensionEquiv.symm
 
 @[simp] theorem card_K : Fintype.card K = 2^64 := by
   rw [Fintype.card_congr wordEquiv, Fintype.card_fin]

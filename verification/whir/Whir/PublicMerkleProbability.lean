@@ -86,9 +86,9 @@ private theorem children_card {A B D : Type*} (H : MerkleBinding.Hashing A D B) 
   change (roots log ∪ pairChildren log ∪ cvTargets log).card ≤ _
   omega
 
- theorem badTargets_card (roots : RootPolicy) (log : PublicLog) (R Q : Nat)
-    (cap : (roots log).card ≤ R) (budget : log.length ≤ Q) :
-    (badTargets roots log).card ≤ R+3*Q+log.length := by
+ theorem badTargets_card (roots : RootPolicy) (log : PublicLog) (R : Nat)
+    (cap : (roots log).card ≤ R) :
+    (badTargets roots log).card ≤ R+4*log.length := by
   have hu := Finset.card_union_le (outputTargets log) (targets roots log)
   have ho := outputTargets_card log
   have ht := targets_card roots log R cap
@@ -113,14 +113,15 @@ noncomputable def risk {T : Type} (roots : RootPolicy) {Q : Nat} :
       | none => average (fun d => if d ∈ badTargets roots log then 1
           else risk roots (next d) ((n,d)::log))
 
-/-- Exact birthday term plus the chosen conservative target term. -/
+/-- Sum the actual causal target counts: at call i there are at most R roots
+and four targets per prior call, not three targets per final-budget call. -/
 def bound (Q R : Nat) : ℚ :=
-  ((Q : ℚ)*(Q-1)/2 + Q*(R+3*Q)) / 2^256
+  ((Q : ℚ)*R + 2*Q*(Q-1)) / 2^256
 
-private def remainingBound (Q R remaining previous : Nat) : ℚ :=
-  ((remaining : ℚ)*(R+3*Q+previous) + remaining*(remaining-1)/2) / 2^256
+private def remainingBound (R remaining previous : Nat) : ℚ :=
+  ((remaining : ℚ)*(R+4*previous) + 2*remaining*(remaining-1)) / 2^256
 
-private theorem remaining_nonneg (Q R n m : Nat) : 0 ≤ remainingBound Q R n m := by
+private theorem remaining_nonneg (R n m : Nat) : 0 ≤ remainingBound R n m := by
   cases n with
   | zero => simp [remainingBound]
   | succ n =>
@@ -128,9 +129,9 @@ private theorem remaining_nonneg (Q R n m : Nat) : 0 ≤ remainingBound Q R n m 
     simp only [Nat.cast_add,Nat.cast_one,add_sub_cancel_right]
     positivity
 
-private theorem remaining_step (Q R n m : Nat) :
-    remainingBound Q R (n+1) m =
-      (R+3*Q+m : ℚ)/2^256 + remainingBound Q R n (m+1) := by
+private theorem remaining_step (R n m : Nat) :
+    remainingBound R (n+1) m =
+      (R+4*m : ℚ)/2^256 + remainingBound R n (m+1) := by
   unfold remainingBound
   push_cast
   ring
@@ -143,16 +144,16 @@ private theorem remaining_step (Q R n m : Nat) :
  theorem risk_bound {T : Type} (roots : RootPolicy) (Q R : Nat)
     (rootCap : ∀ log, log.length ≤ Q → (roots log).card ≤ R)
     {n : Nat} (p : Computation T n) (log : PublicLog) (budget : log.length+n ≤ Q) :
-    risk roots p log ≤ remainingBound Q R n log.length := by
+    risk roots p log ≤ remainingBound R n log.length := by
   classical
   induction p generalizing log with
-  | ret value => exact remaining_nonneg _ _ _ _
+  | ret value => exact remaining_nonneg _ _ _
   | @draw n input next ih =>
     have hbudget : log.length ≤ Q := by omega
     have hcap := rootCap log hbudget
-    have hcard := badTargets_card roots log R Q hcap hbudget
-    have hstep := remaining_step Q R n log.length
-    have hnon : (0 : ℚ) ≤ (R+3*Q+log.length : ℚ)/2^256 := by positivity
+    have hcard := badTargets_card roots log R hcap
+    have hstep := remaining_step R n log.length
+    have hnon : (0 : ℚ) ≤ (R+4*log.length : ℚ)/2^256 := by positivity
     cases hit : PublicMerkleLog.lookup log input with
     | some d =>
       simp only [risk,hit]
@@ -165,10 +166,10 @@ private theorem remaining_step (Q R n m : Nat) :
       calc
         _ ≤ average (fun d : Digest32 =>
             (if d ∈ badTargets roots log then (1:ℚ) else 0) +
-              remainingBound Q R n (log.length+1)) := by
+              remainingBound R n (log.length+1)) := by
           apply average_mono
           intro d
-          have hn := remaining_nonneg Q R n (log.length+1)
+          have hn := remaining_nonneg R n (log.length+1)
           have ht := ih d ((input,d)::log) (by simp only [List.length_cons]; omega)
           simp only [List.length_cons] at ht
           by_cases bad : d ∈ badTargets roots log
@@ -176,9 +177,9 @@ private theorem remaining_step (Q R n m : Nat) :
             linarith
           · simpa only [bad,↓reduceIte,zero_add] using ht
         _ = (badTargets roots log).card / (2^256 : ℚ) +
-            remainingBound Q R n (log.length+1) := by
+            remainingBound R n (log.length+1) := by
           rw [average_add,uniform_target_probability,average_const]
-        _ ≤ (R+3*Q+log.length : ℚ)/2^256 + remainingBound Q R n (log.length+1) := by
+        _ ≤ (R+4*log.length : ℚ)/2^256 + remainingBound R n (log.length+1) := by
           apply add_le_add_left
           apply div_le_div_of_nonneg_right _ (by positivity)
           exact_mod_cast hcard
@@ -242,8 +243,8 @@ or whole-hash table appears here. -/
   have hb := risk_bound roots Q R rootCap p [] (by simp)
   calc
     _ = risk roots p [] := he
-    _ ≤ remainingBound Q R Q 0 := hb
-    _ = bound Q R := by simp only [remainingBound,bound,Nat.cast_zero,add_zero]; ring
+    _ ≤ remainingBound R Q 0 := hb
+    _ = bound Q R := by simp only [remainingBound,bound,Nat.cast_zero]; ring
 
 /-- Actual mode specialization includes every internal construction node.
 The independent R resource cap is not inferred from the mode C-call budget. -/
@@ -474,7 +475,7 @@ noncomputable def openingProbability {T : Type} (roots : RootPolicy) {Q : Nat}
 
 /-- Genuine adaptive random-compression bound for the public Merkle opening
 event, with all collision/fresh-target cases discharged by the causal trace
-monitor. Exact constants: Q(Q-1)/2 + Q(R+3Q), over 2^256. -/
+monitor. Exact constants: QR + 2Q(Q-1), over 2^256. -/
  theorem opening_probability_bound {T : Type} (roots : RootPolicy) (Q R : Nat)
     (rootCap : ∀ log, log.length ≤ Q → (roots log).card ≤ R)
     (grow : RootsGrow roots) (p : Computation T Q) : openingProbability roots p ≤ bound Q R := by
@@ -521,6 +522,6 @@ noncomputable def audit {T : Type} (roots : RootPolicy) {Q : Nat} :
   simpa only [audit_eval] using random_compression_bound roots Q R rootCap p
 
 theorem four_calls_two_roots :
-    bound 4 2 = (62 : ℚ) / 2^256 := by norm_num [bound]
+    bound 4 2 = (32 : ℚ) / 2^256 := by norm_num [bound]
 
 end Whir.PublicMerkleProbability

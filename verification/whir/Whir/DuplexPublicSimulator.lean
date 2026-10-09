@@ -542,8 +542,7 @@ theorem security_of_distinguishing (Q : Nat) (iv : Digest32)
     letI := seedFintype
     PublicRandomCompressionDMV Q Seed State (simulator Q) iv := by
   let := seedFintype
-  exact ⟨fun _ _ _ adversary counted ro seed a =>
-    simulatorBound ro iv _ (adversary a) Q (by omega) (counted a), distinguishing⟩
+  exact ⟨distinguishing⟩
 
 theorem recognized_publicBody {log : PublicLog} {input : Node} {ns : List Node}
     (h : recognized log input = some ns) :

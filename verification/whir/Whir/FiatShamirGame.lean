@@ -445,6 +445,14 @@ def distinguishProbability {Coins View : Type*} [Fintype Coins]
   classical
   exact Soundness.uniformProb (Finset.univ.filter fun r => distinguisher (experiment r) = true)
 
+theorem distinguish_average {Coins View : Type*} {old : Fintype Coins}
+    (new : Fintype Coins) (experiment : Coins → View) (D : View → Bool) :
+    @distinguishProbability Coins View old experiment D =
+      @average Coins new (fun coin => if D (experiment coin) = true then 1 else 0) := by
+  classical
+  cases Subsingleton.elim old new
+  simp only [distinguishProbability, Soundness.uniformProb, average, Finset.sum_boole]
+
 /-- A standard distinguishing assumption, universally quantified over the
 permitted view distinguishers; it contains no PCS relation or FS acceptance. -/
 def ModeSecure {Coins View : Type*} [Fintype Coins] (G : ModeGame Coins View)
