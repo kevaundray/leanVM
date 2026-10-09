@@ -1,4 +1,49 @@
-//! leanVM: the arithmetization of a RISC-V (rv64im) zkVM (see `doc/leanvm/main.tex`).
+//! leanVM: a minimal zkVM for RISC-V (rv64im).
+//!
+//! # Overview
+//!
+//! A program is a guest's ELF executable, or a text written by hand with the assembler.
+//!
+//! The prover runs it on its advice and proves the run.
+//!
+//! The verifier checks the proof against two public things only:
+//!
+//! - the program,
+//! - the output the run claims, the registers `a0..a3` at its exit.
+//!
+//! ```text
+//!     prover  : program + advice  ──run──▶  output  ──prove──▶  proof
+//!     verifier: program + output + proof  ──▶  accept or refuse
+//! ```
+//!
+//! # The advice
+//!
+//! The advice is the words the program finds at the advice base.
+//!
+//! It is the prover's alone: the statement says nothing about it, beyond how many words fit.
+//!
+//! So a proof shows that *some* advice makes the program exit with the output.
+//!
+//! What a program reads there, it must check itself.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use leanvm::{Program, Proof, Prover, Rate};
+//!
+//! // The prover's side.
+//! let program = Program::from_elf(&std::fs::read("guest.elf")?)?;
+//! let run = Prover::new(Rate::MIN).prove(&program, &[42])?;
+//! let bytes = run.proof.to_bytes();
+//!
+//! // The verifier's side: the same program, the claimed output, and the bytes.
+//! program.verify(run.output, &Proof::from_bytes(&bytes)?)?;
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! Many proofs of one program aggregate into one proof through the aggregation module.
+//!
+//! # Implementation
 //!
 //! Machine words, addresses, the pc and timestamps are integers, each read as the element of `K = GF(2^64)` with those bits.
 //! A timestamp is `2^40 | cycle << 5 | slot`, and the clock circuit of each table orders its accesses and steps it (§sec:memchan).
@@ -30,8 +75,9 @@ mod rv;
 mod tables;
 mod witness;
 
-pub use self::pcs::{InvalidRate, Rate};
+pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
+#[doc(hidden)]
 pub use rec::tree::{
     CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
     TreeShape, Unsatisfied,
@@ -39,7 +85,7 @@ pub use rec::tree::{
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
 
 #[doc(hidden)]
-pub use self::pcs::{MAX_MU, MIN_MU};
+pub use crate::pcs::{MAX_MU, MIN_MU};
 #[doc(hidden)]
 pub use class_flock::{FlockId, MIN_CUBE_LOG, N_FLOCKS};
 #[doc(hidden)]
@@ -51,12 +97,7 @@ pub use leaf::{BusError, N_TUPLE_BITS};
 #[doc(hidden)]
 pub use rv::{Alu, Class, Guest, Hash, Machine, Reg, RegisterFile, Syscall};
 #[doc(hidden)]
-pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId};
-
-/// The proof's soundness target, in bits.
-///
-/// WHIR parameters and the bus soundness check share this target.
-pub const SECURITY_BITS: u32 = ::pcs::whir::SECURITY_BITS as u32;
+pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId, Word};
 
 /// Prepare the process for proving: spawn the worker pool up front.
 ///
@@ -76,3 +117,28 @@ pub fn init_prover() {
 /// Below this many parallelizable items a pass runs serially: the fan-out
 /// overhead is not worth it for small inputs. Shared by [`constraints`], [`gkr`], [`leaf`].
 pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
+
+/// Aggregation trees: many proofs of one program, verified as one.
+///
+/// # Overview
+///
+/// ```text
+///                 node                  verifies `arity` tree proofs, of either kind
+///               /      \
+///        first-level   first-level      each verifies `arity_0` proofs of the program
+///          /  \          /  \
+///       leaf  leaf    leaf  leaf
+/// ```
+///
+/// Every tree proof states the same few hundred words:
+///
+/// - a digest of its leaves' outputs,
+/// - claims that only the root's verifier evaluates.
+///
+/// A tree over one leaf, with `arity_0 = 1`, is a single proof's recursion.
+pub mod aggregate {
+    pub use crate::rec::tree::{
+        CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
+        TreeShape, Unsatisfied,
+    };
+}

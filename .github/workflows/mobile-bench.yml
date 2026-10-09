@@ -1,0 +1,255 @@
+name: Mobile benchmarks
+
+on:
+  pull_request:
+  push:
+    branches: [kw/mobile-bench-browserstack]
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-bench-${{ github.event_name == 'pull_request' && github.ref || 'browserstack' }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,-sha3
+  CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
+  CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
+  CARGO_TARGET_X86_64_APPLE_IOS_RUSTFLAGS: -C target-cpu=generic
+  CARGO_TERM_COLOR: never
+  CARGO_BUILD_JOBS: '2'
+
+jobs:
+  android:
+    name: Android ARM64 release
+    # Keep provider sessions sequential and use the source already resolved by iOS.
+    needs: ios
+    if: always() && !cancelled() && needs.ios.outputs.source_sha != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      has_results: ${{ steps.results.outputs.exists }}
+    defaults:
+      run:
+        working-directory: bench-mobile
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.ios.outputs.source_sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.99.0
+          targets: aarch64-linux-android
+      - uses: android-actions/setup-android@651bceb6f9ca583f16b8d75b62c36ded2ae6fc9c # v4.0.0
+        with:
+          cmdline-tools-version: '13114758'
+          packages: platform-tools
+      - name: Select Java and install pinned Android packages
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          sdkmanager --install 'platforms;android-34' 'build-tools;34.0.0' 'ndk;26.1.10909125'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          export GRADLE_USER_HOME="$RUNNER_TEMP/mobile-bench-gradle"
+          echo "GRADLE_USER_HOME=$GRADLE_USER_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$GRADLE_USER_HOME"
+          printf 'org.gradle.workers.max=2\norg.gradle.daemon=false\n' > "$GRADLE_USER_HOME/gradle.properties"
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        with:
+          gradle-version: '8.5'
+          cache-disabled: true
+          add-job-summary: never
+          dependency-graph: disabled
+      - name: Install pinned host tools
+        env:
+          RUSTFLAGS: ''
+        run: |
+          cargo install cargo-ndk --version 4.1.2 --locked
+          cargo install mobench --git https://github.com/worldcoin/mobile-bench-rs --rev 217cfd4f78db1284276a1a1da44e3bf473729f5c --locked
+      - name: Build crypto-enabled ARM64 runner and test APKs without credentials
+        run: |
+          python3 ../scripts/mobile-bench-package.py --platform android shielded_prove
+          python3 ../scripts/mobile-bench-package.py --platform android shielded_aggregate
+      - name: Save credential-free release packages
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: mobile-bench-android-packages
+          path: bench-mobile/target/mobile-bench-packages/android/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Validate candidate device and run trusted benchmarks
+        if: >-
+          (github.repository == 'kevaundray/leanVM' || github.repository == 'leanEthereum/leanVM') &&
+          ((github.event_name == 'schedule' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/riscv-exploration')) ||
+           (github.event_name == 'workflow_dispatch' &&
+            (github.ref == 'refs/heads/riscv-exploration' || github.ref == 'refs/heads/kw/mobile-bench-browserstack')))
+        timeout-minutes: 65
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+        run: python3 ../scripts/mobile-bench-run.py --platform android
+      - name: Publish mobile results in the Actions summary
+        id: results
+        if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+        env:
+          SOURCE_SHA: ${{ needs.ios.outputs.source_sha }}
+        run: |
+          if [ -f target/mobile-bench-results/android/metadata.json ]; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            python3 ../scripts/mobile-bench-report.py target/mobile-bench-results/android \
+              --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID"
+          else
+            echo '### Mobile benchmarks' >> "$GITHUB_STEP_SUMMARY"
+            echo 'No device results were produced. See the failed build or device step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save sanitized results and provenance
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: mobile-bench-android-results
+          path: bench-mobile/target/mobile-bench-results/android/
+          if-no-files-found: warn
+          retention-days: 30
+
+  ios:
+    name: iOS ARM64 release
+    if: >-
+      github.event_name == 'pull_request' ||
+      ((github.repository == 'kevaundray/leanVM' || github.repository == 'leanEthereum/leanVM') &&
+       ((github.event_name == 'schedule' &&
+         (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/riscv-exploration')) ||
+        (github.event_name == 'workflow_dispatch' &&
+         (github.ref == 'refs/heads/riscv-exploration' || github.ref == 'refs/heads/kw/mobile-bench-browserstack')) ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/kw/mobile-bench-browserstack')))
+    runs-on: macos-15
+    timeout-minutes: 150
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+      has_results: ${{ steps.results.outputs.exists }}
+    defaults:
+      run:
+        working-directory: bench-mobile
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+      XCODE_XCCONFIG_FILE: ${{ github.workspace }}/bench-mobile/ios.xcconfig
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'riscv-exploration' || github.sha }}
+          persist-credentials: false
+      - name: Record benchmark source
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Check mobile report integrity
+        run: python3 ../scripts/test_mobile_bench_report.py
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.99.0
+          # The pinned native-C-ABI builder creates device and universal simulator slices.
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Select pinned Xcode SDK and XcodeGen
+        run: |
+          xcodebuild -version
+          test "$(xcrun --sdk iphoneos --show-sdk-version)" = '18.5'
+          curl --fail --location --silent --show-error \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.44.1/xcodegen.zip \
+            --output "$RUNNER_TEMP/xcodegen.zip"
+          echo "a2e905fb68446e9bb4008cdfe2e13e3f176d0cbcca828b71770f8e53fca91b73  $RUNNER_TEMP/xcodegen.zip" \
+            | shasum -a 256 --check
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/mobile-bench-tools"
+          echo "$RUNNER_TEMP/mobile-bench-tools/xcodegen/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/mobile-bench-tools/xcodegen/bin/xcodegen" --version
+      - name: Install pinned host tools
+        env:
+          RUSTFLAGS: ''
+        run: cargo install mobench --git https://github.com/worldcoin/mobile-bench-rs --rev 217cfd4f78db1284276a1a1da44e3bf473729f5c --locked
+      - name: Build release IPA and XCUITest without credentials
+        run: |
+          python3 ../scripts/mobile-bench-package.py --platform ios shielded_prove
+          python3 ../scripts/mobile-bench-package.py --platform ios shielded_aggregate
+      - name: Save credential-free release packages
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: mobile-bench-ios-packages
+          path: bench-mobile/target/mobile-bench-packages/ios/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Validate iPhone 14 iOS 16 and run trusted benchmarks
+        if: >-
+          (github.repository == 'kevaundray/leanVM' || github.repository == 'leanEthereum/leanVM') &&
+          ((github.event_name == 'schedule' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/riscv-exploration')) ||
+           (github.event_name == 'workflow_dispatch' &&
+            (github.ref == 'refs/heads/riscv-exploration' || github.ref == 'refs/heads/kw/mobile-bench-browserstack')))
+        timeout-minutes: 65
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+        run: python3 ../scripts/mobile-bench-run.py --platform ios
+      - name: Publish mobile results in the Actions summary
+        id: results
+        if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          if [ -f target/mobile-bench-results/ios/metadata.json ]; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            python3 ../scripts/mobile-bench-report.py target/mobile-bench-results/ios \
+              --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID"
+          else
+            echo '### Mobile benchmarks: iOS' >> "$GITHUB_STEP_SUMMARY"
+            echo 'No device results were produced. See the failed build or device step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save sanitized results and provenance
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: mobile-bench-ios-results
+          path: bench-mobile/target/mobile-bench-results/ios/
+          if-no-files-found: warn
+          retention-days: 30
+
+  comment:
+    name: Publish mobile benchmark PR comment
+    needs: [android, ios]
+    if: >-
+      always() && !cancelled() &&
+      (needs.android.outputs.has_results == 'true' || needs.ios.outputs.has_results == 'true') &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.ios.outputs.source_sha }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: needs.android.outputs.has_results == 'true'
+        with:
+          name: mobile-bench-android-results
+          path: mobile-results/android
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: needs.ios.outputs.has_results == 'true'
+        with:
+          name: mobile-bench-ios-results
+          path: mobile-results/ios
+      - name: Update the matching current-head PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ needs.ios.outputs.source_sha }}
+        run: |
+          python3 scripts/mobile-bench-report.py mobile-results/* \
+            --repository "$GITHUB_REPOSITORY" --head "$SOURCE_SHA" --run-id "$GITHUB_RUN_ID" \
+            --comment-repository "$GITHUB_REPOSITORY"
