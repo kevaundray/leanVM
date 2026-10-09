@@ -2,6 +2,7 @@
 
 use std::any::Any;
 use std::cell::{Cell, UnsafeCell};
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::ptr::NonNull;
@@ -121,6 +122,18 @@ pub fn init() {
         let _ = pool();
         for_each(num_threads(), |_| {});
     });
+}
+
+/// Initialize exactly `threads` workers, including the dispatcher, without changing process environment.
+///
+/// Call before any parallel operation. Repeating the same configuration succeeds.
+///
+/// # Errors
+/// Returns the existing topology if another configuration already initialized it.
+pub fn init_with_threads(threads: NonZeroUsize) -> Result<(), Topology> {
+    topology::configure_threads(threads)?;
+    init();
+    Ok(())
 }
 
 fn pool() -> &'static Pool {

@@ -297,19 +297,41 @@ fn truncated_lanes_match_an_explicit_zero_tail() {
     }
 }
 
-/// The sparse transposed-NTT induce must be byte-identical to the dense
-/// LCH-expansion induce (same guarantee the original pins). Covers both
-/// the windowed sparse-prefix path (log_block >= 12, k = 8) and the
-/// scatter + full-dense-transpose path (log_block < 12, k = 0).
+/// The pruned transposed NTT must match dense LCH expansion, including zero
+/// rate, a rate overlapping or exhausting the sparse prefix, empty inputs,
+/// and repeated queries accumulated in transcript order.
 #[test]
 fn induce_via_ntt_matches_dense() {
     let mut rng = Rng::new(9);
-    for (log_msg_cols, log_inv_rate, lanes_log, n_queries) in [(12usize, 1usize, 5usize, 130usize), (6, 2, 3, 40)] {
+    for (log_msg_cols, log_inv_rate, lanes_log, n_queries) in [
+        (12usize, 1usize, 5usize, 130usize),
+        (6, 2, 3, 40),
+        (6, 0, 2, 16),
+        (12, 0, 1, 16),
+        (8, 4, 1, 16),
+        (5, 7, 1, 16),
+        (1, 11, 1, 16),
+        (0, 12, 0, 16),
+        (0, 0, 0, 1),
+        (0, 1, 0, 2),
+        (6, 2, 1, 0),
+        (5, 7, 1, 0),
+        (12, 1, 1, 0),
+    ] {
         let block_len = 1usize << (log_msg_cols + log_inv_rate);
         let lanes = 1usize << lanes_log;
-        // Distinct sorted query positions plus one aligned random row each.
+        // Include both domain endpoints, then append repeats after the
+        // sorted distinct queries to cover accumulation across sparse windows.
         let mut qs: Vec<usize> = Vec::new();
         let mut seen = HashSet::new();
+        if n_queries > 0 {
+            qs.push(0);
+            seen.insert(0);
+        }
+        if n_queries > 1 {
+            qs.push(block_len - 1);
+            seen.insert(block_len - 1);
+        }
         while qs.len() < n_queries {
             let q = (rng.next_u64() as usize) % block_len;
             if seen.insert(q) {
@@ -317,6 +339,11 @@ fn induce_via_ntt_matches_dense() {
             }
         }
         qs.sort_unstable();
+        if let Some(&first) = qs.first() {
+            qs.push(first);
+            qs.push(first);
+        }
+        let n_queries = qs.len();
         let rows: Vec<Vec<F64>> = (0..n_queries)
             .map(|_| (0..lanes).map(|_| F64(rng.next_u64())).collect())
             .collect();
@@ -327,8 +354,14 @@ fn induce_via_ntt_matches_dense() {
         let dense = induce_sumcheck_poly(log_msg_cols, &sks_vks, &rows, &v_challenges, &qs, &weights);
         let via_ntt =
             induce_sumcheck_poly_via_ntt_base(log_msg_cols, log_inv_rate, &rows, &v_challenges, &qs, &weights);
-        assert_eq!(dense.1, via_ntt.1, "enforced_sum mismatch");
-        assert_eq!(&*dense.0, &*via_ntt.0, "basis_poly mismatch");
+        assert_eq!(
+            dense.1, via_ntt.1,
+            "enforced_sum mismatch: cols={log_msg_cols}, rate={log_inv_rate}"
+        );
+        assert_eq!(
+            &*dense.0, &*via_ntt.0,
+            "basis_poly mismatch: cols={log_msg_cols}, rate={log_inv_rate}, queries={n_queries}"
+        );
     }
 }
 

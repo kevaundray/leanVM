@@ -64,7 +64,7 @@ fn counted() -> Vec<Case> {
 type Build = fn(&'static str) -> Case;
 
 /// Proven: the sizes that fit a GitHub-hosted runner, each built only if it is proven.
-fn proven() -> [(&'static str, Build); 10] {
+fn proven() -> [(&'static str, Build); 9] {
     [
         ("fibonacci-asm-2000000", |name| {
             Case::new(name, Workload::fibonacci(2_000_000))
@@ -77,7 +77,6 @@ fn proven() -> [(&'static str, Build); 10] {
         ("leansphincs-26", |name| Case::new(name, Workload::leansphincs(26))),
         ("falcon-7", |name| Case::new(name, Workload::falcon(7))),
         ("stateproof-5", |name| Case::new(name, Workload::stateproof(5))),
-        ("shielded-258", |name| Case::new(name, Workload::shielded(258))),
     ]
 }
 
@@ -198,7 +197,8 @@ fn proven_trees() -> [(&'static str, BuildTree); 8] {
 /// With `cycles_only`, count every case without a proof and print the counts as JSON, or with
 /// `markdown` as a table, or as JSON with the table appended to `markdown_file`; otherwise
 /// prove, verify and time the proven cases, or only the one named `only`, as JSON (one case
-/// per process makes its `peak-memory` that case's alone).
+/// per process makes its `peak-memory` that case's alone). `leanda-1` is opt-in through
+/// `only`, since it requires the website's larger runners.
 pub fn run(
     cycles_only: bool,
     markdown: bool,
@@ -244,10 +244,13 @@ pub fn run(
             .chain(circuits)
             .collect()
     } else {
-        let cases: Vec<_> = proven()
+        let mut cases: Vec<_> = proven()
             .into_iter()
             .filter(|(name, _)| only.is_none_or(|only| only == *name))
             .collect();
+        if only == Some("leanda-1") {
+            cases.push(("leanda-1", (|name| Case::new(name, Workload::leanda(1))) as Build));
+        }
         let trees: Vec<_> = proven_trees()
             .into_iter()
             .filter(|(name, _)| only.is_none_or(|only| only == *name))
