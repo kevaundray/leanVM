@@ -23,14 +23,14 @@ use std::num::NonZeroUsize;
 use std::time::Instant;
 
 use bench::{Metric, Plan, Timing, bencher_json};
-use fiat_shamir::transcript::{ProofTranscript, ProverState, Receiver, Transmitter, VerifierState};
+use fiat_shamir::transcript::{ProofTranscript, ProverState, Receiver, VerifierState};
 use flock::Witness;
 use flock::circuit::Circuit;
 use flock::reduction::{self, Instance};
 use leanvm::{Fill, MIN_MU, TableId, Word};
 use pcs::ring_switch::RingSwitch;
 use pcs::stack_open;
-use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, ProverConfig, commit, config_for_rate};
+use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, ProverConfig, commit, config_for_rate, receive_commitment};
 use primitives::field::F64;
 use primitives::pretty_integer;
 use primitives::test_util::Rng;
@@ -159,8 +159,8 @@ impl ClassBatch {
 
         let mut ps = ProverState::from_label(b"flock-class-batch");
         let t = Instant::now();
-        let (commitment, prover_data) = commit(as_field(&witness.z), self.mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0);
-        ps.add_root(&commitment.root);
+        let (commitment, prover_data) =
+            commit(&mut ps, as_field(&witness.z), self.mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0);
         let commit_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
@@ -175,7 +175,7 @@ impl ClassBatch {
             claims: vec![claim],
         };
         let z = as_field(&witness.z);
-        stack_open::open(&mut ps, self.mu, z, &prover_data, &self.config, &[], &[ring]);
+        stack_open::open(&mut ps, z, &prover_data, &self.config, &commitment, &[], &[ring]);
         let opening_s = t.elapsed().as_secs_f64();
 
         (ps.into_proof(), [witness_s, commit_s, reduction_s, opening_s])
@@ -185,7 +185,9 @@ impl ClassBatch {
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
         let mut vs = VerifierState::from_label(b"flock-class-batch", proof);
-        let root = vs.next_root().expect("commitment root");
+        let commitment = receive_commitment(
+            &mut vs, self.mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, 1 << INITIAL_FOLDING_FACTOR,
+        ).expect("immutable anchored commitment");
         let replay = reduction::verify(&[(block.shape(), self.n_log)], &mut vs)
             .expect("the reduction verifies")
             .remove(0);
@@ -195,8 +197,7 @@ impl ClassBatch {
             qflock_vars: self.mu,
             claims: vec![replay.claim],
         };
-        let fold = 1 << INITIAL_FOLDING_FACTOR;
-        stack_open::verify(&mut vs, &self.config, self.mu, fold, root, &[], &[ring]).expect("the opening verifies");
+        stack_open::verify(&mut vs, &self.config, &commitment, &[], &[ring]).expect("the opening verifies");
         vs.finish().expect("transcript fully consumed");
     }
 

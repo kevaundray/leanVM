@@ -6,7 +6,7 @@ use primitives::multilinear::{eq_table_seeded, fill_eq_table_uninit};
 use super::StackClaim;
 use crate::ring_switch::RingSwitch;
 use crate::ring_switch::{DeferredWeight, combine_deferred_chunk};
-use crate::whir::INITIAL_BASIS_CHUNK;
+use crate::whir::{INITIAL_BASIS_CHUNK, anchor::eq_prefix};
 
 struct PointWeight<'a> {
     offset: usize,
@@ -46,6 +46,21 @@ impl<'a> PointWeight<'a> {
         }
     }
 
+    fn anchor(point: &'a [F192], lambda: F192, stack_len: usize, chunk_log: usize) -> Self {
+        let low_vars = point.len().min(chunk_log);
+        let (low, high_point) = point.split_at(low_vars);
+        let low_len = 1usize << low_vars;
+        assert!(stack_len.is_multiple_of(low_len), "anchor support is whole low chunks");
+        Self {
+            offset: 0,
+            end: stack_len,
+            slot: 0,
+            stride: 1,
+            low,
+            high: eq_prefix(high_point, stack_len / low_len, lambda),
+        }
+    }
+
     fn add(&self, start: usize, dst: &mut [F192], scratch: &mut [MaybeUninit<F192>]) {
         let base = self.offset + self.slot;
         let lo = start.max(base);
@@ -59,13 +74,15 @@ impl<'a> PointWeight<'a> {
             return;
         }
         let len = 1usize << self.low.len();
-        assert!(first.is_multiple_of(len) && end - first == len);
-        fill_eq_table_uninit(self.low, self.high[first / len], &mut scratch[..len]);
-        // SAFETY: the build above initializes this prefix before the scatter reads it.
-        let eq = unsafe { std::slice::from_raw_parts(scratch.as_ptr().cast::<F192>(), len) };
-        let dst_offset = base + first * self.stride - start;
-        for (i, &value) in eq.iter().enumerate() {
-            dst[dst_offset + i * self.stride] += value;
+        assert!(first.is_multiple_of(len) && (end - first).is_multiple_of(len));
+        for chunk_first in (first..end).step_by(len) {
+            fill_eq_table_uninit(self.low, self.high[chunk_first / len], &mut scratch[..len]);
+            // SAFETY: the build above initializes this prefix before the scatter reads it.
+            let eq = unsafe { std::slice::from_raw_parts(scratch.as_ptr().cast::<F192>(), len) };
+            let dst_offset = base + chunk_first * self.stride - start;
+            for (i, &value) in eq.iter().enumerate() {
+                dst[dst_offset + i * self.stride] += value;
+            }
         }
     }
 }
@@ -76,6 +93,7 @@ impl<'a> PointWeight<'a> {
 ///
 /// - each ring-switched region's combined weight, over that region;
 /// - each point claim's equality weight, over its own support.
+/// - the immutable anchor's equality weight, clipped to the occupied lanes.
 ///
 /// It is filled one chunk at a time, as the opening reads it.
 pub(super) struct StackWeight<'a> {
@@ -96,17 +114,22 @@ impl<'a> StackWeight<'a> {
         lane_block: usize,
         claims: &'a [StackClaim],
         lambdas: &[F192],
+        anchor_point: &'a [F192],
+        anchor_lambda: F192,
         rings: &[RingSwitch],
         rs_outputs: &'a [DeferredWeight],
     ) -> Self {
         assert_eq!(claims.len(), lambdas.len());
         // A fill writes one chunk, or one whole lane block when blocks are smaller.
         let chunk_log = lane_block.min(INITIAL_BASIS_CHUNK).ilog2() as usize;
-        let weights: Vec<_> = claims
-            .iter()
-            .zip(lambdas)
-            .map(|(claim, &lambda)| PointWeight::new(claim, lambda, chunk_log))
-            .collect();
+        let mut weights = Vec::with_capacity(claims.len() + 1);
+        weights.extend(
+            claims
+                .iter()
+                .zip(lambdas)
+                .map(|(claim, &lambda)| PointWeight::new(claim, lambda, chunk_log)),
+        );
+        weights.push(PointWeight::anchor(anchor_point, anchor_lambda, stack_len, chunk_log));
 
         // Index the claims by the lane blocks they touch, so a fill visits only those.
         let mut by_lane = vec![Vec::new(); stack_len / lane_block];

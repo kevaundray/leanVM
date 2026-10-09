@@ -41,7 +41,7 @@
 //!    `rs_eq_ind[y] = Phi(eq(r_suffix, y))` where `Phi : E -> E` is the
 //!    composed map above. Completeness:
 //!    `sum_y rs_eq_ind[y] * packed[y] == sumcheck_claim`, which is exactly
-//!    the claim shape [`super::whir::recursive_prover_with_basis`]
+//!    the claim shape [`super::whir::open_with_basis`]
 //!    proves (with `b_initial = rs_eq_ind`, `target = sumcheck_claim`).
 //!    A nonzero discrepancy gives a nonzero polynomial in the six challenges;
 //!    its total degree is below `2^32`, hence its failure probability is below
@@ -549,12 +549,10 @@ impl<'a, E: PartialEq> PrefixGroup<'a, E> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::merkle::Hash;
     use crate::tensor_algebra::transpose_s_hat;
     use crate::whir::config::tests::test_config_for;
     use crate::whir::{
-        VerifierConfig, commit, inner_product_base_ext, recursive_prover_with_basis,
-        recursive_verifier_with_basis_succinct,
+        VerifierConfig, commit, inner_product_base_ext, open_with_basis, receive_commitment, verify_with_basis,
     };
     use fiat_shamir::arith::Native;
     use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
@@ -855,7 +853,6 @@ pub(crate) mod tests {
         prefix_weights: Vec<F192>,
         suffix_point: Vec<F192>,
         claim: F192,
-        root: Hash,
         rs_s_hat_v: Vec<F192>,
         fs: ProofTranscript,
     }
@@ -872,7 +869,8 @@ pub(crate) mod tests {
         let packed = pack_witness(&bits);
         let log_n = m - F64::DEGREE.ilog2() as usize;
         let pc = test_config_for(log_n);
-        let (cm, pd) = commit(&packed, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
+        let mut ps = ProverState::from_label(E2E_DOMAIN);
+        let (cm, pd) = commit(&mut ps, &packed, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
 
         let suffix_point = rng.ext_vec(log_n);
         let prefix_weights: Vec<F192> = if generalized_weights {
@@ -885,7 +883,6 @@ pub(crate) mod tests {
         let claim = inner_product_ext(&prefix_weights, &s_hat_v_reference(&packed, &suffix_point));
 
         // One family of one claim: its slices, the map, then its target and its weight at a scale of one.
-        let mut ps = ProverState::from_label(E2E_DOMAIN);
         let rs_s_hat_v = s_hat_v_reference(&packed, &suffix_point);
         let coordinate_weights = build_coordinate_weights(&sample_map_challenges(&mut ps));
         let sumcheck_claim = column_target(&rs_s_hat_v, &coordinate_weights);
@@ -893,14 +890,13 @@ pub(crate) mod tests {
         let mut rs_eq_ind = vec![F192::ZERO; packed.len()];
         combine_deferred_chunk(&[weight], 0, &mut rs_eq_ind);
         assert_eq!(inner_product_base_ext(&packed, &rs_eq_ind), sumcheck_claim);
-        recursive_prover_with_basis(
+        open_with_basis(
             &pc,
-            log_n,
             &packed,
-            rs_eq_ind.to_vec(),
+            rs_eq_ind,
             sumcheck_claim,
-            &pd.codeword,
-            &pd.merkle_tree,
+            &pd,
+            &cm,
             &mut ps,
         );
         E2e {
@@ -909,7 +905,6 @@ pub(crate) mod tests {
             prefix_weights,
             suffix_point,
             claim,
-            root: cm.root,
             rs_s_hat_v,
             fs: ps.into_proof(),
         }
@@ -935,17 +930,20 @@ pub(crate) mod tests {
     /// terminal closure evaluate its MLE from the whole table.
     fn verify_e2e_dense(e: &E2e) -> bool {
         let mut vs = VerifierState::from_label(E2E_DOMAIN, &e.fs);
+        let Ok(commitment) = receive_commitment(
+            &mut vs, e.log_n, e.vc.initial_k(), e.vc.log_inv_rates()[0], 1 << e.vc.initial_k(),
+        ) else {
+            return false;
+        };
         let Some((_, coordinate_weights, sumcheck_claim)) = verify_e2e_reduction(e, &mut vs) else {
             return false;
         };
         let rs_eq_ind = fold_dense(&eq_table(&e.suffix_point), &coordinate_weights);
-        recursive_verifier_with_basis_succinct(
+        verify_with_basis(
             &mut vs,
             &e.vc,
-            e.log_n,
-            1 << e.vc.initial_k(),
+            &commitment,
             sumcheck_claim,
-            e.root,
             |_, point| inner_product_ext(&rs_eq_ind, &eq_table(point)),
         )
         .is_ok()
@@ -955,17 +953,20 @@ pub(crate) mod tests {
     /// terminal closure evaluates its MLE once via `eval_rs_eq`.
     fn verify_e2e_succinct(e: &E2e) -> bool {
         let mut vs = VerifierState::from_label(E2E_DOMAIN, &e.fs);
+        let Ok(commitment) = receive_commitment(
+            &mut vs, e.log_n, e.vc.initial_k(), e.vc.log_inv_rates()[0], 1 << e.vc.initial_k(),
+        ) else {
+            return false;
+        };
         let Some((challenges, _, sumcheck_claim)) = verify_e2e_reduction(e, &mut vs) else {
             return false;
         };
         let map = RingMap::new(&mut Native, &challenges);
-        recursive_verifier_with_basis_succinct(
+        verify_with_basis(
             &mut vs,
             &e.vc,
-            e.log_n,
-            1 << e.vc.initial_k(),
+            &commitment,
             sumcheck_claim,
-            e.root,
             |_, point| eval_rs_eq(&e.suffix_point, F192::ONE, &map, point),
         )
         .is_ok()
@@ -1002,7 +1003,6 @@ pub(crate) mod tests {
             prefix_weights: e.prefix_weights.clone(),
             suffix_point: e.suffix_point.clone(),
             claim,
-            root: e.root,
             fs,
         };
 

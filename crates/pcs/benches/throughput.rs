@@ -31,7 +31,7 @@
 use bench::{Metric, Plan, Timing, bencher_json, env_usize};
 use fiat_shamir::transcript::ProverState;
 use pcs::ntt::AdditiveNttF64;
-use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis};
+use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, open_with_basis};
 use primitives::field::{F64, F192};
 use primitives::multilinear::eq_table;
 use primitives::pretty_integer;
@@ -66,21 +66,21 @@ fn main() {
     plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
 
-        let t = Instant::now();
-        let (cm, pd) = tracing::info_span!("Commit").in_scope(|| commit(&witness, log_n, pc.initial_k(), log_inv_rate));
-        commit_t.push(t.elapsed().as_secs_f64());
-
         let mut ch = ProverState::from_label(b"pcs-throughput");
         let t = Instant::now();
+        let (cm, pd) = tracing::info_span!("Commit")
+            .in_scope(|| commit(&mut ch, &witness, log_n, pc.initial_k(), log_inv_rate));
+        commit_t.push(t.elapsed().as_secs_f64());
+
+        let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
-            recursive_prover_with_basis(
+            open_with_basis(
                 &pc,
-                log_n,
                 &witness,
                 b_initial.to_vec(),
                 target,
-                &pd.codeword,
-                &pd.merkle_tree,
+                &pd,
+                &cm,
                 &mut ch,
             );
         });

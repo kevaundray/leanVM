@@ -8,14 +8,107 @@
 
 use crate::merkle::{Hash, MerkleBuilder};
 use crate::ntt::AdditiveNttF64;
+use crate::verifier::OpeningVerifier;
+use crate::whir::anchor::anchor_value;
 use crate::whir::ntt_ext::{encode_rows_ext, rows_at_ext};
+use crate::whir::verify::WhirError;
+use fiat_shamir::transcript::Transmitter;
 use primitives::field::{F64, F192};
 use std::sync::Arc;
 
-/// Public commitment for an `F64` message: the L0 Merkle root.
+/// The public shape of the committed, zero-padded witness.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct CommitmentShape {
+    pub log_n: usize,
+    pub log_batch_size: usize,
+    pub log_inv_rate: usize,
+    pub n_lanes: usize,
+}
+
+impl CommitmentShape {
+    /// Check the raw encoding shape before any shape-dependent shifts or reads.
+    pub(crate) fn valid(self) -> bool {
+        self.log_n > self.log_batch_size
+            && self.log_n < usize::BITS as usize
+            && self.log_inv_rate >= 1
+            && (self.log_n - self.log_batch_size)
+                .checked_add(self.log_inv_rate)
+                .is_some_and(|log_code| log_code < usize::BITS as usize)
+            && self.n_lanes >= 1
+            && self.n_lanes <= 1usize << self.log_batch_size
+    }
+}
+
+/// Immutable commitment identity: its root, shape, and commitment-time MLE anchor.
 #[derive(Clone, Debug)]
-pub struct Commitment {
-    pub root: Hash,
+pub struct Commitment<E = F192, R = Hash> {
+    pub(crate) root: R,
+    pub(crate) shape: CommitmentShape,
+    pub(crate) point: Vec<E>,
+    pub(crate) value: E,
+}
+
+impl<E, R> Commitment<E, R> {
+    pub fn root(&self) -> R
+    where
+        R: Copy,
+    {
+        self.root
+    }
+
+    pub fn shape(&self) -> CommitmentShape {
+        self.shape
+    }
+
+    pub fn point(&self) -> &[E] {
+        &self.point
+    }
+
+    pub fn value(&self) -> E
+    where
+        E: Copy,
+    {
+        self.value
+    }
+}
+
+// Little-endian bytes "whir-anchor-v1", padded with zeros to three limbs.
+const ANCHOR_DOMAIN: F192 = F192::new(0x636e612d72696877, 0x000031762d726f68, 0);
+
+fn commitment_constants(shape: CommitmentShape) -> [F192; 3] {
+    [
+        ANCHOR_DOMAIN,
+        F192::new(shape.log_n as u64, shape.log_batch_size as u64, shape.log_inv_rate as u64),
+        F192::from(F64(shape.n_lanes as u64)),
+    ]
+}
+
+/// Receive one commitment, binding its public shape before drawing its anchor.
+///
+/// # Errors
+///
+/// Rejects an invalid expected shape or different public constants with
+/// [`WhirError::CommitmentMismatch`], and propagates malformed transcript errors.
+pub fn receive_commitment<V: OpeningVerifier>(
+    v: &mut V,
+    log_n: usize,
+    log_batch_size: usize,
+    log_inv_rate: usize,
+    n_lanes: usize,
+) -> Result<Commitment<V::E, V::Root>, WhirError> {
+    let shape = CommitmentShape { log_n, log_batch_size, log_inv_rate, n_lanes };
+    if !shape.valid() {
+        return Err(WhirError::CommitmentMismatch);
+    }
+    for expected in commitment_constants(shape) {
+        let actual = v.next_scalar()?;
+        let expected = v.constant(expected);
+        v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+    }
+    let root = v.next_root()?;
+    let point = v.sample_vec(log_n);
+    let value = v.next_scalar()?;
+    Ok(Commitment { root, shape, point, value })
 }
 
 /// Prover-side state retained after commit for the opening phase. The message
@@ -40,16 +133,23 @@ pub struct ProverData {
 /// chaining value every leaf shares. Only the image's tail, the committed lanes,
 /// rides the proof, so a verifier derives `n_lanes` from the announced layout to
 /// read a row and supplies the prefix itself.
-pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate: usize) -> (Commitment, ProverData) {
-    assert!(log_inv_rate >= 1, "log_inv_rate must be >= 1 for a non-trivial RS code");
-    assert!(log_n > log_batch_size, "witness must be wider than the interleaving");
+///
+/// After encoding, transmit the domain and shape as three scalars, then the
+/// root; draw one anchor point and transmit the zero-padded witness's MLE there.
+pub fn commit(
+    ps: &mut impl Transmitter,
+    message: &[F64],
+    log_n: usize,
+    log_batch_size: usize,
+    log_inv_rate: usize,
+) -> (Commitment, ProverData) {
+    let mut shape = CommitmentShape { log_n, log_batch_size, log_inv_rate, n_lanes: 1 };
+    assert!(shape.valid(), "invalid commitment encoding shape");
     let log_rows = log_n - log_batch_size;
     let n_lanes = message.len() >> log_rows;
+    shape.n_lanes = n_lanes;
+    assert!(shape.valid(), "at most 2^log_batch_size lanes carry data");
     assert_eq!(message.len(), n_lanes << log_rows, "message is whole lane blocks");
-    assert!(
-        n_lanes >= 1 && n_lanes <= 1usize << log_batch_size,
-        "at most 2^log_batch_size lanes carry data"
-    );
     let k_code = log_rows + log_inv_rate;
     let n_positions = 1usize << k_code;
     let codeword_len = n_positions * n_lanes;
@@ -73,8 +173,13 @@ pub fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_inv_rate
     let codeword = unsafe { codeword.assume_init() }.into_vec();
     let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = *merkle_tree.last().expect("merkle tree non-empty");
+    ps.add_scalars(&commitment_constants(shape));
+    ps.add_root(&root);
+    let point = ps.sample_vec(log_n);
+    let value = anchor_value(message, log_rows, &point);
+    ps.add_scalar(value);
 
-    (Commitment { root }, ProverData { codeword, merkle_tree })
+    (Commitment { root, shape, point, value }, ProverData { codeword, merkle_tree })
 }
 
 /// One deeper WHIR commitment level: its message and Merkle tree.

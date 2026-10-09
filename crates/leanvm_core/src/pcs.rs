@@ -10,7 +10,7 @@
 //! - Each deeper commitment takes one out-of-domain sample to bind to one codeword.
 
 use crate::witness::StackShape;
-use fiat_shamir::transcript::{ProverState, TranscriptError, Transmitter};
+use fiat_shamir::transcript::ProverState;
 use pcs::verifier::OpeningVerifier;
 use pcs::whir::config::ConfigError;
 use pcs::whir::{ProverConfig, ProverData, WhirError};
@@ -102,8 +102,8 @@ pub(crate) enum WitnessError {
 pub(crate) struct Committed {
     /// The codeword and its Merkle tree.
     prover_data: ProverData,
-    /// The full witness dimension and the number of lanes actually encoded.
-    shape: StackShape,
+    /// The complete immutable root, public shape, point and anchored value.
+    commitment: pcs::whir::Commitment,
     /// The validated opening parameters used to produce the initial commitment.
     config: ProverConfig,
 }
@@ -142,11 +142,10 @@ impl Committed {
         }
 
         // The codeword and tree use the same parameters retained for opening.
-        let (commitment, prover_data) = pcs::whir::commit(witness, shape.mu, config.initial_k(), log_inv_rate);
-        ps.add_root(&commitment.root);
+        let (commitment, prover_data) = pcs::whir::commit(ps, witness, shape.mu, config.initial_k(), log_inv_rate);
         Ok(Self {
             prover_data,
-            shape,
+            commitment,
             config,
         })
     }
@@ -171,7 +170,8 @@ impl Committed {
         rings: &[RingSwitch],
     ) -> Result<(), WitnessError> {
         // A different lane count would change both the encoded rows and their authentication paths.
-        let expected = self.shape.committed_len();
+        let shape = self.commitment.shape();
+        let expected = shape.n_lanes << (shape.log_n - shape.log_batch_size);
         if witness.len() != expected {
             return Err(WitnessError::Length {
                 expected,
@@ -183,10 +183,10 @@ impl Committed {
         // The opening samples batching challenges without observing those claims again.
         pcs::stack_open::open(
             ps,
-            self.shape.mu,
             witness,
             &self.prover_data,
             &self.config,
+            &self.commitment,
             points,
             rings,
         );
@@ -194,32 +194,33 @@ impl Committed {
     }
 }
 
-/// An initial commitment root and the announced parameters of its witness.
-pub(crate) struct Commitment<R> {
-    /// The Merkle root bound before any dependent challenge.
-    root: R,
-    /// The witness dimension and the number of lanes carried by each opening.
-    shape: StackShape,
-    /// The supported rate announced for the initial commitment.
-    rate: Rate,
+/// An immutable anchored commitment and its validated opening configuration.
+pub(crate) struct Commitment<E, R> {
+    record: pcs::whir::Commitment<E, R>,
+    config: ProverConfig,
 }
 
-impl<R: Copy> Commitment<R> {
-    /// Reads and binds the initial root for the announced witness.
-    ///
-    /// The root must be read before any dependent challenge.
+impl<E: Copy, R: Copy> Commitment<E, R> {
+    /// Reads and binds the complete commitment before any opening statement.
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream ends or the root is not a digest.
-    pub(crate) fn read<V: OpeningVerifier<Root = R>>(
+    /// Returns an invalid public shape, incompatible commitment context, or malformed stream.
+    pub(crate) fn read<V: OpeningVerifier<E = E, Root = R>>(
         v: &mut V,
         shape: StackShape,
         rate: Rate,
-    ) -> Result<Self, TranscriptError> {
-        // Reading the root binds it into the transcript without drawing a challenge.
-        let root = v.next_root()?;
-        Ok(Self { root, shape, rate })
+    ) -> Result<Self, WhirError> {
+        let log_inv_rate = usize::from(rate.log_inv_rate());
+        let config = pcs::whir::config_for_rate(shape.mu, log_inv_rate)?;
+        let record = pcs::whir::receive_commitment(
+            v,
+            shape.mu,
+            config.initial_k(),
+            log_inv_rate,
+            shape.n_lanes,
+        )?;
+        Ok(Self { record, config })
     }
 
     /// Checks the shared opening of point evaluations and circuit-validity claims.
@@ -230,15 +231,13 @@ impl<R: Copy> Commitment<R> {
     /// # Errors
     ///
     /// Returns an error for an unsupported witness size, malformed claims, or an invalid opening.
-    pub(crate) fn verify<V: OpeningVerifier<Root = R>>(
+    pub(crate) fn verify<V: OpeningVerifier<E = E, Root = R>>(
         &self,
         v: &mut V,
         points: &[StackClaim<V::E>],
         rings: &[RingSwitch<V::E>],
     ) -> Result<(), WhirError> {
-        // Both sides derive the opening profile from the committed witness's dimension and rate.
-        let config = pcs::whir::config_for_rate(self.shape.mu, usize::from(self.rate.log_inv_rate()))?;
-        pcs::stack_open::verify(v, &config, self.shape.mu, self.shape.n_lanes, self.root, points, rings)
+        pcs::stack_open::verify(v, &self.config, &self.record, points, rings)
     }
 }
 

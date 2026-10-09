@@ -8,6 +8,8 @@
 //! It is written once over the opening verifier's operations, so the native verifier and the recursion machine's rows run the same steps.
 //! Every query opens a full row whose path follows the query's bits, so the rows never depend on which rows are opened.
 
+use super::anchor::anchor_eq_at;
+use super::commit::Commitment;
 use crate::verifier::OpeningVerifier;
 use crate::whir::config::{ConfigError, VerifierConfig};
 use crate::whir::induce::eval_sk_at_vks;
@@ -30,6 +32,9 @@ pub enum WhirError {
     /// A level of the configuration does not fit the witness.
     #[error("level {level} of the configuration does not fit the witness")]
     InvalidShape { level: usize },
+    /// The immutable commitment record has a different shape or domain context.
+    #[error("the immutable commitment record does not match its public context")]
+    CommitmentMismatch,
     /// The opening has no ring-switched claim.
     #[error("the opening has no ring-switched claim")]
     NoRingClaim,
@@ -115,6 +120,49 @@ struct ExtRows<E>(Vec<Vec<E>>);
 /// Succinct verifier for the recursive prover, against a weight `b` over the `2^log_n` committed words.
 ///
 /// It takes no dense weight: `weight_at` evaluates b's multilinear extension once, at the final fold point indexed by witness coordinate.
+/// Verify a public linear claim with the same immutable commitment record used
+/// at commitment time. `weight_at` evaluates the claimed weight on the full
+/// Boolean cube and must vanish outside the record's occupied lane prefix.
+///
+/// The caller binds the public claim before entry. This samples only the
+/// opening batch scalar and reuses the commitment's point and advertised value.
+///
+/// # Errors
+///
+/// Returns an incompatible commitment/configuration, malformed opening stream,
+/// failed authentication, or a terminal opening that violates either claim.
+pub fn verify_with_basis<V: OpeningVerifier>(
+    v: &mut V,
+    config: &VerifierConfig,
+    commitment: &Commitment<V::E, V::Root>,
+    target: V::E,
+    weight_at: impl FnOnce(&mut V, &[V::E]) -> V::E,
+) -> Result<(), WhirError> {
+    let shape = commitment.shape;
+    if !shape.valid()
+        || shape.log_batch_size != config.initial_k()
+        || config.log_inv_rates().first() != Some(&shape.log_inv_rate)
+    {
+        return Err(WhirError::CommitmentMismatch);
+    }
+    let beta = v.sample();
+    let target = v.mul_add(beta, commitment.value, target);
+    let combined_weight = |v: &mut V, point: &[V::E]| {
+        let caller = weight_at(v, point);
+        let anchor = anchor_eq_at(v, shape, &commitment.point, point);
+        v.mul_add(beta, anchor, caller)
+    };
+    verify_protocol_with_basis(
+        v,
+        config,
+        shape.log_n,
+        shape.n_lanes,
+        target,
+        commitment.root,
+        combined_weight,
+    )
+}
+
 /// The fold challenges arrive in round order, and the first `initial_k` rounds, the lane fold, bind the witness's top `initial_k` coordinates.
 /// So the point is rotated left by `initial_k` before the closure sees it.
 ///
@@ -124,7 +172,7 @@ struct ExtRows<E>(Vec<Vec<E>>);
 /// # Errors
 ///
 /// Returns a lane count a leaf cannot hold, a configuration that does not fit the witness, a malformed stream, or a terminal claim the opening does not reproduce.
-pub(crate) fn recursive_verifier_with_basis_succinct<V: OpeningVerifier>(
+pub(crate) fn verify_protocol_with_basis<V: OpeningVerifier>(
     v: &mut V,
     config: &VerifierConfig,
     log_n: usize,

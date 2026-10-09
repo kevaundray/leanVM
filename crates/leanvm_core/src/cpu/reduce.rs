@@ -66,7 +66,7 @@ impl Layout {
         output: &[V::E; 4],
         rate: Rate,
     ) -> Result<DeferredClaims<V::E>, CpuError> {
-        let commitment = Commitment::read(v, self.shape, rate)?;
+        let commitment = Commitment::read(v, self.shape, rate).map_err(CpuError::Open)?;
         let reduced = v.scope("bus and tables", |v| self.reduce_tables(v, clock, output))?;
 
         // Flock's reductions, batched over every class circuit then every clock circuit, each leaving its matrices' form to its circuit.

@@ -22,7 +22,7 @@
 //!
 //! All claims are lambda-folded into ONE combined weight `b_stack` over the
 //! whole stack plus one `target`, then proved by
-//! [`super::whir::recursive_prover_with_basis`]. The verifier replays
+//! the internal WHIR protocol kernel. The verifier replays
 //! the ring switch succinctly (the family's target, with no dense `rs_eq_ind`) and drives
 //! the WHIR verifier with a
 //! terminal evaluator that reconstructs `MLE(b_stack)` once, at the final fold
@@ -30,7 +30,7 @@
 //!
 //! ## Transcript order (identical on both sides)
 //!
-//! Sample the family's challenge `gamma_rs`, then the shared linear map, then one batching challenge for the family and the point claims, then run WHIR. The caller already bound each claim's slices and value through the transcript, so none is observed again here.
+//! Sample the family's challenge `gamma_rs`, then the shared linear map, then one batching challenge for the family, the point claims, and the immutable commitment anchor, then run WHIR. The caller already bound each claim's slices and value through the transcript, so none is observed again here. The anchor point and value were bound when the commitment was received.
 //!
 //! ## The combined weight
 //!
@@ -42,6 +42,7 @@
 //! ```text
 //! b(x) = eq(sel, x_hi) * sum_j MLE(Phi(gamma_rs^j * eq(r_j, .)))(x_lo)
 //!      + sum_i lambda^(1 + i) * eq(claim_i, x)
+//!      + lambda^(1 + number_of_point_claims) * clipped_eq(anchor, x)
 //! ```
 //!
 //! which is exactly what the dense `b_stack` scatter produces (each claim's
@@ -49,14 +50,17 @@
 //! rs_eq_ind tensor at the slice offset IS multiplying by the boolean
 //! selector eq).
 //!
-//! The family takes `lambda^0` and the point claims the next powers of ONE
+//! The family takes `lambda^0`, the point claims the next powers, and the immutable anchor the final power of ONE
 //! challenge, as the table sumcheck's xi ranges do (the batching step of `thm:rbr`).
 //! `lambda` is drawn after the map, so the family's error is fixed by then and is the
 //! constant term of the batched error, which is what lets it take `lambda^0 = 1`.
 
 use super::ring_switch::{self, RingFamily, RingSwitch, SliceClaim};
 use super::verifier::OpeningVerifier;
-use super::whir::{ProverConfig, ProverData, VerifierConfig, WhirError, recursive_verifier_with_basis_succinct};
+use super::whir::{
+    Commitment, ProverConfig, ProverData, VerifierConfig, WhirError, anchor::anchor_eq_at,
+    verify_protocol_with_basis,
+};
 use basis::StackWeight;
 use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::Transmitter;
@@ -153,18 +157,28 @@ impl<E: Copy> StackClaim<E> {
 /// `stack` is the committed message (the caller retains it; it is not stored in
 /// [`ProverData`]): the `2^log_n`-word stack truncated to the lane blocks that
 /// carry data, so every claim must live inside it and the padding past it is
-/// exactly the weight's zero region. `config.initial_k` / `config.log_inv_rates[0]`
-/// must match the commit's `log_batch_size` / `log_inv_rate` (enforced by shape
-/// asserts inside the WHIR prover).
+/// exactly the weight's zero region. The immutable commitment's shape must match
+/// `stack` and `config.initial_k` / `config.log_inv_rates[0]`.
 pub fn open(
     ps: &mut impl Transmitter,
-    log_n: usize,
     stack: &[F64],
     prover_data: &ProverData,
     config: &ProverConfig,
+    commitment: &Commitment,
     point_claims: &[StackClaim],
     rings: &[RingSwitch],
 ) {
+    let shape = commitment.shape();
+    assert!(
+        shape.valid()
+            && config.initial_k() == shape.log_batch_size
+            && config.log_inv_rates().first() == Some(&shape.log_inv_rate),
+        "commitment shape must match the opening configuration"
+    );
+    let log_n = shape.log_n;
+    let lane_block = 1usize << (log_n - shape.log_batch_size);
+    assert_eq!(stack.len(), shape.n_lanes * lane_block, "stack must match the committed lanes");
+    assert_eq!(commitment.point().len(), log_n, "anchor must span the committed cube");
     for ring in rings {
         let qflock_len = 1usize << ring.qflock_vars;
         assert!(
@@ -199,11 +213,11 @@ pub fn open(
     let family = RingFamily::sample(ps);
     let coordinate_weights = family.coordinate_weights();
 
-    // 2. The ONE batching challenge: the family takes its first power, the point claims the rest. Nothing is
-    //    observed first: every claim value reached the caller through a binding stream read, so the challenge
-    //    already depends on all of them (`leanvm::pcs::open`).
-    let lambdas = powers(ps.sample(), 1 + point_claims.len());
-    let lambdas_pd = &lambdas[1..];
+    // 2. The ONE batching challenge: family power zero, point claims next,
+    //    then the immutable anchor. All values are already bound upstream.
+    let lambdas = powers(ps.sample(), 2 + point_claims.len());
+    let lambdas_pd = &lambdas[1..1 + point_claims.len()];
+    let anchor_lambda = lambdas[1 + point_claims.len()];
     let rs_outputs: Vec<_> = (claims.iter().zip(powers(family.gamma_rs(), n_rs)))
         .map(|(claim, scale)| ring_switch::deferred_weight(&claim.suffix_point, scale, &coordinate_weights))
         .collect();
@@ -216,7 +230,8 @@ pub fn open(
         + point_claims
             .iter()
             .zip(lambdas_pd)
-            .fold(F192::ZERO, |sum, (claim, &lambda)| sum + lambda * claim.value());
+            .fold(F192::ZERO, |sum, (claim, &lambda)| sum + lambda * claim.value())
+        + anchor_lambda * commitment.value();
 
     // The lifted weight is filled one chunk at a time:
     //
@@ -225,15 +240,23 @@ pub fn open(
     //
     // On a small pool the first pass also writes each chunk out, and the first fold reads it back rather than filling
     // it again.
-    let lane_block = 1usize << (log_n - config.initial_k());
-    let weight = StackWeight::new(stack.len(), lane_block, point_claims, lambdas_pd, rings, &rs_outputs);
+    let weight = StackWeight::new(
+        stack.len(),
+        lane_block,
+        point_claims,
+        lambdas_pd,
+        commitment.point(),
+        anchor_lambda,
+        rings,
+        &rs_outputs,
+    );
     let fill = |start: usize, dst: &mut [F192]| weight.fill(start, dst);
     let (initial, basis) = tracing::info_span!("Basis")
         .in_scope(|| super::whir::initial_rounds_virtual(stack, lane_block, config.initial_k(), &fill));
 
     // 4. One WHIR over the full stack against the combined claim (the
     //    stack is borrowed by the prover; no copy).
-    super::whir::recursive_prover_with_prepared_basis(
+    super::whir::prove_protocol_with_prepared_basis(
         config,
         log_n,
         stack,
@@ -249,8 +272,8 @@ pub fn open(
 /// Verifier mirror of [`open`].
 ///
 /// It replays the ring switch succinctly, recomputes the combined target, then drives the succinct WHIR verifier with one terminal evaluation of the lifted weight.
-/// `log_n` is the committed stack's log size in `F64` words, and `root` the L0 commitment's root.
-/// The family takes the batching challenge's power one, and point claim `i` its power `i + 1`.
+/// The immutable commitment supplies the stack shape, root, and anchor.
+/// The family takes batching power zero, point claim `i` power `i + 1`, and the anchor the final power.
 ///
 /// The verifier is the native one or the recursion machine's rows, which run the same steps.
 ///
@@ -260,36 +283,50 @@ pub fn open(
 pub fn verify<V: OpeningVerifier>(
     v: &mut V,
     config: &VerifierConfig,
-    log_n: usize,
-    n_lanes: usize,
-    root: V::Root,
+    commitment: &Commitment<V::E, V::Root>,
     point_claims: &[StackClaim<V::E>],
     rings: &[RingSwitch<V::E>],
 ) -> Result<(), WhirError> {
+    let shape = commitment.shape();
+    if !shape.valid()
+        || config.initial_k() != shape.log_batch_size
+        || config.log_inv_rates().first() != Some(&shape.log_inv_rate)
+        || commitment.point().len() != shape.log_n
+    {
+        return Err(WhirError::CommitmentMismatch);
+    }
+    let log_n = shape.log_n;
     check_statement(log_n, point_claims, rings)?;
 
     // The family: every claim arrives with its 64 slices, bound upstream by the caller, so nothing is read here.
     // Then the one batching challenge, the family taking its first power.
     let family = RingFamily::draw(v);
     let lambda = v.sample();
-    let lambdas = v.powers(lambda, 1 + point_claims.len());
+    let lambdas = v.powers(lambda, 2 + point_claims.len());
+    let point_lambdas = &lambdas[1..1 + point_claims.len()];
+    let anchor_lambda = lambdas[1 + point_claims.len()];
     let share = family.share(v, rings);
     let target = v.scope("target", |v| {
         let family_target = share.target(v);
-        (point_claims.iter().zip(&lambdas[1..]))
-            .fold(family_target, |acc, (claim, &g)| v.mul_add(g, claim.value(), acc))
+        let point_target = (point_claims.iter().zip(point_lambdas))
+            .fold(family_target, |acc, (claim, &g)| v.mul_add(g, claim.value(), acc));
+        v.mul_add(anchor_lambda, commitment.value(), point_target)
     });
 
     // The lifted weight, evaluated once at the terminal sumcheck point.
     let weight_at = |v: &mut V, x: &[V::E]| {
         let family_weight = share.weight_at(v, x);
-        (point_claims.iter().zip(&lambdas[1..])).fold(family_weight, |acc, (claim, &g)| {
+        let point_weight = (point_claims.iter().zip(point_lambdas)).fold(family_weight, |acc, (claim, &g)| {
             let eq = claim.eq_at(v, x);
             v.mul_add(g, eq, acc)
-        })
+        });
+        let anchor_weight = anchor_eq_at(v, shape, commitment.point(), x);
+        v.mul_add(anchor_lambda, anchor_weight, point_weight)
     };
     v.scope("whir", |v| {
-        recursive_verifier_with_basis_succinct(v, config, log_n, n_lanes, target, root, weight_at)
+        verify_protocol_with_basis(
+            v, config, log_n, shape.n_lanes, target, commitment.root(), weight_at,
+        )
     })
 }
 
@@ -324,9 +361,8 @@ mod tests {
     use super::*;
     use crate::ring_switch::tests::s_hat_v_reference;
     use crate::whir::config::tests::{default_config, test_config_for};
-    use crate::whir::{INITIAL_BASIS_CHUNK, commit, inner_product_base_ext};
+    use crate::whir::{CommitmentShape, INITIAL_BASIS_CHUNK, commit, inner_product_base_ext, receive_commitment};
     use basis::StackWeight;
-    use fiat_shamir::merkle::Hash;
     use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
     use primitives::multilinear::eq_table;
     use primitives::test_util::Rng;
@@ -380,6 +416,12 @@ mod tests {
                 });
             }
             let lambdas = rng.ext_vec(claims.len());
+            let log_batch_size = lanes.next_power_of_two().ilog2() as usize;
+            let log_n = lane_vars + log_batch_size;
+            let anchor_point = rng.ext_vec(log_n);
+            let anchor_lambda = rng.ext();
+            let terminal_point = rng.ext_vec(log_n);
+            let terminal_eq = eq_table(&terminal_point);
             // Oracle: the dense weight written out naively, one eq entry at a
             // time, so it shares no code with the fused build under test.
             let mut expected = vec![F192::ZERO; stack.len()];
@@ -402,12 +444,33 @@ mod tests {
                     expected[base + (j << stride_log)] += w;
                 }
             }
+            let mut anchor_at_terminal = F192::ZERO;
+            for (j, dst) in expected.iter_mut().enumerate() {
+                let w = anchor_point.iter().enumerate().fold(anchor_lambda, |w, (i, &p_i)| {
+                    w * if (j >> i) & 1 == 1 { p_i } else { F192::ONE + p_i }
+                });
+                *dst += w;
+                anchor_at_terminal += w * terminal_eq[j];
+            }
+            let shape = CommitmentShape {
+                log_n,
+                log_batch_size,
+                log_inv_rate: 1,
+                n_lanes: lanes,
+            };
+            assert_eq!(
+                anchor_lambda * anchor_eq_at(&mut Native, shape, &anchor_point, &terminal_point),
+                anchor_at_terminal,
+                "terminal anchor must exclude absent lanes"
+            );
             // The weight, filled chunk by chunk as the opening reads it.
             let weight = StackWeight::new(
                 stack.len(),
                 lane_block,
                 &claims,
                 &lambdas,
+                &anchor_point,
+                anchor_lambda,
                 std::slice::from_ref(&ring),
                 &rs_outputs,
             );
@@ -422,8 +485,7 @@ mod tests {
 
     struct Instance {
         vc: VerifierConfig,
-        log_n: usize,
-        root: Hash,
+        commitment: Commitment,
         point_claims: Vec<StackClaim>,
         rings: Vec<RingSwitch>,
         fs: ProofTranscript,
@@ -442,8 +504,11 @@ mod tests {
     /// shared tensor prefix folded once, y coords all selector-indicator,
     /// nonempty E-valued selector prefix from ris); the crossing regime is
     /// exercised by `stacked_open_residual_crosses_qflock`.
-    fn build_instance(seed: u64) -> Instance {
+    fn build_instance(seed: u64, omit_last_lane: bool) -> Instance {
         let log_n = 14usize;
+        let pc = test_config_for(log_n);
+        let lane_block = 1usize << (log_n - pc.initial_k());
+        let stack_len = (1usize << log_n) - if omit_last_lane { lane_block } else { 0 };
         let col_vars = 12usize;
         let col_len = 1usize << col_vars;
         let qflock_vars = 8usize;
@@ -453,10 +518,12 @@ mod tests {
         // Three random columns, the packed bit-witness region, then filler.
         let mut stack: Vec<F64> = (0..3 * col_len).map(|_| F64(rng.next_u64())).collect();
         stack.extend((0..1usize << qflock_vars).map(|_| F64(rng.next_u64())));
-        while stack.len() < 1 << log_n {
+        while stack.len() < stack_len {
             stack.push(F64(rng.next_u64()));
         }
-        assert_eq!(stack.len(), 1 << log_n);
+        assert_eq!(stack.len(), stack_len);
+        let mut ps = ProverState::from_label(DOMAIN);
+        let (cm, pd) = commit(&mut ps, &stack, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
 
         // One point claim per column, at a random E point.
         let mut point_claims: Vec<StackClaim> = (0..3)
@@ -521,7 +588,6 @@ mod tests {
             })
             .collect();
 
-        let pc = test_config_for(log_n);
         // Pin the intended residual regime: the residual cube must sit
         // entirely above the q_flock coords, with at least one selector coord
         // covered by ris (the E-valued sel prefix) and the rest by y bits.
@@ -530,14 +596,11 @@ mod tests {
             qflock_vars < log_n - yr_log_n,
             "test shape must keep the residual cube above q_flock (yr_log_n = {yr_log_n})"
         );
-        let (cm, pd) = commit(&stack, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
-        let mut ps = ProverState::from_label(DOMAIN);
-        open(&mut ps, log_n, &stack, &pd, &pc, &point_claims, &rings);
+        open(&mut ps, &stack, &pd, &pc, &cm, &point_claims, &rings);
 
         Instance {
             vc: pc,
-            log_n,
-            root: cm.root,
+            commitment: cm,
             point_claims,
             rings,
             fs: ps.into_proof(),
@@ -550,25 +613,53 @@ mod tests {
         rings: &[RingSwitch],
         fs: &ProofTranscript,
     ) -> bool {
+        verify_instance_with_record(inst, point_claims, rings, fs, None)
+    }
+
+    fn verify_instance_with_record(
+        inst: &Instance,
+        point_claims: &[StackClaim],
+        rings: &[RingSwitch],
+        fs: &ProofTranscript,
+        record: Option<&Commitment>,
+    ) -> bool {
         let mut vs = VerifierState::from_label(DOMAIN, fs);
-        verify(
-            &mut vs,
-            &inst.vc,
-            inst.log_n,
-            1 << inst.vc.initial_k(),
-            inst.root,
-            point_claims,
-            rings,
-        )
-        .is_ok()
+        let shape = inst.commitment.shape();
+        let Ok(commitment) = receive_commitment(
+            &mut vs, shape.log_n, shape.log_batch_size, shape.log_inv_rate, shape.n_lanes,
+        ) else {
+            return false;
+        };
+        verify(&mut vs, &inst.vc, record.unwrap_or(&commitment), point_claims, rings).is_ok()
     }
 
     #[test]
     fn stacked_open_roundtrip_and_tampering() {
-        let inst = build_instance(1);
+        let inst = build_instance(1, false);
         assert!(
             verify_instance(&inst, &inst.point_claims, &inst.rings, &inst.fs),
             "honest stacked opening rejected"
+        );
+
+        // Root equality is not record identity: neither the immutable anchor
+        // point nor its value may be substituted in an otherwise honest proof.
+        let mut moved_anchor = inst.commitment.clone();
+        moved_anchor.point[0] += F192::ONE;
+        assert_eq!(moved_anchor.root(), inst.commitment.root());
+        assert!(
+            !verify_instance_with_record(
+                &inst, &inst.point_claims, &inst.rings, &inst.fs, Some(&moved_anchor),
+            ),
+            "same-root record with a different anchor point accepted"
+        );
+        let mut wrong_anchor_value = inst.commitment.clone();
+        wrong_anchor_value.value += F192::ONE;
+        assert_eq!(wrong_anchor_value.root(), inst.commitment.root());
+        assert!(
+            !verify_instance_with_record(
+                &inst, &inst.point_claims, &inst.rings, &inst.fs, Some(&wrong_anchor_value),
+            ),
+            "same-root record with a different anchor value accepted"
         );
 
         // Wrong point-claim value (dense column claim).
@@ -632,6 +723,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn stacked_open_occupied_non_power_of_two_lanes() {
+        let inst = build_instance(2, true);
+        assert!(!inst.commitment.shape().n_lanes.is_power_of_two());
+        assert!(
+            verify_instance(&inst, &inst.point_claims, &inst.rings, &inst.fs),
+            "honest opening with a clipped non-power-of-two lane prefix rejected"
+        );
+    }
+
     /// Residual cube crossing INTO the q_flock slice (case split = n_ris in the
     /// verifier closure): q_flock occupies half a 2^14 stack (qflock_vars = 13),
     /// and the fallback config's residual cube (yr_log_n = 3) is wider than
@@ -647,6 +748,9 @@ mod tests {
         let mut stack: Vec<F64> = (0..1usize << 13).map(|_| F64(rng.next_u64())).collect();
         stack.extend((0..1usize << qflock_vars).map(|_| F64(rng.next_u64())));
         assert_eq!(stack.len(), 1 << log_n);
+        let pc = default_config(log_n, 5, 1).unwrap();
+        let mut ps = ProverState::from_label(DOMAIN);
+        let (cm, pd) = commit(&mut ps, &stack, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
 
         // One point claim on the low column.
         let low_point = rng.ext_vec(12);
@@ -666,39 +770,37 @@ mod tests {
 
         // Fixed fallback config so the residual cube size is known: the
         // crossing regime needs qflock_vars > log_n - yr_log_n.
-        let pc = default_config(log_n, 5, 1).unwrap();
         let yr_log_n = log_n - pc.initial_k() - pc.level_ks().iter().sum::<usize>();
         assert!(
             qflock_vars > log_n - yr_log_n,
             "test shape must exercise the crossing regime (yr_log_n = {yr_log_n})"
         );
 
-        let (cm, pd) = commit(&stack, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
         let ring = RingSwitch {
             offset: qflock_offset,
             qflock_vars,
             claims,
         };
-        let mut ps = ProverState::from_label(DOMAIN);
         open(
             &mut ps,
-            log_n,
             &stack,
             &pd,
             &pc,
+            &cm,
             &point_claims,
             std::slice::from_ref(&ring),
         );
         let fs = ps.into_proof();
 
         let mut vs = VerifierState::from_label(DOMAIN, &fs);
+        let commitment = receive_commitment(
+            &mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], cm.shape().n_lanes,
+        ).unwrap();
         assert!(
             verify(
                 &mut vs,
                 &pc,
-                log_n,
-                1 << pc.initial_k(),
-                cm.root,
+                &commitment,
                 &point_claims,
                 std::slice::from_ref(&ring)
             )
@@ -710,13 +812,14 @@ mod tests {
         let mut bad_ring = ring.clone();
         bad_ring.claims[0].s_hat_v[7] += F192::ONE;
         let mut vs = VerifierState::from_label(DOMAIN, &fs);
+        let commitment = receive_commitment(
+            &mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], cm.shape().n_lanes,
+        ).unwrap();
         assert!(
             verify(
                 &mut vs,
                 &pc,
-                log_n,
-                1 << pc.initial_k(),
-                cm.root,
+                &commitment,
                 &point_claims,
                 std::slice::from_ref(&bad_ring)
             )

@@ -6,7 +6,8 @@
 //! The recursive prover: the lane fold, then one commit, query phase and induce
 //! per level, down to the residual sent in the clear.
 
-use super::commit::ligero_commit_ext;
+use super::anchor::add_anchor_weight;
+use super::commit::{Commitment, ProverData, ligero_commit_ext};
 use super::sample_queries_ordered;
 use super::sumcheck::{Basis, InitialRounds, SumcheckProver, send_msg};
 use crate::merkle::Hash;
@@ -40,9 +41,9 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
     row.iter().flat_map(|v| [F64(v.c0), F64(v.c1), F64(v.c2)]).collect()
 }
 
-/// Prove `Σ_x witness(x) · b_initial(x) = target` against the L0 commitment
-/// produced by [`commit`](super::commit()) (with `log_batch_size = config.initial_k()` and
-/// `log_inv_rate = config.log_inv_rates()[0]`).
+/// Open a public linear claim against an immutable anchored commitment.
+/// The same commitment record must be reused across every opening session.
+/// The opening additionally checks its commitment-time MLE value.
 ///
 /// `witness` is borrowed: it is only READ (round-0 message + the first lane
 /// fold, which lifts it into an owned E-vector), so callers with a large
@@ -58,29 +59,39 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
 /// by `stack.len()`; `ood_samples[0] == 0` is what keeps a full-tensor OOD weight
 /// out of these rounds.
 ///
-/// Scalars enter the shared transcript as they are transmitted, and authenticated Merkle openings travel as one phase per level. The caller has already bound the initial commitment and target.
+/// Public opening statements must be bound by the caller before entry. This
+/// draws the opening batch scalar, never a replacement commitment anchor.
 #[expect(
     clippy::too_many_arguments,
     reason = "The proof kernel keeps its independent inputs explicit."
 )]
-pub fn recursive_prover_with_basis(
+pub fn open_with_basis(
     config: &ProverConfig,
-    log_n: usize,
     witness: &[F64],
-    b_initial: Vec<F192>,
+    mut b_initial: Vec<F192>,
     target: F192,
-    l0_codeword: &[F64],
-    l0_tree: &[Hash],
+    data: &ProverData,
+    commitment: &Commitment,
     ps: &mut impl Transmitter,
 ) {
-    recursive_prover_with_prepared_basis(
+    let shape = commitment.shape;
+    assert!(shape.valid(), "valid immutable commitment shape");
+    assert_eq!(shape.log_batch_size, config.initial_k(), "commitment interleaving");
+    assert_eq!(config.log_inv_rates().first(), Some(&shape.log_inv_rate), "commitment rate");
+    assert_eq!(witness.len(), shape.n_lanes << (shape.log_n - shape.log_batch_size));
+    assert_eq!(b_initial.len(), witness.len());
+    assert_eq!(data.merkle_tree.last(), Some(&commitment.root), "commitment root");
+    let beta = ps.sample();
+    add_anchor_weight(&mut b_initial, &commitment.point, beta);
+    let target = target + beta * commitment.value;
+    prove_protocol_with_prepared_basis(
         config,
-        log_n,
+        shape.log_n,
         witness,
         Basis::Dense(b_initial),
         target,
-        l0_codeword,
-        l0_tree,
+        &data.codeword,
+        &data.merkle_tree,
         None,
         ps,
     );
@@ -90,7 +101,7 @@ pub fn recursive_prover_with_basis(
     clippy::too_many_arguments,
     reason = "The proof kernel keeps its independent inputs explicit."
 )]
-pub(crate) fn recursive_prover_with_prepared_basis(
+pub(crate) fn prove_protocol_with_prepared_basis(
     config: &ProverConfig,
     log_n: usize,
     witness: &[F64],

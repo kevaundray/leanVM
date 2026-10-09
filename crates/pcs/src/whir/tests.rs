@@ -1,5 +1,4 @@
 use super::*;
-use crate::merkle::Hash;
 use crate::whir::config::tests::test_config_for;
 use crate::whir::induce::{
     induce_sumcheck_evaluate_at_residual, induce_sumcheck_poly, induce_sumcheck_poly_via_ntt_base,
@@ -19,7 +18,6 @@ struct Instance {
     point: Vec<F192>,
     b_initial: Vec<F192>,
     target: F192,
-    root: Hash,
     /// The transcript: every scalar WHIR transmitted, plus its opening phases.
     fs: ProofTranscript,
 }
@@ -28,19 +26,18 @@ fn prove_instance(log_n: usize, seed: u64) -> Instance {
     let pc = test_config_for(log_n);
     let mut rng = Rng::new(seed);
     let witness: Vec<F64> = (0..1usize << log_n).map(|_| F64(rng.next_u64())).collect();
-    let (cm, pd) = commit(&witness, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
+    let mut ps = ProverState::from_label(b"whir-test");
+    let (cm, pd) = commit(&mut ps, &witness, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
     let point: Vec<F192> = (0..log_n).map(|_| rng.ext()).collect();
     let b_initial = eq_table(&point);
     let target = inner_product_base_ext(&witness, &b_initial);
-    let mut ps = ProverState::from_label(b"whir-test");
-    recursive_prover_with_basis(
+    open_with_basis(
         &pc,
-        log_n,
         &witness,
         b_initial.to_vec(),
         target,
-        &pd.codeword,
-        &pd.merkle_tree,
+        &pd,
+        &cm,
         &mut ps,
     );
     Instance {
@@ -49,7 +46,6 @@ fn prove_instance(log_n: usize, seed: u64) -> Instance {
         point,
         b_initial,
         target,
-        root: cm.root,
         fs: ps.into_proof(),
     }
 }
@@ -61,13 +57,18 @@ fn dense_mle(table: &[F192], point: &[F192]) -> F192 {
 
 fn verify_with(inst: &Instance, fs: &ProofTranscript, eval_b_at: impl Fn(&[F192]) -> F192) -> Result<(), WhirError> {
     let mut vs = VerifierState::from_label(b"whir-test", fs);
-    recursive_verifier_with_basis_succinct(
+    let commitment = receive_commitment(
+        &mut vs,
+        inst.log_n,
+        inst.vc.initial_k(),
+        inst.vc.log_inv_rates()[0],
+        1 << inst.vc.initial_k(),
+    )?;
+    verify_with_basis(
         &mut vs,
         &inst.vc,
-        inst.log_n,
-        1 << inst.vc.initial_k(),
+        &commitment,
         inst.target,
-        inst.root,
         |_, point| eval_b_at(point),
     )
 }
@@ -213,17 +214,9 @@ fn tampered_stream_words_reject_without_panicking() {
     }
 }
 
-/// Committing only the lanes that carry data must be indistinguishable from
-/// committing the whole `2^log_n` witness with an explicit zero tail: same
-/// root, byte-identical transcript, and the verifier accepts against the full
-/// `2^log_n` weight. That indistinguishability is what lets the verifier stay
-/// unaware of the lane count.
+/// Both occupied-prefix and explicit-zero-tail commitments preserve the linear claim, while each proof uses its own immutable anchored record and rejects inconsistent row widths.
 #[test]
-fn truncated_lanes_match_an_explicit_zero_tail() {
-    // `log_n = 18` puts the lane block over the fold's task chunk, so the fold runs
-    // several x-chunks per block; at 13 it is one chunk per block. Both matter: the
-    // chunked path is what production takes, and it is where a message pair could
-    // straddle a task.
+fn occupied_prefix_and_explicit_zero_tail_open_correctly() {
     for (log_n, lanes) in [(13usize, &[1usize, 5, 64][..]), (18, &[5, 64][..])] {
         let pc = test_config_for(log_n);
         let lane_block = 1usize << (log_n - pc.initial_k());
@@ -235,63 +228,31 @@ fn truncated_lanes_match_an_explicit_zero_tail() {
             witness[used..].fill(F64::ZERO);
             b_initial[used..].fill(F192::ZERO);
             let target = inner_product_base_ext(&witness, &b_initial);
-
-            let prove = |msg: &[F64], b: &[F192]| {
-                let (cm, pd) = commit(msg, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
+            let prove = |msg: &[F64], basis: &[F192]| {
                 let mut ps = ProverState::from_label(b"whir-test");
-                recursive_prover_with_basis(
-                    &pc,
-                    log_n,
-                    msg,
-                    b.to_vec(),
-                    target,
-                    &pd.codeword,
-                    &pd.merkle_tree,
-                    &mut ps,
-                );
-                (cm.root, ps.into_proof())
+                let (commitment, data) = commit(&mut ps, msg, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
+                open_with_basis(&pc, msg, basis.to_vec(), target, &data, &commitment, &mut ps);
+                (commitment, ps.into_proof())
             };
-            let (root_trunc, fs_trunc) = prove(&witness[..used], &b_initial[..used]);
-            let (root_full, fs_full) = prove(&witness, &b_initial);
-            assert_eq!(root_trunc, root_full, "root differs at n_lanes = {n_lanes}");
-            assert_eq!(
-                fs_trunc.stream, fs_full.stream,
-                "the protocol itself must not change at n_lanes = {n_lanes}"
-            );
-
-            // What the two proofs DO differ in, and the point of the exercise: the
-            // truncated one stores each L0 row as the committed lanes alone, which is
-            // exactly the full image with its leading padding zeros dropped.
-            let leaf_words = 1usize << pc.initial_k();
-            for (thin, full) in fs_trunc.merkle[0].leaf_data.iter().zip(&fs_full.merkle[0].leaf_data) {
-                assert_eq!(thin.len(), n_lanes);
-                assert_eq!(full.len(), leaf_words);
-                assert_eq!(thin[..], full[leaf_words - n_lanes..], "stored row is the image tail");
-                assert!(
-                    full[..leaf_words - n_lanes].iter().all(|w| *w == F64::ZERO),
-                    "the words the proof drops are the padding at n_lanes = {n_lanes}"
-                );
-            }
-
-            // The verifier evaluates the weight over the whole `2^log_n` cube.
-            let verify = |fs: &ProofTranscript| {
-                let mut vs = VerifierState::from_label(b"whir-test", fs);
-                recursive_verifier_with_basis_succinct(&mut vs, &pc, log_n, n_lanes, target, root_trunc, |_, point| {
-                    dense_mle(&b_initial, point)
-                })
+            let (thin, thin_proof) = prove(&witness[..used], &b_initial[..used]);
+            let (full, full_proof) = prove(&witness, &b_initial);
+            assert_eq!(thin.root(), full.root(), "zero padding changes the Merkle root");
+            let verify = |proof: &ProofTranscript, count: usize| -> Result<(), WhirError> {
+                let mut vs = VerifierState::from_label(b"whir-test", proof);
+                let commitment = receive_commitment(
+                    &mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], count,
+                )?;
+                verify_with_basis(&mut vs, &pc, &commitment, target, |_, point| dense_mle(&b_initial, point))?;
+                vs.finish()?;
+                Ok(())
             };
-            assert_eq!(verify(&fs_trunc), Ok(()), "verify failed at n_lanes = {n_lanes}");
-
-            // The image the octopus was built over is pinned by the announced widths,
-            // so a row of any other width is rejected rather than zero-extended to
-            // something that happens to hash.
-            if n_lanes < leaf_words {
-                let mut bad_fs = fs_trunc.clone();
-                bad_fs.merkle[0].leaf_data[0].push(F64::ZERO);
-                assert!(
-                    verify(&bad_fs).is_err(),
-                    "a wrong-width row was accepted at n_lanes = {n_lanes}"
-                );
+            assert_eq!(verify(&thin_proof, n_lanes), Ok(()), "occupied-prefix opening");
+            assert_eq!(verify(&full_proof, 1 << pc.initial_k()), Ok(()), "explicit-zero-tail opening");
+            if n_lanes < 1 << pc.initial_k() {
+                assert_eq!(verify(&thin_proof, 1 << pc.initial_k()), Err(WhirError::CommitmentMismatch));
+                let mut wrong_width = thin_proof.clone();
+                wrong_width.merkle[0].leaf_data[0].push(F64::ZERO);
+                assert!(verify(&wrong_width, n_lanes).is_err(), "inconsistent row width");
             }
         }
     }
