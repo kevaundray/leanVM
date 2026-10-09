@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
+  CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,-sha3
   CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
   CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUSTFLAGS: -C target-cpu=generic -C target-feature=+aes,+sha3
   CARGO_TARGET_X86_64_APPLE_IOS_RUSTFLAGS: -C target-cpu=generic

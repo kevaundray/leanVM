@@ -25,7 +25,7 @@ The isolated lockfile retains libc 0.2.189 for the pinned mobench SDK's iOS reso
 
 The library emits a `staticlib` for the iOS XCFramework, a `cdylib` for Android and an `rlib` for the native correctness smoke.
 
-ARM64 mobile packages use `-C target-cpu=generic -C target-feature=+aes,+sha3`, enabling PMULL field multiplication and EOR3 XORs. These builds require both extensions on the device; they do not fall back to software at runtime. Flags are scoped to Cargo target triples, including the ARM64 iOS simulator; the x86 iOS simulator stays generic and host tools receive no mobile flags. The repository's native CPU setting excludes iOS and Android. Do not set global `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS` when packaging: they override the target-specific flags. Device result metadata records the target's compiler flags.
+ARM64 mobile packages use `-C target-cpu=generic` with platform-specific extensions: Android uses `-C target-feature=+aes,-sha3` for PMULL field multiplication, while iOS uses `-C target-feature=+aes,+sha3` for PMULL and EOR3 XORs. The Pixel 7 benchmark worker trapped with an illegal instruction when both extensions were enabled, so its build explicitly excludes SHA3. These builds require their enabled extensions on the device; they do not select a fallback at runtime. Flags are scoped to Cargo target triples, including the ARM64 iOS simulator; the x86 iOS simulator stays generic and host tools receive no mobile flags. The repository's native CPU setting excludes iOS and Android. Do not set global `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS` when packaging: they override the target-specific flags. Device result metadata records the target's compiler flags.
 
 Use the standalone `mobench` executable. Source scanning can warn that there are no `#[benchmark]` attributes because these setup/teardown benchmarks register `BenchFunction` entries directly. Runtime registration is checked by the native smoke executable, not by source scanning.
 
@@ -42,7 +42,7 @@ With the pinned Android tools, Java, and Gradle installed, run from this directo
 ```sh
 export RUSTUP_TOOLCHAIN=1.99.0
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS='-C target-cpu=generic -C target-feature=+aes,+sha3'
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS='-C target-cpu=generic -C target-feature=+aes,-sha3'
 export CARGO_BUILD_JOBS=2
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
 python3 ../scripts/mobile-bench-package.py --platform android shielded_prove
