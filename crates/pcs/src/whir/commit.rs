@@ -67,16 +67,16 @@ pub(crate) fn commit(message: &[F64], log_n: usize, log_batch_size: usize, log_i
     commit_hiding(message, log_n, log_batch_size, log_inv_rate, &[])
 }
 
-/// [`commit`] with each lane padded past its power of two: the hiding commitment.
+/// The L0 commitment with each lane padded past its power of two: the hiding commitment.
 ///
 /// With `m = log_n - log_batch_size`, `r = log_inv_rate` and `k = pads.len() / n_lanes`, lane block `u` encodes `P_u(X) + W_m(X + s) R_u(X)`: `P_u` its `2^m` words as novel-basis coefficients, `R_u` its padding `pads[u k..(u + 1) k]`, and `s = F64(2^(m + r))`.
 /// Since `W_m(X + s) = W_m(X) + W_m(s)` and `X_{2^m + j} = W_m X_j`, that is `2^m + k` coefficients, so the codeword stays on the same `2^(m + r)` points, and the encode is the one butterfly layer more that pairs the message with the padding (`AdditiveNttF64::encode_interleaved_in_place_with`).
 /// The shift by `s` keeps the factor nonzero on the whole domain, where `W_m` alone vanishes on its first `2^m` points: any `k` symbols of a lane are then uniform, whatever its message.
-/// Empty `pads` is [`commit`].
+/// Empty `pads` is the plain commitment.
 ///
 /// # Panics
 ///
-/// Panics as [`commit`] does, or unless the padding is `k <= 2^m` coefficients for every lane.
+/// Panics as the plain commitment does, or unless the padding is `k <= 2^m` coefficients for every lane.
 pub fn commit_hiding(
     message: &[F64],
     log_n: usize,
