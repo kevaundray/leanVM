@@ -41,6 +41,7 @@ jobs:
           lake exe cache get Mathlib.Tactic
           lake build
           lake env lean Audit.lean
+          test -f .lake/build/lib/lean/LeanVMCircuits.olean
           # Stock leanchecker replays every matching module concurrently.
           # The root has no declarations; reject any future declaration there.
           if grep -nEv '^[[:space:]]*(module|public import LeanVMCircuits[.][A-Za-z0-9_.]+)?[[:space:]]*$' LeanVMCircuits.lean; then
@@ -55,6 +56,10 @@ jobs:
           fi
           for source in "${sources[@]}"; do
             module="${source%.lean}"
+            if [[ ! -f ".lake/build/lib/lean/${module}.olean" ]]; then
+              echo "::error::Missing compiled library module ${module}"
+              exit 1
+            fi
             lake env leanchecker "${module//\//.}"
           done
       - name: Check deterministic production export
