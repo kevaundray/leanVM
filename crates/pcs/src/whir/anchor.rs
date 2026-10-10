@@ -2,7 +2,7 @@
 
 use super::commit::CommitmentShape;
 use fiat_shamir::arith::Arith;
-use primitives::field::{F64, F192};
+use primitives::field::{F192, F64};
 use primitives::multilinear::mle_eval_par;
 
 /// Evaluate the witness with its omitted, whole-lane tail equal to zero.
@@ -114,7 +114,10 @@ pub(crate) fn anchor_eq_at<A: Arith>(a: &mut A, shape: CommitmentShape, r: &[A::
     let mut full = a.one();
     let mut partial = full;
     let mut started = false;
-    for (j, (&rj, &xj)) in r[log_rows..].iter().zip(&point[log_rows..]).enumerate() {
+    let mut j = 0;
+    while j < shape.log_batch_size {
+        let rj = r[log_rows + j];
+        let xj = point[log_rows + j];
         // full_j sums over all Boolean lower-j lane bits. partial_j sums
         // over the prefix below n_lanes mod 2^j; it is zero until its first 1.
         let sum = a.add(rj, xj);
@@ -139,6 +142,7 @@ pub(crate) fn anchor_eq_at<A: Arith>(a: &mut A, shape: CommitmentShape, r: &[A::
         if shape.n_lanes >> (j + 1) != 0 {
             full = if j == 0 { factor } else { a.mul(full, factor) };
         }
+        j += 1;
     }
     a.mul(low, partial)
 }
