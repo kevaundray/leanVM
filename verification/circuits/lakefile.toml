@@ -1,0 +1,11 @@
+name = "LeanVMCircuits"
+version = "0.1.0"
+defaultTargets = ["LeanVMCircuits"]
+
+[[require]]
+name = "Clean"
+git = "https://github.com/kevaundray/clean.git"
+rev = "b449bf590f93e13827c3c7e747e392d6969aa380"
+
+[[lean_lib]]
+name = "LeanVMCircuits"

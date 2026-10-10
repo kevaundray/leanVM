@@ -195,7 +195,7 @@ impl ClassCircuit for Load {
         let [v1, imm] = [0, 1].map(|port| c.input::<64>(port));
         let flags = c.input::<3>(2);
         let cell = c.input::<64>(3);
-        let address = c.add_wrapping(&v1, &imm);
+        let address = flock::clean::wrapping_add64(&mut c, &v1, &imm);
         let [ge2, ge4] = c.width_thresholds([flags[0], flags[1]]);
         let bus = c.bus_address(&address, [ge2, ge4]);
 
@@ -246,7 +246,7 @@ impl ClassCircuit for Store {
         let [v1, v2, imm] = [0, 1, 2].map(|port| c.input::<64>(port));
         let flags = c.input::<2>(3);
         let cell = c.input::<64>(4);
-        let address = c.add_wrapping(&v1, &imm);
+        let address = flock::clean::wrapping_add64(&mut c, &v1, &imm);
         let [ge2, ge4] = c.width_thresholds(flags);
         let bus = c.bus_address(&address, [ge2, ge4]);
 
@@ -290,7 +290,7 @@ impl ClassCircuit for Ld {
     fn circuit() -> Circuit {
         let mut c = Builder::new(&[64, 64], &[64]);
         let [v1, imm] = [0, 1].map(|port| c.input::<64>(port));
-        let address = c.add_wrapping(&v1, &imm);
+        let address = flock::clean::wrapping_add64(&mut c, &v1, &imm);
         c.output_word(0, &address);
         c.finish()
     }

@@ -169,6 +169,25 @@ fn loads_and_stores_prove_and_verify() {
     proves_and_verifies("memory", &program, expected);
 }
 
+#[test]
+fn clean_adder_memory_addresses_wrap_and_carry() {
+    // The negative immediate overflows u64 addition; the positive one crosses a long carry chain.
+    // Both address the same RAM cell through the actual Ld/Sd production circuit and word witness.
+    let base = Region::RAM.base();
+    let text = Asm::new()
+        .li(Reg::T0, base + 8)
+        .li(Reg::T1, base - 8)
+        .load(Ld, Reg::A0, -8, Reg::T0)
+        .load(Ld, Reg::A1, 8, Reg::T1)
+        .store(Sd, Reg::A1, -8, Reg::T0)
+        .load(Ld, Reg::A2, 8, Reg::T1)
+        .li(Reg::A3, 0)
+        .exit()
+        .finish();
+    let program = Program::new(&text, Region::TEXT.base(), vec![9], 3, 0).expect("valid memory program");
+    proves_and_verifies("clean wrapping adder", &program, [9, 9, 9, 0]);
+}
+
 /// Every shift and every multiplication, registers and immediates, 64-bit and 32-bit
 /// forms, folded into the output.
 #[test]

@@ -32,6 +32,8 @@ leanVM is designed for security:
 
 **warning**: Formal verification is [in progress](https://github.com/Verified-zkEVM/leanerVM). leanVM is not (yet) production ready.
 
+The production 64-bit wrapping address adder is authored and proved in [Clean](./verification/circuits/README.md), then exported as checked-in Rust gates. Real load and store circuits consume that artifact. Its proofs cover arbitrary-witness Boolean constraint soundness and honest completeness; the Rust interpretation and the separate cryptographic composition retain the trust boundaries documented there.
+
 ## work in progress
 
 Expect leanVM to change significantly:

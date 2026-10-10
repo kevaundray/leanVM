@@ -1,0 +1,49 @@
+name: Clean circuits
+
+on:
+  pull_request:
+    paths:
+      - verification/circuits/**
+      - crates/flock/src/clean.rs
+      - .github/workflows/clean-circuits.yml
+      - rustfmt.toml
+  push:
+    branches: [riscv-exploration, 'kw/clean-circuits-*']
+    paths:
+      - verification/circuits/**
+      - crates/flock/src/clean.rs
+      - .github/workflows/clean-circuits.yml
+      - rustfmt.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+          components: rustfmt
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: verification/circuits
+          build: 'false'
+          test: 'false'
+          lint: 'false'
+          use-mathlib-cache: 'false'
+      - name: Check source, lowering, artifact, and theorem axioms
+        working-directory: verification/circuits
+        run: |
+          lake exe cache get Mathlib.Tactic
+          lake build
+          lake env lean Audit.lean
+          lake env leanchecker LeanVMCircuits
+      - name: Check deterministic production export
+        working-directory: verification/circuits
+        run: |
+          lake env lean --run Generate.lean /tmp/clean-generated.rs
+          diff -u ../../crates/flock/src/clean.rs /tmp/clean-generated.rs

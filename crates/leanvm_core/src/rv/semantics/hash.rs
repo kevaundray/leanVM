@@ -119,11 +119,11 @@ impl ClassCircuit for Hash {
         for round in &SIGMA {
             for (g, &[a, b, cc, d]) in G_LANES.iter().enumerate() {
                 for (x, r1, r2) in [(&m[round[2 * g]], 16, 12), (&m[round[2 * g + 1]], 8, 7)] {
-                    let ab = c.add_wrapping(&v[a], &v[b]);
-                    v[a] = c.add_wrapping(&ab, x);
+                    let ab = c.add_wrapping32(&v[a], &v[b]);
+                    v[a] = c.add_wrapping32(&ab, x);
                     let da = c.xor_word(&v[d], &v[a]);
                     v[d] = rotr(&da, r1);
-                    v[cc] = c.add_wrapping(&v[cc], &v[d]);
+                    v[cc] = c.add_wrapping32(&v[cc], &v[d]);
                     let bc = c.xor_word(&v[b], &v[cc]);
                     v[b] = rotr(&bc, r2);
                 }

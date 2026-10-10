@@ -37,8 +37,8 @@ pub(super) trait WordGadgets {
     /// `x + y + carry_in`, and the carry out of the top bit; one product per bit.
     fn add_with_carry<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N], carry_in: Wire) -> ([Wire; N], Wire);
 
-    /// `x + y` modulo `2^N`; one product per bit but the top.
-    fn add_wrapping<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N]) -> [Wire; N];
+    /// `x + y` modulo `2^32`; one product per bit but the top.
+    fn add_wrapping32(&mut self, x: &[Wire; 32], y: &[Wire; 32]) -> [Wire; 32];
 
     /// `-x` if `negative`, else `x`; one product per bit.
     fn negate_if<const N: usize>(&mut self, negative: Wire, x: &[Wire; N]) -> [Wire; N];
@@ -97,7 +97,7 @@ impl WordGadgets for Builder {
         (sum, carry)
     }
 
-    fn add_wrapping<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N]) -> [Wire; N] {
+    fn add_wrapping32(&mut self, x: &[Wire; 32], y: &[Wire; 32]) -> [Wire; 32] {
         let mut carry = Wire::ZERO;
         std::array::from_fn(|i| {
             // The sum bit is x ^ y ^ c.
@@ -106,7 +106,7 @@ impl WordGadgets for Builder {
             let sum = self.xor(xc, y[i]);
 
             // The carry out of the top bit falls off the modulus, so it is never made.
-            if i + 1 < N {
+            if i + 1 < 32 {
                 let maj = self.and(xc, yc);
                 carry = self.xor(maj, carry);
             }
