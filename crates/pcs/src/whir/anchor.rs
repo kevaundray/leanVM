@@ -37,7 +37,9 @@ pub(crate) fn anchor_value(message: &[F64], log_rows: usize, point: &[F192]) -> 
     if used_vars == high.len() {
         value
     } else {
-        let zero_tail = high[used_vars..].iter().fold(F192::ONE, |acc, &r| acc * (F192::ONE + r));
+        let zero_tail = high[used_vars..]
+            .iter()
+            .fold(F192::ONE, |acc, &r| acc * (F192::ONE + r));
         value * zero_tail
     }
 }
@@ -100,12 +102,7 @@ pub(crate) fn add_anchor_weight(out: &mut [F192], point: &[F192], seed: F192) {
 /// The low coordinates span whole lane blocks. On the high coordinates the
 /// weight is `sum_{lane < n_lanes} eq(lane, r) * eq(lane, point)`, not the
 /// full-cube equality product when the last lanes are absent.
-pub(crate) fn anchor_eq_at<A: Arith>(
-    a: &mut A,
-    shape: CommitmentShape,
-    r: &[A::E],
-    point: &[A::E],
-) -> A::E {
+pub(crate) fn anchor_eq_at<A: Arith>(a: &mut A, shape: CommitmentShape, r: &[A::E], point: &[A::E]) -> A::E {
     assert!(shape.valid());
     assert_eq!(r.len(), shape.log_n);
     assert_eq!(point.len(), shape.log_n);
@@ -128,7 +125,11 @@ pub(crate) fn anchor_eq_at<A: Arith>(
             let lo = a.add(factor, hi);
             if bit != 0 {
                 let lower_full = if j == 0 { lo } else { a.mul(lo, full) };
-                partial = if started { a.mul_add(hi, partial, lower_full) } else { lower_full };
+                partial = if started {
+                    a.mul_add(hi, partial, lower_full)
+                } else {
+                    lower_full
+                };
                 started = true;
             } else {
                 partial = a.mul(lo, partial);
@@ -148,7 +149,9 @@ mod tests {
     use fiat_shamir::arith::Native;
 
     fn point(n: usize, salt: u64) -> Vec<F192> {
-        (0..n).map(|j| F192::new(salt + 3 * j as u64, salt + j as u64 + 7, 11)).collect()
+        (0..n)
+            .map(|j| F192::new(salt + 3 * j as u64, salt + j as u64 + 7, 11))
+            .collect()
     }
 
     fn eq_bits(index: usize, point: &[F192]) -> F192 {
@@ -189,15 +192,23 @@ mod tests {
         let x = point(log_n, 43);
         for n_lanes in [1, 3, 64] {
             let message: Vec<F64> = (0..(n_lanes << log_rows)).map(|i| F64(13 * i as u64 + 7)).collect();
-            let expected_value = message.iter().enumerate().fold(F192::ZERO, |sum, (i, &v)| {
-                sum + eq_bits(i, &r).mul_base(v)
-            });
+            let expected_value = message
+                .iter()
+                .enumerate()
+                .fold(F192::ZERO, |sum, (i, &v)| sum + eq_bits(i, &r).mul_base(v));
             assert_eq!(anchor_value(&message, log_rows, &r), expected_value);
-            let expected_weight = (0..message.len()).fold(F192::ZERO, |sum, i| {
-                sum + eq_bits(i, &r) * eq_bits(i, &x)
-            });
-            let shape = CommitmentShape { log_n, log_batch_size, log_inv_rate: 1, n_lanes };
-            assert_eq!(anchor_eq_at(&mut Native, shape, &r, &x), expected_weight, "lanes {n_lanes}");
+            let expected_weight = (0..message.len()).fold(F192::ZERO, |sum, i| sum + eq_bits(i, &r) * eq_bits(i, &x));
+            let shape = CommitmentShape {
+                log_n,
+                log_batch_size,
+                log_inv_rate: 1,
+                n_lanes,
+            };
+            assert_eq!(
+                anchor_eq_at(&mut Native, shape, &r, &x),
+                expected_weight,
+                "lanes {n_lanes}"
+            );
         }
     }
 }

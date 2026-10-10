@@ -57,11 +57,10 @@
 
 use super::ring_switch::{self, RingFamily, RingSwitch, SliceClaim};
 use super::verifier::OpeningVerifier;
-use super::whir::{
-    Commitment, ProverConfig, ProverData, VerifierConfig, WhirError, anchor::anchor_eq_at,
-    verify_protocol_with_basis,
-};
 use super::whir::commit::{send_record_binding, verify_record_binding};
+use super::whir::{
+    Commitment, ProverConfig, ProverData, VerifierConfig, WhirError, anchor::anchor_eq_at, verify_protocol_with_basis,
+};
 use basis::StackWeight;
 use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::Transmitter;
@@ -178,7 +177,11 @@ pub fn open(
     );
     let log_n = shape.log_n;
     let lane_block = 1usize << (log_n - shape.log_batch_size);
-    assert_eq!(stack.len(), shape.n_lanes * lane_block, "stack must match the committed lanes");
+    assert_eq!(
+        stack.len(),
+        shape.n_lanes * lane_block,
+        "stack must match the committed lanes"
+    );
     assert_eq!(commitment.point().len(), log_n, "anchor must span the committed cube");
     for ring in rings {
         let qflock_len = 1usize << ring.qflock_vars;
@@ -332,9 +335,8 @@ pub fn verify<V: OpeningVerifier>(
         v.mul_add(anchor_lambda, anchor_weight, point_weight)
     };
     v.begin_scope(fiat_shamir::arith::Stage::Whir);
-    let scoped_result = verify_protocol_with_basis(
-        v, config, log_n, shape.n_lanes, target, commitment.root(), weight_at,
-    );
+    let scoped_result =
+        verify_protocol_with_basis(v, config, log_n, shape.n_lanes, target, commitment.root(), weight_at);
     v.end_scope();
     scoped_result
 }
@@ -548,11 +550,7 @@ mod tests {
         build_instance_in_session(seed, omit_last_lane, None)
     }
 
-    fn build_instance_in_session(
-        seed: u64,
-        omit_last_lane: bool,
-        opening_label: Option<&'static [u8]>,
-    ) -> Instance {
+    fn build_instance_in_session(seed: u64, omit_last_lane: bool, opening_label: Option<&'static [u8]>) -> Instance {
         let log_n = 14usize;
         let pc = test_config_for(log_n);
         let lane_block = 1usize << (log_n - pc.initial_k());
@@ -682,13 +680,22 @@ mod tests {
         if let Some(label) = inst.opening_label {
             let mut vs = VerifierState::from_label(label, fs);
             return verify(
-                &mut vs, &inst.vc, record.unwrap_or(&inst.commitment), point_claims, rings,
-            ).is_ok();
+                &mut vs,
+                &inst.vc,
+                record.unwrap_or(&inst.commitment),
+                point_claims,
+                rings,
+            )
+            .is_ok();
         }
         let mut vs = VerifierState::from_label(DOMAIN, fs);
         let shape = inst.commitment.shape();
         let Ok(commitment) = receive_commitment(
-            &mut vs, shape.log_n, shape.log_batch_size, shape.log_inv_rate, shape.n_lanes,
+            &mut vs,
+            shape.log_n,
+            shape.log_batch_size,
+            shape.log_inv_rate,
+            shape.n_lanes,
         ) else {
             return false;
         };
@@ -709,9 +716,7 @@ mod tests {
         moved_anchor.point[0] += F192::ONE;
         assert_eq!(moved_anchor.root(), inst.commitment.root());
         assert!(
-            !verify_instance_with_record(
-                &inst, &inst.point_claims, &inst.rings, &inst.fs, Some(&moved_anchor),
-            ),
+            !verify_instance_with_record(&inst, &inst.point_claims, &inst.rings, &inst.fs, Some(&moved_anchor),),
             "same-root record with a different anchor point accepted"
         );
         let mut wrong_anchor_value = inst.commitment.clone();
@@ -719,7 +724,11 @@ mod tests {
         assert_eq!(wrong_anchor_value.root(), inst.commitment.root());
         assert!(
             !verify_instance_with_record(
-                &inst, &inst.point_claims, &inst.rings, &inst.fs, Some(&wrong_anchor_value),
+                &inst,
+                &inst.point_claims,
+                &inst.rings,
+                &inst.fs,
+                Some(&wrong_anchor_value),
             ),
             "same-root record with a different anchor value accepted"
         );
@@ -766,8 +775,8 @@ mod tests {
         }
 
         // Tamper the record-binding frame and the same WHIR messages as the continuous-session case.
-        let binding_len = 9 + inst.commitment.shape().log_n
-            + inst.commitment.context().pending.iter().flatten().count();
+        let binding_len =
+            9 + inst.commitment.shape().log_n + inst.commitment.context().pending.iter().flatten().count();
         for idx in [6usize, 17 + binding_len, inst.fs.stream.len() - 1] {
             let mut bad_fs = inst.fs.clone();
             bad_fs.stream[idx] += F192::ONE;
@@ -801,9 +810,8 @@ mod tests {
         const OPENING_LABEL: &[u8] = b"stack-open-fresh-session";
         let inst = build_instance_in_session(4, false, Some(OPENING_LABEL));
         let mut vs = VerifierState::from_label(OPENING_LABEL, &inst.fs);
-        verify(
-            &mut vs, &inst.vc, &inst.commitment, &inst.point_claims, &inst.rings,
-        ).expect("fresh-session opening without receiving or resampling the commitment");
+        verify(&mut vs, &inst.vc, &inst.commitment, &inst.point_claims, &inst.rings)
+            .expect("fresh-session opening without receiving or resampling the commitment");
         vs.finish().expect("fresh-session opening consumes the entire proof");
 
         let mut wrong_state = inst.commitment.clone();
@@ -909,17 +917,15 @@ mod tests {
 
         let mut vs = VerifierState::from_label(DOMAIN, &fs);
         let commitment = receive_commitment(
-            &mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], cm.shape().n_lanes,
-        ).unwrap();
+            &mut vs,
+            log_n,
+            pc.initial_k(),
+            pc.log_inv_rates()[0],
+            cm.shape().n_lanes,
+        )
+        .unwrap();
         assert!(
-            verify(
-                &mut vs,
-                &pc,
-                &commitment,
-                &point_claims,
-                std::slice::from_ref(&ring)
-            )
-            .is_ok(),
+            verify(&mut vs, &pc, &commitment, &point_claims, std::slice::from_ref(&ring)).is_ok(),
             "honest crossing-regime opening rejected"
         );
 
@@ -928,8 +934,13 @@ mod tests {
         bad_ring.claims[0].s_hat_v[7] += F192::ONE;
         let mut vs = VerifierState::from_label(DOMAIN, &fs);
         let commitment = receive_commitment(
-            &mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], cm.shape().n_lanes,
-        ).unwrap();
+            &mut vs,
+            log_n,
+            pc.initial_k(),
+            pc.log_inv_rates()[0],
+            cm.shape().n_lanes,
+        )
+        .unwrap();
         assert!(
             verify(
                 &mut vs,

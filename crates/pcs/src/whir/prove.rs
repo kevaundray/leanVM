@@ -76,7 +76,11 @@ pub fn open_with_basis(
     let shape = commitment.shape;
     assert!(shape.valid(), "valid immutable commitment shape");
     assert_eq!(shape.log_batch_size, config.initial_k(), "commitment interleaving");
-    assert_eq!(config.log_inv_rates().first(), Some(&shape.log_inv_rate), "commitment rate");
+    assert_eq!(
+        config.log_inv_rates().first(),
+        Some(&shape.log_inv_rate),
+        "commitment rate"
+    );
     assert_eq!(witness.len(), shape.n_lanes << (shape.log_n - shape.log_batch_size));
     assert_eq!(b_initial.len(), witness.len());
     assert_eq!(data.merkle_tree.last(), Some(&commitment.root), "commitment root");

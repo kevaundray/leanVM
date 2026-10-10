@@ -31,15 +31,7 @@ fn prove_instance(log_n: usize, seed: u64) -> Instance {
     let point: Vec<F192> = (0..log_n).map(|_| rng.ext()).collect();
     let b_initial = eq_table(&point);
     let target = inner_product_base_ext(&witness, &b_initial);
-    open_with_basis(
-        &pc,
-        &witness,
-        b_initial.to_vec(),
-        target,
-        &pd,
-        &cm,
-        &mut ps,
-    );
+    open_with_basis(&pc, &witness, b_initial.to_vec(), target, &pd, &cm, &mut ps);
     Instance {
         vc: pc,
         log_n,
@@ -64,13 +56,7 @@ fn verify_with(inst: &Instance, fs: &ProofTranscript, eval_b_at: impl Fn(&[F192]
         inst.vc.log_inv_rates()[0],
         1 << inst.vc.initial_k(),
     )?;
-    verify_with_basis(
-        &mut vs,
-        &inst.vc,
-        &commitment,
-        inst.target,
-        |_, point| eval_b_at(point),
-    )
+    verify_with_basis(&mut vs, &inst.vc, &commitment, inst.target, |_, point| eval_b_at(point))
 }
 
 /// The weight evaluated in closed form at the terminal fold point.
@@ -239,17 +225,24 @@ fn occupied_prefix_and_explicit_zero_tail_open_correctly() {
             assert_eq!(thin.root(), full.root(), "zero padding changes the Merkle root");
             let verify = |proof: &ProofTranscript, count: usize| -> Result<(), WhirError> {
                 let mut vs = VerifierState::from_label(b"whir-test", proof);
-                let commitment = receive_commitment(
-                    &mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], count,
-                )?;
-                verify_with_basis(&mut vs, &pc, &commitment, target, |_, point| dense_mle(&b_initial, point))?;
+                let commitment = receive_commitment(&mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], count)?;
+                verify_with_basis(&mut vs, &pc, &commitment, target, |_, point| {
+                    dense_mle(&b_initial, point)
+                })?;
                 vs.finish()?;
                 Ok(())
             };
             assert_eq!(verify(&thin_proof, n_lanes), Ok(()), "occupied-prefix opening");
-            assert_eq!(verify(&full_proof, 1 << pc.initial_k()), Ok(()), "explicit-zero-tail opening");
+            assert_eq!(
+                verify(&full_proof, 1 << pc.initial_k()),
+                Ok(()),
+                "explicit-zero-tail opening"
+            );
             if n_lanes < 1 << pc.initial_k() {
-                assert_eq!(verify(&thin_proof, 1 << pc.initial_k()), Err(WhirError::CommitmentMismatch));
+                assert_eq!(
+                    verify(&thin_proof, 1 << pc.initial_k()),
+                    Err(WhirError::CommitmentMismatch)
+                );
                 let mut wrong_width = thin_proof.clone();
                 wrong_width.merkle[0].leaf_data[0].push(F64::ZERO);
                 assert!(verify(&wrong_width, n_lanes).is_err(), "inconsistent row width");

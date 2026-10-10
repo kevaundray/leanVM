@@ -13,8 +13,8 @@ use crate::whir::anchor::anchor_value;
 use crate::whir::ntt_ext::{encode_rows_ext, rows_at_ext};
 use crate::whir::verify::WhirError;
 use fiat_shamir::merkle::hash_to_scalars;
-use fiat_shamir::{MAX_PENDING, TranscriptContext};
 use fiat_shamir::transcript::Transmitter;
+use fiat_shamir::{MAX_PENDING, TranscriptContext};
 use primitives::field::{F64, F192};
 use std::sync::Arc;
 
@@ -92,7 +92,11 @@ const OPENING_DOMAIN: F192 = F192::new(0x65706f2d72696877, 0x0031762d676e696e, 0
 fn commitment_constants(shape: CommitmentShape) -> [F192; 3] {
     [
         ANCHOR_DOMAIN,
-        F192::new(shape.log_n as u64, shape.log_batch_size as u64, shape.log_inv_rate as u64),
+        F192::new(
+            shape.log_n as u64,
+            shape.log_batch_size as u64,
+            shape.log_inv_rate as u64,
+        ),
         F192::from(F64(shape.n_lanes as u64)),
     ]
 }
@@ -213,7 +217,12 @@ pub fn receive_commitment<V: OpeningVerifier>(
     log_inv_rate: usize,
     n_lanes: usize,
 ) -> Result<Commitment<V::E, V::Root>, WhirError> {
-    let shape = CommitmentShape { log_n, log_batch_size, log_inv_rate, n_lanes };
+    let shape = CommitmentShape {
+        log_n,
+        log_batch_size,
+        log_inv_rate,
+        n_lanes,
+    };
     if !shape.valid() {
         return Err(WhirError::CommitmentMismatch);
     }
@@ -226,7 +235,13 @@ pub fn receive_commitment<V: OpeningVerifier>(
     let root = v.next_root()?;
     let point = v.sample_vec(log_n);
     let value = v.next_scalar()?;
-    Ok(Commitment { root, shape, context, point, value })
+    Ok(Commitment {
+        root,
+        shape,
+        context,
+        point,
+        value,
+    })
 }
 
 /// Prover-side state retained after commit for the opening phase. The message
@@ -260,7 +275,12 @@ pub fn commit(
     log_batch_size: usize,
     log_inv_rate: usize,
 ) -> (Commitment, ProverData) {
-    let mut shape = CommitmentShape { log_n, log_batch_size, log_inv_rate, n_lanes: 1 };
+    let mut shape = CommitmentShape {
+        log_n,
+        log_batch_size,
+        log_inv_rate,
+        n_lanes: 1,
+    };
     assert!(shape.valid(), "invalid commitment encoding shape");
     let log_rows = log_n - log_batch_size;
     let n_lanes = message.len() >> log_rows;
@@ -297,7 +317,16 @@ pub fn commit(
     let value = anchor_value(message, log_rows, &point);
     ps.add_scalar(value);
 
-    (Commitment { root, shape, context, point, value }, ProverData { codeword, merkle_tree })
+    (
+        Commitment {
+            root,
+            shape,
+            context,
+            point,
+            value,
+        },
+        ProverData { codeword, merkle_tree },
+    )
 }
 
 /// One deeper WHIR commitment level: its message and Merkle tree.

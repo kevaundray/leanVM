@@ -68,21 +68,13 @@ fn main() {
 
         let mut ch = ProverState::from_label(b"pcs-throughput");
         let t = Instant::now();
-        let (cm, pd) = tracing::info_span!("Commit")
-            .in_scope(|| commit(&mut ch, &witness, log_n, pc.initial_k(), log_inv_rate));
+        let (cm, pd) =
+            tracing::info_span!("Commit").in_scope(|| commit(&mut ch, &witness, log_n, pc.initial_k(), log_inv_rate));
         commit_t.push(t.elapsed().as_secs_f64());
 
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
-            open_with_basis(
-                &pc,
-                &witness,
-                b_initial.to_vec(),
-                target,
-                &pd,
-                &cm,
-                &mut ch,
-            );
+            open_with_basis(&pc, &witness, b_initial.to_vec(), target, &pd, &cm, &mut ch);
         });
         open_t.push(t.elapsed().as_secs_f64());
         black_box((cm, ch.into_proof()));

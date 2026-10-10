@@ -6,7 +6,7 @@
 //! - In rows an element is a wire, a read is a free wire bound by a hash row, and an equality joins two wires.
 
 use crate::transcript::{Challenger, Receiver, TranscriptError, VerifierState};
-use primitives::field::{F192, F64};
+use primitives::field::{F64, F192};
 use primitives::multilinear::mle_eval_par;
 
 /// Arithmetic over `E`, on values or on the wires that hold them.
@@ -334,11 +334,7 @@ impl Arith for Native {
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() {
-            F192::ZERO
-        } else {
-            a.inv()
-        }
+        if a.is_zero() { F192::ZERO } else { a.inv() }
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
@@ -370,11 +366,7 @@ impl Arith for VerifierState<'_> {
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() {
-            F192::ZERO
-        } else {
-            a.inv()
-        }
+        if a.is_zero() { F192::ZERO } else { a.inv() }
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
@@ -409,11 +401,7 @@ impl Verifier for VerifierState<'_> {
     }
 
     fn ensure_eq<Er>(&mut self, a: F192, b: F192, err: impl FnOnce() -> Er) -> Result<(), Er> {
-        if a == b {
-            Ok(())
-        } else {
-            Err(err())
-        }
+        if a == b { Ok(()) } else { Err(err()) }
     }
 
     fn finish(&mut self) -> Result<(), TranscriptError> {

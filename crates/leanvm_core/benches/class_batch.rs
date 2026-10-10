@@ -159,8 +159,13 @@ impl ClassBatch {
 
         let mut ps = ProverState::from_label(b"flock-class-batch");
         let t = Instant::now();
-        let (commitment, prover_data) =
-            commit(&mut ps, as_field(&witness.z), self.mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0);
+        let (commitment, prover_data) = commit(
+            &mut ps,
+            as_field(&witness.z),
+            self.mu,
+            INITIAL_FOLDING_FACTOR,
+            LOG_INV_RATE_0,
+        );
         let commit_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
@@ -186,8 +191,13 @@ impl ClassBatch {
         let block = self.circuit.block();
         let mut vs = VerifierState::from_label(b"flock-class-batch", proof);
         let commitment = receive_commitment(
-            &mut vs, self.mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, 1 << INITIAL_FOLDING_FACTOR,
-        ).expect("immutable anchored commitment");
+            &mut vs,
+            self.mu,
+            INITIAL_FOLDING_FACTOR,
+            LOG_INV_RATE_0,
+            1 << INITIAL_FOLDING_FACTOR,
+        )
+        .expect("immutable anchored commitment");
         let replay = reduction::verify(&[(block.shape(), self.n_log)], &mut vs)
             .expect("the reduction verifies")
             .remove(0);

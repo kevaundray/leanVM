@@ -890,15 +890,7 @@ pub(crate) mod tests {
         let mut rs_eq_ind = vec![F192::ZERO; packed.len()];
         combine_deferred_chunk(&[weight], 0, &mut rs_eq_ind);
         assert_eq!(inner_product_base_ext(&packed, &rs_eq_ind), sumcheck_claim);
-        open_with_basis(
-            &pc,
-            &packed,
-            rs_eq_ind,
-            sumcheck_claim,
-            &pd,
-            &cm,
-            &mut ps,
-        );
+        open_with_basis(&pc, &packed, rs_eq_ind, sumcheck_claim, &pd, &cm, &mut ps);
         E2e {
             vc: pc,
             log_n,
@@ -931,7 +923,11 @@ pub(crate) mod tests {
     fn verify_e2e_dense(e: &E2e) -> bool {
         let mut vs = VerifierState::from_label(E2E_DOMAIN, &e.fs);
         let Ok(commitment) = receive_commitment(
-            &mut vs, e.log_n, e.vc.initial_k(), e.vc.log_inv_rates()[0], 1 << e.vc.initial_k(),
+            &mut vs,
+            e.log_n,
+            e.vc.initial_k(),
+            e.vc.log_inv_rates()[0],
+            1 << e.vc.initial_k(),
         ) else {
             return false;
         };
@@ -939,13 +935,9 @@ pub(crate) mod tests {
             return false;
         };
         let rs_eq_ind = fold_dense(&eq_table(&e.suffix_point), &coordinate_weights);
-        verify_with_basis(
-            &mut vs,
-            &e.vc,
-            &commitment,
-            sumcheck_claim,
-            |_, point| inner_product_ext(&rs_eq_ind, &eq_table(point)),
-        )
+        verify_with_basis(&mut vs, &e.vc, &commitment, sumcheck_claim, |_, point| {
+            inner_product_ext(&rs_eq_ind, &eq_table(point))
+        })
         .is_ok()
     }
 
@@ -954,7 +946,11 @@ pub(crate) mod tests {
     fn verify_e2e_succinct(e: &E2e) -> bool {
         let mut vs = VerifierState::from_label(E2E_DOMAIN, &e.fs);
         let Ok(commitment) = receive_commitment(
-            &mut vs, e.log_n, e.vc.initial_k(), e.vc.log_inv_rates()[0], 1 << e.vc.initial_k(),
+            &mut vs,
+            e.log_n,
+            e.vc.initial_k(),
+            e.vc.log_inv_rates()[0],
+            1 << e.vc.initial_k(),
         ) else {
             return false;
         };
@@ -962,13 +958,9 @@ pub(crate) mod tests {
             return false;
         };
         let map = RingMap::new(&mut Native, &challenges);
-        verify_with_basis(
-            &mut vs,
-            &e.vc,
-            &commitment,
-            sumcheck_claim,
-            |_, point| eval_rs_eq(&e.suffix_point, F192::ONE, &map, point),
-        )
+        verify_with_basis(&mut vs, &e.vc, &commitment, sumcheck_claim, |_, point| {
+            eval_rs_eq(&e.suffix_point, F192::ONE, &map, point)
+        })
         .is_ok()
     }
 

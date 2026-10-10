@@ -15,7 +15,7 @@ use crate::whir::config::{ConfigError, VerifierConfig};
 use crate::whir::induce::eval_sk_at_vks;
 use fiat_shamir::arith::Arith;
 use fiat_shamir::transcript::TranscriptError;
-use primitives::field::{F192, F64};
+use primitives::field::{F64, F192};
 use thiserror::Error;
 
 /// Why a WHIR opening is rejected.

@@ -211,13 +211,7 @@ impl<E: Copy, R: Copy> Commitment<E, R> {
     ) -> Result<Self, WhirError> {
         let log_inv_rate = usize::from(rate.log_inv_rate());
         let config = pcs::whir::config_for_rate(shape.mu, log_inv_rate)?;
-        let record = pcs::whir::receive_commitment(
-            v,
-            shape.mu,
-            config.initial_k(),
-            log_inv_rate,
-            shape.n_lanes,
-        )?;
+        let record = pcs::whir::receive_commitment(v, shape.mu, config.initial_k(), log_inv_rate, shape.n_lanes)?;
         Ok(Self { record, config })
     }
 
@@ -321,7 +315,6 @@ mod tests {
             Rate::MIN,
         )
         .expect("a supported witness");
-
 
         // Mutation: omit the lane, cut it short, or supply a second whole lane.
         for words in [0, lane_words - 1, 2 * lane_words] {

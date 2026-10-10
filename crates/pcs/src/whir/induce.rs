@@ -7,10 +7,10 @@
 //! dense per-query expansion, its succinct residual evaluator, and the sparse
 //! transposed-NTT fast path with the dispatch between them.
 
-use crate::ntt::additive_ntt_f64::transposed_butterfly_lanes;
 use crate::ntt::AdditiveNttF64;
+use crate::ntt::additive_ntt_f64::transposed_butterfly_lanes;
 use parallel::SendPtr;
-use primitives::field::{F192Unreduced, F192, F64};
+use primitives::field::{F64, F192, F192Unreduced};
 use primitives::multilinear::{eq_table, inner_product, inner_product_base};
 use std::collections::HashMap;
 
