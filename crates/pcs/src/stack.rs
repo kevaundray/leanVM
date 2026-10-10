@@ -226,17 +226,17 @@ impl CommittedStack {
     }
 
     /// The commitment's Merkle root.
-    pub fn root(&self) -> Hash {
+    pub const fn root(&self) -> Hash {
         self.record.root()
     }
 
     /// The complete immutable commitment used by every opening.
-    pub fn record(&self) -> &Commitment {
+    pub const fn record(&self) -> &Commitment {
         &self.record
     }
 
     /// The committed stack's encoding shape.
-    pub fn shape(&self) -> CommitmentShape {
+    pub const fn shape(&self) -> CommitmentShape {
         self.record.shape()
     }
 
@@ -324,17 +324,17 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
     }
 
     /// The complete original commitment used by every opening.
-    pub fn record(&self) -> &Commitment<E, R, K> {
+    pub const fn record(&self) -> &Commitment<E, R, K> {
         &self.record
     }
 
     /// The commitment's Merkle root.
-    pub fn root(&self) -> R {
+    pub const fn root(&self) -> R {
         self.record.root()
     }
 
     /// The committed stack's encoding shape.
-    pub fn shape(&self) -> CommitmentShape {
+    pub const fn shape(&self) -> CommitmentShape {
         self.record.shape()
     }
 
@@ -1285,12 +1285,13 @@ mod tests {
         fs: &ProofTranscript,
     ) -> bool {
         let mut vs = VerifierState::from_label(inst.opening_label.unwrap_or(DOMAIN), fs);
-        let commitment = if let Some(header) = &inst.header {
-            let mut source = VerifierState::from_label(DOMAIN, header);
-            StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
-        } else {
-            StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone())
-        };
+        let commitment = inst.header.as_ref().map_or_else(
+            || StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone()),
+            |header| {
+                let mut source = VerifierState::from_label(DOMAIN, header);
+                StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
+            },
+        );
         let Ok(commitment) = commitment else { return false };
         let statement = Statement {
             points: point_claims,
