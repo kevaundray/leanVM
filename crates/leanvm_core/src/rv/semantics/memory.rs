@@ -556,9 +556,9 @@ mod tests {
     #[test]
     fn clean_memory_proves_native_witnesses_and_rejects_false_cells_products_and_padding() {
         fn check<const N: usize>(
-            circuit: Circuit,
+            circuit: &Circuit,
             rows: &[[u64; N]],
-            native: fn(&[u64], &mut [u64], &mut [u64], &mut [u64]),
+            native: crate::tables::spec::InstanceWitness,
             unused_flag: usize,
         ) {
             let block = circuit.block();
@@ -581,7 +581,13 @@ mod tests {
             };
             assert!(accepts(None));
             let output = 64 * circuit.n_input_words();
-            for bit in [output + 6, output + 64 + 63, circuit.useful_bits() - 1, unused_flag, circuit.useful_bits()] {
+            for bit in [
+                output + 6,
+                output + 64 + 63,
+                circuit.useful_bits() - 1,
+                unused_flag,
+                circuit.useful_bits(),
+            ] {
                 assert!(!accepts(Some(bit)), "flipping witness bit {bit} must reject");
             }
         }
@@ -589,7 +595,7 @@ mod tests {
             .map(|i| {
                 [
                     [0, u64::MAX - 7, 0x1234_5678_0000][i / 8 % 3] | (i % 8) as u64,
-                    [0, 8, u64::MAX & !7][i / 24 % 3],
+                    [0, 8, !7][i / 24 % 3],
                     Load::LEGAL[i % Load::LEGAL.len()],
                     BYTES[i / 6 % BYTES.len()],
                 ]
@@ -602,14 +608,14 @@ mod tests {
                 [
                     [0, u64::MAX - 7, 0x1234_5678_0000][i / 8 % 3] | offset,
                     BYTES[i / 6 % BYTES.len()],
-                    [0, 8, u64::MAX & !7][i / 24 % 3],
+                    [0, 8, !7][i / 24 % 3],
                     flags,
                     BYTES[i % BYTES.len()],
                 ]
             })
             .collect();
-        check(Load::circuit(), &loads, Load::witness, 64 * 2 + 3);
-        check(Store::circuit(), &stores, Store::witness, 64 * 3 + 2);
+        check(&Load::circuit(), &loads, Load::witness, 64 * 2 + 3);
+        check(&Store::circuit(), &stores, Store::witness, 64 * 3 + 2);
     }
 
     #[test]
