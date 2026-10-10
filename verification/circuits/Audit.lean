@@ -195,8 +195,36 @@ run_cmd do
     ``LeanVMCircuits.Rec.new_inv,
     ``LeanVMCircuits.Rec.commit_rows,
     ``LeanVMCircuits.Rec.low_bits_row,
-    ``LeanVMCircuits.Rec.pow_rows] do
+    ``LeanVMCircuits.Rec.pow_rows,
+    ``LeanVMCircuits.Load.circuit, ``LeanVMCircuits.Store.circuit,
+    ``LeanVMCircuits.Memory.legal_load_flags, ``LeanVMCircuits.Memory.legal_store_flags,
+    ``LeanVMCircuits.Memory.bus_aligned_iff, ``LeanVMCircuits.StoreMask.select_eq_store,
+    ``LeanVMCircuits.Flock.Load.supported, ``LeanVMCircuits.Flock.Load.source_eq,
+    ``LeanVMCircuits.Flock.Load.soundness, ``LeanVMCircuits.Flock.Load.layout,
+    ``LeanVMCircuits.Flock.Load.wellFormed, ``LeanVMCircuits.Flock.Load.complete,
+    ``LeanVMCircuits.Flock.Store.supported, ``LeanVMCircuits.Flock.Store.source_eq,
+    ``LeanVMCircuits.Flock.Store.soundness, ``LeanVMCircuits.Flock.Store.layout,
+    ``LeanVMCircuits.Flock.Store.wellFormed, ``LeanVMCircuits.Flock.Store.complete] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
         throwError "{theoremName} depends on unexpected axiom {axiomName}"
+
+#print axioms LeanVMCircuits.Load.circuit
+#print axioms LeanVMCircuits.Store.circuit
+#print axioms LeanVMCircuits.Memory.legal_load_flags
+#print axioms LeanVMCircuits.Memory.legal_store_flags
+#print axioms LeanVMCircuits.Memory.bus_aligned_iff
+#print axioms LeanVMCircuits.StoreMask.select_eq_store
+#print axioms LeanVMCircuits.Flock.Load.supported
+#print axioms LeanVMCircuits.Flock.Load.source_eq
+#print axioms LeanVMCircuits.Flock.Load.soundness
+#print axioms LeanVMCircuits.Flock.Load.layout
+#print axioms LeanVMCircuits.Flock.Load.wellFormed
+#print axioms LeanVMCircuits.Flock.Load.complete
+#print axioms LeanVMCircuits.Flock.Store.supported
+#print axioms LeanVMCircuits.Flock.Store.source_eq
+#print axioms LeanVMCircuits.Flock.Store.soundness
+#print axioms LeanVMCircuits.Flock.Store.layout
+#print axioms LeanVMCircuits.Flock.Store.wellFormed
+#print axioms LeanVMCircuits.Flock.Store.complete

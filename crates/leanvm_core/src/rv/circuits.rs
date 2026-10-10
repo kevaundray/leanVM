@@ -42,21 +42,6 @@ pub(super) trait WordGadgets {
 
     /// Commit `x` as output port `port`.
     fn output_word(&mut self, port: usize, x: &[Wire; 64]);
-
-    /// The width thresholds, from the two bits of the width's logarithm: at least 2, at least 4.
-    ///
-    /// A double word is LD's or SD's, so the two bits are never both set, and their OR is their XOR.
-    fn width_thresholds(&mut self, log_width: [Wire; 2]) -> [Wire; 2];
-
-    /// The bus address: the address, its low two bits kept only where they misalign the access.
-    ///
-    /// It is the reference's bus address, bit by bit. Bit 2 never misaligns, no width here reaching 8 bytes, so it is cleared.
-    fn bus_address(&mut self, address: &[Wire; 64], thresholds: [Wire; 2]) -> [Wire; 64];
-
-    /// `x` shifted by `8 * amount` bits, left or right.
-    ///
-    /// Only the low `BITS` bits of the result are made, the ones the caller reads.
-    fn shift_bytes<const BITS: usize>(&mut self, x: &[Wire; 64], amount: [Wire; 3], left: bool) -> [Wire; BITS];
 }
 
 impl WordGadgets for Builder {
@@ -86,37 +71,6 @@ impl WordGadgets for Builder {
         for (bit, &wire) in x.iter().enumerate() {
             self.output(port, bit, wire);
         }
-    }
-
-    fn width_thresholds(&mut self, [low, high]: [Wire; 2]) -> [Wire; 2] {
-        [self.xor(low, high), high]
-    }
-
-    fn bus_address(&mut self, address: &[Wire; 64], thresholds: [Wire; 2]) -> [Wire; 64] {
-        std::array::from_fn(|i| match i {
-            0 | 1 => self.and(address[i], thresholds[i]),
-            2 => Wire::ZERO,
-            _ => address[i],
-        })
-    }
-
-    fn shift_bytes<const BITS: usize>(&mut self, x: &[Wire; 64], amount: [Wire; 3], left: bool) -> [Wire; BITS] {
-        const { assert!(BITS <= 64, "a shifted word has at most 64 bits") };
-
-        // Stage k moves by 8 * 2^k bits when bit k of the amount is set; a vacated bit is zero.
-        let from = |x: &[Wire; 64], i: usize, by: usize| {
-            if left {
-                i.checked_sub(by).map_or(Wire::ZERO, |j| x[j])
-            } else {
-                x.get(i + by).copied().unwrap_or(Wire::ZERO)
-            }
-        };
-        let [by_8, by_16, by_32] = amount;
-        let x: [Wire; 64] = std::array::from_fn(|i| self.mux(by_8, from(x, i, 8), x[i]));
-        let x: [Wire; 64] = std::array::from_fn(|i| self.mux(by_16, from(&x, i, 16), x[i]));
-
-        // The last stage makes only the bits the caller reads.
-        std::array::from_fn(|i| self.mux(by_32, from(&x, i, 32), x[i]))
     }
 }
 

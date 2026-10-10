@@ -98,5 +98,7 @@ def circuit (n : ℕ) := (certified n).circuit
     (circuit n).channelsWithRequirements = [] := (certified n).requirements_eq
 @[circuit_norm] theorem circuit_guarantees (n : ℕ) :
     (circuit n).elaborated.channelsWithGuarantees = [] := (certified n).guarantees_eq
+@[circuit_norm] theorem circuit_length (n : ℕ) (input : Var (Input n) Bit) :
+    (circuit n).localLength input = n := (certified n).length_eq input
 
 end LeanVMCircuits.WordMux

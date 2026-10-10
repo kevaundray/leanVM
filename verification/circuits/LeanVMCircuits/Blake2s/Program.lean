@@ -119,19 +119,10 @@ def Op.length : Op → ℕ
   | .addEven _ _ => 62
   | .xorRotr _ _ _ => 32
 
-theorem adder_localLength (n : ℕ) (input : Var (Adder.Input n) Bit) (offset : ℕ) :
-    ((Adder.certified n).circuit.main input).localLength offset = n := by
-  induction n generalizing offset with
-  | zero => rfl
-  | succ n ih =>
-    simp only [Adder.certified, Adder.step, circuit_norm, FullAdder.circuit]
-    rw [← FormalCircuitBase.localLength_eq _ _ 0, ih]
-
 theorem op_localLength (op : Op) (registers : List Reg) (offset : ℕ) :
     (op.circuit registers).localLength offset = op.length := by
   cases op <;> simp [Op.circuit, Op.length, circuit_norm, Add32.circuit, AddOdd.circuit, AddEven.circuit,
     XorRotr.circuit]
-  all_goals exact (FormalCircuitBase.localLength_eq _ _ 0).symm.trans (adder_localLength _ _ 0)
 
 theorem run_localLength (ops : List Op) (registers : List Reg) (offset : ℕ) :
     (run ops registers).localLength offset = (ops.map Op.length).sum := by
