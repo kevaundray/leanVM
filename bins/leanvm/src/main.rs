@@ -184,7 +184,7 @@ fn main() {
     let cli = Cli::parse();
     if cli.zk && matches!(cli.command, Command::Aggregate { .. } | Command::Bench { .. }) {
         refuse(format_args!(
-            "--zk proves single runs: an aggregation tree does not verify zero-knowledge leaves, and the benchmark tracks its own zero-knowledge case"
+            "--zk proves single runs: no aggregation tree verifies a zero-knowledge leaf, and the tracked benchmarks are plain proofs"
         ));
     }
     let fixed_threads = match &cli.command {
