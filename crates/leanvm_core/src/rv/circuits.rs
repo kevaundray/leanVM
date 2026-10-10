@@ -43,9 +43,6 @@ pub(super) trait WordGadgets {
     /// Commit `x` as output port `port`.
     fn output_word(&mut self, port: usize, x: &[Wire; 64]);
 
-    /// `x` bit-reversed unless `right` is set; one product per bit.
-    fn reverse_unless(&mut self, right: Wire, x: &[Wire; 64]) -> [Wire; 64];
-
     /// The width thresholds, from the two bits of the width's logarithm: at least 2, at least 4.
     ///
     /// A double word is LD's or SD's, so the two bits are never both set, and their OR is their XOR.
@@ -89,10 +86,6 @@ impl WordGadgets for Builder {
         for (bit, &wire) in x.iter().enumerate() {
             self.output(port, bit, wire);
         }
-    }
-
-    fn reverse_unless(&mut self, right: Wire, x: &[Wire; 64]) -> [Wire; 64] {
-        std::array::from_fn(|i| self.mux(right, x[i], x[63 - i]))
     }
 
     fn width_thresholds(&mut self, [low, high]: [Wire; 2]) -> [Wire; 2] {
