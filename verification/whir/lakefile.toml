@@ -50,3 +50,11 @@ root = "Whir.PublicCompressionCouplingSourceStreamSmoke"
 [[lean_exe]]
 name = "whirRoundByRoundDecoderSmoke"
 root = "Whir.PCSRoundByRoundSourceDecoderSmoke"
+
+[[lean_exe]]
+name = "whirBookRoundsSmoke"
+root = "Whir.PCSBCSRoundsSmoke"
+
+[[lean_exe]]
+name = "whirMerkleLogExtractionSmoke"
+root = "Whir.MerkleQueryLogExtractionSmoke"

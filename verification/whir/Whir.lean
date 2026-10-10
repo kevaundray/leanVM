@@ -153,3 +153,9 @@ import Whir.AnchorPrefixRefinementCost
 import Whir.AnchorPrefixRefinementRows
 import Whir.PCSRoundByRoundSourceDecoderCorrectness
 import Whir.PCSRoundByRoundSourceDecoderCost
+import Whir.PCSRoundByRoundPublicTransition
+import Whir.PCSBCSRoundsParameters
+import Whir.PCSBCSRoundsByteHistory
+import Whir.PCSBCSMerkleRootCache
+import Whir.PCSBCSMerkleOpenedTable
+import Whir.MerkleQueryLogExtractionResourceContract
