@@ -11,7 +11,7 @@ What the BLAKE2s Clean circuit lowers to, in closed form.
 
 namespace LeanVMCircuits.Blake2s
 
-open LeanVMCircuits Gates Flock
+open LeanVMCircuits Gates Flock Rfc7693
 
 /-- The carry into bit `i` of a ripple adder whose products start at `n`: the sum of the products below. -/
 def carryAffine (n : ℕ) (carry : Affine) : ℕ → Affine
@@ -378,5 +378,187 @@ theorem xorRotr_lower (registers : List Reg) (affs : Affs) (n : ℕ) (r : Fin 32
   · intro i hi
     simp only [Op.circuit, XorRotr.circuit, circuit_norm]
     rw [define_output]
+
+/-- The result register's bits: the operation's last 32 variables. -/
+def outputAffines (op : Op) (n : ℕ) : Vector Affine 32 := Vector.ofFn fun i => .var (n + op.length - 32 + i.val)
+
+theorem op_lower (op : Op) (registers : List Reg) (affs : Affs) (n : ℕ) (h : Rel registers affs n) :
+    Gates.lower n (Operations.toFlat ((op.circuit registers) n).2) = .ok (op.steps affs n) ∧
+      ∀ i (hi : i < 32), ((op.circuit registers).output n)[i] = var ⟨n + op.length - 32 + i⟩ := by
+  cases op with
+  | add x y => simpa [Op.length] using add_lower registers affs n x y h
+  | addOdd k y => simpa [Op.length] using addOdd_lower registers affs n k y h
+  | addEven k y => simpa [Op.length] using addEven_lower registers affs n k y h
+  | xorRotr r x y => simpa [Op.length] using xorRotr_lower registers affs n r x y h
+
+theorem op_length_ge (op : Op) : 32 ≤ op.length := by cases op <;> simp [Op.length]
+
+theorem rel_append (registers : List Reg) (affs : Affs) (n : ℕ) (op : Op) (h : Rel registers affs n)
+    (result : Reg) (hres : ∀ i (hi : i < 32), result[i] = var ⟨n + op.length - 32 + i⟩) :
+    Rel (registers ++ [result]) (affs ++ [outputAffines op n]) (n + op.length) := by
+  obtain ⟨hlen, hrel⟩ := h
+  have hge := op_length_ge op
+  refine ⟨by simp [hlen], fun r i hi => ?_⟩
+  rcases Nat.lt_trichotomy r registers.length with hr | hr | hr
+  · have hg : get (registers ++ [result]) r = get registers r := by
+      simp [get, List.getD_eq_getElem?_getD, List.getElem?_append_left hr]
+    have ha : affGet (affs ++ [outputAffines op n]) r i = affGet affs r i := by
+      simp [affGet, hi, List.getD_eq_getElem?_getD, List.getElem?_append_left (hlen ▸ hr)]
+    rw [hg, ha]
+    exact ⟨(hrel r i hi).1, Affine.bounded_mono _ (hrel r i hi).2 (by omega)⟩
+  · subst hr
+    have hg : get (registers ++ [result]) registers.length = result := by
+      simp [get, List.getD_eq_getElem?_getD]
+    have ha : affGet (affs ++ [outputAffines op n]) registers.length i = .var (n + op.length - 32 + i) := by
+      simp [affGet, hi, List.getD_eq_getElem?_getD, hlen, outputAffines]
+    rw [hg, ha, hres i hi]
+    refine ⟨rfl, ?_⟩
+    simp [Affine.bounded]
+    omega
+  · have hg : get (registers ++ [result]) r = Vector.replicate 32 0 := by
+      simp [get, List.getD_eq_getElem?_getD, List.getElem?_eq_none (show (registers ++ [result]).length ≤ r by
+        simp; omega)]
+    have ha : affGet (affs ++ [outputAffines op n]) r i = .zero := by
+      simp [affGet, hi, List.getD_eq_getElem?_getD, List.getElem?_eq_none (show (affs ++ [outputAffines op n]).length ≤ r by
+        simp; omega)]
+    rw [hg, ha]
+    exact ⟨by simp; rfl, rfl⟩
+
+theorem steps_length (op : Op) (affs : Affs) (n : ℕ) : (op.steps affs n).length = op.length := by
+  cases op <;> simp [Op.steps, adderSteps, defines, Op.length]
+
+def modelSteps : List Op → Affs → ℕ → List Step
+  | [], _, _ => []
+  | op :: ops, affs, n => op.steps affs n ++ modelSteps ops (affs ++ [outputAffines op n]) (n + op.length)
+
+def modelAffs : List Op → Affs → ℕ → Affs
+  | [], affs, _ => affs
+  | op :: ops, affs, n => modelAffs ops (affs ++ [outputAffines op n]) (n + op.length)
+
+theorem run_lower (ops : List Op) (registers : List Reg) (affs : Affs) (n : ℕ) (h : Rel registers affs n) :
+    Gates.lower n (Operations.toFlat ((run ops registers) n).2) = .ok (modelSteps ops affs n) ∧
+      Rel ((run ops registers).output n) (modelAffs ops affs n) (n + (ops.map Op.length).sum) := by
+  induction ops generalizing registers affs n with
+  | nil => exact ⟨rfl, by simpa [run, modelAffs, circuit_norm] using h⟩
+  | cons op ops ih =>
+    obtain ⟨hop, hres⟩ := op_lower op registers affs n h
+    have hrel := rel_append registers affs n op h _ hres
+    have hlen := op_localLength op registers n
+    obtain ⟨hrest, hfinal⟩ := ih _ _ _ hrel
+    simp only [run, circuit_norm] at hlen ⊢
+    rw [hlen]
+    refine ⟨?_, ?_⟩
+    · rw [toFlat_append, Gates.lower_append _ _ _ _ hop, steps_length]
+      erw [hrest]
+      rfl
+    · simp only [modelAffs, List.sum_cons, ← Nat.add_assoc]
+      exact hfinal
+
+/-! The whole compression. -/
+
+namespace Compress
+
+attribute [local irreducible] program
+
+/-- The ports as variables: `t` at 0, `f0` at 64, `h` at 96 and `m` at 352, 864 in all. -/
+def inputs : Var Input Bit :=
+  { t := Vector.ofFn fun i => var ⟨i.val⟩, f0 := Vector.ofFn fun i => var ⟨64 + i.val⟩,
+    h := Vector.ofFn fun i => var ⟨96 + i.val⟩, m := Vector.ofFn fun i => var ⟨352 + i.val⟩ }
+
+def inputBits : ℕ := 864
+
+/-- The initial registers' bits, as `register` builds them from `inputs`. -/
+def registerAffines (r : Fin 32) : Vector Affine 32 :=
+  if r.val < 8 then Vector.ofFn fun j => .var (96 + 32 * r.val + j.val)
+  else if r.val < 24 then Vector.ofFn fun j => .var (352 + 32 * (r.val - 8) + j.val)
+  else match r.val - 24 with
+    | 4 => Vector.ofFn fun j => .xor (literalAffine IV[4] j) (.var j.val)
+    | 5 => Vector.ofFn fun j => .xor (literalAffine IV[5] j) (.var (32 + j.val))
+    | 6 => Vector.ofFn fun j => .xor (literalAffine IV[6] j) (.var (64 + j.val))
+    | 7 => Vector.ofFn fun j => literalAffine IV[7] j
+    | i => Vector.ofFn fun j => literalAffine IV[i % 8] j
+
+def initialAffines : Affs := List.ofFn registerAffines
+
+theorem initial_rel : Rel (registers inputs) initialAffines inputBits := by
+  refine ⟨by simp [registers, initialAffines], fun r i hi => ?_⟩
+  by_cases hr : r < 32
+  · have hg : get (registers inputs) r = register inputs ⟨r, hr⟩ := by
+      simp only [get, registers, List.getD_eq_getElem?_getD, List.getElem?_ofFn, hr, dite_true, Option.getD_some]
+    have ha : affGet initialAffines r i = (registerAffines ⟨r, hr⟩)[i] := by
+      simp only [affGet, hi, dite_true, initialAffines, List.getD_eq_getElem?_getD, List.getElem?_ofFn, hr,
+        Option.getD_some]
+    rw [hg, ha]
+    have hadd : ∀ (a b : Expression Bit) (la lb : Affine), lowerAffine a = .ok la → lowerAffine b = .ok lb →
+        lowerAffine (a + b) = .ok (.xor la lb) := by
+      intro a b la lb ha hb
+      show lowerAffine (.add _ _) = _
+      simp [lowerAffine, ha, hb]
+    interval_cases r <;>
+      simp only [register, registerAffines, chunk, inputs, low, high, xorBits, Vector.getElem_ofFn] <;>
+      try norm_num
+    all_goals refine ⟨?_, ?_⟩
+    all_goals first
+      | (simp only [lowerAffine]; done)
+      | (simp only [lowerAffine]; congr 2; omega)
+      | (simp only [Affine.bounded, inputBits]; exact decide_eq_true (by omega))
+      | exact lower_literal _ _ hi
+      | exact literalAffine_bounded _ _ _
+      | exact hadd _ _ _ _ (lower_literal _ _ hi) rfl
+      | (simp only [Affine.bounded, literalAffine_bounded, inputBits, Bool.true_and]
+         exact decide_eq_true (by omega))
+  · have hg : get (registers inputs) r = Vector.replicate 32 0 := by
+      simp only [get, registers, List.getD_eq_getElem?_getD, List.getElem?_ofFn, hr, dite_false, Option.getD_none]
+    have ha : affGet initialAffines r i = .zero := by
+      simp only [affGet, hi, dite_true, initialAffines, List.getD_eq_getElem?_getD, List.getElem?_ofFn, hr,
+        dite_false, Option.getD_none, Vector.getElem_replicate]
+    rw [hg, ha]
+    exact ⟨by simp; rfl, rfl⟩
+
+/-- The output bits' affine forms: `h_i ^ v_i ^ v_{i+8}`, bit by bit, through the final lanes. -/
+def outputAffine (final : Affs) (k : Fin 256) : Affine :=
+  .xor (.xor (.var (96 + 32 * (k.val / 32) + k.val % 32)) (affGet final program.lanes[k.val / 32] (k.val % 32)))
+    (affGet final program.lanes[k.val / 32 + 8] (k.val % 32))
+
+theorem lowerOutputs_ofFn {k : ℕ} (f : Fin k → Expression Bit) (g : Fin k → Affine)
+    (h : ∀ i, lowerAffine (f i) = .ok (g i)) : lowerOutputs (List.ofFn f) = .ok (List.ofFn g) := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    rw [List.ofFn_succ, List.ofFn_succ, lowerOutputs, h 0, ih (fun i => f i.succ) (fun i => g i.succ) (fun i => h i.succ)]
+
+/-- The exact artifact the Clean compression lowers to, at the ports' variables. -/
+def artifact : Gates.Artifact :=
+  { start := inputBits, steps := modelSteps program.ops initialAffines inputBits,
+    outputs := List.ofFn (outputAffine (modelAffs program.ops initialAffines inputBits)) }
+
+theorem lowered : Gates.lowerCircuit Compress.circuit inputBits inputs = .ok artifact := by
+  obtain ⟨hrun, hfinal⟩ := run_lower program.ops (registers inputs) initialAffines inputBits initial_rel
+  simp only [Gates.lowerCircuit, Gates.lowerAt]
+  rw [toSubcircuit_toFlat]
+  simp only [Compress.circuit, Compress.main, circuit_norm]
+  rw [hrun]
+  have hout : lowerOutputs (toElements (M := fields 256)
+      (output inputs (run program.ops (registers inputs) inputBits).1)).toList =
+      .ok (List.ofFn (outputAffine (modelAffs program.ops initialAffines inputBits))) := by
+    show lowerOutputs (Vector.ofFn _).toList = _
+    rw [Vector.toList_ofFn]
+    apply lowerOutputs_ofFn
+    intro k
+    have hk : k.val < 256 := k.isLt
+    have h1 := (hfinal.2 (program.lanes[k.val / 32]'(by omega)) (k.val % 32) (Nat.mod_lt _ (by omega))).1
+    have h2 := (hfinal.2 (program.lanes[k.val / 32 + 8]'(by omega)) (k.val % 32) (Nat.mod_lt _ (by omega))).1
+    show lowerAffine (.add (.add _ _) _) = _
+    simp only [lowerAffine, chunk, inputs, Vector.getElem_ofFn]
+    erw [h1, h2]
+    have h0 : (Vector.ofFn fun j : Fin 32 => (var ⟨96 + (32 * (k.val / 32) + j.val)⟩ : Expression Bit))[(⟨k.val % 32,
+        Nat.mod_lt _ (by omega)⟩ : Fin 32)] = var ⟨96 + 32 * (k.val / 32) + k.val % 32⟩ := by
+      simp only [Fin.getElem_fin, Vector.getElem_ofFn]; congr 2; omega
+    erw [h0]
+    rfl
+  rw [hout]
+  rfl
+
+end Compress
 
 end LeanVMCircuits.Blake2s
