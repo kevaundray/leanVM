@@ -69,7 +69,7 @@ fn prove_products(ps: &mut impl Transmitter, r1cs: &R1cs, products: [Vec<F192>; 
         suffix += tau[i] * (g0 + g1);
         let eq = eq_table(&tau[i + 1..]);
         let mut coeffs = [F192::ZERO; 3];
-        let pairs = (az.chunks_exact(2).zip(bz.chunks_exact(2))).zip(cz.chunks_exact(2));
+        let pairs = (az.as_chunks::<2>().0.iter().zip(bz.as_chunks::<2>().0)).zip(cz.as_chunks::<2>().0);
         for (((a, b), c), &e) in pairs.zip(&eq) {
             let (da, db) = (a[0] + a[1], b[0] + b[1]);
             coeffs[0] += e * (a[0] * b[0] + c[0]);
