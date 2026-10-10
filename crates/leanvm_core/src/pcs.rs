@@ -193,18 +193,18 @@ impl Committed {
 }
 
 /// An immutable anchored commitment and its validated opening configuration.
-pub(crate) struct Commitment<E, R> {
-    record: pcs::whir::Commitment<E, R>,
+pub(crate) struct Commitment<E, R, K> {
+    record: pcs::whir::Commitment<E, R, K>,
     config: ProverConfig,
 }
 
-impl<E: Copy, R: Copy> Commitment<E, R> {
+impl<E: Copy, R: Copy, K: Copy> Commitment<E, R, K> {
     /// Reads and binds the complete commitment before any opening statement.
     ///
     /// # Errors
     ///
     /// Returns an invalid public shape, incompatible commitment context, or malformed stream.
-    pub(crate) fn read<V: OpeningVerifier<E = E, Root = R>>(
+    pub(crate) fn read<V: OpeningVerifier<E = E, Root = R, K = K>>(
         v: &mut V,
         shape: StackShape,
         rate: Rate,
@@ -223,7 +223,7 @@ impl<E: Copy, R: Copy> Commitment<E, R> {
     /// # Errors
     ///
     /// Returns an error for an unsupported witness size, malformed claims, or an invalid opening.
-    pub(crate) fn verify<V: OpeningVerifier<E = E, Root = R>>(
+    pub(crate) fn verify<V: OpeningVerifier<E = E, Root = R, K = K>>(
         &self,
         v: &mut V,
         points: &[StackClaim<V::E>],

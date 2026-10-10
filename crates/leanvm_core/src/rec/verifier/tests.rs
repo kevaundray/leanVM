@@ -175,8 +175,7 @@ fn label_cv() -> Limbs {
 // A rows transcript from the test label over `source`, and what `f` builds on it.
 fn replay<T>(source: ProofSource<'_>, f: impl FnOnce(&mut Rows<'_, '_>) -> T) -> (Builder, T, bool) {
     let mut b = Builder::new();
-    let cv = b.d_const(label_cv());
-    let mut t = Transcript::from_state(cv, source);
+    let mut t = Transcript::from_label(&mut b, LABEL, source);
     let out = f(&mut Rows::new(&mut b, &mut t));
     let finished = t.finished();
     (b, out, finished)
@@ -548,7 +547,7 @@ fn a_recursion_proof_in_rows_is_its_verifier() {
     let x = b.free_e(F192::new(3, 5, 7));
     let y = b.e_const(F192::new(11, 13, 17));
     let mut acc = b.d_const([1, 2, 3, 4]);
-    let observe = b.k_const(fiat_shamir::DS_OBSERVE.0);
+    let observe = b.k_const(1);
     let mut e = x;
     for _ in 0..40 {
         e = b.mul_add(e, y, x);

@@ -56,8 +56,8 @@ pub use induce::eval_sk_at_vks;
 pub use prove::open_with_basis;
 pub(crate) use prove::prove_protocol_with_prepared_basis;
 pub(crate) use sumcheck::{INITIAL_BASIS_CHUNK, initial_rounds_virtual};
-pub(crate) use verify::verify_protocol_with_basis;
 pub use verify::{WeightAt, WhirError, verify_with_basis};
+pub(crate) use verify::{check_config_shape, verify_protocol_with_basis};
 
 /// Mixed inner product `Σ_i b[i] · witness[i]` (E x K via `mul_base`). The
 /// evaluation-claim `target` for a K-witness against an E-basis.

@@ -207,8 +207,12 @@ impl OpeningVerifier for Rows<'_, '_> {
     /// A query's index bits, lowest first.
     type Query = Vec<Kw>;
 
-    fn context(&mut self) -> TranscriptContext<Ew, Dw> {
+    fn context(&mut self) -> TranscriptContext<Kw, Dw> {
         self.t.context()
+    }
+
+    fn zero_k(&mut self) -> Kw {
+        self.b.k_const(0)
     }
 
     fn root_scalars(&mut self, root: Dw) -> [Ew; 2] {

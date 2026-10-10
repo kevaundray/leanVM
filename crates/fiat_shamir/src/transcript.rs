@@ -1,7 +1,8 @@
 //! Fiat-Shamir proof transport. `add_scalar` and `next_scalar` transmit and bind together, which is the only way anything enters the state: a transmitted value needs no separate absorb, a value derived from transmitted ones needs none either, and the statement rides the seed the state starts from. So there is no absorb-only method at all. Merkle hints are authenticated by their trees and are not absorbed separately.
 
+use crate::Duplex;
+use crate::TranscriptContext;
 use crate::merkle::{Hash, PrunedMerklePaths, RawMerklePath, hash_to_scalars, scalars_to_hash};
-use crate::{FiatShamirState, TranscriptContext};
 use bincode::{DefaultOptions, Options};
 use primitives::field::{F64, F192};
 use serde::de::DeserializeOwned;
@@ -20,16 +21,26 @@ pub struct ProofTranscript<M = PrunedMerklePaths> {
 /// Native verification produces it through [`VerifierState::into_raw_proof`].
 pub type RawProof = ProofTranscript<RawMerklePath>;
 
+/// The standalone bincode transcript format, incompatible with the unversioned chain format.
+const TRANSCRIPT_HEADER: &[u8; 8] = b"LVFS\x01\0\0\0";
+
 impl<M: Serialize + DeserializeOwned> ProofTranscript<M> {
-    /// The proof's wire bytes: bincode's fixed-width little-endian encoding.
+    /// A version header followed by bincode's fixed-width little-endian encoding.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
-        encoding().serialize(self).expect("a proof is plain data")
+        let size = encoding().serialized_size(self).expect("a proof is plain data") as usize;
+        let mut bytes = Vec::with_capacity(TRANSCRIPT_HEADER.len() + size);
+        bytes.extend_from_slice(TRANSCRIPT_HEADER);
+        encoding()
+            .serialize_into(&mut bytes, self)
+            .expect("a proof is plain data");
+        bytes
     }
 
     /// The proof these bytes encode, if they encode one and nothing more.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        encoding().with_limit(bytes.len() as u64).deserialize(bytes).ok()
+        let payload = bytes.strip_prefix(TRANSCRIPT_HEADER)?;
+        encoding().with_limit(payload.len() as u64).deserialize(payload).ok()
     }
 }
 
@@ -75,7 +86,7 @@ pub trait Challenger {
 /// push an opening phase, send a scalar, or grind.
 pub trait Transmitter: Challenger {
     /// Copy the exact context without changing the transcript.
-    fn context(&self) -> TranscriptContext<F192, Hash>;
+    fn context(&self) -> TranscriptContext<F64, Hash>;
 
     fn hint_merkle(&mut self, paths: PrunedMerklePaths);
     fn add_scalar(&mut self, x: F192);
@@ -147,23 +158,23 @@ pub trait Receiver: Challenger {
 
 /// Prover side: writes scalars into the stream and opening phases to the side.
 pub struct ProverState {
-    fs: FiatShamirState,
+    fs: Duplex,
     stream: Vec<F192>,
     merkle: Vec<PrunedMerklePaths>,
 }
 
 impl ProverState {
-    /// `iv` and `public_input` seed the Fiat-Shamir state (see [`FiatShamirState::new`]).
+    /// `iv` and `public_input` seed the duplex (see [`Duplex::new`]).
     pub fn new(iv: [F64; 4], public_input: [F64; 4]) -> Self {
-        Self::from_fs(FiatShamirState::new(iv, public_input))
+        Self::from_fs(Duplex::new(iv, public_input))
     }
 
     /// A protocol with no public input of its own, seeded from `label` alone.
     pub fn from_label(label: &[u8]) -> Self {
-        Self::from_fs(FiatShamirState::from_label(label))
+        Self::from_fs(Duplex::from_label(label))
     }
 
-    const fn from_fs(fs: FiatShamirState) -> Self {
+    const fn from_fs(fs: Duplex) -> Self {
         Self {
             fs,
             stream: Vec::new(),
@@ -171,8 +182,8 @@ impl ProverState {
         }
     }
 
-    /// Copy the chaining value and waiting scalars without changing the transcript.
-    pub fn context(&self) -> TranscriptContext<F192, [F64; 4]> {
+    /// Copy the exact logical duplex state without changing the transcript.
+    pub fn context(&self) -> TranscriptContext<F64, [F64; 4]> {
         self.fs.context()
     }
 
@@ -187,7 +198,7 @@ impl ProverState {
 /// Verifier side: reads scalars from a received [`ProofTranscript`] (borrowed) and pulls
 /// opening phases in order.
 pub struct VerifierState<'a> {
-    fs: FiatShamirState,
+    fs: Duplex,
     stream: &'a [F192],
     offset: usize,
     merkle: &'a [PrunedMerklePaths],
@@ -196,18 +207,18 @@ pub struct VerifierState<'a> {
 }
 
 impl<'a> VerifierState<'a> {
-    /// `iv` and `public_input` seed the Fiat-Shamir state (see [`FiatShamirState::new`]).
+    /// `iv` and `public_input` seed the duplex (see [`Duplex::new`]).
     /// They must match the prover's, or the two states diverge and verification fails.
     pub fn new(iv: [F64; 4], proof: &'a ProofTranscript, public_input: [F64; 4]) -> Self {
-        Self::from_fs(FiatShamirState::new(iv, public_input), proof)
+        Self::from_fs(Duplex::new(iv, public_input), proof)
     }
 
     /// A protocol with no public input of its own, seeded from `label` alone.
     pub fn from_label(label: &[u8], proof: &'a ProofTranscript) -> Self {
-        Self::from_fs(FiatShamirState::from_label(label), proof)
+        Self::from_fs(Duplex::from_label(label), proof)
     }
 
-    fn from_fs(fs: FiatShamirState, proof: &'a ProofTranscript) -> Self {
+    fn from_fs(fs: Duplex, proof: &'a ProofTranscript) -> Self {
         Self {
             fs,
             stream: &proof.stream,
@@ -218,8 +229,8 @@ impl<'a> VerifierState<'a> {
         }
     }
 
-    /// Copy the chaining value and waiting scalars without changing the transcript.
-    pub fn context(&self) -> TranscriptContext<F192, [F64; 4]> {
+    /// Copy the exact logical duplex state without changing the transcript.
+    pub fn context(&self) -> TranscriptContext<F64, [F64; 4]> {
         self.fs.context()
     }
 
@@ -265,7 +276,7 @@ impl<'a> VerifierState<'a> {
 }
 
 impl Transmitter for ProverState {
-    fn context(&self) -> TranscriptContext<F192, Hash> {
+    fn context(&self) -> TranscriptContext<F64, Hash> {
         let context = Self::context(self);
         let mut state = [0u8; 32];
         for (slot, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(context.state) {
@@ -274,6 +285,10 @@ impl Transmitter for ProverState {
         TranscriptContext {
             state,
             pending: context.pending,
+            pending_bytes: context.pending_bytes,
+            first: context.first,
+            previous: context.previous,
+            squeezed: context.squeezed,
         }
     }
 
@@ -417,43 +432,21 @@ mod tests {
     }
 
     #[test]
-    fn context_preserves_pending_scalars_and_challenges() {
-        let label = b"context-test";
-        let initial = crate::digest_words(&primitives::hash::hash(label));
-        let scalars = [f(1), f(2), f(3)];
-        for count in 0..=scalars.len() {
-            let mut ps = ProverState::from_label(label);
-            let mut control = ProverState::from_label(label);
-            ps.add_scalars(&scalars[..count]);
-            control.add_scalars(&scalars[..count]);
-            let expected = if count <= crate::MAX_PENDING {
-                TranscriptContext {
-                    state: initial,
-                    pending: std::array::from_fn(|i| scalars[..count].get(i).copied()),
-                }
-            } else {
-                TranscriptContext {
-                    state: crate::step(initial, &scalars[..crate::MAX_PENDING], crate::DS_OBSERVE),
-                    pending: [Some(scalars[2]), None],
-                }
-            };
-            assert_eq!(ps.context(), expected);
-            let wire_context = Transmitter::context(&ps);
-            assert_eq!(crate::digest_words(&wire_context.state), expected.state);
-            assert_eq!(wire_context.pending, expected.pending);
-            let challenge = ps.sample();
-            assert_eq!(challenge, control.sample(), "{count} transmitted scalars");
-            assert_eq!(ps.context().pending, [None; crate::MAX_PENDING]);
-            let proof = ps.into_proof();
-            let mut vs = VerifierState::from_label(label, &proof);
-            for &scalar in &scalars[..count] {
-                assert_eq!(vs.next_scalar().unwrap(), scalar);
-            }
-            assert_eq!(vs.context(), expected);
-            assert_eq!(vs.sample(), challenge, "{count} received scalars");
-            assert_eq!(vs.context().pending, [None; crate::MAX_PENDING]);
-            vs.finish().unwrap();
-        }
+    fn wire_format_rejects_legacy_versions_and_trailing_data() {
+        let proof = ProofTranscript::<PrunedMerklePaths> {
+            stream: vec![f(1), f(2)],
+            merkle: Vec::new(),
+        };
+        let encoded = proof.to_bytes();
+        assert_eq!(ProofTranscript::from_bytes(&encoded), Some(proof.clone()));
+        let legacy = encoding().serialize(&proof).unwrap();
+        assert!(ProofTranscript::<PrunedMerklePaths>::from_bytes(&legacy).is_none());
+        let mut wrong_version = encoded.clone();
+        wrong_version[4] = 0;
+        assert!(ProofTranscript::<PrunedMerklePaths>::from_bytes(&wrong_version).is_none());
+        let mut trailing = encoded;
+        trailing.push(0);
+        assert!(ProofTranscript::<PrunedMerklePaths>::from_bytes(&trailing).is_none());
     }
 
     #[test]

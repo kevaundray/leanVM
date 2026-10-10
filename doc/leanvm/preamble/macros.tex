@@ -199,3 +199,12 @@
 \newcommand{\rbat}{\vartheta}             % a node's reduction's batching challenge
 \newcommand{\dwt}[1]{\Xi_{#1}}            % dense polynomial #1's weight in the dense reduction
 \newcommand{\mwt}[2]{\Theta^{#2}_{#1}}    % circuit #1's column weight on matrix #2 in the matrix reduction
+
+% ---------- Fiat-Shamir compression mode ----------
+\newcommand{\fsqueries}{Q_{\mathrm{FS}}} % total expanded compression-query cost
+\newcommand{\fsloss}{\varepsilon_{\mathrm{mode}}} % ideal-compression mode loss
+\newcommand{\fsromloss}{\varepsilon_{\mathrm{ROM}}} % matching canonical-ROM protocol loss
+\newcommand{\fsbatches}{B_{\mathrm{FS}}} % maximum challenge batches in one verification
+\newcommand{\fscoords}{K_{\mathrm{FS}}} % coordinate requests before final verification
+\newcommand{\fsvectors}{N_{\mathrm{FS}}} % allocated full-transcript challenge vectors
+\newcommand{\fsbatcherr}{\eta_{\mathrm{FS}}} % largest grouped round-by-round error

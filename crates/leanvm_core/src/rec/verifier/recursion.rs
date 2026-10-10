@@ -121,7 +121,7 @@ impl RecShape {
         RecRows {
             matrix: matrices.into(),
             hints: hints.hints,
-            state: t.state(b),
+            state: t.commitment(b),
         }
     }
 }

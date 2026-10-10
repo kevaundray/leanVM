@@ -11,6 +11,141 @@ use primitives::test_util::Rng;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
 
+#[test]
+fn record_frame_packs_exact_duplex_context() {
+    use fiat_shamir::merkle::hash_to_scalars;
+    use fiat_shamir::{Duplex, TranscriptContext};
+
+    let input: [u8; 64] = std::array::from_fn(|i| (i + 1) as u8);
+    for mode in 0..3 {
+        for pending_bytes in 0usize..=64 {
+            let mut duplex = Duplex::from_label(b"original-context");
+            if mode == 1 {
+                duplex.absorb(&input[..17]);
+                duplex.squeeze(&mut [0; 3]);
+            } else if mode == 2 && pending_bytes > 0 {
+                duplex.absorb(&input);
+            }
+            duplex.absorb(&input[..pending_bytes]);
+            let snapshot = duplex.context();
+            assert_eq!(snapshot.pending_bytes, pending_bytes);
+            let mut state = [0u8; 32];
+            for (bytes, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(snapshot.state) {
+                *bytes = word.0.to_le_bytes();
+            }
+            let context = TranscriptContext {
+                state,
+                pending: snapshot.pending,
+                pending_bytes: snapshot.pending_bytes,
+                first: snapshot.first,
+                previous: snapshot.previous,
+                squeezed: snapshot.squeezed,
+            };
+            let record = Commitment {
+                root: [71; 32],
+                shape: CommitmentShape {
+                    log_n: 4,
+                    log_batch_size: 1,
+                    log_inv_rate: 1,
+                    n_lanes: 1,
+                },
+                context,
+                point: vec![F192::new(2, 3, 4); 4],
+                value: F192::new(5, 6, 7),
+            };
+            assert!(record.valid_context());
+            let mut ps = ProverState::from_label(b"fresh-frame");
+            commit::send_record_binding(&mut ps, &record);
+            let proof = ps.into_proof();
+            let mut expected = vec![
+                F192::new(0x65706f2d72696877, 0x0031762d676e696e, 0),
+                F192::new(4, 1, 1),
+                F192::new(1, 0, 0),
+            ];
+            expected.extend(hash_to_scalars(&record.root));
+            expected.extend(hash_to_scalars(&state));
+            expected.push(F192::new(
+                pending_bytes as u64,
+                u64::from(snapshot.first),
+                snapshot.previous,
+            ));
+            expected.push(F192::new(snapshot.squeezed, 0, 0));
+            for bytes in input[..pending_bytes].chunks(24) {
+                let mut padded = [0u8; 24];
+                padded[..bytes.len()].copy_from_slice(bytes);
+                expected.push(F192::new(
+                    u64::from_le_bytes(padded[..8].try_into().unwrap()),
+                    u64::from_le_bytes(padded[8..16].try_into().unwrap()),
+                    u64::from_le_bytes(padded[16..].try_into().unwrap()),
+                ));
+            }
+            expected.extend_from_slice(&record.point);
+            expected.push(record.value);
+            assert_eq!(proof.stream, expected, "mode {mode}, {pending_bytes} bytes");
+            assert_eq!(proof.stream.len(), 10 + record.shape.log_n + pending_bytes.div_ceil(24));
+            let mut vs = VerifierState::from_label(b"fresh-frame", &proof);
+            commit::verify_record_binding(&mut vs, &record).expect("all record fields match");
+            vs.finish().expect("the frame is consumed exactly");
+            for index in 0..proof.stream.len() {
+                let mut bad = proof.clone();
+                bad.stream[index] += F192::new(1, 0, 1);
+                let mut vs = VerifierState::from_label(b"fresh-frame", &bad);
+                assert_eq!(
+                    commit::verify_record_binding(&mut vs, &record),
+                    Err(WhirError::CommitmentMismatch),
+                    "mode {mode}, {pending_bytes} bytes, scalar {index}",
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn advanced_record_guards_precede_frame_and_beta() {
+    use fiat_shamir::transcript::Transmitter;
+
+    let config = config_for_rate(MIN_LOG_N, 1).unwrap();
+    let log_n = config.initial_k() + 1;
+    let ps = ProverState::from_label(b"original-context");
+    let record = Commitment {
+        root: [71; 32],
+        shape: CommitmentShape {
+            log_n,
+            log_batch_size: config.initial_k(),
+            log_inv_rate: 1,
+            n_lanes: 1,
+        },
+        context: Transmitter::context(&ps),
+        point: vec![F192::ONE; log_n],
+        value: F192::ONE,
+    };
+    let proof = ProverState::from_label(b"guard-frame").into_proof();
+    let mut vs = VerifierState::from_label(b"guard-frame", &proof);
+    let before = vs.context();
+    assert_eq!(
+        verify_with_basis(&mut vs, &config, &record, F192::ZERO, DenseWeight(&[])),
+        Err(WhirError::InvalidShape { level: 0 }),
+    );
+    assert_eq!(vs.context(), before);
+    let mut too_long = record.clone();
+    too_long.context.pending_bytes = 65;
+    let mut missing_word = record.clone();
+    missing_word.context.pending_bytes = 1;
+    let mut stale_word = record.clone();
+    stale_word.context.pending[7] = Some(F64::ONE);
+    let mut short_point = record;
+    short_point.point.pop();
+    for record in [too_long, missing_word, stale_word, short_point] {
+        let mut vs = VerifierState::from_label(b"guard-frame", &proof);
+        let before = vs.context();
+        assert_eq!(
+            verify_with_basis(&mut vs, &config, &record, F192::ZERO, DenseWeight(&[])),
+            Err(WhirError::CommitmentMismatch),
+        );
+        assert_eq!(vs.context(), before);
+    }
+}
+
 struct Instance {
     vc: VerifierConfig,
     log_n: usize,

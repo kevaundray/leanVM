@@ -12,9 +12,9 @@ use crate::verifier::OpeningVerifier;
 use crate::whir::anchor::anchor_value;
 use crate::whir::ntt_ext::{encode_rows_ext, rows_at_ext};
 use crate::whir::verify::WhirError;
+use fiat_shamir::TranscriptContext;
 use fiat_shamir::merkle::hash_to_scalars;
 use fiat_shamir::transcript::Transmitter;
-use fiat_shamir::{MAX_PENDING, TranscriptContext};
 use primitives::field::{F64, F192};
 use std::sync::Arc;
 
@@ -43,15 +43,15 @@ impl CommitmentShape {
 
 /// Immutable commitment identity: its pre-commit context, shape, root, and MLE anchor.
 #[derive(Clone, Debug)]
-pub struct Commitment<E = F192, R = Hash> {
+pub struct Commitment<E = F192, R = Hash, K = F64> {
     pub(crate) root: R,
     pub(crate) shape: CommitmentShape,
-    pub(crate) context: TranscriptContext<E, R>,
+    pub(crate) context: TranscriptContext<K, R>,
     pub(crate) point: Vec<E>,
     pub(crate) value: E,
 }
 
-impl<E, R> Commitment<E, R> {
+impl<E, R, K> Commitment<E, R, K> {
     pub const fn root(&self) -> R
     where
         R: Copy,
@@ -63,9 +63,9 @@ impl<E, R> Commitment<E, R> {
         self.shape
     }
 
-    pub const fn context(&self) -> TranscriptContext<E, R>
+    pub const fn context(&self) -> TranscriptContext<K, R>
     where
-        E: Copy,
+        K: Copy,
         R: Copy,
     {
         self.context
@@ -80,6 +80,21 @@ impl<E, R> Commitment<E, R> {
         E: Copy,
     {
         self.value
+    }
+
+    pub(crate) fn valid_context(&self) -> bool {
+        if self.context.pending_bytes > 64 {
+            return false;
+        }
+        let words = self.context.pending_bytes.div_ceil(8);
+        let mut i = 0;
+        while i < 8 {
+            if self.context.pending[i].is_some() != (i < words) {
+                return false;
+            }
+            i += 1;
+        }
+        true
     }
 }
 
@@ -122,21 +137,30 @@ pub(crate) fn send_record_binding(ps: &mut impl Transmitter, commitment: &Commit
         ps.add_scalar(state[i]);
         i += 1;
     }
-    let mut pending_count = 0;
+    let context = &commitment.context;
+    ps.add_scalar(F192::new(
+        context.pending_bytes as u64,
+        u64::from(context.first),
+        context.previous,
+    ));
+    ps.add_scalar(F192::new(context.squeezed, 0, 0));
+    let words = context.pending_bytes.div_ceil(8);
     let mut i = 0;
-    while i < MAX_PENDING {
-        if commitment.context.pending[i].is_some() {
-            pending_count += 1;
-        }
-        i += 1;
+    while i + 3 <= words {
+        ps.add_scalar(F192::new(
+            context.pending[i].unwrap().0,
+            context.pending[i + 1].unwrap().0,
+            context.pending[i + 2].unwrap().0,
+        ));
+        i += 3;
     }
-    ps.add_scalar(F192::from(F64(pending_count)));
-    let mut i = 0;
-    while i < MAX_PENDING {
-        if let Some(value) = commitment.context.pending[i] {
-            ps.add_scalar(value);
-        }
-        i += 1;
+    if i < words {
+        let second = if i + 1 < words {
+            context.pending[i + 1].unwrap().0
+        } else {
+            0
+        };
+        ps.add_scalar(F192::new(context.pending[i].unwrap().0, second, 0));
     }
     let mut i = 0;
     while i < commitment.shape.log_n {
@@ -169,16 +193,30 @@ fn verify_record_values<V: OpeningVerifier>(v: &mut V, values: &[V::E], len: usi
 
 fn verify_record_pending<V: OpeningVerifier>(
     v: &mut V,
-    pending: &[Option<V::E>; MAX_PENDING],
+    context: &TranscriptContext<V::K, V::Root>,
 ) -> Result<(), WhirError> {
+    let words = context.pending_bytes.div_ceil(8);
     let mut i = 0;
-    while i < MAX_PENDING {
-        let entry = pending[i];
-        if let Some(expected) = entry {
-            let actual = v.next_scalar()?;
-            v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
-        }
-        i += 1;
+    while i + 3 <= words {
+        let actual = v.next_scalar()?;
+        let expected = v.e_of_limbs([
+            context.pending[i].unwrap(),
+            context.pending[i + 1].unwrap(),
+            context.pending[i + 2].unwrap(),
+        ]);
+        v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+        i += 3;
+    }
+    if i < words {
+        let actual = v.next_scalar()?;
+        let zero = v.zero_k();
+        let second = if i + 1 < words {
+            context.pending[i + 1].unwrap()
+        } else {
+            zero
+        };
+        let expected = v.e_of_limbs([context.pending[i].unwrap(), second, zero]);
+        v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
     }
     Ok(())
 }
@@ -186,7 +224,7 @@ fn verify_record_pending<V: OpeningVerifier>(
 /// Check every record field before opening batching; reads are determined only by the supplied record.
 pub(crate) fn verify_record_binding<V: OpeningVerifier>(
     v: &mut V,
-    commitment: &Commitment<V::E, V::Root>,
+    commitment: &Commitment<V::E, V::Root, V::K>,
 ) -> Result<(), WhirError> {
     let mut constants = commitment_constants(commitment.shape);
     constants[0] = OPENING_DOMAIN;
@@ -195,18 +233,15 @@ pub(crate) fn verify_record_binding<V: OpeningVerifier>(
     let state = v.root_scalars(commitment.context.state);
     verify_record_values(v, &root, 2)?;
     verify_record_values(v, &state, 2)?;
-    let mut pending_count = 0;
-    let mut i = 0;
-    while i < MAX_PENDING {
-        if commitment.context.pending[i].is_some() {
-            pending_count += 1;
-        }
-        i += 1;
-    }
-    let actual = v.next_scalar()?;
-    let expected = v.constant(F192::from(F64(pending_count)));
-    v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
-    verify_record_pending(v, &commitment.context.pending)?;
+    let context = &commitment.context;
+    verify_record_constants(
+        v,
+        &[
+            F192::new(context.pending_bytes as u64, u64::from(context.first), context.previous),
+            F192::new(context.squeezed, 0, 0),
+        ],
+    )?;
+    verify_record_pending(v, context)?;
     verify_record_values(v, &commitment.point, commitment.shape.log_n)?;
     let actual = v.next_scalar()?;
     v.ensure_eq(actual, commitment.value, || WhirError::CommitmentMismatch)?;
@@ -225,7 +260,7 @@ pub fn receive_commitment<V: OpeningVerifier>(
     log_batch_size: usize,
     log_inv_rate: usize,
     n_lanes: usize,
-) -> Result<Commitment<V::E, V::Root>, WhirError> {
+) -> Result<Commitment<V::E, V::Root, V::K>, WhirError> {
     let shape = CommitmentShape {
         log_n,
         log_batch_size,

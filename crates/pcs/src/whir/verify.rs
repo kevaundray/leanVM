@@ -190,7 +190,7 @@ fn enforce_ext<V: OpeningVerifier>(
 pub fn verify_with_basis<V: OpeningVerifier>(
     v: &mut V,
     config: &VerifierConfig,
-    commitment: &Commitment<V::E, V::Root>,
+    commitment: &Commitment<V::E, V::Root, V::K>,
     target: V::E,
     weight_at: impl WeightAt<V>,
 ) -> Result<(), WhirError> {
@@ -199,9 +199,11 @@ pub fn verify_with_basis<V: OpeningVerifier>(
         || shape.log_batch_size != config.initial_k()
         || config.log_inv_rates().first() != Some(&shape.log_inv_rate)
         || commitment.point.len() != shape.log_n
+        || !commitment.valid_context()
     {
         return Err(WhirError::CommitmentMismatch);
     }
+    check_config_shape(config, shape.log_n)?;
     super::commit::verify_record_binding(v, commitment)?;
     let beta = v.sample();
     let target = v.mul_add(beta, commitment.value, target);
@@ -220,6 +222,20 @@ pub fn verify_with_basis<V: OpeningVerifier>(
         commitment.root,
         combined_weight,
     )
+}
+
+pub(crate) fn check_config_shape(config: &VerifierConfig, log_n: usize) -> Result<(), WhirError> {
+    let mut remaining = log_n
+        .checked_sub(config.initial_k())
+        .ok_or(WhirError::InvalidShape { level: 0 })?;
+    let mut level = 0;
+    while level < config.level_steps() {
+        remaining = remaining
+            .checked_sub(config.level_ks()[level])
+            .ok_or(WhirError::InvalidShape { level })?;
+        level += 1;
+    }
+    Ok(())
 }
 
 /// The fold challenges arrive in round order, and the first `initial_k` rounds, the lane fold, bind the witness's top `initial_k` coordinates.

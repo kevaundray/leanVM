@@ -1,9 +1,10 @@
-//! A Fiat-Shamir transcript replayed in rows: every absorb and squeeze is a hash row on the wires it binds.
+//! The byte duplex replayed on constrained words, with the same buffering and output cursor.
 
-use super::circuit::{Builder, Dw, Ew, Kw, Limbs, digest_limbs, zero_prefix};
+use super::circuit::{Builder, Dw, Ew, Kw, Limbs, PARAM_IV, digest_limbs, zero_prefix};
 use fiat_shamir::transcript::RawProof;
 use fiat_shamir::{
-    DS_OBSERVE, DS_POW_BASE, DS_POW_NONCE, DS_SQUEEZE, MAX_GRINDING_BITS, MAX_PENDING, TranscriptContext,
+    COMMIT, MAX_GRINDING_BITS, MAX_SQUEEZE_BYTES, NONCE, OUTPUT, POW_BASE, POW_TAG, SEED, TranscriptContext,
+    absorb_tweak,
 };
 use primitives::field::F192;
 
@@ -27,46 +28,88 @@ pub struct MerkleOpening {
     pub path: Vec<Limbs>,
 }
 
-/// The transcript's chaining value as a wire, the scalars it has yet to absorb, and where the proof is read.
+/// A constrained chaining value, bounded input/output buffers, and the proof's transport cursors.
 #[derive(Debug)]
 pub struct Transcript<'a> {
     cv: Dw,
-    pending: Vec<Ew>,
+    pending: [Kw; 8],
+    n_pending: usize,
+    first: bool,
+    previous: u64,
+    squeezed: u64,
+    output: [Kw; 4],
     source: ProofSource<'a>,
     offset: usize,
     opening: usize,
 }
 
 impl<'a> Transcript<'a> {
-    /// The transcript seeded by `compress(iv, public_input)`, the input's first three words as `E`, its fourth as `K`.
+    /// Bind the domain digest and statement digest using the duplex's distinguished seed node.
     pub fn new(b: &mut Builder, iv: Dw, public_input: (Ew, Kw), source: ProofSource<'a>) -> Self {
-        let (cv, _) = b.compress(iv, public_input.0, public_input.1);
-        Self::from_state(cv, source)
-    }
-
-    /// A transcript whose chaining value is already `cv`.
-    pub const fn from_state(cv: Dw, source: ProofSource<'a>) -> Self {
+        let d = b.d_to_k(iv);
+        let p = b.e_to_k(public_input.0);
+        let initial = b.d_const(PARAM_IV);
+        let cv = b.leaf_block(
+            initial,
+            [d[0], d[1], d[2], d[3], p[0], p[1], p[2], public_input.1],
+            SEED,
+            true,
+        );
+        let zero = b.k_const(0);
         Self {
             cv,
-            pending: Vec::new(),
+            pending: [zero; 8],
+            n_pending: 0,
+            first: true,
+            previous: 0,
+            squeezed: 0,
+            output: [zero; 4],
             source,
             offset: 0,
             opening: 0,
         }
     }
 
-    /// Copy the chaining wire and waiting scalars without emitting rows.
-    pub fn context(&self) -> TranscriptContext<Ew, Dw> {
+    /// A labeled protocol with the zero statement digest, as in the native duplex.
+    pub fn from_label(b: &mut Builder, label: &[u8], source: ProofSource<'a>) -> Self {
+        let domain = b.d_const(digest_limbs(&primitives::hash::hash(label)));
+        let zero_e = b.e_const(F192::ZERO);
+        let zero_k = b.k_const(0);
+        Self::new(b, domain, (zero_e, zero_k), source)
+    }
+
+    /// Capture the logical duplex state without emitting rows or changing either transport cursor.
+    ///
+    /// Only live input words are included. As in the native duplex, the output buffer is a derivable cache for privately constructed valid states, not independent logical state.
+    pub fn context(&self) -> TranscriptContext<Kw, Dw> {
+        let mut pending = [None; 8];
+        for (slot, &word) in pending.iter_mut().zip(&self.pending[..self.n_pending]) {
+            *slot = Some(word);
+        }
         TranscriptContext {
             state: self.cv,
-            pending: std::array::from_fn(|i| self.pending.get(i).copied()),
+            pending,
+            pending_bytes: self.n_pending * 8,
+            first: self.first,
+            previous: self.previous,
+            squeezed: self.squeezed,
         }
     }
 
-    /// The chaining value, once every pending scalar is absorbed.
-    pub fn state(&mut self, b: &mut Builder) -> Dw {
-        self.flush(b);
-        self.cv
+    /// A terminal commitment to the complete transcript, including consumed output bytes.
+    pub fn commitment(&self, b: &mut Builder) -> Dw {
+        let cv = if self.n_pending == 0 {
+            self.cv
+        } else {
+            let mut block = self.pending;
+            block[self.n_pending..].fill(b.k_const(0));
+            let tweak = absorb_tweak(self.first, true, self.n_pending * 8, self.previous);
+            b.leaf_block(self.cv, block, tweak, true)
+        };
+        let zero = b.k_const(0);
+        let mut block = [zero; 8];
+        block[0] = b.k_const(self.squeezed);
+        b.leaf_block(cv, block, COMMIT, true)
     }
 
     /// Whether every scalar and opening of the proof was read.
@@ -87,20 +130,32 @@ impl<'a> Transcript<'a> {
         b.free_e(v)
     }
 
-    /// Absorb the pending scalars, if any, in one step.
-    fn flush(&mut self, b: &mut Builder) {
-        if !self.pending.is_empty() {
-            let pending = std::mem::take(&mut self.pending);
-            self.cv = b.step(self.cv, &pending, DS_OBSERVE.0).0;
+    fn flush(&mut self, b: &mut Builder, last: bool) {
+        if self.n_pending == 0 {
+            return;
         }
+        let mut block = self.pending;
+        block[self.n_pending..].fill(b.k_const(0));
+        let tweak = absorb_tweak(self.first, last, self.n_pending * 8, self.previous);
+        self.cv = b.leaf_block(self.cv, block, tweak, true);
+        self.n_pending = 0;
+        self.first = last;
+        self.previous = 0;
     }
 
-    /// Absorb `x`: it waits for the next step, which absorbs up to two scalars.
+    /// Absorb the scalar's three words, retaining the final full input block until a mode switch.
     pub fn observe(&mut self, b: &mut Builder, x: Ew) {
-        if self.pending.len() == MAX_PENDING {
-            self.flush(b);
+        if self.squeezed != 0 {
+            self.previous = self.squeezed;
+            self.squeezed = 0;
         }
-        self.pending.push(x);
+        for word in b.e_to_k(x) {
+            if self.n_pending == 8 {
+                self.flush(b, false);
+            }
+            self.pending[self.n_pending] = word;
+            self.n_pending += 1;
+        }
     }
 
     /// The next scalar of the stream, bound into the transcript.
@@ -110,12 +165,26 @@ impl<'a> Transcript<'a> {
         x
     }
 
-    /// A challenge: the first three words of the step absorbing the pending scalars under `SQUEEZE`, whose output becomes the state.
+    /// Consume three output words, including any unused suffix of the previous output block.
     pub fn sample(&mut self, b: &mut Builder) -> Ew {
-        let pending = std::mem::take(&mut self.pending);
-        let (cv, ch) = b.step(self.cv, &pending, DS_SQUEEZE.0);
-        self.cv = cv;
-        ch
+        assert!(
+            24 <= MAX_SQUEEZE_BYTES - self.squeezed,
+            "squeeze request exceeds cursor"
+        );
+        self.flush(b, true);
+        let mut result = [b.k_const(0); 3];
+        for word in &mut result {
+            let offset = (self.squeezed % 32 / 8) as usize;
+            if offset == 0 {
+                let mut block = [b.k_const(0); 8];
+                block[0] = b.k_const(self.squeezed / 32);
+                let digest = b.leaf_block(self.cv, block, OUTPUT, true);
+                self.output = b.d_to_k(digest);
+            }
+            *word = self.output[offset];
+            self.squeezed += 8;
+        }
+        b.k_to_e(result)
     }
 
     /// A Merkle root as its two 128-bit halves, each bound, their top limbs zero.
@@ -150,27 +219,35 @@ impl<'a> Transcript<'a> {
 
     /// A grinding nonce: its proof of work checked, then bound.
     ///
-    /// The pending scalars are absorbed first. The check holds the low `bits` bits of `compress(base, (nonce, POW_NONCE))` to zero, `base` the `POW_BASE` step's output.
+    /// The PoW base binds the pending input, output cursor, and difficulty, without consuming challenges.
     ///
     /// # Panics
     ///
     /// Panics if the grinding exceeds the digest's low word, as the native check does.
     pub fn grind_check(&mut self, b: &mut Builder, bits: u32) {
         assert!(bits <= MAX_GRINDING_BITS, "grinding past the digest's low word");
-        self.flush(b);
+        self.flush(b, true);
         let nonce = self.take(b);
         if bits == 0 {
             b.eq_e_const(nonce, F192::ZERO);
         } else {
-            let (base, _) = b.step(self.cv, &[], DS_POW_BASE.0);
-            let nonce_tag = b.k_const(DS_POW_NONCE.0);
+            let mut block = [b.k_const(0); 8];
+            block[0] = b.k_const(self.squeezed);
+            block[1] = b.k_const(u64::from(bits));
+            let base = b.leaf_block(self.cv, block, POW_BASE, true);
+            let nonce_tag = b.k_const(POW_TAG);
             let (digest, _) = b.compress(base, nonce, nonce_tag);
             let [word, ..] = b.d_to_k(digest);
             for bit in b.split(word).into_iter().take(bits as usize) {
                 b.eq_k_const(bit, 0);
             }
         }
-        self.cv = b.step(self.cv, &[nonce], DS_POW_NONCE.0).0;
+        let mut block = [b.k_const(0); 8];
+        block[..3].copy_from_slice(&b.e_to_k(nonce));
+        block[3] = b.k_const(self.squeezed);
+        block[4] = b.k_const(u64::from(bits));
+        self.cv = b.leaf_block(self.cv, block, NONCE, true);
+        self.squeezed = 0;
     }
 
     /// The next query's opening, its image padded with zeros to `leaf_words` and its path cut or padded to `depth` siblings.
@@ -238,8 +315,8 @@ mod tests {
     use super::*;
     use crate::rec::circuit::{Circuit, Unsatisfied};
     use crate::rec::verifier::Rows;
-    use fiat_shamir::arith::Verifier;
-    use fiat_shamir::merkle::{Hash, RawMerklePath, hash_leaf, hash_pair, hash_to_scalars};
+    use fiat_shamir::Duplex;
+    use fiat_shamir::merkle::{Hash, RawMerklePath, hash_leaf, hash_pair};
     use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
     use pcs::verifier::OpeningVerifier;
     use primitives::field::F64;
@@ -269,11 +346,76 @@ mod tests {
         (raw, [c0, r, c1])
     }
 
+    #[test]
+    fn rows_preserve_long_runs_partial_blocks_and_nonce_resets() {
+        const RUNS: [(usize, usize); 7] = [(0, 1), (1, 2), (2, 3), (3, 4), (8, 5), (9, 17), (17, 65)];
+        let mut native = Duplex::from_label(LABEL);
+        let mut raw = RawProof {
+            stream: Vec::new(),
+            merkle: Vec::new(),
+        };
+        let mut expected = Vec::new();
+        for (stage, (absorbed, sampled)) in RUNS.into_iter().enumerate() {
+            for i in 0..absorbed {
+                let value = F192::new((stage * 100 + i) as u64, i as u64, stage as u64);
+                native.observe(value);
+                raw.stream.push(value);
+            }
+            expected.extend(native.sample_vec(sampled));
+            if stage == 3 {
+                assert!(native.verify_pow_field(F192::ZERO, 0));
+                raw.stream.push(F192::ZERO);
+            }
+        }
+        let replay = |source, capture| {
+            let mut b = Builder::new();
+            let mut transcript = Transcript::from_label(&mut b, LABEL, source);
+            let mut challenges = Vec::new();
+            if capture {
+                let _ = Rows::new(&mut b, &mut transcript).context();
+            }
+            for (stage, (absorbed, sampled)) in RUNS.into_iter().enumerate() {
+                for _ in 0..absorbed {
+                    transcript.next_scalar(&mut b);
+                    if capture {
+                        let _ = Rows::new(&mut b, &mut transcript).context();
+                    }
+                }
+                for _ in 0..sampled {
+                    let challenge = transcript.sample(&mut b);
+                    challenges.push(b.e(challenge));
+                    if capture {
+                        let _ = Rows::new(&mut b, &mut transcript).context();
+                    }
+                }
+                if stage == 3 {
+                    transcript.grind_check(&mut b, 0);
+                    if capture {
+                        let _ = Rows::new(&mut b, &mut transcript).context();
+                    }
+                }
+            }
+            assert!(transcript.finished());
+            let commitment = transcript.commitment(&mut b);
+            let commitment = b.d(commitment);
+            (b.finish(), challenges, commitment)
+        };
+        let (plain, reference, reference_commitment) = replay(ProofSource::Proof(&raw), false);
+        let (rows, actual, commitment) = replay(ProofSource::Proof(&raw), true);
+        assert_eq!(rows.circuit, plain.circuit);
+        assert_eq!(actual, reference);
+        assert_eq!(commitment, reference_commitment);
+        assert_eq!(actual, expected);
+        assert_eq!(commitment, native.commitment().map(|word| word.0));
+        assert!(rows.failures.is_empty(), "{:?}", rows.failures);
+        assert_eq!(rows.circuit, replay(ProofSource::Shape, true).0.circuit);
+        assert_eq!(rows.circuit, replay(ProofSource::Shape, false).0.circuit);
+    }
+
     // The native transcript above, in rows: the claims are the sums the scalars read make.
     fn replay(source: ProofSource<'_>) -> (Circuit, Vec<F192>, Vec<Unsatisfied>) {
         let mut b = Builder::new();
-        let iv = b.d_const(digest_limbs(&primitives::hash::hash(LABEL)));
-        let mut t = Transcript::from_state(iv, source);
+        let mut t = Transcript::from_label(&mut b, LABEL, source);
         let scalars: Vec<Ew> = (0..2).map(|_| t.next_scalar(&mut b)).collect();
         let c0 = t.sample(&mut b);
         // `g(0) + g(1)` of the honest polynomial, as a hint the round derives its linear coefficient from.
@@ -296,44 +438,6 @@ mod tests {
             .collect();
         let finished = b.finish();
         (finished.circuit, values, finished.failures)
-    }
-
-    #[test]
-    fn row_context_preserves_pending_scalars_and_native_challenges() {
-        let scalars = [F192::new(1, 2, 3), F192::new(u64::MAX, 7, 0), F192::new(9, 10, 11)];
-        for count in 0..=scalars.len() {
-            let mut ps = ProverState::from_label(LABEL);
-            ps.add_scalars(&scalars[..count]);
-            let expected = ps.context();
-            let expected_halves = hash_to_scalars(&Transmitter::context(&ps).state);
-            let expected_challenge = ps.sample();
-            let proof = ps.into_proof();
-            let raw = RawProof {
-                stream: proof.stream,
-                merkle: Vec::new(),
-            };
-            let mut b = Builder::new();
-            let initial = b.d_const(digest_limbs(&primitives::hash::hash(LABEL)));
-            let mut t = Transcript::from_state(initial, ProofSource::Proof(&raw));
-            let (context, halves, challenge) = {
-                let mut rows = Rows::new(&mut b, &mut t);
-                for _ in 0..count {
-                    rows.next_scalar().unwrap();
-                }
-                let context = rows.context();
-                let halves = rows.root_scalars(context.state);
-                let challenge = rows.sample();
-                (context, halves, challenge)
-            };
-            assert_eq!(b.d(context.state), expected.state.map(|word| word.0));
-            assert_eq!(context.pending.map(|wire| wire.map(|w| b.e(w))), expected.pending);
-            assert_eq!(halves.map(|w| b.e(w)), expected_halves);
-            assert_eq!(b.e(challenge), expected_challenge, "{count} received scalars");
-            assert_eq!(t.context().pending, [None; MAX_PENDING]);
-            assert!(t.finished());
-            let failures = b.finish().failures;
-            assert!(failures.is_empty(), "{failures:?}");
-        }
     }
 
     #[test]
@@ -365,7 +469,7 @@ mod tests {
         let mut b = Builder::new();
         let root = b.d_const(digest_limbs(root));
         let bits = vec![b.k_const(0); depth];
-        let (node, _) = Transcript::from_state(root, ProofSource::Proof(&raw)).open_row(&mut b, &bits, 8, 8);
+        let (node, _) = Transcript::from_label(&mut b, LABEL, ProofSource::Proof(&raw)).open_row(&mut b, &bits, 8, 8);
         b.eq_d(node, root);
         b.finish().failures
     }

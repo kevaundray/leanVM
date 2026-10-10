@@ -20,7 +20,10 @@ pub trait OpeningVerifier: Verifier {
     type Query;
 
     /// Copy the exact context without changing the transcript.
-    fn context(&mut self) -> TranscriptContext<Self::E, Self::Root>;
+    fn context(&mut self) -> TranscriptContext<Self::K, Self::Root>;
+
+    /// A zero word for canonical padding when a context is packed into a record frame.
+    fn zero_k(&mut self) -> Self::K;
 
     /// A digest's two canonical 128-bit halves, each with a zero top limb.
     fn root_scalars(&mut self, root: Self::Root) -> [Self::E; 2];
@@ -66,7 +69,7 @@ impl OpeningVerifier for VerifierState<'_> {
     type K = F64;
     type Query = usize;
 
-    fn context(&mut self) -> TranscriptContext<F192, Hash> {
+    fn context(&mut self) -> TranscriptContext<F64, Hash> {
         let context = Self::context(self);
         let mut state = [0u8; 32];
         for (slot, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(context.state) {
@@ -75,7 +78,15 @@ impl OpeningVerifier for VerifierState<'_> {
         TranscriptContext {
             state,
             pending: context.pending,
+            pending_bytes: context.pending_bytes,
+            first: context.first,
+            previous: context.previous,
+            squeezed: context.squeezed,
         }
+    }
+
+    fn zero_k(&mut self) -> F64 {
+        F64::ZERO
     }
 
     fn root_scalars(&mut self, root: Hash) -> [F192; 2] {

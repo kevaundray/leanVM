@@ -311,7 +311,7 @@ pub fn open(
 pub fn verify<V: OpeningVerifier>(
     v: &mut V,
     config: &VerifierConfig,
-    commitment: &Commitment<V::E, V::Root>,
+    commitment: &Commitment<V::E, V::Root, V::K>,
     point_claims: &[StackClaim<V::E>],
     rings: &[RingSwitch<V::E>],
 ) -> Result<(), WhirError> {
@@ -320,11 +320,13 @@ pub fn verify<V: OpeningVerifier>(
         || config.initial_k() != shape.log_batch_size
         || config.log_inv_rates().first() != Some(&shape.log_inv_rate)
         || commitment.point().len() != shape.log_n
+        || !commitment.valid_context()
     {
         return Err(WhirError::CommitmentMismatch);
     }
     let log_n = shape.log_n;
     check_statement(log_n, point_claims, rings)?;
+    super::whir::check_config_shape(config, log_n)?;
     verify_record_binding(v, commitment)?;
 
     // The family: every claim arrives with its 64 slices, bound upstream by the caller, so nothing is read here.
@@ -799,8 +801,7 @@ mod tests {
         }
 
         // Tamper the record-binding frame and the same WHIR messages as the continuous-session case.
-        let binding_len =
-            9 + inst.commitment.shape().log_n + inst.commitment.context().pending.iter().flatten().count();
+        let binding_len = 10 + inst.commitment.shape().log_n + inst.commitment.context().pending_bytes.div_ceil(24);
         for idx in [6usize, 17 + binding_len, inst.fs.stream.len() - 1] {
             let mut bad_fs = inst.fs.clone();
             bad_fs.stream[idx] += F192::ONE;
@@ -841,9 +842,15 @@ mod tests {
         let mut wrong_state = inst.commitment.clone();
         wrong_state.context.state[0] ^= 1;
         let mut wrong_pending = inst.commitment.clone();
-        wrong_pending.context.pending[0] = Some(F192::ONE);
-        let mut wrong_pending_count = inst.commitment.clone();
-        wrong_pending_count.context.pending[1] = None;
+        wrong_pending.context.pending[0] = Some(F64::ONE);
+        let mut wrong_pending_bytes = inst.commitment.clone();
+        wrong_pending_bytes.context.pending_bytes -= 1;
+        let mut wrong_first = inst.commitment.clone();
+        wrong_first.context.first = !wrong_first.context.first;
+        let mut wrong_previous = inst.commitment.clone();
+        wrong_previous.context.previous ^= 1;
+        let mut wrong_squeezed = inst.commitment.clone();
+        wrong_squeezed.context.squeezed ^= 1;
         let mut wrong_shape = inst.commitment.clone();
         wrong_shape.shape.n_lanes -= 1;
         let mut wrong_root = inst.commitment.clone();
@@ -855,7 +862,10 @@ mod tests {
         for record in [
             wrong_state,
             wrong_pending,
-            wrong_pending_count,
+            wrong_pending_bytes,
+            wrong_first,
+            wrong_previous,
+            wrong_squeezed,
             wrong_shape,
             wrong_point,
             wrong_value,
