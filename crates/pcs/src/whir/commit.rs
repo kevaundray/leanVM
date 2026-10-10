@@ -14,8 +14,8 @@ use crate::whir::ntt_ext::{encode_rows_ext, rows_at_ext};
 use crate::whir::verify::WhirError;
 use fiat_shamir::merkle::hash_to_scalars;
 use fiat_shamir::transcript::Transmitter;
-use fiat_shamir::{MAX_PENDING, TranscriptContext};
-use primitives::field::{F64, F192};
+use fiat_shamir::{TranscriptContext, MAX_PENDING};
+use primitives::field::{F192, F64};
 use std::sync::Arc;
 
 /// The public shape of the committed, zero-padded witness.
@@ -146,13 +146,7 @@ pub(crate) fn send_record_binding(ps: &mut impl Transmitter, commitment: &Commit
     ps.add_scalar(commitment.value);
 }
 
-/// Check every record field before opening batching; reads are determined only by the supplied record.
-pub(crate) fn verify_record_binding<V: OpeningVerifier>(
-    v: &mut V,
-    commitment: &Commitment<V::E, V::Root>,
-) -> Result<(), WhirError> {
-    let mut constants = commitment_constants(commitment.shape);
-    constants[0] = OPENING_DOMAIN;
+fn verify_record_constants<V: OpeningVerifier>(v: &mut V, constants: &[F192]) -> Result<(), WhirError> {
     let mut i = 0;
     while i < constants.len() {
         let actual = v.next_scalar()?;
@@ -160,20 +154,47 @@ pub(crate) fn verify_record_binding<V: OpeningVerifier>(
         v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
         i += 1;
     }
+    Ok(())
+}
+
+fn verify_record_values<V: OpeningVerifier>(v: &mut V, values: &[V::E], len: usize) -> Result<(), WhirError> {
+    let mut i = 0;
+    while i < len {
+        let actual = v.next_scalar()?;
+        v.ensure_eq(actual, values[i], || WhirError::CommitmentMismatch)?;
+        i += 1;
+    }
+    Ok(())
+}
+
+fn verify_record_pending<V: OpeningVerifier>(
+    v: &mut V,
+    pending: &[Option<V::E>; MAX_PENDING],
+) -> Result<(), WhirError> {
+    let mut i = 0;
+    while i < MAX_PENDING {
+        let entry = pending[i];
+        if let Some(expected) = entry {
+            let actual = v.next_scalar()?;
+            v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
+/// Check every record field before opening batching; reads are determined only by the supplied record.
+pub(crate) fn verify_record_binding<V: OpeningVerifier>(
+    v: &mut V,
+    commitment: &Commitment<V::E, V::Root>,
+) -> Result<(), WhirError> {
+    let mut constants = commitment_constants(commitment.shape);
+    constants[0] = OPENING_DOMAIN;
+    verify_record_constants(v, &constants)?;
     let root = v.root_scalars(commitment.root);
     let state = v.root_scalars(commitment.context.state);
-    let mut i = 0;
-    while i < 2 {
-        let actual = v.next_scalar()?;
-        v.ensure_eq(actual, root[i], || WhirError::CommitmentMismatch)?;
-        i += 1;
-    }
-    let mut i = 0;
-    while i < 2 {
-        let actual = v.next_scalar()?;
-        v.ensure_eq(actual, state[i], || WhirError::CommitmentMismatch)?;
-        i += 1;
-    }
+    verify_record_values(v, &root, 2)?;
+    verify_record_values(v, &state, 2)?;
     let mut pending_count = 0;
     let mut i = 0;
     while i < MAX_PENDING {
@@ -185,20 +206,8 @@ pub(crate) fn verify_record_binding<V: OpeningVerifier>(
     let actual = v.next_scalar()?;
     let expected = v.constant(F192::from(F64(pending_count)));
     v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
-    let mut i = 0;
-    while i < MAX_PENDING {
-        if let Some(expected) = commitment.context.pending[i] {
-            let actual = v.next_scalar()?;
-            v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
-        }
-        i += 1;
-    }
-    let mut i = 0;
-    while i < commitment.shape.log_n {
-        let actual = v.next_scalar()?;
-        v.ensure_eq(actual, commitment.point[i], || WhirError::CommitmentMismatch)?;
-        i += 1;
-    }
+    verify_record_pending(v, &commitment.context.pending)?;
+    verify_record_values(v, &commitment.point, commitment.shape.log_n)?;
     let actual = v.next_scalar()?;
     v.ensure_eq(actual, commitment.value, || WhirError::CommitmentMismatch)?;
     Ok(())
