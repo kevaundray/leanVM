@@ -77,8 +77,7 @@ pub(crate) fn producer_public_twist(coords: &[Coord], w: &[F192], chi: &[F192], 
         .fold(F192::ZERO, |acc, (&d, &mu)| acc + mu * d)
 }
 
-/// The program columns' share of a producer's public half at `chi`, for each of `n_bits` twist weights: the `D_i` of
-/// [`producer_public_twist`].
+/// The program columns' share of a producer's public half at `chi`, for each of `n_bits` twist weights: the `D_i` of [`producer_public_twist`].
 pub(crate) fn producer_twist_terms(coords: &[Coord], w: &[F192], chi: &[F192], n_bits: usize) -> Vec<F192> {
     let eq = primitives::multilinear::eq_table(chi);
     let mut terms = vec![F192::ZERO; n_bits];

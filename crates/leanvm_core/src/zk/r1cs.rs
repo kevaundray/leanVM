@@ -61,8 +61,7 @@ impl R1cs {
 
     /// Append the two dummy constraints `z[first]·z[first+1] = z[first+2]` and `z[first+3]·z[first+4] = z[first+5]`.
     ///
-    /// Their operands are fresh and uniform ([`dummy_values`]), which is what hides the final `(a, b, c)` of the outer
-    /// Spartan: each sits at a row of its own, so it adds a uniform term to each of the three evaluations.
+    /// Their operands are fresh and uniform ([`dummy_values`]), which is what hides the final `(a, b, c)` of the outer Spartan: each sits at a row of its own, so it adds a uniform term to each of the three evaluations.
     pub(crate) fn push_dummies(&mut self, first: usize) {
         assert!(
             first > 0 && first + N_DUMMIES <= self.n_cols,

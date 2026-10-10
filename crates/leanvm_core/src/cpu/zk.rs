@@ -155,8 +155,7 @@ pub(super) fn verify(program: &Program, output: Output, proof: &Proof) -> Result
     Ok(vs.into_raw_proof())
 }
 
-/// The plain verifier over a padded transcript, recorded: the shape, the two roots, the final clock's bits, the core,
-/// then the deferred claims. It returns the key commitment's root and the rate.
+/// The plain verifier over a padded transcript, recorded: the shape, the two roots, the final clock's bits, the core, then the deferred claims. It returns the key commitment's root and the rate.
 fn record<T>(program: &Program, rec: &mut Recorder<T>, output: Output) -> Result<(Hash, Rate), CpuError>
 where
     T: OpeningVerifier<E = F192, K = F64, Root = Hash, Query = usize>,

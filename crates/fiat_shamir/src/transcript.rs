@@ -192,8 +192,7 @@ impl ProverState {
         }
     }
 
-    /// Hide each scalar sent while [`Transmitter::set_hidden`] holds under the next of these keys: the stream and the
-    /// transcript carry `x + key`.
+    /// Hide each scalar sent while [`Transmitter::set_hidden`] holds under the next of these keys: the stream and the transcript carry `x + key`.
     ///
     /// # Panics
     ///

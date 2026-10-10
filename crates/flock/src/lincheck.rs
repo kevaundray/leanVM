@@ -588,8 +588,7 @@ impl MatrixForm {
             .unwrap_or_else(|| inner_product(&circuit.fold_alpha_batched(self.alpha, &eq_inner), &w_col))
     }
 
-    /// The form's weight on each bit slice: [`Self::evaluate`] is `sum_i s_hat_v[i] weights[i]`, the form being linear
-    /// in its slices, and the weights depend on its other, public, coordinates alone.
+    /// The form's weight on each bit slice: [`Self::evaluate`] is `sum_i s_hat_v[i] weights[i]`, the form being linear in its slices, and the weights depend on its other, public, coordinates alone.
     pub fn slice_weights(&self, circuit: &dyn LincheckCircuit) -> Vec<F192> {
         let n_slices = self.s_hat_v.len();
         let eq_inner = build_quirky_eq_table(self.z_skip, &self.x_inner_rest, n_slices.ilog2() as usize);

@@ -123,8 +123,7 @@ impl StackShape {
         self.committed_lanes() << (self.mu - crate::pcs::LOG_BATCH)
     }
 
-    /// The shape a zero-knowledge proof commits for `placed` words: its lanes long enough for one random lane to hide
-    /// the opening ([`::pcs::whir::config::MIN_LOG_N_HIDING`]), and room for that lane.
+    /// The shape a zero-knowledge proof commits for `placed` words: its lanes long enough for one random lane to hide the opening ([`::pcs::whir::config::MIN_LOG_N_HIDING`]), and room for that lane.
     pub fn hiding(placed: usize) -> Self {
         let mut mu = crate::log2_ceil_usize(placed.max(1))
             .max(crate::pcs::MIN_MU)

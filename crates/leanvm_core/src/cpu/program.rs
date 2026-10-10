@@ -254,8 +254,7 @@ impl Program {
         Proof(ps.into_proof(), false)
     }
 
-    /// The bus, the table sumcheck and flock's reductions over the committed witness: the opening's point claims and its
-    /// ring-switched regions.
+    /// The bus, the table sumcheck and flock's reductions over the committed witness: the opening's point claims and its ring-switched regions.
     pub(super) fn prove_reductions(
         &self,
         ps: &mut ProverState,
@@ -378,8 +377,7 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// Returns the first stage that refuses the proof, and refuses a zero-knowledge proof, whose claims are settled
-    /// inside its outer proof.
+    /// Returns the first stage that refuses the proof, and refuses a zero-knowledge proof, whose claims are settled inside its outer proof.
     #[doc(hidden)]
     pub fn verify_core(&self, output: Output, proof: &Proof) -> Result<DeferredClaims, CpuError> {
         self.replay(output, proof).map(|(claims, _)| claims)

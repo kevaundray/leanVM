@@ -723,9 +723,7 @@ impl Announcement {
 
     /// Write the announcement onto the scalar stream, which binds it into the transcript.
     pub(super) fn write(&self, ps: &mut ProverState) {
-        for size in Self::sizes(&self.taus, self.rate) {
-            ps.add_scalar(size);
-        }
+        Self::write_shape(&self.taus, self.rate, ps);
         ps.add_scalar(F192::new(self.ts_final, 0, 0));
     }
 
@@ -767,8 +765,7 @@ impl Announcement {
         })
     }
 
-    /// Write a zero-knowledge proof's announcement: its shape alone, each table's height then the rate, its final clock
-    /// being hidden.
+    /// Write a zero-knowledge proof's announcement: its shape alone, each table's height then the rate, its final clock being hidden.
     pub(crate) fn write_shape(taus: &PerTable<usize>, rate: Rate, ps: &mut ProverState) {
         for size in Self::sizes(taus, rate) {
             ps.add_scalar(size);
@@ -825,8 +822,7 @@ impl Announcement {
 }
 
 impl Layout {
-    /// The layout a verifier rebuilds from announced heights, its final clock zero, in the stack a zero-knowledge proof
-    /// commits when `hiding`.
+    /// The layout a verifier rebuilds from announced heights, its final clock zero, in the stack a zero-knowledge proof commits when `hiding`.
     ///
     /// # Errors
     ///

@@ -1,7 +1,6 @@
 //! The outer constraint system: what the recording verifier recorded, over the key stack's slots.
 //!
-//! Column 0 is the constant one and column `1 + s` the key stack's slot `s`. A key is its slot; an auxiliary variable is
-//! the scalar the prover sent for it plus its own key, so every column is a slot and the assignment is the key stack.
+//! Column 0 is the constant one and column `1 + s` the key stack's slot `s`. A key is its slot; an auxiliary variable is the scalar the prover sent for it plus its own key, so every column is a slot and the assignment is the key stack.
 //!
 //! Its rows, in order:
 //!
@@ -17,8 +16,7 @@ use super::r1cs::{R1cs, Row as SparseRow};
 use super::sym::{Form, Kind, Record, Var};
 use primitives::field::F192;
 
-/// The constraint system the record states, the auxiliary variable of rank `r` (by digest) being the form `sent[r]`: the
-/// scalar sent for it plus its key.
+/// The constraint system the record states, the auxiliary variable of rank `r` (by digest) being the form `sent[r]`: the scalar sent for it plus its key.
 pub(crate) fn constraint_system(record: &Record, sent: &[Form]) -> R1cs {
     let order = record.aux_order();
     assert_eq!(sent.len(), order.len(), "a sent scalar per auxiliary variable");

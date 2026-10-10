@@ -34,8 +34,7 @@ pub trait Arith {
 
     /// The same element, which the caller reuses many times.
     ///
-    /// A recording arithmetic may give it a variable of its own, so that what reuses it stays short; by default it is
-    /// returned as it is.
+    /// A recording arithmetic may give it a variable of its own, so that what reuses it stays short; by default it is returned as it is.
     fn bind(&mut self, a: Self::E) -> Self::E {
         a
     }

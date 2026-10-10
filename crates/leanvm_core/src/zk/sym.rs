@@ -114,8 +114,7 @@ impl Record {
         terms
     }
 
-    /// BLAKE2s over a form: its constant, then each term in canonical order, a key as `0, index` and an auxiliary
-    /// variable as `1, digest`, each with its coefficient. An element of `E` is its three limbs, little-endian.
+    /// BLAKE2s over a form: its constant, then each term in canonical order, a key as `0, index` and an auxiliary variable as `1, digest`, each with its coefficient. An element of `E` is its three limbs, little-endian.
     pub(crate) fn digest(&self, f: &Form) -> [u8; 32] {
         let mut h = Hasher::new();
         absorb_e(&mut h, f.constant);

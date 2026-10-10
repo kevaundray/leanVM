@@ -1,17 +1,13 @@
 //! The outer zero-knowledge Spartan over `E`.
 //!
-//! It proves `sum_x eq(τ, x)·F(x) = 0` for `F = Ã·B̃ + C̃`, the row products of an [`R1cs`] over a witness the caller
-//! commits elsewhere, and ends in two linear claims the caller discharges with its own opening: one on the witness,
-//! one on the Libra mask `g(X) = g_c + sum_j (g_{j0} + g_{j1} X_j) X_j`, which the caller commits too.
+//! It proves `sum_x eq(τ, x)·F(x) = 0` for `F = Ã·B̃ + C̃`, the row products of an [`R1cs`] over a witness the caller commits elsewhere, and ends in two linear claims the caller discharges with its own opening: one on the witness, one on the Libra mask `g(X) = g_c + sum_j (g_{j0} + g_{j1} X_j) X_j`, which the caller commits too.
 //!
 //! The rows form the cube `{0,1}^ℓ`, `x = sum_i x_i 2^i`, variable 0 bound first.
 //!
 //! Zero knowledge needs no padding:
-//! - each round's `c_1` and `c_2` are those of `F` plus `α` times the mask's fresh `(g_{i0}, g_{i1})`, the eq-weighted
-//!   MLE-check mask of the Binius64 whitepaper;
+//! - each round's `c_1` and `c_2` are those of `F` plus `α` times the mask's fresh `(g_{i0}, g_{i1})`, the eq-weighted MLE-check mask of the Binius64 whitepaper;
 //! - the mask's sum `s_g` is hidden by `g_c`;
-//! - the final `(a, b, c)` are hidden by the two dummy constraints ([`R1cs::push_dummies`]), whose fresh operands sit at
-//!   rows of their own.
+//! - the final `(a, b, c)` are hidden by the two dummy constraints ([`R1cs::push_dummies`]), whose fresh operands sit at rows of their own.
 //!
 //! The characteristic-2 argument rests on the Binius64 whitepaper's MLE-check theorem and is unreviewed.
 
@@ -153,8 +149,7 @@ fn libra_weight<A: Arith>(ar: &mut A, r: &[A::E]) -> Vec<A::E> {
 
 /// The two claims, from `(a, b, c)` and `eq(r, x)` for the first `n_rows` rows `x` at least.
 ///
-/// `t_y = sum_x eq(r, x)(A[x][y] + γ B[x][y] + γ^2 C[x][y])` gives `⟨t, z⟩ = a + γ b + γ^2 c`, and `z_0 = 1` moves `t_0`
-/// to the target.
+/// `t_y = sum_x eq(r, x)(A[x][y] + γ B[x][y] + γ^2 C[x][y])` gives `⟨t, z⟩ = a + γ b + γ^2 c`, and `z_0 = 1` moves `t_0` to the target.
 fn claims<A: Arith>(
     ar: &mut A,
     r1cs: &R1cs,
