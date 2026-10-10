@@ -10,7 +10,7 @@
   const sortOrder = byId("sort-order");
   const categoryBrowser = byId("category-browser");
   const categories = {
-    client: { name: "Client-side proving", description: "On-device measurements, Falcon signature verification and L1 state proofs." },
+    client: { name: "Client-side proving", description: "On-device proving on Pixel and iPhone." },
     consensus: { name: "Consensus layer", description: "leanXMSS, leanSPHINCS and aggregation workloads, excluding on-device results." },
     data: { name: "Data layer", description: "leanDA workloads." },
     misc: { name: "Misc", description: "Other workloads, kept together until they find a home." },
@@ -97,8 +97,7 @@
 
   function categoryOf(row) {
     if (/^leanda\b/i.test(row.program.name)) return "data";
-    if (/pixel|iphone/i.test(text(row.machine.name, row.machine.id))
-      || /^falcon\b/i.test(row.program.name) || /^L1 state proofs$/i.test(row.program.name)) return "client";
+    if (/pixel|iphone/i.test(text(row.machine.name, row.machine.id))) return "client";
     if (/^lean(?:xmss|sphincs)\b/i.test(row.program.name) || row.category === "aggregation") return "consensus";
     return "misc";
   }
