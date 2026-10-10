@@ -24,6 +24,14 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Flock.carryAdder64_wellFormed
 #print axioms LeanVMCircuits.Flock.carryAdder64_complete
 
+#print axioms LeanVMCircuits.Shift.assumptions_iff_legal_flags
+#print axioms LeanVMCircuits.Flock.Shift.supported
+#print axioms LeanVMCircuits.Flock.Shift.source_eq
+#print axioms LeanVMCircuits.Flock.Shift.layout
+#print axioms LeanVMCircuits.Flock.Shift.soundness
+#print axioms LeanVMCircuits.Flock.Shift.wellFormed
+#print axioms LeanVMCircuits.Flock.Shift.complete
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -37,6 +45,10 @@ run_cmd do
     ``LeanVMCircuits.Flock.adder32_complete, ``LeanVMCircuits.Flock.carryAdder64_source,
     ``LeanVMCircuits.Flock.carryAdder64_soundness, ``LeanVMCircuits.Flock.carryAdder64_layout,
     ``LeanVMCircuits.Flock.carryAdder64_wellFormed, ``LeanVMCircuits.Flock.carryAdder64_complete,
+    ``LeanVMCircuits.Shift.assumptions_iff_legal_flags,
+    ``LeanVMCircuits.Flock.Shift.supported, ``LeanVMCircuits.Flock.Shift.source_eq,
+    ``LeanVMCircuits.Flock.Shift.layout, ``LeanVMCircuits.Flock.Shift.soundness,
+    ``LeanVMCircuits.Flock.Shift.wellFormed, ``LeanVMCircuits.Flock.Shift.complete,
     ``LeanVMCircuits.Flock.lookup_rejected, ``LeanVMCircuits.Flock.interaction_rejected] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do

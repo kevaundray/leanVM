@@ -208,8 +208,26 @@ fn clean_carry_adder_arithmetic_boundaries() {
     proves_and_verifies("clean carry adder", &program, [0, 0, 1 << 63, u64::MAX]);
 }
 
-/// Every shift and every multiplication, registers and immediates, 64-bit and 32-bit
-/// forms, folded into the output.
+#[test]
+fn clean_shift_sign_and_mask_boundaries_prove_and_verify() {
+    let text = Asm::new()
+        .li(Reg::S0, 0x8000_0000_8000_0001)
+        .li(Reg::S1, u64::MAX)
+        .r(Sra, Reg::A0, Reg::S0, Reg::S1)
+        .r(Sll, Reg::A1, Reg::S0, Reg::S1)
+        .r(Srlw, Reg::A2, Reg::S0, Reg::S1)
+        .shift(Slliw, Reg::A3, Reg::S0, 0)
+        .exit()
+        .finish();
+    let program = Program::new(&text, Region::TEXT.base(), vec![], 2, 0).expect("valid shift program");
+    proves_and_verifies(
+        "clean-shift-boundaries",
+        &program,
+        [u64::MAX, 0x8000_0000_0000_0000, 1, 0xffff_ffff_8000_0001],
+    );
+}
+
+/// Every shift and every multiplication, registers and immediates, 64-bit and 32-bit forms, folded into the output.
 #[test]
 fn shifts_and_multiplications_prove_and_verify() {
     let mut a = Asm::new();

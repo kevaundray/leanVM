@@ -41,7 +41,22 @@ jobs:
           lake exe cache get Mathlib.Tactic
           lake build
           lake env lean Audit.lean
-          lake env leanchecker LeanVMCircuits
+          # Stock leanchecker replays every matching module concurrently.
+          # The root has no declarations; reject any future declaration there.
+          if grep -nEv '^[[:space:]]*(module|public import LeanVMCircuits[.][A-Za-z0-9_.]+)?[[:space:]]*$' LeanVMCircuits.lean; then
+            echo "::error::LeanVMCircuits.lean must contain only its module header and public imports"
+            exit 1
+          fi
+          shopt -s globstar nullglob
+          sources=(LeanVMCircuits/**/*.lean)
+          if (( ${#sources[@]} == 0 )); then
+            echo "::error::No library source modules found for kernel checking"
+            exit 1
+          fi
+          for source in "${sources[@]}"; do
+            module="${source%.lean}"
+            lake env leanchecker "${module//\//.}"
+          done
       - name: Check deterministic production export
         working-directory: verification/circuits
         run: |
