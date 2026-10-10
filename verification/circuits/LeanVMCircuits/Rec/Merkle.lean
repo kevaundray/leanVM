@@ -192,7 +192,7 @@ theorem chain_digest (ll : BitVec 64) (i : ℕ) (row : ℕ → K) (rest : List (
 
 /-- The message a Merkle row hashes: `acc` and the row's other half, `acc` first at bit 0. -/
 theorem node_message (row : ℕ → K) (hid : ∀ id ∈ hashIdentities, id.eval row = 0) (acc : Fin 4 → K)
-    (hmux : ∀ i : Fin 4, limbs hash 2 row i = acc i) :
+    (hmux : ∀ i : Fin 4, limbs hash hashSlotMux row i = acc i) :
     (row hashSel = 0 ∧ mWords (fun j => columnWord row j) =
         pair (words4 acc) fun i => columnWord row (hashM + 4 + i)) ∨
       (row hashSel = 1 ∧ mWords (fun j => columnWord row j) =
@@ -237,7 +237,7 @@ structure NodeRow (row : ℕ → K) (acc : Fin 4 → K) : Prop where
   iv : ∀ k : Fin 4, columnWord row (hashH + k) = digest paramIV k
   counter : columnWord row hashT = 64
   final : (columnWord row hashF).setWidth 32 = finalWord true
-  mux : ∀ i : Fin 4, limbs hash 2 row i = acc i
+  mux : ∀ i : Fin 4, limbs hash hashSlotMux row i = acc i
 
 /-- The bit and sibling a node's row holds: the mux bit, and the message half `acc` is not in. -/
 noncomputable def step (row : ℕ → K) : Bool × (Fin 4 → BitVec 64) :=
@@ -304,8 +304,8 @@ theorem parent_row_digest (row : ℕ → K) (left right : Fin 4 → K) (h : Pare
 /-- A parent's second child through a `CAST` row: the hash row's `x` and `ds` slots held to the cast row's element
 and last word, its digest slot to `right`. -/
 theorem parent_right (row crow : ℕ → K) (right : Fin 4 → K)
-    (hx : ∀ i : Fin 3, limbs hash 4 row i = limbs cast 1 crow i) (hds : limbs hash 5 row 0 = limbs cast 7 crow 0)
-    (hd : ∀ i : Fin 4, limbs cast 0 crow i = right i) : ∀ i : Fin 4, row (hashM + 4 + i) = right i := by
+    (hx : ∀ i : Fin 3, limbs hash hashSlotX row i = limbs cast castElement crow i) (hds : limbs hash hashSlotDs row 0 = limbs cast (castWords + 3) crow 0)
+    (hd : ∀ i : Fin 4, limbs cast castDigest crow i = right i) : ∀ i : Fin 4, row (hashM + 4 + i) = right i := by
   intro i
   fin_cases i
   · exact (hx 0).trans (hd 0)

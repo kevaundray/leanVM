@@ -2,6 +2,7 @@
 
 use super::Builder;
 use crate::rec::circuit::{Compression, Dw, Ew, Kw, Limbs, PARAM_IV};
+use crate::rec::clean::{HASH_CH, HASH_DS, HASH_H, HASH_M, HASH_MUX, HASH_OUT, HASH_SEL, HASH_TF, HASH_X};
 use crate::rec::table::Table;
 use crate::rv::Hash;
 use primitives::field::F192;
@@ -148,8 +149,19 @@ impl Builder {
         let ch = self.free_e(F192::new(out[0], out[1], out[2]));
         let HashHead { h, tf, mux, bit, x, ds } = head;
         let mut slots = [0u32; Table::Hash.n_slots()];
-        slots[..8].copy_from_slice(&[h.0, tf.0, mux.0, bit.0, x.0, ds.0, o.0, ch.0]);
-        slots[8..].copy_from_slice(&words);
+        for (slot, w) in [
+            (HASH_H, h.0),
+            (HASH_TF, tf.0),
+            (HASH_MUX, mux.0),
+            (HASH_SEL, bit.0),
+            (HASH_X, x.0),
+            (HASH_DS, ds.0),
+            (HASH_OUT, o.0),
+            (HASH_CH, ch.0),
+        ] {
+            slots[slot] = w;
+        }
+        slots[HASH_M..HASH_M + 8].copy_from_slice(&words);
         self.row(Table::Hash, &slots);
         self.hash.push(compression);
         (o, ch)

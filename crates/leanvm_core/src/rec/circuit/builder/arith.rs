@@ -2,17 +2,25 @@
 
 use super::{Builder, row_key};
 use crate::rec::circuit::{Ew, Kw};
+use crate::rec::clean::{ARITH_A, ARITH_B, ARITH_C, ARITH_D};
 use crate::rec::table::Table;
 use primitives::field::{F64, F192};
 
 impl Builder {
+    /// An `EMUL` or `EXK` row `c = a·b + d`.
+    fn arith_row(&mut self, table: Table, [a, b, d, c]: [u32; 4]) {
+        let mut slots = [0; 4];
+        (slots[ARITH_A], slots[ARITH_B], slots[ARITH_D], slots[ARITH_C]) = (a, b, d, c);
+        self.row(table, &slots);
+    }
+
     fn emul(&mut self, a: Ew, b: Ew, d: Ew) -> Ew {
         let key = row_key(Table::Emul, self.emul_key(a, b, d));
         if let Some(&c) = self.arith.get(&key) {
             return Ew(c);
         }
         let c = self.free_e(self.e(a) * self.e(b) + self.e(d));
-        self.row(Table::Emul, &[a.0, b.0, d.0, c.0]);
+        self.arith_row(Table::Emul, [a.0, b.0, d.0, c.0]);
         self.arith.insert(key, c.0);
         c
     }
@@ -80,7 +88,7 @@ impl Builder {
             return Ew(c);
         }
         let c = self.free_e(self.e(a).mul_base(F64(self.k(k))) + self.e(d));
-        self.row(Table::Exk, &[a.0, k.0, d.0, c.0]);
+        self.arith_row(Table::Exk, [a.0, k.0, d.0, c.0]);
         self.arith.insert(key, c.0);
         c
     }
