@@ -89,6 +89,27 @@ theorem lower_correct (next : ℕ) (operations : List (FlatOperation Bit)) (step
     simp only [List.forall_cons, Step.Holds, lowerAffine_correct e affine he env,
       bit_add_eq_zero_iff, ih]
 
+theorem lower_append (next : ℕ) (first rest : List (FlatOperation Bit)) (steps : List Step)
+    (h : lower next first = .ok steps) :
+    lower next (first ++ rest) = (lower (next + steps.length) rest).map (steps ++ ·) := by
+  fun_induction lower next first generalizing steps
+  all_goals first
+    | (simp at h; done)
+    | (simp only [Except.ok.injEq] at h; subst h
+       simp only [List.nil_append, List.length_nil, Nat.add_zero, Except.map]
+       generalize lower _ rest = L; cases L <;> rfl)
+    | skip
+  all_goals
+    rename_i ih
+    simp only [Except.ok.injEq] at h
+    subst h
+    simp only [List.cons_append, lower, ↓reduceIte, *]
+    rw [ih _ ‹lower (_ + 1) _ = Except.ok _›]
+    simp only [Except.map, List.length_cons]
+    rw [show ∀ a b : ℕ, a + 1 + b = a + (b + 1) from fun a b => by omega]
+    generalize lower _ rest = L
+    cases L <;> rfl
+
 theorem lower_no_interactions (next : ℕ) (operations : List (FlatOperation Bit)) (steps : List Step)
     (h : lower next operations = .ok steps) : FlatOperation.interactions operations = [] := by
   fun_induction lower next operations generalizing steps <;> simp_all [FlatOperation.interactions]
@@ -158,13 +179,10 @@ def Artifact.products (artifact : Artifact) : List (Affine × Affine) :=
 
 def lowerAt (start : ℕ) (nested : NestedOperations Bit) (output : List (Expression Bit)) :
     Except String Artifact :=
-  match flatten 128 nested with
-  | .error message => .error message
-  | .ok operations =>
-    match lower start operations, lowerOutputs output with
-    | .ok steps, .ok outputs => .ok { start, steps, outputs }
-    | .error message, _ => .error message
-    | _, .error message => .error message
+  match lower start nested.toFlat, lowerOutputs output with
+  | .ok steps, .ok outputs => .ok { start, steps, outputs }
+  | .error message, _ => .error message
+  | _, .error message => .error message
 
 theorem lowerAt_correct (start : ℕ) (nested : NestedOperations Bit) (output : List (Expression Bit))
     (artifact : Artifact) (hcode : lowerAt start nested output = .ok artifact) (env : Environment Bit) :
@@ -172,22 +190,18 @@ theorem lowerAt_correct (start : ℕ) (nested : NestedOperations Bit) (output : 
       FlatOperation.Guarantees env nested.toFlat ∧
       artifact.outputs.map (Affine.eval env.get) = output.map (Expression.eval env) ∧
       artifact.start = start ∧ wellFormed start artifact.steps = true := by
-  cases hf : flatten 128 nested with
-  | error message => simp [lowerAt, hf] at hcode
-  | ok operations =>
-    cases hr : lower start operations with
-    | error message => simp [lowerAt, hf, hr] at hcode
-    | ok steps =>
-      cases ho : lowerOutputs output with
-      | error message => simp [lowerAt, hf, hr, ho] at hcode
-      | ok outputs =>
-        simp [lowerAt, hf, hr, ho] at hcode
-        subst artifact
-        rw [← flatten_correct _ _ _ hf]
-        refine ⟨lower_correct start operations steps hr env, ?_, lowerOutputs_correct _ _ ho env, rfl,
-          lower_wellFormed start operations steps hr⟩
-        rw [FlatOperation.guarantees_iff_forall_mem, lower_no_interactions _ _ _ hr]
-        simp
+  cases hr : lower start nested.toFlat with
+  | error message => simp [lowerAt, hr] at hcode
+  | ok steps =>
+    cases ho : lowerOutputs output with
+    | error message => simp [lowerAt, hr, ho] at hcode
+    | ok outputs =>
+      simp [lowerAt, hr, ho] at hcode
+      subst artifact
+      refine ⟨lower_correct start _ steps hr env, ?_, lowerOutputs_correct _ _ ho env, rfl,
+        lower_wellFormed start _ steps hr⟩
+      rw [FlatOperation.guarantees_iff_forall_mem, lower_no_interactions _ _ _ hr]
+      simp
 
 /-- The lowering of a formal circuit at `start`, its inputs already named below `start`. -/
 def lowerCircuit {Input Output : TypeMap} [ProvableType Input] [ProvableType Output]
