@@ -11,14 +11,15 @@
 
 use crate::witness::StackShape;
 use fiat_shamir::transcript::{ProverState, TranscriptError, Transmitter};
+use pcs::stack::{CommittedStack, StackCommitment, Statement};
 use pcs::verifier::OpeningVerifier;
+use pcs::whir::WhirError;
 use pcs::whir::config::ConfigError;
-use pcs::whir::{Hiding, ProverConfig, ProverData, WhirError, config_for_rate, config_for_rate_hiding};
 use primitives::field::F64;
 use thiserror::Error;
 
 pub(crate) use pcs::ring_switch::{RingSwitch, SliceClaim};
-pub(crate) use pcs::stack_open::StackClaim;
+pub(crate) use pcs::stack::StackClaim;
 pub(crate) use pcs::whir::INITIAL_FOLDING_FACTOR as LOG_BATCH;
 pub use pcs::whir::{MAX_LOG_N as MAX_MU, MIN_LOG_N as MIN_MU};
 
@@ -97,23 +98,18 @@ pub(crate) enum WitnessError {
 }
 
 /// The opening profile of a stack: the hiding one for a zero-knowledge proof's stack, whose last lane is random.
-fn config(shape: StackShape, rate: Rate) -> Result<ProverConfig, ConfigError> {
+fn config(shape: StackShape, rate: Rate) -> Result<pcs::whir::Config, ConfigError> {
     let log_inv_rate = usize::from(rate.log_inv_rate());
     if shape.random_lane {
-        config_for_rate_hiding(shape.mu, log_inv_rate)
+        pcs::whir::config_for_rate_hiding(shape.mu, log_inv_rate)
     } else {
-        config_for_rate(shape.mu, log_inv_rate)
+        pcs::whir::config_for_rate(shape.mu, log_inv_rate)
     }
-}
-
-/// A zero-knowledge proof's opening of its stack: every scalar before the lane fold's end is hidden.
-fn hiding(shape: StackShape) -> Option<Hiding> {
-    shape.random_lane.then_some(Hiding { hidden_claim: true })
 }
 
 /// The padding coefficients a hiding commitment of a `2^μ`-word witness takes per lane.
 pub(crate) fn padding(mu: usize, log_inv_rate: usize) -> usize {
-    config_for_rate_hiding(mu, log_inv_rate)
+    pcs::whir::config_for_rate_hiding(mu, log_inv_rate)
         .unwrap_or_else(|e| panic!("hiding config for mu={mu}, log_inv_rate={log_inv_rate}: {e}"))
         .padding()
 }
@@ -122,12 +118,10 @@ pub(crate) fn padding(mu: usize, log_inv_rate: usize) -> usize {
 ///
 /// The caller retains the witness words, avoiding a second full-witness allocation.
 pub(crate) struct Committed {
-    /// The codeword and its Merkle tree.
-    prover_data: ProverData,
+    /// The committed stack: its codeword, Merkle tree and opening parameters.
+    stack: CommittedStack,
     /// The full witness dimension and the number of lanes actually encoded.
     shape: StackShape,
-    /// The validated opening parameters used to produce the initial commitment.
-    config: ProverConfig,
 }
 
 impl Committed {
@@ -167,7 +161,6 @@ impl Committed {
         pads: &[F64],
     ) -> Result<Self, WitnessError> {
         // Validate the dimension before shifting lengths or allocating the codeword.
-        let log_inv_rate = usize::from(rate.log_inv_rate());
         let config = config(shape, rate)?;
         let max = 1usize << config.initial_k();
         let n_lanes = shape.committed_lanes();
@@ -181,21 +174,11 @@ impl Committed {
                 got: witness.len(),
             });
         }
-        assert_eq!(
-            pads.len(),
-            n_lanes * config.padding(),
-            "every committed lane takes the configured padding"
-        );
 
         // The codeword and tree use the same parameters retained for opening.
-        let (commitment, prover_data) =
-            pcs::whir::commit_hiding(witness, shape.mu, config.initial_k(), log_inv_rate, pads);
-        ps.add_root(&commitment.root);
-        Ok(Self {
-            prover_data,
-            shape,
-            config,
-        })
+        let stack = CommittedStack::new_padded(witness, shape.mu, config, pads);
+        ps.add_root(&stack.root());
+        Ok(Self { stack, shape })
     }
 
     /// Proves the point evaluations and ring-switched circuit-validity claims together.
@@ -228,16 +211,7 @@ impl Committed {
 
         // Values are transcript-bound or public, points are challenges or constants, and offsets are public.
         // The opening samples batching challenges without observing those claims again.
-        pcs::stack_open::open(
-            ps,
-            self.shape.mu,
-            witness,
-            &self.prover_data,
-            &self.config,
-            points,
-            rings,
-            hiding(self.shape),
-        );
+        self.stack.open(ps, witness, Statement { points, rings });
         Ok(())
     }
 }
@@ -286,8 +260,8 @@ impl<R: Copy> Commitment<R> {
     ) -> Result<(), WhirError> {
         // Both sides derive the opening profile from the committed witness's dimension and rate.
         let config = config(self.shape, self.rate)?;
-        let (n_lanes, hiding) = (self.shape.committed_lanes(), hiding(self.shape));
-        pcs::stack_open::verify(v, &config, self.shape.mu, n_lanes, self.root, points, rings, hiding)
+        let stack = StackCommitment::new(self.root, self.shape.mu, self.shape.committed_lanes(), config);
+        stack.verify(v, Statement { points, rings })
     }
 }
 
@@ -390,12 +364,8 @@ mod tests {
         )
         .expect("a supported witness");
 
-        // The retained shape and codeword describe one lane at the configured encoding rate.
+        // The retained shape describes one lane.
         assert_eq!(committed.shape.committed_len(), lane_words);
-        assert_eq!(
-            committed.prover_data.codeword.len(),
-            lane_words << committed.config.log_inv_rates()[0]
-        );
 
         // Mutation: omit the lane, cut it short, or supply a second whole lane.
         for words in [0, lane_words - 1, 2 * lane_words] {

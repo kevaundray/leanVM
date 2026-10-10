@@ -62,8 +62,8 @@ pub(super) fn prove(program: &Program, mut w: Witness, output: Output, rate: Rat
     let key_data = info_span!("Commit keys").in_scope(|| {
         let mut pads = vec![F64::ZERO; 2 * pcs::padding(KEY_MU, log_inv_rate)];
         rng.fill_k(Purpose::KeyPads, &mut pads);
-        let (commitment, data) = whir::commit_hiding(&stack.words, KEY_MU, LOG_BATCH, log_inv_rate, &pads);
-        ps.add_root(&commitment.root);
+        let data = whir::commit_hiding(&stack.words, KEY_MU, LOG_BATCH, log_inv_rate, &pads);
+        ps.add_root(&data.root());
         data
     });
 
@@ -194,7 +194,7 @@ fn open_keys(ps: &mut ProverState, stack: &KeyStack, data: &ProverData, claims: 
     let (mut weight, target) = keys::opening_claim(claims, lambda);
     weight.resize(2 * LANE, F192::ZERO);
     let hiding = Hiding { hidden_claim: false };
-    whir::recursive_prover_with_basis(&cfg, KEY_MU, &stack.words, weight, target, data, Some(hiding), ps);
+    whir::open_hiding(&cfg, KEY_MU, &stack.words, weight, target, data, hiding, ps);
 }
 
 /// Verify the key commitment's opening at the outer proof's claims.
@@ -209,7 +209,7 @@ fn verify_keys(vs: &mut VerifierState, root: Hash, claims: &OuterClaims, log_inv
         let lane_0 = x[low..].iter().fold(F192::ONE, |acc, &xi| acc * (F192::ONE + xi));
         lane_0 * inner_product(&weight, &eq_table(&x[..low]))
     };
-    whir::recursive_verifier_with_basis_succinct(vs, &cfg, KEY_MU, 2, target, root, Some(hiding), weight_at)
+    whir::verify_hiding(vs, &cfg, KEY_MU, 2, target, root, hiding, weight_at)
 }
 
 #[cfg(test)]
