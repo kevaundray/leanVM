@@ -55,11 +55,12 @@
 //! `lambda` is drawn after the map, so the family's error is fixed by then and is the
 //! constant term of the batched error, which is what lets it take `lambda^0 = 1`.
 
-use super::ring_switch::{self, RingFamily, RingSwitch, SliceClaim};
+use super::ring_switch::{self, RingFamily, RingShare, RingSwitch, SliceClaim};
 use super::verifier::OpeningVerifier;
 use super::whir::commit::{send_record_binding, verify_record_binding};
 use super::whir::{
-    Commitment, ProverConfig, ProverData, VerifierConfig, WhirError, anchor::anchor_eq_at, verify_protocol_with_basis,
+    Commitment, CommitmentShape, ProverConfig, ProverData, VerifierConfig, WeightAt, WhirError, anchor::anchor_eq_at,
+    verify_protocol_with_basis,
 };
 use basis::StackWeight;
 use fiat_shamir::arith::{Arith, Native};
@@ -67,6 +68,29 @@ use fiat_shamir::transcript::Transmitter;
 use primitives::field::{F64, F192, powers};
 
 mod basis;
+
+struct OpeningWeight<'a, E> {
+    share: &'a RingShare<'a, E>,
+    claims: &'a [StackClaim<E>],
+    lambdas: &'a [E],
+    shape: CommitmentShape,
+    anchor_point: &'a [E],
+    anchor_lambda: E,
+}
+
+impl<V: OpeningVerifier> WeightAt<V> for OpeningWeight<'_, V::E> {
+    fn evaluate(self, v: &mut V, x: &[V::E]) -> V::E {
+        let mut weight = self.share.weight_at(v, x);
+        let mut i = 0;
+        while i < self.claims.len() {
+            let eq = self.claims[i].eq_at(v, x);
+            weight = v.mul_add(self.lambdas[i], eq, weight);
+            i += 1;
+        }
+        let anchor = anchor_eq_at(v, self.shape, self.anchor_point, x);
+        v.mul_add(self.anchor_lambda, anchor, weight)
+    }
+}
 
 /// An owning point claim folded into the stacked mixed opening.
 ///
@@ -315,8 +339,10 @@ pub fn verify<V: OpeningVerifier>(
         v.begin_scope(fiat_shamir::arith::Stage::Target);
         let family_target = share.target(v);
         let mut point_target = family_target;
-        for (claim, &g) in point_claims.iter().zip(point_lambdas) {
-            point_target = v.mul_add(g, claim.value(), point_target);
+        let mut i = 0;
+        while i < point_claims.len() {
+            point_target = v.mul_add(point_lambdas[i], point_claims[i].value(), point_target);
+            i += 1;
         }
         let scoped_result = v.mul_add(anchor_lambda, commitment.value(), point_target);
         v.end_scope();
@@ -324,14 +350,13 @@ pub fn verify<V: OpeningVerifier>(
     };
 
     // The lifted weight, evaluated once at the terminal sumcheck point.
-    let weight_at = |v: &mut V, x: &[V::E]| {
-        let family_weight = share.weight_at(v, x);
-        let point_weight = (point_claims.iter().zip(point_lambdas)).fold(family_weight, |acc, (claim, &g)| {
-            let eq = claim.eq_at(v, x);
-            v.mul_add(g, eq, acc)
-        });
-        let anchor_weight = anchor_eq_at(v, shape, commitment.point(), x);
-        v.mul_add(anchor_lambda, anchor_weight, point_weight)
+    let weight_at = OpeningWeight {
+        share: &share,
+        claims: point_claims,
+        lambdas: point_lambdas,
+        shape,
+        anchor_point: commitment.point(),
+        anchor_lambda,
     };
     v.begin_scope(fiat_shamir::arith::Stage::Whir);
     let scoped_result =
