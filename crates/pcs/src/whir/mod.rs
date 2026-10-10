@@ -45,7 +45,7 @@ pub(crate) use commit::{ProverData, commit, receive_commitment, send_record_bind
 pub(crate) use prove::prove;
 pub(crate) use sumcheck::{INITIAL_BASIS_CHUNK, InitialWeight};
 pub use verify::WhirError;
-pub(crate) use verify::{check_config_shape, verify};
+pub(crate) use verify::{WeightAt, check_config_shape, verify};
 
 /// The inner product `sum_i b[i] · witness[i]` of a weight in `E` and a witness in `K`.
 pub fn inner_product_base_ext(witness: &[F64], b: &[F192]) -> F192 {
@@ -149,7 +149,7 @@ mod tests {
     struct Instance {
         vc: Config,
         log_n: usize,
-        /// The eq-point behind `b_initial` (for the succinct closure).
+        /// The eq-point behind `b_initial` (for the closed-form weight).
         point: Vec<F192>,
         b_initial: Vec<F192>,
         target: F192,
@@ -190,10 +190,26 @@ mod tests {
         inner_product(table, &eq_table(point))
     }
 
+    struct EqWeight<'a>(&'a [F192]);
+
+    impl<V: crate::verifier::OpeningVerifier<E = F192>> WeightAt<V> for EqWeight<'_> {
+        fn call(self, _: &mut V, point: &[F192]) -> F192 {
+            eq_eval(self.0, point)
+        }
+    }
+
+    struct DenseWeight<'a>(&'a [F192]);
+
+    impl<V: crate::verifier::OpeningVerifier<E = F192>> WeightAt<V> for DenseWeight<'_> {
+        fn call(self, _: &mut V, point: &[F192]) -> F192 {
+            dense_mle(self.0, point)
+        }
+    }
+
     fn verify_with(
         inst: &Instance,
         fs: &ProofTranscript,
-        eval_b_at: impl Fn(&[F192]) -> F192,
+        weight_at: impl for<'v> WeightAt<VerifierState<'v>>,
     ) -> Result<(), WhirError> {
         let mut vs = VerifierState::from_label(b"whir-test", fs);
         let root = vs.next_root()?;
@@ -207,18 +223,18 @@ mod tests {
             1 << inst.vc.initial_k(),
             inst.target,
             inst.root,
-            |_, point| eval_b_at(point),
+            weight_at,
         )
     }
 
     /// The weight evaluated in closed form at the terminal fold point.
     fn verify_closed_form(inst: &Instance, fs: &ProofTranscript) -> bool {
-        verify_with(inst, fs, |fold_point| eq_eval(&inst.point, fold_point)).is_ok()
+        verify_with(inst, fs, EqWeight(&inst.point)).is_ok()
     }
 
     /// The weight evaluated from its whole table at the terminal fold point.
     fn verify_dense_weight(inst: &Instance, fs: &ProofTranscript) -> bool {
-        verify_with(inst, fs, |fold_point| dense_mle(&inst.b_initial, fold_point)).is_ok()
+        verify_with(inst, fs, DenseWeight(&inst.b_initial)).is_ok()
     }
 
     /// Both weight evaluations on the same proof, asserting they agree.
@@ -338,7 +354,7 @@ mod tests {
         let mut short = inst.fs.clone();
         short.stream.truncate(1);
         assert_eq!(
-            verify_with(&inst, &short, |point| eq_eval(&inst.point, point)),
+            verify_with(&inst, &short, EqWeight(&inst.point)),
             Err(WhirError::Transcript(TranscriptError::ExceededStream { len: 1 })),
         );
         for idx in 0..inst.fs.stream.len() {
@@ -416,9 +432,7 @@ mod tests {
                     if root != root_trunc {
                         return Err(WhirError::CommitmentMismatch);
                     }
-                    verify(&mut vs, &pc, log_n, n_lanes, target, root_trunc, |_, point| {
-                        dense_mle(&b_initial, point)
-                    })
+                    verify(&mut vs, &pc, log_n, n_lanes, target, root_trunc, DenseWeight(&b_initial))
                 };
                 assert_eq!(verify(&fs_trunc), Ok(()), "verify failed at n_lanes = {n_lanes}");
 
@@ -492,9 +506,7 @@ mod tests {
                 let check = |target: F192| {
                     let mut vs = VerifierState::from_label(b"whir-test", &fs);
                     receive_commitment(&mut vs, log_n, pc.initial_k(), log_inv_rate, n_lanes)?;
-                    verify(&mut vs, &pc, log_n, n_lanes, target, record.root(), |_, point| {
-                        dense_mle(&weight, point)
-                    })
+                    verify(&mut vs, &pc, log_n, n_lanes, target, record.root(), DenseWeight(&weight))
                 };
                 let label = format!("rate={log_inv_rate}, n_lanes={n_lanes}");
                 assert_eq!(check(target), Ok(()), "{label}");

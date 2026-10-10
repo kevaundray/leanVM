@@ -135,7 +135,11 @@ pub trait Receiver: Challenger {
     ) -> Result<Vec<Vec<F64>>, TranscriptError>;
     fn next_scalar(&mut self) -> Result<F192, TranscriptError>;
     fn next_scalars(&mut self, n: usize) -> Result<Vec<F192>, TranscriptError> {
-        (0..n).map(|_| self.next_scalar()).collect()
+        let mut scalars = Vec::with_capacity(n);
+        for _ in 0..n {
+            scalars.push(self.next_scalar()?);
+        }
+        Ok(scalars)
     }
 
     /// Mirror of [`Transmitter::add_root`]. Both halves are prover-chosen, so a
@@ -368,23 +372,24 @@ impl<'a> Receiver for VerifierState<'a> {
         assert!(n_coeffs >= 2, "a round polynomial has at least two coefficients");
         let fixed = usize::from(eq.is_none());
         let mut coeffs = vec![F192::ZERO; n_coeffs];
-        for i in (0..n_coeffs).filter(|&i| i != fixed) {
-            coeffs[i] = self.take_raw()?;
-        }
-        let sum_from = |from: usize| coeffs[from..].iter().fold(F192::ZERO, |acc, &c| acc + c);
-        coeffs[fixed] = eq.map_or_else(
-            || {
-                // An ordinary round reconstructs its linear coefficient from the claimed sum.
-                claim + sum_from(2)
-            },
-            |r| {
-                // An equality-weighted round reconstructs its constant coefficient using the weighting challenge.
-                claim + r * sum_from(1)
-            },
-        );
-        for (i, &c) in coeffs.iter().enumerate() {
+        for i in 0..n_coeffs {
             if i != fixed {
-                self.bind(c);
+                coeffs[i] = self.take_raw()?;
+            }
+        }
+        let mut sum = F192::ZERO;
+        for i in fixed + 1..n_coeffs {
+            sum += coeffs[i];
+        }
+        coeffs[fixed] = match eq {
+            // An ordinary round reconstructs its linear coefficient from the claimed sum.
+            None => claim + sum,
+            // An equality-weighted round reconstructs its constant coefficient using the weighting challenge.
+            Some(r) => claim + r * sum,
+        };
+        for i in 0..n_coeffs {
+            if i != fixed {
+                self.bind(coeffs[i]);
             }
         }
         Ok(coeffs)

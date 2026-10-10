@@ -89,8 +89,8 @@ fn pow_bits_ok(base: [F64; 4], nonce: F192, bits: u32) -> bool {
     let values = [
         base[0].0, base[1].0, base[2].0, base[3].0, nonce.c0, nonce.c1, nonce.c2, POW_TAG,
     ];
-    for (slot, value) in input.as_chunks_mut::<8>().0.iter_mut().zip(values) {
-        *slot = value.to_le_bytes();
+    for i in 0..8 {
+        input[8 * i..8 * i + 8].copy_from_slice(&values[i].to_le_bytes());
     }
     let digest = primitives::hash::hash(&input);
     u64::from_le_bytes(digest[..8].try_into().unwrap()) & ((1u64 << bits) - 1) == 0
@@ -116,13 +116,11 @@ impl Duplex {
     /// Bind both the protocol/domain digest and public-statement digest before any output.
     pub fn new(domain: [F64; 4], statement: [F64; 4]) -> Self {
         let mut input = [0u8; 64];
-        for (slot, word) in input
-            .as_chunks_mut::<8>()
-            .0
-            .iter_mut()
-            .zip(domain.into_iter().chain(statement))
-        {
-            *slot = word.0.to_le_bytes();
+        for i in 0..4 {
+            input[8 * i..8 * i + 8].copy_from_slice(&domain[i].0.to_le_bytes());
+        }
+        for i in 0..4 {
+            input[32 + 8 * i..40 + 8 * i].copy_from_slice(&statement[i].0.to_le_bytes());
         }
         Self {
             cv: compress_block(primitives::hash::PARAM_IV, &input, SEED),
@@ -145,16 +143,21 @@ impl Duplex {
     /// For states produced by the private fields and public duplex operations, a live cached output suffix is determined by the chaining value and squeeze cursor. An inactive cache has no effect on future operations. The snapshot therefore excludes `output`; it does not promise equivalence for arbitrarily injected internal states.
     pub fn context(&self) -> TranscriptContext<F64, [F64; 4]> {
         let mut pending = [None; 8];
-        for (slot, bytes) in pending.iter_mut().zip(self.pending[..self.n_pending].chunks(8)) {
-            let word = <&[u8; 8]>::try_from(bytes).map_or_else(
-                |_| {
-                    let mut padded = [0u8; 8];
-                    padded[..bytes.len()].copy_from_slice(bytes);
-                    u64::from_le_bytes(padded)
-                },
-                |bytes| u64::from_le_bytes(*bytes),
-            );
-            *slot = Some(F64(word));
+        let input = &self.pending[..self.n_pending];
+        let mut i = 0;
+        while i < pending.len() && 8 * i < input.len() {
+            let start = 8 * i;
+            let end = (start + 8).min(input.len());
+            let bytes = &input[start..end];
+            let word = if bytes.len() == 8 {
+                u64::from_le_bytes(bytes.try_into().unwrap())
+            } else {
+                let mut padded = [0u8; 8];
+                padded[..bytes.len()].copy_from_slice(bytes);
+                u64::from_le_bytes(padded)
+            };
+            pending[i] = Some(F64(word));
+            i += 1;
         }
         TranscriptContext {
             state: words(self.cv),
@@ -242,8 +245,8 @@ impl Duplex {
                 let mut block = [0u8; 64];
                 block[..8].copy_from_slice(&(self.squeezed / 32).to_le_bytes());
                 let digest = compress_block(self.cv, &block, OUTPUT);
-                for (slot, word) in self.output.as_chunks_mut::<4>().0.iter_mut().zip(digest) {
-                    *slot = word.to_le_bytes();
+                for i in 0..8 {
+                    self.output[4 * i..4 * i + 4].copy_from_slice(&digest[i].to_le_bytes());
                 }
             }
             let take = output.len().min(32 - offset);
@@ -256,9 +259,9 @@ impl Duplex {
     /// Absorb the scalar's three little-endian limbs, with no additional transport observation.
     pub fn observe(&mut self, x: F192) {
         let mut bytes = [0u8; 24];
-        for (slot, word) in bytes.as_chunks_mut::<8>().0.iter_mut().zip([x.c0, x.c1, x.c2]) {
-            *slot = word.to_le_bytes();
-        }
+        bytes[..8].copy_from_slice(&x.c0.to_le_bytes());
+        bytes[8..16].copy_from_slice(&x.c1.to_le_bytes());
+        bytes[16..24].copy_from_slice(&x.c2.to_le_bytes());
         self.absorb(&bytes);
     }
 
@@ -281,7 +284,11 @@ impl Duplex {
             count <= (MAX_SQUEEZE_BYTES - self.squeezed) / 24,
             "squeeze request exceeds cursor"
         );
-        (0..n).map(|_| self.sample()).collect()
+        let mut samples = Vec::with_capacity(n);
+        for _ in 0..n {
+            samples.push(self.sample());
+        }
+        samples
     }
 
     /// Commit to the current history and cursor without changing either or revealing the CV.
@@ -301,15 +308,11 @@ impl Duplex {
     fn absorb_nonce(&mut self, nonce: F192, bits: u32) {
         self.finish_absorb();
         let mut block = [0u8; 64];
-        for (slot, value) in
-            block
-                .as_chunks_mut::<8>()
-                .0
-                .iter_mut()
-                .zip([nonce.c0, nonce.c1, nonce.c2, self.squeezed, u64::from(bits)])
-        {
-            *slot = value.to_le_bytes();
-        }
+        block[..8].copy_from_slice(&nonce.c0.to_le_bytes());
+        block[8..16].copy_from_slice(&nonce.c1.to_le_bytes());
+        block[16..24].copy_from_slice(&nonce.c2.to_le_bytes());
+        block[24..32].copy_from_slice(&self.squeezed.to_le_bytes());
+        block[32..40].copy_from_slice(&u64::from(bits).to_le_bytes());
         self.cv = compress_block(self.cv, &block, NONCE);
         self.squeezed = 0;
     }
