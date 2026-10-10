@@ -56,6 +56,27 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Blake2s.Export.adder32_call
 #print axioms LeanVMCircuits.Blake2s.Export.adder31_call
 
+#print axioms LeanVMCircuits.Rec.modulus_irreducible
+#print axioms LeanVMCircuits.Rec.chain_squares
+#print axioms LeanVMCircuits.Rec.cofactor_mul
+#print axioms LeanVMCircuits.Rec.root_pow_two_pow_64
+#print axioms LeanVMCircuits.Rec.root_pow_two_pow_32_sub_unit
+#print axioms LeanVMCircuits.Rec.ev_mul
+#print axioms LeanVMCircuits.Rec.toWord_ofWord
+#print axioms LeanVMCircuits.Rec.toWord_injective
+#print axioms LeanVMCircuits.Rec.toE_mul
+#print axioms LeanVMCircuits.Rec.toE_add
+#print axioms LeanVMCircuits.Rec.toE_smul
+#print axioms LeanVMCircuits.Rec.toE_injective
+#print axioms LeanVMCircuits.Rec.Form.eval_expr
+#print axioms LeanVMCircuits.Rec.emul_spec
+#print axioms LeanVMCircuits.Rec.exk_spec
+#print axioms LeanVMCircuits.Rec.boolean_spec
+#print axioms LeanVMCircuits.Rec.hash_mux
+#print axioms LeanVMCircuits.Rec.split_spec
+#print axioms LeanVMCircuits.Rec.Identity.eval_expr
+#print axioms LeanVMCircuits.Rec.identities
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -85,7 +106,16 @@ run_cmd do
     ``LeanVMCircuits.Blake2s.Export.adder31_layout, ``LeanVMCircuits.Blake2s.Export.adder31_wellFormed,
     ``LeanVMCircuits.Blake2s.Export.adder31_complete, ``LeanVMCircuits.Blake2s.Export.adder32_canonical,
     ``LeanVMCircuits.Blake2s.Export.adder31_canonical, ``LeanVMCircuits.Blake2s.Export.adder32_call,
-    ``LeanVMCircuits.Blake2s.Export.adder31_call] do
+    ``LeanVMCircuits.Blake2s.Export.adder31_call,    ``LeanVMCircuits.Rec.modulus_irreducible, ``LeanVMCircuits.Rec.chain_squares,
+    ``LeanVMCircuits.Rec.cofactor_mul, ``LeanVMCircuits.Rec.root_pow_two_pow_64,
+    ``LeanVMCircuits.Rec.root_pow_two_pow_32_sub_unit, ``LeanVMCircuits.Rec.ev_mul,
+    ``LeanVMCircuits.Rec.toWord_ofWord, ``LeanVMCircuits.Rec.toWord_injective,
+    ``LeanVMCircuits.Rec.toE_mul, ``LeanVMCircuits.Rec.toE_add,
+    ``LeanVMCircuits.Rec.toE_smul, ``LeanVMCircuits.Rec.toE_injective,
+    ``LeanVMCircuits.Rec.Form.eval_expr, ``LeanVMCircuits.Rec.emul_spec,
+    ``LeanVMCircuits.Rec.exk_spec, ``LeanVMCircuits.Rec.boolean_spec,
+    ``LeanVMCircuits.Rec.hash_mux, ``LeanVMCircuits.Rec.split_spec,
+    ``LeanVMCircuits.Rec.Identity.eval_expr, ``LeanVMCircuits.Rec.identities] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do

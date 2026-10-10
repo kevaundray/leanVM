@@ -243,4 +243,138 @@ def cast : List (List Form) :=
   [dSlot 0, eSlot 0, [.col 0, .col 1, .zero, .zero], [.col 2, .col 3, .zero, .zero], kSlot 0, kSlot 1, kSlot 2,
     kSlot 3]
 
+/-! The identities as a Clean assertion over a row. -/
+
+/-- The identity as a Clean expression of the row's column variables. -/
+noncomputable def Identity.expr {n : ℕ} (row : Vector (Expression K) n) (id : Identity) : Expression K :=
+  (id.linear.map fun (c, w) => Expression.const (ofWord w) * row.getD c (.const 0)).foldr (· + ·) (.const 0) +
+    (id.prods.map fun (a, b, w) =>
+      Expression.const (ofWord w) * (row.getD a (.const 0) * row.getD b (.const 0))).foldr (· + ·) (.const 0)
+
+theorem foldr_eval (env : Environment K) (l : List (Expression K)) :
+    (l.foldr (· + ·) (Expression.const 0)).eval env = (l.map (Expression.eval env)).sum := by
+  induction l with
+  | nil => rfl
+  | cons e l ih => simp only [List.foldr_cons, List.map_cons, List.sum_cons, ← ih]; rfl
+
+theorem Identity.eval_expr {n : ℕ} (env : Environment K) (row : Vector (Expression K) n) (id : Identity) :
+    (id.expr row).eval env = id.eval fun c => (row.getD c (.const 0)).eval env := by
+  show (Expression.eval env _ + Expression.eval env _) = _
+  rw [foldr_eval, foldr_eval, Identity.eval, List.map_map, List.map_map]
+  rfl
+
+/-- Assert every identity of a row. -/
+noncomputable def assertAll {n : ℕ} (row : Vector (Expression K) n) : List Identity → Circuit K Unit
+  | [] => pure ()
+  | id :: ids => do
+    assertZero (id.expr row)
+    assertAll row ids
+
+theorem assertAll_localLength {n : ℕ} (row : Vector (Expression K) n) (ids : List Identity) (offset : ℕ) :
+    (assertAll row ids).localLength offset = 0 := by
+  induction ids generalizing offset with
+  | nil => rfl
+  | cons id ids ih => simp only [assertAll, circuit_norm] at ih ⊢; exact ih _
+
+theorem assertAll_holds {n : ℕ} (env : Environment K) (row : Vector (Expression K) n) (ids : List Identity)
+    (offset : ℕ) :
+    ConstraintsHold.Soundness env ((assertAll row ids).operations offset) ↔
+      ∀ id ∈ ids, (id.expr row).eval env = 0 := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+    rw [ih]
+    simp
+
+theorem assertAll_complete {n : ℕ} (env : ProverEnvironment K) (row : Vector (Expression K) n)
+    (ids : List Identity) (offset : ℕ) :
+    ConstraintsHold.Completeness env ((assertAll row ids).operations offset) ↔
+      ∀ id ∈ ids, (id.expr row).eval env = 0 := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+    rw [ih]
+    simp
+
+theorem assertAll_consistent {n : ℕ} (row : Vector (Expression K) n) (ids : List Identity) (offset : ℕ) :
+    ((assertAll row ids).operations offset).SubcircuitsConsistent offset := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+    simp_all
+
+theorem assertAll_channels {n : ℕ} (row : Vector (Expression K) n) (ids : List Identity) (offset : ℕ) :
+    ((assertAll row ids).operations offset).ChannelsLawful [] := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+    simp_all
+
+theorem assertAll_requirements {n : ℕ} (row : Vector (Expression K) n) (ids : List Identity) (offset : ℕ) :
+    ((assertAll row ids).operations offset).RequirementsChannelsLawful [] [] := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+    simp_all
+
+theorem assertAll_exposed {n : ℕ} (row : Vector (Expression K) n) (ids : List Identity) (offset : ℕ) :
+    ((assertAll row ids).operations offset).ExposedChannelsLawful [] := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+
+theorem getD_eval {n : ℕ} (env : Environment K) (row : Vector (Expression K) n) (c : ℕ) :
+    (row.getD c (.const 0)).eval env = (eval env row : Vector K n).getD c 0 := by
+  simp only [circuit_norm, Vector.getD]
+  by_cases hc : c < n
+  · simp [hc]
+  · simp [hc, Expression.eval]
+
+theorem assertAll_requirementsHold {n : ℕ} (row : Vector (Expression K) n) (ids : List Identity) (offset : ℕ)
+    (env : Environment K) : Operations.Requirements env ((assertAll row ids).operations offset) := by
+  induction ids generalizing offset with
+  | nil => simp [assertAll, circuit_norm]
+  | cons id ids ih =>
+    simp only [assertAll, circuit_norm] at ih ⊢
+    simp_all
+
+/-- A table's identities as a Clean assertion on its `n` columns: it holds exactly when every identity vanishes. -/
+noncomputable def identities (n : ℕ) (ids : List Identity) : FormalAssertion K (fields n) where
+  main row := assertAll row ids
+  elaborated := {
+    localLength _ := 0
+    localLength_eq row offset := assertAll_localLength row ids offset
+    subcircuitsConsistent row offset := assertAll_consistent row ids offset
+    channelsLawful := fun row offset => assertAll_channels row ids offset }
+  Spec row := ∀ id ∈ ids, id.eval (fun c => row.getD c 0) = 0
+  soundness := by
+    intro offset env row_var row h_eval _ h_holds
+    rw [assertAll_holds] at h_holds
+    refine ⟨fun id hid => ?_, by simpa [circuit_norm] using assertAll_requirementsHold row_var ids offset env⟩
+    have := h_holds id hid
+    rw [Identity.eval_expr] at this
+    rw [← h_eval]
+    convert this using 2
+    funext c
+    exact (getD_eval env row_var c).symm
+  completeness := by
+    intro offset env row_var _ row h_eval _ h_spec
+    rw [assertAll_complete]
+    intro id hid
+    rw [Identity.eval_expr]
+    have := h_spec id hid
+    have h_eval' : eval env.toEnvironment row_var = row := by rw [← h_eval]; simp [circuit_norm]
+    rw [← h_eval'] at this
+    convert this using 2
+    funext c
+    exact getD_eval env.toEnvironment row_var c
+  exposedChannels_eq row offset := assertAll_exposed row ids offset
+  requirementsChannelsLawful row offset := assertAll_requirements row ids offset
+
 end LeanVMCircuits.Rec

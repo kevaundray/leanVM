@@ -50,8 +50,8 @@ private theorem coeff_xor (a b : ℕ) :
       (if a % 2 = 1 then 1 else 0) + (if b % 2 = 1 then 1 else 0) := by
   have ha := Nat.mod_two_eq_zero_or_one a
   have hb := Nat.mod_two_eq_zero_or_one b
-  rcases ha with ha | ha <;> rcases hb with hb | hb <;> simp [Nat.xor_mod_two_eq_one, ha, hb, ← two_eq_zero] <;>
-    norm_num
+  rcases ha with ha | ha <;> rcases hb with hb | hb <;> simp [Nat.xor_mod_two_eq_one, ha, hb, ← two_eq_zero]
+  norm_num
 
 theorem ev_xor (a b : ℕ) : ev (a ^^^ b) = ev a + ev b := by
   induction h : a + b using Nat.strong_induction_on generalizing a b with
@@ -172,15 +172,15 @@ theorem mk_X : AdjoinRoot.mk modulus X = root := AdjoinRoot.mk_X
 theorem dvd_frobenius_64 : modulus ∣ X ^ 2 ^ 64 - X := by
   rw [← AdjoinRoot.mk_eq_zero, map_sub, map_pow, mk_X, root_pow_two_pow_64, sub_self]
 
-/-- A common divisor of the modulus and `X^(2^32) - X` is a unit. -/
-theorem isUnit_of_dvd_frobenius_32 (f : (ZMod 2)[X]) (hm : f ∣ modulus) (h32 : f ∣ X ^ 2 ^ 32 - X) : IsUnit f := by
-  obtain ⟨q, hq⟩ := AdjoinRoot.mk_surjective (g := modulus) (ev cofactor)
-  have hone : modulus ∣ q * (X ^ 2 ^ 32 - X) - 1 := by
-    rw [← AdjoinRoot.mk_eq_zero, map_sub, map_mul, hq, map_sub, map_pow, mk_X, map_one,
-      root_pow_two_pow_32_sub_unit, sub_self]
+/-- A common divisor of the modulus and `X^n - X` is a unit when `x^n - x` is invertible modulo the modulus. -/
+theorem isUnit_of_dvd_of_inverse (n : ℕ) (u : Quot) (hu : u * (root ^ n - root) = 1) (f : (ZMod 2)[X])
+    (hm : f ∣ modulus) (h32 : f ∣ X ^ n - X) : IsUnit f := by
+  obtain ⟨q, hq⟩ := AdjoinRoot.mk_surjective (g := modulus) u
+  have hone : modulus ∣ q * (X ^ n - X) - 1 := by
+    rw [← AdjoinRoot.mk_eq_zero, map_sub, map_mul, hq, map_sub, map_pow, mk_X, map_one, hu, sub_self]
   have h1 : f ∣ 1 := by
     have := (dvd_trans hm hone)
-    have h2 : f ∣ q * (X ^ 2 ^ 32 - X) := dvd_mul_of_dvd_right h32 q
+    have h2 : f ∣ q * (X ^ n - X) := dvd_mul_of_dvd_right h32 q
     simpa using (dvd_sub h2 this)
   exact isUnit_of_dvd_one h1
 
@@ -208,7 +208,7 @@ theorem modulus_irreducible : Irreducible modulus := by
     have hdvd : f ∣ X ^ 2 ^ 32 - X := by
       have := (hf.natDegree_dvd_iff_dvd_X_pow_card_pow_sub_X (n := 32)).mp h32
       rwa [card_zmod_two] at this
-    exact hf.not_isUnit (isUnit_of_dvd_frobenius_32 f hfm hdvd)
+    exact hf.not_isUnit (isUnit_of_dvd_of_inverse _ _ root_pow_two_pow_32_sub_unit f hfm hdvd)
   obtain ⟨g, hg⟩ := hfm
   have hg0 : g ≠ 0 := by rintro rfl; simp at hg; exact modulus_ne_zero hg
   have hgdeg : g.natDegree = 0 := by
