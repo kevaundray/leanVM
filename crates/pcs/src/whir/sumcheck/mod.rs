@@ -42,8 +42,13 @@ const ROUND_CHUNK: usize = 2048;
 
 /// Words of the initial weight one fill call writes: one chunk, aligned to its size.
 ///
-/// A lane block smaller than this is filled whole.
-pub(crate) const INITIAL_BASIS_CHUNK: usize = 256;
+/// A lane block smaller than this is filled whole. The ARM EOR3 byte-table maps use
+/// longer runs before switching maps; other backends keep their compact scratch.
+pub(crate) const INITIAL_BASIS_CHUNK: usize = if cfg!(all(target_arch = "aarch64", target_feature = "sha3")) {
+    1024
+} else {
+    256
+};
 
 // Sumcheck over `E`, the witness in `K` until the first fold and in `E` after it.
 //
