@@ -476,4 +476,127 @@ theorem memory_consistent (mem : MemArray) (accesses : List Access)
       exact Or.inr ⟨ y, hy, y_live, y_addr, by rw [← ofWord_toWord (mem.tsfin i), this.1], this.2,
         fun z hz z_live z_addr => latest z ((mem_at _ z).mpr ⟨ hz, z_addr, z_live ⟩) ⟩
 
+/-! ### With the state walk -/
+
+/--
+`thm:rwmem` with its clock hypothesis derived from Corollary `cor:clock`: when every access belongs to a row of the
+state interaction (its clock is that row's), the walk gives every live row a clock `2^40 + 2^5 i` with `i ≥ 1`, so
+every live access comes after the seeds.
+-/
+theorem memory_consistent_of_state_walk (rows : List StateRow) (pcEntry pcHalt : K) (cycles : ℕ)
+    (cycles_lt : cycles < 2 ^ 35) (clock_lt : ∀ r ∈ rows, r.clock < 2 ^ 41)
+    (stateRest : Flushes) (stateAvoids : stateRest.Avoids fun t => t[0] = sepST)
+    (stateBalance : (stateRest ++ stateFlushes rows pcEntry pcHalt cycles).Balanced)
+    (mem : MemArray) (accesses : List Access)
+    (wf : ∀ x ∈ accesses, x.WellFormed) (in_order : ∀ x ∈ accesses, x.InOrder)
+    (row_clock : ∀ x ∈ accesses, ∃ r ∈ rows, x.clock = r.clock)
+    (rest : Flushes) (avoids : rest.Avoids fun t => t[0] = mem.sep)
+    (balance : (rest ++ mem.flushes accesses).Balanced) :
+    (∀ x ∈ accesses, x.Live → ∃ i, x.addr = mem.addr i) ∧
+    (∀ x ∈ accesses, x.Live →
+      (x.prev = 2 ^ 40 ∧ (∀ i, x.addr = mem.addr i → x.old = mem.init i) ∧
+          ∀ y ∈ accesses, y.Live → y.addr = x.addr → x.time ≤ y.time) ∨
+        ∃ y ∈ accesses, y.Live ∧ y.addr = x.addr ∧ y.time = x.prev ∧ x.old = y.new ∧
+          ∀ z ∈ accesses, z.Live → z.addr = x.addr → z.time < x.time → z.time ≤ y.time) ∧
+    (∀ i, ((∀ y ∈ accesses, y.Live → y.addr ≠ mem.addr i) ∧ mem.tsfin i = ofWord (2 ^ 40) ∧
+          mem.fin i = mem.init i) ∨
+        ∃ y ∈ accesses, y.Live ∧ y.addr = mem.addr i ∧ mem.tsfin i = ofWord y.time ∧ mem.fin i = y.new ∧
+          ∀ z ∈ accesses, z.Live → z.addr = mem.addr i → z.time ≤ y.time) := by
+  obtain ⟨ -, walk, others, perm, -, -, clocks, others_dead, - ⟩ :=
+    state_walk rows pcEntry pcHalt cycles cycles_lt clock_lt stateRest stateAvoids stateBalance
+  apply memory_consistent mem accesses wf in_order _ rest avoids balance
+  intro x hx live
+  obtain ⟨ r, hr, hclock ⟩ := row_clock x hx
+  unfold Access.Live at live
+  unfold Access.time
+  rcases List.mem_append.mp (perm.mem_iff.mp hr) with hw | ho
+  · obtain ⟨ i, hi, rfl ⟩ := List.getElem_of_mem hw
+    have := clocks i hi
+    omega
+  · have := others_dead r ho
+    omega
+
+/-! ### RAM and the advice -/
+
+/--
+RAM and the advice share the separator `g^1` (§sec:memchan), at disjoint addresses: as one array, their cells side by
+side, `thm:rwmem` applies to both at once.
+-/
+noncomputable def MemArray.union (ram adv : MemArray)
+    (disjoint : ∀ i j, ram.addr i ≠ adv.addr j) : MemArray where
+  sep := ram.sep
+  size := ram.size + adv.size
+  addr := Fin.append ram.addr adv.addr
+  addr_injective := by
+    intro i j h
+    induction i using Fin.addCases with
+    | left a =>
+      induction j using Fin.addCases with
+      | left b => simp only [Fin.append_left] at h; rw [ram.addr_injective h]
+      | right b => simp only [Fin.append_left, Fin.append_right] at h; exact absurd h (disjoint a b)
+    | right a =>
+      induction j using Fin.addCases with
+      | left b => simp only [Fin.append_left, Fin.append_right] at h; exact absurd h.symm (disjoint b a)
+      | right b => simp only [Fin.append_right] at h; rw [adv.addr_injective h]
+  init := Fin.append ram.init adv.init
+  fin := Fin.append ram.fin adv.fin
+  tsfin := Fin.append ram.tsfin adv.tsfin
+
+theorem finRange_add_map {α : Type} (m n : ℕ) (g : Fin (m + n) → α) :
+    (List.finRange (m + n)).map g =
+      (List.finRange m).map (fun i => g (Fin.castAdd n i)) ++ (List.finRange n).map (fun i => g (Fin.natAdd m i)) := by
+  rw [← List.ofFn_eq_map, List.ofFn_add, List.ofFn_eq_map, List.ofFn_eq_map]
+  rfl
+
+/--
+`thm:rwmem` for RAM and the advice together: if the seeds, accesses and finalizations of both arrays are the only flushes
+under their shared separator, the conclusions of `memory_consistent` hold for the two as one array, every live access
+being at a RAM or an advice address.
+-/
+theorem memory_consistent_shared (ram adv : MemArray) (same_sep : ram.sep = adv.sep)
+    (disjoint : ∀ i j, ram.addr i ≠ adv.addr j) (ramAccesses advAccesses : List Access)
+    (wf : ∀ x ∈ ramAccesses ++ advAccesses, x.WellFormed) (in_order : ∀ x ∈ ramAccesses ++ advAccesses, x.InOrder)
+    (after_seeds : ∀ x ∈ ramAccesses ++ advAccesses, x.Live → 2 ^ 40 < x.time)
+    (rest : Flushes) (avoids : rest.Avoids fun t => t[0] = ram.sep)
+    (balance : (rest ++ ram.flushes ramAccesses ++ adv.flushes advAccesses).Balanced) :
+    let mem := MemArray.union ram adv disjoint
+    let accesses := ramAccesses ++ advAccesses
+    (∀ x ∈ accesses, x.Live → ∃ i, x.addr = mem.addr i) ∧
+    (∀ x ∈ accesses, x.Live →
+      (x.prev = 2 ^ 40 ∧ (∀ i, x.addr = mem.addr i → x.old = mem.init i) ∧
+          ∀ y ∈ accesses, y.Live → y.addr = x.addr → x.time ≤ y.time) ∨
+        ∃ y ∈ accesses, y.Live ∧ y.addr = x.addr ∧ y.time = x.prev ∧ x.old = y.new ∧
+          ∀ z ∈ accesses, z.Live → z.addr = x.addr → z.time < x.time → z.time ≤ y.time) ∧
+    (∀ i, ((∀ y ∈ accesses, y.Live → y.addr ≠ mem.addr i) ∧ mem.tsfin i = ofWord (2 ^ 40) ∧
+          mem.fin i = mem.init i) ∨
+        ∃ y ∈ accesses, y.Live ∧ y.addr = mem.addr i ∧ mem.tsfin i = ofWord y.time ∧ mem.fin i = y.new ∧
+          ∀ z ∈ accesses, z.Live → z.addr = mem.addr i → z.time ≤ y.time) := by
+  intro mem accesses
+  apply memory_consistent mem accesses wf in_order after_seeds rest avoids
+  rw [Flushes.balanced_iff] at balance ⊢
+  have seeds : (List.finRange mem.size).map mem.seed =
+      (List.finRange ram.size).map ram.seed ++ (List.finRange adv.size).map adv.seed := by
+    refine (finRange_add_map ram.size adv.size mem.seed).trans ?_
+    congr 1 <;> apply List.map_congr_left <;> intro i _ <;>
+      simp [mem, MemArray.union, MemArray.seed, Fin.append_left, Fin.append_right, same_sep]
+  have finals : (List.finRange mem.size).map mem.final =
+      (List.finRange ram.size).map ram.final ++ (List.finRange adv.size).map adv.final := by
+    refine (finRange_add_map ram.size adv.size mem.final).trans ?_
+    congr 1 <;> apply List.map_congr_left <;> intro i _ <;>
+      simp [mem, MemArray.union, MemArray.final, Fin.append_left, Fin.append_right, same_sep]
+  have pushed_eq : (mem.flushes accesses).pushed =
+      (ram.flushes ramAccesses).pushed + (adv.flushes advAccesses).pushed := by
+    simp only [Flushes.pushed, MemArray.flushes, seeds, accesses, List.map_append, ← Multiset.coe_add,
+      List.map_nil, List.sum_nil, add_zero]
+    rw [show mem.sep = ram.sep from rfl, ← same_sep]
+    abel
+  have pulled_eq : (mem.flushes accesses).pulled =
+      (ram.flushes ramAccesses).pulled + (adv.flushes advAccesses).pulled := by
+    simp only [Flushes.pulled, MemArray.flushes, finals, accesses, List.map_append, ← Multiset.coe_add]
+    rw [show mem.sep = ram.sep from rfl, ← same_sep]
+    abel
+  simp only [Flushes.pushed_append, Flushes.pulled_append] at balance ⊢
+  rw [pushed_eq, pulled_eq, ← add_assoc, ← add_assoc]
+  exact balance
+
 end LeanVMCircuits.Bus
