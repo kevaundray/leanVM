@@ -162,7 +162,7 @@ where
     T: OpeningVerifier<E = F192, K = F64, Root = Hash, Query = usize>,
 {
     let (taus, rate) = Announcement::read_shape(rec.transport())?;
-    let layout = Layout::announced_hiding(program.rv(), taus)?;
+    let layout = Layout::announced(program.rv(), taus, true)?;
     let commitment = Commitment::read(rec, layout.shape, rate)?;
     let key_root = rec.next_root()?;
 

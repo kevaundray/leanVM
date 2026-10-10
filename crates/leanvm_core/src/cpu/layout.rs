@@ -820,46 +820,32 @@ impl Announcement {
     ///
     /// Refuses heights whose stacked witness the commitment does not take.
     pub(super) fn layout(&self, p: &RiscvProgram) -> Result<Layout, CpuError> {
-        Layout::announced(p, self.taus)
+        Layout::announced(p, self.taus, false)
     }
 }
 
 impl Layout {
-    /// The layout a verifier rebuilds from announced heights, its final clock zero.
+    /// The layout a verifier rebuilds from announced heights, its final clock zero, in the stack a zero-knowledge proof
+    /// commits when `hiding`.
     ///
     /// # Errors
     ///
     /// Refuses a height outside its table's range, or heights whose stacked witness the commitment does not take.
-    pub(crate) fn announced(p: &RiscvProgram, taus: PerTable<usize>) -> Result<Self, CpuError> {
+    pub(crate) fn announced(p: &RiscvProgram, taus: PerTable<usize>, hiding: bool) -> Result<Self, CpuError> {
         Self::check_heights(&taus)?;
+        let layout = Self::new(p, taus, 0);
+        let layout = if hiding { layout.hiding() } else { layout };
         // The caps bound each height alone; the stacked size they imply is checked here.
-        Self::new(p, taus, 0).checked()
-    }
-
-    /// The layout a verifier rebuilds from a zero-knowledge proof's announced heights: the same columns, in the stack a
-    /// zero-knowledge proof commits.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::announced`].
-    pub(crate) fn announced_hiding(p: &RiscvProgram, taus: PerTable<usize>) -> Result<Self, CpuError> {
-        Self::check_heights(&taus)?;
-        Self::new(p, taus, 0).hiding().checked()
+        if !(crate::pcs::MIN_MU..=crate::pcs::MAX_MU).contains(&layout.shape.mu) {
+            return Err(CpuError::WitnessSize { mu: layout.shape.mu });
+        }
+        Ok(layout)
     }
 
     /// The same columns, in the stack a zero-knowledge proof commits: lanes long enough to hide, then a random lane.
     pub(crate) fn hiding(self) -> Self {
         let shape = StackShape::hiding(witness::committed_len(&self.placements));
         Self { shape, ..self }
-    }
-
-    /// The layout, if the commitment takes its stack.
-    fn checked(self) -> Result<Self, CpuError> {
-        if (crate::pcs::MIN_MU..=crate::pcs::MAX_MU).contains(&self.shape.mu) {
-            Ok(self)
-        } else {
-            Err(CpuError::WitnessSize { mu: self.shape.mu })
-        }
     }
 
     /// Check each table's height lies between flock's instance floor and the public cap.
