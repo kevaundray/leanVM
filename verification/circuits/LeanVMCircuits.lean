@@ -5,3 +5,4 @@ public import LeanVMCircuits.ShiftExport
 public import LeanVMCircuits.Blake2s.Emit
 public import LeanVMCircuits.Rec.Emit
 public import LeanVMCircuits.Rec.Rows
+public import LeanVMCircuits.Rec.HashPorts

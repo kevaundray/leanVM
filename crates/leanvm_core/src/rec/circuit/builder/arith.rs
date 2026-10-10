@@ -179,4 +179,25 @@ mod tests {
             "x·y + z, x·z + y, x + y, x·y + 1, x·y + y, x'·y + z; then x·k + z, z·k + x, x·k' + z"
         );
     }
+
+    #[test]
+    fn an_inverse_is_the_proven_row() {
+        // Invariant: `inv` emits the row `LeanVMCircuits.Rec.inverse_row` is about: one `EMUL` row `a·i + 0` whose
+        // addend is the public zero and whose result is the public one, which makes `i` the inverse of `a`.
+        let mut b = Builder::new();
+        let a = b.free_e(F192::new(3, 5, 7));
+        let i = b.inv(a);
+        assert_eq!(b.e(a) * b.e(i), F192::ONE);
+        let finished = b.finish();
+        assert!(finished.failures.is_empty(), "{:?}", finished.failures);
+        let [emul, ..] = finished.circuit.row_counts().into_values();
+        assert_eq!(emul, 1);
+        let row = finished.row_classes(Table::Emul, 0);
+        assert_eq!(row[2], finished.const_class([0, 0, 0, 0]), "the addend is zero");
+        assert_eq!(row[3], finished.const_class([1, 0, 0, 0]), "the result is one");
+        assert!(
+            row[0] != row[1] && row[0] != row[2] && row[1] != row[3],
+            "a and i are free"
+        );
+    }
 }

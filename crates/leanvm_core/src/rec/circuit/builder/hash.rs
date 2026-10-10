@@ -178,4 +178,33 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn a_merkle_node_is_the_proven_row() {
+        // Invariant: `node` emits the row `LeanVMCircuits.Rec.node_row` and `Rec.hash_row_compress` are about: one
+        // `HASH` row from the public parameter IV, counter 64 and the final word, its mux slot `acc` and its mux bit
+        // `bit`, so the compressed block is `acc ‖ sibling` at bit 0 and `sibling ‖ acc` at bit 1.
+        for bit in [0, 1] {
+            let mut b = Builder::new();
+            let acc = b.free_d([1, 2, 3, 4]);
+            let k = b.free_k(bit);
+            let sibling = [5, 6, 7, 8];
+            let out = b.node(acc, k, sibling);
+            let block = if bit == 0 {
+                [1, 2, 3, 4, 5, 6, 7, 8]
+            } else {
+                [5, 6, 7, 8, 1, 2, 3, 4]
+            };
+            assert_eq!(b.d(out), Compression::single(block).output());
+            let finished = b.finish();
+            assert!(finished.failures.is_empty(), "{:?}", finished.failures);
+            let row = finished.row_classes(Table::Hash, 0);
+            assert_eq!(row[0], finished.const_class(PARAM_IV), "the parameter IV");
+            assert_eq!(row[1], finished.const_class([64, Hash::FINAL, 0, 0]), "one final block");
+            let free = |c: u32| !finished.circuit.classes.of(Table::Pub).contains(&c);
+            assert!(
+                free(row[2]) && free(row[3]) && row[2] != row[3],
+                "the mux slot is acc and the bit is free"
+            );
+        }
+    }
 }
