@@ -41,9 +41,7 @@ pub use config::{
 };
 
 pub use commit::{Commitment, CommitmentShape};
-pub(crate) use commit::{
-    ProverData, commit, receive_commitment, send_record_binding, verify_record_binding,
-};
+pub(crate) use commit::{ProverData, commit, receive_commitment, send_record_binding, verify_record_binding};
 pub(crate) use prove::prove;
 pub(crate) use sumcheck::{INITIAL_BASIS_CHUNK, InitialWeight};
 pub use verify::WhirError;
@@ -165,9 +163,7 @@ mod tests {
         let mut rng = Rng::new(seed);
         let witness: Vec<F64> = (0..1usize << log_n).map(|_| F64(rng.next_u64())).collect();
         let mut commit_ps = ProverState::from_label(b"whir-commit");
-        let (record, pd) = commit(
-            &mut commit_ps, &witness, log_n, pc.initial_k(), pc.log_inv_rates()[0],
-        );
+        let (record, pd) = commit(&mut commit_ps, &witness, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
         let point: Vec<F192> = (0..log_n).map(|_| rng.ext()).collect();
         let b_initial = eq_table(&point);
         let target = inner_product_base_ext(&witness, &b_initial);

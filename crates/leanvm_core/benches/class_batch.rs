@@ -192,13 +192,8 @@ impl ClassBatch {
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
         let mut vs = VerifierState::from_label(b"flock-class-batch", proof);
-        let commitment = StackCommitment::receive(
-            &mut vs,
-            self.mu,
-            1 << INITIAL_FOLDING_FACTOR,
-            self.config.clone(),
-        )
-        .expect("immutable anchored commitment");
+        let commitment = StackCommitment::receive(&mut vs, self.mu, 1 << INITIAL_FOLDING_FACTOR, self.config.clone())
+            .expect("immutable anchored commitment");
         let replay = reduction::verify(&[(block.shape(), self.n_log)], &mut vs)
             .expect("the reduction verifies")
             .remove(0);

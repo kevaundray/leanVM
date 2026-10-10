@@ -901,7 +901,6 @@ pub(crate) mod tests {
         }
     }
 
-
     #[test]
     fn a_batch_builds_wide_and_narrow_claims_alike() {
         // Invariant: every word of a batched weight is `Phi(scale * eq(point, index))`, whatever the claim's size.
@@ -931,5 +930,4 @@ pub(crate) mod tests {
             }
         }
     }
-
 }

@@ -494,8 +494,8 @@ pub(crate) fn ligero_commit_ext(
 #[test]
 fn record_frame_packs_exact_duplex_context() {
     use fiat_shamir::merkle::hash_to_scalars;
-    use fiat_shamir::{Duplex, TranscriptContext};
     use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::{Duplex, TranscriptContext};
 
     let input: [u8; 64] = std::array::from_fn(|i| (i + 1) as u8);
     for mode in 0..3 {
@@ -597,7 +597,11 @@ fn commitment_retains_context_and_the_single_sampled_anchor() {
     assert_eq!(data.merkle_tree.last(), Some(&record.root()));
     assert_eq!(record.value(), anchor_value(&witness, 2, record.point()));
     let proof = ps.into_proof();
-    assert_eq!(proof.stream.len(), 7, "prefix, three shape scalars, root halves, anchor value");
+    assert_eq!(
+        proof.stream.len(),
+        7,
+        "prefix, three shape scalars, root halves, anchor value"
+    );
     let mut vs = VerifierState::from_label(label, &proof);
     fiat_shamir::transcript::Receiver::next_scalar(&mut vs).unwrap();
     let received = receive_commitment(&mut vs, 3, 1, 1, 1).unwrap();
@@ -616,17 +620,46 @@ fn malformed_commitment_shape_rejects_without_reading_or_sampling() {
 
     let proof = ProverState::from_label(b"shape-guards").into_proof();
     for shape in [
-        CommitmentShape { log_n: 3, log_batch_size: 3, log_inv_rate: 1, n_lanes: 1 },
-        CommitmentShape { log_n: usize::MAX, log_batch_size: 1, log_inv_rate: 1, n_lanes: 1 },
-        CommitmentShape { log_n: 3, log_batch_size: 1, log_inv_rate: usize::MAX, n_lanes: 1 },
-        CommitmentShape { log_n: 3, log_batch_size: 1, log_inv_rate: 1, n_lanes: 0 },
-        CommitmentShape { log_n: 3, log_batch_size: 1, log_inv_rate: 1, n_lanes: 3 },
+        CommitmentShape {
+            log_n: 3,
+            log_batch_size: 3,
+            log_inv_rate: 1,
+            n_lanes: 1,
+        },
+        CommitmentShape {
+            log_n: usize::MAX,
+            log_batch_size: 1,
+            log_inv_rate: 1,
+            n_lanes: 1,
+        },
+        CommitmentShape {
+            log_n: 3,
+            log_batch_size: 1,
+            log_inv_rate: usize::MAX,
+            n_lanes: 1,
+        },
+        CommitmentShape {
+            log_n: 3,
+            log_batch_size: 1,
+            log_inv_rate: 1,
+            n_lanes: 0,
+        },
+        CommitmentShape {
+            log_n: 3,
+            log_batch_size: 1,
+            log_inv_rate: 1,
+            n_lanes: 3,
+        },
     ] {
         let mut vs = VerifierState::from_label(b"shape-guards", &proof);
         let before = vs.context();
         assert!(matches!(
             receive_commitment(
-                &mut vs, shape.log_n, shape.log_batch_size, shape.log_inv_rate, shape.n_lanes,
+                &mut vs,
+                shape.log_n,
+                shape.log_batch_size,
+                shape.log_inv_rate,
+                shape.n_lanes,
             ),
             Err(WhirError::CommitmentMismatch)
         ));

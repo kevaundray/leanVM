@@ -560,7 +560,10 @@ fn a_fresh_opening_keeps_the_original_record_in_both_verifiers() {
         ProofSource::Proof(&raw_opening),
     );
     assert!(finished, "row constraints must retain the complete fresh transcript");
-    assert!(!failures.is_empty(), "the same Merkle root must not substitute another original context");
+    assert!(
+        !failures.is_empty(),
+        "the same Merkle root must not substitute another original context"
+    );
 }
 
 // Commit and open, then verify natively and in rows: an honest opening holds in both, and a tampered claim fails both at the terminal check.

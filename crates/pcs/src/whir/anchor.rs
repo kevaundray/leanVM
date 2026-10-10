@@ -70,7 +70,6 @@ pub(crate) fn eq_prefix(point: &[F192], count: usize, mut seed: F192) -> Vec<F19
     out
 }
 
-
 /// The multilinear extension of the anchor weight on the occupied support.
 ///
 /// The low coordinates span whole lane blocks. On the high coordinates the

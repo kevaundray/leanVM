@@ -85,8 +85,8 @@ fn main() {
 
         let mut ch = ProverState::from_label(b"pcs-throughput");
         let t = Instant::now();
-        let committed = tracing::info_span!("Commit")
-            .in_scope(|| CommittedStack::new(&mut ch, &witness, log_n, pc.clone()));
+        let committed =
+            tracing::info_span!("Commit").in_scope(|| CommittedStack::new(&mut ch, &witness, log_n, pc.clone()));
         commit_t.push(t.elapsed().as_secs_f64());
 
         let t = Instant::now();
