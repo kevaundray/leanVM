@@ -1,4 +1,4 @@
-//! The verifier over a padded transcript: the native verifier's own code, its hidden values held as affine forms over the keys and its checks on them recorded as constraints (doc `leanvm` §sec:zk).
+//! The verifier over a padded transcript: the native verifier's own code, its hidden values held as affine forms over the keys and its checks on them recorded as constraints.
 //!
 //! - A scalar read while the transcript is hidden is `c + k`: the value sent, plus the key that padded it (characteristic two).
 //! - A challenge, a root, a query and every public computation stay values, checked as the native verifier checks them.

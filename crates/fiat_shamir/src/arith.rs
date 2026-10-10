@@ -239,7 +239,7 @@ pub trait Verifier: Arith {
         f(self)
     }
 
-    /// Whether the scalars read from now on travel under one-time-pad keys (doc `leanvm` §sec:zk).
+    /// Whether the scalars read from now on travel under one-time-pad keys.
     ///
     /// A verifier that holds values reads no padded proof, so by default this does nothing.
     fn set_hidden(&mut self, hidden: bool) {

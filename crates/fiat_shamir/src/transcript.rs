@@ -89,7 +89,7 @@ pub trait Transmitter: Challenger {
     fn add_scalars(&mut self, xs: &[F192]);
     fn grind(&mut self, bits: u32);
 
-    /// Whether the scalars sent from now on travel under one-time-pad keys (doc `leanvm` §sec:zk).
+    /// Whether the scalars sent from now on travel under one-time-pad keys.
     ///
     /// A prover holding no keys hides nothing.
     fn set_hidden(&mut self, hidden: bool);

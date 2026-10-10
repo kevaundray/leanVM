@@ -1,4 +1,4 @@
-//! Zero-knowledge proofs of a run (doc `leanvm` §sec:zk): the plain proof under one-time pads on a hiding commitment, then an outer proof that the padded transcript passes the verifier's checks.
+//! Zero-knowledge proofs of a run: the plain proof under one-time pads on a hiding commitment, then an outer proof that the padded transcript passes the verifier's checks.
 //!
 //! After the zero-knowledge seed, the transcript is:
 //!

@@ -1,4 +1,4 @@
-//! Zero knowledge (doc `leanvm` §sec:zk): the outer proof that a padded transcript passes the verifier's checks.
+//! Zero knowledge: the outer proof that a padded transcript passes the verifier's checks.
 
 pub(crate) mod keys;
 pub(crate) mod outer;

@@ -13,7 +13,7 @@ use tracing::info_span;
 ///
 /// # Zero knowledge
 ///
-/// A zero-knowledge proof (doc `leanvm` §sec:zk) hides the advice and the run, but not the run's shape: each table's height and the rate are public.
+/// A zero-knowledge proof hides the advice and the run, but not the run's shape: each table's height and the rate are public.
 /// A program whose advice is private must prove at a fixed public shape, so that its heights say nothing about the advice.
 ///
 /// # Performance

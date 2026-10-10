@@ -1,4 +1,4 @@
-//! The outer constraint system: what the recording verifier recorded, over the key stack's slots (doc `leanvm` §sec:zk).
+//! The outer constraint system: what the recording verifier recorded, over the key stack's slots.
 //!
 //! Column 0 is the constant one and column `1 + s` the key stack's slot `s`. A key is its slot; an auxiliary variable is
 //! the scalar the prover sent for it plus its own key, so every column is a slot and the assignment is the key stack.

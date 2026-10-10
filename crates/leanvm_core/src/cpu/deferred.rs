@@ -234,7 +234,7 @@ impl Program {
         Ok(())
     }
 
-    /// Settle the claims a zero-knowledge proof's core left, as constraints of the outer proof (doc `leanvm` §sec:zk).
+    /// Settle the claims a zero-knowledge proof's core left, as constraints of the outer proof.
     ///
     /// Every point is a challenge, so each claim's expected value is a public linear function of its hidden parts: the
     /// program claim's twist and image weight, each circuit claim's bit slices.

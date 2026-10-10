@@ -9,7 +9,7 @@ use std::fmt::{self, Debug, Formatter};
 ///
 /// The program checks it against the output.
 ///
-/// It travels as bytes. A zero-knowledge proof (doc `leanvm` §sec:zk) says the same and reveals nothing else of the run than its public shape.
+/// It travels as bytes. A zero-knowledge proof says the same and reveals nothing else of the run than its public shape.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Proof(#[doc(hidden)] pub ProofTranscript, pub(crate) bool);
 

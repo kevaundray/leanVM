@@ -1,4 +1,4 @@
-//! The key commitment: every one-time-pad key, the outer proof's dummy operands and its mask, in one lane of its own stack, beside one lane of uniform words (doc `leanvm` §sec:zk).
+//! The key commitment: every one-time-pad key, the outer proof's dummy operands and its mask, in one lane of its own stack, beside one lane of uniform words.
 //!
 //! Its shape is fixed, so neither side counts anything before committing:
 //!
