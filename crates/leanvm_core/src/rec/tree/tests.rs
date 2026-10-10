@@ -96,7 +96,7 @@ impl Fixture {
 fn legacy_and_foreign_tree_proofs_are_refused_before_the_body() {
     let current = TreeProof::ENVELOPE.seal(&[]);
     let expected = u16::from_le_bytes(current[4..6].try_into().unwrap());
-    for found in 0..=10 {
+    for found in 0..=13 {
         let bytes = Envelope::new(*b"LVMT", found).seal(&[0xff]);
         assert_eq!(
             TreeProof::from_bytes(&bytes),

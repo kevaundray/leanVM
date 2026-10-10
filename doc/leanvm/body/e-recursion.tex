@@ -82,7 +82,7 @@ An aggregation tree proves that many leanVM proofs of one program $P$ verify, wi
 \end{itemize}
 The root is a node, or the first-level node of a tree of $\arityz$ leaves. A tree of one first-level node over one leaf, $\arityz=1$, is the recursion of a single proof. A tree has $\arityz\,\arity^d$ leaves, $d$ the number of levels of nodes.
 
-The incompatible anchored tree format uses public envelope \texttt{LVMT} version $11$ and transcript domain \texttt{leanvm-tree-7}; its leaves use CPU envelope \texttt{LVMP} version $14$ and program digest domain \texttt{leanvm-rv64im-12}. Each tree's seed includes that program digest, the leaf shape and rate, both arities, the statement length, node heights and tree rate. Public byte decoders reject legacy or foreign envelopes before reading their bodies, rather than interpreting an old root-only proof as an anchored proof.
+The incompatible anchored tree format uses public envelope \texttt{LVMT} version $14$ and transcript domain \texttt{leanvm-tree-11}; its leaves use CPU envelope \texttt{LVMP} version $17$ and program digest domain \texttt{leanvm-rv64im-15}. Each tree's seed includes that program digest, the leaf shape and rate, both arities, the statement length, node heights and tree rate. Public byte decoders reject legacy or foreign envelopes before reading their bodies, rather than interpreting an old root-only proof as an anchored proof.
 
 Every tree proof states the same words, whatever the tree's size:
 \begin{itemize}[itemsep=1pt,topsep=3pt]
