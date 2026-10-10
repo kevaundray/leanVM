@@ -5,6 +5,7 @@ on:
     paths:
       - verification/circuits/**
       - crates/flock/src/clean.rs
+      - crates/leanvm_core/src/rec/clean.rs
       - .github/workflows/clean-circuits.yml
       - rustfmt.toml
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - verification/circuits/**
       - crates/flock/src/clean.rs
+      - crates/leanvm_core/src/rec/clean.rs
       - .github/workflows/clean-circuits.yml
       - rustfmt.toml
   workflow_dispatch:
@@ -38,7 +40,7 @@ jobs:
       - name: Check source, lowering, artifact, and theorem axioms
         working-directory: verification/circuits
         run: |
-          lake exe cache get Mathlib.Tactic
+          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot
           lake build
           lake env lean Audit.lean
           test -f .lake/build/lib/lean/LeanVMCircuits.olean
@@ -67,3 +69,5 @@ jobs:
         run: |
           lake env lean --run Generate.lean /tmp/clean-generated.rs
           diff -u ../../crates/flock/src/clean.rs /tmp/clean-generated.rs
+          lake env lean --run GenerateRec.lean /tmp/rec-generated.rs
+          diff -u ../../crates/leanvm_core/src/rec/clean.rs /tmp/rec-generated.rs
