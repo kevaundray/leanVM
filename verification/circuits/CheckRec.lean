@@ -121,7 +121,11 @@ def check (path : System.FilePath) : IO Bool := do
   let mut s : State := {}
   for line in calls do
     match parse line with
-    | .ok call => s := (call.run.run s).2
+    | .ok call =>
+      -- The model's contracts hold of calls naming wires already made, of the sizes the Rust methods take.
+      unless call.args.all (· < s.next) && call.ok do
+        IO.eprintln s!"{path}: a call names a wire not yet made or has the wrong size: {line}"; return false
+      s := (call.run.run s).2
     | .error e => IO.eprintln s!"{path}: {e}"; return false
   let built := finish s
   if built = dumped then

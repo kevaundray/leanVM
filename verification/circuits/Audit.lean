@@ -134,6 +134,42 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.extModulus_irreducible
 #print axioms LeanVMCircuits.Rec.exists_inverse
 
+#print axioms LeanVMCircuits.Rec.Model.constant_good
+#print axioms LeanVMCircuits.Rec.Model.emul_good
+#print axioms LeanVMCircuits.Rec.Model.emulKey_sem
+#print axioms LeanVMCircuits.Rec.Model.add_good
+#print axioms LeanVMCircuits.Rec.Model.mulAdd_good
+#print axioms LeanVMCircuits.Rec.Model.mul_good
+#print axioms LeanVMCircuits.Rec.Model.mulKAdd_good
+#print axioms LeanVMCircuits.Rec.Model.mulConstAdd_good
+#print axioms LeanVMCircuits.Rec.Model.inv_good
+#print axioms LeanVMCircuits.Rec.Model.sum_good
+#print axioms LeanVMCircuits.Rec.Model.castRow_good
+#print axioms LeanVMCircuits.Rec.Model.split_good
+#print axioms LeanVMCircuits.Rec.Model.pack_good
+#print axioms LeanVMCircuits.Rec.Model.eToK_good
+#print axioms LeanVMCircuits.Rec.Model.kToE_good
+#print axioms LeanVMCircuits.Rec.Model.dToK_good
+#print axioms LeanVMCircuits.Rec.Model.dToEAndK_good
+#print axioms LeanVMCircuits.Rec.Model.halvesToD_good
+#print axioms LeanVMCircuits.Rec.Model.singleBlock_good
+#print axioms LeanVMCircuits.Rec.Model.node_good
+#print axioms LeanVMCircuits.Rec.Model.parent_good
+#print axioms LeanVMCircuits.Rec.Model.compress_good
+#print axioms LeanVMCircuits.Rec.Model.leafBlock_good
+#print axioms LeanVMCircuits.Rec.Model.chainBlocks_good
+#print axioms LeanVMCircuits.Rec.Model.chain_good
+#print axioms LeanVMCircuits.Rec.Model.expose_good
+#print axioms LeanVMCircuits.Rec.Model.Call.exec_good
+#print axioms LeanVMCircuits.Rec.Model.replay_sound
+
+#print axioms LeanVMCircuits.Rec.absorbWord_fits
+#print axioms LeanVMCircuits.Rec.squeezeWord_fits
+#print axioms LeanVMCircuits.Rec.step_fits
+#print axioms LeanVMCircuits.Rec.run_fits
+#print axioms LeanVMCircuits.Rec.tweak_injective
+#print axioms LeanVMCircuits.Rec.tag_ne_tweak
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -220,7 +256,41 @@ run_cmd do
     ``LeanVMCircuits.Rec.card_K,
     ``LeanVMCircuits.Rec.no_root,
     ``LeanVMCircuits.Rec.extModulus_irreducible,
-    ``LeanVMCircuits.Rec.exists_inverse] do
+    ``LeanVMCircuits.Rec.exists_inverse,
+    ``LeanVMCircuits.Rec.Model.constant_good,
+    ``LeanVMCircuits.Rec.Model.emul_good,
+    ``LeanVMCircuits.Rec.Model.emulKey_sem,
+    ``LeanVMCircuits.Rec.Model.add_good,
+    ``LeanVMCircuits.Rec.Model.mulAdd_good,
+    ``LeanVMCircuits.Rec.Model.mul_good,
+    ``LeanVMCircuits.Rec.Model.mulKAdd_good,
+    ``LeanVMCircuits.Rec.Model.mulConstAdd_good,
+    ``LeanVMCircuits.Rec.Model.inv_good,
+    ``LeanVMCircuits.Rec.Model.sum_good,
+    ``LeanVMCircuits.Rec.Model.castRow_good,
+    ``LeanVMCircuits.Rec.Model.split_good,
+    ``LeanVMCircuits.Rec.Model.pack_good,
+    ``LeanVMCircuits.Rec.Model.eToK_good,
+    ``LeanVMCircuits.Rec.Model.kToE_good,
+    ``LeanVMCircuits.Rec.Model.dToK_good,
+    ``LeanVMCircuits.Rec.Model.dToEAndK_good,
+    ``LeanVMCircuits.Rec.Model.halvesToD_good,
+    ``LeanVMCircuits.Rec.Model.singleBlock_good,
+    ``LeanVMCircuits.Rec.Model.node_good,
+    ``LeanVMCircuits.Rec.Model.parent_good,
+    ``LeanVMCircuits.Rec.Model.compress_good,
+    ``LeanVMCircuits.Rec.Model.leafBlock_good,
+    ``LeanVMCircuits.Rec.Model.chainBlocks_good,
+    ``LeanVMCircuits.Rec.Model.chain_good,
+    ``LeanVMCircuits.Rec.Model.expose_good,
+    ``LeanVMCircuits.Rec.Model.Call.exec_good,
+    ``LeanVMCircuits.Rec.Model.replay_sound,
+    ``LeanVMCircuits.Rec.absorbWord_fits,
+    ``LeanVMCircuits.Rec.squeezeWord_fits,
+    ``LeanVMCircuits.Rec.step_fits,
+    ``LeanVMCircuits.Rec.run_fits,
+    ``LeanVMCircuits.Rec.tweak_injective,
+    ``LeanVMCircuits.Rec.tag_ne_tweak] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do

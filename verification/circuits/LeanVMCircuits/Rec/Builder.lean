@@ -109,6 +109,15 @@ def row (t : Table) (slots : List ℕ) : M Unit := modify fun s =>
 /-- `fn row` for the public table, with the row's source. -/
 def pubRow (w : ℕ) (src : PubSource) : M Unit := modify fun s => { s with pub := s.pub.push (w, src) }
 
+/-- `constant`'s units after making the constant `v` of kind `k` as wire `w`. -/
+def unitAfter (u : Units) (kind : Kind) (v : Limbs) (w : ℕ) : Units :=
+  match kind, v with
+  | .e, [0, 0, 0, 0] => { u with eZero := some w }
+  | .e, [1, 0, 0, 0] => { u with eOne := some w }
+  | .k, [0, 0, 0, 0] => { u with kZero := some w }
+  | .k, [1, 0, 0, 0] => { u with kOne := some w }
+  | _, _ => u
+
 /-- `fn constant`: the wire of a constant, made with its public row the first time. -/
 def constant (kind : Kind) (v : Limbs) : M ℕ := do
   match (← get).consts[(kind, v)]? with
@@ -116,13 +125,7 @@ def constant (kind : Kind) (v : Limbs) : M ℕ := do
   | none =>
     let w ← wire
     pubRow w (.const v)
-    modify fun s => { s with consts := s.consts.insert (kind, v) w }
-    match kind, v with
-    | .e, [0, 0, 0, 0] => modify fun s => { s with units := { s.units with eZero := some w } }
-    | .e, [1, 0, 0, 0] => modify fun s => { s with units := { s.units with eOne := some w } }
-    | .k, [0, 0, 0, 0] => modify fun s => { s with units := { s.units with kZero := some w } }
-    | .k, [1, 0, 0, 0] => modify fun s => { s with units := { s.units with kOne := some w } }
-    | _, _ => pure ()
+    modify fun s => { s with consts := s.consts.insert (kind, v) w, units := unitAfter s.units kind v w }
     pure w
 
 def eConst (c0 c1 c2 : ℕ) : M ℕ := constant .e [c0, c1, c2, 0]
@@ -325,15 +328,19 @@ def leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : M ℕ := do
   let ds ← wire
   hashRow h tf mux bit x ds m
 
+/-- `chain`'s blocks from `j` on, of `n`, the message `words` padded with `z`, `bytes` long. -/
+def chainBlocks (words : List ℕ) (z n bytes : ℕ) : List ℕ → ℕ → M ℕ
+  | [], h => pure h
+  | j :: js, h => do
+    let m := (List.range 8).map fun i => words.getD (8 * j + i) z
+    let h ← leafBlock h m (min (64 * (j + 1)) bytes) (j + 1 = n)
+    chainBlocks words z n bytes js h
+
 def chain (words : List ℕ) : M ℕ := do
   let nBlocks := max 1 ((words.length + 7) / 8)
   let z ← kZero
-  let bytes := 8 * words.length
-  let mut h ← dConst paramIVLimbs
-  for j in List.range nBlocks do
-    let m := (List.range 8).map fun i => words.getD (8 * j + i) z
-    h ← leafBlock h m (min (64 * (j + 1)) bytes) (j + 1 = nBlocks)
-  pure h
+  let h ← dConst paramIVLimbs
+  chainBlocks words z nBlocks (8 * words.length) (List.range nBlocks) h
 
 /-! A call of the builder from outside it, as `CheckRec` reads it. -/
 
@@ -351,38 +358,77 @@ inductive Call where
   | chain (words : List ℕ)
   deriving Repr
 
+/-- Run one call, returning its output wires (`expose_e`'s statement index). -/
+def Call.exec : Call → M (List ℕ)
+  | .freeE | .freeK | .freeD => do return [← wire]
+  | .eqE a b | .eqK a b | .eqD a b => do Model.union a b; return []
+  | .eqConstE a c0 c1 c2 => do Model.eqConstE a c0 c1 c2; return []
+  | .eqConstK a v => do Model.eqConstK a v; return []
+  | .eConst c0 c1 c2 => do return [← Model.eConst c0 c1 c2]
+  | .kConst v => do return [← Model.kConst v]
+  | .dConst v => do return [← Model.dConst v]
+  | .zero => do return [← Model.zero]
+  | .one => do return [← Model.one]
+  | .exposeE w => do return [← Model.expose w]
+  | .mulAdd a b d => do return [← Model.mulAdd a b d]
+  | .mul a b => do return [← Model.mul a b]
+  | .add a d => do return [← Model.add a d]
+  | .square a => do return [← Model.square a]
+  | .mulKAdd a k d => do return [← Model.mulKAdd a k d]
+  | .mulConstAdd a c0 c1 c2 d => do return [← Model.mulConstAdd a c0 c1 c2 d]
+  | .inv a => do return [← Model.inv a]
+  | .sum terms => do return [← Model.sum terms]
+  | .split w => Model.split w
+  | .pack bits => do return [← Model.pack bits]
+  | .eToK e => Model.eToK e
+  | .kToE k0 k1 k2 => do return [← Model.kToE k0 k1 k2]
+  | .kToE1 k => do return [← Model.kToE1 k]
+  | .dToK d => Model.dToK d
+  | .dToEAndK d => do let (e, k) ← Model.dToEAndK d; return [e, k]
+  | .halvesToD lo hi => do return [← Model.halvesToD lo hi]
+  | .compress acc x ds => do return [← Model.compress acc x ds]
+  | .node acc bit => do return [← Model.node acc bit]
+  | .parent l r => do return [← Model.parent l r]
+  | .leafBlock h m t last => do return [← Model.leafBlock h m t last]
+  | .chain words => do return [← Model.chain words]
+
 /-- Run one call. -/
-def Call.run : Call → M Unit
-  | .freeE | .freeK | .freeD => discard wire
-  | .eqE a b | .eqK a b | .eqD a b => Model.union a b
-  | .eqConstE a c0 c1 c2 => Model.eqConstE a c0 c1 c2
-  | .eqConstK a v => Model.eqConstK a v
-  | .eConst c0 c1 c2 => discard (Model.eConst c0 c1 c2)
-  | .kConst v => discard (Model.kConst v)
-  | .dConst v => discard (Model.dConst v)
-  | .zero => discard Model.zero
-  | .one => discard Model.one
-  | .exposeE w => discard (Model.expose w)
-  | .mulAdd a b d => discard (Model.mulAdd a b d)
-  | .mul a b => discard (Model.mul a b)
-  | .add a d => discard (Model.add a d)
-  | .square a => discard (Model.square a)
-  | .mulKAdd a k d => discard (Model.mulKAdd a k d)
-  | .mulConstAdd a c0 c1 c2 d => discard (Model.mulConstAdd a c0 c1 c2 d)
-  | .inv a => discard (Model.inv a)
-  | .sum terms => discard (Model.sum terms)
-  | .split w => discard (Model.split w)
-  | .pack bits => discard (Model.pack bits)
-  | .eToK e => discard (Model.eToK e)
-  | .kToE k0 k1 k2 => discard (Model.kToE k0 k1 k2)
-  | .kToE1 k => discard (Model.kToE1 k)
-  | .dToK d => discard (Model.dToK d)
-  | .dToEAndK d => discard (Model.dToEAndK d)
-  | .halvesToD lo hi => discard (Model.halvesToD lo hi)
-  | .compress acc x ds => discard (Model.compress acc x ds)
-  | .node acc bit => discard (Model.node acc bit)
-  | .parent l r => discard (Model.parent l r)
-  | .leafBlock h m t last => discard (Model.leafBlock h m t last)
-  | .chain words => discard (Model.chain words)
+def Call.run (c : Call) : M Unit := discard c.exec
+
+/-- The wires a call names. -/
+def Call.args : Call → List ℕ
+  | .freeE | .freeK | .freeD | .eConst .. | .kConst _ | .dConst _ | .zero | .one => []
+  | .eqE a b | .eqK a b | .eqD a b => [a, b]
+  | .eqConstE a .. | .eqConstK a _ => [a]
+  | .exposeE w => [w]
+  | .mulAdd a b d => [a, b, d]
+  | .mul a b => [a, b]
+  | .add a d => [a, d]
+  | .square a => [a]
+  | .mulKAdd a k d => [a, k, d]
+  | .mulConstAdd a _ _ _ d => [a, d]
+  | .inv a => [a]
+  | .sum terms => terms
+  | .split w => [w]
+  | .pack bits => bits
+  | .eToK e => [e]
+  | .kToE k0 k1 k2 => [k0, k1, k2]
+  | .kToE1 k => [k]
+  | .dToK d => [d]
+  | .dToEAndK d => [d]
+  | .halvesToD lo hi => [lo, hi]
+  | .compress acc x ds => [acc, x, ds]
+  | .node acc bit => [acc, bit]
+  | .parent l r => [l, r]
+  | .leafBlock h m _ _ => h :: m
+  | .chain words => words
+
+/-- The sizes a call's Rust method asserts or its types bound: a block of eight words, counters and lengths in 64
+bits, at most 64 bits packed. -/
+def Call.ok : Call → Bool
+  | .leafBlock _ m t _ => m.length = 8 ∧ t < 2 ^ 64
+  | .chain words => 8 * words.length < 2 ^ 64
+  | .pack bits => bits.length ≤ 64
+  | _ => true
 
 end LeanVMCircuits.Rec.Model
