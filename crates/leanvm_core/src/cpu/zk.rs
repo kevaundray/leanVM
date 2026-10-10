@@ -56,7 +56,7 @@ pub(super) fn prove(program: &Program, mut w: Witness, output: Output, rate: Rat
         rng.fill_k(Purpose::RandomLane, &mut w.q[shape.n_lanes * lane..]);
         let mut pads = vec![F64::ZERO; shape.committed_lanes() * pcs::padding(shape.mu, log_inv_rate)];
         rng.fill_k(Purpose::Pads, &mut pads);
-        Committed::new_hiding(&mut ps, &w.q, shape, rate, &pads).expect("the witness matches its layout")
+        Committed::new_padded(&mut ps, &w.q, shape, rate, &pads).expect("the witness matches its layout")
     });
     let stack = KeyStack::draw(&rng);
     let key_data = info_span!("Commit keys").in_scope(|| {

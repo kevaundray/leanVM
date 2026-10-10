@@ -148,8 +148,9 @@ impl Committed {
         Self::new_padded(ps, witness, shape, rate, &[])
     }
 
-    /// Commits a zero-knowledge proof's stack: its lanes padded past their power of two with `pads`, [`padding`] uniform
-    /// words per committed lane, its last lane uniform (doc `leanvm` Annex B, the hiding commitment).
+    /// [`Self::new`] with each committed lane padded past its power of two by `pads`: the hiding commitment of doc `leanvm` Annex B.
+    ///
+    /// A zero-knowledge proof's stack, whose last lane is random, takes [`padding`] uniform words per committed lane, any other stack none.
     ///
     /// # Errors
     ///
@@ -157,19 +158,8 @@ impl Committed {
     ///
     /// # Panics
     ///
-    /// Panics unless the shape has a random lane and `pads` is the padding of every committed lane.
-    pub(crate) fn new_hiding(
-        ps: &mut ProverState,
-        witness: &[F64],
-        shape: StackShape,
-        rate: Rate,
-        pads: &[F64],
-    ) -> Result<Self, WitnessError> {
-        assert!(shape.random_lane, "a hiding commitment's last lane is random");
-        Self::new_padded(ps, witness, shape, rate, pads)
-    }
-
-    fn new_padded(
+    /// Panics unless `pads` is the padding of every committed lane.
+    pub(crate) fn new_padded(
         ps: &mut ProverState,
         witness: &[F64],
         shape: StackShape,
