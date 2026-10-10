@@ -62,7 +62,7 @@ const STAGE_TILE_BYTES: usize = 16 << 10;
 /// The image's whole hash blocks of leading zeros are one chaining value, computed once for every leaf.
 ///
 /// The committer and a prover's replay hash leaves through it; the native verifier takes the same digests one at a
-/// time ([`hash_leaves_portable`]).
+/// time (the [`Hashing`] of [`crate::arith::Portable`]).
 pub struct LeafHasher(LeafShape);
 
 /// The hashing plan for one leaf shape, chosen once.
