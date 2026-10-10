@@ -372,25 +372,31 @@ impl<'a> Receiver for VerifierState<'a> {
         assert!(n_coeffs >= 2, "a round polynomial has at least two coefficients");
         let fixed = usize::from(eq.is_none());
         let mut coeffs = vec![F192::ZERO; n_coeffs];
-        for i in 0..n_coeffs {
+        let mut i = 0;
+        while i < n_coeffs {
             if i != fixed {
                 coeffs[i] = self.take_raw()?;
             }
+            i += 1;
         }
         let mut sum = F192::ZERO;
-        for i in fixed + 1..n_coeffs {
+        let mut i = fixed + 1;
+        while i < n_coeffs {
             sum += coeffs[i];
+            i += 1;
         }
-        coeffs[fixed] = match eq {
+        match eq {
             // An ordinary round reconstructs its linear coefficient from the claimed sum.
-            None => claim + sum,
+            None => coeffs[fixed] = claim + sum,
             // An equality-weighted round reconstructs its constant coefficient using the weighting challenge.
-            Some(r) => claim + r * sum,
-        };
-        for i in 0..n_coeffs {
+            Some(r) => coeffs[fixed] = claim + r * sum,
+        }
+        let mut i = 0;
+        while i < n_coeffs {
             if i != fixed {
                 self.bind(coeffs[i]);
             }
+            i += 1;
         }
         Ok(coeffs)
     }

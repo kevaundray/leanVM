@@ -157,6 +157,7 @@ struct BaseRows<K>(Vec<Vec<K>>);
 struct ExtRows<E>(Vec<Vec<E>>);
 
 /// A caller's terminal weight, evaluated once with static dispatch.
+/// The consumed provider keeps borrowed statement data within verification's lifetime without allocating a callback.
 pub(crate) trait WeightAt<V: OpeningVerifier> {
     fn call(self, v: &mut V, point: &[V::E]) -> V::E;
 }
@@ -488,7 +489,11 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         let lambda = v.sample();
         let weights = v.powers(lambda, phase.count);
         v.begin_scope(fiat_shamir::arith::Stage::Rows);
-        Ok(PendingQuery { queries, weights, lambda })
+        Ok(PendingQuery {
+            queries,
+            weights,
+            lambda,
+        })
     }
 
     /// End the rows scope even on opening failure, then replay and batch the level's claims.
@@ -504,7 +509,11 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
     ) -> Result<(), TranscriptError> {
         v.end_scope();
         let sum = sum?;
-        let PendingQuery { queries, weights, lambda } = batch;
+        let PendingQuery {
+            queries,
+            weights,
+            lambda,
+        } = batch;
         let intro = Quad::recv(v, sum)?;
 
         // Batch the OOD claims, then the query batch, each at the next power of the level's challenge.

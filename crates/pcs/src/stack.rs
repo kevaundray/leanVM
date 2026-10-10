@@ -421,8 +421,10 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
         v.begin_scope(fiat_shamir::arith::Stage::Target);
         let family_target = share.target(v);
         let mut point_target = family_target;
-        for i in 0..statement.points.len().min(point_lambdas.len()) {
+        let mut i = 0;
+        while i < statement.points.len().min(point_lambdas.len()) {
             point_target = v.mul_add(point_lambdas[i], statement.points[i].value(), point_target);
+            i += 1;
         }
         let target = v.mul_add(anchor_lambda, self.record.value(), point_target);
         v.end_scope();

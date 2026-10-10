@@ -432,7 +432,15 @@ mod tests {
                     if root != root_trunc {
                         return Err(WhirError::CommitmentMismatch);
                     }
-                    verify(&mut vs, &pc, log_n, n_lanes, target, root_trunc, DenseWeight(&b_initial))
+                    verify(
+                        &mut vs,
+                        &pc,
+                        log_n,
+                        n_lanes,
+                        target,
+                        root_trunc,
+                        DenseWeight(&b_initial),
+                    )
                 };
                 assert_eq!(verify(&fs_trunc), Ok(()), "verify failed at n_lanes = {n_lanes}");
 
@@ -506,7 +514,15 @@ mod tests {
                 let check = |target: F192| {
                     let mut vs = VerifierState::from_label(b"whir-test", &fs);
                     receive_commitment(&mut vs, log_n, pc.initial_k(), log_inv_rate, n_lanes)?;
-                    verify(&mut vs, &pc, log_n, n_lanes, target, record.root(), DenseWeight(&weight))
+                    verify(
+                        &mut vs,
+                        &pc,
+                        log_n,
+                        n_lanes,
+                        target,
+                        record.root(),
+                        DenseWeight(&weight),
+                    )
                 };
                 let label = format!("rate={log_inv_rate}, n_lanes={n_lanes}");
                 assert_eq!(check(target), Ok(()), "{label}");

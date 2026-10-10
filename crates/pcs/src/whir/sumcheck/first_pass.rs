@@ -234,7 +234,7 @@ mod avx512 {
     pub(super) unsafe fn fold_base_acc(acc: &mut [[u64; ROW]; 6], e: &LaneWeight, f: &[F64; ROW]) {
         // SAFETY: the function carries both features; `f` is eight qwords, and `acc` and `e` are 64-byte aligned.
         unsafe {
-            let mut sums = acc.map(|row| _mm512_load_si512(row.as_ptr().cast()));
+            let mut sums = acc.each_ref().map(|row| _mm512_load_si512(row.as_ptr().cast()));
             mul_by_words(&mut sums, e, _mm512_loadu_si512(f.as_ptr().cast()));
             for (row, s) in acc.iter_mut().zip(sums) {
                 _mm512_store_si512(row.as_mut_ptr().cast(), s);
