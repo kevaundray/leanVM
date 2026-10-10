@@ -28,6 +28,7 @@ use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::PerTable;
 use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
+use fiat_shamir::Hashing;
 use fiat_shamir::arith::{Arith, Native, Portable};
 use fiat_shamir::transcript::{ProofTranscript, RawProof};
 use primitives::field::{F64, F192};
@@ -577,7 +578,7 @@ impl<'p> Tree<'p> {
     /// Verify a tree proof's recursion proof on `arith`, short of its claims, returning it as its verifier read it.
     ///
     /// The root's verifier reads on [`Portable`]; a node's prover replays its children on [`Native`].
-    fn read<A: Arith<E = F192>>(&self, arith: A, p: &TreeProof) -> Result<RawProof, VerifyError> {
+    fn read<A: Arith<E = F192> + Hashing>(&self, arith: A, p: &TreeProof) -> Result<RawProof, VerifyError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
         let raw = self.circuit(p.kind).verify_to_raw_with(
             arith,

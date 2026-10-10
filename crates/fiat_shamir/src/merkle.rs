@@ -1,6 +1,7 @@
 // CREDIT: https://github.com/succinctlabs/flock (flock-core), MIT OR Apache-2.0.
 //! Digest encoding and Merkle openings carried by proofs.
 
+use crate::Hashing;
 use crate::transcript::TranscriptError;
 use primitives::field::{F64, F192};
 use primitives::hash::{BATCH, BLOCK_LEN, OUT_LEN, hash_many_dyn_from_state, portable, zero_prefix_state};
@@ -60,8 +61,8 @@ const STAGE_TILE_BYTES: usize = 16 << 10;
 ///
 /// The image's whole hash blocks of leading zeros are one chaining value, computed once for every leaf.
 ///
-/// The committer hashes its leaves through it; the verifier takes the same digests one at a time
-/// ([`PrunedMerklePaths::open`]).
+/// The committer and a prover's replay hash leaves through it; the native verifier takes the same digests one at a
+/// time ([`hash_leaves_portable`]).
 pub struct LeafHasher(LeafShape);
 
 /// The hashing plan for one leaf shape, chosen once.
@@ -230,10 +231,11 @@ fn hash_words(image: &[F64]) -> Hash {
     hash_leaf(&bytes)
 }
 
-/// The verifier's leaf digests of `row_bytes` rows in `leaf_bytes` images, one at a time by the portable compression.
+/// The native verifier's leaf digests of `row_bytes` rows in `leaf_bytes` images, one at a time by the portable
+/// compression.
 ///
 /// The digests [`LeafHasher`] gives, the image's whole zero blocks again one chaining value.
-fn hash_leaves_portable(rows: &[u8], row_bytes: usize, leaf_bytes: usize) -> Vec<Hash> {
+pub(crate) fn hash_leaves_portable(rows: &[u8], row_bytes: usize, leaf_bytes: usize) -> Vec<Hash> {
     if !leaf_bytes.is_multiple_of(BLOCK_LEN) {
         let mut image = vec![0u8; leaf_bytes];
         return (rows.chunks_exact(row_bytes))
@@ -256,11 +258,6 @@ fn hash_leaves_portable(rows: &[u8], row_bytes: usize, leaf_bytes: usize) -> Vec
             portable::hash_from_state(&image, &state, t_offset)
         })
         .collect()
-}
-
-/// Hash each pair of children into its parent, by the portable compression.
-fn hash_pairs(pairs: &[[Hash; 2]]) -> Vec<Hash> {
-    pairs.iter().map(|pair| portable::hash(pair.as_flattened())).collect()
 }
 
 /// Query positions with duplicates removed, ascending: the order a phase stores
@@ -333,7 +330,12 @@ impl PrunedMerklePaths {
     }
 
     /// The stored rows' leaf hashes, or `None` if any row is not `row_words` wide.
-    fn leaf_hashes(&self, queries: &[usize], row_words: usize, leaf_words: usize) -> Option<(Vec<usize>, Vec<Hash>)> {
+    fn leaf_hashes<H: Hashing>(
+        &self,
+        queries: &[usize],
+        row_words: usize,
+        leaf_words: usize,
+    ) -> Option<(Vec<usize>, Vec<Hash>)> {
         let sorted = sorted_unique(queries);
         if sorted.len() != self.leaf_data.len() || row_words > leaf_words {
             return None;
@@ -345,7 +347,7 @@ impl PrunedMerklePaths {
         let bytes: Vec<u8> = (self.leaf_data.iter().flatten())
             .flat_map(|word| word.0.to_le_bytes())
             .collect();
-        Some((sorted, hash_leaves_portable(&bytes, 8 * row_words, 8 * leaf_words)))
+        Some((sorted, H::hash_leaves(&bytes, 8 * row_words, 8 * leaf_words)))
     }
 
     /// Verifier side: authenticate this phase against `root` and expand it into
@@ -359,7 +361,9 @@ impl PrunedMerklePaths {
     /// `None` on any mismatch: a wrong row count or width, an out-of-range
     /// query, an octopus with too few or too many siblings, or a root that does
     /// not match.
-    pub fn open(
+    ///
+    /// `H` hashes: the native verifier's [`crate::arith::Portable`], or a prover's replay's [`crate::arith::Native`].
+    pub fn open<H: Hashing>(
         &self,
         root: &Hash,
         num_leaves: usize,
@@ -371,7 +375,7 @@ impl PrunedMerklePaths {
             return None;
         }
         let height = num_leaves.trailing_zeros() as usize;
-        let (sorted, leaf_hashes) = self.leaf_hashes(queries, row_words, leaf_words)?;
+        let (sorted, leaf_hashes) = self.leaf_hashes::<H>(queries, row_words, leaf_words)?;
         if sorted.last().is_some_and(|&p| p >= num_leaves) {
             return None;
         }
@@ -403,7 +407,7 @@ impl PrunedMerklePaths {
                 i += if paired { 2 } else { 1 };
             }
             known.push(level);
-            nodes = parents.into_iter().zip(hash_pairs(&pairs)).collect();
+            nodes = parents.into_iter().zip(H::hash_pairs(&pairs)).collect();
         }
         // The last fold leaves exactly the root, and nothing may be left over.
         if supplied.next().is_some() || nodes[0].1 != *root {
@@ -470,6 +474,7 @@ impl RawMerklePath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arith::{Native, Portable};
 
     fn tree_of(rows: &[Vec<F64>]) -> Vec<Hash> {
         let mut tree: Vec<Hash> = rows.iter().map(|r| hash_words(r)).collect();
@@ -497,7 +502,11 @@ mod tests {
         let paths = PrunedMerklePaths::prune(&tree, num_leaves, &queries, |q| rows[q].clone());
         assert_eq!(paths.leaf_data.len(), 3, "one row per distinct query");
 
-        let openings = paths.open(&root, num_leaves, &queries, width, width).expect("open");
+        let openings = paths
+            .open::<Portable>(&root, num_leaves, &queries, width, width)
+            .expect("open");
+        let native = paths.open::<Native>(&root, num_leaves, &queries, width, width);
+        assert_eq!(native.as_ref(), Some(&openings), "both backends open alike");
         assert_eq!(openings.len(), queries.len());
         for (opening, &q) in openings.iter().zip(&queries) {
             assert_eq!(opening.leaf_data, rows[q], "row must follow query order");
@@ -516,7 +525,7 @@ mod tests {
         let root = tree[tree.len() - 1];
         let queries = [5usize, 1, 3];
         let good = PrunedMerklePaths::prune(&tree, num_leaves, &queries, |q| rows[q].clone());
-        let open = |p: &PrunedMerklePaths, qs: &[usize], w: usize, n: usize| p.open(&root, n, qs, w, w);
+        let open = |p: &PrunedMerklePaths, qs: &[usize], w: usize, n: usize| p.open::<Portable>(&root, n, qs, w, w);
         assert!(open(&good, &queries, width, num_leaves).is_some(), "honest phase");
 
         let mut extra = good.clone();

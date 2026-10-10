@@ -5,6 +5,7 @@
 //! - Natively an element is an `F192`, a read comes off the proof, and a failed equality is an error.
 //! - In rows an element is a wire, a read is a free wire bound by a hash row, and an equality joins two wires.
 
+use crate::Hashing;
 use crate::transcript::{Challenger, Receiver, TranscriptError, VerifierState};
 use primitives::field::{F64, F192};
 use primitives::multilinear::mle_eval_par;
@@ -392,7 +393,7 @@ impl<A: Arith<E = F192>> Arith for VerifierState<'_, A> {
     }
 }
 
-impl<A: Arith<E = F192>> Verifier for VerifierState<'_, A> {
+impl<A: Arith<E = F192> + Hashing> Verifier for VerifierState<'_, A> {
     fn next_scalar(&mut self) -> Result<F192, TranscriptError> {
         Receiver::next_scalar(self)
     }

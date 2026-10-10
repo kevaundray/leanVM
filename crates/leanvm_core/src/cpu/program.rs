@@ -17,6 +17,7 @@ use crate::pcs::{Committed, Rate};
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
 use crate::tables::{ClassTable, Clock, PerTable, TableId};
 use crate::{constraints, leaf};
+use fiat_shamir::Hashing;
 use fiat_shamir::arith::{Arith, Native, Portable};
 use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, VerifierState};
 use flock::reduction;
@@ -362,7 +363,7 @@ impl Program {
     }
 
     /// The core, then the claims it leaves settled, all on `arith`.
-    fn replay_to_raw<A: Arith<E = F192> + Copy>(
+    fn replay_to_raw<A: Arith<E = F192> + Hashing + Copy>(
         &self,
         mut arith: A,
         output: Output,
@@ -390,7 +391,7 @@ impl Program {
 
     /// The verifier's core on `arith`, and the proof it replayed with its Merkle paths written out.
     #[tracing::instrument(name = "Verify core", skip_all)]
-    fn replay<A: Arith<E = F192>>(
+    fn replay<A: Arith<E = F192> + Hashing>(
         &self,
         arith: A,
         output: Output,

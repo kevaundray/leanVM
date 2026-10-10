@@ -23,14 +23,27 @@ impl SkipDomain {
     /// The domain the zerocheck skips and the lincheck interpolates over.
     pub const FLOCK: Self = Self::new(K_SKIP);
 
-    /// The domain of `2^k_skip` nodes, its constants computed by the portable products (at compile time for
-    /// [`Self::FLOCK`]).
+    /// The domain of `2^k_skip` nodes, its constants computed at compile time.
     ///
     /// # Panics
     ///
     /// If `S` and `Lambda` do not fit the phi_8 table.
     pub(crate) const fn new(k_skip: usize) -> Self {
+        const ALL: [SkipDomain; 8] = {
+            let mut all = [SkipDomain::compute(0); 8];
+            let mut k = 1;
+            while k < 8 {
+                all[k] = SkipDomain::compute(k);
+                k += 1;
+            }
+            all
+        };
         assert!(k_skip < 8, "the window fits the phi_8 table");
+        ALL[k_skip]
+    }
+
+    /// The domain of `2^k_skip` nodes, by the portable products.
+    const fn compute(k_skip: usize) -> Self {
         // Adding a basis element `a` to a subspace takes `V` to `V(X)^2 + V(a) V(X)`, since `V(X + a) = V(X) + V(a)`.
         // The zero subspace's polynomial is `X`; the basis elements are `phi_8(2^j)`.
         let mut vanishing = [F192::ZERO; 8];
