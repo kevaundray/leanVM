@@ -17,8 +17,8 @@ use crate::rec::layout::RecLayout;
 use crate::rec::proof::TableArgument;
 use crate::rec::table::PerRecTable;
 use crate::rec::transcript::{ProofSource, Transcript};
-use ::flock::lincheck::MatrixForm;
 use fiat_shamir::arith::Arith;
+use flock::lincheck::MatrixForm;
 use primitives::field::F192;
 use primitives::multilinear::mle_eval_par;
 
@@ -121,7 +121,7 @@ impl RecShape {
         RecRows {
             matrix: matrices.into(),
             hints: hints.hints,
-            state: t.state(b),
+            state: t.commitment(b),
         }
     }
 }

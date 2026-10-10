@@ -16,7 +16,7 @@
 use super::layout::{Announcement, Layout};
 use super::witness::Witness;
 use super::{CpuError, Output, Program, Proof};
-use crate::pcs::{self, LOG_BATCH, Rate};
+use crate::pcs::{self, Commitment, Committed, LOG_BATCH, Rate};
 use crate::tables::Clock;
 use crate::zk::keys::{self, KEY_MU, KeyStack, LANE, MAX_KEYS, MAX_OUTER_LOG_ROWS};
 use crate::zk::outer::constraint_system;
@@ -32,6 +32,7 @@ use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, Ve
 use primitives::field::{F64, F192};
 use primitives::multilinear::{eq_table, inner_product};
 use std::ops::Range;
+use tracing::info_span;
 
 /// The final clock's bits a run may set: past its slot's bits and below its live bit, which is set (§sec:state).
 const FREE_CLOCK_BITS: Range<usize> = Clock::SLOT_BITS as usize..Clock::LIVE_BIT as usize;
@@ -51,15 +52,15 @@ pub(super) fn prove(program: &Program, mut w: Witness, output: Output, rate: Rat
 
     // The stack, its last lane uniform and every lane padded, then the keys, before any challenge.
     let shape = w.layout.shape;
-    let committed = crate::stage!("Commit", || {
+    let committed = info_span!("Commit").in_scope(|| {
         let lane = 1usize << (shape.mu - LOG_BATCH);
         rng.fill_k(Purpose::RandomLane, &mut w.q[shape.n_lanes * lane..]);
         let mut pads = vec![F64::ZERO; shape.committed_lanes() * pcs::padding(shape.mu, log_inv_rate)];
         rng.fill_k(Purpose::Pads, &mut pads);
-        pcs::commit_hiding(&mut ps, &w.q, shape, log_inv_rate, &pads)
+        Committed::new_hiding(&mut ps, &w.q, shape, rate, &pads).expect("the witness matches its layout")
     });
     let stack = KeyStack::draw(&rng);
-    let key_data = crate::stage!("Commit keys", || {
+    let key_data = info_span!("Commit keys").in_scope(|| {
         let mut pads = vec![F64::ZERO; 2 * pcs::padding(KEY_MU, log_inv_rate)];
         rng.fill_k(Purpose::KeyPads, &mut pads);
         let (commitment, data) = whir::commit_hiding(&stack.words, KEY_MU, LOG_BATCH, log_inv_rate, &pads);
@@ -74,22 +75,15 @@ pub(super) fn prove(program: &Program, mut w: Witness, output: Output, rate: Rat
         ps.add_scalar(F192::from(F64(w.ts_final >> bit & 1)));
     }
     let (slots, rings) = program.prove_reductions(&mut ps, &mut w, output);
-    let hiding = Hiding {
-        k: pcs::padding(shape.mu, log_inv_rate),
-        hidden_claim: true,
-    };
-    crate::stage!("PCS open", || pcs::open(
-        &mut ps,
-        &committed,
-        &w.q,
-        &slots,
-        &rings,
-        Some(hiding)
-    ));
+    info_span!("PCS open").in_scope(|| {
+        committed
+            .open(&mut ps, &w.q, &slots, &rings)
+            .expect("opening uses the committed witness");
+    });
     drop((committed, w, slots, rings));
 
     // The verifier's record of the padded transcript, which the prover replays knowing the keys.
-    let (record, n_keys) = crate::stage!("Record", || {
+    let (record, n_keys) = info_span!("Record").in_scope(|| {
         let snapshot = ps.snapshot();
         let mut rec = Recorder::with_keys(VerifierState::new(seed, &snapshot, public), stack.keys().to_vec());
         record(program, &mut rec, output).expect("the prover's own proof verifies");
@@ -113,7 +107,7 @@ pub(super) fn prove(program: &Program, mut w: Witness, output: Output, rate: Rat
         .collect();
 
     // The outer proof, then the key commitment's opening.
-    crate::stage!("Outer proof", || {
+    info_span!("Outer proof").in_scope(|| {
         let r1cs = constraint_system(&record, &aux);
         assert!(
             r1cs.log_rows() <= MAX_OUTER_LOG_ROWS,
@@ -210,7 +204,7 @@ where
 {
     let (taus, rate) = Announcement::read_shape(rec.transport())?;
     let layout = Layout::announced_hiding(program.rv(), taus)?;
-    let root = rec.next_root()?;
+    let commitment = Commitment::read(rec, layout.shape, rate)?;
     let key_root = rec.next_root()?;
 
     // The final clock: its live bit, and each free bit hidden and a bit.
@@ -222,7 +216,7 @@ where
         clock = rec.mul_const_add(b, F192::from(F64(1 << bit)), clock);
     }
     let output = output.words().map(|o| Sym::Pub(F192::from(F64(o))));
-    let claims = layout.verify_committed(rec, root, clock, &output, rate)?;
+    let claims = layout.verify_committed(rec, commitment, clock, &output)?;
     program.check_deferred_hidden(rec, &claims)?;
     Ok((key_root, rate))
 }

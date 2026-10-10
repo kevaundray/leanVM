@@ -13,17 +13,18 @@ use super::witness::Witness;
 use super::{Output, Proof};
 use crate::class_flock::FlockId;
 use crate::constraints::{Claims, Columns};
-use crate::pcs::{Rate, RingSwitch, StackClaim};
+use crate::pcs::{Committed, Rate, RingSwitch, StackClaim};
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
 use crate::tables::{ClassTable, Clock, PerTable, TableId};
 use crate::zk::randomness::Randomness;
-use crate::{constraints, leaf, pcs};
+use crate::{constraints, leaf};
 use fiat_shamir::arith::Native;
 use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, VerifierState};
 use flock::reduction;
 use primitives::field::{F64, F192};
 use primitives::hash::Hasher;
 use std::cmp::Reverse;
+use tracing::info_span;
 
 /// A validated program, its fill blocks, and the digest of everything public about it.
 ///
@@ -43,7 +44,7 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-11";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-13";
 
     /// The domain a zero-knowledge proof's transcript seed is hashed under, with the protocol's version.
     const ZK_DOMAIN: &'static [u8] = b"leanvm-rv64im-zk";
@@ -213,7 +214,7 @@ impl Program {
 
     /// Prove a finished run, which a test may have forged, in zero knowledge when given its randomness.
     pub(super) fn prove_execution(&self, exec: &Execution, rate: Rate, zk: Option<Randomness>) -> (Proof, Stats) {
-        let w = crate::stage!("Build witness", || Witness::build_for(self, exec, zk.is_some()));
+        let w = info_span!("Build witness").in_scope(|| Witness::build_for(self, exec, zk.is_some()));
         let stats = Stats {
             proven_rows: exec.proven_rows,
             counts: w.layout.taus.map(|t| 1usize << t),
@@ -236,18 +237,20 @@ impl Program {
         let mut ps = ProverState::new(self.fs_seed(), output.words().map(F64));
 
         // Announce the sizes, then commit, before any challenge.
-        let log_inv_rate = rate.log_inv_rate().into();
         let announcement = Announcement {
             taus: w.layout.taus,
             rate,
             ts_final: w.ts_final,
         };
         announcement.write(&mut ps);
-        let committed = crate::stage!("Commit", || pcs::commit(&mut ps, &w.q, w.layout.shape, log_inv_rate));
+        let committed = info_span!("Commit")
+            .in_scope(|| Committed::new(&mut ps, &w.q, w.layout.shape, rate).expect("the witness matches its layout"));
         let (slots, rings) = self.prove_reductions(&mut ps, &mut w, output);
-        crate::stage!("PCS open", || pcs::open(
-            &mut ps, &committed, &w.q, &slots, &rings, None
-        ));
+        info_span!("PCS open").in_scope(|| {
+            committed
+                .open(&mut ps, &w.q, &slots, &rings)
+                .expect("opening uses the committed witness");
+        });
         Proof(ps.into_proof(), false)
     }
 
@@ -265,7 +268,7 @@ impl Program {
         let (bus_claims, table_claims) = {
             let l = &w.layout;
             let cols = w.columns();
-            let mut bus = crate::stage!("Prove bus", || {
+            let mut bus = info_span!("Prove bus").in_scope(|| {
                 leaf::prove_balance(&l.push, &l.pull, &l.producers, l.grinding, &cols, spans.as_slice(), ps)
             });
             // A settled table's columns at the bus point, short of its register numbers, which the batch folds.
@@ -284,7 +287,7 @@ impl Program {
                     }
                 })
                 .collect();
-            let summed = crate::stage!("Prove constraints", || {
+            let summed = info_span!("Prove constraints").in_scope(|| {
                 let producers = std::mem::take(&mut bus.producers);
                 let coefficients: Vec<Vec<F192>> = producers.iter().map(|p| p.coefficients.clone()).collect();
 
@@ -318,7 +321,7 @@ impl Program {
         // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
         // Each producer's multiplicity column is a ring-switched region too.
         let reductions = std::mem::take(&mut w.reductions);
-        let slices = crate::stage!("Flock reductions", || {
+        let slices = info_span!("Flock reductions").in_scope(|| {
             let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
                 .map(|(f, tables)| {
                     let window = l.witness_window(f);
@@ -351,7 +354,7 @@ impl Program {
         Ok(self.check_deferred(&claims)?)
     }
 
-    /// Verify a proof, and return it with every query's Merkle path written out, the form the Python verifier reads.
+    /// Verify a proof and expand its Merkle paths for recursion.
     ///
     /// # Errors
     ///
@@ -463,7 +466,7 @@ impl Program {
     pub(super) fn committed_size(&self, row_counts: PerTable<usize>) -> Result<usize, ProveError> {
         let taus = PerTable::from_fn(|t: TableId| crate::log2_strict_usize(t.spec().provable_height(row_counts[t])));
         let (placements, shape) = Sizes::of(&self.rv).stack(&taus);
-        if shape.mu > pcs::MAX_MU {
+        if shape.mu > crate::pcs::MAX_MU {
             return Err(ProveError::TooLong);
         }
         Ok(crate::witness::committed_len(&placements))
@@ -772,7 +775,7 @@ mod tests {
         assert_eq!(program.run(&mut m, &mut counter), Err(ProveError::TooLong));
         let counts = counter.row_counts();
         let rows: usize = counts.values().sum();
-        assert!(rows < 1 << pcs::MAX_MU, "{rows} rows counted");
+        assert!(rows < 1 << crate::pcs::MAX_MU, "{rows} rows counted");
         assert_eq!(program.committed_size(counts), Err(ProveError::TooLong));
 
         // A period earlier, no table had more than these rows, and they fit.

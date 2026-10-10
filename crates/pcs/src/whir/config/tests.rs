@@ -1004,7 +1004,7 @@ fn the_table_is_the_derivation() {
     });
     assert!(
         tabulated == rows,
-        "WHIR_QUERIES is stale, replace its rows in crates/pcs/src/whir/config.rs with:\n{rows}"
+        "WHIR_QUERIES is stale, replace its rows in crates/pcs/src/whir/config/mod.rs with:\n{rows}"
     );
     for log_inv_rate in MIN_LOG_INV_RATE - 1..=MAX_LOG_INV_RATE + 1 {
         for log_n in 0..=MAX_LOG_N + 8 {

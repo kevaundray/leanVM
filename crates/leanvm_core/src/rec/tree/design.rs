@@ -19,15 +19,15 @@ use crate::rec::fixed::FixedColumns;
 use crate::rec::table::{HashFlock, PerRecTable};
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rec::verifier::{FixedHint, ProofShape, RecShape, Rows, infallible};
-use ::pcs::ring_switch::inverse_frobenius_ladder;
 use fiat_shamir::arith::Arith;
 use fiat_shamir::transcript::RawProof;
+use pcs::ring_switch::inverse_frobenius_ladder;
 use primitives::field::{F64, F192};
 use primitives::hash::Hasher;
 use primitives::multilinear::mle_eval_par;
 
 /// The domain of every tree proof's transcript.
-const DOMAIN: &[u8] = b"leanvm-tree-6";
+const DOMAIN: &[u8] = b"leanvm-tree-10";
 
 /// What fixes a tree's circuits: the leaves' shape, the arities, the rate, and the nodes' heights.
 pub(crate) struct Design<'p> {
@@ -394,8 +394,7 @@ impl NodeRows {
     /// Verify the reduction the given source holds, then expose the statement: the kind, the digest, the reduced claims.
     pub(crate) fn reduce(mut self, design: &Design<'_>, source: ProofSource<'_>) -> Finished {
         let b = &mut self.b;
-        let state = b.d_const(reduce::initial_state());
-        let mut t = Transcript::from_state(state, source);
+        let mut t = Transcript::from_label(b, reduce::LABEL, source);
         let claims = &self.claims;
         let reduced = b.scope("reduction", |b| {
             infallible(claims.verify(&mut Rows::new(b, &mut t), &design.vars))

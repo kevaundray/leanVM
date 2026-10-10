@@ -4,9 +4,7 @@
 //!
 //! The blocks name columns by index, so the layout is pure public structure.
 //!
-//! Each enum's declaration order is protocol order.
-//!
-//! The Python verifier mirrors it, so reordering a variant changes the proof layout.
+//! Each enum's declaration order is protocol order: reordering a variant changes the proof layout.
 
 use super::error::CpuError;
 use super::execute::Trace;
@@ -18,7 +16,7 @@ use crate::pcs::{Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::rv::{Entry, Reg, Region, RegisterFile, RiscvProgram, Syscall};
 use crate::tables::{ClassTable, Clock, N_TABLES, PerTable, Separator, TableId};
 use crate::witness::{Placement, Source, StackShape, Window};
-use crate::{class_flock, pcs, witness};
+use crate::{class_flock, witness};
 use Coord::{Col, Const, IntIndex, Sparse};
 use fiat_shamir::MAX_GRINDING_BITS;
 use fiat_shamir::arith::Arith;
@@ -857,7 +855,7 @@ impl Layout {
 
     /// The layout, if the commitment takes its stack.
     fn checked(self) -> Result<Self, CpuError> {
-        if (pcs::MIN_MU..=pcs::MAX_MU).contains(&self.shape.mu) {
+        if (crate::pcs::MIN_MU..=crate::pcs::MAX_MU).contains(&self.shape.mu) {
             Ok(self)
         } else {
             Err(CpuError::WitnessSize { mu: self.shape.mu })

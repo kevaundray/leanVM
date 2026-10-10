@@ -22,8 +22,8 @@ use crate::rv::RiscvProgram;
 use crate::tables::{N_TABLES, Part};
 use crate::zk::sym::{Recorder, Sym};
 use fiat_shamir::arith::{Arith, Verifier};
+use flock::FlockError;
 use flock::lincheck::{LincheckError, MatrixClaim, MatrixForm};
-use flock::verifier::FlockError;
 use primitives::field::F192;
 use thiserror::Error;
 

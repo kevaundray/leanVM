@@ -71,7 +71,7 @@ impl<'p> ProofShape<'p> {
         let claims = infallible(self.layout.verify_core(&mut r, clock, &output, self.rate));
         CoreRows {
             claims,
-            state: t.state(b),
+            state: t.commitment(b),
         }
     }
 

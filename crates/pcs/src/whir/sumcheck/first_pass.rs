@@ -9,12 +9,19 @@
 //! drawn, and one more pass folds all `R` lane bits at once (the small-value
 //! precomputation of Bagad, Dao, Domb and Thaler, <https://eprint.iacr.org/2025/1117>:
 //! the witness is in `K`, so every product is a mixed one).
+//!
+//! On PMULL targets, the grid's final extension digit is consumed directly by
+//! mixed-product accumulation. Its zero, one and infinity sums stay in registers
+//! across the offsets in a row, so neither the infinity weights nor intermediate
+//! partial sums need a separate memory pass. Wider x86 kernels retain their
+//! lane-parallel layout.
 
 use super::{
     Basis, BasisFill, FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, KEEP_WEIGHT_MAX_THREADS, PRECOMPUTED_ROUNDS,
     SumcheckMessage, window,
 };
 use parallel::SendPtr;
+use primitives::bit_fold;
 #[cfg(not(any(
     all(target_arch = "x86_64", target_feature = "pclmulqdq"),
     all(target_arch = "aarch64", target_feature = "aes")
@@ -60,6 +67,43 @@ fn extend_grid<T: Copy, const R: usize>(grid: &mut [T; GRID], add: impl Fn(&T, &
             }
         }
         stride *= 3;
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[inline(always)]
+fn extend_grid_digits<T: Copy, const R: usize>(grid: &mut [T; GRID], digits: usize, add: impl Fn(&T, &T) -> T) {
+    let mut stride = 1;
+    for i in 0..digits {
+        for &high in &LANE_IN_GRID[..1 << (R - 1 - i)] {
+            let base = 3 * stride * high;
+            for at in base..base + stride {
+                grid[at + 2 * stride] = add(&grid[at], &grid[at + stride]);
+            }
+        }
+        stride *= 3;
+    }
+}
+
+/// Finish each row's extension at the point where its products are consumed.
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+#[inline(always)]
+fn accumulate_grid<const R: usize>(
+    fg: &mut [[u64; ROW]; GRID],
+    bg: &mut [WeightRow; GRID],
+    acc: &mut [ProductRow; GRID],
+) {
+    if R > 0 {
+        extend_grid_digits::<_, R>(fg, R - 1, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
+        extend_grid_digits::<_, R>(bg, R - 1, WeightRow::add);
+        // SAFETY: PMULL is enabled at compile time; the helper stays within the grid.
+        unsafe { lanes::finish_grid::<R>(fg, bg, acc) };
+        return;
+    }
+    extend_grid::<_, R>(fg, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
+    extend_grid::<_, R>(bg, WeightRow::add);
+    for (a, (k, w)) in acc.iter_mut().zip(fg.iter().zip(bg.iter())).take(3usize.pow(R as u32)) {
+        a.mul_acc(w, k);
     }
 }
 
@@ -299,6 +343,8 @@ mod avx512 {
 ))]
 #[cfg_attr(all(target_feature = "vpclmulqdq", target_feature = "avx512f"), allow(dead_code))]
 mod lanes {
+    #[cfg(target_arch = "aarch64")]
+    use super::GRID;
     use super::{F64, F192, LaneWeight, ProductRow, ROW, WeightRow};
     #[cfg(target_arch = "aarch64")]
     use core::arch::aarch64::*;
@@ -512,6 +558,72 @@ mod lanes {
         }
     }
 
+    /// Consume the final extension digit and keep each point's sums in registers across the row.
+    ///
+    /// Only the first pair of each coefficient stores this path's sum; the remaining pairs stay zero.
+    /// Reducing or combining a ProductRow therefore uses the same representation as the other paths.
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    #[inline(always)]
+    pub(super) unsafe fn finish_grid<const R: usize>(
+        fg: &[[u64; ROW]; GRID],
+        bg: &[WeightRow; GRID],
+        acc: &mut [ProductRow; GRID],
+    ) {
+        #[inline(always)]
+        fn update(s: (Neon, Neon, Neon), k: Neon, lo: Neon, hi: Neon, c2: Neon) -> (Neon, Neon, Neon) {
+            (
+                s.0.xor3(lo.mul::<0x00>(k), hi.mul::<0x10>(k)),
+                s.1.xor3(lo.mul::<0x01>(k), hi.mul::<0x11>(k)),
+                s.2.xor3(c2.mul::<0x00>(k), c2.mul::<0x11>(k)),
+            )
+        }
+        #[inline(always)]
+        unsafe fn load(acc: &ProductRow) -> (Neon, Neon, Neon) {
+            // SAFETY: every coefficient has a complete pair; only the first pair holds this path's sum.
+            unsafe {
+                (
+                    Neon::load(acc.0[0].as_ptr()),
+                    Neon::load(acc.0[1].as_ptr()),
+                    Neon::load(acc.0[2].as_ptr()),
+                )
+            }
+        }
+        #[inline(always)]
+        unsafe fn store(s: (Neon, Neon, Neon), acc: &mut ProductRow) {
+            // SAFETY: as for load; remaining pairs stay zero.
+            unsafe {
+                s.0.store(acc.0[0].as_mut_ptr());
+                s.1.store(acc.0[1].as_mut_ptr());
+                s.2.store(acc.0[2].as_mut_ptr());
+            }
+        }
+        let stride = 3usize.pow((R - 1) as u32);
+        for at in 0..stride {
+            // SAFETY: R is in 1..=PRECOMPUTED_ROUNDS; the three points and each pair lie within their rows.
+            unsafe {
+                let mut s0 = load(&acc[at]);
+                let mut s1 = load(&acc[at + stride]);
+                let mut s2 = load(&acc[at + 2 * stride]);
+                for c in (0..ROW).step_by(2) {
+                    let k0 = Neon::load(fg[at].as_ptr().add(c));
+                    let k1 = Neon::load(fg[at + stride].as_ptr().add(c));
+                    let lo0 = Neon::load(bg[at].lo.as_ptr().add(c));
+                    let lo1 = Neon::load(bg[at + stride].lo.as_ptr().add(c));
+                    let hi0 = Neon::load(bg[at].hi.as_ptr().add(c));
+                    let hi1 = Neon::load(bg[at + stride].hi.as_ptr().add(c));
+                    let c20 = Neon::load(bg[at].c2.as_ptr().add(c));
+                    let c21 = Neon::load(bg[at + stride].c2.as_ptr().add(c));
+                    s0 = update(s0, k0, lo0, hi0, c20);
+                    s1 = update(s1, k1, lo1, hi1, c21);
+                    s2 = update(s2, k0.xor(k1), lo0.xor(lo1), hi0.xor(hi1), c20.xor(c21));
+                }
+                store(s0, &mut acc[at]);
+                store(s1, &mut acc[at + stride]);
+                store(s2, &mut acc[at + 2 * stride]);
+            }
+        }
+    }
+
     /// The products of the AVX-512 `fold_acc`, a register at a time, each coefficient packed from scalars.
     ///
     /// # Safety
@@ -628,15 +740,14 @@ pub(crate) fn initial_rounds(f: &[F64], block: usize, initial_k: usize, b: &Basi
 
 /// [`initial_rounds`] over a regenerated weight, and the weight the first fold then reads.
 ///
-/// On a small pool the pass also writes the weight out, so the fold reads it back rather than refilling it; on a
-/// larger one the refill, spread over the workers, costs less than the memory traffic.
+/// The byte tables always keep the weight. SIMD backends keep it on small pools and refill it on larger ones.
 pub(crate) fn initial_rounds_virtual<'a>(
     f: &[F64],
     block: usize,
     initial_k: usize,
     fill: &'a BasisFill<'a>,
 ) -> (InitialRounds, Basis<'a>) {
-    if parallel::num_threads() <= KEEP_WEIGHT_MAX_THREADS {
+    if bit_fold::PORTABLE || parallel::num_threads() <= KEEP_WEIGHT_MAX_THREADS {
         let (rounds, kept) = initial_rounds_kept(f, block, initial_k, fill);
         (rounds, Basis::Dense(kept))
     } else {
@@ -760,10 +871,15 @@ fn grid_pass_with<const R: usize>(
                 }
                 bg[LANE_IN_GRID[l]] = WeightRow::pack(&bs[l][x..x + width]);
             }
-            extend_grid::<_, R>(fg, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
-            extend_grid::<_, R>(bg, WeightRow::add);
-            for (a, (k, w)) in acc.iter_mut().zip(fg.iter().zip(bg.iter())).take(points) {
-                a.mul_acc(w, k);
+            #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+            accumulate_grid::<R>(fg, bg, acc);
+            #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
+            {
+                extend_grid::<_, R>(fg, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
+                extend_grid::<_, R>(bg, WeightRow::add);
+                for (a, (k, w)) in acc.iter_mut().zip(fg.iter().zip(bg.iter())).take(points) {
+                    a.mul_acc(w, k);
+                }
             }
         }
     };
@@ -934,6 +1050,58 @@ mod tests {
     use super::*;
     use crate::whir::INITIAL_FOLDING_FACTOR;
     use primitives::test_util::Rng;
+
+    #[test]
+    fn grid_extension_products_match_scalar_definition() {
+        fn scalar_mul(mut a: u64, mut b: u64) -> u64 {
+            let mut p = 0;
+            for _ in 0..64 {
+                if b & 1 != 0 {
+                    p ^= a;
+                }
+                let carry = a >> 63;
+                a <<= 1;
+                if carry != 0 {
+                    a ^= 0x1b;
+                }
+                b >>= 1;
+            }
+            p
+        }
+        let mut rng = Rng::new(0x671D);
+        for rounds in 1..=PRECOMPUTED_ROUNDS {
+            for block in [1, 2, 4, 8, 16] {
+                for lanes in [1, (1 << rounds) - 1, 1 << rounds, (1 << rounds) + 3] {
+                    let f: Vec<F64> = (0..block * lanes).map(|_| F64(rng.next_u64())).collect();
+                    let weight = rng.ext_vec(f.len());
+                    let got = initial_rounds(&f, block, rounds, &Basis::Dense(weight.clone()));
+                    for (point, &sum) in got.grid.iter().enumerate() {
+                        let mut want = F192::ZERO;
+                        for start in (0..lanes).step_by(1 << rounds) {
+                            for x in 0..block {
+                                let (mut k, mut e) = (0, F192::ZERO);
+                                for lane in 0..(1 << rounds).min(lanes - start) {
+                                    let included = (0..rounds).all(|bit| {
+                                        let digit = point / 3usize.pow(bit as u32) % 3;
+                                        digit == 2 || digit == (lane >> bit) & 1
+                                    });
+                                    if included {
+                                        k ^= f[(start + lane) * block + x].0;
+                                        e += weight[(start + lane) * block + x];
+                                    }
+                                }
+                                want += F192::new(scalar_mul(e.c0, k), scalar_mul(e.c1, k), scalar_mul(e.c2, k));
+                            }
+                        }
+                        assert_eq!(
+                            sum, want,
+                            "rounds={rounds}, block={block}, lanes={lanes}, point={point}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn the_kept_weight_is_the_filled_one() {

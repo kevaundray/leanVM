@@ -9,11 +9,11 @@
 //! Each is a sumcheck: if an input claim is false, an output claim is false but with probability about `(claims + 2 rounds) / |E|`.
 
 use super::claims::{DensePoly, NodeClaims};
-use crate::rec::circuit::{Limbs, digest_limbs};
 use fiat_shamir::arith::Verifier;
 use fiat_shamir::transcript::{ProofTranscript, ProverState, TranscriptError, Transmitter};
 use primitives::field::{F64, F192, F192Unreduced, mul_base8, mul_unreduced4, mul4};
 use thiserror::Error;
+use tracing::info_span;
 
 mod dense;
 mod matrix;
@@ -22,7 +22,7 @@ pub(crate) use dense::{DenseProver, DenseReduced, DenseVars};
 pub(crate) use matrix::{MatrixProver, MatrixReduced};
 
 /// The label every node's reduction transcript starts from.
-pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-3";
+pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-4";
 
 /// Why a node's reduction refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -53,11 +53,6 @@ pub(crate) struct Reduced<E> {
 #[derive(Clone, Debug)]
 pub(crate) struct DenseTables(pub(crate) [Vec<F64>; DensePoly::COUNT]);
 
-/// The reduction transcript's starting state.
-pub(crate) fn initial_state() -> Limbs {
-    digest_limbs(&primitives::hash::hash(LABEL))
-}
-
 impl<E: Copy + PartialEq> NodeClaims<E> {
     /// Verify the reduction of these claims, the dense polynomials having the given variables.
     ///
@@ -81,13 +76,8 @@ impl NodeClaims<F192> {
     pub(crate) fn prove(&self, vars: &DenseVars, tables: &DenseTables) -> ProofTranscript {
         let mut ps = ProverState::from_label(LABEL);
         ps.add_scalars(&self.bound);
-        crate::stage!("Dense reduction", || DenseProver::prove(
-            &mut ps,
-            vars,
-            tables,
-            &self.dense
-        ));
-        crate::stage!("Matrix reduction", || MatrixProver::prove(&mut ps, &self.matrices));
+        info_span!("Dense reduction").in_scope(|| DenseProver::prove(&mut ps, vars, tables, &self.dense));
+        info_span!("Matrix reduction").in_scope(|| MatrixProver::prove(&mut ps, &self.matrices));
         ps.into_proof()
     }
 }
