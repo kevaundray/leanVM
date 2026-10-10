@@ -146,13 +146,14 @@ impl Duplex {
     pub fn context(&self) -> TranscriptContext<F64, [F64; 4]> {
         let mut pending = [None; 8];
         for (slot, bytes) in pending.iter_mut().zip(self.pending[..self.n_pending].chunks(8)) {
-            let word = if let Ok(bytes) = <&[u8; 8]>::try_from(bytes) {
-                u64::from_le_bytes(*bytes)
-            } else {
-                let mut padded = [0u8; 8];
-                padded[..bytes.len()].copy_from_slice(bytes);
-                u64::from_le_bytes(padded)
-            };
+            let word = <&[u8; 8]>::try_from(bytes).map_or_else(
+                |_| {
+                    let mut padded = [0u8; 8];
+                    padded[..bytes.len()].copy_from_slice(bytes);
+                    u64::from_le_bytes(padded)
+                },
+                |bytes| u64::from_le_bytes(*bytes),
+            );
             *slot = Some(F64(word));
         }
         TranscriptContext {

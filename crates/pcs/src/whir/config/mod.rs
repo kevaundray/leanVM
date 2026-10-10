@@ -16,8 +16,8 @@
 use fiat_shamir::MAX_GRINDING_BITS;
 use thiserror::Error;
 
-// The production WHIR configuration: Johnson list decoding at rates 2^-1 to 2^-4 and 128-bit round-by-round soundness over F192.
-// L0 takes no OOD sample, so the commitment binds only to a list, whose size every challenge before the opening pays; every later level takes one OOD sample.
+// The production WHIR configuration: Johnson list decoding at rates 2^-1 to 2^-4 and a 128-bit round-by-round design target over F192.
+// The L0 root fixes a candidate list; the immutable commitment-time anchor selects within that list separately. The conservative opening ledger still pays its list size, and every later level takes one OOD sample.
 
 /// Round-by-round soundness target (bits): every verifier-challenge transition
 /// must have conditional failure probability at most `2^-SECURITY_BITS`.
@@ -356,7 +356,7 @@ const WHIR_QUERIES: [[&[usize]; MAX_LOG_N - MIN_LOG_N + 1]; MAX_LOG_INV_RATE - M
 
 /// The shared prover/verifier config for a `K`-witness of `2^log_n` F64 words at L0 inverse-rate logarithm `log_inv_rate`.
 ///
-/// The production 128-bit Johnson/OOD profile: the ladder, then the tabulated query counts, [`QUERY_GRINDING_BITS`] at every level, and one OOD sample at every level past L0.
+/// The Johnson/OOD profile with a 128-bit design target: the ladder, tabulated query counts, [`QUERY_GRINDING_BITS`] at every level, and one OOD sample at every level past L0. The immutable commitment anchor is handled separately.
 ///
 /// # Errors
 ///
