@@ -106,6 +106,21 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.chain_rows
 #print axioms LeanVMCircuits.Rec.statement_digest
 
+#print axioms LeanVMCircuits.Rec.digest_cvWords
+#print axioms LeanVMCircuits.Rec.cvWords_digest
+#print axioms LeanVMCircuits.Rec.comp_row
+#print axioms LeanVMCircuits.Rec.flush_rows
+#print axioms LeanVMCircuits.Rec.absorbWord_rows
+#print axioms LeanVMCircuits.Rec.squeezeWord_rows
+#print axioms LeanVMCircuits.Rec.flush_inv
+#print axioms LeanVMCircuits.Rec.step_rows
+#print axioms LeanVMCircuits.Rec.run_rows
+#print axioms LeanVMCircuits.Rec.seed_row
+#print axioms LeanVMCircuits.Rec.new_inv
+#print axioms LeanVMCircuits.Rec.commit_rows
+#print axioms LeanVMCircuits.Rec.low_bits_row
+#print axioms LeanVMCircuits.Rec.pow_rows
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -166,7 +181,21 @@ run_cmd do
     ``LeanVMCircuits.Rec.tree_root,
     ``LeanVMCircuits.Rec.msg_block,
     ``LeanVMCircuits.Rec.chain_rows,
-    ``LeanVMCircuits.Rec.statement_digest] do
+    ``LeanVMCircuits.Rec.statement_digest,
+    ``LeanVMCircuits.Rec.digest_cvWords,
+    ``LeanVMCircuits.Rec.cvWords_digest,
+    ``LeanVMCircuits.Rec.comp_row,
+    ``LeanVMCircuits.Rec.flush_rows,
+    ``LeanVMCircuits.Rec.absorbWord_rows,
+    ``LeanVMCircuits.Rec.squeezeWord_rows,
+    ``LeanVMCircuits.Rec.flush_inv,
+    ``LeanVMCircuits.Rec.step_rows,
+    ``LeanVMCircuits.Rec.run_rows,
+    ``LeanVMCircuits.Rec.seed_row,
+    ``LeanVMCircuits.Rec.new_inv,
+    ``LeanVMCircuits.Rec.commit_rows,
+    ``LeanVMCircuits.Rec.low_bits_row,
+    ``LeanVMCircuits.Rec.pow_rows] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
