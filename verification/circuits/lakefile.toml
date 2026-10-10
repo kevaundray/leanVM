@@ -9,3 +9,7 @@ rev = "b449bf590f93e13827c3c7e747e392d6969aa380"
 
 [[lean_lib]]
 name = "LeanVMCircuits"
+
+[[lean_exe]]
+name = "checkrec"
+root = "CheckRec"

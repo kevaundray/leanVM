@@ -438,6 +438,20 @@ impl<'p> Tree<'p> {
         &self.circuits[kind as usize]
     }
 
+    /// The circuit of a proof of this kind as `CheckRec` reads it: the builder calls that make it, one per line, then `circuit` and the circuit's dump.
+    ///
+    /// # Panics
+    ///
+    /// Panics if building the circuit again gives another circuit.
+    #[cfg(feature = "circuit-trace")]
+    pub fn circuit_dump(&self, kind: Kind) -> String {
+        let (finished, calls) = crate::rec::circuit::traced(|| self.design.shape(kind));
+        let mut circuit = finished.circuit;
+        circuit.floor = self.circuit(kind).floor;
+        assert_eq!(&circuit, self.circuit(kind), "a circuit is built the same every time");
+        calls + "circuit\n" + &circuit.dump()
+    }
+
     /// Prove a first-level node over its leaves, each a RISC-V proof and its output, in order.
     ///
     /// # Errors
