@@ -23,7 +23,7 @@ use std::num::NonZeroUsize;
 use std::time::Instant;
 
 use bench::{Metric, Plan, Timing, bencher_json};
-use fiat_shamir::transcript::{ProofTranscript, ProverState, Receiver, VerifierState};
+use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
 use flock::Witness;
 use flock::circuit::Circuit;
 use flock::reduction::{self, Instance};
