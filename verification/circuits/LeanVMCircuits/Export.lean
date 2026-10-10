@@ -41,15 +41,17 @@ def inputs (n : ℕ) : Var (WrappingAdder.Input (n + 1)) Bit :=
 
 def source (n : ℕ) := (WrappingAdder.circuit n).toSubcircuit (2 * (n + 1)) (inputs n)
 
-def lowerCircuit (n : ℕ) : Except String Artifact :=
-  match flatten 128 (source n).ops with
+def lowerAt (nested : NestedOperations Bit) (output : List (Expression Bit)) : Except String Artifact :=
+  match flatten 128 nested with
   | .error message => .error message
   | .ok operations =>
-    match lower operations,
-        lowerOutputs ((WrappingAdder.circuit n).output (inputs n) (2 * (n + 1))).toList with
+    match lower operations, lowerOutputs output with
     | .ok rows, .ok outputs => .ok { rows, outputs }
     | .error message, _ => .error message
     | _, .error message => .error message
+
+def lowerCircuit (n : ℕ) : Except String Artifact :=
+  lowerAt (source n).ops ((WrappingAdder.circuit n).output (inputs n) (2 * (n + 1))).toList
 
 def checked {α : Type} (result : Except String α) (h : result.isOk = true) : α :=
   match result with
@@ -72,6 +74,27 @@ theorem adder64_source : lowerCircuit 63 = .ok adder64 := checked_eq _ _
 def Artifact.value (artifact : Artifact) (assignment : ℕ → Bit) : ℕ :=
   artifact.outputs.foldr (fun wire acc => (wire.eval assignment).val + 2 * acc) 0
 
+theorem lowerAt_correct (nested : NestedOperations Bit) (output : List (Expression Bit))
+    (artifact : Artifact) (hcode : lowerAt nested output = .ok artifact) (env : Environment Bit) :
+    (artifact.rows.Forall (Row.Holds env.get) ↔ ConstraintsHoldFlat env nested.toFlat) ∧
+      FlatOperation.Guarantees env nested.toFlat ∧
+      artifact.outputs.map (Affine.eval env.get) = output.map (Expression.eval env) := by
+  cases hf : flatten 128 nested with
+  | error message => simp [lowerAt, hf] at hcode
+  | ok operations =>
+    cases hr : lower operations with
+    | error message => simp [lowerAt, hf, hr] at hcode
+    | ok rows =>
+      cases ho : lowerOutputs output with
+      | error message => simp [lowerAt, hf, hr, ho] at hcode
+      | ok outputs =>
+        simp [lowerAt, hf, hr, ho] at hcode
+        subst artifact
+        rw [← flatten_correct _ _ _ hf]
+        refine ⟨lower_correct operations rows hr env, ?_, lowerOutputs_correct _ _ ho env⟩
+        rw [FlatOperation.guarantees_iff_forall_mem, lower_no_interactions _ _ hr]
+        simp
+
 /-- Successful export preserves arbitrary-witness soundness of the exact Clean source. -/
 theorem exported_soundness (n : ℕ) (artifact : Artifact)
     (hcode : lowerCircuit n = .ok artifact) (env : Environment Bit)
@@ -79,29 +102,13 @@ theorem exported_soundness (n : ℕ) (artifact : Artifact)
     artifact.value env.get =
       (Adder.value ((inputs n).x.map (Expression.eval env)) +
         Adder.value ((inputs n).y.map (Expression.eval env))) % 2 ^ (n + 1) := by
-  cases hf : flatten 128 (source n).ops with
-  | error message => simp [lowerCircuit, hf] at hcode
-  | ok operations =>
-    cases hr : lower operations with
-    | error message => simp [lowerCircuit, hf, hr] at hcode
-    | ok rows =>
-      cases ho : lowerOutputs ((WrappingAdder.circuit n).output (inputs n) (2 * (n + 1))).toList with
-      | error message => simp [lowerCircuit, hf, hr, ho] at hcode
-      | ok outputs =>
-        simp [lowerCircuit, hf, hr, ho] at hcode
-        subst artifact
-        have hflat := (lower_correct operations rows hr env).mp hrows
-        have hguarantees : FlatOperation.Guarantees env operations := by
-          rw [FlatOperation.guarantees_iff_forall_mem, lower_no_interactions _ _ hr]
-          simp
-        rw [flatten_correct _ _ _ hf] at hflat hguarantees
-        have hspec := ((source n).soundness env (by change True; trivial) hflat hguarantees).1
-        change WrappingAdder.Spec n (eval env (inputs n))
-          (eval env ((WrappingAdder.circuit n).output (inputs n) (2 * (n + 1)))) at hspec
-        have hout := lowerOutputs_correct _ _ ho env
-        dsimp [Artifact.value, WrappingAdder.Spec, Adder.value] at hspec ⊢
-        rw [← List.foldr_map (f := Affine.eval env.get) (g := fun b acc => b.val + 2 * acc), hout]
-        simpa only [inputs, circuit_norm, Vector.toList_map] using hspec
+  have h := lowerAt_correct _ _ artifact hcode env
+  have hspec := ((source n).soundness env (by change True; trivial) (h.1.mp hrows) h.2.1).1
+  change WrappingAdder.Spec n (eval env (inputs n))
+    (eval env ((WrappingAdder.circuit n).output (inputs n) (2 * (n + 1)))) at hspec
+  dsimp [Artifact.value, WrappingAdder.Spec, Adder.value] at hspec ⊢
+  rw [← List.foldr_map (f := Affine.eval env.get) (g := fun b acc => b.val + 2 * acc), h.2.2]
+  simpa only [inputs, circuit_norm, Vector.toList_map] using hspec
 
 theorem adder64_soundness (env : Environment Bit)
     (hrows : adder64.rows.Forall (Row.Holds env.get)) :

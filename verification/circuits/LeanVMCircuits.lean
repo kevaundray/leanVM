@@ -1,3 +1,3 @@
 module
 
-public import LeanVMCircuits.Completeness
+public import LeanVMCircuits.AdderFamily

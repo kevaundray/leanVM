@@ -178,7 +178,7 @@ impl ClassCircuit for Alu {
         // It borrows exactly when that sum does not carry out.
         let sub = flag(Self::SUB);
         let b_or_not = b.map(|bit| c.xor(bit, sub));
-        let (sum, carry_out) = c.add_with_carry(&v1, &b_or_not, sub);
+        let (sum, carry_out) = flock::clean::add_with_carry64(&mut c, &v1, &b_or_not, sub);
 
         // The comparisons, from the borrow and the signs.
         //

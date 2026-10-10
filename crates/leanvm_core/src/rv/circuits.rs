@@ -34,14 +34,8 @@ pub(super) trait WordGadgets {
     /// Whether any bit of `x` is set; one product per OR.
     fn any(&mut self, x: &[Wire]) -> Wire;
 
-    /// `x + y + carry_in`, and the carry out of the top bit; one product per bit.
-    fn add_with_carry<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N], carry_in: Wire) -> ([Wire; N], Wire);
-
-    /// `x + y` modulo `2^32`; one product per bit but the top.
-    fn add_wrapping32(&mut self, x: &[Wire; 32], y: &[Wire; 32]) -> [Wire; 32];
-
     /// `-x` if `negative`, else `x`; one product per bit.
-    fn negate_if<const N: usize>(&mut self, negative: Wire, x: &[Wire; N]) -> [Wire; N];
+    fn negate_if(&mut self, negative: Wire, x: &[Wire; 64]) -> [Wire; 64];
 
     /// `x`, bits 32 to 63 replaced by bit 31 when `word` is set; one product per high bit.
     fn sext32_if(&mut self, word: Wire, x: &[Wire; 64]) -> [Wire; 64];
@@ -81,43 +75,10 @@ impl WordGadgets for Builder {
         x.iter().fold(Wire::ZERO, |acc, &bit| self.or(acc, bit))
     }
 
-    fn add_with_carry<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N], carry_in: Wire) -> ([Wire; N], Wire) {
-        let mut carry = carry_in;
-        let sum = std::array::from_fn(|i| {
-            // The sum bit is x ^ y ^ c.
-            let xc = self.xor(x[i], carry);
-            let yc = self.xor(y[i], carry);
-            let sum = self.xor(xc, y[i]);
-
-            // The carry out is maj(x, y, c) = ((x ^ c)(y ^ c)) ^ c.
-            let maj = self.and(xc, yc);
-            carry = self.xor(maj, carry);
-            sum
-        });
-        (sum, carry)
-    }
-
-    fn add_wrapping32(&mut self, x: &[Wire; 32], y: &[Wire; 32]) -> [Wire; 32] {
-        let mut carry = Wire::ZERO;
-        std::array::from_fn(|i| {
-            // The sum bit is x ^ y ^ c.
-            let xc = self.xor(x[i], carry);
-            let yc = self.xor(y[i], carry);
-            let sum = self.xor(xc, y[i]);
-
-            // The carry out of the top bit falls off the modulus, so it is never made.
-            if i + 1 < 32 {
-                let maj = self.and(xc, yc);
-                carry = self.xor(maj, carry);
-            }
-            sum
-        })
-    }
-
-    fn negate_if<const N: usize>(&mut self, negative: Wire, x: &[Wire; N]) -> [Wire; N] {
+    fn negate_if(&mut self, negative: Wire, x: &[Wire; 64]) -> [Wire; 64] {
         // Two's complement: (x ^ negative) + negative.
         let flipped = x.map(|bit| self.xor(bit, negative));
-        self.add_with_carry(&flipped, &[Wire::ZERO; N], negative).0
+        flock::clean::add_with_carry64(self, &flipped, &[Wire::ZERO; 64], negative).0
     }
 
     fn sext32_if(&mut self, word: Wire, x: &[Wire; 64]) -> [Wire; 64] {
