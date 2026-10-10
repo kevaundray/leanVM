@@ -67,7 +67,7 @@ impl Layout {
         rate: Rate,
     ) -> Result<DeferredClaims<V::E>, CpuError> {
         let commitment = Commitment::read(v, self.shape, rate)?;
-        self.verify_committed(v, commitment, clock, output)
+        self.verify_committed(v, &commitment, clock, output)
     }
 
     /// The verifier's core past the commitment's root: the bus and the tables, the flock reductions and the opening.
@@ -80,7 +80,7 @@ impl Layout {
     pub(crate) fn verify_committed<V: OpeningVerifier + PublicColumns>(
         &self,
         v: &mut V,
-        commitment: Commitment<V::Root>,
+        commitment: &Commitment<V::Root>,
         clock: V::E,
         output: &[V::E; 4],
     ) -> Result<DeferredClaims<V::E>, CpuError> {

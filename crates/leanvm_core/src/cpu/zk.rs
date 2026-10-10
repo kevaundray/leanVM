@@ -175,7 +175,7 @@ where
         clock = rec.mul_const_add(b, F192::from(F64(1 << bit)), clock);
     }
     let output = output.words().map(|o| Sym::Pub(F192::from(F64(o))));
-    let claims = layout.verify_committed(rec, commitment, clock, &output)?;
+    let claims = layout.verify_committed(rec, &commitment, clock, &output)?;
     program.check_deferred_hidden(rec, &claims)?;
     Ok((key_root, rate))
 }
