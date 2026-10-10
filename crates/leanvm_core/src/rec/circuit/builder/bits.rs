@@ -2,17 +2,18 @@
 
 use super::Builder;
 use crate::rec::circuit::{Dw, Ew, Kw, Limbs};
+use crate::rec::clean::{
+    CAST_DIGEST as DIGEST, CAST_ELEMENT as ELEMENT, CAST_HALVES as HALVES, CAST_WORDS as WORDS, SPLIT_BITS, SPLIT_WORD,
+};
 use crate::rec::table::Table;
-
-/// A cast row's slots: the digest, the element of its first three words, its two halves, its four words.
-const DIGEST: usize = 0;
-const ELEMENT: usize = 1;
-const HALVES: usize = 2;
-const WORDS: usize = 4;
 
 impl Builder {
     fn split_row(&mut self, word: Kw, bits: &[Kw; 64]) {
-        let slots: [u32; 65] = std::array::from_fn(|i| if i == 0 { word.0 } else { bits[i - 1].0 });
+        let mut slots = [0; 65];
+        slots[SPLIT_WORD] = word.0;
+        for (slot, bit) in slots[SPLIT_BITS..].iter_mut().zip(bits) {
+            *slot = bit.0;
+        }
         self.row(Table::Split, &slots);
     }
 
@@ -41,16 +42,14 @@ impl Builder {
 
     /// A cast row over the words `v`: the given `(slot, wire)` pairs, fresh wires in the other slots.
     fn cast_row(&mut self, given: &[(usize, u32)], v: Limbs) -> [u32; 8] {
-        let values: [Limbs; 8] = [
-            v,
-            [v[0], v[1], v[2], 0],
-            [v[0], v[1], 0, 0],
-            [v[2], v[3], 0, 0],
-            [v[0], 0, 0, 0],
-            [v[1], 0, 0, 0],
-            [v[2], 0, 0, 0],
-            [v[3], 0, 0, 0],
-        ];
+        let mut values: [Limbs; 8] = [[0; 4]; 8];
+        values[DIGEST] = v;
+        values[ELEMENT] = [v[0], v[1], v[2], 0];
+        values[HALVES] = [v[0], v[1], 0, 0];
+        values[HALVES + 1] = [v[2], v[3], 0, 0];
+        for (i, &w) in v.iter().enumerate() {
+            values[WORDS + i] = [w, 0, 0, 0];
+        }
         let kinds = Table::Cast.slot_kinds();
         let wires: [u32; 8] = std::array::from_fn(|s| {
             (given.iter().find(|&&(at, _)| at == s)).map_or_else(|| self.wire(kinds[s], values[s]), |&(_, w)| w)

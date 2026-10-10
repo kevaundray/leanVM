@@ -8,6 +8,45 @@ use primitives::field::F64;
 /// `K` words, summing to zero.
 pub(crate) type Identity = (&'static [(usize, u64)], &'static [(usize, usize, u64)]);
 
+/// `EMUL`'s and `EXK`'s first factor.
+pub(crate) const ARITH_A: usize = 0;
+/// `EMUL`'s second factor, `EXK`'s `K` factor.
+pub(crate) const ARITH_B: usize = 1;
+/// `EMUL`'s and `EXK`'s addend.
+pub(crate) const ARITH_D: usize = 2;
+/// `EMUL`'s and `EXK`'s result.
+pub(crate) const ARITH_C: usize = 3;
+/// `HASH`'s chaining value.
+pub(crate) const HASH_H: usize = 0;
+/// `HASH`'s counter and finalization word.
+pub(crate) const HASH_TF: usize = 1;
+/// `HASH`'s mux (`Rec.node_row`).
+pub(crate) const HASH_MUX: usize = 2;
+/// `HASH`'s mux bit.
+pub(crate) const HASH_SEL: usize = 3;
+/// `HASH`'s message words four to six as an element.
+pub(crate) const HASH_X: usize = 4;
+/// `HASH`'s message word seven.
+pub(crate) const HASH_DS: usize = 5;
+/// `HASH`'s output.
+pub(crate) const HASH_OUT: usize = 6;
+/// `HASH`'s output's first three words as an element (`Rec.hash_outputs`).
+pub(crate) const HASH_CH: usize = 7;
+/// `HASH`'s first message word, the other seven after it.
+pub(crate) const HASH_M: usize = 8;
+/// `SPLIT`'s word.
+pub(crate) const SPLIT_WORD: usize = 0;
+/// `SPLIT`'s first bit, the other 63 after it.
+pub(crate) const SPLIT_BITS: usize = 1;
+/// `CAST`'s digest.
+pub(crate) const CAST_DIGEST: usize = 0;
+/// `CAST`'s element of the first three words.
+pub(crate) const CAST_ELEMENT: usize = 1;
+/// `CAST`'s low half, the high half after it.
+pub(crate) const CAST_HALVES: usize = 2;
+/// `CAST`'s first word, the other three after it.
+pub(crate) const CAST_WORDS: usize = 4;
+
 /// `EMUL`'s slot `s`: `a`, `b`, `d`, then `c = a·b + d` in `E` (`Rec.emul_spec`).
 pub(crate) fn emul(s: usize) -> Option<[Coord; 4]> {
     Some(match s {

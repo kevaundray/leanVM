@@ -84,6 +84,43 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.hash_outputs
 #print axioms LeanVMCircuits.Rec.node_row
 
+#print axioms LeanVMCircuits.Rec.words_ofFn
+#print axioms LeanVMCircuits.Rec.hash_ports_compress
+#print axioms LeanVMCircuits.Rec.hash_row_compress
+
+#print axioms LeanVMCircuits.Rec.half_digest
+#print axioms LeanVMCircuits.Rec.eq_digest
+#print axioms LeanVMCircuits.Rec.hWords_digest
+#print axioms LeanVMCircuits.Rec.hash_row_digest
+#print axioms LeanVMCircuits.Rec.blocksFrom_append
+#print axioms LeanVMCircuits.Rec.chain_digest
+#print axioms LeanVMCircuits.Rec.node_message
+#print axioms LeanVMCircuits.Rec.node_row_digest
+#print axioms LeanVMCircuits.Rec.path_root
+#print axioms LeanVMCircuits.Rec.opening_node
+#print axioms LeanVMCircuits.Rec.parent_row_digest
+#print axioms LeanVMCircuits.Rec.parent_right
+#print axioms LeanVMCircuits.Rec.tree_nodes
+#print axioms LeanVMCircuits.Rec.tree_root
+#print axioms LeanVMCircuits.Rec.msg_block
+#print axioms LeanVMCircuits.Rec.chain_rows
+#print axioms LeanVMCircuits.Rec.statement_digest
+
+#print axioms LeanVMCircuits.Rec.digest_cvWords
+#print axioms LeanVMCircuits.Rec.cvWords_digest
+#print axioms LeanVMCircuits.Rec.comp_row
+#print axioms LeanVMCircuits.Rec.flush_rows
+#print axioms LeanVMCircuits.Rec.absorbWord_rows
+#print axioms LeanVMCircuits.Rec.squeezeWord_rows
+#print axioms LeanVMCircuits.Rec.flush_inv
+#print axioms LeanVMCircuits.Rec.step_rows
+#print axioms LeanVMCircuits.Rec.run_rows
+#print axioms LeanVMCircuits.Rec.seed_row
+#print axioms LeanVMCircuits.Rec.new_inv
+#print axioms LeanVMCircuits.Rec.commit_rows
+#print axioms LeanVMCircuits.Rec.low_bits_row
+#print axioms LeanVMCircuits.Rec.pow_rows
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -125,7 +162,40 @@ run_cmd do
     ``LeanVMCircuits.Rec.Identity.eval_expr, ``LeanVMCircuits.Rec.identities,
     ``LeanVMCircuits.Rec.inverse_row, ``LeanVMCircuits.Rec.add_row,
     ``LeanVMCircuits.Rec.pack_row, ``LeanVMCircuits.Rec.cast_views,
-    ``LeanVMCircuits.Rec.hash_outputs, ``LeanVMCircuits.Rec.node_row] do
+    ``LeanVMCircuits.Rec.hash_outputs, ``LeanVMCircuits.Rec.node_row,
+    ``LeanVMCircuits.Rec.words_ofFn, ``LeanVMCircuits.Rec.hash_ports_compress,
+    ``LeanVMCircuits.Rec.hash_row_compress,
+    ``LeanVMCircuits.Rec.half_digest,
+    ``LeanVMCircuits.Rec.eq_digest,
+    ``LeanVMCircuits.Rec.hWords_digest,
+    ``LeanVMCircuits.Rec.hash_row_digest,
+    ``LeanVMCircuits.Rec.blocksFrom_append,
+    ``LeanVMCircuits.Rec.chain_digest,
+    ``LeanVMCircuits.Rec.node_message,
+    ``LeanVMCircuits.Rec.node_row_digest,
+    ``LeanVMCircuits.Rec.path_root,
+    ``LeanVMCircuits.Rec.opening_node,
+    ``LeanVMCircuits.Rec.parent_row_digest,
+    ``LeanVMCircuits.Rec.parent_right,
+    ``LeanVMCircuits.Rec.tree_nodes,
+    ``LeanVMCircuits.Rec.tree_root,
+    ``LeanVMCircuits.Rec.msg_block,
+    ``LeanVMCircuits.Rec.chain_rows,
+    ``LeanVMCircuits.Rec.statement_digest,
+    ``LeanVMCircuits.Rec.digest_cvWords,
+    ``LeanVMCircuits.Rec.cvWords_digest,
+    ``LeanVMCircuits.Rec.comp_row,
+    ``LeanVMCircuits.Rec.flush_rows,
+    ``LeanVMCircuits.Rec.absorbWord_rows,
+    ``LeanVMCircuits.Rec.squeezeWord_rows,
+    ``LeanVMCircuits.Rec.flush_inv,
+    ``LeanVMCircuits.Rec.step_rows,
+    ``LeanVMCircuits.Rec.run_rows,
+    ``LeanVMCircuits.Rec.seed_row,
+    ``LeanVMCircuits.Rec.new_inv,
+    ``LeanVMCircuits.Rec.commit_rows,
+    ``LeanVMCircuits.Rec.low_bits_row,
+    ``LeanVMCircuits.Rec.pow_rows] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do

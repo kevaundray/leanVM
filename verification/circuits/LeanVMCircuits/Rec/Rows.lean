@@ -24,10 +24,12 @@ theorem slotE_limbs (table : List (List Form)) (s : ℕ) (row : ℕ → K) :
 
 /-- `inv`: an `EMUL` row `a · i + 0` whose result is held to the constant one makes `i` the inverse of `a`, the
 only one. -/
-theorem inverse_row (row : ℕ → K) (hd : limbs emul 2 row 0 = 0 ∧ limbs emul 2 row 1 = 0 ∧ limbs emul 2 row 2 = 0)
-    (hc : limbs emul 3 row 0 = 1 ∧ limbs emul 3 row 1 = 0 ∧ limbs emul 3 row 2 = 0) :
-    slotE row (emul.getD 0 []) * slotE row (emul.getD 1 []) = 1 ∧
-      ∀ j : E, slotE row (emul.getD 0 []) * j = 1 → j = slotE row (emul.getD 1 []) := by
+theorem inverse_row (row : ℕ → K)
+    (hd : limbs emul arithD row 0 = 0 ∧ limbs emul arithD row 1 = 0 ∧ limbs emul arithD row 2 = 0)
+    (hc : limbs emul arithC row 0 = 1 ∧ limbs emul arithC row 1 = 0 ∧ limbs emul arithC row 2 = 0) :
+    slotE row (emul.getD arithA []) * slotE row (emul.getD arithB []) = 1 ∧
+      ∀ j : E, slotE row (emul.getD arithA []) * j = 1 → j = slotE row (emul.getD arithB []) := by
+  simp only [arithA, arithB, arithC, arithD] at hd hc ⊢
   have hspec := (emul_spec row).1
   have hd0 : slotE row (emul.getD 2 []) = 0 := by
     rw [slotE_limbs, hd.1, hd.2.1, hd.2.2]; simp [toE, emb_zero]
@@ -41,8 +43,10 @@ theorem inverse_row (row : ℕ → K) (hd : limbs emul 2 row 0 = 0 ∧ limbs emu
     _ = slotE row (emul.getD 1 []) := by rw [mul_assoc, hj, mul_one]
 
 /-- `add`: an `EMUL` row whose second factor is held to one sums the other two slots. -/
-theorem add_row (row : ℕ → K) (hb : limbs emul 1 row 0 = 1 ∧ limbs emul 1 row 1 = 0 ∧ limbs emul 1 row 2 = 0) :
-    slotE row (emul.getD 3 []) = slotE row (emul.getD 0 []) + slotE row (emul.getD 2 []) := by
+theorem add_row (row : ℕ → K)
+    (hb : limbs emul arithB row 0 = 1 ∧ limbs emul arithB row 1 = 0 ∧ limbs emul arithB row 2 = 0) :
+    slotE row (emul.getD arithC []) = slotE row (emul.getD arithA []) + slotE row (emul.getD arithD []) := by
+  simp only [arithA, arithB, arithC, arithD] at hb ⊢
   have hspec := (emul_spec row).1
   have hb1 : slotE row (emul.getD 1 []) = 1 := by
     rw [slotE_limbs, hb.1, hb.2.1, hb.2.2]; simp [toE, emb, map_one]
@@ -67,30 +71,30 @@ theorem pack_row (row : ℕ → K) (hid : ∀ id ∈ splitIdentities, id.eval ro
 /-- The `CAST` row's views: one digest is the `E` element of its first three words, two 128-bit halves with a zero
 top limb, and four words. -/
 theorem cast_views (row : ℕ → K) :
-    (∀ i : Fin 4, limbs cast 0 row i = row i) ∧
-      (∀ i : Fin 3, limbs cast 1 row i = row i) ∧ limbs cast 1 row 3 = 0 ∧
-      (limbs cast 2 row 0 = row 0 ∧ limbs cast 2 row 1 = row 1 ∧ limbs cast 2 row 2 = 0 ∧ limbs cast 2 row 3 = 0) ∧
-      (limbs cast 3 row 0 = row 2 ∧ limbs cast 3 row 1 = row 3 ∧ limbs cast 3 row 2 = 0 ∧ limbs cast 3 row 3 = 0) ∧
-      ∀ w : Fin 4, limbs cast (4 + w) row 0 = row w := by
+    (∀ i : Fin 4, limbs cast castDigest row i = row i) ∧
+      (∀ i : Fin 3, limbs cast castElement row i = row i) ∧ limbs cast castElement row 3 = 0 ∧
+      (limbs cast castHalves row 0 = row 0 ∧ limbs cast castHalves row 1 = row 1 ∧ limbs cast castHalves row 2 = 0 ∧ limbs cast castHalves row 3 = 0) ∧
+      (limbs cast (castHalves + 1) row 0 = row 2 ∧ limbs cast (castHalves + 1) row 1 = row 3 ∧ limbs cast (castHalves + 1) row 2 = 0 ∧ limbs cast (castHalves + 1) row 3 = 0) ∧
+      ∀ w : Fin 4, limbs cast (castWords + w) row 0 = row w := by
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals first
     | (intro i; fin_cases i <;> rfl)
-    | (simp [limbs, cast, dSlot, eSlot, kSlot, Form.eval, Form.zero, ofWord_zero])
+    | (simp [castElement, castHalves, limbs, cast, dSlot, eSlot, kSlot, Form.eval, Form.zero, ofWord_zero])
 
 /-- A hash row's challenge is the `E` element of its output's first three words, and its output slot the digest of
 its four output words. -/
 theorem hash_outputs (row : ℕ → K) :
-    (∀ i : Fin 4, limbs hash 6 row i = row (hashO + i)) ∧ (∀ i : Fin 3, limbs hash 7 row i = row (hashO + i)) ∧
-      limbs hash 7 row 3 = 0 := by
+    (∀ i : Fin 4, limbs hash hashSlotOut row i = row (hashO + i)) ∧ (∀ i : Fin 3, limbs hash hashSlotCh row i = row (hashO + i)) ∧
+      limbs hash hashSlotCh row 3 = 0 := by
   refine ⟨?_, ?_, ?_⟩
   all_goals first
     | (intro i; fin_cases i <;> rfl)
-    | (simp [limbs, hash, dSlot, eSlot, Form.eval, Form.zero, ofWord_zero])
+    | (simp [hashSlotCh, limbs, hash, dSlot, eSlot, Form.eval, Form.zero, ofWord_zero])
 
 /-- `node`: when a hash row's mux slot is held to the digest `acc`, `acc` is the message's first half at bit 0 and
 its second half at bit 1. -/
 theorem node_row (row : ℕ → K) (hid : ∀ id ∈ hashIdentities, id.eval row = 0) (acc : Fin 4 → K)
-    (hmux : ∀ i : Fin 4, limbs hash 2 row i = acc i) :
+    (hmux : ∀ i : Fin 4, limbs hash hashSlotMux row i = acc i) :
     (row hashSel = 0 ∧ ∀ i : Fin 4, row (hashM + i) = acc i) ∨
       (row hashSel = 1 ∧ ∀ i : Fin 4, row (hashM + 4 + i) = acc i) := by
   have hb := (hash_mux row hid 0 (by norm_num)).2

@@ -243,6 +243,36 @@ def cast : List (List Form) :=
   [dSlot 0, eSlot 0, [.col 0, .col 1, .zero, .zero], [.col 2, .col 3, .zero, .zero], kSlot 0, kSlot 1, kSlot 2,
     kSlot 3]
 
+/-! Slot indices: where the builder places each wire of a row, printed into Rust as the indices it writes. -/
+
+/-- `EMUL`'s and `EXK`'s slots: `a`, then `b` (`k`), then `d`, then `c = a·b + d`. -/
+def arithA : ℕ := 0
+def arithB : ℕ := 1
+def arithD : ℕ := 2
+def arithC : ℕ := 3
+
+/-- `HASH`'s slots: chaining value, counter and finalization, mux, mux bit, `x`, `ds`, output, challenge, then the
+eight message words. -/
+def hashSlotH : ℕ := 0
+def hashSlotTF : ℕ := 1
+def hashSlotMux : ℕ := 2
+def hashSlotSel : ℕ := 3
+def hashSlotX : ℕ := 4
+def hashSlotDs : ℕ := 5
+def hashSlotOut : ℕ := 6
+def hashSlotCh : ℕ := 7
+def hashSlotM : ℕ := 8
+
+/-- `SPLIT`'s slots: the word, then its 64 bits. -/
+def splitSlotWord : ℕ := 0
+def splitSlotBits : ℕ := 1
+
+/-- `CAST`'s slots: the digest, the element, the two halves, then the four words. -/
+def castDigest : ℕ := 0
+def castElement : ℕ := 1
+def castHalves : ℕ := 2
+def castWords : ℕ := 4
+
 /-! The identities as a Clean assertion over a row. -/
 
 /-- The identity as a Clean expression of the row's column variables. -/
