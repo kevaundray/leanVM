@@ -226,32 +226,32 @@ The attacker supplies only input bytes/proofs; the trusted native verifier runs
 once. Its accepted false fixed-list claim forces either the public ROM failure
 or an explicitly witnessed ordinary Merkle failure on the same full-C trace. -/
 theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistry) (Q cap : Nat)
-    (C : PrimitiveOracle) (attacker : WHIRSourceChronology.Source cap (WHIRPhysicalDriver.Input registry.context Q))
-    (counted : WHIRSourceChronology.Counts Q (WHIRPhysicalDriver.verifyAfter cap registry Q attacker))
+    (C : PrimitiveOracle) (attacker : WHIRSourceChronology.Source cap (WHIRPhysicalDriver.Unanchored.Input registry.context Q))
+    (counted : WHIRSourceChronology.Counts Q (WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker))
     (whole : Counts Q (WHIRSourceBackfill.instrument registry.context Q
-      (WHIRPhysicalDriver.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.select))
+      (WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.Unanchored.select))
     (failed : WHIRNativeEvent.Failure registry Q
       (runReal C registry.iv (WHIRSourceBackfill.instrument registry.context Q
-        (WHIRPhysicalDriver.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.select)).view.result) :
-    WHIRObservableSource.Failure registry.publicRegistry Q WHIRPhysicalDriver.select
+        (WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.Unanchored.select)).view.result) :
+    WHIRObservableSource.Failure registry.publicRegistry Q WHIRPhysicalDriver.Unanchored.select
       (runReal C registry.iv (WHIRSourceBackfill.instrument registry.context Q
-        (WHIRPhysicalDriver.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.select)).view.result ∨
+        (WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.Unanchored.select)).view.result ∨
     PublicMerkleProbability.FrozenOpeningBad C
-      (WHIRSourceRootPolicy.policy registry.publicRegistry Q WHIRPhysicalDriver.select
-        (WHIRPhysicalDriver.verifyAfter cap registry Q attacker))
+      (WHIRSourceRootPolicy.policy registry.publicRegistry Q WHIRPhysicalDriver.Unanchored.select
+        (WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker))
       (PublicCompressionProgram.primitiveLog C registry.iv (WHIRSourceBackfill.instrument registry.context Q
-        (WHIRPhysicalDriver.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.select) Q whole) := by
-  let source := WHIRPhysicalDriver.verifyAfter cap registry Q attacker
+        (WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker) WHIRPhysicalDriver.Unanchored.select) Q whole) := by
+  let source := WHIRPhysicalDriver.Unanchored.verifyAfter cap registry Q attacker
   let state := WHIRSourceFrozenPrefix.replayState registry.publicRegistry Q C source counted
-    (WHIRSourceFrozenPrefix.allocationTrace registry.publicRegistry Q WHIRPhysicalDriver.select C source)
+    (WHIRSourceFrozenPrefix.allocationTrace registry.publicRegistry Q WHIRPhysicalDriver.Unanchored.select C source)
   have sourceResultEq := congrArg (fun output : WHIRNativeEvent.Output registry Q cap => output.result)
-    (WHIRSourceBackfill.real_result registry.context Q C source WHIRPhysicalDriver.select)
-  have observedEq := real_observation registry.publicRegistry Q C source counted WHIRPhysicalDriver.select whole
+    (WHIRSourceBackfill.real_result registry.context Q C source WHIRPhysicalDriver.Unanchored.select)
+  have observedEq := real_observation registry.publicRegistry Q C source counted WHIRPhysicalDriver.Unanchored.select whole
   obtain ⟨observed,seen,wrong⟩ := failed
   have same := Option.some.inj (seen.symm.trans observedEq)
   subst observed
   erw [real_observation_state,sourceResultEq] at wrong
-  change WHIRPhysicalDriver.nativeWrong state
+  change WHIRPhysicalDriver.Unanchored.nativeWrong state
     (runReal C registry.iv (WHIRSourceChronology.compile source)).view.result.value at wrong
   cases returned : (runReal C registry.iv (WHIRSourceChronology.compile source)).view.result.value with
   | none =>
@@ -260,7 +260,7 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
   | some accepted =>
     rw [returned] at wrong
     obtain ⟨input,v,chosen,nativeReturned,acceptedEq,events⟩ :=
-      WHIRPhysicalDriver.real_native_segment C registry.iv cap registry Q attacker accepted returned
+      WHIRPhysicalDriver.Unanchored.real_native_segment C registry.iv cap registry Q attacker accepted returned
     cases acceptedEq
     let nativeSource := verifySource cap (registry.packetModel Q input.packet) registry.context rfl Q
       (registry.packetLanes Q input.packet) input.packet input.proofs
@@ -281,8 +281,8 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
       rw [← chosen] at prefixRun
       apply (WHIRSourceChronology.Source.map_counted nativeSource _ Q).mp
       exact WHIRSourceChronology.Source.bind_suffix_counted attacker
-        (WHIRPhysicalDriver.verifier cap registry Q) Q _ input prefixRun counted
-    have selected : WHIRPhysicalDriver.select
+        (WHIRPhysicalDriver.Unanchored.verifier cap registry Q) Q _ input prefixRun counted
+    have selected : WHIRPhysicalDriver.Unanchored.select
         (runReal C registry.iv (WHIRSourceChronology.compile source)).view.result.value = some input.packet := by
       rw [returned]
       rfl
@@ -296,13 +296,13 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
       simpa only [WHIRPhysicalDriver.ProductionRegistry.packetLanes,registry.packetModel_layout,
         WHIRRawReplay.callerEntry] using decoded
     have captured := WHIRSourceCatalog.final_catalog_real registry.publicRegistry Q cap C source counted
-      input.packet WHIRPhysicalDriver.select selected nativeSource nativeCounted before after callerTrace queries
+      input.packet WHIRPhysicalDriver.Unanchored.select selected nativeSource nativeCounted before after callerTrace queries
       v.request registeredDecode
     have prepared := WHIRSourceCatalog.final_prepared_real registry.publicRegistry Q cap C source counted
-      input.packet WHIRPhysicalDriver.select selected []
+      input.packet WHIRPhysicalDriver.Unanchored.select selected []
     obtain ⟨past,cursor,_⟩ := WHIRSourceFrozenPrefix.allocation_prefix_cursor registry.publicRegistry Q
-      WHIRPhysicalDriver.select C source counted
-      (WHIRSourceFrozenPrefix.allocationTrace registry.publicRegistry Q WHIRPhysicalDriver.select C source) []
+      WHIRPhysicalDriver.Unanchored.select C source counted
+      (WHIRSourceFrozenPrefix.allocationTrace registry.publicRegistry Q WHIRPhysicalDriver.Unanchored.select C source) []
       (by simp)
     have execution := verifySource_execution cap (registry.packetModel Q input.packet) registry.context rfl Q
       (registry.packetLanes Q input.packet) input.packet input.proofs nativeObs v nativeRun
@@ -319,7 +319,7 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
         state _ found bound wrong
       rw [verifySource_completed_history C cap (registry.packetModel Q input.packet) registry.context rfl Q
         (registry.packetLanes Q input.packet) input.packet input.proofs nativeObs v nativeAnswers nativeRun] at nativeFailed
-      apply real_mode_failure_public registry.publicRegistry Q C source counted WHIRPhysicalDriver.select whole
+      apply real_mode_failure_public registry.publicRegistry Q C source counted WHIRPhysicalDriver.Unanchored.select whole
       dsimp only
       erw [real_observation_state,selected]
       exact ⟨input.packet,rfl,nativeFailed⟩
@@ -328,7 +328,7 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
       obtain ⟨snapshot,known⟩ := trace_opening_registered input.packet v.request.root
         (completion_chain registry.context Q input.packet) execution.1 state captured.2 prepared opening member
       obtain ⟨_,newLog,before,after,_,newFrozen,freeze,prior,ordinary,registered,_⟩ :=
-        WHIRSourceFrozenPrefix.actual_backfill_retained registry.publicRegistry Q WHIRPhysicalDriver.select
+        WHIRSourceFrozenPrefix.actual_backfill_retained registry.publicRegistry Q WHIRPhysicalDriver.Unanchored.select
           C source counted Q whole opening.root snapshot known
       have logs : oldLog = newLog := Option.some.inj (frozen.symm.trans newFrozen)
       subst newLog
@@ -339,7 +339,7 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
         exact List.mem_append_right _ present
       have executed : ∀ n d, (⟨.primitive .verification n,d⟩ : Observation) ∈ nativeObs →
           (n,d) ∈ PublicCompressionProgram.primitiveLog C registry.iv
-            (WHIRSourceBackfill.instrument registry.context Q source WHIRPhysicalDriver.select) Q whole := by
+            (WHIRSourceBackfill.instrument registry.context Q source WHIRPhysicalDriver.Unanchored.select) Q whole := by
         intro n d present
         have expanded := WHIRSourceFrozenPrefix.primitive_expand C registry.iv
           (runReal C registry.iv (WHIRSourceChronology.compile source)).view.observations
@@ -348,7 +348,7 @@ theorem nativeFailure_or_frozen (registry : WHIRPhysicalDriver.ProductionRegistr
         rw [WHIRSourceFrozenPrefix.expand_real C registry.iv (WHIRSourceChronology.compile source) Q
           ((WHIRSourceChronology.compile_counted source Q).mpr counted)] at expanded
         obtain ⟨suffix,equal⟩ := WHIRSourceFrozenPrefix.backfill_prefix registry.publicRegistry Q
-          WHIRPhysicalDriver.select C source counted Q whole
+          WHIRPhysicalDriver.Unanchored.select C source counted Q whole
         erw [← equal]
         exact List.mem_append_left suffix expanded
       exact observed_frozen_bad (execution.2 opening member) C registry.iv nativeAnswers _ _ before after oldLog

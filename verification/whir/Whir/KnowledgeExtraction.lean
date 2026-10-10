@@ -1,17 +1,14 @@
 import Whir.InteractiveSoundness
 import Mathlib.LinearAlgebra.Lagrange
+import Whir.ConcreteRowExtraction
 
-/-! Knowledge games and the information required by record interpolation.
+/-! Knowledge games, actual unique-radius row decoding, and the information required by record interpolation.
 
-The rewind interface below counts black-box response calls exactly. Its fuel is
-an abstract interaction bound, NOT a proof of machine running time: Lean
-continuations, output construction, and the prover itself are not unit-cost.
-No knowledge-soundness theorem or efficient list decoder is asserted.
+The rewind interface counts black-box response calls exactly. Its fuel is an abstract interaction bound, not a proof of machine running time: Lean continuations, output construction, and the prover itself are not unit-cost. `ConcreteRowExtraction` supplies executable Gao decoding with a concrete dense-encoder correspondence. It requires a full received row inside the unique radius and does not establish that verifier acceptance supplies such a row. No knowledge-soundness theorem is asserted.
 
-The checked obstruction concerns *record-only* interpolation. The dense causal
-game exposes the entire root; a hashed commitment or an authenticated query log
-would need a separate reduction to this observation model. In particular these
-results do not assert impossibility of rewindable knowledge extraction. -/
+The extraction integration is split by access and algebra: `RewindRowExtraction` parses real fixed-public reset answers and composes the source decoder/counter; `PCSRewindExtraction` assembles the occupied witness and states the actual accepted-without-explaining-output cover. `RewindCoverage` proves stratified query-coordinate coverage, not availability of valid replies from an adversarial prover. `RewindTrajectory`, `RewindBatchTarget` and `RewindRadiusExtraction` track generic-E next-root candidates and the OOD-selected fixed projection target, with actual authentication and an explicit nonzero batching-collision event. `TraceBasisExtraction`, `ShoupTraceExtraction` and `PCSListExtraction` provide a non-enumerating source-extension list-decoder path. These pieces do not supply a Fiat–Shamir reset reduction, a common-lane reconstruction theorem for every accepted prefix, or a complete knowledge-error bound.
+
+The checked obstruction concerns record-only interpolation. The dense causal game exposes the entire root; a hashed commitment or an authenticated query log needs a separate access reduction. These results do not assert impossibility of rewindable knowledge extraction. -/
 namespace Whir.KnowledgeExtraction
 open Concrete Protocol CausalGame Polynomial
 open scoped BigOperators
@@ -83,21 +80,13 @@ theorem responseCalls_le (input : Public) (strategy : Strategy) (maxReplay fuel 
       · simp
 
 /-- Extraction randomness is independent of the verifier tape. Bounds count
-rewind rounds and replay messages; local runtime is a separate cost-model input,
-not a self-reported field that an extractor could set to zero. -/
+rewind rounds and replay messages; value-connected local arithmetic is measured
+separately by the concrete extractor instrumentation. -/
 structure Extractor (Seed : Type*) where
   program : (input : Public) → Seed → RewindProgram input.config input.lanes
   rewindRounds : Nat
   maxReplay : Nat
 
-/-- An externally supplied operational cost model. No theorem in this module
-certifies that this function measures the machine runtime of Lean code. That
-refinement is REQUIRED before interpreting `runtimeBound` as efficient time. -/
-abbrev LocalCostModel (Seed : Type*) := Extractor Seed → Public → Strategy → Seed → Nat
-
-def Extractor.WithinRuntime {Seed : Type*} (extractor : Extractor Seed)
-    (cost : LocalCostModel Seed) (runtimeBound : Nat) : Prop :=
-  ∀ input strategy seed, cost extractor input strategy seed ≤ runtimeBound
 
 def extractionSuccess {Seed : Type*} (extractor : Extractor Seed)
     (prover : CommittedProver) (seed : Seed) : Prop :=
@@ -113,14 +102,6 @@ noncomputable def knowledgeFailureProbability {Seed : Type*} [Fintype Seed] [Non
     experiment prover.input prover.respond sample.1 = true ∧
     ¬ extractionSuccess extractor prover sample.2)
 
-/-- Explicit finite-instance knowledge requirement. This definition does not
-assert a uniform polynomial-time family: that requires an implemented extractor
-and a justified machine-cost bound in addition to the response-call bound. -/
-def KnowledgeBound {Seed : Type*} [Fintype Seed] [Nonempty Seed]
-    (extractor : Extractor Seed) (cost : LocalCostModel Seed) (runtimeBound : Nat)
-    (error : Public → ℚ) : Prop :=
-  extractor.WithinRuntime cost runtimeBound ∧ ∀ prover,
-    knowledgeFailureProbability extractor prover ≤ error prover.input
 
 section Records
 variable {F I : Type*} [Field F] [CharP F 2]
@@ -320,5 +301,15 @@ theorem accepted_safe_explanation (p : ParameterBounds.Profile) (lanes : Nat)
   obtain ⟨q, bad⟩ := InteractiveSoundness.accepted_false_cover
     p lanes root claims strategy tape accepted noWitness
   exact safe q bad
+
+#print axioms responseCalls_le
+#print axioms records_determine_row
+#print axioms sparse_records_have_kernel
+#print axioms no_sparse_record_decoder
+#print axioms actual_records_determine_row
+#print axioms actual_sparse_rows
+#print axioms actual_no_sparse_decoder
+#print axioms production_no_sparse_decoder
+#print axioms accepted_safe_explanation
 
 end Whir.KnowledgeExtraction

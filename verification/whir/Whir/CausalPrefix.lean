@@ -192,7 +192,7 @@ theorem event_set_future (input : Public) (strategy : Strategy)
           omega)
       simp only [CausalBadEvents.Bad, kernels.1, kernels.2, draw]
 
-private theorem finite_pred_congr {I : Type*} [Fintype I] [DecidableEq I] {A : I → Type*}
+theorem finite_pred_congr {I : Type*} [Fintype I] [DecidableEq I] {A : I → Type*}
     (P : ((i : I) → A i) → Prop) (locked : I → Prop)
     (step : ∀ f i, ¬ locked i → ∀ x, P (Function.update f i x) ↔ P f)
     (f g : (i : I) → A i) (same : ∀ i, locked i → f i = g i) : P f ↔ P g := by

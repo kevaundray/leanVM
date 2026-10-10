@@ -1,6 +1,7 @@
 import Whir.Protocol
 import Whir.CausalGame
 import Whir.CommitmentAmbiguity
+import Whir.ConcreteRowExtraction
 
 open Whir.Concrete Whir.Protocol
 
@@ -64,6 +65,20 @@ def ambiguitySmoke : IO Unit := do
     "one branch of immutable spliced commitment rejected"
   IO.println "ambiguity_smoke=same_immutable_root,incompatible_claims,small_kernel_fixture,both_sessions_accepted"
 
+def extractionSmoke : IO Unit := do
+  let words : Array K := #[3, 5, 8, 13]
+  let honest := encode 2 2 (words.map E.ofK)
+  for errors in [0, 3, 6] do
+    let received : Vector E (Whir.ConcreteRowExtraction.domain 4 (by decide)).n :=
+      Vector.ofFn fun i =>
+        if i.val < errors then honest[i.val]! + E.ofK 1 else honest[i.val]!
+    let result := Whir.ConcreteRowExtraction.countedExtractRow 2 2 (by decide) received
+    requireIO (result.1 == some words) ("source-word Gao recovery failed with " ++ toString errors ++ " errors")
+    requireIO (result.2 ≤ Whir.ConcreteRowExtraction.rowArithmeticPolynomial 16)
+      "source-word decoder exceeded its proved field-arithmetic budget"
+    IO.println ("extraction_smoke=actual_word_encoder,N16,k4,errors" ++ toString errors ++
+      ",recovered3_5_8_13,field_arithmetic" ++ toString result.2)
+
 def vectors : IO Unit := do
   emitN "kmul" (tab 40 fun i => (kmul (seed i) (seed (i+41))).toNat)
   emitN "kinv" (tab 12 fun i => (kinv (seed i)).toNat)
@@ -113,5 +128,6 @@ def main (args : List String) : IO Unit := do
     | none => throw (IO.userError "malformed query challenge vector")
     | some qs => emitN "queries" qs
   | ["ambiguity"] => ambiguitySmoke
+  | ["extraction"] => extractionSmoke
   | [] => vectors; smoke
-  | _ => throw (IO.userError "usage: whirModel [ambiguity | query DEPTH COUNT LIMB ...]")
+  | _ => throw (IO.userError "usage: whirModel [ambiguity | extraction | query DEPTH COUNT LIMB ...]")

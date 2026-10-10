@@ -61,6 +61,9 @@ def ProductionRegistry.packetLanes (registry : ProductionRegistry) (Q : Nat)
     (packet : RawWHIRKeys.Packet registry.context Q) : Nat :=
   WHIRCallerClaims.callerLanes (registry.packetModel Q packet).layout
 
+/- Historical unanchored endpoint retained only for its underlying physical list-binding theorem chain. The 32c public endpoint is AnchoredSourcePacket.receiveAndVerify. -/
+namespace Unanchored
+
 /-- An attacker chooses transport bytes and opening proofs, not a verifier
 result or its acceptance evidence. -/
 structure Input (ctx : RawWHIRKeys.Context) (Q : Nat) where
@@ -218,5 +221,7 @@ theorem real_native_segment (C : PrimitiveOracle) (iv : Digest32) (cap : Nat)
   rw [value] at returned
   obtain ⟨verified,native,equal⟩ := Option.map_eq_some_iff.mp returned
   exact ⟨_,verified,rfl,native,equal.symm,congrArg Result.events whole⟩
+
+end Unanchored
 
 end Whir.WHIRPhysicalDriver

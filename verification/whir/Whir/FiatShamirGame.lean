@@ -468,9 +468,13 @@ theorem mode_transfer {Coins View : Type*} [Fintype Coins] (G : ModeGame Coins V
   have h := (abs_le.mp (secure D permitted)).2
   linarith
 
-/-- DMV's advertised compression-model loss; applicability requires the
-subtree-free/radical-decodable/message-decodable mode proof, kept separate. -/
-def dmvLoss (Q : Nat) : ℚ := min 1 ((Q.choose 2 : ℚ) / (2 ^ 256 : ℚ))
+/-- Sharp birthday subevent budget, not the whole-view duplex loss. -/
+def compressionBirthdayLoss (Q : Nat) : ℚ := min 1 ((Q.choose 2 : ℚ) / (2 ^ 256 : ℚ))
+
+/-- Actual adaptive whole-view duplex budget: output collisions, public late
+links, and guesses of unrevealed construction states share one Counts Q cap. -/
+def duplexModeLoss (Q : Nat) : ℚ :=
+  min 1 ((2 * (Q.choose 2 : ℚ) + (Q : ℚ) * Q) / (2 ^ 256 : ℚ))
 
 /-! Remaining instantiation obligations (not axioms):
 

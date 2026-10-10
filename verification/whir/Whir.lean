@@ -145,3 +145,11 @@ import Whir.WHIRSourceChronology
 import Whir.WHIRSourceObserver
 import Whir.WHIRNativeSecurity
 import Whir.WHIRPhysicalRowsRegression
+import Whir.PCSRewindKnowledgeOriginalBound
+import Whir.AnchoredPhysicalAcceptance
+import Whir.AnchoredByteStreamCausal
+import Whir.AnchoredByteStreamPrepared
+import Whir.AnchorPrefixRefinementCost
+import Whir.AnchorPrefixRefinementRows
+import Whir.PCSRoundByRoundSourceDecoderCorrectness
+import Whir.PCSRoundByRoundSourceDecoderCost

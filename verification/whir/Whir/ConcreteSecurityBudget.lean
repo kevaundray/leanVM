@@ -1,11 +1,12 @@
 import Whir.WHIRNativeSecurity
+import Mathlib.Data.Nat.Choose.Cast
 
-/-! Conditional, unground budget for the proposed #552 public-duplex model.
+/-! Resource-conditional budget for the pinned #552 public-duplex model.
 
 The grouped-message `2^-79` term already includes the production Johnson list
 of up to `2^32` candidates; the endpoint is adaptive list binding, not unique
 binding or knowledge extraction. We charge the actual ring-switching term,
-caller/WHIR allocation count, source attempts, DMV, and ordinary Merkle loss.
+caller/WHIR allocation count, source attempts, actual duplex coupling, and ordinary Merkle loss.
 No proof-of-work multiplier is supplied by this endpoint.
 
 The illustrative caps permit a million attacker-plus-verifier source units,
@@ -18,11 +19,13 @@ are finite-experiment query/resource restrictions, NOT wall-clock bounds,
 compiler safety, or assertions that every production input satisfies them.
 The reachable verifier/path and actual envelope hypotheses are retained.
 
-The resulting checked probability bound is `2^-42`, not `2^-128`. The actual
-`PublicRandomCompressionDMV` hypothesis remains unproved; no deterministic
-BLAKE2s or deployed keyed-transcript security conclusion follows. -/
+The resulting checked probability bound remains `2^-42`, not `2^-128`, with
+the proved whole-view duplex loss `min 1 ((2*Q^2-Q)/2^256)`. No external mode
+security premise remains. The finite random-compression experiment does not
+justify deterministic BLAKE2s security or universal deployed #599/#555 source
+correspondence; valid caller shapes and reachable resource hypotheses remain. -/
 namespace Whir.ConcreteSecurityBudget
-open FiatShamirGame DuplexModeGame WHIRPhysicalDriver WHIRSourceChronology
+open FiatShamirGame DuplexModeGame WHIRPhysicalDriver WHIRPhysicalDriver.Unanchored WHIRSourceChronology
 open RawOracleCoupling.Concrete TypedOracleCompiler
 
 set_option maxRecDepth 100000
@@ -53,7 +56,7 @@ theorem backfill_envelope_le (ctx : RawWHIRKeys.Context) (A Mf : Nat)
 
 /-- This is the existing native endpoint's RHS, not a second soundness ledger. -/
 def endpointLoss (registry : ProductionRegistry) (Q A cap free : Nat) : ℚ :=
-  WHIRObservableSecurity.romBound registry.publicRegistry A cap + dmvLoss Q +
+  WHIRObservableSecurity.romBound registry.publicRegistry A cap + duplexModeLoss Q +
     WHIRSourceMerkleSecurity.loss Q free
 
 /-- Nonnegativity of the actual endpoint, needed to diagnose its concrete
@@ -63,7 +66,7 @@ theorem endpointLoss_nonneg (registry : ProductionRegistry) (Q A cap free : Nat)
   have eps := WHIRRawROM.epsilon_nonneg cap
   have hQone : (1 : ℚ) ≤ Q := by exact_mod_cast nonzero
   have hsub : (0 : ℚ) ≤ Q-1 := sub_nonneg.mpr hQone
-  unfold endpointLoss WHIRObservableSecurity.romBound dmvLoss
+  unfold endpointLoss WHIRObservableSecurity.romBound duplexModeLoss
     WHIRSourceMerkleSecurity.loss PublicMerkleProbability.bound
   positivity
 
@@ -78,12 +81,35 @@ theorem endpointLoss_eq (registry : ProductionRegistry) (Q A cap free : Nat) :
     endpointLoss registry Q A cap free =
       min 1 ((((40 + registry.callerOutputCap) * (A+1) : Nat) : ℚ) *
           ((1 : ℚ)/2^79 + WHIRFiatShamir.ringCharge cap)) +
-      min 1 ((Q.choose 2 : ℚ) / (2^256 : ℚ)) +
+      min 1 ((2 * (Q.choose 2 : ℚ) + (Q : ℚ) * Q) / (2^256 : ℚ)) +
       ((Q : ℚ) * ((Q+1) * (free+(Q+1)*41) : Nat) + 2*Q*(Q-1)) / 2^256 := by
   simp only [endpointLoss, WHIRObservableSecurity.romBound,
     allocationBudget, WHIRCallerRegistry.context, ProductionRegistry.publicRegistry,
-    schedule_depths.1, WHIRRawROM.epsilon, dmvLoss, WHIRSourceMerkleSecurity.loss,
+    schedule_depths.1, WHIRRawROM.epsilon, duplexModeLoss, WHIRSourceMerkleSecurity.loss,
     WHIRSourceMerkleSecurity.rootBudget, PublicMerkleProbability.bound, schedule_depths.2]
+
+/-- Exact polynomial whole-view mode coefficient, including the sharp linear
+correction. The source-attempt and ordinary Merkle terms are unchanged. -/
+theorem endpointLoss_expansion (registry : ProductionRegistry) (Q A cap free : Nat) :
+    endpointLoss registry Q A cap free =
+      min 1 ((((40 + registry.callerOutputCap) * (A+1) : Nat) : ℚ) *
+          ((1 : ℚ)/2^79 + WHIRFiatShamir.ringCharge cap)) +
+      min 1 ((2 * (Q : ℚ)^2 - Q) / (2^256 : ℚ)) +
+      ((Q : ℚ) * ((Q+1) * (free+(Q+1)*41) : Nat) + 2*Q*(Q-1)) / 2^256 := by
+  have coefficient : 2 * (Q.choose 2 : ℚ) + (Q : ℚ) * Q = 2 * (Q : ℚ)^2 - Q := by
+    rw [Nat.cast_choose_two ℚ Q]
+    ring
+  simpa only [coefficient] using endpointLoss_eq registry Q A cap free
+
+/-- Exact ledger at the illustrative caps, not an attacker-success lower
+bound or a concrete deployed-system security claim. -/
+theorem endpointLoss_at_caps (registry : ProductionRegistry)
+    (caller : registry.callerOutputCap = 2^16) :
+    endpointLoss registry (2^60) (2^20) (2^32) (2^20) =
+      (5712480737351244866976450137972416606804377619 : ℚ) /
+        50216813883093446110686315385661331328818843555712276103168 := by
+  rw [endpointLoss_expansion, caller]
+  norm_num [WHIRFiatShamir.ringCharge]
 
 /-- The family cap's actual list/ring-switching contribution is much smaller
 than `2^-79`; the existing `2^32` list factor is not silently discarded. -/
@@ -122,10 +148,15 @@ theorem endpointLoss_le (registry : ProductionRegistry) (Q A cap free : Nat)
     · exact eps
     · exact WHIRRawROM.epsilon_nonneg cap
     · positivity
-  have dmv : dmvLoss Q ≤ ((2^60 : Nat).choose 2 : ℚ) / 2^256 := by
+  have mode : duplexModeLoss Q ≤
+      (2 * ((2^60 : Nat).choose 2 : ℚ) + (2^60 : ℚ) * 2^60) / 2^256 := by
     apply (min_le_right _ _).trans
-    exact div_le_div_of_nonneg_right
-      (by exact_mod_cast Nat.choose_le_choose 2 caps.compression) (by positivity)
+    apply div_le_div_of_nonneg_right _ (by positivity)
+    apply add_le_add
+    · exact mul_le_mul_of_nonneg_left
+        (by exact_mod_cast Nat.choose_le_choose 2 caps.compression) (by positivity)
+    · have hQ : (Q : ℚ) ≤ (2^60 : ℚ) := by exact_mod_cast caps.compression
+      exact mul_le_mul hQ hQ (by positivity) (by positivity)
   have roots : WHIRSourceMerkleSecurity.rootBudget Q free ≤
       (2^60+1)*(2^20+(2^60+1)*41) := by
     unfold WHIRSourceMerkleSecurity.rootBudget
@@ -144,14 +175,14 @@ theorem endpointLoss_le (registry : ProductionRegistry) (Q A cap free : Nat)
     apply add_le_add
     · exact mul_le_mul hQ (by exact_mod_cast roots) (by positivity) (by positivity)
     · gcongr
-  have total := add_le_add (add_le_add rom dmv) merkle
+  have total := add_le_add (add_le_add rom mode) merkle
   apply total.trans
   norm_num [WHIRRawROM.epsilon, WHIRFiatShamir.ringCharge, Nat.choose_two_right]
 
-/-- Actual native false-acceptance probability, in the public RANDOM-compression
-experiment. DMV and every original reachable resource hypothesis remain. -/
+/-- Actual native false-acceptance probability in the public RANDOM-compression
+experiment. The actual mode coupling is instantiated internally; every original
+reachable resource hypothesis and the valid-shape source model remain. -/
 theorem random_compression_list_binding [Fintype Coins] [Nonempty Coins]
-    [Fintype DuplexPublicSimulator.Seed]
     {cap : Nat} (registry : ProductionRegistry) (Q a b Mf free : Nat)
     (attackers : Coins → Source cap (Input registry.context Q))
     (before : ∀ coins, Counts a (attackers coins))
@@ -165,13 +196,11 @@ theorem random_compression_list_binding [Fintype Coins] [Nonempty Coins]
     (announcements : ∀ coins, WHIRSourceRootPolicy.FreeAnnouncements free
       (WHIRNativeSecurity.sources registry Q attackers coins))
     (envelope : WHIRSourceBackfill.budget registry.context (a+b) Mf ≤ Q)
-    (security : PublicRandomCompressionDMV Q DuplexPublicSimulator.Seed
-      DuplexPublicSimulator.State (DuplexPublicSimulator.simulator Q) registry.iv)
     (caps : Caps registry Q (a+b) cap free) :
     realProbability registry.iv (WHIRNativeSecurity.adversary registry Q attackers)
       (WHIRNativeEvent.distinguisher registry Q cap) ≤ (1 : ℚ)/2^42 :=
   (WHIRNativeSecurity.random_compression_list_binding registry Q a b Mf free attackers
-    before verifierBudget paths announcements envelope security).trans
+    before verifierBudget paths announcements envelope).trans
       (endpointLoss_le registry Q (a+b) cap free caps)
 
 /-- No small full-view replacement loss for any class admitting the efficient
@@ -191,7 +220,7 @@ theorem concrete_gap_not_small (Q : Nat) (iv : Digest32) (input : DuplexFraming.
 
 /-- The complete RHS of the current concrete endpoint also cannot be small
 under a full-view class containing the known-answer observer. In particular,
-adding the ROM/DMV/Merkle terms cannot repair the replacement premise. -/
+adding the ROM/duplex/Merkle terms cannot repair the replacement premise. -/
 theorem concrete_endpoint_not_small (registry : ProductionRegistry)
     (Q A cap free : Nat) (input : DuplexFraming.Node) (primitiveLoss : ℚ)
     (Allowed : (C : Type) → [Fintype C] → (Output : Type) →

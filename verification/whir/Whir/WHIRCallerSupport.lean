@@ -699,6 +699,22 @@ theorem decoded_geometry (model : ProductionLayout) (entry : FiatShamirGame.Fram
     (columnFits_mono model.sources) (ringFits_mono model.sources)
     model.layout model.geometry tokens claims rest trace
 
+theorem geometry_support (model : ProductionLayout) (claims : CallerClaims)
+    (geometry : WHIRCallerGeometry.ClaimsValid
+      (fun i d => columnFits model.sources i d = true)
+      (fun o d => ringFits model.sources o d = true) (callerPlacements model.layout) claims) :
+    (∀ ring ∈ claims.families, ring.offset + 2^ring.point.size ≤ callerWords model.layout) ∧
+    (∀ point ∈ claims.points.toList, ∀ v, callerWords model.layout ≤ v → pointWeight point v = 0) := by
+  obtain ⟨rings,points⟩ := geometry
+  rw [callerWords_placementsOf model.sources model.layout model.constructed]
+  constructor
+  · intro ring mem
+    exact ringFits_bound model.sources ring.offset ring.point.size (rings ring mem)
+  · intro point mem v hv
+    obtain ⟨column,placed,atColumn,claimed,fits⟩ := points point mem
+    exact production_point_support model.sources (callerPlacements model.layout)
+      model.constructed column placed atColumn fits point claimed v hv
+
 /-- Support of every actual decoded family/plain/strided claim is a consequence
 of production placement and parser provenance, not a decoder-correctness axiom. -/
 theorem decoded_support (model : ProductionLayout) (entry : FiatShamirGame.FramedHistory)
@@ -708,15 +724,7 @@ theorem decoded_support (model : ProductionLayout) (entry : FiatShamirGame.Frame
       ring.offset + 2^ring.point.size ≤ callerWords model.layout) ∧
     (∀ point ∈ claims.points.toList, ∀ v, callerWords model.layout ≤ v →
       pointWeight point v = 0) := by
-  obtain ⟨rings,points⟩ := decoded_geometry model entry answers claims accepted
-  rw [callerWords_placementsOf model.sources model.layout model.constructed]
-  constructor
-  · intro ring mem
-    exact ringFits_bound model.sources ring.offset ring.point.size (rings ring mem)
-  · intro point mem v hv
-    obtain ⟨column,placed,atColumn,claimed,fits⟩ := points point mem
-    exact production_point_support model.sources (callerPlacements model.layout)
-      model.constructed column placed atColumn fits point claimed v hv
+  exact geometry_support model claims (decoded_geometry model entry answers claims accepted)
 
 /-- Each original transformed claim passes the actual causal experiment's
 shape check, including the unencoded lane tail. -/
@@ -834,6 +842,27 @@ theorem openingMatches_words_bound (layout : CallerLayout) (p : ParameterBounds.
   rw [← Nat.pow_add, Nat.add_sub_of_le hn] at hb
   exact occupied.trans hb
 
+theorem geometry_nativeShapes (model : ProductionLayout) (p : ParameterBounds.Profile)
+    (lanes : Nat) (metadata : openingMatches p lanes model.layout = true)
+    (laneBound : lanes ≤ 2^(ParameterBounds.config p).folds[0]!) (claims : CallerClaims)
+    (geometry : WHIRCallerGeometry.ClaimsValid
+      (fun i d => columnFits model.sources i d = true)
+      (fun o d => ringFits model.sources o d = true) (callerPlacements model.layout) claims) :
+    SuccinctRingWeight.FamilyShape (ParameterBounds.config p).logN
+      (fun i : Fin claims.families.length => claims.families[i]) ∧
+    (∀ point ∈ claims.points.toList, SuccinctPointWeight.Shape (ParameterBounds.config p).logN point) := by
+  obtain ⟨rings,points⟩ := geometry
+  have bound : placedWords model.sources ≤ 2^(ParameterBounds.config p).logN := by
+    rw [← callerWords_placementsOf model.sources model.layout model.constructed]
+    exact openingMatches_words_bound model.layout p lanes metadata laneBound
+  constructor
+  · intro j
+    exact ringFits_nativeShape model.sources _ _ _ (rings _ (by simp)) bound
+  · intro point mem
+    obtain ⟨column,placed,atColumn,claimed,fits⟩ := points point mem
+    exact production_point_nativeShape model.sources (callerPlacements model.layout)
+      model.constructed column placed atColumn fits point claimed _ bound
+
 /-- Every source-decoded selector has the dimension, alignment, cube range,
 and port-slot bounds needed by the native caller-weight equality. -/
 theorem decoded_nativeShapes (model : ProductionLayout) (p : ParameterBounds.Profile)
@@ -845,17 +874,8 @@ theorem decoded_nativeShapes (model : ProductionLayout) (p : ParameterBounds.Pro
     SuccinctRingWeight.FamilyShape (ParameterBounds.config p).logN
       (fun i : Fin claims.families.length => claims.families[i]) ∧
     (∀ point ∈ claims.points.toList, SuccinctPointWeight.Shape (ParameterBounds.config p).logN point) := by
-  obtain ⟨rings,points⟩ := decoded_geometry model entry answers claims accepted
-  have bound : placedWords model.sources ≤ 2^(ParameterBounds.config p).logN := by
-    rw [← callerWords_placementsOf model.sources model.layout model.constructed]
-    exact openingMatches_words_bound model.layout p lanes metadata laneBound
-  constructor
-  · intro j
-    exact ringFits_nativeShape model.sources _ _ _ (rings _ (by simp)) bound
-  · intro point mem
-    obtain ⟨column,placed,atColumn,claimed,fits⟩ := points point mem
-    exact production_point_nativeShape model.sources (callerPlacements model.layout)
-      model.constructed column placed atColumn fits point claimed _ bound
+  exact geometry_nativeShapes model p lanes metadata laneBound claims
+    (decoded_geometry model entry answers claims accepted)
 
 theorem decodeRequest_nativeShapes (model : ProductionLayout) (cap : Nat)
     (p : ParameterBounds.Profile) (lanes : Nat) (entry : FiatShamirGame.FramedHistory)

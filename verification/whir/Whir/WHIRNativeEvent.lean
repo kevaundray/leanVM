@@ -2,7 +2,7 @@ import Whir.WHIRPhysicalDriver
 import Whir.WHIRObservableSource
 
 namespace Whir.WHIRNativeEvent
-open DuplexModeGame WHIRPhysicalDriver
+open DuplexModeGame WHIRPhysicalDriver WHIRPhysicalDriver.Unanchored
 
 abbrev Output (registry : ProductionRegistry) (Q cap : Nat) :=
   WHIRPublicBackfill.Completed (WHIRCallerRegistry.context registry.publicRegistry) Q

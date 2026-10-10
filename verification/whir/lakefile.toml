@@ -18,3 +18,35 @@ name = "Whir"
 [[lean_exe]]
 name = "whirModel"
 root = "Main"
+
+[[lean_exe]]
+name = "whirExtractionSmoke"
+root = "Whir.PCSRewindExtractorFixtures"
+
+[[lean_exe]]
+name = "whirAnchorPrefixSmoke"
+root = "Whir.AnchorPrefixRefinementSmoke"
+
+[[lean_exe]]
+name = "whirCountedExtractionSmoke"
+root = "Whir.CountedCandidateCheckSmoke"
+
+[[lean_exe]]
+name = "whirByteStreamSmoke"
+root = "Whir.AnchoredByteStreamSmoke"
+
+[[lean_exe]]
+name = "whirFreshCallerSmoke"
+root = "Whir.AnchoredSourceFreshCallerSmoke"
+
+[[lean_exe]]
+name = "whirPhysicalSmoke"
+root = "Whir.AnchoredPhysicalSmoke"
+
+[[lean_exe]]
+name = "whirActualSourceStreamSmoke"
+root = "Whir.PublicCompressionCouplingSourceStreamSmoke"
+
+[[lean_exe]]
+name = "whirRoundByRoundDecoderSmoke"
+root = "Whir.PCSRoundByRoundSourceDecoderSmoke"

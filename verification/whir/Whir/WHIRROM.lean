@@ -5,9 +5,10 @@ import Whir.DuplexRefinement
 import Whir.WHIRReplay
 import Whir.WHIRHistoryKey
 
-/-! Source-pinned mode interface for the classical typed full-transcript game.
-The mode assumption is a real-versus-ideal oracle-view distinguishing bound,
-not an assumption about a PCS acceptance predicate. -/
+/-! Source-pinned streaming interface and classical typed stopped-ROM game.
+The full-public-view random-compression mode coupling is proved separately in
+`PublicCompressionModeSecurity`; this module proves the typed ROM list bound,
+not deterministic primitive security or universal deployed-source refinement. -/
 namespace Whir.WHIRROM
 open Concrete Protocol CausalGame CausalProbability ParameterBounds
 open FiatShamirGame WHIRFiatShamir

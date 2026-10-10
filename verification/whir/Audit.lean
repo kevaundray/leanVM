@@ -4,6 +4,9 @@ import Lean.Util.CollectAxioms
 open Lean in
 run_cmd do
   let environment ← getEnv
+  for moduleName in environment.header.moduleNames do
+    if (`Whir).isPrefixOf moduleName then
+      logInfo m!"Audited import: {moduleName}"
   let mut count : Nat := 0
   for (name, info) in environment.constants.toList do
     if (`Whir).isPrefixOf name then

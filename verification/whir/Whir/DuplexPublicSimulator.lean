@@ -530,20 +530,6 @@ noncomputable def seedFintype : Fintype Seed := by
   letI : Finite Node := Finite.of_injective fields inj
   exact Fintype.ofFinite Seed
 
-/-- Only the probabilistic distinguishing inequality remains external. The
-simulator is fixed, its public reconstruction is checked, and the private-call
-bound is a theorem rather than a field supplied by the cryptographic premise. -/
-theorem security_of_distinguishing (Q : Nat) (iv : Digest32)
-    (distinguishing : letI := seedFintype
-      ∀ (AdvCoins Result : Type) [Fintype AdvCoins]
-        (adversary : AdvCoins → Program Result) (counted : ∀ a, Counts Q (adversary a))
-        (D : View Result → Bool),
-        ModeAdv (simulator Q) iv adversary counted D ≤ dmvLoss Q) :
-    letI := seedFintype
-    PublicRandomCompressionDMV Q Seed State (simulator Q) iv := by
-  let := seedFintype
-  exact ⟨distinguishing⟩
-
 theorem recognized_publicBody {log : PublicLog} {input : Node} {ns : List Node}
     (h : recognized log input = some ns) :
     ∃ rest, ns = input :: rest ∧ PublicBody log input.cv rest := by
@@ -1227,7 +1213,6 @@ theorem publicCut_runPartial {Q : Nat} {Result : Type} (cache : RawKey Q → Opt
 #print axioms initial_budgetSafe
 #print axioms simulatorBound
 #print axioms replay_actual
-#print axioms security_of_distinguishing
 #print axioms replayAnswers_consistent
 #print axioms reconstructSeed_agrees
 #print axioms reconstructSeed_runIdeal

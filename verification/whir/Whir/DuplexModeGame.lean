@@ -239,15 +239,14 @@ noncomputable def ModeAdv {Q : Nat} {Seed State AdvCoins Result : Type}
     (D : View Result → Bool) : ℚ :=
   |realProbability iv adversary D - idealProbability sim iv adversary counted D|
 
-/-- Precise remaining stochastic DMV18 Theorem 1 boundary for the proved mode.
-Only the view-distinguishing inequality is assumed. The pinned simulator's
-query bound is proved separately, never a cryptographic certificate field. -/
-structure PublicRandomCompressionDMV (Q : Nat) (Seed State : Type) [Fintype Seed]
+/-- Whole-view bound certificate for a simulator. The actual pinned simulator
+has a proved certificate, not an external distinguishing assumption. -/
+structure PublicCompressionModeBound (Q : Nat) (Seed State : Type) [Fintype Seed]
     (sim : Simulator Q Seed State) (iv : Digest32) : Prop where
   distinguishing : ∀ (AdvCoins Result : Type) [Fintype AdvCoins]
     (adversary : AdvCoins → Program Result) (counted : ∀ a, Counts Q (adversary a))
     (D : View Result → Bool),
-    ModeAdv sim iv adversary counted D ≤ dmvLoss Q
+    ModeAdv sim iv adversary counted D ≤ duplexModeLoss Q
 
 /-- An explicit full-public-view deterministic-primitive replacement game.
 The known-answer theorem below rules out a small loss for any permitted class
@@ -339,26 +338,26 @@ theorem constructionKey_injective (Q : Nat) (iv : Digest32)
 no PCS relation and cannot supply or replace a caller's Counts certificate. -/
 theorem randomCompression_transfer {Q : Nat} {Seed State AdvCoins Result : Type}
     [Fintype Seed] [Fintype AdvCoins] (sim : Simulator Q Seed State) (iv : Digest32)
-    (security : PublicRandomCompressionDMV Q Seed State sim iv)
+    (security : PublicCompressionModeBound Q Seed State sim iv)
     (adversary : AdvCoins → Program Result) (counted : ∀ a, Counts Q (adversary a))
     (D : View Result → Bool) {bound : ℚ}
     (ideal : idealProbability sim iv adversary counted D ≤ bound) :
-    realProbability iv adversary D ≤ bound + dmvLoss Q := by
+    realProbability iv adversary D ≤ bound + duplexModeLoss Q := by
   have h := (abs_le.mp (security.distinguishing AdvCoins Result adversary counted D)).2
   linarith
 
-/-- The optional concrete-hash modeling gap is a *separate* public-primitive
-game assumption and a separate additive term. It is never absorbed into DMV. -/
+/-- The optional concrete-hash modeling gap is a separate public-primitive
+game assumption and additive term, not part of the ideal mode coupling. -/
 theorem concrete_transfer {Q : Nat} {Seed State AdvCoins Result : Type}
     [Fintype Seed] [Fintype AdvCoins] (sim : Simulator Q Seed State) (iv : Digest32)
-    (security : PublicRandomCompressionDMV Q Seed State sim iv)
+    (security : PublicCompressionModeBound Q Seed State sim iv)
     (Allowed : (Coins : Type) → [Fintype Coins] → (Output : Type) →
       (Coins → Program Output) → (View Output → Bool) → Prop)
     {primitiveLoss bound : ℚ} (primitive : ConcretePrimitiveGap Q iv primitiveLoss Allowed)
     (adversary : AdvCoins → Program Result) (counted : ∀ a, Counts Q (adversary a))
     (D : View Result → Bool) (permitted : Allowed AdvCoins Result adversary D)
     (ideal : idealProbability sim iv adversary counted D ≤ bound) :
-    concreteProbability iv adversary D ≤ bound + dmvLoss Q + primitiveLoss := by
+    concreteProbability iv adversary D ≤ bound + duplexModeLoss Q + primitiveLoss := by
   have hp := (abs_le.mp (primitive AdvCoins Result adversary D permitted counted)).2
   have hm := randomCompression_transfer sim iv security adversary counted D ideal
   linarith

@@ -1,8 +1,10 @@
 import Whir.InteractiveSoundness
 import Whir.ExecutableOOD
+import Whir.RingMapBatching
 
 namespace Whir.CommitmentAnchor
 open Concrete Protocol CausalGame ParameterBounds
+open scoped BigOperators
 set_option maxRecDepth 100000
 set_option maxHeartbeats 800000
 noncomputable local instance (P : Prop) : Decidable P := Classical.propDecidable P
@@ -124,6 +126,16 @@ theorem boundWitness_eq (p : Profile) (commitment : Commitment p)
   rw [boundWitness, dite_eq_left hasCandidate]
   exact congrArg some (cross_session p commitment clean _ _ hasCandidate.choose_spec hw)
 
+/-- Consumer-visible failure of the actual causal verifier: acceptance with no explanation by the one immutable commitment's mathematical selector. This predicate does not assert knowledge extraction. -/
+def openingFailure (p : Profile) (commitment : Commitment p)
+    (opening : Array Claim) (strategy : Strategy) (tape : Tape (config p)) : Prop :=
+  experiment (ExecutionShapes.Input p commitment.lanes commitment.root (claims p commitment opening)) strategy tape = true ∧
+    ¬ ∃ w, boundWitness p commitment = some w ∧
+      ∀ c ∈ opening.toList,
+        dot (paddedWitness (config p) commitment.lanes w) c.weight = c.value
+
+attribute [local irreducible] openingFailure
+
 /-- Every later actual causal verifier session additionally checks the same
 immutable anchor. Off the anchor collision event, accepted claims contradicting
 the one commitment-fixed witness have only the existing opening error, including
@@ -132,24 +144,20 @@ theorem unique_opening_probability (p : Profile) (commitment : Commitment p)
     (clean : ¬ Ambiguous p commitment.lanes commitment.root commitment.point)
     (opening : Array Claim) (strategy : Strategy) :
     Soundness.uniformProb (Finset.univ.filter fun tape : Tape (config p) =>
-      experiment (ExecutionShapes.Input p commitment.lanes commitment.root (claims p commitment opening)) strategy tape = true ∧
-      ¬ ∃ w, boundWitness p commitment = some w ∧
-        ∀ c ∈ opening.toList, dot (paddedWitness (config p) commitment.lanes w) c.weight = c.value) ≤
+      openingFailure p commitment opening strategy tape) ≤
       GroupedChallenges.interactiveError (config p) (estimates (config p)) (opening.size+1) := by
   classical
   have bound := InteractiveSoundness.opening_probability p commitment.lanes commitment.root
     (claims p commitment opening) strategy
   have subset : (Finset.univ.filter fun tape : Tape (config p) =>
-      experiment (ExecutionShapes.Input p commitment.lanes commitment.root (claims p commitment opening)) strategy tape = true ∧
-      ¬ ∃ w, boundWitness p commitment = some w ∧
-        ∀ c ∈ opening.toList, dot (paddedWitness (config p) commitment.lanes w) c.weight = c.value) ⊆
+      openingFailure p commitment opening strategy tape) ⊆
     Finset.univ.filter fun tape : Tape (config p) =>
       experiment (ExecutionShapes.Input p commitment.lanes commitment.root (claims p commitment opening)) strategy tape = true ∧
       ¬ ∃ w ∈ InitialCandidates.witnesses (config p) commitment.lanes commitment.root,
         ∀ c ∈ (claims p commitment opening).toList,
           dot (paddedWitness (config p) commitment.lanes w) c.weight = c.value := by
     intro tape
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, openingFailure]
     rintro ⟨accepted,contradicts⟩
     constructor
     · exact accepted
@@ -236,4 +244,207 @@ theorem ambiguity_probability_numeric (p : Profile) (lanes : Nat) (root : BaseOr
   apply (div_le_div_of_nonneg_right num (by positivity)).trans
   norm_num [Nat.choose_two_right]
 
+/-- The root, supported lane count and profile are fixed before sampling this point. Only the advertised value depends on the point; the record is reused unchanged in every opening session. -/
+def sampledCommitment (p : Profile) (lanes : Nat) (root : BaseOracle)
+    (occupied : 0 < lanes ∧ lanes ≤ 2^(config p).folds[0]!)
+    (advertised : (Fin (config p).logN → E) → E)
+    (point : Fin (config p).logN → E) : Commitment p :=
+  ⟨lanes, root, point, advertised point, occupied⟩
+
+private theorem ledger_mono (p : Profile) {a b : Nat} (h : a ≤ b) :
+    GroupedChallenges.interactiveError (config p) (estimates (config p)) a ≤
+      GroupedChallenges.interactiveError (config p) (estimates (config p)) b := by
+  unfold GroupedChallenges.interactiveError
+  exact add_le_add (add_le_add (initialBatch_mono _ h) le_rfl) le_rfl
+
+/-- Finite product averaging charges the exceptional outer event once, while retaining the actual nonconstant inner ledger. Events may depend arbitrarily on both coordinates. -/
+private theorem exceptional_product_average {A B : Type*}
+    [Fintype A] [Fintype B] [Nonempty A] [Nonempty B]
+    (bad : A → Prop) (event : A × B → Prop) (ledger : A → ℚ)
+    (nonnegative : ∀ x, 0 ≤ ledger x)
+    (good : ∀ x, ¬ bad x →
+      Soundness.uniformProb (Finset.univ.filter fun y : B => event (x,y)) ≤ ledger x) :
+    Soundness.uniformProb (Finset.univ.filter event) ≤
+      Soundness.uniformProb (Finset.univ.filter bad) +
+        (∑ x : A, ledger x) / Fintype.card A := by
+  classical
+  have fiber (x : A) :
+      Soundness.uniformProb (Finset.univ.filter fun y : B => event (x,y)) ≤
+        (if bad x then 1 else 0) + ledger x := by
+    by_cases hx : bad x
+    · have one : Soundness.uniformProb
+          (Finset.univ.filter fun y : B => event (x,y)) ≤ 1 := by
+        unfold Soundness.uniformProb
+        apply (div_le_one (by positivity)).mpr
+        exact_mod_cast Finset.card_le_univ _
+      simpa [hx] using one.trans (le_add_of_nonneg_right (nonnegative x))
+    · simpa [hx] using good x hx
+  rw [RingMapBatching.uniform_product]
+  calc
+    _ ≤ (∑ x : A, ((if bad x then 1 else 0 : ℚ) + ledger x)) / Fintype.card A :=
+      div_le_div_of_nonneg_right (Finset.sum_le_sum fun x _ => fiber x) (by positivity)
+    _ = _ := by
+      simp only [Finset.sum_add_distrib, Soundness.uniformProb, Finset.card_filter,
+        Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+      rw [add_div]
+
+/-- Actual joint ideal game: one uniform anchor point followed by an independent uniform session tape. Every malicious value, opening and causal strategy is allowed to depend on the point. The candidate list remains fixed by the original root and supported shape. -/
+theorem joint_opening_probability (p : Profile) (lanes : Nat) (root : BaseOracle)
+    (occupied : 0 < lanes ∧ lanes ≤ 2^(config p).folds[0]!)
+    (advertised : (Fin (config p).logN → E) → E)
+    (opening : (Fin (config p).logN → E) → Array Claim)
+    (strategy : (Fin (config p).logN → E) → Strategy) :
+    Soundness.uniformProb (Finset.univ.filter
+      fun sample : (Fin (config p).logN → E) × Tape (config p) =>
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening sample.1) (strategy sample.1) sample.2) ≤
+      ((InitialCandidates.witnesses (config p) lanes root).card.choose 2 : ℚ) *
+        ((config p).logN : ℚ) / 2^192 +
+      (∑ point : Fin (config p).logN → E,
+        GroupedChallenges.interactiveError (config p) (estimates (config p))
+          ((opening point).size+1)) / Fintype.card (Fin (config p).logN → E) := by
+  classical
+  let ledger := fun point : Fin (config p).logN → E =>
+    GroupedChallenges.interactiveError (config p) (estimates (config p))
+      ((opening point).size+1)
+  calc
+    _ ≤ Soundness.uniformProb (Finset.univ.filter (Ambiguous p lanes root)) +
+        (∑ point : Fin (config p).logN → E, ledger point) /
+          Fintype.card (Fin (config p).logN → E) := by
+      apply exceptional_product_average (Ambiguous p lanes root) _ ledger
+        (fun point => InteractiveSoundness.error_nonneg _ _)
+      intro point clean
+      exact unique_opening_probability p
+        (sampledCommitment p lanes root occupied advertised point) clean
+        (opening point) (strategy point)
+    _ ≤ _ := by
+      dsimp only [ledger]
+      exact add_le_add (ambiguity_probability p lanes root occupied.2) le_rfl
+
+/-- A uniform cap on later opening statements gives the actual opening ledger at maxClaimSize plus the single immutable anchor claim. The pair-collision charge is not multiplied by the number of sessions or openings. -/
+theorem joint_opening_probability_capped (p : Profile) (lanes : Nat) (root : BaseOracle)
+    (occupied : 0 < lanes ∧ lanes ≤ 2^(config p).folds[0]!)
+    (advertised : (Fin (config p).logN → E) → E)
+    (opening : (Fin (config p).logN → E) → Array Claim)
+    (strategy : (Fin (config p).logN → E) → Strategy)
+    (maxClaimSize : Nat) (opening_cap : ∀ point, (opening point).size ≤ maxClaimSize) :
+    Soundness.uniformProb (Finset.univ.filter
+      fun sample : (Fin (config p).logN → E) × Tape (config p) =>
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening sample.1) (strategy sample.1) sample.2) ≤
+      ((InitialCandidates.witnesses (config p) lanes root).card.choose 2 : ℚ) *
+        ((config p).logN : ℚ) / 2^192 +
+      GroupedChallenges.interactiveError (config p) (estimates (config p)) (maxClaimSize+1) := by
+  classical
+  apply RingMapBatching.conditional_error (Ambiguous p lanes root) _ _ _
+    (InteractiveSoundness.error_nonneg _ _) (ambiguity_probability p lanes root occupied.2)
+  intro point clean
+  exact (unique_opening_probability p
+    (sampledCommitment p lanes root occupied advertised point) clean
+    (opening point) (strategy point)).trans
+    (ledger_mono p (Nat.add_le_add_right (opening_cap point) 1))
+
+/-- The supported production profiles have dimension at most 28 and a proved root-fixed list cap of 2^32. With the anchor included in the 2^64 claim cap, the composed ideal-interactive bound is exactly stated as 2^-124 plus 2^-73, not rounded to a whole-system 128-bit claim. -/
+theorem joint_opening_probability_numeric (p : Profile) (lanes : Nat) (root : BaseOracle)
+    (occupied : 0 < lanes ∧ lanes ≤ 2^(config p).folds[0]!)
+    (advertised : (Fin (config p).logN → E) → E)
+    (opening : (Fin (config p).logN → E) → Array Claim)
+    (strategy : (Fin (config p).logN → E) → Strategy)
+    (opening_cap : ∀ point, (opening point).size+1 ≤ 2^64) :
+    Soundness.uniformProb (Finset.univ.filter
+      fun sample : (Fin (config p).logN → E) × Tape (config p) =>
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening sample.1) (strategy sample.1) sample.2) ≤
+      (1 : ℚ)/2^124 + (1 : ℚ)/2^73 := by
+  classical
+  apply RingMapBatching.conditional_error (Ambiguous p lanes root) _ _ _
+    (by positivity) (ambiguity_probability_numeric p lanes root occupied.2)
+  intro point clean
+  exact (unique_opening_probability p
+    (sampledCommitment p lanes root occupied advertised point) clean
+    (opening point) (strategy point)).trans
+    (production_interactive p _ (opening_cap point))
+
+/-- Two fresh independent session tapes share one point and one malicious advertised value. The second opening and strategy may depend on the entire first tape. Failure means either accepted session lacks an explanation by the same commitment-fixed selector. Finite fiber averaging charges the anchor collision once and both opening ledgers. -/
+theorem joint_two_session_probability (p : Profile) (lanes : Nat) (root : BaseOracle)
+    (occupied : 0 < lanes ∧ lanes ≤ 2^(config p).folds[0]!)
+    (advertised : (Fin (config p).logN → E) → E)
+    (opening₁ : (Fin (config p).logN → E) → Array Claim)
+    (strategy₁ : (Fin (config p).logN → E) → Strategy)
+    (opening₂ : (Fin (config p).logN → E) → Tape (config p) → Array Claim)
+    (strategy₂ : (Fin (config p).logN → E) → Tape (config p) → Strategy)
+    (maxClaimSize₁ maxClaimSize₂ : Nat)
+    (cap₁ : ∀ point, (opening₁ point).size ≤ maxClaimSize₁)
+    (cap₂ : ∀ point tape₁, (opening₂ point tape₁).size ≤ maxClaimSize₂) :
+    Soundness.uniformProb (Finset.univ.filter
+      fun sample : (Fin (config p).logN → E) × (Tape (config p) × Tape (config p)) =>
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening₁ sample.1) (strategy₁ sample.1) sample.2.1 ∨
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening₂ sample.1 sample.2.1) (strategy₂ sample.1 sample.2.1) sample.2.2) ≤
+      ((InitialCandidates.witnesses (config p) lanes root).card.choose 2 : ℚ) *
+        ((config p).logN : ℚ) / 2^192 +
+      (GroupedChallenges.interactiveError (config p) (estimates (config p)) (maxClaimSize₁+1) +
+        GroupedChallenges.interactiveError (config p) (estimates (config p)) (maxClaimSize₂+1)) := by
+  classical
+  apply RingMapBatching.conditional_error (Ambiguous p lanes root) _ _ _
+    (add_nonneg (InteractiveSoundness.error_nonneg _ _) (InteractiveSoundness.error_nonneg _ _))
+    (ambiguity_probability p lanes root occupied.2)
+  intro point clean
+  apply RingMapBatching.conditional_error
+    (openingFailure p (sampledCommitment p lanes root occupied advertised point)
+      (opening₁ point) (strategy₁ point)) _ _ _
+    (InteractiveSoundness.error_nonneg _ _)
+    ((unique_opening_probability p
+      (sampledCommitment p lanes root occupied advertised point) clean
+      (opening₁ point) (strategy₁ point)).trans
+      (ledger_mono p (Nat.add_le_add_right (cap₁ point) 1)))
+  intro tape₁ first_clean
+  simp only [first_clean, false_or]
+  exact (unique_opening_probability p
+    (sampledCommitment p lanes root occupied advertised point) clean
+    (opening₂ point tape₁) (strategy₂ point tape₁)).trans
+    (ledger_mono p (Nat.add_le_add_right (cap₂ point tape₁) 1))
+
+/-- Numeric two-session bound in the same ideal game, allowing adaptation to the first tape and retaining one anchor charge. No Fiat-Shamir or concrete keyed-transcript realization is asserted. -/
+theorem joint_two_session_probability_numeric (p : Profile) (lanes : Nat) (root : BaseOracle)
+    (occupied : 0 < lanes ∧ lanes ≤ 2^(config p).folds[0]!)
+    (advertised : (Fin (config p).logN → E) → E)
+    (opening₁ : (Fin (config p).logN → E) → Array Claim)
+    (strategy₁ : (Fin (config p).logN → E) → Strategy)
+    (opening₂ : (Fin (config p).logN → E) → Tape (config p) → Array Claim)
+    (strategy₂ : (Fin (config p).logN → E) → Tape (config p) → Strategy)
+    (cap₁ : ∀ point, (opening₁ point).size+1 ≤ 2^64)
+    (cap₂ : ∀ point tape₁, (opening₂ point tape₁).size+1 ≤ 2^64) :
+    Soundness.uniformProb (Finset.univ.filter
+      fun sample : (Fin (config p).logN → E) × (Tape (config p) × Tape (config p)) =>
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening₁ sample.1) (strategy₁ sample.1) sample.2.1 ∨
+        openingFailure p (sampledCommitment p lanes root occupied advertised sample.1)
+          (opening₂ sample.1 sample.2.1) (strategy₂ sample.1 sample.2.1) sample.2.2) ≤
+      (1 : ℚ)/2^124 + ((1 : ℚ)/2^73 + (1 : ℚ)/2^73) := by
+  classical
+  apply RingMapBatching.conditional_error (Ambiguous p lanes root) _ _ _
+    (by positivity) (ambiguity_probability_numeric p lanes root occupied.2)
+  intro point clean
+  apply RingMapBatching.conditional_error
+    (openingFailure p (sampledCommitment p lanes root occupied advertised point)
+      (opening₁ point) (strategy₁ point)) _ _ _ (by positivity)
+    ((unique_opening_probability p
+      (sampledCommitment p lanes root occupied advertised point) clean
+      (opening₁ point) (strategy₁ point)).trans
+      (production_interactive p _ (cap₁ point)))
+  intro tape₁ first_clean
+  simp only [first_clean, false_or]
+  exact (unique_opening_probability p
+    (sampledCommitment p lanes root occupied advertised point) clean
+    (opening₂ point tape₁) (strategy₂ point tape₁)).trans
+    (production_interactive p _ (cap₂ point tape₁))
+
 end Whir.CommitmentAnchor
+
+#print axioms Whir.CommitmentAnchor.joint_opening_probability
+#print axioms Whir.CommitmentAnchor.joint_opening_probability_capped
+#print axioms Whir.CommitmentAnchor.joint_opening_probability_numeric
+#print axioms Whir.CommitmentAnchor.joint_two_session_probability
+#print axioms Whir.CommitmentAnchor.joint_two_session_probability_numeric

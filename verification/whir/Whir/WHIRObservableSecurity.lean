@@ -1,5 +1,6 @@
 import Whir.WHIRObservableSource
 import Whir.WHIRRealSimulator
+import Whir.PublicCompressionModeSecurity
 
 namespace Whir.WHIRObservableSecurity
 open FiatShamirGame DuplexModeGame RawOracleCoupling.Concrete
@@ -12,6 +13,9 @@ variable {cap : Nat} {R Coins : Type}
 private instance : Finite UInt64 :=
   Finite.of_injective ByteCodec.encodeK ByteCodec.encodeK_injective
 private noncomputable instance : Fintype UInt64 := Fintype.ofFinite _
+
+noncomputable local instance : Fintype DuplexPublicSimulator.Seed :=
+  DuplexPublicSimulator.seedFintype
 
 /-- The public event never receives the adversary program, adversary coins, simulator seed, or a total raw oracle. -/
 noncomputable def distinguisher (registry : Public) (Q : Nat)
@@ -58,7 +62,7 @@ theorem average_product {X Y : Type} [Fintype X] [Fintype Y] (f : X × Y → ℚ
   rw [mul_comm]
 
 /-- Averaging over independent raw tables, simulator coins and adversary coins preserves the checked source-budgeted ROM bound. -/
-theorem ideal_list_binding [Fintype Coins] [Nonempty Coins] [Fintype DuplexPublicSimulator.Seed]
+theorem ideal_list_binding [Fintype Coins] [Nonempty Coins]
     (registry : Public) (Q A : Nat) (sources : Coins → Source cap R)
     (select : R → Option (RawWHIRKeys.Packet (context registry) Q))
     (sourceQ : ∀ coins, Counts Q (sources coins)) (before : ∀ coins, Counts A (sources coins))
@@ -82,9 +86,8 @@ theorem ideal_list_binding [Fintype Coins] [Nonempty Coins] [Fintype DuplexPubli
           A (before coins.2) select
     _ = _ := average_const _
 
-/-- This conditional statement is only about the pinned #552 public-compression mode. It does not apply DMV to the older keyed transcript. -/
+/-- The actual adaptive whole-view coupling bounds the pinned #552 public-compression mode. It does not cover the older keyed transcript. -/
 theorem random_compression_list_binding [Fintype Coins] [Nonempty Coins]
-    [Fintype DuplexPublicSimulator.Seed]
     (registry : Public) (Q A Mf : Nat) (sources : Coins → Source cap R)
     (select : R → Option (RawWHIRKeys.Packet (context registry) Q))
     (before : ∀ coins, Counts A (sources coins))
@@ -92,19 +95,18 @@ theorem random_compression_list_binding [Fintype Coins] [Nonempty Coins]
       (fun result => ∀ packet, select result = some packet →
         DuplexFraming.pathCost (RawWHIRKeys.coordinate (context registry) packet.val 0) ≤ Mf)
       (erase (sources coins)))
-    (envelope : WHIRSourceBackfill.budget (context registry) A Mf ≤ Q)
-    (security : PublicRandomCompressionDMV Q DuplexPublicSimulator.Seed DuplexPublicSimulator.State
-      (DuplexPublicSimulator.simulator Q) registry.iv) :
+    (envelope : WHIRSourceBackfill.budget (context registry) A Mf ≤ Q) :
     realProbability registry.iv (adversary registry Q sources select) (distinguisher registry Q select) ≤
-      romBound registry A cap + dmvLoss Q := by
-  apply randomCompression_transfer (DuplexPublicSimulator.simulator Q) registry.iv security
+      romBound registry A cap + duplexModeLoss Q := by
+  apply randomCompression_transfer (DuplexPublicSimulator.simulator Q) registry.iv
+    (DuplexPublicSimulator.modeSecurity Q registry.iv)
     (adversary registry Q sources select) (adversary_counted registry Q A Mf sources select before paths envelope)
     (distinguisher registry Q select)
   exact ideal_list_binding registry Q A sources select
     (fun coins => source_counted registry Q A Mf (sources coins) (before coins) envelope) before _
 
-/-- Concrete BLAKE2s requires its own explicit replacement gap for this actual public event, separate from DMV and the algebraic ROM bound. -/
-theorem concrete_list_binding [Fintype Coins] [Nonempty Coins] [Fintype DuplexPublicSimulator.Seed]
+/-- Concrete BLAKE2s retains an explicit full-public-view replacement gap, not a justified computational hash assumption; the mode coupling and algebraic ROM bound are proved separately. -/
+theorem concrete_list_binding [Fintype Coins] [Nonempty Coins]
     (registry : Public) (Q A Mf : Nat) (sources : Coins → Source cap R)
     (select : R → Option (RawWHIRKeys.Packet (context registry) Q))
     (before : ∀ coins, Counts A (sources coins))
@@ -113,15 +115,14 @@ theorem concrete_list_binding [Fintype Coins] [Nonempty Coins] [Fintype DuplexPu
         DuplexFraming.pathCost (RawWHIRKeys.coordinate (context registry) packet.val 0) ≤ Mf)
       (erase (sources coins)))
     (envelope : WHIRSourceBackfill.budget (context registry) A Mf ≤ Q)
-    (security : PublicRandomCompressionDMV Q DuplexPublicSimulator.Seed DuplexPublicSimulator.State
-      (DuplexPublicSimulator.simulator Q) registry.iv)
     (Allowed : (C : Type) → [Fintype C] → (Output : Type) →
       (C → Program Output) → (View Output → Bool) → Prop)
     (primitiveLoss : ℚ) (primitive : ConcretePrimitiveGap Q registry.iv primitiveLoss Allowed)
     (permitted : Allowed Coins _ (adversary registry Q sources select) (distinguisher registry Q select)) :
     concreteProbability registry.iv (adversary registry Q sources select) (distinguisher registry Q select) ≤
-      romBound registry A cap + dmvLoss Q + primitiveLoss := by
-  apply concrete_transfer (DuplexPublicSimulator.simulator Q) registry.iv security Allowed primitive
+      romBound registry A cap + duplexModeLoss Q + primitiveLoss := by
+  apply concrete_transfer (DuplexPublicSimulator.simulator Q) registry.iv
+    (DuplexPublicSimulator.modeSecurity Q registry.iv) Allowed primitive
     (adversary registry Q sources select) (adversary_counted registry Q A Mf sources select before paths envelope)
     (distinguisher registry Q select) permitted
   exact ideal_list_binding registry Q A sources select
