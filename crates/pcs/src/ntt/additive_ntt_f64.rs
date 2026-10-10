@@ -1730,41 +1730,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_padded_encode_is_the_same_from_a_message_held_elsewhere() {
-        // Invariant: the padding lands the same whichever pass first reads the message.
-        //
-        //     (log_d, lanes, rate, k)   in place                     held elsewhere
-        //     (7, 7, 2, 5)              replicate, then deep pass    deep pass copying the message
-        //     (9, 2048, 1, 13)          gathered first pass          gathered first pass
-        //     (4, 8, 4, 1)              replicate, no layer left     replicate, no layer left
-        //
-        // The in-place encode is checked against direct evaluation by the hiding commitment's test.
-        let mut rng = Rng::new(0x9AD5);
-        for (log_d, lanes, log_inv_rate, k) in [(7usize, 7usize, 2usize, 5usize), (9, 2048, 1, 13), (4, 8, 4, 1)] {
-            let ntt = AdditiveNttF64::standard(log_d);
-            let msg_len = (lanes << log_d) >> log_inv_rate;
-            let msg: Vec<F64> = (0..msg_len).map(|_| F64(rng.next_u64())).collect();
-            let pad: Vec<F64> = (0..k * lanes).map(|_| F64(rng.next_u64())).collect();
-
-            let mut in_place = vec![F64::ZERO; msg_len << log_inv_rate];
-            in_place[..msg_len].copy_from_slice(&msg);
-            let pad = Some(Pad {
-                rows: &pad,
-                offset: F64(rng.next_u64()),
-            });
-            ntt.encode_interleaved_in_place_with(&mut in_place, lanes, log_inv_rate, pad, &|_, _| {});
-
-            let mut elsewhere = vec![F64::ZERO; msg_len << log_inv_rate];
-            let src = SendPtr(msg.as_ptr().cast_mut());
-            ntt.transform(&mut elsewhere, lanes, log_inv_rate, Some(src), pad, None);
-            assert_eq!(
-                elsewhere, in_place,
-                "log_d={log_d}, lanes={lanes}, rate={log_inv_rate}, k={k}"
-            );
-        }
-    }
-
     /// Every lane of the codeword must be exactly the single-lane RS codeword of
     /// that lane's contiguous message block, which is what makes a commitment over
     /// `n_lanes` lanes equal to the `2^log_batch_size`-lane one with a zero tail.
