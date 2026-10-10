@@ -60,10 +60,6 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
 /// out of these rounds.
 ///
 /// Public opening statements must be bound by the caller before entry. This binds the complete record before drawing the opening batch scalar, without resampling the anchor.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "The proof kernel keeps its independent inputs explicit."
-)]
 pub fn open_with_basis(
     config: &ProverConfig,
     witness: &[F64],

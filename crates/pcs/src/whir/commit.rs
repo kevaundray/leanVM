@@ -14,8 +14,8 @@ use crate::whir::ntt_ext::{encode_rows_ext, rows_at_ext};
 use crate::whir::verify::WhirError;
 use fiat_shamir::merkle::hash_to_scalars;
 use fiat_shamir::transcript::Transmitter;
-use fiat_shamir::{TranscriptContext, MAX_PENDING};
-use primitives::field::{F192, F64};
+use fiat_shamir::{MAX_PENDING, TranscriptContext};
+use primitives::field::{F64, F192};
 use std::sync::Arc;
 
 /// The public shape of the committed, zero-padded witness.
@@ -52,18 +52,18 @@ pub struct Commitment<E = F192, R = Hash> {
 }
 
 impl<E, R> Commitment<E, R> {
-    pub fn root(&self) -> R
+    pub const fn root(&self) -> R
     where
         R: Copy,
     {
         self.root
     }
 
-    pub fn shape(&self) -> CommitmentShape {
+    pub const fn shape(&self) -> CommitmentShape {
         self.shape
     }
 
-    pub fn context(&self) -> TranscriptContext<E, R>
+    pub const fn context(&self) -> TranscriptContext<E, R>
     where
         E: Copy,
         R: Copy,
@@ -75,7 +75,7 @@ impl<E, R> Commitment<E, R> {
         &self.point
     }
 
-    pub fn value(&self) -> E
+    pub const fn value(&self) -> E
     where
         E: Copy,
     {
