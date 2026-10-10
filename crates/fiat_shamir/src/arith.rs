@@ -167,6 +167,13 @@ pub trait Arith {
         out
     }
 
+    /// `sum_i a_i b_i`, of two vectors of one length.
+    fn dot(&mut self, a: &[Self::E], b: &[Self::E]) -> Self::E {
+        assert_eq!(a.len(), b.len(), "two vectors of one length");
+        let zero = self.zero();
+        (a.iter().zip(b)).fold(zero, |acc, (&x, &y)| self.mul_add(x, y, acc))
+    }
+
     /// The integer index column `base ^ (z << shift)` at `point`: `base + sum_i point_i 2^(i + shift)`.
     fn int_index(&mut self, base: F64, shift: u32, point: &[Self::E]) -> Self::E {
         let base = self.constant(F192::from(base));
@@ -326,15 +333,35 @@ impl Arith for Portable {
         a.square_portable()
     }
 
+    /// One product an entry: a vertex's high child is it times `r`, and its low child `v (1 + r) = v + v r` reuses the
+    /// product.
+    fn eq_table_prefix(&mut self, point: &[F192], len: usize) -> Vec<F192> {
+        assert!(len <= 1 << point.len(), "a prefix of the cube");
+        let mut table = Vec::with_capacity(len);
+        table.push(F192::ONE);
+        for (i, &r) in point.iter().enumerate() {
+            let (old, need) = (table.len(), len.min(2 << i));
+            for j in 0..old {
+                let high = table[j].mul_portable(r);
+                table[j] += high;
+                if old + j < need {
+                    table.push(high);
+                }
+            }
+        }
+        table.truncate(len);
+        table
+    }
+
     /// By the words' bits: `sum_x eq(point, x) v_x = sum_k x^k sum_x eq(point, x) bit_k(v_x)`.
     ///
-    /// A row of `2^PUBLIC_LOW_VARS` words sums its low eq weights into one slice per bit, by additions alone; a slice
-    /// then takes its row's high eq weight, and each bit's sum its power of `x`.
+    /// A row of `2^low` words sums its low eq weights into one slice per bit, by additions alone; a nonzero slice then
+    /// takes its row's high eq weight, and each bit's sum its power of `x`. `low` balances the low table's `2^low`
+    /// products against the rows' up to `64` each.
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
-        /// The low coordinates, whose eq table every row reads.
-        const PUBLIC_LOW_VARS: usize = 12;
         assert_eq!(values.len(), 1 << point.len(), "a column has a word per vertex");
-        let (low, high) = point.split_at(point.len().min(PUBLIC_LOW_VARS));
+        let low = (point.len() + F64::DEGREE.ilog2() as usize).div_ceil(2);
+        let (low, high) = point.split_at(low.min(point.len()));
         let (eq_low, eq_high) = (self.eq_table(low), self.eq_table(high));
         let mut bits = [F192::ZERO; F64::DEGREE];
         for (row, &weight) in values.chunks_exact(eq_low.len()).zip(&eq_high) {
@@ -388,6 +415,10 @@ impl<A: Arith<E = F192>> Arith for VerifierState<'_, A> {
         self.arith.square(a)
     }
 
+    fn eq_table_prefix(&mut self, point: &[F192], len: usize) -> Vec<F192> {
+        self.arith.eq_table_prefix(point, len)
+    }
+
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
         self.arith.public_mle(values, point)
     }
@@ -439,7 +470,7 @@ mod tests {
                 .wrapping_add(0x1405_7b7e_f767_814f);
             state
         };
-        for n in [0, 1, 3, 12, 13, 15] {
+        for n in [0, 1, 2, 3, 7, 8, 10, 12, 13, 15, 17] {
             let point: Vec<F192> = (0..n).map(|_| F192::new(next(), next(), next())).collect();
             for sparse in [false, true] {
                 let values: Vec<F64> = (0..1 << n)
@@ -449,6 +480,27 @@ mod tests {
                     Portable.public_mle(&values, &point),
                     mle_eval(&values, &point),
                     "{n} variables"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_portable_eq_table_is_the_default_one() {
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for n in 0..8 {
+            let point: Vec<F192> = (0..n).map(|_| F192::new(next(), next(), next())).collect();
+            for len in 0..=1 << n {
+                assert_eq!(
+                    Portable.eq_table_prefix(&point, len),
+                    Native.eq_table_prefix(&point, len),
+                    "{n} variables, {len} vertices"
                 );
             }
         }

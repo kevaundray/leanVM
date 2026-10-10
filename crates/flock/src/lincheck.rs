@@ -575,18 +575,24 @@ impl<E: Copy> MatrixForm<E> {
 
 impl MatrixForm {
     /// The form against a circuit's matrices, on `a`: the native verifier's `Portable`, or a prover's replay.
+    ///
+    /// The row weights `u = eq_rows (x) lagrange` are never built: each block of `2^k_skip` rows takes the Lagrange
+    /// weights, and the blocks their eq weights.
     pub fn evaluate<A: Arith<E = F192>>(&self, a: &mut A, circuit: &dyn LincheckCircuit) -> F192 {
         let k_skip = self.s_hat_v.len().ilog2() as usize;
         let lagrange = SkipDomain::new(k_skip).lagrange_weights(a, self.z_skip);
         let eq_rows = a.eq_table(&self.x_inner_rest);
-        let u = outer_product(a, &eq_rows, &lagrange);
         let eq_cols = a.eq_table(&self.r_inner_rest);
         let w = outer_product(a, &eq_cols, &self.s_hat_v);
         let (ra, rb) = circuit.matrix_rows(&w);
-        (u.iter().zip(ra.iter().zip(&rb))).fold(F192::ZERO, |acc, (&u, (&ra, &rb))| {
-            let row = a.mul_add(self.alpha, rb, ra);
-            a.mul_add(u, row, acc)
-        })
+        let n = ra.len().min(eq_rows.len() << k_skip);
+        let rows: Vec<F192> = (ra[..n].iter().zip(&rb))
+            .map(|(&ra, &rb)| a.mul_add(self.alpha, rb, ra))
+            .collect();
+        let blocks: Vec<F192> = (rows.chunks(lagrange.len()))
+            .map(|block| a.dot(&lagrange[..block.len()], block))
+            .collect();
+        a.dot(&eq_rows[..blocks.len()], &blocks)
     }
 }
 
@@ -1362,6 +1368,41 @@ mod tests {
                 }
                 assert_eq!(slice, want, "slice {s}, m={m}, k_log={k_log}, k_skip={k_skip}");
             }
+        }
+    }
+
+    #[test]
+    fn a_matrix_form_is_its_bilinear_form() {
+        // The form summed a skip block at a time is `sum_i u_i (A w + alpha B w)_i` with `u` and `w` built whole.
+        for (k_log, k_skip) in [(6, 0), (6, 3), (6, 6), (9, 4)] {
+            let mut rng = Rng::new(88 + (k_log * 10 + k_skip) as u64);
+            let k = 1 << k_log;
+            let circuit = SparseCircuit {
+                a_0: SparseMatrix::random(k, 3 * k, &mut rng),
+                b_0: SparseMatrix::random(k, 3 * k, &mut rng),
+            };
+            let form = MatrixForm {
+                alpha: rng.ext(),
+                z_skip: rng.ext(),
+                x_inner_rest: rng.ext_vec(k_log - k_skip),
+                r_inner_rest: rng.ext_vec(k_log - k_skip),
+                s_hat_v: rng.ext_vec(1 << k_skip),
+            };
+            let u = build_quirky_eq_table(form.z_skip, &form.x_inner_rest, k_skip);
+            let w = outer_product(&mut Native, &eq_table(&form.r_inner_rest), &form.s_hat_v);
+            let (ra, rb) = circuit.matrix_rows(&w);
+            let want = (u.iter().zip(ra.iter().zip(&rb)))
+                .fold(F192::ZERO, |acc, (&u, (&ra, &rb))| acc + u * (ra + form.alpha * rb));
+            assert_eq!(
+                form.evaluate(&mut Portable, &circuit),
+                want,
+                "k_log={k_log}, k_skip={k_skip}"
+            );
+            assert_eq!(
+                form.evaluate(&mut Native, &circuit),
+                want,
+                "k_log={k_log}, k_skip={k_skip}"
+            );
         }
     }
 

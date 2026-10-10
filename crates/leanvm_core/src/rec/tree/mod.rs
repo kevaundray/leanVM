@@ -640,8 +640,7 @@ impl<'p> Tree<'p> {
             let cols = a.eq_table(&s.cols()[..k]);
             let (ra, rb) = circuit.row_values(&cols);
             let u = a.eq_table(&s.rows()[..k]);
-            let mut dot = |r: &[F192]| (u.iter().zip(r)).fold(F192::ZERO, |acc, (&x, &y)| a.mul_add(x, y, acc));
-            if [dot(&ra), dot(&rb)] != s.matrices(f) {
+            if [a.dot(&u, &ra), a.dot(&u, &rb)] != s.matrices(f) {
                 return Err(TreeError::Claim(FalseClaim::Matrix {
                     table: f.table().name(),
                     part: f.part(),
