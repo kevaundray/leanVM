@@ -20,10 +20,9 @@ use crate::pcs::{self, Commitment, Committed, LOG_BATCH, Rate};
 use crate::tables::Clock;
 use crate::zk::keys::{self, KEY_MU, KeyStack, LANE, MAX_KEYS, MAX_OUTER_LOG_ROWS};
 use crate::zk::outer::constraint_system;
-use crate::zk::r1cs::R1cs;
 use crate::zk::randomness::{Purpose, Randomness, ZkRng};
 use crate::zk::spartan::{self, OuterClaims, SpartanError};
-use crate::zk::sym::{Form, Kind, Record, Recorder, Sym, Var};
+use crate::zk::sym::{Form, Recorder, Sym, Var};
 use ::pcs::verifier::OpeningVerifier;
 use ::pcs::whir::{self, Hiding, ProverData, WhirError, config_for_rate_hiding};
 use fiat_shamir::arith::{Arith, Verifier};
@@ -125,12 +124,6 @@ pub(super) fn prove(program: &Program, mut w: Witness, output: Output, rate: Rat
 ///
 /// Returns the first stage that refuses the proof.
 pub(super) fn verify(program: &Program, output: Output, proof: &Proof) -> Result<RawProof, CpuError> {
-    verify_recorded(program, output, proof).map(|(raw, _, _)| raw)
-}
-
-/// Verify a zero-knowledge proof, and return it with every query's Merkle path written out, with what the verifier
-/// recorded and the outer constraint system it stated.
-fn verify_recorded(program: &Program, output: Output, proof: &Proof) -> Result<(RawProof, Record, R1cs), CpuError> {
     let vs = VerifierState::new(program.seed(true), &proof.0, output.words().map(F64));
     let mut rec = Recorder::new(vs);
     let (key_root, rate) = record(program, &mut rec, output)?;
@@ -159,41 +152,7 @@ fn verify_recorded(program: &Program, output: Output, proof: &Proof) -> Result<(
     let claims = spartan::verify(&mut vs, &r1cs).map_err(|SpartanError::Transcript(e)| CpuError::Transcript(e))?;
     verify_keys(&mut vs, key_root, &claims, rate.log_inv_rate().into()).map_err(CpuError::KeyOpen)?;
     vs.finish()?;
-    Ok((vs.into_raw_proof(), record, r1cs))
-}
-
-/// What the verifier of a zero-knowledge proof recorded, one line each, for the Python verifier to state the same: the
-/// key and variable counts, each auxiliary variable's digest and kind in the outer system's order, then each linear
-/// constraint's digest, then each bit's.
-///
-/// # Errors
-///
-/// Returns the first stage that refuses the proof.
-pub(super) fn render_constraints(program: &Program, output: Output, proof: &Proof) -> Result<String, CpuError> {
-    let (_, record, r1cs) = verify_recorded(program, output, proof)?;
-    let hex = |d: &[u8; 32]| d.iter().map(|b| format!("{b:02x}")).collect::<String>();
-    let mut lines = vec![
-        format!("keys {}", record.n_keys),
-        format!("auxiliary {}", record.aux.len()),
-        format!("rows {}", r1cs.n_rows()),
-    ];
-    for j in record.aux_order() {
-        let aux = &record.aux[j as usize];
-        let kind = match aux.kind {
-            Kind::Product => "product",
-            Kind::Inverse => "inverse",
-            Kind::Bind => "bind",
-        };
-        lines.push(format!("{kind} {}", hex(&aux.digest)));
-    }
-    let sorted = |list: &[([u8; 32], Form)]| {
-        let mut digests: Vec<[u8; 32]> = list.iter().map(|(d, _)| *d).collect();
-        digests.sort_unstable();
-        digests
-    };
-    lines.extend(sorted(&record.linear).iter().map(|d| format!("linear {}", hex(d))));
-    lines.extend(sorted(&record.booleans).iter().map(|d| format!("bit {}", hex(d))));
-    Ok(lines.join("\n"))
+    Ok(vs.into_raw_proof())
 }
 
 /// The plain verifier over a padded transcript, recorded: the shape, the two roots, the final clock's bits, the core,

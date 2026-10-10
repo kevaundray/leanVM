@@ -370,17 +370,6 @@ impl Program {
         Ok(raw)
     }
 
-    /// Verify a zero-knowledge proof and render the outer constraint system its verifier recorded, the form the Python
-    /// verifier renders too.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first stage that refuses the proof.
-    #[doc(hidden)]
-    pub fn zk_constraints(&self, output: Output, proof: &Proof) -> Result<String, CpuError> {
-        super::zk::render_constraints(self, output, proof)
-    }
-
     /// The verifier's core: every check that depends on the proof.
     ///
     /// It returns the claims the proof leaves on polynomials only the program or the VM's circuits fix.
