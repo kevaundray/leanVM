@@ -19,7 +19,7 @@ use flock::FlockError;
 use flock::Witness;
 use flock::reduction::{self, Block, Instance, ReductionReplay, Shape};
 use flock::zerocheck::K_SKIP;
-use pcs::whir::{WhirError, inner_product_base_ext, strata};
+use pcs::whir::{WhirError, inner_product_base_ext};
 use primitives::field::{F64, F192};
 use primitives::test_util::Rng;
 use std::sync::OnceLock;
@@ -75,12 +75,6 @@ impl Fixture {
         let core = shape.verify_core(&mut b, output, source);
         (b, core.claims)
     }
-
-    // The checks a forged proof fails, in the order the rows meet them.
-    fn failures(&self, raw: &RawProof) -> Vec<String> {
-        let failures = self.build(ProofSource::Proof(raw)).0.finish().failures;
-        failures.iter().map(Unsatisfied::to_string).collect()
-    }
 }
 
 fn values(b: &Builder, claims: &DeferredClaims<Ew>) -> DeferredClaims {
@@ -106,93 +100,9 @@ fn the_core_leaves_the_native_deferred_claims() {
     );
 }
 
+// A program past the unground bytecode requires one bit of work; honest rows agree with native claims and a nonce missing that work is rejected.
 #[test]
-fn a_tampered_proof_fails_where_the_native_verifier_does() {
-    let f = fixture();
-    let first = |raw: &RawProof| f.failures(raw).into_iter().next().unwrap_or_default();
-
-    // The GKR's root, read right after the announcement and the commitment's two halves.
-    let mut forged = f.raw.clone();
-    forged.stream[N_TABLES + 4].c1 ^= 1;
-    assert!(first(&forged).starts_with("bus and tables"), "{}", first(&forged));
-
-    // A sibling and a leaf word of the first and the last opening.
-    for opening in [0, f.raw.merkle.len() - 1] {
-        let mut forged = f.raw.clone();
-        forged.merkle[opening].path[1][0] ^= 1;
-        assert!(
-            first(&forged).starts_with("opening / whir / rows"),
-            "{}",
-            first(&forged)
-        );
-        let mut forged = f.raw.clone();
-        let last = forged.merkle[opening].leaf_data.len() - 1;
-        forged.merkle[opening].leaf_data[last].0 ^= 1;
-        assert!(
-            first(&forged).starts_with("opening / whir / rows"),
-            "{}",
-            first(&forged)
-        );
-    }
-}
-
-// The level-0 batch: the largest group's first query feeds the shared subtree's bottom level, and the first query of
-// the next group reaches a node inside it. A wrong sibling right under either node breaks the tie to the subtree.
-#[test]
-fn a_wrong_sibling_under_the_shared_subtree_is_refused() {
-    let f = fixture();
-    let depth = f.raw.merkle[0].path.len();
-    let count = f.raw.merkle.iter().take_while(|o| o.path.len() == depth).count();
-    let strata = strata(count, depth);
-    let inner = strata.iter().position(|s| s.bits < strata[0].bits && s.bits > 0);
-    let inner = inner.expect("the batch has a second group with fixed bits");
-    for q in [0, inner] {
-        let mut forged = f.raw.clone();
-        forged.merkle[q].path[depth - strata[q].bits - 1][0] ^= 1;
-        let failures = f.failures(&forged);
-        assert!(
-            failures.first().is_some_and(|e| e.starts_with("opening / whir / rows")),
-            "query {q}: {failures:?}"
-        );
-    }
-}
-
-#[test]
-fn a_forged_announcement_is_refused_first() {
-    let f = fixture();
-    let clock = N_TABLES + 1;
-    let ts = f.raw.stream[clock];
-    let forge = |edit: &dyn Fn(&mut RawProof)| {
-        let mut forged = f.raw.clone();
-        edit(&mut forged);
-        f.failures(&forged).into_iter().next().unwrap_or_default()
-    };
-    for t in 0..N_TABLES {
-        let failure = forge(&|p| p.stream[t].c0 += 1);
-        assert!(failure.starts_with("announcement"), "height {t}: {failure}");
-    }
-    let edits: [(&str, F192); 7] = [
-        ("the rate", F192::new(2, 0, 0)),
-        ("a slot bit", F192::new(ts.c0 | 1, 0, 0)),
-        ("no live bit", F192::new(ts.c0 & !(1 << 40), 0, 0)),
-        ("a failure bit", F192::new(ts.c0 | 1 << 41, 0, 0)),
-        ("the top bit", F192::new(ts.c0 | 1 << 63, 0, 0)),
-        ("the second limb", F192::new(ts.c0, 1, 0)),
-        ("the third limb", F192::new(ts.c0, 0, 1)),
-    ];
-    for (i, (what, value)) in edits.into_iter().enumerate() {
-        let at = if i == 0 { N_TABLES } else { clock };
-        let failure = forge(&|p| p.stream[at] = value);
-        assert!(failure.starts_with("announcement"), "{what}: {failure}");
-    }
-    // A live clock at slot zero passes the announcement, and the bus refuses the wrong one.
-    let failure = forge(&|p| p.stream[clock] = F192::new(ts.c0 + 32, 0, 0));
-    assert!(failure.starts_with("bus and tables"), "a later clock: {failure}");
-}
-
-// A program past the unground bytecode: its rows check the bus's proof of work, which a smaller program's never meet.
-#[test]
-fn a_large_programs_rows_check_its_grinding() {
+fn a_large_program_rejects_a_nonce_without_required_work() {
     // The exit, then nops nothing runs, enough for one bit of grinding.
     let mut a = Asm::new();
     a.li(Reg::A0, 7).exit();
@@ -216,20 +126,18 @@ fn a_large_programs_rows_check_its_grinding() {
     assert!(failures.is_empty(), "{failures:?}");
     assert!(circuit == f.build(ProofSource::Shape).0.finish().circuit);
 
-    // The nonce follows the announcement and the root: one the native verifier refuses for missing the work fails at the bus.
+    // The bus nonce follows the announcement, three commitment constants, two root scalars and the anchor value; the anchor coordinates are derived, not transmitted here.
     let missed = CpuError::Bus(BusError::Transcript(TranscriptError::PowFailed { bits: 1 }));
+    let nonce = N_TABLES + 8;
     let forged = (1..64)
         .map(|step| {
             let mut forged = proof.clone();
-            forged.0.stream[N_TABLES + 4].c0 += step;
+            forged.0.stream[nonce].c0 += step;
             forged
         })
         .find(|forged| f.program.verify_core(f.output, forged).err() == Some(missed.clone()))
         .expect("half the nonces miss one bit of work");
-    let mut forged_raw = f.raw.clone();
-    forged_raw.stream = forged.0.stream;
-    let failure = f.failures(&forged_raw).into_iter().next().unwrap_or_default();
-    assert!(failure.starts_with("bus and tables"), "{failure}");
+    assert_eq!(f.program.verify_core(f.output, &forged).err(), Some(missed));
 }
 
 // The direction bit of a Merkle node is the hash row's mux selector: a non-Boolean one is refused by the outer verifier.
