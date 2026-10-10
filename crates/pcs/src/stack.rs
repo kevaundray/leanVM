@@ -45,10 +45,10 @@
 use std::mem::MaybeUninit;
 use std::ops::Range;
 
-use super::ring_switch::{DeferredWeight, RingFamily, RingSwitch};
+use super::ring_switch::{DeferredWeight, RingFamily, RingShare, RingSwitch};
 use super::verifier::OpeningVerifier;
 use super::whir::{
-    Commitment, CommitmentShape, Config, INITIAL_BASIS_CHUNK, InitialWeight, ProverData, WhirError,
+    Commitment, CommitmentShape, Config, INITIAL_BASIS_CHUNK, InitialWeight, ProverData, WeightAt, WhirError,
     anchor::{anchor_eq_at, eq_prefix},
     check_config_shape, receive_commitment, send_record_binding, verify_record_binding,
 };
@@ -180,22 +180,39 @@ impl<E: Copy> Statement<'_, E> {
     /// - Every region and every claim is an aligned slice of the first `committed` words.
     /// - Every ring-switched claim's point spans its region and carries its 64 slices.
     fn check(&self, log_n: usize, committed: usize) -> Result<(), WhirError> {
-        if self.rings.iter().all(|ring| ring.claims.is_empty()) {
+        let mut index = 0;
+        let mut all_empty = true;
+        while index < self.rings.len() && all_empty {
+            all_empty = self.rings[index].claims.is_empty();
+            index += 1;
+        }
+        if all_empty {
             return Err(WhirError::NoRingClaim);
         }
-        for (index, ring) in self.rings.iter().enumerate() {
-            let spans = ring
-                .claims
-                .iter()
-                .all(|claim| claim.suffix_point.len() == ring.qflock_vars && claim.s_hat_v.len() == F64::DEGREE);
-            if ring.qflock_vars > log_n || !spans || !is_aligned_slice(ring.offset, ring.qflock_vars, committed) {
-                return Err(WhirError::Region { index });
+        let mut result = Ok(());
+        index = 0;
+        while index < self.rings.len() && result.is_ok() {
+            let ring = &self.rings[index];
+            let mut claim_index = 0;
+            let mut spans = true;
+            while claim_index < ring.claims.len() && spans {
+                let claim = &ring.claims[claim_index];
+                spans = claim.suffix_point.len() == ring.qflock_vars && claim.s_hat_v.len() == F64::DEGREE;
+                claim_index += 1;
             }
+            if ring.qflock_vars > log_n || !spans || !is_aligned_slice(ring.offset, ring.qflock_vars, committed) {
+                result = Err(WhirError::Region { index });
+            }
+            index += 1;
         }
-        if let Some(index) = self.points.iter().position(|claim| !claim.is_well_formed(committed)) {
-            return Err(WhirError::PointClaim { index });
+        index = 0;
+        while index < self.points.len() && result.is_ok() {
+            if !self.points[index].is_well_formed(committed) {
+                result = Err(WhirError::PointClaim { index });
+            }
+            index += 1;
         }
-        Ok(())
+        result
     }
 }
 
@@ -307,6 +324,28 @@ pub struct StackCommitment<E = F192, R = Hash, K = F64> {
     config: Config,
 }
 
+/// The stack's borrowed terminal weight, shared by native and recursion verifiers.
+struct StatementWeight<'a, 'r, E> {
+    share: &'a RingShare<'r, E>,
+    points: &'a [StackClaim<E>],
+    point_lambdas: &'a [E],
+    shape: CommitmentShape,
+    anchor_point: &'a [E],
+    anchor_lambda: E,
+}
+
+impl<E: Copy + PartialEq, V: OpeningVerifier<E = E>> WeightAt<V> for StatementWeight<'_, '_, E> {
+    fn call(self, v: &mut V, x: &[E]) -> E {
+        let mut weight = self.share.weight_at(v, x);
+        for i in 0..self.points.len().min(self.point_lambdas.len()) {
+            let eq = self.points[i].eq_at(v, x);
+            weight = v.mul_add(self.point_lambdas[i], eq, weight);
+        }
+        let anchor = anchor_eq_at(v, self.shape, self.anchor_point, x);
+        v.mul_add(self.anchor_lambda, anchor, weight)
+    }
+}
+
 impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
     /// Receive the original commitment header and its sampled anchor under the expected shape.
     ///
@@ -381,27 +420,21 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
         // The target, recomputed from the claims.
         v.begin_scope(fiat_shamir::arith::Stage::Target);
         let family_target = share.target(v);
-        let point_target = statement
-            .points
-            .iter()
-            .zip(point_lambdas)
-            .fold(family_target, |acc, (claim, &g)| v.mul_add(g, claim.value(), acc));
+        let mut point_target = family_target;
+        for i in 0..statement.points.len().min(point_lambdas.len()) {
+            point_target = v.mul_add(point_lambdas[i], statement.points[i].value(), point_target);
+        }
         let target = v.mul_add(anchor_lambda, self.record.value(), point_target);
         v.end_scope();
 
         // The weight at the terminal point: the family's closed form, then each point claim's eq.
-        let weight_at = |v: &mut V, x: &[V::E]| {
-            let family_weight = share.weight_at(v, x);
-            let point_weight = statement
-                .points
-                .iter()
-                .zip(point_lambdas)
-                .fold(family_weight, |acc, (claim, &g)| {
-                    let eq = claim.eq_at(v, x);
-                    v.mul_add(g, eq, acc)
-                });
-            let anchor = anchor_eq_at(v, shape, self.record.point(), x);
-            v.mul_add(anchor_lambda, anchor, point_weight)
+        let weight_at = StatementWeight {
+            share: &share,
+            points: statement.points,
+            point_lambdas,
+            shape,
+            anchor_point: self.record.point(),
+            anchor_lambda,
         };
         v.begin_scope(fiat_shamir::arith::Stage::Whir);
         let result = super::whir::verify(
@@ -1284,14 +1317,17 @@ mod tests {
         rings: &[RingSwitch],
         fs: &ProofTranscript,
     ) -> bool {
-        let mut vs = VerifierState::from_label(inst.opening_label.unwrap_or(DOMAIN), fs);
-        let commitment = inst.header.as_ref().map_or_else(
-            || StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone()),
-            |header| {
-                let mut source = VerifierState::from_label(DOMAIN, header);
-                StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
-            },
-        );
+        let label = match inst.opening_label {
+            Some(label) => label,
+            None => DOMAIN,
+        };
+        let mut vs = VerifierState::from_label(label, fs);
+        let commitment = if let Some(header) = &inst.header {
+            let mut source = VerifierState::from_label(DOMAIN, header);
+            StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
+        } else {
+            StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone())
+        };
         let Ok(commitment) = commitment else { return false };
         let statement = Statement {
             points: point_claims,

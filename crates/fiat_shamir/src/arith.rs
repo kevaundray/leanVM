@@ -32,18 +32,6 @@ pub trait Arith {
     /// `a^(2^128)`: two Frobenius maps of `E` over `K`, which take `a` to `a^(2^-64)`.
     fn frobenius2(&mut self, a: Self::E) -> Self::E;
 
-    /// The multilinear extension of public `K` words at `point`, lowest coordinate first.
-    fn public_mle(&mut self, values: &[F64], point: &[Self::E]) -> Self::E {
-        assert_eq!(values.len(), 1 << point.len(), "a column has a word per vertex");
-        let eq = self.eq_table(point);
-        let zero = self.zero();
-        let mut acc = zero;
-        for i in 0..eq.len().min(values.len()) {
-            acc = self.mul_const_add(eq[i], F192::from(values[i]), acc);
-        }
-        acc
-    }
-
     /// The constant zero.
     fn zero(&mut self) -> Self::E {
         self.constant(F192::ZERO)
@@ -213,6 +201,21 @@ pub trait Arith {
     }
 }
 
+/// Arithmetic that also evaluates multilinear extensions of public columns.
+pub trait PublicMle: Arith {
+    /// The multilinear extension of public `K` words at `point`, lowest coordinate first.
+    fn public_mle(&mut self, values: &[F64], point: &[Self::E]) -> Self::E {
+        assert_eq!(values.len(), 1 << point.len(), "a column has a word per vertex");
+        let eq = self.eq_table(point);
+        let zero = self.zero();
+        let mut acc = zero;
+        for i in 0..eq.len().min(values.len()) {
+            acc = self.mul_const_add(eq[i], F192::from(values[i]), acc);
+        }
+        acc
+    }
+}
+
 /// Named stages of the generic verifier, independent of its native or row representation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -340,7 +343,9 @@ impl Arith for Native {
     fn frobenius2(&mut self, a: F192) -> F192 {
         a.frobenius().frobenius()
     }
+}
 
+impl PublicMle for Native {
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
         mle_eval_par(values, point)
     }
@@ -372,7 +377,9 @@ impl Arith for VerifierState<'_> {
     fn frobenius2(&mut self, a: F192) -> F192 {
         a.frobenius().frobenius()
     }
+}
 
+impl PublicMle for VerifierState<'_> {
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
         mle_eval_par(values, point)
     }
