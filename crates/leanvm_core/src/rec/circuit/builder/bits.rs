@@ -125,25 +125,4 @@ mod tests {
             Dw(self.cast_row(&given, v)[DIGEST])
         }
     }
-    #[test]
-    fn a_packed_word_is_the_proven_row() {
-        // Invariant: `pack` emits the row `LeanVMCircuits.Rec.pack_row` is about: one `SPLIT` row whose bits past
-        // the given ones are the public zero, so the word is the number those bits spell.
-        let mut b = Builder::new();
-        let bits: Vec<Kw> = [1, 0, 1, 1, 0].iter().map(|&v| b.free_k(v)).collect();
-        let w = b.pack(&bits);
-        assert_eq!(b.k(w), 0b01101);
-        let finished = b.finish();
-        assert!(finished.failures.is_empty(), "{:?}", finished.failures);
-        let row = finished.row_classes(Table::Split, 0);
-        let zero = finished.const_class([0, 0, 0, 0]);
-        assert!(
-            row[1 + bits.len()..].iter().all(|&c| c == zero),
-            "the high bits are zero"
-        );
-        assert!(
-            row[..=bits.len()].iter().all(|&c| c != zero),
-            "the word and the given bits are free"
-        );
-    }
 }

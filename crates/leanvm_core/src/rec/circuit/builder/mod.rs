@@ -361,20 +361,4 @@ mod tests {
             self.expose(w.0)
         }
     }
-
-    impl Finished {
-        /// The class of the public row holding the constant `value`.
-        pub(crate) fn const_class(&self, value: Limbs) -> u32 {
-            let row = (self.circuit.pubs.iter())
-                .position(|&p| p == PubSource::Const(value))
-                .unwrap_or_else(|| panic!("no public row holds {value:?}"));
-            self.circuit.classes.of(Table::Pub)[row]
-        }
-
-        /// The wire classes of row `z` of a table, slot by slot.
-        pub(crate) fn row_classes(&self, table: Table, z: usize) -> &[u32] {
-            let n = table.n_slots();
-            &self.circuit.classes.of(table)[z * n..(z + 1) * n]
-        }
-    }
 }

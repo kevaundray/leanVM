@@ -88,6 +88,24 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.hash_ports_compress
 #print axioms LeanVMCircuits.Rec.hash_row_compress
 
+#print axioms LeanVMCircuits.Rec.half_digest
+#print axioms LeanVMCircuits.Rec.eq_digest
+#print axioms LeanVMCircuits.Rec.hWords_digest
+#print axioms LeanVMCircuits.Rec.hash_row_digest
+#print axioms LeanVMCircuits.Rec.blocksFrom_append
+#print axioms LeanVMCircuits.Rec.chain_digest
+#print axioms LeanVMCircuits.Rec.node_message
+#print axioms LeanVMCircuits.Rec.node_row_digest
+#print axioms LeanVMCircuits.Rec.path_root
+#print axioms LeanVMCircuits.Rec.opening_node
+#print axioms LeanVMCircuits.Rec.parent_row_digest
+#print axioms LeanVMCircuits.Rec.parent_right
+#print axioms LeanVMCircuits.Rec.tree_nodes
+#print axioms LeanVMCircuits.Rec.tree_root
+#print axioms LeanVMCircuits.Rec.msg_block
+#print axioms LeanVMCircuits.Rec.chain_rows
+#print axioms LeanVMCircuits.Rec.statement_digest
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -131,7 +149,24 @@ run_cmd do
     ``LeanVMCircuits.Rec.pack_row, ``LeanVMCircuits.Rec.cast_views,
     ``LeanVMCircuits.Rec.hash_outputs, ``LeanVMCircuits.Rec.node_row,
     ``LeanVMCircuits.Rec.words_ofFn, ``LeanVMCircuits.Rec.hash_ports_compress,
-    ``LeanVMCircuits.Rec.hash_row_compress] do
+    ``LeanVMCircuits.Rec.hash_row_compress,
+    ``LeanVMCircuits.Rec.half_digest,
+    ``LeanVMCircuits.Rec.eq_digest,
+    ``LeanVMCircuits.Rec.hWords_digest,
+    ``LeanVMCircuits.Rec.hash_row_digest,
+    ``LeanVMCircuits.Rec.blocksFrom_append,
+    ``LeanVMCircuits.Rec.chain_digest,
+    ``LeanVMCircuits.Rec.node_message,
+    ``LeanVMCircuits.Rec.node_row_digest,
+    ``LeanVMCircuits.Rec.path_root,
+    ``LeanVMCircuits.Rec.opening_node,
+    ``LeanVMCircuits.Rec.parent_row_digest,
+    ``LeanVMCircuits.Rec.parent_right,
+    ``LeanVMCircuits.Rec.tree_nodes,
+    ``LeanVMCircuits.Rec.tree_root,
+    ``LeanVMCircuits.Rec.msg_block,
+    ``LeanVMCircuits.Rec.chain_rows,
+    ``LeanVMCircuits.Rec.statement_digest] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
