@@ -67,7 +67,7 @@ impl OpeningVerifier for VerifierState<'_> {
     type Query = usize;
 
     fn context(&mut self) -> TranscriptContext<F192, Hash> {
-        let context = VerifierState::context(self);
+        let context = Self::context(self);
         let mut state = [0u8; 32];
         for (slot, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(context.state) {
             *slot = word.0.to_le_bytes();
