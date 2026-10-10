@@ -40,7 +40,7 @@ jobs:
       - name: Check source, lowering, artifact, and theorem axioms
         working-directory: verification/circuits
         run: |
-          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot
+          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree
           lake build
           lake env lean Audit.lean
           test -f .lake/build/lib/lean/LeanVMCircuits.olean

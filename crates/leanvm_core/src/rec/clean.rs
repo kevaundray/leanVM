@@ -439,3 +439,73 @@ pub(crate) const K_PRODUCTS: &[(u64, u64, u64)] = &[
     (0xfedcba9876543210, 0x123456789abcdef, 0x48827ab55d976fa0),
     (0xfedcba9876543210, 0xfedcba9876543210, 0x150f7d66b4aedc81),
 ];
+
+/// `PARAM_IV` (`Rec.paramIV`).
+#[cfg(test)]
+pub(crate) const PARAM_IV_WORDS: [u64; 4] = [
+    0xbb67ae856b08e647,
+    0xa54ff53a3c6ef372,
+    0x9b05688c510e527f,
+    0x5be0cd191f83d9ab,
+];
+
+/// The chaining values after zero, one, two and three zero blocks (`Rec.absorb`).
+#[cfg(test)]
+pub(crate) const ZERO_PREFIXES: [[u64; 4]; 4] = [
+    [
+        0xbb67ae856b08e647,
+        0xa54ff53a3c6ef372,
+        0x9b05688c510e527f,
+        0x5be0cd191f83d9ab,
+    ],
+    [
+        0x395c719a76f2efc5,
+        0x9c979482e7a2c3ab,
+        0xb94f62da3d657ff1,
+        0x74410f1aa68a7b7c,
+    ],
+    [
+        0x307b6ba6f231de41,
+        0x7136bd060d87a0d7,
+        0x375ad72c9065164d,
+        0x71e8fa9124d665b3,
+    ],
+    [
+        0x274644cf1a7f7e2f,
+        0xedb680d3d8a53d0f,
+        0x767078dfbc4cb374,
+        0x178449f05bf79829,
+    ],
+];
+
+/// `SEED`, `OUTPUT`, `COMMIT`, `POW_BASE`, `NONCE` and `POW_TAG` (`Rec.seedTag` and the rest).
+#[cfg(test)]
+pub(crate) const DUPLEX_TAGS: [u64; 6] = [
+    0x100000000000000,
+    0x600000000000000,
+    0x700000000000000,
+    0x800000000000000,
+    0x900000000000000,
+    0x31574f502d534646,
+];
+
+/// `(first, last, len, previous, absorb_tweak(first, last, len, previous))` (`Rec.tweak`).
+#[cfg(test)]
+pub(crate) const ABSORB_TWEAKS: &[(bool, bool, usize, u64, u64)] = &[
+    (true, true, 8, 0x0, 0x410000000000000),
+    (true, true, 8, 0x18, 0x410000000000018),
+    (true, true, 8, 0x1ffffffffffff, 0x411ffffffffffff),
+    (true, true, 24, 0x0, 0x430000000000000),
+    (true, true, 24, 0x18, 0x430000000000018),
+    (true, true, 24, 0x1ffffffffffff, 0x431ffffffffffff),
+    (true, true, 64, 0x0, 0x480000000000000),
+    (true, true, 64, 0x18, 0x480000000000018),
+    (true, true, 64, 0x1ffffffffffff, 0x481ffffffffffff),
+    (true, false, 64, 0x0, 0x280000000000000),
+    (true, false, 64, 0x18, 0x280000000000018),
+    (true, false, 64, 0x1ffffffffffff, 0x281ffffffffffff),
+    (false, true, 8, 0x0, 0x510000000000000),
+    (false, true, 24, 0x0, 0x530000000000000),
+    (false, true, 64, 0x0, 0x580000000000000),
+    (false, false, 64, 0x0, 0x380000000000000),
+];

@@ -401,4 +401,84 @@ theorem pow_rows (r : RowState) (n : Fin 3 → BitVec 64) (bits : ℕ) (hb : bit
     rw [hash64, ← hw, e, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt]
     exact low_bits_row splitRow hid bits hb hzero
 
+/-! The squeeze cursor's bound and the tweak's fields. -/
+
+/-- `fiat_shamir::MAX_SQUEEZE_BYTES`: a squeeze run's length fits the tweak's 49-bit cursor field. -/
+def maxSqueeze : ℕ := 2 ^ 49 - 1
+
+/-- Operations each within the cursor bound `Duplex::squeeze` and `Transcript::sample` assert: a sample only when
+its 24 bytes keep the run within `maxSqueeze`. -/
+def Duplex.Bounded (d : Duplex) : List Op → Prop
+  | [] => True
+  | op :: ops => (op = .sample → d.squeezed + 24 ≤ maxSqueeze) ∧ (d.step op).1.Bounded ops
+
+/-- A state whose cursors fit their field. -/
+def Duplex.Fits (d : Duplex) : Prop := d.squeezed ≤ maxSqueeze ∧ d.previous ≤ maxSqueeze
+
+theorem finishAbsorb_fits (d : Duplex) (h : d.Fits) : d.finishAbsorb.Fits := by
+  unfold Duplex.finishAbsorb; split
+  · exact h
+  · exact ⟨h.1, by simp [maxSqueeze]⟩
+
+theorem absorbWord_previous (d : Duplex) (w : BitVec 64) :
+    (d.absorbWord w).previous = 0 ∨ (d.absorbWord w).previous = d.squeezed ∨
+      (d.absorbWord w).previous = d.previous := by
+  simp only [Duplex.absorbWord]
+  split_ifs <;> simp
+
+theorem absorbWord_fits (d : Duplex) (w : BitVec 64) (h : d.Fits) : (d.absorbWord w).Fits := by
+  refine ⟨by rw [absorbWord_squeezed]; exact Nat.zero_le _, ?_⟩
+  rcases absorbWord_previous d w with h' | h' | h' <;> rw [h']
+  · exact Nat.zero_le _
+  · exact h.1
+  · exact h.2
+
+theorem squeezeWord_fits (e : Duplex) (h : e.Fits) (hb : e.squeezed + 8 ≤ maxSqueeze) :
+    (e.squeezeWord).1.Fits ∧ (e.squeezeWord).1.squeezed = e.squeezed + 8 := by
+  have hs : (e.squeezeWord).1 = { e.finishAbsorb with squeezed := e.finishAbsorb.squeezed + 8 } := rfl
+  rw [hs, finishAbsorb_squeezed]
+  exact ⟨⟨hb, (finishAbsorb_fits e h).2⟩, rfl⟩
+
+theorem step_fits (d : Duplex) (op : Op) (h : d.Fits) (hb : op = .sample → d.squeezed + 24 ≤ maxSqueeze) :
+    (d.step op).1.Fits := by
+  cases op with
+  | observe x => exact absorbWord_fits _ _ (absorbWord_fits _ _ (absorbWord_fits _ _ h))
+  | sample =>
+    have hb := hb rfl
+    obtain ⟨h1, e1⟩ := squeezeWord_fits d h (by omega)
+    obtain ⟨h2, e2⟩ := squeezeWord_fits _ h1 (by omega)
+    obtain ⟨h3, -⟩ := squeezeWord_fits _ h2 (by omega)
+    exact h3
+  | nonce n bits => exact ⟨by simp [Duplex.step, Duplex.absorbNonce], (finishAbsorb_fits d h).2⟩
+
+theorem run_fits (d : Duplex) (ops : List Op) (h : d.Fits) (hb : d.Bounded ops) : (d.run ops).1.Fits := by
+  induction ops generalizing d with
+  | nil => exact h
+  | cons op ops ih =>
+    obtain ⟨h1, h2⟩ := hb
+    exact ih _ (step_fits d op h h1) h2
+
+/-- Within the bounds, a tweak names its role, its block's length and its cursor: absorption nodes of different
+positions or lengths, and the seed, output, commitment, base and nonce nodes, never share a counter word. -/
+theorem tweak_injective (f l f' l' : Bool) (len len' p p' : ℕ) (hl : len ≤ 64) (hl' : len' ≤ 64)
+    (hp : p ≤ maxSqueeze) (hp' : p' ≤ maxSqueeze) (h : tweak f l len p = tweak f' l' len' p') :
+    f = f' ∧ l = l' ∧ len = len' ∧ p = p' := by
+  unfold maxSqueeze at hp hp'
+  unfold tweak at h
+  have h2 := congrArg BitVec.toNat h
+  simp only [BitVec.toNat_ofNat] at h2
+  cases f <;> cases l <;> cases f' <;> cases l' <;> simp only at h2 <;>
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at h2 <;>
+    first | omega | exact ⟨rfl, rfl, by omega, by omega⟩
+
+/-- Every role tag differs from every absorption tweak within the bounds. -/
+theorem tag_ne_tweak (f l : Bool) (len p : ℕ) (hl : len ≤ 64) (hp : p ≤ maxSqueeze) :
+    tweak f l len p ∉ [seedTag, outputTag, commitTag, powBaseTag, nonceTag] := by
+  unfold maxSqueeze at hp
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
+  unfold tweak seedTag outputTag commitTag powBaseTag nonceTag
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> intro h <;> have h2 := congrArg BitVec.toNat h <;>
+    simp only [BitVec.toNat_ofNat] at h2 <;> cases f <;> cases l <;> simp only at h2 <;>
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at h2 <;> omega
+
 end LeanVMCircuits.Rec
