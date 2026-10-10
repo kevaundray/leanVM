@@ -51,7 +51,7 @@ pub use config::{
     SUBSEQUENT_FOLDING_FACTOR, VerifierConfig, config_for_rate,
 };
 
-pub use commit::{Commitment, CommitmentShape, ProverData, commit, receive_commitment};
+pub use commit::{Commitment, CommitmentShape, ProverData, VerifierCommitment, commit, receive_commitment};
 pub use induce::eval_sk_at_vks;
 pub use prove::open_with_basis;
 pub(crate) use prove::prove_protocol_with_prepared_basis;

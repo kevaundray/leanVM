@@ -51,6 +51,10 @@ pub struct Commitment<E = F192, R = Hash, K = F64> {
     pub(crate) value: E,
 }
 
+/// The commitment's scalar, digest and pending-word representations selected by a verifier.
+pub type VerifierCommitment<V> =
+    Commitment<<V as fiat_shamir::arith::Arith>::E, <V as OpeningVerifier>::Root, <V as OpeningVerifier>::K>;
+
 impl<E, R, K> Commitment<E, R, K> {
     pub const fn root(&self) -> R
     where
@@ -82,7 +86,7 @@ impl<E, R, K> Commitment<E, R, K> {
         self.value
     }
 
-    pub(crate) fn valid_context(&self) -> bool {
+    pub(crate) const fn valid_context(&self) -> bool {
         if self.context.pending_bytes > 64 {
             return false;
         }
@@ -260,7 +264,7 @@ pub fn receive_commitment<V: OpeningVerifier>(
     log_batch_size: usize,
     log_inv_rate: usize,
     n_lanes: usize,
-) -> Result<Commitment<V::E, V::Root, V::K>, WhirError> {
+) -> Result<VerifierCommitment<V>, WhirError> {
     let shape = CommitmentShape {
         log_n,
         log_batch_size,
