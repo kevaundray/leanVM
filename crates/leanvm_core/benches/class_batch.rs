@@ -29,8 +29,8 @@ use flock::circuit::Circuit;
 use flock::reduction::{self, Instance};
 use leanvm::{Fill, MIN_MU, TableId, Word};
 use pcs::ring_switch::RingSwitch;
-use pcs::stack_open;
-use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, ProverConfig, commit, config_for_rate, receive_commitment};
+use pcs::stack::{CommittedStack, StackCommitment, Statement};
+use pcs::whir::{Config, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, config_for_rate};
 use primitives::field::F64;
 use primitives::pretty_integer;
 use primitives::test_util::Rng;
@@ -89,7 +89,7 @@ struct ClassBatch {
     rows: Vec<Row>,
     n_log: usize,
     mu: usize,
-    config: ProverConfig,
+    config: Config,
 }
 
 impl ClassBatch {
@@ -159,13 +159,7 @@ impl ClassBatch {
 
         let mut ps = ProverState::from_label(b"flock-class-batch");
         let t = Instant::now();
-        let (commitment, prover_data) = commit(
-            &mut ps,
-            as_field(&witness.z),
-            self.mu,
-            INITIAL_FOLDING_FACTOR,
-            LOG_INV_RATE_0,
-        );
+        let committed = CommittedStack::new(&mut ps, as_field(&witness.z), self.mu, self.config.clone());
         let commit_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
@@ -180,7 +174,15 @@ impl ClassBatch {
             claims: vec![claim],
         };
         let z = as_field(&witness.z);
-        stack_open::open(&mut ps, z, &prover_data, &self.config, &commitment, &[], &[ring]);
+        let rings = [ring];
+        committed.open(
+            &mut ps,
+            z,
+            Statement {
+                points: &[],
+                rings: &rings,
+            },
+        );
         let opening_s = t.elapsed().as_secs_f64();
 
         (ps.into_proof(), [witness_s, commit_s, reduction_s, opening_s])
@@ -190,14 +192,8 @@ impl ClassBatch {
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
         let mut vs = VerifierState::from_label(b"flock-class-batch", proof);
-        let commitment = receive_commitment(
-            &mut vs,
-            self.mu,
-            INITIAL_FOLDING_FACTOR,
-            LOG_INV_RATE_0,
-            1 << INITIAL_FOLDING_FACTOR,
-        )
-        .expect("immutable anchored commitment");
+        let commitment = StackCommitment::receive(&mut vs, self.mu, 1 << INITIAL_FOLDING_FACTOR, self.config.clone())
+            .expect("immutable anchored commitment");
         let replay = reduction::verify(&[(block.shape(), self.n_log)], &mut vs)
             .expect("the reduction verifies")
             .remove(0);
@@ -207,7 +203,16 @@ impl ClassBatch {
             qflock_vars: self.mu,
             claims: vec![replay.claim],
         };
-        stack_open::verify(&mut vs, &self.config, &commitment, &[], &[ring]).expect("the opening verifies");
+        let rings = [ring];
+        commitment
+            .verify(
+                &mut vs,
+                Statement {
+                    points: &[],
+                    rings: &rings,
+                },
+            )
+            .expect("the opening verifies");
         vs.finish().expect("transcript fully consumed");
     }
 
