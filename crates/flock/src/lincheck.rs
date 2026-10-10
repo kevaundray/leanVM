@@ -65,13 +65,13 @@
 //!     q(inf) = sum_i (comb_lo[i] + comb_hi[i]) * (z_lo[i] + z_hi[i])      the leading coefficient
 //! ```
 
-use fiat_shamir::arith::{Arith, Native, Verifier};
+use fiat_shamir::arith::{Arith, Native, Portable, Verifier};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use pcs::ring_switch::SliceClaim;
 use primitives::bits::bit_transpose_64bytes;
 use primitives::field::F192;
-use primitives::multilinear::{eq_table, inner_product, skip_lagrange_weights};
+use primitives::multilinear::{eq_table, skip_lagrange_weights};
 use thiserror::Error;
 
 use crate::reduction::Shape;
@@ -95,11 +95,8 @@ pub trait LincheckCircuit: Sync {
 
     /// The batched bilinear form `u^T A_0 w + alpha u^T B_0 w`, without the length-`2^k_log` marginal.
     ///
-    /// A circuit that walks its gates answers in time linear in the circuit.
-    /// `None` lets the verifier fall back on the marginal.
-    fn bilinear_form(&self, _alpha: F192, _u: &[F192], _w: &[F192]) -> Option<F192> {
-        None
-    }
+    /// The verifier's, so by the portable arithmetic ([`Portable`]).
+    fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> F192;
 }
 
 /// A claim point with a univariate-skip coordinate.
@@ -167,15 +164,19 @@ pub enum LincheckError {
 ///     out[i_skip + i_rest 2^k_skip] = L_(i_skip)(z_skip) * eq(x_inner_rest, i_rest)
 /// ```
 pub fn build_quirky_eq_table(z_skip: F192, x_inner_rest: &[F192], k_skip: usize) -> Vec<F192> {
-    outer_product(&eq_table(x_inner_rest), &skip_lagrange_weights(k_skip, z_skip))
+    outer_product(
+        &mut Native,
+        &eq_table(x_inner_rest),
+        &skip_lagrange_weights(k_skip, z_skip),
+    )
 }
 
 /// `out[i_lo + i_hi lo.len()] = lo[i_lo] * hi[i_hi]`: `lo` varies fastest.
-fn outer_product(hi: &[F192], lo: &[F192]) -> Vec<F192> {
+fn outer_product<A: Arith>(a: &mut A, hi: &[A::E], lo: &[A::E]) -> Vec<A::E> {
     // Sized up front: a flattened iterator cannot report its length.
     let mut out = Vec::with_capacity(hi.len() * lo.len());
     for &h in hi {
-        out.extend(lo.iter().map(|&l| l * h));
+        out.extend(lo.iter().map(|&l| a.mul(l, h)));
     }
     out
 }
@@ -575,17 +576,16 @@ impl<E: Copy> MatrixForm<E> {
 }
 
 impl MatrixForm {
-    /// The form against a circuit's matrices.
-    ///
-    /// A circuit that walks its gates evaluates it in time linear in the circuit.
-    /// Any other folds its matrices into the batched marginal, then takes one inner product.
+    /// The form against a circuit's matrices, by the portable arithmetic: the verifier settles its claims with it.
     pub fn evaluate(&self, circuit: &dyn LincheckCircuit) -> F192 {
+        let a = &mut Portable;
         let k_skip = self.s_hat_v.len().ilog2() as usize;
-        let eq_inner = build_quirky_eq_table(self.z_skip, &self.x_inner_rest, k_skip);
-        let w_col = outer_product(&eq_table(&self.r_inner_rest), &self.s_hat_v);
-        circuit
-            .bilinear_form(self.alpha, &eq_inner, &w_col)
-            .unwrap_or_else(|| inner_product(&circuit.fold_alpha_batched(self.alpha, &eq_inner), &w_col))
+        let lagrange = SkipDomain::new(k_skip).lagrange_weights(a, self.z_skip);
+        let eq_rows = a.eq_table(&self.x_inner_rest);
+        let u = outer_product(a, &eq_rows, &lagrange);
+        let eq_cols = a.eq_table(&self.r_inner_rest);
+        let w = outer_product(a, &eq_cols, &self.s_hat_v);
+        circuit.bilinear_form(self.alpha, &u, &w)
     }
 }
 
@@ -1143,6 +1143,7 @@ mod tests {
     use std::collections::HashSet;
 
     use fiat_shamir::transcript::{ProofTranscript, VerifierState};
+    use primitives::multilinear::inner_product;
     use primitives::test_util::Rng;
 
     use super::*;
@@ -1221,6 +1222,10 @@ mod tests {
         fn fold_alpha_batched(&self, alpha: F192, eq_inner: &[F192]) -> Vec<F192> {
             let (a, b) = (self.a_0.marginal(eq_inner), self.b_0.marginal(eq_inner));
             a.iter().zip(&b).map(|(&x, &y)| x + alpha * y).collect()
+        }
+
+        fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> F192 {
+            inner_product(&self.fold_alpha_batched(alpha, u), w)
         }
     }
 

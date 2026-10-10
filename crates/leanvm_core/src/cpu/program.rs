@@ -371,6 +371,7 @@ impl Program {
     /// The verifier's core, and the proof it replayed with its Merkle paths written out.
     #[tracing::instrument(name = "Verify core", skip_all)]
     fn replay(&self, output: Output, proof: &Proof) -> Result<(DeferredClaims, RawProof), CpuError> {
+        let _portable = primitives::portable::enter();
         // The public statement seeds the transcript, as on the prover's side.
         let mut vs = VerifierState::new(self.fs_seed(), &proof.0, output.words().map(F64));
 
@@ -430,7 +431,9 @@ impl Program {
     /// The digest of `rv`'s public statement.
     ///
     /// Every variable-length part is length-framed, so the preimage parses one way.
+    /// The verifier checks a proof against it, so it is computed as the verifier computes (`primitives::portable`).
     fn digest_of(rv: &RiscvProgram) -> [u8; 32] {
+        let _portable = primitives::portable::enter();
         let bytes = |words: &[u64]| -> Vec<u8> { words.iter().flat_map(|w| w.to_le_bytes()).collect() };
         let table = Lookup::Bytecode.table(rv);
         let table_bytes: Vec<u8> = table.iter().flat_map(|w| w.0.to_le_bytes()).collect();

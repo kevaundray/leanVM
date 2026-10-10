@@ -282,6 +282,79 @@ impl Arith for Native {
     }
 }
 
+/// Plain `F192` arithmetic with no SIMD intrinsic, no assembly and no pool dispatch: the native verifier's.
+///
+/// The verifier's transcript computes through it, and so does every check the native verifier makes off the transcript.
+/// See `primitives::portable`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Portable;
+
+impl Arith for Portable {
+    type E = F192;
+
+    fn constant(&mut self, c: F192) -> F192 {
+        c
+    }
+
+    fn mul_add(&mut self, a: F192, b: F192, d: F192) -> F192 {
+        a.mul_portable(b) + d
+    }
+
+    fn add(&mut self, a: F192, d: F192) -> F192 {
+        a + d
+    }
+
+    /// A constant of `K`, as most are, takes the cheaper product by a word.
+    fn mul_const_add(&mut self, a: F192, c: F192, d: F192) -> F192 {
+        if c.c1 == 0 && c.c2 == 0 {
+            a.mul_base_portable(F64(c.c0)) + d
+        } else {
+            a.mul_portable(c) + d
+        }
+    }
+
+    fn inv(&mut self, a: F192) -> F192 {
+        a.inv_portable()
+    }
+
+    fn frobenius2(&mut self, a: F192) -> F192 {
+        a.frobenius().frobenius()
+    }
+
+    fn square(&mut self, a: F192) -> F192 {
+        a.square_portable()
+    }
+
+    /// By the words' bits: `sum_x eq(point, x) v_x = sum_k x^k sum_x eq(point, x) bit_k(v_x)`.
+    ///
+    /// A row of `2^PUBLIC_LOW_VARS` words sums its low eq weights into one slice per bit, by additions alone; a slice
+    /// then takes its row's high eq weight, and each bit's sum its power of `x`.
+    fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
+        /// The low coordinates, whose eq table every row reads.
+        const PUBLIC_LOW_VARS: usize = 12;
+        assert_eq!(values.len(), 1 << point.len(), "a column has a word per vertex");
+        let (low, high) = point.split_at(point.len().min(PUBLIC_LOW_VARS));
+        let (eq_low, eq_high) = (self.eq_table(low), self.eq_table(high));
+        let mut bits = [F192::ZERO; F64::DEGREE];
+        for (row, &weight) in values.chunks_exact(eq_low.len()).zip(&eq_high) {
+            let mut slices = [F192::ZERO; F64::DEGREE];
+            for (&e, v) in eq_low.iter().zip(row) {
+                let mut word = v.0;
+                while word != 0 {
+                    slices[word.trailing_zeros() as usize] += e;
+                    word &= word - 1;
+                }
+            }
+            for (bit, slice) in bits.iter_mut().zip(slices) {
+                if !slice.is_zero() {
+                    *bit += weight.mul_portable(slice);
+                }
+            }
+        }
+        (bits.iter().enumerate()).fold(F192::ZERO, |acc, (k, b)| acc + b.mul_base_portable(F64(1 << k)))
+    }
+}
+
 impl Arith for VerifierState<'_> {
     type E = F192;
 
@@ -290,7 +363,7 @@ impl Arith for VerifierState<'_> {
     }
 
     fn mul_add(&mut self, a: F192, b: F192, d: F192) -> F192 {
-        a * b + d
+        Portable.mul_add(a, b, d)
     }
 
     fn add(&mut self, a: F192, d: F192) -> F192 {
@@ -298,19 +371,23 @@ impl Arith for VerifierState<'_> {
     }
 
     fn mul_const_add(&mut self, a: F192, c: F192, d: F192) -> F192 {
-        a * c + d
+        Portable.mul_const_add(a, c, d)
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() { F192::ZERO } else { a.inv() }
+        Portable.inv(a)
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
-        a.frobenius().frobenius()
+        Portable.frobenius2(a)
+    }
+
+    fn square(&mut self, a: F192) -> F192 {
+        Portable.square(a)
     }
 
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
-        mle_eval_par(values, point)
+        Portable.public_mle(values, point)
     }
 }
 
@@ -342,5 +419,36 @@ impl Verifier for VerifierState<'_> {
 
     fn finish(&mut self) -> Result<(), TranscriptError> {
         VerifierState::finish(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use primitives::multilinear::mle_eval;
+
+    #[test]
+    fn the_portable_public_mle_is_the_dispatched_one() {
+        // Below, at and past one row of the low eq table, words dense and sparse.
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(0x5851_f42d_4c95_7f2d)
+                .wrapping_add(0x1405_7b7e_f767_814f);
+            state
+        };
+        for n in [0, 1, 3, 12, 13, 15] {
+            let point: Vec<F192> = (0..n).map(|_| F192::new(next(), next(), next())).collect();
+            for sparse in [false, true] {
+                let values: Vec<F64> = (0..1 << n)
+                    .map(|_| F64(if sparse { next() & 0x8001 } else { next() }))
+                    .collect();
+                assert_eq!(
+                    Portable.public_mle(&values, &point),
+                    mle_eval(&values, &point),
+                    "{n} variables"
+                );
+            }
+        }
     }
 }

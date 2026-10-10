@@ -21,6 +21,7 @@
 
 use std::ops::Range;
 
+use fiat_shamir::arith::{Arith, Portable};
 use primitives::bits::transpose_64x64;
 use primitives::field::F192;
 
@@ -703,9 +704,13 @@ impl LincheckCircuit for Circuit {
         m
     }
 
-    fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> Option<F192> {
+    /// One forward walk for the matrix-vector products, then the inner product.
+    fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> F192 {
         let (ra, rb) = self.row_values(w);
-        Some((u.iter().zip(ra.iter().zip(&rb))).fold(F192::ZERO, |acc, (&u, (&a, &b))| acc + u * (a + alpha * b)))
+        (u.iter().zip(ra.iter().zip(&rb))).fold(F192::ZERO, |acc, (&u, (&a, &b))| {
+            let row = Portable.mul_add(alpha, b, a);
+            Portable.mul_add(u, row, acc)
+        })
     }
 }
 

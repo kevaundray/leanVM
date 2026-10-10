@@ -92,7 +92,7 @@ impl OpeningVerifier for VerifierState<'_> {
     }
 
     fn mul_k_add(&mut self, a: F192, k: F64, d: F192) -> F192 {
-        a.mul_base(k) + d
+        a.mul_base_portable(k) + d
     }
 
     fn e_of_limbs(&mut self, limbs: [F64; 3]) -> F192 {

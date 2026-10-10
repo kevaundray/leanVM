@@ -3,6 +3,9 @@
 //! Absorption maintains a framed chaining value. Domain-separated terminal nodes produce output
 //! blocks without exposing that chaining value. Consecutive calls concatenate within each mode;
 //! switching back to absorption binds the number of output bytes actually consumed.
+//!
+//! Both sides' duplexes compress with the portable code, which the verifier's must; only the prover's grinding
+//! search batches its hashes.
 
 pub mod arith;
 pub mod merkle;
@@ -61,7 +64,7 @@ pub const fn absorb_tweak(first: bool, last: bool, len: usize, previous: u64) ->
 
 fn compress_block(mut cv: [u32; 8], block: &[u8; 64], tweak: u64) -> [u32; 8] {
     let words = std::array::from_fn(|i| u32::from_le_bytes(block[4 * i..4 * i + 4].try_into().unwrap()));
-    primitives::hash::compress(&mut cv, &words, tweak, true);
+    primitives::hash::portable::compress(&mut cv, &words, tweak, true);
     cv
 }
 
@@ -77,7 +80,7 @@ fn pow_bits_ok(base: [F64; 4], nonce: F192, bits: u32) -> bool {
     for (slot, value) in input.as_chunks_mut::<8>().0.iter_mut().zip(values) {
         *slot = value.to_le_bytes();
     }
-    let digest = primitives::hash::hash(&input);
+    let digest = primitives::hash::portable::hash(&input);
     u64::from_le_bytes(digest[..8].try_into().unwrap()) & ((1u64 << bits) - 1) == 0
 }
 
@@ -122,7 +125,7 @@ impl Duplex {
 
     /// A labeled protocol with the zero statement digest.
     pub fn from_label(label: &[u8]) -> Self {
-        Self::new(digest_words(&primitives::hash::hash(label)), [F64::ZERO; 4])
+        Self::new(digest_words(&primitives::hash::portable::hash(label)), [F64::ZERO; 4])
     }
 
     /// Absorb an arbitrary byte string, preserving full blocks until their finality is known.

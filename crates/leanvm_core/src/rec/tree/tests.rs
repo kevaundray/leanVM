@@ -12,7 +12,7 @@ use design::NodeRows;
 use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::{Challenger, ProverState, Transmitter, VerifierState};
 use flock::lincheck::MatrixForm;
-use primitives::multilinear::mle_eval;
+use primitives::multilinear::{eq_table, mle_eval};
 use primitives::test_util::Rng;
 use std::sync::OnceLock;
 

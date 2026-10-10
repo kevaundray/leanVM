@@ -20,7 +20,7 @@ use crate::leaf;
 use crate::leaf::{BusVerify, N_TUPLE_BITS, SparseColumn};
 use crate::rv::RiscvProgram;
 use crate::tables::{N_TABLES, Part};
-use fiat_shamir::arith::Arith;
+use fiat_shamir::arith::{Arith, Portable};
 use flock::FlockError;
 use flock::lincheck::{LincheckError, MatrixClaim, MatrixForm};
 use primitives::field::F192;
@@ -128,6 +128,8 @@ pub enum MalformedClaim {
 
 impl ProgramPoint {
     /// The value of the program's fixed polynomials at this point, if the point has the program's shape.
+    ///
+    /// By the portable arithmetic: the verifier's.
     fn evaluate(&self, rv: &RiscvProgram) -> Option<F192> {
         let kbc = crate::log2_strict_usize(rv.entries().len());
         // A multiplicity is one word, so it has at most 64 bits.
@@ -136,10 +138,11 @@ impl ProgramPoint {
             return None;
         }
         let (chi, alphas) = self.bytecode.split_at(kbc);
-        let weights = leaf::fingerprint_weights(alphas);
+        // The fingerprint weights are the eq weights of the slots at `alphas`.
+        let weights = Portable.eq_table(alphas);
         let bytecode = leaf::producer_public_twist(&Lookup::Bytecode.tuple(rv), &weights, chi, &self.twist);
         let image = SparseColumn::new(rv.log_ram(), &[(0, rv.image())]);
-        Some(bytecode + self.image_weight * image.eval(&self.image_point))
+        Some(Portable.mul_add(self.image_weight, image.eval(&self.image_point), bytecode))
     }
 }
 
@@ -203,6 +206,7 @@ impl Program {
     #[tracing::instrument(name = "Check deferred", skip_all)]
     #[doc(hidden)]
     pub fn check_deferred(&self, claims: &DeferredClaims) -> Result<(), CpuError> {
+        let _portable = primitives::portable::enter();
         if claims.circuits.len() != N_FLOCKS {
             return Err(CpuError::MalformedClaim(MalformedClaim::CircuitCount {
                 expected: N_FLOCKS,

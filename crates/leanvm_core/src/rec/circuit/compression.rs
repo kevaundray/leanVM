@@ -47,6 +47,16 @@ impl Compression {
         }
         .eval()
     }
+
+    /// The output chaining value by the portable compression: the native verifier's.
+    fn output_portable(&self) -> Limbs {
+        let i = &self.0;
+        // Each word of `h` and `m` as its two 32-bit halves, low first.
+        let mut h: [u32; 8] = std::array::from_fn(|k| (i[2 + k / 2] >> (32 * (k % 2))) as u32);
+        let m: [u32; 16] = std::array::from_fn(|k| (i[6 + k / 2] >> (32 * (k % 2))) as u32);
+        primitives::hash::portable::compress(&mut h, &m, i[0], i[1] == Hash::FINAL);
+        words(h)
+    }
 }
 
 /// The chaining value after `n` zero blocks from the parameter IV, as four words.
@@ -54,7 +64,7 @@ pub fn zero_prefix(n: usize) -> Limbs {
     words(primitives::hash::zero_prefix_state(n))
 }
 
-/// The BLAKE2s hash of the little-endian bytes of `words`, eight words a block.
+/// The BLAKE2s hash of the little-endian bytes of `words`, eight words a block, by the portable compression.
 ///
 /// The last block is zero padded and its counter is the message's length in bytes.
 /// So the length is hashed: appending zero words changes the digest.
@@ -64,7 +74,7 @@ pub fn chain(words: &[u64]) -> Limbs {
     (0..n_blocks).fold(PARAM_IV, |h, j| {
         // The final block retains the message's words and zero-pads its unused slots.
         let m = std::array::from_fn(|k| words.get(8 * j + k).copied().unwrap_or(0));
-        Compression::new(h, m, (64 * (j as u64 + 1)).min(bytes), j + 1 == n_blocks).output()
+        Compression::new(h, m, (64 * (j as u64 + 1)).min(bytes), j + 1 == n_blocks).output_portable()
     })
 }
 

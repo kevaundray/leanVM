@@ -28,9 +28,9 @@ use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::PerTable;
 use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
+use fiat_shamir::arith::{Arith, Portable};
 use fiat_shamir::transcript::{ProofTranscript, RawProof};
 use primitives::field::{F64, F192};
-use primitives::multilinear::{eq_table, mle_eval_par};
 use reduce::DenseTables;
 use statement::TreeStatement;
 use thiserror::Error;
@@ -539,6 +539,7 @@ impl<'p> Tree<'p> {
     /// Returns the first check that refuses.
     #[tracing::instrument(name = "Verify tree", skip_all)]
     pub fn verify(&self, root: &TreeProof, outputs: &[Output]) -> Result<(), TreeError> {
+        let _portable = primitives::portable::enter();
         let d = &self.design;
         if root.rate != d.rate {
             return Err(TreeError::Rate {
@@ -617,6 +618,7 @@ impl<'p> Tree<'p> {
     /// Evaluate every claim a root's statement carries.
     #[tracing::instrument(name = "Settle claims", skip_all)]
     fn settle(&self, s: &TreeStatement, kind: Kind) -> Result<(), TreeError> {
+        let a = &mut Portable;
         let vars = &self.design.vars.0;
         for poly in DensePoly::ALL {
             // A first-level node reduces no claim on the fixed polynomial.
@@ -624,26 +626,24 @@ impl<'p> Tree<'p> {
                 continue;
             }
             let point = &s.dense_point()[..vars[poly as usize]];
-            if mle_eval_par(&self.tables.0[poly as usize], point) != s.dense_value(poly) {
+            if a.public_mle(&self.tables.0[poly as usize], point) != s.dense_value(poly) {
                 return Err(TreeError::Claim(FalseClaim::Dense(poly)));
             }
         }
-        let held = parallel::map_collect(FlockId::ALL.len(), |f| {
-            let f = FlockId::ALL[f];
+        for f in FlockId::ALL {
             let circuit = f.circuit();
             let k = circuit.k_log();
-            let (ra, rb) = circuit.row_values(&eq_table(&s.cols()[..k]));
-            let u = eq_table(&s.rows()[..k]);
-            let dot = |r: &[F192]| u.iter().zip(r).fold(F192::ZERO, |acc, (&x, &y)| acc + x * y);
-            [dot(&ra), dot(&rb)] == s.matrices(f)
-        });
-        (FlockId::ALL.into_iter().zip(held))
-            .find(|&(_, h)| !h)
-            .map_or(Ok(()), |(f, _)| {
-                Err(TreeError::Claim(FalseClaim::Matrix {
+            let cols = a.eq_table(&s.cols()[..k]);
+            let (ra, rb) = circuit.row_values(&cols);
+            let u = a.eq_table(&s.rows()[..k]);
+            let mut dot = |r: &[F192]| (u.iter().zip(r)).fold(F192::ZERO, |acc, (&x, &y)| a.mul_add(x, y, acc));
+            if [dot(&ra), dot(&rb)] != s.matrices(f) {
+                return Err(TreeError::Claim(FalseClaim::Matrix {
                     table: f.table().name(),
                     part: f.part(),
-                }))
-            })
+                }));
+            }
+        }
+        Ok(())
     }
 }

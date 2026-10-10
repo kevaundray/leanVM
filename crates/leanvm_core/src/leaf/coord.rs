@@ -1,7 +1,7 @@
 //! A tuple coordinate as a function of its block's row, and the public columns a coordinate reads.
 
 use crate::rec::FixedColumn;
-use fiat_shamir::arith::{Arith, Native};
+use fiat_shamir::arith::{Arith, Native, Portable};
 use fiat_shamir::transcript::VerifierState;
 use primitives::field::{F64, F192};
 use std::sync::{Arc, OnceLock};
@@ -145,15 +145,15 @@ impl SparseColumn {
         })
     }
 
-    /// The column's multilinear extension at `point`.
+    /// The column's multilinear extension at `point`, by the portable arithmetic: the verifier's.
     pub(crate) fn eval(&self, point: &[F192]) -> F192 {
         assert_eq!(point.len(), self.log_len);
+        let a = &mut Portable;
         self.blocks.iter().fold(F192::ZERO, |acc, (at, words)| {
             let k = words.len().ilog2() as usize;
-            let selector = point[k..].iter().enumerate().fold(F192::ONE, |s, (j, &z)| {
-                s * if (at >> (k + j)) & 1 == 1 { z } else { z + F192::ONE }
-            });
-            acc + selector * primitives::multilinear::mle_eval(words, &point[..k])
+            let selector = a.eq_bits(at >> k, &point[k..]);
+            let block = a.public_mle(words, &point[..k]);
+            a.mul_add(selector, block, acc)
         })
     }
 }

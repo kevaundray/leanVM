@@ -335,6 +335,7 @@ impl Circuit {
         proof: &ProofTranscript,
         fixed: Option<&FixedColumns>,
     ) -> Result<RawProof, RecError> {
+        let _portable = primitives::portable::enter();
         if statement.len() != self.statement_len {
             return Err(RecError::StatementLength {
                 expected: self.statement_len,

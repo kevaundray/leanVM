@@ -349,7 +349,7 @@ impl<'a> Receiver for VerifierState<'a> {
             },
             |r| {
                 // An equality-weighted round reconstructs its constant coefficient using the weighting challenge.
-                claim + r * sum_from(1)
+                claim + r.mul_portable(sum_from(1))
             },
         );
         for (i, &c) in coeffs.iter().enumerate() {
