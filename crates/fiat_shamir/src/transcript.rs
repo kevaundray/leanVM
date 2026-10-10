@@ -207,11 +207,6 @@ impl ProverState {
         });
     }
 
-    /// How many keys hidden scalars have used.
-    pub fn keys_used(&self) -> usize {
-        self.pad.as_ref().map_or(0, |p| p.next)
-    }
-
     /// The proof so far, which a verifier replays from the same seed.
     pub fn snapshot(&self) -> ProofTranscript {
         ProofTranscript {
