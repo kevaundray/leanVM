@@ -77,6 +77,13 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.Identity.eval_expr
 #print axioms LeanVMCircuits.Rec.identities
 
+#print axioms LeanVMCircuits.Rec.inverse_row
+#print axioms LeanVMCircuits.Rec.add_row
+#print axioms LeanVMCircuits.Rec.pack_row
+#print axioms LeanVMCircuits.Rec.cast_views
+#print axioms LeanVMCircuits.Rec.hash_outputs
+#print axioms LeanVMCircuits.Rec.node_row
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -115,7 +122,10 @@ run_cmd do
     ``LeanVMCircuits.Rec.Form.eval_expr, ``LeanVMCircuits.Rec.emul_spec,
     ``LeanVMCircuits.Rec.exk_spec, ``LeanVMCircuits.Rec.boolean_spec,
     ``LeanVMCircuits.Rec.hash_mux, ``LeanVMCircuits.Rec.split_spec,
-    ``LeanVMCircuits.Rec.Identity.eval_expr, ``LeanVMCircuits.Rec.identities] do
+    ``LeanVMCircuits.Rec.Identity.eval_expr, ``LeanVMCircuits.Rec.identities,
+    ``LeanVMCircuits.Rec.inverse_row, ``LeanVMCircuits.Rec.add_row,
+    ``LeanVMCircuits.Rec.pack_row, ``LeanVMCircuits.Rec.cast_views,
+    ``LeanVMCircuits.Rec.hash_outputs, ``LeanVMCircuits.Rec.node_row] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
