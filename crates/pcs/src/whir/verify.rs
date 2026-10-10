@@ -43,9 +43,6 @@ pub enum WhirError {
     /// The final folded value does not match the claimed evaluation.
     #[error("the final sumcheck claim does not match the opening")]
     TerminalMismatch,
-    /// A hiding opening pads as its configuration does not.
-    #[error("a hiding opening of {k} padding coefficients, and the configuration pads by {padding}")]
-    Padding { k: usize, padding: usize },
     /// The running claim a hiding opening reveals after the lane fold is not the one its rounds reach.
     #[error("the revealed running claim does not match the lane fold")]
     RevealedClaim,
@@ -139,7 +136,7 @@ struct ExtRows<E>(Vec<Vec<E>>);
 ///
 /// # Errors
 ///
-/// Returns a lane count a leaf cannot hold, a configuration that does not fit the witness or pads otherwise than `hiding`, a malformed stream, a revealed claim the lane fold does not reach, or a terminal claim the opening does not reproduce.
+/// Returns a lane count a leaf cannot hold, a configuration that does not fit the witness, a malformed stream, a revealed claim the lane fold does not reach, or a terminal claim the opening does not reproduce.
 #[expect(
     clippy::too_many_arguments,
     reason = "The verifier keeps its independent inputs explicit, as the prover does."
@@ -274,14 +271,6 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         if n_lanes == 0 || n_lanes > max {
             return Err(WhirError::LaneCount { n_lanes, max });
         }
-        if let Some(h) = hiding
-            && h.k != config.padding()
-        {
-            return Err(WhirError::Padding {
-                k: h.k,
-                padding: config.padding(),
-            });
-        }
         let quad = Quad::recv(v, target)?;
         let mut w = Self {
             config,
@@ -388,7 +377,7 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
             self.t_r = a;
         }
         Ok(FoldedPadding {
-            g1: v.next_scalars(hiding.k)?,
+            g1: v.next_scalars(self.config.padding())?,
             log_msg_cols,
             shift: padding_shift(log_msg_cols, self.config.log_inv_rates()[0]),
         })

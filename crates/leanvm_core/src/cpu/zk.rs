@@ -194,10 +194,7 @@ fn open_keys(ps: &mut ProverState, stack: &KeyStack, data: &ProverData, claims: 
     let lambda = ps.sample();
     let (mut weight, target) = keys::opening_claim(claims, lambda);
     weight.resize(2 * LANE, F192::ZERO);
-    let hiding = Hiding {
-        k: cfg.padding(),
-        hidden_claim: false,
-    };
+    let hiding = Hiding { hidden_claim: false };
     whir::recursive_prover_with_basis(&cfg, KEY_MU, &stack.words, weight, target, data, Some(hiding), ps);
 }
 
@@ -206,10 +203,7 @@ fn verify_keys(vs: &mut VerifierState, root: Hash, claims: &OuterClaims, log_inv
     let cfg = config_for_rate_hiding(KEY_MU, log_inv_rate)?;
     let lambda = Challenger::sample(vs);
     let (weight, target) = keys::opening_claim(claims, lambda);
-    let hiding = Hiding {
-        k: cfg.padding(),
-        hidden_claim: false,
-    };
+    let hiding = Hiding { hidden_claim: false };
     // The weight lives on lane 0, the stack's first `LANE` words: its low variables index the word, the rest are zero.
     let weight_at = |_: &mut VerifierState, x: &[F192]| {
         let low = LANE.trailing_zeros() as usize;

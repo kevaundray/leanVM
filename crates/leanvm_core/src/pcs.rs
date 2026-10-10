@@ -107,11 +107,8 @@ fn config(shape: StackShape, rate: Rate) -> Result<ProverConfig, ConfigError> {
 }
 
 /// A zero-knowledge proof's opening of its stack: every scalar before the lane fold's end is hidden.
-fn hiding(shape: StackShape, config: &ProverConfig) -> Option<Hiding> {
-    shape.random_lane.then(|| Hiding {
-        k: config.padding(),
-        hidden_claim: true,
-    })
+fn hiding(shape: StackShape) -> Option<Hiding> {
+    shape.random_lane.then_some(Hiding { hidden_claim: true })
 }
 
 /// The padding coefficients a hiding commitment of a `2^μ`-word witness takes per lane.
@@ -194,10 +191,9 @@ impl Committed {
                 got: witness.len(),
             });
         }
-        let k = hiding(shape, &config).map_or(0, |h| h.k);
         assert_eq!(
             pads.len(),
-            n_lanes * k,
+            n_lanes * config.padding(),
             "every committed lane takes the configured padding"
         );
 
@@ -250,7 +246,7 @@ impl Committed {
             &self.config,
             points,
             rings,
-            hiding(self.shape, &self.config),
+            hiding(self.shape),
         );
         Ok(())
     }
@@ -300,8 +296,7 @@ impl<R: Copy> Commitment<R> {
     ) -> Result<(), WhirError> {
         // Both sides derive the opening profile from the committed witness's dimension and rate.
         let config = config(self.shape, self.rate)?;
-        let hiding = hiding(self.shape, &config);
-        let n_lanes = self.shape.committed_lanes();
+        let (n_lanes, hiding) = (self.shape.committed_lanes(), hiding(self.shape));
         pcs::stack_open::verify(v, &config, self.shape.mu, n_lanes, self.root, points, rings, hiding)
     }
 }

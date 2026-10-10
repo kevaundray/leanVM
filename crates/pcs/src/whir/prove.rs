@@ -58,13 +58,13 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
 /// by `stack.len()`; `ood_samples[0] == 0` is what keeps a full-tensor OOD weight
 /// out of these rounds.
 ///
-/// With `hiding`, `l0` is a hiding commitment whose padding is `hiding.k` coefficients a lane, and the opening reveals the padding's lane fold after the lane fold (the module docs of [`crate::stack_open`]).
+/// With `hiding`, `l0` is a hiding commitment padded as the configuration is, and the opening reveals the padding's lane fold after the lane fold (the module docs of [`crate::stack_open`]).
 ///
 /// Scalars enter the shared transcript as they are transmitted, and authenticated Merkle openings travel as one phase per level. The caller has already bound the initial commitment and target.
 ///
 /// # Panics
 ///
-/// Panics on a shape the commitment does not have, or with `hiding` on a padding of another length than `hiding.k` a lane or than the configuration's.
+/// Panics on a shape the commitment does not have, or on a padding of another length than the opening's: the configuration's with `hiding`, none without.
 #[expect(
     clippy::too_many_arguments,
     reason = "The proof kernel keeps its independent inputs explicit."
@@ -129,15 +129,11 @@ pub(crate) fn recursive_prover_with_prepared_basis(
     }
     assert_eq!(l0_codeword.len(), block_len_0 * n_lanes);
     assert_eq!(l0_tree.len(), 2 * block_len_0 - 1);
-    let pad_k = hiding.map_or(0, |h| h.k);
+    let pad_k = if hiding.is_some() { config.padding() } else { 0 };
     assert_eq!(
         l0.pads.len(),
         pad_k * n_lanes,
         "the commitment's padding is the opening's"
-    );
-    assert!(
-        hiding.is_none_or(|h| h.k == config.padding()),
-        "a hiding opening pads as its configuration"
     );
 
     // Nothing is absorbed on entry. The commitment was bound by the `add_root`/`next_root` that
@@ -187,8 +183,8 @@ pub(crate) fn recursive_prover_with_prepared_basis(
             }
             // The padding's lane fold `g_1[j] = Σ_u eq(fold, u) pad_u[j]`, with level 0's lane eq table.
             let eq = eq_table(&r_lane_fold);
-            g1 = (0..h.k)
-                .map(|j| (0..n_lanes).fold(F192::ZERO, |acc, u| acc + eq[u].mul_base(l0.pads[u * h.k + j])))
+            g1 = (0..pad_k)
+                .map(|j| (0..n_lanes).fold(F192::ZERO, |acc, u| acc + eq[u].mul_base(l0.pads[u * pad_k + j])))
                 .collect();
             ps.add_scalars(&g1);
         }

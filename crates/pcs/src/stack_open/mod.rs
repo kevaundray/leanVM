@@ -169,7 +169,7 @@ impl<E: Copy> StackClaim<E> {
 /// must match the commit's `log_batch_size` / `log_inv_rate` (enforced by shape
 /// asserts inside the WHIR prover).
 ///
-/// With `hiding`, `prover_data` is a [`super::whir::commit_hiding`] commitment, padded by `hiding.k` coefficients a lane (the module docs).
+/// With `hiding`, `prover_data` is a [`super::whir::commit_hiding`] commitment, padded as the configuration is (the module docs).
 #[expect(
     clippy::too_many_arguments,
     reason = "The opening keeps its independent inputs explicit."
@@ -813,11 +813,8 @@ mod tests {
                 .collect()
         }
 
-        const fn hiding(&self, hidden_claim: bool) -> Hiding {
-            Hiding {
-                k: self.config.padding(),
-                hidden_claim,
-            }
+        const fn hiding(hidden_claim: bool) -> Hiding {
+            Hiding { hidden_claim }
         }
 
         /// Commit with these pads and open, the prover holding `prover_pads` as the commitment's.
@@ -841,7 +838,7 @@ mod tests {
                 &self.config,
                 &self.point_claims,
                 &self.rings,
-                Some(self.hiding(hidden_claim)),
+                Some(Self::hiding(hidden_claim)),
             );
             (cm.root, ps.into_proof())
         }
@@ -856,7 +853,7 @@ mod tests {
                 root,
                 &self.point_claims,
                 &self.rings,
-                Some(self.hiding(hidden_claim)),
+                Some(Self::hiding(hidden_claim)),
             )
         }
 
@@ -898,23 +895,6 @@ mod tests {
             other[(n_lanes - 1) * k] += F64::ONE;
             let (root, fs) = st.prove(&pads, Some(other), hidden_claim);
             assert!(st.verify(root, &fs, hidden_claim).is_err(), "g_1 of other pads, {what}");
-
-            // The opening pads as its configuration does.
-            let mut vs = VerifierState::from_label(DOMAIN, &fs);
-            let short = Hiding { k: k - 1, hidden_claim };
-            assert_eq!(
-                verify(
-                    &mut vs,
-                    &st.config,
-                    st.log_n,
-                    n_lanes,
-                    root,
-                    &st.point_claims,
-                    &st.rings,
-                    Some(short)
-                ),
-                Err(WhirError::Padding { k: k - 1, padding: k })
-            );
         }
     }
 

@@ -59,11 +59,9 @@ pub use verify::{WhirError, recursive_verifier_with_basis_succinct};
 
 /// The opening of a commitment made by [`commit_hiding`].
 ///
-/// After the lane fold's last challenge the prover sends the padding's fold `g_1`, `k` scalars, and level 0's queries take it off the folded codeword (the module docs of [`crate::stack_open`]).
+/// After the lane fold's last challenge the prover sends the padding's fold `g_1`, the configuration's [`ProverConfig::padding`] scalars, and level 0's queries take it off the folded codeword (the module docs of [`crate::stack_open`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Hiding {
-    /// Padding coefficients per committed lane: the configuration's [`ProverConfig::padding`].
-    pub k: usize,
     /// The scalars before the lane fold's end travelled under one-time keys: first turn hiding off and send the running claim in the clear, which the verifier checks against the one it holds and continues from.
     pub hidden_claim: bool,
 }
