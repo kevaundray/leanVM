@@ -114,7 +114,7 @@ impl<E: Copy> StackClaim<E> {
         let slot_fits = match self {
             Self::Point { .. } => true,
             Self::Strided { slot, stride_log, .. } => {
-                *stride_log < usize::BITS as usize && 1usize.checked_shl(*stride_log as u32).is_some_and(|s| *slot < s)
+                *stride_log < usize::BITS as usize && *slot < (1usize << *stride_log)
             }
         };
         slot_fits && is_aligned_slice(offset, vars, committed)
@@ -154,12 +154,13 @@ impl<E: Copy> StackClaim<E> {
 
 /// Whether `[offset, offset + 2^vars)` is aligned to its length and inside the first `committed` words.
 ///
-/// Shifts are checked, so an absurd width is refused rather than wrapped.
+/// Exponents are checked before shifting, so an absurd width is refused rather than wrapped.
 fn is_aligned_slice(offset: usize, vars: usize, committed: usize) -> bool {
     vars < usize::BITS as usize
-        && 1usize.checked_shl(vars as u32).is_some_and(|len| {
+        && {
+            let len = 1usize << vars;
             offset.is_multiple_of(len) && offset.checked_add(len).is_some_and(|end| end <= committed)
-        })
+        }
 }
 
 /// What an opening proves about one committed stack.
