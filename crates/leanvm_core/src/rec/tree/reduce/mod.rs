@@ -9,7 +9,6 @@
 //! Each is a sumcheck: if an input claim is false, an output claim is false but with probability about `(claims + 2 rounds) / |E|`.
 
 use super::claims::{DensePoly, NodeClaims};
-use crate::rec::circuit::{Limbs, digest_limbs};
 use fiat_shamir::arith::Verifier;
 use fiat_shamir::transcript::{ProofTranscript, ProverState, TranscriptError, Transmitter};
 use primitives::field::{F64, F192, F192Unreduced, mul_base8, mul_unreduced4, mul4};
@@ -23,7 +22,7 @@ pub(crate) use dense::{DenseProver, DenseReduced, DenseVars};
 pub(crate) use matrix::{MatrixProver, MatrixReduced};
 
 /// The label every node's reduction transcript starts from.
-pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-3";
+pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-4";
 
 /// Why a node's reduction refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -53,11 +52,6 @@ pub(crate) struct Reduced<E> {
 /// The prover's dense polynomials, each a table of its values: the bytecode table, the image, the fixed polynomial.
 #[derive(Clone, Debug)]
 pub(crate) struct DenseTables(pub(crate) [Vec<F64>; DensePoly::COUNT]);
-
-/// The reduction transcript's starting state.
-pub(crate) fn initial_state() -> Limbs {
-    digest_limbs(&primitives::hash::hash(LABEL))
-}
 
 impl<E: Copy + PartialEq> NodeClaims<E> {
     /// Verify the reduction of these claims, the dense polynomials having the given variables.

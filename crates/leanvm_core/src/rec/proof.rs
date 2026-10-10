@@ -358,7 +358,6 @@ mod tests {
     use crate::pcs::{self, Rate};
     use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, PARAM_IV};
     use fiat_shamir::arith::Arith;
-    use fiat_shamir::{DS_OBSERVE, DS_SQUEEZE};
     use std::panic::AssertUnwindSafe;
 
     const IV: [F64; 4] = [F64(1), F64(2), F64(3), F64(4)];
@@ -396,11 +395,11 @@ mod tests {
         let hint = b.free_e(F192::new(1, 2, 3));
         b.mul_add(hint, y, zero);
 
-        // Two transcript steps, then a Merkle path with a right and a left turn.
+        // Two one-block hashes, then a Merkle path with a right and a left turn.
         let start = b.d_const([9, 8, 7, 6]);
-        let observe = b.k_const(DS_OBSERVE.0);
+        let observe = b.k_const(1);
         let (acc, _) = b.compress(start, r, observe);
-        let squeeze = b.k_const(DS_SQUEEZE.0);
+        let squeeze = b.k_const(2);
         let (acc, challenge) = b.compress(acc, zero, squeeze);
         let w = b.free_k(0b1101_0110 | 1 << 40);
         let bits = b.split(w);
@@ -601,7 +600,7 @@ mod tests {
         let mut b = Builder::new();
         let mut e = b.free_e(F192::new(2, 3, 4));
         let mut acc = b.d_const([1, 2, 3, 4]);
-        let ds = b.k_const(DS_OBSERVE.0);
+        let ds = b.k_const(1);
         for i in 0..3u64 {
             let c = b.e_const(F192::new(i + 5, 1, 0));
             e = b.mul_add(e, c, e);
