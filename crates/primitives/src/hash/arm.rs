@@ -15,7 +15,7 @@ pub(super) struct Neon(uint32x4_t);
 impl Lanes32 for Neon {
     const WIDTH: usize = 4;
     // Independent groups cover the G dependency chain.
-    const GROUPS: usize = 4;
+    const GROUPS: usize = 2;
     // Transposing ahead measured slower here, most of all on inputs streamed from DRAM.
     const TRANSPOSE_AHEAD: bool = false;
 
@@ -95,6 +95,16 @@ impl Lanes32 for Neon {
 fn rot4<const N: u32>(v: uint32x4_t) -> uint32x4_t {
     // SAFETY: NEON is part of the aarch64 baseline; the one load reads the 16-byte static table.
     unsafe {
+        // LLVM fuses XOR followed by these rotates into SVE2 XAR where profitable.
+        if cfg!(target_feature = "sve2") {
+            return match N {
+                16 => vorrq_u32(vshlq_n_u32::<16>(v), vshrq_n_u32::<16>(v)),
+                12 => vorrq_u32(vshlq_n_u32::<20>(v), vshrq_n_u32::<12>(v)),
+                8 => vorrq_u32(vshlq_n_u32::<24>(v), vshrq_n_u32::<8>(v)),
+                7 => vorrq_u32(vshlq_n_u32::<25>(v), vshrq_n_u32::<7>(v)),
+                _ => unreachable!("BLAKE2s rotates by 16, 12, 8 or 7"),
+            };
+        }
         match N {
             16 => vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32(v))),
             8 => {

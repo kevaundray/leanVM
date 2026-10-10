@@ -301,17 +301,6 @@ fn transposed_butterflies(t: F64, top: &mut [F192], bot: &mut [F192]) {
     transposed_butterfly_lanes(top, bot, t);
 }
 
-/// Transposed forward additive NTT, `F^T`, in place over `2^log_d` E-values
-/// with K-twiddles. Forward butterfly is `M = [[1, t], [1, t+1]]`; transpose
-/// `M^T = [[1, 1], [t, t+1]]` is `s = a + b; top = s; bot = t*s + b` (here
-/// `s.mul_base(t) + b`), applied in reverse layer order. Mirror of
-/// `whir::transpose_forward_ntt` (one parallel sweep per layer).
-fn transpose_forward_ntt_ext(ntt: &AdditiveNttF64, data: &mut [F192], log_d: usize) {
-    debug_assert_eq!(data.len(), 1usize << log_d);
-    debug_assert!(log_d <= ntt.log_domain_size());
-    transpose_layers_ext(ntt, data, log_d, (0..log_d).rev());
-}
-
 /// Elements per cache-resident window of the layer-blocked run below.
 const TRANSPOSE_CHUNK: usize = 1 << 16;
 
@@ -364,13 +353,12 @@ fn transpose_layers_ext_windowed(
         });
     }
     let rest = &layers[if blocked > 1 { blocked } else { 0 }..];
-    // The layers left are those whose blocks exceed a window: the lowest ones, 2^g blocks or fewer.
-    //
-    // When they are exactly g - 1 .. 0, rows `r + i * 2^(d - g)` for i < 2^g pair only with each other.
-    // So one gathered pass runs them all, instead of one sweep each.
+    // Gather a contiguous suffix even when pruning stops above layer zero.
+    // Each of its 2^low outer blocks is independent; gather within that block.
     let g = rest.len();
-    if (1..=GATHER_LOG).contains(&g) && rest.iter().copied().eq((0..g).rev()) {
-        transpose_low_layers_gathered(ntt, data, log_d, g);
+    let low = rest.last().copied().unwrap_or(0);
+    if (1..=GATHER_LOG).contains(&g) && rest.iter().copied().eq((low..low + g).rev()) {
+        transpose_low_layers_gathered(ntt, data, log_d, low, g);
         return;
     }
     for &layer in rest {
@@ -402,30 +390,21 @@ const GATHER_LOG: usize = 6;
 /// Residues one gathered task takes: 32 residues of 64 rows is 48 KiB, which stays in L2.
 const GATHER_RESIDUES: usize = 32;
 
-/// The transposed butterflies of layers `g - 1 .. 0`, in one pass over the data.
+/// The transposed butterflies of layers `low + g - 1 .. low`, in one gathered pass.
 ///
-/// # Algorithm
-///
-/// With `step = 2^(d - g)`, layer `l < g` pairs rows `step * 2^(g - 1 - l)` apart.
-///
-/// So the rows `r + i * step`, for `i < 2^g`, pair only with each other:
-///
-/// ```text
-///     d = 22, g = 6, step = 2^16:
-///
-///     rows r, r + 2^16, r + 2 * 2^16, ..., r + 63 * 2^16   one group, for each r < 2^16
-/// ```
-///
-/// Row `r + i * step` sits in block `i >> (g - l)` of layer `l`, whatever `r`: its twiddle depends on `i` alone.
-///
-/// A task gathers the groups of consecutive residues, runs every layer on them in cache, and scatters them back.
-fn transpose_low_layers_gathered(ntt: &AdditiveNttF64, data: &mut [F192], log_d: usize, g: usize) {
+/// The `2^low` outer blocks are independent. Within each, rows `r + i * step`
+/// for `i < 2^g` pair only with each other, where `step = 2^(d - low - g)`.
+/// A task gathers consecutive residues, runs every layer in cache, and scatters
+/// them back. Its twiddles include the outer block's offset in the full domain.
+fn transpose_low_layers_gathered(ntt: &AdditiveNttF64, data: &mut [F192], log_d: usize, low: usize, g: usize) {
     let rows = 1usize << g;
-    let step = 1usize << (log_d - g);
+    let step = 1usize << (log_d - low - g);
     let per_task = GATHER_RESIDUES.min(step);
     let base = SendPtr(data.as_mut_ptr());
-    parallel::for_each(step / per_task, |task| {
-        let r0 = task * per_task;
+    let tasks_per_block = step / per_task;
+    parallel::for_each((1usize << low) * tasks_per_block, |task| {
+        let outer = task / tasks_per_block;
+        let r0 = outer * (1usize << (log_d - low)) + (task % tasks_per_block) * per_task;
         // Scratch index `i * per_task + j` holds row `r0 + j + i * step`.
         let mut scratch = [F192::ZERO; GATHER_RESIDUES << GATHER_LOG];
         let scratch = &mut scratch[..rows * per_task];
@@ -436,11 +415,11 @@ fn transpose_low_layers_gathered(ntt: &AdditiveNttF64, data: &mut [F192], log_d:
             dst.copy_from_slice(unsafe { base.slice(r0 + i * step, per_task) });
         }
 
-        // Layers g - 1 .. 0, each a butterfly between group rows `half` apart.
+        // Relative layers g - 1 .. 0 pair group rows `half` apart.
         for layer in (0..g).rev() {
             let half = 1usize << (g - 1 - layer);
             for block in 0..1usize << layer {
-                let t = ntt.twiddle(layer, block);
+                let t = ntt.twiddle(low + layer, (outer << layer) + block);
                 let at = block * 2 * half * per_task;
                 let (top, bot) = scratch[at..at + 2 * half * per_task].split_at_mut(half * per_task);
                 transposed_butterflies(t, top, bot);
@@ -455,19 +434,40 @@ fn transpose_low_layers_gathered(ntt: &AdditiveNttF64, data: &mut [F192], log_d:
     });
 }
 
-/// Sparse-prefix variant of [`transpose_forward_ntt_ext`]: the input has only
-/// `positions.len()` nonzeros and the first `k` transpose steps (forward
-/// layers `log_d-1 .. log_d-k`, pairing distances `1 .. 2^(k-1)`) mix only
-/// WITHIN `2^k`-aligned windows. We process just the windows that contain a
-/// nonzero (a dense `2^k` transpose each, disjoint so window-parallel),
-/// densify, then run the remaining steps as full dense sweeps. Output is
-/// identical to `transpose_forward_ntt_ext` on the scattered input. Mirror
-/// of `whir::transpose_forward_ntt_sparse`.
+/// XOR the `2^log_inv_rate` blocks into the retained first block.
+///
+/// In the omitted transpose layers every retained output follows only top
+/// butterfly outputs, `a + b`. Thus the suffix needs `N - n` E additions and
+/// no E-by-K products, instead of `r*N` additions and `r*N/2` products.
+fn fold_transpose_blocks(data: &mut [F192], log_inv_rate: usize) {
+    if log_inv_rate == 0 {
+        return;
+    }
+    let n = data.len() >> log_inv_rate;
+    let (retained, rest) = data.split_at_mut(n);
+    let chunk_len = parallel::recommended_chunk_size(n);
+    parallel::chunks_mut(retained, chunk_len, |chunk, out| {
+        let start = chunk * chunk_len;
+        for block in rest.chunks_exact(n) {
+            for (out, &value) in out.iter_mut().zip(&block[start..]) {
+                *out += value;
+            }
+        }
+    });
+}
+
+/// Sparse-prefix transposed forward additive NTT, retaining only the first
+/// `2^(log_d - log_inv_rate)` outputs. The first `k` transpose steps mix only
+/// within `2^k`-aligned windows, so only occupied windows are processed.
+/// After densifying, run the surviving layers down through `log_inv_rate`,
+/// then fold blocks in place instead of computing the discarded outputs.
+/// The caller truncates the vector; the remaining entries are unspecified.
 fn transpose_forward_ntt_sparse_ext(
     ntt: &AdditiveNttF64,
     positions: &[usize],
     values: &[F192],
     log_d: usize,
+    log_inv_rate: usize,
 ) -> Vec<F192> {
     let _span = tracing::info_span!(
         "NTT",
@@ -477,18 +477,19 @@ fn transpose_forward_ntt_sparse_ext(
     )
     .entered();
 
+    debug_assert!(log_inv_rate <= log_d);
     let n = 1usize << log_d;
-    // No prefix for small domains: just scatter + full dense transpose.
+    // Keep the existing window allocation, but stop its layers before the fold.
     let k = if log_d >= 12 { 8usize.min(log_d) } else { 0 };
+    let prefix_steps = k.min(log_d - log_inv_rate);
 
     if k == 0 {
         let mut data = vec![F192::ZERO; n];
         for (&p, &v) in positions.iter().zip(values) {
             data[p] += v;
         }
-        if log_d > 0 {
-            transpose_forward_ntt_ext(ntt, &mut data, log_d);
-        }
+        transpose_layers_ext(ntt, &mut data, log_d, (log_inv_rate..log_d).rev());
+        fold_transpose_blocks(&mut data, log_inv_rate);
         return data;
     }
 
@@ -500,12 +501,12 @@ fn transpose_forward_ntt_sparse_ext(
         buf[p & wmask] += v;
     }
 
-    // Steps s = 0..k-1 within each active window, in parallel (windows disjoint).
+    // Surviving prefix steps within each active window, in parallel (windows disjoint).
     let mut win_vec: Vec<(usize, Vec<F192>)> = windows.into_iter().collect();
     parallel::chunks_mut(&mut win_vec, 1, |_, win| {
         let (w, buf) = &mut win[0];
         let w = *w;
-        for s in 0..k {
+        for s in 0..prefix_steps {
             let layer = log_d - 1 - s;
             let bsh = 1usize << s; // pairing distance
             let block_size = bsh << 1;
@@ -520,14 +521,15 @@ fn transpose_forward_ntt_sparse_ext(
     });
 
     // Densify (active windows only; the rest stay zero, which is the correct
-    // post-step-(k-1) state for an all-zero window).
+    // post-prefix state for an all-zero window).
     let mut data = vec![F192::ZERO; n];
     for (w, buf) in &win_vec {
         data[(w << k)..((w + 1) << k)].copy_from_slice(buf);
     }
 
-    // Remaining steps s = k..log_d-1 = forward layers (log_d-1-k) .. 0, dense.
-    transpose_layers_ext(ntt, &mut data, log_d, (0..(log_d - k)).rev());
+    // Dense continuation stops before the layers replaced by the block fold.
+    transpose_layers_ext(ntt, &mut data, log_d, (log_inv_rate..(log_d - prefix_steps)).rev());
+    fold_transpose_blocks(&mut data, log_inv_rate);
     data
 }
 
@@ -566,7 +568,7 @@ pub(crate) fn induce_sumcheck_poly_via_ntt_base(
         c
     } else {
         let ntt = AdditiveNttF64::standard(log_block);
-        transpose_forward_ntt_sparse_ext(&ntt, queries, weights, log_block)
+        transpose_forward_ntt_sparse_ext(&ntt, queries, weights, log_block, log_inv_rate)
     };
     coeffs.truncate(n);
     (coeffs, enforced_sum)
@@ -613,17 +615,15 @@ mod tests {
     fn blocked_and_gathered_transposes_match_layer_by_layer() {
         // Invariant: the windowed prefix and the gathered tail compute the plain transposed NTT.
         let mut rng = Rng::new(0x7A55);
-        // Fixture state: a window of 2^(d - 6) elements leaves layers 5 .. 0 for the gathered pass.
-        //
-        //     d = 12:  step 2^6, 32 residues a task
-        //     d = 8:   step 2^2, 4 residues a task
-        for log_d in [12, 8] {
+        // Leave at most six surviving layers for gathering, including nonzero
+        // lower bounds, multiple outer blocks, and fewer than 32 residues.
+        for (log_d, low) in [(12, 0), (12, 1), (12, 3), (12, 6), (8, 0), (8, 2), (8, 7)] {
             let ntt = AdditiveNttF64::standard(log_d);
             let data: Vec<F192> = rng.ext_vec(1 << log_d);
 
             // Reference: one layer at a time, highest first, every block's butterflies in place.
             let mut want = data.clone();
-            for layer in (0..log_d).rev() {
+            for layer in (low..log_d).rev() {
                 let half = 1usize << (log_d - 1 - layer);
                 for (block, chunk) in want.chunks_mut(2 * half).enumerate() {
                     let t = ntt.twiddle(layer, block);
@@ -636,8 +636,9 @@ mod tests {
             }
 
             let mut got = data;
-            transpose_layers_ext_windowed(&ntt, &mut got, log_d, (0..log_d).rev(), 1 << (log_d - 6));
-            assert_eq!(got, want, "log_d={log_d}");
+            let gathered = GATHER_LOG.min(log_d - low);
+            transpose_layers_ext_windowed(&ntt, &mut got, log_d, (low..log_d).rev(), 1 << (log_d - low - gathered));
+            assert_eq!(got, want, "log_d={log_d}, low={low}");
         }
     }
 }

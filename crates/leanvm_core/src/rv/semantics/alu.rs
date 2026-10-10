@@ -1,8 +1,8 @@
 //! The ALU: sums, differences, comparisons, bitwise logic, branches and jumps.
 
 use super::{InstructionClass, sext32};
-use crate::rv::circuits::{ClassCircuit, Products, Word, WordGadgets};
-use flock::circuit::{Builder, Circuit};
+use crate::rv::circuits::{ClassCircuit, Products, WordGadgets};
+use flock::circuit::{Builder, Circuit, Wire};
 
 /// One ALU instance: add, subtract, compare, bitwise logic, branches and jumps.
 ///
@@ -167,7 +167,9 @@ impl ClassCircuit for Alu {
     /// - `jump` is that offset gated by the decision, so the successor `pc + 4 + jump` is linear in the row's columns.
     fn circuit() -> Circuit {
         let mut c = Builder::new(&[64, 64, 64, 15, 64, 64], &[64, 64]);
-        let (v1, v2, imm, f, dt, pc4) = (c.input(0), c.input(1), c.input(2), c.input(3), c.input(4), c.input(5));
+        let [v1, v2, imm] = [0, 1, 2].map(|port| c.input::<64>(port));
+        let f = c.input::<15>(3);
+        let [dt, pc4] = [4, 5].map(|port| c.input::<64>(port));
         let flag = |bit: u64| f[bit.trailing_zeros() as usize];
         let b = c.xor_word(&v2, &imm);
 
@@ -175,7 +177,7 @@ impl ClassCircuit for Alu {
         //
         // It borrows exactly when that sum does not carry out.
         let sub = flag(Self::SUB);
-        let b_or_not: Word = b.iter().map(|&bit| c.xor(bit, sub)).collect();
+        let b_or_not = b.map(|bit| c.xor(bit, sub));
         let (sum, carry_out) = c.add_with_carry(&v1, &b_or_not, sub);
 
         // The comparisons, from the borrow and the signs.
@@ -197,7 +199,7 @@ impl ClassCircuit for Alu {
         //     xor = v1 ^ b
         let sum = c.sext32_if(flag(Self::WORD), &sum);
         let selectors = [Self::SEL_LT, Self::SEL_LTU, Self::SEL_AND, Self::SEL_OR, Self::SEL_XOR];
-        let none = selectors.iter().fold(c.one(), |acc, &s| c.xor(acc, flag(s)));
+        let none = selectors.iter().fold(Wire::ONE, |acc, &s| c.xor(acc, flag(s)));
         let and_or = c.xor(flag(Self::SEL_AND), flag(Self::SEL_OR));
         let or_xor = c.xor(flag(Self::SEL_OR), flag(Self::SEL_XOR));
         let mut out = c.and_word(none, &sum);
@@ -439,10 +441,9 @@ mod tests {
 
         // Prove the batch, optionally flipping one witness bit first, and verify.
         let accepts = |tamper: Option<usize>| {
-            let mut witness = ALU.generate_witness(&rows, n_log);
+            let mut witness = ALU.witness_by_walk(&rows, &[0; 6], n_log, |row, words| words.copy_from_slice(row));
             if let Some(bit) = tamper {
                 witness.z[bit / 64] ^= 1 << (bit % 64);
-                witness.stripes[bit] ^= 1;
             }
             let mut ps = ProverState::from_label(LABEL);
             let instance = Instance::of(block, n_log, &witness);

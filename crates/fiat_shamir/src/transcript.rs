@@ -15,16 +15,13 @@ pub struct ProofTranscript<M = PrunedMerklePaths> {
     pub merkle: Vec<M>,
 }
 
-/// The proof the Python verifier consumes: [`ProofTranscript`] with every query's Merkle
-/// path written out, which is the one thing it would otherwise have to
-/// reconstruct. A verifier run yields it as a by-product
-/// ([`VerifierState::into_raw_proof`]), so that expansion is written once, in Rust.
+/// A proof with every query's Merkle path expanded for recursion.
+///
+/// Native verification produces it through [`VerifierState::into_raw_proof`].
 pub type RawProof = ProofTranscript<RawMerklePath>;
 
 /// The standalone bincode transcript format, incompatible with the unversioned chain format.
 const TRANSCRIPT_HEADER: &[u8; 8] = b"LVFS\x01\0\0\0";
-/// The scalar-stream format consumed by the independent Python verifier.
-pub const RAW_STREAM_HEADER: &[u8; 8] = b"LVRF\x01\0\0\0";
 
 impl<M: Serialize + DeserializeOwned> ProofTranscript<M> {
     /// A version header followed by bincode's fixed-width little-endian encoding.

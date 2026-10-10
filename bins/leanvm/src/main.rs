@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use leanvm::{Prover, Rate};
 use std::error::Error;
 use std::fmt::Arguments;
-use std::num::ParseIntError;
+use std::num::{NonZeroUsize, ParseIntError};
 use std::path::PathBuf;
 use workload::Workload;
 
@@ -178,6 +178,24 @@ fn refuse(what: Arguments) -> ! {
 
 fn main() {
     let cli = Cli::parse();
+    let fixed_threads = match &cli.command {
+        Command::Bench { cycles_only: true, .. } => false,
+        Command::Bench { only, .. } => only.as_deref().is_some_and(|name| name.ends_with("-16thread")),
+        _ => std::env::var_os("LEANVM_NUM_THREADS").is_none(),
+    };
+    if fixed_threads {
+        parallel::init_with_threads(NonZeroUsize::new(16).unwrap())
+            .unwrap_or_else(|actual| refuse(format_args!("cannot configure 16 benchmark threads: {actual:?}")));
+    }
+    if !matches!(cli.command, Command::Bench { .. }) || fixed_threads {
+        let topology = parallel::topology();
+        eprintln!(
+            "Benchmark pool: {} threads ({} performance, {} efficiency)",
+            topology.total(),
+            topology.perf,
+            topology.efficiency
+        );
+    }
     let prover = Prover::new(cli.rate);
     let leaf_prover = Prover::new(cli.leaf_rate);
     let plan = Plan::new(cli.repeat, cli.cooldown);
