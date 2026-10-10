@@ -128,6 +128,10 @@ structure Certified (n : ℕ) where
   spec_eq : circuit.Spec = Spec n
   requirements_eq : circuit.channelsWithRequirements = []
   guarantees_eq : circuit.elaborated.channelsWithGuarantees = []
+  length_eq : ∀ input, circuit.elaborated.localLength input = n
+
+@[circuit_norm] theorem certified_length (n : ℕ) (previous : Certified n) (input : Var (Input n) Bit) :
+    previous.circuit.elaborated.localLength input = n := previous.length_eq input
 
 def zero : Certified 0 where
   circuit := {
@@ -142,6 +146,7 @@ def zero : Certified 0 where
   spec_eq := rfl
   requirements_eq := rfl
   guarantees_eq := rfl
+  length_eq := by intro input; rfl
 
 def step (n : ℕ) (previous : Certified n) : Certified (n + 1) where
   circuit := {
@@ -169,8 +174,7 @@ def step (n : ℕ) (previous : Certified n) : Certified (n + 1) where
       simp only [hxbit, hybit, Vector.map_pop, hx, hy] at h_holds ⊢
       rw [value_pop input_x, value_pop input_y, pow_succ]
       rcases h_holds with ⟨hlower, hupper⟩
-      simp only [FormalCircuitBase.localLength,
-        ← ElaboratedCircuit.localLength_eq (offset := 0)] at hupper ⊢
+      simp only [FormalCircuitBase.localLength, certified_length] at hupper ⊢
       nlinarith [congrArg (fun v : ℕ => 2 ^ n * v) hupper]
     completeness := by
       circuit_proof_start [FullAdder.circuit, FullAdder.Spec]
@@ -181,6 +185,9 @@ def step (n : ℕ) (previous : Certified n) : Certified (n + 1) where
   requirements_eq := rfl
   guarantees_eq := by
     simp only [circuit_norm, previous.guarantees_eq]
+  length_eq := by
+    intro input
+    simp only [circuit_norm, certified_length]
 
 /-- Clean composes certified one-bit adders in least-significant-bit product order. -/
 def certified : (n : ℕ) → Certified n
@@ -197,6 +204,8 @@ def circuit (n : ℕ) := (certified n).circuit
     (circuit n).channelsWithRequirements = [] := (certified n).requirements_eq
 @[circuit_norm] theorem circuit_guarantees (n : ℕ) :
     (circuit n).elaborated.channelsWithGuarantees = [] := (certified n).guarantees_eq
+@[circuit_norm] theorem circuit_length (n : ℕ) (input : Var (Input n) Bit) :
+    (circuit n).localLength input = n := (certified n).length_eq input
 
 end Adder
 
@@ -211,6 +220,9 @@ structure Input (n : ℕ) (F : Type) where
 def main (n : ℕ) (input : Var (Input (n + 1)) Bit) : Circuit Bit (Var (fields (n + 1)) Bit) := do
   let lower ← Adder.circuit n { x := input.x.pop, y := input.y.pop, carry := 0 }
   return lower.sum.push (input.x[n] + lower.carry + input.y[n])
+
+instance elaborated (n : ℕ) : ElaboratedCircuit Bit (Input (n + 1)) (fields (n + 1)) (main n) := by
+  elaborate_circuit
 
 def Spec (n : ℕ) (input : Input (n + 1) Bit) (output : Vector Bit (n + 1)) : Prop :=
   Adder.value output = (Adder.value input.x + Adder.value input.y) % 2 ^ (n + 1)
@@ -230,6 +242,7 @@ theorem wrapping_value {n : ℕ} (x y : Vector Bit (n + 1)) (sum : Vector Bit n)
 
 def circuit (n : ℕ) : FormalCircuit Bit (Input (n + 1)) (fields (n + 1)) where
   main := main n
+  elaborated := elaborated n
   Spec := Spec n
   soundness := by
     circuit_proof_start
@@ -250,6 +263,21 @@ def circuit (n : ℕ) : FormalCircuit Bit (Input (n + 1)) (fields (n + 1)) where
     simp only [ZMod.val_zero, add_zero] at h_holds
     exact wrapping_value _ _ _ _ h_holds
   completeness := by circuit_proof_start
+
+@[circuit_norm] theorem circuit_assumptions (n : ℕ) :
+    (circuit n).Assumptions = fun _ => True := rfl
+@[circuit_norm] theorem circuit_spec (n : ℕ) :
+    (circuit n).Spec = Spec n := rfl
+@[circuit_norm] theorem circuit_requirements (n : ℕ) :
+    (circuit n).channelsWithRequirements = [] := by simp only [circuit, circuit_norm]
+@[circuit_norm] theorem circuit_guarantees (n : ℕ) :
+    (circuit n).elaborated.channelsWithGuarantees = [] := by
+  dsimp +instances only [circuit, elaborated]
+  exact Adder.circuit_guarantees n
+@[circuit_norm] theorem circuit_length (n : ℕ) (input : Var (Input (n + 1)) Bit) :
+    (circuit n).localLength input = n := by
+  dsimp +instances only [FormalCircuitBase.localLength, circuit, elaborated]
+  simp only [circuit_norm]
 
 /-- The production doubleword memory-address circuit. -/
 def adder64 := circuit 63

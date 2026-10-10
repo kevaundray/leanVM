@@ -64,10 +64,6 @@ theorem toSubcircuit_toFlat {Input Output : TypeMap} [ProvableType Input] [Prova
     (circuit.toSubcircuit n input).ops.toFlat = Operations.toFlat ((circuit.main input) n).2 := by
   simp [FormalCircuit.toSubcircuit, Operations.toNested_toFlat]
 
-theorem certified_localLength (k : ℕ) (input : Var (Adder.Input k) Bit) :
-    (Adder.certified k).circuit.localLength input = k :=
-  (FormalCircuitBase.localLength_eq _ _ 0).symm.trans (adder_localLength _ _ 0)
-
 theorem adder_lower (k n : ℕ) (x y : Vector (Expression Bit) k) (c : Expression Bit) (ax ay : ℕ → Affine)
     (ac : Affine) (hx : ∀ i (h : i < k), lowerAffine x[i] = .ok (ax i))
     (hy : ∀ i (h : i < k), lowerAffine y[i] = .ok (ay i)) (hc : lowerAffine c = .ok ac)
@@ -85,13 +81,11 @@ theorem adder_lower (k n : ℕ) (x y : Vector (Expression Bit) k) (c : Expressio
     obtain ⟨hl, hs, hcar⟩ := ih x.pop y.pop (fun i h => by simpa using hx i (by omega))
       (fun i h => by simpa using hy i (by omega)) (fun i h => bx i (by omega)) (fun i h => bY i (by omega))
     have hlen : (Adder.certified k).circuit.localLength { x := x.pop, y := y.pop, carry := c } = k :=
-      (FormalCircuitBase.localLength_eq _ _ 0).symm.trans (adder_localLength _ _ 0)
-    have hlen' : (Adder.certified k).circuit.elaborated.localLength
-        { x := x.pop, y := y.pop, carry := c } = k := hlen
+      (Adder.certified k).length_eq _
     have hout : (Adder.certified k).circuit.elaborated.output { x := x.pop, y := y.pop, carry := c } n =
         (Adder.certified k).circuit.output { x := x.pop, y := y.pop, carry := c } n := rfl
     simp only [Adder.certified, Adder.step, circuit_norm, FullAdder.circuit]
-    rw [hout, hlen']
+    rw [hout]
     have hxk : lowerAffine (x[k] + ((Adder.certified k).circuit.output { x := x.pop, y := y.pop, carry := c } n).carry)
         = .ok (.xor (ax k) (carryAffine n ac k)) := by
       show lowerAffine (.add _ _) = _
@@ -226,12 +220,8 @@ theorem add_lower (registers : List Reg) (affs : Affs) (n x y : ℕ) (h : Rel re
     Gates.lower n (Operations.toFlat (((Op.add x y).circuit registers) n).2) = .ok ((Op.add x y).steps affs n) ∧
       ∀ i (hi : i < 32), (((Op.add x y).circuit registers).output n)[i] = var ⟨n + 31 + i⟩ := by
   have hlen : ∀ (input : Var (WrappingAdder.Input 32) Bit),
-      (WrappingAdder.circuit 31).elaborated.localLength input = 31 := by
-    intro input
-    rw [show (WrappingAdder.circuit 31).elaborated.localLength input =
-      ((WrappingAdder.circuit 31).main input).localLength 0 from (FormalCircuitBase.localLength_eq _ _ 0).symm]
-    simp only [WrappingAdder.circuit, WrappingAdder.main, circuit_norm, Adder.circuit]
-    exact certified_localLength _ _
+      (WrappingAdder.circuit 31).elaborated.localLength input = 31 :=
+    WrappingAdder.circuit_length 31
   have hflat : Operations.toFlat (((Op.add x y).circuit registers) n).2 =
       Operations.toFlat ((WrappingAdder.circuit 31).main { x := get registers x, y := get registers y } n).2 ++
       Operations.toFlat ((Define.main ((WrappingAdder.circuit 31).output
@@ -258,7 +248,6 @@ theorem add_lower (registers : List Reg) (affs : Affs) (n x y : ℕ) (h : Rel re
   · intro i hi
     simp only [Op.circuit, Add32.circuit, circuit_norm]
     rw [define_output]
-    congr 2
 
 theorem lower_literal {w : ℕ} (k : BitVec w) (i : ℕ) (hi : i < w) :
     lowerAffine (literal k : Vector (Expression Bit) w)[i] = .ok (literalAffine k i) := by
@@ -267,20 +256,6 @@ theorem lower_literal {w : ℕ} (k : BitVec w) (i : ℕ) (hi : i < w) :
 
 theorem literalAffine_bounded {w : ℕ} (k : BitVec w) (i n : ℕ) : (literalAffine k i).bounded n := by
   unfold literalAffine; split <;> rfl
-
-theorem wrapping31_localLength (input : Var (WrappingAdder.Input 32) Bit) :
-    (WrappingAdder.circuit 31).localLength input = 31 := by
-  rw [show (WrappingAdder.circuit 31).localLength input =
-    ((WrappingAdder.circuit 31).main input).localLength 0 from (FormalCircuitBase.localLength_eq _ _ 0).symm]
-  simp only [WrappingAdder.circuit, WrappingAdder.main, circuit_norm, Adder.circuit]
-  exact certified_localLength _ _
-
-theorem wrapping30_localLength (input : Var (WrappingAdder.Input 31) Bit) :
-    (WrappingAdder.circuit 30).localLength input = 30 := by
-  rw [show (WrappingAdder.circuit 30).localLength input =
-    ((WrappingAdder.circuit 30).main input).localLength 0 from (FormalCircuitBase.localLength_eq _ _ 0).symm]
-  simp only [WrappingAdder.circuit, WrappingAdder.main, circuit_norm, Adder.circuit]
-  exact certified_localLength _ _
 
 theorem addOdd_lower (registers : List Reg) (affs : Affs) (n : ℕ) (k : Word) (y : ℕ) (h : Rel registers affs n) :
     Gates.lower n (Operations.toFlat (((Op.addOdd k y).circuit registers) n).2) =
@@ -293,7 +268,7 @@ theorem addOdd_lower (registers : List Reg) (affs : Affs) (n : ℕ) (k : Word) (
     simp only [Op.circuit, AddOdd.circuit, circuit_norm]
     rw [toSubcircuit_toFlat]
     simp only [AddOdd.main, circuit_norm]
-    rw [toSubcircuit_toFlat, toSubcircuit_toFlat, wrapping31_localLength]
+    rw [toSubcircuit_toFlat, toSubcircuit_toFlat, WrappingAdder.circuit_length]
     rfl
   obtain ⟨_, hrel⟩ := h
   have hW := wrapping_lower 31 n (literal k) (get registers y) (literalAffine k) (affGet affs y)
@@ -311,7 +286,6 @@ theorem addOdd_lower (registers : List Reg) (affs : Affs) (n : ℕ) (k : Word) (
   · intro i hi
     simp only [Op.circuit, AddOdd.circuit, circuit_norm]
     rw [define_output]
-    congr 2
 
 theorem addEven_lower (registers : List Reg) (affs : Affs) (n : ℕ) (k : Word) (y : ℕ) (h : Rel registers affs n) :
     Gates.lower n (Operations.toFlat (((Op.addEven k y).circuit registers) n).2) =
@@ -325,7 +299,7 @@ theorem addEven_lower (registers : List Reg) (affs : Affs) (n : ℕ) (k : Word) 
     simp only [Op.circuit, AddEven.circuit, circuit_norm]
     rw [toSubcircuit_toFlat]
     simp only [AddEven.main, circuit_norm]
-    rw [toSubcircuit_toFlat, toSubcircuit_toFlat, wrapping30_localLength]
+    rw [toSubcircuit_toFlat, toSubcircuit_toFlat, WrappingAdder.circuit_length]
     rfl
   obtain ⟨_, hrel⟩ := h
   have hW := wrapping_lower 30 n (literal q) (upper (get registers y)) (literalAffine q)
@@ -353,7 +327,6 @@ theorem addEven_lower (registers : List Reg) (affs : Affs) (n : ℕ) (k : Word) 
   · intro i hi
     simp only [Op.circuit, AddEven.circuit, circuit_norm]
     rw [define_output]
-    congr 2
 
 theorem xorRotr_lower (registers : List Reg) (affs : Affs) (n : ℕ) (r : Fin 32) (x y : ℕ)
     (h : Rel registers affs n) :

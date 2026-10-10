@@ -2742,6 +2742,2184 @@ pub fn shift64(c: &mut Builder, v1: &[Wire; 64], v2: &[Wire; 64], imm: &[Wire; 6
     ]
 }
 
+/// The checked load64 artifact, products in source order.
+pub fn load64(c: &mut Builder, v1: &[Wire; 64], imm: &[Wire; 64], flags: &[Wire; 3], cell: &[Wire; 64]) -> [Wire; 128] {
+    let w0 = c.xor(v1[0], Wire::ZERO);
+    let w1 = c.xor(imm[0], Wire::ZERO);
+    let w2 = c.and(w0, w1);
+    let w3 = c.xor(w2, Wire::ZERO);
+    let w4 = c.xor(v1[1], w3);
+    let w5 = c.xor(imm[1], w3);
+    let w6 = c.and(w4, w5);
+    let w7 = c.xor(w6, w3);
+    let w8 = c.xor(v1[2], w7);
+    let w9 = c.xor(imm[2], w7);
+    let w10 = c.and(w8, w9);
+    let w11 = c.xor(w10, w7);
+    let w12 = c.xor(v1[3], w11);
+    let w13 = c.xor(imm[3], w11);
+    let w14 = c.and(w12, w13);
+    let w15 = c.xor(w14, w11);
+    let w16 = c.xor(v1[4], w15);
+    let w17 = c.xor(imm[4], w15);
+    let w18 = c.and(w16, w17);
+    let w19 = c.xor(w18, w15);
+    let w20 = c.xor(v1[5], w19);
+    let w21 = c.xor(imm[5], w19);
+    let w22 = c.and(w20, w21);
+    let w23 = c.xor(w22, w19);
+    let w24 = c.xor(v1[6], w23);
+    let w25 = c.xor(imm[6], w23);
+    let w26 = c.and(w24, w25);
+    let w27 = c.xor(w26, w23);
+    let w28 = c.xor(v1[7], w27);
+    let w29 = c.xor(imm[7], w27);
+    let w30 = c.and(w28, w29);
+    let w31 = c.xor(w30, w27);
+    let w32 = c.xor(v1[8], w31);
+    let w33 = c.xor(imm[8], w31);
+    let w34 = c.and(w32, w33);
+    let w35 = c.xor(w34, w31);
+    let w36 = c.xor(v1[9], w35);
+    let w37 = c.xor(imm[9], w35);
+    let w38 = c.and(w36, w37);
+    let w39 = c.xor(w38, w35);
+    let w40 = c.xor(v1[10], w39);
+    let w41 = c.xor(imm[10], w39);
+    let w42 = c.and(w40, w41);
+    let w43 = c.xor(w42, w39);
+    let w44 = c.xor(v1[11], w43);
+    let w45 = c.xor(imm[11], w43);
+    let w46 = c.and(w44, w45);
+    let w47 = c.xor(w46, w43);
+    let w48 = c.xor(v1[12], w47);
+    let w49 = c.xor(imm[12], w47);
+    let w50 = c.and(w48, w49);
+    let w51 = c.xor(w50, w47);
+    let w52 = c.xor(v1[13], w51);
+    let w53 = c.xor(imm[13], w51);
+    let w54 = c.and(w52, w53);
+    let w55 = c.xor(w54, w51);
+    let w56 = c.xor(v1[14], w55);
+    let w57 = c.xor(imm[14], w55);
+    let w58 = c.and(w56, w57);
+    let w59 = c.xor(w58, w55);
+    let w60 = c.xor(v1[15], w59);
+    let w61 = c.xor(imm[15], w59);
+    let w62 = c.and(w60, w61);
+    let w63 = c.xor(w62, w59);
+    let w64 = c.xor(v1[16], w63);
+    let w65 = c.xor(imm[16], w63);
+    let w66 = c.and(w64, w65);
+    let w67 = c.xor(w66, w63);
+    let w68 = c.xor(v1[17], w67);
+    let w69 = c.xor(imm[17], w67);
+    let w70 = c.and(w68, w69);
+    let w71 = c.xor(w70, w67);
+    let w72 = c.xor(v1[18], w71);
+    let w73 = c.xor(imm[18], w71);
+    let w74 = c.and(w72, w73);
+    let w75 = c.xor(w74, w71);
+    let w76 = c.xor(v1[19], w75);
+    let w77 = c.xor(imm[19], w75);
+    let w78 = c.and(w76, w77);
+    let w79 = c.xor(w78, w75);
+    let w80 = c.xor(v1[20], w79);
+    let w81 = c.xor(imm[20], w79);
+    let w82 = c.and(w80, w81);
+    let w83 = c.xor(w82, w79);
+    let w84 = c.xor(v1[21], w83);
+    let w85 = c.xor(imm[21], w83);
+    let w86 = c.and(w84, w85);
+    let w87 = c.xor(w86, w83);
+    let w88 = c.xor(v1[22], w87);
+    let w89 = c.xor(imm[22], w87);
+    let w90 = c.and(w88, w89);
+    let w91 = c.xor(w90, w87);
+    let w92 = c.xor(v1[23], w91);
+    let w93 = c.xor(imm[23], w91);
+    let w94 = c.and(w92, w93);
+    let w95 = c.xor(w94, w91);
+    let w96 = c.xor(v1[24], w95);
+    let w97 = c.xor(imm[24], w95);
+    let w98 = c.and(w96, w97);
+    let w99 = c.xor(w98, w95);
+    let w100 = c.xor(v1[25], w99);
+    let w101 = c.xor(imm[25], w99);
+    let w102 = c.and(w100, w101);
+    let w103 = c.xor(w102, w99);
+    let w104 = c.xor(v1[26], w103);
+    let w105 = c.xor(imm[26], w103);
+    let w106 = c.and(w104, w105);
+    let w107 = c.xor(w106, w103);
+    let w108 = c.xor(v1[27], w107);
+    let w109 = c.xor(imm[27], w107);
+    let w110 = c.and(w108, w109);
+    let w111 = c.xor(w110, w107);
+    let w112 = c.xor(v1[28], w111);
+    let w113 = c.xor(imm[28], w111);
+    let w114 = c.and(w112, w113);
+    let w115 = c.xor(w114, w111);
+    let w116 = c.xor(v1[29], w115);
+    let w117 = c.xor(imm[29], w115);
+    let w118 = c.and(w116, w117);
+    let w119 = c.xor(w118, w115);
+    let w120 = c.xor(v1[30], w119);
+    let w121 = c.xor(imm[30], w119);
+    let w122 = c.and(w120, w121);
+    let w123 = c.xor(w122, w119);
+    let w124 = c.xor(v1[31], w123);
+    let w125 = c.xor(imm[31], w123);
+    let w126 = c.and(w124, w125);
+    let w127 = c.xor(w126, w123);
+    let w128 = c.xor(v1[32], w127);
+    let w129 = c.xor(imm[32], w127);
+    let w130 = c.and(w128, w129);
+    let w131 = c.xor(w130, w127);
+    let w132 = c.xor(v1[33], w131);
+    let w133 = c.xor(imm[33], w131);
+    let w134 = c.and(w132, w133);
+    let w135 = c.xor(w134, w131);
+    let w136 = c.xor(v1[34], w135);
+    let w137 = c.xor(imm[34], w135);
+    let w138 = c.and(w136, w137);
+    let w139 = c.xor(w138, w135);
+    let w140 = c.xor(v1[35], w139);
+    let w141 = c.xor(imm[35], w139);
+    let w142 = c.and(w140, w141);
+    let w143 = c.xor(w142, w139);
+    let w144 = c.xor(v1[36], w143);
+    let w145 = c.xor(imm[36], w143);
+    let w146 = c.and(w144, w145);
+    let w147 = c.xor(w146, w143);
+    let w148 = c.xor(v1[37], w147);
+    let w149 = c.xor(imm[37], w147);
+    let w150 = c.and(w148, w149);
+    let w151 = c.xor(w150, w147);
+    let w152 = c.xor(v1[38], w151);
+    let w153 = c.xor(imm[38], w151);
+    let w154 = c.and(w152, w153);
+    let w155 = c.xor(w154, w151);
+    let w156 = c.xor(v1[39], w155);
+    let w157 = c.xor(imm[39], w155);
+    let w158 = c.and(w156, w157);
+    let w159 = c.xor(w158, w155);
+    let w160 = c.xor(v1[40], w159);
+    let w161 = c.xor(imm[40], w159);
+    let w162 = c.and(w160, w161);
+    let w163 = c.xor(w162, w159);
+    let w164 = c.xor(v1[41], w163);
+    let w165 = c.xor(imm[41], w163);
+    let w166 = c.and(w164, w165);
+    let w167 = c.xor(w166, w163);
+    let w168 = c.xor(v1[42], w167);
+    let w169 = c.xor(imm[42], w167);
+    let w170 = c.and(w168, w169);
+    let w171 = c.xor(w170, w167);
+    let w172 = c.xor(v1[43], w171);
+    let w173 = c.xor(imm[43], w171);
+    let w174 = c.and(w172, w173);
+    let w175 = c.xor(w174, w171);
+    let w176 = c.xor(v1[44], w175);
+    let w177 = c.xor(imm[44], w175);
+    let w178 = c.and(w176, w177);
+    let w179 = c.xor(w178, w175);
+    let w180 = c.xor(v1[45], w179);
+    let w181 = c.xor(imm[45], w179);
+    let w182 = c.and(w180, w181);
+    let w183 = c.xor(w182, w179);
+    let w184 = c.xor(v1[46], w183);
+    let w185 = c.xor(imm[46], w183);
+    let w186 = c.and(w184, w185);
+    let w187 = c.xor(w186, w183);
+    let w188 = c.xor(v1[47], w187);
+    let w189 = c.xor(imm[47], w187);
+    let w190 = c.and(w188, w189);
+    let w191 = c.xor(w190, w187);
+    let w192 = c.xor(v1[48], w191);
+    let w193 = c.xor(imm[48], w191);
+    let w194 = c.and(w192, w193);
+    let w195 = c.xor(w194, w191);
+    let w196 = c.xor(v1[49], w195);
+    let w197 = c.xor(imm[49], w195);
+    let w198 = c.and(w196, w197);
+    let w199 = c.xor(w198, w195);
+    let w200 = c.xor(v1[50], w199);
+    let w201 = c.xor(imm[50], w199);
+    let w202 = c.and(w200, w201);
+    let w203 = c.xor(w202, w199);
+    let w204 = c.xor(v1[51], w203);
+    let w205 = c.xor(imm[51], w203);
+    let w206 = c.and(w204, w205);
+    let w207 = c.xor(w206, w203);
+    let w208 = c.xor(v1[52], w207);
+    let w209 = c.xor(imm[52], w207);
+    let w210 = c.and(w208, w209);
+    let w211 = c.xor(w210, w207);
+    let w212 = c.xor(v1[53], w211);
+    let w213 = c.xor(imm[53], w211);
+    let w214 = c.and(w212, w213);
+    let w215 = c.xor(w214, w211);
+    let w216 = c.xor(v1[54], w215);
+    let w217 = c.xor(imm[54], w215);
+    let w218 = c.and(w216, w217);
+    let w219 = c.xor(w218, w215);
+    let w220 = c.xor(v1[55], w219);
+    let w221 = c.xor(imm[55], w219);
+    let w222 = c.and(w220, w221);
+    let w223 = c.xor(w222, w219);
+    let w224 = c.xor(v1[56], w223);
+    let w225 = c.xor(imm[56], w223);
+    let w226 = c.and(w224, w225);
+    let w227 = c.xor(w226, w223);
+    let w228 = c.xor(v1[57], w227);
+    let w229 = c.xor(imm[57], w227);
+    let w230 = c.and(w228, w229);
+    let w231 = c.xor(w230, w227);
+    let w232 = c.xor(v1[58], w231);
+    let w233 = c.xor(imm[58], w231);
+    let w234 = c.and(w232, w233);
+    let w235 = c.xor(w234, w231);
+    let w236 = c.xor(v1[59], w235);
+    let w237 = c.xor(imm[59], w235);
+    let w238 = c.and(w236, w237);
+    let w239 = c.xor(w238, w235);
+    let w240 = c.xor(v1[60], w239);
+    let w241 = c.xor(imm[60], w239);
+    let w242 = c.and(w240, w241);
+    let w243 = c.xor(w242, w239);
+    let w244 = c.xor(v1[61], w243);
+    let w245 = c.xor(imm[61], w243);
+    let w246 = c.and(w244, w245);
+    let w247 = c.xor(w246, w243);
+    let w248 = c.xor(v1[62], w247);
+    let w249 = c.xor(imm[62], w247);
+    let w250 = c.and(w248, w249);
+    let w251 = c.xor(w0, imm[0]);
+    let w252 = c.xor(flags[0], flags[1]);
+    let w253 = c.and(w251, w252);
+    let w254 = c.xor(w4, imm[1]);
+    let w255 = c.and(w254, flags[1]);
+    let w256 = c.xor(cell[8], cell[0]);
+    let w257 = c.and(w251, w256);
+    let w258 = c.xor(cell[9], cell[1]);
+    let w259 = c.and(w251, w258);
+    let w260 = c.xor(cell[10], cell[2]);
+    let w261 = c.and(w251, w260);
+    let w262 = c.xor(cell[11], cell[3]);
+    let w263 = c.and(w251, w262);
+    let w264 = c.xor(cell[12], cell[4]);
+    let w265 = c.and(w251, w264);
+    let w266 = c.xor(cell[13], cell[5]);
+    let w267 = c.and(w251, w266);
+    let w268 = c.xor(cell[14], cell[6]);
+    let w269 = c.and(w251, w268);
+    let w270 = c.xor(cell[15], cell[7]);
+    let w271 = c.and(w251, w270);
+    let w272 = c.xor(cell[16], cell[8]);
+    let w273 = c.and(w251, w272);
+    let w274 = c.xor(cell[17], cell[9]);
+    let w275 = c.and(w251, w274);
+    let w276 = c.xor(cell[18], cell[10]);
+    let w277 = c.and(w251, w276);
+    let w278 = c.xor(cell[19], cell[11]);
+    let w279 = c.and(w251, w278);
+    let w280 = c.xor(cell[20], cell[12]);
+    let w281 = c.and(w251, w280);
+    let w282 = c.xor(cell[21], cell[13]);
+    let w283 = c.and(w251, w282);
+    let w284 = c.xor(cell[22], cell[14]);
+    let w285 = c.and(w251, w284);
+    let w286 = c.xor(cell[23], cell[15]);
+    let w287 = c.and(w251, w286);
+    let w288 = c.xor(cell[24], cell[16]);
+    let w289 = c.and(w251, w288);
+    let w290 = c.xor(cell[25], cell[17]);
+    let w291 = c.and(w251, w290);
+    let w292 = c.xor(cell[26], cell[18]);
+    let w293 = c.and(w251, w292);
+    let w294 = c.xor(cell[27], cell[19]);
+    let w295 = c.and(w251, w294);
+    let w296 = c.xor(cell[28], cell[20]);
+    let w297 = c.and(w251, w296);
+    let w298 = c.xor(cell[29], cell[21]);
+    let w299 = c.and(w251, w298);
+    let w300 = c.xor(cell[30], cell[22]);
+    let w301 = c.and(w251, w300);
+    let w302 = c.xor(cell[31], cell[23]);
+    let w303 = c.and(w251, w302);
+    let w304 = c.xor(cell[32], cell[24]);
+    let w305 = c.and(w251, w304);
+    let w306 = c.xor(cell[33], cell[25]);
+    let w307 = c.and(w251, w306);
+    let w308 = c.xor(cell[34], cell[26]);
+    let w309 = c.and(w251, w308);
+    let w310 = c.xor(cell[35], cell[27]);
+    let w311 = c.and(w251, w310);
+    let w312 = c.xor(cell[36], cell[28]);
+    let w313 = c.and(w251, w312);
+    let w314 = c.xor(cell[37], cell[29]);
+    let w315 = c.and(w251, w314);
+    let w316 = c.xor(cell[38], cell[30]);
+    let w317 = c.and(w251, w316);
+    let w318 = c.xor(cell[39], cell[31]);
+    let w319 = c.and(w251, w318);
+    let w320 = c.xor(cell[40], cell[32]);
+    let w321 = c.and(w251, w320);
+    let w322 = c.xor(cell[41], cell[33]);
+    let w323 = c.and(w251, w322);
+    let w324 = c.xor(cell[42], cell[34]);
+    let w325 = c.and(w251, w324);
+    let w326 = c.xor(cell[43], cell[35]);
+    let w327 = c.and(w251, w326);
+    let w328 = c.xor(cell[44], cell[36]);
+    let w329 = c.and(w251, w328);
+    let w330 = c.xor(cell[45], cell[37]);
+    let w331 = c.and(w251, w330);
+    let w332 = c.xor(cell[46], cell[38]);
+    let w333 = c.and(w251, w332);
+    let w334 = c.xor(cell[47], cell[39]);
+    let w335 = c.and(w251, w334);
+    let w336 = c.xor(cell[48], cell[40]);
+    let w337 = c.and(w251, w336);
+    let w338 = c.xor(cell[49], cell[41]);
+    let w339 = c.and(w251, w338);
+    let w340 = c.xor(cell[50], cell[42]);
+    let w341 = c.and(w251, w340);
+    let w342 = c.xor(cell[51], cell[43]);
+    let w343 = c.and(w251, w342);
+    let w344 = c.xor(cell[52], cell[44]);
+    let w345 = c.and(w251, w344);
+    let w346 = c.xor(cell[53], cell[45]);
+    let w347 = c.and(w251, w346);
+    let w348 = c.xor(cell[54], cell[46]);
+    let w349 = c.and(w251, w348);
+    let w350 = c.xor(cell[55], cell[47]);
+    let w351 = c.and(w251, w350);
+    let w352 = c.xor(cell[56], cell[48]);
+    let w353 = c.and(w251, w352);
+    let w354 = c.xor(cell[57], cell[49]);
+    let w355 = c.and(w251, w354);
+    let w356 = c.xor(cell[58], cell[50]);
+    let w357 = c.and(w251, w356);
+    let w358 = c.xor(cell[59], cell[51]);
+    let w359 = c.and(w251, w358);
+    let w360 = c.xor(cell[60], cell[52]);
+    let w361 = c.and(w251, w360);
+    let w362 = c.xor(cell[61], cell[53]);
+    let w363 = c.and(w251, w362);
+    let w364 = c.xor(cell[62], cell[54]);
+    let w365 = c.and(w251, w364);
+    let w366 = c.xor(cell[63], cell[55]);
+    let w367 = c.and(w251, w366);
+    let w368 = c.xor(Wire::ZERO, cell[56]);
+    let w369 = c.and(w251, w368);
+    let w370 = c.xor(Wire::ZERO, cell[57]);
+    let w371 = c.and(w251, w370);
+    let w372 = c.xor(Wire::ZERO, cell[58]);
+    let w373 = c.and(w251, w372);
+    let w374 = c.xor(Wire::ZERO, cell[59]);
+    let w375 = c.and(w251, w374);
+    let w376 = c.xor(Wire::ZERO, cell[60]);
+    let w377 = c.and(w251, w376);
+    let w378 = c.xor(Wire::ZERO, cell[61]);
+    let w379 = c.and(w251, w378);
+    let w380 = c.xor(Wire::ZERO, cell[62]);
+    let w381 = c.and(w251, w380);
+    let w382 = c.xor(Wire::ZERO, cell[63]);
+    let w383 = c.and(w251, w382);
+    let w384 = c.xor(cell[16], w289);
+    let w385 = c.xor(cell[0], w257);
+    let w386 = c.xor(w384, w385);
+    let w387 = c.and(w254, w386);
+    let w388 = c.xor(cell[17], w291);
+    let w389 = c.xor(cell[1], w259);
+    let w390 = c.xor(w388, w389);
+    let w391 = c.and(w254, w390);
+    let w392 = c.xor(cell[18], w293);
+    let w393 = c.xor(cell[2], w261);
+    let w394 = c.xor(w392, w393);
+    let w395 = c.and(w254, w394);
+    let w396 = c.xor(cell[19], w295);
+    let w397 = c.xor(cell[3], w263);
+    let w398 = c.xor(w396, w397);
+    let w399 = c.and(w254, w398);
+    let w400 = c.xor(cell[20], w297);
+    let w401 = c.xor(cell[4], w265);
+    let w402 = c.xor(w400, w401);
+    let w403 = c.and(w254, w402);
+    let w404 = c.xor(cell[21], w299);
+    let w405 = c.xor(cell[5], w267);
+    let w406 = c.xor(w404, w405);
+    let w407 = c.and(w254, w406);
+    let w408 = c.xor(cell[22], w301);
+    let w409 = c.xor(cell[6], w269);
+    let w410 = c.xor(w408, w409);
+    let w411 = c.and(w254, w410);
+    let w412 = c.xor(cell[23], w303);
+    let w413 = c.xor(cell[7], w271);
+    let w414 = c.xor(w412, w413);
+    let w415 = c.and(w254, w414);
+    let w416 = c.xor(cell[24], w305);
+    let w417 = c.xor(cell[8], w273);
+    let w418 = c.xor(w416, w417);
+    let w419 = c.and(w254, w418);
+    let w420 = c.xor(cell[25], w307);
+    let w421 = c.xor(cell[9], w275);
+    let w422 = c.xor(w420, w421);
+    let w423 = c.and(w254, w422);
+    let w424 = c.xor(cell[26], w309);
+    let w425 = c.xor(cell[10], w277);
+    let w426 = c.xor(w424, w425);
+    let w427 = c.and(w254, w426);
+    let w428 = c.xor(cell[27], w311);
+    let w429 = c.xor(cell[11], w279);
+    let w430 = c.xor(w428, w429);
+    let w431 = c.and(w254, w430);
+    let w432 = c.xor(cell[28], w313);
+    let w433 = c.xor(cell[12], w281);
+    let w434 = c.xor(w432, w433);
+    let w435 = c.and(w254, w434);
+    let w436 = c.xor(cell[29], w315);
+    let w437 = c.xor(cell[13], w283);
+    let w438 = c.xor(w436, w437);
+    let w439 = c.and(w254, w438);
+    let w440 = c.xor(cell[30], w317);
+    let w441 = c.xor(cell[14], w285);
+    let w442 = c.xor(w440, w441);
+    let w443 = c.and(w254, w442);
+    let w444 = c.xor(cell[31], w319);
+    let w445 = c.xor(cell[15], w287);
+    let w446 = c.xor(w444, w445);
+    let w447 = c.and(w254, w446);
+    let w448 = c.xor(cell[32], w321);
+    let w449 = c.xor(w448, w384);
+    let w450 = c.and(w254, w449);
+    let w451 = c.xor(cell[33], w323);
+    let w452 = c.xor(w451, w388);
+    let w453 = c.and(w254, w452);
+    let w454 = c.xor(cell[34], w325);
+    let w455 = c.xor(w454, w392);
+    let w456 = c.and(w254, w455);
+    let w457 = c.xor(cell[35], w327);
+    let w458 = c.xor(w457, w396);
+    let w459 = c.and(w254, w458);
+    let w460 = c.xor(cell[36], w329);
+    let w461 = c.xor(w460, w400);
+    let w462 = c.and(w254, w461);
+    let w463 = c.xor(cell[37], w331);
+    let w464 = c.xor(w463, w404);
+    let w465 = c.and(w254, w464);
+    let w466 = c.xor(cell[38], w333);
+    let w467 = c.xor(w466, w408);
+    let w468 = c.and(w254, w467);
+    let w469 = c.xor(cell[39], w335);
+    let w470 = c.xor(w469, w412);
+    let w471 = c.and(w254, w470);
+    let w472 = c.xor(cell[40], w337);
+    let w473 = c.xor(w472, w416);
+    let w474 = c.and(w254, w473);
+    let w475 = c.xor(cell[41], w339);
+    let w476 = c.xor(w475, w420);
+    let w477 = c.and(w254, w476);
+    let w478 = c.xor(cell[42], w341);
+    let w479 = c.xor(w478, w424);
+    let w480 = c.and(w254, w479);
+    let w481 = c.xor(cell[43], w343);
+    let w482 = c.xor(w481, w428);
+    let w483 = c.and(w254, w482);
+    let w484 = c.xor(cell[44], w345);
+    let w485 = c.xor(w484, w432);
+    let w486 = c.and(w254, w485);
+    let w487 = c.xor(cell[45], w347);
+    let w488 = c.xor(w487, w436);
+    let w489 = c.and(w254, w488);
+    let w490 = c.xor(cell[46], w349);
+    let w491 = c.xor(w490, w440);
+    let w492 = c.and(w254, w491);
+    let w493 = c.xor(cell[47], w351);
+    let w494 = c.xor(w493, w444);
+    let w495 = c.and(w254, w494);
+    let w496 = c.xor(cell[48], w353);
+    let w497 = c.xor(w496, w448);
+    let w498 = c.and(w254, w497);
+    let w499 = c.xor(cell[49], w355);
+    let w500 = c.xor(w499, w451);
+    let w501 = c.and(w254, w500);
+    let w502 = c.xor(cell[50], w357);
+    let w503 = c.xor(w502, w454);
+    let w504 = c.and(w254, w503);
+    let w505 = c.xor(cell[51], w359);
+    let w506 = c.xor(w505, w457);
+    let w507 = c.and(w254, w506);
+    let w508 = c.xor(cell[52], w361);
+    let w509 = c.xor(w508, w460);
+    let w510 = c.and(w254, w509);
+    let w511 = c.xor(cell[53], w363);
+    let w512 = c.xor(w511, w463);
+    let w513 = c.and(w254, w512);
+    let w514 = c.xor(cell[54], w365);
+    let w515 = c.xor(w514, w466);
+    let w516 = c.and(w254, w515);
+    let w517 = c.xor(cell[55], w367);
+    let w518 = c.xor(w517, w469);
+    let w519 = c.and(w254, w518);
+    let w520 = c.xor(cell[56], w369);
+    let w521 = c.xor(w520, w472);
+    let w522 = c.and(w254, w521);
+    let w523 = c.xor(cell[57], w371);
+    let w524 = c.xor(w523, w475);
+    let w525 = c.and(w254, w524);
+    let w526 = c.xor(cell[58], w373);
+    let w527 = c.xor(w526, w478);
+    let w528 = c.and(w254, w527);
+    let w529 = c.xor(cell[59], w375);
+    let w530 = c.xor(w529, w481);
+    let w531 = c.and(w254, w530);
+    let w532 = c.xor(cell[60], w377);
+    let w533 = c.xor(w532, w484);
+    let w534 = c.and(w254, w533);
+    let w535 = c.xor(cell[61], w379);
+    let w536 = c.xor(w535, w487);
+    let w537 = c.and(w254, w536);
+    let w538 = c.xor(cell[62], w381);
+    let w539 = c.xor(w538, w490);
+    let w540 = c.and(w254, w539);
+    let w541 = c.xor(cell[63], w383);
+    let w542 = c.xor(w541, w493);
+    let w543 = c.and(w254, w542);
+    let w544 = c.xor(Wire::ZERO, w496);
+    let w545 = c.and(w254, w544);
+    let w546 = c.xor(Wire::ZERO, w499);
+    let w547 = c.and(w254, w546);
+    let w548 = c.xor(Wire::ZERO, w502);
+    let w549 = c.and(w254, w548);
+    let w550 = c.xor(Wire::ZERO, w505);
+    let w551 = c.and(w254, w550);
+    let w552 = c.xor(Wire::ZERO, w508);
+    let w553 = c.and(w254, w552);
+    let w554 = c.xor(Wire::ZERO, w511);
+    let w555 = c.and(w254, w554);
+    let w556 = c.xor(Wire::ZERO, w514);
+    let w557 = c.and(w254, w556);
+    let w558 = c.xor(Wire::ZERO, w517);
+    let w559 = c.and(w254, w558);
+    let w560 = c.xor(Wire::ZERO, w520);
+    let w561 = c.and(w254, w560);
+    let w562 = c.xor(Wire::ZERO, w523);
+    let w563 = c.and(w254, w562);
+    let w564 = c.xor(Wire::ZERO, w526);
+    let w565 = c.and(w254, w564);
+    let w566 = c.xor(Wire::ZERO, w529);
+    let w567 = c.and(w254, w566);
+    let w568 = c.xor(Wire::ZERO, w532);
+    let w569 = c.and(w254, w568);
+    let w570 = c.xor(Wire::ZERO, w535);
+    let w571 = c.and(w254, w570);
+    let w572 = c.xor(Wire::ZERO, w538);
+    let w573 = c.and(w254, w572);
+    let w574 = c.xor(Wire::ZERO, w541);
+    let w575 = c.and(w254, w574);
+    let w576 = c.xor(w8, imm[2]);
+    let w577 = c.xor(w448, w498);
+    let w578 = c.xor(w385, w387);
+    let w579 = c.xor(w577, w578);
+    let w580 = c.and(w576, w579);
+    let w581 = c.xor(w451, w501);
+    let w582 = c.xor(w389, w391);
+    let w583 = c.xor(w581, w582);
+    let w584 = c.and(w576, w583);
+    let w585 = c.xor(w454, w504);
+    let w586 = c.xor(w393, w395);
+    let w587 = c.xor(w585, w586);
+    let w588 = c.and(w576, w587);
+    let w589 = c.xor(w457, w507);
+    let w590 = c.xor(w397, w399);
+    let w591 = c.xor(w589, w590);
+    let w592 = c.and(w576, w591);
+    let w593 = c.xor(w460, w510);
+    let w594 = c.xor(w401, w403);
+    let w595 = c.xor(w593, w594);
+    let w596 = c.and(w576, w595);
+    let w597 = c.xor(w463, w513);
+    let w598 = c.xor(w405, w407);
+    let w599 = c.xor(w597, w598);
+    let w600 = c.and(w576, w599);
+    let w601 = c.xor(w466, w516);
+    let w602 = c.xor(w409, w411);
+    let w603 = c.xor(w601, w602);
+    let w604 = c.and(w576, w603);
+    let w605 = c.xor(w469, w519);
+    let w606 = c.xor(w413, w415);
+    let w607 = c.xor(w605, w606);
+    let w608 = c.and(w576, w607);
+    let w609 = c.xor(w472, w522);
+    let w610 = c.xor(w417, w419);
+    let w611 = c.xor(w609, w610);
+    let w612 = c.and(w576, w611);
+    let w613 = c.xor(w475, w525);
+    let w614 = c.xor(w421, w423);
+    let w615 = c.xor(w613, w614);
+    let w616 = c.and(w576, w615);
+    let w617 = c.xor(w478, w528);
+    let w618 = c.xor(w425, w427);
+    let w619 = c.xor(w617, w618);
+    let w620 = c.and(w576, w619);
+    let w621 = c.xor(w481, w531);
+    let w622 = c.xor(w429, w431);
+    let w623 = c.xor(w621, w622);
+    let w624 = c.and(w576, w623);
+    let w625 = c.xor(w484, w534);
+    let w626 = c.xor(w433, w435);
+    let w627 = c.xor(w625, w626);
+    let w628 = c.and(w576, w627);
+    let w629 = c.xor(w487, w537);
+    let w630 = c.xor(w437, w439);
+    let w631 = c.xor(w629, w630);
+    let w632 = c.and(w576, w631);
+    let w633 = c.xor(w490, w540);
+    let w634 = c.xor(w441, w443);
+    let w635 = c.xor(w633, w634);
+    let w636 = c.and(w576, w635);
+    let w637 = c.xor(w493, w543);
+    let w638 = c.xor(w445, w447);
+    let w639 = c.xor(w637, w638);
+    let w640 = c.and(w576, w639);
+    let w641 = c.xor(w496, w545);
+    let w642 = c.xor(w384, w450);
+    let w643 = c.xor(w641, w642);
+    let w644 = c.and(w576, w643);
+    let w645 = c.xor(w499, w547);
+    let w646 = c.xor(w388, w453);
+    let w647 = c.xor(w645, w646);
+    let w648 = c.and(w576, w647);
+    let w649 = c.xor(w502, w549);
+    let w650 = c.xor(w392, w456);
+    let w651 = c.xor(w649, w650);
+    let w652 = c.and(w576, w651);
+    let w653 = c.xor(w505, w551);
+    let w654 = c.xor(w396, w459);
+    let w655 = c.xor(w653, w654);
+    let w656 = c.and(w576, w655);
+    let w657 = c.xor(w508, w553);
+    let w658 = c.xor(w400, w462);
+    let w659 = c.xor(w657, w658);
+    let w660 = c.and(w576, w659);
+    let w661 = c.xor(w511, w555);
+    let w662 = c.xor(w404, w465);
+    let w663 = c.xor(w661, w662);
+    let w664 = c.and(w576, w663);
+    let w665 = c.xor(w514, w557);
+    let w666 = c.xor(w408, w468);
+    let w667 = c.xor(w665, w666);
+    let w668 = c.and(w576, w667);
+    let w669 = c.xor(w517, w559);
+    let w670 = c.xor(w412, w471);
+    let w671 = c.xor(w669, w670);
+    let w672 = c.and(w576, w671);
+    let w673 = c.xor(w520, w561);
+    let w674 = c.xor(w416, w474);
+    let w675 = c.xor(w673, w674);
+    let w676 = c.and(w576, w675);
+    let w677 = c.xor(w523, w563);
+    let w678 = c.xor(w420, w477);
+    let w679 = c.xor(w677, w678);
+    let w680 = c.and(w576, w679);
+    let w681 = c.xor(w526, w565);
+    let w682 = c.xor(w424, w480);
+    let w683 = c.xor(w681, w682);
+    let w684 = c.and(w576, w683);
+    let w685 = c.xor(w529, w567);
+    let w686 = c.xor(w428, w483);
+    let w687 = c.xor(w685, w686);
+    let w688 = c.and(w576, w687);
+    let w689 = c.xor(w532, w569);
+    let w690 = c.xor(w432, w486);
+    let w691 = c.xor(w689, w690);
+    let w692 = c.and(w576, w691);
+    let w693 = c.xor(w535, w571);
+    let w694 = c.xor(w436, w489);
+    let w695 = c.xor(w693, w694);
+    let w696 = c.and(w576, w695);
+    let w697 = c.xor(w538, w573);
+    let w698 = c.xor(w440, w492);
+    let w699 = c.xor(w697, w698);
+    let w700 = c.and(w576, w699);
+    let w701 = c.xor(w541, w575);
+    let w702 = c.xor(w444, w495);
+    let w703 = c.xor(w701, w702);
+    let w704 = c.and(w576, w703);
+    let w705 = c.xor(Wire::ONE, w252);
+    let w706 = c.xor(w606, w608);
+    let w707 = c.and(w705, w706);
+    let w708 = c.xor(w252, flags[1]);
+    let w709 = c.xor(w638, w640);
+    let w710 = c.and(w708, w709);
+    let w711 = c.xor(w702, w704);
+    let w712 = c.and(flags[1], w711);
+    let w713 = c.xor(w707, w710);
+    let w714 = c.xor(w713, w712);
+    let w715 = c.and(flags[2], w714);
+    let w716 = c.xor(w610, w612);
+    let w717 = c.xor(w716, w715);
+    let w718 = c.and(w252, w717);
+    let w719 = c.xor(w614, w616);
+    let w720 = c.xor(w719, w715);
+    let w721 = c.and(w252, w720);
+    let w722 = c.xor(w618, w620);
+    let w723 = c.xor(w722, w715);
+    let w724 = c.and(w252, w723);
+    let w725 = c.xor(w622, w624);
+    let w726 = c.xor(w725, w715);
+    let w727 = c.and(w252, w726);
+    let w728 = c.xor(w626, w628);
+    let w729 = c.xor(w728, w715);
+    let w730 = c.and(w252, w729);
+    let w731 = c.xor(w630, w632);
+    let w732 = c.xor(w731, w715);
+    let w733 = c.and(w252, w732);
+    let w734 = c.xor(w634, w636);
+    let w735 = c.xor(w734, w715);
+    let w736 = c.and(w252, w735);
+    let w737 = c.xor(w709, w715);
+    let w738 = c.and(w252, w737);
+    let w739 = c.xor(w642, w644);
+    let w740 = c.xor(w739, w715);
+    let w741 = c.and(flags[1], w740);
+    let w742 = c.xor(w646, w648);
+    let w743 = c.xor(w742, w715);
+    let w744 = c.and(flags[1], w743);
+    let w745 = c.xor(w650, w652);
+    let w746 = c.xor(w745, w715);
+    let w747 = c.and(flags[1], w746);
+    let w748 = c.xor(w654, w656);
+    let w749 = c.xor(w748, w715);
+    let w750 = c.and(flags[1], w749);
+    let w751 = c.xor(w658, w660);
+    let w752 = c.xor(w751, w715);
+    let w753 = c.and(flags[1], w752);
+    let w754 = c.xor(w662, w664);
+    let w755 = c.xor(w754, w715);
+    let w756 = c.and(flags[1], w755);
+    let w757 = c.xor(w666, w668);
+    let w758 = c.xor(w757, w715);
+    let w759 = c.and(flags[1], w758);
+    let w760 = c.xor(w670, w672);
+    let w761 = c.xor(w760, w715);
+    let w762 = c.and(flags[1], w761);
+    let w763 = c.xor(w674, w676);
+    let w764 = c.xor(w763, w715);
+    let w765 = c.and(flags[1], w764);
+    let w766 = c.xor(w678, w680);
+    let w767 = c.xor(w766, w715);
+    let w768 = c.and(flags[1], w767);
+    let w769 = c.xor(w682, w684);
+    let w770 = c.xor(w769, w715);
+    let w771 = c.and(flags[1], w770);
+    let w772 = c.xor(w686, w688);
+    let w773 = c.xor(w772, w715);
+    let w774 = c.and(flags[1], w773);
+    let w775 = c.xor(w690, w692);
+    let w776 = c.xor(w775, w715);
+    let w777 = c.and(flags[1], w776);
+    let w778 = c.xor(w694, w696);
+    let w779 = c.xor(w778, w715);
+    let w780 = c.and(flags[1], w779);
+    let w781 = c.xor(w698, w700);
+    let w782 = c.xor(w781, w715);
+    let w783 = c.and(flags[1], w782);
+    let w784 = c.xor(w711, w715);
+    let w785 = c.and(flags[1], w784);
+    let w786 = c.xor(w12, imm[3]);
+    let w787 = c.xor(w16, imm[4]);
+    let w788 = c.xor(w20, imm[5]);
+    let w789 = c.xor(w24, imm[6]);
+    let w790 = c.xor(w28, imm[7]);
+    let w791 = c.xor(w32, imm[8]);
+    let w792 = c.xor(w36, imm[9]);
+    let w793 = c.xor(w40, imm[10]);
+    let w794 = c.xor(w44, imm[11]);
+    let w795 = c.xor(w48, imm[12]);
+    let w796 = c.xor(w52, imm[13]);
+    let w797 = c.xor(w56, imm[14]);
+    let w798 = c.xor(w60, imm[15]);
+    let w799 = c.xor(w64, imm[16]);
+    let w800 = c.xor(w68, imm[17]);
+    let w801 = c.xor(w72, imm[18]);
+    let w802 = c.xor(w76, imm[19]);
+    let w803 = c.xor(w80, imm[20]);
+    let w804 = c.xor(w84, imm[21]);
+    let w805 = c.xor(w88, imm[22]);
+    let w806 = c.xor(w92, imm[23]);
+    let w807 = c.xor(w96, imm[24]);
+    let w808 = c.xor(w100, imm[25]);
+    let w809 = c.xor(w104, imm[26]);
+    let w810 = c.xor(w108, imm[27]);
+    let w811 = c.xor(w112, imm[28]);
+    let w812 = c.xor(w116, imm[29]);
+    let w813 = c.xor(w120, imm[30]);
+    let w814 = c.xor(w124, imm[31]);
+    let w815 = c.xor(w128, imm[32]);
+    let w816 = c.xor(w132, imm[33]);
+    let w817 = c.xor(w136, imm[34]);
+    let w818 = c.xor(w140, imm[35]);
+    let w819 = c.xor(w144, imm[36]);
+    let w820 = c.xor(w148, imm[37]);
+    let w821 = c.xor(w152, imm[38]);
+    let w822 = c.xor(w156, imm[39]);
+    let w823 = c.xor(w160, imm[40]);
+    let w824 = c.xor(w164, imm[41]);
+    let w825 = c.xor(w168, imm[42]);
+    let w826 = c.xor(w172, imm[43]);
+    let w827 = c.xor(w176, imm[44]);
+    let w828 = c.xor(w180, imm[45]);
+    let w829 = c.xor(w184, imm[46]);
+    let w830 = c.xor(w188, imm[47]);
+    let w831 = c.xor(w192, imm[48]);
+    let w832 = c.xor(w196, imm[49]);
+    let w833 = c.xor(w200, imm[50]);
+    let w834 = c.xor(w204, imm[51]);
+    let w835 = c.xor(w208, imm[52]);
+    let w836 = c.xor(w212, imm[53]);
+    let w837 = c.xor(w216, imm[54]);
+    let w838 = c.xor(w220, imm[55]);
+    let w839 = c.xor(w224, imm[56]);
+    let w840 = c.xor(w228, imm[57]);
+    let w841 = c.xor(w232, imm[58]);
+    let w842 = c.xor(w236, imm[59]);
+    let w843 = c.xor(w240, imm[60]);
+    let w844 = c.xor(w244, imm[61]);
+    let w845 = c.xor(w248, imm[62]);
+    let w846 = c.xor(w250, w247);
+    let w847 = c.xor(v1[63], w846);
+    let w848 = c.xor(w847, imm[63]);
+    let w849 = c.xor(w578, w580);
+    let w850 = c.xor(w582, w584);
+    let w851 = c.xor(w586, w588);
+    let w852 = c.xor(w590, w592);
+    let w853 = c.xor(w594, w596);
+    let w854 = c.xor(w598, w600);
+    let w855 = c.xor(w602, w604);
+    let w856 = c.xor(w715, w718);
+    let w857 = c.xor(w715, w721);
+    let w858 = c.xor(w715, w724);
+    let w859 = c.xor(w715, w727);
+    let w860 = c.xor(w715, w730);
+    let w861 = c.xor(w715, w733);
+    let w862 = c.xor(w715, w736);
+    let w863 = c.xor(w715, w738);
+    let w864 = c.xor(w715, w741);
+    let w865 = c.xor(w715, w744);
+    let w866 = c.xor(w715, w747);
+    let w867 = c.xor(w715, w750);
+    let w868 = c.xor(w715, w753);
+    let w869 = c.xor(w715, w756);
+    let w870 = c.xor(w715, w759);
+    let w871 = c.xor(w715, w762);
+    let w872 = c.xor(w715, w765);
+    let w873 = c.xor(w715, w768);
+    let w874 = c.xor(w715, w771);
+    let w875 = c.xor(w715, w774);
+    let w876 = c.xor(w715, w777);
+    let w877 = c.xor(w715, w780);
+    let w878 = c.xor(w715, w783);
+    let w879 = c.xor(w715, w785);
+    [
+        w253,
+        w255,
+        Wire::ZERO,
+        w786,
+        w787,
+        w788,
+        w789,
+        w790,
+        w791,
+        w792,
+        w793,
+        w794,
+        w795,
+        w796,
+        w797,
+        w798,
+        w799,
+        w800,
+        w801,
+        w802,
+        w803,
+        w804,
+        w805,
+        w806,
+        w807,
+        w808,
+        w809,
+        w810,
+        w811,
+        w812,
+        w813,
+        w814,
+        w815,
+        w816,
+        w817,
+        w818,
+        w819,
+        w820,
+        w821,
+        w822,
+        w823,
+        w824,
+        w825,
+        w826,
+        w827,
+        w828,
+        w829,
+        w830,
+        w831,
+        w832,
+        w833,
+        w834,
+        w835,
+        w836,
+        w837,
+        w838,
+        w839,
+        w840,
+        w841,
+        w842,
+        w843,
+        w844,
+        w845,
+        w848,
+        w849,
+        w850,
+        w851,
+        w852,
+        w853,
+        w854,
+        w855,
+        w706,
+        w856,
+        w857,
+        w858,
+        w859,
+        w860,
+        w861,
+        w862,
+        w863,
+        w864,
+        w865,
+        w866,
+        w867,
+        w868,
+        w869,
+        w870,
+        w871,
+        w872,
+        w873,
+        w874,
+        w875,
+        w876,
+        w877,
+        w878,
+        w879,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+        w715,
+    ]
+}
+
+/// The checked store64 artifact, products in source order.
+pub fn store64(
+    c: &mut Builder,
+    v1: &[Wire; 64],
+    v2: &[Wire; 64],
+    imm: &[Wire; 64],
+    flags: &[Wire; 2],
+    cell: &[Wire; 64],
+) -> [Wire; 128] {
+    let w0 = c.xor(v1[0], Wire::ZERO);
+    let w1 = c.xor(imm[0], Wire::ZERO);
+    let w2 = c.and(w0, w1);
+    let w3 = c.xor(w2, Wire::ZERO);
+    let w4 = c.xor(v1[1], w3);
+    let w5 = c.xor(imm[1], w3);
+    let w6 = c.and(w4, w5);
+    let w7 = c.xor(w6, w3);
+    let w8 = c.xor(v1[2], w7);
+    let w9 = c.xor(imm[2], w7);
+    let w10 = c.and(w8, w9);
+    let w11 = c.xor(w10, w7);
+    let w12 = c.xor(v1[3], w11);
+    let w13 = c.xor(imm[3], w11);
+    let w14 = c.and(w12, w13);
+    let w15 = c.xor(w14, w11);
+    let w16 = c.xor(v1[4], w15);
+    let w17 = c.xor(imm[4], w15);
+    let w18 = c.and(w16, w17);
+    let w19 = c.xor(w18, w15);
+    let w20 = c.xor(v1[5], w19);
+    let w21 = c.xor(imm[5], w19);
+    let w22 = c.and(w20, w21);
+    let w23 = c.xor(w22, w19);
+    let w24 = c.xor(v1[6], w23);
+    let w25 = c.xor(imm[6], w23);
+    let w26 = c.and(w24, w25);
+    let w27 = c.xor(w26, w23);
+    let w28 = c.xor(v1[7], w27);
+    let w29 = c.xor(imm[7], w27);
+    let w30 = c.and(w28, w29);
+    let w31 = c.xor(w30, w27);
+    let w32 = c.xor(v1[8], w31);
+    let w33 = c.xor(imm[8], w31);
+    let w34 = c.and(w32, w33);
+    let w35 = c.xor(w34, w31);
+    let w36 = c.xor(v1[9], w35);
+    let w37 = c.xor(imm[9], w35);
+    let w38 = c.and(w36, w37);
+    let w39 = c.xor(w38, w35);
+    let w40 = c.xor(v1[10], w39);
+    let w41 = c.xor(imm[10], w39);
+    let w42 = c.and(w40, w41);
+    let w43 = c.xor(w42, w39);
+    let w44 = c.xor(v1[11], w43);
+    let w45 = c.xor(imm[11], w43);
+    let w46 = c.and(w44, w45);
+    let w47 = c.xor(w46, w43);
+    let w48 = c.xor(v1[12], w47);
+    let w49 = c.xor(imm[12], w47);
+    let w50 = c.and(w48, w49);
+    let w51 = c.xor(w50, w47);
+    let w52 = c.xor(v1[13], w51);
+    let w53 = c.xor(imm[13], w51);
+    let w54 = c.and(w52, w53);
+    let w55 = c.xor(w54, w51);
+    let w56 = c.xor(v1[14], w55);
+    let w57 = c.xor(imm[14], w55);
+    let w58 = c.and(w56, w57);
+    let w59 = c.xor(w58, w55);
+    let w60 = c.xor(v1[15], w59);
+    let w61 = c.xor(imm[15], w59);
+    let w62 = c.and(w60, w61);
+    let w63 = c.xor(w62, w59);
+    let w64 = c.xor(v1[16], w63);
+    let w65 = c.xor(imm[16], w63);
+    let w66 = c.and(w64, w65);
+    let w67 = c.xor(w66, w63);
+    let w68 = c.xor(v1[17], w67);
+    let w69 = c.xor(imm[17], w67);
+    let w70 = c.and(w68, w69);
+    let w71 = c.xor(w70, w67);
+    let w72 = c.xor(v1[18], w71);
+    let w73 = c.xor(imm[18], w71);
+    let w74 = c.and(w72, w73);
+    let w75 = c.xor(w74, w71);
+    let w76 = c.xor(v1[19], w75);
+    let w77 = c.xor(imm[19], w75);
+    let w78 = c.and(w76, w77);
+    let w79 = c.xor(w78, w75);
+    let w80 = c.xor(v1[20], w79);
+    let w81 = c.xor(imm[20], w79);
+    let w82 = c.and(w80, w81);
+    let w83 = c.xor(w82, w79);
+    let w84 = c.xor(v1[21], w83);
+    let w85 = c.xor(imm[21], w83);
+    let w86 = c.and(w84, w85);
+    let w87 = c.xor(w86, w83);
+    let w88 = c.xor(v1[22], w87);
+    let w89 = c.xor(imm[22], w87);
+    let w90 = c.and(w88, w89);
+    let w91 = c.xor(w90, w87);
+    let w92 = c.xor(v1[23], w91);
+    let w93 = c.xor(imm[23], w91);
+    let w94 = c.and(w92, w93);
+    let w95 = c.xor(w94, w91);
+    let w96 = c.xor(v1[24], w95);
+    let w97 = c.xor(imm[24], w95);
+    let w98 = c.and(w96, w97);
+    let w99 = c.xor(w98, w95);
+    let w100 = c.xor(v1[25], w99);
+    let w101 = c.xor(imm[25], w99);
+    let w102 = c.and(w100, w101);
+    let w103 = c.xor(w102, w99);
+    let w104 = c.xor(v1[26], w103);
+    let w105 = c.xor(imm[26], w103);
+    let w106 = c.and(w104, w105);
+    let w107 = c.xor(w106, w103);
+    let w108 = c.xor(v1[27], w107);
+    let w109 = c.xor(imm[27], w107);
+    let w110 = c.and(w108, w109);
+    let w111 = c.xor(w110, w107);
+    let w112 = c.xor(v1[28], w111);
+    let w113 = c.xor(imm[28], w111);
+    let w114 = c.and(w112, w113);
+    let w115 = c.xor(w114, w111);
+    let w116 = c.xor(v1[29], w115);
+    let w117 = c.xor(imm[29], w115);
+    let w118 = c.and(w116, w117);
+    let w119 = c.xor(w118, w115);
+    let w120 = c.xor(v1[30], w119);
+    let w121 = c.xor(imm[30], w119);
+    let w122 = c.and(w120, w121);
+    let w123 = c.xor(w122, w119);
+    let w124 = c.xor(v1[31], w123);
+    let w125 = c.xor(imm[31], w123);
+    let w126 = c.and(w124, w125);
+    let w127 = c.xor(w126, w123);
+    let w128 = c.xor(v1[32], w127);
+    let w129 = c.xor(imm[32], w127);
+    let w130 = c.and(w128, w129);
+    let w131 = c.xor(w130, w127);
+    let w132 = c.xor(v1[33], w131);
+    let w133 = c.xor(imm[33], w131);
+    let w134 = c.and(w132, w133);
+    let w135 = c.xor(w134, w131);
+    let w136 = c.xor(v1[34], w135);
+    let w137 = c.xor(imm[34], w135);
+    let w138 = c.and(w136, w137);
+    let w139 = c.xor(w138, w135);
+    let w140 = c.xor(v1[35], w139);
+    let w141 = c.xor(imm[35], w139);
+    let w142 = c.and(w140, w141);
+    let w143 = c.xor(w142, w139);
+    let w144 = c.xor(v1[36], w143);
+    let w145 = c.xor(imm[36], w143);
+    let w146 = c.and(w144, w145);
+    let w147 = c.xor(w146, w143);
+    let w148 = c.xor(v1[37], w147);
+    let w149 = c.xor(imm[37], w147);
+    let w150 = c.and(w148, w149);
+    let w151 = c.xor(w150, w147);
+    let w152 = c.xor(v1[38], w151);
+    let w153 = c.xor(imm[38], w151);
+    let w154 = c.and(w152, w153);
+    let w155 = c.xor(w154, w151);
+    let w156 = c.xor(v1[39], w155);
+    let w157 = c.xor(imm[39], w155);
+    let w158 = c.and(w156, w157);
+    let w159 = c.xor(w158, w155);
+    let w160 = c.xor(v1[40], w159);
+    let w161 = c.xor(imm[40], w159);
+    let w162 = c.and(w160, w161);
+    let w163 = c.xor(w162, w159);
+    let w164 = c.xor(v1[41], w163);
+    let w165 = c.xor(imm[41], w163);
+    let w166 = c.and(w164, w165);
+    let w167 = c.xor(w166, w163);
+    let w168 = c.xor(v1[42], w167);
+    let w169 = c.xor(imm[42], w167);
+    let w170 = c.and(w168, w169);
+    let w171 = c.xor(w170, w167);
+    let w172 = c.xor(v1[43], w171);
+    let w173 = c.xor(imm[43], w171);
+    let w174 = c.and(w172, w173);
+    let w175 = c.xor(w174, w171);
+    let w176 = c.xor(v1[44], w175);
+    let w177 = c.xor(imm[44], w175);
+    let w178 = c.and(w176, w177);
+    let w179 = c.xor(w178, w175);
+    let w180 = c.xor(v1[45], w179);
+    let w181 = c.xor(imm[45], w179);
+    let w182 = c.and(w180, w181);
+    let w183 = c.xor(w182, w179);
+    let w184 = c.xor(v1[46], w183);
+    let w185 = c.xor(imm[46], w183);
+    let w186 = c.and(w184, w185);
+    let w187 = c.xor(w186, w183);
+    let w188 = c.xor(v1[47], w187);
+    let w189 = c.xor(imm[47], w187);
+    let w190 = c.and(w188, w189);
+    let w191 = c.xor(w190, w187);
+    let w192 = c.xor(v1[48], w191);
+    let w193 = c.xor(imm[48], w191);
+    let w194 = c.and(w192, w193);
+    let w195 = c.xor(w194, w191);
+    let w196 = c.xor(v1[49], w195);
+    let w197 = c.xor(imm[49], w195);
+    let w198 = c.and(w196, w197);
+    let w199 = c.xor(w198, w195);
+    let w200 = c.xor(v1[50], w199);
+    let w201 = c.xor(imm[50], w199);
+    let w202 = c.and(w200, w201);
+    let w203 = c.xor(w202, w199);
+    let w204 = c.xor(v1[51], w203);
+    let w205 = c.xor(imm[51], w203);
+    let w206 = c.and(w204, w205);
+    let w207 = c.xor(w206, w203);
+    let w208 = c.xor(v1[52], w207);
+    let w209 = c.xor(imm[52], w207);
+    let w210 = c.and(w208, w209);
+    let w211 = c.xor(w210, w207);
+    let w212 = c.xor(v1[53], w211);
+    let w213 = c.xor(imm[53], w211);
+    let w214 = c.and(w212, w213);
+    let w215 = c.xor(w214, w211);
+    let w216 = c.xor(v1[54], w215);
+    let w217 = c.xor(imm[54], w215);
+    let w218 = c.and(w216, w217);
+    let w219 = c.xor(w218, w215);
+    let w220 = c.xor(v1[55], w219);
+    let w221 = c.xor(imm[55], w219);
+    let w222 = c.and(w220, w221);
+    let w223 = c.xor(w222, w219);
+    let w224 = c.xor(v1[56], w223);
+    let w225 = c.xor(imm[56], w223);
+    let w226 = c.and(w224, w225);
+    let w227 = c.xor(w226, w223);
+    let w228 = c.xor(v1[57], w227);
+    let w229 = c.xor(imm[57], w227);
+    let w230 = c.and(w228, w229);
+    let w231 = c.xor(w230, w227);
+    let w232 = c.xor(v1[58], w231);
+    let w233 = c.xor(imm[58], w231);
+    let w234 = c.and(w232, w233);
+    let w235 = c.xor(w234, w231);
+    let w236 = c.xor(v1[59], w235);
+    let w237 = c.xor(imm[59], w235);
+    let w238 = c.and(w236, w237);
+    let w239 = c.xor(w238, w235);
+    let w240 = c.xor(v1[60], w239);
+    let w241 = c.xor(imm[60], w239);
+    let w242 = c.and(w240, w241);
+    let w243 = c.xor(w242, w239);
+    let w244 = c.xor(v1[61], w243);
+    let w245 = c.xor(imm[61], w243);
+    let w246 = c.and(w244, w245);
+    let w247 = c.xor(w246, w243);
+    let w248 = c.xor(v1[62], w247);
+    let w249 = c.xor(imm[62], w247);
+    let w250 = c.and(w248, w249);
+    let w251 = c.xor(w0, imm[0]);
+    let w252 = c.xor(flags[0], flags[1]);
+    let w253 = c.and(w251, w252);
+    let w254 = c.xor(w4, imm[1]);
+    let w255 = c.and(w254, flags[1]);
+    let w256 = c.xor(Wire::ZERO, v2[0]);
+    let w257 = c.and(w251, w256);
+    let w258 = c.xor(Wire::ZERO, v2[1]);
+    let w259 = c.and(w251, w258);
+    let w260 = c.xor(Wire::ZERO, v2[2]);
+    let w261 = c.and(w251, w260);
+    let w262 = c.xor(Wire::ZERO, v2[3]);
+    let w263 = c.and(w251, w262);
+    let w264 = c.xor(Wire::ZERO, v2[4]);
+    let w265 = c.and(w251, w264);
+    let w266 = c.xor(Wire::ZERO, v2[5]);
+    let w267 = c.and(w251, w266);
+    let w268 = c.xor(Wire::ZERO, v2[6]);
+    let w269 = c.and(w251, w268);
+    let w270 = c.xor(Wire::ZERO, v2[7]);
+    let w271 = c.and(w251, w270);
+    let w272 = c.xor(v2[0], v2[8]);
+    let w273 = c.and(w251, w272);
+    let w274 = c.xor(v2[1], v2[9]);
+    let w275 = c.and(w251, w274);
+    let w276 = c.xor(v2[2], v2[10]);
+    let w277 = c.and(w251, w276);
+    let w278 = c.xor(v2[3], v2[11]);
+    let w279 = c.and(w251, w278);
+    let w280 = c.xor(v2[4], v2[12]);
+    let w281 = c.and(w251, w280);
+    let w282 = c.xor(v2[5], v2[13]);
+    let w283 = c.and(w251, w282);
+    let w284 = c.xor(v2[6], v2[14]);
+    let w285 = c.and(w251, w284);
+    let w286 = c.xor(v2[7], v2[15]);
+    let w287 = c.and(w251, w286);
+    let w288 = c.xor(v2[8], v2[16]);
+    let w289 = c.and(w251, w288);
+    let w290 = c.xor(v2[9], v2[17]);
+    let w291 = c.and(w251, w290);
+    let w292 = c.xor(v2[10], v2[18]);
+    let w293 = c.and(w251, w292);
+    let w294 = c.xor(v2[11], v2[19]);
+    let w295 = c.and(w251, w294);
+    let w296 = c.xor(v2[12], v2[20]);
+    let w297 = c.and(w251, w296);
+    let w298 = c.xor(v2[13], v2[21]);
+    let w299 = c.and(w251, w298);
+    let w300 = c.xor(v2[14], v2[22]);
+    let w301 = c.and(w251, w300);
+    let w302 = c.xor(v2[15], v2[23]);
+    let w303 = c.and(w251, w302);
+    let w304 = c.xor(v2[16], v2[24]);
+    let w305 = c.and(w251, w304);
+    let w306 = c.xor(v2[17], v2[25]);
+    let w307 = c.and(w251, w306);
+    let w308 = c.xor(v2[18], v2[26]);
+    let w309 = c.and(w251, w308);
+    let w310 = c.xor(v2[19], v2[27]);
+    let w311 = c.and(w251, w310);
+    let w312 = c.xor(v2[20], v2[28]);
+    let w313 = c.and(w251, w312);
+    let w314 = c.xor(v2[21], v2[29]);
+    let w315 = c.and(w251, w314);
+    let w316 = c.xor(v2[22], v2[30]);
+    let w317 = c.and(w251, w316);
+    let w318 = c.xor(v2[23], v2[31]);
+    let w319 = c.and(w251, w318);
+    let w320 = c.xor(v2[24], Wire::ZERO);
+    let w321 = c.and(w251, w320);
+    let w322 = c.xor(v2[25], Wire::ZERO);
+    let w323 = c.and(w251, w322);
+    let w324 = c.xor(v2[26], Wire::ZERO);
+    let w325 = c.and(w251, w324);
+    let w326 = c.xor(v2[27], Wire::ZERO);
+    let w327 = c.and(w251, w326);
+    let w328 = c.xor(v2[28], Wire::ZERO);
+    let w329 = c.and(w251, w328);
+    let w330 = c.xor(v2[29], Wire::ZERO);
+    let w331 = c.and(w251, w330);
+    let w332 = c.xor(v2[30], Wire::ZERO);
+    let w333 = c.and(w251, w332);
+    let w334 = c.xor(v2[31], Wire::ZERO);
+    let w335 = c.and(w251, w334);
+    let w336 = c.xor(v2[0], w257);
+    let w337 = c.xor(Wire::ZERO, w336);
+    let w338 = c.and(w254, w337);
+    let w339 = c.xor(v2[1], w259);
+    let w340 = c.xor(Wire::ZERO, w339);
+    let w341 = c.and(w254, w340);
+    let w342 = c.xor(v2[2], w261);
+    let w343 = c.xor(Wire::ZERO, w342);
+    let w344 = c.and(w254, w343);
+    let w345 = c.xor(v2[3], w263);
+    let w346 = c.xor(Wire::ZERO, w345);
+    let w347 = c.and(w254, w346);
+    let w348 = c.xor(v2[4], w265);
+    let w349 = c.xor(Wire::ZERO, w348);
+    let w350 = c.and(w254, w349);
+    let w351 = c.xor(v2[5], w267);
+    let w352 = c.xor(Wire::ZERO, w351);
+    let w353 = c.and(w254, w352);
+    let w354 = c.xor(v2[6], w269);
+    let w355 = c.xor(Wire::ZERO, w354);
+    let w356 = c.and(w254, w355);
+    let w357 = c.xor(v2[7], w271);
+    let w358 = c.xor(Wire::ZERO, w357);
+    let w359 = c.and(w254, w358);
+    let w360 = c.xor(v2[8], w273);
+    let w361 = c.xor(Wire::ZERO, w360);
+    let w362 = c.and(w254, w361);
+    let w363 = c.xor(v2[9], w275);
+    let w364 = c.xor(Wire::ZERO, w363);
+    let w365 = c.and(w254, w364);
+    let w366 = c.xor(v2[10], w277);
+    let w367 = c.xor(Wire::ZERO, w366);
+    let w368 = c.and(w254, w367);
+    let w369 = c.xor(v2[11], w279);
+    let w370 = c.xor(Wire::ZERO, w369);
+    let w371 = c.and(w254, w370);
+    let w372 = c.xor(v2[12], w281);
+    let w373 = c.xor(Wire::ZERO, w372);
+    let w374 = c.and(w254, w373);
+    let w375 = c.xor(v2[13], w283);
+    let w376 = c.xor(Wire::ZERO, w375);
+    let w377 = c.and(w254, w376);
+    let w378 = c.xor(v2[14], w285);
+    let w379 = c.xor(Wire::ZERO, w378);
+    let w380 = c.and(w254, w379);
+    let w381 = c.xor(v2[15], w287);
+    let w382 = c.xor(Wire::ZERO, w381);
+    let w383 = c.and(w254, w382);
+    let w384 = c.xor(v2[16], w289);
+    let w385 = c.xor(w336, w384);
+    let w386 = c.and(w254, w385);
+    let w387 = c.xor(v2[17], w291);
+    let w388 = c.xor(w339, w387);
+    let w389 = c.and(w254, w388);
+    let w390 = c.xor(v2[18], w293);
+    let w391 = c.xor(w342, w390);
+    let w392 = c.and(w254, w391);
+    let w393 = c.xor(v2[19], w295);
+    let w394 = c.xor(w345, w393);
+    let w395 = c.and(w254, w394);
+    let w396 = c.xor(v2[20], w297);
+    let w397 = c.xor(w348, w396);
+    let w398 = c.and(w254, w397);
+    let w399 = c.xor(v2[21], w299);
+    let w400 = c.xor(w351, w399);
+    let w401 = c.and(w254, w400);
+    let w402 = c.xor(v2[22], w301);
+    let w403 = c.xor(w354, w402);
+    let w404 = c.and(w254, w403);
+    let w405 = c.xor(v2[23], w303);
+    let w406 = c.xor(w357, w405);
+    let w407 = c.and(w254, w406);
+    let w408 = c.xor(v2[24], w305);
+    let w409 = c.xor(w360, w408);
+    let w410 = c.and(w254, w409);
+    let w411 = c.xor(v2[25], w307);
+    let w412 = c.xor(w363, w411);
+    let w413 = c.and(w254, w412);
+    let w414 = c.xor(v2[26], w309);
+    let w415 = c.xor(w366, w414);
+    let w416 = c.and(w254, w415);
+    let w417 = c.xor(v2[27], w311);
+    let w418 = c.xor(w369, w417);
+    let w419 = c.and(w254, w418);
+    let w420 = c.xor(v2[28], w313);
+    let w421 = c.xor(w372, w420);
+    let w422 = c.and(w254, w421);
+    let w423 = c.xor(v2[29], w315);
+    let w424 = c.xor(w375, w423);
+    let w425 = c.and(w254, w424);
+    let w426 = c.xor(v2[30], w317);
+    let w427 = c.xor(w378, w426);
+    let w428 = c.and(w254, w427);
+    let w429 = c.xor(v2[31], w319);
+    let w430 = c.xor(w381, w429);
+    let w431 = c.and(w254, w430);
+    let w432 = c.xor(Wire::ZERO, w321);
+    let w433 = c.xor(w384, w432);
+    let w434 = c.and(w254, w433);
+    let w435 = c.xor(Wire::ZERO, w323);
+    let w436 = c.xor(w387, w435);
+    let w437 = c.and(w254, w436);
+    let w438 = c.xor(Wire::ZERO, w325);
+    let w439 = c.xor(w390, w438);
+    let w440 = c.and(w254, w439);
+    let w441 = c.xor(Wire::ZERO, w327);
+    let w442 = c.xor(w393, w441);
+    let w443 = c.and(w254, w442);
+    let w444 = c.xor(Wire::ZERO, w329);
+    let w445 = c.xor(w396, w444);
+    let w446 = c.and(w254, w445);
+    let w447 = c.xor(Wire::ZERO, w331);
+    let w448 = c.xor(w399, w447);
+    let w449 = c.and(w254, w448);
+    let w450 = c.xor(Wire::ZERO, w333);
+    let w451 = c.xor(w402, w450);
+    let w452 = c.and(w254, w451);
+    let w453 = c.xor(Wire::ZERO, w335);
+    let w454 = c.xor(w405, w453);
+    let w455 = c.and(w254, w454);
+    let w456 = c.xor(w408, Wire::ZERO);
+    let w457 = c.and(w254, w456);
+    let w458 = c.xor(w411, Wire::ZERO);
+    let w459 = c.and(w254, w458);
+    let w460 = c.xor(w414, Wire::ZERO);
+    let w461 = c.and(w254, w460);
+    let w462 = c.xor(w417, Wire::ZERO);
+    let w463 = c.and(w254, w462);
+    let w464 = c.xor(w420, Wire::ZERO);
+    let w465 = c.and(w254, w464);
+    let w466 = c.xor(w423, Wire::ZERO);
+    let w467 = c.and(w254, w466);
+    let w468 = c.xor(w426, Wire::ZERO);
+    let w469 = c.and(w254, w468);
+    let w470 = c.xor(w429, Wire::ZERO);
+    let w471 = c.and(w254, w470);
+    let w472 = c.xor(w432, Wire::ZERO);
+    let w473 = c.and(w254, w472);
+    let w474 = c.xor(w435, Wire::ZERO);
+    let w475 = c.and(w254, w474);
+    let w476 = c.xor(w438, Wire::ZERO);
+    let w477 = c.and(w254, w476);
+    let w478 = c.xor(w441, Wire::ZERO);
+    let w479 = c.and(w254, w478);
+    let w480 = c.xor(w444, Wire::ZERO);
+    let w481 = c.and(w254, w480);
+    let w482 = c.xor(w447, Wire::ZERO);
+    let w483 = c.and(w254, w482);
+    let w484 = c.xor(w450, Wire::ZERO);
+    let w485 = c.and(w254, w484);
+    let w486 = c.xor(w453, Wire::ZERO);
+    let w487 = c.and(w254, w486);
+    let w488 = c.xor(w8, imm[2]);
+    let w489 = c.xor(w336, w338);
+    let w490 = c.xor(Wire::ZERO, w489);
+    let w491 = c.and(w488, w490);
+    let w492 = c.xor(w339, w341);
+    let w493 = c.xor(Wire::ZERO, w492);
+    let w494 = c.and(w488, w493);
+    let w495 = c.xor(w342, w344);
+    let w496 = c.xor(Wire::ZERO, w495);
+    let w497 = c.and(w488, w496);
+    let w498 = c.xor(w345, w347);
+    let w499 = c.xor(Wire::ZERO, w498);
+    let w500 = c.and(w488, w499);
+    let w501 = c.xor(w348, w350);
+    let w502 = c.xor(Wire::ZERO, w501);
+    let w503 = c.and(w488, w502);
+    let w504 = c.xor(w351, w353);
+    let w505 = c.xor(Wire::ZERO, w504);
+    let w506 = c.and(w488, w505);
+    let w507 = c.xor(w354, w356);
+    let w508 = c.xor(Wire::ZERO, w507);
+    let w509 = c.and(w488, w508);
+    let w510 = c.xor(w357, w359);
+    let w511 = c.xor(Wire::ZERO, w510);
+    let w512 = c.and(w488, w511);
+    let w513 = c.xor(w360, w362);
+    let w514 = c.xor(Wire::ZERO, w513);
+    let w515 = c.and(w488, w514);
+    let w516 = c.xor(w363, w365);
+    let w517 = c.xor(Wire::ZERO, w516);
+    let w518 = c.and(w488, w517);
+    let w519 = c.xor(w366, w368);
+    let w520 = c.xor(Wire::ZERO, w519);
+    let w521 = c.and(w488, w520);
+    let w522 = c.xor(w369, w371);
+    let w523 = c.xor(Wire::ZERO, w522);
+    let w524 = c.and(w488, w523);
+    let w525 = c.xor(w372, w374);
+    let w526 = c.xor(Wire::ZERO, w525);
+    let w527 = c.and(w488, w526);
+    let w528 = c.xor(w375, w377);
+    let w529 = c.xor(Wire::ZERO, w528);
+    let w530 = c.and(w488, w529);
+    let w531 = c.xor(w378, w380);
+    let w532 = c.xor(Wire::ZERO, w531);
+    let w533 = c.and(w488, w532);
+    let w534 = c.xor(w381, w383);
+    let w535 = c.xor(Wire::ZERO, w534);
+    let w536 = c.and(w488, w535);
+    let w537 = c.xor(w384, w386);
+    let w538 = c.xor(Wire::ZERO, w537);
+    let w539 = c.and(w488, w538);
+    let w540 = c.xor(w387, w389);
+    let w541 = c.xor(Wire::ZERO, w540);
+    let w542 = c.and(w488, w541);
+    let w543 = c.xor(w390, w392);
+    let w544 = c.xor(Wire::ZERO, w543);
+    let w545 = c.and(w488, w544);
+    let w546 = c.xor(w393, w395);
+    let w547 = c.xor(Wire::ZERO, w546);
+    let w548 = c.and(w488, w547);
+    let w549 = c.xor(w396, w398);
+    let w550 = c.xor(Wire::ZERO, w549);
+    let w551 = c.and(w488, w550);
+    let w552 = c.xor(w399, w401);
+    let w553 = c.xor(Wire::ZERO, w552);
+    let w554 = c.and(w488, w553);
+    let w555 = c.xor(w402, w404);
+    let w556 = c.xor(Wire::ZERO, w555);
+    let w557 = c.and(w488, w556);
+    let w558 = c.xor(w405, w407);
+    let w559 = c.xor(Wire::ZERO, w558);
+    let w560 = c.and(w488, w559);
+    let w561 = c.xor(w408, w410);
+    let w562 = c.xor(Wire::ZERO, w561);
+    let w563 = c.and(w488, w562);
+    let w564 = c.xor(w411, w413);
+    let w565 = c.xor(Wire::ZERO, w564);
+    let w566 = c.and(w488, w565);
+    let w567 = c.xor(w414, w416);
+    let w568 = c.xor(Wire::ZERO, w567);
+    let w569 = c.and(w488, w568);
+    let w570 = c.xor(w417, w419);
+    let w571 = c.xor(Wire::ZERO, w570);
+    let w572 = c.and(w488, w571);
+    let w573 = c.xor(w420, w422);
+    let w574 = c.xor(Wire::ZERO, w573);
+    let w575 = c.and(w488, w574);
+    let w576 = c.xor(w423, w425);
+    let w577 = c.xor(Wire::ZERO, w576);
+    let w578 = c.and(w488, w577);
+    let w579 = c.xor(w426, w428);
+    let w580 = c.xor(Wire::ZERO, w579);
+    let w581 = c.and(w488, w580);
+    let w582 = c.xor(w429, w431);
+    let w583 = c.xor(Wire::ZERO, w582);
+    let w584 = c.and(w488, w583);
+    let w585 = c.xor(w432, w434);
+    let w586 = c.xor(w489, w585);
+    let w587 = c.and(w488, w586);
+    let w588 = c.xor(w435, w437);
+    let w589 = c.xor(w492, w588);
+    let w590 = c.and(w488, w589);
+    let w591 = c.xor(w438, w440);
+    let w592 = c.xor(w495, w591);
+    let w593 = c.and(w488, w592);
+    let w594 = c.xor(w441, w443);
+    let w595 = c.xor(w498, w594);
+    let w596 = c.and(w488, w595);
+    let w597 = c.xor(w444, w446);
+    let w598 = c.xor(w501, w597);
+    let w599 = c.and(w488, w598);
+    let w600 = c.xor(w447, w449);
+    let w601 = c.xor(w504, w600);
+    let w602 = c.and(w488, w601);
+    let w603 = c.xor(w450, w452);
+    let w604 = c.xor(w507, w603);
+    let w605 = c.and(w488, w604);
+    let w606 = c.xor(w453, w455);
+    let w607 = c.xor(w510, w606);
+    let w608 = c.and(w488, w607);
+    let w609 = c.xor(Wire::ZERO, w457);
+    let w610 = c.xor(w513, w609);
+    let w611 = c.and(w488, w610);
+    let w612 = c.xor(Wire::ZERO, w459);
+    let w613 = c.xor(w516, w612);
+    let w614 = c.and(w488, w613);
+    let w615 = c.xor(Wire::ZERO, w461);
+    let w616 = c.xor(w519, w615);
+    let w617 = c.and(w488, w616);
+    let w618 = c.xor(Wire::ZERO, w463);
+    let w619 = c.xor(w522, w618);
+    let w620 = c.and(w488, w619);
+    let w621 = c.xor(Wire::ZERO, w465);
+    let w622 = c.xor(w525, w621);
+    let w623 = c.and(w488, w622);
+    let w624 = c.xor(Wire::ZERO, w467);
+    let w625 = c.xor(w528, w624);
+    let w626 = c.and(w488, w625);
+    let w627 = c.xor(Wire::ZERO, w469);
+    let w628 = c.xor(w531, w627);
+    let w629 = c.and(w488, w628);
+    let w630 = c.xor(Wire::ZERO, w471);
+    let w631 = c.xor(w534, w630);
+    let w632 = c.and(w488, w631);
+    let w633 = c.xor(Wire::ZERO, w473);
+    let w634 = c.xor(w537, w633);
+    let w635 = c.and(w488, w634);
+    let w636 = c.xor(Wire::ZERO, w475);
+    let w637 = c.xor(w540, w636);
+    let w638 = c.and(w488, w637);
+    let w639 = c.xor(Wire::ZERO, w477);
+    let w640 = c.xor(w543, w639);
+    let w641 = c.and(w488, w640);
+    let w642 = c.xor(Wire::ZERO, w479);
+    let w643 = c.xor(w546, w642);
+    let w644 = c.and(w488, w643);
+    let w645 = c.xor(Wire::ZERO, w481);
+    let w646 = c.xor(w549, w645);
+    let w647 = c.and(w488, w646);
+    let w648 = c.xor(Wire::ZERO, w483);
+    let w649 = c.xor(w552, w648);
+    let w650 = c.and(w488, w649);
+    let w651 = c.xor(Wire::ZERO, w485);
+    let w652 = c.xor(w555, w651);
+    let w653 = c.and(w488, w652);
+    let w654 = c.xor(Wire::ZERO, w487);
+    let w655 = c.xor(w558, w654);
+    let w656 = c.and(w488, w655);
+    let w657 = c.xor(w561, Wire::ZERO);
+    let w658 = c.and(w488, w657);
+    let w659 = c.xor(w564, Wire::ZERO);
+    let w660 = c.and(w488, w659);
+    let w661 = c.xor(w567, Wire::ZERO);
+    let w662 = c.and(w488, w661);
+    let w663 = c.xor(w570, Wire::ZERO);
+    let w664 = c.and(w488, w663);
+    let w665 = c.xor(w573, Wire::ZERO);
+    let w666 = c.and(w488, w665);
+    let w667 = c.xor(w576, Wire::ZERO);
+    let w668 = c.and(w488, w667);
+    let w669 = c.xor(w579, Wire::ZERO);
+    let w670 = c.and(w488, w669);
+    let w671 = c.xor(w582, Wire::ZERO);
+    let w672 = c.and(w488, w671);
+    let w673 = c.xor(Wire::ONE, w251);
+    let w674 = c.and(w673, w252);
+    let w675 = c.and(w251, w252);
+    let w676 = c.xor(Wire::ONE, w254);
+    let w677 = c.and(w676, flags[1]);
+    let w678 = c.and(w254, flags[1]);
+    let w679 = c.xor(w673, w252);
+    let w680 = c.xor(w679, w674);
+    let w681 = c.xor(w676, flags[1]);
+    let w682 = c.xor(w681, w677);
+    let w683 = c.and(w680, w682);
+    let w684 = c.xor(Wire::ONE, w488);
+    let w685 = c.and(w683, w684);
+    let w686 = c.xor(w489, w491);
+    let w687 = c.xor(w686, cell[0]);
+    let w688 = c.and(w685, w687);
+    let w689 = c.xor(w492, w494);
+    let w690 = c.xor(w689, cell[1]);
+    let w691 = c.and(w685, w690);
+    let w692 = c.xor(w495, w497);
+    let w693 = c.xor(w692, cell[2]);
+    let w694 = c.and(w685, w693);
+    let w695 = c.xor(w498, w500);
+    let w696 = c.xor(w695, cell[3]);
+    let w697 = c.and(w685, w696);
+    let w698 = c.xor(w501, w503);
+    let w699 = c.xor(w698, cell[4]);
+    let w700 = c.and(w685, w699);
+    let w701 = c.xor(w504, w506);
+    let w702 = c.xor(w701, cell[5]);
+    let w703 = c.and(w685, w702);
+    let w704 = c.xor(w507, w509);
+    let w705 = c.xor(w704, cell[6]);
+    let w706 = c.and(w685, w705);
+    let w707 = c.xor(w510, w512);
+    let w708 = c.xor(w707, cell[7]);
+    let w709 = c.and(w685, w708);
+    let w710 = c.xor(w251, w252);
+    let w711 = c.xor(w710, w675);
+    let w712 = c.and(w711, w682);
+    let w713 = c.and(w712, w684);
+    let w714 = c.xor(w513, w515);
+    let w715 = c.xor(w714, cell[8]);
+    let w716 = c.and(w713, w715);
+    let w717 = c.xor(w516, w518);
+    let w718 = c.xor(w717, cell[9]);
+    let w719 = c.and(w713, w718);
+    let w720 = c.xor(w519, w521);
+    let w721 = c.xor(w720, cell[10]);
+    let w722 = c.and(w713, w721);
+    let w723 = c.xor(w522, w524);
+    let w724 = c.xor(w723, cell[11]);
+    let w725 = c.and(w713, w724);
+    let w726 = c.xor(w525, w527);
+    let w727 = c.xor(w726, cell[12]);
+    let w728 = c.and(w713, w727);
+    let w729 = c.xor(w528, w530);
+    let w730 = c.xor(w729, cell[13]);
+    let w731 = c.and(w713, w730);
+    let w732 = c.xor(w531, w533);
+    let w733 = c.xor(w732, cell[14]);
+    let w734 = c.and(w713, w733);
+    let w735 = c.xor(w534, w536);
+    let w736 = c.xor(w735, cell[15]);
+    let w737 = c.and(w713, w736);
+    let w738 = c.xor(w254, flags[1]);
+    let w739 = c.xor(w738, w678);
+    let w740 = c.and(w680, w739);
+    let w741 = c.and(w740, w684);
+    let w742 = c.xor(w537, w539);
+    let w743 = c.xor(w742, cell[16]);
+    let w744 = c.and(w741, w743);
+    let w745 = c.xor(w540, w542);
+    let w746 = c.xor(w745, cell[17]);
+    let w747 = c.and(w741, w746);
+    let w748 = c.xor(w543, w545);
+    let w749 = c.xor(w748, cell[18]);
+    let w750 = c.and(w741, w749);
+    let w751 = c.xor(w546, w548);
+    let w752 = c.xor(w751, cell[19]);
+    let w753 = c.and(w741, w752);
+    let w754 = c.xor(w549, w551);
+    let w755 = c.xor(w754, cell[20]);
+    let w756 = c.and(w741, w755);
+    let w757 = c.xor(w552, w554);
+    let w758 = c.xor(w757, cell[21]);
+    let w759 = c.and(w741, w758);
+    let w760 = c.xor(w555, w557);
+    let w761 = c.xor(w760, cell[22]);
+    let w762 = c.and(w741, w761);
+    let w763 = c.xor(w558, w560);
+    let w764 = c.xor(w763, cell[23]);
+    let w765 = c.and(w741, w764);
+    let w766 = c.and(w711, w739);
+    let w767 = c.and(w766, w684);
+    let w768 = c.xor(w561, w563);
+    let w769 = c.xor(w768, cell[24]);
+    let w770 = c.and(w767, w769);
+    let w771 = c.xor(w564, w566);
+    let w772 = c.xor(w771, cell[25]);
+    let w773 = c.and(w767, w772);
+    let w774 = c.xor(w567, w569);
+    let w775 = c.xor(w774, cell[26]);
+    let w776 = c.and(w767, w775);
+    let w777 = c.xor(w570, w572);
+    let w778 = c.xor(w777, cell[27]);
+    let w779 = c.and(w767, w778);
+    let w780 = c.xor(w573, w575);
+    let w781 = c.xor(w780, cell[28]);
+    let w782 = c.and(w767, w781);
+    let w783 = c.xor(w576, w578);
+    let w784 = c.xor(w783, cell[29]);
+    let w785 = c.and(w767, w784);
+    let w786 = c.xor(w579, w581);
+    let w787 = c.xor(w786, cell[30]);
+    let w788 = c.and(w767, w787);
+    let w789 = c.xor(w582, w584);
+    let w790 = c.xor(w789, cell[31]);
+    let w791 = c.and(w767, w790);
+    let w792 = c.and(w680, w682);
+    let w793 = c.and(w792, w488);
+    let w794 = c.xor(w585, w587);
+    let w795 = c.xor(w794, cell[32]);
+    let w796 = c.and(w793, w795);
+    let w797 = c.xor(w588, w590);
+    let w798 = c.xor(w797, cell[33]);
+    let w799 = c.and(w793, w798);
+    let w800 = c.xor(w591, w593);
+    let w801 = c.xor(w800, cell[34]);
+    let w802 = c.and(w793, w801);
+    let w803 = c.xor(w594, w596);
+    let w804 = c.xor(w803, cell[35]);
+    let w805 = c.and(w793, w804);
+    let w806 = c.xor(w597, w599);
+    let w807 = c.xor(w806, cell[36]);
+    let w808 = c.and(w793, w807);
+    let w809 = c.xor(w600, w602);
+    let w810 = c.xor(w809, cell[37]);
+    let w811 = c.and(w793, w810);
+    let w812 = c.xor(w603, w605);
+    let w813 = c.xor(w812, cell[38]);
+    let w814 = c.and(w793, w813);
+    let w815 = c.xor(w606, w608);
+    let w816 = c.xor(w815, cell[39]);
+    let w817 = c.and(w793, w816);
+    let w818 = c.and(w711, w682);
+    let w819 = c.and(w818, w488);
+    let w820 = c.xor(w609, w611);
+    let w821 = c.xor(w820, cell[40]);
+    let w822 = c.and(w819, w821);
+    let w823 = c.xor(w612, w614);
+    let w824 = c.xor(w823, cell[41]);
+    let w825 = c.and(w819, w824);
+    let w826 = c.xor(w615, w617);
+    let w827 = c.xor(w826, cell[42]);
+    let w828 = c.and(w819, w827);
+    let w829 = c.xor(w618, w620);
+    let w830 = c.xor(w829, cell[43]);
+    let w831 = c.and(w819, w830);
+    let w832 = c.xor(w621, w623);
+    let w833 = c.xor(w832, cell[44]);
+    let w834 = c.and(w819, w833);
+    let w835 = c.xor(w624, w626);
+    let w836 = c.xor(w835, cell[45]);
+    let w837 = c.and(w819, w836);
+    let w838 = c.xor(w627, w629);
+    let w839 = c.xor(w838, cell[46]);
+    let w840 = c.and(w819, w839);
+    let w841 = c.xor(w630, w632);
+    let w842 = c.xor(w841, cell[47]);
+    let w843 = c.and(w819, w842);
+    let w844 = c.and(w680, w739);
+    let w845 = c.and(w844, w488);
+    let w846 = c.xor(w633, w635);
+    let w847 = c.xor(w846, cell[48]);
+    let w848 = c.and(w845, w847);
+    let w849 = c.xor(w636, w638);
+    let w850 = c.xor(w849, cell[49]);
+    let w851 = c.and(w845, w850);
+    let w852 = c.xor(w639, w641);
+    let w853 = c.xor(w852, cell[50]);
+    let w854 = c.and(w845, w853);
+    let w855 = c.xor(w642, w644);
+    let w856 = c.xor(w855, cell[51]);
+    let w857 = c.and(w845, w856);
+    let w858 = c.xor(w645, w647);
+    let w859 = c.xor(w858, cell[52]);
+    let w860 = c.and(w845, w859);
+    let w861 = c.xor(w648, w650);
+    let w862 = c.xor(w861, cell[53]);
+    let w863 = c.and(w845, w862);
+    let w864 = c.xor(w651, w653);
+    let w865 = c.xor(w864, cell[54]);
+    let w866 = c.and(w845, w865);
+    let w867 = c.xor(w654, w656);
+    let w868 = c.xor(w867, cell[55]);
+    let w869 = c.and(w845, w868);
+    let w870 = c.and(w711, w739);
+    let w871 = c.and(w870, w488);
+    let w872 = c.xor(Wire::ZERO, w658);
+    let w873 = c.xor(w872, cell[56]);
+    let w874 = c.and(w871, w873);
+    let w875 = c.xor(Wire::ZERO, w660);
+    let w876 = c.xor(w875, cell[57]);
+    let w877 = c.and(w871, w876);
+    let w878 = c.xor(Wire::ZERO, w662);
+    let w879 = c.xor(w878, cell[58]);
+    let w880 = c.and(w871, w879);
+    let w881 = c.xor(Wire::ZERO, w664);
+    let w882 = c.xor(w881, cell[59]);
+    let w883 = c.and(w871, w882);
+    let w884 = c.xor(Wire::ZERO, w666);
+    let w885 = c.xor(w884, cell[60]);
+    let w886 = c.and(w871, w885);
+    let w887 = c.xor(Wire::ZERO, w668);
+    let w888 = c.xor(w887, cell[61]);
+    let w889 = c.and(w871, w888);
+    let w890 = c.xor(Wire::ZERO, w670);
+    let w891 = c.xor(w890, cell[62]);
+    let w892 = c.and(w871, w891);
+    let w893 = c.xor(Wire::ZERO, w672);
+    let w894 = c.xor(w893, cell[63]);
+    let w895 = c.and(w871, w894);
+    let w896 = c.xor(w12, imm[3]);
+    let w897 = c.xor(w16, imm[4]);
+    let w898 = c.xor(w20, imm[5]);
+    let w899 = c.xor(w24, imm[6]);
+    let w900 = c.xor(w28, imm[7]);
+    let w901 = c.xor(w32, imm[8]);
+    let w902 = c.xor(w36, imm[9]);
+    let w903 = c.xor(w40, imm[10]);
+    let w904 = c.xor(w44, imm[11]);
+    let w905 = c.xor(w48, imm[12]);
+    let w906 = c.xor(w52, imm[13]);
+    let w907 = c.xor(w56, imm[14]);
+    let w908 = c.xor(w60, imm[15]);
+    let w909 = c.xor(w64, imm[16]);
+    let w910 = c.xor(w68, imm[17]);
+    let w911 = c.xor(w72, imm[18]);
+    let w912 = c.xor(w76, imm[19]);
+    let w913 = c.xor(w80, imm[20]);
+    let w914 = c.xor(w84, imm[21]);
+    let w915 = c.xor(w88, imm[22]);
+    let w916 = c.xor(w92, imm[23]);
+    let w917 = c.xor(w96, imm[24]);
+    let w918 = c.xor(w100, imm[25]);
+    let w919 = c.xor(w104, imm[26]);
+    let w920 = c.xor(w108, imm[27]);
+    let w921 = c.xor(w112, imm[28]);
+    let w922 = c.xor(w116, imm[29]);
+    let w923 = c.xor(w120, imm[30]);
+    let w924 = c.xor(w124, imm[31]);
+    let w925 = c.xor(w128, imm[32]);
+    let w926 = c.xor(w132, imm[33]);
+    let w927 = c.xor(w136, imm[34]);
+    let w928 = c.xor(w140, imm[35]);
+    let w929 = c.xor(w144, imm[36]);
+    let w930 = c.xor(w148, imm[37]);
+    let w931 = c.xor(w152, imm[38]);
+    let w932 = c.xor(w156, imm[39]);
+    let w933 = c.xor(w160, imm[40]);
+    let w934 = c.xor(w164, imm[41]);
+    let w935 = c.xor(w168, imm[42]);
+    let w936 = c.xor(w172, imm[43]);
+    let w937 = c.xor(w176, imm[44]);
+    let w938 = c.xor(w180, imm[45]);
+    let w939 = c.xor(w184, imm[46]);
+    let w940 = c.xor(w188, imm[47]);
+    let w941 = c.xor(w192, imm[48]);
+    let w942 = c.xor(w196, imm[49]);
+    let w943 = c.xor(w200, imm[50]);
+    let w944 = c.xor(w204, imm[51]);
+    let w945 = c.xor(w208, imm[52]);
+    let w946 = c.xor(w212, imm[53]);
+    let w947 = c.xor(w216, imm[54]);
+    let w948 = c.xor(w220, imm[55]);
+    let w949 = c.xor(w224, imm[56]);
+    let w950 = c.xor(w228, imm[57]);
+    let w951 = c.xor(w232, imm[58]);
+    let w952 = c.xor(w236, imm[59]);
+    let w953 = c.xor(w240, imm[60]);
+    let w954 = c.xor(w244, imm[61]);
+    let w955 = c.xor(w248, imm[62]);
+    let w956 = c.xor(w250, w247);
+    let w957 = c.xor(v1[63], w956);
+    let w958 = c.xor(w957, imm[63]);
+    let w959 = c.xor(cell[0], w688);
+    let w960 = c.xor(cell[1], w691);
+    let w961 = c.xor(cell[2], w694);
+    let w962 = c.xor(cell[3], w697);
+    let w963 = c.xor(cell[4], w700);
+    let w964 = c.xor(cell[5], w703);
+    let w965 = c.xor(cell[6], w706);
+    let w966 = c.xor(cell[7], w709);
+    let w967 = c.xor(cell[8], w716);
+    let w968 = c.xor(cell[9], w719);
+    let w969 = c.xor(cell[10], w722);
+    let w970 = c.xor(cell[11], w725);
+    let w971 = c.xor(cell[12], w728);
+    let w972 = c.xor(cell[13], w731);
+    let w973 = c.xor(cell[14], w734);
+    let w974 = c.xor(cell[15], w737);
+    let w975 = c.xor(cell[16], w744);
+    let w976 = c.xor(cell[17], w747);
+    let w977 = c.xor(cell[18], w750);
+    let w978 = c.xor(cell[19], w753);
+    let w979 = c.xor(cell[20], w756);
+    let w980 = c.xor(cell[21], w759);
+    let w981 = c.xor(cell[22], w762);
+    let w982 = c.xor(cell[23], w765);
+    let w983 = c.xor(cell[24], w770);
+    let w984 = c.xor(cell[25], w773);
+    let w985 = c.xor(cell[26], w776);
+    let w986 = c.xor(cell[27], w779);
+    let w987 = c.xor(cell[28], w782);
+    let w988 = c.xor(cell[29], w785);
+    let w989 = c.xor(cell[30], w788);
+    let w990 = c.xor(cell[31], w791);
+    let w991 = c.xor(cell[32], w796);
+    let w992 = c.xor(cell[33], w799);
+    let w993 = c.xor(cell[34], w802);
+    let w994 = c.xor(cell[35], w805);
+    let w995 = c.xor(cell[36], w808);
+    let w996 = c.xor(cell[37], w811);
+    let w997 = c.xor(cell[38], w814);
+    let w998 = c.xor(cell[39], w817);
+    let w999 = c.xor(cell[40], w822);
+    let w1000 = c.xor(cell[41], w825);
+    let w1001 = c.xor(cell[42], w828);
+    let w1002 = c.xor(cell[43], w831);
+    let w1003 = c.xor(cell[44], w834);
+    let w1004 = c.xor(cell[45], w837);
+    let w1005 = c.xor(cell[46], w840);
+    let w1006 = c.xor(cell[47], w843);
+    let w1007 = c.xor(cell[48], w848);
+    let w1008 = c.xor(cell[49], w851);
+    let w1009 = c.xor(cell[50], w854);
+    let w1010 = c.xor(cell[51], w857);
+    let w1011 = c.xor(cell[52], w860);
+    let w1012 = c.xor(cell[53], w863);
+    let w1013 = c.xor(cell[54], w866);
+    let w1014 = c.xor(cell[55], w869);
+    let w1015 = c.xor(cell[56], w874);
+    let w1016 = c.xor(cell[57], w877);
+    let w1017 = c.xor(cell[58], w880);
+    let w1018 = c.xor(cell[59], w883);
+    let w1019 = c.xor(cell[60], w886);
+    let w1020 = c.xor(cell[61], w889);
+    let w1021 = c.xor(cell[62], w892);
+    let w1022 = c.xor(cell[63], w895);
+    [
+        w253,
+        w255,
+        Wire::ZERO,
+        w896,
+        w897,
+        w898,
+        w899,
+        w900,
+        w901,
+        w902,
+        w903,
+        w904,
+        w905,
+        w906,
+        w907,
+        w908,
+        w909,
+        w910,
+        w911,
+        w912,
+        w913,
+        w914,
+        w915,
+        w916,
+        w917,
+        w918,
+        w919,
+        w920,
+        w921,
+        w922,
+        w923,
+        w924,
+        w925,
+        w926,
+        w927,
+        w928,
+        w929,
+        w930,
+        w931,
+        w932,
+        w933,
+        w934,
+        w935,
+        w936,
+        w937,
+        w938,
+        w939,
+        w940,
+        w941,
+        w942,
+        w943,
+        w944,
+        w945,
+        w946,
+        w947,
+        w948,
+        w949,
+        w950,
+        w951,
+        w952,
+        w953,
+        w954,
+        w955,
+        w958,
+        w959,
+        w960,
+        w961,
+        w962,
+        w963,
+        w964,
+        w965,
+        w966,
+        w967,
+        w968,
+        w969,
+        w970,
+        w971,
+        w972,
+        w973,
+        w974,
+        w975,
+        w976,
+        w977,
+        w978,
+        w979,
+        w980,
+        w981,
+        w982,
+        w983,
+        w984,
+        w985,
+        w986,
+        w987,
+        w988,
+        w989,
+        w990,
+        w991,
+        w992,
+        w993,
+        w994,
+        w995,
+        w996,
+        w997,
+        w998,
+        w999,
+        w1000,
+        w1001,
+        w1002,
+        w1003,
+        w1004,
+        w1005,
+        w1006,
+        w1007,
+        w1008,
+        w1009,
+        w1010,
+        w1011,
+        w1012,
+        w1013,
+        w1014,
+        w1015,
+        w1016,
+        w1017,
+        w1018,
+        w1019,
+        w1020,
+        w1021,
+        w1022,
+    ]
+}
+
 /// The checked BLAKE2s compression (`LeanVMCircuits.Blake2s.Compress`), its operations in program order.
 ///
 /// `t` and `f0` are the counter and the finalization word, `h` and `m` the chaining value's and the message's
