@@ -330,6 +330,8 @@ impl PrunedMerklePaths {
         Some((sorted, hash_packed_leaves(&hasher, &bytes, self.leaf_data.len())))
     }
 
+    // Authentication stays in sequential phase helpers; each helper owns just one loop.
+
     /// Verifier side: authenticate this phase against `root` and expand it into
     /// one opening per query, in `queries` order (duplicates included).
     ///
@@ -358,99 +360,152 @@ impl PrunedMerklePaths {
             return None;
         }
 
-        // Rebuild every node on the queried paths bottom-up, pulling a stored
-        // sibling only where that sibling is not itself a queried subtree.
-        let mut supplied = self.sibling_hashes.iter();
-        let mut known: Vec<Vec<(usize, Hash)>> = Vec::with_capacity(height);
-        let node_count = sorted.len().min(leaf_hashes.len());
-        let mut nodes = Vec::with_capacity(node_count);
-        let mut node_slot = 0;
-        while node_slot < node_count {
-            nodes.push((sorted[node_slot], leaf_hashes[node_slot]));
-            node_slot += 1;
-        }
-        drop(leaf_hashes);
-        let mut missing_sibling = false;
-        let mut lvl = 0;
-        while lvl < height && !missing_sibling {
-            let mut level = Vec::with_capacity(2 * nodes.len());
-            let mut parents = Vec::with_capacity(nodes.len());
-            let mut pairs = Vec::with_capacity(nodes.len());
-            let mut i = 0;
-            while i < nodes.len() && !missing_sibling {
-                let idx = nodes[i].0;
-                let paired = idx & 1 == 0 && nodes.get(i + 1).is_some_and(|&(j, _)| j == (idx | 1));
-                let pair = if paired {
-                    Some((nodes[i].1, nodes[i + 1].1))
-                } else {
-                    match supplied.next() {
-                        Some(&sibling) if idx & 1 == 0 => Some((nodes[i].1, sibling)),
-                        Some(&sibling) => Some((sibling, nodes[i].1)),
-                        None => {
-                            missing_sibling = true;
-                            None
-                        }
-                    }
-                };
-                if let Some((left, right)) = pair {
-                    parents.push(idx >> 1);
-                    pairs.push([left, right]);
-                    level.push((idx & !1, left));
-                    level.push((idx | 1, right));
-                    i += if paired { 2 } else { 1 };
+        let known = rebuild_opening_nodes(root, height, &sorted, leaf_hashes, &self.sibling_hashes)?;
+        let per_distinct = distinct_opening_paths(&sorted, &known, height)?;
+        expand_opening_queries(queries, &sorted, &self.leaf_data, leaf_words, &per_distinct)
+    }
+}
+
+#[inline]
+fn opening_leaf_nodes(sorted: &[usize], leaf_hashes: Vec<Hash>) -> Vec<(usize, Hash)> {
+    let node_count = sorted.len().min(leaf_hashes.len());
+    let mut nodes = Vec::with_capacity(node_count);
+    let mut node_slot = 0;
+    while node_slot < node_count {
+        nodes.push((sorted[node_slot], leaf_hashes[node_slot]));
+        node_slot += 1;
+    }
+    drop(leaf_hashes);
+    nodes
+}
+
+#[inline]
+fn fold_opening_level(
+    nodes: &[(usize, Hash)],
+    supplied: &mut std::slice::Iter<'_, Hash>,
+) -> Option<(Vec<(usize, Hash)>, Vec<usize>, Vec<[Hash; 2]>)> {
+    let mut level = Vec::with_capacity(2 * nodes.len());
+    let mut parents = Vec::with_capacity(nodes.len());
+    let mut pairs = Vec::with_capacity(nodes.len());
+    let mut missing_sibling = false;
+    let mut i = 0;
+    while i < nodes.len() && !missing_sibling {
+        let idx = nodes[i].0;
+        let paired = idx & 1 == 0 && nodes.get(i + 1).is_some_and(|&(j, _)| j == (idx | 1));
+        let pair = if paired {
+            Some((nodes[i].1, nodes[i + 1].1))
+        } else {
+            match supplied.next() {
+                Some(&sibling) if idx & 1 == 0 => Some((nodes[i].1, sibling)),
+                Some(&sibling) => Some((sibling, nodes[i].1)),
+                None => {
+                    missing_sibling = true;
+                    None
                 }
             }
-            if !missing_sibling {
+        };
+        if let Some((left, right)) = pair {
+            parents.push(idx >> 1);
+            pairs.push([left, right]);
+            level.push((idx & !1, left));
+            level.push((idx | 1, right));
+            i += if paired { 2 } else { 1 };
+        }
+    }
+    if missing_sibling {
+        None
+    } else {
+        Some((level, parents, pairs))
+    }
+}
+
+#[inline]
+fn rebuild_opening_nodes(
+    root: &Hash,
+    height: usize,
+    sorted: &[usize],
+    leaf_hashes: Vec<Hash>,
+    sibling_hashes: &[Hash],
+) -> Option<Vec<Vec<(usize, Hash)>>> {
+    let mut supplied = sibling_hashes.iter();
+    let mut known = Vec::with_capacity(height);
+    let mut nodes = opening_leaf_nodes(sorted, leaf_hashes);
+    let mut missing_sibling = false;
+    let mut lvl = 0;
+    while lvl < height && !missing_sibling {
+        match fold_opening_level(&nodes, &mut supplied) {
+            Some((level, parents, pairs)) => {
                 known.push(level);
                 nodes = parents.into_iter().zip(hash_pairs(&pairs)).collect();
                 lvl += 1;
             }
+            None => missing_sibling = true,
         }
-        // The last fold leaves exactly the root, and nothing may be left over.
-        if missing_sibling || supplied.next().is_some() || nodes[0].1 != *root {
-            return None;
-        }
+    }
+    if missing_sibling || supplied.next().is_some() || nodes[0].1 != *root {
+        None
+    } else {
+        Some(known)
+    }
+}
 
-        let mut per_distinct = Vec::with_capacity(sorted.len());
-        let mut missing_path = false;
-        let mut leaf_slot = 0;
-        while leaf_slot < sorted.len() && !missing_path {
-            let leaf = sorted[leaf_slot];
-            let mut path = Vec::with_capacity(height);
-            let mut level_slot = 0;
-            while level_slot < height && !missing_path {
-                let level = &known[level_slot];
-                match level.binary_search_by_key(&((leaf >> level_slot) ^ 1), |&(j, _)| j) {
-                    Ok(pos) => path.push(level[pos].1),
-                    Err(_) => missing_path = true,
-                }
-                level_slot += 1;
-            }
-            if !missing_path {
+#[inline]
+fn opening_path_for_leaf(leaf: usize, known: &[Vec<(usize, Hash)>], height: usize) -> Option<Vec<Hash>> {
+    let mut path = Vec::with_capacity(height);
+    let mut missing_path = false;
+    let mut level_slot = 0;
+    while level_slot < height && !missing_path {
+        let level = &known[level_slot];
+        match level.binary_search_by_key(&((leaf >> level_slot) ^ 1), |&(j, _)| j) {
+            Ok(pos) => path.push(level[pos].1),
+            Err(_) => missing_path = true,
+        }
+        level_slot += 1;
+    }
+    if missing_path { None } else { Some(path) }
+}
+
+#[inline]
+fn distinct_opening_paths(sorted: &[usize], known: &[Vec<(usize, Hash)>], height: usize) -> Option<Vec<Vec<Hash>>> {
+    let mut per_distinct = Vec::with_capacity(sorted.len());
+    let mut missing_path = false;
+    let mut leaf_slot = 0;
+    while leaf_slot < sorted.len() && !missing_path {
+        match opening_path_for_leaf(sorted[leaf_slot], known, height) {
+            Some(path) => {
                 per_distinct.push(path);
                 leaf_slot += 1;
             }
+            None => missing_path = true,
         }
-        if missing_path {
-            return None;
-        }
-        let mut paths = Vec::with_capacity(queries.len());
-        let mut missing_query = false;
-        let mut query_slot = 0;
-        while query_slot < queries.len() && !missing_query {
-            let q = queries[query_slot];
-            match sorted.binary_search(&q) {
-                Ok(slot) => paths.push(RawMerklePath {
-                    leaf_index: q,
-                    leaf_data: leaf_image(&self.leaf_data[slot], leaf_words),
-                    path: per_distinct[slot].clone(),
-                }),
-                Err(_) => missing_query = true,
-            }
-            query_slot += 1;
-        }
-        if missing_query { None } else { Some(paths) }
     }
+    if missing_path { None } else { Some(per_distinct) }
+}
+
+#[inline]
+fn expand_opening_queries(
+    queries: &[usize],
+    sorted: &[usize],
+    leaf_data: &[Vec<F64>],
+    leaf_words: usize,
+    per_distinct: &[Vec<Hash>],
+) -> Option<Vec<RawMerklePath>> {
+    let mut paths = Vec::with_capacity(queries.len());
+    let mut missing_query = false;
+    let mut query_slot = 0;
+    while query_slot < queries.len() && !missing_query {
+        let q = queries[query_slot];
+        match sorted.binary_search(&q) {
+            Ok(slot) => paths.push(RawMerklePath {
+                leaf_index: q,
+                leaf_data: leaf_image(&leaf_data[slot], leaf_words),
+                path: per_distinct[slot].clone(),
+            }),
+            Err(_) => missing_query = true,
+        }
+        query_slot += 1;
+    }
+    if missing_query { None } else { Some(paths) }
 }
 
 /// One query's opening, unpruned: the leaf's FULL image (zero prefix included) and
