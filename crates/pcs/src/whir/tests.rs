@@ -14,7 +14,7 @@ use std::panic::AssertUnwindSafe;
 struct Instance {
     vc: VerifierConfig,
     log_n: usize,
-    /// The eq-point behind `b_initial` (for the succinct closure).
+    /// The eq-point behind `b_initial` for the succinct terminal weight.
     point: Vec<F192>,
     b_initial: Vec<F192>,
     target: F192,
@@ -47,7 +47,27 @@ fn dense_mle(table: &[F192], point: &[F192]) -> F192 {
     inner_product(table, &eq_table(point))
 }
 
-fn verify_with(inst: &Instance, fs: &ProofTranscript, eval_b_at: impl Fn(&[F192]) -> F192) -> Result<(), WhirError> {
+struct EqWeight<'a>(&'a [F192]);
+
+impl WeightAt<VerifierState<'_>> for EqWeight<'_> {
+    fn evaluate(self, _: &mut VerifierState<'_>, point: &[F192]) -> F192 {
+        eq_eval(self.0, point)
+    }
+}
+
+struct DenseWeight<'a>(&'a [F192]);
+
+impl WeightAt<VerifierState<'_>> for DenseWeight<'_> {
+    fn evaluate(self, _: &mut VerifierState<'_>, point: &[F192]) -> F192 {
+        dense_mle(self.0, point)
+    }
+}
+
+fn verify_with<'a>(
+    inst: &Instance,
+    fs: &'a ProofTranscript,
+    weight: impl WeightAt<VerifierState<'a>>,
+) -> Result<(), WhirError> {
     let mut vs = VerifierState::from_label(b"whir-test", fs);
     let commitment = receive_commitment(
         &mut vs,
@@ -56,17 +76,17 @@ fn verify_with(inst: &Instance, fs: &ProofTranscript, eval_b_at: impl Fn(&[F192]
         inst.vc.log_inv_rates()[0],
         1 << inst.vc.initial_k(),
     )?;
-    verify_with_basis(&mut vs, &inst.vc, &commitment, inst.target, |_, point| eval_b_at(point))
+    verify_with_basis(&mut vs, &inst.vc, &commitment, inst.target, weight)
 }
 
 /// The weight evaluated in closed form at the terminal fold point.
 fn verify_closed_form(inst: &Instance, fs: &ProofTranscript) -> bool {
-    verify_with(inst, fs, |fold_point| eq_eval(&inst.point, fold_point)).is_ok()
+    verify_with(inst, fs, EqWeight(&inst.point)).is_ok()
 }
 
 /// The weight evaluated from its whole table at the terminal fold point.
 fn verify_dense_weight(inst: &Instance, fs: &ProofTranscript) -> bool {
-    verify_with(inst, fs, |fold_point| dense_mle(&inst.b_initial, fold_point)).is_ok()
+    verify_with(inst, fs, DenseWeight(&inst.b_initial)).is_ok()
 }
 
 /// Both weight evaluations on the same proof, asserting they agree; returns the
@@ -184,7 +204,7 @@ fn tampered_stream_words_reject_without_panicking() {
     let mut short = inst.fs.clone();
     short.stream.truncate(1);
     assert_eq!(
-        verify_with(&inst, &short, |point| eq_eval(&inst.point, point)),
+        verify_with(&inst, &short, EqWeight(&inst.point)),
         Err(WhirError::Transcript(TranscriptError::ExceededStream { len: 1 })),
     );
     for idx in 0..inst.fs.stream.len() {
@@ -226,9 +246,7 @@ fn occupied_prefix_and_explicit_zero_tail_open_correctly() {
             let verify = |proof: &ProofTranscript, count: usize| -> Result<(), WhirError> {
                 let mut vs = VerifierState::from_label(b"whir-test", proof);
                 let commitment = receive_commitment(&mut vs, log_n, pc.initial_k(), pc.log_inv_rates()[0], count)?;
-                verify_with_basis(&mut vs, &pc, &commitment, target, |_, point| {
-                    dense_mle(&b_initial, point)
-                })?;
+                verify_with_basis(&mut vs, &pc, &commitment, target, DenseWeight(&b_initial))?;
                 vs.finish()?;
                 Ok(())
             };

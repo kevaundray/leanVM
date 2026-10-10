@@ -552,13 +552,33 @@ pub(crate) mod tests {
     use crate::tensor_algebra::transpose_s_hat;
     use crate::whir::config::tests::test_config_for;
     use crate::whir::{
-        VerifierConfig, commit, inner_product_base_ext, open_with_basis, receive_commitment, verify_with_basis,
+        VerifierConfig, WeightAt, commit, inner_product_base_ext, open_with_basis, receive_commitment,
+        verify_with_basis,
     };
     use fiat_shamir::arith::Native;
     use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
     use primitives::field::F64;
     use primitives::test_util::Rng;
     use std::collections::HashSet;
+
+    struct DenseWeight<'a>(&'a [F192]);
+
+    impl WeightAt<VerifierState<'_>> for DenseWeight<'_> {
+        fn evaluate(self, _: &mut VerifierState<'_>, point: &[F192]) -> F192 {
+            inner_product_ext(self.0, &eq_table(point))
+        }
+    }
+
+    struct RingWeight<'a> {
+        point: &'a [F192],
+        map: &'a RingMap<F192>,
+    }
+
+    impl WeightAt<VerifierState<'_>> for RingWeight<'_> {
+        fn evaluate(self, _: &mut VerifierState<'_>, point: &[F192]) -> F192 {
+            eval_rs_eq(self.point, F192::ONE, self.map, point)
+        }
+    }
 
     /// Total degree of the six-challenge composed batching map. This is the
     /// conservative degree used by the WHIR list-size soundness accounting.
@@ -935,10 +955,7 @@ pub(crate) mod tests {
             return false;
         };
         let rs_eq_ind = fold_dense(&eq_table(&e.suffix_point), &coordinate_weights);
-        verify_with_basis(&mut vs, &e.vc, &commitment, sumcheck_claim, |_, point| {
-            inner_product_ext(&rs_eq_ind, &eq_table(point))
-        })
-        .is_ok()
+        verify_with_basis(&mut vs, &e.vc, &commitment, sumcheck_claim, DenseWeight(&rs_eq_ind)).is_ok()
     }
 
     /// Succinct verification: no `rs_eq_ind`, the succinct whir verifier's
@@ -958,9 +975,16 @@ pub(crate) mod tests {
             return false;
         };
         let map = RingMap::new(&mut Native, &challenges);
-        verify_with_basis(&mut vs, &e.vc, &commitment, sumcheck_claim, |_, point| {
-            eval_rs_eq(&e.suffix_point, F192::ONE, &map, point)
-        })
+        verify_with_basis(
+            &mut vs,
+            &e.vc,
+            &commitment,
+            sumcheck_claim,
+            RingWeight {
+                point: &e.suffix_point,
+                map: &map,
+            },
+        )
         .is_ok()
     }
 
