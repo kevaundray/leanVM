@@ -2,6 +2,7 @@ module
 
 public import Mathlib.FieldTheory.Finite.Extension
 public import Mathlib.RingTheory.AdjoinRoot
+public import Clean.Utils.FiniteField
 
 @[expose] public section
 
@@ -227,5 +228,130 @@ instance : Fact (Irreducible modulus) := ⟨modulus_irreducible⟩
 abbrev K := AdjoinRoot modulus
 
 noncomputable instance : Field K := AdjoinRoot.instField
+
+/-! `K`'s elements as the machine writes them: the word of their coefficients in the basis `1, x, ..., x^63`. -/
+
+noncomputable def basis : PowerBasis (ZMod 2) K := AdjoinRoot.powerBasis' modulus_monic
+
+def bitZ (n i : ℕ) : ZMod 2 := if n.testBit i then 1 else 0
+
+theorem zmod2_cases (b : ZMod 2) : b = 0 ∨ b = 1 := by
+  fin_cases b
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+/-- The number whose bit `i` is `c i`, for `i < m`. -/
+def num (c : ℕ → ZMod 2) : ℕ → ℕ
+  | 0 => 0
+  | m + 1 => (c 0).val + 2 * num (fun i => c (i + 1)) m
+
+theorem num_lt (c : ℕ → ZMod 2) (m : ℕ) : num c m < 2 ^ m := by
+  induction m generalizing c with
+  | zero => simp [num]
+  | succ m ih =>
+    have := ih (fun i => c (i + 1))
+    have hc := ZMod.val_lt (c 0)
+    simp only [num, pow_succ]
+    omega
+
+theorem testBit_num (c : ℕ → ZMod 2) (m i : ℕ) (hi : i < m) : (num c m).testBit i = decide (c i = 1) := by
+  induction m generalizing c i with
+  | zero => omega
+  | succ m ih =>
+    have hc := ZMod.val_lt (c 0)
+    rcases i with _ | i
+    · simp only [num, Nat.testBit_zero]
+      have h2 : ((c 0).val + 2 * num (fun i => c (i + 1)) m) % 2 = (c 0).val := by omega
+      rw [h2]
+      rcases zmod2_cases (c 0) with h | h <;> rw [h] <;> decide
+    · rw [num, Nat.testBit_succ,
+        show ((c 0).val + 2 * num (fun i => c (i + 1)) m) / 2 = num (fun i => c (i + 1)) m by omega]
+      exact ih _ _ (by omega)
+
+theorem num_bitZ (n m : ℕ) (hn : n < 2 ^ m) : num (bitZ n) m = n := by
+  apply Nat.eq_of_testBit_eq
+  intro i
+  by_cases hi : i < m
+  · rw [testBit_num _ _ _ hi, bitZ]; split <;> simp_all
+  · rw [Nat.testBit_lt_two_pow (lt_of_lt_of_le (num_lt _ m) (Nat.pow_le_pow_right (by norm_num) (show m ≤ i by omega))),
+      Nat.testBit_lt_two_pow (lt_of_lt_of_le hn (Nat.pow_le_pow_right (by norm_num) (show m ≤ i by omega)))]
+
+theorem bitZ_succ (n i : ℕ) : bitZ n (i + 1) = bitZ (n / 2) i := by simp [bitZ, Nat.testBit_succ]
+
+theorem ev_eq_sum (m n : ℕ) (hn : n < 2 ^ m) : ev n = ∑ i : Fin m, bitZ n i • root ^ (i : ℕ) := by
+  induction m generalizing n with
+  | zero => simp at hn; subst hn; simp [ev_zero]
+  | succ m ih =>
+    rw [ev_step, ih (n / 2) (by rw [pow_succ] at hn; omega), Fin.sum_univ_succ, Finset.mul_sum]
+    congr 1
+    · simp only [bitZ, Nat.testBit_zero, Fin.val_zero, pow_zero]
+      split <;> simp_all
+    · apply Finset.sum_congr rfl
+      intro i _
+      rw [Fin.val_succ, bitZ_succ, pow_succ, mul_smul_comm]
+      ring_nf
+
+/-- Coefficient `i` of `x` in the basis `x^i`. -/
+noncomputable def coeff (x : K) (i : ℕ) : ZMod 2 := if h : i < basis.dim then basis.basis.repr x ⟨i, h⟩ else 0
+
+theorem basis_dim : basis.dim = 64 := modulus_natDegree
+
+theorem coeff_ev (n i : ℕ) (hn : n < 2 ^ 64) : coeff (ev n) i = bitZ n i := by
+  unfold coeff
+  split
+  · rename_i h
+    have hsum : ev n = ∑ j : Fin basis.dim, bitZ n j • basis.basis j := by
+      rw [PowerBasis.coe_basis, ev_eq_sum basis.dim n (by rw [basis_dim]; exact hn)]
+      rfl
+    rw [hsum, Module.Basis.repr_sum_self]
+  · rename_i h
+    rw [basis_dim] at h
+    simp [bitZ, Nat.testBit_lt_two_pow (lt_of_lt_of_le hn (Nat.pow_le_pow_right (by norm_num) (show 64 ≤ i by omega)))]
+
+theorem ext_coeff (x y : K) (h : ∀ i, coeff x i = coeff y i) : x = y := by
+  apply basis.basis.repr.injective
+  ext ⟨i, hi⟩
+  have := h i
+  simp only [coeff, hi, dif_pos] at this
+  exact this
+
+/-- The coefficient word of `x`. -/
+noncomputable def toWord (x : K) : ℕ := num (coeff x) 64
+
+/-- The element of a coefficient word. -/
+noncomputable def ofWord (n : ℕ) : K := ev (n % 2 ^ 64)
+
+theorem toWord_ofWord (n : ℕ) (hn : n < 2 ^ 64) : toWord (ofWord n) = n := by
+  unfold toWord ofWord
+  rw [Nat.mod_eq_of_lt hn]
+  have : coeff (ev n) = bitZ n := funext fun i => coeff_ev n i hn
+  rw [this, num_bitZ n 64 hn]
+
+theorem toWord_injective : Function.Injective toWord := by
+  intro x y h
+  apply ext_coeff
+  intro i
+  by_cases hi : i < 64
+  · have hx := testBit_num (coeff x) 64 i hi
+    have hy := testBit_num (coeff y) 64 i hi
+    unfold toWord at h
+    rw [h, hy] at hx
+    rcases zmod2_cases (coeff x i) with a | a <;> rcases zmod2_cases (coeff y i) with b | b <;> simp_all
+  · unfold coeff
+    rw [dif_neg (by rw [basis_dim]; exact hi), dif_neg (by rw [basis_dim]; exact hi)]
+
+noncomputable instance : FiniteField K where
+  val := toWord
+  fromNat := ofWord
+  size := 2 ^ 64
+  val_lt x := num_lt _ _
+  val_injective := toWord_injective
+  val_fromNat n hn := toWord_ofWord n hn
+  val_zero := by
+    have := toWord_ofWord 0 (by norm_num)
+    simpa [ofWord, ev_zero] using this
+  val_one := by
+    have := toWord_ofWord 1 (by norm_num)
+    simpa [ofWord, ev_one] using this
 
 end LeanVMCircuits.Rec
