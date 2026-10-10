@@ -131,7 +131,7 @@ theorem registers_holds (env : Environment Bit) (input : Var Input Bit) (f : Boo
       simp only [Blake2s.initial]
       rw [values_registers env input _ (by decide)]
       simp [register, initialV, words, map_chunk, map_low, map_high, map_xorBits, toWord_xor, eval_literal,
-        toWord_literal, toWord_low, toWord_high, hf, Vector.getElem_set, Vector.getElem_append]
+        toWord_literal, toWord_low, toWord_high, hf]
     all_goals first
       | (rw [Vector.getElem_append_left (by decide)]; simp)
       | (rw [Vector.getElem_append_right (by decide)]; rfl)
@@ -166,8 +166,7 @@ theorem soundness : Soundness Bit main (fun _ => True) Spec := by
       (initialV (words input_h) (toWord input_t) f)[9] = IV[1] ∧
       (initialV (words input_h) (toWord input_t) f)[10] = IV[2] ∧
       (initialV (words input_h) (toWord input_t) f)[11] = IV[3] := by
-    cases f <;> simp [initialV] <;> refine ⟨?_, ?_, ?_, ?_⟩ <;>
-      (rw [Vector.getElem_append_right] <;> simp)
+    cases f <;> simp [initialV] <;> refine ⟨?_, ?_, ?_, ?_⟩ <;> rw [Vector.getElem_append_right] <;> simp
   have hp := program_correct _ _ _ hinit hiv
   rw [← hrun] at hp
   obtain ⟨_, _, _, hlane, _⟩ := hp

@@ -135,7 +135,7 @@ theorem wrapping_lower (m n : ℕ) (x y : Vector (Expression Bit) (m + 1)) (ax a
     rw [toSubcircuit_toFlat]
     exact hl
   · intro i hi
-    simp only [WrappingAdder.circuit, WrappingAdder.main, circuit_norm, Adder.circuit]
+    simp only [WrappingAdder.circuit, circuit_norm]
     split
     · rename_i h
       exact hs i h
