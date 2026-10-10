@@ -6,7 +6,7 @@
 //! - In rows an element is a wire, a read is a free wire bound by a hash row, and an equality joins two wires.
 
 use crate::transcript::{Challenger, Receiver, TranscriptError, VerifierState};
-use primitives::field::{F64, F192};
+use primitives::field::{F192, F64};
 use primitives::multilinear::mle_eval_par;
 
 /// Arithmetic over `E`, on values or on the wires that hold them.
@@ -179,9 +179,12 @@ pub trait Arith {
         assert_eq!(values.len(), 1 << point.len(), "a value per vertex");
         let mut folded = values.to_vec();
         for &x in point {
-            let mut next = Vec::with_capacity(folded.len().div_ceil(2));
-            for pair in folded.chunks(2) {
-                next.push(self.interp(pair[0], pair[1], x));
+            let len = folded.len();
+            let mut next = Vec::with_capacity(len / 2 + len % 2);
+            let mut i = 0;
+            while i < len {
+                next.push(self.interp(folded[i], folded[i + 1], x));
+                i += 2;
             }
             folded = next;
         }
@@ -331,7 +334,11 @@ impl Arith for Native {
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() { F192::ZERO } else { a.inv() }
+        if a.is_zero() {
+            F192::ZERO
+        } else {
+            a.inv()
+        }
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
@@ -363,7 +370,11 @@ impl Arith for VerifierState<'_> {
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() { F192::ZERO } else { a.inv() }
+        if a.is_zero() {
+            F192::ZERO
+        } else {
+            a.inv()
+        }
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
@@ -398,7 +409,11 @@ impl Verifier for VerifierState<'_> {
     }
 
     fn ensure_eq<Er>(&mut self, a: F192, b: F192, err: impl FnOnce() -> Er) -> Result<(), Er> {
-        if a == b { Ok(()) } else { Err(err()) }
+        if a == b {
+            Ok(())
+        } else {
+            Err(err())
+        }
     }
 
     fn finish(&mut self) -> Result<(), TranscriptError> {
