@@ -15,7 +15,7 @@ use crate::whir::config::{ConfigError, VerifierConfig};
 use crate::whir::induce::eval_sk_at_vks;
 use fiat_shamir::arith::Arith;
 use fiat_shamir::transcript::TranscriptError;
-use primitives::field::{F64, F192};
+use primitives::field::{F192, F64};
 use thiserror::Error;
 
 /// Why a WHIR opening is rejected.
@@ -348,9 +348,12 @@ impl<R> Oracle<R> {
         let rows = v.open_rows(&self.root, self.depth(), queries, leaf_words, leaf_words)?;
         let mut out = Vec::with_capacity(rows.len());
         for words in rows {
-            let mut row = Vec::with_capacity(words.len().div_ceil(3));
-            for c in words.chunks(3) {
-                row.push(v.e_of_limbs([c[0], c[1], c[2]]));
+            let len = words.len();
+            let mut row = Vec::with_capacity(len / 3 + usize::from(len % 3 != 0));
+            let mut i = 0;
+            while i < len {
+                row.push(v.e_of_limbs([words[i], words[i + 1], words[i + 2]]));
+                i += 3;
             }
             out.push(row);
         }
@@ -395,8 +398,10 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         // The proof stores the committed lanes, the image's tail; the image is lane-descending.
         w.query(v, phase, oods, n_current, |v, queries, weights| {
             let mut rows = v.open_rows(&root, phase.depth, queries, n_lanes, max)?;
-            for row in &mut rows {
-                row.reverse();
+            let mut i = 0;
+            while i < rows.len() {
+                rows[i].reverse();
+                i += 1;
             }
             Ok(base_enforced_sum(&BaseRows(rows), v, &lane_fold, weights))
         })?;
@@ -454,7 +459,8 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
     /// Level `level`'s query batch over indices of `depth` bits.
     fn phase(&self, level: usize, depth: usize) -> QueryPhase {
         QueryPhase {
-            grinding: u32::try_from(self.config.grinding_bits()[level]).expect("a few grinding bits"),
+            // The private config constructor bounds this by MAX_GRINDING_BITS.
+            grinding: self.config.grinding_bits()[level] as u32,
             depth,
             count: self.config.queries()[level],
         }

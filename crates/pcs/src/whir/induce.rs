@@ -7,10 +7,10 @@
 //! dense per-query expansion, its succinct residual evaluator, and the sparse
 //! transposed-NTT fast path with the dispatch between them.
 
-use crate::ntt::AdditiveNttF64;
 use crate::ntt::additive_ntt_f64::transposed_butterfly_lanes;
+use crate::ntt::AdditiveNttF64;
 use parallel::SendPtr;
-use primitives::field::{F64, F192, F192Unreduced};
+use primitives::field::{F192Unreduced, F192, F64};
 use primitives::multilinear::{eq_table, inner_product, inner_product_base};
 use std::collections::HashMap;
 
@@ -33,7 +33,10 @@ pub fn eval_sk_at_vks(log_n: usize) -> Vec<F64> {
     if log_n == 0 {
         return sks_vks;
     }
-    let mut layer: Vec<F64> = (1..=log_n).map(|i| F64(1u64 << i)).collect();
+    let mut layer = Vec::with_capacity(log_n);
+    for i in 0..log_n {
+        layer.push(F64(1u64 << (i + 1)));
+    }
     let mut cur_len = log_n;
     for i in 0..log_n {
         for j in 0..cur_len {
