@@ -31,7 +31,7 @@
 //! ```
 
 pub(crate) mod anchor;
-mod commit;
+pub(crate) mod commit;
 pub mod config;
 mod induce;
 mod ntt_ext;

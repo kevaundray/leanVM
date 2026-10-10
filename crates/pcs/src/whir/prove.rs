@@ -7,7 +7,7 @@
 //! per level, down to the residual sent in the clear.
 
 use super::anchor::add_anchor_weight;
-use super::commit::{Commitment, ProverData, ligero_commit_ext};
+use super::commit::{Commitment, ProverData, ligero_commit_ext, send_record_binding};
 use super::sample_queries_ordered;
 use super::sumcheck::{Basis, InitialRounds, SumcheckProver, send_msg};
 use crate::merkle::Hash;
@@ -59,8 +59,7 @@ fn ext_row_words(row: &[F192]) -> Vec<F64> {
 /// by `stack.len()`; `ood_samples[0] == 0` is what keeps a full-tensor OOD weight
 /// out of these rounds.
 ///
-/// Public opening statements must be bound by the caller before entry. This
-/// draws the opening batch scalar, never a replacement commitment anchor.
+/// Public opening statements must be bound by the caller before entry. This binds the complete record before drawing the opening batch scalar, without resampling the anchor.
 #[expect(
     clippy::too_many_arguments,
     reason = "The proof kernel keeps its independent inputs explicit."
@@ -81,6 +80,8 @@ pub fn open_with_basis(
     assert_eq!(witness.len(), shape.n_lanes << (shape.log_n - shape.log_batch_size));
     assert_eq!(b_initial.len(), witness.len());
     assert_eq!(data.merkle_tree.last(), Some(&commitment.root), "commitment root");
+    assert_eq!(commitment.point.len(), shape.log_n, "anchor spans the committed cube");
+    send_record_binding(ps, commitment);
     let beta = ps.sample();
     add_anchor_weight(&mut b_initial, &commitment.point, beta);
     let target = target + beta * commitment.value;
@@ -134,14 +135,9 @@ pub(crate) fn prove_protocol_with_prepared_basis(
     assert_eq!(l0_codeword.len(), block_len_0 * n_lanes);
     assert_eq!(l0_tree.len(), 2 * block_len_0 - 1);
 
-    // Nothing is absorbed on entry. The commitment was bound by the `add_root`/`next_root` that
-    // transmitted it, and the target is `sum_i lambda^i * claim_i` over claim values bound by their
-    // own reads, with lambda drawn from the state: the state already determines both. Every caller
-    // must therefore have transmitted its root before opening against it, which is what makes the
-    // fold challenges depend on the commitment.
-
-    // L0 codeword + tree are borrowed (reused from `commit`); the root itself is never needed
-    // here, the caller having transmitted it.
+    // Public wrappers bind the full immutable record and the caller's statement before their opening challenges.
+    // This private kernel receives the resulting combined target and prepared weight without rebinding either.
+    // L0 codeword + tree are borrowed from `commit`; the wrappers bind their root through the record.
     // The codeword interleaves only the committed lanes, and its lane `t` is stack
     // block `n_lanes-1-t`, so a row IS the tail of the leaf image: the absent lanes
     // are the image's leading zeros (`MerkleBuilder` shares their hash prefix, and only

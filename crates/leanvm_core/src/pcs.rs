@@ -3,11 +3,9 @@
 //! Witness words lie in K = GF(2^64), and challenges lie in E = GF(2^192).
 //! The opening proves an inner product against a weight the verifier reconstructs.
 //!
-//! The 128-bit soundness argument uses Johnson list decoding (doc/leanvm, Annex B).
-//!
-//! - The initial commitment has no out-of-domain sample and binds to a list of polynomials.
-//! - Challenges before the opening pay for that list size (section sec:e2e-ledger).
-//! - Each deeper commitment takes one out-of-domain sample to bind to one codeword.
+//! The immutable commitment includes the root, shape, original transcript context, and one out-of-domain point/value anchor.
+//! Each opening binds that complete record before batching the point and circuit-validity claims.
+//! The security-bit constant is a parameter-selection target, not a proved concrete security level for the deployed hash and Fiat-Shamir composition (doc/leanvm, Annex B).
 
 use crate::witness::StackShape;
 use fiat_shamir::transcript::ProverState;

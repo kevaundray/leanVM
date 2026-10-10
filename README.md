@@ -25,7 +25,7 @@
 
 leanVM is designed for security:
 
- * 128-bit ROM (64-bit QROM) soundness
+ * a 128-bit ROM (64-bit QROM) soundness target, not a proved deployed security level
  * no proximity gap conjecture
  * end-to-end formal verification
  * a traditional hash function
@@ -183,8 +183,8 @@ Each instruction class's circuit proven alone by flock, on `2^FLOCK_N_LOG` rando
 
 ### Immutable PCS commitment anchors
 
-PCS commitment identity is now the complete immutable Merkle root, public shape, commitment-time extension-field point and advertised MLE value. `whir::commit` takes the prover transcript and binds the `whir-anchor-v1` marker, dimension/interleaving/rate tuple and occupied lane count before the root and the one anchor challenge. `whir::receive_commitment` checks the same context, derives that point once and reads its value. The proof wire format changes; root-only legacy proofs are not accepted.
+PCS commitment identity is now the complete immutable Merkle root, public shape, exact pre-commit transcript chaining value and pending scalar buffer, commitment-time extension-field point and advertised MLE value. Capturing that context does not flush, hash or sample. `whir::commit` binds the `whir-anchor-v1` marker, dimension/interleaving/rate tuple and occupied lane count before the root and the one anchor challenge. `whir::receive_commitment` checks the same context, derives that point once and reads its value. CPU proofs use `LVMP14` and the `leanvm-rv64im-12` program domain; tree proofs use `LVMT11` and the `leanvm-tree-7` domain. Root-only legacy proofs are not accepted.
 
-Every stacked opening and the public `whir::open_with_basis` / `whir::verify_with_basis` advanced interfaces require this complete record and additionally check the same anchored value. Root-only WHIR kernels are private protocol building blocks, not alternate public PCS verification paths. Reuse the immutable record and its public transcript context across sessions; opening never replaces the point or value. Advanced callers must bind their public opening claims before the opening batch challenge. Omitted lanes remain mandated zero, and the anchor's linear weight is restricted to the occupied prefix in both native and row arithmetic.
+Every stacked opening and the public `whir::open_with_basis` / `whir::verify_with_basis` advanced interfaces require this complete record. Their `whir-opening-v1` frame binds and compares its shape, root, original chaining value and pending scalars, point and advertised value before any opening batching challenge. Root and chaining-value scalars retain the deployed two-word/two-word digest packing. This permits opening the same immutable record in a fresh session without receiving it again or resampling its point. Root-only WHIR kernels are private protocol building blocks, not alternate public PCS verification paths. Advanced callers must bind their public opening claims before entry. Omitted lanes remain mandated zero, and the anchor's linear weight is restricted to the occupied prefix in both native and row arithmetic.
 
 The separate Lean investigation proves ideal uniform-anchor candidate uniqueness with a commitment-fixed list, including arbitrary malicious advertised values and cross-session reuse. Its anchor ambiguity term is separate from opening, Fiat-Shamir, Merkle and concrete cryptographic losses. This cutover does not claim a proved whole-system security level, successful efficient knowledge extraction, or universal Rust-to-Lean equivalence. It does not incorporate the separately proposed malformed-selector guard change.

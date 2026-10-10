@@ -143,9 +143,11 @@ pub fn verify_with_basis<V: OpeningVerifier>(
     if !shape.valid()
         || shape.log_batch_size != config.initial_k()
         || config.log_inv_rates().first() != Some(&shape.log_inv_rate)
+        || commitment.point.len() != shape.log_n
     {
         return Err(WhirError::CommitmentMismatch);
     }
+    super::commit::verify_record_binding(v, commitment)?;
     let beta = v.sample();
     let target = v.mul_add(beta, commitment.value, target);
     let combined_weight = |v: &mut V, point: &[V::E]| {

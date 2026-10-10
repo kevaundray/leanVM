@@ -1,7 +1,7 @@
 //! Fiat-Shamir proof transport. `add_scalar` and `next_scalar` transmit and bind together, which is the only way anything enters the state: a transmitted value needs no separate absorb, a value derived from transmitted ones needs none either, and the statement rides the seed the state starts from. So there is no absorb-only method at all. Merkle hints are authenticated by their trees and are not absorbed separately.
 
-use crate::FiatShamirState;
 use crate::merkle::{Hash, PrunedMerklePaths, RawMerklePath, hash_to_scalars, scalars_to_hash};
+use crate::{FiatShamirState, TranscriptContext};
 use bincode::{DefaultOptions, Options};
 use primitives::field::{F64, F192};
 use serde::de::DeserializeOwned;
@@ -74,6 +74,9 @@ pub trait Challenger {
 /// The prover half of a transmitting sub-protocol (WHIR and its sumchecks):
 /// push an opening phase, send a scalar, or grind.
 pub trait Transmitter: Challenger {
+    /// Copy the exact context without changing the transcript.
+    fn context(&self) -> TranscriptContext<F192, Hash>;
+
     fn hint_merkle(&mut self, paths: PrunedMerklePaths);
     fn add_scalar(&mut self, x: F192);
     fn add_scalars(&mut self, xs: &[F192]);
@@ -168,6 +171,11 @@ impl ProverState {
         }
     }
 
+    /// Copy the chaining value and waiting scalars without changing the transcript.
+    pub fn context(&self) -> TranscriptContext<F192, [F64; 4]> {
+        self.fs.context()
+    }
+
     pub fn into_proof(self) -> ProofTranscript {
         ProofTranscript {
             stream: self.stream,
@@ -208,6 +216,11 @@ impl<'a> VerifierState<'a> {
             phase: 0,
             raw_openings: Vec::new(),
         }
+    }
+
+    /// Copy the chaining value and waiting scalars without changing the transcript.
+    pub fn context(&self) -> TranscriptContext<F192, [F64; 4]> {
+        self.fs.context()
     }
 
     /// Advance the wire cursor by one **without** binding or recording: the read
@@ -252,6 +265,18 @@ impl<'a> VerifierState<'a> {
 }
 
 impl Transmitter for ProverState {
+    fn context(&self) -> TranscriptContext<F192, Hash> {
+        let context = ProverState::context(self);
+        let mut state = [0u8; 32];
+        for (slot, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(context.state) {
+            *slot = word.0.to_le_bytes();
+        }
+        TranscriptContext {
+            state,
+            pending: context.pending,
+        }
+    }
+
     /// Hand the next opening phase's Merkle data to the verifier. Not absorbed:
     /// its binding is the Merkle structure itself.
     fn hint_merkle(&mut self, paths: PrunedMerklePaths) {
@@ -389,6 +414,46 @@ mod tests {
 
     fn f(k: u64) -> F192 {
         F192::new(k, k ^ 0x1234, k.rotate_left(17))
+    }
+
+    #[test]
+    fn context_preserves_pending_scalars_and_challenges() {
+        let label = b"context-test";
+        let initial = crate::digest_words(&primitives::hash::hash(label));
+        let scalars = [f(1), f(2), f(3)];
+        for count in 0..=scalars.len() {
+            let mut ps = ProverState::from_label(label);
+            let mut control = ProverState::from_label(label);
+            ps.add_scalars(&scalars[..count]);
+            control.add_scalars(&scalars[..count]);
+            let expected = if count <= crate::MAX_PENDING {
+                TranscriptContext {
+                    state: initial,
+                    pending: std::array::from_fn(|i| scalars[..count].get(i).copied()),
+                }
+            } else {
+                TranscriptContext {
+                    state: crate::step(initial, &scalars[..crate::MAX_PENDING], crate::DS_OBSERVE),
+                    pending: [Some(scalars[2]), None],
+                }
+            };
+            assert_eq!(ps.context(), expected);
+            let wire_context = Transmitter::context(&ps);
+            assert_eq!(crate::digest_words(&wire_context.state), expected.state);
+            assert_eq!(wire_context.pending, expected.pending);
+            let challenge = ps.sample();
+            assert_eq!(challenge, control.sample(), "{count} transmitted scalars");
+            assert_eq!(ps.context().pending, [None; crate::MAX_PENDING]);
+            let proof = ps.into_proof();
+            let mut vs = VerifierState::from_label(label, &proof);
+            for &scalar in &scalars[..count] {
+                assert_eq!(vs.next_scalar().unwrap(), scalar);
+            }
+            assert_eq!(vs.context(), expected);
+            assert_eq!(vs.sample(), challenge, "{count} received scalars");
+            assert_eq!(vs.context().pending, [None; crate::MAX_PENDING]);
+            vs.finish().unwrap();
+        }
     }
 
     #[test]

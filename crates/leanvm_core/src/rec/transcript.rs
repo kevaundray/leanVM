@@ -2,7 +2,9 @@
 
 use super::circuit::{Builder, Dw, Ew, Kw, Limbs, digest_limbs, zero_prefix};
 use fiat_shamir::transcript::RawProof;
-use fiat_shamir::{DS_OBSERVE, DS_POW_BASE, DS_POW_NONCE, DS_SQUEEZE, MAX_GRINDING_BITS, MAX_PENDING};
+use fiat_shamir::{
+    DS_OBSERVE, DS_POW_BASE, DS_POW_NONCE, DS_SQUEEZE, MAX_GRINDING_BITS, MAX_PENDING, TranscriptContext,
+};
 use primitives::field::F192;
 
 /// What the circuit reads: the proof when it has one, zeros when it is built from the shape alone.
@@ -50,6 +52,14 @@ impl<'a> Transcript<'a> {
             source,
             offset: 0,
             opening: 0,
+        }
+    }
+
+    /// Copy the chaining wire and waiting scalars without emitting rows.
+    pub fn context(&self) -> TranscriptContext<Ew, Dw> {
+        TranscriptContext {
+            state: self.cv,
+            pending: std::array::from_fn(|i| self.pending.get(i).copied()),
         }
     }
 
@@ -227,8 +237,11 @@ impl<'a> Transcript<'a> {
 mod tests {
     use super::*;
     use crate::rec::circuit::{Circuit, Unsatisfied};
-    use fiat_shamir::merkle::{Hash, RawMerklePath, hash_leaf, hash_pair};
+    use crate::rec::verifier::Rows;
+    use fiat_shamir::arith::Verifier;
+    use fiat_shamir::merkle::{Hash, RawMerklePath, hash_leaf, hash_pair, hash_to_scalars};
     use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
+    use pcs::verifier::OpeningVerifier;
     use primitives::field::F64;
 
     const LABEL: &[u8] = b"rec-transcript-test";
@@ -283,6 +296,44 @@ mod tests {
             .collect();
         let finished = b.finish();
         (finished.circuit, values, finished.failures)
+    }
+
+    #[test]
+    fn row_context_preserves_pending_scalars_and_native_challenges() {
+        let scalars = [F192::new(1, 2, 3), F192::new(u64::MAX, 7, 0), F192::new(9, 10, 11)];
+        for count in 0..=scalars.len() {
+            let mut ps = ProverState::from_label(LABEL);
+            ps.add_scalars(&scalars[..count]);
+            let expected = ps.context();
+            let expected_halves = hash_to_scalars(&Transmitter::context(&ps).state);
+            let expected_challenge = ps.sample();
+            let proof = ps.into_proof();
+            let raw = RawProof {
+                stream: proof.stream,
+                merkle: Vec::new(),
+            };
+            let mut b = Builder::new();
+            let initial = b.d_const(digest_limbs(&primitives::hash::hash(LABEL)));
+            let mut t = Transcript::from_state(initial, ProofSource::Proof(&raw));
+            let (context, halves, challenge) = {
+                let mut rows = Rows::new(&mut b, &mut t);
+                for _ in 0..count {
+                    rows.next_scalar().unwrap();
+                }
+                let context = rows.context();
+                let halves = rows.root_scalars(context.state);
+                let challenge = rows.sample();
+                (context, halves, challenge)
+            };
+            assert_eq!(b.d(context.state), expected.state.map(|word| word.0));
+            assert_eq!(context.pending.map(|wire| wire.map(|w| b.e(w))), expected.pending);
+            assert_eq!(halves.map(|w| b.e(w)), expected_halves);
+            assert_eq!(b.e(challenge), expected_challenge, "{count} received scalars");
+            assert_eq!(t.context().pending, [None; MAX_PENDING]);
+            assert!(t.finished());
+            let failures = b.finish().failures;
+            assert!(failures.is_empty(), "{failures:?}");
+        }
     }
 
     #[test]

@@ -30,7 +30,7 @@
 //!
 //! ## Transcript order (identical on both sides)
 //!
-//! Sample the family's challenge `gamma_rs`, then the shared linear map, then one batching challenge for the family, the point claims, and the immutable commitment anchor, then run WHIR. The caller already bound each claim's slices and value through the transcript, so none is observed again here. The anchor point and value were bound when the commitment was received.
+//! Bind the full immutable commitment record, then sample the family's challenge `gamma_rs`, the shared linear map, and one batching challenge for the family, the point claims, and the immutable anchor before running WHIR. The caller already bound each claim's slices and value through the transcript, so none is observed again here. Opening never resamples the anchor.
 //!
 //! ## The combined weight
 //!
@@ -61,6 +61,7 @@ use super::whir::{
     Commitment, ProverConfig, ProverData, VerifierConfig, WhirError, anchor::anchor_eq_at,
     verify_protocol_with_basis,
 };
+use super::whir::commit::{send_record_binding, verify_record_binding};
 use basis::StackWeight;
 use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::transcript::Transmitter;
@@ -210,6 +211,7 @@ pub fn open(
             );
         }
     }
+    send_record_binding(ps, commitment);
     let family = RingFamily::sample(ps);
     let coordinate_weights = family.coordinate_weights();
 
@@ -272,7 +274,7 @@ pub fn open(
 /// Verifier mirror of [`open`].
 ///
 /// It replays the ring switch succinctly, recomputes the combined target, then drives the succinct WHIR verifier with one terminal evaluation of the lifted weight.
-/// The immutable commitment supplies the stack shape, root, and anchor.
+/// The immutable commitment supplies the pre-commit context, stack shape, root, and anchor.
 /// The family takes batching power zero, point claim `i` power `i + 1`, and the anchor the final power.
 ///
 /// The verifier is the native one or the recursion machine's rows, which run the same steps.
@@ -297,6 +299,7 @@ pub fn verify<V: OpeningVerifier>(
     }
     let log_n = shape.log_n;
     check_statement(log_n, point_claims, rings)?;
+    verify_record_binding(v, commitment)?;
 
     // The family: every claim arrives with its 64 slices, bound upstream by the caller, so nothing is read here.
     // Then the one batching challenge, the family taking its first power.
@@ -525,6 +528,7 @@ mod tests {
         point_claims: Vec<StackClaim>,
         rings: Vec<RingSwitch>,
         fs: ProofTranscript,
+        opening_label: Option<&'static [u8]>,
     }
 
     /// Synthetic stack of 2^14 F64 words: three aligned 2^12-word columns
@@ -541,6 +545,14 @@ mod tests {
     /// nonempty E-valued selector prefix from ris); the crossing regime is
     /// exercised by `stacked_open_residual_crosses_qflock`.
     fn build_instance(seed: u64, omit_last_lane: bool) -> Instance {
+        build_instance_in_session(seed, omit_last_lane, None)
+    }
+
+    fn build_instance_in_session(
+        seed: u64,
+        omit_last_lane: bool,
+        opening_label: Option<&'static [u8]>,
+    ) -> Instance {
         let log_n = 14usize;
         let pc = test_config_for(log_n);
         let lane_block = 1usize << (log_n - pc.initial_k());
@@ -559,6 +571,10 @@ mod tests {
         }
         assert_eq!(stack.len(), stack_len);
         let mut ps = ProverState::from_label(DOMAIN);
+        if opening_label.is_some() {
+            ps.add_scalar(F192::new(11, 12, 13));
+            ps.add_scalar(F192::new(14, 15, 16));
+        }
         let (cm, pd) = commit(&mut ps, &stack, log_n, pc.initial_k(), pc.log_inv_rates()[0]);
 
         // One point claim per column, at a random E point.
@@ -632,6 +648,9 @@ mod tests {
             qflock_vars < log_n - yr_log_n,
             "test shape must keep the residual cube above q_flock (yr_log_n = {yr_log_n})"
         );
+        if let Some(label) = opening_label {
+            ps = ProverState::from_label(label);
+        }
         open(&mut ps, &stack, &pd, &pc, &cm, &point_claims, &rings);
 
         Instance {
@@ -640,6 +659,7 @@ mod tests {
             point_claims,
             rings,
             fs: ps.into_proof(),
+            opening_label,
         }
     }
 
@@ -659,6 +679,12 @@ mod tests {
         fs: &ProofTranscript,
         record: Option<&Commitment>,
     ) -> bool {
+        if let Some(label) = inst.opening_label {
+            let mut vs = VerifierState::from_label(label, fs);
+            return verify(
+                &mut vs, &inst.vc, record.unwrap_or(&inst.commitment), point_claims, rings,
+            ).is_ok();
+        }
         let mut vs = VerifierState::from_label(DOMAIN, fs);
         let shape = inst.commitment.shape();
         let Ok(commitment) = receive_commitment(
@@ -739,9 +765,10 @@ mod tests {
             );
         }
 
-        // Every scalar the opening sends rides the stream, all of them WHIR's:
-        // tampering any of them must be rejected.
-        for idx in [17usize, inst.fs.stream.len() - 1] {
+        // Tamper the record-binding frame and the same WHIR messages as the continuous-session case.
+        let binding_len = 9 + inst.commitment.shape().log_n
+            + inst.commitment.context().pending.iter().flatten().count();
+        for idx in [6usize, 17 + binding_len, inst.fs.stream.len() - 1] {
             let mut bad_fs = inst.fs.clone();
             bad_fs.stream[idx] += F192::ONE;
             assert!(
@@ -766,6 +793,58 @@ mod tests {
         assert!(
             verify_instance(&inst, &inst.point_claims, &inst.rings, &inst.fs),
             "honest opening with a clipped non-power-of-two lane prefix rejected"
+        );
+    }
+
+    #[test]
+    fn stacked_open_fresh_session_binds_entire_record() {
+        const OPENING_LABEL: &[u8] = b"stack-open-fresh-session";
+        let inst = build_instance_in_session(4, false, Some(OPENING_LABEL));
+        let mut vs = VerifierState::from_label(OPENING_LABEL, &inst.fs);
+        verify(
+            &mut vs, &inst.vc, &inst.commitment, &inst.point_claims, &inst.rings,
+        ).expect("fresh-session opening without receiving or resampling the commitment");
+        vs.finish().expect("fresh-session opening consumes the entire proof");
+
+        let mut wrong_state = inst.commitment.clone();
+        wrong_state.context.state[0] ^= 1;
+        let mut wrong_pending = inst.commitment.clone();
+        wrong_pending.context.pending[0] = Some(F192::ONE);
+        let mut wrong_pending_count = inst.commitment.clone();
+        wrong_pending_count.context.pending[1] = None;
+        let mut wrong_shape = inst.commitment.clone();
+        wrong_shape.shape.n_lanes -= 1;
+        let mut wrong_root = inst.commitment.clone();
+        wrong_root.root[0] ^= 1;
+        let mut wrong_point = inst.commitment.clone();
+        wrong_point.point[0] += F192::ONE;
+        let mut wrong_value = inst.commitment.clone();
+        wrong_value.value += F192::ONE;
+        for record in [
+            wrong_state,
+            wrong_pending,
+            wrong_pending_count,
+            wrong_shape,
+            wrong_point,
+            wrong_value,
+        ] {
+            assert_eq!(record.root(), inst.commitment.root());
+            let mut vs = VerifierState::from_label(OPENING_LABEL, &inst.fs);
+            assert!(
+                matches!(
+                    verify(&mut vs, &inst.vc, &record, &inst.point_claims, &inst.rings),
+                    Err(WhirError::CommitmentMismatch)
+                ),
+                "same-root record substitution must fail in the binding frame"
+            );
+        }
+        let mut vs = VerifierState::from_label(OPENING_LABEL, &inst.fs);
+        assert!(
+            matches!(
+                verify(&mut vs, &inst.vc, &wrong_root, &inst.point_claims, &inst.rings),
+                Err(WhirError::CommitmentMismatch)
+            ),
+            "root substitution must fail in the binding frame"
         );
     }
 

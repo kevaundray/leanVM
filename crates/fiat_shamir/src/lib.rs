@@ -61,6 +61,13 @@ fn pow_bits_ok(base: [F64; 4], nonce: F192, bits: u32) -> bool {
 /// The most scalars one transcript step absorbs.
 pub const MAX_PENDING: usize = 2;
 
+/// The exact transcript context, including scalars waiting for the next step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TranscriptContext<E, R> {
+    pub state: R,
+    pub pending: [Option<E>; MAX_PENDING],
+}
+
 /// The 64-byte block of a transcript step absorbing `scalars` (at most [`MAX_PENDING`]) under `tag`.
 ///
 /// The last scalar fills words 4 to 6, the one before it (if any) words 0 to 2; word 3 is their count and word 7 the tag, so a block names its role and its data alone.
@@ -135,6 +142,14 @@ impl FiatShamirState {
     /// the chaining value, which is all a domain separator has to be.
     pub fn from_label(label: &[u8]) -> Self {
         Self::at(digest_words(&primitives::hash::hash(label)))
+    }
+
+    /// Copy the chaining value and waiting scalars without absorbing or squeezing.
+    pub fn context(&self) -> TranscriptContext<F192, [F64; 4]> {
+        TranscriptContext {
+            state: self.cv,
+            pending: std::array::from_fn(|i| (i < self.n_pending).then_some(self.pending[i])),
+        }
     }
 
     /// The waiting scalars.

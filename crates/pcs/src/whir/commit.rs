@@ -12,6 +12,8 @@ use crate::verifier::OpeningVerifier;
 use crate::whir::anchor::anchor_value;
 use crate::whir::ntt_ext::{encode_rows_ext, rows_at_ext};
 use crate::whir::verify::WhirError;
+use fiat_shamir::merkle::hash_to_scalars;
+use fiat_shamir::{MAX_PENDING, TranscriptContext};
 use fiat_shamir::transcript::Transmitter;
 use primitives::field::{F64, F192};
 use std::sync::Arc;
@@ -39,11 +41,12 @@ impl CommitmentShape {
     }
 }
 
-/// Immutable commitment identity: its root, shape, and commitment-time MLE anchor.
+/// Immutable commitment identity: its pre-commit context, shape, root, and MLE anchor.
 #[derive(Clone, Debug)]
 pub struct Commitment<E = F192, R = Hash> {
     pub(crate) root: R,
     pub(crate) shape: CommitmentShape,
+    pub(crate) context: TranscriptContext<E, R>,
     pub(crate) point: Vec<E>,
     pub(crate) value: E,
 }
@@ -58,6 +61,14 @@ impl<E, R> Commitment<E, R> {
 
     pub fn shape(&self) -> CommitmentShape {
         self.shape
+    }
+
+    pub fn context(&self) -> TranscriptContext<E, R>
+    where
+        E: Copy,
+        R: Copy,
+    {
+        self.context
     }
 
     pub fn point(&self) -> &[E] {
@@ -75,6 +86,9 @@ impl<E, R> Commitment<E, R> {
 // Little-endian bytes "whir-anchor-v1", padded with zeros to three limbs.
 const ANCHOR_DOMAIN: F192 = F192::new(0x636e612d72696877, 0x000031762d726f68, 0);
 
+// Little-endian bytes "whir-opening-v1", padded with zeros to three limbs.
+const OPENING_DOMAIN: F192 = F192::new(0x65706f2d72696877, 0x0031762d676e696e, 0);
+
 fn commitment_constants(shape: CommitmentShape) -> [F192; 3] {
     [
         ANCHOR_DOMAIN,
@@ -83,7 +97,110 @@ fn commitment_constants(shape: CommitmentShape) -> [F192; 3] {
     ]
 }
 
-/// Receive one commitment, binding its public shape before drawing its anchor.
+/// Bind the whole immutable record before any opening challenge, including in a fresh session.
+pub(crate) fn send_record_binding(ps: &mut impl Transmitter, commitment: &Commitment) {
+    let mut constants = commitment_constants(commitment.shape);
+    constants[0] = OPENING_DOMAIN;
+    let mut i = 0;
+    while i < constants.len() {
+        ps.add_scalar(constants[i]);
+        i += 1;
+    }
+    let root = hash_to_scalars(&commitment.root);
+    let state = hash_to_scalars(&commitment.context.state);
+    let mut i = 0;
+    while i < 2 {
+        ps.add_scalar(root[i]);
+        i += 1;
+    }
+    let mut i = 0;
+    while i < 2 {
+        ps.add_scalar(state[i]);
+        i += 1;
+    }
+    let mut pending_count = 0;
+    let mut i = 0;
+    while i < MAX_PENDING {
+        if commitment.context.pending[i].is_some() {
+            pending_count += 1;
+        }
+        i += 1;
+    }
+    ps.add_scalar(F192::from(F64(pending_count)));
+    let mut i = 0;
+    while i < MAX_PENDING {
+        if let Some(value) = commitment.context.pending[i] {
+            ps.add_scalar(value);
+        }
+        i += 1;
+    }
+    let mut i = 0;
+    while i < commitment.shape.log_n {
+        ps.add_scalar(commitment.point[i]);
+        i += 1;
+    }
+    ps.add_scalar(commitment.value);
+}
+
+/// Check every record field before opening batching; reads are determined only by the supplied record.
+pub(crate) fn verify_record_binding<V: OpeningVerifier>(
+    v: &mut V,
+    commitment: &Commitment<V::E, V::Root>,
+) -> Result<(), WhirError> {
+    let mut constants = commitment_constants(commitment.shape);
+    constants[0] = OPENING_DOMAIN;
+    let mut i = 0;
+    while i < constants.len() {
+        let actual = v.next_scalar()?;
+        let expected = v.constant(constants[i]);
+        v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+        i += 1;
+    }
+    let root = v.root_scalars(commitment.root);
+    let state = v.root_scalars(commitment.context.state);
+    let mut i = 0;
+    while i < 2 {
+        let actual = v.next_scalar()?;
+        v.ensure_eq(actual, root[i], || WhirError::CommitmentMismatch)?;
+        i += 1;
+    }
+    let mut i = 0;
+    while i < 2 {
+        let actual = v.next_scalar()?;
+        v.ensure_eq(actual, state[i], || WhirError::CommitmentMismatch)?;
+        i += 1;
+    }
+    let mut pending_count = 0;
+    let mut i = 0;
+    while i < MAX_PENDING {
+        if commitment.context.pending[i].is_some() {
+            pending_count += 1;
+        }
+        i += 1;
+    }
+    let actual = v.next_scalar()?;
+    let expected = v.constant(F192::from(F64(pending_count)));
+    v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+    let mut i = 0;
+    while i < MAX_PENDING {
+        if let Some(expected) = commitment.context.pending[i] {
+            let actual = v.next_scalar()?;
+            v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+        }
+        i += 1;
+    }
+    let mut i = 0;
+    while i < commitment.shape.log_n {
+        let actual = v.next_scalar()?;
+        v.ensure_eq(actual, commitment.point[i], || WhirError::CommitmentMismatch)?;
+        i += 1;
+    }
+    let actual = v.next_scalar()?;
+    v.ensure_eq(actual, commitment.value, || WhirError::CommitmentMismatch)?;
+    Ok(())
+}
+
+/// Receive one commitment, retaining the pre-header context and binding its public shape before drawing its anchor.
 ///
 /// # Errors
 ///
@@ -100,6 +217,7 @@ pub fn receive_commitment<V: OpeningVerifier>(
     if !shape.valid() {
         return Err(WhirError::CommitmentMismatch);
     }
+    let context = v.context();
     for expected in commitment_constants(shape) {
         let actual = v.next_scalar()?;
         let expected = v.constant(expected);
@@ -108,7 +226,7 @@ pub fn receive_commitment<V: OpeningVerifier>(
     let root = v.next_root()?;
     let point = v.sample_vec(log_n);
     let value = v.next_scalar()?;
-    Ok(Commitment { root, shape, point, value })
+    Ok(Commitment { root, shape, context, point, value })
 }
 
 /// Prover-side state retained after commit for the opening phase. The message
@@ -134,8 +252,7 @@ pub struct ProverData {
 /// rides the proof, so a verifier derives `n_lanes` from the announced layout to
 /// read a row and supplies the prefix itself.
 ///
-/// After encoding, transmit the domain and shape as three scalars, then the
-/// root; draw one anchor point and transmit the zero-padded witness's MLE there.
+/// After encoding, retain the pre-header context, transmit the domain and shape as three scalars, then the root; draw one anchor point and transmit the zero-padded witness's MLE there.
 pub fn commit(
     ps: &mut impl Transmitter,
     message: &[F64],
@@ -173,13 +290,14 @@ pub fn commit(
     let codeword = unsafe { codeword.assume_init() }.into_vec();
     let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = *merkle_tree.last().expect("merkle tree non-empty");
+    let context = ps.context();
     ps.add_scalars(&commitment_constants(shape));
     ps.add_root(&root);
     let point = ps.sample_vec(log_n);
     let value = anchor_value(message, log_rows, &point);
     ps.add_scalar(value);
 
-    (Commitment { root, shape, point, value }, ProverData { codeword, merkle_tree })
+    (Commitment { root, shape, context, point, value }, ProverData { codeword, merkle_tree })
 }
 
 /// One deeper WHIR commitment level: its message and Merkle tree.

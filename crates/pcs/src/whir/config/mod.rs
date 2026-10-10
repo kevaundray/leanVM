@@ -154,10 +154,8 @@ impl ProverConfig {
         assert_eq!(queries.len(), levels);
         assert_eq!(grinding_bits.len(), levels);
         assert_eq!(ood_samples.len(), levels);
-        // The lane rounds fold the truncated witness against a weight over the whole
-        // `2^log_n` cube. Every claim weight vanishes on the absent lanes, but an OOD
-        // weight `eq(z, .)` is a full tensor that does not, so L0 can take none.
-        assert_eq!(ood_samples[0], 0, "L0 takes no OOD sample");
+        // The per-opening L0 oracle takes no additional OOD sample. Its immutable commitment-time anchor is handled separately with a weight restricted to the occupied lane prefix.
+        assert_eq!(ood_samples[0], 0, "L0 takes no per-opening OOD sample");
         assert!(
             grinding_bits.iter().all(|&g| g <= MAX_GRINDING_BITS as usize),
             "a proof of work grinds at most the digest's low word"
@@ -206,7 +204,7 @@ impl ProverConfig {
 
     /// Per-level out-of-domain samples (L0, L1, ..., L_r), taken right after the level's root enters the transcript.
     ///
-    /// L0 takes none: the commitment binds only to a list, which every challenge before the opening pays for.
+    /// L0 takes no additional sample: its immutable commitment-time anchor is handled separately by the public opening wrappers.
     pub fn ood_samples(&self) -> &[usize] {
         &self.ood_samples
     }

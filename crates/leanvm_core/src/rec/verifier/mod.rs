@@ -8,6 +8,7 @@
 use super::circuit::{Builder, Dw, Ew, Kw};
 use super::transcript::Transcript;
 use crate::leaf::{PublicColumn, PublicColumns};
+use fiat_shamir::TranscriptContext;
 use fiat_shamir::arith::{Arith, Stage, Verifier};
 use fiat_shamir::transcript::TranscriptError;
 use pcs::verifier::OpeningVerifier;
@@ -205,6 +206,16 @@ impl OpeningVerifier for Rows<'_, '_> {
     type K = Kw;
     /// A query's index bits, lowest first.
     type Query = Vec<Kw>;
+
+    fn context(&mut self) -> TranscriptContext<Ew, Dw> {
+        self.t.context()
+    }
+
+    fn root_scalars(&mut self, root: Dw) -> [Ew; 2] {
+        let [w0, w1, w2, w3] = self.b.d_to_k(root);
+        let zero = self.b.k_const(0);
+        [self.e_of_limbs([w0, w1, zero]), self.e_of_limbs([w2, w3, zero])]
+    }
 
     fn next_root(&mut self) -> Result<Dw, TranscriptError> {
         Ok(self.t.next_root(self.b))
