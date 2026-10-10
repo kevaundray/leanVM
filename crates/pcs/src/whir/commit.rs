@@ -271,11 +271,20 @@ pub fn receive_commitment<V: OpeningVerifier>(
         return Err(WhirError::CommitmentMismatch);
     }
     let context = v.context();
+    let mut constants_match = Ok(());
     for expected in commitment_constants(shape) {
-        let actual = v.next_scalar()?;
-        let expected = v.constant(expected);
-        v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
+        constants_match = match v.next_scalar() {
+            Ok(actual) => {
+                let expected = v.constant(expected);
+                v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)
+            }
+            Err(error) => Err(error.into()),
+        };
+        if constants_match.is_err() {
+            break;
+        }
     }
+    constants_match?;
     let root = v.next_root()?;
     let point = v.sample_vec(log_n);
     let value = v.next_scalar()?;

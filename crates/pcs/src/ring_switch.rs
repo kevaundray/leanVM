@@ -283,7 +283,10 @@ impl<E: Copy> RingMap<E> {
         ladders: &[Vec<E>],
         lengths: &[usize],
     ) -> Vec<Vec<E>> {
-        let longest = lengths.iter().copied().max().unwrap_or(0);
+        let mut longest = 0;
+        for &length in lengths {
+            longest = longest.max(length);
+        }
         assert!(
             longest <= z.len() && longest <= ladders.len(),
             "a claim's point is a prefix of the query"

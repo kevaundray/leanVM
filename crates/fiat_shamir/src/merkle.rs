@@ -182,8 +182,14 @@ impl PrunedMerklePaths {
         // sibling only where that sibling is not itself a queried subtree.
         let mut supplied = self.sibling_hashes.iter();
         let mut known: Vec<Vec<(usize, Hash)>> = Vec::with_capacity(height);
-        let mut nodes: Vec<(usize, Hash)> = sorted.iter().copied().zip(leaf_hashes).collect();
-        for _ in 0..height {
+        let mut nodes = Vec::with_capacity(sorted.len().min(leaf_hashes.len()));
+        for i in 0..sorted.len().min(leaf_hashes.len()) {
+            nodes.push((sorted[i], leaf_hashes[i]));
+        }
+        drop(leaf_hashes);
+        let mut missing_sibling = false;
+        let mut lvl = 0;
+        while lvl < height && !missing_sibling {
             let mut level = Vec::with_capacity(2 * nodes.len());
             let mut parents = Vec::with_capacity(nodes.len());
             let mut i = 0;
@@ -192,21 +198,29 @@ impl PrunedMerklePaths {
                 let paired = idx & 1 == 0 && nodes.get(i + 1).is_some_and(|&(j, _)| j == (idx | 1));
                 let (left, right) = if paired {
                     (nodes[i].1, nodes[i + 1].1)
-                } else if idx & 1 == 0 {
-                    (nodes[i].1, *supplied.next()?)
                 } else {
-                    (*supplied.next()?, nodes[i].1)
+                    match supplied.next() {
+                        Some(&sibling) if idx & 1 == 0 => (nodes[i].1, sibling),
+                        Some(&sibling) => (sibling, nodes[i].1),
+                        None => {
+                            missing_sibling = true;
+                            break;
+                        }
+                    }
                 };
                 parents.push((idx >> 1, hash_pair(&left, &right)));
                 level.push((idx & !1, left));
                 level.push((idx | 1, right));
                 i += if paired { 2 } else { 1 };
             }
-            known.push(level);
-            nodes = parents;
+            if !missing_sibling {
+                known.push(level);
+                nodes = parents;
+                lvl += 1;
+            }
         }
         // The last fold leaves exactly the root, and nothing may be left over.
-        if supplied.next().is_some() || nodes[0].1 != *root {
+        if missing_sibling || supplied.next().is_some() || nodes[0].1 != *root {
             return None;
         }
 

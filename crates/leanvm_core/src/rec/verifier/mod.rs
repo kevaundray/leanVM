@@ -9,7 +9,7 @@ use super::circuit::{Builder, Dw, Ew, Kw};
 use super::transcript::Transcript;
 use crate::leaf::{PublicColumn, PublicColumns};
 use fiat_shamir::TranscriptContext;
-use fiat_shamir::arith::{Arith, Stage, Verifier};
+use fiat_shamir::arith::{Arith, PublicMle, Stage, Verifier};
 use fiat_shamir::transcript::TranscriptError;
 use pcs::verifier::OpeningVerifier;
 use pcs::whir::{Stratum, strata};
@@ -98,6 +98,8 @@ impl Arith for Builder {
     }
 }
 
+impl PublicMle for Builder {}
+
 impl Arith for Rows<'_, '_> {
     type E = Ew;
 
@@ -137,6 +139,8 @@ impl Arith for Rows<'_, '_> {
         self.b.mul(a, b)
     }
 }
+
+impl PublicMle for Rows<'_, '_> {}
 
 impl PublicColumns for Rows<'_, '_> {
     fn column_mle(&mut self, column: &PublicColumn, point: &[Ew]) -> Ew {
