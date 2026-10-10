@@ -245,8 +245,10 @@ impl Duplex {
                 let mut block = [0u8; 64];
                 block[..8].copy_from_slice(&(self.squeezed / 32).to_le_bytes());
                 let digest = compress_block(self.cv, &block, OUTPUT);
-                for i in 0..8 {
+                let mut i = 0;
+                while i < 8 {
                     self.output[4 * i..4 * i + 4].copy_from_slice(&digest[i].to_le_bytes());
+                    i += 1;
                 }
             }
             let take = output.len().min(32 - offset);

@@ -421,8 +421,10 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
         v.begin_scope(fiat_shamir::arith::Stage::Target);
         let family_target = share.target(v);
         let mut point_target = family_target;
-        for i in 0..statement.points.len().min(point_lambdas.len()) {
+        let mut i = 0;
+        while i < statement.points.len().min(point_lambdas.len()) {
             point_target = v.mul_add(point_lambdas[i], statement.points[i].value(), point_target);
+            i += 1;
         }
         let target = v.mul_add(anchor_lambda, self.record.value(), point_target);
         v.end_scope();
@@ -1317,17 +1319,15 @@ mod tests {
         rings: &[RingSwitch],
         fs: &ProofTranscript,
     ) -> bool {
-        let label = match inst.opening_label {
-            Some(label) => label,
-            None => DOMAIN,
-        };
+        let label = inst.opening_label.unwrap_or(DOMAIN);
         let mut vs = VerifierState::from_label(label, fs);
-        let commitment = if let Some(header) = &inst.header {
-            let mut source = VerifierState::from_label(DOMAIN, header);
-            StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
-        } else {
-            StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone())
-        };
+        let commitment = inst.header.as_ref().map_or_else(
+            || StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone()),
+            |header| {
+                let mut source = VerifierState::from_label(DOMAIN, header);
+                StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
+            },
+        );
         let Ok(commitment) = commitment else { return false };
         let statement = Statement {
             points: point_claims,
