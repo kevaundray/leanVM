@@ -28,7 +28,7 @@ use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::PerTable;
 use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
-use fiat_shamir::arith::{Arith, Portable};
+use fiat_shamir::arith::{Arith, Native, Portable};
 use fiat_shamir::transcript::{ProofTranscript, RawProof};
 use primitives::field::{F64, F192};
 use reduce::DenseTables;
@@ -458,7 +458,7 @@ impl<'p> Tree<'p> {
                 if LeafShape::announced(proof) != Some(shape) {
                     return Err(TreeError::ForeignLeaf { index });
                 }
-                let raw = (program.verify_to_raw(output, proof)).map_err(|error| TreeError::Leaf {
+                let raw = (program.replay_native(output, proof)).map_err(|error| TreeError::Leaf {
                     index,
                     error: error.into(),
                 })?;
@@ -490,7 +490,7 @@ impl<'p> Tree<'p> {
             });
         }
         let raws = (children.iter().enumerate())
-            .map(|(index, c)| self.read(c).map_err(|error| TreeError::Child { index, error }))
+            .map(|(index, c)| self.read(Native, c).map_err(|error| TreeError::Child { index, error }))
             .collect::<Result<Vec<_>, _>>()?;
         let statements: Vec<TreeStatement> = (children.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
@@ -555,7 +555,7 @@ impl<'p> Tree<'p> {
                 got: root.kind,
             });
         }
-        self.read(root).map_err(TreeError::Root)?;
+        self.read(Portable, root).map_err(TreeError::Root)?;
         let statement = TreeStatement::new(d.statement, root.words.clone());
         if statement.digest_words() != self.digest(outputs) {
             return Err(TreeError::Outputs);
@@ -574,10 +574,13 @@ impl<'p> Tree<'p> {
         level[0]
     }
 
-    /// Verify a tree proof's recursion proof, short of its claims, returning it as its verifier read it.
-    fn read(&self, p: &TreeProof) -> Result<RawProof, VerifyError> {
+    /// Verify a tree proof's recursion proof on `arith`, short of its claims, returning it as its verifier read it.
+    ///
+    /// The root's verifier reads on [`Portable`]; a node's prover replays its children on [`Native`].
+    fn read<A: Arith<E = F192>>(&self, arith: A, p: &TreeProof) -> Result<RawProof, VerifyError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
         let raw = self.circuit(p.kind).verify_to_raw_with(
+            arith,
             &limbs,
             self.design.iv,
             self.design.rate,

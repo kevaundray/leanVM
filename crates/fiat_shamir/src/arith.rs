@@ -355,7 +355,8 @@ impl Arith for Portable {
     }
 }
 
-impl Arith for VerifierState<'_> {
+/// The transcript computes with its arithmetic: [`Portable`] for the native verifier, [`Native`] for a prover's replay.
+impl<A: Arith<E = F192>> Arith for VerifierState<'_, A> {
     type E = F192;
 
     fn constant(&mut self, c: F192) -> F192 {
@@ -363,7 +364,7 @@ impl Arith for VerifierState<'_> {
     }
 
     fn mul_add(&mut self, a: F192, b: F192, d: F192) -> F192 {
-        Portable.mul_add(a, b, d)
+        self.arith.mul_add(a, b, d)
     }
 
     fn add(&mut self, a: F192, d: F192) -> F192 {
@@ -371,27 +372,27 @@ impl Arith for VerifierState<'_> {
     }
 
     fn mul_const_add(&mut self, a: F192, c: F192, d: F192) -> F192 {
-        Portable.mul_const_add(a, c, d)
+        self.arith.mul_const_add(a, c, d)
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        Portable.inv(a)
+        self.arith.inv(a)
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
-        Portable.frobenius2(a)
+        self.arith.frobenius2(a)
     }
 
     fn square(&mut self, a: F192) -> F192 {
-        Portable.square(a)
+        self.arith.square(a)
     }
 
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
-        Portable.public_mle(values, point)
+        self.arith.public_mle(values, point)
     }
 }
 
-impl Verifier for VerifierState<'_> {
+impl<A: Arith<E = F192>> Verifier for VerifierState<'_, A> {
     fn next_scalar(&mut self) -> Result<F192, TranscriptError> {
         Receiver::next_scalar(self)
     }

@@ -18,6 +18,9 @@ thread_local! {
     static INSIDE: Cell<bool> = const { Cell::new(false) };
 }
 
+/// Whether this build refuses kernels inside a [`Section`]: the `guard` feature, which tests check is on.
+pub const GUARDED: bool = cfg!(feature = "guard");
+
 /// Run as the verifier runs until the returned guard drops: on this thread, refusing pool dispatch, and under `guard`
 /// every kernel.
 #[must_use = "the section lasts only while the guard lives"]
@@ -47,6 +50,10 @@ impl Drop for Section {
 }
 
 /// A SIMD or assembly kernel is about to run: under `guard`, a panic inside a [`Section`].
+#[cfg_attr(
+    not(feature = "guard"),
+    expect(clippy::missing_const_for_fn, reason = "the guard reads a thread-local")
+)]
 #[inline(always)]
 pub(crate) fn kernel() {
     #[cfg(feature = "guard")]

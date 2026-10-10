@@ -20,7 +20,7 @@ use crate::{class_flock, witness};
 use Coord::{Col, Const, IntIndex, Sparse};
 use fiat_shamir::MAX_GRINDING_BITS;
 use fiat_shamir::arith::Arith;
-use fiat_shamir::transcript::{ProverState, Receiver, Transmitter, VerifierState};
+use fiat_shamir::transcript::{ProverState, Receiver, Transmitter};
 use primitives::field::{F64, F192};
 use std::sync::{Arc, OnceLock};
 
@@ -737,7 +737,7 @@ impl Announcement {
     /// # Errors
     ///
     /// Refuses a short stream, then what decoding refuses.
-    pub(super) fn read(vs: &mut VerifierState) -> Result<Self, CpuError> {
+    pub(super) fn read(vs: &mut impl Receiver) -> Result<Self, CpuError> {
         let mut scalars = [F192::ZERO; Self::LEN];
         for x in &mut scalars {
             *x = vs.next_scalar()?;

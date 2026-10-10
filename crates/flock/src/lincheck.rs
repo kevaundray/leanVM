@@ -65,7 +65,7 @@
 //!     q(inf) = sum_i (comb_lo[i] + comb_hi[i]) * (z_lo[i] + z_hi[i])      the leading coefficient
 //! ```
 
-use fiat_shamir::arith::{Arith, Native, Portable, Verifier};
+use fiat_shamir::arith::{Arith, Native, Verifier};
 use fiat_shamir::transcript::{Challenger, ProverState, TranscriptError, Transmitter};
 use parallel::SendPtr;
 use pcs::ring_switch::SliceClaim;
@@ -93,10 +93,8 @@ pub trait LincheckCircuit: Sync {
     /// That closes the all-zero witness, and requires the wire to be one in every instance, padding included.
     fn const_pin_col(&self) -> usize;
 
-    /// The batched bilinear form `u^T A_0 w + alpha u^T B_0 w`, without the length-`2^k_log` marginal.
-    ///
-    /// The verifier's, so by the portable arithmetic ([`Portable`]).
-    fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> F192;
+    /// The matrix-vector products `(A_0 w, B_0 w)`, by additions alone: the verifier's form takes them.
+    fn matrix_rows(&self, w: &[F192]) -> (Vec<F192>, Vec<F192>);
 }
 
 /// A claim point with a univariate-skip coordinate.
@@ -576,16 +574,19 @@ impl<E: Copy> MatrixForm<E> {
 }
 
 impl MatrixForm {
-    /// The form against a circuit's matrices, by the portable arithmetic: the verifier settles its claims with it.
-    pub fn evaluate(&self, circuit: &dyn LincheckCircuit) -> F192 {
-        let a = &mut Portable;
+    /// The form against a circuit's matrices, on `a`: the native verifier's `Portable`, or a prover's replay.
+    pub fn evaluate<A: Arith<E = F192>>(&self, a: &mut A, circuit: &dyn LincheckCircuit) -> F192 {
         let k_skip = self.s_hat_v.len().ilog2() as usize;
         let lagrange = SkipDomain::new(k_skip).lagrange_weights(a, self.z_skip);
         let eq_rows = a.eq_table(&self.x_inner_rest);
         let u = outer_product(a, &eq_rows, &lagrange);
         let eq_cols = a.eq_table(&self.r_inner_rest);
         let w = outer_product(a, &eq_cols, &self.s_hat_v);
-        circuit.bilinear_form(self.alpha, &u, &w)
+        let (ra, rb) = circuit.matrix_rows(&w);
+        (u.iter().zip(ra.iter().zip(&rb))).fold(F192::ZERO, |acc, (&u, (&ra, &rb))| {
+            let row = a.mul_add(self.alpha, rb, ra);
+            a.mul_add(u, row, acc)
+        })
     }
 }
 
@@ -602,12 +603,12 @@ pub struct MatrixClaim<E = F192> {
 }
 
 impl MatrixClaim {
-    /// Settle the claim against a circuit's matrices.
+    /// Settle the claim against a circuit's matrices, on `a`.
     ///
     /// # Errors
     ///
     /// The circuit's width if it is not the form's, and a sumcheck mismatch when the form misses the value.
-    pub fn check(&self, circuit: &dyn LincheckCircuit) -> Result<(), LincheckError> {
+    pub fn check<A: Arith<E = F192>>(&self, a: &mut A, circuit: &dyn LincheckCircuit) -> Result<(), LincheckError> {
         // The form's column point and slices fix the circuit's width.
         let n_cols = self.form.s_hat_v.len() << self.form.r_inner_rest.len();
         if circuit.n_cols() != n_cols {
@@ -617,7 +618,7 @@ impl MatrixClaim {
             });
         }
         // The terminal identity holds exactly when the form takes the claimed value.
-        if self.form.evaluate(circuit) == self.value {
+        if self.form.evaluate(a, circuit) == self.value {
             Ok(())
         } else {
             Err(LincheckError::SumcheckMismatch)
@@ -1142,8 +1143,8 @@ mod neon {
 mod tests {
     use std::collections::HashSet;
 
+    use fiat_shamir::arith::Portable;
     use fiat_shamir::transcript::{ProofTranscript, VerifierState};
-    use primitives::multilinear::inner_product;
     use primitives::test_util::Rng;
 
     use super::*;
@@ -1202,6 +1203,13 @@ mod tests {
             }
             out
         }
+
+        /// `M w`.
+        fn product(&self, w: &[F192]) -> Vec<F192> {
+            (self.rows.iter())
+                .map(|row| row.iter().fold(F192::ZERO, |acc, &c| acc + w[c]))
+                .collect()
+        }
     }
 
     /// A circuit over materialized matrices, by the naive row scatter.
@@ -1224,8 +1232,8 @@ mod tests {
             a.iter().zip(&b).map(|(&x, &y)| x + alpha * y).collect()
         }
 
-        fn bilinear_form(&self, alpha: F192, u: &[F192], w: &[F192]) -> F192 {
-            inner_product(&self.fold_alpha_batched(alpha, u), w)
+        fn matrix_rows(&self, w: &[F192]) -> (Vec<F192>, Vec<F192>) {
+            (self.a_0.product(w), self.b_0.product(w))
         }
     }
 
@@ -1304,7 +1312,7 @@ mod tests {
             let matrices = verify_deferred(domain, &zc, &[shape], &mut vs)?
                 .pop()
                 .expect("one circuit");
-            matrices.check(&self.circuit)?;
+            matrices.check(&mut Portable, &self.circuit)?;
             Ok(LincheckClaim {
                 r_inner_rest: matrices.form.r_inner_rest,
                 s_hat_v: matrices.form.s_hat_v,

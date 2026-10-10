@@ -268,6 +268,7 @@ mod tests {
     /// A verifier that reached either fails here, and so does a guard that stopped refusing them.
     #[test]
     fn verification_is_portable_and_single_threaded() {
+        const { assert!(primitives::portable::GUARDED, "the CLI's tests arm the guard") };
         let refused = |f: fn()| {
             std::panic::catch_unwind(|| {
                 let _portable = primitives::portable::enter();

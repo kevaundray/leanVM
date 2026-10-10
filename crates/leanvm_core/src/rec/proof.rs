@@ -16,7 +16,9 @@ use crate::leaf::PublicColumns;
 use crate::pcs::{Commitment, Committed, Rate, RingSwitch, StackClaim};
 use crate::rv::circuits::blake2s_witness;
 use crate::{constraints, witness};
-use fiat_shamir::arith::Verifier;
+#[cfg(test)]
+use fiat_shamir::arith::Portable;
+use fiat_shamir::arith::{Arith, Verifier};
 use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
 use flock::FlockError;
 use flock::Tables;
@@ -294,7 +296,7 @@ impl Circuit {
         Ok(ps.into_proof())
     }
 
-    /// [`Self::verify_to_raw_with`], building the circuit's fixed columns itself.
+    /// [`Self::verify_to_raw_with`], portable, building the circuit's fixed columns itself.
     #[cfg(test)]
     pub(crate) fn verify_to_raw(
         &self,
@@ -303,31 +305,43 @@ impl Circuit {
         rate: Rate,
         proof: &ProofTranscript,
     ) -> Result<RawProof, RecError> {
-        self.verify_seeded(statement, iv, statement_seed(statement), rate, proof, None)
+        let _portable = primitives::portable::enter();
+        self.verify_seeded(Portable, statement, iv, statement_seed(statement), rate, proof, None)
     }
 
-    /// Verify a proof with the circuit's fixed columns at its heights, returning it as its verifier read it, every
-    /// Merkle path written out.
+    /// Verify a proof on `arith` with the circuit's fixed columns at its heights, returning it as its verifier read it,
+    /// every Merkle path written out.
     ///
     /// That is what a recursive verifier replays.
     ///
     /// # Errors
     ///
     /// Returns the first check that refuses the proof.
-    pub(crate) fn verify_to_raw_with(
+    pub(crate) fn verify_to_raw_with<A: Arith<E = F192>>(
         &self,
+        arith: A,
         statement: &[Limbs],
         iv: [F64; 4],
         rate: Rate,
         proof: &ProofTranscript,
         fixed: &FixedColumns,
     ) -> Result<RawProof, RecError> {
-        self.verify_seeded(statement, iv, statement_seed(statement), rate, proof, Some(fixed))
+        self.verify_seeded(
+            arith,
+            statement,
+            iv,
+            statement_seed(statement),
+            rate,
+            proof,
+            Some(fixed),
+        )
     }
 
     /// Verify a proof whose transcript absorbed the given public input in place of the statement.
-    fn verify_seeded(
+    #[expect(clippy::too_many_arguments, reason = "the verifier's inputs, each of its own kind")]
+    fn verify_seeded<A: Arith<E = F192>>(
         &self,
+        arith: A,
         statement: &[Limbs],
         iv: [F64; 4],
         public_input: [F64; 4],
@@ -335,7 +349,6 @@ impl Circuit {
         proof: &ProofTranscript,
         fixed: Option<&FixedColumns>,
     ) -> Result<RawProof, RecError> {
-        let _portable = primitives::portable::enter();
         if statement.len() != self.statement_len {
             return Err(RecError::StatementLength {
                 expected: self.statement_len,
@@ -343,10 +356,12 @@ impl Circuit {
             });
         }
         let layout = RecLayout::new(self)?;
-        let mut vs = VerifierState::new(iv, proof, public_input);
+        let mut vs = VerifierState::with_arith(arith, iv, proof, public_input);
         let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
         let matrices = TableArgument::of(&fixed, statement, &layout).verify_core(&mut vs, rate)?;
-        matrices.check(HashFlock::circuit()).map_err(FlockError::Lincheck)?;
+        matrices
+            .check(&mut vs, HashFlock::circuit())
+            .map_err(FlockError::Lincheck)?;
         Ok(vs.into_raw_proof())
     }
 }
@@ -528,7 +543,7 @@ mod tests {
         // Under the honest seed the bus accepts the forged words; seeded with them, the proof is refused.
         assert!(
             circuit
-                .verify_seeded(&forged, IV, seed, Rate::MIN, &proof, None)
+                .verify_seeded(Portable, &forged, IV, seed, Rate::MIN, &proof, None)
                 .is_ok()
         );
         assert!(matches!(
