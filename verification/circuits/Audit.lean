@@ -121,6 +121,19 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.low_bits_row
 #print axioms LeanVMCircuits.Rec.pow_rows
 
+#print axioms LeanVMCircuits.Rec.bus_next
+#print axioms LeanVMCircuits.Rec.classNext_forward
+#print axioms LeanVMCircuits.Rec.classNext_cls
+#print axioms LeanVMCircuits.Rec.classNext_wrap
+#print axioms LeanVMCircuits.Rec.classNext_injective
+#print axioms LeanVMCircuits.Rec.class_eq
+#print axioms LeanVMCircuits.Rec.slotKey_injective
+#print axioms LeanVMCircuits.Rec.copy_argument
+#print axioms LeanVMCircuits.Rec.card_K
+#print axioms LeanVMCircuits.Rec.no_root
+#print axioms LeanVMCircuits.Rec.extModulus_irreducible
+#print axioms LeanVMCircuits.Rec.exists_inverse
+
 open Lean Elab Command in
 run_cmd do
   for theoremName in #[
@@ -195,7 +208,19 @@ run_cmd do
     ``LeanVMCircuits.Rec.new_inv,
     ``LeanVMCircuits.Rec.commit_rows,
     ``LeanVMCircuits.Rec.low_bits_row,
-    ``LeanVMCircuits.Rec.pow_rows] do
+    ``LeanVMCircuits.Rec.pow_rows,
+    ``LeanVMCircuits.Rec.bus_next,
+    ``LeanVMCircuits.Rec.classNext_forward,
+    ``LeanVMCircuits.Rec.classNext_cls,
+    ``LeanVMCircuits.Rec.classNext_wrap,
+    ``LeanVMCircuits.Rec.classNext_injective,
+    ``LeanVMCircuits.Rec.class_eq,
+    ``LeanVMCircuits.Rec.slotKey_injective,
+    ``LeanVMCircuits.Rec.copy_argument,
+    ``LeanVMCircuits.Rec.card_K,
+    ``LeanVMCircuits.Rec.no_root,
+    ``LeanVMCircuits.Rec.extModulus_irreducible,
+    ``LeanVMCircuits.Rec.exists_inverse] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do

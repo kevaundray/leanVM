@@ -9,3 +9,5 @@ public import LeanVMCircuits.Rec.HashPorts
 public import LeanVMCircuits.Rec.Merkle
 public import LeanVMCircuits.Rec.Statement
 public import LeanVMCircuits.Rec.Duplex
+public import LeanVMCircuits.Rec.Bus
+public import LeanVMCircuits.Rec.ExtField
