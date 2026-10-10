@@ -2,7 +2,7 @@
 
 use super::commit::CommitmentShape;
 use fiat_shamir::arith::Arith;
-use primitives::field::{F192, F64};
+use primitives::field::{F64, F192};
 use primitives::multilinear::mle_eval_par;
 
 /// Evaluate the witness with its omitted, whole-lane tail equal to zero.
