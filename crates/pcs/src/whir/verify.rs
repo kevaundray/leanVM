@@ -296,7 +296,7 @@ fn levels_weight<V: OpeningVerifier>(
 }
 
 #[inline]
-fn folded_coordinate<E: Copy>(prefix: &[E], tail: &[E], folded: usize, index: usize) -> E {
+const fn folded_coordinate<E: Copy>(prefix: &[E], tail: &[E], folded: usize, index: usize) -> E {
     if index < folded {
         prefix[index]
     } else {

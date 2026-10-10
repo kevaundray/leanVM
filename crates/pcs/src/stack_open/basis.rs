@@ -108,18 +108,17 @@ pub(super) struct StackWeight<'a> {
 }
 
 impl<'a> StackWeight<'a> {
-    /// The weight of `claims` batched by `lambdas`, plus the ring-switched regions `rings`.
+    /// The point claims and immutable anchor batched by `lambdas`, with the anchor's coefficient last, plus the ring-switched regions.
     pub(super) fn new(
         stack_len: usize,
         lane_block: usize,
         claims: &'a [StackClaim],
         lambdas: &[F192],
         anchor_point: &'a [F192],
-        anchor_lambda: F192,
         rings: &[RingSwitch],
         rs_outputs: &'a [DeferredWeight],
     ) -> Self {
-        assert_eq!(claims.len(), lambdas.len());
+        assert_eq!(claims.len() + 1, lambdas.len());
         // A fill writes one chunk, or one whole lane block when blocks are smaller.
         let chunk_log = lane_block.min(INITIAL_BASIS_CHUNK).ilog2() as usize;
         let mut weights = Vec::with_capacity(claims.len() + 1);
@@ -129,7 +128,12 @@ impl<'a> StackWeight<'a> {
                 .zip(lambdas)
                 .map(|(claim, &lambda)| PointWeight::new(claim, lambda, chunk_log)),
         );
-        weights.push(PointWeight::anchor(anchor_point, anchor_lambda, stack_len, chunk_log));
+        weights.push(PointWeight::anchor(
+            anchor_point,
+            lambdas[claims.len()],
+            stack_len,
+            chunk_log,
+        ));
 
         // Index the claims by the lane blocks they touch, so a fill visits only those.
         let mut by_lane = vec![Vec::new(); stack_len / lane_block];

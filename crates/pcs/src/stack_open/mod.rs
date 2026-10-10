@@ -249,9 +249,8 @@ pub fn open(
         stack.len(),
         lane_block,
         point_claims,
-        lambdas_pd,
+        &lambdas[1..],
         commitment.point(),
-        anchor_lambda,
         rings,
         &rs_outputs,
     );
@@ -341,7 +340,7 @@ pub fn verify<V: OpeningVerifier>(
     scoped_result
 }
 
-/// The statement's invariants: a ring-switched claim, and every region and claim an aligned slice of the committed cube.
+/// Requires a ring-switched claim, aligned ring regions with matching suffix dimensions, and the deployed range-only guard on point claims.
 fn check_statement<E: Copy>(
     log_n: usize,
     point_claims: &[StackClaim<E>],
@@ -351,7 +350,7 @@ fn check_statement<E: Copy>(
     let mut empty = true;
     let mut i = 0;
     while i < rings.len() {
-        if rings[i].claims.len() != 0 {
+        if !rings[i].claims.is_empty() {
             empty = false;
             break;
         }
@@ -391,10 +390,10 @@ fn check_statement<E: Copy>(
         }
         index += 1;
     }
-    match error {
-        Some(error) => Err(error),
-        None => Ok(()),
+    if let Some(error) = error {
+        return Err(error);
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -456,11 +455,12 @@ mod tests {
                     value: rng.ext(),
                 });
             }
-            let lambdas = rng.ext_vec(claims.len());
+            let mut lambdas = rng.ext_vec(claims.len());
             let log_batch_size = lanes.next_power_of_two().ilog2() as usize;
             let log_n = lane_vars + log_batch_size;
             let anchor_point = rng.ext_vec(log_n);
             let anchor_lambda = rng.ext();
+            lambdas.push(anchor_lambda);
             let terminal_point = rng.ext_vec(log_n);
             let terminal_eq = eq_table(&terminal_point);
             // Oracle: the dense weight written out naively, one eq entry at a
@@ -511,7 +511,6 @@ mod tests {
                 &claims,
                 &lambdas,
                 &anchor_point,
-                anchor_lambda,
                 std::slice::from_ref(&ring),
                 &rs_outputs,
             );
