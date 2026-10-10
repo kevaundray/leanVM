@@ -21,7 +21,7 @@ use crate::tables::Clock;
 use crate::zk::keys::{self, KEY_MU, KeyStack, LANE, MAX_KEYS, MAX_OUTER_LOG_ROWS};
 use crate::zk::outer::constraint_system;
 use crate::zk::randomness::{Purpose, Randomness, ZkRng};
-use crate::zk::spartan::{self, OuterClaims, SpartanError};
+use crate::zk::spartan::{self, OuterClaims};
 use crate::zk::sym::{Form, Recorder, Sym, Var};
 use ::pcs::verifier::OpeningVerifier;
 use ::pcs::whir::{self, Hiding, ProverData, WhirError, config_for_rate_hiding};
@@ -149,7 +149,7 @@ pub(super) fn verify(program: &Program, output: Output, proof: &Proof) -> Result
             max: MAX_OUTER_LOG_ROWS,
         });
     }
-    let claims = spartan::verify(&mut vs, &r1cs).map_err(|SpartanError::Transcript(e)| CpuError::Transcript(e))?;
+    let claims = spartan::verify(&mut vs, &r1cs)?;
     verify_keys(&mut vs, key_root, &claims, rate.log_inv_rate().into()).map_err(CpuError::KeyOpen)?;
     vs.finish()?;
     Ok(vs.into_raw_proof())

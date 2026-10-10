@@ -20,7 +20,6 @@ use fiat_shamir::arith::{Arith, Native, Verifier};
 use fiat_shamir::transcript::{TranscriptError, Transmitter};
 use primitives::field::F192;
 use primitives::multilinear::{eq_table, interp};
-use thiserror::Error;
 
 /// What the outer proof leaves to the caller's commitment opening.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,14 +30,6 @@ pub(crate) struct OuterClaims<E = F192> {
     /// `⟨libra_weight, libra⟩ = libra_target`: the mask at the sumcheck's point.
     pub(crate) libra_weight: Vec<E>,
     pub(crate) libra_target: E,
-}
-
-/// Why the outer verifier refuses: it has no witness, so only a malformed stream.
-#[derive(Clone, Debug, PartialEq, Eq, Error)]
-pub(crate) enum SpartanError {
-    /// The proof stream is malformed.
-    #[error(transparent)]
-    Transcript(#[from] TranscriptError),
 }
 
 /// The Libra mask's coefficients over `log_rows` variables: `[g_c, g_00, g_01, g_10, g_11, ...]`.
@@ -121,8 +112,8 @@ fn prove_products(ps: &mut impl Transmitter, r1cs: &R1cs, products: [Vec<F192>; 
 ///
 /// # Errors
 ///
-/// Returns an error on a malformed stream.
-pub(crate) fn verify<V: Verifier>(v: &mut V, r1cs: &R1cs) -> Result<OuterClaims<V::E>, SpartanError> {
+/// Returns an error on a malformed stream: having no witness, the verifier refuses nothing else.
+pub(crate) fn verify<V: Verifier>(v: &mut V, r1cs: &R1cs) -> Result<OuterClaims<V::E>, TranscriptError> {
     let log_rows = r1cs.log_rows();
     let tau = v.sample_vec(log_rows);
     let s_g = v.next_scalar()?;
@@ -265,7 +256,7 @@ mod tests {
         (claims, ps.into_proof())
     }
 
-    fn check(r1cs: &R1cs, proof: &ProofTranscript) -> Result<OuterClaims, SpartanError> {
+    fn check(r1cs: &R1cs, proof: &ProofTranscript) -> Result<OuterClaims, TranscriptError> {
         let mut v = VerifierState::from_label(LABEL, proof);
         let claims = verify(&mut v, r1cs)?;
         v.finish()?;
