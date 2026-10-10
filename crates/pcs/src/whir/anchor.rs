@@ -70,32 +70,6 @@ pub(crate) fn eq_prefix(point: &[F192], count: usize, mut seed: F192) -> Vec<F19
     out
 }
 
-/// Add an anchor equality weight to an already allocated occupied prefix.
-pub(crate) fn add_anchor_weight(out: &mut [F192], point: &[F192], seed: F192) {
-    assert!(!out.is_empty());
-    let used_vars = (usize::BITS - (out.len() - 1).leading_zeros()) as usize;
-    assert!(used_vars <= point.len(), "occupied prefix fits the anchor cube");
-
-    fn add(out: &mut [F192], point: &[F192], seed: F192) {
-        let Some((&r, rest)) = point.split_last() else {
-            out[0] += seed;
-            return;
-        };
-        let hi = seed * r;
-        let lo = seed + hi;
-        let half = 1usize << rest.len();
-        if out.len() <= half {
-            add(out, rest, lo);
-        } else {
-            let (left, right) = out.split_at_mut(half);
-            add(left, rest, lo);
-            add(right, rest, hi);
-        }
-    }
-
-    let seed = point[used_vars..].iter().fold(seed, |acc, &r| acc * (F192::ONE + r));
-    add(out, &point[..used_vars], seed);
-}
 
 /// The multilinear extension of the anchor weight on the occupied support.
 ///
@@ -169,21 +143,12 @@ mod tests {
         let seed = F192::new(23, 17, 5);
         let mut r = point(8, 19);
         for count in [1, 3, 64, 255] {
-            let weights = eq_prefix(&r, count, seed);
-            let mut mixed = vec![F192::new(7, 13, 9); count];
-            add_anchor_weight(&mut mixed, &r, seed);
-            for i in 0..count {
-                let expected = seed * eq_bits(i, &r);
-                assert_eq!(weights[i], expected, "count {count}, index {i}");
-                assert_eq!(mixed[i], F192::new(7, 13, 9) + expected);
-            }
+            let expected: Vec<_> = (0..count).map(|i| seed * eq_bits(i, &r)).collect();
+            assert_eq!(eq_prefix(&r, count, seed), expected, "count {count}");
         }
         r[7] = F192::ONE;
         for count in [1, 3, 64] {
             assert_eq!(eq_prefix(&r, count, seed), vec![F192::ZERO; count]);
-            let mut mixed = vec![F192::new(7, 13, 9); count];
-            add_anchor_weight(&mut mixed, &r, seed);
-            assert_eq!(mixed, vec![F192::new(7, 13, 9); count]);
         }
     }
 

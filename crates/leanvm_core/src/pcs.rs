@@ -9,20 +9,21 @@
 
 use crate::witness::StackShape;
 use fiat_shamir::transcript::ProverState;
+use pcs::stack::{CommittedStack, StackCommitment, Statement};
 use pcs::verifier::OpeningVerifier;
+use pcs::whir::WhirError;
 use pcs::whir::config::ConfigError;
-use pcs::whir::{ProverConfig, ProverData, WhirError};
 use primitives::field::F64;
 use thiserror::Error;
 
 pub(crate) use pcs::ring_switch::{RingSwitch, SliceClaim};
-pub(crate) use pcs::stack_open::StackClaim;
+pub(crate) use pcs::stack::StackClaim;
 pub(crate) use pcs::whir::INITIAL_FOLDING_FACTOR as LOG_BATCH;
 pub use pcs::whir::{MAX_LOG_N as MAX_MU, MIN_LOG_N as MIN_MU};
 
-/// The proof's soundness target, in bits.
+/// The proof's parameter-selection target, in bits.
 ///
-/// WHIR parameters and the bus soundness check share this target.
+/// WHIR parameters and the bus soundness check share this design target.
 pub const SECURITY_BITS: u32 = pcs::whir::SECURITY_BITS as u32;
 
 /// A supported commitment rate, represented by the base-two logarithm of its inverse.
@@ -98,12 +99,10 @@ pub(crate) enum WitnessError {
 ///
 /// The caller retains the witness words, avoiding a second full-witness allocation.
 pub(crate) struct Committed {
-    /// The codeword and its Merkle tree.
-    prover_data: ProverData,
-    /// The complete immutable root, public shape, point and anchored value.
-    commitment: pcs::whir::Commitment,
-    /// The validated opening parameters used to produce the initial commitment.
-    config: ProverConfig,
+    /// The codeword, tree, immutable anchored record and opening parameters.
+    stack: CommittedStack,
+    /// The full witness dimension and the number of lanes actually encoded.
+    shape: StackShape,
 }
 
 impl Committed {
@@ -140,12 +139,8 @@ impl Committed {
         }
 
         // The codeword and tree use the same parameters retained for opening.
-        let (commitment, prover_data) = pcs::whir::commit(ps, witness, shape.mu, config.initial_k(), log_inv_rate);
-        Ok(Self {
-            prover_data,
-            commitment,
-            config,
-        })
+        let stack = CommittedStack::new(ps, witness, shape.mu, config);
+        Ok(Self { stack, shape })
     }
 
     /// Proves the point evaluations and ring-switched circuit-validity claims together.
@@ -168,8 +163,7 @@ impl Committed {
         rings: &[RingSwitch],
     ) -> Result<(), WitnessError> {
         // A different lane count would change both the encoded rows and their authentication paths.
-        let shape = self.commitment.shape();
-        let expected = shape.n_lanes << (shape.log_n - shape.log_batch_size);
+        let expected = self.shape.committed_len();
         if witness.len() != expected {
             return Err(WitnessError::Length {
                 expected,
@@ -179,23 +173,14 @@ impl Committed {
 
         // Values are transcript-bound or public, points are challenges or constants, and offsets are public.
         // The opening samples batching challenges without observing those claims again.
-        pcs::stack_open::open(
-            ps,
-            witness,
-            &self.prover_data,
-            &self.config,
-            &self.commitment,
-            points,
-            rings,
-        );
+        self.stack.open(ps, witness, Statement { points, rings });
         Ok(())
     }
 }
 
 /// An immutable anchored commitment and its validated opening configuration.
 pub(crate) struct Commitment<E, R, K> {
-    record: pcs::whir::Commitment<E, R, K>,
-    config: ProverConfig,
+    stack: StackCommitment<E, R, K>,
 }
 
 impl<E: Copy, R: Copy, K: Copy> Commitment<E, R, K> {
@@ -211,8 +196,8 @@ impl<E: Copy, R: Copy, K: Copy> Commitment<E, R, K> {
     ) -> Result<Self, WhirError> {
         let log_inv_rate = usize::from(rate.log_inv_rate());
         let config = pcs::whir::config_for_rate(shape.mu, log_inv_rate)?;
-        let record = pcs::whir::receive_commitment(v, shape.mu, config.initial_k(), log_inv_rate, shape.n_lanes)?;
-        Ok(Self { record, config })
+        let stack = StackCommitment::receive(v, shape.mu, shape.n_lanes, config)?;
+        Ok(Self { stack })
     }
 
     /// Checks the shared opening of point evaluations and circuit-validity claims.
@@ -228,8 +213,11 @@ impl<E: Copy, R: Copy, K: Copy> Commitment<E, R, K> {
         v: &mut V,
         points: &[StackClaim<V::E>],
         rings: &[RingSwitch<V::E>],
-    ) -> Result<(), WhirError> {
-        pcs::stack_open::verify(v, &self.config, &self.record, points, rings)
+    ) -> Result<(), WhirError>
+    where
+        E: PartialEq,
+    {
+        self.stack.verify(v, Statement { points, rings })
     }
 }
 

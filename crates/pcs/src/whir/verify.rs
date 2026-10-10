@@ -3,19 +3,21 @@
 // Modifications copyright 2026 Succinct Labs, Benedikt Bunz, William Wang
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! The succinct verifier: it replays the transcript and checks the terminal claim through closed forms, never materializing a weight.
+//! The succinct WHIR verifier.
 //!
-//! It is written once over the opening verifier's operations, so the native verifier and the recursion machine's rows run the same steps.
-//! Every query opens a full row whose path follows the query's bits, so the rows never depend on which rows are opened.
+//! It replays the transcript and checks the terminal claim through closed forms, never building a weight.
+//!
+//! It is written once over the opening verifier's operations.
+//! So the native verifier and the recursion machine's rows run the same steps.
+//!
+//! Every query opens a full row along the path its bits name.
+//! So the recursion machine's rows never depend on which codeword rows are opened.
 
-use super::anchor::anchor_eq_at;
-use super::commit::Commitment;
 use crate::verifier::OpeningVerifier;
-use crate::whir::config::{ConfigError, VerifierConfig};
-use crate::whir::induce::eval_sk_at_vks;
-use fiat_shamir::arith::Arith;
+use crate::whir::config::{Config, ConfigError};
+use crate::whir::query::Normalizers;
 use fiat_shamir::transcript::TranscriptError;
-use primitives::field::{F64, F192};
+use primitives::field::F192;
 use thiserror::Error;
 
 /// Why a WHIR opening is rejected.
@@ -29,10 +31,18 @@ pub enum WhirError {
     Config(#[from] ConfigError),
     /// The announced layout stores no lanes, or more than a leaf holds.
     #[error("{n_lanes} committed lanes, and a leaf holds 1 to {max}")]
-    LaneCount { n_lanes: usize, max: usize },
+    LaneCount {
+        /// The announced number of committed lanes.
+        n_lanes: usize,
+        /// The lanes a leaf holds.
+        max: usize,
+    },
     /// A level of the configuration does not fit the witness.
     #[error("level {level} of the configuration does not fit the witness")]
-    InvalidShape { level: usize },
+    InvalidShape {
+        /// The index of the level that does not fit.
+        level: usize,
+    },
     /// The immutable commitment record has a different shape or domain context.
     #[error("the immutable commitment record does not match its public context")]
     CommitmentMismatch,
@@ -41,10 +51,16 @@ pub enum WhirError {
     NoRingClaim,
     /// A ring-switched region is no aligned slice of the committed cube, or a claim on it does not span it.
     #[error("ring-switched region {index} is no aligned slice of the cube spanned by its claims")]
-    Region { index: usize },
+    Region {
+        /// The region's position in the statement.
+        index: usize,
+    },
     /// A point claim reaches past the committed cube.
     #[error("point claim {index} reaches past the committed cube")]
-    PointClaim { index: usize },
+    PointClaim {
+        /// The claim's position in the statement.
+        index: usize,
+    },
     /// The final folded value does not match the claimed evaluation.
     #[error("the final sumcheck claim does not match the opening")]
     TerminalMismatch,
@@ -53,25 +69,33 @@ pub enum WhirError {
 /// A round's quadratic `c + b X + a X^2`.
 #[derive(Clone, Copy)]
 struct Quad<E> {
+    /// The constant coefficient.
     c: E,
+    /// The linear coefficient.
     b: E,
+    /// The quadratic coefficient.
     a: E,
 }
 
 /// An out-of-domain claim on a level's oracle: its point, its value, and its intro round.
 struct Ood<E> {
+    /// The sampled point.
     z: Vec<E>,
+    /// The claimed value of the folded witness at `z`.
     y: E,
+    /// The claim's first round polynomial.
     intro: Quad<E>,
 }
 
 /// What a level's query batch leaves for the terminal weight.
 struct LevelCtx<Q, E> {
+    /// Variables of the folded witness the batch's claims are on.
     log_msg_cols: usize,
+    /// The query positions, in query order.
     queries: Vec<Q>,
     /// One power of the level's batching challenge per query.
     weights: Vec<E>,
-    /// Where the level's fold challenges start among all of them.
+    /// Where the fold challenges after the batch start among all of them.
     ris_start: usize,
     /// The level's power in the running claim.
     beta: E,
@@ -79,36 +103,50 @@ struct LevelCtx<Q, E> {
 
 /// What an out-of-domain claim leaves for the terminal weight.
 struct OodCtx<E> {
+    /// The claim's point.
     z: Vec<E>,
+    /// Where the fold challenges after the claim start among all of them.
     ris_start: usize,
+    /// The claim's power in the running claim.
     beta: E,
 }
 
 /// The oracle the next query batch opens.
 struct Oracle<R> {
+    /// Its Merkle root.
     root: R,
+    /// Log of the elements of `E` in one row.
     log_num_interleaved: usize,
+    /// Log of the message length of each lane.
     log_msg_cols: usize,
+    /// Its code's inverse-rate logarithm.
     log_inv_rate: usize,
 }
 
 /// One level's query batch: its grinding, its index width and its count.
 #[derive(Clone, Copy)]
 struct QueryPhase {
+    /// Proof-of-work bits checked before the queries are drawn.
     grinding: u32,
+    /// Bits of a query position.
     depth: usize,
+    /// Queries in the batch.
     count: usize,
 }
 
 /// The succinct WHIR verifier's state.
 struct WhirReplay<'c, V: OpeningVerifier> {
-    config: &'c VerifierConfig,
-    /// The running claim and its round's quadratic.
+    /// The opening's configuration.
+    config: &'c Config,
+    /// The running claim.
     t_r: V::E,
+    /// The current round's quadratic.
     quad: Quad<V::E>,
-    /// Every fold challenge, in round order.
+    /// Every fold challenge so far, in round order.
     ris: Vec<V::E>,
+    /// Every query batch's contribution to the terminal weight.
     levels: Vec<LevelCtx<V::Query, V::E>>,
+    /// Every OOD claim's contribution to the terminal weight.
     oods: Vec<OodCtx<V::E>>,
 }
 
@@ -118,145 +156,69 @@ struct BaseRows<K>(Vec<Vec<K>>);
 /// A later level's rows a query batch opened, one per query, of elements of `E`.
 struct ExtRows<E>(Vec<Vec<E>>);
 
-/// A public weight evaluated once at the terminal point by the native verifier or recursion rows.
-pub trait WeightAt<V: OpeningVerifier, E = <V as Arith>::E> {
-    /// Evaluate the caller's weight at the final point in witness-coordinate order.
-    fn evaluate(self, v: &mut V, point: &[E]) -> E;
-}
-
-struct AnchoredWeight<'a, W, E> {
-    caller: W,
-    shape: super::CommitmentShape,
-    point: &'a [E],
-    beta: E,
-}
-
-impl<V: OpeningVerifier, W: WeightAt<V>> WeightAt<V> for AnchoredWeight<'_, W, V::E> {
-    fn evaluate(self, v: &mut V, point: &[V::E]) -> V::E {
-        let caller = self.caller.evaluate(v, point);
-        let anchor = anchor_eq_at(v, self.shape, self.point, point);
-        v.mul_add(self.beta, anchor, caller)
-    }
-}
-
-struct QueryBatch<Q, E> {
-    queries: Vec<Q>,
-    weights: Vec<E>,
-    lambda: E,
-}
-
-fn enforce_base<V: OpeningVerifier>(
-    v: &mut V,
-    root: &V::Root,
-    phase: QueryPhase,
-    n_lanes: usize,
-    max: usize,
-    fold: &[V::E],
-    batch: &QueryBatch<V::Query, V::E>,
-) -> Result<V::E, TranscriptError> {
-    let mut rows = v.open_rows(root, phase.depth, &batch.queries, n_lanes, max)?;
-    let mut i = 0;
-    while i < rows.len() {
-        rows[i].reverse();
-        i += 1;
-    }
-    Ok(base_enforced_sum(&BaseRows(rows), v, fold, &batch.weights))
-}
-
-fn enforce_ext<V: OpeningVerifier>(
-    v: &mut V,
-    oracle: &Oracle<V::Root>,
-    fold: &[V::E],
-    batch: &QueryBatch<V::Query, V::E>,
-) -> Result<V::E, TranscriptError> {
-    let rows = oracle.open_e_rows(v, &batch.queries)?;
-    Ok(ext_enforced_sum(&rows, v, fold, &batch.weights))
-}
-
-/// Succinct verifier for the recursive prover, against a weight `b` over the `2^log_n` committed words.
+/// Verify `sum_x f(x) * w(x) = target` for the witness `f` of `2^log_n` words committed at `root`.
 ///
-/// It takes no dense weight: `weight_at` evaluates b's multilinear extension once, at the final fold point indexed by witness coordinate.
-/// Verify a public linear claim with the same immutable commitment record used
-/// at commitment time. `weight_at` evaluates the claimed weight on the full
-/// Boolean cube and must vanish outside the record's occupied lane prefix.
+/// It takes no dense weight: `weight_at` evaluates the multilinear extension of `w` once, at the terminal point.
+/// That point is indexed by witness coordinate.
 ///
-/// The caller binds the public claim before entry. This samples only the
-/// opening batch scalar and reuses the commitment's point and advertised value.
+/// # Why the point is rotated
+///
+/// - The fold challenges arrive in round order.
+/// - The first `initial_k` rounds, the lane fold, bind the witness's top `initial_k` coordinates.
+/// - So the point is rotated left by `initial_k` before `weight_at` sees it.
+///
+/// # What is never built
+///
+/// - A level's induced weight: its sum is recomputed from its opened rows, its value taken in closed form.
+/// - The absent lanes: the L0 rows the proof stores are the `n_lanes` committed ones.
 ///
 /// # Errors
 ///
-/// Returns an incompatible commitment/configuration, malformed opening stream,
-/// failed authentication, or a terminal opening that violates either claim.
-pub fn verify_with_basis<V: OpeningVerifier>(
+/// - A lane count a leaf cannot hold, or a configuration that does not fit the witness.
+/// - A malformed stream, or a terminal claim the opening does not reproduce.
+pub(crate) fn verify<V: OpeningVerifier>(
     v: &mut V,
-    config: &VerifierConfig,
-    commitment: &Commitment<V::E, V::Root, V::K>,
-    target: V::E,
-    weight_at: impl WeightAt<V>,
-) -> Result<(), WhirError> {
-    let shape = commitment.shape;
-    if !shape.valid()
-        || shape.log_batch_size != config.initial_k()
-        || config.log_inv_rates().first() != Some(&shape.log_inv_rate)
-        || commitment.point.len() != shape.log_n
-        || !commitment.valid_context()
-    {
-        return Err(WhirError::CommitmentMismatch);
-    }
-    check_config_shape(config, shape.log_n)?;
-    super::commit::verify_record_binding(v, commitment)?;
-    let beta = v.sample();
-    let target = v.mul_add(beta, commitment.value, target);
-    let combined_weight = AnchoredWeight {
-        caller: weight_at,
-        shape,
-        point: &commitment.point,
-        beta,
-    };
-    verify_protocol_with_basis(
-        v,
-        config,
-        shape.log_n,
-        shape.n_lanes,
-        target,
-        commitment.root,
-        combined_weight,
-    )
-}
-
-pub(crate) fn check_config_shape(config: &VerifierConfig, log_n: usize) -> Result<(), WhirError> {
-    let mut remaining = log_n
-        .checked_sub(config.initial_k())
-        .ok_or(WhirError::InvalidShape { level: 0 })?;
-    let mut level = 0;
-    while level < config.level_steps() {
-        remaining = remaining
-            .checked_sub(config.level_ks()[level])
-            .ok_or(WhirError::InvalidShape { level })?;
-        level += 1;
-    }
-    Ok(())
-}
-
-/// The fold challenges arrive in round order, and the first `initial_k` rounds, the lane fold, bind the witness's top `initial_k` coordinates.
-/// So the point is rotated left by `initial_k` before the weight sees it.
-///
-/// Per-level induced bases are never materialized: a level's enforced sum is recomputed from its opened rows, and its basis taken in closed form at the terminal point.
-/// The L0 rows the proof stores are the committed lanes, `n_lanes` of them, which the caller derives from the announced layout.
-///
-/// # Errors
-///
-/// Returns a lane count a leaf cannot hold, a configuration that does not fit the witness, a malformed stream, or a terminal claim the opening does not reproduce.
-pub(crate) fn verify_protocol_with_basis<V: OpeningVerifier>(
-    v: &mut V,
-    config: &VerifierConfig,
+    config: &Config,
     log_n: usize,
     n_lanes: usize,
     target: V::E,
     root: V::Root,
-    weight_at: impl WeightAt<V>,
+    weight_at: impl FnOnce(&mut V, &[V::E]) -> V::E,
 ) -> Result<(), WhirError> {
+    // The typed wrapper checks shape before reading its record frame; keep
+    // direct internal callers safe too, without duplicating record binding.
+    check_config_shape(config, log_n)?;
     WhirReplay::run(v, config, log_n, n_lanes, target, root, weight_at)
+}
+
+/// Check all source-dependent dimensions before shifts, reads or challenges.
+pub(crate) fn check_config_shape(config: &Config, log_n: usize) -> Result<(), WhirError> {
+    let bits = usize::BITS as usize;
+    let initial_k = config.initial_k();
+    if log_n >= bits || log_n <= initial_k {
+        return Err(WhirError::InvalidShape { level: 0 });
+    }
+    let mut remaining = log_n - initial_k;
+    if !remaining
+        .checked_add(config.log_inv_rates()[0])
+        .is_some_and(|depth| depth < bits)
+    {
+        return Err(WhirError::InvalidShape { level: 0 });
+    }
+    for (level, &k) in config.level_ks().iter().enumerate() {
+        // An extension-field row holds three base words per interleaved value.
+        if k >= bits - 2 {
+            return Err(WhirError::InvalidShape { level });
+        }
+        remaining = remaining.checked_sub(k).ok_or(WhirError::InvalidShape { level })?;
+        if !remaining
+            .checked_add(config.log_inv_rates()[level + 1])
+            .is_some_and(|depth| depth > 0 && depth < bits)
+        {
+            return Err(WhirError::InvalidShape { level });
+        }
+    }
+    Ok(())
 }
 
 impl<E: Copy> Quad<E> {
@@ -270,12 +232,13 @@ impl<E: Copy> Quad<E> {
         })
     }
 
+    /// The quadratic at `x`, by Horner's rule.
     fn eval<V: OpeningVerifier<E = E>>(self, v: &mut V, x: E) -> E {
         let u = v.mul_add(self.a, x, self.b);
         v.mul_add(u, x, self.c)
     }
 
-    /// `self + s·other`.
+    /// `self + s * other`.
     fn fold<V: OpeningVerifier<E = E>>(self, v: &mut V, other: Self, s: E) -> Self {
         Self {
             c: v.mul_add(s, other.c, self.c),
@@ -295,106 +258,38 @@ impl<E: Copy> Ood<E> {
     }
 }
 
-fn replay_oods<V: OpeningVerifier>(v: &mut V, count: usize, n_vars: usize) -> Result<Vec<Ood<V::E>>, TranscriptError> {
-    let mut oods = Vec::new();
-    for _ in 0..count {
-        oods.push(Ood::replay(v, n_vars)?);
+impl<Q, E: Copy> LevelCtx<Q, E> {
+    /// The multilinear extension of the level's induced basis at `point`, in closed form.
+    ///
+    /// ```text
+    ///     sum_i w_i prod_k (1 + p_k (1 + s_k(q_i) / s_k(v_k)))
+    /// ```
+    ///
+    /// Here `q_i` is query `i`'s position read as an element of `K`, and `s_k` the `k`-th subspace polynomial.
+    fn basis_at<V: OpeningVerifier<E = E, Query = Q>>(&self, v: &mut V, point: &[E]) -> E {
+        assert_eq!(point.len(), self.log_msg_cols, "a point of the level's cube");
+        let normalizers = Normalizers::new(self.log_msg_cols);
+        let sks = normalizers.at_roots();
+        // Each factor is affine in `s`: `1 + p (1 + s / sigma) = (1 + p) + (p / sigma) s`.
+        let lin: Vec<(E, E)> = (point.iter().zip(normalizers.inverses()))
+            .map(|(&p, &inv)| (v.add_const(p, F192::ONE), v.mul_const(p, F192::from(inv))))
+            .collect();
+        let zero = v.zero();
+        (self.queries.iter().zip(&self.weights)).fold(zero, |acc, (query, &w)| {
+            let mut s = v.query_point(query);
+            let mut product = v.one();
+            for (k, &(a, c)) in lin.iter().enumerate() {
+                if k > 0 {
+                    // The subspace polynomials' recurrence `s_k = s_{k-1}^2 + s_{k-1}(v_{k-1}) s_{k-1}`.
+                    let u = v.mul_const(s, F192::from(sks[k - 1]));
+                    s = v.mul_add(s, s, u);
+                }
+                let f = v.mul_add(c, s, a);
+                product = v.mul(product, f);
+            }
+            v.mul_add(w, product, acc)
+        })
     }
-    Ok(oods)
-}
-
-#[inline]
-fn level_factors<A: Arith>(v: &mut A, point: &[A::E], sks: &[F64]) -> Vec<(A::E, A::E)> {
-    let mut lin = Vec::with_capacity(point.len().min(sks.len()));
-    for i in 0..point.len().min(sks.len()) {
-        let p = point[i];
-        let sigma = sks[i];
-        let inv = if sigma == F64(0) { F64(0) } else { sigma.inv() };
-        lin.push((v.add_const(p, F192::ONE), v.mul_const(p, F192::from(inv))));
-    }
-    lin
-}
-
-#[inline]
-fn query_product<A: Arith>(v: &mut A, mut s: A::E, lin: &[(A::E, A::E)], sks: &[F64]) -> A::E {
-    let mut product = v.one();
-    for (k, &(a, c)) in lin.iter().enumerate() {
-        if k > 0 {
-            // The subspace polynomials' recurrence `s_k = s_{k-1}^2 + s_{k-1}(v_{k-1}) s_{k-1}`.
-            let u = v.mul_const(s, F192::from(sks[k - 1]));
-            s = v.mul_add(s, s, u);
-        }
-        let f = v.mul_add(c, s, a);
-        product = v.mul(product, f);
-    }
-    product
-}
-
-/// The level's induced basis at `point`: `sum_i w_i prod_k (1 + p_k (1 + s_k(q_i) / s_k(v_k)))`, `q_i` the query index in `K`.
-fn level_basis_at<V: OpeningVerifier>(ctx: &LevelCtx<V::Query, V::E>, v: &mut V, point: &[V::E]) -> V::E {
-    assert_eq!(point.len(), ctx.log_msg_cols, "a point of the level's cube");
-    let sks = eval_sk_at_vks(ctx.log_msg_cols);
-    // `1 + p (1 + s / sigma) = (1 + p) + (p / sigma) s`.
-    let lin = level_factors(v, point, &sks);
-    let mut acc = v.zero();
-    for i in 0..ctx.queries.len().min(ctx.weights.len()) {
-        let w = ctx.weights[i];
-        let s = v.query_point(&ctx.queries[i]);
-        let product = query_product(v, s, &lin, &sks);
-        acc = v.mul_add(w, product, acc);
-    }
-    acc
-}
-
-#[inline]
-fn levels_weight<V: OpeningVerifier>(
-    v: &mut V,
-    levels: &[LevelCtx<V::Query, V::E>],
-    ris: &[V::E],
-    tail: &[V::E],
-) -> V::E {
-    let mut weight = v.zero();
-    let mut i = 0;
-    while i < levels.len() {
-        let ctx = &levels[i];
-        let folded = ctx.log_msg_cols - tail.len();
-        let mut point = ris[ctx.ris_start..ctx.ris_start + folded].to_vec();
-        point.extend_from_slice(tail);
-        let at = level_basis_at(ctx, v, &point);
-        weight = v.mul_add(ctx.beta, at, weight);
-        i += 1;
-    }
-    weight
-}
-
-#[inline]
-const fn folded_coordinate<E: Copy>(prefix: &[E], tail: &[E], folded: usize, index: usize) -> E {
-    if index < folded {
-        prefix[index]
-    } else {
-        tail[index - folded]
-    }
-}
-
-#[inline]
-fn oods_weight<A: Arith>(v: &mut A, oods: &[OodCtx<A::E>], ris: &[A::E], tail: &[A::E], mut weight: A::E) -> A::E {
-    let mut i = 0;
-    while i < oods.len() {
-        let ctx = &oods[i];
-        let folded = ctx.z.len() - tail.len();
-        let prefix = &ris[ctx.ris_start..ctx.ris_start + folded];
-        let mut scalar = ctx.beta;
-        let mut j = 0;
-        while j < ctx.z.len() {
-            let x = folded_coordinate(prefix, tail, folded, j);
-            let s = v.add(ctx.z[j], x);
-            scalar = v.times_one_plus(scalar, s);
-            j += 1;
-        }
-        weight = v.add(weight, scalar);
-        i += 1;
-    }
-    weight
 }
 
 impl QueryPhase {
@@ -418,33 +313,29 @@ impl<R> Oracle<R> {
     ) -> Result<ExtRows<V::E>, TranscriptError> {
         let leaf_words = 3 << self.log_num_interleaved;
         let rows = v.open_rows(&self.root, self.depth(), queries, leaf_words, leaf_words)?;
-        let mut out = Vec::with_capacity(rows.len());
-        for words in rows {
-            let len = words.len();
-            let mut row = Vec::with_capacity(len / 3 + usize::from(len % 3 != 0));
-            let mut i = 0;
-            while i < len {
-                row.push(v.e_of_limbs([words[i], words[i + 1], words[i + 2]]));
-                i += 3;
-            }
-            out.push(row);
-        }
-        Ok(ExtRows(out))
+        let rows = (rows.into_iter())
+            .map(|words| words.chunks(3).map(|c| v.e_of_limbs([c[0], c[1], c[2]])).collect())
+            .collect();
+        Ok(ExtRows(rows))
     }
 }
 
 impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
-    /// The succinct WHIR verifier.
+    /// Replay the whole opening, then check the terminal claim.
     ///
     /// The caller's weight is evaluated once, at the terminal point indexed by witness coordinate.
+    ///
+    /// # Errors
+    ///
+    /// Returns the errors listed on the opening's entry point.
     fn run(
         v: &mut V,
-        config: &'c VerifierConfig,
+        config: &'c Config,
         log_n: usize,
         n_lanes: usize,
         target: V::E,
         root: V::Root,
-        weight_at: impl WeightAt<V>,
+        weight_at: impl FnOnce(&mut V, &[V::E]) -> V::E,
     ) -> Result<(), WhirError> {
         let initial_k = config.initial_k();
         let max = 1usize << initial_k;
@@ -465,73 +356,59 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
             .ok_or(WhirError::InvalidShape { level: 0 })?;
         let lane_fold = w.fold_rounds(v, initial_k)?;
         let root_1 = v.next_root()?;
-        let oods = replay_oods(v, config.ood_samples()[1], n_current)?;
+        let oods = (0..config.ood_samples()[1])
+            .map(|_| Ood::replay(v, n_current))
+            .collect::<Result<_, _>>()?;
         let phase = w.phase(0, n_current + config.log_inv_rates()[0]);
-        // The proof stores the committed lanes, the image's tail; the image is lane-descending.
-        let batch = Self::begin_query(v, phase)?;
-        let sum = enforce_base(v, &root, phase, n_lanes, max, &lane_fold, &batch);
-        w.finish_query(v, oods, n_current, batch, sum)?;
+        // The proof stores the committed lanes, the image's tail, lane-descending.
+        // Reversed, block `b` sits at index `b`.
+        w.query(v, phase, oods, n_current, |v, queries, weights| {
+            let mut rows = v.open_rows(&root, phase.depth, queries, n_lanes, max)?;
+            for row in &mut rows {
+                row.reverse();
+            }
+            Ok(BaseRows(rows).enforced_sum(v, &lane_fold, weights))
+        })?;
 
         let mut oracle = w.oracle(root_1, 0, n_current)?;
-        let final_level = config.level_steps() - 1;
-        let mut error = None;
-        for i in 0..final_level {
-            match w.middle_level(v, &oracle, n_current, i) {
-                Ok((next, n)) => {
-                    oracle = next;
-                    n_current = n;
-                }
-                Err(err) => {
-                    error = Some(err);
-                    break;
-                }
+        for i in 0..config.level_steps() {
+            let k = config.level_ks()[i];
+            if n_current < k {
+                return Err(WhirError::InvalidShape { level: i });
             }
+            let level_rs = w.fold_rounds(v, k)?;
+            n_current -= k;
+            if i + 1 == config.level_steps() {
+                return w.last_level(v, &oracle, &level_rs, n_current, weight_at);
+            }
+            let root = v.next_root()?;
+            let oods = (0..config.ood_samples()[i + 2])
+                .map(|_| Ood::replay(v, n_current))
+                .collect::<Result<_, _>>()?;
+            let phase = w.phase(i + 1, oracle.depth());
+            w.query(v, phase, oods, n_current, |v, queries, weights| {
+                let rows = oracle.open_e_rows(v, queries)?;
+                Ok(rows.enforced_sum(v, &level_rs, weights))
+            })?;
+            oracle = w.oracle(root, i + 1, n_current)?;
         }
-        if let Some(error) = error {
-            return Err(error);
-        }
-        let k = config.level_ks()[final_level];
-        if n_current < k {
-            return Err(WhirError::InvalidShape { level: final_level });
-        }
-        let level_rs = w.fold_rounds(v, k)?;
-        n_current -= k;
-        w.last_level(v, &oracle, &level_rs, n_current, weight_at)
-    }
-
-    fn middle_level(
-        &mut self,
-        v: &mut V,
-        oracle: &Oracle<V::Root>,
-        mut n_current: usize,
-        i: usize,
-    ) -> Result<(Oracle<V::Root>, usize), WhirError> {
-        let k = self.config.level_ks()[i];
-        if n_current < k {
-            return Err(WhirError::InvalidShape { level: i });
-        }
-        let level_rs = self.fold_rounds(v, k)?;
-        n_current -= k;
-        let root = v.next_root()?;
-        let oods = replay_oods(v, self.config.ood_samples()[i + 2], n_current)?;
-        let phase = self.phase(i + 1, oracle.depth());
-        let batch = Self::begin_query(v, phase)?;
-        let sum = enforce_ext(v, oracle, &level_rs, &batch);
-        self.finish_query(v, oods, n_current, batch, sum)?;
-        Ok((self.oracle(root, i + 1, n_current)?, n_current))
+        unreachable!("the configuration has at least one level")
     }
 
     /// Level `level`'s query batch over indices of `depth` bits.
     fn phase(&self, level: usize, depth: usize) -> QueryPhase {
         QueryPhase {
-            // The private config constructor bounds this by MAX_GRINDING_BITS.
-            grinding: self.config.grinding_bits()[level] as u32,
+            grinding: u32::try_from(self.config.grinding_bits()[level]).expect("a few grinding bits"),
             depth,
             count: self.config.queries()[level],
         }
     }
 
     /// The oracle a level's fold commits, on the variables left after it.
+    ///
+    /// # Errors
+    ///
+    /// Returns the level when the oracle's interleaving exceeds the variables left.
     fn oracle(&self, root: V::Root, level: usize, n_current: usize) -> Result<Oracle<V::Root>, WhirError> {
         let k = self.config.level_ks()[level];
         Ok(Oracle {
@@ -542,7 +419,11 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         })
     }
 
-    /// `k` fold rounds: each draws a challenge, evaluates the running quadratic, and reads the next.
+    /// `k` fold rounds: each draws a challenge, evaluates the running quadratic there, and reads the next one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error past the end of the stream.
     fn fold_rounds(&mut self, v: &mut V, k: usize) -> Result<Vec<V::E>, TranscriptError> {
         let mut rs = Vec::with_capacity(k);
         for _ in 0..k {
@@ -555,39 +436,39 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         Ok(rs)
     }
 
-    /// Begin a query batch and enter its row scope after grinding and sampling.
-    fn begin_query(v: &mut V, phase: QueryPhase) -> Result<QueryBatch<V::Query, V::E>, TranscriptError> {
+    /// One query batch, then the batching of the level's claims.
+    ///
+    /// Transcript order:
+    ///
+    /// 1. check the proof of work,
+    /// 2. draw the queries, then the batching challenge `lambda`,
+    /// 3. `enforced` opens the queries and returns their `lambda`-weighted sum at the level's fold point,
+    /// 4. read the consistency claims' intro round.
+    ///
+    /// The running claim keeps `lambda^0`, each OOD claim takes the next power, and the query batch the one after.
+    ///
+    /// # Errors
+    ///
+    /// Returns a failed proof of work, a missing or unauthenticated opening, or the end of the stream.
+    fn query(
+        &mut self,
+        v: &mut V,
+        phase: QueryPhase,
+        oods: Vec<Ood<V::E>>,
+        log_msg_cols: usize,
+        enforced: impl FnOnce(&mut V, &[V::Query], &[V::E]) -> Result<V::E, TranscriptError>,
+    ) -> Result<(), TranscriptError> {
         v.grind_check(phase.grinding)?;
         let queries = phase.sample(v);
         let lambda = v.sample();
         let weights = v.powers(lambda, phase.count);
         v.begin_scope(fiat_shamir::arith::Stage::Rows);
-        Ok(QueryBatch {
-            queries,
-            weights,
-            lambda,
-        })
-    }
-
-    /// Leave the row scope before propagating an opening error, then batch the level's claims.
-    fn finish_query(
-        &mut self,
-        v: &mut V,
-        oods: Vec<Ood<V::E>>,
-        log_msg_cols: usize,
-        batch: QueryBatch<V::Query, V::E>,
-        enforced: Result<V::E, TranscriptError>,
-    ) -> Result<(), TranscriptError> {
+        let sum = enforced(v, &queries, &weights);
         v.end_scope();
-        let sum = enforced?;
-        let QueryBatch {
-            queries,
-            weights,
-            lambda,
-        } = batch;
+        let sum = sum?;
         let intro = Quad::recv(v, sum)?;
 
-        // The OOD claims, then the query batch, each at the next power of the level's challenge.
+        // Batch the OOD claims, then the query batch, each at the next power of the level's challenge.
         let ris_start = self.ris.len();
         let mut scalar = v.one();
         for ood in oods {
@@ -614,19 +495,26 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
     }
 
     /// The last level: its residual polynomial, its query batch, the residual rounds, then the terminal check.
+    ///
+    /// The last residual round reads no polynomial: the terminal check evaluates `yr` at the final point instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns a malformed stream or a terminal mismatch.
     fn last_level(
         mut self,
         v: &mut V,
         oracle: &Oracle<V::Root>,
         level_rs: &[V::E],
         n_current: usize,
-        weight_at: impl WeightAt<V>,
+        weight_at: impl FnOnce(&mut V, &[V::E]) -> V::E,
     ) -> Result<(), WhirError> {
         let yr = v.next_scalars(1 << n_current)?;
         let phase = self.phase(self.config.level_steps(), oracle.depth());
-        let batch = Self::begin_query(v, phase)?;
-        let sum = enforce_ext(v, oracle, level_rs, &batch);
-        self.finish_query(v, Vec::new(), n_current, batch, sum)?;
+        self.query(v, phase, Vec::new(), n_current, |v, queries, weights| {
+            let rows = oracle.open_e_rows(v, queries)?;
+            Ok(rows.enforced_sum(v, level_rs, weights))
+        })?;
         let mut ris_tail = Vec::with_capacity(n_current);
         for j in 0..n_current {
             let ri = v.sample();
@@ -636,31 +524,54 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
                 self.quad = Quad::recv(v, self.t_r)?;
             }
         }
-        {
-            v.begin_scope(fiat_shamir::arith::Stage::Terminal);
-            let scoped_result = self.terminal(v, &yr, &ris_tail, weight_at);
-            v.end_scope();
-            scoped_result
-        }
+        v.begin_scope(fiat_shamir::arith::Stage::Terminal);
+        let result = self.terminal(v, &yr, &ris_tail, weight_at);
+        v.end_scope();
+        result
     }
 
-    /// `weight · <yr, eq(ris_tail)> = t_r`, the weight every level's basis, every OOD claim and the caller's at the full point.
+    /// Check `weight * <yr, eq(ris_tail)> = t_r`.
+    ///
+    /// `weight` is the batched weight at the full point.
+    /// It sums each level's induced basis and each OOD claim's `eq(z, .)`, each at its power, and the caller's weight.
+    ///
+    /// # Errors
+    ///
+    /// Returns a terminal mismatch.
     fn terminal(
         &self,
         v: &mut V,
         yr: &[V::E],
         ris_tail: &[V::E],
-        weight_at: impl WeightAt<V>,
+        weight_at: impl FnOnce(&mut V, &[V::E]) -> V::E,
     ) -> Result<(), WhirError> {
-        let weight = levels_weight(v, &self.levels, &self.ris, ris_tail);
-        let weight = oods_weight(v, &self.oods, &self.ris, ris_tail, weight);
-        // `ris ++ ris_tail` is the fold challenges in ROUND order, and the first `initial_k` rounds are the lane fold,
-        // which binds the committed witness's TOP `initial_k` variables (lane `l` is the stack block `q[l·H ..)`).
-        // Rotating by `initial_k` re-indexes the point by witness variable, so the caller's weight is in witness coordinates.
+        let tail = ris_tail.len();
+        let zero = v.zero();
+        let mut weight = zero;
+        for ctx in &self.levels {
+            let folded = ctx.log_msg_cols - tail;
+            let mut point = self.ris[ctx.ris_start..ctx.ris_start + folded].to_vec();
+            point.extend_from_slice(ris_tail);
+            let at = ctx.basis_at(v, &point);
+            weight = v.mul_add(ctx.beta, at, weight);
+        }
+        for ctx in &self.oods {
+            let folded = ctx.z.len() - tail;
+            let at = self.ris[ctx.ris_start..ctx.ris_start + folded].iter().chain(ris_tail);
+            let mut scalar = ctx.beta;
+            for (&z, &x) in ctx.z.iter().zip(at) {
+                let s = v.add(z, x);
+                scalar = v.times_one_plus(scalar, s);
+            }
+            weight = v.add(weight, scalar);
+        }
+        // Why rotate: `ris ++ ris_tail` is the fold challenges in round order.
+        // - The first `initial_k` rounds are the lane fold, which binds the witness's top `initial_k` variables.
+        // - Rotating left by `initial_k` indexes the point by witness variable, as the caller's weight expects.
         let mut full_point = self.ris.clone();
         full_point.extend_from_slice(ris_tail);
         full_point.rotate_left(self.config.initial_k());
-        let caller = weight_at.evaluate(v, &full_point);
+        let caller = weight_at(v, &full_point);
         let weight = v.add(weight, caller);
         let folded_yr = v.mle(yr, ris_tail);
         let lhs = v.mul(weight, folded_yr);
@@ -668,37 +579,31 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
     }
 }
 
-/// The level-0 enforced sum over `K` rows: `sum_i w_i <row_i, eq(v, .)>`.
-///
-/// Each row's inner product is its own, so the first query's weight, one, costs no product in rows.
-fn base_enforced_sum<V: OpeningVerifier>(rows: &BaseRows<V::K>, v: &mut V, point: &[V::E], weights: &[V::E]) -> V::E {
-    let rows = &rows.0;
-    let eq = v.eq_table_prefix(point, rows[0].len());
-    let zero = v.zero();
-    let mut acc = zero;
-    for i in 0..rows.len().min(weights.len()) {
-        let row = &rows[i];
-        let mut inner = zero;
-        for j in 0..eq.len().min(row.len()) {
-            inner = v.mul_k_add(eq[j], row[j], inner);
-        }
-        acc = v.mul_add(weights[i], inner, acc);
+impl<K: Copy> BaseRows<K> {
+    /// The level-0 enforced sum over rows of `K`: `sum_i w_i <row_i, eq(point, .)>`.
+    ///
+    /// Each row's inner product is taken alone, then scaled by its weight.
+    /// So the first query's weight, one, costs no product in rows.
+    fn enforced_sum<V: OpeningVerifier<K = K>>(&self, v: &mut V, point: &[V::E], weights: &[V::E]) -> V::E {
+        let rows = &self.0;
+        let eq = v.eq_table_prefix(point, rows[0].len());
+        let zero = v.zero();
+        (rows.iter().zip(weights)).fold(zero, |acc, (row, &w)| {
+            let inner = (eq.iter().zip(row)).fold(zero, |s, (&e, &k)| v.mul_k_add(e, k, s));
+            v.mul_add(w, inner, acc)
+        })
     }
-    acc
 }
 
-/// A later level's enforced sum over `E` rows: `sum_l eq(v, l) sum_i w_i row_i[l]`.
-fn ext_enforced_sum<A: Arith>(rows: &ExtRows<A::E>, v: &mut A, point: &[A::E], weights: &[A::E]) -> A::E {
-    let rows = &rows.0;
-    let eq = v.eq_table_prefix(point, rows[0].len());
-    let zero = v.zero();
-    let mut acc = zero;
-    for (l, &e) in eq.iter().enumerate() {
-        let mut column = zero;
-        for i in 0..rows.len().min(weights.len()) {
-            column = v.mul_add(weights[i], rows[i][l], column);
-        }
-        acc = v.mul_add(e, column, acc);
+impl<E: Copy> ExtRows<E> {
+    /// A later level's enforced sum over rows of `E`: `sum_l eq(point, l) sum_i w_i row_i[l]`.
+    fn enforced_sum<V: OpeningVerifier<E = E>>(&self, v: &mut V, point: &[E], weights: &[E]) -> E {
+        let rows = &self.0;
+        let eq = v.eq_table_prefix(point, rows[0].len());
+        let zero = v.zero();
+        (eq.iter().enumerate()).fold(zero, |acc, (l, &e)| {
+            let column = (rows.iter().zip(weights)).fold(zero, |s, (row, &w)| v.mul_add(w, row[l], s));
+            v.mul_add(e, column, acc)
+        })
     }
-    acc
 }

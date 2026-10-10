@@ -444,6 +444,125 @@ fn opening_rows(
     (done.circuit, done.failures, finished)
 }
 
+const FRESH_OPENING_LABEL: &[u8] = b"rec-verifier-fresh-opening";
+
+// Keep the original wires in one builder while the opening uses a separate transcript.
+fn fresh_opening_rows(
+    original_label: &[u8],
+    shape: StackShape,
+    rate: Rate,
+    rings: &[RingSwitch],
+    header: ProofSource<'_>,
+    opening: ProofSource<'_>,
+) -> (Circuit, Vec<Unsatisfied>, bool) {
+    let mut b = Builder::new();
+    let mut original = Transcript::from_label(&mut b, original_label, header);
+    let commitment = {
+        let mut r = Rows::new(&mut b, &mut original);
+        infallible(Commitment::read(&mut r, shape, rate))
+    };
+    let header_finished = original.finished();
+    let mut fresh = Transcript::from_label(&mut b, FRESH_OPENING_LABEL, opening);
+    {
+        let mut r = Rows::new(&mut b, &mut fresh);
+        let rings = ring_wires(&mut r, rings);
+        infallible(commitment.verify(&mut r, &[], &rings));
+    }
+    let finished = header_finished && fresh.finished();
+    let done = b.finish();
+    (done.circuit, done.failures, finished)
+}
+
+#[test]
+fn a_fresh_opening_keeps_the_original_record_in_both_verifiers() {
+    use pcs::stack::{CommittedStack, StackCommitment, Statement};
+
+    const OTHER_ORIGINAL_LABEL: &[u8] = b"rec-verifier-other-original";
+    let shape = StackShape {
+        mu: crate::pcs::MIN_MU,
+        n_lanes: N_LANES,
+    };
+    let rate = Rate::MIN;
+    let config = pcs::whir::config_for_rate(shape.mu, usize::from(rate.log_inv_rate())).expect("supported profile");
+    let mut rng = Rng::new(0x7265_636f_7264);
+    let q: Vec<F64> = (0..shape.committed_len()).map(|_| F64(rng.next_u64())).collect();
+    let vars = shape.mu - crate::pcs::LOG_BATCH;
+    let point = rng.ext_vec(vars);
+    let rings = [RingSwitch {
+        offset: 0,
+        qflock_vars: vars,
+        claims: vec![SliceClaim {
+            s_hat_v: slices(&q[..1 << vars], &point),
+            suffix_point: point,
+        }],
+    }];
+    let mut original = ProverState::from_label(LABEL);
+    let committed = CommittedStack::new(&mut original, &q, shape.mu, config.clone());
+    let header = original.into_proof();
+    let mut other = ProverState::from_label(OTHER_ORIGINAL_LABEL);
+    let foreign = CommittedStack::new(&mut other, &q, shape.mu, config.clone());
+    assert_eq!(committed.root(), foreign.root());
+    let other_header = other.into_proof();
+
+    let read_header = |label: &[u8], header: &ProofTranscript| {
+        let mut vs = VerifierState::from_label(label, header);
+        let record = StackCommitment::receive(&mut vs, shape.mu, shape.n_lanes, config.clone()).expect("a record");
+        vs.finish().expect("only the original commitment");
+        (record, vs.into_raw_proof())
+    };
+    let (record, raw_header) = read_header(LABEL, &header);
+    let (foreign_record, foreign_raw_header) = read_header(OTHER_ORIGINAL_LABEL, &other_header);
+    let mut fresh = ProverState::from_label(FRESH_OPENING_LABEL);
+    committed.open(
+        &mut fresh,
+        &q,
+        Statement {
+            points: &[],
+            rings: &rings,
+        },
+    );
+    let opening = fresh.into_proof();
+    let mut vs = VerifierState::from_label(FRESH_OPENING_LABEL, &opening);
+    record
+        .verify(
+            &mut vs,
+            Statement {
+                points: &[],
+                rings: &rings,
+            },
+        )
+        .expect("the original record works in a separate session");
+    vs.finish().expect("only the fresh opening");
+    let raw_opening = vs.into_raw_proof();
+    let rows = |label, header, opening| fresh_opening_rows(label, shape, rate, &rings, header, opening);
+    let (circuit, failures, finished) = rows(LABEL, ProofSource::Proof(&raw_header), ProofSource::Proof(&raw_opening));
+    assert!(failures.is_empty(), "honest fresh-session rows: {failures:?}");
+    assert!(finished, "both transcripts must be consumed independently");
+    assert!(
+        circuit == rows(LABEL, ProofSource::Shape, ProofSource::Shape).0,
+        "the fresh-session shape must build the same constraints",
+    );
+
+    let mut vs = VerifierState::from_label(FRESH_OPENING_LABEL, &opening);
+    assert_eq!(
+        foreign_record.verify(
+            &mut vs,
+            Statement {
+                points: &[],
+                rings: &rings,
+            },
+        ),
+        Err(WhirError::CommitmentMismatch),
+    );
+    let (_, failures, finished) = rows(
+        OTHER_ORIGINAL_LABEL,
+        ProofSource::Proof(&foreign_raw_header),
+        ProofSource::Proof(&raw_opening),
+    );
+    assert!(finished, "row constraints must retain the complete fresh transcript");
+    assert!(!failures.is_empty(), "the same Merkle root must not substitute another original context");
+}
+
 // Commit and open, then verify natively and in rows: an honest opening holds in both, and a tampered claim fails both at the terminal check.
 fn check_opening(mu: usize, log_inv_rate: u8, seed: u64) {
     let what = format!("mu {mu}, log_inv_rate {log_inv_rate}");
