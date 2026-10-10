@@ -243,17 +243,17 @@ impl CommittedStack {
     }
 
     /// The commitment's Merkle root.
-    pub fn root(&self) -> Hash {
+    pub const fn root(&self) -> Hash {
         self.record.root()
     }
 
     /// The complete immutable commitment used by every opening.
-    pub fn record(&self) -> &Commitment {
+    pub const fn record(&self) -> &Commitment {
         &self.record
     }
 
     /// The committed stack's encoding shape.
-    pub fn shape(&self) -> CommitmentShape {
+    pub const fn shape(&self) -> CommitmentShape {
         self.record.shape()
     }
 
@@ -363,17 +363,17 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
     }
 
     /// The complete original commitment used by every opening.
-    pub fn record(&self) -> &Commitment<E, R, K> {
+    pub const fn record(&self) -> &Commitment<E, R, K> {
         &self.record
     }
 
     /// The commitment's Merkle root.
-    pub fn root(&self) -> R {
+    pub const fn root(&self) -> R {
         self.record.root()
     }
 
     /// The committed stack's encoding shape.
-    pub fn shape(&self) -> CommitmentShape {
+    pub const fn shape(&self) -> CommitmentShape {
         self.record.shape()
     }
 
