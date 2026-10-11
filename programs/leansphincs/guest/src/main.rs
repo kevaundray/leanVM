@@ -1,31 +1,51 @@
-//! Verify the leanSPHINCS signatures the advice holds: their count, then for each a public
-//! key, a message and a signature.
+//! Verify the leanSPHINCS signatures the advice holds, in groups: the number of groups, then for
+//! each a message, a count, and that many public keys and signatures.
 //!
-//! Each claim (key, message) is committed, so the output is the digest of the claims.
+//! Each group's signatures are verified against its message, and the signer set they form
+//! (`leanvm_guest::signers`: the claims in the advice's order) is digested as they are read;
+//! that digest is the one value committed.
+//!
+//! A set writes its SPHINCS claims as runs of one message, so a group opens a run only if it
+//! has a signature and its message is not the open run's: the digest is the set's whatever the
+//! advice's grouping.
 //!
 //! A bad signature leaves the run without a proof.
 #![no_std]
 #![no_main]
 
 use leansphincs::{Message, PublicKey, Signature};
+use leanvm_guest::signers::{SPHINCS, SignerStream};
 use leanvm_guest::{commit, read, read_unchecked};
 
 leanvm_guest::advice_words!(1 << 16);
 
 #[unsafe(no_mangle)]
 extern "C" fn main() {
-    let n = *read::<u64>();
-    for _ in 0..n {
-        // Read in place. SAFETY: both types are `repr(C)` words, with no padding, and any
-        // words are one (see their definitions).
-        let public_key = unsafe { read_unchecked::<PublicKey>() };
+    let mut signers = SignerStream::new();
+    // The message of the open run, if any.
+    let mut open: Option<&Message> = None;
+    let n_groups = *read::<u64>();
+    for _ in 0..n_groups {
         let message = read::<Message>();
-        let signature = unsafe { read_unchecked::<Signature>() };
+        let n = *read::<u64>();
+        if n != 0 && open != Some(message) {
+            signers.group(SPHINCS, 0, message);
+            open = Some(message);
+        }
+        for _ in 0..n {
+            // Read in place. SAFETY: both types are `repr(C)` words, with no padding, and any
+            // words are one (see their definitions).
+            let public_key = unsafe { read_unchecked::<PublicKey>() };
+            let signature = unsafe { read_unchecked::<Signature>() };
 
-        leansphincs::verify(public_key, message, signature).expect("every signature verifies");
+            leansphincs::verify(public_key, message, signature).expect("every signature verifies");
 
-        commit(&public_key.root);
-        commit(&public_key.public_param);
-        commit(message);
+            let PublicKey {
+                root: [r0, r1],
+                public_param: [p0, p1],
+            } = *public_key;
+            signers.key(&[r0, r1, p0, p1]);
+        }
     }
+    commit(&signers.finish());
 }

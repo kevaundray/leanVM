@@ -1,17 +1,19 @@
 //! The leanXMSS program off the VM: it signs, lays the signatures out as the guest's
-//! advice, and verifies them natively for the output the guest must give.
+//! advice, and builds the signer set the guest proves, whose digest gives its output.
 //!
 //! One message at one leaf index for all signers is the Ethereum shape: validators attest to one block.
 
+use core::ops::Range;
+use leanvm::{SignerSet, XmssGroup};
 use leanvm_guest::{PublicValues, Run, as_words_unchecked};
 use leanxmss::{LeafIndex, Message, PublicKey, Signature};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leanxmss.elf");
 
-/// The message every signer signs.
+/// The message every signer of [`batch`] signs.
 const MESSAGE: Message = [0x4242_4242_4242_4242; 4];
-/// The leaf index every signer signs at.
+/// The leaf index every signer of [`batch`] signs at.
 const LEAF_INDEX: LeafIndex = 1234;
 
 /// A signer's secret seed: its index, then zeros.
@@ -21,33 +23,88 @@ fn seed(i: usize) -> [u8; 32] {
     seed
 }
 
-/// `n` signers, each with its own key, sign the message.
-pub fn batch(n: usize) -> Run {
-    // Keys and signatures are independent, so they are made in parallel.
-    let signed = parallel::map_collect(n, |i| {
-        let (sk, pk) = leanxmss::key_gen(seed(i), LEAF_INDEX);
-        (pk, sk.sign(&MESSAGE).expect("a valid encoding"))
+/// Signers that sign one message at one leaf index.
+///
+/// Signer `i` signs at a leaf index with its key for that leaf index, from `i`'s seed: so a signer in two
+/// groups at one leaf index is one key, and at two leaf indices is two keys.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Group {
+    /// The leaf index.
+    pub leaf_index: LeafIndex,
+    /// The message.
+    pub message: Message,
+    /// The signers, by index.
+    pub signers: Range<usize>,
+}
+
+/// Signatures as the guest reads them, and the signer set it proves.
+#[derive(Clone, Debug)]
+pub struct Batch {
+    /// The guest's advice, and the output it must give: the BLAKE2s of `set`'s digest, the one value it commits.
+    pub run: Run,
+    /// The claims the guest verifies, one XMSS group per [`Group`], in their order (not canonical).
+    pub set: SignerSet,
+}
+
+/// `n` signers, each with its own key, sign the message at the leaf index: one group.
+pub fn batch(n: usize) -> Batch {
+    batch_groups(&[Group {
+        leaf_index: LEAF_INDEX,
+        message: MESSAGE,
+        signers: 0..n,
+    }])
+}
+
+/// Each group's signers sign its message at its leaf index.
+pub fn batch_groups(groups: &[Group]) -> Batch {
+    // Every group's signers, one after the other; their keys and signatures are independent, so made in parallel.
+    let jobs: Vec<(&Group, usize)> = (groups.iter())
+        .flat_map(|g| g.signers.clone().map(move |i| (g, i)))
+        .collect();
+    let signed = parallel::map_collect(jobs.len(), |j| {
+        let (g, i) = jobs[j];
+        let (sk, pk) = leanxmss::key_gen(seed(i), g.leaf_index);
+        (pk, sk.sign(&g.message).expect("a valid encoding"))
     });
-    // What the guest reads: the count, then key, leaf index, message and signature for each.
-    let mut advice = vec![n as u64];
-    // What it commits: each claim, key, leaf index and message.
+    let mut signed = signed.iter();
+    // What the guest reads: the number of groups, then for each its leaf index, message and count, then each key
+    // and signature.
+    let mut advice = vec![groups.len() as u64];
+    let mut set = SignerSet::new();
+    for g in groups {
+        advice.push(g.leaf_index.into());
+        advice.extend(g.message);
+        advice.push(g.signers.len() as u64);
+        let mut keys = Vec::with_capacity(g.signers.len());
+        for (pk, signature) in signed.by_ref().take(g.signers.len()) {
+            leanxmss::verify(pk, g.leaf_index, &g.message, signature).expect("honest signatures verify");
+            advice.extend(words_of_key(pk));
+            advice.extend(words_of_signature(signature));
+            keys.push(key(pk));
+        }
+        set.xmss.push(XmssGroup {
+            leaf_index: g.leaf_index,
+            message: g.message,
+            keys,
+        });
+    }
+    // What it commits: the set's digest.
     let mut public = PublicValues::new();
-    for (pk, signature) in &signed {
-        leanxmss::verify(pk, LEAF_INDEX, &MESSAGE, signature).expect("honest signatures verify");
-        advice.extend(words_of_key(pk));
-        advice.push(LEAF_INDEX.into());
-        advice.extend(MESSAGE);
-        advice.extend(words_of_signature(signature));
-        public
-            .commit(&pk.merkle_root)
-            .commit(&pk.public_param)
-            .commit(&u64::from(LEAF_INDEX))
-            .commit(&MESSAGE);
+    public.commit(&set.digest());
+    Batch {
+        run: Run {
+            advice,
+            expected: public.digest(),
+        },
+        set,
     }
-    Run {
-        advice,
-        expected: public.digest(),
-    }
+}
+
+/// A key as a signer set holds it: its Merkle root, then its public parameter.
+const fn key(pk: &PublicKey) -> [u64; 4] {
+    let [r0, r1] = pk.merkle_root;
+    let [p0, p1] = pk.public_param;
+    [r0, r1, p0, p1]
 }
 
 /// A key as the words the guest reads it from.
@@ -66,6 +123,7 @@ const fn words_of_signature(signature: &Signature) -> &[u64] {
 mod tests {
     use super::*;
     use leanvm::{Machine, Program, Trap};
+    use leanvm_guest::signers::{SignerStream, XMSS};
     use leanxmss::XmssVerifyError::{InvalidEncoding, InvalidMerklePath};
     use leanxmss::{PublicKey, Signature};
     use primitives::hash::{digest_words, hash};
@@ -167,48 +225,125 @@ mod tests {
         Machine::new(program.rv(), &run.advice).run()
     }
 
+    /// The words of a key and of a signature in the advice.
+    const KEY: usize = size_of::<PublicKey>() / 8;
+    const SIGNATURE: usize = size_of::<Signature>() / 8;
+
+    /// The digest the guest's stream computes over the advice, read as the guest reads it, signatures unchecked.
+    fn streamed(advice: &[u64]) -> [u64; 4] {
+        let mut words = advice;
+        let mut take = |n: usize| {
+            let (head, tail) = words.split_at(n);
+            words = tail;
+            head
+        };
+        let mut signers = SignerStream::new();
+        for _ in 0..take(1)[0] {
+            let leaf_index = take(1)[0];
+            signers.group(XMSS, leaf_index, take(4).try_into().unwrap());
+            for _ in 0..take(1)[0] {
+                signers.key(take(KEY).try_into().unwrap());
+                take(SIGNATURE);
+            }
+        }
+        assert!(words.is_empty(), "the guest reads all its advice");
+        signers.finish()
+    }
+
+    /// Message `i`: the word `i`, then zeros.
+    const fn message(i: u64) -> Message {
+        [i, 0, 0, 0]
+    }
+
+    /// Groups at two leaf indices: two messages at one, overlapping signers, and an empty group.
+    fn groups() -> [Group; 4] {
+        let group = |leaf_index, message, signers| Group {
+            leaf_index,
+            message,
+            signers,
+        };
+        [
+            group(1234, message(1), 0..3),
+            group(7, message(1), 1..3),
+            group(1234, message(2), 2..5),
+            group(7, message(3), 0..0),
+        ]
+    }
+
+    #[test]
+    fn leanxmss_outputs_the_digest_of_its_signer_set() {
+        // Invariant: the guest commits one value, the digest of the signer set the host builds, which a stream over
+        // the advice also computes.
+        let outputs = |batch: &Batch| {
+            let mut public = PublicValues::new();
+            public.commit(&batch.set.digest());
+            assert_eq!(batch.run.expected, public.digest(), "natively");
+            assert_eq!(streamed(&batch.run.advice), batch.set.digest(), "streamed");
+            assert_eq!(on_the_vm(&batch.run), Ok(batch.run.expected), "on the VM");
+        };
+
+        // One group, every count up to 5: keys are written two to a block, so none, odd and even counts.
+        for n in 0..=5 {
+            let batch = batch(n);
+            assert_eq!(batch.set.xmss.len(), 1);
+            assert_eq!(batch.set.n_claims(), n);
+            assert_eq!(batch.run.advice.len(), 1 + 6 + n * (KEY + SIGNATURE));
+            outputs(&batch);
+        }
+
+        // Several groups, in the advice's order.
+        let groups = groups();
+        let batch = batch_groups(&groups);
+        outputs(&batch);
+        let set = &batch.set;
+        assert_eq!(set.xmss.len(), groups.len());
+        for (g, group) in set.xmss.iter().zip(&groups) {
+            assert_eq!(
+                (g.leaf_index, g.message, g.keys.len()),
+                (group.leaf_index, group.message, group.signers.len())
+            );
+        }
+        // Signer 2 at leaf index 1234 under two messages: one key in two groups.
+        assert_eq!(set.xmss[0].keys[2], set.xmss[2].keys[0]);
+        // Signer 1 at another leaf index: another key.
+        assert_ne!(set.xmss[0].keys[1], set.xmss[1].keys[0]);
+        // The set is not canonical (its groups are in the advice's order), and holds what its canonical form holds.
+        assert!(set.check(leanvm::Capacity::MAIN).is_err());
+        assert_eq!(
+            SignerSet::from_claims(set.claims()).n_claims(),
+            set.n_claims(),
+            "no claim repeats"
+        );
+    }
+
     #[test]
     fn the_guest_checks_what_the_native_code_checks() {
-        // The guest on the interpreter outputs what its code computes natively.
-        let mut run = batch(3);
-        assert_eq!(on_the_vm(&run), Ok(run.expected));
+        let batch = batch_groups(&groups()[..3]);
+        assert_eq!(on_the_vm(&batch.run), Ok(batch.run.expected));
+        let forged = |at: usize, change: u64| {
+            let mut run = batch.run.clone();
+            run.advice[at] ^= change;
+            on_the_vm(&run)
+        };
+        // Where the second group starts: after the count and the first group's header and 3 entries.
+        let second = 1 + 6 + 3 * (KEY + SIGNATURE);
 
         // Mutation: the top bit of the advice's last word, a node of the last signature's path.
         //
         //     the guest's check fails → it panics → an illegal instruction → no output
-        let mut forged = run.advice.clone();
-        *forged.last_mut().unwrap() ^= 1 << 63;
-        assert!(on_the_vm(&Run { advice: forged, ..run }).is_err());
+        assert!(forged(batch.run.advice.len() - 1, 1 << 63).is_err());
 
-        // Mutation: the first leaf index word (after the count and the key) with bit 32 set.
+        // Mutation: the second group's message, then a word of its first signature.
+        //
+        //     its signatures were made under another message, or are changed → they fail
+        assert!(forged(second + 1, 1).is_err());
+        assert!(forged(second + 6 + KEY, 1).is_err());
+
+        // Mutation: the first group's leaf index with bit 32 set.
         //
         //     claimed leaf index   2^32 + 1234
         //     truncated            1234, which verifies
-        //     → the guest refuses the word rather than verify at another leaf index than committed
-        run = batch(1);
-        run.advice[1 + 4] |= 1 << 32;
-        assert!(on_the_vm(&run).is_err());
-    }
-
-    #[test]
-    fn leanxmss_outputs_the_blake2s_of_its_claims() {
-        // Invariant: the output is BLAKE2s-256 of the claims (key, leaf index, message: 9 words) back to back.
-        //
-        // Every count up to 9 claims: a claim is 72 bytes, so its end falls at each offset of a 64-byte block, 8 claims
-        // end on a block boundary and 0 are the empty message.
-        let claim = size_of::<PublicKey>() / 8 + 1 + MESSAGE.len();
-        let entry = claim + size_of::<Signature>() / 8;
-        for n in 0..=9 {
-            let run = batch(n);
-            // The advice is the count, then each entry: its claim, then its signature.
-            assert_eq!(run.advice.len(), 1 + n * entry);
-            let claims: Vec<u64> = run.advice[1..]
-                .chunks(entry)
-                .flat_map(|e| e[..claim].to_vec())
-                .collect();
-            let expected = digest_words(&hash(&bytes(&claims)));
-            assert_eq!(run.expected, expected, "{n} claims, natively");
-            assert_eq!(on_the_vm(&run), Ok(expected), "{n} claims, on the VM");
-        }
+        //     → the guest refuses the word rather than verify at another leaf index than it publishes
+        assert!(forged(1, 1 << 32).is_err());
     }
 }
