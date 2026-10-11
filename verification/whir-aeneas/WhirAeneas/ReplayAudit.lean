@@ -1,5 +1,6 @@
 import WhirAeneas.Replay
 import WhirAeneas.Compose
+import WhirAeneas.Sampling
 import Lean.Util.CollectAxioms
 
 /-! Axiom audit of the replay extraction and its proofs. It is separate from the other
@@ -34,6 +35,7 @@ audits because the generated namespaces declare the same top-level instance name
 #print axioms WhirAeneas.Replay.run_loop_eq
 #print axioms WhirAeneas.Replay.run_eq
 #print axioms WhirAeneas.Replay.verify_eq
+#print axioms WhirAeneas.Sampling.sample_queries_ordered_eq
 
 open Lean in
 run_cmd do
@@ -43,6 +45,7 @@ run_cmd do
     if (`WhirAeneas.Fold).isPrefixOf declarationName ||
         (`WhirAeneas.Query).isPrefixOf declarationName ||
         (`WhirAeneas.Replay).isPrefixOf declarationName ||
+        (`WhirAeneas.Sampling).isPrefixOf declarationName ||
         (`ReplaySource).isPrefixOf declarationName then
       match declarationInfo with
       | .thmInfo _ =>

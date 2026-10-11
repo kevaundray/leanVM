@@ -592,4 +592,83 @@ theorem place_loop_eq (hw : System.Platform.numBits = 64) (d : Usize) (hd : d.va
     unfold whir.sample_queries_ordered_loop1 at hloop
     exact hloop
 
+/-! ## The composed sampler -/
+
+theorem trailing_zeros_pow (x : Usize) (d : Nat) (hd : d < 64) (hx : x.val = 2 ^ d) :
+    ∃ t : U32, core.num.Usize.trailing_zeros x = .ok t ∧ t.val = d := by
+  have hne : x.val ≠ 0 := by rw [hx]; positivity
+  have hf : (List.range 64).find? (fun i => x.val.testBit i) = some d := by
+    rw [List.find?_eq_some_iff_getElem]
+    refine ⟨by simp [hx, Nat.testBit_two_pow_self], d, by simpa using hd, by simp, ?_⟩
+    intro j hj
+    simp [hx, Nat.testBit_two_pow, show d ≠ j by omega]
+  refine ⟨⟨BitVec.ofNat 32 d⟩, ?_, ?_⟩
+  · simp [core.num.Usize.trailing_zeros, hne, hf]
+  · show (BitVec.ofNat 32 d).toNat = d
+    simp; omega
+
+/-- The generated `sample_queries_ordered`, reading the squeezes `sq` from its challenger,
+returns exactly the model's `deriveQueries` of those squeezes read as extension elements,
+for a power-of-two block of depth `d` with `0 < d < 64`. -/
+theorem sample_queries_ordered_eq (hw : System.Platform.numBits = 64) {T0 : Type}
+    (Ch : fiat_shamir.transcript.Challenger T0) (tape : T0 → List primitives.field.gf2_64x3.F192)
+    (ht : SqueezeTape Ch tape) (ch : T0) (block_len count : Usize) (d : Nat) (hd0 : 0 < d) (hd : d < 64)
+    (hb : block_len.val = 2 ^ d) (sq : List primitives.field.gf2_64x3.F192)
+    (hsq : sq.length = (count.val + 192 / d - 1) / (192 / d)) (rest : List primitives.field.gf2_64x3.F192)
+    (hch : tape ch = sq ++ rest) :
+    ∃ out ch', whir.sample_queries_ordered Ch ch block_len count = .ok (out, ch') ∧ tape ch' = rest ∧
+      deriveQueries d count.val (sq.map toE).toArray = some (out.val.map (·.val)).toArray := by
+  have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  obtain ⟨t, htz, et⟩ := trailing_zeros_pow block_len d hd hb
+  obtain ⟨dU, hdU⟩ : ∃ dU : Usize, UScalar.cast .Usize t = dU := ⟨_, rfl⟩
+  have edU : dU.val = d := by rw [← hdU, UScalar.cast_val_eq, hU, et]; omega
+  obtain ⟨per, hdiv, eper⟩ := UScalar.div_spec 192#usize (y := dU) (by omega)
+  have hper : per.val = 192 / d := by rw [eper, edU]; simp
+  have hp0 : 0 < 192 / d := Nat.div_pos (by omega) hd0
+  obtain ⟨ch', out1, hl0, hch', e1⟩ := sample_loop_eq hw Ch tape ht block_len count dU per (by omega) (by omega)
+    (by rw [edU]; exact hb) (by rw [hper, edU]) sq (by rw [hper]; exact hsq) rest sq.length 0 ch
+    (alloc.vec.Vec.with_capacity Usize count) (by simp) (by simp) (by simpa using hch)
+    (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]) (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
+  obtain ⟨strataV, hstr, estr⟩ := strata_eq hw count dU (by omega)
+  have hcnt : count.val < 2 ^ 64 := by have := count.hBounds; simpa [hw] using this
+  have hslen : (Concrete.strata count.val d).toList.length = count.val := by
+    rw [strata_model, ← strataList_trim _ _ hcnt, strataList_length]; exact Nat.mod_eq_of_lt hcnt
+  set raws := (List.range count.val).map (rawAt (sq.map sqNat) dU.val per.val) with hraws
+  have hlenS : strataV.val.length = raws.length := by
+    have := congrArg List.length estr; simp only [List.length_map] at this; rw [this, edU, hslen]; simp [hraws]
+  obtain ⟨out', hl1, e'⟩ := place_loop_eq hw dU (by omega) strataV raws hlenS (by
+      intro p hp
+      rw [estr, strata_model] at hp
+      exact strataList_mem _ _ _ p hp) _ 0#usize out1 rfl (by simp) (by
+      rw [e1]
+      apply List.ext_getElem (by simp [hraws])
+      intro k h1 h2
+      have hk : k < count.val := by simpa [hraws] using h1
+      simp [hraws, hk])
+  refine ⟨out', ch', ?_, hch', ?_⟩
+  · simp [whir.sample_queries_ordered, htz, lift, hdU, hdiv, hl0, hstr, hl1]
+  · rw [e']
+    unfold deriveQueries
+    have hd' : ¬ (d == 0 || decide (d > 64)) = true := by simp; omega
+    simp only [hd', Bool.false_eq_true, ↓reduceIte, List.size_toArray, List.length_map, hsq, bne_self_eq_false]
+    simp only [Concrete.tab, Option.pure_def, Option.some.injEq]
+    rw [List.map_toArray, show raws.length = count.val by simp [hraws]]
+    congr 1
+    apply List.map_congr_left
+    intro i hi
+    have hi : i < count.val := List.mem_range.mp hi
+    have hq : i / (192 / d) < sq.length := by
+      rw [hsq, Nat.lt_iff_add_one_le, Nat.le_div_iff_mul_le hp0, Nat.add_mul]
+      have := Nat.div_mul_le_self i (192 / d); omega
+    have hs : (List.map pr strataV.val)[i]! = (Concrete.strata count.val d)[i]! := by
+      rw [estr, edU, getElem!_pos _ _ (by rw [hslen]; exact hi), getElem!_pos _ _ (by
+        rw [← Array.length_toList, hslen]; exact hi)]
+      simp
+    have hr : raws[i]! = (sqNat sq[i / (192 / d)] / 2 ^ (i % (192 / d) * d)) % 2 ^ d := by
+      rw [getElem!_pos _ _ (by simp [hraws, hi])]
+      simp [hraws, rawAt, hper, edU, hq]
+    have hl : ((sq.map toE).toArray[i / (192 / d)]!).toNat = sqNat sq[i / (192 / d)] := by
+      rw [getElem!_pos _ _ (by simp [hq])]; simp [toE_toNat, sqNat]
+    rw [hs, hr, hl, place, edU]
+
 end WhirAeneas.Sampling
