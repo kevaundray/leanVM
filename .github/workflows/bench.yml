@@ -90,6 +90,8 @@ jobs:
           - name: aggregate-leanxmss-100-4to1-1thread
           - name: aggregate-leanxmss-100-4to1-4thread
           - name: aggregate-leanxmss-100-4to1-8thread
+          - name: aggregate-signers-leanxmss-100-2to1-16thread
+          - name: aggregate-signers-leanxmss-100-4to1-16thread
           - name: flock-class-batch-16thread
           - name: pcs-throughput-16thread
           - name: blake2s-batch-16thread
