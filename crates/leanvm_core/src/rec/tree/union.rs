@@ -1,13 +1,13 @@
-//! The union of signer sets in rows: a node reads its children's sets, declares a set of their claims, and proves
+//! The union of claim sets in rows: a node reads its children's sets, declares a set of their claims, and proves
 //! every declared claim is one of theirs.
 //!
-//! Each side is a pool of items, each item one compression of a set's written form ([`crate::signers`]):
+//! Each side is a pool of items, each item one compression of a set's written form ([`super::multiset`]):
 //!
 //! - The children's pool holds one run per child, in order, each starting at a chunk's first item; a run is its
 //!   child's items, then padding to its last chunk's end. The declared pool holds one run, the node's set.
-//! - Each item's kind (header, keys, end, padding) and whether its second key is one are hinted bits, which give
-//!   its counter word. A set's counters say what each item is, so the chain of a run equals its set's digest only
-//!   if its bits are those of the set's own written form, and the run is read as that set.
+//! - Each item's kind (header, members, end, padding) and whether its second member is one are hinted bits, which
+//!   give its counter word. A set's counters say what each item is, so the chain of a run equals its set's digest
+//!   only if its bits are those of the set's own written form, and the run is read as that set.
 //! - Every run's end item holds the digest of its run, and the run's place says whose: a one-hot over the children,
 //!   moved on at each chunk that begins a run. So a pool's contents are fixed by the digests before any challenge.
 //! - Each child claim has a selection bit. A challenge point `(X, A)` is drawn from a transcript of the children's
@@ -15,19 +15,18 @@
 //!
 //!   ```text
 //!   prod over child slots (1 + s · valid · (X + 1 + fp(c)))  ==  prod over declared slots (1 + valid · (X + 1 + fp(d)))
-//!   fp(t) = sum over k < 16 of eq(A, k) · t[k],   t = (1, scheme, leaf_index, message[0..4], key[0..4], 0, ...)
+//!   fp(t) = sum over k < 16 of eq(A, k) · t[k],   t = (1, label[0..6], member[0..4], 0, ...)
 //!   ```
 //!
 //!   which holds at a random point only if the selected child claims and the declared claims are one multiset.
-//!   A claim's tuple carries its scheme, leaf index and message, so a key can only back a declared claim of its
-//!   own group.
+//!   A claim's tuple carries its label, so a member can only back a declared claim of its own label.
 //!
-//! A run's group fingerprint is reset at its start, so a set read at any place in a pool is read the same way.
+//! A run's label fingerprint is reset at its start, so a set read at any place in a pool is read the same way.
 
+use super::multiset::{Capacity, Claim, ClaimSet, Item, code};
 use crate::rec::circuit::{Builder, Dw, Ew, Kw, PARAM_IV};
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rv::Hash;
-use crate::signers::{Capacity, Claim, Item, Scheme, SignerSet, code};
 use fiat_shamir::SessionId;
 use primitives::field::F192;
 use std::collections::HashMap;
@@ -36,7 +35,7 @@ use std::collections::HashMap;
 pub(crate) const CHUNK: usize = 32;
 
 /// The tag of the union's transcript's session, beside the tree's.
-const SESSION_TAG: &[u8] = b"leanvm-signers-1";
+const SESSION_TAG: &[u8] = b"leanvm-claim-union-1";
 
 /// A pool's size, in chunks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,9 +60,9 @@ pub(crate) struct UnionShape {
 enum ItemKind {
     /// A group's header.
     Header,
-    /// A block of keys, the second one a key if `pair`.
-    Keys {
-        /// Whether the second key is one.
+    /// A block of members, the second one a member if `pair`.
+    Members {
+        /// Whether the second member is one.
         pair: bool,
     },
     /// A set's end.
@@ -77,7 +76,7 @@ enum ItemKind {
 struct FillItem {
     block: [u64; 8],
     kind: ItemKind,
-    /// Whether each key slot is selected.
+    /// Whether each member slot is selected.
     select: [bool; 2],
 }
 
@@ -113,15 +112,15 @@ pub(crate) enum FillError {
 struct ItemWires {
     /// The block's words.
     m: [Kw; 8],
-    /// One for a block of keys.
-    is_keys: Ew,
-    /// One for a block of two keys.
+    /// One for a block of members.
+    is_members: Ew,
+    /// One for a block of two members.
     is_pair: Ew,
     /// Zero for a header.
     not_header: Ew,
     /// Whether the item starts a run: a constant at the pool's first item, a begin bit at a chunk's first.
     start: Start,
-    /// The key slots' selection bits, on the children's side.
+    /// The member slots' selection bits, on the children's side.
     select: Option<[Kw; 2]>,
 }
 
@@ -149,8 +148,8 @@ impl ItemKind {
     const fn of(item: &Item) -> Self {
         if item.code & code::END != 0 {
             Self::End
-        } else if item.code & code::KEY != 0 {
-            Self::Keys {
+        } else if item.code & code::MEMBER != 0 {
+            Self::Members {
                 pair: item.code & code::PAIR != 0,
             }
         } else {
@@ -158,11 +157,11 @@ impl ItemKind {
         }
     }
 
-    /// Its hinted bits: `b0`, `b1` (header 00, keys 10, end 01, padding 11), then whether its second key is one.
+    /// Its hinted bits: `b0`, `b1` (header 00, members 10, end 01, padding 11), then whether its second member is one.
     const fn bits(self) -> [bool; 3] {
         match self {
             Self::Header => [false, false, false],
-            Self::Keys { pair } => [true, false, pair],
+            Self::Members { pair } => [true, false, pair],
             Self::End => [false, true, false],
             Self::Pad => [true, true, false],
         }
@@ -197,7 +196,7 @@ impl UnionShape {
 
 impl PoolFill {
     /// A pool holding these sets, one run each, in order.
-    fn new(shape: PoolShape, sets: &[&SignerSet]) -> Option<Self> {
+    fn new(shape: PoolShape, sets: &[&ClaimSet]) -> Option<Self> {
         let mut items = Vec::with_capacity(shape.items());
         let mut begins = vec![false; shape.chunks];
         let pad = FillItem {
@@ -223,40 +222,22 @@ impl PoolFill {
         Some(Self { items, begins })
     }
 
-    /// Every key slot's claim, by item and slot, as the rows read them.
+    /// Every member slot's claim, by item and slot, as the rows read them.
     fn slots(&self) -> Vec<(usize, usize, Claim)> {
         let mut slots = Vec::new();
-        let mut group: Option<(Scheme, u32, [u64; 4])> = None;
+        let mut label: Option<[u64; 6]> = None;
         for (i, item) in self.items.iter().enumerate() {
             if i % CHUNK == 0 && (i == 0 || self.begins[i / CHUNK]) {
-                group = None;
+                label = None;
             }
             let m = item.block;
             match item.kind {
-                ItemKind::Header => {
-                    let scheme = match m[0] {
-                        code::XMSS => Some(Scheme::Xmss),
-                        code::SPHINCS => Some(Scheme::Sphincs),
-                        _ => None,
-                    };
-                    group = scheme
-                        .zip(u32::try_from(m[1]).ok())
-                        .map(|(s, l)| (s, l, [m[2], m[3], m[4], m[5]]));
-                }
-                ItemKind::Keys { pair } => {
-                    if let Some((scheme, leaf_index, message)) = group {
+                ItemKind::Header => label = Some([m[0], m[1], m[2], m[3], m[4], m[5]]),
+                ItemKind::Members { pair } => {
+                    if let Some(label) = label {
                         for slot in 0..1 + usize::from(pair) {
-                            let key = std::array::from_fn(|j| m[4 * slot + j]);
-                            slots.push((
-                                i,
-                                slot,
-                                Claim {
-                                    scheme,
-                                    leaf_index,
-                                    message,
-                                    key,
-                                },
-                            ));
+                            let member = std::array::from_fn(|j| m[4 * slot + j]);
+                            slots.push((i, slot, Claim { label, member }));
                         }
                     }
                 }
@@ -269,24 +250,19 @@ impl PoolFill {
 
 impl UnionFill {
     /// The union's values: the children's sets, and the declared set, each of whose claims some child slot backs.
-    pub(crate) fn new(shape: &UnionShape, children: &[&SignerSet], declared: &SignerSet) -> Result<Self, FillError> {
+    pub(crate) fn new(shape: &UnionShape, children: &[&ClaimSet], declared: &ClaimSet) -> Result<Self, FillError> {
         Self::fill(shape, children, declared, true)
     }
 
     /// The union's values with each declared claim some child slot backs selected, the others left unbacked: what
     /// a prover forging coverage would hand the rows.
     #[cfg(test)]
-    pub(crate) fn unbacked(shape: &UnionShape, children: &[&SignerSet], declared: &SignerSet) -> Self {
+    pub(crate) fn unbacked(shape: &UnionShape, children: &[&ClaimSet], declared: &ClaimSet) -> Self {
         Self::fill(shape, children, declared, false).expect("the sets fit")
     }
 
     /// The union's values, refusing a claim no child slot backs if `strict`, else leaving it unbacked.
-    fn fill(
-        shape: &UnionShape,
-        children: &[&SignerSet],
-        declared: &SignerSet,
-        strict: bool,
-    ) -> Result<Self, FillError> {
+    fn fill(shape: &UnionShape, children: &[&ClaimSet], declared: &ClaimSet, strict: bool) -> Result<Self, FillError> {
         assert_eq!(children.len(), shape.arity, "one set a child");
         let mut child = PoolFill::new(shape.children, children).ok_or(FillError::Children)?;
         let declared_pool = PoolFill::new(shape.declared, &[declared]).ok_or(FillError::Declared)?;
@@ -333,7 +309,7 @@ fn pool_rows(
         F192::new(PARAM_IV[2], PARAM_IV[3], 0),
     ]
     .map(|v| b.e_const(v));
-    let [c_key, c_end, c_pair] = [code::KEY, code::END, code::PAIR].map(|c| b.e_const(F192::new(c, 0, 0)));
+    let [c_member, c_end, c_pair] = [code::MEMBER, code::END, code::PAIR].map(|c| b.e_const(F192::new(c, 0, 0)));
     let c_final = b.e_const(F192::new(0, Hash::FINAL, 0));
     let halves: Vec<[Ew; 2]> = digests.iter().map(|&d| b.d_to_halves(d)).collect();
 
@@ -374,13 +350,13 @@ fn pool_rows(
             let e0 = b.mul_k_add(one, b0, zero);
             let e1 = b.mul_k_add(one, b1, zero);
             let is_pad = b.mul_k_add(e0, b1, zero);
-            let is_keys = b.add(e0, is_pad);
+            let is_members = b.add(e0, is_pad);
             let is_end = b.add(e1, is_pad);
             let either = b.add(e0, e1);
             let not_header = b.add(either, is_pad);
-            // The second key only in a block of keys.
+            // The second member only in a block of members.
             let e_pair = b.mul_k_add(one, pair, zero);
-            let is_pair = b.mul_k_add(is_keys, pair, zero);
+            let is_pair = b.mul_k_add(is_members, pair, zero);
             b.eq_e(e_pair, is_pair);
 
             let start = match (i, k, begin) {
@@ -410,7 +386,7 @@ fn pool_rows(
             };
 
             // The counter word: its kind's bits, and the finalization word of an end.
-            let t = b.mul_k_add(c_key, b0, start_e);
+            let t = b.mul_k_add(c_member, b0, start_e);
             let t = b.mul_k_add(c_end, b1, t);
             let t = b.mul_k_add(c_pair, pair, t);
             let t = b.mul_add(c_final, is_end, t);
@@ -448,7 +424,7 @@ fn pool_rows(
             });
             items.push(ItemWires {
                 m,
-                is_keys,
+                is_members,
                 is_pair,
                 not_header,
                 start,
@@ -475,20 +451,20 @@ fn pool_rows(
 fn product(b: &mut Builder, items: &[ItemWires], point: &Point) -> Ew {
     let (zero, one) = (b.zero(), b.one());
     let w = &point.weights;
-    let mut group = zero;
+    let mut label = zero;
     let mut product = one;
     for item in items {
-        group = match item.start {
+        label = match item.start {
             Start::Yes => zero,
-            Start::If(bit) => b.mul_k_add(group, bit, group),
-            Start::No => group,
+            Start::If(bit) => b.mul_k_add(label, bit, label),
+            Start::No => label,
         };
-        // The fingerprint's group part, were the item a header: tag, scheme, leaf index, message.
+        // The fingerprint's label part, were the item a header: the tag, then the label's words.
         let header = (0..6).fold(w[0], |acc, j| b.mul_k_add(w[1 + j], item.m[j], acc));
-        let diff = b.add(header, group);
-        group = b.mul_add(item.not_header, diff, header);
-        for (slot, valid) in [item.is_keys, item.is_pair].into_iter().enumerate() {
-            let fp = (0..4).fold(group, |acc, j| b.mul_k_add(w[7 + j], item.m[4 * slot + j], acc));
+        let diff = b.add(header, label);
+        label = b.mul_add(item.not_header, diff, header);
+        for (slot, valid) in [item.is_members, item.is_pair].into_iter().enumerate() {
+            let fp = (0..4).fold(label, |acc, j| b.mul_k_add(w[7 + j], item.m[4 * slot + j], acc));
             let term = b.add(point.x1, fp);
             let factor = match item.select {
                 Some(select) => {
@@ -561,46 +537,40 @@ pub(crate) fn union_rows(
 mod tests {
     use super::*;
     use crate::rec::circuit::Unsatisfied;
-    use crate::signers::{SphincsClaim, XmssGroup};
+    use crate::rec::tree::multiset::ClaimGroup;
 
-    fn key(i: u64) -> [u64; 4] {
+    fn member(i: u64) -> [u64; 4] {
         [i, 3 * i + 1, i << 7, 0xabcd ^ i]
     }
 
-    fn group(leaf_index: u32, message: u64, keys: &[u64]) -> XmssGroup {
-        XmssGroup {
-            leaf_index,
-            message: [message, 1, 2, 3],
-            keys: keys.iter().map(|&i| key(i)).collect(),
+    fn group(tag: u64, word: u64, members: &[u64]) -> ClaimGroup {
+        ClaimGroup {
+            label: [tag, word, 1, 2, 3, 4],
+            members: members.iter().map(|&i| member(i)).collect(),
         }
     }
 
-    /// Two overlapping children, one of them with SPHINCS claims.
-    fn children() -> [SignerSet; 2] {
+    /// Two overlapping children, written out of canonical order.
+    fn children() -> [ClaimSet; 2] {
         [
-            SignerSet {
-                xmss: vec![group(5, 1, &[1, 2, 3]), group(5, 2, &[1])],
-                sphincs: vec![],
+            ClaimSet {
+                groups: vec![group(1, 5, &[1, 2, 3]), group(1, 2, &[1])],
             },
-            SignerSet {
-                xmss: vec![group(5, 1, &[3, 4]), group(7, 1, &[2])],
-                sphincs: vec![SphincsClaim {
-                    key: key(9),
-                    message: [4, 4, 4, 4],
-                }],
+            ClaimSet {
+                groups: vec![group(1, 5, &[3, 4]), group(1, 7, &[2]), group(2, 0, &[9])],
             },
         ]
     }
 
     const CAPACITY: Capacity = Capacity { claims: 24, groups: 6 };
 
-    fn union_of(sets: &[SignerSet]) -> SignerSet {
-        SignerSet::from_claims(sets.iter().flat_map(SignerSet::claims))
+    fn union_of(sets: &[ClaimSet]) -> ClaimSet {
+        ClaimSet::from_claims(sets.iter().flat_map(ClaimSet::claims))
     }
 
     /// The union's rows over these children and fill, and the checks that failed; the declared digest must be
     /// that of `expected`.
-    fn run(sets: &[SignerSet], fill: &UnionFill, expected: Option<&SignerSet>) -> Vec<Unsatisfied> {
+    fn run(sets: &[ClaimSet], fill: &UnionFill, expected: Option<&ClaimSet>) -> Vec<Unsatisfied> {
         let shape = UnionShape::new(CAPACITY, sets.len());
         let mut b = Builder::new();
         let digests: Vec<Dw> = sets.iter().map(|s| b.free_d(s.digest())).collect();
@@ -611,8 +581,8 @@ mod tests {
         b.finish().failures
     }
 
-    fn fill(sets: &[SignerSet], declared: &SignerSet) -> UnionFill {
-        let refs: Vec<&SignerSet> = sets.iter().collect();
+    fn fill(sets: &[ClaimSet], declared: &ClaimSet) -> UnionFill {
+        let refs: Vec<&ClaimSet> = sets.iter().collect();
         UnionFill::new(&UnionShape::new(CAPACITY, sets.len()), &refs, declared).expect("covered")
     }
 
@@ -620,18 +590,17 @@ mod tests {
     fn the_union_of_overlapping_children_holds() {
         let sets = children();
         let union = union_of(&sets);
-        assert_eq!(union.n_claims(), 7, "the shared key is one claim");
+        assert_eq!(union.n_claims(), 7, "the shared claim is one");
         assert_eq!(run(&sets, &fill(&sets, &union), Some(&union)), vec![]);
     }
 
     #[test]
     fn a_node_may_declare_less_or_nothing() {
         let sets = children();
-        let one_group = SignerSet {
-            xmss: vec![group(5, 1, &[1, 4])],
-            sphincs: vec![],
+        let one_group = ClaimSet {
+            groups: vec![group(1, 5, &[1, 4])],
         };
-        for declared in [one_group, SignerSet::new()] {
+        for declared in [one_group, ClaimSet::new()] {
             assert_eq!(run(&sets, &fill(&sets, &declared), Some(&declared)), vec![]);
         }
     }
@@ -639,7 +608,7 @@ mod tests {
     #[test]
     fn repeated_and_empty_children_hold() {
         let [a, _] = children();
-        let sets = [a.clone(), SignerSet::new(), a.clone()];
+        let sets = [a.clone(), ClaimSet::new(), a.clone()];
         assert_eq!(run(&sets, &fill(&sets, &a), Some(&a)), vec![]);
     }
 
@@ -657,32 +626,33 @@ mod tests {
     }
 
     #[test]
-    fn an_uncovered_claim_is_refused_by_the_prover() {
+    fn an_uncovered_claim_is_refused() {
         let sets = children();
         let mut declared = union_of(&sets);
-        declared.xmss[0].keys.push(key(99));
-        let refs: Vec<&SignerSet> = sets.iter().collect();
+        declared.groups[0].members.push(member(99));
+        let refs: Vec<&ClaimSet> = sets.iter().collect();
         let shape = UnionShape::new(CAPACITY, 2);
         assert!(matches!(
             UnionFill::new(&shape, &refs, &declared),
-            Err(FillError::NotCovered(c)) if c.key == key(99)
+            Err(FillError::NotCovered(c)) if c.member == member(99)
         ));
-        // A key at another group of its own leaf index is another claim.
-        let moved = SignerSet {
-            xmss: vec![group(5, 2, &[2])],
-            sphincs: vec![],
+        // Handed to the rows anyway, the product refuses it.
+        let forged = UnionFill::unbacked(&shape, &refs, &declared);
+        assert!(!run(&sets, &forged, Some(&declared)).is_empty());
+        // A member at another label is another claim.
+        let moved = ClaimSet {
+            groups: vec![group(1, 2, &[2])],
         };
         assert!(matches!(
             UnionFill::new(&shape, &refs, &moved),
             Err(FillError::NotCovered(_))
         ));
         // Children past the pool.
-        let big = SignerSet {
-            xmss: vec![group(1, 1, &(0..100).collect::<Vec<_>>())],
-            sphincs: vec![],
+        let big = ClaimSet {
+            groups: vec![group(1, 1, &(0..100).collect::<Vec<_>>())],
         };
         assert_eq!(
-            UnionFill::new(&shape, &[&big, &big], &SignerSet::new()).err(),
+            UnionFill::new(&shape, &[&big, &big], &ClaimSet::new()).err(),
             Some(FillError::Children)
         );
     }
@@ -695,54 +665,50 @@ mod tests {
         run(&sets, &f, None)
     }
 
+    /// The declared pool of `set`, with its digest.
+    fn declare(f: &mut UnionFill, set: &ClaimSet) {
+        f.declared = PoolFill::new(UnionShape::new(CAPACITY, 2).declared, &[set]).expect("fits");
+        f.digest = set.digest();
+    }
+
     /// A change to an honest fill, by name.
     type Forge = (&'static str, Box<dyn FnOnce(&mut UnionFill)>);
 
     #[test]
     fn forged_coverage_is_refused() {
-        let declared_key = |f: &mut UnionFill| {
-            let i = (f.declared.items.iter()).position(|it| matches!(it.kind, ItemKind::Keys { .. }));
-            i.expect("a block of keys")
-        };
         let cases: Vec<Forge> = vec![
             (
-                "a declared key changed",
-                Box::new(move |f| {
-                    let i = declared_key(f);
-                    f.declared.items[i].block[0] ^= 1;
+                "a declared member changed",
+                Box::new(|f| {
+                    let i = (f.declared.items.iter()).position(|it| matches!(it.kind, ItemKind::Members { .. }));
+                    f.declared.items[i.expect("a block of members")].block[0] ^= 1;
                 }),
             ),
             (
-                "a declared key changed, the digest with it",
+                "a declared member changed, the digest with it",
                 Box::new(|f| {
                     let mut set = union_of(&children());
-                    set.xmss[0].keys[0][0] ^= 1;
-                    let shape = UnionShape::new(CAPACITY, 2);
-                    f.declared = PoolFill::new(shape.declared, &[&set]).expect("fits");
-                    f.digest = set.digest();
+                    set.groups[0].members[0][0] ^= 1;
+                    declare(f, &set);
                 }),
             ),
             (
-                "a declared claim at another group",
+                "a declared claim at another label",
                 Box::new(|f| {
                     let mut set = union_of(&children());
-                    let k = set.xmss[0].keys.pop().expect("a key");
-                    set.xmss[1].keys.push(k);
-                    set.xmss[1].keys.sort_unstable();
-                    let shape = UnionShape::new(CAPACITY, 2);
-                    f.declared = PoolFill::new(shape.declared, &[&set]).expect("fits");
-                    f.digest = set.digest();
+                    let m = set.groups[0].members.pop().expect("a member");
+                    set.groups[1].members.push(m);
+                    set.groups[1].members.sort_unstable();
+                    declare(f, &set);
                 }),
             ),
             (
                 "a claim declared twice, selected once",
                 Box::new(|f| {
                     let mut set = union_of(&children());
-                    let k = set.xmss[0].keys[0];
-                    set.xmss[0].keys.push(k);
-                    let shape = UnionShape::new(CAPACITY, 2);
-                    f.declared = PoolFill::new(shape.declared, &[&set]).expect("fits");
-                    f.digest = set.digest();
+                    let m = set.groups[0].members[0];
+                    set.groups[0].members.push(m);
+                    declare(f, &set);
                 }),
             ),
             (
@@ -757,14 +723,13 @@ mod tests {
             (
                 "a padding slot backing a declared claim",
                 Box::new(|f| {
-                    // The half block of keys 3 at (5, 1) pads with a zero key: declare it, select the padding.
+                    // The half block of member 3 at (1, 5) pads with zeros: declare a zero member, select the padding.
                     let mut set = union_of(&children());
-                    set.xmss[0].keys.insert(0, [0; 4]);
-                    let shape = UnionShape::new(CAPACITY, 2);
-                    f.declared = PoolFill::new(shape.declared, &[&set]).expect("fits");
-                    f.digest = set.digest();
+                    let at = (set.groups.iter()).position(|g| g.label == group(1, 5, &[]).label);
+                    set.groups[at.expect("the group")].members.insert(0, [0; 4]);
+                    declare(f, &set);
                     let it = (f.children.items.iter_mut())
-                        .find(|it| it.kind == ItemKind::Keys { pair: false })
+                        .find(|it| it.kind == ItemKind::Members { pair: false })
                         .expect("a half block");
                     it.select[1] = true;
                 }),
@@ -773,16 +738,16 @@ mod tests {
                 "a child's pair bit dropped",
                 Box::new(|f| {
                     let it = (f.children.items.iter_mut())
-                        .find(|it| it.kind == ItemKind::Keys { pair: true })
+                        .find(|it| it.kind == ItemKind::Members { pair: true })
                         .expect("a full block");
-                    it.kind = ItemKind::Keys { pair: false };
+                    it.kind = ItemKind::Members { pair: false };
                     it.select[1] = false;
                 }),
             ),
             (
-                "a header read as keys",
+                "a header read as members",
                 Box::new(|f| {
-                    f.children.items[0].kind = ItemKind::Keys { pair: true };
+                    f.children.items[0].kind = ItemKind::Members { pair: true };
                 }),
             ),
             (
@@ -795,18 +760,18 @@ mod tests {
                 }),
             ),
             (
-                "a run begun mid-set",
+                "a run begun a chunk late",
                 Box::new(|f| {
                     f.children.begins[1] = false;
                     f.children.begins[2] = true;
                 }),
             ),
             (
-                "a child's key changed",
+                "a child's member changed",
                 Box::new(|f| {
                     let it = (f.children.items.iter_mut())
-                        .find(|it| matches!(it.kind, ItemKind::Keys { .. }))
-                        .expect("keys");
+                        .find(|it| matches!(it.kind, ItemKind::Members { .. }))
+                        .expect("members");
                     it.block[1] ^= 4;
                 }),
             ),
