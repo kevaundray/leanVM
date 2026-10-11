@@ -19,8 +19,6 @@ namespace LeanVMCircuits.Multiply
 
 open LeanVMCircuits Netlist
 
-attribute [local irreducible] plan
-
 /-- Input `a_k` is input `k`, `b_k` input `64 + k`. -/
 def aIn (k : ℕ) : Aff := .input k
 def bIn (k : ℕ) : Aff := .input (64 + k)
@@ -50,7 +48,7 @@ def rowAff (n : ℕ) (steps : List Csa) : ℕ → ℕ → ℕ → Aff
     let base := stepBase n k
     if r = s.x then (if p < n then .loc (base + 5 * p + 4) else .zero)
     else if r = s.y then
-      if 0 < p ∧ bit s.products (p - 1) then .loc (base + 5 * (p - 1) + 3)
+      if 0 < p ∧ p < n ∧ bit s.products (p - 1) then .loc (base + 5 * (p - 1) + 3)
       else if p < n ∧ (bit s.moveZ p || bit s.moveY p) then .loc (base + 5 * p + 3) else .zero
     else rowAff n steps k r p
 
@@ -142,18 +140,25 @@ theorem rowsFrom_take_succ (l : List Csa) (k : ℕ) (hk : k < l.length) (rows : 
     List.getD_eq_getElem _ _ hk]
 
 
-/-- A step's products and moves never share a position. -/
-def Csa.disjoint (s : Csa) : Bool := s.products &&& (s.moveY ||| s.moveZ) == 0
-
-theorem not_move_of_product (s : Csa) (h : s.disjoint = true) (p : ℕ) (hp : bit s.products p = true) :
-    bit s.moveZ p = false ∧ bit s.moveY p = false := by
-  simp only [Csa.disjoint, beq_iff_eq] at h
-  have := congrArg (fun m => Nat.testBit m p) h
-  simp only [Nat.testBit_and, Nat.testBit_or, Nat.zero_testBit] at this
-  simp only [bit] at hp ⊢
-  rw [hp] at this
-  simp at this
-  exact ⟨this.2, this.1⟩
+/-- A checked plan's steps never put a product and a move at one position. -/
+theorem not_move_of_check (n : ℕ) : ∀ (steps : List Csa) (live : List ℕ) (present : ℕ → ℕ),
+    checkFrom n steps live present = true → ∀ s ∈ steps, ∀ p, bit s.products p = true →
+      bit s.moveZ p = false ∧ bit s.moveY p = false
+  | [], _, _, _, _, hs, _, _ => absurd hs List.not_mem_nil
+  | t :: steps, live, present, hc, s, hs, p, hp => by
+    simp only [checkFrom, Bool.and_eq_true, decide_eq_true_eq] at hc
+    rcases List.mem_cons.mp hs with rfl | hs
+    · have hlt : p < 128 := by
+        by_contra h
+        rw [bit_lt _ p hc.1.1.1.1.2 (by omega)] at hp
+        exact Bool.false_ne_true hp
+      have := List.all_eq_true.mp hc.1.2 p (List.mem_range.mpr hlt)
+      simp only [hp, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true', Bool.not_true, Bool.and_false,
+        Bool.or_false] at this
+      constructor
+      · cases h : bit s.moveZ p <;> simp_all
+      · cases h : bit s.moveY p <;> simp_all
+    · exact not_move_of_check n steps _ _ hc.2 s hs p hp
 
 /-- What a step's five wires at a position carry. -/
 theorem stepGate_values (s : Csa) (X Y Z : Aff) (w p : ℕ) (inp loc : ℕ → Bit)
@@ -255,7 +260,8 @@ theorem total_gt_ripple (L : Layout) (p j : ℕ) (hp : p < L.n) (hj : j < 5) :
 
 theorem rows_values (L : Layout) (hn : 0 < L.n) (inp loc : ℕ → Bit)
     (hold : ∀ i, i < L.total → (L.gateAt i).Holds inp loc i)
-    (hdis : ∀ k, k < L.steps.length → (L.steps.getD k default).disjoint = true) :
+    (hdis : ∀ k, k < L.steps.length → ∀ p, bit (L.steps.getD k default).products p = true →
+      bit (L.steps.getD k default).moveZ p = false ∧ bit (L.steps.getD k default).moveY p = false) :
     ∀ k, k ≤ L.steps.length → ∀ r p, p < L.n →
       (rowAff L.n L.steps k r p).eval inp loc = rowsFrom (L.steps.take k) (cellN L.n (aBits inp) (bBits inp)) r p := by
   have hg : loc 0 = g (aBits inp) (bBits inp) := by
@@ -309,18 +315,18 @@ theorem rows_values (L : Layout) (hn : 0 < L.n) (inp loc : ℕ → Bit)
       · rw [if_pos hy, if_pos hy]
         unfold carryRow
         by_cases hpr : 0 < p ∧ bit st.products (p - 1) = true
-        · rw [if_pos hpr, if_pos hpr]
+        · rw [if_pos ⟨hpr.1, hp, hpr.2⟩, if_pos hpr]
           simp only [Aff.eval]
           have hq : p - 1 < L.n := by omega
           have := (hv (p - 1) hq).2.1 hpr.2
           rw [show stepBase L.n k + 5 * (p - 1) + 3 = stepBase L.n k + 5 * (p - 1) + 3 from rfl, this]
           simp only [hval (p - 1) hq]
-        · rw [if_neg hpr, if_neg hpr]
+        · rw [if_neg (fun h => hpr ⟨h.1, h.2.2⟩), if_neg hpr]
           by_cases hm : bit st.moveZ p = true ∨ bit st.moveY p = true
           · have hprod : bit st.products p = false := by
               cases h : bit st.products p
               · rfl
-              · have := not_move_of_product st (hdis k hk') p h; simp_all
+              · have := hdis k hk' p h; simp_all
             rw [if_pos ⟨hp, by simpa [Bool.or_eq_true] using hm⟩]
             simp only [Aff.eval]
             by_cases hz : bit st.moveZ p = true
@@ -390,16 +396,18 @@ theorem finalSum_layout (n : ℕ) (a b : ℕ → Bit) :
         (rowsFrom (layout n).steps (cellN n a b) (layout n).ly) := rfl
 
 /-- Any assignment satisfying the multiplier's gates outputs `a b` modulo `2^n`. -/
-theorem gates_product (n : ℕ) (hn : n = 64 ∨ n = 128) (hc : check n = true)
-    (hd : (plan n).1.all Csa.disjoint = true) (inp loc : ℕ → Bit)
+theorem gates_product (n : ℕ) (hn : n = 64 ∨ n = 128) (hc : check n = true) (inp loc : ℕ → Bit)
     (hold : ∀ i, i < (layout n).total → ((layout n).gateAt i).Holds inp loc i) :
     ∃ k : ℤ, rowValue n (fun p => loc (rippleBase n (plan n).1.length + 5 * p + 4)) =
       word (aBits inp) * word (bBits inp) + 2 ^ n * k := by
   have hn0 : 0 < (layout n).n := by show 0 < n; omega
-  have hdis : ∀ k, k < (layout n).steps.length → ((layout n).steps.getD k default).disjoint = true := by
+  have hdis : ∀ k, k < (layout n).steps.length → ∀ p, bit ((layout n).steps.getD k default).products p = true →
+      bit ((layout n).steps.getD k default).moveZ p = false ∧ bit ((layout n).steps.getD k default).moveY p = false := by
     intro k hk
     rw [List.getD_eq_getElem _ _ hk]
-    exact List.all_eq_true.mp hd _ (List.getElem_mem hk)
+    have hc' : checkFrom n (plan n).1 (List.range nRows) (initialPresent n) = true := by
+      simp only [check, Bool.and_eq_true] at hc; exact hc.1
+    exact not_move_of_check n _ _ _ hc' _ (List.getElem_mem hk)
   have hrows := rows_values (layout n) hn0 inp loc hold hdis (layout n).steps.length le_rfl
   rw [List.take_length] at hrows
   have hrip := ripple_values (layout n) inp loc hold
@@ -414,5 +422,125 @@ theorem gates_product (n : ℕ) (hn : n = 64 ∨ n = 128) (hc : check n = true)
   have hp' : p < (layout n).n := Finset.mem_range.mp hp
   show 2 ^ p * iv (loc (rippleBase (layout n).n (layout n).steps.length + 5 * p + 4)) = _
   rw [(hrip p hp').2]
+
+
+/-! Every gate names only earlier wires. -/
+
+theorem wellOrdered_map (f : ℕ → Gate) : ∀ (m i : ℕ), (∀ k, k < m → (f (i + k)).within (i + k) = true) →
+    wellOrdered i ((List.range' i m).map f) = true
+  | 0, _, _ => rfl
+  | m + 1, i, h => by
+    simp only [List.range'_succ, List.map_cons, wellOrdered, Bool.and_eq_true]
+    exact ⟨by simpa using h 0 (by omega), wellOrdered_map f m (i + 1) fun k hk => by
+      simpa [Nat.add_assoc, Nat.add_comm 1] using h (k + 1) (by omega)⟩
+
+theorem Aff.within_mono (a : Aff) {m m' : ℕ} (h : a.within m = true) (hm : m ≤ m') : a.within m' = true := by
+  induction a with
+  | loc i => simp only [Aff.within, decide_eq_true_eq] at h ⊢; omega
+  | xor l r ihl ihr => simp only [Aff.within, Bool.and_eq_true] at h ⊢; exact ⟨ihl h.1, ihr h.2⟩
+  | _ => rfl
+
+theorem rowAff_within (n : ℕ) (steps : List Csa) : ∀ k r p, (rowAff n steps k r p).within (stepBase n k) = true
+  | 0, r, p => by
+    simp only [rowAff]
+    split
+    · rename_i h
+      simp only [Aff.within, stepBase, cellsEnd]
+      have : r * n + p < nRows * n := by nlinarith [h.1, h.2]
+      exact decide_eq_true (by omega)
+    · rfl
+  | k + 1, r, p => by
+    simp only [rowAff]
+    have hb : stepBase n k + 5 * n = stepBase n (k + 1) := by unfold stepBase; ring
+    split
+    · split
+      · simp only [Aff.within]; exact decide_eq_true (by omega)
+      · rfl
+    · split
+      · split
+        · rename_i h; simp only [Aff.within]; exact decide_eq_true (by omega)
+        · split
+          · rename_i h; simp only [Aff.within]; exact decide_eq_true (by omega)
+          · rfl
+      · exact Aff.within_mono _ (rowAff_within n steps k r p) (by unfold stepBase; nlinarith)
+
+
+theorem cellAff_within (n r p i : ℕ) (hi : 0 < i) : (cellAff n r p).within i = true := by
+  unfold cellAff
+  split_ifs <;> simp [Aff.within, aIn, bIn, hi]
+
+theorem cinAff_within (cm rb p : ℕ) : (cinAff cm rb p).within (rb + 5 * p) = true := by
+  unfold cinAff
+  split
+  · simp only [Aff.within]; exact decide_eq_true (by omega)
+  · rfl
+
+theorem stepGate_within (s : Csa) (X Y Z : Aff) (w p j m : ℕ) (hX : X.within m = true) (hY : Y.within m = true)
+    (hZ : Z.within m = true) (hm : m ≤ w) :
+    (stepGate s X Y Z w p j).within (w + j) = true := by
+  have hX' := fun k => Aff.within_mono X hX (show m ≤ w + k by omega)
+  have hX0 : X.within w = true := Aff.within_mono X hX hm
+  have hY' := fun k => Aff.within_mono Y hY (show m ≤ w + k by omega)
+  have hY0 : Y.within w = true := Aff.within_mono Y hY hm
+  have hZ' := fun k => Aff.within_mono Z hZ (show m ≤ w + k by omega)
+  have hZ0 : Z.within w = true := Aff.within_mono Z hZ hm
+  match j with
+  | 0 => simp only [stepGate, Gate.within]; split <;> simp_all [Aff.within]
+  | 1 => simp only [stepGate, Gate.within]; split <;> simp_all [Aff.within]
+  | 2 => simp only [stepGate]; split <;> simp_all [Gate.within, Aff.within]
+  | 3 => simp only [stepGate, Gate.within]; split_ifs <;> simp_all [Aff.within]
+  | j + 4 => simp only [stepGate, Gate.within]; split_ifs <;> simp_all [Aff.within]
+
+theorem rippleGate_within (cm : ℕ) (X Y C : Aff) (w p j m : ℕ) (hX : X.within m = true) (hY : Y.within m = true)
+    (hC : C.within w = true) (hm : m ≤ w) :
+    (rippleGate cm X Y C w p j).within (w + j) = true := by
+  have hX' := fun k => Aff.within_mono X hX (show m ≤ w + k by omega)
+  have hX0 : X.within w = true := Aff.within_mono X hX hm
+  have hY' := fun k => Aff.within_mono Y hY (show m ≤ w + k by omega)
+  have hY0 : Y.within w = true := Aff.within_mono Y hY hm
+  have hC' := fun k => Aff.within_mono C hC (show w ≤ w + k by omega)
+  match j with
+  | 0 => simp only [rippleGate, Gate.within]; split <;> simp_all [Aff.within]
+  | 1 => simp only [rippleGate, Gate.within]; split <;> simp_all [Aff.within]
+  | 2 => simp only [rippleGate]; split <;> simp_all [Gate.within, Aff.within]
+  | 3 => simp only [rippleGate, Gate.within]; split_ifs <;> simp_all [Aff.within]
+  | j + 4 => simp only [rippleGate, Gate.within]; split_ifs <;> simp_all [Aff.within]
+
+
+theorem gateAt_within (L : Layout) (hn : 0 < L.n) (i : ℕ) (hi : i < L.total) : (L.gateAt i).within i = true := by
+  by_cases h0 : i = 0
+  · subst h0; simp [Layout.gateAt, Gate.within, Aff.within, aIn, bIn]
+  by_cases hc : i < cellsEnd L.n
+  · simp only [Layout.gateAt, if_neg h0, if_pos hc, Gate.within]
+    exact cellAff_within _ _ _ _ (by omega)
+  by_cases hs : i < stepBase L.n L.steps.length
+  · have h5 : 0 < 5 * L.n := by omega
+    obtain ⟨k, q, hq, hik⟩ : ∃ k q, q < 5 * L.n ∧ i - cellsEnd L.n = 5 * L.n * k + q :=
+      ⟨_, _, Nat.mod_lt _ h5, (Nat.div_add_mod (i - cellsEnd L.n) (5 * L.n)).symm⟩
+    have hk : k < L.steps.length := by
+      by_contra hk
+      have : 5 * L.n * L.steps.length ≤ 5 * L.n * k := Nat.mul_le_mul_left _ (by omega)
+      unfold stepBase at hs
+      omega
+    have hi' : i = stepBase L.n k + 5 * (q / 5) + q % 5 := by
+      have := Nat.div_add_mod q 5
+      unfold stepBase; omega
+    have hp : q / 5 < L.n := by omega
+    have hj : q % 5 < 5 := Nat.mod_lt _ (by omega)
+    rw [hi', gateAt_step L hn k (q / 5) (q % 5) hk hp hj]
+    exact stepGate_within _ _ _ _ _ _ _ _ (rowAff_within _ _ _ _ _) (rowAff_within _ _ _ _ _)
+      (rowAff_within _ _ _ _ _) (by omega)
+  · have hi' : i = rippleBase L.n L.steps.length + 5 * ((i - rippleBase L.n L.steps.length) / 5) +
+        (i - rippleBase L.n L.steps.length) % 5 := by
+      have := Nat.div_add_mod (i - rippleBase L.n L.steps.length) 5
+      unfold rippleBase; omega
+    rw [hi', gateAt_ripple L _ _ (Nat.mod_lt _ (by omega))]
+    exact rippleGate_within _ _ _ _ _ _ _ _ (rowAff_within _ _ _ _ _) (rowAff_within _ _ _ _ _)
+      (cinAff_within _ _ _) (by unfold rippleBase; omega)
+
+theorem layout_wellOrdered (L : Layout) (hn : 0 < L.n) : wellOrdered 0 L.gates = true := by
+  unfold Layout.gates
+  rw [List.range_eq_range']
+  exact wellOrdered_map L.gateAt L.total 0 fun k hk => by simpa using gateAt_within L hn k hk
 
 end LeanVMCircuits.Multiply

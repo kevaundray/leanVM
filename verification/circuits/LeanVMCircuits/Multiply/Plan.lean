@@ -97,6 +97,6 @@ def stepsFrom (n : ℕ) : ℕ → List ℕ → (ℕ → ℕ) → List Csa → Li
     stepsFrom n fuel live present (step :: steps)
 
 /-- The plan for an `n`-bit product: its steps and the two rows it leaves. -/
-def plan (n : ℕ) : List Csa × (ℕ × ℕ) := stepsFrom n nRows (List.range nRows) (initialPresent n) []
+@[irreducible] def plan (n : ℕ) : List Csa × (ℕ × ℕ) := stepsFrom n nRows (List.range nRows) (initialPresent n) []
 
 end LeanVMCircuits.Multiply

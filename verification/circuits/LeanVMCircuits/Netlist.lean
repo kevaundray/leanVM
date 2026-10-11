@@ -250,16 +250,41 @@ theorem channels (inp : ℕ → Expression Bit) (base : ℕ) :
       Operations.forAllNoOffset, true_and]
     exact ih
 
+theorem requirements (env : Environment Bit) (inp : ℕ → Expression Bit) (base : ℕ) :
+    ∀ (i : ℕ) (gs : List Gate), Operations.Requirements env (opsFrom inp base i gs)
+  | _, [] => by simp [opsFrom, Operations.Requirements, Operations.forAllNoOffset]
+  | i, g :: gs => by
+    have ih := requirements env inp base (i + 1) gs
+    simp only [Operations.Requirements] at ih ⊢
+    simp only [opsFrom, Gate.ops, List.cons_append, List.nil_append, Operations.forAllNoOffset, true_and]
+    exact ih
+
+theorem requirementsLawful (inp : ℕ → Expression Bit) (base : ℕ) (G : List (RawChannel Bit)) :
+    ∀ (i : ℕ) (gs : List Gate), Operations.subcircuitChannelsWithRequirements (opsFrom inp base i gs) ⊆ [] ∧
+      (∀ channel ∈ Operations.shallowChannels (opsFrom inp base i gs), channel ∈ G ∨ channel ∈ []) ∧
+      ∀ env : Environment Bit, ConstraintsHold.Shallow env (opsFrom inp base i gs) →
+        Operations.InChannelsOrRequirements [] env (opsFrom inp base i gs)
+  | _, [] => by
+    simp [opsFrom, Operations.subcircuitChannelsWithRequirements, Operations.shallowChannels,
+      Operations.InChannelsOrRequirements, Operations.forAllNoOffset]
+  | i, g :: gs => by
+    have ih := requirementsLawful inp base G (i + 1) gs
+    simp only [Operations.InChannelsOrRequirements, ConstraintsHold.Shallow] at ih ⊢
+    simp only [opsFrom, Gate.ops, List.cons_append, List.nil_append, Operations.subcircuitChannelsWithRequirements,
+      Operations.shallowChannels, Operations.forAllNoOffset, true_and]
+    exact ⟨ih.1, ih.2.1, fun env h => ih.2.2 env h.2⟩
+
 /-- The circuit of `gates` on the inputs `inputsOf`, its output the `m` affines `outs`. -/
 def main {Input : TypeMap} [ProvableType Input] {m : ℕ} (inputsOf : Var Input Bit → ℕ → Expression Bit)
     (gates : List Gate) (outs : Vector Aff m) (input : Var Input Bit) : Circuit Bit (Var (fields m) Bit) :=
   fun base => (outs.map (Aff.expr (inputsOf input) base), opsFrom (inputsOf input) base 0 gates)
 
-instance elaborated {Input : TypeMap} [ProvableType Input] {m : ℕ} (inputsOf : Var Input Bit → ℕ → Expression Bit)
-    (gates : List Gate) (outs : Vector Aff m) :
+/-- Its local length is `len`, given as a literal so that callers never reduce the gates to count them. -/
+@[instance_reducible] def elaborated {Input : TypeMap} [ProvableType Input] {m : ℕ} (inputsOf : Var Input Bit → ℕ → Expression Bit)
+    (gates : List Gate) (outs : Vector Aff m) (len : ℕ) (hlen : gates.length = len) :
     ElaboratedCircuit Bit Input (fields m) (main inputsOf gates outs) where
-  localLength _ := gates.length
-  localLength_eq input offset := opsFrom_length _ _ 0 gates
+  localLength _ := len
+  localLength_eq input offset := (opsFrom_length _ _ 0 gates).trans hlen
   subcircuitsConsistent input offset := by
     have := subcircuitsConsistent (inputsOf input) offset 0 gates
     show Operations.SubcircuitsConsistent offset (opsFrom (inputsOf input) offset 0 gates)
