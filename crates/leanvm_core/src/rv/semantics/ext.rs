@@ -17,7 +17,7 @@
 //! (`tables::ClassTable::identities`), and its clock circuit computes the limbs' addresses ([`Ext::clock_circuit`]).
 
 use crate::tables::Clock;
-use flock::circuit::{Builder, Circuit, Wire};
+use flock::circuit::Circuit;
 use primitives::field::F192;
 
 /// One extension-field instance: `extmul`, `extmac`, `extmulk` or `extmack`, on `rd, rs1, rs2`.
@@ -123,6 +123,11 @@ impl Ext {
     /// The addresses are `p + 8` and `p + 16` for each pointer, by incrementers, `b`'s gated off to zero, the
     /// register number of `x0`, for a base-field `b`. A pointer off its word leaves its low bits in every limb's
     /// address, which then names no cell.
+    ///
+    /// Past the clock's gates the circuit is [`flock::clean::ext_clock`], generated from the Clean source
+    /// `LeanVMCircuits.ExtClock.circuit`: for each pointer the incrementers adding 8 and 16, each the chain of ANDs over
+    /// bits `bit + 1 ..= 62` from bit `bit`, and `b`'s addresses as the products `!base * sum`, committed at their
+    /// ports. It returns the flag bits and `a`'s and `d`'s addresses, which the copies below commit.
     pub fn clock_circuit(slots: &[u32]) -> Circuit {
         let ports = [1, 1]
             .into_iter()
@@ -132,20 +137,14 @@ impl Ext {
         let first = 1 + slots.len();
         let [a, b, d] = [0, 1, 2].map(|i| c.input::<64>(first + i));
         let flags = c.input::<2>(first + 3);
-        let (accumulate, base) = (flags[0], flags[1]);
-        c.output(1, 0, accumulate);
-        c.output(2, 0, base);
-        let not_base = c.not(base);
-        for (i, pointer) in [a, b, d].iter().enumerate() {
-            for (j, bit) in [3, 4].into_iter().enumerate() {
-                let port = 3 + 2 * i + j;
-                for (k, wire) in increment(&mut c, pointer, bit).into_iter().enumerate() {
-                    if i == 1 {
-                        c.and_output(port, k, not_base, wire);
-                    } else {
-                        c.output(port, k, wire);
-                    }
-                }
+        let out = flock::clean::ext_clock(&mut c, &a, &b, &d, &flags);
+        let (bits, addresses) = out.split_at(2);
+        c.output(1, 0, bits[0]);
+        c.output(2, 0, bits[1]);
+        // `a`'s addresses at ports 3 and 4, `d`'s at 7 and 8; `b`'s, at 5 and 6, are its gating products.
+        for (word, port) in addresses.chunks(64).zip([3, 4, 7, 8]) {
+            for (k, &wire) in word.iter().enumerate() {
+                c.output(port, k, wire);
             }
         }
         c.finish()
@@ -210,33 +209,126 @@ impl Ext {
     }
 }
 
-/// `x + 2^bit` modulo `2^64`.
-///
-/// The carry enters at `bit` and ripples up, one product per position past it.
-///
-/// ```text
-///     sum_i     = x_i ^ carry_i
-///     carry_i+1 = x_i & carry_i        carry_bit = 1, so carry_bit+1 = x_bit is free
-/// ```
-fn increment(c: &mut Builder, x: &[Wire; 64], bit: usize) -> [Wire; 64] {
-    let mut out = *x;
-    let mut carry = Wire::ONE;
-    for (i, wire) in out.iter_mut().enumerate().skip(bit) {
-        let sum = c.xor(*wire, carry);
-        // The carry out of the top position falls off the modulus.
-        if i + 1 < 64 {
-            carry = if i == bit { *wire } else { c.and(*wire, carry) };
-        }
-        *wire = sum;
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::rv::semantics::tests::edge_word;
+    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use flock::circuit::{Builder, Wire};
+    use flock::lincheck::LincheckCircuit;
+    use flock::reduction::{self, Instance};
+    use primitives::test_util::Rng;
     use proptest::prelude::*;
+
+    /// The handwritten extras the Clean source replaced, the reference its gate list is pinned to.
+    fn handwritten(slots: &[u32]) -> Circuit {
+        let ports = [1, 1]
+            .into_iter()
+            .chain([64; Ext::OFFSET_LIMBS.len()])
+            .collect::<Vec<_>>();
+        let mut c = Clock::builder(slots, &[64, 64, 64, 2], &ports);
+        let first = 1 + slots.len();
+        let [a, b, d] = [0, 1, 2].map(|i| c.input::<64>(first + i));
+        let flags = c.input::<2>(first + 3);
+        let (accumulate, base) = (flags[0], flags[1]);
+        c.output(1, 0, accumulate);
+        c.output(2, 0, base);
+        let not_base = c.not(base);
+        for (i, pointer) in [a, b, d].iter().enumerate() {
+            for (j, bit) in [3, 4].into_iter().enumerate() {
+                let port = 3 + 2 * i + j;
+                for (k, wire) in increment(&mut c, pointer, bit).into_iter().enumerate() {
+                    if i == 1 {
+                        c.and_output(port, k, not_base, wire);
+                    } else {
+                        c.output(port, k, wire);
+                    }
+                }
+            }
+        }
+        c.finish()
+    }
+
+    /// `x + 2^bit` modulo `2^64`: the carry enters at `bit` and ripples up, one product per position past it.
+    fn increment(c: &mut Builder, x: &[Wire; 64], bit: usize) -> [Wire; 64] {
+        let mut out = *x;
+        let mut carry = Wire::ONE;
+        for (i, wire) in out.iter_mut().enumerate().skip(bit) {
+            let sum = c.xor(*wire, carry);
+            if i + 1 < 64 {
+                carry = if i == bit { *wire } else { c.and(*wire, carry) };
+            }
+            *wire = sum;
+        }
+        out
+    }
+
+    #[test]
+    fn the_clean_ext_clock_is_the_handwritten_gate_list() {
+        // Invariant: the generated extras make the handwritten circuit's products in its order, at its slots, with
+        // its operands, so every constraint row `A·z * B·z = z` is the same; only the free XORs and copies may move.
+        let mut rng = Rng::new(0xE7C1);
+        let slots = crate::tables::ClassSpec::EXT.slots();
+        let (clean, old) = (Ext::clock_circuit(&slots), handwritten(&slots));
+        let shape = |c: &Circuit| (c.k_log(), c.useful_bits(), c.const_pos(), c.n_input_words(), c.n_cols());
+        assert_eq!(shape(&clean), shape(&old));
+        for _ in 0..4 {
+            let w = rng.ext_vec(old.n_cols());
+            assert!(clean.row_values(&w) == old.row_values(&w));
+        }
+    }
+
+    #[test]
+    fn flock_proves_the_ext_clock_and_refuses_a_flipped_address_or_product() {
+        // Fixture: EXT's clock instances on edge pointers and every legal flag word, by the native witness.
+        // Mutation: a flipped bit of a's address, of b's gated address, of a flag copy, or of d's last carry product.
+        const LABEL: &[u8] = b"rv-ext-clock-test";
+        let slots = crate::tables::ClassSpec::EXT.slots();
+        let circuit = Ext::clock_circuit(&slots);
+        let block = circuit.block();
+        let n_log = 5;
+        let mut rng = Rng::new(0xE7C2);
+        let rows: Vec<Vec<u64>> = (0..1u64 << n_log)
+            .map(|i| {
+                let ts = Clock::SEED_CLOCK | (rng.next_u64() % Clock::MAX_CYCLES * Clock::CYCLE);
+                let prev = slots
+                    .iter()
+                    .map(|&slot| (ts ^ u64::from(slot)).wrapping_sub(Clock::CYCLE));
+                let pointers = [u64::MAX - 7, rng.next_u64(), (1 << 63) - 16];
+                let flags = Ext::LEGAL[i as usize % Ext::LEGAL.len()];
+                std::iter::once(ts).chain(prev).chain(pointers).chain([flags]).collect()
+            })
+            .collect();
+        let accepts = |tamper: Option<usize>| {
+            let mut witness = circuit.witness_by_instance(&rows, &rows[0], n_log, |row, z, az, bz| {
+                Ext::clock_witness(&slots, row, z, az, bz);
+            });
+            if let Some(bit) = tamper {
+                witness.z[bit / 64] ^= 1 << (bit % 64);
+            }
+            let mut ps = ProverState::from_label(LABEL);
+            let instance = Instance::of(block, n_log, &witness);
+            let claims = reduction::prove(&[instance], &mut ps);
+            let proof = ps.into_proof();
+            let mut vs = VerifierState::from_label(LABEL, &proof);
+            reduction::verify(&[(block.shape(), n_log)], &mut vs)
+                .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(block.circuit).is_ok())
+                && vs.finish().is_ok()
+        };
+        assert!(accepts(None));
+
+        // Output words after the inputs: step, accumulate, base, then a+8, a+16, b+8, b+16, d+8, d+16.
+        let outputs = 64 * circuit.n_input_words();
+        for bit in [
+            outputs + 64,
+            outputs + 64 * 3 + 5,
+            outputs + 64 * 5 + 9,
+            outputs + 64 * 6 + 63,
+            circuit.useful_bits() - 1,
+        ] {
+            assert!(!accepts(Some(bit)), "flipping bit {bit} must reject");
+        }
+    }
 
     /// The product by its definition: schoolbook in y, each K product shift and add.
     fn schoolbook(a: [u64; 3], b: [u64; 3]) -> [u64; 3] {

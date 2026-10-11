@@ -340,7 +340,16 @@ run_cmd do
     ``LeanVMCircuits.Bus.clock_next,
     ``LeanVMCircuits.Bus.clock_in_order,
     ``LeanVMCircuits.Bus.machine_reads_at_pc,
-    ``LeanVMCircuits.Bus.ClassTable.tables_correct] do
+    ``LeanVMCircuits.Bus.ClassTable.tables_correct,
+    ``LeanVMCircuits.ExtClockValues.incrOut_value,
+    ``LeanVMCircuits.ExtClock.circuit,
+    ``LeanVMCircuits.Flock.ExtClock.supported,
+    ``LeanVMCircuits.Flock.ExtClock.source_eq,
+    ``LeanVMCircuits.Flock.ExtClock.soundness,
+    ``LeanVMCircuits.Flock.ExtClock.layout,
+    ``LeanVMCircuits.Flock.ExtClock.output_products_layout,
+    ``LeanVMCircuits.Flock.ExtClock.wellFormed,
+    ``LeanVMCircuits.Flock.ExtClock.complete] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
@@ -407,3 +416,12 @@ run_cmd do
 #print axioms LeanVMCircuits.Bus.clock_in_order
 #print axioms LeanVMCircuits.Bus.machine_reads_at_pc
 #print axioms LeanVMCircuits.Bus.ClassTable.tables_correct
+#print axioms LeanVMCircuits.ExtClockValues.incrOut_value
+#print axioms LeanVMCircuits.ExtClock.circuit
+#print axioms LeanVMCircuits.Flock.ExtClock.supported
+#print axioms LeanVMCircuits.Flock.ExtClock.source_eq
+#print axioms LeanVMCircuits.Flock.ExtClock.soundness
+#print axioms LeanVMCircuits.Flock.ExtClock.layout
+#print axioms LeanVMCircuits.Flock.ExtClock.output_products_layout
+#print axioms LeanVMCircuits.Flock.ExtClock.wellFormed
+#print axioms LeanVMCircuits.Flock.ExtClock.complete
