@@ -17,7 +17,7 @@ set_option maxHeartbeats 1000000
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
 
-namespace FoldSource
+namespace ReplaySource
 
 /-- [primitives::field::gf2_64x3::F192]
     Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 34:0-34:15
@@ -46,11 +46,19 @@ structure fiat_shamir.arith.Arith (Self : Type) (Self_E : Type) where
     → Result (Self_E × Self)
   inv : Self → Self_E → Result (Self_E × Self)
   frobenius2 : Self → Self_E → Result (Self_E × Self)
+  zero : Self → Result (Self_E × Self)
   one : Self → Result (Self_E × Self)
   mul : Self → Self_E → Self_E → Result (Self_E × Self)
   mul_const : Self → Self_E → primitives.field.gf2_64x3.F192 → Result
     (Self_E × Self)
+  add_const : Self → Self_E → primitives.field.gf2_64x3.F192 → Result
+    (Self_E × Self)
   times_one_plus : Self → Self_E → Self_E → Result (Self_E × Self)
+  eq_table_prefix : Self → Slice Self_E → Std.Usize → Result
+    ((alloc.vec.Vec Self_E) × Self)
+  mle : Self → Slice Self_E → Slice Self_E → Result (Self_E × Self)
+  powers : Self → Self_E → Std.Usize → Result ((alloc.vec.Vec Self_E) ×
+    Self)
 
 /-- [fiat_shamir::arith::Stage]
     Source: 'crates/fiat_shamir/src/arith.rs', lines 221:0-221:14
@@ -109,6 +117,11 @@ structure fiat_shamir.arith.Verifier (Self : Type) (Self_Clause0_E : Type)
     fiat_shamir.transcript.TranscriptError) × Self)
   begin_scope : Self → fiat_shamir.arith.Stage → Result Self
   end_scope : Self → Result Self
+  next_scalars : Self → Std.Usize → Result ((core.result.Result
+    (alloc.vec.Vec Self_Clause0_E) fiat_shamir.transcript.TranscriptError) ×
+    Self)
+  sample_vec : Self → Std.Usize → Result ((alloc.vec.Vec Self_Clause0_E) ×
+    Self)
 
 /-- [fiat_shamir::TranscriptContext]
     Source: 'crates/fiat_shamir/src/lib.rs', lines 23:0-23:34
@@ -123,12 +136,29 @@ structure fiat_shamir.TranscriptContext (K : Type) (R : Type) where
   previous : Std.U64
   squeezed : Std.U64
 
+/-- Trait declaration: [fiat_shamir::transcript::Challenger]
+    Source: 'crates/fiat_shamir/src/transcript.rs', lines 80:0-80:20
+    Name pattern: [fiat_shamir::transcript::Challenger]
+    Visibility: public -/
+@[rust_trait "fiat_shamir::transcript::Challenger"]
+structure fiat_shamir.transcript.Challenger (Self : Type) where
+  sample : Self → Result (primitives.field.gf2_64x3.F192 × Self)
+  sample_vec : Self → Std.Usize → Result ((alloc.vec.Vec
+    primitives.field.gf2_64x3.F192) × Self)
+
 /-- [primitives::field::gf2_64::F64]
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 18:0-18:14
     Name pattern: [primitives::field::gf2_64::F64]
     Visibility: public -/
 @[reducible, rust_type "primitives::field::gf2_64::F64"]
 def primitives.field.gf2_64.F64 := Std.U64
+
+/-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::{closure}]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 58:17-58:38
+    Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure] -/
+@[reducible, rust_type
+  "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure"]
+def primitives.field.gf2_64.F64.inv.closure := Unit
 
 /-- Trait declaration: [pcs::verifier::OpeningVerifier]
     Source: 'crates/pcs/src/verifier.rs', lines 18:0-74:1
@@ -157,12 +187,75 @@ structure verifier.OpeningVerifier (Self : Type) (Self_Root : Type) (Self_K :
     × Self)
   query_point : Self → Self_Query → Result (Self_Clause0_Clause0_E × Self)
 
+/-- [pcs::whir::config::ConfigError]
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 58:0-71:1
+    Visibility: public -/
+@[discriminant isize]
+inductive whir.config.ConfigError where
+| RateOutOfRange : Std.Usize → whir.config.ConfigError
+| SizeOutOfRange : Std.Usize → whir.config.ConfigError
+
+/-- [pcs::whir::config::Config]
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 157:0-170:1
+    Visibility: public -/
+structure whir.config.Config where
+  initial_k : Std.Usize
+  level_ks : alloc.vec.Vec Std.Usize
+  log_inv_rates : alloc.vec.Vec Std.Usize
+  queries : alloc.vec.Vec Std.Usize
+  grinding_bits : alloc.vec.Vec Std.Usize
+  ood_samples : alloc.vec.Vec Std.Usize
+
+/-- [pcs::whir::Stratum]
+    Source: 'crates/pcs/src/whir/mod.rs', lines 67:0-72:1
+    Visibility: public -/
+structure whir.Stratum where
+  bits : Std.Usize
+  index : Std.Usize
+
+/-- [pcs::whir::query::Normalizers]
+    Source: 'crates/pcs/src/whir/query.rs', lines 37:0-42:1 -/
+structure whir.query.Normalizers where
+  at_roots : alloc.vec.Vec primitives.field.gf2_64.F64
+  inverses : alloc.vec.Vec primitives.field.gf2_64.F64
+
+/-- [pcs::whir::verify::WhirError]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 26:0-68:1
+    Visibility: public -/
+@[discriminant isize]
+inductive whir.verify.WhirError where
+| Transcript : fiat_shamir.transcript.TranscriptError → whir.verify.WhirError
+| Config : whir.config.ConfigError → whir.verify.WhirError
+| LaneCount : Std.Usize → Std.Usize → whir.verify.WhirError
+| InvalidShape : Std.Usize → whir.verify.WhirError
+| CommitmentMismatch : whir.verify.WhirError
+| NoRingClaim : whir.verify.WhirError
+| Region : Std.Usize → whir.verify.WhirError
+| PointClaim : Std.Usize → whir.verify.WhirError
+| TerminalMismatch : whir.verify.WhirError
+
 /-- [pcs::whir::verify::Quad]
     Source: 'crates/pcs/src/whir/verify.rs', lines 72:0-79:1 -/
 structure whir.verify.Quad (E : Type) where
   c : E
   b : E
   a : E
+
+/-- [pcs::whir::verify::Ood]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 82:0-89:1 -/
+structure whir.verify.Ood (E : Type) where
+  z : alloc.vec.Vec E
+  y : E
+  intro : whir.verify.Quad E
+
+/-- [pcs::whir::verify::LevelCtx]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 92:0-103:1 -/
+structure whir.verify.LevelCtx (Q : Type) (E : Type) where
+  log_msg_cols : Std.Usize
+  queries : alloc.vec.Vec Q
+  weights : alloc.vec.Vec E
+  ris_start : Std.Usize
+  beta : E
 
 /-- [pcs::whir::verify::OodCtx]
     Source: 'crates/pcs/src/whir/verify.rs', lines 106:0-113:1 -/
@@ -171,4 +264,75 @@ structure whir.verify.OodCtx (E : Type) where
   ris_start : Std.Usize
   beta : E
 
-end FoldSource
+/-- [pcs::whir::verify::Oracle]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 116:0-125:1 -/
+structure whir.verify.Oracle (R : Type) where
+  root : R
+  log_num_interleaved : Std.Usize
+  log_msg_cols : Std.Usize
+  log_inv_rate : Std.Usize
+
+/-- [pcs::whir::verify::QueryPhase]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 129:0-136:1 -/
+structure whir.verify.QueryPhase where
+  grinding : Std.U32
+  depth : Std.Usize
+  count : Std.Usize
+
+/-- [pcs::whir::verify::WhirReplay]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 141:0-152:1 -/
+structure whir.verify.WhirReplay (V : Type) (Clause0_Root : Type) (Clause0_K :
+  Type) (Clause0_Query : Type) (Clause0_Clause0_Clause0_E : Type) where
+  t_r : Clause0_Clause0_Clause0_E
+  quad : whir.verify.Quad Clause0_Clause0_Clause0_E
+  ris : alloc.vec.Vec Clause0_Clause0_Clause0_E
+  levels : alloc.vec.Vec (whir.verify.LevelCtx Clause0_Query
+    Clause0_Clause0_Clause0_E)
+  oods : alloc.vec.Vec (whir.verify.OodCtx Clause0_Clause0_Clause0_E)
+
+/-- [pcs::whir::verify::BaseRows]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 155:0-155:32 -/
+@[reducible]
+def whir.verify.BaseRows (K : Type) := alloc.vec.Vec (alloc.vec.Vec K)
+
+/-- [pcs::whir::verify::ExtRows]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 158:0-158:31 -/
+@[reducible]
+def whir.verify.ExtRows (E : Type) := alloc.vec.Vec (alloc.vec.Vec E)
+
+/-- Trait declaration: [pcs::whir::verify::WeightAt]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 163:0-165:1 -/
+structure whir.verify.WeightAt (Self : Type) (E : Type) (V : Type)
+  (Self_Clause0_Root : Type) (Self_Clause0_K : Type) (Self_Clause0_Query :
+  Type) where
+  verifierOpeningVerifierInst : verifier.OpeningVerifier V Self_Clause0_Root
+    Self_Clause0_K Self_Clause0_Query E
+  call : Self → V → Slice E → Result (E × V)
+
+/-- [pcs::whir::verify::PendingQuery]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 168:0-172:1 -/
+structure whir.verify.PendingQuery (Q : Type) (E : Type) where
+  queries : alloc.vec.Vec Q
+  weights : alloc.vec.Vec E
+  lambda : E
+
+/-- [pcs::whir::verify::{pcs::whir::verify::WhirReplay<V, Clause0_Root, Clause0_K, Clause0_Query, Clause0_Clause0_Clause0_E>}::terminal::{closure}]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 685:35-685:65 -/
+@[reducible]
+def whir.verify.WhirReplay.terminal.closure (V : Type) (T1 : Type)
+  (Clause0_Root : Type) (Clause0_K : Type) (Clause0_Query : Type)
+  (Clause0_Clause0_Clause0_E : Type) (Clause1_Clause0_Root : Type)
+  (Clause1_Clause0_K : Type) (Clause1_Clause0_Query : Type) :=
+Unit
+
+/-- [pcs::whir::verify::check_config_shape::{closure#1}]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 237:37-237:70 -/
+@[reducible]
+def whir.verify.check_config_shape.closure_1 := Std.Usize
+
+/-- [pcs::whir::verify::check_config_shape::{closure}]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 219:21-219:41 -/
+@[reducible]
+def whir.verify.check_config_shape.closure := Std.Usize
+
+end ReplaySource
