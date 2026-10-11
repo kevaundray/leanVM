@@ -379,11 +379,11 @@ fn opening_leaf_nodes(sorted: &[usize], leaf_hashes: Vec<Hash>) -> Vec<(usize, H
     nodes
 }
 
+/// One folded level of an opening: its nodes, each pair's parent index, and the pairs to hash.
+type OpeningLevel = (Vec<(usize, Hash)>, Vec<usize>, Vec<[Hash; 2]>);
+
 #[inline]
-fn fold_opening_level(
-    nodes: &[(usize, Hash)],
-    supplied: &mut std::slice::Iter<'_, Hash>,
-) -> Option<(Vec<(usize, Hash)>, Vec<usize>, Vec<[Hash; 2]>)> {
+fn fold_opening_level(nodes: &[(usize, Hash)], supplied: &mut std::slice::Iter<'_, Hash>) -> Option<OpeningLevel> {
     let mut level = Vec::with_capacity(2 * nodes.len());
     let mut parents = Vec::with_capacity(nodes.len());
     let mut pairs = Vec::with_capacity(nodes.len());

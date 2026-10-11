@@ -16,6 +16,12 @@ def core.option.Option.Insts.CoreCmpPartialEqOption.eq {T : Type}
 def core.slice.Slice.first {T : Type} (s : Slice T) : Result (Option T) :=
   .ok s.val.head?
 
+/-- `Vec::is_empty`, which the pinned standard library defines as `self.len() == 0`.
+The allocator parameter does not affect the logical content. -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::is_empty"]
+def alloc.vec.Vec.is_empty {T : Type} (A : Type) (v : alloc.vec.Vec T) : Result Bool :=
+  .ok (v.length = 0)
+
 namespace WhirAeneas.StdGuards
 
 theorem option_some_eq {T : Type} (inst : Aeneas.Std.core.cmp.PartialEq T T) (x y : T) :
@@ -37,5 +43,10 @@ theorem first_empty {T : Type} (s : Slice T) (h : s.val = []) :
 theorem first_nonempty {T : Type} (s : Slice T) (x : T) (xs : List T) (h : s.val = x :: xs) :
     core.slice.Slice.first s = .ok (some x) := by
   simp [core.slice.Slice.first, h]
+
+theorem vec_is_empty {T : Type} (A : Type) (v : alloc.vec.Vec T) :
+    alloc.vec.Vec.is_empty A v = .ok (v.val.isEmpty) := by
+  have h : ∀ l : List T, decide (l.length = 0) = l.isEmpty := fun l => by cases l <;> rfl
+  simp only [alloc.vec.Vec.is_empty, alloc.vec.Vec.length, h]
 
 end WhirAeneas.StdGuards

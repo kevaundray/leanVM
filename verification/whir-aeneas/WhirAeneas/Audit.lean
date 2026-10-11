@@ -1,5 +1,8 @@
 import WhirAeneas.Generated.Verifier.Funs
 import WhirAeneas.Toolchain.StringLiteral
+import WhirAeneas.Hash.Portable
+import WhirAeneas.Hash.ByteLemmas
+import WhirAeneas.Hash.PortableGLemmas
 import Lean.Util.CollectAxioms
 
 #print axioms PcsSource.whir.verify.verify_with_basis
@@ -31,6 +34,8 @@ run_cmd do
   let mut count : Nat := 0
   for (declarationName, declarationInfo) in environment.constants.toList do
     if (`WhirAeneas).isPrefixOf declarationName ||
+        (`PcsSource).isPrefixOf declarationName ||
+        (`PortableSource).isPrefixOf declarationName ||
         (`Aeneas.Std.WrappingShiftRhs).isPrefixOf declarationName then
       match declarationInfo with
       | .thmInfo _ =>

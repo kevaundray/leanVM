@@ -45,7 +45,7 @@
 use std::mem::MaybeUninit;
 use std::ops::Range;
 
-use super::ring_switch::{DeferredWeight, RingFamily, RingShare, RingSwitch};
+use super::ring_switch::{DeferredWeight, RingFamily, RingShare, RingSwitch, SliceClaim};
 use super::verifier::OpeningVerifier;
 use super::whir::{
     Commitment, CommitmentShape, Config, INITIAL_BASIS_CHUNK, InitialWeight, ProverData, WeightAt, WhirError,
@@ -156,11 +156,15 @@ impl<E: Copy> StackClaim<E> {
 ///
 /// Exponents are checked before shifting, so an absurd width is refused rather than wrapped.
 fn is_aligned_slice(offset: usize, vars: usize, committed: usize) -> bool {
-    vars < usize::BITS as usize
-        && {
-            let len = 1usize << vars;
-            offset.is_multiple_of(len) && offset.checked_add(len).is_some_and(|end| end <= committed)
-        }
+    vars < usize::BITS as usize && {
+        let len = 1usize << vars;
+        offset.is_multiple_of(len) && offset.checked_add(len).is_some_and(|end| end <= committed)
+    }
+}
+
+/// Whether a ring-switched claim's point spans a region of `vars` variables and carries its 64 slices.
+const fn spans_region<E>(claim: &SliceClaim<E>, vars: usize) -> bool {
+    claim.suffix_point.len() == vars && claim.s_hat_v.len() == F64::DEGREE
 }
 
 /// What an opening proves about one committed stack.
@@ -180,7 +184,7 @@ impl<E: Copy> Statement<'_, E> {
     /// - There is at least one ring-switched claim.
     /// - Every region and every claim is an aligned slice of the first `committed` words.
     /// - Every ring-switched claim's point spans its region and carries its 64 slices.
-    fn check(&self, log_n: usize, committed: usize) -> Result<(), WhirError> {
+    fn check(self, log_n: usize, committed: usize) -> Result<(), WhirError> {
         let mut index = 0;
         let mut all_empty = true;
         while index < self.rings.len() && all_empty {
@@ -197,8 +201,7 @@ impl<E: Copy> Statement<'_, E> {
             let mut claim_index = 0;
             let mut spans = true;
             while claim_index < ring.claims.len() && spans {
-                let claim = &ring.claims[claim_index];
-                spans = claim.suffix_point.len() == ring.qflock_vars && claim.s_hat_v.len() == F64::DEGREE;
+                spans = spans_region(&ring.claims[claim_index], ring.qflock_vars);
                 claim_index += 1;
             }
             if ring.qflock_vars > log_n || !spans || !is_aligned_slice(ring.offset, ring.qflock_vars, committed) {
@@ -945,7 +948,6 @@ impl InitialWeight for StackWeight<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ring_switch::SliceClaim;
     use crate::ring_switch::tests::s_hat_v_reference;
     use crate::whir::config::tests::{default_config, test_config_for};
     use crate::whir::inner_product_base_ext;

@@ -36,6 +36,14 @@ if [[ ! -d "$source/charon/.git" ]]; then
     git -C "$source/charon" checkout --detach 798016509139eb51f0d764645f76d068d34ba5f6
 fi
 [[ $(git -C "$source/charon" rev-parse HEAD) == 798016509139eb51f0d764645f76d068d34ba5f6 ]]
+frontend_patch="$here/toolchain/charon-array-builtins-mono.patch"
+if ! git -C "$source/charon" apply --reverse --check "$frontend_patch" 2>/dev/null; then
+    git -C "$source/charon" apply --check "$frontend_patch"
+    git -C "$source/charon" apply "$frontend_patch"
+fi
+cd "$source/charon/charon"
+run_heavy env CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR="$source/charon/charon/target" cargo +nightly-2026-09-17 build --release --locked --bin charon --bin charon-driver
+sha256sum "$frontend_patch" "$source/charon/charon/target/release/charon" "$source/charon/charon/target/release/charon-driver" > "$here/.tools/charon-build.sha256"
 cd "$source/src"
 run_heavy "$opam" exec --switch=aeneas-5.3 -- dune build main.exe -j 2
 "$source/src/_build/default/main.exe" -version
