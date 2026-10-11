@@ -597,6 +597,46 @@ theorem script_level_ok (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
 
 end ScriptLevel
 
+/-! ## The model's verifier around its checked level replay -/
+
+section Native
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+
+theorem nativeVerify_ok_iff (c : Protocol.Config) (ch : Protocol.Challenges) (lanes : Nat) (initialClaim : Concrete.E)
+    (callerAt : Array Concrete.E → Concrete.E) (pf : Protocol.Opening) (sL : State)
+    (hch : ch.valid c = true) (hl0 : lanes ≠ 0) (hlm : lanes ≤ 2 ^ c.folds[0]!)
+    (hsize : pf.levels.size = c.folds.size) (htm : pf.tailMessages.size + 1 = ch.tail.size)
+    (hrun : Protocol.runChecked (verifyLevel c ch pf) c.folds.size 0
+      ⟨c.logN, initialClaim, pf.initial, ⟨[], []⟩⟩ = .ok sL) :
+    nativeVerify c ch lanes initialClaim callerAt pf = .ok () ↔
+      (closeTail ch pf sL).claim = sourceTerminal (callerAt (rotatePoint c.folds[0]!
+        (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual := by
+  have hlm' : ¬ (2 ^ c.folds[0]! < lanes) := by omega
+  simp only [nativeVerify, hch, hl0, hlm', hsize, htm, hrun, Bool.not_true, Bool.false_or, beq_iff_eq,
+    decide_false, Bool.or_false, Bool.false_eq_true, ↓reduceIte, bne_self_eq_false, Bool.or_self]
+  rw [show ∀ f : State → Except String Unit, ((Except.ok sL : Except String State) >>= f) = f sL from
+    fun _ => rfl]
+  by_cases he : (closeTail ch pf sL).claim = sourceTerminal (callerAt (rotatePoint c.folds[0]!
+      (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual
+  · simp [he]; rfl
+  · have : ((!(closeTail ch pf sL).claim == sourceTerminal (callerAt (rotatePoint c.folds[0]!
+        (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual)) =
+        true := by simpa using he
+    simp only [this, ↓reduceIte, he, iff_false]
+    intro h; cases h
+
+theorem nativeVerify_lanes (c : Protocol.Config) (ch : Protocol.Challenges) (lanes : Nat) (initialClaim : Concrete.E)
+    (callerAt : Array Concrete.E → Concrete.E) (pf : Protocol.Opening)
+    (hl : lanes = 0 ∨ 2 ^ c.folds[0]! < lanes) :
+    nativeVerify c ch lanes initialClaim callerAt pf ≠ .ok () := by
+  intro h
+  have : (!ch.valid c || lanes == 0 || decide (lanes > 2 ^ c.folds[0]!)) = true := by
+    rcases hl with hl | hl <;> simp [hl]
+  simp only [nativeVerify, this, ↓reduceIte] at h
+  cases h
+
+end Native
+
 /-! ## The level loop -/
 
 section Loop
@@ -940,46 +980,58 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     whir.config.Config.impl.ood_samples, hidxo, hrep, whir.config.Config.impl.log_inv_rates, hidxr, hph, hbq,
     hopen, hloop0, hsum, hfin, horacle, whir.config.Config.level_steps, hloop]
 
+/-- The composed replay theorem. For an opening verifier whose transcript answers the
+script's reads in order, the generated `verify` returns `Ok` exactly when the model's
+`nativeVerify` accepts the script's challenges and opening with the same lane count,
+initial claim and caller weight. -/
+theorem verify_eq {T1 : Type} (hw : System.Platform.numBits = 64)
+    (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (hr : RowModel inst encode encodeK ofLimbs index) (hn : NormalizerModel const)
+    (ht : Transcript inst encode tape)
+    (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
+    (hens : EnsureModel inst encode) (W : whir.verify.WeightAt T1 E V R K Q) (weight_at : T1)
+    (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
+    (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) (hcfg : ConfigRel config c log_n)
+    (s : Script E Q R K) (n_lanes : Usize) (hch : (s.chal encode).valid c = true)
+    (hS : ScriptShape index c s n_lanes.val) (target : E) (root : R) (v : V) (rest : List (Event E Q R K))
+    (hv : tape v = s.tape ++ rest) :
+    ∃ r v', whir.verify.verify inst W v config log_n n_lanes target root weight_at = .ok (r, v') ∧
+      (r = .Ok () ↔ nativeVerify c (s.chal encode) n_lanes.val (encode target) callerAt
+        (s.prf encode encodeK ofLimbs) = .ok ()) := by
+  have hcv := WHIRNativeGuards.challenges_config c _ hch
+  have hcheck := check_config_shape_ok hcfg hw hcv
+  have hf0 := hcfg.fold0
+  have hverify : whir.verify.verify inst W v config log_n n_lanes target root weight_at =
+      whir.verify.WhirReplay.run inst W v config log_n n_lanes target root weight_at := by
+    simp [whir.verify.verify, hcheck, core.result.Result.Insts.CoreOpsTry.branch]
+  rw [hverify]
+  by_cases hlanes : n_lanes.val = 0 ∨ 2 ^ config.initial_k.val < n_lanes.val
+  · have hnat := nativeVerify_lanes c (s.chal encode) n_lanes.val (encode target) callerAt
+      (s.prf encode encodeK ofLimbs) (by rw [hf0]; exact hlanes)
+    have hik : config.initial_k.val < 64 := by
+      have h0 := WHIRNativeGuards.config_level c hcv 0 (by have := hcfg.folds_size; omega)
+      have hb0 : WHIRNativeGuards.before c 0 = c.logN := by simp [WHIRNativeGuards.before]
+      have := h0.2.1; rw [hb0, hf0, hcfg.logN] at this; have := hcfg.log64; omega
+    have hshl := shl_one_val hw config.initial_k hik
+    rcases hlanes with h0 | hgt
+    · have hz : n_lanes = 0#usize := UScalar.eq_of_val_eq (by simpa using h0)
+      refine ⟨.Err (whir.verify.WhirError.LaneCount n_lanes (Std.Usize.wrapping_shl 1#usize config.initial_k)), v,
+        ?_, ?_⟩
+      · simp [whir.verify.WhirReplay.run, whir.config.Config.impl.initial_k, lift, hz]
+      · simp only [reduceCtorEq, false_iff]; exact hnat
+    · have hz : ¬ n_lanes = 0#usize := by intro he; rw [he] at hgt; simp at hgt
+      have hgt' : (Std.Usize.wrapping_shl 1#usize config.initial_k).val < n_lanes.val := by rw [hshl]; exact hgt
+      refine ⟨.Err (whir.verify.WhirError.LaneCount n_lanes (Std.Usize.wrapping_shl 1#usize config.initial_k)), v,
+        ?_, ?_⟩
+      · simp [whir.verify.WhirReplay.run, whir.config.Config.impl.initial_k, lift, hz, hgt']
+      · simp only [reduceCtorEq, false_iff]; exact hnat
+  · obtain ⟨hl0, hlm⟩ : n_lanes.val ≠ 0 ∧ n_lanes.val ≤ 2 ^ config.initial_k.val := by omega
+    obtain ⟨sL, r, v', hrun, hrunEq, hiff⟩ := run_eq inst encode const encodeK ofLimbs index tape hw h hr hn ht hclone
+      hens W weight_at callerAt hcall config c log_n hcfg s n_lanes hch hS target root v rest hv hl0 hlm
+    refine ⟨r, v', hrunEq, ?_⟩
+    rw [hiff, nativeVerify_ok_iff c (s.chal encode) n_lanes.val (encode target) callerAt
+      (s.prf encode encodeK ofLimbs) sL hch hl0 (by rw [hf0]; exact hlm)
+      (by simp [Script.prf, hS.len]) (by simp [Script.prf, Script.chal, hS.tail]) hrun]
+
 end Loop
-
-/-! ## The model's verifier around its checked level replay -/
-
-section Native
-open AccumulatedTerminalRefinement WHIRNativeArithmetic
-
-theorem nativeVerify_ok_iff (c : Protocol.Config) (ch : Protocol.Challenges) (lanes : Nat) (initialClaim : Concrete.E)
-    (callerAt : Array Concrete.E → Concrete.E) (pf : Protocol.Opening) (sL : State)
-    (hch : ch.valid c = true) (hl0 : lanes ≠ 0) (hlm : lanes ≤ 2 ^ c.folds[0]!)
-    (hsize : pf.levels.size = c.folds.size) (htm : pf.tailMessages.size + 1 = ch.tail.size)
-    (hrun : Protocol.runChecked (verifyLevel c ch pf) c.folds.size 0
-      ⟨c.logN, initialClaim, pf.initial, ⟨[], []⟩⟩ = .ok sL) :
-    nativeVerify c ch lanes initialClaim callerAt pf = .ok () ↔
-      (closeTail ch pf sL).claim = sourceTerminal (callerAt (rotatePoint c.folds[0]!
-        (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual := by
-  have hlm' : ¬ (2 ^ c.folds[0]! < lanes) := by omega
-  simp only [nativeVerify, hch, hl0, hlm', hsize, htm, hrun, Bool.not_true, Bool.false_or, beq_iff_eq,
-    decide_false, Bool.or_false, Bool.false_eq_true, ↓reduceIte, bne_self_eq_false, Bool.or_self]
-  rw [show ∀ f : State → Except String Unit, ((Except.ok sL : Except String State) >>= f) = f sL from
-    fun _ => rfl]
-  by_cases he : (closeTail ch pf sL).claim = sourceTerminal (callerAt (rotatePoint c.folds[0]!
-      (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual
-  · simp [he]; rfl
-  · have : ((!(closeTail ch pf sL).claim == sourceTerminal (callerAt (rotatePoint c.folds[0]!
-        (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual)) =
-        true := by simpa using he
-    simp only [this, ↓reduceIte, he, iff_false]
-    intro h; cases h
-
-theorem nativeVerify_lanes (c : Protocol.Config) (ch : Protocol.Challenges) (lanes : Nat) (initialClaim : Concrete.E)
-    (callerAt : Array Concrete.E → Concrete.E) (pf : Protocol.Opening)
-    (hl : lanes = 0 ∨ 2 ^ c.folds[0]! < lanes) :
-    nativeVerify c ch lanes initialClaim callerAt pf ≠ .ok () := by
-  intro h
-  have : (!ch.valid c || lanes == 0 || decide (lanes > 2 ^ c.folds[0]!)) = true := by
-    rcases hl with hl | hl <;> simp [hl]
-  simp only [nativeVerify, this, ↓reduceIte] at h
-  cases h
-
-end Native
-
 end WhirAeneas.Replay
