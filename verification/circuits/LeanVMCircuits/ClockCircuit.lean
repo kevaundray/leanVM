@@ -89,7 +89,7 @@ def zero : Certified 0 where
       circuit_proof_start
       rcases h_input with ⟨hx, hc⟩
       have hx0 : input_x = #v[] := by apply Vector.ext; intro i hi; omega
-      simp [Spec, hx0, hc, prefixes]
+      simp [hx0, prefixes]
     completeness := by circuit_proof_start
   }
   assumptions_eq := rfl
@@ -111,9 +111,9 @@ def step (n : ℕ) (previous : Certified n) : Certified (n + 1) where
       simp only [previous.assumptions_eq, previous.spec_eq, previous.requirements_eq,
         true_implies, or_true, and_true] at *
       simp only [Spec, FormalCircuitBase.output, FormalCircuitBase.localLength, certified_length,
-        eval_output, circuit_norm] at h_holds ⊢
+        circuit_norm] at h_holds ⊢
       rcases h_input with ⟨hx, hc⟩
-      simp only [Vector.map_pop, hx, hc] at h_holds
+      simp only [Vector.map_pop, hx] at h_holds
       rcases h_holds with ⟨⟨hbits, hcarry⟩, hupper⟩
       have hb := congrArg (fun word : Vector Bit (n + 1) => word[n]) hx
       simp only [Vector.getElem_map] at hb
@@ -186,7 +186,7 @@ def zero (slot : Fin 32) : Certified slot 0 where
     Spec := Spec slot 0
     soundness := by
       circuit_proof_start
-      simp [Spec, Nat.mod_one]
+      simp [Nat.mod_one]
     completeness := by circuit_proof_start
   }
   assumptions_eq := rfl
@@ -236,8 +236,7 @@ def stepPass (slot : Fin 32) (b : ℕ) (previous : Certified slot b) (h0 : slot.
       circuit_proof_start
       simp only [previous.assumptions_eq, previous.spec_eq, previous.requirements_eq,
         true_implies, or_true, and_true] at *
-      simp only [Spec, FormalCircuitBase.output, FormalCircuitBase.localLength, previous.length_eq,
-        circuit_norm, Vector.map_pop] at h_holds ⊢
+      simp only [Spec, FormalCircuitBase.output, circuit_norm, Vector.map_pop] at h_holds ⊢
       have hb := congrArg (fun word : Vector Bit (b + 1) => word[b]) h_input
       simp only [Vector.getElem_map] at hb
       rw [h_input] at h_holds
@@ -268,8 +267,7 @@ def stepZero (slot : Fin 32) (b : ℕ) (previous : Certified slot b) (h0 : slot.
       circuit_proof_start
       simp only [previous.assumptions_eq, previous.spec_eq, previous.requirements_eq,
         true_implies, or_true, and_true] at *
-      simp only [Spec, FormalCircuitBase.output, FormalCircuitBase.localLength, previous.length_eq,
-        circuit_norm, Vector.map_pop] at h_holds ⊢
+      simp only [Spec, FormalCircuitBase.output, circuit_norm, Vector.map_pop] at h_holds ⊢
       rw [h_input] at h_holds
       exact step_spec slot b input_p _ _ h_holds (by simp only [h0, h1, ↓reduceIte])
     completeness := by
@@ -422,7 +420,7 @@ def circuit (slot : Fin 32) : FormalCircuit Bit Input field where
   soundness := by
     circuit_proof_start [Spec, Adder.Spec]
     rcases h_input with ⟨hcycle, hlow, hhigh⟩
-    simp only [ClockLow.Spec, hcycle, hlow, hhigh, main_output, main_length, ClockLow.circuit_length]
+    simp only [ClockLow.Spec, main_output, main_length, ClockLow.circuit_length]
       at h_holds ⊢
     rcases h_holds with ⟨hl, ha⟩
     rw [hl] at ha
@@ -606,7 +604,7 @@ def step (slots : List (Fin 32)) (k : ℕ) (previous : Certified slots k) : Cert
       have hpop : eval env input_var_prev.pop = input_prev.pop := by
         rw [← hprev]; apply Vector.ext; intro i hi
         rw [Vector.getElem_pop, ← getElem_eval_vector, ← getElem_eval_vector, Vector.getElem_pop]
-      simp only [eval_inOrder, eval_disagree, FormalCircuitBase.output, hp, hpop, Vector.getElem_pop]
+      simp only [eval_inOrder, eval_disagree, FormalCircuitBase.output, hp, hpop]
         at h_holds
       rcases h_holds with ⟨⟨hlo, hld⟩, ⟨ho, hd⟩, hor⟩
       refine ⟨?_, ?_⟩

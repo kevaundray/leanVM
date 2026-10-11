@@ -109,20 +109,18 @@ def verdict (slot : Fin 32) (rest : List (Fin 32)) : FormalCircuit Bit (Input (r
     localLength := fun _ => verdictLength slot rest
     localLength_eq := by
       intro input offset
-      simp only [verdictLength, circuit_norm, main_length, ClockAccesses.circuit_length, ClockAll.circuit_length,
-        Product.circuit, BooleanOr.circuit] <;> omega
+      simp only [verdictLength, circuit_norm, ClockAccesses.circuit_length, ClockAll.circuit_length]
+      omega
     channelsLawful := by
       dsimp only [ElaboratedCircuit.ChannelsLawful]
-      simp only [circuit_norm, seval, accesses_channels, all_channels, List.append_nil, List.nil_subset] <;>
-        first | ac_rfl | trivial | tauto }
+      simp only [circuit_norm, seval, accesses_channels, all_channels, List.append_nil, List.nil_subset] }
   Spec := fun input output => output =
     if Clock.fail ((slot :: rest).map Fin.val) (input.prev.toList.map Adder.value) (tsNum input.ts) then 1 else 0
   soundness := by
     circuit_proof_start [ClockAccesses.Spec, ClockAll.Spec, Product.circuit, Product.Spec, BooleanOr.circuit]
     rcases h_input with ⟨hts, hprev⟩
-    simp only [main_length, ClockAccesses.circuit_length, ClockAll.circuit_length, FormalCircuitBase.output]
-      at h_holds ⊢
-    simp only [ClockAccesses.eval_inOrder, ClockAccesses.eval_disagree, hts, hprev] at h_holds
+    simp only [FormalCircuitBase.output] at h_holds ⊢
+    simp only [ClockAccesses.eval_inOrder, ClockAccesses.eval_disagree] at h_holds
     rcases h_holds with ⟨⟨hin, hdis⟩, hord, hlate, hfail⟩
     have ht35 : Expression.eval env input_var_ts[35] = input_ts[35] := by rw [← hts, Vector.getElem_map]
     rw [ht35] at hlate
@@ -165,17 +163,16 @@ def circuit (slot : Fin 32) (rest : List (Fin 32)) :
     localLength := fun _ => verdictLength slot rest + 35
     localLength_eq := by
       intro input offset
-      simp only [circuit_norm, main_length, verdict_length, ClockChain.circuit_length]
+      simp only [circuit_norm, verdict_length, ClockChain.circuit_length]
     channelsLawful := by
       dsimp only [ElaboratedCircuit.ChannelsLawful]
-      simp only [circuit_norm, seval, verdict_channels, chain_channels, List.append_nil, List.nil_subset] <;>
-        first | ac_rfl | trivial | tauto }
+      simp only [circuit_norm, seval, verdict_channels, chain_channels, List.append_nil, List.nil_subset] }
   Spec := Spec (slot :: rest)
   soundness := by
     circuit_proof_start [ClockChain.Spec]
     rcases h_input with ⟨hts, hprev⟩
-    simp only [main_length, FormalCircuitBase.output] at h_holds ⊢
-    simp only [map_slice, hts, hprev] at h_holds
+    simp only [FormalCircuitBase.output] at h_holds ⊢
+    simp only [map_slice, hts] at h_holds
     rcases h_holds with ⟨hF, hbits, -⟩
     have ht35 : Expression.eval env input_var_ts[35] = input_ts[35] := by rw [← hts, Vector.getElem_map]
     rw [ht35, Vector.toList_map] at hbits

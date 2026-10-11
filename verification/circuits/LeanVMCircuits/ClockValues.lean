@@ -9,9 +9,9 @@ public import LeanVMCircuits.ClockSpec
 /-!
 # Word arithmetic of the clock circuit
 
-Little-endian bit lists read as integers, slices of bit vectors, and the two carry chains of the clock circuit: the
-products `c * x_0 * .. * x_j` of a chain of ANDs (`prefixes`), whose list read as an integer is the XOR of a word and
-its successor (`carries_value`), and the incrementer that XORs those carries into the word (`increment_value`).
+Little-endian bit lists read as integers, slices of bit vectors, and the step's carry chain: the products
+`c * x_0 * .. * x_j` of a chain of ANDs (`prefixes`), whose list read as an integer is the XOR of a word and its
+successor (`carries_value`).
 -/
 
 namespace LeanVMCircuits.ClockValues
@@ -32,15 +32,6 @@ theorem valueL_append (xs ys : List Bit) : valueL (xs ++ ys) = valueL xs + 2 ^ x
   | nil => simp
   | cons x xs ih => simp only [List.cons_append, valueL_cons, ih, List.length_cons, pow_succ]; ring
 
-theorem valueL_lt (bits : List Bit) : valueL bits < 2 ^ bits.length := by
-  induction bits with
-  | nil => simp
-  | cons b bits ih =>
-    have := ZMod.val_lt b
-    simp only [valueL_cons, List.length_cons, pow_succ]
-    change b.val < 2 at this
-    omega
-
 theorem valueL_take_drop (bits : List Bit) (a : ℕ) (h : a ≤ bits.length) :
     valueL bits = valueL (bits.take a) + 2 ^ a * valueL (bits.drop a) := by
   conv_lhs => rw [← List.take_append_drop a bits]
@@ -52,9 +43,6 @@ theorem bit_val_le (b : Bit) : b.val ≤ 1 := by
   omega
 
 theorem val_mul (x y : Bit) : (x * y).val = x.val * y.val := by
-  rcases bit_zero_or_one x with rfl | rfl <;> rcases bit_zero_or_one y with rfl | rfl <;> decide
-
-theorem val_add (x y : Bit) : (x + y).val + 2 * (x * y).val = x.val + y.val := by
   rcases bit_zero_or_one x with rfl | rfl <;> rcases bit_zero_or_one y with rfl | rfl <;> decide
 
 /-- `c + 2 Y` modulo `2^(k + 1)`, for a bit `c`. -/
@@ -196,37 +184,6 @@ theorem carries_value (xs : List Bit) (c : Bit) (X : ℕ) (hX : X % 2 ^ xs.lengt
     rw [show 2 * (X / 2) + X % 2 = X by omega] at hstep
     rw [prefixes_cons, valueL_cons, ih (c * x) (X / 2) hhigh, hstep, hlow, val_mul, mul_comm x.val c.val,
       bit_add_two_mul_mod _ _ _ (bit_val_le c)]
-
-/-! ## The incrementer -/
-
-/-- `xs + c`, dropping the carry out: each bit XORs the carry in, which is the AND of `c` and the bits below. -/
-def increment (c : Bit) : List Bit → List Bit
-  | [] => []
-  | x :: xs => (x + c) :: increment (c * x) xs
-
-@[simp] theorem length_increment (c : Bit) (xs : List Bit) : (increment c xs).length = xs.length := by
-  induction xs generalizing c with
-  | nil => rfl
-  | cons x xs ih => simp [increment, ih]
-
-theorem increment_value (c : Bit) (xs : List Bit) :
-    valueL (increment c xs) = (valueL xs + c.val) % 2 ^ xs.length := by
-  induction xs generalizing c with
-  | nil => simp [increment]; omega
-  | cons x xs ih =>
-    simp only [increment, valueL_cons, ih, List.length_cons]
-    have hsum := val_add x c
-    rw [mul_comm c x, show x.val + 2 * valueL xs + c.val = (x + c).val + 2 * ((x * c).val + valueL xs) by
-      omega, bit_add_two_mul_mod _ _ _ (bit_val_le _)]
-    congr 2
-    rw [Nat.add_comm]
-
-/-- The incrementer's bits are the XOR of the bits and the chain of ANDs from `c`, shifted one up. -/
-theorem increment_eq (c : Bit) (xs : List Bit) :
-    increment c xs = List.zipWith (· + ·) xs (c :: prefixes c xs) := by
-  induction xs generalizing c with
-  | nil => rfl
-  | cons x xs ih => rw [increment, ih, prefixes_cons]; rfl
 
 /-! ## The clock's ports -/
 

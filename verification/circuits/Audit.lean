@@ -340,7 +340,28 @@ run_cmd do
     ``LeanVMCircuits.Bus.clock_next,
     ``LeanVMCircuits.Bus.clock_in_order,
     ``LeanVMCircuits.Bus.machine_reads_at_pc,
-    ``LeanVMCircuits.Bus.ClassTable.tables_correct] do
+    ``LeanVMCircuits.Bus.ClassTable.tables_correct,
+    ``LeanVMCircuits.ClockStep.circuit, ``LeanVMCircuits.Flock.Clock.soundness_of,
+    ``LeanVMCircuits.Flock.Clock.Registers.supported, ``LeanVMCircuits.Flock.Clock.Registers.source_eq,
+    ``LeanVMCircuits.Flock.Clock.Registers.soundness, ``LeanVMCircuits.Flock.Clock.Registers.layout,
+    ``LeanVMCircuits.Flock.Clock.Registers.output_products_layout,
+    ``LeanVMCircuits.Flock.Clock.Registers.wellFormed, ``LeanVMCircuits.Flock.Clock.Registers.complete,
+    ``LeanVMCircuits.Flock.Clock.Load.supported, ``LeanVMCircuits.Flock.Clock.Load.source_eq,
+    ``LeanVMCircuits.Flock.Clock.Load.soundness, ``LeanVMCircuits.Flock.Clock.Load.layout,
+    ``LeanVMCircuits.Flock.Clock.Load.output_products_layout,
+    ``LeanVMCircuits.Flock.Clock.Load.wellFormed, ``LeanVMCircuits.Flock.Clock.Load.complete,
+    ``LeanVMCircuits.Flock.Clock.Store.supported, ``LeanVMCircuits.Flock.Clock.Store.source_eq,
+    ``LeanVMCircuits.Flock.Clock.Store.soundness, ``LeanVMCircuits.Flock.Clock.Store.layout,
+    ``LeanVMCircuits.Flock.Clock.Store.output_products_layout,
+    ``LeanVMCircuits.Flock.Clock.Store.wellFormed, ``LeanVMCircuits.Flock.Clock.Store.complete,
+    ``LeanVMCircuits.Flock.Clock.Hash.supported, ``LeanVMCircuits.Flock.Clock.Hash.source_eq,
+    ``LeanVMCircuits.Flock.Clock.Hash.soundness, ``LeanVMCircuits.Flock.Clock.Hash.layout,
+    ``LeanVMCircuits.Flock.Clock.Hash.output_products_layout,
+    ``LeanVMCircuits.Flock.Clock.Hash.wellFormed, ``LeanVMCircuits.Flock.Clock.Hash.complete,
+    ``LeanVMCircuits.Flock.Clock.Ext.supported, ``LeanVMCircuits.Flock.Clock.Ext.source_eq,
+    ``LeanVMCircuits.Flock.Clock.Ext.soundness, ``LeanVMCircuits.Flock.Clock.Ext.layout,
+    ``LeanVMCircuits.Flock.Clock.Ext.output_products_layout,
+    ``LeanVMCircuits.Flock.Clock.Ext.wellFormed, ``LeanVMCircuits.Flock.Clock.Ext.complete] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
@@ -407,3 +428,41 @@ run_cmd do
 #print axioms LeanVMCircuits.Bus.clock_in_order
 #print axioms LeanVMCircuits.Bus.machine_reads_at_pc
 #print axioms LeanVMCircuits.Bus.ClassTable.tables_correct
+
+#print axioms LeanVMCircuits.ClockStep.circuit
+#print axioms LeanVMCircuits.Flock.Clock.soundness_of
+#print axioms LeanVMCircuits.Flock.Clock.Registers.supported
+#print axioms LeanVMCircuits.Flock.Clock.Registers.source_eq
+#print axioms LeanVMCircuits.Flock.Clock.Registers.soundness
+#print axioms LeanVMCircuits.Flock.Clock.Registers.layout
+#print axioms LeanVMCircuits.Flock.Clock.Registers.output_products_layout
+#print axioms LeanVMCircuits.Flock.Clock.Registers.wellFormed
+#print axioms LeanVMCircuits.Flock.Clock.Registers.complete
+#print axioms LeanVMCircuits.Flock.Clock.Load.supported
+#print axioms LeanVMCircuits.Flock.Clock.Load.source_eq
+#print axioms LeanVMCircuits.Flock.Clock.Load.soundness
+#print axioms LeanVMCircuits.Flock.Clock.Load.layout
+#print axioms LeanVMCircuits.Flock.Clock.Load.output_products_layout
+#print axioms LeanVMCircuits.Flock.Clock.Load.wellFormed
+#print axioms LeanVMCircuits.Flock.Clock.Load.complete
+#print axioms LeanVMCircuits.Flock.Clock.Store.supported
+#print axioms LeanVMCircuits.Flock.Clock.Store.source_eq
+#print axioms LeanVMCircuits.Flock.Clock.Store.soundness
+#print axioms LeanVMCircuits.Flock.Clock.Store.layout
+#print axioms LeanVMCircuits.Flock.Clock.Store.output_products_layout
+#print axioms LeanVMCircuits.Flock.Clock.Store.wellFormed
+#print axioms LeanVMCircuits.Flock.Clock.Store.complete
+#print axioms LeanVMCircuits.Flock.Clock.Hash.supported
+#print axioms LeanVMCircuits.Flock.Clock.Hash.source_eq
+#print axioms LeanVMCircuits.Flock.Clock.Hash.soundness
+#print axioms LeanVMCircuits.Flock.Clock.Hash.layout
+#print axioms LeanVMCircuits.Flock.Clock.Hash.output_products_layout
+#print axioms LeanVMCircuits.Flock.Clock.Hash.wellFormed
+#print axioms LeanVMCircuits.Flock.Clock.Hash.complete
+#print axioms LeanVMCircuits.Flock.Clock.Ext.supported
+#print axioms LeanVMCircuits.Flock.Clock.Ext.source_eq
+#print axioms LeanVMCircuits.Flock.Clock.Ext.soundness
+#print axioms LeanVMCircuits.Flock.Clock.Ext.layout
+#print axioms LeanVMCircuits.Flock.Clock.Ext.output_products_layout
+#print axioms LeanVMCircuits.Flock.Clock.Ext.wellFormed
+#print axioms LeanVMCircuits.Flock.Clock.Ext.complete
