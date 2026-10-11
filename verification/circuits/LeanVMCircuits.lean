@@ -24,3 +24,5 @@ public import LeanVMCircuits.ClockSpec
 public import LeanVMCircuits.Bus.ClockFacts
 public import LeanVMCircuits.Bus.Tables
 public import LeanVMCircuits.ClockExport
+public import LeanVMCircuits.ExtClockExport
+public import LeanVMCircuits.Bus.TableClock
