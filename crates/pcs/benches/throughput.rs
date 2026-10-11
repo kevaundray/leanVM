@@ -31,7 +31,7 @@
 //! ```
 
 use bench::{Metric, Plan, Timing, bencher_json, env_usize};
-use fiat_shamir::transcript::{ProverState, Transmitter};
+use fiat_shamir::{ProverState, SessionId};
 use pcs::ntt::AdditiveNttF64;
 use pcs::ring_switch::{RingSwitch, SliceClaim};
 use pcs::stack::{CommittedStack, StackClaim, Statement};
@@ -87,11 +87,11 @@ fn main() {
         let committed = tracing::info_span!("Commit").in_scope(|| CommittedStack::new(&witness, log_n, pc.clone()));
         commit_t.push(t.elapsed().as_secs_f64());
 
-        // The root, then the claims' values, ride the transcript before the opening draws its challenges.
-        let mut ch = ProverState::from_label(b"pcs-throughput");
-        ch.add_root(&committed.root());
-        ch.add_scalar(value);
-        ch.add_scalars(&rings[0].claims[0].s_hat_v);
+        // The root, then the claims' values, are prover messages before the opening draws its challenges.
+        let mut ch = ProverState::new(&SessionId::new(b"pcs-throughput"), &0u64);
+        ch.prover_message(&committed.root());
+        ch.prover_message(&value);
+        ch.prover_messages(&rings[0].claims[0].s_hat_v);
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
             let statement = Statement {
