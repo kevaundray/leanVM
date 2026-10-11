@@ -340,14 +340,28 @@ struct StatementWeight<'a, 'r, E> {
 
 impl<E: Copy + PartialEq, V: OpeningVerifier<E = E>> WeightAt<V> for StatementWeight<'_, '_, E> {
     fn call(self, v: &mut V, x: &[E]) -> E {
-        let mut weight = self.share.weight_at(v, x);
-        for i in 0..self.points.len().min(self.point_lambdas.len()) {
-            let eq = self.points[i].eq_at(v, x);
-            weight = v.mul_add(self.point_lambdas[i], eq, weight);
-        }
+        let weight = self.share.weight_at(v, x);
+        let weight = add_point_weights(v, self.points, self.point_lambdas, x, weight);
         let anchor = anchor_eq_at(v, self.shape, self.anchor_point, x);
         v.mul_add(self.anchor_lambda, anchor, weight)
     }
+}
+
+/// `weight + sum_i lambdas[i] * eq_i(x)` over the point claims, in order.
+///
+/// It takes the claims directly, so the loop runs under no borrow of the statement weight.
+fn add_point_weights<E: Copy, V: OpeningVerifier<E = E>>(
+    v: &mut V,
+    points: &[StackClaim<E>],
+    lambdas: &[E],
+    x: &[E],
+    mut weight: E,
+) -> E {
+    for i in 0..points.len().min(lambdas.len()) {
+        let eq = points[i].eq_at(v, x);
+        weight = v.mul_add(lambdas[i], eq, weight);
+    }
+    weight
 }
 
 impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {

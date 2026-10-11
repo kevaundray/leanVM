@@ -596,26 +596,7 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
     ///
     /// If a claim does not carry 64 slices.
     pub fn target<A: Arith<E = E>>(&self, a: &mut A) -> E {
-        let zero = a.zero();
-        let mut family = vec![zero; F64::DEGREE];
-        let mut ring = 0;
-        let mut claim_index = 0;
-        while ring < self.rings.len() && claim_index < self.scales.len() {
-            let mut within_ring = 0;
-            while within_ring < self.rings[ring].claims.len() && claim_index < self.scales.len() {
-                let claim = &self.rings[ring].claims[within_ring];
-                let scale = self.scales[claim_index];
-                assert_eq!(claim.s_hat_v.len(), F64::DEGREE, "a ring-switched claim has 64 slices");
-                let mut i = 0;
-                while i < F64::DEGREE {
-                    family[i] = a.mul_add(scale, claim.s_hat_v[i], family[i]);
-                    i += 1;
-                }
-                within_ring += 1;
-                claim_index += 1;
-            }
-            ring += 1;
-        }
+        let family = scaled_family(a, self.rings, &self.scales);
         self.map.target(a, &family)
     }
 
@@ -639,47 +620,119 @@ impl<E: Copy + PartialEq> RingShare<'_, E> {
     ///
     /// If a region has more variables than `x` has coordinates, or a claim's point is longer than every region.
     pub fn weight_at<A: Arith<E = E>>(&self, a: &mut A, x: &[E]) -> E {
-        let mut max_vars = 0;
-        for r in 0..self.rings.len() {
-            max_vars = max_vars.max(self.rings[r].qflock_vars);
+        family_weight_at(a, self.rings, &self.scales, &self.map, x)
+    }
+}
+
+// The family's loops take the regions and scales directly, so no loop runs under a borrow of the share.
+
+/// Slice `i` of the family, `sum_j scales[j] * s_{j,i}`, over the regions' claims in order.
+///
+/// # Panics
+///
+/// If a claim does not carry 64 slices.
+fn scaled_family<A: Arith<E = E>, E: Copy>(a: &mut A, rings: &[RingSwitch<E>], scales: &[E]) -> Vec<E> {
+    let zero = a.zero();
+    let mut family = vec![zero; F64::DEGREE];
+    let mut ring = 0;
+    let mut claim_index = 0;
+    while ring < rings.len() && claim_index < scales.len() {
+        let mut within_ring = 0;
+        while within_ring < rings[ring].claims.len() && claim_index < scales.len() {
+            add_scaled_slices(a, &mut family, scales[claim_index], &rings[ring].claims[within_ring]);
+            within_ring += 1;
+            claim_index += 1;
         }
-        let coordinates = &x[..max_vars];
-        let mut ladders = Vec::with_capacity(coordinates.len());
-        let mut n = 0;
-        while n < coordinates.len() {
-            ladders.push(inverse_frobenius_ladder(a, coordinates[n], 1));
-            n += 1;
-        }
-        let zero = a.zero();
-        // Phase 1: every prefix group's terms, each claim's scaled and summed into its region.
-        let mut sums = vec![vec![zero; F64::DEGREE]; self.rings.len()];
-        let groups = PrefixGroup::of(self.rings);
-        let mut g = 0;
-        while g < groups.len() {
-            let group = &groups[g];
-            let at = self.map.prefix_terms(a, group.lead, &ladders, &group.lengths);
-            for m in 0..group.members.len() {
-                let member = group.members[m];
-                let scale = self.scales[member.claim];
-                let sum = &mut sums[member.ring];
-                let terms = &at[member.length];
-                for k in 0..sum.len().min(terms.len()) {
-                    sum[k] = a.mul_add(scale, terms[k], sum[k]);
-                }
-            }
-            g += 1;
-        }
-        // Phase 2: close each region's sum and select the region's place in the stack.
-        let mut weight = zero;
-        let mut r = 0;
-        while r < self.rings.len() {
-            let ring = &self.rings[r];
-            let part = RingMap::close(a, &sums[r]);
-            let sel_eq = a.eq_bits(ring.offset >> ring.qflock_vars, &x[ring.qflock_vars..]);
-            weight = a.mul_add(sel_eq, part, weight);
-            r += 1;
-        }
-        weight
+        ring += 1;
+    }
+    family
+}
+
+/// Adds `scale` times the claim's slices into `family`, slice by slice.
+///
+/// # Panics
+///
+/// If the claim does not carry 64 slices.
+fn add_scaled_slices<A: Arith<E = E>, E: Copy>(a: &mut A, family: &mut [E], scale: E, claim: &SliceClaim<E>) {
+    assert_eq!(claim.s_hat_v.len(), F64::DEGREE, "a ring-switched claim has 64 slices");
+    let mut i = 0;
+    while i < F64::DEGREE {
+        family[i] = a.mul_add(scale, claim.s_hat_v[i], family[i]);
+        i += 1;
+    }
+}
+
+/// The family's weight at `x`, as `RingShare::weight_at` states it.
+fn family_weight_at<A: Arith<E = E>, E: Copy + PartialEq>(
+    a: &mut A,
+    rings: &[RingSwitch<E>],
+    scales: &[E],
+    map: &RingMap<E>,
+    x: &[E],
+) -> E {
+    let mut max_vars = 0;
+    let mut r = 0;
+    while r < rings.len() {
+        max_vars = max_vars.max(rings[r].qflock_vars);
+        r += 1;
+    }
+    let ladders = coordinate_ladders(a, &x[..max_vars]);
+    let zero = a.zero();
+    // Phase 1: every prefix group's terms, each claim's scaled and summed into its region.
+    let mut sums = vec![vec![zero; F64::DEGREE]; rings.len()];
+    let groups = PrefixGroup::of(rings);
+    let mut g = 0;
+    while g < groups.len() {
+        let at = map.prefix_terms(a, groups[g].lead, &ladders, &groups[g].lengths);
+        add_group_terms(a, &mut sums, scales, &at, &groups[g].members);
+        g += 1;
+    }
+    // Phase 2: close each region's sum and select the region's place in the stack.
+    let mut weight = zero;
+    let mut r = 0;
+    while r < rings.len() {
+        let offset = rings[r].offset;
+        let vars = rings[r].qflock_vars;
+        let part = RingMap::close(a, &sums[r]);
+        let sel_eq = a.eq_bits(offset >> vars, &x[vars..]);
+        weight = a.mul_add(sel_eq, part, weight);
+        r += 1;
+    }
+    weight
+}
+
+/// One inverse Frobenius ladder per coordinate.
+fn coordinate_ladders<A: Arith<E = E>, E: Copy>(a: &mut A, coordinates: &[E]) -> Vec<Vec<E>> {
+    let mut ladders = Vec::with_capacity(coordinates.len());
+    let mut n = 0;
+    while n < coordinates.len() {
+        ladders.push(inverse_frobenius_ladder(a, coordinates[n], 1));
+        n += 1;
+    }
+    ladders
+}
+
+/// Adds each member's scaled terms into its region's sum.
+fn add_group_terms<A: Arith<E = E>, E: Copy>(
+    a: &mut A,
+    sums: &mut [Vec<E>],
+    scales: &[E],
+    at: &[Vec<E>],
+    members: &[PrefixMember],
+) {
+    let mut m = 0;
+    while m < members.len() {
+        let member = members[m];
+        let scale = scales[member.claim];
+        add_scaled(a, &mut sums[member.ring], scale, &at[member.length]);
+        m += 1;
+    }
+}
+
+/// `sum[k] += scale * terms[k]` over their common length.
+fn add_scaled<A: Arith<E = E>, E: Copy>(a: &mut A, sum: &mut [E], scale: E, terms: &[E]) {
+    for k in 0..sum.len().min(terms.len()) {
+        sum[k] = a.mul_add(scale, terms[k], sum[k]);
     }
 }
 
