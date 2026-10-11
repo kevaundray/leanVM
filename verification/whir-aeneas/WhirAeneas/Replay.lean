@@ -1402,6 +1402,181 @@ theorem terminal_link (w : whir.verify.WhirReplay V R K Q E) (s : State) (hrel :
   rw [terminalValue, sourceTerminal, hq, ho, ← levels_sum encode index _ _ hrel.levels,
     ← oods_sum encode _ _ hrel.oods, ← hrel.ris, List.map_append]
 
+theorem forall₂_mem {α β : Type} {Rel : α → β → Prop} {l₁ : List α} {l₂ : List β}
+    (h : List.Forall₂ Rel l₁ l₂) : ∀ a ∈ l₁, ∃ b ∈ l₂, Rel a b := by
+  induction h with
+  | nil => intro a ha; simp at ha
+  | @cons a b _ _ hab _ ih =>
+    intro x hx
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact ⟨b, by simp, hab⟩
+    · obtain ⟨y, hy, hxy⟩ := ih x hx
+      exact ⟨y, by simp [hy], hxy⟩
+
+/-- The model's context invariant gives what the terminal reads of each source context. -/
+theorem fits_of_model (w : whir.verify.WhirReplay V R K Q E) (s : State) (hrel : Query.StateRel encode index w s)
+    (hf : ModelFits s) :
+    (∀ c ∈ w.levels.val, LevelFits w.ris.val.length s.n c) ∧ (∀ c ∈ w.oods.val, OodFits w.ris.val.length s.n c) := by
+  have hlen : w.ris.val.length = s.source.ris.length := by rw [← hrel.ris]; simp
+  constructor
+  · intro c hc
+    obtain ⟨sv, hsv, hm⟩ := forall₂_mem hrel.levels c hc
+    obtain ⟨hstart, _, lam, hbasis, _⟩ := hm
+    obtain ⟨h1, h2, h3⟩ := hf sv (List.mem_of_mem_filter hsv)
+    rw [hbasis] at h2 h3
+    simp only [Basis.dimension] at h2 h3
+    refine ⟨by omega, by omega, h3⟩
+  · intro c hc
+    obtain ⟨sv, hsv, hm⟩ := forall₂_mem hrel.oods c hc
+    obtain ⟨hstart, hbasis, _⟩ := hm
+    obtain ⟨h1, h2, _⟩ := hf sv (List.mem_of_mem_filter hsv)
+    rw [hbasis] at h2
+    simp only [Basis.dimension, List.size_toArray, List.length_map] at h2
+    refine ⟨by omega, by omega⟩
+
 end Link
+
+theorem shl_one_val (hw : System.Platform.numBits = 64) (n : Usize) (h : n.val < 64) :
+    (Std.Usize.wrapping_shl 1#usize n).val = 2 ^ n.val := by
+  simp only [Std.Usize.wrapping_shl, UScalar.wrapping_shl_rhs, WrappingShiftRhs.amount_unsigned]
+  have hn : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  have h1 : (1#usize : Usize).val = 1 := by simp
+  have hv : n.val % UScalarTy.Usize.numBits = n.val := by rw [hn]; exact Nat.mod_eq_of_lt h
+  rw [hv]
+  show ((1#usize : Usize).bv <<< n.val).toNat = 2 ^ n.val
+  rw [BitVec.toNat_shiftLeft]
+  change (1#usize : Usize).val <<< n.val % 2 ^ UScalarTy.Usize.numBits = 2 ^ n.val
+  rw [h1, Nat.one_shiftLeft, hn]
+  exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by norm_num) h)
+
+/-! ## The last level -/
+
+section Last
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
+  (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
+  (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
+  (index : Q → Nat) (tape : V → List (Event E Q R K))
+
+/-- The model's state after a later level's query batch with no out-of-domain claims. -/
+def lastState (st : State) (n : Nat) (qs : List Q) (lam : E) (rows : List (List K)) (point : List E)
+    (i0 i2 : E) : State :=
+  batchScalar st (.query n (qs.map index).toArray (encode lam))
+    (Protocol.enforced (rows.map fun w => (eRow encodeK ofLimbs w).toArray).toArray (point.map encode).toArray
+      (Concrete.powers (encode lam) qs.length) false) (1 * encode lam) ⟨encode i0, encode i2⟩
+
+theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
+    (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (hr : RowModel inst encode encodeK ofLimbs index) (hn : NormalizerModel const)
+    (ht : Transcript inst encode tape)
+    (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
+    (hens : EnsureModel inst encode) (W : whir.verify.WeightAt T1 E V R K Q) (weight_at : T1)
+    (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
+    (config : whir.config.Config) (oracle : whir.verify.Oracle R) (level_rs : Slice E)
+    (w : whir.verify.WhirReplay V R K Q E) (st : State) (hrel : Query.StateRel encode index w st)
+    (hfits : ModelFits st) (v : V) (n : Usize) (hst : st.n = n.val) (hn64 : n.val < 64)
+    (ys : List E) (qs : List Q) (lam : E) (rows : List (List K)) (i0 i2 : E) (tail : List E)
+    (msgs : List (E × E)) (rest : List (Event E Q R K))
+    (hv : tape v = [.scalars ys, .grind, .queries qs, .sample lam, .rows rows, .poly i0 i2] ++
+      (tailTape tail msgs ++ rest))
+    (hys : ys.length = 2 ^ n.val)
+    (hgl : (alloc.vec.Vec.len config.level_ks).val < config.grinding_bits.val.length)
+    (hql : (alloc.vec.Vec.len config.level_ks).val < config.queries.val.length)
+    (hg : config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val] ≤ U32.max)
+    (hcount : qs.length = (config.queries.val[(alloc.vec.Vec.len config.level_ks).val]).val)
+    (hrows : rows.length = qs.length) (hne : rows ≠ [])
+    (hwidth : ∀ r ∈ rows, r.length = 3 * 2 ^ level_rs.val.length) (hpt : level_rs.val.length < 64)
+    (htail : tail.length = n.val) (hmsgs : msgs.length + 1 = tail.length)
+    (hk : config.initial_k.val ≤ w.ris.val.length + tail.length)
+    (hcap : w.ris.val.length + tail.length + 1 ≤ Usize.max)
+    (hcapo : w.oods.val.length < Usize.max) (hcapl : w.levels.val.length < Usize.max)
+    (ch : Protocol.Challenges) (pf : Protocol.Opening) (hch : ch.tail = (tail.map encode).toArray)
+    (hpf : pf.tailMessages = (msgs.map fun m => (⟨encode m.1, encode m.2⟩ : Protocol.Message Concrete.E)).toArray) :
+    ∃ r v', ∃ wF : whir.verify.WhirReplay V R K Q E,
+      whir.verify.WhirReplay.last_level inst W w v config oracle level_rs n weight_at = .ok (r, v') ∧
+      Query.StateRel encode index wF
+        (lastState encode encodeK ofLimbs index st n.val qs lam rows level_rs.val i0 i2) ∧
+      wF.ris = w.ris ∧
+      (r = .Ok () ↔ terminalValue encode index callerAt config.initial_k.val wF.ris.val wF.levels.val wF.oods.val
+        ys tail = (closeTail ch pf (lastState encode encodeK ofLimbs index st n.val qs lam rows level_rs.val
+          i0 i2)).claim) := by
+  have hshl := shl_one_val hw n hn64
+  obtain ⟨yr, v1, h1, eyr, hv1⟩ := ht.scalars v (Std.Usize.wrapping_shl 1#usize n) ys _ hv (by rw [hshl, hys])
+  obtain ⟨b, v2, h2, hv2, ebq, ebl, ebw⟩ := begin_query_eq inst encode const tape h ht v1
+    (whir.verify.QueryPhase.mk (UScalar.cast .U32 config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val])
+      (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate)
+      config.queries.val[(alloc.vec.Vec.len config.level_ks).val]) qs lam _ hcount hv1
+  obtain ⟨rowsV, v3, h3, hv3, erows⟩ := open_e_rows_eq inst encode encodeK ofLimbs index tape hr ht oracle v2
+    (alloc.vec.Vec.deref b.queries) rows _ (fun r hr' => by rw [hwidth r hr']; omega) hv2
+  have hrows_ne : rowsV.val ≠ [] := by
+    intro hnil; apply hne
+    have := congrArg List.length erows
+    simp [hnil] at this
+    exact this
+  have hlenrows : rowsV.val.length = rows.length := by simpa using congrArg List.length erows
+  have hwidthV : ∀ r ∈ rowsV.val, r.val.length = 2 ^ level_rs.val.length := by
+    intro r hr'
+    have hmem : r.val.map encode ∈ rows.map (eRow encodeK ofLimbs) := by
+      rw [← erows]; exact List.mem_map_of_mem hr'
+    obtain ⟨wd, hwd, hwe⟩ := List.mem_map.mp hmem
+    have := congrArg List.length hwe
+    simp only [eRow, List.length_map, List.length_range] at this
+    rw [hwidth wd hwd] at this
+    simp at this
+    omega
+  obtain ⟨sum, h4, esum⟩ := Query.ext_enforced_eq inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
+    inst encode const h v3 rowsV level_rs (alloc.vec.Vec.deref b.weights) (2 ^ level_rs.val.length) hrows_ne
+    hwidthV hpt le_rfl (by
+      have := congrArg List.length ebw
+      simp only [List.length_map, Array.length_toList, BatchingRefinement.size_powers] at this
+      simp [alloc.vec.Vec.deref, this, hlenrows, hrows])
+  obtain ⟨intro, v5, hrecv, hic, hia, hib, hv5⟩ := recv_eq inst encode tape ht
+    inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v3 sum i0 i2 _ hv3
+  obtain ⟨w2, hfin, hris2, hrel2⟩ := Query.finish_query_eq inst encode const index h w st hrel v3 v3 v5 b
+    (alloc.vec.Vec.new _) n sum intro (ht.end_scope v3) hrecv (by rw [hib, hia]) (by simp [alloc.vec.Vec.new])
+    (by rw [ebw, ebq, ebl]) (by simpa [alloc.vec.Vec.new] using hcapo) hcapl
+  have hsF : batchScalar (Query.oodFold (encode b.lambda) (Query.oodData encode (alloc.vec.Vec.new
+      (whir.verify.Ood E)).val) (st, 1)).1 (.query n.val (b.queries.val.map index).toArray (encode b.lambda))
+      (encode sum) ((Query.oodFold (encode b.lambda) (Query.oodData encode (alloc.vec.Vec.new
+        (whir.verify.Ood E)).val) (st, 1)).2 * encode b.lambda) ⟨encode intro.c, encode intro.a⟩ =
+      lastState encode encodeK ofLimbs index st n.val qs lam rows level_rs.val i0 i2 := by
+    simp only [alloc.vec.Vec.new, Query.oodData, List.map_nil, Query.oodFold, lastState, ebq, ebl, hic, hia]
+    congr 2
+    rw [esum]
+    have hw' : ((alloc.vec.Vec.deref b.weights).val.map encode).toArray = Concrete.powers (encode lam) qs.length := by
+      simp only [alloc.vec.Vec.deref, Slice.from_val]; rw [ebw]
+    have hrw : rowsV.val.map (fun r => (r.val.map encode).toArray) = (rows.map (eRow encodeK ofLimbs)).map
+        List.toArray := by rw [← erows]; simp
+    rw [hw', hrw]
+    simp only [List.map_map]
+    rfl
+  rw [hsF] at hrel2
+  set sF := lastState encode encodeK ofLimbs index st n.val qs lam rows level_rs.val i0 i2 with hsFdef
+  have hfitsF : ModelFits sF := by
+    rw [hsFdef, lastState]
+    exact ModelFits.batch st hfits _ (by simp [Basis.dimension, hst]) (by omega) _ _ _
+  have hnF : sF.n = n.val := by rw [hsFdef]; simp [lastState, batchScalar, hst]
+  obtain ⟨hlevF, hoodF⟩ := fits_of_model encode index w2 sF hrel2 hfitsF
+  obtain ⟨r, v', hloop, er⟩ := tail_loop_eq inst encode const encodeK ofLimbs index tape h hr hn ht hclone hens W
+    weight_at callerAt hcall config n yr w2.ris w2.levels w2.oods tail msgs rest ch pf sF hch hpf hmsgs
+    htail.symm (by rw [hnF, ← htail] at hlevF; exact hlevF) (by rw [hnF, ← htail] at hoodF; exact hoodF)
+    (by rw [hris2]; exact hk) (by rw [hris2]; omega) (by omega) (by rw [eyr, hys, htail])
+    tail.length 0 { start := 0#usize, «end» := n } w2 v5 (alloc.vec.Vec.with_capacity E n) (by simp) rfl
+    (by simp) (by simp) (by simpa [tailTape] using hv5) rfl rfl rfl (by simp [alloc.vec.Vec.with_capacity,
+      alloc.vec.Vec.new]) hrel2.claim hrel2.message (fun _ => hrel2.linear)
+  refine ⟨r, v', w2, ?_, hrel2, hris2, ?_⟩
+  · have hph := phase_eq inst config (alloc.vec.Vec.len config.level_ks)
+      (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate) hgl hql hg
+    simp only [whir.verify.WhirReplay.last_level, lift, Std.bind_ok, h1, core.result.Result.Insts.CoreOpsTry.branch,
+      whir.config.Config.level_steps, whir.verify.Oracle.depth, hph]
+    generalize (whir.verify.QueryPhase.mk (UScalar.cast .U32
+      config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val])
+      (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate)
+      config.queries.val[(alloc.vec.Vec.len config.level_ks).val]) = ph at h2 ⊢
+    simp [h2, h3, h4, hfin, hloop]
+  · rw [er, eyr]
+    simp only [closeTail, hch, List.size_toArray, List.length_map]
+
+end Last
 
 end WhirAeneas.Replay
