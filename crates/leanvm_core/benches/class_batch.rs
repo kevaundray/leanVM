@@ -23,7 +23,7 @@ use std::num::NonZeroUsize;
 use std::time::Instant;
 
 use bench::{Metric, Plan, Timing, bencher_json};
-use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
+use fiat_shamir::{ProofTranscript, ProverState, SessionId, VerifierState};
 use flock::Witness;
 use flock::circuit::Circuit;
 use flock::reduction::{self, Instance};
@@ -157,7 +157,7 @@ impl ClassBatch {
         let witness = self.witness();
         let witness_s = t.elapsed().as_secs_f64();
 
-        let mut ps = ProverState::from_label(b"flock-class-batch");
+        let mut ps = ProverState::new(&SessionId::new(b"flock-class-batch"), &0u64);
         let t = Instant::now();
         let committed = CommittedStack::new(&mut ps, as_field(&witness.z), self.mu, self.config.clone());
         let commit_s = t.elapsed().as_secs_f64();
@@ -191,7 +191,7 @@ impl ClassBatch {
     /// Replay `proof`, panicking on any refusal.
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
-        let mut vs = VerifierState::from_label(b"flock-class-batch", proof);
+        let mut vs = VerifierState::new(&SessionId::new(b"flock-class-batch"), &0u64, proof);
         let commitment = StackCommitment::receive(&mut vs, self.mu, 1 << INITIAL_FOLDING_FACTOR, self.config.clone())
             .expect("immutable anchored commitment");
         let replay = reduction::verify(&[(block.shape(), self.n_log)], &mut vs)
@@ -213,7 +213,7 @@ impl ClassBatch {
                 },
             )
             .expect("the opening verifies");
-        vs.finish().expect("transcript fully consumed");
+        vs.check_eof().expect("transcript fully consumed");
     }
 
     /// Time the batch's proving and verifying, printing a report unless `quiet`.

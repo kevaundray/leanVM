@@ -6,10 +6,9 @@
 //! - In rows they are the wires holding them, and an opened row is authenticated by hash rows.
 
 use super::whir::sample_queries_ordered;
-use fiat_shamir::TranscriptContext;
-use fiat_shamir::arith::Verifier;
-use fiat_shamir::merkle::{Hash, hash_to_scalars};
-use fiat_shamir::transcript::{Receiver, TranscriptError, VerifierState};
+use crate::merkle::{Hash, Openings, PrunedMerklePaths};
+use fiat_shamir::arith::{Arith, PublicMle, Stage, Verifier};
+use fiat_shamir::{TranscriptContext, TranscriptError, VerifierState};
 use primitives::field::{F64, F192};
 
 /// A verifier of the stacked opening: its commitments, its queries, and the rows they open.
@@ -29,14 +28,18 @@ pub trait OpeningVerifier: Verifier {
     /// A zero word for canonical padding when a context is packed into a record frame.
     fn zero_k(&mut self) -> Self::K;
 
-    /// A digest's two canonical 128-bit halves, each with a zero top limb.
-    fn root_scalars(&mut self, root: Self::Root) -> [Self::E; 2];
+    /// Check two raw commitment roots are equal.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::whir::WhirError::CommitmentMismatch`] when the native roots differ.
+    fn ensure_root_eq(&mut self, actual: Self::Root, expected: Self::Root) -> Result<(), crate::whir::WhirError>;
 
     /// The next commitment's root, bound into the transcript.
     ///
     /// # Errors
     ///
-    /// Returns an error past the end of the stream, or on a root that is no canonical digest.
+    /// Returns an error past the end of the proof.
     fn next_root(&mut self) -> Result<Self::Root, TranscriptError>;
 
     /// Sample `count` query indices of `depth` bits, in transcript order.
@@ -79,31 +82,23 @@ impl OpeningVerifier for VerifierState<'_> {
     type Query = usize;
 
     fn context(&mut self) -> TranscriptContext<F64, Hash> {
-        let context = Self::context(self);
-        let mut state = [0u8; 32];
-        for (slot, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(context.state) {
-            *slot = word.0.to_le_bytes();
-        }
-        TranscriptContext {
-            state,
-            pending: context.pending,
-            pending_bytes: context.pending_bytes,
-            first: context.first,
-            previous: context.previous,
-            squeezed: context.squeezed,
-        }
+        Self::context(self)
     }
 
     fn zero_k(&mut self) -> F64 {
         F64::ZERO
     }
 
-    fn root_scalars(&mut self, root: Hash) -> [F192; 2] {
-        hash_to_scalars(&root)
+    fn ensure_root_eq(&mut self, actual: Hash, expected: Hash) -> Result<(), crate::whir::WhirError> {
+        if actual == expected {
+            Ok(())
+        } else {
+            Err(crate::whir::WhirError::CommitmentMismatch)
+        }
     }
 
     fn next_root(&mut self) -> Result<Hash, TranscriptError> {
-        Receiver::next_root(self)
+        self.prover_message()
     }
 
     fn sample_queries(&mut self, depth: usize, count: usize) -> Vec<usize> {
@@ -118,11 +113,8 @@ impl OpeningVerifier for VerifierState<'_> {
         row_words: usize,
         leaf_words: usize,
     ) -> Result<Vec<Vec<F64>>, TranscriptError> {
-        let mut rows = self.next_merkle_batch(root, 1 << depth, queries, row_words, leaf_words)?;
-        for row in &mut rows {
-            row.drain(..leaf_words - row_words);
-        }
-        Ok(rows)
+        let openings = authenticate(self, root, depth, queries, row_words, leaf_words)?;
+        Ok(rows_of(&openings, row_words))
     }
 
     fn mul_k_add(&mut self, a: F192, k: F64, d: F192) -> F192 {
@@ -135,5 +127,183 @@ impl OpeningVerifier for VerifierState<'_> {
 
     fn query_point(&mut self, query: &usize) -> F192 {
         F192::new(*query as u64, 0, 0)
+    }
+}
+
+/// Read the next hint as Merkle paths and authenticate them against `root`: each query's opening, in query order.
+fn authenticate(
+    vs: &mut VerifierState<'_>,
+    root: &Hash,
+    depth: usize,
+    queries: &[usize],
+    row_words: usize,
+    leaf_words: usize,
+) -> Result<Openings, TranscriptError> {
+    // The hint holds one row per distinct query, which the verifier counts itself.
+    let mut distinct = queries.to_vec();
+    distinct.sort_unstable();
+    distinct.dedup();
+    vs.prover_hint_with(|hint| {
+        let paths = PrunedMerklePaths::from_hint(hint, distinct.len(), row_words)?;
+        paths.open(root, 1 << depth, queries, row_words, leaf_words)
+    })
+}
+
+/// Each opening's row: its leaf image with the zero prefix dropped.
+fn rows_of(openings: &Openings, row_words: usize) -> Vec<Vec<F64>> {
+    (0..openings.len())
+        .map(|i| {
+            let image = openings.image(i);
+            image[image.len() - row_words..].to_vec()
+        })
+        .collect()
+}
+
+/// A native verifier that keeps every opening it authenticates, for a recursive verifier to hash.
+///
+/// The recursive verifier then reads the openings rather than decoding and hashing the hints again.
+pub struct Recording<'a> {
+    /// The transcript the proof is read from.
+    vs: VerifierState<'a>,
+    /// Every phase's openings, in transcript order.
+    openings: Vec<Openings>,
+}
+
+impl<'a> Recording<'a> {
+    /// A recording verifier over a transcript.
+    #[must_use]
+    pub const fn new(vs: VerifierState<'a>) -> Self {
+        Self {
+            vs,
+            openings: Vec::new(),
+        }
+    }
+
+    /// The transcript the proof is read from.
+    pub const fn transcript(&mut self) -> &mut VerifierState<'a> {
+        &mut self.vs
+    }
+
+    /// Every phase's openings, in transcript order.
+    #[must_use]
+    pub fn into_openings(self) -> Vec<Openings> {
+        self.openings
+    }
+}
+
+impl Arith for Recording<'_> {
+    type E = F192;
+
+    fn constant(&mut self, c: F192) -> F192 {
+        c
+    }
+
+    fn mul_add(&mut self, a: F192, b: F192, d: F192) -> F192 {
+        a * b + d
+    }
+
+    fn add(&mut self, a: F192, d: F192) -> F192 {
+        a + d
+    }
+
+    fn mul_const_add(&mut self, a: F192, c: F192, d: F192) -> F192 {
+        a * c + d
+    }
+
+    fn inv(&mut self, a: F192) -> F192 {
+        self.vs.inv(a)
+    }
+
+    fn frobenius2(&mut self, a: F192) -> F192 {
+        self.vs.frobenius2(a)
+    }
+}
+
+impl PublicMle for Recording<'_> {
+    fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
+        self.vs.public_mle(values, point)
+    }
+}
+
+impl Verifier for Recording<'_> {
+    fn prover_message(&mut self) -> Result<F192, TranscriptError> {
+        Verifier::prover_message(&mut self.vs)
+    }
+
+    fn verifier_message(&mut self) -> F192 {
+        Verifier::verifier_message(&mut self.vs)
+    }
+
+    fn check_pow(&mut self, bits: u32) -> Result<(), TranscriptError> {
+        self.vs.check_pow(bits)
+    }
+
+    fn ensure_eq<Er>(&mut self, a: F192, b: F192, err: impl FnOnce() -> Er) -> Result<(), Er> {
+        self.vs.ensure_eq(a, b, err)
+    }
+
+    fn check_eof(&mut self) -> Result<(), TranscriptError> {
+        self.vs.check_eof()
+    }
+
+    fn begin_scope(&mut self, stage: Stage) {
+        self.vs.begin_scope(stage);
+    }
+
+    fn end_scope(&mut self) {
+        self.vs.end_scope();
+    }
+}
+
+impl OpeningVerifier for Recording<'_> {
+    type Root = Hash;
+    type K = F64;
+    type Query = usize;
+
+    fn context(&mut self) -> TranscriptContext<F64, Hash> {
+        self.vs.context()
+    }
+
+    fn zero_k(&mut self) -> F64 {
+        self.vs.zero_k()
+    }
+
+    fn ensure_root_eq(&mut self, actual: Hash, expected: Hash) -> Result<(), crate::whir::WhirError> {
+        self.vs.ensure_root_eq(actual, expected)
+    }
+
+    fn next_root(&mut self) -> Result<Hash, TranscriptError> {
+        self.vs.next_root()
+    }
+
+    fn sample_queries(&mut self, depth: usize, count: usize) -> Vec<usize> {
+        self.vs.sample_queries(depth, count)
+    }
+
+    fn open_rows(
+        &mut self,
+        root: &Hash,
+        depth: usize,
+        queries: &[usize],
+        row_words: usize,
+        leaf_words: usize,
+    ) -> Result<Vec<Vec<F64>>, TranscriptError> {
+        // Authenticate as the plain verifier does, then keep the openings.
+        let openings = authenticate(&mut self.vs, root, depth, queries, row_words, leaf_words)?;
+        let rows = rows_of(&openings, row_words);
+        self.openings.push(openings);
+        Ok(rows)
+    }
+
+    fn mul_k_add(&mut self, a: F192, k: F64, d: F192) -> F192 {
+        self.vs.mul_k_add(a, k, d)
+    }
+
+    fn e_of_limbs(&mut self, limbs: [F64; 3]) -> F192 {
+        self.vs.e_of_limbs(limbs)
+    }
+
+    fn query_point(&mut self, query: &usize) -> F192 {
+        self.vs.query_point(query)
     }
 }

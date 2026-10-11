@@ -31,7 +31,8 @@ case "$surface" in
         dest="$here/llbc/replay"
         generated="$here"
         args=(--start-from pcs::whir::verify::verify --start-from pcs::whir::sample_queries_ordered
-              --start-from pcs::ring_switch::RingMap::close --include primitives)
+              --start-from pcs::ring_switch::RingMap::close --include primitives
+              --include 'fiat_shamir::arith::_::read' --include fiat_shamir::arith::fixed_coefficient)
         cargo_args=(--lib --release)
         aeneas_args=(-backend lean -namespace ReplaySource -no-progress-bar
                      -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Replay)
@@ -54,9 +55,8 @@ case "$surface" in
         generated="$dest/generated"
         args=(--start-from-if-exists pcs::stack::tests::verify_instance --include primitives --include fiat_shamir
               --opaque primitives::hash::compress
-              --opaque fiat_shamir::merkle::hash_pairs
-              --opaque fiat_shamir::merkle::hash_packed_leaves
-              --opaque 'fiat_shamir::merkle::{impl fiat_shamir::merkle::LeafHasher}::hash'
+              --opaque pcs::merkle::hash_pairs
+              --opaque 'pcs::merkle::_::hash'
               --opaque primitives::hash::hash
               --opaque primitives::hash::hash_many
               --opaque primitives::hash::hash_many_dyn_from_state
@@ -66,6 +66,22 @@ case "$surface" in
             args+=(--monomorphize)
         fi
         cargo_args=(--lib --tests --release)
+        ;;
+    merkle)
+        dest="$here/failures/merkle"
+        generated="$dest/generated"
+        args=(--start-from pcs::merkle::PrunedMerklePaths::open --start-from pcs::merkle::PrunedMerklePaths::from_hint
+              --include primitives
+              --opaque pcs::merkle::hash_pairs
+              --opaque 'pcs::merkle::_::hash'
+              --opaque primitives::hash::compress
+              --opaque primitives::hash::hash
+              --opaque primitives::hash::hash_many
+              --opaque primitives::hash::hash_many_dyn_from_state
+              --opaque primitives::hash::hash_from_state
+              --opaque primitives::hash::zero_prefix_state)
+        cargo_args=(--lib --release)
+        aeneas_args+=(-split-files -all-computable)
         ;;
     portable)
         crate="$root/crates/primitives"
@@ -88,7 +104,13 @@ if [[ "$surface" == statement ]]; then
     python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" pcs::stack::Statement::check
 fi
 if [[ "$surface" == replay ]]; then
-    for root in pcs::whir::verify::verify pcs::whir::sample_queries_ordered pcs::ring_switch::RingMap::close; do
+    for root in pcs::whir::verify::verify pcs::whir::sample_queries_ordered pcs::ring_switch::RingMap::close \
+        fiat_shamir::arith::RoundPolynomial::read fiat_shamir::arith::fixed_coefficient; do
+        python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
+    done
+fi
+if [[ "$surface" == merkle ]]; then
+    for root in pcs::merkle::PrunedMerklePaths::open pcs::merkle::PrunedMerklePaths::from_hint; do
         python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
     done
 fi

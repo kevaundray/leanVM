@@ -52,7 +52,7 @@ axiom alloc.vec.Vec.remove
   alloc.vec.Vec T → Std.Usize → Result (T × (alloc.vec.Vec T))
 
 /-- [fiat_shamir::arith::Arith::zero]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 36:4-36:33
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 39:4-39:33
     Name pattern: [fiat_shamir::arith::Arith::zero]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::zero"]
@@ -62,7 +62,7 @@ axiom fiat_shamir.arith.Arith.zero.default
   Self → Result (Clause0_E × Self)
 
 /-- [fiat_shamir::arith::Arith::one]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 41:4-41:32
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 44:4-44:32
     Name pattern: [fiat_shamir::arith::Arith::one]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::one"]
@@ -72,7 +72,7 @@ axiom fiat_shamir.arith.Arith.one.default
   Self → Result (Clause0_E × Self)
 
 /-- [fiat_shamir::arith::Arith::mul]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 46:4-46:56
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 49:4-49:56
     Name pattern: [fiat_shamir::arith::Arith::mul]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::mul"]
@@ -82,7 +82,7 @@ axiom fiat_shamir.arith.Arith.mul.default
   Self → Clause0_E → Clause0_E → Result (Clause0_E × Self)
 
 /-- [fiat_shamir::arith::Arith::mul_const]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 57:4-57:59
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 60:4-60:59
     Name pattern: [fiat_shamir::arith::Arith::mul_const]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::mul_const"]
@@ -93,7 +93,7 @@ axiom fiat_shamir.arith.Arith.mul_const.default
     × Self)
 
 /-- [fiat_shamir::arith::Arith::add_const]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 63:4-63:59
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 66:4-66:59
     Name pattern: [fiat_shamir::arith::Arith::add_const]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::add_const"]
@@ -104,7 +104,7 @@ axiom fiat_shamir.arith.Arith.add_const.default
     × Self)
 
 /-- [fiat_shamir::arith::Arith::times_one_plus]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 97:4-97:67
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 100:4-100:67
     Name pattern: [fiat_shamir::arith::Arith::times_one_plus]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::times_one_plus"]
@@ -114,7 +114,7 @@ axiom fiat_shamir.arith.Arith.times_one_plus.default
   Self → Clause0_E → Clause0_E → Result (Clause0_E × Self)
 
 /-- [fiat_shamir::arith::Arith::eq_table_prefix]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 138:4-138:80
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 141:4-141:80
     Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::eq_table_prefix"]
@@ -125,7 +125,7 @@ axiom fiat_shamir.arith.Arith.eq_table_prefix.default
     × Self)
 
 /-- [fiat_shamir::arith::Arith::mle]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 166:4-166:71
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 169:4-169:71
     Name pattern: [fiat_shamir::arith::Arith::mle]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
@@ -135,7 +135,7 @@ axiom fiat_shamir.arith.Arith.mle.default
   Self → Slice Clause0_E → Slice Clause0_E → Result (Clause0_E × Self)
 
 /-- [fiat_shamir::arith::Arith::powers]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 183:4-183:62
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 186:4-186:62
     Name pattern: [fiat_shamir::arith::Arith::powers]
     Visibility: public -/
 @[trait_default, rust_fun "fiat_shamir::arith::Arith::powers"]
@@ -145,24 +145,34 @@ axiom fiat_shamir.arith.Arith.powers.default
   Self → Clause0_E → Std.Usize → Result ((alloc.vec.Vec Clause0_E) ×
     Self)
 
-/-- [fiat_shamir::arith::Verifier::next_scalars]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 298:4-298:81
-    Name pattern: [fiat_shamir::arith::Verifier::next_scalars]
+/-- [fiat_shamir::arith::Verifier::prover_messages]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 286:4-286:84
+    Name pattern: [fiat_shamir::arith::Verifier::prover_messages]
     Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Verifier::next_scalars"]
-axiom fiat_shamir.arith.Verifier.next_scalars.default
+@[trait_default, rust_fun "fiat_shamir::arith::Verifier::prover_messages"]
+axiom fiat_shamir.arith.Verifier.prover_messages.default
   {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
   fiat_shamir.arith.Verifier Self Clause0_Clause0_E) :
   Self → Std.Usize → Result ((core.result.Result (alloc.vec.Vec
-    Clause0_Clause0_E) fiat_shamir.transcript.TranscriptError) × Self)
+    Clause0_Clause0_E) fiat_shamir.error.TranscriptError) × Self)
 
-/-- [fiat_shamir::arith::Verifier::sample_vec]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 307:4-307:54
-    Name pattern: [fiat_shamir::arith::Verifier::sample_vec]
+/-- [fiat_shamir::arith::Verifier::verifier_messages]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 291:4-291:61
+    Name pattern: [fiat_shamir::arith::Verifier::verifier_messages]
     Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Verifier::sample_vec"]
-axiom fiat_shamir.arith.Verifier.sample_vec.default
+@[trait_default, rust_fun "fiat_shamir::arith::Verifier::verifier_messages"]
+axiom fiat_shamir.arith.Verifier.verifier_messages.default
   {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
   fiat_shamir.arith.Verifier Self Clause0_Clause0_E) :
   Self → Std.Usize → Result ((alloc.vec.Vec Clause0_Clause0_E) × Self)
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; 24usize]> for primitives::field::gf2_64x3::F192}::from_uniform]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 83:4-83:43
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_uniform]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_uniform"]
+axiom
+  primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform
+  : Array Std.U8 24#usize → Result primitives.field.gf2_64x3.F192
 
