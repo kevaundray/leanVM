@@ -105,15 +105,41 @@ theorem forIn_range_post {β : Type} (n : ℕ) (f : ℕ → β → M (ForInStep 
     rwa [List.getElem_range]
   simpa only [List.length_range] using H
 
+theorem forIn_range'_from_post {β : Type} (a n : ℕ) (f : ℕ → β → M (ForInStep β)) (I : ℕ → β → State → Prop)
+    {s₀ : State} {b₀ : β} (hs : Rec.Model.Inv s₀) (h0 : I 0 b₀ s₀)
+    (hstep : ∀ k < n, ∀ b s, Rec.Model.Inv s → Ext s₀ s → I k b s →
+      Post s (fun _ r s' => ∃ b', r = .yield b' ∧ I (k + 1) b' s') ((f (a + k) b).run s)) :
+    Post s₀ (fun _ b s' => I n b s') ((forIn (List.range' a n) b₀ f).run s₀) := by
+  have H := forIn_post (List.range' a n) f I hs h0 fun k hk b s h1 h2 h3 => by
+    have := hstep k (by simpa using hk) b s h1 h2 h3
+    rwa [List.getElem_range', Nat.one_mul]
+  simpa only [List.length_range'] using H
+
 theorem forIn_range'_post {β : Type} (n : ℕ) (f : ℕ → β → M (ForInStep β)) (I : ℕ → β → State → Prop)
     {s₀ : State} {b₀ : β} (hs : Rec.Model.Inv s₀) (h0 : I 0 b₀ s₀)
     (hstep : ∀ k < n, ∀ b s, Rec.Model.Inv s → Ext s₀ s → I k b s →
       Post s (fun _ r s' => ∃ b', r = .yield b' ∧ I (k + 1) b' s') ((f (k + 1) b).run s)) :
-    Post s₀ (fun _ b s' => I n b s') ((forIn (List.range' 1 n) b₀ f).run s₀) := by
-  have H := forIn_post (List.range' 1 n) f I hs h0 fun k hk b s h1 h2 h3 => by
-    have := hstep k (by simpa using hk) b s h1 h2 h3
-    rwa [List.getElem_range', Nat.one_mul, Nat.add_comm 1 k]
-  simpa only [List.length_range'] using H
+    Post s₀ (fun _ b s' => I n b s') ((forIn (List.range' 1 n) b₀ f).run s₀) :=
+  forIn_range'_from_post 1 n f I hs h0 fun k hk b s h1 h2 h3 => by
+    rw [Nat.add_comm 1 k]; exact hstep k hk b s h1 h2 h3
+
+/-- `mapM` of steps each giving a wire with a property `R` that extension keeps. -/
+theorem mapM_post {γ : Type} (l : List γ) (f : γ → M ℕ) (R : γ → ℕ → State → Prop)
+    (hR : ∀ x y s s', R x y s → Ext s s' → R x y s') {s₀ : State} (hs : Rec.Model.Inv s₀)
+    (hf : ∀ x ∈ l, ∀ s, Rec.Model.Inv s → Ext s₀ s → Post s (fun _ y s' => R x y s') ((f x).run s)) :
+    Post s₀ (fun _ ys s' => ys.length = l.length ∧ ∀ i (h : i < l.length) (h' : i < ys.length), R l[i] ys[i] s')
+      ((l.mapM f).run s₀) := by
+  induction l generalizing s₀ with
+  | nil => exact post_pure hs (Ext.refl _) ⟨rfl, fun i h => absurd h (Nat.not_lt_zero i)⟩
+  | cons x xs ih =>
+    rw [List.mapM_cons]
+    refine post_bind (hf x (by simp) s₀ hs (Ext.refl _)) fun y s1 hi1 he1 hy => ?_
+    refine post_bind (ih hi1 fun x' hx' s hs' he' => hf x' (List.mem_cons_of_mem _ hx') s hs' (he1.trans he'))
+      fun ys s2 hi2 he2 ⟨hlen, hys⟩ => ?_
+    refine post_pure hi2 (he1.trans he2) ⟨by simp [hlen], fun i h h' => ?_⟩
+    cases i with
+    | zero => exact hR _ _ _ _ hy he2
+    | succ i => exact hys i (by simpa using h) (by simpa using h')
 
 /-! The statement count. -/
 
@@ -333,6 +359,14 @@ theorem getD_snoc (l : List ℕ) (q v : ℕ) :
     by_cases h2 : v = l.length
     · subst h2; simp
     · rw [if_neg h2, List.getElem?_eq_none (by simp; omega)]; rfl
+
+theorem getD_append' (l l' : List ℕ) (v : ℕ) :
+    (l ++ l').getD v 0 = if v < l.length then l.getD v 0 else l'.getD (v - l.length) 0 := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_append]
+  split_ifs <;> rw [List.getD_eq_getElem?_getD]
+
+theorem getD_drop' (l : List ℕ) (n v : ℕ) : (l.drop n).getD v 0 = l.getD (n + v) 0 := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_drop, List.getD_eq_getElem?_getD]
 
 /-! The CAST views' top limb. -/
 
@@ -757,6 +791,157 @@ theorem indicators_good (a0 a1 a2 : ℕ) : Good (Wires [a0, a1, a2]) (Circuit.in
     exact post_pure hi3 (by ext_chain) ⟨hst3, by simpa using hlen, hw3,
       fun st val hsat v hv => hv3 st val hsat v (by simpa using hv)⟩
 
+/-! The pool and the network. -/
+
+/-- A pool entry's two words: the hash of the tweak word `w`, the index word `idx`, the parameter and the element
+`T`. -/
+def poolDig (w idx : W) (P T : Dig) : Dig :=
+  let d := digest (hashWords [w, idx, P.1, P.2, T.1, T.2])
+  (d 0, d 1)
+
+/-- Under the tweak word of chain `i`'s position 0, a pool entry is the chain's first step. -/
+theorem poolDig_tweak (i e : ℕ) (P T : Dig) :
+    poolDig (Words.tweak0 1 (8 * i)) (Words.tweak1 e) P T = Words.chainStep i 0 e P T := rfl
+
+/-- `poolEntry`: the words of the hash of a free tweak word `w`, the index, the parameter and a free element `T`, its
+third limb `w`. -/
+theorem poolEntry_good (idx p0 p1 : ℕ) :
+    Good (fun s => idx < s.next ∧ p0 < s.next ∧ p1 < s.next) (Circuit.poolEntry idx [p0, p1]) fun s r s' =>
+      s'.statement = s.statement ∧ r < s'.next ∧ ∀ st val, Sat st s' val → ∃ (w : W) (T : Dig),
+        val r 2 = ofWord w.toNat ∧ dig val r = poolDig w (w64 val idx) (w64 val p0, w64 val p1) T := by
+  unfold Circuit.poolEntry
+  refine good_of_post fun s hs _ => ?_
+  refine fresh_good'.step hs trivial ?_
+  rintro w s1 hi1 he1 ⟨hst1, hw⟩
+  refine fresh_good'.step hi1 trivial ?_
+  rintro t0 s2 hi2 he2 ⟨hst2, ht0⟩
+  refine fresh_good'.step hi2 trivial ?_
+  rintro t1 s3 hi3 he3 ⟨hst3, ht1⟩
+  refine ((chain_good _ (by simp)).pres (pres_chain _)).step hi3 trivial ?_
+  rintro d s4 hi4 he4 ⟨hst4, hd, hdv⟩
+  refine ((dToK_good d).pres (pres_dToK d)).step hi4 (Wires.cons' hd Wires.nil') ?_
+  rintro ks s5 hi5 he5 ⟨hst5, hks, hksv⟩
+  refine (kToE_good' _ _ _).last hi5 (Wires.cons' (hks 0 (by omega)) (Wires.cons' (hks 1 (by omega))
+    (Wires.cons' (lt_mono hw (by ext_chain)) Wires.nil'))) (by ext_chain) ?_
+  rintro r s6 he6 ⟨hst6, hr, hrv⟩
+  refine ⟨by omega, hr, fun st val hsat => ⟨w64 val w, (w64 val t0, w64 val t1), ?_, ?_⟩⟩
+  · rw [(hrv st val hsat).2.2.1]
+    exact (ofWord_words4 (val w) 0).symm
+  · obtain ⟨h0, h1, -, -⟩ := hrv st val hsat
+    have k0 : val (ks.getD 0 0) 0 = val d 0 := hksv st val (hsat.mono he6) 0
+    have k1 : val (ks.getD 1 0) 0 = val d 1 := hksv st val (hsat.mono he6) 1
+    rw [dig_congr (h0.trans k0) (h1.trans k1)]
+    simp only [dig, poolDig, hdv st val (hsat.mono (by ext_chain)), List.map_cons, List.map_nil, List.cons_append,
+      List.nil_append]
+
+/-- `sel`: `x` when the Boolean `b` is zero and `y` when it is one, `one'` being one. -/
+theorem sel_good (one' b x y : ℕ) : Good (Wires [one', b, x, y]) (Circuit.sel one' b x y) fun s r s' =>
+    s'.statement = s.statement ∧ r < s'.next ∧ ∀ st val, Sat st s' val → val one' 0 = 1 →
+      (val b 0 = 0 ∨ val b 0 = 1) → ev val r = if val b 0 = 1 then ev val y else ev val x := by
+  unfold Circuit.sel
+  refine good_of_post fun s hs hw => ?_
+  refine ((mulKAdd_good y one' x).pres (pres_mulKAdd _ _ _)).step hs
+    (Wires.cons' (hw y (by simp)) (Wires.cons' (hw one' (by simp)) (Wires.cons' (hw x (by simp)) Wires.nil'))) ?_
+  rintro diff s1 hi1 he1 ⟨hst1, hdiff, hdiffv⟩
+  refine ((mulKAdd_good diff b x).pres (pres_mulKAdd _ _ _)).last hi1 (Wires.cons' hdiff
+    (Wires.cons' (lt_mono (hw b (by simp)) he1) (Wires.cons' (lt_mono (hw x (by simp)) he1) Wires.nil'))) he1 ?_
+  rintro r s2 he2 ⟨hst2, hr, hrv⟩
+  refine ⟨by omega, hr, fun st val hsat hone hb => ?_⟩
+  rw [hrv st val hsat, hdiffv st val (hsat.mono he2), hone, emb_one', mul_one]
+  rcases hb with hb | hb
+  · rw [hb, if_neg zero_ne_one, Rec.emb_zero, mul_zero, zero_add]
+  · rw [hb, if_pos rfl, emb_one', mul_one, add_assoc, add_self_E, add_zero]
+
+/-- `stage`: every output is one of the inputs, the bits it reads being Boolean. -/
+theorem stage_good (one' sh : ℕ) (bits arr : List ℕ) (hb : arr.length ≤ bits.length + sh) :
+    Good (fun s => one' < s.next ∧ Wires bits s ∧ Wires arr s) (Circuit.stage one' sh bits arr) fun s r s' =>
+      s'.statement = s.statement ∧ r.length = arr.length ∧ Wires r s' ∧ ∀ st val, Sat st s' val → val one' 0 = 1 →
+        (∀ j, j + sh < arr.length → val (bits.getD j 0) 0 = 0 ∨ val (bits.getD j 0) 0 = 1) →
+          ∀ p < arr.length, ∃ q < arr.length, ev val (r.getD p 0) = ev val (arr.getD q 0) := by
+  have hP : Pres (Circuit.stage one' sh bits arr) := by unfold Circuit.stage Circuit.sel; pres
+  refine good_of_post fun s hs ⟨hone, hbw, haw⟩ => ?_
+  unfold Circuit.stage
+  have H := mapM_post (List.range arr.length) (fun p => if sh ≤ p then
+      Circuit.sel one' (bits.getD (p - sh) 0) (arr.getD p 0) (arr.getD (p - sh) 0) else pure (arr.getD p 0))
+    (fun _ y s' => y < s'.next ∧ ∀ st val, Sat st s' val → val one' 0 = 1 →
+      (∀ j, j + sh < arr.length → val (bits.getD j 0) 0 = 0 ∨ val (bits.getD j 0) 0 = 1) →
+        ∃ q < arr.length, ev val y = ev val (arr.getD q 0))
+    (fun _ _ _ _ h he => ⟨lt_mono h.1 he, fun st val hsat => h.2 st val (hsat.mono he)⟩) hs ?_
+  · obtain ⟨hi, he, hlen, hR⟩ := H
+    rw [List.length_range] at hlen
+    refine ⟨hi, he, hP s, hlen, fun w hw => ?_, fun st val hsat hone hB p hp => ?_⟩
+    · obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hw
+      exact (hR j (by simp; omega) hj).1
+    · have hp' : p < _ := hlen ▸ hp
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hp', Option.getD_some]
+      exact (hR p (by simpa using hp) hp').2 st val hsat hone hB
+  · intro p hp s1 hi1 he1
+    have hp' : p < arr.length := List.mem_range.mp hp
+    have hap : arr.getD p 0 < s1.next := lt_mono (wires_getD' haw hp') he1
+    try dsimp only
+    split
+    · rename_i hsh
+      have hbp : bits.getD (p - sh) 0 < s1.next := lt_mono (wires_getD' hbw (by omega)) he1
+      have hap' : arr.getD (p - sh) 0 < s1.next := lt_mono (wires_getD' haw (by omega)) he1
+      refine (sel_good _ _ _ _).last hi1 (Wires.cons' (lt_mono hone he1) (Wires.cons' hbp (Wires.cons' hap
+        (Wires.cons' hap' Wires.nil')))) (Ext.refl _) ?_
+      rintro r s2 he2 ⟨-, hr, hrv⟩
+      refine ⟨hr, fun st val hsat hone hB => ?_⟩
+      rw [hrv st val hsat hone (hB _ (by omega))]
+      split_ifs
+      · exact ⟨p - sh, by omega, rfl⟩
+      · exact ⟨p, hp', rfl⟩
+    · exact post_pure hi1 (Ext.refl _) ⟨hap, fun st val hsat _ _ => ⟨p, hp', rfl⟩⟩
+
+/-- The network's bit offsets: stage `k` reads bits from the sum of the earlier stages' counts, all below 179. -/
+theorem shifts_off (k : ℕ) (hk : k < Circuit.shifts.length) :
+    ((Circuit.shifts.take k).map (fun sh => 42 - sh)).sum + (42 - Circuit.shifts[k]) =
+      ((Circuit.shifts.take (k + 1)).map (fun sh => 42 - sh)).sum ∧
+      ((Circuit.shifts.take (k + 1)).map (fun sh => 42 - sh)).sum ≤ 179 ∧ Circuit.shifts[k] ≤ 42 := by
+  have : k < 5 := hk
+  interval_cases k <;> simp [Circuit.shifts]
+
+/-- `network`: every output is an entry or zero, the 179 bits it reads being Boolean. -/
+theorem network_good (one' : ℕ) (bits entries : List ℕ) (hb : 179 ≤ bits.length) (hen : entries.length ≤ 42) :
+    Good (fun s => one' < s.next ∧ Wires bits s ∧ Wires entries s) (Circuit.network one' bits entries)
+      fun s r s' => s'.statement = s.statement ∧ r.length = 42 ∧ Wires r s' ∧ ∀ st val, Sat st s' val →
+        val one' 0 = 1 → (∀ j < 179, val (bits.getD j 0) 0 = 0 ∨ val (bits.getD j 0) 0 = 1) → ∀ p < 42,
+          ev val (r.getD p 0) = 0 ∨ ∃ q < entries.length, ev val (r.getD p 0) = ev val (entries.getD q 0) := by
+  unfold Circuit.network
+  refine good_of_post fun s hs ⟨hone, hbw, hew⟩ => ?_
+  refine (zero_good.pres pres_zero).step hs trivial ?_
+  rintro z s1 hi1 he1 ⟨hst1, hz, hzv⟩
+  generalize harr0 : entries ++ List.replicate (42 - entries.length) z = arr0
+  have harr : arr0.length = 42 := by rw [← harr0]; simp; omega
+  refine post_bind (forIn_post Circuit.shifts _ (fun k (b : List ℕ × ℕ) s' => s'.statement = s.statement ∧
+      b.2 = ((Circuit.shifts.take k).map (fun sh => 42 - sh)).sum ∧ b.1.length = 42 ∧ Wires b.1 s' ∧
+        ∀ st val, Sat st s' val → val one' 0 = 1 → (∀ j < 179, val (bits.getD j 0) 0 = 0 ∨ val (bits.getD j 0) 0 = 1) →
+          ∀ p < 42, ∃ q < 42, ev val (b.1.getD p 0) = ev val (arr0.getD q 0))
+      hi1 ⟨by omega, rfl, harr, fun w hw => ?_, fun st val hsat _ _ p hp => ⟨p, hp, rfl⟩⟩ ?_) ?_
+  · rw [← harr0] at hw
+    rcases List.mem_append.mp hw with hw | hw
+    · exact lt_mono (hew w hw) he1
+    · rw [List.eq_of_mem_replicate hw]; exact hz
+  · rintro k hk b s2 hi2 he2 ⟨hst2, hoff, hlen2, hw2, hv2⟩
+    obtain ⟨hs1, hs2, hs3⟩ := shifts_off k hk
+    refine (stage_good one' Circuit.shifts[k] (bits.drop b.2) b.1 (by simp; omega)).step hi2
+      ⟨lt_mono hone (by ext_chain), fun w hw => lt_mono (hbw w (List.mem_of_mem_drop hw)) (by ext_chain), hw2⟩ ?_
+    rintro arr s3 hi3 he3 ⟨hst3, hlen3, hw3, hv3⟩
+    refine post_pure hi3 he3 ⟨(arr, b.2 + (42 - Circuit.shifts[k])), rfl, by omega, by dsimp only; omega,
+      by dsimp only; omega, hw3, fun st val hsat hone hB p hp => ?_⟩
+    obtain ⟨q, hq, h⟩ := hv3 st val hsat hone (fun j hj => by rw [getD_drop']; exact hB _ (by omega)) p (by omega)
+    obtain ⟨q', hq', h'⟩ := hv2 st val (hsat.mono he3) hone hB q (by omega)
+    exact ⟨q', hq', h.trans h'⟩
+  · rintro b s2 hi2 he2 ⟨hst2, -, hlen2, hw2, hv2⟩
+    refine post_pure hi2 (by ext_chain) ⟨by omega, hlen2, hw2, fun st val hsat hone hB p hp => ?_⟩
+    obtain ⟨q, hq, h⟩ := hv2 st val hsat hone hB p hp
+    rw [h, ← harr0, getD_append']
+    split_ifs with hqe
+    · exact Or.inr ⟨q, hqe, rfl⟩
+    · left
+      rw [List.getD_eq_getElem?_getD, List.getElem?_replicate, if_pos (by omega)]
+      exact hzv st val (hsat.mono (by ext_chain))
+
 /-! A chain. -/
 
 /-- Chain `i` at position `p`, from `T` at position `x`. -/
@@ -790,87 +975,175 @@ theorem mux_ev (c t u : E) (p : Prop) [Decidable p] (hc : c = if p then 1 else 0
   · rw [one_mul, add_assoc, add_self_E, add_zero]
   · rw [zero_mul, zero_add]
 
-/-- `chainEnd`: chain `i` from the element `tip` at the digit `x` to position 7. -/
-theorem chainEnd_good (i idx tip p0 p1 : ℕ) (ind : List ℕ) :
-    Good (fun s => idx < s.next ∧ tip < s.next ∧ p0 < s.next ∧ p1 < s.next ∧ Wires ind s ∧ ind.length = 8)
-      (Circuit.chainEnd i idx tip [p0, p1] ind) fun s r s' => s'.statement = s.statement ∧ r.1 < s'.next ∧
-        r.2 < s'.next ∧ ∀ st val, Sat st s' val → ∀ x < 8, ∀ e : ℕ,
+/-- `[0, 0, 1]` times a `K` element `w`, added to an element, adds `w` to its third limb. -/
+theorem third_add (w a b c : K) : toE (ofWord 0) (ofWord 0) (ofWord 1) * emb w + toE a b c = toE a b (c + w) := by
+  rw [Rec.ofWord_zero, Rec.ofWord_one]
+  simp only [toE, Rec.emb_add, Rec.emb_zero, emb_one']
+  ring
+
+theorem toE_zero : toE 0 0 0 = 0 := by simp [toE, Rec.emb_zero]
+
+/-- A chain from position 0 is its first step, then the chain from position 1. -/
+theorem chainFrom_zero (i e : ℕ) (P T : Dig) :
+    Words.chainFrom i e P 0 T = Words.chainFrom i e P 1 (Words.chainStep i 0 e P T) := by
+  unfold Words.chainFrom
+  rw [Nat.sub_zero, show (7 : ℕ) = 6 + 1 from rfl, List.range'_succ, List.foldl_cons, Nat.add_sub_cancel,
+    Nat.zero_add]
+
+theorem cpart_seven (i e : ℕ) (P : Dig) (x : ℕ) (T : Dig) : cpart i e P x T 7 = Words.chainFrom i e P x T := rfl
+
+theorem limb0_of_const {val : Val} {w v : ℕ} (h : val w = limbsOf [v, 0, 0, 0]) : val w 0 = ofWord v := by
+  rw [h]; rfl
+
+theorem tweak0_lt (i : ℕ) (hi : i < 42) : Circuit.tweak0 1 (8 * i) < 2 ^ 64 := by
+  unfold Circuit.tweak0; omega
+
+/-- The tweak word of chain `i`'s position 0 is not zero: its byte 1 is one. -/
+theorem ofWord_tweak0_ne (i : ℕ) (hi : i < 42) : ofWord (Circuit.tweak0 1 (8 * i)) ≠ 0 := by
+  intro h
+  have := congrArg toWord h
+  rw [Rec.toWord_ofWord _ (tweak0_lt i hi), ← Rec.ofWord_zero, Rec.toWord_ofWord _ (by norm_num)] at this
+  unfold Circuit.tweak0 at this; omega
+
+/-- A word whose element is that of a word below `2^64` is that word. -/
+theorem word_of_ofWord {w : W} {t : ℕ} (ht : t < 2 ^ 64) (h : ofWord w.toNat = ofWord t) : w = BitVec.ofNat 64 t := by
+  have := congrArg toWord h
+  rw [Rec.toWord_ofWord _ w.isLt, Rec.toWord_ofWord _ ht] at this
+  apply BitVec.eq_of_toNat_eq
+  rw [this, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ht]
+
+/-- `chainEnd`: chain `i` at the digit `x`. When `x` is zero, step 1 takes the network's output `ent`, whose third limb
+is then the tweak word of the chain's position 0; otherwise the chain starts from the element `tip` at `x`. -/
+theorem chainEnd_good (i idx tip ent p0 p1 : ℕ) (ind : List ℕ) :
+    Good (fun s => idx < s.next ∧ tip < s.next ∧ ent < s.next ∧ p0 < s.next ∧ p1 < s.next ∧ Wires ind s ∧
+      ind.length = 8) (Circuit.chainEnd i idx tip ent [p0, p1] ind) fun s r s' => s'.statement = s.statement ∧
+        r.1 < s'.next ∧ r.2 < s'.next ∧ ∀ st val, Sat st s' val → ∀ x < 8, ∀ e : ℕ,
           (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) → w64 val idx = Words.tweak1 e →
-            (w64 val r.1, w64 val r.2) = Words.chainFrom i e (w64 val p0, w64 val p1) x (dig val tip) := by
+            (x = 0 → val ent 2 = ofWord (Circuit.tweak0 1 (8 * i)) ∧
+              (w64 val r.1, w64 val r.2) = Words.chainFrom i e (w64 val p0, w64 val p1) 1 (dig val ent)) ∧
+            (1 ≤ x → (w64 val r.1, w64 val r.2) = Words.chainFrom i e (w64 val p0, w64 val p1) x (dig val tip)) := by
   unfold Circuit.chainEnd
-  refine good_of_post fun s hs ⟨hidx, htip, hp0, hp1, hind, hlen⟩ => ?_
-  refine (words_good tip).step hs (Wires.cons' htip Wires.nil') ?_
-  rintro ⟨t0, t1, t2⟩ s1 hi1 he1 ⟨hst1, ht0, ht1, -, htv⟩
+  refine good_of_post fun s hs ⟨hidx, htip, hent, hp0, hp1, hind, hlen⟩ => ?_
+  refine ((eConst_good 0 0 1).pres (pres_eConst _ _ _)).step hs trivial ?_
+  rintro third s1 hi1 he1 ⟨hst1, hthird, hthirdv⟩
+  refine ((kConst_good _).pres (pres_kConst _)).step hi1 trivial ?_
+  rintro tw s2 hi2 he2 ⟨hst2, htw, htwv⟩
+  refine ((mulKAdd_good third tw ent).pres (pres_mulKAdd _ _ _)).step hi2
+    (Wires.cons' (lt_mono hthird he2) (Wires.cons' htw (Wires.cons' (lt_mono hent (by ext_chain)) Wires.nil'))) ?_
+  rintro ent' s3 hi3 he3 ⟨hst3, hent', hent'v⟩
+  refine ((add_good ent' tip).pres (pres_add _ _)).step hi3
+    (Wires.cons' hent' (Wires.cons' (lt_mono htip (by ext_chain)) Wires.nil')) ?_
+  rintro diff s4 hi4 he4 ⟨hst4, hdiff, hdiffv⟩
+  have hi0 : ind.getD 0 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
+  refine ((mulAdd_good _ diff tip).pres (pres_mulAdd _ _ _)).step hi4
+    (Wires.cons' hi0 (Wires.cons' hdiff (Wires.cons' (lt_mono htip (by ext_chain)) Wires.nil'))) ?_
+  rintro m0 s5 hi5 he5 ⟨hst5, hm0, hm0v⟩
+  refine (words_good m0).step hi5 (Wires.cons' hm0 Wires.nil') ?_
+  rintro ⟨v0, v1, v2⟩ s6 hi6 he6 ⟨hst6, hv0, hv1, -, hvv⟩
   try dsimp only
-  refine (tweakHash_good 1 (8 * i) idx [p0, p1] [t0, t1] (by norm_num)).step hi1 trivial ?_
-  rintro d s2 hi2 he2 ⟨hst2, hd, hdv⟩
-  refine ((dToEAndK_good d).pres (pres_dToEAndK d)).step hi2 (Wires.cons' hd Wires.nil') ?_
-  rintro ⟨o, o'⟩ s3 hi3 he3 ⟨hst3, ho, -, hov⟩
+  refine ((eqConstK_good v2 0).pres (pres_eqConstK _ _)).step hi6 trivial ?_
+  rintro _ s7 hi7 he7 ⟨hst7, hv2z⟩
+  refine (tweakHash_good 1 (8 * i + 1) idx [p0, p1] [v0, v1] (by norm_num)).step hi7 trivial ?_
+  rintro d s8 hi8 he8 ⟨hst8, hd, hdv⟩
+  refine ((dToEAndK_good d).pres (pres_dToEAndK d)).step hi8 (Wires.cons' hd Wires.nil') ?_
+  rintro ⟨o, o'⟩ s9 hi9 he9 ⟨hst9, ho, -, hov⟩
   try dsimp only
-  refine post_bind (forIn_range'_post 6 _ (fun k cur s' => s'.statement = s.statement ∧ cur < s'.next ∧
+  -- Step 1's input: the network's output when the digit is zero, the element otherwise.
+  have hm0e : ∀ st val, Sat st s9 val → ∀ x : ℕ, (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) →
+      ev val m0 = if 0 = x then ev val ent' else ev val tip := by
+    intro st val hsat x hi
+    rw [hm0v st val (hsat.mono (by ext_chain)), hdiffv st val (hsat.mono (by ext_chain))]
+    exact mux_ev _ _ _ _ (hi 0 (by omega))
+  -- Positions 2 to 6, from the chain at `max x 1`.
+  refine post_bind (forIn_range'_from_post 2 5 _ (fun k cur s' => s'.statement = s.statement ∧ cur < s'.next ∧
       ∀ st val, Sat st s' val → ∀ x < 8, ∀ e : ℕ, (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) →
-        w64 val idx = Words.tweak1 e → x ≤ k →
-          dig val cur = cpart i e (w64 val p0, w64 val p1) x (dig val tip) (k + 1)) hi3
+        w64 val idx = Words.tweak1 e → x ≤ k + 1 →
+          dig val cur = cpart i e (w64 val p0, w64 val p1) (max x 1) (if x = 0 then dig val m0 else dig val tip)
+            (k + 2)) hi9
       ⟨by omega, ho, fun st val hsat x hx e hi he hxk => ?_⟩ ?_) ?_
-  · obtain rfl : x = 0 := by omega
-    have h0 : ∀ i : Fin 4, i.val < 3 → val o i = val d i := (hov st val hsat).1
-    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), cpart_succ _ _ _ _ _ _ le_rfl, cpart_self]
-    obtain ⟨a0, a1, -, -⟩ := htv st val (hsat.mono (by ext_chain))
-    exact step_dig (s := 0) (V := dig val tip) (hdv st val (hsat.mono he3)) he (w64_of a0) (w64_of a1)
-  · rintro k hk cur s4 hi4 he4 ⟨hst4, hcur, hv4⟩
-    have hik : ind.getD (k + 1) 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
-    refine ((add_good tip cur).pres (pres_add _ _)).step hi4
-      (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
-    rintro diff s5 hi5 he5 ⟨hst5, hdiff, hdiffv⟩
-    refine ((mulAdd_good _ diff cur).pres (pres_mulAdd _ _ _)).step hi5
-      (Wires.cons' (lt_mono hik he5) (Wires.cons' hdiff (Wires.cons' (lt_mono hcur he5) Wires.nil'))) ?_
-    rintro m s6 hi6 he6 ⟨hst6, hm, hmv⟩
-    refine (words_good m).step hi6 (Wires.cons' hm Wires.nil') ?_
-    rintro ⟨v0, v1, v2⟩ s7 hi7 he7 ⟨hst7, hv0, hv1, -, hvv⟩
-    try dsimp only
-    refine (tweakHash_good 1 (8 * i + (k + 1)) idx [p0, p1] [v0, v1] (by norm_num)).step hi7 trivial ?_
-    rintro d' s8 hi8 he8 ⟨hst8, hd', hdv'⟩
-    refine ((dToEAndK_good d').pres (pres_dToEAndK d')).step hi8 (Wires.cons' hd' Wires.nil') ?_
-    rintro ⟨o2, o2'⟩ s9 hi9 he9 ⟨hst9, ho2, -, hov2⟩
-    try dsimp only
-    refine post_pure hi9 (by ext_chain) ⟨o2, rfl, by omega, ho2, fun st val hsat x hx e hi he hxk => ?_⟩
-    have h0 : ∀ i : Fin 4, i.val < 3 → val o2 i = val d' i := (hov2 st val hsat).1
-    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), cpart_succ _ _ _ _ _ _ hxk]
+  · have h0 : ∀ i : Fin 4, i.val < 3 → val o i = val d i := (hov st val hsat).1
+    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), show max x 1 = 1 by omega]
+    show dig val d = cpart i e _ 1 _ (1 + 1)
+    rw [cpart_succ _ _ _ _ _ _ le_rfl, cpart_self]
     obtain ⟨a0, a1, -, -⟩ := hvv st val (hsat.mono (by ext_chain))
-    rw [step_dig (V := dig val m) (hdv' st val (hsat.mono he9)) he (w64_of a0) (w64_of a1)]
-    apply congrArg (Words.chainStep i (k + 1) e _)
-    have hmev : ev val m = if k + 1 = x then ev val tip else ev val cur := by
-      rw [hmv st val (hsat.mono (by ext_chain)), hdiffv st val (hsat.mono (by ext_chain))]
-      exact mux_ev _ _ _ _ (hi (k + 1) (by omega))
-    split_ifs at hmev with hkx
-    · rw [dig_of_ev hmev, ← hkx, cpart_self]
-    · rw [dig_of_ev hmev]
-      exact hv4 st val (hsat.mono (by ext_chain)) x hx e hi he (by omega)
-  · rintro cur s4 hi4 he4 ⟨hst4, hcur, hv4⟩
-    have hik : ind.getD 7 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
-    refine ((add_good tip cur).pres (pres_add _ _)).step hi4
+    rw [step_dig (s := 1) (V := dig val m0) (hdv st val (hsat.mono he9)) he (w64_of a0) (w64_of a1)]
+    apply congrArg (Words.chainStep i 1 e _)
+    split_ifs with hx0
+    · rfl
+    · have hm := hm0e st val hsat x hi
+      rw [if_neg (by omega)] at hm
+      exact dig_of_ev hm
+  · rintro k hk cur s10 hi10 he10 ⟨hst10, hcur, hv10⟩
+    have hik : ind.getD (2 + k) 0 < s10.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
+    refine ((add_good tip cur).pres (pres_add _ _)).step hi10
       (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
-    rintro diff s5 hi5 he5 ⟨hst5, hdiff, hdiffv⟩
-    refine ((mulAdd_good _ diff cur).pres (pres_mulAdd _ _ _)).step hi5
-      (Wires.cons' (lt_mono hik he5) (Wires.cons' hdiff (Wires.cons' (lt_mono hcur he5) Wires.nil'))) ?_
-    rintro m s6 hi6 he6 ⟨hst6, hm, hmv⟩
-    refine (words_good m).step hi6 (Wires.cons' hm Wires.nil') ?_
-    rintro ⟨n0, n1, n2⟩ s7 hi7 he7 ⟨hst7, hn0, hn1, -, hnv⟩
+    rintro diff' s11 hi11 he11 ⟨hst11, hdiff', hdiffv'⟩
+    refine ((mulAdd_good _ diff' cur).pres (pres_mulAdd _ _ _)).step hi11
+      (Wires.cons' (lt_mono hik he11) (Wires.cons' hdiff' (Wires.cons' (lt_mono hcur he11) Wires.nil'))) ?_
+    rintro m s12 hi12 he12 ⟨hst12, hm, hmv⟩
+    refine (words_good m).step hi12 (Wires.cons' hm Wires.nil') ?_
+    rintro ⟨w0, w1, w2⟩ s13 hi13 he13 ⟨hst13, hw0, hw1, -, hwv⟩
     try dsimp only
-    refine post_pure hi7 (by ext_chain) ⟨by omega, hn0, hn1, fun st val hsat x hx e hi he => ?_⟩
+    refine (tweakHash_good 1 (8 * i + (2 + k)) idx [p0, p1] [w0, w1] (by norm_num)).step hi13 trivial ?_
+    rintro d' s14 hi14 he14 ⟨hst14, hd', hdv'⟩
+    refine ((dToEAndK_good d').pres (pres_dToEAndK d')).step hi14 (Wires.cons' hd' Wires.nil') ?_
+    rintro ⟨o2, o2'⟩ s15 hi15 he15 ⟨hst15, ho2, -, hov2⟩
+    try dsimp only
+    refine post_pure hi15 (by ext_chain) ⟨o2, rfl, by omega, ho2, fun st val hsat x hx e hi he hxk => ?_⟩
+    have h0 : ∀ i : Fin 4, i.val < 3 → val o2 i = val d' i := (hov2 st val hsat).1
+    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), show k + 1 + 2 = 2 + k + 1 by omega,
+      cpart_succ _ _ _ _ _ _ (by omega)]
+    obtain ⟨a0, a1, -, -⟩ := hwv st val (hsat.mono (by ext_chain))
+    rw [step_dig (V := dig val m) (hdv' st val (hsat.mono he15)) he (w64_of a0) (w64_of a1)]
+    apply congrArg (Words.chainStep i (2 + k) e _)
+    have hmev : ev val m = if 2 + k = x then ev val tip else ev val cur := by
+      rw [hmv st val (hsat.mono (by ext_chain)), hdiffv' st val (hsat.mono (by ext_chain))]
+      exact mux_ev _ _ _ _ (hi (2 + k) (by omega))
+    split_ifs at hmev with hkx
+    · rw [dig_of_ev hmev, ← hkx, show max (2 + k) 1 = 2 + k by omega, cpart_self, if_neg (by omega)]
+    · rw [dig_of_ev hmev, Nat.add_comm 2 k]
+      exact hv10 st val (hsat.mono (by ext_chain)) x hx e hi he (by omega)
+  · rintro cur s10 hi10 he10 ⟨hst10, hcur, hv10⟩
+    have hik : ind.getD 7 0 < s10.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
+    refine ((add_good tip cur).pres (pres_add _ _)).step hi10
+      (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
+    rintro diff' s11 hi11 he11 ⟨hst11, hdiff', hdiffv'⟩
+    refine ((mulAdd_good _ diff' cur).pres (pres_mulAdd _ _ _)).step hi11
+      (Wires.cons' (lt_mono hik he11) (Wires.cons' hdiff' (Wires.cons' (lt_mono hcur he11) Wires.nil'))) ?_
+    rintro m s12 hi12 he12 ⟨hst12, hm, hmv⟩
+    refine (words_good m).step hi12 (Wires.cons' hm Wires.nil') ?_
+    rintro ⟨n0, n1, n2⟩ s13 hi13 he13 ⟨hst13, hn0, hn1, -, hnv⟩
+    try dsimp only
+    refine post_pure hi13 (by ext_chain) ⟨by omega, hn0, hn1, fun st val hsat x hx e hi he => ?_⟩
     obtain ⟨a0, a1, -, -⟩ := hnv st val hsat
     have a0' : val n0 0 = val m 0 := a0
     have a1' : val n1 0 = val m 1 := a1
-    show (w64 val n0, w64 val n1) = cpart i e (w64 val p0, w64 val p1) x (dig val tip) 7
-    rw [w64_of a0', w64_of a1']
-    show dig val m = cpart i e (w64 val p0, w64 val p1) x (dig val tip) 7
-    have hmev : ev val m = if 7 = x then ev val tip else ev val cur := by
-      rw [hmv st val (hsat.mono he7), hdiffv st val (hsat.mono (by ext_chain))]
-      exact mux_ev _ _ _ _ (hi 7 (by omega))
-    split_ifs at hmev with hkx
-    · rw [dig_of_ev hmev, ← hkx, cpart_self]
-    · rw [dig_of_ev hmev]
-      exact hv4 st val (hsat.mono (by ext_chain)) x hx e hi he (by omega)
+    have hend : (w64 val n0, w64 val n1) =
+        cpart i e (w64 val p0, w64 val p1) (max x 1) (if x = 0 then dig val m0 else dig val tip) 7 := by
+      rw [w64_of a0', w64_of a1']
+      show dig val m = _
+      have hmev : ev val m = if 7 = x then ev val tip else ev val cur := by
+        rw [hmv st val (hsat.mono he13), hdiffv' st val (hsat.mono (by ext_chain))]
+        exact mux_ev _ _ _ _ (hi 7 (by omega))
+      split_ifs at hmev with hkx
+      · rw [dig_of_ev hmev, ← hkx, show max 7 1 = 7 from rfl, cpart_self, if_neg (by omega)]
+      · rw [dig_of_ev hmev]
+        exact hv10 st val (hsat.mono (by ext_chain)) x hx e hi he (by omega)
+    refine ⟨fun hx0 => ?_, fun hx1 => ?_⟩
+    · subst hx0
+      have hm := hm0e st val (hsat.mono (by ext_chain)) 0 hi
+      rw [if_pos rfl, hent'v st val (hsat.mono (by ext_chain)), hthirdv st val (hsat.mono (by ext_chain)),
+        show ev val ent = toE (val ent 0) (val ent 1) (val ent 2) from rfl, third_add] at hm
+      obtain ⟨q0, q1, q2⟩ := toE_injective _ _ _ _ _ _ hm
+      have hz : val m0 2 = 0 := by
+        obtain ⟨-, -, c2, -⟩ := hvv st val (hsat.mono (by ext_chain))
+        rw [← c2]; exact limb_zero (hv2z st val (hsat.mono (by ext_chain))) 0
+      have htw0 : val tw 0 = ofWord (Circuit.tweak0 1 (8 * i)) :=
+        limb0_of_const (htwv st val (hsat.mono (by ext_chain)))
+      refine ⟨?_, ?_⟩
+      · rw [← htw0]; exact (Rec.add_eq_zero_iff_eq _ _).mp (q2.symm.trans hz)
+      · rw [hend, if_pos rfl, dig_congr q0 q1, show max 0 1 = 1 from rfl, cpart_seven]
+    · rw [hend, if_neg (by omega), show max x 1 = x by omega, cpart_seven]
 
 /-! A level of the path. -/
 

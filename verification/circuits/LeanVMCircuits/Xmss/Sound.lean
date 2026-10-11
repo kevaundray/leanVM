@@ -15,8 +15,10 @@ the circuit's free wires.
 
 Per signature (`signature_good`): the statement words decode by the `CAST` rows' views and the zeros held to their
 top words; the epoch's bits are its split's, the top 32 held zero; the encoding's digest is its hash row chain's,
-its digits the splits of its first two words, which sum to 195 because their product reaches `x^195`; each chain is
-the selection of its element at its digit, and the path climbs on the epoch's bits to the exposed root.
+its digits the splits of its first two words, which sum to 195 because their product reaches `x^195`; the network's
+outputs are pool entries or zero; each chain is the selection of its element at its digit, a digit zero taking an
+output whose tweak word is the chain's (so a pool entry, and the chain's element is that entry's), and the path
+climbs on the epoch's bits to the exposed root.
 -/
 
 namespace LeanVMCircuits.Xmss
@@ -238,6 +240,61 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
       split_ifs with h
       · exact (hlov st val (hsat.mono (by ext_chain))).1 j (by omega)
       · exact (hupv st val (hsat.mono (by ext_chain))).1 (j - 63) (by omega)
+  -- The pool.
+  refine post_bind (forIn_range_post Circuit.pool _ (fun k (entries : List ℕ) s' => s'.statement = s.statement + 4 ∧
+      entries.length = k ∧ Wires entries s' ∧ ∀ st val, Sat st s' val → ∀ q < k, ∃ (w : W) (T : Dig),
+        val (entries.getD q 0) 2 = ofWord w.toNat ∧
+          dig val (entries.getD q 0) = poolDig w (w64 val idx) (w64 val p0, w64 val p1) T) hi18
+      ⟨by omega, rfl, Wires.nil', fun _ _ _ q hq => absurd hq (Nat.not_lt_zero q)⟩ ?_) ?_
+  · rintro k hk entries s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
+    refine (poolEntry_good idx p0 p1).step hi19 ⟨lt_mono hidx (by ext_chain), lt_mono hp0 (by ext_chain),
+      lt_mono hp1 (by ext_chain)⟩ ?_
+    rintro ent s20 hi20 he20 ⟨hst20, hent, hentv⟩
+    refine post_pure hi20 he20 ⟨entries ++ [ent], rfl, by omega, by simp [hlen19], Wires.snoc (hw19.mono he20) hent,
+      fun st val hsat q hq => ?_⟩
+    rw [getD_snoc]
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hq | rfl
+    · rw [if_pos (by omega)]; exact hv19 st val (hsat.mono he20) q hq
+    · rw [if_neg (by omega), if_pos hlen19.symm]; exact hentv st val hsat
+  rintro entries sP hiP heP ⟨hstP, hlenP, hwP, hvP⟩
+  -- The network's one and bits.
+  refine fresh_good'.step hiP trivial ?_
+  rintro one' sO hiO heO ⟨hstO, hone⟩
+  refine ((eqConstK_good one' 1).pres (pres_eqConstK _ _)).step hiO trivial ?_
+  rintro _ sO' hiO' heO' ⟨hstO', honev⟩
+  refine post_bind (forIn_range_post 3 _ (fun k (nb : List ℕ) s' => s'.statement = s.statement + 4 ∧
+      nb.length = 64 * k ∧ Wires nb s' ∧ ∀ st val, Sat st s' val →
+        ∀ j < 64 * k, val (nb.getD j 0) 0 = 0 ∨ val (nb.getD j 0) 0 = 1) hiO'
+      ⟨by omega, rfl, Wires.nil', fun _ _ _ j hj => absurd hj (by omega)⟩ ?_) ?_
+  · rintro k hk nb s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
+    refine fresh_good'.step hi19 trivial ?_
+    rintro w s20 hi20 he20 ⟨hst20, hw⟩
+    refine ((split_good w).pres (pres_split w)).step hi20 trivial ?_
+    rintro bs s21 hi21 he21 ⟨hst21, hbslen, hbsw, hbsv⟩
+    refine post_pure hi21 (by ext_chain) ⟨nb ++ bs, rfl, by omega, by simp [hlen19, hbslen]; ring,
+      fun x hx => ?_, fun st val hsat j hj => ?_⟩
+    · rcases List.mem_append.mp hx with hx | hx
+      · exact lt_mono (hw19 x hx) (by ext_chain)
+      · exact hbsw x hx
+    · rw [getD_append']
+      split_ifs with hj'
+      · exact hv19 st val (hsat.mono (by ext_chain)) j (by omega)
+      · exact (hbsv st val hsat).1 _ (by omega)
+  rintro nb sB hiB heB ⟨hstB, hlenB, hwB, hvB⟩
+  -- The network.
+  refine (network_good one' nb entries (by omega) (by rw [hlenP]; decide)).step hiB
+    ⟨lt_mono hone (by ext_chain), hwB, hwP.mono (by ext_chain)⟩ ?_
+  rintro routed sN hiN heN ⟨hstN, hrlen, hrw, hrv⟩
+  -- What every later assignment says of the network's outputs: each is zero or a pool entry.
+  have hroute : ∀ st val, Sat st sN val → ∀ p < 42, ev val (routed.getD p 0) = 0 ∨ ∃ (w : W) (T : Dig),
+      val (routed.getD p 0) 2 = ofWord w.toNat ∧
+        dig val (routed.getD p 0) = poolDig w (w64 val idx) (w64 val p0, w64 val p1) T := by
+    intro st val hsat p hp
+    have hone1 : val one' 0 = 1 := (limb0_of_const (honev st val (hsat.mono (by ext_chain)))).trans Rec.ofWord_one
+    rcases hrv st val hsat hone1 (fun j hj => hvB st val (hsat.mono heN) j (by omega)) p hp with h | ⟨q, hq, h⟩
+    · exact Or.inl h
+    · obtain ⟨w, T, h2, hd⟩ := hvP st val (hsat.mono (by ext_chain)) q (hlenP ▸ hq)
+      exact Or.inr ⟨w, T, (limbs_of_ev h).2.2.trans h2, (dig_of_ev h).trans hd⟩
   -- The chains.
   refine post_bind (forIn_range_post 42 _ (fun k (ends : List ℕ) s' => s'.statement = s.statement + 4 ∧
       ends.length = 2 * k ∧ Wires ends s' ∧ ∀ st val, Sat st s' val → ∃ tips : ℕ → Dig,
@@ -245,7 +302,7 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
           [(Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
             (tips i)).1,
            (Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
-            (tips i)).2]) hi18
+            (tips i)).2]) hiN
       ⟨by omega, rfl, Wires.nil', fun _ _ _ => ⟨fun _ => (0, 0), rfl⟩⟩ ?_) ?_
   · rintro i hi ends s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
     refine fresh_good'.step hi19 trivial ?_
@@ -254,8 +311,9 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
       (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega))
         (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega)) Wires.nil'))) ?_
     rintro ind s21 hi21 he21 ⟨hst21, hindlen, hindw, hindv⟩
-    refine (chainEnd_good i idx tip p0 p1 ind).step hi21 ⟨lt_mono hidx (by ext_chain), lt_mono htip he21,
-      lt_mono hp0 (by ext_chain), lt_mono hp1 (by ext_chain), hindw, hindlen⟩ ?_
+    refine (chainEnd_good i idx tip (routed.getD i 0) p0 p1 ind).step hi21 ⟨lt_mono hidx (by ext_chain),
+      lt_mono htip he21, lt_mono (wires_getD' hrw (by omega)) (by ext_chain), lt_mono hp0 (by ext_chain),
+      lt_mono hp1 (by ext_chain), hindw, hindlen⟩ ?_
     rintro ⟨n0, n1⟩ s22 hi22 he22 ⟨hst22, hn0, hn1, hnv⟩
     try dsimp only
     refine post_pure hi22 (by ext_chain) ⟨ends ++ [n0, n1], rfl, by omega, by simp [hlen19]; ring,
@@ -272,14 +330,25 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
         intro v hv
         rw [hindv st val (hsat.mono he22) v hv]
         exact indv_digit _ _ _ _ (hDB _ (by omega)) (hDB _ (by omega)) (hDB _ (by omega)) v hv
-      have hend : (w64 val n0, w64 val n1) = Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1)
-          (dval val (lo.take 63 ++ up.take 63) i) (dig val tip) := hnv st val hsat _ (dval_lt _ _ i) _ hind hidxe
-      refine ⟨fun j => if j = i then dig val tip else tips j, ?_⟩
+      -- The chain's element: the pool entry's when the digit is zero, the free wire's otherwise.
+      obtain ⟨T, hend⟩ : ∃ T : Dig, (w64 val n0, w64 val n1) = Words.chainFrom i (toWord (val e0 0))
+          (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) T := by
+        have H := hnv st val hsat _ (dval_lt _ _ i) _ hind hidxe
+        by_cases hx : dval val (lo.take 63 ++ up.take 63) i = 0
+        · obtain ⟨h2, he⟩ := H.1 hx
+          rcases hroute st val (hsat.mono (by ext_chain)) i hi with h0 | ⟨w, T, hw2, hd⟩
+          · have h0' := (toE_injective _ _ _ 0 0 0 (h0.trans toE_zero.symm)).2.2
+            exact absurd (h2.symm.trans h0') (ofWord_tweak0_ne i hi)
+          · have hw : w = Words.tweak0 1 (8 * i) := word_of_ofWord (tweak0_lt i hi) (hw2.symm.trans h2)
+            refine ⟨T, ?_⟩
+            rw [he, hd, hw, hidxe, poolDig_tweak, hx, chainFrom_zero]
+        · exact ⟨dig val tip, H.2 (by omega)⟩
+      refine ⟨fun j => if j = i then T else tips j, ?_⟩
       rw [List.map_append, htips, List.range_succ, List.flatMap_append,
         flatMap_range_congr (g := fun j => [(Words.chainFrom j (toWord (val e0 0)) (w64 val p0, w64 val p1)
-          (dval val (lo.take 63 ++ up.take 63) j) (if j = i then dig val tip else tips j)).1,
+          (dval val (lo.take 63 ++ up.take 63) j) (if j = i then T else tips j)).1,
           (Words.chainFrom j (toWord (val e0 0)) (w64 val p0, w64 val p1)
-          (dval val (lo.take 63 ++ up.take 63) j) (if j = i then dig val tip else tips j)).2])
+          (dval val (lo.take 63 ++ up.take 63) j) (if j = i then T else tips j)).2])
           fun j hj => by rw [if_neg (show ¬ j = i by omega)]]
       simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, List.map_cons, List.map_nil, if_true]
       rw [← hend]

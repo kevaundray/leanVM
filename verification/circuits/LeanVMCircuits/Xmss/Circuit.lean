@@ -22,9 +22,16 @@ the Merkle root `[r0, r1, 0]`. The signature is the prover's: 42 chain elements,
 * The encoding hashes `tweak(4, 0, e) || p || m || rho || 0`, two blocks. Bit 63 of both digest words is zero, and
   digit `i` is bits `3r .. 3r+2` of word `i / 21`, `r = i % 21`. The digits sum to 195: the product over every digit
   bit `b` of weight `2^k` of `X^(2^k)` to the power `b` is `X^195` in `K`, and `X` has order above 294.
-* Chain `i` hashes seven steps at positions `8i + s`, `s < 7`, the input of step `s > 0` being the chain element
-  when the digit is `s` and the previous step's output otherwise: the indicator of digit `s` is a product of three
-  factors `b` or `1 + b`. The chain's end is the chain element when the digit is 7, the last output otherwise.
+* A chain's first step (position 0) is needed only when its digit is zero, and at most fourteen digits are: the
+  others, each at most 7, sum to 195. So a pool of fourteen entries hashes `tweak(1, 0, e) || p || t` under a tweak
+  word `w` the prover names, an entry being its output's two words and `w` as an `E` wire. A network of five stages,
+  shifting by 16, 8, 4, 2 and 1, moves the entries (then zeros) to the 42 chains: at a stage each position keeps its
+  wire or takes the one `sh` before it, by a bit, so each output is an entry or zero.
+* Chain `i` hashes six steps at positions `8i + s`, `1 ≤ s < 7`. Step 1's input is the network's output for chain `i`
+  plus `[0, 0, tweak0(1, 8i)]` when the digit is zero and the chain element otherwise; its third word is zero, so the
+  output it took has tweak word `tweak0(1, 8i)` (zero has none). The input of step `s > 1` is the chain element when
+  the digit is `s` and the previous step's output otherwise: the indicator of digit `s` is a product of three factors
+  `b` or `1 + b`. The chain's end is the chain element when the digit is 7, the last output otherwise.
 * The leaf hashes `tweak(2, 0, e) || p || end_0 || .. || end_41`, eleven blocks.
 * Level `l` of the path hashes `tweak(3, l + 1, e >> (l + 1)) || p || left || right`, the current node on the side
   bit `l` of the epoch names: `left = cur + b·(cur + sib)`, `right = left + cur + sib`.
@@ -92,13 +99,59 @@ def indicators (a0 a1 a2 : ℕ) : M (List ℕ) := do
     level := next
   pure level
 
-/-- Chain `i` from its element `tip` (an `E` wire) under the digit's indicators `ind`: its end's two words. -/
-def chainEnd (i idx tip : ℕ) (pp ind : List ℕ) : M (ℕ × ℕ) := do
-  let (t0, t1, _) ← words tip
-  let d ← tweakHash 1 (8 * i) idx pp [t0, t1]
+/-- The pool's size: at most fourteen digits are zero, as the others, each at most 7, sum to 195. -/
+def pool : ℕ := 14
+
+/-- The network's shifts, largest first: an entry moves at most 28 positions on to its chain. -/
+def shifts : List ℕ := [16, 8, 4, 2, 1]
+
+/-- A pool entry: the hash of `w || idx || p || t0 || t1` under a tweak word `w` and element `t0, t1` the prover names,
+as its output's two words and `w`, an `E` wire. -/
+def poolEntry (idx : ℕ) (pp : List ℕ) : M ℕ := do
+  let w ← wire
+  let t0 ← wire
+  let t1 ← wire
+  let d ← chain ([w, idx] ++ pp ++ [t0, t1])
+  let ks ← dToK d
+  kToE (ks.getD 0 0) (ks.getD 1 0) w
+
+/-- `x` when the bit `b` is zero and `y` when it is one: `x + b·(x + y)`, the sum `y·1 + x` made in `EXK` by a one
+`one'` other than the unit wire. -/
+def sel (one' b x y : ℕ) : M ℕ := do
+  let diff ← mulKAdd y one' x
+  mulKAdd diff b x
+
+/-- A stage of the network: position `p ≥ sh` keeps its wire or takes the one at `p - sh` by bit `p - sh` of `bits`,
+the others keep theirs. -/
+def stage (one' sh : ℕ) (bits arr : List ℕ) : M (List ℕ) :=
+  (List.range arr.length).mapM fun p =>
+    if sh ≤ p then sel one' (bits.getD (p - sh) 0) (arr.getD p 0) (arr.getD (p - sh) 0) else pure (arr.getD p 0)
+
+/-- The network: the entries, then zeros up to the 42 chains, through every stage, stage `sh` taking the next
+`42 - sh` bits. -/
+def network (one' : ℕ) (bits entries : List ℕ) : M (List ℕ) := do
+  let z ← zero
+  let mut arr := entries ++ List.replicate (42 - entries.length) z
+  let mut off := 0
+  for sh in shifts do
+    arr ← stage one' sh (bits.drop off) arr
+    off := off + (42 - sh)
+  pure arr
+
+/-- Chain `i` from its element `tip` and the network's output `ent` for it (`E` wires) under the digit's indicators
+`ind`: its end's two words. -/
+def chainEnd (i idx tip ent : ℕ) (pp ind : List ℕ) : M (ℕ × ℕ) := do
+  let third ← eConst 0 0 1
+  let tw ← kConst (tweak0 1 (8 * i))
+  let ent' ← mulKAdd third tw ent
+  let diff ← add ent' tip
+  let m ← mulAdd (ind.getD 0 0) diff tip
+  let (v0, v1, v2) ← words m
+  eqConstK v2 0
+  let d ← tweakHash 1 (8 * i + 1) idx pp [v0, v1]
   let (o, _) ← dToEAndK d
   let mut cur := o
-  for s in List.range' 1 6 do
+  for s in List.range' 2 5 do
     let diff ← add tip cur
     let m ← mulAdd (ind.getD s 0) diff cur
     let (v0, v1, _) ← words m
@@ -145,12 +198,25 @@ def signature : M Unit := do
   let digitBits := lo.take 63 ++ hi.take 63
   let prod ← digitProduct digitBits
   eqConstE prod targetWord 0 0
+  -- The pool, the network's one and bits, and the network.
+  let mut entries := []
+  for _ in List.range pool do
+    let ent ← poolEntry idx pp
+    entries := entries ++ [ent]
+  let one' ← wire
+  eqConstK one' 1
+  let mut netBits := []
+  for _ in List.range 3 do
+    let w ← wire
+    let bs ← split w
+    netBits := netBits ++ bs
+  let routed ← network one' netBits entries
   -- The chains.
   let mut ends := []
   for i in List.range 42 do
     let tip ← wire
     let ind ← indicators (digitBits.getD (3 * i) 0) (digitBits.getD (3 * i + 1) 0) (digitBits.getD (3 * i + 2) 0)
-    let (n0, n1) ← chainEnd i idx tip pp ind
+    let (n0, n1) ← chainEnd i idx tip (routed.getD i 0) pp ind
     ends := ends ++ [n0, n1]
   -- The leaf and the path.
   let mut node ← tweakHash 2 0 idx pp ends
