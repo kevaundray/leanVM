@@ -25,7 +25,8 @@
 //!   published, whatever the tree's shape: anyone may combine any proofs of the tree, up to its largest arity, and the
 //!   root's verifier needs the set alone. What a claim means is the leaf program's (`multiset`).
 //!
-//! A claim-set tree has a node circuit for each arity from two to its largest, all of one height.
+//! A claim-set tree has a node circuit for each arity from two to its largest, all of one height, or two tiers each
+//! at heights of its own ([`Tier`]): small proofs then never pay for the largest node's union and children.
 
 use crate::class_flock::FlockId;
 use crate::cpu::{Announcement, DecodeError, Lookup, Output, Program, Proof, ProvenRun, Stats, VerifyError};
@@ -38,7 +39,7 @@ use crate::rec::table::PerRecTable;
 use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::PerTable;
-use design::{ChildWitness, Design, LeafWitness, Level, NodeInputs, NodeRows};
+use design::{ChildWitness, Design, LARGE, LeafWitness, Level, NodeInputs, NodeRows, SMALL};
 use fiat_shamir::{FromNarg, ProofTranscript};
 use pcs::merkle::Openings;
 use primitives::field::{F64, F192};
@@ -108,9 +109,32 @@ pub struct TreeShape {
     pub arity: usize,
     /// The commitment rate of every tree proof.
     pub rate: Rate,
-    /// A claim-set tree's capacity, which a node's children's sets together and its own set stay within; none for a
-    /// tree of outputs.
-    pub claims: Option<Capacity>,
+    /// A claim-set tree's capacities; none for a tree of outputs.
+    pub claims: Option<ClaimShape>,
+}
+
+/// The capacities of a claim-set tree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClaimShape {
+    /// The capacity of the tree's largest nodes and of a root's set: a node's children's sets together and its own set
+    /// stay within it.
+    pub capacity: Capacity,
+    /// The small tier: nodes of at most its arity, whose sets stay within its capacity, at heights of their own. With
+    /// none, every circuit is at the largest node's heights.
+    pub small: Option<Tier>,
+}
+
+/// A claim-set tree's small tier: its first level, its nodes, and the wrap of its large proofs.
+///
+/// Its circuits have heights of their own, which its nodes' few children and small unions fix, so a proof of a small
+/// set never pays for the tree's largest node. The large tier's nodes verify small proofs, and a large proof is
+/// combined further once wrapped: one small proof verifying it and stating its set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tier {
+    /// The most children its nodes verify, at least two and at most the tree's arity.
+    pub arity: usize,
+    /// The capacity of its nodes' unions and of its first level's, within the tree's.
+    pub capacity: Capacity,
 }
 
 /// An aggregation tree over proofs of one program.
@@ -138,7 +162,7 @@ pub struct Tree<'p> {
 /// A higher node's proof covers tree proofs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreeProof {
-    /// The index of the circuit that made it, its statement's first word.
+    /// The kind of the circuit that made it, its statement's first word: its index within its tier, the tier above.
     circuit: usize,
     /// Its statement's words.
     words: Vec<F192>,
@@ -192,6 +216,14 @@ pub enum TreeError {
         arity_0: usize,
         /// The children a node verifies.
         arity: usize,
+    },
+    /// A small tier past the tree's: an arity outside two to the tree's, or a capacity past the tree's.
+    #[error("a small tier of {arity} children and {capacity:?} does not fit within the tree's")]
+    SmallTier {
+        /// Its arity.
+        arity: usize,
+        /// Its capacity.
+        capacity: Capacity,
     },
     /// No RISC-V proof of the program has the leaves' shape.
     #[error("the leaves' shape: {0}")]
@@ -366,6 +398,27 @@ impl TreeShape {
     }
 }
 
+impl ClaimShape {
+    /// One tier at the tree's capacity: every circuit at the largest node's heights.
+    #[must_use]
+    pub const fn new(capacity: Capacity) -> Self {
+        Self { capacity, small: None }
+    }
+
+    /// The capacity of a tier's unions.
+    pub(crate) const fn tier_capacity(&self, tier: usize) -> Capacity {
+        match (tier, self.small) {
+            (design::SMALL, Some(small)) => small.capacity,
+            _ => self.capacity,
+        }
+    }
+
+    /// The tiers it has.
+    const fn tiers(&self) -> usize {
+        if self.small.is_some() { 2 } else { 1 }
+    }
+}
+
 impl<'a> Leaf<'a> {
     /// The leaf of a proof and the output it proves.
     #[must_use]
@@ -384,7 +437,7 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 15);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 17);
 
     /// The kind of node that made the proof.
     #[must_use]
@@ -467,6 +520,7 @@ impl<'p> Tree<'p> {
     /// # Errors
     ///
     /// - Arities that make no tree: a first level of no leaf, or nodes of fewer than two children.
+    /// - A small tier past the tree's.
     /// - A leaf shape no proof of the program has.
     /// - Circuits that fit no commitment.
     pub fn new(program: &'p Program, shape: TreeShape) -> Result<Self, TreeError> {
@@ -480,14 +534,35 @@ impl<'p> Tree<'p> {
         if arity_0 == 0 || arity < 2 {
             return Err(TreeError::Arity { arity_0, arity });
         }
+        if let Some(ClaimShape {
+            capacity: large,
+            small: Some(Tier { arity: a, capacity }),
+        }) = claims
+            && (!(2..=arity).contains(&a) || capacity.claims > large.claims || capacity.groups > large.groups)
+        {
+            return Err(TreeError::SmallTier { arity: a, capacity });
+        }
+        let tiers = claims.map_or(1, |c| c.tiers());
         let leaf = || ProofShape::new(program, leaves.taus, leaves.rate).map_err(|e| TreeError::LeafShape(e.into()));
-        let (design, circuits) = Self::converge(|taus| Design::new(leaf()?, arity_0, arity, rate, claims, taus))?;
-        let columns: Vec<FixedColumns> = circuits.iter().map(|c| FixedColumns::of(c, &design.taus)).collect();
-        let fixed = design.fixed.polynomial(&columns.iter().collect::<Vec<_>>());
+        let design = |taus: &[PerRecTable<usize>]| Design::new(leaf()?, arity_0, arity, rate, claims, taus);
+        let (design, circuits) = Self::converge(tiers, design)?;
+        let columns: Vec<FixedColumns> = (circuits.iter().zip(&design.places))
+            .map(|(c, p)| FixedColumns::of(c, &design.tiers[p.tier].taus))
+            .collect();
+        // Each tier's fixed polynomial stacks its circuits' columns; a tree of one tier has no wide one.
+        let fixed = |tier: usize| {
+            design.tiers.get(tier).map_or_else(
+                || vec![F64::ZERO],
+                |t| {
+                    t.fixed
+                        .polynomial(&columns[t.places.clone()].iter().collect::<Vec<_>>())
+                },
+            )
+        };
         let rv = program.rv();
         let mut image: Vec<F64> = rv.image().iter().map(|&w| F64(w)).collect();
         image.resize(1 << design.vars.0[DensePoly::Image as usize], F64::ZERO);
-        let tables = DenseTables([Lookup::Bytecode.table(rv), image, fixed]);
+        let tables = DenseTables([Lookup::Bytecode.table(rv), image, fixed(SMALL), fixed(LARGE)]);
         Ok(Self {
             shape,
             design,
@@ -497,27 +572,39 @@ impl<'p> Tree<'p> {
         })
     }
 
-    /// The heights every circuit shares, and the circuits at them, by their kind's index.
+    /// Each tier's heights, which its circuits share, and the circuits at them, by their position.
     ///
-    /// They are the least fixed point of `tau -> max(tau, each circuit's heights at tau)`, from the first level's own heights.
+    /// They are the least fixed point of `tau -> max(tau, each of a tier's circuits' heights at tau)`, every tier
+    /// from the first level's own heights: a small tier's wrap verifies the large tier's proofs, and the large tier's
+    /// nodes the small tier's, so the tiers' heights are found together.
     ///
     /// Each round only raises heights, and a node's rows grow with the logarithm of its children's, so few rounds reach it.
     fn converge(
-        design: impl Fn(PerRecTable<usize>) -> Result<Design<'p>, TreeError>,
+        tiers: usize,
+        design: impl Fn(&[PerRecTable<usize>]) -> Result<Design<'p>, TreeError>,
     ) -> Result<(Design<'p>, Vec<Circuit>), TreeError> {
-        let mut taus = design(PerRecTable::default())?.shape(0).circuit.heights();
+        let start = design(&vec![PerRecTable::default(); tiers])?.shape(0).circuit.heights();
+        let mut taus = vec![start; tiers];
         for _ in 0..MAX_ROUNDS {
-            let d = design(taus)?;
-            let built: Vec<Circuit> = (0..d.levels.len()).map(|kind| d.shape(kind).circuit).collect();
-            let next = PerRecTable::from_fn(|t| built.iter().map(|c| c.heights()[t]).fold(taus[t], usize::max));
+            let d = design(&taus)?;
+            let built: Vec<Circuit> = (0..d.places.len()).map(|p| d.shape(p).circuit).collect();
+            let next: Vec<PerRecTable<usize>> = (d.tiers.iter().zip(&taus))
+                .map(|(tier, taus)| {
+                    PerRecTable::from_fn(|t| {
+                        (built[tier.places.clone()].iter()).fold(taus[t], |h, c| h.max(c.heights()[t]))
+                    })
+                })
+                .collect();
             if next == taus {
-                let circuits = (built.into_iter())
-                    .map(|mut c| {
-                        c.floor = taus;
+                let circuits = (built.into_iter().zip(&d.places))
+                    .map(|(mut c, p)| {
+                        c.floor = taus[p.tier];
                         c
                     })
                     .collect();
-                RecLayout::from_taus(taus).map_err(|_| TreeError::TooLarge)?;
+                for &t in &taus {
+                    RecLayout::from_taus(t).map_err(|_| TreeError::TooLarge)?;
+                }
                 return Ok((d, circuits));
             }
             taus = next;
@@ -525,30 +612,30 @@ impl<'p> Tree<'p> {
         Err(TreeError::TooLarge)
     }
 
-    /// The circuit of the kind with this index.
-    pub(crate) fn circuit(&self, kind: usize) -> &Circuit {
-        &self.circuits[kind]
+    /// The circuit at this position.
+    pub(crate) fn circuit(&self, position: usize) -> &Circuit {
+        &self.circuits[position]
     }
 
-    /// The capacity of a claim-set tree, or why this tree has none.
+    /// The capacity of a claim-set tree's largest nodes and roots, or why this tree has none.
     fn capacity(&self) -> Result<Capacity, TreeError> {
-        self.design.capacity.ok_or(TreeError::Semantics { claims: false })
+        (self.design.claims.map(|c| c.capacity)).ok_or(TreeError::Semantics { claims: false })
     }
 
     /// Nothing, if this is a tree of outputs.
     const fn outputs(&self) -> Result<(), TreeError> {
-        match self.design.capacity {
+        match self.design.claims {
             Some(_) => Err(TreeError::Semantics { claims: true }),
             None => Ok(()),
         }
     }
 
-    /// Nothing, if a proof is of one of the tree's circuits and states as many words as its statements have.
-    fn known(&self, p: &TreeProof) -> Result<(), TreeError> {
-        if p.circuit < self.circuits.len() && p.words.len() == self.design.statement.len() {
-            Ok(())
-        } else {
-            Err(TreeError::Circuit(p.circuit))
+    /// The position of a proof's circuit, if it is of one of the tree's circuits and states as many words as its
+    /// statements have.
+    fn known(&self, p: &TreeProof) -> Result<usize, TreeError> {
+        match self.design.position(p.circuit) {
+            Some(position) if p.words.len() == self.design.statement.len() => Ok(position),
+            _ => Err(TreeError::Circuit(p.circuit)),
         }
     }
 
@@ -602,21 +689,27 @@ impl<'p> Tree<'p> {
             .collect()
     }
 
-    /// The node's witnesses of its children, each verified natively, short of its claims.
+    /// The node's witnesses of its children, proofs of `tier`, each verified natively, short of its claims.
     fn child_witnesses<'a>(
         &'a self,
+        tier: usize,
         children: &[&'a TreeProof],
         statements: &'a [TreeStatement],
     ) -> Result<Vec<ChildWitness<'a>>, TreeError> {
         (children.iter().zip(statements).enumerate())
             .map(|(index, (c, statement))| {
-                self.known(c)?;
-                let openings = self.read(c).map_err(|error| TreeError::Child { index, error })?;
+                let position = self.known(c)?;
+                if self.design.places[position].tier != tier {
+                    return Err(TreeError::Circuit(c.circuit));
+                }
+                let openings = self
+                    .read(c, position)
+                    .map_err(|error| TreeError::Child { index, error })?;
                 Ok(ChildWitness {
                     statement,
                     proof: &c.proof,
                     openings,
-                    columns: &self.columns[c.circuit],
+                    columns: &self.columns[position],
                 })
             })
             .collect()
@@ -637,11 +730,11 @@ impl<'p> Tree<'p> {
             });
         }
         let children: Vec<&TreeProof> = children.iter().collect();
-        children.iter().try_for_each(|c| self.known(c))?;
+        children.iter().try_for_each(|c| self.known(c).map(drop))?;
         let statements: Vec<TreeStatement> = (children.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
             .collect();
-        let items = self.child_witnesses(&children, &statements)?;
+        let items = self.child_witnesses(SMALL, &children, &statements)?;
         let inputs = NodeInputs::Prove {
             items: &items,
             tables: &self.tables,
@@ -660,7 +753,7 @@ impl<'p> Tree<'p> {
     /// - The wrong number of leaves, a leaf of another shape, a leaf that does not verify, or one whose output is not
     ///   its set's.
     /// - A declared set that is not canonical, past the capacity, or with a claim no leaf carries.
-    /// - Leaves whose sets together do not fit the capacity.
+    /// - Leaves whose sets together do not fit the first level's capacity: the small tier's, if the tree has one.
     pub fn aggregate_leaves(
         &self,
         leaves: &[ClaimLeaf<'_>],
@@ -678,7 +771,7 @@ impl<'p> Tree<'p> {
             }
         })?;
         let sets: Vec<&ClaimSet> = leaves.iter().map(|l| l.claims).collect();
-        let (union, claims) = self.fill(Level::First, &sets, declare)?;
+        let (union, claims) = self.fill(0, &sets, declare)?;
         let inputs = NodeInputs::Prove {
             items: &items,
             tables: &self.tables,
@@ -695,6 +788,11 @@ impl<'p> Tree<'p> {
     /// The children may be of any kind and any provers'. One child is taken twice: its claims once, its repeat's
     /// unselected, which narrows or republishes it.
     ///
+    /// In a tree of two tiers, the node is the small tier's if the children are few enough and their sets (a lone
+    /// child's twice) and the declared set fit its capacity, else the large tier's one node, its places past the
+    /// children absent: a lone child too large to be taken twice is taken once by the large node, a large proof of its
+    /// set. A child of the large tier is wrapped first, a proof of its own.
+    ///
     /// # Errors
     ///
     /// - A tree of outputs.
@@ -704,40 +802,100 @@ impl<'p> Tree<'p> {
     pub fn aggregate(&self, children: &[&Aggregate], declare: Option<&ClaimSet>) -> Result<Aggregate, TreeError> {
         self.capacity()?;
         let d = &self.design;
-        let children: Vec<&Aggregate> = match children {
-            [one] => vec![one, one],
-            _ => children.to_vec(),
-        };
-        let kind = (d.node_kind(children.len())).ok_or(TreeError::Children {
-            expected: d.arity,
-            got: children.len(),
-        })?;
+        let n = children.len();
+        // A lone child is taken twice by the small tier's node, or the only tier's.
+        let small = d.place(SMALL, Level::Node(n.max(2))).map(|p| (p, n.max(2)));
+        let large = d.place(LARGE, Level::Node(d.arity)).map(|p| (p, d.arity));
+        if n == 0 || n > d.arity || (small.is_none() && large.is_none()) {
+            return Err(TreeError::Children {
+                expected: d.arity,
+                got: n,
+            });
+        }
+        let mut wraps = Vec::with_capacity(n);
+        for (index, c) in children.iter().enumerate() {
+            let position = self.known(&c.proof)?;
+            wraps.push(
+                (d.places[position].tier == LARGE)
+                    .then(|| self.wrap(index, c))
+                    .transpose()?,
+            );
+        }
+        let children: Vec<&Aggregate> = (children.iter().zip(&wraps))
+            .map(|(&c, w)| w.as_ref().unwrap_or(c))
+            .collect();
         let proofs: Vec<&TreeProof> = children.iter().map(|c| &c.proof).collect();
-        proofs.iter().try_for_each(|c| self.known(c))?;
         let statements: Vec<TreeStatement> = (proofs.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
             .collect();
-        let items = self.child_witnesses(&proofs, &statements)?;
+        let items = self.child_witnesses(SMALL, &proofs, &statements)?;
         if let Some(index) = (statements.iter().zip(&children)).position(|(s, c)| s.digest_words() != c.claims.digest())
         {
             return Err(TreeError::ChildClaims { index });
         }
         let sets: Vec<&ClaimSet> = children.iter().map(|c| &c.claims).collect();
-        let (union, claims) = self.fill(Level::Node(children.len()), &sets, declare)?;
+        // The first tier whose union holds the sets. A place past the children verifies the first child again: taken
+        // twice by the small tier, absent from the large tier's union.
+        for (position, slots) in small.into_iter().chain(large) {
+            let read = if d.places[position].tier == LARGE { n } else { slots };
+            let read_sets: Vec<&ClaimSet> = (0..read).map(|i| sets[i.min(n - 1)]).collect();
+            let (union, claims) = match self.fill(position, &read_sets, declare) {
+                Err(TreeError::Capacity) => continue,
+                filled => filled?,
+            };
+            let slot_items: Vec<ChildWitness<'_>> = (0..slots)
+                .map(|i| {
+                    let w = &items[if i < n { i } else { 0 }];
+                    ChildWitness {
+                        statement: w.statement,
+                        proof: w.proof,
+                        openings: w.openings.clone(),
+                        columns: w.columns,
+                    }
+                })
+                .collect();
+            let inputs = NodeInputs::Prove {
+                items: &slot_items,
+                tables: &self.tables,
+                union: Some(&union),
+            };
+            let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs, position));
+            let proof = self.prove_rows(rows, position)?;
+            return Ok(Aggregate { proof, claims });
+        }
+        Err(TreeError::Capacity)
+    }
+
+    /// Wrap child `index`, a proof of the large tier: a proof of the small tier stating its set.
+    fn wrap(&self, index: usize, child: &Aggregate) -> Result<Aggregate, TreeError> {
+        let d = &self.design;
+        let position = (d.place(SMALL, Level::Wrap)).expect("a tree of two tiers wraps");
+        let statements = [TreeStatement::new(d.statement, child.proof.words.clone())];
+        let items = (self.child_witnesses(LARGE, &[&child.proof], &statements)).map_err(|e| match e {
+            TreeError::Child { error, .. } => TreeError::Child { index, error },
+            e => e,
+        })?;
+        if statements[0].digest_words() != child.claims.digest() {
+            return Err(TreeError::ChildClaims { index });
+        }
         let inputs = NodeInputs::Prove {
             items: &items,
             tables: &self.tables,
-            union: Some(&union),
+            union: None,
         };
-        let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs, kind));
-        let proof = self.prove_rows(rows, kind)?;
-        Ok(Aggregate { proof, claims })
+        let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs, position));
+        let proof = self.prove_rows(rows, position)?;
+        Ok(Aggregate {
+            proof,
+            claims: child.claims.clone(),
+        })
     }
 
-    /// The union's values over these sets, and the set it declares: `declare`, or the canonical union.
+    /// The union's values over these sets in the circuit at `position`, and the set it declares: `declare`, or the
+    /// canonical union, which must fit the circuit's tier's capacity.
     fn fill(
         &self,
-        level: Level,
+        position: usize,
         sets: &[&ClaimSet],
         declare: Option<&ClaimSet>,
     ) -> Result<(UnionFill, ClaimSet), TreeError> {
@@ -753,7 +911,15 @@ impl<'p> Tree<'p> {
                 union
             }
         };
-        let shape = self.design.union_shape(level).expect("a claim-set tree has unions");
+        let tier = self.design.places[position].tier;
+        let held = (self.design.claims).map_or(capacity, |c| c.tier_capacity(tier));
+        if declared.n_claims() >= held.claims || declared.groups.len() > held.groups {
+            return Err(TreeError::Capacity);
+        }
+        let shape = self
+            .design
+            .union_shape(position)
+            .expect("a claim-set tree's node has a union");
         let fill = UnionFill::new(&shape, sets, &declared).map_err(|e| match e {
             FillError::Children | FillError::Declared => TreeError::Capacity,
             FillError::NotCovered(claim) => TreeError::NotCovered(claim),
@@ -807,19 +973,20 @@ impl<'p> Tree<'p> {
                 got: root.kind(),
             });
         }
-        self.known(root)?;
-        self.read(root).map_err(TreeError::Root)?;
+        let position = self.known(root)?;
+        self.read(root, position).map_err(TreeError::Root)?;
         let statement = TreeStatement::new(d.statement, root.words.clone());
         if statement.digest_words() != self.digest(outputs) {
             return Err(TreeError::Outputs);
         }
-        self.settle(&statement, root.circuit)
+        self.settle(&statement, position)
     }
 
     /// Verify the root of a claim-set tree: its recursion proof, that its set is canonical and within the capacity,
     /// that it states this set, and every claim it carries.
     ///
-    /// The root may be of any kind, made by anyone, over any shape of tree: the set is all its statement says.
+    /// The root may be of any kind and either tier, made by anyone, over any shape of tree: the set is all its
+    /// statement says.
     ///
     /// # Errors
     ///
@@ -834,14 +1001,14 @@ impl<'p> Tree<'p> {
                 got: root.rate,
             });
         }
-        self.known(root)?;
+        let position = self.known(root)?;
         claims.check(capacity).map_err(TreeError::ClaimSet)?;
-        self.read(root).map_err(TreeError::Root)?;
+        self.read(root, position).map_err(TreeError::Root)?;
         let statement = TreeStatement::new(d.statement, root.words.clone());
         if statement.digest_words() != claims.digest() {
             return Err(TreeError::Claims);
         }
-        self.settle(&statement, root.circuit)
+        self.settle(&statement, position)
     }
 
     /// The digest the root over these leaf outputs states.
@@ -857,22 +1024,22 @@ impl<'p> Tree<'p> {
 
     /// Verify a tree proof's recursion proof, short of its claims, returning every opening it authenticated.
     ///
-    /// The proof is of one of the tree's circuits.
-    fn read(&self, p: &TreeProof) -> Result<Vec<Openings>, VerifyError> {
+    /// The proof is of the tree's circuit at `position`.
+    fn read(&self, p: &TreeProof, position: usize) -> Result<Vec<Openings>, VerifyError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
-        self.circuit(p.circuit)
+        self.circuit(position)
             .verify_with(
                 &limbs,
                 &self.design.session,
                 self.design.rate,
                 &p.proof,
-                &self.columns[p.circuit],
+                &self.columns[position],
             )
             .map_err(Into::into)
     }
 
-    /// Prove the rows of the circuit of kind `kind`: its reduction, then its recursion proof.
-    fn prove_rows(&self, rows: NodeRows, kind: usize) -> Result<TreeProof, TreeError> {
+    /// Prove the rows of the circuit at `position`: its reduction, then its recursion proof.
+    fn prove_rows(&self, rows: NodeRows, position: usize) -> Result<TreeProof, TreeError> {
         let d = &self.design;
         let reduction = rows.claim_values().prove(&d.session, &d.vars, &self.tables);
         let Finished {
@@ -881,14 +1048,14 @@ impl<'p> Tree<'p> {
         if let Some(first) = failures.into_iter().next() {
             return Err(TreeError::Unsatisfied(first));
         }
-        let proof = (self.circuit(kind))
-            .prove_with(&assignment, &d.session, d.rate, Some(&self.columns[kind]))
+        let proof = (self.circuit(position))
+            .prove_with(&assignment, &d.session, d.rate, Some(&self.columns[position]))
             .map_err(|_| TreeError::TooLarge)?;
         let words = (assignment.statement().iter())
             .map(|l| F192::new(l[0], l[1], l[2]))
             .collect();
         Ok(TreeProof {
-            circuit: kind,
+            circuit: d.code(position),
             words,
             proof,
             rate: d.rate,
@@ -897,11 +1064,11 @@ impl<'p> Tree<'p> {
 
     /// Evaluate every claim a root's statement carries.
     #[tracing::instrument(name = "Settle claims", skip_all)]
-    fn settle(&self, s: &TreeStatement, kind: usize) -> Result<(), TreeError> {
+    fn settle(&self, s: &TreeStatement, position: usize) -> Result<(), TreeError> {
         let vars = &self.design.vars.0;
-        for poly in DensePoly::ALL {
-            // A first-level node reduces no claim on the fixed polynomial.
-            if poly == DensePoly::Fixed && kind == 0 {
+        for &poly in self.design.statement.polys() {
+            // A first-level node reduces no claim on a fixed polynomial.
+            if poly.is_fixed() && position == 0 {
                 continue;
             }
             let point = &s.dense_point()[..vars[poly as usize]];

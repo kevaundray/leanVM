@@ -79,8 +79,8 @@ pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 #[doc(hidden)]
 pub use rec::tree::{
-    Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, DensePoly, FalseClaim,
-    Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof, TreeShape, Unsatisfied,
+    Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, ClaimShape, DensePoly,
+    FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tier, Tree, TreeError, TreeProof, TreeShape, Unsatisfied,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
 
@@ -144,7 +144,8 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// A tree over one leaf, with `arity_0 = 1`, is a single proof's recursion.
 pub mod aggregate {
     pub use crate::rec::tree::{
-        Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, DensePoly,
-        FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof, TreeShape, Unsatisfied,
+        Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, ClaimShape,
+        DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tier, Tree, TreeError, TreeProof, TreeShape,
+        Unsatisfied,
     };
 }
