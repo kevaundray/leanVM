@@ -3,7 +3,7 @@
 use crate::{chain, refuse};
 use bench::Plan;
 use leanvm::asm::{Add, Addi, Asm, Bne, Reg};
-use leanvm::{Output, Program, ProvenRun, Prover, Region, Stats};
+use leanvm::{Output, Program, ProvenRun, Prover, Region, SignerSet, Stats};
 use leanvm_guest::{PublicValues, Run};
 use primitives::hash::{digest_words, hash};
 use primitives::{pretty_f64, pretty_integer};
@@ -21,6 +21,8 @@ pub struct Workload {
     pub expected: Option<Output>,
     /// What the run covers, if it counts in items.
     pub items: Option<Items>,
+    /// The signer set the run publishes, if its output is the hash of one's digest: a signer-set tree's leaf.
+    pub signers: Option<SignerSet>,
 }
 
 /// How many items a run covers, and what one is called.
@@ -41,6 +43,7 @@ impl Workload {
             advice: run.advice,
             expected: Some(Output::new(run.expected)),
             items: Some(Items { count, name }),
+            signers: None,
         }
     }
 
@@ -78,6 +81,7 @@ impl Workload {
             advice: vec![],
             expected: Some(Output::new([a, 0, 0, 0])),
             items: Some(Items { count: n, name: "step" }),
+            signers: None,
         }
     }
 
@@ -102,22 +106,42 @@ impl Workload {
         )
     }
 
-    /// Verify `n` leanXMSS signatures, one key each.
+    /// Verify `n` leanXMSS signatures, one key each, publishing their signer set.
     pub fn leanxmss(n: usize) -> Self {
         let title = format!("leanXMSS verification, {n} signatures");
-        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n).run, n, "signature")
+        let leanxmss_host::Batch { run, set } = leanxmss_host::batch(n);
+        Self::hosted_signers(title, leanxmss_host::ELF, run, set, n)
     }
 
-    /// Verify `n` leanSPHINCS signatures, one key each.
+    /// Verify leanXMSS signatures in groups, each its signers on one message at one leaf index, publishing their signer set.
+    pub fn leanxmss_groups(groups: &[leanxmss_host::Group]) -> Self {
+        let n = groups.iter().map(|g| g.signers.len()).sum();
+        let title = format!("leanXMSS verification, {n} signatures in {} groups", groups.len());
+        let leanxmss_host::Batch { run, set } = leanxmss_host::batch_groups(groups);
+        Self::hosted_signers(title, leanxmss_host::ELF, run, set, n)
+    }
+
+    /// Verify `n` leanSPHINCS signatures, one key each, publishing their signer set.
     pub fn leansphincs(n: usize) -> Self {
         let title = format!("leanSPHINCS verification, {n} signatures");
-        Self::hosted(
-            title,
-            leansphincs_host::ELF,
-            leansphincs_host::batch(n).run,
-            n,
-            "signature",
-        )
+        let leansphincs_host::Batch { run, set } = leansphincs_host::batch(n);
+        Self::hosted_signers(title, leansphincs_host::ELF, run, set, n)
+    }
+
+    /// Verify leanSPHINCS signatures in groups, each its signers on one message, publishing their signer set.
+    pub fn leansphincs_groups(groups: &[leansphincs_host::Group]) -> Self {
+        let n = groups.iter().map(|g| g.signers.len()).sum();
+        let title = format!("leanSPHINCS verification, {n} signatures in {} groups", groups.len());
+        let leansphincs_host::Batch { run, set } = leansphincs_host::batch_groups(groups);
+        Self::hosted_signers(title, leansphincs_host::ELF, run, set, n)
+    }
+
+    /// A signature guest's run of `n` signatures and the signer set it publishes, whose output a host computed natively.
+    fn hosted_signers(title: String, elf: &[u8], run: Run, set: SignerSet, n: usize) -> Self {
+        Self {
+            signers: Some(set),
+            ..Self::hosted(title, elf, run, n, "signature")
+        }
     }
 
     /// Verify `n` Falcon-512 signatures, one key each.
@@ -157,6 +181,7 @@ impl Workload {
             advice,
             expected: None,
             items: None,
+            signers: None,
         }
     }
 
