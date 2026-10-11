@@ -61,6 +61,8 @@ P(Y)=\sum_{v\in\cube{\nflock}}\eq(r,v)\bigl(\qext a(Y,v)\qext b(Y,v)+\qext c(Y,v
 \end{equation}
 which lies in $\E[Y]$ and has degree at most $126$, the product contributing $2\times 63$ and the linear term $63$. If \eqref{flock:eq:r1cs} holds, then $P(h)=0$ for every $h\in\skipdom$. The prover sends $P|_{\skipcoset}$, $64$ values: together with the $64$ assumed zeros on $\skipdom$ that is a degree-below-$128$ polynomial's worth of evaluations, so the verifier interpolates $P$ over the $128$-point space $\skipdom\cup\skipcoset$.
 
+The prover can extend the linear term from $\skipdom$ to $\skipcoset$ after reducing its other coordinates: apply the inverse additive NTT on $\skipdom$, then the forward additive NTT on $\skipcoset$, directly to the resulting $\E$-valued vector. The embedding $\fembed(\F_{2^8})$ lies in $\K\subset\E$, so the original small-field twiddles lift to $\K$ and each butterfly scales the three $\K$ limbs independently. This computes the same linear map as extending every Boolean coordinate plane separately, without that decomposition or general $\E$ multiplications. The input and output domains remain the embedded byte-basis domains above, not the polynomial-basis domains of the $\K$ NTT.
+
 The verifier then samples $\zskip\in\E$ and reconstructs the claimed value
 \[
 v_P \qeq P(\zskip).

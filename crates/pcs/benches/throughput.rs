@@ -2,7 +2,9 @@
 //!
 //! Commits and opens a random witness of `2^PCS_LOG_N` GF(2^64) elements at
 //! inverse-rate `1/2^PCS_LOG_INV_RATE`, times each phase, and reports GiB/s
-//! over the committed data.
+//! over the committed data, using exactly 16 pool threads including the dispatcher.
+//!
+//! The opening is the stacked one a proof runs: one ring-switched claim over the whole witness and one point claim.
 //!
 //! The passes follow the environment's plan (`BENCH_REPEAT`, `BENCH_COOLDOWN`).
 //!
@@ -21,28 +23,32 @@
 //! the witness, and the open copies the basis table each pass.
 //!
 //! With `-- --json` it prints, in place of the report, Bencher Metric Format JSON for CI:
-//! `pcs-commit-<PCS_LOG_N>` and `pcs-open-<PCS_LOG_N>` (measure `latency`), and
-//! `ntt-forward-<PCS_LOG_N>` (measure `per-op`, one encode).
+//! `pcs-commit-<PCS_LOG_N>-16thread` and `pcs-open-<PCS_LOG_N>-16thread` (measure `latency`), and
+//! `ntt-forward-<PCS_LOG_N>-16thread` (measure `per-op`, one encode), each with the actual `threads` count.
 //!
 //! ```text
 //! cargo bench -p pcs --bench throughput -- --json
 //! ```
 
 use bench::{Metric, Plan, Timing, bencher_json, env_usize};
-use fiat_shamir::transcript::ProverState;
+use fiat_shamir::{ProverState, SessionId};
 use pcs::ntt::AdditiveNttF64;
-use pcs::whir::{LOG_INV_RATE_0, commit, config_for_rate, inner_product_base_ext, recursive_prover_with_basis};
+use pcs::ring_switch::{RingSwitch, SliceClaim};
+use pcs::stack::{CommittedStack, StackClaim, Statement};
+use pcs::whir::{LOG_INV_RATE_0, config_for_rate, inner_product_base_ext};
 use primitives::field::{F64, F192};
 use primitives::multilinear::eq_table;
 use primitives::pretty_integer;
 use primitives::test_util::Rng;
 use std::hint::black_box;
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 #[global_allocator]
 static ALLOCATOR: bench::Counting<bench::Jemalloc> = bench::Counting(bench::Jemalloc);
 
 fn main() {
+    parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
     bench::init_tracing_from_env();
 
     let log_n = env_usize("PCS_LOG_N", 22);
@@ -52,38 +58,46 @@ fn main() {
     let plan = Plan::from_env();
     let trace_span = tracing::info_span!("PCS throughput", log_n, log_inv_rate).entered();
 
-    // Random F64 witness (the committed polynomial) and a random E evaluation point.
+    // Random F64 witness (the committed polynomial), a point claim on it, and a ring-switched claim on its bits.
     let mut rng = Rng::new(0x0192_0000 ^ log_n as u64);
     let n = 1usize << log_n;
     let witness: Vec<F64> = (0..n).map(|_| F64(rng.next_u64())).collect();
-    let point: Vec<F192> = rng.ext_vec(log_n);
-    let b_initial = eq_table(&point);
-    let target = inner_product_base_ext(&witness, &b_initial);
+    let point = rng.ext_vec(log_n);
+    let value = inner_product_base_ext(&witness, &eq_table(&point));
+    let point_claims = [StackClaim::Point {
+        offset: 0,
+        low_point: point,
+        value,
+    }];
+    let suffix_point = rng.ext_vec(log_n);
+    let rings = [RingSwitch {
+        offset: 0,
+        qflock_vars: log_n,
+        claims: vec![SliceClaim {
+            s_hat_v: bit_slices(&witness, &suffix_point),
+            suffix_point,
+        }],
+    }];
 
     let (mut commit_t, mut open_t) = (Timing::default(), Timing::default());
     plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
 
         let t = Instant::now();
-        let (cm, pd) = tracing::info_span!("Commit").in_scope(|| commit(&witness, log_n, pc.initial_k(), log_inv_rate));
+        let committed = tracing::info_span!("Commit").in_scope(|| CommittedStack::new(&witness, log_n, pc.clone()));
         commit_t.push(t.elapsed().as_secs_f64());
 
-        let mut ch = ProverState::from_label(b"pcs-throughput");
+        let mut ch = ProverState::new(&SessionId::new(b"pcs-throughput"), &0u64);
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
-            recursive_prover_with_basis(
-                &pc,
-                log_n,
-                &witness,
-                b_initial.to_vec(),
-                target,
-                &pd.codeword,
-                &pd.merkle_tree,
-                &mut ch,
-            );
+            let statement = Statement {
+                points: &point_claims,
+                rings: &rings,
+            };
+            committed.open(&mut ch, &witness, statement);
         });
         open_t.push(t.elapsed().as_secs_f64());
-        black_box((cm, ch.into_proof()));
+        black_box((committed.root(), ch.into_proof()));
     });
     // The warmup pass also pushed a sample; drop it.
     let [commit_t, open_t] = [commit_t, open_t].map(|t| {
@@ -121,16 +135,25 @@ fn main() {
     if std::env::args().any(|arg| arg == "--json") {
         let report = [
             (
-                format!("pcs-commit-{log_n}"),
-                vec![("latency", Metric::nanoseconds(&commit_t))],
+                format!("pcs-commit-{log_n}-16thread"),
+                vec![
+                    ("latency", Metric::nanoseconds(&commit_t)),
+                    ("threads", Metric::exact(parallel::num_threads())),
+                ],
             ),
             (
-                format!("pcs-open-{log_n}"),
-                vec![("latency", Metric::nanoseconds(&open_t))],
+                format!("pcs-open-{log_n}-16thread"),
+                vec![
+                    ("latency", Metric::nanoseconds(&open_t)),
+                    ("threads", Metric::exact(parallel::num_threads())),
+                ],
             ),
             (
-                format!("ntt-forward-{log_n}"),
-                vec![("per-op", Metric::nanoseconds_per_op(&ntt_t, ENCODES))],
+                format!("ntt-forward-{log_n}-16thread"),
+                vec![
+                    ("per-op", Metric::nanoseconds_per_op(&ntt_t, ENCODES)),
+                    ("threads", Metric::exact(parallel::num_threads())),
+                ],
             ),
         ];
         println!("{}", bencher_json(&report));
@@ -138,7 +161,8 @@ fn main() {
     }
 
     println!(
-        "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, mean of {}",
+        "\nPCS throughput: 2^{log_n} variables, rate 1/2^{log_inv_rate}, {} threads, mean of {}",
+        parallel::num_threads(),
         pretty_integer(&plan.repeat)
     );
     println!(
@@ -171,4 +195,26 @@ fn main() {
         (commit_s + open_s) * 1e3,
         gibps(commit_s + open_s),
     );
+}
+
+/// The 64 bit-slice values of the witness at `point`: slice `i` is `sum_y bit_i(witness[y]) · eq(point, y)`.
+fn bit_slices(witness: &[F64], point: &[F192]) -> Vec<F192> {
+    let eq = eq_table(point);
+    parallel::fold_reduce(
+        witness.len(),
+        || vec![F192::ZERO; F64::DEGREE],
+        |slices, y| {
+            let mut bits = witness[y].0;
+            while bits != 0 {
+                slices[bits.trailing_zeros() as usize] += eq[y];
+                bits &= bits - 1;
+            }
+        },
+        |mut acc, part| {
+            for (a, p) in acc.iter_mut().zip(part) {
+                *a += p;
+            }
+            acc
+        },
+    )
 }

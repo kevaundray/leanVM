@@ -14,4 +14,4 @@ leanvm_guest.workspace = true
 defer = { path = "../guest" }
 
 [dev-dependencies]
-leanvm_core.workspace = true
+leanvm.workspace = true

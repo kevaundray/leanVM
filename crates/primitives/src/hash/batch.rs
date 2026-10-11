@@ -164,19 +164,33 @@ impl Lanes32 for Scalar8 {
     }
 }
 
-/// The G function over LITERAL state and message indices.
-///
-/// `$m` is the transposed block, so each message operand is a load at a constant offset.
-macro_rules! g {
-    ($v:ident, $m:ident, $a:expr, $b:expr, $c:expr, $d:expr, $x:expr, $y:expr) => {{
-        $v[$a] = $v[$a].add($v[$b]).add($m[$x]);
-        $v[$d] = $v[$d].xor($v[$a]).rotr::<16>();
-        $v[$c] = $v[$c].add($v[$d]);
-        $v[$b] = $v[$b].xor($v[$c]).rotr::<12>();
-        $v[$a] = $v[$a].add($v[$b]).add($m[$y]);
-        $v[$d] = $v[$d].xor($v[$a]).rotr::<8>();
-        $v[$c] = $v[$c].add($v[$d]);
-        $v[$b] = $v[$b].xor($v[$c]).rotr::<7>();
+/// On aarch64, interleave independent G functions and keep message loads off the later `b` dependency.
+macro_rules! g4 {
+    ($(($v:ident, $m:ident, $a:expr, $b:expr, $c:expr, $d:expr, $x:expr, $y:expr)),*) => {{
+        #[cfg(target_arch = "aarch64")]
+        {
+            $( $v[$a] = $v[$a].add($m[$x]).add($v[$b]); )*
+            $( $v[$d] = $v[$d].xor($v[$a]).rotr::<16>(); )*
+            $( $v[$c] = $v[$c].add($v[$d]); )*
+            $( $v[$b] = $v[$b].xor($v[$c]).rotr::<12>(); )*
+            $( $v[$a] = $v[$a].add($m[$y]).add($v[$b]); )*
+            $( $v[$d] = $v[$d].xor($v[$a]).rotr::<8>(); )*
+            $( $v[$c] = $v[$c].add($v[$d]); )*
+            $( $v[$b] = $v[$b].xor($v[$c]).rotr::<7>(); )*
+        }
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            $(
+                $v[$a] = $v[$a].add($v[$b]).add($m[$x]);
+                $v[$d] = $v[$d].xor($v[$a]).rotr::<16>();
+                $v[$c] = $v[$c].add($v[$d]);
+                $v[$b] = $v[$b].xor($v[$c]).rotr::<12>();
+                $v[$a] = $v[$a].add($v[$b]).add($m[$y]);
+                $v[$d] = $v[$d].xor($v[$a]).rotr::<8>();
+                $v[$c] = $v[$c].add($v[$d]);
+                $v[$b] = $v[$b].xor($v[$c]).rotr::<7>();
+            )*
+        }
     }};
 }
 
@@ -184,14 +198,18 @@ macro_rules! g {
 macro_rules! round {
     ($v:ident, $m:ident, [$s0:expr, $s1:expr, $s2:expr, $s3:expr, $s4:expr, $s5:expr, $s6:expr, $s7:expr,
       $s8:expr, $s9:expr, $s10:expr, $s11:expr, $s12:expr, $s13:expr, $s14:expr, $s15:expr]) => {{
-        g!($v, $m, 0, 4, 8, 12, $s0, $s1);
-        g!($v, $m, 1, 5, 9, 13, $s2, $s3);
-        g!($v, $m, 2, 6, 10, 14, $s4, $s5);
-        g!($v, $m, 3, 7, 11, 15, $s6, $s7);
-        g!($v, $m, 0, 5, 10, 15, $s8, $s9);
-        g!($v, $m, 1, 6, 11, 12, $s10, $s11);
-        g!($v, $m, 2, 7, 8, 13, $s12, $s13);
-        g!($v, $m, 3, 4, 9, 14, $s14, $s15);
+        g4!(
+            ($v, $m, 0, 4, 8, 12, $s0, $s1),
+            ($v, $m, 1, 5, 9, 13, $s2, $s3),
+            ($v, $m, 2, 6, 10, 14, $s4, $s5),
+            ($v, $m, 3, 7, 11, 15, $s6, $s7)
+        );
+        g4!(
+            ($v, $m, 0, 5, 10, 15, $s8, $s9),
+            ($v, $m, 1, 6, 11, 12, $s10, $s11),
+            ($v, $m, 2, 7, 8, 13, $s12, $s13),
+            ($v, $m, 3, 4, 9, 14, $s14, $s15)
+        );
     }};
 }
 
@@ -432,10 +450,58 @@ unsafe fn hash_many_grouped<S: Lanes32, const G: usize>(
         let i = sets * G * S::WIDTH;
         hash_sets::<S, 1>(src.add(i * len), groups, len, state, t_offset, dst.add(i * OUT_LEN));
     }
-    // Fewer than one group left: one input at a time.
-    let i = (sets * G + groups) * S::WIDTH;
-    for i in i..n {
-        let d = hash_from_state(&data[i * len..(i + 1) * len], state, t_offset);
-        out[i * OUT_LEN..(i + 1) * OUT_LEN].copy_from_slice(&d);
+    // Fewer than one group left.
+    let first = (sets * G + groups) * S::WIDTH;
+    if first < n {
+        // SAFETY: forwarded from the caller.
+        unsafe { hash_tail::<S>(data, len, first, state, t_offset, out) };
     }
 }
+
+/// Hash inputs `first ..` of a batch, fewer than one group.
+///
+/// Out of line: the bulk of a batch never reaches it.
+///
+/// # Safety
+///
+/// As the batch driver.
+#[inline(never)]
+unsafe fn hash_tail<S: Lanes32>(
+    data: &[u8],
+    len: usize,
+    first: usize,
+    state: &[u32; 8],
+    t_offset: u64,
+    out: &mut [u8],
+) {
+    let n = out.len() / OUT_LEN;
+    let (src, dst) = (data.as_ptr(), out.as_mut_ptr());
+    let rest = n - first;
+    if rest < MIN_TAIL_GROUP {
+        // A few inputs: one at a time.
+        for i in first..n {
+            let d = hash_from_state(&data[i * len..(i + 1) * len], state, t_offset);
+            out[i * OUT_LEN..(i + 1) * OUT_LEN].copy_from_slice(&d);
+        }
+    } else if n >= S::WIDTH {
+        // One more group, over the last `WIDTH` inputs.
+        //
+        // It rehashes some inputs the groups before it hashed, and rewrites their digests unchanged.
+        let i = n - S::WIDTH;
+        // SAFETY: inputs `i .. n` are inside `data`, and their digests inside `out`.
+        unsafe { hash_sets::<S, 1>(src.add(i * len), 1, len, state, t_offset, dst.add(i * OUT_LEN)) };
+    } else {
+        // Fewer inputs than one group: pad a copy to a whole group, and keep its first digests.
+        let mut padded = vec![0u8; S::WIDTH * len];
+        padded[..n * len].copy_from_slice(data);
+        let mut digests = vec![0u8; S::WIDTH * OUT_LEN];
+        // SAFETY: both buffers hold exactly one group.
+        unsafe { hash_sets::<S, 1>(padded.as_ptr(), 1, len, state, t_offset, digests.as_mut_ptr()) };
+        out.copy_from_slice(&digests[..n * OUT_LEN]);
+    }
+}
+
+/// The fewest inputs left after the groups that one more group hashes faster than one at a time.
+///
+/// A group costs the same however few of its lanes carry an input.
+const MIN_TAIL_GROUP: usize = 3;

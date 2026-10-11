@@ -32,12 +32,14 @@ use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::PerTable;
 use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
-use fiat_shamir::transcript::{ProofTranscript, RawProof};
+use fiat_shamir::{FromNarg, ProofTranscript};
+use pcs::merkle::Openings;
 use primitives::field::F192;
 use primitives::multilinear::{eq_table, mle_eval_par};
 use reduce::DenseTables;
 use statement::TreeStatement;
 use thiserror::Error;
+use tracing::info_span;
 
 mod claims;
 mod design;
@@ -311,8 +313,10 @@ impl LeafShape {
 
     /// The shape a proof's first scalars announce, if they are a valid announcement.
     fn announced(proof: &Proof) -> Option<Self> {
-        let scalars = proof.0.stream.get(..Announcement::LEN)?.try_into().ok()?;
-        let announcement = Announcement::decode(scalars).ok()?;
+        let mut narg = proof.0.narg.as_slice();
+        let scalars: [F192; Announcement::LEN] =
+            std::array::from_fn(|_| F192::from_narg(&mut narg).unwrap_or_default());
+        let announcement = Announcement::decode(&scalars).ok()?;
         Some(Self::new(announcement.taus, announcement.rate))
     }
 }
@@ -374,7 +378,7 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 11);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 15);
 
     /// The kind of node that made the proof.
     #[must_use]
@@ -591,19 +595,24 @@ impl<'p> Tree<'p> {
             items: &items,
             tables: &self.tables,
         };
-        let rows = crate::stage!("Build circuit", || d.first(&inputs));
+        let rows = info_span!("Build circuit").in_scope(|| d.first(&inputs));
         self.prove_rows(rows, Kind::First)
     }
 
     /// A RISC-V proof of this shape's program and shape, verified against `output`: the witness its rows take, or why
     /// not, `None` for a proof of another shape.
-    fn witness(shape: &ProofShape<'_>, proof: &Proof, output: Output) -> Result<LeafWitness, Option<VerifyError>> {
+    fn witness<'a>(
+        shape: &ProofShape<'_>,
+        proof: &'a Proof,
+        output: Output,
+    ) -> Result<LeafWitness<'a>, Option<VerifyError>> {
         if LeafShape::announced(proof) != Some(LeafShape::new(*shape.taus(), shape.rate())) {
             return Err(None);
         }
-        let raw = (shape.program().verify_to_raw(output, proof)).map_err(|error| Some(error.into()))?;
+        let openings = (shape.program().verify_recording(output, proof)).map_err(Some)?;
         Ok(LeafWitness {
-            raw,
+            proof: &proof.0,
+            openings,
             output: *output.words(),
             committed: *output.words(),
             assumed: Vec::new(),
@@ -623,16 +632,17 @@ impl<'p> Tree<'p> {
                 got: children.len(),
             });
         }
-        let raws = (children.iter().enumerate())
+        let openings = (children.iter().enumerate())
             .map(|(index, c)| self.read(c).map_err(|error| TreeError::Child { index, error }))
             .collect::<Result<Vec<_>, _>>()?;
         let statements: Vec<TreeStatement> = (children.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
             .collect();
-        let items: Vec<ChildWitness<'_>> = (children.iter().zip(&statements).zip(raws))
-            .map(|((c, statement), raw)| ChildWitness {
+        let items: Vec<ChildWitness<'_>> = (children.iter().zip(&statements).zip(openings))
+            .map(|((c, statement), openings)| ChildWitness {
                 statement,
-                raw,
+                proof: &c.proof,
+                openings,
                 columns: &self.columns[c.kind as usize],
             })
             .collect();
@@ -640,7 +650,7 @@ impl<'p> Tree<'p> {
             items: &items,
             tables: &self.tables,
         };
-        let rows = crate::stage!("Build circuit", || d.node(&inputs));
+        let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs));
         self.prove_rows(rows, Kind::Node)
     }
 
@@ -707,31 +717,32 @@ impl<'p> Tree<'p> {
         level[0]
     }
 
-    /// Verify a tree proof's recursion proof, short of its claims, returning it as its verifier read it.
-    fn read(&self, p: &TreeProof) -> Result<RawProof, VerifyError> {
+    /// Verify a tree proof's recursion proof, short of its claims, returning every opening it authenticated.
+    fn read(&self, p: &TreeProof) -> Result<Vec<Openings>, VerifyError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
-        let raw = self
-            .circuit(p.kind)
-            .verify_to_raw(&limbs, self.design.iv, self.design.rate, &p.proof)?;
-        Ok(raw)
+        self.circuit(p.kind)
+            .verify_with(
+                &limbs,
+                &self.design.session,
+                self.design.rate,
+                &p.proof,
+                &self.columns[p.kind as usize],
+            )
+            .map_err(Into::into)
     }
 
     /// Prove a circuit's rows: its reduction, then its recursion proof.
     fn prove_rows(&self, rows: NodeRows, kind: Kind) -> Result<TreeProof, TreeError> {
         let d = &self.design;
-        let reduction = rows.claim_values().prove(&d.vars, &self.tables);
-        let raw = RawProof {
-            stream: reduction.stream,
-            merkle: Vec::new(),
-        };
+        let reduction = rows.claim_values().prove(&d.session, &d.vars, &self.tables);
         let Finished {
             assignment, failures, ..
-        } = crate::stage!("Reduce in rows", || rows.reduce(d, ProofSource::Proof(&raw)));
+        } = info_span!("Reduce in rows").in_scope(|| rows.reduce(d, ProofSource::Proof(&reduction, &[])));
         if let Some(first) = failures.into_iter().next() {
             return Err(TreeError::Unsatisfied(first));
         }
         let proof = (self.circuit(kind))
-            .prove(&assignment, d.iv, d.rate)
+            .prove_with(&assignment, &d.session, d.rate, Some(&self.columns[kind as usize]))
             .map_err(|_| TreeError::TooLarge)?;
         let words = (assignment.statement().iter())
             .map(|l| F192::new(l[0], l[1], l[2]))

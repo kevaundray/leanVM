@@ -7,12 +7,12 @@ use super::layout::{Framework, Layout, Schema};
 use crate::class_flock::FlockId;
 use crate::constraints::Claims;
 use crate::leaf::PublicColumns;
-use crate::pcs::{Rate, StackClaim};
+use crate::pcs::{Commitment, Rate, StackClaim};
 use crate::tables::{ClassTable, N_TABLES};
-use crate::{constraints, leaf, pcs};
-use ::pcs::verifier::OpeningVerifier;
+use crate::{constraints, leaf};
 use fiat_shamir::arith::Verifier;
 use flock::reduction;
+use pcs::verifier::OpeningVerifier;
 
 /// What the bus and the table sumcheck leave to the rest of the verifier.
 pub(crate) struct TableReduction<E> {
@@ -66,7 +66,7 @@ impl Layout {
         output: &[V::E; 4],
         rate: Rate,
     ) -> Result<DeferredClaims<V::E>, CpuError> {
-        let root = pcs::read_commitment(v)?;
+        let commitment = Commitment::read(v, self.shape, rate)?;
         let reduced = v.scope("bus and tables", |v| self.reduce_tables(v, clock, output))?;
 
         // Flock's reductions, batched over every class circuit then every clock circuit, each leaving its matrices' form to its circuit.
@@ -82,11 +82,10 @@ impl Layout {
         v.scope("opening", |v| {
             let zero = v.zero();
             let rings = self.rings(slices, &reduced.producers, &reduced.tables, zero);
-            let log_inv_rate = rate.log_inv_rate().into();
-            pcs::verify(v, &reduced.slots, &rings, self.shape, log_inv_rate, root)
+            commitment.verify(v, &reduced.slots, &rings)
         })
         .map_err(CpuError::Open)?;
-        v.finish()?;
+        v.check_eof()?;
         Ok(DeferredClaims {
             program: reduced.program,
             circuits,
@@ -136,7 +135,7 @@ impl Layout {
                 continue;
             }
             let (registers, n) = (table.summed_columns(), table.n_committed_columns());
-            let mut sent = v.next_scalars(n - registers.len())?.into_iter();
+            let mut sent = v.prover_messages(n - registers.len())?.into_iter();
             let zero = v.zero();
             let evals: Vec<V::E> = (0..n)
                 .map(|c| {
@@ -167,7 +166,7 @@ impl Layout {
         // The challenge `xi` comes after the `R_s` are fixed, so hitting that one number forces each side's share.
         //
         // RAM's image is left out of it, and the program claim makes up for it.
-        let xi = v.sample();
+        let xi = v.verifier_message();
         let powers = FormPowers::new(v, xi);
         let target = powers.combine(v, bus.totals);
         let batch = VerifierBatch::new(v, self, &bus, powers);

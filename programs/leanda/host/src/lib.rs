@@ -5,8 +5,7 @@
 //!
 //! The dual codeword `L` then follows from the root, by Fiat-Shamir.
 
-use fiat_shamir::merkle::hash_to_scalars;
-use fiat_shamir::{DS_OBSERVE, DS_SQUEEZE, compress, digest_words};
+use fiat_shamir::{ProverState, SessionId};
 use leanda::{CELLS, Dual, Hash, LOG_K, M};
 use leanvm_guest::{PublicValues, Run};
 use pcs::ntt::AdditiveNttF64;
@@ -15,8 +14,8 @@ use primitives::field::{F64, F192};
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leanda.elf");
 
-/// Transcript label, so a membership challenge is never any other challenge.
-const LABEL: &[u8] = b"leanDA/rs-membership/v1";
+/// The transcript's session tag, so a membership challenge is never any other challenge.
+const SESSION_TAG: &[u8] = b"leanDA/rs-membership/v3";
 
 /// `n` blobs of 128 KiB, encoded and committed to.
 pub fn blobs(n: usize) -> Run {
@@ -78,17 +77,9 @@ fn encode(payload: &[u64]) -> Vec<u64> {
 ///
 /// The code is self-dual at rate 1/2, so `L` is orthogonal to every codeword.
 fn dual_codeword(root: &Hash) -> Vec<Dual> {
-    // The challenges: the root's two halves observed, then 14 samples in `GF(2^192)`.
-    let root: [u8; 32] = std::array::from_fn(|i| (root[i / 8] >> (8 * (i % 8))) as u8);
-    // The scheme's own chain, from `BLAKE2s(LABEL)`: one compression per absorbed scalar and per sample.
-    let mut cv = digest_words(&primitives::hash::hash(LABEL));
-    for x in hash_to_scalars(&root) {
-        cv = compress(cv, [F64(x.c0), F64(x.c1), F64(x.c2), DS_OBSERVE]);
-    }
-    let z: [F192; LOG_K] = std::array::from_fn(|_| {
-        cv = compress(cv, [F64::ZERO, F64::ZERO, F64::ZERO, DS_SQUEEZE]);
-        F192::new(cv[0].0, cv[1].0, cv[2].0)
-    });
+    // The challenges: the root is the instance, then 14 draws in `GF(2^192)`.
+    let mut transcript = ProverState::new(&SessionId::new(SESSION_TAG), root);
+    let z: [F192; LOG_K] = std::array::from_fn(|_| transcript.verifier_message());
 
     // The tensor, built by doubling: after step `j` its first `2^(j+1)` entries are set.
     //
@@ -117,7 +108,7 @@ const fn as_field(words: &mut [u64]) -> &mut [F64] {
 mod tests {
     use super::*;
     use leanda::{DaError, Hash};
-    use leanvm_core::{Machine, Program, Trap};
+    use leanvm::{Machine, Program, Trap};
 
     fn hex(words: &[u64]) -> String {
         words
@@ -128,8 +119,10 @@ mod tests {
     }
 
     #[test]
-    fn leanda_is_the_specified_scheme() {
-        // Known answers of the leanDA reference implementation: the root and `H(L)`.
+    fn commitment_and_membership_vector_match_references() {
+        // The root is the leanDA reference commitment.
+        // The v3 membership vector's challenges come from the session-and-instance transcript.
+        // Its values at the two domain halves' boundaries are this implementation's, pinned against change.
         //
         // Fixture state: 3 blobs, padded to 4 rows, so the padding digests are covered too.
         let codewords = encode(&payload(3));
@@ -140,10 +133,13 @@ mod tests {
             hex(&root),
             "dcb553cafc216cbb85fa63840f171bca8638fc1be264c99fe96a50af23c4693f"
         );
-        assert_eq!(
-            hex(&leanda::dual_digest(dual.as_slice().try_into().unwrap())),
-            "8356c17fff51207a0a30bca1089c12aefb09546e4d77d4f7c7a5be6c05425f3c"
-        );
+        for (point, expected) in [
+            (16383, [0x0f03a5f28c1e0bd3, 0x8587e876e66ceee1, 0xc0eeed62346a0c40]),
+            (16384, [0x9563133c50ed8280, 0x7b4f15c45064d339, 0x1bfa806d230ef1bc]),
+            (32767, [0x8e3ccaf83e05b099, 0xa26d33d947aa5c9b, 0x3b219b3d607f6d68]),
+        ] {
+            assert_eq!(dual[point], expected, "membership vector at {point}");
+        }
     }
 
     #[test]

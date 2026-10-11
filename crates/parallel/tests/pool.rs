@@ -2,6 +2,12 @@
 //! caller partitioned them, reductions are order-independent, and a task panic
 //! surfaces on the dispatcher without wedging the pool.
 
+#[cfg(not(miri))]
+use parallel::Topology;
+#[cfg(not(miri))]
+use std::num::NonZeroUsize;
+#[cfg(not(miri))]
+use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -10,6 +16,36 @@ const SIZES: [usize; 7] = [0, 1, 2, 17, scaled(1_000), scaled(4_096), scaled(100
 /// A test length, cut down under Miri, which interprets every item.
 const fn scaled(n: usize) -> usize {
     if cfg!(miri) { n / 32 } else { n }
+}
+
+#[test]
+#[cfg(not(miri))]
+fn explicit_thread_count_is_idempotent_and_cannot_change_a_live_pool() {
+    const CHILD: &str = "LEANVM_TEST_EXPLICIT_THREADS";
+    if std::env::var_os(CHILD).is_none() {
+        let status = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "explicit_thread_count_is_idempotent_and_cannot_change_a_live_pool",
+            ])
+            .env(CHILD, "1")
+            .env("LEANVM_NUM_THREADS", "4")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        return;
+    }
+    let one = NonZeroUsize::new(1).unwrap();
+    parallel::init_with_threads(one).unwrap();
+    parallel::init_with_threads(one).unwrap();
+    assert_eq!(parallel::num_threads(), 1);
+    let caller = std::thread::current().id();
+    parallel::for_each(64, |_| assert_eq!(std::thread::current().id(), caller));
+    assert_eq!(
+        parallel::init_with_threads(NonZeroUsize::new(2).unwrap()),
+        Err(Topology { perf: 1, efficiency: 0 })
+    );
+    assert_eq!(parallel::map_reduce(16, || 0, |i| i, |a, b| a + b), 120);
 }
 
 #[test]

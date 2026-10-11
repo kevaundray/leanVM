@@ -1,9 +1,9 @@
 //! The multiplications: the low and the high word of a product.
 
 use super::{InstructionClass, sext32};
-use crate::rv::circuits::{ClassCircuit, Word, WordGadgets};
-use flock::circuit::{Builder, Circuit};
-use flock::gadgets::mul::Multiplier;
+use crate::rv::circuits::{ClassCircuit, WordGadgets};
+use flock::circuit::{Builder, Circuit, Wire};
+use flock::gadgets::Multiplier;
 use std::sync::OnceLock;
 
 /// One low multiplication instance.
@@ -77,8 +77,9 @@ impl ClassCircuit for Mul {
     /// A word multiplication sign-extends the low 32 bits.
     fn circuit() -> Circuit {
         let mut c = Builder::new(&[64, 64, 1], &[64]);
-        let (v1, v2, f) = (c.input(0), c.input(1), c.input(2));
-        let (product, multiplier) = Multiplier::build(&mut c, &v1, &v2, 64);
+        let [v1, v2] = [0, 1].map(|port| c.input::<64>(port));
+        let f = c.input::<1>(2);
+        let (product, multiplier) = Multiplier::build::<64>(&mut c, &v1, &v2);
         let mux_slot = c.next_slot();
         let out = c.sext32_if(f[0], &product);
         c.output_word(0, &out);
@@ -99,10 +100,11 @@ impl ClassCircuit for Mulh {
     /// ```
     fn circuit() -> Circuit {
         let mut c = Builder::new(&[64, 64, 2], &[64]);
-        let (v1, v2, f) = (c.input(0), c.input(1), c.input(2));
-        let (product, multiplier) = Multiplier::build(&mut c, &v1, &v2, 128);
+        let [v1, v2] = [0, 1].map(|port| c.input::<64>(port));
+        let f = c.input::<2>(2);
+        let (product, multiplier) = Multiplier::build::<128>(&mut c, &v1, &v2);
         let mut corrections = [0; 2];
-        let mut high = product[64..].to_vec();
+        let mut high: [Wire; 64] = std::array::from_fn(|i| product[64 + i]);
 
         // Subtract the other operand for each signed negative one.
         for (i, (signed, operand, other)) in [(f[0], &v1, &v2), (f[1], &v2, &v1)].into_iter().enumerate() {
@@ -110,13 +112,10 @@ impl ClassCircuit for Mulh {
             let negative = c.and(signed, operand[63]);
 
             // high - other is high + !other + 1, all of it gated by negative.
-            let subtrahend: Word = other
-                .iter()
-                .map(|&bit| {
-                    let inverted = c.not(bit);
-                    c.and(negative, inverted)
-                })
-                .collect();
+            let subtrahend = other.map(|bit| {
+                let inverted = c.not(bit);
+                c.and(negative, inverted)
+            });
             (high, _) = c.add_with_carry(&high, &subtrahend, negative);
         }
 
@@ -343,14 +342,12 @@ mod tests {
                 rows.extend((0..151).map(|_| [rng.next_u64(), rng.next_u64(), flag]));
                 let padding = [u64::MAX, 1 << 63, flag];
 
-                // Exact equality checks the committed bits, both factors and the byte stripes.
-                let walk = circuit.generate_witness_from(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
-                let native =
-                    circuit.generate_witness_with(&rows, &padding, 8, |row, z, az, bz| witness(row, z, az, bz));
+                // Exact equality checks the committed bits and both factors.
+                let walk = circuit.witness_by_walk(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
+                let native = circuit.witness_by_instance(&rows, &padding, 8, |row, z, az, bz| witness(row, z, az, bz));
                 assert_eq!(native.z, walk.z, "committed bits, flags {flag}");
                 assert_eq!(native.az, walk.az, "left factors, flags {flag}");
                 assert_eq!(native.bz, walk.bz, "right factors, flags {flag}");
-                assert_eq!(native.stripes, walk.stripes, "byte stripes, flags {flag}");
             }
         }
     }
@@ -367,8 +364,8 @@ mod tests {
         rows.extend((0..151).map(|i| [rng.next_u64(), rng.next_u64(), i & 1]));
         let padding = [u64::MAX, 1 << 63, 1];
         let circuit = Mul::circuit();
-        let generic = circuit.generate_witness_from(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
-        let batched = circuit.generate_witness_batched(&rows, &padding, 8, |rows, z, az, bz| {
+        let generic = circuit.witness_by_walk(&rows, &padding, 8, |row, words| words.copy_from_slice(row));
+        let batched = circuit.witness_by_batch8(&rows, &padding, 8, |rows, z, az, bz| {
             // Padding occupies incomplete groups as well as complete trailing groups.
             let inputs = rows.map(|row| row.as_slice());
             Mul::witness_batch(&inputs, z, az, bz);
@@ -376,7 +373,6 @@ mod tests {
         assert_eq!(batched.z, generic.z, "committed bits");
         assert_eq!(batched.az, generic.az, "left factors");
         assert_eq!(batched.bz, generic.bz, "right factors");
-        assert_eq!(batched.stripes, generic.stripes, "byte stripes");
     }
 
     #[test]

@@ -48,7 +48,7 @@ pub fn run(fibonacci: [u64; 4], n: u64) -> Assuming {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leanvm_core::{Assumption, Machine, Output, Program, Trap};
+    use leanvm::{Assumption, Machine, Output, Program, Trap};
 
     /// A guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(elf: &[u8], advice: &[u64]) -> Result<[u64; 4], Trap> {

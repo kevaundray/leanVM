@@ -1,10 +1,9 @@
-//! A run that assumes proofs: both verifiers check it against its committed values' digest and its assumptions, in
-//! order, and leave those assumptions unresolved.
+//! A run that assumes proofs: the verifier checks it against its committed values' digest and its assumptions, in
+//! order, and leaves those assumptions unresolved.
 
 use super::programs::fibonacci;
-use super::python_verifier::PythonStatement;
-use leanvm_core::asm::*;
-use leanvm_core::{Assumption, Output, Program, ProvenRun, Prover, Rate, Region};
+use leanvm::asm::*;
+use leanvm::{Assumption, Output, Program, ProvenRun, Prover, Rate, Region};
 
 /// The program exiting with its four advice words.
 fn echo() -> Program {
@@ -19,21 +18,31 @@ fn echo() -> Program {
     Program::new(&text, Region::TEXT.base(), vec![], 2, 2).expect("a valid program")
 }
 
-/// The assumptions as the Python verifier reads them: each one's program digest, then its output.
-fn words(assumptions: &[Assumption]) -> Vec<u64> {
-    (assumptions.iter())
-        .flat_map(|a| a.program().iter().copied().chain(<[u64; 4]>::from(a.output())))
-        .collect()
-}
-
-fn hex(words: &[u64; 4]) -> String {
-    words.map(|w| format!("{w:016x}")).join(" ")
+/// The fold is BLAKE2s-256 personalized `assuming` over each assumption's program digest and output words, then the
+/// committed digest's, all little-endian: a known answer of Python's `hashlib.blake2s(data, person=b"assuming")`.
+#[test]
+fn the_fold_is_blake2s_personalized_by_assuming() {
+    let assumptions = [
+        Assumption::new([1, 2, 3, 4], Output::new([5, 6, 7, 8])),
+        Assumption::new([9, 10, 11, 12], Output::new([13, 14, 15, 16])),
+    ];
+    let committed = Output::new([11, 22, 33, 44]);
+    assert_eq!(
+        committed.assuming(&assumptions),
+        Output::new([
+            0xA768_5D74_C2D1_3403,
+            0xA625_59EF_10D7_2384,
+            0xA1B4_2850_0BC5_B2BF,
+            0x8CD1_1330_BCD3_E848,
+        ])
+    );
+    assert_eq!(committed.assuming(&[]), committed);
 }
 
 /// A proof of a run assuming two proofs verifies against its committed digest with exactly those assumptions, in that
-/// order, which both verifiers return unresolved; Python's fold is pinned to `Output::assuming` by accepting at all.
+/// order, which the verifier returns unresolved, and against nothing else.
 #[test]
-fn both_verifiers_bind_the_assumptions_in_order() {
+fn the_verifier_binds_the_assumptions_in_order() {
     let program = echo();
     let (fib, fib_output) = fibonacci();
     let committed = Output::new([11, 22, 33, 44]);
@@ -50,47 +59,32 @@ fn both_verifiers_bind_the_assumptions_in_order() {
         .verify_assuming(committed, &assumptions, &proof)
         .expect("honest proof verifies");
     assert_eq!(unresolved, assumptions);
+    program.verify(folded, &proof).expect("the folded output is the run's");
 
-    let raw = program.verify_to_raw(output, &proof).expect("honest proof verifies");
-    let python = PythonStatement::new("assuming", &program, committed.words());
-    let accepted = python.verify_assuming(&raw, &words(&assumptions));
     assert!(
-        accepted.status.success(),
-        "Python refused the assumptions:\n{}",
-        String::from_utf8_lossy(&accepted.stderr),
+        program.verify(committed, &proof).is_err(),
+        "the committed digest without its assumptions"
     );
-    let mut expected: String = (assumptions.iter())
-        .map(|a| {
-            format!(
-                "unresolved assumption: program {} output {}\n",
-                hex(a.program()),
-                hex(a.output().words())
-            )
-        })
-        .collect();
-    expected.push_str("verification succeeded\n");
-    assert_eq!(String::from_utf8_lossy(&accepted.stdout), expected);
-
-    PythonStatement::assert_rejects(&python.verify(&raw), "the committed digest without its assumptions");
     assert!(program.verify_assuming(committed, &[], &proof).is_err());
 
     let [first, second] = assumptions;
     let mut digest = *first.program();
     digest[0] ^= 1;
     let other = Assumption::new(digest, first.output());
+    let mut moved = *second.output().words();
+    moved[3] ^= 1;
+    let wrong_output = Assumption::new(*second.program(), Output::new(moved));
     let wrong = [
         ("the assumptions reordered", vec![second, first]),
         ("one assumption dropped", vec![first]),
         ("one assumption duplicated", vec![first, second, second]),
         ("an assumption of another program", vec![other, second]),
+        ("an assumption of another output", vec![first, wrong_output]),
     ];
     for (what, assumptions) in &wrong {
-        PythonStatement::assert_rejects(&python.verify_assuming(&raw, &words(assumptions)), what);
         assert!(
             program.verify_assuming(committed, assumptions, &proof).is_err(),
-            "Rust accepted {what}"
+            "accepted {what}"
         );
     }
-    let cut = &words(&assumptions)[..7];
-    PythonStatement::assert_rejects(&python.verify_assuming(&raw, cut), "an assumption cut short");
 }

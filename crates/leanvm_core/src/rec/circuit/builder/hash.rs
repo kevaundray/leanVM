@@ -24,58 +24,19 @@ struct HashHead {
     /// Message words four through six, packed as an extension-field element.
     x: Ew,
 
-    /// Final message word, used as a domain separator in transcript steps.
+    /// Final message word.
     ds: Kw,
 }
 
 impl Builder {
-    /// One transcript step: `compress(acc, (x, ds))` from the parameter IV, the mux's bit at zero.
+    /// Ordinary one-block BLAKE2s on `acc || x || ds`, from the parameter IV.
     ///
-    /// Returns the output and its first three words as a challenge.
+    /// Returns the digest and its first three words.
     pub fn compress(&mut self, acc: Dw, x: Ew, ds: Kw) -> (Dw, Ew) {
         let bit = self.k_zero();
         let (a, xv, dv) = (self.d(acc), self.e(x), self.k(ds));
         let m = [a[0], a[1], a[2], a[3], xv.c0, xv.c1, xv.c2, dv];
         self.single_block(acc, bit, x, ds, m)
-    }
-
-    /// One transcript step keyed by the chaining value: `compress(h, block)` at counter 64, final.
-    ///
-    /// The block is `fiat_shamir::step_block`'s: the last scalar in words 4 to 6, the one before it in words 0 to 2, their count in word 3, the tag in word 7.
-    /// Returns the output and its first three words as a challenge.
-    ///
-    /// # Panics
-    ///
-    /// Panics if more than two scalars are absorbed.
-    pub fn step(&mut self, h: Dw, scalars: &[Ew], tag: u64) -> (Dw, Ew) {
-        assert!(scalars.len() <= 2, "a step absorbs at most two scalars");
-        let count = scalars.len() as u64;
-        let zero = self.zero();
-        let (first, last) = match *scalars {
-            [a, b] => (Some(a), b),
-            [b] => (None, b),
-            _ => (None, zero),
-        };
-        let (a, b) = (first.map_or(F192::ZERO, |a| self.e(a)), self.e(last));
-        let mux = match first {
-            Some(a) => {
-                let count = self.k_const(count);
-                self.e_and_k_to_d(a, count)
-            }
-            None => self.d_const([0, 0, 0, count]),
-        };
-        let m = [a.c0, a.c1, a.c2, count, b.c0, b.c1, b.c2, tag];
-        let head = HashHead {
-            h,
-            tf: self.d_const([64, Hash::FINAL, 0, 0]),
-            mux,
-            bit: self.k_zero(),
-            x: last,
-            ds: self.k_const(tag),
-        };
-        let words = m.map(|v| self.free_k(v).0);
-        let compression = Compression::new(self.d(h), m, 64, true);
-        self.hash_row(head, words, compression)
     }
 
     /// One Merkle node: the parent of `acc` and `sibling`, `acc` on the right if `bit` is set.

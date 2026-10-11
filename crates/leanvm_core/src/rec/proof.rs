@@ -7,35 +7,49 @@
 
 use super::RecError;
 use super::bus::{BusBlocks, TableResidual, TableSummand};
-use super::circuit::{Assignment, Circuit, Compression, Limbs, chain};
+use super::circuit::{Assignment, Circuit, Compression, Limbs};
 use super::fixed::FixedColumns;
 use super::layout::RecLayout;
 use super::table::{HashFlock, Table};
 use crate::constraints::{Columns, ConstraintError};
 use crate::leaf::PublicColumns;
-use crate::pcs::{Rate, RingSwitch, StackClaim};
+use crate::pcs::{Commitment, Committed, Rate, RingSwitch, StackClaim};
 use crate::rv::circuits::blake2s_witness;
-use crate::{constraints, pcs, witness};
-use ::pcs::verifier::OpeningVerifier;
+use crate::{constraints, witness};
 use fiat_shamir::arith::Verifier;
-use fiat_shamir::transcript::{Challenger, ProofTranscript, ProverState, RawProof, VerifierState};
-use flock::Witness;
+use fiat_shamir::{LengthPrefixed, ProofTranscript, ProverState, SessionId, VerifierState};
+use flock::FlockError;
+use flock::Tables;
 use flock::lincheck::MatrixClaim;
 use flock::reduction::{self, Instance};
-use flock::verifier::FlockError;
+use parallel::SendPtr;
+use pcs::merkle::Openings;
+use pcs::verifier::{OpeningVerifier, Recording};
 use primitives::field::{F64, F192};
+use std::borrow::Cow;
+use std::mem::MaybeUninit;
+use tracing::info_span;
 
-/// The transcript's public input for a statement: the hash of its words' limbs, in order.
-pub fn statement_seed(statement: &[Limbs]) -> [F64; 4] {
-    let limbs: Vec<u64> = statement.iter().flatten().copied().collect();
-    chain(&limbs).map(F64)
+/// A recursion proof's instance: its statement's limbs, in order, their count first.
+///
+/// The count keeps statements of different lengths prefix-free.
+pub const fn instance(statement: &[Limbs]) -> LengthPrefixed<'_, u64> {
+    LengthPrefixed(statement.as_flattened())
+}
+
+/// The hash table's flock batch, one instance per row, but its `z`, which is the stack's packed-witness window.
+struct HashBatch {
+    tau: usize,
+    /// The rows, before the padding rows: every instance from here on is the padding compression's.
+    live: usize,
+    tables: Tables,
 }
 
 /// The prover's stack, the hash table's ports by global column, and the hash table's batch.
 struct RecWitness {
     q: Vec<F64>,
     ports: Vec<(usize, Vec<F64>)>,
-    batch: Witness,
+    batch: HashBatch,
 }
 
 /// The bus and the constraint batch over the owned tables, which leave the column claims the opening settles.
@@ -45,18 +59,62 @@ pub(crate) struct TableArgument<'a> {
 }
 
 impl HashFlock {
-    /// Every hash row's packed witness, at the hash table's height `2^tau`.
-    fn witness(hash: &[Compression], tau: usize) -> Witness {
-        Self::circuit().generate_witness_with(hash, &Compression::PADDING, tau, |row, z, az, bz| {
-            blake2s_witness(row.inputs(), z, az, bz);
-        })
+    /// Every hash row's packed witness, at the hash table's height `2^tau`, written into `z`, and each row's ports
+    /// into `ports`, every slot of which it writes.
+    fn batch(hash: &[Compression], tau: usize, z: &mut [F64], ports: &mut [Box<[MaybeUninit<F64>]>]) -> HashBatch {
+        // SAFETY: `F64` is `repr(transparent)` over `u64`, and the packing is bit `i` at position `i` on both sides.
+        let z = unsafe { std::slice::from_raw_parts_mut(z.as_mut_ptr().cast::<u64>(), z.len()) };
+        let port_ptrs: Vec<SendPtr<F64>> = ports.iter_mut().map(|p| SendPtr(p.as_mut_ptr().cast())).collect();
+        // A live row's ports are copied while its words are in cache; the padding rows' after.
+        let ports_of = |row: &Compression, z: &[u64]| {
+            let offset = std::ptr::from_ref(row).addr().wrapping_sub(hash.as_ptr().addr());
+            let j = offset / size_of::<Compression>();
+            if j < hash.len() && std::ptr::eq(&hash[j], row) {
+                for (ptr, &word) in port_ptrs.iter().zip(z) {
+                    // SAFETY: row `j` is visited once, and each port buffer holds every row.
+                    unsafe { ptr.0.add(j).write(F64(word)) };
+                }
+            }
+        };
+        let tables = Self::circuit().witness_by_instance_into(
+            z,
+            hash,
+            &Compression::PADDING,
+            tau,
+            |row, z, az, bz| blake2s_witness(row.inputs(), z, az, bz),
+            ports_of,
+        );
+        if hash.len() < 1 << tau {
+            let padding = &z[hash.len() << Self::stride_log()..];
+            for (port, &word) in ports.iter_mut().zip(padding) {
+                port[hash.len()..].fill(MaybeUninit::new(F64(word)));
+            }
+        }
+        HashBatch {
+            tau,
+            live: hash.len(),
+            tables,
+        }
     }
+}
 
+impl HashBatch {
     /// Prove every hash row: zerocheck, then lincheck, a batch of one circuit, to one ring-switched claim on the packed witness.
-    fn prove(witness: &Witness, layout: &RecLayout, ps: &mut ProverState) -> RingSwitch {
-        let instance = Instance::of(Self::circuit().block(), layout.tau(Table::Hash), witness);
+    fn prove(self, layout: &RecLayout, q: &[F64], ps: &mut ProverState) -> RingSwitch {
+        let window = layout.hash_window();
+        let z = &q[window.offset..window.offset + (1 << window.n_vars)];
+        // SAFETY: `F64` is `repr(transparent)` over `u64`.
+        let z = unsafe { std::slice::from_raw_parts(z.as_ptr().cast::<u64>(), z.len()) };
+        let instance = Instance {
+            block: HashFlock::circuit().block(),
+            n_blocks_log: self.tau,
+            live: self.live,
+            z,
+            az: &self.tables.az,
+            bz: &self.tables.bz,
+        };
         let [reduced] = <[_; 1]>::try_from(reduction::prove(&[instance], ps)).expect("one circuit");
-        layout.hash_window().ring(reduced)
+        window.ring(reduced)
     }
 }
 
@@ -70,26 +128,20 @@ impl RecWitness {
             table.fill(a, &mut windows[RecLayout::columns(table)]);
         }
 
-        let batch = HashFlock::witness(&a.hash, layout.tau(Table::Hash));
-        parallel::chunks_mut_zip(windows[RecLayout::HASH_WITNESS], &batch.z, 1 << 16, |_, dst, src| {
-            for (d, &s) in dst.iter_mut().zip(src) {
-                *d = F64(s);
-            }
-        });
+        let tau = layout.tau(Table::Hash);
+        // A port is not in the stack: its values are a buffer of their own, written by the batch.
+        let mut ports: Vec<Box<[MaybeUninit<F64>]>> = (0..HashFlock::N_PORTS)
+            .map(|_| Box::new_uninit_slice(1 << tau))
+            .collect();
+        let batch = HashFlock::batch(&a.hash, tau, windows[RecLayout::HASH_WITNESS], &mut ports);
         drop(windows);
         // SAFETY: the windows tile the stack up to its zeroed tail, and each was filled above.
         let q = unsafe { q.assume_init() }.into_vec();
 
-        // A port is not in the stack: its values are a buffer of their own, read off the batch.
         let ports_at = RecLayout::columns(Table::Hash).start;
-        let stride_log = HashFlock::stride_log();
-        let ports = (0..HashFlock::N_PORTS)
-            .map(|port| {
-                let values = (0..1 << layout.tau(Table::Hash))
-                    .map(|j| F64(batch.z[(j << stride_log) + port]))
-                    .collect();
-                (ports_at + port, values)
-            })
+        let ports = (ports.into_iter().enumerate())
+            // SAFETY: the batch wrote every row of every port.
+            .map(|(port, values)| (ports_at + port, unsafe { values.assume_init() }.into_vec()))
             .collect();
         Self { q, ports, batch }
     }
@@ -115,19 +167,18 @@ impl<'a> TableArgument<'a> {
         Self { layout, blocks }
     }
 
-    /// The argument of a circuit and its statement, the public rows reading the statement.
-    fn of(circuit: &Circuit, statement: &[Limbs], layout: &'a RecLayout) -> Self {
-        let fixed = FixedColumns::of(circuit, &layout.taus);
+    /// The argument of a circuit's fixed columns and its statement, the public rows reading the statement.
+    fn of(fixed: &FixedColumns, statement: &[Limbs], layout: &'a RecLayout) -> Self {
         let public = fixed.public_values(statement);
-        Self::new(layout, BusBlocks::new(&fixed, public, layout))
+        Self::new(layout, BusBlocks::new(fixed, public, layout))
     }
 
     /// Prove the bus, then every owned table's summand at the bus's point.
     fn prove(&self, w: &RecWitness, ps: &mut ProverState) -> Vec<StackClaim> {
         let cols = w.columns(self.layout);
-        let bus = crate::stage!("Prove bus", || self.blocks.prove(&cols, ps));
-        let tables = crate::stage!("Prove constraints", || {
-            let xi = ps.sample();
+        let bus = info_span!("Prove bus").in_scope(|| self.blocks.prove(&cols, ps));
+        let tables = info_span!("Prove constraints").in_scope(|| {
+            let xi = ps.verifier_message();
             let sums: Vec<F192> = (0..Table::OWNED.len())
                 .map(|t| bus.sigmas[0][t] + xi * bus.sigmas[1][t])
                 .collect();
@@ -147,7 +198,7 @@ impl<'a> TableArgument<'a> {
     /// Returns the bus's or the table sumcheck's refusal.
     pub(crate) fn verify<V: Verifier + PublicColumns>(&self, v: &mut V) -> Result<Vec<StackClaim<V::E>>, RecError> {
         let bus = self.blocks.verify(v)?;
-        let xi = v.sample();
+        let xi = v.verifier_message();
         let target = v.mul_add(xi, bus.totals[1], bus.totals[0]);
         let airs = self.layout.airs(TableResidual::batch(v, &bus.forms, xi));
         let tables = constraints::verify(v, &airs, &bus.point, target)?;
@@ -170,17 +221,14 @@ impl<'a> TableArgument<'a> {
         v: &mut V,
         rate: Rate,
     ) -> Result<MatrixClaim<V::E>, RecError> {
-        let root = pcs::read_commitment(v)?;
+        let commitment = Commitment::read(v, self.layout.shape, rate)?;
         let slots = v.scope("bus and tables", |v| self.verify(v))?;
         let batch = (HashFlock::FLOCK.shape(), self.layout.tau(Table::Hash));
         let [replay] = <[_; 1]>::try_from(v.scope("flock", |v| reduction::verify(&[batch], v))?)
             .unwrap_or_else(|_| unreachable!("a batch of one circuit"));
         let ring = self.layout.hash_window().ring(replay.claim);
-        let log_inv_rate = rate.log_inv_rate().into();
-        v.scope("opening", |v| {
-            pcs::verify(v, &slots, &[ring], self.layout.shape, log_inv_rate, root)
-        })?;
-        v.finish()?;
+        v.scope("opening", |v| commitment.verify(v, &slots, &[ring]))?;
+        v.check_eof()?;
         Ok(replay.matrices)
     }
 }
@@ -195,7 +243,14 @@ impl Circuit {
         Ok(witness::committed_len(&RecLayout::new(self)?.placements))
     }
 
-    /// Prove that an assignment is a run of the circuit, at the given commitment rate.
+    /// [`Self::prove_with`], building the circuit's fixed columns itself.
+    #[cfg(test)]
+    pub(crate) fn prove(&self, a: &Assignment, session: &SessionId, rate: Rate) -> Result<ProofTranscript, RecError> {
+        self.prove_with(a, session, rate, None)
+    }
+
+    /// Prove that an assignment is a run of the circuit, at the given commitment rate, with the circuit's fixed columns
+    /// at its heights if the caller has them already.
     ///
     /// The transcript starts from a digest naming the circuit and absorbs the statement before any challenge.
     ///
@@ -207,7 +262,13 @@ impl Circuit {
     ///
     /// Panics if the assignment is not one of the circuit, or its bus does not balance.
     #[tracing::instrument(name = "Prove recursion", skip_all)]
-    pub fn prove(&self, a: &Assignment, iv: [F64; 4], rate: Rate) -> Result<ProofTranscript, RecError> {
+    pub(crate) fn prove_with(
+        &self,
+        a: &Assignment,
+        session: &SessionId,
+        rate: Rate,
+        fixed: Option<&FixedColumns>,
+    ) -> Result<ProofTranscript, RecError> {
         assert_eq!(a.statement.len(), self.statement_len, "the assignment's statement");
         assert!(
             Table::ALL
@@ -216,47 +277,65 @@ impl Circuit {
             "the assignment's rows are the circuit's"
         );
         let layout = RecLayout::new(self)?;
-        let log_inv_rate = rate.log_inv_rate().into();
-        let mut ps = ProverState::new(iv, statement_seed(&a.statement));
+        let mut ps = ProverState::new(session, &instance(&a.statement));
 
-        let w = crate::stage!("Build witness", || RecWitness::build(&layout, a));
-        let committed = crate::stage!("Commit", || pcs::commit(&mut ps, &w.q, layout.shape, log_inv_rate));
-        let slots = TableArgument::of(self, &a.statement, &layout).prove(&w, &mut ps);
+        let w = info_span!("Build witness").in_scope(|| RecWitness::build(&layout, a));
+        let committed = info_span!("Commit")
+            .in_scope(|| Committed::new(&mut ps, &w.q, layout.shape, rate).expect("the witness matches its layout"));
+        let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
+        let slots = TableArgument::of(&fixed, &a.statement, &layout).prove(&w, &mut ps);
 
         let RecWitness { q, ports, batch } = w;
         drop(ports);
-        let ring = crate::stage!("Flock reduction", || HashFlock::prove(&batch, &layout, &mut ps));
-        drop(batch);
-        crate::stage!("PCS open", || pcs::open(&mut ps, &committed, &q, &slots, &[ring]));
+        let ring = info_span!("Flock reduction").in_scope(|| batch.prove(&layout, &q, &mut ps));
+        info_span!("PCS open").in_scope(|| {
+            committed
+                .open(&mut ps, &q, &slots, &[ring])
+                .expect("opening uses the committed witness");
+        });
         Ok(ps.into_proof())
     }
 
-    /// Verify a proof, returning it as its verifier read it, every Merkle path written out.
+    /// Verify a proof, building the circuit's fixed columns itself.
+    #[cfg(test)]
+    pub(crate) fn verify(
+        &self,
+        statement: &[Limbs],
+        session: &SessionId,
+        rate: Rate,
+        proof: &ProofTranscript,
+    ) -> Result<Vec<Openings>, RecError> {
+        self.verify_absorbing(statement, session, statement, rate, proof, None)
+    }
+
+    /// Verify a proof with the circuit's fixed columns at its heights, returning every opening it authenticated.
     ///
-    /// That is what a recursive verifier replays.
+    /// A recursive verifier of the proof hashes those openings rather than decoding the hints again.
     ///
     /// # Errors
     ///
     /// Returns the first check that refuses the proof.
-    pub fn verify_to_raw(
+    pub(crate) fn verify_with(
         &self,
         statement: &[Limbs],
-        iv: [F64; 4],
+        session: &SessionId,
         rate: Rate,
         proof: &ProofTranscript,
-    ) -> Result<RawProof, RecError> {
-        self.verify_seeded(statement, iv, statement_seed(statement), rate, proof)
+        fixed: &FixedColumns,
+    ) -> Result<Vec<Openings>, RecError> {
+        self.verify_absorbing(statement, session, statement, rate, proof, Some(fixed))
     }
 
-    /// Verify a proof whose transcript absorbed the given public input in place of the statement.
-    fn verify_seeded(
+    /// Verify a proof whose transcript absorbed `absorbed` as its instance, in place of the statement.
+    fn verify_absorbing(
         &self,
         statement: &[Limbs],
-        iv: [F64; 4],
-        public_input: [F64; 4],
+        session: &SessionId,
+        absorbed: &[Limbs],
         rate: Rate,
         proof: &ProofTranscript,
-    ) -> Result<RawProof, RecError> {
+        fixed: Option<&FixedColumns>,
+    ) -> Result<Vec<Openings>, RecError> {
         if statement.len() != self.statement_len {
             return Err(RecError::StatementLength {
                 expected: self.statement_len,
@@ -264,10 +343,11 @@ impl Circuit {
             });
         }
         let layout = RecLayout::new(self)?;
-        let mut vs = VerifierState::new(iv, proof, public_input);
-        let matrices = TableArgument::of(self, statement, &layout).verify_core(&mut vs, rate)?;
+        let mut v = Recording::new(VerifierState::new(session, &instance(absorbed), proof));
+        let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
+        let matrices = TableArgument::of(&fixed, statement, &layout).verify_core(&mut v, rate)?;
         matrices.check(HashFlock::circuit()).map_err(FlockError::Lincheck)?;
-        Ok(vs.into_raw_proof())
+        Ok(v.into_openings())
     }
 }
 
@@ -276,22 +356,23 @@ mod tests {
     use super::*;
     use crate::constraints::ConstraintError;
     use crate::leaf::BusError;
-    use crate::pcs::Rate;
+    use crate::pcs::{self, Rate};
     use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, PARAM_IV};
     use fiat_shamir::arith::Arith;
-    use fiat_shamir::{DS_OBSERVE, DS_SQUEEZE};
     use std::panic::AssertUnwindSafe;
 
-    const IV: [F64; 4] = [F64(1), F64(2), F64(3), F64(4)];
+    fn session() -> SessionId {
+        SessionId::new(b"rec-proof-test")
+    }
 
     fn prove_run(circuit: &Circuit, a: &Assignment) -> ProofTranscript {
         circuit
-            .prove(a, IV, Rate::MIN)
+            .prove(a, &session(), Rate::MIN)
             .expect("the circuit fits one commitment")
     }
 
     fn verify_run(circuit: &Circuit, statement: &[Limbs], proof: &ProofTranscript) -> Result<(), RecError> {
-        circuit.verify_to_raw(statement, IV, Rate::MIN, proof).map(|_| ())
+        circuit.verify(statement, &session(), Rate::MIN, proof).map(drop)
     }
 
     // Wires of the every-kind circuit a test forges.
@@ -317,11 +398,11 @@ mod tests {
         let hint = b.free_e(F192::new(1, 2, 3));
         b.mul_add(hint, y, zero);
 
-        // Two transcript steps, then a Merkle path with a right and a left turn.
+        // Two one-block hashes, then a Merkle path with a right and a left turn.
         let start = b.d_const([9, 8, 7, 6]);
-        let observe = b.k_const(DS_OBSERVE.0);
+        let observe = b.k_const(1);
         let (acc, _) = b.compress(start, r, observe);
-        let squeeze = b.k_const(DS_SQUEEZE.0);
+        let squeeze = b.k_const(2);
         let (acc, challenge) = b.compress(acc, zero, squeeze);
         let w = b.free_k(0b1101_0110 | 1 << 40);
         let bits = b.split(w);
@@ -411,12 +492,11 @@ mod tests {
         } = b.finish();
         assert!(failures.is_empty(), "{failures:?}");
         let proof = prove_run(&circuit, &a);
-        let seed = statement_seed(&a.statement);
 
         // Replay the honest verifier up to the bus to read the fingerprint weights of the limbs.
         let layout = RecLayout::new(&circuit).unwrap();
-        let mut vs = VerifierState::new(IV, &proof, seed);
-        pcs::read_commitment(&mut vs).unwrap();
+        let mut vs = VerifierState::new(&session(), &instance(&a.statement), &proof);
+        Commitment::read(&mut vs, layout.shape, Rate::MIN).unwrap();
         let fixed = FixedColumns::of(&circuit, &layout.taus);
         let blocks = BusBlocks::new(&fixed, fixed.public_values(&a.statement), &layout);
         let bus = blocks.verify(&mut vs).unwrap();
@@ -441,13 +521,17 @@ mod tests {
                 .fold(F192::ZERO, |acc, j| acc + wt[j].mul_base(delta[j]))
                 .is_zero()
         );
-        let mut forged = a.statement;
+        let mut forged = a.statement.clone();
         for (l, dl) in forged[0].iter_mut().zip(delta) {
             *l ^= dl.0;
         }
 
-        // Under the honest seed the bus accepts the forged words; seeded with them, the proof is refused.
-        assert!(circuit.verify_seeded(&forged, IV, seed, Rate::MIN, &proof).is_ok());
+        // Under the honest instance the bus accepts the forged words; with them as the instance, the proof is refused.
+        assert!(
+            circuit
+                .verify_absorbing(&forged, &session(), &a.statement, Rate::MIN, &proof, None)
+                .is_ok()
+        );
         assert!(matches!(
             verify_run(&circuit, &forged, &proof),
             Err(RecError::Bus(BusError::Gkr(_)))
@@ -518,7 +602,7 @@ mod tests {
         let mut b = Builder::new();
         let mut e = b.free_e(F192::new(2, 3, 4));
         let mut acc = b.d_const([1, 2, 3, 4]);
-        let ds = b.k_const(DS_OBSERVE.0);
+        let ds = b.k_const(1);
         for i in 0..3u64 {
             let c = b.e_const(F192::new(i + 5, 1, 0));
             e = b.mul_add(e, c, e);
@@ -555,7 +639,7 @@ mod tests {
         let proof = prove_run(&circuit, &a);
         circuit.floor[Table::Emul] = pcs::MAX_MU;
         let too_long = |e: &RecError| matches!(e, RecError::TooLong { mu } if *mu > pcs::MAX_MU);
-        assert!(circuit.prove(&a, IV, Rate::MIN).is_err_and(|e| too_long(&e)));
+        assert!(circuit.prove(&a, &session(), Rate::MIN).is_err_and(|e| too_long(&e)));
         assert!(verify_run(&circuit, &a.statement, &proof).is_err_and(|e| too_long(&e)));
 
         circuit.floor[Table::Emul] = 0;
@@ -564,7 +648,7 @@ mod tests {
             table: Table::Pub,
             tau: RecLayout::MAX_TAU + 1,
         });
-        assert_eq!(circuit.prove(&a, IV, Rate::MIN).map(|_| ()), too_many);
+        assert_eq!(circuit.prove(&a, &session(), Rate::MIN).map(|_| ()), too_many);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), too_many);
     }
 }
