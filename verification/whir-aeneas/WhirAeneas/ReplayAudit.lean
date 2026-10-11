@@ -1,4 +1,5 @@
 import WhirAeneas.Replay
+import WhirAeneas.Compose
 import Lean.Util.CollectAxioms
 
 /-! Axiom audit of the replay extraction and its proofs. It is separate from the other
@@ -28,6 +29,11 @@ audits because the generated namespaces declare the same top-level instance name
 #print axioms WhirAeneas.Query.base_enforced_eq
 #print axioms WhirAeneas.Query.ext_enforced_eq
 #print axioms WhirAeneas.Query.finish_query_eq
+#print axioms WhirAeneas.Replay.mid_level_eq
+#print axioms WhirAeneas.Replay.last_iter_eq
+#print axioms WhirAeneas.Replay.run_loop_eq
+#print axioms WhirAeneas.Replay.run_eq
+#print axioms WhirAeneas.Replay.verify_eq
 
 open Lean in
 run_cmd do
