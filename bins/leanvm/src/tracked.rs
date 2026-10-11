@@ -339,9 +339,9 @@ fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> [(Kind, CircuitS
     Kind::ALL.map(|kind| (kind, built.stats(kind)))
 }
 
-/// Write each tracked tree's two circuits, as `Tree::circuit_dump` gives them, to `<out>/<name>-first.txt` and `<out>/<name>-node.txt`: the counted trees and the proven trees' leaf size at both arities.
+/// Write each tracked tree's two circuits to `<out>/<name>-first.txt` and `<out>/<name>-node.txt`, and the instruction tables' native bindings to `<out>/table-flushes.dump`.
 ///
-/// CI's `rec-builder-model` workflow has the Lean model of the builder replay each and check it builds the same circuit.
+/// CI's `rec-builder-model` workflow replays the recorded builders and checks the table slot and clock-port bindings against their Lean sources.
 #[cfg(feature = "circuits")]
 pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
     let proven = [
@@ -349,6 +349,8 @@ pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
         Aggregation::new("aggregate-leanxmss-100-4to1", Workload::leanxmss(100), 4, 4),
     ];
     std::fs::create_dir_all(out).unwrap_or_else(|e| refuse(format_args!("{}: {e}", out.display())));
+    let path = out.join("table-flushes.dump");
+    std::fs::write(&path, leanvm::table_flushes()).unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
     for tree in counted_trees().into_iter().chain(proven) {
         let shape = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
         let built = tree.tree(shape, rate);

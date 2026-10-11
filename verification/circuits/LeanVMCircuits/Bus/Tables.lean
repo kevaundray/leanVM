@@ -7,11 +7,7 @@ public import LeanVMCircuits.Bus.TableRows
 /-!
 # The bus of the instruction tables
 
-`machine_correct` for the rows of the instruction tables themselves: the bus made of every table row's modelled
-flushes (`ClassTable.Spec.flushes`, checked against the Rust tables by `checkflushes`), the state boundary, the seeds
-and finalizations and the bytecode producer. When every row's clock circuit ports hold words satisfying `Clock.Holds`
-and the extension-field flag bit is Boolean, balance gives `Machine.Correct` for the rows as machine rows, and every
-row's bytecode read is the decoded instruction at its `pc` (`tables_correct`).
+`machine_correct` for the instruction-table rows: the bus made of each row's exported source flushes (`ClassTable.Spec.flushes`), the state boundary, the seeds and finalizations and the bytecode producer. When every row's clock circuit ports hold words satisfying `Clock.Holds` and the extension-field flag bit is Boolean, balance gives `Machine.Correct` for the rows as machine rows, and every row's bytecode read is the decoded instruction at its `pc` (`tables_correct`).
 -/
 
 namespace LeanVMCircuits.Bus.ClassTable
@@ -28,7 +24,7 @@ def TableRow.Valid (tr : TableRow) : Prop :=
     tr.2 tr.1.layout.ts = ofWord ts ∧ (∀ i (hi : i < prev.length), tr.2 (tr.1.layout.prev + i) = ofWord prev[i]) ∧
     tr.2 tr.1.layout.step = ofWord step
 
-/-- The rows' modelled flushes, together. -/
+/-- The rows' source flushes, together. -/
 noncomputable def tableRowFlushes (trs : List TableRow) : Flushes where
   pushes := trs.flatMap fun tr => (tr.1.flushes tr.2).pushes
   pulls := trs.flatMap fun tr => (tr.1.flushes tr.2).pulls

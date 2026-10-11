@@ -147,8 +147,7 @@ enum Command {
         #[arg(long, conflicts_with = "cycles_only")]
         only: Option<String>,
     },
-    /// Write the tracked aggregation trees' recursion circuits (with `--features circuits`), each with the builder calls that make it, for
-    /// `verification/circuits`' `checkrec`.
+    /// Write the tracked aggregation circuits and instruction table bindings (with `--features circuits`) for the Lean checkers.
     Circuits {
         /// The directory to write them to.
         out: PathBuf,

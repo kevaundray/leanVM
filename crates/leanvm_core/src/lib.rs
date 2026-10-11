@@ -99,6 +99,13 @@ pub use rv::{Alu, Class, Guest, Hash, Machine, Reg, RegisterFile, Syscall};
 #[doc(hidden)]
 pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId, Word};
 
+/// The instruction tables' flush plans, slot lists and clock-port bindings for the Lean checker.
+#[cfg(feature = "circuit-trace")]
+#[doc(hidden)]
+pub fn table_flushes() -> String {
+    tables::ClassTable::flush_dump()
+}
+
 /// Prepare the process for proving: spawn the worker pool up front.
 ///
 /// - No kernel then pays the spawn cost inside a timed region.

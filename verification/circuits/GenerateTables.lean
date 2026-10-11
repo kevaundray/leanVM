@@ -1,8 +1,8 @@
-import LeanVMCircuits.ExtensionEmit
+import LeanVMCircuits.Bus.TableEmit
 
 def main (args : List String) : IO Unit := do
   let [destination] := args | throw (IO.userError "usage: lake env lean --run GenerateTables.lean <destination.rs>")
-  let generated ← match LeanVMCircuits.ExtensionProduct.Emit.emit with
+  let generated ← match LeanVMCircuits.Bus.ClassTable.Emit.emit with
     | .ok generated => pure generated
     | .error reason => throw (IO.userError reason)
   IO.FS.writeFile destination generated

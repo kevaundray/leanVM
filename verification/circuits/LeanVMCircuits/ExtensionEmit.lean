@@ -26,14 +26,11 @@ def identity (id : Rec.Identity) (i : ℕ) : Except String String := do
     s!"    f{i}.coeffs[{output}] = F192::ONE;\n" ++
     s!"    f{i}.prods = vec![" ++ String.intercalate ", " products ++ "];\n"
 
-/-- The only data emitted is the same `rows` used by the Clean source and its soundness theorem. -/
+/-- Emit the EXT function from the same `rows` used by the Clean source and its soundness theorem. -/
 def emit : Except String String := do
   unless rows.length = 3 do throw "EXT must have exactly three limb identities"
   let forms ← rows.zipIdx.mapM fun (id, i) => identity id i
-  return "// Generated from LeanVMCircuits.ExtensionProduct.rows by GenerateTables.lean. Do not edit.\n" ++
-    "// The Clean assertion and arbitrary-row soundness theorem use these exact identities.\n\n" ++
-    "use crate::leaf::BusForm;\nuse primitives::field::F192;\n\n" ++
-    "/// EXT's three committed field identities, bound to the table's local columns.\n" ++
+  return "/// EXT's three committed field identities, bound to the table's local columns.\n" ++
     "pub(crate) fn extension_identities(n_columns: usize, accumulate: usize, limbs: usize, new: usize) -> Vec<BusForm> {\n" ++
     String.join forms ++ "    vec![f0, f1, f2]\n}\n"
 

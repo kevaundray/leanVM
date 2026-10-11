@@ -6,7 +6,7 @@ on:
       - verification/circuits/**
       - crates/flock/src/clean.rs
       - crates/leanvm_core/src/rec/clean.rs
-      - crates/leanvm_core/src/tables/flushes.txt
+      - crates/leanvm_core/src/tables/clean.rs
       - .github/workflows/clean-circuits.yml
       - rustfmt.toml
   push:
@@ -15,7 +15,7 @@ on:
       - verification/circuits/**
       - crates/flock/src/clean.rs
       - crates/leanvm_core/src/rec/clean.rs
-      - crates/leanvm_core/src/tables/flushes.txt
+      - crates/leanvm_core/src/tables/clean.rs
       - .github/workflows/clean-circuits.yml
       - rustfmt.toml
   workflow_dispatch:
@@ -78,6 +78,3 @@ jobs:
           diff -u ../../crates/leanvm_core/src/rec/clean.rs /tmp/rec-generated.rs
           lake env lean --run GenerateTables.lean /tmp/tables-generated.rs
           diff -u ../../crates/leanvm_core/src/tables/clean.rs /tmp/tables-generated.rs
-      - name: Check the instruction tables' flushes against the model
-        working-directory: verification/circuits
-        run: lake exe checkflushes ../../crates/leanvm_core/src/tables/flushes.txt

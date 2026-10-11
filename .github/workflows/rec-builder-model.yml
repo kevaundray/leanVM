@@ -36,11 +36,12 @@ jobs:
           test: 'false'
           lint: 'false'
           use-mathlib-cache: 'false'
-      - name: Dump the tracked trees' circuits
+      - name: Dump the tracked circuits and instruction table bindings
         run: cargo run --release -p leanvm-cli --features circuits -- circuits /tmp/circuits
-      - name: Replay them through the Lean model
+      - name: Replay the builders and check native table bindings
         working-directory: verification/circuits
         run: |
           lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots
-          lake build checkrec
+          lake build checkrec checkflushes
           lake exe checkrec /tmp/circuits/*.txt
+          lake exe checkflushes /tmp/circuits/table-flushes.dump

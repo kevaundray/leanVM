@@ -3,6 +3,7 @@ module
 public import LeanVMCircuits.Bus.ClockFacts
 public import LeanVMCircuits.Bus.Machine
 public import LeanVMCircuits.Bus.TableFlushes
+public import LeanVMCircuits.Rec.Tables
 
 @[expose] public section
 
@@ -31,8 +32,31 @@ noncomputable def Coord.eval (v : ℕ → K) : Coord → K
   | .sum a b => a.eval v + b.eval v
   | .scaled w i => ofWord w * v i
 
+/-- The same supported coordinate language as actual Clean expressions of row columns. -/
+noncomputable def Coord.expr : Coord → Expression K
+  | .col i => var ⟨i⟩
+  | .const w => .const (ofWord w)
+  | .sum a b => a.expr + b.expr
+  | .scaled w i => Expression.const (ofWord w) * var ⟨i⟩
+
+/-- Lowering a Clean coordinate to the exported coordinate data preserves every row's value. -/
+theorem Coord.eval_expr (v : ℕ → K) : (c : Coord) → c.expr.eval (rowEnv v) = c.eval v
+  | .col _ => rfl
+  | .const _ => rfl
+  | .scaled _ _ => rfl
+  | .sum a b => by
+    show a.expr.eval (rowEnv v) + b.expr.eval (rowEnv v) = a.eval v + b.eval v
+    rw [Coord.eval_expr v a, Coord.eval_expr v b]
+
 /-- A tuple's value. -/
 noncomputable def evalTuple (v : ℕ → K) (cs : List Coord) : Tuple := tuple (cs.map (Coord.eval v))
+
+/-- A source tuple of Clean expressions, with the actual channel's zero padding. -/
+noncomputable def sourceTuple (v : ℕ → K) (cs : List Coord) : Tuple :=
+  tuple (cs.map fun c => c.expr.eval (rowEnv v))
+
+theorem sourceTuple_eq (v : ℕ → K) (cs : List Coord) : sourceTuple v cs = evalTuple v cs := by
+  simp only [sourceTuple, evalTuple, Coord.eval_expr]
 
 theorem ofWord_zero : ofWord 0 = 0 := by simp [ofWord, ev_zero]
 
@@ -44,6 +68,16 @@ variable (s : Spec) (v : ℕ → K)
 noncomputable def flushes : Flushes where
   pushes := s.pushes.map (evalTuple v)
   pulls := s.pulls.map (evalTuple v)
+
+/-- Actual Clean integer-multiplicity interactions: no field-valued multiplicity or ignored lookup. -/
+noncomputable def source : List (Interaction K ℤ) :=
+  s.pushes.map (fun cs => interaction 1 (sourceTuple v cs)) ++
+    s.pulls.map (fun cs => interaction (-1) (sourceTuple v cs))
+
+/-- The exact data emitted into production denotes these Clean interactions for every column assignment. -/
+theorem source_eq : s.source v = (s.flushes v).interactions := by
+  simp only [source, flushes, Flushes.interactions, List.map_map, List.map_nil, List.append_nil,
+    sourceTuple_eq, Function.comp_def]
 
 /-- The integer the clock column names. -/
 noncomputable def clockWord : ℕ := toWord (v s.layout.ts)

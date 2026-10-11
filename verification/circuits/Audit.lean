@@ -337,6 +337,9 @@ run_cmd do
     ``LeanVMCircuits.Bus.machine_correct_of_product_check,
     ``LeanVMCircuits.Bus.ClassTable.all_wellFormed,
     ``LeanVMCircuits.Bus.ClassTable.all_slots,
+    ``LeanVMCircuits.Bus.ClassTable.Coord.eval_expr,
+    ``LeanVMCircuits.Bus.ClassTable.sourceTuple_eq,
+    ``LeanVMCircuits.Bus.ClassTable.Spec.source_eq,
     ``LeanVMCircuits.Bus.ClassTable.Spec.pushes_eq,
     ``LeanVMCircuits.Bus.ClassTable.Spec.pulls_eq,
     ``LeanVMCircuits.Bus.ClassTable.Spec.row_c1,
@@ -470,6 +473,9 @@ run_cmd do
 #print axioms LeanVMCircuits.Bus.machine_correct_of_product_check
 #print axioms LeanVMCircuits.Bus.ClassTable.all_wellFormed
 #print axioms LeanVMCircuits.Bus.ClassTable.all_slots
+#print axioms LeanVMCircuits.Bus.ClassTable.Coord.eval_expr
+#print axioms LeanVMCircuits.Bus.ClassTable.sourceTuple_eq
+#print axioms LeanVMCircuits.Bus.ClassTable.Spec.source_eq
 #print axioms LeanVMCircuits.Bus.ClassTable.Spec.pushes_eq
 #print axioms LeanVMCircuits.Bus.ClassTable.Spec.pulls_eq
 #print axioms LeanVMCircuits.Bus.ClassTable.Spec.row_c1

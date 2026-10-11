@@ -5,18 +5,14 @@ module
 /-!
 # The instruction tables' flushes
 
-A model of how the Rust code gives an instruction table's row its bus flushes: the class specifications of
-`crates/leanvm_core/src/tables/spec.rs` (`ClassSpec`), the column allocation of `tables/columns.rs` (`Columns::new`)
-and the tuples of `tables/table.rs` (`ClassTable::flushes`) and `tables/bus.rs` (`FlushBuilder`, `Accesses`). Each
-tuple is a list of symbolic coordinates over the row's local columns (`Coord`, Rust's `leaf::Coord`).
+The source of the eleven instruction tables' local layouts and ordered bus flushes, exported to `crates/leanvm_core/src/tables/clean.rs`. Native `ClassSpec` still selects the circuits and clock slots; `checkflushes` checks its slot lists and native word-to-column clock-port projection against this source. Each tuple is a list of symbolic coordinates over the row's local columns (`Coord`, Rust's `leaf::Coord`).
 
 A row pulls its state `⟨ST, pc, ts, 0⟩` and pushes `⟨ST, npc, ts + step, exit⟩`, pulls its decoded bytecode entry
 `⟨BC, pc, …⟩`, then makes its accesses in clock-slot order: access `i` in slot `k` pulls `⟨sep, addr, prev_i, old⟩`
 and pushes `⟨sep, addr, at, new⟩`, where `prev_i` is the column `prev + i` and `at` the column `ts` for slot 0, the
 sum `ts + ⟨k⟩` otherwise.
 
-`dump` renders every table's symbolic flushes, slots and clock port columns in the format the Rust test
-`the_flushes_are_the_lean_model_s` writes; `lake exe checkflushes` checks the two agree.
+`dump` renders the source together with its slot lists and clock-port columns in the format the feature-gated `circuits` CLI writes; `lake exe checkflushes` checks the remaining native bindings.
 -/
 
 namespace LeanVMCircuits.Bus.ClassTable
@@ -163,13 +159,13 @@ def slots : List Nat := s.registers.map (regSlots.getD · 0) ++ s.ram.slots
 
 /-! ### Columns -/
 
-/-- Reserve `k` consecutive columns (`ColumnAllocator::allocate`). -/
+/-- Reserve `k` contiguous local columns. -/
 def alloc (k : Nat) : StateM Nat Nat := modifyGet fun n => (n, n + k)
 
 /-- Reserve one column when `b`. -/
 def allocIf (b : Bool) : StateM Nat (Option Nat) := if b then some <$> alloc 1 else pure none
 
-/-- The allocation of `Columns::new`. -/
+/-- Allocate the exported local layout, retaining aliases for unchanged doubleword moves. -/
 def allocate : StateM Nat Layout := do
   let pc ← alloc 1
   let ts ← alloc 1
@@ -286,20 +282,20 @@ structure Access where
   old : Coord
   new : Coord
 
-/-- A read, which pushes back the value it pulls (`Accesses::read`). -/
+/-- A read pushes back the value it pulls. -/
 def Access.read (sep addr value : Coord) : Access := ⟨ sep, addr, value, value ⟩
 
 /-- What a hash row leaves in word `k` of its block (`BlockColumns::left`). -/
 def BlockColumns.left (b : BlockColumns) (k : Nat) : Nat := if 4 ≤ k ∧ k < 8 then b.out + (k - 4) else b.words + k
 
-/-- What an extension-field row leaves in limb `k` (`LimbColumns::left`). -/
+/-- What an extension-field row leaves in limb `k`. -/
 def LimbColumns.left (l : LimbColumns) (k : Nat) : Nat := if 6 ≤ k then l.new + (k - 6) else l.limbs + k
 
 namespace Spec
 
 variable (s : Spec)
 
-/-- The decoded entry the row reads (`ClassTable::bytecode_tuple`). -/
+/-- The twelve-coordinate decoded entry the row reads. -/
 def bytecode : List Coord :=
   let L := s.layout
   let entry := [.const bcWord, .col L.pc, .const (2 ^ s.index), (L.flags.map .col).getD (.const 0), .col L.a1,
@@ -314,7 +310,7 @@ def bytecode : List Coord :=
     | none => entry
   resize 11 entry ++ [L.exit]
 
-/-- The row's accesses in the order it makes them (`ClassTable::flush_accesses`). -/
+/-- The source accesses in their clock-slot order. -/
 def accesses : List Access :=
   let L := s.layout
   let reg := Coord.const regWord
