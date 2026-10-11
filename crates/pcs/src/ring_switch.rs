@@ -369,12 +369,11 @@ impl<E: Copy> RingMap<E> {
                 xk = xk.square();
             }
             // `S(x^(2^-k))` by Horner's rule, from the last slice down.
-            let (&last, rest) = slices.split_last().expect("64 slices");
-            let mut s = last;
-            let mut i = rest.len();
+            let mut i = slices.len() - 1;
+            let mut s = slices[i];
             while i > 0 {
                 i -= 1;
-                s = a.mul_const_add(s, F192::from(xk), rest[i]);
+                s = a.mul_const_add(s, F192::from(xk), slices[i]);
             }
             terms.push(a.mul(self.coefficients[k], s));
         }
@@ -454,12 +453,11 @@ impl<E: Copy> RingMap<E> {
     ///
     /// If `terms` is empty.
     pub fn close<A: Arith<E = E>>(a: &mut A, terms: &[E]) -> E {
-        let (&last, rest) = terms.split_last().expect("the map has 64 terms");
-        let mut acc = last;
-        let mut i = rest.len();
+        let mut i = terms.len().checked_sub(1).expect("the map has 64 terms");
+        let mut acc = terms[i];
         while i > 0 {
             i -= 1;
-            acc = a.mul_add(acc, acc, rest[i]);
+            acc = a.mul_add(acc, acc, terms[i]);
         }
         acc
     }
