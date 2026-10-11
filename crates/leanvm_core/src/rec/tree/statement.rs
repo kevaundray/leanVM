@@ -8,7 +8,6 @@
 use super::claims::DensePoly;
 use crate::class_flock::{FlockId, N_FLOCKS};
 use crate::rec::circuit::{Builder, Dw, Ew, Kw, Limbs, chain};
-use fiat_shamir::arith::Portable;
 use primitives::field::F192;
 use std::ops::Range;
 
@@ -90,7 +89,7 @@ impl Kind {
         let words: Vec<u64> = (self.header(items.len()).into_iter())
             .chain(items.iter().flatten().copied())
             .collect();
-        chain::<Portable>(&words)
+        chain(&words)
     }
 
     /// The digest of the items' wires, in rows.

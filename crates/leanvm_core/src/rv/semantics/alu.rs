@@ -360,7 +360,7 @@ mod tests {
         EDGES, Ports, circuit_matches_reference, edge_word, grid, word_witness_is_the_walk,
     };
     use fiat_shamir::arith::Portable;
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::{ProverState, SessionId, VerifierState};
     use flock::reduction::{self, Instance};
     use proptest::prelude::*;
     use proptest::sample::select;
@@ -446,14 +446,14 @@ mod tests {
             if let Some(bit) = tamper {
                 witness.z[bit / 64] ^= 1 << (bit % 64);
             }
-            let mut ps = ProverState::from_label(LABEL);
+            let mut ps = ProverState::new(&SessionId::new(LABEL), &0u64);
             let instance = Instance::of(block, n_log, &witness);
             let claims = reduction::prove(&[instance], &mut ps);
             let proof = ps.into_proof();
-            let mut vs = VerifierState::from_label(LABEL, &proof);
+            let mut vs = VerifierState::new(&SessionId::new(LABEL), &0u64, &proof);
             reduction::verify(&[(block.shape(), n_log)], &mut vs)
                 .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(&mut Portable, block.circuit).is_ok())
-                && vs.finish().is_ok()
+                && vs.check_eof().is_ok()
         };
         assert!(accepts(None));
 
