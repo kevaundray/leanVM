@@ -51,6 +51,10 @@
     {
       "file": "backend-lean-4.34-test-compat.patch",
       "sha256": "b65b1d635faf30d3d67b6d158d7f9ac94d91674fb7048265e819f6473c8115ed"
+    },
+    {
+      "file": "backend-lean-4.34-discriminant-name.patch",
+      "sha256": "75281b4494a2d6956f61236570eaf25a0a9180500f80f55e109df4069469cc8c"
     }
   ],
   "build_command": "LEAN_NUM_THREADS=2 lake build Aeneas AeneasMeta WhirAeneas.Std.Bulk WhirAeneas.Std.Guards WhirAeneas.Toolchain.StringLiteral",

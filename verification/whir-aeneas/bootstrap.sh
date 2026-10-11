@@ -21,7 +21,7 @@ if [[ ! -x "$tools/aeneas" || ! -f "$backend/lakefile.lean" ]]; then
     fi
 fi
 printf '%s  %s\n' 853a2caa4bdb825229ec7ca10ed2abca965593d9e4faeb59747c2a03e793cb5f "$tools/aeneas" cccbb77cd02c34677fd30f152938b15d8f35574292d25086b7ea8cf359774a72 "$tools/charon" 888096bc2471ca8e959b5e04eeb2eb2c4c879f2983fdd7afc4a6d42921bc2594 "$tools/charon-driver" | sha256sum -c -
-for patch in backend-lean-4.31-shifts.patch backend-lean-4.31-iterator-alias.patch backend-lean-4.31-string-kernel.patch backend-lean-4.34.patch backend-lean-4.34-stdlib.patch backend-lean-4.34-vector.patch backend-lean-4.34-coinductive.patch backend-lean-4.34-bvify-tests.patch backend-lean-4.34-rendered-examples.patch backend-lean-4.34-slice.patch backend-lean-4.34-tactic-api.patch backend-lean-4.34-test-compat.patch; do
+for patch in backend-lean-4.31-shifts.patch backend-lean-4.31-iterator-alias.patch backend-lean-4.31-string-kernel.patch backend-lean-4.34.patch backend-lean-4.34-stdlib.patch backend-lean-4.34-vector.patch backend-lean-4.34-coinductive.patch backend-lean-4.34-bvify-tests.patch backend-lean-4.34-rendered-examples.patch backend-lean-4.34-slice.patch backend-lean-4.34-tactic-api.patch backend-lean-4.34-test-compat.patch backend-lean-4.34-discriminant-name.patch; do
     if ! git -C "$backend" apply --reverse --check "$here/$patch" 2>/dev/null; then
         git -C "$backend" apply --check "$here/$patch"
         git -C "$backend" apply "$here/$patch"
