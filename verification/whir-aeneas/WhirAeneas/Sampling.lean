@@ -297,4 +297,197 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
     unfold whir.sample_queries_ordered_loop0 at hloop
     exact hloop
 
+/-! ## Strata -/
+
+/-- A group of `2^g` queries fixing their top `min g depth` bits to the query index. -/
+def groupList (g depth : Nat) : List (Nat × Nat) :=
+  (List.range (2 ^ g)).map fun j => (min g depth, j % 2 ^ (min g depth))
+
+/-- The strata over groups `gs`, highest first, of the set bits of `count`. -/
+def strataList (count depth : Nat) (gs : List Nat) : List (Nat × Nat) :=
+  gs.flatMap fun g => if count.testBit g then groupList g depth else []
+
+theorem forIn_append_flatMap (p : Nat → Bool) (f : Nat → List (Nat × Nat)) (gs : List Nat)
+    (acc : Array (Nat × Nat)) :
+    (forIn (m := Id) gs acc fun g s =>
+        if p g = true then pure (ForInStep.yield (s ++ (f g).toArray)) else pure (ForInStep.yield s)).run.toList =
+      acc.toList ++ gs.flatMap fun g => if p g = true then f g else [] := by
+  induction gs generalizing acc with
+  | nil => simp
+  | cons g gs ih =>
+    by_cases hp : p g = true
+    · simp only [List.forIn_cons, hp, ↓reduceIte, List.flatMap_cons]
+      erw [ih]; simp
+    · simp only [List.forIn_cons, hp, ↓reduceIte, List.flatMap_cons, Bool.false_eq_true]
+      erw [ih]; simp
+
+theorem strata_model (count depth : Nat) :
+    (Concrete.strata count depth).toList = strataList count depth (List.range (count.log2 + 1)).reverse := by
+  simp [Concrete.strata, strataList, groupList]
+  rw [forIn_append_flatMap (fun g => count.testBit g) (fun g => (List.range' 0 (2 ^ g)).map
+    fun x => (min g depth, x % 2 ^ min g depth))]
+  simp [List.range_eq_range']
+
+/-- A stratum as the model's pair. -/
+def pr (st : whir.Stratum) : Nat × Nat := (st.bits.val, st.index.val)
+
+theorem push_group_eq (hw : System.Platform.numBits = 64) (g bits : Usize) (hg : g.val < 64) (hb : bits.val < 64) :
+    ∀ (m : Nat) (j : Usize) (out : alloc.vec.Vec whir.Stratum), 2 ^ g.val - j.val = m → j.val ≤ 2 ^ g.val →
+      out.val.length + (2 ^ g.val - j.val) ≤ Usize.max →
+      ∃ out', whir.push_group_loop out g bits j = .ok out' ∧
+        out'.val.map pr = out.val.map pr ++
+          (List.range' j.val (2 ^ g.val - j.val)).map fun k => (bits.val, k % 2 ^ bits.val) := by
+  have hg1 := shl_one_val hw g hg
+  have hb1 := shl_one_val hw bits hb
+  have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  intro m
+  induction m with
+  | zero =>
+    intro j out hm hj hcap
+    refine ⟨out, ?_, by rw [show 2 ^ g.val - j.val = 0 by omega]; simp⟩
+    unfold whir.push_group_loop
+    apply loop_done
+    have : ¬ (j.val < (Std.Usize.wrapping_shl 1#usize g).val) := by rw [hg1]; omega
+    simp [whir.push_group_loop.body, lift, this]
+  | succ m ih =>
+    intro j out hm hj hcap
+    have hjt : j.val < 2 ^ g.val := by omega
+    have hlt : j < Std.Usize.wrapping_shl 1#usize g := by simp only [UScalar.lt_equiv, hg1]; omega
+    have hsucc := succ_val j (2 ^ g.val) hjt (by have := Usize.max_def; scalar_tac)
+    obtain ⟨st, hst⟩ : ∃ st : whir.Stratum,
+        ({ bits := bits, index := j &&& Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize bits) 1#usize } :
+          whir.Stratum) = st := ⟨_, rfl⟩
+    have est : pr st = (bits.val, j.val % 2 ^ bits.val) := by
+      rw [← hst, pr]
+      simp only [UScalar.val_and]
+      rw [Fold.sub_val _ _ (by rw [hb1]; exact Nat.one_le_two_pow), hb1]
+      simp [Nat.and_two_pow_sub_one_eq_mod]
+    obtain ⟨out1, hpush, e1⟩ := Query.push_ok out st (by omega)
+    have hbody : whir.push_group_loop.body g bits out j = .ok (.cont (out1, Std.Usize.wrapping_add j 1#usize)) := by
+      simp only [whir.push_group_loop.body, lift, Std.bind_ok, hlt, ↓reduceIte, hst, hpush]
+    obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_add j 1#usize) out1 (by omega) (by omega)
+      (by rw [e1, hsucc]; simp; omega)
+    refine ⟨out', ?_, ?_⟩
+    · unfold whir.push_group_loop
+      rw [loop_cont hbody]
+      unfold whir.push_group_loop at hloop
+      exact hloop
+    · rw [e', e1, hsucc, show 2 ^ g.val - j.val = (2 ^ g.val - (j.val + 1)) + 1 by omega, List.range'_succ]
+      simp [est]
+
+theorem strataList_length (count depth g : Nat) :
+    (strataList count depth (List.range g).reverse).length = count % 2 ^ g := by
+  induction g with
+  | zero => simp [strataList, Nat.mod_one]
+  | succ g ih =>
+    rw [List.range_succ, List.reverse_append]
+    simp only [strataList, List.reverse_cons, List.reverse_nil, List.nil_append] at ih ⊢
+    rw [List.flatMap_append, List.length_append, ih, Nat.mod_pow_succ, List.flatMap_singleton,
+      Nat.testBit_eq_decide_div_mod_eq]
+    have h2 : count / 2 ^ g % 2 = 0 ∨ count / 2 ^ g % 2 = 1 := Nat.mod_two_eq_zero_or_one _
+    rcases h2 with h | h <;> simp [h, groupList] <;> ring
+
+theorem strata_loop_eq (hw : System.Platform.numBits = 64) (count depth : Usize) (hdep : depth.val < 64) :
+    ∀ (m : Nat) (g : Usize) (out : alloc.vec.Vec whir.Stratum), g.val = m → g.val ≤ 64 →
+      out.val.length + count.val % 2 ^ g.val ≤ Usize.max →
+      ∃ out', whir.strata_loop count depth out g = .ok out' ∧
+        out'.val.map pr = out.val.map pr ++ strataList count.val depth.val (List.range g.val).reverse := by
+  have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  intro m
+  induction m with
+  | zero =>
+    intro g out hm hg hcap
+    refine ⟨out, ?_, by rw [hm]; simp [strataList]⟩
+    unfold whir.strata_loop
+    apply loop_done
+    have : ¬ (g.val > 0) := by omega
+    simp [whir.strata_loop.body, this]
+  | succ m ih =>
+    intro g out hm hg hcap
+    have hgp : g > 0#usize := by simp only [gt_iff_lt, UScalar.lt_equiv]; simp; omega
+    have hg1 : (Std.Usize.wrapping_sub g 1#usize).val = m := by rw [Fold.sub_val _ _ (by simp; omega)]; simp; omega
+    have hsh : (Std.Usize.wrapping_shr count (Std.Usize.wrapping_sub g 1#usize)).val = count.val / 2 ^ m := by
+      rw [show Std.Usize.wrapping_shr count (Std.Usize.wrapping_sub g 1#usize) =
+        UScalar.wrapping_shr_rhs count (Std.Usize.wrapping_sub g 1#usize) from rfl, shr_val _ _ (by rw [hg1, hU]; omega),
+        hg1]
+    have hbit : (Std.Usize.wrapping_shr count (Std.Usize.wrapping_sub g 1#usize) &&& 1#usize).val =
+        count.val / 2 ^ m % 2 := by
+      rw [UScalar.val_and, hsh]; simp [Nat.and_one_is_mod]
+    have hsplit : strataList count.val depth.val (List.range g.val).reverse =
+        (if count.val.testBit m = true then groupList m depth.val else []) ++
+          strataList count.val depth.val (List.range m).reverse := by
+      rw [hm, List.range_succ, List.reverse_append]; simp [strataList]
+    have hmod := Nat.mod_pow_succ (b := 2) (x := count.val) (k := m)
+    rw [← hm] at hmod
+    by_cases ht : count.val.testBit m = true
+    · have h1 : count.val / 2 ^ m % 2 = 1 := by
+        rw [Nat.testBit_eq_decide_div_mod_eq] at ht; simpa using ht
+      have heq : (Std.Usize.wrapping_shr count (Std.Usize.wrapping_sub g 1#usize) &&& 1#usize) = 1#usize :=
+        UScalar.eq_of_val_eq (by rw [hbit, h1]; simp)
+      have hmin : (core.cmp.impls.OrdUsize.min (Std.Usize.wrapping_sub g 1#usize) depth).val = min m depth.val := by
+        simp [core.cmp.impls.OrdUsize.min_val, hg1]
+      have hz0 : (0#usize : Usize).val = 0 := by simp
+      obtain ⟨out1, hpg, e1⟩ := push_group_eq hw (Std.Usize.wrapping_sub g 1#usize)
+        (core.cmp.impls.OrdUsize.min (Std.Usize.wrapping_sub g 1#usize) depth) (by omega) (by rw [hmin]; omega)
+        _ 0#usize out rfl (by rw [hz0]; positivity) (by rw [hz0, hg1]; rw [h1] at hmod; omega)
+      have hbody : whir.strata_loop.body count depth out g =
+          .ok (.cont (out1, Std.Usize.wrapping_sub g 1#usize)) := by
+        simp only [whir.strata_loop.body, hgp, ↓reduceIte, lift, Std.bind_ok, heq, whir.push_group, hpg]
+      have hl1 : out1.val.length = out.val.length + 2 ^ m := by
+        have := congrArg List.length e1; simp [hz0, hg1] at this; omega
+      obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_sub g 1#usize) out1 hg1 (by omega)
+        (by rw [hl1, hg1]; rw [h1] at hmod; omega)
+      refine ⟨out', ?_, ?_⟩
+      · unfold whir.strata_loop
+        rw [loop_cont hbody]
+        unfold whir.strata_loop at hloop
+        exact hloop
+      · rw [e', e1, hsplit, hg1, if_pos ht, hz0, hmin]
+        simp [groupList, List.range_eq_range']
+    · have h0 : count.val / 2 ^ m % 2 = 0 := by
+        rw [Nat.testBit_eq_decide_div_mod_eq] at ht; simp at ht; omega
+      have heq : ¬ (Std.Usize.wrapping_shr count (Std.Usize.wrapping_sub g 1#usize) &&& 1#usize) = 1#usize := by
+        intro he; have := congrArg UScalar.val he; rw [hbit, h0] at this; simp at this
+      have hbody : whir.strata_loop.body count depth out g =
+          .ok (.cont (out, Std.Usize.wrapping_sub g 1#usize)) := by
+        simp only [whir.strata_loop.body, hgp, ↓reduceIte, lift, Std.bind_ok, heq]
+      obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_sub g 1#usize) out hg1 (by omega)
+        (by rw [hg1]; rw [h0] at hmod; omega)
+      refine ⟨out', ?_, ?_⟩
+      · unfold whir.strata_loop
+        rw [loop_cont hbody]
+        unfold whir.strata_loop at hloop
+        exact hloop
+      · rw [e', hsplit, hg1, if_neg ht]; simp
+
+theorem strataList_trim (count depth : Nat) (h : count < 2 ^ 64) :
+    strataList count depth (List.range 64).reverse = strataList count depth (List.range (count.log2 + 1)).reverse := by
+  have hL : count.log2 + 1 ≤ 64 := by
+    by_cases h0 : count = 0
+    · subst h0; simp
+    · have := (Nat.log2_lt h0).mpr h; omega
+  have hlt : count < 2 ^ (count.log2 + 1) := by
+    by_cases h0 : count = 0
+    · subst h0; simp
+    · exact (Nat.log2_lt h0).mp (by omega)
+  rw [show 64 = (count.log2 + 1) + (64 - (count.log2 + 1)) by omega, List.range_add, List.reverse_append]
+  simp only [strataList, List.flatMap_append]
+  rw [List.flatMap_eq_nil_iff.mpr, List.nil_append]
+  intro g hg
+  simp only [List.mem_reverse, List.mem_map, List.mem_range] at hg
+  obtain ⟨k, _, rfl⟩ := hg
+  have : count.testBit (count.log2 + 1 + k) = false :=
+    Nat.testBit_lt_two_pow (lt_of_lt_of_le hlt (Nat.pow_le_pow_right (by norm_num) (by omega)))
+  simp [this]
+
+theorem strata_eq (hw : System.Platform.numBits = 64) (count depth : Usize) (hdep : depth.val < 64) :
+    ∃ out, whir.strata count depth = .ok out ∧ out.val.map pr = (Concrete.strata count.val depth.val).toList := by
+  have hb := Replay.bits_val hw
+  have hc : count.val < 2 ^ 64 := by have := count.hBounds; simpa [hw] using this
+  obtain ⟨out, hloop, e⟩ := strata_loop_eq hw count depth hdep 64 _ (alloc.vec.Vec.with_capacity _ count) hb
+    (by rw [hb]) (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, hb]; have := Usize.max_def; scalar_tac)
+  refine ⟨out, ?_, ?_⟩
+  · simp only [whir.strata, lift, Std.bind_ok]; exact hloop
+  · rw [e, strata_model, hb, strataList_trim _ _ hc]; simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+
 end WhirAeneas.Sampling
