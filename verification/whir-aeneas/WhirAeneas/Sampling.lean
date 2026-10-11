@@ -490,4 +490,106 @@ theorem strata_eq (hw : System.Platform.numBits = 64) (count depth : Usize) (hde
   · simp only [whir.strata, lift, Std.bind_ok]; exact hloop
   · rw [e, strata_model, hb, strataList_trim _ _ hc]; simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
 
+theorem strataList_mem (count depth : Nat) (gs : List Nat) (p : Nat × Nat) (hp : p ∈ strataList count depth gs) :
+    p.1 ≤ depth ∧ p.2 < 2 ^ p.1 := by
+  simp only [strataList, List.mem_flatMap] at hp
+  obtain ⟨g, _, hg⟩ := hp
+  split at hg
+  · simp only [groupList, List.mem_map] at hg
+    obtain ⟨j, _, rfl⟩ := hg
+    exact ⟨Nat.min_le_right _ _, Nat.mod_lt _ (Nat.two_pow_pos _)⟩
+  · simp at hg
+
+/-! ## Stratum replacement -/
+
+/-- A raw position with its top `bits` bits replaced by `index`. -/
+def place (d raw : Nat) (p : Nat × Nat) : Nat := raw % 2 ^ (d - p.1) + p.2 * 2 ^ (d - p.1)
+
+theorem place_loop_eq (hw : System.Platform.numBits = 64) (d : Usize) (hd : d.val < 64)
+    (strata : alloc.vec.Vec whir.Stratum) (raws : List Nat) (hlen : strata.val.length = raws.length)
+    (hs : ∀ p ∈ strata.val.map pr, p.1 ≤ d.val ∧ p.2 < 2 ^ p.1) :
+    ∀ (m : Nat) (i : Usize) (out : alloc.vec.Vec Usize), raws.length - i.val = m → i.val ≤ raws.length →
+      out.val.map (·.val) = (List.range raws.length).map (fun k =>
+        if k < i.val then place d.val raws[k]! (strata.val.map pr)[k]! else raws[k]!) →
+      ∃ out', whir.sample_queries_ordered_loop1 d out strata i = .ok out' ∧
+        out'.val.map (·.val) = (List.range raws.length).map fun k => place d.val raws[k]! (strata.val.map pr)[k]! := by
+  have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  intro m
+  induction m with
+  | zero =>
+    intro i out hm hi hout
+    have hol : out.val.length = raws.length := by simpa using congrArg List.length hout
+    refine ⟨out, ?_, ?_⟩
+    · unfold whir.sample_queries_ordered_loop1
+      apply loop_done
+      have : ¬ (i.val < out.val.length) := by omega
+      simp [whir.sample_queries_ordered_loop1.body, lift, this]
+    · rw [hout]; apply List.map_congr_left; intro k hk; simp at hk; simp [show k < i.val by omega]
+  | succ m ih =>
+    intro i out hm hi hout
+    have hol : out.val.length = raws.length := by simpa using congrArg List.length hout
+    have hil : i.val < raws.length := by omega
+    have hsucc := succ_val i raws.length hil (by have := out.property; omega)
+    have hmin : i.val < (core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len out) (alloc.vec.Vec.len strata)).val := by
+      simp [core.cmp.impls.OrdUsize.min_val, hol, hlen]; omega
+    set st := strata.val[i.val]'(by omega) with hst
+    set r := out.val[i.val]'(by omega) with hr
+    have hrv : r.val = raws[i.val]! := by
+      have := congrArg (fun l => l[i.val]!) hout
+      rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp; omega)] at this
+      simp [show ¬ (i.val < i.val) from lt_irrefl _] at this
+      rw [hr, this, getElem!_pos raws i.val hil]; simp [hil]
+    have hpr : pr st = (strata.val.map pr)[i.val]! := by
+      rw [getElem!_pos _ _ (by simp; omega)]; simp [hst]
+    obtain ⟨hbd, hix⟩ := hs (pr st) (by rw [hpr, getElem!_pos _ _ (by simp; omega)]; exact List.getElem_mem _)
+    simp only [pr] at hbd hix
+    have hlow : (Std.Usize.wrapping_sub d st.bits).val = d.val - st.bits.val := Fold.sub_val _ _ hbd
+    have hm1 : (Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize (Std.Usize.wrapping_sub d st.bits)) 1#usize).val =
+        2 ^ (d.val - st.bits.val) - 1 := by
+      rw [Fold.sub_val _ _ (by rw [shl_one_val hw _ (by omega), hlow]; exact Nat.one_le_two_pow),
+        shl_one_val hw _ (by omega), hlow]; simp
+    have hix2 : st.index.val * 2 ^ (d.val - st.bits.val) < 2 ^ d.val := by
+      calc st.index.val * 2 ^ (d.val - st.bits.val) < 2 ^ st.bits.val * 2 ^ (d.val - st.bits.val) :=
+            Nat.mul_lt_mul_of_pos_right hix (Nat.two_pow_pos _)
+        _ = 2 ^ d.val := by rw [← Nat.pow_add]; congr 1; omega
+    have hidxsh : (Std.Usize.wrapping_shl st.index (Std.Usize.wrapping_sub d st.bits)).val =
+        st.index.val * 2 ^ (d.val - st.bits.val) := by
+      rw [show Std.Usize.wrapping_shl st.index (Std.Usize.wrapping_sub d st.bits) =
+        UScalar.wrapping_shl_rhs st.index (Std.Usize.wrapping_sub d st.bits) from rfl,
+        shl_val _ _ (by rw [hlow, hU]; omega), hlow, hU]
+      exact Nat.mod_eq_of_lt (lt_of_lt_of_le hix2 (Nat.pow_le_pow_right (by norm_num) (by omega)))
+    obtain ⟨x, hx⟩ : ∃ x, ((r &&& Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize
+        (Std.Usize.wrapping_sub d st.bits)) 1#usize) ||| Std.Usize.wrapping_shl st.index
+        (Std.Usize.wrapping_sub d st.bits)) = x := ⟨_, rfl⟩
+    have ex : x.val = place d.val raws[i.val]! (pr st) := by
+      rw [← hx, UScalar.val_or, UScalar.val_and, hm1, Nat.and_two_pow_sub_one_eq_mod, hidxsh, place, ← hrv]
+      simp only [pr]
+      rw [Nat.lor_comm, Nat.mul_comm st.index.val, ← Nat.two_pow_add_eq_or_of_lt (Nat.mod_lt _ (Nat.two_pow_pos _)),
+        Nat.add_comm]
+    have hbody : whir.sample_queries_ordered_loop1.body d strata out i =
+        .ok (.cont (alloc.vec.Vec.set out i x, Std.Usize.wrapping_add i 1#usize)) := by
+      have hlt : i < core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len out) (alloc.vec.Vec.len strata) := by
+        simpa [UScalar.lt_equiv] using hmin
+      simp only [whir.sample_queries_ordered_loop1.body, lift, Std.bind_ok, hlt, ↓reduceIte,
+        alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize,
+        vec_index_usize strata i (by omega), vec_index_usize out i (by omega), ← hst, ← hr, hx]
+      simp
+    obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_add i 1#usize) (alloc.vec.Vec.set out i x) (by omega)
+      (by omega) (by
+        rw [hsucc, alloc.vec.Vec.set_val_eq, List.map_set, hout, ex, hpr]
+        apply List.ext_getElem (by simp)
+        intro k h1 h2
+        simp only [List.getElem_set, List.getElem_map, List.getElem_range]
+        by_cases hk : k = i.val
+        · subst hk; simp
+        · rw [if_neg (Ne.symm hk)]
+          by_cases hk2 : k < i.val
+          · simp [hk2, show k < i.val + 1 by omega]
+          · simp [hk2, show ¬ (k < i.val + 1) by omega])
+    refine ⟨out', ?_, e'⟩
+    unfold whir.sample_queries_ordered_loop1
+    rw [loop_cont hbody]
+    unfold whir.sample_queries_ordered_loop1 at hloop
+    exact hloop
+
 end WhirAeneas.Sampling
