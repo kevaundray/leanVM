@@ -500,8 +500,12 @@ impl<V: OpeningVerifier> WhirReplay<V> {
 
     /// Level `level`'s query batch over indices of `depth` bits.
     fn phase(config: &Config, level: usize, depth: usize) -> QueryPhase {
+        // The message `expect` would print, spelled out so the panic formats nothing.
+        let Ok(grinding) = u32::try_from(config.grinding_bits()[level]) else {
+            panic!("a few grinding bits: TryFromIntError(())")
+        };
         QueryPhase {
-            grinding: u32::try_from(config.grinding_bits()[level]).expect("a few grinding bits"),
+            grinding,
             depth,
             count: config.queries()[level],
         }
