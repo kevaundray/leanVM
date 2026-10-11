@@ -259,7 +259,7 @@ mod tests {
         // Invariant: the hash circuit's flock reduction accepts an honest batch and refuses a changed bit.
         //
         // Mutation: one bit of the counter, of the result, the constant, the first carry and the last.
-        use fiat_shamir::transcript::{ProverState, VerifierState};
+        use fiat_shamir::{ProverState, SessionId, VerifierState};
         use flock::Witness;
         use flock::reduction::{self, Instance};
         const LABEL: &[u8] = b"blake2s-witness-test";
@@ -271,13 +271,13 @@ mod tests {
             || BLAKE2S.witness_by_instance(&rows, &[0; 14], n_log, |row, z, az, bz| blake2s_witness(row, z, az, bz));
         let accepts = |w: &Witness| {
             let block = BLAKE2S.block();
-            let mut ps = ProverState::from_label(LABEL);
+            let mut ps = ProverState::new(&SessionId::new(LABEL), &0u64);
             let claims = reduction::prove(&[Instance::of(block, n_log, w)], &mut ps);
             let proof = ps.into_proof();
-            let mut vs = VerifierState::from_label(LABEL, &proof);
+            let mut vs = VerifierState::new(&SessionId::new(LABEL), &0u64, &proof);
             reduction::verify(&[(block.shape(), n_log)], &mut vs)
                 .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(&*BLAKE2S).is_ok())
-                && vs.finish().is_ok()
+                && vs.check_eof().is_ok()
         };
         assert!(accepts(&witness()), "an honest batch");
         let output = 64 * INPUT_BITS.len() + 5;

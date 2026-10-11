@@ -259,7 +259,7 @@ mod tests {
     use crate::rv::Class;
     use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word};
     use crate::tables::spec::InstanceWitness;
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::{ProverState, SessionId, VerifierState};
     use flock::reduction::{self, Instance};
     use primitives::test_util::Rng;
     use proptest::prelude::*;
@@ -333,13 +333,13 @@ mod tests {
             w.z[bit / 64] ^= 1 << (bit % 64);
         }
         let label = b"clean-multiplication-native-witness";
-        let mut ps = ProverState::from_label(label);
+        let mut ps = ProverState::new(&SessionId::new(label), &0u64);
         let claims = reduction::prove(&[Instance::of(block, n_log, &w)], &mut ps);
         let proof = ps.into_proof();
-        let mut vs = VerifierState::from_label(label, &proof);
+        let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
         reduction::verify(&[(block.shape(), n_log)], &mut vs)
             .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(block.circuit).is_ok())
-            && vs.finish().is_ok()
+            && vs.check_eof().is_ok()
     }
 
     #[test]

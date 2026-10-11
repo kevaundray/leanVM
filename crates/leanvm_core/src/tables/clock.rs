@@ -249,7 +249,7 @@ mod tests {
     use super::*;
     use crate::rv::Ext;
     use crate::tables::{TableId, Word};
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::{ProverState, SessionId, VerifierState};
     use flock::lincheck::LincheckCircuit;
     use flock::reduction::{self, Instance};
     use primitives::field::F192;
@@ -289,13 +289,13 @@ mod tests {
                     witness.z[bit / 64] ^= 1 << (bit % 64);
                 }
                 let label = b"clean-clock-native-witness";
-                let mut ps = ProverState::from_label(label);
+                let mut ps = ProverState::new(&SessionId::new(label), &0u64);
                 let claims = reduction::prove(&[Instance::of(block, n_log, &witness)], &mut ps);
                 let proof = ps.into_proof();
-                let mut vs = VerifierState::from_label(label, &proof);
+                let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
                 reduction::verify(&[(block.shape(), n_log)], &mut vs)
                     .is_ok_and(|r| r[0].claim == claims[0] && r[0].matrices.check(block.circuit).is_ok())
-                    && vs.finish().is_ok()
+                    && vs.check_eof().is_ok()
             };
             let name = table.spec().name;
             assert!(accepts(None), "{name}");

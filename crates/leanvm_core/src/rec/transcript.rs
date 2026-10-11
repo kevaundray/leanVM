@@ -440,7 +440,11 @@ mod tests {
             assert_eq!(zero_prefix(n), z, "{n} zero blocks");
         }
         assert_eq!(
-            [Role::Seed.counter(0, 0), Role::Output.counter(0, 0), ProofOfWork::TRIAL_TAG],
+            [
+                Role::Seed.counter(0, 0),
+                Role::Output.counter(0, 0),
+                ProofOfWork::TRIAL_TAG
+            ],
             DUPLEX_TAGS
         );
         for &(first, last, len, previous, tweak) in ABSORB_TWEAKS {

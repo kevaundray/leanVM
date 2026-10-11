@@ -1,7 +1,5 @@
 //! Arithmetic over `E`: the `EMUL` and `EXK` rows, with the units and repeated rows folded away.
 
-#[cfg(feature = "circuit-trace")]
-use super::list;
 use super::{Builder, row_key};
 use crate::rec::circuit::{Ew, Kw};
 use crate::rec::clean::{ARITH_A, ARITH_B, ARITH_C, ARITH_D};
@@ -153,7 +151,6 @@ impl Builder {
         self.eq_e_const(p, F192::ONE);
         i
     }
-
 }
 
 #[cfg(test)]
