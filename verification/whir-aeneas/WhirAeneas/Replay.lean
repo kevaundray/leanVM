@@ -1864,7 +1864,8 @@ def Script.prf (s : Script E Q R K) : Protocol.Opening :=
 /-- The shapes the opening must have for the source's fixed read schedule: a root at every
 level but the last, the residual of the remaining cube at the last, query positions derived
 from the squeezes, one row per query of the committed width, and one round polynomial per
-residual round but the last. -/
+residual round but the last; the source keeps all out-of-domain contexts in one vector, so
+their total count is below `usize::MAX`. -/
 structure ScriptShape (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat) : Prop where
   len : s.levels.length = c.folds.size
   head : ∀ i (hi : i + 1 < s.levels.length), ∃ r, (s.levels[i]'(by omega)).head = .inl r
@@ -1877,6 +1878,7 @@ structure ScriptShape (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat) :
   base : ∀ (hl : 0 < s.levels.length), ∀ w ∈ (s.levels[0]'hl).rows, w.length = lanes
   ext : ∀ i (hi : i < s.levels.length), 0 < i → ∀ w ∈ s.levels[i].rows, w.length = 3 * 2 ^ c.folds[i]!
   tail : s.tailMsgs.length + 1 = s.tail.length
+  small : (s.levels.map fun l => l.oods.length).sum < Usize.max
 
 theorem chal_get (s : Script E Q R K) (j : Nat) (hj : j < s.levels.length) :
     (s.chal encode).levels[j]! = s.levels[j].chal encode := by

@@ -193,6 +193,33 @@ theorem level_model_eq (l : SLevel E Q R K) (st : State) (j : Nat) (hj : j ≠ 0
     List.length_map, Bool.false_eq_true, ↓reduceIte]
   rfl
 
+/-- Level 0's batch, as `finish_query_eq` states it over the reversed rows of words the
+source sums, is the model's `queryBatch` on the base rows. -/
+theorem base_model_eq (l : SLevel E Q R K) (st : State)
+    (b : whir.verify.PendingQuery Q E) (sum : E) (intro : whir.verify.Quad E) (oods : List (whir.verify.Ood E))
+    (hbq : b.queries.val = l.queries) (hbl : b.lambda = l.lambda)
+    (hbw : b.weights.val.map encode = (Concrete.powers (encode l.lambda) l.queries.length).toList)
+    (hoods : List.Forall₂ (OodIs encode) oods l.oods)
+    (hsum : encode sum = Protocol.enforced
+      ((l.rows.map List.reverse).map fun r => (r.map fun k => Concrete.E.ofK (encodeK k)).toArray).toArray
+      ((l.folds.map (·.1)).map encode).toArray (b.weights.val.map encode).toArray false)
+    (hic : intro.c = l.intro.1) (hia : intro.a = l.intro.2) (n1 : Nat)
+    (hn1 : n1 = (foldModel encode l.folds st).n) :
+    batchScalar (Query.oodFold (encode b.lambda) (Query.oodData encode oods) (foldModel encode l.folds st, 1)).1
+        (.query n1 (b.queries.val.map index).toArray (encode b.lambda)) (encode sum)
+        ((Query.oodFold (encode b.lambda) (Query.oodData encode oods) (foldModel encode l.folds st, 1)).2 *
+          encode b.lambda) ⟨encode intro.c, encode intro.a⟩ =
+      queryBatch (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs true) st).n 0 (l.chal encode)
+        (l.prf encode encodeK ofLimbs true) (l.queries.map index).toArray
+        (oodBatch (l.chal encode) (l.prf encode encodeK ofLimbs true)
+          (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs true) st)) := by
+  rw [foldBlock_level, oodBatch_level, oodData_of_forall₂ encode oods l.oods hoods, hbl, hbq, hn1, hsum, hic, hia]
+  have hw' : (b.weights.val.map encode).toArray = Concrete.powers (encode l.lambda) l.queries.length := by
+    rw [hbw]
+  simp only [queryBatch, SLevel.prf, SLevel.chal, beq_self_eq_true, ↓reduceIte, enforced_base, hw',
+    List.size_toArray, List.length_map]
+  congr 2 <;> simp [List.map_map, Function.comp_def, List.map_reverse]
+
 /-- The last level has no out-of-domain claims; its batch is `lastState`. -/
 theorem last_model_eq (l : SLevel E Q R K) (st : State) (j : Nat) (hj : j ≠ 0) (hoods : l.oods = []) :
     queryBatch (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st).n j (l.chal encode)
@@ -501,33 +528,31 @@ theorem residual_last (s : Script E Q R K) (hl : 0 < s.levels.length) (ys : List
     rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem]
   simp [Script.prf, this, hys, residualOf]
 
-/-- A later level of a valid script passes the model's level check and returns the
-level's query batch. -/
-theorem script_level_ok (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
+/-- A level of a valid script passes the model's level check and returns the level's
+query batch. -/
+theorem script_level_any (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
     (hch : (s.chal encode).valid c = true) (hS : ScriptShape index c s lanes) (init st : State) (j : Nat)
-    (hj : j < c.folds.size) (hj0 : j ≠ 0)
+    (hj : j < c.folds.size)
     (hrun : Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) j 0 init = .ok st)
     (hst : st.n = WHIRNativeGuards.before c j) :
     let l := s.levels[j]'(by rw [hS.len]; exact hj)
     Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) (j + 1) 0 init =
-      .ok (queryBatch (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st).n j (l.chal encode)
-        (l.prf encode encodeK ofLimbs false) (l.queries.map index).toArray
-        (oodBatch (l.chal encode) (l.prf encode encodeK ofLimbs false)
-          (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st))) := by
+      .ok (queryBatch (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs (j == 0)) st).n j (l.chal encode)
+        (l.prf encode encodeK ofLimbs (j == 0)) (l.queries.map index).toArray
+        (oodBatch (l.chal encode) (l.prf encode encodeK ofLimbs (j == 0))
+          (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs (j == 0)) st))) := by
   intro l
   have hjl : j < s.levels.length := by rw [hS.len]; exact hj
   obtain ⟨hfl, hol, hoz, qsA, hqA, eqA, hql⟩ := level_facts encode index c s lanes hch hS j hj
-  have hcv := WHIRNativeGuards.challenges_config c _ hch
   have hstep := WHIRNativeGuards.before_step c j hj
-  have hfb : (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st).n =
+  have hfb : (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs (j == 0)) st).n =
       CausalGame.remaining c j := by
     rw [foldBlock_level, foldModel_n, hst, ← hstep, hfl]
   have hqs : qsA = (l.queries.map index).toArray := by
     rw [← eqA]
   have hc : (s.chal encode).levels[j]! = l.chal encode := chal_get encode s j hjl
-  have hp : (s.prf encode encodeK ofLimbs).levels[j]! = l.prf encode encodeK ofLimbs false := by
-    have h0 : (j == 0) = false := by simpa using hj0
-    rw [prf_get encode encodeK ofLimbs s j hjl, h0]
+  have hp : (s.prf encode encodeK ofLimbs).levels[j]! = l.prf encode encodeK ofLimbs (j == 0) :=
+    prf_get encode encodeK ofLimbs s j hjl
   rw [runChecked_last, hrun]
   show verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs) (0 + j) st = _
   rw [Nat.zero_add]
@@ -548,9 +573,27 @@ theorem script_level_ok (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
         rw [residual_last encode encodeK ofLimbs s (by omega) ys hys, hfb]
         simp [hyl, show c.folds.size - 1 = j by omega])
     (by rw [hc, hp, hfb]; simpa [SLevel.chal] using hqA)
-    (by rw [hp, hqs]; simp [SLevel.prf, l, hS.rows j hjl])
+    (by rw [hp, hqs]; cases j == 0 <;> simp [SLevel.prf, l, hS.rows j hjl])
   rw [hc, hp, hqs] at hok
   exact hok
+
+/-- A later level of a valid script passes the model's level check and returns the
+level's query batch. -/
+theorem script_level_ok (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
+    (hch : (s.chal encode).valid c = true) (hS : ScriptShape index c s lanes) (init st : State) (j : Nat)
+    (hj : j < c.folds.size) (hj0 : j ≠ 0)
+    (hrun : Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) j 0 init = .ok st)
+    (hst : st.n = WHIRNativeGuards.before c j) :
+    let l := s.levels[j]'(by rw [hS.len]; exact hj)
+    Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) (j + 1) 0 init =
+      .ok (queryBatch (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st).n j (l.chal encode)
+        (l.prf encode encodeK ofLimbs false) (l.queries.map index).toArray
+        (oodBatch (l.chal encode) (l.prf encode encodeK ofLimbs false)
+          (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st))) := by
+  have h := script_level_any encode encodeK ofLimbs index c s lanes hch hS init st j hj hrun hst
+  have h0 : (j == 0) = false := by simpa using hj0
+  rw [h0] at h
+  exact h
 
 end ScriptLevel
 
@@ -720,5 +763,45 @@ theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     exact hloop
 
 end Loop
+
+/-! ## The model's verifier around its checked level replay -/
+
+section Native
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+
+theorem nativeVerify_ok_iff (c : Protocol.Config) (ch : Protocol.Challenges) (lanes : Nat) (initialClaim : Concrete.E)
+    (callerAt : Array Concrete.E → Concrete.E) (pf : Protocol.Opening) (sL : State)
+    (hch : ch.valid c = true) (hl0 : lanes ≠ 0) (hlm : lanes ≤ 2 ^ c.folds[0]!)
+    (hsize : pf.levels.size = c.folds.size) (htm : pf.tailMessages.size + 1 = ch.tail.size)
+    (hrun : Protocol.runChecked (verifyLevel c ch pf) c.folds.size 0
+      ⟨c.logN, initialClaim, pf.initial, ⟨[], []⟩⟩ = .ok sL) :
+    nativeVerify c ch lanes initialClaim callerAt pf = .ok () ↔
+      (closeTail ch pf sL).claim = sourceTerminal (callerAt (rotatePoint c.folds[0]!
+        (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual := by
+  have hlm' : ¬ (2 ^ c.folds[0]! < lanes) := by omega
+  simp only [nativeVerify, hch, hl0, hlm', hsize, htm, hrun, Bool.not_true, Bool.false_or, beq_iff_eq,
+    decide_false, Bool.or_false, Bool.false_eq_true, ↓reduceIte, bne_self_eq_false, Bool.or_self]
+  rw [show ∀ f : State → Except String Unit, ((Except.ok sL : Except String State) >>= f) = f sL from
+    fun _ => rfl]
+  by_cases he : (closeTail ch pf sL).claim = sourceTerminal (callerAt (rotatePoint c.folds[0]!
+      (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual
+  · simp [he]; rfl
+  · have : ((!(closeTail ch pf sL).claim == sourceTerminal (callerAt (rotatePoint c.folds[0]!
+        (sL.source.ris ++ ch.tail.toList).toArray)) sL.source.saved sL.source.ris ch.tail.toList pf.residual)) =
+        true := by simpa using he
+    simp only [this, ↓reduceIte, he, iff_false]
+    intro h; cases h
+
+theorem nativeVerify_lanes (c : Protocol.Config) (ch : Protocol.Challenges) (lanes : Nat) (initialClaim : Concrete.E)
+    (callerAt : Array Concrete.E → Concrete.E) (pf : Protocol.Opening)
+    (hl : lanes = 0 ∨ 2 ^ c.folds[0]! < lanes) :
+    nativeVerify c ch lanes initialClaim callerAt pf ≠ .ok () := by
+  intro h
+  have : (!ch.valid c || lanes == 0 || decide (lanes > 2 ^ c.folds[0]!)) = true := by
+    rcases hl with hl | hl <;> simp [hl]
+  simp only [nativeVerify, this, ↓reduceIte] at h
+  cases h
+
+end Native
 
 end WhirAeneas.Replay
