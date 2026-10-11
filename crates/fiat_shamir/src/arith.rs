@@ -361,9 +361,15 @@ impl<E: Copy> RoundPolynomial<Vec<E>> {
         let mut coeffs = v.prover_messages(n_coeffs - 1)?;
         coeffs.insert(fixed, claim);
 
-        // The coefficients past the fixed one, summed.
+        // The coefficients past the fixed one, summed in order.
+        // An index loop rather than a folding closure, so no closure captures the verifier.
         let zero = v.zero();
-        let tail = coeffs[fixed + 1..].iter().fold(zero, |acc, &c| v.add(acc, c));
+        let mut tail = zero;
+        let mut i = fixed + 1;
+        while i < coeffs.len() {
+            tail = v.add(tail, coeffs[i]);
+            i += 1;
+        }
 
         // c_1 = claim + sum_{i>=2} c_i, or c_0 = claim + r * sum_{i>=1} c_i.
         coeffs[fixed] = match eq {
