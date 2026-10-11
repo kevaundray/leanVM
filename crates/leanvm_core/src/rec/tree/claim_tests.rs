@@ -1,6 +1,7 @@
 //! Claim-set trees: proofs anyone combines, each declaring the union of its children's sets or part of it.
 
-use super::design::{Level, NodeInputs};
+use super::design::{ChildWitness, LARGE, Level, NodeInputs, Place, SMALL};
+use super::statement::Section;
 use super::union::UnionFill;
 use super::*;
 use crate::cpu::Prover;
@@ -74,7 +75,7 @@ struct Fixture {
     pair: Aggregate,
 }
 
-fn shape(leaf: LeafShape, claims: Option<Capacity>) -> TreeShape {
+fn shape(leaf: LeafShape, claims: Option<ClaimShape>) -> TreeShape {
     TreeShape {
         leaf,
         arity_0: 1,
@@ -95,7 +96,7 @@ static FIXTURE: LazyLock<Fixture> = LazyLock::new(|| {
     let sets = sets();
     let leaves: Vec<(Proof, Output)> = sets.iter().map(leaf_proof).collect();
     let leaf = LeafShape::of(&leaves[0].0).expect("a canonical announcement");
-    let tree = Tree::new(program(), shape(leaf, Some(CAPACITY))).expect("a tree");
+    let tree = Tree::new(program(), shape(leaf, Some(ClaimShape::new(CAPACITY)))).expect("a tree");
     let firsts: Vec<Aggregate> = (sets.iter().zip(&leaves))
         .map(|(set, (proof, output))| {
             let leaf = ClaimLeaf::new(Leaf::new(proof, *output), set);
@@ -121,7 +122,9 @@ fn fixture() -> &'static Fixture {
 #[test]
 fn a_tree_has_a_node_circuit_for_each_arity() {
     let f = fixture();
-    assert_eq!(f.tree.design.levels, [Level::First, Level::Node(2), Level::Node(3)]);
+    let nodes = [Level::First, Level::Node(2), Level::Node(3)];
+    let places: Vec<Place> = nodes.map(|level| Place { tier: SMALL, level }).into();
+    assert_eq!(f.tree.design.places, places);
     assert!(f.tree.node_stats(3).is_some() && f.tree.node_stats(4).is_none());
 }
 
@@ -218,15 +221,15 @@ fn forged_coverage_is_refused() {
     let f = fixture();
     // In rows: the pair's union and a claim no child holds, the rest selected honestly.
     let d = &f.tree.design;
-    let kind = d.node_kind(2).expect("a node of two");
+    let kind = d.place(SMALL, Level::Node(2)).expect("a node of two");
     let mut declared = f.pair.claims.clone();
     declared.groups[0].members.push(member(99));
     let proofs = [&f.firsts[0].proof, &f.firsts[1].proof];
     let statements: Vec<TreeStatement> = (proofs.iter())
         .map(|p| TreeStatement::new(d.statement, p.words.clone()))
         .collect();
-    let items = f.tree.child_witnesses(&proofs, &statements).expect("honest children");
-    let shape = d.union_shape(Level::Node(2)).expect("a claim-set tree");
+    let items = f.tree.child_witnesses(SMALL, &proofs, &statements).expect("honest children");
+    let shape = d.union_shape(kind).expect("a claim-set tree");
     let fill = UnionFill::unbacked(&shape, &[&f.firsts[0].claims, &f.firsts[1].claims], &declared);
     let inputs = NodeInputs::Prove {
         items: &items,
@@ -353,7 +356,7 @@ fn aggregates_from_different_provers_combine() {
     let f = fixture();
     // Another party builds the tree from the same program and shape, and proves the third leaf.
     let leaf = LeafShape::of(&f.leaves[0].0).expect("a canonical announcement");
-    let theirs = Tree::new(program(), shape(leaf, Some(CAPACITY))).expect("the same tree");
+    let theirs = Tree::new(program(), shape(leaf, Some(ClaimShape::new(CAPACITY)))).expect("the same tree");
     let (proof, output) = &f.leaves[2];
     let third = (theirs.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(proof, *output), &f.sets[2])], None))
         .expect("an honest leaf");
@@ -380,4 +383,202 @@ fn sets_past_the_capacity_are_refused() {
         .aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &big)], None))
     .expect("a set within the capacity");
     assert_eq!(f.tree.aggregate(&[&first, &f.pair], None), Err(TreeError::Capacity));
+}
+
+/// The small tier of the tiered fixture: nodes of two children declaring fewer than five claims in at most two groups.
+const SMALL_TIER: Tier = Tier {
+    arity: 2,
+    capacity: Capacity { claims: 5, groups: 2 },
+};
+
+/// The fixture's leaves in a tree of two tiers.
+struct Tiered {
+    tree: Tree<'static>,
+    /// Each leaf's first-level proof, of the small tier.
+    firsts: Vec<Aggregate>,
+    /// The first two firsts' union, five claims in three groups: of the large tier.
+    pair: Aggregate,
+}
+
+fn tiered_tree() -> Tree<'static> {
+    let leaf = LeafShape::of(&fixture().leaves[0].0).expect("a canonical announcement");
+    let claims = ClaimShape {
+        capacity: CAPACITY,
+        small: Some(SMALL_TIER),
+    };
+    Tree::new(program(), shape(leaf, Some(claims))).expect("a tree of two tiers")
+}
+
+static TIERED: LazyLock<Tiered> = LazyLock::new(|| {
+    let f = fixture();
+    let tree = tiered_tree();
+    let firsts: Vec<Aggregate> = (f.sets.iter().zip(&f.leaves))
+        .map(|(set, (proof, output))| {
+            let leaf = ClaimLeaf::new(Leaf::new(proof, *output), set);
+            tree.aggregate_leaves(&[leaf], None).expect("an honest leaf")
+        })
+        .collect();
+    let pair = tree
+        .aggregate(&[&firsts[0], &firsts[1]], None)
+        .expect("honest children");
+    Tiered { tree, firsts, pair }
+});
+
+fn tiered() -> &'static Tiered {
+    &TIERED
+}
+
+#[test]
+fn a_tree_of_two_tiers_has_a_wrap_and_heights_per_tier() {
+    let t = tiered();
+    let d = &t.tree.design;
+    let small = |level| Place { tier: SMALL, level };
+    let large = |level| Place { tier: LARGE, level };
+    assert_eq!(
+        d.places,
+        [
+            small(Level::First),
+            small(Level::Node(2)),
+            small(Level::Wrap),
+            large(Level::Node(2)),
+            large(Level::Node(3)),
+        ]
+    );
+    assert!(t.tree.small_node_stats(3).is_none() && t.tree.wrap_stats().is_some());
+    // Each tier's circuits are at its own heights.
+    for (p, place) in d.places.iter().enumerate() {
+        assert_eq!(t.tree.circuit(p).heights(), d.tiers[place.tier].taus, "{place:?}");
+    }
+    // A kind names one circuit, whose proofs state it.
+    for p in 0..d.places.len() {
+        assert_eq!(d.position(d.code(p)), Some(p));
+    }
+}
+
+#[test]
+fn small_unions_stay_small_and_large_proofs_are_wrapped_to_combine() {
+    let (t, f) = (tiered(), fixture());
+    for first in &t.firsts {
+        assert!(!t.tree.is_large(&first.proof));
+        (t.tree)
+            .verify_claims(&first.proof, &first.claims)
+            .expect("a small root");
+    }
+    assert!(t.tree.is_large(&t.pair.proof));
+    assert_eq!(t.pair.claims, union(&[&f.sets[0], &f.sets[1]]));
+    (t.tree)
+        .verify_claims(&t.pair.proof, &t.pair.claims)
+        .expect("a large root");
+    let twice = (t.tree.aggregate(&[&t.firsts[2], &t.firsts[2]], None)).expect("duplicates");
+    assert!(!t.tree.is_large(&twice.proof));
+    assert_eq!(twice.claims, t.firsts[2].claims);
+
+    // Three children, one large: wrapped, then the large tier's node of three.
+    let all = (t.tree.aggregate(&[&t.pair, &t.firsts[2], &t.firsts[0]], None)).expect("a large child");
+    assert!(t.tree.is_large(&all.proof));
+    assert_eq!(all.claims, union(&[&f.sets[0], &f.sets[1], &f.sets[2]]));
+    (t.tree)
+        .verify_claims(&all.proof, &all.claims)
+        .expect("the root of all three");
+
+    // The large pair narrowed to what the small tier holds: wrapped, then a small node; and not widened again.
+    let part = set(vec![group(1, 9, &[1, 3, 4])]);
+    let narrowed = (t.tree.aggregate(&[&t.pair], Some(&part))).expect("a covered declaration");
+    assert!(!t.tree.is_large(&narrowed.proof));
+    t.tree.verify_claims(&narrowed.proof, &part).expect("a narrowed root");
+    assert!(matches!(
+        t.tree.aggregate(&[&narrowed], Some(&t.pair.claims)),
+        Err(TreeError::NotCovered(_))
+    ));
+    let mut shuffled = all.claims.clone();
+    shuffled.groups.reverse();
+    assert_eq!(
+        t.tree.verify_claims(&all.proof, &shuffled),
+        Err(TreeError::ClaimSet(ClaimSetError::UnsortedGroups))
+    );
+}
+
+#[test]
+fn a_wrap_states_its_childs_set_only() {
+    let t = tiered();
+    let d = &t.tree.design;
+    // Natively: a large child handed with another set is refused, before its wrap.
+    let lying = Aggregate {
+        proof: t.pair.proof.clone(),
+        claims: t.firsts[0].claims.clone(),
+    };
+    assert_eq!(
+        t.tree.aggregate(&[&t.firsts[2], &lying], None),
+        Err(TreeError::ChildClaims { index: 1 })
+    );
+    // A large proof is no child of a node's rows, which verify small ones.
+    let honest = [TreeStatement::new(d.statement, t.pair.proof.words.clone())];
+    assert_eq!(
+        (t.tree.child_witnesses(SMALL, &[&t.pair.proof], &honest)).err(),
+        Some(TreeError::Circuit(t.pair.proof.circuit))
+    );
+
+    // In rows: the wrap's child stating another digest than its proof's does not verify.
+    let position = d.place(SMALL, Level::Wrap).expect("a wrap");
+    let items = (t.tree.child_witnesses(LARGE, &[&t.pair.proof], &honest)).expect("an honest child");
+    let mut words = t.pair.proof.words.clone();
+    let digest = d.statement.range(Section::Digest).start;
+    words[digest] = F192::new(words[digest].c0 ^ 1, words[digest].c1, words[digest].c2);
+    let forged = TreeStatement::new(d.statement, words);
+    let items = [ChildWitness {
+        statement: &forged,
+        proof: &t.pair.proof.proof,
+        openings: items[0].openings.clone(),
+        columns: items[0].columns,
+    }];
+    let inputs = NodeInputs::Prove {
+        items: &items,
+        tables: &t.tree.tables,
+        union: None,
+    };
+    let wrapped = t.tree.prove_rows(d.node(&inputs, position), position);
+    assert!(matches!(wrapped, Err(TreeError::Unsatisfied(_))), "{wrapped:?}");
+}
+
+#[test]
+fn a_tiered_first_level_and_union_stay_within_their_capacities() {
+    let t = tiered();
+    // The first level is the small tier's: a leaf of five claims is past it.
+    let five = set(vec![group(1, 1, &[0, 1, 2, 3, 4])]);
+    let (proof, output) = leaf_proof(&five);
+    assert_eq!(
+        t.tree.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &five)], None),
+        Err(TreeError::Capacity)
+    );
+    // And the large tier's capacity bounds every union.
+    let four = set(vec![group(3, 1, &[0, 1, 2, 3])]);
+    let (proof, output) = leaf_proof(&four);
+    let first = (t.tree.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &four)], None))
+        .expect("a set within the small tier");
+    let big = (t.tree.aggregate(&[&first, &t.pair], None)).expect("nine claims within the tree's capacity");
+    assert!(t.tree.is_large(&big.proof));
+    assert_eq!(t.tree.aggregate(&[&big, &t.firsts[2]], None), Err(TreeError::Capacity));
+}
+
+#[test]
+fn tiered_aggregates_from_different_provers_combine() {
+    let (t, f) = (tiered(), fixture());
+    let theirs = tiered_tree();
+    let (proof, output) = &f.leaves[2];
+    let third = (theirs.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(proof, *output), &f.sets[2])], None))
+        .expect("an honest leaf");
+    let both = (theirs.aggregate(&[&third, &t.pair], None)).expect("our large proof is theirs");
+    let received = Aggregate {
+        proof: TreeProof::from_bytes(&both.proof.to_bytes()).expect("a tree proof"),
+        claims: ClaimSet::from_bytes(&both.claims.to_bytes()).expect("a set"),
+    };
+    let again = (t.tree.aggregate(&[&received, &t.firsts[0]], None)).expect("their large proof is ours");
+    theirs
+        .verify_claims(&again.proof, &again.claims)
+        .expect("our root is theirs");
+    // A one-tier tree of the same capacity is another tree.
+    assert!(matches!(
+        f.tree.verify_claims(&t.pair.proof, &t.pair.claims),
+        Err(TreeError::Root(_) | TreeError::Circuit(_))
+    ));
 }
