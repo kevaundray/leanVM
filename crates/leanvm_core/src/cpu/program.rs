@@ -13,13 +13,16 @@ use super::witness::Witness;
 use super::{Output, Proof};
 use crate::class_flock::FlockId;
 use crate::constraints::{Claims, Columns};
+use crate::leaf::PublicColumns;
 use crate::pcs::{Committed, Rate};
 use crate::rv::{ElfError, Guest, Machine, ProgramError, Region, RiscvProgram};
 use crate::tables::{ClassTable, Clock, PerTable, TableId};
 use crate::{constraints, leaf};
 use fiat_shamir::arith::Native;
-use fiat_shamir::transcript::{Challenger, ProverState, RawProof, Transmitter, VerifierState};
+use fiat_shamir::{ProverState, SessionId, VerifierState};
 use flock::reduction;
+use pcs::merkle::Openings;
+use pcs::verifier::{OpeningVerifier, Recording};
 use primitives::field::{F64, F192};
 use primitives::hash::Hasher;
 use std::cmp::Reverse;
@@ -44,6 +47,11 @@ const _: () = assert!(cfg!(target_endian = "little"));
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
     const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-13";
+
+    /// The protocol half of the transcript's session tag: the proof system, its sponge and codecs, its version.
+    ///
+    /// The program's digest follows it in the tag, naming the relation.
+    const SESSION_TAG: &'static [u8] = b"leanvm/rv64im-proof/blake2s-duplex/gf2-192/v1";
 
     /// The cycles between two checks of a running trace against one commitment.
     const SIZE_CHECK_PERIOD: u64 = 1 << 16;
@@ -226,8 +234,8 @@ impl Program {
     ///
     /// Panics if the witness's bus does not balance: an honest run's always does.
     fn prove_witness(&self, w: Witness, output: Output, rate: Rate) -> Proof {
-        // The public statement, the program's digest and the output, seeds the transcript.
-        let mut ps = ProverState::new(self.fs_seed(), output.words().map(F64));
+        // The session names the program, and the output is the instance: every challenge depends on both.
+        let mut ps = ProverState::new(&self.session(), output.words());
 
         // Announce the sizes, then commit, before any challenge.
         let announcement = Announcement {
@@ -264,7 +272,7 @@ impl Program {
                     let evals = &bus.evals[t.index()];
                     (evals.iter().enumerate())
                         .filter(|(c, _)| !registers.contains(c))
-                        .for_each(|(_, &e)| ps.add_scalar(e));
+                        .for_each(|(_, e)| ps.prover_message(e));
                     Claims {
                         chi: bus.point[..l.taus[t]].to_vec(),
                         evals: evals.clone(),
@@ -277,7 +285,7 @@ impl Program {
                 let coefficients: Vec<Vec<F192>> = producers.iter().map(|p| p.coefficients.clone()).collect();
 
                 // The batch's eq point is the bus's, which lets it settle the bus forms alongside the constraints.
-                let powers = FormPowers::new(&mut Native, ps.sample());
+                let powers = FormPowers::new(&mut Native, ps.verifier_message());
                 let mut sums = powers.table_sums(&bus);
                 sums.extend(producers.iter().map(|p| powers.push() * p.sigma));
 
@@ -341,19 +349,6 @@ impl Program {
         Ok(self.check_deferred(&claims)?)
     }
 
-    /// Verify a proof and expand its Merkle paths for recursion.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first stage that refuses the proof.
-    #[tracing::instrument(name = "Verify", skip_all)]
-    #[doc(hidden)]
-    pub fn verify_to_raw(&self, output: Output, proof: &Proof) -> Result<RawProof, CpuError> {
-        let (claims, raw) = self.replay(output, proof)?;
-        self.check_deferred(&claims)?;
-        Ok(raw)
-    }
-
     /// The verifier's core: every check that depends on the proof.
     ///
     /// It returns the claims the proof leaves on polynomials only the program or the VM's circuits fix.
@@ -364,23 +359,41 @@ impl Program {
     ///
     /// Returns the first stage that refuses the proof.
     #[doc(hidden)]
+    #[tracing::instrument(name = "Verify core", skip_all)]
     pub fn verify_core(&self, output: Output, proof: &Proof) -> Result<DeferredClaims, CpuError> {
-        self.replay(output, proof).map(|(claims, _)| claims)
+        // The session names the program, and the output is the instance, as on the prover's side.
+        let mut vs = VerifierState::new(&self.session(), output.words(), &proof.0);
+        self.core(output, &mut vs)
     }
 
-    /// The verifier's core, and the proof it replayed with its Merkle paths written out.
-    #[tracing::instrument(name = "Verify core", skip_all)]
-    fn replay(&self, output: Output, proof: &Proof) -> Result<(DeferredClaims, RawProof), CpuError> {
-        // The public statement seeds the transcript, as on the prover's side.
-        let mut vs = VerifierState::new(self.fs_seed(), &proof.0, output.words().map(F64));
+    /// Verify a proof, keeping every Merkle opening it authenticates, phase by phase.
+    ///
+    /// A recursive verifier of the proof hashes those openings rather than decoding the hints again.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first stage that refuses the proof.
+    #[tracing::instrument(name = "Verify", skip_all)]
+    #[doc(hidden)]
+    pub fn verify_recording(&self, output: Output, proof: &Proof) -> Result<Vec<Openings>, VerifyError> {
+        let mut recording = Recording::new(VerifierState::new(&self.session(), output.words(), &proof.0));
+        let claims = self.core(output, &mut recording)?;
+        self.check_deferred(&claims)?;
+        Ok(recording.into_openings())
+    }
 
+    /// The verifier's core over a verifier reading the proof: the announcement, its layout, then every check.
+    fn core<V: OpeningVerifier<E = F192> + PublicColumns>(
+        &self,
+        output: Output,
+        v: &mut V,
+    ) -> Result<DeferredClaims, CpuError> {
         // The announced sizes, then the layout they describe, then the core.
-        let announcement = Announcement::read(&mut vs)?;
+        let announcement = Announcement::read(v)?;
         let l = announcement.layout(&self.rv)?;
         let clock = F192::from(F64(announcement.ts_final));
         let output = output.words().map(|o| F192::from(F64(o)));
-        let claims = l.verify_core(&mut vs, clock, &output, announcement.rate)?;
-        Ok((claims, vs.into_raw_proof()))
+        l.verify_core(v, clock, &output, announcement.rate)
     }
 
     /// The decoded text, memory image and region sizes.
@@ -397,12 +410,12 @@ impl Program {
         &self.digest
     }
 
-    /// The transcript's seed: the digest, as words.
+    /// The transcript's session: the proof system's tag, then the program's digest.
     ///
-    /// Every challenge depends on it, and the run's public output seeds the transcript beside it.
+    /// Every challenge depends on it, and the run's output is the transcript's first message.
     #[doc(hidden)]
-    pub fn fs_seed(&self) -> [F64; 4] {
-        fiat_shamir::digest_words(&self.digest)
+    pub fn session(&self) -> SessionId {
+        SessionId::new(&[Self::SESSION_TAG, &self.digest].concat())
     }
 
     /// The committed size of a run making these rows per table, each table taken at its provable height.
@@ -1050,7 +1063,8 @@ mod tests {
         let unmatched = unmatched(&w);
         assert!(unmatched.is_empty(), "the forged run balances: {unmatched:?}");
         let proof = program.prove_witness(w, exec.output.into(), Rate::MIN);
-        program.verify_to_raw(exec.output.into(), &proof).map(drop)
+        let claims = program.verify_core(exec.output.into(), &proof)?;
+        program.check_deferred(&claims)
     }
 
     #[test]
@@ -1408,10 +1422,7 @@ mod tests {
             );
             let proof = program.prove_witness(w, exec.output.into(), Rate::MIN);
             assert!(
-                matches!(
-                    program.verify_to_raw(exec.output.into(), &proof),
-                    Err(CpuError::Open(_))
-                ),
+                matches!(program.verify_core(exec.output.into(), &proof), Err(CpuError::Open(_))),
                 "bit {bit}"
             );
         }

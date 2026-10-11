@@ -234,7 +234,7 @@ mod avx512 {
     pub(super) unsafe fn fold_base_acc(acc: &mut [[u64; ROW]; 6], e: &LaneWeight, f: &[F64; ROW]) {
         // SAFETY: the function carries both features; `f` is eight qwords, and `acc` and `e` are 64-byte aligned.
         unsafe {
-            let mut sums = acc.map(|row| _mm512_load_si512(row.as_ptr().cast()));
+            let mut sums = acc.each_ref().map(|row| _mm512_load_si512(row.as_ptr().cast()));
             mul_by_words(&mut sums, e, _mm512_loadu_si512(f.as_ptr().cast()));
             for (row, s) in acc.iter_mut().zip(sums) {
                 _mm512_store_si512(row.as_mut_ptr().cast(), s);
@@ -794,13 +794,10 @@ fn grid_pass_with<const R: usize>(f: &[F64], block: usize, w: &dyn InitialWeight
     };
 
     let n_tasks = lanes.len().div_ceil(group) * per;
-    let new_scratch = || {
-        Box::new(Scratch {
-            raw: [[F192::ZERO; INITIAL_BASIS_CHUNK]; GROUP],
-            fg: [[0; ROW]; GRID],
-            bg: [WeightRow::default(); GRID],
-        })
-    };
+    // Initialize in place: the lane windows must not become a large stack temporary.
+    // SAFETY: Scratch contains only arrays of integer words, including F192 and WeightRow,
+    // and their zero bit patterns are the zero values required for padded lanes.
+    let new_scratch = || unsafe { Box::<Scratch>::new_zeroed().assume_init() };
     let new_acc = || Box::new([ProductRow::default(); GRID]);
     let acc = if lanes.len() * block < FIRST_PASS_PAR_THRESHOLD {
         let (mut scratch, mut acc) = (new_scratch(), new_acc());
@@ -852,9 +849,15 @@ impl LaneWeight {
 /// - vectors 0 and 1: coefficients 0 and 1 of the even words, 128-bit lane `m` for word `2m`;
 /// - vectors 2 and 3: the same for the odd words, lane `m` for word `2m + 1`;
 /// - vectors 4 and 5: coefficient 2, of the even words, then of the odd words.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 #[repr(C, align(64))]
 pub(super) struct WeightFold([[[u64; ROW]; 6]; INITIAL_BASIS_CHUNK / ROW]);
+
+impl Default for WeightFold {
+    fn default() -> Self {
+        Self([[[0; ROW]; 6]; INITIAL_BASIS_CHUNK / ROW])
+    }
+}
 
 /// `xs` by rows of `ROW`, the last one zero-padded.
 #[inline(always)]
