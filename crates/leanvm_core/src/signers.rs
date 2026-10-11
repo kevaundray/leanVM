@@ -199,7 +199,7 @@ impl KeysRef<'_> {
         }
     }
 
-    fn get(&self, i: usize) -> Key {
+    const fn get(&self, i: usize) -> Key {
         match self {
             Self::Xmss(k) => k[i],
             Self::Sphincs(c) => c[i].key,
@@ -285,7 +285,7 @@ impl SignerSet {
 
     /// Whether it holds no claim.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.xmss.is_empty() && self.sphincs.is_empty()
     }
 
