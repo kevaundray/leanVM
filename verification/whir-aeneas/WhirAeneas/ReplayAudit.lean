@@ -35,6 +35,8 @@ audits because the generated namespaces declare the same top-level instance name
 #print axioms WhirAeneas.Replay.run_loop_eq
 #print axioms WhirAeneas.Replay.run_eq
 #print axioms WhirAeneas.Replay.verify_eq
+#print axioms WhirAeneas.Replay.read_eq
+#print axioms ReplaySource.fiat_shamir.arith.RoundPolynomialVec.read
 #print axioms WhirAeneas.Sampling.sample_queries_ordered_eq
 
 open Lean in

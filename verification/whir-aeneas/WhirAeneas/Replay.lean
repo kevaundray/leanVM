@@ -62,9 +62,17 @@ theorem slice_range {α : Type} (s : Slice α) (a b : Usize) (hab : a.val ≤ b.
 /-! ## The transcript interface
 
 `tape v` is what the opening verifier in state `v` answers next, as source values, in the
-replay's read order. The interface assumes nothing about how the answers are produced
-(proof bytes, Fiat-Shamir duplex, proof of work, Merkle authentication); those are
-separate contracts of the concrete verifier. -/
+replay's read order. It is stated against the spongefish transcript of PR 607: a verifier
+message (`sample`, `sampleVec`, the batch challenge, the query positions) is drawn from the
+BLAKE2s duplex and takes no proof bytes; a prover message is read off the NARG string and
+absorbed (`scalar`, `scalars`: 24 bytes per element, three little-endian limbs lowest first;
+`root`: the raw 32-byte digest); a round polynomial is two prover messages, its constant and
+quadratic coefficients, from which the generated `RoundPolynomial::read` fixes the linear
+one; `grind` is the proof-of-work check (a 32-byte challenge drawn, then an 8-byte
+little-endian nonce read and absorbed; zero bits is no step); `rows` is one length-prefixed
+hint, not absorbed, authenticated by the opening verifier. The interface assumes nothing
+about how the duplex derives the draws or how the hint is authenticated; those are separate
+contracts of the concrete verifier. -/
 
 inductive Event (E Q R K : Type) where
   | sample (e : E)
@@ -78,27 +86,26 @@ inductive Event (E Q R K : Type) where
   | rows (ws : List (List K))
 
 /-- Each read returns the tape's next answer and leaves the rest; a round polynomial is
-its two transmitted coefficients with the linear one fixed by the claim; scopes change
-nothing. -/
+read as its two transmitted coefficients; scopes change nothing. -/
 structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
     (encode : E → Concrete.E) (tape : V → List (Event E Q R K)) : Prop where
   sample : ∀ v e rest, tape v = .sample e :: rest →
-    ∃ v', inst.fiat_shamirarithVerifierInst.sample v = .ok (e, v') ∧ tape v' = rest
+    ∃ v', inst.fiat_shamirarithVerifierInst.verifier_message v = .ok (e, v') ∧ tape v' = rest
   sample_vec : ∀ v (n : Usize) zs rest, tape v = .sampleVec zs :: rest → zs.length = n.val →
-    ∃ w v', inst.fiat_shamirarithVerifierInst.sample_vec v n = .ok (w, v') ∧ w.val = zs ∧
+    ∃ w v', inst.fiat_shamirarithVerifierInst.verifier_messages v n = .ok (w, v') ∧ w.val = zs ∧
       tape v' = rest
   scalar : ∀ v y rest, tape v = .scalar y :: rest →
-    ∃ v', inst.fiat_shamirarithVerifierInst.next_scalar v = .ok (.Ok y, v') ∧ tape v' = rest
+    ∃ v', inst.fiat_shamirarithVerifierInst.prover_message v = .ok (.Ok y, v') ∧ tape v' = rest
   scalars : ∀ v (n : Usize) ys rest, tape v = .scalars ys :: rest → ys.length = n.val →
-    ∃ w v', inst.fiat_shamirarithVerifierInst.next_scalars v n = .ok (.Ok w, v') ∧ w.val = ys ∧
+    ∃ w v', inst.fiat_shamirarithVerifierInst.prover_messages v n = .ok (.Ok w, v') ∧ w.val = ys ∧
       tape v' = rest
-  poly : ∀ v claim u0 u2 rest, tape v = .poly u0 u2 :: rest →
-    ∃ h b v', inst.fiat_shamirarithVerifierInst.next_round_poly v 3#usize claim none = .ok (.Ok h, v') ∧
-      h.val = [u0, b, u2] ∧ encode b = encode claim + encode u2 ∧ tape v' = rest
+  poly : ∀ v (n : Usize) u0 u2 rest, tape v = .poly u0 u2 :: rest → n.val = 2 →
+    ∃ w v', inst.fiat_shamirarithVerifierInst.prover_messages v n = .ok (.Ok w, v') ∧ w.val = [u0, u2] ∧
+      tape v' = rest
   root : ∀ v r rest, tape v = .root r :: rest →
     ∃ v', inst.next_root v = .ok (.Ok r, v') ∧ tape v' = rest
   grind : ∀ v bits rest, tape v = .grind :: rest →
-    ∃ v', inst.fiat_shamirarithVerifierInst.grind_check v bits = .ok (.Ok (), v') ∧ tape v' = rest
+    ∃ v', inst.fiat_shamirarithVerifierInst.check_pow v bits = .ok (.Ok (), v') ∧ tape v' = rest
   queries : ∀ v depth (count : Usize) qs rest, tape v = .queries qs :: rest → qs.length = count.val →
     ∃ w v', inst.sample_queries v depth count = .ok (w, v') ∧ w.val = qs ∧ tape v' = rest
   rows : ∀ v root depth queries a b ws rest, tape v = .rows ws :: rest →
@@ -113,19 +120,57 @@ variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E) (index : Q → Nat)
   (tape : V → List (Event E Q R K))
 
+/-- The generated `RoundPolynomial::read` of a quadratic with the linear coefficient fixed:
+the two transmitted coefficients with `claim + u2` inserted between them. -/
+theorem read_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (copy : core.marker.Copy E) (v v1 : V) (claim u0 u2 : E) (w : alloc.vec.Vec E) (hw : w.val = [u0, u2])
+    (hpm : inst.fiat_shamirarithVerifierInst.prover_messages v (Std.Usize.wrapping_sub 3#usize 1#usize) =
+      .ok (.Ok w, v1)) :
+    ∃ coeffs b, fiat_shamir.arith.RoundPolynomialVec.read copy inst.fiat_shamirarithVerifierInst v 3#usize claim
+        none = .ok (.Ok { coeffs := coeffs }, v1) ∧ coeffs.val = [u0, b, u2] ∧
+      encode b = encode claim + encode u2 := by
+  obtain ⟨z, hz, ez⟩ := h.zero v1
+  obtain ⟨t, ht, et⟩ := h.add v1 z u2
+  obtain ⟨t2, ht2, et2⟩ := h.add v1 claim t
+  have hm : 4 ≤ Usize.max := by clear * -; scalar_tac
+  obtain ⟨w3, hins, ew3⟩ : ∃ w3, alloc.vec.Vec.insert w 1#usize claim = .ok w3 ∧ w3.val = [u0, claim, u2] := by
+    simp [alloc.vec.Vec.insert, hw, show 2 < Usize.max by omega]
+  have h11 : Std.Usize.wrapping_add 1#usize 1#usize = 2#usize :=
+    UScalar.eq_of_val_eq (by rw [succ_val 1#usize 2 (by simp) (by omega)]; simp)
+  have h21 : (Std.Usize.wrapping_add 2#usize 1#usize).val = 3 := by
+    rw [succ_val 2#usize 3 (by simp) (by omega)]; simp
+  have hloop : fiat_shamir.arith.RoundPolynomialVec.read_loop copy inst.fiat_shamirarithVerifierInst v1
+      w3 z 2#usize = .ok (v1, t) := by
+    unfold fiat_shamir.arith.RoundPolynomialVec.read_loop
+    have hb1 : fiat_shamir.arith.RoundPolynomialVec.read_loop.body copy inst.fiat_shamirarithVerifierInst
+        w3 v1 z 2#usize = .ok (.cont (v1, t, Std.Usize.wrapping_add 2#usize 1#usize)) := by
+      have h2 : (2#usize : Usize) < alloc.vec.Vec.len w3 := by simp [UScalar.lt_equiv, ew3]
+      simp only [fiat_shamir.arith.RoundPolynomialVec.read_loop.body, h2, ↓reduceIte,
+        alloc.vec.Vec.index_slice_index, vec_index_usize w3 2#usize (by simp [ew3]), Std.bind_ok, lift]
+      simp [ew3, ht]
+    rw [loop_cont hb1]
+    apply loop_done
+    have h3 : ¬ (Std.Usize.wrapping_add 2#usize 1#usize < alloc.vec.Vec.len w3) := by
+      simp [UScalar.lt_equiv, ew3, h21]
+    simp [fiat_shamir.arith.RoundPolynomialVec.read_loop.body, h3]
+  refine ⟨alloc.vec.Vec.set w3 1#usize t2, t2, ?_, by simp [ew3], ?_⟩
+  · simp [fiat_shamir.arith.RoundPolynomialVec.read, massert, hpm, core.result.Result.Insts.CoreOpsTry.branch,
+      fiat_shamir.arith.fixed_coefficient, core.option.Option.is_some, hins, hz, lift, h11, hloop, ht2,
+      alloc.vec.Vec.index_mut_usize, vec_index_usize w3 1#usize (by simp [ew3])]
+  · rw [et2, et, ez, zero_add]
+
 /-- `Quad::recv` reads the next round polynomial: the transmitted `u0` and `u2`, with the
 linear coefficient `claim + u2`. -/
-theorem recv_eq (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
+theorem recv_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
     (claim u0 u2 : E) (rest : List (Event E Q R K)) (hv : tape v = .poly u0 u2 :: rest) :
     ∃ q v', whir.verify.Quad.recv copy inst v claim = .ok (.Ok q, v') ∧ q.c = u0 ∧ q.a = u2 ∧
       encode q.b = encode claim + encode u2 ∧ tape v' = rest := by
-  obtain ⟨h, b, v', hpoly, hh, hb, hrest⟩ := ht.poly v claim u0 u2 rest hv
-  have h0 : (0#usize).val < h.val.length := by simp [hh]
-  have h1 : (1#usize).val < h.val.length := by simp [hh]
-  have h2 : (2#usize).val < h.val.length := by simp [hh]
+  obtain ⟨w, v', hpm, hw, hrest⟩ := ht.poly v (Std.Usize.wrapping_sub 3#usize 1#usize) u0 u2 rest hv
+    (by rw [Fold.sub_val _ _ (by simp)]; simp)
+  obtain ⟨coeffs, b, hread, hc, hb⟩ := read_eq inst encode const h copy v v' claim u0 u2 w hw hpm
   refine ⟨{ c := u0, b := b, a := u2 }, v', ?_, rfl, rfl, hb, hrest⟩
-  simp only [whir.verify.Quad.recv, hpoly, Std.bind_ok, core.result.Result.Insts.CoreOpsTry.branch]
-  simp [alloc.vec.Vec.index_usize, hh]
+  simp [whir.verify.Quad.recv, hread, core.result.Result.Insts.CoreOpsTry.branch, alloc.vec.Vec.index_usize, hc]
 
 /-- The tape of fold rounds: each samples its challenge, then reads its polynomial. -/
 def foldTape (rounds : List (E × E × E)) : List (Event E Q R K) :=
@@ -179,7 +224,7 @@ theorem fold_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst
       (by simp [hv, foldTape])
     obtain ⟨t, het, et⟩ := quad_eval inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
       encode const h self.quad v1 r st.claim hb
-    obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode tape ht
+    obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode const tape h ht
       inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v1 t u0 u2
       (foldTape rounds ++ rest) (by rw [hv1])
     obtain ⟨rs1, hpush, ers1⟩ := push_ok rs r (by simp at hcap; omega)
@@ -238,18 +283,20 @@ def OodIs (o : whir.verify.Ood E) (d : List E × E × E × E) : Prop :=
   o.z.val = d.1 ∧ o.y = d.2.1 ∧ o.intro.c = d.2.2.1 ∧ o.intro.a = d.2.2.2 ∧
     encode o.intro.b = encode d.2.1 + encode d.2.2.2
 
-theorem ood_replay_eq (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
+theorem ood_replay_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
     (n : Usize) (z : List E) (y u0 u2 : E) (rest : List (Event E Q R K)) (hz : z.length = n.val)
     (hv : tape v = .sampleVec z :: .scalar y :: .poly u0 u2 :: rest) :
     ∃ o v', whir.verify.Ood.replay copy inst v n = .ok (.Ok o, v') ∧ OodIs encode o (z, y, u0, u2) ∧
       tape v' = rest := by
   obtain ⟨w, v1, h1, ew, hv1⟩ := ht.sample_vec v n z _ hv hz
   obtain ⟨v2, h2, hv2⟩ := ht.scalar v1 y _ hv1
-  obtain ⟨q, v3, h3, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode tape ht copy v2 y u0 u2 rest hv2
+  obtain ⟨q, v3, h3, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode const tape h ht copy v2 y u0 u2 rest hv2
   refine ⟨{ z := w, y := y, intro := q }, v3, ?_, ⟨ew, rfl, hqc, hqa, by rw [hqb, ← hqa]⟩, hv3⟩
   simp [whir.verify.Ood.replay, h1, h2, h3, core.result.Result.Insts.CoreOpsTry.branch]
 
-theorem replay_all_loop_eq (ht : Transcript inst encode tape) (copy : core.marker.Copy E)
+theorem replay_all_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (ht : Transcript inst encode tape) (copy : core.marker.Copy E)
     (count n : Usize) :
     ∀ (l : List (List E × E × E × E)) (i : Usize) (oods : alloc.vec.Vec (whir.verify.Ood E)) (v : V)
       (rest : List (Event E Q R K)),
@@ -269,7 +316,7 @@ theorem replay_all_loop_eq (ht : Transcript inst encode tape) (copy : core.marke
   | cons d l ih =>
     intro i oods v rest hi hz hv hcap
     obtain ⟨z, y, u0, u2⟩ := d
-    obtain ⟨o, v1, h1, eo, hv1⟩ := ood_replay_eq inst encode tape ht copy v n z y u0 u2
+    obtain ⟨o, v1, h1, eo, hv1⟩ := ood_replay_eq inst encode const tape h ht copy v n z y u0 u2
       (oodTape l ++ rest) (hz (z, y, u0, u2) (by simp)) (by simp [hv, oodTape])
     obtain ⟨oods1, hpush, eoods1⟩ := push_ok oods o (by simp at hcap; omega)
     have hlt : i.val < count.val := by simp at hi; omega
@@ -288,12 +335,13 @@ theorem replay_all_loop_eq (ht : Transcript inst encode tape) (copy : core.marke
     unfold whir.verify.Ood.replay_all_loop at hloop
     exact hloop
 
-theorem replay_all_eq (ht : Transcript inst encode tape) (copy : core.marker.Copy E)
+theorem replay_all_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (ht : Transcript inst encode tape) (copy : core.marker.Copy E)
     (v : V) (count n : Usize) (l : List (List E × E × E × E)) (rest : List (Event E Q R K))
     (hl : l.length = count.val) (hz : ∀ d ∈ l, d.1.length = n.val) (hv : tape v = oodTape l ++ rest) :
     ∃ w v', whir.verify.Ood.replay_all copy inst v count n = .ok (.Ok w, v') ∧ tape v' = rest ∧
       List.Forall₂ (OodIs encode) w.val l := by
-  obtain ⟨w, v', hloop, hv', ws, ew, hws⟩ := replay_all_loop_eq inst encode tape ht copy count n l
+  obtain ⟨w, v', hloop, hv', ws, ew, hws⟩ := replay_all_loop_eq inst encode const tape h ht copy count n l
     0#usize (alloc.vec.Vec.new _) v rest (by simp [hl]) hz hv (by simp [alloc.vec.Vec.new]; scalar_tac)
   refine ⟨w, v', hloop, hv', ?_⟩
   simpa [ew, alloc.vec.Vec.new] using hws
@@ -1153,7 +1201,7 @@ theorem tail_loop_eq {T1 : Type} (h : ArithModel inst.fiat_shamirarithVerifierIn
       obtain ⟨v1, hsample, hv1⟩ := ht.sample v tail[j] _ hv
       obtain ⟨t, het, et⟩ := quad_eval inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
         encode const h self.quad v1 tail[j] sj.claim (hb hjt)
-      obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode tape ht
+      obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode const tape h ht
         inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v1 t msgs[j].1 msgs[j].2 _ hv1
       have hbody : whir.verify.WhirReplay.last_level_loop.body inst W config nc weight_at yr iter self v rt =
           .ok (.cont (iter1, { self with t_r := t, quad := q }, v3, rt1)) := by
@@ -1530,7 +1578,7 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
       have := congrArg List.length ebw
       simp only [List.length_map, Array.length_toList, BatchingRefinement.size_powers] at this
       simp [alloc.vec.Vec.deref, this, hlenrows, hrows])
-  obtain ⟨intro, v5, hrecv, hic, hia, hib, hv5⟩ := recv_eq inst encode tape ht
+  obtain ⟨intro, v5, hrecv, hic, hia, hib, hv5⟩ := recv_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v3 sum i0 i2 _ hv3
   obtain ⟨w2, hfin, hris2, hrel2⟩ := Query.finish_query_eq inst encode const index h w st hrel v3 v3 v5 b
     (alloc.vec.Vec.new _) n sum intro (ht.end_scope v3) hrecv (by rw [hib, hia]) (by simp [alloc.vec.Vec.new])

@@ -197,10 +197,12 @@ theorem push_chunks_eq (hw : System.Platform.numBits = 64) (limbs : Array U64 3#
 
 /-! ## The squeeze loop -/
 
-/-- The challenger's squeezes: each `sample` returns the tape's next element. -/
-structure SqueezeTape {T0 : Type} (Ch : fiat_shamir.transcript.Challenger T0)
+/-- The challenger's squeezes: each `F192` verifier message drawn from the duplex is the
+tape's next element. -/
+structure SqueezeTape {T0 : Type} (Ch : fiat_shamir.Challenger T0)
     (tape : T0 → List primitives.field.gf2_64x3.F192) : Prop where
-  sample : ∀ ch x rest, tape ch = x :: rest → ∃ ch', Ch.sample ch = .ok (x, ch') ∧ tape ch' = rest
+  sample : ∀ ch x rest, tape ch = x :: rest → ∃ ch', Ch.verifier_message
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824 ch = .ok (x, ch') ∧ tape ch' = rest
 
 /-- A squeezed element as the model's extension element. -/
 def toE (x : primitives.field.gf2_64x3.F192) : Concrete.E :=
@@ -219,7 +221,7 @@ def sqNat (x : primitives.field.gf2_64x3.F192) : Nat := limbsNat x.c0 x.c1 x.c2
 def rawAt (ns : List Nat) (d per i : Nat) : Nat :=
   (ns.getD (i / per) 0 / 2 ^ ((i % per) * d)) % 2 ^ d
 
-theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fiat_shamir.transcript.Challenger T0)
+theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fiat_shamir.Challenger T0)
     (tape : T0 → List primitives.field.gf2_64x3.F192) (ht : SqueezeTape Ch tape)
     (block_len count d per : Usize) (hd0 : 0 < d.val) (hd : d.val < 64) (hb : block_len.val = 2 ^ d.val)
     (hper : per.val = 192 / d.val) (sq : List primitives.field.gf2_64x3.F192)
@@ -611,7 +613,7 @@ theorem trailing_zeros_pow (x : Usize) (d : Nat) (hd : d < 64) (hx : x.val = 2 ^
 returns exactly the model's `deriveQueries` of those squeezes read as extension elements,
 for a power-of-two block of depth `d` with `0 < d < 64`. -/
 theorem sample_queries_ordered_eq (hw : System.Platform.numBits = 64) {T0 : Type}
-    (Ch : fiat_shamir.transcript.Challenger T0) (tape : T0 → List primitives.field.gf2_64x3.F192)
+    (Ch : fiat_shamir.Challenger T0) (tape : T0 → List primitives.field.gf2_64x3.F192)
     (ht : SqueezeTape Ch tape) (ch : T0) (block_len count : Usize) (d : Nat) (hd0 : 0 < d) (hd : d < 64)
     (hb : block_len.val = 2 ^ d) (sq : List primitives.field.gf2_64x3.F192)
     (hsq : sq.length = (count.val + 192 / d - 1) / (192 / d)) (rest : List primitives.field.gf2_64x3.F192)

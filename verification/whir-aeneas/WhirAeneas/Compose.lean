@@ -351,7 +351,7 @@ theorem mid_level_eq {T1 : Type}
       (Std.Usize.wrapping_add iter.start 2#usize) = .ok cnt := by
     rw [slice_index _ _ (by simp only [alloc.vec.Vec.deref, Slice.from_val]; omega)]
     simp [alloc.vec.Vec.deref, hcnt, hi2]
-  obtain ⟨oodsV, v3, hrep, hv3, eoods⟩ := replay_all_eq inst encode tape ht
+  obtain ⟨oodsV, v3, hrep, hv3, eoods⟩ := replay_all_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v2 cnt n1 l.oods _ hoodn
     (fun d hd => by rw [hsub, hoodz d hd, hfl]) hv2
   -- query phase
@@ -386,7 +386,7 @@ theorem mid_level_eq {T1 : Type}
       simp only [List.length_map, Array.length_toList, BatchingRefinement.size_powers] at this
       simp [alloc.vec.Vec.deref, this, hlenrows, hrows])
   have hv5' : tape v5 = .poly l.intro.1 l.intro.2 :: rest := by rw [hv5]; rfl
-  obtain ⟨intro, v6, hrecv, hic, hia, hib, hv6⟩ := recv_eq inst encode tape ht
+  obtain ⟨intro, v6, hrecv, hic, hia, hib, hv6⟩ := recv_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v5 sum l.intro.1 l.intro.2 _ hv5'
   have hoodsI : ∀ o ∈ oodsV.val, encode o.intro.b = encode o.y + encode o.intro.a := by
     intro o ho
@@ -864,7 +864,7 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     rw [hv, Script.tape]
     conv_lhs => rw [hdrop0]
     simp [levelTape, List.append_assoc]
-  obtain ⟨q, v1, hrecv, hqc, hqa, hqb, hv1⟩ := recv_eq inst encode tape ht
+  obtain ⟨q, v1, hrecv, hqc, hqa, hqb, hv1⟩ := recv_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v target s.initial.1 s.initial.2 _ hv'
   obtain ⟨val1, hcs, hval1⟩ := checked_sub_some log_n config.initial_k (by
     have := hcl0.2.1; rw [hb0, hf0, hlogN] at this; omega)
@@ -889,7 +889,7 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     simp [alloc.vec.Vec.deref, hcnt]
   have hrem0 : CausalGame.remaining c 0 = val1.val := by
     rw [← hstep0, hb0, hf0, hval1, hlogN]
-  obtain ⟨oodsV, v4, hrep, hv4, eoods⟩ := replay_all_eq inst encode tape ht
+  obtain ⟨oodsV, v4, hrep, hv4, eoods⟩ := replay_all_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v3 cnt val1 l0.oods _ (by rw [hol0, hoodc])
     (fun d hd => by rw [hoz0 d hd, hrem0]) hv3
   set rate0 := config.log_inv_rates.val[0]'(by omega) with hrate0
@@ -924,7 +924,7 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
       simp [alloc.vec.Vec.deref, this, hlen1, hrows0])
   have hv6' : tape v6 = .poly l0.intro.1 l0.intro.2 :: ((s.levels.drop 1).flatMap levelTape ++
       (tailTape s.tail s.tailMsgs ++ rest)) := by rw [hv6]; rfl
-  obtain ⟨intro, v7, hrecv2, hic, hia, hib, hv7⟩ := recv_eq inst encode tape ht
+  obtain ⟨intro, v7, hrecv2, hic, hia, hib, hv7⟩ := recv_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v6 t l0.intro.1 l0.intro.2 _ hv6'
   have hoodsI : ∀ o ∈ oodsV.val, encode o.intro.b = encode o.y + encode o.intro.a := by
     intro o ho
