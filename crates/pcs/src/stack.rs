@@ -1316,6 +1316,8 @@ mod tests {
         }
     }
 
+    // The extraction root stays closure-free, so Clippy's combinator suggestions do not apply.
+    #[allow(clippy::option_if_let_else)]
     fn verify_instance(
         inst: &Instance,
         point_claims: &[StackClaim],
