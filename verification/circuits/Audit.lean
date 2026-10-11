@@ -117,8 +117,7 @@ import LeanVMCircuits
 #print axioms LeanVMCircuits.Rec.run_rows
 #print axioms LeanVMCircuits.Rec.seed_row
 #print axioms LeanVMCircuits.Rec.new_inv
-#print axioms LeanVMCircuits.Rec.commit_rows
-#print axioms LeanVMCircuits.Rec.low_bits_row
+#print axioms LeanVMCircuits.Rec.trial_rows
 #print axioms LeanVMCircuits.Rec.pow_rows
 
 #print axioms LeanVMCircuits.Rec.bus_next
