@@ -675,13 +675,16 @@ mod tests {
         run(&sets, &f, None)
     }
 
+    /// A change to an honest fill, by name.
+    type Forge = (&'static str, Box<dyn FnOnce(&mut UnionFill)>);
+
     #[test]
     fn forged_coverage_is_refused() {
         let declared_key = |f: &mut UnionFill| {
             let i = (f.declared.items.iter()).position(|it| matches!(it.kind, ItemKind::Keys { .. }));
             i.expect("a block of keys")
         };
-        let cases: Vec<(&str, Box<dyn FnOnce(&mut UnionFill)>)> = vec![
+        let cases: Vec<Forge> = vec![
             (
                 "a declared key changed",
                 Box::new(move |f| {
