@@ -16,9 +16,13 @@ mod arith;
 mod bits;
 mod chain;
 mod hash;
+mod parts;
 
 #[cfg(test)]
 pub(crate) use chain::testing as chains;
+pub use parts::Replay;
+
+use parts::Parts;
 
 use super::{
     Assignment, Circuit, Compression, Dw, Ew, Finished, Kw, Limbs, PubSource, TableSlots, Unsatisfied, WireKind,
@@ -31,6 +35,7 @@ use std::collections::HashMap;
 #[cfg(feature = "circuit-trace")]
 use std::fmt::Write;
 use std::hash::{BuildHasherDefault, Hasher};
+use std::sync::Arc;
 
 #[cfg(feature = "circuit-trace")]
 thread_local! {
@@ -98,23 +103,30 @@ fn row_key(table: Table, inputs: [u32; 3]) -> u128 {
     (table as u128) << 96 | u128::from(inputs[0]) << 64 | u128::from(inputs[1]) << 32 | u128::from(inputs[2])
 }
 
-/// Hashes a row key: wire numbers the builder made, never adversarial, so two rounds of a 64-bit finalizer suffice.
+/// A 64-bit finalizer.
+const fn mix(mut x: u64) -> u64 {
+    x ^= x >> 33;
+    x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
+    x ^= x >> 33;
+    x = x.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+    x ^ (x >> 33)
+}
+
+/// Hashes a row key or a wire: numbers the builder made, never adversarial, so a round or two of a 64-bit finalizer
+/// suffice.
 #[derive(Default)]
 struct RowHasher(u64);
 
 impl Hasher for RowHasher {
     fn write(&mut self, _: &[u8]) {
-        unreachable!("a row key is one u128");
+        unreachable!("a key is a row key or a wire");
+    }
+
+    fn write_u32(&mut self, wire: u32) {
+        self.0 = mix(u64::from(wire));
     }
 
     fn write_u128(&mut self, key: u128) {
-        const fn mix(mut x: u64) -> u64 {
-            x ^= x >> 33;
-            x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
-            x ^= x >> 33;
-            x = x.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
-            x ^ (x >> 33)
-        }
         self.0 = mix(mix(key as u64) ^ (key >> 64) as u64);
     }
 
@@ -130,8 +142,11 @@ impl Hasher for RowHasher {
 /// Folding depends on circuit constants and wire numbers, never on the values of unconstrained wires.
 #[derive(Debug, Default)]
 pub struct Builder {
-    /// Each wire's value.
+    /// Each wire's value, from wire `first` on.
     values: Vec<Limbs>,
+
+    /// The first wire `values` holds: zero but in a part replayed for its values.
+    first: u32,
 
     /// Each wire's kind.
     kinds: Vec<WireKind>,
@@ -165,6 +180,9 @@ pub struct Builder {
 
     /// Failed checks collected with their enclosing scope names, the first few only.
     failures: Vec<Unsatisfied>,
+
+    /// What a build of parts records, or what a replay of one reads back.
+    parts: Parts,
 
     /// The calls made of it, when `traced` is running.
     #[cfg(feature = "circuit-trace")]
@@ -241,7 +259,9 @@ impl Builder {
         if let Some(t) = self.trace.take() {
             TRACE.with(|g| g.borrow_mut().as_mut().map(|g| g.push_str(&t.out)));
         }
-        self.check_dynamic();
+        for check in chain::dynamic_failures(&self.rows, &self.values) {
+            self.fail(check);
+        }
         let (wires, pubs) = self.statement_first();
         let mut number: Vec<Option<u32>> = vec![None; self.values.len()];
         let mut n_classes = 0;
@@ -259,7 +279,7 @@ impl Builder {
             floor: PerRecTable::default(),
         };
         let assignment = Assignment {
-            wires,
+            wires: Arc::new(wires),
             values: self.values,
             hash: self.hash,
             statement: self.statement,
@@ -269,20 +289,6 @@ impl Builder {
             assignment,
             failures: self.failures,
         }
-    }
-
-    /// The values and the checks that failed on them, without numbering the wire classes: all a prover needs whose
-    /// circuit is already built from the same calls.
-    pub fn finish_values(mut self) -> (Assignment, Vec<Unsatisfied>) {
-        self.check_dynamic();
-        let (wires, _) = self.statement_first();
-        let assignment = Assignment {
-            wires,
-            values: self.values,
-            hash: self.hash,
-            statement: self.statement,
-        };
-        (assignment, self.failures)
     }
 
     /// The rows and the public sources with the statement's public rows first, in statement order.
@@ -301,10 +307,14 @@ impl Builder {
     }
 
     fn wire(&mut self, kind: WireKind, value: Limbs) -> u32 {
-        let id = u32::try_from(self.values.len()).expect("fewer than 2^32 wires");
+        let id = (u32::try_from(self.values.len()).ok())
+            .and_then(|i| i.checked_add(self.first))
+            .expect("fewer than 2^32 wires");
         self.values.push(value);
-        self.kinds.push(kind);
-        self.parent.push(id);
+        if !self.parts.replaying() {
+            self.kinds.push(kind);
+            self.parent.push(id);
+        }
         id
     }
 
@@ -319,8 +329,11 @@ impl Builder {
     }
 
     fn union(&mut self, a: u32, b: u32) {
-        if self.values[a as usize] != self.values[b as usize] {
+        if self.value(a) != self.value(b) {
             self.fail("unequal wires");
+        }
+        if self.parts.replaying() {
+            return;
         }
         let (ra, rb) = (self.find(a), self.find(b));
         if ra != rb {
@@ -328,7 +341,11 @@ impl Builder {
         }
     }
 
+    /// A row of a table, which a replay leaves to its build.
     fn row(&mut self, table: Table, slots: &[u32]) {
+        if self.parts.replaying() {
+            return;
+        }
         debug_assert!(
             table == Table::Pub
                 || (slots.iter().zip(table.slot_kinds())).all(|(&w, &kind)| self.kinds[w as usize] == kind),
@@ -337,20 +354,25 @@ impl Builder {
         self.rows.push(table, slots);
     }
 
+    /// The value of a wire.
+    fn value(&self, w: u32) -> Limbs {
+        (w.checked_sub(self.first)).map_or_else(|| self.parts.shared(w), |i| self.values[i as usize])
+    }
+
     /// The value of an `E` wire.
     pub fn e(&self, w: Ew) -> F192 {
-        let [c0, c1, c2, _] = self.values[w.0 as usize];
+        let [c0, c1, c2, _] = self.value(w.0);
         F192::new(c0, c1, c2)
     }
 
     /// The value of a `K` wire.
     pub fn k(&self, w: Kw) -> u64 {
-        self.values[w.0 as usize][0]
+        self.value(w.0)[0]
     }
 
     /// The value of a digest wire.
     pub fn d(&self, w: Dw) -> Limbs {
-        self.values[w.0 as usize]
+        self.value(w.0)
     }
 
     /// An extension-field wire constrained only by the slots that use it.
@@ -438,13 +460,16 @@ impl Builder {
     }
 
     fn constant(&mut self, kind: WireKind, value: Limbs) -> u32 {
-        if let Some(&w) = self.consts.get(&(kind, value)) {
+        if let Some(w) = self.earlier(&[], |b| b.consts.get(&(kind, value)).copied()) {
             return w;
         }
         let w = self.wire(kind, value);
-        self.pubs.push(PubSource::Const(value));
-        self.row(Table::Pub, &[w]);
-        self.consts.insert((kind, value), w);
+        self.parts.share(w, value);
+        if !self.parts.replaying() {
+            self.pubs.push(PubSource::Const(value));
+            self.row(Table::Pub, &[w]);
+            self.consts.insert((kind, value), w);
+        }
         let unit = match (kind, value) {
             (WireKind::E, [0, 0, 0, 0]) => &mut self.units.e_zero,
             (WireKind::E, [1, 0, 0, 0]) => &mut self.units.e_one,
@@ -512,10 +537,12 @@ impl Builder {
     }
 
     fn expose(&mut self, w: u32) -> usize {
-        let i = self.statement.len();
-        self.statement.push(self.values[w as usize]);
-        self.pubs.push(PubSource::Statement(i));
-        self.row(Table::Pub, &[w]);
+        let i = self.parts.first_statement_word() + self.statement.len();
+        self.statement.push(self.value(w));
+        if !self.parts.replaying() {
+            self.pubs.push(PubSource::Statement(i));
+            self.row(Table::Pub, &[w]);
+        }
         i
     }
 

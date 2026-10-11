@@ -10,7 +10,7 @@
 //! its public parameter `[p0, p1, 0]`, and the message's words `[m0, m1, 0]` and `[m2, m3, 0]`. The signature is the
 //! prover's, and the top layer's root it reaches is held to the statement's.
 
-use super::circuit::{Builder, Circuit, Dw, Finished, Kw, Limbs, PARAM_IV, Unsatisfied};
+use super::circuit::{Builder, Circuit, Dw, Finished, Kw, Limbs, PARAM_IV, Replay, Unsatisfied};
 use super::fixed::FixedColumns;
 use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
 use super::xmss::{STEPS, V, chains, digit_product, statement_words};
@@ -150,6 +150,8 @@ pub struct SphincsBatch {
     circuit: Circuit,
     /// Its fixed columns.
     columns: FixedColumns,
+    /// What a prover replays of the circuit's build, one part per signature, for its values.
+    replay: Replay,
     /// The transcript's session, which names the circuit and its size.
     session: SessionId,
 }
@@ -244,7 +246,8 @@ impl SphincsBatch {
         if n > MAX_SIGNATURES {
             return Err(SphincsError::TooLarge { n });
         }
-        let circuit = build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]).circuit;
+        let (finished, replay) = build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]);
+        let circuit = finished.circuit;
         circuit.committed_words().map_err(|_| SphincsError::TooLarge { n })?;
         let columns = FixedColumns::of(&circuit, &circuit.heights());
         let mut tag = DOMAIN.to_vec();
@@ -256,6 +259,7 @@ impl SphincsBatch {
             rate,
             circuit,
             columns,
+            replay,
             session,
         })
     }
@@ -321,12 +325,12 @@ impl SphincsBatch {
         self.count(claims.len(), "claims")?;
         self.count(signatures.len(), "signatures")?;
         let (assignment, failures) =
-            info_span!("Build circuit").in_scope(|| builder(claims, signatures).finish_values());
+            info_span!("Build circuit").in_scope(|| self.replay.values(part(claims, signatures)));
         if let Some(first) = failures.into_iter().next() {
             return Err(SphincsError::Unsatisfied(first));
         }
         debug_assert!(
-            build(claims, signatures).circuit == self.circuit,
+            build(claims, signatures).0.circuit == self.circuit,
             "the rows never depend on the values"
         );
         debug_assert!(
@@ -375,7 +379,7 @@ impl SphincsBatch {
     #[must_use]
     pub fn circuit_dump(&self) -> String {
         let n = self.n;
-        let (finished, calls) =
+        let ((finished, _), calls) =
             super::circuit::traced(|| build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]));
         assert_eq!(finished.circuit, self.circuit, "a circuit is built the same every time");
         calls + "circuit\n" + &self.circuit.dump() + &self.columns.dump_next(&self.circuit)
@@ -404,18 +408,21 @@ fn statement(claims: &[SphincsClaim]) -> Vec<Limbs> {
         .collect()
 }
 
-/// The circuit verifying the signatures, with their values: `Circuit.circuit n`.
-fn build(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> Finished {
-    builder(claims, signatures).finish()
+/// The circuit verifying the signatures, with their values, and its replay: `Circuit.circuit n`.
+fn build(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> (Finished, Replay) {
+    Builder::parts(claims.len(), part(claims, signatures))
 }
 
-/// The builder after the circuit's calls.
-fn builder(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> Builder {
-    let mut b = Builder::new();
-    for (j, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
-        b.scope(format!("signature {j}"), |b| signature(b, j, claim, sig));
+/// The circuit's part verifying signature `j`.
+fn part<'a>(
+    claims: &'a [SphincsClaim],
+    signatures: &'a [SphincsSignature],
+) -> impl Fn(&mut Builder, usize) + Sync + 'a {
+    move |b, j| {
+        b.scope(format!("signature {j}"), |b| {
+            signature(b, j, &claims[j], &signatures[j]);
+        });
     }
-    b
 }
 
 /// A tweak's first word: the domain separator 1 in byte 0, the type in byte 1, the layer or tree in byte 2, the
@@ -672,6 +679,24 @@ mod tests {
                 matches!(key.verify(&forged, &proof), Err(SphincsError::Proof(_))),
                 "{what}"
             );
+        }
+    }
+
+    #[test]
+    fn a_proof_replays_the_build() {
+        let (claims, signatures) = signed(2);
+        let batch = SphincsBatch::new(2, Rate::MIN).expect("two signatures fit");
+
+        // Mutation: the randomizer of the second signature.
+        //
+        //     the message digest changes, and every layer's digits and steps
+        //     → the build's failures
+        let mut tampered = signatures.clone();
+        tampered[1].randomizer[0] ^= 1;
+        for (sigs, honest) in [(&signatures, true), (&tampered, false)] {
+            let built = build(&claims, sigs).0;
+            let failures = batch.replay.assert_replays(part(&claims, sigs), &built);
+            assert_eq!(failures.is_empty(), honest);
         }
     }
 

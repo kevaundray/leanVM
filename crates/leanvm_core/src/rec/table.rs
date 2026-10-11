@@ -261,16 +261,34 @@ impl Table {
         }
     }
 
-    /// The dynamic tuples, push then pull, each `(key, x0, x1)`, of a row whose slots carry the given values.
-    ///
-    /// The row's columns are the prover's, filled from those values.
-    pub(crate) fn row_dynamic(self, slot: impl Fn(usize) -> Limbs) -> Option<[[F64; 3]; 2]> {
+    /// Its dynamic tuples as functions of a row's slot values, if it has any.
+    pub(crate) fn dynamic_tuples(self) -> Option<DynamicTuples> {
         debug_assert_eq!(self.n_ports(), 0, "a dynamic tuple reads committed columns only");
-        let tuples = self.dynamic()?;
-        let cols: Vec<F64> = (self.committed_sources().into_iter())
-            .map(|source| F64(source.value(&slot)))
-            .collect();
-        Some(tuples.map(|tuple| tuple.map(|c| eval_local(&c, &cols))))
+        Some(DynamicTuples {
+            tuples: self.dynamic()?,
+            sources: self.committed_sources(),
+        })
+    }
+}
+
+/// A dynamic table's tuples as functions of a row's slot values: its committed columns' sources and its tuples' forms,
+/// made once for all its rows.
+pub(crate) struct DynamicTuples {
+    /// Push then pull, each a key and two words over the table's local columns.
+    tuples: [[Coord; 3]; 2],
+    /// Each committed column's source.
+    sources: Vec<ColumnSource>,
+}
+
+impl DynamicTuples {
+    /// The tuples, push then pull, each `(key, x0, x1)`, of a row whose slots carry the given values; `cols` holds the
+    /// row's columns, filled from those values as the prover's are.
+    pub(crate) fn at(&self, slot: impl Fn(usize) -> Limbs, cols: &mut Vec<F64>) -> [[F64; 3]; 2] {
+        cols.clear();
+        cols.extend(self.sources.iter().map(|source| F64(source.value(&slot))));
+        self.tuples
+            .each_ref()
+            .map(|tuple| tuple.each_ref().map(|c| eval_local(c, cols)))
     }
 }
 
@@ -358,6 +376,11 @@ mod tests {
     #[test]
     fn step_and_link_keys_are_chain_positions() {
         let j = 0x5a5 << 41;
+        let (step, link) = (
+            Table::Step.dynamic_tuples().unwrap(),
+            Table::Link.dynamic_tuples().unwrap(),
+        );
+        let mut cols = Vec::new();
         // leanXMSS's base and leanSPHINCS's at layer 2.
         for base in [0x100, 0x2_0101] {
             let tweak = |c: u64, s: u64| base | (8 * c + s) << 32;
@@ -374,7 +397,7 @@ mod tests {
                             [a, 0, 0, 0],
                             [base, 0, 0, 0],
                         ];
-                        let [push, pull] = Table::Step.row_dynamic(|slot| values[slot]).unwrap();
+                        let [push, pull] = step.at(|slot| values[slot], &mut cols);
                         let next = if a == 1 { tweak(c, (s + 1) % 8) } else { t };
                         assert_eq!(pull.map(|x| x.0), [1 << 63 | t | j, 11, 12], "c {c} s {s} a {a}");
                         assert_eq!(push.map(|x| x.0), [1 << 63 | next | j, 13, 14], "c {c} s {s} a {a}");
@@ -397,7 +420,7 @@ mod tests {
                 values[clean::LINK_E] = [23, 0, 0, 0];
                 values[clean::LINK_E + 1] = [24, 0, 0, 0];
                 values[clean::LINK_A][0] = 1;
-                let [push, pull] = Table::Link.row_dynamic(|slot| values[slot]).unwrap();
+                let [push, pull] = link.at(|slot| values[slot], &mut cols);
                 assert_eq!(push.map(|x| x.0), [1 << 63 | w | d << 32, 21, 22]);
                 assert_eq!(pull.map(|x| x.0), [1 << 63 | w | 7 << 32, 23, 24]);
             }

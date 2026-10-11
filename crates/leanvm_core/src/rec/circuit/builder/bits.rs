@@ -68,7 +68,7 @@ impl Builder {
         let wires: [u32; 8] = std::array::from_fn(|s| {
             (given.iter().find(|&&(at, _)| at == s)).map_or_else(|| self.wire(kinds[s], values[s]), |&(_, w)| w)
         });
-        if given.iter().any(|&(s, w)| self.values[w as usize] != values[s]) {
+        if given.iter().any(|&(s, w)| self.value(w) != values[s]) {
             self.fail("cast");
         }
         self.row(Table::Cast, &wires);

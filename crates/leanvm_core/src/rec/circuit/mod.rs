@@ -11,15 +11,16 @@
 mod builder;
 mod compression;
 
-pub use builder::Builder;
 #[cfg(test)]
 pub(crate) use builder::chains;
 #[cfg(feature = "circuit-trace")]
 pub(crate) use builder::traced;
+pub use builder::{Builder, Replay};
 pub(crate) use compression::digest_limbs;
 pub use compression::{Compression, PARAM_IV, chain, zero_prefix};
 
 use super::table::{PerRecTable, Table};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// A wire's value as four `K` words: a `K` wire uses the first, an `E` wire the first three.
@@ -159,8 +160,8 @@ impl Circuit {
 /// What the prover adds to a circuit: every wire's value and every hash row's inputs.
 #[derive(Clone, Debug)]
 pub struct Assignment {
-    /// Each slot's own wire, whose value the slot carries.
-    pub(crate) wires: TableSlots,
+    /// Each slot's own wire, whose value the slot carries: one for every assignment a `Replay` makes.
+    pub(crate) wires: Arc<TableSlots>,
     /// Each wire's value.
     pub(crate) values: Vec<Limbs>,
     /// Each hash row's compression.
