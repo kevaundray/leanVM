@@ -68,7 +68,7 @@ impl Clock {
     /// # Panics
     ///
     /// Panics if `slots` are not a production table's clock slots ([`Self::builder`]).
-    pub fn circuit(slots: &[u32]) -> Circuit {
+    pub(crate) fn circuit(slots: &[u32]) -> Circuit {
         Self::builder(slots, &[], &[]).finish()
     }
 
@@ -81,10 +81,13 @@ impl Clock {
     /// lowest set bit skipped as structural zeros, and the OR of its live-bit disagreement; then the AND of the
     /// in-order bits, `late` and `fail`; the step's carries go straight to its bits 6 to 40.
     ///
+    /// Crate-internal: its only callers are the tables' clock circuits (`ClassSpec::clock_circuit` and
+    /// `Ext::clock_circuit`), whose slot lists are exactly the five exported ones.
+    ///
     /// # Panics
     ///
     /// Panics if `slots` are not a production table's clock slots.
-    pub fn builder(slots: &[u32], inputs: &[usize], outputs: &[usize]) -> Builder {
+    pub(crate) fn builder(slots: &[u32], inputs: &[usize], outputs: &[usize]) -> Builder {
         // Invariant: the clock's slot bits are structural zeros.
         // So the timestamp an access is ordered at, its slot ORed in, is the one its tuple carries, its slot XORed in.
         let input_bits: Vec<Range<usize>> = std::iter::once(Self::SLOT_BITS as usize..Self::CLOCK_BITS)
@@ -252,86 +255,6 @@ mod tests {
     use primitives::field::F192;
     use primitives::test_util::Rng;
 
-    /// The clock's gates as Rust wrote them before Lean exported them, for any slots: what the Clean circuit's export
-    /// must equal row for row, and the gate walk for slot lists no table has.
-    fn reference(slots: &[u32], inputs: &[usize], outputs: &[usize]) -> Builder {
-        let input_bits: Vec<Range<usize>> = std::iter::once(Clock::SLOT_BITS as usize..Clock::CLOCK_BITS)
-            .chain(std::iter::repeat_n(0..Clock::CLOCK_BITS, slots.len()))
-            .chain(inputs.iter().map(|&bits| 0..bits))
-            .collect();
-        let output_bits: Vec<usize> = std::iter::once(Clock::CLOCK_BITS + 1)
-            .chain(outputs.iter().copied())
-            .collect();
-        let mut c = Builder::with_input_ranges(&input_bits, &output_bits);
-        let ts = c.input::<{ Clock::CLOCK_BITS }>(0);
-        let live = ts[Clock::LIVE_BIT as usize];
-        let mut in_order = Vec::with_capacity(slots.len());
-        let mut disagree = Wire::ZERO;
-        for (i, &slot) in slots.iter().enumerate() {
-            assert!(slot < 1 << Clock::SLOT_BITS, "slot {slot} does not fit its bits");
-            let prev = c.input::<{ Clock::CLOCK_BITS }>(1 + i);
-            // Strict ordering is the carry of current + !previous over the low 40 bits.
-            let mut carry = Wire::ZERO;
-            for (bit, &p) in prev[..Clock::LIVE_BIT as usize].iter().enumerate() {
-                let not_prev = c.not(p);
-                carry = if bit >= Clock::SLOT_BITS as usize {
-                    let (x, y) = (c.xor(ts[bit], carry), c.xor(not_prev, carry));
-                    let majority = c.and(x, y);
-                    c.xor(majority, carry)
-                } else if slot >> bit & 1 == 1 {
-                    // The slot's bits are constants, so the carry is an OR or an AND.
-                    c.or(not_prev, carry)
-                } else {
-                    c.and(not_prev, carry)
-                };
-            }
-            in_order.push(carry);
-            let differs = c.xor(prev[Clock::LIVE_BIT as usize], live);
-            disagree = c.or(disagree, differs);
-        }
-        let ordered = in_order.into_iter().reduce(|x, y| c.and(x, y)).unwrap_or(Wire::ZERO);
-        let unordered = c.not(ordered);
-        let late = c.and(live, unordered);
-        let fail = c.or(late, disagree);
-        let mut carry = live;
-        c.output(0, Clock::SLOT_BITS as usize, carry);
-        for (bit, &timestamp) in ts
-            .iter()
-            .enumerate()
-            .take(Clock::LIVE_BIT as usize)
-            .skip(Clock::SLOT_BITS as usize)
-        {
-            carry = c.and_output(0, bit + 1, timestamp, carry);
-        }
-        c.output(0, Clock::FAIL_BIT as usize, fail);
-        c
-    }
-
-    #[test]
-    fn the_clean_clock_is_the_reference_gate_list() {
-        // Invariant: every production table's clock circuit, as Lean exports it, has the reference's R1CS, row for row.
-        //
-        // Fixture state: each table's slots, alone and with extra ports past the clock's as EXT's.
-        // Mutation: none; the rows are compared at random points, where distinct affine rows differ.
-        let mut rng = Rng::new(0xC1EA);
-        for table in TableId::ALL {
-            let slots = table.spec().slots();
-            for (inputs, outputs) in [(&[][..], &[][..]), (&[64, 64, 64, 2][..], &[1, 1, 64, 64][..])] {
-                let clean = Clock::builder(&slots, inputs, outputs).finish();
-                let reference = reference(&slots, inputs, outputs).finish();
-                let name = table.spec().name;
-                assert_eq!(clean.k_log(), reference.k_log(), "{name}");
-                assert_eq!(clean.useful_bits(), reference.useful_bits(), "{name}");
-                assert_eq!(clean.const_pos(), reference.const_pos(), "{name}");
-                assert_eq!(clean.n_input_words(), reference.n_input_words(), "{name}");
-                for _ in 0..4 {
-                    let w = rng.ext_vec(clean.n_cols());
-                    assert!(clean.row_values(&w) == reference.row_values(&w), "{name}");
-                }
-            }
-        }
-    }
-
     #[test]
     fn clean_clock_proves_native_witnesses_and_rejects_false_steps_products_and_padding() {
         // Invariant: each production clock circuit proves the native witnesses of live, failing and padding rows, and a
@@ -391,65 +314,70 @@ mod tests {
 
     #[test]
     fn the_clock_circuit_is_its_reference() {
-        // Invariant: the clock circuit computes what the executor and the tables put in its step port.
+        // Invariant: every production table's clock circuit computes what the executor and the tables put in its step port.
         //
-        // Fixture state: a row at cycle 1000 whose three accesses (slots 0, 1, 3) were last at cycles 999 and 1000.
+        // Fixture state: per table, a row at cycle 1000 whose accesses were last one cycle earlier in their own slots.
         // Mutation: every previous timestamp swept around the row's own, the live bit flipped, and a padding row.
-        let slots = [0, 1, 3];
-        let circuit = Clock::circuit(&slots);
-        let ts = Clock::SEED_CLOCK | (1000 * Clock::CYCLE);
-        let honest = [ts - Clock::CYCLE + 3, ts - Clock::CYCLE + 1, ts];
-        let mut cases = vec![
-            (ts, honest),
-            (0, [0; 3]),
-            ((Clock::MAX_CYCLES * Clock::CYCLE) | Clock::SEED_CLOCK, honest),
-        ];
-        for i in 0..3 {
-            for delta in [0, 1, 2, 3, 4, Clock::CYCLE] {
-                for prev in [
-                    ts ^ u64::from(slots[i]),
-                    ts + delta,
-                    ts - delta,
-                    (ts - delta) ^ Clock::SEED_CLOCK,
-                ] {
-                    let mut case = honest;
-                    case[i] = prev;
-                    cases.push((ts, case));
-                    cases.push((ts ^ Clock::SEED_CLOCK, case));
+        for table in TableId::ALL {
+            let slots = table.spec().slots();
+            let n = slots.len();
+            let circuit = Clock::circuit(&slots);
+            let ts = Clock::SEED_CLOCK | (1000 * Clock::CYCLE);
+            let honest: Vec<u64> = slots.iter().map(|&slot| ts - Clock::CYCLE + u64::from(slot)).collect();
+            let mut cases = vec![
+                (ts, honest.clone()),
+                (0, slots.iter().map(|&slot| u64::from(slot)).collect()),
+                ((Clock::MAX_CYCLES * Clock::CYCLE) | Clock::SEED_CLOCK, honest.clone()),
+            ];
+            for i in 0..n {
+                for delta in [0, 1, 2, 3, 4, Clock::CYCLE] {
+                    for prev in [
+                        ts ^ u64::from(slots[i]),
+                        ts + delta,
+                        ts - delta,
+                        (ts - delta) ^ Clock::SEED_CLOCK,
+                    ] {
+                        let mut case = honest.clone();
+                        case[i] = prev;
+                        cases.push((ts, case.clone()));
+                        cases.push((ts ^ Clock::SEED_CLOCK, case));
+                    }
                 }
             }
-        }
-        let words = (1usize << circuit.k_log()) / 64;
-        for (ts, prev) in cases {
-            let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-            let inputs = [ts, prev[0], prev[1], prev[2]];
-            circuit.witness_instance(&inputs, &mut z, &mut az, &mut bz);
+            let words = (1usize << circuit.k_log()) / 64;
+            for (ts, prev) in cases {
+                let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
+                let inputs = [vec![ts], prev.clone()].concat();
+                circuit.witness_instance(&inputs, &mut z, &mut az, &mut bz);
+                assert_eq!(
+                    z[n + 1],
+                    Clock { timestamp: ts }.step(&prev, &slots),
+                    "{}: ts {ts:#x}, prev {prev:x?}",
+                    table.spec().name
+                );
+            }
             assert_eq!(
-                z[4],
-                Clock { timestamp: ts }.step(&prev, &slots),
-                "ts {ts:#x}, prev {prev:x?}"
+                Clock { timestamp: ts }.step(&honest, &slots),
+                Clock::CYCLE,
+                "an honest row advances one cycle"
             );
         }
-        assert_eq!(
-            Clock { timestamp: ts }.step(&honest, &slots),
-            Clock::CYCLE,
-            "an honest row advances one cycle"
-        );
     }
 
     #[test]
     fn the_word_witness_is_the_gate_walk() {
         // Invariant: the word-level clock witness writes the tables the 64-lane walk of the clock circuit's gate list writes.
         //
-        // Fixture state: every table's clock circuit (EXT's with its own ports), and the reference gate list with an access in each of the 32 slots.
+        // Fixture state: every table's clock circuit, EXT's with its own ports.
         // Rows: padding rows (clock zero), the first and the last cycle, random cycles, all ones and random words; each previous timestamp at `ts ^ slot`, around it, with the live bit flipped, a padding tuple, a seed, zero, all ones, or a random word.
         // EXT's operands: pointers at zero, all ones, the sign bit, one limb or two below a wrap of 2^64 or of the sign bit, with every low bit set, aligned random or random; flags every legal word or a random word.
         let mut rng = Rng::new(0xC10C);
         let n_log = 12;
-        for spec in TableId::ALL.into_iter().map(|t| Some(t.spec())).chain([None]) {
-            let slots = spec.map_or_else(|| (0..Clock::CYCLE as u32).collect(), |spec| spec.slots());
-            let circuit = spec.map_or_else(|| reference(&slots, &[], &[]).finish(), |spec| spec.clock_circuit());
-            let operands = spec.map_or(&[][..], |spec| spec.clock_inputs);
+        for table in TableId::ALL {
+            let spec = table.spec();
+            let slots = spec.slots();
+            let circuit = spec.clock_circuit();
+            let operands = spec.clock_inputs;
             let rows: Vec<Vec<u64>> = (0..1 << n_log)
                 .map(|r| {
                     let ts = match r % 6 {
@@ -500,11 +428,10 @@ mod tests {
             let walk = circuit.witness_by_walk(&rows, &rows[0], n_log, |row: &Vec<u64>, words| {
                 words.copy_from_slice(row);
             });
-            let words = circuit.witness_by_instance(&rows, &rows[0], n_log, |row: &Vec<u64>, z, az, bz| match spec {
-                Some(spec) => spec.clock_witness(&slots, row, z, az, bz),
-                None => Clock::witness(&slots, row[0], &row[1..], z, az, bz),
+            let words = circuit.witness_by_instance(&rows, &rows[0], n_log, |row: &Vec<u64>, z, az, bz| {
+                spec.clock_witness(&slots, row, z, az, bz);
             });
-            let name = spec.map_or("every slot", |spec| spec.name);
+            let name = spec.name;
             assert!(walk.z == words.z, "z, {name}");
             assert!(walk.az == words.az, "A·z, {name}");
             assert!(walk.bz == words.bz, "B·z, {name}");
