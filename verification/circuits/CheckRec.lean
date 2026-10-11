@@ -58,12 +58,16 @@ def parse (line : String) : Except String Call := do
   | "d_to_e_and_k" => return .dToEAndK (← n 0)
   | "halves_to_d" => return .halvesToD (← n 0) (← n 1)
   | "k_to_d" => return .kToD (← n 0) (← n 1) (← n 2) (← n 3)
+  | "d_to_halves" => return .dToHalves (← n 0)
   | "compress" => return .compress (← n 0) (← n 1) (← n 2)
   | "node" => return .node (← n 0) (← n 1)
   | "parent" => return .parent (← n 0) (← n 1)
   | "leaf_block" =>
     let m ← nats (args.drop 1 |>.take 8)
     return .leafBlock (← n 0) m (← n 9) ((← n 10) = 1)
+  | "block" =>
+    let m ← nats (args.drop 1 |>.take 8)
+    return .hashBlock (← n 0) m (← n 9)
   | "chain" => return .chain (← list args)
   | op => .error s!"unknown call: {op}"
 

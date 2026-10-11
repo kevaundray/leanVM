@@ -135,6 +135,10 @@ impl Builder {
 
     /// A digest's two 128-bit halves, each with a zero top limb.
     pub fn d_to_halves(&mut self, d: Dw) -> [Ew; 2] {
+        traced!(self, format!("d_to_halves {}", d.0), self.d_to_halves_rows(d))
+    }
+
+    fn d_to_halves_rows(&mut self, d: Dw) -> [Ew; 2] {
         let v = self.d(d);
         let w = self.cast_row(&[(DIGEST, d.0)], v);
         [Ew(w[HALVES]), Ew(w[HALVES + 1])]
