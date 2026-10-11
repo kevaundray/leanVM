@@ -70,9 +70,10 @@ absorbed (`scalar`, `scalars`: 24 bytes per element, three little-endian limbs l
 quadratic coefficients, from which the generated `RoundPolynomial::read` fixes the linear
 one; `grind` is the proof-of-work check (a 32-byte challenge drawn, then an 8-byte
 little-endian nonce read and absorbed; zero bits is no step); `rows` is one length-prefixed
-hint, not absorbed, authenticated by the opening verifier. The interface assumes nothing
-about how the duplex derives the draws or how the hint is authenticated; those are separate
-contracts of the concrete verifier. -/
+hint, not absorbed, authenticated by the opening verifier against the root, depth, query
+positions and row and leaf widths the replay passes, which the event records. The interface
+assumes nothing about how the duplex derives the draws or how the hint is authenticated;
+those are separate contracts of the concrete verifier. -/
 
 inductive Event (E Q R K : Type) where
   | sample (e : E)
@@ -83,10 +84,11 @@ inductive Event (E Q R K : Type) where
   | root (r : R)
   | grind
   | queries (qs : List Q)
-  | rows (ws : List (List K))
+  | rows (root : R) (depth : Nat) (qs : List Q) (rowWords leafWords : Nat) (ws : List (List K))
 
 /-- Each read returns the tape's next answer and leaves the rest; a round polynomial is
-read as its two transmitted coefficients; scopes change nothing. -/
+read as its two transmitted coefficients; the rows read answers only the arguments its event
+records; scopes change nothing. -/
 structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
     (encode : E → Concrete.E) (tape : V → List (Event E Q R K)) : Prop where
   sample : ∀ v e rest, tape v = .sample e :: rest →
@@ -108,7 +110,8 @@ structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q
     ∃ v', inst.fiat_shamirarithVerifierInst.check_pow v bits = .ok (.Ok (), v') ∧ tape v' = rest
   queries : ∀ v depth (count : Usize) qs rest, tape v = .queries qs :: rest → qs.length = count.val →
     ∃ w v', inst.sample_queries v depth count = .ok (w, v') ∧ w.val = qs ∧ tape v' = rest
-  rows : ∀ v root depth queries a b ws rest, tape v = .rows ws :: rest →
+  rows : ∀ v root (depth : Usize) (queries : Slice Q) (a b : Usize) ws rest,
+    tape v = .rows root depth.val queries.val a.val b.val ws :: rest →
     ∃ w v', inst.open_rows v root depth queries a b = .ok (.Ok w, v') ∧
       w.val.map (·.val) = ws ∧ tape v' = rest
   begin_scope : ∀ v stage, inst.fiat_shamirarithVerifierInst.begin_scope v stage = .ok v
@@ -512,12 +515,18 @@ theorem open_e_rows_loop_eq (hr : RowModel inst encode encodeK ofLimbs index)
     unfold whir.verify.Oracle.open_e_rows_loop at hloop
     exact hloop
 
-/-- `open_e_rows` returns the transcript's opened rows, each read as elements. -/
+/-- `open_e_rows` returns the transcript's opened rows, each read as elements, when the rows
+event records the oracle's root, depth and leaf width and the queried positions. -/
 theorem open_e_rows_eq (hr : RowModel inst encode encodeK ofLimbs index) (ht : Transcript inst encode tape)
-    (oracle : whir.verify.Oracle R) (v : V) (queries : Slice Q) (ws : List (List K))
-    (rest : List (Event E Q R K)) (h3 : ∀ w ∈ ws, w.length % 3 = 0) (hv : tape v = .rows ws :: rest) :
+    (oracle : whir.verify.Oracle R) (v : V) (queries : Slice Q) (root : R) (depth : Nat) (qs : List Q)
+    (words : Nat) (ws : List (List K)) (rest : List (Event E Q R K)) (h3 : ∀ w ∈ ws, w.length % 3 = 0)
+    (hroot : oracle.root = root)
+    (hdepth : (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate).val = depth)
+    (hq : queries.val = qs) (hwords : (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = words)
+    (hv : tape v = .rows root depth qs words words ws :: rest) :
     ∃ rows v', whir.verify.Oracle.open_e_rows inst oracle v queries = .ok (.Ok rows, v') ∧ tape v' = rest ∧
       rows.val.map (fun r => r.val.map encode) = ws.map (eRow encodeK ofLimbs) := by
+  subst hroot hdepth hq hwords
   obtain ⟨w, v1, h1, ew, hv1⟩ := ht.rows v oracle.root
     (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate) queries
     (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved)
@@ -1497,6 +1506,29 @@ theorem shl_one_val (hw : System.Platform.numBits = 64) (n : Usize) (h : n.val <
   rw [h1, Nat.one_shiftLeft, hn]
   exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by norm_num) h)
 
+theorem shl_three_val (hw : System.Platform.numBits = 64) (k : Usize) (h : k.val < 62) :
+    (Std.Usize.wrapping_shl 3#usize k).val = 3 * 2 ^ k.val := by
+  simp only [Std.Usize.wrapping_shl, UScalar.wrapping_shl_rhs, WrappingShiftRhs.amount_unsigned]
+  have hn : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  have h3 : (3#usize : Usize).val = 3 := by simp
+  have hv : k.val % UScalarTy.Usize.numBits = k.val := by rw [hn]; exact Nat.mod_eq_of_lt (by omega)
+  rw [hv]
+  show ((3#usize : Usize).bv <<< k.val).toNat = 3 * 2 ^ k.val
+  rw [BitVec.toNat_shiftLeft]
+  change (3#usize : Usize).val <<< k.val % 2 ^ UScalarTy.Usize.numBits = 3 * 2 ^ k.val
+  rw [h3, Nat.shiftLeft_eq, hn]
+  apply Nat.mod_eq_of_lt
+  have : 2 ^ k.val ≤ 2 ^ 61 := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have h64 : (2 : Nat) ^ 64 = 8 * 2 ^ 61 := by norm_num
+  omega
+
+theorem add_val_lt (x y : Usize) (h : x.val + y.val < 64) :
+    (Std.Usize.wrapping_add x y).val = x.val + y.val := by
+  rw [Std.Usize.wrapping_add_val_eq]
+  have : x.val + y.val < UScalar.size .Usize := by
+    have := Usize.max_def; simp only [UScalar.size] at *; scalar_tac
+  exact Nat.mod_eq_of_lt this
+
 /-! ## The last level -/
 
 section Last
@@ -1520,13 +1552,17 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
     (hens : EnsureModel inst encode) (W : whir.verify.WeightAt T1 E V R K Q) (weight_at : T1)
     (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
-    (config : whir.config.Config) (oracle : whir.verify.Oracle R) (level_rs : Slice E)
+    (config : whir.config.Config) (oracle : whir.verify.Oracle R) (root : R) (depth words : Nat)
+    (horoot : oracle.root = root)
+    (hodepth : (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate).val = depth)
+    (howords : (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = words)
+    (level_rs : Slice E)
     (w : whir.verify.WhirReplay V R K Q E) (st : State) (hrel : Query.StateRel encode index w st)
     (hfits : ModelFits st) (v : V) (n : Usize) (hst : st.n = n.val) (hn64 : n.val < 64)
     (ys : List E) (qs : List Q) (lam : E) (rows : List (List K)) (i0 i2 : E) (tail : List E)
     (msgs : List (E × E)) (rest : List (Event E Q R K))
-    (hv : tape v = [.scalars ys, .grind, .queries qs, .sample lam, .rows rows, .poly i0 i2] ++
-      (tailTape tail msgs ++ rest))
+    (hv : tape v = [.scalars ys, .grind, .queries qs, .sample lam, .rows root depth qs words words rows,
+      .poly i0 i2] ++ (tailTape tail msgs ++ rest))
     (hys : ys.length = 2 ^ n.val)
     (hgl : (alloc.vec.Vec.len config.level_ks).val < config.grinding_bits.val.length)
     (hql : (alloc.vec.Vec.len config.level_ks).val < config.queries.val.length)
@@ -1555,7 +1591,8 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
       (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate)
       config.queries.val[(alloc.vec.Vec.len config.level_ks).val]) qs lam _ hcount hv1
   obtain ⟨rowsV, v3, h3, hv3, erows⟩ := open_e_rows_eq inst encode encodeK ofLimbs index tape hr ht oracle v2
-    (alloc.vec.Vec.deref b.queries) rows _ (fun r hr' => by rw [hwidth r hr']; omega) hv2
+    (alloc.vec.Vec.deref b.queries) root depth qs words rows _ (fun r hr' => by rw [hwidth r hr']; omega)
+    horoot hodepth (by simpa [alloc.vec.Vec.deref] using ebq) howords hv2
   have hrows_ne : rowsV.val ≠ [] := by
     intro hnil; apply hne
     have := congrArg List.length erows
@@ -1844,7 +1881,8 @@ open AccumulatedTerminalRefinement WHIRNativeArithmetic
 /-- One level's answers, as source values: the fold rounds `(r, u0, u2)`, the next oracle's
 root or (at the last level) the residual polynomial, the out-of-domain claims
 `(z, y, u0, u2)`, the query positions and the model's squeezes behind them, the batch
-challenge, the opened rows and the batch's intro round. -/
+challenge, the arguments the replay passes to the rows read (the level oracle's root and
+depth, the row and leaf widths in words), the opened rows and the batch's intro round. -/
 structure SLevel (E Q R K : Type) where
   folds : List (E × E × E)
   head : R ⊕ List E
@@ -1852,6 +1890,10 @@ structure SLevel (E Q R K : Type) where
   squeezes : Array Concrete.E
   queries : List Q
   lambda : E
+  root : R
+  depth : Nat
+  rowWords : Nat
+  leafWords : Nat
   rows : List (List K)
   intro : E × E
 
@@ -1868,7 +1910,8 @@ def headTape : R ⊕ List E → List (Event E Q R K)
   | .inr ys => [.scalars ys]
 
 def batchTape (l : SLevel E Q R K) : List (Event E Q R K) :=
-  [.grind, .queries l.queries, .sample l.lambda, .rows l.rows, .poly l.intro.1 l.intro.2]
+  [.grind, .queries l.queries, .sample l.lambda, .rows l.root l.depth l.queries l.rowWords l.leafWords l.rows,
+    .poly l.intro.1 l.intro.2]
 
 def levelTape (l : SLevel E Q R K) : List (Event E Q R K) :=
   foldTape l.folds ++ (headTape l.head ++ (oodTape l.oods ++ batchTape l))
@@ -1909,24 +1952,37 @@ def Script.prf (s : Script E Q R K) : Protocol.Opening :=
     (((s.levels.getLast?.map fun l => residualOf l.head).getD []).map encode).toArray,
     (s.tailMsgs.map fun m => (⟨encode m.1, encode m.2⟩ : Protocol.Message Concrete.E)).toArray⟩
 
-/-- The shapes the opening must have for the source's fixed read schedule: a root at every
-level but the last, the residual of the remaining cube at the last, query positions derived
-from the squeezes, one row per query of the committed width, and one round polynomial per
-residual round but the last; the source keeps all out-of-domain contexts in one vector, so
-their total count is below `usize::MAX`. -/
+/-- The shapes the opening must have for the source's fixed read schedule: every level but
+the last carries the next level's root, the last the residual of the remaining cube; query
+positions are derived from the squeezes; one row per query of the committed width; one
+round polynomial per residual round but the last; the source keeps all out-of-domain
+contexts in one vector, so their total count is below `usize::MAX`. The rows read gets the
+level's depth, and at level 0 the lane count and the lane fold's leaf width, at later levels
+the interleaved row of three words per element as both widths. -/
 structure ScriptShape (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat) : Prop where
   len : s.levels.length = c.folds.size
-  head : ∀ i (hi : i + 1 < s.levels.length), ∃ r, (s.levels[i]'(by omega)).head = .inl r
+  roots : ∀ i (hi : i + 1 < s.levels.length), (s.levels[i]'(by omega)).head = .inl (s.levels[i + 1]'hi).root
   last : ∀ (hl : 0 < s.levels.length), ∃ ys, (s.levels[s.levels.length - 1]'(by omega)).head = .inr ys ∧
     ys.length = 2 ^ CausalGame.remaining c (c.folds.size - 1)
   queries : ∀ i (hi : i < s.levels.length),
     (deriveQueries (CausalGame.remaining c i + c.rates[i]!) c.queries[i]! s.levels[i].squeezes).map
       Array.toList = some (s.levels[i].queries.map index)
+  depth : ∀ i (hi : i < s.levels.length), s.levels[i].depth = CausalGame.remaining c i + c.rates[i]!
   rows : ∀ i (hi : i < s.levels.length), s.levels[i].rows.length = s.levels[i].queries.length
   base : ∀ (hl : 0 < s.levels.length), ∀ w ∈ (s.levels[0]'hl).rows, w.length = lanes
+  baseWords : ∀ (hl : 0 < s.levels.length),
+    (s.levels[0]'hl).rowWords = lanes ∧ (s.levels[0]'hl).leafWords = 2 ^ c.folds[0]!
   ext : ∀ i (hi : i < s.levels.length), 0 < i → ∀ w ∈ s.levels[i].rows, w.length = 3 * 2 ^ c.folds[i]!
+  extWords : ∀ i (hi : i < s.levels.length), 0 < i →
+    s.levels[i].rowWords = 3 * 2 ^ c.folds[i]! ∧ s.levels[i].leafWords = 3 * 2 ^ c.folds[i]!
   tail : s.tailMsgs.length + 1 = s.tail.length
   small : (s.levels.map fun l => l.oods.length).sum < Usize.max
+
+/-- Every level but the last carries a root. -/
+theorem ScriptShape.head {idx : Q → Nat} {c : Protocol.Config} {s : Script E Q R K} {lanes : Nat}
+    (hS : ScriptShape idx c s lanes) (i : Nat) (hi : i + 1 < s.levels.length) :
+    ∃ r, (s.levels[i]'(by omega)).head = .inl r :=
+  ⟨_, hS.roots i hi⟩
 
 theorem chal_get (s : Script E Q R K) (j : Nat) (hj : j < s.levels.length) :
     (s.chal encode).levels[j]! = s.levels[j].chal encode := by
