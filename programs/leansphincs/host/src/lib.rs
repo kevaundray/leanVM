@@ -11,7 +11,6 @@ pub use signers::{SignerSet, SignerSetError, SphincsClaim};
 
 use core::ops::Range;
 use leansphincs::{Message, PublicKey, Signature};
-use leanvm::{SignerSet, SphincsClaim};
 use leanvm_guest::{PublicValues, Run, as_words_unchecked};
 
 /// The guest (`../guest`), built by `programs/build.sh`.
@@ -75,8 +74,8 @@ pub fn batch_groups(groups: &[Group]) -> Batch {
             leansphincs::verify(pk, &g.message, signature).expect("honest signatures verify");
             advice.extend(words_of_key(pk));
             advice.extend(words_of_signature(signature));
-            set.sphincs.push(SphincsClaim {
-                key: key(pk),
+            set.claims.push(SphincsClaim {
+                key: *pk,
                 message: g.message,
             });
         }
@@ -91,13 +90,6 @@ pub fn batch_groups(groups: &[Group]) -> Batch {
         },
         set,
     }
-}
-
-/// A key as a signer set holds it: its root, then its public parameter.
-const fn key(pk: &PublicKey) -> [u64; 4] {
-    let [r0, r1] = pk.root;
-    let [p0, p1] = pk.public_param;
-    [r0, r1, p0, p1]
 }
 
 /// A key as the words the guest reads it from.
@@ -116,9 +108,9 @@ const fn words_of_signature(signature: &Signature) -> &[u64] {
 mod tests {
     use super::*;
     use leansphincs::SphincsVerifyError::{InadmissibleDigest, InadmissibleEncoding, RootMismatch};
+    use leansphincs::signers::Stream;
     use leansphincs::{Signature, SphincsVerifyError};
     use leanvm::{Machine, Program, Trap};
-    use leanvm_guest::signers::{SPHINCS, SignerStream};
     use primitives::hash::digest_words;
 
     fn hex(bytes: impl IntoIterator<Item = u8>) -> String {
@@ -231,17 +223,21 @@ mod tests {
             words = tail;
             head
         };
-        let mut signers = SignerStream::new();
+        let mut signers = Stream::new();
         let mut open = None;
         for _ in 0..take(1)[0] {
             let message: &[u64; 4] = take(4).try_into().unwrap();
             let n = take(1)[0];
             if n != 0 && open != Some(message) {
-                signers.group(SPHINCS, 0, message);
+                signers.group(message);
                 open = Some(message);
             }
             for _ in 0..n {
-                signers.key(take(KEY).try_into().unwrap());
+                let k = take(KEY);
+                signers.key(&PublicKey {
+                    root: [k[0], k[1]],
+                    public_param: [k[2], k[3]],
+                });
                 take(SIGNATURE);
             }
         }
@@ -282,7 +278,7 @@ mod tests {
         // One group, every count up to 3: keys are written two to a block, so none, odd and even counts.
         for n in 0..=3 {
             let batch = batch(n);
-            assert_eq!(batch.set.n_claims(), n);
+            assert_eq!(batch.set.claims.len(), n);
             assert_eq!(batch.run.advice.len(), 1 + 5 + n * (KEY + SIGNATURE));
             outputs(&batch);
         }
@@ -291,17 +287,20 @@ mod tests {
         let batch = batch_groups(&groups());
         outputs(&batch);
         let set = &batch.set;
-        let messages: Vec<u64> = set.sphincs.iter().map(|c| c.message[0]).collect();
+        let messages: Vec<u64> = set.claims.iter().map(|c| c.message[0]).collect();
         assert_eq!(messages, [1, 1, 2, 2, 2, 1]);
         // Written as runs of one message: the two groups of message 2 are one, the empty group none.
-        assert_eq!(set.n_groups(), 3);
+        assert_eq!(set.groups().count(), 3);
         // Signer 1 under two messages, signer 0 under one twice: one key, several claims.
-        assert_eq!(set.sphincs[1].key, set.sphincs[2].key);
-        assert_eq!(set.sphincs[0], set.sphincs[5]);
+        assert_eq!(set.claims[1].key, set.claims[2].key);
+        assert_eq!(set.claims[0], set.claims[5]);
         // The set is not canonical (its claims are in the advice's order, one repeated); its canonical form holds
         // each claim once.
-        assert!(set.check(leanvm::Capacity::MAIN).is_err());
-        assert_eq!(SignerSet::from_claims(set.claims()).n_claims(), set.n_claims() - 1);
+        assert!(set.check().is_err());
+        assert_eq!(
+            SignerSet::from_claims(set.claims.clone()).claims.len(),
+            set.claims.len() - 1
+        );
     }
 
     #[test]
