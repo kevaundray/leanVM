@@ -19,6 +19,8 @@
 use crate::refuse;
 use crate::workload::{Items, Workload};
 use bench::{Heap, Metric, Plan, Timing, bencher_json};
+#[cfg(feature = "circuits")]
+use leanvm::aggregate::{Capacity, ClaimShape, Tier};
 use leanvm::aggregate::{CircuitStats, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof, TreeShape};
 use leanvm::{Output, ProvenRun, Prover, Rate, Stats};
 use primitives::pretty_integer;
@@ -340,7 +342,7 @@ fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> [(Kind, CircuitS
     Kind::ALL.map(|kind| (kind, built.stats(kind)))
 }
 
-/// Write each tracked tree's two circuits to `<out>/<name>-first.txt` and `<out>/<name>-node.txt`, and the instruction tables' native bindings to `<out>/table-flushes.dump`.
+/// Write every tracked output-tree circuit and claim-set tier position, plus native instruction table bindings.
 ///
 /// CI's `rec-builder-model` workflow replays the recorded builders and checks the table slot and clock-port bindings against their Lean sources.
 #[cfg(feature = "circuits")]
@@ -355,9 +357,40 @@ pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
     for tree in counted_trees().into_iter().chain(proven) {
         let shape = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
         let built = tree.tree(shape, rate);
-        for kind in Kind::ALL {
+        for position in 0..built.circuit_count() {
+            let kind = if position == 0 { Kind::First } else { Kind::Node };
             let path = out.join(format!("{}.txt", tree.node(kind).0));
-            std::fs::write(&path, built.circuit_dump(kind))
+            std::fs::write(&path, built.circuit_dump(position))
+                .unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
+        }
+    }
+    let leaf = Workload::leanxmss(100);
+    let measured = LeafShape::measured(&leaf.measure(), leaf_rate);
+    let capacity = Capacity { claims: 12, groups: 4 };
+    for (name, claims) in [
+        ("claimset-single-tier", ClaimShape::new(capacity)),
+        (
+            "claimset-two-tier",
+            ClaimShape {
+                capacity,
+                small: Some(Tier {
+                    arity: 2,
+                    capacity: Capacity { claims: 5, groups: 2 },
+                }),
+            },
+        ),
+    ] {
+        let shape = TreeShape {
+            leaf: measured,
+            arity_0: 1,
+            arity: 3,
+            rate,
+            claims: Some(claims),
+        };
+        let built = Tree::new(&leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{name}: {e}")));
+        for position in 0..built.circuit_count() {
+            let path = out.join(format!("{name}-circuit-{position}.txt"));
+            std::fs::write(&path, built.circuit_dump(position))
                 .unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
         }
     }
