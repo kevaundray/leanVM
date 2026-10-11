@@ -72,7 +72,6 @@ mod leaf;
 mod pcs;
 mod rec;
 mod rv;
-mod signers;
 mod tables;
 mod witness;
 
@@ -84,7 +83,6 @@ pub use rec::tree::{
     TreeShape, Unsatisfied,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
-pub use signers::{Capacity, Claim, Scheme, SignerSet, SignerSetError, SphincsClaim, XmssGroup};
 
 #[doc(hidden)]
 pub use crate::pcs::{MAX_MU, MIN_MU};
