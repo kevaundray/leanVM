@@ -16,7 +16,11 @@ impl Compression {
 
     /// The compression of the message `m` into `h` at byte counter `t`, final if `last`.
     pub const fn new(h: Limbs, m: [u64; 8], t: u64, last: bool) -> Self {
-        let f = if last { Hash::FINAL } else { 0 };
+        Self::with_flags(h, m, t, if last { Hash::FINAL } else { 0 })
+    }
+
+    /// The compression of the message `m` into `h` at byte counter `t`, with finalization word `f`.
+    pub const fn with_flags(h: Limbs, m: [u64; 8], t: u64, f: u64) -> Self {
         Self([
             t, f, h[0], h[1], h[2], h[3], m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
         ])

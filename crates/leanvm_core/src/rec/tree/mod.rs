@@ -41,6 +41,8 @@ mod claims;
 mod design;
 mod fixed;
 mod reduce;
+#[cfg_attr(not(test), expect(dead_code, reason = "signer-set trees build on it"))]
+mod signers;
 mod statement;
 mod stats;
 #[cfg(test)]

@@ -96,6 +96,13 @@ impl Builder {
         (Ew(w[ELEMENT]), Kw(w[WORDS + 3]))
     }
 
+    /// A digest's two 128-bit halves, each with a zero top limb.
+    pub fn d_to_halves(&mut self, d: Dw) -> [Ew; 2] {
+        let v = self.d(d);
+        let w = self.cast_row(&[(DIGEST, d.0)], v);
+        [Ew(w[HALVES]), Ew(w[HALVES + 1])]
+    }
+
     /// The digest whose two 128-bit halves are `lo` and `hi`, each with a zero top limb.
     pub fn halves_to_d(&mut self, lo: Ew, hi: Ew) -> Dw {
         let (l, h) = (self.e(lo), self.e(hi));
