@@ -469,7 +469,7 @@ impl Block {
 /// The compression of a message block onto a chaining value, `t` bytes into the message:
 /// the machine's instruction on the VM, portable Rust elsewhere.
 #[inline(always)]
-fn compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64; 4] {
+pub(crate) fn compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64; 4] {
     #[cfg(all(target_arch = "riscv64", target_os = "none"))]
     {
         crate::precompile::blake2s_compress(h, m, t, last)
