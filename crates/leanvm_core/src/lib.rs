@@ -72,7 +72,6 @@ mod leaf;
 mod pcs;
 mod rec;
 mod rv;
-mod signers;
 mod tables;
 mod witness;
 
@@ -80,11 +79,10 @@ pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 #[doc(hidden)]
 pub use rec::tree::{
-    Aggregate, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, SignerLeaf, TableStats, Tree,
-    TreeError, TreeProof, TreeShape, Unsatisfied,
+    Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, DensePoly, FalseClaim,
+    Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof, TreeShape, Unsatisfied,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
-pub use signers::{Capacity, Claim, Scheme, SignerSet, SignerSetError, SphincsClaim, XmssGroup};
 
 #[doc(hidden)]
 pub use crate::pcs::{MAX_MU, MIN_MU};
@@ -134,18 +132,19 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 ///
 /// Every tree proof states the same few hundred words:
 ///
-/// - a digest: of its leaves' outputs in a tree of outputs, of the signer set it declares in a signer-set tree,
+/// - a digest: of its leaves' outputs in a tree of outputs, of the claim set it declares in a claim-set tree,
 /// - claims that only the root's verifier evaluates.
 ///
-/// A tree of outputs has one node arity, and its root states its leaves' outputs in order. A signer-set tree
-/// ([`TreeShape::signers`]) has nodes of every arity up to its largest: anyone combines any of its proofs
-/// ([`Tree::aggregate`]), each node declaring the union of its children's signer sets or part of it, and its root states a
-/// canonical signer set ([`Tree::verify_signers`]).
+/// A tree of outputs has one node arity, and its root states its leaves' outputs in order. A claim-set tree
+/// ([`TreeShape::claims`]) has nodes of every arity up to its largest: anyone combines any of its proofs
+/// ([`Tree::aggregate`]), each node declaring the union of its children's claim sets or part of it, and its root states a
+/// canonical claim set ([`Tree::verify_claims`]). A leaf program publishes the claims it checked (a [`ClaimSet`]: groups
+/// of 6-word labels and 4-word members, whose meaning is the program's), its output the hash of the set's digest.
 ///
 /// A tree over one leaf, with `arity_0 = 1`, is a single proof's recursion.
 pub mod aggregate {
     pub use crate::rec::tree::{
-        Aggregate, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, SignerLeaf, TableStats, Tree,
-        TreeError, TreeProof, TreeShape, Unsatisfied,
+        Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, DensePoly,
+        FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof, TreeShape, Unsatisfied,
     };
 }

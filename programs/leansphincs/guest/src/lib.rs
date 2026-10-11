@@ -24,6 +24,7 @@ use thiserror::Error;
 mod fts;
 mod ots;
 mod sign;
+pub mod signers;
 
 pub use sign::{SecretKey, SphincsSignError, key_gen};
 
