@@ -28,9 +28,23 @@ pub struct TableStats {
 }
 
 impl Tree<'_> {
-    /// What the circuit of one kind of node costs.
+    /// What the circuit of one kind of node costs: of a signer-set tree's nodes, the one of the largest arity.
     #[must_use]
     pub fn stats(&self, kind: Kind) -> CircuitStats {
+        self.circuit_stats(match kind {
+            Kind::First => 0,
+            Kind::Node => self.design.levels.len() - 1,
+        })
+    }
+
+    /// What the node circuit of this arity costs, if the tree has one.
+    #[must_use]
+    pub fn node_stats(&self, arity: usize) -> Option<CircuitStats> {
+        self.design.node_kind(arity).map(|kind| self.circuit_stats(kind))
+    }
+
+    /// What the circuit of the kind with this index costs.
+    fn circuit_stats(&self, kind: usize) -> CircuitStats {
         // The circuit's rows per table, and the padded heights it is proven at.
         let circuit = self.circuit(kind);
         let (rows, heights) = (circuit.row_counts(), circuit.heights());

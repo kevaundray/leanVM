@@ -1,7 +1,7 @@
 //! Aggregation trees: RISC-V proofs of one program at the leaves, recursion proofs above them, one root the native verifier checks.
 //!
 //! ```text
-//!                 node                  verifies arity recursion proofs of either kind
+//!                 node                  verifies arity recursion proofs of any kind
 //!               /      \
 //!        first-level   first-level      each verifies arity_0 RISC-V proofs
 //!          /  \          /  \
@@ -10,29 +10,42 @@
 //!
 //! Every tree proof states the same words, whatever the tree's size:
 //!
-//! - its kind, and a digest of the leaves' outputs under it;
-//! - one claim on each of the bytecode table, RAM's image and the nodes' fixed polynomial, which holds both circuits' fixed columns;
+//! - its kind, and a digest;
+//! - one claim on each of the bytecode table, RAM's image and the nodes' fixed polynomial, which holds every circuit's fixed columns;
 //! - each flock circuit's two matrices at one row point and one column point.
 //!
 //! Each node reduces the claims its children leave and carry to one of each, and only the root's verifier evaluates them.
+//!
+//! A tree has one of two semantics, which its shape fixes:
+//!
+//! - **Outputs**: the digest is of the leaves' outputs under the proof, in order, through the tree's fixed shape.
+//! - **Signer sets**: the leaves publish signer sets (their output is the hash of their set's digest), and the digest is of
+//!   the set the proof declares: by default the union of its children's sets, or any part of it. Each node proves every
+//!   claim it declares is one of its children's (`signers`), so the root's set is backed by signatures the leaves
+//!   verified, whatever the tree's shape: anyone may combine any proofs of the tree, up to its largest arity, and the
+//!   root's verifier needs the set alone.
+//!
+//! A signer-set tree has a node circuit for each arity from two to its largest, all of one height.
 
 use crate::class_flock::FlockId;
 use crate::cpu::{Announcement, DecodeError, Lookup, Output, Program, Proof, ProvenRun, Stats, VerifyError};
 use crate::envelope::Envelope;
 use crate::pcs::Rate;
-use crate::rec::circuit::{Circuit, Finished};
+use crate::rec::circuit::{Circuit, Finished, chain};
 use crate::rec::fixed::FixedColumns;
 use crate::rec::layout::RecLayout;
 use crate::rec::table::PerRecTable;
 use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
+use crate::signers::{Capacity, Claim, SignerSet, SignerSetError};
 use crate::tables::PerTable;
-use design::{ChildWitness, Design, LeafWitness, NodeInputs, NodeRows};
+use design::{ChildWitness, Design, LeafWitness, Level, NodeInputs, NodeRows};
 use fiat_shamir::{FromNarg, ProofTranscript};
 use pcs::merkle::Openings;
 use primitives::field::{F64, F192};
 use primitives::multilinear::{eq_table, mle_eval_par};
 use reduce::DenseTables;
+use signers::{FillError, UnionFill};
 use statement::TreeStatement;
 use thiserror::Error;
 use tracing::info_span;
@@ -41,7 +54,8 @@ mod claims;
 mod design;
 mod fixed;
 mod reduce;
-#[cfg_attr(not(test), expect(dead_code, reason = "signer-set trees build on it"))]
+#[cfg(test)]
+mod signer_tests;
 mod signers;
 mod statement;
 mod stats;
@@ -86,10 +100,14 @@ pub struct TreeShape {
     pub leaf: LeafShape,
     /// The leaf proofs a first-level node verifies, at least one.
     pub arity_0: usize,
-    /// The tree proofs a higher node verifies, at least two.
+    /// The tree proofs a higher node verifies, at least two: the only arity of a tree of outputs, the largest of a
+    /// signer-set tree.
     pub arity: usize,
     /// The commitment rate of every tree proof.
     pub rate: Rate,
+    /// A signer-set tree's capacity, which a node's children's sets together and its own set stay within; none for a
+    /// tree of outputs.
+    pub signers: Option<Capacity>,
 }
 
 /// An aggregation tree over proofs of one program.
@@ -102,10 +120,10 @@ pub struct Tree<'p> {
     shape: TreeShape,
     /// What fixes the circuits.
     design: Design<'p>,
-    /// Each kind's circuit, the first level's first.
-    circuits: [Circuit; 2],
-    /// Each kind's circuit's fixed columns, the first level's first.
-    columns: [FixedColumns; 2],
+    /// Each kind's circuit, by its index: the first level's first.
+    circuits: Vec<Circuit>,
+    /// Each kind's circuit's fixed columns, by its index.
+    columns: Vec<FixedColumns>,
     /// The dense polynomials the root's claims are settled against.
     tables: DenseTables,
 }
@@ -117,14 +135,32 @@ pub struct Tree<'p> {
 /// A higher node's proof covers tree proofs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreeProof {
-    /// What its circuit verifies, its statement's first word.
-    kind: Kind,
+    /// The index of the circuit that made it, its statement's first word.
+    circuit: usize,
     /// Its statement's words.
     words: Vec<F192>,
     /// The recursion proof.
     proof: ProofTranscript,
     /// The rate it is proven at.
     rate: Rate,
+}
+
+/// A leaf of a signer-set tree: a leaf proof, and the signer set whose digest's hash its output is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignerLeaf<'a> {
+    /// The proof and its output.
+    leaf: Leaf<'a>,
+    /// The set it publishes.
+    signers: &'a SignerSet,
+}
+
+/// A proof of a signer-set tree and the set it declares: what one party hands another to combine.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Aggregate {
+    /// The proof.
+    pub proof: TreeProof,
+    /// The set its statement's digest is of.
+    pub signers: SignerSet,
 }
 
 /// A claim of a root's statement that is false.
@@ -234,6 +270,39 @@ pub enum TreeError {
     /// A claim the root carries is false.
     #[error("the root's claim {0} is false")]
     Claim(FalseClaim),
+    /// An operation of the other semantics: positional proving or verifying on a signer-set tree, or the reverse.
+    #[error("the tree is {}", if *.signers { "a signer-set tree" } else { "a tree of outputs" })]
+    Semantics {
+        /// Whether the tree is a signer-set tree.
+        signers: bool,
+    },
+    /// A proof of no circuit of the tree.
+    #[error("a proof of kind {0}, which the tree has no circuit of")]
+    Circuit(usize),
+    /// A leaf's output is not the hash of its signer set's digest.
+    #[error("leaf {index}'s output is not its signer set's")]
+    LeafSigners {
+        /// The leaf's index among its node's.
+        index: usize,
+    },
+    /// A child's statement is not of the signer set given with it.
+    #[error("child {index}'s statement is not of its signer set")]
+    ChildSigners {
+        /// The child's index among its node's.
+        index: usize,
+    },
+    /// The children's sets, or the declared set, do not fit the tree's capacity.
+    #[error("the signer sets do not fit the tree's capacity")]
+    Capacity,
+    /// A declared claim no child carries.
+    #[error("the declared claim {0:?} is not covered by the children")]
+    NotCovered(Claim),
+    /// A declared or root set that is not canonical, or past the capacity.
+    #[error("the signer set: {0}")]
+    SignerSet(SignerSetError),
+    /// The root does not state this signer set.
+    #[error("the root does not state this signer set")]
+    Signers,
 }
 
 impl LeafShape {
@@ -312,12 +381,12 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 14);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 15);
 
     /// The kind of node that made the proof.
     #[must_use]
     pub const fn kind(&self) -> Kind {
-        self.kind
+        if self.circuit == 0 { Kind::First } else { Kind::Node }
     }
 
     /// The proof's bytes.
@@ -366,12 +435,24 @@ impl TreeProof {
                 F192::new(limb(0), limb(1), limb(2))
             })
             .collect();
+        let first = words.first()?;
+        if (first.c1, first.c2) != (0, 0) {
+            return None;
+        }
         Some(Self {
-            kind: Kind::of_word(*words.first()?)?,
+            circuit: usize::try_from(first.c0).ok()?,
             words,
             proof: ProofTranscript::from_bytes(proof)?,
             rate: Rate::new(rate).ok()?,
         })
+    }
+}
+
+impl<'a> SignerLeaf<'a> {
+    /// The leaf of a proof whose output is the hash of this set's digest, as a guest that commits the digest gives.
+    #[must_use]
+    pub const fn new(leaf: Leaf<'a>, signers: &'a SignerSet) -> Self {
+        Self { leaf, signers }
     }
 }
 
@@ -391,14 +472,15 @@ impl<'p> Tree<'p> {
             arity_0,
             arity,
             rate,
+            signers,
         } = shape;
         if arity_0 == 0 || arity < 2 {
             return Err(TreeError::Arity { arity_0, arity });
         }
         let leaf = || ProofShape::new(program, leaves.taus, leaves.rate).map_err(|e| TreeError::LeafShape(e.into()));
-        let (design, circuits) = Self::converge(|taus| Design::new(leaf()?, arity_0, arity, rate, taus))?;
-        let columns = circuits.each_ref().map(|c| FixedColumns::of(c, &design.taus));
-        let fixed = design.fixed.polynomial([&columns[0], &columns[1]]);
+        let (design, circuits) = Self::converge(|taus| Design::new(leaf()?, arity_0, arity, rate, signers, taus))?;
+        let columns: Vec<FixedColumns> = circuits.iter().map(|c| FixedColumns::of(c, &design.taus)).collect();
+        let fixed = design.fixed.polynomial(&columns.iter().collect::<Vec<_>>());
         let rv = program.rv();
         let mut image: Vec<F64> = rv.image().iter().map(|&w| F64(w)).collect();
         image.resize(1 << design.vars.0[DensePoly::Image as usize], F64::ZERO);
@@ -412,24 +494,26 @@ impl<'p> Tree<'p> {
         })
     }
 
-    /// The heights both circuits share, and the circuits at them.
+    /// The heights every circuit shares, and the circuits at them, by their kind's index.
     ///
-    /// They are the least fixed point of `tau -> max(tau, first(tau), node(tau))`, from the first level's own heights.
+    /// They are the least fixed point of `tau -> max(tau, each circuit's heights at tau)`, from the first level's own heights.
     ///
     /// Each round only raises heights, and a node's rows grow with the logarithm of its children's, so few rounds reach it.
     fn converge(
         design: impl Fn(PerRecTable<usize>) -> Result<Design<'p>, TreeError>,
-    ) -> Result<(Design<'p>, [Circuit; 2]), TreeError> {
-        let mut taus = design(PerRecTable::default())?.shape(Kind::First).circuit.heights();
+    ) -> Result<(Design<'p>, Vec<Circuit>), TreeError> {
+        let mut taus = design(PerRecTable::default())?.shape(0).circuit.heights();
         for _ in 0..MAX_ROUNDS {
             let d = design(taus)?;
-            let built = Kind::ALL.map(|kind| d.shape(kind).circuit);
+            let built: Vec<Circuit> = (0..d.levels.len()).map(|kind| d.shape(kind).circuit).collect();
             let next = PerRecTable::from_fn(|t| built.iter().map(|c| c.heights()[t]).fold(taus[t], usize::max));
             if next == taus {
-                let circuits = built.map(|mut c| {
-                    c.floor = taus;
-                    c
-                });
+                let circuits = (built.into_iter())
+                    .map(|mut c| {
+                        c.floor = taus;
+                        c
+                    })
+                    .collect();
                 RecLayout::from_taus(taus).map_err(|_| TreeError::TooLarge)?;
                 return Ok((d, circuits));
             }
@@ -438,17 +522,56 @@ impl<'p> Tree<'p> {
         Err(TreeError::TooLarge)
     }
 
-    /// The circuit of a proof of this kind.
-    pub(crate) const fn circuit(&self, kind: Kind) -> &Circuit {
-        &self.circuits[kind as usize]
+    /// The circuit of the kind with this index.
+    pub(crate) fn circuit(&self, kind: usize) -> &Circuit {
+        &self.circuits[kind]
+    }
+
+    /// The capacity of a signer-set tree, or why this tree has none.
+    fn capacity(&self) -> Result<Capacity, TreeError> {
+        self.design.signers.ok_or(TreeError::Semantics { signers: false })
+    }
+
+    /// Nothing, if this is a tree of outputs.
+    const fn outputs(&self) -> Result<(), TreeError> {
+        match self.design.signers {
+            Some(_) => Err(TreeError::Semantics { signers: true }),
+            None => Ok(()),
+        }
+    }
+
+    /// Nothing, if a proof is of one of the tree's circuits and states as many words as its statements have.
+    fn known(&self, p: &TreeProof) -> Result<(), TreeError> {
+        if p.circuit < self.circuits.len() && p.words.len() == self.design.statement.len() {
+            Ok(())
+        } else {
+            Err(TreeError::Circuit(p.circuit))
+        }
     }
 
     /// Prove a first-level node over its leaves, each a RISC-V proof and its output, in order.
     ///
     /// # Errors
     ///
-    /// The wrong number of leaves, a leaf of another shape, or a leaf that does not verify.
+    /// A tree of outputs only. The wrong number of leaves, a leaf of another shape, or a leaf that does not verify.
     pub fn prove_first(&self, leaves: &[Leaf<'_>]) -> Result<TreeProof, TreeError> {
+        self.outputs()?;
+        let items = self.leaf_witnesses(leaves, |_| Ok([0; 4]))?;
+        let inputs = NodeInputs::Prove {
+            items: &items,
+            tables: &self.tables,
+            union: None,
+        };
+        let rows = info_span!("Build circuit").in_scope(|| self.design.first(&inputs));
+        self.prove_rows(rows, 0)
+    }
+
+    /// The first level's witnesses of its leaves, each verified natively; `signers` gives a leaf's set's digest.
+    fn leaf_witnesses<'a>(
+        &self,
+        leaves: &[Leaf<'a>],
+        signers: impl Fn(usize) -> Result<[u64; 4], TreeError>,
+    ) -> Result<Vec<LeafWitness<'a>>, TreeError> {
         let d = &self.design;
         if leaves.len() != d.arity_0 {
             return Err(TreeError::Children {
@@ -458,34 +581,51 @@ impl<'p> Tree<'p> {
         }
         let shape = LeafShape::new(*d.leaf.taus(), d.leaf.rate());
         let program = d.leaf.program();
-        let items = (leaves.iter().enumerate())
+        (leaves.iter().enumerate())
             .map(|(index, &Leaf { proof, output })| {
                 if LeafShape::announced(proof) != Some(shape) {
                     return Err(TreeError::ForeignLeaf { index });
                 }
+                let signers = signers(index)?;
                 let openings =
                     (program.verify_recording(output, proof)).map_err(|error| TreeError::Leaf { index, error })?;
                 Ok(LeafWitness {
                     proof: &proof.0,
                     openings,
                     output: *output.words(),
+                    signers,
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?;
-        let inputs = NodeInputs::Prove {
-            items: &items,
-            tables: &self.tables,
-        };
-        let rows = info_span!("Build circuit").in_scope(|| d.first(&inputs));
-        self.prove_rows(rows, Kind::First)
+            .collect()
+    }
+
+    /// The node's witnesses of its children, each verified natively, short of its claims.
+    fn child_witnesses<'a>(
+        &'a self,
+        children: &[&'a TreeProof],
+        statements: &'a [TreeStatement],
+    ) -> Result<Vec<ChildWitness<'a>>, TreeError> {
+        (children.iter().zip(statements).enumerate())
+            .map(|(index, (c, statement))| {
+                self.known(c)?;
+                let openings = self.read(c).map_err(|error| TreeError::Child { index, error })?;
+                Ok(ChildWitness {
+                    statement,
+                    proof: &c.proof,
+                    openings,
+                    columns: &self.columns[c.circuit],
+                })
+            })
+            .collect()
     }
 
     /// Prove a node over its children, tree proofs of either kind, in order.
     ///
     /// # Errors
     ///
-    /// The wrong number of children, or a child that does not verify.
+    /// A tree of outputs only. The wrong number of children, or a child that does not verify.
     pub fn prove_node(&self, children: &[TreeProof]) -> Result<TreeProof, TreeError> {
+        self.outputs()?;
         let d = &self.design;
         if children.len() != d.arity {
             return Err(TreeError::Children {
@@ -493,26 +633,130 @@ impl<'p> Tree<'p> {
                 got: children.len(),
             });
         }
-        let openings = (children.iter().enumerate())
-            .map(|(index, c)| self.read(c).map_err(|error| TreeError::Child { index, error }))
-            .collect::<Result<Vec<_>, _>>()?;
+        let children: Vec<&TreeProof> = children.iter().collect();
+        children.iter().try_for_each(|c| self.known(c))?;
         let statements: Vec<TreeStatement> = (children.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
             .collect();
-        let items: Vec<ChildWitness<'_>> = (children.iter().zip(&statements).zip(openings))
-            .map(|((c, statement), openings)| ChildWitness {
-                statement,
-                proof: &c.proof,
-                openings,
-                columns: &self.columns[c.kind as usize],
-            })
-            .collect();
+        let items = self.child_witnesses(&children, &statements)?;
         let inputs = NodeInputs::Prove {
             items: &items,
             tables: &self.tables,
+            union: None,
         };
-        let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs));
-        self.prove_rows(rows, Kind::Node)
+        let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs, 1));
+        self.prove_rows(rows, 1)
+    }
+
+    /// Prove a first-level node of a signer-set tree over its leaves, in order, declaring `declare`, by default the
+    /// union of the leaves' sets.
+    ///
+    /// # Errors
+    ///
+    /// - A tree of outputs.
+    /// - The wrong number of leaves, a leaf of another shape, a leaf that does not verify, or one whose output is not
+    ///   its set's.
+    /// - A declared set that is not canonical, past the capacity, or with a claim no leaf carries.
+    /// - Leaves whose sets together do not fit the capacity.
+    pub fn aggregate_leaves(
+        &self,
+        leaves: &[SignerLeaf<'_>],
+        declare: Option<&SignerSet>,
+    ) -> Result<Aggregate, TreeError> {
+        self.capacity()?;
+        let digests: Vec<[u64; 4]> = leaves.iter().map(|l| l.signers.digest()).collect();
+        let plain: Vec<Leaf<'_>> = leaves.iter().map(|l| l.leaf).collect();
+        let items = self.leaf_witnesses(&plain, |index| {
+            // The guest commits the digest, so its output is the digest's hash.
+            if *leaves[index].leaf.output.words() == chain(&digests[index]) {
+                Ok(digests[index])
+            } else {
+                Err(TreeError::LeafSigners { index })
+            }
+        })?;
+        let sets: Vec<&SignerSet> = leaves.iter().map(|l| l.signers).collect();
+        let (union, signers) = self.fill(Level::First, &sets, declare)?;
+        let inputs = NodeInputs::Prove {
+            items: &items,
+            tables: &self.tables,
+            union: Some(&union),
+        };
+        let rows = info_span!("Build circuit").in_scope(|| self.design.first(&inputs));
+        let proof = self.prove_rows(rows, 0)?;
+        Ok(Aggregate { proof, signers })
+    }
+
+    /// Prove a node of a signer-set tree over any of its proofs, from one to the tree's arity, each with the set it
+    /// declares, declaring `declare`, by default the union of their sets.
+    ///
+    /// The children may be of any kind and any provers'. One child is taken twice: its claims once, its repeat's
+    /// unselected, which narrows or republishes it.
+    ///
+    /// # Errors
+    ///
+    /// - A tree of outputs.
+    /// - No child, or more than the arity; a child that does not verify, or whose statement is not of its set.
+    /// - A declared set that is not canonical, past the capacity, or with a claim no child carries.
+    /// - Children whose sets together do not fit the capacity.
+    pub fn aggregate(&self, children: &[&Aggregate], declare: Option<&SignerSet>) -> Result<Aggregate, TreeError> {
+        self.capacity()?;
+        let d = &self.design;
+        let children: Vec<&Aggregate> = match children {
+            [one] => vec![one, one],
+            _ => children.to_vec(),
+        };
+        let kind = (d.node_kind(children.len())).ok_or(TreeError::Children {
+            expected: d.arity,
+            got: children.len(),
+        })?;
+        let proofs: Vec<&TreeProof> = children.iter().map(|c| &c.proof).collect();
+        proofs.iter().try_for_each(|c| self.known(c))?;
+        let statements: Vec<TreeStatement> = (proofs.iter())
+            .map(|c| TreeStatement::new(d.statement, c.words.clone()))
+            .collect();
+        let items = self.child_witnesses(&proofs, &statements)?;
+        if let Some(index) =
+            (statements.iter().zip(&children)).position(|(s, c)| s.digest_words() != c.signers.digest())
+        {
+            return Err(TreeError::ChildSigners { index });
+        }
+        let sets: Vec<&SignerSet> = children.iter().map(|c| &c.signers).collect();
+        let (union, signers) = self.fill(Level::Node(children.len()), &sets, declare)?;
+        let inputs = NodeInputs::Prove {
+            items: &items,
+            tables: &self.tables,
+            union: Some(&union),
+        };
+        let rows = info_span!("Build circuit").in_scope(|| d.node(&inputs, kind));
+        let proof = self.prove_rows(rows, kind)?;
+        Ok(Aggregate { proof, signers })
+    }
+
+    /// The union's values over these sets, and the set it declares: `declare`, or the canonical union.
+    fn fill(
+        &self,
+        level: Level,
+        sets: &[&SignerSet],
+        declare: Option<&SignerSet>,
+    ) -> Result<(UnionFill, SignerSet), TreeError> {
+        let capacity = self.capacity()?;
+        let declared = match declare {
+            Some(set) => {
+                set.check(capacity).map_err(TreeError::SignerSet)?;
+                set.clone()
+            }
+            None => {
+                let union = SignerSet::from_claims(sets.iter().flat_map(|s| s.claims()));
+                union.check(capacity).map_err(|_| TreeError::Capacity)?;
+                union
+            }
+        };
+        let shape = self.design.union_shape(level).expect("a signer-set tree has unions");
+        let fill = UnionFill::new(&shape, sets, &declared).map_err(|e| match e {
+            FillError::Children | FillError::Declared => TreeError::Capacity,
+            FillError::NotCovered(claim) => TreeError::NotCovered(claim),
+        })?;
+        Ok((fill, declared))
     }
 
     /// Prove the tree over its leaves, each a RISC-V proof and its output, in order.
@@ -521,8 +765,9 @@ impl<'p> Tree<'p> {
     ///
     /// # Errors
     ///
-    /// A number of leaves no tree of the arities has, or a leaf the first level refuses.
+    /// A tree of outputs only. A number of leaves no tree of the arities has, or a leaf the first level refuses.
     pub fn prove(&self, leaves: &[Leaf<'_>]) -> Result<TreeProof, TreeError> {
+        self.outputs()?;
         self.shape.root_kind(leaves.len())?;
         let (arity_0, arity) = (self.design.arity_0, self.design.arity);
         let mut level: Vec<TreeProof> = (leaves.chunks(arity_0))
@@ -541,9 +786,10 @@ impl<'p> Tree<'p> {
     ///
     /// # Errors
     ///
-    /// Returns the first check that refuses.
+    /// A tree of outputs only. Returns the first check that refuses.
     #[tracing::instrument(name = "Verify tree", skip_all)]
     pub fn verify(&self, root: &TreeProof, outputs: &[Output]) -> Result<(), TreeError> {
+        self.outputs()?;
         let d = &self.design;
         if root.rate != d.rate {
             return Err(TreeError::Rate {
@@ -552,19 +798,48 @@ impl<'p> Tree<'p> {
             });
         }
         let expected = self.shape.root_kind(outputs.len())?;
-        if root.kind != expected {
+        if root.kind() != expected {
             return Err(TreeError::Kind {
                 leaves: outputs.len(),
                 expected,
-                got: root.kind,
+                got: root.kind(),
             });
         }
+        self.known(root)?;
         self.read(root).map_err(TreeError::Root)?;
         let statement = TreeStatement::new(d.statement, root.words.clone());
         if statement.digest_words() != self.digest(outputs) {
             return Err(TreeError::Outputs);
         }
-        self.settle(&statement, root.kind)
+        self.settle(&statement, root.circuit)
+    }
+
+    /// Verify the root of a signer-set tree: its recursion proof, that its set is canonical and within the capacity,
+    /// that it states this set, and every claim it carries.
+    ///
+    /// The root may be of any kind, made by anyone, over any shape of tree: the set is all its statement says.
+    ///
+    /// # Errors
+    ///
+    /// A tree of outputs. Otherwise the first check that refuses.
+    #[tracing::instrument(name = "Verify signer-set tree", skip_all)]
+    pub fn verify_signers(&self, root: &TreeProof, signers: &SignerSet) -> Result<(), TreeError> {
+        let capacity = self.capacity()?;
+        let d = &self.design;
+        if root.rate != d.rate {
+            return Err(TreeError::Rate {
+                expected: d.rate,
+                got: root.rate,
+            });
+        }
+        self.known(root)?;
+        signers.check(capacity).map_err(TreeError::SignerSet)?;
+        self.read(root).map_err(TreeError::Root)?;
+        let statement = TreeStatement::new(d.statement, root.words.clone());
+        if statement.digest_words() != signers.digest() {
+            return Err(TreeError::Signers);
+        }
+        self.settle(&statement, root.circuit)
     }
 
     /// The digest the root over these leaf outputs states.
@@ -579,21 +854,23 @@ impl<'p> Tree<'p> {
     }
 
     /// Verify a tree proof's recursion proof, short of its claims, returning every opening it authenticated.
+    ///
+    /// The proof is of one of the tree's circuits.
     fn read(&self, p: &TreeProof) -> Result<Vec<Openings>, VerifyError> {
         let limbs: Vec<[u64; 4]> = p.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
-        self.circuit(p.kind)
+        self.circuit(p.circuit)
             .verify_with(
                 &limbs,
                 &self.design.session,
                 self.design.rate,
                 &p.proof,
-                &self.columns[p.kind as usize],
+                &self.columns[p.circuit],
             )
             .map_err(Into::into)
     }
 
-    /// Prove a circuit's rows: its reduction, then its recursion proof.
-    fn prove_rows(&self, rows: NodeRows, kind: Kind) -> Result<TreeProof, TreeError> {
+    /// Prove the rows of the circuit of kind `kind`: its reduction, then its recursion proof.
+    fn prove_rows(&self, rows: NodeRows, kind: usize) -> Result<TreeProof, TreeError> {
         let d = &self.design;
         let reduction = rows.claim_values().prove(&d.session, &d.vars, &self.tables);
         let Finished {
@@ -603,13 +880,13 @@ impl<'p> Tree<'p> {
             return Err(TreeError::Unsatisfied(first));
         }
         let proof = (self.circuit(kind))
-            .prove_with(&assignment, &d.session, d.rate, Some(&self.columns[kind as usize]))
+            .prove_with(&assignment, &d.session, d.rate, Some(&self.columns[kind]))
             .map_err(|_| TreeError::TooLarge)?;
         let words = (assignment.statement().iter())
             .map(|l| F192::new(l[0], l[1], l[2]))
             .collect();
         Ok(TreeProof {
-            kind,
+            circuit: kind,
             words,
             proof,
             rate: d.rate,
@@ -618,11 +895,11 @@ impl<'p> Tree<'p> {
 
     /// Evaluate every claim a root's statement carries.
     #[tracing::instrument(name = "Settle claims", skip_all)]
-    fn settle(&self, s: &TreeStatement, kind: Kind) -> Result<(), TreeError> {
+    fn settle(&self, s: &TreeStatement, kind: usize) -> Result<(), TreeError> {
         let vars = &self.design.vars.0;
         for poly in DensePoly::ALL {
             // A first-level node reduces no claim on the fixed polynomial.
-            if poly == DensePoly::Fixed && kind == Kind::First {
+            if poly == DensePoly::Fixed && kind == 0 {
                 continue;
             }
             let point = &s.dense_point()[..vars[poly as usize]];

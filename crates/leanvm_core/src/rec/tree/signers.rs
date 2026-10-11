@@ -270,6 +270,23 @@ impl PoolFill {
 impl UnionFill {
     /// The union's values: the children's sets, and the declared set, each of whose claims some child slot backs.
     pub(crate) fn new(shape: &UnionShape, children: &[&SignerSet], declared: &SignerSet) -> Result<Self, FillError> {
+        Self::fill(shape, children, declared, true)
+    }
+
+    /// The union's values with each declared claim some child slot backs selected, the others left unbacked: what
+    /// a prover forging coverage would hand the rows.
+    #[cfg(test)]
+    pub(crate) fn unbacked(shape: &UnionShape, children: &[&SignerSet], declared: &SignerSet) -> Self {
+        Self::fill(shape, children, declared, false).expect("the sets fit")
+    }
+
+    /// The union's values, refusing a claim no child slot backs if `strict`, else leaving it unbacked.
+    fn fill(
+        shape: &UnionShape,
+        children: &[&SignerSet],
+        declared: &SignerSet,
+        strict: bool,
+    ) -> Result<Self, FillError> {
         assert_eq!(children.len(), shape.arity, "one set a child");
         let mut child = PoolFill::new(shape.children, children).ok_or(FillError::Children)?;
         let declared_pool = PoolFill::new(shape.declared, &[declared]).ok_or(FillError::Declared)?;
@@ -278,8 +295,11 @@ impl UnionFill {
             free.entry(claim).or_default().push((i, slot));
         }
         for claim in declared.claims() {
-            let (i, slot) = (free.get_mut(&claim).and_then(Vec::pop)).ok_or(FillError::NotCovered(claim))?;
-            child.items[i].select[slot] = true;
+            match free.get_mut(&claim).and_then(Vec::pop) {
+                Some((i, slot)) => child.items[i].select[slot] = true,
+                None if strict => return Err(FillError::NotCovered(claim)),
+                None => {}
+            }
         }
         Ok(Self {
             children: child,

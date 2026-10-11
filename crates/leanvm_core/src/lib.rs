@@ -80,8 +80,8 @@ pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 #[doc(hidden)]
 pub use rec::tree::{
-    CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
-    TreeShape, Unsatisfied,
+    Aggregate, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, SignerLeaf, TableStats, Tree,
+    TreeError, TreeProof, TreeShape, Unsatisfied,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
 pub use signers::{Capacity, Claim, Scheme, SignerSet, SignerSetError, SphincsClaim, XmssGroup};
@@ -125,7 +125,7 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// # Overview
 ///
 /// ```text
-///                 node                  verifies `arity` tree proofs, of either kind
+///                 node                  verifies tree proofs, of any kind
 ///               /      \
 ///        first-level   first-level      each verifies `arity_0` proofs of the program
 ///          /  \          /  \
@@ -134,13 +134,18 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 ///
 /// Every tree proof states the same few hundred words:
 ///
-/// - a digest of its leaves' outputs,
+/// - a digest: of its leaves' outputs in a tree of outputs, of the signer set it declares in a signer-set tree,
 /// - claims that only the root's verifier evaluates.
+///
+/// A tree of outputs has one node arity, and its root states its leaves' outputs in order. A signer-set tree
+/// ([`TreeShape::signers`]) has nodes of every arity up to its largest: anyone combines any of its proofs
+/// ([`Tree::aggregate`]), each node declaring the union of its children's signer sets or part of it, and its root states a
+/// canonical signer set ([`Tree::verify_signers`]).
 ///
 /// A tree over one leaf, with `arity_0 = 1`, is a single proof's recursion.
 pub mod aggregate {
     pub use crate::rec::tree::{
-        CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
-        TreeShape, Unsatisfied,
+        Aggregate, CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, SignerLeaf, TableStats, Tree,
+        TreeError, TreeProof, TreeShape, Unsatisfied,
     };
 }

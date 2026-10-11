@@ -56,18 +56,8 @@ pub(crate) struct TreeStatement<E = F192> {
 }
 
 impl Kind {
-    /// Both kinds, by their statement word.
+    /// Both kinds.
     pub const ALL: [Self; 2] = [Self::First, Self::Node];
-
-    /// Its statement word: the bit that selects its circuit's half of the nodes' fixed polynomial.
-    pub(crate) const fn bit(self) -> u64 {
-        self as u64
-    }
-
-    /// The kind a statement word names.
-    pub(crate) fn of_word(word: F192) -> Option<Self> {
-        Self::ALL.into_iter().find(|k| F192::new(k.bit(), 0, 0) == word)
-    }
 
     /// The first word of its digest's message.
     const fn tag(self) -> u64 {

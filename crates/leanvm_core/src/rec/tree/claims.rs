@@ -26,15 +26,15 @@ pub(crate) struct Bits {
     pub(crate) len: usize,
 }
 
-/// One claim on a dense polynomial `P`, at the shared prefix, then public bits, then the kind: `s P(low, bits, top) = s v`.
+/// One claim on a dense polynomial `P`, at the shared prefix, then public bits, then the kind's bits: `s P(low, bits, top) = s v`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DenseTerm<E> {
     /// How many of the shared prefix's coordinates the point starts with.
     pub(crate) n_low: usize,
     /// The public coordinates after them.
     pub(crate) bits: Bits,
-    /// The last coordinate, a child's kind, if any.
-    pub(crate) top: Option<E>,
+    /// The last coordinates, a child's kind's bits, lowest first, if any.
+    pub(crate) top: Vec<E>,
     /// A factor both sides carry, one when absent: a zero scale makes the claim vacuous.
     pub(crate) scale: Option<E>,
     /// The claimed value.
@@ -126,7 +126,7 @@ impl<E: Copy> DenseTerm<E> {
         DenseTerm {
             n_low: self.n_low,
             bits: self.bits,
-            top: self.top.map(&mut *f),
+            top: self.top.iter().map(|&x| f(x)).collect(),
             scale: self.scale.map(&mut *f),
             value: f(self.value),
         }
@@ -143,7 +143,7 @@ impl<E: Copy> DenseClaim<E> {
             terms: vec![DenseTerm {
                 n_low,
                 bits: Bits::NONE,
-                top: None,
+                top: Vec::new(),
                 scale,
                 value,
             }],

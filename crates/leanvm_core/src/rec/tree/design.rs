@@ -1,13 +1,16 @@
-//! The tree's two circuits, and the heights they share.
+//! The tree's circuits, and the heights they share.
 //!
 //! - A first-level node verifies RISC-V proofs of the program, turns their program claims into point claims, and reduces every claim.
-//! - A node verifies recursion proofs of either kind, and reduces their fresh claims with the claims they carry.
+//! - A node verifies recursion proofs of any of the tree's kinds, and reduces their fresh claims with the claims they carry.
 //!
-//! Both circuits have the same heights, so a node verifies a child of either kind with one set of rows.
+//! A tree of outputs has one circuit of each; a signer-set tree has a node circuit for every arity up to its largest.
+//! All the circuits have the same heights, so a node verifies a child of any kind with one set of rows, its kind's bits
+//! selecting its circuit's block of the fixed polynomial.
 
 use super::claims::{Bits, DenseClaim, DensePoly, DenseTerm, MatrixClaim, NodeClaims};
 use super::fixed::FixedLayout;
 use super::reduce::{DenseTables, DenseVars, Reduced};
+use super::signers::{UnionFill, UnionShape, union_rows};
 use super::statement::{Kind, Section, StatementLayout, TreeStatement, digest_halves_rows};
 use super::{TreeError, reduce};
 use crate::class_flock::FlockId;
@@ -19,6 +22,7 @@ use crate::rec::fixed::FixedColumns;
 use crate::rec::table::{HashFlock, PerRecTable};
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rec::verifier::{FixedHint, ProofShape, RecShape, Rows, infallible};
+use crate::signers::Capacity;
 use fiat_shamir::arith::Arith;
 use fiat_shamir::{ProofTranscript, SessionId};
 use pcs::merkle::Openings;
@@ -28,24 +32,39 @@ use primitives::field::F192;
 use primitives::multilinear::mle_eval_par;
 
 /// The protocol half of every recursion proof's session tag.
-const DOMAIN: &[u8] = b"leanvm-tree-11";
+const DOMAIN: &[u8] = b"leanvm-tree-12";
 
-/// What fixes a tree's circuits: the leaves' shape, the arities, the rate, and the nodes' heights.
+/// What one of a tree's circuits verifies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Level {
+    /// The tree's leaves: a first-level node.
+    First,
+    /// This many tree proofs: a node above the first level.
+    Node(usize),
+}
+
+/// What fixes a tree's circuits: the leaves' shape, the arities, the rate, the semantics, and the nodes' heights.
 pub(crate) struct Design<'p> {
     /// The leaves' shape: the program, its tables' heights, its rate.
     pub(crate) leaf: ProofShape<'p>,
     /// The leaves a first-level node verifies.
     pub(crate) arity_0: usize,
-    /// The children a node verifies.
+    /// The children a node verifies: the only arity of a tree of outputs, the largest of a signer-set tree.
     pub(crate) arity: usize,
     /// Every tree proof's rate.
     pub(crate) rate: Rate,
-    /// The nodes' heights, which both circuits share.
+    /// The capacity of a signer-set tree's sets, none for a tree of outputs.
+    pub(crate) signers: Option<Capacity>,
+    /// Each circuit's level, by its kind's index: the first level's first.
+    pub(crate) levels: Vec<Level>,
+    /// The nodes' heights, which every circuit shares.
     pub(crate) taus: PerRecTable<usize>,
     /// The shape of a child recursion proof.
     child: RecShape,
     /// Where each fixed column sits in one circuit's stack.
     pub(crate) fixed: FixedLayout,
+    /// The kind's bits, which select a circuit's block of the fixed polynomial.
+    kind_bits: usize,
     /// Each dense polynomial's variables.
     pub(crate) vars: DenseVars,
     /// Where each part of a statement sits.
@@ -62,6 +81,8 @@ pub(crate) struct LeafWitness<'a> {
     pub(crate) openings: Vec<Openings>,
     /// The output it proves.
     pub(crate) output: [u64; 4],
+    /// In a signer-set tree, the digest of its signer set, whose hash is its output.
+    pub(crate) signers: [u64; 4],
 }
 
 /// A child as a node's prover holds it: its statement, its proof, and its circuit's fixed columns.
@@ -86,6 +107,8 @@ pub(crate) enum NodeInputs<'a, T> {
         items: &'a [T],
         /// The dense polynomials.
         tables: &'a DenseTables,
+        /// In a signer-set tree, the union's values.
+        union: Option<&'a UnionFill>,
     },
 }
 
@@ -93,9 +116,9 @@ pub(crate) enum NodeInputs<'a, T> {
 pub(crate) struct NodeRows {
     /// The circuit so far, and its values.
     b: Builder,
-    /// The circuit's kind.
-    kind: Kind,
-    /// The digest of the leaves' outputs under it.
+    /// The circuit's kind's index.
+    kind: usize,
+    /// The digest it states: of the leaves' outputs under it, or of its signer set.
     digest: Dw,
     /// The claims its rows leave.
     claims: NodeClaims<Ew>,
@@ -121,6 +144,22 @@ impl<T> NodeInputs<'_, T> {
         };
         b.free_e(value)
     }
+
+    /// The union's values, when a prover of a signer-set tree holds them.
+    const fn union(&self) -> Option<&UnionFill> {
+        match self {
+            Self::Shape => None,
+            Self::Prove { union, .. } => *union,
+        }
+    }
+}
+
+impl Level {
+    /// The circuits of a tree: the first level's, then a node's of each arity.
+    pub(crate) fn all(arity: usize, signers: bool) -> Vec<Self> {
+        let nodes = if signers { 2..=arity } else { arity..=arity };
+        std::iter::once(Self::First).chain(nodes.map(Self::Node)).collect()
+    }
 }
 
 impl NodeClaims<Ew> {
@@ -132,7 +171,7 @@ impl NodeClaims<Ew> {
 }
 
 impl<'p> Design<'p> {
-    /// The design at the given heights of both circuits.
+    /// The design at the given heights of every circuit.
     ///
     /// # Errors
     ///
@@ -142,15 +181,18 @@ impl<'p> Design<'p> {
         arity_0: usize,
         arity: usize,
         rate: Rate,
+        signers: Option<Capacity>,
         taus: PerRecTable<usize>,
     ) -> Result<Self, TreeError> {
         let child = RecShape::new(taus, rate).map_err(|_| TreeError::TooLarge)?;
         let fixed = FixedLayout::new(&taus);
+        let levels = Level::all(arity, signers.is_some());
+        let kind_bits = crate::log2_ceil_usize(levels.len());
         let rv = leaf.program().rv();
         let vars = DenseVars([
             crate::log2_strict_usize(rv.entries().len()) + N_TUPLE_BITS,
             crate::log2_ceil_usize(rv.image().len().max(1)),
-            fixed.kappa() + 1,
+            fixed.kappa() + kind_bits,
         ]);
         let statement = StatementLayout::new(vars.0.into_iter().max().unwrap_or(0));
         let mut design = Self {
@@ -158,9 +200,12 @@ impl<'p> Design<'p> {
             arity_0,
             arity,
             rate,
+            signers,
+            levels,
             taus,
             child,
             fixed,
+            kind_bits,
             vars,
             statement,
             session: SessionId([0; 32]),
@@ -171,13 +216,16 @@ impl<'p> Design<'p> {
 
     /// The transcript's session: everything that fixes the circuits, as one tag.
     ///
-    /// Both kinds share it.
+    /// Every kind shares it.
     /// The kind is the statement's first word, and the statement is the transcript's instance.
+    /// A tree of outputs and a signer-set tree differ in it, so a proof of one is never one of the other.
     fn session(&self) -> SessionId {
         let mut tag = DOMAIN.to_vec();
         tag.extend_from_slice(self.leaf.program().digest());
+        let semantics = self.signers.map_or([0; 3], |c| [1, c.claims, c.groups]);
         let sizes = (self.leaf.taus().values().copied())
             .chain([self.arity_0, self.arity, self.statement.len()])
+            .chain(semantics)
             .chain(self.taus.into_values());
         for x in sizes {
             tag.extend_from_slice(&(x as u64).to_le_bytes());
@@ -186,14 +234,38 @@ impl<'p> Design<'p> {
         SessionId::new(&tag)
     }
 
+    /// The union a circuit of this level runs, in a signer-set tree.
+    pub(crate) fn union_shape(&self, level: Level) -> Option<UnionShape> {
+        let arity = match level {
+            Level::First => self.arity_0,
+            Level::Node(arity) => arity,
+        };
+        self.signers.map(|c| UnionShape::new(c, arity))
+    }
+
+    /// The index of the node circuit of this arity.
+    pub(crate) fn node_kind(&self, arity: usize) -> Option<usize> {
+        self.levels.iter().position(|&l| l == Level::Node(arity))
+    }
+
     /// The first level's rows, verifying its leaves.
     pub(crate) fn first(&self, inputs: &NodeInputs<'_, LeafWitness<'_>>) -> NodeRows {
         let mut b = Builder::new();
         let mut claims = NodeClaims::default();
         let mut outputs = Vec::with_capacity(self.arity_0);
+        let mut sets = Vec::with_capacity(self.arity_0);
         for i in 0..self.arity_0 {
             let leaf = inputs.item(i);
-            let output = leaf.map_or([0; 4], |l| l.output).map(|o| b.free_k(o));
+            // A signer-set leaf's output is the hash of its set's digest, which the union reads.
+            let output = if self.signers.is_some() {
+                let set = b.free_d(leaf.map_or([0; 4], |l| l.signers));
+                sets.push(set);
+                let words = b.d_to_k(set);
+                let output = b.chain(&words);
+                b.d_to_k(output)
+            } else {
+                leaf.map_or([0; 4], |l| l.output).map(|o| b.free_k(o))
+            };
             let source = leaf.map_or(ProofSource::Shape, |l| ProofSource::Proof(l.proof, &l.openings));
             let core = b.scope(format!("leaf {i}"), |b| self.leaf.verify_core(b, output, source));
             claims.bind_state(&mut b, core.state);
@@ -204,33 +276,35 @@ impl<'p> Design<'p> {
             claims.matrices.extend(fresh.map(|(f, c)| MatrixClaim::fresh(f, c)));
             outputs.push(output);
         }
-        let digest = Kind::First.digest_rows(&mut b, &outputs);
+        let digest = match self.union_shape(Level::First) {
+            Some(shape) => union_rows(&mut b, &shape, &self.session, &sets, inputs.union()),
+            None => Kind::First.digest_rows(&mut b, &outputs),
+        };
         NodeRows {
             b,
-            kind: Kind::First,
+            kind: 0,
             digest,
             claims,
         }
     }
 
-    /// The node's rows, verifying its children, of either kind.
-    pub(crate) fn node(&self, inputs: &NodeInputs<'_, ChildWitness<'_>>) -> NodeRows {
+    /// The rows of node circuit `kind`, verifying its children, of any kind.
+    pub(crate) fn node(&self, inputs: &NodeInputs<'_, ChildWitness<'_>>, kind: usize) -> NodeRows {
+        let Level::Node(arity) = self.levels[kind] else {
+            panic!("kind {kind} is a node's")
+        };
         let mut b = Builder::new();
         let zeros = matches!(inputs, NodeInputs::Shape).then(|| FixedColumns::zeros(&self.taus));
         let mut claims = NodeClaims::default();
-        let mut digests = Vec::with_capacity(self.arity);
-        for i in 0..self.arity {
+        let mut words = Vec::with_capacity(arity);
+        let mut digests = Vec::with_capacity(arity);
+        for i in 0..arity {
             let child = inputs.item(i);
             let statement = match child {
                 Some(c) => c.statement.map(|&w| b.free_e(w)),
                 None => TreeStatement::filled(self.statement, F192::ZERO).map(|&w| b.free_e(w)),
             };
-            // The kind is a bit: it selects the child's circuit's half of the fixed polynomial.
-            let kind = statement.kind();
-            b.scope(format!("child {i} kind"), |b| {
-                let square = b.square(kind);
-                b.eq_e(square, kind);
-            });
+            let (top, is_node) = b.scope(format!("child {i} kind"), |b| self.kind_rows(b, statement.kind()));
             let zero = b.k_const(0);
             let limbs: Vec<[Kw; 4]> = (statement.words().iter())
                 .map(|&w| {
@@ -246,26 +320,63 @@ impl<'p> Design<'p> {
 
             claims.bind_state(&mut b, rows.state);
             claims.bound.extend(rows.hints.iter().map(|h| h.value));
-            claims.dense.push(self.fixed_claim(&rows.hints, kind));
+            claims.dense.push(self.fixed_claim(&rows.hints, &top));
             claims.matrices.push(MatrixClaim::fresh(HashFlock::FLOCK, &rows.matrix));
-            self.carried(&statement, kind, &mut claims);
+            self.carried(&statement, is_node, &mut claims);
             let digest = statement.digest_wire(&mut b);
-            digests.push(b.d_to_k(digest));
+            if self.signers.is_some() {
+                digests.push(digest);
+            } else {
+                words.push(b.d_to_k(digest));
+            }
         }
-        let digest = Kind::Node.digest_rows(&mut b, &digests);
+        let digest = match self.union_shape(Level::Node(arity)) {
+            Some(shape) => union_rows(&mut b, &shape, &self.session, &digests, inputs.union()),
+            None => Kind::Node.digest_rows(&mut b, &words),
+        };
         NodeRows {
             b,
-            kind: Kind::Node,
+            kind,
             digest,
             claims,
         }
     }
 
+    /// A child's kind as the bits that select its circuit's block of the fixed polynomial, and whether it is a node.
+    ///
+    /// With two kinds the kind is that bit; with more it is held to an index of the tree's circuits, then split.
+    fn kind_rows(&self, b: &mut Builder, kind: Ew) -> (Vec<Ew>, Ew) {
+        if self.levels.len() == 2 {
+            let square = b.square(kind);
+            b.eq_e(square, kind);
+            return (vec![kind], kind);
+        }
+        let (zero, one) = (b.zero(), b.one());
+        let vanishing = (0..self.levels.len()).fold(one, |acc, c| {
+            let index = b.e_const(F192::new(c as u64, 0, 0));
+            let factor = b.add(kind, index);
+            b.mul(acc, factor)
+        });
+        b.eq_e(vanishing, zero);
+        // An index is its first limb, whose bits past the kind's are zero.
+        let [word, ..] = b.e_to_k(kind);
+        let bits = b.split(word);
+        for &bit in &bits[self.kind_bits..] {
+            b.eq_k_const(bit, 0);
+        }
+        let top: Vec<Ew> = bits[..self.kind_bits].iter().map(|&bit| b.k_to_e1(bit)).collect();
+        let is_first = top.iter().fold(one, |acc, &t| {
+            let not = b.add(t, one);
+            b.mul(acc, not)
+        });
+        (top, b.add(is_first, one))
+    }
+
     /// A circuit built from the shapes alone.
-    pub(crate) fn shape(&self, kind: Kind) -> Finished {
-        let rows = match kind {
-            Kind::First => self.first(&NodeInputs::Shape),
-            Kind::Node => self.node(&NodeInputs::Shape),
+    pub(crate) fn shape(&self, kind: usize) -> Finished {
+        let rows = match self.levels[kind] {
+            Level::First => self.first(&NodeInputs::Shape),
+            Level::Node(_) => self.node(&NodeInputs::Shape, kind),
         };
         rows.reduce(self, ProofSource::Shape)
     }
@@ -304,10 +415,10 @@ impl<'p> Design<'p> {
         claims.dense.push(DenseClaim::at(DensePoly::Image, low, None, image));
     }
 
-    /// A child's hinted fixed-column evaluations as claims on the fixed polynomial, in its circuit's half.
+    /// A child's hinted fixed-column evaluations as claims on the fixed polynomial, in its circuit's block.
     ///
-    /// Column `c` at the bus point's prefix `p` is the fixed polynomial at `(p, block_c, kind)`.
-    fn fixed_claim(&self, hints: &[FixedHint], kind: Ew) -> DenseClaim<Ew> {
+    /// Column `c` at the bus point's prefix `p` is the fixed polynomial at `(p, block_c, kind's bits)`.
+    fn fixed_claim(&self, hints: &[FixedHint], top: &[Ew]) -> DenseClaim<Ew> {
         let low = hints
             .iter()
             .map(|h| &h.point)
@@ -327,7 +438,7 @@ impl<'p> Design<'p> {
                         value: self.fixed.block(h.column),
                         len: self.fixed.kappa() - n_low,
                     },
-                    top: Some(kind),
+                    top: top.to_vec(),
                     scale: None,
                     value: h.value,
                 }
@@ -342,12 +453,12 @@ impl<'p> Design<'p> {
 
     /// The claims a child's statement carries.
     ///
-    /// A first-level node reduces no claim on the fixed polynomial, so its carried one is scaled by its kind, zero.
-    fn carried(&self, statement: &TreeStatement<Ew>, kind: Ew, claims: &mut NodeClaims<Ew>) {
+    /// A first-level node reduces no claim on the fixed polynomial, so its carried one is scaled by `is_node`, zero.
+    fn carried(&self, statement: &TreeStatement<Ew>, is_node: Ew, claims: &mut NodeClaims<Ew>) {
         let point = statement.dense_point();
         for poly in DensePoly::ALL {
             let n = self.vars.0[poly as usize];
-            let scale = (poly == DensePoly::Fixed).then_some(kind);
+            let scale = (poly == DensePoly::Fixed).then_some(is_node);
             claims.dense.push(DenseClaim::at(
                 poly,
                 point[..n].to_vec(),
@@ -371,10 +482,10 @@ impl Reduced<Ew> {
     /// The statement of a circuit of this kind and digest whose reduction left these claims.
     ///
     /// A polynomial left unreduced has a zero value, and the point is zero past the reduction's rounds.
-    fn statement(&self, b: &mut Builder, layout: StatementLayout, kind: Kind, digest: Dw) -> TreeStatement<Ew> {
+    fn statement(&self, b: &mut Builder, layout: StatementLayout, kind: usize, digest: Dw) -> TreeStatement<Ew> {
         let zero = b.zero();
         let mut s = TreeStatement::filled(layout, zero);
-        s.section_mut(Section::Kind)[0] = b.e_const(F192::new(kind.bit(), 0, 0));
+        s.section_mut(Section::Kind)[0] = b.e_const(F192::new(kind as u64, 0, 0));
         s.section_mut(Section::Digest)
             .copy_from_slice(&digest_halves_rows(b, digest));
         s.section_mut(Section::DensePoint)[..self.dense.point.len()].copy_from_slice(&self.dense.point);
