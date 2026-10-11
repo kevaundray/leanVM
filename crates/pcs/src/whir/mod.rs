@@ -90,14 +90,26 @@ pub struct Stratum {
 /// - The top `s` levels of a group's Merkle paths are then one complete subtree, hashed once by the verifier.
 pub fn strata(count: usize, depth: usize) -> Vec<Stratum> {
     let mut out = Vec::with_capacity(count);
-    for g in (0..usize::BITS as usize).rev().filter(|&g| count >> g & 1 == 1) {
-        let bits = g.min(depth);
-        out.extend((0..1usize << g).map(|j| Stratum {
-            bits,
-            index: j & ((1 << bits) - 1),
-        }));
+    let mut g = usize::BITS as usize;
+    while g > 0 {
+        g -= 1;
+        if count >> g & 1 == 1 {
+            push_group(&mut out, g, g.min(depth));
+        }
     }
     out
+}
+
+/// A group of `2^g` queries: query `j` fixes its top `bits` bits to `j mod 2^bits`.
+fn push_group(out: &mut Vec<Stratum>, g: usize, bits: usize) {
+    let mut j = 0;
+    while j < 1usize << g {
+        out.push(Stratum {
+            bits,
+            index: j & ((1 << bits) - 1),
+        });
+        j += 1;
+    }
 }
 
 /// Sample `count` query positions of a domain of `block_len = 2^d`, in transcript order.
@@ -114,22 +126,33 @@ pub(crate) fn sample_queries_ordered(ch: &mut impl Challenger, block_len: usize,
     let mut out = Vec::with_capacity(count);
     while out.len() < count {
         let v = ch.sample();
-        for j in 0..per.min(count - out.len()) {
-            let off = j * d;
-            let limbs = [v.c0, v.c1, v.c2];
-            let (li, sh) = (off / 64, off % 64);
-            let mut chunk = limbs[li] >> sh;
-            if sh + d > 64 {
-                chunk |= limbs[li + 1] << (64 - sh);
-            }
-            out.push(chunk as usize & (block_len - 1));
-        }
+        let take = per.min(count - out.len());
+        push_chunks(&mut out, [v.c0, v.c1, v.c2], d, take, block_len);
     }
-    for (x, s) in out.iter_mut().zip(strata(count, d)) {
+    let strata = strata(count, d);
+    let mut i = 0;
+    while i < out.len().min(strata.len()) {
+        let s = strata[i];
         let low = d - s.bits;
-        *x = (*x & ((1 << low) - 1)) | s.index << low;
+        out[i] = (out[i] & ((1 << low) - 1)) | s.index << low;
+        i += 1;
     }
     out
+}
+
+/// Push the first `take` disjoint `d`-bit chunks of the limbs, low bits first, each masked to `block_len`.
+fn push_chunks(out: &mut Vec<usize>, limbs: [u64; 3], d: usize, take: usize, block_len: usize) {
+    let mut j = 0;
+    while j < take {
+        let off = j * d;
+        let (li, sh) = (off / 64, off % 64);
+        let mut chunk = limbs[li] >> sh;
+        if sh + d > 64 {
+            chunk |= limbs[li + 1] << (64 - sh);
+        }
+        out.push(chunk as usize & (block_len - 1));
+        j += 1;
+    }
 }
 
 #[cfg(test)]

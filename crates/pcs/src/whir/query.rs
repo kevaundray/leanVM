@@ -48,7 +48,12 @@ impl Normalizers {
         //
         // Row `k` holds `s_k(v_j)` for `j > k`; its first entry gives the next normalizer.
         let mut at_roots = vec![F64::ONE; log_n + 1];
-        let mut row: Vec<F64> = (1..=log_n).map(|i| F64(1u64 << i)).collect();
+        let mut row: Vec<F64> = Vec::with_capacity(log_n);
+        let mut i = 1;
+        while i <= log_n {
+            row.push(F64(1u64 << i));
+            i += 1;
+        }
         for k in 0..log_n {
             let mut next_row = Vec::with_capacity(row.len());
             let mut i = 0;
@@ -60,7 +65,12 @@ impl Normalizers {
             row = next_row;
             at_roots[k + 1] = row.remove(0);
         }
-        let inverses = at_roots.iter().map(|s| s.inv()).collect();
+        let mut inverses = Vec::with_capacity(at_roots.len());
+        let mut k = 0;
+        while k < at_roots.len() {
+            inverses.push(at_roots[k].inv());
+            k += 1;
+        }
         Self { at_roots, inverses }
     }
 

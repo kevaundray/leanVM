@@ -396,19 +396,28 @@ impl<R> Oracle<R> {
         queries: &[V::Query],
     ) -> Result<ExtRows<V::E>, TranscriptError> {
         let leaf_words = 3 << self.log_num_interleaved;
-        let rows = v.open_rows(&self.root, self.depth(), queries, leaf_words, leaf_words)?;
-        let rows = (rows.into_iter())
-            .map(|words| {
-                let mut row = Vec::with_capacity(words.len().div_ceil(3));
-                for i in 0..words.len().div_ceil(3) {
-                    let at = 3 * i;
-                    row.push(v.e_of_limbs([words[at], words[at + 1], words[at + 2]]));
-                }
-                row
-            })
-            .collect();
+        let words = v.open_rows(&self.root, self.depth(), queries, leaf_words, leaf_words)?;
+        let mut rows = Vec::with_capacity(words.len());
+        let mut q = 0;
+        while q < words.len() {
+            rows.push(e_row(v, &words[q]));
+            q += 1;
+        }
         Ok(ExtRows(rows))
     }
+}
+
+/// A row of `E` elements from its words, three limbs each, lowest first.
+fn e_row<E, K: Copy, V: OpeningVerifier<E = E, K = K>>(v: &mut V, words: &[K]) -> Vec<E> {
+    let n = words.len().div_ceil(3);
+    let mut row = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        let at = 3 * i;
+        row.push(v.e_of_limbs([words[at], words[at + 1], words[at + 2]]));
+        i += 1;
+    }
+    row
 }
 
 impl<V: OpeningVerifier> WhirReplay<V> {
@@ -453,8 +462,10 @@ impl<V: OpeningVerifier> WhirReplay<V> {
         let batch = Self::begin_query(v, phase)?;
         let sum = match v.open_rows(&root, phase.depth, &batch.queries, n_lanes, max) {
             Ok(mut rows) => {
-                for row in &mut rows {
-                    row.reverse();
+                let mut r = 0;
+                while r < rows.len() {
+                    rows[r].reverse();
+                    r += 1;
                 }
                 Ok(BaseRows(rows).enforced_sum(v, &lane_fold, &batch.weights))
             }
@@ -680,11 +691,26 @@ impl<K: Copy> BaseRows<K> {
         let rows = &self.0;
         let eq = v.eq_table_prefix(point, rows[0].len());
         let zero = v.zero();
-        (rows.iter().zip(weights)).fold(zero, |acc, (row, &w)| {
-            let inner = (eq.iter().zip(row)).fold(zero, |s, (&e, &k)| v.mul_k_add(e, k, s));
-            v.mul_add(w, inner, acc)
-        })
+        let mut acc = zero;
+        let mut i = 0;
+        while i < rows.len().min(weights.len()) {
+            let inner = base_inner(v, &eq, &rows[i], zero);
+            acc = v.mul_add(weights[i], inner, acc);
+            i += 1;
+        }
+        acc
     }
+}
+
+/// `zero + sum_j eq_j k_j` over the common length, one `mul_k_add` per term in order.
+fn base_inner<E: Copy, K: Copy, V: OpeningVerifier<E = E, K = K>>(v: &mut V, eq: &[E], row: &[K], zero: E) -> E {
+    let mut s = zero;
+    let mut j = 0;
+    while j < eq.len().min(row.len()) {
+        s = v.mul_k_add(eq[j], row[j], s);
+        j += 1;
+    }
+    s
 }
 
 impl<E: Copy> ExtRows<E> {
@@ -693,11 +719,31 @@ impl<E: Copy> ExtRows<E> {
         let rows = &self.0;
         let eq = v.eq_table_prefix(point, rows[0].len());
         let zero = v.zero();
-        (eq.iter().enumerate()).fold(zero, |acc, (l, &e)| {
-            let column = (rows.iter().zip(weights)).fold(zero, |s, (row, &w)| v.mul_add(w, row[l], s));
-            v.mul_add(e, column, acc)
-        })
+        ext_sum(v, rows, weights, &eq, zero)
     }
+}
+
+/// `zero + sum_l eq_l column_l`, in order; it needs only `Arith`.
+fn ext_sum<E: Copy, A: Arith<E = E>>(a: &mut A, rows: &[Vec<E>], weights: &[E], eq: &[E], zero: E) -> E {
+    let mut acc = zero;
+    let mut l = 0;
+    while l < eq.len() {
+        let column = ext_column(a, rows, weights, l, zero);
+        acc = a.mul_add(eq[l], column, acc);
+        l += 1;
+    }
+    acc
+}
+
+/// `zero + sum_i w_i row_i[l]` over the common length of `rows` and `weights`, in order.
+fn ext_column<E: Copy, A: Arith<E = E>>(a: &mut A, rows: &[Vec<E>], weights: &[E], l: usize, zero: E) -> E {
+    let mut s = zero;
+    let mut i = 0;
+    while i < rows.len().min(weights.len()) {
+        s = a.mul_add(weights[i], rows[i][l], s);
+        i += 1;
+    }
+    s
 }
 
 /// `weight + sum_j term_j` over the OOD claims in order, each at its suffix of the fold challenges; it needs only `Arith`.
