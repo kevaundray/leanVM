@@ -1,10 +1,7 @@
 import LeanVMCircuits.Bus.TableFlushes
 
 /-!
-`lake exe checkflushes <dump>`: check that a dump of the instruction tables' flushes (the Rust test
-`the_flushes_are_the_lean_model_s` writes one where `LEANVM_FLUSH_DUMP` names, and checks the committed
-`crates/leanvm_core/src/tables/flushes.txt`) is, line for line, `LeanVMCircuits.Bus.ClassTable.dump`: every table's
-columns, slots, clock port columns and symbolic push and pull tuples as the Lean model builds them.
+`lake exe checkflushes <dump>` checks the instruction table dump written as `table-flushes.dump` by the `circuits` CLI behind `circuit-trace`. Column layouts and ordered tuples now come from this Lean source; the remaining native `ClassSpec` slot lists and `Columns::column` clock-port projection are checked here. The dump must agree line for line with `LeanVMCircuits.Bus.ClassTable.dump`; no pinned Rust copy is maintained.
 -/
 
 open LeanVMCircuits.Bus.ClassTable
