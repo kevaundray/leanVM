@@ -25,6 +25,8 @@ pub enum Kind {
 pub(crate) struct StatementLayout {
     /// The dense point's coordinates: the most any dense polynomial has.
     n_dense: usize,
+    /// The dense polynomials the tree has: the first of [`DensePoly::ALL`].
+    n_polys: usize,
     /// The matrix points' coordinates: the most any flock circuit's matrices have.
     n_matrix: usize,
 }
@@ -104,12 +106,18 @@ impl Section {
 }
 
 impl StatementLayout {
-    /// The layout of a tree whose dense polynomials have at most this many variables.
-    pub(crate) const fn new(n_dense: usize) -> Self {
+    /// The layout of a tree whose first `n_polys` dense polynomials have at most `n_dense` variables.
+    pub(crate) const fn new(n_dense: usize, n_polys: usize) -> Self {
         Self {
             n_dense,
+            n_polys,
             n_matrix: FlockId::MAX_K_LOG,
         }
+    }
+
+    /// The dense polynomials the tree has.
+    pub(crate) fn polys(self) -> &'static [DensePoly] {
+        &DensePoly::ALL[..self.n_polys]
     }
 
     /// How many words a section has.
@@ -118,7 +126,7 @@ impl StatementLayout {
             Section::Kind => 1,
             Section::Digest => 2,
             Section::DensePoint => self.n_dense,
-            Section::DenseValues => DensePoly::COUNT,
+            Section::DenseValues => self.n_polys,
             Section::Rows | Section::Cols => self.n_matrix,
             Section::Matrices => 2 * N_FLOCKS,
         }

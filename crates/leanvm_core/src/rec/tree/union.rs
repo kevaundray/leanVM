@@ -55,6 +55,8 @@ pub(crate) struct UnionShape {
     pub(crate) children: PoolShape,
     /// The declared pool.
     pub(crate) declared: PoolShape,
+    /// Whether a child may be absent, its run then the empty set's.
+    pub(crate) optional: bool,
 }
 
 /// What an item is.
@@ -97,6 +99,8 @@ pub(crate) struct UnionFill {
     declared: PoolFill,
     /// The declared set's digest.
     digest: [u64; 4],
+    /// Whether each child is absent.
+    absent: Vec<bool>,
 }
 
 /// Why a union cannot be filled.
@@ -192,6 +196,17 @@ impl UnionShape {
             // Each child's set has its own end item; the capacity's count has one.
             children: PoolShape::new(capacity.items() + arity - 1, arity),
             declared: PoolShape::new(capacity.items(), 1),
+            optional: false,
+        }
+    }
+
+    /// The same union of at most `arity` children, the rest absent.
+    ///
+    /// An absent child's run is the empty set's one item, within the chunk its run already has.
+    pub(crate) const fn optional(capacity: Capacity, arity: usize) -> Self {
+        Self {
+            optional: true,
+            ..Self::new(capacity, arity)
         }
     }
 }
@@ -252,6 +267,8 @@ impl PoolFill {
 
 impl UnionFill {
     /// The union's values: the children's sets, and the declared set, each of whose claims some child slot backs.
+    ///
+    /// With fewer sets than the shape's arity, the rest of its children are absent, which an optional shape allows.
     pub(crate) fn new(shape: &UnionShape, children: &[&ClaimSet], declared: &ClaimSet) -> Result<Self, FillError> {
         Self::fill(shape, children, declared, true)
     }
@@ -265,8 +282,16 @@ impl UnionFill {
 
     /// The union's values, refusing a claim no child slot backs if `strict`, else leaving it unbacked.
     fn fill(shape: &UnionShape, children: &[&ClaimSet], declared: &ClaimSet, strict: bool) -> Result<Self, FillError> {
-        assert_eq!(children.len(), shape.arity, "one set a child");
-        let mut child = PoolFill::new(shape.children, children).ok_or(FillError::Children)?;
+        assert!(
+            children.len() == shape.arity || (shape.optional && children.len() <= shape.arity),
+            "one set a child, but for an optional shape's absent ones"
+        );
+        let empty = ClaimSet::new();
+        let absent: Vec<bool> = (0..shape.arity).map(|r| r >= children.len()).collect();
+        let runs: Vec<&ClaimSet> = (0..shape.arity)
+            .map(|r| children.get(r).copied().unwrap_or(&empty))
+            .collect();
+        let mut child = PoolFill::new(shape.children, &runs).ok_or(FillError::Children)?;
         let declared_pool = PoolFill::new(shape.declared, &[declared]).ok_or(FillError::Declared)?;
         let mut free: HashMap<Claim, Vec<(usize, usize)>> = HashMap::new();
         for (i, slot, claim) in child.slots().into_iter().rev() {
@@ -283,7 +308,16 @@ impl UnionFill {
             children: child,
             declared: declared_pool,
             digest: declared.digest(),
+            absent,
         })
+    }
+
+    /// The same values with child `index` read as absent, its run left as it was: what a prover dropping a present
+    /// child's set while keeping its claims would hand the rows.
+    #[cfg(test)]
+    pub(crate) fn absent_at(mut self, index: usize) -> Self {
+        self.absent[index] = true;
+        self
     }
 }
 
@@ -507,6 +541,10 @@ fn eq_weights(b: &mut Builder, a: [Ew; 4]) -> [Ew; 16] {
 /// The union's rows: the children's sets read from their digests, the declared set's digest, and the product check
 /// that every declared claim is a selected child claim.
 ///
+/// Where the shape lets a child be absent, a hinted bit per child says whether it is; an absent child's run is the
+/// empty set, whatever its digest, so a node of fewer children than its arity verifies a repeat in each absent place
+/// and reads nothing of it.
+///
 /// Returns the declared set's digest.
 pub(crate) fn union_rows(
     b: &mut Builder,
@@ -516,14 +554,37 @@ pub(crate) fn union_rows(
     fill: Option<&UnionFill>,
 ) -> Dw {
     assert_eq!(children.len(), shape.arity, "one digest a child");
+    let read: Vec<Dw> = if shape.optional {
+        let empty = ClaimSet::new().digest();
+        let [e_lo, e_hi] = [F192::new(empty[0], empty[1], 0), F192::new(empty[2], empty[3], 0)].map(|v| b.e_const(v));
+        let bits: Vec<Kw> = (0..shape.arity)
+            .map(|r| b.free_k(u64::from(fill.is_some_and(|f| f.absent[r]))))
+            .collect();
+        // The bits are bits.
+        for chunk in bits.chunks(64) {
+            b.pack(chunk);
+        }
+        (children.iter().zip(&bits))
+            .map(|(&d, &absent)| {
+                let [lo, hi] = b.d_to_halves(d);
+                let d_lo = b.add(lo, e_lo);
+                let d_hi = b.add(hi, e_hi);
+                let lo = b.mul_k_add(d_lo, absent, lo);
+                let hi = b.mul_k_add(d_hi, absent, hi);
+                b.halves_to_d(lo, hi)
+            })
+            .collect()
+    } else {
+        children.to_vec()
+    };
     let digest = b.free_d(fill.map_or([0; 4], |f| f.digest));
     let pool = b.scope("children's pool", |b| {
-        pool_rows(b, shape.children, children, fill.map(|f| &f.children), true)
+        pool_rows(b, shape.children, &read, fill.map(|f| &f.children), true)
     });
     let declared = b.scope("declared pool", |b| {
         pool_rows(b, shape.declared, &[digest], fill.map(|f| &f.declared), false)
     });
-    let point = challenge(b, session, children, digest, &[&pool, &declared]);
+    let point = challenge(b, session, &read, digest, &[&pool, &declared]);
     b.scope("coverage", |b| {
         let selected = product(b, &pool.items, &point);
         let declared = product(b, &declared.items, &point);
@@ -532,11 +593,12 @@ pub(crate) fn union_rows(
     digest
 }
 
-/// The challenge point, drawn from a transcript of everything that decides which claims the products read: the
-/// children's digests, the node's, and the pools' begin and selection words.
-fn challenge(b: &mut Builder, session: &SessionId, children: &[Dw], digest: Dw, pools: &[&PoolWires]) -> Point {
+/// The challenge point, drawn from a transcript of everything that decides which claims the products read: the sets
+/// the children's pool reads (an absent child's the empty set's), the node's, and the pools' begin and selection
+/// words.
+fn challenge(b: &mut Builder, session: &SessionId, read: &[Dw], digest: Dw, pools: &[&PoolWires]) -> Point {
     let mut instance = Vec::new();
-    for &d in children.iter().chain([&digest]) {
+    for &d in read.iter().chain([&digest]) {
         instance.extend(b.d_to_k(d));
     }
     for pool in pools {
@@ -591,10 +653,19 @@ mod tests {
     /// The union's rows over these children and fill, and the checks that failed; the declared digest must be
     /// that of `expected`.
     fn run(sets: &[ClaimSet], fill: &UnionFill, expected: Option<&ClaimSet>) -> Vec<Unsatisfied> {
-        let shape = UnionShape::new(CAPACITY, sets.len());
+        run_shape(&UnionShape::new(CAPACITY, sets.len()), sets, fill, expected)
+    }
+
+    /// The same, of a given shape, each child's digest its set's.
+    fn run_shape(
+        shape: &UnionShape,
+        sets: &[ClaimSet],
+        fill: &UnionFill,
+        expected: Option<&ClaimSet>,
+    ) -> Vec<Unsatisfied> {
         let mut b = Builder::new();
         let digests: Vec<Dw> = sets.iter().map(|s| b.free_d(s.digest())).collect();
-        let d = union_rows(&mut b, &shape, &SessionId([7; 32]), &digests, Some(fill));
+        let d = union_rows(&mut b, shape, &SessionId([7; 32]), &digests, Some(fill));
         if let Some(e) = expected {
             assert_eq!(b.d(d), e.digest());
         }
@@ -630,6 +701,31 @@ mod tests {
         let [a, _] = children();
         let sets = [a.clone(), ClaimSet::new(), a.clone()];
         assert_eq!(run(&sets, &fill(&sets, &a), Some(&a)), vec![]);
+    }
+
+    #[test]
+    fn absent_children_read_nothing() {
+        let [a, b] = children();
+        let shape = UnionShape::optional(CAPACITY, 3);
+        // Two children present, the third a repeat of the first, absent: its set is not read.
+        let sets = [a.clone(), b.clone(), a.clone()];
+        let union = union_of(&[a.clone(), b.clone()]);
+        let honest = UnionFill::new(&shape, &[&a, &b], &union).expect("covered");
+        assert_eq!(run_shape(&shape, &sets, &honest, Some(&union)), vec![]);
+        // A present child's run read as absent: its run is not the empty set's.
+        let dropped = UnionFill::new(&shape, &[&a, &b], &union).expect("covered").absent_at(1);
+        assert!(!run_shape(&shape, &sets, &dropped, Some(&union)).is_empty());
+        // A claim only an absent child holds backs nothing.
+        assert!(matches!(
+            UnionFill::new(&shape, &[&a], &union),
+            Err(FillError::NotCovered(_))
+        ));
+        let forged = UnionFill::unbacked(&shape, &[&a], &union);
+        let failures = run_shape(&shape, &sets, &forged, Some(&union));
+        assert!(
+            failures.iter().any(|f| f.scope().iter().any(|s| s == "coverage")),
+            "{failures:?}"
+        );
     }
 
     #[test]
@@ -805,57 +901,61 @@ mod tests {
     fn a_run_placed_elsewhere_draws_another_challenge() {
         // A run may start at any chunk after the one before it ends, and a selection bit attaches to a place in the
         // pool. Were the runs' places chosen after the challenge, one set of selection words would select another
-        // multiset at each placement, and the prover would pick among them having seen `(X, A)`.
+        // multiset at each placement, and the prover would pick among them having seen `(X, A)`. Every tier's node
+        // reads its children through one of these shapes.
         let sets = children();
-        let honest = fill(&sets, &union_of(&sets));
+        let refs: Vec<&ClaimSet> = sets.iter().collect();
+        for shape in [UnionShape::new(CAPACITY, 2), UnionShape::optional(CAPACITY, 2)] {
+            let honest = UnionFill::new(&shape, &refs, &union_of(&sets)).expect("covered");
 
-        // The second run a chunk later, the chunk before it padding: every row holds.
-        let pad = FillItem {
-            block: [0; 8],
-            kind: ItemKind::Pad,
-            select: [false; 2],
-        };
-        let mut moved = honest.clone();
-        let n = moved.children.items.len();
-        let tail: Vec<FillItem> = moved.children.items.drain(CHUNK..).collect();
-        moved.children.items.extend(std::iter::repeat_n(pad, CHUNK));
-        moved.children.items.extend(tail);
-        moved.children.items.truncate(n);
-        moved.children.begins[1] = false;
-        moved.children.begins[2] = true;
-        assert_eq!(run(&sets, &moved, None), vec![]);
+            // The second run a chunk later, the chunk before it padding: every row holds.
+            let pad = FillItem {
+                block: [0; 8],
+                kind: ItemKind::Pad,
+                select: [false; 2],
+            };
+            let mut moved = honest.clone();
+            let n = moved.children.items.len();
+            let tail: Vec<FillItem> = moved.children.items.drain(CHUNK..).collect();
+            moved.children.items.extend(std::iter::repeat_n(pad, CHUNK));
+            moved.children.items.extend(tail);
+            moved.children.items.truncate(n);
+            moved.children.begins[1] = false;
+            moved.children.begins[2] = true;
+            assert_eq!(run_shape(&shape, &sets, &moved, None), vec![]);
 
-        // The honest places, with the moved fill's selection bits at their places: only coverage fails.
-        let mut placed = honest;
-        for (a, b) in placed.children.items.iter_mut().zip(&moved.children.items) {
-            a.select = b.select;
+            // The honest places, with the moved fill's selection bits at their places: only coverage fails.
+            let mut placed = honest;
+            for (a, b) in placed.children.items.iter_mut().zip(&moved.children.items) {
+                a.select = b.select;
+            }
+            let failures = run_shape(&shape, &sets, &placed, None);
+            assert!(!failures.is_empty());
+            assert!(
+                failures.iter().all(|u| u.scope().iter().any(|s| s == "coverage")),
+                "{failures:?}"
+            );
+
+            // Mutation: the two placements under one challenge.
+            //
+            //     same sets read, same selection words → same instance were the begin bits not in it
+            //     → the prover picks the placement after the challenge
+            //     the begin words are in the transcript → each placement draws its own point
+            let drawn = |f: &UnionFill| {
+                let mut b = Builder::new();
+                // Every child is present: the sets read are the children's.
+                let read: Vec<Dw> = sets.iter().map(|s| b.free_d(s.digest())).collect();
+                let digest = b.free_d(f.digest);
+                let pool = pool_rows(&mut b, shape.children, &read, Some(&f.children), true);
+                let declared = pool_rows(&mut b, shape.declared, &[digest], Some(&f.declared), false);
+                let point = challenge(&mut b, &SessionId([7; 32]), &read, digest, &[&pool, &declared]);
+                let words = |ws: &[Kw]| ws.iter().map(|&w| b.k(w)).collect::<Vec<u64>>();
+                (words(&pool.selections), words(&pool.begins), b.e(point.x1))
+            };
+            let (moved, placed) = (drawn(&moved), drawn(&placed));
+            assert_eq!(moved.0, placed.0, "one set of selection words");
+            assert_ne!(moved.1, placed.1, "two placements");
+            assert_ne!(moved.2, placed.2, "two challenges");
         }
-        let failures = run(&sets, &placed, None);
-        assert!(!failures.is_empty());
-        assert!(
-            failures.iter().all(|u| u.scope().iter().any(|s| s == "coverage")),
-            "{failures:?}"
-        );
-
-        // Mutation: the two placements under one challenge.
-        //
-        //     same digests, same selection words → same instance were the begin bits not in it
-        //     → the prover picks the placement after the challenge
-        //     the begin words are in the transcript → each placement draws its own point
-        let drawn = |f: &UnionFill| {
-            let shape = UnionShape::new(CAPACITY, sets.len());
-            let mut b = Builder::new();
-            let digests: Vec<Dw> = sets.iter().map(|s| b.free_d(s.digest())).collect();
-            let digest = b.free_d(f.digest);
-            let pool = pool_rows(&mut b, shape.children, &digests, Some(&f.children), true);
-            let declared = pool_rows(&mut b, shape.declared, &[digest], Some(&f.declared), false);
-            let point = challenge(&mut b, &SessionId([7; 32]), &digests, digest, &[&pool, &declared]);
-            let words = |ws: &[Kw]| ws.iter().map(|&w| b.k(w)).collect::<Vec<u64>>();
-            (words(&pool.selections), words(&pool.begins), b.e(point.x1))
-        };
-        let (moved, placed) = (drawn(&moved), drawn(&placed));
-        assert_eq!(moved.0, placed.0, "one set of selection words");
-        assert_ne!(moved.1, placed.1, "two placements");
-        assert_ne!(moved.2, placed.2, "two challenges");
     }
 }
