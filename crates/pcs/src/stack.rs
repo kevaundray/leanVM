@@ -338,7 +338,7 @@ struct StatementWeight<'a, 'r, E> {
     anchor_lambda: E,
 }
 
-impl<E: Copy + PartialEq, V: OpeningVerifier<E = E>> WeightAt<V> for StatementWeight<'_, '_, E> {
+impl<E: Copy + PartialEq, V: OpeningVerifier<E = E>> WeightAt<E, V> for StatementWeight<'_, '_, E> {
     fn call(self, v: &mut V, x: &[E]) -> E {
         let weight = self.share.weight_at(v, x);
         let weight = add_point_weights(v, self.points, self.point_lambdas, x, weight);
@@ -349,19 +349,29 @@ impl<E: Copy + PartialEq, V: OpeningVerifier<E = E>> WeightAt<V> for StatementWe
 
 /// `weight + sum_i lambdas[i] * eq_i(x)` over the point claims, in order.
 ///
-/// It takes the claims directly, so the loop runs under no borrow of the statement weight.
-fn add_point_weights<E: Copy, V: OpeningVerifier<E = E>>(
-    v: &mut V,
+/// It takes the claims directly, so the loop runs under no borrow of the statement weight, and needs only `Arith`.
+fn add_point_weights<E: Copy, A: Arith<E = E>>(
+    a: &mut A,
     points: &[StackClaim<E>],
     lambdas: &[E],
     x: &[E],
     mut weight: E,
 ) -> E {
     for i in 0..points.len().min(lambdas.len()) {
-        let eq = points[i].eq_at(v, x);
-        weight = v.mul_add(lambdas[i], eq, weight);
+        let eq = points[i].eq_at(a, x);
+        weight = a.mul_add(lambdas[i], eq, weight);
     }
     weight
+}
+
+/// `target + sum_i lambdas[i] * value_i` over the point claims, in order; it needs only `Arith`.
+fn add_point_targets<E: Copy, A: Arith<E = E>>(a: &mut A, points: &[StackClaim<E>], lambdas: &[E], mut target: E) -> E {
+    let mut i = 0;
+    while i < points.len().min(lambdas.len()) {
+        target = a.mul_add(lambdas[i], points[i].value(), target);
+        i += 1;
+    }
+    target
 }
 
 impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
@@ -438,12 +448,7 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
         // The target, recomputed from the claims.
         v.begin_scope(fiat_shamir::arith::Stage::Target);
         let family_target = share.target(v);
-        let mut point_target = family_target;
-        let mut i = 0;
-        while i < statement.points.len().min(point_lambdas.len()) {
-            point_target = v.mul_add(point_lambdas[i], statement.points[i].value(), point_target);
-            i += 1;
-        }
+        let point_target = add_point_targets(v, statement.points, point_lambdas, family_target);
         let target = v.mul_add(anchor_lambda, self.record.value(), point_target);
         v.end_scope();
 

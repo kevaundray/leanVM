@@ -18,7 +18,7 @@ use crate::whir::config::{Config, ConfigError};
 use crate::whir::query::Normalizers;
 use fiat_shamir::arith::Arith;
 use fiat_shamir::transcript::TranscriptError;
-use primitives::field::F192;
+use primitives::field::{F64, F192};
 use thiserror::Error;
 
 /// Why a WHIR opening is rejected.
@@ -159,8 +159,9 @@ struct ExtRows<E>(Vec<Vec<E>>);
 
 /// A caller's terminal weight, evaluated once with static dispatch.
 /// The consumed provider keeps borrowed statement data within verification's lifetime without allocating a callback.
-pub(crate) trait WeightAt<V: OpeningVerifier> {
-    fn call(self, v: &mut V, point: &[V::E]) -> V::E;
+/// The element type is a parameter, so the call's point and value name it directly rather than through `V`.
+pub(crate) trait WeightAt<E, V: OpeningVerifier<E = E>> {
+    fn call(self, v: &mut V, point: &[E]) -> E;
 }
 
 /// A query batch whose rows scope has begun but whose sum is not yet replayed.
@@ -197,7 +198,7 @@ pub(crate) fn verify<V: OpeningVerifier>(
     n_lanes: usize,
     target: V::E,
     root: V::Root,
-    weight_at: impl WeightAt<V>,
+    weight_at: impl WeightAt<V::E, V>,
 ) -> Result<(), WhirError> {
     // The typed wrapper checks shape before reading its record frame; keep
     // direct internal callers safe too, without duplicating record binding.
@@ -328,35 +329,51 @@ impl<Q, E: Copy> LevelCtx<Q, E> {
     fn basis_at<V: OpeningVerifier<E = E, Query = Q>>(&self, v: &mut V, point: &[E]) -> E {
         assert_eq!(point.len(), self.log_msg_cols, "a point of the level's cube");
         let normalizers = Normalizers::new(self.log_msg_cols);
-        let sks = normalizers.at_roots();
         // Each factor is affine in `s`: `1 + p (1 + s / sigma) = (1 + p) + (p / sigma) s`.
-        let inverses = normalizers.inverses();
-        let mut lin = Vec::with_capacity(point.len());
-        for k in 0..point.len() {
-            let p = point[k];
-            let a = v.add_const(p, F192::ONE);
-            let c = v.mul_const(p, F192::from(inverses[k]));
-            lin.push((a, c));
-        }
+        let lin = affine_factors(v, point, normalizers.inverses());
         let zero = v.zero();
         let mut acc = zero;
         for i in 0..self.queries.len().min(self.weights.len()) {
-            let mut s = v.query_point(&self.queries[i]);
-            let mut product = v.one();
-            for k in 0..lin.len() {
-                let (a, c) = lin[k];
-                if k > 0 {
-                    // The subspace polynomials' recurrence `s_k = s_{k-1}^2 + s_{k-1}(v_{k-1}) s_{k-1}`.
-                    let u = v.mul_const(s, F192::from(sks[k - 1]));
-                    s = v.mul_add(s, s, u);
-                }
-                let f = v.mul_add(c, s, a);
-                product = v.mul(product, f);
-            }
+            let s = v.query_point(&self.queries[i]);
+            let product = basis_product(v, &lin, normalizers.at_roots(), s);
             acc = v.mul_add(self.weights[i], product, acc);
         }
         acc
     }
+}
+
+// The basis loops need only arithmetic, so they are generic over `Arith` and take the normalizers as slices.
+
+/// The affine factors `(1 + p_k, p_k / s_k(v_k))`, one per coordinate of the point.
+fn affine_factors<E: Copy, A: Arith<E = E>>(a: &mut A, point: &[E], inverses: &[F64]) -> Vec<(E, E)> {
+    let mut lin = Vec::with_capacity(point.len());
+    let mut k = 0;
+    while k < point.len() {
+        let p = point[k];
+        let one_plus = a.add_const(p, F192::ONE);
+        let c = a.mul_const(p, F192::from(inverses[k]));
+        lin.push((one_plus, c));
+        k += 1;
+    }
+    lin
+}
+
+/// One query's product `prod_k ((1 + p_k) + (p_k / s_k(v_k)) s_k(q))`, from `s_0(q) = s`.
+fn basis_product<E: Copy, A: Arith<E = E>>(a: &mut A, lin: &[(E, E)], sks: &[F64], mut s: E) -> E {
+    let mut product = a.one();
+    let mut k = 0;
+    while k < lin.len() {
+        let (one_plus, c) = lin[k];
+        if k > 0 {
+            // The subspace polynomials' recurrence `s_k = s_{k-1}^2 + s_{k-1}(v_{k-1}) s_{k-1}`.
+            let u = a.mul_const(s, F192::from(sks[k - 1]));
+            s = a.mul_add(s, s, u);
+        }
+        let f = a.mul_add(c, s, one_plus);
+        product = a.mul(product, f);
+        k += 1;
+    }
+    product
 }
 
 impl QueryPhase {
@@ -409,7 +426,7 @@ impl<V: OpeningVerifier> WhirReplay<V> {
         n_lanes: usize,
         target: V::E,
         root: V::Root,
-        weight_at: impl WeightAt<V>,
+        weight_at: impl WeightAt<V::E, V>,
     ) -> Result<(), WhirError> {
         let initial_k = config.initial_k();
         let max = 1usize << initial_k;
@@ -587,7 +604,7 @@ impl<V: OpeningVerifier> WhirReplay<V> {
         oracle: &Oracle<V::Root>,
         level_rs: &[V::E],
         n_current: usize,
-        weight_at: impl WeightAt<V>,
+        weight_at: impl WeightAt<V::E, V>,
     ) -> Result<(), WhirError> {
         let yr = v.next_scalars(1 << n_current)?;
         let phase = Self::phase(config, config.level_steps(), oracle.depth());
@@ -626,7 +643,7 @@ impl<V: OpeningVerifier> WhirReplay<V> {
         config: &Config,
         yr: &[V::E],
         ris_tail: &[V::E],
-        weight_at: impl WeightAt<V>,
+        weight_at: impl WeightAt<V::E, V>,
     ) -> Result<(), WhirError> {
         let tail = ris_tail.len();
         let zero = v.zero();
@@ -639,12 +656,7 @@ impl<V: OpeningVerifier> WhirReplay<V> {
             let at = ctx.basis_at(v, &point);
             weight = v.mul_add(ctx.beta, at, weight);
         }
-        for i in 0..self.oods.len() {
-            let ctx = &self.oods[i];
-            let folded = ctx.z.len() - tail;
-            let scalar = ctx.term(v, &self.ris[ctx.ris_start..ctx.ris_start + folded], ris_tail);
-            weight = v.add(weight, scalar);
-        }
+        weight = add_ood_terms(v, &self.oods, &self.ris, ris_tail, weight);
         // Why rotate: `ris ++ ris_tail` is the fold challenges in round order.
         // - The first `initial_k` rounds are the lane fold, which binds the witness's top `initial_k` variables.
         // - Rotating left by `initial_k` indexes the point by witness variable, as the caller's weight expects.
@@ -686,4 +698,24 @@ impl<E: Copy> ExtRows<E> {
             v.mul_add(e, column, acc)
         })
     }
+}
+
+/// `weight + sum_j term_j` over the OOD claims in order, each at its suffix of the fold challenges; it needs only `Arith`.
+fn add_ood_terms<E: Copy, A: Arith<E = E>>(
+    a: &mut A,
+    oods: &[OodCtx<E>],
+    ris: &[E],
+    ris_tail: &[E],
+    mut weight: E,
+) -> E {
+    let tail = ris_tail.len();
+    let mut i = 0;
+    while i < oods.len() {
+        let ctx = &oods[i];
+        let folded = ctx.z.len() - tail;
+        let scalar = ctx.term(a, &ris[ctx.ris_start..ctx.ris_start + folded], ris_tail);
+        weight = a.add(weight, scalar);
+        i += 1;
+    }
+    weight
 }

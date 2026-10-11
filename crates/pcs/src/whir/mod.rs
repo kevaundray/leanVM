@@ -192,7 +192,7 @@ mod tests {
 
     struct EqWeight<'a>(&'a [F192]);
 
-    impl<V: crate::verifier::OpeningVerifier<E = F192>> WeightAt<V> for EqWeight<'_> {
+    impl<V: crate::verifier::OpeningVerifier<E = F192>> WeightAt<F192, V> for EqWeight<'_> {
         fn call(self, _: &mut V, point: &[F192]) -> F192 {
             eq_eval(self.0, point)
         }
@@ -200,7 +200,7 @@ mod tests {
 
     struct DenseWeight<'a>(&'a [F192]);
 
-    impl<V: crate::verifier::OpeningVerifier<E = F192>> WeightAt<V> for DenseWeight<'_> {
+    impl<V: crate::verifier::OpeningVerifier<E = F192>> WeightAt<F192, V> for DenseWeight<'_> {
         fn call(self, _: &mut V, point: &[F192]) -> F192 {
             dense_mle(self.0, point)
         }
@@ -209,7 +209,7 @@ mod tests {
     fn verify_with(
         inst: &Instance,
         fs: &ProofTranscript,
-        weight_at: impl for<'v> WeightAt<VerifierState<'v>>,
+        weight_at: impl for<'v> WeightAt<F192, VerifierState<'v>>,
     ) -> Result<(), WhirError> {
         let mut vs = VerifierState::from_label(b"whir-test", fs);
         let root = vs.next_root()?;
