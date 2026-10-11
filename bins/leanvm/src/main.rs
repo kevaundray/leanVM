@@ -131,12 +131,14 @@ enum Command {
         /// its set alone. Each node's proving time is reported under its circuit; `--repeat` proves the tree again.
         #[arg(long)]
         signers: bool,
-        /// The signer-set tree's bound on claims: every node's children's sets together hold fewer.
-        #[arg(long, default_value_t = 1 << 16, requires = "signers")]
-        max_claims: usize,
+        /// The signer-set tree's bound on claims: every node's children's sets together hold fewer. Required with
+        /// `--signers`: the capacity sets every circuit's heights, so it has no default.
+        #[arg(long, requires = "signers", required_if_eq("signers", "true"))]
+        max_claims: Option<usize>,
         /// The signer-set tree's bound on groups: every node's children's sets together have at most as many.
-        #[arg(long, default_value_t = 1024, requires = "signers")]
-        max_groups: usize,
+        /// Required with `--signers`.
+        #[arg(long, requires = "signers", required_if_eq("signers", "true"))]
+        max_groups: Option<usize>,
         /// The groups each leaf's signatures are split across, group `j` signing message `j`.
         #[arg(long, default_value_t = 1, requires = "signers")]
         groups: usize,
@@ -251,8 +253,8 @@ fn main() {
             if signers {
                 let signers = Signers {
                     capacity: Capacity {
-                        claims: max_claims,
-                        groups: max_groups,
+                        claims: max_claims.expect("--signers requires --max-claims"),
+                        groups: max_groups.expect("--signers requires --max-groups"),
                     },
                     groups,
                     overlap,

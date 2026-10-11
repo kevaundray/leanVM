@@ -166,7 +166,7 @@ A signer-set tree (`cargo leanvm aggregate --signers`, over leanXMSS or leanSPHI
 cargo leanvm aggregate --signers --program leanxmss --n 400 --leaves 16 --arity0 4 --arity 4 --max-claims 6401 --max-groups 16 --groups 4 --overlap 25
 ```
 
-`--max-claims` and `--max-groups` bound the sets (by default leanVM `main`'s, fewer than 2^16 claims in at most 1,024 groups), `--groups` splits each leaf's signatures across messages and `--overlap` repeats a share of the previous leaf's signers in each. The leaves are proven untimed; it reports the union, each circuit's rows and committed words, each kind of node's proving time, the root's verifying time and the proving's heap peak.
+`--max-claims` and `--max-groups` bound the sets and are required, since the capacity sets every circuit's heights; `--groups` splits each leaf's signatures across messages and `--overlap` repeats a share of the previous leaf's signers in each. The leaves are proven untimed; it reports the union, each circuit's rows and committed words, each kind of node's proving time, the root's verifying time and the proving's heap peak.
 
 ### Hosted Android and iPhone benchmarks
 
