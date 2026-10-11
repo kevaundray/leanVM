@@ -10,7 +10,6 @@ mod signers;
 pub use signers::{SignerSet, SignerSetError, XmssClaim, XmssGroup};
 
 use core::ops::Range;
-use leanvm::{SignerSet, XmssGroup};
 use leanvm_guest::{PublicValues, Run, as_words_unchecked};
 use leanxmss::{LeafIndex, Message, PublicKey, Signature};
 
@@ -48,7 +47,7 @@ pub struct Group {
 pub struct Batch {
     /// The guest's advice, and the output it must give: the BLAKE2s of `set`'s digest, the one value it commits.
     pub run: Run,
-    /// The claims the guest verifies, one XMSS group per [`Group`], in their order (not canonical).
+    /// The claims the guest verifies, one group per [`Group`], in their order (not canonical).
     pub set: SignerSet,
 }
 
@@ -86,9 +85,9 @@ pub fn batch_groups(groups: &[Group]) -> Batch {
             leanxmss::verify(pk, g.leaf_index, &g.message, signature).expect("honest signatures verify");
             advice.extend(words_of_key(pk));
             advice.extend(words_of_signature(signature));
-            keys.push(key(pk));
+            keys.push(*pk);
         }
-        set.xmss.push(XmssGroup {
+        set.groups.push(XmssGroup {
             leaf_index: g.leaf_index,
             message: g.message,
             keys,
@@ -104,13 +103,6 @@ pub fn batch_groups(groups: &[Group]) -> Batch {
         },
         set,
     }
-}
-
-/// A key as a signer set holds it: its Merkle root, then its public parameter.
-const fn key(pk: &PublicKey) -> [u64; 4] {
-    let [r0, r1] = pk.merkle_root;
-    let [p0, p1] = pk.public_param;
-    [r0, r1, p0, p1]
 }
 
 /// A key as the words the guest reads it from.
@@ -129,8 +121,8 @@ const fn words_of_signature(signature: &Signature) -> &[u64] {
 mod tests {
     use super::*;
     use leanvm::{Machine, Program, Trap};
-    use leanvm_guest::signers::{SignerStream, XMSS};
     use leanxmss::XmssVerifyError::{InvalidEncoding, InvalidMerklePath};
+    use leanxmss::signers::Stream;
     use leanxmss::{PublicKey, Signature};
     use primitives::hash::{digest_words, hash};
 
@@ -243,12 +235,16 @@ mod tests {
             words = tail;
             head
         };
-        let mut signers = SignerStream::new();
+        let mut signers = Stream::new();
         for _ in 0..take(1)[0] {
-            let leaf_index = take(1)[0];
-            signers.group(XMSS, leaf_index, take(4).try_into().unwrap());
+            let leaf_index = LeafIndex::try_from(take(1)[0]).expect("a leaf index below 2^32");
+            signers.group(leaf_index, take(4).try_into().unwrap());
             for _ in 0..take(1)[0] {
-                signers.key(take(KEY).try_into().unwrap());
+                let k = take(KEY);
+                signers.key(&PublicKey {
+                    merkle_root: [k[0], k[1]],
+                    public_param: [k[2], k[3]],
+                });
                 take(SIGNATURE);
             }
         }
@@ -291,7 +287,7 @@ mod tests {
         // One group, every count up to 5: keys are written two to a block, so none, odd and even counts.
         for n in 0..=5 {
             let batch = batch(n);
-            assert_eq!(batch.set.xmss.len(), 1);
+            assert_eq!(batch.set.groups.len(), 1);
             assert_eq!(batch.set.n_claims(), n);
             assert_eq!(batch.run.advice.len(), 1 + 6 + n * (KEY + SIGNATURE));
             outputs(&batch);
@@ -302,19 +298,19 @@ mod tests {
         let batch = batch_groups(&groups);
         outputs(&batch);
         let set = &batch.set;
-        assert_eq!(set.xmss.len(), groups.len());
-        for (g, group) in set.xmss.iter().zip(&groups) {
+        assert_eq!(set.groups.len(), groups.len());
+        for (g, group) in set.groups.iter().zip(&groups) {
             assert_eq!(
                 (g.leaf_index, g.message, g.keys.len()),
                 (group.leaf_index, group.message, group.signers.len())
             );
         }
         // Signer 2 at leaf index 1234 under two messages: one key in two groups.
-        assert_eq!(set.xmss[0].keys[2], set.xmss[2].keys[0]);
+        assert_eq!(set.groups[0].keys[2], set.groups[2].keys[0]);
         // Signer 1 at another leaf index: another key.
-        assert_ne!(set.xmss[0].keys[1], set.xmss[1].keys[0]);
+        assert_ne!(set.groups[0].keys[1], set.groups[1].keys[0]);
         // The set is not canonical (its groups are in the advice's order), and holds what its canonical form holds.
-        assert!(set.check(leanvm::Capacity::MAIN).is_err());
+        assert!(set.check().is_err());
         assert_eq!(
             SignerSet::from_claims(set.claims()).n_claims(),
             set.n_claims(),

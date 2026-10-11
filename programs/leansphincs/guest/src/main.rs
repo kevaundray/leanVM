@@ -2,26 +2,26 @@
 //! each a message, a count, and that many public keys and signatures.
 //!
 //! Each group's signatures are verified against its message, and the signer set they form
-//! (`leanvm_guest::signers`: the claims in the advice's order) is digested as they are read;
+//! (`leansphincs::signers`: the claims in the advice's order) is digested as they are read;
 //! that digest is the one value committed.
 //!
-//! A set writes its SPHINCS claims as runs of one message, so a group opens a run only if it
-//! has a signature and its message is not the open run's: the digest is the set's whatever the
+//! A set is written as runs of claims of one message, so a group opens a run only if it has a
+//! signature and its message is not the open run's: the digest is the set's whatever the
 //! advice's grouping.
 //!
 //! A bad signature leaves the run without a proof.
 #![no_std]
 #![no_main]
 
+use leansphincs::signers::Stream;
 use leansphincs::{Message, PublicKey, Signature};
-use leanvm_guest::signers::{SPHINCS, SignerStream};
 use leanvm_guest::{commit, read, read_unchecked};
 
 leanvm_guest::advice_words!(1 << 16);
 
 #[unsafe(no_mangle)]
 extern "C" fn main() {
-    let mut signers = SignerStream::new();
+    let mut signers = Stream::new();
     // The message of the open run, if any.
     let mut open: Option<&Message> = None;
     let n_groups = *read::<u64>();
@@ -29,7 +29,7 @@ extern "C" fn main() {
         let message = read::<Message>();
         let n = *read::<u64>();
         if n != 0 && open != Some(message) {
-            signers.group(SPHINCS, 0, message);
+            signers.group(message);
             open = Some(message);
         }
         for _ in 0..n {
@@ -40,11 +40,7 @@ extern "C" fn main() {
 
             leansphincs::verify(public_key, message, signature).expect("every signature verifies");
 
-            let PublicKey {
-                root: [r0, r1],
-                public_param: [p0, p1],
-            } = *public_key;
-            signers.key(&[r0, r1, p0, p1]);
+            signers.key(public_key);
         }
     }
     commit(&signers.finish());
