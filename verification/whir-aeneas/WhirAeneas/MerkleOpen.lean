@@ -1174,4 +1174,124 @@ theorem open_eq (hword : UScalarTy.Usize.numBits = 64) {leaf : List U64 → Dige
         hr, hlv, hreb, core.option.Option.Insts.CoreOpsTry_traitTry.branch,
         core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual]
 
+/-! ## Acceptance and binding -/
+
+theorem expandSpec_images (rows : List U64) (sorted : List Nat) (ks : List (List (Nat × Digest))) (rw lw : Nat) :
+    ∀ (qs : List Nat) I Ps, expandSpec rows sorted ks rw lw qs = some (I, Ps) →
+      I = qs.flatMap (imageOf rows sorted rw lw)
+  | [], I, Ps, h => by simp [expandSpec] at h; simp [h.1]
+  | q :: qs, I, Ps, h => by
+    simp only [expandSpec] at h
+    split_ifs at h with hq
+    cases hp : pathFrom ks q with
+    | none => rw [hp] at h; cases h
+    | some p =>
+      rw [hp] at h
+      simp only [Option.map_eq_some_iff] at h
+      obtain ⟨⟨I', Ps'⟩, h', he⟩ := h
+      simp only [Prod.mk.injEq] at he
+      rw [← he.1, expandSpec_images rows sorted ks rw lw qs I' Ps' h']
+      simp
+
+/-- Completeness of the opening: when the guards pass and the rebuild uses every sibling and
+leaves `root` on top, `openSpec` returns every query's leaf image in query order. -/
+theorem openSpec_accepts (leaf : List U64 → Digest) (node : Digest → Digest → Digest) (rows : List U64)
+    (sibs : List Digest) (root : Digest) (h : Nat) (queries : List Nat) (rw lw : Nat)
+    (hq : queries ≠ []) (hrl : rw ≤ lw) (hin : ∀ q ∈ queries, q < 2 ^ h)
+    (hlen : rows.length = (queries.toFinset.sort (· ≤ ·)).length * rw) (lvls top u)
+    (hreb : rebuildSpec node sibs h (leavesOf leaf rows (queries.toFinset.sort (· ≤ ·)) rw lw) 0 =
+      some (lvls, top, u))
+    (hacc : Accepts root sibs.length top u) :
+    ∃ Ps, openSpec leaf node rows sibs root h queries rw lw =
+      some (queries.flatMap (imageOf rows (queries.toFinset.sort (· ≤ ·)) rw lw), Ps) := by
+  set S := queries.toFinset.sort (· ≤ ·) with hS
+  have hcond : ¬ (queries = [] ∨ lw < rw ∨ (∃ q ∈ queries, 2 ^ h ≤ q) ∨ rows.length ≠ S.length * rw) := by
+    simp only [not_or, not_exists, not_and, not_le]
+    exact ⟨hq, by omega, fun q hq' => hin q hq', by omega⟩
+  obtain ⟨-, -, b3, -, -⟩ := rebuildSpec_struct node sibs h _ 0 lvls top u hreb
+    (leavesOf_pairwise leaf rows S rw lw (sort_strict _))
+  have hpres : ∀ q ∈ queries, q ∈ S ∧ (pathFrom (lvls.map knownOf) q).isSome := by
+    intro q hq'
+    have hqS : q ∈ S := (mem_sort_iff _ q).mpr hq'
+    refine ⟨hqS, ?_⟩
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hqS
+    have hmem : (S[i], leaf (rowImage rows rw lw i)) ∈ leavesOf leaf rows S rw lw := by
+      unfold leavesOf
+      rw [List.mem_iff_getElem]
+      exact ⟨i, by simp; omega, by simp⟩
+    exact b3 _ hmem
+  refine ⟨queries.flatMap fun q => (pathFrom (lvls.map knownOf) q).getD [], ?_⟩
+  simp only [openSpec]
+  rw [if_neg hcond, hreb]
+  dsimp only
+  rw [if_pos hacc, expandSpec_some rows S (lvls.map knownOf) rw lw queries hpres]
+
+/-- Binding, under an injective pair hash and an injective leaf hash: if the opening accepts
+against the root of the committed tree `T` (leaf `i` hashing row `C i` after the zero prefix,
+each parent the pair hash of its children), every query's leaf image is the committed row's. -/
+theorem openSpec_binding (leaf : List U64 → Digest) (node : Digest → Digest → Digest)
+    (hleaf : ∀ a b, leaf a = leaf b → a = b) (hnode : ∀ a b c d, node a b = node c d → a = c ∧ b = d)
+    (rows : List U64) (sibs : List Digest) (h : Nat) (queries : List Nat) (rw lw : Nat)
+    (C : Nat → List U64) (T : Nat → Nat → Digest)
+    (hT0 : ∀ i, T 0 i = leaf (List.replicate (lw - rw) primitives.field.gf2_64.F64.ZERO ++ C i))
+    (hT : ∀ l i, T (l + 1) i = node (T l (2 * i)) (T l (2 * i + 1))) (I Ps)
+    (hopen : openSpec leaf node rows sibs (T h 0) h queries rw lw = some (I, Ps)) :
+    I = queries.flatMap fun q => List.replicate (lw - rw) primitives.field.gf2_64.F64.ZERO ++ C q := by
+  set S := queries.toFinset.sort (· ≤ ·) with hS
+  simp only [openSpec] at hopen
+  split_ifs at hopen with hcond
+  simp only [not_or, not_exists, not_and, not_le] at hcond
+  obtain ⟨hq, hrl, hin, hlen⟩ := hcond
+  cases hreb : rebuildSpec node sibs h (leavesOf leaf rows S rw lw) 0 with
+  | none => rw [hreb] at hopen; cases hopen
+  | some x =>
+    obtain ⟨lvls, top, u⟩ := x
+    rw [hreb] at hopen
+    dsimp only at hopen
+    split_ifs at hopen with hacc
+    have hasc := leavesOf_pairwise leaf rows S rw lw (sort_strict _)
+    obtain ⟨-, -, -, b4, b5⟩ := rebuildSpec_struct node sibs h _ 0 lvls top u hreb hasc
+    have hidx0 : ∀ x ∈ top, x.1 = 0 := by
+      intro x hx
+      have := b4 1 (by
+        intro y hy
+        have := hin y.1 ((mem_sort_iff _ _).mp (mem_leavesOf leaf rows S rw lw y hy))
+        omega) x hx
+      omega
+    have htop : ∀ x ∈ top, x.2 = T (0 + h) x.1 := by
+      obtain ⟨-, hroot⟩ := hacc
+      cases top with
+      | nil => simp at hroot
+      | cons y ys =>
+        simp only [List.head?_cons, Option.map_some, Option.some.injEq] at hroot
+        have hys : ys = [] := by
+          cases ys with
+          | nil => rfl
+          | cons z zs =>
+            have h1 := hidx0 y (by simp)
+            have h2 := hidx0 z (by simp)
+            have := (List.pairwise_cons.mp b5).1 z (by simp)
+            omega
+        subst hys
+        intro x hx
+        simp only [List.mem_singleton] at hx
+        subst hx
+        rw [hroot, hidx0 x (by simp), Nat.zero_add]
+    have hleaves := rebuildSpec_tree node hnode T hT sibs h _ 0 lvls top u 0 hreb hasc htop
+    rw [expandSpec_images rows S (lvls.map knownOf) rw lw queries I Ps hopen]
+    apply List.flatMap_congr
+    intro q hq'
+    have hqS : q ∈ S := (mem_sort_iff _ q).mpr hq'
+    obtain ⟨i, hi, hqi⟩ := List.getElem_of_mem hqS
+    have hmem : (S[i], leaf (rowImage rows rw lw i)) ∈ leavesOf leaf rows S rw lw := by
+      unfold leavesOf
+      rw [List.mem_iff_getElem]
+      exact ⟨i, by simp; omega, by simp⟩
+    have := hleaves _ hmem
+    simp only at this
+    rw [hT0, hqi] at this
+    have hidx : S.idxOf q = i := by rw [← hqi]; exact idxOf_of_pairwise S (sort_strict _) i hi
+    rw [imageOf_eq, hidx]
+    exact hleaf _ _ this
+
 end WhirAeneas.Merkle
