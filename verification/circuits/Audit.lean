@@ -328,7 +328,15 @@ run_cmd do
     ``LeanVMCircuits.Bus.memory_consistent_of_state_walk,
     ``LeanVMCircuits.Bus.memory_consistent_shared,
     ``LeanVMCircuits.Bus.machine_correct,
-    ``LeanVMCircuits.Bus.machine_correct_of_product_check] do
+    ``LeanVMCircuits.Bus.machine_correct_of_product_check,
+    ``LeanVMCircuits.Bus.ClassTable.all_wellFormed,
+    ``LeanVMCircuits.Bus.ClassTable.all_slots,
+    ``LeanVMCircuits.Bus.ClassTable.Spec.pushes_eq,
+    ``LeanVMCircuits.Bus.ClassTable.Spec.pulls_eq,
+    ``LeanVMCircuits.Bus.ClassTable.Spec.row_c1,
+    ``LeanVMCircuits.Bus.ClassTable.Spec.row_c2,
+    ``LeanVMCircuits.Bus.ClassTable.Spec.row_c3,
+    ``LeanVMCircuits.Bus.ClassTable.row_correct] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
@@ -383,3 +391,11 @@ run_cmd do
 #print axioms LeanVMCircuits.Bus.memory_consistent_shared
 #print axioms LeanVMCircuits.Bus.machine_correct
 #print axioms LeanVMCircuits.Bus.machine_correct_of_product_check
+#print axioms LeanVMCircuits.Bus.ClassTable.all_wellFormed
+#print axioms LeanVMCircuits.Bus.ClassTable.all_slots
+#print axioms LeanVMCircuits.Bus.ClassTable.Spec.pushes_eq
+#print axioms LeanVMCircuits.Bus.ClassTable.Spec.pulls_eq
+#print axioms LeanVMCircuits.Bus.ClassTable.Spec.row_c1
+#print axioms LeanVMCircuits.Bus.ClassTable.Spec.row_c2
+#print axioms LeanVMCircuits.Bus.ClassTable.Spec.row_c3
+#print axioms LeanVMCircuits.Bus.ClassTable.row_correct

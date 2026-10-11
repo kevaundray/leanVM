@@ -18,3 +18,5 @@ public import LeanVMCircuits.AluExport
 public import LeanVMCircuits.Bus.Lookup
 public import LeanVMCircuits.Bus.Memory
 public import LeanVMCircuits.Bus.Machine
+public import LeanVMCircuits.Bus.TableFlushes
+public import LeanVMCircuits.Bus.TableRows
