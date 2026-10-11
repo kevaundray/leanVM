@@ -1439,14 +1439,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "leansigners-host"
+name = "leansigners"
 version = "0.1.0"
 dependencies = [
  "leansphincs",
+ "leanvm_guest",
+ "leanxmss",
+]
+
+[[package]]
+name = "leansigners-host"
+version = "0.1.0"
+dependencies = [
+ "leansigners",
+ "leansphincs",
+ "leansphincs-host",
  "leanvm",
  "leanvm_guest",
  "leanxmss",
- "parallel",
+ "leanxmss-host",
+ "thiserror",
 ]
 
 [[package]]
@@ -1466,6 +1478,7 @@ dependencies = [
  "leanvm_guest",
  "parallel",
  "primitives",
+ "thiserror",
 ]
 
 [[package]]
@@ -1528,6 +1541,7 @@ dependencies = [
  "leanxmss",
  "parallel",
  "primitives",
+ "thiserror",
 ]
 
 [[package]]

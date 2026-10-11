@@ -10,8 +10,13 @@ publish = false
 workspace = true
 
 [dependencies]
+leansigners = { path = "../guest" }
+leansphincs-host.workspace = true
+leanvm_guest.workspace = true
+leanxmss-host.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
 leansphincs = { path = "../../leansphincs/guest" }
 leanvm.workspace = true
-leanvm_guest.workspace = true
 leanxmss = { path = "../../leanxmss/guest" }
-parallel.workspace = true

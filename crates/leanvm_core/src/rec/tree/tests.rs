@@ -60,7 +60,7 @@ fn fixture() -> &'static Fixture {
                 arity_0: 2,
                 arity: 2,
                 rate: Rate::MIN,
-                signers: None,
+                claims: None,
             },
         )
         .expect("a tree");
@@ -137,7 +137,7 @@ fn one_leaf_is_a_root() {
             arity_0: 1,
             arity: 2,
             rate: Rate::MIN,
-            signers: None,
+            claims: None,
         },
     )
     .expect("a tree");
@@ -166,7 +166,7 @@ fn what_a_prover_is_handed_is_checked() {
                     arity_0,
                     arity,
                     rate: Rate::MIN,
-                    signers: None,
+                    claims: None,
                 }
             ),
             Err(TreeError::Arity { .. })
@@ -247,7 +247,7 @@ fn a_proven_circuit_is_the_shapes() {
             proof: &proof.0,
             openings: program().verify_recording(*output, proof).expect("an honest leaf"),
             output: *output.words(),
-            signers: [0; 4],
+            set: [0; 4],
         })
         .collect();
     let rows = d.first(&NodeInputs::Prove {
@@ -474,7 +474,7 @@ fn forged_first(f: &Fixture, forge: Forge) -> TreeProof {
             proof: &proof.0,
             openings: program().verify_recording(*output, proof).expect("an honest leaf"),
             output: *output.words(),
-            signers: [0; 4],
+            set: [0; 4],
         })
         .collect();
     let rows = d.first(&NodeInputs::Prove {

@@ -29,13 +29,16 @@ mod blake2s;
 pub mod ext;
 mod io;
 pub mod keccak;
-pub mod signers;
 pub use blake2s::{Blake2s, Stream, Template, hash_prefix_with, hash_with};
 pub use io::{PublicValues, Words, as_words_unchecked};
 
 // A run's advice is a heap vector, which only a host has.
 #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
 pub use io::Run;
+
+// The compression the instruction proves, off the VM; on it, `precompile::blake2s_compress`.
+#[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+pub use blake2s::blake2s_compress;
 
 // Reading, committing, the entry point and the precompiles exist on the VM only.
 #[cfg(all(target_arch = "riscv64", target_os = "none"))]

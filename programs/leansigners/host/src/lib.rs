@@ -1,44 +1,94 @@
-//! The leansigners program off the VM: it signs under both schemes, lays the signatures out as the guest's advice
-//! (the leanxmss guest's, then the leansphincs guest's), and builds the one signer set the guest proves, whose
-//! digest gives its output.
+//! The leansigners program off the VM: it signs under both schemes as the leanxmss and leansphincs hosts do, lays
+//! the signatures out as the guest's advice (the leanxmss guest's, then the leansphincs guest's), and builds the one
+//! signer set the guest proves, whose digest gives its output.
 //!
 //! Signer `i` has a key of each scheme, both from `i`'s seed: so one signer index may sign under both, as two keys.
+//!
+//! It also owns the program's signer sets ([`SignerSet`]): the claims an aggregate of its proofs publishes.
 
-use core::ops::Range;
-use leanvm::{SignerSet, SphincsClaim, XmssGroup};
-use leanvm_guest::{PublicValues, Run, as_words_unchecked};
+use leanvm_guest::{PublicValues, Run};
+use thiserror::Error;
 
 /// The guest (`../guest`), built by `programs/build.sh`.
 pub const ELF: &[u8] = include_bytes!("../../leansigners.elf");
 
-/// A signer's secret seed: its index, then zeros.
-fn seed(i: usize) -> [u8; 32] {
-    let mut seed = [0; 32];
-    seed[..8].copy_from_slice(&(i as u64).to_le_bytes());
-    seed
-}
-
-/// Signers that sign one message at one leaf index with leanXMSS.
+/// A set of leanXMSS and leanSPHINCS claims, as an aggregate publishes it: the XMSS groups, then the SPHINCS claims.
 ///
-/// Signer `i` signs at a leaf index with its key for that leaf index, from `i`'s seed: so a signer in two groups at
-/// one leaf index is one key, and at two leaf indices is two keys.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Xmss {
-    /// The leaf index.
-    pub leaf_index: leanxmss::LeafIndex,
-    /// The message.
-    pub message: leanxmss::Message,
-    /// The signers, by index.
-    pub signers: Range<usize>,
+/// Its canonical form, which a root publishes, is both parts' canonical forms: the XMSS labels (scheme word 1) all
+/// order before the SPHINCS ones (2), so that is also the canonical claim set of its labels and keys.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SignerSet {
+    /// The leanXMSS claims.
+    pub xmss: leanxmss_host::SignerSet,
+    /// The leanSPHINCS claims.
+    pub sphincs: leansphincs_host::SignerSet,
 }
 
-/// Signers that sign one message with leanSPHINCS. Signer `i`'s key is the one from `i`'s seed, in every group.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Sphincs {
-    /// The message.
-    pub message: leansphincs::Message,
-    /// The signers, by index.
-    pub signers: Range<usize>,
+/// Why a set is not canonical: the part that is not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum SignerSetError {
+    /// The XMSS part.
+    #[error("XMSS: {0}")]
+    Xmss(#[from] leanxmss_host::SignerSetError),
+    /// The SPHINCS part.
+    #[error("SPHINCS: {0}")]
+    Sphincs(#[from] leansphincs_host::SignerSetError),
+}
+
+impl SignerSet {
+    /// The empty set.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            xmss: leanxmss_host::SignerSet::new(),
+            sphincs: leansphincs_host::SignerSet::new(),
+        }
+    }
+
+    /// The canonical set of both sets' claims.
+    #[must_use]
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            xmss: self.xmss.union(&other.xmss),
+            sphincs: self.sphincs.union(&other.sphincs),
+        }
+    }
+
+    /// How many claims it holds, repeats included.
+    #[must_use]
+    pub fn n_claims(&self) -> usize {
+        self.xmss.n_claims() + self.sphincs.claims.len()
+    }
+
+    /// Each group's label and its keys' words, in order: what a recursion circuit reads the set from.
+    #[must_use]
+    pub fn label_groups(&self) -> Vec<([u64; 6], Vec<[u64; 4]>)> {
+        let mut groups = self.xmss.label_groups();
+        groups.extend(self.sphincs.label_groups());
+        groups
+    }
+
+    /// Its digest, as the guest computes it.
+    #[must_use]
+    pub fn digest(&self) -> [u64; 4] {
+        let mut stream = leansigners::Stream::new();
+        for (label, keys) in self.label_groups() {
+            stream.group(&label);
+            keys.iter().for_each(|k| stream.key(k));
+        }
+        stream.finish()
+    }
+
+    /// Check it is canonical: what a root's verifier asks of the set it publishes.
+    ///
+    /// # Errors
+    ///
+    /// The first rule a part breaks, the XMSS part first.
+    pub fn check(&self) -> Result<(), SignerSetError> {
+        self.xmss.check()?;
+        self.sphincs.check()?;
+        Ok(())
+    }
 }
 
 /// Signatures as the guest reads them, and the signer set it proves.
@@ -46,18 +96,21 @@ pub struct Sphincs {
 pub struct Batch {
     /// The guest's advice, and the output it must give: the BLAKE2s of `set`'s digest, the one value it commits.
     pub run: Run,
-    /// The claims the guest verifies: one XMSS group per [`Xmss`] group, then each [`Sphincs`] group's signers
-    /// under its message, in their order (not canonical).
+    /// The claims the guest verifies, each part in its groups' order (not canonical).
     pub set: SignerSet,
 }
 
 /// Each XMSS group's signers sign its message at its leaf index, and each SPHINCS group's signers sign its message.
-pub fn batch(xmss: &[Xmss], sphincs: &[Sphincs]) -> Batch {
-    // What the guest reads: the XMSS groups, then the SPHINCS groups, each scheme's as its own guest reads them.
-    let mut advice = Vec::new();
-    let mut set = SignerSet::new();
-    xmss_groups(xmss, &mut advice, &mut set);
-    sphincs_groups(sphincs, &mut advice, &mut set);
+pub fn batch(xmss: &[leanxmss_host::Group], sphincs: &[leansphincs_host::Group]) -> Batch {
+    // Each scheme's advice is its own guest's, which the combined guest reads one after the other.
+    let xmss = leanxmss_host::batch_groups(xmss);
+    let sphincs = leansphincs_host::batch_groups(sphincs);
+    let mut advice = xmss.run.advice;
+    advice.extend(sphincs.run.advice);
+    let set = SignerSet {
+        xmss: xmss.set,
+        sphincs: sphincs.set,
+    };
     // What it commits: the set's digest.
     let mut public = PublicValues::new();
     public.commit(&set.digest());
@@ -70,79 +123,14 @@ pub fn batch(xmss: &[Xmss], sphincs: &[Sphincs]) -> Batch {
     }
 }
 
-/// Sign the XMSS groups, and write them as the guest reads them: the number of groups, then for each its leaf index,
-/// message and count, then each key and signature.
-fn xmss_groups(groups: &[Xmss], advice: &mut Vec<u64>, set: &mut SignerSet) {
-    // Every group's signers, one after the other; their keys and signatures are independent, so made in parallel.
-    let jobs: Vec<(&Xmss, usize)> = (groups.iter())
-        .flat_map(|g| g.signers.clone().map(move |i| (g, i)))
-        .collect();
-    let signed = parallel::map_collect(jobs.len(), |j| {
-        let (g, i) = jobs[j];
-        let (sk, pk) = leanxmss::key_gen(seed(i), g.leaf_index);
-        (pk, sk.sign(&g.message).expect("a valid encoding"))
-    });
-    let mut signed = signed.iter();
-    advice.push(groups.len() as u64);
-    for g in groups {
-        advice.push(g.leaf_index.into());
-        advice.extend(g.message);
-        advice.push(g.signers.len() as u64);
-        let mut keys = Vec::with_capacity(g.signers.len());
-        for (pk, signature) in signed.by_ref().take(g.signers.len()) {
-            leanxmss::verify(pk, g.leaf_index, &g.message, signature).expect("honest signatures verify");
-            // SAFETY: `repr(C)` words, with no padding (see their definitions).
-            advice.extend(unsafe { as_words_unchecked(pk) });
-            advice.extend(unsafe { as_words_unchecked(signature) });
-            let [r0, r1] = pk.merkle_root;
-            let [p0, p1] = pk.public_param;
-            keys.push([r0, r1, p0, p1]);
-        }
-        set.xmss.push(XmssGroup {
-            leaf_index: g.leaf_index,
-            message: g.message,
-            keys,
-        });
-    }
-}
-
-/// Sign the SPHINCS groups, and write them as the guest reads them: the number of groups, then for each its message
-/// and count, then each key and signature.
-fn sphincs_groups(groups: &[Sphincs], advice: &mut Vec<u64>, set: &mut SignerSet) {
-    // As for XMSS: made in parallel.
-    let jobs: Vec<(&Sphincs, usize)> = (groups.iter())
-        .flat_map(|g| g.signers.clone().map(move |i| (g, i)))
-        .collect();
-    let signed = parallel::map_collect(jobs.len(), |j| {
-        let (g, i) = jobs[j];
-        let (sk, pk) = leansphincs::key_gen(seed(i));
-        (pk, sk.sign(&g.message).expect("an admissible digest and encodings"))
-    });
-    let mut signed = signed.iter();
-    advice.push(groups.len() as u64);
-    for g in groups {
-        advice.extend(g.message);
-        advice.push(g.signers.len() as u64);
-        for (pk, signature) in signed.by_ref().take(g.signers.len()) {
-            leansphincs::verify(pk, &g.message, signature).expect("honest signatures verify");
-            // SAFETY: `repr(C)` words, with no padding (see their definitions).
-            advice.extend(unsafe { as_words_unchecked(pk) });
-            advice.extend(unsafe { as_words_unchecked(signature) });
-            let [r0, r1] = pk.root;
-            let [p0, p1] = pk.public_param;
-            set.sphincs.push(SphincsClaim {
-                key: [r0, r1, p0, p1],
-                message: g.message,
-            });
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leanvm::aggregate::{Leaf, LeafShape, SignerLeaf, Tree, TreeError, TreeShape};
-    use leanvm::{Capacity, Claim, Machine, Program, Prover, Rate, Scheme, Trap};
+    use core::ops::Range;
+    use leanvm::aggregate::{
+        Capacity, Claim, ClaimGroup, ClaimLeaf, ClaimSet, Leaf, LeafShape, Tree, TreeError, TreeShape,
+    };
+    use leanvm::{Machine, Program, Prover, Rate, Trap};
 
     /// The guest on the interpreter, with no proof: its output, or the trap.
     fn on_the_vm(run: &Run) -> Result<[u64; 4], Trap> {
@@ -159,36 +147,62 @@ mod tests {
         [i, 0, 0, 0]
     }
 
-    const fn xmss(leaf_index: u32, message: [u64; 4], signers: Range<usize>) -> Xmss {
-        Xmss {
+    const fn xmss(leaf_index: u32, message: [u64; 4], signers: Range<usize>) -> leanxmss_host::Group {
+        leanxmss_host::Group {
             leaf_index,
             message,
             signers,
         }
     }
 
-    const fn sphincs(message: [u64; 4], signers: Range<usize>) -> Sphincs {
-        Sphincs { message, signers }
+    const fn sphincs(message: [u64; 4], signers: Range<usize>) -> leansphincs_host::Group {
+        leansphincs_host::Group { message, signers }
+    }
+
+    /// The claim set a tree takes for a signer set.
+    fn claim_set(set: &SignerSet) -> ClaimSet {
+        ClaimSet {
+            groups: (set.label_groups().into_iter())
+                .map(|(label, members)| ClaimGroup { label, members })
+                .collect(),
+        }
     }
 
     #[test]
     fn leansigners_outputs_the_digest_of_its_signer_set() {
         // Invariant: the guest commits one value, the digest of the signer set the host builds, whatever the schemes
-        // and the advice's grouping.
+        // and the advice's grouping; it is the digest of the set's claim set.
         let outputs = |batch: &Batch| {
             let mut public = PublicValues::new();
             public.commit(&batch.set.digest());
             assert_eq!(batch.run.expected, public.digest(), "natively");
+            assert_eq!(claim_set(&batch.set).digest(), batch.set.digest(), "as a claim set");
             assert_eq!(on_the_vm(&batch.run), Ok(batch.run.expected), "on the VM");
         };
 
-        // Neither scheme, one scheme alone.
+        // Neither scheme.
         let empty = batch(&[], &[]);
         assert_eq!(empty.set, SignerSet::new());
         assert_eq!(empty.run.advice, [0, 0]);
         outputs(&empty);
-        outputs(&batch(&[xmss(1234, message(1), 0..3)], &[]));
-        outputs(&batch(&[], &[sphincs(message(1), 0..3)]));
+
+        // One scheme alone: the digest and the output are that scheme's own program's.
+        let groups = [xmss(1234, message(1), 0..3), xmss(7, message(2), 1..2)];
+        let alone = batch(&groups, &[]);
+        let theirs = leanxmss_host::batch_groups(&groups);
+        assert_eq!(alone.set.digest(), theirs.set.digest());
+        assert_eq!(alone.run.expected, theirs.run.expected);
+        outputs(&alone);
+        let groups = [
+            sphincs(message(1), 0..2),
+            sphincs(message(1), 2..3),
+            sphincs(message(2), 0..1),
+        ];
+        let alone = batch(&[], &groups);
+        let theirs = leansphincs_host::batch_groups(&groups);
+        assert_eq!(alone.set.digest(), theirs.set.digest());
+        assert_eq!(alone.run.expected, theirs.run.expected);
+        outputs(&alone);
 
         // Both, with an empty group of each, and SPHINCS groups of one message split around an empty group of
         // another: one run in the digest.
@@ -209,14 +223,18 @@ mod tests {
             mixed.run.advice.len(),
             1 + 3 * 6 + 3 * XMSS_ENTRY + 1 + 4 * 5 + 3 * SPHINCS_ENTRY
         );
-        assert_eq!((mixed.set.xmss.len(), mixed.set.sphincs.len()), (3, 3));
+        assert_eq!((mixed.set.xmss.groups.len(), mixed.set.sphincs.claims.len()), (3, 3));
+        assert_eq!(mixed.set.label_groups().len(), 3 + 2);
         outputs(&mixed);
 
         // Signer 0 under both schemes, at one message: two keys, two claims.
         let set = &mixed.set;
-        assert_ne!(set.xmss[0].keys[0], set.sphincs[0].key);
+        assert_ne!(
+            leanxmss::signers::key_words(&set.xmss.groups[0].keys[0]),
+            leansphincs::signers::key_words(&set.sphincs.claims[0].key)
+        );
         assert_eq!(
-            SignerSet::from_claims(set.claims()).n_claims(),
+            ClaimSet::from_claims(claim_set(set).claims()).n_claims(),
             set.n_claims(),
             "no claim repeats"
         );
@@ -254,18 +272,16 @@ mod tests {
         assert!(forged(1, 1 << 32).is_err());
     }
 
-    /// The least the leaves' union fits: six claims, in an XMSS group and a run of SPHINCS claims.
-    const CAPACITY: Capacity = Capacity { claims: 7, groups: 2 };
-
-    #[test]
-    fn a_mixed_signer_set_tree_aggregates_both_schemes() {
-        // Fixture state: two leaves, one mostly XMSS and one mostly SPHINCS, which overlap on claims of each scheme.
+    /// A claim-set tree of `capacity` over two leaves, one mostly XMSS and one mostly SPHINCS, which overlap on claims
+    /// of each scheme.
+    fn aggregates_mixed_sets(capacity: Capacity) {
         // Their sizes are ones whose runs fill the same table heights.
         let m = message(1);
         let batches = [
             batch(&[xmss(1234, m, 0..3)], &[sphincs(m, 0..2)]),
             batch(&[xmss(1234, m, 2..3)], &[sphincs(m, 0..3)]),
         ];
+        let sets = batches.each_ref().map(|b| claim_set(&b.set));
         let program = Program::from_elf(ELF).expect("the guest's ELF file");
         let prover = Prover::new(Rate::MIN);
 
@@ -289,63 +305,71 @@ mod tests {
                 arity_0: 1,
                 arity: 2,
                 rate: Rate::MIN,
-                signers: Some(CAPACITY),
+                claims: Some(capacity),
             },
         )
         .expect("a tree");
 
         let firsts = [0, 1].map(|i| {
-            let leaf = SignerLeaf::new(Leaf::new(&runs[i].proof, runs[i].output), &batches[i].set);
+            let leaf = ClaimLeaf::new(Leaf::new(&runs[i].proof, runs[i].output), &sets[i]);
             tree.aggregate_leaves(&[leaf], None).expect("an honest leaf")
         });
         let root = tree
             .aggregate(&[&firsts[0], &firsts[1]], None)
             .expect("honest children");
 
-        // The root states the canonical union: each scheme's claims, the overlap once.
-        let union = SignerSet::from_claims(batches.iter().flat_map(|b| b.set.claims()));
-        assert_eq!(root.signers, union);
+        // The root states the canonical union, each scheme's claims and the overlap once: the host's union.
+        let union = batches[0].set.union(&batches[1].set);
+        assert_eq!(union.check(), Ok(()));
+        assert_eq!(root.claims, claim_set(&union));
         assert_eq!(
-            (union.xmss.len(), union.xmss[0].keys.len(), union.sphincs.len()),
+            root.claims,
+            ClaimSet::from_claims(sets.iter().flat_map(ClaimSet::claims))
+        );
+        assert_eq!(
+            (
+                union.xmss.groups.len(),
+                union.xmss.n_claims(),
+                union.sphincs.claims.len()
+            ),
             (1, 3, 3)
         );
         assert_eq!(
             union.n_claims() + 3,
             batches[0].set.n_claims() + batches[1].set.n_claims()
         );
-        tree.verify_signers(&root.proof, &union).expect("the root");
+        tree.verify_claims(&root.proof, &root.claims).expect("the root");
 
         // A declared part of it, one claim of each scheme, each from another leaf.
-        let xmss_key = batches[0].set.xmss[0].keys[0];
+        let xmss_key = leanxmss::signers::key_words(&batches[0].set.xmss.groups[0].keys[0]);
         let xmss_claim = Claim {
-            scheme: Scheme::Xmss,
-            leaf_index: 1234,
-            message: m,
-            key: xmss_key,
+            label: leanxmss::signers::label(1234, &m),
+            member: xmss_key,
         };
         let sphincs_claim = Claim {
-            scheme: Scheme::Sphincs,
-            leaf_index: 0,
-            message: m,
-            key: batches[1].set.sphincs[2].key,
+            label: leansphincs::signers::label(&m),
+            member: leansphincs::signers::key_words(&batches[1].set.sphincs.claims[2].key),
         };
-        let part = SignerSet::from_claims([xmss_claim, sphincs_claim]);
+        let part = ClaimSet::from_claims([xmss_claim, sphincs_claim]);
         let narrowed = tree.aggregate(&[&root], Some(&part)).expect("a covered declaration");
-        assert_eq!(narrowed.signers, part);
-        tree.verify_signers(&narrowed.proof, &part).expect("a narrowed root");
+        assert_eq!(narrowed.claims, part);
+        tree.verify_claims(&narrowed.proof, &part).expect("a narrowed root");
 
         // Mutation: an XMSS claim declared as SPHINCS, of the same key and message.
         //
         //     no SPHINCS claim of the children has that key → the declaration is refused
         let claim = Claim {
-            scheme: Scheme::Sphincs,
-            leaf_index: 0,
-            message: m,
-            key: xmss_key,
+            label: leansphincs::signers::label(&m),
+            member: xmss_key,
         };
         assert_eq!(
-            tree.aggregate(&[&root], Some(&SignerSet::from_claims([claim]))),
+            tree.aggregate(&[&root], Some(&ClaimSet::from_claims([claim]))),
             Err(TreeError::NotCovered(claim))
         );
+    }
+
+    #[test]
+    fn a_mixed_claim_set_tree_aggregates_both_schemes() {
+        aggregates_mixed_sets(Capacity { claims: 7, groups: 2 });
     }
 }
