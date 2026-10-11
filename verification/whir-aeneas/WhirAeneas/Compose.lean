@@ -472,6 +472,23 @@ end Mid
 
 /-! ## A script level in the model's checked replay -/
 
+theorem before_add_le (c : Protocol.Config) (hc : c.valid = true) :
+    ∀ j ≤ c.folds.size, WHIRNativeGuards.before c j + j ≤ c.logN := by
+  intro j
+  induction j with
+  | zero => intro _; simp [WHIRNativeGuards.before]
+  | succ j ih =>
+    intro hj
+    obtain ⟨h1, h2, -⟩ := WHIRNativeGuards.config_level c hc j (by omega)
+    have hs := WHIRNativeGuards.before_step c j (by omega)
+    have hb : WHIRNativeGuards.before c (j + 1) = CausalGame.remaining c j := rfl
+    have := ih (by omega)
+    omega
+
+theorem folds_size_le (c : Protocol.Config) (hc : c.valid = true) : c.folds.size ≤ c.logN := by
+  have := before_add_le c hc c.folds.size le_rfl
+  omega
+
 section ScriptLevel
 open AccumulatedTerminalRefinement WHIRNativeArithmetic
 variable {R K Q E : Type} (encode : E → Concrete.E) (encodeK : K → Concrete.K)
@@ -536,5 +553,172 @@ theorem script_level_ok (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
   exact hok
 
 end ScriptLevel
+
+/-! ## The level loop -/
+
+section Loop
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
+  (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
+  (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
+  (index : Q → Nat) (tape : V → List (Event E Q R K))
+
+theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
+    (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (hr : RowModel inst encode encodeK ofLimbs index) (hn : NormalizerModel const)
+    (ht : Transcript inst encode tape)
+    (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
+    (hens : EnsureModel inst encode) (W : whir.verify.WeightAt T1 E V R K Q) (weight_at : T1)
+    (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
+    (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) (hcfg : ConfigRel config c log_n)
+    (s : Script E Q R K) (lanes : Nat) (hch : (s.chal encode).valid c = true) (hS : ScriptShape index c s lanes)
+    (init : State) (rest : List (Event E Q R K)) :
+    ∀ (m : Nat) (iter : core.ops.range.Range Usize) (v : V) (w : whir.verify.WhirReplay V R K Q E) (n : Usize)
+      (oracle : whir.verify.Oracle R) (st : State),
+      c.folds.size - 2 - iter.start.val = m → iter.start.val + 2 ≤ c.folds.size →
+      iter.end = alloc.vec.Vec.len config.level_ks →
+      Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) (iter.start.val + 1) 0
+        init = .ok st →
+      Query.StateRel encode index w st → ModelFits st → st.n = n.val →
+      n.val = CausalGame.remaining c iter.start.val → w.ris.val.length + n.val = c.logN →
+      w.oods.val.length + ((s.levels.drop (iter.start.val + 1)).map fun l => l.oods.length).sum < Usize.max →
+      w.levels.val.length = iter.start.val + 1 →
+      tape v = (s.levels.drop (iter.start.val + 1)).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest) →
+      ∃ sL r v', Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) c.folds.size 0
+          init = .ok sL ∧
+        whir.verify.WhirReplay.run_loop1 inst W iter v config weight_at w n oracle = .ok (r, v') ∧
+        (r = .Ok () ↔ (closeTail (s.chal encode) (s.prf encode encodeK ofLimbs) sL).claim =
+          sourceTerminal (callerAt (rotatePoint c.folds[0]! (sL.source.ris ++ (s.chal encode).tail.toList).toArray))
+            sL.source.saved sL.source.ris (s.chal encode).tail.toList (s.prf encode encodeK ofLimbs).residual) := by
+  have hL := hcfg.folds_size
+  have hcv := WHIRNativeGuards.challenges_config c _ hch
+  obtain ⟨hrl, hqlen, holen⟩ := hcfg.lengths hcv
+  have hgrl := hcfg.lengths' hcv
+  have hsl := hS.len
+  have hlog := hcfg.log64
+  have hlogN := hcfg.logN
+  intro m
+  induction m with
+  | zero =>
+    intro iter v w n oracle st hm h2 hend hrun hrel hfits hst hnr hris hoods hlev hv
+    set i := iter.start.val with hidef
+    have hiL : i + 2 = c.folds.size := by omega
+    have hj : i + 1 < c.folds.size := by omega
+    have hjl : i + 1 < s.levels.length := by omega
+    obtain ⟨hfl, hol, hoz, qsA, hqA, eqA, hql⟩ := level_facts encode index c s lanes hch hS (i + 1) hj
+    have hcl := WHIRNativeGuards.config_level c hcv (i + 1) hj
+    have hbefore : WHIRNativeGuards.before c (i + 1) = CausalGame.remaining c i := rfl
+    have hstep := WHIRNativeGuards.before_step c (i + 1) hj
+    have hk : c.folds[i + 1]! = (config.level_ks.val[i]'(by omega)).val := hcfg.foldk i (by omega)
+    obtain ⟨ys, hys, hyl⟩ := hS.last (by omega)
+    have hlast : (s.levels[s.levels.length - 1]'(by omega)) = s.levels[i + 1]'hjl := by
+      simp only [show s.levels.length - 1 = i + 1 by omega]
+    rw [hlast] at hys
+    have hrowsl := hS.rows (i + 1) hjl
+    have hext := hS.ext (i + 1) hjl (by omega)
+    have hdrop : s.levels.drop (i + 1) = [s.levels[i + 1]'hjl] := by
+      rw [List.drop_eq_getElem_cons hjl, List.drop_of_length_le (by omega)]
+    have hfsz := folds_size_le c hcv
+    set l := s.levels[i + 1]'hjl with hldef
+    have hoods0 : l.oods = [] := by
+      apply List.eq_nil_of_length_eq_zero
+      rw [hol]; simp [CausalGame.oodCount]; omega
+    have hrun' := script_level_ok encode encodeK ofLimbs index c s lanes hch hS init st (i + 1) hj (by omega)
+      hrun (by rw [hst, hnr]; rfl)
+    dsimp only at hrun'
+    rw [show i + 1 + 1 = c.folds.size by omega] at hrun'
+    have hkb : c.folds[i + 1]! < n.val := by have := hcl.2.1; rw [hbefore] at this; omega
+    have hcl0 := WHIRNativeGuards.config_level c hcv 0 (by omega)
+    have hb0 : WHIRNativeGuards.before c 0 = c.logN := by simp [WHIRNativeGuards.before]
+    have hmax : 64 < Usize.max := by scalar_tac
+    rw [hdrop] at hoods
+    simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, hoods0, List.length_nil] at hoods
+    have htl := WHIRNativeGuards.challenges_tail c _ hch
+    have htail : s.tail.length = n.val - l.folds.length := by
+      have : (s.chal encode).tail.size = s.tail.length := by simp [Script.chal]
+      rw [← this, htl, hnr, hfl, ← hbefore, hstep]
+      simp only [CausalGame.remaining]
+      congr 2
+      rw [List.take_of_length_le (by simp; omega)]
+    have hqpos : 0 < c.queries[i + 1]! := hcl.2.2.2.1
+    obtain ⟨r, v', hbody, hiff⟩ := last_iter_eq inst encode const encodeK ofLimbs index tape hw h hr hn ht hclone
+      hens W weight_at callerAt hcall config oracle iter w st hrel hfits v n hst (by omega) l ys hys hoods0
+      s.tail s.tailMsgs rest (by rw [hv, hdrop]; simp) (by rw [hend]; simp; omega) hend (by omega)
+      (by rw [hfl, hk]) (by rw [hfl]; omega)
+      (by rw [hyl, hfl, hnr, ← hbefore, hstep]; congr 2; omega)
+      (by omega) (by omega) (hcfg.grinding _ (List.getElem_mem _))
+      (by rw [hql, hcfg.query (i + 1) (by omega)]; congr 2; omega) hrowsl
+      (by intro hnil; have := congrArg List.length hnil; simp only [List.length_nil] at this; omega)
+      (fun r hr' => by rw [hext r hr', hfl]) htail hS.tail
+      (by have := hcfg.fold0; have := hcl0.2.1; rw [hb0] at this; omega) (by omega) (by omega) (by omega)
+      (s.chal encode) (s.prf encode encodeK ofLimbs) rfl rfl (i + 1) (by omega)
+    dsimp only at hiff
+    refine ⟨_, r, v', hrun', ?_, ?_⟩
+    · unfold whir.verify.WhirReplay.run_loop1
+      apply loop_done
+      exact hbody
+    · rw [hiff, hcfg.fold0, residual_last encode encodeK ofLimbs s (by omega) ys (by rw [hlast]; exact hys)]
+      simp only [Script.chal, List.toList_toArray]
+      exact Iff.rfl
+  | succ m ih =>
+    intro iter v w n oracle st hm h2 hend hrun hrel hfits hst hnr hris hoods hlev hv
+    set i := iter.start.val with hidef
+    have hj2 : i + 2 < c.folds.size := by omega
+    have hj : i + 1 < c.folds.size := by omega
+    have hjl : i + 1 < s.levels.length := by omega
+    obtain ⟨hfl, hol, hoz, qsA, hqA, eqA, hql⟩ := level_facts encode index c s lanes hch hS (i + 1) hj
+    have hcl := WHIRNativeGuards.config_level c hcv (i + 1) hj
+    have hcl2 := WHIRNativeGuards.config_level c hcv (i + 2) hj2
+    have hbefore : WHIRNativeGuards.before c (i + 1) = CausalGame.remaining c i := rfl
+    have hbefore2 : WHIRNativeGuards.before c (i + 2) = CausalGame.remaining c (i + 1) := rfl
+    have hstep := WHIRNativeGuards.before_step c (i + 1) hj
+    have hk : c.folds[i + 1]! = (config.level_ks.val[i]'(by omega)).val := hcfg.foldk i (by omega)
+    have hk2 : c.folds[i + 2]! = (config.level_ks.val[i + 1]'(by omega)).val := hcfg.foldk (i + 1) (by omega)
+    obtain ⟨root, hroot⟩ := hS.head (i + 1) (by omega)
+    have hrowsl := hS.rows (i + 1) hjl
+    have hext := hS.ext (i + 1) hjl (by omega)
+    have hdrop : s.levels.drop (i + 1) = (s.levels[i + 1]'hjl) :: s.levels.drop (i + 2) :=
+      List.drop_eq_getElem_cons hjl
+    have hfsz := folds_size_le c hcv
+    have hoodc : CausalGame.oodCount c (i + 1) = (config.ood_samples.val[i + 2]'(by omega)).val := by
+      simp only [CausalGame.oodCount, if_pos hj2]; exact hcfg.ood (i + 2) (by omega)
+    have hrun' := script_level_ok encode encodeK ofLimbs index c s lanes hch hS init st (i + 1) hj (by omega)
+      hrun (by rw [hst, hnr]; rfl)
+    dsimp only at hrun'
+    set l := s.levels[i + 1]'hjl with hldef
+    have hkb : c.folds[i + 1]! < n.val := by have := hcl.2.1; rw [hbefore] at this; omega
+    have hmax : 64 < Usize.max := by scalar_tac
+    rw [hdrop] at hoods hv
+    simp only [List.map_cons, List.sum_cons] at hoods
+    have hqpos : 0 < c.queries[i + 1]! := hcl.2.2.2.1
+    obtain ⟨iter', v', w', n', oracle', hbody, hs', he', hv', hn', hris', hrel'⟩ := mid_level_eq inst encode const
+      encodeK ofLimbs index tape h hr ht hclone W weight_at config oracle iter w st hrel v n hst l root hroot
+      ((s.levels.drop (i + 2)).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest))
+      (by rw [hv]; simp [List.flatMap_cons, List.append_assoc]) (by rw [hend]; simp; omega) hend (by omega)
+      (by rw [hfl, hk]) (by rw [hfl]; omega) (by omega) (by rw [hol, hoodc])
+      (fun o ho => by rw [hoz o ho, hfl, hnr, ← hbefore, hstep]) (by omega) (by omega)
+      (hcfg.grinding _ (List.getElem_mem _)) (by rw [hql, hcfg.query (i + 1) (by omega)])
+      hrowsl (by intro hnil; have := congrArg List.length hnil; simp only [List.length_nil] at this; omega)
+      (fun r hr' => by rw [hext r hr', hfl]) (by omega) (by omega)
+      (by rw [← hk2, hfl]; have := hcl2.2.1; rw [hbefore2, ← hstep, hbefore] at this; omega)
+      (by omega) (by omega) (by omega) (i + 1) (by omega)
+    obtain ⟨hfits', hn'', hco, hcl'⟩ := level_state_facts encode encodeK ofLimbs l false st (i + 1)
+      (l.queries.map index).toArray hfits (by omega) (by omega)
+      (fun o ho => by rw [hoz o ho, hfl, hst, hnr, ← hbefore, hstep])
+    have hoodlen : w'.oods.val.length = w.oods.val.length + l.oods.length := by
+      rw [hrel'.oods.length_eq, hco, ← hrel.oods.length_eq]
+    have hlevlen : w'.levels.val.length = w.levels.val.length + 1 := by
+      rw [hrel'.levels.length_eq, hcl', ← hrel.levels.length_eq]
+    obtain ⟨sL, r, v'', hL', hloop, hiff⟩ := ih iter' v' w' n' oracle' _ (by omega) (by omega) (by rw [he', hend])
+      (by rw [hs']; exact hrun') hrel' hfits' (by rw [hn'', hn', hst])
+      (by rw [hn', hs', hfl, hnr, ← hbefore, hstep]) (by rw [hris', hn']; simp; omega)
+      (by rw [hoodlen, hs', show i + 1 + 1 = i + 2 by omega]; omega) (by rw [hlevlen, hs']; omega) (by rw [hv', hs'])
+    refine ⟨sL, r, v'', hL', ?_, hiff⟩
+    unfold whir.verify.WhirReplay.run_loop1
+    rw [loop_cont hbody]
+    unfold whir.verify.WhirReplay.run_loop1 at hloop
+    exact hloop
+
+end Loop
 
 end WhirAeneas.Replay
