@@ -249,7 +249,7 @@ theorem tweakHash_cg (ty pos idx : ℕ) (pp payload : List ℕ) (htw : Circuit.t
 
 end
 
-/-! The digit product and the indicators. -/
+/-! The digit product. -/
 
 /-- The low `k` bits' weights of digit `i`, from its bits `B (3 i + k')`. -/
 def dig (B : ℕ → Bool) (i k : ℕ) : ℕ := ((List.range k).map fun k' => if B (3 * i + k') then 2 ^ k' else 0).sum
@@ -348,153 +348,6 @@ theorem digitProduct_cg (bits : List ℕ) (B : ℕ → Bool) :
   · rintro s r s4 v hs - - ⟨o, s1, -, -, -, -, z, s2, -, -, -, -, r', s3, -, he, -, ⟨-, hr, hrv⟩, rfl⟩
     exact ⟨lt_of_lt_of_le hr he.next, hrv⟩
 
-/-- The digit of the bits `b 0, b 1, ...` below `m`. -/
-def bdig (b : ℕ → Bool) : ℕ → ℕ
-  | 0 => 0
-  | m + 1 => bdig b m + if b m then 2 ^ m else 0
-
-theorem bdig_lt (b : ℕ → Bool) (m : ℕ) : bdig b m < 2 ^ m := by
-  induction m with
-  | zero => simp [bdig]
-  | succ m ih => simp only [bdig, pow_succ]; split_ifs <;> omega
-
-/-- Wires `l`, `n` of them, carrying the indicators of `d`. -/
-def IndList (l : List ℕ) (n d : ℕ) (s : State) (v : Val) : Prop :=
-  l.length = n ∧ Wires l s ∧ ∀ u < n, v (l.getD u 0) = eVal (if u = d then 1 else 0)
-
-theorem IndList.mono {l : List ℕ} {n d : ℕ} {s s' : State} {v : Val} (h : IndList l n d s v) (he : Ext s s') :
-    IndList l n d s' v :=
-  ⟨h.1, h.2.1.mono he, h.2.2⟩
-
-/-- The digit's bit wires. -/
-def ABits (as : List ℕ) (b : ℕ → Bool) (s : State) (v : Val) : Prop :=
-  as.length = 3 ∧ Wires as s ∧ ∀ m < 3, v (as.getD m 0) = kVal (if b m then 1 else 0)
-
-theorem ABits.mono {as : List ℕ} {b : ℕ → Bool} {s s' : State} {v : Val} (h : ABits as b s v) (he : Ext s s') :
-    ABits as b s' v :=
-  ⟨h.1, h.2.1.mono he, h.2.2⟩
-
-theorem ind_mul (p a z : ℕ) (v : Val) (c : Prop) [Decidable c] (β : Bool) (hp : v p = eVal (if c then 1 else 0))
-    (ha : v a = kVal (if β then 1 else 0)) (hz : v z = eVal 0) :
-    eVal (ev v p * emb (v a 0) + ev v p) = eVal (if c ∧ β = false then 1 else 0) ∧
-      eVal (ev v p * emb (v a 0) + ev v z) = eVal (if c ∧ β = true then 1 else 0) := by
-  rw [ev_of_eVal hp, ev_of_eVal hz, ha, kVal_apply_zero]
-  have h2 : (1 : E) + 1 = 0 := by rw [one_add_one_eq_two, two_E]
-  constructor <;> congr 1 <;> cases β <;> by_cases hc : c <;> simp [hc, emb, h2]
-
-theorem ind_idx (u n d : ℕ) (β : Bool) (hd : d < n) (hu : u < 2 * n) :
-    (u = d + if β then n else 0) ↔ (u % n = d ∧ (u < n ↔ β = false)) := by
-  by_cases hun : u < n
-  · rw [Nat.mod_eq_of_lt hun]; cases β <;> simp <;> omega
-  · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]; cases β <;> simp <;> omega
-
-theorem ind_step (nx : List ℕ) (u d q : ℕ) (s : State) (v : Val) (c : Prop) [Decidable c]
-    (hn : IndList nx u d s v) (hq : q < s.next) (hqv : v q = eVal (if c then 1 else 0)) (hc : c ↔ u = d) :
-    IndList (nx ++ [q]) (u + 1) d s v := by
-  obtain ⟨hl, hw, hv⟩ := hn
-  refine ⟨by simp [hl], fun w hw' => ?_, fun u' hu' => ?_⟩
-  · rcases List.mem_append.mp hw' with hw' | hw'
-    · exact hw w hw'
-    · rw [List.mem_singleton.mp hw']; exact hq
-  · by_cases hlt : u' < u
-    · rw [List.getD_eq_getElem?_getD, List.getElem?_append_left (by omega), ← List.getD_eq_getElem?_getD]
-      exact hv u' hlt
-    · have : u' = u := by omega
-      subst this
-      rw [List.getD_eq_getElem?_getD, List.getElem?_append_right (by omega), hl, Nat.sub_self]
-      simp only [List.getElem?_cons_zero, Option.getD_some]
-      rw [hqv]
-      exact congrArg eVal (if_congr hc rfl rfl)
-
-theorem indicators_cg (a0 a1 a2 : ℕ) (b : ℕ → Bool) :
-    CGood st 0 (fun s v => ABits [a0, a1, a2] b s v) (Circuit.indicators a0 a1 a2)
-      fun _ ind s' v => IndList ind 8 (bdig b 3) s' v := by
-  unfold Circuit.indicators
-  refine (CGood.bind (one_cgood.pre fun _ _ _ => trivial)
-    (P₂ := fun o s v => ABits [a0, a1, a2] b s v ∧ o < s.next ∧ v o = eVal 1)
-    (fun _ _ _ _ _ hp he hq => ⟨hp.mono he, hq⟩) fun o =>
-    CGood.bind (zero_cgood.pre fun _ _ _ => trivial)
-      (P₂ := fun z s v => (ABits [a0, a1, a2] b s v ∧ z < s.next ∧ v z = eVal 0) ∧ IndList [o] (2 ^ 0) (bdig b 0) s v)
-      (fun _ _ _ _ _ hp he hq => ⟨⟨hp.1.mono he, hq⟩, rfl, wires_cons.2 ⟨lt_of_lt_of_le hp.2.1 he.next, wires_nil⟩,
-        fun u hu => by
-          have : u = 0 := by simpa using hu
-          subst this
-          rw [show ([o] : List ℕ).getD 0 0 = o from rfl, hp.2.2]
-          simp [bdig]⟩) fun z =>
-    CGood.bind (forIn_cgood 0 _ [a0, a1, a2]
-        (fun m l s v => (ABits [a0, a1, a2] b s v ∧ z < s.next ∧ v z = eVal 0) ∧ IndList l (2 ^ m) (bdig b m) s v)
-        ?_ [o])
-      (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun r =>
-      CGood.pure' (Q := fun _ x _ _ => x = r) fun _ _ _ _ => rfl).weaken (fun _ _ h => h) ?_
-  · intro m hm l
-    simp only [List.length_cons, List.length_nil] at hm
-    dsimp only
-    refine ((CGood.bind (forIn_cgood 0 _ (List.range (2 * l.length))
-        (fun u nx s v => ((ABits [a0, a1, a2] b s v ∧ z < s.next ∧ v z = eVal 0) ∧
-          IndList l (2 ^ m) (bdig b m) s v) ∧ IndList nx u (bdig b (m + 1)) s v) (fun u hu nx => ?_) []
-        |>.pre fun s v h => ⟨h, rfl, wires_nil, fun u hu => absurd hu (Nat.not_lt_zero _)⟩)
-      (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun r =>
-      CGood.pure' (a := (ForInStep.yield r : ForInStep (List ℕ))) (Q := fun _ x _ _ => x = ForInStep.yield r)
-        fun _ _ _ _ => rfl).weaken (fun _ _ h => h) ?_).kEq (by simp)
-    · simp only [List.length_range] at hu
-      simp only [List.getElem_range]
-      have hpa : ∀ s v, (((ABits [a0, a1, a2] b s v ∧ z < s.next ∧ v z = eVal 0) ∧
-          IndList l (2 ^ m) (bdig b m) s v) ∧ IndList nx u (bdig b (m + 1)) s v) →
-          l.getD (u % l.length) 0 < s.next ∧
-            v (l.getD (u % l.length) 0) = eVal (if u % l.length = bdig b m then 1 else 0) ∧
-            [a0, a1, a2][m] < s.next ∧ v [a0, a1, a2][m] = kVal (if b m then 1 else 0) := by
-        intro s v h
-        obtain ⟨⟨⟨⟨-, haw, hav⟩, -, -⟩, ⟨hll, hlw, hlv⟩⟩, -⟩ := h
-        have hpos : 0 < l.length := by rw [hll]; positivity
-        have hmod := Nat.mod_lt u hpos
-        refine ⟨hlw _ (getD_mem hmod), hlv _ (by rw [← hll]; exact hmod), ?_, ?_⟩
-        · rw [getElem_eq_getD]; exact haw _ (getD_mem (by simp; omega))
-        · rw [getElem_eq_getD]; exact hav m hm
-      have hlen : ∀ s v, (((ABits [a0, a1, a2] b s v ∧ z < s.next ∧ v z = eVal 0) ∧
-          IndList l (2 ^ m) (bdig b m) s v) ∧ IndList nx u (bdig b (m + 1)) s v) → l.length = 2 ^ m :=
-        fun _ _ h => h.1.2.1
-      split_ifs with hun
-      · refine (CGood.bind ((mulKAdd_cgood _ _ _).pre fun s v h => ?_)
-          (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun q =>
-          CGood.pure' (Q := fun _ x _ _ => x = .yield (nx ++ [q])) fun _ _ _ _ => rfl).weaken (fun _ _ h => h) ?_
-        · obtain ⟨h1, h2, h3, h4⟩ := hpa s v h
-          exact ⟨wires3 h1 h3 h1, by rw [h2]; exact eVal_three _, kVal_isK h4, by rw [h2]; exact eVal_three _⟩
-        · rintro s r s' v hs hP he ⟨q, s1, -, he2, -, ⟨hq, hqv⟩, -, -, -, -, -, rfl⟩
-          obtain ⟨h1, h2, h3, h4⟩ := hpa s v hP
-          have hll := hlen s v hP
-          refine ⟨_, rfl, ⟨⟨hP.1.1.1.mono he, lt_of_lt_of_le hP.1.1.2.1 he.next, hP.1.1.2.2⟩,
-            hP.1.2.mono he⟩, ind_step nx u _ q s' v _ (hP.2.mono he) (lt_of_lt_of_le hq he2.next)
-            (hqv.trans (ind_mul _ _ z v _ (b m) h2 h4 hP.1.1.2.2).1) ?_⟩
-          rw [hll] at hun ⊢
-          have := ind_idx u (2 ^ m) (bdig b m) (b m) (bdig_lt b m) (by rw [← hll]; exact hu)
-          simp only [bdig]
-          rw [this]
-          simp [hun]
-      · refine (CGood.bind ((mulKAdd_cgood _ _ _).pre fun s v h => ?_)
-          (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun q =>
-          CGood.pure' (Q := fun _ x _ _ => x = .yield (nx ++ [q])) fun _ _ _ _ => rfl).weaken (fun _ _ h => h) ?_
-        · obtain ⟨h1, h2, h3, h4⟩ := hpa s v h
-          exact ⟨wires3 h1 h3 h.1.1.2.1, by rw [h2]; exact eVal_three _, kVal_isK h4,
-            by rw [h.1.1.2.2]; exact eVal_three _⟩
-        · rintro s r s' v hs hP he ⟨q, s1, -, he2, -, ⟨hq, hqv⟩, -, -, -, -, -, rfl⟩
-          obtain ⟨h1, h2, h3, h4⟩ := hpa s v hP
-          have hll := hlen s v hP
-          refine ⟨_, rfl, ⟨⟨hP.1.1.1.mono he, lt_of_lt_of_le hP.1.1.2.1 he.next, hP.1.1.2.2⟩,
-            hP.1.2.mono he⟩, ind_step nx u _ q s' v _ (hP.2.mono he) (lt_of_lt_of_le hq he2.next)
-            (hqv.trans (ind_mul _ _ z v _ (b m) h2 h4 hP.1.1.2.2).2) ?_⟩
-          rw [hll] at hun ⊢
-          have := ind_idx u (2 ^ m) (bdig b m) (b m) (bdig_lt b m) (by rw [← hll]; exact hu)
-          simp only [bdig]
-          rw [this]
-          cases hb : b m <;> simp [hun]
-    · rintro s r s2 v hs - - ⟨r', s1, -, he, -, ⟨⟨hctx, hl⟩, hr'⟩, rfl⟩
-      refine ⟨r', rfl, ⟨hctx.1.mono he, lt_of_lt_of_le hctx.2.1 he.next, hctx.2.2⟩, ?_⟩
-      have := hr'.mono he
-      rw [List.length_range, hl.1, ← pow_succ'] at this
-      exact this
-  · rintro s r s4 v hs - - ⟨o, s1, -, -, -, -, z, s2, -, -, -, -, r', s3, -, he, -, ⟨-, hl⟩, rfl⟩
-    exact hl.mono he
-
 end
 
 /-! Chains. -/
@@ -549,20 +402,6 @@ theorem th_words (ty pos e : ℕ) (p : Words.Dig) (idx : ℕ) (pp payload : List
 theorem dVal_th (ty pos e : ℕ) (p : Words.Dig) (ws : List Words.W) :
     (digest (hashWords ([Words.tweak0 ty pos, Words.tweak1 e, p.1, p.2] ++ ws)) 0,
       digest (hashWords ([Words.tweak0 ty pos, Words.tweak1 e, p.1, p.2] ++ ws)) 1) = Words.th ty pos e p ws := rfl
-
-theorem mux_val (v : Val) (ind tip cur : ℕ) (c : Prop) [Decidable c] (hi : v ind = eVal (if c then 1 else 0))
-    (ht : v tip 3 = 0) (hc : v cur 3 = 0) :
-    eVal (ev v ind * (ev v tip + ev v cur) + ev v cur) = if c then v tip else v cur := by
-  rw [ev_of_eVal hi]
-  split_ifs
-  · rw [one_mul, add_assoc, ← two_mul, two_E, zero_mul, add_zero]
-    exact (eVal_of_ev ht).symm
-  · rw [zero_mul, zero_add]
-    exact (eVal_of_ev hc).symm
-
-theorem pos_bound (i j : ℕ) (hi : i < 42) (hj : j ≤ 7) : 8 * i + j < 2 ^ 32 := by
-  have : (2 : ℕ) ^ 32 = 4294967296 := by norm_num
-  omega
 
 /-! The Merkle path. -/
 
@@ -756,10 +595,6 @@ theorem digits_getD (D : Fin 4 → Words.W) (i : ℕ) (hi : i < 42) :
     (Words.digits (D 0, D 1)).getD i 0 = dig (bitsB D) i 3 := by
   rw [dig_eq D i hi, Words.digits, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hi]
   rfl
-
-theorem bdig_three (b : ℕ → Bool) : bdig b 3 =
-    (if b 0 then 1 else 0) + (if b 1 then 2 else 0) + (if b 2 then 4 else 0) := by
-  simp [bdig]
 
 /-- Wires `ws` carrying the words `xs`. -/
 def LW (ws : List ℕ) (xs : List Words.W) (s : State) (v : Val) : Prop :=

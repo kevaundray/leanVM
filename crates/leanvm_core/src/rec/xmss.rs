@@ -402,28 +402,6 @@ pub(super) fn digit_product(b: &mut Builder, bits: &[Kw]) -> Ew {
     acc
 }
 
-/// The indicators of the eight values of a digit's bits, low first: indicator `v` is one exactly when the digit is `v`.
-pub(super) fn indicators(b: &mut Builder, digit: [Kw; 3]) -> Vec<Ew> {
-    let o = b.one();
-    let z = b.zero();
-    let mut level = vec![o];
-    for a in digit {
-        let len = level.len();
-        let mut next = Vec::with_capacity(2 * len);
-        for v in 0..2 * len {
-            let p = level[v % len];
-            // The new bit is bit `log2 len` of `v`: a factor `1 + a` where it is zero, `a` where it is one.
-            next.push(if v < len {
-                b.mul_k_add(p, a, p)
-            } else {
-                b.mul_k_add(p, a, z)
-            });
-        }
-        level = next;
-    }
-    level
-}
-
 /// Chains on the dynamic bus, `Circuit.chains`: an activity wire held to one, the tweak words' base `base` (below
 /// `2^32`) and the tag `tag << TAG_SHIFT` as constants, a link row per chain from its tip at its digit to its end,
 /// then `n_steps` steps the digits need, chain by chain, each pulling its input at its chain's position and pushing

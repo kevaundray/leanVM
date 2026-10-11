@@ -31,6 +31,7 @@ public import LeanVMCircuits.Rec.Tables
 public import LeanVMCircuits.Sphincs.Circuit
 public import LeanVMCircuits.Sphincs.Complete
 public import LeanVMCircuits.Sphincs.FieldFacts
+public import LeanVMCircuits.Sphincs.Paths
 public import LeanVMCircuits.Sphincs.Sound
 public import LeanVMCircuits.Sphincs.SoundGadgets
 public import LeanVMCircuits.Sphincs.Statement

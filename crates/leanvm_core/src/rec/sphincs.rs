@@ -3,16 +3,17 @@
 //! The circuit is `verification/circuits/LeanVMCircuits/Sphincs/Circuit.lean`'s, which its header describes: the
 //! builder calls below are that program's, in its order, and `CheckXmss` checks that the circuit built here is the one
 //! the Lean program builds. Like the Lean program it reuses the leanXMSS circuit's gadgets for statement words, the
-//! digit product and digit indicators.
+//! digit product and the chains on the dynamic bus: layer `lay` of signature `j` walks its chains under the tag
+//! `3 j + lay`, so the batch holds at most `2^20` signatures.
 //!
 //! Per signature the statement is four `E` words, in the order the guest commits them: the key's root `[r0, r1, 0]`,
 //! its public parameter `[p0, p1, 0]`, and the message's words `[m0, m1, 0]` and `[m2, m3, 0]`. The signature is the
 //! prover's, and the top layer's root it reaches is held to the statement's.
 
-use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, PARAM_IV, Unsatisfied};
+use super::circuit::{Builder, Circuit, Dw, Finished, Kw, Limbs, PARAM_IV, Unsatisfied};
 use super::fixed::FixedColumns;
 use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
-use super::xmss::{STEPS, V, digit_product, indicators, statement_words};
+use super::xmss::{STEPS, V, chains, digit_product, statement_words};
 use crate::cpu::{DecodeError, VerifyError};
 use crate::envelope::Envelope;
 use crate::pcs::Rate;
@@ -44,6 +45,12 @@ const ENCODING_BYTES: u64 = 52;
 
 /// `X^191` in `K` as a word: the product the encoding's digit bits must reach, the digits summing to 191.
 const TARGET: u64 = 0x8000_0000_0000_0ed6;
+
+/// The chain steps a layer's digits need: `V · STEPS` less their sum, 191.
+const LAYER_STEPS: usize = V * STEPS - 191;
+
+/// The most signatures a batch holds: the chains' tags `3 j + lay` stay below `2^22`.
+const MAX_SIGNATURES: usize = 1 << 20;
 
 /// What one signature is checked against: the signer's public key and the message.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -235,6 +242,9 @@ impl SphincsBatch {
     ///
     /// A circuit that fits no commitment.
     pub fn new(n: usize, rate: Rate) -> Result<Self, SphincsError> {
+        if n > MAX_SIGNATURES {
+            return Err(SphincsError::TooLarge { n });
+        }
         let circuit = build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]).circuit;
         circuit.committed_words().map_err(|_| SphincsError::TooLarge { n })?;
         let columns = FixedColumns::of(&circuit, &circuit.heights());
@@ -398,8 +408,8 @@ fn build(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> Finished {
 /// The builder after the circuit's calls.
 fn builder(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> Builder {
     let mut b = Builder::new();
-    for (i, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
-        b.scope(format!("signature {i}"), |b| signature(b, claim, sig));
+    for (j, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
+        b.scope(format!("signature {j}"), |b| signature(b, j, claim, sig));
     }
     b
 }
@@ -471,25 +481,6 @@ fn fold(
     node
 }
 
-/// Chain `i` of layer `lay` from its element `tip` under the digit's indicators `ind`, the key's tweak word `tw1`:
-/// its end's two words.
-fn chain_end(b: &mut Builder, (lay, i): (usize, usize), tw1: Kw, tip: Ew, pp: &[Kw; 2], ind: &[Ew]) -> [Kw; 2] {
-    let [t0, t1, _] = b.e_to_k(tip);
-    let d = th(b, tweak0(1, lay, 8 * i), tw1, pp, &[t0, t1]);
-    let (mut cur, _) = b.d_to_e_and_k(d);
-    for (s, &selected) in ind[..STEPS].iter().enumerate().skip(1) {
-        let diff = b.add(tip, cur);
-        let m = b.mul_add(selected, diff, cur);
-        let [v0, v1, _] = b.e_to_k(m);
-        let d = th(b, tweak0(1, lay, 8 * i + s), tw1, pp, &[v0, v1]);
-        cur = b.d_to_e_and_k(d).0;
-    }
-    let diff = b.add(tip, cur);
-    let end = b.mul_add(ind[STEPS], diff, cur);
-    let [n0, n1, _] = b.e_to_k(end);
-    [n0, n1]
-}
-
 /// The few-time key the openings reach, the index's bits `idx`, the leaf indices' bits `us`, and `top` the tweak word
 /// of the index alone.
 fn fts(b: &mut Builder, idx: &[Kw], us: &[&[Kw]], top: Kw, pp: &[Kw; 2], openings: &[SphincsFtsOpening]) -> Dw {
@@ -508,10 +499,10 @@ fn fts(b: &mut Builder, idx: &[Kw], us: &[&[Kw]], top: Kw, pp: &[Kw; 2], opening
     th(b, tweak0(11, 0, 0), top, pp, &roots)
 }
 
-/// Layer `lay`'s root, from the message `msg` it signs and the index's bits `idx`.
+/// Layer `lay` of signature `j`'s root, from the message `msg` it signs and the index's bits `idx`.
 fn layer(
     b: &mut Builder,
-    lay: usize,
+    (j, lay): (usize, usize),
     idx: &[Kw],
     pp: &[Kw; 2],
     msg: Dw,
@@ -547,20 +538,24 @@ fn layer(
     });
 
     // The chains.
-    let mut ends = Vec::with_capacity(2 * V);
-    for (i, &[t0, t1]) in ots.iter().enumerate() {
-        let tip = b.free_e(F192::new(t0, t1, 0));
-        let ind = indicators(b, [digit_bits[3 * i], digit_bits[3 * i + 1], digit_bits[3 * i + 2]]);
-        ends.extend(chain_end(b, (lay, i), key, tip, pp, &ind));
-    }
+    let ends = chains(
+        b,
+        tweak0(1, lay, 0),
+        (3 * j + lay) as u64,
+        LAYER_STEPS,
+        key,
+        *pp,
+        &digit_bits,
+        ots,
+    );
 
     // The leaf and the path.
     let leaf = th(b, tweak0(2, lay, 0), key, pp, &ends);
     fold(b, (3, lay), (tau, top), e, pp, leaf, path)
 }
 
-/// One signature's verification.
-fn signature(b: &mut Builder, claim: &SphincsClaim, sig: &SphincsSignature) {
+/// Signature `j`'s verification.
+fn signature(b: &mut Builder, j: usize, claim: &SphincsClaim, sig: &SphincsSignature) {
     let [m0, m1, m2, m3] = claim.message;
     let root = statement_digest(b, claim.root);
     let pp = statement_digest(b, claim.public_param);
@@ -591,7 +586,9 @@ fn signature(b: &mut Builder, claim: &SphincsClaim, sig: &SphincsSignature) {
     let top = index_word(b, idx, &[]);
     let mut msg = b.scope("few-time key", |b| fts(b, idx, &us, top, &pp, &sig.fts));
     for lay in (0..D).rev() {
-        msg = b.scope(format!("layer {lay}"), |b| layer(b, lay, idx, &pp, msg, sig.layer(lay)));
+        msg = b.scope(format!("layer {lay}"), |b| {
+            layer(b, (j, lay), idx, &pp, msg, sig.layer(lay))
+        });
     }
     let rs = b.d_to_k(msg);
     b.scope("root", |b| {

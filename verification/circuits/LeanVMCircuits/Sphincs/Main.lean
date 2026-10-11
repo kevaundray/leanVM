@@ -5,11 +5,12 @@ import LeanVMCircuits.Sphincs.Spec
 /-!
 # The leanSPHINCS circuit accepts exactly the specification's valid signatures
 
-The machine accepts the circuit of `n` signatures (`Sphincs.Circuit.circuit n`) under statement words `st` with some
-assignment (`Accepts`: its rows satisfied and its dynamic bus balanced, which holds as the circuit has no `STEP` or
-`LINK` row) exactly when for every `j < n` statement words `4j .. 4j + 3` state a public key and a message for which
-some signature passes the leanSPHINCS specification's `verify`, the Lean transcription of the guest's verifier
-(`accepted_iff`). A statement word holds 64-bit words, and the specification reads their little-endian bytes
+The machine accepts the circuit of `n ≤ 2^20` signatures (`Sphincs.Circuit.circuit n`) under statement words `st`
+with some assignment (`Accepts`: its rows satisfied and its dynamic bus balanced) exactly when for every `j < n`
+statement words `4j .. 4j + 3` state a public key and a message for which some signature passes the leanSPHINCS
+specification's `verify`, the Lean transcription of the guest's verifier (`accepted_iff`). The chains run as `STEP`
+and `LINK` rows on the dynamic bus, keyed by the tag `3 j + lay` of signature `j`'s layer `lay`, which the bound keeps
+below `2^22`. A statement word holds 64-bit words, and the specification reads their little-endian bytes
 (`Spec.pk`, `Spec.message`).
 
 The three layers meet at `Sphincs.Words.verify`: `sound` and `complete` relate the circuit to it, `Spec.verify_eq`
@@ -29,19 +30,19 @@ bytes are `p` and `m`. -/
 def Statement (st : ℕ → Fin 4 → K) (j : ℕ) (p : LeanSphincs.PublicKey) (m : LeanSphincs.Message) : Prop :=
   ∃ root pp msg, Encodes st j root pp msg ∧ Spec.pk root pp = p ∧ Spec.message msg = m
 
-/-- The machine accepts the circuit of `n` signatures under statement words `st` exactly when each of its `n`
+/-- The machine accepts the circuit of `n ≤ 2^20` signatures under statement words `st` exactly when each of its `n`
 statements states a public key and a message under which some signature passes the specification's `verify`. -/
-theorem accepted_iff (n : ℕ) (st : ℕ → Fin 4 → K) :
+theorem accepted_iff (n : ℕ) (hn : n ≤ 2 ^ 20) (st : ℕ → Fin 4 → K) :
     (∃ val, Accepts st ((Sphincs.Circuit.circuit n).run {}).2 val) ↔
       ∀ j < n, ∃ (p : LeanSphincs.PublicKey) (m : LeanSphincs.Message), Statement st j p m ∧
         ∃ s : LeanSphincs.Signature, LeanSphincs.verify p m s = true := by
   constructor
   · rintro ⟨val, h⟩ j hj
-    obtain ⟨root, pp, msg, he, sig, hv⟩ := sound n st val h j hj
+    obtain ⟨root, pp, msg, he, sig, hv⟩ := sound n hn st val h j hj
     refine ⟨Spec.pk root pp, Spec.message msg, ⟨root, pp, msg, he, rfl, rfl⟩, Spec.signature sig, ?_⟩
     rw [← Spec.verify_eq root pp msg sig (Spec.counters_lt root pp msg sig hv), hv]
   · intro h
-    apply complete n st
+    apply complete n hn st
     intro j hj
     obtain ⟨p, m, ⟨root, pp, msg, he, rfl, rfl⟩, s, hv⟩ := h j hj
     obtain ⟨sig, hc, rfl⟩ := Spec.signature_onto s

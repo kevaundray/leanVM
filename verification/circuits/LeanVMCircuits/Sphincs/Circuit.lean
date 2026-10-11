@@ -9,7 +9,7 @@ public import LeanVMCircuits.Xmss.Circuit
 
 The circuit that verifies `n` leanSPHINCS signatures in one recursion proof, written against the model of the
 builder (`LeanVMCircuits.Rec.Model`), in the shape of `LeanVMCircuits.Xmss.Circuit`, whose gadgets for digests,
-statement words, digit indicators and the digit product it reuses.
+statement words, the digit product and the chains on the dynamic bus it reuses.
 
 Every hash of the scheme is BLAKE2s-256 over `tweak || parameter || payload`. All but the encoding are whole 64-bit
 words, so each is one `chain` of words, its digest truncated to its first two words (the message digest keeps three
@@ -38,9 +38,11 @@ counter, 42 chain elements and its siblings.
     words is zero, digit `i` is bits `3r .. 3r+2` of word `i / 21`, `r = i % 21`, and the digits sum to 191: the
     product over every digit bit `b` of weight `2^k` of `X^(2^k)` to the power `b` is `X^191` in `K`, and `X` has
     order above 294.
-  * Chain `i` hashes seven steps at positions `8i + s`, `s < 7`, the input of step `s > 0` the chain element when
-    the digit is `s` and the previous step's output otherwise. The chain's end is the chain element when the digit
-    is 7, the last output otherwise.
+  * The chains run on the dynamic bus (`Xmss.Circuit.chains`): chain `i`'s `LINK` row pushes the chain element at
+    the key of position `8i + d` and pulls the end at position `8i + 7`, and the layer has 103 `STEP` rows
+    (`7 · 42 - 191`), each hashing one step `tweak(1, lay, tau, p, e) || p || v` at a position `p` the prover names.
+    A step's tweak word is the base `tweak0(1, lay, 0)` plus `p << 32`; the keys carry the tag `3 j + lay` of
+    signature `j` and the layer at bit 41, so every layer of every signature has its own tuples.
   * The leaf hashes `tweak(2, lay, tau, 0, e) || p || end_0 || .. || end_41`, eleven blocks.
   * Level `l` of the path hashes `tweak(3, lay, tau, l + 1, e >> (l + 1)) || p || left || right`, the side bit `l`
     of `e`.
@@ -50,7 +52,7 @@ counter, 42 chain elements and its siblings.
 namespace LeanVMCircuits.Sphincs.Circuit
 
 open LeanVMCircuits.Rec.Model
-open LeanVMCircuits.Xmss.Circuit (words statementWords digitProduct indicators)
+open LeanVMCircuits.Xmss.Circuit (words statementWords digitProduct chains)
 
 /-- A tweak's first word: the domain separator 1 in byte 0, the type in byte 1, the layer or tree in byte 2, the
 position `p` in bytes 4 to 7. -/
@@ -97,25 +99,6 @@ def fold (ty lay : ℕ) (tauBits jBits : List ℕ) (top : ℕ) (pp : List ℕ) (
     node ← level (tweak0 ty lay (l + 1)) tw1 (jBits.getD l 0) node pp
   pure node
 
-/-- Chain `i` of layer `lay` from its element `tip` (an `E` wire) under the digit's indicators `ind`, the key's tweak
-word `tw1`: its end's two words. -/
-def chainEnd (lay i tw1 tip : ℕ) (pp ind : List ℕ) : M (ℕ × ℕ) := do
-  let (t0, t1, _) ← words tip
-  let d ← th (tweak0 1 lay (8 * i)) tw1 pp [t0, t1]
-  let (o, _) ← dToEAndK d
-  let mut cur := o
-  for s in List.range' 1 6 do
-    let diff ← add tip cur
-    let m ← mulAdd (ind.getD s 0) diff cur
-    let (v0, v1, _) ← words m
-    let d ← th (tweak0 1 lay (8 * i + s)) tw1 pp [v0, v1]
-    let (o, _) ← dToEAndK d
-    cur := o
-  let diff ← add tip cur
-  let e ← mulAdd (ind.getD 7 0) diff cur
-  let (n0, n1, _) ← words e
-  pure (n0, n1)
-
 /-- The few-time key the openings reach, the index's bits `idxBits`, the leaf indices' bits `us`, and `top` the
 tweak word of `idx` alone. -/
 def fts (idxBits : List ℕ) (us : List (List ℕ)) (top : ℕ) (pp : List ℕ) : M ℕ := do
@@ -131,8 +114,9 @@ def fts (idxBits : List ℕ) (us : List (List ℕ)) (top : ℕ) (pp : List ℕ) 
     roots := roots ++ [rs.getD 0 0, rs.getD 1 0]
   th (tweak0 11 0 0) top pp roots
 
-/-- Layer `lay`'s root, from the message `msg` (a digest wire) it signs and the index's bits `idxBits`. -/
-def layer (lay : ℕ) (idxBits : List ℕ) (pp : List ℕ) (msg : ℕ) : M ℕ := do
+/-- Layer `lay` of signature `j`'s root, from the message `msg` (a digest wire) it signs and the index's bits
+`idxBits`. -/
+def layer (j lay : ℕ) (idxBits : List ℕ) (pp : List ℕ) (msg : ℕ) : M ℕ := do
   let tauBits := idxBits.drop (suffix lay)
   let eBits := (idxBits.drop (suffix (lay + 1))).take (height lay)
   let z ← kConst 0
@@ -156,18 +140,13 @@ def layer (lay : ℕ) (idxBits : List ℕ) (pp : List ℕ) (msg : ℕ) : M ℕ :
   let prod ← digitProduct digitBits
   eqConstE prod targetWord 0 0
   -- The chains.
-  let mut ends := []
-  for i in List.range 42 do
-    let tip ← wire
-    let ind ← indicators (digitBits.getD (3 * i) 0) (digitBits.getD (3 * i + 1) 0) (digitBits.getD (3 * i + 2) 0)
-    let (n0, n1) ← chainEnd lay i key tip pp ind
-    ends := ends ++ [n0, n1]
+  let ends ← chains (tweak0 1 lay 0) (3 * j + lay) 103 key pp digitBits
   -- The leaf and the path.
   let leaf ← th (tweak0 2 lay 0) key pp ends
   fold 3 lay tauBits eBits top pp leaf
 
-/-- One signature's verification. -/
-def signature : M Unit := do
+/-- Signature `j`'s verification. -/
+def signature (j : ℕ) : M Unit := do
   let root ← statementWords 1
   let pp ← statementWords 1
   let mlo ← statementWords 1
@@ -190,14 +169,14 @@ def signature : M Unit := do
   let top ← indexWord idxBits []
   let mut msg ← fts idxBits us top pp
   for lay in [2, 1, 0] do
-    msg ← layer lay idxBits pp msg
+    msg ← layer j lay idxBits pp msg
   let rs ← dToK msg
   union (rs.getD 0 0) (root.getD 0 0)
   union (rs.getD 1 0) (root.getD 1 0)
 
 /-- The circuit verifying `n` signatures. -/
 def circuit (n : ℕ) : M Unit := do
-  for _ in List.range n do
-    signature
+  for j in List.range n do
+    signature j
 
 end LeanVMCircuits.Sphincs.Circuit

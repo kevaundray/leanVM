@@ -8,14 +8,19 @@ public import LeanVMCircuits.Sphincs.Statement
 /-!
 # Soundness of the leanSPHINCS circuit
 
-In every assignment satisfying the circuit of `n` signatures, statement words `4j .. 4j + 3` encode a root, a public
-parameter and a message for which some signature verifies over words (`Sphincs.Words.verify`). The signature is read
-off the assignment: the randomizer, the secrets and siblings of the few-time trees, and per layer the counter, the
-chain elements and the siblings are the circuit's free wires.
+In every assignment the machine accepts the circuit of `n ≤ 2^20` signatures with (`Accepts`: its rows satisfied and
+its dynamic bus balanced), statement words `4j .. 4j + 3` encode a root, a public parameter and a message for which
+some signature verifies over words (`Sphincs.Words.verify`). The signature is read off the assignment: the
+randomizer, the secrets and siblings of the few-time trees, and per layer the counter, the chain elements and the
+siblings are the circuit's free wires.
 
 Per signature (`signature_good`): the statement words decode as for leanXMSS; the message digest is its hash row
 chain's, and its first three words' splits are the index's and the leaf indices' bits, the last held zero; the
 few-time key is `fts_good`'s, each layer `layer_good`'s, and the top layer's root is held equal to the statement's.
+Layer `lay` of signature `j` names its 103 `STEP` and 42 `LINK` rows, of tag `3 j + lay` (below `2^22` by the
+bound); its chains' ends are `Words.chainFrom`'s when those rows' tuples balance. The rows the layers name are all the
+circuit's (`Sphincs.count_circuit`, `rows_perm`), so the balanced bus balances each tag's tuples
+(`local_of_balanced`).
 -/
 
 namespace LeanVMCircuits.Sphincs
@@ -89,10 +94,18 @@ theorem us_getD (bits : List ℕ) (κ : ℕ) (hκ : κ < 15) :
   rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hκ]
   rfl
 
-/-- One signature's verification. -/
-theorem signature_good : Good (fun _ => True) Sphincs.Circuit.signature fun s _ s' =>
-    s'.statement = s.statement + 4 ∧ ∀ st val, Sat st s' val → ∃ root pp msg,
-      EncodesAt st s.statement root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true := by
+theorem lay_mem (lay : ℕ) (hlay : lay < 3) : lay ∈ ([2, 1, 0] : List ℕ).take 3 := by
+  interval_cases lay <;> simp
+
+/-- Signature `j`'s verification: its layers' 103 `STEP` and 42 `LINK` rows each, layer `lay`'s of tag
+`3 j + lay`, and, when each layer's tuples balance, its statement words encode a key and a message some signature
+verifies. -/
+theorem signature_good (j : ℕ) (hj : j < 2 ^ 20) : Good (fun _ => True) (Sphincs.Circuit.signature j) fun s _ s' =>
+    s'.statement = s.statement + 4 ∧ ∃ Rs Ls : ℕ → List (List ℕ), (∀ lay < 3, (Rs lay).length = 103 ∧
+      (Ls lay).length = 42 ∧ (Rs lay).Nodup ∧ (∀ r ∈ Rs lay, r ∈ s'.step) ∧ ∀ r ∈ Ls lay, r ∈ s'.link) ∧
+    ∀ st val, Sat st s' val → (∀ lay < 3, SigRows (3 * j + lay) val (Rs lay) (Ls lay)) ∧
+      ((∀ lay < 3, LocalBal val (Rs lay) (Ls lay)) → ∃ root pp msg,
+        EncodesAt st s.statement root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true) := by
   unfold Sphincs.Circuit.signature
   refine good_of_post fun s hs _ => ?_
   refine statementWords_good1.step hs trivial ?_
@@ -196,50 +209,94 @@ theorem signature_good : Good (fun _ => True) Sphincs.Circuit.signature fun s _ 
   rintro msg0 s15 hi15 he15 ⟨hst15, hmsg0, hmsg0v⟩
   -- The layers.
   refine post_bind (forIn_post [2, 1, 0] _ (fun k (m : ℕ) s' => s'.statement = s.statement + 4 ∧ m < s'.next ∧
-      ∀ st val, Sat st s' val → ∃ (ctrs : Fin 3 → W) (tipsF : Fin 3 → ℕ → Dig) (pathsF : Fin 3 → ℕ → Dig),
-        ∀ sig : Sphincs.Words.Sig, (∀ j ∈ ([2, 1, 0] : List (Fin 3)).take k, sig.counters j = ctrs j ∧
-          (∀ i, sig.tips j i = tipsF j i) ∧ (∀ l (hl : l < Sphincs.Words.height j), sig.paths j ⟨l, hl⟩ = pathsF j l)) →
+      ∃ Rs Ls : ℕ → List (List ℕ), (∀ lay ∈ ([2, 1, 0] : List ℕ).take k, (Rs lay).length = 103 ∧
+        (Ls lay).length = 42 ∧ (Rs lay).Nodup ∧ (∀ r ∈ Rs lay, r ∈ s'.step) ∧ ∀ r ∈ Ls lay, r ∈ s'.link) ∧
+      ∀ st val, Sat st s' val → (∀ lay ∈ ([2, 1, 0] : List ℕ).take k, SigRows (3 * j + lay) val (Rs lay) (Ls lay)) ∧
+        ((∀ lay ∈ ([2, 1, 0] : List ℕ).take k, LocalBal val (Rs lay) (Ls lay)) →
+        ∃ (ctrs : Fin 3 → W) (tipsF : Fin 3 → ℕ → Dig) (pathsF : Fin 3 → ℕ → Dig),
+        ∀ sig : Sphincs.Words.Sig, (∀ q ∈ ([2, 1, 0] : List (Fin 3)).take k, sig.counters q = ctrs q ∧
+          (∀ i, sig.tips q i = tipsF q i) ∧ (∀ l (hl : l < Sphincs.Words.height q), sig.paths q ⟨l, hl⟩ = pathsF q l)) →
         (([2, 1, 0] : List (Fin 3)).take k).foldlM (Sphincs.Words.layerRoot (w64 val p0, w64 val p1)
-          (digestValue val d % 2 ^ 26) sig) (dig val msg0) = some (dig val m)) hi15
-      ⟨by omega, hmsg0, fun _ _ _ => ⟨fun _ => 0, fun _ _ => (0, 0), fun _ _ => (0, 0), fun _ _ => rfl⟩⟩ ?_) ?_
-  · rintro k hk m s16 hi16 he16 ⟨hst16, hm, hv16⟩
+          (digestValue val d % 2 ^ 26) sig) (dig val msg0) = some (dig val m))) hi15
+      ⟨by omega, hmsg0, fun _ => [], fun _ => [], fun _ h => absurd h (by simp), fun _ _ _ =>
+        ⟨fun _ h => absurd h (by simp), fun _ => ⟨fun _ => 0, fun _ _ => (0, 0), fun _ _ => (0, 0),
+          fun _ _ => rfl⟩⟩⟩ ?_) ?_
+  · rintro k hk m s16 hi16 he16 ⟨hst16, hm, Rs, Ls, hrows16, hv16⟩
     have hk3 : k < 3 := by simpa using hk
-    have hlay : ([2, 1, 0] : List ℕ)[k] < 3 := by interval_cases k <;> simp
-    have hfin : (⟨([2, 1, 0] : List ℕ)[k], hlay⟩ : Fin 3) = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) := by
+    have hkl : k < ([2, 1, 0] : List ℕ).length := by simpa using hk3
+    have hlay : ([2, 1, 0] : List ℕ)[k]'hkl < 3 := by interval_cases k <;> simp
+    have hfin : (⟨([2, 1, 0] : List ℕ)[k]'hkl, hlay⟩ : Fin 3) = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) := by
       interval_cases k <;> rfl
     have hnot : ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) ∉ ([2, 1, 0] : List (Fin 3)).take k := by
       interval_cases k <;> simp (config := { decide := true })
     have htake : ([2, 1, 0] : List (Fin 3)).take (k + 1) =
         ([2, 1, 0] : List (Fin 3)).take k ++ [([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3)] := by
       interval_cases k <;> rfl
-    refine (layer_good _ hlay _ p0 p1 m hidxlen).step hi16 ⟨hidxw.mono (by ext_chain), lt_mono hp0 (by ext_chain),
-      lt_mono hp1 (by ext_chain), hm⟩ ?_
-    rintro m' s17 hi17 he17 ⟨hst17, hm', hv17⟩
-    refine post_pure hi17 (by ext_chain) ⟨m', rfl, by omega, hm', fun st val hsat => ?_⟩
+    have hnotN : ([2, 1, 0] : List ℕ)[k]'hkl ∉ ([2, 1, 0] : List ℕ).take k := by
+      interval_cases k <;> simp
+    have htakeN : ([2, 1, 0] : List ℕ).take (k + 1) = ([2, 1, 0] : List ℕ).take k ++ [([2, 1, 0] : List ℕ)[k]'hkl] := by
+      interval_cases k <;> rfl
+    have hmemN : ∀ lay, lay ∈ ([2, 1, 0] : List ℕ).take (k + 1) → lay ≠ ([2, 1, 0] : List ℕ)[k]'hkl →
+        lay ∈ ([2, 1, 0] : List ℕ).take k := fun lay hl hne => by
+      rw [htakeN] at hl
+      rcases List.mem_append.mp hl with hl | hl
+      · exact hl
+      · exact absurd (List.mem_singleton.mp hl) hne
+    refine (layer_good j _ hlay (by omega) _ p0 p1 m hidxlen).step hi16 ⟨hidxw.mono (by ext_chain),
+      lt_mono hp0 (by ext_chain), lt_mono hp1 (by ext_chain), hm⟩ ?_
+    rintro m' s17 hi17 he17 ⟨hst17, hm', R, L, hRl, hLl, hRn, hRm, hLm, hv17⟩
+    refine post_pure hi17 (by ext_chain) ⟨m', rfl, by omega, hm', fun x => if x = ([2, 1, 0] : List ℕ)[k]'hkl then R
+      else Rs x, fun x => if x = ([2, 1, 0] : List ℕ)[k]'hkl then L else Ls x, fun lay hl => ?_, fun st val hsat => ?_⟩
+    · by_cases hx : lay = ([2, 1, 0] : List ℕ)[k]'hkl
+      · simp only [if_pos hx]
+        exact ⟨hRl, hLl, hRn, hRm, hLm⟩
+      · simp only [if_neg hx]
+        obtain ⟨h1, h2, h3, h4, h5⟩ := hrows16 lay (hmemN lay hl hx)
+        exact ⟨h1, h2, h3, fun r hr => he17.steps _ (h4 r hr), fun r hr => he17.links _ (h5 r hr)⟩
     obtain ⟨hidxlt, hidxb, hidxbool⟩ := hidx st val (hsat.mono (by ext_chain))
-    obtain ⟨ctrs, tipsF, pathsF, hfold⟩ := hv16 st val (hsat.mono (by ext_chain))
-    obtain ⟨ctr, tips, path, hlr⟩ := hv17 st val hsat _ hidxlt hidxb hidxbool
+    obtain ⟨hR16, hl16⟩ := hv16 st val (hsat.mono he17)
+    obtain ⟨hRk, hlk⟩ := hv17 st val hsat
+    refine ⟨fun lay hl => ?_, fun hloc => ?_⟩
+    · by_cases hx : lay = ([2, 1, 0] : List ℕ)[k]'hkl
+      · simp only [if_pos hx]
+        rw [hx]
+        exact hRk
+      · simp only [if_neg hx]
+        exact hR16 lay (hmemN lay hl hx)
+    obtain ⟨ctrs, tipsF, pathsF, hfold⟩ := hl16 fun lay hl => by
+      have hne : lay ≠ ([2, 1, 0] : List ℕ)[k]'hkl := fun h => hnotN (h ▸ hl)
+      have := hloc lay (by rw [htakeN]; exact List.mem_append_left _ hl)
+      simp only [if_neg hne] at this
+      exact this
+    obtain ⟨ctr, tips, path, hlr⟩ := hlk (by
+      have := hloc (([2, 1, 0] : List ℕ)[k]'hkl) (by rw [htakeN]; exact List.mem_append_right _ (List.mem_singleton_self _))
+      simpa using this) _ hidxlt hidxb hidxbool
     rw [hfin] at hlr
-    refine ⟨fun j => if j = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) then ctr else ctrs j,
-      fun j => if j = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) then tips else tipsF j,
-      fun j => if j = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) then path else pathsF j,
+    refine ⟨fun q => if q = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) then ctr else ctrs q,
+      fun q => if q = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) then tips else tipsF q,
+      fun q => if q = ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) then path else pathsF q,
       fun sig hag => ?_⟩
     obtain ⟨hc, ht, hp⟩ := hag _ (by rw [htake]; exact List.mem_append_right _ (List.mem_singleton_self _))
     simp only [if_true] at hc ht hp
     rw [htake]
-    refine foldlM_snoc (hfold sig fun j hj => ?_) (hlr sig hc (fun i => ht i) hp)
-    · have hne : j ≠ ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) := fun h => hnot (h ▸ hj)
-      obtain ⟨hc, ht, hp⟩ := hag j (by rw [htake]; exact List.mem_append_left _ hj)
+    refine foldlM_snoc (hfold sig fun q hq => ?_) (hlr sig hc (fun i => ht i) hp)
+    · have hne : q ≠ ([2, 1, 0] : List (Fin 3))[k]'(by simpa using hk3) := fun h => hnot (h ▸ hq)
+      obtain ⟨hc, ht, hp⟩ := hag q (by rw [htake]; exact List.mem_append_left _ hq)
       simp only [if_neg hne] at hc ht hp
       exact ⟨hc, ht, hp⟩
-  · rintro msgF s16 hi16 he16 ⟨hst16, hmF, hv16⟩
+  · rintro msgF s16 hi16 he16 ⟨hst16, hmF, Rs, Ls, hrows16, hv16⟩
     refine ((dToK_good msgF).pres (pres_dToK msgF)).step hi16 (Wires.cons' hmF Wires.nil') ?_
     rintro rs s17 hi17 he17 ⟨hst17, hrs, hrsv⟩
     refine ((union_good _ _).pres (pres_union _ _)).step hi17 trivial ?_
     rintro _ s18 hi18 he18 ⟨hst18, hu0⟩
     refine ((union_good _ _).pres (pres_union _ _)).last hi18 trivial (by ext_chain) ?_
     rintro _ s19 he19 ⟨hst19, hu1⟩
-    refine ⟨by omega, fun st val hsat => ?_⟩
+    refine ⟨by omega, Rs, Ls, fun lay hlay => ?_, fun st val hsat => ?_⟩
+    · obtain ⟨h1, h2, h3, h4, h5⟩ := hrows16 lay (lay_mem lay hlay)
+      exact ⟨h1, h2, h3, fun r hr => (show Ext s16 s19 by ext_chain).steps _ (h4 r hr),
+        fun r hr => (show Ext s16 s19 by ext_chain).links _ (h5 r hr)⟩
+    obtain ⟨hR16, hl16⟩ := hv16 st val (hsat.mono (by ext_chain))
+    refine ⟨fun lay hlay => hR16 lay (lay_mem lay hlay), fun hloc => ?_⟩
     -- Read everything off the final assignment.
     obtain ⟨hidxlt, hidxb, hidxbool⟩ := hidx st val (hsat.mono (by ext_chain))
     have husv := hus st val (hsat.mono (by ext_chain))
@@ -248,7 +305,10 @@ theorem signature_good : Good (fun _ => True) Sphincs.Circuit.signature fun s _ 
         (fun i hi => absurd hi (by simp))
     obtain ⟨secrets, paths, hfts⟩ := hmsg0v st val (hsat.mono (by ext_chain)) (digestValue val d % 2 ^ 26)
       (fun κ => digestValue val d / 2 ^ (26 + 10 * κ) % 2 ^ 10) hidxlt hidxb (fun κ hκ => husv κ (by omega)) htop'
-    obtain ⟨ctrs, tipsF, pathsF, hfold⟩ := hv16 st val (hsat.mono (by ext_chain))
+    obtain ⟨ctrs, tipsF, pathsF, hfold⟩ := hl16 fun lay hl => hloc lay (by
+      have : lay ∈ ([2, 1, 0] : List ℕ) := by simpa using hl
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at this
+      omega)
     -- The last leaf index is zero.
     have hu14' : digestValue val d / 2 ^ (26 + 10 * 14) % 2 ^ 10 = 0 := by
       obtain ⟨hlt, hbits, -⟩ := husv 14 (by omega)
@@ -313,32 +373,80 @@ theorem signature_good : Good (fun _ => True) Sphincs.Circuit.signature fun s _ 
       rw [← hfts, hall', hroot]
       simp
 
-/-- The circuit of `n` signatures. -/
-theorem circuit_good (n : ℕ) : Good (fun s => s.statement = 0) (Sphincs.Circuit.circuit n) fun _ _ s' =>
-    ∀ st val, Sat st s' val → ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧
-      ∃ sig, Sphincs.Words.verify root pp msg sig = true := by
+/-- The circuit of `n ≤ 2^20` signatures: layer `lay` of signature `j` has 103 distinct `STEP` and 42 `LINK` rows,
+`Rs g` and `Ls g` for its tag `g = 3 j + lay`, its rows under every satisfying assignment, and signature `j`'s
+statement when its layers' tuples balance. -/
+theorem circuit_good (n : ℕ) (hn : n ≤ 2 ^ 20) : Good (fun s => s.statement = 0) (Sphincs.Circuit.circuit n)
+    fun _ _ s' => ∃ Rs Ls : ℕ → List (List ℕ), (∀ g < 3 * n, (Rs g).length = 103 ∧ (Ls g).length = 42 ∧
+      (Rs g).Nodup ∧ (∀ r ∈ Rs g, r ∈ s'.step) ∧ ∀ r ∈ Ls g, r ∈ s'.link) ∧
+    ∀ st val, Sat st s' val → (∀ g < 3 * n, SigRows g val (Rs g) (Ls g)) ∧ ∀ j < n,
+      ((∀ lay < 3, LocalBal val (Rs (3 * j + lay)) (Ls (3 * j + lay))) →
+        ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true) := by
   unfold Sphincs.Circuit.circuit
   refine good_of_post fun s hs h0 => ?_
-  refine post_bind (forIn_range_post n _ (fun k (_ : PUnit) s' => s'.statement = 4 * k ∧ ∀ st val, Sat st s' val →
-      ∀ j < k, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true)
-      hs ⟨by omega, fun _ _ _ j hj => absurd hj (Nat.not_lt_zero j)⟩ ?_) ?_
-  · rintro k hk u s1 hi1 he1 ⟨hst1, hv1⟩
-    refine Sphincs.signature_good.step hi1 trivial ?_
-    rintro _ s2 hi2 he2 ⟨hst2, hsig⟩
-    refine post_pure hi2 he2 ⟨PUnit.unit, rfl, by omega, fun st val hsat j hj => ?_⟩
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl
-    · exact hv1 st val (hsat.mono he2) j hj
-    · obtain ⟨root, pp, msg, henc, hv⟩ := hsig st val hsat
-      rw [hst1] at henc
-      exact ⟨root, pp, msg, henc, hv⟩
+  refine post_bind (forIn_range_post n _ (fun k (_ : PUnit) s' => s'.statement = 4 * k ∧
+      ∃ Rs Ls : ℕ → List (List ℕ), (∀ g < 3 * k, (Rs g).length = 103 ∧ (Ls g).length = 42 ∧ (Rs g).Nodup ∧
+        (∀ r ∈ Rs g, r ∈ s'.step) ∧ ∀ r ∈ Ls g, r ∈ s'.link) ∧
+      ∀ st val, Sat st s' val → (∀ g < 3 * k, SigRows g val (Rs g) (Ls g)) ∧ ∀ j < k,
+        ((∀ lay < 3, LocalBal val (Rs (3 * j + lay)) (Ls (3 * j + lay))) →
+          ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true))
+      hs ⟨by omega, fun _ => [], fun _ => [], fun g hg => absurd hg (by omega),
+        fun _ _ _ => ⟨fun g hg => absurd hg (by omega), fun j hj => absurd hj (Nat.not_lt_zero j)⟩⟩ ?_) ?_
+  · rintro k hk u s1 hi1 he1 ⟨hst1, Rs, Ls, hrows, hv1⟩
+    refine (Sphincs.signature_good k (by omega)).step hi1 trivial ?_
+    rintro _ s2 hi2 he2 ⟨hst2, RK, LK, hrowsK, hsig⟩
+    refine post_pure hi2 he2 ⟨PUnit.unit, rfl, by omega, fun g => if g / 3 = k then RK (g % 3) else Rs g,
+      fun g => if g / 3 = k then LK (g % 3) else Ls g, fun g hg => ?_, fun st val hsat => ?_⟩
+    · by_cases hgk : g / 3 = k
+      · simp only [if_pos hgk]
+        exact hrowsK (g % 3) (Nat.mod_lt _ (by norm_num))
+      · simp only [if_neg hgk]
+        obtain ⟨h1, h2, h3, h4, h5⟩ := hrows g (by omega)
+        exact ⟨h1, h2, h3, fun r hr => he2.steps _ (h4 r hr), fun r hr => he2.links _ (h5 r hr)⟩
+    obtain ⟨hR1, hl1⟩ := hv1 st val (hsat.mono he2)
+    obtain ⟨hRK, hlK⟩ := hsig st val hsat
+    refine ⟨fun g hg => ?_, fun j hj hloc => ?_⟩
+    · by_cases hgk : g / 3 = k
+      · simp only [if_pos hgk]
+        have := hRK (g % 3) (Nat.mod_lt _ (by norm_num))
+        rwa [show 3 * k + g % 3 = g by omega] at this
+      · simp only [if_neg hgk]
+        exact hR1 g (by omega)
+    · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | hjk
+      · refine hl1 j hj fun lay hlay => ?_
+        have := hloc lay hlay
+        simp only [if_neg (show ¬ (3 * j + lay) / 3 = k by omega)] at this
+        exact this
+      · obtain ⟨root, pp, msg, henc, hv⟩ := hlK fun lay hlay => by
+          have := hloc lay hlay
+          simp only [if_pos (show (3 * j + lay) / 3 = k by omega), show (3 * j + lay) % 3 = lay by omega] at this
+          exact this
+        rw [hst1, ← hjk] at henc
+        exact ⟨root, pp, msg, henc, hv⟩
   · rintro u s1 hi1 he1 ⟨-, hv⟩
     exact post_pure hi1 he1 hv
 
-/-- Soundness: in every assignment the machine accepts the circuit of `n` signatures with (`Accepts`; its rows
-satisfied suffice), statement words `4j .. 4j + 3` encode a root, a public parameter and a message for which some
-signature verifies. -/
-theorem sound (n : ℕ) (st : ℕ → Fin 4 → K) (val : Val) (h : Accepts st ((Sphincs.Circuit.circuit n).run {}).2 val) :
-    ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true :=
-  (Sphincs.circuit_good n {} inv_empty rfl).2.2 st val h.1
+/-- Soundness: in every assignment the machine accepts the circuit of `n ≤ 2^20` signatures with (its rows satisfied
+and its dynamic bus balanced), statement words `4j .. 4j + 3` encode a root, a public parameter and a message for
+which some signature verifies. The rows the signatures' layers name are all the circuit's (`count_circuit`,
+`rows_perm`), so the balanced bus balances each layer's tuples (`local_of_balanced`). -/
+theorem sound (n : ℕ) (hn : n ≤ 2 ^ 20) (st : ℕ → Fin 4 → K) (val : Val)
+    (h : Accepts st ((Sphincs.Circuit.circuit n).run {}).2 val) :
+    ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true := by
+  obtain ⟨hsat, hbal⟩ := h
+  obtain ⟨Rs, Ls, hrows, hv⟩ := (Sphincs.circuit_good n hn {} inv_empty rfl).2.2
+  obtain ⟨hfacts, hloc⟩ := hv st val hsat
+  have hsize := Sphincs.count_circuit n {}
+  simp only [Array.size_empty, Nat.zero_add] at hsize
+  have hRnd := nodup_flatMap_label (3 * n) Rs (fun r => toWord (val (r.getD 4 0) 0) / 2 ^ 41)
+    (fun g hg => (hrows g hg).2.2.1) fun g hg => (hfacts g hg).1
+  have hLnd := nodup_flatMap_label (3 * n) Ls (fun r => toWord (val (r.getD 0 0) 0) / 2 ^ 41 % 2 ^ 22)
+    (fun g hg => (hfacts g hg).2.1) fun g hg => (hfacts g hg).2.2.1
+  have hR := rows_perm _ (3 * n) 103 Rs (by rw [hsize.1]; ring) (fun g hg => (hrows g hg).1)
+    (fun g hg => (hrows g hg).2.2.2.1) hRnd
+  have hL := rows_perm _ (3 * n) 42 Ls (by rw [hsize.2]; ring) (fun g hg => (hrows g hg).2.1)
+    (fun g hg => (hrows g hg).2.2.2.2) hLnd
+  have hb := local_of_balanced _ val (3 * n) Rs Ls hR hL hbal fun g hg => (hfacts g hg).2.2.2
+  exact fun j hj => hloc j hj fun lay hlay => hb _ (by omega)
 
 end LeanVMCircuits.Sphincs

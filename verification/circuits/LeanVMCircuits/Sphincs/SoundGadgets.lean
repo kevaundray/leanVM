@@ -1,7 +1,7 @@
 module
 
 public import LeanVMCircuits.Xmss.Sound
-public import LeanVMCircuits.Sphincs.Words
+public import LeanVMCircuits.Sphincs.Paths
 public import LeanVMCircuits.Sphincs.FieldFacts
 
 @[expose] public section
@@ -10,9 +10,9 @@ public import LeanVMCircuits.Sphincs.FieldFacts
 # What the leanSPHINCS circuit's gadgets make their outputs
 
 Contracts of the gadgets of `Sphincs.Circuit` in the style of `Xmss.SoundGadgets`, whose machinery (`Post`, the loop
-rules, the statement count) and gadget contracts (`words`, `statementWords`, `digitProduct`, `indicators`) they
-reuse: the tweak's second word from bits, a tweak hash, a tree level and a whole climb, a chain, the few-time key
-and a layer.
+rules, the statement count) and gadget contracts (`words`, `statementWords`, `digitProduct`, `chains`) they reuse:
+the tweak's second word from bits, a tweak hash, a tree level and a whole climb, the few-time key and a layer, whose
+chains are `Xmss.chains_local`'s over the base `tweak0(1, lay, 0)` and the tag `3 j + lay`.
 -/
 
 namespace LeanVMCircuits.Sphincs
@@ -307,113 +307,6 @@ theorem fold_good (ty lay : ℕ) (tauBits jBits : List ℕ) (top p0 p1 leaf : �
   · rintro node s1 hi1 he1 ⟨hst1, hnode, hv1⟩
     exact post_pure hi1 he1 ⟨hst1, hnode, hv1⟩
 
-/-! A chain. -/
-
-/-- Chain `i` of layer `lay` at position `p`, from `T` at position `x`. -/
-def spCpart (lay tau e i : ℕ) (P : Dig) (x : ℕ) (T : Dig) (p : ℕ) : Dig :=
-  (List.range' x (p - x)).foldl (fun v s => Sphincs.Words.chainStep lay tau e i s P v) T
-
-theorem spCpart_self (lay tau e i : ℕ) (P : Dig) (x : ℕ) (T : Dig) : spCpart lay tau e i P x T x = T := by
-  simp [spCpart]
-
-theorem spCpart_succ (lay tau e i : ℕ) (P : Dig) (x : ℕ) (T : Dig) (p : ℕ) (hx : x ≤ p) :
-    spCpart lay tau e i P x T (p + 1) = Sphincs.Words.chainStep lay tau e i p P (spCpart lay tau e i P x T p) := by
-  unfold spCpart
-  rw [show p + 1 - x = p - x + 1 by omega, List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil,
-    show x + 1 * (p - x) = p by omega]
-
-/-- The digest of a chain step's hash. -/
-theorem spStep_dig {val : Val} {d tw p0 p1 v0 v1 lay i s tau e : ℕ} {V : Dig}
-    (hdv : words4 (val d) = digest (hashWords ([BitVec.ofNat 64 (Sphincs.Circuit.tweak0 1 lay (8 * i + s)), w64 val tw] ++
-      ([p0, p1] ++ [v0, v1]).map (w64 val))))
-    (htw : w64 val tw = tw1 tau e) (h0 : w64 val v0 = V.1) (h1 : w64 val v1 = V.2) :
-    dig val d = Sphincs.Words.chainStep lay tau e i s (w64 val p0, w64 val p1) V := by
-  apply spDig_th
-  rw [hdv]
-  simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append, htw, h0, h1, tweak_eq]
-
-/-- `chainEnd`: chain `i` of layer `lay` from the element `tip` at the digit `x` to position 7. -/
-theorem spChainEnd_good (lay i tw tip p0 p1 : ℕ) (ind : List ℕ) :
-    Good (fun s => tw < s.next ∧ tip < s.next ∧ p0 < s.next ∧ p1 < s.next ∧ Wires ind s ∧ ind.length = 8)
-      (Sphincs.Circuit.chainEnd lay i tw tip [p0, p1] ind) fun s r s' => s'.statement = s.statement ∧ r.1 < s'.next ∧
-        r.2 < s'.next ∧ ∀ st val, Sat st s' val → ∀ x < 8, ∀ tau e : ℕ,
-          (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) → w64 val tw = tw1 tau e →
-            (w64 val r.1, w64 val r.2) = Sphincs.Words.chainFrom lay tau e i (w64 val p0, w64 val p1) x (dig val tip) := by
-  unfold Sphincs.Circuit.chainEnd
-  refine good_of_post fun s hs ⟨htwn, htip, hp0, hp1, hind, hlen⟩ => ?_
-  refine (words_good tip).step hs (Wires.cons' htip Wires.nil') ?_
-  rintro ⟨t0, t1, t2⟩ s1 hi1 he1 ⟨hst1, ht0, ht1, -, htv⟩
-  try dsimp only
-  refine (th_good (Sphincs.Circuit.tweak0 1 lay (8 * i)) tw [p0, p1] [t0, t1] (by norm_num)).step hi1 trivial ?_
-  rintro d s2 hi2 he2 ⟨hst2, hd, hdv⟩
-  refine ((dToEAndK_good d).pres (pres_dToEAndK d)).step hi2 (Wires.cons' hd Wires.nil') ?_
-  rintro ⟨o, o'⟩ s3 hi3 he3 ⟨hst3, ho, -, hov⟩
-  try dsimp only
-  refine post_bind (forIn_range'_post 6 _ (fun k cur s' => s'.statement = s.statement ∧ cur < s'.next ∧
-      ∀ st val, Sat st s' val → ∀ x < 8, ∀ tau e : ℕ, (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) →
-        w64 val tw = tw1 tau e → x ≤ k →
-          dig val cur = spCpart lay tau e i (w64 val p0, w64 val p1) x (dig val tip) (k + 1)) hi3
-      ⟨by omega, ho, fun st val hsat x hx tau e hi he hxk => ?_⟩ ?_) ?_
-  · obtain rfl : x = 0 := by omega
-    have h0 : ∀ i : Fin 4, i.val < 3 → val o i = val d i := (hov st val hsat).1
-    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), spCpart_succ _ _ _ _ _ _ _ _ le_rfl, spCpart_self]
-    obtain ⟨a0, a1, -, -⟩ := htv st val (hsat.mono (by ext_chain))
-    exact spStep_dig (s := 0) (V := dig val tip) (hdv st val (hsat.mono he3)) he (w64_of a0) (w64_of a1)
-  · rintro k hk cur s4 hi4 he4 ⟨hst4, hcur, hv4⟩
-    have hik : ind.getD (k + 1) 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
-    refine ((add_good tip cur).pres (pres_add _ _)).step hi4
-      (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
-    rintro diff s5 hi5 he5 ⟨hst5, hdiff, hdiffv⟩
-    refine ((mulAdd_good _ diff cur).pres (pres_mulAdd _ _ _)).step hi5
-      (Wires.cons' (lt_mono hik he5) (Wires.cons' hdiff (Wires.cons' (lt_mono hcur he5) Wires.nil'))) ?_
-    rintro m s6 hi6 he6 ⟨hst6, hm, hmv⟩
-    refine (words_good m).step hi6 (Wires.cons' hm Wires.nil') ?_
-    rintro ⟨v0, v1, v2⟩ s7 hi7 he7 ⟨hst7, hv0, hv1, -, hvv⟩
-    try dsimp only
-    refine (th_good (Sphincs.Circuit.tweak0 1 lay (8 * i + (k + 1))) tw [p0, p1] [v0, v1] (by norm_num)).step hi7 trivial ?_
-    rintro d' s8 hi8 he8 ⟨hst8, hd', hdv'⟩
-    refine ((dToEAndK_good d').pres (pres_dToEAndK d')).step hi8 (Wires.cons' hd' Wires.nil') ?_
-    rintro ⟨o2, o2'⟩ s9 hi9 he9 ⟨hst9, ho2, -, hov2⟩
-    try dsimp only
-    refine post_pure hi9 (by ext_chain) ⟨o2, rfl, by omega, ho2, fun st val hsat x hx tau e hi he hxk => ?_⟩
-    have h0 : ∀ i : Fin 4, i.val < 3 → val o2 i = val d' i := (hov2 st val hsat).1
-    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), spCpart_succ _ _ _ _ _ _ _ _ hxk]
-    obtain ⟨a0, a1, -, -⟩ := hvv st val (hsat.mono (by ext_chain))
-    rw [spStep_dig (V := dig val m) (hdv' st val (hsat.mono he9)) he (w64_of a0) (w64_of a1)]
-    apply congrArg (Sphincs.Words.chainStep lay tau e i (k + 1) _)
-    have hmev : ev val m = if k + 1 = x then ev val tip else ev val cur := by
-      rw [hmv st val (hsat.mono (by ext_chain)), hdiffv st val (hsat.mono (by ext_chain))]
-      exact mux_ev _ _ _ _ (hi (k + 1) (by omega))
-    split_ifs at hmev with hkx
-    · rw [dig_of_ev hmev, ← hkx, spCpart_self]
-    · rw [dig_of_ev hmev]
-      exact hv4 st val (hsat.mono (by ext_chain)) x hx tau e hi he (by omega)
-  · rintro cur s4 hi4 he4 ⟨hst4, hcur, hv4⟩
-    have hik : ind.getD 7 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
-    refine ((add_good tip cur).pres (pres_add _ _)).step hi4
-      (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
-    rintro diff s5 hi5 he5 ⟨hst5, hdiff, hdiffv⟩
-    refine ((mulAdd_good _ diff cur).pres (pres_mulAdd _ _ _)).step hi5
-      (Wires.cons' (lt_mono hik he5) (Wires.cons' hdiff (Wires.cons' (lt_mono hcur he5) Wires.nil'))) ?_
-    rintro m s6 hi6 he6 ⟨hst6, hm, hmv⟩
-    refine (words_good m).step hi6 (Wires.cons' hm Wires.nil') ?_
-    rintro ⟨n0, n1, n2⟩ s7 hi7 he7 ⟨hst7, hn0, hn1, -, hnv⟩
-    try dsimp only
-    refine post_pure hi7 (by ext_chain) ⟨by omega, hn0, hn1, fun st val hsat x hx tau e hi he => ?_⟩
-    obtain ⟨a0, a1, -, -⟩ := hnv st val hsat
-    have a0' : val n0 0 = val m 0 := a0
-    have a1' : val n1 0 = val m 1 := a1
-    show (w64 val n0, w64 val n1) = spCpart lay tau e i (w64 val p0, w64 val p1) x (dig val tip) 7
-    rw [w64_of a0', w64_of a1']
-    show dig val m = spCpart lay tau e i (w64 val p0, w64 val p1) x (dig val tip) 7
-    have hmev : ev val m = if 7 = x then ev val tip else ev val cur := by
-      rw [hmv st val (hsat.mono he7), hdiffv st val (hsat.mono (by ext_chain))]
-      exact mux_ev _ _ _ _ (hi 7 (by omega))
-    split_ifs at hmev with hkx
-    · rw [dig_of_ev hmev, ← hkx, spCpart_self]
-    · rw [dig_of_ev hmev]
-      exact hv4 st val (hsat.mono (by ext_chain)) x hx tau e hi he (by omega)
-
 /-! The few-time key. -/
 
 theorem getD_drop' (l : List ℕ) (s i : ℕ) : (l.drop s).getD i 0 = l.getD (s + i) 0 := by
@@ -581,19 +474,24 @@ theorem ctr_lt {val : Val} {ctr : ℕ} {cb : List ℕ} (hlen : cb.length = 64)
     · have := (testBit_split hnum i h64).mp hb; rw [h0] at this; exact absurd this zero_ne_one
   · exact Nat.testBit_lt_two_pow (lt_of_lt_of_le (toWord_lt _) (Nat.pow_le_pow_right (by norm_num) (by omega)))
 
-/-- `layer`: layer `lay`'s root from the message it signs, under the counter, chain elements and path read off
-the assignment. -/
-theorem layer_good (lay : ℕ) (hlay : lay < 3) (idxBits : List ℕ) (p0 p1 msg : ℕ) (hidx : idxBits.length = 26) :
+/-- `layer`: layer `lay` of signature `j`'s 103 `STEP` and 42 `LINK` rows, of tag `3 j + lay`, and its root from the
+message it signs, under the counter, chain elements and path read off the assignment, when its rows' tuples
+balance. -/
+theorem layer_good (j lay : ℕ) (hlay : lay < 3) (hj : 3 * j + lay < 2 ^ 22) (idxBits : List ℕ) (p0 p1 msg : ℕ)
+    (hidx : idxBits.length = 26) :
     Good (fun s => Wires idxBits s ∧ p0 < s.next ∧ p1 < s.next ∧ msg < s.next)
-      (Sphincs.Circuit.layer lay idxBits [p0, p1] msg) fun s r s' => s'.statement = s.statement ∧ r < s'.next ∧
-        ∀ st val, Sat st s' val → ∀ idx : ℕ, idx < 2 ^ 26 →
+      (Sphincs.Circuit.layer j lay idxBits [p0, p1] msg) fun s r s' => s'.statement = s.statement ∧ r < s'.next ∧
+        ∃ R L : List (List ℕ), R.length = 103 ∧ L.length = 42 ∧ R.Nodup ∧ (∀ r ∈ R, r ∈ s'.step) ∧
+          (∀ r ∈ L, r ∈ s'.link) ∧ ∀ st val, Sat st s' val → SigRows (3 * j + lay) val R L ∧ (LocalBal val R L →
+          ∀ idx : ℕ, idx < 2 ^ 26 →
           (∀ i < 26, (val (idxBits.getD i 0) 0 = 1 ↔ idx.testBit i = true)) →
           (∀ i < 26, val (idxBits.getD i 0) 0 = 0 ∨ val (idxBits.getD i 0) 0 = 1) →
           ∃ (ctr : W) (tips : ℕ → Dig) (path : ℕ → Dig), ∀ sig : Sphincs.Words.Sig,
             sig.counters ⟨lay, hlay⟩ = ctr → (∀ i : Fin 42, sig.tips ⟨lay, hlay⟩ i = tips i) →
             (∀ l (hl : l < Sphincs.Words.height ⟨lay, hlay⟩), sig.paths ⟨lay, hlay⟩ ⟨l, hl⟩ = path l) →
             Sphincs.Words.layerRoot (w64 val p0, w64 val p1) idx sig (dig val msg) ⟨lay, hlay⟩ =
-              some (dig val r) := by
+              some (dig val r)) := by
+  have hb : Sphincs.Circuit.tweak0 1 lay 0 < 2 ^ 32 := by unfold Sphincs.Circuit.tweak0; omega
   obtain ⟨hsuf, hs26⟩ := layer_consts lay hlay
   have htBlen : (idxBits.drop (Sphincs.Circuit.suffix lay)).length = 26 - Sphincs.Circuit.suffix lay := by
     simp only [List.length_drop, hidx]
@@ -664,164 +562,132 @@ theorem layer_good (lay : ℕ) (hlay : lay < 3) (idxBits : List ℕ) (p0 p1 msg 
     exact ⟨hkeyv st val (hsat.mono (by ext_chain)) _ _ ht1 he2 ht2 he3,
       htopv st val (hsat.mono (by ext_chain)) _ 0 ht1 (by simp) ht2 (fun i hi => absurd hi (by simp))⟩
   -- The chains.
-  refine post_bind (forIn_range_post 42 _ (fun k (ends : List ℕ) s' => s'.statement = s.statement ∧
-      ends.length = 2 * k ∧ Wires ends s' ∧ ∀ st val, Sat st s' val → ∀ idx : ℕ, idx < 2 ^ 26 →
-        (∀ i < 26, (val (idxBits.getD i 0) 0 = 1 ↔ idx.testBit i = true)) →
-        (∀ i < 26, val (idxBits.getD i 0) 0 = 0 ∨ val (idxBits.getD i 0) 0 = 1) → ∃ tips : ℕ → Dig,
-          ends.map (w64 val) = (List.range k).flatMap fun i =>
-            [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-              i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).1,
-             (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-              i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).2]) hi17
-      ⟨by omega, rfl, Wires.nil', fun _ _ _ _ _ _ _ => ⟨fun _ => (0, 0), rfl⟩⟩ ?_) ?_
-  · rintro i hi ends s18 hi18 he18 ⟨hst18, hlen18, hw18, hv18⟩
-    refine fresh_good'.step hi18 trivial ?_
-    rintro tip s19 hi19 he19 ⟨hst19, htip⟩
-    refine (indicators_good _ _ _).step hi19 (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega))
-      (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega))
-        (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega)) Wires.nil'))) ?_
-    rintro ind s20 hi20 he20 ⟨hst20, hindlen, hindw, hindv⟩
-    refine (spChainEnd_good lay i key tip p0 p1 ind).step hi20 ⟨lt_mono hkey (by ext_chain), lt_mono htip he20,
-      lt_mono hp0 (by ext_chain), lt_mono hp1 (by ext_chain), hindw, hindlen⟩ ?_
-    rintro ⟨n0, n1⟩ s21 hi21 he21 ⟨hst21, hn0, hn1, hnv⟩
-    try dsimp only
-    refine post_pure hi21 (by ext_chain) ⟨ends ++ [n0, n1], rfl, by omega, by simp [hlen18]; ring,
-      fun w hw => ?_, fun st val hsat idx hlt hib hbool => ?_⟩
-    · rcases List.mem_append.mp hw with hw | hw
-      · exact lt_mono (hw18 w hw) (by ext_chain)
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hw
-        rcases hw with rfl | rfl
-        · exact hn0
-        · exact hn1
-    · have hDB := hDBbool st val (hsat.mono (by ext_chain))
-      obtain ⟨hkey', -⟩ := hkw st val (hsat.mono (by ext_chain)) idx hlt hib hbool
-      obtain ⟨tips, htips⟩ := hv18 st val (hsat.mono (by ext_chain)) idx hlt hib hbool
-      have hind : ∀ v < 8, ev val (ind.getD v 0) =
-          if v = dval val (lo.take 63 ++ up.take 63) i then 1 else 0 := by
-        intro v hv
-        rw [hindv st val (hsat.mono he21) v hv]
-        exact indv_digit _ _ _ _ (hDB _ (by omega)) (hDB _ (by omega)) (hDB _ (by omega)) v hv
-      have hend : (w64 val n0, w64 val n1) = Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
-          (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) i (w64 val p0, w64 val p1)
-          (dval val (lo.take 63 ++ up.take 63) i) (dig val tip) :=
-        hnv st val hsat _ (dval_lt _ _ i) _ _ hind hkey'
-      refine ⟨fun j => if j = i then dig val tip else tips j, ?_⟩
-      rw [List.map_append, htips, List.range_succ, List.flatMap_append,
-        flatMap_range_congr (g := fun j =>
-          [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-            j (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) j)
-            (if j = i then dig val tip else tips j)).1,
-           (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-            j (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) j)
-            (if j = i then dig val tip else tips j)).2])
-          fun j hj => by rw [if_neg (show ¬ j = i by omega)]]
-      simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, List.map_cons, List.map_nil, if_true]
-      rw [← hend]
-  · rintro ends s18 hi18 he18 ⟨hst18, hlen18, hw18, hv18⟩
-    have hb : 8 * (2 + [p0, p1].length + ends.length) < 2 ^ 64 := by
-      simp only [hlen18, List.length_cons, List.length_nil]; norm_num
-    refine (th_good (Sphincs.Circuit.tweak0 2 lay 0) key [p0, p1] ends hb).step hi18 trivial ?_
-    rintro leaf s19 hi19 he19 ⟨hst19, hleaf, hleafv⟩
-    refine (fold_good 3 lay _ _ top p0 p1 leaf (by rw [htBlen]; omega) (by rw [heBlen]; omega)).last hi19
-      ⟨hwt s19 (by ext_chain), hwe s19 (by ext_chain), lt_mono htop (by ext_chain), lt_mono hp0 (by ext_chain),
-        lt_mono hp1 (by ext_chain), hleaf⟩ (by ext_chain) ?_
-    rintro r s20 he20 ⟨hst20, hr, hrv⟩
-    refine ⟨by omega, hr, fun st val hsat idx hlt hib hbool => ?_⟩
-    -- Read everything off the final assignment.
-    have hsat17 : Sat st s17 val := hsat.mono (by ext_chain)
-    have hDB := hDBbool st val hsat17
-    obtain ⟨hkey', htop'⟩ := hkw st val hsat17 idx hlt hib hbool
-    obtain ⟨tips, htips⟩ := hv18 st val (hsat.mono (by ext_chain)) idx hlt hib hbool
-    obtain ⟨ht1, ht2⟩ := tau_bits idxBits val idx _ hs26 hidx hlt hib
-    obtain ⟨-, he2, he3, he4⟩ := e_bits idxBits val idx (Sphincs.Circuit.suffix (lay + 1))
-      (Sphincs.Circuit.height lay) (by omega) hidx hib hbool
-    obtain ⟨path, hpath⟩ := hrv st val hsat _ _ ht1 he2 ht2 he3 he4 htop'
-    rw [heBlen] at hpath
-    -- The encoding's digest and digits.
-    have hzw : w64 val z = 0 := w64_const (hzv st val (hsat.mono (by ext_chain)))
-    have hms0 : val (ms.getD 0 0) 0 = val msg 0 := hmsv st val (hsat.mono (by ext_chain)) 0
-    have hms1 : val (ms.getD 1 0) 0 = val msg 1 := hmsv st val (hsat.mono (by ext_chain)) 1
-    have hh' : words4 (val h) = digest Rec.paramIV := by
-      rw [hhv st val (hsat.mono (by ext_chain))]; exact words4_paramIV
-    have hD : dig val d = Sphincs.Words.encDigest (Sphincs.Words.tweak 4 lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) 0
-        (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)) (w64 val p0, w64 val p1) (dig val msg) (w64 val ctr) := by
-      unfold Sphincs.Words.encDigest
-      rw [blake2s_one]
-      simp only [dig]
-      rw [hdv st val (hsat.mono (by ext_chain)), hh', Rec.cvWords_digest]
-      simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append,
-        w64_const (htw0v st val (hsat.mono (by ext_chain))), hkey', w64_of hms0, w64_of hms1, hzw, tweak_eq, block8]
-      rfl
-    have hks0 : val (ks.getD 0 0) 0 = val d 0 := hksv st val (hsat.mono (by ext_chain)) 0
-    have hks1 : val (ks.getD 1 0) 0 = val d 1 := hksv st val (hsat.mono (by ext_chain)) 1
-    have hlonum : toWord (val d 0) = num (fun i => if val (lo.getD i 0) 0 = 1 then 1 else 0) 64 := by
-      rw [← hks0]; exact (hlov st val (hsat.mono (by ext_chain))).2
-    have hupnum : toWord (val d 1) = num (fun i => if val (up.getD i 0) 0 = 1 then 1 else 0) 64 := by
-      rw [← hks1]; exact (hupv st val (hsat.mono (by ext_chain))).2
-    have hlo' : ∀ j < 64, ((dig val d).1.toNat.testBit j = true ↔ val (lo.getD j 0) 0 = 1) := by
-      intro j hj
-      rw [show (dig val d).1 = words4 (val d) 0 from rfl, words4_toNat]
-      exact testBit_split hlonum j hj
-    have hup' : ∀ j < 64, ((dig val d).2.toNat.testBit j = true ↔ val (up.getD j 0) 0 = 1) := by
-      intro j hj
-      rw [show (dig val d).2 = words4 (val d) 1 from rfl, words4_toNat]
-      exact testBit_split hupnum j hj
-    have hsum : (Xmss.Words.digits (dig val d)).sum = 191 := by
-      rw [digits_sum val d lo up hlolen hlo' hup']
-      apply Sphincs.eq_191 _ (le_trans (dsum_le _ _ 42) (by norm_num))
-      apply emb_injective
-      rw [← hprodv st val (hsat.mono (by ext_chain)) hDB, htarget st val (hsat.mono (by ext_chain)),
-        Rec.ofWord_zero, toE_emb, Sphincs.target_eq]
-    have h63lo : (dig val d).1.getLsbD 63 = false := by
-      cases hb : (dig val d).1.getLsbD 63
-      · rfl
-      · have := (hlo' 63 (by omega)).mp hb
-        rw [limb_zero (hlo63 st val (hsat.mono (by ext_chain))) 0] at this
-        exact absurd this zero_ne_one
-    have h63up : (dig val d).2.getLsbD 63 = false := by
-      cases hb : (dig val d).2.getLsbD 63
-      · rfl
-      · have := (hup' 63 (by omega)).mp hb
-        rw [limb_zero (hup63 st val (hsat.mono (by ext_chain))) 0] at this
-        exact absurd this zero_ne_one
-    have hctr : (w64 val ctr).toNat < 2 ^ 32 := by
-      obtain ⟨-, hnum⟩ := hcbv st val (hsat.mono (by ext_chain))
-      exact ctr_lt hcblen hnum (hcbz st val (hsat.mono (by ext_chain)))
-    have henc : Sphincs.Words.encode lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-        (w64 val p0, w64 val p1) (dig val msg) (w64 val ctr) = some (Xmss.Words.digits (dig val d)) := by
-      simp only [Sphincs.Words.encode, ← hD, hctr, h63lo, h63up, hsum, and_self, if_true]
-    -- The leaf.
-    have hdig : ∀ j < 42, (Xmss.Words.digits (dig val d)).getD j 0 = dval val (lo.take 63 ++ up.take 63) j :=
-      fun j hj => by rw [digits_getD _ j hj, digit_dval val d lo up hlolen hlo' hup' j hj]
-    have hF := ofFn_flatMap' 42 (fun j => Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
-      (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) j (w64 val p0, w64 val p1)
-      ((Xmss.Words.digits (dig val d)).getD j 0) (tips j))
-    beta_reduce at hF
-    have hcong : ((List.range 42).flatMap fun i =>
-        [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-          i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).1,
-         (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-          i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).2]) =
-        (List.range 42).flatMap fun i =>
-        [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-          i (w64 val p0, w64 val p1) ((Xmss.Words.digits (dig val d)).getD i 0) (tips i)).1,
-         (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
-          i (w64 val p0, w64 val p1) ((Xmss.Words.digits (dig val d)).getD i 0) (tips i)).2] :=
-      flatMap_range_congr fun j hj => by rw [hdig j hj]
-    have hleafd : dig val leaf = Sphincs.Words.otsLeaf lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
-        (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) (w64 val p0, w64 val p1)
-        (List.ofFn fun i : Fin 42 => Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
-          (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) i (w64 val p0, w64 val p1)
-          ((Xmss.Words.digits (dig val d)).getD i 0) (tips i)) := by
-      unfold Sphincs.Words.otsLeaf
-      apply spDig_th
-      rw [hleafv st val (hsat.mono (by ext_chain)), hkey', hF, List.map_append, htips, hcong, tweak_eq]
-      simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append]
-    refine ⟨w64 val ctr, fun i => tips i, path, fun sig hc ht hp => ?_⟩
-    have hpaths : sig.paths ⟨lay, hlay⟩ = fun l => path l.val := funext fun l => hp l.val l.isLt
-    have htipsf : sig.tips ⟨lay, hlay⟩ = fun i => tips i.val := funext ht
-    simp only [Sphincs.Words.layerRoot, hc, henc, hpaths, htipsf]
-    rw [sp_climb_eq, ← hleafd]
-    exact congrArg some hpath.symm
+  refine (chains_good (Sphincs.Circuit.tweak0 1 lay 0) (3 * j + lay) 103 key p0 p1 (lo.take 63 ++ up.take 63)).step
+    hi17 trivial ?_
+  rintro ends s18 hi18 he18 ⟨hst18, hw18, R, act, tag, W, T0, T1, E0, E1, rfl, hRl, hRn, hR, hL, hv18⟩
+  have hb18 : 8 * (2 + [p0, p1].length + ((List.range 42).flatMap fun i => [E0 i, E1 i]).length) < 2 ^ 64 := by
+    rw [List.length_flatMap]; simp
+  refine (th_good (Sphincs.Circuit.tweak0 2 lay 0) key [p0, p1] _ hb18).step hi18 trivial ?_
+  rintro leaf s19 hi19 he19 ⟨hst19, hleaf, hleafv⟩
+  refine (fold_good 3 lay _ _ top p0 p1 leaf (by rw [htBlen]; omega) (by rw [heBlen]; omega)).last hi19
+    ⟨hwt s19 (by ext_chain), hwe s19 (by ext_chain), lt_mono htop (by ext_chain), lt_mono hp0 (by ext_chain),
+      lt_mono hp1 (by ext_chain), hleaf⟩ (by ext_chain) ?_
+  rintro r s20 he20 ⟨hst20, hr, hrv⟩
+  refine ⟨by omega, hr, R, (List.range 42).map (linkRow (lo.take 63 ++ up.take 63) act W T0 T1 E0 E1), hRl,
+    by simp, hRn, fun r hr => ?_, fun r hr => ?_, fun st val hsat => ?_⟩
+  · obtain ⟨_, _, _, _, _, -, hmem, -⟩ := hR r hr
+    exact (show Ext s18 s20 by ext_chain).steps _ hmem
+  · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hr
+    exact (show Ext s18 s20 by ext_chain).links _ (hL i (List.mem_range.mp hi))
+  -- Read everything off the final assignment.
+  have hsat17 : Sat st s17 val := hsat.mono (by ext_chain)
+  have hsat18 : Sat st s18 val := hsat.mono (by ext_chain)
+  have hDB := hDBbool st val hsat17
+  obtain ⟨hact, htag, hW⟩ := hv18 st val hsat18
+  obtain ⟨hrows, hlocal⟩ := chains_local hsat18 hb hj hR hRl hact htag hW hDB
+  refine ⟨hrows, fun hloc idx hlt hib hbool => ?_⟩
+  obtain ⟨hkey', htop'⟩ := hkw st val hsat17 idx hlt hib hbool
+  obtain ⟨ht1, ht2⟩ := tau_bits idxBits val idx _ hs26 hidx hlt hib
+  obtain ⟨-, he2, he3, he4⟩ := e_bits idxBits val idx (Sphincs.Circuit.suffix (lay + 1))
+    (Sphincs.Circuit.height lay) (by omega) hidx hib hbool
+  obtain ⟨path, hpath⟩ := hrv st val hsat _ _ ht1 he2 ht2 he3 he4 htop'
+  rw [heBlen] at hpath
+  -- The encoding's digest and digits.
+  have hzw : w64 val z = 0 := w64_const (hzv st val (hsat.mono (by ext_chain)))
+  have hms0 : val (ms.getD 0 0) 0 = val msg 0 := hmsv st val (hsat.mono (by ext_chain)) 0
+  have hms1 : val (ms.getD 1 0) 0 = val msg 1 := hmsv st val (hsat.mono (by ext_chain)) 1
+  have hh' : words4 (val h) = digest Rec.paramIV := by
+    rw [hhv st val (hsat.mono (by ext_chain))]; exact words4_paramIV
+  have hD : dig val d = Sphincs.Words.encDigest (Sphincs.Words.tweak 4 lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) 0
+      (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)) (w64 val p0, w64 val p1) (dig val msg) (w64 val ctr) := by
+    unfold Sphincs.Words.encDigest
+    rw [blake2s_one]
+    simp only [dig]
+    rw [hdv st val (hsat.mono (by ext_chain)), hh', Rec.cvWords_digest]
+    simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append,
+      w64_const (htw0v st val (hsat.mono (by ext_chain))), hkey', w64_of hms0, w64_of hms1, hzw, tweak_eq, block8]
+    rfl
+  have hks0 : val (ks.getD 0 0) 0 = val d 0 := hksv st val (hsat.mono (by ext_chain)) 0
+  have hks1 : val (ks.getD 1 0) 0 = val d 1 := hksv st val (hsat.mono (by ext_chain)) 1
+  have hlonum : toWord (val d 0) = num (fun i => if val (lo.getD i 0) 0 = 1 then 1 else 0) 64 := by
+    rw [← hks0]; exact (hlov st val (hsat.mono (by ext_chain))).2
+  have hupnum : toWord (val d 1) = num (fun i => if val (up.getD i 0) 0 = 1 then 1 else 0) 64 := by
+    rw [← hks1]; exact (hupv st val (hsat.mono (by ext_chain))).2
+  have hlo' : ∀ j < 64, ((dig val d).1.toNat.testBit j = true ↔ val (lo.getD j 0) 0 = 1) := by
+    intro j hj
+    rw [show (dig val d).1 = words4 (val d) 0 from rfl, words4_toNat]
+    exact testBit_split hlonum j hj
+  have hup' : ∀ j < 64, ((dig val d).2.toNat.testBit j = true ↔ val (up.getD j 0) 0 = 1) := by
+    intro j hj
+    rw [show (dig val d).2 = words4 (val d) 1 from rfl, words4_toNat]
+    exact testBit_split hupnum j hj
+  have hsum : (Xmss.Words.digits (dig val d)).sum = 191 := by
+    rw [digits_sum val d lo up hlolen hlo' hup']
+    apply Sphincs.eq_191 _ (le_trans (dsum_le _ _ 42) (by norm_num))
+    apply emb_injective
+    rw [← hprodv st val (hsat.mono (by ext_chain)) hDB, htarget st val (hsat.mono (by ext_chain)),
+      Rec.ofWord_zero, toE_emb, Sphincs.target_eq]
+  have hsum' : dsum val (lo.take 63 ++ up.take 63) 42 = 191 := by
+    rw [← digits_sum val d lo up hlolen hlo' hup']; exact hsum
+  -- The chains' ends.
+  set tips : ℕ → Dig := fun i => (w64 val (T0 i), w64 val (T1 i)) with htips_def
+  have htips : ((List.range 42).flatMap fun i => [E0 i, E1 i]).map (w64 val) = (List.range 42).flatMap fun i =>
+      [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+        i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).1,
+       (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+        i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).2] := by
+    rw [hlocal (by rw [hsum']) hloc, hkey']
+    simp only [tw1, Sphincs.walk_stepHash, htips_def]
+  have h63lo : (dig val d).1.getLsbD 63 = false := by
+    cases hb : (dig val d).1.getLsbD 63
+    · rfl
+    · have := (hlo' 63 (by omega)).mp hb
+      rw [limb_zero (hlo63 st val (hsat.mono (by ext_chain))) 0] at this
+      exact absurd this zero_ne_one
+  have h63up : (dig val d).2.getLsbD 63 = false := by
+    cases hb : (dig val d).2.getLsbD 63
+    · rfl
+    · have := (hup' 63 (by omega)).mp hb
+      rw [limb_zero (hup63 st val (hsat.mono (by ext_chain))) 0] at this
+      exact absurd this zero_ne_one
+  have hctr : (w64 val ctr).toNat < 2 ^ 32 := by
+    obtain ⟨-, hnum⟩ := hcbv st val (hsat.mono (by ext_chain))
+    exact ctr_lt hcblen hnum (hcbz st val (hsat.mono (by ext_chain)))
+  have henc : Sphincs.Words.encode lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+      (w64 val p0, w64 val p1) (dig val msg) (w64 val ctr) = some (Xmss.Words.digits (dig val d)) := by
+    simp only [Sphincs.Words.encode, ← hD, hctr, h63lo, h63up, hsum, and_self, if_true]
+  -- The leaf.
+  have hdig : ∀ j < 42, (Xmss.Words.digits (dig val d)).getD j 0 = dval val (lo.take 63 ++ up.take 63) j :=
+    fun j hj => by rw [digits_getD _ j hj, digit_dval val d lo up hlolen hlo' hup' j hj]
+  have hF := ofFn_flatMap' 42 (fun j => Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
+    (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) j (w64 val p0, w64 val p1)
+    ((Xmss.Words.digits (dig val d)).getD j 0) (tips j))
+  beta_reduce at hF
+  have hcong : ((List.range 42).flatMap fun i =>
+      [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+        i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).1,
+       (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+        i (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) (tips i)).2]) =
+      (List.range 42).flatMap fun i =>
+      [(Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+        i (w64 val p0, w64 val p1) ((Xmss.Words.digits (dig val d)).getD i 0) (tips i)).1,
+       (Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩) (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩)
+        i (w64 val p0, w64 val p1) ((Xmss.Words.digits (dig val d)).getD i 0) (tips i)).2] :=
+    flatMap_range_congr fun j hj => by rw [hdig j hj]
+  have hleafd : dig val leaf = Sphincs.Words.otsLeaf lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
+      (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) (w64 val p0, w64 val p1)
+      (List.ofFn fun i : Fin 42 => Sphincs.Words.chainFrom lay (Sphincs.Words.tau idx ⟨lay, hlay⟩)
+        (Sphincs.Words.leafIndex idx ⟨lay, hlay⟩) i (w64 val p0, w64 val p1)
+        ((Xmss.Words.digits (dig val d)).getD i 0) (tips i)) := by
+    unfold Sphincs.Words.otsLeaf
+    apply spDig_th
+    rw [hleafv st val (hsat.mono (by ext_chain)), hkey', hF, List.map_append, htips, hcong, tweak_eq]
+    simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append]
+  refine ⟨w64 val ctr, fun i => tips i, path, fun sig hc ht hp => ?_⟩
+  have hpaths : sig.paths ⟨lay, hlay⟩ = fun l => path l.val := funext fun l => hp l.val l.isLt
+  have htipsf : sig.tips ⟨lay, hlay⟩ = fun i => tips i.val := funext ht
+  simp only [Sphincs.Words.layerRoot, hc, henc, hpaths, htipsf]
+  rw [sp_climb_eq, ← hleafd]
+  exact congrArg some hpath.symm
 
 end LeanVMCircuits.Sphincs

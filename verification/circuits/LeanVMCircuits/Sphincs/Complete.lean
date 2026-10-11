@@ -3,7 +3,7 @@ module
 public import LeanVMCircuits.Xmss.Complete
 public import LeanVMCircuits.Sphincs.Statement
 public import LeanVMCircuits.Sphincs.FieldFacts
-public import LeanVMCircuits.Sphincs.Words
+public import LeanVMCircuits.Sphincs.Paths
 
 @[expose] public section
 
@@ -11,20 +11,24 @@ public import LeanVMCircuits.Sphincs.Words
 # Completeness of the leanSPHINCS verifier circuit
 
 Every signature `Sphincs.Words.verify` accepts, under statement words that encode it (`Sphincs.Encodes`), extends to an
-assignment the machine accepts the circuit `Sphincs.Circuit.circuit n` with (`Accepts`): one satisfying it, whose
-dynamic bus balances because the circuit has no `STEP` or `LINK` row (`balanced_circuit`). The gadgets shared with
-leanXMSS (statement words, digests' words, the digit product, the indicators) keep their `Xmss.Complete` contracts.
-The new ones: an index word of two bit lists is the tweak's second word `tau | j << 32`, a tweak hash `th` is
-BLAKE2s-256 of its words, a level and `fold` climb a tree as `Words.parent` does, a chain ends at `Words.chainFrom`,
+assignment the machine accepts the circuit `Sphincs.Circuit.circuit n` with (`Accepts`), for `n ≤ 2^20`. The gadgets
+shared with leanXMSS (statement words, digests' words, the digit product, the chains on the dynamic bus) keep their
+`Xmss.Complete` contracts; layer `lay` of signature `j` runs `chains_cg` over the base `tweak0(1, lay, 0)` and the tag
+`3 j + lay`, its 103 steps the cells of digits summing to 191 (`cells_digits191`), and its chains' ends are
+`Words.chainFrom`'s (`spEndsW_eq`). The new gadgets: an index word of two bit lists is the tweak's second word
+`tau | j << 32`, a tweak hash `th` is BLAKE2s-256 of its words, a level and `fold` climb a tree as `Words.parent` does,
 the few-time key hashes the trees' roots, and a layer encodes its message in one `leafBlock` of 52 bytes, the
 counter's high bits zero, before its chains, leaf and path. The signature's contract runs them in order from what
 verification found: the last leaf index is zero, each layer's encoding and root, and the top root is the statement's.
+Each layer's rows on the bus balance, and they are all the circuit's rows (`Sphincs.count_circuit`, `rows_perm`), so
+the whole bus balances (`balanced_of_local`).
 -/
 
 namespace LeanVMCircuits.Sphincs.Complete
 
 open LeanVMCircuits.Rec LeanVMCircuits.Rec.Model LeanVMCircuits.Xmss.Complete
-open LeanVMCircuits.Xmss (limbs3)
+open LeanVMCircuits.Xmss (limbs3 cells cells_length map_range_getD sum_range_list stepHash rows_perm balanced_of_local
+  nodup_flatMap_label)
 open LeanVMCircuits.Xmss.Words (W Dig)
 
 /-! Tweak words and bit wires. -/
@@ -412,13 +416,6 @@ theorem climb_eq' (ty lay t e h : ℕ) (p : Dig) (path : Fin h → Dig) (pathN :
   rw [hf]
   exact foldl_finRange h (fun cur l => Words.parent ty lay t e l p cur (pathN l)) lf
 
-theorem CGood.ite {st : ℕ → Fin 4 → K} {α : Type} {k : ℕ} {P : State → Val → Prop} {c : Prop} [Decidable c]
-    {A B : M α} {Q : State → α → State → Val → Prop} (hA : c → CGood st k P A Q) (hB : ¬c → CGood st k P B Q) :
-    CGood st k P (if c then A else B) Q := by
-  split_ifs with h
-  · exact hA h
-  · exact hB h
-
 section
 
 variable {st : ℕ → Fin 4 → K}
@@ -510,186 +507,6 @@ theorem fold_cg (ty lay : ℕ) (tauBits jBits : List ℕ) (top : ℕ) (pp : List
         hp hcont
   · try dsimp only
     exact CGood.pure' fun s v _ h => h
-
-end
-/-- The value at position `m` of a chain started at position `x` from `T`. -/
-def scpos (lay t e i : ℕ) (p T : Dig) (x m : ℕ) : Dig :=
-  (List.range' x (m - x)).foldl (fun v s => Words.chainStep lay t e i s p v) T
-
-theorem scpos_self (lay t e i : ℕ) (p T : Dig) (x : ℕ) : scpos lay t e i p T x x = T := by
-  simp [scpos]
-
-theorem scpos_succ (lay t e i : ℕ) (p T : Dig) (x m : ℕ) (h : x ≤ m) :
-    scpos lay t e i p T x (m + 1) = Words.chainStep lay t e i m p (scpos lay t e i p T x m) := by
-  simp only [scpos]
-  rw [show m + 1 - x = (m - x) + 1 by omega, List.range'_concat, List.foldl_append]
-  simp [show x + (m - x) = m by omega]
-
-section
-
-variable {st : ℕ → Fin 4 → K}
-
-/-- A chain's context: its index word, parameter, element and indicators. -/
-def SCECtx (idx tip : ℕ) (pp ind : List ℕ) (K1 : W) (p T : Dig) (x : ℕ) (s : State) (v : Val) : Prop :=
-  idx < s.next ∧ v idx = kw K1 ∧ PPw pp p s v ∧ tip < s.next ∧ v tip = limbs3 T.1 T.2 0 ∧
-    IndList ind 8 x s v
-
-theorem SCECtx.mono {idx tip : ℕ} {pp ind : List ℕ} {K1 : W} {p T : Dig} {x : ℕ} {s s' : State} {v : Val}
-    (h : SCECtx idx tip pp ind K1 p T x s v) (he : Ext s s') : SCECtx idx tip pp ind K1 p T x s' v :=
-  ⟨lt_of_lt_of_le h.1 he.next, h.2.1, h.2.2.1.mono he, lt_of_lt_of_le h.2.2.2.1 he.next, h.2.2.2.2.1,
-    h.2.2.2.2.2.mono he⟩
-
-theorem SCECtx.hashPre {idx tip : ℕ} {pp ind : List ℕ} {K1 : W} {p T : Dig} {x : ℕ} {s : State} {v : Val}
-    (h : SCECtx idx tip pp ind K1 p T x s v) (a b : ℕ) (ha : a < s.next) (hb : b < s.next)
-    (hav : v a = kVal (v a 0)) (hbv : v b = kVal (v b 0)) :
-    Wires (idx :: pp ++ [a, b]) s ∧ ∀ w ∈ idx :: pp ++ [a, b], v w = kVal (v w 0) := by
-  refine ⟨fun w hw => ?_, fun w hw => ?_⟩
-  · simp only [List.mem_cons, List.mem_append, List.not_mem_nil, or_false] at hw
-    rcases hw with (rfl | hw) | rfl | rfl
-    · exact h.1
-    · exact h.2.2.1.2.1 w hw
-    · exact ha
-    · exact hb
-  · simp only [List.mem_cons, List.mem_append, List.not_mem_nil, or_false] at hw
-    rcases hw with (rfl | hw) | rfl | rfl
-    · exact kw_isK h.2.1
-    · exact h.2.2.1.isK w hw
-    · exact hav
-    · exact hbv
-
-/-- A chain's loop invariant after the step at position `j`. -/
-def SCEInv (idx tip : ℕ) (pp ind : List ℕ) (lay t i e : ℕ) (p T : Dig) (x j cur : ℕ) (s : State) (v : Val) : Prop :=
-  SCECtx idx tip pp ind (tw2 t e) p T x s v ∧ cur < s.next ∧
-    ∃ C : Fin 4 → W, v cur = cv C ∧ (x ≤ j → (C 0, C 1) = scpos lay t e i p T x (j + 1))
-
-theorem spChainEnd_cg (lay i idx tip : ℕ) (pp ind : List ℕ) (t e : ℕ) (p T : Dig) (x : ℕ) (hlay : lay < 256)
-    (hi : i < 42) (hx : x < 8) (hpl : pp.length = 2) :
-    CGood st 0 (fun s v => SCECtx idx tip pp ind (tw2 t e) p T x s v) (Circuit.chainEnd lay i idx tip pp ind)
-      fun _ r s' v => r.1 < s'.next ∧ r.2 < s'.next ∧ v r.1 = kw (Words.chainFrom lay t e i p x T).1 ∧
-        v r.2 = kw (Words.chainFrom lay t e i p x T).2 := by
-  unfold Circuit.chainEnd
-  refine CGood.seq (k₂ := 0) ((words_cg tip).pre fun s v h => ⟨h.2.2.2.1, by rw [h.2.2.2.2.1]; rfl⟩)
-    (P₂ := fun a s v => SCECtx idx tip pp ind (tw2 t e) p T x s v ∧ a.1 < s.next ∧ a.2.1 < s.next ∧ v a.1 = kw T.1 ∧
-      v a.2.1 = kw T.2)
-    (fun s a s' v _ hp he hq => ⟨hp.mono he, hq.1.1, hq.1.2.1, by rw [hq.2.1, hp.2.2.2.2.1]; rfl,
-      by rw [hq.2.2.1, hp.2.2.2.2.1]; rfl⟩) fun a => ?_
-  obtain ⟨t0, t1, sn⟩ := a
-  try dsimp only
-  refine CGood.seq (k₂ := 0) ((th_cg (Circuit.tweak0 1 lay (8 * i)) (sp_tw_bound 1 lay _ (by norm_num) hlay
-      (by have := pos_bound i 0 hi (by norm_num); omega)) idx pp [t0, t1] (by simp [hpl])).pre
-      fun s v h => h.1.hashPre t0 t1 h.2.1 h.2.2.1 (kw_isK h.2.2.2.1) (kw_isK h.2.2.2.2))
-    (P₂ := fun d s v => SCECtx idx tip pp ind (tw2 t e) p T x s v ∧ d < s.next ∧
-      v d = dVal (digest (hashWords ([BitVec.ofNat 64 (Circuit.tweak0 1 lay (8 * i)), tw2 t e, p.1, p.2] ++ [T.1, T.2]))))
-    (fun s d s' v _ hp he hq => ⟨hp.1.mono he, hq.1, by
-      rw [hq.2, sp_th_words _ (tw2 t e) p idx pp [t0, t1] v hp.1.2.1 hp.1.2.2.1]
-      simp only [List.map_cons, List.map_nil, w64_kw hp.2.2.2.1, w64_kw hp.2.2.2.2]⟩) fun d => ?_
-  refine CGood.seq (k₂ := 0) ((dToEAndK_cgood d).pre fun s v h => h.2.1)
-    (P₂ := fun a s v => SCEInv idx tip pp ind lay t i e p T x 0 a.1 s v)
-    (fun s a s' v _ hp he hq => ⟨hp.1.mono he, hq.1, _, by rw [hq.2.2.1, hp.2.2]; rfl, fun h0 => by
-      obtain rfl : x = 0 := by omega
-      rw [scpos_succ _ _ _ _ _ _ _ _ le_rfl, scpos_self]
-      simp only [Words.chainStep, Nat.add_zero]
-      exact sp_dVal_th (Words.tweak 1 lay t (8 * i) e) p _⟩) fun a => ?_
-  obtain ⟨o, sn2⟩ := a
-  try dsimp only
-  refine (CGood.seq (k₂ := 0) ((forIn_cgood 0 _ (List.range' 1 6)
-      (fun j cur s v => SCEInv idx tip pp ind lay t i e p T x j cur s v) ?_ o).pre fun s v h => h)
-    (P₂ := fun r s v => SCEInv idx tip pp ind lay t i e p T x 6 r s v)
-    (fun s r s' v _ _ _ hq => by simpa using hq) fun r => ?_).kEq (by simp)
-  · intro j hj b
-    simp only [List.length_range'] at hj
-    try dsimp only
-    rw [List.getElem_range', show 1 + 1 * j = j + 1 by omega]
-    refine CGood.seq (k₂ := 0) ((add_cgood tip b).pre fun s v h => ⟨wires2 h.1.2.2.2.1 h.2.1,
-      by rw [h.1.2.2.2.2.1]; rfl, by obtain ⟨C, hC, -⟩ := h.2.2; rw [hC]; rfl⟩)
-      (P₂ := fun diff s v => SCEInv idx tip pp ind lay t i e p T x j b s v ∧ diff < s.next ∧
-        v diff = eVal (ev v tip + ev v b))
-      (fun s diff s' v _ hp he hq => ⟨⟨hp.1.mono he, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hq⟩) fun diff => ?_
-    refine CGood.seq (k₂ := 0) ((mulAdd_cgood (ind.getD (j + 1) 0) diff b).pre fun s v h => ⟨wires3
-      (h.1.1.2.2.2.2.2.2.1 _ (getD_mem (by rw [h.1.1.2.2.2.2.2.1]; omega))) h.2.1 h.1.2.1,
-      by rw [h.1.1.2.2.2.2.2.2.2 _ (by omega)]; rfl, by rw [h.2.2]; rfl,
-      by obtain ⟨C, hC, -⟩ := h.1.2.2; rw [hC]; rfl⟩)
-      (P₂ := fun m s v => SCECtx idx tip pp ind (tw2 t e) p T x s v ∧ m < s.next ∧ ∃ X : Dig,
-        v m 0 = ofWord X.1.toNat ∧ v m 1 = ofWord X.2.toNat ∧ v m 3 = 0 ∧ (x ≤ j + 1 → X = scpos lay t e i p T x (j + 1)))
-      (fun s m s' v _ hp he hq => by
-        obtain ⟨⟨hc, hb, C, hC, hCx⟩, hd, hdv⟩ := hp
-        obtain ⟨hm, hmv⟩ := hq
-        refine ⟨hc.mono he, hm, ?_⟩
-        rw [ev_of_eVal hdv, mux_val v _ tip b (j + 1 = x) (hc.2.2.2.2.2.2.2 _ (by omega))
-          (by rw [hc.2.2.2.2.1]; rfl) (by rw [hC]; rfl)] at hmv
-        by_cases hjx : j + 1 = x
-        · rw [if_pos hjx, hc.2.2.2.2.1] at hmv
-          refine ⟨T, by rw [hmv]; rfl, by rw [hmv]; rfl, by rw [hmv]; rfl, fun _ => ?_⟩
-          rw [← hjx, scpos_self]
-        · rw [if_neg hjx, hC] at hmv
-          refine ⟨(C 0, C 1), by rw [hmv]; rfl, by rw [hmv]; rfl, by rw [hmv]; rfl, fun hxj => hCx (by omega)⟩)
-      fun m => ?_
-    refine CGood.seq (k₂ := 0) ((words_cg m).pre fun s v h => ⟨h.2.1, by obtain ⟨X, -, -, h3, -⟩ := h.2.2; exact h3⟩)
-      (P₂ := fun a s v => SCECtx idx tip pp ind (tw2 t e) p T x s v ∧ a.1 < s.next ∧ a.2.1 < s.next ∧ ∃ X : Dig,
-        v a.1 = kw X.1 ∧ v a.2.1 = kw X.2 ∧ (x ≤ j + 1 → X = scpos lay t e i p T x (j + 1)))
-      (fun s a s' v _ hp he hq => by
-        obtain ⟨hc, -, X, h0, h1, -, hX⟩ := hp
-        exact ⟨hc.mono he, hq.1.1, hq.1.2.1, X, by rw [hq.2.1, h0]; rfl, by rw [hq.2.2.1, h1]; rfl, hX⟩)
-      fun a => ?_
-    obtain ⟨v0, v1, sn3⟩ := a
-    try dsimp only
-    refine CGood.seq (k₂ := 0) ((th_cg (Circuit.tweak0 1 lay (8 * i + (j + 1))) (sp_tw_bound 1 lay _ (by norm_num) hlay
-        (pos_bound i (j + 1) hi (by omega))) idx pp [v0, v1] (by simp [hpl])).pre fun s v h => by
-          obtain ⟨hc, h0, h1, X, hX0, hX1, -⟩ := h
-          exact hc.hashPre v0 v1 h0 h1 (kw_isK hX0) (kw_isK hX1))
-      (P₂ := fun d s v => SCECtx idx tip pp ind (tw2 t e) p T x s v ∧ d < s.next ∧ ∃ X : Dig,
-        v d = dVal (digest (hashWords ([BitVec.ofNat 64 (Circuit.tweak0 1 lay (8 * i + (j + 1))), tw2 t e, p.1, p.2] ++
-          [X.1, X.2]))) ∧ (x ≤ j + 1 → X = scpos lay t e i p T x (j + 1)))
-      (fun s d s' v _ hp he hq => by
-        obtain ⟨hc, -, -, X, hX0, hX1, hX⟩ := hp
-        refine ⟨hc.mono he, hq.1, X, ?_, hX⟩
-        rw [hq.2, sp_th_words _ (tw2 t e) p idx pp [v0, v1] v hc.2.1 hc.2.2.1]
-        simp only [List.map_cons, List.map_nil, w64_kw hX0, w64_kw hX1]) fun d => ?_
-    refine CGood.seq (k₂ := 0) ((dToEAndK_cgood d).pre fun s v h => h.2.1)
-      (P₂ := fun a s v => SCEInv idx tip pp ind lay t i e p T x (j + 1) a.1 s v)
-      (fun s a s' v _ hp he hq => by
-        obtain ⟨hc, -, X, hXv, hX⟩ := hp
-        refine ⟨hc.mono he, hq.1, _, by rw [hq.2.2.1, hXv]; rfl, fun hxj => ?_⟩
-        rw [scpos_succ _ _ _ _ _ _ _ _ hxj, ← hX hxj]
-        exact sp_dVal_th (Words.tweak 1 lay t (8 * i + (j + 1)) e) p _) fun a => ?_
-    obtain ⟨o', sn4⟩ := a
-    try dsimp only
-    exact CGood.pure' fun _ _ _ h => ⟨o', rfl, h⟩
-  · try dsimp only
-    refine CGood.seq (k₂ := 0) ((add_cgood tip r).pre fun s v h => ⟨wires2 h.1.2.2.2.1 h.2.1,
-      by rw [h.1.2.2.2.2.1]; rfl, by obtain ⟨C, hC, -⟩ := h.2.2; rw [hC]; rfl⟩)
-      (P₂ := fun diff s v => SCEInv idx tip pp ind lay t i e p T x 6 r s v ∧ diff < s.next ∧
-        v diff = eVal (ev v tip + ev v r))
-      (fun s diff s' v _ hp he hq => ⟨⟨hp.1.mono he, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hq⟩) fun diff => ?_
-    refine CGood.seq (k₂ := 0) ((mulAdd_cgood (ind.getD 7 0) diff r).pre fun s v h => ⟨wires3
-      (h.1.1.2.2.2.2.2.2.1 _ (getD_mem (by rw [h.1.1.2.2.2.2.2.1]; omega))) h.2.1 h.1.2.1,
-      by rw [h.1.1.2.2.2.2.2.2.2 _ (by omega)]; rfl, by rw [h.2.2]; rfl,
-      by obtain ⟨C, hC, -⟩ := h.1.2.2; rw [hC]; rfl⟩)
-      (P₂ := fun m s v => m < s.next ∧ v m 0 = ofWord (scpos lay t e i p T x 7).1.toNat ∧
-        v m 1 = ofWord (scpos lay t e i p T x 7).2.toNat ∧ v m 3 = 0)
-      (fun s m s' v _ hp he hq => by
-        obtain ⟨⟨hc, hb, C, hC, hCx⟩, hd, hdv⟩ := hp
-        obtain ⟨hm, hmv⟩ := hq
-        refine ⟨hm, ?_⟩
-        rw [ev_of_eVal hdv, mux_val v _ tip r (7 = x) (hc.2.2.2.2.2.2.2 _ (by omega))
-          (by rw [hc.2.2.2.2.1]; rfl) (by rw [hC]; rfl)] at hmv
-        by_cases hjx : 7 = x
-        · rw [if_pos hjx, hc.2.2.2.2.1] at hmv
-          rw [hmv, ← hjx, scpos_self]
-          exact ⟨rfl, rfl, rfl⟩
-        · rw [if_neg hjx, hC] at hmv
-          have h7 := hCx (by omega)
-          rw [hmv, ← h7]
-          exact ⟨rfl, rfl, rfl⟩)
-      fun m => ?_
-    refine CGood.seq (k₂ := 0) ((words_cg m).pre fun s v h => ⟨h.1, h.2.2.2⟩)
-      (P₂ := fun a s v => a.1 < s.next ∧ a.2.1 < s.next ∧ v a.1 = kw (scpos lay t e i p T x 7).1 ∧
-        v a.2.1 = kw (scpos lay t e i p T x 7).2)
-      (fun s a s' v _ hp he hq => ⟨hq.1.1, hq.1.2.1, by rw [hq.2.1, hp.2.1]; rfl, by rw [hq.2.2.1, hp.2.2.1]; rfl⟩)
-      fun a => ?_
-    obtain ⟨n0, n1, sn5⟩ := a
-    try dsimp only
-    exact CGood.pure' fun _ _ _ h => h
 
 end
 
@@ -863,6 +680,28 @@ theorem spEndsW_length (lay t e : ℕ) (p : Dig) (T : ℕ → Dig) (xs : List �
   | zero => simp [spEndsW]
   | succ k ih => rw [spEndsW_succ, List.length_append, ih]; simp; ring
 
+/-- A layer's chains' ends are walks of `stepHash` over the base `tweak0(1, lay, 0)` and its key word. -/
+theorem spEndsW_eq (lay t e : ℕ) (p : Dig) (T : ℕ → Dig) (xs : List ℕ) (k : ℕ) :
+    walkEnds (stepHash (Circuit.tweak0 1 lay 0) (tw2 t e) p.1 p.2) (fun i => xs.getD i 0) T k =
+      spEndsW lay t e p T xs k := by
+  obtain ⟨P0, P1⟩ := p
+  simp only [walkEnds, spEndsW, spEnd, tw2, LeanVMCircuits.Sphincs.walk_stepHash]
+
+/-- Digits below eight summing to 191 need 103 steps. -/
+theorem cells_digits191 (x : List ℕ) (hlen : x.length = 42) (hlt : ∀ i < 42, x.getD i 0 < 8)
+    (hsum : x.sum = 191) : (cells fun i => x.getD i 0).length = 103 := by
+  rw [cells_length]
+  have hx := map_range_getD x 0 42 hlen id
+  rw [List.map_id] at hx
+  have h1 : ∑ i ∈ Finset.range 42, x.getD i 0 = 191 := by
+    rw [← sum_range_list (fun i => x.getD i 0) 42]
+    exact (congrArg List.sum hx).trans hsum
+  have h2 : ∑ i ∈ Finset.range 42, (7 - x.getD i 0) + ∑ i ∈ Finset.range 42, x.getD i 0 = 294 := by
+    rw [← Finset.sum_add_distrib, Finset.sum_congr rfl fun i hi => show 7 - x.getD i 0 + x.getD i 0 = 7 by
+      have := hlt i (Finset.mem_range.mp hi); omega]
+    simp
+  omega
+
 /-- A layer's context: the parameter, zero, tweak words and the tree's and leaf's bits. -/
 def LayG (pp : List ℕ) (z key top : ℕ) (tauBits eBits : List ℕ) (p : Dig) (t e : ℕ) (s : State) (v : Val) : Prop :=
   PPw pp p s v ∧ z < s.next ∧ v z = kVal 0 ∧ key < s.next ∧ v key = kw (tw2 t e) ∧ top < s.next ∧
@@ -905,13 +744,16 @@ section
 
 variable {st : ℕ → Fin 4 → K}
 
-theorem layer_cg (lay : ℕ) (hlay : lay < 3) (idxBits pp : List ℕ) (msg idx : ℕ) (p : Dig) (M : Fin 4 → W)
-    (ctrW : W) (T : ℕ → Dig) (path : ℕ → Dig) (xs : List ℕ) (hidxl : idxBits.length = 26) (hidx : idx < 2 ^ 26)
-    (hpl : pp.length = 2)
+/-- Layer `lay` of signature `j`: its tag's rows on the bus balance, and it climbs to the root of the leaf its
+chains' ends hash to. -/
+theorem layer_cg (j lay : ℕ) (hlay : lay < 3) (hj : 3 * j + lay < 2 ^ 22) (idxBits pp : List ℕ) (msg idx : ℕ)
+    (p : Dig) (M : Fin 4 → W) (ctrW : W) (T : ℕ → Dig) (path : ℕ → Dig) (xs : List ℕ)
+    (hidxl : idxBits.length = 26) (hidx : idx < 2 ^ 26) (hpl : pp.length = 2)
     (henc : Words.encode lay (idx / 2 ^ Circuit.suffix lay)
       (idx / 2 ^ Circuit.suffix (lay + 1) % 2 ^ Circuit.height lay) p (M 0, M 1) ctrW = some xs) :
     CGood st 0 (fun s v => BL idxBits idx s v ∧ PPw pp p s v ∧ msg < s.next ∧ v msg = dVal M)
-      (Circuit.layer lay idxBits pp msg) fun _ r s' v => r < s'.next ∧ ∃ Dn : Fin 4 → W, v r = dVal Dn ∧
+      (Circuit.layer j lay idxBits pp msg) fun _ r s' v => SigBus (3 * j + lay) 103 s' v ∧ r < s'.next ∧
+        ∃ Dn : Fin 4 → W, v r = dVal Dn ∧
         (Dn 0, Dn 1) = climbP 3 lay (idx / 2 ^ Circuit.suffix lay)
           (idx / 2 ^ Circuit.suffix (lay + 1) % 2 ^ Circuit.height lay) p path
           (Words.th (Words.tweak 2 lay (idx / 2 ^ Circuit.suffix lay) 0
@@ -1060,63 +902,34 @@ theorem layer_cg (lay : ℕ) (hlay : lay < 3) (idxBits pp : List ℕ) (msg idx :
     (P₂ := fun _ s v => LayG pp z key top tB eB p t e s v ∧ DBits (List.take 63 lo ++ List.take 63 hi) (bitsB Dfull) s v)
     (fun s _ s' v _ hp he hq => ⟨hp.1.mono he, hp.2.1.mono he⟩) fun _ => ?_
   try dsimp only
-  refine (CGood.seq (k₂ := 0) ((forIn_cgood 0 _ (List.range 42)
-      (fun i ends s v => LayG pp z key top tB eB p t e s v ∧ DBits (List.take 63 lo ++ List.take 63 hi) (bitsB Dfull) s v ∧ LW ends (spEndsW lay t e p T x i) s v) ?_ []).pre
-      fun s v h => ⟨h.1, h.2, by simp [spEndsW], wires_nil, fun i hi => absurd hi (by simp)⟩)
-    (P₂ := fun r s v => LayG pp z key top tB eB p t e s v ∧ LW r (spEndsW lay t e p T x 42) s v)
-    (fun s r s' v _ _ _ hq => ⟨hq.1, by simpa using hq.2.2⟩) fun ends => ?_).kEq (by simp)
-  · intro i hi42 ends
-    simp only [List.length_range] at hi42
-    try simp only [List.getElem_range]
-    try dsimp only
-    refine CGood.seq (k₂ := 0) ((wire_cgood (limbs3 (T i).1 (T i).2 0)).pre fun _ _ _ => trivial)
-      (P₂ := fun tip s v => (LayG pp z key top tB eB p t e s v ∧ DBits (List.take 63 lo ++ List.take 63 hi) (bitsB Dfull) s v ∧ LW ends (spEndsW lay t e p T x i) s v) ∧ tip < s.next ∧
-        v tip = limbs3 (T i).1 (T i).2 0)
-      (fun s a s' v _ hp he hq => ⟨⟨hp.1.mono he, hp.2.1.mono he, hp.2.2.mono he⟩,
-        by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩) fun tip => ?_
-    refine CGood.seq (k₂ := 0) ((indicators_cg ((List.take 63 lo ++ List.take 63 hi).getD (3 * i) 0)
-        ((List.take 63 lo ++ List.take 63 hi).getD (3 * i + 1) 0)
-        ((List.take 63 lo ++ List.take 63 hi).getD (3 * i + 2) 0)
-        (fun k => bitsB Dfull (3 * i + k))).pre fun s v h => ?_)
-      (P₂ := fun ind s v => ((LayG pp z key top tB eB p t e s v ∧ DBits (List.take 63 lo ++ List.take 63 hi) (bitsB Dfull) s v ∧ LW ends (spEndsW lay t e p T x i) s v) ∧ tip < s.next ∧
-        v tip = limbs3 (T i).1 (T i).2 0) ∧ IndList ind 8 (bdig (fun k => bitsB Dfull (3 * i + k)) 3) s v)
-      (fun s ind s' v _ hp he hq => ⟨⟨⟨hp.1.1.mono he, hp.1.2.1.mono he, hp.1.2.2.mono he⟩,
-        lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hq⟩) fun ind => ?_
-    · obtain ⟨⟨-, ⟨hdbl, hdbw, hdbv⟩, -⟩, -, -⟩ := h
-      refine ⟨rfl, wires3 (hdbw _ (getD_mem (by rw [hdbl]; omega))) (hdbw _ (getD_mem (by rw [hdbl]; omega)))
-        (hdbw _ (getD_mem (by rw [hdbl]; omega))), fun k hk => ?_⟩
-      interval_cases k
-      · exact hdbv _ (by omega)
-      · exact hdbv _ (by omega)
-      · exact hdbv _ (by omega)
-    have hxi : bdig (fun k => bitsB Dfull (3 * i + k)) 3 = x.getD i 0 := by
-      rw [hx, digits_getD Dfull i hi42, bdig_three, dig_three]
-      simp only [Nat.add_zero]
-    refine CGood.seq (k₂ := 0) ((spChainEnd_cg lay i key tip pp ind t e p (T i)
-        (bdig (fun k => bitsB Dfull (3 * i + k)) 3) (by omega) hi42 (bdig_lt _ 3) hpl).pre fun s v h =>
-          ⟨LayG.keyl h.1.1.1, LayG.keyv h.1.1.1, LayG.pp' h.1.1.1, h.1.2.1, h.1.2.2, h.2⟩)
-      (P₂ := fun a s v => (LayG pp z key top tB eB p t e s v ∧ DBits (List.take 63 lo ++ List.take 63 hi) (bitsB Dfull) s v ∧ LW ends (spEndsW lay t e p T x i) s v) ∧ a.1 < s.next ∧
-        a.2 < s.next ∧ v a.1 = kw (spEnd lay t e p T x i).1 ∧ v a.2 = kw (spEnd lay t e p T x i).2)
-      (fun s a s' v _ hp he hq => ⟨⟨hp.1.1.1.mono he, hp.1.1.2.1.mono he, hp.1.1.2.2.mono he⟩, hq.1,
-        hq.2.1, by rw [hq.2.2.1, spEnd, ← hxi], by rw [hq.2.2.2, spEnd, ← hxi]⟩) fun a => ?_
-    obtain ⟨n0, n1⟩ := a
-    try dsimp only
-    exact CGood.pure' fun s v _ h => ⟨_, rfl, h.1.1, h.1.2.1, by
-      rw [spEndsW_succ]; exact h.1.2.2.append (lw2 h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2)⟩
-  try dsimp only
+  have hxd : ∀ i < 42, dig (bitsB Dfull) i 3 = x.getD i 0 := fun i hi => (digits_getD Dfull i hi).symm
+  have hcells : (cells fun i => x.getD i 0).length = 103 :=
+    cells_digits191 x (by rw [hx]; simp [Xmss.Words.digits]) (fun i hi => by
+      rw [← hxd i hi, dig_three]
+      split_ifs <;> omega) hsum
+  refine CGood.seq (k₂ := 0) ((chains_cg (Circuit.tweak0 1 lay 0) (3 * j + lay) 103
+      (by unfold Circuit.tweak0; omega) hj key pp (List.take 63 lo ++ List.take 63 hi)
+      (tw2 t e) p T (bitsB Dfull) x hxd hcells).pre
+      fun s v h => ⟨LayG.keyl h.1, LayG.keyv h.1, LayG.pp' h.1, h.2⟩)
+    (P₂ := fun ends s v => LayG pp z key top tB eB p t e s v ∧ LW ends (spEndsW lay t e p T x 42) s v ∧
+      SigBus (3 * j + lay) 103 s v)
+    (fun s ends s' v _ hp he hq => ⟨hp.1.mono he, by rw [← spEndsW_eq]; exact hq.1, hq.2⟩) fun ends => ?_
   refine CGood.seq (k₂ := 0) ((CGood.hyp fun hl => th_cg (Circuit.tweak0 2 lay 0)
       (sp_tw_bound 2 lay 0 (by norm_num) (by omega) (by norm_num)) key pp ends hl).pre fun s v h => ⟨by
-        rw [hpl, h.2.1, spEndsW_length]; norm_num,
-        hashPre_of (LayG.keyl h.1) (LayG.keyv h.1) (PPw.lw (LayG.pp' h.1)) h.2⟩)
+        rw [hpl, h.2.1.1, spEndsW_length]; norm_num,
+        hashPre_of (LayG.keyl h.1) (LayG.keyv h.1) (PPw.lw (LayG.pp' h.1)) h.2.1⟩)
     (P₂ := fun leaf s v => LayG pp z key top tB eB p t e s v ∧ leaf < s.next ∧ v leaf = dVal (digest (hashWords
-      ([BitVec.ofNat 64 (Circuit.tweak0 2 lay 0), tw2 t e, p.1, p.2] ++ spEndsW lay t e p T x 42))))
+      ([BitVec.ofNat 64 (Circuit.tweak0 2 lay 0), tw2 t e, p.1, p.2] ++ spEndsW lay t e p T x 42))) ∧
+      SigBus (3 * j + lay) 103 s v)
     (fun s leaf s' v _ hp he hq => ⟨hp.1.mono he, hq.1, by
-      rw [hq.2, sp_th_words _ _ p key pp ends v (LayG.keyv hp.1) (LayG.pp' hp.1), hp.2.map]⟩) fun leaf => ?_
+      rw [hq.2, sp_th_words _ _ p key pp ends v (LayG.keyv hp.1) (LayG.pp' hp.1), hp.2.1.map],
+      hp.2.2.mono he⟩) fun leaf => ?_
   refine ((fold_cg 3 lay tB eB top pp leaf t e p path _ (by norm_num) (by omega) (by rw [htl]; omega)
       (by rw [hel]; omega) htlt helt hpl).pre fun s v h =>
-        ⟨⟨LayG.tau h.1, LayG.eb h.1, LayG.topl h.1, LayG.topv h.1, LayG.pp' h.1⟩, h.2⟩).weaken (fun _ _ h => h) ?_
-  rintro s r s' v _ _ _ ⟨hr, Dn, h1, h2⟩
-  refine ⟨hr, Dn, h1, ?_⟩
+        ⟨⟨LayG.tau h.1, LayG.eb h.1, LayG.topl h.1, LayG.topv h.1, LayG.pp' h.1⟩, h.2.1, h.2.2.1⟩).weaken
+    (fun _ _ h => h) ?_
+  rintro s r s' v _ hP he ⟨hr, Dn, h1, h2⟩
+  refine ⟨hP.2.2.2.mono he, hr, Dn, h1, ?_⟩
   rw [h2, hel]
   rfl
 
@@ -1202,17 +1015,18 @@ section
 
 variable {st : ℕ → Fin 4 → K}
 
-/-- A layer's step of the signature's loop: the message it signs reaches the next. -/
-theorem layer_step (lay : ℕ) (hlay : lay < 3) (idxBits pp : List ℕ) (msg idx : ℕ) (p : Dig) (sig : Words.Sig)
-    (Rin Rout : Dig) (G : State → Val → Prop) (hG : ∀ s s' v, G s v → Ext s s' → G s' v)
+/-- Layer `lay`'s step of signature `j`'s loop: the message it signs reaches the next, and its tag's rows on the bus
+balance. -/
+theorem layer_step (j lay : ℕ) (hlay : lay < 3) (hj : 3 * j + lay < 2 ^ 22) (idxBits pp : List ℕ) (msg idx : ℕ)
+    (p : Dig) (sig : Words.Sig) (Rin Rout : Dig) (G : State → Val → Prop) (hG : ∀ s s' v, G s v → Ext s s' → G s' v)
     (hGb : ∀ s v, G s v → BL idxBits idx s v ∧ PPw pp p s v)
     (hidxl : idxBits.length = 26) (hidx : idx < 2 ^ 26) (hpl : pp.length = 2)
     (hlr : Words.layerRoot p idx sig Rin ⟨lay, hlay⟩ = some Rout) :
     CGood st 0 (fun s v => G s v ∧ msg < s.next ∧ ∃ Dn : Fin 4 → W, v msg = dVal Dn ∧ (Dn 0, Dn 1) = Rin)
       (do
-        let node ← Circuit.layer lay idxBits pp msg
+        let node ← Circuit.layer j lay idxBits pp msg
         pure (ForInStep.yield node))
-      fun _ r s' v => ∃ b', r = ForInStep.yield b' ∧ G s' v ∧ b' < s'.next ∧
+      fun _ r s' v => ∃ b', r = ForInStep.yield b' ∧ (G s' v ∧ SigBus (3 * j + lay) 103 s' v) ∧ b' < s'.next ∧
         ∃ Dn : Fin 4 → W, v b' = dVal Dn ∧ (Dn 0, Dn 1) = Rout := by
   obtain ⟨xs, henc, hR⟩ := layer_word p idx sig Rin Rout lay hlay hlr
   apply CGood.intro
@@ -1224,12 +1038,13 @@ theorem layer_step (lay : ℕ) (hlay : lay < 3) (idxBits pp : List ℕ) (msg idx
   by_cases hmv : ∃ Dn : Fin 4 → W, val₀ msg = dVal Dn ∧ (Dn 0, Dn 1) = Rin
   · obtain ⟨D0, hD0, hD0R⟩ := hmv
     have hw : words4 (val₀ msg) = D0 := by rw [hD0, words4_dVal]
-    refine CGood.seq (k₂ := 0) ((layer_cg lay hlay idxBits pp msg idx p (words4 (val₀ msg))
+    refine CGood.seq (k₂ := 0) ((layer_cg j lay hlay hj idxBits pp msg idx p (words4 (val₀ msg))
         (sig.counters ⟨lay, hlay⟩) (tipL sig lay hlay) (pathL sig lay hlay) xs hidxl hidx hpl
         (by rw [hw, hD0R]; exact henc)).pre fun s v h => ?_)
-      (P₂ := fun r s v => G s v ∧ r < s.next ∧ ∃ Dn : Fin 4 → W, v r = dVal Dn ∧ (Dn 0, Dn 1) = Rout)
-      (fun s r s' v _ hp he hq => ⟨hG _ _ _ hp.2.2.1 he, hq.1, by
-        obtain ⟨Dn, h1, h2⟩ := hq.2
+      (P₂ := fun r s v => (G s v ∧ SigBus (3 * j + lay) 103 s v) ∧ r < s.next ∧
+        ∃ Dn : Fin 4 → W, v r = dVal Dn ∧ (Dn 0, Dn 1) = Rout)
+      (fun s r s' v _ hp he hq => ⟨⟨hG _ _ _ hp.2.2.1 he, hq.1⟩, hq.2.1, by
+        obtain ⟨Dn, h1, h2⟩ := hq.2.2
         refine ⟨Dn, h1, ?_⟩
         rw [h2, hR]⟩) fun r => ?_
     · obtain ⟨hs, hag, hg, hm, Dn, hDn, -⟩ := h
@@ -1266,9 +1081,17 @@ theorem SG.mono {rt p : Dig} {m : W × W × W × W} {root pp mlo mhi : List ℕ}
     SG rt p m root pp mlo mhi z w0 w1 w2 V s' v :=
   ⟨h.1.mono he, lt_of_lt_of_le h.2.1 he.next, h.2.2.1, h.2.2.2.1, h.2.2.2.2.mono he⟩
 
-theorem signature_cg (j : ℕ) (rt p : Dig) (m : W × W × W × W) (sig : Words.Sig)
+/-- Signature `j`'s layers from layer `3 - k` up have their tags' rows on the bus. -/
+def LayBus (j k : ℕ) (s : State) (v : Val) : Prop := ∀ lay < 3, 3 ≤ lay + k → SigBus (3 * j + lay) 103 s v
+
+theorem LayBus.mono {j k : ℕ} {s s' : State} {v : Val} (h : LayBus j k s v) (he : Ext s s') : LayBus j k s' v :=
+  fun lay hl hk => (h lay hl hk).mono he
+
+/-- Signature `j < 2^20`, verifying, keeps its statement words and its layers' tags' rows on the bus balance. -/
+theorem signature_cg (j : ℕ) (hj : j < 2 ^ 20) (rt p : Dig) (m : W × W × W × W) (sig : Words.Sig)
     (henc : Encodes st j rt p m) (hver : Words.verify rt p m sig = true) :
-    CGood st 4 (fun s _ => s.statement = 4 * j) Circuit.signature fun _ _ _ _ => True := by
+    CGood st 4 (fun s _ => s.statement = 4 * j) (Circuit.signature j) fun _ _ s' v =>
+      ∀ lay < 3, SigBus (3 * j + lay) 103 s' v := by
   obtain ⟨h0, h1, h2, h3⟩ := henc
   set Dm : Fin 4 → W := digest (hashWords [(Words.tweak 12 0 0 0 0).1, (Words.tweak 12 0 0 0 0).2, p.1, p.2,
     sig.rho.1, sig.rho.2, rt.1, rt.2, m.1, m.2.1, m.2.2.1, m.2.2.2]) with hDm
@@ -1430,42 +1253,59 @@ theorem signature_cg (j : ℕ) (rt p : Dig) (m : W × W × W × W) (sig : Words.
   have hGb : ∀ s v, SG rt p m root pp mlo mhi z w0 w1 w2 V s v → BL ((w0 ++ w1 ++ w2).take 26) idx s v ∧ PPw pp p s v :=
     fun s v h => ⟨hidxBL s v h, h.1.2.1.ppw⟩
   refine (CGood.seq (k₂ := 0) ((forIn_cgood 0 _ [2, 1, 0]
-      (fun i nd s v => SG rt p m root pp mlo mhi z w0 w1 w2 V s v ∧ nd < s.next ∧
+      (fun i nd s v => (SG rt p m root pp mlo mhi z w0 w1 w2 V s v ∧ LayBus j i s v) ∧ nd < s.next ∧
         ∃ Dn : Fin 4 → W, v nd = dVal Dn ∧ (Dn 0, Dn 1) = [key, r1, r2, rt].getD i (0, 0)) ?_ msg0).pre
-      fun s v h => h)
-    (P₂ := fun r s v => SG rt p m root pp mlo mhi z w0 w1 w2 V s v ∧ r < s.next ∧ ∃ Dn : Fin 4 → W, v r = dVal Dn ∧ (Dn 0, Dn 1) = rt)
-    (fun s r s' v _ _ _ hq => hq) fun r => ?_).kEq (by simp)
+      fun s v h => ⟨⟨h.1, fun lay hl h3 => absurd h3 (by omega)⟩, h.2⟩)
+    (P₂ := fun r s v => (SG rt p m root pp mlo mhi z w0 w1 w2 V s v ∧ ∀ lay < 3, SigBus (3 * j + lay) 103 s v) ∧
+      r < s.next ∧ ∃ Dn : Fin 4 → W, v r = dVal Dn ∧ (Dn 0, Dn 1) = rt)
+    (fun s r s' v _ _ _ hq => ⟨⟨hq.1.1, fun lay hl => hq.1.2 lay hl
+      (by simp only [List.length_cons, List.length_nil]; omega)⟩, hq.2⟩) fun r => ?_).kEq
+    (by simp)
   · intro i hi b
     simp only [List.length_cons, List.length_nil] at hi
     try dsimp only
-    have hcl := fun (lay : ℕ) (hlay : lay < 3) (Rin Rout : Dig)
+    have hcl := fun (lay : ℕ) (hlay : lay < 3) (hli : lay + i = 2) (Rin Rout : Dig)
         (hlr : Words.layerRoot p idx sig Rin ⟨lay, hlay⟩ = some Rout) =>
-      (CGood.hyp (st := st) fun (hl : ((w0 ++ w1 ++ w2).take 26).length = 26 ∧ pp.length = 2) => layer_step lay hlay ((w0 ++ w1 ++ w2).take 26) pp b idx p sig Rin Rout
-        (fun s v => SG rt p m root pp mlo mhi z w0 w1 w2 V s v) (fun _ _ _ h he => h.mono he) hGb hl.1 hidx hl.2 hlr).pre
-        (P' := fun s v => (SG rt p m root pp mlo mhi z w0 w1 w2 V s v) ∧ b < s.next ∧ ∃ Dn : Fin 4 → W, v b = dVal Dn ∧ (Dn 0, Dn 1) = Rin)
-        fun s v h => ⟨⟨by simp only [List.length_take, hlen s v h.1]; norm_num, h.1.1.2.1.1⟩, h⟩
+      ((CGood.hyp (st := st) fun (hl : ((w0 ++ w1 ++ w2).take 26).length = 26 ∧ pp.length = 2) =>
+        layer_step j lay hlay (by omega) ((w0 ++ w1 ++ w2).take 26) pp b idx p sig Rin Rout
+          (fun s v => SG rt p m root pp mlo mhi z w0 w1 w2 V s v ∧ LayBus j i s v)
+          (fun _ _ _ h he => ⟨h.1.mono he, h.2.mono he⟩) (fun s v h => hGb s v h.1) hl.1 hidx hl.2 hlr).pre
+        (P' := fun s v => (SG rt p m root pp mlo mhi z w0 w1 w2 V s v ∧ LayBus j i s v) ∧ b < s.next ∧
+          ∃ Dn : Fin 4 → W, v b = dVal Dn ∧ (Dn 0, Dn 1) = Rin)
+        fun s v h => ⟨⟨by simp only [List.length_take, hlen s v h.1.1]; norm_num, h.1.1.1.2.1.1⟩, h⟩).weaken
+        (Q' := fun _ r s' v => ∃ b', r = ForInStep.yield b' ∧ (SG rt p m root pp mlo mhi z w0 w1 w2 V s' v ∧
+          LayBus j (i + 1) s' v) ∧ b' < s'.next ∧ ∃ Dn : Fin 4 → W, v b' = dVal Dn ∧ (Dn 0, Dn 1) = Rout)
+        (fun _ _ h => h) fun _ _ _ _ _ _ _ h => by
+          obtain ⟨b', hb', ⟨⟨hsg, hbus⟩, hnew⟩, hlt, hD⟩ := h
+          refine ⟨b', hb', ⟨hsg, fun lay' hl' h3 => ?_⟩, hlt, hD⟩
+          by_cases hx : lay' = lay
+          · rw [hx]; exact hnew
+          · exact hbus lay' hl' (by omega)
     interval_cases i
-    · exact hcl 2 (by norm_num) key r1 hl2
-    · exact hcl 1 (by norm_num) r1 r2 hl1
-    · exact hcl 0 (by norm_num) r2 rt hl0
+    · exact hcl 2 (by norm_num) (by norm_num) key r1 hl2
+    · exact hcl 1 (by norm_num) (by norm_num) r1 r2 hl1
+    · exact hcl 0 (by norm_num) (by norm_num) r2 rt hl0
   try dsimp only
   refine CGood.seq (k₂ := 0) ((dToK_cgood r).pre fun s v h => h.2.1)
-    (P₂ := fun rs s v => SH4 rt p m root pp mlo mhi s v ∧ rs.length = 4 ∧ Wires rs s ∧ v (rs.getD 0 0) = kw rt.1 ∧
-      v (rs.getD 1 0) = kw rt.2)
+    (P₂ := fun rs s v => (SH4 rt p m root pp mlo mhi s v ∧ ∀ lay < 3, SigBus (3 * j + lay) 103 s v) ∧
+      rs.length = 4 ∧ Wires rs s ∧ v (rs.getD 0 0) = kw rt.1 ∧ v (rs.getD 1 0) = kw rt.2)
     (fun s rs s' v _ hp he hq => by
-      obtain ⟨hg, -, Dn, hDn, hrt⟩ := hp
-      refine ⟨hg.1.mono he, hq.1, hq.2.1, (hq.2.2 0).trans ?_, (hq.2.2 1).trans ?_⟩
+      obtain ⟨⟨hg, hbus⟩, -, Dn, hDn, hrt⟩ := hp
+      refine ⟨⟨hg.1.mono he, fun lay hl => (hbus lay hl).mono he⟩, hq.1, hq.2.1, (hq.2.2 0).trans ?_,
+        (hq.2.2 1).trans ?_⟩
       · rw [hDn, ← hrt]; rfl
       · rw [hDn, ← hrt]; rfl) fun rs => ?_
   have hroot : ∀ s v, SH4 rt p m root pp mlo mhi s v → ∀ i < 2, root.getD i 0 < s.next ∧ v (root.getD i 0) = kw ([rt.1, rt.2].getD i 0) :=
     fun s v h i hi => ⟨h.1.2.1 _ (getD_mem (by rw [h.1.1]; simpa using hi)), h.1.2.2 i (by rw [h.1.1]; simpa using hi)⟩
   refine CGood.seq (k₂ := 0) ((union_cgood _ _).pre fun s v h => ⟨h.2.2.1 _ (getD_mem (by rw [h.2.1]; norm_num)),
-      (hroot s v h.1 0 (by norm_num)).1, by rw [h.2.2.2.1, (hroot s v h.1 0 (by norm_num)).2]; rfl⟩)
-    (P₂ := fun _ s v => SH4 rt p m root pp mlo mhi s v ∧ rs.length = 4 ∧ Wires rs s ∧ v (rs.getD 0 0) = kw rt.1 ∧ v (rs.getD 1 0) = kw rt.2)
-    (fun s _ s' v _ hp he _ => ⟨hp.1.mono he, hp.2.1, hp.2.2.1.mono he, hp.2.2.2⟩) fun _ => ?_
+      (hroot s v h.1.1 0 (by norm_num)).1, by rw [h.2.2.2.1, (hroot s v h.1.1 0 (by norm_num)).2]; rfl⟩)
+    (P₂ := fun _ s v => (SH4 rt p m root pp mlo mhi s v ∧ ∀ lay < 3, SigBus (3 * j + lay) 103 s v) ∧
+      rs.length = 4 ∧ Wires rs s ∧ v (rs.getD 0 0) = kw rt.1 ∧ v (rs.getD 1 0) = kw rt.2)
+    (fun s _ s' v _ hp he _ => ⟨⟨hp.1.1.mono he, fun lay hl => (hp.1.2 lay hl).mono he⟩, hp.2.1,
+      hp.2.2.1.mono he, hp.2.2.2⟩) fun _ => ?_
   exact ((union_cgood _ _).pre fun s v h => ⟨h.2.2.1 _ (getD_mem (by rw [h.2.1]; norm_num)),
-      (hroot s v h.1 1 (by norm_num)).1, by rw [h.2.2.2.2, (hroot s v h.1 1 (by norm_num)).2]; rfl⟩).weaken
-    (fun _ _ h => h) fun _ _ _ _ _ _ _ _ => trivial
+      (hroot s v h.1.1 1 (by norm_num)).1, by rw [h.2.2.2.2, (hroot s v h.1.1 1 (by norm_num)).2]; rfl⟩).weaken
+    (fun _ _ h => h) fun _ _ _ _ _ hP he _ => fun lay hl => (hP.1.2 lay hl).mono he
 
 end
 
@@ -1475,79 +1315,60 @@ section
 
 variable {st : ℕ → Fin 4 → K}
 
-theorem circuit_cg (n : ℕ) (h : ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧
+/-- The circuit of `n ≤ 2^20` signatures: each layer's tag's rows on the bus balance. -/
+theorem circuit_cg (n : ℕ) (hn : n ≤ 2 ^ 20) (h : ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧
       ∃ sig, Words.verify root pp msg sig = true) :
-    CGood st (4 * n) (fun s _ => s.statement = 0) (Circuit.circuit n) fun _ _ _ _ => True := by
+    CGood st (4 * n) (fun s _ => s.statement = 0) (Circuit.circuit n) fun _ _ s' v =>
+      ∀ g < 3 * n, SigBus g 103 s' v := by
   unfold Circuit.circuit
-  refine (CGood.seq (k₂ := 0) ((forIn_cgood 4 _ (List.range n) (fun i _ s _ => s.statement = 4 * i) ?_
-      PUnit.unit).pre fun s _ h => by rw [h])
-    (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun _ =>
-      CGood.pure' fun _ _ _ _ => trivial).kEq (by simp)
+  refine (CGood.seq (k₂ := 0) ((forIn_cgood 4 _ (List.range n)
+      (fun i _ s v => s.statement = 4 * i ∧ ∀ g < 3 * i, SigBus g 103 s v) ?_ PUnit.unit).pre
+      fun s _ h => ⟨by rw [h], fun g hg => absurd hg (by omega)⟩)
+    (P₂ := fun _ s v => ∀ g < 3 * n, SigBus g 103 s v)
+    (fun s _ s' v _ _ _ hq => by simp only [List.length_range] at hq; exact hq.2) fun _ =>
+      CGood.pure' fun _ _ _ h => h).kEq (by simp)
   intro i hi b
   simp only [List.length_range] at hi
   try simp only [List.getElem_range]
   obtain ⟨root, pp, msg, henc, sig, hv⟩ := h i hi
-  exact CGood.seq (k₂ := 0) (signature_cg i root pp msg sig henc hv).stmt
-    (P₂ := fun _ s _ => s.statement = 4 * (i + 1)) (fun s _ s' v _ hp _ hq => by rw [hq.2, hp]; ring)
+  refine CGood.seq (k₂ := 0) ((signature_cg i (by omega) root pp msg sig henc hv).stmt.pre fun s v h => h.1)
+    (P₂ := fun _ s v => s.statement = 4 * (i + 1) ∧ ∀ g < 3 * (i + 1), SigBus g 103 s v)
+    (fun s _ s' v _ hp he hq => ⟨by rw [hq.2, hp.1]; ring, fun g hg => ?_⟩)
     fun _ => CGood.pure' fun _ _ _ h => ⟨_, rfl, h⟩
+  by_cases hgi : g < 3 * i
+  · exact (hp.2 g hgi).mono he
+  · have := hq.1 (g - 3 * i) (by omega)
+    rwa [show 3 * i + (g - 3 * i) = g by omega] at this
 
 end
 
-/-! The circuit adds no `STEP` or `LINK` row, so its dynamic bus balances. -/
-
-theorem sp_frame_indexWord (tau j : List ℕ) : Xmss.Frame (Circuit.indexWord tau j) := by
-  unfold Circuit.indexWord; frame
-theorem sp_frame_th (tw0 tw1 : ℕ) (pp payload : List ℕ) : Xmss.Frame (Circuit.th tw0 tw1 pp payload) := by
-  unfold Circuit.th; frame
-
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_indexWord _ _)
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_th _ _ _ _)
-
-theorem sp_frame_level (tw0 tw1 bit node : ℕ) (pp : List ℕ) : Xmss.Frame (Circuit.level tw0 tw1 bit node pp) := by
-  unfold Circuit.level; frame
-
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_level _ _ _ _ _)
-
-theorem sp_frame_fold (ty lay : ℕ) (tauBits jBits : List ℕ) (top : ℕ) (pp : List ℕ) (leaf : ℕ) :
-    Xmss.Frame (Circuit.fold ty lay tauBits jBits top pp leaf) := by
-  unfold Circuit.fold; frame
-theorem sp_frame_chainEnd (lay i tw1 tip : ℕ) (pp ind : List ℕ) : Xmss.Frame (Circuit.chainEnd lay i tw1 tip pp ind) := by
-  unfold Circuit.chainEnd; frame
-
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_fold _ _ _ _ _ _ _)
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_chainEnd _ _ _ _ _ _)
-
-theorem sp_frame_fts (idxBits : List ℕ) (us : List (List ℕ)) (top : ℕ) (pp : List ℕ) :
-    Xmss.Frame (Circuit.fts idxBits us top pp) := by
-  unfold Circuit.fts; frame
-theorem sp_frame_layer (lay : ℕ) (idxBits pp : List ℕ) (msg : ℕ) : Xmss.Frame (Circuit.layer lay idxBits pp msg) := by
-  unfold Circuit.layer; frame
-
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_fts _ _ _ _)
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_layer _ _ _ _)
-
-theorem sp_frame_signature : Xmss.Frame Circuit.signature := by
-  unfold Circuit.signature; frame
-
-macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_signature)
-
-theorem sp_frame_circuit (n : ℕ) : Xmss.Frame (Circuit.circuit n) := by
-  unfold Circuit.circuit; frame
-
-/-- The circuit's dynamic bus balances under every assignment: it has no `STEP` or `LINK` row. -/
-theorem balanced_circuit (n : ℕ) (val : Val) : Rec.Model.Balanced ((Circuit.circuit n).run {}).2 val := by
-  obtain ⟨h1, h2⟩ := sp_frame_circuit n {}
-  rw [Rec.Model.Balanced, pushes, pulls, h1, h2]
-  rfl
-
-/-- The honest assignment of the circuit verifying `n` leanSPHINCS signatures: the machine accepts the circuit with
-it. -/
-theorem circuit_complete (n : ℕ) (st : ℕ → Fin 4 → K)
+/-- The honest assignment of the circuit verifying `n ≤ 2^20` leanSPHINCS signatures: it satisfies the rows, and its
+bus balances because each layer's rows do, and the rows the layers name are all the circuit's
+(`Sphincs.count_circuit`, `rows_perm`). -/
+theorem circuit_complete (n : ℕ) (hn : n ≤ 2 ^ 20) (st : ℕ → Fin 4 → K)
     (h : ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Words.verify root pp msg sig = true) :
     ∃ val, Accepts st ((Circuit.circuit n).run {}).2 val := by
-  obtain ⟨-, -, -, -, val', -, hsat, -⟩ :=
-    circuit_cg n h {} (fun _ _ => 0) inv_empty closed_empty (sat_empty st _) fun _ _ => rfl
-  exact ⟨val', hsat, balanced_circuit n val'⟩
+  obtain ⟨-, -, -, -, val', -, hsat, hq⟩ :=
+    circuit_cg n hn h {} (fun _ _ => 0) inv_empty closed_empty (sat_empty st _) fun _ _ => rfl
+  have hbus := hq val' (Agree.refl _ _)
+  have hex : ∀ g, ∃ R L : List (List ℕ), g < 3 * n →
+      BusRows g 103 ((Circuit.circuit n).run {}).2 val' R L := fun g => by
+    by_cases hg : g < 3 * n
+    · obtain ⟨R, L, hb⟩ := hbus g hg
+      exact ⟨R, L, fun _ => hb⟩
+    · exact ⟨[], [], fun h => absurd h hg⟩
+  choose Rs Ls hRL using hex
+  have hsize := Sphincs.count_circuit n {}
+  simp only [Array.size_empty, Nat.zero_add] at hsize
+  have hRnd := nodup_flatMap_label (3 * n) Rs (fun r => toWord (val' (r.getD 4 0) 0) / 2 ^ 41)
+    (fun g hg => (hRL g hg).2.2.1) fun g hg => (hRL g hg).2.2.2.2.2.2.1
+  have hLnd := nodup_flatMap_label (3 * n) Ls (fun r => toWord (val' (r.getD 0 0) 0) / 2 ^ 41 % 2 ^ 22)
+    (fun g hg => (hRL g hg).2.2.2.1) fun g hg => (hRL g hg).2.2.2.2.2.2.2.1
+  have hR := rows_perm _ (3 * n) 103 Rs (by rw [hsize.1]; ring) (fun g hg => (hRL g hg).1)
+    (fun g hg => (hRL g hg).2.2.2.2.1) hRnd
+  have hL := rows_perm _ (3 * n) 42 Ls (by rw [hsize.2]; ring) (fun g hg => (hRL g hg).2.1)
+    (fun g hg => (hRL g hg).2.2.2.2.2.1) hLnd
+  exact ⟨val', hsat, balanced_of_local _ val' (3 * n) Rs Ls hR hL fun g hg => (hRL g hg).2.2.2.2.2.2.2.2⟩
 
 end LeanVMCircuits.Sphincs.Complete
 
@@ -1556,11 +1377,11 @@ namespace LeanVMCircuits.Sphincs
 open LeanVMCircuits.Rec LeanVMCircuits.Rec.Model
 
 /-- Completeness: when every signature's statement words encode a root, public parameter and message with a
-signature `Words.verify` accepts, the machine accepts the circuit verifying `n` leanSPHINCS signatures with some
-assignment (`Accepts`: its rows satisfied and its dynamic bus balanced). -/
-theorem complete (n : ℕ) (st : ℕ → Fin 4 → K)
+signature `Words.verify` accepts, the machine accepts the circuit verifying `n ≤ 2^20` leanSPHINCS signatures with
+some assignment (`Accepts`: its rows satisfied and its dynamic bus balanced). -/
+theorem complete (n : ℕ) (hn : n ≤ 2 ^ 20) (st : ℕ → Fin 4 → K)
     (h : ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Words.verify root pp msg sig = true) :
     ∃ val, Accepts st ((Circuit.circuit n).run {}).2 val :=
-  Complete.circuit_complete n st h
+  Complete.circuit_complete n hn st h
 
 end LeanVMCircuits.Sphincs

@@ -78,22 +78,6 @@ def digitProduct (bits : List ℕ) : M ℕ := do
       acc ← mulKAdd t b acc
   pure acc
 
-/-- The indicators of the eight values of a digit's bits `a0, a1, a2`, low first: `e v` is one exactly when the digit
-is `v`. -/
-def indicators (a0 a1 a2 : ℕ) : M (List ℕ) := do
-  let o ← one
-  let z ← zero
-  let mut level := [o]
-  for a in [a0, a1, a2] do
-    let mut next := []
-    for v in List.range (2 * level.length) do
-      let p := level.getD (v % level.length) 0
-      -- The new bit is bit `log2 level.length` of `v`: a factor `1 + a` where it is zero, `a` where it is one.
-      let q ← if v < level.length then mulKAdd p a p else mulKAdd p a z
-      next := next ++ [q]
-    level := next
-  pure level
-
 /-- Chains on the dynamic bus, under the index word `idx` and the parameter `pp`, from the digit bits: an activity
 wire held to one, the tweak words' base `b` (below `2^32`) and the tag `g · 2^41`, each chain's `LINK` row of the
 word `b + 8i · 2^32 + g · 2^41`, then `steps` `STEP` rows. Returns the chains' ends' words. -/

@@ -185,15 +185,12 @@ theorem frame_tweakHash (ty pos idx : ℕ) (pp payload : List ℕ) : Frame (Circ
   unfold Circuit.tweakHash; frame
 theorem frame_digitProduct (bits : List ℕ) : Frame (Circuit.digitProduct bits) := by
   unfold Circuit.digitProduct; frame
-theorem frame_indicators (a0 a1 a2 : ℕ) : Frame (Circuit.indicators a0 a1 a2) := by
-  unfold Circuit.indicators; frame
 
 macro_rules | `(tactic| frame_atom) => `(tactic| exact frame_words _)
 macro_rules | `(tactic| frame_atom) => `(tactic| exact frame_statementWords _)
 macro_rules | `(tactic| frame_atom) => `(tactic| exact frame_indexWord _ _)
 macro_rules | `(tactic| frame_atom) => `(tactic| exact frame_tweakHash _ _ _ _ _)
 macro_rules | `(tactic| frame_atom) => `(tactic| exact frame_digitProduct _)
-macro_rules | `(tactic| frame_atom) => `(tactic| exact frame_indicators _ _ _)
 
 theorem frame_level (l idx bit node : ℕ) (pp : List ℕ) : Frame (Circuit.level l idx bit node pp) := by
   unfold Circuit.level; frame
