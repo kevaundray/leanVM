@@ -250,11 +250,8 @@ impl XmssBatch {
     pub fn prove(&self, claims: &[XmssClaim], signatures: &[XmssSignature]) -> Result<XmssProof, XmssError> {
         self.count(claims.len(), "claims")?;
         self.count(signatures.len(), "signatures")?;
-        let Finished {
-            circuit,
-            assignment,
-            failures,
-        } = info_span!("Build circuit").in_scope(|| build(claims, signatures));
+        let (assignment, failures) =
+            info_span!("Build circuit").in_scope(|| builder(claims, signatures).finish_values());
         if let Some(first) = failures.into_iter().next() {
             return Err(XmssError::Unsatisfied(first));
         }
@@ -262,7 +259,10 @@ impl XmssBatch {
         if let Some(i) = (0..self.n).find(|&i| assignment.statement()[WORDS * i + 4] != statement[WORDS * i + 4]) {
             return Err(XmssError::Root { index: i });
         }
-        debug_assert!(circuit == self.circuit, "the rows never depend on the values");
+        debug_assert!(
+            build(claims, signatures).circuit == self.circuit,
+            "the rows never depend on the values"
+        );
         let proof = (self.circuit)
             .prove_with(&assignment, self.iv, self.rate, Some(&self.columns))
             .map_err(|_| XmssError::TooLarge { n: self.n })?;
@@ -336,11 +336,16 @@ fn statement(claims: &[XmssClaim]) -> Vec<Limbs> {
 
 /// The circuit verifying the signatures, with their values: `Circuit.circuit n`.
 fn build(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Finished {
+    builder(claims, signatures).finish()
+}
+
+/// The builder after the circuit's calls.
+fn builder(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Builder {
     let mut b = Builder::new();
     for (i, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
         b.scope(format!("signature {i}"), |b| signature(b, claim, sig));
     }
-    b.finish()
+    b
 }
 
 /// A tweak's first word: the domain separator zero, the tweak's type in byte 1, its position in bytes 4 to 7.

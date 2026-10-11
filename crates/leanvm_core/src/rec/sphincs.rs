@@ -312,15 +312,15 @@ impl SphincsBatch {
     ) -> Result<SphincsProof, SphincsError> {
         self.count(claims.len(), "claims")?;
         self.count(signatures.len(), "signatures")?;
-        let Finished {
-            circuit,
-            assignment,
-            failures,
-        } = info_span!("Build circuit").in_scope(|| build(claims, signatures));
+        let (assignment, failures) =
+            info_span!("Build circuit").in_scope(|| builder(claims, signatures).finish_values());
         if let Some(first) = failures.into_iter().next() {
             return Err(SphincsError::Unsatisfied(first));
         }
-        debug_assert!(circuit == self.circuit, "the rows never depend on the values");
+        debug_assert!(
+            build(claims, signatures).circuit == self.circuit,
+            "the rows never depend on the values"
+        );
         debug_assert!(
             assignment.statement() == statement(claims),
             "the statement is the claims'"
@@ -392,11 +392,16 @@ fn statement(claims: &[SphincsClaim]) -> Vec<Limbs> {
 
 /// The circuit verifying the signatures, with their values: `Circuit.circuit n`.
 fn build(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> Finished {
+    builder(claims, signatures).finish()
+}
+
+/// The builder after the circuit's calls.
+fn builder(claims: &[SphincsClaim], signatures: &[SphincsSignature]) -> Builder {
     let mut b = Builder::new();
     for (i, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
         b.scope(format!("signature {i}"), |b| signature(b, claim, sig));
     }
-    b.finish()
+    b
 }
 
 /// A tweak's first word: the domain separator 1 in byte 0, the type in byte 1, the layer or tree in byte 2, the

@@ -266,6 +266,19 @@ impl Builder {
         }
     }
 
+    /// The values and the checks that failed on them, without numbering the wire classes: all a prover needs whose
+    /// circuit is already built from the same calls.
+    pub fn finish_values(mut self) -> (Assignment, Vec<Unsatisfied>) {
+        let (wires, _) = self.statement_first();
+        let assignment = Assignment {
+            wires,
+            values: self.values,
+            hash: self.hash,
+            statement: self.statement,
+        };
+        (assignment, self.failures)
+    }
+
     /// The rows and the public sources with the statement's public rows first, in statement order.
     ///
     /// They are then one aligned stretch of the public table.
