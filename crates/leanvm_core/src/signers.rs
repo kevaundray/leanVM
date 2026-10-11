@@ -199,7 +199,7 @@ impl KeysRef<'_> {
         }
     }
 
-    fn get(&self, i: usize) -> Key {
+    const fn get(&self, i: usize) -> Key {
         match self {
             Self::Xmss(k) => k[i],
             Self::Sphincs(c) => c[i].key,
