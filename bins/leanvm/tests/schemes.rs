@@ -2,7 +2,7 @@
 //! aggregates or roots, so the two schemes' claims never mix.
 
 use leanvm::aggregate::{
-    Aggregate, Capacity, ClaimGroup, ClaimLeaf, ClaimSet, Leaf, LeafShape, Tree, TreeError, TreeShape,
+    Aggregate, Capacity, ClaimGroup, ClaimLeaf, ClaimSet, ClaimShape, Leaf, LeafShape, Tree, TreeError, TreeShape,
 };
 use leanvm::{Program, ProvenRun, Prover, Rate};
 
@@ -37,7 +37,7 @@ fn leanxmss_and_leansphincs_trees_do_not_combine() {
                 arity_0: 1,
                 arity: 2,
                 rate: Rate::MIN,
-                claims: Some(CAPACITY),
+                claims: Some(ClaimShape::new(CAPACITY)),
             };
             Tree::new(program, shape).expect("a tree")
         })

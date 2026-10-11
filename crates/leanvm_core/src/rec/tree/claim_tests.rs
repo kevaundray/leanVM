@@ -393,7 +393,7 @@ fn trees_of_different_leaf_programs_do_not_combine() {
     let leaves: Vec<(Proof, Output)> = f.sets[..2].iter().map(|set| leaf_proof_of(&other, set)).collect();
     let leaf = LeafShape::of(&leaves[0].0).expect("a canonical announcement");
     assert_eq!(Some(leaf), LeafShape::of(&f.leaves[0].0).ok(), "one leaf shape");
-    let theirs = Tree::new(&other, shape(leaf, Some(CAPACITY))).expect("a tree");
+    let theirs = Tree::new(&other, shape(leaf, Some(ClaimShape::new(CAPACITY)))).expect("a tree");
     let firsts: Vec<Aggregate> = (f.sets.iter().zip(&leaves))
         .map(|(set, (proof, output))| {
             let leaf = ClaimLeaf::new(Leaf::new(proof, *output), set);
