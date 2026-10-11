@@ -382,8 +382,20 @@ fn opening_leaf_nodes(sorted: &[usize], leaf_hashes: Vec<Hash>) -> Vec<(usize, H
 /// One folded level of an opening: its nodes, each pair's parent index, and the pairs to hash.
 type OpeningLevel = (Vec<(usize, Hash)>, Vec<usize>, Vec<[Hash; 2]>);
 
+/// The next supplied sibling, advancing past it, or `None` once all are used.
 #[inline]
-fn fold_opening_level(nodes: &[(usize, Hash)], supplied: &mut std::slice::Iter<'_, Hash>) -> Option<OpeningLevel> {
+fn next_sibling(siblings: &[Hash], next: &mut usize) -> Option<Hash> {
+    if *next < siblings.len() {
+        let sibling = siblings[*next];
+        *next += 1;
+        Some(sibling)
+    } else {
+        None
+    }
+}
+
+#[inline]
+fn fold_opening_level(nodes: &[(usize, Hash)], siblings: &[Hash], next: &mut usize) -> Option<OpeningLevel> {
     let mut level = Vec::with_capacity(2 * nodes.len());
     let mut parents = Vec::with_capacity(nodes.len());
     let mut pairs = Vec::with_capacity(nodes.len());
@@ -395,9 +407,9 @@ fn fold_opening_level(nodes: &[(usize, Hash)], supplied: &mut std::slice::Iter<'
         let pair = if paired {
             Some((nodes[i].1, nodes[i + 1].1))
         } else {
-            match supplied.next() {
-                Some(&sibling) if idx & 1 == 0 => Some((nodes[i].1, sibling)),
-                Some(&sibling) => Some((sibling, nodes[i].1)),
+            match next_sibling(siblings, next) {
+                Some(sibling) if idx & 1 == 0 => Some((nodes[i].1, sibling)),
+                Some(sibling) => Some((sibling, nodes[i].1)),
                 None => {
                     missing_sibling = true;
                     None
@@ -419,6 +431,19 @@ fn fold_opening_level(nodes: &[(usize, Hash)], supplied: &mut std::slice::Iter<'
     }
 }
 
+/// Folds one level: records its nodes in `known` and returns the hashed parents, or `None` on a missing sibling.
+#[inline]
+fn next_opening_nodes(
+    known: &mut Vec<Vec<(usize, Hash)>>,
+    nodes: &[(usize, Hash)],
+    siblings: &[Hash],
+    next: &mut usize,
+) -> Option<Vec<(usize, Hash)>> {
+    let (level, parents, pairs) = fold_opening_level(nodes, siblings, next)?;
+    known.push(level);
+    Some(parents.into_iter().zip(hash_pairs(&pairs)).collect())
+}
+
 #[inline]
 fn rebuild_opening_nodes(
     root: &Hash,
@@ -427,22 +452,21 @@ fn rebuild_opening_nodes(
     leaf_hashes: Vec<Hash>,
     sibling_hashes: &[Hash],
 ) -> Option<Vec<Vec<(usize, Hash)>>> {
-    let mut supplied = sibling_hashes.iter();
+    let mut next = 0;
     let mut known = Vec::with_capacity(height);
     let mut nodes = opening_leaf_nodes(sorted, leaf_hashes);
     let mut missing_sibling = false;
     let mut lvl = 0;
     while lvl < height && !missing_sibling {
-        match fold_opening_level(&nodes, &mut supplied) {
-            Some((level, parents, pairs)) => {
-                known.push(level);
-                nodes = parents.into_iter().zip(hash_pairs(&pairs)).collect();
+        match next_opening_nodes(&mut known, &nodes, sibling_hashes, &mut next) {
+            Some(parents) => {
+                nodes = parents;
                 lvl += 1;
             }
             None => missing_sibling = true,
         }
     }
-    if missing_sibling || supplied.next().is_some() || nodes[0].1 != *root {
+    if missing_sibling || next < sibling_hashes.len() || nodes[0].1 != *root {
         None
     } else {
         Some(known)
