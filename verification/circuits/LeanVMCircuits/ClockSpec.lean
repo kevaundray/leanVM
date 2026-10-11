@@ -23,29 +23,29 @@ row. Every production slot list is nonempty.
 namespace LeanVMCircuits.Clock
 
 /-- The live bit of a timestamp, bit 40. -/
-def live (ts : ℕ) : Bool := ts.testBit 40
+def live (ts : Nat) : Bool := ts.testBit 40
 
 /-- The order check of an access in slot `slot` with previous timestamp `prev`: the carry out of bit 39 of
 `(ts | slot) + !prev` over the low 40 bits. -/
-def ordered (ts prev slot : ℕ) : Bool := decide (prev % 2 ^ 40 < ts % 2 ^ 40 + slot)
+def ordered (ts prev slot : Nat) : Bool := decide (prev % 2 ^ 40 < ts % 2 ^ 40 + slot)
 
 /-- An access's previous timestamp has the other live bit. -/
-def disagrees (ts prev : ℕ) : Bool := prev.testBit 40 != ts.testBit 40
+def disagrees (ts prev : Nat) : Bool := prev.testBit 40 != ts.testBit 40
 
 /-- The verdict at bit 41 of the step: a live row with no access or an access out of order, or a previous timestamp
 with the other live bit. -/
-def fail (slots prev : List ℕ) (ts : ℕ) : Bool :=
+def fail (slots prev : List Nat) (ts : Nat) : Bool :=
   (live ts && !(!slots.isEmpty && (prev.zip slots).all fun ps => ordered ts ps.1 ps.2)) ||
     prev.any fun p => disagrees ts p
 
 /-- The step port: bits 5 to 40 the carries of `ts / 2^5 + live`, bit 41 the verdict. -/
-def step (slots prev : List ℕ) (ts : ℕ) : ℕ :=
+def step (slots prev : List Nat) (ts : Nat) : Nat :=
   (((ts / 2 ^ 5 + if live ts then 1 else 0) ^^^ (ts / 2 ^ 5)) % 2 ^ 36) * 2 ^ 5 +
     if fail slots prev ts then 2 ^ 41 else 0
 
 /-- What a satisfied clock circuit on `slots` says of its ports, read as integers: the clock has bits 5 to 40 only, one
 previous timestamp of 41 bits per slot, and the step is `step`. -/
-def Holds (slots prev : List ℕ) (ts stepPort : ℕ) : Prop :=
+def Holds (slots prev : List Nat) (ts stepPort : Nat) : Prop :=
   ts < 2 ^ 41 ∧ 2 ^ 5 ∣ ts ∧ prev.length = slots.length ∧ (∀ p ∈ prev, p < 2 ^ 41) ∧
     stepPort = step slots prev ts
 

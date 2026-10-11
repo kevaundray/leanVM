@@ -633,4 +633,20 @@ theorem machine_correct_of_product_check (m : Machine) (rows : List MachineRow) 
   · simp only [Machine.flushes, Flushes.pulled_append]
     congr 1
 
+/--
+The bytecode reads are at the program counter: when every row reads its instruction at its `pc`, the read pulling
+`⟨BC, pc, fields⟩`, balance makes every row's `pc` an instruction address `tbase + 4 i` and its fields the decoded
+entry `i`. With `machine_correct`, the walk's rows thus run the program's instructions, each row's `pc` being the
+`npc` its predecessor pushed.
+-/
+theorem machine_reads_at_pc (m : Machine) (rows : List MachineRow) (mult : Fin (2 ^ m.kbc) → ℕ)
+    (fields : MachineRow → Vector K 10) (reads_eq : ∀ r ∈ rows, r.reads = [(r.pc, fields r)])
+    (c1 : ∀ r ∈ rows, r.C1) (c2 : ∀ r ∈ rows, r.C2) (c3 : ∀ r ∈ rows, r.C3)
+    (balance : (m.flushes mult rows).Balanced) :
+    ∀ r ∈ rows, ∃ i : Fin (2 ^ m.kbc), r.pc = ofWord (m.tbase + 4 * i) ∧ fields r = m.decoded i := by
+  intro r hr
+  obtain ⟨ i, hi ⟩ := (machine_correct m rows mult c1 c2 c3 balance).1 r hr (r.pc, fields r)
+    (by rw [reads_eq r hr]; exact List.mem_singleton_self _)
+  exact ⟨ i, (Prod.mk.inj hi).1, (Prod.mk.inj hi).2 ⟩
+
 end LeanVMCircuits.Bus
