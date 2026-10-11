@@ -9,9 +9,11 @@
 //!   give its counter word. A set's counters say what each item is, so the chain of a run equals its set's digest
 //!   only if its bits are those of the set's own written form, and the run is read as that set.
 //! - Every run's end item holds the digest of its run, and the run's place says whose: a one-hot over the children,
-//!   moved on at each chunk that begins a run. So a pool's contents are fixed by the digests before any challenge.
-//! - Each child claim has a selection bit. A challenge point `(X, A)` is drawn from a transcript of the children's
-//!   digests, the node's and the selection words, and the rows check
+//!   moved on at each chunk that begins a run. So once the begin bits place the runs, a pool's contents are fixed by
+//!   the digests.
+//! - Each child claim has a selection bit, attached to its place in the pool. A challenge point `(X, A)` is drawn
+//!   from a transcript of the children's digests, the node's, and the begin and selection words, so the runs'
+//!   places and the selections are fixed before it, and the rows check
 //!
 //!   ```text
 //!   prod over child slots (1 + s · valid · (X + 1 + fp(c)))  ==  prod over declared slots (1 + valid · (X + 1 + fp(d)))
@@ -324,16 +326,21 @@ pub(crate) fn session(tree: &SessionId) -> SessionId {
     SessionId::new(&[SESSION_TAG, &tree.0].concat())
 }
 
+/// A pool's wires before any challenge: its items, and the hinted bits the transcript must hold, packed in words.
+struct PoolWires {
+    /// The items.
+    items: Vec<ItemWires>,
+    /// The begin bits, which place the runs.
+    begins: Vec<Kw>,
+    /// The selection bits, when selecting.
+    selections: Vec<Kw>,
+}
+
 /// A pool's rows before any challenge: each item's compression, its kind and the run it belongs to.
 ///
-/// Returns the items' wires, and the selection bits packed in words when `selecting`.
-fn pool_rows(
-    b: &mut Builder,
-    shape: PoolShape,
-    digests: &[Dw],
-    fill: Option<&PoolFill>,
-    selecting: bool,
-) -> (Vec<ItemWires>, Vec<Kw>) {
+/// The begin bits place each run, and the selection bits attach to places, so both go into the transcript: the
+/// rest of the pool is fixed by the digests once the runs are placed.
+fn pool_rows(b: &mut Builder, shape: PoolShape, digests: &[Dw], fill: Option<&PoolFill>, selecting: bool) -> PoolWires {
     let runs = digests.len();
     assert!(runs >= 1 && runs <= shape.chunks, "a run a chunk at most");
     let (zero, one) = (b.zero(), b.one());
@@ -350,13 +357,14 @@ fn pool_rows(
     // The run the current chunk belongs to, one-hot over the runs.
     let mut current: Vec<Ew> = (0..runs).map(|r| if r == 0 { one } else { zero }).collect();
     let mut bits: Vec<Kw> = Vec::new();
+    let mut begins: Vec<Kw> = Vec::new();
     let mut selections: Vec<Kw> = Vec::new();
     let mut items = Vec::with_capacity(shape.items());
     let mut previous: Option<(Ew, [Ew; 2], Dw)> = None;
     for j in 0..shape.chunks {
         let begin = (j > 0 && runs > 1).then(|| {
             let bit = b.free_k(u64::from(fill.is_some_and(|f| f.begins[j])));
-            bits.push(bit);
+            begins.push(bit);
             bit
         });
         if let Some(bit) = begin {
@@ -473,12 +481,16 @@ fn pool_rows(
     for (r, &c) in current.iter().enumerate() {
         b.eq_e_const(c, F192::new(u64::from(r + 1 == runs), 0, 0));
     }
-    // The hinted bits are bits.
+    // The hinted bits are bits; the begin and selection bits' words are kept for the transcript.
     for chunk in bits.chunks(64) {
         b.pack(chunk);
     }
-    let words = selections.chunks(64).map(|chunk| b.pack(chunk)).collect();
-    (items, words)
+    let mut words = |bits: &[Kw]| bits.chunks(64).map(|chunk| b.pack(chunk)).collect();
+    PoolWires {
+        items,
+        begins: words(&begins),
+        selections: words(&selections),
+    }
 }
 
 /// The product over a pool's claims of `1 + s · valid · (X + 1 + fp)`, `s` a slot's selection bit or one.
@@ -566,34 +578,49 @@ pub(crate) fn union_rows(
         (children.to_vec(), Vec::new())
     };
     let digest = b.free_d(fill.map_or([0; 4], |f| f.digest));
-    let (child_items, selections) = b.scope("children's pool", |b| {
+    let pool = b.scope("children's pool", |b| {
         pool_rows(b, shape.children, &read, fill.map(|f| &f.children), true)
     });
-    let (declared_items, _) = b.scope("declared pool", |b| {
+    let declared = b.scope("declared pool", |b| {
         pool_rows(b, shape.declared, &[digest], fill.map(|f| &f.declared), false)
     });
+    let point = challenge(b, session, &read, digest, &absent, &[&pool, &declared]);
+    b.scope("coverage", |b| {
+        let selected = product(b, &pool.items, &point);
+        let declared = product(b, &declared.items, &point);
+        b.eq_e(selected, declared);
+    });
+    digest
+}
 
-    // The sets read, the absent bits, and so the pools' contents, are bound before the challenge.
+/// The challenge point, drawn from a transcript of everything that decides which claims the products read: the sets
+/// the children's pool reads (an absent child's the empty set's), the node's, the absent bits' words, and the pools'
+/// begin and selection words.
+fn challenge(
+    b: &mut Builder,
+    session: &SessionId,
+    read: &[Dw],
+    digest: Dw,
+    absent: &[Kw],
+    pools: &[&PoolWires],
+) -> Point {
     let mut instance = Vec::new();
     for &d in read.iter().chain([&digest]) {
         instance.extend(b.d_to_k(d));
     }
     instance.extend(absent);
-    instance.extend(selections);
+    for pool in pools {
+        instance.extend(&pool.begins);
+        instance.extend(&pool.selections);
+    }
     let mut t = Transcript::new(b, &self::session(session), &instance, ProofSource::Shape);
     let x = t.verifier_message(b);
     let a = std::array::from_fn(|_| t.verifier_message(b));
     let one = b.one();
-    let point = Point {
+    Point {
         x1: b.add(x, one),
         weights: eq_weights(b, a),
-    };
-    b.scope("coverage", |b| {
-        let selected = product(b, &child_items, &point);
-        let declared = product(b, &declared_items, &point);
-        b.eq_e(selected, declared);
-    });
-    digest
+    }
 }
 
 #[cfg(test)]
@@ -875,6 +902,68 @@ mod tests {
         ];
         for (name, forge) in cases {
             assert!(!forged(forge).is_empty(), "{name} holds");
+        }
+    }
+
+    #[test]
+    fn a_run_placed_elsewhere_draws_another_challenge() {
+        // A run may start at any chunk after the one before it ends, and a selection bit attaches to a place in the
+        // pool. Were the runs' places chosen after the challenge, one set of selection words would select another
+        // multiset at each placement, and the prover would pick among them having seen `(X, A)`. Every tier's node
+        // reads its children through one of these shapes.
+        let sets = children();
+        let refs: Vec<&ClaimSet> = sets.iter().collect();
+        for shape in [UnionShape::new(CAPACITY, 2), UnionShape::optional(CAPACITY, 2)] {
+            let honest = UnionFill::new(&shape, &refs, &union_of(&sets)).expect("covered");
+
+            // The second run a chunk later, the chunk before it padding: every row holds.
+            let pad = FillItem {
+                block: [0; 8],
+                kind: ItemKind::Pad,
+                select: [false; 2],
+            };
+            let mut moved = honest.clone();
+            let n = moved.children.items.len();
+            let tail: Vec<FillItem> = moved.children.items.drain(CHUNK..).collect();
+            moved.children.items.extend(std::iter::repeat_n(pad, CHUNK));
+            moved.children.items.extend(tail);
+            moved.children.items.truncate(n);
+            moved.children.begins[1] = false;
+            moved.children.begins[2] = true;
+            assert_eq!(run_shape(&shape, &sets, &moved, None), vec![]);
+
+            // The honest places, with the moved fill's selection bits at their places: only coverage fails.
+            let mut placed = honest;
+            for (a, b) in placed.children.items.iter_mut().zip(&moved.children.items) {
+                a.select = b.select;
+            }
+            let failures = run_shape(&shape, &sets, &placed, None);
+            assert!(!failures.is_empty());
+            assert!(
+                failures.iter().all(|u| u.scope().iter().any(|s| s == "coverage")),
+                "{failures:?}"
+            );
+
+            // Mutation: the two placements under one challenge.
+            //
+            //     same sets read, same selection words → same instance were the begin bits not in it
+            //     → the prover picks the placement after the challenge
+            //     the begin words are in the transcript → each placement draws its own point
+            let drawn = |f: &UnionFill| {
+                let mut b = Builder::new();
+                // Every child is present: the sets read are the children's.
+                let read: Vec<Dw> = sets.iter().map(|s| b.free_d(s.digest())).collect();
+                let digest = b.free_d(f.digest);
+                let pool = pool_rows(&mut b, shape.children, &read, Some(&f.children), true);
+                let declared = pool_rows(&mut b, shape.declared, &[digest], Some(&f.declared), false);
+                let point = challenge(&mut b, &SessionId([7; 32]), &read, digest, &[], &[&pool, &declared]);
+                let words = |ws: &[Kw]| ws.iter().map(|&w| b.k(w)).collect::<Vec<u64>>();
+                (words(&pool.selections), words(&pool.begins), b.e(point.x1))
+            };
+            let (moved, placed) = (drawn(&moved), drawn(&placed));
+            assert_eq!(moved.0, placed.0, "one set of selection words");
+            assert_ne!(moved.1, placed.1, "two placements");
+            assert_ne!(moved.2, placed.2, "two challenges");
         }
     }
 }
