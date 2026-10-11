@@ -884,3 +884,33 @@ fn a_lone_child_past_half_the_capacity_is_narrowed_and_republished() {
     let narrowed = (tree.aggregate(&[&first], Some(&part))).expect("a covered declaration");
     (tree.verify_claims(&narrowed.proof, &part)).expect("a narrowed root");
 }
+
+// A claim-set tree of one tier keeps the heights, statement layout and session tag (but for the version) of protocol
+// version `leanvm-tree-12`, before the tiers; its nodes' circuits add the absent places.
+#[test]
+fn a_claim_set_tree_of_one_tier_keeps_tree_12s_heights_layout_and_tag() {
+    let d = &fixture().tree.design;
+    let sections = [
+        Section::Kind,
+        Section::Digest,
+        Section::DensePoint,
+        Section::DenseValues,
+        Section::Rows,
+        Section::Cols,
+        Section::Matrices,
+    ];
+    assert_eq!(d.tiers.len(), 1);
+    assert_eq!(d.tiers[SMALL].taus.into_values(), [17, 17, 15, 11, 14, 10]);
+    assert_eq!(d.statement.len(), 99);
+    assert_eq!(
+        sections.map(|s| d.statement.range(s)),
+        [0..1, 1..3, 3..26, 26..29, 29..43, 43..57, 57..99]
+    );
+    assert_eq!(
+        d.session_with(b"leanvm-tree-12").0,
+        [
+            63, 98, 217, 38, 13, 142, 156, 140, 68, 244, 21, 118, 140, 239, 62, 3, 236, 119, 216, 49, 83, 51, 42, 33,
+            6, 32, 202, 209, 96, 204, 87, 245
+        ]
+    );
+}

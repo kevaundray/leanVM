@@ -35,7 +35,7 @@ use std::collections::HashMap;
 pub(crate) const CHUNK: usize = 32;
 
 /// The tag of the union's transcript's session, beside the tree's.
-const SESSION_TAG: &[u8] = b"leanvm-claim-union-1";
+const SESSION_TAG: &[u8] = b"leanvm-claim-union-3";
 
 /// A pool's size, in chunks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -542,17 +542,16 @@ pub(crate) fn union_rows(
     fill: Option<&UnionFill>,
 ) -> Dw {
     assert_eq!(children.len(), shape.arity, "one digest a child");
-    let read: Vec<Dw> = if shape.optional {
+    // Where a child may be absent, its bit, packed into words the challenge binds, picks the digest read.
+    let (read, absent): (Vec<Dw>, Vec<Kw>) = if shape.optional {
         let empty = ClaimSet::new().digest();
         let [e_lo, e_hi] = [F192::new(empty[0], empty[1], 0), F192::new(empty[2], empty[3], 0)].map(|v| b.e_const(v));
         let bits: Vec<Kw> = (0..shape.arity)
             .map(|r| b.free_k(u64::from(fill.is_some_and(|f| f.absent[r]))))
             .collect();
-        // The bits are bits.
-        for chunk in bits.chunks(64) {
-            b.pack(chunk);
-        }
-        (children.iter().zip(&bits))
+        // The bits are bits, and their words are bound.
+        let words = bits.chunks(64).map(|chunk| b.pack(chunk)).collect();
+        let read = (children.iter().zip(&bits))
             .map(|(&d, &absent)| {
                 let [lo, hi] = b.d_to_halves(d);
                 let d_lo = b.add(lo, e_lo);
@@ -561,9 +560,10 @@ pub(crate) fn union_rows(
                 let hi = b.mul_k_add(d_hi, absent, hi);
                 b.halves_to_d(lo, hi)
             })
-            .collect()
+            .collect();
+        (read, words)
     } else {
-        children.to_vec()
+        (children.to_vec(), Vec::new())
     };
     let digest = b.free_d(fill.map_or([0; 4], |f| f.digest));
     let (child_items, selections) = b.scope("children's pool", |b| {
@@ -573,11 +573,12 @@ pub(crate) fn union_rows(
         pool_rows(b, shape.declared, &[digest], fill.map(|f| &f.declared), false)
     });
 
-    // The sets read, so the pools' contents, are bound before the challenge.
+    // The sets read, the absent bits, and so the pools' contents, are bound before the challenge.
     let mut instance = Vec::new();
     for &d in read.iter().chain([&digest]) {
         instance.extend(b.d_to_k(d));
     }
+    instance.extend(absent);
     instance.extend(selections);
     let mut t = Transcript::new(b, &self::session(session), &instance, ProofSource::Shape);
     let x = t.verifier_message(b);
