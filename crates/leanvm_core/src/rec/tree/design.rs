@@ -195,8 +195,8 @@ impl Place {
     /// wrap and the large tier's one node.
     ///
     /// A tree of outputs has one node, of its arity; a claim-set tree of one tier one of each arity up to its largest.
-    /// The large tier's node takes from two children to its arity, the rest absent, so the tier's fixed polynomial,
-    /// which every proof above a wrap reduces, is of one circuit.
+    /// The large tier's node takes from one child to its arity, the rest absent (in rows, any place may be), so the
+    /// tier's fixed polynomial, which every proof above a wrap reduces, is of one circuit.
     pub(crate) fn all(arity: usize, claims: Option<ClaimShape>) -> Vec<Self> {
         let place = |tier, level| Self { tier, level };
         let nodes = |tier, arities: std::ops::RangeInclusive<usize>| arities.map(move |a| place(tier, Level::Node(a)));

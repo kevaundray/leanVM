@@ -5,6 +5,7 @@ use super::statement::Section;
 use super::union::UnionFill;
 use super::*;
 use crate::cpu::Prover;
+use crate::rec::circuit::Builder;
 use crate::rv::Region;
 use crate::rv::asm::*;
 use std::sync::LazyLock;
@@ -561,6 +562,13 @@ fn a_tiered_first_level_and_union_stay_within_their_capacities() {
         .tree
         .aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &four)], None))
     .expect("a set within the small tier");
+    // Alone, it is too large to be taken twice by the small tier: the large node takes it once, the rest absent.
+    let lone = (t.tree.aggregate(&[&first], None)).expect("a lone child");
+    assert!(t.tree.is_large(&lone.proof));
+    assert_eq!(lone.claims, union(&[&four]));
+    (t.tree)
+        .verify_claims(&lone.proof, &lone.claims)
+        .expect("a large root of one child");
     let big = (t.tree.aggregate(&[&first, &t.pair], None)).expect("nine claims within the tree's capacity");
     assert!(t.tree.is_large(&big.proof));
     assert_eq!(t.tree.aggregate(&[&big, &t.firsts[2]], None), Err(TreeError::Capacity));
@@ -587,4 +595,266 @@ fn tiered_aggregates_from_different_provers_combine() {
         f.tree.verify_claims(&t.pair.proof, &t.pair.claims),
         Err(TreeError::Root(_) | TreeError::Circuit(_))
     ));
+}
+
+#[test]
+fn a_small_tier_past_the_trees_is_refused() {
+    let leaf = || LeafShape::of(&fixture().leaves[0].0).expect("a canonical announcement");
+    let refused = [
+        Tier { arity: 1, ..SMALL_TIER },
+        Tier { arity: 4, ..SMALL_TIER },
+        Tier {
+            capacity: Capacity { claims: 13, groups: 2 },
+            ..SMALL_TIER
+        },
+        Tier {
+            capacity: Capacity { claims: 5, groups: 5 },
+            ..SMALL_TIER
+        },
+    ];
+    for small in refused {
+        let claims = ClaimShape {
+            capacity: CAPACITY,
+            small: Some(small),
+        };
+        assert_eq!(
+            Tree::new(program(), shape(leaf(), Some(claims))).err(),
+            Some(TreeError::SmallTier {
+                arity: small.arity,
+                capacity: small.capacity
+            })
+        );
+    }
+}
+
+#[test]
+fn trees_of_another_small_tier_refuse_each_others_proofs() {
+    let t = tiered();
+    let leaf = LeafShape::of(&fixture().leaves[0].0).expect("a canonical announcement");
+    let others = [
+        Tier { arity: 3, ..SMALL_TIER },
+        Tier {
+            capacity: Capacity { claims: 6, groups: 2 },
+            ..SMALL_TIER
+        },
+    ];
+    for small in others {
+        let claims = ClaimShape {
+            capacity: CAPACITY,
+            small: Some(small),
+        };
+        let other = Tree::new(program(), shape(leaf, Some(claims))).expect("a tree of two tiers");
+        assert_ne!(other.design.session, t.tree.design.session, "{small:?}");
+        for ours in [&t.firsts[0], &t.pair] {
+            assert!(
+                matches!(
+                    other.verify_claims(&ours.proof, &ours.claims),
+                    Err(TreeError::Root(_) | TreeError::Circuit(_))
+                ),
+                "{small:?}"
+            );
+            assert!(
+                matches!(
+                    other.aggregate(&[ours, &t.firsts[1]], None),
+                    Err(TreeError::Child { index: 0, .. } | TreeError::Circuit(_))
+                ),
+                "{small:?}"
+            );
+        }
+    }
+}
+
+/// The rows of the circuit at `position` over `proofs`, the first stating `kind` rather than its own, and `sets` the
+/// union's children's sets: refused by the rows holding the first child's kind to its tier's.
+fn kind_refused(t: &Tiered, position: usize, proofs: &[&TreeProof], sets: &[&ClaimSet], kind: usize) {
+    let d = &t.tree.design;
+    let tier = if d.places[position].level == Level::Wrap {
+        LARGE
+    } else {
+        SMALL
+    };
+    let statements: Vec<TreeStatement> = (proofs.iter())
+        .map(|p| TreeStatement::new(d.statement, p.words.clone()))
+        .collect();
+    let honest = (t.tree.child_witnesses(tier, proofs, &statements)).expect("honest children");
+    let mut words = proofs[0].words.clone();
+    words[d.statement.range(Section::Kind).start] = F192::new(kind as u64, 0, 0);
+    let forged = TreeStatement::new(d.statement, words);
+    let items: Vec<ChildWitness<'_>> = (honest.iter().enumerate())
+        .map(|(i, w)| ChildWitness {
+            statement: if i == 0 { &forged } else { w.statement },
+            proof: w.proof,
+            openings: w.openings.clone(),
+            columns: w.columns,
+        })
+        .collect();
+    let union = (!sets.is_empty()).then(|| t.tree.fill(position, sets, None).expect("honest sets").0);
+    let inputs = NodeInputs::Prove {
+        items: &items,
+        tables: &t.tree.tables,
+        union: union.as_ref(),
+    };
+    let rows = t.tree.prove_rows(d.node(&inputs, position), position);
+    assert!(
+        matches!(&rows, Err(TreeError::Unsatisfied(check)) if check.scope().iter().any(|s| s == "child 0 kind")),
+        "{:?} over kind {kind}: {rows:?}",
+        d.places[position]
+    );
+}
+
+#[test]
+fn a_child_of_the_other_tiers_kind_is_refused_in_rows() {
+    let t = tiered();
+    let d = &t.tree.design;
+    let small = d.place(SMALL, Level::Node(2)).expect("a small node");
+    let large = d.place(LARGE, Level::Node(3)).expect("the large node");
+    let wrap = d.place(SMALL, Level::Wrap).expect("a wrap");
+    let (first, other) = (&t.firsts[2], &t.firsts[0]);
+    // A small proof stating the large node's kind, under a small node and under the large node.
+    kind_refused(
+        t,
+        small,
+        &[&first.proof, &first.proof],
+        &[&first.claims, &first.claims],
+        d.code(large),
+    );
+    kind_refused(
+        t,
+        large,
+        &[&first.proof, &other.proof, &first.proof],
+        &[&first.claims, &other.claims],
+        d.code(large),
+    );
+    // A large proof stating a small kind under a wrap.
+    for kind in [0, small, wrap] {
+        kind_refused(t, wrap, &[&t.pair.proof], &[], d.code(kind));
+    }
+}
+
+#[test]
+fn a_present_child_read_as_absent_is_refused_in_rows() {
+    let t = tiered();
+    let d = &t.tree.design;
+    let large = d.place(LARGE, Level::Node(3)).expect("the large node");
+    let proofs = [&t.firsts[0].proof, &t.firsts[1].proof, &t.firsts[0].proof];
+    let statements: Vec<TreeStatement> = (proofs.iter())
+        .map(|p| TreeStatement::new(d.statement, p.words.clone()))
+        .collect();
+    let items = (t.tree.child_witnesses(SMALL, &proofs, &statements)).expect("honest children");
+    let (fill, _) = (t.tree)
+        .fill(large, &[&t.firsts[0].claims, &t.firsts[1].claims], None)
+        .expect("the pair's union");
+    // The second child's run left as it was, its set read as the empty set's.
+    let dropped = fill.absent_at(1);
+    let inputs = NodeInputs::Prove {
+        items: &items,
+        tables: &t.tree.tables,
+        union: Some(&dropped),
+    };
+    let forged = t.tree.prove_rows(d.node(&inputs, large), large);
+    assert!(
+        matches!(&forged, Err(TreeError::Unsatisfied(check)) if check.scope().iter().any(|s| s == "children's pool")),
+        "{forged:?}"
+    );
+}
+
+// A fake circuit at the large tier's heights stating a set no leaf published, under an honest wrap's rows: the rows
+// hold over a forged wide polynomial, and only the root's settlement of the large tier's fixed polynomial refuses it.
+#[test]
+fn a_fake_large_circuit_under_a_wrap_is_refused_at_the_root() {
+    let t = tiered();
+    let d = &t.tree.design;
+    let large = d.place(LARGE, Level::Node(3)).expect("the large node");
+    let wrap = d.place(SMALL, Level::Wrap).expect("a wrap");
+    let taus = d.tiers[LARGE].taus;
+    let forged_set = set(vec![group(7, 7, &[1, 2, 3])]);
+    let digest = forged_set.digest();
+    let halves = [F192::new(digest[0], digest[1], 0), F192::new(digest[2], digest[3], 0)];
+    let rest = d.statement.range(Section::Digest).end;
+    let wide = d.statement.range(Section::DenseValues).start + DensePoly::Wide as usize;
+    // The fake: the large node's kind, the forged set's digest, then an honest large proof's claims but for the wide
+    // polynomial's value, which the fake's own stack decides.
+    let fake = |wide_value: F192| {
+        let mut b = Builder::new();
+        let mut words = vec![b.e_const(F192::new(d.code(large) as u64, 0, 0))];
+        words.extend(halves.map(|h| b.free_e(h)));
+        let mut claims = t.pair.proof.words[rest..].to_vec();
+        claims[wide - rest] = wide_value;
+        words.extend(claims.iter().map(|&w| b.free_e(w)));
+        for w in words {
+            b.expose_e(w);
+        }
+        let Finished {
+            mut circuit,
+            assignment,
+            failures,
+        } = b.finish();
+        assert!(failures.is_empty(), "{failures:?}");
+        circuit.floor = taus;
+        (circuit, assignment)
+    };
+    let columns = FixedColumns::of(&fake(F192::ZERO).0, &taus);
+    let mut tables = t.tree.tables.clone();
+    tables.0[DensePoly::Wide as usize] = d.tiers[LARGE].fixed.polynomial(&[&columns]);
+    let point = &t.pair.proof.words[d.statement.range(Section::DensePoint)];
+    let value = mle_eval_par(
+        &tables.0[DensePoly::Wide as usize],
+        &point[..d.vars.0[DensePoly::Wide as usize]],
+    );
+    let (circuit, assignment) = fake(value);
+    assert_eq!(circuit.heights(), taus, "the fake has the large tier's heights");
+    let child = TreeProof {
+        circuit: d.code(large),
+        words: (assignment.statement().iter())
+            .map(|l| F192::new(l[0], l[1], l[2]))
+            .collect(),
+        proof: (circuit.prove(&assignment, &d.session, d.rate)).expect("the fake fits"),
+        rate: d.rate,
+    };
+    assert!(
+        t.tree.read(&child, large).is_err(),
+        "natively, the fake is no large node"
+    );
+    let limbs: Vec<[u64; 4]> = child.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
+    let openings = (circuit.verify(&limbs, &d.session, d.rate, &child.proof)).expect("the fake proves its own circuit");
+    let statement = TreeStatement::new(d.statement, child.words.clone());
+    let items = [ChildWitness {
+        statement: &statement,
+        proof: &child.proof,
+        openings,
+        columns: &columns,
+    }];
+    let inputs = |tables| NodeInputs::Prove {
+        items: &items,
+        tables,
+        union: None,
+    };
+
+    // An honest reduction over the tree's polynomials fails on the fake's hints.
+    let honest = t.tree.prove_rows(d.node(&inputs(&t.tree.tables), wrap), wrap);
+    assert!(
+        matches!(&honest, Err(TreeError::Unsatisfied(check)) if check.scope()[0] == "reduction"),
+        "{honest:?}"
+    );
+
+    // Reduced over the forged polynomial, every row holds and the wrap's proof verifies, stating the forged set.
+    let rows = d.node(&inputs(&tables), wrap);
+    let reduction = rows.claim_values().prove(&d.session, &d.vars, &tables);
+    let Finished {
+        assignment, failures, ..
+    } = rows.reduce(d, ProofSource::Proof(&reduction, &[]));
+    assert!(failures.is_empty(), "{failures:?}");
+    let root = TreeProof {
+        circuit: d.code(wrap),
+        words: (assignment.statement().iter())
+            .map(|l| F192::new(l[0], l[1], l[2]))
+            .collect(),
+        proof: (t.tree.circuit(wrap).prove(&assignment, &d.session, d.rate)).expect("the wrap fits"),
+        rate: d.rate,
+    };
+    t.tree.read(&root, wrap).expect("the wrap's recursion proof verifies");
+    assert_eq!(
+        t.tree.verify_claims(&root, &forged_set),
+        Err(TreeError::Claim(FalseClaim::Dense(DensePoly::Wide)))
+    );
 }

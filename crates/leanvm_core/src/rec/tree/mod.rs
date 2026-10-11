@@ -788,9 +788,10 @@ impl<'p> Tree<'p> {
     /// The children may be of any kind and any provers'. One child is taken twice: its claims once, its repeat's
     /// unselected, which narrows or republishes it.
     ///
-    /// In a tree of two tiers, the node is the small tier's if the children are few enough and their sets and the
-    /// declared set fit its capacity, else the large tier's one node, its places past the children absent; a child of
-    /// the large tier is wrapped first, a proof of its own.
+    /// In a tree of two tiers, the node is the small tier's if the children are few enough and their sets (a lone
+    /// child's twice) and the declared set fit its capacity, else the large tier's one node, its places past the
+    /// children absent: a lone child too large to be taken twice is taken once by the large node, a large proof of its
+    /// set. A child of the large tier is wrapped first, a proof of its own.
     ///
     /// # Errors
     ///
