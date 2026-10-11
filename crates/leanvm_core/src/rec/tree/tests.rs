@@ -610,7 +610,9 @@ fn a_fake_leaf_circuit_is_refused_at_the_root() {
         leaf.circuit.heights(),
         "the fake has the leaves' heights"
     );
-    let proof = circuit.prove(&assignment, &leaf.session, leaf.rate).expect("the fake fits");
+    let proof = circuit
+        .prove(&assignment, &leaf.session, leaf.rate)
+        .expect("the fake fits");
     assert!(
         (leaf
             .circuit

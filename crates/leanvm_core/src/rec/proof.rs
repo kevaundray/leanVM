@@ -744,9 +744,10 @@ mod tests {
         let taus = circuit.heights();
         assert_eq!(short.heights(), taus);
         let fixed = FixedColumns::of(&short, &taus);
-        let refused =
-            std::panic::catch_unwind(AssertUnwindSafe(|| circuit.prove_with(&a, &session(), Rate::MIN, Some(&fixed))))
-                .expect_err("an inactive tuple balanced an active one");
+        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            circuit.prove_with(&a, &session(), Rate::MIN, Some(&fixed))
+        }))
+        .expect_err("an inactive tuple balanced an active one");
         let message = refused.downcast_ref::<String>().map_or("", String::as_str);
         assert!(message.contains("the bus needs the two products to agree"), "{message}");
 

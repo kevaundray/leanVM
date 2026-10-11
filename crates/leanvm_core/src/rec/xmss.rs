@@ -291,7 +291,13 @@ impl XmssBatch {
             });
         }
         (self.circuit)
-            .verify_with(&statement(claims), &self.session, self.rate, &proof.proof, &self.columns)
+            .verify_with(
+                &statement(claims),
+                &self.session,
+                self.rate,
+                &proof.proof,
+                &self.columns,
+            )
             .map_err(VerifyError::from)?;
         Ok(())
     }

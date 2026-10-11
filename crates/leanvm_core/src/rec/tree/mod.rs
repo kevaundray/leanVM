@@ -392,7 +392,7 @@ impl<'a> Leaf<'a> {
     }
 
     /// The leaf of a proof of a leaf circuit at `rate`, and the statement it proves.
-    pub(crate) fn circuit(
+    pub(crate) const fn circuit(
         leaf: &LeafCircuit<'_>,
         statement: Vec<Limbs>,
         proof: &'a ProofTranscript,
@@ -427,7 +427,7 @@ impl<'a> From<&'a ProvenRun> for Leaf<'a> {
 
 impl LeafStatement {
     /// The statement of a proof of a leaf circuit.
-    pub(crate) fn circuit(leaf: &LeafCircuit<'_>, words: Vec<Limbs>) -> Self {
+    pub(crate) const fn circuit(leaf: &LeafCircuit<'_>, words: Vec<Limbs>) -> Self {
         Self(Stated::Circuit {
             session: leaf.session,
             words,
