@@ -25,7 +25,8 @@
 //!   published, whatever the tree's shape: anyone may combine any proofs of the tree, up to its largest arity, and the
 //!   root's verifier needs the set alone. What a claim means is the leaf program's (`multiset`).
 //!
-//! A claim-set tree has a node circuit for each arity from two to its largest, all of one height.
+//! A claim-set tree has a node circuit for each arity from two to its largest, all of one height, or two tiers each
+//! at heights of its own ([`Tier`]): small proofs then never pay for the largest node's union and children.
 
 use crate::class_flock::FlockId;
 use crate::cpu::{Announcement, DecodeError, Lookup, Output, Program, Proof, ProvenRun, Stats, VerifyError};
@@ -781,8 +782,8 @@ impl<'p> Tree<'p> {
     /// unselected, which narrows or republishes it.
     ///
     /// In a tree of two tiers, the node is the small tier's if the children are few enough and their sets and the
-    /// declared set fit its capacity, else the large tier's; a child of the large tier is wrapped first, a proof of its
-    /// own.
+    /// declared set fit its capacity, else the large tier's one node, its places past the children absent; a child of
+    /// the large tier is wrapped first, a proof of its own.
     ///
     /// # Errors
     ///
@@ -793,7 +794,17 @@ impl<'p> Tree<'p> {
     pub fn aggregate(&self, children: &[&Aggregate], declare: Option<&ClaimSet>) -> Result<Aggregate, TreeError> {
         self.capacity()?;
         let d = &self.design;
-        let mut wraps = Vec::with_capacity(children.len());
+        let n = children.len();
+        // A lone child is taken twice by the small tier's node, or the only tier's.
+        let small = d.place(SMALL, Level::Node(n.max(2))).map(|p| (p, n.max(2)));
+        let large = d.place(LARGE, Level::Node(d.arity)).map(|p| (p, d.arity));
+        if n == 0 || n > d.arity || (small.is_none() && large.is_none()) {
+            return Err(TreeError::Children {
+                expected: d.arity,
+                got: n,
+            });
+        }
+        let mut wraps = Vec::with_capacity(n);
         for (index, c) in children.iter().enumerate() {
             let position = self.known(&c.proof)?;
             wraps.push((d.places[position].tier == LARGE).then(|| self.wrap(index, c)).transpose()?);
@@ -801,21 +812,6 @@ impl<'p> Tree<'p> {
         let children: Vec<&Aggregate> = (children.iter().zip(&wraps))
             .map(|(&c, w)| w.as_ref().unwrap_or(c))
             .collect();
-        let children = match children[..] {
-            [one] => vec![one, one],
-            _ => children,
-        };
-        let arity = children.len();
-        let places: Vec<usize> = [SMALL, LARGE]
-            .into_iter()
-            .filter_map(|tier| d.place(tier, Level::Node(arity)))
-            .collect();
-        if places.is_empty() {
-            return Err(TreeError::Children {
-                expected: d.arity,
-                got: arity,
-            });
-        }
         let proofs: Vec<&TreeProof> = children.iter().map(|c| &c.proof).collect();
         let statements: Vec<TreeStatement> = (proofs.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
@@ -826,14 +822,28 @@ impl<'p> Tree<'p> {
             return Err(TreeError::ChildClaims { index });
         }
         let sets: Vec<&ClaimSet> = children.iter().map(|c| &c.claims).collect();
-        // The first tier whose union holds the sets.
-        for &position in &places {
-            let (union, claims) = match self.fill(position, &sets, declare) {
+        // The first tier whose union holds the sets. A place past the children verifies the first child again: taken
+        // twice by the small tier, absent from the large tier's union.
+        for (position, slots) in small.into_iter().chain(large) {
+            let read = if d.places[position].tier == LARGE { n } else { slots };
+            let read_sets: Vec<&ClaimSet> = (0..read).map(|i| sets[i.min(n - 1)]).collect();
+            let (union, claims) = match self.fill(position, &read_sets, declare) {
                 Err(TreeError::Capacity) => continue,
                 filled => filled?,
             };
+            let slot_items: Vec<ChildWitness<'_>> = (0..slots)
+                .map(|i| {
+                    let w = &items[if i < n { i } else { 0 }];
+                    ChildWitness {
+                        statement: w.statement,
+                        proof: w.proof,
+                        openings: w.openings.clone(),
+                        columns: w.columns,
+                    }
+                })
+                .collect();
             let inputs = NodeInputs::Prove {
-                items: &items,
+                items: &slot_items,
                 tables: &self.tables,
                 union: Some(&union),
             };

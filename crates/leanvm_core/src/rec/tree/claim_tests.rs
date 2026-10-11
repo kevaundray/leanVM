@@ -440,11 +440,11 @@ fn a_tree_of_two_tiers_has_a_wrap_and_heights_per_tier() {
             small(Level::First),
             small(Level::Node(2)),
             small(Level::Wrap),
-            large(Level::Node(2)),
             large(Level::Node(3)),
         ]
     );
     assert!(t.tree.small_node_stats(3).is_none() && t.tree.wrap_stats().is_some());
+    assert!(t.tree.node_stats(3).is_some() && t.tree.node_stats(2).is_none());
     // Each tier's circuits are at its own heights.
     for (p, place) in d.places.iter().enumerate() {
         assert_eq!(t.tree.circuit(p).heights(), d.tiers[place.tier].taus, "{place:?}");

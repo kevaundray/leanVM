@@ -191,9 +191,11 @@ impl<T> NodeInputs<'_, T> {
 
 impl Place {
     /// The circuits of a tree, in order: the first level's, the nodes of each arity, then in a tree of two tiers the
-    /// wrap and the large tier's nodes of each arity.
+    /// wrap and the large tier's one node.
     ///
-    /// A tree of outputs has one node, of its arity; a claim-set tree one of each arity up to each tier's largest.
+    /// A tree of outputs has one node, of its arity; a claim-set tree of one tier one of each arity up to its largest.
+    /// The large tier's node takes from two children to its arity, the rest absent, so the tier's fixed polynomial,
+    /// which every proof above a wrap reduces, is of one circuit.
     pub(crate) fn all(arity: usize, claims: Option<ClaimShape>) -> Vec<Self> {
         let place = |tier, level| Self { tier, level };
         let nodes = |tier, arities: std::ops::RangeInclusive<usize>| arities.map(move |a| place(tier, Level::Node(a)));
@@ -203,7 +205,7 @@ impl Place {
             Some(ClaimShape { small: None, .. }) => first.chain(nodes(SMALL, 2..=arity)).collect(),
             Some(ClaimShape { small: Some(s), .. }) => (first.chain(nodes(SMALL, 2..=s.arity)))
                 .chain([place(SMALL, Level::Wrap)])
-                .chain(nodes(LARGE, 2..=arity))
+                .chain(nodes(LARGE, arity..=arity))
                 .collect(),
         }
     }
@@ -321,7 +323,12 @@ impl<'p> Design<'p> {
             Level::Node(arity) => arity,
             Level::Wrap => return None,
         };
-        self.tiers[tier].capacity.map(|c| UnionShape::new(c, arity))
+        let capacity = self.tiers[tier].capacity?;
+        Some(if tier == LARGE {
+            UnionShape::optional(capacity, arity)
+        } else {
+            UnionShape::new(capacity, arity)
+        })
     }
 
     /// The position of the circuit of this place, if the tree has one.
