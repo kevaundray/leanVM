@@ -1,0 +1,162 @@
+import WhirAeneas.Replay
+
+/-! The generated `sample_queries_ordered` is the model's `deriveQueries` on the squeezed
+elements it reads, read as 192-bit numbers. -/
+namespace WhirAeneas.Sampling
+open Aeneas Aeneas.Std ReplaySource Whir Whir.Concrete WhirAeneas.Fold WhirAeneas.Replay
+
+/-! ## Scalar operations -/
+
+theorem shr_val {ty : UScalarTy} (x : UScalar ty) (n : Usize) (h : n.val < ty.numBits) :
+    (UScalar.wrapping_shr_rhs x n).val = x.val / 2 ^ n.val := by
+  simp only [UScalar.wrapping_shr_rhs, WrappingShiftRhs.amount_unsigned]
+  rw [Nat.mod_eq_of_lt h]
+  show (x.bv >>> n.val).toNat = _
+  rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  rfl
+
+theorem shl_val {ty : UScalarTy} (x : UScalar ty) (n : Usize) (h : n.val < ty.numBits) :
+    (UScalar.wrapping_shl_rhs x n).val = (x.val * 2 ^ n.val) % 2 ^ ty.numBits := by
+  simp only [UScalar.wrapping_shl_rhs, WrappingShiftRhs.amount_unsigned]
+  rw [Nat.mod_eq_of_lt h]
+  show (x.bv <<< n.val).toNat = _
+  rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+  rfl
+
+/-! ## One chunk of a squeezed element -/
+
+theorem mod_add_pow_mul (x y k d : Nat) (h : d ≤ k) : (x + 2 ^ k * y) % 2 ^ d = x % 2 ^ d := by
+  rw [show 2 ^ k * y = 2 ^ d * (2 ^ (k - d) * y) by rw [← Nat.mul_assoc, ← Nat.pow_add]; congr 2; omega]
+  exact Nat.add_mul_mod_self_left x (2 ^ d) _
+
+theorem div_split (L0 R sh : Nat) (hsh : sh ≤ 64) :
+    (L0 + 2 ^ 64 * R) / 2 ^ sh = L0 / 2 ^ sh + 2 ^ (64 - sh) * R := by
+  rw [show 2 ^ 64 * R = 2 ^ sh * (2 ^ (64 - sh) * R) by rw [← Nat.mul_assoc, ← Nat.pow_add]; congr 2; omega]
+  exact Nat.add_mul_div_left _ _ (Nat.two_pow_pos sh)
+
+/-- A chunk at bit offset `sh` of limb `L0`, completed from the next limb `L1` when it
+crosses the limb boundary, is the `d` bits at `sh` of the number. -/
+theorem chunk_core (L0 L1 L2 sh d : Nat) (h0 : L0 < 2 ^ 64) (hsh : sh < 64) (hd : d ≤ 64) :
+    (if 64 < sh + d then L0 / 2 ^ sh ||| (L1 * 2 ^ (64 - sh)) % 2 ^ 64 else L0 / 2 ^ sh) % 2 ^ d =
+      ((L0 + 2 ^ 64 * (L1 + 2 ^ 64 * L2)) / 2 ^ sh) % 2 ^ d := by
+  rw [div_split _ _ _ hsh.le]
+  split
+  · rename_i hc
+    have hlo : L0 / 2 ^ sh < 2 ^ (64 - sh) := by
+      rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos sh), ← Nat.pow_add]
+      rw [show 64 - sh + sh = 64 by omega]; exact h0
+    have hm : (L1 * 2 ^ (64 - sh)) % 2 ^ 64 = 2 ^ (64 - sh) * (L1 % 2 ^ sh) := by
+      rw [show (2 : Nat) ^ 64 = 2 ^ (64 - sh) * 2 ^ sh by rw [← Nat.pow_add]; congr 1; omega,
+        Nat.mul_comm L1, Nat.mul_mod_mul_left]
+    rw [hm, Nat.lor_comm, ← Nat.two_pow_add_eq_or_of_lt hlo]
+    have hsplit : 2 ^ (64 - sh) * (L1 + 2 ^ 64 * L2) =
+        2 ^ (64 - sh) * (L1 % 2 ^ sh) + 2 ^ 64 * (L1 / 2 ^ sh + 2 ^ (64 - sh) * L2) := by
+      have := Nat.mod_add_div L1 (2 ^ sh)
+      have hp : (2 : Nat) ^ 64 = 2 ^ (64 - sh) * 2 ^ sh := by rw [← Nat.pow_add]; congr 1; omega
+      conv_lhs => rw [← this]
+      rw [hp]; ring
+    rw [hsplit, ← Nat.add_assoc, Nat.add_comm (L0 / 2 ^ sh), mod_add_pow_mul _ _ _ _ hd]
+  · rename_i hc
+    exact (mod_add_pow_mul _ _ _ _ (by omega)).symm
+
+/-- The number a squeezed element's three limbs denote. -/
+def limbsNat (x0 x1 x2 : U64) : Nat := x0.val + 2 ^ 64 * (x1.val + 2 ^ 64 * x2.val)
+
+theorem rem_ok {ty : UScalarTy} (x y : UScalar ty) (h : y.val ≠ 0) :
+    ∃ z : UScalar ty, x % y = Result.ok z ∧ z.val = x.val % y.val := by
+  refine ⟨⟨x.bv % y.bv⟩, ?_, ?_⟩
+  · conv => lhs; simp [HMod.hMod]
+    simp [h, UScalar.rem]
+  · show (x.bv % y.bv).toNat = x.bv.toNat % y.bv.toNat
+    exact BitVec.toNat_umod
+
+/-- One iteration of `push_chunks` pushes chunk `j`: the `d` bits at offset `j * d`. -/
+theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 3#usize) (x0 x1 x2 : U64)
+    (hl : limbs.val = [x0, x1, x2]) (d take block_len : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
+    (hb : block_len.val = 2 ^ d.val) (out : alloc.vec.Vec Usize) (j : Usize) (hj : j.val < take.val)
+    (hoff : j.val * d.val + d.val ≤ 192) (hcap : out.val.length < Usize.max) :
+    ∃ out', whir.push_chunks_loop.body limbs d take block_len out j =
+        .ok (.cont (out', Std.Usize.wrapping_add j 1#usize)) ∧
+      out'.val.map (·.val) = out.val.map (·.val) ++ [(limbsNat x0 x1 x2 / 2 ^ (j.val * d.val)) % 2 ^ d.val] := by
+  have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
+  have hoffv : (Std.Usize.wrapping_mul j d).val = j.val * d.val := by
+    rw [Std.Usize.wrapping_mul_val_eq, UScalar.size_def, hU]; apply Nat.mod_eq_of_lt; omega
+  obtain ⟨li, hli, eli⟩ := UScalar.div_spec (Std.Usize.wrapping_mul j d) (y := 64#usize) (by simp)
+  obtain ⟨sh, hsh, esh⟩ := rem_ok (Std.Usize.wrapping_mul j d) 64#usize (by simp)
+  have h64 : (64#usize : Usize).val = 64 := by simp
+  rw [hoffv, h64] at eli esh
+  have hli3 : li.val < 3 := by rw [eli]; omega
+  have hsh64 : sh.val < 64 := by rw [esh]; omega
+  have hoffs : j.val * d.val = 64 * li.val + sh.val := by rw [eli, esh]; omega
+  have hidx : ∀ i : Usize, (hi : i.val < 3) → Array.index_usize limbs i = .ok ([x0, x1, x2][i.val]'(by simpa using hi)) := by
+    intro i hi
+    simp [Array.index_usize, hl]
+    rw [List.getElem?_eq_getElem (by simpa using hi)]
+  have hjt : j < take := by simpa [UScalar.lt_equiv] using hj
+  set L0 := [x0, x1, x2][li.val]'(by simpa using hli3) with hL0
+  have hc : (Std.U64.wrapping_shr L0 sh).val = L0.val / 2 ^ sh.val := shr_val L0 sh (by simp; omega)
+  have hsd : (Std.Usize.wrapping_add sh d).val = sh.val + d.val := by
+    rw [Std.Usize.wrapping_add_val_eq, UScalar.size_def, hU]; apply Nat.mod_eq_of_lt; omega
+  have hbm : (Std.Usize.wrapping_sub block_len 1#usize).val = 2 ^ d.val - 1 := by
+    rw [Fold.sub_val _ _ (by simp [hb]), hb]; simp
+  have hcast : ∀ x : U64, (UScalar.cast .Usize x).val = x.val := by
+    intro x; rw [UScalar.cast_val_eq, hU]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simpa using this)
+  have b0 := x0.hBounds; have b1 := x1.hBounds
+  simp only [UScalar.size_def, UScalarTy.U64_numBits_eq] at b0 b1
+  have hA : limbsNat x0 x1 x2 / 2 ^ 64 = x1.val + 2 ^ 64 * x2.val := by
+    unfold limbsNat; rw [Nat.add_mul_div_left _ _ (Nat.two_pow_pos 64), Nat.div_eq_of_lt b0, Nat.zero_add]
+  have hB : (x1.val + 2 ^ 64 * x2.val) / 2 ^ 64 = x2.val := by
+    rw [Nat.add_mul_div_left _ _ (Nat.two_pow_pos 64), Nat.div_eq_of_lt b1, Nat.zero_add]
+  obtain ⟨L1, L2, hNL, hcross⟩ : ∃ L1 L2 : Nat,
+      limbsNat x0 x1 x2 / 2 ^ (64 * li.val) = L0.val + 2 ^ 64 * (L1 + 2 ^ 64 * L2) ∧
+      (64 < sh.val + d.val → ∃ h : li.val + 1 < 3, L1 = ([x0, x1, x2][li.val + 1]'(by simpa using h)).val) := by
+    rcases (show li.val = 0 ∨ li.val = 1 ∨ li.val = 2 by omega) with h | h | h
+    · refine ⟨x1.val, x2.val, ?_, fun _ => ⟨by omega, by simp [h]⟩⟩
+      simp only [hL0, h, Nat.mul_zero, Nat.pow_zero, Nat.div_one, limbsNat]; rfl
+    · refine ⟨x2.val, 0, ?_, fun _ => ⟨by omega, by simp [h]⟩⟩
+      rw [h, Nat.mul_one, hA]; simp [hL0, h]
+    · refine ⟨0, 0, ?_, fun hc => absurd hc (by omega)⟩
+      rw [h, show 64 * 2 = 64 + 64 from rfl, Nat.pow_add, ← Nat.div_div_eq_div_mul, hA, hB]; simp [hL0, h]
+  have hN : limbsNat x0 x1 x2 / 2 ^ (j.val * d.val) = (L0.val + 2 ^ 64 * (L1 + 2 ^ 64 * L2)) / 2 ^ sh.val := by
+    rw [hoffs, Nat.pow_add, ← Nat.div_div_eq_div_mul, hNL]
+  have hcore := chunk_core L0.val L1 L2 sh.val d.val L0.hBounds hsh64 (by omega)
+  rw [← hN] at hcore
+  have hmask : ∀ x : Usize, (x &&& Std.Usize.wrapping_sub block_len 1#usize).val = x.val % 2 ^ d.val := by
+    intro x; rw [UScalar.val_and, hbm, Nat.and_two_pow_sub_one_eq_mod]
+  by_cases hx : 64 < sh.val + d.val
+  · obtain ⟨hl1, eL1⟩ := hcross hx
+    set L1v := [x0, x1, x2][li.val + 1]'(by simpa using hl1) with hL1v
+    have hli1 : (Std.Usize.wrapping_add li 1#usize).val = li.val + 1 := by
+      rw [Std.Usize.wrapping_add_val_eq, UScalar.size_def, hU]; simp; omega
+    have h64s : (Std.Usize.wrapping_sub 64#usize sh).val = 64 - sh.val := by
+      rw [Fold.sub_val _ _ (by simp; omega)]; simp
+    have hshl : (Std.U64.wrapping_shl L1v (Std.Usize.wrapping_sub 64#usize sh)).val =
+        (L1v.val * 2 ^ (64 - sh.val)) % 2 ^ 64 := by
+      rw [show Std.U64.wrapping_shl L1v (Std.Usize.wrapping_sub 64#usize sh) =
+        UScalar.wrapping_shl_rhs L1v (Std.Usize.wrapping_sub 64#usize sh) from rfl,
+        shl_val _ _ (by rw [h64s, UScalarTy.U64_numBits_eq]; omega)]
+      simp [h64s]
+    obtain ⟨v, hv⟩ : ∃ v, (UScalar.cast .Usize (Std.U64.wrapping_shr L0 sh |||
+        Std.U64.wrapping_shl L1v (Std.Usize.wrapping_sub 64#usize sh)) &&&
+        Std.Usize.wrapping_sub block_len 1#usize) = v := ⟨_, rfl⟩
+    have ev : v.val = (limbsNat x0 x1 x2 / 2 ^ (j.val * d.val)) % 2 ^ d.val := by
+      rw [← hv, hmask, hcast, UScalar.val_or, hc, hshl, ← eL1, ← hcore, if_pos hx]
+    obtain ⟨out', hpush, eout⟩ := Query.push_ok out v hcap
+    refine ⟨out', ?_, by rw [eout]; simp [ev]⟩
+    have hgt : Std.Usize.wrapping_add sh d > 64#usize := by simp only [gt_iff_lt, UScalar.lt_equiv, hsd]; simpa using hx
+    have hidx1 := hidx (Std.Usize.wrapping_add li 1#usize) (by rw [hli1]; exact hl1)
+    simp only [hli1] at hidx1
+    simp only [whir.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
+      hidx1, ← hL0, ← hL1v, hv, hpush]
+  · obtain ⟨v, hv⟩ : ∃ v, (UScalar.cast .Usize (Std.U64.wrapping_shr L0 sh) &&&
+        Std.Usize.wrapping_sub block_len 1#usize) = v := ⟨_, rfl⟩
+    have ev : v.val = (limbsNat x0 x1 x2 / 2 ^ (j.val * d.val)) % 2 ^ d.val := by
+      rw [← hv, hmask, hcast, hc, ← hcore, if_neg hx]
+    obtain ⟨out', hpush, eout⟩ := Query.push_ok out v hcap
+    refine ⟨out', ?_, by rw [eout]; simp [ev]⟩
+    have hgt : ¬ (Std.Usize.wrapping_add sh d > 64#usize) := by
+      simp only [gt_iff_lt, UScalar.lt_equiv, hsd]; simpa using hx
+    simp only [whir.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
+      ← hL0, hv, hpush]
+
+end WhirAeneas.Sampling
