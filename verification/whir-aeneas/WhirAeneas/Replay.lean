@@ -1189,4 +1189,219 @@ theorem tail_loop_eq {T1 : Type} (h : ArithModel inst.fiat_shamirarithVerifierIn
 
 end Tail
 
+/-! ## The model's level steps on interpreted data -/
+
+section ModelSteps
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+
+theorem foldl_range'_eq {α β : Type} (g : β → α → β) (F : Nat → α) (l : List α) (k : Nat)
+    (hF : ∀ j (hj : j < l.length), F (k + j) = l[j]) (b : β) :
+    (List.range' k l.length).foldl (fun b j => g b (F j)) b = l.foldl g b := by
+  induction l generalizing k b with
+  | nil => rfl
+  | cons x t ih =>
+    simp only [List.length_cons, List.range'_succ, List.foldl_cons]
+    have h0 := hF 0 (by simp)
+    rw [Nat.add_zero, List.getElem_cons_zero] at h0
+    rw [h0]
+    exact ih (k + 1) (fun j hj => by
+      rw [show k + 1 + j = k + (j + 1) by omega, hF (j + 1) (by simp; omega)]
+      simp) _
+
+variable {E : Type} (encode : E → Concrete.E)
+
+theorem foldBlock_eq (rounds : List (E × E × E)) (cs : Protocol.LevelChallenges) (p : Protocol.LevelProof)
+    (st : State) (hf : cs.folds = (rounds.map fun x => encode x.1).toArray)
+    (ha : p.afterFold = (rounds.map fun x =>
+      (⟨encode x.2.1, encode x.2.2⟩ : Protocol.Message Concrete.E)).toArray) :
+    foldBlock cs p st = foldModel encode rounds st := by
+  have key := foldl_range'_eq (fun s (x : Concrete.E × Protocol.Message Concrete.E) => foldScalar s x.1 x.2)
+    (fun j => (cs.folds[j]!, p.afterFold[j]!))
+    (rounds.map fun x => (encode x.1, (⟨encode x.2.1, encode x.2.2⟩ : Protocol.Message Concrete.E))) 0
+    (fun j hj => by
+      simp only [List.length_map] at hj
+      simp [hf, ha, getElem!_pos, hj]) st
+  simp only [foldBlock, runSteps_foldl, foldStep]
+  rw [show cs.folds.size = (rounds.map fun x => (encode x.1,
+    (⟨encode x.2.1, encode x.2.2⟩ : Protocol.Message Concrete.E))).length by simp [hf]]
+  rw [key, foldModel, List.foldl_map]
+
+theorem oodFold_foldl (lam : Concrete.E) (l : List (Array Concrete.E × Concrete.E × Protocol.Message Concrete.E))
+    (acc : State × Concrete.E) :
+    Query.oodFold lam l acc = l.foldl (fun (acc : State × Concrete.E) x =>
+      (batchScalar acc.1 (.ood x.1) x.2.1 (acc.2 * lam) x.2.2, acc.2 * lam)) acc := by
+  induction l generalizing acc with
+  | nil => rfl
+  | cons x l ih => obtain ⟨st, b⟩ := acc; simp [Query.oodFold, ih]
+
+theorem oodBatch_eq (data : List (Array Concrete.E × Concrete.E × Protocol.Message Concrete.E))
+    (cs : Protocol.LevelChallenges) (p : Protocol.LevelProof) (st : State)
+    (hz : cs.oodPoints = (data.map (·.1)).toArray)
+    (ho : p.oods = (data.map fun x => (⟨x.2.1, x.2.2⟩ : Protocol.OodClaim)).toArray) :
+    oodBatch cs p st = Query.oodFold cs.lambda data (st, 1) := by
+  have key := foldl_range'_eq (fun (acc : State × Concrete.E) (x : Array Concrete.E × Concrete.E ×
+      Protocol.Message Concrete.E) => (batchScalar acc.1 (.ood x.1) x.2.1 (acc.2 * cs.lambda) x.2.2,
+      acc.2 * cs.lambda))
+    (fun j => (cs.oodPoints[j]!, p.oods[j]!.value, p.oods[j]!.intro)) data 0
+    (fun j hj => by simp [hz, ho, getElem!_pos, hj]) (st, 1)
+  rw [oodFold_foldl, ← key]
+  simp only [oodBatch, runSteps_foldl, oodStep]
+  rw [show p.oods.size = data.length by simp [ho]]
+  rfl
+
+theorem enforced_base (rows : Array (Array Concrete.E)) (rs ws : Array Concrete.E) :
+    Protocol.enforced rows rs ws true = Protocol.enforced (rows.map (·.reverse)) rs ws false := by
+  simp only [Protocol.enforced, ↓reduceIte, Array.size_map, Bool.false_eq_true]
+  have hf : (fun i : Nat => ws[i]! * Concrete.dot (rows[i]! : Array Concrete.E).reverse (Concrete.eqTable rs)) =
+      (fun i : Nat => ws[i]! * Concrete.dot (rows.map (·.reverse))[i]! (Concrete.eqTable rs)) := by
+    funext i
+    by_cases hi : i < rows.size
+    · simp [getElem!_pos, hi]
+    · simp only [getElem!_neg rows i hi, getElem!_neg (rows.map (·.reverse)) i (by simpa using hi)]
+      rfl
+  rw [hf]
+
+private theorem except_bind_ok' {S T : Type} (s : S) (f : S → Except String T) :
+    ((Except.ok s : Except String S) >>= f) = f s := rfl
+
+/-- A model level passes every check and returns its batched state when the proof has the
+level's shapes and the query challenges derive positions. -/
+theorem verifyLevel_ok (c : Protocol.Config) (ch : Protocol.Challenges) (pf : Protocol.Opening) (j : Nat)
+    (s : State) (qs : Array Nat)
+    (hround : pf.levels[j]!.afterFold.size = ch.levels[j]!.folds.size)
+    (hood : pf.levels[j]!.oods.size = ch.levels[j]!.oodPoints.size)
+    (hnext : if j + 1 < c.folds.size then pf.levels[j]!.nextOracle.isSome = true
+      else pf.levels[j]!.nextOracle.isSome = false ∧
+        pf.residual.size = 2 ^ (foldBlock ch.levels[j]! pf.levels[j]! s).n)
+    (hq : deriveQueries ((foldBlock ch.levels[j]! pf.levels[j]! s).n + c.rates[j]!) c.queries[j]!
+      ch.levels[j]!.querySqueezes = some qs)
+    (hrows : pf.levels[j]!.rows.size = qs.size) :
+    verifyLevel c ch pf j s = .ok (queryBatch (foldBlock ch.levels[j]! pf.levels[j]! s).n j ch.levels[j]!
+      pf.levels[j]! qs (oodBatch ch.levels[j]! pf.levels[j]! (foldBlock ch.levels[j]! pf.levels[j]! s))) := by
+  unfold verifyLevel
+  by_cases hm : j + 1 < c.folds.size
+  · rw [if_pos hm] at hnext
+    simp [hround, hood, hm, hnext, hq, hrows, Option.elim]
+    rfl
+  · rw [if_neg hm] at hnext
+    simp [hround, hood, hm, hnext, hq, hrows, Option.elim]
+    rfl
+
+/-- Every saved context sits on the transcript's fold point and spans the variables left. -/
+def ModelFits (s : State) : Prop :=
+  ∀ sv ∈ s.source.saved, sv.risStart ≤ s.source.ris.length ∧
+    sv.basis.dimension = s.source.ris.length + s.n - sv.risStart ∧ sv.basis.dimension < 64
+
+theorem ModelFits.fold (s : State) (h : ModelFits s) (hn : 0 < s.n) (r : Concrete.E) (m : Protocol.Message Concrete.E) :
+    ModelFits (foldScalar s r m) := by
+  intro sv hsv
+  obtain ⟨h1, h2, h3⟩ := h sv hsv
+  simp only [foldScalar, SourceState.step, List.length_append, List.length_singleton]
+  exact ⟨by omega, by omega, h3⟩
+
+theorem ModelFits.batch (s : State) (h : ModelFits s) (basis : Basis) (hb : basis.dimension = s.n)
+    (h64 : s.n < 64) (value beta : Concrete.E) (m : Protocol.Message Concrete.E) :
+    ModelFits (batchScalar s basis value beta m) := by
+  intro sv hsv
+  simp only [batchScalar, SourceState.step, List.mem_append, List.mem_singleton] at hsv
+  rcases hsv with hsv | rfl
+  · exact h sv hsv
+  · refine ⟨?_, ?_, ?_⟩ <;> simp [batchScalar, SourceState.step] <;> omega
+
+theorem ModelFits.ofFold (rounds : List (E × E × E)) (s : State) (h : ModelFits s)
+    (hn : rounds.length ≤ s.n) : ModelFits (foldModel encode rounds s) := by
+  induction rounds generalizing s with
+  | nil => exact h
+  | cons x rounds ih =>
+    simp only [foldModel, List.foldl_cons] at ih ⊢
+    apply ih
+    · exact h.fold s (by simp at hn; omega) _ _
+    · simp only [foldScalar]; simp at hn; omega
+
+theorem ModelFits.ofOodFold (lam : Concrete.E)
+    (data : List (Array Concrete.E × Concrete.E × Protocol.Message Concrete.E))
+    (acc : State × Concrete.E) (h : ModelFits acc.1) (hz : ∀ d ∈ data, d.1.size = acc.1.n) (h64 : acc.1.n < 64) :
+    ModelFits (Query.oodFold lam data acc).1 ∧ (Query.oodFold lam data acc).1.n = acc.1.n := by
+  induction data generalizing acc with
+  | nil => exact ⟨h, rfl⟩
+  | cons d data ih =>
+    obtain ⟨st, b⟩ := acc
+    obtain ⟨z, y, m⟩ := d
+    simp only [Query.oodFold]
+    have hb := ModelFits.batch st h (Basis.ood z) (hz (z, y, m) (by simp)) h64 y (b * lam) m
+    obtain ⟨e1, e2⟩ := ih (batchScalar st (Basis.ood z) y (b * lam) m, b * lam) hb
+      (fun d hd => by simpa [batchScalar] using hz d (by simp [hd])) (by simpa [batchScalar] using h64)
+    exact ⟨e1, by rw [e2]; rfl⟩
+
+end ModelSteps
+
+/-! ## The terminal formula is the model's source terminal -/
+
+section Link
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+variable {V R K Q E : Type} (encode : E → Concrete.E) (index : Q → Nat)
+
+theorem sum_filter_zero {α : Type} (l : List α) (p : α → Bool) (f : α → Concrete.E)
+    (hz : ∀ x ∈ l, p x = true → f x = 0) :
+    (l.map f).sum = ((l.filter fun x => !p x).map f).sum := by
+  induction l with
+  | nil => rfl
+  | cons x l ih =>
+    have ih' := ih (fun y hy => hz y (by simp [hy]))
+    by_cases hp : p x = true
+    · simp [hp, hz x (by simp) hp, ih']
+    · simp [hp, ih']
+
+theorem levels_sum (levels : List (whir.verify.LevelCtx Q E)) (svs : List Saved)
+    (hrel : List.Forall₂ (Query.LevelMatch encode index) levels svs) (ris tail : List Concrete.E) :
+    (levels.map fun c => levelTerm encode index c ris tail).sum = (svs.map fun s => s.queryTerm ris tail).sum := by
+  induction hrel with
+  | nil => rfl
+  | @cons c sv cs svs' hm _ ih =>
+    simp only [List.map_cons, List.sum_cons, ih]
+    congr 1
+    obtain ⟨hstart, hbeta, lam, hbasis, hw⟩ := hm
+    have hws : (c.weights.val.map encode).toArray = Concrete.powers lam c.queries.val.length := by
+      rw [hw]
+    simp only [levelTerm, Saved.queryTerm, hbasis, Saved.sourcePoint, Basis.dimension, hstart, hbeta, hws,
+      List.size_toArray, List.length_map]
+
+theorem oods_sum (oods : List (whir.verify.OodCtx E)) (svs : List Saved)
+    (hrel : List.Forall₂ (Query.OodMatch encode) oods svs) (ris tail : List Concrete.E) :
+    (oods.map fun c => oodTerm encode c ris tail).sum = (svs.map fun s => s.oodTerm ris tail).sum := by
+  induction hrel with
+  | nil => rfl
+  | @cons c sv cs svs' hm _ ih =>
+    simp only [List.map_cons, List.sum_cons, ih]
+    congr 1
+    obtain ⟨hstart, hbasis, hbeta⟩ := hm
+    simp [oodTerm, Saved.oodTerm, hbasis, Saved.sourcePoint, Basis.dimension, hstart, hbeta]
+
+/-- The source's terminal value, over the source's two context lists, is the model's
+`sourceTerminal` over its interleaved saved contexts. -/
+theorem terminal_link (w : whir.verify.WhirReplay V R K Q E) (s : State) (hrel : Query.StateRel encode index w s)
+    (callerAt : Array Concrete.E → Concrete.E) (k : Nat) (yr tail : List E) :
+    terminalValue encode index callerAt k w.ris.val w.levels.val w.oods.val yr tail =
+      sourceTerminal (callerAt (rotatePoint k (s.source.ris ++ tail.map encode).toArray)) s.source.saved
+        s.source.ris (tail.map encode) (yr.map encode).toArray := by
+  have hq : (s.source.saved.map fun sv => sv.queryTerm s.source.ris (tail.map encode)).sum =
+      ((s.source.saved.filter fun sv => !Query.isOod sv).map fun sv =>
+        sv.queryTerm s.source.ris (tail.map encode)).sum :=
+    sum_filter_zero _ Query.isOod _ (fun sv _ h => by
+      cases hb : sv.basis with
+      | ood z => simp [Saved.queryTerm, hb]
+      | query n qs l => simp [Query.isOod, hb] at h)
+  have ho : (s.source.saved.map fun sv => sv.oodTerm s.source.ris (tail.map encode)).sum =
+      ((s.source.saved.filter fun sv => !!Query.isOod sv).map fun sv =>
+        sv.oodTerm s.source.ris (tail.map encode)).sum :=
+    sum_filter_zero _ (fun sv => !Query.isOod sv) _ (fun sv _ h => by
+      cases hb : sv.basis with
+      | ood z => simp [Query.isOod, hb] at h
+      | query n qs l => simp [Saved.oodTerm, hb])
+  simp only [Bool.not_not] at ho
+  rw [terminalValue, sourceTerminal, hq, ho, ← levels_sum encode index _ _ hrel.levels,
+    ← oods_sum encode _ _ hrel.oods, ← hrel.ris, List.map_append]
+
+end Link
+
 end WhirAeneas.Replay
