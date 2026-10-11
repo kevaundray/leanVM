@@ -1579,4 +1579,213 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
 
 end Last
 
+/-! ## The configuration -/
+
+/-- The source configuration is the model's: the lane fold then the level folds, the rates,
+query counts and out-of-domain counts per level, at most 32 grinding bits per level, a
+witness of fewer than 64 variables, and level folds below 62 (the source's guard on a
+row of three words per element). -/
+structure ConfigRel (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) : Prop where
+  logN : c.logN = log_n.val
+  folds : c.folds.toList = (config.initial_k :: config.level_ks.val).map (·.val)
+  rates : c.rates.toList = config.log_inv_rates.val.map (·.val)
+  queries : c.queries.toList = config.queries.val.map (·.val)
+  oods : c.oodCounts.toList = config.ood_samples.val.map (·.val)
+  grinding_len : config.grinding_bits.val.length = c.folds.size
+  grinding : ∀ g ∈ config.grinding_bits.val, g.val ≤ U32.max
+  log64 : log_n.val < 64
+  ks : ∀ k ∈ config.level_ks.val, k.val < 62
+
+theorem arr_get (a : Array Nat) (l : List Nat) (h : a.toList = l) (j : Nat) : a[j]! = l[j]! := by
+  cases a; simp_all
+
+theorem runChecked_last {S : Type} (f : Nat → S → Except String S) (n start : Nat) (s : S) :
+    Protocol.runChecked f (n + 1) start s = (Protocol.runChecked f n start s) >>= f (start + n) := by
+  induction n generalizing start s with
+  | zero =>
+    show (f start s >>= fun next => Protocol.runChecked f 0 (start + 1) next) = f start s
+    cases f start s <;> rfl
+  | succ n ih =>
+    rw [Protocol.runChecked, Protocol.runChecked]
+    cases hf : f start s with
+    | error e => rfl
+    | ok x =>
+      show Protocol.runChecked f (n + 1) (start + 1) x =
+        Protocol.runChecked f n (start + 1) x >>= f (start + (n + 1))
+      rw [ih, show start + 1 + n = start + (n + 1) by omega]
+
+theorem checked_add_some (x y : Usize) (h : x.val + y.val ≤ Usize.max) :
+    ∃ z, Usize.checked_add x y = some z ∧ z.val = x.val + y.val := by
+  have hs := Usize.checked_add_bv_spec x y
+  cases hc : Usize.checked_add x y with
+  | none => simp only [hc] at hs; omega
+  | some z => simp only [hc] at hs; exact ⟨z, rfl, hs.2.1⟩
+
+theorem checked_sub_some (x y : Usize) (h : y.val ≤ x.val) :
+    ∃ z, Usize.checked_sub x y = some z ∧ z.val = x.val - y.val := by
+  have hs := Usize.checked_sub_bv_spec x y
+  cases hc : Usize.checked_sub x y with
+  | none => simp only [hc] at hs; omega
+  | some z => simp only [hc] at hs; exact ⟨z, rfl, hs.2.1⟩
+
+section ConfigFacts
+variable {config : whir.config.Config} {c : Protocol.Config} {log_n : Usize} (hcfg : ConfigRel config c log_n)
+include hcfg
+
+theorem ConfigRel.folds_size : c.folds.size = config.level_ks.val.length + 1 := by
+  rw [← Array.length_toList, hcfg.folds]; simp
+
+theorem ConfigRel.fold0 : c.folds[0]! = config.initial_k.val := by
+  rw [arr_get _ _ hcfg.folds]; simp
+
+theorem ConfigRel.foldk (j : Nat) (hj : j < config.level_ks.val.length) :
+    c.folds[j + 1]! = (config.level_ks.val[j]).val := by
+  rw [arr_get _ _ hcfg.folds]; simp [getElem!_pos, hj]
+
+theorem ConfigRel.rate (j : Nat) (hj : j < config.log_inv_rates.val.length) :
+    c.rates[j]! = (config.log_inv_rates.val[j]).val := by
+  rw [arr_get _ _ hcfg.rates]; simp [getElem!_pos, hj]
+
+theorem ConfigRel.query (j : Nat) (hj : j < config.queries.val.length) :
+    c.queries[j]! = (config.queries.val[j]).val := by
+  rw [arr_get _ _ hcfg.queries]; simp [getElem!_pos, hj]
+
+theorem ConfigRel.ood (j : Nat) (hj : j < config.ood_samples.val.length) :
+    c.oodCounts[j]! = (config.ood_samples.val[j]).val := by
+  rw [arr_get _ _ hcfg.oods]; simp [getElem!_pos, hj]
+
+theorem ConfigRel.lengths (hv : c.valid = true) :
+    config.log_inv_rates.val.length = c.folds.size ∧ config.queries.val.length = c.folds.size ∧
+      config.ood_samples.val.length = c.folds.size := by
+  have h := WHIRNativeGuards.config_header c hv
+  have hr : c.rates.toList.length = _ := congrArg List.length hcfg.rates
+  have hq : c.queries.toList.length = _ := congrArg List.length hcfg.queries
+  have ho : c.oodCounts.toList.length = _ := congrArg List.length hcfg.oods
+  simp only [Array.length_toList, List.length_map] at hr hq ho
+  omega
+
+omit hcfg in
+theorem deref_length {α : Type} (v : alloc.vec.Vec α) : (alloc.vec.Vec.deref v).length = v.val.length := by
+  simp only [alloc.vec.Vec.deref, Slice.length, Slice.from_val]
+
+theorem ConfigRel.lengths' (hv : c.valid = true) :
+    config.grinding_bits.val.length = c.folds.size := hcfg.grinding_len
+
+theorem check_shape_loop (hv : c.valid = true) (bits : Usize) (hbits : bits.val = 64) :
+    ∀ (m : Nat) (level remaining : Usize), config.level_ks.val.length - level.val = m →
+      level.val ≤ config.level_ks.val.length → remaining.val = CausalGame.remaining c level.val →
+      whir.verify.check_config_shape_loop config bits remaining level (.Ok ()) = .ok (.Ok ()) := by
+  have hsz := hcfg.folds_size
+  obtain ⟨hrl, -, -⟩ := hcfg.lengths hv
+  intro m
+  induction m with
+  | zero =>
+    intro level remaining hm hl hr
+    unfold whir.verify.check_config_shape_loop
+    apply loop_done
+    have : ¬ (level < Slice.len (alloc.vec.Vec.deref config.level_ks)) := by
+      simp only [UScalar.lt_equiv, Slice.len_val, deref_length]; omega
+    simp only [whir.verify.check_config_shape_loop.body, whir.config.Config.impl.level_ks, Std.bind_ok, this,
+      ↓reduceIte]
+  | succ m ih =>
+    intro level remaining hm hl hr
+    have hlt : level.val < config.level_ks.val.length := by omega
+    have hcl := WHIRNativeGuards.config_level c hv (level.val + 1) (by omega)
+    obtain ⟨_, hkb, hrate, _, h64⟩ := hcl
+    have hk : c.folds[level.val + 1]! = (config.level_ks.val[level.val]).val := hcfg.foldk level.val hlt
+    have hk62 : (config.level_ks.val[level.val]).val < 62 := hcfg.ks _ (List.getElem_mem hlt)
+    have hbefore : WHIRNativeGuards.before c (level.val + 1) = CausalGame.remaining c level.val := rfl
+    have hstep := WHIRNativeGuards.before_step c (level.val + 1) (by omega)
+    have hrate' : c.rates[level.val + 1]! = (config.log_inv_rates.val[level.val + 1]).val :=
+      hcfg.rate (level.val + 1) (by omega)
+    obtain ⟨nxt, hsub, enxt⟩ := checked_sub_some remaining config.level_ks.val[level.val] (by omega)
+    have hsum : nxt.val + (config.log_inv_rates.val[level.val + 1]).val < 64 := by
+      rw [enxt, hr, ← hbefore, ← hk, hstep, ← hrate']; exact h64
+    obtain ⟨sm, hadd, esm⟩ := checked_add_some nxt config.log_inv_rates.val[level.val + 1] (by scalar_tac)
+    have hsucc := succ_val level config.level_ks.val.length hlt (by have := config.level_ks.property; scalar_tac)
+    have hi1 : (Std.Usize.wrapping_sub bits 2#usize).val = 62 := by rw [Fold.sub_val _ _ (by simp [hbits])]; simp [hbits]
+    have hrl1 : (Std.Usize.wrapping_add level 1#usize).val < config.log_inv_rates.val.length := by
+      rw [hsucc]; omega
+    have hbody : whir.verify.check_config_shape_loop.body config bits remaining level (.Ok ()) =
+        .ok (.cont (nxt, Std.Usize.wrapping_add level 1#usize, .Ok ())) := by
+      have hlt' : level < Slice.len (alloc.vec.Vec.deref config.level_ks) := by
+        simp only [UScalar.lt_equiv, Slice.len_val, deref_length]; exact hlt
+      have hge : ¬ (Std.Usize.wrapping_sub bits 2#usize ≤ config.level_ks.val[level.val]) := by
+        simp only [UScalar.le_equiv, hi1]; omega
+      have hcl1 : whir.verify.check_config_shape.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeBool.call_once
+          bits sm = .ok true := by
+        simp only [whir.verify.check_config_shape.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeBool.call_once]
+        have h0 : sm > 0#usize := by simp only [gt_iff_lt, UScalar.lt_equiv, esm]; simp; omega
+        have h1 : sm < bits := by simp only [UScalar.lt_equiv, esm, hbits]; omega
+        simp [h0, h1]
+      have hidx : Slice.index_usize (alloc.vec.Vec.deref config.level_ks) level = .ok config.level_ks.val[level.val] := by
+        rw [slice_index _ level (by simp only [alloc.vec.Vec.deref, Slice.from_val]; exact hlt)]
+        simp [alloc.vec.Vec.deref]
+      have hidx2 : Slice.index_usize (alloc.vec.Vec.deref config.log_inv_rates) (Std.Usize.wrapping_add level 1#usize) =
+          .ok config.log_inv_rates.val[(Std.Usize.wrapping_add level 1#usize).val] := by
+        rw [slice_index _ _ (by simp only [alloc.vec.Vec.deref, Slice.from_val]; exact hrl1)]
+        simp [alloc.vec.Vec.deref]
+      have hadd' : Usize.checked_add nxt config.log_inv_rates.val[(Std.Usize.wrapping_add level 1#usize).val] = some sm := by
+        simp only [hsucc]; exact hadd
+      simp only [whir.verify.check_config_shape_loop.body, whir.config.Config.impl.level_ks, Std.bind_ok, hlt',
+        ↓reduceIte, core.result.Result.is_ok, hidx, lift, ge_iff_le, hge, hsub,
+        whir.config.Config.impl.log_inv_rates, hidx2, hadd', core.option.Option.is_some_and,
+        whir.verify.check_config_shape.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeBool, hcl1]
+      simp
+    unfold whir.verify.check_config_shape_loop
+    rw [loop_cont hbody]
+    exact ih _ _ (by omega) (by omega) (by rw [hsucc, enxt, hr, ← hbefore, ← hk, hstep])
+
+omit hcfg in
+theorem bits_val (hw : System.Platform.numBits = 64) :
+    (UScalar.cast .Usize core.num.Usize.BITS : Usize).val = 64 := by
+  rw [UScalar.cast_val_eq]
+  have h1 : core.num.Usize.BITS.val = UScalarTy.Usize.numBits := by
+    simp [core.num.Usize.BITS]
+  rw [h1]
+  simp [hw]
+
+/-- `check_config_shape` accepts a valid model configuration whose witness has fewer than 64
+variables and whose level folds are below 62. -/
+theorem check_config_shape_ok (hw : System.Platform.numBits = 64) (hv : c.valid = true) :
+    whir.verify.check_config_shape config log_n = .ok (.Ok ()) := by
+  have hsz := hcfg.folds_size
+  obtain ⟨hrl, -, -⟩ := hcfg.lengths hv
+  have hb := bits_val hw
+  have h0 := WHIRNativeGuards.config_level c hv 0 (by omega)
+  obtain ⟨_, hk0, hr0, _, h64⟩ := h0
+  have hf0 := hcfg.fold0
+  have hlog := hcfg.logN
+  have hbefore0 : WHIRNativeGuards.before c 0 = c.logN := by simp [WHIRNativeGuards.before]
+  have hstep0 := WHIRNativeGuards.before_step c 0 (by omega)
+  have hrate0 : c.rates[0]! = (config.log_inv_rates.val[0]'(by omega)).val := hcfg.rate 0 (by omega)
+  have hrem : (Std.Usize.wrapping_sub log_n config.initial_k).val = CausalGame.remaining c 0 := by
+    rw [Fold.sub_val _ _ (by omega), ← hstep0, hbefore0, hf0, hlog]
+  obtain ⟨sm, hadd, esm⟩ := checked_add_some (Std.Usize.wrapping_sub log_n config.initial_k)
+    (config.log_inv_rates.val[0]'(by omega)) (by
+      have : (Std.Usize.wrapping_sub log_n config.initial_k).val + (config.log_inv_rates.val[0]'(by omega)).val < 64 := by
+        rw [hrem, ← hrate0]; exact h64
+      scalar_tac)
+  have hidx : Slice.index_usize (alloc.vec.Vec.deref config.log_inv_rates) 0#usize =
+      .ok (config.log_inv_rates.val[0]'(by omega)) := by
+    rw [slice_index _ _ (by simp only [alloc.vec.Vec.deref, Slice.from_val]; simp; omega)]
+    simp [alloc.vec.Vec.deref]
+  have hge : ¬ (UScalar.cast .Usize core.num.Usize.BITS ≤ log_n) := by
+    simp only [UScalar.le_equiv, hb]; have := hcfg.log64; omega
+  have hle : ¬ (log_n ≤ config.initial_k) := by
+    simp only [UScalar.le_equiv]; rw [← hf0, ← hlog, ← hbefore0]; omega
+  have hcl : whir.verify.check_config_shape.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeBool.call_once
+      (UScalar.cast .Usize core.num.Usize.BITS) sm = .ok true := by
+    simp only [whir.verify.check_config_shape.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeBool.call_once]
+    have : sm < UScalar.cast .Usize core.num.Usize.BITS := by
+      simp only [UScalar.lt_equiv, esm, hb, hrem]; rw [← hrate0]; omega
+    simp [this]
+  have hloop := check_shape_loop hcfg hv _ hb _ 0#usize (Std.Usize.wrapping_sub log_n config.initial_k) rfl
+    (by simp) (by simpa using hrem)
+  simp only [whir.verify.check_config_shape, lift, Std.bind_ok, whir.config.Config.impl.initial_k, ge_iff_le, hge,
+    ↓reduceIte, hle, whir.config.Config.impl.log_inv_rates, hidx, hadd, core.option.Option.is_some_and,
+    whir.verify.check_config_shape.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeBool, hcl, hloop]
+
+end ConfigFacts
+
 end WhirAeneas.Replay
