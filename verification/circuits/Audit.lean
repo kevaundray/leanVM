@@ -299,7 +299,36 @@ run_cmd do
     ``LeanVMCircuits.Rec.step_fits,
     ``LeanVMCircuits.Rec.run_fits,
     ``LeanVMCircuits.Rec.tweak_injective,
-    ``LeanVMCircuits.Rec.tag_ne_tweak] do
+    ``LeanVMCircuits.Rec.tag_ne_tweak,
+    ``LeanVMCircuits.Alu.circuit,
+    ``LeanVMCircuits.Alu.spec_raw,
+    ``LeanVMCircuits.Alu.afterArithmetic_reference,
+    ``LeanVMCircuits.Flock.Alu.supported,
+    ``LeanVMCircuits.Flock.Alu.source_eq,
+    ``LeanVMCircuits.Flock.Alu.soundness,
+    ``LeanVMCircuits.Flock.Alu.soundness_reference,
+    ``LeanVMCircuits.Flock.Alu.layout,
+    ``LeanVMCircuits.Flock.Alu.output_products_layout,
+    ``LeanVMCircuits.Flock.Alu.wellFormed,
+    ``LeanVMCircuits.Flock.Alu.complete,
+    ``LeanVMCircuits.Bus.Flushes.balanced_iff,
+    ``LeanVMCircuits.Bus.product_eq_iff,
+    ``LeanVMCircuits.Bus.balanced_iff_product_eq,
+    ``LeanVMCircuits.Bus.producer_leaves_eq,
+    ``LeanVMCircuits.Bus.balanced_of_product_check,
+    ``LeanVMCircuits.Bus.LookupArray.lookup_correct,
+    ``LeanVMCircuits.Bus.LookupArray.lookup_correct_of_product_check,
+    ``LeanVMCircuits.Bus.LookupArray.read_addr_in_range,
+    ``LeanVMCircuits.Bus.bytecode_reads_correct,
+    ``LeanVMCircuits.Bus.exists_walk,
+    ``LeanVMCircuits.Bus.exists_closedWalks,
+    ``LeanVMCircuits.Bus.state_walk,
+    ``LeanVMCircuits.Bus.memory_consistent,
+    ``LeanVMCircuits.Bus.ofWord_add_slot,
+    ``LeanVMCircuits.Bus.memory_consistent_of_state_walk,
+    ``LeanVMCircuits.Bus.memory_consistent_shared,
+    ``LeanVMCircuits.Bus.machine_correct,
+    ``LeanVMCircuits.Bus.machine_correct_of_product_check] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
@@ -323,3 +352,34 @@ run_cmd do
 #print axioms LeanVMCircuits.Flock.Store.layout
 #print axioms LeanVMCircuits.Flock.Store.wellFormed
 #print axioms LeanVMCircuits.Flock.Store.complete
+
+#print axioms LeanVMCircuits.Alu.circuit
+#print axioms LeanVMCircuits.Alu.spec_raw
+#print axioms LeanVMCircuits.Alu.afterArithmetic_reference
+#print axioms LeanVMCircuits.Flock.Alu.supported
+#print axioms LeanVMCircuits.Flock.Alu.source_eq
+#print axioms LeanVMCircuits.Flock.Alu.soundness
+#print axioms LeanVMCircuits.Flock.Alu.soundness_reference
+#print axioms LeanVMCircuits.Flock.Alu.layout
+#print axioms LeanVMCircuits.Flock.Alu.output_products_layout
+#print axioms LeanVMCircuits.Flock.Alu.wellFormed
+#print axioms LeanVMCircuits.Flock.Alu.complete
+
+#print axioms LeanVMCircuits.Bus.Flushes.balanced_iff
+#print axioms LeanVMCircuits.Bus.product_eq_iff
+#print axioms LeanVMCircuits.Bus.balanced_iff_product_eq
+#print axioms LeanVMCircuits.Bus.producer_leaves_eq
+#print axioms LeanVMCircuits.Bus.balanced_of_product_check
+#print axioms LeanVMCircuits.Bus.LookupArray.lookup_correct
+#print axioms LeanVMCircuits.Bus.LookupArray.lookup_correct_of_product_check
+#print axioms LeanVMCircuits.Bus.LookupArray.read_addr_in_range
+#print axioms LeanVMCircuits.Bus.bytecode_reads_correct
+#print axioms LeanVMCircuits.Bus.exists_walk
+#print axioms LeanVMCircuits.Bus.exists_closedWalks
+#print axioms LeanVMCircuits.Bus.state_walk
+#print axioms LeanVMCircuits.Bus.memory_consistent
+#print axioms LeanVMCircuits.Bus.ofWord_add_slot
+#print axioms LeanVMCircuits.Bus.memory_consistent_of_state_walk
+#print axioms LeanVMCircuits.Bus.memory_consistent_shared
+#print axioms LeanVMCircuits.Bus.machine_correct
+#print axioms LeanVMCircuits.Bus.machine_correct_of_product_check

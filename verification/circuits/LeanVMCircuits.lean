@@ -14,3 +14,7 @@ public import LeanVMCircuits.Rec.Bus
 public import LeanVMCircuits.Rec.ExtField
 public import LeanVMCircuits.Rec.Builder
 public import LeanVMCircuits.Rec.Contracts
+public import LeanVMCircuits.AluExport
+public import LeanVMCircuits.Bus.Lookup
+public import LeanVMCircuits.Bus.Memory
+public import LeanVMCircuits.Bus.Machine
