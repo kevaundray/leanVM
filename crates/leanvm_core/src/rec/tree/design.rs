@@ -32,7 +32,7 @@ use primitives::field::F192;
 use primitives::multilinear::mle_eval_par;
 
 /// The protocol half of every recursion proof's session tag.
-const DOMAIN: &[u8] = b"leanvm-tree-12";
+const DOMAIN: &[u8] = b"leanvm-tree-13";
 
 /// What one of a tree's circuits verifies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
