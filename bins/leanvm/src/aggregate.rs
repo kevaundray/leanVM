@@ -440,10 +440,11 @@ pub fn run_signers(
         };
         print_circuit(&name, &stats);
         print_proof_size(*bytes);
+        let n = time.samples().len();
         println!(
-            "  proving                     : {}, {} proofs",
+            "  proving                     : {}, {n} proof{}",
             secs(time),
-            time.samples().len()
+            if n == 1 { "" } else { "s" }
         );
     }
     println!("whole tree");
