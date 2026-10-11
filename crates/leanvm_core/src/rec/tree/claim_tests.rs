@@ -562,10 +562,11 @@ fn a_tiered_first_level_and_union_stay_within_their_capacities() {
         .tree
         .aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &four)], None))
     .expect("a set within the small tier");
-    // Alone, it is too large to be taken twice by the small tier: the large node takes it once, the rest absent.
-    let lone = (t.tree.aggregate(&[&first], None)).expect("a lone child");
+    // A lone child whose set is past the small tier's (a large proof, wrapped) cannot be taken twice by a small node:
+    // the large node takes it once, the rest of its places absent.
+    let lone = (t.tree.aggregate(&[&t.pair], None)).expect("a lone child");
     assert!(t.tree.is_large(&lone.proof));
-    assert_eq!(lone.claims, union(&[&four]));
+    assert_eq!(lone.claims, t.pair.claims);
     (t.tree)
         .verify_claims(&lone.proof, &lone.claims)
         .expect("a large root of one child");
@@ -856,5 +857,37 @@ fn a_fake_large_circuit_under_a_wrap_is_refused_at_the_root() {
     assert_eq!(
         t.tree.verify_claims(&root, &forged_set),
         Err(TreeError::Claim(FalseClaim::Dense(DensePoly::Wide)))
+    );
+}
+
+/// The sections of a statement, in order.
+pub(super) const SECTIONS: [Section; 7] = [
+    Section::Kind,
+    Section::Digest,
+    Section::DensePoint,
+    Section::DenseValues,
+    Section::Rows,
+    Section::Cols,
+    Section::Matrices,
+];
+
+// A claim-set tree of one tier is as protocol version `leanvm-tree-12` built it, before the tiers: the same heights,
+// statement layout and session tag but for the version.
+#[test]
+fn a_claim_set_tree_of_one_tier_is_unchanged_from_tree_12() {
+    let d = &fixture().tree.design;
+    assert_eq!(d.tiers.len(), 1);
+    assert_eq!(d.tiers[SMALL].taus.into_values(), [17, 17, 15, 11, 14, 10]);
+    assert_eq!(d.statement.len(), 99);
+    assert_eq!(
+        SECTIONS.map(|s| d.statement.range(s)),
+        [0..1, 1..3, 3..26, 26..29, 29..43, 43..57, 57..99]
+    );
+    assert_eq!(
+        d.session_with(b"leanvm-tree-12").0,
+        [
+            63, 98, 217, 38, 13, 142, 156, 140, 68, 244, 21, 118, 140, 239, 62, 3, 236, 119, 216, 49, 83, 51, 42, 33,
+            6, 32, 202, 209, 96, 204, 87, 245
+        ]
     );
 }
