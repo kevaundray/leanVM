@@ -68,20 +68,16 @@ case "$surface" in
         cargo_args=(--lib --tests --release)
         ;;
     merkle)
-        dest="$here/failures/merkle"
-        generated="$dest/generated"
+        dest="$here/llbc/merkle"
+        generated="$here"
         args=(--start-from pcs::merkle::PrunedMerklePaths::open --start-from pcs::merkle::PrunedMerklePaths::from_hint
               --include primitives
               --opaque pcs::merkle::hash_pairs
-              --opaque 'pcs::merkle::_::hash'
-              --opaque primitives::hash::compress
-              --opaque primitives::hash::hash
-              --opaque primitives::hash::hash_many
-              --opaque primitives::hash::hash_many_dyn_from_state
-              --opaque primitives::hash::hash_from_state
-              --opaque primitives::hash::zero_prefix_state)
+              --opaque pcs::merkle::hash_rows
+              --opaque pcs::merkle::sorted_unique)
         cargo_args=(--lib --release)
-        aeneas_args+=(-split-files -all-computable)
+        aeneas_args=(-backend lean -namespace MerkleSource -no-progress-bar
+                     -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Merkle)
         ;;
     portable)
         crate="$root/crates/primitives"
