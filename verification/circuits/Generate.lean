@@ -160,5 +160,5 @@ def main (args : List String) : IO Unit := do
   | .ok code =>
     IO.FS.writeFile destination code
     let format ← IO.Process.output {
-      cmd := "rustfmt", args := #["--config-path", "../../rustfmt.toml", destination] }
+      cmd := "rustfmt", args := #["--edition", "2024", "--config-path", "../../rustfmt.toml", destination] }
     if format.exitCode != 0 then throw (IO.userError format.stderr)
