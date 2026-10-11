@@ -81,6 +81,7 @@ pub fn run(
         arity_0,
         arity,
         rate,
+        claims: None,
     };
     shape.root_kind(leaves).unwrap_or_else(|e| refuse(format_args!("{e}")));
 
