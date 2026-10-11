@@ -1,9 +1,10 @@
 //! The recursion machine's tables: their slots, the columns each slot's limbs are made of, and their identities.
 //!
 //! The hash table's first columns are ports of its rows' packed BLAKE2s witnesses, which flock proves.
+//! The step and link tables also push and pull dynamic tuples, keyed by their data.
 //! The public table commits nothing: its blocks are the framework's.
 
-use super::circuit::{Assignment, WireKind};
+use super::circuit::{Assignment, Limbs, WireKind};
 use super::clean;
 use crate::class_flock::{self, FlockId};
 use crate::leaf::{BusForm, Coord};
@@ -25,6 +26,10 @@ pub enum Table {
     Split,
     /// Four words seen as a digest, an `E` element, two 128-bit halves and four `K` words.
     Cast,
+    /// One step of a hash chain: pulls its input at its position's key and pushes its output at the next position's.
+    Step,
+    /// One hash chain: pushes its start at the position its digit names and pulls its end at position 7.
+    Link,
     /// A value the verifier knows: a constant of the circuit or a word of the statement.
     Pub,
 }
@@ -36,11 +41,15 @@ pub type PerRecTable<T> = PerTable<T, Table, { Table::COUNT }>;
 #[derive(Clone, Debug)]
 pub(crate) struct SlotForm(pub(crate) [Coord; 4]);
 
-/// Where a committed column's value is found: limb `limb` of slot `slot`.
+/// Where a committed column's value is found.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct LimbOf {
-    slot: usize,
-    limb: usize,
+enum ColumnSource {
+    /// Limb `limb` of slot `slot`.
+    Limb { slot: usize, limb: usize },
+    /// Bit `k` of a step row's position and chain, bit `32 + k` of its tweak word.
+    TweakBit(usize),
+    /// A step row's carry `s0·s1`.
+    Carry,
 }
 
 /// The packed BLAKE2s witness behind the hash table, which flock proves.
@@ -60,15 +69,38 @@ const HASH_KINDS: [WireKind; 16] = [D, D, D, K, E, K, D, E, K, K, K, K, K, K, K,
 /// A cast row's slots: the digest, the element of its first three words, its two halves, its four words.
 const CAST_KINDS: [WireKind; 8] = [D, E, E, E, K, K, K, K];
 
+/// A step row's slots: its tweak word, its two input words, its output's first three words, its tag, its bit `a`.
+const STEP_KINDS: [WireKind; 6] = [K, K, K, E, K, K];
+
 impl Table {
     /// How many tables there are.
-    pub const COUNT: usize = 6;
+    pub const COUNT: usize = 8;
 
     /// Every table, in protocol order.
-    pub const ALL: [Self; Self::COUNT] = [Self::Emul, Self::Exk, Self::Hash, Self::Split, Self::Cast, Self::Pub];
+    pub const ALL: [Self; Self::COUNT] = [
+        Self::Emul,
+        Self::Exk,
+        Self::Hash,
+        Self::Split,
+        Self::Cast,
+        Self::Step,
+        Self::Link,
+        Self::Pub,
+    ];
 
     /// The tables owning columns: every table but the public one, which comes last.
-    pub(crate) const OWNED: [Self; Self::COUNT - 1] = [Self::Emul, Self::Exk, Self::Hash, Self::Split, Self::Cast];
+    pub(crate) const OWNED: [Self; Self::COUNT - 1] = [
+        Self::Emul,
+        Self::Exk,
+        Self::Hash,
+        Self::Split,
+        Self::Cast,
+        Self::Step,
+        Self::Link,
+    ];
+
+    /// The tables with dynamic tuples, each with an activity column: one on the circuit's rows, zero on padding.
+    pub(crate) const DYNAMIC: [Self; 2] = [Self::Step, Self::Link];
 
     /// Its name, as the documentation writes it.
     pub const fn name(self) -> &'static str {
@@ -78,6 +110,8 @@ impl Table {
             Self::Hash => "HASH",
             Self::Split => "SPLIT",
             Self::Cast => "CAST",
+            Self::Step => "STEP",
+            Self::Link => "LINK",
             Self::Pub => "PUB",
         }
     }
@@ -92,6 +126,8 @@ impl Table {
             Self::Hash => &HASH_KINDS,
             Self::Split => &[K; 65],
             Self::Cast => &CAST_KINDS,
+            Self::Step => &STEP_KINDS,
+            Self::Link => &[K; 9],
             Self::Pub => &[D],
         }
     }
@@ -120,6 +156,8 @@ impl Table {
             Self::Hash => HashFlock::N_PORTS + 1,
             Self::Split => 65,
             Self::Cast => 4,
+            Self::Step => 17,
+            Self::Link => 9,
             Self::Pub => 0,
         }
     }
@@ -149,9 +187,20 @@ impl Table {
             Self::Hash => clean::hash(s),
             Self::Split => clean::split(s),
             Self::Cast => clean::cast(s),
+            Self::Step => clean::step(s),
+            Self::Link => clean::link(s),
             Self::Pub => None,
         };
         SlotForm(limbs.unwrap_or_else(|| unreachable!("{self:?} has no slot {s}")))
+    }
+
+    /// Its dynamic tuples, push then pull, each a key and two words over its local columns, if it has any.
+    pub(crate) fn dynamic(self) -> Option<[[Coord; 3]; 2]> {
+        match self {
+            Self::Step => Some([clean::step_push(), clean::step_pull()]),
+            Self::Link => Some([clean::link_push(), clean::link_pull()]),
+            _ => None,
+        }
     }
 
     /// The identities its rows satisfy, each a degree-two form over its local columns that vanishes.
@@ -173,18 +222,26 @@ impl Table {
             Self::Hash => clean::HASH_IDENTITIES.iter().map(form).collect(),
             // A word is its bits, each Boolean.
             Self::Split => clean::SPLIT_IDENTITIES.iter().map(form).collect(),
+            // A step's bits are Boolean and its carry their product; a step's and a link's `a` is Boolean.
+            Self::Step => clean::STEP_IDENTITIES.iter().map(form).collect(),
+            Self::Link => clean::LINK_IDENTITIES.iter().map(form).collect(),
             _ => Vec::new(),
         }
     }
 
-    /// Each committed column, those past its ports, as the first slot limb that is that column alone.
-    fn committed_sources(self) -> Vec<LimbOf> {
+    /// Each committed column, those past its ports: the first slot limb that is that column alone, else a step row's
+    /// bits and carry, which its tweak word's slot gives.
+    fn committed_sources(self) -> Vec<ColumnSource> {
         let forms: Vec<SlotForm> = (0..self.n_slots()).map(|s| self.slot(s)).collect();
         (self.n_ports()..self.n_cols())
-            .map(|c| {
-                (forms.iter().enumerate())
-                    .find_map(|(slot, form)| form.limb_of(c).map(|limb| LimbOf { slot, limb }))
-                    .expect("every committed column is a slot's limb")
+            .map(|c| match (self, c) {
+                (Self::Step, c) if (clean::STEP_BITS..clean::STEP_CARRY).contains(&c) => {
+                    ColumnSource::TweakBit(c - clean::STEP_BITS)
+                }
+                (Self::Step, clean::STEP_CARRY) => ColumnSource::Carry,
+                _ => (forms.iter().enumerate())
+                    .find_map(|(slot, form)| form.limb_of(c).map(|limb| ColumnSource::Limb { slot, limb }))
+                    .expect("every committed column is a slot's limb"),
             })
             .collect()
     }
@@ -197,10 +254,47 @@ impl Table {
         for (c, source) in self.committed_sources().into_iter().enumerate() {
             let column = &mut windows[self.n_ports() + c];
             for (z, cell) in column[..height].iter_mut().enumerate() {
-                *cell = F64(a.value(self, z, source.slot)[source.limb]);
+                *cell = F64(source.value(|s| a.value(self, z, s)));
             }
             column[height..].fill(F64::ZERO);
         }
+    }
+
+    /// The dynamic tuples, push then pull, each `(key, x0, x1)`, of a row whose slots carry the given values.
+    ///
+    /// The row's columns are the prover's, filled from those values.
+    pub(crate) fn row_dynamic(self, slot: impl Fn(usize) -> Limbs) -> Option<[[F64; 3]; 2]> {
+        debug_assert_eq!(self.n_ports(), 0, "a dynamic tuple reads committed columns only");
+        let tuples = self.dynamic()?;
+        let cols: Vec<F64> = (self.committed_sources().into_iter())
+            .map(|source| F64(source.value(&slot)))
+            .collect();
+        Some(tuples.map(|tuple| tuple.map(|c| eval_local(&c, &cols))))
+    }
+}
+
+impl ColumnSource {
+    /// The column's value on a row whose slots carry the given values.
+    fn value(self, slot: impl Fn(usize) -> Limbs) -> u64 {
+        let tweak_bit = |k: usize| (slot(clean::STEP_T)[0] >> (32 + k)) & 1;
+        match self {
+            Self::Limb { slot: s, limb } => slot(s)[limb],
+            Self::TweakBit(k) => tweak_bit(k),
+            Self::Carry => tweak_bit(0) & tweak_bit(1),
+        }
+    }
+}
+
+/// A degree-two form over a row's local columns, at the row's values.
+pub(crate) fn eval_local(c: &Coord, cols: &[F64]) -> F64 {
+    match c {
+        Coord::Const(v) => *v,
+        Coord::Col(i) => cols[*i],
+        Coord::Prod(i, j) => cols[*i] * cols[*j],
+        Coord::Scaled(v, i) => *v * cols[*i],
+        Coord::ScaledProd(v, i, j) => *v * cols[*i] * cols[*j],
+        Coord::Sum(cs) => cs.iter().fold(F64::ZERO, |acc, c| acc + eval_local(c, cols)),
+        _ => unreachable!("a local form reads no public column"),
     }
 }
 
@@ -253,18 +347,49 @@ mod tests {
     use crate::tables::{ClassSpec, Word};
     use proptest::prelude::*;
 
-    fn eval(c: &Coord, cols: &[F64]) -> F64 {
-        match c {
-            Coord::Const(v) => *v,
-            Coord::Col(i) => cols[*i],
-            Coord::Prod(i, j) => cols[*i] * cols[*j],
-            Coord::Sum(cs) => cs.iter().fold(F64::ZERO, |acc, c| acc + eval(c, cols)),
-            _ => unreachable!("a slot's limbs are formable"),
-        }
+    fn out(t: Table, cols: &[F64]) -> [u64; 4] {
+        t.slot(3).0.map(|c| eval_local(&c, cols).0)
     }
 
-    fn out(t: Table, cols: &[F64]) -> [u64; 4] {
-        t.slot(3).0.map(|c| eval(&c, cols).0)
+    // A step row at position `s` of chain `c` pulls at `X^63 + T + j` and, with `a = 1`, pushes at position `s + 1`
+    // of the same chain (`s = 7` wraps to 0); its tweak slot is `T`. A link row pushes its tip at position `d` and
+    // pulls its end at position 7.
+    #[test]
+    fn step_and_link_keys_are_chain_positions() {
+        let tweak = |c: u64, s: u64| 0x100 | (8 * c + s) << 32;
+        let j = 0x5a5 << 41;
+        for c in 0..64 {
+            for s in 0..8 {
+                for a in 0..2 {
+                    let t = tweak(c, s);
+                    let values = [[t, 0, 0, 0], [11, 0, 0, 0], [12, 0, 0, 0], [13, 14, 15, 0], [j, 0, 0, 0], [a, 0, 0, 0]];
+                    let [push, pull] = Table::Step.row_dynamic(|slot| values[slot]).unwrap();
+                    let next = if a == 1 { tweak(c, (s + 1) % 8) } else { t };
+                    assert_eq!(pull.map(|x| x.0), [1 << 63 | t | j, 11, 12], "c {c} s {s} a {a}");
+                    assert_eq!(push.map(|x| x.0), [1 << 63 | next | j, 13, 14], "c {c} s {s} a {a}");
+                    let cols: Vec<F64> = (Table::Step.committed_sources().into_iter())
+                        .map(|source| F64(source.value(|slot| values[slot])))
+                        .collect();
+                    assert_eq!(eval_local(&Table::Step.slot(clean::STEP_T).0[0], &cols).0, t);
+                }
+            }
+        }
+        let w = tweak(5, 0) | j;
+        for d in 0..8 {
+            let mut values = [[0; 4]; 9];
+            values[clean::LINK_W][0] = w;
+            for k in 0..3 {
+                values[clean::LINK_D + k][0] = d >> k & 1;
+            }
+            values[clean::LINK_T] = [21, 0, 0, 0];
+            values[clean::LINK_T + 1] = [22, 0, 0, 0];
+            values[clean::LINK_E] = [23, 0, 0, 0];
+            values[clean::LINK_E + 1] = [24, 0, 0, 0];
+            values[clean::LINK_A][0] = 1;
+            let [push, pull] = Table::Link.row_dynamic(|slot| values[slot]).unwrap();
+            assert_eq!(push.map(|x| x.0), [1 << 63 | w | d << 32, 21, 22]);
+            assert_eq!(pull.map(|x| x.0), [1 << 63 | w | 7 << 32, 23, 24]);
+        }
     }
 
     proptest! {

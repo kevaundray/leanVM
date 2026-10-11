@@ -99,11 +99,12 @@ impl Builder {
                     u8::from(last)
                 )
             },
-            self.leaf_block_rows(h, m, t, last)
+            self.leaf_block_rows(h, m, t, last).0
         )
     }
 
-    fn leaf_block_rows(&mut self, h: Dw, m: [Kw; 8], t: u64, last: bool) -> Dw {
+    /// A leaf block's row: its output and the output's first three words.
+    pub(super) fn leaf_block_rows(&mut self, h: Dw, m: [Kw; 8], t: u64, last: bool) -> (Dw, Ew) {
         let compression = Compression::new(self.d(h), m.map(|w| self.k(w)), t, last);
         let v = &compression.inputs()[6..];
         let head = HashHead {
@@ -114,7 +115,7 @@ impl Builder {
             x: self.free_e(F192::new(v[4], v[5], v[6])),
             ds: self.free_k(v[7]),
         };
-        self.hash_row(head, m.map(|w| w.0), compression).0
+        self.hash_row(head, m.map(|w| w.0), compression)
     }
 
     /// The hash of `words` in rows, as the native chain computes it.

@@ -1,7 +1,12 @@
-//! The recursion machine: a circuit of rows over six tables, wired by copy cycles, and its proof (Annex E).
+//! The recursion machine: a circuit of rows over eight tables, wired by copy cycles and dynamic tuples, and its proof
+//! (Annex E).
 
 mod bus;
 pub mod circuit;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the STEP and LINK slot indices serve the chain builder, which no circuit uses yet")
+)]
 mod clean;
 mod error;
 mod fixed;

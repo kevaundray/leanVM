@@ -7,6 +7,12 @@
 //!
 //! The slots of a class, in table, row and slot order, form one cycle.
 //! A padding row's `next` is its own key, which cancels whatever it carries.
+//!
+//! A step or link row also pushes and pulls one dynamic tuple `(key, x0, x1, act, 0)`, keyed by its data:
+//!
+//! - `act` is its table's activity column, one on the circuit's rows and zero on padding rows, so a padding row's
+//!   tuples, equal when its columns are zero, meet no real row's;
+//! - every dynamic key has bit 63 set, which no slot key has.
 
 use super::fixed::{FixedColumn, FixedColumns};
 use super::layout::RecLayout;
@@ -23,7 +29,8 @@ use primitives::field::{F64, F192};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SlotKey(u64);
 
-/// The bus's push and pull blocks: the public table's pair, which no table owns, then one pair per owned slot.
+/// The bus's push and pull blocks: the public table's pair, which no table owns, then per owned table one pair per
+/// slot and its dynamic pair, if it has one.
 #[derive(Clone, Debug)]
 pub(crate) struct BusBlocks {
     push: Vec<Block>,
@@ -87,6 +94,16 @@ impl BusBlocks {
             for s in 0..table.n_slots() {
                 let limbs = table.slot(s).offset(base).into();
                 blocks.add_pair(table, s, layout.tau(table), next(table, s), limbs);
+            }
+            if let Some(tuples) = table.dynamic() {
+                let active = fixed.public(FixedColumn::Active(table));
+                let [push, pull] = tuples.map(|tuple| {
+                    let coords = tuple.map(|c| c.offset(base)).into_iter();
+                    let coords = coords.chain([Coord::Public(active.clone()), Coord::Const(F64::ZERO)]).collect();
+                    Block::table(table as usize, layout.tau(table), coords)
+                });
+                blocks.push.push(push);
+                blocks.pull.push(pull);
             }
         }
         blocks

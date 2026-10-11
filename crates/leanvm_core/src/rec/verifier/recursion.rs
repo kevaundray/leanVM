@@ -140,7 +140,7 @@ impl FixedHints<'_> {
             value,
         });
         match column {
-            FixedColumn::Next(_) => value,
+            FixedColumn::Next(_) | FixedColumn::Active(_) => value,
             FixedColumn::Constant(j) => {
                 let statement = self.statement_at(b, j, point);
                 b.add(value, statement)

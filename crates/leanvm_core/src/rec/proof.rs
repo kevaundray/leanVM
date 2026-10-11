@@ -356,7 +356,9 @@ mod tests {
     use crate::constraints::ConstraintError;
     use crate::leaf::BusError;
     use crate::pcs::{self, Rate};
+    use crate::rec::circuit::chains::{Planned, plan, step, tweak};
     use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, PARAM_IV};
+    use crate::rec::fixed::FixedColumn;
     use fiat_shamir::arith::Arith;
     use std::panic::AssertUnwindSafe;
 
@@ -437,6 +439,7 @@ mod tests {
         b.expose_e(r);
         b.expose_d(leaf);
         b.expose_k(low);
+        b.emit_chains(&plan(&[5]));
         let Finished {
             circuit,
             assignment: a,
@@ -617,6 +620,7 @@ mod tests {
                 b.leaf_block(acc, m, 64 * (i + 1), i % 4 == 3)
             };
         }
+        b.emit_chains(&plan(&[4, 7, 5]));
         b.expose_d(acc);
         let Finished {
             circuit,
@@ -625,10 +629,129 @@ mod tests {
         } = b.finish();
         assert!(failures.is_empty(), "{failures:?}");
         let counts = circuit.row_counts();
-        assert_eq!(counts[Table::Hash], 61);
+        assert_eq!(counts[Table::Hash], 66);
         assert!(counts.values().all(|&n| n > 1 && !n.is_power_of_two()), "{counts:?}");
         let proof = prove_run(&circuit, &a);
         assert_eq!(verify_run(&circuit, &a.statement, &proof), Ok(()));
+    }
+
+    fn chains(rows: &[Planned]) -> Finished {
+        let mut b = Builder::new();
+        b.emit_chains(rows);
+        b.finish()
+    }
+
+    // Chains of every digit's kind, one of no step and one of seven, prove and verify.
+    #[test]
+    fn chains_on_the_dynamic_bus_prove_and_verify() {
+        let Finished {
+            circuit,
+            assignment: a,
+            failures,
+        } = chains(&plan(&[0, 3, 7, 6]));
+        assert!(failures.is_empty(), "{failures:?}");
+        let counts = circuit.row_counts();
+        assert_eq!((counts[Table::Step], counts[Table::Link]), (12, 4));
+        let proof = prove_run(&circuit, &a);
+        assert_eq!(verify_run(&circuit, &a.statement, &proof), Ok(()));
+    }
+
+    // Rows whose dynamic tuples do not balance: the builder reports it, and the prover cannot prove the bus.
+    fn assert_refused(rows: &[Planned], what: &str) {
+        let Finished {
+            circuit,
+            assignment: a,
+            failures,
+        } = chains(rows);
+        assert!(
+            failures.iter().any(|f| f.check() == "the dynamic tuples balance"),
+            "{what}: {failures:?}"
+        );
+        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| prove_run(&circuit, &a)))
+            .expect_err(&format!("{what} was proven"));
+        let message = refused.downcast_ref::<String>().map_or("", String::as_str);
+        assert!(message.contains("the bus needs the two products to agree"), "{what}: {message}");
+    }
+
+    // Row `i`'s input, a step's.
+    fn input(rows: &mut [Planned], i: usize) -> &mut [u64; 2] {
+        match &mut rows[i] {
+            Planned::Step { v, .. } => v,
+            Planned::Link { .. } => unreachable!("row {i} is a step"),
+        }
+    }
+
+    #[test]
+    fn tampered_chains_are_refused() {
+        // Chain 0 steps from position 2 (rows 0 to 4, link 5), chain 1 from position 5 (rows 6 and 7, link 8).
+        let honest = plan(&[2, 5]);
+
+        // The tuples are a multiset: the rows' order is free.
+        let mut rows = honest.clone();
+        rows.swap(2, 7);
+        assert!(chains(&rows).failures.is_empty());
+
+        let mut rows = honest.clone();
+        input(&mut rows, 2)[1] ^= 1;
+        assert_refused(&rows, "a step with a wrong input");
+
+        let mut rows = honest.clone();
+        let (v1, v2) = (*input(&mut rows, 1), *input(&mut rows, 2));
+        *input(&mut rows, 1) = v2;
+        *input(&mut rows, 2) = v1;
+        assert_refused(&rows, "two steps' inputs swapped");
+
+        let mut rows = honest.clone();
+        rows.remove(3);
+        assert_refused(&rows, "a missing step");
+
+        let mut rows = honest.clone();
+        let Planned::Link { end, .. } = &mut rows[8] else {
+            unreachable!("row 8 is chain 1's link")
+        };
+        end[0] ^= 1;
+        assert_refused(&rows, "a link's end not the chain's");
+
+        // Eight steps of chain 50, past the 42 a signature has, from position 0 round to position 0: the last
+        // pushes at the first's key, and only an output equal to the first input would close the cycle.
+        let mut rows = honest;
+        let mut v = [5, 6];
+        for s in 0..8 {
+            rows.push(Planned::Step { tweak: tweak(50, s), v });
+            v = step(tweak(50, s), v);
+        }
+        assert_refused(&rows, "a cycle of steps past the chains");
+    }
+
+    // A circuit whose last step is a padding row, the witness filling it with that step: an honest prover cannot
+    // balance the bus, the padding row's tuples being inactive, and a proof that sets the row active is refused.
+    #[test]
+    fn a_padding_row_carrying_a_tuple_is_refused() {
+        let Finished {
+            circuit,
+            assignment: a,
+            failures,
+        } = chains(&plan(&[3]));
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(circuit.row_counts()[Table::Step], 4);
+        let mut short = circuit.clone();
+        short.classes.pop_row(Table::Step);
+        let taus = circuit.heights();
+        assert_eq!(short.heights(), taus);
+        let fixed = FixedColumns::of(&short, &taus);
+        let refused = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            circuit.prove_with(&a, IV, Rate::MIN, Some(&fixed))
+        }))
+        .expect_err("an inactive tuple balanced an active one");
+        let message = refused.downcast_ref::<String>().map_or("", String::as_str);
+        assert!(message.contains("the bus needs the two products to agree"), "{message}");
+
+        let mut active = fixed;
+        active.set(FixedColumn::Active(Table::Step), 3, F64::ONE);
+        let proof = circuit
+            .prove_with(&a, IV, Rate::MIN, Some(&active))
+            .expect("the circuit fits one commitment");
+        assert!(verify_run(&short, &a.statement, &proof).is_err());
     }
 
     #[test]
