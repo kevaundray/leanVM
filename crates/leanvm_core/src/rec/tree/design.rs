@@ -8,9 +8,10 @@
 //! rows, its kind's bits selecting its circuit's block of the tier's fixed polynomial.
 //!
 //! A claim-set tree may have two tiers, each at heights of its own. The small tier holds the first level, nodes of a few
-//! children within a small capacity, and a wrap; the large tier holds nodes of every arity within the tree's capacity.
-//! Every node, of either tier, verifies children of the small tier, and a wrap verifies one proof of the large tier and
-//! states its set: so a small proof never pays the large tier's heights, and a large one is combined once wrapped.
+//! children within a small capacity, and a wrap; the large tier holds one node of the tree's arity within the tree's
+//! capacity, whose unused child places are absent and read as the empty set. Every node, of either tier, verifies
+//! children of the small tier, and a wrap verifies one proof of the large tier and states its set: so a small proof
+//! never pays the large tier's heights, and a large one is combined once wrapped.
 
 use super::claims::{Bits, DenseClaim, DensePoly, DenseTerm, MatrixClaim, NodeClaims};
 use super::fixed::FixedLayout;
