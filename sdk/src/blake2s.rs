@@ -480,6 +480,15 @@ fn compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64; 4] {
     }
 }
 
+/// The BLAKE2s compression of message block `m` onto chaining value `h`, `t` bytes into the message, `last` on the
+/// final block, off the VM: the portable counterpart of `precompile::blake2s_compress`, for a chain with its own
+/// counters and framing that runs on both (a guest library picks one or the other by its target).
+#[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
+#[must_use]
+pub fn blake2s_compress(h: &[u64; 4], m: &[u64; 8], t: u64, last: bool) -> [u64; 4] {
+    portable::compress(h, m, t, last)
+}
+
 /// The compression function of RFC 7693, section 3.2, for a host.
 #[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
 mod portable {

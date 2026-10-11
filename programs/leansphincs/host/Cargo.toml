@@ -13,6 +13,7 @@ workspace = true
 leanvm_guest.workspace = true
 leansphincs = { path = "../guest" }
 parallel.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 leanvm.workspace = true
