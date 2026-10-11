@@ -336,7 +336,11 @@ run_cmd do
     ``LeanVMCircuits.Bus.ClassTable.Spec.row_c1,
     ``LeanVMCircuits.Bus.ClassTable.Spec.row_c2,
     ``LeanVMCircuits.Bus.ClassTable.Spec.row_c3,
-    ``LeanVMCircuits.Bus.ClassTable.row_correct] do
+    ``LeanVMCircuits.Bus.ClassTable.row_correct,
+    ``LeanVMCircuits.Bus.clock_next,
+    ``LeanVMCircuits.Bus.clock_in_order,
+    ``LeanVMCircuits.Bus.machine_reads_at_pc,
+    ``LeanVMCircuits.Bus.ClassTable.tables_correct] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
@@ -399,3 +403,7 @@ run_cmd do
 #print axioms LeanVMCircuits.Bus.ClassTable.Spec.row_c2
 #print axioms LeanVMCircuits.Bus.ClassTable.Spec.row_c3
 #print axioms LeanVMCircuits.Bus.ClassTable.row_correct
+#print axioms LeanVMCircuits.Bus.clock_next
+#print axioms LeanVMCircuits.Bus.clock_in_order
+#print axioms LeanVMCircuits.Bus.machine_reads_at_pc
+#print axioms LeanVMCircuits.Bus.ClassTable.tables_correct

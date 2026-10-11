@@ -20,3 +20,6 @@ public import LeanVMCircuits.Bus.Memory
 public import LeanVMCircuits.Bus.Machine
 public import LeanVMCircuits.Bus.TableFlushes
 public import LeanVMCircuits.Bus.TableRows
+public import LeanVMCircuits.ClockSpec
+public import LeanVMCircuits.Bus.ClockFacts
+public import LeanVMCircuits.Bus.Tables
