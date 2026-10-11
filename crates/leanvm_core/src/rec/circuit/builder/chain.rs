@@ -6,27 +6,39 @@
 
 use super::Builder;
 use crate::rec::circuit::{Kw, PARAM_IV};
-use crate::rec::clean::{LINK_A, LINK_D, LINK_E, LINK_T, LINK_W, STEP_A, STEP_J, STEP_O, STEP_T, STEP_V};
+use crate::rec::clean::{LINK_A, LINK_D, LINK_E, LINK_T, LINK_W, STEP_A, STEP_BASE, STEP_J, STEP_O, STEP_T, STEP_V};
 use crate::rec::table::Table;
 
-/// The bits of a tweak word a step's columns hold: bit 8, always set, and the position and chain at bits 32 to 40.
-const TWEAK_BITS: u64 = 0x100 | 0x1ff << 32;
+/// The bits of a tweak word a step's columns hold past its base: the position and chain at bits 32 to 40.
+const POSITION_BITS: u64 = 0x1ff << 32;
 
 impl Builder {
     /// One chain step: `T`, `v0`, `v1` as fresh `K` wires holding `tweak` and `v`, the hash row of the 6-word message
     /// `T, idx, p0, p1, v0, v1` from the parameter IV, and the step row reading `T`, `v`, the output's first three
-    /// words, `tag` and `one`.
+    /// words, `tag`, `one` and `base`.
     ///
-    /// Callers hold `one` to the constant one, so the step moves its position by one, and `tag` to a constant.
-    pub fn chain_step(&mut self, idx: Kw, pp: [Kw; 2], tag: Kw, one: Kw, tweak: u64, v: [u64; 2]) {
+    /// Callers hold `one` to the constant one, so the step moves its position by one, `tag` to a constant, and `base`
+    /// to the constant below `2^32` that `tweak` adds its position at bits 32 and up to.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the wires and values of `Model.chainStep`'s call"
+    )]
+    pub fn chain_step(&mut self, idx: Kw, pp: [Kw; 2], base: Kw, tag: Kw, one: Kw, tweak: u64, v: [u64; 2]) {
         traced!(
             self,
-            format!("chain_step {} {} {} {} {}", idx.0, pp[0].0, pp[1].0, tag.0, one.0),
-            self.chain_step_rows(idx, pp, tag, one, tweak, v)
+            format!(
+                "chain_step {} {} {} {} {} {}",
+                idx.0, pp[0].0, pp[1].0, base.0, tag.0, one.0
+            ),
+            self.chain_step_rows(idx, pp, base, tag, one, tweak, v)
         );
     }
 
-    fn chain_step_rows(&mut self, idx: Kw, pp: [Kw; 2], tag: Kw, one: Kw, tweak: u64, v: [u64; 2]) {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the wires and values of `Model.chainStep`'s call"
+    )]
+    fn chain_step_rows(&mut self, idx: Kw, pp: [Kw; 2], base: Kw, tag: Kw, one: Kw, tweak: u64, v: [u64; 2]) {
         let t = self.free_k(tweak);
         let v = v.map(|x| self.free_k(x));
         let z = self.k_zero();
@@ -40,6 +52,7 @@ impl Builder {
             (STEP_O, ch.0),
             (STEP_J, tag.0),
             (STEP_A, one.0),
+            (STEP_BASE, base.0),
         ] {
             slots[slot] = w;
         }
@@ -79,8 +92,9 @@ impl Builder {
         e
     }
 
-    /// Check the step and link rows on the values: each step's tweak word has the form its columns spell, each `a`
-    /// is Boolean, and the dynamic tuples balance, every `(key, x0, x1)` pushed as often as pulled.
+    /// Check the step and link rows on the values: each step's tweak word is its base, below `2^32`, plus a position
+    /// at bits 32 to 40, each `a` is Boolean, and the dynamic tuples balance, every `(key, x0, x1)` pushed as often
+    /// as pulled.
     pub(super) fn check_dynamic(&mut self) {
         let mut pushed = Vec::new();
         let mut pulled = Vec::new();
@@ -90,9 +104,11 @@ impl Builder {
             let a = if table == Table::Step { STEP_A } else { LINK_A };
             for row in self.rows.of(table).chunks_exact(n) {
                 let value = |s: usize| self.values[row[s] as usize];
-                let t = value(STEP_T)[0];
-                if table == Table::Step && (t & !TWEAK_BITS != 0 || t & 0x100 == 0) {
-                    failures.push("a step's tweak word is tweak0(1, 8c + s)");
+                if table == Table::Step {
+                    let (t, base) = (value(STEP_T)[0], value(STEP_BASE)[0]);
+                    if base >> 32 != 0 || (t ^ base) & !POSITION_BITS != 0 {
+                        failures.push("a step's tweak word is its base plus a position");
+                    }
                 }
                 if value(a)[0] > 1 {
                     failures.push("a step's or link's a is Boolean");
@@ -139,9 +155,12 @@ pub(crate) mod testing {
         },
     }
 
+    /// The tweak words' base: leanXMSS's, `tweak0(1, 0)`.
+    const BASE: u64 = 0x100;
+
     /// The tweak word of position `s` of chain `c`: `tweak0(1, 8c + s)`.
     pub(crate) const fn tweak(c: u64, s: u64) -> u64 {
-        0x100 | (8 * c + s) << 32
+        BASE | (8 * c + s) << 32
     }
 
     /// A step's output words, natively.
@@ -171,11 +190,12 @@ pub(crate) mod testing {
         pub(crate) fn emit_chains(&mut self, plan: &[Planned]) {
             let idx = self.k_const(IDX);
             let pp = PP.map(|p| self.k_const(p));
+            let base = self.k_const(BASE);
             let tag = self.k_const(TAG);
             let one = self.k_const(1);
             for &row in plan {
                 match row {
-                    Planned::Step { tweak, v } => self.chain_step(idx, pp, tag, one, tweak, v),
+                    Planned::Step { tweak, v } => self.chain_step(idx, pp, base, tag, one, tweak, v),
                     Planned::Link { c, d, tip, end } => {
                         let w = self.k_const(tweak(c, 0) | TAG);
                         let d: [Kw; 3] = std::array::from_fn(|k| self.k_const(d >> k & 1));

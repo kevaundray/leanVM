@@ -53,7 +53,7 @@ def Table.nSlots : Table → ℕ
   | .hash => 16
   | .split => 65
   | .cast => 8
-  | .step => 6
+  | .step => 7
   | .link => 9
   | .pub => 1
 
@@ -368,15 +368,16 @@ def leafRow (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : M (ℕ × ℕ) :=
 
 /-- `fn chain_step`: one step of a hash chain. The tweak word `t` and the input words `v0`, `v1` are fresh; the
 `HASH` row hashes `[t, idx, p0, p1, v0, v1]` as `chain` does, and the `STEP` row holds `t`, `v0`, `v1`, the hash
-row's challenge (its output's first three words), the chain's tag and `one` (the row's activity). -/
-def chainStep (idx : ℕ) (pp : ℕ × ℕ) (tag one : ℕ) : M Unit := do
+row's challenge (its output's first three words), the chain's tag, `one` (the row's activity) and `base` (the base
+word of `t`). -/
+def chainStep (idx : ℕ) (pp : ℕ × ℕ) (base tag one : ℕ) : M Unit := do
   let t ← wire
   let v0 ← wire
   let v1 ← wire
   let z ← kZero
   let h ← dConst paramIVLimbs
   let r ← leafRow h [t, idx, pp.1, pp.2, v0, v1, z, z] 48 true
-  row .step [t, v0, v1, r.2, tag, one]
+  row .step [t, v0, v1, r.2, tag, one, base]
 
 /-- `fn link`: a chain's `LINK` row, its word `w`, its digit bits, fresh tip and end words; returns the end. -/
 def link (w d0 d1 d2 one : ℕ) : M (List ℕ) := do
@@ -401,7 +402,7 @@ inductive Call where
   | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ)
   | compress (acc x ds : ℕ) | node (acc bit : ℕ) | parent (l r : ℕ) | leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool)
   | chain (words : List ℕ)
-  | chainStep (idx p0 p1 tag act : ℕ) | link (w d0 d1 d2 act : ℕ)
+  | chainStep (idx p0 p1 base tag act : ℕ) | link (w d0 d1 d2 act : ℕ)
   deriving Repr
 
 /-- Run one call, returning its output wires (`expose_e`'s statement index). -/
@@ -437,7 +438,7 @@ def Call.exec : Call → M (List ℕ)
   | .parent l r => do return [← Model.parent l r]
   | .leafBlock h m t last => do return [← Model.leafBlock h m t last]
   | .chain words => do return [← Model.chain words]
-  | .chainStep idx p0 p1 tag act => do Model.chainStep idx (p0, p1) tag act; return []
+  | .chainStep idx p0 p1 base tag act => do Model.chainStep idx (p0, p1) base tag act; return []
   | .link w d0 d1 d2 act => Model.link w d0 d1 d2 act
 
 /-- Run one call. -/
@@ -470,7 +471,7 @@ def Call.args : Call → List ℕ
   | .parent l r => [l, r]
   | .leafBlock h m _ _ => h :: m
   | .chain words => words
-  | .chainStep idx p0 p1 tag act => [idx, p0, p1, tag, act]
+  | .chainStep idx p0 p1 base tag act => [idx, p0, p1, base, tag, act]
   | .link w d0 d1 d2 act => [w, d0, d1, d2, act]
 
 /-- The sizes a call's Rust method asserts or its types bound: a block of eight words, counters and lengths in 64

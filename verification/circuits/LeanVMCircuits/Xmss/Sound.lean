@@ -24,7 +24,8 @@ signature's tuples (`local_of_balanced`).
 
 namespace LeanVMCircuits.Xmss
 
-open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective tweakWord dynKey)
+open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective tweakWord tweakK
+  dynKey)
 open LeanVMCircuits.Rec.Model
 open Words (W Dig)
 
@@ -168,68 +169,71 @@ theorem getD_mem_drop {bits : List ℕ} (hlen : bits.length = 64) {i : ℕ} (h1 
 
 /-! The chains. -/
 
-/-- Signature `j`'s rows under an assignment: its `STEP` rows carry the tag `j · 2^41`, its `LINK` rows are distinct
-and carry signature `j`'s words, and every tuple they push or pull has a key of signature `j`. -/
-def SigRows (j : ℕ) (val : Val) (R L : List (List ℕ)) : Prop :=
-  (∀ r ∈ R, toWord (val (r.getD 4 0) 0) / 2 ^ 41 = j) ∧ L.Nodup ∧
-    (∀ r ∈ L, toWord (val (r.getD 0 0) 0) / 2 ^ 41 % 2 ^ 22 = j) ∧
+/-- Tag `g`'s rows under an assignment: its `STEP` rows carry the tag `g · 2^41`, its `LINK` rows are distinct and
+carry tag `g`'s words, and every tuple they push or pull has a key of tag `g`. -/
+def SigRows (g : ℕ) (val : Val) (R L : List (List ℕ)) : Prop :=
+  (∀ r ∈ R, toWord (val (r.getD 4 0) 0) / 2 ^ 41 = g) ∧ L.Nodup ∧
+    (∀ r ∈ L, toWord (val (r.getD 0 0) 0) / 2 ^ 41 % 2 ^ 22 = g) ∧
     ∀ t ∈ (R.map (stepPushRow val) ++ L.map (linkPushRow val)) ++
-      (R.map (stepPullRow val) ++ L.map (linkPullRow val)), tagOf t.1 = j
+      (R.map (stepPullRow val) ++ L.map (linkPullRow val)), tagOf t.1 = g
 
-/-- Signature `j`'s chains under an assignment satisfying its rows: its rows are signature `j`'s, and when their
-tuples balance (and the digits sum to 195) the links' ends are the chains' ends from their elements. -/
-theorem chains_local {j idx p0 p1 : ℕ} {db : List ℕ} {R : List (List ℕ)} {act tag : ℕ} {W T0 T1 E0 E1 : ℕ → ℕ}
-    {s : State} {st : ℕ → Fin 4 → K} {val : Val} (hsat : Sat st s val) (hj : j < 2 ^ 22)
-    (hR : ∀ r ∈ R, StepRow idx p0 p1 tag act s r) (hRl : R.length = 99) (hact : val act 0 = 1)
-    (htag : val tag 0 = ofWord (j * 2 ^ 41))
-    (hW : ∀ i < 42, val (W i) 0 = ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41))
+/-- Chains of tag `g` over the base `b` under an assignment satisfying their rows: their rows are tag `g`'s, and when
+their tuples balance (and the steps and the digits sum to 294) the links' ends are the chains' ends from their
+elements, walked by `stepHash`. -/
+theorem chains_local {b g steps idx p0 p1 : ℕ} {db : List ℕ} {R : List (List ℕ)} {act tag : ℕ}
+    {W T0 T1 E0 E1 : ℕ → ℕ} {s : State} {st : ℕ → Fin 4 → K} {val : Val} (hsat : Sat st s val) (hb : b < 2 ^ 32)
+    (hg : g < 2 ^ 22) (hR : ∀ r ∈ R, StepRow idx p0 p1 b tag act s r) (hRl : R.length = steps)
+    (hact : val act 0 = 1) (htag : val tag 0 = ofWord (g * 2 ^ 41))
+    (hW : ∀ i < 42, val (W i) 0 = ofWord (tweakWord b (8 * i) + g * 2 ^ 41))
     (hdb : ∀ k < 126, val (db.getD k 0) 0 = 0 ∨ val (db.getD k 0) 0 = 1) :
-    SigRows j val R ((List.range 42).map (linkRow db act W T0 T1 E0 E1)) ∧
-      (dsum val db 42 = 195 → LocalBal val R ((List.range 42).map (linkRow db act W T0 T1 E0 E1)) →
-        ∀ e, w64 val idx = Words.tweak1 e →
-          ((List.range 42).flatMap fun i => [E0 i, E1 i]).map (w64 val) = (List.range 42).flatMap fun i =>
-            [(Words.chainFrom i e (w64 val p0, w64 val p1) (dval val db i) (w64 val (T0 i), w64 val (T1 i))).1,
-             (Words.chainFrom i e (w64 val p0, w64 val p1) (dval val db i) (w64 val (T0 i), w64 val (T1 i))).2]) := by
+    SigRows g val R ((List.range 42).map (linkRow db act W T0 T1 E0 E1)) ∧
+      (steps + dsum val db 42 = 294 → LocalBal val R ((List.range 42).map (linkRow db act W T0 T1 E0 E1)) →
+        ((List.range 42).flatMap fun i => [E0 i, E1 i]).map (w64 val) = (List.range 42).flatMap fun i =>
+          [(walk (stepHash b (w64 val idx) (w64 val p0) (w64 val p1)) i (dval val db i)
+              (w64 val (T0 i), w64 val (T1 i)) 7).1,
+            (walk (stepHash b (w64 val idx) (w64 val p0) (w64 val p1)) i (dval val db i)
+              (w64 val (T0 i), w64 val (T1 i)) 7).2]) := by
   -- Each step: its position, its keys, its hash.
-  have hstep : ∀ r ∈ R, ∃ p < 2 ^ 9, val (r.getD 0 0) 0 = ofWord (tweakWord p) ∧
-      (stepPullRow val r).1 = keyK j p ∧ (stepPushRow val r).1 = keyK j (8 * (p / 8) + (p % 8 + 1) % 8) ∧
-      ∀ e, w64 val idx = Words.tweak1 e →
-        wd (stepPushRow val r) = Words.chainStep (p / 8) (p % 8) e (w64 val p0, w64 val p1) (wd (stepPullRow val r)) := by
+  have hstep : ∀ r ∈ R, ∃ p < 2 ^ 9, val (r.getD 0 0) 0 = tweakK (ofWord b) p ∧
+      (stepPullRow val r).1 = keyK b g p ∧ (stepPushRow val r).1 = keyK b g (8 * (p / 8) + (p % 8 + 1) % 8) ∧
+      wd (stepPushRow val r) =
+        stepHash b (w64 val idx) (w64 val p0) (w64 val p1) (p / 8) (p % 8) (wd (stepPullRow val r)) := by
     intro r hr
-    obtain ⟨t, v0, v1, ch, rfl, -, -, hq⟩ := hR r hr
+    obtain ⟨t, v0, v1, ch, base, rfl, -, -, hq⟩ := hR r hr
     obtain ⟨hh, c, hc, i, hi, hT, hpush⟩ := hq st val hsat
     have hpd : (8 * c + i) / 8 = c := by omega
     have hpm : (8 * c + i) % 8 = i := by omega
-    refine ⟨8 * c + i, by omega, hT, ?_, ?_, fun e he => ?_⟩
+    refine ⟨8 * c + i, by omega, hT, ?_, ?_, ?_⟩
     · show dynKey (val t 0) (val tag 0) = _
       rw [hT, htag, keyK_def]
     · rw [hpush hact, hpd, hpm, keyK_def]
       show dynKey _ (val tag 0) = _
       rw [htag]
     · rw [hpush hact, hpd, hpm]
-      show (words4 (val ch) 0, words4 (val ch) 1) = Words.chainStep c i e (w64 val p0, w64 val p1) (w64 val v0, w64 val v1)
+      show (words4 (val ch) 0, words4 (val ch) 1) =
+        stepHash b (w64 val idx) (w64 val p0) (w64 val p1) c i (w64 val v0, w64 val v1)
+      have ht : w64 val t = BitVec.ofNat 64 (tweakWord b (8 * c + i)) := by
+        rw [w64, hT, ← Rec.ofWord_tweakWord _ _ hb (by omega), Rec.toWord_ofWord _ (by unfold tweakWord; omega)]
       have hmap : [t, idx, p0, p1, v0, v1].map (w64 val) =
-          [Words.tweak0 1 (8 * c + i), Words.tweak1 e, w64 val p0, w64 val p1] ++ [w64 val v0, w64 val v1] := by
-        have ht : w64 val t = Words.tweak0 1 (8 * c + i) := by
-          rw [w64, hT, Rec.toWord_ofWord _ (by unfold tweakWord; omega), Words.tweak0, tweak0_one]
-        simp only [List.map_cons, List.map_nil, ht, he, List.cons_append, List.nil_append]
+          [BitVec.ofNat 64 (tweakWord b (8 * c + i)), w64 val idx, w64 val p0, w64 val p1, w64 val v0, w64 val v1] := by
+        simp only [List.map_cons, List.map_nil, ht]
       rw [hh 0 (by decide), hh 1 (by decide), hmap]
-      simp only [Words.chainStep, Words.th]
+      simp only [stepHash]
   -- Each link: its keys.
-  have hlpush : ∀ i < 42, (linkPushRow val (linkRow db act W T0 T1 E0 E1 i)).1 = keyK j (8 * i + dval val db i) := by
+  have hlpush : ∀ i < 42, (linkPushRow val (linkRow db act W T0 T1 E0 E1 i)).1 = keyK b g (8 * i + dval val db i) := by
     intro i hi
     show dynKey (val (W i) 0) (ofWord (2 ^ 32) * val (db.getD (3 * i) 0) 0 +
       ofWord (2 ^ 33) * val (db.getD (3 * i + 1) 0) 0 + ofWord (2 ^ 34) * val (db.getD (3 * i + 2) 0) 0) = _
-    rw [hW i hi, link_push_key i j hi hj _ _ _ (hdb _ (by omega)) (hdb _ (by omega)) (hdb _ (by omega))]
+    rw [hW i hi, link_push_key b i g hb hi hg _ _ _ (hdb _ (by omega)) (hdb _ (by omega)) (hdb _ (by omega))]
     rfl
-  have hlpull : ∀ i < 42, (linkPullRow val (linkRow db act W T0 T1 E0 E1 i)).1 = keyK j (8 * i + 7) := by
+  have hlpull : ∀ i < 42, (linkPullRow val (linkRow db act W T0 T1 E0 E1 i)).1 = keyK b g (8 * i + 7) := by
     intro i hi
     show dynKey (val (W i) 0) (ofWord (2 ^ 32 + 2 ^ 33 + 2 ^ 34) * val act 0) = _
     rw [hW i hi, hact]
-    exact link_pull_key i j hi hj
-  refine ⟨⟨fun r hr => ?_, ?_, fun r hr => ?_, fun t ht => ?_⟩, fun hsum hloc e he => ?_⟩
-  · obtain ⟨t, v0, v1, ch, rfl, -⟩ := hR r hr
-    show toWord (val tag 0) / 2 ^ 41 = j
+    exact link_pull_key b i g hb hi hg
+  refine ⟨⟨fun r hr => ?_, ?_, fun r hr => ?_, fun t ht => ?_⟩, fun hsum hloc => ?_⟩
+  · obtain ⟨t, v0, v1, ch, base, rfl, -⟩ := hR r hr
+    show toWord (val tag 0) / 2 ^ 41 = g
     rw [htag, Rec.toWord_ofWord _ (by omega)]
     omega
   · refine List.Nodup.map_on (fun x hx y hy hxy => ?_) List.nodup_range
@@ -238,37 +242,37 @@ theorem chains_local {j idx p0 p1 : ℕ} {db : List ℕ} {R : List (List ℕ)} {
     have h0 : val (W x) 0 = val (W y) 0 := by rw [show W x = W y from (List.cons.inj hxy).1]
     rw [hW x hx', hW y hy'] at h0
     have h1 := congrArg toWord h0
-    rw [toWord_link x j hx' hj, toWord_link y j hy' hj] at h1
+    rw [toWord_link b x g hb hx' hg, toWord_link b y g hb hy' hg] at h1
     omega
   · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hr
-    show toWord (val (W i) 0) / 2 ^ 41 % 2 ^ 22 = j
-    rw [hW i (List.mem_range.mp hi), toWord_link i j (List.mem_range.mp hi) hj]
+    show toWord (val (W i) 0) / 2 ^ 41 % 2 ^ 22 = g
+    rw [hW i (List.mem_range.mp hi), toWord_link b i g hb (List.mem_range.mp hi) hg]
     have := List.mem_range.mp hi
     omega
   · simp only [List.mem_append, List.map_map, List.mem_map, Function.comp] at ht
     rcases ht with (⟨r, hr, rfl⟩ | ⟨i, hi, rfl⟩) | (⟨r, hr, rfl⟩ | ⟨i, hi, rfl⟩)
     · obtain ⟨p, hp, -, -, hpush, -⟩ := hstep r hr
-      rw [hpush, tagOf_keyK _ _ (by omega) hj]
+      rw [hpush, tagOf_keyK _ _ _ hb (by omega) hg]
     · have hi' := List.mem_range.mp hi
       have := dval_lt val db i
-      rw [hlpush i hi', tagOf_keyK _ _ (by omega) hj]
+      rw [hlpush i hi', tagOf_keyK _ _ _ hb (by omega) hg]
     · obtain ⟨p, hp, -, hpull, -, -⟩ := hstep r hr
-      rw [hpull, tagOf_keyK _ _ hp hj]
+      rw [hpull, tagOf_keyK _ _ _ hb hp hg]
     · have hi' := List.mem_range.mp hi
-      rw [hlpull i hi', tagOf_keyK _ _ (by omega) hj]
+      rw [hlpull i hi', tagOf_keyK _ _ _ hb (by omega) hg]
   -- The chains' ends.
-  have hres := local_sound (fun c s v => Words.chainStep c s e (w64 val p0, w64 val p1) v) j hj val R
+  have hres := local_sound (stepHash b (w64 val idx) (w64 val p0) (w64 val p1)) b g hb hg val R
     (fun r => posOf (val (r.getD 0 0) 0)) (linkRow db act W T0 T1 E0 E1) (dval val db)
-    (fun r hr => by obtain ⟨p, hp, hT, -⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact hp)
-    (fun r hr => by obtain ⟨p, hp, hT, h1, -⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact h1)
-    (fun r hr => by obtain ⟨p, hp, hT, -, h2, -⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact h2)
-    (fun r hr => by obtain ⟨p, hp, hT, -, -, h3⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact h3 e he)
+    (fun r hr => by obtain ⟨p, hp, hT, -⟩ := hstep r hr; rw [hT, posOf_tweak b p hb hp]; exact hp)
+    (fun r hr => by obtain ⟨p, hp, hT, h1, -⟩ := hstep r hr; rw [hT, posOf_tweak b p hb hp]; exact h1)
+    (fun r hr => by obtain ⟨p, hp, hT, -, h2, -⟩ := hstep r hr; rw [hT, posOf_tweak b p hb hp]; exact h2)
+    (fun r hr => by obtain ⟨p, hp, hT, -, -, h3⟩ := hstep r hr; rw [hT, posOf_tweak b p hb hp]; exact h3)
     (fun i _ => dval_lt val db i) hlpush hlpull
-    (by rw [hRl, ← sum_range_list]; unfold dsum at hsum; rw [hsum]) hloc
+    (by rw [hRl, ← sum_range_list]; unfold dsum at hsum; exact hsum) hloc
   rw [List.map_flatMap]
   refine flatMap_range_eq fun i hi => ?_
-  have h : (w64 val (E0 i), w64 val (E1 i)) =
-      Words.chainFrom i e (w64 val p0, w64 val p1) (dval val db i) (w64 val (T0 i), w64 val (T1 i)) := hres i hi
+  have h : (w64 val (E0 i), w64 val (E1 i)) = walk (stepHash b (w64 val idx) (w64 val p0) (w64 val p1)) i
+      (dval val db i) (w64 val (T0 i), w64 val (T1 i)) 7 := hres i hi
   simp only [List.map_cons, List.map_nil]
   rw [← h]
 
@@ -352,7 +356,7 @@ theorem signature_good (j : ℕ) (hj : j < 2 ^ 22) : Good (fun _ => True) (Circu
       · exact (hlov st val (hsat.mono (by ext_chain))).1 j (by omega)
       · exact (hupv st val (hsat.mono (by ext_chain))).1 (j - 63) (by omega)
   -- The chains.
-  refine (chains_good j idx p0 p1 (lo.take 63 ++ up.take 63)).step hi18 trivial ?_
+  refine (chains_good (2 ^ 8) j 99 idx p0 p1 (lo.take 63 ++ up.take 63)).step hi18 trivial ?_
   · rintro ends s19 hi19 he19 ⟨hst19, hw19, R, act, tag, W, T0, T1, E0, E1, rfl, hRl, hRn, hR, hL, hv19⟩
     refine (tweakHash_good 2 0 idx [p0, p1] _ (by rw [List.length_flatMap]; simp)).step hi19
       trivial ?_
@@ -392,7 +396,7 @@ theorem signature_good (j : ℕ) (hj : j < 2 ^ 22) : Good (fun _ => True) (Circu
       refine post_pure hi24 (by ext_chain) ⟨by omega, R, (List.range 42).map
         (linkRow (lo.take 63 ++ up.take 63) act W T0 T1 E0 E1), hRl, by simp, hRn, fun r hr => ?_,
         fun r hr => ?_, fun st val hsat => ?_⟩
-      · obtain ⟨_, _, _, _, -, hmem, -⟩ := hR r hr
+      · obtain ⟨_, _, _, _, _, -, hmem, -⟩ := hR r hr
         exact (show Ext s19 s24 by ext_chain).steps _ hmem
       · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hr
         exact (show Ext s19 s24 by ext_chain).links _ (hL i (List.mem_range.mp hi))
@@ -400,7 +404,7 @@ theorem signature_good (j : ℕ) (hj : j < 2 ^ 22) : Good (fun _ => True) (Circu
       obtain ⟨hbits, hlt, hbool, hidxe, hDB⟩ := hctx st val (hsat.mono (by ext_chain))
       have hsat19 := hsat.mono (show Ext s19 s24 by ext_chain)
       obtain ⟨hact, htag, hW⟩ := hv19 st val hsat19
-      obtain ⟨hrows, hlocal⟩ := chains_local hsat19 hj hR hRl hact htag hW hDB
+      obtain ⟨hrows, hlocal⟩ := chains_local hsat19 (by norm_num) hj hR hRl hact htag hW hDB
       refine ⟨hrows, fun hloc => ?_⟩
       obtain ⟨path, hpath⟩ := hv21 st val (hsat.mono (by ext_chain))
       -- The encoding's digest and digits.
@@ -438,7 +442,9 @@ theorem signature_good (j : ℕ) (hj : j < 2 ^ 22) : Good (fun _ => True) (Circu
               (tips i)).1,
              (Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
               (tips i)).2] :=
-        ⟨_, hlocal hsum' hloc _ hidxe⟩
+        ⟨fun i => (w64 val (T0 i), w64 val (T1 i)), by
+          rw [hlocal (by rw [hsum']) hloc, hidxe]
+          simp only [walk_stepHash]⟩
       have h63lo : (dig val d).1.getLsbD 63 = false := by
         cases hb : (dig val d).1.getLsbD 63
         · rfl

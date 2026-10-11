@@ -20,7 +20,7 @@ and `Good.step` and `post_bind` push a contract through one bind. `forIn_post` i
 namespace LeanVMCircuits.Xmss
 
 open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective tweakWord
-  stepPullOf)
+  tweakK stepPullOf)
 open LeanVMCircuits.Rec.Model
 open Words (W Dig)
 
@@ -771,7 +771,7 @@ theorem mux_ev (c t u : E) (p : Prop) [Decidable p] (hc : c = if p then 1 else 0
 theorem pres_link (w d0 d1 d2 act : ℕ) : Pres (link w d0 d1 d2 act) := by unfold link; pres
 theorem pres_leafRow (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : Pres (leafRow h m t last) := by
   unfold leafRow; pres
-theorem pres_chainStep (idx : ℕ) (pp : ℕ × ℕ) (tag act : ℕ) : Pres (chainStep idx pp tag act) := by
+theorem pres_chainStep (idx : ℕ) (pp : ℕ × ℕ) (base tag act : ℕ) : Pres (chainStep idx pp base tag act) := by
   unfold chainStep
   exact Pres.bind pres_wire fun _ => Pres.bind pres_wire fun _ => Pres.bind pres_wire fun _ =>
     Pres.bind pres_kZero fun _ => Pres.bind (pres_constant _ _) fun _ =>
@@ -785,19 +785,19 @@ theorem flatMap_range_eq {β : Type} {f g : ℕ → List β} {n : ℕ} (h : ∀ 
     rw [List.range_succ, List.flatMap_append, List.flatMap_append, ih fun j hj => h j (by omega)]
     simp only [List.flatMap_cons, List.flatMap_nil, h n (by omega)]
 
-/-- A `STEP` row `chain_step idx (p0, p1) tag act` made: its output's words are the hash of its tweak word, the index
-word, the parameter and its input words, its tweak word is that of a chain `c < 64` at a position `i < 8`, and when
-active it pushes the next position's key. -/
-def StepRow (idx p0 p1 tag act : ℕ) (s : State) (r : List ℕ) : Prop :=
-  ∃ t v0 v1 ch, r = [t, v0, v1, ch, tag, act] ∧ r ∈ s.step ∧ t < s.next ∧ ∀ st val, Sat st s val →
+/-- A `STEP` row `chain_step idx (p0, p1) base tag act` made, `base` the constant `b`: its output's words are the hash
+of its tweak word, the index word, the parameter and its input words, its tweak word is that of a chain `c < 64` at
+a position `i < 8` over `b`, and when active it pushes the next position's key. -/
+def StepRow (idx p0 p1 b tag act : ℕ) (s : State) (r : List ℕ) : Prop :=
+  ∃ t v0 v1 ch base, r = [t, v0, v1, ch, tag, act, base] ∧ r ∈ s.step ∧ t < s.next ∧ ∀ st val, Sat st s val →
     (∀ i : Fin 4, i.val < 3 → words4 (val ch) i = digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 val))) i) ∧
-    ∃ c < 64, ∃ i < 8, val t 0 = ofWord (tweakWord (8 * c + i)) ∧ (val act 0 = 1 →
-      stepPushRow val r = stepPullOf (ofWord (tweakWord (8 * c + (i + 1) % 8))) (val ch 0) (val ch 1) (val tag 0))
+    ∃ c < 64, ∃ i < 8, val t 0 = tweakK (ofWord b) (8 * c + i) ∧ (val act 0 = 1 →
+      stepPushRow val r = stepPullOf (tweakK (ofWord b) (8 * c + (i + 1) % 8)) (val ch 0) (val ch 1) (val tag 0))
 
-theorem StepRow.mono {idx p0 p1 tag act : ℕ} {s s' : State} {r : List ℕ} (h : StepRow idx p0 p1 tag act s r)
-    (he : Ext s s') : StepRow idx p0 p1 tag act s' r := by
-  obtain ⟨t, v0, v1, ch, rfl, hr, ht, hq⟩ := h
-  exact ⟨t, v0, v1, ch, rfl, he.steps _ hr, lt_mono ht he, fun st val hsat => hq st val (hsat.mono he)⟩
+theorem StepRow.mono {idx p0 p1 b tag act : ℕ} {s s' : State} {r : List ℕ} (h : StepRow idx p0 p1 b tag act s r)
+    (he : Ext s s') : StepRow idx p0 p1 b tag act s' r := by
+  obtain ⟨t, v0, v1, ch, base, rfl, hr, ht, hq⟩ := h
+  exact ⟨t, v0, v1, ch, base, rfl, he.steps _ hr, lt_mono ht he, fun st val hsat => hq st val (hsat.mono he)⟩
 
 theorem limbsOf_k0 (a : ℕ) : limbsOf [a, 0, 0, 0] 0 = ofWord a := rfl
 
@@ -805,15 +805,15 @@ theorem limbsOf_k0 (a : ℕ) : limbsOf [a, 0, 0, 0] 0 = ofWord a := rfl
 def linkRow (db : List ℕ) (act : ℕ) (W T0 T1 E0 E1 : ℕ → ℕ) (i : ℕ) : List ℕ :=
   [W i, db.getD (3 * i) 0, db.getD (3 * i + 1) 0, db.getD (3 * i + 2) 0, T0 i, T1 i, E0 i, E1 i, act]
 
-/-- `chains`: 99 distinct `STEP` rows and 42 `LINK` rows, the links' ends its output, the activity one, the tag
-`j · 2^41` and link `i`'s word `tweak0(1, 8i) + j · 2^41`. -/
-theorem chains_good (j idx p0 p1 : ℕ) (db : List ℕ) :
-    Good (fun _ => True) (Circuit.chains j idx [p0, p1] db) fun s ends s' => s'.statement = s.statement ∧
+/-- `chains`: `steps` distinct `STEP` rows and 42 `LINK` rows, the links' ends its output, the activity one, the tag
+`g · 2^41` and link `i`'s word `b + 8i · 2^32 + g · 2^41`. -/
+theorem chains_good (b g steps idx p0 p1 : ℕ) (db : List ℕ) :
+    Good (fun _ => True) (Circuit.chains b g steps idx [p0, p1] db) fun s ends s' => s'.statement = s.statement ∧
       Wires ends s' ∧ ∃ (R : List (List ℕ)) (act tag : ℕ) (W T0 T1 E0 E1 : ℕ → ℕ),
-        ends = (List.range 42).flatMap (fun i => [E0 i, E1 i]) ∧ R.length = 99 ∧ R.Nodup ∧
-        (∀ r ∈ R, StepRow idx p0 p1 tag act s' r) ∧ (∀ i < 42, linkRow db act W T0 T1 E0 E1 i ∈ s'.link) ∧
-        ∀ st val, Sat st s' val → val act 0 = 1 ∧ val tag 0 = ofWord (j * 2 ^ 41) ∧
-          ∀ i < 42, val (W i) 0 = ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41) := by
+        ends = (List.range 42).flatMap (fun i => [E0 i, E1 i]) ∧ R.length = steps ∧ R.Nodup ∧
+        (∀ r ∈ R, StepRow idx p0 p1 b tag act s' r) ∧ (∀ i < 42, linkRow db act W T0 T1 E0 E1 i ∈ s'.link) ∧
+        ∀ st val, Sat st s' val → val act 0 = 1 ∧ val tag 0 = ofWord (g * 2 ^ 41) ∧
+          ∀ i < 42, val (W i) 0 = ofWord (tweakWord b (8 * i) + g * 2 ^ 41) := by
   unfold Circuit.chains
   refine good_of_post fun s hs _ => ?_
   refine fresh_good'.step hs trivial ?_
@@ -821,11 +821,13 @@ theorem chains_good (j idx p0 p1 : ℕ) (db : List ℕ) :
   refine ((eqConstK_good act 1).pres (pres_eqConstK _ _)).step hi1 trivial ?_
   rintro _ s2 hi2 he2 ⟨hst2, hactv⟩
   refine ((kConst_good _).pres (pres_kConst _)).step hi2 trivial ?_
+  rintro base sb hib heb ⟨hstb, -, hbasev⟩
+  refine ((kConst_good _).pres (pres_kConst _)).step hib trivial ?_
   rintro tag s3 hi3 he3 ⟨hst3, -, htagv⟩
   refine post_bind (forIn_range_post 42 _ (fun k (ends : List ℕ) s' => s'.statement = s.statement ∧
       Wires ends s' ∧ ∃ W T0 T1 E0 E1 : ℕ → ℕ, ends = (List.range k).flatMap (fun i => [E0 i, E1 i]) ∧
         (∀ i < k, linkRow db act W T0 T1 E0 E1 i ∈ s'.link) ∧
-        ∀ st val, Sat st s' val → ∀ i < k, val (W i) 0 = ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41)) hi3
+        ∀ st val, Sat st s' val → ∀ i < k, val (W i) 0 = ofWord (tweakWord b (8 * i) + g * 2 ^ 41)) hi3
       ⟨by omega, Wires.nil', fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, rfl,
         fun _ h => absurd h (Nat.not_lt_zero _), fun _ _ _ _ h => absurd h (Nat.not_lt_zero _)⟩ ?_) ?_
   · rintro i hi ends s4 hi4 he4 ⟨hst4, hw4, W, T0, T1, E0, E1, rfl, hL4, hv4⟩
@@ -859,28 +861,31 @@ theorem chains_good (j idx p0 p1 : ℕ) (db : List ℕ) :
         rw [if_pos rfl, hwv st val (hsat.mono he6)]
         exact limbsOf_k0 _
   · rintro ends s4 hi4 he4 ⟨hst4, hw4, W, T0, T1, E0, E1, rfl, hL4, hv4⟩
-    refine post_bind (forIn_range_post 99 _ (fun k (_ : PUnit) s' => s'.statement = s.statement ∧
-        ∃ R : List (List ℕ), R.length = k ∧ R.Nodup ∧ ∀ r ∈ R, StepRow idx p0 p1 tag act s' r) hi4
+    refine post_bind (forIn_range_post steps _ (fun k (_ : PUnit) s' => s'.statement = s.statement ∧
+        ∃ R : List (List ℕ), R.length = k ∧ R.Nodup ∧ ∀ r ∈ R, StepRow idx p0 p1 b tag act s' r) hi4
         ⟨by omega, [], rfl, List.nodup_nil, fun _ h => absurd h List.not_mem_nil⟩ ?_) ?_
     · rintro k hk u s5 hi5 he5 ⟨hst5, R, hRl, hRn, hR⟩
-      refine ((chainStep_good idx p0 p1 tag act).pres (pres_chainStep _ _ _ _)).step hi5 trivial ?_
+      refine ((chainStep_good idx p0 p1 base tag act).pres (pres_chainStep _ _ _ _ _)).step hi5 trivial ?_
       rintro _ s6 hi6 he6 ⟨hst6, t, v0, v1, ch, ht, hw6, hrow, hq⟩
-      refine post_pure hi6 he6 ⟨PUnit.unit, rfl, by omega, R ++ [[t, v0, v1, ch, tag, act]], by simp [hRl], ?_,
-        fun r hr => ?_⟩
+      refine post_pure hi6 he6 ⟨PUnit.unit, rfl, by omega, R ++ [[t, v0, v1, ch, tag, act, base]], by simp [hRl],
+        ?_, fun r hr => ?_⟩
       · refine List.nodup_append.mpr ⟨hRn, List.nodup_singleton _, ?_⟩
-        intro a ha b hb hab
-        rw [List.mem_singleton] at hb
-        subst hb
-        obtain ⟨t', v0', v1', ch', rfl, -, ht', -⟩ := hR a ha
-        have : t' = t := (List.cons.inj hab).1
+        intro a ha x hx hax
+        rw [List.mem_singleton] at hx
+        subst hx
+        obtain ⟨t', v0', v1', ch', base', rfl, -, ht', -⟩ := hR a ha
+        have : t' = t := (List.cons.inj hax).1
         omega
       · rcases List.mem_append.mp hr with hr | hr
         · exact (hR r hr).mono he6
         · rw [List.mem_singleton] at hr
           subst hr
-          refine ⟨t, v0, v1, ch, rfl, hrow, hw6 t (by simp), fun st val hsat => ?_⟩
-          obtain ⟨h1, -, -, -, h5⟩ := hq st val hsat
-          exact ⟨h1, h5⟩
+          refine ⟨t, v0, v1, ch, base, rfl, hrow, hw6 t (by simp), fun st val hsat => ?_⟩
+          obtain ⟨h1, -, -, -, c, hc, i, hi, hT, hpush⟩ := hq st val hsat
+          have hB : val base 0 = ofWord b := by
+            rw [hbasev st val (hsat.mono (by ext_chain))]
+            exact limbsOf_k0 _
+          exact ⟨h1, c, hc, i, hi, by rw [hT, hB], fun h => by rw [hpush h, hB]⟩
     · rintro u s5 hi5 he5 ⟨hst5, R, hRl, hRn, hR⟩
       refine post_pure hi5 (by ext_chain) ⟨by omega, fun x hx => lt_mono (hw4 x hx) he5, R, act, tag, W, T0, T1,
         E0, E1, rfl, hRl, hRn, hR, fun i hi => he5.links _ (hL4 i hi), fun st val hsat => ⟨?_, ?_,

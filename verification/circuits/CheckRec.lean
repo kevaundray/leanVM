@@ -64,7 +64,7 @@ def parse (line : String) : Except String Call := do
     let m ← nats (args.drop 1 |>.take 8)
     return .leafBlock (← n 0) m (← n 9) ((← n 10) = 1)
   | "chain" => return .chain (← list args)
-  | "chain_step" => return .chainStep (← n 0) (← n 1) (← n 2) (← n 3) (← n 4)
+  | "chain_step" => return .chainStep (← n 0) (← n 1) (← n 2) (← n 3) (← n 4) (← n 5)
   | "link" => return .link (← n 0) (← n 1) (← n 2) (← n 3) (← n 4)
   | op => .error s!"unknown call: {op}"
 
@@ -122,8 +122,8 @@ def finish (s : State) : String × List (List ℕ) := Id.run do
 /-- `Rec.classNext` of every slot, as `FixedColumns::of` writes it: the `SlotKey` of the next slot of its class in
 slot order, the class's first after its last, per table, row-major. -/
 def nextKeys (classes : List (List ℕ)) : String := Id.run do
-  let widths := [4, 4, 16, 65, 8, 6, 9, 1]
-  let firsts := [0, 4, 8, 24, 89, 97, 103, 112]
+  let widths := Table.all.map Table.nSlots
+  let firsts := (List.range widths.length).map fun t => (widths.take t).sum
   -- Every slot's key and class, in slot order.
   let mut slots : Array (ℕ × ℕ) := #[]
   for ((cs, n), first) in (classes.zip widths).zip firsts do

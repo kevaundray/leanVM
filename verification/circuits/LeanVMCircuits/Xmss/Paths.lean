@@ -6,28 +6,29 @@ public import LeanVMCircuits.Xmss.Words
 @[expose] public section
 
 /-!
-# leanXMSS chains as paths on the dynamic bus
+# Hash chains as paths on the dynamic bus
 
-The leanXMSS circuit hashes each signature's chains with 42 `LINK` rows and 99 `STEP` rows (`Xmss.Circuit.chains`).
-A step at position `s` of chain `c` pulls its input at the key of `(c, s)` and pushes its output at the key of
-`(c, s + 1 mod 8)`; chain `i`'s link pushes the chain element at `(i, d_i)` and pulls the end at `(i, 7)`.
+The leanXMSS circuit hashes each signature's chains with 42 `LINK` rows and 99 `STEP` rows (`Xmss.Circuit.chains`),
+the leanSPHINCS circuit each layer's with 42 and 103. A step at position `s` of chain `c` pulls its input at the key
+of `(c, s)` and pushes its output at the key of `(c, s + 1 mod 8)`; chain `i`'s link pushes the chain element at
+`(i, d_i)` and pulls the end at `(i, 7)`.
 
-* `paths_sound`: when the pushes and pulls of 99 steps and the 42 links balance as multisets, and the digits sum to
-  195, every chain's end is the walk from its element through positions `d_i .. 6`. Counting per key, the number of
-  steps at `(c, s)` is the number at `(c, s - 1 mod 8)` plus the link's push minus its pull, so each chain has
-  `k_c + [d_c ≤ s ≤ 6]` steps at `s`; there are `8 Σ k_c + 99` steps in all, so every `k_c` is zero, every key is
-  pushed once and pulled once, and the values carry along each chain.
+* `paths_sound`: when the pushes and pulls of the steps and the 42 links balance as multisets, and the steps and the
+  digits sum to 294, every chain's end is the walk from its element through positions `d_i .. 6`. Counting per key,
+  the number of steps at `(c, s)` is the number at `(c, s - 1 mod 8)` plus the link's push minus its pull, so each
+  chain has `k_c + [d_c ≤ s ≤ 6]` steps at `s`; there are `8 Σ k_c + Σ (7 - d_c)` steps in all, so every `k_c` is
+  zero, every key is pushed once and pulled once, and the values carry along each chain.
 * `paths_complete`: the steps the chains need, chain-major (`cells`), balance.
-* `local_sound` and `local_complete` state these over the rows' tuples, the keys `keyK j p` of signature `j`
-  decoding to their position (`posOf`) and signature (`tagOf`).
+* `local_sound` and `local_complete` state these over the rows' tuples, the keys `keyK b g p` of the tweak words'
+  base `b` and the tag `g` decoding to their position (`posOf`) and tag (`tagOf`).
 * `Frame` and `Count`: runs adding no `STEP` or `LINK` row, or a known number; `count_circuit` counts the circuit's
   rows, and `rows_perm` makes the rows the signatures' contracts name all of them, so that the whole bus balances
-  exactly when each signature's tuples do (`local_of_balanced`, `balanced_of_local`).
+  exactly when each tag's tuples do (`local_of_balanced`, `balanced_of_local`).
 -/
 
 namespace LeanVMCircuits.Xmss
 
-open LeanVMCircuits.Rec (K Tuple ofWord toWord root tweakWord dynKey dynBit stepPullOf stepPushOf linkPushOf
+open LeanVMCircuits.Rec (K Tuple ofWord toWord root tweakWord tweakK dynKey dynBit stepPullOf stepPushOf linkPushOf
   linkPullOf)
 open LeanVMCircuits.Rec.Model
 open Words (Dig)
@@ -264,7 +265,7 @@ theorem count_row_link (r : List ℕ) : Count (row .link r) 0 1 := fun s => ⟨r
 theorem frame_leafRow (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : Frame (leafRow h m t last) := by
   unfold leafRow; frame
 
-theorem count_chainStep (idx : ℕ) (pp : ℕ × ℕ) (tag act : ℕ) : Count (chainStep idx pp tag act) 1 0 := by
+theorem count_chainStep (idx : ℕ) (pp : ℕ × ℕ) (base tag act : ℕ) : Count (chainStep idx pp base tag act) 1 0 := by
   unfold chainStep
   exact Count.frame_bind frame_wire fun _ => Count.frame_bind frame_wire fun _ => Count.frame_bind frame_wire
     fun _ => Count.frame_bind frame_kZero fun _ => Count.frame_bind (frame_dConst _) fun _ =>
@@ -275,21 +276,22 @@ theorem count_link (w d0 d1 d2 act : ℕ) : Count (link w d0 d1 d2 act) 0 1 := b
   exact Count.frame_bind frame_wire fun _ => Count.frame_bind frame_wire fun _ => Count.frame_bind frame_wire
     fun _ => Count.frame_bind frame_wire fun _ => Count.bind_frame (count_row_link _) fun _ => Frame.pure' _
 
-theorem count_chains (j idx : ℕ) (pp digitBits : List ℕ) : Count (Circuit.chains j idx pp digitBits) 99 42 := by
+theorem count_chains (b g steps idx : ℕ) (pp digitBits : List ℕ) :
+    Count (Circuit.chains b g steps idx pp digitBits) steps 42 := by
   unfold Circuit.chains
   refine Count.frame_bind frame_wire fun act => Count.frame_bind (frame_eqConstK _ _) fun _ =>
-    Count.frame_bind (frame_kConst _) fun tag => ?_
+    Count.frame_bind (frame_kConst _) fun base => Count.frame_bind (frame_kConst _) fun tag => ?_
   refine (Count.bind (Count.forIn _ _ _ (a := 0) (c := 1) (fun i b => ?_) fun _ _ => by yields) fun ends =>
     Count.bind_frame (Count.forIn _ _ _ (a := 1) (c := 0) (fun _ _ => ?_) fun _ _ => by yields)
-      fun _ => Frame.pure' _).congr rfl rfl
+      fun _ => Frame.pure' _).congr (by simp) (by simp)
   · exact Count.frame_bind (frame_kConst _) fun _ => Count.bind_frame (count_link _ _ _ _ _) fun _ => Frame.pure' _
-  · exact Count.bind_frame (count_chainStep _ _ _ _) fun _ => Frame.pure' _
+  · exact Count.bind_frame (count_chainStep _ _ _ _ _) fun _ => Frame.pure' _
 
 /-- A signature adds its chains' 99 `STEP` and 42 `LINK` rows. -/
 theorem count_signature (j : ℕ) : Count (Circuit.signature j) 99 42 := by
   unfold Circuit.signature
   repeat (first
-    | with_reducible exact Count.bind_frame (count_chains _ _ _ _) fun _ => by frame
+    | with_reducible exact Count.bind_frame (count_chains _ _ _ _ _ _) fun _ => by frame
     | with_reducible refine Count.frame_bind (by frame) fun _ => ?_
     | dsimp only)
 
@@ -571,60 +573,62 @@ theorem paths_complete (H : ℕ → ℕ → V → V) (d : ℕ → ℕ) (tip : �
 
 end Paths
 
-/-! The keys of signature `j`'s tuples. -/
+/-! The keys of a tag's tuples. -/
 
-/-- The key of position `p` of signature `j`: `X^63 + tweak0(1, p) + j · X^41`. -/
-noncomputable def keyK (j p : ℕ) : K := dynKey (ofWord (tweakWord p)) (ofWord (j * 2 ^ 41))
+/-- The key of position `p` of tag `g` over the base word `b`: `X^63 + b + X^32 p + g · X^41`. -/
+noncomputable def keyK (b g p : ℕ) : K := dynKey (tweakK (ofWord b) p) (ofWord (g * 2 ^ 41))
 
 /-- That key as a word. -/
-def keyNat (j p : ℕ) : ℕ := tweakWord p + 2 ^ 41 * (j + 2 ^ 22 * 1)
+def keyNat (b g p : ℕ) : ℕ := tweakWord b p + 2 ^ 41 * (g + 2 ^ 22 * 1)
 
 /-- The position a key names. -/
 noncomputable def posOf (k : K) : ℕ := toWord k / 2 ^ 32 % 2 ^ 9
 
-/-- The signature a key names. -/
+/-- The tag a key names. -/
 noncomputable def tagOf (k : K) : ℕ := toWord k / 2 ^ 41 % 2 ^ 22
 
-theorem tweak0_one (p : ℕ) : Circuit.tweak0 1 p = tweakWord p := by
+theorem tweak0_one (p : ℕ) : Circuit.tweak0 1 p = tweakWord (2 ^ 8) p := by
   unfold Circuit.tweak0 tweakWord; ring
 
 theorem ofWord_mul_two_pow_41 (j : ℕ) (hj : j < 2 ^ 22) : ofWord (j * 2 ^ 41) = root ^ 41 * Rec.ev j := by
   rw [ofWord, Nat.mod_eq_of_lt (by omega), Nat.mul_comm, Rec.ev_two_pow_mul]
 
-theorem keyNat_lt (j p : ℕ) (hp : p < 2 ^ 9) (hj : j < 2 ^ 22) : keyNat j p < 2 ^ 64 := by
+theorem keyNat_lt (b g p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 9) (hg : g < 2 ^ 22) : keyNat b g p < 2 ^ 64 := by
   unfold keyNat tweakWord; omega
 
-theorem keyK_eq (j p : ℕ) (hp : p < 2 ^ 9) (hj : j < 2 ^ 22) : keyK j p = ofWord (keyNat j p) := by
-  have ht : tweakWord p < 2 ^ 41 := by unfold tweakWord; omega
-  have hR : ofWord (keyNat j p) = Rec.ev (tweakWord p) + root ^ 41 * (Rec.ev j + root ^ 22 * 1) := by
-    rw [ofWord, Nat.mod_eq_of_lt (keyNat_lt j p hp hj), keyNat, Rec.ev_add_two_pow_mul 41 _ _ ht,
-      Rec.ev_add_two_pow_mul 22 _ _ hj, Rec.ev_one]
-  have hT : ofWord (tweakWord p) = Rec.ev (tweakWord p) := by
-    rw [ofWord, Nat.mod_eq_of_lt (by omega)]
-  rw [hR, keyK, dynKey, hT, ofWord_mul_two_pow_41 j hj, dynBit, Rec.ofWord_two_pow 63 (by norm_num)]
+theorem keyK_eq (b g p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 9) (hg : g < 2 ^ 22) :
+    keyK b g p = ofWord (keyNat b g p) := by
+  have ht : tweakWord b p < 2 ^ 41 := by unfold tweakWord; omega
+  have hR : ofWord (keyNat b g p) = Rec.ev (tweakWord b p) + root ^ 41 * (Rec.ev g + root ^ 22 * 1) := by
+    rw [ofWord, Nat.mod_eq_of_lt (keyNat_lt b g p hb hp hg), keyNat, Rec.ev_add_two_pow_mul 41 _ _ ht,
+      Rec.ev_add_two_pow_mul 22 _ _ hg, Rec.ev_one]
+  have hT : tweakK (ofWord b) p = Rec.ev (tweakWord b p) := by
+    rw [← Rec.ofWord_tweakWord b p hb (by omega), ofWord, Nat.mod_eq_of_lt (by omega)]
+  rw [hR, keyK, dynKey, hT, ofWord_mul_two_pow_41 g hg, dynBit, Rec.ofWord_two_pow 63 (by norm_num)]
   ring
 
-theorem toWord_keyK (j p : ℕ) (hp : p < 2 ^ 9) (hj : j < 2 ^ 22) : toWord (keyK j p) = keyNat j p := by
-  rw [keyK_eq j p hp hj, Rec.toWord_ofWord _ (keyNat_lt j p hp hj)]
+theorem toWord_keyK (b g p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 9) (hg : g < 2 ^ 22) :
+    toWord (keyK b g p) = keyNat b g p := by
+  rw [keyK_eq b g p hb hp hg, Rec.toWord_ofWord _ (keyNat_lt b g p hb hp hg)]
 
-theorem posOf_keyK (j p : ℕ) (hp : p < 2 ^ 9) (hj : j < 2 ^ 22) : posOf (keyK j p) = p := by
-  rw [posOf, toWord_keyK j p hp hj, keyNat, tweakWord]; omega
+theorem posOf_keyK (b g p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 9) (hg : g < 2 ^ 22) : posOf (keyK b g p) = p := by
+  rw [posOf, toWord_keyK b g p hb hp hg, keyNat, tweakWord]; omega
 
-theorem tagOf_keyK (j p : ℕ) (hp : p < 2 ^ 9) (hj : j < 2 ^ 22) : tagOf (keyK j p) = j := by
-  rw [tagOf, toWord_keyK j p hp hj, keyNat, tweakWord]; omega
+theorem tagOf_keyK (b g p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 9) (hg : g < 2 ^ 22) : tagOf (keyK b g p) = g := by
+  rw [tagOf, toWord_keyK b g p hb hp hg, keyNat, tweakWord]; omega
 
-theorem toWord_link (i j : ℕ) (hi : i < 42) (hj : j < 2 ^ 22) :
-    toWord (ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41)) = 256 + i * 34359738368 + j * 2199023255552 := by
-  rw [Rec.toWord_ofWord _ (by unfold Circuit.tweak0; omega)]
-  unfold Circuit.tweak0
+theorem toWord_link (b i g : ℕ) (hb : b < 2 ^ 32) (hi : i < 42) (hg : g < 2 ^ 22) :
+    toWord (ofWord (tweakWord b (8 * i) + g * 2 ^ 41)) = b + i * 34359738368 + g * 2199023255552 := by
+  rw [Rec.toWord_ofWord _ (by unfold tweakWord; omega)]
+  unfold tweakWord
   ring
 
-theorem posOf_tweak (p : ℕ) (hp : p < 2 ^ 9) : posOf (ofWord (tweakWord p)) = p := by
-  rw [posOf, Rec.toWord_ofWord _ (by unfold tweakWord; omega)]
+theorem posOf_tweak (b p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 9) : posOf (tweakK (ofWord b) p) = p := by
+  rw [← Rec.ofWord_tweakWord b p hb (by omega), posOf, Rec.toWord_ofWord _ (by unfold tweakWord; omega)]
   unfold tweakWord
   omega
 
-theorem keyK_def (j p : ℕ) : keyK j p = dynKey (ofWord (tweakWord p)) (ofWord (j * 2 ^ 41)) := rfl
+theorem keyK_def (b g p : ℕ) : keyK b g p = dynKey (tweakK (ofWord b) p) (ofWord (g * 2 ^ 41)) := rfl
 
 /-- Three Boolean digit bits weighted `X^32`, `X^33`, `X^34`: `X^32` times the digit. -/
 theorem digit_weights (x0 x1 x2 : K) (h0 : x0 = 0 ∨ x0 = 1) (h1 : x1 = 0 ∨ x1 = 1) (h2 : x2 = 0 ∨ x2 = 1) :
@@ -644,31 +648,29 @@ theorem digit_weights (x0 x1 x2 : K) (h0 : x0 = 0 ∨ x0 = 1) (h1 : x1 = 0 ∨ x
     Rec.ofWord_two_pow 32 (by norm_num), Rec.ofWord_two_pow 33 (by norm_num), Rec.ofWord_two_pow 34 (by norm_num)]
   ring
 
-theorem ofWord_link (i j : ℕ) (hi : i < 42) (hj : j < 2 ^ 22) :
-    ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41) =
-      root ^ 8 + root ^ 32 * (root ^ 3 * Rec.ev i) + root ^ 41 * Rec.ev j := by
-  have ht : tweakWord (8 * i) < 2 ^ 41 := by unfold tweakWord; omega
-  rw [tweak0_one, ofWord, Nat.mod_eq_of_lt (by unfold tweakWord; omega), Nat.mul_comm j,
-    Rec.ev_add_two_pow_mul 41 _ _ ht, ← Nat.mod_eq_of_lt (show tweakWord (8 * i) < 2 ^ 64 by omega), ← ofWord,
-    Rec.ofWord_tweakWord _ (by omega), show 8 * i = 2 ^ 3 * i by norm_num, Rec.ev_two_pow_mul 3 i]
+theorem ofWord_link (b i g : ℕ) (hb : b < 2 ^ 32) (hi : i < 42) (hg : g < 2 ^ 22) :
+    ofWord (tweakWord b (8 * i) + g * 2 ^ 41) = ofWord b + root ^ 32 * (root ^ 3 * Rec.ev i) + root ^ 41 * Rec.ev g := by
+  have ht : tweakWord b (8 * i) < 2 ^ 41 := by unfold tweakWord; omega
+  rw [ofWord, Nat.mod_eq_of_lt (by unfold tweakWord; omega), Nat.mul_comm g,
+    Rec.ev_add_two_pow_mul 41 _ _ ht, ← Nat.mod_eq_of_lt (show tweakWord b (8 * i) < 2 ^ 64 by omega), ← ofWord,
+    Rec.ofWord_tweakWord _ _ hb (by omega), tweakK, show 8 * i = 2 ^ 3 * i by norm_num, Rec.ev_two_pow_mul 3 i]
 
 /-- A link's push key: at the position of its digit. -/
-theorem link_push_key (i j : ℕ) (hi : i < 42) (hj : j < 2 ^ 22) (x0 x1 x2 : K) (h0 : x0 = 0 ∨ x0 = 1)
-    (h1 : x1 = 0 ∨ x1 = 1) (h2 : x2 = 0 ∨ x2 = 1) :
-    dynKey (ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41))
+theorem link_push_key (b i g : ℕ) (hb : b < 2 ^ 32) (hi : i < 42) (hg : g < 2 ^ 22) (x0 x1 x2 : K)
+    (h0 : x0 = 0 ∨ x0 = 1) (h1 : x1 = 0 ∨ x1 = 1) (h2 : x2 = 0 ∨ x2 = 1) :
+    dynKey (ofWord (tweakWord b (8 * i) + g * 2 ^ 41))
         (ofWord (2 ^ 32) * x0 + ofWord (2 ^ 33) * x1 + ofWord (2 ^ 34) * x2) =
-      keyK j (8 * i + ((if x0 = 1 then 1 else 0) + (if x1 = 1 then 2 else 0) + (if x2 = 1 then 4 else 0))) := by
-  have hb : (if x0 = 1 then 1 else 0) + (if x1 = 1 then 2 else 0) + (if x2 = 1 then 4 else 0) < 2 ^ 3 := by
+      keyK b g (8 * i + ((if x0 = 1 then 1 else 0) + (if x1 = 1 then 2 else 0) + (if x2 = 1 then 4 else 0))) := by
+  have hd : (if x0 = 1 then 1 else 0) + (if x1 = 1 then 2 else 0) + (if x2 = 1 then 4 else 0) < 2 ^ 3 := by
     split_ifs <;> norm_num
-  rw [digit_weights x0 x1 x2 h0 h1 h2, keyK, dynKey, dynKey, ofWord_link i j hi hj, ofWord_mul_two_pow_41 j hj,
-    Rec.ofWord_tweakWord _ (by omega), Nat.add_comm (8 * i), show 8 * i = 2 ^ 3 * i by norm_num,
-    Rec.ev_add_two_pow_mul 3 _ _ hb]
+  rw [digit_weights x0 x1 x2 h0 h1 h2, keyK, dynKey, dynKey, ofWord_link b i g hb hi hg, ofWord_mul_two_pow_41 g hg,
+    tweakK, Nat.add_comm (8 * i), show 8 * i = 2 ^ 3 * i by norm_num, Rec.ev_add_two_pow_mul 3 _ _ hd]
   ring
 
 /-- A link's pull key, when active: at position 7. -/
-theorem link_pull_key (i j : ℕ) (hi : i < 42) (hj : j < 2 ^ 22) :
-    dynKey (ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41)) (ofWord (2 ^ 32 + 2 ^ 33 + 2 ^ 34) * 1) =
-      keyK j (8 * i + 7) := by
+theorem link_pull_key (b i g : ℕ) (hb : b < 2 ^ 32) (hi : i < 42) (hg : g < 2 ^ 22) :
+    dynKey (ofWord (tweakWord b (8 * i) + g * 2 ^ 41)) (ofWord (2 ^ 32 + 2 ^ 33 + 2 ^ 34) * 1) =
+      keyK b g (8 * i + 7) := by
   have h7 : ofWord (2 ^ 32 + 2 ^ 33 + 2 ^ 34) * 1 = ofWord (2 ^ 32) * 1 + ofWord (2 ^ 33) * 1 + ofWord (2 ^ 34) * 1 := by
     have e : ofWord (2 ^ 32 + 2 ^ 33 + 2 ^ 34) = root ^ 32 * (1 + root * (1 + root * 1)) := by
       rw [ofWord, Nat.mod_eq_of_lt (by norm_num),
@@ -678,11 +680,11 @@ theorem link_pull_key (i j : ℕ) (hi : i < 42) (hj : j < 2 ^ 22) :
     rw [e, Rec.ofWord_two_pow 32 (by norm_num), Rec.ofWord_two_pow 33 (by norm_num),
       Rec.ofWord_two_pow 34 (by norm_num)]
     ring
-  have h := link_push_key i j hi hj 1 1 1 (Or.inr rfl) (Or.inr rfl) (Or.inr rfl)
+  have h := link_push_key b i g hb hi hg 1 1 1 (Or.inr rfl) (Or.inr rfl) (Or.inr rfl)
   simp only [eq_self_iff_true, if_true] at h
   rw [h7, h]
 
-/-! Signature-local balance, read off and built. -/
+/-! Tag-local balance, read off and built. -/
 
 /-- A tuple's two words as 64-bit words. -/
 noncomputable def wd (t : Tuple) : Dig := (BitVec.ofNat 64 (toWord t.2.1), BitVec.ofNat 64 (toWord t.2.2))
@@ -690,29 +692,44 @@ noncomputable def wd (t : Tuple) : Dig := (BitVec.ofNat 64 (toWord t.2.1), BitVe
 /-- A tuple decoded: its key's chain and position, and its words. -/
 noncomputable def decT (t : Tuple) : (ℕ × ℕ) × Dig := ((posOf t.1 / 8, posOf t.1 % 8), wd t)
 
-/-- Signature `j`'s tuple of a chain, position and two words. -/
-noncomputable def encT (j : ℕ) (x : (ℕ × ℕ) × Dig) : Tuple :=
-  (keyK j (8 * x.1.1 + x.1.2), ofWord x.2.1.toNat, ofWord x.2.2.toNat)
+/-- Tag `g`'s tuple over the base `b` of a chain, position and two words. -/
+noncomputable def encT (b g : ℕ) (x : (ℕ × ℕ) × Dig) : Tuple :=
+  (keyK b g (8 * x.1.1 + x.1.2), ofWord x.2.1.toNat, ofWord x.2.2.toNat)
+
+/-- A chain step's hash over the base `b`, the index word `I` and the parameter `P0, P1`: the first two words of the
+hash of the tweak word of position `8c + s`, `I`, `P0`, `P1` and the two words of `v`. -/
+def stepHash (b : ℕ) (I P0 P1 : Words.W) (c s : ℕ) (v : Dig) : Dig :=
+  (Rec.digest (Rec.hashWords [BitVec.ofNat 64 (tweakWord b (8 * c + s)), I, P0, P1, v.1, v.2]) 0,
+    Rec.digest (Rec.hashWords [BitVec.ofNat 64 (tweakWord b (8 * c + s)), I, P0, P1, v.1, v.2]) 1)
+
+/-- leanXMSS's chain steps are `stepHash` over the base `2^8` and the index word of the epoch. -/
+theorem walk_stepHash (e : ℕ) (P0 P1 : Words.W) (i d : ℕ) (v : Dig) :
+    walk (stepHash (2 ^ 8) (Words.tweak1 e) P0 P1) i d v 7 = Words.chainFrom i e (P0, P1) d v := by
+  have h : stepHash (2 ^ 8) (Words.tweak1 e) P0 P1 = fun c s v => Words.chainStep c s e (P0, P1) v := by
+    funext c s v
+    simp only [stepHash, Words.chainStep, Words.th, Words.tweak0, tweak0_one, List.cons_append, List.nil_append]
+  rw [h]
+  rfl
 
 /-- The tuples the `STEP` rows `R` and the `LINK` rows `L` push are the tuples they pull. -/
 def LocalBal (val : Val) (R L : List (List ℕ)) : Prop :=
   Multiset.ofList (R.map (stepPushRow val) ++ L.map (linkPushRow val)) =
     Multiset.ofList (R.map (stepPullRow val) ++ L.map (linkPullRow val))
 
-/-- A signature's balanced tuples: the steps `R` at positions `pos r` of signature `j`, each hashing its pulled words
-into its pushed ones by `H`, and the 42 links, make every chain's end the walk from its element. -/
-theorem local_sound (H : ℕ → ℕ → Dig → Dig) (j : ℕ) (hj : j < 2 ^ 22) (val : Val) (R : List (List ℕ))
-    (pos : List ℕ → ℕ) (Lrow : ℕ → List ℕ) (d : ℕ → ℕ) (hpos : ∀ r ∈ R, pos r < 2 ^ 9)
-    (hpull : ∀ r ∈ R, (stepPullRow val r).1 = keyK j (pos r))
-    (hpush : ∀ r ∈ R, (stepPushRow val r).1 = keyK j (8 * (pos r / 8) + (pos r % 8 + 1) % 8))
+/-- A tag's balanced tuples: the steps `R` at positions `pos r` of tag `g` over the base `b`, each hashing its pulled
+words into its pushed ones by `H`, and the 42 links, make every chain's end the walk from its element. -/
+theorem local_sound (H : ℕ → ℕ → Dig → Dig) (b g : ℕ) (hb : b < 2 ^ 32) (hg : g < 2 ^ 22) (val : Val)
+    (R : List (List ℕ)) (pos : List ℕ → ℕ) (Lrow : ℕ → List ℕ) (d : ℕ → ℕ) (hpos : ∀ r ∈ R, pos r < 2 ^ 9)
+    (hpull : ∀ r ∈ R, (stepPullRow val r).1 = keyK b g (pos r))
+    (hpush : ∀ r ∈ R, (stepPushRow val r).1 = keyK b g (8 * (pos r / 8) + (pos r % 8 + 1) % 8))
     (hhash : ∀ r ∈ R, wd (stepPushRow val r) = H (pos r / 8) (pos r % 8) (wd (stepPullRow val r)))
-    (hd : ∀ i < 42, d i < 8) (hlpush : ∀ i < 42, (linkPushRow val (Lrow i)).1 = keyK j (8 * i + d i))
-    (hlpull : ∀ i < 42, (linkPullRow val (Lrow i)).1 = keyK j (8 * i + 7))
+    (hd : ∀ i < 42, d i < 8) (hlpush : ∀ i < 42, (linkPushRow val (Lrow i)).1 = keyK b g (8 * i + d i))
+    (hlpull : ∀ i < 42, (linkPullRow val (Lrow i)).1 = keyK b g (8 * i + 7))
     (hlen : R.length + ∑ i ∈ Finset.range 42, d i = 294) (hbal : LocalBal val R ((List.range 42).map Lrow)) :
     ∀ i < 42, wd (linkPullRow val (Lrow i)) = walk H i (d i) (wd (linkPushRow val (Lrow i))) 7 := by
-  have hdec : ∀ (t : Tuple) (q : ℕ), q < 2 ^ 9 → t.1 = keyK j q → decT t = ((q / 8, q % 8), wd t) := by
+  have hdec : ∀ (t : Tuple) (q : ℕ), q < 2 ^ 9 → t.1 = keyK b g q → decT t = ((q / 8, q % 8), wd t) := by
     intro t q hq ht
-    simp only [decT, ht, posOf_keyK j q hq hj]
+    simp only [decT, ht, posOf_keyK b g q hb hq hg]
   set steps := R.map fun r => ((pos r / 8, pos r % 8), wd (stepPullRow val r), wd (stepPushRow val r)) with hsteps
   have hP : (R.map (stepPushRow val)).map decT = steps.map pushOf := by
     rw [hsteps, List.map_map, List.map_map]
@@ -754,33 +771,33 @@ theorem map_range_getD {α β : Type} (l : List α) (x : α) (n : ℕ) (hl : l.l
   simp only [List.getElem_map, List.getElem_range, List.getD_eq_getElem?_getD,
     List.getElem?_eq_getElem (show m < l.length by simpa using h1), Option.getD_some]
 
-/-- A signature's tuples balance when its steps are the cells its chains need, in order, and its links push the
+/-- A tag's tuples balance when its `n` steps are the cells its chains need, in order, and its links push the
 chains' elements and pull their walks' ends. -/
-theorem local_complete (H : ℕ → ℕ → Dig → Dig) (j : ℕ) (val : Val) (d : ℕ → ℕ) (hd : ∀ i < 42, d i < 8)
-    (tip : ℕ → Dig) (Srow Lrow : ℕ → List ℕ) (hlen : (cells d).length = 99)
-    (hspull : ∀ m < 99, stepPullRow val (Srow m) = encT j (pullOf (stepAt H d tip ((cells d).getD m (0, 0)))))
-    (hspush : ∀ m < 99, stepPushRow val (Srow m) = encT j (pushOf (stepAt H d tip ((cells d).getD m (0, 0)))))
-    (hlpush : ∀ i < 42, linkPushRow val (Lrow i) = encT j ((i, d i), tip i))
-    (hlpull : ∀ i < 42, linkPullRow val (Lrow i) = encT j ((i, 7), walk H i (d i) (tip i) 7)) :
-    LocalBal val ((List.range 99).map Srow) ((List.range 42).map Lrow) := by
-  have hS : ∀ (g : List ℕ → Tuple) (F : (ℕ × ℕ) × Dig × Dig → (ℕ × ℕ) × Dig),
-      (∀ m < 99, g (Srow m) = encT j (F (stepAt H d tip ((cells d).getD m (0, 0))))) →
-      ((List.range 99).map Srow).map g = (cells d).map (encT j ∘ F ∘ stepAt H d tip) := by
-    intro g F h
-    rw [List.map_map, ← map_range_getD (cells d) (0, 0) 99 hlen]
+theorem local_complete (H : ℕ → ℕ → Dig → Dig) (b g : ℕ) (val : Val) (d : ℕ → ℕ) (hd : ∀ i < 42, d i < 8)
+    (tip : ℕ → Dig) (Srow Lrow : ℕ → List ℕ) (n : ℕ) (hlen : (cells d).length = n)
+    (hspull : ∀ m < n, stepPullRow val (Srow m) = encT b g (pullOf (stepAt H d tip ((cells d).getD m (0, 0)))))
+    (hspush : ∀ m < n, stepPushRow val (Srow m) = encT b g (pushOf (stepAt H d tip ((cells d).getD m (0, 0)))))
+    (hlpush : ∀ i < 42, linkPushRow val (Lrow i) = encT b g ((i, d i), tip i))
+    (hlpull : ∀ i < 42, linkPullRow val (Lrow i) = encT b g ((i, 7), walk H i (d i) (tip i) 7)) :
+    LocalBal val ((List.range n).map Srow) ((List.range 42).map Lrow) := by
+  have hS : ∀ (G : List ℕ → Tuple) (F : (ℕ × ℕ) × Dig × Dig → (ℕ × ℕ) × Dig),
+      (∀ m < n, G (Srow m) = encT b g (F (stepAt H d tip ((cells d).getD m (0, 0))))) →
+      ((List.range n).map Srow).map G = (cells d).map (encT b g ∘ F ∘ stepAt H d tip) := by
+    intro G F h
+    rw [List.map_map, ← map_range_getD (cells d) (0, 0) n hlen]
     exact List.map_congr_left fun m hm => h m (List.mem_range.mp hm)
-  have hL : ∀ (g : List ℕ → Tuple) (F : ℕ → (ℕ × ℕ) × Dig), (∀ i < 42, g (Lrow i) = encT j (F i)) →
-      ((List.range 42).map Lrow).map g = ((List.range 42).map F).map (encT j) := by
-    intro g F h
+  have hL : ∀ (G : List ℕ → Tuple) (F : ℕ → (ℕ × ℕ) × Dig), (∀ i < 42, G (Lrow i) = encT b g (F i)) →
+      ((List.range 42).map Lrow).map G = ((List.range 42).map F).map (encT b g) := by
+    intro G F h
     rw [List.map_map, List.map_map]
     exact List.map_congr_left fun i hi => h i (List.mem_range.mp hi)
-  have hb := congrArg (Multiset.map (encT j)) (paths_complete H d tip hd)
-  rw [Multiset.map_coe, Multiset.map_coe, List.map_append, List.map_append] at hb
+  have hbal := congrArg (Multiset.map (encT b g)) (paths_complete H d tip hd)
+  rw [Multiset.map_coe, Multiset.map_coe, List.map_append, List.map_append] at hbal
   unfold LocalBal
   rw [hS _ pushOf hspush, hS _ pullOf hspull, hL _ (fun i => ((i, d i), tip i)) hlpush,
     hL _ (fun i => ((i, 7), walk H i (d i) (tip i) 7)) hlpull]
-  simp only [List.map_map] at hb ⊢
-  exact hb
+  simp only [List.map_map] at hbal ⊢
+  exact hbal
 
 /-! The whole circuit's rows. -/
 

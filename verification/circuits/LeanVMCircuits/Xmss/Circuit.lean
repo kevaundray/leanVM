@@ -22,10 +22,10 @@ the Merkle root `[r0, r1, 0]`. The signature is the prover's: 42 chain elements,
 * The encoding hashes `tweak(4, 0, e) || p || m || rho || 0`, two blocks. Bit 63 of both digest words is zero, and
   digit `i` is bits `3r .. 3r+2` of word `i / 21`, `r = i % 21`. The digits sum to 195: the product over every digit
   bit `b` of weight `2^k` of `X^(2^k)` to the power `b` is `X^195` in `K`, and `X` has order above 294.
-* The chains run on the dynamic bus. Chain `i` has a `LINK` row: it pushes the chain element at the key of position
-  `8i + d` (`d` its digit, from the digit's bits) and pulls the chain's end at the key of position `8i + 7`. The
-  signature then has 99 `STEP` rows (`7 · 42 - 195`), each hashing one step at a position the prover names: it pulls
-  its input at its position's key and pushes its output at the next position's. Keys carry `j · 2^41`, so the
+* The chains run on the dynamic bus (`chains`). Chain `i` has a `LINK` row: it pushes the chain element at the key of
+  position `8i + d` (`d` its digit, from the digit's bits) and pulls the chain's end at the key of position `8i + 7`.
+  The signature then has 99 `STEP` rows (`7 · 42 - 195`), each hashing one step at a position the prover names: it
+  pulls its input at its position's key and pushes its output at the next position's. Keys carry `j · 2^41`, so the
   signatures' tuples stay apart; the bus balancing forces every chain to be a path through exactly its needed steps.
 * The leaf hashes `tweak(2, 0, e) || p || end_0 || .. || end_41`, eleven blocks.
 * Level `l` of the path hashes `tweak(3, l + 1, e >> (l + 1)) || p || left || right`, the current node on the side
@@ -94,20 +94,21 @@ def indicators (a0 a1 a2 : ℕ) : M (List ℕ) := do
     level := next
   pure level
 
-/-- Signature `j`'s chains on the dynamic bus, under the index word `idx` and the parameter `pp`, from the digit bits:
-an activity wire held to one, the tag `j · 2^41`, each chain's `LINK` row, then the 99 `STEP` rows. Returns the
-chains' ends' words. -/
-def chains (j idx : ℕ) (pp digitBits : List ℕ) : M (List ℕ) := do
+/-- Chains on the dynamic bus, under the index word `idx` and the parameter `pp`, from the digit bits: an activity
+wire held to one, the tweak words' base `b` (below `2^32`) and the tag `g · 2^41`, each chain's `LINK` row of the
+word `b + 8i · 2^32 + g · 2^41`, then `steps` `STEP` rows. Returns the chains' ends' words. -/
+def chains (b g steps idx : ℕ) (pp digitBits : List ℕ) : M (List ℕ) := do
   let act ← wire
   eqConstK act 1
-  let tag ← kConst (j * 2 ^ 41)
+  let base ← kConst b
+  let tag ← kConst (g * 2 ^ 41)
   let mut ends := []
   for i in List.range 42 do
-    let w ← kConst (tweak0 1 (8 * i) + j * 2 ^ 41)
+    let w ← kConst (Rec.tweakWord b (8 * i) + g * 2 ^ 41)
     let es ← link w (digitBits.getD (3 * i) 0) (digitBits.getD (3 * i + 1) 0) (digitBits.getD (3 * i + 2) 0) act
     ends := ends ++ es
-  for _ in List.range 99 do
-    chainStep idx (pp.getD 0 0, pp.getD 1 0) tag act
+  for _ in List.range steps do
+    chainStep idx (pp.getD 0 0, pp.getD 1 0) base tag act
   pure ends
 
 /-- One level of the Merkle path: the parent of `node` (a digest wire) and the sibling, the epoch's bit `bit` naming
@@ -146,7 +147,7 @@ def signature (j : ℕ) : M Unit := do
   let prod ← digitProduct digitBits
   eqConstE prod targetWord 0 0
   -- The chains.
-  let ends ← chains j idx pp digitBits
+  let ends ← chains (2 ^ 8) j 99 idx pp digitBits
   -- The leaf and the path.
   let mut node ← tweakHash 2 0 idx pp ends
   for l in List.range 32 do

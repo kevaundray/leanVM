@@ -256,7 +256,7 @@ def cast : List (List Form) :=
 
 /-! `STEP`: one step of a hash chain. Columns: the position bits `b0..b8` of the step's tweak word at 0..8 (`s0 s1 s2`,
 then the chain `c0..c5`), the carry `u = b0·b1` at 9, the input words `v0 v1` at 10 and 11, the output's first three
-words `o0 o1 o2` at 12..14, the chain's tag `j` at 15 and the activity `a` at 16. -/
+words `o0 o1 o2` at 12..14, the chain's tag `j` at 15, the activity `a` at 16 and the tweak word's base `B` at 17. -/
 
 def stepBits : ℕ := 0
 def stepCarry : ℕ := 9
@@ -264,15 +264,18 @@ def stepV : ℕ := 10
 def stepO : ℕ := 12
 def stepJ : ℕ := 15
 def stepA : ℕ := 16
+def stepBase : ℕ := 17
 
 /-- `X^(32+k) b_k` for the nine position bits. -/
 def stepTweakTerms : List Form := (List.range 9).map fun k => .scaled (2 ^ (32 + k)) (stepBits + k)
 
-/-- The step's tweak word `X^8 + sum_k X^(32+k) b_k`: `tweak0(1, p)` at the position `p` the bits spell. -/
-def stepT : Form := .sum (.const (2 ^ 8) :: stepTweakTerms)
+/-- The step's tweak word `B + sum_k X^(32+k) b_k`: the base word `B` (its callers wire it to a constant below
+`2^32`) at the position `p` the bits spell. -/
+def stepT : Form := .sum (.col stepBase :: stepTweakTerms)
 
 def stepTable : List (List Form) :=
-  [[stepT, .zero, .zero, .zero], kSlot stepV, kSlot (stepV + 1), eSlot stepO, kSlot stepJ, kSlot stepA]
+  [[stepT, .zero, .zero, .zero], kSlot stepV, kSlot (stepV + 1), eSlot stepO, kSlot stepJ, kSlot stepA,
+    kSlot stepBase]
 
 /-- `u + b0·b1`, which vanishes when `u` is the carry `b0·b1`. -/
 def stepCarryIdentity : Identity := { linear := [(stepCarry, 1)], prods := [(stepBits, stepBits + 1, 1)] }
@@ -285,12 +288,12 @@ def dynBit : ℕ := 2 ^ 63
 
 /-- The step's pull: the key `X^63 + T + j` of its position, and its input words. -/
 def stepPull : List Form :=
-  [.sum (.const (dynBit + 2 ^ 8) :: stepTweakTerms ++ [.col stepJ]), .col stepV, .col (stepV + 1)]
+  [.sum (.const dynBit :: .col stepBase :: stepTweakTerms ++ [.col stepJ]), .col stepV, .col (stepV + 1)]
 
 /-- The step's push: the key of the next position (the bits `s0 s1 s2` counted up by one modulo eight when the row is
 active, `a = 1`), and its output's first two words. -/
 def stepPush : List Form :=
-  [.sum (.const (dynBit + 2 ^ 8) :: stepTweakTerms ++ [.col stepJ, .scaled (2 ^ 32) stepA,
+  [.sum (.const dynBit :: .col stepBase :: stepTweakTerms ++ [.col stepJ, .scaled (2 ^ 32) stepA,
       .scaledProd (2 ^ 33) stepA stepBits, .scaledProd (2 ^ 34) stepA stepCarry]),
     .col stepO, .col (stepO + 1)]
 
@@ -346,13 +349,14 @@ def castElement : ℕ := 1
 def castHalves : ℕ := 2
 def castWords : ℕ := 4
 
-/-- `STEP`'s slots: the tweak word, the two input words, the output's first three words as an element, the tag, then
-the activity. -/
+/-- `STEP`'s slots: the tweak word, the two input words, the output's first three words as an element, the tag, the
+activity, then the tweak word's base. -/
 def stepSlotT : ℕ := 0
 def stepSlotV : ℕ := 1
 def stepSlotO : ℕ := 3
 def stepSlotJ : ℕ := 4
 def stepSlotA : ℕ := 5
+def stepSlotBase : ℕ := 6
 
 /-- `LINK`'s slots, one per column: the word, the three digit bits, the tip's two words, the end's two words, then the
 activity. -/
@@ -372,8 +376,12 @@ abbrev Tuple := K × K × K
 noncomputable def tupleOf (f : List Form) (row : ℕ → K) : Tuple :=
   ((f.getD 0 .zero).eval row, (f.getD 1 .zero).eval row, (f.getD 2 .zero).eval row)
 
-/-- `tweak0(1, p)`: the tweak word of chain position `p = 8c + s`. -/
-def tweakWord (p : ℕ) : ℕ := 2 ^ 8 + p * 2 ^ 32
+/-- The tweak word `b + p · 2^32` of chain position `p = 8c + s` over the base word `b < 2^32`: leanXMSS's
+`tweak0(1, p)` at `b = 2^8`. -/
+def tweakWord (b p : ℕ) : ℕ := b + p * 2 ^ 32
+
+/-- The tweak word of position `p` over the base `B`, in `K`: `B + X^32 · p`. -/
+noncomputable def tweakK (B : K) (p : ℕ) : K := B + root ^ 32 * ev p
 
 /-- Position bit `k` of a tweak word `T`: its bit `32 + k`. -/
 noncomputable def posBit (T : K) (k : ℕ) : K := if (toWord T).testBit (32 + k) then 1 else 0
@@ -384,10 +392,11 @@ noncomputable def dynKey (T j : K) : K := ofWord dynBit + T + j
 /-- A step's pull of its tweak word `T`, input words and tag. -/
 noncomputable def stepPullOf (T v0 v1 j : K) : Tuple := (dynKey T j, v0, v1)
 
-/-- A step's push of its tweak word `T`, output words, tag and activity. -/
-noncomputable def stepPushOf (T o0 o1 j a : K) : Tuple :=
-  (dynKey T j + a * (ofWord (2 ^ 32) + posBit T 0 * ofWord (2 ^ 33) + posBit T 0 * posBit T 1 * ofWord (2 ^ 34)),
-    o0, o1)
+/-- A step's push of its tweak word `T` over the base `B`, output words, tag and activity: its position bits are
+those of `T + B`. -/
+noncomputable def stepPushOf (T B o0 o1 j a : K) : Tuple :=
+  (dynKey T j + a * (ofWord (2 ^ 32) + posBit (T + B) 0 * ofWord (2 ^ 33) +
+    posBit (T + B) 0 * posBit (T + B) 1 * ofWord (2 ^ 34)), o0, o1)
 
 /-- A link's push of its word, digit bits and tip. -/
 noncomputable def linkPushOf (w d0 d1 d2 t0 t1 : K) : Tuple :=
@@ -413,18 +422,26 @@ theorem ev_add_two_pow_mul (k a b : ℕ) (ha : a < 2 ^ k) : ev (a + 2 ^ k * b) =
       ih _ hlt]
     ring
 
-theorem ofWord_tweakWord (p : ℕ) (hp : p < 2 ^ 32) : ofWord (tweakWord p) = root ^ 8 + root ^ 32 * ev p := by
-  rw [ofWord, tweakWord, Nat.mod_eq_of_lt (by omega), show 2 ^ 8 + p * 2 ^ 32 = 2 ^ 8 + 2 ^ 32 * p by ring,
-    ev_add_two_pow_mul 32 _ _ (by norm_num), show 2 ^ 8 = 2 ^ 8 * 1 by rfl, ev_two_pow_mul, ev_one, mul_one]
+/-- A position shifted to bit 32 in `K` is the word `2^32 · p`. -/
+theorem shift_ofWord (p : ℕ) (hp : p < 2 ^ 32) : root ^ 32 * ev p = ofWord (2 ^ 32 * p) := by
+  rw [ofWord, Nat.mod_eq_of_lt (by omega), ev_two_pow_mul]
 
-theorem testBit_tweakWord (p k : ℕ) : (tweakWord p).testBit (32 + k) = p.testBit k := by
-  rw [Nat.add_comm, ← Nat.testBit_div_two_pow, tweakWord]
-  congr 1
-  omega
+theorem ofWord_tweakWord (b p : ℕ) (hb : b < 2 ^ 32) (hp : p < 2 ^ 32) :
+    ofWord (tweakWord b p) = tweakK (ofWord b) p := by
+  rw [ofWord, tweakWord, Nat.mod_eq_of_lt (by omega), Nat.mul_comm p, ev_add_two_pow_mul 32 _ _ hb, tweakK, ofWord,
+    Nat.mod_eq_of_lt (by omega)]
 
-theorem posBit_tweakWord (p k : ℕ) (hp : p < 2 ^ 32) :
-    posBit (ofWord (tweakWord p)) k = if p.testBit k then 1 else 0 := by
-  rw [posBit, toWord_ofWord _ (by unfold tweakWord; omega), testBit_tweakWord]
+/-- A tweak word plus its base is its shifted position. -/
+theorem tweakK_add (B : K) (p : ℕ) : tweakK B p + B = root ^ 32 * ev p := by
+  rw [tweakK]
+  linear_combination B * two_K
+
+theorem posBit_shift (p k : ℕ) (hp : p < 2 ^ 32) : posBit (root ^ 32 * ev p) k = if p.testBit k then 1 else 0 := by
+  have ht : (2 ^ 32 * p).testBit (32 + k) = p.testBit k := by
+    rw [Nat.add_comm, ← Nat.testBit_div_two_pow]
+    congr 1
+    omega
+  rw [shift_ofWord p hp, posBit, toWord_ofWord _ (by omega), ht]
 
 theorem Form.evalSum_append (row : ℕ → K) (a b : List Form) :
     Form.evalSum row (a ++ b) = Form.evalSum row a + Form.evalSum row b := by
@@ -451,28 +468,22 @@ theorem stepTweakTerms_eval (row : ℕ → K) (hbits : ∀ k < 9, row (stepBits 
   rcases hbits i i.isLt with h | h <;> simp [h]
 
 theorem step_tweak (row : ℕ → K) (hbits : ∀ k < 9, row (stepBits + k) = 0 ∨ row (stepBits + k) = 1) :
-    stepPos row < 2 ^ 9 ∧ stepT.eval row = ofWord (tweakWord (stepPos row)) ∧
-      ∀ k < 9, posBit (stepT.eval row) k = row (stepBits + k) := by
+    stepPos row < 2 ^ 9 ∧ stepT.eval row = tweakK (row stepBase) (stepPos row) ∧
+      ∀ k < 9, posBit (stepT.eval row + row stepBase) k = row (stepBits + k) := by
   have hp : stepPos row < 2 ^ 9 := num_lt _ _
-  have hT : stepT.eval row = ofWord (tweakWord (stepPos row)) := by
-    rw [ofWord_tweakWord _ (by omega), ← stepTweakTerms_eval row hbits, stepT, Form.eval, Form.evalSum,
-      Form.eval, ofWord_two_pow 8 (by norm_num)]
+  have hT : stepT.eval row = tweakK (row stepBase) (stepPos row) := by
+    rw [tweakK, ← stepTweakTerms_eval row hbits, stepT, Form.eval, Form.evalSum, Form.eval]
   refine ⟨hp, hT, fun k hk => ?_⟩
-  rw [hT, posBit_tweakWord _ _ (by omega), stepPos, testBit_num _ _ _ hk]
+  rw [hT, tweakK_add, posBit_shift _ _ (by omega), stepPos, testBit_num _ _ _ hk]
   rcases hbits k hk with h | h <;> simp [h]
 
-theorem ofWord_dynBit_add : ofWord (dynBit + 2 ^ 8) = ofWord dynBit + ofWord (2 ^ 8) := by
-  rw [ofWord, Nat.mod_eq_of_lt (by norm_num [dynBit]), dynBit, show 2 ^ 63 + 2 ^ 8 = 2 ^ 8 + 2 ^ 63 * 1 by rfl,
-    ev_add_two_pow_mul 63 _ _ (by norm_num), ev_one, mul_one, ofWord_two_pow 63 (by norm_num),
-    ofWord, Nat.mod_eq_of_lt (by norm_num)]
-  ring
-
-/-- A `STEP` row satisfying its identities: its tweak word is `tweak0(1, p)` at the position `p` its bits spell, its
-activity is Boolean, and its pull and push are its slots' tuples. -/
+/-- A `STEP` row satisfying its identities: its tweak word is its base plus `X^32` times the position `p` its bits
+spell, its activity is Boolean, and its pull and push are its slots' tuples. -/
 theorem step_spec (row : ℕ → K) (hid : ∀ id ∈ stepIdentities, id.eval row = 0) :
-    stepPos row < 2 ^ 9 ∧ stepT.eval row = ofWord (tweakWord (stepPos row)) ∧ (row stepA = 0 ∨ row stepA = 1) ∧
+    stepPos row < 2 ^ 9 ∧ stepT.eval row = tweakK (row stepBase) (stepPos row) ∧ (row stepA = 0 ∨ row stepA = 1) ∧
       tupleOf stepPull row = stepPullOf (stepT.eval row) (row stepV) (row (stepV + 1)) (row stepJ) ∧
-      tupleOf stepPush row = stepPushOf (stepT.eval row) (row stepO) (row (stepO + 1)) (row stepJ) (row stepA) := by
+      tupleOf stepPush row =
+        stepPushOf (stepT.eval row) (row stepBase) (row stepO) (row (stepO + 1)) (row stepJ) (row stepA) := by
   have hbits : ∀ k < 9, row (stepBits + k) = 0 ∨ row (stepBits + k) = 1 := fun k hk =>
     (boolean_spec row _).mp (hid _ (by simp [stepIdentities]; exact Or.inl ⟨k, hk, rfl⟩))
   have ha := (boolean_spec row stepA).mp (hid _ (by simp [stepIdentities]))
@@ -482,17 +493,17 @@ theorem step_spec (row : ℕ → K) (hid : ∀ id ∈ stepIdentities, id.eval ro
       one_mul, add_zero] at h
     exact (add_eq_zero_iff_eq _ _).mp h
   obtain ⟨hp, hT, hpos⟩ := step_tweak row hbits
-  have hT' : stepT.eval row = ofWord (2 ^ 8) + Form.evalSum row stepTweakTerms := by
+  have hT' : stepT.eval row = row stepBase + Form.evalSum row stepTweakTerms := by
     rw [stepT, Form.eval, Form.evalSum, Form.eval]
   refine ⟨hp, hT, ha, ?_, ?_⟩
   · simp only [tupleOf, stepPull, stepPullOf, dynKey, List.getD_cons_zero, List.getD_cons_succ, Form.eval,
-      List.cons_append, Form.evalSum, Form.evalSum_append, ofWord_dynBit_add, hT']
+      List.cons_append, Form.evalSum, Form.evalSum_append, hT']
     ring_nf
   · have h0 := hpos 0 (by norm_num)
     have h1 := hpos 1 (by norm_num)
     simp only [tupleOf, stepPush, stepPushOf, h0, h1]
     simp only [dynKey, List.getD_cons_zero, List.getD_cons_succ, Form.eval, List.cons_append, Form.evalSum,
-      Form.evalSum_append, ofWord_dynBit_add, hT', hcarry, stepBits, Nat.add_zero]
+      Form.evalSum_append, hT', hcarry, stepBits, Nat.add_zero]
     ring_nf
 
 /-- A `LINK` row's push and pull are its slots' tuples. -/
@@ -505,10 +516,9 @@ theorem link_tuples (row : ℕ → K) :
       Form.eval, Form.evalSum]
     ring_nf
 
-/-- Position bit `k` of the tweak word of position `p`. -/
-theorem posBit_tweakWord_mod (p k : ℕ) (hp : p < 2 ^ 32) :
-    posBit (ofWord (tweakWord p)) k = ofWord (p / 2 ^ k % 2) := by
-  rw [posBit_tweakWord _ _ hp, Nat.testBit_eq_decide_div_mod_eq]
+/-- Position bit `k` of a shifted position `p`. -/
+theorem posBit_shift_mod (p k : ℕ) (hp : p < 2 ^ 32) : posBit (root ^ 32 * ev p) k = ofWord (p / 2 ^ k % 2) := by
+  rw [posBit_shift _ _ hp, Nat.testBit_eq_decide_div_mod_eq]
   rcases Nat.mod_two_eq_zero_or_one (p / 2 ^ k) with h | h <;> simp [h, ofWord_one, ofWord_zero]
 
 /-- The position bits counted up by one: `ev` of `s + 1` modulo eight, of a position `s < 8`. -/
@@ -532,23 +542,23 @@ theorem ev_succ_mod_eight (s : ℕ) (hs : s < 8) :
   · ring
   · linear_combination (-(1 + root + root ^ 2)) * two_K
 
-/-- An active step's push at chain `c`, position `s` is the pull key of position `s + 1` modulo eight of chain `c`. -/
-theorem stepPush_next (c s : ℕ) (hc : c < 64) (hs : s < 8) (o0 o1 j : K) :
-    stepPushOf (ofWord (tweakWord (8 * c + s))) o0 o1 j 1 =
-      stepPullOf (ofWord (tweakWord (8 * c + (s + 1) % 8))) o0 o1 j := by
-  have hev : ∀ s' < 8, ofWord (tweakWord (8 * c + s')) = root ^ 8 + root ^ 32 * (ev s' + root ^ 3 * ev c) := by
+/-- An active step's push at chain `c`, position `s` over the base `B` is the pull key of position `s + 1` modulo
+eight of chain `c`. -/
+theorem stepPush_next (c s : ℕ) (hc : c < 64) (hs : s < 8) (B o0 o1 j : K) :
+    stepPushOf (tweakK B (8 * c + s)) B o0 o1 j 1 = stepPullOf (tweakK B (8 * c + (s + 1) % 8)) o0 o1 j := by
+  have hev : ∀ s' < 8, ev (8 * c + s') = ev s' + root ^ 3 * ev c := by
     intro s' hs'
-    rw [ofWord_tweakWord _ (by omega), show 8 * c + s' = s' + 2 ^ 3 * c by ring, ev_add_two_pow_mul 3 _ _ hs']
-  have hb0 : posBit (ofWord (tweakWord (8 * c + s))) 0 = ofWord (s % 2) := by
-    rw [posBit_tweakWord_mod _ _ (by omega)]
+    rw [show 8 * c + s' = s' + 2 ^ 3 * c by ring, ev_add_two_pow_mul 3 _ _ hs']
+  have hb0 : posBit (tweakK B (8 * c + s) + B) 0 = ofWord (s % 2) := by
+    rw [tweakK_add, posBit_shift_mod _ _ (by omega)]
     congr 1
     omega
-  have hb1 : posBit (ofWord (tweakWord (8 * c + s))) 1 = ofWord (s / 2 % 2) := by
-    rw [posBit_tweakWord_mod _ _ (by omega)]
+  have hb1 : posBit (tweakK B (8 * c + s) + B) 1 = ofWord (s / 2 % 2) := by
+    rw [tweakK_add, posBit_shift_mod _ _ (by omega)]
     congr 1
     omega
   have hn := ev_succ_mod_eight s hs
-  rw [stepPushOf, stepPullOf, hb0, hb1, dynKey, dynKey, hev s hs, hev _ (Nat.mod_lt _ (by norm_num)),
+  rw [stepPushOf, stepPullOf, hb0, hb1, dynKey, dynKey, tweakK, tweakK, hev s hs, hev _ (Nat.mod_lt _ (by norm_num)),
     ofWord_two_pow 32 (by norm_num), ofWord_two_pow 33 (by norm_num), ofWord_two_pow 34 (by norm_num)]
   congr 1
   linear_combination (-root ^ 32) * hn

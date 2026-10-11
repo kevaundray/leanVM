@@ -69,8 +69,9 @@ const HASH_KINDS: [WireKind; 16] = [D, D, D, K, E, K, D, E, K, K, K, K, K, K, K,
 /// A cast row's slots: the digest, the element of its first three words, its two halves, its four words.
 const CAST_KINDS: [WireKind; 8] = [D, E, E, E, K, K, K, K];
 
-/// A step row's slots: its tweak word, its two input words, its output's first three words, its tag, its bit `a`.
-const STEP_KINDS: [WireKind; 6] = [K, K, K, E, K, K];
+/// A step row's slots: its tweak word, its two input words, its output's first three words, its tag, its bit `a`, its
+/// tweak word's base.
+const STEP_KINDS: [WireKind; 7] = [K, K, K, E, K, K, K];
 
 impl Table {
     /// How many tables there are.
@@ -156,7 +157,7 @@ impl Table {
             Self::Hash => HashFlock::N_PORTS + 1,
             Self::Split => 65,
             Self::Cast => 4,
-            Self::Step => 17,
+            Self::Step => 18,
             Self::Link => 9,
             Self::Pub => 0,
         }
@@ -351,51 +352,55 @@ mod tests {
         t.slot(3).0.map(|c| eval_local(&c, cols).0)
     }
 
-    // A step row at position `s` of chain `c` pulls at `X^63 + T + j` and, with `a = 1`, pushes at position `s + 1`
-    // of the same chain (`s = 7` wraps to 0); its tweak slot is `T`. A link row pushes its tip at position `d` and
-    // pulls its end at position 7.
+    // A step row at position `s` of chain `c` over a base `B` pulls at `X^63 + T + j` and, with `a = 1`, pushes at
+    // position `s + 1` of the same chain (`s = 7` wraps to 0); its tweak slot is `T`. A link row pushes its tip at
+    // position `d` and pulls its end at position 7.
     #[test]
     fn step_and_link_keys_are_chain_positions() {
-        let tweak = |c: u64, s: u64| 0x100 | (8 * c + s) << 32;
         let j = 0x5a5 << 41;
-        for c in 0..64 {
-            for s in 0..8 {
-                for a in 0..2 {
-                    let t = tweak(c, s);
-                    let values = [
-                        [t, 0, 0, 0],
-                        [11, 0, 0, 0],
-                        [12, 0, 0, 0],
-                        [13, 14, 15, 0],
-                        [j, 0, 0, 0],
-                        [a, 0, 0, 0],
-                    ];
-                    let [push, pull] = Table::Step.row_dynamic(|slot| values[slot]).unwrap();
-                    let next = if a == 1 { tweak(c, (s + 1) % 8) } else { t };
-                    assert_eq!(pull.map(|x| x.0), [1 << 63 | t | j, 11, 12], "c {c} s {s} a {a}");
-                    assert_eq!(push.map(|x| x.0), [1 << 63 | next | j, 13, 14], "c {c} s {s} a {a}");
-                    let cols: Vec<F64> = (Table::Step.committed_sources().into_iter())
-                        .map(|source| F64(source.value(|slot| values[slot])))
-                        .collect();
-                    assert_eq!(eval_local(&Table::Step.slot(clean::STEP_T).0[0], &cols).0, t);
+        // leanXMSS's base and leanSPHINCS's at layer 2.
+        for base in [0x100, 0x2_0101] {
+            let tweak = |c: u64, s: u64| base | (8 * c + s) << 32;
+            for c in 0..64 {
+                for s in 0..8 {
+                    for a in 0..2 {
+                        let t = tweak(c, s);
+                        let values = [
+                            [t, 0, 0, 0],
+                            [11, 0, 0, 0],
+                            [12, 0, 0, 0],
+                            [13, 14, 15, 0],
+                            [j, 0, 0, 0],
+                            [a, 0, 0, 0],
+                            [base, 0, 0, 0],
+                        ];
+                        let [push, pull] = Table::Step.row_dynamic(|slot| values[slot]).unwrap();
+                        let next = if a == 1 { tweak(c, (s + 1) % 8) } else { t };
+                        assert_eq!(pull.map(|x| x.0), [1 << 63 | t | j, 11, 12], "c {c} s {s} a {a}");
+                        assert_eq!(push.map(|x| x.0), [1 << 63 | next | j, 13, 14], "c {c} s {s} a {a}");
+                        let cols: Vec<F64> = (Table::Step.committed_sources().into_iter())
+                            .map(|source| F64(source.value(|slot| values[slot])))
+                            .collect();
+                        assert_eq!(eval_local(&Table::Step.slot(clean::STEP_T).0[0], &cols).0, t);
+                    }
                 }
             }
-        }
-        let w = tweak(5, 0) | j;
-        for d in 0..8 {
-            let mut values = [[0; 4]; 9];
-            values[clean::LINK_W][0] = w;
-            for k in 0..3 {
-                values[clean::LINK_D + k][0] = d >> k & 1;
+            let w = tweak(5, 0) | j;
+            for d in 0..8 {
+                let mut values = [[0; 4]; 9];
+                values[clean::LINK_W][0] = w;
+                for k in 0..3 {
+                    values[clean::LINK_D + k][0] = d >> k & 1;
+                }
+                values[clean::LINK_T] = [21, 0, 0, 0];
+                values[clean::LINK_T + 1] = [22, 0, 0, 0];
+                values[clean::LINK_E] = [23, 0, 0, 0];
+                values[clean::LINK_E + 1] = [24, 0, 0, 0];
+                values[clean::LINK_A][0] = 1;
+                let [push, pull] = Table::Link.row_dynamic(|slot| values[slot]).unwrap();
+                assert_eq!(push.map(|x| x.0), [1 << 63 | w | d << 32, 21, 22]);
+                assert_eq!(pull.map(|x| x.0), [1 << 63 | w | 7 << 32, 23, 24]);
             }
-            values[clean::LINK_T] = [21, 0, 0, 0];
-            values[clean::LINK_T + 1] = [22, 0, 0, 0];
-            values[clean::LINK_E] = [23, 0, 0, 0];
-            values[clean::LINK_E + 1] = [24, 0, 0, 0];
-            values[clean::LINK_A][0] = 1;
-            let [push, pull] = Table::Link.row_dynamic(|slot| values[slot]).unwrap();
-            assert_eq!(push.map(|x| x.0), [1 << 63 | w | d << 32, 21, 22]);
-            assert_eq!(pull.map(|x| x.0), [1 << 63 | w | 7 << 32, 23, 24]);
         }
     }
 

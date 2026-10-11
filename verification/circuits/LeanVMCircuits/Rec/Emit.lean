@@ -81,6 +81,7 @@ def slotIndices : String :=
   slotIndex "STEP_O" "`STEP`'s output's first three words as an element." stepSlotO ++
   slotIndex "STEP_J" "`STEP`'s tag `j`, added to its keys." stepSlotJ ++
   slotIndex "STEP_A" "`STEP`'s activity bit `a`: whether it steps its position." stepSlotA ++
+  slotIndex "STEP_BASE" "`STEP`'s base word `B` of its tweak word, below `2^32`." stepSlotBase ++
   slotIndex "STEP_BITS" "`STEP`'s column of the tweak word's first bit, `s0 s1 s2 c0..c5` from it." stepBits ++
   slotIndex "STEP_CARRY" "`STEP`'s column of the carry `u = s0·s1`." stepCarry ++
   slotIndex "LINK_W" "`LINK`'s chain word `w`." linkSlotW ++
@@ -130,8 +131,8 @@ def emit : String :=
   slots "hash" "`HASH`'s slot `s` over its ports and its mux bit (`Rec.hash_mux`)." hash ++ "\n" ++
   slots "split" "`SPLIT`'s slot `s`: the word, then its bits (`Rec.split_spec`)." split ++ "\n" ++
   slots "cast" "`CAST`'s slot `s`: four words as a digest, an `E` element, two halves and four words." cast ++ "\n" ++
-  slots "step" ("`STEP`'s slot `s`: the tweak word `T = X^8 + sum_k X^(32+k)·b_k`, `v0`, `v1`, the output `o`, the " ++
-    "tag `j`, `a`\n/// (`Rec.step_spec`).") stepTable ++ "\n" ++
+  slots "step" ("`STEP`'s slot `s`: the tweak word `T = B + sum_k X^(32+k)·b_k`, `v0`, `v1`, the output `o`, the " ++
+    "tag `j`, `a`,\n/// the base `B` (`Rec.step_spec`).") stepTable ++ "\n" ++
   slots "link" "`LINK`'s slot `s`: `w`, `d0`, `d1`, `d2`, `t0`, `t1`, `e0`, `e1`, `a`, each its column." linkTable ++
   "\n" ++
   identities "HASH_IDENTITIES" "`HASH`'s identities: its mux bit is Boolean (`Rec.hash_mux`)." hashIdentities ++

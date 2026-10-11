@@ -56,6 +56,8 @@ pub(crate) const STEP_O: usize = 3;
 pub(crate) const STEP_J: usize = 4;
 /// `STEP`'s activity bit `a`: whether it steps its position.
 pub(crate) const STEP_A: usize = 5;
+/// `STEP`'s base word `B` of its tweak word, below `2^32`.
+pub(crate) const STEP_BASE: usize = 6;
 /// `STEP`'s column of the tweak word's first bit, `s0 s1 s2 c0..c5` from it.
 pub(crate) const STEP_BITS: usize = 0;
 /// `STEP`'s column of the carry `u = s0·s1`.
@@ -218,13 +220,13 @@ pub(crate) const fn cast(s: usize) -> Option<[Coord; 4]> {
     })
 }
 
-/// `STEP`'s slot `s`: the tweak word `T = X^8 + sum_k X^(32+k)·b_k`, `v0`, `v1`, the output `o`, the tag `j`, `a`
-/// (`Rec.step_spec`).
+/// `STEP`'s slot `s`: the tweak word `T = B + sum_k X^(32+k)·b_k`, `v0`, `v1`, the output `o`, the tag `j`, `a`,
+/// the base `B` (`Rec.step_spec`).
 pub(crate) fn step(s: usize) -> Option<[Coord; 4]> {
     Some(match s {
         0 => [
             Sum(vec![
-                Const(F64(0x100)),
+                Col(17),
                 Scaled(F64(0x100000000), 0),
                 Scaled(F64(0x200000000), 1),
                 Scaled(F64(0x400000000), 2),
@@ -244,6 +246,7 @@ pub(crate) fn step(s: usize) -> Option<[Coord; 4]> {
         3 => [Col(12), Col(13), Col(14), Const(F64(0x0))],
         4 => [Col(15), Const(F64(0x0)), Const(F64(0x0)), Const(F64(0x0))],
         5 => [Col(16), Const(F64(0x0)), Const(F64(0x0)), Const(F64(0x0))],
+        6 => [Col(17), Const(F64(0x0)), Const(F64(0x0)), Const(F64(0x0))],
         _ => return None,
     })
 }
@@ -428,7 +431,8 @@ pub(crate) const LINK_IDENTITIES: &[Identity] = &[(&[(8, 0x1)], &[(8, 8, 0x1)])]
 pub(crate) fn step_pull() -> [Coord; 3] {
     [
         Sum(vec![
-            Const(F64(0x8000000000000100)),
+            Const(F64(0x8000000000000000)),
+            Col(17),
             Scaled(F64(0x100000000), 0),
             Scaled(F64(0x200000000), 1),
             Scaled(F64(0x400000000), 2),
@@ -450,7 +454,8 @@ pub(crate) fn step_pull() -> [Coord; 3] {
 pub(crate) fn step_push() -> [Coord; 3] {
     [
         Sum(vec![
-            Const(F64(0x8000000000000100)),
+            Const(F64(0x8000000000000000)),
+            Col(17),
             Scaled(F64(0x100000000), 0),
             Scaled(F64(0x200000000), 1),
             Scaled(F64(0x400000000), 2),

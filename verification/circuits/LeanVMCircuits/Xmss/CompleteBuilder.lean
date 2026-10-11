@@ -1813,18 +1813,20 @@ theorem stepPos_bits (col : ℕ → K) (p : ℕ) (hp : p < 2 ^ 9) (hb : ∀ k < 
   · rw [stepPos, Nat.testBit_lt_two_pow (lt_of_lt_of_le (num_lt _ 9) (Nat.pow_le_pow_right (by norm_num) (by omega))),
       Nat.testBit_lt_two_pow (lt_of_lt_of_le hp (Nat.pow_le_pow_right (by norm_num) (by omega)))]
 
-/-- A `STEP` row of a tweak word at position `p`, `K` input words, an `E` output, a `K` tag and activity one. -/
-theorem step_rowSat (v : Val) (t v0 v1 ch tag act p : ℕ) (hp : p < 2 ^ 9) (ht : v t = kVal (ofWord (tweakWord p)))
+/-- A `STEP` row of a tweak word at position `p` over the base `B`, `K` input words, an `E` output, a `K` tag,
+activity one and the base. -/
+theorem step_rowSat (v : Val) (t v0 v1 ch tag act base p : ℕ) (hp : p < 2 ^ 9) (B : K) (ht : v t = kVal (tweakK B p))
     (h0 : v v0 = kVal (v v0 0)) (h1 : v v1 = kVal (v v1 0)) (hch : v ch 3 = 0) (htag : v tag = kVal (v tag 0))
-    (hact : v act = kVal 1) : TSat .step v [t, v0, v1, ch, tag, act] := by
+    (hact : v act = kVal 1) (hbase : v base = kVal B) : TSat .step v [t, v0, v1, ch, tag, act, base] := by
   set col : ℕ → K := fun k => if k < 9 then bitK p k else if k = 9 then bitK p 0 * bitK p 1 else
     if k = 10 then v v0 0 else if k = 11 then v v1 0 else if k = 12 then v ch 0 else if k = 13 then v ch 1 else
-    if k = 14 then v ch 2 else if k = 15 then v tag 0 else 1 with hcol
+    if k = 14 then v ch 2 else if k = 15 then v tag 0 else if k = 16 then 1 else B with hcol
   have hbits : ∀ k < 9, col (stepBits + k) = bitK p k := fun k hk => by simp [hcol, stepBits, hk]
   have hb01 : ∀ k < 9, col (stepBits + k) = 0 ∨ col (stepBits + k) = 1 := fun k hk => by
     rw [hbits k hk, bitK]; split_ifs <;> simp
+  have hB : col stepBase = B := by simp [hcol, stepBase]
   obtain ⟨-, hT, -⟩ := step_tweak col hb01
-  rw [stepPos_bits col p hp hbits] at hT
+  rw [stepPos_bits col p hp hbits, hB] at hT
   refine ⟨col, fun id hid => ?_, fun s hs i => ?_⟩
   · simp only [stepIdentities, List.mem_append, List.mem_map, List.mem_range, List.mem_cons,
       List.not_mem_nil, or_false] at hid
@@ -1834,7 +1836,7 @@ theorem step_rowSat (v : Val) (t v0 v1 ch tag act p : ℕ) (hp : p < 2 ^ 9) (ht 
         ofWord_one, one_mul, add_zero]
       exact (add_eq_zero_iff_eq _ _).mpr (by simp [hcol, stepCarry, stepBits])
     · exact (boolean_spec col _).mpr (Or.inr (by simp [hcol, stepA]))
-  · have hs6 : s < 6 := hs
+  · have hs7 : s < 7 := hs
     interval_cases s
     · fin_cases i
       · show stepT.eval col = v t 0
@@ -1852,6 +1854,9 @@ theorem step_rowSat (v : Val) (t v0 v1 ch tag act p : ℕ) (hp : p < 2 ^ 9) (ht 
     · show (fun i : Fin 4 => limbs Rec.stepTable 5 col i) i = v act i
       rw [hact]; fin_cases i <;> simp [limbs, Rec.stepTable, kSlot, Form.eval, Form.zero, ofWord_zero, hcol, kVal,
         stepA]
+    · show (fun i : Fin 4 => limbs Rec.stepTable 6 col i) i = v base i
+      rw [hbase]; fin_cases i <;> simp [limbs, Rec.stepTable, kSlot, Form.eval, Form.zero, ofWord_zero, hcol, kVal,
+        stepBase]
 
 /-- A `LINK` row of `K` words whose activity is one. -/
 theorem link_rowSat (v : Val) (r : List ℕ) (hlen : r.length = 9) (hk : ∀ j < 9, v (r.getD j 0) = kVal (v (r.getD j 0) 0))
@@ -1866,53 +1871,55 @@ theorem link_rowSat (v : Val) (r : List ℕ) (hlen : r.length = 9) (hk : ∀ j <
     simp only [limbs, hsl]
     fin_cases i <;> simp [kSlot, Form.eval, Form.zero, ofWord_zero, kVal]
 
-/-- `chain_step` of a tweak word at position `p` and input words `x0`, `x1`: its `STEP` row, its first wire the
-tweak word, its challenge the hash's first three words. -/
-theorem chainStep_cg (idx p0 p1 tag act p : ℕ) (hp : p < 2 ^ 9) (x0 x1 : K) :
-    CGood st 0 (fun s v => Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
-      v act = kVal 1) (chainStep idx (p0, p1) tag act) fun s _ s' v => ∃ t v0 v1 ch,
-        [t, v0, v1, ch, tag, act] ∈ s'.step ∧ s.next ≤ t ∧ t < s'.next ∧ v t = kVal (ofWord (tweakWord p)) ∧
+/-- `chain_step` over the base `base` holding `B`, of a tweak word at position `p` and input words `x0`, `x1`: its
+`STEP` row, its first wire the tweak word, its challenge the hash's first three words. -/
+theorem chainStep_cg (idx p0 p1 base tag act p : ℕ) (hp : p < 2 ^ 9) (B x0 x1 : K) :
+    CGood st 0 (fun s v => Wires [idx, p0, p1, base, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1 ∧ v base = kVal B) (chainStep idx (p0, p1) base tag act) fun s _ s' v => ∃ t v0 v1 ch,
+        [t, v0, v1, ch, tag, act, base] ∈ s'.step ∧ s.next ≤ t ∧ t < s'.next ∧ v t = kVal (tweakK B p) ∧
         v v0 = kVal x0 ∧ v v1 = kVal x1 ∧ v ch = chVal (digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 v)))) := by
   unfold chainStep
-  refine (CGood.bind ((wire_cgood (kVal (ofWord (tweakWord p)))).pre fun _ _ _ => trivial)
-    (P₂ := fun t s v => (Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
-      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p)))
+  refine (CGood.bind ((wire_cgood (kVal (tweakK B p))).pre fun _ _ _ => trivial)
+    (P₂ := fun t s v => (Wires [idx, p0, p1, base, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1 ∧ v base = kVal B) ∧ t < s.next ∧ v t = kVal (tweakK B p))
     (fun _ _ _ _ _ hp he hq => ⟨⟨hp.1.mono he, hp.2⟩, by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩)
     fun t => CGood.bind ((wire_cgood (kVal x0)).pre fun _ _ _ => trivial)
-    (P₂ := fun v0 s v => ((Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
-      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p))) ∧ v0 < s.next ∧ v v0 = kVal x0)
+    (P₂ := fun v0 s v => ((Wires [idx, p0, p1, base, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1 ∧ v base = kVal B) ∧ t < s.next ∧ v t = kVal (tweakK B p)) ∧ v0 < s.next ∧ v v0 = kVal x0)
     (fun _ _ _ _ _ hp he hq => ⟨⟨⟨hp.1.1.mono he, hp.1.2⟩, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩,
       by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩)
     fun v0 => CGood.bind ((wire_cgood (kVal x1)).pre fun _ _ _ => trivial)
-    (P₂ := fun v1 s v => (((Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
-      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p))) ∧ v0 < s.next ∧ v v0 = kVal x0) ∧
+    (P₂ := fun v1 s v => (((Wires [idx, p0, p1, base, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1 ∧ v base = kVal B) ∧ t < s.next ∧ v t = kVal (tweakK B p)) ∧ v0 < s.next ∧ v v0 = kVal x0) ∧
       v1 < s.next ∧ v v1 = kVal x1)
     (fun _ _ _ _ _ hp he hq => ⟨⟨⟨⟨hp.1.1.1.mono he, hp.1.1.2⟩, lt_of_lt_of_le hp.1.2.1 he.next, hp.1.2.2⟩,
       lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩)
     fun v1 => CGood.bind (kZero_cgood.pre fun _ _ _ => trivial)
-    (P₂ := fun z s v => ((((Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
-      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p))) ∧ v0 < s.next ∧ v v0 = kVal x0) ∧
+    (P₂ := fun z s v => ((((Wires [idx, p0, p1, base, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1 ∧ v base = kVal B) ∧ t < s.next ∧ v t = kVal (tweakK B p)) ∧ v0 < s.next ∧ v v0 = kVal x0) ∧
       v1 < s.next ∧ v v1 = kVal x1) ∧ z < s.next ∧ v z = kVal 0)
     (fun _ _ _ _ _ hp he hq => ⟨⟨⟨⟨⟨hp.1.1.1.1.mono he, hp.1.1.1.2⟩, lt_of_lt_of_le hp.1.1.2.1 he.next,
       hp.1.1.2.2⟩, lt_of_lt_of_le hp.1.2.1 he.next, hp.1.2.2⟩, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hq⟩)
     fun z => CGood.bind ((dConst_cgood paramIVLimbs).pre fun _ _ _ => trivial)
     (P₂ := fun hw s v => Wires (hw :: [t, idx, p0, p1, v0, v1, z, z]) s ∧
       (∀ i < 8, v ([t, idx, p0, p1, v0, v1, z, z].getD i 0) = kVal (v ([t, idx, p0, p1, v0, v1, z, z].getD i 0) 0)) ∧
-      Wires [tag, act] s ∧ v tag = kVal (v tag 0) ∧ v act = kVal 1 ∧ v t = kVal (ofWord (tweakWord p)) ∧
-      v v0 = kVal x0 ∧ v v1 = kVal x1 ∧ v z = kVal 0 ∧ words4 (v hw) = digest paramIV ∧ t < s.next)
+      Wires [tag, act, base] s ∧ v tag = kVal (v tag 0) ∧ v act = kVal 1 ∧ v base = kVal B ∧
+      v t = kVal (tweakK B p) ∧ v v0 = kVal x0 ∧ v v1 = kVal x1 ∧ v z = kVal 0 ∧ words4 (v hw) = digest paramIV ∧
+      t < s.next)
     ?_ fun hw => CGood.bind ((leafRow_cgood hw [t, idx, p0, p1, v0, v1, z, z] 48 true rfl (by norm_num)).pre
       fun _ _ h => ⟨h.1, h.2.1⟩)
-    (P₂ := fun r s v => Wires [t, v0, v1, r.2, tag, act] s ∧ v tag = kVal (v tag 0) ∧ v act = kVal 1 ∧
-      v t = kVal (ofWord (tweakWord p)) ∧ v v0 = kVal x0 ∧ v v1 = kVal x1 ∧
+    (P₂ := fun r s v => Wires [t, v0, v1, r.2, tag, act, base] s ∧ v tag = kVal (v tag 0) ∧ v act = kVal 1 ∧
+      v base = kVal B ∧ v t = kVal (tweakK B p) ∧ v v0 = kVal x0 ∧ v v1 = kVal x1 ∧
       v r.2 = chVal (digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 v)))))
-    ?_ fun r => CGood.bind ((row_cgood .step [t, v0, v1, r.2, tag, act] (by decide)).pre fun _ v h =>
-      ⟨h.1, by simp, step_rowSat v t v0 v1 r.2 tag act p hp h.2.2.2.1 (by rw [h.2.2.2.2.1, kVal_apply_zero])
-        (by rw [h.2.2.2.2.2.1, kVal_apply_zero]) (by rw [h.2.2.2.2.2.2]; exact chVal_three _) h.2.1 h.2.2.1⟩)
+    ?_ fun r => CGood.bind ((row_cgood .step [t, v0, v1, r.2, tag, act, base] (by decide)).pre fun _ v h =>
+      ⟨h.1, by simp, step_rowSat v t v0 v1 r.2 tag act base p hp B h.2.2.2.2.1
+        (by rw [h.2.2.2.2.2.1, kVal_apply_zero]) (by rw [h.2.2.2.2.2.2.1, kVal_apply_zero])
+        (by rw [h.2.2.2.2.2.2.2]; exact chVal_three _) h.2.1 h.2.2.1 h.2.2.2.1⟩)
     (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun _ =>
       CGood.pure' (Q := fun _ _ _ _ => True) fun _ _ _ _ => trivial).weaken (fun _ _ h => h) ?_
-  · rintro s hw s' v _ ⟨⟨⟨⟨⟨hW, hK, hA⟩, ht, htv⟩, h0, h0v⟩, h1, h1v⟩, hz, hzv⟩ he ⟨hwl, hwv⟩
-    have hwi : ∀ u ∈ [idx, p0, p1, tag], u < s.next := fun u hu => hW u (by simp at hu ⊢; tauto)
-    refine ⟨fun u hu => ?_, fun i hi => ?_, fun u hu => ?_, hK tag (by simp), hA, htv, h0v, h1v, hzv,
+  · rintro s hw s' v _ ⟨⟨⟨⟨⟨hW, hK, hA, hB⟩, ht, htv⟩, h0, h0v⟩, h1, h1v⟩, hz, hzv⟩ he ⟨hwl, hwv⟩
+    have hwi : ∀ u ∈ [idx, p0, p1, base, tag, act], u < s.next := hW
+    refine ⟨fun u hu => ?_, fun i hi => ?_, fun u hu => ?_, hK tag (by simp), hA, hB, htv, h0v, h1v, hzv,
       by rw [hwv]; exact words4_paramIV, lt_of_lt_of_le ht he.next⟩
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
       rcases hu with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
@@ -1935,24 +1942,26 @@ theorem chainStep_cg (idx p0 p1 tag act p : ℕ) (hp : p < 2 ^ 9) (x0 x1 : K) :
       · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 6 0 = z from rfl, hzv, kVal_apply_zero]
       · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 7 0 = z from rfl, hzv, kVal_apply_zero]
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
-      rcases hu with rfl | rfl
-      · exact lt_of_lt_of_le (hW _ (by simp)) he.next
-      · exact lt_of_lt_of_le (hW _ (by simp)) he.next
-  · rintro s r s' v _ ⟨hwl, -, hta, hK, hA, htv, h0v, h1v, hzv, hhw, ht⟩ he ⟨hr, hrv⟩
-    refine ⟨fun u hu => ?_, hK, hA, htv, h0v, h1v, ?_⟩
+      rcases hu with rfl | rfl | rfl
+      · exact lt_of_lt_of_le (hwi _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hwi _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hwi _ (by simp)) he.next
+  · rintro s r s' v _ ⟨hwl, -, hta, hK, hA, hB, htv, h0v, h1v, hzv, hhw, ht⟩ he ⟨hr, hrv⟩
+    refine ⟨fun u hu => ?_, hK, hA, hB, htv, h0v, h1v, ?_⟩
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
-      rcases hu with rfl | rfl | rfl | rfl | rfl | rfl
+      rcases hu with rfl | rfl | rfl | rfl | rfl | rfl | rfl
       · exact lt_of_lt_of_le ht he.next
       · exact lt_of_lt_of_le (hwl _ (by simp)) he.next
       · exact lt_of_lt_of_le (hwl _ (by simp)) he.next
       · exact hr
       · exact lt_of_lt_of_le (hta _ (by simp)) he.next
       · exact lt_of_lt_of_le (hta _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hta _ (by simp)) he.next
     · rw [hrv, hhw, cvWords_digest, show [t, idx, p0, p1, v0, v1, z, z] = [t, idx, p0, p1, v0, v1] ++ [z, z] from rfl,
         hashWords_six v _ rfl z (by rw [hzv, kVal_apply_zero])]
   · rintro s _ s7 v _ ⟨hW, hK, hA⟩ - ⟨t, s1, -, he1, -, ⟨rfl, hn1, htv⟩, v0, s2, -, he2, -, ⟨rfl, hn2, h0v⟩, v1, s3, -,
       he3, -, ⟨rfl, hn3, h1v⟩, z, s4, -, he4, -, -, hw, s5, -, he5, -, -, r, s6, -, he6, -, ⟨hr, -⟩, u, s7', -,
-      he7, ⟨-, -, -, -, -, -, hrv⟩, ⟨-, -, -, -, hrow, -⟩, -⟩
+      he7, ⟨-, -, -, -, -, -, -, hrv⟩, ⟨-, -, -, -, hrow, -⟩, -⟩
     exact ⟨_, _, _, r.2, he7.steps _ (hrow rfl), le_rfl,
       lt_of_lt_of_le (by rw [hn1]; exact Nat.lt_succ_self _) he1.next, htv, h0v, h1v, hrv⟩
 
