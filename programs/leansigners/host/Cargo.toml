@@ -1,0 +1,17 @@
+[package]
+name = "leansigners-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+leansphincs = { path = "../../leansphincs/guest" }
+leanvm.workspace = true
+leanvm_guest.workspace = true
+leanxmss = { path = "../../leanxmss/guest" }
+parallel.workspace = true

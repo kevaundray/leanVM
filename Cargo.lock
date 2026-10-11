@@ -1439,6 +1439,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "leansigners-host"
+version = "0.1.0"
+dependencies = [
+ "leansphincs",
+ "leanvm",
+ "leanvm_guest",
+ "leanxmss",
+ "parallel",
+]
+
+[[package]]
 name = "leansphincs"
 version = "0.1.0"
 dependencies = [
