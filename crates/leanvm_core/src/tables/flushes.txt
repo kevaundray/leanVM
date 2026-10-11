@@ -1,0 +1,191 @@
+table ALU
+columns 19
+slots 3 0 1 3
+clock 5 1 15 16 17 18
+push 4 k1 (+ c3 c12) (+ c1 c18) c13
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k8 c8 (+ c1 k3) c10
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k1 c5 c2 c6 c8 c14 c3 c11 k0 c13
+pull 4 k8 c2 c15 c4
+pull 4 k8 c6 c16 c7
+pull 4 k8 c8 c17 c9
+table LOAD
+columns 16
+slots 3 0 3 2
+clock 5 1 12 13 14 15
+push 4 k1 c3 (+ c1 c15) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k3) c8
+push 4 k2 c10 (+ c1 k2) c11
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k2 c5 c2 k0 c6 c9 c3 k0 k0 k0
+pull 4 k8 c2 c12 c4
+pull 4 k8 c6 c13 c7
+pull 4 k2 c10 c14 c11
+table STORE
+columns 16
+slots 3 0 1 2
+clock 5 1 12 13 14 15
+push 4 k1 c3 (+ c1 c15) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k2 c9 (+ c1 k2) c11
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k4 c5 c2 c6 k32 c8 c3 k0 k0 k0
+pull 4 k8 c2 c12 c4
+pull 4 k8 c6 c13 c7
+pull 4 k2 c9 c14 c10
+table LD
+columns 14
+slots 3 0 3 2
+clock 5 1 10 11 12 13
+push 4 k1 c3 (+ c1 c13) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c5 (+ c1 k3) c9
+push 4 k2 c8 (+ c1 k2) c9
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k8 k0 c2 k0 c5 c7 c3 k0 k0 k0
+pull 4 k8 c2 c10 c4
+pull 4 k8 c5 c11 c6
+pull 4 k2 c8 c12 c9
+table SD
+columns 14
+slots 3 0 1 2
+clock 5 1 10 11 12 13
+push 4 k1 c3 (+ c1 c13) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c5 (+ c1 k1) c6
+push 4 k2 c8 (+ c1 k2) c6
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k16 k0 c2 c5 k32 c7 c3 k0 k0 k0
+pull 4 k8 c2 c10 c4
+pull 4 k8 c5 c11 c6
+pull 4 k2 c8 c12 c9
+table SHIFT
+columns 16
+slots 3 0 1 3
+clock 5 1 12 13 14 15
+push 4 k1 c3 (+ c1 c15) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k8 c8 (+ c1 k3) c10
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k32 c5 c2 c6 c8 c11 c3 k0 k0 k0
+pull 4 k8 c2 c12 c4
+pull 4 k8 c6 c13 c7
+pull 4 k8 c8 c14 c9
+table MUL
+columns 15
+slots 3 0 1 3
+clock 5 1 11 12 13 14
+push 4 k1 c3 (+ c1 c14) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k8 c8 (+ c1 k3) c10
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k64 c5 c2 c6 c8 k0 c3 k0 k0 k0
+pull 4 k8 c2 c11 c4
+pull 4 k8 c6 c12 c7
+pull 4 k8 c8 c13 c9
+table MULH
+columns 15
+slots 3 0 1 3
+clock 5 1 11 12 13 14
+push 4 k1 c3 (+ c1 c14) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k8 c8 (+ c1 k3) c10
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k128 c5 c2 c6 c8 k0 c3 k0 k0 k0
+pull 4 k8 c2 c11 c4
+pull 4 k8 c6 c12 c7
+pull 4 k8 c8 c13 c9
+table DIV
+columns 16
+slots 3 0 1 3
+clock 5 1 12 13 14 15
+push 4 k1 c3 (+ c1 c15) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k8 c8 (+ c1 k3) c10
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k256 c5 c2 c6 c8 k0 c3 k0 c11 k0
+pull 4 k8 c2 c12 c4
+pull 4 k8 c6 c13 c7
+pull 4 k8 c8 c14 c9
+table HASH
+columns 47
+slots 18 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
+clock 20 1 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46
+push 4 k1 c3 (+ c1 c46) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k2 (+ c4 k0) (+ c1 k2) c8
+push 4 k2 (+ c4 k8) (+ c1 k3) c9
+push 4 k2 (+ c4 k16) (+ c1 k4) c10
+push 4 k2 (+ c4 k24) (+ c1 k5) c11
+push 4 k2 (+ c4 k32) (+ c1 k6) c24
+push 4 k2 (+ c4 k40) (+ c1 k7) c25
+push 4 k2 (+ c4 k48) (+ c1 k8) c26
+push 4 k2 (+ c4 k56) (+ c1 k9) c27
+push 4 k2 (+ c4 k64) (+ c1 k10) c16
+push 4 k2 (+ c4 k72) (+ c1 k11) c17
+push 4 k2 (+ c4 k80) (+ c1 k12) c18
+push 4 k2 (+ c4 k88) (+ c1 k13) c19
+push 4 k2 (+ c4 k96) (+ c1 k14) c20
+push 4 k2 (+ c4 k104) (+ c1 k15) c21
+push 4 k2 (+ c4 k112) (+ c1 k16) c22
+push 4 k2 (+ c4 k120) (+ c1 k17) c23
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k512 c5 c2 c6 k32 k0 c3 k0 k0 k0
+pull 4 k8 c2 c28 c4
+pull 4 k8 c6 c29 c7
+pull 4 k2 (+ c4 k0) c30 c8
+pull 4 k2 (+ c4 k8) c31 c9
+pull 4 k2 (+ c4 k16) c32 c10
+pull 4 k2 (+ c4 k24) c33 c11
+pull 4 k2 (+ c4 k32) c34 c12
+pull 4 k2 (+ c4 k40) c35 c13
+pull 4 k2 (+ c4 k48) c36 c14
+pull 4 k2 (+ c4 k56) c37 c15
+pull 4 k2 (+ c4 k64) c38 c16
+pull 4 k2 (+ c4 k72) c39 c17
+pull 4 k2 (+ c4 k80) c40 c18
+pull 4 k2 (+ c4 k88) c41 c19
+pull 4 k2 (+ c4 k96) c42 c20
+pull 4 k2 (+ c4 k104) c43 c21
+pull 4 k2 (+ c4 k112) c44 c22
+pull 4 k2 (+ c4 k120) c45 c23
+table EXT
+columns 43
+slots 12 0 1 3 4 5 6 7 8 9 10 11 12
+clock 26 1 30 31 32 33 34 35 36 37 38 39 40 41 4 7 9 5 42 28 29 22 23 24 25 26 27
+push 4 k1 c3 (+ c1 c42) k0
+push 4 k8 c2 c1 c4
+push 4 k8 c6 (+ c1 k1) c7
+push 4 k8 c8 (+ c1 k3) c9
+push 4 k2 c4 (+ c1 k4) c10
+push 4 k2 c22 (+ c1 k5) c11
+push 4 k2 c23 (+ c1 k6) c12
+push 4 k2 c7 (+ c1 k7) c13
+push 4 (+ k2 (* 10 c29)) c24 (+ c1 k8) c14
+push 4 (+ k2 (* 10 c29)) c25 (+ c1 k9) c15
+push 4 k2 c9 (+ c1 k10) c19
+push 4 k2 c26 (+ c1 k11) c20
+push 4 k2 c27 (+ c1 k12) c21
+pull 4 k1 c0 c1 k0
+pull 12 k4 c0 k1024 c5 c2 c6 c8 k0 c3 k0 k0 k0
+pull 4 k8 c2 c30 c4
+pull 4 k8 c6 c31 c7
+pull 4 k8 c8 c32 c9
+pull 4 k2 c4 c33 c10
+pull 4 k2 c22 c34 c11
+pull 4 k2 c23 c35 c12
+pull 4 k2 c7 c36 c13
+pull 4 (+ k2 (* 10 c29)) c24 c37 c14
+pull 4 (+ k2 (* 10 c29)) c25 c38 c15
+pull 4 k2 c9 c39 c16
+pull 4 k2 c26 c40 c17
+pull 4 k2 c27 c41 c18

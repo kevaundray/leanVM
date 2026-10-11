@@ -2,6 +2,9 @@ import LeanVMCircuits.AdderFamily
 import LeanVMCircuits.ShiftExport
 import LeanVMCircuits.Blake2s.Emit
 import LeanVMCircuits.MemoryExport
+import LeanVMCircuits.AluExport
+import LeanVMCircuits.ClockExport
+import LeanVMCircuits.ExtClockExport
 import LeanVMCircuits.MulDivEmit
 
 open LeanVMCircuits.Flock
@@ -33,18 +36,48 @@ def emitAffine (affine : Affine) (state : Codegen) : Except String (String × Co
       let (name, state) := fresh state s!"c.xor({leftName}, {rightName})"
       return (name, { state with cache := (affine, name) :: state.cache })
 
+private def referenced (affine : Affine) (used : Std.HashSet Nat) : Std.HashSet Nat :=
+  match affine with
+  | .zero | .one => used
+  | .var index => used.insert index
+  | .xor left right => referenced right (referenced left used)
+
 def emit (name : String) (width : Nat) (withCarry : Bool) (bindings : List (Nat × String))
-    (parameters : String) (artifact : Artifact) : Except String String := do
+    (parameters : String) (artifact : Artifact)
+    (outputProducts : List (Nat × Nat × Nat) := [])
+    (returnedOutputs : Option (List Nat) := none) : Except String String := do
+  if (outputProducts.map Prod.fst).eraseDups.length != outputProducts.length then
+    throw "duplicate committed product variable"
+  if (outputProducts.map Prod.snd).eraseDups.length != outputProducts.length then
+    throw "duplicate committed product output"
+  if !outputProducts.all (fun placement => artifact.rows.any (fun row => row.output == placement.1)) then
+    throw "committed product variable is absent from the artifact"
+  let returnedOutputs := returnedOutputs.getD (List.range artifact.outputs.length)
+  let mut used := if outputProducts.isEmpty then {} else artifact.rows.foldl
+    (fun used row => referenced row.right (referenced row.left used)) {}
+  if !outputProducts.isEmpty then
+    for index in returnedOutputs do
+      let some affine := artifact.outputs[index]? | throw s!"exported output {index} is absent"
+      used := referenced affine used
+  let mut seen := bindings.foldl (fun seen binding => seen.insert binding.1) ({} : Std.HashSet Nat)
   let mut state : Codegen := { bindings }
   for row in artifact.rows do
-    if state.bindings.any (fun (index, _) => index == row.output) then
-      throw s!"duplicate product variable {row.output}"
+    if seen.contains row.output then throw s!"duplicate product variable {row.output}"
+    seen := seen.insert row.output
     let (left, afterLeft) ← emitAffine row.left state
     let (right, afterRight) ← emitAffine row.right afterLeft
-    let (name, afterProduct) := fresh afterRight s!"c.and({left}, {right})"
-    state := { afterProduct with bindings := (row.output, name) :: afterProduct.bindings }
+    let placement := outputProducts.find? (fun placement => placement.1 == row.output)
+    let operation := match placement with
+      | some (_, port, bit) => s!"c.and_output({port}, {bit}, {left}, {right})"
+      | none => s!"c.and({left}, {right})"
+    if placement.isSome && !used.contains row.output then
+      state := { afterRight with lines := afterRight.lines.push s!"    {operation};" }
+    else
+      let (name, afterProduct) := fresh afterRight operation
+      state := { afterProduct with bindings := (row.output, name) :: afterProduct.bindings }
   let mut outputs : Array String := #[]
-  for affine in artifact.outputs do
+  for index in returnedOutputs do
+    let some affine := artifact.outputs[index]? | throw s!"exported output {index} is absent"
     let (name, afterOutput) ← emitAffine affine state
     state := afterOutput
     outputs := outputs.push name
@@ -65,6 +98,15 @@ def emitAdder (name : String) (width : Nat) (withCarry : Bool) (artifact : Artif
   let bindings := if withCarry then (2 * width, "carry_in") :: bindings else bindings
   let carry := if withCarry then ", carry_in: Wire" else ""
   emit name width withCarry bindings s!", x: &[Wire; {width}], y: &[Wire; {width}]{carry}" artifact
+
+/-- A clock circuit of `accesses` accesses: the clock's bits 5 to 40 and each previous timestamp's 41 bits in, the
+step's bits 5 (`live`) and 41 (`fail`) out, its carries committed to the step port's bits 6 to 40. -/
+def emitClock (name : String) (accesses : Nat) (artifact : Artifact) (outputProducts : List (Nat × Nat × Nat)) :
+    Except String String :=
+  let bindings := (List.range 36).map (fun j => (j, s!"ts[{5 + j}]")) ++
+    (List.range accesses).flatMap fun i => (List.range 41).map fun b => (36 + 41 * i + b, s!"prev[{i}][{b}]")
+  emit name 2 false bindings s!", ts: &[Wire; 41], prev: &[[Wire; 41]; {accesses}]" artifact outputProducts
+    (some [0, 36])
 
 def emitProduction : Except String String := do
   let wrapping64 ← emitAdder "wrapping_add64" 64 false adder64
@@ -88,9 +130,28 @@ def emitProduction : Except String String := do
   let muldiv ← LeanVMCircuits.MulDivEmit.emit
   let store64 ← emit "store64" 128 false storeBindings
     ", v1: &[Wire; 64], v2: &[Wire; 64], imm: &[Wire; 64], flags: &[Wire; 2], cell: &[Wire; 64]" Store.artifact
+  let aluBindings := (List.range 64).flatMap fun i =>
+    [(i, s!"v1[{i}]"), (64 + i, s!"v2[{i}]"), (128 + i, s!"imm[{i}]"),
+      (207 + i, s!"dt[{i}]"), (271 + i, s!"pc4[{i}]")]
+  let aluBindings := (List.range 15).map (fun i => (192 + i, s!"flags[{i}]")) ++ aluBindings
+  let alu64 ← emit "alu64" 64 false aluBindings
+    ", v1: &[Wire; 64], v2: &[Wire; 64], imm: &[Wire; 64], flags: &[Wire; 15], dt: &[Wire; 64], pc4: &[Wire; 64]"
+    Alu.artifact Alu.outputProducts (some (List.range 64))
+  let clockRegisters ← emitClock "clock_registers" 3 Clock.Registers.artifact Clock.Registers.outputProducts
+  let clockLoad ← emitClock "clock_load" 3 Clock.Load.artifact Clock.Load.outputProducts
+  let clockStore ← emitClock "clock_store" 3 Clock.Store.artifact Clock.Store.outputProducts
+  let clockHash ← emitClock "clock_hash" 18 Clock.Hash.artifact Clock.Hash.outputProducts
+  let clockExt ← emitClock "clock_ext" 12 Clock.Ext.artifact Clock.Ext.outputProducts
+  let clocks := String.intercalate "\n" [clockRegisters, clockLoad, clockStore, clockHash, clockExt]
+  let extBindings := (List.range 64).flatMap fun i =>
+    [(i, s!"v1[{i}]"), (64 + i, s!"v2[{i}]"), (128 + i, s!"vd[{i}]")]
+  let extBindings := [(192, "flags[0]"), (193, "flags[1]")] ++ extBindings
+  let extClock ← emit "ext_clock" 258 false extBindings
+    ", v1: &[Wire; 64], v2: &[Wire; 64], vd: &[Wire; 64], flags: &[Wire; 2]"
+    ExtClock.artifact ExtClock.outputProducts (some (List.range 130 ++ (List.range 128).map (258 + ·)))
   return "// Generated by verification/circuits/Generate.lean from checked Flock artifacts. Do not edit.\n\
     //! Clean-authored GF(2) circuits consumed by production instruction classes.\n\n\
-    use crate::circuit::{Builder, Wire};\n\n" ++ wrapping64 ++ "\n" ++ wrapping32 ++ "\n" ++ wrapping31 ++ "\n" ++ carry64 ++ "\n" ++ shift64 ++ "\n" ++ load64 ++ "\n" ++ store64 ++ "\n" ++ blake2s ++ "\n" ++ muldiv
+    use crate::circuit::{Builder, Wire};\n\n" ++ wrapping64 ++ "\n" ++ wrapping32 ++ "\n" ++ wrapping31 ++ "\n" ++ carry64 ++ "\n" ++ shift64 ++ "\n" ++ load64 ++ "\n" ++ store64 ++ "\n" ++ alu64 ++ "\n" ++ clocks ++ "\n" ++ extClock ++ "\n" ++ blake2s ++ "\n" ++ muldiv
 
 def main (args : List String) : IO Unit := do
   let [destination] := args | throw (IO.userError "usage: lake env lean --run Generate.lean <destination.rs>")

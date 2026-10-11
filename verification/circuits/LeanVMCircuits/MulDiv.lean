@@ -327,7 +327,7 @@ structure Checks (F : Type) where
 
 def checkMain (input : Var Hints Bit) : Circuit Bit (Var Checks Bit) := do
   let product ← (Multiply.circuit 128) { a := input.q, b := input.dAbs }
-  let overflows ← Any.circuit 63 (Words.highBits 64 (b := 64) product)
+  let overflows ← BooleanAny.circuit 63 { word := Words.highBits 64 (b := 64) product }
   let sum ← Adder.circuit 64 { x := Words.lowBits 64 (b := 64) product, y := input.r, carry := 0 }
   let differs ← Differs.circuit { x := sum.sum, y := input.nAbs }
   let tooLarge ← Adder.circuit 64 { x := input.r, y := input.dAbs.map (· + 1), carry := 1 }
@@ -341,7 +341,7 @@ instance checkElaborated : ElaboratedCircuit Bit Hints Checks checkMain where
     let o1 := offset + Multiply.total 128
     let sum := (Adder.circuit 64).output
       { x := Words.lowBits 64 (b := 64) product, y := input.r, carry := 0 } (o1 + 63)
-    { overflows := (Any.circuit 63).output (Words.highBits 64 (b := 64) product) o1,
+    { overflows := (BooleanAny.circuit 63).output { word := Words.highBits 64 (b := 64) product } o1,
       carries := sum.carry,
       differs := Differs.circuit.output { x := sum.sum, y := input.nAbs } (o1 + 63 + 64),
       tooLarge := ((Adder.circuit 64).output { x := input.r, y := input.dAbs.map (· + 1), carry := 1 }
@@ -383,7 +383,7 @@ def check : FormalCircuit Bit Hints Checks where
   Spec := ChecksSpec
   soundness := by
     intro offset env input_var input h_input _ h_holds
-    simp only [checkMain, circuit_norm, Multiply.Spec, Adder.Spec, Any.Spec] at h_holds
+    simp only [checkMain, circuit_norm, Multiply.Spec, Adder.Spec, BooleanAny.Spec, Words.any_value] at h_holds
     refine ⟨?_, by simp only [checkMain, circuit_norm]⟩
     obtain ⟨hp, ho, hs, hdf, ht⟩ := h_holds
     have hin : input.q = input_var.q.map (Expression.eval env) ∧ input.r = input_var.r.map (Expression.eval env) ∧
@@ -450,7 +450,7 @@ theorem peval_verdict (env : Environment Bit) (x : Var Verdict Bit) :
   rcases x; simp [circuit_norm]
 
 def verdictMain (input : Var VerdictInput Bit) : Circuit Bit (Var Verdict Bit) := do
-  let nonzero ← Any.circuit 63 input.d
+  let nonzero ← BooleanAny.circuit 63 { word := input.d }
   let wrong ← BooleanOr.circuit { x := input.checks.overflows, y := input.checks.carries }
   let wrong ← BooleanOr.circuit { x := wrong, y := input.checks.differs }
   let wrong ← BooleanOr.circuit { x := wrong, y := input.checks.tooLarge }
@@ -468,9 +468,10 @@ def verdict : FormalCircuit Bit VerdictInput Verdict where
   main := verdictMain
   Spec := VerdictSpec
   soundness := by
-    circuit_proof_start [verdictMain, Any.Spec, BooleanOr.circuit, BooleanOr.select, Product.circuit, Product.Spec]
+    circuit_proof_start [verdictMain, BooleanAny.Spec, Words.any_value, BooleanOr.circuit, BooleanOr.select, Product.circuit,
+      Product.Spec]
     obtain ⟨hnz, h1, h2, h3, hb⟩ := h_holds
-    simp only [Any.circuit] at hnz hb
+    simp only [BooleanAny.circuit] at hnz hb
     simp only [FormalCircuitBase.output, ← ElaboratedCircuit.output_eq] at hnz hb ⊢
     simp only [VerdictSpec]
     refine ⟨hnz, ?_⟩

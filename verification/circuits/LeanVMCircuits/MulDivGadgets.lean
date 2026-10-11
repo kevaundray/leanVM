@@ -1,9 +1,12 @@
 module
 
 public import LeanVMCircuits.BooleanOps
+public import LeanVMCircuits.BooleanAny
 public import LeanVMCircuits.WordMode
 public import LeanVMCircuits.WordValues
 public import LeanVMCircuits.Rv64MulDiv
+
+set_option maxRecDepth 20000
 
 @[expose] public section
 
@@ -11,97 +14,6 @@ public import LeanVMCircuits.Rv64MulDiv
 Word gadgets of the multiplication and division circuits, in the product order of `WordGadgets`.
 -/
 
-namespace LeanVMCircuits.Any
-
-/-- Whether any bit is set: `x_0`, then one OR per further bit, as `WordGadgets::any` folds from the zero. -/
-def Spec (n : ℕ) (input : Vector Bit (n + 1)) (output : Bit) : Prop :=
-  output = if Adder.value input = 0 then 0 else 1
-
-structure Certified (n : ℕ) where
-  circuit : FormalCircuit Bit (fields (n + 1)) field
-  assumptions_eq : circuit.Assumptions = fun _ => True
-  spec_eq : circuit.Spec = Spec n
-  requirements_eq : circuit.channelsWithRequirements = []
-  guarantees_eq : circuit.elaborated.channelsWithGuarantees = []
-  length_eq : ∀ input, circuit.elaborated.localLength input = n
-
-@[circuit_norm] theorem certified_length (n : ℕ) (previous : Certified n) (input : Var (fields (n + 1)) Bit) :
-    previous.circuit.elaborated.localLength input = n := previous.length_eq input
-
-@[circuit_norm] theorem certified_guarantees (n : ℕ) (previous : Certified n) :
-    previous.circuit.elaborated.channelsWithGuarantees = [] := previous.guarantees_eq
-
-theorem value_one (x : Vector Bit 1) : Adder.value x = x[0].val := by
-  rw [Adder.value_pop, Adder.value_zero]; simp
-
-theorem spec_one (x : Vector Bit 1) : x[0] = if Adder.value x = 0 then 0 else 1 := by
-  rw [value_one]
-  rcases bit_zero_or_one x[0] with h | h <;> simp [h]
-
-def zero : Certified 0 where
-  circuit := {
-    main := fun input => pure input[0]
-    Spec := Spec 0
-    soundness := by
-      circuit_proof_start
-      exact spec_one _
-    completeness := by circuit_proof_start
-  }
-  assumptions_eq := rfl
-  spec_eq := rfl
-  requirements_eq := rfl
-  guarantees_eq := rfl
-  length_eq := by intro input; rfl
-
-def step (n : ℕ) (previous : Certified n) : Certified (n + 1) where
-  circuit := {
-    main := fun input => do
-      let lower ← previous.circuit input.pop
-      BooleanOr.circuit { x := lower, y := input[n + 1] }
-    Spec := Spec (n + 1)
-    requirementsChannelsLawful := by simp only [circuit_norm, previous.requirements_eq]
-    soundness := by
-      circuit_proof_start [BooleanOr.circuit]
-      simp only [previous.assumptions_eq, previous.spec_eq, previous.requirements_eq,
-        true_implies, or_true, and_true] at *
-      simp only [Spec, FormalCircuitBase.output, ← ElaboratedCircuit.output_eq,
-        FormalCircuitBase.localLength, certified_length, circuit_norm] at h_holds ⊢
-      rcases h_holds with ⟨hlower, hupper⟩
-      rw [hupper, hlower, ← h_input, Adder.value_pop (input_var.map (Expression.eval env))]
-      simp only [Vector.map_pop, Vector.getElem_map, BooleanOr.select]
-      rcases bit_zero_or_one (Expression.eval env input_var[n + 1]) with h | h <;>
-        by_cases hv : Adder.value (input_var.pop.map (Expression.eval env)) = 0 <;> simp [h]
-    completeness := by
-      circuit_proof_start [BooleanOr.circuit]
-      simp [previous.assumptions_eq]
-  }
-  assumptions_eq := rfl
-  spec_eq := rfl
-  requirements_eq := rfl
-  guarantees_eq := by simp only [circuit_norm, previous.guarantees_eq]
-  length_eq := by
-    intro input
-    simp only [circuit_norm, certified_length]
-
-def certified : (n : ℕ) → Certified n
-  | 0 => zero
-  | n + 1 => step n (certified n)
-
-/-- Whether any of `n + 1` bits is set; `n` products. -/
-def circuit (n : ℕ) := (certified n).circuit
-
-@[circuit_norm] theorem circuit_assumptions (n : ℕ) :
-    (circuit n).Assumptions = fun _ => True := (certified n).assumptions_eq
-@[circuit_norm] theorem circuit_spec (n : ℕ) :
-    (circuit n).Spec = Spec n := (certified n).spec_eq
-@[circuit_norm] theorem circuit_requirements (n : ℕ) :
-    (circuit n).channelsWithRequirements = [] := (certified n).requirements_eq
-@[circuit_norm] theorem circuit_guarantees (n : ℕ) :
-    (circuit n).elaborated.channelsWithGuarantees = [] := (certified n).guarantees_eq
-@[circuit_norm] theorem circuit_length (n : ℕ) (input : Var (fields (n + 1)) Bit) :
-    (circuit n).localLength input = n := (certified n).length_eq input
-
-end LeanVMCircuits.Any
 
 namespace LeanVMCircuits.DivSelect
 
@@ -345,6 +257,19 @@ theorem value_sextIf (w : Bit) (V : Vector Bit 64) :
     Adder.value (if w = 1 then high V[31] V else V) = MulDiv.sextIf (decide (w = 1)) (Adder.value V) := by
   by_cases h : w = 1 <;> simp [h, MulDiv.sextIf, value_high]
 
+theorem value_eq_zero_iff : ∀ {n : ℕ} (w : Vector Bit n), Adder.value w = 0 ↔ ¬ BooleanAny.present w
+  | 0, w => by
+    have hw : w = #v[] := by ext i hi; omega
+    subst hw; simp [Adder.value_zero, BooleanAny.present]
+  | n + 1, w => by
+    rw [Adder.value_pop, BooleanAny.present_pop, not_or, ← value_eq_zero_iff w.pop]
+    rcases bit_zero_or_one w[n] with h | h <;> simp [h]
+
+/-- `BooleanAny`'s output, as a value test. -/
+theorem any_value {n : ℕ} (w : Vector Bit n) :
+    (if BooleanAny.present w then (1 : Bit) else 0) = if Adder.value w = 0 then 0 else 1 := by
+  by_cases h : BooleanAny.present w <;> simp [h, value_eq_zero_iff]
+
 end LeanVMCircuits.Words
 
 namespace LeanVMCircuits.Differs
@@ -356,7 +281,7 @@ structure Input (F : Type) where
 
 /-- Whether two words differ: whether any bit of `x + y` is set, as `any(xor_word(x, y))`. -/
 def main (input : Var Input Bit) : Circuit Bit (Var field Bit) :=
-  Any.circuit 63 (Vector.mapFinRange 64 fun i => input.x[i.val] + input.y[i.val])
+  BooleanAny.circuit 63 { word := Vector.mapFinRange 64 fun i => input.x[i.val] + input.y[i.val] }
 
 instance elaborated : ElaboratedCircuit Bit Input field main := by elaborate_circuit
 
@@ -385,11 +310,11 @@ def circuit : FormalCircuit Bit Input field where
   elaborated
   Spec input output := output = if Adder.value input.x = Adder.value input.y then 0 else 1
   soundness := by
-    circuit_proof_start [Any.Spec]
+    circuit_proof_start [BooleanAny.Spec]
     rcases h_input with ⟨hx, hy⟩
-    simp only [Any.circuit] at h_holds
+    simp only [BooleanAny.circuit] at h_holds
     simp only [FormalCircuitBase.output, ← ElaboratedCircuit.output_eq] at h_holds ⊢
-    rw [h_holds]
+    rw [h_holds, Words.any_value]
     have : (Vector.map (Expression.eval env) (Vector.mapFinRange 64 fun i => input_var_x[i.val] + input_var_y[i.val])) =
         Vector.mapFinRange 64 fun i => input_x[i.val] + input_y[i.val] := by
       rw [← hx, ← hy]; apply Vector.ext; intro i hi; simp [Vector.getElem_mapFinRange, circuit_norm]

@@ -383,6 +383,59 @@ mod tests {
         }
     }
 
+    /// A coordinate as `verification/circuits`' `LeanVMCircuits.Bus.ClassTable.Coord.render` writes it.
+    fn render(coordinate: &Coord) -> String {
+        match coordinate {
+            Col(index) => format!("c{index}"),
+            Const(value) => format!("k{}", value.0),
+            Coord::Sum(terms) => format!("(+ {})", terms.iter().map(render).collect::<Vec<_>>().join(" ")),
+            Scaled(value, index) => format!("(* {} c{index})", value.0),
+            other => format!("?{other:?}"),
+        }
+    }
+
+    /// A list after its length.
+    fn counted(items: impl ExactSizeIterator<Item = String>) -> String {
+        std::iter::once(items.len().to_string())
+            .chain(items)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Every table's symbolic flushes, slots and clock port columns, as `LeanVMCircuits.Bus.ClassTable.dump` lists them.
+    fn flush_dump() -> String {
+        let mut lines = Vec::new();
+        for (_, table) in ClassTable::all().iter() {
+            let spec = table.id.spec();
+            let bus = table.flushes();
+            let clock = table.ports(Part::Clock).iter();
+            lines.push(format!("table {}", spec.name));
+            lines.push(format!("columns {}", table.n_committed_columns()));
+            lines.push(format!("slots {}", counted(spec.slots().iter().map(u32::to_string))));
+            lines.push(format!(
+                "clock {}",
+                counted(clock.map(|&w| table.cols.column(w).map_or_else(|| "-".to_owned(), |c| c.to_string())))
+            ));
+            for (side, tuples) in [("push", &bus.push), ("pull", &bus.pull)] {
+                for tuple in tuples {
+                    lines.push(format!("{side} {}", counted(tuple.iter().map(render))));
+                }
+            }
+        }
+        lines.iter().map(|line| format!("{line}\n")).collect()
+    }
+
+    #[test]
+    fn the_flushes_are_the_lean_model_s() {
+        // The committed dump is what `lake exe checkflushes` checks against the Lean model of the tables' flushes.
+        // `LEANVM_FLUSH_DUMP=<path>` writes this build's dump there, to regenerate or recheck it.
+        let dump = flush_dump();
+        if let Some(path) = std::env::var_os("LEANVM_FLUSH_DUMP") {
+            std::fs::write(path, &dump).expect("the dump is written");
+        }
+        assert_eq!(dump, include_str!("flushes.txt"));
+    }
+
     proptest::proptest! {
         #[test]
         fn the_identities_are_the_extension_product(

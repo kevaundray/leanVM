@@ -25,39 +25,11 @@ pub trait ClassCircuit {
 ///
 /// A gadget's loop order is part of the circuit.
 pub(super) trait WordGadgets {
-    /// `x ^ y`, bit by bit; no product.
-    fn xor_word<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N]) -> [Wire; N];
-
-    /// `s * x`, bit by bit; one product per bit.
-    fn and_word<const N: usize>(&mut self, s: Wire, x: &[Wire; N]) -> [Wire; N];
-
-    /// Whether any bit of `x` is set; one product per OR.
-    fn any(&mut self, x: &[Wire]) -> Wire;
-
-    /// `x`, bits 32 to 63 replaced by bit 31 when `word` is set; one product per high bit.
-    fn sext32_if(&mut self, word: Wire, x: &[Wire; 64]) -> [Wire; 64];
-
     /// Commit `x` as output port `port`.
     fn output_word(&mut self, port: usize, x: &[Wire; 64]);
 }
 
 impl WordGadgets for Builder {
-    fn xor_word<const N: usize>(&mut self, x: &[Wire; N], y: &[Wire; N]) -> [Wire; N] {
-        std::array::from_fn(|i| self.xor(x[i], y[i]))
-    }
-
-    fn and_word<const N: usize>(&mut self, s: Wire, x: &[Wire; N]) -> [Wire; N] {
-        x.map(|bit| self.and(s, bit))
-    }
-
-    fn any(&mut self, x: &[Wire]) -> Wire {
-        x.iter().fold(Wire::ZERO, |acc, &bit| self.or(acc, bit))
-    }
-
-    fn sext32_if(&mut self, word: Wire, x: &[Wire; 64]) -> [Wire; 64] {
-        std::array::from_fn(|i| if i < 32 { x[i] } else { self.mux(word, x[31], x[i]) })
-    }
-
     fn output_word(&mut self, port: usize, x: &[Wire; 64]) {
         for (bit, &wire) in x.iter().enumerate() {
             self.output(port, bit, wire);
