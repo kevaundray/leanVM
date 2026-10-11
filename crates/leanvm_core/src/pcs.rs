@@ -8,7 +8,7 @@
 //! The security-bit constant is a parameter-selection target, not a proved concrete security level for the deployed hash and Fiat-Shamir composition (doc/leanvm, Annex B).
 
 use crate::witness::StackShape;
-use fiat_shamir::transcript::ProverState;
+use fiat_shamir::ProverState;
 use pcs::stack::{CommittedStack, StackCommitment, Statement};
 use pcs::verifier::OpeningVerifier;
 use pcs::whir::WhirError;
@@ -225,7 +225,7 @@ impl<E: Copy, R: Copy, K: Copy> Commitment<E, R, K> {
 mod tests {
     use super::{Committed, InvalidRate, LOG_BATCH, MAX_MU, MIN_MU, Rate, WitnessError};
     use crate::witness::StackShape;
-    use fiat_shamir::transcript::ProverState;
+    use fiat_shamir::{ProverState, SessionId};
     use pcs::whir::config::ConfigError;
     use primitives::field::F64;
 
@@ -279,13 +279,13 @@ mod tests {
         });
         for (shape, words, error) in sizes.into_iter().chain(lanes).chain(lengths) {
             let witness = vec![F64::ZERO; words];
-            let mut ps = ProverState::from_label(b"invalid commitment");
+            let mut ps = ProverState::new(&SessionId::new(b"invalid commitment"), &0u64);
 
             // Refusal reports the invalid parameter and leaves the proof stream untouched.
             assert_eq!(Committed::new(&mut ps, &witness, shape, Rate::MIN).err(), Some(error));
             assert_eq!(
                 ps.into_proof(),
-                ProverState::from_label(b"invalid commitment").into_proof()
+                ProverState::new(&SessionId::new(b"invalid commitment"), &0u64).into_proof()
             );
         }
     }
@@ -297,7 +297,7 @@ mod tests {
         let lane_words = shape.committed_len();
         let witness = vec![F64::ZERO; 2 * lane_words];
         let committed = Committed::new(
-            &mut ProverState::from_label(b"committed length"),
+            &mut ProverState::new(&SessionId::new(b"committed length"), &0u64),
             &witness[..lane_words],
             shape,
             Rate::MIN,
@@ -306,7 +306,7 @@ mod tests {
 
         // Mutation: omit the lane, cut it short, or supply a second whole lane.
         for words in [0, lane_words - 1, 2 * lane_words] {
-            let mut ps = ProverState::from_label(b"invalid opening");
+            let mut ps = ProverState::new(&SessionId::new(b"invalid opening"), &0u64);
             assert_eq!(
                 committed.open(&mut ps, &witness[..words], &[], &[]),
                 Err(WitnessError::Length {
@@ -318,7 +318,7 @@ mod tests {
             // Length refusal precedes claim validation and all opening transcript writes.
             assert_eq!(
                 ps.into_proof(),
-                ProverState::from_label(b"invalid opening").into_proof()
+                ProverState::new(&SessionId::new(b"invalid opening"), &0u64).into_proof()
             );
         }
     }

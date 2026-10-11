@@ -8,7 +8,8 @@
 //! The first lane rounds' messages come from one pass over the witness and the initial weight, in a submodule.
 
 use core::ops::BitXorAssign;
-use fiat_shamir::transcript::Transmitter;
+use fiat_shamir::ProverState;
+use fiat_shamir::arith::RoundPolynomial;
 use first_pass::{LaneWeight, WeightFold};
 use parallel::SendPtr;
 use primitives::field::{F64, F192, F192Unreduced};
@@ -42,8 +43,13 @@ const ROUND_CHUNK: usize = 2048;
 
 /// Words of the initial weight one fill call writes: one chunk, aligned to its size.
 ///
-/// A lane block smaller than this is filled whole.
-pub(crate) const INITIAL_BASIS_CHUNK: usize = 256;
+/// A lane block smaller than this is filled whole. The ARM EOR3 byte-table maps use
+/// longer runs before switching maps; other backends keep their compact scratch.
+pub(crate) const INITIAL_BASIS_CHUNK: usize = if cfg!(all(target_arch = "aarch64", target_feature = "sha3")) {
+    1024
+} else {
+    256
+};
 
 // Sumcheck over `E`, the witness in `K` until the first fold and in `E` after it.
 //
@@ -64,8 +70,11 @@ pub(crate) struct SumcheckMessage {
 }
 
 /// Sends the constant and quadratic coefficients; the claim fixes the linear one, so it is not sent.
-pub(super) fn send_msg(ps: &mut impl Transmitter, m: SumcheckMessage, claim: F192) {
-    ps.add_round_poly(&[m.u_0, claim + m.u_2, m.u_2], false);
+pub(super) fn send_msg(ps: &mut ProverState, m: SumcheckMessage, claim: F192) {
+    RoundPolynomial {
+        coeffs: [m.u_0, claim + m.u_2, m.u_2],
+    }
+    .send(ps, false);
 }
 
 /// A round's quadratic `c + b X + a X^2`: the prover's copy of the verifier's running round.

@@ -36,6 +36,7 @@
 //! ```
 //!
 //! The caller bound every claim's slices and value already, so none is observed again.
+//! The frame carries its root and captured chaining value as raw32 prover messages; shape, cursor metadata, pending words, anchor point and value retain their F192 packing.
 //!
 //! # Who evaluates the weight
 //!
@@ -52,9 +53,9 @@ use super::whir::{
     anchor::{anchor_eq_at, eq_prefix},
     check_config_shape, receive_commitment, send_record_binding, verify_record_binding,
 };
+use crate::merkle::Hash;
+use fiat_shamir::ProverState;
 use fiat_shamir::arith::{Arith, Native};
-use fiat_shamir::merkle::Hash;
-use fiat_shamir::transcript::Transmitter;
 use primitives::bit_fold::F192Map;
 use primitives::field::{F64, F192, powers};
 use primitives::multilinear::{eq_table, eq_table_seeded, fill_eq_table_uninit};
@@ -91,16 +92,16 @@ impl<E: Copy> StackClaim<E> {
         }
     }
 
-    /// The claim's slice: its first word, and the base-two logarithm of its length.
-    fn support(&self) -> Option<(usize, usize)> {
+    /// The claim's slice: its first word, and the base-two logarithm of its length, `None` if that overflows.
+    const fn support(&self) -> (usize, Option<usize>) {
         match self {
-            Self::Point { offset, low_point, .. } => Some((*offset, low_point.len())),
+            Self::Point { offset, low_point, .. } => (*offset, Some(low_point.len())),
             Self::Strided {
                 offset,
                 stride_log,
                 point,
                 ..
-            } => stride_log.checked_add(point.len()).map(|vars| (*offset, vars)),
+            } => (*offset, stride_log.checked_add(point.len())),
         }
     }
 
@@ -108,16 +109,12 @@ impl<E: Copy> StackClaim<E> {
     ///
     /// A strided claim's slot must also fit its stride.
     fn is_well_formed(&self, committed: usize) -> bool {
-        let Some((offset, vars)) = self.support() else {
-            return false;
-        };
+        let (offset, vars) = self.support();
         let slot_fits = match self {
             Self::Point { .. } => true,
-            Self::Strided { slot, stride_log, .. } => {
-                *stride_log < usize::BITS as usize && 1usize.checked_shl(*stride_log as u32).is_some_and(|s| *slot < s)
-            }
+            Self::Strided { slot, stride_log, .. } => pow2(*stride_log).is_some_and(|s| *slot < s),
         };
-        slot_fits && is_aligned_slice(offset, vars, committed)
+        slot_fits && vars.is_some_and(|vars| is_aligned_slice(offset, vars, committed))
     }
 
     /// The claim's weight at a point `x` of the stack cube.
@@ -154,12 +151,19 @@ impl<E: Copy> StackClaim<E> {
 
 /// Whether `[offset, offset + 2^vars)` is aligned to its length and inside the first `committed` words.
 ///
-/// Shifts are checked, so an absurd width is refused rather than wrapped.
+/// Widths are checked whole, so an absurd one is refused rather than wrapped.
 fn is_aligned_slice(offset: usize, vars: usize, committed: usize) -> bool {
-    vars < usize::BITS as usize
-        && 1usize.checked_shl(vars as u32).is_some_and(|len| {
-            offset.is_multiple_of(len) && offset.checked_add(len).is_some_and(|end| end <= committed)
-        })
+    pow2(vars)
+        .is_some_and(|len| offset.is_multiple_of(len) && offset.checked_add(len).is_some_and(|end| end <= committed))
+}
+
+/// `2^log`, or `None` if it does not fit a `usize`.
+const fn pow2(log: usize) -> Option<usize> {
+    if log < usize::BITS as usize {
+        Some(1 << log)
+    } else {
+        None
+    }
 }
 
 /// What an opening proves about one committed stack.
@@ -236,7 +240,7 @@ impl CommittedStack {
     /// # Panics
     ///
     /// Panics unless `stack` is a whole number of lane blocks, at least one and at most the configuration's lane count.
-    pub fn new(ps: &mut impl Transmitter, stack: &[F64], log_n: usize, config: Config) -> Self {
+    pub fn new(ps: &mut ProverState, stack: &[F64], log_n: usize, config: Config) -> Self {
         check_config_shape(&config, log_n).expect("a valid stack configuration");
         let (record, data) = super::whir::commit(ps, stack, log_n, config.initial_k(), config.log_inv_rates()[0]);
         Self { record, config, data }
@@ -264,7 +268,7 @@ impl CommittedStack {
     /// # Panics
     ///
     /// Panics on a statement the verifier would refuse.
-    pub fn open(&self, ps: &mut impl Transmitter, stack: &[F64], statement: Statement<'_>) {
+    pub fn open(&self, ps: &mut ProverState, stack: &[F64], statement: Statement<'_>) {
         let shape = self.record.shape();
         assert!(
             shape.valid()
@@ -289,7 +293,7 @@ impl CommittedStack {
 
         // The family's challenges, then lambda.
         let family = RingFamily::sample(ps);
-        let lambdas = powers(ps.sample(), 2 + statement.points.len());
+        let lambdas = powers(ps.verifier_message(), 2 + statement.points.len());
         let point_lambdas = &lambdas[1..1 + statement.points.len()];
         let anchor_lambda = lambdas[1 + statement.points.len()];
 
@@ -411,7 +415,7 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
         verify_record_binding(v, &self.record)?;
         // The family's challenges, then lambda, as the prover drew them.
         let family = RingFamily::draw(v);
-        let lambda = v.sample();
+        let lambda = v.verifier_message();
         let lambdas = v.powers(lambda, 2 + statement.points.len());
         let point_lambdas = &lambdas[1..1 + statement.points.len()];
         let anchor_lambda = lambdas[1 + statement.points.len()];
@@ -948,7 +952,7 @@ mod tests {
     use crate::ring_switch::tests::s_hat_v_reference;
     use crate::whir::config::tests::{default_config, test_config_for};
     use crate::whir::inner_product_base_ext;
-    use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
+    use fiat_shamir::{ProofTranscript, ProverState, SessionId, VerifierState};
     use primitives::bit_fold::BLOCK;
     use primitives::test_util::Rng;
 
@@ -1065,7 +1069,7 @@ mod tests {
             let lane_block = 1 << lane_vars;
             let stack_len = lanes * lane_block;
             let (rings, claims, lambdas) = statement(&mut rng, lane_vars, lanes);
-            let family = RingFamily::sample(&mut ProverState::from_label(DOMAIN));
+            let family = RingFamily::sample(&mut ProverState::new(&SessionId::new(DOMAIN), &0u64));
             let mut dense = dense_weight(stack_len, &rings, &claims, &lambdas, &family);
             let anchor_point = rng.ext_vec(lane_vars + 6);
             let anchor_lambda = rng.ext();
@@ -1176,6 +1180,21 @@ mod tests {
             check(&[strided(4)], &rings),
             Err(WhirError::PointClaim { index: 0 })
         ));
+
+        // A stride or slice width past the word is refused, not wrapped to a small one: `2^32` would read as `0`.
+        let wide = |stride_log: usize, point: usize| StackClaim::Strided {
+            offset: 0,
+            slot: 0,
+            stride_log,
+            point: vec![F192::ZERO; point],
+            value: F192::ZERO,
+        };
+        for (stride_log, point) in [(1 << 32, 0), (usize::BITS as usize, 0), (usize::MAX, 1)] {
+            assert!(matches!(
+                check(&[wide(stride_log, point)], &rings),
+                Err(WhirError::PointClaim { index: 0 })
+            ));
+        }
     }
 
     struct Instance {
@@ -1289,10 +1308,10 @@ mod tests {
             qflock_vars < log_n - yr_log_n,
             "test shape must keep the residual cube above q_flock (yr_log_n = {yr_log_n})"
         );
-        let mut ps = ProverState::from_label(DOMAIN);
+        let mut ps = ProverState::new(&SessionId::new(DOMAIN), &0u64);
         let committed = CommittedStack::new(&mut ps, &stack, log_n, pc.clone());
         let header = opening_label.map(|label| {
-            let source = std::mem::replace(&mut ps, ProverState::from_label(label));
+            let source = std::mem::replace(&mut ps, ProverState::new(&SessionId::new(label), &0u64));
             source.into_proof()
         });
         let statement = Statement {
@@ -1320,11 +1339,11 @@ mod tests {
         fs: &ProofTranscript,
     ) -> bool {
         let label = inst.opening_label.unwrap_or(DOMAIN);
-        let mut vs = VerifierState::from_label(label, fs);
+        let mut vs = VerifierState::new(&SessionId::new(label), &0u64, fs);
         let commitment = inst.header.as_ref().map_or_else(
             || StackCommitment::receive(&mut vs, inst.log_n, inst.n_lanes, inst.vc.clone()),
             |header| {
-                let mut source = VerifierState::from_label(DOMAIN, header);
+                let mut source = VerifierState::new(&SessionId::new(DOMAIN), &0u64, header);
                 StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone())
             },
         );
@@ -1338,7 +1357,7 @@ mod tests {
 
     #[test]
     fn stacked_open_roundtrip_and_tampering() {
-        // Invariant: an honest opening verifies, and a tampered claim, slice, point or stream word is refused.
+        // Invariant: an honest opening verifies, and a tampered claim, slice, point or message byte is refused.
         let inst = build_instance(1);
         assert!(
             verify_instance(&inst, &inst.point_claims, &inst.rings, &inst.fs),
@@ -1386,22 +1405,22 @@ mod tests {
             );
         }
 
-        // Commitment frames and WHIR scalars are both authenticated by the typed route.
-        for idx in [17usize, inst.fs.stream.len() - 1] {
+        // Commitment frames and WHIR scalars are authenticated by the typed route.
+        for idx in [17 * 24, inst.fs.narg.len() - 1] {
             let mut bad_fs = inst.fs.clone();
-            bad_fs.stream[idx] += F192::ONE;
+            bad_fs.narg[idx] ^= 1;
             assert!(
                 !verify_instance(&inst, &inst.point_claims, &inst.rings, &bad_fs),
-                "tampered stream word {idx} accepted"
+                "tampered message byte {idx} accepted"
             );
         }
 
-        // A truncated stream is refused, never a panic.
+        // A truncated proof is refused, never a panic.
         let mut short_fs = inst.fs.clone();
-        short_fs.stream.pop();
+        short_fs.narg.pop();
         assert!(
             !verify_instance(&inst, &inst.point_claims, &inst.rings, &short_fs),
-            "short stream accepted"
+            "short proof accepted"
         );
     }
 
@@ -1418,21 +1437,27 @@ mod tests {
     fn a_fresh_opening_binds_the_complete_original_record() {
         const FRESH: &[u8] = b"stack-fresh-record";
         let inst = build_instance_in_session(4, true, Some(FRESH));
-        let mut source = VerifierState::from_label(DOMAIN, inst.header.as_ref().unwrap());
+        let mut source = VerifierState::new(&SessionId::new(DOMAIN), &0u64, inst.header.as_ref().unwrap());
         let commitment = StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone()).unwrap();
         let statement = Statement {
             points: &inst.point_claims,
             rings: &inst.rings,
         };
         let check = |commitment: &StackCommitment| {
-            let mut v = VerifierState::from_label(FRESH, &inst.fs);
+            let mut v = VerifierState::new(&SessionId::new(FRESH), &0u64, &inst.fs);
             commitment.verify(&mut v, statement)
         };
         assert!(check(&commitment).is_ok());
 
+        // A fresh opening session binds its public instance as well as its protocol identity.
+        for (session, instance) in [(b"foreign-stack-session".as_slice(), 0u64), (FRESH, 1u64)] {
+            let mut v = VerifierState::new(&SessionId::new(session), &instance, &inst.fs);
+            assert!(commitment.verify(&mut v, statement).is_err());
+        }
+
         // Same actual root, but another original transcript context.
-        let empty = ProverState::from_label(DOMAIN).into_proof();
-        let mut other = VerifierState::from_label(b"another-original-context", &empty);
+        let empty = ProverState::new(&SessionId::new(DOMAIN), &0u64).into_proof();
+        let mut other = VerifierState::new(&SessionId::new(b"another-original-context"), &0u64, &empty);
         let mut altered = commitment.clone();
         altered.record.context = OpeningVerifier::context(&mut other);
         assert_eq!(altered.root(), commitment.root());
@@ -1449,8 +1474,8 @@ mod tests {
         assert!(matches!(check(&altered), Err(WhirError::CommitmentMismatch)));
 
         let mut frame = inst.fs.clone();
-        frame.stream[0] += F192::ONE;
-        let mut v = VerifierState::from_label(FRESH, &frame);
+        frame.narg[0] ^= 1;
+        let mut v = VerifierState::new(&SessionId::new(FRESH), &0u64, &frame);
         assert!(matches!(
             commitment.verify(&mut v, statement),
             Err(WhirError::CommitmentMismatch)
@@ -1459,12 +1484,11 @@ mod tests {
 
     #[test]
     fn malformed_metadata_is_refused_before_frame_reads_or_challenges() {
-        use fiat_shamir::transcript::Challenger;
         let inst = build_instance_in_session(5, true, Some(b"metadata-fresh"));
-        let mut source = VerifierState::from_label(DOMAIN, inst.header.as_ref().unwrap());
+        let mut source = VerifierState::new(&SessionId::new(DOMAIN), &0u64, inst.header.as_ref().unwrap());
         let commitment = StackCommitment::receive(&mut source, inst.log_n, inst.n_lanes, inst.vc.clone()).unwrap();
-        let empty = ProverState::from_label(DOMAIN).into_proof();
-        let pristine_challenge = VerifierState::from_label(DOMAIN, &empty).sample();
+        let empty = ProverState::new(&SessionId::new(DOMAIN), &0u64).into_proof();
+        let pristine_challenge: F192 = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty).verifier_message();
         let statement = Statement {
             points: &inst.point_claims,
             rings: &inst.rings,
@@ -1480,12 +1504,12 @@ mod tests {
                 3 => malformed.record.context.pending_bytes = 65,
                 _ => malformed.record.context.pending[7] = Some(F64::ONE),
             }
-            let mut v = VerifierState::from_label(DOMAIN, &empty);
+            let mut v = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty);
             assert!(matches!(
                 malformed.verify(&mut v, statement),
                 Err(WhirError::CommitmentMismatch)
             ));
-            assert_eq!(v.sample(), pristine_challenge);
+            assert_eq!(v.verifier_message::<F192>(), pristine_challenge);
         }
 
         let malformed = StackClaim::Strided {
@@ -1495,7 +1519,7 @@ mod tests {
             point: vec![F192::ZERO],
             value: F192::ZERO,
         };
-        let mut v = VerifierState::from_label(DOMAIN, &empty);
+        let mut v = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty);
         assert!(matches!(
             commitment.verify(
                 &mut v,
@@ -1506,11 +1530,11 @@ mod tests {
             ),
             Err(WhirError::PointClaim { index: 0 })
         ));
-        assert_eq!(v.sample(), pristine_challenge);
+        assert_eq!(v.verifier_message::<F192>(), pristine_challenge);
 
         let mut malformed_rings = inst.rings.clone();
         malformed_rings[0].claims[0].s_hat_v.pop();
-        let mut v = VerifierState::from_label(DOMAIN, &empty);
+        let mut v = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty);
         assert!(matches!(
             commitment.verify(
                 &mut v,
@@ -1521,12 +1545,12 @@ mod tests {
             ),
             Err(WhirError::Region { index: 0 })
         ));
-        assert_eq!(v.sample(), pristine_challenge);
+        assert_eq!(v.verifier_message::<F192>(), pristine_challenge);
 
         for (log_n, lanes) in [(usize::MAX, 1), (inst.log_n, 0), (inst.log_n, usize::MAX)] {
-            let mut v = VerifierState::from_label(DOMAIN, &empty);
+            let mut v = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty);
             assert!(StackCommitment::receive(&mut v, log_n, lanes, inst.vc.clone()).is_err());
-            assert_eq!(v.sample(), pristine_challenge);
+            assert_eq!(v.verifier_message::<F192>(), pristine_challenge);
         }
     }
 
@@ -1615,7 +1639,7 @@ mod tests {
             "test shape must exercise the crossing regime (yr_log_n = {yr_log_n})"
         );
 
-        let mut ps = ProverState::from_label(DOMAIN);
+        let mut ps = ProverState::new(&SessionId::new(DOMAIN), &0u64);
         let committed = CommittedStack::new(&mut ps, &stack, log_n, pc.clone());
         let ring = RingSwitch {
             offset: qflock_offset,
@@ -1629,7 +1653,7 @@ mod tests {
         committed.open(&mut ps, &stack, statement(&ring));
         let fs = ps.into_proof();
 
-        let mut vs = VerifierState::from_label(DOMAIN, &fs);
+        let mut vs = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &fs);
         let commitment = StackCommitment::receive(&mut vs, log_n, 1 << pc.initial_k(), pc).unwrap();
         assert!(
             commitment.verify(&mut vs, statement(&ring)).is_ok(),
@@ -1639,7 +1663,7 @@ mod tests {
         // And the crossing-regime ring claim is still bound: flip a slice.
         let mut bad_ring = ring.clone();
         bad_ring.claims[0].s_hat_v[7] += F192::ONE;
-        let mut vs = VerifierState::from_label(DOMAIN, &fs);
+        let mut vs = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &fs);
         let _ = StackCommitment::receive(
             &mut vs,
             log_n,

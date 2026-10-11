@@ -16,7 +16,8 @@
 use crate::verifier::OpeningVerifier;
 use crate::whir::config::{Config, ConfigError};
 use crate::whir::query::Normalizers;
-use fiat_shamir::transcript::TranscriptError;
+use fiat_shamir::TranscriptError;
+use fiat_shamir::arith::RoundPolynomial;
 use primitives::field::F192;
 use thiserror::Error;
 
@@ -247,7 +248,7 @@ pub(crate) fn check_config_shape(config: &Config, log_n: usize) -> Result<(), Wh
 impl<E: Copy> Quad<E> {
     /// The next round's quadratic, its linear coefficient fixed by the running claim.
     fn recv<V: OpeningVerifier<E = E>>(v: &mut V, claim: E) -> Result<Self, TranscriptError> {
-        let h = v.next_round_poly(3, claim, None)?;
+        let h = RoundPolynomial::read(v, 3, claim, None)?.coeffs;
         Ok(Self {
             c: h[0],
             b: h[1],
@@ -274,8 +275,8 @@ impl<E: Copy> Quad<E> {
 impl<E: Copy> Ood<E> {
     /// Draw an out-of-domain point, then read its value and its intro round.
     fn replay<V: OpeningVerifier<E = E>>(v: &mut V, n_vars: usize) -> Result<Self, TranscriptError> {
-        let z = v.sample_vec(n_vars);
-        let y = v.next_scalar()?;
+        let z = v.verifier_messages(n_vars);
+        let y = v.prover_message()?;
         let intro = Quad::recv(v, y)?;
         Ok(Self { z, y, intro })
     }
@@ -467,11 +468,11 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
     ///
     /// # Errors
     ///
-    /// Returns an error past the end of the stream.
+    /// Returns an error past the end of the proof.
     fn fold_rounds(&mut self, v: &mut V, k: usize) -> Result<Vec<V::E>, TranscriptError> {
         let mut rs = Vec::with_capacity(k);
         for _ in 0..k {
-            let ri = v.sample();
+            let ri = v.verifier_message();
             self.t_r = self.quad.eval(v, ri);
             self.quad = Quad::recv(v, self.t_r)?;
             rs.push(ri);
@@ -484,9 +485,9 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
     ///
     /// The caller opens rows and computes their weighted sum before `finish_query` ends the scope.
     fn begin_query(v: &mut V, phase: QueryPhase) -> Result<PendingQuery<V::Query, V::E>, TranscriptError> {
-        v.grind_check(phase.grinding)?;
+        v.check_pow(phase.grinding)?;
         let queries = phase.sample(v);
-        let lambda = v.sample();
+        let lambda = v.verifier_message();
         let weights = v.powers(lambda, phase.count);
         v.begin_scope(fiat_shamir::arith::Stage::Rows);
         Ok(PendingQuery {
@@ -557,7 +558,7 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         n_current: usize,
         weight_at: impl WeightAt<V>,
     ) -> Result<(), WhirError> {
-        let yr = v.next_scalars(1 << n_current)?;
+        let yr = v.prover_messages(1 << n_current)?;
         let phase = self.phase(self.config.level_steps(), oracle.depth());
         let batch = Self::begin_query(v, phase)?;
         let sum = match oracle.open_e_rows(v, &batch.queries) {
@@ -567,7 +568,7 @@ impl<'c, V: OpeningVerifier> WhirReplay<'c, V> {
         self.finish_query(v, batch, Vec::new(), n_current, sum)?;
         let mut ris_tail = Vec::with_capacity(n_current);
         for j in 0..n_current {
-            let ri = v.sample();
+            let ri = v.verifier_message();
             self.t_r = self.quad.eval(v, ri);
             ris_tail.push(ri);
             if j + 1 < n_current {
