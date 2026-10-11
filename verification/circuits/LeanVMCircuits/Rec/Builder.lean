@@ -299,10 +299,6 @@ def kToD (k0 k1 k2 k3 : ℕ) : M ℕ := do
   let w ← castRow [(4, k0), (5, k1), (6, k2), (7, k3)]
   pure (w.getD 0 0)
 
-def dToHalves (d : ℕ) : M (List ℕ) := do
-  let w ← castRow [(0, d)]
-  pure [w.getD 2 0, w.getD 3 0]
-
 /-! Hashing. -/
 
 /-- `rv::Hash::FINAL`. -/
@@ -338,15 +334,6 @@ def parent (left right : ℕ) : M ℕ := do
   let bit ← kZero
   singleBlock left bit x ds
 
-/-- `fn block`: one block of a long message whose counter and finalization word `tf = [t, f, 0, 0]` is a wire. -/
-def hashBlock (h : ℕ) (m : List ℕ) (tf : ℕ) : M ℕ := do
-  let mux ← wire
-  let bit ← wire
-  let x ← wire
-  let ds ← wire
-  hashRow h tf mux bit x ds m
-
-/-- `fn leaf_block`: `block` at the constant `[t, f, 0, 0]` (`Model.leafBlock_eq`). -/
 def leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : M ℕ := do
   let tf ← dConst [t, if last then final else 0, 0, 0]
   let mux ← wire
@@ -416,9 +403,9 @@ inductive Call where
   | mulAdd (a b d : ℕ) | mul (a b : ℕ) | add (a d : ℕ) | square (a : ℕ) | mulKAdd (a k d : ℕ)
   | mulConstAdd (a c0 c1 c2 d : ℕ) | inv (a : ℕ) | sum (terms : List ℕ)
   | split (w : ℕ) | pack (bits : List ℕ) | eToK (e : ℕ) | kToE (k0 k1 k2 : ℕ) | kToE1 (k : ℕ) | dToK (d : ℕ)
-  | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ) | kToD (k0 k1 k2 k3 : ℕ) | dToHalves (d : ℕ)
+  | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ) | kToD (k0 k1 k2 k3 : ℕ)
   | compress (acc x ds : ℕ) | node (acc bit : ℕ) | parent (l r : ℕ) | leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool)
-  | hashBlock (h : ℕ) (m : List ℕ) (tf : ℕ) | chain (words : List ℕ)
+  | chain (words : List ℕ)
   | chainStep (idx p0 p1 base tag act : ℕ) | link (w d0 d1 d2 act : ℕ)
   deriving Repr
 
@@ -451,12 +438,10 @@ def Call.exec : Call → M (List ℕ)
   | .dToEAndK d => do let (e, k) ← Model.dToEAndK d; return [e, k]
   | .halvesToD lo hi => do return [← Model.halvesToD lo hi]
   | .kToD k0 k1 k2 k3 => do return [← Model.kToD k0 k1 k2 k3]
-  | .dToHalves d => Model.dToHalves d
   | .compress acc x ds => do return [← Model.compress acc x ds]
   | .node acc bit => do return [← Model.node acc bit]
   | .parent l r => do return [← Model.parent l r]
   | .leafBlock h m t last => do return [← Model.leafBlock h m t last]
-  | .hashBlock h m tf => do return [← Model.hashBlock h m tf]
   | .chain words => do return [← Model.chain words]
   | .chainStep idx p0 p1 base tag act => do Model.chainStep idx (p0, p1) base tag act; return []
   | .link w d0 d1 d2 act => Model.link w d0 d1 d2 act
@@ -487,12 +472,10 @@ def Call.args : Call → List ℕ
   | .dToEAndK d => [d]
   | .halvesToD lo hi => [lo, hi]
   | .kToD k0 k1 k2 k3 => [k0, k1, k2, k3]
-  | .dToHalves d => [d]
   | .compress acc x ds => [acc, x, ds]
   | .node acc bit => [acc, bit]
   | .parent l r => [l, r]
   | .leafBlock h m _ _ => h :: m
-  | .hashBlock h m tf => h :: m ++ [tf]
   | .chain words => words
   | .chainStep idx p0 p1 base tag act => [idx, p0, p1, base, tag, act]
   | .link w d0 d1 d2 act => [w, d0, d1, d2, act]
@@ -501,7 +484,6 @@ def Call.args : Call → List ℕ
 bits, at most 64 bits packed. -/
 def Call.ok : Call → Bool
   | .leafBlock _ m t _ => m.length = 8 ∧ t < 2 ^ 64
-  | .hashBlock _ m _ => m.length = 8
   | .chain words => 8 * words.length < 2 ^ 64
   | .pack bits => bits.length ≤ 64
   | _ => true

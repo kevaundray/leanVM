@@ -1018,25 +1018,6 @@ theorem kToD_good (k0 k1 k2 k3 : ℕ) : Good (Wires [k0, k1, k2, k3]) (kToD k0 k
   rw [hg 7 k3 (by omega) (by simp)] at e3
   exact ⟨(h0 0).trans e0.symm, (h0 1).trans e1.symm, (h0 2).trans e2.symm, (h0 3).trans e3.symm⟩
 
-/-- `d_to_halves`: a digest's two 128-bit halves, each with a zero top limb. -/
-theorem dToHalves_good (d : ℕ) : Good (Wires [d]) (dToHalves d) fun _ r s' => (∀ i < 2, r.getD i 0 < s'.next) ∧
-    ∀ st val, Sat st s' val → val (r.getD 0 0) 0 = val d 0 ∧ val (r.getD 0 0) 1 = val d 1 ∧ val (r.getD 0 0) 2 = 0 ∧
-      val (r.getD 1 0) 0 = val d 2 ∧ val (r.getD 1 0) 1 = val d 3 ∧ val (r.getD 1 0) 2 = 0 := by
-  unfold dToHalves
-  refine (view_good [(0, d)] (fun w => [w.getD 2 0, w.getD 3 0]) (fun s' r _ => (∀ i < 2, r.getD i 0 < s'.next) ∧
-    ∀ st val, Sat st s' val → val (r.getD 0 0) 0 = val d 0 ∧ val (r.getD 0 0) 1 = val d 1 ∧ val (r.getD 0 0) 2 = 0 ∧
-      val (r.getD 1 0) 0 = val d 2 ∧ val (r.getD 1 0) 1 = val d 3 ∧ val (r.getD 1 0) 2 = 0) ?_).pre
-    fun _ h => by simpa using h
-  intro ws s' hlen hc hw hg
-  simp only [List.getD_cons_zero, List.getD_cons_succ]
-  refine ⟨fun i hi => ?_, fun st val hsat => ?_⟩
-  · rcases (show i = 0 ∨ i = 1 by omega) with rfl | rfl
-    · exact wires_getD hw hlen 2 (by omega)
-    · exact wires_getD hw hlen 3 (by omega)
-  obtain ⟨col, h0, -, ⟨h20, h21, h22⟩, ⟨h30, h31, h32⟩, -⟩ := cast_sem hsat hc
-  rw [hg 0 d (by omega) (by simp)] at h0
-  exact ⟨h20.trans (h0 0).symm, h21.trans (h0 1).symm, h22, h30.trans (h0 2).symm, h31.trans (h0 3).symm, h32⟩
-
 
 theorem limbs_split (j : ℕ) (hj : j < 65) (col : ℕ → K) : limbs Rec.split j col 0 = col j := by
   unfold limbs Rec.split
@@ -1312,36 +1293,6 @@ theorem leafBlock_good (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) (hm : m.
       rfl
   have hdig := hash_row_digest col hcol (cvWords (words4 (val h)))
     (fun k => by rw [digest_cvWords, columnWord, hH k]; rfl) last hfin
-  rw [hcounter, msg_block col (m.map (w64 val)) 0 fun i => ?_] at hdig
-  · rw [← hdig]
-    funext k
-    simp only [outWords, words4, hO k]
-  · rw [columnWord, hW i i.isLt, wordAt]
-    have hi : i.val < m.length := by omega
-    simp [w64, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hi]
-
-/-- `leaf_block` is `block` at the constant counter and finalization word `[t, f, 0, 0]`. -/
-theorem leafBlock_eq (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) :
-    leafBlock h m t last = (do let tf ← dConst [t, if last then final else 0, 0, 0]; hashBlock h m tf) := rfl
-
-/-- `block`: RFC 7693's compression of the chaining value `h` and the eight words `m` at the counter word of `tf`,
-for either finalization its second word's low half spells. -/
-theorem hashBlock_good (h : ℕ) (m : List ℕ) (tf : ℕ) (hm : m.length = 8) :
-    Good (fun _ => True) (hashBlock h m tf) fun _ o s' => o < s'.next ∧ ∀ st val, Sat st s' val → ∀ f : Bool,
-      (BitVec.ofNat 64 (toWord (val tf 1))).setWidth 32 = finalWord f →
-      words4 (val o) = digest (Blake2s.Rfc7693.F (cvWords (words4 (val h))) (block (m.map (w64 val)) 0) (w64 val tf) f) := by
-  refine (Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun mux =>
-      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun bit =>
-      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun x =>
-      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun ds =>
-        hashRow_good h tf mux bit x ds m).weaken (fun s h => h) ?_
-  rintro s o s5 hs - - ⟨mux, -, -, -, -, bit, -, -, -, -, x, -, -, -, -, ds, -, -, -, -, ho, ch, hrow⟩
-  refine ⟨ho, fun st val hsat f hf => ?_⟩
-  obtain ⟨col, hcol, hH, hT, hF, -, -, -, -, hO, hW⟩ := hash_sem hsat hrow
-  have hfin : (columnWord col hashF).setWidth 32 = finalWord f := by rw [columnWord, hF]; exact hf
-  have hcounter : columnWord col hashT = w64 val tf := by rw [columnWord, hT]; rfl
-  have hdig := hash_row_digest col hcol (cvWords (words4 (val h)))
-    (fun k => by rw [digest_cvWords, columnWord, hH k]; rfl) f hfin
   rw [hcounter, msg_block col (m.map (w64 val)) 0 fun i => ?_] at hdig
   · rw [← hdig]
     funext k
@@ -1775,17 +1726,12 @@ def Call.Holds (st : ℕ → Fin 4 → K) (val : Val) (outs : List ℕ) : Call �
       val (outs.getD 0 0) 2 = val hi 0 ∧ val (outs.getD 0 0) 3 = val hi 1 ∧ val lo 2 = 0 ∧ val hi 2 = 0
   | .kToD k0 k1 k2 k3 => val (outs.getD 0 0) 0 = val k0 0 ∧ val (outs.getD 0 0) 1 = val k1 0 ∧
       val (outs.getD 0 0) 2 = val k2 0 ∧ val (outs.getD 0 0) 3 = val k3 0
-  | .dToHalves d => val (outs.getD 0 0) 0 = val d 0 ∧ val (outs.getD 0 0) 1 = val d 1 ∧ val (outs.getD 0 0) 2 = 0 ∧
-      val (outs.getD 1 0) 0 = val d 2 ∧ val (outs.getD 1 0) 1 = val d 3 ∧ val (outs.getD 1 0) 2 = 0
   | .compress acc x ds => words4 (val (outs.getD 0 0)) = Rec.node (words4 (val acc)) (words4 (xds val x ds))
   | .node acc bit => (val bit 0 = 0 ∨ val bit 0 = 1) ∧ ∃ sib : Fin 4 → BitVec 64, words4 (val (outs.getD 0 0)) =
       if val bit 0 = 1 then Rec.node sib (words4 (val acc)) else Rec.node (words4 (val acc)) sib
   | .parent l r => words4 (val (outs.getD 0 0)) = Rec.node (words4 (val l)) (words4 (val r))
   | .leafBlock h m t last => words4 (val (outs.getD 0 0)) =
       digest (Blake2s.Rfc7693.F (cvWords (words4 (val h))) (block (m.map (w64 val)) 0) (BitVec.ofNat 64 t) last)
-  | .hashBlock h m tf => ∀ f : Bool, (BitVec.ofNat 64 (toWord (val tf 1))).setWidth 32 = finalWord f →
-      words4 (val (outs.getD 0 0)) =
-        digest (Blake2s.Rfc7693.F (cvWords (words4 (val h))) (block (m.map (w64 val)) 0) (w64 val tf) f)
   | .chain words => words4 (val (outs.getD 0 0)) = digest (hashWords (words.map (w64 val)))
   | .chainStep idx p0 p1 base _ act => ∃ t v0 v1 ch : ℕ,
       (∀ i : Fin 4, i.val < 3 → words4 (val ch) i = digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 val))) i) ∧
@@ -1879,8 +1825,6 @@ theorem Call.exec_good (c : Call) (hok : c.ok = true) : Good (Wires c.args) c.ex
   | kToD k0 k1 k2 k3 =>
     exact (ret_good (kToD_good k0 k1 k2 k3)).weaken (fun _ h => h)
       fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
-  | dToHalves d =>
-    exact (dToHalves_good d).weaken (fun _ h => h) fun _ _ _ _ _ _ ⟨_, hq⟩ st val hsat => hq st val hsat
   | compress acc x ds =>
     exact (ret_good (compress_good acc x ds)).pre (fun _ _ => trivial) |>.weaken (fun _ h => h)
       fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
@@ -1893,10 +1837,6 @@ theorem Call.exec_good (c : Call) (hok : c.ok = true) : Good (Wires c.args) c.ex
   | leafBlock h m t last =>
     simp only [Call.ok, decide_eq_true_eq] at hok
     exact (ret_good (leafBlock_good h m t last hok.1 hok.2)).pre (fun _ _ => trivial) |>.weaken (fun _ h => h)
-      fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
-  | hashBlock h m tf =>
-    simp only [Call.ok, decide_eq_true_eq] at hok
-    exact (ret_good (hashBlock_good h m tf hok)).pre (fun _ _ => trivial) |>.weaken (fun _ h => h)
       fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
   | chain words =>
     simp only [Call.ok, decide_eq_true_eq] at hok
