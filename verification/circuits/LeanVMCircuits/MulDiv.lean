@@ -307,10 +307,6 @@ def magnitudes : FormalCircuit Bit Operands Magnitudes where
 @[circuit_norm] theorem magnitudes_length (input : Var Operands Bit) : magnitudes.localLength input = 196 := by
   with_unfolding_all rfl
 @[circuit_norm] theorem magnitudes_spec : magnitudes.Spec = MagnitudesSpec := rfl
-theorem magnitudes_output_eq (input : Var Operands Bit) (offset : ℕ) :
-    magnitudes.elaborated.output input offset = magnitudes.output input offset := rfl
-theorem magnitudes_localLength_eq (input : Var Operands Bit) : magnitudes.elaborated.localLength input = 196 := by
-  with_unfolding_all rfl
 
 attribute [irreducible] magnitudes
 
@@ -631,10 +627,6 @@ instance elaborated : ElaboratedCircuit Bit Input Output main where
   subcircuitsConsistent _ _ := by simp only [main, circuit_norm]; omega
   channelsLawful := by simp [main, circuit_norm, FormalCircuitBase.channelsWithGuarantees]
 
-theorem eval_output (env : Environment Bit) (x : Var Output Bit) :
-    eval env x = ⟨x.out.map (Expression.eval env), x.bad.eval env⟩ := by
-  rcases x; simp [circuit_norm]
-
 /-- `bad` is set exactly when the divisor is nonzero and the hints are not `|n|`'s quotient and remainder by
 `|d|`; while it is clear, the output is RISC-V's. -/
 def Spec (input : Input Bit) (output : Output Bit) : Prop :=
@@ -665,5 +657,28 @@ def circuit : FormalCircuit Bit Input Output where
       (Adder.value_lt input_r) (Adder.value_lt _) h1 h2 h3 h4 h5 h6 c1 c2 c3 c4 v1 v2 hres
     exact key
   completeness := by circuit_proof_start
+
+theorem magnitude_pos (s : Bool) (d : ℕ) (hd : d < 2 ^ 64) (h0 : d ≠ 0) : 0 < MulDiv.magnitude s d := by
+  unfold MulDiv.magnitude MulDiv.negIf
+  split
+  · rw [Nat.mod_eq_of_lt (by omega)]; omega
+  · omega
+
+/-- Honest hints pass: with a nonzero divisor, the magnitudes' quotient and remainder leave `bad` clear. -/
+theorem honest_hints (input : Input Bit) (output : Output Bit) (h : Spec input output)
+    (hd : MulDiv.extend (input.signed = 1) (input.word = 1) (Adder.value input.v2) ≠ 0)
+    (hq : Adder.value input.q = MulDiv.magnitude (input.signed = 1)
+      (MulDiv.extend (input.signed = 1) (input.word = 1) (Adder.value input.v1)) /
+        MulDiv.magnitude (input.signed = 1) (MulDiv.extend (input.signed = 1) (input.word = 1) (Adder.value input.v2)))
+    (hr : Adder.value input.r = MulDiv.magnitude (input.signed = 1)
+      (MulDiv.extend (input.signed = 1) (input.word = 1) (Adder.value input.v1)) %
+        MulDiv.magnitude (input.signed = 1) (MulDiv.extend (input.signed = 1) (input.word = 1) (Adder.value input.v2))) :
+    output.bad = 0 := by
+  rw [h.1, if_neg]
+  rintro ⟨-, hn⟩
+  apply hn
+  have hD := magnitude_pos (input.signed = 1) _ (MulDiv.extend_lt _ _ _ (Adder.value_lt input.v2)) hd
+  rw [hq, hr]
+  exact ⟨Nat.div_add_mod' _ _, Nat.mod_lt _ hD⟩
 
 end LeanVMCircuits.Div

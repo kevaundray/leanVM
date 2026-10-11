@@ -116,10 +116,6 @@ def Layout.total (L : Layout) : ℕ := rippleBase L.n L.steps.length + 5 * L.n
 
 def Layout.gates (L : Layout) : List Gate := (List.range L.total).map L.gateAt
 
-/-- The product's bits: the ripple's sums. -/
-def Layout.outputs (L : Layout) : List Aff :=
-  (List.range L.n).map fun p => .loc (rippleBase L.n L.steps.length + 5 * p + 4)
-
 
 /-! What the gates make every wire carry. -/
 

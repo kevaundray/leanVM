@@ -135,10 +135,6 @@ variable (n : ℕ) (hn : n = 64 ∨ n = 128)
 @[circuit_norm] theorem circuit_length (input : Var Input Bit) :
     (circuit n hn).localLength input = total n := rfl
 @[circuit_norm] theorem circuit_spec : (circuit n hn).Spec = Spec n := rfl
-theorem circuit_output_eq (input : Var Input Bit) (offset : ℕ) :
-    (circuit n hn).elaborated.output input offset = (circuit n hn).output input offset := rfl
-theorem circuit_localLength_eq (input : Var Input Bit) :
-    (circuit n hn).elaborated.localLength input = total n := rfl
 
 end
 

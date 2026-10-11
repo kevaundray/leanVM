@@ -93,9 +93,6 @@ def wellOrdered : ℕ → List Gate → Bool
   | _, [] => true
   | i, g :: gs => g.within i && wellOrdered (i + 1) gs
 
-/-- The circuit of the gates, from its first free variable. -/
-def run (inp : ℕ → Expression Bit) (gates : List Gate) : Circuit Bit Unit := fun base => ((), opsFrom inp base 0 gates)
-
 theorem opsFrom_length (inp : ℕ → Expression Bit) (base : ℕ) :
     ∀ (i : ℕ) (gs : List Gate), Operations.localLength (opsFrom inp base i gs) = gs.length
   | _, [] => rfl

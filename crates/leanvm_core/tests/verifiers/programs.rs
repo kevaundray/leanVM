@@ -253,6 +253,35 @@ fn shifts_and_multiplications_prove_and_verify() {
     proves_and_verifies("shift-mul", &program, expected);
 }
 
+/// Every multiplication on sign, word and carry boundaries through the generated Clean circuits, folded into the output.
+#[test]
+fn clean_multiplication_boundaries_prove_and_verify() {
+    let mut a = Asm::new();
+    let edges = [
+        0,
+        1,
+        u64::MAX,
+        i64::MIN as u64,
+        i64::MAX as u64,
+        0xffff_ffff,
+        0x8000_0000,
+    ];
+    for (i, &x) in edges.iter().enumerate() {
+        let y = edges[(3 * i + 2) % edges.len()];
+        a.li(Reg::S0, x).li(Reg::S1, y);
+        for op in [Mul, Mulh, Mulhsu, Mulhu, Mulw] {
+            a.r(op, Reg::T0, Reg::S0, Reg::S1)
+                .r(Xor, Reg::A0, Reg::A0, Reg::T0)
+                .r(Add, Reg::A1, Reg::A1, Reg::T0)
+                .r(Sub, Reg::A2, Reg::A2, Reg::A1);
+        }
+    }
+    let program =
+        Program::new(&a.exit().finish(), Region::TEXT.base(), vec![], 2, 0).expect("valid instruction program");
+    let expected = Machine::new(program.rv(), &[]).run().expect("the run halts");
+    proves_and_verifies("clean-mul", &program, expected);
+}
+
 /// Every division and remainder, 64-bit and 32-bit, on operands of both signs, by zero,
 /// and the one that overflows.
 #[test]

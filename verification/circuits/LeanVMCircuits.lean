@@ -14,3 +14,4 @@ public import LeanVMCircuits.Rec.Bus
 public import LeanVMCircuits.Rec.ExtField
 public import LeanVMCircuits.Rec.Builder
 public import LeanVMCircuits.Rec.Contracts
+public import LeanVMCircuits.MulDivEmit

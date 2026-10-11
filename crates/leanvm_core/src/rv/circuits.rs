@@ -34,9 +34,6 @@ pub(super) trait WordGadgets {
     /// Whether any bit of `x` is set; one product per OR.
     fn any(&mut self, x: &[Wire]) -> Wire;
 
-    /// `-x` if `negative`, else `x`; one product per bit.
-    fn negate_if(&mut self, negative: Wire, x: &[Wire; 64]) -> [Wire; 64];
-
     /// `x`, bits 32 to 63 replaced by bit 31 when `word` is set; one product per high bit.
     fn sext32_if(&mut self, word: Wire, x: &[Wire; 64]) -> [Wire; 64];
 
@@ -55,12 +52,6 @@ impl WordGadgets for Builder {
 
     fn any(&mut self, x: &[Wire]) -> Wire {
         x.iter().fold(Wire::ZERO, |acc, &bit| self.or(acc, bit))
-    }
-
-    fn negate_if(&mut self, negative: Wire, x: &[Wire; 64]) -> [Wire; 64] {
-        // Two's complement: (x ^ negative) + negative.
-        let flipped = x.map(|bit| self.xor(bit, negative));
-        flock::clean::add_with_carry64(self, &flipped, &[Wire::ZERO; 64], negative).0
     }
 
     fn sext32_if(&mut self, word: Wire, x: &[Wire; 64]) -> [Wire; 64] {

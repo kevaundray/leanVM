@@ -285,7 +285,7 @@ pub fn verify<V: Verifier>(circuits: &[(Shape, usize)], v: &mut V) -> Result<Vec
 mod tests {
     //! u64 circuits driven through the whole reduction: zerocheck then lincheck, prover and verifier.
     //!
-    //! The circuits are built from the builder and the multiplier gadget, their witnesses by the generic walk.
+    //! The circuits are the generated adder and multipliers, their witnesses by the generic walk.
     //! Only the commitment's opening is left out: it is generic in the claims.
 
     use fiat_shamir::transcript::{ProofTranscript, ProverState, VerifierState};
@@ -294,7 +294,6 @@ mod tests {
 
     use crate::Witness;
     use crate::circuit::{Builder, Circuit};
-    use crate::gadgets::Multiplier;
     use crate::reduction::{self, Block, Instance};
     use crate::zerocheck::K_SKIP;
 
@@ -328,8 +327,8 @@ mod tests {
             let (a, b) = (c.input(0), c.input(1));
             let out = match self {
                 Self::WrappingAdd => crate::clean::wrapping_add64(&mut c, &a, &b).to_vec(),
-                Self::WrappingMul => Multiplier::build::<64>(&mut c, &a, &b).0.to_vec(),
-                Self::WideningMul => Multiplier::build::<128>(&mut c, &a, &b).0.to_vec(),
+                Self::WrappingMul => crate::clean::multiply64(&mut c, &a, &b).to_vec(),
+                Self::WideningMul => crate::clean::multiply128(&mut c, &a, &b).to_vec(),
             };
             for (i, wire) in out.into_iter().enumerate() {
                 c.output(0, i, wire);
