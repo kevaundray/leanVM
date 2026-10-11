@@ -1013,4 +1013,180 @@ theorem terminal_eq {T1 : Type} (h : ArithModel inst.fiat_shamirarithVerifierIns
 
 end Terminal
 
+/-! ## Model-side iteration -/
+
+theorem runSteps_foldl {S : Type} (f : Nat → S → S) (n start : Nat) (s : S) :
+    Protocol.runSteps f n start s = (List.range' start n).foldl (fun s j => f j s) s := by
+  induction n generalizing start s with
+  | zero => rfl
+  | succ n ih => simp [Protocol.runSteps, ih, List.range'_succ]
+
+theorem runSteps_succ {S : Type} (f : Nat → S → S) (n : Nat) (s : S) :
+    Protocol.runSteps f (n + 1) 0 s = f n (Protocol.runSteps f n 0 s) := by
+  rw [runSteps_foldl, runSteps_foldl, List.range'_concat]
+  simp
+
+/-! ## The residual rounds -/
+
+section Tail
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
+  (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
+  (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
+  (index : Q → Nat) (tape : V → List (Event E Q R K))
+
+/-- A residual round's reads: its challenge, then its polynomial unless it is the last. -/
+def tailEvents : E × Option (E × E) → List (Event E Q R K)
+  | (r, some (u0, u2)) => [.sample r, .poly u0 u2]
+  | (r, none) => [.sample r]
+
+def tailPairs (tail : List E) (msgs : List (E × E)) : List (E × Option (E × E)) :=
+  tail.zip (msgs.map some ++ [none])
+
+/-- The tape of the residual rounds. -/
+def tailTape (tail : List E) (msgs : List (E × E)) : List (Event E Q R K) :=
+  (tailPairs tail msgs).flatMap tailEvents
+
+theorem tailPairs_drop (tail : List E) (msgs : List (E × E)) (hlen : msgs.length + 1 = tail.length)
+    (j : Nat) (hj : j < tail.length) :
+    (tailPairs tail msgs).drop j =
+      (tail[j], if h : j + 1 < tail.length then some msgs[j] else none) :: (tailPairs tail msgs).drop (j + 1) := by
+  have hl : j < (tailPairs tail msgs).length := by simp [tailPairs]; omega
+  rw [List.drop_eq_getElem_cons hl]
+  congr 1
+  simp only [tailPairs, List.getElem_zip]
+  congr 1
+  by_cases h : j + 1 < tail.length
+  · simp only [h, ↓reduceDIte]
+    rw [List.getElem_append_left (by simp; omega)]
+    simp
+  · simp only [h, ↓reduceDIte]
+    rw [List.getElem_append_right (by simp; omega)]
+    simp
+
+/-- The terminal formula of `terminal_eq`. -/
+def terminalValue (callerAt : Array Concrete.E → Concrete.E) (initialK : Nat)
+    (ris : List E) (levels : List (whir.verify.LevelCtx Q E)) (oods : List (whir.verify.OodCtx E))
+    (yr tail : List E) : Concrete.E :=
+  ((levels.map fun c => levelTerm encode index c (ris.map encode) (tail.map encode)).sum +
+    (oods.map fun c => oodTerm encode c (ris.map encode) (tail.map encode)).sum +
+    callerAt (rotatePoint initialK ((ris ++ tail).map encode).toArray)) *
+    Concrete.mle (yr.map encode).toArray (tail.map encode).toArray
+
+theorem tail_loop_eq {T1 : Type} (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
+    (hr : RowModel inst encode encodeK ofLimbs index) (hn : NormalizerModel const)
+    (ht : Transcript inst encode tape)
+    (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
+    (hens : EnsureModel inst encode) (W : whir.verify.WeightAt T1 E V R K Q) (weight_at : T1)
+    (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
+    (config : whir.config.Config) (nc : Usize) (yr : alloc.vec.Vec E)
+    (ris0 : alloc.vec.Vec E) (levels0 : alloc.vec.Vec (whir.verify.LevelCtx Q E))
+    (oods0 : alloc.vec.Vec (whir.verify.OodCtx E))
+    (tail : List E) (msgs : List (E × E)) (rest : List (Event E Q R K))
+    (ch : Protocol.Challenges) (pf : Protocol.Opening) (st0 : State)
+    (hch : ch.tail = (tail.map encode).toArray)
+    (hpf : pf.tailMessages = (msgs.map fun m => (⟨encode m.1, encode m.2⟩ : Protocol.Message Concrete.E)).toArray)
+    (hlen : msgs.length + 1 = tail.length) (hnc : nc.val = tail.length)
+    (hlev : ∀ c ∈ levels0.val, LevelFits ris0.val.length tail.length c)
+    (hood : ∀ c ∈ oods0.val, OodFits ris0.val.length tail.length c)
+    (hk : config.initial_k.val ≤ ris0.val.length + tail.length)
+    (hcap : ris0.val.length + tail.length ≤ Usize.max)
+    (h64 : tail.length < 64) (hyr : yr.val.length = 2 ^ tail.length) :
+    ∀ (m j : Nat) (iter : core.ops.range.Range Usize) (self : whir.verify.WhirReplay V R K Q E) (v : V)
+      (rt : alloc.vec.Vec E),
+      iter.start.val = j → iter.end = nc → tail.length - j = m → j ≤ tail.length →
+      tape v = ((tailPairs tail msgs).drop j).flatMap tailEvents ++ rest →
+      self.ris = ris0 → self.levels = levels0 → self.oods = oods0 → rt.val = tail.take j →
+      encode self.t_r = (Protocol.runSteps (tailStep ch pf) j 0 st0).claim →
+      (⟨encode self.quad.c, encode self.quad.a⟩ : Protocol.Message Concrete.E) =
+        (Protocol.runSteps (tailStep ch pf) j 0 st0).message →
+      (j < tail.length → encode self.quad.b =
+        (Protocol.runSteps (tailStep ch pf) j 0 st0).claim + encode self.quad.a) →
+      ∃ r v', whir.verify.WhirReplay.last_level_loop inst W iter self v config nc weight_at yr rt =
+          .ok (r, v') ∧
+        (r = .Ok () ↔ terminalValue encode index callerAt config.initial_k.val ris0.val levels0.val oods0.val
+          yr.val tail = (Protocol.runSteps (tailStep ch pf) tail.length 0 st0).claim) := by
+  intro m
+  induction m with
+  | zero =>
+    intro j iter self v rt hs he hm hj hv hris hlevs hoods hrt hc hmsg hb
+    have hjn : j = tail.length := by omega
+    subst hjn
+    have hnone : core.iter.range.IteratorRange.next core.iter.range.StepUsize iter = .ok (none, iter) :=
+      range_next_none iter (by rw [he, hnc, hs])
+    have hrt' : rt.val = tail := by rw [hrt, List.take_length]
+    obtain ⟨r, v', hterm, er⟩ := terminal_eq inst encode const encodeK ofLimbs index h hr hn hclone hens W
+      weight_at callerAt hcall self v config (alloc.vec.Vec.deref yr) (alloc.vec.Vec.deref rt)
+      (by simpa [hris, hlevs, alloc.vec.Vec.deref, hrt'] using hlev)
+      (by simpa [hris, hoods, alloc.vec.Vec.deref, hrt'] using hood)
+      (by simpa [hris, alloc.vec.Vec.deref, hrt'] using hk)
+      (by simpa [hris, alloc.vec.Vec.deref, hrt'] using hcap)
+      (by simpa [alloc.vec.Vec.deref, hrt'] using h64)
+      (by simpa [alloc.vec.Vec.deref, hrt'] using hyr)
+    refine ⟨r, v', ?_, ?_⟩
+    · unfold whir.verify.WhirReplay.last_level_loop
+      apply loop_done
+      simp [whir.verify.WhirReplay.last_level_loop.body, hnone, ht.begin_scope, hterm, ht.end_scope]
+    · rw [er, ← hc]
+      simp only [terminalValue, alloc.vec.Vec.deref, Slice.from_val, hrt', hris, hlevs, hoods]
+  | succ m ih =>
+    intro j iter self v rt hs he hm hj hv hris hlevs hoods hrt hc hmsg hb
+    have hjt : j < tail.length := by omega
+    have hjn : j < nc.val := by omega
+    obtain ⟨iter1, hnext, hs1, he1⟩ := range_next_some iter (by rw [he, hs]; exact hjn)
+    rw [tailPairs_drop tail msgs hlen j hjt] at hv
+    set sj := Protocol.runSteps (tailStep ch pf) j 0 st0 with hsj
+    have hstep : Protocol.runSteps (tailStep ch pf) (j + 1) 0 st0 = tailStep ch pf j sj := runSteps_succ _ _ _
+    have htj : ch.tail[j]! = encode tail[j] := by rw [hch]; simp [getElem!_pos, hjt]
+    have hsize : ch.tail.size = tail.length := by rw [hch]; simp
+    have hmod : (iter.start.val + 1) % Usize.size = j + 1 := by
+      rw [hs]; apply Nat.mod_eq_of_lt
+      have := Usize.max_def; have := nc.hBounds
+      simp only [Usize.size, Usize.max] at *
+      omega
+    obtain ⟨rt1, hpush, ert1⟩ := push_ok rt tail[j] (by
+      rw [hrt]; simp only [List.length_take]; have := Usize.max_def; scalar_tac)
+    have hrt1 : rt1.val = tail.take (j + 1) := by rw [ert1, hrt, List.take_succ_eq_append_getElem hjt]
+    by_cases hl : j + 1 < tail.length
+    · have hmj : j < msgs.length := by omega
+      simp only [hl, ↓reduceDIte, tailEvents, List.flatMap_cons, List.cons_append, List.nil_append] at hv
+      obtain ⟨v1, hsample, hv1⟩ := ht.sample v tail[j] _ hv
+      obtain ⟨t, het, et⟩ := quad_eval inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
+        encode const h self.quad v1 tail[j] sj.claim (hb hjt)
+      obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode tape ht
+        inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v1 t msgs[j].1 msgs[j].2 _ hv1
+      have hbody : whir.verify.WhirReplay.last_level_loop.body inst W config nc weight_at yr iter self v rt =
+          .ok (.cont (iter1, { self with t_r := t, quad := q }, v3, rt1)) := by
+        simp [whir.verify.WhirReplay.last_level_loop.body, hnext, hsample, het, hpush, lift, hmod, hnc, hl,
+          hrecv, core.result.Result.Insts.CoreOpsTry.branch]
+      obtain ⟨r, v', hloop, er⟩ := ih (j + 1) iter1 { self with t_r := t, quad := q } v3 rt1
+        (by rw [hs1, hs]) (by rw [he1, he]) (by omega) (by omega) hv3 hris hlevs hoods hrt1
+        (by rw [hstep, et, hmsg]; simp [tailStep, htj])
+        (by rw [hstep]; simp [tailStep, hsize, hl, hpf, getElem!_pos, hmj, hqc, hqa])
+        (fun _ => by rw [hstep, hqb, hqa, et, hmsg]; simp [tailStep, htj])
+      refine ⟨r, v', ?_, er⟩
+      unfold whir.verify.WhirReplay.last_level_loop
+      rw [loop_cont hbody]
+      unfold whir.verify.WhirReplay.last_level_loop at hloop
+      exact hloop
+    · simp only [hl, ↓reduceDIte, tailEvents, List.flatMap_cons, List.cons_append, List.nil_append] at hv
+      obtain ⟨v1, hsample, hv1⟩ := ht.sample v tail[j] _ hv
+      obtain ⟨t, het, et⟩ := quad_eval inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
+        encode const h self.quad v1 tail[j] sj.claim (hb hjt)
+      have hbody : whir.verify.WhirReplay.last_level_loop.body inst W config nc weight_at yr iter self v rt =
+          .ok (.cont (iter1, { self with t_r := t }, v1, rt1)) := by
+        simp [whir.verify.WhirReplay.last_level_loop.body, hnext, hsample, het, hpush, lift, hmod, hnc, hl]
+      obtain ⟨r, v', hloop, er⟩ := ih (j + 1) iter1 { self with t_r := t } v1 rt1
+        (by rw [hs1, hs]) (by rw [he1, he]) (by omega) (by omega) hv1 hris hlevs hoods hrt1
+        (by rw [hstep, et, hmsg]; simp [tailStep, htj])
+        (by rw [hstep]; simp [tailStep, hsize, hl, hmsg])
+        (fun h' => absurd h' (by omega))
+      refine ⟨r, v', ?_, er⟩
+      unfold whir.verify.WhirReplay.last_level_loop
+      rw [loop_cont hbody]
+      unfold whir.verify.WhirReplay.last_level_loop at hloop
+      exact hloop
+
+end Tail
+
 end WhirAeneas.Replay
