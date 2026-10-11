@@ -341,15 +341,15 @@ fn positional_and_signer_set_proofs_are_not_confused() {
     outputs_tree.verify(&positional, &[*output]).expect("a positional root");
 
     // Each tree refuses the other's operations.
-    let signers = Err(TreeError::Semantics { signers: true });
-    let outputs = Err(TreeError::Semantics { signers: false });
-    assert_eq!(f.tree.prove_first(&[Leaf::new(proof, *output)]), signers);
-    assert_eq!(f.tree.verify(&positional, &[*output]), signers.map(|_: TreeProof| ()));
+    let signers = TreeError::Semantics { signers: true };
+    let outputs = TreeError::Semantics { signers: false };
+    assert_eq!(f.tree.prove_first(&[Leaf::new(proof, *output)]), Err(signers.clone()));
+    assert_eq!(f.tree.verify(&positional, &[*output]), Err(signers));
     let set_leaf = SignerLeaf::new(Leaf::new(proof, *output), &f.sets[0]);
-    assert_eq!(outputs_tree.aggregate_leaves(&[set_leaf], None), outputs.clone());
+    assert_eq!(outputs_tree.aggregate_leaves(&[set_leaf], None), Err(outputs.clone()));
     assert_eq!(
         outputs_tree.verify_signers(&f.firsts[0].proof, &f.firsts[0].signers),
-        outputs.map(|_: Aggregate| ())
+        Err(outputs)
     );
 
     // A positional root's statement read as a signer set: another session, so its proof does not verify.
