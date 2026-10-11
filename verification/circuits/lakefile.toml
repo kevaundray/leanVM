@@ -13,3 +13,7 @@ name = "LeanVMCircuits"
 [[lean_exe]]
 name = "checkrec"
 root = "CheckRec"
+
+[[lean_exe]]
+name = "checkflushes"
+root = "CheckFlushes"
