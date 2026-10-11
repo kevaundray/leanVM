@@ -71,10 +71,15 @@ case "$surface" in
         dest="$here/llbc/merkle"
         generated="$here"
         args=(--start-from pcs::merkle::PrunedMerklePaths::open --start-from pcs::merkle::PrunedMerklePaths::from_hint
-              --include primitives
+              --start-from pcs::verifier::open_rows_native
+              --include primitives --include fiat_shamir
               --opaque pcs::merkle::hash_pairs
               --opaque pcs::merkle::hash_rows
-              --opaque pcs::merkle::sorted_unique)
+              --opaque pcs::merkle::sorted_unique
+              --opaque 'fiat_shamir::duplex::_::init'
+              --opaque 'fiat_shamir::duplex::_::absorb'
+              --opaque 'fiat_shamir::duplex::_::squeeze'
+              --opaque 'fiat_shamir::duplex::_::clone')
         cargo_args=(--lib --release)
         aeneas_args=(-backend lean -namespace MerkleSource -no-progress-bar
                      -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Merkle)
@@ -106,7 +111,9 @@ if [[ "$surface" == replay ]]; then
     done
 fi
 if [[ "$surface" == merkle ]]; then
-    for root in pcs::merkle::PrunedMerklePaths::open pcs::merkle::PrunedMerklePaths::from_hint; do
+    for root in pcs::merkle::PrunedMerklePaths::open pcs::merkle::PrunedMerklePaths::from_hint \
+        pcs::verifier::open_rows_native pcs::verifier::authenticate pcs::verifier::rows_of \
+        fiat_shamir::verifier::VerifierState::prover_hint_with fiat_shamir::verifier::VerifierState::prover_hint; do
         python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
     done
 fi

@@ -19,6 +19,57 @@ set_option maxRecDepth 2048
 
 namespace MerkleSource
 
+/-- Trait declaration: [fiat_shamir::duplex::DuplexSponge]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 44:0-44:29
+    Name pattern: [fiat_shamir::duplex::DuplexSponge]
+    Visibility: public -/
+@[rust_trait "fiat_shamir::duplex::DuplexSponge"
+  (parentClauses := ["corecloneCloneInst"])]
+structure fiat_shamir.duplex.DuplexSponge (Self : Type) where
+  corecloneCloneInst : core.clone.Clone Self
+  init : Array Std.U8 32#usize → Result Self
+  absorb : Self → Slice Std.U8 → Result Self
+  squeeze : Self → Slice Std.U8 → Result (Self × (Slice Std.U8))
+
+/-- [fiat_shamir::duplex::Blake2sDuplex]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 108:0-108:24
+    Name pattern: [fiat_shamir::duplex::Blake2sDuplex]
+    Visibility: public -/
+@[rust_type "fiat_shamir::duplex::Blake2sDuplex"]
+structure fiat_shamir.duplex.Blake2sDuplex where
+  cv : Array Std.U32 8#usize
+  pending : Array Std.U8 64#usize
+  n_pending : Std.Usize
+  first : Bool
+  previous : Std.U64
+  squeezed : Std.U64
+  output : Array Std.U8 32#usize
+
+/-- [fiat_shamir::error::TranscriptError]
+    Source: 'crates/fiat_shamir/src/error.rs', lines 9:0-9:24
+    Name pattern: [fiat_shamir::error::TranscriptError]
+    Visibility: public -/
+@[discriminant isize, rust_type "fiat_shamir::error::TranscriptError"]
+inductive fiat_shamir.error.TranscriptError where
+| Malformed : Std.Usize → fiat_shamir.error.TranscriptError
+| MissingHint : Std.Usize → fiat_shamir.error.TranscriptError
+| InvalidHint : Std.Usize → fiat_shamir.error.TranscriptError
+| PowFailed : Std.U32 → fiat_shamir.error.TranscriptError
+| TrailingBytes : Std.Usize → Std.Usize → fiat_shamir.error.TranscriptError
+
+/-- [fiat_shamir::verifier::VerifierState]
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 16:0-16:61
+    Name pattern: [fiat_shamir::verifier::VerifierState]
+    Visibility: public -/
+@[rust_type "fiat_shamir::verifier::VerifierState"]
+structure fiat_shamir.verifier.VerifierState (H : Type) where
+  sponge : H
+  narg : Slice Std.U8
+  hints : Slice Std.U8
+  messages_read : Std.Usize
+  hints_read : Std.Usize
+  poison : Option fiat_shamir.error.TranscriptError
+
 /-- [primitives::field::gf2_64::F64]
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 18:0-18:14
     Name pattern: [primitives::field::gf2_64::F64]
@@ -41,5 +92,11 @@ structure merkle.Openings where
 structure merkle.PrunedMerklePaths where
   rows : alloc.vec.Vec primitives.field.gf2_64.F64
   sibling_hashes : alloc.vec.Vec (Array Std.U8 32#usize)
+
+/-- [pcs::verifier::authenticate::{closure}]
+    Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
+def verifier.authenticate.closure :=
+  alloc.vec.Vec Std.Usize × Std.Usize × Array Std.U8 32#usize × Std.Usize ×
+  Slice Std.Usize × Std.Usize
 
 end MerkleSource

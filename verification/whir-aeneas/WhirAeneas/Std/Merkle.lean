@@ -26,3 +26,10 @@ def core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residu
 @[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::clear"]
 def alloc.vec.Vec.clear {T : Type} (_A : Type) (_v : alloc.vec.Vec T) : Result (alloc.vec.Vec T) :=
   .ok (alloc.vec.Vec.new T)
+
+/-- `Option::get_or_insert`: the stored value, or `value` when there is none, with the option
+    holding it; the backward function stores the borrow's final value. -/
+@[rust_fun "core::option::{core::option::Option<@T>}::get_or_insert"]
+def core.option.Option.get_or_insert {T : Type} (o : Option T) (value : T) :
+    Result (T × (T → Option T)) :=
+  .ok (o.getD value, some)

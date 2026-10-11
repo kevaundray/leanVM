@@ -1,4 +1,5 @@
 import WhirAeneas.Merkle
+import WhirAeneas.MerkleNative
 import Lean.Util.CollectAxioms
 
 /-! Axiom audit of the Merkle opening extraction and its proofs. Separate from the other audits
@@ -12,13 +13,35 @@ because the generated namespaces declare the same top-level instance names. -/
 #print axioms WhirAeneas.Merkle.rebuild_eq
 #print axioms WhirAeneas.Merkle.position_loop_eq
 #print axioms WhirAeneas.Merkle.node_position_loop_eq
+#print axioms MerkleSource.verifier.open_rows_native
+#print axioms WhirAeneas.MerkleNative.from_le_to_le
+#print axioms WhirAeneas.MerkleNative.to_le_four
+#print axioms WhirAeneas.MerkleNative.decode_prefix
+#print axioms WhirAeneas.MerkleNative.prover_hint_ok
+#print axioms WhirAeneas.MerkleNative.prover_hint_missing
+#print axioms WhirAeneas.MerkleNative.prover_hint_poisoned
+#print axioms WhirAeneas.MerkleNative.prover_hint_with_ok
+#print axioms WhirAeneas.MerkleNative.prover_hint_with_err
+#print axioms WhirAeneas.MerkleNative.closure_eq
+#print axioms WhirAeneas.MerkleNative.image_eq
+#print axioms WhirAeneas.MerkleNative.rowsOf_length
+#print axioms WhirAeneas.MerkleNative.rows_of_loop_eq
+#print axioms WhirAeneas.MerkleNative.rows_of_eq
+#print axioms WhirAeneas.MerkleNative.shl_one_val
+#print axioms WhirAeneas.MerkleNative.decodeOpen_eq
+#print axioms WhirAeneas.MerkleNative.authenticate_eq
+#print axioms WhirAeneas.MerkleNative.authenticate_err
+#print axioms WhirAeneas.MerkleNative.open_rows_eq
+#print axioms WhirAeneas.MerkleNative.open_rows_missing
+#print axioms WhirAeneas.MerkleNative.open_rows_poisoned
 
 open Lean in
 run_cmd do
   let environment ← getEnv
   let mut count : Nat := 0
   for (declarationName, declarationInfo) in environment.constants.toList do
-    if (`WhirAeneas.Merkle).isPrefixOf declarationName || (`MerkleSource).isPrefixOf declarationName then
+    if (`WhirAeneas.Merkle).isPrefixOf declarationName || (`WhirAeneas.MerkleNative).isPrefixOf declarationName ||
+        (`MerkleSource).isPrefixOf declarationName then
       match declarationInfo with
       | .thmInfo _ =>
         let axioms ← collectAxioms declarationName

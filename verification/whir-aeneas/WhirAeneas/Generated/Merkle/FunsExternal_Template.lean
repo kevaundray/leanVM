@@ -27,6 +27,14 @@ open MerkleSource
 @[rust_fun "core::num::{usize}::trailing_zeros"]
 axiom core.num.Usize.trailing_zeros : Std.Usize → Result Std.U32
 
+/-- [core::option::{core::option::Option<T>}::get_or_insert]:
+    Source: '/rustc/library/core/src/option.rs', lines 1753:4-1755:28
+    Name pattern: [core::option::{core::option::Option<@T>}::get_or_insert]
+    Visibility: public -/
+@[rust_fun "core::option::{core::option::Option<@T>}::get_or_insert"]
+axiom core.option.Option.get_or_insert
+  {T : Type} : Option T → T → Result (T × (T → Option T))
+
 /-- [core::option::{impl core::ops::try_trait::Try for core::option::Option<T>}::branch]:
     Source: '/rustc/library/core/src/option.rs', lines 2875:4-2875:64
     Name pattern: [core::option::{core::ops::try_trait::Try<core::option::Option<@T>>}::branch]
@@ -62,6 +70,49 @@ axiom alloc.vec.Vec.clear
 @[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::is_empty"]
 axiom alloc.vec.Vec.is_empty
   {T : Type} (A : Type) : alloc.vec.Vec T → Result Bool
+
+/-- [fiat_shamir::duplex::{impl core::clone::Clone for fiat_shamir::duplex::Blake2sDuplex}::clone]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 107:9-107:14
+    Name pattern: [fiat_shamir::duplex::{core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>}::clone]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>}::clone"]
+axiom fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Result fiat_shamir.duplex.Blake2sDuplex
+
+/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::squeeze]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 210:4-210:48
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::squeeze]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::squeeze"]
+axiom
+  fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
+    (fiat_shamir.duplex.Blake2sDuplex × (Slice Std.U8))
+
+/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::absorb]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 183:4-183:42
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::absorb]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::absorb"]
+axiom
+  fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
+    fiat_shamir.duplex.Blake2sDuplex
+
+/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::init]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 168:4-168:33
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::init]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::init"]
+axiom fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init
+  : Array Std.U8 32#usize → Result fiat_shamir.duplex.Blake2sDuplex
 
 /-- [pcs::merkle::hash_pairs]:
     Source: 'crates/pcs/src/merkle.rs', lines 442:0-446:1 -/

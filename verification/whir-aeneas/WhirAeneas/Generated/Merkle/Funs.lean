@@ -21,6 +21,149 @@ set_option maxRecDepth 2048
 
 namespace MerkleSource
 
+/-- Trait implementation: [fiat_shamir::duplex::{impl core::clone::Clone for fiat_shamir::duplex::Blake2sDuplex}]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 107:9-107:14
+    Name pattern: [core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>] -/
+@[reducible, rust_trait_impl
+  "core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>"]
+def fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone : core.clone.Clone
+  fiat_shamir.duplex.Blake2sDuplex := {
+  clone := fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 167:0-167:35
+    Name pattern: [fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>"]
+def fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge :
+  fiat_shamir.duplex.DuplexSponge fiat_shamir.duplex.Blake2sDuplex := {
+  corecloneCloneInst := fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone
+  init :=
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init
+  absorb :=
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb
+  squeeze :=
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze
+}
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::guard]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 72:4-72:92
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::guard] -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::guard"]
+def fiat_shamir.verifier.VerifierState.guard
+  {H : Type} {T : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (result : core.result.Result T fiat_shamir.error.TranscriptError) :
+  Result ((core.result.Result T fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  match result with
+  | core.result.Result.Ok _ => ok (result, self)
+  | core.result.Result.Err e =>
+    let (te, get_or_insert_back) ←
+      core.option.Option.get_or_insert self.poison e
+    let o := get_or_insert_back te
+    ok (result, { self with poison := o })
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::prover_hint]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 124:4-124:70
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint"]
+def fiat_shamir.verifier.VerifierState.prover_hint
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result ((core.result.Result (Slice Std.U8) fiat_shamir.error.TranscriptError)
+    × (fiat_shamir.verifier.VerifierState H))
+  := do
+  match self.poison with
+  | none =>
+    let i := Slice.len self.hints
+    let len ←
+      if i < 4#usize
+      then
+        ok (core.result.Result.Err
+          (fiat_shamir.error.TranscriptError.MissingHint self.hints_read))
+      else
+        do
+        let i1 ← Slice.index_usize self.hints 0#usize
+        let i2 ← Slice.index_usize self.hints 1#usize
+        let i3 ← Slice.index_usize self.hints 2#usize
+        let i4 ← Slice.index_usize self.hints 3#usize
+        let i5 ←
+          lift (core.num.U32.from_le_bytes
+            (Array.make 4#usize [ i1, i2, i3, i4 ]))
+        let len1 ← lift (UScalar.cast .Usize i5)
+        let i6 := Slice.len self.hints
+        let i7 ← lift (Std.Usize.wrapping_sub i6 4#usize)
+        if i7 < len1
+        then
+          ok (core.result.Result.Err
+            (fiat_shamir.error.TranscriptError.MissingHint self.hints_read))
+        else ok (core.result.Result.Ok len1)
+    let (r, self1) ←
+      fiat_shamir.verifier.VerifierState.guard duplexDuplexSpongeInst self len
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let i1 ← lift (Std.Usize.wrapping_add 4#usize val)
+      let hint ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) self.hints
+          { start := 4#usize, «end» := i1 }
+      let i2 ← lift (Std.Usize.wrapping_add 4#usize val)
+      let s ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) self.hints
+          { start := i2 }
+      let i3 ← lift (Std.Usize.wrapping_add self1.hints_read 1#usize)
+      ok (core.result.Result.Ok hint,
+        { self1 with hints := s, hints_read := i3 })
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (Slice Std.U8) (core.convert.FromSame
+          fiat_shamir.error.TranscriptError) residual
+      ok (r1, self1)
+  | some e => ok (core.result.Result.Err e, self)
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::prover_hint_with]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 152:4-152:115
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint_with]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint_with"]
+def fiat_shamir.verifier.VerifierState.prover_hint_with
+  {H : Type} {T : Type} {T3 : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H)
+  (coreopsfunctionFnOnceT3TupleSharedASliceU8OptionInst :
+  core.ops.function.FnOnce T3 (Slice Std.U8) (Option T))
+  (self : fiat_shamir.verifier.VerifierState H) (decode : T3) :
+  Result ((core.result.Result T fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  let (r, self1) ←
+    fiat_shamir.verifier.VerifierState.prover_hint duplexDuplexSpongeInst self
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let o ←
+      coreopsfunctionFnOnceT3TupleSharedASliceU8OptionInst.call_once decode val
+    let decoded ←
+      core.option.Option.ok_or o (fiat_shamir.error.TranscriptError.InvalidHint
+        self.hints_read)
+    fiat_shamir.verifier.VerifierState.guard duplexDuplexSpongeInst self1
+      decoded
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        T (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
+    ok (r1, self1)
+
 /-- [primitives::field::gf2_64::{impl core::clone::Clone for primitives::field::gf2_64::F64}::clone]:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:9-16:14
     Name pattern: [primitives::field::gf2_64::{core::clone::Clone<primitives::field::gf2_64::F64>}::clone]
@@ -822,5 +965,151 @@ def merkle.PrunedMerklePaths.open
                 core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
                   merkle.Openings residual
   else ok none
+
+/-- [pcs::merkle::{pcs::merkle::Openings}::len]:
+    Source: 'crates/pcs/src/merkle.rs', lines 826:4-828:5
+    Visibility: public -/
+def merkle.Openings.len (self : merkle.Openings) : Result Std.Usize := do
+  let i := alloc.vec.Vec.len self.images
+  i / self.leaf_words
+
+/-- [pcs::merkle::{pcs::merkle::Openings}::image]:
+    Source: 'crates/pcs/src/merkle.rs', lines 838:4-840:5
+    Visibility: public -/
+def merkle.Openings.image
+  (self : merkle.Openings) (i : Std.Usize) :
+  Result (Slice primitives.field.gf2_64.F64)
+  := do
+  let i1 ← lift (Std.Usize.wrapping_mul i self.leaf_words)
+  let s ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFromUsizeSlice
+      primitives.field.gf2_64.F64) self.images { start := i1 }
+  core.slice.index.Slice.index (core.slice.index.SliceIndexRangeToUsizeSlice
+    primitives.field.gf2_64.F64) s { «end» := self.leaf_words }
+
+/-- [pcs::verifier::rows_of]: loop body 0:
+    Source: 'crates/pcs/src/verifier.rs', lines 167:4-171:5 -/
+@[rust_loop_body]
+def verifier.rows_of_loop.body
+  (openings : merkle.Openings) (row_words : Std.Usize) (n : Std.Usize)
+  (rows : alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)) × Std.Usize) (alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)))
+  := do
+  if i < n
+  then
+    let image ← merkle.Openings.image openings i
+    let i1 := Slice.len image
+    let i2 ← lift (Std.Usize.wrapping_sub i1 row_words)
+    let s ←
+      core.slice.index.Slice.index
+        (core.slice.index.SliceIndexRangeFromUsizeSlice
+        primitives.field.gf2_64.F64) image { start := i2 }
+    let v ←
+      alloc.slice.Slice.to_vec primitives.field.gf2_64.F64.Insts.CoreCloneClone
+        s
+    let rows1 ← alloc.vec.Vec.push rows v
+    let i3 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (rows1, i3))
+  else ok (done rows)
+
+/-- [pcs::verifier::rows_of]: loop 0:
+    Source: 'crates/pcs/src/verifier.rs', lines 167:4-171:5 -/
+@[rust_loop]
+def verifier.rows_of_loop
+  (openings : merkle.Openings) (row_words : Std.Usize) (n : Std.Usize)
+  (rows : alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  := do
+  loop
+    (fun (rows1, i1) => verifier.rows_of_loop.body openings row_words n rows1
+      i1)
+    (rows, i)
+
+/-- [pcs::verifier::rows_of]:
+    Source: 'crates/pcs/src/verifier.rs', lines 163:0-173:1 -/
+def verifier.rows_of
+  (openings : merkle.Openings) (row_words : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  := do
+  let n ← merkle.Openings.len openings
+  let rows :=
+    alloc.vec.Vec.with_capacity (alloc.vec.Vec primitives.field.gf2_64.F64) n
+  verifier.rows_of_loop openings row_words n rows 0#usize
+
+/-- [pcs::verifier::authenticate::{impl core::ops::function::FnOnce<(&'_6 [u8],), core::option::Option<pcs::merkle::Openings>> for pcs::verifier::authenticate::{closure}<'_0, '_1, '_2, '_3, '_4, '_5>}::call_once]:
+    Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
+def
+  verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings.call_once
+  (c : verifier.authenticate.closure) (tupled_args : Slice Std.U8) :
+  Result (Option merkle.Openings)
+  := do
+  let (v, i, a, i1, s, i2) := c
+  let i3 := alloc.vec.Vec.len v
+  let o ← merkle.PrunedMerklePaths.from_hint tupled_args i3 i
+  let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let i4 ← lift (Std.Usize.wrapping_shl 1#usize i1)
+    merkle.PrunedMerklePaths.open val a i4 s i i2
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+      merkle.Openings residual
+
+/-- Trait implementation: [pcs::verifier::authenticate::{impl core::ops::function::FnOnce<(&'_6 [u8],), core::option::Option<pcs::merkle::Openings>> for pcs::verifier::authenticate::{closure}<'_0, '_1, '_2, '_3, '_4, '_5>}]
+    Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
+@[reducible]
+def
+  verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings
+  : core.ops.function.FnOnce verifier.authenticate.closure (Slice Std.U8)
+  (Option merkle.Openings) := {
+  call_once :=
+    verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings.call_once
+}
+
+/-- [pcs::verifier::authenticate]:
+    Source: 'crates/pcs/src/verifier.rs', lines 146:0-160:1 -/
+def verifier.authenticate
+  (vs : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (root : Array Std.U8 32#usize) (depth : Std.Usize)
+  (queries : Slice Std.Usize) (row_words : Std.Usize) (leaf_words : Std.Usize)
+  :
+  Result ((core.result.Result merkle.Openings
+    fiat_shamir.error.TranscriptError) × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let distinct ← merkle.sorted_unique queries
+  fiat_shamir.verifier.VerifierState.prover_hint_with
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge
+    verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings
+    vs (distinct, row_words, root, depth, queries, leaf_words)
+
+/-- [pcs::verifier::open_rows_native]:
+    Source: 'crates/pcs/src/verifier.rs', lines 133:0-143:1 -/
+def verifier.open_rows_native
+  (vs : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (root : Array Std.U8 32#usize) (depth : Std.Usize)
+  (queries : Slice Std.Usize) (row_words : Std.Usize) (leaf_words : Std.Usize)
+  :
+  Result ((core.result.Result (alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)) fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let (r, vs1) ←
+    verifier.authenticate vs root depth queries row_words leaf_words
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let v ← verifier.rows_of val row_words
+    ok (core.result.Result.Ok v, vs1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+        (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
+    ok (r1, vs1)
 
 end MerkleSource

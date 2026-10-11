@@ -34,4 +34,19 @@ opaque merkle.hash_rows :
     Slice primitives.field.gf2_64.F64 → Std.Usize → Std.Usize → Std.Usize →
       Result (alloc.vec.Vec (Array Std.U8 32#usize))
 
+/-- The BLAKE2s duplex sponge's methods: the transcript sponge, with no body here. The native
+    `open_rows` reads a hint, which the sponge does not absorb, so no statement about it uses them. -/
+opaque fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone :
+    fiat_shamir.duplex.Blake2sDuplex → Result fiat_shamir.duplex.Blake2sDuplex
+
+opaque fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init :
+    Array Std.U8 32#usize → Result fiat_shamir.duplex.Blake2sDuplex
+
+opaque fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb :
+    fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result fiat_shamir.duplex.Blake2sDuplex
+
+opaque fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze :
+    fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 →
+      Result (fiat_shamir.duplex.Blake2sDuplex × Slice Std.U8)
+
 end MerkleSource
