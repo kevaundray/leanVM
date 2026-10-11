@@ -24,6 +24,7 @@ use leanvm_guest::{Blake2s, Template, hash_with};
 use thiserror::Error;
 
 mod sign;
+pub mod signers;
 
 pub use sign::{SecretKey, XmssSignError, key_gen};
 

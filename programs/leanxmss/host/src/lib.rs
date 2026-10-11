@@ -2,6 +2,12 @@
 //! advice, and verifies them natively for the output the guest must give.
 //!
 //! One message at one leaf index for all signers is the Ethereum shape: validators attest to one block.
+//!
+//! It also owns the program's signer sets ([`SignerSet`]): the claims an aggregate of its proofs publishes.
+
+mod signers;
+
+pub use signers::{SignerSet, SignerSetError, XmssClaim, XmssGroup};
 
 use leanvm_guest::{PublicValues, Run, as_words_unchecked};
 use leanxmss::{LeafIndex, Message, PublicKey, Signature};
