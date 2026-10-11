@@ -111,7 +111,11 @@ impl Builder {
 
     /// One block of a long message whose byte counter and finalization word are wires: `tf` is `[t, f, 0, 0]`.
     pub fn block(&mut self, h: Dw, m: [Kw; 8], tf: Dw) -> Dw {
-        self.block_rows(h, m, tf).0
+        traced!(
+            self,
+            format!("block {} {} {}", h.0, numbers(m.map(|w| u64::from(w.0))), tf.0),
+            self.block_rows(h, m, tf).0
+        )
     }
 
     /// A block's row: its output and the output's first three words.
