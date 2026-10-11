@@ -681,7 +681,9 @@ fn family_weight_at<A: Arith<E = E>, E: Copy + PartialEq>(
     let groups = PrefixGroup::of(rings);
     let mut g = 0;
     while g < groups.len() {
-        let at = map.prefix_terms(a, groups[g].lead, &ladders, &groups[g].lengths);
+        let (lead_ring, lead_claim) = groups[g].lead;
+        let lead = &rings[lead_ring].claims[lead_claim].suffix_point;
+        let at = map.prefix_terms(a, lead, &ladders, &groups[g].lengths);
         add_group_terms(a, &mut sums, scales, &at, &groups[g].members);
         g += 1;
     }
@@ -737,10 +739,11 @@ fn add_scaled<A: Arith<E = E>, E: Copy>(a: &mut A, sum: &mut [E], scale: E, term
 /// Claims whose points are all prefixes of the longest one, `lead`, so one pass of products serves them all.
 ///
 /// Points compare element by element: for the recursive verifier, two points match when they hold the same wires.
+/// A group names points by their region and claim indices, so it holds no borrow of the regions.
 #[derive(Clone, Debug)]
-pub struct PrefixGroup<'a, E = F192> {
-    /// The longest point.
-    pub lead: &'a [E],
+pub struct PrefixGroup {
+    /// The longest point, as its region's index and its claim's index within the region.
+    pub lead: (usize, usize),
     /// The distinct prefix lengths its claims sit at.
     pub lengths: Vec<usize>,
     /// Its claims, each naming the index of its length in `lengths`.
@@ -758,11 +761,11 @@ pub struct PrefixMember {
     pub length: usize,
 }
 
-impl<'a, E: PartialEq> PrefixGroup<'a, E> {
+impl PrefixGroup {
     /// Groups every claim of the regions, longest points first.
     ///
     /// A claim joins the first group whose lead its point is a prefix of, and otherwise opens a new group.
-    pub fn of(rings: &'a [RingSwitch<E>]) -> Vec<Self> {
+    pub fn of<E: PartialEq>(rings: &[RingSwitch<E>]) -> Vec<Self> {
         // Count known inner lengths once so indexed collection reserves the full claim list.
         let mut total = 0;
         let mut r = 0;
@@ -770,47 +773,60 @@ impl<'a, E: PartialEq> PrefixGroup<'a, E> {
             total += rings[r].claims.len();
             r += 1;
         }
-        let mut claims: Vec<(usize, usize, &'a [E])> = Vec::with_capacity(total);
+        // Each claim's index across the regions, its region, its index within the region, and its point's length.
+        let mut claims: Vec<(usize, usize, usize, usize)> = Vec::with_capacity(total);
         let mut claim_index = 0;
         let mut r = 0;
         while r < rings.len() {
-            let ring = &rings[r];
-            for c in 0..ring.claims.len() {
-                claims.push((claim_index, r, ring.claims[c].suffix_point.as_slice()));
+            let mut c = 0;
+            while c < rings[r].claims.len() {
+                claims.push((claim_index, r, c, rings[r].claims[c].suffix_point.len()));
                 claim_index += 1;
+                c += 1;
             }
             r += 1;
         }
         // Longest first, so a group's lead is its longest point; the stable sort keeps claim order among ties.
-        claims.sort_by_key(|&(_, _, point)| Reverse(point.len()));
+        claims.sort_by_key(|&(_, _, _, len)| Reverse(len));
         let mut groups: Vec<Self> = Vec::new();
         let mut i = 0;
         while i < claims.len() {
-            let (claim, ring, point) = claims[i];
+            let (claim, ring, c, len) = claims[i];
             let mut g = 0;
-            while g < groups.len() && !groups[g].lead.starts_with(point) {
+            while g < groups.len() && !leads(rings, groups[g].lead, (ring, c)) {
                 g += 1;
             }
             if g == groups.len() {
                 groups.push(Self {
-                    lead: point,
+                    lead: (ring, c),
                     lengths: Vec::new(),
                     members: Vec::new(),
                 });
             }
-            let group = &mut groups[g];
-            let mut length = 0;
-            while length < group.lengths.len() && group.lengths[length] != point.len() {
-                length += 1;
-            }
-            if length == group.lengths.len() {
-                group.lengths.push(point.len());
-            }
-            group.members.push(PrefixMember { claim, ring, length });
+            groups[g].join(claim, ring, len);
             i += 1;
         }
         groups
     }
+
+    /// Adds a claim whose point has `len` coordinates, recording its length on first sight.
+    fn join(&mut self, claim: usize, ring: usize, len: usize) {
+        let mut length = 0;
+        while length < self.lengths.len() && self.lengths[length] != len {
+            length += 1;
+        }
+        if length == self.lengths.len() {
+            self.lengths.push(len);
+        }
+        self.members.push(PrefixMember { claim, ring, length });
+    }
+}
+
+/// Whether the point of claim `claim` is a prefix of the point of claim `lead`, each named by region and claim index.
+fn leads<E: PartialEq>(rings: &[RingSwitch<E>], lead: (usize, usize), claim: (usize, usize)) -> bool {
+    rings[lead.0].claims[lead.1]
+        .suffix_point
+        .starts_with(&rings[claim.0].claims[claim.1].suffix_point)
 }
 
 #[cfg(test)]
