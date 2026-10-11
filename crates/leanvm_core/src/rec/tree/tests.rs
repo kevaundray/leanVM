@@ -834,8 +834,17 @@ fn a_tree_of_outputs_is_unchanged_from_tree_12() {
     assert_eq!(d.tiers.len(), 1);
     assert_eq!(d.tiers[SMALL].taus.into_values(), [16, 16, 14, 10, 14, 10]);
     assert_eq!(d.statement.len(), 97);
+    let sections = [
+        Section::Kind,
+        Section::Digest,
+        Section::DensePoint,
+        Section::DenseValues,
+        Section::Rows,
+        Section::Cols,
+        Section::Matrices,
+    ];
     assert_eq!(
-        super::claim_tests::SECTIONS.map(|s| d.statement.range(s)),
+        sections.map(|s| d.statement.range(s)),
         [0..1, 1..3, 3..24, 24..27, 27..41, 41..55, 55..97]
     );
     assert_eq!(
