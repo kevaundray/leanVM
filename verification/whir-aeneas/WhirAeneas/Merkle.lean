@@ -562,4 +562,529 @@ theorem pair_level_loop_eq (hword : UScalarTy.Usize.numBits = 64) (nodes : Slice
           simp [merkle.pair_level_loop.body, hlt', hix, lift, h0, hm1, hlt2, hus, x, hiy, hne, hsd, hp1, hq1,
             hk1, hk2]
 
+theorem pair_level_eq (hword : UScalarTy.Usize.numBits = 64) (nodes : Slice (Usize × Digest))
+    (sibs : Slice Digest) (hidx : ∀ x ∈ nodes.val, x.1.val < 2 ^ 62) (used : Usize) parents pairs known
+    (hu : used.val ≤ sibs.val.length) (hn : nodes.val.length < Usize.max)
+    (hK : known.val.length + 2 * nodes.val.length < Usize.max) :
+    ∃ res, merkle.pair_level nodes sibs used parents pairs known = .ok res ∧
+      PairOut (alloc.vec.Vec.new Usize) (alloc.vec.Vec.new _) known res
+        (pairSpec sibs.val (nodes.val.map natNode) used.val) := by
+  obtain ⟨res, h, hout⟩ := pair_level_loop_eq hword nodes sibs hidx _ 0#usize used (alloc.vec.Vec.new Usize)
+    (alloc.vec.Vec.new _) known le_rfl (by simp) hu (by simp; omega) (by simp; omega) (by simp; omega)
+  refine ⟨res, ?_, by simpa using hout⟩
+  simp [merkle.pair_level, alloc.vec.Vec.clear, h]
+
+theorem next_nodes_loop_eq (parents : Slice Usize) (digests : Slice Digest)
+    (hl : parents.val.length = digests.val.length) :
+    ∀ (k : Nat) (p : Usize) (nodes : alloc.vec.Vec (Usize × Digest)), parents.val.length - p.val = k →
+      p.val ≤ parents.val.length → nodes.val = (parents.val.zip digests.val).take p.val →
+      ∃ out, merkle.next_nodes_loop parents digests nodes p = .ok out ∧ out.val = parents.val.zip digests.val := by
+  have hpl := parents.property
+  intro k
+  induction k with
+  | zero =>
+    intro p nodes hk hp hn
+    refine ⟨nodes, ?_, by rw [hn, List.take_of_length_le (by simp; omega)]⟩
+    unfold merkle.next_nodes_loop
+    apply loop_done
+    have : ¬ (p < Slice.len parents) := by scalar_tac
+    simp [merkle.next_nodes_loop.body, this]
+  | succ k ih =>
+    intro p nodes hk hp hn
+    have hlt : p.val < parents.val.length := by omega
+    have ep : (Std.Usize.wrapping_add p 1#usize).val = p.val + 1 := add_val _ _ (by simp; omega)
+    obtain ⟨n1, hpush, en1⟩ := push_ok nodes (parents.val[p.val], digests.val[p.val]'(by omega))
+      (by rw [hn]; simp; omega)
+    have hbody : merkle.next_nodes_loop.body parents digests nodes p =
+        .ok (.cont (n1, Std.Usize.wrapping_add p 1#usize)) := by
+      have : p < Slice.len parents := by scalar_tac
+      simp [merkle.next_nodes_loop.body, this, slice_index parents p hlt, slice_index digests p (by omega),
+        lift, hpush]
+    unfold merkle.next_nodes_loop
+    rw [loop_cont hbody]
+    refine ih _ _ (by rw [ep]; omega) (by rw [ep]; omega) ?_
+    rw [en1, hn, ep, List.take_succ]
+    congr 1
+    rw [List.getElem?_eq_getElem (by simp; omega)]
+    simp
+
+theorem next_nodes_eq (parents : Slice Usize) (digests : Slice Digest) (nodes : alloc.vec.Vec (Usize × Digest))
+    (hl : parents.val.length = digests.val.length) :
+    ∃ out, merkle.next_nodes parents digests nodes = .ok out ∧ out.val = parents.val.zip digests.val := by
+  obtain ⟨out, h, e⟩ := next_nodes_loop_eq parents digests hl _ 0#usize (alloc.vec.Vec.new _) rfl (by simp)
+    (by simp)
+  exact ⟨out, by simp [merkle.next_nodes, alloc.vec.Vec.clear, h], e⟩
+
+theorem pairSpec_facts (sibs : List Digest) (B : Nat) :
+    ∀ (n : Nat) (nodes : List (Nat × Digest)) (u : Nat) ps u', nodes.length ≤ n →
+      pairSpec sibs nodes u = some (ps, u') → (∀ x ∈ nodes, x.1 < B) → u ≤ sibs.length →
+      ps.length ≤ nodes.length ∧ u ≤ u' ∧ u' ≤ sibs.length ∧ (∀ p ∈ ps, p.1 < B) := by
+  intro n
+  induction n with
+  | zero =>
+    intro nodes u ps u' hl h _ hu
+    match nodes, hl with
+    | [], _ => simp [pairSpec] at h; obtain ⟨rfl, rfl⟩ := h; simp; omega
+  | succ n ih =>
+    intro nodes u ps u' hl h hB hu
+    match nodes with
+    | [] => simp [pairSpec] at h; obtain ⟨rfl, rfl⟩ := h; simp; omega
+    | [(i, h0)] =>
+      have hi := hB (i, h0) (by simp)
+      cases hs : sibs[u]? with
+      | none => simp [pairSpec, hs] at h
+      | some d =>
+        simp [pairSpec, hs] at h
+        obtain ⟨rfl, rfl⟩ := h
+        have : u < sibs.length := by
+          by_contra hc; rw [List.getElem?_eq_none (by omega)] at hs; cases hs
+        refine ⟨by simp, by omega, by omega, ?_⟩
+        simp; omega
+    | (i, h0) :: (j, h1) :: rest =>
+      have hi := hB (i, h0) (by simp)
+      by_cases hp : i % 2 = 0 ∧ j = i + 1
+      · simp only [pairSpec, hp, and_self, ↓reduceIte, Option.map_eq_some_iff] at h
+        obtain ⟨⟨ps', u''⟩, hr, he⟩ := h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨rfl, rfl⟩ := he
+        obtain ⟨a1, a2, a3, a4⟩ := ih rest u ps' u'' (by simp at hl; omega) hr
+          (fun x hx => hB x (by simp [hx])) hu
+        refine ⟨by simp; omega, a2, a3, ?_⟩
+        intro p hp'
+        simp only [List.mem_cons] at hp'
+        rcases hp' with rfl | hp'
+        · simp; omega
+        · exact a4 p hp'
+      · cases hs : sibs[u]? with
+        | none => simp [pairSpec, hp, hs] at h
+        | some d =>
+          simp only [pairSpec, hp, ↓reduceIte, hs, Option.map_eq_some_iff] at h
+          obtain ⟨⟨ps', u''⟩, hr, he⟩ := h
+          simp only [Prod.mk.injEq] at he
+          obtain ⟨rfl, rfl⟩ := he
+          have : u < sibs.length := by
+            by_contra hc; rw [List.getElem?_eq_none (by omega)] at hs; cases hs
+          obtain ⟨a1, a2, a3, a4⟩ := ih ((j, h1) :: rest) (u + 1) ps' u'' (by simp at hl ⊢; omega) hr
+            (fun x hx => hB x (by simp at hx ⊢; tauto)) (by omega)
+          refine ⟨by simp at a1 ⊢; omega, by omega, a3, ?_⟩
+          intro p hp'
+          simp only [List.mem_cons] at hp'
+          rcases hp' with rfl | hp'
+          · simp; omega
+          · exact a4 p hp'
+
+theorem allM_bytes_eq : ∀ (l1 l2 : List U8), l1.length = l2.length →
+    List.allM (fun (p : U8 × U8) => Result.ok (decide (p.1.val = p.2.val))) (l1.zip l2) = .ok (decide (l1 = l2))
+  | [], [], _ => by simp [List.allM]; rfl
+  | a :: l1, b :: l2, h => by
+    have ih := allM_bytes_eq l1 l2 (by simpa using h)
+    by_cases hab : a = b
+    · subst hab; simp [List.allM, ih]
+    · have : a.val ≠ b.val := by intro h; apply hab; scalar_tac
+      simp [List.allM, hab, this]; rfl
+
+theorem digest_ne (a b : Digest) :
+    core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8 a b = .ok (decide (a ≠ b)) := by
+  have hl : a.val.length = b.val.length := by simp
+  have h := allM_bytes_eq a.val b.val hl
+  simp only [core.array.equality.PartialEqArray.ne, core.array.equality.PartialEqArray.eq]
+  simp [Array.length, hl, h, Subtype.ext_iff]
+  exact (Array.eq_iff a b).symm
+
+/-- The batched pair hash's content contract: the parent of each pair, in order, is `node left right`. -/
+def PairHash (node : Digest → Digest → Digest) : Prop :=
+  ∀ (pairs : Slice (Aeneas.Std.Array Digest 2#usize)) (out : alloc.vec.Vec Digest),
+    ∃ r, merkle.hash_pairs pairs out = .ok r ∧ r.val = pairs.val.map (fun p => node p.val[0]! p.val[1]!)
+
+theorem knownOf_length (ps : List (Nat × Digest × Digest)) : (knownOf ps).length = 2 * ps.length := by
+  induction ps with
+  | nil => rfl
+  | cons p ps ih => simp [knownOf] at ih ⊢; omega
+
+theorem zip_natNode (f : Nat × Digest × Digest → Digest) :
+    ∀ (l : List Usize) (ps : List (Nat × Digest × Digest)), l.map (·.val) = ps.map (·.1) →
+      (l.zip (ps.map f)).map natNode = ps.map fun p => (p.1, f p)
+  | [], [], _ => rfl
+  | a :: l, p :: ps, h => by
+    simp only [List.map_cons, List.cons.injEq] at h
+    simp only [List.map_cons, List.zip_cons_cons, natNode, h.1, zip_natNode f l ps h.2]
+  | [], _ :: _, h => by simp at h
+  | _ :: _, [], h => by simp at h
+
+theorem pairs_hash_map (node : Digest → Digest → Digest) :
+    ∀ (l : List (Aeneas.Std.Array Digest 2#usize)) (ps : List (Nat × Digest × Digest)),
+      l.map (·.val) = ps.map (fun p => [p.2.1, p.2.2]) →
+      l.map (fun p => node p.val[0]! p.val[1]!) = ps.map (fun p => node p.2.1 p.2.2)
+  | [], [], _ => rfl
+  | a :: l, p :: ps, h => by
+    simp only [List.map_cons, List.cons.injEq] at h ⊢
+    exact ⟨by rw [h.1]; rfl, pairs_hash_map node l ps h.2⟩
+  | [], _ :: _, h => by simp at h
+  | _ :: _, [], h => by simp at h
+
+/-- `height` levels of the rebuild from `nodes`: each level's pairs, the nodes left on top, and the
+siblings used. Each parent's digest is `node` of its children. -/
+def rebuildSpec (node : Digest → Digest → Digest) (sibs : List Digest) :
+    Nat → List (Nat × Digest) → Nat → Option (List (List (Nat × Digest × Digest)) × List (Nat × Digest) × Nat)
+  | 0, nodes, u => some ([], nodes, u)
+  | k + 1, nodes, u => match pairSpec sibs nodes u with
+    | none => none
+    | some (ps, u') => (rebuildSpec node sibs k (ps.map fun p => (p.1, node p.2.1 p.2.2)) u').map
+        fun r => (ps :: r.1, r.2.1, r.2.2)
+
+/-- Where each level's known nodes start in the one buffer, then where the buffer ends. -/
+def startsOf (base : Nat) : List (List (Nat × Digest × Digest)) → List Nat
+  | [] => [base]
+  | ps :: rest => base :: startsOf (base + (knownOf ps).length) rest
+
+/-- Acceptance of the rebuild: every supplied sibling used and the one node left on top is `root`. -/
+def Accepts (root : Digest) (nsibs : Nat) (top : List (Nat × Digest)) (u : Nat) : Prop :=
+  u = nsibs ∧ top.head?.map (·.2) = some root
+
+/-- What `rebuild` returns after `known` and `starts`, against `rebuildSpec`'s answer. -/
+def RebuildOut (known : alloc.vec.Vec (Usize × Digest)) (starts : alloc.vec.Vec Usize) (root : Digest)
+    (nsibs : Nat) (res : Option (alloc.vec.Vec (Usize × Digest) × alloc.vec.Vec Usize)) :
+    Option (List (List (Nat × Digest × Digest)) × List (Nat × Digest) × Nat) → Prop
+  | none => res = none
+  | some (lvls, top, u) =>
+    (Accepts root nsibs top u → ∃ k' s', res = some (k', s') ∧
+      k'.val.map natNode = known.val.map natNode ++ lvls.flatMap knownOf ∧
+      s'.val.map (·.val) = starts.val.map (·.val) ++ startsOf known.val.length lvls) ∧
+    (¬ Accepts root nsibs top u → res = none)
+
+theorem RebuildOut_cons {known known' : alloc.vec.Vec (Usize × Digest)} {starts starts' : alloc.vec.Vec Usize}
+    {root nsibs res o} (ps : List (Nat × Digest × Digest))
+    (hk : known'.val.map natNode = known.val.map natNode ++ knownOf ps)
+    (hs : starts'.val.map (·.val) = starts.val.map (·.val) ++ [known.val.length])
+    (h : RebuildOut known' starts' root nsibs res o) :
+    RebuildOut known starts root nsibs res (o.map fun r => (ps :: r.1, r.2.1, r.2.2)) := by
+  have hkl : known'.val.length = known.val.length + (knownOf ps).length := by
+    have := congrArg List.length hk; simpa using this
+  match o with
+  | none => exact h
+  | some (lvls, top, u) =>
+    obtain ⟨h1, h2⟩ := h
+    refine ⟨fun ha => ?_, h2⟩
+    obtain ⟨k', s', hr, ek, es⟩ := h1 ha
+    refine ⟨k', s', hr, by rw [ek, hk]; simp, ?_⟩
+    rw [es, hs, hkl]; simp [startsOf]
+
+theorem rebuild_loop_eq (hword : UScalarTy.Usize.numBits = 64) {node : Digest → Digest → Digest}
+    (hP : PairHash node) (sibs : Slice Digest) (height : Usize) (root : Digest) :
+    ∀ (k : Nat) (nodes : alloc.vec.Vec (Usize × Digest)) (used : Usize) known starts parents pairs digests
+      (level : Usize), height.val - level.val = k → level.val ≤ height.val →
+      (∀ x ∈ nodes.val, x.1.val < 2 ^ 62) → used.val ≤ sibs.val.length →
+      known.val.length + 2 * nodes.val.length * (k + 1) < Usize.max → starts.val.length + k < Usize.max →
+      ∃ res, merkle.rebuild_loop nodes sibs height root used known starts parents pairs digests level = .ok res ∧
+        RebuildOut known starts root sibs.val.length res
+          (rebuildSpec node sibs.val k (nodes.val.map natNode) used.val) := by
+  have hsl := sibs.property
+  intro k
+  induction k with
+  | zero =>
+    intro nodes used known starts parents pairs digests level hk hl hidx hu hK hS
+    have hge : ¬ (level < height) := by scalar_tac
+    obtain ⟨s1, hs1, es1⟩ := push_ok starts (alloc.vec.Vec.len known) (by omega)
+    have hlen : (alloc.vec.Vec.len known).val = known.val.length := by simp
+    by_cases hacc : Accepts root sibs.val.length (nodes.val.map natNode) used.val
+    · obtain ⟨hu', hroot⟩ := hacc
+      cases hn : nodes.val with
+      | nil => rw [hn] at hroot; cases hroot
+      | cons x rest =>
+        obtain ⟨xi, xa⟩ := x
+        rw [hn] at hroot
+        simp only [List.map_cons, List.head?_cons, Option.map_some, Option.some.injEq, natNode] at hroot
+        refine ⟨some (known, s1), ?_, ?_⟩
+        · unfold merkle.rebuild_loop
+          apply loop_done
+          have hnu : ¬ (used < Slice.len sibs) := by scalar_tac
+          have hne : nodes.length ≠ 0 := by simp [alloc.vec.Vec.length, hn]
+          have hx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Usize × Digest)) nodes 0#usize =
+              .ok (xi, xa) := by rw [vec_index nodes 0#usize (by simp [hn])]; simp [hn]
+          simp [merkle.rebuild_loop.body, hge, hs1, hnu, alloc.vec.Vec.is_empty, hne, hx, digest_ne, hroot]
+        · refine ⟨fun _ => ⟨known, s1, rfl, by simp, by rw [es1]; simp [startsOf]⟩, fun hn' => ?_⟩
+          exact absurd ⟨hu', by simp [natNode, hroot]⟩ hn'
+    · refine ⟨none, ?_, ⟨fun ha => absurd ha hacc, fun _ => rfl⟩⟩
+      unfold merkle.rebuild_loop
+      apply loop_done
+      by_cases hu' : used.val = sibs.val.length
+      · have hnu : ¬ (used < Slice.len sibs) := by scalar_tac
+        cases hn : nodes.val with
+        | nil =>
+          have hne : nodes.length = 0 := by simp [alloc.vec.Vec.length, hn]
+          simp [merkle.rebuild_loop.body, hge, hs1, hnu, alloc.vec.Vec.is_empty, hne]
+        | cons x rest =>
+          obtain ⟨xi, xa⟩ := x
+          have hne : nodes.length ≠ 0 := by simp [alloc.vec.Vec.length, hn]
+          have hx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Usize × Digest)) nodes 0#usize =
+              .ok (xi, xa) := by rw [vec_index nodes 0#usize (by simp [hn])]; simp [hn]
+          have hroot : xa ≠ root := by
+            intro he; apply hacc; refine ⟨hu', ?_⟩; rw [hn]; simp [natNode, he]
+          simp [merkle.rebuild_loop.body, hge, hs1, hnu, alloc.vec.Vec.is_empty, hne, hx, digest_ne, hroot]
+      · have hnu : used < Slice.len sibs := by scalar_tac
+        simp [merkle.rebuild_loop.body, hge, hs1, hnu]
+  | succ k ih =>
+    intro nodes used known starts parents pairs digests level hk hl hidx hu hK hS
+    have hlt : level < height := by scalar_tac
+    have hnl := nodes.property
+    obtain ⟨s1, hs1, es1⟩ := push_ok starts (alloc.vec.Vec.len known) (by omega)
+    have hm : 2 * nodes.val.length ≤ 2 * nodes.val.length * (k + 1 + 1) := Nat.le_mul_of_pos_right _ (by omega)
+    obtain ⟨res, hres, hout⟩ := pair_level_eq hword (alloc.vec.Vec.deref nodes) sibs
+      (by simpa [alloc.vec.Vec.deref] using hidx) used parents pairs
+      known hu (by simp [alloc.vec.Vec.deref]; omega) (by simp [alloc.vec.Vec.deref]; omega)
+    simp only [alloc.vec.Vec.deref, Slice.from_val] at hout
+    have hspec : rebuildSpec node sibs.val (k + 1) (nodes.val.map natNode) used.val =
+        match pairSpec sibs.val (nodes.val.map natNode) used.val with
+        | none => none
+        | some (ps, u') => (rebuildSpec node sibs.val k (ps.map fun p => (p.1, node p.2.1 p.2.2)) u').map
+            fun r => (ps :: r.1, r.2.1, r.2.2) := rfl
+    rw [hspec]
+    obtain ⟨o, parents1, pairs1, known1⟩ := res
+    cases hps : pairSpec sibs.val (nodes.val.map natNode) used.val with
+    | none =>
+      rw [hps] at hout
+      simp only [PairOut] at hout
+      subst hout
+      refine ⟨none, ?_, rfl⟩
+      unfold merkle.rebuild_loop
+      apply loop_done
+      simp [merkle.rebuild_loop.body, hlt, hs1, hres, core.option.Option.Insts.CoreOpsTry_traitTry.branch,
+        core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual]
+    | some r =>
+      obtain ⟨ps, u'⟩ := r
+      rw [hps] at hout
+      obtain ⟨ho, hpar, hpair, hkn⟩ := hout
+      simp only [List.map_nil, List.nil_append] at hpar hpair
+      obtain ⟨u1, rfl, eu1⟩ : ∃ u1, o = some u1 ∧ u1.val = u' := by
+        cases o with
+        | none => cases ho
+        | some u1 => exact ⟨u1, rfl, by simpa using ho⟩
+      obtain ⟨fl1, fl2, fl3, fl4⟩ := pairSpec_facts sibs.val (2 ^ 62) _ _ _ _ _ le_rfl hps
+        (by intro x hx; simp only [List.mem_map, natNode] at hx; obtain ⟨y, hy, rfl⟩ := hx; exact hidx y hy) hu
+      simp only [List.length_map] at fl1
+      obtain ⟨d1, hd1, ed1⟩ := hP (alloc.vec.Vec.deref pairs1) digests
+      have hd1v : d1.val = ps.map (fun p => node p.2.1 p.2.2) := by
+        rw [ed1]; simp only [alloc.vec.Vec.deref, Slice.from_val]
+        exact pairs_hash_map node pairs1.val ps hpair
+      have hl1 : (alloc.vec.Vec.deref parents1).val.length = (alloc.vec.Vec.deref d1).val.length := by
+        simp only [alloc.vec.Vec.deref, Slice.from_val]
+        have := congrArg List.length hpar; simp at this; rw [this, hd1v]; simp
+      obtain ⟨n1, hn1, en1⟩ := next_nodes_eq (alloc.vec.Vec.deref parents1) (alloc.vec.Vec.deref d1) nodes hl1
+      simp only [alloc.vec.Vec.deref, Slice.from_val] at en1
+      have en1' : n1.val.map natNode = ps.map fun p => (p.1, node p.2.1 p.2.2) := by
+        rw [en1, hd1v]
+        exact zip_natNode _ parents1.val ps hpar
+      have el1 : (Std.Usize.wrapping_add level 1#usize).val = level.val + 1 := add_val _ _ (by scalar_tac)
+      have hbody : merkle.rebuild_loop.body sibs height root nodes used known starts parents pairs digests level =
+          .ok (.cont (n1, u1, known1, s1, parents1, pairs1, d1, Std.Usize.wrapping_add level 1#usize)) := by
+        simp [merkle.rebuild_loop.body, hlt, hs1, hres, core.option.Option.Insts.CoreOpsTry_traitTry.branch,
+          hd1, hn1, lift]
+      have hlen1 : n1.val.length = ps.length := by have := congrArg List.length en1'; simpa using this
+      have hkl1 : known1.val.length = known.val.length + 2 * ps.length := by
+        have := congrArg List.length hkn; simp only [List.length_map, List.length_append] at this
+        rw [this, knownOf_length]
+      obtain ⟨res2, hres2, hout2⟩ := ih n1 u1 known1 s1 parents1 pairs1 d1 (Std.Usize.wrapping_add level 1#usize)
+        (by rw [el1]; omega) (by rw [el1]; omega)
+        (by
+          intro x hx
+          have : natNode x ∈ n1.val.map natNode := List.mem_map_of_mem hx
+          rw [en1'] at this
+          obtain ⟨p, hp, hpe⟩ := List.mem_map.mp this
+          have := fl4 p hp
+          simp only [natNode, Prod.mk.injEq] at hpe
+          omega)
+        (by rw [eu1]; exact fl3)
+        (by
+          rw [hkl1, hlen1]
+          have h1 : 2 * ps.length * (k + 1) ≤ 2 * nodes.val.length * (k + 1) := by
+            apply Nat.mul_le_mul_right; omega
+          have h2 : 2 * nodes.val.length * (k + 1 + 1) = 2 * nodes.val.length * (k + 1) + 2 * nodes.val.length := by
+            ring
+          omega)
+        (by rw [es1]; simp; omega)
+      refine ⟨res2, by unfold merkle.rebuild_loop; rw [loop_cont hbody]; exact hres2, ?_⟩
+      rw [eu1, en1'] at hout2
+      exact RebuildOut_cons ps hkn (by rw [es1]; simp) hout2
+
+theorem rebuild_eq (hword : UScalarTy.Usize.numBits = 64) {node : Digest → Digest → Digest}
+    (hP : PairHash node) (nodes : alloc.vec.Vec (Usize × Digest)) (sibs : Slice Digest) (height : Usize)
+    (root : Digest) (hidx : ∀ x ∈ nodes.val, x.1.val < 2 ^ 62)
+    (hK : 2 * nodes.val.length * (height.val + 1) < Usize.max) (hh : height.val + 1 < Usize.max) :
+    ∃ res, merkle.rebuild nodes sibs height root = .ok res ∧
+      RebuildOut (alloc.vec.Vec.new _) (alloc.vec.Vec.new _) root sibs.val.length res
+        (rebuildSpec node sibs.val height.val (nodes.val.map natNode) 0) := by
+  obtain ⟨res, h, hout⟩ := rebuild_loop_eq hword hP sibs height root height.val nodes 0#usize
+    (alloc.vec.Vec.new _) (alloc.vec.Vec.with_capacity Usize (Std.Usize.wrapping_add height 1#usize))
+    (alloc.vec.Vec.new _) (alloc.vec.Vec.new _) (alloc.vec.Vec.new _) 0#usize (by simp) (by simp) hidx
+    (by simp) (by simp; omega) (by simp [alloc.vec.Vec.with_capacity]; omega)
+  exact ⟨res, by simp [merkle.rebuild, lift, h], by simpa [alloc.vec.Vec.with_capacity] using hout⟩
+
+/-! ## Binary searches over strictly ascending keys -/
+
+theorem position_loop_eq (sorted : Slice Usize) (key : Usize)
+    (hs : sorted.val.Pairwise (fun a b => a.val < b.val)) :
+    ∀ (k : Nat) (lo hi : Usize), hi.val - lo.val ≤ k → ∀ (_ : lo.val ≤ hi.val) (_ : hi.val ≤ sorted.val.length),
+      (∀ (j : Nat) (hj : j < lo.val), (sorted.val[j]'(by omega)).val < key.val) →
+      (∀ (j : Nat) (hj : j < sorted.val.length), hi.val ≤ j → key.val < (sorted.val[j]'hj).val) →
+      ∃ res, merkle.position_loop sorted key lo hi = .ok res ∧
+        match res with
+        | some m => ∃ hm : m.val < sorted.val.length, sorted.val[m.val] = key
+        | none => key ∉ sorted.val := by
+  have hl := sorted.property
+  intro k
+  induction k with
+  | zero =>
+    intro lo hi hk hlh hhi hlo hhi'
+    refine ⟨none, ?_, ?_⟩
+    · unfold merkle.position_loop; apply loop_done
+      have : ¬ (lo < hi) := by scalar_tac
+      simp [merkle.position_loop.body, this]
+    · intro hm
+      obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hm
+      by_cases hjl : j < lo.val
+      · have := hlo j hjl; rw [hje] at this; omega
+      · have := hhi' j hj (by omega); rw [hje] at this; omega
+  | succ k ih =>
+    intro lo hi hk hlh hhi hlo hhi'
+    by_cases hlt : lo.val < hi.val
+    · have esub : (Std.Usize.wrapping_sub hi lo).val = hi.val - lo.val := sub_val _ _ hlh
+      obtain ⟨h2, hh2, eh2⟩ : ∃ h2 : Usize, Std.Usize.wrapping_sub hi lo / 2#usize = Result.ok h2 ∧
+          h2.val = (hi.val - lo.val) / 2 := by
+        obtain ⟨z, hz, hp⟩ := UScalar.div_bv_spec (Std.Usize.wrapping_sub hi lo) (y := 2#usize) (by simp)
+        exact ⟨z, hz, by rw [hp.1, esub]; simp⟩
+      have emid : (Std.Usize.wrapping_add lo h2).val = lo.val + (hi.val - lo.val) / 2 :=
+        by rw [add_val _ _ (by rw [eh2]; omega), eh2]
+      set mid := Std.Usize.wrapping_add lo h2 with hmid
+      have hmlt : mid.val < sorted.val.length := by omega
+      have hix : Slice.index_usize sorted mid = .ok (sorted.val[mid.val]) := slice_index sorted mid hmlt
+      have hlt' : lo < hi := by scalar_tac
+      by_cases heq : sorted.val[mid.val] = key
+      · refine ⟨some mid, ?_, ⟨hmlt, heq⟩⟩
+        unfold merkle.position_loop; apply loop_done
+        simp [merkle.position_loop.body, hlt', lift, hh2, ← hmid, hix, heq]
+      · have hne : (sorted.val[mid.val]).val ≠ key.val := fun h => heq (by scalar_tac)
+        by_cases hless : (sorted.val[mid.val]).val < key.val
+        · have em1 : (Std.Usize.wrapping_add mid 1#usize).val = mid.val + 1 := add_val _ _ (by simp; omega)
+          have hbody : merkle.position_loop.body sorted key lo hi =
+              .ok (.cont (Std.Usize.wrapping_add mid 1#usize, hi)) := by
+            have : ¬ key.val ≤ (sorted.val[mid.val]).val := by omega
+            simp [merkle.position_loop.body, hlt', lift, hh2, ← hmid, hix, heq, this]
+          obtain ⟨res, hres, hout⟩ := ih (Std.Usize.wrapping_add mid 1#usize) hi (by rw [em1]; omega)
+            (by rw [em1]; omega) hhi
+            (by
+              intro j hj
+              rw [em1] at hj
+              by_cases hjm : j = mid.val
+              · subst hjm; exact hless
+              · have := List.pairwise_iff_getElem.mp hs j mid.val (by omega) hmlt (by omega)
+                omega)
+            hhi'
+          exact ⟨res, by unfold merkle.position_loop; rw [loop_cont hbody]; exact hres, hout⟩
+        · have hgt : key.val < (sorted.val[mid.val]).val := by omega
+          have hbody : merkle.position_loop.body sorted key lo hi = .ok (.cont (lo, mid)) := by
+            have : ¬ (sorted.val[mid.val]).val < key.val := by omega
+            simp [merkle.position_loop.body, hlt', lift, hh2, ← hmid, hix, heq, this]
+          obtain ⟨res, hres, hout⟩ := ih lo mid (by omega) (by omega) (by omega) hlo
+            (by
+              intro j hj hmj
+              by_cases hjm : j = mid.val
+              · subst hjm; exact hgt
+              · have := List.pairwise_iff_getElem.mp hs mid.val j hmlt hj (by omega)
+                omega)
+          exact ⟨res, by unfold merkle.position_loop; rw [loop_cont hbody]; exact hres, hout⟩
+    · refine ⟨none, ?_, ?_⟩
+      · unfold merkle.position_loop; apply loop_done
+        have : ¬ (lo < hi) := by scalar_tac
+        simp [merkle.position_loop.body, this]
+      · intro hm
+        obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hm
+        by_cases hjl : j < lo.val
+        · have := hlo j hjl; rw [hje] at this; omega
+        · have := hhi' j hj (by omega); rw [hje] at this; omega
+
+theorem node_position_loop_eq (sorted : Slice (Usize × Digest)) (key : Usize)
+    (hs : sorted.val.Pairwise (fun a b => a.1.val < b.1.val)) :
+    ∀ (k : Nat) (lo hi : Usize), hi.val - lo.val ≤ k → ∀ (_ : lo.val ≤ hi.val) (_ : hi.val ≤ sorted.val.length),
+      (∀ (j : Nat) (hj : j < lo.val), (sorted.val[j]'(by omega)).1.val < key.val) →
+      (∀ (j : Nat) (hj : j < sorted.val.length), hi.val ≤ j → key.val < (sorted.val[j]'hj).1.val) →
+      ∃ res, merkle.node_position_loop sorted key lo hi = .ok res ∧
+        match res with
+        | some m => ∃ hm : m.val < sorted.val.length, (sorted.val[m.val]).1 = key
+        | none => key ∉ sorted.val.map (·.1) := by
+  have hl := sorted.property
+  intro k
+  induction k with
+  | zero =>
+    intro lo hi hk hlh hhi hlo hhi'
+    refine ⟨none, ?_, ?_⟩
+    · unfold merkle.node_position_loop; apply loop_done
+      have : ¬ (lo < hi) := by scalar_tac
+      simp [merkle.node_position_loop.body, this]
+    · intro hm
+      obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hm
+      simp only [List.getElem_map, List.length_map] at hj hje
+      by_cases hjl : j < lo.val
+      · have := hlo j hjl; rw [hje] at this; omega
+      · have := hhi' j hj (by omega); rw [hje] at this; omega
+  | succ k ih =>
+    intro lo hi hk hlh hhi hlo hhi'
+    by_cases hlt : lo.val < hi.val
+    · have esub : (Std.Usize.wrapping_sub hi lo).val = hi.val - lo.val := sub_val _ _ hlh
+      obtain ⟨h2, hh2, eh2⟩ : ∃ h2 : Usize, Std.Usize.wrapping_sub hi lo / 2#usize = Result.ok h2 ∧
+          h2.val = (hi.val - lo.val) / 2 := by
+        obtain ⟨z, hz, hp⟩ := UScalar.div_bv_spec (Std.Usize.wrapping_sub hi lo) (y := 2#usize) (by simp)
+        exact ⟨z, hz, by rw [hp.1, esub]; simp⟩
+      have emid : (Std.Usize.wrapping_add lo h2).val = lo.val + (hi.val - lo.val) / 2 :=
+        by rw [add_val _ _ (by rw [eh2]; omega), eh2]
+      set mid := Std.Usize.wrapping_add lo h2 with hmid
+      have hmlt : mid.val < sorted.val.length := by omega
+      obtain ⟨⟨mi, ma⟩, hmd⟩ : ∃ x, sorted.val[mid.val] = x := ⟨_, rfl⟩
+      have hix : Slice.index_usize sorted mid = .ok (mi, ma) := by
+        rw [slice_index sorted mid hmlt]; exact congrArg _ hmd
+      have hlt' : lo < hi := by scalar_tac
+      by_cases heq : mi = key
+      · refine ⟨some mid, ?_, ⟨hmlt, by rw [hmd]; exact heq⟩⟩
+        unfold merkle.node_position_loop; apply loop_done
+        simp [merkle.node_position_loop.body, hlt', lift, hh2, ← hmid, hix, heq]
+      · have hne : mi.val ≠ key.val := fun h => heq (by scalar_tac)
+        by_cases hless : mi.val < key.val
+        · have em1 : (Std.Usize.wrapping_add mid 1#usize).val = mid.val + 1 := add_val _ _ (by simp; omega)
+          have hbody : merkle.node_position_loop.body sorted key lo hi =
+              .ok (.cont (Std.Usize.wrapping_add mid 1#usize, hi)) := by
+            have : ¬ key.val ≤ mi.val := by omega
+            simp [merkle.node_position_loop.body, hlt', lift, hh2, ← hmid, hix, heq, this]
+          obtain ⟨res, hres, hout⟩ := ih (Std.Usize.wrapping_add mid 1#usize) hi (by rw [em1]; omega)
+            (by rw [em1]; omega) hhi
+            (by
+              intro j hj
+              rw [em1] at hj
+              by_cases hjm : j = mid.val
+              · subst hjm; rw [hmd]; exact hless
+              · have := List.pairwise_iff_getElem.mp hs j mid.val (by omega) hmlt (by omega)
+                rw [hmd] at this; dsimp only at this; omega)
+            hhi'
+          exact ⟨res, by unfold merkle.node_position_loop; rw [loop_cont hbody]; exact hres, hout⟩
+        · have hgt : key.val < mi.val := by omega
+          have hbody : merkle.node_position_loop.body sorted key lo hi = .ok (.cont (lo, mid)) := by
+            have : ¬ mi.val < key.val := by omega
+            simp [merkle.node_position_loop.body, hlt', lift, hh2, ← hmid, hix, heq, this]
+          obtain ⟨res, hres, hout⟩ := ih lo mid (by omega) (by omega) (by omega) hlo
+            (by
+              intro j hj hmj
+              by_cases hjm : j = mid.val
+              · subst hjm; rw [hmd]; exact hgt
+              · have := List.pairwise_iff_getElem.mp hs mid.val j hmlt hj (by omega)
+                rw [hmd] at this; dsimp only at this; omega)
+          exact ⟨res, by unfold merkle.node_position_loop; rw [loop_cont hbody]; exact hres, hout⟩
+    · refine ⟨none, ?_, ?_⟩
+      · unfold merkle.node_position_loop; apply loop_done
+        have : ¬ (lo < hi) := by scalar_tac
+        simp [merkle.node_position_loop.body, this]
+      · intro hm
+        obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hm
+        simp only [List.getElem_map, List.length_map] at hj hje
+        by_cases hjl : j < lo.val
+        · have := hlo j hjl; rw [hje] at this; omega
+        · have := hhi' j hj (by omega); rw [hje] at this; omega
+
 end WhirAeneas.Merkle
