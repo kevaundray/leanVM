@@ -40,11 +40,15 @@ use tracing::info_span;
 mod claims;
 mod design;
 mod fixed;
+#[cfg_attr(not(test), expect(dead_code, reason = "claim-set trees build on it"))]
+mod multiset;
 mod reduce;
 mod statement;
 mod stats;
 #[cfg(test)]
 mod tests;
+#[cfg_attr(not(test), expect(dead_code, reason = "claim-set trees build on it"))]
+mod union;
 
 pub use crate::rec::circuit::Unsatisfied;
 pub use crate::tables::Part;
