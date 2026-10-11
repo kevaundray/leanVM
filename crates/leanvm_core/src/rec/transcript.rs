@@ -449,10 +449,13 @@ mod tests {
         for (n, &z) in ZERO_PREFIXES.iter().enumerate() {
             assert_eq!(zero_prefix(n), z, "{n} zero blocks");
         }
-        assert_eq!([SEED, OUTPUT, COMMIT, POW_BASE, NONCE, POW_TAG], DUPLEX_TAGS);
+        assert_eq!(
+            [Role::Seed.counter(0, 0), Role::Output.counter(0, 0), ProofOfWork::TRIAL_TAG],
+            DUPLEX_TAGS
+        );
         for &(first, last, len, previous, tweak) in ABSORB_TWEAKS {
             assert_eq!(
-                absorb_tweak(first, last, len, previous),
+                Role::absorb(first, last).counter(len, previous),
                 tweak,
                 "{first} {last} {len} {previous}"
             );

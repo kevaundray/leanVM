@@ -648,18 +648,11 @@ pub(crate) const ZERO_PREFIXES: [[u64; 4]; 4] = [
     ],
 ];
 
-/// `SEED`, `OUTPUT`, `COMMIT`, `POW_BASE`, `NONCE` and `POW_TAG` (`Rec.seedTag` and the rest).
+/// `Role::Seed.counter(0, 0)`, `Role::Output.counter(0, 0)` and `ProofOfWork::TRIAL_TAG` (`Rec.seedTag` and the rest).
 #[cfg(test)]
-pub(crate) const DUPLEX_TAGS: [u64; 6] = [
-    0x100000000000000,
-    0x600000000000000,
-    0x700000000000000,
-    0x800000000000000,
-    0x900000000000000,
-    0x31574f502d534646,
-];
+pub(crate) const DUPLEX_TAGS: [u64; 3] = [0x100000000000000, 0x600000000000000, 0x312d574f502d5346];
 
-/// `(first, last, len, previous, absorb_tweak(first, last, len, previous))` (`Rec.tweak`).
+/// `(first, last, len, previous, Role::absorb(first, last).counter(len, previous))` (`Rec.tweak`).
 #[cfg(test)]
 pub(crate) const ABSORB_TWEAKS: &[(bool, bool, usize, u64, u64)] = &[
     (true, true, 8, 0x0, 0x410000000000000),

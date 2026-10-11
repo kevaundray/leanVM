@@ -153,6 +153,14 @@ impl Builder {
 
     /// The digest with words `k`.
     pub fn k_to_d(&mut self, k: [Kw; 4]) -> Dw {
+        traced!(
+            self,
+            format!("k_to_d {} {} {} {}", k[0].0, k[1].0, k[2].0, k[3].0),
+            self.k_to_d_rows(k)
+        )
+    }
+
+    fn k_to_d_rows(&mut self, k: [Kw; 4]) -> Dw {
         let v = k.map(|w| self.k(w));
         let given: [(usize, u32); 4] = std::array::from_fn(|i| (WORDS + i, k[i].0));
         Dw(self.cast_row(&given, v)[DIGEST])
