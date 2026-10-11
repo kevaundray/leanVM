@@ -2,6 +2,12 @@
 //! advice, and builds the signer set the guest proves, whose digest gives its output.
 //!
 //! One message for all signers is the Ethereum shape: validators attest to one block.
+//!
+//! It also owns the program's signer sets ([`SignerSet`]): the claims an aggregate of its proofs publishes.
+
+mod signers;
+
+pub use signers::{SignerSet, SignerSetError, SphincsClaim};
 
 use core::ops::Range;
 use leansphincs::{Message, PublicKey, Signature};

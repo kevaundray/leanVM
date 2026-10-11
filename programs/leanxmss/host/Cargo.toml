@@ -14,6 +14,7 @@ leanvm.workspace = true
 leanvm_guest.workspace = true
 leanxmss = { path = "../guest" }
 parallel.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 primitives.workspace = true
