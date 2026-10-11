@@ -25,7 +25,7 @@ pub enum Kind {
 pub(crate) enum Level {
     /// A first-level node over RISC-V proofs: its items are their outputs.
     Runs,
-    /// A first-level node over proofs of the recursion circuit of this seed: its items are their statements' hashes.
+    /// A first-level node over proofs of the recursion circuit of these session words: its items are their statements' digests.
     Circuit(Limbs),
     /// A node: its items are its children's digests.
     Node,
@@ -109,10 +109,10 @@ impl Level {
         }
     }
 
-    /// Its digest's first block: its tag and how many items follow, then the leaves' circuit's seed if any, then zeros.
+    /// Its digest's first block: its tag and how many items follow, then the leaves' circuit's session words if any, then zeros.
     const fn header(self, count: usize) -> [u64; 8] {
         let [s0, s1, s2, s3] = match self {
-            Self::Circuit(seed) => seed,
+            Self::Circuit(session) => session,
             Self::Runs | Self::Node => [0; 4],
         };
         [self.tag(), count as u64, s0, s1, s2, s3, 0, 0]
@@ -120,7 +120,7 @@ impl Level {
 
     /// The digest of the items under a proof of this level.
     ///
-    /// The tag and the seed separate the levels and the leaf families, and the count fixes the items, so a digest names its whole subtree.
+    /// The tag and the session separate the levels and the leaf families, and the count fixes the items, so a digest names its whole subtree.
     pub(crate) fn digest(self, items: &[Limbs]) -> Limbs {
         let words: Vec<u64> = (self.header(items.len()).into_iter())
             .chain(items.iter().flatten().copied())

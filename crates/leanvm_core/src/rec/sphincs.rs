@@ -17,9 +17,8 @@ use super::xmss::{STEPS, V, chains, digit_product, statement_words};
 use crate::cpu::{DecodeError, VerifyError};
 use crate::envelope::Envelope;
 use crate::pcs::Rate;
-use fiat_shamir::transcript::ProofTranscript;
-use primitives::field::{F64, F192};
-use primitives::hash::Hasher;
+use fiat_shamir::{ProofTranscript, SessionId};
+use primitives::field::F192;
 use thiserror::Error;
 use tracing::info_span;
 
@@ -151,8 +150,8 @@ pub struct SphincsBatch {
     circuit: Circuit,
     /// Its fixed columns.
     columns: FixedColumns,
-    /// The transcript's seed.
-    iv: [F64; 4],
+    /// The transcript's session, which names the circuit and its size.
+    session: SessionId,
 }
 
 /// A proof that a batch of leanSPHINCS signatures verifies.
@@ -248,17 +247,16 @@ impl SphincsBatch {
         let circuit = build(&vec![SphincsClaim::default(); n], &vec![SphincsSignature::ZERO; n]).circuit;
         circuit.committed_words().map_err(|_| SphincsError::TooLarge { n })?;
         let columns = FixedColumns::of(&circuit, &circuit.heights());
-        let mut h = Hasher::new();
-        h.update(DOMAIN);
-        h.update(&(n as u64).to_le_bytes());
-        h.update(&[rate.log_inv_rate()]);
-        let iv = fiat_shamir::digest_words(&h.finalize());
+        let mut tag = DOMAIN.to_vec();
+        tag.extend_from_slice(&(n as u64).to_le_bytes());
+        tag.push(rate.log_inv_rate());
+        let session = SessionId::new(&tag);
         Ok(Self {
             n,
             rate,
             circuit,
             columns,
-            iv,
+            session,
         })
     }
 
@@ -306,7 +304,7 @@ impl SphincsBatch {
     }
 
     const fn leaf_circuit(&self) -> LeafCircuit<'_> {
-        LeafCircuit::new(&self.circuit, &self.columns, self.iv, self.rate)
+        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate)
     }
 
     /// Prove that each signature verifies under its claim, in order.
@@ -336,7 +334,7 @@ impl SphincsBatch {
             "the statement is the claims'"
         );
         let proof = (self.circuit)
-            .prove_with(&assignment, self.iv, self.rate, Some(&self.columns))
+            .prove_with(&assignment, &self.session, self.rate, Some(&self.columns))
             .map_err(|_| SphincsError::TooLarge { n: self.n })?;
         Ok(SphincsProof { proof, rate: self.rate })
     }
@@ -356,7 +354,7 @@ impl SphincsBatch {
             });
         }
         (self.circuit)
-            .verify_to_raw_with(&statement(claims), self.iv, self.rate, &proof.proof, &self.columns)
+            .verify_with(&statement(claims), &self.session, self.rate, &proof.proof, &self.columns)
             .map_err(VerifyError::from)?;
         Ok(())
     }

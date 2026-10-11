@@ -20,13 +20,14 @@ use crate::rec::table::{HashFlock, PerRecTable};
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rec::verifier::{FixedHint, ProofShape, RecShape, Rows, infallible};
 use fiat_shamir::arith::Arith;
-use fiat_shamir::transcript::RawProof;
+use fiat_shamir::{ProofTranscript, SessionId};
+use pcs::merkle::Openings;
+
 use pcs::ring_switch::inverse_frobenius_ladder;
 use primitives::field::{F64, F192};
-use primitives::hash::Hasher;
 use primitives::multilinear::mle_eval_par;
 
-/// The domain of every tree proof's transcript.
+/// The protocol half of every recursion proof's session tag.
 const DOMAIN: &[u8] = b"leanvm-tree-11";
 
 /// One family of leaves, as the tree's circuits verify them.
@@ -39,7 +40,7 @@ pub(crate) enum Family<'p> {
 
 /// Proofs of one recursion circuit, as a first-level node verifies them.
 pub(crate) struct CircuitFamily<'p> {
-    /// The circuit, its fixed columns, its seed and its proofs' rate.
+    /// The circuit, its fixed columns, its session and its proofs' rate.
     pub(crate) leaf: LeafCircuit<'p>,
     /// The shape of its proofs, at its own heights.
     shape: RecShape,
@@ -77,34 +78,40 @@ pub(crate) struct Design<'p> {
     pub(crate) present: [bool; DensePoly::COUNT],
     /// Where each part of a statement sits.
     pub(crate) statement: StatementLayout,
-    /// The transcript's seed for every proof of the tree.
-    pub(crate) iv: [F64; 4],
+    /// The transcript's session for every recursion proof of the tree.
+    pub(crate) session: SessionId,
 }
 
-/// A RISC-V leaf as a first-level node's prover holds it: its proof as its verifier read it, and its output.
-pub(crate) struct LeafWitness {
-    /// The proof, its Merkle paths written out.
-    pub(crate) raw: RawProof,
+/// A leaf as a first-level node's prover holds it: its proof, which the native verifier accepted, and its output.
+pub(crate) struct LeafWitness<'a> {
+    /// The proof.
+    pub(crate) proof: &'a ProofTranscript,
+    /// Every opening its native verifier authenticated, phase by phase.
+    pub(crate) openings: Vec<Openings>,
     /// The output it proves.
     pub(crate) output: [u64; 4],
 }
 
-/// A leaf of a recursion circuit as a first-level node's prover holds it: its statement, its proof as its verifier read it, and its circuit's fixed columns.
+/// A leaf of a recursion circuit as a first-level node's prover holds it: its statement, its proof, which the native verifier accepted, and its circuit's fixed columns.
 pub(crate) struct CircuitWitness<'a> {
     /// What it states, word by word.
     pub(crate) statement: Vec<Limbs>,
-    /// The proof, its Merkle paths written out.
-    pub(crate) raw: RawProof,
+    /// The proof.
+    pub(crate) proof: &'a ProofTranscript,
+    /// Every opening its native verifier authenticated, phase by phase.
+    pub(crate) openings: Vec<Openings>,
     /// The fixed columns of its circuit.
     pub(crate) columns: &'a FixedColumns,
 }
 
-/// A child as a node's prover holds it: its statement, its proof as its verifier read it, and its circuit's fixed columns.
+/// A child as a node's prover holds it: its statement, its proof, and its circuit's fixed columns.
 pub(crate) struct ChildWitness<'a> {
     /// What it states.
     pub(crate) statement: &'a TreeStatement,
-    /// The proof, its Merkle paths written out.
-    pub(crate) raw: RawProof,
+    /// The proof, which the native verifier accepted.
+    pub(crate) proof: &'a ProofTranscript,
+    /// Every opening its native verifier authenticated, phase by phase.
+    pub(crate) openings: Vec<Openings>,
     /// The fixed columns of its circuit.
     pub(crate) columns: &'a FixedColumns,
 }
@@ -174,7 +181,7 @@ impl<T> NodeInputs<'_, T> {
 }
 
 impl NodeClaims<Ew> {
-    /// Bind a verified proof's final transcript state, as two scalars: its first three words, then its fourth.
+    /// Bind a verified proof's final transcript digest, as two scalars: its first three words, then its fourth.
     fn bind_state(&mut self, b: &mut Builder, state: Dw) {
         let [w0, w1, w2, w3] = b.d_to_k(state);
         self.bound.extend([b.k_to_e([w0, w1, w2]), b.k_to_e1(w3)]);
@@ -234,41 +241,36 @@ impl<'p> Design<'p> {
             vars,
             present,
             statement: StatementLayout::new(n_dense),
-            iv: [F64::ZERO; 4],
+            session: SessionId([0; 32]),
         };
-        design.iv = design.seed();
+        design.session = design.session();
         Ok(design)
     }
 
-    /// The transcript's seed: everything that fixes the circuits.
+    /// The transcript's session: everything that fixes the circuits, as one tag.
     ///
     /// Every kind shares it.
-    /// The kind is the statement's first word, and the statement's hash is the transcript's first block.
-    fn seed(&self) -> [F64; 4] {
-        let mut h = Hasher::new();
-        h.update(DOMAIN);
-        let word = |h: &mut Hasher, x: usize| {
-            h.update(&(x as u64).to_le_bytes());
-        };
-        word(&mut h, self.families.len());
+    /// The kind is the statement's first word, and the statement is the transcript's instance.
+    fn session(&self) -> SessionId {
+        let mut tag = DOMAIN.to_vec();
+        let word = |tag: &mut Vec<u8>, x: usize| tag.extend_from_slice(&(x as u64).to_le_bytes());
+        word(&mut tag, self.families.len());
         for family in &self.families {
             match family {
                 Family::Runs(shape) => {
-                    h.update(b"runs....");
-                    h.update(shape.program().digest());
-                    shape.taus().values().for_each(|&t| word(&mut h, t));
-                    h.update(&[shape.rate().log_inv_rate()]);
+                    tag.extend_from_slice(b"runs....");
+                    tag.extend_from_slice(shape.program().digest());
+                    shape.taus().values().for_each(|&t| word(&mut tag, t));
+                    tag.push(shape.rate().log_inv_rate());
                 }
                 Family::Circuit(c) => {
-                    h.update(b"circuit.");
-                    for w in c.leaf.iv {
-                        h.update(&w.0.to_le_bytes());
-                    }
-                    word(&mut h, c.leaf.circuit.statement_len);
+                    tag.extend_from_slice(b"circuit.");
+                    tag.extend_from_slice(&c.leaf.session.0);
+                    word(&mut tag, c.leaf.circuit.statement_len);
                     for t in c.leaf.circuit.heights().into_values() {
-                        word(&mut h, t);
+                        word(&mut tag, t);
                     }
-                    h.update(&[c.leaf.rate.log_inv_rate()]);
+                    tag.push(c.leaf.rate.log_inv_rate());
                 }
             }
         }
@@ -276,10 +278,10 @@ impl<'p> Design<'p> {
             .into_iter()
             .chain(self.taus.into_values());
         for x in sizes {
-            word(&mut h, x);
+            word(&mut tag, x);
         }
-        h.update(&[self.rate.log_inv_rate()]);
-        fiat_shamir::digest_words(&h.finalize())
+        tag.push(self.rate.log_inv_rate());
+        SessionId::new(&tag)
     }
 
     /// Whether a proof of this kind carries a claim on the polynomial: a first-level node on those its leaves fix, a node on every one the tree has.
@@ -349,7 +351,7 @@ impl<'p> Design<'p> {
         &self,
         kind: Kind,
         leaf: &ProofShape<'_>,
-        inputs: &NodeInputs<'_, LeafWitness>,
+        inputs: &NodeInputs<'_, LeafWitness<'_>>,
     ) -> NodeRows {
         let mut b = Builder::new();
         let mut claims = NodeClaims::default();
@@ -357,7 +359,7 @@ impl<'p> Design<'p> {
         for i in 0..self.arity_0 {
             let item = inputs.item(i);
             let output = item.map_or([0; 4], |l| l.output).map(|o| b.free_k(o));
-            let source = item.map_or(ProofSource::Shape, |l| ProofSource::Proof(&l.raw));
+            let source = item.map_or(ProofSource::Shape, |l| ProofSource::Proof(l.proof, &l.openings));
             let core = b.scope(format!("leaf {i}"), |b| leaf.verify_core(b, output, source));
             claims.bind_state(&mut b, core.state);
             b.scope(format!("leaf {i} program"), |b| {
@@ -376,9 +378,9 @@ impl<'p> Design<'p> {
         }
     }
 
-    /// The first level's rows over proofs of a recursion circuit, verifying its leaves at the circuit's own heights, rate and seed.
+    /// The first level's rows over proofs of a recursion circuit, verifying its leaves at the circuit's own heights, rate and session.
     ///
-    /// Each leaf's statement is free wires, which its verifier's rows hash into its transcript's seed; the digest is over those hashes.
+    /// Each leaf's statement is free wires, which its verifier's rows absorb as its transcript's instance; the digest is over each transcript's digest of its instance (`instance_digest`).
     pub(crate) fn first_circuit(
         &self,
         kind: Kind,
@@ -387,7 +389,6 @@ impl<'p> Design<'p> {
     ) -> NodeRows {
         let leaf = &family.leaf;
         let mut b = Builder::new();
-        let iv = b.d_const(leaf.iv.map(|w| w.0));
         let zeros = matches!(inputs, NodeInputs::Shape).then(|| FixedColumns::zeros(&leaf.circuit.heights()));
         let zero = b.k_const(0);
         let above = Bits {
@@ -395,7 +396,7 @@ impl<'p> Design<'p> {
             len: self.leaf_kappa - family.fixed.kappa() + self.leaf_bits,
         };
         let mut claims = NodeClaims::default();
-        let mut seeds = Vec::with_capacity(self.arity_0);
+        let mut instances = Vec::with_capacity(self.arity_0);
         for i in 0..self.arity_0 {
             let item = inputs.item(i);
             let limbs: Vec<[Kw; 4]> = (0..leaf.circuit.statement_len)
@@ -405,9 +406,11 @@ impl<'p> Design<'p> {
                 })
                 .collect();
             let columns = item.map_or_else(|| zeros.as_ref().expect("zero columns from a shape"), |l| l.columns);
-            let source = item.map_or(ProofSource::Shape, |l| ProofSource::Proof(&l.raw));
-            let rows = b.scope(format!("leaf {i}"), |b| {
-                family.shape.verify(b, iv, &limbs, columns, source)
+            let source = item.map_or(ProofSource::Shape, |l| ProofSource::Proof(l.proof, &l.openings));
+            let (instance, rows) = b.scope(format!("leaf {i}"), |b| {
+                let t = RecShape::transcript(b, &leaf.session, &limbs, source);
+                let instance = t.digest_so_far(b);
+                (instance, family.shape.verify_from(b, t, &limbs, columns))
             });
             claims.bind_state(&mut b, rows.state);
             claims.bound.extend(rows.hints.iter().map(|h| h.value));
@@ -415,9 +418,9 @@ impl<'p> Design<'p> {
                 .dense
                 .push(fixed_claim(DensePoly::Leaf, &family.fixed, &rows.hints, above, &[]));
             claims.matrices.push(MatrixClaim::fresh(HashFlock::FLOCK, &rows.matrix));
-            seeds.push(b.d_to_k(rows.seed));
+            instances.push(b.d_to_k(instance));
         }
-        let digest = Level::Circuit(leaf.iv.map(|w| w.0)).digest_rows(&mut b, &seeds);
+        let digest = Level::Circuit(leaf.seed()).digest_rows(&mut b, &instances);
         NodeRows {
             b,
             kind,
@@ -429,7 +432,6 @@ impl<'p> Design<'p> {
     /// The node's rows, verifying its children, of any kind.
     pub(crate) fn node(&self, inputs: &NodeInputs<'_, ChildWitness<'_>>) -> NodeRows {
         let mut b = Builder::new();
-        let iv = b.d_const(self.iv.map(|w| w.0));
         let zeros = matches!(inputs, NodeInputs::Shape).then(|| FixedColumns::zeros(&self.taus));
         let mut claims = NodeClaims::default();
         let mut digests = Vec::with_capacity(self.arity);
@@ -449,9 +451,9 @@ impl<'p> Design<'p> {
                 })
                 .collect();
             let columns = child.map_or_else(|| zeros.as_ref().expect("zero columns from a shape"), |c| c.columns);
-            let source = child.map_or(ProofSource::Shape, |c| ProofSource::Proof(&c.raw));
+            let source = child.map_or(ProofSource::Shape, |c| ProofSource::Proof(c.proof, &c.openings));
             let rows = b.scope(format!("child {i}"), |b| {
-                self.child.verify(b, iv, &limbs, columns, source)
+                self.child.verify(b, &self.session, &limbs, columns, source)
             });
 
             claims.bind_state(&mut b, rows.state);
@@ -541,7 +543,7 @@ impl<'p> Design<'p> {
         &self,
         b: &mut Builder,
         program: &Claim<ProgramPoint<Ew>, Ew>,
-        inputs: &NodeInputs<'_, LeafWitness>,
+        inputs: &NodeInputs<'_, LeafWitness<'_>>,
         claims: &mut NodeClaims<Ew>,
     ) {
         let p = &program.point;
@@ -666,8 +668,15 @@ impl NodeRows {
     /// Verify the reduction the given source holds, then expose the statement: the kind, the digest, the reduced claims.
     pub(crate) fn reduce(mut self, design: &Design<'_>, source: ProofSource<'_>) -> Finished {
         let b = &mut self.b;
-        let mut t = Transcript::from_label(b, reduce::LABEL, source);
         let claims = &self.claims;
+
+        // The instance is every value the claims rest on, their count first.
+        let count = b.k_const(claims.bound.len() as u64);
+        let mut instance = vec![count];
+        for &x in &claims.bound {
+            instance.extend(b.e_to_k(x));
+        }
+        let mut t = Transcript::new(b, &reduce::session(&design.session), &instance, source);
         let reduced = b.scope("reduction", |b| {
             infallible(claims.verify(&mut Rows::new(b, &mut t), &design.vars))
         });
