@@ -151,3 +151,107 @@ pub fn accepted_branch_in_callee(region: &Region) -> bool {
     }
     all
 }
+
+pub struct Source {
+    pub n: u64,
+}
+
+impl Source {
+    fn next(&mut self, k: usize) -> Result<u64, u32> {
+        if self.n == 0 {
+            return Err(1);
+        }
+        self.n -= 1;
+        Ok(self.n + k as u64)
+    }
+}
+
+/// A collecting closure that captures a mutable borrow, inside a loop.
+pub fn rejected_closure_in_loop(source: &mut Source, counts: &[usize]) -> Result<usize, u32> {
+    let mut total = 0;
+    let mut i = 0;
+    while i < counts.len() {
+        let read: Vec<u64> = (0..counts[i]).map(|_| source.next(i)).collect::<Result<_, _>>()?;
+        total += read.len();
+        i += 1;
+    }
+    Ok(total)
+}
+
+fn read_all(source: &mut Source, count: usize, k: usize) -> Result<Vec<u64>, u32> {
+    let mut read = Vec::new();
+    let mut j = 0;
+    while j < count {
+        read.push(source.next(k)?);
+        j += 1;
+    }
+    Ok(read)
+}
+
+/// The same reads as an explicit loop in a callee translate.
+pub fn accepted_loop_in_callee(source: &mut Source, counts: &[usize]) -> Result<usize, u32> {
+    let mut total = 0;
+    let mut i = 0;
+    while i < counts.len() {
+        total += read_all(source, counts[i], i)?.len();
+        i += 1;
+    }
+    Ok(total)
+}
+
+pub trait Arith {
+    type E: Copy;
+    fn add(&mut self, a: Self::E, b: Self::E) -> Self::E;
+}
+
+pub trait Verifier: Arith {
+    fn sample(&mut self) -> Self::E;
+}
+
+pub trait Opening: Verifier {
+    type Root: Copy;
+}
+
+pub trait Weight<V: Opening> {
+    fn call(self, v: &mut V, point: &[V::E]) -> V::E;
+}
+
+pub trait NamedWeight<E, V: Opening<E = E>> {
+    fn call(self, v: &mut V, point: &[E]) -> E;
+}
+
+/// A weight whose point and value are written through the verifier's projection.
+pub fn rejected_projected_weight<V: Opening>(v: &mut V, point: &[V::E], weight: impl Weight<V>) -> V::E {
+    weight.call(v, point)
+}
+
+/// The weight with its element type as a parameter translates.
+pub fn accepted_named_weight<V: Opening>(v: &mut V, point: &[V::E], weight: impl NamedWeight<V::E, V>) -> V::E {
+    weight.call(v, point)
+}
+
+/// A loop that calls only inherited arithmetic methods of the opening verifier.
+pub fn rejected_inherited_loop<V: Opening>(v: &mut V, point: &[V::E]) -> V::E {
+    let mut acc = v.sample();
+    let mut k = 0;
+    while k < point.len() {
+        acc = v.add(acc, point[k]);
+        k += 1;
+    }
+    acc
+}
+
+fn arith_sum<E: Copy, A: Arith<E = E>>(a: &mut A, point: &[E], mut acc: E) -> E {
+    let mut k = 0;
+    while k < point.len() {
+        acc = a.add(acc, point[k]);
+        k += 1;
+    }
+    acc
+}
+
+/// The loop in a callee generic over the arithmetic trait translates.
+pub fn accepted_arith_loop<V: Opening>(v: &mut V, point: &[V::E]) -> V::E {
+    let acc = v.sample();
+    arith_sum(v, point, acc)
+}

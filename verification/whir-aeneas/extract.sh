@@ -27,6 +27,16 @@ case "$surface" in
         aeneas_args=(-backend lean -namespace StatementSource -no-progress-bar
                      -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Statement)
         ;;
+    fold)
+        dest="$here/llbc/fold"
+        generated="$here"
+        args=(--start-from pcs::whir::verify::Quad::eval --start-from pcs::whir::verify::Quad::fold
+              --start-from pcs::ring_switch::RingMap::close --start-from pcs::whir::verify::OodCtx::term
+              --start-from pcs::whir::verify::basis_product --include primitives)
+        cargo_args=(--lib --release)
+        aeneas_args=(-backend lean -namespace FoldSource -no-progress-bar
+                     -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Fold)
+        ;;
     verifier)
         dest="$here/llbc/verifier"
         generated="$here"
@@ -77,5 +87,11 @@ if [[ "$surface" == native || "$surface" == native-hash-interface* ]]; then
 fi
 if [[ "$surface" == statement ]]; then
     python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" pcs::stack::Statement::check
+fi
+if [[ "$surface" == fold ]]; then
+    for root in pcs::whir::verify::Quad::eval pcs::whir::verify::Quad::fold pcs::ring_switch::RingMap::close \
+            pcs::whir::verify::OodCtx::term pcs::whir::verify::basis_product; do
+        python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
+    done
 fi
 flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 "$generator" "${aeneas_args[@]}" -dest "$generated" "$dest/$llbc_name.llbc"

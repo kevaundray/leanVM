@@ -22,8 +22,14 @@ expected = {
     "rejected_outer": "Internal error, please file an issue",
     "rejected_split_last": "Could not match the contexts",
     "rejected_branch_on_borrow": "Could not match the contexts",
+    "rejected_closure_in_loop": "Internal error, please file an issue",
+    "rejected_projected_weight": "The input arguments don't have the proper type",
+    "rejected_inherited_loop": "Could not find: type_var_id",
 }
-names = re.findall(r"^pub fn (\w+)", source.read_text(), re.M)
+text = source.read_text()
+names = re.findall(r"^pub fn (\w+)", text, re.M)
+# Each function's first line, to attribute errors that name only a source span.
+starts = sorted((text[:m.start()].count("\n") + 1, m.group(1)) for m in re.finditer(r"^(?:pub )?fn (\w+)", text, re.M))
 with tempfile.TemporaryDirectory(prefix="whir-loop-borrows.") as work:
     llbc = Path(work) / "loop_borrows.llbc"
     env = dict(os.environ, RUSTUP_TOOLCHAIN="nightly-2026-09-17")
@@ -38,6 +44,10 @@ error = None
 for line in log.splitlines():
     if line.startswith("[Error]"):
         error = line.removeprefix("[Error]").strip()
+    span = re.match(r"Source: '[^']*loop_borrows\.rs', lines (\d+):", line)
+    if span and error and error.startswith("Could not find: type_var_id"):
+        owner = [name for start, name in starts if start <= int(span.group(1))][-1]
+        failures.setdefault(owner, "Could not find: type_var_id")
     match = re.search(r"Could not translate the body of function 'loop_borrows::(\w+)", line)
     if match:
         failures[match.group(1)] = error
