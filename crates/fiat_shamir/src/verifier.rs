@@ -128,11 +128,16 @@ impl<'a, H: DuplexSponge> VerifierState<'a, H> {
 
         // A four-byte little-endian length, then that many bytes; the length is untrusted.
         let missing = TranscriptError::MissingHint { index: self.hints_read };
-        let hint = (self.hints.split_first_chunk::<4>())
-            .and_then(|(len, rest)| rest.split_at_checked(u32::from_le_bytes(*len) as usize))
-            .ok_or(missing);
-        let (hint, rest) = self.guard(hint)?;
-        self.hints = rest;
+        let hints = self.hints;
+        let len = if hints.len() < 4 {
+            Err(missing)
+        } else {
+            let len = u32::from_le_bytes([hints[0], hints[1], hints[2], hints[3]]) as usize;
+            if hints.len() - 4 < len { Err(missing) } else { Ok(len) }
+        };
+        let len = self.guard(len)?;
+        let hint = &hints[4..4 + len];
+        self.hints = &hints[4 + len..];
         self.hints_read += 1;
         Ok(hint)
     }

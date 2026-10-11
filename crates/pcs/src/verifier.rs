@@ -6,7 +6,7 @@
 //! - In rows they are the wires holding them, and an opened row is authenticated by hash rows.
 
 use super::whir::sample_queries_ordered;
-use crate::merkle::{Hash, Openings, PrunedMerklePaths};
+use crate::merkle::{Hash, Openings, PrunedMerklePaths, sorted_unique};
 use fiat_shamir::arith::{Arith, PublicMle, Stage, Verifier};
 use fiat_shamir::{TranscriptContext, TranscriptError, VerifierState};
 use primitives::field::{F64, F192};
@@ -113,8 +113,7 @@ impl OpeningVerifier for VerifierState<'_> {
         row_words: usize,
         leaf_words: usize,
     ) -> Result<Vec<Vec<F64>>, TranscriptError> {
-        let openings = authenticate(self, root, depth, queries, row_words, leaf_words)?;
-        Ok(rows_of(&openings, row_words))
+        open_rows_native(self, root, depth, queries, row_words, leaf_words)
     }
 
     fn mul_k_add(&mut self, a: F192, k: F64, d: F192) -> F192 {
@@ -130,6 +129,19 @@ impl OpeningVerifier for VerifierState<'_> {
     }
 }
 
+/// The native [`OpeningVerifier::open_rows`]: authenticate the next hint's paths, then each opening's row.
+fn open_rows_native(
+    vs: &mut VerifierState<'_>,
+    root: &Hash,
+    depth: usize,
+    queries: &[usize],
+    row_words: usize,
+    leaf_words: usize,
+) -> Result<Vec<Vec<F64>>, TranscriptError> {
+    let openings = authenticate(vs, root, depth, queries, row_words, leaf_words)?;
+    Ok(rows_of(&openings, row_words))
+}
+
 /// Read the next hint as Merkle paths and authenticate them against `root`: each query's opening, in query order.
 fn authenticate(
     vs: &mut VerifierState<'_>,
@@ -140,9 +152,7 @@ fn authenticate(
     leaf_words: usize,
 ) -> Result<Openings, TranscriptError> {
     // The hint holds one row per distinct query, which the verifier counts itself.
-    let mut distinct = queries.to_vec();
-    distinct.sort_unstable();
-    distinct.dedup();
+    let distinct = sorted_unique(queries);
     vs.prover_hint_with(|hint| {
         let paths = PrunedMerklePaths::from_hint(hint, distinct.len(), row_words)?;
         paths.open(root, 1 << depth, queries, row_words, leaf_words)
@@ -151,12 +161,15 @@ fn authenticate(
 
 /// Each opening's row: its leaf image with the zero prefix dropped.
 fn rows_of(openings: &Openings, row_words: usize) -> Vec<Vec<F64>> {
-    (0..openings.len())
-        .map(|i| {
-            let image = openings.image(i);
-            image[image.len() - row_words..].to_vec()
-        })
-        .collect()
+    let n = openings.len();
+    let mut rows = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        let image = openings.image(i);
+        rows.push(image[image.len() - row_words..].to_vec());
+        i += 1;
+    }
+    rows
 }
 
 /// A native verifier that keeps every opening it authenticates, for a recursive verifier to hash.

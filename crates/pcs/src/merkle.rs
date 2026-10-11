@@ -447,7 +447,7 @@ fn hash_pairs(pairs: &[[Hash; 2]], parents: &mut Vec<Hash>) {
 
 /// Query positions with duplicates removed, ascending: the order a phase stores
 /// its rows in, and the order the octopus is built and checked against.
-fn sorted_unique(queries: &[usize]) -> Vec<usize> {
+pub(crate) fn sorted_unique(queries: &[usize]) -> Vec<usize> {
     let mut unique = queries.to_vec();
     unique.sort_unstable();
     unique.dedup();
