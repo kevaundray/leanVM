@@ -22,9 +22,9 @@ use crate::refuse;
 use crate::workload::{Items, Workload};
 use bench::{Heap, Metric, Plan, Timing, bencher_json};
 use leanvm::aggregate::{
-    Aggregate, CircuitStats, Kind, Leaf, LeafShape, SignerLeaf, Tree, TreeError, TreeProof, TreeShape,
+    Aggregate, Capacity, CircuitStats, ClaimLeaf, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof, TreeShape,
 };
-use leanvm::{Capacity, ProvenRun, Prover, Rate, Stats};
+use leanvm::{ProvenRun, Prover, Rate, Stats};
 use primitives::pretty_integer;
 use serde_json::{Map, Value};
 use std::fmt::Write as _;
@@ -153,7 +153,7 @@ impl Aggregation {
             arity_0: self.arity_0,
             arity: self.arity,
             rate,
-            signers: self.signers,
+            claims: self.signers,
         };
         Tree::new(&self.leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }
@@ -532,11 +532,11 @@ fn proved_tree(
         Some(_) => {
             let set = tree
                 .leaf
-                .signers
+                .claims
                 .as_ref()
-                .expect("a signer-set tree's leaf publishes its set");
-            let leaves = vec![SignerLeaf::new(leaf, set); tree.arity_0];
-            let verify = |a: &Aggregate| built.verify_signers(&a.proof, &a.signers);
+                .expect("a signer-set tree's leaf publishes its claims");
+            let leaves = vec![ClaimLeaf::new(leaf, set); tree.arity_0];
+            let verify = |a: &Aggregate| built.verify_claims(&a.proof, &a.claims);
             let (first, first_report) = proved_node(plan, || built.aggregate_leaves(&leaves, None), verify);
             let children = vec![&first; tree.arity];
             let (_, node_report) = proved_node(plan, || built.aggregate(&children, None), verify);

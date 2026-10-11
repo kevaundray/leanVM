@@ -5,8 +5,10 @@ use crate::workload::Workload;
 use bench::{Plan, Timing};
 use clap::ValueEnum;
 use core::ops::Range;
-use leanvm::aggregate::{Aggregate, CircuitStats, Kind, Leaf, LeafShape, SignerLeaf, Tree, TreeProof, TreeShape};
-use leanvm::{Capacity, ProvenRun, Prover, SignerSet};
+use leanvm::aggregate::{
+    Aggregate, Capacity, CircuitStats, ClaimLeaf, ClaimSet, Kind, Leaf, LeafShape, Tree, TreeProof, TreeShape,
+};
+use leanvm::{ProvenRun, Prover};
 use primitives::{pretty_f64, pretty_integer};
 use std::collections::BTreeMap;
 use std::time::Instant;
@@ -278,10 +280,10 @@ fn timed(proofs: &mut BTreeMap<Circuit, Proofs>, circuit: Circuit, prove: impl F
 /// circuit.
 fn prove_signer_tree(
     tree: &Tree<'_>,
-    leaves: &[SignerLeaf<'_>],
+    leaves: &[ClaimLeaf<'_>],
     arity_0: usize,
     arity: usize,
-    declare: Option<&SignerSet>,
+    declare: Option<&ClaimSet>,
     proofs: &mut BTreeMap<Circuit, Proofs>,
 ) -> Aggregate {
     let declares = |root: bool| declare.filter(|_| root);
@@ -345,13 +347,13 @@ pub fn run_signers(
     let runs: Vec<Workload> = (0..leaves)
         .map(|i| program.signer_leaf(&leaf_groups(i, n, groups, overlap)))
         .collect();
-    let sets: Vec<&SignerSet> = (runs.iter())
-        .map(|run| run.signers.as_ref().expect("a signature guest publishes its set"))
+    let sets: Vec<&ClaimSet> = (runs.iter())
+        .map(|run| run.claims.as_ref().expect("a signature guest publishes its claims"))
         .collect();
-    let union = SignerSet::from_claims(sets.iter().flat_map(|set| set.claims()));
+    let union = ClaimSet::from_claims(sets.iter().flat_map(|set| set.claims()));
     let declared = match declare {
         Declare::All => None,
-        Declare::Half => Some(SignerSet::from_claims(union.claims().take(union.n_claims() / 2))),
+        Declare::Half => Some(ClaimSet::from_claims(union.claims().take(union.n_claims() / 2))),
     };
 
     // The first leaf's run, measured, gives the shape every leaf's proof announces: the tree's key needs no proof.
@@ -360,7 +362,7 @@ pub fn run_signers(
         arity_0,
         arity,
         rate: prover.rate(),
-        signers: Some(capacity),
+        claims: Some(capacity),
     };
     let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
         let _span = tracing::info_span!("Tree setup").entered();
@@ -379,8 +381,8 @@ pub fn run_signers(
             proven
         })
         .collect();
-    let leaf_proofs: Vec<SignerLeaf<'_>> = (proven.iter().zip(&sets))
-        .map(|(proven, set)| SignerLeaf::new(Leaf::from(proven), set))
+    let leaf_proofs: Vec<ClaimLeaf<'_>> = (proven.iter().zip(&sets))
+        .map(|(proven, set)| ClaimLeaf::new(Leaf::from(proven), set))
         .collect();
 
     let mut proofs = BTreeMap::new();
@@ -395,12 +397,12 @@ pub fn run_signers(
         root
     });
     assert_eq!(
-        &root.signers,
+        &root.claims,
         declared.as_ref().unwrap_or(&union),
         "the root declares what it is asked to"
     );
     let (_, root_verify) = Plan::new(plan.repeat, 0)
-        .measure_quiet(|_| (tree.verify_signers(&root.proof, &root.signers)).expect("the root verifies by its set"));
+        .measure_quiet(|_| (tree.verify_claims(&root.proof, &root.claims)).expect("the root verifies by its set"));
 
     let sum: usize = sets.iter().map(|set| set.n_claims()).sum();
     println!(
@@ -417,12 +419,12 @@ pub fn run_signers(
     println!(
         "union                         : {} claims in {} groups, of the leaves' {} claims",
         pretty_integer(&union.n_claims()),
-        pretty_integer(&union.n_groups()),
+        pretty_integer(&union.groups.len()),
         pretty_integer(&sum)
     );
     println!(
         "root declares                 : {} claims",
-        pretty_integer(&root.signers.n_claims())
+        pretty_integer(&root.claims.n_claims())
     );
     println!("leaf (proven untimed)");
     print_leaf(&proven[0], None);
@@ -458,7 +460,8 @@ pub fn run_signers(
 mod tests {
     use super::{Declare, LeafProgram, Signers, leaf_groups, run_signers};
     use bench::Plan;
-    use leanvm::{Capacity, Prover, Rate};
+    use leanvm::aggregate::Capacity;
+    use leanvm::{Prover, Rate};
 
     #[test]
     fn consecutive_leaves_share_their_overlap() {
