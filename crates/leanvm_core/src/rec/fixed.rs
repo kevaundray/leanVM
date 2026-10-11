@@ -5,10 +5,11 @@
 //! - Each table with dynamic tuples has an activity column, one on the circuit's rows and zero on padding rows.
 //!
 //! Two circuits of the same heights differ exactly where these columns do, so the columns name the circuit.
+//! A table the proof leaves out has no rows, so its columns are empty, and no block reads them.
 
 use super::bus::SlotKey;
 use super::circuit::{Circuit, Limbs, PubSource};
-use super::table::{PerRecTable, Table};
+use super::table::{Heights, Table};
 use crate::leaf::PublicColumn;
 use primitives::field::F64;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ pub(crate) enum FixedColumn {
     Active(Table),
 }
 
-/// A circuit's fixed columns, each at its table's height, in stacking order.
+/// A circuit's fixed columns, each at its table's height, empty for a table the proof leaves out, in stacking order.
 ///
 /// Every column is its own allocation, which a bus block shares.
 #[derive(Clone, Debug)]
@@ -83,10 +84,11 @@ impl FixedColumns {
     /// The fixed columns of a circuit at the given table heights.
     ///
     /// The slots of a wire class, in table, row and slot order, form one cycle: each slot's `next` is the following one's key.
-    pub(crate) fn of(circuit: &Circuit, taus: &PerRecTable<usize>) -> Self {
+    pub(crate) fn of(circuit: &Circuit, taus: &Heights) -> Self {
+        let height = |t: Table| taus[t].map_or(0, |tau| 1 << tau);
         let mut next: Vec<Vec<F64>> = (Table::ALL.into_iter())
             .flat_map(|t| {
-                let height = 1 << taus[t];
+                let height = height(t);
                 (0..t.n_slots()).map(move |s| (0..height).map(|z| SlotKey::new(t, s, z).to_f64()).collect())
             })
             .collect();
@@ -112,7 +114,7 @@ impl FixedColumns {
             link(last, first);
         }
 
-        let mut constants: [Vec<F64>; 4] = std::array::from_fn(|_| vec![F64::ZERO; 1 << taus[Table::Pub]]);
+        let mut constants: [Vec<F64>; 4] = std::array::from_fn(|_| vec![F64::ZERO; height(Table::Pub)]);
         for (z, source) in circuit.pubs.iter().enumerate() {
             if let PubSource::Const(v) = *source {
                 for (column, &v) in constants.iter_mut().zip(&v) {
@@ -122,7 +124,7 @@ impl FixedColumns {
         }
         let active: [Vec<F64>; 2] = Table::DYNAMIC.map(|t| {
             let rows = circuit.classes.len(t);
-            (0..1 << taus[t]).map(|z| F64(u64::from(z < rows))).collect()
+            (0..height(t)).map(|z| F64(u64::from(z < rows))).collect()
         });
         Self {
             columns: next.into_iter().chain(constants).chain(active).map(Arc::new).collect(),
@@ -130,9 +132,14 @@ impl FixedColumns {
     }
 
     /// Zero columns at the given heights: what a circuit built from shapes alone reads, whose rows never depend on them.
-    pub(crate) fn zeros(taus: &PerRecTable<usize>) -> Self {
+    pub(crate) fn zeros(taus: &Heights) -> Self {
         let columns = (0..FixedColumn::COUNT)
-            .map(|c| Arc::new(vec![F64::ZERO; 1 << taus[FixedColumn::at(c).table()]]))
+            .map(|c| {
+                Arc::new(vec![
+                    F64::ZERO;
+                    taus[FixedColumn::at(c).table()].map_or(0, |tau| 1 << tau)
+                ])
+            })
             .collect();
         Self { columns }
     }

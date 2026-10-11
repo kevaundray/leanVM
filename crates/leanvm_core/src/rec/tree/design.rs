@@ -16,7 +16,7 @@ use crate::leaf::N_TUPLE_BITS;
 use crate::pcs::Rate;
 use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, Limbs};
 use crate::rec::fixed::FixedColumns;
-use crate::rec::table::{HashFlock, PerRecTable};
+use crate::rec::table::{HashFlock, Heights};
 use crate::rec::transcript::{ProofSource, Transcript};
 use crate::rec::verifier::{FixedHint, ProofShape, RecShape, Rows, infallible};
 use fiat_shamir::arith::Arith;
@@ -28,7 +28,7 @@ use primitives::field::{F64, F192};
 use primitives::multilinear::mle_eval_par;
 
 /// The protocol half of every recursion proof's session tag.
-const DOMAIN: &[u8] = b"leanvm-tree-11";
+const DOMAIN: &[u8] = b"leanvm-tree-12";
 
 /// One family of leaves, as the tree's circuits verify them.
 pub(crate) enum Family<'p> {
@@ -60,8 +60,9 @@ pub(crate) struct Design<'p> {
     pub(crate) arity: usize,
     /// Every tree proof's rate.
     pub(crate) rate: Rate,
-    /// The nodes' heights, which every kind's circuit shares.
-    pub(crate) taus: PerRecTable<usize>,
+    /// The nodes' heights, which every kind's circuit shares: a table is absent from them only if every kind's circuit
+    /// lacks it.
+    pub(crate) taus: Heights,
     /// The shape of a child recursion proof.
     child: RecShape,
     /// Where each fixed column sits in one kind's circuit's stack.
@@ -199,7 +200,7 @@ impl<'p> Design<'p> {
         arity_0: usize,
         arity: usize,
         rate: Rate,
-        taus: PerRecTable<usize>,
+        taus: Heights,
     ) -> Result<Self, TreeError> {
         let child = RecShape::new(taus, rate).map_err(|_| TreeError::TooLarge)?;
         let fixed = FixedLayout::new(&taus);
@@ -240,7 +241,7 @@ impl<'p> Design<'p> {
             leaf_bits,
             vars,
             present,
-            statement: StatementLayout::new(n_dense),
+            statement: StatementLayout::new(n_dense, present),
             session: SessionId([0; 32]),
         };
         design.session = design.session();
@@ -254,6 +255,8 @@ impl<'p> Design<'p> {
     fn session(&self) -> SessionId {
         let mut tag = DOMAIN.to_vec();
         let word = |tag: &mut Vec<u8>, x: usize| tag.extend_from_slice(&(x as u64).to_le_bytes());
+        // An absent table's height is a word no height is.
+        let height = |tag: &mut Vec<u8>, tau: Option<usize>| word(tag, tau.unwrap_or(usize::MAX));
         word(&mut tag, self.families.len());
         for family in &self.families {
             match family {
@@ -268,17 +271,17 @@ impl<'p> Design<'p> {
                     tag.extend_from_slice(&c.leaf.session.0);
                     word(&mut tag, c.leaf.circuit.statement_len);
                     for t in c.leaf.circuit.heights().into_values() {
-                        word(&mut tag, t);
+                        height(&mut tag, t);
                     }
                     tag.push(c.leaf.rate.log_inv_rate());
                 }
             }
         }
-        let sizes = [self.arity_0, self.arity, self.statement.len()]
-            .into_iter()
-            .chain(self.taus.into_values());
-        for x in sizes {
+        for x in [self.arity_0, self.arity, self.statement.len()] {
             word(&mut tag, x);
+        }
+        for t in self.taus.into_values() {
+            height(&mut tag, t);
         }
         tag.push(self.rate.log_inv_rate());
         SessionId::new(&tag)
@@ -649,8 +652,11 @@ impl Reduced<Ew> {
         s.section_mut(Section::Digest)
             .copy_from_slice(&digest_halves_rows(b, digest));
         s.section_mut(Section::DensePoint)[..self.dense.point.len()].copy_from_slice(&self.dense.point);
-        let values = self.dense.values.map(|v| v.unwrap_or(zero));
-        s.section_mut(Section::DenseValues).copy_from_slice(&values);
+        for (poly, value) in DensePoly::ALL.into_iter().zip(self.dense.values) {
+            if let Some(value) = value {
+                *s.dense_value_mut(poly) = value;
+            }
+        }
         s.section_mut(Section::Rows).copy_from_slice(&self.matrices.rows);
         s.section_mut(Section::Cols).copy_from_slice(&self.matrices.cols);
         s.section_mut(Section::Matrices)

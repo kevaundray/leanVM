@@ -2,7 +2,7 @@
 //!
 //! - Its kind: what its circuit verifies.
 //! - The digest of what the leaves under it state.
-//! - One claim on each dense polynomial, at prefixes of one point.
+//! - One claim on each dense polynomial the tree has, at prefixes of one point.
 //! - Each flock circuit's two matrices at prefixes of one row point and one column point.
 
 use super::claims::DensePoly;
@@ -36,6 +36,8 @@ pub(crate) enum Level {
 pub(crate) struct StatementLayout {
     /// The dense point's coordinates: the most any dense polynomial has.
     n_dense: usize,
+    /// Which dense polynomials the tree has, each with a value word.
+    dense: [bool; DensePoly::COUNT],
     /// The matrix points' coordinates: the most any flock circuit's matrices have.
     n_matrix: usize,
 }
@@ -49,7 +51,7 @@ pub(crate) enum Section {
     Digest,
     /// The dense claims' point.
     DensePoint,
-    /// Each dense polynomial's value at its prefix of the point.
+    /// Each dense polynomial the tree has: its value at its prefix of the point.
     DenseValues,
     /// The matrix claims' row point.
     Rows,
@@ -150,10 +152,11 @@ impl Section {
 }
 
 impl StatementLayout {
-    /// The layout of a tree whose dense polynomials have at most this many variables.
-    pub(crate) const fn new(n_dense: usize) -> Self {
+    /// The layout of a tree that has these dense polynomials, which have at most this many variables.
+    pub(crate) const fn new(n_dense: usize, dense: [bool; DensePoly::COUNT]) -> Self {
         Self {
             n_dense,
+            dense,
             n_matrix: FlockId::MAX_K_LOG,
         }
     }
@@ -164,10 +167,23 @@ impl StatementLayout {
             Section::Kind => 1,
             Section::Digest => 2,
             Section::DensePoint => self.n_dense,
-            Section::DenseValues => DensePoly::COUNT,
+            Section::DenseValues => self.dense_index(DensePoly::COUNT),
             Section::Rows | Section::Cols => self.n_matrix,
             Section::Matrices => 2 * N_FLOCKS,
         }
+    }
+
+    /// How many of the dense polynomials before the `n`-th the tree has: the `n`-th's value word among the values.
+    const fn dense_index(self, n: usize) -> usize {
+        let mut count = 0;
+        let mut i = 0;
+        while i < n {
+            if self.dense[i] {
+                count += 1;
+            }
+            i += 1;
+        }
+        count
     }
 
     /// Where a section's words sit: after every section before it.
@@ -238,7 +254,23 @@ impl<E: Copy> TreeStatement<E> {
 
     /// A dense polynomial's claimed value at its prefix of the point.
     pub(crate) fn dense_value(&self, poly: DensePoly) -> E {
-        self.section(Section::DenseValues)[poly as usize]
+        self.section(Section::DenseValues)[self.value_word(poly)]
+    }
+
+    /// A dense polynomial's value word, to write.
+    pub(crate) fn dense_value_mut(&mut self, poly: DensePoly) -> &mut E {
+        let word = self.value_word(poly);
+        &mut self.section_mut(Section::DenseValues)[word]
+    }
+
+    /// A dense polynomial's word among the values.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tree lacks the polynomial: its statements have no word for it.
+    fn value_word(&self, poly: DensePoly) -> usize {
+        assert!(self.layout.dense[poly as usize], "the tree has no {poly:?}");
+        self.layout.dense_index(poly as usize)
     }
 
     /// The matrices' row point.

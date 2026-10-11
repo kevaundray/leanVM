@@ -37,6 +37,9 @@ pub enum Table {
 /// One value per table of the recursion machine.
 pub type PerRecTable<T> = PerTable<T, Table, { Table::COUNT }>;
 
+/// Each table's base-two logarithm of rows, none for a table the proof leaves out.
+pub type Heights = PerRecTable<Option<usize>>;
+
 /// The four limbs a slot carries, each a degree-two form over its table's local columns.
 #[derive(Clone, Debug)]
 pub(crate) struct SlotForm(pub(crate) [Coord; 4]);
@@ -173,10 +176,14 @@ impl Table {
     }
 
     /// `log2` of its height for `rows` rows: a power of two, at flock's floor for the hash table.
-    pub(crate) fn height_log(self, rows: usize) -> usize {
+    ///
+    /// A table with no rows has none, and the proof leaves it out, other than the hash table, whose packed witness flock
+    /// proves at its floor, and the public table, whose blocks are the framework's.
+    pub(crate) fn height_log(self, rows: usize) -> Option<usize> {
         match self {
-            Self::Hash => HashFlock::height_log(rows),
-            _ => crate::log2_ceil_usize(rows.max(1)),
+            Self::Hash => Some(HashFlock::height_log(rows)),
+            Self::Pub => Some(crate::log2_ceil_usize(rows.max(1))),
+            _ => (rows > 0).then(|| crate::log2_ceil_usize(rows)),
         }
     }
 

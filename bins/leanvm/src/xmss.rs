@@ -53,9 +53,7 @@ pub fn run(n: usize, rate: Rate, tamper: bool, plan: Plan) {
     });
 
     let stats = batch.stats();
-    let rows: Vec<String> = (stats.tables.iter())
-        .map(|t| format!("{} {} (2^{})", t.name, pretty_integer(&t.rows), t.height_log))
-        .collect();
+    let rows: Vec<String> = stats.tables.iter().map(ToString::to_string).collect();
     let seconds = prove_time.mean();
     println!(
         "leanXMSS verification on the recursion machine, {n} signatures, log-inv-rate {}",

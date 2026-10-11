@@ -28,7 +28,7 @@ use crate::rec::circuit::{Circuit, Finished, Limbs, digest_limbs};
 use crate::rec::fixed::FixedColumns;
 use crate::rec::layout::RecLayout;
 use crate::rec::proof::instance;
-use crate::rec::table::PerRecTable;
+use crate::rec::table::{Heights, Table};
 use crate::rec::transcript::ProofSource;
 use crate::rec::verifier::ProofShape;
 use crate::tables::PerTable;
@@ -590,20 +590,22 @@ impl<'p> Tree<'p> {
     /// The heights every kind's circuit shares, and the circuits at them, by code.
     ///
     /// They are the least fixed point of `tau -> max(tau, max_k circuit_k(tau))`, from the first-level circuits' own heights.
+    /// A table is absent from them, its height none, only while every kind's circuit lacks it.
     ///
     /// Each round only raises heights, and a node's rows grow with the logarithm of its children's, so few rounds reach it.
     fn converge(
-        design: impl Fn(PerRecTable<usize>) -> Result<Design<'p>, TreeError>,
+        design: impl Fn(Heights) -> Result<Design<'p>, TreeError>,
     ) -> Result<(Design<'p>, Vec<Circuit>), TreeError> {
-        let max = |taus: PerRecTable<usize>, built: &[Circuit]| {
-            PerRecTable::from_fn(|t| built.iter().map(|c| c.heights()[t]).fold(taus[t], usize::max))
+        let max = |taus: Heights, built: &[Circuit]| {
+            Heights::from_fn(|t| built.iter().map(|c| c.heights()[t]).fold(taus[t], Option::max))
         };
-        let start = design(PerRecTable::default())?;
+        // The first-level circuits do not depend on the heights: those of a circuit of no rows build them.
+        let start = design(Heights::from_fn(|t: Table| t.height_log(0)))?;
         let firsts: Vec<Circuit> = (start.kinds().into_iter())
             .filter(|&k| k != Kind::Node)
             .map(|k| start.shape(k).circuit)
             .collect();
-        let mut taus = max(PerRecTable::default(), &firsts);
+        let mut taus = max(Heights::default(), &firsts);
         for _ in 0..MAX_ROUNDS {
             let d = design(taus)?;
             let built: Vec<Circuit> = d.kinds().into_iter().map(|k| d.shape(k).circuit).collect();

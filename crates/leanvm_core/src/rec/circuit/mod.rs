@@ -19,7 +19,7 @@ pub(crate) use builder::traced;
 pub(crate) use compression::digest_limbs;
 pub use compression::{Compression, PARAM_IV, chain, zero_prefix};
 
-use super::table::{PerRecTable, Table};
+use super::table::{Heights, PerRecTable, Table};
 use thiserror::Error;
 
 /// A wire's value as four `K` words: a `K` wire uses the first, an `E` wire the first three.
@@ -109,8 +109,8 @@ pub struct Circuit {
     pub(crate) pubs: Vec<PubSource>,
     /// How many words the statement has.
     pub(crate) statement_len: usize,
-    /// Each table's least height, as a base-two logarithm.
-    pub(crate) floor: PerRecTable<usize>,
+    /// Each table's least height, as a base-two logarithm: none keeps a table with no rows out of the proof.
+    pub(crate) floor: Heights,
 }
 
 impl Circuit {
@@ -142,9 +142,11 @@ impl Circuit {
     }
 
     /// Each table's base-two logarithm of rows: the least power of two holding its rows, and at least its floor.
-    pub fn heights(&self) -> PerRecTable<usize> {
+    ///
+    /// A table with no rows and no floor has none: the proof leaves it out.
+    pub fn heights(&self) -> Heights {
         let counts = self.row_counts();
-        PerRecTable::from_fn(|t: Table| t.height_log(counts[t]).max(self.floor[t]))
+        Heights::from_fn(|t: Table| t.height_log(counts[t]).max(self.floor[t]))
     }
 
     /// How many wire classes the slots name.

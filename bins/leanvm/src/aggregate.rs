@@ -185,9 +185,7 @@ fn secs(t: &Timing) -> String {
 /// A circuit's rows per table and padded heights, and the words a proof commits.
 fn print_cost(stats: Option<&CircuitStats>, committed: usize) {
     if let Some(stats) = stats {
-        let rows: Vec<String> = (stats.tables.iter())
-            .map(|t| format!("{} {} (2^{})", t.name, pretty_integer(&t.rows), t.height_log))
-            .collect();
+        let rows: Vec<String> = stats.tables.iter().map(ToString::to_string).collect();
         println!("  rows                        : {}", rows.join("  "));
     }
     println!(

@@ -15,7 +15,7 @@ use crate::rec::circuit::{Builder, Dw, Ew, Kw};
 use crate::rec::fixed::{FixedColumn, FixedColumns};
 use crate::rec::layout::RecLayout;
 use crate::rec::proof::TableArgument;
-use crate::rec::table::PerRecTable;
+use crate::rec::table::Heights;
 use crate::rec::transcript::{ProofSource, Transcript};
 use fiat_shamir::SessionId;
 use fiat_shamir::arith::Arith;
@@ -23,7 +23,10 @@ use flock::lincheck::MatrixForm;
 use primitives::field::F192;
 use primitives::multilinear::mle_eval_par;
 
-/// What fixes the rows verifying a recursion proof: its circuit's heights and the commitment's rate.
+/// What fixes the rows verifying a recursion proof: its circuit's heights, which tables it has among them, and the
+/// commitment's rate.
+///
+/// The rows read nothing of a table the heights leave out, and a proof that has one is not of this shape.
 #[derive(Clone, Debug)]
 pub(crate) struct RecShape {
     /// The proven circuit's layout.
@@ -83,7 +86,7 @@ impl RecShape {
     /// # Errors
     ///
     /// Returns an error if the heights admit no layout.
-    pub(crate) fn new(taus: PerRecTable<usize>, rate: Rate) -> Result<Self, RecError> {
+    pub(crate) fn new(taus: Heights, rate: Rate) -> Result<Self, RecError> {
         Ok(Self {
             layout: RecLayout::from_taus(taus)?,
             rate,

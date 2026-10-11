@@ -19,7 +19,9 @@
 use crate::refuse;
 use crate::workload::{Items, Workload};
 use bench::{Heap, Metric, Plan, Timing, bencher_json};
-use leanvm::aggregate::{CircuitStats, Kind, Leaf, LeafShape, Leaves, Subtree, Tree, TreeError, TreeProof, TreeShape};
+use leanvm::aggregate::{
+    CircuitStats, Kind, Leaf, LeafShape, Leaves, Subtree, TableStats, Tree, TreeError, TreeProof, TreeShape,
+};
 use leanvm::{ProvenRun, Prover, Rate, Stats};
 #[cfg(feature = "circuits")]
 use leanvm::{SphincsBatch, XmssBatch};
@@ -397,7 +399,7 @@ fn circuit_counts(stats: &CircuitStats) -> Vec<(&'static str, Metric)> {
 /// A circuit's rows, and its tables' heights, summed over its tables.
 fn circuit_rows(stats: &CircuitStats) -> (usize, usize) {
     let rows = stats.tables.iter().map(|t| t.rows).sum();
-    let proven = stats.tables.iter().map(|t| 1 << t.height_log).sum();
+    let proven = stats.tables.iter().map(TableStats::height).sum();
     (rows, proven)
 }
 
@@ -587,9 +589,7 @@ fn tree_table(trees: &[(Aggregation, [(Kind, CircuitStats); 2])]) -> String {
     for (tree, circuits) in trees {
         for (kind, stats) in circuits {
             let (rows, proven) = circuit_rows(stats);
-            let tables: Vec<String> = (stats.tables.iter())
-                .map(|t| format!("{} {} (2^{})", t.name, pretty_integer(&t.rows), t.height_log))
-                .collect();
+            let tables: Vec<String> = stats.tables.iter().map(ToString::to_string).collect();
             writeln!(
                 table,
                 "| {} | {} | {} | 2^{:.2} | {} |",

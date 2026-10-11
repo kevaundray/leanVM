@@ -3,6 +3,8 @@
 use super::{Kind, Tree};
 use crate::rec::circuit::Circuit;
 use crate::rec::table::Table;
+use primitives::pretty_integer;
+use std::fmt;
 
 /// What a recursion circuit costs: one of a tree's, or a leanXMSS batch's.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,10 +24,32 @@ pub struct TableStats {
     pub name: &'static str,
     /// The rows the circuit puts in the table.
     pub rows: usize,
-    /// The base-two logarithm of the table's height.
+    /// The base-two logarithm of the table's height, none if the proof leaves the table out.
     ///
     /// The height is a power of two, at least the rows.
-    pub height_log: usize,
+    pub height_log: Option<usize>,
+}
+
+impl TableStats {
+    /// The rows its proof has: its height, zero if the proof leaves it out.
+    #[must_use]
+    pub const fn height(&self) -> usize {
+        match self.height_log {
+            Some(tau) => 1 << tau,
+            None => 0,
+        }
+    }
+}
+
+/// Its name, its rows and its height: `HASH 1,234 (2^11)`, or `STEP 0 (absent)` for a table the proof leaves out.
+impl fmt::Display for TableStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} ", self.name, pretty_integer(&self.rows))?;
+        match self.height_log {
+            Some(tau) => write!(f, "(2^{tau})"),
+            None => f.write_str("(absent)"),
+        }
+    }
 }
 
 impl CircuitStats {

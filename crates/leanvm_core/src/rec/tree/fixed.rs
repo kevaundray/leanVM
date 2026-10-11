@@ -4,16 +4,17 @@
 //! - The leaves' `W_leaf` holds each leaf circuit, by its slot. Each has its own heights and layout, its stack zero padded to the largest.
 
 use crate::rec::fixed::{FixedColumn, FixedColumns};
-use crate::rec::table::PerRecTable;
+use crate::rec::table::Heights;
 use primitives::field::F64;
 
 /// Where each fixed column sits in one circuit's stack: the circuit's fixed polynomial over `kappa_fix` variables.
 ///
-/// Columns are stacked largest first, each at an offset that is a multiple of its length.
+/// Columns are stacked largest first, each at an offset that is a multiple of its length; a table the proof leaves out
+/// has no columns in the stack.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FixedLayout {
-    /// Each column's variables.
-    taus: Vec<usize>,
+    /// Each column's variables, none for an absent table's.
+    taus: Vec<Option<usize>>,
     /// Each column's offset in the stack.
     offsets: Vec<usize>,
     /// The stack's variables, `kappa_fix`.
@@ -22,12 +23,11 @@ pub(crate) struct FixedLayout {
 
 impl FixedLayout {
     /// The stack of a circuit's fixed columns at the given table heights.
-    pub(crate) fn new(taus: &PerRecTable<usize>) -> Self {
-        let taus: Vec<usize> = (0..FixedColumn::COUNT)
+    pub(crate) fn new(taus: &Heights) -> Self {
+        let taus: Vec<Option<usize>> = (0..FixedColumn::COUNT)
             .map(|c| taus[FixedColumn::at(c).table()])
             .collect();
-        let kappas: Vec<Option<usize>> = taus.iter().copied().map(Some).collect();
-        let (offsets, placed) = crate::witness::stack_offsets(&kappas);
+        let (offsets, placed) = crate::witness::stack_offsets(&taus);
         Self {
             taus,
             offsets,
@@ -41,8 +41,12 @@ impl FixedLayout {
     }
 
     /// A column's variables.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a column of a table the proof leaves out, which nothing reads.
     pub(crate) fn tau(&self, column: FixedColumn) -> usize {
-        self.taus[column.index()]
+        self.taus[column.index()].unwrap_or_else(|| panic!("{column:?} is of a table the proof leaves out"))
     }
 
     /// A column's offset in the stack, as the bits of its block's index: `offset >> tau`, over `kappa_fix - tau` bits.
@@ -53,7 +57,7 @@ impl FixedLayout {
     /// Write a circuit's fixed columns into its stack `out`, zero until then: zero between and after them.
     pub(crate) fn write(&self, columns: &FixedColumns, out: &mut [F64]) {
         assert!(out.len() >= 1 << self.kappa, "the stack holds the layout");
-        for (c, &offset) in self.offsets.iter().enumerate() {
+        for (c, &offset) in (self.offsets.iter().enumerate()).filter(|&(c, _)| self.taus[c].is_some()) {
             let column = columns.get(FixedColumn::at(c));
             out[offset..offset + column.len()].copy_from_slice(column);
         }
