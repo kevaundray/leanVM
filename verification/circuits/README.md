@@ -10,12 +10,14 @@ These are Boolean circuits over `F2 = ZMod 2`, not Clean's prime-field `Addition
 
 ## Reproduce
 
-The project pins Lean `v4.33.1`, Clean revision `1dc76b0c1efc14cc4499aee6c840de0cba9ce3ee` from `kevaundray/clean` (the integer-channel multiplicity change in Verified-zkEVM/clean#479), and all transitive dependencies in `lake-manifest.json`. Regeneration uses Rust `1.97.0` with `rustfmt` and the repository's formatting configuration. Normal Rust builds use the checked-in generated file and require neither Lean nor a Clean checkout, network access, or a local filesystem dependency.
+The project pins Lean `v4.33.1`, Clean revision `1dc76b0c1efc14cc4499aee6c840de0cba9ce3ee` from `kevaundray/clean` (the integer-channel multiplicity change in Verified-zkEVM/clean#479), and all transitive dependencies in `lake-manifest.json`. Regeneration uses Rust `1.97.0` with `rustfmt` and the repository's formatting configuration. Normal Rust builds use the checked-in generated files and require neither Lean nor a Clean checkout, network access, or a local filesystem dependency.
 
 From this directory:
 
 ```sh
 flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots
+flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake build LeanVMCircuits.Multiply.Checked
+flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake build LeanVMCircuits.MulDivExport
 flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake build
 flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake env lean Audit.lean
 shopt -s globstar nullglob
@@ -29,6 +31,9 @@ diff -u ../../crates/flock/src/clean.rs /tmp/clean-generated.rs
 flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake env lean --run GenerateRec.lean ../../crates/leanvm_core/src/rec/clean.rs
 flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake env lean --run GenerateRec.lean /tmp/rec-generated.rs
 diff -u ../../crates/leanvm_core/src/rec/clean.rs /tmp/rec-generated.rs
+flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake env lean --run GenerateTables.lean ../../crates/leanvm_core/src/tables/clean.rs
+flock /tmp/leanvm-heavy.lock systemd-run --user --scope -q -p MemoryMax=20G -p MemorySwapMax=0 lake env lean --run GenerateTables.lean /tmp/tables-generated.rs
+diff -u ../../crates/leanvm_core/src/tables/clean.rs /tmp/tables-generated.rs
 ```
 
 The `Clean circuits` workflow performs the proof build, axiom audit, serialized theorem kernel recheck, and deterministic regeneration check. The generator rejects unbound, forward, or duplicate product variables. The lowering accepts only affine GF(2) expressions and scalar witnesses immediately constrained to their defining products. Other witnesses, assertions, nested products in affine operands, lookups, interactions, and excessive subcircuit nesting return explicit errors rather than being ignored.
@@ -106,6 +111,16 @@ Rust load ports occupy input slots 0 through 255 and output slots 256 through 38
 `Flock.ExtClock.soundness` states, for every assignment satisfying the exported rows, `ExtClock.Addresses`: the outputs are the flags' bits, then `(p + 8) mod 2^64` and `(p + 16) mod 2^64` for `a`, `b`, `d`, `b`'s zero when flag bit 1 (`base`) is set. Its inputs are the extra ports only (`v1` variables 0 through 63, `v2` 64 through 127, `vd` 128 through 191, flags 192 and 193). `source_eq` ties the artifact to the Clean source, `layout` checks 479 ordered products at source variables 194 through 672 and 386 outputs, `output_products_layout` identifies outputs 130 through 257 with the gating products, variables 370 through 433 and 492 through 555, which `Generate.lean` commits at bits of ports 5 and 6 with `Builder::and_output`, and `wellFormed` and `complete` give every input assignment a satisfying extension. The generated function returns the flag bits and `a`'s and `d`'s addresses, which `Ext::clock_circuit` copies to ports 1, 2, 3, 4, 7 and 8.
 
 The native `Ext::clock_witness` is unchanged; the generated layout fixes its product order and committed slots. `flock_proves_the_ext_clock_and_refuses_a_flipped_address_or_product` proves and verifies native EXT clock batches through the Flock reduction and rejects a flipped flag copy, `a` address bit, gated `b` address bit, and the last private incrementer product. `clean_clock_proves_native_witnesses_and_rejects_false_steps_products_and_padding` exercises the five generated clock configurations and rejects false steps, private products and padding. A release VM smoke exercised register, load, store and hash accesses and all four extension instruction forms, checked native extension results, verified serialized real proofs and rejected altered public outputs. The extras and shared clock sources have separate exported-artifact proofs; interpreting their generated Rust builders and their composition remains trusted.
+
+## EXT field identities
+
+`ClassTable::identities` in `crates/leanvm_core/src/tables/table.rs` consumes `tables::clean::extension_identities`, generated by `GenerateTables.lean` from `LeanVMCircuits.ExtensionProduct.rows`. The same three ordered quadratic identities are the actual Clean `ExtensionProduct.circuit`, over the proved `GF(2^64)` and its cubic extension `GF(2^192)`. There is no second handwritten identity builder. The generator binds the logical accumulation, operand, old destination and new destination columns to the existing table layout and rejects unsupported columns, linear shapes and non-unit coefficients.
+
+`source` identifies those exact identities with the Clean source, and `source_holds` proves its actual operations hold exactly when the new destination is `a * b + accumulate * old`. `soundness_iff` applies to every assignment of field columns, not just a native witness. `instruction_soundness` interprets a Boolean accumulation column as MUL or MAC, and `base_operand` gives scalar multiplication when the upper two limbs of `b` are zero. `witness_exists` proves every assignment to all ten input columns extends to satisfying result columns without an honest-witness premise.
+
+The optimized native extension arithmetic is unchanged. A release smoke exercised all four extension instruction forms with zero and high-bit operands and a nonzero old destination, compared execution to host field arithmetic, verified serialized real leaf proofs and rejected altered outputs. The existing identity regression rejects each mutated result limb. An executable lowering smoke also rejected out-of-range columns, missing outputs and non-unit linear and product coefficients.
+
+Trusted: Lean execution and the Rust emitter/formatter/compiler; the logical-to-table column binding and the native `BusForm` interpretation; that native `F64` coefficients and their `F192` embedding represent the proved fields; and the optimized native arithmetic. Boolean accumulation and zero upper scalar limbs are explicit instruction interpretation premises. The clock extras produce the corresponding flags and zero addresses, but binding their bits to field columns and deriving zero values from the `x0` memory invariant are not discharged by these local field identities.
 
 ## Integer-multiplicity bus and memory argument
 

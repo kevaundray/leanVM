@@ -400,7 +400,14 @@ run_cmd do
     ``LeanVMCircuits.MulDivExport.Mulh.completeness,
     ``LeanVMCircuits.MulDivExport.Div.source,
     ``LeanVMCircuits.MulDivExport.Div.soundness,
-    ``LeanVMCircuits.MulDivExport.Div.completeness] do
+    ``LeanVMCircuits.MulDivExport.Div.completeness,
+    ``LeanVMCircuits.ExtensionProduct.source,
+    ``LeanVMCircuits.ExtensionProduct.source_holds,
+    ``LeanVMCircuits.ExtensionProduct.result_limbs,
+    ``LeanVMCircuits.ExtensionProduct.soundness_iff,
+    ``LeanVMCircuits.ExtensionProduct.instruction_soundness,
+    ``LeanVMCircuits.ExtensionProduct.base_operand,
+    ``LeanVMCircuits.ExtensionProduct.witness_exists] do
     let axioms ← collectAxioms theoremName
     for axiomName in axioms do
       unless #[``propext, ``Classical.choice, ``Quot.sound].contains axiomName do
@@ -516,3 +523,11 @@ run_cmd do
 #print axioms LeanVMCircuits.Flock.ExtClock.complete
 #print axioms LeanVMCircuits.Bus.ClassTable.clock_sound
 #print axioms LeanVMCircuits.Bus.ClassTable.tables_correct_of_clock
+
+#print axioms LeanVMCircuits.ExtensionProduct.source
+#print axioms LeanVMCircuits.ExtensionProduct.source_holds
+#print axioms LeanVMCircuits.ExtensionProduct.result_limbs
+#print axioms LeanVMCircuits.ExtensionProduct.soundness_iff
+#print axioms LeanVMCircuits.ExtensionProduct.instruction_soundness
+#print axioms LeanVMCircuits.ExtensionProduct.base_operand
+#print axioms LeanVMCircuits.ExtensionProduct.witness_exists

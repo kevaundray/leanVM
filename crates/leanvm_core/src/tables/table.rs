@@ -7,7 +7,7 @@ use crate::constraints::{BitColumns, BitField};
 use crate::leaf::BusForm;
 use crate::leaf::Coord::{self, Col, Const, Scaled};
 use crate::rv::{Ext, Hash, Reg, RegisterFile};
-use primitives::field::{F64, F192, g_pow};
+use primitives::field::{F64, g_pow};
 use std::sync::OnceLock;
 
 /// Circuit bindings and bus interactions for one instruction class.
@@ -311,31 +311,14 @@ impl ClassTable {
     /// ```
     ///
     /// Each form is the difference of the two sides, which vanishes on a row exactly when the row's new limb is its
-    /// product: degree 2, every coefficient one. A base-field `b`'s high limbs are zero, being reads of `x0`.
+    /// product: degree 2, every coefficient one. These identities are generated from the proved Clean assertion in
+    /// `LeanVMCircuits.ExtensionProduct`. A base-field `b`'s high limbs are zero, being reads of `x0`.
     pub(crate) fn identities(&self) -> Vec<BusForm> {
         let c = &self.cols;
         let (Some(limbs), Some(bits)) = (c.limbs, c.flag_bits) else {
             return Vec::new();
         };
-        let (a, b, old) = (limbs.limbs, limbs.limbs + 3, limbs.limbs + 6);
-        (0..3)
-            .map(|i| {
-                let mut form = BusForm::new(self.n_committed_columns(), F192::ZERO);
-                form.coeffs[limbs.new + i] = F192::ONE;
-                form.prods.push((bits, old + i, F192::ONE));
-                for (j, k) in (0..3).flat_map(|j| (0..3).map(move |k| (j, k))) {
-                    let lands = match j + k {
-                        3 => i < 2,
-                        4 => i > 0,
-                        m => m == i,
-                    };
-                    if lands {
-                        form.prods.push((a + j, b + k, F192::ONE));
-                    }
-                }
-                form
-            })
-            .collect()
+        super::clean::extension_identities(self.n_committed_columns(), bits, limbs.limbs, limbs.new)
     }
 }
 
@@ -344,6 +327,7 @@ mod tests {
     use super::super::Clock;
     use super::*;
     use crate::colval::ColVal;
+    use primitives::field::F192;
 
     fn check_columns(coordinate: &Coord, width: usize) {
         // Every table-side coordinate must use its own local span of columns.

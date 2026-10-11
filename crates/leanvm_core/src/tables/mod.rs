@@ -4,6 +4,7 @@
 //! Circuit words are virtual columns bound to the machine through the bus.
 
 mod bus;
+mod clean;
 mod clock;
 mod columns;
 mod fill;

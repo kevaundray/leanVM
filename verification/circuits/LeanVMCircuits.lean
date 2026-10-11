@@ -27,3 +27,4 @@ public import LeanVMCircuits.ClockExport
 public import LeanVMCircuits.ExtClockExport
 public import LeanVMCircuits.Bus.TableClock
 public import LeanVMCircuits.MulDivEmit
+public import LeanVMCircuits.ExtensionEmit
