@@ -289,7 +289,12 @@ impl<'p> Design<'p> {
     /// The kind is the statement's first word, and the statement is the transcript's instance.
     /// A tree of outputs and a claim-set tree differ in it, so a proof of one is never one of the other.
     fn session(&self) -> SessionId {
-        let mut tag = DOMAIN.to_vec();
+        self.session_with(DOMAIN)
+    }
+
+    /// The session under a protocol version's tag.
+    pub(crate) fn session_with(&self, domain: &[u8]) -> SessionId {
+        let mut tag = domain.to_vec();
         tag.extend_from_slice(self.leaf.program().digest());
         let large = self.claims.map(|c| c.capacity);
         let semantics = large.map_or([0; 3], |c| [1, c.claims, c.groups]);
