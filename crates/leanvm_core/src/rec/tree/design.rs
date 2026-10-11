@@ -248,7 +248,11 @@ impl<'p> Design<'p> {
                 })
             })
             .collect::<Result<Vec<_>, TreeError>>()?;
-        assert_eq!(tiers.last().map(|t| t.places.end), Some(places.len()), "a height for each tier");
+        assert_eq!(
+            tiers.last().map(|t| t.places.end),
+            Some(places.len()),
+            "a height for each tier"
+        );
         let tier_shift = tiers.iter().map(|t| t.kind_bits).max().unwrap_or(0);
         let fixed_vars = |tier: usize| tiers.get(tier).map_or(0, |t| t.fixed.kappa() + t.kind_bits);
         let rv = leaf.program().rv();
@@ -548,7 +552,11 @@ impl<'p> Design<'p> {
             })
             .collect();
         DenseClaim {
-            poly: if tier == SMALL { DensePoly::Fixed } else { DensePoly::Wide },
+            poly: if tier == SMALL {
+                DensePoly::Fixed
+            } else {
+                DensePoly::Wide
+            },
             low,
             terms,
         }

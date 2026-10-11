@@ -228,7 +228,10 @@ fn forged_coverage_is_refused() {
     let statements: Vec<TreeStatement> = (proofs.iter())
         .map(|p| TreeStatement::new(d.statement, p.words.clone()))
         .collect();
-    let items = f.tree.child_witnesses(SMALL, &proofs, &statements).expect("honest children");
+    let items = f
+        .tree
+        .child_witnesses(SMALL, &proofs, &statements)
+        .expect("honest children");
     let shape = d.union_shape(kind).expect("a claim-set tree");
     let fill = UnionFill::unbacked(&shape, &[&f.firsts[0].claims, &f.firsts[1].claims], &declared);
     let inputs = NodeInputs::Prove {
@@ -547,14 +550,17 @@ fn a_tiered_first_level_and_union_stay_within_their_capacities() {
     let five = set(vec![group(1, 1, &[0, 1, 2, 3, 4])]);
     let (proof, output) = leaf_proof(&five);
     assert_eq!(
-        t.tree.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &five)], None),
+        t.tree
+            .aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &five)], None),
         Err(TreeError::Capacity)
     );
     // And the large tier's capacity bounds every union.
     let four = set(vec![group(3, 1, &[0, 1, 2, 3])]);
     let (proof, output) = leaf_proof(&four);
-    let first = (t.tree.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &four)], None))
-        .expect("a set within the small tier");
+    let first = (t
+        .tree
+        .aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &four)], None))
+    .expect("a set within the small tier");
     let big = (t.tree.aggregate(&[&first, &t.pair], None)).expect("nine claims within the tree's capacity");
     assert!(t.tree.is_large(&big.proof));
     assert_eq!(t.tree.aggregate(&[&big, &t.firsts[2]], None), Err(TreeError::Capacity));

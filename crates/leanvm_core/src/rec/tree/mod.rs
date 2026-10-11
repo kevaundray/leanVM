@@ -553,7 +553,10 @@ impl<'p> Tree<'p> {
         let fixed = |tier: usize| {
             design.tiers.get(tier).map_or_else(
                 || vec![F64::ZERO],
-                |t| t.fixed.polynomial(&columns[t.places.clone()].iter().collect::<Vec<_>>()),
+                |t| {
+                    t.fixed
+                        .polynomial(&columns[t.places.clone()].iter().collect::<Vec<_>>())
+                },
             )
         };
         let rv = program.rv();
@@ -587,7 +590,9 @@ impl<'p> Tree<'p> {
             let built: Vec<Circuit> = (0..d.places.len()).map(|p| d.shape(p).circuit).collect();
             let next: Vec<PerRecTable<usize>> = (d.tiers.iter().zip(&taus))
                 .map(|(tier, taus)| {
-                    PerRecTable::from_fn(|t| (built[tier.places.clone()].iter()).fold(taus[t], |h, c| h.max(c.heights()[t])))
+                    PerRecTable::from_fn(|t| {
+                        (built[tier.places.clone()].iter()).fold(taus[t], |h, c| h.max(c.heights()[t]))
+                    })
                 })
                 .collect();
             if next == taus {
@@ -697,7 +702,9 @@ impl<'p> Tree<'p> {
                 if self.design.places[position].tier != tier {
                     return Err(TreeError::Circuit(c.circuit));
                 }
-                let openings = self.read(c, position).map_err(|error| TreeError::Child { index, error })?;
+                let openings = self
+                    .read(c, position)
+                    .map_err(|error| TreeError::Child { index, error })?;
                 Ok(ChildWitness {
                     statement,
                     proof: &c.proof,
@@ -807,7 +814,11 @@ impl<'p> Tree<'p> {
         let mut wraps = Vec::with_capacity(n);
         for (index, c) in children.iter().enumerate() {
             let position = self.known(&c.proof)?;
-            wraps.push((d.places[position].tier == LARGE).then(|| self.wrap(index, c)).transpose()?);
+            wraps.push(
+                (d.places[position].tier == LARGE)
+                    .then(|| self.wrap(index, c))
+                    .transpose()?,
+            );
         }
         let children: Vec<&Aggregate> = (children.iter().zip(&wraps))
             .map(|(&c, w)| w.as_ref().unwrap_or(c))
@@ -904,7 +915,10 @@ impl<'p> Tree<'p> {
         if declared.n_claims() >= held.claims || declared.groups.len() > held.groups {
             return Err(TreeError::Capacity);
         }
-        let shape = self.design.union_shape(position).expect("a claim-set tree's node has a union");
+        let shape = self
+            .design
+            .union_shape(position)
+            .expect("a claim-set tree's node has a union");
         let fill = UnionFill::new(&shape, sets, &declared).map_err(|e| match e {
             FillError::Children | FillError::Declared => TreeError::Capacity,
             FillError::NotCovered(claim) => TreeError::NotCovered(claim),

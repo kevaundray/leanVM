@@ -286,7 +286,9 @@ impl UnionFill {
         );
         let empty = ClaimSet::new();
         let absent: Vec<bool> = (0..shape.arity).map(|r| r >= children.len()).collect();
-        let runs: Vec<&ClaimSet> = (0..shape.arity).map(|r| children.get(r).copied().unwrap_or(&empty)).collect();
+        let runs: Vec<&ClaimSet> = (0..shape.arity)
+            .map(|r| children.get(r).copied().unwrap_or(&empty))
+            .collect();
         let mut child = PoolFill::new(shape.children, &runs).ok_or(FillError::Children)?;
         let declared_pool = PoolFill::new(shape.declared, &[declared]).ok_or(FillError::Declared)?;
         let mut free: HashMap<Claim, Vec<(usize, usize)>> = HashMap::new();
@@ -542,11 +544,7 @@ pub(crate) fn union_rows(
     assert_eq!(children.len(), shape.arity, "one digest a child");
     let read: Vec<Dw> = if shape.optional {
         let empty = ClaimSet::new().digest();
-        let [e_lo, e_hi] = [
-            F192::new(empty[0], empty[1], 0),
-            F192::new(empty[2], empty[3], 0),
-        ]
-        .map(|v| b.e_const(v));
+        let [e_lo, e_hi] = [F192::new(empty[0], empty[1], 0), F192::new(empty[2], empty[3], 0)].map(|v| b.e_const(v));
         let bits: Vec<Kw> = (0..shape.arity)
             .map(|r| b.free_k(u64::from(fill.is_some_and(|f| f.absent[r]))))
             .collect();
@@ -639,7 +637,12 @@ mod tests {
     }
 
     /// The same, of a given shape, each child's digest its set's.
-    fn run_shape(shape: &UnionShape, sets: &[ClaimSet], fill: &UnionFill, expected: Option<&ClaimSet>) -> Vec<Unsatisfied> {
+    fn run_shape(
+        shape: &UnionShape,
+        sets: &[ClaimSet],
+        fill: &UnionFill,
+        expected: Option<&ClaimSet>,
+    ) -> Vec<Unsatisfied> {
         let mut b = Builder::new();
         let digests: Vec<Dw> = sets.iter().map(|s| b.free_d(s.digest())).collect();
         let d = union_rows(&mut b, shape, &SessionId([7; 32]), &digests, Some(fill));
@@ -699,7 +702,10 @@ mod tests {
         ));
         let forged = UnionFill::unbacked(&shape, &[&a], &union);
         let failures = run_shape(&shape, &sets, &forged, Some(&union));
-        assert!(failures.iter().any(|f| f.scope().iter().any(|s| s == "coverage")), "{failures:?}");
+        assert!(
+            failures.iter().any(|f| f.scope().iter().any(|s| s == "coverage")),
+            "{failures:?}"
+        );
     }
 
     #[test]
