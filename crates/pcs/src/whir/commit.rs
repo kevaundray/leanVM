@@ -13,9 +13,7 @@ use crate::ntt::AdditiveNttF64;
 use crate::verifier::OpeningVerifier;
 use crate::whir::anchor::anchor_value;
 use crate::whir::verify::WhirError;
-use fiat_shamir::TranscriptContext;
-use fiat_shamir::merkle::hash_to_scalars;
-use fiat_shamir::transcript::Transmitter;
+use fiat_shamir::{ProverState, TranscriptContext};
 use primitives::field::{F64, F192};
 use std::sync::Arc;
 
@@ -122,37 +120,28 @@ fn commitment_constants(shape: CommitmentShape) -> [F192; 3] {
 }
 
 /// Bind the whole immutable record before any opening challenge, including in a fresh session.
-pub(crate) fn send_record_binding(ps: &mut impl Transmitter, commitment: &Commitment) {
+/// The root and chaining value are each a raw32 prover message; all remaining fields keep their F192 packing and order.
+pub(crate) fn send_record_binding(ps: &mut ProverState, commitment: &Commitment) {
     let mut constants = commitment_constants(commitment.shape);
     constants[0] = OPENING_DOMAIN;
     let mut i = 0;
     while i < constants.len() {
-        ps.add_scalar(constants[i]);
+        ps.prover_message(&constants[i]);
         i += 1;
     }
-    let root = hash_to_scalars(&commitment.root);
-    let state = hash_to_scalars(&commitment.context.state);
-    let mut i = 0;
-    while i < 2 {
-        ps.add_scalar(root[i]);
-        i += 1;
-    }
-    let mut i = 0;
-    while i < 2 {
-        ps.add_scalar(state[i]);
-        i += 1;
-    }
+    ps.prover_message(&commitment.root);
+    ps.prover_message(&commitment.context.state);
     let context = &commitment.context;
-    ps.add_scalar(F192::new(
+    ps.prover_message(&F192::new(
         context.pending_bytes as u64,
         u64::from(context.first),
         context.previous,
     ));
-    ps.add_scalar(F192::new(context.squeezed, 0, 0));
+    ps.prover_message(&F192::new(context.squeezed, 0, 0));
     let words = context.pending_bytes.div_ceil(8);
     let mut i = 0;
     while i + 3 <= words {
-        ps.add_scalar(F192::new(
+        ps.prover_message(&F192::new(
             context.pending[i].unwrap().0,
             context.pending[i + 1].unwrap().0,
             context.pending[i + 2].unwrap().0,
@@ -165,20 +154,20 @@ pub(crate) fn send_record_binding(ps: &mut impl Transmitter, commitment: &Commit
         } else {
             0
         };
-        ps.add_scalar(F192::new(context.pending[i].unwrap().0, second, 0));
+        ps.prover_message(&F192::new(context.pending[i].unwrap().0, second, 0));
     }
     let mut i = 0;
     while i < commitment.shape.log_n {
-        ps.add_scalar(commitment.point[i]);
+        ps.prover_message(&commitment.point[i]);
         i += 1;
     }
-    ps.add_scalar(commitment.value);
+    ps.prover_message(&commitment.value);
 }
 
 fn verify_record_constants<V: OpeningVerifier>(v: &mut V, constants: &[F192]) -> Result<(), WhirError> {
     let mut i = 0;
     while i < constants.len() {
-        let actual = v.next_scalar()?;
+        let actual = v.prover_message()?;
         let expected = v.constant(constants[i]);
         v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)?;
         i += 1;
@@ -189,7 +178,7 @@ fn verify_record_constants<V: OpeningVerifier>(v: &mut V, constants: &[F192]) ->
 fn verify_record_values<V: OpeningVerifier>(v: &mut V, values: &[V::E], len: usize) -> Result<(), WhirError> {
     let mut i = 0;
     while i < len {
-        let actual = v.next_scalar()?;
+        let actual = v.prover_message()?;
         v.ensure_eq(actual, values[i], || WhirError::CommitmentMismatch)?;
         i += 1;
     }
@@ -203,7 +192,7 @@ fn verify_record_pending<V: OpeningVerifier>(
     let words = context.pending_bytes.div_ceil(8);
     let mut i = 0;
     while i + 3 <= words {
-        let actual = v.next_scalar()?;
+        let actual = v.prover_message()?;
         let expected = v.e_of_limbs([
             context.pending[i].unwrap(),
             context.pending[i + 1].unwrap(),
@@ -213,7 +202,7 @@ fn verify_record_pending<V: OpeningVerifier>(
         i += 3;
     }
     if i < words {
-        let actual = v.next_scalar()?;
+        let actual = v.prover_message()?;
         let zero = v.zero_k();
         let second = if i + 1 < words {
             context.pending[i + 1].unwrap()
@@ -234,10 +223,10 @@ pub(crate) fn verify_record_binding<V: OpeningVerifier>(
     let mut constants = commitment_constants(commitment.shape);
     constants[0] = OPENING_DOMAIN;
     verify_record_constants(v, &constants)?;
-    let root = v.root_scalars(commitment.root);
-    let state = v.root_scalars(commitment.context.state);
-    verify_record_values(v, &root, 2)?;
-    verify_record_values(v, &state, 2)?;
+    let root = v.next_root()?;
+    v.ensure_root_eq(root, commitment.root)?;
+    let state = v.next_root()?;
+    v.ensure_root_eq(state, commitment.context.state)?;
     let context = &commitment.context;
     verify_record_constants(
         v,
@@ -248,7 +237,7 @@ pub(crate) fn verify_record_binding<V: OpeningVerifier>(
     )?;
     verify_record_pending(v, context)?;
     verify_record_values(v, &commitment.point, commitment.shape.log_n)?;
-    let actual = v.next_scalar()?;
+    let actual = v.prover_message()?;
     v.ensure_eq(actual, commitment.value, || WhirError::CommitmentMismatch)?;
     Ok(())
 }
@@ -278,7 +267,7 @@ pub(crate) fn receive_commitment<V: OpeningVerifier>(
     let context = v.context();
     let mut constants_match = Ok(());
     for expected in commitment_constants(shape) {
-        constants_match = match v.next_scalar() {
+        constants_match = match v.prover_message() {
             Ok(actual) => {
                 let expected = v.constant(expected);
                 v.ensure_eq(actual, expected, || WhirError::CommitmentMismatch)
@@ -291,8 +280,8 @@ pub(crate) fn receive_commitment<V: OpeningVerifier>(
     }
     constants_match?;
     let root = v.next_root()?;
-    let point = v.sample_vec(log_n);
-    let value = v.next_scalar()?;
+    let point = v.verifier_messages(log_n);
+    let value = v.prover_message()?;
     Ok(Commitment {
         root,
         shape,
@@ -328,9 +317,9 @@ pub(crate) struct ProverData {
 /// rides the proof, so a verifier derives `n_lanes` from the announced layout to
 /// read a row and supplies the prefix itself.
 ///
-/// After encoding, retain the pre-header context, transmit the domain and shape as three scalars, then the root; draw one anchor point and transmit the zero-padded witness's MLE there.
+/// After encoding, retain the pre-header context, transmit the domain and shape as three scalars, then the raw32 root; draw one anchor point and transmit the zero-padded witness's MLE there.
 pub(crate) fn commit(
-    ps: &mut impl Transmitter,
+    ps: &mut ProverState,
     message: &[F64],
     log_n: usize,
     log_batch_size: usize,
@@ -373,11 +362,11 @@ pub(crate) fn commit(
     let merkle_tree = tracing::info_span!("Merkle").in_scope(|| tree.finish());
     let root = *merkle_tree.last().expect("merkle tree non-empty");
     let context = ps.context();
-    ps.add_scalars(&commitment_constants(shape));
-    ps.add_root(&root);
-    let point = ps.sample_vec(log_n);
+    ps.prover_messages(&commitment_constants(shape));
+    ps.prover_message(&root);
+    let point = ps.verifier_messages(log_n);
     let value = anchor_value(message, log_rows, &point);
-    ps.add_scalar(value);
+    ps.prover_message(&value);
 
     (
         Commitment {
@@ -502,14 +491,12 @@ pub(crate) fn ligero_commit_ext(
 #[cfg(test)]
 #[test]
 fn record_frame_packs_exact_duplex_context() {
-    use fiat_shamir::merkle::hash_to_scalars;
-    use fiat_shamir::transcript::{ProverState, VerifierState};
-    use fiat_shamir::{Duplex, TranscriptContext};
+    use fiat_shamir::{Blake2sDuplex, DuplexSponge, Encoding, SessionId, VerifierState};
 
     let input: [u8; 64] = std::array::from_fn(|i| (i + 1) as u8);
     for mode in 0..3 {
         for pending_bytes in 0usize..=64 {
-            let mut duplex = Duplex::from_label(b"original-context");
+            let mut duplex = Blake2sDuplex::init(SessionId::new(b"original-context").0);
             if mode == 1 {
                 duplex.absorb(&input[..17]);
                 duplex.squeeze(&mut [0; 3]);
@@ -517,20 +504,8 @@ fn record_frame_packs_exact_duplex_context() {
                 duplex.absorb(&input);
             }
             duplex.absorb(&input[..pending_bytes]);
-            let snapshot = duplex.context();
-            assert_eq!(snapshot.pending_bytes, pending_bytes);
-            let mut state = [0u8; 32];
-            for (bytes, word) in state.as_chunks_mut::<8>().0.iter_mut().zip(snapshot.state) {
-                *bytes = word.0.to_le_bytes();
-            }
-            let context = TranscriptContext {
-                state,
-                pending: snapshot.pending,
-                pending_bytes: snapshot.pending_bytes,
-                first: snapshot.first,
-                previous: snapshot.previous,
-                squeezed: snapshot.squeezed,
-            };
+            let context = duplex.context();
+            assert_eq!(context.pending_bytes, pending_bytes);
             let record = Commitment {
                 root: [71; 32],
                 shape: CommitmentShape {
@@ -544,46 +519,66 @@ fn record_frame_packs_exact_duplex_context() {
                 value: F192::new(5, 6, 7),
             };
             assert!(record.valid_context());
-            let mut ps = ProverState::from_label(b"fresh-frame");
+            let mut ps = ProverState::new(&SessionId::new(b"fresh-frame"), &0u64);
             send_record_binding(&mut ps, &record);
             let proof = ps.into_proof();
-            let mut expected = vec![
+            let mut expected = Vec::new();
+            for scalar in [
                 F192::new(0x65706f2d72696877, 0x0031762d676e696e, 0),
                 F192::new(4, 1, 1),
                 F192::new(1, 0, 0),
-            ];
-            expected.extend(hash_to_scalars(&record.root));
-            expected.extend(hash_to_scalars(&state));
-            expected.push(F192::new(
-                pending_bytes as u64,
-                u64::from(snapshot.first),
-                snapshot.previous,
-            ));
-            expected.push(F192::new(snapshot.squeezed, 0, 0));
+            ] {
+                expected.extend_from_slice(scalar.encode().as_ref());
+            }
+            // Roots and chaining values are raw32 messages, not padded scalar halves.
+            expected.extend_from_slice(&record.root);
+            expected.extend_from_slice(&context.state);
+            for scalar in [
+                F192::new(pending_bytes as u64, u64::from(context.first), context.previous),
+                F192::new(context.squeezed, 0, 0),
+            ] {
+                expected.extend_from_slice(scalar.encode().as_ref());
+            }
             for bytes in input[..pending_bytes].chunks(24) {
                 let mut padded = [0u8; 24];
                 padded[..bytes.len()].copy_from_slice(bytes);
-                expected.push(F192::new(
-                    u64::from_le_bytes(padded[..8].try_into().unwrap()),
-                    u64::from_le_bytes(padded[8..16].try_into().unwrap()),
-                    u64::from_le_bytes(padded[16..].try_into().unwrap()),
-                ));
+                expected.extend_from_slice(&padded);
             }
-            expected.extend_from_slice(&record.point);
-            expected.push(record.value);
-            assert_eq!(proof.stream, expected, "mode {mode}, {pending_bytes} bytes");
-            assert_eq!(proof.stream.len(), 10 + record.shape.log_n + pending_bytes.div_ceil(24));
-            let mut vs = VerifierState::from_label(b"fresh-frame", &proof);
+            for scalar in record.point.iter().chain(std::iter::once(&record.value)) {
+                expected.extend_from_slice(scalar.encode().as_ref());
+            }
+            assert_eq!(proof.narg, expected, "mode {mode}, {pending_bytes} bytes");
+            assert_eq!(
+                proof.narg.len(),
+                64 + 24 * (6 + record.shape.log_n + pending_bytes.div_ceil(24))
+            );
+            let mut vs = VerifierState::new(&SessionId::new(b"fresh-frame"), &0u64, &proof);
             verify_record_binding(&mut vs, &record).expect("all record fields match");
-            vs.finish().expect("the frame is consumed exactly");
-            for index in 0..proof.stream.len() {
+            vs.check_eof().expect("the frame is consumed exactly");
+            if mode == 0 && pending_bytes == 0 {
+                let mut legacy = proof.clone();
+                let mut padded_roots = Vec::new();
+                for digest in [record.root, context.state] {
+                    for half in digest.as_chunks::<16>().0 {
+                        padded_roots.extend_from_slice(half);
+                        padded_roots.extend_from_slice(&[0; 8]);
+                    }
+                }
+                legacy.narg.splice(3 * 24..3 * 24 + 64, padded_roots);
+                let mut vs = VerifierState::new(&SessionId::new(b"fresh-frame"), &0u64, &legacy);
+                assert_eq!(
+                    verify_record_binding(&mut vs, &record),
+                    Err(WhirError::CommitmentMismatch)
+                );
+            }
+            for index in 0..proof.narg.len() {
                 let mut bad = proof.clone();
-                bad.stream[index] += F192::new(1, 0, 1);
-                let mut vs = VerifierState::from_label(b"fresh-frame", &bad);
+                bad.narg[index] ^= 1;
+                let mut vs = VerifierState::new(&SessionId::new(b"fresh-frame"), &0u64, &bad);
                 assert_eq!(
                     verify_record_binding(&mut vs, &record),
                     Err(WhirError::CommitmentMismatch),
-                    "mode {mode}, {pending_bytes} bytes, scalar {index}",
+                    "mode {mode}, {pending_bytes} bytes, byte {index}",
                 );
             }
         }
@@ -593,41 +588,41 @@ fn record_frame_packs_exact_duplex_context() {
 #[cfg(test)]
 #[test]
 fn commitment_retains_context_and_the_single_sampled_anchor() {
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::{SessionId, VerifierState};
 
     let label = b"commitment-record";
     let prefix = F192::new(7, 11, 13);
     let witness = [F64(3), F64(5), F64(7), F64(11)];
-    let mut ps = ProverState::from_label(label);
-    ps.add_scalar(prefix);
-    let expected_context = Transmitter::context(&ps);
+    let mut ps = ProverState::new(&SessionId::new(label), &0u64);
+    ps.prover_message(&prefix);
+    let expected_context = ps.context();
     let (record, data) = commit(&mut ps, &witness, 3, 1, 1);
     assert_eq!(record.context(), expected_context);
     assert_eq!(data.merkle_tree.last(), Some(&record.root()));
     assert_eq!(record.value(), anchor_value(&witness, 2, record.point()));
     let proof = ps.into_proof();
     assert_eq!(
-        proof.stream.len(),
-        7,
-        "prefix, three shape scalars, root halves, anchor value"
+        proof.narg.len(),
+        5 * 24 + 32,
+        "prefix, three shape scalars, raw32 root, anchor value"
     );
-    let mut vs = VerifierState::from_label(label, &proof);
-    fiat_shamir::transcript::Receiver::next_scalar(&mut vs).unwrap();
+    let mut vs = VerifierState::new(&SessionId::new(label), &0u64, &proof);
+    assert_eq!(vs.prover_message::<F192>().unwrap(), prefix);
     let received = receive_commitment(&mut vs, 3, 1, 1, 1).unwrap();
     assert_eq!(received.context(), record.context());
     assert_eq!(received.shape(), record.shape());
     assert_eq!(received.root(), record.root());
     assert_eq!(received.point(), record.point());
     assert_eq!(received.value(), record.value());
-    vs.finish().unwrap();
+    vs.check_eof().unwrap();
 }
 
 #[cfg(test)]
 #[test]
 fn malformed_commitment_shape_rejects_without_reading_or_sampling() {
-    use fiat_shamir::transcript::{ProverState, VerifierState};
+    use fiat_shamir::{SessionId, VerifierState};
 
-    let proof = ProverState::from_label(b"shape-guards").into_proof();
+    let proof = ProverState::new(&SessionId::new(b"shape-guards"), &0u64).into_proof();
     for shape in [
         CommitmentShape {
             log_n: 3,
@@ -660,7 +655,7 @@ fn malformed_commitment_shape_rejects_without_reading_or_sampling() {
             n_lanes: 3,
         },
     ] {
-        let mut vs = VerifierState::from_label(b"shape-guards", &proof);
+        let mut vs = VerifierState::new(&SessionId::new(b"shape-guards"), &0u64, &proof);
         let before = vs.context();
         assert!(matches!(
             receive_commitment(

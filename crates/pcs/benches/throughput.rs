@@ -31,7 +31,7 @@
 //! ```
 
 use bench::{Metric, Plan, Timing, bencher_json, env_usize};
-use fiat_shamir::transcript::ProverState;
+use fiat_shamir::{ProverState, SessionId};
 use pcs::ntt::AdditiveNttF64;
 use pcs::ring_switch::{RingSwitch, SliceClaim};
 use pcs::stack::{CommittedStack, StackClaim, Statement};
@@ -83,12 +83,31 @@ fn main() {
     plan.warm_then_measure(|last| {
         let _quiet = (!last).then(bench::suppress_tracing);
 
-        let mut ch = ProverState::from_label(b"pcs-throughput");
+        let mut ch = ProverState::new(&SessionId::new(b"pcs-throughput"), &(log_n as u64));
         let t = Instant::now();
         let committed =
             tracing::info_span!("Commit").in_scope(|| CommittedStack::new(&mut ch, &witness, log_n, pc.clone()));
         commit_t.push(t.elapsed().as_secs_f64());
 
+        // Bind the caller's point/value and ring-switch claims before opening challenges.
+        for claim in &point_claims {
+            if let StackClaim::Point { low_point, value, .. } = claim {
+                for coordinate in low_point {
+                    ch.public_message(coordinate);
+                }
+                ch.public_message(value);
+            }
+        }
+        for ring in &rings {
+            for claim in &ring.claims {
+                for coordinate in &claim.suffix_point {
+                    ch.public_message(coordinate);
+                }
+                for value in &claim.s_hat_v {
+                    ch.public_message(value);
+                }
+            }
+        }
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
             let statement = Statement {
