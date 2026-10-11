@@ -1788,4 +1788,141 @@ theorem check_config_shape_ok (hw : System.Platform.numBits = 64) (hv : c.valid 
 
 end ConfigFacts
 
+/-! ## The transcript's answers as the model's challenges and opening -/
+
+section Script
+open AccumulatedTerminalRefinement WHIRNativeArithmetic
+
+/-- One level's answers, as source values: the fold rounds `(r, u0, u2)`, the next oracle's
+root or (at the last level) the residual polynomial, the out-of-domain claims
+`(z, y, u0, u2)`, the query positions and the model's squeezes behind them, the batch
+challenge, the opened rows and the batch's intro round. -/
+structure SLevel (E Q R K : Type) where
+  folds : List (E × E × E)
+  head : R ⊕ List E
+  oods : List (List E × E × E × E)
+  squeezes : Array Concrete.E
+  queries : List Q
+  lambda : E
+  rows : List (List K)
+  intro : E × E
+
+structure Script (E Q R K : Type) where
+  initial : E × E
+  levels : List (SLevel E Q R K)
+  tail : List E
+  tailMsgs : List (E × E)
+
+variable {V R K Q E : Type}
+
+def headTape : R ⊕ List E → List (Event E Q R K)
+  | .inl r => [.root r]
+  | .inr ys => [.scalars ys]
+
+def batchTape (l : SLevel E Q R K) : List (Event E Q R K) :=
+  [.grind, .queries l.queries, .sample l.lambda, .rows l.rows, .poly l.intro.1 l.intro.2]
+
+def levelTape (l : SLevel E Q R K) : List (Event E Q R K) :=
+  foldTape l.folds ++ (headTape l.head ++ (oodTape l.oods ++ batchTape l))
+
+/-- The replay's reads, in order. -/
+def Script.tape (s : Script E Q R K) : List (Event E Q R K) :=
+  .poly s.initial.1 s.initial.2 :: (s.levels.flatMap levelTape ++ tailTape s.tail s.tailMsgs)
+
+def residualOf : R ⊕ List E → List E
+  | .inl _ => []
+  | .inr ys => ys
+
+variable (encode : E → Concrete.E) (encodeK : K → Concrete.K)
+  (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E) (index : Q → Nat)
+
+def SLevel.chal (l : SLevel E Q R K) : Protocol.LevelChallenges :=
+  ⟨(l.folds.map fun x => encode x.1).toArray, (l.oods.map fun o => (o.1.map encode).toArray).toArray,
+    l.squeezes, encode l.lambda⟩
+
+/-- A level's proof: level 0 rows are words read as base elements, later rows are elements
+of three words each. The next oracle is only a presence marker in the native verifier. -/
+def SLevel.prf (base : Bool) (l : SLevel E Q R K) : Protocol.LevelProof :=
+  ⟨(l.folds.map fun x => (⟨encode x.2.1, encode x.2.2⟩ : Protocol.Message Concrete.E)).toArray,
+    (match l.head with | .inl _ => some #[] | .inr _ => none),
+    (l.oods.map fun o => (⟨encode o.2.1, ⟨encode o.2.2.1, encode o.2.2.2⟩⟩ : Protocol.OodClaim)).toArray,
+    (if base then l.rows.map (fun w => (w.map fun k => Concrete.E.ofK (encodeK k)).toArray)
+      else l.rows.map fun w => (eRow encodeK ofLimbs w).toArray).toArray,
+    ⟨encode l.intro.1, encode l.intro.2⟩⟩
+
+/-- The model's challenges the transcript answered. -/
+def Script.chal (s : Script E Q R K) : Protocol.Challenges :=
+  ⟨(s.levels.map (SLevel.chal encode)).toArray, (s.tail.map encode).toArray⟩
+
+/-- The model's opening the transcript answered. -/
+def Script.prf (s : Script E Q R K) : Protocol.Opening :=
+  ⟨⟨encode s.initial.1, encode s.initial.2⟩,
+    (s.levels.mapIdx fun i l => SLevel.prf encode encodeK ofLimbs (i == 0) l).toArray,
+    (((s.levels.getLast?.map fun l => residualOf l.head).getD []).map encode).toArray,
+    (s.tailMsgs.map fun m => (⟨encode m.1, encode m.2⟩ : Protocol.Message Concrete.E)).toArray⟩
+
+/-- The shapes the opening must have for the source's fixed read schedule: a root at every
+level but the last, the residual of the remaining cube at the last, query positions derived
+from the squeezes, one row per query of the committed width, and one round polynomial per
+residual round but the last. -/
+structure ScriptShape (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat) : Prop where
+  len : s.levels.length = c.folds.size
+  head : ∀ i (hi : i + 1 < s.levels.length), ∃ r, (s.levels[i]'(by omega)).head = .inl r
+  last : ∀ (hl : 0 < s.levels.length), ∃ ys, (s.levels[s.levels.length - 1]'(by omega)).head = .inr ys ∧
+    ys.length = 2 ^ CausalGame.remaining c (c.folds.size - 1)
+  queries : ∀ i (hi : i < s.levels.length),
+    (deriveQueries (CausalGame.remaining c i + c.rates[i]!) c.queries[i]! s.levels[i].squeezes).map
+      Array.toList = some (s.levels[i].queries.map index)
+  rows : ∀ i (hi : i < s.levels.length), s.levels[i].rows.length = s.levels[i].queries.length
+  base : ∀ (hl : 0 < s.levels.length), ∀ w ∈ (s.levels[0]'hl).rows, w.length = lanes
+  ext : ∀ i (hi : i < s.levels.length), 0 < i → ∀ w ∈ s.levels[i].rows, w.length = 3 * 2 ^ c.folds[i]!
+  tail : s.tailMsgs.length + 1 = s.tail.length
+
+theorem chal_get (s : Script E Q R K) (j : Nat) (hj : j < s.levels.length) :
+    (s.chal encode).levels[j]! = s.levels[j].chal encode := by
+  simp [Script.chal, getElem!_pos, hj]
+
+theorem prf_get (s : Script E Q R K) (j : Nat) (hj : j < s.levels.length) :
+    (s.prf encode encodeK ofLimbs).levels[j]! = s.levels[j].prf encode encodeK ofLimbs (j == 0) := by
+  simp [Script.prf, getElem!_pos, hj]
+
+theorem deriveQueries_size (d n : Nat) (sq : Array Concrete.E) (qs : Array Nat)
+    (h : deriveQueries d n sq = some qs) : qs.size = n := by
+  unfold deriveQueries at h
+  split_ifs at h <;> simp at h
+  rw [← h.2]; simp [tab]
+
+/-- What the challenge validator and the shape premise give at one level. -/
+theorem level_facts (c : Protocol.Config) (s : Script E Q R K) (lanes : Nat)
+    (hc : (s.chal encode).valid c = true) (hS : ScriptShape index c s lanes) (j : Nat) (hj : j < c.folds.size) :
+    (s.levels[j]'(by rw [hS.len]; exact hj)).folds.length = c.folds[j]! ∧
+    (s.levels[j]'(by rw [hS.len]; exact hj)).oods.length = CausalGame.oodCount c j ∧
+    (∀ o ∈ (s.levels[j]'(by rw [hS.len]; exact hj)).oods, o.1.length = CausalGame.remaining c j) ∧
+    ∃ qsA, deriveQueries (CausalGame.remaining c j + c.rates[j]!) c.queries[j]!
+        (s.levels[j]'(by rw [hS.len]; exact hj)).squeezes = some qsA ∧
+      qsA.toList = (s.levels[j]'(by rw [hS.len]; exact hj)).queries.map index ∧
+      (s.levels[j]'(by rw [hS.len]; exact hj)).queries.length = c.queries[j]! := by
+  have hjl : j < s.levels.length := by rw [hS.len]; exact hj
+  have hf := WHIRNativeGuards.challenges_folds c _ hc j hj
+  have ho := WHIRNativeGuards.challenges_ood_count c _ hc j hj
+  have hp := WHIRNativeGuards.challenges_ood_point c _ hc j hj
+  rw [chal_get encode s j hjl] at hf ho hp
+  simp only [SLevel.chal, List.size_toArray, List.length_map] at hf ho
+  refine ⟨hf, ho, fun o ho' => ?_, ?_⟩
+  · have := hp (o.1.map encode).toArray (by
+      rw [SLevel.chal]; exact List.mem_toArray.mpr (List.mem_map.mpr ⟨o, ho', rfl⟩))
+    simpa using this
+  · have hq := hS.queries j hjl
+    cases hd : deriveQueries (CausalGame.remaining c j + c.rates[j]!) c.queries[j]! s.levels[j].squeezes with
+    | none => simp [hd] at hq
+    | some qsA =>
+      simp only [hd, Option.map_some, Option.some.injEq] at hq
+      refine ⟨qsA, rfl, hq, ?_⟩
+      have := deriveQueries_size _ _ _ _ hd
+      have h1 := congrArg List.length hq
+      simp only [Array.length_toList, List.length_map] at h1
+      omega
+
+end Script
+
 end WhirAeneas.Replay
