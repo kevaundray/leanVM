@@ -30,7 +30,7 @@ structure primitives.field.gf2_64x3.F192 where
   c2 : Std.U64
 
 /-- Trait declaration: [fiat_shamir::arith::Arith]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 13:0-13:15
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 16:0-16:15
     Name pattern: [fiat_shamir::arith::Arith]
     Visibility: public -/
 @[rust_trait "fiat_shamir::arith::Arith"
@@ -61,7 +61,7 @@ structure fiat_shamir.arith.Arith (Self : Type) (Self_E : Type) where
     Self)
 
 /-- [fiat_shamir::arith::Stage]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 221:0-221:14
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 224:0-224:14
     Name pattern: [fiat_shamir::arith::Stage]
     Visibility: public -/
 @[discriminant isize, rust_type "fiat_shamir::arith::Stage"]
@@ -78,53 +78,65 @@ inductive fiat_shamir.arith.Stage where
 | Whir : fiat_shamir.arith.Stage
 | Zerocheck : fiat_shamir.arith.Stage
 
-/-- [fiat_shamir::transcript::TranscriptError]
-    Source: 'crates/fiat_shamir/src/transcript.rs', lines 56:0-56:24
-    Name pattern: [fiat_shamir::transcript::TranscriptError]
+/-- [fiat_shamir::error::TranscriptError]
+    Source: 'crates/fiat_shamir/src/error.rs', lines 9:0-9:24
+    Name pattern: [fiat_shamir::error::TranscriptError]
     Visibility: public -/
-@[discriminant isize, rust_type "fiat_shamir::transcript::TranscriptError"]
-inductive fiat_shamir.transcript.TranscriptError where
-| ExceededStream : Std.Usize → fiat_shamir.transcript.TranscriptError
-| MissingHint : Std.Usize → fiat_shamir.transcript.TranscriptError
-| InvalidMerkleOpening : Std.Usize → fiat_shamir.transcript.TranscriptError
-| NotFullyConsumed :
-  Std.Usize →
-  Std.Usize →
-  fiat_shamir.transcript.TranscriptError
-| PowFailed : Std.U32 → fiat_shamir.transcript.TranscriptError
-| NonCanonicalEncoding : fiat_shamir.transcript.TranscriptError
+@[discriminant isize, rust_type "fiat_shamir::error::TranscriptError"]
+inductive fiat_shamir.error.TranscriptError where
+| Malformed : Std.Usize → fiat_shamir.error.TranscriptError
+| MissingHint : Std.Usize → fiat_shamir.error.TranscriptError
+| InvalidHint : Std.Usize → fiat_shamir.error.TranscriptError
+| PowFailed : Std.U32 → fiat_shamir.error.TranscriptError
+| TrailingBytes : Std.Usize → Std.Usize → fiat_shamir.error.TranscriptError
 
 /-- Trait declaration: [fiat_shamir::arith::Verifier]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 236:0-236:25
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 239:0-239:25
     Name pattern: [fiat_shamir::arith::Verifier]
     Visibility: public -/
 @[rust_trait "fiat_shamir::arith::Verifier" (parentClauses := ["ArithInst"])]
 structure fiat_shamir.arith.Verifier (Self : Type) (Self_Clause0_E : Type)
   where
   ArithInst : fiat_shamir.arith.Arith Self Self_Clause0_E
-  next_scalar : Self → Result ((core.result.Result Self_Clause0_E
-    fiat_shamir.transcript.TranscriptError) × Self)
-  next_round_poly : Self → Std.Usize → Self_Clause0_E → Option
-    Self_Clause0_E → Result ((core.result.Result (alloc.vec.Vec
-    Self_Clause0_E) fiat_shamir.transcript.TranscriptError) × Self)
-  sample : Self → Result (Self_Clause0_E × Self)
-  grind_check : Self → Std.U32 → Result ((core.result.Result Unit
-    fiat_shamir.transcript.TranscriptError) × Self)
+  prover_message : Self → Result ((core.result.Result Self_Clause0_E
+    fiat_shamir.error.TranscriptError) × Self)
+  verifier_message : Self → Result (Self_Clause0_E × Self)
+  check_pow : Self → Std.U32 → Result ((core.result.Result Unit
+    fiat_shamir.error.TranscriptError) × Self)
   ensure_eq : forall {Er : Type} {T2 : Type} (coreopsfunctionFnOncePTuplePInst
     : core.ops.function.FnOnce T2 Unit Er), Self → Self_Clause0_E →
     Self_Clause0_E → T2 → Result ((core.result.Result Unit Er) × Self)
-  finish : Self → Result ((core.result.Result Unit
-    fiat_shamir.transcript.TranscriptError) × Self)
+  check_eof : Self → Result ((core.result.Result Unit
+    fiat_shamir.error.TranscriptError) × Self)
   begin_scope : Self → fiat_shamir.arith.Stage → Result Self
   end_scope : Self → Result Self
-  next_scalars : Self → Std.Usize → Result ((core.result.Result
-    (alloc.vec.Vec Self_Clause0_E) fiat_shamir.transcript.TranscriptError) ×
-    Self)
-  sample_vec : Self → Std.Usize → Result ((alloc.vec.Vec Self_Clause0_E) ×
-    Self)
+  prover_messages : Self → Std.Usize → Result ((core.result.Result
+    (alloc.vec.Vec Self_Clause0_E) fiat_shamir.error.TranscriptError) × Self)
+  verifier_messages : Self → Std.Usize → Result ((alloc.vec.Vec
+    Self_Clause0_E) × Self)
+
+/-- [fiat_shamir::arith::RoundPolynomial]
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 309:0-309:29
+    Name pattern: [fiat_shamir::arith::RoundPolynomial]
+    Visibility: public -/
+@[rust_type "fiat_shamir::arith::RoundPolynomial"]
+structure fiat_shamir.arith.RoundPolynomial (C : Type) where
+  coeffs : C
+
+/-- Trait declaration: [fiat_shamir::codec::FromUniform]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 48:0-48:28
+    Name pattern: [fiat_shamir::codec::FromUniform]
+    Visibility: public -/
+@[rust_trait "fiat_shamir::codec::FromUniform"
+  (parentClauses := ["coredefaultDefaultInst", "coreconvertAsMutSelf_ReprSliceU8Inst"])]
+structure fiat_shamir.codec.FromUniform (Self : Type) (Self_Repr : Type) where
+  coredefaultDefaultInst : core.default.Default Self_Repr
+  coreconvertAsMutSelf_ReprSliceU8Inst : core.convert.AsMut Self_Repr (Slice
+    Std.U8)
+  from_uniform : Self_Repr → Result Self
 
 /-- [fiat_shamir::TranscriptContext]
-    Source: 'crates/fiat_shamir/src/lib.rs', lines 23:0-23:34
+    Source: 'crates/fiat_shamir/src/lib.rs', lines 42:0-42:34
     Name pattern: [fiat_shamir::TranscriptContext]
     Visibility: public -/
 @[rust_type "fiat_shamir::TranscriptContext"]
@@ -136,15 +148,15 @@ structure fiat_shamir.TranscriptContext (K : Type) (R : Type) where
   previous : Std.U64
   squeezed : Std.U64
 
-/-- Trait declaration: [fiat_shamir::transcript::Challenger]
-    Source: 'crates/fiat_shamir/src/transcript.rs', lines 80:0-80:20
-    Name pattern: [fiat_shamir::transcript::Challenger]
+/-- Trait declaration: [fiat_shamir::Challenger]
+    Source: 'crates/fiat_shamir/src/lib.rs', lines 56:0-56:20
+    Name pattern: [fiat_shamir::Challenger]
     Visibility: public -/
-@[rust_trait "fiat_shamir::transcript::Challenger"]
-structure fiat_shamir.transcript.Challenger (Self : Type) where
-  sample : Self → Result (primitives.field.gf2_64x3.F192 × Self)
-  sample_vec : Self → Std.Usize → Result ((alloc.vec.Vec
-    primitives.field.gf2_64x3.F192) × Self)
+@[rust_trait "fiat_shamir::Challenger"]
+structure fiat_shamir.Challenger (Self : Type) where
+  verifier_message : forall {T : Type} {Clause0_Repr : Type}
+    (codecFromUniformInst : fiat_shamir.codec.FromUniform T Clause0_Repr), Self
+    → Result (T × Self)
 
 /-- [primitives::field::gf2_64::F64]
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 18:0-18:14
@@ -160,8 +172,31 @@ def primitives.field.gf2_64.F64 := Std.U64
   "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure"]
 def primitives.field.gf2_64.F64.inv.closure := Unit
 
+/-- [pcs::whir::config::ConfigError]
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 58:0-71:1
+    Visibility: public -/
+@[discriminant isize]
+inductive whir.config.ConfigError where
+| RateOutOfRange : Std.Usize → whir.config.ConfigError
+| SizeOutOfRange : Std.Usize → whir.config.ConfigError
+
+/-- [pcs::whir::verify::WhirError]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 26:0-68:1
+    Visibility: public -/
+@[discriminant isize]
+inductive whir.verify.WhirError where
+| Transcript : fiat_shamir.error.TranscriptError → whir.verify.WhirError
+| Config : whir.config.ConfigError → whir.verify.WhirError
+| LaneCount : Std.Usize → Std.Usize → whir.verify.WhirError
+| InvalidShape : Std.Usize → whir.verify.WhirError
+| CommitmentMismatch : whir.verify.WhirError
+| NoRingClaim : whir.verify.WhirError
+| Region : Std.Usize → whir.verify.WhirError
+| PointClaim : Std.Usize → whir.verify.WhirError
+| TerminalMismatch : whir.verify.WhirError
+
 /-- Trait declaration: [pcs::verifier::OpeningVerifier]
-    Source: 'crates/pcs/src/verifier.rs', lines 18:0-74:1
+    Source: 'crates/pcs/src/verifier.rs', lines 17:0-77:1
     Visibility: public -/
 structure verifier.OpeningVerifier (Self : Type) (Self_Root : Type) (Self_K :
   Type) (Self_Query : Type) (Self_Clause0_Clause0_E : Type) where
@@ -172,28 +207,20 @@ structure verifier.OpeningVerifier (Self : Type) (Self_Root : Type) (Self_K :
   context : Self → Result ((fiat_shamir.TranscriptContext Self_K Self_Root)
     × Self)
   zero_k : Self → Result (Self_K × Self)
-  root_scalars : Self → Self_Root → Result ((Array Self_Clause0_Clause0_E
-    2#usize) × Self)
+  ensure_root_eq : Self → Self_Root → Self_Root → Result
+    ((core.result.Result Unit whir.verify.WhirError) × Self)
   next_root : Self → Result ((core.result.Result Self_Root
-    fiat_shamir.transcript.TranscriptError) × Self)
+    fiat_shamir.error.TranscriptError) × Self)
   sample_queries : Self → Std.Usize → Std.Usize → Result ((alloc.vec.Vec
     Self_Query) × Self)
   open_rows : Self → Self_Root → Std.Usize → Slice Self_Query →
     Std.Usize → Std.Usize → Result ((core.result.Result (alloc.vec.Vec
-    (alloc.vec.Vec Self_K)) fiat_shamir.transcript.TranscriptError) × Self)
+    (alloc.vec.Vec Self_K)) fiat_shamir.error.TranscriptError) × Self)
   mul_k_add : Self → Self_Clause0_Clause0_E → Self_K →
     Self_Clause0_Clause0_E → Result (Self_Clause0_Clause0_E × Self)
   e_of_limbs : Self → Array Self_K 3#usize → Result (Self_Clause0_Clause0_E
     × Self)
   query_point : Self → Self_Query → Result (Self_Clause0_Clause0_E × Self)
-
-/-- [pcs::whir::config::ConfigError]
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 58:0-71:1
-    Visibility: public -/
-@[discriminant isize]
-inductive whir.config.ConfigError where
-| RateOutOfRange : Std.Usize → whir.config.ConfigError
-| SizeOutOfRange : Std.Usize → whir.config.ConfigError
 
 /-- [pcs::whir::config::Config]
     Source: 'crates/pcs/src/whir/config/mod.rs', lines 157:0-170:1
@@ -218,21 +245,6 @@ structure whir.Stratum where
 structure whir.query.Normalizers where
   at_roots : alloc.vec.Vec primitives.field.gf2_64.F64
   inverses : alloc.vec.Vec primitives.field.gf2_64.F64
-
-/-- [pcs::whir::verify::WhirError]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 26:0-68:1
-    Visibility: public -/
-@[discriminant isize]
-inductive whir.verify.WhirError where
-| Transcript : fiat_shamir.transcript.TranscriptError → whir.verify.WhirError
-| Config : whir.config.ConfigError → whir.verify.WhirError
-| LaneCount : Std.Usize → Std.Usize → whir.verify.WhirError
-| InvalidShape : Std.Usize → whir.verify.WhirError
-| CommitmentMismatch : whir.verify.WhirError
-| NoRingClaim : whir.verify.WhirError
-| Region : Std.Usize → whir.verify.WhirError
-| PointClaim : Std.Usize → whir.verify.WhirError
-| TerminalMismatch : whir.verify.WhirError
 
 /-- [pcs::whir::verify::Quad]
     Source: 'crates/pcs/src/whir/verify.rs', lines 72:0-79:1 -/

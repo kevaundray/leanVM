@@ -31,7 +31,8 @@ case "$surface" in
         dest="$here/llbc/replay"
         generated="$here"
         args=(--start-from pcs::whir::verify::verify --start-from pcs::whir::sample_queries_ordered
-              --start-from pcs::ring_switch::RingMap::close --include primitives)
+              --start-from pcs::ring_switch::RingMap::close --include primitives
+              --include 'fiat_shamir::arith::_::read' --include fiat_shamir::arith::fixed_coefficient)
         cargo_args=(--lib --release)
         aeneas_args=(-backend lean -namespace ReplaySource -no-progress-bar
                      -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Replay)
@@ -88,7 +89,8 @@ if [[ "$surface" == statement ]]; then
     python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" pcs::stack::Statement::check
 fi
 if [[ "$surface" == replay ]]; then
-    for root in pcs::whir::verify::verify pcs::whir::sample_queries_ordered pcs::ring_switch::RingMap::close; do
+    for root in pcs::whir::verify::verify pcs::whir::sample_queries_ordered pcs::ring_switch::RingMap::close \
+        fiat_shamir::arith::RoundPolynomial::read fiat_shamir::arith::fixed_coefficient; do
         python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
     done
 fi

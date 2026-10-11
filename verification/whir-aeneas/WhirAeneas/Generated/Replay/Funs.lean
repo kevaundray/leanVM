@@ -21,6 +21,120 @@ set_option maxRecDepth 2048
 
 namespace ReplaySource
 
+/-- [fiat_shamir::arith::fixed_coefficient]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 315:0-315:51
+    Name pattern: [fiat_shamir::arith::fixed_coefficient] -/
+@[rust_fun "fiat_shamir::arith::fixed_coefficient"]
+def fiat_shamir.arith.fixed_coefficient
+  (weighted : Bool) : Result Std.Usize := do
+  if weighted
+  then ok 0#usize
+  else ok 1#usize
+
+/-- [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<E>>}::read]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 369:8-372:9
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read"]
+def fiat_shamir.arith.RoundPolynomialVec.read_loop.body
+  {E : Type} {V : Type} (coremarkerCopyInst : core.marker.Copy E) (VerifierInst
+  : fiat_shamir.arith.Verifier V E) (coeffs : alloc.vec.Vec E) (v : V)
+  (tail : E) (i : Std.Usize) :
+  Result (ControlFlow (V × E × Std.Usize) (V × E))
+  := do
+  let i1 := alloc.vec.Vec.len coeffs
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) coeffs i
+    let (tail1, v1) ← VerifierInst.ArithInst.add v tail t
+    let i2 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (v1, tail1, i2))
+  else ok (done (v, tail))
+
+/-- [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<E>>}::read]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 369:8-372:9
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read"]
+def fiat_shamir.arith.RoundPolynomialVec.read_loop
+  {E : Type} {V : Type} (coremarkerCopyInst : core.marker.Copy E) (VerifierInst
+  : fiat_shamir.arith.Verifier V E) (v : V) (coeffs : alloc.vec.Vec E)
+  (tail : E) (i : Std.Usize) :
+  Result (V × E)
+  := do
+  loop
+    (fun (v1, tail1, i1) => fiat_shamir.arith.RoundPolynomialVec.read_loop.body
+      coremarkerCopyInst VerifierInst coeffs v1 tail1 i1)
+    (v, tail, i)
+
+/-- [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<E>>}::read]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 351:4-356:38
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read"]
+def fiat_shamir.arith.RoundPolynomialVec.read
+  {E : Type} {V : Type} (coremarkerCopyInst : core.marker.Copy E) (VerifierInst
+  : fiat_shamir.arith.Verifier V E) (v : V) (n_coeffs : Std.Usize) (claim : E)
+  (eq : Option E) :
+  Result ((core.result.Result (fiat_shamir.arith.RoundPolynomial (alloc.vec.Vec
+    E)) fiat_shamir.error.TranscriptError) × V)
+  := do
+  massert (n_coeffs >= 2#usize)
+  let b := core.option.Option.is_some eq
+  let fixed ← fiat_shamir.arith.fixed_coefficient b
+  let i ← lift (Std.Usize.wrapping_sub n_coeffs 1#usize)
+  let (r, v1) ← VerifierInst.prover_messages v i
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let val1 ← alloc.vec.Vec.insert val fixed claim
+    let (zero, v2) ← VerifierInst.ArithInst.zero v1
+    let i1 ← lift (Std.Usize.wrapping_add fixed 1#usize)
+    let (v3, tail) ←
+      fiat_shamir.arith.RoundPolynomialVec.read_loop coremarkerCopyInst
+        VerifierInst v2 val1 zero i1
+    match eq with
+    | none =>
+      let (t, v4) ← VerifierInst.ArithInst.add v3 claim tail
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice E) val1
+          fixed
+      let coeffs := index_mut_back t
+      ok (core.result.Result.Ok { coeffs }, v4)
+    | some r1 =>
+      let (t, v4) ← VerifierInst.ArithInst.mul_add v3 r1 tail claim
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice E) val1
+          fixed
+      let coeffs := index_mut_back t
+      ok (core.result.Result.Ok { coeffs }, v4)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (fiat_shamir.arith.RoundPolynomial (alloc.vec.Vec E))
+        (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
+    ok (r1, v1)
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; 24usize]> for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 80:0-80:25
+    Name pattern: [fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>"]
+def primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824 :
+  fiat_shamir.codec.FromUniform primitives.field.gf2_64x3.F192 (Array Std.U8
+  24#usize) := {
+  coredefaultDefaultInst := core.default.DefaultArray 24#usize
+    core.default.DefaultU8
+  coreconvertAsMutSelf_ReprSliceU8Inst := Array.Insts.CoreConvertAsMutSlice
+    Std.U8 24#usize
+  from_uniform :=
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform
+}
+
 /-- [primitives::field::gf2_64::{impl core::clone::Clone for primitives::field::gf2_64::F64}::clone]:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:9-16:14
     Name pattern: [primitives::field::gf2_64::{core::clone::Clone<primitives::field::gf2_64::F64>}::clone]
@@ -544,17 +658,19 @@ def whir.push_chunks
     Source: 'crates/pcs/src/whir/mod.rs', lines 127:4-131:5 -/
 @[rust_loop_body]
 def whir.sample_queries_ordered_loop0.body
-  {T0 : Type} (fiat_shamirtranscriptChallengerInst :
-  fiat_shamir.transcript.Challenger T0) (block_len : Std.Usize)
-  (count : Std.Usize) (d : Std.Usize) (per : Std.Usize) (ch : T0)
-  (out : alloc.vec.Vec Std.Usize) :
+  {T0 : Type} (fiat_shamirChallengerInst : fiat_shamir.Challenger T0)
+  (block_len : Std.Usize) (count : Std.Usize) (d : Std.Usize) (per : Std.Usize)
+  (ch : T0) (out : alloc.vec.Vec Std.Usize) :
   Result (ControlFlow (T0 × (alloc.vec.Vec Std.Usize)) (T0 × (alloc.vec.Vec
     Std.Usize)))
   := do
   let i := alloc.vec.Vec.len out
   if i < count
   then
-    let (v, ch1) ← fiat_shamirtranscriptChallengerInst.sample ch
+    let (v, ch1) ←
+      fiat_shamirChallengerInst.verifier_message
+        primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824
+        ch
     let i1 := alloc.vec.Vec.len out
     let i2 ← lift (Std.Usize.wrapping_sub count i1)
     let take ← lift (core.cmp.impls.OrdUsize.min per i2)
@@ -568,15 +684,14 @@ def whir.sample_queries_ordered_loop0.body
     Source: 'crates/pcs/src/whir/mod.rs', lines 127:4-131:5 -/
 @[rust_loop]
 def whir.sample_queries_ordered_loop0
-  {T0 : Type} (fiat_shamirtranscriptChallengerInst :
-  fiat_shamir.transcript.Challenger T0) (ch : T0) (block_len : Std.Usize)
-  (count : Std.Usize) (d : Std.Usize) (per : Std.Usize)
-  (out : alloc.vec.Vec Std.Usize) :
+  {T0 : Type} (fiat_shamirChallengerInst : fiat_shamir.Challenger T0) 
+  (ch : T0) (block_len : Std.Usize) (count : Std.Usize) (d : Std.Usize)
+  (per : Std.Usize) (out : alloc.vec.Vec Std.Usize) :
   Result (T0 × (alloc.vec.Vec Std.Usize))
   := do
   loop
     (fun (ch1, out1) => whir.sample_queries_ordered_loop0.body
-      fiat_shamirtranscriptChallengerInst block_len count d per ch1 out1)
+      fiat_shamirChallengerInst block_len count d per ch1 out1)
     (ch, out)
 
 /-- [pcs::whir::sample_queries_ordered]: loop body 1:
@@ -628,9 +743,8 @@ def whir.sample_queries_ordered_loop1
 /-- [pcs::whir::sample_queries_ordered]:
     Source: 'crates/pcs/src/whir/mod.rs', lines 123:0-141:1 -/
 def whir.sample_queries_ordered
-  {T0 : Type} (fiat_shamirtranscriptChallengerInst :
-  fiat_shamir.transcript.Challenger T0) (ch : T0) (block_len : Std.Usize)
-  (count : Std.Usize) :
+  {T0 : Type} (fiat_shamirChallengerInst : fiat_shamir.Challenger T0) 
+  (ch : T0) (block_len : Std.Usize) (count : Std.Usize) :
   Result ((alloc.vec.Vec Std.Usize) × T0)
   := do
   let i ← core.num.Usize.trailing_zeros block_len
@@ -638,8 +752,8 @@ def whir.sample_queries_ordered
   let per ← 192#usize / d
   let out := alloc.vec.Vec.with_capacity Std.Usize count
   let (ch1, out1) ←
-    whir.sample_queries_ordered_loop0 fiat_shamirtranscriptChallengerInst ch
-      block_len count d per out
+    whir.sample_queries_ordered_loop0 fiat_shamirChallengerInst ch block_len
+      count d per out
   let strata ← whir.strata count d
   let out2 ← whir.sample_queries_ordered_loop1 d out1 strata 0#usize
   ok (out2, ch1)
@@ -823,21 +937,21 @@ def whir.query.Normalizers.impl.inverses
   := do
   ok (alloc.vec.Vec.deref self.inverses)
 
-/-- [pcs::whir::verify::{impl core::convert::From<fiat_shamir::transcript::TranscriptError> for pcs::whir::verify::WhirError}::from]:
+/-- [pcs::whir::verify::{impl core::convert::From<fiat_shamir::error::TranscriptError> for pcs::whir::verify::WhirError}::from]:
     Source: 'crates/pcs/src/whir/verify.rs', lines 25:44-25:49
     Visibility: public -/
 def whir.verify.WhirError.Insts.CoreConvertFromTranscriptError.from
-  (source : fiat_shamir.transcript.TranscriptError) :
+  (source : fiat_shamir.error.TranscriptError) :
   Result whir.verify.WhirError
   := do
   ok (whir.verify.WhirError.Transcript source)
 
-/-- Trait implementation: [pcs::whir::verify::{impl core::convert::From<fiat_shamir::transcript::TranscriptError> for pcs::whir::verify::WhirError}]
+/-- Trait implementation: [pcs::whir::verify::{impl core::convert::From<fiat_shamir::error::TranscriptError> for pcs::whir::verify::WhirError}]
     Source: 'crates/pcs/src/whir/verify.rs', lines 29:15-29:22 -/
 @[reducible]
 def whir.verify.WhirError.Insts.CoreConvertFromTranscriptError :
-  core.convert.From whir.verify.WhirError
-  fiat_shamir.transcript.TranscriptError := {
+  core.convert.From whir.verify.WhirError fiat_shamir.error.TranscriptError
+  := {
   «from» := whir.verify.WhirError.Insts.CoreConvertFromTranscriptError.from
 }
 
@@ -1599,26 +1713,30 @@ def whir.verify.Quad.recv
   (verifierOpeningVerifierInst : verifier.OpeningVerifier V Clause1_Root
   Clause1_K Clause1_Query E) (v : V) (claim : E) :
   Result ((core.result.Result (whir.verify.Quad E)
-    fiat_shamir.transcript.TranscriptError) × V)
+    fiat_shamir.error.TranscriptError) × V)
   := do
   let (r, v1) ←
-    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.next_round_poly v
-      3#usize claim none
+    fiat_shamir.arith.RoundPolynomialVec.read coremarkerCopyInst
+      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst v 3#usize claim
+      none
   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
   match cf with
   | core.ops.control_flow.ControlFlow.Continue val =>
     let t ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) val 0#usize
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) val.coeffs
+        0#usize
     let t1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) val 1#usize
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) val.coeffs
+        1#usize
     let t2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) val 2#usize
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice E) val.coeffs
+        2#usize
     ok (core.result.Result.Ok { c := t, b := t1, a := t2 }, v1)
   | core.ops.control_flow.ControlFlow.Break residual =>
     let r1 ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
         (whir.verify.Quad E) (core.convert.FromSame
-        fiat_shamir.transcript.TranscriptError) residual
+        fiat_shamir.error.TranscriptError) residual
     ok (r1, v1)
 
 /-- [pcs::whir::verify::{pcs::whir::verify::WhirReplay<V, Clause0_Root, Clause0_K, Clause0_Query, Clause0_Clause0_Clause0_E>}::finish_query]: loop body 0:
@@ -1699,8 +1817,8 @@ def whir.verify.WhirReplay.finish_query
   (oods : alloc.vec.Vec (whir.verify.Ood Clause0_Clause0_Clause0_E))
   (log_msg_cols : Std.Usize)
   (sum : core.result.Result Clause0_Clause0_Clause0_E
-  fiat_shamir.transcript.TranscriptError) :
-  Result ((core.result.Result Unit fiat_shamir.transcript.TranscriptError) ×
+  fiat_shamir.error.TranscriptError) :
+  Result ((core.result.Result Unit fiat_shamir.error.TranscriptError) ×
     (whir.verify.WhirReplay V Clause0_Root Clause0_K Clause0_Query
     Clause0_Clause0_Clause0_E) × V)
   := do
@@ -1748,14 +1866,13 @@ def whir.verify.WhirReplay.finish_query
     | core.ops.control_flow.ControlFlow.Break residual =>
       let r1 ←
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          Unit (core.convert.FromSame fiat_shamir.transcript.TranscriptError)
+          Unit (core.convert.FromSame fiat_shamir.error.TranscriptError)
           residual
       ok (r1, self, v2)
   | core.ops.control_flow.ControlFlow.Break residual =>
     let r ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-        Unit (core.convert.FromSame fiat_shamir.transcript.TranscriptError)
-        residual
+        Unit (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
     ok (r, self, v1)
 
 /-- [pcs::whir::verify::{pcs::whir::verify::QueryPhase}::sample]:
@@ -1777,10 +1894,10 @@ def whir.verify.WhirReplay.begin_query
   verifier.OpeningVerifier V Clause0_Root Clause0_K Clause0_Query
   Clause0_Clause0_Clause0_E) (v : V) (phase : whir.verify.QueryPhase) :
   Result ((core.result.Result (whir.verify.PendingQuery Clause0_Query
-    Clause0_Clause0_Clause0_E) fiat_shamir.transcript.TranscriptError) × V)
+    Clause0_Clause0_Clause0_E) fiat_shamir.error.TranscriptError) × V)
   := do
   let (r, v1) ←
-    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.grind_check v
+    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.check_pow v
       phase.grinding
   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
   match cf with
@@ -1788,7 +1905,8 @@ def whir.verify.WhirReplay.begin_query
     let (queries, v2) ←
       whir.verify.QueryPhase.sample verifierOpeningVerifierInst phase v1
     let (lambda, v3) ←
-      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.sample v2
+      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.verifier_message
+        v2
     let (weights, v4) ←
       verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.ArithInst.powers
         v3 lambda phase.count
@@ -1800,7 +1918,7 @@ def whir.verify.WhirReplay.begin_query
     let r1 ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
         (whir.verify.PendingQuery Clause0_Query Clause0_Clause0_Clause0_E)
-        (core.convert.FromSame fiat_shamir.transcript.TranscriptError) residual
+        (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
     ok (r1, v1)
 
 /-- [pcs::whir::verify::{pcs::whir::verify::WhirReplay<V, Clause0_Root, Clause0_K, Clause0_Query, Clause0_Clause0_Clause0_E>}::phase]:
@@ -1941,7 +2059,7 @@ def whir.verify.Oracle.open_e_rows
   Clause0_Clause0_Clause0_E) (self : whir.verify.Oracle R) (v : V)
   (queries : Slice Clause0_Query) :
   Result ((core.result.Result (whir.verify.ExtRows Clause0_Clause0_Clause0_E)
-    fiat_shamir.transcript.TranscriptError) × V)
+    fiat_shamir.error.TranscriptError) × V)
   := do
   let leaf_words ←
     lift (Std.Usize.wrapping_shl 3#usize self.log_num_interleaved)
@@ -1963,7 +2081,7 @@ def whir.verify.Oracle.open_e_rows
     let r1 ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
         (whir.verify.ExtRows Clause0_Clause0_Clause0_E) (core.convert.FromSame
-        fiat_shamir.transcript.TranscriptError) residual
+        fiat_shamir.error.TranscriptError) residual
     ok (r1, v1)
 
 /-- [pcs::whir::verify::{pcs::whir::verify::Quad<E>}::eval]:
@@ -2021,7 +2139,8 @@ def whir.verify.WhirReplay.last_level_loop.body
     ok (done (result, v3))
   | some j =>
     let (ri, v1) ←
-      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.sample v
+      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.verifier_message
+        v
     let (t, v2) ←
       whir.verify.Quad.eval
         verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
@@ -2091,7 +2210,8 @@ def whir.verify.WhirReplay.last_level
   := do
   let i ← lift (Std.Usize.wrapping_shl 1#usize n_current)
   let (r, v1) ←
-    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.next_scalars v i
+    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.prover_messages v
+      i
   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
   match cf with
   | core.ops.control_flow.ControlFlow.Continue val =>
@@ -2164,7 +2284,7 @@ def whir.verify.WhirReplay.fold_rounds_loop.body
     (whir.verify.WhirReplay V Clause0_Root Clause0_K Clause0_Query
     Clause0_Clause0_Clause0_E) × V × (alloc.vec.Vec
     Clause0_Clause0_Clause0_E)) ((core.result.Result (alloc.vec.Vec
-    Clause0_Clause0_Clause0_E) fiat_shamir.transcript.TranscriptError) ×
+    Clause0_Clause0_Clause0_E) fiat_shamir.error.TranscriptError) ×
     Clause0_Clause0_Clause0_E × (whir.verify.Quad Clause0_Clause0_Clause0_E)
     × (alloc.vec.Vec Clause0_Clause0_Clause0_E) × (alloc.vec.Vec
     (whir.verify.LevelCtx Clause0_Query Clause0_Clause0_Clause0_E)) ×
@@ -2183,7 +2303,8 @@ def whir.verify.WhirReplay.fold_rounds_loop.body
       self.oods, v))
   | some _ =>
     let (ri, v1) ←
-      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.sample v
+      verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.verifier_message
+        v
     let (t, v2) ←
       whir.verify.Quad.eval
         verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
@@ -2201,7 +2322,7 @@ def whir.verify.WhirReplay.fold_rounds_loop.body
       let r1 ←
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
           (alloc.vec.Vec Clause0_Clause0_Clause0_E) (core.convert.FromSame
-          fiat_shamir.transcript.TranscriptError) residual
+          fiat_shamir.error.TranscriptError) residual
       ok (done (r1, t, self.quad, self.ris, self.levels, self.oods, v3))
 
 /-- [pcs::whir::verify::{pcs::whir::verify::WhirReplay<V, Clause0_Root, Clause0_K, Clause0_Query, Clause0_Clause0_Clause0_E>}::fold_rounds]: loop 0:
@@ -2216,7 +2337,7 @@ def whir.verify.WhirReplay.fold_rounds_loop
   Clause0_Clause0_Clause0_E) (v : V)
   (rs : alloc.vec.Vec Clause0_Clause0_Clause0_E) :
   Result ((core.result.Result (alloc.vec.Vec Clause0_Clause0_Clause0_E)
-    fiat_shamir.transcript.TranscriptError) × Clause0_Clause0_Clause0_E ×
+    fiat_shamir.error.TranscriptError) × Clause0_Clause0_Clause0_E ×
     (whir.verify.Quad Clause0_Clause0_Clause0_E) × (alloc.vec.Vec
     Clause0_Clause0_Clause0_E) × (alloc.vec.Vec (whir.verify.LevelCtx
     Clause0_Query Clause0_Clause0_Clause0_E)) × (alloc.vec.Vec
@@ -2238,7 +2359,7 @@ def whir.verify.WhirReplay.fold_rounds
   (self : whir.verify.WhirReplay V Clause0_Root Clause0_K Clause0_Query
   Clause0_Clause0_Clause0_E) (v : V) (k : Std.Usize) :
   Result ((core.result.Result (alloc.vec.Vec Clause0_Clause0_Clause0_E)
-    fiat_shamir.transcript.TranscriptError) × (whir.verify.WhirReplay V
+    fiat_shamir.error.TranscriptError) × (whir.verify.WhirReplay V
     Clause0_Root Clause0_K Clause0_Query Clause0_Clause0_Clause0_E) × V)
   := do
   let rs := alloc.vec.Vec.with_capacity Clause0_Clause0_Clause0_E k
@@ -2285,13 +2406,13 @@ def whir.verify.Ood.replay
   (verifierOpeningVerifierInst : verifier.OpeningVerifier V Clause1_Root
   Clause1_K Clause1_Query E) (v : V) (n_vars : Std.Usize) :
   Result ((core.result.Result (whir.verify.Ood E)
-    fiat_shamir.transcript.TranscriptError) × V)
+    fiat_shamir.error.TranscriptError) × V)
   := do
   let (z, v1) ←
-    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.sample_vec v
-      n_vars
+    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.verifier_messages
+      v n_vars
   let (r, v2) ←
-    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.next_scalar v1
+    verifierOpeningVerifierInst.fiat_shamirarithVerifierInst.prover_message v1
   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
   match cf with
   | core.ops.control_flow.ControlFlow.Continue val =>
@@ -2306,13 +2427,13 @@ def whir.verify.Ood.replay
       let r2 ←
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
           (whir.verify.Ood E) (core.convert.FromSame
-          fiat_shamir.transcript.TranscriptError) residual
+          fiat_shamir.error.TranscriptError) residual
       ok (r2, v3)
   | core.ops.control_flow.ControlFlow.Break residual =>
     let r1 ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
         (whir.verify.Ood E) (core.convert.FromSame
-        fiat_shamir.transcript.TranscriptError) residual
+        fiat_shamir.error.TranscriptError) residual
     ok (r1, v2)
 
 /-- [pcs::whir::verify::{pcs::whir::verify::Ood<E>}::replay_all]: loop body 0:
@@ -2326,7 +2447,7 @@ def whir.verify.Ood.replay_all_loop.body
   (v : V) (oods : alloc.vec.Vec (whir.verify.Ood E)) (i : Std.Usize) :
   Result (ControlFlow (V × (alloc.vec.Vec (whir.verify.Ood E)) × Std.Usize)
     ((core.result.Result (alloc.vec.Vec (whir.verify.Ood E))
-    fiat_shamir.transcript.TranscriptError) × V))
+    fiat_shamir.error.TranscriptError) × V))
   := do
   if i < count
   then
@@ -2343,7 +2464,7 @@ def whir.verify.Ood.replay_all_loop.body
       let r1 ←
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
           (alloc.vec.Vec (whir.verify.Ood E)) (core.convert.FromSame
-          fiat_shamir.transcript.TranscriptError) residual
+          fiat_shamir.error.TranscriptError) residual
       ok (done (r1, v1))
   else ok (done (core.result.Result.Ok oods, v))
 
@@ -2357,7 +2478,7 @@ def whir.verify.Ood.replay_all_loop
   Clause1_K Clause1_Query E) (v : V) (count : Std.Usize) (n_vars : Std.Usize)
   (oods : alloc.vec.Vec (whir.verify.Ood E)) (i : Std.Usize) :
   Result ((core.result.Result (alloc.vec.Vec (whir.verify.Ood E))
-    fiat_shamir.transcript.TranscriptError) × V)
+    fiat_shamir.error.TranscriptError) × V)
   := do
   loop
     (fun (v1, oods1, i1) => whir.verify.Ood.replay_all_loop.body
@@ -2373,7 +2494,7 @@ def whir.verify.Ood.replay_all
   (verifierOpeningVerifierInst : verifier.OpeningVerifier V Clause1_Root
   Clause1_K Clause1_Query E) (v : V) (count : Std.Usize) (n_vars : Std.Usize) :
   Result ((core.result.Result (alloc.vec.Vec (whir.verify.Ood E))
-    fiat_shamir.transcript.TranscriptError) × V)
+    fiat_shamir.error.TranscriptError) × V)
   := do
   whir.verify.Ood.replay_all_loop coremarkerCopyInst
     verifierOpeningVerifierInst v count n_vars (alloc.vec.Vec.new
