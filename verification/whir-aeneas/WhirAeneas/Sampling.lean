@@ -159,4 +159,142 @@ theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 
     simp only [whir.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
       ← hL0, hv, hpush]
 
+/-- `push_chunks` pushes the first `take` chunks of the limbs' number, in order. -/
+theorem push_chunks_eq (hw : System.Platform.numBits = 64) (limbs : Array U64 3#usize) (x0 x1 x2 : U64)
+    (hl : limbs.val = [x0, x1, x2]) (d take block_len : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
+    (hb : block_len.val = 2 ^ d.val) (htake : take.val * d.val ≤ 192) :
+    ∀ (m : Nat) (j : Usize) (out : alloc.vec.Vec Usize), take.val - j.val = m → j.val ≤ take.val →
+      out.val.length + (take.val - j.val) ≤ Usize.max →
+      ∃ out', whir.push_chunks_loop out limbs d take block_len j = .ok out' ∧
+        out'.val.map (·.val) = out.val.map (·.val) ++
+          (List.range' j.val (take.val - j.val)).map fun k => (limbsNat x0 x1 x2 / 2 ^ (k * d.val)) % 2 ^ d.val := by
+  intro m
+  induction m with
+  | zero =>
+    intro j out hm hj hcap
+    refine ⟨out, ?_, by rw [show take.val - j.val = 0 by omega]; simp⟩
+    unfold whir.push_chunks_loop
+    apply loop_done
+    have : ¬ (j < take) := by simp only [UScalar.lt_equiv]; omega
+    simp [whir.push_chunks_loop.body, this]
+  | succ m ih =>
+    intro j out hm hj hcap
+    have hjt : j.val < take.val := by omega
+    obtain ⟨out1, hbody, e1⟩ := push_chunks_body hw limbs x0 x1 x2 hl d take block_len hd0 hd hb out j hjt
+      (by have : (j.val + 1) * d.val ≤ take.val * d.val := Nat.mul_le_mul_right _ hjt; rw [Nat.add_mul] at this; omega)
+      (by omega)
+    have hsucc := succ_val j take.val hjt (by have := take.hBounds; scalar_tac)
+    have hl1 : out1.val.length = out.val.length + 1 := by simpa using congrArg List.length e1
+    obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_add j 1#usize) out1 (by omega) (by omega)
+      (by rw [hl1, hsucc]; omega)
+    refine ⟨out', ?_, ?_⟩
+    · unfold whir.push_chunks_loop
+      rw [loop_cont hbody]
+      unfold whir.push_chunks_loop at hloop
+      exact hloop
+    · rw [e', e1, hsucc, show take.val - j.val = (take.val - (j.val + 1)) + 1 by omega, List.range'_succ]
+      simp
+
+/-! ## The squeeze loop -/
+
+/-- The challenger's squeezes: each `sample` returns the tape's next element. -/
+structure SqueezeTape {T0 : Type} (Ch : fiat_shamir.transcript.Challenger T0)
+    (tape : T0 → List primitives.field.gf2_64x3.F192) : Prop where
+  sample : ∀ ch x rest, tape ch = x :: rest → ∃ ch', Ch.sample ch = .ok (x, ch') ∧ tape ch' = rest
+
+/-- A squeezed element as the model's extension element. -/
+def toE (x : primitives.field.gf2_64x3.F192) : Concrete.E :=
+  ⟨UInt64.ofNat x.c0.val, UInt64.ofNat x.c1.val, UInt64.ofNat x.c2.val⟩
+
+theorem toE_toNat (x : primitives.field.gf2_64x3.F192) : (toE x).toNat = limbsNat x.c0 x.c1 x.c2 := by
+  have b0 := x.c0.hBounds; have b1 := x.c1.hBounds; have b2 := x.c2.hBounds
+  simp only [UScalarTy.U64_numBits_eq] at b0 b1 b2
+  simp [toE, E.toNat, limbsNat, Nat.mod_eq_of_lt b0, Nat.mod_eq_of_lt b1, Nat.mod_eq_of_lt b2]
+  ring
+
+/-- The number a squeezed element denotes. -/
+def sqNat (x : primitives.field.gf2_64x3.F192) : Nat := limbsNat x.c0 x.c1 x.c2
+
+/-- Query `i`'s raw position before stratification: chunk `i mod per` of squeeze `i / per`. -/
+def rawAt (ns : List Nat) (d per i : Nat) : Nat :=
+  (ns.getD (i / per) 0 / 2 ^ ((i % per) * d)) % 2 ^ d
+
+theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fiat_shamir.transcript.Challenger T0)
+    (tape : T0 → List primitives.field.gf2_64x3.F192) (ht : SqueezeTape Ch tape)
+    (block_len count d per : Usize) (hd0 : 0 < d.val) (hd : d.val < 64) (hb : block_len.val = 2 ^ d.val)
+    (hper : per.val = 192 / d.val) (sq : List primitives.field.gf2_64x3.F192)
+    (hsq : sq.length = (count.val + per.val - 1) / per.val) (rest : List primitives.field.gf2_64x3.F192) :
+    ∀ (m k : Nat) (ch : T0) (out : alloc.vec.Vec Usize), sq.length - k = m → k ≤ sq.length →
+      tape ch = sq.drop k ++ rest → out.val.length = min (k * per.val) count.val →
+      out.val.map (·.val) = (List.range out.val.length).map (rawAt (sq.map sqNat) d.val per.val) →
+      ∃ ch' out', whir.sample_queries_ordered_loop0 Ch ch block_len count d per out = .ok (ch', out') ∧
+        tape ch' = rest ∧ out'.val.map (·.val) = (List.range count.val).map (rawAt (sq.map sqNat) d.val per.val) := by
+  have hp0 : 0 < per.val := by rw [hper]; exact Nat.div_pos (by omega) hd0
+  have hpd : per.val * d.val ≤ 192 := by rw [hper]; exact Nat.div_mul_le_self 192 d.val
+  have hceil : ∀ k, k < sq.length ↔ k * per.val < count.val := by
+    intro k
+    rw [hsq, Nat.lt_iff_add_one_le, Nat.le_div_iff_mul_le hp0, Nat.add_mul]; omega
+  intro m
+  induction m with
+  | zero =>
+    intro k ch out hm hk hch hlen hout
+    have hk' : k = sq.length := by omega
+    have hge : count.val ≤ k * per.val := by have := (hceil k).not.mp (by omega); omega
+    have hlc : out.val.length = count.val := by rw [hlen]; omega
+    refine ⟨ch, out, ?_, by rw [hch, hk', List.drop_length]; rfl, by rw [hout, hlc]⟩
+    unfold whir.sample_queries_ordered_loop0
+    apply loop_done
+    have : ¬ (alloc.vec.Vec.len out < count) := by
+      rw [UScalar.lt_equiv, alloc.vec.Vec.len_val]; simp only [alloc.vec.Vec.length]; omega
+    simp [whir.sample_queries_ordered_loop0.body, this]
+  | succ m ih =>
+    intro k ch out hm hk hch hlen hout
+    have hkl : k < sq.length := by omega
+    have hkc : k * per.val < count.val := (hceil k).mp hkl
+    have hlo : out.val.length = k * per.val := by rw [hlen]; omega
+    obtain ⟨ch1, hsample, hch1⟩ := ht.sample ch sq[k] (sq.drop (k + 1) ++ rest)
+      (by rw [hch, List.drop_eq_getElem_cons hkl]; rfl)
+    have hcm : count.val ≤ Usize.max := by clear * - count; scalar_tac
+    have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
+    have hsub : (Std.Usize.wrapping_sub count (alloc.vec.Vec.len out)).val = count.val - k * per.val := by
+      rw [Fold.sub_val _ _ (by simp; omega)]; simp [hlo]
+    obtain ⟨take, htk, etk⟩ : ∃ take, core.cmp.impls.OrdUsize.min per
+        (Std.Usize.wrapping_sub count (alloc.vec.Vec.len out)) = take ∧
+        take.val = min per.val (count.val - k * per.val) := ⟨_, rfl, by simp [core.cmp.impls.OrdUsize.min_val, hsub]⟩
+    have hz0 : (0#usize : Usize).val = 0 := by simp
+    let limbs := Array.make 3#usize [sq[k].c0, sq[k].c1, sq[k].c2]
+    obtain ⟨out1, hloop1, e1⟩ := push_chunks_eq hw limbs sq[k].c0 sq[k].c1 sq[k].c2 rfl d take block_len hd0 hd hb
+      (by rw [etk]; exact le_trans (Nat.mul_le_mul_right _ (Nat.min_le_left _ _)) hpd) _ 0#usize out rfl (by simp)
+      (by rw [hz0, etk, hlo, Nat.sub_zero]; omega)
+    have hlt : alloc.vec.Vec.len out < count := by
+      rw [UScalar.lt_equiv, alloc.vec.Vec.len_val]; simp only [alloc.vec.Vec.length]; omega
+    have hbody : whir.sample_queries_ordered_loop0.body Ch block_len count d per ch out = .ok (.cont (ch1, out1)) := by
+      simp only [whir.sample_queries_ordered_loop0.body, hlt, ↓reduceIte, Std.bind_ok, hsample, lift, htk]
+      simp [whir.push_chunks, limbs] at hloop1 ⊢
+      rw [hloop1]; simp only [Std.bind_ok]
+    have hl1 : out1.val.length = min ((k + 1) * per.val) count.val := by
+      have := congrArg List.length e1; simp at this; rw [this, hlo, etk, Nat.add_mul]; omega
+    obtain ⟨ch', out', hloop, hch', hout'⟩ := ih (k + 1) ch1 out1 (by omega) (by omega)
+      (by rw [hch1]) hl1 (by
+        rw [e1, hout, hlo, hl1]
+        rw [show min ((k + 1) * per.val) count.val = k * per.val + min per.val (count.val - k * per.val) by
+          rw [Nat.add_mul]; omega, List.range_add, List.map_append]
+        congr 1
+        simp only [hz0, Nat.sub_zero, etk, List.range'_eq_map_range, List.map_map]
+        apply List.map_congr_left
+        intro j hj
+        simp only [List.mem_range] at hj
+        have hjp : j < per.val := lt_of_lt_of_le hj (Nat.min_le_left _ _)
+        simp only [Function.comp, rawAt, Nat.zero_add]
+        rw [show (k * per.val + j) / per.val = k by
+            rw [Nat.add_comm, Nat.add_mul_div_right _ _ hp0, Nat.div_eq_of_lt hjp, Nat.zero_add],
+          show (k * per.val + j) % per.val = j by
+            rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hjp]]
+        simp [List.getD_eq_getElem?_getD, hkl, sqNat])
+    refine ⟨ch', out', ?_, hch', hout'⟩
+    unfold whir.sample_queries_ordered_loop0
+    rw [loop_cont hbody]
+    unfold whir.sample_queries_ordered_loop0 at hloop
+    exact hloop
+
 end WhirAeneas.Sampling
