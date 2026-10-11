@@ -64,6 +64,8 @@ def parse (line : String) : Except String Call := do
     let m ← nats (args.drop 1 |>.take 8)
     return .leafBlock (← n 0) m (← n 9) ((← n 10) = 1)
   | "chain" => return .chain (← list args)
+  | "chain_step" => return .chainStep (← n 0) (← n 1) (← n 2) (← n 3) (← n 4)
+  | "link" => return .link (← n 0) (← n 1) (← n 2) (← n 3) (← n 4)
   | op => .error s!"unknown call: {op}"
 
 /-- The root of `x`'s class. -/
@@ -95,7 +97,7 @@ def finish (s : State) : String × List (List ℕ) := Id.run do
   let mut out := ""
   let mut classes : List (List ℕ) := []
   let flat (rs : Array (List ℕ)) : List ℕ := rs.toList.flatten
-  let tables := [flat s.emul, flat s.exk, flat s.hash, flat s.split, flat s.cast, pubRows]
+  let tables := [flat s.emul, flat s.exk, flat s.hash, flat s.split, flat s.cast, flat s.step, flat s.link, pubRows]
   for t in tables do
     let mut line := s!"table {t.length}"
     let mut cs : Array ℕ := #[]
@@ -120,8 +122,8 @@ def finish (s : State) : String × List (List ℕ) := Id.run do
 /-- `Rec.classNext` of every slot, as `FixedColumns::of` writes it: the `SlotKey` of the next slot of its class in
 slot order, the class's first after its last, per table, row-major. -/
 def nextKeys (classes : List (List ℕ)) : String := Id.run do
-  let widths := [4, 4, 16, 65, 8, 1]
-  let firsts := [0, 4, 8, 24, 89, 97]
+  let widths := [4, 4, 16, 65, 8, 6, 9, 1]
+  let firsts := [0, 4, 8, 24, 89, 97, 103, 112]
   -- Every slot's key and class, in slot order.
   let mut slots : Array (ℕ × ℕ) := #[]
   for ((cs, n), first) in (classes.zip widths).zip firsts do

@@ -64,18 +64,22 @@ structure Closed (s : State) : Prop where
   hash : ∀ r ∈ s.hash, RowLt s.next r
   split : ∀ r ∈ s.split, RowLt s.next r
   cast : ∀ r ∈ s.cast, RowLt s.next r
+  steps : ∀ r ∈ s.step, RowLt s.next r
+  links : ∀ r ∈ s.link, RowLt s.next r
 
 theorem closed_empty : Closed ({} : State) :=
   ⟨fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h,
-    fun _ h => by simp at h, fun _ h => by simp at h⟩
+    fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h⟩
 
 /-- A state whose new unions and rows name wires below its `next`. -/
 theorem Closed.step {s s' : State} (h : Closed s) (hn : s.next ≤ s'.next)
     (hu : ∀ p ∈ s'.unions, p ∈ s.unions ∨ (p.1 < s'.next ∧ p.2 < s'.next))
     (he : ∀ r ∈ s'.emul, r ∈ s.emul ∨ RowLt s'.next r) (hk : ∀ r ∈ s'.exk, r ∈ s.exk ∨ RowLt s'.next r)
     (hh : ∀ r ∈ s'.hash, r ∈ s.hash ∨ RowLt s'.next r) (hs : ∀ r ∈ s'.split, r ∈ s.split ∨ RowLt s'.next r)
-    (hc : ∀ r ∈ s'.cast, r ∈ s.cast ∨ RowLt s'.next r) : Closed s' := by
-  refine ⟨fun p hp => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_⟩
+    (hc : ∀ r ∈ s'.cast, r ∈ s.cast ∨ RowLt s'.next r) (hst : ∀ r ∈ s'.step, r ∈ s.step ∨ RowLt s'.next r)
+    (hl : ∀ r ∈ s'.link, r ∈ s.link ∨ RowLt s'.next r) : Closed s' := by
+  refine ⟨fun p hp => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_,
+    fun r hr => ?_, fun r hr => ?_⟩
   · rcases hu p hp with h' | h'
     · exact ⟨lt_of_lt_of_le (h.unions p h').1 hn, lt_of_lt_of_le (h.unions p h').2 hn⟩
     · exact h'
@@ -94,13 +98,20 @@ theorem Closed.step {s s' : State} (h : Closed s) (hn : s.next ≤ s'.next)
   · rcases hc r hr with h' | h'
     · exact (h.cast r h').mono hn
     · exact h'
+  · rcases hst r hr with h' | h'
+    · exact (h.steps r h').mono hn
+    · exact h'
+  · rcases hl r hr with h' | h'
+    · exact (h.links r h').mono hn
+    · exact h'
 
 /-- A state with the same unions and rows and more wires. -/
 theorem Closed.same {s s' : State} (h : Closed s) (hn : s.next ≤ s'.next) (hu : s'.unions = s.unions)
     (he : s'.emul = s.emul) (hk : s'.exk = s.exk) (hh : s'.hash = s.hash) (hs : s'.split = s.split)
-    (hc : s'.cast = s.cast) : Closed s' :=
+    (hc : s'.cast = s.cast) (hst : s'.step = s.step) (hl : s'.link = s.link) : Closed s' :=
   h.step hn (fun _ hp => Or.inl (hu ▸ hp)) (fun _ hr => Or.inl (he ▸ hr)) (fun _ hr => Or.inl (hk ▸ hr))
     (fun _ hr => Or.inl (hh ▸ hr)) (fun _ hr => Or.inl (hs ▸ hr)) (fun _ hr => Or.inl (hc ▸ hr))
+    (fun _ hr => Or.inl (hst ▸ hr)) (fun _ hr => Or.inl (hl ▸ hr))
 
 theorem RowSat.agree {forms : List (List Form)} {holds : (ℕ → K) → Prop} {v v' : Val} {r : List ℕ} {n : ℕ}
     (h : RowSat forms holds v r) (hr : RowLt n r) (ha : Agree n v v') : RowSat forms holds v' r := by
@@ -114,7 +125,8 @@ theorem Sat.agree {st : ℕ → Fin 4 → K} {s : State} {v v' : Val} (hs : Inv 
     fun r hr => (h.emul r hr).agree (hc.emul r hr) ha, fun r hr => (h.exk r hr).agree (hc.exk r hr) ha,
     fun r hr => (h.hash r hr).agree (hc.hash r hr) ha, fun r hr => (h.split r hr).agree (hc.split r hr) ha,
     fun r hr => (h.cast r hr).agree (hc.cast r hr) ha,
-    fun w src hp => by rw [ha w (hs.pubLt _ hp)]; exact h.pub w src hp⟩
+    fun w src hp => by rw [ha w (hs.pubLt _ hp)]; exact h.pub w src hp,
+    fun r hr => (h.steps r hr).agree (hc.steps r hr) ha, fun r hr => (h.links r hr).agree (hc.links r hr) ha⟩
 
 /-- An assignment satisfies a circuit grown by unions, rows and public rows it satisfies. -/
 theorem Sat.step {st : ℕ → Fin 4 → K} {s s' : State} {v : Val} (h : Sat st s v)
@@ -125,9 +137,13 @@ theorem Sat.step {st : ℕ → Fin 4 → K} {s s' : State} {v : Val} (h : Sat st
     (hs : ∀ r ∈ s'.split, r ∈ s.split ∨
       RowSat Rec.split (fun col => ∀ id ∈ splitIdentities, id.eval col = 0) v r)
     (hc : ∀ r ∈ s'.cast, r ∈ s.cast ∨ RowSat Rec.cast (fun _ => True) v r)
-    (hp : ∀ w src, (w, src) ∈ s'.pub → (w, src) ∈ s.pub ∨ v w = srcVal st src) : Sat st s' v := by
+    (hp : ∀ w src, (w, src) ∈ s'.pub → (w, src) ∈ s.pub ∨ v w = srcVal st src)
+    (hst : ∀ r ∈ s'.step, r ∈ s.step ∨
+      RowSat Rec.stepTable (fun col => ∀ id ∈ stepIdentities, id.eval col = 0) v r)
+    (hl : ∀ r ∈ s'.link, r ∈ s.link ∨
+      RowSat Rec.linkTable (fun col => ∀ id ∈ linkIdentities, id.eval col = 0) v r) : Sat st s' v := by
   refine ⟨fun p hp' => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_,
-    fun w src hp' => ?_⟩
+    fun w src hp' => ?_, fun r hr => ?_, fun r hr => ?_⟩
   · rcases hu p hp' with h' | h'
     · exact h.unions p h'
     · exact h'
@@ -148,6 +164,12 @@ theorem Sat.step {st : ℕ → Fin 4 → K} {s s' : State} {v : Val} (h : Sat st
     · exact h'
   · rcases hp w src hp' with h' | h'
     · exact h.pub w src h'
+    · exact h'
+  · rcases hst r hr with h' | h'
+    · exact h.steps r h'
+    · exact h'
+  · rcases hl r hr with h' | h'
+    · exact h.links r h'
     · exact h'
 
 /-! Completeness contracts. -/
@@ -310,10 +332,10 @@ variable {st : ℕ → Fin 4 → K}
 
 theorem Sat.same {s s' : State} {v : Val} (h : Sat st s v) (hu : s'.unions = s.unions) (he : s'.emul = s.emul)
     (hk : s'.exk = s.exk) (hh : s'.hash = s.hash) (hs : s'.split = s.split) (hc : s'.cast = s.cast)
-    (hp : s'.pub = s.pub) : Sat st s' v :=
+    (hp : s'.pub = s.pub) (hst : s'.step = s.step) (hl : s'.link = s.link) : Sat st s' v :=
   h.step (fun _ h' => Or.inl (hu ▸ h')) (fun _ h' => Or.inl (he ▸ h')) (fun _ h' => Or.inl (hk ▸ h'))
     (fun _ h' => Or.inl (hh ▸ h')) (fun _ h' => Or.inl (hs ▸ h')) (fun _ h' => Or.inl (hc ▸ h'))
-    fun _ _ h' => Or.inl (hp ▸ h')
+    (fun _ _ h' => Or.inl (hp ▸ h')) (fun _ h' => Or.inl (hst ▸ h')) fun _ h' => Or.inl (hl ▸ h')
 
 /-- The precondition may assume the assignment satisfies the circuit so far. -/
 theorem CGood.withSat {α : Type} {k : ℕ} {P : State → Val → Prop} {m : M α} {Q : State → α → State → Val → Prop}
@@ -332,8 +354,8 @@ theorem wire_cgood (x : Fin 4 → K) : CGood st 0 (fun _ _ => True) wire fun s w
     w = s.next ∧ s'.next = s.next + 1 ∧ v w = x := by
   refine CGood.of_good wire_good (fun _ _ _ => trivial) fun s val hi hc hsat _ _ _ _ => ?_
   rw [wire_run]
-  refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl, rfl, setW val s.next x, agree_setW _ _ _,
-    (hsat.agree hi hc (agree_setW _ _ _)).same rfl rfl rfl rfl rfl rfl rfl, fun v hv => ⟨rfl, rfl, ?_⟩⟩
+  refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl rfl rfl, rfl, setW val s.next x, agree_setW _ _ _,
+    (hsat.agree hi hc (agree_setW _ _ _)).same rfl rfl rfl rfl rfl rfl rfl rfl rfl, fun v hv => ⟨rfl, rfl, ?_⟩⟩
   rw [hv _ (Nat.lt_succ_self _), setW_self]
 
 /-- `constant`: its wire carries the constant, made or cached. -/
@@ -348,11 +370,11 @@ theorem constant_cgood (kd : Kind) (lv : Limbs) : CGood st 0 (fun _ _ => True) (
     rw [hv w (hi.constsLt _ w h)]
     exact hsat.pub w _ (hi.consts _ w h)
   | none =>
-    refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl, rfl, setW val s.next (limbsOf lv), agree_setW _ _ _,
-      ?_, fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
+    refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl rfl rfl, rfl, setW val s.next (limbsOf lv),
+      agree_setW _ _ _, ?_, fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
     · refine (hsat.agree hi hc (agree_setW _ _ _)).step (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
         (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-        fun w src hp => ?_
+        (fun w src hp => ?_) (fun _ h' => Or.inl h') fun _ h' => Or.inl h'
       rcases Array.mem_push.mp hp with hp | hp
       · exact Or.inl hp
       · cases hp; exact Or.inr (setW_self _ _ _)
@@ -416,9 +438,10 @@ theorem union_cgood (a b : ℕ) : CGood st 0 (fun s v => a < s.next ∧ b < s.ne
   obtain ⟨ha, hb, hab⟩ := hP val (Agree.refl _ _)
   rw [union_run]
   refine ⟨hc.step le_rfl (fun p hp => ?_) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-    (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), rfl, val, Agree.refl _ _,
-    hsat.step (fun p hp => ?_) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h'), fun _ _ => trivial⟩
+    (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), rfl, val,
+    Agree.refl _ _, hsat.step (fun p hp => ?_) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), fun _ _ => trivial⟩
   · rcases Array.mem_push.mp hp with hp | rfl
     · exact Or.inl hp
     · exact Or.inr ⟨ha, hb⟩
@@ -451,9 +474,10 @@ theorem expose_cgood (w : ℕ) : CGood st 1 (fun s v => w < s.next ∧ v w = st 
     fun s val hi hc hsat hP _ _ _ => ?_
   obtain ⟨-, hw⟩ := hP val (Agree.refl _ _)
   rw [expose_run]
-  refine ⟨hc.same le_rfl rfl rfl rfl rfl rfl rfl, rfl, val, Agree.refl _ _,
+  refine ⟨hc.same le_rfl rfl rfl rfl rfl rfl rfl rfl rfl, rfl, val, Agree.refl _ _,
     hsat.step (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun u src hp => ?_), fun _ _ => ⟨rfl, rfl⟩⟩
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun u src hp => ?_) (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), fun _ _ => ⟨rfl, rfl⟩⟩
   rcases Array.mem_push.mp hp with hp | hp
   · exact Or.inl hp
   · cases hp; exact Or.inr hw
@@ -466,22 +490,24 @@ def TSat (t : Table) (v : Val) (r : List ℕ) : Prop :=
   | .hash => RowSat Rec.hash HashRow v r
   | .split => RowSat Rec.split (fun col => ∀ id ∈ splitIdentities, id.eval col = 0) v r
   | .cast => RowSat Rec.cast (fun _ => True) v r
+  | .step => RowSat Rec.stepTable (fun col => ∀ id ∈ stepIdentities, id.eval col = 0) v r
+  | .link => RowSat Rec.linkTable (fun col => ∀ id ∈ linkIdentities, id.eval col = 0) v r
   | .pub => True
 
 /-- `row`: a row the assignment satisfies. -/
 theorem row_cgood (t : Table) (r : List ℕ) (ht : t ≠ .emul) :
     CGood st 0 (fun s v => Wires r s ∧ r ≠ [] ∧ TSat t v r) (row t r) fun _ _ s' _ =>
       (t = .exk → r ∈ s'.exk) ∧ (t = .hash → r ∈ s'.hash) ∧ (t = .split → r ∈ s'.split) ∧
-        (t = .cast → r ∈ s'.cast) := by
+        (t = .cast → r ∈ s'.cast) ∧ (t = .step → r ∈ s'.step) ∧ (t = .link → r ∈ s'.link) := by
   refine CGood.of_good (row_good t r ht) (fun _ _ _ => trivial) fun s val hi hc hsat hP _ _ hq => ?_
   obtain ⟨hw, hne, hsr⟩ := hP val (Agree.refl _ _)
   have hlt := rowLt_of_wires hw hne
   cases t with
   | emul => exact absurd rfl ht
   | pub => exact ⟨hc, rfl, val, Agree.refl _ _, hsat, fun _ _ => hq⟩
-  | exk | hash | split | cast =>
-    refine ⟨hc.step le_rfl ?_ ?_ ?_ ?_ ?_ ?_, rfl, val, Agree.refl _ _, hsat.step ?_ ?_ ?_ ?_ ?_ ?_ ?_,
-      fun _ _ => hq⟩ <;>
+  | exk | hash | split | cast | step | link =>
+    refine ⟨hc.step le_rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, rfl, val, Agree.refl _ _,
+      hsat.step ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, fun _ _ => hq⟩ <;>
     first
       | exact fun _ h' => Or.inl h'
       | exact fun _ _ h' => Or.inl h'
@@ -574,9 +600,11 @@ theorem emul_cgood (a b d : ℕ) : CGood st 0 (fun s v => Wires [a, b, d] s ∧ 
     set x := eVal (ev val a * ev val b + ev val d)
     have hag := agree_setW val s.next x
     refine ⟨hc.step (Nat.le_succ _) (fun _ h' => Or.inl h') (fun r hr => ?_) (fun _ h' => Or.inl h')
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), rfl, setW val s.next x, hag,
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), rfl, setW val s.next x, hag,
       (hsat.agree hi hc hag).step (fun _ h' => Or.inl h') (fun r hr => ?_) (fun _ h' => Or.inl h')
-        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h'),
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h')
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'),
       fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
     · rcases Array.mem_push.mp hr with hr | rfl
       · exact Or.inl hr
@@ -742,9 +770,11 @@ theorem mulKAdd_cgood (a k d : ℕ) :
     set x := eVal (ev val a * emb (val k 0) + ev val d)
     have hag := agree_setW val s.next x
     refine ⟨hi', hc.step (Nat.le_succ _) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun r hr => ?_)
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), he', rfl, setW val s.next x, hag,
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), he', rfl, setW val s.next x, hag,
       (hsat.agree hi hc hag).step (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun r hr => ?_)
-        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h'),
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h')
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'),
       fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
     · rcases Array.mem_push.mp hr with hr | rfl
       · exact Or.inl hr
@@ -873,7 +903,7 @@ theorem castRow_cgood (given : List (ℕ × ℕ)) (col : ℕ → K) :
     have hj' : j < 8 := hj
     rw [hget j hj']
     rfl
-  · rintro s r s3 v hs - - ⟨ws, s1, -, he1, -, -, u, s2, -, he2, ⟨hw, -, -, hlen, hget⟩, ⟨-, -, -, hc⟩, rfl⟩
+  · rintro s r s3 v hs - - ⟨ws, s1, -, he1, -, -, u, s2, -, he2, ⟨hw, -, -, hlen, hget⟩, ⟨-, -, -, hc, -⟩, rfl⟩
     exact ⟨hlen, hw.mono he1, he2.cast _ (hc rfl), hget⟩
 
 theorem eToK_cgood (e : ℕ) : CGood st 0 (fun s v => e < s.next ∧ v e 3 = 0) (eToK e) fun _ ks s' v =>

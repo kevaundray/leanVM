@@ -40,10 +40,12 @@ inductive Table where
   | hash
   | split
   | cast
+  | step
+  | link
   | pub
   deriving DecidableEq, Repr
 
-def Table.all : List Table := [.emul, .exk, .hash, .split, .cast, .pub]
+def Table.all : List Table := [.emul, .exk, .hash, .split, .cast, .step, .link, .pub]
 
 def Table.nSlots : Table → ℕ
   | .emul => 4
@@ -51,6 +53,8 @@ def Table.nSlots : Table → ℕ
   | .hash => 16
   | .split => 65
   | .cast => 8
+  | .step => 6
+  | .link => 9
   | .pub => 1
 
 /-- `row_key`'s table tag. -/
@@ -60,7 +64,9 @@ def Table.tag : Table → ℕ
   | .hash => 2
   | .split => 3
   | .cast => 4
-  | .pub => 5
+  | .step => 5
+  | .link => 6
+  | .pub => 7
 
 /-- `Units`: the wires of the constants zero and one, once made. -/
 structure Units where
@@ -81,6 +87,8 @@ structure State where
   hash : Array (List ℕ) := #[]
   split : Array (List ℕ) := #[]
   cast : Array (List ℕ) := #[]
+  step : Array (List ℕ) := #[]
+  link : Array (List ℕ) := #[]
   /-- The public rows: each one's wire and where its value comes from. -/
   pub : Array (ℕ × PubSource) := #[]
   consts : Std.HashMap (Kind × Limbs) ℕ := {}
@@ -104,6 +112,8 @@ def row (t : Table) (slots : List ℕ) : M Unit := modify fun s =>
   | .hash => { s with hash := s.hash.push slots }
   | .split => { s with split := s.split.push slots }
   | .cast => { s with cast := s.cast.push slots }
+  | .step => { s with step := s.step.push slots }
+  | .link => { s with link := s.link.push slots }
   | .pub => s
 
 /-- `fn row` for the public table, with the row's source. -/
@@ -342,6 +352,41 @@ def chain (words : List ℕ) : M ℕ := do
   let h ← dConst paramIVLimbs
   chainBlocks words z nBlocks (8 * words.length) (List.range nBlocks) h
 
+/-! Hash chains on the dynamic bus. -/
+
+/-- `leaf_block`'s row with both its output and its challenge wire. -/
+def leafRow (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : M (ℕ × ℕ) := do
+  let tf ← dConst [t, if last then final else 0, 0, 0]
+  let mux ← wire
+  let bit ← wire
+  let x ← wire
+  let ds ← wire
+  let o ← wire
+  let ch ← wire
+  row .hash ([h, tf, mux, bit, x, ds, o, ch] ++ m)
+  pure (o, ch)
+
+/-- `fn chain_step`: one step of a hash chain. The tweak word `t` and the input words `v0`, `v1` are fresh; the
+`HASH` row hashes `[t, idx, p0, p1, v0, v1]` as `chain` does, and the `STEP` row holds `t`, `v0`, `v1`, the hash
+row's challenge (its output's first three words), the chain's tag and `one` (the row's activity). -/
+def chainStep (idx : ℕ) (pp : ℕ × ℕ) (tag one : ℕ) : M Unit := do
+  let t ← wire
+  let v0 ← wire
+  let v1 ← wire
+  let z ← kZero
+  let h ← dConst paramIVLimbs
+  let r ← leafRow h [t, idx, pp.1, pp.2, v0, v1, z, z] 48 true
+  row .step [t, v0, v1, r.2, tag, one]
+
+/-- `fn link`: a chain's `LINK` row, its word `w`, its digit bits, fresh tip and end words; returns the end. -/
+def link (w d0 d1 d2 one : ℕ) : M (List ℕ) := do
+  let t0 ← wire
+  let t1 ← wire
+  let e0 ← wire
+  let e1 ← wire
+  row .link [w, d0, d1, d2, t0, t1, e0, e1, one]
+  pure [e0, e1]
+
 /-! A call of the builder from outside it, as `CheckRec` reads it. -/
 
 inductive Call where
@@ -356,6 +401,7 @@ inductive Call where
   | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ)
   | compress (acc x ds : ℕ) | node (acc bit : ℕ) | parent (l r : ℕ) | leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool)
   | chain (words : List ℕ)
+  | chainStep (idx p0 p1 tag act : ℕ) | link (w d0 d1 d2 act : ℕ)
   deriving Repr
 
 /-- Run one call, returning its output wires (`expose_e`'s statement index). -/
@@ -391,6 +437,8 @@ def Call.exec : Call → M (List ℕ)
   | .parent l r => do return [← Model.parent l r]
   | .leafBlock h m t last => do return [← Model.leafBlock h m t last]
   | .chain words => do return [← Model.chain words]
+  | .chainStep idx p0 p1 tag act => do Model.chainStep idx (p0, p1) tag act; return []
+  | .link w d0 d1 d2 act => Model.link w d0 d1 d2 act
 
 /-- Run one call. -/
 def Call.run (c : Call) : M Unit := discard c.exec
@@ -422,6 +470,8 @@ def Call.args : Call → List ℕ
   | .parent l r => [l, r]
   | .leafBlock h m _ _ => h :: m
   | .chain words => words
+  | .chainStep idx p0 p1 tag act => [idx, p0, p1, tag, act]
+  | .link w d0 d1 d2 act => [w, d0, d1, d2, act]
 
 /-- The sizes a call's Rust method asserts or its types bound: a block of eight words, counters and lengths in 64
 bits, at most 64 bits packed. -/

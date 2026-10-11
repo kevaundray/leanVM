@@ -1458,7 +1458,8 @@ end
 
 theorem sat_empty (st : ℕ → Fin 4 → K) (val : Val) : Sat st ({} : State) val :=
   ⟨fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h,
-    fun _ h => by simp at h, fun _ h => by simp at h, fun _ _ h => by simp at h⟩
+    fun _ h => by simp at h, fun _ h => by simp at h, fun _ _ h => by simp at h, fun _ h => by simp at h,
+    fun _ h => by simp at h⟩
 
 /-- The honest assignment of the circuit verifying `n` signatures. -/
 theorem circuit_complete (n : ℕ) (st : ℕ → Fin 4 → K)
