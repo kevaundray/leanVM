@@ -105,13 +105,19 @@ impl Workload {
     /// Verify `n` leanXMSS signatures, one key each.
     pub fn leanxmss(n: usize) -> Self {
         let title = format!("leanXMSS verification, {n} signatures");
-        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n), n, "signature")
+        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n).run, n, "signature")
     }
 
     /// Verify `n` leanSPHINCS signatures, one key each.
     pub fn leansphincs(n: usize) -> Self {
         let title = format!("leanSPHINCS verification, {n} signatures");
-        Self::hosted(title, leansphincs_host::ELF, leansphincs_host::batch(n), n, "signature")
+        Self::hosted(
+            title,
+            leansphincs_host::ELF,
+            leansphincs_host::batch(n).run,
+            n,
+            "signature",
+        )
     }
 
     /// Verify `n` Falcon-512 signatures, one key each.

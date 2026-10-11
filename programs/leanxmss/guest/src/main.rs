@@ -1,13 +1,15 @@
-//! Verify the leanXMSS signatures the advice holds: their count, then for each a public
-//! key, a leaf index, a message and a signature.
+//! Verify the leanXMSS signatures the advice holds, in groups: the number of groups, then for
+//! each a leaf index, a message, a count, and that many public keys and signatures.
 //!
-//! Each claim (key, leaf index, message) is committed, so the output is the digest of the
-//! claims.
+//! Each group's signatures are verified at its leaf index and message, and the signer set they
+//! form (`leanvm_guest::signers`: one XMSS group per advice group, in the advice's order) is
+//! digested as they are read; that digest is the one value committed.
 //!
 //! A bad signature leaves the run without a proof.
 #![no_std]
 #![no_main]
 
+use leanvm_guest::signers::{SignerStream, XMSS};
 use leanvm_guest::{commit, read, read_unchecked};
 use leanxmss::{LeafIndex, Message, PublicKey, Signature};
 
@@ -15,22 +17,29 @@ leanvm_guest::advice_words!(1 << 16);
 
 #[unsafe(no_mangle)]
 extern "C" fn main() {
-    let n = *read::<u64>();
-    for _ in 0..n {
-        // Read in place. SAFETY: both types are `repr(C)` words, with no padding, and any
-        // words are one (see their definitions).
-        let public_key = unsafe { read_unchecked::<PublicKey>() };
+    let mut signers = SignerStream::new();
+    let n_groups = *read::<u64>();
+    for _ in 0..n_groups {
         let leaf_index = *read::<u64>();
-        let message = read::<Message>();
-        let signature = unsafe { read_unchecked::<Signature>() };
-
-        // A leaf index past `2^32 - 1` would be committed whole but verified truncated.
+        // A leaf index past `2^32 - 1` would be published whole but verified truncated.
         let leaf = LeafIndex::try_from(leaf_index).expect("a leaf index below 2^32");
-        leanxmss::verify(public_key, leaf, message, signature).expect("every signature verifies");
+        let message = read::<Message>();
+        signers.group(XMSS, leaf_index, message);
+        let n = *read::<u64>();
+        for _ in 0..n {
+            // Read in place. SAFETY: both types are `repr(C)` words, with no padding, and any
+            // words are one (see their definitions).
+            let public_key = unsafe { read_unchecked::<PublicKey>() };
+            let signature = unsafe { read_unchecked::<Signature>() };
 
-        commit(&public_key.merkle_root);
-        commit(&public_key.public_param);
-        commit(&leaf_index);
-        commit(message);
+            leanxmss::verify(public_key, leaf, message, signature).expect("every signature verifies");
+
+            let PublicKey {
+                merkle_root: [r0, r1],
+                public_param: [p0, p1],
+            } = *public_key;
+            signers.key(&[r0, r1, p0, p1]);
+        }
     }
+    commit(&signers.finish());
 }
