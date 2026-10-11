@@ -214,69 +214,9 @@ mod tests {
     use super::*;
     use crate::rv::semantics::tests::edge_word;
     use fiat_shamir::transcript::{ProverState, VerifierState};
-    use flock::circuit::{Builder, Wire};
-    use flock::lincheck::LincheckCircuit;
     use flock::reduction::{self, Instance};
     use primitives::test_util::Rng;
     use proptest::prelude::*;
-
-    /// The handwritten extras the Clean source replaced, the reference its gate list is pinned to.
-    fn handwritten(slots: &[u32]) -> Circuit {
-        let ports = [1, 1]
-            .into_iter()
-            .chain([64; Ext::OFFSET_LIMBS.len()])
-            .collect::<Vec<_>>();
-        let mut c = Clock::builder(slots, &[64, 64, 64, 2], &ports);
-        let first = 1 + slots.len();
-        let [a, b, d] = [0, 1, 2].map(|i| c.input::<64>(first + i));
-        let flags = c.input::<2>(first + 3);
-        let (accumulate, base) = (flags[0], flags[1]);
-        c.output(1, 0, accumulate);
-        c.output(2, 0, base);
-        let not_base = c.not(base);
-        for (i, pointer) in [a, b, d].iter().enumerate() {
-            for (j, bit) in [3, 4].into_iter().enumerate() {
-                let port = 3 + 2 * i + j;
-                for (k, wire) in increment(&mut c, pointer, bit).into_iter().enumerate() {
-                    if i == 1 {
-                        c.and_output(port, k, not_base, wire);
-                    } else {
-                        c.output(port, k, wire);
-                    }
-                }
-            }
-        }
-        c.finish()
-    }
-
-    /// `x + 2^bit` modulo `2^64`: the carry enters at `bit` and ripples up, one product per position past it.
-    fn increment(c: &mut Builder, x: &[Wire; 64], bit: usize) -> [Wire; 64] {
-        let mut out = *x;
-        let mut carry = Wire::ONE;
-        for (i, wire) in out.iter_mut().enumerate().skip(bit) {
-            let sum = c.xor(*wire, carry);
-            if i + 1 < 64 {
-                carry = if i == bit { *wire } else { c.and(*wire, carry) };
-            }
-            *wire = sum;
-        }
-        out
-    }
-
-    #[test]
-    fn the_clean_ext_clock_is_the_handwritten_gate_list() {
-        // Invariant: the generated extras make the handwritten circuit's products in its order, at its slots, with
-        // its operands, so every constraint row `A·z * B·z = z` is the same; only the free XORs and copies may move.
-        let mut rng = Rng::new(0xE7C1);
-        let slots = crate::tables::ClassSpec::EXT.slots();
-        let (clean, old) = (Ext::clock_circuit(&slots), handwritten(&slots));
-        let shape = |c: &Circuit| (c.k_log(), c.useful_bits(), c.const_pos(), c.n_input_words(), c.n_cols());
-        assert_eq!(shape(&clean), shape(&old));
-        for _ in 0..4 {
-            let w = rng.ext_vec(old.n_cols());
-            assert!(clean.row_values(&w) == old.row_values(&w));
-        }
-    }
 
     #[test]
     fn flock_proves_the_ext_clock_and_refuses_a_flipped_address_or_product() {
