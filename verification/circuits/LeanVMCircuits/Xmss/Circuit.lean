@@ -15,16 +15,18 @@ Every hash of the scheme is BLAKE2s-256 over `tweak || parameter || payload`, wh
 `chain` of words, its digest truncated to its first two words. A 16-byte digest travels as an `E` wire whose first
 two limbs are its words (the third limb is never read), so that a selection between two digests is arithmetic in `E`.
 
-Per signature, the statement is five `E` words, exposed in this order: the public parameter `[p0, p1, 0]`, the
+Per signature `j`, the statement is five `E` words, exposed in this order: the public parameter `[p0, p1, 0]`, the
 message's first and last two words `[m0, m1, 0]` and `[m2, m3, 0]`, the epoch `[e, 0, 0]` (`e < 2^32`), and last
 the Merkle root `[r0, r1, 0]`. The signature is the prover's: 42 chain elements, the randomness and 32 siblings.
 
 * The encoding hashes `tweak(4, 0, e) || p || m || rho || 0`, two blocks. Bit 63 of both digest words is zero, and
   digit `i` is bits `3r .. 3r+2` of word `i / 21`, `r = i % 21`. The digits sum to 195: the product over every digit
   bit `b` of weight `2^k` of `X^(2^k)` to the power `b` is `X^195` in `K`, and `X` has order above 294.
-* Chain `i` hashes seven steps at positions `8i + s`, `s < 7`, the input of step `s > 0` being the chain element
-  when the digit is `s` and the previous step's output otherwise: the indicator of digit `s` is a product of three
-  factors `b` or `1 + b`. The chain's end is the chain element when the digit is 7, the last output otherwise.
+* The chains run on the dynamic bus. Chain `i` has a `LINK` row: it pushes the chain element at the key of position
+  `8i + d` (`d` its digit, from the digit's bits) and pulls the chain's end at the key of position `8i + 7`. The
+  signature then has 99 `STEP` rows (`7 · 42 - 195`), each hashing one step at a position the prover names: it pulls
+  its input at its position's key and pushes its output at the next position's. Keys carry `j · 2^41`, so the
+  signatures' tuples stay apart; the bus balancing forces every chain to be a path through exactly its needed steps.
 * The leaf hashes `tweak(2, 0, e) || p || end_0 || .. || end_41`, eleven blocks.
 * Level `l` of the path hashes `tweak(3, l + 1, e >> (l + 1)) || p || left || right`, the current node on the side
   bit `l` of the epoch names: `left = cur + b·(cur + sib)`, `right = left + cur + sib`.
@@ -92,23 +94,21 @@ def indicators (a0 a1 a2 : ℕ) : M (List ℕ) := do
     level := next
   pure level
 
-/-- Chain `i` from its element `tip` (an `E` wire) under the digit's indicators `ind`: its end's two words. -/
-def chainEnd (i idx tip : ℕ) (pp ind : List ℕ) : M (ℕ × ℕ) := do
-  let (t0, t1, _) ← words tip
-  let d ← tweakHash 1 (8 * i) idx pp [t0, t1]
-  let (o, _) ← dToEAndK d
-  let mut cur := o
-  for s in List.range' 1 6 do
-    let diff ← add tip cur
-    let m ← mulAdd (ind.getD s 0) diff cur
-    let (v0, v1, _) ← words m
-    let d ← tweakHash 1 (8 * i + s) idx pp [v0, v1]
-    let (o, _) ← dToEAndK d
-    cur := o
-  let diff ← add tip cur
-  let e ← mulAdd (ind.getD 7 0) diff cur
-  let (n0, n1, _) ← words e
-  pure (n0, n1)
+/-- Signature `j`'s chains on the dynamic bus, under the index word `idx` and the parameter `pp`, from the digit bits:
+an activity wire held to one, the tag `j · 2^41`, each chain's `LINK` row, then the 99 `STEP` rows. Returns the
+chains' ends' words. -/
+def chains (j idx : ℕ) (pp digitBits : List ℕ) : M (List ℕ) := do
+  let act ← wire
+  eqConstK act 1
+  let tag ← kConst (j * 2 ^ 41)
+  let mut ends := []
+  for i in List.range 42 do
+    let w ← kConst (tweak0 1 (8 * i) + j * 2 ^ 41)
+    let es ← link w (digitBits.getD (3 * i) 0) (digitBits.getD (3 * i + 1) 0) (digitBits.getD (3 * i + 2) 0) act
+    ends := ends ++ es
+  for _ in List.range 99 do
+    chainStep idx (pp.getD 0 0, pp.getD 1 0) tag act
+  pure ends
 
 /-- One level of the Merkle path: the parent of `node` (a digest wire) and the sibling, the epoch's bit `bit` naming
 the side of `node`. -/
@@ -122,8 +122,8 @@ def level (l idx bit node : ℕ) (pp : List ℕ) : M ℕ := do
   let (r0, r1, _) ← words right
   tweakHash 3 (l + 1) idx pp [l0, l1, r0, r1]
 
-/-- One signature's verification. -/
-def signature : M Unit := do
+/-- Signature `j`'s verification. -/
+def signature (j : ℕ) : M Unit := do
   let pp ← statementWords 1
   let mlo ← statementWords 1
   let mhi ← statementWords 1
@@ -146,12 +146,7 @@ def signature : M Unit := do
   let prod ← digitProduct digitBits
   eqConstE prod targetWord 0 0
   -- The chains.
-  let mut ends := []
-  for i in List.range 42 do
-    let tip ← wire
-    let ind ← indicators (digitBits.getD (3 * i) 0) (digitBits.getD (3 * i + 1) 0) (digitBits.getD (3 * i + 2) 0)
-    let (n0, n1) ← chainEnd i idx tip pp ind
-    ends := ends ++ [n0, n1]
+  let ends ← chains j idx pp digitBits
   -- The leaf and the path.
   let mut node ← tweakHash 2 0 idx pp ends
   for l in List.range 32 do
@@ -163,7 +158,7 @@ def signature : M Unit := do
 
 /-- The circuit verifying `n` signatures. -/
 def circuit (n : ℕ) : M Unit := do
-  for _ in List.range n do
-    signature
+  for j in List.range n do
+    signature j
 
 end LeanVMCircuits.Xmss.Circuit

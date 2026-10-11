@@ -14,10 +14,6 @@ macro_rules! traced {
 
 mod arith;
 mod bits;
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "no circuit builds chains on the dynamic bus until XMSS and SPHINCS move to it")
-)]
 mod chain;
 mod hash;
 

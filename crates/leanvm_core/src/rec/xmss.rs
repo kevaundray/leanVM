@@ -8,7 +8,7 @@
 //! words `[m0, m1, 0]` and `[m2, m3, 0]`, the epoch `[e, 0, 0]`, then the Merkle root `[r0, r1, 0]` the signature
 //! reaches. The signature is the prover's.
 
-use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Unsatisfied};
+use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Unsatisfied, chain};
 use super::fixed::FixedColumns;
 use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
 use crate::cpu::{DecodeError, VerifyError};
@@ -34,6 +34,12 @@ const WORDS: usize = 5;
 
 /// `X^195` in `K` as a word: the product the encoding's digit bits must reach, the digits summing to 195.
 const TARGET: u64 = 0xedb8;
+
+/// The chain steps a signature's digits need: `V · STEPS` less their sum, 195.
+const CHAIN_STEPS: usize = V * STEPS - 195;
+
+/// The bit a signature's index starts at in its chains' bus keys, above the tweak word's position.
+const TAG_SHIFT: usize = 41;
 
 /// What one signature is checked against: the signer's public key, the epoch and the message.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -177,6 +183,9 @@ impl XmssBatch {
     ///
     /// A circuit that fits no commitment.
     pub fn new(n: usize, rate: Rate) -> Result<Self, XmssError> {
+        if n > 1 << (63 - TAG_SHIFT) {
+            return Err(XmssError::TooLarge { n });
+        }
         let circuit = build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]).circuit;
         circuit.committed_words().map_err(|_| XmssError::TooLarge { n })?;
         let columns = FixedColumns::of(&circuit, &circuit.heights());
@@ -338,7 +347,7 @@ fn statement(claims: &[XmssClaim]) -> Vec<Limbs> {
 fn build(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Finished {
     let mut b = Builder::new();
     for (i, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
-        b.scope(format!("signature {i}"), |b| signature(b, claim, sig));
+        b.scope(format!("signature {i}"), |b| signature(b, i, claim, sig));
     }
     b.finish()
 }
@@ -410,24 +419,6 @@ pub(super) fn indicators(b: &mut Builder, digit: [Kw; 3]) -> Vec<Ew> {
     level
 }
 
-/// Chain `i` from its element `tip` under the digit's indicators `ind`: its end's two words.
-fn chain_end(b: &mut Builder, i: usize, idx: Kw, tip: Ew, pp: &[Kw], ind: &[Ew]) -> [Kw; 2] {
-    let [t0, t1, _] = b.e_to_k(tip);
-    let d = tweak_hash(b, 1, 8 * i, idx, pp, &[t0, t1]);
-    let (mut cur, _) = b.d_to_e_and_k(d);
-    for (s, &selected) in ind[..STEPS].iter().enumerate().skip(1) {
-        let diff = b.add(tip, cur);
-        let m = b.mul_add(selected, diff, cur);
-        let [v0, v1, _] = b.e_to_k(m);
-        let d = tweak_hash(b, 1, 8 * i + s, idx, pp, &[v0, v1]);
-        cur = b.d_to_e_and_k(d).0;
-    }
-    let diff = b.add(tip, cur);
-    let end = b.mul_add(ind[STEPS], diff, cur);
-    let [n0, n1, _] = b.e_to_k(end);
-    [n0, n1]
-}
-
 /// Level `l` of the Merkle path: the parent of `node` and the sibling, the epoch's bit `bit` naming the side of `node`.
 fn level(b: &mut Builder, l: usize, idx: Kw, bit: Kw, node: Dw, pp: &[Kw], [s0, s1]: [u64; 2]) -> Dw {
     let (cur, _) = b.d_to_e_and_k(node);
@@ -441,7 +432,7 @@ fn level(b: &mut Builder, l: usize, idx: Kw, bit: Kw, node: Dw, pp: &[Kw], [s0, 
 }
 
 /// One signature's verification.
-fn signature(b: &mut Builder, claim: &XmssClaim, sig: &XmssSignature) {
+fn signature(b: &mut Builder, j: usize, claim: &XmssClaim, sig: &XmssSignature) {
     let ([p0, p1], [m0, m1, m2, m3]) = (claim.public_param, claim.message);
     let pp = statement_words(b, F192::new(p0, p1, 0), 1);
     let mlo = statement_words(b, F192::new(m0, m1, 0), 1);
@@ -471,12 +462,32 @@ fn signature(b: &mut Builder, claim: &XmssClaim, sig: &XmssSignature) {
         b.eq_e_const(prod, F192::new(TARGET, 0, 0));
     });
 
-    // The chains.
+    // The chains: a link row per chain, from its tip at its digit to its end, then the steps the digits need, chain by
+    // chain, each pulling its input at its chain's position and pushing its output at the next.
+    let one = b.free_k(1);
+    b.eq_k_const(one, 1);
+    let tag_word = (j as u64) << TAG_SHIFT;
+    let tag = b.k_const(tag_word);
+    let (idx_word, p) = (b.k(idx), [b.k(pp[0]), b.k(pp[1])]);
+    let mut steps = Vec::with_capacity(CHAIN_STEPS);
     let mut ends = Vec::with_capacity(2 * V);
-    for (i, &[t0, t1]) in sig.chain_tips.iter().enumerate() {
-        let tip = b.free_e(F192::new(t0, t1, 0));
-        let ind = indicators(b, [digit_bits[3 * i], digit_bits[3 * i + 1], digit_bits[3 * i + 2]]);
-        ends.extend(chain_end(b, i, idx, tip, &pp, &ind));
+    for (i, &tip) in sig.chain_tips.iter().enumerate() {
+        let digit: u64 = (0..3).map(|k| b.k(digit_bits[3 * i + k]) << k).sum();
+        let mut v = tip;
+        for s in usize::try_from(digit).expect("a digit is three bits")..STEPS {
+            let tweak = tweak0(1, 8 * i + s);
+            steps.push((tweak, v));
+            let d = chain(&[tweak, idx_word, p[0], p[1], v[0], v[1]]);
+            v = [d[0], d[1]];
+        }
+        let w = b.k_const(tweak0(1, 8 * i) | tag_word);
+        let d = [digit_bits[3 * i], digit_bits[3 * i + 1], digit_bits[3 * i + 2]];
+        ends.extend(b.link(w, d, one, tip, v));
+    }
+    // Digits off the target sum need another number of steps; the encoding's check already fails on them.
+    steps.resize(CHAIN_STEPS, (0, [0, 0]));
+    for &(tweak, v) in &steps {
+        b.chain_step(idx, [pp[0], pp[1]], tag, one, tweak, v);
     }
 
     // The leaf and the path.

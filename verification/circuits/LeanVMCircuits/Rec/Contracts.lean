@@ -1570,12 +1570,12 @@ theorem hashWords_six (val : Val) (ws : List ℕ) (hws : ws.length = 6) (z : ℕ
   rw [← hpad, pad_block val ws z 0 hz, hashWords, blake2s256, List.length_map, hws]
   rfl
 
-/-- `chain_step`: its `HASH` row hashes `[T, idx, p0, p1, v0, v1]` as `chain` does, its challenge holding the hash's
-first three words; its `STEP` row's tweak word `T` is `tweak0(1, 8c + s)` of a chain `c < 64` at a position `s < 8`,
-and the row pulls `T`'s key with its input words and, when active, pushes the key of position `s + 1` modulo eight
-of chain `c` with the hash's first two words. -/
+/-- `chain_step`: its tweak word `t` is the first wire it makes; its `HASH` row hashes `[T, idx, p0, p1, v0, v1]`
+as `chain` does, its challenge holding the hash's first three words; its `STEP` row's tweak word `T` is
+`tweak0(1, 8c + s)` of a chain `c < 64` at a position `s < 8`, and the row pulls `T`'s key with its input words and,
+when active, pushes the key of position `s + 1` modulo eight of chain `c` with the hash's first two words. -/
 theorem chainStep_good (idx p0 p1 tag one : ℕ) : Good (fun _ => True) (chainStep idx (p0, p1) tag one)
-    fun _ _ s' => ∃ t v0 v1 ch, Wires [t, v0, v1, ch] s' ∧ [t, v0, v1, ch, tag, one] ∈ s'.step ∧
+    fun s _ s' => ∃ t v0 v1 ch, s.next ≤ t ∧ Wires [t, v0, v1, ch] s' ∧ [t, v0, v1, ch, tag, one] ∈ s'.step ∧
       ∀ st val, Sat st s' val →
         (∀ i : Fin 4, i.val < 3 → words4 (val ch) i = digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 val))) i) ∧
         val ch 3 = 0 ∧ (val one 0 = 0 ∨ val one 0 = 1) ∧
@@ -1583,7 +1583,7 @@ theorem chainStep_good (idx p0 p1 tag one : ℕ) : Good (fun _ => True) (chainSt
         ∃ c < 64, ∃ i < 8, val t 0 = ofWord (tweakWord (8 * c + i)) ∧ (val one 0 = 1 →
           stepPushRow val [t, v0, v1, ch, tag, one] =
             stepPullOf (ofWord (tweakWord (8 * c + (i + 1) % 8))) (val ch 0) (val ch 1) (val tag 0)) := by
-  refine (Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun t =>
+  refine (Good.bind wire_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun t =>
     Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun v0 =>
     Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun v1 =>
     Good.bind kZero_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun z =>
@@ -1591,9 +1591,10 @@ theorem chainStep_good (idx p0 p1 tag one : ℕ) : Good (fun _ => True) (chainSt
     Good.bind (leafRow_good h [t, idx, p0, p1, v0, v1, z, z] 48 true rfl (by norm_num)) (P₂ := fun _ _ => True)
       (fun _ _ _ _ _ _ _ => trivial) fun r =>
     row_good .step [t, v0, v1, r.2, tag, one] (by decide)).weaken (fun s h => h) ?_
-  rintro s u s8 hs - - ⟨t, s1, ⟨-, ht⟩, -, he1, v0, s2, ⟨-, hv0⟩, -, he2, v1, s3, ⟨-, hv1⟩, -, he3, z, s4,
+  rintro s u s8 hs - - ⟨t, s1, ⟨ht0, hn1⟩, -, he1, v0, s2, ⟨-, hv0⟩, -, he2, v1, s3, ⟨-, hv1⟩, -, he3, z, s4,
     ⟨-, hzq⟩, -, he4, h, s5, ⟨-, hhq⟩, -, he5, r, s6, ⟨-, hr2, hsem⟩, -, he6, -, -, -, -, hrow, -⟩
-  refine ⟨t, v0, v1, r.2, ?_, hrow rfl, fun st val hsat => ?_⟩
+  have ht : t < s1.next := by rw [hn1, ht0]; exact Nat.lt_succ_self _
+  refine ⟨t, v0, v1, r.2, ht0.ge, ?_, hrow rfl, fun st val hsat => ?_⟩
   · intro w hw
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hw
     rcases hw with rfl | rfl | rfl | rfl
@@ -1819,7 +1820,7 @@ theorem Call.exec_good (c : Call) (hok : c.ok = true) : Good (Wires c.args) c.ex
   | chainStep idx p0 p1 tag act =>
     exact (Good.bind (chainStep_good idx p0 p1 tag act) (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial)
       fun _ => Good.pure' (Q := fun s₀ _ s' => s' = s₀) fun _ _ _ => rfl).pre (fun _ _ => trivial)
-      |>.weaken (fun _ h => h) fun _ _ _ _ _ _ ⟨_, _, ⟨t, v0, v1, ch, _, _, hq⟩, _, _, hs⟩ st val hsat => by
+      |>.weaken (fun _ h => h) fun _ _ _ _ _ _ ⟨_, _, ⟨t, v0, v1, ch, _, _, _, hq⟩, _, _, hs⟩ st val hsat => by
         obtain ⟨h1, h2, h3, -, c, hc, i, hi, hT, -⟩ := hq st val (hs ▸ hsat)
         exact ⟨t, v0, v1, ch, h1, h2, h3, c, hc, i, hi, hT⟩
   | link w d0 d1 d2 act =>

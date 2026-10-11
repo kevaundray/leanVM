@@ -1,7 +1,7 @@
 module
 
 public import LeanVMCircuits.Rec.Contracts
-public import LeanVMCircuits.Xmss.Words
+public import LeanVMCircuits.Xmss.Paths
 public import LeanVMCircuits.Xmss.FieldFacts
 
 @[expose] public section
@@ -19,7 +19,8 @@ and `Good.step` and `post_bind` push a contract through one bind. `forIn_post` i
 
 namespace LeanVMCircuits.Xmss
 
-open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective)
+open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective tweakWord
+  stepPullOf)
 open LeanVMCircuits.Rec.Model
 open Words (W Dig)
 
@@ -757,32 +758,7 @@ theorem indicators_good (a0 a1 a2 : ℕ) : Good (Wires [a0, a1, a2]) (Circuit.in
     exact post_pure hi3 (by ext_chain) ⟨hst3, by simpa using hlen, hw3,
       fun st val hsat v hv => hv3 st val hsat v (by simpa using hv)⟩
 
-/-! A chain. -/
-
-/-- Chain `i` at position `p`, from `T` at position `x`. -/
-def cpart (i e : ℕ) (P : Dig) (x : ℕ) (T : Dig) (p : ℕ) : Dig :=
-  (List.range' x (p - x)).foldl (fun v s => Words.chainStep i s e P v) T
-
-theorem cpart_self (i e : ℕ) (P : Dig) (x : ℕ) (T : Dig) : cpart i e P x T x = T := by
-  simp [cpart]
-
-theorem cpart_succ (i e : ℕ) (P : Dig) (x : ℕ) (T : Dig) (p : ℕ) (hx : x ≤ p) :
-    cpart i e P x T (p + 1) = Words.chainStep i p e P (cpart i e P x T p) := by
-  unfold cpart
-  rw [show p + 1 - x = p - x + 1 by omega, List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil,
-    show x + 1 * (p - x) = p by omega]
-
-/-- The digest of a chain step's hash. -/
-theorem step_dig {val : Val} {d idx p0 p1 v0 v1 i s e : ℕ} {V : Dig}
-    (hdv : words4 (val d) = digest (hashWords ([Words.tweak0 1 (8 * i + s), w64 val idx] ++
-      ([p0, p1] ++ [v0, v1]).map (w64 val))))
-    (hidx : w64 val idx = Words.tweak1 e) (h0 : w64 val v0 = V.1) (h1 : w64 val v1 = V.2) :
-    dig val d = Words.chainStep i s e (w64 val p0, w64 val p1) V := by
-  apply dig_th
-  rw [hdv]
-  simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append, hidx, h0, h1]
-
-/-- The mux of a chain step: the element when the indicator is one, the current value otherwise. -/
+/-- The mux of a digit's indicator: the element when the indicator is one, the current value otherwise. -/
 theorem mux_ev (c t u : E) (p : Prop) [Decidable p] (hc : c = if p then 1 else 0) :
     c * (t + u) + u = if p then t else u := by
   subst hc
@@ -790,87 +766,129 @@ theorem mux_ev (c t u : E) (p : Prop) [Decidable p] (hc : c = if p then 1 else 0
   · rw [one_mul, add_assoc, add_self_E, add_zero]
   · rw [zero_mul, zero_add]
 
-/-- `chainEnd`: chain `i` from the element `tip` at the digit `x` to position 7. -/
-theorem chainEnd_good (i idx tip p0 p1 : ℕ) (ind : List ℕ) :
-    Good (fun s => idx < s.next ∧ tip < s.next ∧ p0 < s.next ∧ p1 < s.next ∧ Wires ind s ∧ ind.length = 8)
-      (Circuit.chainEnd i idx tip [p0, p1] ind) fun s r s' => s'.statement = s.statement ∧ r.1 < s'.next ∧
-        r.2 < s'.next ∧ ∀ st val, Sat st s' val → ∀ x < 8, ∀ e : ℕ,
-          (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) → w64 val idx = Words.tweak1 e →
-            (w64 val r.1, w64 val r.2) = Words.chainFrom i e (w64 val p0, w64 val p1) x (dig val tip) := by
-  unfold Circuit.chainEnd
-  refine good_of_post fun s hs ⟨hidx, htip, hp0, hp1, hind, hlen⟩ => ?_
-  refine (words_good tip).step hs (Wires.cons' htip Wires.nil') ?_
-  rintro ⟨t0, t1, t2⟩ s1 hi1 he1 ⟨hst1, ht0, ht1, -, htv⟩
-  try dsimp only
-  refine (tweakHash_good 1 (8 * i) idx [p0, p1] [t0, t1] (by norm_num)).step hi1 trivial ?_
-  rintro d s2 hi2 he2 ⟨hst2, hd, hdv⟩
-  refine ((dToEAndK_good d).pres (pres_dToEAndK d)).step hi2 (Wires.cons' hd Wires.nil') ?_
-  rintro ⟨o, o'⟩ s3 hi3 he3 ⟨hst3, ho, -, hov⟩
-  try dsimp only
-  refine post_bind (forIn_range'_post 6 _ (fun k cur s' => s'.statement = s.statement ∧ cur < s'.next ∧
-      ∀ st val, Sat st s' val → ∀ x < 8, ∀ e : ℕ, (∀ v < 8, ev val (ind.getD v 0) = if v = x then 1 else 0) →
-        w64 val idx = Words.tweak1 e → x ≤ k →
-          dig val cur = cpart i e (w64 val p0, w64 val p1) x (dig val tip) (k + 1)) hi3
-      ⟨by omega, ho, fun st val hsat x hx e hi he hxk => ?_⟩ ?_) ?_
-  · obtain rfl : x = 0 := by omega
-    have h0 : ∀ i : Fin 4, i.val < 3 → val o i = val d i := (hov st val hsat).1
-    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), cpart_succ _ _ _ _ _ _ le_rfl, cpart_self]
-    obtain ⟨a0, a1, -, -⟩ := htv st val (hsat.mono (by ext_chain))
-    exact step_dig (s := 0) (V := dig val tip) (hdv st val (hsat.mono he3)) he (w64_of a0) (w64_of a1)
-  · rintro k hk cur s4 hi4 he4 ⟨hst4, hcur, hv4⟩
-    have hik : ind.getD (k + 1) 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
-    refine ((add_good tip cur).pres (pres_add _ _)).step hi4
-      (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
-    rintro diff s5 hi5 he5 ⟨hst5, hdiff, hdiffv⟩
-    refine ((mulAdd_good _ diff cur).pres (pres_mulAdd _ _ _)).step hi5
-      (Wires.cons' (lt_mono hik he5) (Wires.cons' hdiff (Wires.cons' (lt_mono hcur he5) Wires.nil'))) ?_
-    rintro m s6 hi6 he6 ⟨hst6, hm, hmv⟩
-    refine (words_good m).step hi6 (Wires.cons' hm Wires.nil') ?_
-    rintro ⟨v0, v1, v2⟩ s7 hi7 he7 ⟨hst7, hv0, hv1, -, hvv⟩
-    try dsimp only
-    refine (tweakHash_good 1 (8 * i + (k + 1)) idx [p0, p1] [v0, v1] (by norm_num)).step hi7 trivial ?_
-    rintro d' s8 hi8 he8 ⟨hst8, hd', hdv'⟩
-    refine ((dToEAndK_good d').pres (pres_dToEAndK d')).step hi8 (Wires.cons' hd' Wires.nil') ?_
-    rintro ⟨o2, o2'⟩ s9 hi9 he9 ⟨hst9, ho2, -, hov2⟩
-    try dsimp only
-    refine post_pure hi9 (by ext_chain) ⟨o2, rfl, by omega, ho2, fun st val hsat x hx e hi he hxk => ?_⟩
-    have h0 : ∀ i : Fin 4, i.val < 3 → val o2 i = val d' i := (hov2 st val hsat).1
-    rw [dig_congr (h0 0 (by decide)) (h0 1 (by decide)), cpart_succ _ _ _ _ _ _ hxk]
-    obtain ⟨a0, a1, -, -⟩ := hvv st val (hsat.mono (by ext_chain))
-    rw [step_dig (V := dig val m) (hdv' st val (hsat.mono he9)) he (w64_of a0) (w64_of a1)]
-    apply congrArg (Words.chainStep i (k + 1) e _)
-    have hmev : ev val m = if k + 1 = x then ev val tip else ev val cur := by
-      rw [hmv st val (hsat.mono (by ext_chain)), hdiffv st val (hsat.mono (by ext_chain))]
-      exact mux_ev _ _ _ _ (hi (k + 1) (by omega))
-    split_ifs at hmev with hkx
-    · rw [dig_of_ev hmev, ← hkx, cpart_self]
-    · rw [dig_of_ev hmev]
-      exact hv4 st val (hsat.mono (by ext_chain)) x hx e hi he (by omega)
-  · rintro cur s4 hi4 he4 ⟨hst4, hcur, hv4⟩
-    have hik : ind.getD 7 0 < s4.next := lt_mono (wires_getD' hind (by omega)) (by ext_chain)
-    refine ((add_good tip cur).pres (pres_add _ _)).step hi4
-      (Wires.cons' (lt_mono htip (by ext_chain)) (Wires.cons' hcur Wires.nil')) ?_
-    rintro diff s5 hi5 he5 ⟨hst5, hdiff, hdiffv⟩
-    refine ((mulAdd_good _ diff cur).pres (pres_mulAdd _ _ _)).step hi5
-      (Wires.cons' (lt_mono hik he5) (Wires.cons' hdiff (Wires.cons' (lt_mono hcur he5) Wires.nil'))) ?_
-    rintro m s6 hi6 he6 ⟨hst6, hm, hmv⟩
-    refine (words_good m).step hi6 (Wires.cons' hm Wires.nil') ?_
-    rintro ⟨n0, n1, n2⟩ s7 hi7 he7 ⟨hst7, hn0, hn1, -, hnv⟩
-    try dsimp only
-    refine post_pure hi7 (by ext_chain) ⟨by omega, hn0, hn1, fun st val hsat x hx e hi he => ?_⟩
-    obtain ⟨a0, a1, -, -⟩ := hnv st val hsat
-    have a0' : val n0 0 = val m 0 := a0
-    have a1' : val n1 0 = val m 1 := a1
-    show (w64 val n0, w64 val n1) = cpart i e (w64 val p0, w64 val p1) x (dig val tip) 7
-    rw [w64_of a0', w64_of a1']
-    show dig val m = cpart i e (w64 val p0, w64 val p1) x (dig val tip) 7
-    have hmev : ev val m = if 7 = x then ev val tip else ev val cur := by
-      rw [hmv st val (hsat.mono he7), hdiffv st val (hsat.mono (by ext_chain))]
-      exact mux_ev _ _ _ _ (hi 7 (by omega))
-    split_ifs at hmev with hkx
-    · rw [dig_of_ev hmev, ← hkx, cpart_self]
-    · rw [dig_of_ev hmev]
-      exact hv4 st val (hsat.mono (by ext_chain)) x hx e hi he (by omega)
+/-! The chains on the dynamic bus. -/
+
+theorem pres_link (w d0 d1 d2 act : ℕ) : Pres (link w d0 d1 d2 act) := by unfold link; pres
+theorem pres_leafRow (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) : Pres (leafRow h m t last) := by
+  unfold leafRow; pres
+theorem pres_chainStep (idx : ℕ) (pp : ℕ × ℕ) (tag act : ℕ) : Pres (chainStep idx pp tag act) := by
+  unfold chainStep
+  exact Pres.bind pres_wire fun _ => Pres.bind pres_wire fun _ => Pres.bind pres_wire fun _ =>
+    Pres.bind pres_kZero fun _ => Pres.bind (pres_constant _ _) fun _ =>
+      Pres.bind (pres_leafRow _ _ _ _) fun _ => pres_row _ _
+
+theorem flatMap_range_eq {β : Type} {f g : ℕ → List β} {n : ℕ} (h : ∀ j < n, f j = g j) :
+    (List.range n).flatMap f = (List.range n).flatMap g := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [List.range_succ, List.flatMap_append, List.flatMap_append, ih fun j hj => h j (by omega)]
+    simp only [List.flatMap_cons, List.flatMap_nil, h n (by omega)]
+
+/-- A `STEP` row `chain_step idx (p0, p1) tag act` made: its output's words are the hash of its tweak word, the index
+word, the parameter and its input words, its tweak word is that of a chain `c < 64` at a position `i < 8`, and when
+active it pushes the next position's key. -/
+def StepRow (idx p0 p1 tag act : ℕ) (s : State) (r : List ℕ) : Prop :=
+  ∃ t v0 v1 ch, r = [t, v0, v1, ch, tag, act] ∧ r ∈ s.step ∧ t < s.next ∧ ∀ st val, Sat st s val →
+    (∀ i : Fin 4, i.val < 3 → words4 (val ch) i = digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 val))) i) ∧
+    ∃ c < 64, ∃ i < 8, val t 0 = ofWord (tweakWord (8 * c + i)) ∧ (val act 0 = 1 →
+      stepPushRow val r = stepPullOf (ofWord (tweakWord (8 * c + (i + 1) % 8))) (val ch 0) (val ch 1) (val tag 0))
+
+theorem StepRow.mono {idx p0 p1 tag act : ℕ} {s s' : State} {r : List ℕ} (h : StepRow idx p0 p1 tag act s r)
+    (he : Ext s s') : StepRow idx p0 p1 tag act s' r := by
+  obtain ⟨t, v0, v1, ch, rfl, hr, ht, hq⟩ := h
+  exact ⟨t, v0, v1, ch, rfl, he.steps _ hr, lt_mono ht he, fun st val hsat => hq st val (hsat.mono he)⟩
+
+theorem limbsOf_k0 (a : ℕ) : limbsOf [a, 0, 0, 0] 0 = ofWord a := rfl
+
+/-- Chain `i`'s `LINK` row: its word, its digit's bits, its element's and its end's words, the activity. -/
+def linkRow (db : List ℕ) (act : ℕ) (W T0 T1 E0 E1 : ℕ → ℕ) (i : ℕ) : List ℕ :=
+  [W i, db.getD (3 * i) 0, db.getD (3 * i + 1) 0, db.getD (3 * i + 2) 0, T0 i, T1 i, E0 i, E1 i, act]
+
+/-- `chains`: 99 distinct `STEP` rows and 42 `LINK` rows, the links' ends its output, the activity one, the tag
+`j · 2^41` and link `i`'s word `tweak0(1, 8i) + j · 2^41`. -/
+theorem chains_good (j idx p0 p1 : ℕ) (db : List ℕ) :
+    Good (fun _ => True) (Circuit.chains j idx [p0, p1] db) fun s ends s' => s'.statement = s.statement ∧
+      Wires ends s' ∧ ∃ (R : List (List ℕ)) (act tag : ℕ) (W T0 T1 E0 E1 : ℕ → ℕ),
+        ends = (List.range 42).flatMap (fun i => [E0 i, E1 i]) ∧ R.length = 99 ∧ R.Nodup ∧
+        (∀ r ∈ R, StepRow idx p0 p1 tag act s' r) ∧ (∀ i < 42, linkRow db act W T0 T1 E0 E1 i ∈ s'.link) ∧
+        ∀ st val, Sat st s' val → val act 0 = 1 ∧ val tag 0 = ofWord (j * 2 ^ 41) ∧
+          ∀ i < 42, val (W i) 0 = ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41) := by
+  unfold Circuit.chains
+  refine good_of_post fun s hs _ => ?_
+  refine fresh_good'.step hs trivial ?_
+  rintro act s1 hi1 he1 ⟨hst1, -⟩
+  refine ((eqConstK_good act 1).pres (pres_eqConstK _ _)).step hi1 trivial ?_
+  rintro _ s2 hi2 he2 ⟨hst2, hactv⟩
+  refine ((kConst_good _).pres (pres_kConst _)).step hi2 trivial ?_
+  rintro tag s3 hi3 he3 ⟨hst3, -, htagv⟩
+  refine post_bind (forIn_range_post 42 _ (fun k (ends : List ℕ) s' => s'.statement = s.statement ∧
+      Wires ends s' ∧ ∃ W T0 T1 E0 E1 : ℕ → ℕ, ends = (List.range k).flatMap (fun i => [E0 i, E1 i]) ∧
+        (∀ i < k, linkRow db act W T0 T1 E0 E1 i ∈ s'.link) ∧
+        ∀ st val, Sat st s' val → ∀ i < k, val (W i) 0 = ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41)) hi3
+      ⟨by omega, Wires.nil', fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, rfl,
+        fun _ h => absurd h (Nat.not_lt_zero _), fun _ _ _ _ h => absurd h (Nat.not_lt_zero _)⟩ ?_) ?_
+  · rintro i hi ends s4 hi4 he4 ⟨hst4, hw4, W, T0, T1, E0, E1, rfl, hL4, hv4⟩
+    refine ((kConst_good _).pres (pres_kConst _)).step hi4 trivial ?_
+    rintro w s5 hi5 he5 ⟨hst5, -, hwv⟩
+    refine ((link_good w _ _ _ act).pres (pres_link _ _ _ _ _)).step hi5 trivial ?_
+    rintro es s6 hi6 he6 ⟨hst6, t0, t1, e0, e1, rfl, hw6, hrow, -⟩
+    refine post_pure hi6 (by ext_chain) ⟨_, rfl, by omega, fun x hx => ?_, fun x => if x = i then w else W x,
+      fun x => if x = i then t0 else T0 x, fun x => if x = i then t1 else T1 x,
+      fun x => if x = i then e0 else E0 x, fun x => if x = i then e1 else E1 x, ?_, fun x hx => ?_,
+      fun st val hsat x hx => ?_⟩
+    · rcases List.mem_append.mp hx with hx | hx
+      · exact lt_mono (hw4 x hx) (by ext_chain)
+      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+        rcases hx with rfl | rfl
+        · exact hw6 x (by simp)
+        · exact hw6 x (by simp)
+    · dsimp only
+      rw [List.range_succ, List.flatMap_append, List.flatMap_cons, List.flatMap_nil, List.append_nil, if_pos rfl,
+        if_pos rfl, flatMap_range_eq (f := fun x => [if x = i then e0 else E0 x, if x = i then e1 else E1 x])
+          (g := fun x => [E0 x, E1 x]) fun x hx => by rw [if_neg (Nat.ne_of_lt hx), if_neg (Nat.ne_of_lt hx)]]
+    · rcases Nat.lt_succ_iff_lt_or_eq.mp hx with hx | rfl
+      · have h := (he5.trans he6).links _ (hL4 x hx)
+        simpa only [linkRow, if_neg (Nat.ne_of_lt hx)] using h
+      · simpa only [linkRow, eq_self_iff_true, if_true] using hrow
+    · dsimp only
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hx with hx | hx
+      · rw [if_neg (Nat.ne_of_lt hx)]
+        exact hv4 st val (hsat.mono (he5.trans he6)) x hx
+      · subst hx
+        rw [if_pos rfl, hwv st val (hsat.mono he6)]
+        exact limbsOf_k0 _
+  · rintro ends s4 hi4 he4 ⟨hst4, hw4, W, T0, T1, E0, E1, rfl, hL4, hv4⟩
+    refine post_bind (forIn_range_post 99 _ (fun k (_ : PUnit) s' => s'.statement = s.statement ∧
+        ∃ R : List (List ℕ), R.length = k ∧ R.Nodup ∧ ∀ r ∈ R, StepRow idx p0 p1 tag act s' r) hi4
+        ⟨by omega, [], rfl, List.nodup_nil, fun _ h => absurd h List.not_mem_nil⟩ ?_) ?_
+    · rintro k hk u s5 hi5 he5 ⟨hst5, R, hRl, hRn, hR⟩
+      refine ((chainStep_good idx p0 p1 tag act).pres (pres_chainStep _ _ _ _)).step hi5 trivial ?_
+      rintro _ s6 hi6 he6 ⟨hst6, t, v0, v1, ch, ht, hw6, hrow, hq⟩
+      refine post_pure hi6 he6 ⟨PUnit.unit, rfl, by omega, R ++ [[t, v0, v1, ch, tag, act]], by simp [hRl], ?_,
+        fun r hr => ?_⟩
+      · refine List.nodup_append.mpr ⟨hRn, List.nodup_singleton _, ?_⟩
+        intro a ha b hb hab
+        rw [List.mem_singleton] at hb
+        subst hb
+        obtain ⟨t', v0', v1', ch', rfl, -, ht', -⟩ := hR a ha
+        have : t' = t := (List.cons.inj hab).1
+        omega
+      · rcases List.mem_append.mp hr with hr | hr
+        · exact (hR r hr).mono he6
+        · rw [List.mem_singleton] at hr
+          subst hr
+          refine ⟨t, v0, v1, ch, rfl, hrow, hw6 t (by simp), fun st val hsat => ?_⟩
+          obtain ⟨h1, -, -, -, h5⟩ := hq st val hsat
+          exact ⟨h1, h5⟩
+    · rintro u s5 hi5 he5 ⟨hst5, R, hRl, hRn, hR⟩
+      refine post_pure hi5 (by ext_chain) ⟨by omega, fun x hx => lt_mono (hw4 x hx) he5, R, act, tag, W, T0, T1,
+        E0, E1, rfl, hRl, hRn, hR, fun i hi => he5.links _ (hL4 i hi), fun st val hsat => ⟨?_, ?_,
+          fun i hi => hv4 st val (hsat.mono he5) i hi⟩⟩
+      · rw [hactv st val (hsat.mono (by ext_chain))]
+        exact (limbsOf_k0 1).trans Rec.ofWord_one
+      · rw [htagv st val (hsat.mono (by ext_chain))]
+        exact limbsOf_k0 _
 
 /-! A level of the path. -/
 
