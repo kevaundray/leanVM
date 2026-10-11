@@ -2,8 +2,8 @@ import WhirAeneas.Merkle
 import WhirAeneas.MerkleNative
 import Lean.Util.CollectAxioms
 
-/-! Axiom audit of the Merkle opening extraction and its proofs. Separate from the other audits
-because the generated namespaces declare the same top-level instance names. -/
+/-! Axiom audit of the Merkle opening extraction and its proofs. `WhirAeneas.NativeAudit` audits
+them together with the replay and the composed native theorem. -/
 
 #print axioms MerkleSource.merkle.PrunedMerklePaths.from_hint
 #print axioms MerkleSource.merkle.PrunedMerklePaths.open

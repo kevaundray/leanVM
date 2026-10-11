@@ -86,10 +86,9 @@ inductive Event (E Q R K : Type) where
   | queries (qs : List Q)
   | rows (root : R) (depth : Nat) (qs : List Q) (rowWords leafWords : Nat) (ws : List (List K))
 
-/-- Each read returns the tape's next answer and leaves the rest; a round polynomial is
-read as its two transmitted coefficients; the rows read answers only the arguments its event
-records; scopes change nothing. -/
-structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
+/-- Every read but the Merkle rows: each returns the tape's next answer and leaves the rest; a
+round polynomial is read as its two transmitted coefficients; scopes change nothing. -/
+structure Reads {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
     (encode : E → Concrete.E) (tape : V → List (Event E Q R K)) : Prop where
   sample : ∀ v e rest, tape v = .sample e :: rest →
     ∃ v', inst.fiat_shamirarithVerifierInst.verifier_message v = .ok (e, v') ∧ tape v' = rest
@@ -110,12 +109,16 @@ structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q
     ∃ v', inst.fiat_shamirarithVerifierInst.check_pow v bits = .ok (.Ok (), v') ∧ tape v' = rest
   queries : ∀ v depth (count : Usize) qs rest, tape v = .queries qs :: rest → qs.length = count.val →
     ∃ w v', inst.sample_queries v depth count = .ok (w, v') ∧ w.val = qs ∧ tape v' = rest
+  begin_scope : ∀ v stage, inst.fiat_shamirarithVerifierInst.begin_scope v stage = .ok v
+  end_scope : ∀ v, inst.fiat_shamirarithVerifierInst.end_scope v = .ok v
+
+/-- The reads, and the rows read answering the arguments its event records. -/
+structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
+    (encode : E → Concrete.E) (tape : V → List (Event E Q R K)) : Prop extends Reads inst encode tape where
   rows : ∀ v root (depth : Usize) (queries : Slice Q) (a b : Usize) ws rest,
     tape v = .rows root depth.val queries.val a.val b.val ws :: rest →
     ∃ w v', inst.open_rows v root depth queries a b = .ok (.Ok w, v') ∧
       w.val.map (·.val) = ws ∧ tape v' = rest
-  begin_scope : ∀ v stage, inst.fiat_shamirarithVerifierInst.begin_scope v stage = .ok v
-  end_scope : ∀ v, inst.fiat_shamirarithVerifierInst.end_scope v = .ok v
 
 section Steps
 open AccumulatedTerminalRefinement WHIRNativeArithmetic

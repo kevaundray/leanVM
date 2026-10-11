@@ -1236,7 +1236,8 @@ theorem openSpec_binding (leaf : List U64 → Digest) (node : Digest → Digest 
     (hT0 : ∀ i, T 0 i = leaf (List.replicate (lw - rw) primitives.field.gf2_64.F64.ZERO ++ C i))
     (hT : ∀ l i, T (l + 1) i = node (T l (2 * i)) (T l (2 * i + 1))) (I Ps)
     (hopen : openSpec leaf node rows sibs (T h 0) h queries rw lw = some (I, Ps)) :
-    I = queries.flatMap fun q => List.replicate (lw - rw) primitives.field.gf2_64.F64.ZERO ++ C q := by
+    ∀ q ∈ queries, imageOf rows (queries.toFinset.sort (· ≤ ·)) rw lw q =
+      List.replicate (lw - rw) primitives.field.gf2_64.F64.ZERO ++ C q := by
   set S := queries.toFinset.sort (· ≤ ·) with hS
   simp only [openSpec] at hopen
   split_ifs at hopen with hcond
@@ -1278,8 +1279,6 @@ theorem openSpec_binding (leaf : List U64 → Digest) (node : Digest → Digest 
         subst hx
         rw [hroot, hidx0 x (by simp), Nat.zero_add]
     have hleaves := rebuildSpec_tree node hnode T hT sibs h _ 0 lvls top u 0 hreb hasc htop
-    rw [expandSpec_images rows S (lvls.map knownOf) rw lw queries I Ps hopen]
-    apply List.flatMap_congr
     intro q hq'
     have hqS : q ∈ S := (mem_sort_iff _ q).mpr hq'
     obtain ⟨i, hi, hqi⟩ := List.getElem_of_mem hqS
