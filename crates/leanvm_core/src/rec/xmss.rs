@@ -8,7 +8,7 @@
 //! words `[m0, m1, 0]` and `[m2, m3, 0]`, the epoch `[e, 0, 0]`, then the Merkle root `[r0, r1, 0]` the signature
 //! reaches. The signature is the prover's.
 
-use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Unsatisfied, chain};
+use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Replay, Unsatisfied, chain};
 use super::fixed::FixedColumns;
 use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
 use crate::cpu::{DecodeError, VerifyError};
@@ -85,6 +85,8 @@ pub struct XmssBatch {
     circuit: Circuit,
     /// Its fixed columns.
     columns: FixedColumns,
+    /// What a prover replays of the circuit's build, one part per signature, for its values.
+    replay: Replay,
     /// The transcript's session, which names the circuit and its size.
     session: SessionId,
 }
@@ -185,7 +187,8 @@ impl XmssBatch {
         if n > 1 << (63 - TAG_SHIFT) {
             return Err(XmssError::TooLarge { n });
         }
-        let circuit = build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]).circuit;
+        let (finished, replay) = build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]);
+        let circuit = finished.circuit;
         circuit.committed_words().map_err(|_| XmssError::TooLarge { n })?;
         let columns = FixedColumns::of(&circuit, &circuit.heights());
         let mut tag = DOMAIN.to_vec();
@@ -197,6 +200,7 @@ impl XmssBatch {
             rate,
             circuit,
             columns,
+            replay,
             session,
         })
     }
@@ -258,7 +262,7 @@ impl XmssBatch {
         self.count(claims.len(), "claims")?;
         self.count(signatures.len(), "signatures")?;
         let (assignment, failures) =
-            info_span!("Build circuit").in_scope(|| builder(claims, signatures).finish_values());
+            info_span!("Build circuit").in_scope(|| self.replay.values(part(claims, signatures)));
         if let Some(first) = failures.into_iter().next() {
             return Err(XmssError::Unsatisfied(first));
         }
@@ -267,7 +271,7 @@ impl XmssBatch {
             return Err(XmssError::Root { index: i });
         }
         debug_assert!(
-            build(claims, signatures).circuit == self.circuit,
+            build(claims, signatures).0.circuit == self.circuit,
             "the rows never depend on the values"
         );
         let proof = (self.circuit)
@@ -312,7 +316,7 @@ impl XmssBatch {
     #[must_use]
     pub fn circuit_dump(&self) -> String {
         let n = self.n;
-        let (finished, calls) =
+        let ((finished, _), calls) =
             super::circuit::traced(|| build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]));
         assert_eq!(finished.circuit, self.circuit, "a circuit is built the same every time");
         calls + "circuit\n" + &self.circuit.dump() + &self.columns.dump_next(&self.circuit)
@@ -347,18 +351,18 @@ fn statement(claims: &[XmssClaim]) -> Vec<Limbs> {
         .collect()
 }
 
-/// The circuit verifying the signatures, with their values: `Circuit.circuit n`.
-fn build(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Finished {
-    builder(claims, signatures).finish()
+/// The circuit verifying the signatures, with their values, and its replay: `Circuit.circuit n`.
+fn build(claims: &[XmssClaim], signatures: &[XmssSignature]) -> (Finished, Replay) {
+    Builder::parts(claims.len(), part(claims, signatures))
 }
 
-/// The builder after the circuit's calls.
-fn builder(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Builder {
-    let mut b = Builder::new();
-    for (i, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
-        b.scope(format!("signature {i}"), |b| signature(b, i, claim, sig));
+/// The circuit's part verifying signature `i`.
+fn part<'a>(claims: &'a [XmssClaim], signatures: &'a [XmssSignature]) -> impl Fn(&mut Builder, usize) + Sync + 'a {
+    move |b, i| {
+        b.scope(format!("signature {i}"), |b| {
+            signature(b, i, &claims[i], &signatures[i]);
+        });
     }
-    b
 }
 
 /// A tweak's first word: the domain separator zero, the tweak's type in byte 1, its position in bytes 4 to 7.
@@ -577,6 +581,24 @@ mod tests {
                 matches!(key.verify(&forged, &proof), Err(XmssError::Proof(_))),
                 "{what}"
             );
+        }
+    }
+
+    #[test]
+    fn a_proof_replays_the_build() {
+        let (claims, signatures) = signed(2);
+        let batch = XmssBatch::new(2, Rate::MIN).expect("two signatures fit");
+
+        // Mutation: the randomness of the second signature.
+        //
+        //     its digits change, and the steps they need
+        //     → the build's failures, the encoding's and the dynamic tuples'
+        let mut tampered = signatures.clone();
+        tampered[1].randomness[0] ^= 1;
+        for (sigs, honest) in [(&signatures, true), (&tampered, false)] {
+            let built = build(&claims, sigs).0;
+            let failures = batch.replay.assert_replays(part(&claims, sigs), &built);
+            assert_eq!(failures.is_empty(), honest);
         }
     }
 

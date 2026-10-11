@@ -5,7 +5,7 @@
 //! if every key is pushed and pulled as often, with the same words.
 
 use super::Builder;
-use crate::rec::circuit::{Kw, PARAM_IV};
+use crate::rec::circuit::{Kw, Limbs, PARAM_IV, TableSlots};
 use crate::rec::clean::{LINK_A, LINK_D, LINK_E, LINK_T, LINK_W, STEP_A, STEP_BASE, STEP_J, STEP_O, STEP_T, STEP_V};
 use crate::rec::table::Table;
 
@@ -91,42 +91,75 @@ impl Builder {
         self.row(Table::Link, &slots);
         e
     }
+}
 
-    /// Check the step and link rows on the values: each step's tweak word is its base, below `2^32`, plus a position
-    /// at bits 32 to 40, each `a` is Boolean, and the dynamic tuples balance, every `(key, x0, x1)` pushed as often
-    /// as pulled.
-    pub(super) fn check_dynamic(&mut self) {
-        let mut pushed = Vec::new();
-        let mut pulled = Vec::new();
-        let mut failures = Vec::new();
-        for table in Table::DYNAMIC {
-            let n = table.n_slots();
+/// The check that the dynamic tuples balance, every `(key, x0, x1)` pushed as often as pulled.
+pub(super) const BALANCE: &str = "the dynamic tuples balance";
+
+/// Step and link rows on the values: their tuples, and the checks they fail.
+pub(super) struct Dynamic {
+    /// Each row's pushed tuple, `(key, x0, x1)`.
+    pushed: Vec<[u64; 3]>,
+    /// Each row's pulled tuple.
+    pulled: Vec<[u64; 3]>,
+    /// Per dynamic table, the checks its rows fail, in row order: each step's tweak word is its base, below `2^32`,
+    /// plus a position at bits 32 to 40, and each `a` is Boolean.
+    pub(super) failures: [Vec<&'static str>; 2],
+}
+
+impl Dynamic {
+    /// The rows `rows` of each dynamic table, row-major, their wires' values by `value`.
+    pub(super) fn of(rows: [&[u32]; 2], value: impl Fn(u32) -> Limbs) -> Self {
+        let n_rows: usize = (Table::DYNAMIC.iter().zip(rows))
+            .map(|(t, r)| r.len() / t.n_slots())
+            .sum();
+        let mut pushed = Vec::with_capacity(n_rows);
+        let mut pulled = Vec::with_capacity(n_rows);
+        let mut cols = Vec::new();
+        let failures = std::array::from_fn(|k| {
+            let (table, mut failures) = (Table::DYNAMIC[k], Vec::new());
+            let tuples = table.dynamic_tuples().expect("a dynamic table");
             let a = if table == Table::Step { STEP_A } else { LINK_A };
-            for row in self.rows.of(table).chunks_exact(n) {
-                let value = |s: usize| self.values[row[s] as usize];
+            for row in rows[k].chunks_exact(table.n_slots()) {
+                let slot = |s: usize| value(row[s]);
                 if table == Table::Step {
-                    let (t, base) = (value(STEP_T)[0], value(STEP_BASE)[0]);
+                    let (t, base) = (slot(STEP_T)[0], slot(STEP_BASE)[0]);
                     if base >> 32 != 0 || (t ^ base) & !POSITION_BITS != 0 {
                         failures.push("a step's tweak word is its base plus a position");
                     }
                 }
-                if value(a)[0] > 1 {
+                if slot(a)[0] > 1 {
                     failures.push("a step's or link's a is Boolean");
                 }
-                let [push, pull] = table.row_dynamic(value).expect("a dynamic table");
+                let [push, pull] = tuples.at(slot, &mut cols);
                 pushed.push(push.map(|x| x.0));
                 pulled.push(pull.map(|x| x.0));
             }
-        }
-        pushed.sort_unstable();
-        pulled.sort_unstable();
-        if pushed != pulled {
-            failures.push("the dynamic tuples balance");
-        }
-        for check in failures {
-            self.fail(check);
+            failures
+        });
+        Self {
+            pushed,
+            pulled,
+            failures,
         }
     }
+
+    /// Whether the tuples balance, every one pushed as often as pulled.
+    pub(super) fn balance(&mut self) -> bool {
+        self.pushed.sort_unstable();
+        self.pulled.sort_unstable();
+        self.pushed == self.pulled
+    }
+}
+
+/// The checks a circuit's step and link rows fail on the values, each wire's at its number, the balance last.
+pub(super) fn dynamic_failures(rows: &TableSlots, values: &[Limbs]) -> Vec<&'static str> {
+    let mut dynamic = Dynamic::of(Table::DYNAMIC.map(|t| rows.of(t)), |w| values[w as usize]);
+    let mut failures = dynamic.failures.concat();
+    if !dynamic.balance() {
+        failures.push(BALANCE);
+    }
+    failures
 }
 
 /// Honest chains for tests, as planned rows a test may tamper with before they become rows.

@@ -17,13 +17,16 @@ impl Builder {
     }
 
     fn emul(&mut self, a: Ew, b: Ew, d: Ew) -> Ew {
-        let key = row_key(Table::Emul, self.emul_key(a, b, d));
-        if let Some(&c) = self.arith.get(&key) {
+        let inputs = self.emul_key(a, b, d);
+        let key = row_key(Table::Emul, inputs);
+        if let Some(c) = self.earlier(&inputs, |s| s.arith.get(&key).copied()) {
             return Ew(c);
         }
         let c = self.free_e(self.e(a) * self.e(b) + self.e(d));
         self.arith_row(Table::Emul, [a.0, b.0, d.0, c.0]);
-        self.arith.insert(key, c.0);
+        if !self.parts.replaying() {
+            self.arith.insert(key, c.0);
+        }
         c
     }
 
@@ -113,13 +116,16 @@ impl Builder {
         if u.k_one == Some(k.0) {
             return self.add(a, d);
         }
-        let key = row_key(Table::Exk, [a.0, k.0, d.0]);
-        if let Some(&c) = self.arith.get(&key) {
+        let inputs = [a.0, k.0, d.0];
+        let key = row_key(Table::Exk, inputs);
+        if let Some(c) = self.earlier(&inputs, |s| s.arith.get(&key).copied()) {
             return Ew(c);
         }
         let c = self.free_e(self.e(a).mul_base(F64(self.k(k))) + self.e(d));
         self.arith_row(Table::Exk, [a.0, k.0, d.0, c.0]);
-        self.arith.insert(key, c.0);
+        if !self.parts.replaying() {
+            self.arith.insert(key, c.0);
+        }
         c
     }
 
