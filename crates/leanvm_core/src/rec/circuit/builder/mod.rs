@@ -14,7 +14,11 @@ macro_rules! traced {
 
 mod arith;
 mod bits;
+mod chain;
 mod hash;
+
+#[cfg(test)]
+pub(crate) use chain::testing as chains;
 
 use super::{
     Assignment, Circuit, Compression, Dw, Ew, Finished, Kw, Limbs, PubSource, TableSlots, Unsatisfied, WireKind,
@@ -229,7 +233,7 @@ impl Builder {
         }
     }
 
-    /// The circuit, its values, and the checks that failed on them.
+    /// The circuit, its values, and the checks that failed on them, the dynamic tuples' balance last.
     ///
     /// A wire class is numbered by its first slot, so a circuit is the same however it was built.
     pub fn finish(mut self) -> Finished {
@@ -237,6 +241,7 @@ impl Builder {
         if let Some(t) = self.trace.take() {
             TRACE.with(|g| g.borrow_mut().as_mut().map(|g| g.push_str(&t.out)));
         }
+        self.check_dynamic();
         let (wires, pubs) = self.statement_first();
         let mut number: Vec<Option<u32>> = vec![None; self.values.len()];
         let mut n_classes = 0;
@@ -269,6 +274,7 @@ impl Builder {
     /// The values and the checks that failed on them, without numbering the wire classes: all a prover needs whose
     /// circuit is already built from the same calls.
     pub fn finish_values(mut self) -> (Assignment, Vec<Unsatisfied>) {
+        self.check_dynamic();
         let (wires, _) = self.statement_first();
         let assignment = Assignment {
             wires,

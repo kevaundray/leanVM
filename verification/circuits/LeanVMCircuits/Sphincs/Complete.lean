@@ -11,13 +11,14 @@ public import LeanVMCircuits.Sphincs.Words
 # Completeness of the leanSPHINCS verifier circuit
 
 Every signature `Sphincs.Words.verify` accepts, under statement words that encode it (`Sphincs.Encodes`), extends to an
-assignment satisfying the circuit `Sphincs.Circuit.circuit n`. The gadgets shared with leanXMSS (statement words,
-digests' words, the digit product, the indicators) keep their `Xmss.Complete` contracts. The new ones: an index word
-of two bit lists is the tweak's second word `tau | j << 32`, a tweak hash `th` is BLAKE2s-256 of its words, a level
-and `fold` climb a tree as `Words.parent` does, a chain ends at `Words.chainFrom`, the few-time key hashes the trees'
-roots, and a layer encodes its message in one `leafBlock` of 52 bytes, the counter's high bits zero, before its
-chains, leaf and path. The signature's contract runs them in order from what verification found: the last leaf index
-is zero, each layer's encoding and root, and the top root is the statement's.
+assignment the machine accepts the circuit `Sphincs.Circuit.circuit n` with (`Accepts`): one satisfying it, whose
+dynamic bus balances because the circuit has no `STEP` or `LINK` row (`balanced_circuit`). The gadgets shared with
+leanXMSS (statement words, digests' words, the digit product, the indicators) keep their `Xmss.Complete` contracts.
+The new ones: an index word of two bit lists is the tweak's second word `tau | j << 32`, a tweak hash `th` is
+BLAKE2s-256 of its words, a level and `fold` climb a tree as `Words.parent` does, a chain ends at `Words.chainFrom`,
+the few-time key hashes the trees' roots, and a layer encodes its message in one `leafBlock` of 52 bytes, the
+counter's high bits zero, before its chains, leaf and path. The signature's contract runs them in order from what
+verification found: the last leaf index is zero, each layer's encoding and root, and the top root is the statement's.
 -/
 
 namespace LeanVMCircuits.Sphincs.Complete
@@ -1492,13 +1493,61 @@ theorem circuit_cg (n : ℕ) (h : ∀ j < n, ∃ root pp msg, Encodes st j root 
 
 end
 
-/-- The honest assignment of the circuit verifying `n` leanSPHINCS signatures. -/
+/-! The circuit adds no `STEP` or `LINK` row, so its dynamic bus balances. -/
+
+theorem sp_frame_indexWord (tau j : List ℕ) : Xmss.Frame (Circuit.indexWord tau j) := by
+  unfold Circuit.indexWord; frame
+theorem sp_frame_th (tw0 tw1 : ℕ) (pp payload : List ℕ) : Xmss.Frame (Circuit.th tw0 tw1 pp payload) := by
+  unfold Circuit.th; frame
+
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_indexWord _ _)
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_th _ _ _ _)
+
+theorem sp_frame_level (tw0 tw1 bit node : ℕ) (pp : List ℕ) : Xmss.Frame (Circuit.level tw0 tw1 bit node pp) := by
+  unfold Circuit.level; frame
+
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_level _ _ _ _ _)
+
+theorem sp_frame_fold (ty lay : ℕ) (tauBits jBits : List ℕ) (top : ℕ) (pp : List ℕ) (leaf : ℕ) :
+    Xmss.Frame (Circuit.fold ty lay tauBits jBits top pp leaf) := by
+  unfold Circuit.fold; frame
+theorem sp_frame_chainEnd (lay i tw1 tip : ℕ) (pp ind : List ℕ) : Xmss.Frame (Circuit.chainEnd lay i tw1 tip pp ind) := by
+  unfold Circuit.chainEnd; frame
+
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_fold _ _ _ _ _ _ _)
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_chainEnd _ _ _ _ _ _)
+
+theorem sp_frame_fts (idxBits : List ℕ) (us : List (List ℕ)) (top : ℕ) (pp : List ℕ) :
+    Xmss.Frame (Circuit.fts idxBits us top pp) := by
+  unfold Circuit.fts; frame
+theorem sp_frame_layer (lay : ℕ) (idxBits pp : List ℕ) (msg : ℕ) : Xmss.Frame (Circuit.layer lay idxBits pp msg) := by
+  unfold Circuit.layer; frame
+
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_fts _ _ _ _)
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_layer _ _ _ _)
+
+theorem sp_frame_signature : Xmss.Frame Circuit.signature := by
+  unfold Circuit.signature; frame
+
+macro_rules | `(tactic| frame_atom) => `(tactic| exact sp_frame_signature)
+
+theorem sp_frame_circuit (n : ℕ) : Xmss.Frame (Circuit.circuit n) := by
+  unfold Circuit.circuit; frame
+
+/-- The circuit's dynamic bus balances under every assignment: it has no `STEP` or `LINK` row. -/
+theorem balanced_circuit (n : ℕ) (val : Val) : Rec.Model.Balanced ((Circuit.circuit n).run {}).2 val := by
+  obtain ⟨h1, h2⟩ := sp_frame_circuit n {}
+  rw [Rec.Model.Balanced, pushes, pulls, h1, h2]
+  rfl
+
+/-- The honest assignment of the circuit verifying `n` leanSPHINCS signatures: the machine accepts the circuit with
+it. -/
 theorem circuit_complete (n : ℕ) (st : ℕ → Fin 4 → K)
     (h : ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Words.verify root pp msg sig = true) :
-    ∃ val, Sat st ((Circuit.circuit n).run {}).2 val := by
+    ∃ val, Accepts st ((Circuit.circuit n).run {}).2 val := by
   obtain ⟨-, -, -, -, val', -, hsat, -⟩ :=
     circuit_cg n h {} (fun _ _ => 0) inv_empty closed_empty (sat_empty st _) fun _ _ => rfl
-  exact ⟨val', hsat⟩
+  exact ⟨val', hsat, balanced_circuit n val'⟩
 
 end LeanVMCircuits.Sphincs.Complete
 
@@ -1507,10 +1556,11 @@ namespace LeanVMCircuits.Sphincs
 open LeanVMCircuits.Rec LeanVMCircuits.Rec.Model
 
 /-- Completeness: when every signature's statement words encode a root, public parameter and message with a
-signature `Words.verify` accepts, an assignment satisfies the circuit verifying `n` leanSPHINCS signatures. -/
+signature `Words.verify` accepts, the machine accepts the circuit verifying `n` leanSPHINCS signatures with some
+assignment (`Accepts`: its rows satisfied and its dynamic bus balanced). -/
 theorem complete (n : ℕ) (st : ℕ → Fin 4 → K)
     (h : ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Words.verify root pp msg sig = true) :
-    ∃ val, Sat st ((Circuit.circuit n).run {}).2 val :=
+    ∃ val, Accepts st ((Circuit.circuit n).run {}).2 val :=
   Complete.circuit_complete n st h
 
 end LeanVMCircuits.Sphincs

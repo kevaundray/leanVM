@@ -8,22 +8,23 @@ public import LeanVMCircuits.Xmss.Statement
 /-!
 # Soundness of the leanXMSS circuit
 
-In every assignment satisfying the circuit of `n` signatures, statement words `5j .. 5j + 4` encode a public
-parameter, a root, a message and an epoch below `2^32` for which some signature verifies over words
-(`Words.verify`). The signature is read off the assignment: the chain elements, the randomness and the siblings are
-the circuit's free wires.
+In every assignment the machine accepts the circuit of `n ≤ 2^22` signatures with (`Accepts`: its rows satisfied and
+its dynamic bus balanced), statement words `5j .. 5j + 4` encode a public parameter, a root, a message and an epoch
+below `2^32` for which some signature verifies over words (`Words.verify`). The signature is read off the
+assignment: the links' chain elements, the randomness and the siblings are the circuit's free wires.
 
 Per signature (`signature_good`): the statement words decode by the `CAST` rows' views and the zeros held to their
 top words; the epoch's bits are its split's, the top 32 held zero; the encoding's digest is its hash row chain's,
-its digits the splits of its first two words, which sum to 195 because their product reaches `x^195`; the network's
-outputs are pool entries or zero; each chain is the selection of its element at its digit, a digit zero taking an
-output whose tweak word is the chain's (so a pool entry, and the chain's element is that entry's), and the path
-climbs on the epoch's bits to the exposed root.
+its digits the splits of its first two words, which sum to 195 because their product reaches `x^195`; the path
+climbs on the epoch's bits to the exposed root. Its chains (`chains_local`) are `Paths.local_sound` on its `STEP`
+and `LINK` rows, whose tuples all carry keys of signature `j`. For the whole circuit (`sound`), the rows the
+signatures name are all the circuit's rows (`count_circuit`, `rows_perm`), so the balanced bus balances each
+signature's tuples (`local_of_balanced`).
 -/
 
 namespace LeanVMCircuits.Xmss
 
-open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective)
+open LeanVMCircuits.Rec (K E toE emb ofWord toWord words4 digest hashWords num root toE_injective tweakWord dynKey)
 open LeanVMCircuits.Rec.Model
 open Words (W Dig)
 
@@ -151,7 +152,7 @@ theorem digits_sum (val : Val) (d : ℕ) (lo up : List ℕ) (hlo : lo.length = 6
   unfold Words.digits dsum
   rw [List.map_congr_left fun i hi => digit_dval val d lo up hlo hlo' hup' i (List.mem_range.mp hi)]
 
-/-! One signature. -/
+/-! Wire lists. -/
 
 theorem wires_append_take {lo up : List ℕ} {s : State} (hlo : Wires lo s) (hup : Wires up s) :
     Wires (lo.take 63 ++ up.take 63) s := fun w hw =>
@@ -165,9 +166,119 @@ theorem getD_mem_drop {bits : List ℕ} (hlen : bits.length = 64) {i : ℕ} (h1 
     rfl
   exact List.mem_iff_getElem?.mpr ⟨_, h⟩
 
-theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'.statement = s.statement + 5 ∧
-    ∀ st val, Sat st s' val → ∃ pp root msg epoch, EncodesAt st s.statement pp root msg epoch ∧
-      ∃ sig, Words.verify pp root msg epoch sig = true := by
+/-! The chains. -/
+
+/-- Signature `j`'s rows under an assignment: its `STEP` rows carry the tag `j · 2^41`, its `LINK` rows are distinct
+and carry signature `j`'s words, and every tuple they push or pull has a key of signature `j`. -/
+def SigRows (j : ℕ) (val : Val) (R L : List (List ℕ)) : Prop :=
+  (∀ r ∈ R, toWord (val (r.getD 4 0) 0) / 2 ^ 41 = j) ∧ L.Nodup ∧
+    (∀ r ∈ L, toWord (val (r.getD 0 0) 0) / 2 ^ 41 % 2 ^ 22 = j) ∧
+    ∀ t ∈ (R.map (stepPushRow val) ++ L.map (linkPushRow val)) ++
+      (R.map (stepPullRow val) ++ L.map (linkPullRow val)), tagOf t.1 = j
+
+/-- Signature `j`'s chains under an assignment satisfying its rows: its rows are signature `j`'s, and when their
+tuples balance (and the digits sum to 195) the links' ends are the chains' ends from their elements. -/
+theorem chains_local {j idx p0 p1 : ℕ} {db : List ℕ} {R : List (List ℕ)} {act tag : ℕ} {W T0 T1 E0 E1 : ℕ → ℕ}
+    {s : State} {st : ℕ → Fin 4 → K} {val : Val} (hsat : Sat st s val) (hj : j < 2 ^ 22)
+    (hR : ∀ r ∈ R, StepRow idx p0 p1 tag act s r) (hRl : R.length = 99) (hact : val act 0 = 1)
+    (htag : val tag 0 = ofWord (j * 2 ^ 41))
+    (hW : ∀ i < 42, val (W i) 0 = ofWord (Circuit.tweak0 1 (8 * i) + j * 2 ^ 41))
+    (hdb : ∀ k < 126, val (db.getD k 0) 0 = 0 ∨ val (db.getD k 0) 0 = 1) :
+    SigRows j val R ((List.range 42).map (linkRow db act W T0 T1 E0 E1)) ∧
+      (dsum val db 42 = 195 → LocalBal val R ((List.range 42).map (linkRow db act W T0 T1 E0 E1)) →
+        ∀ e, w64 val idx = Words.tweak1 e →
+          ((List.range 42).flatMap fun i => [E0 i, E1 i]).map (w64 val) = (List.range 42).flatMap fun i =>
+            [(Words.chainFrom i e (w64 val p0, w64 val p1) (dval val db i) (w64 val (T0 i), w64 val (T1 i))).1,
+             (Words.chainFrom i e (w64 val p0, w64 val p1) (dval val db i) (w64 val (T0 i), w64 val (T1 i))).2]) := by
+  -- Each step: its position, its keys, its hash.
+  have hstep : ∀ r ∈ R, ∃ p < 2 ^ 9, val (r.getD 0 0) 0 = ofWord (tweakWord p) ∧
+      (stepPullRow val r).1 = keyK j p ∧ (stepPushRow val r).1 = keyK j (8 * (p / 8) + (p % 8 + 1) % 8) ∧
+      ∀ e, w64 val idx = Words.tweak1 e →
+        wd (stepPushRow val r) = Words.chainStep (p / 8) (p % 8) e (w64 val p0, w64 val p1) (wd (stepPullRow val r)) := by
+    intro r hr
+    obtain ⟨t, v0, v1, ch, rfl, -, -, hq⟩ := hR r hr
+    obtain ⟨hh, c, hc, i, hi, hT, hpush⟩ := hq st val hsat
+    have hpd : (8 * c + i) / 8 = c := by omega
+    have hpm : (8 * c + i) % 8 = i := by omega
+    refine ⟨8 * c + i, by omega, hT, ?_, ?_, fun e he => ?_⟩
+    · show dynKey (val t 0) (val tag 0) = _
+      rw [hT, htag, keyK_def]
+    · rw [hpush hact, hpd, hpm, keyK_def]
+      show dynKey _ (val tag 0) = _
+      rw [htag]
+    · rw [hpush hact, hpd, hpm]
+      show (words4 (val ch) 0, words4 (val ch) 1) = Words.chainStep c i e (w64 val p0, w64 val p1) (w64 val v0, w64 val v1)
+      have hmap : [t, idx, p0, p1, v0, v1].map (w64 val) =
+          [Words.tweak0 1 (8 * c + i), Words.tweak1 e, w64 val p0, w64 val p1] ++ [w64 val v0, w64 val v1] := by
+        have ht : w64 val t = Words.tweak0 1 (8 * c + i) := by
+          rw [w64, hT, Rec.toWord_ofWord _ (by unfold tweakWord; omega), Words.tweak0, tweak0_one]
+        simp only [List.map_cons, List.map_nil, ht, he, List.cons_append, List.nil_append]
+      rw [hh 0 (by decide), hh 1 (by decide), hmap]
+      simp only [Words.chainStep, Words.th]
+  -- Each link: its keys.
+  have hlpush : ∀ i < 42, (linkPushRow val (linkRow db act W T0 T1 E0 E1 i)).1 = keyK j (8 * i + dval val db i) := by
+    intro i hi
+    show dynKey (val (W i) 0) (ofWord (2 ^ 32) * val (db.getD (3 * i) 0) 0 +
+      ofWord (2 ^ 33) * val (db.getD (3 * i + 1) 0) 0 + ofWord (2 ^ 34) * val (db.getD (3 * i + 2) 0) 0) = _
+    rw [hW i hi, link_push_key i j hi hj _ _ _ (hdb _ (by omega)) (hdb _ (by omega)) (hdb _ (by omega))]
+    rfl
+  have hlpull : ∀ i < 42, (linkPullRow val (linkRow db act W T0 T1 E0 E1 i)).1 = keyK j (8 * i + 7) := by
+    intro i hi
+    show dynKey (val (W i) 0) (ofWord (2 ^ 32 + 2 ^ 33 + 2 ^ 34) * val act 0) = _
+    rw [hW i hi, hact]
+    exact link_pull_key i j hi hj
+  refine ⟨⟨fun r hr => ?_, ?_, fun r hr => ?_, fun t ht => ?_⟩, fun hsum hloc e he => ?_⟩
+  · obtain ⟨t, v0, v1, ch, rfl, -⟩ := hR r hr
+    show toWord (val tag 0) / 2 ^ 41 = j
+    rw [htag, Rec.toWord_ofWord _ (by omega)]
+    omega
+  · refine List.Nodup.map_on (fun x hx y hy hxy => ?_) List.nodup_range
+    have hx' := List.mem_range.mp hx
+    have hy' := List.mem_range.mp hy
+    have h0 : val (W x) 0 = val (W y) 0 := by rw [show W x = W y from (List.cons.inj hxy).1]
+    rw [hW x hx', hW y hy'] at h0
+    have h1 := congrArg toWord h0
+    rw [toWord_link x j hx' hj, toWord_link y j hy' hj] at h1
+    omega
+  · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hr
+    show toWord (val (W i) 0) / 2 ^ 41 % 2 ^ 22 = j
+    rw [hW i (List.mem_range.mp hi), toWord_link i j (List.mem_range.mp hi) hj]
+    have := List.mem_range.mp hi
+    omega
+  · simp only [List.mem_append, List.map_map, List.mem_map, Function.comp] at ht
+    rcases ht with (⟨r, hr, rfl⟩ | ⟨i, hi, rfl⟩) | (⟨r, hr, rfl⟩ | ⟨i, hi, rfl⟩)
+    · obtain ⟨p, hp, -, -, hpush, -⟩ := hstep r hr
+      rw [hpush, tagOf_keyK _ _ (by omega) hj]
+    · have hi' := List.mem_range.mp hi
+      have := dval_lt val db i
+      rw [hlpush i hi', tagOf_keyK _ _ (by omega) hj]
+    · obtain ⟨p, hp, -, hpull, -, -⟩ := hstep r hr
+      rw [hpull, tagOf_keyK _ _ hp hj]
+    · have hi' := List.mem_range.mp hi
+      rw [hlpull i hi', tagOf_keyK _ _ (by omega) hj]
+  -- The chains' ends.
+  have hres := local_sound (fun c s v => Words.chainStep c s e (w64 val p0, w64 val p1) v) j hj val R
+    (fun r => posOf (val (r.getD 0 0) 0)) (linkRow db act W T0 T1 E0 E1) (dval val db)
+    (fun r hr => by obtain ⟨p, hp, hT, -⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact hp)
+    (fun r hr => by obtain ⟨p, hp, hT, h1, -⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact h1)
+    (fun r hr => by obtain ⟨p, hp, hT, -, h2, -⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact h2)
+    (fun r hr => by obtain ⟨p, hp, hT, -, -, h3⟩ := hstep r hr; rw [hT, posOf_tweak p hp]; exact h3 e he)
+    (fun i _ => dval_lt val db i) hlpush hlpull
+    (by rw [hRl, ← sum_range_list]; unfold dsum at hsum; rw [hsum]) hloc
+  rw [List.map_flatMap]
+  refine flatMap_range_eq fun i hi => ?_
+  have h : (w64 val (E0 i), w64 val (E1 i)) =
+      Words.chainFrom i e (w64 val p0, w64 val p1) (dval val db i) (w64 val (T0 i), w64 val (T1 i)) := hres i hi
+  simp only [List.map_cons, List.map_nil]
+  rw [← h]
+
+/-! One signature. -/
+
+theorem signature_good (j : ℕ) (hj : j < 2 ^ 22) : Good (fun _ => True) (Circuit.signature j) fun s _ s' =>
+    s'.statement = s.statement + 5 ∧ ∃ R L : List (List ℕ), R.length = 99 ∧ L.length = 42 ∧ R.Nodup ∧
+      (∀ r ∈ R, r ∈ s'.step) ∧ (∀ r ∈ L, r ∈ s'.link) ∧ ∀ st val, Sat st s' val → SigRows j val R L ∧
+        (LocalBal val R L → ∃ pp root msg epoch, EncodesAt st s.statement pp root msg epoch ∧
+          ∃ sig, Words.verify pp root msg epoch sig = true) := by
   unfold Circuit.signature
   refine good_of_post fun s hs _ => ?_
   refine statementWords_good1.step hs trivial ?_
@@ -240,120 +351,11 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
       split_ifs with h
       · exact (hlov st val (hsat.mono (by ext_chain))).1 j (by omega)
       · exact (hupv st val (hsat.mono (by ext_chain))).1 (j - 63) (by omega)
-  -- The pool.
-  refine post_bind (forIn_range_post Circuit.pool _ (fun k (entries : List ℕ) s' => s'.statement = s.statement + 4 ∧
-      entries.length = k ∧ Wires entries s' ∧ ∀ st val, Sat st s' val → ∀ q < k, ∃ (w : W) (T : Dig),
-        val (entries.getD q 0) 2 = ofWord w.toNat ∧
-          dig val (entries.getD q 0) = poolDig w (w64 val idx) (w64 val p0, w64 val p1) T) hi18
-      ⟨by omega, rfl, Wires.nil', fun _ _ _ q hq => absurd hq (Nat.not_lt_zero q)⟩ ?_) ?_
-  · rintro k hk entries s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
-    refine (poolEntry_good idx p0 p1).step hi19 ⟨lt_mono hidx (by ext_chain), lt_mono hp0 (by ext_chain),
-      lt_mono hp1 (by ext_chain)⟩ ?_
-    rintro ent s20 hi20 he20 ⟨hst20, hent, hentv⟩
-    refine post_pure hi20 he20 ⟨entries ++ [ent], rfl, by omega, by simp [hlen19], Wires.snoc (hw19.mono he20) hent,
-      fun st val hsat q hq => ?_⟩
-    rw [getD_snoc]
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hq | rfl
-    · rw [if_pos (by omega)]; exact hv19 st val (hsat.mono he20) q hq
-    · rw [if_neg (by omega), if_pos hlen19.symm]; exact hentv st val hsat
-  rintro entries sP hiP heP ⟨hstP, hlenP, hwP, hvP⟩
-  -- The network's one and bits.
-  refine fresh_good'.step hiP trivial ?_
-  rintro one' sO hiO heO ⟨hstO, hone⟩
-  refine ((eqConstK_good one' 1).pres (pres_eqConstK _ _)).step hiO trivial ?_
-  rintro _ sO' hiO' heO' ⟨hstO', honev⟩
-  refine post_bind (forIn_range_post 3 _ (fun k (nb : List ℕ) s' => s'.statement = s.statement + 4 ∧
-      nb.length = 64 * k ∧ Wires nb s' ∧ ∀ st val, Sat st s' val →
-        ∀ j < 64 * k, val (nb.getD j 0) 0 = 0 ∨ val (nb.getD j 0) 0 = 1) hiO'
-      ⟨by omega, rfl, Wires.nil', fun _ _ _ j hj => absurd hj (by omega)⟩ ?_) ?_
-  · rintro k hk nb s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
-    refine fresh_good'.step hi19 trivial ?_
-    rintro w s20 hi20 he20 ⟨hst20, hw⟩
-    refine ((split_good w).pres (pres_split w)).step hi20 trivial ?_
-    rintro bs s21 hi21 he21 ⟨hst21, hbslen, hbsw, hbsv⟩
-    refine post_pure hi21 (by ext_chain) ⟨nb ++ bs, rfl, by omega, by simp [hlen19, hbslen]; ring,
-      fun x hx => ?_, fun st val hsat j hj => ?_⟩
-    · rcases List.mem_append.mp hx with hx | hx
-      · exact lt_mono (hw19 x hx) (by ext_chain)
-      · exact hbsw x hx
-    · rw [getD_append']
-      split_ifs with hj'
-      · exact hv19 st val (hsat.mono (by ext_chain)) j (by omega)
-      · exact (hbsv st val hsat).1 _ (by omega)
-  rintro nb sB hiB heB ⟨hstB, hlenB, hwB, hvB⟩
-  -- The network.
-  refine (network_good one' nb entries (by omega) (by rw [hlenP]; decide)).step hiB
-    ⟨lt_mono hone (by ext_chain), hwB, hwP.mono (by ext_chain)⟩ ?_
-  rintro routed sN hiN heN ⟨hstN, hrlen, hrw, hrv⟩
-  -- What every later assignment says of the network's outputs: each is zero or a pool entry.
-  have hroute : ∀ st val, Sat st sN val → ∀ p < 42, ev val (routed.getD p 0) = 0 ∨ ∃ (w : W) (T : Dig),
-      val (routed.getD p 0) 2 = ofWord w.toNat ∧
-        dig val (routed.getD p 0) = poolDig w (w64 val idx) (w64 val p0, w64 val p1) T := by
-    intro st val hsat p hp
-    have hone1 : val one' 0 = 1 := (limb0_of_const (honev st val (hsat.mono (by ext_chain)))).trans Rec.ofWord_one
-    rcases hrv st val hsat hone1 (fun j hj => hvB st val (hsat.mono heN) j (by omega)) p hp with h | ⟨q, hq, h⟩
-    · exact Or.inl h
-    · obtain ⟨w, T, h2, hd⟩ := hvP st val (hsat.mono (by ext_chain)) q (hlenP ▸ hq)
-      exact Or.inr ⟨w, T, (limbs_of_ev h).2.2.trans h2, (dig_of_ev h).trans hd⟩
   -- The chains.
-  refine post_bind (forIn_range_post 42 _ (fun k (ends : List ℕ) s' => s'.statement = s.statement + 4 ∧
-      ends.length = 2 * k ∧ Wires ends s' ∧ ∀ st val, Sat st s' val → ∃ tips : ℕ → Dig,
-        ends.map (w64 val) = (List.range k).flatMap fun i =>
-          [(Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
-            (tips i)).1,
-           (Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
-            (tips i)).2]) hiN
-      ⟨by omega, rfl, Wires.nil', fun _ _ _ => ⟨fun _ => (0, 0), rfl⟩⟩ ?_) ?_
-  · rintro i hi ends s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
-    refine fresh_good'.step hi19 trivial ?_
-    rintro tip s20 hi20 he20 ⟨hst20, htip⟩
-    refine (indicators_good _ _ _).step hi20 (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega))
-      (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega))
-        (Wires.cons' (wires_getD' (hDBw.mono (by ext_chain)) (by omega)) Wires.nil'))) ?_
-    rintro ind s21 hi21 he21 ⟨hst21, hindlen, hindw, hindv⟩
-    refine (chainEnd_good i idx tip (routed.getD i 0) p0 p1 ind).step hi21 ⟨lt_mono hidx (by ext_chain),
-      lt_mono htip he21, lt_mono (wires_getD' hrw (by omega)) (by ext_chain), lt_mono hp0 (by ext_chain),
-      lt_mono hp1 (by ext_chain), hindw, hindlen⟩ ?_
-    rintro ⟨n0, n1⟩ s22 hi22 he22 ⟨hst22, hn0, hn1, hnv⟩
-    try dsimp only
-    refine post_pure hi22 (by ext_chain) ⟨ends ++ [n0, n1], rfl, by omega, by simp [hlen19]; ring,
-      fun w hw => ?_, fun st val hsat => ?_⟩
-    · rcases List.mem_append.mp hw with hw | hw
-      · exact lt_mono (hw19 w hw) (by ext_chain)
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hw
-        rcases hw with rfl | rfl
-        · exact hn0
-        · exact hn1
-    · obtain ⟨hbits, hlt, hbool, hidxe, hDB⟩ := hctx st val (hsat.mono (by ext_chain))
-      obtain ⟨tips, htips⟩ := hv19 st val (hsat.mono (by ext_chain))
-      have hind : ∀ v < 8, ev val (ind.getD v 0) = if v = dval val (lo.take 63 ++ up.take 63) i then 1 else 0 := by
-        intro v hv
-        rw [hindv st val (hsat.mono he22) v hv]
-        exact indv_digit _ _ _ _ (hDB _ (by omega)) (hDB _ (by omega)) (hDB _ (by omega)) v hv
-      -- The chain's element: the pool entry's when the digit is zero, the free wire's otherwise.
-      obtain ⟨T, hend⟩ : ∃ T : Dig, (w64 val n0, w64 val n1) = Words.chainFrom i (toWord (val e0 0))
-          (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i) T := by
-        have H := hnv st val hsat _ (dval_lt _ _ i) _ hind hidxe
-        by_cases hx : dval val (lo.take 63 ++ up.take 63) i = 0
-        · obtain ⟨h2, he⟩ := H.1 hx
-          rcases hroute st val (hsat.mono (by ext_chain)) i hi with h0 | ⟨w, T, hw2, hd⟩
-          · have h0' := (toE_injective _ _ _ 0 0 0 (h0.trans toE_zero.symm)).2.2
-            exact absurd (h2.symm.trans h0') (ofWord_tweak0_ne i hi)
-          · have hw : w = Words.tweak0 1 (8 * i) := word_of_ofWord (tweak0_lt i hi) (hw2.symm.trans h2)
-            refine ⟨T, ?_⟩
-            rw [he, hd, hw, hidxe, poolDig_tweak, hx, chainFrom_zero]
-        · exact ⟨dig val tip, H.2 (by omega)⟩
-      refine ⟨fun j => if j = i then T else tips j, ?_⟩
-      rw [List.map_append, htips, List.range_succ, List.flatMap_append,
-        flatMap_range_congr (g := fun j => [(Words.chainFrom j (toWord (val e0 0)) (w64 val p0, w64 val p1)
-          (dval val (lo.take 63 ++ up.take 63) j) (if j = i then T else tips j)).1,
-          (Words.chainFrom j (toWord (val e0 0)) (w64 val p0, w64 val p1)
-          (dval val (lo.take 63 ++ up.take 63) j) (if j = i then T else tips j)).2])
-          fun j hj => by rw [if_neg (show ¬ j = i by omega)]]
-      simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, List.map_cons, List.map_nil, if_true]
-      rw [← hend]
-  · rintro ends s19 hi19 he19 ⟨hst19, hlen19, hw19, hv19⟩
-    refine (tweakHash_good 2 0 idx [p0, p1] ends (by simp [hlen19])).step hi19 trivial ?_
+  refine (chains_good j idx p0 p1 (lo.take 63 ++ up.take 63)).step hi18 trivial ?_
+  · rintro ends s19 hi19 he19 ⟨hst19, hw19, R, act, tag, W, T0, T1, E0, E1, rfl, hRl, hRn, hR, hL, hv19⟩
+    refine (tweakHash_good 2 0 idx [p0, p1] _ (by rw [List.length_flatMap]; simp)).step hi19
+      trivial ?_
     rintro node0 s20 hi20 he20 ⟨hst20, hnode0, hnode0v⟩
     -- The path.
     refine post_bind (forIn_range_post 32 _ (fun k (node : ℕ) s' => s'.statement = s.statement + 4 ∧
@@ -387,10 +389,19 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
       rintro root s23 hi23 he23 ⟨hst23, hroot, hrootv⟩
       refine (expose_good' root).step hi23 (Wires.cons' hroot Wires.nil') ?_
       rintro _ s24 hi24 he24 ⟨rfl, hst24, hx⟩
-      refine post_pure hi24 (by ext_chain) ⟨by omega, fun st val hsat => ?_⟩
+      refine post_pure hi24 (by ext_chain) ⟨by omega, R, (List.range 42).map
+        (linkRow (lo.take 63 ++ up.take 63) act W T0 T1 E0 E1), hRl, by simp, hRn, fun r hr => ?_,
+        fun r hr => ?_, fun st val hsat => ?_⟩
+      · obtain ⟨_, _, _, _, -, hmem, -⟩ := hR r hr
+        exact (show Ext s19 s24 by ext_chain).steps _ hmem
+      · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hr
+        exact (show Ext s19 s24 by ext_chain).links _ (hL i (List.mem_range.mp hi))
       -- Read everything off the final assignment.
       obtain ⟨hbits, hlt, hbool, hidxe, hDB⟩ := hctx st val (hsat.mono (by ext_chain))
-      obtain ⟨tips, htips⟩ := hv19 st val (hsat.mono (by ext_chain))
+      have hsat19 := hsat.mono (show Ext s19 s24 by ext_chain)
+      obtain ⟨hact, htag, hW⟩ := hv19 st val hsat19
+      obtain ⟨hrows, hlocal⟩ := chains_local hsat19 hj hR hRl hact htag hW hDB
+      refine ⟨hrows, fun hloc => ?_⟩
       obtain ⟨path, hpath⟩ := hv21 st val (hsat.mono (by ext_chain))
       -- The encoding's digest and digits.
       have hzw : w64 val z = 0 := w64_const (hzv st val (hsat.mono (by ext_chain)))
@@ -419,6 +430,15 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
         apply emb_injective
         rw [← hprodv st val (hsat.mono (by ext_chain)) hDB, htarget st val (hsat.mono (by ext_chain)),
           Rec.ofWord_zero, toE_emb, target_eq]
+      have hsum' : dsum val (lo.take 63 ++ up.take 63) 42 = 195 := by
+        rw [← digits_sum val d lo up hlolen hlo' hup']; exact hsum
+      obtain ⟨tips, htips⟩ : ∃ tips : ℕ → Dig, ((List.range 42).flatMap fun i => [E0 i, E1 i]).map (w64 val) =
+          (List.range 42).flatMap fun i =>
+            [(Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
+              (tips i)).1,
+             (Words.chainFrom i (toWord (val e0 0)) (w64 val p0, w64 val p1) (dval val (lo.take 63 ++ up.take 63) i)
+              (tips i)).2] :=
+        ⟨_, hlocal hsum' hloc _ hidxe⟩
       have h63lo : (dig val d).1.getLsbD 63 = false := by
         cases hb : (dig val d).1.getLsbD 63
         · rfl
@@ -478,31 +498,63 @@ theorem signature_good : Good (fun _ => True) Circuit.signature fun s _ s' => s'
       · simp only [Words.verify, henc, Option.elim_some, beq_iff_eq]
         rw [climb_eq, ← hleaf, ← hpath]
 
-/-- The circuit of `n` signatures. -/
-theorem circuit_good (n : ℕ) : Good (fun s => s.statement = 0) (Circuit.circuit n) fun _ _ s' =>
-    ∀ st val, Sat st s' val → ∀ j < n, ∃ pp root msg epoch, Encodes st j pp root msg epoch ∧
-      ∃ sig, Words.verify pp root msg epoch sig = true := by
+/-- The circuit of `n` signatures: each signature's 99 distinct `STEP` rows and 42 `LINK` rows, its rows under every
+satisfying assignment, and its statement when its tuples balance. -/
+theorem circuit_good (n : ℕ) (hn : n ≤ 2 ^ 22) : Good (fun s => s.statement = 0) (Circuit.circuit n) fun _ _ s' =>
+    ∃ Rs Ls : ℕ → List (List ℕ), (∀ j < n, (Rs j).length = 99 ∧ (Ls j).length = 42 ∧ (Rs j).Nodup ∧
+      (∀ r ∈ Rs j, r ∈ s'.step) ∧ ∀ r ∈ Ls j, r ∈ s'.link) ∧
+    ∀ st val, Sat st s' val → ∀ j < n, SigRows j val (Rs j) (Ls j) ∧ (LocalBal val (Rs j) (Ls j) →
+      ∃ pp root msg epoch, Encodes st j pp root msg epoch ∧ ∃ sig, Words.verify pp root msg epoch sig = true) := by
   unfold Circuit.circuit
   refine good_of_post fun s hs h0 => ?_
-  refine post_bind (forIn_range_post n _ (fun k (_ : PUnit) s' => s'.statement = 5 * k ∧ ∀ st val, Sat st s' val →
-      ∀ j < k, ∃ pp root msg epoch, Encodes st j pp root msg epoch ∧ ∃ sig, Words.verify pp root msg epoch sig = true)
-      hs ⟨by omega, fun _ _ _ j hj => absurd hj (Nat.not_lt_zero j)⟩ ?_) ?_
-  · rintro k hk u s1 hi1 he1 ⟨hst1, hv1⟩
-    refine signature_good.step hi1 trivial ?_
-    rintro _ s2 hi2 he2 ⟨hst2, hsig⟩
-    refine post_pure hi2 he2 ⟨PUnit.unit, rfl, by omega, fun st val hsat j hj => ?_⟩
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl
-    · exact hv1 st val (hsat.mono he2) j hj
-    · obtain ⟨pp, root, msg, epoch, henc, hv⟩ := hsig st val hsat
-      rw [hst1] at henc
-      exact ⟨pp, root, msg, epoch, henc, hv⟩
+  refine post_bind (forIn_range_post n _ (fun k (_ : PUnit) s' => s'.statement = 5 * k ∧
+      ∃ Rs Ls : ℕ → List (List ℕ), (∀ j < k, (Rs j).length = 99 ∧ (Ls j).length = 42 ∧ (Rs j).Nodup ∧
+        (∀ r ∈ Rs j, r ∈ s'.step) ∧ ∀ r ∈ Ls j, r ∈ s'.link) ∧
+      ∀ st val, Sat st s' val → ∀ j < k, SigRows j val (Rs j) (Ls j) ∧ (LocalBal val (Rs j) (Ls j) →
+        ∃ pp root msg epoch, Encodes st j pp root msg epoch ∧ ∃ sig, Words.verify pp root msg epoch sig = true))
+      hs ⟨by omega, fun _ => [], fun _ => [], fun j hj => absurd hj (Nat.not_lt_zero j),
+        fun _ _ _ j hj => absurd hj (Nat.not_lt_zero j)⟩ ?_) ?_
+  · rintro k hk u s1 hi1 he1 ⟨hst1, Rs, Ls, hrows, hv1⟩
+    refine (signature_good k (by omega)).step hi1 trivial ?_
+    rintro _ s2 hi2 he2 ⟨hst2, R, L, hRl, hLl, hRn, hRm, hLm, hsig⟩
+    refine post_pure hi2 he2 ⟨PUnit.unit, rfl, by omega, fun j => if j = k then R else Rs j,
+      fun j => if j = k then L else Ls j, fun j hj => ?_, fun st val hsat j hj => ?_⟩
+    · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl
+      · simp only [if_neg (Nat.ne_of_lt hj)]
+        obtain ⟨h1, h2, h3, h4, h5⟩ := hrows j hj
+        exact ⟨h1, h2, h3, fun r hr => he2.steps _ (h4 r hr), fun r hr => he2.links _ (h5 r hr)⟩
+      · simp only [if_true]
+        exact ⟨hRl, hLl, hRn, hRm, hLm⟩
+    · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl
+      · simp only [if_neg (Nat.ne_of_lt hj)]
+        exact hv1 st val (hsat.mono he2) j hj
+      · simp only [if_true]
+        obtain ⟨hr, hl⟩ := hsig st val hsat
+        refine ⟨hr, fun hb => ?_⟩
+        obtain ⟨pp, root, msg, epoch, henc, hv⟩ := hl hb
+        rw [hst1] at henc
+        exact ⟨pp, root, msg, epoch, henc, hv⟩
   · rintro u s1 hi1 he1 ⟨-, hv⟩
     exact post_pure hi1 he1 hv
 
-/-- Soundness: in every assignment satisfying the circuit of `n` signatures, statement words `5j .. 5j + 4` encode a
-parameter, root, message and epoch for which some signature verifies. -/
-theorem sound (n : ℕ) (st : ℕ → Fin 4 → K) (val : Val) (h : Sat st ((Circuit.circuit n).run {}).2 val) :
-    ∀ j < n, ∃ pp root msg epoch, Encodes st j pp root msg epoch ∧ ∃ sig, Words.verify pp root msg epoch sig = true :=
-  (circuit_good n {} inv_empty rfl).2.2 st val h
+/-- Soundness: in every assignment the machine accepts the circuit of `n` signatures with (its rows satisfied and its
+dynamic bus balanced), statement words `5j .. 5j + 4` encode a parameter, root, message and epoch for which some
+signature verifies. -/
+theorem sound (n : ℕ) (hn : n ≤ 2 ^ 22) (st : ℕ → Fin 4 → K) (val : Val)
+    (h : Accepts st ((Circuit.circuit n).run {}).2 val) :
+    ∀ j < n, ∃ pp root msg epoch, Encodes st j pp root msg epoch ∧ ∃ sig, Words.verify pp root msg epoch sig = true := by
+  obtain ⟨hsat, hbal⟩ := h
+  obtain ⟨Rs, Ls, hrows, hv⟩ := (circuit_good n hn {} inv_empty rfl).2.2
+  have hfacts := hv st val hsat
+  have hsize := count_circuit n {}
+  simp only [Array.size_empty, Nat.zero_add] at hsize
+  have hRnd := nodup_flatMap_label n Rs (fun r => toWord (val (r.getD 4 0) 0) / 2 ^ 41)
+    (fun j hj => (hrows j hj).2.2.1) fun j hj => (hfacts j hj).1.1
+  have hLnd := nodup_flatMap_label n Ls (fun r => toWord (val (r.getD 0 0) 0) / 2 ^ 41 % 2 ^ 22)
+    (fun j hj => (hfacts j hj).1.2.1) fun j hj => (hfacts j hj).1.2.2.1
+  have hR := rows_perm _ n 99 Rs hsize.1 (fun j hj => (hrows j hj).1) (fun j hj => (hrows j hj).2.2.2.1) hRnd
+  have hL := rows_perm _ n 42 Ls hsize.2 (fun j hj => (hrows j hj).2.1) (fun j hj => (hrows j hj).2.2.2.2) hLnd
+  have hloc := local_of_balanced _ val n Rs Ls hR hL hbal fun j hj => (hfacts j hj).1.2.2.2
+  exact fun j hj => (hfacts j hj).2 (hloc j hj)
 
 end LeanVMCircuits.Xmss

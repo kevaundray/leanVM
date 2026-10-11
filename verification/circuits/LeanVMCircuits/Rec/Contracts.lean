@@ -12,10 +12,12 @@ What the builder's methods make their outputs.
 An assignment gives every wire four `K` limbs. It satisfies a circuit when every pair of wires held equal carries
 the same limbs (the bus, `Rec.copy_argument`), every row's slots carry the limbs its table's forms give some row of
 columns satisfying the table (its identities; for `HASH` a packed witness of the exported BLAKE2s artifact with the
-row's ports), and every public row carries its constant or its statement word. Each method's contract: from a
-state keeping the builder's invariant, it keeps it, only adds to the circuit, and in every assignment satisfying any
-circuit containing what it built, its output is what the method computes: `a·b + d` in `E`, an inverse, a word's
-bits, a digest's words, a BLAKE2s compression.
+row's ports), and every public row carries its constant or its statement word. The machine accepts it when also the
+tuples the `STEP` and `LINK` rows push on the dynamic bus are the tuples they pull (`Accepts`); `Balanced.unique`
+reads a key pushed once off it. Each method's contract: from a state keeping the builder's invariant, it keeps it,
+only adds to the circuit, and in every assignment satisfying any circuit containing what it built, its output is
+what the method computes: `a·b + d` in `E`, an inverse, a word's bits, a digest's words, a BLAKE2s compression, a
+chain step's hash and tuples.
 -/
 
 namespace LeanVMCircuits.Rec.Model
@@ -41,7 +43,8 @@ noncomputable def srcVal (statement : ℕ → Fin 4 → K) : PubSource → Fin 4
 def RowSat (forms : List (List Form)) (holds : (ℕ → K) → Prop) (val : Val) (r : List ℕ) : Prop :=
   ∃ col : ℕ → K, holds col ∧ ∀ s < forms.length, ∀ i : Fin 4, limbs forms s col i = val (r.getD s 0) i
 
-/-- An assignment satisfying a circuit. -/
+/-- An assignment satisfying a circuit's rows. Every `STEP` and `LINK` row satisfies its table's identities; that
+their pushes and pulls balance on the dynamic bus is a property of the whole circuit, `Balanced`, so `Accepts`. -/
 structure Sat (statement : ℕ → Fin 4 → K) (s : State) (val : Val) : Prop where
   unions : ∀ p ∈ s.unions, val p.1 = val p.2
   emul : ∀ r ∈ s.emul, RowSat Rec.emul (fun _ => True) val r
@@ -50,6 +53,8 @@ structure Sat (statement : ℕ → Fin 4 → K) (s : State) (val : Val) : Prop w
   split : ∀ r ∈ s.split, RowSat Rec.split (fun col => ∀ id ∈ splitIdentities, id.eval col = 0) val r
   cast : ∀ r ∈ s.cast, RowSat Rec.cast (fun _ => True) val r
   pub : ∀ w src, (w, src) ∈ s.pub → val w = srcVal statement src
+  steps : ∀ r ∈ s.step, RowSat Rec.stepTable (fun col => ∀ id ∈ stepIdentities, id.eval col = 0) val r
+  links : ∀ r ∈ s.link, RowSat Rec.linkTable (fun col => ∀ id ∈ linkIdentities, id.eval col = 0) val r
 
 /-- `s'` holds everything `s` does. -/
 structure Ext (s s' : State) : Prop where
@@ -61,20 +66,25 @@ structure Ext (s s' : State) : Prop where
   split : ∀ r ∈ s.split, r ∈ s'.split
   cast : ∀ r ∈ s.cast, r ∈ s'.cast
   pub : ∀ p ∈ s.pub, p ∈ s'.pub
+  steps : ∀ r ∈ s.step, r ∈ s'.step
+  links : ∀ r ∈ s.link, r ∈ s'.link
 
 theorem Ext.refl (s : State) : Ext s s :=
-  ⟨le_rfl, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩
+  ⟨le_rfl, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h,
+    fun _ h => h, fun _ h => h⟩
 
 theorem Ext.trans {s₁ s₂ s₃ : State} (h₁ : Ext s₁ s₂) (h₂ : Ext s₂ s₃) : Ext s₁ s₃ :=
   ⟨h₁.next.trans h₂.next, fun p h => h₂.unions p (h₁.unions p h), fun r h => h₂.emul r (h₁.emul r h),
     fun r h => h₂.exk r (h₁.exk r h), fun r h => h₂.hash r (h₁.hash r h), fun r h => h₂.split r (h₁.split r h),
-    fun r h => h₂.cast r (h₁.cast r h), fun p h => h₂.pub p (h₁.pub p h)⟩
+    fun r h => h₂.cast r (h₁.cast r h), fun p h => h₂.pub p (h₁.pub p h), fun r h => h₂.steps r (h₁.steps r h),
+    fun r h => h₂.links r (h₁.links r h)⟩
 
 theorem Sat.mono {st : ℕ → Fin 4 → K} {s s' : State} {val : Val} (h : Sat st s' val) (he : Ext s s') :
     Sat st s val :=
   ⟨fun p hp => h.unions p (he.unions p hp), fun r hr => h.emul r (he.emul r hr), fun r hr => h.exk r (he.exk r hr),
     fun r hr => h.hash r (he.hash r hr), fun r hr => h.split r (he.split r hr), fun r hr => h.cast r (he.cast r hr),
-    fun w src hp => h.pub w src (he.pub _ hp)⟩
+    fun w src hp => h.pub w src (he.pub _ hp), fun r hr => h.steps r (he.steps r hr),
+    fun r hr => h.links r (he.links r hr)⟩
 
 /-! The builder's invariant. -/
 
@@ -225,7 +235,7 @@ theorem mem_push_of_mem {α : Type} {a : α} {xs : Array α} (b : α) (h : a ∈
 
 theorem constFresh_ext (s : State) (kd : Kind) (v : Limbs) : Ext s (constFresh s kd v) :=
   ⟨Nat.le_succ _, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h,
-    fun _ h => mem_push_of_mem _ h⟩
+    fun _ h => mem_push_of_mem _ h, fun _ h => h, fun _ h => h⟩
 
 theorem constFresh_inv (s : State) (kd : Kind) (v : Limbs) (hs : Inv s) (hmiss : s.consts[(kd, v)]? = none) :
     Inv (constFresh s kd v) := by
@@ -319,13 +329,13 @@ theorem wire_good : Good (fun _ => True) wire fun s w s' => w = s.next ∧ s'.ne
     hs.arithE, hs.arithK, fun k c h => Nat.lt_succ_of_lt (hs.arithLt k c h),
     fun k w h => Nat.lt_succ_of_lt (hs.constsLt k w h), fun p h => Nat.lt_succ_of_lt (hs.pubLt p h)⟩,
     ⟨Nat.le_succ _, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h,
-      fun _ h => h⟩, rfl, rfl⟩
+      fun _ h => h, fun _ h => h, fun _ h => h⟩, rfl, rfl⟩
 
 theorem union_good (a b : ℕ) : Good (fun _ => True) (union a b) fun _ _ s' => (a, b) ∈ s'.unions := by
   intro s hs _
   exact ⟨⟨hs.emulLt, hs.consts, hs.eZero, hs.eOne, hs.kZero, hs.kOne, hs.arithE, hs.arithK, hs.arithLt,
     hs.constsLt, hs.pubLt⟩, ⟨le_rfl, fun _ h => mem_push_of_mem _ h, fun _ h => h, fun _ h => h, fun _ h => h,
-      fun _ h => h, fun _ h => h, fun _ h => h⟩, Array.mem_push.mpr (Or.inr rfl)⟩
+      fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩, Array.mem_push.mpr (Or.inr rfl)⟩
 
 /-! `EMUL`. -/
 
@@ -417,7 +427,8 @@ theorem emul_good (a b d : ℕ) :
       Array.mem_push.mpr (Or.inr rfl)
     refine ⟨⟨?_, hs.consts, hs.eZero, hs.eOne, hs.kZero, hs.kOne, ?_, ?_, ?_, ?_, ?_⟩,
       ⟨Nat.le_succ _, fun _ h => h, fun _ h => mem_push_of_mem _ h, fun _ h => h, fun _ h => h, fun _ h => h,
-        fun _ h => h, fun _ h => h⟩, Nat.lt_succ_self _, fun st val hsat => emul_row_ev hsat hrow⟩
+        fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩, Nat.lt_succ_self _,
+        fun st val hsat => emul_row_ev hsat hrow⟩
     · intro r hr w hw
       rcases Array.mem_push.mp hr with hr | rfl
       · exact Nat.lt_succ_of_lt (hs.emulLt r hr w hw)
@@ -644,7 +655,8 @@ theorem mulKAdd_good (a k d : ℕ) : Good (Wires [a, k, d]) (mulKAdd a k d) fun 
         hs.kOne, ?_, ?_, ?_, fun kv w hw' => Nat.lt_succ_of_lt (hs.constsLt kv w hw'),
         fun p hp => Nat.lt_succ_of_lt (hs.pubLt p hp)⟩,
         ⟨Nat.le_succ _, fun _ h => h, fun _ h => h, fun _ h => mem_push_of_mem _ h, fun _ h => h, fun _ h => h,
-          fun _ h => h, fun _ h => h⟩, Nat.lt_succ_self _, fun st val hsat => exk_row_ev hsat hrow⟩
+          fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩, Nat.lt_succ_self _,
+          fun st val hsat => exk_row_ev hsat hrow⟩
       · intro k0 k1 k2 c hc
         simp only [exkFresh, Std.HashMap.getElem?_insert] at hc
         split at hc
@@ -806,15 +818,16 @@ theorem fresh_good : Good (fun _ => True) wire fun _ y s' => True ∧ y < s'.nex
 
 theorem row_good (t : Table) (r : List ℕ) (ht : t ≠ .emul) :
     Good (fun _ => True) (row t r) fun _ _ s' => (t = .exk → r ∈ s'.exk) ∧ (t = .hash → r ∈ s'.hash) ∧
-      (t = .split → r ∈ s'.split) ∧ (t = .cast → r ∈ s'.cast) := by
+      (t = .split → r ∈ s'.split) ∧ (t = .cast → r ∈ s'.cast) ∧ (t = .step → r ∈ s'.step) ∧
+      (t = .link → r ∈ s'.link) := by
   intro s hs _
   have hpush : ∀ {xs : Array (List ℕ)} {y : List ℕ}, y ∈ xs → y ∈ xs.push r := fun h => mem_push_of_mem _ h
   have hnew : ∀ {xs : Array (List ℕ)}, r ∈ xs.push r := Array.mem_push.mpr (Or.inr rfl)
   cases t with
   | emul => exact absurd rfl ht
-  | exk | hash | split | cast | pub =>
+  | exk | hash | split | cast | step | link | pub =>
     refine ⟨⟨hs.emulLt, hs.consts, hs.eZero, hs.eOne, hs.kZero, hs.kOne, hs.arithE, ?_, hs.arithLt, hs.constsLt,
-      hs.pubLt⟩, ⟨le_rfl, fun _ h => h, fun _ h => h, ?_, ?_, ?_, ?_, fun _ h => h⟩, ?_⟩ <;>
+      hs.pubLt⟩, ⟨le_rfl, fun _ h => h, fun _ h => h, ?_, ?_, ?_, ?_, fun _ h => h, ?_, ?_⟩, ?_⟩ <;>
       first
         | exact fun a k d c h => hpush (hs.arithK a k d c h)
         | exact hs.arithK
@@ -844,7 +857,7 @@ theorem castRow_good (given : List (ℕ × ℕ)) : Good (Wires (given.map (·.2)
     (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun ws =>
       Good.bind (row_good .cast ws (by decide)) (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial)
         fun _ => Good.pure' (Q := fun _ r s' => r = ws) fun _ _ _ => rfl).weaken (fun s h => h) ?_
-  rintro s r s3 hs - - ⟨ws, s1, ⟨hlen, hR, hw⟩, -, he1, u, s2, ⟨-, -, -, hc⟩, -, he2, rfl⟩
+  rintro s r s3 hs - - ⟨ws, s1, ⟨hlen, hR, hw⟩, -, he1, u, s2, ⟨-, -, -, hc, -⟩, -, he2, rfl⟩
   refine ⟨by simpa using hlen, fun i hi p hp => ?_, he2.cast _ (hc rfl), hw.mono he1⟩
   have := hR i (by simpa [hlen] using hi) hi
   simp only [List.getElem_range] at this
@@ -1380,6 +1393,261 @@ theorem chain_good (words : List ℕ) (hb : 8 * words.length < 2 ^ 64) : Good (f
     omega
 
 
+/-! Hash chains on the dynamic bus. -/
+
+/-- A `STEP` row's pull, of its slots' values. -/
+noncomputable def stepPullRow (val : Val) (r : List ℕ) : Tuple :=
+  stepPullOf (val (r.getD stepSlotT 0) 0) (val (r.getD stepSlotV 0) 0) (val (r.getD (stepSlotV + 1) 0) 0)
+    (val (r.getD stepSlotJ 0) 0)
+
+/-- A `STEP` row's push, of its slots' values. -/
+noncomputable def stepPushRow (val : Val) (r : List ℕ) : Tuple :=
+  stepPushOf (val (r.getD stepSlotT 0) 0) (val (r.getD stepSlotO 0) 0) (val (r.getD stepSlotO 0) 1)
+    (val (r.getD stepSlotJ 0) 0) (val (r.getD stepSlotA 0) 0)
+
+/-- A `LINK` row's push, of its slots' values. -/
+noncomputable def linkPushRow (val : Val) (r : List ℕ) : Tuple :=
+  linkPushOf (val (r.getD linkSlotW 0) 0) (val (r.getD linkSlotD 0) 0) (val (r.getD (linkSlotD + 1) 0) 0)
+    (val (r.getD (linkSlotD + 2) 0) 0) (val (r.getD linkSlotT 0) 0) (val (r.getD (linkSlotT + 1) 0) 0)
+
+/-- A `LINK` row's pull, of its slots' values. -/
+noncomputable def linkPullRow (val : Val) (r : List ℕ) : Tuple :=
+  linkPullOf (val (r.getD linkSlotW 0) 0) (val (r.getD linkSlotA 0) 0) (val (r.getD linkSlotE 0) 0)
+    (val (r.getD (linkSlotE + 1) 0) 0)
+
+/-- The tuples the circuit's `STEP` and `LINK` rows push. -/
+noncomputable def pushes (s : State) (val : Val) : Multiset Tuple :=
+  ↑(s.step.toList.map (stepPushRow val) ++ s.link.toList.map (linkPushRow val))
+
+/-- The tuples the circuit's `STEP` and `LINK` rows pull. -/
+noncomputable def pulls (s : State) (val : Val) : Multiset Tuple :=
+  ↑(s.step.toList.map (stepPullRow val) ++ s.link.toList.map (linkPullRow val))
+
+/-- The dynamic bus balances: the circuit's rows push exactly the tuples they pull, each as often. On the machine's
+padding rows the activity column is zero, which keeps their tuples apart from these, and the key bit `X^63` keeps
+all of them apart from the copy cycles' tuples. -/
+def Balanced (s : State) (val : Val) : Prop := pushes s val = pulls s val
+
+/-- An assignment the machine accepts a circuit with: it satisfies the circuit's rows and balances its dynamic bus. -/
+def Accepts (statement : ℕ → Fin 4 → K) (s : State) (val : Val) : Prop := Sat statement s val ∧ Balanced s val
+
+theorem stepPush_mem {s : State} {r : List ℕ} (val : Val) (hr : r ∈ s.step) : stepPushRow val r ∈ pushes s val :=
+  Multiset.mem_coe.mpr (List.mem_append_left _ (List.mem_map_of_mem (Array.mem_toList_iff.mpr hr)))
+
+theorem stepPull_mem {s : State} {r : List ℕ} (val : Val) (hr : r ∈ s.step) : stepPullRow val r ∈ pulls s val :=
+  Multiset.mem_coe.mpr (List.mem_append_left _ (List.mem_map_of_mem (Array.mem_toList_iff.mpr hr)))
+
+theorem linkPush_mem {s : State} {r : List ℕ} (val : Val) (hr : r ∈ s.link) : linkPushRow val r ∈ pushes s val :=
+  Multiset.mem_coe.mpr (List.mem_append_right _ (List.mem_map_of_mem (Array.mem_toList_iff.mpr hr)))
+
+theorem linkPull_mem {s : State} {r : List ℕ} (val : Val) (hr : r ∈ s.link) : linkPullRow val r ∈ pulls s val :=
+  Multiset.mem_coe.mpr (List.mem_append_right _ (List.mem_map_of_mem (Array.mem_toList_iff.mpr hr)))
+
+open scoped Classical in
+/-- On a balanced bus, the rows push as many tuples at each key as they pull. -/
+theorem Balanced.count_key {s : State} {val : Val} (hb : Balanced s val) (k : K) :
+    ((pushes s val).filter (·.1 = k)).card = ((pulls s val).filter (·.1 = k)).card := by
+  rw [hb]
+
+open scoped Classical in
+/-- On a balanced bus, a key pushed exactly once is pulled exactly once, with the pushed words. -/
+theorem Balanced.unique {s : State} {val : Val} (hb : Balanced s val) {x y : Tuple} (hx : x ∈ pushes s val)
+    (hy : y ∈ pulls s val) (hk : y.1 = x.1) (h1 : ((pushes s val).filter (·.1 = x.1)).card = 1) :
+    ((pulls s val).filter (·.1 = x.1)).card = 1 ∧ y = x := by
+  obtain ⟨z, hz⟩ := Multiset.card_eq_one.mp h1
+  have hxz : x = z := Multiset.mem_singleton.mp (hz ▸ Multiset.mem_filter.mpr ⟨hx, rfl⟩)
+  rw [hb] at hz
+  refine ⟨by rw [hz, Multiset.card_singleton], ?_⟩
+  rw [hxz]
+  exact Multiset.mem_singleton.mp (hz ▸ Multiset.mem_filter.mpr ⟨hy, hk⟩)
+
+/-- A `STEP` row's wires: its tweak word is `tweak0(1, p)` of a position `p < 2^9`, its activity is Boolean, and the
+machine's pull and push of its columns are the row's tuples. -/
+theorem step_sem {st : ℕ → Fin 4 → K} {s : State} {val : Val} (h : Sat st s val) {r : List ℕ} (hr : r ∈ s.step) :
+    (∃ p < 2 ^ 9, val (r.getD stepSlotT 0) 0 = ofWord (tweakWord p)) ∧
+      (val (r.getD stepSlotA 0) 0 = 0 ∨ val (r.getD stepSlotA 0) 0 = 1) ∧
+      ∃ col, (∀ id ∈ stepIdentities, id.eval col = 0) ∧ tupleOf Rec.stepPull col = stepPullRow val r ∧
+        tupleOf Rec.stepPush col = stepPushRow val r := by
+  obtain ⟨col, hid, hl⟩ := h.steps _ hr
+  obtain ⟨hp, hT, ha, hpull, hpush⟩ := step_spec col hid
+  have hT0 : val (r.getD stepSlotT 0) 0 = stepT.eval col := (hl 0 (by decide) 0).symm
+  have hV0 : val (r.getD stepSlotV 0) 0 = col stepV := (hl 1 (by decide) 0).symm
+  have hV1 : val (r.getD (stepSlotV + 1) 0) 0 = col (stepV + 1) := (hl 2 (by decide) 0).symm
+  have hO0 : val (r.getD stepSlotO 0) 0 = col stepO := (hl 3 (by decide) 0).symm
+  have hO1 : val (r.getD stepSlotO 0) 1 = col (stepO + 1) := (hl 3 (by decide) 1).symm
+  have hJ : val (r.getD stepSlotJ 0) 0 = col stepJ := (hl 4 (by decide) 0).symm
+  have hA : val (r.getD stepSlotA 0) 0 = col stepA := (hl 5 (by decide) 0).symm
+  refine ⟨⟨_, hp, hT0.trans hT⟩, hA ▸ ha, col, hid, ?_, ?_⟩
+  · rw [hpull, stepPullRow, hT0, hV0, hV1, hJ]
+  · rw [hpush, stepPushRow, hT0, hO0, hO1, hJ, hA]
+
+/-- A `LINK` row's wires: its activity is Boolean, and the machine's push and pull of its columns are the row's
+tuples. -/
+theorem link_sem {st : ℕ → Fin 4 → K} {s : State} {val : Val} (h : Sat st s val) {r : List ℕ} (hr : r ∈ s.link) :
+    (val (r.getD linkSlotA 0) 0 = 0 ∨ val (r.getD linkSlotA 0) 0 = 1) ∧
+      ∃ col, (∀ id ∈ linkIdentities, id.eval col = 0) ∧ tupleOf Rec.linkPush col = linkPushRow val r ∧
+        tupleOf Rec.linkPull col = linkPullRow val r := by
+  obtain ⟨col, hid, hl⟩ := h.links _ hr
+  have hc : ∀ j < 9, val (r.getD j 0) 0 = col j := fun j hj => by
+    have := (hl j (by simpa [Rec.linkTable] using hj) 0).symm
+    simpa [limbs, Rec.linkTable, kSlot, Form.eval, List.getD_eq_getElem?_getD, hj] using this
+  obtain ⟨hpush, hpull⟩ := link_tuples col
+  refine ⟨?_, col, hid, ?_, ?_⟩
+  · rw [hc linkSlotA (by decide)]
+    exact (boolean_spec col linkA).mp (hid _ (by simp [linkIdentities]))
+  · rw [hpush, linkPushRow, hc linkSlotW (by decide), hc linkSlotD (by decide), hc (linkSlotD + 1) (by decide),
+      hc (linkSlotD + 2) (by decide), hc linkSlotT (by decide), hc (linkSlotT + 1) (by decide)]
+    rfl
+  · rw [hpull, linkPullRow, hc linkSlotW (by decide), hc linkSlotA (by decide), hc linkSlotE (by decide),
+      hc (linkSlotE + 1) (by decide)]
+    rfl
+
+/-- `leaf_block`'s row: its output is RFC 7693's compression of `h` and the eight words `m` at counter `t`, and its
+challenge the output's first three words. -/
+theorem leafRow_good (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) (hm : m.length = 8) (ht : t < 2 ^ 64) :
+    Good (fun _ => True) (leafRow h m t last) fun _ r s' => r.1 < s'.next ∧ r.2 < s'.next ∧
+      ∀ st val, Sat st s' val → (∀ i : Fin 4, i.val < 3 → val r.2 i = val r.1 i) ∧ val r.2 3 = 0 ∧
+        words4 (val r.1) = digest (Blake2s.Rfc7693.F (cvWords (words4 (val h))) (block (m.map (w64 val)) 0)
+          (BitVec.ofNat 64 t) last) := by
+  refine (Good.bind (dConst_good [t, if last then final else 0, 0, 0]) (P₂ := fun _ _ => True)
+    (fun _ _ _ _ _ _ _ => trivial) fun tf =>
+      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun mux =>
+      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun bit =>
+      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun x =>
+      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun ds =>
+      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun o =>
+      Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun ch =>
+      Good.bind (row_good .hash ([h, tf, mux, bit, x, ds, o, ch] ++ m) (by decide)) (P₂ := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) fun _ =>
+          Good.pure' (Q := fun _ r _ => r = (o, ch)) fun _ _ _ => rfl).weaken (fun s h => h) ?_
+  rintro s r s8 hs - - ⟨tf, s1, ⟨-, htf⟩, -, he1, mux, -, -, -, -, bit, -, -, -, -, x, -, -, -, -, ds, -, -, -, -,
+    o, s6, ⟨-, ho⟩, -, he6, ch, s7, ⟨-, hch⟩, -, he7, u, s8', ⟨-, hrow, -⟩, -, he8, rfl⟩
+  refine ⟨lt_of_lt_of_le ho he6.next, lt_of_lt_of_le hch he7.next, fun st val hsat => ?_⟩
+  have hmem := he8.hash _ (hrow rfl)
+  obtain ⟨col, hcol, hH, hT, hF, -, -, -, -, hO, hW⟩ := hash_sem hsat hmem
+  obtain ⟨colc, -, hl⟩ := hsat.hash _ hmem
+  obtain ⟨hOut, hCh, hCh3⟩ := hash_outputs colc
+  have hlen : Rec.hash.length = 16 := rfl
+  have h7 : ∀ i : Fin 4, limbs Rec.hash 7 colc i = val ch i := fun i => hl 7 (by rw [hlen]; omega) i
+  have h6 : ∀ i : Fin 4, limbs Rec.hash 6 colc i = val o i := fun i => hl 6 (by rw [hlen]; omega) i
+  refine ⟨fun i hi => ?_, ?_, ?_⟩
+  · show val ch i = val o i
+    rw [← h7, ← h6]
+    exact (hCh ⟨i.val, hi⟩).trans (hOut i).symm
+  · show val ch 3 = 0
+    rw [← h7 3]
+    exact hCh3
+  have htv := htf st val (hsat.mono he1)
+  have hcounter : columnWord col hashT = BitVec.ofNat 64 t := by
+    rw [columnWord, hT, htv]
+    simp [limbsOf, toWord_ofWord _ ht]
+  have hfin : (columnWord col hashF).setWidth 32 = finalWord last := by
+    rw [columnWord, hF, htv]
+    cases last
+    · have : limbsOf [t, if false = true then final else 0, 0, 0] 1 = ofWord 0 := rfl
+      rw [this, toWord_ofWord 0 (by norm_num)]
+      rfl
+    · have : limbsOf [t, if true = true then final else 0, 0, 0] 1 = ofWord final := rfl
+      rw [this, toWord_ofWord final (by norm_num [final])]
+      rfl
+  have hdig := hash_row_digest col hcol (cvWords (words4 (val h)))
+    (fun k => by rw [digest_cvWords, columnWord, hH k]; rfl) last hfin
+  rw [hcounter, msg_block col (m.map (w64 val)) 0 fun i => ?_] at hdig
+  · rw [← hdig]
+    funext k
+    simp only [outWords, words4, hO k]
+  · rw [columnWord, hW i i.isLt, wordAt]
+    have hi : i.val < m.length := by omega
+    simp [w64, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hi]
+
+/-- The single block of a six-word message padded with zeros is its hash. -/
+theorem hashWords_six (val : Val) (ws : List ℕ) (hws : ws.length = 6) (z : ℕ) (hz : val z 0 = 0) :
+    Blake2s.Rfc7693.F paramIV (block ((ws ++ [z, z]).map (w64 val)) 0) (BitVec.ofNat 64 48) true =
+      hashWords (ws.map (w64 val)) := by
+  have hpad : (List.range 8).map (fun i => ws.getD (8 * 0 + i) z) = ws ++ [z, z] := by
+    match ws, hws with
+    | [a, b, c, d, e, f], _ => rfl
+  rw [← hpad, pad_block val ws z 0 hz, hashWords, blake2s256, List.length_map, hws]
+  rfl
+
+/-- `chain_step`: its tweak word `t` is the first wire it makes; its `HASH` row hashes `[T, idx, p0, p1, v0, v1]`
+as `chain` does, its challenge holding the hash's first three words; its `STEP` row's tweak word `T` is
+`tweak0(1, 8c + s)` of a chain `c < 64` at a position `s < 8`, and the row pulls `T`'s key with its input words and,
+when active, pushes the key of position `s + 1` modulo eight of chain `c` with the hash's first two words. -/
+theorem chainStep_good (idx p0 p1 tag one : ℕ) : Good (fun _ => True) (chainStep idx (p0, p1) tag one)
+    fun s _ s' => ∃ t v0 v1 ch, s.next ≤ t ∧ Wires [t, v0, v1, ch] s' ∧ [t, v0, v1, ch, tag, one] ∈ s'.step ∧
+      ∀ st val, Sat st s' val →
+        (∀ i : Fin 4, i.val < 3 → words4 (val ch) i = digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 val))) i) ∧
+        val ch 3 = 0 ∧ (val one 0 = 0 ∨ val one 0 = 1) ∧
+        stepPullRow val [t, v0, v1, ch, tag, one] = stepPullOf (val t 0) (val v0 0) (val v1 0) (val tag 0) ∧
+        ∃ c < 64, ∃ i < 8, val t 0 = ofWord (tweakWord (8 * c + i)) ∧ (val one 0 = 1 →
+          stepPushRow val [t, v0, v1, ch, tag, one] =
+            stepPullOf (ofWord (tweakWord (8 * c + (i + 1) % 8))) (val ch 0) (val ch 1) (val tag 0)) := by
+  refine (Good.bind wire_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun t =>
+    Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun v0 =>
+    Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun v1 =>
+    Good.bind kZero_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun z =>
+    Good.bind (dConst_good paramIVLimbs) (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun h =>
+    Good.bind (leafRow_good h [t, idx, p0, p1, v0, v1, z, z] 48 true rfl (by norm_num)) (P₂ := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) fun r =>
+    row_good .step [t, v0, v1, r.2, tag, one] (by decide)).weaken (fun s h => h) ?_
+  rintro s u s8 hs - - ⟨t, s1, ⟨ht0, hn1⟩, -, he1, v0, s2, ⟨-, hv0⟩, -, he2, v1, s3, ⟨-, hv1⟩, -, he3, z, s4,
+    ⟨-, hzq⟩, -, he4, h, s5, ⟨-, hhq⟩, -, he5, r, s6, ⟨-, hr2, hsem⟩, -, he6, -, -, -, -, hrow, -⟩
+  have ht : t < s1.next := by rw [hn1, ht0]; exact Nat.lt_succ_self _
+  refine ⟨t, v0, v1, r.2, ht0.ge, ?_, hrow rfl, fun st val hsat => ?_⟩
+  · intro w hw
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hw
+    rcases hw with rfl | rfl | rfl | rfl
+    · exact lt_of_lt_of_le ht he1.next
+    · exact lt_of_lt_of_le hv0 he2.next
+    · exact lt_of_lt_of_le hv1 he3.next
+    · exact lt_of_lt_of_le hr2 he6.next
+  have hz : val z 0 = 0 := by rw [hzq st val (hsat.mono he4)]; simp [limbsOf, ofWord_zero]
+  have hh : words4 (val h) = digest paramIV := by rw [hhq st val (hsat.mono he5)]; exact words4_paramIV
+  obtain ⟨hch, hch3, hdig⟩ := hsem st val (hsat.mono he6)
+  rw [hh, cvWords_digest, show [t, idx, p0, p1, v0, v1, z, z] = [t, idx, p0, p1, v0, v1] ++ [z, z] from rfl,
+    hashWords_six val _ rfl z hz] at hdig
+  obtain ⟨⟨p, hp, hT⟩, hA, -⟩ := step_sem hsat (hrow rfl)
+  simp only [stepSlotT, stepSlotA, List.getD_cons_zero, List.getD_cons_succ] at hT hA
+  refine ⟨fun i hi => ?_, hch3, hA, rfl, p / 8, by omega, p % 8, Nat.mod_lt _ (by norm_num), ?_, fun h1 => ?_⟩
+  · rw [← hdig]
+    simp only [words4, hch i hi]
+  · rw [hT, Nat.div_add_mod]
+  · rw [stepPushRow]
+    simp only [stepSlotT, stepSlotO, stepSlotJ, stepSlotA, List.getD_cons_zero, List.getD_cons_succ]
+    rw [h1, hT]
+    conv_lhs => rw [← Nat.div_add_mod p 8]
+    exact stepPush_next _ _ (by omega) (Nat.mod_lt _ (by norm_num)) _ _ _
+
+/-- `link`: its `LINK` row of the word `w`, the digit bits, fresh tip and end words and the activity `one`, which is
+Boolean; it pushes the tip and pulls the end, `link`'s output. -/
+theorem link_good (w d0 d1 d2 one : ℕ) : Good (fun _ => True) (link w d0 d1 d2 one) fun _ es s' =>
+    ∃ t0 t1 e0 e1, es = [e0, e1] ∧ Wires [t0, t1, e0, e1] s' ∧ [w, d0, d1, d2, t0, t1, e0, e1, one] ∈ s'.link ∧
+      ∀ st val, Sat st s' val → (val one 0 = 0 ∨ val one 0 = 1) ∧
+        linkPushRow val [w, d0, d1, d2, t0, t1, e0, e1, one] =
+          linkPushOf (val w 0) (val d0 0) (val d1 0) (val d2 0) (val t0 0) (val t1 0) ∧
+        linkPullRow val [w, d0, d1, d2, t0, t1, e0, e1, one] =
+          linkPullOf (val w 0) (val one 0) (val e0 0) (val e1 0) := by
+  refine (Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun t0 =>
+    Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun t1 =>
+    Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun e0 =>
+    Good.bind fresh_good (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial) fun e1 =>
+    Good.bind (row_good .link [w, d0, d1, d2, t0, t1, e0, e1, one] (by decide)) (P₂ := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) fun _ =>
+        Good.pure' (Q := fun _ r _ => r = [e0, e1]) fun _ _ _ => rfl).weaken (fun s h => h) ?_
+  rintro s es s6 hs - - ⟨t0, s1, ⟨-, ht0⟩, -, he1, t1, s2, ⟨-, ht1⟩, -, he2, e0, s3, ⟨-, he0⟩, -, he3, e1, s4,
+    ⟨-, he1'⟩, -, he4, u, s5, ⟨-, -, -, -, -, hrow⟩, -, he5, rfl⟩
+  have hmem := he5.links _ (hrow rfl)
+  refine ⟨t0, t1, e0, e1, rfl, ?_, hmem, fun st val hsat => ⟨?_, rfl, rfl⟩⟩
+  · intro x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl | rfl
+    · exact lt_of_lt_of_le ht0 he1.next
+    · exact lt_of_lt_of_le ht1 he2.next
+    · exact lt_of_lt_of_le he0 he3.next
+    · exact lt_of_lt_of_le he1' he4.next
+  · exact (link_sem hsat hmem).1
+
 /-! Public statement rows. -/
 
 theorem expose_good (w : ℕ) : Good (Wires [w]) (expose w) fun s i s' => i = s.statement ∧
@@ -1390,7 +1658,8 @@ theorem expose_good (w : ℕ) : Good (Wires [w]) (expose w) fun s i s' => i = s.
   refine ⟨⟨hs.emulLt, fun kv z h => mem_push_of_mem _ (hs.consts kv z h), fun z h => mem_push_of_mem _ (hs.eZero z h), hs.eOne,
     fun z h => mem_push_of_mem _ (hs.kZero z h), fun z h => mem_push_of_mem _ (hs.kOne z h), hs.arithE, hs.arithK,
     hs.arithLt, hs.constsLt, fun p hp => ?_⟩, ⟨le_rfl, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h,
-      fun _ h => h, fun _ h => h, fun _ h => mem_push_of_mem _ h⟩, rfl, fun st val hsat => hsat.pub _ _ hrow⟩
+      fun _ h => h, fun _ h => h, fun _ h => mem_push_of_mem _ h, fun _ h => h, fun _ h => h⟩, rfl,
+      fun st val hsat => hsat.pub _ _ hrow⟩
   rcases Array.mem_push.mp hp with hp | rfl
   · exact hs.pubLt p hp
   · exact hw w (by simp)
@@ -1442,6 +1711,10 @@ def Call.Holds (st : ℕ → Fin 4 → K) (val : Val) (outs : List ℕ) : Call �
   | .leafBlock h m t last => words4 (val (outs.getD 0 0)) =
       digest (Blake2s.Rfc7693.F (cvWords (words4 (val h))) (block (m.map (w64 val)) 0) (BitVec.ofNat 64 t) last)
   | .chain words => words4 (val (outs.getD 0 0)) = digest (hashWords (words.map (w64 val)))
+  | .chainStep idx p0 p1 _ act => ∃ t v0 v1 ch : ℕ,
+      (∀ i : Fin 4, i.val < 3 → words4 (val ch) i = digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 val))) i) ∧
+      val ch 3 = 0 ∧ (val act 0 = 0 ∨ val act 0 = 1) ∧ ∃ c < 64, ∃ i < 8, val t 0 = ofWord (tweakWord (8 * c + i))
+  | .link _ _ _ _ act => outs.length = 2 ∧ (val act 0 = 0 ∨ val act 0 = 1)
 
 /-- Every call keeps the invariant, only adds to the circuit, and its outputs are what it computes. -/
 theorem Call.exec_good (c : Call) (hok : c.ok = true) : Good (Wires c.args) c.exec fun _ outs s' =>
@@ -1544,6 +1817,15 @@ theorem Call.exec_good (c : Call) (hok : c.ok = true) : Good (Wires c.args) c.ex
     simp only [Call.ok, decide_eq_true_eq] at hok
     exact (ret_good (chain_good words hok)).pre (fun _ _ => trivial) |>.weaken (fun _ h => h)
       fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
+  | chainStep idx p0 p1 tag act =>
+    exact (Good.bind (chainStep_good idx p0 p1 tag act) (P₂ := fun _ _ => True) (fun _ _ _ _ _ _ _ => trivial)
+      fun _ => Good.pure' (Q := fun s₀ _ s' => s' = s₀) fun _ _ _ => rfl).pre (fun _ _ => trivial)
+      |>.weaken (fun _ h => h) fun _ _ _ _ _ _ ⟨_, _, ⟨t, v0, v1, ch, _, _, _, hq⟩, _, _, hs⟩ st val hsat => by
+        obtain ⟨h1, h2, h3, -, c, hc, i, hi, hT, -⟩ := hq st val (hs ▸ hsat)
+        exact ⟨t, v0, v1, ch, h1, h2, h3, c, hc, i, hi, hT⟩
+  | link w d0 d1 d2 act =>
+    exact (link_good w d0 d1 d2 act).pre (fun _ _ => trivial) |>.weaken (fun _ h => h)
+      fun _ _ _ _ _ _ ⟨_, _, _, _, hout, _, _, hq⟩ st val hsat => ⟨by rw [hout]; rfl, (hq st val hsat).1⟩
 
 
 /-- Calls in order, with each one's outputs. -/

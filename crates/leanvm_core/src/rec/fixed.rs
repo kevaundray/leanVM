@@ -2,6 +2,7 @@
 //!
 //! - Each slot's `next` column holds the key of the next slot of its wire class, its own key on a padding row.
 //! - The public table's four constant columns hold each constant row's limbs, zero on the statement's rows.
+//! - Each table with dynamic tuples has an activity column, one on the circuit's rows and zero on padding rows.
 //!
 //! Two circuits of the same heights differ exactly where these columns do, so the columns name the circuit.
 
@@ -22,6 +23,8 @@ pub(crate) enum FixedColumn {
     Next(usize),
     /// Limb `j` of the public table's constants.
     Constant(usize),
+    /// The activity column of a table with dynamic tuples.
+    Active(Table),
 }
 
 /// A circuit's fixed columns, each at its table's height, in stacking order.
@@ -35,14 +38,17 @@ pub(crate) struct FixedColumns {
 
 impl FixedColumn {
     /// How many fixed columns a circuit has.
-    pub(crate) const COUNT: usize = N_SLOTS + 4;
+    pub(crate) const COUNT: usize = N_SLOTS + 4 + Table::DYNAMIC.len();
 
-    /// The column at an index of the stacking order: every slot's `next`, then the four constant limbs.
+    /// The column at an index of the stacking order: every slot's `next`, then the four constant limbs, then the
+    /// dynamic tables' activity columns.
     pub(crate) const fn at(index: usize) -> Self {
         if index < N_SLOTS {
             Self::Next(index)
-        } else {
+        } else if index < N_SLOTS + 4 {
             Self::Constant(index - N_SLOTS)
+        } else {
+            Self::Active(Table::DYNAMIC[index - N_SLOTS - 4])
         }
     }
 
@@ -51,6 +57,13 @@ impl FixedColumn {
         match self {
             Self::Next(slot) => slot,
             Self::Constant(j) => N_SLOTS + j,
+            Self::Active(table) => {
+                let mut i = 0;
+                while Table::DYNAMIC[i] as usize != table as usize {
+                    i += 1;
+                }
+                N_SLOTS + 4 + i
+            }
         }
     }
 
@@ -61,6 +74,7 @@ impl FixedColumn {
                 .find(|t| t.first_slot() <= slot)
                 .expect("slot 0 is the first table's"),
             Self::Constant(_) => Table::Pub,
+            Self::Active(table) => table,
         }
     }
 }
@@ -106,8 +120,12 @@ impl FixedColumns {
                 }
             }
         }
+        let active: [Vec<F64>; 2] = Table::DYNAMIC.map(|t| {
+            let rows = circuit.classes.len(t);
+            (0..1 << taus[t]).map(|z| F64(u64::from(z < rows))).collect()
+        });
         Self {
-            columns: next.into_iter().chain(constants).map(Arc::new).collect(),
+            columns: next.into_iter().chain(constants).chain(active).map(Arc::new).collect(),
         }
     }
 
@@ -122,6 +140,12 @@ impl FixedColumns {
     /// A column.
     pub(crate) fn get(&self, column: FixedColumn) -> &Arc<Vec<F64>> {
         &self.columns[column.index()]
+    }
+
+    /// Set one word of a column.
+    #[cfg(test)]
+    pub(crate) fn set(&mut self, column: FixedColumn, z: usize, value: F64) {
+        Arc::make_mut(&mut self.columns[column.index()])[z] = value;
     }
 
     /// A column as a bus coordinate reads it, naming which fixed column it is.

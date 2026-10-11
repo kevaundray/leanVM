@@ -39,6 +39,7 @@ public import LeanVMCircuits.Xmss.Circuit
 public import LeanVMCircuits.Xmss.Complete
 public import LeanVMCircuits.Xmss.CompleteBuilder
 public import LeanVMCircuits.Xmss.FieldFacts
+public import LeanVMCircuits.Xmss.Paths
 public import LeanVMCircuits.Xmss.Sound
 public import LeanVMCircuits.Xmss.SoundGadgets
 public import LeanVMCircuits.Xmss.Statement

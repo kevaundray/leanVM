@@ -12,6 +12,8 @@ mod builder;
 mod compression;
 
 pub use builder::Builder;
+#[cfg(test)]
+pub(crate) use builder::chains;
 #[cfg(feature = "circuit-trace")]
 pub(crate) use builder::traced;
 pub(crate) use compression::digest_limbs;
@@ -76,6 +78,13 @@ impl TableSlots {
     /// A table's slots, row-major.
     pub(crate) fn of(&self, table: Table) -> &[u32] {
         &self.0[table]
+    }
+
+    /// Drop a table's last row.
+    #[cfg(test)]
+    pub(crate) fn pop_row(&mut self, table: Table) {
+        let len = self.0[table].len();
+        self.0[table].truncate(len - table.n_slots());
     }
 
     /// How many rows a table has.

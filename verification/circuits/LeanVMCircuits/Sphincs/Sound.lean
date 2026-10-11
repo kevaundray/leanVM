@@ -334,10 +334,11 @@ theorem circuit_good (n : ℕ) : Good (fun s => s.statement = 0) (Sphincs.Circui
   · rintro u s1 hi1 he1 ⟨-, hv⟩
     exact post_pure hi1 he1 hv
 
-/-- Soundness: in every assignment satisfying the circuit of `n` signatures, statement words `4j .. 4j + 3` encode a
-root, a public parameter and a message for which some signature verifies. -/
-theorem sound (n : ℕ) (st : ℕ → Fin 4 → K) (val : Val) (h : Sat st ((Sphincs.Circuit.circuit n).run {}).2 val) :
+/-- Soundness: in every assignment the machine accepts the circuit of `n` signatures with (`Accepts`; its rows
+satisfied suffice), statement words `4j .. 4j + 3` encode a root, a public parameter and a message for which some
+signature verifies. -/
+theorem sound (n : ℕ) (st : ℕ → Fin 4 → K) (val : Val) (h : Accepts st ((Sphincs.Circuit.circuit n).run {}).2 val) :
     ∀ j < n, ∃ root pp msg, Encodes st j root pp msg ∧ ∃ sig, Sphincs.Words.verify root pp msg sig = true :=
-  (Sphincs.circuit_good n {} inv_empty rfl).2.2 st val h
+  (Sphincs.circuit_good n {} inv_empty rfl).2.2 st val h.1
 
 end LeanVMCircuits.Sphincs

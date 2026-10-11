@@ -5,9 +5,10 @@ import LeanVMCircuits.Sphincs.Spec
 /-!
 # The leanSPHINCS circuit accepts exactly the specification's valid signatures
 
-The circuit of `n` signatures (`Sphincs.Circuit.circuit n`) has a satisfying assignment for statement words `st`
-exactly when for every `j < n` statement words `4j .. 4j + 3` state a public key and a message for which some
-signature passes the leanSPHINCS specification's `verify`, the Lean transcription of the guest's verifier
+The machine accepts the circuit of `n` signatures (`Sphincs.Circuit.circuit n`) under statement words `st` with some
+assignment (`Accepts`: its rows satisfied and its dynamic bus balanced, which holds as the circuit has no `STEP` or
+`LINK` row) exactly when for every `j < n` statement words `4j .. 4j + 3` state a public key and a message for which
+some signature passes the leanSPHINCS specification's `verify`, the Lean transcription of the guest's verifier
 (`accepted_iff`). A statement word holds 64-bit words, and the specification reads their little-endian bytes
 (`Spec.pk`, `Spec.message`).
 
@@ -28,10 +29,10 @@ bytes are `p` and `m`. -/
 def Statement (st : ℕ → Fin 4 → K) (j : ℕ) (p : LeanSphincs.PublicKey) (m : LeanSphincs.Message) : Prop :=
   ∃ root pp msg, Encodes st j root pp msg ∧ Spec.pk root pp = p ∧ Spec.message msg = m
 
-/-- The circuit of `n` signatures is satisfiable under statement words `st` exactly when each of its `n` statements
-states a public key and a message under which some signature passes the specification's `verify`. -/
+/-- The machine accepts the circuit of `n` signatures under statement words `st` exactly when each of its `n`
+statements states a public key and a message under which some signature passes the specification's `verify`. -/
 theorem accepted_iff (n : ℕ) (st : ℕ → Fin 4 → K) :
-    (∃ val, Sat st ((Sphincs.Circuit.circuit n).run {}).2 val) ↔
+    (∃ val, Accepts st ((Sphincs.Circuit.circuit n).run {}).2 val) ↔
       ∀ j < n, ∃ (p : LeanSphincs.PublicKey) (m : LeanSphincs.Message), Statement st j p m ∧
         ∃ s : LeanSphincs.Signature, LeanSphincs.verify p m s = true := by
   constructor

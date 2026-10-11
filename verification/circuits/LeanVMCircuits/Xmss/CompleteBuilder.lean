@@ -64,18 +64,22 @@ structure Closed (s : State) : Prop where
   hash : ∀ r ∈ s.hash, RowLt s.next r
   split : ∀ r ∈ s.split, RowLt s.next r
   cast : ∀ r ∈ s.cast, RowLt s.next r
+  steps : ∀ r ∈ s.step, RowLt s.next r
+  links : ∀ r ∈ s.link, RowLt s.next r
 
 theorem closed_empty : Closed ({} : State) :=
   ⟨fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h,
-    fun _ h => by simp at h, fun _ h => by simp at h⟩
+    fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h, fun _ h => by simp at h⟩
 
 /-- A state whose new unions and rows name wires below its `next`. -/
 theorem Closed.step {s s' : State} (h : Closed s) (hn : s.next ≤ s'.next)
     (hu : ∀ p ∈ s'.unions, p ∈ s.unions ∨ (p.1 < s'.next ∧ p.2 < s'.next))
     (he : ∀ r ∈ s'.emul, r ∈ s.emul ∨ RowLt s'.next r) (hk : ∀ r ∈ s'.exk, r ∈ s.exk ∨ RowLt s'.next r)
     (hh : ∀ r ∈ s'.hash, r ∈ s.hash ∨ RowLt s'.next r) (hs : ∀ r ∈ s'.split, r ∈ s.split ∨ RowLt s'.next r)
-    (hc : ∀ r ∈ s'.cast, r ∈ s.cast ∨ RowLt s'.next r) : Closed s' := by
-  refine ⟨fun p hp => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_⟩
+    (hc : ∀ r ∈ s'.cast, r ∈ s.cast ∨ RowLt s'.next r) (hst : ∀ r ∈ s'.step, r ∈ s.step ∨ RowLt s'.next r)
+    (hl : ∀ r ∈ s'.link, r ∈ s.link ∨ RowLt s'.next r) : Closed s' := by
+  refine ⟨fun p hp => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_,
+    fun r hr => ?_, fun r hr => ?_⟩
   · rcases hu p hp with h' | h'
     · exact ⟨lt_of_lt_of_le (h.unions p h').1 hn, lt_of_lt_of_le (h.unions p h').2 hn⟩
     · exact h'
@@ -94,13 +98,20 @@ theorem Closed.step {s s' : State} (h : Closed s) (hn : s.next ≤ s'.next)
   · rcases hc r hr with h' | h'
     · exact (h.cast r h').mono hn
     · exact h'
+  · rcases hst r hr with h' | h'
+    · exact (h.steps r h').mono hn
+    · exact h'
+  · rcases hl r hr with h' | h'
+    · exact (h.links r h').mono hn
+    · exact h'
 
 /-- A state with the same unions and rows and more wires. -/
 theorem Closed.same {s s' : State} (h : Closed s) (hn : s.next ≤ s'.next) (hu : s'.unions = s.unions)
     (he : s'.emul = s.emul) (hk : s'.exk = s.exk) (hh : s'.hash = s.hash) (hs : s'.split = s.split)
-    (hc : s'.cast = s.cast) : Closed s' :=
+    (hc : s'.cast = s.cast) (hst : s'.step = s.step) (hl : s'.link = s.link) : Closed s' :=
   h.step hn (fun _ hp => Or.inl (hu ▸ hp)) (fun _ hr => Or.inl (he ▸ hr)) (fun _ hr => Or.inl (hk ▸ hr))
     (fun _ hr => Or.inl (hh ▸ hr)) (fun _ hr => Or.inl (hs ▸ hr)) (fun _ hr => Or.inl (hc ▸ hr))
+    (fun _ hr => Or.inl (hst ▸ hr)) (fun _ hr => Or.inl (hl ▸ hr))
 
 theorem RowSat.agree {forms : List (List Form)} {holds : (ℕ → K) → Prop} {v v' : Val} {r : List ℕ} {n : ℕ}
     (h : RowSat forms holds v r) (hr : RowLt n r) (ha : Agree n v v') : RowSat forms holds v' r := by
@@ -114,7 +125,8 @@ theorem Sat.agree {st : ℕ → Fin 4 → K} {s : State} {v v' : Val} (hs : Inv 
     fun r hr => (h.emul r hr).agree (hc.emul r hr) ha, fun r hr => (h.exk r hr).agree (hc.exk r hr) ha,
     fun r hr => (h.hash r hr).agree (hc.hash r hr) ha, fun r hr => (h.split r hr).agree (hc.split r hr) ha,
     fun r hr => (h.cast r hr).agree (hc.cast r hr) ha,
-    fun w src hp => by rw [ha w (hs.pubLt _ hp)]; exact h.pub w src hp⟩
+    fun w src hp => by rw [ha w (hs.pubLt _ hp)]; exact h.pub w src hp,
+    fun r hr => (h.steps r hr).agree (hc.steps r hr) ha, fun r hr => (h.links r hr).agree (hc.links r hr) ha⟩
 
 /-- An assignment satisfies a circuit grown by unions, rows and public rows it satisfies. -/
 theorem Sat.step {st : ℕ → Fin 4 → K} {s s' : State} {v : Val} (h : Sat st s v)
@@ -125,9 +137,13 @@ theorem Sat.step {st : ℕ → Fin 4 → K} {s s' : State} {v : Val} (h : Sat st
     (hs : ∀ r ∈ s'.split, r ∈ s.split ∨
       RowSat Rec.split (fun col => ∀ id ∈ splitIdentities, id.eval col = 0) v r)
     (hc : ∀ r ∈ s'.cast, r ∈ s.cast ∨ RowSat Rec.cast (fun _ => True) v r)
-    (hp : ∀ w src, (w, src) ∈ s'.pub → (w, src) ∈ s.pub ∨ v w = srcVal st src) : Sat st s' v := by
+    (hp : ∀ w src, (w, src) ∈ s'.pub → (w, src) ∈ s.pub ∨ v w = srcVal st src)
+    (hst : ∀ r ∈ s'.step, r ∈ s.step ∨
+      RowSat Rec.stepTable (fun col => ∀ id ∈ stepIdentities, id.eval col = 0) v r)
+    (hl : ∀ r ∈ s'.link, r ∈ s.link ∨
+      RowSat Rec.linkTable (fun col => ∀ id ∈ linkIdentities, id.eval col = 0) v r) : Sat st s' v := by
   refine ⟨fun p hp' => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr => ?_,
-    fun w src hp' => ?_⟩
+    fun w src hp' => ?_, fun r hr => ?_, fun r hr => ?_⟩
   · rcases hu p hp' with h' | h'
     · exact h.unions p h'
     · exact h'
@@ -148,6 +164,12 @@ theorem Sat.step {st : ℕ → Fin 4 → K} {s s' : State} {v : Val} (h : Sat st
     · exact h'
   · rcases hp w src hp' with h' | h'
     · exact h.pub w src h'
+    · exact h'
+  · rcases hst r hr with h' | h'
+    · exact h.steps r h'
+    · exact h'
+  · rcases hl r hr with h' | h'
+    · exact h.links r h'
     · exact h'
 
 /-! Completeness contracts. -/
@@ -310,10 +332,10 @@ variable {st : ℕ → Fin 4 → K}
 
 theorem Sat.same {s s' : State} {v : Val} (h : Sat st s v) (hu : s'.unions = s.unions) (he : s'.emul = s.emul)
     (hk : s'.exk = s.exk) (hh : s'.hash = s.hash) (hs : s'.split = s.split) (hc : s'.cast = s.cast)
-    (hp : s'.pub = s.pub) : Sat st s' v :=
+    (hp : s'.pub = s.pub) (hst : s'.step = s.step) (hl : s'.link = s.link) : Sat st s' v :=
   h.step (fun _ h' => Or.inl (hu ▸ h')) (fun _ h' => Or.inl (he ▸ h')) (fun _ h' => Or.inl (hk ▸ h'))
     (fun _ h' => Or.inl (hh ▸ h')) (fun _ h' => Or.inl (hs ▸ h')) (fun _ h' => Or.inl (hc ▸ h'))
-    fun _ _ h' => Or.inl (hp ▸ h')
+    (fun _ _ h' => Or.inl (hp ▸ h')) (fun _ h' => Or.inl (hst ▸ h')) fun _ h' => Or.inl (hl ▸ h')
 
 /-- The precondition may assume the assignment satisfies the circuit so far. -/
 theorem CGood.withSat {α : Type} {k : ℕ} {P : State → Val → Prop} {m : M α} {Q : State → α → State → Val → Prop}
@@ -332,8 +354,8 @@ theorem wire_cgood (x : Fin 4 → K) : CGood st 0 (fun _ _ => True) wire fun s w
     w = s.next ∧ s'.next = s.next + 1 ∧ v w = x := by
   refine CGood.of_good wire_good (fun _ _ _ => trivial) fun s val hi hc hsat _ _ _ _ => ?_
   rw [wire_run]
-  refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl, rfl, setW val s.next x, agree_setW _ _ _,
-    (hsat.agree hi hc (agree_setW _ _ _)).same rfl rfl rfl rfl rfl rfl rfl, fun v hv => ⟨rfl, rfl, ?_⟩⟩
+  refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl rfl rfl, rfl, setW val s.next x, agree_setW _ _ _,
+    (hsat.agree hi hc (agree_setW _ _ _)).same rfl rfl rfl rfl rfl rfl rfl rfl rfl, fun v hv => ⟨rfl, rfl, ?_⟩⟩
   rw [hv _ (Nat.lt_succ_self _), setW_self]
 
 /-- `constant`: its wire carries the constant, made or cached. -/
@@ -348,11 +370,11 @@ theorem constant_cgood (kd : Kind) (lv : Limbs) : CGood st 0 (fun _ _ => True) (
     rw [hv w (hi.constsLt _ w h)]
     exact hsat.pub w _ (hi.consts _ w h)
   | none =>
-    refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl, rfl, setW val s.next (limbsOf lv), agree_setW _ _ _,
-      ?_, fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
+    refine ⟨hc.same (Nat.le_succ _) rfl rfl rfl rfl rfl rfl rfl rfl, rfl, setW val s.next (limbsOf lv),
+      agree_setW _ _ _, ?_, fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
     · refine (hsat.agree hi hc (agree_setW _ _ _)).step (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
         (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-        fun w src hp => ?_
+        (fun w src hp => ?_) (fun _ h' => Or.inl h') fun _ h' => Or.inl h'
       rcases Array.mem_push.mp hp with hp | hp
       · exact Or.inl hp
       · cases hp; exact Or.inr (setW_self _ _ _)
@@ -416,9 +438,10 @@ theorem union_cgood (a b : ℕ) : CGood st 0 (fun s v => a < s.next ∧ b < s.ne
   obtain ⟨ha, hb, hab⟩ := hP val (Agree.refl _ _)
   rw [union_run]
   refine ⟨hc.step le_rfl (fun p hp => ?_) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-    (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), rfl, val, Agree.refl _ _,
-    hsat.step (fun p hp => ?_) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h'), fun _ _ => trivial⟩
+    (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), rfl, val,
+    Agree.refl _ _, hsat.step (fun p hp => ?_) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), fun _ _ => trivial⟩
   · rcases Array.mem_push.mp hp with hp | rfl
     · exact Or.inl hp
     · exact Or.inr ⟨ha, hb⟩
@@ -451,9 +474,10 @@ theorem expose_cgood (w : ℕ) : CGood st 1 (fun s v => w < s.next ∧ v w = st 
     fun s val hi hc hsat hP _ _ _ => ?_
   obtain ⟨-, hw⟩ := hP val (Agree.refl _ _)
   rw [expose_run]
-  refine ⟨hc.same le_rfl rfl rfl rfl rfl rfl rfl, rfl, val, Agree.refl _ _,
+  refine ⟨hc.same le_rfl rfl rfl rfl rfl rfl rfl rfl rfl, rfl, val, Agree.refl _ _,
     hsat.step (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun u src hp => ?_), fun _ _ => ⟨rfl, rfl⟩⟩
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun u src hp => ?_) (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), fun _ _ => ⟨rfl, rfl⟩⟩
   rcases Array.mem_push.mp hp with hp | hp
   · exact Or.inl hp
   · cases hp; exact Or.inr hw
@@ -466,22 +490,24 @@ def TSat (t : Table) (v : Val) (r : List ℕ) : Prop :=
   | .hash => RowSat Rec.hash HashRow v r
   | .split => RowSat Rec.split (fun col => ∀ id ∈ splitIdentities, id.eval col = 0) v r
   | .cast => RowSat Rec.cast (fun _ => True) v r
+  | .step => RowSat Rec.stepTable (fun col => ∀ id ∈ stepIdentities, id.eval col = 0) v r
+  | .link => RowSat Rec.linkTable (fun col => ∀ id ∈ linkIdentities, id.eval col = 0) v r
   | .pub => True
 
 /-- `row`: a row the assignment satisfies. -/
 theorem row_cgood (t : Table) (r : List ℕ) (ht : t ≠ .emul) :
     CGood st 0 (fun s v => Wires r s ∧ r ≠ [] ∧ TSat t v r) (row t r) fun _ _ s' _ =>
       (t = .exk → r ∈ s'.exk) ∧ (t = .hash → r ∈ s'.hash) ∧ (t = .split → r ∈ s'.split) ∧
-        (t = .cast → r ∈ s'.cast) := by
+        (t = .cast → r ∈ s'.cast) ∧ (t = .step → r ∈ s'.step) ∧ (t = .link → r ∈ s'.link) := by
   refine CGood.of_good (row_good t r ht) (fun _ _ _ => trivial) fun s val hi hc hsat hP _ _ hq => ?_
   obtain ⟨hw, hne, hsr⟩ := hP val (Agree.refl _ _)
   have hlt := rowLt_of_wires hw hne
   cases t with
   | emul => exact absurd rfl ht
   | pub => exact ⟨hc, rfl, val, Agree.refl _ _, hsat, fun _ _ => hq⟩
-  | exk | hash | split | cast =>
-    refine ⟨hc.step le_rfl ?_ ?_ ?_ ?_ ?_ ?_, rfl, val, Agree.refl _ _, hsat.step ?_ ?_ ?_ ?_ ?_ ?_ ?_,
-      fun _ _ => hq⟩ <;>
+  | exk | hash | split | cast | step | link =>
+    refine ⟨hc.step le_rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, rfl, val, Agree.refl _ _,
+      hsat.step ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, fun _ _ => hq⟩ <;>
     first
       | exact fun _ h' => Or.inl h'
       | exact fun _ _ h' => Or.inl h'
@@ -574,9 +600,11 @@ theorem emul_cgood (a b d : ℕ) : CGood st 0 (fun s v => Wires [a, b, d] s ∧ 
     set x := eVal (ev val a * ev val b + ev val d)
     have hag := agree_setW val s.next x
     refine ⟨hc.step (Nat.le_succ _) (fun _ h' => Or.inl h') (fun r hr => ?_) (fun _ h' => Or.inl h')
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), rfl, setW val s.next x, hag,
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), rfl, setW val s.next x, hag,
       (hsat.agree hi hc hag).step (fun _ h' => Or.inl h') (fun r hr => ?_) (fun _ h' => Or.inl h')
-        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h'),
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h')
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'),
       fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
     · rcases Array.mem_push.mp hr with hr | rfl
       · exact Or.inl hr
@@ -742,9 +770,11 @@ theorem mulKAdd_cgood (a k d : ℕ) :
     set x := eVal (ev val a * emb (val k 0) + ev val d)
     have hag := agree_setW val s.next x
     refine ⟨hi', hc.step (Nat.le_succ _) (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun r hr => ?_)
-      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'), he', rfl, setW val s.next x, hag,
+      (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h')
+      (fun _ h' => Or.inl h'), he', rfl, setW val s.next x, hag,
       (hsat.agree hi hc hag).step (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun r hr => ?_)
-        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h'),
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ h' => Or.inl h') (fun _ _ h' => Or.inl h')
+        (fun _ h' => Or.inl h') (fun _ h' => Or.inl h'),
       fun v hv => ⟨Nat.lt_succ_self _, ?_⟩⟩
     · rcases Array.mem_push.mp hr with hr | rfl
       · exact Or.inl hr
@@ -873,7 +903,7 @@ theorem castRow_cgood (given : List (ℕ × ℕ)) (col : ℕ → K) :
     have hj' : j < 8 := hj
     rw [hget j hj']
     rfl
-  · rintro s r s3 v hs - - ⟨ws, s1, -, he1, -, -, u, s2, -, he2, ⟨hw, -, -, hlen, hget⟩, ⟨-, -, -, hc⟩, rfl⟩
+  · rintro s r s3 v hs - - ⟨ws, s1, -, he1, -, -, u, s2, -, he2, ⟨hw, -, -, hlen, hget⟩, ⟨-, -, -, hc, -⟩, rfl⟩
     exact ⟨hlen, hw.mono he1, he2.cast _ (hc rfl), hget⟩
 
 theorem eToK_cgood (e : ℕ) : CGood st 0 (fun s v => e < s.next ∧ v e 3 = 0) (eToK e) fun _ ks s' v =>
@@ -1665,6 +1695,327 @@ theorem CGood.hyp {α : Type} {k : ℕ} {H : Prop} {P : State → Val → Prop} 
     {Q : State → α → State → Val → Prop} (h : H → CGood st k P m Q) :
     CGood st k (fun s v => H ∧ P s v) m Q :=
   fun s val hi hc hsat hP => h (hP val (Agree.refl _ _)).1 s val hi hc hsat fun v hv => (hP v hv).2
+
+end
+
+/-! Hash chains on the dynamic bus. -/
+
+section
+
+variable {st : ℕ → Fin 4 → K}
+
+theorem slotV_ch (col : ℕ → K) : slotV col 7 = ![col 14, col 15, col 16, 0] := by
+  funext i; fin_cases i <;> simp [slotV, limbs, Rec.hash, eSlot, Form.eval, Form.zero, ofWord_zero, hashO]
+
+/-- A digest's first three words as an `E` wire's limbs: a `HASH` row's challenge. -/
+noncomputable def chVal (d : Fin 4 → BitVec 64) : Fin 4 → K :=
+  ![ofWord (d 0).toNat, ofWord (d 1).toNat, ofWord (d 2).toNat, 0]
+
+theorem chVal_three (d : Fin 4 → BitVec 64) : chVal d 3 = 0 := rfl
+
+theorem hashCol_ch (H : Fin 4 → K) (M : ℕ → K) (t fw : ℕ) (f : Bool) :
+    slotV (hashCol H M t fw f) 7 = chVal (digest (Blake2s.Rfc7693.F (hWords (hashPorts H M t fw))
+      (mWords (hashPorts H M t fw)) (hashPorts H M t fw 0) f)) := by
+  rw [slotV_ch]
+  funext k
+  fin_cases k <;> simp [hashCol, lim, dVal, chVal]
+
+/-- `leaf_block`'s row with its challenge: the challenge is the first three words of RFC 7693's compression of the
+chaining value `h` and the `K` words `m` at counter `t`. -/
+theorem leafRow_cgood (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool) (hm : m.length = 8) (ht : t < 2 ^ 64) :
+    CGood st 0 (fun s v => Wires (h :: m) s ∧ ∀ i < 8, v (m.getD i 0) = kVal (v (m.getD i 0) 0))
+      (leafRow h m t last) fun _ r s' v => r.2 < s'.next ∧ v r.2 = chVal (digest (Blake2s.Rfc7693.F
+        (cvWords (words4 (v h))) (block (m.map (w64 v)) 0) (BitVec.ofNat 64 t) last)) := by
+  apply CGood.intro
+  intro s₀ val₀
+  set M : ℕ → K := fun i => val₀ (m.getD i 0) 0
+  set col := hashCol (val₀ h) M t (finW last) last
+  have hcol : HashRow col := hashCol_row _ _ _ _ _ (hashPorts_f _ _ _ _)
+  unfold leafRow
+  refine (CGood.bind ((dConst_cgood [t, if last then final else 0, 0, 0]).pre fun _ _ _ => trivial)
+    (P₂ := fun tf s v => SlotsOk col 0 [h, tf] s v ∧ SlotsOk col 8 m s v ∧ m.length = 8) ?_ fun tf =>
+    CGood.bind ((wire_cgood (slotV col 2)).pre fun _ _ _ => trivial)
+      (P₂ := fun mux s v => SlotsOk col 0 [h, tf, mux] s v ∧ SlotsOk col 8 m s v ∧ m.length = 8)
+      (fun _ _ _ _ _ hp he hq => slots_wire hp he hq) fun mux =>
+    CGood.bind ((wire_cgood (slotV col 3)).pre fun _ _ _ => trivial)
+      (P₂ := fun bit s v => SlotsOk col 0 [h, tf, mux, bit] s v ∧ SlotsOk col 8 m s v ∧ m.length = 8)
+      (fun _ _ _ _ _ hp he hq => slots_wire hp he hq) fun bit =>
+    CGood.bind ((wire_cgood (slotV col 4)).pre fun _ _ _ => trivial)
+      (P₂ := fun x s v => SlotsOk col 0 [h, tf, mux, bit, x] s v ∧ SlotsOk col 8 m s v ∧ m.length = 8)
+      (fun _ _ _ _ _ hp he hq => slots_wire hp he hq) fun x =>
+    CGood.bind ((wire_cgood (slotV col 5)).pre fun _ _ _ => trivial)
+      (P₂ := fun ds s v => SlotsOk col 0 [h, tf, mux, bit, x, ds] s v ∧ SlotsOk col 8 m s v ∧ m.length = 8)
+      (fun _ _ _ _ _ hp he hq => slots_wire hp he hq) fun ds =>
+    CGood.bind ((wire_cgood (slotV col 6)).pre fun _ _ _ => trivial)
+      (P₂ := fun o s v => SlotsOk col 0 [h, tf, mux, bit, x, ds, o] s v ∧ SlotsOk col 8 m s v ∧ m.length = 8)
+      (fun _ _ _ _ _ hp he hq => slots_wire hp he hq) fun o =>
+    CGood.bind ((wire_cgood (slotV col 7)).pre fun _ _ _ => trivial)
+      (P₂ := fun ch s v => SlotsOk col 0 [h, tf, mux, bit, x, ds, o, ch] s v ∧ SlotsOk col 8 m s v ∧
+        m.length = 8)
+      (fun _ _ _ _ _ hp he hq => slots_wire hp he hq) fun ch =>
+    CGood.bind ((row_cgood .hash ([h, tf, mux, bit, x, ds, o, ch] ++ m) (by decide)).pre ?_)
+      (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun _ =>
+      CGood.pure' (Q := fun _ r _ _ => r = (o, ch)) fun _ _ _ _ => rfl).weaken (fun _ _ h => h) ?_
+  · rintro s tf s' v hs ⟨rfl, hag, hw, hk⟩ he ⟨htf, htfv⟩
+    have hh := hw h (by simp)
+    refine ⟨fun j hj => ?_, fun j hj => ?_, hm⟩
+    · have hj2 : j < 2 := hj
+      interval_cases j
+      · refine ⟨lt_of_lt_of_le hh he.next, ?_⟩
+        show v h = slotV col 0
+        rw [slotV_h, hag h hh]
+        funext i
+        simp [col, hashCol, hashIn, lim, show (2 + i.val) ≠ 0 by omega, show (2 + i.val) ≠ 1 by omega,
+          show 2 + i.val < 6 by omega, show 2 + i.val < 14 by omega]
+      · refine ⟨htf, ?_⟩
+        show v tf = slotV col 1
+        rw [slotV_tf, htfv]
+        funext i
+        fin_cases i <;> simp [limbsOf, col, hashCol, hashIn, finW, ofWord_zero]
+    · have hmj : m.getD j 0 ∈ m := getD_mem (by omega)
+      refine ⟨lt_of_lt_of_le (hw _ (List.mem_cons_of_mem _ hmj)) he.next, ?_⟩
+      rw [slotV_word col j (by omega), hk j (by omega), hag _ (hw _ (List.mem_cons_of_mem _ hmj))]
+      simp [col, hashCol, hashIn, M, show (6 + j) ≠ 0 by omega, show (6 + j) ≠ 1 by omega,
+        show ¬(6 + j < 6) by omega, show 6 + j < 14 by omega]
+  · rintro s v ⟨h8, hw, hlen⟩
+    refine ⟨fun u hu => ?_, by simp, col, hcol, fun j hj i => ?_⟩
+    · rcases List.mem_append.mp hu with hu | hu
+      · exact h8.wires u hu
+      · exact hw.wires u hu
+    · have hj' : j < 16 := hj
+      by_cases hj8 : j < 8
+      · rw [List.getD_eq_getElem?_getD, List.getElem?_append_left (by simpa using hj8),
+          ← List.getD_eq_getElem?_getD, (h8 j (by simpa using hj8)).2]
+        simp only [slotV, Nat.zero_add]
+      · rw [List.getD_eq_getElem?_getD, List.getElem?_append_right (by simp; omega),
+          ← List.getD_eq_getElem?_getD, show j - [h, tf, mux, bit, x, ds, o, ch].length = j - 8 from rfl,
+          (hw (j - 8) (by omega)).2, show 8 + (j - 8) = j by omega]
+        rfl
+  · rintro s r s9 v hs ⟨rfl, hag, hw, hk⟩ - ⟨tf, s1, -, -, -, -, mux, s2, -, -, -, -, bit, s3, -, -, -, -, x, s4, -,
+      -, -, -, ds, s5, -, -, -, -, o, s6, -, -, -, -, ch, s7, -, he7, -, ⟨hch0, hn7, hchv⟩, u, s8, -, -, -, -, rfl⟩
+    refine ⟨lt_of_lt_of_le (by rw [hn7, hch0]; exact Nat.lt_succ_self _) he7.next, ?_⟩
+    show v ch = _
+    rw [hchv, hashCol_ch, hashPorts_h, hashPorts_t _ _ _ _ ht, hashPorts_m _ _ _ _ (m.map (w64 v)) fun i hi => ?_,
+      hag h (hw h (by simp))]
+    have hmi : m[i]'(by omega) ∈ m := List.getElem_mem _
+    simp only [wordAt, w64, M, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem (show i < m.length by omega), Option.map_some, Option.getD_some]
+    rw [hag _ (hw _ (List.mem_cons_of_mem _ hmi))]
+
+/-- The position of a tweak word's bits. -/
+theorem stepPos_bits (col : ℕ → K) (p : ℕ) (hp : p < 2 ^ 9) (hb : ∀ k < 9, col (stepBits + k) = bitK p k) :
+    stepPos col = p := by
+  apply Nat.eq_of_testBit_eq
+  intro k
+  by_cases hk : k < 9
+  · rw [stepPos, testBit_num _ _ _ hk, hb k hk, bitK]
+    by_cases h : p.testBit k <;> simp [h]
+  · rw [stepPos, Nat.testBit_lt_two_pow (lt_of_lt_of_le (num_lt _ 9) (Nat.pow_le_pow_right (by norm_num) (by omega))),
+      Nat.testBit_lt_two_pow (lt_of_lt_of_le hp (Nat.pow_le_pow_right (by norm_num) (by omega)))]
+
+/-- A `STEP` row of a tweak word at position `p`, `K` input words, an `E` output, a `K` tag and activity one. -/
+theorem step_rowSat (v : Val) (t v0 v1 ch tag act p : ℕ) (hp : p < 2 ^ 9) (ht : v t = kVal (ofWord (tweakWord p)))
+    (h0 : v v0 = kVal (v v0 0)) (h1 : v v1 = kVal (v v1 0)) (hch : v ch 3 = 0) (htag : v tag = kVal (v tag 0))
+    (hact : v act = kVal 1) : TSat .step v [t, v0, v1, ch, tag, act] := by
+  set col : ℕ → K := fun k => if k < 9 then bitK p k else if k = 9 then bitK p 0 * bitK p 1 else
+    if k = 10 then v v0 0 else if k = 11 then v v1 0 else if k = 12 then v ch 0 else if k = 13 then v ch 1 else
+    if k = 14 then v ch 2 else if k = 15 then v tag 0 else 1 with hcol
+  have hbits : ∀ k < 9, col (stepBits + k) = bitK p k := fun k hk => by simp [hcol, stepBits, hk]
+  have hb01 : ∀ k < 9, col (stepBits + k) = 0 ∨ col (stepBits + k) = 1 := fun k hk => by
+    rw [hbits k hk, bitK]; split_ifs <;> simp
+  obtain ⟨-, hT, -⟩ := step_tweak col hb01
+  rw [stepPos_bits col p hp hbits] at hT
+  refine ⟨col, fun id hid => ?_, fun s hs i => ?_⟩
+  · simp only [stepIdentities, List.mem_append, List.mem_map, List.mem_range, List.mem_cons,
+      List.not_mem_nil, or_false] at hid
+    rcases hid with ⟨k, hk, rfl⟩ | rfl | rfl
+    · exact (boolean_spec col _).mpr (hb01 k hk)
+    · simp only [Identity.eval, stepCarryIdentity, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+        ofWord_one, one_mul, add_zero]
+      exact (add_eq_zero_iff_eq _ _).mpr (by simp [hcol, stepCarry, stepBits])
+    · exact (boolean_spec col _).mpr (Or.inr (by simp [hcol, stepA]))
+  · have hs6 : s < 6 := hs
+    interval_cases s
+    · fin_cases i
+      · show stepT.eval col = v t 0
+        rw [hT, ht, kVal_apply_zero]
+      all_goals simp [limbs, Rec.stepTable, Form.eval, Form.zero, ofWord_zero, ht, kVal]
+    · show (fun i : Fin 4 => limbs Rec.stepTable 1 col i) i = v v0 i
+      rw [h0]; fin_cases i <;> simp [limbs, Rec.stepTable, kSlot, Form.eval, Form.zero, ofWord_zero, hcol, kVal, stepV]
+    · show (fun i : Fin 4 => limbs Rec.stepTable 2 col i) i = v v1 i
+      rw [h1]; fin_cases i <;> simp [limbs, Rec.stepTable, kSlot, Form.eval, Form.zero, ofWord_zero, hcol, kVal, stepV]
+    · show (fun i : Fin 4 => limbs Rec.stepTable 3 col i) i = v ch i
+      fin_cases i <;> simp [limbs, Rec.stepTable, eSlot, Form.eval, Form.zero, ofWord_zero, hcol, stepO, hch]
+    · show (fun i : Fin 4 => limbs Rec.stepTable 4 col i) i = v tag i
+      rw [htag]; fin_cases i <;> simp [limbs, Rec.stepTable, kSlot, Form.eval, Form.zero, ofWord_zero, hcol, kVal,
+        stepJ]
+    · show (fun i : Fin 4 => limbs Rec.stepTable 5 col i) i = v act i
+      rw [hact]; fin_cases i <;> simp [limbs, Rec.stepTable, kSlot, Form.eval, Form.zero, ofWord_zero, hcol, kVal,
+        stepA]
+
+/-- A `LINK` row of `K` words whose activity is one. -/
+theorem link_rowSat (v : Val) (r : List ℕ) (hlen : r.length = 9) (hk : ∀ j < 9, v (r.getD j 0) = kVal (v (r.getD j 0) 0))
+    (ha : v (r.getD 8 0) 0 = 1) : TSat .link v r := by
+  refine ⟨fun j => v (r.getD j 0) 0, fun id hid => ?_, fun s hs i => ?_⟩
+  · simp only [linkIdentities, List.mem_singleton] at hid
+    subst hid
+    exact (boolean_spec _ _).mpr (Or.inr ha)
+  · have hs9 : s < 9 := by simpa [Rec.linkTable] using hs
+    have hsl : Rec.linkTable.getD s [] = kSlot s := by simp [Rec.linkTable, List.getD_eq_getElem?_getD, hs9]
+    rw [hk s hs9]
+    simp only [limbs, hsl]
+    fin_cases i <;> simp [kSlot, Form.eval, Form.zero, ofWord_zero, kVal]
+
+/-- `chain_step` of a tweak word at position `p` and input words `x0`, `x1`: its `STEP` row, its first wire the
+tweak word, its challenge the hash's first three words. -/
+theorem chainStep_cg (idx p0 p1 tag act p : ℕ) (hp : p < 2 ^ 9) (x0 x1 : K) :
+    CGood st 0 (fun s v => Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1) (chainStep idx (p0, p1) tag act) fun s _ s' v => ∃ t v0 v1 ch,
+        [t, v0, v1, ch, tag, act] ∈ s'.step ∧ s.next ≤ t ∧ t < s'.next ∧ v t = kVal (ofWord (tweakWord p)) ∧
+        v v0 = kVal x0 ∧ v v1 = kVal x1 ∧ v ch = chVal (digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 v)))) := by
+  unfold chainStep
+  refine (CGood.bind ((wire_cgood (kVal (ofWord (tweakWord p)))).pre fun _ _ _ => trivial)
+    (P₂ := fun t s v => (Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p)))
+    (fun _ _ _ _ _ hp he hq => ⟨⟨hp.1.mono he, hp.2⟩, by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩)
+    fun t => CGood.bind ((wire_cgood (kVal x0)).pre fun _ _ _ => trivial)
+    (P₂ := fun v0 s v => ((Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p))) ∧ v0 < s.next ∧ v v0 = kVal x0)
+    (fun _ _ _ _ _ hp he hq => ⟨⟨⟨hp.1.1.mono he, hp.1.2⟩, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩,
+      by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩)
+    fun v0 => CGood.bind ((wire_cgood (kVal x1)).pre fun _ _ _ => trivial)
+    (P₂ := fun v1 s v => (((Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p))) ∧ v0 < s.next ∧ v v0 = kVal x0) ∧
+      v1 < s.next ∧ v v1 = kVal x1)
+    (fun _ _ _ _ _ hp he hq => ⟨⟨⟨⟨hp.1.1.1.mono he, hp.1.1.2⟩, lt_of_lt_of_le hp.1.2.1 he.next, hp.1.2.2⟩,
+      lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, by rw [hq.2.1, hq.1]; exact Nat.lt_succ_self _, hq.2.2⟩)
+    fun v1 => CGood.bind (kZero_cgood.pre fun _ _ _ => trivial)
+    (P₂ := fun z s v => ((((Wires [idx, p0, p1, tag, act] s ∧ (∀ u ∈ [idx, p0, p1, tag], v u = kVal (v u 0)) ∧
+      v act = kVal 1) ∧ t < s.next ∧ v t = kVal (ofWord (tweakWord p))) ∧ v0 < s.next ∧ v v0 = kVal x0) ∧
+      v1 < s.next ∧ v v1 = kVal x1) ∧ z < s.next ∧ v z = kVal 0)
+    (fun _ _ _ _ _ hp he hq => ⟨⟨⟨⟨⟨hp.1.1.1.1.mono he, hp.1.1.1.2⟩, lt_of_lt_of_le hp.1.1.2.1 he.next,
+      hp.1.1.2.2⟩, lt_of_lt_of_le hp.1.2.1 he.next, hp.1.2.2⟩, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hq⟩)
+    fun z => CGood.bind ((dConst_cgood paramIVLimbs).pre fun _ _ _ => trivial)
+    (P₂ := fun hw s v => Wires (hw :: [t, idx, p0, p1, v0, v1, z, z]) s ∧
+      (∀ i < 8, v ([t, idx, p0, p1, v0, v1, z, z].getD i 0) = kVal (v ([t, idx, p0, p1, v0, v1, z, z].getD i 0) 0)) ∧
+      Wires [tag, act] s ∧ v tag = kVal (v tag 0) ∧ v act = kVal 1 ∧ v t = kVal (ofWord (tweakWord p)) ∧
+      v v0 = kVal x0 ∧ v v1 = kVal x1 ∧ v z = kVal 0 ∧ words4 (v hw) = digest paramIV ∧ t < s.next)
+    ?_ fun hw => CGood.bind ((leafRow_cgood hw [t, idx, p0, p1, v0, v1, z, z] 48 true rfl (by norm_num)).pre
+      fun _ _ h => ⟨h.1, h.2.1⟩)
+    (P₂ := fun r s v => Wires [t, v0, v1, r.2, tag, act] s ∧ v tag = kVal (v tag 0) ∧ v act = kVal 1 ∧
+      v t = kVal (ofWord (tweakWord p)) ∧ v v0 = kVal x0 ∧ v v1 = kVal x1 ∧
+      v r.2 = chVal (digest (hashWords ([t, idx, p0, p1, v0, v1].map (w64 v)))))
+    ?_ fun r => CGood.bind ((row_cgood .step [t, v0, v1, r.2, tag, act] (by decide)).pre fun _ v h =>
+      ⟨h.1, by simp, step_rowSat v t v0 v1 r.2 tag act p hp h.2.2.2.1 (by rw [h.2.2.2.2.1, kVal_apply_zero])
+        (by rw [h.2.2.2.2.2.1, kVal_apply_zero]) (by rw [h.2.2.2.2.2.2]; exact chVal_three _) h.2.1 h.2.2.1⟩)
+    (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun _ =>
+      CGood.pure' (Q := fun _ _ _ _ => True) fun _ _ _ _ => trivial).weaken (fun _ _ h => h) ?_
+  · rintro s hw s' v _ ⟨⟨⟨⟨⟨hW, hK, hA⟩, ht, htv⟩, h0, h0v⟩, h1, h1v⟩, hz, hzv⟩ he ⟨hwl, hwv⟩
+    have hwi : ∀ u ∈ [idx, p0, p1, tag], u < s.next := fun u hu => hW u (by simp at hu ⊢; tauto)
+    refine ⟨fun u hu => ?_, fun i hi => ?_, fun u hu => ?_, hK tag (by simp), hA, htv, h0v, h1v, hzv,
+      by rw [hwv]; exact words4_paramIV, lt_of_lt_of_le ht he.next⟩
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
+      rcases hu with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      · exact hwl
+      · exact lt_of_lt_of_le ht he.next
+      · exact lt_of_lt_of_le (hwi _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hwi _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hwi _ (by simp)) he.next
+      · exact lt_of_lt_of_le h0 he.next
+      · exact lt_of_lt_of_le h1 he.next
+      · exact lt_of_lt_of_le hz he.next
+      · exact lt_of_lt_of_le hz he.next
+    · interval_cases i
+      · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 0 0 = t from rfl, htv, kVal_apply_zero]
+      · exact hK idx (by simp)
+      · exact hK p0 (by simp)
+      · exact hK p1 (by simp)
+      · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 4 0 = v0 from rfl, h0v, kVal_apply_zero]
+      · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 5 0 = v1 from rfl, h1v, kVal_apply_zero]
+      · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 6 0 = z from rfl, hzv, kVal_apply_zero]
+      · rw [show [t, idx, p0, p1, v0, v1, z, z].getD 7 0 = z from rfl, hzv, kVal_apply_zero]
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
+      rcases hu with rfl | rfl
+      · exact lt_of_lt_of_le (hW _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hW _ (by simp)) he.next
+  · rintro s r s' v _ ⟨hwl, -, hta, hK, hA, htv, h0v, h1v, hzv, hhw, ht⟩ he ⟨hr, hrv⟩
+    refine ⟨fun u hu => ?_, hK, hA, htv, h0v, h1v, ?_⟩
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
+      rcases hu with rfl | rfl | rfl | rfl | rfl | rfl
+      · exact lt_of_lt_of_le ht he.next
+      · exact lt_of_lt_of_le (hwl _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hwl _ (by simp)) he.next
+      · exact hr
+      · exact lt_of_lt_of_le (hta _ (by simp)) he.next
+      · exact lt_of_lt_of_le (hta _ (by simp)) he.next
+    · rw [hrv, hhw, cvWords_digest, show [t, idx, p0, p1, v0, v1, z, z] = [t, idx, p0, p1, v0, v1] ++ [z, z] from rfl,
+        hashWords_six v _ rfl z (by rw [hzv, kVal_apply_zero])]
+  · rintro s _ s7 v _ ⟨hW, hK, hA⟩ - ⟨t, s1, -, he1, -, ⟨rfl, hn1, htv⟩, v0, s2, -, he2, -, ⟨rfl, hn2, h0v⟩, v1, s3, -,
+      he3, -, ⟨rfl, hn3, h1v⟩, z, s4, -, he4, -, -, hw, s5, -, he5, -, -, r, s6, -, he6, -, ⟨hr, -⟩, u, s7', -,
+      he7, ⟨-, -, -, -, -, -, hrv⟩, ⟨-, -, -, -, hrow, -⟩, -⟩
+    exact ⟨_, _, _, r.2, he7.steps _ (hrow rfl), le_rfl,
+      lt_of_lt_of_le (by rw [hn1]; exact Nat.lt_succ_self _) he1.next, htv, h0v, h1v, hrv⟩
+
+/-- `link` of tip words `x0`, `x1` and end words `y0`, `y1`: its `LINK` row and its end's wires. -/
+theorem link_cg (w d0 d1 d2 act : ℕ) (x0 x1 y0 y1 : K) :
+    CGood st 0 (fun s v => Wires [w, d0, d1, d2, act] s ∧ (∀ u ∈ [w, d0, d1, d2], v u = kVal (v u 0)) ∧
+      v act = kVal 1) (link w d0 d1 d2 act) fun _ es s' v => ∃ t0 t1 e0 e1, es = [e0, e1] ∧
+        [w, d0, d1, d2, t0, t1, e0, e1, act] ∈ s'.link ∧ e0 < s'.next ∧ e1 < s'.next ∧ v t0 = kVal x0 ∧
+        v t1 = kVal x1 ∧ v e0 = kVal y0 ∧ v e1 = kVal y1 := by
+  set Pre : State → Val → Prop := fun s v => Wires [w, d0, d1, d2, act] s ∧
+    (∀ u ∈ [w, d0, d1, d2], v u = kVal (v u 0)) ∧ v act = kVal 1 with hPre
+  have hPm : ∀ s s' v, Pre s v → Ext s s' → Pre s' v := fun _ _ _ h he => ⟨h.1.mono he, h.2⟩
+  have hnew : ∀ (a : ℕ) (s s' : State) (x : Fin 4 → K) (v : Val), a = s.next ∧ s'.next = s.next + 1 ∧ v a = x →
+      a < s'.next := fun a s s' x v h => by rw [h.2.1, h.1]; exact Nat.lt_succ_self _
+  unfold link
+  refine (CGood.bind ((wire_cgood (kVal x0)).pre fun _ _ _ => trivial)
+    (P₂ := fun t0 s v => Pre s v ∧ t0 < s.next ∧ v t0 = kVal x0)
+    (fun _ _ _ _ _ hp he hq => ⟨hPm _ _ _ hp he, hnew _ _ _ _ _ hq, hq.2.2⟩)
+    fun t0 => CGood.bind ((wire_cgood (kVal x1)).pre fun _ _ _ => trivial)
+    (P₂ := fun t1 s v => (Pre s v ∧ t0 < s.next ∧ v t0 = kVal x0) ∧ t1 < s.next ∧ v t1 = kVal x1)
+    (fun _ _ _ _ _ hp he hq => ⟨⟨hPm _ _ _ hp.1 he, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩,
+      hnew _ _ _ _ _ hq, hq.2.2⟩)
+    fun t1 => CGood.bind ((wire_cgood (kVal y0)).pre fun _ _ _ => trivial)
+    (P₂ := fun e0 s v => ((Pre s v ∧ t0 < s.next ∧ v t0 = kVal x0) ∧ t1 < s.next ∧ v t1 = kVal x1) ∧
+      e0 < s.next ∧ v e0 = kVal y0)
+    (fun _ _ _ _ _ hp he hq => ⟨⟨⟨hPm _ _ _ hp.1.1 he, lt_of_lt_of_le hp.1.2.1 he.next, hp.1.2.2⟩,
+      lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hnew _ _ _ _ _ hq, hq.2.2⟩)
+    fun e0 => CGood.bind ((wire_cgood (kVal y1)).pre fun _ _ _ => trivial)
+    (P₂ := fun e1 s v => (((Pre s v ∧ t0 < s.next ∧ v t0 = kVal x0) ∧ t1 < s.next ∧ v t1 = kVal x1) ∧
+      e0 < s.next ∧ v e0 = kVal y0) ∧ e1 < s.next ∧ v e1 = kVal y1)
+    (fun _ _ _ _ _ hp he hq => ⟨⟨⟨⟨hPm _ _ _ hp.1.1.1 he, lt_of_lt_of_le hp.1.1.2.1 he.next, hp.1.1.2.2⟩,
+      lt_of_lt_of_le hp.1.2.1 he.next, hp.1.2.2⟩, lt_of_lt_of_le hp.2.1 he.next, hp.2.2⟩, hnew _ _ _ _ _ hq, hq.2.2⟩)
+    fun e1 => CGood.bind ((row_cgood .link [w, d0, d1, d2, t0, t1, e0, e1, act] (by decide)).pre ?_)
+    (P₂ := fun _ _ _ => True) (fun _ _ _ _ _ _ _ _ => trivial) fun _ =>
+      CGood.pure' (Q := fun _ r _ _ => r = [e0, e1]) fun _ _ _ _ => rfl).weaken (fun _ _ h => h) ?_
+  · rintro s v ⟨⟨⟨⟨⟨hW, hK, hA⟩, ht0, ht0v⟩, ht1, ht1v⟩, he0, he0v⟩, he1, he1v⟩
+    refine ⟨fun u hu => ?_, by simp, link_rowSat v _ rfl (fun j hj => ?_) (by rw [show
+      [w, d0, d1, d2, t0, t1, e0, e1, act].getD 8 0 = act from rfl, hA, kVal_apply_zero])⟩
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
+      rcases hu with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      · exact hW _ (by simp)
+      · exact hW _ (by simp)
+      · exact hW _ (by simp)
+      · exact hW _ (by simp)
+      · exact ht0
+      · exact ht1
+      · exact he0
+      · exact he1
+      · exact hW _ (by simp)
+    · interval_cases j
+      · exact hK w (by simp)
+      · exact hK d0 (by simp)
+      · exact hK d1 (by simp)
+      · exact hK d2 (by simp)
+      · show v t0 = kVal (v t0 0); rw [ht0v, kVal_apply_zero]
+      · show v t1 = kVal (v t1 0); rw [ht1v, kVal_apply_zero]
+      · show v e0 = kVal (v e0 0); rw [he0v, kVal_apply_zero]
+      · show v e1 = kVal (v e1 0); rw [he1v, kVal_apply_zero]
+      · show v act = kVal (v act 0); rw [hA, kVal_apply_zero]
+  · rintro s _ s6 v _ - - ⟨t0, s1, -, he1, -, ⟨-, -, ht0v⟩, t1, s2, -, he2, -, ⟨-, -, ht1v⟩, e0, s3, -, he3, -,
+      he0q, e1, s4, -, he4, -, he1q, u, s5, -, he5, -, ⟨-, -, -, -, -, hrow⟩, rfl⟩
+    exact ⟨t0, t1, e0, e1, rfl, he5.links _ (hrow rfl), lt_of_lt_of_le (hnew _ _ _ _ _ he0q) he3.next,
+      lt_of_lt_of_le (hnew _ _ _ _ _ he1q) he4.next, ht0v, ht1v, he0q.2.2, he1q.2.2⟩
 
 end
 

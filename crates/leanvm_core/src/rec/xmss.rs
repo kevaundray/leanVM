@@ -8,7 +8,7 @@
 //! words `[m0, m1, 0]` and `[m2, m3, 0]`, the epoch `[e, 0, 0]`, then the Merkle root `[r0, r1, 0]` the signature
 //! reaches. The signature is the prover's.
 
-use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Unsatisfied};
+use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Unsatisfied, chain};
 use super::fixed::FixedColumns;
 use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
 use crate::cpu::{DecodeError, VerifyError};
@@ -34,6 +34,12 @@ const WORDS: usize = 5;
 
 /// `X^195` in `K` as a word: the product the encoding's digit bits must reach, the digits summing to 195.
 const TARGET: u64 = 0xedb8;
+
+/// The chain steps a signature's digits need: `V · STEPS` less their sum, 195.
+const CHAIN_STEPS: usize = V * STEPS - 195;
+
+/// The bit a signature's index starts at in its chains' bus keys, above the tweak word's position.
+const TAG_SHIFT: usize = 41;
 
 /// What one signature is checked against: the signer's public key, the epoch and the message.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -177,6 +183,9 @@ impl XmssBatch {
     ///
     /// A circuit that fits no commitment.
     pub fn new(n: usize, rate: Rate) -> Result<Self, XmssError> {
+        if n > 1 << (63 - TAG_SHIFT) {
+            return Err(XmssError::TooLarge { n });
+        }
         let circuit = build(&vec![XmssClaim::default(); n], &vec![XmssSignature::ZERO; n]).circuit;
         circuit.committed_words().map_err(|_| XmssError::TooLarge { n })?;
         let columns = FixedColumns::of(&circuit, &circuit.heights());
@@ -343,7 +352,7 @@ fn build(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Finished {
 fn builder(claims: &[XmssClaim], signatures: &[XmssSignature]) -> Builder {
     let mut b = Builder::new();
     for (i, (claim, sig)) in claims.iter().zip(signatures).enumerate() {
-        b.scope(format!("signature {i}"), |b| signature(b, claim, sig));
+        b.scope(format!("signature {i}"), |b| signature(b, i, claim, sig));
     }
     b
 }
@@ -415,108 +424,6 @@ pub(super) fn indicators(b: &mut Builder, digit: [Kw; 3]) -> Vec<Ew> {
     level
 }
 
-/// The pool's size: at most fourteen digits are zero, as the others, each at most 7, sum to 195.
-const POOL: usize = 14;
-
-/// The network's shifts, largest first: an entry moves at most 28 positions on to its chain.
-const SHIFTS: [usize; 5] = [16, 8, 4, 2, 1];
-
-/// A pool entry: the hash of `w || idx || p || t0 || t1` under a tweak word `w` and element `t0, t1` the prover names,
-/// as its output's two words and `w`, an `E` wire.
-fn pool_entry(b: &mut Builder, idx: Kw, pp: &[Kw], tweak: u64, [t0, t1]: [u64; 2]) -> Ew {
-    let w = b.free_k(tweak);
-    let t0 = b.free_k(t0);
-    let t1 = b.free_k(t1);
-    let words: Vec<Kw> = [w, idx].iter().chain(pp).chain(&[t0, t1]).copied().collect();
-    let d = b.chain(&words);
-    let ks = b.d_to_k(d);
-    b.k_to_e([ks[0], ks[1], w])
-}
-
-/// `x` when the bit is zero and `y` when it is one: `x + bit·(x + y)`, the sum `y·1 + x` made in `EXK` by a one
-/// other than the unit wire.
-fn sel(b: &mut Builder, one: Kw, bit: Kw, x: Ew, y: Ew) -> Ew {
-    let diff = b.mul_k_add(y, one, x);
-    b.mul_k_add(diff, bit, x)
-}
-
-/// The network: the entries, then zeros up to the chains, through every stage; at stage `sh` position `p ≥ sh` keeps
-/// its wire or takes the one at `p - sh` by the stage's bit `p - sh`, the stage taking the next `V - sh` bits.
-fn network(b: &mut Builder, one: Kw, bits: &[Kw], entries: &[Ew]) -> Vec<Ew> {
-    let z = b.zero();
-    let mut arr = entries.to_vec();
-    arr.resize(V, z);
-    let mut off = 0;
-    for sh in SHIFTS {
-        arr = (0..V)
-            .map(|p| {
-                if p >= sh {
-                    sel(b, one, bits[off + p - sh], arr[p], arr[p - sh])
-                } else {
-                    arr[p]
-                }
-            })
-            .collect();
-        off += V - sh;
-    }
-    arr
-}
-
-/// The network's bits, as words, that move entry `max(j, c_j - 28)` to `c_j`, the chain of the `j`-th zero digit;
-/// the entry of each chain whose digit is zero, by chain.
-fn routing(digits: &[u64]) -> ([u64; 3], Vec<Option<usize>>) {
-    let zeros: Vec<usize> = (0..V).filter(|&c| digits[c] == 0).take(POOL).collect();
-    let mut words = [0u64; 3];
-    let mut entry_of = vec![None; V];
-    let mut moves: Vec<(usize, usize)> = zeros
-        .iter()
-        .enumerate()
-        .map(|(j, &c)| (j.max(c.saturating_sub(28)), c))
-        .collect();
-    for &(q, c) in &moves {
-        entry_of[c] = Some(q);
-    }
-    let mut off = 0;
-    for sh in SHIFTS {
-        for (pos, c) in &mut moves {
-            if (*c - *pos) & sh != 0 {
-                let bit = off + *pos;
-                words[bit / 64] |= 1 << (bit % 64);
-                *pos += sh;
-            }
-        }
-        off += V - sh;
-    }
-    (words, entry_of)
-}
-
-/// Chain `i` from its element `tip` and the network's output `ent` for it under the digit's indicators `ind`: its end's
-/// two words.
-fn chain_end(b: &mut Builder, i: usize, idx: Kw, tip: Ew, ent: Ew, pp: &[Kw], ind: &[Ew]) -> [Kw; 2] {
-    // Step 1 hashes the entry when the digit is zero; its input's third word is zero, so the entry's is chain `i`'s
-    // tweak word of position 0.
-    let third = b.e_const(F192::new(0, 0, 1));
-    let tw = b.k_const(tweak0(1, 8 * i));
-    let ent = b.mul_k_add(third, tw, ent);
-    let diff = b.add(ent, tip);
-    let m = b.mul_add(ind[0], diff, tip);
-    let [v0, v1, v2] = b.e_to_k(m);
-    b.eq_k_const(v2, 0);
-    let d = tweak_hash(b, 1, 8 * i + 1, idx, pp, &[v0, v1]);
-    let (mut cur, _) = b.d_to_e_and_k(d);
-    for (s, &selected) in ind[..STEPS].iter().enumerate().skip(2) {
-        let diff = b.add(tip, cur);
-        let m = b.mul_add(selected, diff, cur);
-        let [v0, v1, _] = b.e_to_k(m);
-        let d = tweak_hash(b, 1, 8 * i + s, idx, pp, &[v0, v1]);
-        cur = b.d_to_e_and_k(d).0;
-    }
-    let diff = b.add(tip, cur);
-    let end = b.mul_add(ind[STEPS], diff, cur);
-    let [n0, n1, _] = b.e_to_k(end);
-    [n0, n1]
-}
-
 /// Level `l` of the Merkle path: the parent of `node` and the sibling, the epoch's bit `bit` naming the side of `node`.
 fn level(b: &mut Builder, l: usize, idx: Kw, bit: Kw, node: Dw, pp: &[Kw], [s0, s1]: [u64; 2]) -> Dw {
     let (cur, _) = b.d_to_e_and_k(node);
@@ -530,7 +437,7 @@ fn level(b: &mut Builder, l: usize, idx: Kw, bit: Kw, node: Dw, pp: &[Kw], [s0, 
 }
 
 /// One signature's verification.
-fn signature(b: &mut Builder, claim: &XmssClaim, sig: &XmssSignature) {
+fn signature(b: &mut Builder, j: usize, claim: &XmssClaim, sig: &XmssSignature) {
     let ([p0, p1], [m0, m1, m2, m3]) = (claim.public_param, claim.message);
     let pp = statement_words(b, F192::new(p0, p1, 0), 1);
     let mlo = statement_words(b, F192::new(m0, m1, 0), 1);
@@ -560,37 +467,32 @@ fn signature(b: &mut Builder, claim: &XmssClaim, sig: &XmssSignature) {
         b.eq_e_const(prod, F192::new(TARGET, 0, 0));
     });
 
-    // The pool, the network's one and bits, and the network.
-    let digits: Vec<u64> = (0..V)
-        .map(|i| (0..3).map(|k| b.k(digit_bits[3 * i + k]) << k).sum())
-        .collect();
-    let (words, entry_of) = routing(&digits);
-    let mut tweaks = [0; POOL];
-    let mut tips = [[0; 2]; POOL];
-    for (c, q) in entry_of.iter().enumerate() {
-        if let &Some(q) = q {
-            tweaks[q] = tweak0(1, 8 * c);
-            tips[q] = sig.chain_tips[c];
-        }
-    }
-    let entries: Vec<Ew> = (0..POOL).map(|q| pool_entry(b, idx, &pp, tweaks[q], tips[q])).collect();
+    // The chains: a link row per chain, from its tip at its digit to its end, then the steps the digits need, chain by
+    // chain, each pulling its input at its chain's position and pushing its output at the next.
     let one = b.free_k(1);
     b.eq_k_const(one, 1);
-    let net_bits: Vec<Kw> = words
-        .iter()
-        .flat_map(|&w| {
-            let w = b.free_k(w);
-            b.split(w)
-        })
-        .collect();
-    let routed = network(b, one, &net_bits, &entries);
-
-    // The chains.
+    let tag_word = (j as u64) << TAG_SHIFT;
+    let tag = b.k_const(tag_word);
+    let (idx_word, p) = (b.k(idx), [b.k(pp[0]), b.k(pp[1])]);
+    let mut steps = Vec::with_capacity(CHAIN_STEPS);
     let mut ends = Vec::with_capacity(2 * V);
-    for (i, &[t0, t1]) in sig.chain_tips.iter().enumerate() {
-        let tip = b.free_e(F192::new(t0, t1, 0));
-        let ind = indicators(b, [digit_bits[3 * i], digit_bits[3 * i + 1], digit_bits[3 * i + 2]]);
-        ends.extend(chain_end(b, i, idx, tip, routed[i], &pp, &ind));
+    for (i, &tip) in sig.chain_tips.iter().enumerate() {
+        let digit: u64 = (0..3).map(|k| b.k(digit_bits[3 * i + k]) << k).sum();
+        let mut v = tip;
+        for s in usize::try_from(digit).expect("a digit is three bits")..STEPS {
+            let tweak = tweak0(1, 8 * i + s);
+            steps.push((tweak, v));
+            let d = chain(&[tweak, idx_word, p[0], p[1], v[0], v[1]]);
+            v = [d[0], d[1]];
+        }
+        let w = b.k_const(tweak0(1, 8 * i) | tag_word);
+        let d = [digit_bits[3 * i], digit_bits[3 * i + 1], digit_bits[3 * i + 2]];
+        ends.extend(b.link(w, d, one, tip, v));
+    }
+    // Digits off the target sum need another number of steps; the encoding's check already fails on them.
+    steps.resize(CHAIN_STEPS, (0, [0, 0]));
+    for &(tweak, v) in &steps {
+        b.chain_step(idx, [pp[0], pp[1]], tag, one, tweak, v);
     }
 
     // The leaf and the path.

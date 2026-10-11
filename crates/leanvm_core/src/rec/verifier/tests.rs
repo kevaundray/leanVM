@@ -6,6 +6,7 @@ use crate::cpu::{CpuError, DeferredClaims, Output, Program, ProvenRun, Prover, U
 use crate::leaf::BusError;
 use crate::pcs::{Commitment, Committed, Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::rec::RecError;
+use crate::rec::circuit::chains::plan;
 use crate::rec::circuit::{Assignment, Builder, Circuit, Ew, Finished, Kw, Limbs, Unsatisfied};
 use crate::rec::fixed::FixedColumns;
 use crate::rec::table::HashFlock;
@@ -633,6 +634,7 @@ fn recursion_rows(
 }
 
 // The rows hold on an honest proof, leave a hash matrix claim that settles and true fixed hints, and are the shape's rows.
+// The proven circuit has chains, so its proof has dynamic tuples and activity columns.
 #[test]
 fn a_recursion_proof_in_rows_is_its_verifier() {
     let mut b = Builder::new();
@@ -649,6 +651,7 @@ fn a_recursion_proof_in_rows_is_its_verifier() {
     b.split(w);
     b.expose_d(acc);
     b.expose_e(e);
+    b.emit_chains(&plan(&[4, 7]));
     let Finished {
         circuit,
         assignment: a,
