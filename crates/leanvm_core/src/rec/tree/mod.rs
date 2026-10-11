@@ -54,12 +54,14 @@ mod claim_tests;
 mod claims;
 mod design;
 mod fixed;
+
 mod multiset;
 mod reduce;
 mod statement;
 mod stats;
 #[cfg(test)]
 mod tests;
+
 mod union;
 
 pub use crate::rec::circuit::Unsatisfied;
