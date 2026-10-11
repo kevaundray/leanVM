@@ -285,6 +285,10 @@ def halvesToD (lo hi : ℕ) : M ℕ := do
   let w ← castRow [(2, lo), (3, hi)]
   pure (w.getD 0 0)
 
+def kToD (k0 k1 k2 k3 : ℕ) : M ℕ := do
+  let w ← castRow [(4, k0), (5, k1), (6, k2), (7, k3)]
+  pure (w.getD 0 0)
+
 /-! Hashing. -/
 
 /-- `rv::Hash::FINAL`. -/
@@ -353,7 +357,7 @@ inductive Call where
   | mulAdd (a b d : ℕ) | mul (a b : ℕ) | add (a d : ℕ) | square (a : ℕ) | mulKAdd (a k d : ℕ)
   | mulConstAdd (a c0 c1 c2 d : ℕ) | inv (a : ℕ) | sum (terms : List ℕ)
   | split (w : ℕ) | pack (bits : List ℕ) | eToK (e : ℕ) | kToE (k0 k1 k2 : ℕ) | kToE1 (k : ℕ) | dToK (d : ℕ)
-  | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ)
+  | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ) | kToD (k0 k1 k2 k3 : ℕ)
   | compress (acc x ds : ℕ) | node (acc bit : ℕ) | parent (l r : ℕ) | leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool)
   | chain (words : List ℕ)
   deriving Repr
@@ -386,6 +390,7 @@ def Call.exec : Call → M (List ℕ)
   | .dToK d => Model.dToK d
   | .dToEAndK d => do let (e, k) ← Model.dToEAndK d; return [e, k]
   | .halvesToD lo hi => do return [← Model.halvesToD lo hi]
+  | .kToD k0 k1 k2 k3 => do return [← Model.kToD k0 k1 k2 k3]
   | .compress acc x ds => do return [← Model.compress acc x ds]
   | .node acc bit => do return [← Model.node acc bit]
   | .parent l r => do return [← Model.parent l r]
@@ -417,6 +422,7 @@ def Call.args : Call → List ℕ
   | .dToK d => [d]
   | .dToEAndK d => [d]
   | .halvesToD lo hi => [lo, hi]
+  | .kToD k0 k1 k2 k3 => [k0, k1, k2, k3]
   | .compress acc x ds => [acc, x, ds]
   | .node acc bit => [acc, bit]
   | .parent l r => [l, r]

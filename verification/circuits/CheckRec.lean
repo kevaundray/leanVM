@@ -57,6 +57,7 @@ def parse (line : String) : Except String Call := do
   | "d_to_k" => return .dToK (← n 0)
   | "d_to_e_and_k" => return .dToEAndK (← n 0)
   | "halves_to_d" => return .halvesToD (← n 0) (← n 1)
+  | "k_to_d" => return .kToD (← n 0) (← n 1) (← n 2) (← n 3)
   | "compress" => return .compress (← n 0) (← n 1) (← n 2)
   | "node" => return .node (← n 0) (← n 1)
   | "parent" => return .parent (← n 0) (← n 1)

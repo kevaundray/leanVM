@@ -79,23 +79,26 @@ def words4Lit (w : Fin 4 → BitVec 64) : String :=
 def zeroPrefixes : List String :=
   (List.range 4).map fun n => words4Lit (digest (absorb paramIV 0 (List.replicate n (Vector.replicate 16 0))))
 
-/-- `absorb_tweak` samples: every role, full and partial lengths, cursors at both ends. -/
+/-- Absorb counter samples: every role, full and partial lengths, cursors at both ends. -/
 def tweakSamples : List (Bool × Bool × ℕ × ℕ) :=
   [true, false].flatMap fun first => [true, false].flatMap fun last =>
     ([8, 24, 64].filter fun len => last || len = 64).flatMap fun len =>
       ((if first then [0, 24, 2 ^ 49 - 1] else [0]).map fun previous => (first, last, len, previous))
 
 /-- The native constants the recursion circuit's hashes and transcript take, as the Lean transcriptions give them:
-`Rec.paramIV`, RFC 7693's chaining values of zero blocks, `fiat_shamir`'s role tags, `POW_TAG` and `absorb_tweak`. -/
+`Rec.paramIV`, RFC 7693's chaining values of zero blocks, `fiat_shamir`'s seed and output counters, the proof of
+work's trial tag and the absorb counters. -/
 def nativePins : String :=
   "/// `PARAM_IV` (`Rec.paramIV`).\n#[cfg(test)]\npub(crate) const PARAM_IV_WORDS: [u64; 4] = " ++
     words4Lit (digest paramIV) ++ ";\n\n" ++
   "/// The chaining values after zero, one, two and three zero blocks (`Rec.absorb`).\n#[cfg(test)]\n" ++
     "pub(crate) const ZERO_PREFIXES: [[u64; 4]; 4] = [" ++ String.intercalate ", " zeroPrefixes ++ "];\n\n" ++
-  "/// `SEED`, `OUTPUT`, `COMMIT`, `POW_BASE`, `NONCE` and `POW_TAG` (`Rec.seedTag` and the rest).\n#[cfg(test)]\n" ++
-    "pub(crate) const DUPLEX_TAGS: [u64; 6] = [" ++ String.intercalate ", "
-      ([seedTag, outputTag, commitTag, powBaseTag, nonceTag, powTag].map fun t => hex t.toNat) ++ "];\n\n" ++
-  "/// `(first, last, len, previous, absorb_tweak(first, last, len, previous))` (`Rec.tweak`).\n#[cfg(test)]\n" ++
+  "/// `Role::Seed.counter(0, 0)`, `Role::Output.counter(0, 0)` and `ProofOfWork::TRIAL_TAG` (`Rec.seedTag` and " ++
+    "the rest).\n#[cfg(test)]\n" ++
+    "pub(crate) const DUPLEX_TAGS: [u64; 3] = [" ++ String.intercalate ", "
+      ([seedTag, outputTag, trialTag].map fun t => hex t.toNat) ++ "];\n\n" ++
+  "/// `(first, last, len, previous, Role::absorb(first, last).counter(len, previous))` (`Rec.tweak`).\n" ++
+    "#[cfg(test)]\n" ++
     "pub(crate) const ABSORB_TWEAKS: &[(bool, bool, usize, u64, u64)] = &[\n" ++
     String.intercalate "\n" (tweakSamples.map fun (f, l, len, p) =>
       s!"    ({f}, {l}, {len}, {hex p}, {hex (tweak f l len p).toNat}),") ++ "\n];\n"

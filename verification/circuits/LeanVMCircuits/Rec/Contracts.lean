@@ -986,6 +986,25 @@ theorem halvesToD_good (lo hi : ℕ) : Good (Wires [lo, hi]) (halvesToD lo hi) f
   rw [hg 3 hi (by omega) (by simp)] at h30 h31 h32
   exact ⟨by rw [h0 0, h20]; rfl, by rw [h0 1, h21]; rfl, by rw [h0 2, h30]; rfl, by rw [h0 3, h31]; rfl, h22, h32⟩
 
+theorem kToD_good (k0 k1 k2 k3 : ℕ) : Good (Wires [k0, k1, k2, k3]) (kToD k0 k1 k2 k3) fun _ r s' => r < s'.next ∧
+    ∀ st val, Sat st s' val → val r 0 = val k0 0 ∧ val r 1 = val k1 0 ∧ val r 2 = val k2 0 ∧ val r 3 = val k3 0 := by
+  unfold kToD
+  refine (view_good [(4, k0), (5, k1), (6, k2), (7, k3)] (fun w => w.getD 0 0) (fun s' r _ => r < s'.next ∧
+    ∀ st val, Sat st s' val → val r 0 = val k0 0 ∧ val r 1 = val k1 0 ∧ val r 2 = val k2 0 ∧ val r 3 = val k3 0)
+    ?_).pre fun _ h => by simpa using h
+  intro ws s' hlen hc hw hg
+  refine ⟨wires_getD hw hlen 0 (by omega), fun st val hsat => ?_⟩
+  obtain ⟨col, h0, -, -, -, h4⟩ := cast_sem hsat hc
+  have e0 : val (ws.getD 4 0) 0 = col 0 := h4 0
+  have e1 : val (ws.getD 5 0) 0 = col 1 := h4 1
+  have e2 : val (ws.getD 6 0) 0 = col 2 := h4 2
+  have e3 : val (ws.getD 7 0) 0 = col 3 := h4 3
+  rw [hg 4 k0 (by omega) (by simp)] at e0
+  rw [hg 5 k1 (by omega) (by simp)] at e1
+  rw [hg 6 k2 (by omega) (by simp)] at e2
+  rw [hg 7 k3 (by omega) (by simp)] at e3
+  exact ⟨(h0 0).trans e0.symm, (h0 1).trans e1.symm, (h0 2).trans e2.symm, (h0 3).trans e3.symm⟩
+
 
 theorem limbs_split (j : ℕ) (hj : j < 65) (col : ℕ → K) : limbs Rec.split j col 0 = col j := by
   unfold limbs Rec.split
@@ -1435,6 +1454,8 @@ def Call.Holds (st : ℕ → Fin 4 → K) (val : Val) (outs : List ℕ) : Call �
   | .dToEAndK d => (∀ i : Fin 4, i.val < 3 → val (outs.getD 0 0) i = val d i) ∧ val (outs.getD 1 0) 0 = val d 3
   | .halvesToD lo hi => val (outs.getD 0 0) 0 = val lo 0 ∧ val (outs.getD 0 0) 1 = val lo 1 ∧
       val (outs.getD 0 0) 2 = val hi 0 ∧ val (outs.getD 0 0) 3 = val hi 1 ∧ val lo 2 = 0 ∧ val hi 2 = 0
+  | .kToD k0 k1 k2 k3 => val (outs.getD 0 0) 0 = val k0 0 ∧ val (outs.getD 0 0) 1 = val k1 0 ∧
+      val (outs.getD 0 0) 2 = val k2 0 ∧ val (outs.getD 0 0) 3 = val k3 0
   | .compress acc x ds => words4 (val (outs.getD 0 0)) = Rec.node (words4 (val acc)) (words4 (xds val x ds))
   | .node acc bit => (val bit 0 = 0 ∨ val bit 0 = 1) ∧ ∃ sib : Fin 4 → BitVec 64, words4 (val (outs.getD 0 0)) =
       if val bit 0 = 1 then Rec.node sib (words4 (val acc)) else Rec.node (words4 (val acc)) sib
@@ -1526,6 +1547,9 @@ theorem Call.exec_good (c : Call) (hok : c.ok = true) : Good (Wires c.args) c.ex
         subst hout; exact hq st val (hs ▸ hsat)
   | halvesToD lo hi =>
     exact (ret_good (halvesToD_good lo hi)).weaken (fun _ h => h)
+      fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
+  | kToD k0 k1 k2 k3 =>
+    exact (ret_good (kToD_good k0 k1 k2 k3)).weaken (fun _ h => h)
       fun _ _ _ _ _ _ ⟨_, hout, _, hq⟩ st val hsat => by subst hout; exact hq st val hsat
   | compress acc x ds =>
     exact (ret_good (compress_good acc x ds)).pre (fun _ _ => trivial) |>.weaken (fun _ h => h)
