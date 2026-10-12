@@ -1,6 +1,6 @@
 //! The fixed polynomials: circuits' fixed columns stacked, one stack per circuit.
 //!
-//! - The nodes' `W_node` holds the first level's circuit's stack, then the node's. The two circuits share their heights, so their stacks have one layout, and one more variable, the kind, selects the circuit.
+//! - The nodes' `W_node` holds the stacks of a tier's circuits in the order of their kind's index. The circuits share their heights, so their stacks have one layout, and the kind's bits, more variables, select the circuit.
 //! - The leaves' `W_leaf` is the leaf circuit's stack, at its own heights.
 
 use crate::rec::fixed::{FixedColumn, FixedColumns};
@@ -55,25 +55,22 @@ impl FixedLayout {
     }
 
     /// Write a circuit's fixed columns into its stack `out`, zero until then: zero between and after them.
-    pub(crate) fn write(&self, columns: &FixedColumns, out: &mut [F64]) {
+    fn write(&self, columns: &FixedColumns, out: &mut [F64]) {
         assert!(out.len() >= 1 << self.kappa, "the stack holds the layout");
         for (c, &offset) in (self.offsets.iter().enumerate()).filter(|&(c, _)| self.taus[c].is_some()) {
             let column = columns.get(FixedColumn::at(c));
             out[offset..offset + column.len()].copy_from_slice(column);
         }
     }
-}
 
-/// Circuits' stacks of `2^kappa` words each side by side, zero stacks after them up to `2^bits`: the polynomial of `kappa + bits` variables whose top `bits` select a stack.
-pub(crate) fn side_by_side<'c>(
-    stacks: impl IntoIterator<Item = (&'c FixedLayout, &'c FixedColumns)>,
-    kappa: usize,
-    bits: usize,
-) -> Vec<F64> {
-    let mut out = vec![F64::ZERO; 1 << (kappa + bits)];
-    let mut slots = out.chunks_exact_mut(1 << kappa);
-    for (layout, columns) in stacks {
-        layout.write(columns, slots.next().expect("the selector's bits name every stack"));
+    /// The fixed polynomial of circuits' columns, each a stack of this layout, in order, zero for the indices past the
+    /// last: `kappa_fix` variables, then the bits that select a stack.
+    pub(crate) fn polynomial(&self, columns: &[&FixedColumns]) -> Vec<F64> {
+        let bits = crate::log2_ceil_usize(columns.len());
+        let mut out = vec![F64::ZERO; 1 << (self.kappa + bits)];
+        for (c, slot) in columns.iter().zip(out.chunks_exact_mut(1 << self.kappa)) {
+            self.write(c, slot);
+        }
+        out
     }
-    out
 }

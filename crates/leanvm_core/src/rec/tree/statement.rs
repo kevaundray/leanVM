@@ -20,9 +20,9 @@ pub enum Kind {
     Node,
 }
 
-/// What a digest's first block names: the level, and for a first-level node's, what its leaves are.
+/// What a digest's items are, which its first block names: a first-level node's leaves, and what they are, or a node's children.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Level {
+pub(crate) enum Items {
     /// A first-level node over RISC-V proofs: its items are their outputs.
     Runs,
     /// A first-level node over proofs of the recursion circuit of these session words: its items are their statements' digests.
@@ -69,33 +69,11 @@ pub(crate) struct TreeStatement<E = F192> {
 }
 
 impl Kind {
-    /// Both kinds, by code.
+    /// Both kinds.
     pub const ALL: [Self; 2] = [Self::First, Self::Node];
-
-    /// Its code, its statement word's value: 0 for a first-level node, 1 for a node.
-    pub(crate) const fn code(self) -> usize {
-        match self {
-            Self::First => 0,
-            Self::Node => 1,
-        }
-    }
-
-    /// Its statement word.
-    pub(crate) const fn word(self) -> F192 {
-        F192::new(self.code() as u64, 0, 0)
-    }
-
-    /// The kind a statement word names, if it names one.
-    pub(crate) const fn of_word(word: F192) -> Option<Self> {
-        match (word.c0, word.c1, word.c2) {
-            (0, 0, 0) => Some(Self::First),
-            (1, 0, 0) => Some(Self::Node),
-            _ => None,
-        }
-    }
 }
 
-impl Level {
+impl Items {
     /// The first word of its digest's message.
     const fn tag(self) -> u64 {
         match self {
@@ -114,7 +92,7 @@ impl Level {
         [self.tag(), count as u64, s0, s1, s2, s3, 0, 0]
     }
 
-    /// The digest of the items under a proof of this level.
+    /// The digest of these items.
     ///
     /// The tag and the session separate the levels and the leaf circuits, and the count fixes the items, so a digest names its whole subtree.
     pub(crate) fn digest(self, items: &[Limbs]) -> Limbs {
@@ -153,6 +131,11 @@ impl StatementLayout {
             dense,
             n_matrix: FlockId::MAX_K_LOG,
         }
+    }
+
+    /// The dense polynomials the tree has, in statement order.
+    pub(crate) fn polys(self) -> impl Iterator<Item = DensePoly> {
+        DensePoly::ALL.into_iter().filter(move |&p| self.dense[p as usize])
     }
 
     /// How many words a section has.

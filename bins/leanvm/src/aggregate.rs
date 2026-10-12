@@ -221,7 +221,12 @@ pub fn run(
     plan: Plan,
 ) {
     let rate = prover.rate();
-    let shape = TreeShape { arity_0, arity, rate };
+    let shape = TreeShape {
+        arity_0,
+        arity,
+        rate,
+        claims: None,
+    };
     shape.depth(leaves).unwrap_or_else(|e| refuse(format_args!("{e}")));
     let family = Family::new(program, n, leaf_prover.rate());
     let title = family.title();

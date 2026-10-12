@@ -133,6 +133,7 @@ impl Aggregation {
             arity_0: self.arity_0,
             arity: self.arity,
             rate,
+            claims: None,
         };
         Tree::new(leaves, shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }
