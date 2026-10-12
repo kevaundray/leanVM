@@ -10,40 +10,48 @@ public import Mathlib.Algebra.MvPolynomial.SchwartzZippel
 Round-by-round soundness of sumcheck, the protocol behind most of the recursion verifier's tests bound only after
 their latest challenge.
 
-An instance's truths (`Inst`): with rounds left, the honest round polynomial and the instance after each challenge;
-with none, the final value the verifier computes itself. `Inst.ok d`: the honest polynomials have degree at most `d`
-and each challenge's instance sums to the honest polynomial at it. A prover (`Prover`) answers each round with a
-polynomial of degree at most `d` that may depend on the challenges so far. The verifier (`accepts`) checks that each
-round's polynomial sums over `{0, 1}` to the running claim, takes the polynomial at the challenge as the next claim,
-and checks the last claim against the final value.
+An instance's truths (`Inst`): with rounds left, the round's eq weight when factored out, the honest round
+polynomial and the instance after each challenge; with none, the final value the verifier computes itself.
+`Inst.ok d`: the honest polynomials have degree at most `d` and each challenge's instance sums to the honest
+polynomial at it. A prover (`Prover`) answers each round with a polynomial of degree at most `d` that may depend on
+the challenges so far. The verifier (`accepts`) checks each round's polynomial against the running claim (`lin`:
+`g(0) + g(1)`, or `(1 - e) · g(0) + e · g(1)` with the eq weight `e` factored out), takes the polynomial at the
+challenge as the next claim, and checks the last claim against the final value.
 
 `sumcheck_sound`: if the claim is not the instance's sum, the challenge vectors of `S^n` at which the verifier
-accepts are at most `n · d · |S|^(n-1)`, so at most an `n · d / |S|` fraction (`sumcheck_sound_frac`). Each round's
-polynomial is fixed before its challenge is drawn, which is what `Bind.tests_by` gives the circuit's tests.
-
-Not proven here: that the recursion circuit's late tests are the checks of `accepts` for its reductions' instances.
+accepts are at most `n · d · |S|^(n-1)`, so at most an `n · d / |S|` fraction (`sumcheck_sound_frac`).
+`sumcheck_sound_fun` is the same for a prover given by its round polynomials at each challenge vector, round `i`'s
+reading only the challenges before it (`PrefixDep`), along claims that pass each round and end at the final value
+(`accepts_ofFun`). `polyOf`: the polynomial of a round's coefficients, which Horner's rule evaluates (`eval_polyOf`).
+`Bind.sumcheck_test_sound` applies it to the circuit's certified sumchecks.
 -/
 
 namespace LeanVMCircuits.Rec.Sumcheck
 
 open Polynomial Finset Classical
 
-variable {F : Type} [Field F] [DecidableEq F]
+variable {F : Type} [Field F]
 
-/-- An instance's truths for `n` rounds. -/
+/-- A round's check of its polynomial: `g(0) + g(1)`, or with the round's eq weight `e` factored out
+`(1 - e) · g(0) + e · g(1)`. -/
+noncomputable def lin (w : Option F) (g : F[X]) : F := match w with
+  | none => g.eval 0 + g.eval 1
+  | some e => (1 - e) * g.eval 0 + e * g.eval 1
+
+/-- An instance's truths for `n` rounds; each round's eq weight, when factored out. -/
 inductive Inst (F : Type) [Field F] : ℕ → Type
   | leaf (v : F) : Inst F 0
-  | node {n : ℕ} (H : F[X]) (next : F → Inst F n) : Inst F (n + 1)
+  | node {n : ℕ} (w : Option F) (H : F[X]) (next : F → Inst F n) : Inst F (n + 1)
 
-/-- The instance's sum: the final value, or the honest polynomial's sum over `{0, 1}`. -/
+/-- The instance's sum: the final value, or the round's check of the honest polynomial. -/
 noncomputable def Inst.sum : {n : ℕ} → Inst F n → F
   | _, .leaf v => v
-  | _, .node H _ => H.eval 0 + H.eval 1
+  | _, .node w H _ => lin w H
 
 /-- The honest polynomials have degree at most `d`, and each challenge's instance sums to the polynomial at it. -/
 def Inst.ok (d : ℕ) : {n : ℕ} → Inst F n → Prop
   | _, .leaf _ => True
-  | _, .node H next => H.natDegree ≤ d ∧ ∀ r, (next r).sum = H.eval r ∧ (next r).ok d
+  | _, .node _ H next => H.natDegree ≤ d ∧ ∀ r, (next r).sum = H.eval r ∧ (next r).ok d
 
 /-- A prover for `n` rounds: a polynomial, then a prover after each challenge. -/
 inductive Prover (F : Type) [Field F] : ℕ → Type
@@ -58,7 +66,7 @@ def Prover.ok (d : ℕ) : {n : ℕ} → Prover F n → Prop
 /-- The verifier accepts the claim `c` at the challenges `r`, the first challenge first. -/
 def accepts : {n : ℕ} → Inst F n → Prover F n → F → (Fin n → F) → Prop
   | _, .leaf v, .leaf, c, _ => c = v
-  | _, .node _ nI, .node g nP, c, r => g.eval 0 + g.eval 1 = c ∧ accepts (nI (r 0)) (nP (r 0)) (g.eval (r 0)) (Fin.tail r)
+  | _, .node w _ nI, .node g nP, c, r => lin w g = c ∧ accepts (nI (r 0)) (nP (r 0)) (g.eval (r 0)) (Fin.tail r)
 
 /-- A nonzero polynomial of degree at most `d` vanishes at at most `d` points of `S`. -/
 theorem card_roots_le (S : Finset F) {p : F[X]} (hp : p ≠ 0) {d : ℕ} (hd : p.natDegree ≤ d) :
@@ -73,7 +81,7 @@ theorem card_roots_le (S : Finset F) {p : F[X]} (hp : p ≠ 0) {d : ℕ} (hd : p
     _ ≤ p.natDegree := card_roots' p
     _ ≤ d := hd
 
-omit [Field F] [DecidableEq F] in
+omit [Field F] in
 /-- Counting over `S^(n+1)` by the first coordinate. -/
 theorem card_cons (S : Finset F) (n : ℕ) (P : F → (Fin n → F) → Prop) [DecidablePred fun r : Fin (n + 1) → F =>
     P (r 0) (Fin.tail r)] [∀ a, DecidablePred (P a)] :
@@ -106,14 +114,14 @@ theorem sumcheck_sound (S : Finset F) (d : ℕ) :
   | _, .leaf v, .leaf, _, _, c, hc => by
     simp only [accepts, Inst.sum] at hc ⊢
     simp [hc]
-  | n + 1, .node H nI, .node g nP, hI, hP, c, hc => by
+  | n + 1, .node w H nI, .node g nP, hI, hP, c, hc => by
     classical
     obtain ⟨hH, hnext⟩ := hI
     obtain ⟨hg, hPn⟩ := hP
     simp only [Inst.sum] at hc
     -- Accepting: the first polynomial is not the honest one, and it agrees with it at the challenge or the next
     -- claim is false and the rest accepts it.
-    have hsub : {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts (.node H nI) (.node g nP) c r} ⊆
+    have hsub : {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts (.node w H nI) (.node g nP) c r} ⊆
         {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | (g - H).eval (r 0) = 0 ∧ True} ∪
         {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) |
           g.eval (r 0) ≠ (nI (r 0)).sum ∧ accepts (nI (r 0)) (nP (r 0)) (g.eval (r 0)) (Fin.tail r)} := by
@@ -125,7 +133,7 @@ theorem sumcheck_sound (S : Finset F) (d : ℕ) :
       · exact Or.inr ⟨hr.1, by rw [(hnext (r 0)).1]; exact he, hr.2.2⟩
     by_cases hgH : g = H
     · subst hgH
-      have hemp : {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts (.node g nI) (.node g nP) c r} = ∅ := by
+      have hemp : {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts (.node w g nI) (.node g nP) c r} = ∅ := by
         ext r
         simp only [mem_filter, accepts, Finset.notMem_empty, iff_false, not_and]
         intro _ h
@@ -169,7 +177,7 @@ theorem sumcheck_sound (S : Finset F) (d : ℕ) :
       · simp
       · rw [show n + 1 - 1 = n by omega, pow_succ]
         nlinarith [Nat.zero_le (#S), Nat.zero_le ((n + 1) * d * #S ^ n)]
-    calc #{r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts (.node H nI) (.node g nP) c r}
+    calc #{r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts (.node w H nI) (.node g nP) c r}
         ≤ #({r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | (g - H).eval (r 0) = 0 ∧ True} ∪
           {r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) |
             g.eval (r 0) ≠ (nI (r 0)).sum ∧ accepts (nI (r 0)) (nP (r 0)) (g.eval (r 0)) (Fin.tail r)}) :=
@@ -200,5 +208,107 @@ theorem sumcheck_sound_frac (S : Finset F) (hS : S.Nonempty) (d : ℕ) {n : ℕ}
     calc (#{r ∈ Fintype.piFinset (fun _ : Fin (n + 1) => S) | accepts I P c r} : ℚ≥0) * #S
         ≤ (n + 1) * d * #S ^ n * #S := by gcongr
       _ = ((n + 1 : ℕ) : ℚ≥0) * d * #S ^ (n + 1) := by push_cast; ring
+
+/-! A prover given by its round polynomials at each challenge vector. -/
+
+/-- The final value along the challenges `r`. -/
+def Inst.final : {n : ℕ} → Inst F n → (Fin n → F) → F
+  | _, .leaf v, _ => v
+  | _, .node _ _ next, r => (next (r 0)).final (Fin.tail r)
+
+/-- Round `i`'s eq weight along the challenges `r`. -/
+def Inst.weight : {n : ℕ} → Inst F n → (Fin n → F) → Fin n → Option F
+  | _, .leaf _, _, i => i.elim0
+  | _, .node w _ next, r, i => Fin.cases w (fun j => (next (r 0)).weight (Fin.tail r) j) i
+
+/-- Round polynomials as a function of the challenge vector, round `i`'s reading only the challenges before it. -/
+def PrefixDep {n : ℕ} (g : (Fin n → F) → Fin n → F[X]) : Prop :=
+  ∀ r r' (i : Fin n), (∀ j < i, r j = r' j) → g r i = g r' i
+
+/-- The prover answering with those polynomials. -/
+noncomputable def Prover.ofFun : {n : ℕ} → ((Fin n → F) → Fin n → F[X]) → Prover F n
+  | 0, _ => .leaf
+  | _ + 1, g => .node (g (fun _ => 0) 0) fun a => Prover.ofFun fun t i => g (Fin.cons a t) i.succ
+
+theorem Prover.ofFun_ok (d : ℕ) : ∀ {n : ℕ} (g : (Fin n → F) → Fin n → F[X]), (∀ r i, (g r i).natDegree ≤ d) →
+    (Prover.ofFun g).ok d
+  | 0, _, _ => trivial
+  | _ + 1, _, h => ⟨h _ 0, fun _ => Prover.ofFun_ok d _ fun _ _ => h _ _⟩
+
+/-- Along `r`, claims `cl` that each round's polynomial passes against, each the previous polynomial at its
+challenge, ending at the final value, are an accepting run of the prover. -/
+theorem accepts_ofFun : ∀ {n : ℕ} (I : Inst F n) (g : (Fin n → F) → Fin n → F[X]), PrefixDep g →
+    ∀ (r : Fin n → F) (cl : Fin (n + 1) → F), (∀ i : Fin n, lin (I.weight r i) (g r i) = cl i.castSucc) →
+      (∀ i : Fin n, cl i.succ = (g r i).eval (r i)) → cl (Fin.last n) = I.final r →
+        accepts I (Prover.ofFun g) (cl 0) r
+  | _, .leaf v, _, _, _, _, _, _, hfin => hfin
+  | n + 1, .node w H nI, g, hg, r, cl, hround, hnext, hfin => by
+    have hg0 : g (fun _ => 0) 0 = g r 0 := hg _ _ 0 fun j hj => absurd hj (Fin.not_lt_zero j)
+    have key := accepts_ofFun (nI (r 0)) (fun t i => g (Fin.cons (r 0) t) i.succ)
+      (fun t t' i h => hg _ _ i.succ fun j hj => by
+        cases j using Fin.cases with
+        | zero => rfl
+        | succ j => simpa only [Fin.cons_succ] using h j (Fin.succ_lt_succ_iff.mp hj))
+      (Fin.tail r) (fun k => cl k.succ)
+      (fun i => by
+        rw [Fin.cons_self_tail]
+        simpa only [Inst.weight, Fin.cases_succ, Fin.succ_castSucc] using hround i.succ)
+      (fun i => by rw [Fin.cons_self_tail]; exact hnext i.succ)
+      (by simpa only [Fin.succ_last, Inst.final] using hfin)
+    refine ⟨?_, ?_⟩
+    · rw [hg0]
+      simpa only [Inst.weight, Fin.cases_zero, Fin.castSucc_zero] using hround 0
+    · rw [hg0, ← hnext 0]
+      exact key
+
+/-- `sumcheck_sound` for a prover given by its round polynomials at each challenge vector: if the claim is not the
+instance's sum, the challenge vectors of `S^n` along which claims starting at it pass each round, are each the
+previous polynomial at its challenge, and end at the final value are at most `n · d · |S|^(n-1)`. -/
+theorem sumcheck_sound_fun (S : Finset F) (d : ℕ) {n : ℕ} (I : Inst F n) (hI : I.ok d)
+    (g : (Fin n → F) → Fin n → F[X]) (hg : PrefixDep g) (hd : ∀ r i, (g r i).natDegree ≤ d)
+    (cl : (Fin n → F) → Fin (n + 1) → F) (c : F) (hc : c ≠ I.sum) :
+    #{r ∈ Fintype.piFinset (fun _ : Fin n => S) | cl r 0 = c ∧ (∀ i, lin (I.weight r i) (g r i) = cl r i.castSucc) ∧
+      (∀ i, cl r i.succ = (g r i).eval (r i)) ∧ cl r (Fin.last n) = I.final r} ≤ n * d * #S ^ (n - 1) := by
+  refine le_trans (card_le_card fun r hr => ?_) (sumcheck_sound S d I (Prover.ofFun g) hI (Prover.ofFun_ok d g hd) c hc)
+  simp only [mem_filter] at hr ⊢
+  obtain ⟨hS, h0, h1, h2, h3⟩ := hr
+  exact ⟨hS, h0 ▸ accepts_ofFun I g hg r (cl r) h1 h2 h3⟩
+
+/-! A round polynomial of its coefficients. -/
+
+/-- The polynomial of coefficients, constant first. -/
+noncomputable def polyOf (cs : List F) : F[X] := cs.foldr (fun c p => p * X + C c) 0
+
+/-- At `x` it is Horner's rule over the coefficients, the last first. -/
+theorem eval_polyOf (cs : List F) (x : F) : (polyOf cs).eval x = cs.foldr (fun c a => a * x + c) 0 := by
+  induction cs with
+  | nil => simp [polyOf]
+  | cons c cs ih =>
+    simp only [polyOf, List.foldr_cons] at ih ⊢
+    rw [eval_add, eval_mul, eval_X, eval_C, ih]
+
+theorem eval_polyOf_zero (cs : List F) : (polyOf cs).eval 0 = cs.head?.getD 0 := by
+  cases cs with
+  | nil => simp [polyOf]
+  | cons c cs => simp [polyOf]
+
+theorem eval_polyOf_one (cs : List F) : (polyOf cs).eval 1 = cs.sum := by
+  induction cs with
+  | nil => simp [polyOf]
+  | cons c cs ih =>
+    simp only [polyOf, List.foldr_cons] at ih ⊢
+    rw [eval_add, eval_mul, eval_X, eval_C, ih, mul_one, List.sum_cons, add_comm]
+
+theorem natDegree_polyOf : ∀ cs : List F, (polyOf cs).natDegree ≤ cs.length - 1
+  | [] => by simp [polyOf]
+  | [c] => by simp [polyOf]
+  | c :: c' :: cs => by
+    have ih := natDegree_polyOf (c' :: cs)
+    have he : polyOf (c :: c' :: cs) = polyOf (c' :: cs) * X + C c := rfl
+    rw [he]
+    refine (natDegree_add_le _ _).trans (max_le (natDegree_mul_le.trans ?_) (by simp))
+    have hX := natDegree_X_le (R := F)
+    simp only [List.length_cons] at ih ⊢
+    omega
 
 end LeanVMCircuits.Rec.Sumcheck

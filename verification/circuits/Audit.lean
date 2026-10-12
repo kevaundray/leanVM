@@ -592,3 +592,15 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.union_sound_sets_queries
 #print axioms LeanVMCircuits.Rec.Sumcheck.sumcheck_sound
 #print axioms LeanVMCircuits.Rec.Sumcheck.sumcheck_sound_frac
+#print axioms LeanVMCircuits.Rec.Sumcheck.accepts_ofFun
+#print axioms LeanVMCircuits.Rec.Sumcheck.sumcheck_sound_fun
+#print axioms LeanVMCircuits.Rec.Bind.sumRound_sem
+#print axioms LeanVMCircuits.Rec.Bind.pow_sem
+#print axioms LeanVMCircuits.Rec.Bind.Cert.accepts_rounds
+#print axioms LeanVMCircuits.Rec.Bind.coeffs_agree
+#print axioms LeanVMCircuits.Rec.Bind.sumcheck_test_sound
+#print axioms LeanVMCircuits.Rec.Bind.grinding_bound
+#print axioms LeanVMCircuits.Rec.Bind.pow_test_sound
+#print axioms LeanVMCircuits.Rec.TreeSound.tree_sound
+#print axioms LeanVMCircuits.Rec.TreeSound.tree_sound_frac
+#print axioms LeanVMCircuits.Rec.TreeSound.tree_sound_eps

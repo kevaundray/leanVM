@@ -47,11 +47,17 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     {r.tests} tests reading a challenge, \
     {r.unbound.size} unbound, {r.late.size} bound only after their latest challenge, \
     {r.deferred.size} bound only with the statement's claims; \
-    {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound"
+    {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound; \
+    {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds), \
+    {r.powTests} are the bits of {r.pows} certified proof-of-work checks"
   for f in r.unbound.toList.take 10 do
     IO.println s!"  unbound test at {line f.call}, per transcript {repr f.perTranscript}"
     for h in f.hints.eraseDups do
       IO.println s!"    hinted at {line h}"
+  for i in r.others do
+    IO.println s!"  other eq_e test at {line i}"
+  for f in r.deferred do
+    IO.println s!"  test bound only with the statement at {line f.call}"
   for f in r.late.toList.take 5 do
     IO.println s!"  late test at {line f.call}: bound at call {f.hints.headD 0 + 1}, latest challenge at call \
       {f.hints.getD 1 0 + 1}"

@@ -384,6 +384,14 @@ structure Report where
   exposedUnbound : Array ℕ
   /-- Each probed node's binding time per transcript. -/
   probes : List (ℕ × List (Option ℕ)) := []
+  /-- The tests the certificate names as sumchecks' last checks, and their rounds. -/
+  sumchecks : ℕ := 0
+  rounds : ℕ := 0
+  /-- The proof-of-work checks the certificate names, and their tests. -/
+  pows : ℕ := 0
+  powTests : ℕ := 0
+  /-- The calls of the `eq_e` tests that close no certified sumcheck and no union. -/
+  others : Array ℕ := #[]
   deriving Repr
 
 /-- The hinted wires behind an unbound node: back through the function rules concluding it, the unbound limbs of
@@ -438,6 +446,140 @@ def latestByCalls (rp : Replay) : Array (Option ℕ) := Id.run do
       if !isConst[w]! then gamma := gamma.set! w g
       w := w + 1
   return gamma
+
+/-! The sumchecks behind the late tests, found by their calls. -/
+
+/-- Each wire's making calls, with the output's place. -/
+def outIndex (rp : Replay) : Std.HashMap ℕ (Array (ℕ × ℕ)) := Id.run do
+  let mut idx : Std.HashMap ℕ (Array (ℕ × ℕ)) := {}
+  for j in [0:rp.outs.size] do
+    let os := rp.outs[j]!
+    for p in [0:os.length] do
+      idx := idx.insert (os.getD p 0) ((idx.getD (os.getD p 0) #[]).push (j, p))
+  return idx
+
+/-- A call making `w` as its first output that `f` takes. -/
+def makerBy {α : Type} (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) (f : ℕ → Call → Option α) :
+    Option α :=
+  (idx.getD w #[]).findSome? fun (j, p) => if p = 0 then f j (rp.calls.getD j .zero) else none
+
+/-- A `zero` call making `w`. -/
+def zeroAt (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) : Option ℕ :=
+  makerBy rp idx w fun j c => match c with
+    | .zero => some j
+    | _ => none
+
+/-- Horner's calls ending at `w`: its point, the coefficients constant first, the `zero` call, the `mul_add` calls in
+order. -/
+def hornerOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) :
+    Option (ℕ × List ℕ × ℕ × List ℕ) := Id.run do
+  let some (x, c, acc, j) := makerBy rp idx w (fun j c => match c with
+    | .mulAdd acc x c => some (x, c, acc, j)
+    | _ => none)
+    | return none
+  let mut coeffs := [c]
+  let mut calls := [j]
+  let mut cur := acc
+  for _ in [0:64] do
+    if let some z := zeroAt rp idx cur then
+      return some (x, coeffs, z, calls)
+    match makerBy rp idx cur (fun j c => match c with
+      | .mulAdd acc x' c => if x' = x then some (c, acc, j) else none
+      | _ => none) with
+    | some (c, acc, j) => coeffs := coeffs ++ [c]; calls := j :: calls; cur := acc
+    | none => return none
+  return none
+
+/-- The `add` fold over `ws` ending at `w`: its `zero` call and its calls in order. -/
+def foldOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) (ws : List ℕ) : Option (ℕ × List ℕ) := Id.run do
+  let mut cur := w
+  let mut calls := []
+  for c in ws.reverse do
+    match makerBy rp idx cur (fun j call => match call with
+      | .add acc c' => if c' = c then some (acc, j) else none
+      | _ => none) with
+    | some (acc, j) => calls := j :: calls; cur := acc
+    | none => return none
+  return (zeroAt rp idx cur).map (·, calls)
+
+/-- The round whose next claim is `w`, with the claim it reads. -/
+def roundOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) : Option (RoundCert × ℕ) := do
+  let (x, coeffs, hornerZero, hornerAt) ← hornerOf rp idx w
+  guard (2 ≤ coeffs.length)
+  -- With an eq weight the constant coefficient is `claim + e · tail`, else the linear one is `claim + tail`.
+  let weighted := makerBy rp idx (coeffs.getD 0 0) (fun j c => match c with
+    | .mulAdd e t cl => (foldOf rp idx t (coeffs.drop 1)).map fun (z, ts) => (e, t, cl, j, z, ts)
+    | _ => none)
+  let (weight, claim, fixedAt, tailZero, tailAt) ← match weighted with
+    | some (e, _, cl, j, z, ts) => some (some e, cl, j, z, ts)
+    | none => makerBy rp idx (coeffs.getD 1 0) (fun j c => match c with
+      | .add cl t => (foldOf rp idx t (coeffs.drop 2)).map fun (z, ts) => (none, cl, j, z, ts)
+      | _ => none)
+  -- The challenge: three squeezed words.
+  let (chalAt, w0, w1, w2) ← makerBy rp idx x (fun j c => match c with
+    | .kToE a b d => some (j, a, b, d)
+    | _ => none)
+  let words ← [w0, w1, w2].mapM fun wk => (idx.getD wk #[]).findSome? fun (dk, p) =>
+    match rp.calls.getD dk .zero with
+    | .dToK d => makerBy rp idx d (fun lb c => match c with
+      | .leafBlock _ _ t _ => if t / 2 ^ 56 = 6 then some (dk, p, lb) else none
+      | _ => none)
+    | _ => none
+  return ({ coeffs, weight, tailZero, tailAt, fixedAt, chal := x, hornerZero, hornerAt, chalAt, words, time := 0 },
+    claim)
+
+/-- A round's time in a transcript: one more than the place of the block whose output its challenge's squeeze reads. -/
+def roundTime (rp : Replay) (s : State) (t : Transcript) (rc : RoundCert) : Option ℕ := do
+  let (_, _, lb) ← rc.words.head?
+  let .leafBlock h _ _ _ := rp.calls.getD lb .zero | none
+  let k ← t.blocks.findIdx? fun b => (s.hash.getD b []).getD 6 0 == h
+  return k + 1
+
+/-- The sumcheck a test closes, if one of its wires is a last claim: its rounds back to the first claim no round
+makes, in the transcript drawing the last round's challenge. -/
+def sumcheckOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (ts : List Transcript)
+    (u a b : ℕ) : Option SumcheckCert := Id.run do
+  for (last, final) in [(a, b), (b, a)] do
+    let mut rounds : List RoundCert := []
+    let mut cur := last
+    for _ in [0:256] do
+      match roundOf rp idx cur with
+      | some (rc, cl) =>
+        if rounds.all (·.coeffs.length == rc.coeffs.length) then rounds := rc :: rounds; cur := cl else break
+      | none => break
+    if let some lastRound := rounds.getLast? then
+      let some k := (List.range ts.length).find? fun k => (roundTime rp s (ts.getD k default) lastRound).isSome
+        | continue
+      let t := ts.getD k default
+      let timed := rounds.filterMap fun rc => (roundTime rp s t rc).map fun time => { rc with time }
+      if timed.length = rounds.length then
+        return some { claim0 := cur, rounds := timed, deg := lastRound.coeffs.length - 1, test := u, final,
+                      transcript := k }
+  return none
+
+/-- The proof-of-work checks among the test calls: `eq_k_const` tests of bits of a `split` of a trial compression's
+first word, by split. -/
+def powsOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (testCalls : Array ℕ) : Array PowCert := Id.run do
+  let mut bySplit : Std.HashMap ℕ (Array (ℕ × ℕ)) := {}
+  for j in testCalls do
+    if let .eqConstK a 0 := rp.calls.getD j .zero then
+      for (sp, k) in idx.getD a #[] do
+        if let .split _ := rp.calls.getD sp .zero then
+          bySplit := bySplit.insert sp ((bySplit.getD sp #[]).push (k, j))
+  let mut out := #[]
+  for (sp, ts) in bySplit.toList do
+    let .split w := rp.calls.getD sp .zero | continue
+    let some dk := (idx.getD w #[]).findSome? (fun (j, p) => match rp.calls.getD j .zero with
+      | .dToK _ => if p = 0 then some j else none
+      | _ => none) | continue
+    let .dToK d := rp.calls.getD dk .zero | continue
+    let some cp := makerBy rp idx d (fun j c => match c with
+      | .compress .. => some j
+      | _ => none) | continue
+    let sorted := ts.qsort (·.1 < ·.1)
+    out := out.push { compressAt := cp, dkAt := dk, splitAt := sp, bits := sorted.size,
+                      testAt := (sorted.map (·.2)).toList }
+  return out
 
 def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let s := rp.state
@@ -525,6 +667,14 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let cert : Cert := {
     rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList, calls := rp.calls, relax, pools
     prods := rp.prods, points, covers }
+  -- The tests closing a sumcheck whose rounds the verdict certifies.
+  let idxO := outIndex rp
+  let ms := cert.marks s
+  let os := cert.outs
+  let sumchecks := (tests.filterMap fun (u, a, b) => sumcheckOf rp idxO s certs.toList u a b).filter fun sc =>
+    ({ cert with sumchecks := #[sc] }).sumchecksOk s os ms
+  let pows := (powsOf rp idxO (tests.map fun (u, _, _) => rp.eqCall[u]!)).filter (·.ok os cert.calls cert.relax)
+  let cert := { cert with sumchecks, pows }
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -575,6 +725,11 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   return {
     accepted, transcripts := ts.size, squeezes := squeezes.size, products := rp.prods.size, tests := tests.size, unbound,
     late, deferred,
-    exposed, exposedUnbound, probes }
+    exposed, exposedUnbound, probes, sumchecks := sumchecks.size,
+    rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
+    pows := pows.size, powTests := pows.foldl (fun n pc => n + pc.bits) 0,
+    others := tests.filterMap fun (u, _, _) => match rp.calls.getD (rp.eqCall[u]!) .zero with
+      | .eqE .. => if sumchecks.any (·.test == u) || covers.any (·.test == u) then none else some (rp.eqCall[u]!)
+      | _ => none }
 
 end LeanVMCircuits.Rec.Bind
