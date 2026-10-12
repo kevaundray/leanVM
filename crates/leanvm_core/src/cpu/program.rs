@@ -51,7 +51,7 @@ impl Program {
     /// The protocol half of the transcript's session tag: the proof system, its sponge and codecs, its version.
     ///
     /// The program's digest follows it in the tag, naming the relation.
-    const SESSION_TAG: &'static [u8] = b"leanvm/rv64im-proof/blake2s-duplex/gf2-192/v1";
+    const SESSION_TAG: &'static [u8] = b"leanvm/rv64im-proof/blake2s-duplex/gf2-192/v2";
 
     /// The cycles between two checks of a running trace against one commitment.
     const SIZE_CHECK_PERIOD: u64 = 1 << 16;
@@ -233,7 +233,7 @@ impl Program {
     /// # Panics
     ///
     /// Panics if the witness's bus does not balance: an honest run's always does.
-    fn prove_witness(&self, w: Witness, output: Output, rate: Rate) -> Proof {
+    fn prove_witness(&self, mut w: Witness, output: Output, rate: Rate) -> Proof {
         // The session names the program, and the output is the instance: every challenge depends on both.
         let mut ps = ProverState::new(&self.session(), output.words());
 
@@ -247,11 +247,28 @@ impl Program {
         let committed = info_span!("Commit")
             .in_scope(|| Committed::new(&mut ps, &w.q, w.layout.shape, rate).expect("the witness matches its layout"));
 
+        // Flock's reductions, batched over every class circuit then every clock circuit under shared challenges.
+        //
+        // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
+        // They read only the commitment, so they run first, and their batches are freed before the bus's peak.
+        let reductions = std::mem::take(&mut w.reductions);
+        let l = &w.layout;
+        let slices = info_span!("Flock reductions").in_scope(|| {
+            let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
+                .map(|(f, tables)| {
+                    let window = l.witness_window(f);
+                    let column = &w.q[window.offset..window.offset + (1 << window.n_vars)];
+                    f.instance(column, l.taus[f.table()], tables)
+                })
+                .collect();
+            reduction::prove(&instances, &mut ps)
+        });
+        drop(reductions);
+
         // The bus, then the linear tables' columns at its point, then the one batch over the other tables and the
         // producers, all reading the stack's windows in place.
         let spans = &Schema::get().spans;
         let (bus_claims, table_claims) = {
-            let l = &w.layout;
             let cols = w.columns();
             let mut bus = info_span!("Prove bus").in_scope(|| {
                 leaf::prove_balance(
@@ -301,7 +318,6 @@ impl Program {
             });
             (bus.claims, TableClaims::new(settled, summed))
         };
-        let l = &w.layout;
         let slots = l.opening_claims(
             &mut Native,
             bus_claims,
@@ -309,22 +325,7 @@ impl Program {
             &output.words().map(|o| F192::from(F64(o))),
         );
 
-        // Flock's reductions, batched over every class circuit then every clock circuit under shared challenges.
-        //
-        // Each circuit leaves a validity claim on its packed witness, discharged in the same opening through a ring-switched region.
-        // Each producer's multiplicity column is a ring-switched region too.
-        let reductions = w.reductions;
-        let slices = info_span!("Flock reductions").in_scope(|| {
-            let instances: Vec<reduction::Instance<'_>> = (FlockId::ALL.into_iter().zip(&reductions))
-                .map(|(f, tables)| {
-                    let window = l.witness_window(f);
-                    let column = &w.q[window.offset..window.offset + (1 << window.n_vars)];
-                    f.instance(column, l.taus[f.table()], tables)
-                })
-                .collect();
-            reduction::prove(&instances, &mut ps)
-        });
-        drop(reductions);
+        // Each producer's multiplicity column is a ring-switched region too, as is each register word.
         let rings = l.rings(slices, &table_claims.producers, &table_claims.summed, F192::ZERO);
         info_span!("PCS open").in_scope(|| {
             committed

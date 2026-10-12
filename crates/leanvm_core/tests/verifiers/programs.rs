@@ -431,9 +431,17 @@ fn large_program() -> (Program, Proof, Proof, Output) {
     let ProvenRun { proof, output, .. } = Prover::new(Rate::MIN).prove(&program, &[]).expect("the run halts");
     assert_eq!(output, [7, 0, 0, 0]);
 
-    // The nonce follows the announcement and the root; replace it with one that misses the work.
+    // The nonce follows the announcement, the root and the flock reductions, which read the shortest prefix past the
+    // root that they read whole; replace it with one that misses the work.
     let missed = CpuError::Bus(BusError::Transcript(TranscriptError::PowFailed { bits: 1 }));
-    let nonce = 24 * (N_TABLES + 2) + 32;
+    let flock = 24 * (N_TABLES + 2) + 32;
+    let messages: Vec<usize> = (0..(proof.0.narg.len() - flock) / 24).collect();
+    let nonce = flock
+        + 24 * messages.partition_point(|&m| {
+            let mut prefix = proof.clone();
+            prefix.0.narg.truncate(flock + 24 * m);
+            matches!(program.verify_core(output, &prefix), Err(CpuError::Reductions(_)))
+        });
     let forged = (1..64)
         .map(|step| {
             let mut forged = proof.clone();

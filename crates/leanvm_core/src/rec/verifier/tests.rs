@@ -2,7 +2,7 @@ use super::recursion::RecRows;
 use super::{ProofShape, RecShape, Rows, infallible};
 use crate::class_flock::FlockId;
 use crate::constraints::ConstraintError;
-use crate::cpu::{CpuError, DeferredClaims, Output, Program, ProvenRun, Prover, UNGROUND_LOG_BYTECODE};
+use crate::cpu::{CpuError, DeferredClaims, Output, Program, Proof, ProvenRun, Prover, UNGROUND_LOG_BYTECODE};
 use crate::leaf::BusError;
 use crate::pcs::{Commitment, Committed, Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::rec::RecError;
@@ -85,8 +85,8 @@ fn set_scalar(proof: &mut ProofTranscript, i: usize, x: F192) {
     proof.narg[24 * i..24 * i + 24].copy_from_slice(&x.encode());
 }
 
-// The byte where the bus's first message starts: past the announcement, then the commitment's root.
-const BUS_START: usize = 24 * (N_TABLES + 2) + 32;
+// The byte where the flock reductions' first message starts: past the announcement, then the commitment's root.
+const FLOCK_START: usize = 24 * (N_TABLES + 2) + 32;
 
 impl Fixture {
     // The core's rows over `source`: the builder, holding the wires' values, and the claims the core leaves.
@@ -96,6 +96,20 @@ impl Fixture {
         let output = self.output.words().map(|o| b.free_k(o));
         let core = shape.verify_core(&mut b, output, source);
         (b, core.claims)
+    }
+
+    // The byte where the bus's first message starts: the shortest prefix of the proof the flock reductions read whole.
+    fn bus_start(&self) -> usize {
+        let messages: Vec<usize> = (0..(self.proof.narg.len() - FLOCK_START) / 24).collect();
+        FLOCK_START
+            + 24 * messages.partition_point(|&m| {
+                let mut prefix = Proof(self.proof.clone());
+                prefix.0.narg.truncate(FLOCK_START + 24 * m);
+                matches!(
+                    self.program.verify_core(self.output, &prefix),
+                    Err(CpuError::Reductions(_))
+                )
+            })
     }
 
     // The checks a forged proof or forged openings fail, in the order the rows meet them.
@@ -137,7 +151,7 @@ fn a_tampered_proof_fails_where_the_native_verifier_does() {
 
     // The GKR's root, the bus's first message: one bit of its second limb.
     let mut forged = f.proof.clone();
-    forged.narg[BUS_START + 8] ^= 1;
+    forged.narg[f.bus_start() + 8] ^= 1;
     let failure = first(&forged, &f.openings);
     assert!(failure.starts_with("bus and tables"), "{failure}");
 
@@ -246,9 +260,9 @@ fn a_forged_announcement_is_refused_first() {
         let failure = forge(&|p| set_scalar(p, at, value));
         assert!(failure.starts_with("announcement"), "{what}: {failure}");
     }
-    // A live clock at slot zero passes the announcement, and the bus refuses the wrong one.
+    // A live clock at slot zero passes the announcement; the transcript then differs, and the first stage, flock, refuses it.
     let failure = forge(&|p| set_scalar(p, clock, F192::new(ts.c0 + 32, 0, 0)));
-    assert!(failure.starts_with("bus and tables"), "a later clock: {failure}");
+    assert!(failure.starts_with("flock"), "a later clock: {failure}");
 }
 
 // A program past the unground bytecode: its rows check the bus's proof of work, which a smaller program's never meet.
@@ -280,10 +294,11 @@ fn a_large_programs_rows_check_its_grinding() {
 
     // The nonce is the bus's first message: one the native verifier refuses for missing the work fails at the bus.
     let missed = CpuError::Bus(BusError::Transcript(TranscriptError::PowFailed { bits: 1 }));
+    let nonce = f.bus_start();
     let forged = (1..64)
         .map(|step| {
             let mut forged = proof.clone();
-            forged.0.narg[BUS_START] ^= step;
+            forged.0.narg[nonce] ^= step;
             forged
         })
         .find(|forged| f.program.verify_core(f.output, forged).err() == Some(missed.clone()))

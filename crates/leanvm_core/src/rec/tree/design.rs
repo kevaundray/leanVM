@@ -39,7 +39,7 @@ use primitives::multilinear::mle_eval_par;
 use std::ops::Range;
 
 /// The protocol half of every recursion proof's session tag.
-const DOMAIN: &[u8] = b"leanvm-tree-16";
+const DOMAIN: &[u8] = b"leanvm-tree-17";
 
 /// Where one program's tables sit in the dense polynomials: alone, or as one half of a stack of two.
 #[derive(Clone, Copy, Debug)]

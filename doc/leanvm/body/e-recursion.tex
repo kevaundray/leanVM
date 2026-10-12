@@ -46,7 +46,7 @@ The bus alone does not bind it. The verifier evaluates the \textsf{PUB} block's 
 
 \subsection{The proof}\label{rec:proof}
 
-A recursion proof is a leanVM proof of the recursion machine's run. The stack (\S\ref{sec:stacking}) holds the \textsf{HASH} table's packed witness and then every committed column, \textsf{PUB} committing none. The bus balances the copy cycles by the GKR of \S\ref{sec:gkr}; the verifier then draws $\xi$, and one table sumcheck proves every table's summand at the bus's point. Flock reduces the hash rows to one ring-switched claim on the packed witness, its matrices settled against the compression circuit, and one opening discharges every column claim and that claim (Annex~\ref{annex:pcs}). A circuit whose witness exceeds one commitment has no proof: the prover refuses it, and so does the verifier.
+A recursion proof is a leanVM proof of the recursion machine's run. The stack (\S\ref{sec:stacking}) holds the \textsf{HASH} table's packed witness and then every committed column, \textsf{PUB} committing none. Flock first reduces the hash rows to one ring-switched claim on the packed witness, its matrices settled against the compression circuit; it reads only the commitment, as in a leanVM proof (\S\ref{sec:e2e-unrolled}). The bus then balances the copy cycles by the GKR of \S\ref{sec:gkr}; the verifier draws $\xi$, and one table sumcheck proves every table's summand at the bus's point. One opening discharges every column claim and the ring-switched claim (Annex~\ref{annex:pcs}). A circuit whose witness exceeds one commitment has no proof: the prover refuses it, and so does the verifier.
 
 \subsection{The verifier in rows}\label{rec:verifier}
 
