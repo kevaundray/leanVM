@@ -590,3 +590,5 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.sets_differ
 #print axioms LeanVMCircuits.Rec.Bind.union_sound_queries
 #print axioms LeanVMCircuits.Rec.Bind.union_sound_sets_queries
+#print axioms LeanVMCircuits.Rec.Sumcheck.sumcheck_sound
+#print axioms LeanVMCircuits.Rec.Sumcheck.sumcheck_sound_frac

@@ -37,6 +37,7 @@ public import LeanVMCircuits.Rec.Justify
 public import LeanVMCircuits.Rec.PoolParse
 public import LeanVMCircuits.Rec.PoolClaims
 public import LeanVMCircuits.Rec.Relax
+public import LeanVMCircuits.Rec.Sumcheck
 public import LeanVMCircuits.Rec.Union
 public import LeanVMCircuits.Rec.UnionCover
 public import LeanVMCircuits.Rec.UnionRows
