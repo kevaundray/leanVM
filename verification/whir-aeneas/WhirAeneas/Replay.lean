@@ -999,9 +999,10 @@ theorem rotate_toArray (k : Nat) (l : List Concrete.E) :
   simp [rotatePoint, List.take_of_length_le]
 
 /-- The equality check the terminal ends with returns `Ok` exactly when the interpreted
-operands are equal. -/
+operands are equal, for an error closure that succeeds (the terminal's returns its error). -/
 def EnsureModel (inst : verifier.OpeningVerifier V R K Q E) (encode : E → Concrete.E) : Prop :=
   ∀ {Er T2 : Type} (f : core.ops.function.FnOnce T2 Unit Er) (v : V) (a b : E) (c : T2),
+    (∃ e, f.call_once c () = .ok e) →
     ∃ r v', inst.fiat_shamirarithVerifierInst.ensure_eq f v a b c = .ok (r, v') ∧
       (r = .Ok () ↔ encode a = encode b)
 
@@ -1059,6 +1060,7 @@ theorem terminal_eq {T1 : Type} (h : ArithModel inst.fiat_shamirarithVerifierIns
   obtain ⟨lhs, hlhs, elhs⟩ := h.mul v4 w2 fy
   obtain ⟨r, v', hens', er⟩ := hens
     (whir.verify.WhirReplay.terminal.closure.Insts.CoreOpsFunctionFnOnceTupleWhirError inst W) v4 lhs self.t_r ()
+    ⟨_, rfl⟩
   refine ⟨r, v', ?_, ?_⟩
   · simp only [whir.verify.WhirReplay.terminal, hzero, Std.bind_ok, alloc.vec.Vec.deref]
     simp [hw, whir.verify.add_ood_terms, alloc.vec.Vec.deref] at hw1 ⊢

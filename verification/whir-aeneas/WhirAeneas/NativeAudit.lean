@@ -4,7 +4,12 @@ import Lean.Util.CollectAxioms
 /-! Axiom audit of the composed native theorem and everything it rests on: the replay and Merkle
 extractions, their proofs, the Merkle opening composition and binding, and the link. -/
 
+#print axioms WhirAeneas.Native.verify_refines_native
 #print axioms WhirAeneas.Native.verify_eq_native
+#print axioms WhirAeneas.Native.ensure_native
+#print axioms WhirAeneas.Native.limbs_injective
+#print axioms WhirAeneas.Native.root_shape
+#print axioms WhirAeneas.Native.root_shapes
 #print axioms WhirAeneas.NativeReads.native_transcript
 #print axioms WhirAeneas.NativeReads.check_pow_ok
 #print axioms WhirAeneas.NativeReads.queries_ok
