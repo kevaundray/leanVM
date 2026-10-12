@@ -7,6 +7,7 @@ extractions, their proofs, the Merkle opening composition and binding, and the l
 #print axioms WhirAeneas.Native.verify_refines_native
 #print axioms WhirAeneas.Native.verify_eq_native
 #print axioms WhirAeneas.Native.ensure_native
+#print axioms WhirAeneas.Native.clone_native
 #print axioms WhirAeneas.Native.limbs_injective
 #print axioms WhirAeneas.Native.root_shape
 #print axioms WhirAeneas.Native.root_shapes

@@ -58,6 +58,11 @@ theorem ensure_native (encode : NativeReads.F192 → Concrete.E) (henc : Functio
     by_cases h0 : a.c0 = b.c0 <;> by_cases h1 : a.c1 = b.c1 <;> by_cases h2 : a.c2 = b.c2 <;>
       simp_all
 
+/-- The native element clone is the identity. -/
+theorem clone_native :
+    ∀ x, nativeInst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x :=
+  fun _ => rfl
+
 end Ensure
 
 section Loop
@@ -69,14 +74,13 @@ variable (encode : NativeReads.F192 → Concrete.E)
 /-- The composed theorem for the generated native opening verifier: `verify_eq` with every read
 derived from the extracted transcript, the duplex, proof-of-work and Merkle hash contracts, and
 what the proof holds (`NativeAnswers`), instead of assumed; the equality check is the generated
-`ensure_eq` for an injective `encode`. -/
+`ensure_eq` for an injective `encode` and the element clone is the identity by definition. -/
 theorem verify_eq_native {T1 : Type} (hw : System.Platform.numBits = 64)
     (h : ArithModel nativeInst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (hr : RowModel nativeInst encode encodeK ofLimbs index) (hn : NormalizerModel const)
     {out : List DOp → Nat → List U8} {R : ReplaySource.fiat_shamir.duplex.Blake2sDuplex → List DOp → Prop}
     (hD : Duplex out R) {H : List U8 → Digest} (hH : PowHash H)
     {leaf : List U64 → Digest} {node : Digest → Digest → Digest} (hR : RowHash leaf) (hP : PairHash node)
-    (hclone : ∀ x, nativeInst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
     (henc : Function.Injective encode)
     (W : ReplaySource.whir.verify.WeightAt T1 NativeReads.F192 VS Digest ReplaySource.primitives.field.gf2_64.F64 Usize)
     (weight_at : T1) (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
@@ -90,7 +94,7 @@ theorem verify_eq_native {T1 : Type} (hw : System.Platform.numBits = 64)
       (r = .Ok () ↔ nativeVerify c (s.chal encode) n_lanes.val (encode target) callerAt
         (s.prf encode encodeK ofLimbs) = .ok ()) :=
   verify_eq nativeInst encode const encodeK ofLimbs index _ hw h hr hn
-    (native_transcript hw hD hH hR hP encode) hclone (ensure_native encode henc) W weight_at callerAt hcall
+    (native_transcript hw hD hH hR hP encode) clone_native (ensure_native encode henc) W weight_at callerAt hcall
     config c log_n hcfg s n_lanes hch hS hgs target root v rest hroot hv
 
 end Loop
@@ -304,7 +308,6 @@ theorem verify_refines_native {T1 : Type} (hw : System.Platform.numBits = 64)
     (hD : Duplex out R) {H : List U8 → Digest} (hH : PowHash H)
     {leaf : List U64 → Digest} {node : Digest → Digest → Digest} (hR : RowHash leaf) (hP : PairHash node)
     (hleaf : ∀ a b, leaf a = leaf b → a = b) (hnode : ∀ a b c d, node a b = node c d → a = c ∧ b = d)
-    (hclone : ∀ x, nativeInst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
     (henc : Function.Injective encode)
     (W : ReplaySource.whir.verify.WeightAt T1 NativeReads.F192 VS Digest ReplaySource.primitives.field.gf2_64.F64 Usize)
     (weight_at : T1) (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
@@ -331,7 +334,7 @@ theorem verify_refines_native {T1 : Type} (hw : System.Platform.numBits = 64)
         (withOracles (s.prf encode encodeK ofLimbs)
           fun j => tableOf encodeK ofLimbs (j == 0) (depthOf s j) (C j)) = .ok ()) := by
   obtain ⟨r, v', hver, hiff⟩ := verify_eq_native encode const encodeK ofLimbs (fun q : Usize => q.val) hw h hr hn
-    hD hH hR hP hclone henc W weight_at callerAt hcall config c log_n hcfg s n_lanes hch hS hgs target root v
+    hD hH hR hP henc W weight_at callerAt hcall config c log_n hcfg s n_lanes hch hS hgs target root v
     rest hroot hv
   refine ⟨r, v', hver, fun hok => ?_⟩
   have hnv := hiff.mp hok
