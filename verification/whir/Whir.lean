@@ -269,3 +269,8 @@ import Whir.SpongefishCurrentCallerOriginalTable
 import Whir.SpongefishCurrentPartitionCapture
 import Whir.SpongefishCurrentGoodEvent
 import Whir.SpongefishCurrentKnowledgeEndpoint
+import Whir.SpongefishCurrentIdealRows
+import Whir.SpongefishCurrentHistoryReplies
+import Whir.SpongefishCurrentRefines
+import Whir.SpongefishCurrentHeaderGlue
+import Whir.SpongefishCurrentKnowledgeFinal

@@ -485,7 +485,7 @@ noncomputable local instance (Q : Nat) (iv : Digest32) (grinding : Fin (cfg).fol
   | .inr _ => inferInstance
 
 open Classical SpongefishCurrentOpeningProgram in
-/-- Item 3: the current #607 basic full-prefix knowledge bound for one binding message shape. The real event is native acceptance of the whole current caller path and opening whose prepared original fails public straight-line extraction on the frozen Root0 image. The bound has the three explicit summands of `finalBound`; the only remaining obligation is `refines`, a state path of the current round node model on every ideal table where the public good event fires. -/
+/-- Item 3: the current #607 basic full-prefix knowledge bound for one binding message shape. The real event is: the caller tape replays and the record binding verifies on the real primitive, the PCS opening is natively accepted, and the prepared original fails public straight-line extraction on the frozen Root0 image. The bound has the three explicit summands of `finalBound`; the only remaining obligation is `refines`, a state path of the current round node model on every ideal table where the public good event fires. -/
 theorem full_knowledge_bound {Coins : Type} [Fintype Coins] [Nonempty Coins]
     (iv : Digest32) (tag instanceBytes : List Byte) (nonempty : instanceBytes ≠ [])
     (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls messages : List Call) (k : Nat)
