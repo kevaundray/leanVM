@@ -855,7 +855,7 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
 }
 
 // A tree of outputs is as protocol version `leanvm-tree-12` built it, before the tiers: the same heights, statement
-// layout and session tag but for the version.
+// layout and session tag but for the version and the program digest's domain.
 #[test]
 fn a_tree_of_outputs_is_unchanged_from_tree_12() {
     let d = &fixture().tree.design;
@@ -878,8 +878,8 @@ fn a_tree_of_outputs_is_unchanged_from_tree_12() {
     assert_eq!(
         d.session_with(b"leanvm-tree-12").0,
         [
-            131, 35, 57, 135, 111, 161, 159, 65, 198, 173, 203, 59, 29, 190, 76, 72, 162, 204, 82, 150, 192, 101, 73,
-            98, 94, 12, 195, 130, 18, 239, 205, 34
+            247, 166, 231, 150, 156, 175, 83, 52, 77, 212, 13, 127, 191, 214, 23, 22, 144, 95, 94, 254, 74, 201, 121,
+            11, 77, 77, 18, 62, 212, 144, 238, 99
         ]
     );
 }
