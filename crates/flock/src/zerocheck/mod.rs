@@ -26,7 +26,9 @@ use primitives::multilinear::skip_lagrange_weights;
 use thiserror::Error;
 
 use crate::lincheck::QuirkyPoint;
-use multilinear::{PackedWitness, RoundPair, bind_low, bit_pass, bit_pass_storing, single_round, table_pass};
+use multilinear::{
+    MAX_PASS_ROUNDS, PackedWitness, RoundBatch, bind_low, bit_pass, bit_pass_storing, single_round, table_pass,
+};
 use ntt::{AdditiveNttGf8, InvNttTableByteSingleGf8};
 use round1::{Round1, c_s, medium_challenges, small_challenges};
 
@@ -50,16 +52,37 @@ const N_INNER: usize = 7;
 /// The fewest variables a zerocheck's cube can have: the skip, then the fixed coordinates.
 pub const MIN_LOG_N: usize = K_SKIP + N_INNER;
 
-/// Bit passes, two rounds each, before the folded tables are stored.
+/// The rounds of each bit pass, the last pass storing the folded tables.
 ///
-/// - A pass re-reads the `a` and `b` bit tables, `2 * 2^m` bits.
+/// - A pass re-reads the `a` and `b` bit tables, `2 * 2^m` bits, and folds them whatever its rounds.
+/// - A pass of `k` rounds makes `3^k - 1` products a block of `2^k` positions: more rounds, more products a pass.
 /// - Storing at level `t` writes three F192 tables, `3 * 192 * 2^(m - 6 - t)` bits, then reads them back.
 /// - On x86 a bit pass is bandwidth-bound, so storing pays once the tables are well below the bits: level 4.
 /// - On aarch64 the byte-table fold is compute-bound, its tables growing with the level: store at once.
-const PAIR_PASSES: usize = if cfg!(target_arch = "aarch64") { 0 } else { 2 };
+const BIT_PASSES: &[usize] = if cfg!(target_arch = "aarch64") { &[2] } else { &[2, 2, 2] };
 
-// The storing pass sends two rounds too, so the bit passes fit even the smallest cube.
-const _: () = assert!(2 * PAIR_PASSES + 2 <= MIN_LOG_N - K_SKIP);
+static TMP_SCHEDULE: std::sync::LazyLock<Vec<usize>> =
+    std::sync::LazyLock::new(|| match std::env::var("TMP_BIT_PASSES") {
+        Ok(s) => s.split(',').map(|x| x.parse().unwrap()).collect(),
+        Err(_) => BIT_PASSES.to_vec(),
+    });
+
+fn bit_passes() -> &'static [usize] {
+    &TMP_SCHEDULE
+}
+
+// The bit passes run on the fixed eq coordinates, which are never one, and fit even the smallest cube.
+// Their rows are at most 128 bytes: the passes before the storing one bind at most four variables.
+const _: () = {
+    let (mut i, mut rounds) = (0, 0);
+    while i < BIT_PASSES.len() {
+        assert!(2 <= BIT_PASSES[i] && BIT_PASSES[i] <= MAX_PASS_ROUNDS);
+        assert!(i + 1 == BIT_PASSES.len() || rounds + BIT_PASSES[i] <= 4);
+        rounds += BIT_PASSES[i];
+        i += 1;
+    }
+    assert!(rounds <= N_INNER);
+};
 
 /// Smallest folded table a paired table pass takes.
 ///
@@ -183,7 +206,7 @@ impl Folded {
 /// ```
 ///
 /// While the tables would outweigh the bits, each pass re-reads the bits.
-/// Every pass sends two rounds; the second waits on the first's challenge.
+/// Every pass sends several rounds; each after the first waits on the challenges before it.
 /// The last bit pass stores the three folded tables for the passes after it.
 struct CircuitProver<'a> {
     /// The circuit's packed bits.
@@ -200,10 +223,10 @@ struct CircuitProver<'a> {
     claim: F192,
     /// The round message just sent, as coefficients.
     message: [F192; 3],
-    /// The rounds sent from the bits before the storing pass, in pairs.
-    paired_bit_rounds: usize,
-    /// The second round of a pass, waiting on the first's challenge.
-    pair: Option<RoundPair>,
+    /// The rounds of each bit pass still to run, the last one storing.
+    bit_passes: &'static [usize],
+    /// The rounds of the current pass, and the round it starts at.
+    batch: Option<(RoundBatch, usize)>,
     /// The folded tables, once stored.
     folded: Option<Folded>,
 }
@@ -233,8 +256,8 @@ impl<'a> CircuitProver<'a> {
             chis: Vec::with_capacity(n_mlv),
             claim: F192::ZERO,
             message: [F192::ZERO; 3],
-            paired_bit_rounds: 2 * PAIR_PASSES,
-            pair: None,
+            bit_passes: bit_passes(),
+            batch: None,
             folded: None,
         };
         (prover, round1)
@@ -256,17 +279,17 @@ impl<'a> CircuitProver<'a> {
     ///
     /// `G(0)` comes from the eq split `(1 + r_eq) G(0) + r_eq G(1) = claim`.
     /// At `r_eq = 1` that leaves it free, so the round computes it.
-    /// Only a table round can meet that: the bit rounds run on fixed challenges.
+    /// Only a table round can meet that: the bit rounds run on the fixed challenges.
     fn round(&mut self) -> [F192; 3] {
         let j = self.chis.len();
         let r_eq = self.r[j];
-        let (g0, g1, g_inf) = if let Some(pair) = self.pair.take() {
-            let (g1, g_inf) = pair.second(self.chis[j - 1]);
-            (None, g1, g_inf)
-        } else if self.folded.is_none() {
-            self.bit_round(j)
-        } else {
-            self.table_round(j)
+        let (g0, g1, g_inf) = match self.batch {
+            Some((batch, first)) if j < first + batch.len() => {
+                let (g1, g_inf) = batch.round(&self.chis[first..]);
+                (None, g1, g_inf)
+            }
+            _ if self.folded.is_none() => self.bit_round(j),
+            _ => self.table_round(j),
         };
         let g0 = g0.unwrap_or_else(|| (self.claim + r_eq * g1) * (F192::ONE + r_eq).inv());
         // G(X) = G(0) (1 + X) + G(1) X + G(inf) X (1 + X).
@@ -287,21 +310,26 @@ impl<'a> CircuitProver<'a> {
     fn bit_round(&mut self, j: usize) -> (Option<F192>, F192, F192) {
         let (bits, padding, r) = (self.bits, self.padding, self.r);
         let fold = BitFold::at_level(&self.lagrange, &self.chis);
-        let pair = if j < self.paired_bit_rounds {
-            bit_pass(bits, &fold, &r[j + 1..], &padding)
+        let (&k, rest) = self.bit_passes.split_first().expect("a bit pass left");
+        self.bit_passes = rest;
+        let batch = if !rest.is_empty() {
+            let _s = tracing::info_span!("TMP bit pass", j, m = self.r.len()).entered();
+            bit_pass(bits, &fold, &r[j + 1..], &padding, k)
         } else {
-            let (pair, t) = bit_pass_storing(bits, &fold, &r[j + 1..], &padding);
-            // The first table pass folds this pass's two challenges, a quarter of the tables out.
-            let room = t[0].len() / 4;
+            let _s = tracing::info_span!("TMP bit pass storing", j, m = self.r.len()).entered();
+            let (batch, t) = bit_pass_storing(bits, &fold, &r[j + 1..], &padding, k);
+            // The first table pass folds this pass's challenges.
+            let room = t[0].len() >> k;
             self.folded = Some(Folded {
                 t,
                 nxt: std::array::from_fn(|_| Vec::with_capacity(room)),
-                pending: Vec::with_capacity(2),
+                pending: Vec::with_capacity(k),
             });
-            pair
+            batch
         };
-        self.pair = Some(pair);
-        (None, pair.first.0, pair.first.1)
+        self.batch = Some((batch, j));
+        let (g1, g_inf) = batch.round(&[]);
+        (None, g1, g_inf)
     }
 
     /// A round on the folded tables: the first of a paired pass, or a single round.
@@ -320,15 +348,18 @@ impl<'a> CircuitProver<'a> {
                 &mut t.spare_capacity_mut()[..n_out]
             });
             // A level-`j` value covers `2^(K_SKIP + j)` bits of the witness.
-            let pair = table_pass([a, b, c], outs, &folded.pending, &r[j + 1..], &padding, K_SKIP + j);
+            let _s = tracing::info_span!("TMP table pass", j, m = self.r.len()).entered();
+            let batch = table_pass([a, b, c], outs, &folded.pending, &r[j + 1..], &padding, K_SKIP + j);
             // SAFETY: the pass wrote the first `n_out` slots of each table.
             unsafe { folded.swap_in(n_out) };
             folded.pending.clear();
-            self.pair = Some(pair);
-            return (None, pair.first.0, pair.first.1);
+            self.batch = Some((batch, j));
+            let (g1, g_inf) = batch.round(&[]);
+            return (None, g1, g_inf);
         }
 
         // One round at a time: fold each pending challenge, then sum the round.
+        let _s = tracing::info_span!("TMP single round", j, m = self.r.len()).entered();
         for &rho in &folded.pending {
             for t in &mut folded.t {
                 bind_low(t, rho);

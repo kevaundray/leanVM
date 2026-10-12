@@ -115,9 +115,15 @@ impl BitFold {
         self.imp.fold_block(rows, out);
     }
 
-    /// Folds 64 consecutive rows into coefficient planes, grouped by quad.
+    /// Folds 64 consecutive rows into coefficient planes, grouped by blocks of `2^B` rows, `B` from 2 to 4.
     ///
-    /// Plane `k`, register `u + 2v + 4g`, qword `l` is coefficient `k` of row `4 (8g + l) + u + 2v`.
+    /// Plane `k`, register `j`, qword `l` is coefficient `k` of row:
+    ///
+    /// ```text
+    ///     B = 2    4 (8 (j / 4) + l) + j % 4         quad 8 (j / 4) + l, its row j % 4
+    ///     B = 3    8 l + j                           octet l, its row j
+    ///     B = 4    16 (l % 4) + 8 (l / 4) + j        hex l % 4, its row 8 (l / 4) + j
+    /// ```
     #[cfg(all(
         target_arch = "x86_64",
         target_feature = "gfni",
@@ -130,9 +136,10 @@ impl BitFold {
     /// Requires AVX-512F, BW and VBMI and GFNI, which the target enables wherever this is compiled.
     #[inline]
     #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
-    pub fn fold_quads<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK]) -> [[__m512i; 8]; 3] {
+    pub fn fold_planes<const CHUNKS: usize, const B: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK]) -> [[__m512i; 8]; 3] {
+        const { assert!(2 <= B && B <= 4, "blocks of 4, 8 or 16 rows") };
         debug_assert_eq!(CHUNKS, self.n_chunks);
-        self.imp.fold_quads(rows)
+        self.imp.fold_planes::<CHUNKS, B>(rows)
     }
 }
 

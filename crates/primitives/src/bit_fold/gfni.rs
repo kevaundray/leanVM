@@ -101,19 +101,26 @@ static INPUT_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
     [c.inverse(), b.inverse(), a.inverse()]
 });
 
-/// Stages taking eight registers of one output coefficient, register = byte `o` and offset = value `p`, to quad planes.
+/// Stages taking eight registers of one output coefficient, register = byte `o` and offset = value `p`, to block planes.
 ///
-/// Stage `s` pairs on register bit `s`.
+/// Entry `b - 2` is for blocks of `2^b` consecutive values; stage `s` pairs on register bit `s`.
 ///
 /// ```text
-///     after the stages     offset = (o, then p bits 2..5)     register = p bits 0, 1, 5
+///     b = 2    register u + 2v + 4g    qword l  =  value 4 (8g + l) + u + 2v       the quads 8g + l
+///     b = 3    register j              qword l  =  value 8 l + j                    the octets l
+///     b = 4    register j              qword l  =  value 16 (l % 4) + 8 (l / 4) + j    the hexes l % 4, their halves l / 4
 /// ```
-///
-/// So register `u + 2v + 4g`, qword `l` is the coefficient of value `4 (8g + l) + u + 2v`: of quad `8g + l`, one register per `(u, v)`.
-static QUAD_STAGES: LazyLock<[Stage; 3]> = LazyLock::new(|| {
-    // The plain swaps leave offset = (o0, o1, p2, p3, p4, o2).
-    let to_qwords = |f: usize| (f & 3) | ((f >> 3) << 2) | (((f >> 2) & 1) << 5);
-    [Stage::swap(1, |f| f), Stage::swap(2, |f| f), Stage::swap(32, to_qwords)]
+static PLANE_STAGES: LazyLock<[[Stage; 3]; 3]> = LazyLock::new(|| {
+    // Quads: the plain swaps leave offset = (o0, o1, p2, p3, p4, o2).
+    let quads = |f: usize| (f & 3) | ((f >> 3) << 2) | (((f >> 2) & 1) << 5);
+    // Hexes: the plain swaps leave offset = (o, p3, p4, p5), and qword bits (p4, p5, p3) are wanted.
+    let hexes = |f: usize| (f & 7) | (((f >> 5) & 1) << 3) | (((f >> 3) & 3) << 4);
+    let low = |s: usize| Stage::swap(1 << s, |f| f);
+    [
+        [low(0), low(1), Stage::swap(32, quads)],
+        [low(0), low(1), low(2)],
+        [low(0), low(1), Stage::swap(4, hexes)],
+    ]
 });
 
 /// Store 24 registers of output bytes, register `o` holding byte `o` of 64 values, as those 64 values.
@@ -383,16 +390,19 @@ impl Imp {
         unsafe { self.fold_full::<CHUNKS>(rows, out) };
     }
 
-    /// Fold a full block into quad planes, see [`QUAD_STAGES`].
+    /// Fold a full block into the planes of blocks of `2^B` rows, see [`PLANE_STAGES`].
     #[inline]
     #[target_feature(enable = "avx512f", enable = "avx512bw", enable = "avx512vbmi", enable = "gfni")]
-    pub(super) fn fold_quads<const CHUNKS: usize>(&self, rows: &[[u8; CHUNKS]; BLOCK]) -> [[__m512i; 8]; 3] {
+    pub(super) fn fold_planes<const CHUNKS: usize, const B: usize>(
+        &self,
+        rows: &[[u8; CHUNKS]; BLOCK],
+    ) -> [[__m512i; 8]; 3] {
         let acc = self.fold_bytes::<CHUNKS>(rows);
         let mut planes = [[_mm512_setzero_si512(); 8]; 3];
         for (i, plane) in planes.iter_mut().enumerate() {
             plane.copy_from_slice(&acc[8 * i..8 * i + 8]);
         }
-        let stages = &*QUAD_STAGES;
+        let stages = &PLANE_STAGES[B - 2];
         for (s, stage) in stages.iter().enumerate() {
             for plane in &mut planes {
                 stage.apply(1 << s, plane);
