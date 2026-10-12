@@ -151,6 +151,10 @@ impl ClassBatch {
     }
 
     /// One prove pass, and each stage's seconds.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the one claim is flock's: reduction::prove sends its slices as prover messages after the root, its point being the reduction's challenges"
+    )]
     fn prove(&self) -> (ProofTranscript, [f64; 4]) {
         let _span = tracing::info_span!("Flock prove", n_log = self.n_log).entered();
         let t = Instant::now();
@@ -190,6 +194,10 @@ impl ClassBatch {
     }
 
     /// Replay `proof`, panicking on any refusal.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the one claim is flock's: reduction::verify reads its slices as prover messages after the root, its point being the reduction's challenges"
+    )]
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
         let mut vs = VerifierState::new(&SessionId::new(b"flock-class-batch"), &0u64, proof);
