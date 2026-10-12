@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package a fixed shielded benchmark and validate its device artifacts."""
+"""Package a fixed mobile benchmark and validate its device artifacts."""
 
 import argparse
 import json
@@ -12,7 +12,7 @@ import tempfile
 import zipfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("function", choices=("shielded_prove", "shielded_aggregate"))
+parser.add_argument("function", choices=("shielded_prove", "shielded_aggregate", "falcon_prove", "stateproof_prove"))
 parser.add_argument("--platform", choices=("android", "ios"), required=True)
 args = parser.parse_args()
 name = f"leanvm_mobile_bench::{args.function}"

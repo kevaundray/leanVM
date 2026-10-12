@@ -24,7 +24,8 @@ def desktop_fixture(plan, testbed, benchmark):
         value = (1, 9, 2)[(number - 1) % 3] * 1_000_000_000
         results = {name: {"latency": {"value": value, "lower_value": value, "upper_value": value},
                           "verify": {"value": 10, "lower_value": 5, "upper_value": 15},
-                          "proof-size": {"value": 1024},
+                          "proof-size": {"value": 1024}, "threads": {"value": count},
+                          "performance-threads": {"value": count}, "efficiency-threads": {"value": 0},
                           "peak-memory": {"value": (7, 3, 5)[(number - 1) % 3] * 1024 ** 2}}
                    for name in site.expected_results(benchmark)}
         samples.append({"round": number, "measured_at": MEASURED, "exit_code": 0, "threads": count, "results": results})
@@ -97,14 +98,16 @@ class SnapshotTests(unittest.TestCase):
         snapshot = self.publish()
         self.assertEqual(snapshot["snapshot"], self.plan["snapshot"])
         self.assertEqual(snapshot["schema_version"], 3)
-        self.assertEqual(len(snapshot["results"]), 56)
+        mobile = [row for row in snapshot["results"] if row["machine"]["arch"] == "aarch64"]
+        self.assertEqual(len(mobile), 8)
         for row in snapshot["results"]:
             self.assertEqual(row["samples_seconds"], [1, 9, 2])
             self.assertEqual((row["median_seconds"], row["min_seconds"], row["max_seconds"]), (2, 1, 9))
             self.assertNotIn("source", row)
             self.assertIn(f"/blob/{self.plan['snapshot']['commit']}/", row["program"]["source_url"])
             self.assertEqual(row["verification"]["verified_proofs"], row["verification"]["total_proofs"])
-            expected_peak = (6 if row["category"] == "aggregation" else 3) if row["machine"]["arch"] == "aarch64" else 7
+            mobile_peaks = {"Shielded transfers": 3, "Shielded aggregation": 6, "Falcon-512": 9, "L1 state proofs": 12}
+            expected_peak = mobile_peaks[row["program"]["name"]] if row["machine"]["arch"] == "aarch64" else 7
             self.assertEqual(row["peak_memory_bytes"], expected_peak * 1024 ** 2)
             self.assertTrue(row["peak_memory_method"].strip())
         self.assertEqual(site.load(self.output), snapshot)
@@ -112,9 +115,39 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(len(aggregate), 2)
         self.assertEqual(aggregate[0]["verification"]["parameters"]["verified_leaves"], 2)
         self.assertEqual(aggregate[0]["verification"]["parameters"]["aggregation_log_inv_rate"], 1)
+        for model in ("iPhone 14", "Google Pixel 7"):
+            device_rows = [row for row in mobile if row["machine"]["name"] == model]
+            self.assertEqual(len(device_rows), 4)
+            for title, description, guest, counts in (
+                ("Falcon-512", "Verify 1 signature", "falcon", {"signatures": 1}),
+                ("L1 state proofs", "Verify 1 account and 1 storage slot", "stateproof", {"accounts": 1, "storage_slots": 1}),
+            ):
+                result = next(row for row in device_rows if row["program"]["name"] == title)
+                self.assertEqual(result["category"], "program")
+                self.assertEqual(result["workload"], description)
+                self.assertTrue(result["program"]["source_url"].endswith(f"/programs/{guest}/guest/src/main.rs"))
+                parameters = result["verification"]["parameters"]
+                self.assertEqual({key: parameters[key] for key in counts}, counts)
+                self.assertEqual(parameters["log_inv_rate"], 2)
+                self.assertEqual(parameters["verified_proofs"], 4)
+        desktop = [row for row in snapshot["results"] if row["machine"]["arch"] != "aarch64"]
+        self.assertFalse(any(row["program"]["name"] in ("Falcon-512", "L1 state proofs") for row in desktop))
+
+    def test_plan_pins_all_four_mobile_functions_and_rejects_incomplete_suites(self):
+        self.assertEqual(self.plan["mobile"]["functions"], [
+            "leanvm_mobile_bench::shielded_prove", "leanvm_mobile_bench::shielded_aggregate",
+            "leanvm_mobile_bench::falcon_prove", "leanvm_mobile_bench::stateproof_prove",
+        ])
+        for functions in (self.plan["mobile"]["functions"][:2], self.plan["mobile"]["functions"][:-1],
+                          self.plan["mobile"]["functions"][:2] + self.plan["mobile"]["functions"][3:]):
+            with self.subTest(functions=functions):
+                plan = deepcopy(self.plan)
+                plan["mobile"]["functions"] = functions
+                with self.assertRaisesRegex(ValueError, "incomplete mobile plan"):
+                    site.validate_plan(plan)
 
     def test_aggregation_keeps_each_levels_round_maximum(self):
-        benchmark = "aggregate-leanxmss-100-2to1"
+        benchmark = "aggregate-leanxmss-100-2to1-16thread"
         document = desktop_fixture(self.plan, "x86-64", benchmark)
         for sample, first, node in zip(document["samples"], (11, 4, 8), (13, 17, 12)):
             sample["results"][benchmark + "-first"]["peak-memory"]["value"] = first * 1024
@@ -231,6 +264,60 @@ class SnapshotTests(unittest.TestCase):
                 self.save(path, raw)
                 self.assert_refused_without_mutation()
 
+    def test_each_device_requires_both_single_unit_workloads_without_history_fallback(self):
+        report = site.mobile_report
+        for platform in ("ios", "android"):
+            directory = self.artifacts / f"snapshot-result-mobile-{platform}"
+            metadata_path, raw_path = directory / "metadata.json", directory / "raw-results.json"
+            original_metadata, original_raw = site.load(metadata_path), site.load(raw_path)
+            for missing in ((report.FALCON_FUNCTION,), (report.STATEPROOF_FUNCTION,),
+                            (report.FALCON_FUNCTION, report.STATEPROOF_FUNCTION)):
+                with self.subTest(platform=platform, missing=missing):
+                    metadata, raw = deepcopy(original_metadata), deepcopy(original_raw)
+                    entries = next(iter(raw[0]["benchmark_results"].values()))
+                    entries[:] = [entry for entry in entries if entry["function"] not in missing]
+                    summary_entries = raw[0]["summary"]["device_summaries"][0]["benchmarks"]
+                    summary_entries[:] = [entry for entry in summary_entries if entry["function"] not in missing]
+                    metadata["functions"] = [function for function in metadata["functions"] if function not in missing]
+                    for function in missing:
+                        del metadata["benchmarks"][function]
+                    self.save(metadata_path, metadata)
+                    self.save(raw_path, raw)
+                    self.assert_refused_without_mutation()
+            self.save(metadata_path, original_metadata)
+            self.save(raw_path, original_raw)
+
+    def test_single_unit_counts_rates_verification_and_memory_block_atomic_publication_on_each_device(self):
+        report = site.mobile_report
+        for platform in ("ios", "android"):
+            directory = self.artifacts / f"snapshot-result-mobile-{platform}"
+            metadata_path, raw_path = directory / "metadata.json", directory / "raw-results.json"
+            original_metadata, original_raw = site.load(metadata_path), site.load(raw_path)
+            for function, counts in (
+                (report.FALCON_FUNCTION, ("signatures",)),
+                (report.STATEPROOF_FUNCTION, ("accounts", "storage_slots")),
+            ):
+                changes = [(key, value) for key in counts for value in (0, 2, True, 1.0)]
+                changes += [("log_inv_rate", 1), ("log_inv_rate", 3), ("verified_proofs", 3),
+                            ("failure", "proof verification failed"), ("process_peak_memory_kb", None)]
+                for key, value in changes:
+                    with self.subTest(platform=platform, function=function, key=key, value=value):
+                        metadata, raw = deepcopy(original_metadata), deepcopy(original_raw)
+                        result = next(entry for entry in next(iter(raw[0]["benchmark_results"].values()))
+                                      if entry["function"] == function)
+                        if key == "failure":
+                            result[key] = value
+                        elif key == "process_peak_memory_kb":
+                            del result["samples"][1][key]
+                        else:
+                            result["custom_metrics"]["run_u64"][key] = value
+                            metadata["benchmarks"][function][key] = value
+                        self.save(metadata_path, metadata)
+                        self.save(raw_path, raw)
+                        self.assert_refused_without_mutation()
+            self.save(metadata_path, original_metadata)
+            self.save(raw_path, original_raw)
+
     def test_duplicate_or_unexpected_artifact_and_json_key_are_rejected(self):
         duplicate = self.artifacts / "snapshot-result-desktop-x86-64-leanxmss-100-4thread-copy"
         duplicate.mkdir()
@@ -242,9 +329,39 @@ class SnapshotTests(unittest.TestCase):
         self.assert_refused_without_mutation()
 
     def test_aggregation_requires_both_levels(self):
-        path = self.artifacts / "snapshot-result-desktop-arm64-aggregate-leanxmss-100-2to1" / "result.json"
+        path = self.artifacts / "snapshot-result-desktop-arm64-aggregate-leanxmss-100-2to1-16thread" / "result.json"
         document = site.load(path)
-        document["samples"][0]["results"].pop("aggregate-leanxmss-100-2to1-node")
+        document["samples"][0]["results"].pop("aggregate-leanxmss-100-2to1-16thread-node")
+        self.save(path, document)
+        self.assert_refused_without_mutation()
+
+    def test_os_visible_ram_variation_preserves_platform_and_exact_observations(self):
+        original = site.load(self.desktop)
+        varied = deepcopy(original)
+        varied["machine"]["memory_bytes"] -= 24 * 1024
+        varied["machine"]["id"] = site.machine_id(varied["machine"])
+        self.save(self.desktop, varied)
+        snapshot = self.publish()
+        rows = [row for row in snapshot["results"] if row["machine"]["arch"] == "x86-64"]
+        self.assertEqual(len({row["machine"]["id"] for row in rows}), 1)
+        self.assertEqual({row["machine"]["memory_bytes"] for row in rows},
+                         {original["machine"]["memory_bytes"], varied["machine"]["memory_bytes"]})
+
+    def test_changed_platform_or_fixed_allocation_cannot_replace_snapshot(self):
+        path = self.artifacts / "snapshot-result-desktop-x86-64-hash-50000-16thread" / "result.json"
+        original = site.load(path)
+        for field, value in (("cpu", "Other CPU"), ("os", "Linux other"),
+                             ("logical_cpus", 32), ("arch", "arm64")):
+            with self.subTest(field=field):
+                document = deepcopy(original)
+                document["machine"][field] = value
+                document["machine"]["id"] = site.machine_id(document["machine"])
+                self.save(path, document)
+                self.assert_refused_without_mutation()
+        document = deepcopy(original)
+        document["threads"] = 8
+        for sample in document["samples"]:
+            sample["threads"] = 8
         self.save(path, document)
         self.assert_refused_without_mutation()
 
@@ -264,6 +381,36 @@ class SnapshotTests(unittest.TestCase):
                     document["samples"][0]["exit_code"] = 1
                 self.save(self.desktop, document)
                 self.assert_refused_without_mutation()
+
+    def test_fixed16_requires_actual_pool_evidence_without_relabeling_history(self):
+        benchmark = "hash-50000-16thread"
+        path = self.artifacts / f"snapshot-result-desktop-x86-64-{benchmark}" / "result.json"
+        original = site.load(path)
+        for mutation in ("missing", "wrong-count", "extra-efficiency", "historical-name"):
+            with self.subTest(mutation=mutation):
+                document = deepcopy(original)
+                results = document["samples"][0]["results"]
+                metrics = results[benchmark]
+                if mutation == "missing":
+                    del metrics["threads"]
+                elif mutation == "wrong-count":
+                    metrics["threads"]["value"] = 8
+                elif mutation == "extra-efficiency":
+                    metrics["performance-threads"]["value"] = 15
+                    metrics["efficiency-threads"]["value"] = 1
+                else:
+                    results["hash-50000"] = results.pop(benchmark)
+                self.save(path, document)
+                self.assert_refused_without_mutation()
+
+    def test_unspecified_historical_plan_cannot_be_used_as_fixed16(self):
+        plan = deepcopy(self.plan)
+        plan["desktop"]["benchmarks"] = [
+            name.replace("-16thread", "") for name in plan["desktop"]["benchmarks"]
+        ]
+        with self.assertRaises(ValueError):
+            site.validate_plan(plan)
+        self.assertIsNone(site.workload("hash-50000")[4])
 
     def test_failed_atomic_replace_preserves_previous_snapshot(self):
         self.output.write_bytes(b"previous")

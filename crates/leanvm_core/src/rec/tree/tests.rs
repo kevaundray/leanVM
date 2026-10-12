@@ -1,5 +1,5 @@
 use super::claims::{Bits, DenseClaim, DenseTerm, MatrixClaim, NodeClaims};
-use super::reduce::{DenseProver, DenseVars, LABEL, MatrixProver, MatrixReduced, ReduceError};
+use super::reduce::{self, DenseProver, DenseVars, MatrixProver, MatrixReduced, ReduceError};
 use super::statement::{Section, digest_halves_rows};
 use super::*;
 use crate::cpu::{Claim, Prover};
@@ -10,7 +10,7 @@ use crate::rv::asm::*;
 use crate::tables::TableId;
 use design::NodeRows;
 use fiat_shamir::arith::{Arith, Native};
-use fiat_shamir::transcript::{Challenger, ProverState, Transmitter, VerifierState};
+use fiat_shamir::{LengthPrefixed, ProofTranscript, ProverState, SessionId, VerifierState};
 use flock::lincheck::MatrixForm;
 use primitives::multilinear::mle_eval;
 use primitives::test_util::Rng;
@@ -60,6 +60,7 @@ fn fixture() -> &'static Fixture {
                 arity_0: 2,
                 arity: 2,
                 rate: Rate::MIN,
+                claims: None,
             },
         )
         .expect("a tree");
@@ -136,6 +137,7 @@ fn one_leaf_is_a_root() {
             arity_0: 1,
             arity: 2,
             rate: Rate::MIN,
+            claims: None,
         },
     )
     .expect("a tree");
@@ -163,7 +165,8 @@ fn what_a_prover_is_handed_is_checked() {
                     leaf: shape,
                     arity_0,
                     arity,
-                    rate: Rate::MIN
+                    rate: Rate::MIN,
+                    claims: None,
                 }
             ),
             Err(TreeError::Arity { .. })
@@ -177,8 +180,8 @@ fn what_a_prover_is_handed_is_checked() {
     // A leaf that does not verify, and one of another shape.
     let pairs = f.pairs();
     let mut forged = f.leaves[1].0.clone();
-    let mid = forged.0.stream.len() / 2;
-    forged.0.stream[mid] += F192::ONE;
+    let mid = forged.0.narg.len() / 24 / 2;
+    forged.0.narg[24 * mid] ^= 1;
     assert!(matches!(
         f.tree.prove_first(&[pairs[0], Leaf::new(&forged, f.leaves[1].1)]),
         Err(TreeError::Leaf { index: 1, .. })
@@ -219,12 +222,9 @@ fn mixed_levels_are_refused_at_the_root() {
 }
 
 // The reduction an honest prover proves, as its rows read it.
-fn honest_reduction(f: &Fixture, rows: &NodeRows) -> RawProof {
-    let proof = rows.claim_values().prove(&f.tree.design.vars, &f.tree.tables);
-    RawProof {
-        stream: proof.stream,
-        merkle: Vec::new(),
-    }
+fn honest_reduction(f: &Fixture, rows: &NodeRows) -> ProofTranscript {
+    rows.claim_values()
+        .prove(&f.tree.design.session, &f.tree.design.vars, &f.tree.tables)
 }
 
 // The circuit a prover's rows build, at the nodes' heights.
@@ -232,9 +232,9 @@ fn proven_circuit(f: &Fixture, rows: NodeRows) -> Circuit {
     let reduction = honest_reduction(f, &rows);
     let Finished {
         mut circuit, failures, ..
-    } = rows.reduce(&f.tree.design, ProofSource::Proof(&reduction));
+    } = rows.reduce(&f.tree.design, ProofSource::Proof(&reduction, &[]));
     assert!(failures.is_empty(), "{failures:?}");
-    circuit.floor = f.tree.design.taus;
+    circuit.floor = f.tree.design.tiers[SMALL].taus;
     circuit
 }
 
@@ -244,20 +244,22 @@ fn a_proven_circuit_is_the_shapes() {
     let d = &f.tree.design;
     let leaves: Vec<LeafWitness> = (f.leaves[..2].iter())
         .map(|(proof, output)| LeafWitness {
-            raw: program().verify_to_raw(*output, proof).expect("an honest leaf"),
+            proof: &proof.0,
+            openings: program().verify_recording(*output, proof).expect("an honest leaf"),
             output: *output.words(),
+            set: [0; 4],
         })
         .collect();
     let rows = d.first(&NodeInputs::Prove {
         items: &leaves,
         tables: &f.tree.tables,
+        union: None,
     });
     assert!(
-        &proven_circuit(f, rows) == f.tree.circuit(Kind::First),
+        &proven_circuit(f, rows) == f.tree.circuit(0),
         "the leaves build another circuit"
     );
 
-    let raw = |p: &TreeProof| f.tree.read(p).expect("an honest child");
     let statements = f
         .firsts
         .each_ref()
@@ -265,16 +267,21 @@ fn a_proven_circuit_is_the_shapes() {
     let items: Vec<ChildWitness<'_>> = (f.firsts.iter().zip(&statements))
         .map(|(p, statement)| ChildWitness {
             statement,
-            raw: raw(p),
-            columns: &f.tree.columns[Kind::First as usize],
+            proof: &p.proof,
+            openings: f.tree.read(p, 0).expect("an honest child"),
+            columns: &f.tree.columns[0],
         })
         .collect();
-    let rows = d.node(&NodeInputs::Prove {
-        items: &items,
-        tables: &f.tree.tables,
-    });
+    let rows = d.node(
+        &NodeInputs::Prove {
+            items: &items,
+            tables: &f.tree.tables,
+            union: None,
+        },
+        1,
+    );
     assert!(
-        &proven_circuit(f, rows) == f.tree.circuit(Kind::Node),
+        &proven_circuit(f, rows) == f.tree.circuit(1),
         "the children build another circuit"
     );
 }
@@ -300,7 +307,7 @@ fn fake_first(tree: &Tree<'_>, honest: &TreeProof, outputs: &[[u64; 4]]) -> (Cir
         failures,
     } = b.finish();
     assert!(failures.is_empty(), "{failures:?}");
-    circuit.floor = tree.design.taus;
+    circuit.floor = tree.design.tiers[SMALL].taus;
     (circuit, assignment)
 }
 
@@ -311,38 +318,43 @@ fn a_fake_child_circuit_is_refused_at_the_root() {
     let d = &f.tree.design;
     let fake_outputs = [[0xdead, 1, 2, 3], [0xbeef, 4, 5, 6]];
     let (fake, assignment) = fake_first(&f.tree, &f.firsts[0], &fake_outputs);
-    assert_eq!(fake.heights(), d.taus, "the fake has the nodes' heights");
+    assert_eq!(fake.heights(), d.tiers[SMALL].taus, "the fake has the nodes' heights");
     let words: Vec<F192> = (assignment.statement().iter())
         .map(|l| F192::new(l[0], l[1], l[2]))
         .collect();
     let child = TreeProof {
-        kind: Kind::First,
+        circuit: 0,
         words,
-        proof: fake.prove(&assignment, d.iv, d.rate).expect("the fake fits"),
+        proof: fake.prove(&assignment, &d.session, d.rate).expect("the fake fits"),
         rate: d.rate,
     };
     assert!(
-        f.tree.read(&child).is_err(),
+        f.tree.read(&child, 0).is_err(),
         "natively, the fake is no first-level node"
     );
     let limbs: Vec<[u64; 4]> = child.words.iter().map(|w| [w.c0, w.c1, w.c2, 0]).collect();
-    let raw = fake
-        .verify_to_raw(&limbs, d.iv, d.rate, &child.proof)
+    let openings = fake
+        .verify(&limbs, &d.session, d.rate, &child.proof)
         .expect("the fake proves its own circuit");
 
     // The prover hands the rows the fake's fixed columns, and its fixed polynomial the fake's half.
-    let columns = FixedColumns::of(&fake, &d.taus);
+    let columns = FixedColumns::of(&fake, &d.tiers[SMALL].taus);
     let mut tables = f.tree.tables.clone();
-    tables.0[DensePoly::Fixed as usize] = d.fixed.polynomial([&columns, &f.tree.columns[Kind::Node as usize]]);
+    tables.0[DensePoly::Fixed as usize] = d.tiers[SMALL].fixed.polynomial(&[&columns, &f.tree.columns[1]]);
     let statement = TreeStatement::new(d.statement, child.words);
     let items: Vec<ChildWitness<'_>> = (0..2)
         .map(|_| ChildWitness {
             statement: &statement,
-            raw: raw.clone(),
+            proof: &child.proof,
+            openings: openings.clone(),
             columns: &columns,
         })
         .collect();
-    let inputs = |tables| NodeInputs::Prove { items: &items, tables };
+    let inputs = |tables| NodeInputs::Prove {
+        items: &items,
+        tables,
+        union: None,
+    };
     let outputs: Vec<Output> = [fake_outputs, fake_outputs]
         .concat()
         .into_iter()
@@ -350,7 +362,7 @@ fn a_fake_child_circuit_is_refused_at_the_root() {
         .collect();
 
     // An honest reduction over the tree's polynomials fails on the fake's hints.
-    let honest = f.tree.prove_rows(d.node(&inputs(&f.tree.tables)), Kind::Node);
+    let honest = f.tree.prove_rows(d.node(&inputs(&f.tree.tables), 1), 1);
     assert!(
         matches!(&honest, Err(TreeError::Unsatisfied(check)) if check.scope()[0] == "reduction"),
         "{:?}",
@@ -358,25 +370,21 @@ fn a_fake_child_circuit_is_refused_at_the_root() {
     );
 
     // Reduced over the forged polynomial, every row holds and the root's proof verifies.
-    let rows = d.node(&inputs(&tables));
-    let reduction = rows.claim_values().prove(&d.vars, &tables);
-    let reduction = RawProof {
-        stream: reduction.stream,
-        merkle: Vec::new(),
-    };
+    let rows = d.node(&inputs(&tables), 1);
+    let reduction = rows.claim_values().prove(&d.session, &d.vars, &tables);
     let Finished {
         assignment, failures, ..
-    } = rows.reduce(d, ProofSource::Proof(&reduction));
+    } = rows.reduce(d, ProofSource::Proof(&reduction, &[]));
     assert!(failures.is_empty(), "{failures:?}");
     let root = TreeProof {
-        kind: Kind::Node,
+        circuit: 1,
         words: (assignment.statement().iter())
             .map(|l| F192::new(l[0], l[1], l[2]))
             .collect(),
-        proof: (f.tree.circuit(Kind::Node).prove(&assignment, d.iv, d.rate)).expect("the node fits"),
+        proof: (f.tree.circuit(1).prove(&assignment, &d.session, d.rate)).expect("the node fits"),
         rate: d.rate,
     };
-    f.tree.read(&root).expect("the root's recursion proof verifies");
+    f.tree.read(&root, 1).expect("the root's recursion proof verifies");
     assert_eq!(
         f.tree.verify(&root, &outputs),
         Err(TreeError::Claim(FalseClaim::Dense(DensePoly::Fixed)))
@@ -398,16 +406,21 @@ fn shift(values: &mut [F192], weights: &[F192]) {
 }
 
 // The honest reduction of `claims`, its dense or its matrix outputs moved along their final identity.
-fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<F192>, forge: Forge) -> RawProof {
-    let mut ps = ProverState::from_label(LABEL);
-    ps.add_scalars(&claims.bound);
+fn forged_reduction(
+    tree: &SessionId,
+    vars: &DenseVars,
+    tables: &DenseTables,
+    claims: &NodeClaims<F192>,
+    forge: Forge,
+) -> ProofTranscript {
+    let mut ps = ProverState::new(&reduce::session(tree), &LengthPrefixed(&claims.bound));
 
-    let theta = ps.sample();
+    let theta = ps.verifier_message();
     let mut dense = DenseProver::new(vars, tables, &claims.dense, theta);
     let point: Vec<F192> = (0..dense.rounds())
         .map(|i| {
-            ps.add_scalars(&dense.message());
-            let r = ps.sample();
+            ps.prover_messages(&dense.message());
+            let r = ps.verifier_message();
             dense.bind(i, r);
             r
         })
@@ -422,14 +435,14 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
             .collect();
         shift(&mut values, &weights);
     }
-    ps.add_scalars(&values);
+    ps.prover_messages(&values);
 
-    let theta = ps.sample();
+    let theta = ps.verifier_message();
     let mut rows = MatrixProver::new(&claims.matrices, theta);
     let r: Vec<F192> = (0..FlockId::MAX_K_LOG)
         .map(|i| {
-            ps.add_scalars(&rows.message());
-            let x = ps.sample();
+            ps.prover_messages(&rows.message());
+            let x = ps.verifier_message();
             rows.bind(i, x);
             x
         })
@@ -437,8 +450,8 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
     let mut cols = rows.columns(&claims.matrices, &r);
     let s: Vec<F192> = (0..FlockId::MAX_K_LOG)
         .map(|i| {
-            ps.add_scalars(&cols.message());
-            let x = ps.sample();
+            ps.prover_messages(&cols.message());
+            let x = ps.verifier_message();
             cols.bind(i, x);
             x
         })
@@ -449,12 +462,8 @@ fn forged_reduction(vars: &DenseVars, tables: &DenseTables, claims: &NodeClaims<
         let weights = MatrixReduced::final_weights(&mut Native, &claims.matrices, &powers, &r, &s);
         shift(&mut values, weights.as_flattened());
     }
-    ps.add_scalars(&values);
-    let proof = ps.into_proof();
-    RawProof {
-        stream: proof.stream,
-        merkle: Vec::new(),
-    }
+    ps.prover_messages(&values);
+    ps.into_proof()
 }
 
 // A first-level node whose reduction a cheating prover forged: its rows hold, its claims are false.
@@ -462,25 +471,28 @@ fn forged_first(f: &Fixture, forge: Forge) -> TreeProof {
     let d = &f.tree.design;
     let items: Vec<LeafWitness> = (f.leaves[..2].iter())
         .map(|(proof, output)| LeafWitness {
-            raw: program().verify_to_raw(*output, proof).expect("an honest leaf"),
+            proof: &proof.0,
+            openings: program().verify_recording(*output, proof).expect("an honest leaf"),
             output: *output.words(),
+            set: [0; 4],
         })
         .collect();
     let rows = d.first(&NodeInputs::Prove {
         items: &items,
         tables: &f.tree.tables,
+        union: None,
     });
-    let reduction = forged_reduction(&d.vars, &f.tree.tables, &rows.claim_values(), forge);
+    let reduction = forged_reduction(&d.session, &d.vars, &f.tree.tables, &rows.claim_values(), forge);
     let Finished {
         assignment, failures, ..
-    } = rows.reduce(d, ProofSource::Proof(&reduction));
+    } = rows.reduce(d, ProofSource::Proof(&reduction, &[]));
     assert!(failures.is_empty(), "{forge:?}: {failures:?}");
     TreeProof {
-        kind: Kind::First,
+        circuit: 0,
         words: (assignment.statement().iter())
             .map(|l| F192::new(l[0], l[1], l[2]))
             .collect(),
-        proof: (f.tree.circuit(Kind::First).prove(&assignment, d.iv, d.rate)).expect("the node fits"),
+        proof: (f.tree.circuit(0).prove(&assignment, &d.session, d.rate)).expect("the node fits"),
         rate: d.rate,
     }
 }
@@ -537,13 +549,22 @@ fn tree_proof_bytes_round_trip() {
     // The body starts after the 6-byte header.
     //
     //     | header: 6 | rate: 1 | n_words: 4 | kind word ...
-    //     byte 6 = the rate, byte 11 = the kind word's low byte
+    //     byte 6 = the rate, byte 11 = the kind word's low byte, byte 19 its second limb's
     let mut kind = bytes.clone();
     kind[11] = 2;
+    let foreign = TreeProof::from_bytes(&kind).expect("a kind is any index");
+    let outputs: Vec<Output> = f.leaves.iter().map(|&(_, o)| o).collect();
     assert_eq!(
-        TreeProof::from_bytes(&kind),
+        f.tree.verify(&foreign, &outputs),
+        Err(TreeError::Circuit(2)),
+        "an index of no circuit"
+    );
+    let mut wide = bytes.clone();
+    wide[19] = 1;
+    assert_eq!(
+        TreeProof::from_bytes(&wide),
         Err(DecodeError::Malformed),
-        "a kind that is no bit"
+        "a kind that is no index"
     );
     let mut rate = bytes;
     rate[6] = 0;
@@ -554,7 +575,7 @@ fn tree_proof_bytes_round_trip() {
     );
 }
 
-// Claims on three tables at random points, one of several terms with public bits, a kind bit and a scale.
+// Claims on every table at random points, one of several terms with public bits, a kind bit and a scale, the last.
 fn dense_claims(rng: &mut Rng, tables: &DenseTables, vars: &DenseVars) -> Vec<DenseClaim<F192>> {
     let mut claims = Vec::new();
     for poly in DensePoly::ALL {
@@ -577,7 +598,7 @@ fn dense_claims(rng: &mut Rng, tables: &DenseTables, vars: &DenseVars) -> Vec<De
                 value: bits,
                 len: n - 1 - n_low,
             },
-            top: Some(F192::new(top, 0, 0)),
+            top: vec![F192::new(top, 0, 0)],
             scale: Some(scale),
             value: mle_eval(&tables.0[DensePoly::Fixed as usize], &point),
         }
@@ -597,14 +618,14 @@ fn dense_claims(rng: &mut Rng, tables: &DenseTables, vars: &DenseVars) -> Vec<De
 #[test]
 fn the_dense_reduction_reduces_to_the_polynomials() {
     let mut rng = Rng::new(17);
-    let vars = DenseVars([3, 6, 7]);
+    let vars = DenseVars([3, 6, 7, 5]);
     let tables = DenseTables(vars.0.map(|n| (0..1 << n).map(|_| F64(rng.next_u64())).collect()));
     let claims = dense_claims(&mut rng, &tables, &vars);
     let prove = |claims: &[DenseClaim<F192>], forge: bool| {
-        let mut ps = ProverState::from_label(LABEL);
+        let mut ps = ProverState::new(&reduce::session(&SessionId::new(b"tree-test")), &0u64);
         if forge {
             // A cheating prover: honest rounds, then values that meet the final identity of the claims as stated.
-            let theta = ps.sample();
+            let theta = ps.verifier_message();
             let mut p = DenseProver::new(&vars, &tables, claims, theta);
             let n_terms = claims.iter().map(|c| c.terms.len()).sum();
             let powers = Native.powers(theta, n_terms);
@@ -615,8 +636,8 @@ fn the_dense_reduction_reduces_to_the_polynomials() {
             let point: Vec<F192> = (0..p.rounds())
                 .map(|i| {
                     let [c0, c2] = p.message();
-                    ps.add_scalars(&[c0, c2]);
-                    let r = ps.sample();
+                    ps.prover_messages(&[c0, c2]);
+                    let r = ps.verifier_message();
                     claim = c0 + (claim + c2) * r + c2 * r * r;
                     p.bind(i, r);
                     r
@@ -630,14 +651,14 @@ fn the_dense_reduction_reduces_to_the_polynomials() {
             let mut values = p.finals();
             let rest = (values.iter().zip(&weights).skip(1)).fold(F192::ZERO, |acc, (&v, &w)| acc + v * w);
             values[0] = (claim + rest) * weights[0].inv();
-            ps.add_scalars(&values);
+            ps.prover_messages(&values);
         } else {
             DenseProver::prove(&mut ps, &vars, &tables, claims);
         }
         ps.into_proof()
     };
     let verify = |claims: &[DenseClaim<F192>], proof| {
-        let mut vs = VerifierState::from_label(LABEL, proof);
+        let mut vs = VerifierState::new(&reduce::session(&SessionId::new(b"tree-test")), &0u64, proof);
         vars.verify(&mut vs, claims)
     };
 
@@ -654,7 +675,8 @@ fn the_dense_reduction_reduces_to_the_polynomials() {
 
     // A false claim: the honest prover's reduction is refused, and a cheating prover's reduces it to a false value.
     let mut false_claims = claims;
-    false_claims[6].terms[1].value += F192::ONE;
+    let last = false_claims.len() - 1;
+    false_claims[last].terms[1].value += F192::ONE;
     assert_eq!(verify(&false_claims, &proof).err(), Some(ReduceError::Dense));
     let forged = prove(&false_claims, true);
     let reduced = verify(&false_claims, &forged).expect("the forgery meets the final identity");
@@ -685,7 +707,7 @@ fn block_claim(
                 value: bits,
                 len: n - n_low,
             },
-            top: None,
+            top: Vec::new(),
             scale: Some(rng.ext()),
             value: mle_eval(&tables.0[poly as usize], &point),
         });
@@ -699,7 +721,7 @@ fn the_dense_reduction_reduces_claims_on_a_prefix() {
     // blocks of the image and the fixed polynomial have one or two low points, so their weights stay factored for a few
     // rounds; the bytecode's has three, written out at once.
     let mut rng = Rng::new(23);
-    let vars = DenseVars([3, 5, 14]);
+    let vars = DenseVars([3, 5, 14, 4]);
     let tables = DenseTables(vars.0.map(|n| (0..1 << n).map(|_| F64(rng.next_u64())).collect()));
     let mut claims: Vec<DenseClaim<F192>> = (0..3)
         .map(|_| {
@@ -717,10 +739,11 @@ fn the_dense_reduction_reduces_claims_on_a_prefix() {
         &[(2, 0xAAA), (5, 7), (2, 0xAAA)],
     ));
     claims.push(block_claim(&mut rng, &tables, &vars, DensePoly::Fixed, &[(5, 7)]));
-    let mut ps = ProverState::from_label(LABEL);
+    claims.push(block_claim(&mut rng, &tables, &vars, DensePoly::Wide, &[(1, 3)]));
+    let mut ps = ProverState::new(&reduce::session(&SessionId::new(b"tree-test")), &0u64);
     DenseProver::prove(&mut ps, &vars, &tables, &claims);
     let proof = ps.into_proof();
-    let mut vs = VerifierState::from_label(LABEL, &proof);
+    let mut vs = VerifierState::new(&reduce::session(&SessionId::new(b"tree-test")), &0u64, &proof);
     let reduced = vars.verify(&mut vs, &claims).expect("an honest reduction");
     for poly in DensePoly::ALL {
         let point = &reduced.point[..vars.0[poly as usize]];
@@ -774,12 +797,12 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
     let mut rng = Rng::new(9);
     let claims = matrix_claims(&mut rng);
     let prove = |claims: &[MatrixClaim<F192>]| {
-        let mut ps = ProverState::from_label(LABEL);
+        let mut ps = ProverState::new(&reduce::session(&SessionId::new(b"tree-test")), &0u64);
         MatrixProver::prove(&mut ps, claims);
         ps.into_proof()
     };
     let verify = |claims: &[MatrixClaim<F192>], proof| {
-        let mut vs = VerifierState::from_label(LABEL, proof);
+        let mut vs = VerifierState::new(&reduce::session(&SessionId::new(b"tree-test")), &0u64, proof);
         MatrixReduced::verify(&mut vs, claims)
     };
     let proof = prove(&claims);
@@ -801,4 +824,34 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
             "claim {c}"
         );
     }
+}
+
+// A tree of outputs is as protocol version `leanvm-tree-12` built it, before the tiers: the same heights, statement
+// layout and session tag but for the version.
+#[test]
+fn a_tree_of_outputs_is_unchanged_from_tree_12() {
+    let d = &fixture().tree.design;
+    assert_eq!(d.tiers.len(), 1);
+    assert_eq!(d.tiers[SMALL].taus.into_values(), [16, 16, 14, 10, 14, 10]);
+    assert_eq!(d.statement.len(), 97);
+    let sections = [
+        Section::Kind,
+        Section::Digest,
+        Section::DensePoint,
+        Section::DenseValues,
+        Section::Rows,
+        Section::Cols,
+        Section::Matrices,
+    ];
+    assert_eq!(
+        sections.map(|s| d.statement.range(s)),
+        [0..1, 1..3, 3..24, 24..27, 27..41, 41..55, 55..97]
+    );
+    assert_eq!(
+        d.session_with(b"leanvm-tree-12").0,
+        [
+            131, 35, 57, 135, 111, 161, 159, 65, 198, 173, 203, 59, 29, 190, 76, 72, 162, 204, 82, 150, 192, 101, 73,
+            98, 94, 12, 195, 130, 18, 239, 205, 34
+        ]
+    );
 }

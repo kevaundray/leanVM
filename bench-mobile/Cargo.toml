@@ -21,6 +21,8 @@ path = "src/bin/smoke.rs"
 leanvm = { path = "../crates/leanvm_core" }
 parallel = { path = "../crates/parallel" }
 shielded-host = { path = "../programs/shielded/host" }
+falcon-host = { path = "../programs/falcon/host" }
+stateproof-host = { path = "../programs/stateproof/host" }
 mobench-sdk = { git = "https://github.com/worldcoin/mobile-bench-rs", rev = "217cfd4f78db1284276a1a1da44e3bf473729f5c", default-features = false, features = ["registry"] }
 inventory = "0.3"
 serde_json = "1"

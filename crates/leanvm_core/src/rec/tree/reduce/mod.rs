@@ -2,16 +2,15 @@
 //!
 //! It is a small proof of its own, made natively by the node's prover and verified in the node's rows:
 //!
-//! - its transcript first binds every verified proof's final state and every hint the claims rest on;
+//! - its transcript's instance is every verified proof's final digest and every hint the claims rest on;
 //! - the dense reduction takes every claim on the dense polynomials to one point;
 //! - the matrix reduction takes every claim on the flock circuits' matrices to one row point and one column point.
 //!
 //! Each is a sumcheck: if an input claim is false, an output claim is false but with probability about `(claims + 2 rounds) / |E|`.
 
 use super::claims::{DensePoly, NodeClaims};
-use crate::rec::circuit::{Limbs, digest_limbs};
 use fiat_shamir::arith::Verifier;
-use fiat_shamir::transcript::{ProofTranscript, ProverState, TranscriptError, Transmitter};
+use fiat_shamir::{LengthPrefixed, ProofTranscript, ProverState, SessionId, TranscriptError};
 use primitives::field::{F64, F192, F192Unreduced, mul_base8, mul_unreduced4, mul4};
 use thiserror::Error;
 use tracing::info_span;
@@ -22,8 +21,15 @@ mod matrix;
 pub(crate) use dense::{DenseProver, DenseReduced, DenseVars};
 pub(crate) use matrix::{MatrixProver, MatrixReduced};
 
-/// The label every node's reduction transcript starts from.
-pub(crate) const LABEL: &[u8] = b"leanvm-tree-reduction-3";
+/// The protocol half of a node's reduction's session tag.
+const SESSION_TAG: &[u8] = b"leanvm-tree-reduction-5";
+
+/// The session a node's reduction transcript starts from: the reduction's tag, then the tree's session.
+///
+/// So the reduction names the relation it is for, the tree's circuits, as its recursion proofs do.
+pub(crate) fn session(tree: &SessionId) -> SessionId {
+    SessionId::new(&[SESSION_TAG, &tree.0].concat())
+}
 
 /// Why a node's reduction refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -31,9 +37,6 @@ pub(crate) enum ReduceError {
     /// The reduction's stream is malformed.
     #[error(transparent)]
     Transcript(#[from] TranscriptError),
-    /// A value the transcript binds is not the one the claims rest on.
-    #[error("a bound value is not the claims'")]
-    Bound,
     /// The dense reduction's final identity fails.
     #[error("the dense reduction's final identity fails")]
     Dense,
@@ -54,22 +57,15 @@ pub(crate) struct Reduced<E> {
 #[derive(Clone, Debug)]
 pub(crate) struct DenseTables(pub(crate) [Vec<F64>; DensePoly::COUNT]);
 
-/// The reduction transcript's starting state.
-pub(crate) fn initial_state() -> Limbs {
-    digest_limbs(&primitives::hash::hash(LABEL))
-}
-
 impl<E: Copy + PartialEq> NodeClaims<E> {
     /// Verify the reduction of these claims, the dense polynomials having the given variables.
+    ///
+    /// The transcript's instance must be the bound values: see the session and instance the prover starts from.
     ///
     /// # Errors
     ///
     /// Returns the first check that refuses.
     pub(crate) fn verify<V: Verifier<E = E>>(&self, v: &mut V, vars: &DenseVars) -> Result<Reduced<E>, ReduceError> {
-        for &x in &self.bound {
-            let read = v.next_scalar()?;
-            v.ensure_eq(x, read, || ReduceError::Bound)?;
-        }
         let dense = vars.verify(v, &self.dense)?;
         let matrices = MatrixReduced::verify(v, &self.matrices)?;
         Ok(Reduced { dense, matrices })
@@ -77,11 +73,10 @@ impl<E: Copy + PartialEq> NodeClaims<E> {
 }
 
 impl NodeClaims<F192> {
-    /// Prove the reduction of these claims, which must be true of the given tables.
+    /// Prove the reduction of these claims, in the tree of the given session, which must be true of the given tables.
     #[tracing::instrument(name = "Reduce claims", skip_all)]
-    pub(crate) fn prove(&self, vars: &DenseVars, tables: &DenseTables) -> ProofTranscript {
-        let mut ps = ProverState::from_label(LABEL);
-        ps.add_scalars(&self.bound);
+    pub(crate) fn prove(&self, tree: &SessionId, vars: &DenseVars, tables: &DenseTables) -> ProofTranscript {
+        let mut ps = ProverState::new(&session(tree), &LengthPrefixed(&self.bound));
         info_span!("Dense reduction").in_scope(|| DenseProver::prove(&mut ps, vars, tables, &self.dense));
         info_span!("Matrix reduction").in_scope(|| MatrixProver::prove(&mut ps, &self.matrices));
         ps.into_proof()

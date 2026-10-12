@@ -10,7 +10,7 @@
   const sortOrder = byId("sort-order");
   const categoryBrowser = byId("category-browser");
   const categories = {
-    client: { name: "Client-side proving", description: "On-device measurements, Falcon signature verification and L1 state proofs." },
+    client: { name: "Client-side proving", description: "On-device proving on Pixel and iPhone." },
     consensus: { name: "Consensus layer", description: "leanXMSS, leanSPHINCS and aggregation workloads, excluding on-device results." },
     data: { name: "Data layer", description: "leanDA workloads." },
     misc: { name: "Misc", description: "Other workloads, kept together until they find a home." },
@@ -18,6 +18,7 @@
   };
   let selectedCategory = "client";
   const numberFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 6 });
+  const memoryFormat = new Intl.NumberFormat("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dateFormat = new Intl.DateTimeFormat("en", {
     year: "numeric", month: "short", day: "numeric", timeZone: "UTC",
   });
@@ -32,6 +33,15 @@
 
   function text(value, fallback = "Not recorded") {
     return typeof value === "string" && value.trim() ? value : fallback;
+  }
+
+  function cpuName(value) {
+    return /^ARM implementer 0x41, part 0xd4f, revision \d+$/i.test(value)
+      ? "Arm Neoverse V2" : text(value);
+  }
+
+  function machineName(machine) {
+    return cpuName(text(machine.name, machine.id));
   }
 
   function safeUrl(value) {
@@ -87,8 +97,7 @@
 
   function categoryOf(row) {
     if (/^leanda\b/i.test(row.program.name)) return "data";
-    if (/pixel|iphone/i.test(text(row.machine.name, row.machine.id))
-      || /^falcon\b/i.test(row.program.name) || /^L1 state proofs$/i.test(row.program.name)) return "client";
+    if (/pixel|iphone/i.test(text(row.machine.name, row.machine.id))) return "client";
     if (/^lean(?:xmss|sphincs)\b/i.test(row.program.name) || row.category === "aggregation") return "consensus";
     return "misc";
   }
@@ -100,7 +109,7 @@
   function populateFilters() {
     const sorted = categoryRows().sort(compareRows);
     populate(programFilter, new Map(sorted.map((row) => [row.program.name, row.program.name])), "All programs");
-    populate(machineFilter, [...new Map(sorted.map((row) => [row.machine.id, text(row.machine.name, row.machine.id)]))].sort((a, b) => a[1].localeCompare(b[1])), "All machines & devices");
+    populate(machineFilter, [...new Map(sorted.map((row) => [row.machine.id, machineName(row.machine)]))].sort((a, b) => a[1].localeCompare(b[1])), "All machines & devices");
     const threads = [...new Map(sorted.map((row) => [threadKey(row), threadLabel(row)]))];
     threads.sort((a, b) => a[1].localeCompare(b[1], "en", { numeric: true }));
     populate(threadFilter, threads, "All thread configurations");
@@ -124,20 +133,29 @@
     return `hardware-${encodeURIComponent(machine.id)}`;
   }
 
-  function hardwareDetails(machine) {
+  function hardwareDetails(machines) {
+    const machine = machines[0];
     const list = element("dl", "hardware");
-    const memory = typeof machine.memory_bytes === "number" && machine.memory_bytes > 0
-      ? `${numberFormat.format(machine.memory_bytes / 1024 ** 3)} GiB`
-      : "Not recorded";
+    const memoryValues = machines.map((entry) => entry.memory_bytes).filter((value) => typeof value === "number" && value > 0);
+    let memory = "Not recorded";
+    if (memoryValues.length) {
+      const minimum = Math.min(...memoryValues);
+      const maximum = Math.max(...memoryValues);
+      memory = `${numberFormat.format(minimum / 1024 ** 3)} GiB`;
+      if (minimum !== maximum) {
+        memory += ` (observed ${minimum.toLocaleString("en")} to ${maximum.toLocaleString("en")} bytes)`;
+      }
+    }
     const fields = [
-      ["CPU / SoC", text(machine.cpu)],
+      ["CPU / SoC", cpuName(machine.cpu)],
       ["Architecture", text(machine.arch)],
       ["Operating system", text(machine.os)],
       ["Logical CPUs", Number.isInteger(machine.logical_cpus) && machine.logical_cpus > 0 ? String(machine.logical_cpus) : "Not recorded"],
-      ["Memory", memory],
+      ["OS-visible RAM", memory],
     ];
+    if (cpuName(machine.cpu) !== text(machine.cpu)) fields.push(["CPU identifier", machine.cpu]);
     for (const [label, value] of fields) list.append(element("dt", "", label), element("dd", "", value));
-    const entry = details(text(machine.name, machine.id), list);
+    const entry = details(machineName(machine), list);
     entry.id = hardwareId(machine);
     entry.className = "hardware-entry";
     return entry;
@@ -152,8 +170,13 @@
   }
 
   function updateHardwareReference() {
-    const machines = [...new Map(measurements.map((row) => [row.machine.id, row.machine])).values()];
-    machines.sort((left, right) => text(left.name, left.id).localeCompare(text(right.name, right.id)));
+    const platforms = new Map();
+    for (const row of measurements) {
+      if (!platforms.has(row.machine.id)) platforms.set(row.machine.id, []);
+      platforms.get(row.machine.id).push(row.machine);
+    }
+    const machines = [...platforms.values()];
+    machines.sort((left, right) => machineName(left[0]).localeCompare(machineName(right[0])));
     byId("hardware-list").replaceChildren(...machines.map(hardwareDetails));
     byId("hardware-reference").hidden = machines.length === 0;
     revealHardwareReference();
@@ -221,7 +244,7 @@
     const title = element("h4", "machine-title");
     title.id = `machine-${encodeURIComponent(row.id)}`;
     section.setAttribute("aria-labelledby", title.id);
-    const reference = element("a", "machine-link", text(row.machine.name, row.machine.id));
+    const reference = element("a", "machine-link", machineName(row.machine));
     reference.href = `#${hardwareId(row.machine)}`;
     reference.addEventListener("click", () => { byId(hardwareId(row.machine)).open = true; });
     title.append(reference);
@@ -233,7 +256,7 @@
   function threadTable(rows) {
     const table = element("table", "thread-table");
     const first = rows[0];
-    table.append(element("caption", "visually-hidden", `Thread configurations for ${first.program.name}: ${first.workload}, on ${text(first.machine.name, first.machine.id)}`));
+    table.append(element("caption", "visually-hidden", `Thread configurations for ${first.program.name}: ${first.workload}, on ${machineName(first.machine)}`));
     const head = element("thead");
     const headings = element("tr");
     for (const label of ["Threads", "Median (s)", "Peak memory (MiB)"]) {
@@ -252,8 +275,9 @@
       median.setAttribute("aria-label", `Median ${row.median_seconds} seconds`);
       runtime.append(median);
       const memory = element("td");
-      const peak = element("span", "peak-memory", numberFormat.format(row.peak_memory_bytes / 1024 ** 2));
-      peak.setAttribute("aria-label", `Peak memory ${row.peak_memory_bytes / 1024 ** 2} mebibytes`);
+      const memoryMiB = memoryFormat.format(row.peak_memory_bytes / 1024 ** 2);
+      const peak = element("span", "peak-memory", memoryMiB);
+      peak.setAttribute("aria-label", `Peak memory ${memoryMiB} mebibytes`);
       peak.title = `${numberFormat.format(row.peak_memory_bytes)} bytes`;
       memory.append(peak);
       node.append(threads, runtime, memory);
@@ -268,7 +292,7 @@
     for (const row of rows) {
       const key = JSON.stringify([
         row.program.name, row.program.source_url, row.workload, row.category,
-        ...["id", "name", "arch", "os", "cpu", "logical_cpus", "memory_bytes"].map((field) => row.machine[field]),
+        ...["id", "name", "arch", "os", "cpu", "logical_cpus"].map((field) => row.machine[field]),
       ]);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(row);
@@ -293,7 +317,7 @@
   function compareRows(left, right) {
     return left.program.name.localeCompare(right.program.name)
       || left.workload.localeCompare(right.workload, "en", { numeric: true })
-      || text(left.machine.name, left.machine.id).localeCompare(text(right.machine.name, right.machine.id))
+      || machineName(left.machine).localeCompare(machineName(right.machine))
       || (left.threads?.count ?? Infinity) - (right.threads?.count ?? Infinity)
       || threadLabel(left).localeCompare(threadLabel(right))
       || left.id.localeCompare(right.id);

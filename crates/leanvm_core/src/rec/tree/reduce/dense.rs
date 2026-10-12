@@ -11,8 +11,9 @@
 
 use super::{DenseTables, Entry, Msg, ReduceError, TILE, ZERO, xor};
 use crate::rec::tree::claims::{DenseClaim, DensePoly, DenseTerm};
+use fiat_shamir::ProverState;
+use fiat_shamir::arith::RoundPolynomial;
 use fiat_shamir::arith::{Arith, Verifier};
-use fiat_shamir::transcript::{Challenger, ProverState, Transmitter};
 use parallel::Chunks;
 use primitives::field::{F64, F192, F192Unreduced, mul_unreduced4};
 use primitives::multilinear::{eq_table, eq_table_seeded, mle_eval_par};
@@ -108,7 +109,7 @@ impl DenseVars {
         claims: &[DenseClaim<V::E>],
     ) -> Result<DenseReduced<V::E>, ReduceError> {
         let reduced = Self::reduced(claims);
-        let theta = v.sample();
+        let theta = v.verifier_message();
         let n_terms = claims.iter().map(|c| c.terms.len()).sum();
         let powers = v.powers(theta, n_terms);
         let zero = v.zero();
@@ -121,15 +122,15 @@ impl DenseVars {
         let rounds = self.rounds(reduced);
         let mut point = Vec::with_capacity(rounds);
         for _ in 0..rounds {
-            let h = v.next_round_poly(3, claim, None)?;
-            let r = v.sample();
+            let h = RoundPolynomial::read(v, 3, claim, None)?.coeffs;
+            let r = v.verifier_message();
             claim = v.poly_eval(&h, r);
             point.push(r);
         }
         let mut values = [None; DensePoly::COUNT];
         for (value, reduced) in values.iter_mut().zip(reduced) {
             if reduced {
-                *value = Some(v.next_scalar()?);
+                *value = Some(v.prover_message()?);
             }
         }
         let weights = self.final_weights(v, claims, &powers, &point);
@@ -183,20 +184,20 @@ impl<E: Copy> DenseClaim<E> {
             let DenseTerm {
                 n_low,
                 bits,
-                top,
+                ref top,
                 scale,
                 ..
             } = *t;
             let at_bits = n_low + bits.len;
             assert_eq!(
-                at_bits + usize::from(top.is_some()),
+                at_bits + top.len(),
                 r.len(),
                 "a term's point has its polynomial's variables"
             );
             let bits_eq = a.eq_bits(bits.value, &r[n_low..at_bits]);
             let mut eq = a.mul(prefix[n_low], bits_eq);
-            if let Some(top) = top {
-                let s = a.add(top, r[at_bits]);
+            for (&top, &x) in top.iter().zip(&r[at_bits..]) {
+                let s = a.add(top, x);
                 eq = a.times_one_plus(eq, s);
             }
             let power = powers.next().expect("a power per term");
@@ -211,7 +212,7 @@ impl DenseTerm<F192> {
     fn placed(&self, low: &[F192], coef: F192) -> Placed {
         let mut point = low[..self.n_low].to_vec();
         point.extend((0..self.bits.len).map(|i| F192::new((self.bits.value >> i & 1) as u64, 0, 0)));
-        point.extend(self.top);
+        point.extend(&self.top);
         let boolean = |x: &F192| *x == F192::ZERO || *x == F192::ONE;
         let k = point.len() - point.iter().rev().take_while(|x| boolean(x)).count();
         let offset = (point[k..].iter().enumerate())
@@ -225,14 +226,14 @@ impl DenseTerm<F192> {
 impl<'a> DenseProver<'a> {
     /// Prove the reduction of the claims, which must be true of the tables.
     pub(crate) fn prove(ps: &mut ProverState, vars: &DenseVars, tables: &'a DenseTables, claims: &[DenseClaim<F192>]) {
-        let theta = ps.sample();
+        let theta = ps.verifier_message();
         let mut prover = Self::new(vars, tables, claims, theta);
         for i in 0..prover.rounds() {
-            ps.add_scalars(&prover.message());
-            let r = ps.sample();
+            ps.prover_messages(&prover.message());
+            let r = ps.verifier_message();
             prover.bind(i, r);
         }
-        ps.add_scalars(&prover.finals());
+        ps.prover_messages(&prover.finals());
     }
 
     /// The prover of the claims under the batching challenge `theta`.

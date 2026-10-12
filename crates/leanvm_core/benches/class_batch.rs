@@ -1,4 +1,4 @@
-//! Each instruction class's flock circuit proven alone, on a batch of its instances.
+//! Each instruction class's flock circuit proven alone, on a batch of its instances with exactly 16 pool threads.
 //!
 //! The circuits and witness generators are the VM's own, so this is a proof's flock stage, one class at a time:
 //!
@@ -17,19 +17,20 @@
 //!
 //! `BENCH_TRACING=1` prints the final pass's span tree (`RUST_LOG` adjusts it).
 //! With `-- --json` it prints, in place of the reports, each class's proving time as Bencher Metric Format JSON.
-//! The time excludes the witness, and each benchmark is named `flock-<class>-batch-<n>`, measure `latency`.
+//! The time excludes the witness, and each benchmark is named `flock-<class>-batch-<n>-16thread`, measure `latency`, with the actual `threads` count.
 
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 use bench::{Metric, Plan, Timing, bencher_json};
-use fiat_shamir::transcript::{ProofTranscript, ProverState, Receiver, Transmitter, VerifierState};
+use fiat_shamir::{ProofTranscript, ProverState, SessionId, VerifierState};
 use flock::Witness;
 use flock::circuit::Circuit;
 use flock::reduction::{self, Instance};
 use leanvm::{Fill, MIN_MU, TableId, Word};
 use pcs::ring_switch::RingSwitch;
-use pcs::stack_open;
-use pcs::whir::{INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, ProverConfig, commit, config_for_rate};
+use pcs::stack::{CommittedStack, StackCommitment, Statement};
+use pcs::whir::{Config, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0, config_for_rate};
 use primitives::field::F64;
 use primitives::pretty_integer;
 use primitives::test_util::Rng;
@@ -47,8 +48,8 @@ type Row = [u64; ROW_WORDS];
 const STAGES: [&str; 4] = ["witness", "commit", "reduction", "opening"];
 
 fn main() {
+    parallel::init_with_threads(NonZeroUsize::new(16).unwrap()).expect("initialize exact 16-thread benchmark pool");
     bench::init_tracing_from_env();
-    leanvm::init_prover();
     let json = std::env::args().any(|arg| arg == "--json");
     let filters: Vec<String> = std::env::args()
         .skip(1)
@@ -68,8 +69,11 @@ fn main() {
         };
         let (prove, n) = batch.bench(json);
         report.push((
-            format!("flock-{}-batch-{n}", name.to_lowercase()),
-            vec![("latency", Metric::nanoseconds(&prove))],
+            format!("flock-{}-batch-{n}-16thread", name.to_lowercase()),
+            vec![
+                ("latency", Metric::nanoseconds(&prove)),
+                ("threads", Metric::exact(parallel::num_threads())),
+            ],
         ));
     }
     if json {
@@ -85,7 +89,7 @@ struct ClassBatch {
     rows: Vec<Row>,
     n_log: usize,
     mu: usize,
-    config: ProverConfig,
+    config: Config,
 }
 
 impl ClassBatch {
@@ -147,16 +151,20 @@ impl ClassBatch {
     }
 
     /// One prove pass, and each stage's seconds.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the one claim is flock's: reduction::prove sends its slices as prover messages after the root, its point being the reduction's challenges"
+    )]
     fn prove(&self) -> (ProofTranscript, [f64; 4]) {
         let _span = tracing::info_span!("Flock prove", n_log = self.n_log).entered();
         let t = Instant::now();
         let witness = self.witness();
         let witness_s = t.elapsed().as_secs_f64();
 
-        let mut ps = ProverState::from_label(b"flock-class-batch");
+        let mut ps = ProverState::new(&SessionId::new(b"flock-class-batch"), &0u64);
         let t = Instant::now();
-        let (commitment, prover_data) = commit(as_field(&witness.z), self.mu, INITIAL_FOLDING_FACTOR, LOG_INV_RATE_0);
-        ps.add_root(&commitment.root);
+        let committed = CommittedStack::new(as_field(&witness.z), self.mu, self.config.clone());
+        ps.prover_message(&committed.root());
         let commit_s = t.elapsed().as_secs_f64();
 
         let t = Instant::now();
@@ -171,17 +179,29 @@ impl ClassBatch {
             claims: vec![claim],
         };
         let z = as_field(&witness.z);
-        stack_open::open(&mut ps, self.mu, z, &prover_data, &self.config, &[], &[ring]);
+        let rings = [ring];
+        committed.open(
+            &mut ps,
+            z,
+            Statement {
+                points: &[],
+                rings: &rings,
+            },
+        );
         let opening_s = t.elapsed().as_secs_f64();
 
         (ps.into_proof(), [witness_s, commit_s, reduction_s, opening_s])
     }
 
     /// Replay `proof`, panicking on any refusal.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the one claim is flock's: reduction::verify reads its slices as prover messages after the root, its point being the reduction's challenges"
+    )]
     fn verify(&self, proof: &ProofTranscript) {
         let block = self.circuit.block();
-        let mut vs = VerifierState::from_label(b"flock-class-batch", proof);
-        let root = vs.next_root().expect("commitment root");
+        let mut vs = VerifierState::new(&SessionId::new(b"flock-class-batch"), &0u64, proof);
+        let root: [u8; 32] = vs.prover_message().expect("commitment root");
         let replay = reduction::verify(&[(block.shape(), self.n_log)], &mut vs)
             .expect("the reduction verifies")
             .remove(0);
@@ -191,9 +211,18 @@ impl ClassBatch {
             qflock_vars: self.mu,
             claims: vec![replay.claim],
         };
-        let fold = 1 << INITIAL_FOLDING_FACTOR;
-        stack_open::verify(&mut vs, &self.config, self.mu, fold, root, &[], &[ring]).expect("the opening verifies");
-        vs.finish().expect("transcript fully consumed");
+        let commitment = StackCommitment::new(root, self.mu, 1 << INITIAL_FOLDING_FACTOR, self.config.clone());
+        let rings = [ring];
+        commitment
+            .verify(
+                &mut vs,
+                Statement {
+                    points: &[],
+                    rings: &rings,
+                },
+            )
+            .expect("the opening verifies");
+        vs.check_eof().expect("transcript fully consumed");
     }
 
     /// Time the batch's proving and verifying, printing a report unless `quiet`.
@@ -222,10 +251,11 @@ impl ClassBatch {
         if !quiet {
             let ms = |t: &Timing| format!("{:>8.1} ms{}", t.mean() * 1e3, t.spread());
             println!(
-                "\n{}: {} instances of 2^{} bits",
+                "\n{}: {} instances of 2^{} bits, {} threads",
                 self.name,
                 pretty_integer(&n),
-                self.circuit.k_log()
+                self.circuit.k_log(),
+                parallel::num_threads()
             );
             for (stage, timing) in STAGES.iter().zip(&stages) {
                 println!("  {stage:<26}: {}", ms(timing));

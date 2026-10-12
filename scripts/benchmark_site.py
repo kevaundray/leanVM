@@ -26,8 +26,6 @@ PROGRAMS = {
     "hash-50000": ("BLAKE2s guest", "Hash 50,000 bytes through the precompile", "programs/hash/guest/src/main.rs"),
     "leanxmss-100": ("leanXMSS", "Verify 100 signatures", "programs/leanxmss/guest/src/main.rs"),
     "leansphincs-26": ("leanSPHINCS", "Verify 26 signatures", "programs/leansphincs/guest/src/main.rs"),
-    "falcon-7": ("Falcon-512", "Verify 7 signatures", "programs/falcon/guest/src/main.rs"),
-    "stateproof-5": ("L1 state proofs", "Verify 5 account and storage reads", "programs/stateproof/guest/src/main.rs"),
     "leanda-1": ("leanDA", "Check 1 blob of 128 KiB and compute its commitment", "programs/leanda/guest/src/main.rs"),
 }
 _SPEC = importlib.util.spec_from_file_location("mobile_report", Path(__file__).with_name("mobile-bench-report.py"))
@@ -107,10 +105,10 @@ def atomic_write(path, document, immutable=False):
 
 
 def expected_benchmarks():
-    names = set(PROGRAMS)
+    names = {f"{name}-16thread" for name in PROGRAMS}
     names.update(f"leanxmss-100-{count}thread" for count in (1, 4, 8))
     names.update(f"aggregate-leanxmss-100-{arity}to1{suffix}"
-                 for arity in (2, 4) for suffix in ("", "-1thread", "-4thread", "-8thread"))
+                 for arity in (2, 4) for suffix in ("-16thread", "-1thread", "-4thread", "-8thread"))
     return sorted(names)
 
 
@@ -172,7 +170,7 @@ def digest(document, length=64):
 
 
 def machine_id(machine):
-    return digest({key: machine[key] for key in ("name", "arch", "os", "cpu", "logical_cpus", "memory_bytes")}, 16)
+    return digest({key: machine[key] for key in ("name", "arch", "os", "cpu", "logical_cpus")}, 16)
 
 
 def validate_machine(machine, desktop=False):
@@ -210,6 +208,8 @@ def hardware(testbed):
 
 def validate_metrics(results, benchmark):
     require(set(results) == set(expected_results(benchmark)), "unexpected workload or incomplete aggregation")
+    explicit = workload(expected_results(benchmark)[0])[4]
+    require(explicit is not None, "desktop timing requires an explicit thread count")
     for metrics in results.values():
         latency = metrics["latency"]
         positive(latency["value"])
@@ -217,6 +217,10 @@ def validate_metrics(results, benchmark):
         verify = metrics["verify"]
         require(positive(verify["lower_value"]) <= positive(verify["value"]) <= positive(verify["upper_value"]), "invalid verification timing")
         positive(metrics["proof-size"]["value"])
+        require(integer(metrics["threads"]["value"], 1024) == explicit, "measured thread count mismatch")
+        if explicit == 16:
+            require(metrics["performance-threads"]["value"] == 16
+                    and metrics["efficiency-threads"]["value"] == 0, "fixed16 pool topology mismatch")
         integer(metrics["peak-memory"]["value"], mobile_report.MAX_SAFE_INTEGER)
 
 
@@ -230,8 +234,7 @@ def run_desktop(plan, testbed, benchmark, executable):
         require(os.environ.get("GITHUB_REPOSITORY") == source["repository"], "CI repository does not match plan")
         require(os.environ.get("GITHUB_RUN_ID") == str(source["run_id"]), "CI run does not match plan")
     machine = hardware(testbed)
-    explicit = workload(expected_results(benchmark)[0])[4]
-    count = explicit or len(os.sched_getaffinity(0))
+    count = workload(expected_results(benchmark)[0])[4]
     integer(count, 1024)
     environment = dict(os.environ, LEANVM_NUM_THREADS=str(count))
     document = {"schema_version": 2, "snapshot": source, "plan_id": digest(plan), "testbed": testbed,
@@ -270,7 +273,7 @@ def desktop_rows(document, plan, testbed, benchmark):
     require(machine["arch"] == testbed, "desktop architecture mismatch")
     count = integer(document["threads"], 1024)
     explicit = workload(expected_results(benchmark)[0])[4]
-    require(explicit is None or explicit == count, "named thread count mismatch")
+    require(explicit == count, "named thread count mismatch")
     samples = document["samples"]
     require(len(samples) == plan["rounds"], "incomplete desktop rounds")
     require(all(type(sample["round"]) is int for sample in samples), "invalid round")
@@ -298,9 +301,8 @@ def desktop_rows(document, plan, testbed, benchmark):
         verification = {"verified_proofs": len(samples), "total_proofs": len(samples),
                         "method": "Successful leanvm bench process and proof verification timing for every independent round",
                         "verify_seconds": [sample["results"][name]["verify"]["value"] / 1e9 for sample in samples]}
-        label = None if explicit else f"{count} threads (default runner allocation)"
         rows.append(row(title, description, path, category, count, timings, machine, plan["snapshot"],
-                        samples[-1]["measured_at"], verification, peak_memory, memory_method, label))
+                        samples[-1]["measured_at"], verification, peak_memory, memory_method))
     return rows
 
 
@@ -325,6 +327,10 @@ def mobile_rows(directory, plan, platform_name):
         mobile_report.AGGREGATE_FUNCTION: ("Shielded aggregation",
             "2 to 1; two independently proven 2-spend leaves, 4 spends and 8 input notes total; leaf setup excluded; leaf rate 1/4, tree rate 1/2",
             "bench-mobile/src/lib.rs", "aggregation"),
+        mobile_report.FALCON_FUNCTION: ("Falcon-512", "Verify 1 signature",
+                                       "programs/falcon/guest/src/main.rs", "program"),
+        mobile_report.STATEPROOF_FUNCTION: ("L1 state proofs", "Verify 1 account and 1 storage slot",
+                                           "programs/stateproof/guest/src/main.rs", "program"),
     }
     rows = []
     for function in mobile_report.FUNCTIONS:
@@ -412,16 +418,14 @@ def publish(plan, artifacts, output):
     require({entry.name for entry in artifacts.iterdir()} == expected.keys() | mobile.keys(), "missing, duplicate or unexpected result artifacts")
     rows = []
     machines = {}
-    default_threads = {}
     for name, (testbed, benchmark) in expected.items():
         directory = artifacts / name
         require(directory.is_dir() and not directory.is_symlink(), "unsafe desktop artifact")
         require({entry.name for entry in directory.iterdir()} == {"result.json"}, "unexpected desktop artifact files")
         document = load(directory / "result.json")
         rows.extend(desktop_rows(document, plan, testbed, benchmark))
-        require(machines.setdefault(testbed, document["machine"]) == document["machine"], "inconsistent testbed hardware")
-        if workload(expected_results(benchmark)[0])[4] is None:
-            require(default_threads.setdefault(testbed, document["threads"]) == document["threads"], "inconsistent default thread allocation")
+        identity = document["machine"]["id"]
+        require(machines.setdefault(testbed, identity) == identity, "inconsistent testbed hardware")
     for name, platform_name in mobile.items():
         directory = artifacts / name
         require(directory.is_dir() and not directory.is_symlink(), "unsafe mobile artifact")

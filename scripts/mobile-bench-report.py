@@ -12,7 +12,9 @@ import statistics
 
 FUNCTION = "leanvm_mobile_bench::shielded_prove"
 AGGREGATE_FUNCTION = "leanvm_mobile_bench::shielded_aggregate"
-FUNCTIONS = (FUNCTION, AGGREGATE_FUNCTION)
+FALCON_FUNCTION = "leanvm_mobile_bench::falcon_prove"
+STATEPROOF_FUNCTION = "leanvm_mobile_bench::stateproof_prove"
+FUNCTIONS = (FUNCTION, AGGREGATE_FUNCTION, FALCON_FUNCTION, STATEPROOF_FUNCTION)
 WORKLOADS = {
     FUNCTION: {"spends_per_leaf": 2, "leaf_log_inv_rate": 2, "verified_proofs": 4},
     AGGREGATE_FUNCTION: {
@@ -23,10 +25,14 @@ WORKLOADS = {
         "aggregation_log_inv_rate": 1,
         "verified_leaves": 2,
     },
+    FALCON_FUNCTION: {"signatures": 1, "log_inv_rate": 2, "verified_proofs": 4},
+    STATEPROOF_FUNCTION: {"accounts": 1, "storage_slots": 1, "log_inv_rate": 2, "verified_proofs": 4},
 }
 LABELS = {
     FUNCTION: "Shielded, 2 spends",
     AGGREGATE_FUNCTION: "Shielded 2-to-1, two 2-spend leaves / 4 spends total",
+    FALCON_FUNCTION: "Falcon-512, verify 1 signature",
+    STATEPROOF_FUNCTION: "L1 state proofs, verify 1 account and 1 storage slot",
 }
 DEVICES = {
     "android": ("Google Pixel 7", "13.0", "Android"),

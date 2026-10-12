@@ -10,15 +10,16 @@
 //! - Each deeper commitment takes one out-of-domain sample to bind to one codeword.
 
 use crate::witness::StackShape;
-use fiat_shamir::transcript::{ProverState, TranscriptError, Transmitter};
+use fiat_shamir::{ProverState, TranscriptError};
+use pcs::stack::{CommittedStack, StackCommitment, Statement};
 use pcs::verifier::OpeningVerifier;
+use pcs::whir::WhirError;
 use pcs::whir::config::ConfigError;
-use pcs::whir::{ProverConfig, ProverData, WhirError};
 use primitives::field::F64;
 use thiserror::Error;
 
 pub(crate) use pcs::ring_switch::{RingSwitch, SliceClaim};
-pub(crate) use pcs::stack_open::StackClaim;
+pub(crate) use pcs::stack::StackClaim;
 pub(crate) use pcs::whir::INITIAL_FOLDING_FACTOR as LOG_BATCH;
 pub use pcs::whir::{MAX_LOG_N as MAX_MU, MIN_LOG_N as MIN_MU};
 
@@ -100,12 +101,10 @@ pub(crate) enum WitnessError {
 ///
 /// The caller retains the witness words, avoiding a second full-witness allocation.
 pub(crate) struct Committed {
-    /// The codeword and its Merkle tree.
-    prover_data: ProverData,
+    /// The committed stack: its codeword, Merkle tree and opening parameters.
+    stack: CommittedStack,
     /// The full witness dimension and the number of lanes actually encoded.
     shape: StackShape,
-    /// The validated opening parameters used to produce the initial commitment.
-    config: ProverConfig,
 }
 
 impl Committed {
@@ -142,13 +141,9 @@ impl Committed {
         }
 
         // The codeword and tree use the same parameters retained for opening.
-        let (commitment, prover_data) = pcs::whir::commit(witness, shape.mu, config.initial_k(), log_inv_rate);
-        ps.add_root(&commitment.root);
-        Ok(Self {
-            prover_data,
-            shape,
-            config,
-        })
+        let stack = CommittedStack::new(witness, shape.mu, config);
+        ps.prover_message(&stack.root());
+        Ok(Self { stack, shape })
     }
 
     /// Proves the point evaluations and ring-switched circuit-validity claims together.
@@ -163,6 +158,10 @@ impl Committed {
     /// # Panics
     ///
     /// Panics if the claims are malformed.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "cpu::Program::prove_witness and rec's Circuit::prove_with send each value as a prover message or take it from the instance first"
+    )]
     pub(crate) fn open(
         &self,
         ps: &mut ProverState,
@@ -181,15 +180,7 @@ impl Committed {
 
         // Values are transcript-bound or public, points are challenges or constants, and offsets are public.
         // The opening samples batching challenges without observing those claims again.
-        pcs::stack_open::open(
-            ps,
-            self.shape.mu,
-            witness,
-            &self.prover_data,
-            &self.config,
-            points,
-            rings,
-        );
+        self.stack.open(ps, witness, Statement { points, rings });
         Ok(())
     }
 }
@@ -211,7 +202,7 @@ impl<R: Copy> Commitment<R> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream ends or the root is not a digest.
+    /// Returns an error if the proof ends before the root.
     pub(crate) fn read<V: OpeningVerifier<Root = R>>(
         v: &mut V,
         shape: StackShape,
@@ -230,6 +221,10 @@ impl<R: Copy> Commitment<R> {
     /// # Errors
     ///
     /// Returns an error for an unsupported witness size, malformed claims, or an invalid opening.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "cpu::Layout::verify_core and rec's TableArgument::verify_core read each value as a prover message or take it from the instance first"
+    )]
     pub(crate) fn verify<V: OpeningVerifier<Root = R>>(
         &self,
         v: &mut V,
@@ -238,7 +233,8 @@ impl<R: Copy> Commitment<R> {
     ) -> Result<(), WhirError> {
         // Both sides derive the opening profile from the committed witness's dimension and rate.
         let config = pcs::whir::config_for_rate(self.shape.mu, usize::from(self.rate.log_inv_rate()))?;
-        pcs::stack_open::verify(v, &config, self.shape.mu, self.shape.n_lanes, self.root, points, rings)
+        let stack = StackCommitment::new(self.root, self.shape.mu, self.shape.n_lanes, config);
+        stack.verify(v, Statement { points, rings })
     }
 }
 
@@ -246,7 +242,7 @@ impl<R: Copy> Commitment<R> {
 mod tests {
     use super::{Committed, InvalidRate, LOG_BATCH, MAX_MU, MIN_MU, Rate, WitnessError};
     use crate::witness::StackShape;
-    use fiat_shamir::transcript::ProverState;
+    use fiat_shamir::{ProverState, SessionId};
     use pcs::whir::config::ConfigError;
     use primitives::field::F64;
 
@@ -300,13 +296,13 @@ mod tests {
         });
         for (shape, words, error) in sizes.into_iter().chain(lanes).chain(lengths) {
             let witness = vec![F64::ZERO; words];
-            let mut ps = ProverState::from_label(b"invalid commitment");
+            let mut ps = ProverState::new(&SessionId::new(b"invalid commitment"), &0u64);
 
             // Refusal reports the invalid parameter and leaves the proof stream untouched.
             assert_eq!(Committed::new(&mut ps, &witness, shape, Rate::MIN).err(), Some(error));
             assert_eq!(
                 ps.into_proof(),
-                ProverState::from_label(b"invalid commitment").into_proof()
+                ProverState::new(&SessionId::new(b"invalid commitment"), &0u64).into_proof()
             );
         }
     }
@@ -318,23 +314,19 @@ mod tests {
         let lane_words = shape.committed_len();
         let witness = vec![F64::ZERO; 2 * lane_words];
         let committed = Committed::new(
-            &mut ProverState::from_label(b"committed length"),
+            &mut ProverState::new(&SessionId::new(b"committed length"), &0u64),
             &witness[..lane_words],
             shape,
             Rate::MIN,
         )
         .expect("a supported witness");
 
-        // The retained shape and codeword describe one lane at the configured encoding rate.
+        // The retained shape describes one lane.
         assert_eq!(committed.shape.committed_len(), lane_words);
-        assert_eq!(
-            committed.prover_data.codeword.len(),
-            lane_words << committed.config.log_inv_rates()[0]
-        );
 
         // Mutation: omit the lane, cut it short, or supply a second whole lane.
         for words in [0, lane_words - 1, 2 * lane_words] {
-            let mut ps = ProverState::from_label(b"invalid opening");
+            let mut ps = ProverState::new(&SessionId::new(b"invalid opening"), &0u64);
             assert_eq!(
                 committed.open(&mut ps, &witness[..words], &[], &[]),
                 Err(WitnessError::Length {
@@ -346,7 +338,7 @@ mod tests {
             // Length refusal precedes claim validation and all opening transcript writes.
             assert_eq!(
                 ps.into_proof(),
-                ProverState::from_label(b"invalid opening").into_proof()
+                ProverState::new(&SessionId::new(b"invalid opening"), &0u64).into_proof()
             );
         }
     }

@@ -81,7 +81,7 @@ A public-coin protocol is \emph{round-by-round (RBR) sound with errors} $(\varep
 \end{enumerate}
 \end{definition}
 
-Interactive soundness error is then at most $\sum_i \varepsilon_i$. After Fiat--Shamir, it is $\max_i \varepsilon_i$ per random-oracle query~\cite{CCHLRR19,BCS16}.
+Interactive soundness error is then at most $\sum_i \varepsilon_i$. For a canonical random oracle on the full transcript, the doomed-state sparse-relation argument of~\cite[Definition 5.3 and proof of Theorem 5.8]{CCHLRR18} gives ordinary soundness by a union bound over fresh challenge queries, including verification, with each query charged its round's error. This ROM corollary is not an assertion that every compression call is one such query, nor an application of the different IOP compiler of~\cite{BCS16}. The buffered duplex groups consecutive samples and omits previous challenges from its stored history; \S\ref{sec:e2e-fiat-shamir} gives the necessary ancestor-completion adapter and its explicit query and grouping losses.
 
 %=====================================================================
 \subsection{Reed--Solomon codes over binary fields}\label{sec:binary-rs}

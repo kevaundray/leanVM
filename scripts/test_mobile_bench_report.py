@@ -57,7 +57,23 @@ class MobileReportTests(unittest.TestCase):
         self.aggregate["samples_ns"] = [10_000_000_000, 30_000_000_000, 20_000_000_000]
         self.aggregate["samples"] = [{"duration_ns": value, "process_peak_memory_kb": peak}
                                      for value, peak in zip(self.aggregate["samples_ns"], (4096, 6144, 5120))]
-        self.results = [self.result, self.aggregate]
+        self.falcon = deepcopy(self.result)
+        self.falcon.update(function=report.FALCON_FUNCTION, spec={"name": report.FALCON_FUNCTION, "warmup": 1, "iterations": 3})
+        self.falcon["custom_metrics"]["run_u64"] = {
+            "threads": 6, "available_parallelism": 6, "signatures": 1, "log_inv_rate": 2, "verified_proofs": 4,
+        }
+        self.falcon["samples_ns"] = [3_000_000_000, 5_000_000_000, 4_000_000_000]
+        self.falcon["samples"] = [{"duration_ns": value, "process_peak_memory_kb": peak}
+                                  for value, peak in zip(self.falcon["samples_ns"], (7168, 9216, 8192))]
+        self.stateproof = deepcopy(self.result)
+        self.stateproof.update(function=report.STATEPROOF_FUNCTION, spec={"name": report.STATEPROOF_FUNCTION, "warmup": 1, "iterations": 3})
+        self.stateproof["custom_metrics"]["run_u64"] = {
+            "threads": 6, "available_parallelism": 6, "accounts": 1, "storage_slots": 1, "log_inv_rate": 2, "verified_proofs": 4,
+        }
+        self.stateproof["samples_ns"] = [6_000_000_000, 8_000_000_000, 7_000_000_000]
+        self.stateproof["samples"] = [{"duration_ns": value, "process_peak_memory_kb": peak}
+                                      for value, peak in zip(self.stateproof["samples_ns"], (12288, 10240, 11264))]
+        self.results = [self.result, self.aggregate, self.falcon, self.stateproof]
         self.metadata["benchmarks"] = {result["function"]: deepcopy(result["custom_metrics"]["run_u64"]) for result in self.results}
 
     def raw_report(self, entries, device="Google Pixel 7"):
@@ -77,10 +93,8 @@ class MobileReportTests(unittest.TestCase):
     def combined_reports(self):
         # Pinned mobench lib.rs cmd_ci_run: root.targets.<platform>.functions
         # embeds the same reports also written to <platform>/<slug>/summary.json.
-        functions = {
-            "leanvm__mobile__bench_shielded__prove": deepcopy(self.raw_report([self.result])),
-            "leanvm__mobile__bench_shielded__aggregate": deepcopy(self.raw_report([self.aggregate])),
-        }
+        functions = {entry["function"].replace("_", "__").replace("::", "_"): deepcopy(self.raw_report([entry]))
+                     for entry in self.results}
         summary = self.raw_report(self.results)["summary"]
         root = {"summary": summary, "targets": {"android": {"summary": deepcopy(summary), "functions": deepcopy(functions)}}}
         return {"summary.json": root, **{f"android/{slug}/summary.json": value for slug, value in functions.items()}}
@@ -98,11 +112,17 @@ class MobileReportTests(unittest.TestCase):
         self.assertIn("| 6 | 2.000 s | 1.000 to 9.000 s | 4 / 4 |", body)
         self.assertIn("| 6 | 20.000 s | 10.000 to 30.000 s | 4 / 4 |", body)
         self.assertIn("10.000000000 s, 30.000000000 s, 20.000000000 s", body)
+        self.assertIn("| Falcon-512, verify 1 signature |", body)
+        self.assertIn("| 6 | 4.000 s | 3.000 to 5.000 s | 4 / 4 |", body)
+        self.assertIn("| L1 state proofs, verify 1 account and 1 storage slot |", body)
+        self.assertIn("| 6 | 7.000 s | 6.000 to 8.000 s | 4 / 4 |", body)
 
     def test_memory_uses_absolute_sample_maximum_and_binary_units(self):
         measured = report.validate_results([self.raw_report(self.results)], "android")
         self.assertEqual(report.peak_memory_bytes(measured[report.FUNCTION]), 3072 * 1024)
         self.assertEqual(report.peak_memory_bytes(measured[report.AGGREGATE_FUNCTION]), 6144 * 1024)
+        self.assertEqual(report.peak_memory_bytes(measured[report.FALCON_FUNCTION]), 9216 * 1024)
+        self.assertEqual(report.peak_memory_bytes(measured[report.STATEPROOF_FUNCTION]), 12288 * 1024)
         # Neither baseline-adjusted growth nor a separately supplied aggregate
         # can replace the per-iteration SDK observations.
         self.result["resources"] = {"process_peak_memory_kb": 999999, "total_pss_kb": 888888}
@@ -179,16 +199,19 @@ class MobileReportTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.render()
 
-    def test_combined_entries_preserve_both_workloads(self):
+    def test_combined_entries_preserve_all_four_workloads(self):
         body, complete, _ = self.render(raw=[self.raw_report(self.results)])
         self.assertTrue(complete)
         self.assertIn("| 6 | 2.000 s | 1.000 to 9.000 s |", body)
         self.assertIn("| 6 | 20.000 s | 10.000 to 30.000 s |", body)
+        self.assertIn("| 6 | 4.000 s | 3.000 to 5.000 s |", body)
+        self.assertIn("| 6 | 7.000 s | 6.000 to 8.000 s |", body)
 
     def test_missing_duplicate_or_unknown_function_is_rejected(self):
         unknown = deepcopy(self.aggregate)
         unknown["function"] = "other::benchmark"
-        for entries in ([self.result], [self.result, self.result], [self.result, self.aggregate, self.aggregate], [self.result, unknown]):
+        for entries in ([self.result], [self.result, self.aggregate], self.results[:-1], self.results[:2] + [self.stateproof],
+                        [*self.results, self.aggregate], [*self.results, unknown]):
             with self.subTest(functions=[entry["function"] for entry in entries]), self.assertRaises(ValueError):
                 self.render(raw=[self.raw_report(entries)])
 
@@ -206,7 +229,39 @@ class MobileReportTests(unittest.TestCase):
                 result["custom_metrics"]["run_u64"][key] = value
                 self.metadata["benchmarks"][report.AGGREGATE_FUNCTION][key] = value
                 with self.assertRaises(ValueError):
-                    self.render(raw=[self.raw_report([self.result, result])])
+                    self.render(raw=[self.raw_report([self.result, result, self.falcon, self.stateproof])])
+
+    def test_single_unit_counts_rates_and_verification_are_required_even_if_metadata_agrees(self):
+        for function, keys in (
+            (report.FALCON_FUNCTION, ("signatures", "log_inv_rate", "verified_proofs")),
+            (report.STATEPROOF_FUNCTION, ("accounts", "storage_slots", "log_inv_rate", "verified_proofs")),
+        ):
+            for key in keys:
+                expected = self.metadata["benchmarks"][function][key]
+                for value in (0, expected - 1, expected + 1, True, float(expected), str(expected)):
+                    with self.subTest(function=function, key=key, value=value):
+                        entries = deepcopy(self.results)
+                        result = next(entry for entry in entries if entry["function"] == function)
+                        result["custom_metrics"]["run_u64"][key] = value
+                        self.metadata["benchmarks"][function][key] = value
+                        with self.assertRaisesRegex(ValueError, f"invalid {key}"):
+                            self.render(raw=[self.raw_report(entries)])
+                self.metadata["benchmarks"][function][key] = expected
+
+    def test_new_workloads_cannot_omit_memory_or_report_failure(self):
+        for function in (report.FALCON_FUNCTION, report.STATEPROOF_FUNCTION):
+            for mutation in ("memory", "failure", "verification"):
+                with self.subTest(function=function, mutation=mutation):
+                    entries = deepcopy(self.results)
+                    result = next(entry for entry in entries if entry["function"] == function)
+                    if mutation == "memory":
+                        del result["samples"][1]["process_peak_memory_kb"]
+                    elif mutation == "failure":
+                        result["failure"] = "proof verification failed"
+                    else:
+                        del result["custom_metrics"]["run_u64"]["verified_proofs"]
+                    with self.assertRaises((ValueError, KeyError)):
+                        self.render(raw=[self.raw_report(entries)])
 
     def test_mixed_thread_counts_are_reported_per_function_not_as_shared(self):
         for key in ("threads", "available_parallelism"):
@@ -240,6 +295,8 @@ class MobileReportTests(unittest.TestCase):
         self.assertTrue(complete)
         self.assertEqual(body.count("| 6 | 2.000 s |"), 1)
         self.assertEqual(body.count("| 6 | 20.000 s |"), 1)
+        self.assertEqual(body.count("| 6 | 4.000 s |"), 1)
+        self.assertEqual(body.count("| 6 | 7.000 s |"), 1)
         for relative in self.combined_reports():
             self.assertEqual((destination / relative).with_name("results.csv").read_text(), relative)
         embedded_only = runner.normalize_reports({"summary.json": self.combined_reports()["summary.json"]}, "android")
