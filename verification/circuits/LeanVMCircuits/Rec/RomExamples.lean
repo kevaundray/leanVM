@@ -1,6 +1,6 @@
 module
 
-public import LeanVMCircuits.Rec.RoundSound
+public import LeanVMCircuits.Rec.LateSound
 
 @[expose] public section
 
@@ -13,13 +13,15 @@ each challenge whenever the challenges before it agree; the challenge, a compres
 too, so no answers existed once `E` has two elements and both theorems were vacuous. They now ask for answers in the
 random-oracle view (`RomAnswers`: squeezes relaxed, each challenge a seed one step after the block it reads), and
 these lemmas exhibit answers meeting every premise but the circuit's acceptance, on a circuit whose challenges are
-squeezes of its transcript's blocks.
+squeezes of its transcript's blocks. `top_test_sound` and `whir_test_sound` take answers in the same view.
 
 The circuit (`state`): four `HASH` rows tagged at the duplex's output role, the first and third read as absorb blocks
 (`transcript`), the second and fourth as the squeezes drawing `λ` (wire 16, from block 0) and the next challenge (wire
-22, from block 1). The sumcheck (`sumcheck`) has one round reading the first block's words; the odd layer (`odd`) has
-one value. `sumcheck_answers_exist` and `odd_answers_exist` give answers whose challenges are any vector, which the
-first statement could not; `pow_answers_exist` gives proof-of-work answers whose trial words are uniform.
+22, from block 1). The sumcheck (`sumcheck`) has one round reading the first block's words; the odd layer (`odd`) and
+the top layer (`top`, whose last challenge is wire 23) have one value; the WHIR sumcheck (`whir`) has one fold round.
+`sumcheck_answers_exist`, `odd_answers_exist`, `top_answers_exist` and `whir_answers_exist` give answers whose
+challenges are any vector, which the first statement could not; `pow_answers_exist` gives proof-of-work answers whose
+trial words are uniform.
 -/
 
 namespace LeanVMCircuits.Rec.Bind.RomExample
@@ -79,6 +81,30 @@ def odd : OddCert where
   outAt := []
   transcript := 0
 
+def top : TopCert where
+  values := [17]
+  lam := ⟨16, 0, [], 1⟩
+  claimZero := 0
+  claimAt := []
+  kids := []
+  prodAt := []
+  expZero := 0
+  expAt := []
+  test := 0
+  low := ⟨22, 0, [], 2⟩
+  high := ⟨23, 0, [], 2⟩
+  lineAt := []
+  transcript := 0
+
+def whirRound : WhirRound := .fold (.recv 17 8 9 0 0 0) ⟨16, 0, [], 1⟩ 0 0
+
+def whir : WhirCert where
+  claim0 := 17
+  rounds := [whirRound]
+  test := 0
+  final := 18
+  transcript := 0
+
 def powCert : PowCert where
   compressAt := 0
   dkAt := 0
@@ -101,6 +127,8 @@ def cert : Cert where
   sumchecks := #[sumcheck]
   pows := #[powCert]
   odds := #[odd]
+  tops := #[top]
+  whirs := #[whir]
 
 /-- Limbs of an element of `E`. -/
 noncomputable def limbsE (e : E) : Fin 4 → K := fun i =>
@@ -120,13 +148,17 @@ noncomputable def answer (a b : E) : Val := fun w =>
   if w = 1 then limbsOf [outTag, 0, 0, 0] else if w = 16 then limbsE a else if w = 22 then limbsE b
   else if w = 17 then limbsE 1 else fun _ => 0
 
-theorem squeeze_rows : ∀ r ∈ state.hash, isSqueezeRow state r = true := by
+/-- The answer to challenges `a`, `b` and `d`, the third at wire 23. -/
+noncomputable def answer3 (a b d : E) : Val := fun w => if w = 23 then limbsE d else answer a b w
+
+/-- The transcript's random-oracle view drops every row: its two absorb blocks and its two squeezes. -/
+theorem dropped_rows : ∀ r ∈ state.hash, dropOf state (cert.transcripts.getD 0 default) r = true := by
   intro r hr
   simp only [state, List.mem_toArray, List.mem_cons, List.not_mem_nil, or_false] at hr
-  rcases hr with rfl | rfl | rfl | rfl <;> simp [isSqueezeRow, state, row, outTag]
+  rcases hr with rfl | rfl | rfl | rfl <;> decide
 
 theorem rom {ι : Type} (st : ι → ℕ → Fin 4 → K) (val : ι → Val) (hpub : ∀ r, val r 1 = limbsOf [outTag, 0, 0, 0]) :
-    RomAnswers cert state st val where
+    RomAnswers cert state 0 st val where
   holds r := {
     unions := fun p hp => by simp [keepP, keep, state] at hp
     emul := fun _ hp => by simp [keepP, keep, state] at hp
@@ -134,7 +166,8 @@ theorem rom {ι : Type} (st : ι → ℕ → Fin 4 → K) (val : ι → Val) (hp
     hash := fun x hx => by
       simp only [keepP] at hx
       obtain ⟨hm, hs⟩ := Array.mem_filter.mp hx
-      simp [squeeze_rows x hm] at hs
+      rw [dropped_rows x hm] at hs
+      exact absurd hs (by decide)
     split := fun _ hp => by simp [keepP, keep, state] at hp
     cast := fun _ hp => by simp [keepP, keep, state] at hp
     pub := fun w src hp => by
@@ -142,8 +175,8 @@ theorem rom {ι : Type} (st : ι → ℕ → Fin 4 → K) (val : ι → Val) (hp
       obtain ⟨rfl, rfl⟩ := hp
       exact hpub r }
   facts _ := fun j hj => absurd hj (by simp [cert])
-  cr _ _ := fun x hx _ _ hs => absurd (squeeze_rows x hx) (by simp [hs])
-  win _ _ := fun x hx _ _ hs => absurd (squeeze_rows x hx) (by simp [hs])
+  cr _ _ := fun x hx _ _ hs => absurd (dropped_rows x hx) (by rw [hs]; decide)
+  win _ _ := fun x hx _ _ hs => absurd (dropped_rows x hx) (by rw [hs]; decide)
   unions _ _ := fun uc hu => by simp [cert] at hu
 
 /-- What the simp sets need to compute a seed list. -/
@@ -172,7 +205,8 @@ theorem sumcheck_answers_exist :
     Fin.ext (by have := i.isLt; simp [sumcheck] at this; omega)
   refine ⟨cert, state, sumcheck, inst, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0, by simp [cert],
     by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_, fun r => ?_⟩
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_,
+    fun h => absurd h (by decide), fun r => ?_⟩
   · obtain rfl := h0 i
     rw [show (sumcheck.rounds.getD 0 default).time = 1 from rfl,
       show cert.transcripts.getD sumcheck.transcript default = transcript from rfl, seeds_one] at hm
@@ -206,6 +240,51 @@ theorem odd_answers_exist :
   · exact ev_limbsE _ 22 _ (by simp [answer])
   · rw [show odd.values.getD 0 0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer])]
     simp
+
+/-- Answers meeting every premise of `top_test_sound` but acceptance, at every challenge triple, with true children
+zero. -/
+theorem top_answers_exist :
+    ∃ (c : Cert) (s : State) (tc : TopCert) (T : ℕ → ℕ → E) (st : (Fin 3 → E) → ℕ → Fin 4 → K)
+      (val : (Fin 3 → E) → Val), tc ∈ c.tops ∧ TopAnswers c s tc T st val := by
+  refine ⟨cert, state, top, fun _ _ => 0, fun _ _ _ => 0, fun r => answer3 (r 0) (r 1) (r 2), by simp [cert], ?_⟩
+  refine ⟨rom _ _ fun r => by simp [answer3, answer], fun r r' m hm => ?_, fun r r' h0 m hm => ?_,
+    fun r => ⟨?_, ?_, ?_⟩, fun r => ⟨0, by simp [TopCert.m, top], ?_⟩⟩
+  · rw [show top.lam.time = 1 from rfl, show cert.transcripts.getD top.transcript default = transcript from rfl,
+      seeds_one] at hm
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [nu, answer3, answer]
+  · rw [show top.low.time = 2 from rfl, show cert.transcripts.getD top.transcript default = transcript from rfl,
+      seeds_two] at hm
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+      rfl | rfl | rfl | rfl <;> simp [nu, answer3, answer, h0]
+  · exact ev_limbsE _ 16 _ (by simp [answer3, answer])
+  · exact ev_limbsE _ 22 _ (by simp [answer3, answer])
+  · exact ev_limbsE _ 23 _ (by simp [answer3])
+  · rw [show top.values.getD 0 0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer3, answer])]
+    simp
+
+/-- Answers meeting every premise of `whir_test_sound` but acceptance, at every challenge vector. -/
+theorem whir_answers_exist :
+    ∃ (c : Cert) (s : State) (wc : WhirCert) (I : Inst E wc.rounds.length)
+      (st : (Fin wc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin wc.rounds.length → E) → Val),
+      wc ∈ c.whirs ∧ 0 < wc.rounds.length ∧ I.ok wc.deg ∧ WhirAnswers c s wc I st val := by
+  have h0 : ∀ i : Fin whir.rounds.length, i = ⟨0, by decide⟩ := fun i =>
+    Fin.ext (by have := i.isLt; simp [whir] at this; omega)
+  refine ⟨cert, state, whir, inst, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0, by simp [cert],
+    by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_, fun r => ?_⟩
+  · obtain rfl := h0 i
+    rw [show (whir.rounds.getD 0 default).chal.time = 1 from rfl,
+      show cert.transcripts.getD whir.transcript default = transcript from rfl, seeds_one] at hm
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [nu, answer]
+  · obtain rfl := h0 i
+    exact ev_limbsE _ 16 _ (by simp [answer, whir, whirRound])
+  · obtain rfl := h0 i
+    rfl
+  · rw [show whir.claim0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer])]
+    simp [inst, Inst.sum, lin]
 
 /-- Proof-of-work answers meeting every premise of `pow_test_sound` but acceptance: one trial, whose word is each
 outcome. -/

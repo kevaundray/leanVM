@@ -1,7 +1,7 @@
 module
 
 public import LeanVMCircuits.Rec.UnionRows
-public import LeanVMCircuits.Rec.Rounds
+public import LeanVMCircuits.Rec.WhirRounds
 
 @[expose] public section
 
@@ -11,8 +11,8 @@ The checker's verdict on a recursion circuit.
 `Cert.accepts`: every rule is justified, every transcript is a chain of compressions, the unions' rows are where the
 certificate says (`Cert.unionsOk`), every field equality reading a challenge is a test, for every test some
 transcript's `certifyT` gives both its wires a binding time, each union's coverage entry holds (`Cert.coversOk`), and
-each named sumcheck's rounds, proof-of-work check and GKR odd layer are where the certificate says
-(`Cert.sumchecksOk`, `PowCert.ok`, `Cert.oddsOk`).
+each named sumcheck's rounds, proof-of-work check, GKR odd layer, GKR radix-four top layer, claim split and WHIR
+sumcheck are where the certificate says (`Cert.sumchecksOk`, `PowCert.ok`, `Cert.oddsOk`, `Cert.lateOk`).
 
 - `tests_by`: each test's wires, at their binding time `k`, are in the closure of what one transcript's first `k`
   blocks absorb, and of the statement only once `k` passes its last block; `checkbind_sound` is its weaker form.
@@ -100,8 +100,10 @@ structure Transcript where
   blocks : List ℕ
   firings : Array ℕ
   squeezes : List ℕ := []
-  /-- The firings that bind with `Cert.rulesRO`, the random-oracle view's rules. -/
+  /-- The firings that bind with `rulesRO`, the random-oracle view's rules. -/
   firingsRO : Array ℕ := #[]
+  /-- The rules of the transcript's random-oracle view: none reads a hash row it drops (`dropOf`). -/
+  rulesRO : Rules Just := {}
   deriving Inhabited
 
 /-- The words block `k` absorbs, as nodes. -/
@@ -232,8 +234,10 @@ structure Cert where
   sumchecks : Array SumcheckCert := #[]
   pows : Array PowCert := #[]
   odds : Array OddCert := #[]
-  /-- The rules without the squeeze rows (`isSqueezeRow`), which the round certificates bind with. -/
-  rulesRO : Rules Just := {}
+  /-- The radix-four top layers, claim splits and WHIR sumchecks the certificate names. -/
+  tops : Array TopCert := #[]
+  splits : Array SplitCert := #[]
+  whirs : Array WhirCert := #[]
 
 def Cert.test (c : Cert) (u : ℕ) : Bool := c.isTest.getD u false
 
@@ -246,9 +250,14 @@ def Cert.times (c : Cert) (s : State) (t : Transcript) : Array (Option ℕ) :=
 def Cert.marks (c : Cert) (s : State) : List (Transcript × Array (Option ℕ)) :=
   c.transcripts.map fun t => (t, c.times s t)
 
-/-- The times in the random-oracle view: `rulesRO` and its firings. -/
+/-- The hash rows a transcript's random-oracle view drops: those writing one of its own absorb blocks' or squeezes'
+outputs, the compressions whose answers vary with its challenges. The other transcripts' rows hold. -/
+def dropOf (s : State) (t : Transcript) (row : List ℕ) : Bool :=
+  (t.blocks ++ t.squeezes).any fun k => (s.hash.getD k []).getD 6 0 == row.getD 6 0
+
+/-- The times in the random-oracle view: the transcript's `rulesRO` and their firings. -/
 def Cert.timesRO (c : Cert) (s : State) (t : Transcript) : Array (Option ℕ) :=
-  certifyT c.rulesRO c.nodes (seedsT s t) t.firingsRO
+  certifyT t.rulesRO c.nodes (seedsT s t) t.firingsRO
 
 /-- Each transcript with its random-oracle times. -/
 def Cert.marksRO (c : Cert) (s : State) : List (Transcript × Array (Option ℕ)) :=
@@ -333,29 +342,65 @@ def Cert.oddsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Trans
       boundBy t.2 oc.values oc.lam.time &&
       boundBy t.2 ((List.range oc.m).flatMap fun k => [oc.left k, oc.right k]) oc.next.time
 
-/-- What round `i`'s prover sends, its weight, and for the first round the input claim, are bound by the round's
-time. -/
+/-- What round `i`'s prover sends, its weight, and for the first round the input claim unless it is hinted, are bound
+by the round's time. -/
 def SumcheckCert.boundOk (m : Array (Option ℕ)) (sc : SumcheckCert) (i : ℕ) : Bool :=
   let rc := sc.rounds.getD i default
-  ((rc.sent ++ rc.weight.toList ++ (if i = 0 then [sc.claim0] else [])).flatMap limbs3).all fun n =>
+  ((rc.sent ++ rc.weight.toList ++ (if i = 0 ∧ sc.hinted = false then [sc.claim0] else [])).flatMap limbs3).all
+    fun n =>
     match m.getD n none with
     | some k => decide (k ≤ rc.time)
     | none => false
 
-/-- Each named sumcheck's rounds are in the replay, its test is a test of its last claim, and each round's challenge
-is drawn after the blocks binding what the prover sends in it. -/
+/-- Each named sumcheck's rounds are in the replay, its test is a test of its last side (the last claim, or the
+residual from it), and each round's challenge is drawn after the blocks binding what the prover sends in it. -/
 def Cert.sumchecksOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) :
     Bool :=
   c.sumchecks.all fun sc => sc.transcript < ms.length && sc.ok os c.calls c.relax && c.test sc.test &&
-    (s.unions[sc.test]? == some (sc.claimAt os sc.rounds.length, sc.final) ||
-      s.unions[sc.test]? == some (sc.final, sc.claimAt os sc.rounds.length)) &&
+    (s.unions[sc.test]? == some (sc.side os, sc.final) || s.unions[sc.test]? == some (sc.final, sc.side os)) &&
     (List.range sc.rounds.length).all fun i =>
       (sc.rounds.getD i default).chalOk s os c.calls (ms.getD sc.transcript default).1.blocks &&
         sc.boundOk (ms.getD sc.transcript default).2 i
 
+/-- Each GKR radix-four top layer's calls are in the replay, its test is a test of its claim and expected value, its
+challenges are drawn where it says, its input claims are bound before `λ` is drawn, and its children before `low`
+is. -/
+def Cert.topsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
+  c.tops.all fun tc =>
+    let t := ms.getD tc.transcript default
+    tc.transcript < ms.length && tc.ok os c.calls c.relax && c.test tc.test &&
+      (s.unions[tc.test]? == some (tc.claim os, tc.expected os) ||
+        s.unions[tc.test]? == some (tc.expected os, tc.claim os)) &&
+      tc.lam.ok s os c.calls t.1.blocks && tc.low.ok s os c.calls t.1.blocks && tc.high.ok s os c.calls t.1.blocks &&
+      boundBy t.2 tc.values tc.lam.time &&
+      boundBy t.2 ((List.range tc.m).flatMap fun k => (List.range 4).map (tc.kid k)) tc.low.time
+
+/-- Each claim split's calls are in the replay, and its test is a test of its total and the claim's value. -/
+def Cert.splitsOk (c : Cert) (s : State) (os : Array (List ℕ)) : Bool :=
+  c.splits.all fun pc => pc.ok os c.calls c.relax && c.test pc.test &&
+    (s.unions[pc.test]? == some (pc.total os, pc.value) || s.unions[pc.test]? == some (pc.value, pc.total os))
+
+/-- Each WHIR sumcheck's rounds are in the replay, its test is a test of its last claim, each round's challenge is
+drawn where it says, the input claim is bound before the first challenge, and what each round's polynomial reads
+before its challenge. -/
+def Cert.whirsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
+  c.whirs.all fun wc =>
+    let t := ms.getD wc.transcript default
+    wc.transcript < ms.length && wc.ok os c.calls c.relax && c.test wc.test &&
+      (s.unions[wc.test]? == some (wc.claimAt os wc.rounds.length, wc.final) ||
+        s.unions[wc.test]? == some (wc.final, wc.claimAt os wc.rounds.length)) &&
+      boundBy t.2 [wc.claim0] (wc.rounds.getD 0 default).chal.time &&
+      (List.range wc.rounds.length).all fun i =>
+        (wc.rounds.getD i default).chal.ok s os c.calls t.1.blocks &&
+          boundBy t.2 ((wc.rounds.getD i default).atoms os) (wc.rounds.getD i default).chal.time
+
+/-- The later checks: the radix-four top layers, the claim splits and the WHIR sumchecks. -/
+def Cert.lateOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
+  c.topsOk s os ms && c.splitsOk s os && c.whirsOk s os ms
+
 /-- The verdict: every rule is justified, every transcript is a chain, the unions' rows are certified, every field
 equality reading a challenge is a test, some transcript marks every test's wires, the coverage entries hold, and the
-named sumchecks' rounds and proof-of-work checks are certified. -/
+named sumchecks' rounds, proof-of-work checks, GKR layers, claim splits and WHIR sumchecks are certified. -/
 def Cert.accepts (c : Cert) (s : State) : Bool :=
   match replayR c.calls c.relax 0 {} #[] with
   | none => false
@@ -365,7 +410,8 @@ def Cert.accepts (c : Cert) (s : State) : Bool :=
       let ms := c.marks s
       let mr := c.marksRO s
       c.testsBound s ms && c.coversOk s os ms && c.sumchecksOk s os mr && c.pows.all (·.ok os c.calls c.relax) &&
-        c.oddsOk s os mr && rulesOk s c.test c.claims (isSqueezeRow s) c.rulesRO
+        c.oddsOk s os mr && c.transcripts.all (fun t => rulesOk s c.test c.claims (dropOf s t) t.rulesRO) &&
+        c.lateOk s os mr
 
 theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
     rulesOk s c.test c.claims (fun _ => false) c.rules = true ∧ c.transcripts.all (fun t => chainOk s t.blocks) = true ∧
@@ -378,12 +424,14 @@ theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩, -⟩⟩ := h
+    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩, -⟩, -⟩⟩ := h
     exact ⟨hr, hc, hu, ht, hb, hcv⟩
 
 theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
     c.sumchecksOk s c.outs (c.marksRO s) = true ∧ c.pows.all (·.ok c.outs c.calls c.relax) = true ∧
-      c.oddsOk s c.outs (c.marksRO s) = true ∧ rulesOk s c.test c.claims (isSqueezeRow s) c.rulesRO = true := by
+      c.oddsOk s c.outs (c.marksRO s) = true ∧
+      c.transcripts.all (fun t => rulesOk s c.test c.claims (dropOf s t) t.rulesRO) = true ∧
+      c.lateOk s c.outs (c.marksRO s) = true := by
   unfold Cert.accepts at h
   unfold Cert.outs
   split at h
@@ -391,7 +439,7 @@ theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    exact ⟨h.2.1.1.1.2, h.2.1.1.2, h.2.1.2, h.2.2⟩
+    exact ⟨h.2.1.1.1.1.2, h.2.1.1.1.2, h.2.1.1.2, h.2.1.2, h.2.2⟩
 
 /-- A node a transcript binds at time `k` is in the closure of what its first `k` blocks absorb, and of the statement
 once `k` passes its last block. -/
@@ -401,7 +449,7 @@ theorem Cert.times_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
 
 /-- The same for the random-oracle view's rules. -/
 theorem Cert.timesRO_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
-    (h : (c.timesRO s t).getD n none = some k) : Closure c.rulesRO (seedsBefore s t k) n :=
+    (h : (c.timesRO s t).getD n none = some k) : Closure t.rulesRO (seedsBefore s t k) n :=
   (certifyT_sound _ _ _ _ n k h).mono seedsBy_seedsT
 
 /-- A passing verdict: every rule is justified, and each test's wires are bound by one transcript at a time `k`: in

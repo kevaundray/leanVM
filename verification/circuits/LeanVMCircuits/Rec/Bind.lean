@@ -389,15 +389,22 @@ structure Report where
   exposedUnbound : Array ℕ
   /-- Each probed node's binding time per transcript. -/
   probes : List (ℕ × List (Option ℕ)) := []
-  /-- The tests the certificate names as sumchecks' last checks, and their rounds. -/
+  /-- The tests the certificate names as sumchecks' last checks, and their rounds; those of a residual. -/
   sumchecks : ℕ := 0
   rounds : ℕ := 0
+  residuals : ℕ := 0
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
-  /-- The GKR odd layers the certificate names. -/
+  /-- The GKR odd layers and radix-four top layers the certificate names. -/
   odds : ℕ := 0
-  /-- The calls of the `eq_e` tests that close no certified sumcheck and no union. -/
+  tops : ℕ := 0
+  /-- The WHIR sumchecks the certificate names, and their rounds. -/
+  whirs : ℕ := 0
+  whirRounds : ℕ := 0
+  /-- The claim splits the certificate names. -/
+  splits : ℕ := 0
+  /-- The calls of the `eq_e` tests that close nothing certified and no union. -/
   others : Array ℕ := #[]
   deriving Repr
 
@@ -596,26 +603,232 @@ def roundTime (rp : Replay) (s : State) (t : Transcript) (rc : RoundCert) : Opti
   let k ← t.blocks.findIdx? fun b => (s.hash.getD b []).getD 6 0 == h
   return k + 1
 
-/-- The sumcheck a test closes, if one of its wires is a last claim: its rounds back to the first claim no round
-makes, in the transcript drawing the last round's challenge. -/
+/-- The rounds whose last next claim is `last`, back to the first claim no round makes, and that claim. -/
+def roundsBack (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (last : ℕ) : List RoundCert × ℕ := Id.run do
+  let mut rounds : List RoundCert := []
+  let mut cur := last
+  for _ in [0:256] do
+    match roundOf rp idx cur with
+    | some (rc, cl) =>
+      if rounds.all (·.coeffs.length == rc.coeffs.length) then rounds := rc :: rounds; cur := cl else break
+    | none => break
+  return (rounds, cur)
+
+/-- The sumcheck a test closes, if one of its wires is a last claim, or a residual chain from one
+(`mul_add(weight, summand, residual)`): its rounds back to the first claim no round makes, in the transcript drawing
+the last round's challenge. -/
 def sumcheckOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (ts : List Transcript)
     (u a b : ℕ) : Option SumcheckCert := Id.run do
-  for (last, final) in [(a, b), (b, a)] do
-    let mut rounds : List RoundCert := []
-    let mut cur := last
-    for _ in [0:256] do
-      match roundOf rp idx cur with
-      | some (rc, cl) =>
-        if rounds.all (·.coeffs.length == rc.coeffs.length) then rounds := rc :: rounds; cur := cl else break
+  for (side, final) in [(a, b), (b, a)] do
+    let mut resid : List (ℕ × ℕ × ℕ) := []
+    let mut last := side
+    for _ in [0:64] do
+      let (rounds, claim0) := roundsBack rp idx last
+      if let some lastRound := rounds.getLast? then
+        if let some k := (List.range ts.length).find? fun k => (roundTime rp s (ts.getD k default) lastRound).isSome then
+          let t := ts.getD k default
+          let timed := rounds.filterMap fun rc => (roundTime rp s t rc).map fun time => { rc with time }
+          if timed.length = rounds.length then
+            -- The table sumcheck's target reads hinted fixed-column evaluations no transcript binds.
+            return some { claim0, rounds := timed, deg := lastRound.coeffs.length - 1, test := u, final,
+                          transcript := k, resid, hinted := !resid.isEmpty }
+      -- A residual is tested against `zero`.
+      if (zeroAt rp idx final).isNone then break
+      match makerBy rp idx last (fun j c => match c with
+        | .mulAdd w x acc => some (w, x, acc, j)
+        | _ => none) with
+      | some (w, x, acc, j) => resid := (w, x, j) :: resid; last := acc
       | none => break
-    if let some lastRound := rounds.getLast? then
-      let some k := (List.range ts.length).find? fun k => (roundTime rp s (ts.getD k default) lastRound).isSome
-        | continue
-      let t := ts.getD k default
-      let timed := rounds.filterMap fun rc => (roundTime rp s t rc).map fun time => { rc with time }
-      if timed.length = rounds.length then
-        return some { claim0 := cur, rounds := timed, deg := lastRound.coeffs.length - 1, test := u, final,
-                      transcript := k }
+  return none
+
+/-- A call among the 400 from `start` that `f` takes. -/
+def findFrom {α : Type} (rp : Replay) (start : ℕ) (f : Call → Option α) : Option (ℕ × α) :=
+  (List.range 400).findSome? fun d => (f (rp.calls.getD (start + d) .zero)).map (start + d, ·)
+
+/-- The product of four children from a `one` making `w` (`Arith::product`): the `one` and `mul` calls, and the
+children. -/
+def prod4Of (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) : Option (List ℕ × List ℕ) := do
+  let mulOf := fun v => makerBy rp idx v fun j c => match c with
+    | .mul x y => some (j, x, y)
+    | _ => none
+  let (j4, p3, d) ← mulOf w
+  let (j3, p2, c) ← mulOf p3
+  let (j2, p1, b) ← mulOf p2
+  let (j1, p0, a) ← mulOf p1
+  let j0 ← makerBy rp idx p0 fun j c => match c with
+    | .one => some j
+    | _ => none
+  return ([j0, j1, j2, j3, j4], [a, b, c, d])
+
+/-- The GKR radix-four top layer a test closes: one side the values at `λ` by Horner, the other the products of four
+children at `λ`, then each value's children's interpolation at the next two challenges, made after the test. -/
+def topOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (ts : List Transcript)
+    (u call a b : ℕ) : Option TopCert := Id.run do
+  for (cw, ew) in [(a, b), (b, a)] do
+    let some (lam, values, claimZero, claimAt) := hornerOf rp idx cw | continue
+    let some (lam', prods, expZero, expAt) := hornerOf rp idx ew | continue
+    if lam' ≠ lam ∨ prods.length ≠ values.length then continue
+    let some ps := prods.mapM (prod4Of rp idx) | continue
+    let mut lines : Array (List ℕ) := #[]
+    let mut chals : Option (ℕ × ℕ) := none
+    let addOf := fun (st x y : ℕ) => findFrom rp st fun c => match c with
+      | .add x' y' => if x' = x ∧ y' = y then some () else none
+      | _ => none
+    let lineOf := fun (st d x : ℕ) => findFrom rp st fun c => match c with
+      | .mulAdd t d' x' => if d' = d ∧ x' = x then some t else none
+      | _ => none
+    for (_, ks) in ps do
+      let k := fun i => ks.getD i 0
+      let some (l0, _) := addOf call (k 0) (k 1) | break
+      let some (l1, lo) := lineOf l0 (o rp.outs l0) (k 0) | break
+      let some (l2, _) := addOf l1 (k 2) (k 3) | break
+      let some (l3, lo') := lineOf l2 (o rp.outs l2) (k 2) | break
+      let some (l4, _) := addOf l3 (o rp.outs l1) (o rp.outs l3) | break
+      let some (l5, hi) := lineOf l4 (o rp.outs l4) (o rp.outs l1) | break
+      if lo' ≠ lo ∨ chals.any (· ≠ (lo, hi)) then break
+      chals := some (lo, hi)
+      lines := lines.push [l0, l1, l2, l3, l4, l5]
+    let some (lo, hi) := chals | continue
+    if lines.size ≠ ps.length then continue
+    let some lamC := chalOf rp idx lam | continue
+    let some loC := chalOf rp idx lo | continue
+    let some hiC := chalOf rp idx hi | continue
+    let some k := (List.range ts.length).find? fun k => (chalTime rp s (ts.getD k default) hiC).isSome | continue
+    let t := ts.getD k default
+    let some lt := chalTime rp s t lamC | continue
+    let some ot := chalTime rp s t loC | continue
+    let some ht := chalTime rp s t hiC | continue
+    return some { values, lam := { lamC with time := lt }, claimZero, claimAt, kids := ps.map (·.2),
+                  prodAt := ps.map (·.1), expZero, expAt, test := u, low := { loC with time := ot },
+                  high := { hiC with time := ht }, lineAt := lines.toList, transcript := k }
+  return none
+
+/-- A WHIR quadratic with coefficients `c`, `b`, `a`: received (`b = claim + (0 + a)`), else folded, each coefficient
+`mul_add(s, intro's, base's)`, its claim the running claim's `mul_add` among the next calls. -/
+def quadOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) : ℕ → ℕ → ℕ → ℕ → Option QuadCert
+  | 0, _, _, _ => none
+  | fuel + 1, c, b, a =>
+    let recv := makerBy rp idx b fun j call => match call with
+      | .add cl t => (foldOf rp idx t [a]).bind fun (z, ts) => match ts with
+        | [tAt] => some (QuadCert.recv cl c a z tAt j)
+        | _ => none
+      | _ => none
+    match recv with
+    | some q => some q
+    | none => do
+      let mulAddOf := fun v => makerBy rp idx v fun j call => match call with
+        | .mulAdd s x y => some (j, s, x, y)
+        | _ => none
+      let (cAt, s, ci, cb) ← mulAddOf c
+      let (bAt, s', bi, bb) ← mulAddOf b
+      let (aAt, s'', ai, ab) ← mulAddOf a
+      guard (s' = s ∧ s'' = s)
+      let base ← quadOf rp idx fuel cb bb ab
+      let intro ← quadOf rp idx fuel ci bi ai
+      let (clAt, _) ← findFrom rp (aAt + 1) fun call => match call with
+        | .mulAdd s₁ y t =>
+          if s₁ = s ∧ y = intro.claim rp.outs ∧ t = base.claim rp.outs then some () else none
+        | _ => none
+      return .fold base intro s cAt bAt aAt clAt
+
+/-- A folded quadratic's first fold: its power of `λ` and the claim of the quadratic it folds into. -/
+def QuadCert.inner : QuadCert → ℕ × ℕ
+  | .recv cl .. => (0, cl)
+  | .fold q _ s .. => match q with
+    | .recv cl .. => (s, cl)
+    | _ => q.inner
+
+/-- `Quad::eval` making `w`: `mul_add(mul_add(a, x, b), x, c)`, its calls, `x` and the coefficients. -/
+def quadEvalOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) :
+    Option (ℕ × ℕ × ℕ × ℕ × ℕ × ℕ) := do
+  let (tAt, u, x, c) ← makerBy rp idx w fun j call => match call with
+    | .mulAdd u x c => some (j, u, x, c)
+    | _ => none
+  let (uAt, a, b) ← makerBy rp idx u fun j call => match call with
+    | .mulAdd a x' b => if x' = x then some (j, a, b) else none
+    | _ => none
+  return (tAt, uAt, x, c, b, a)
+
+/-- `w` as an expression in `x`: the claim `claim` and the wires `bound` takes are atoms, `x` the variable, and any
+other wire a call's output through its arguments. -/
+def pexprOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (bound : ℕ → Bool) (x claim : ℕ) :
+    ℕ → ℕ → Option PExpr
+  | 0, _ => none
+  | fuel + 1, w =>
+    if w = claim then some (.atom w)
+    else if w = x then some .var
+    else if bound w then some (.atom w)
+    else
+      let go := pexprOf rp idx bound x claim fuel
+      (idx.getD w #[]).findSome? fun (j, p) => if p ≠ 0 then none else
+        match rp.calls.getD j .zero with
+        | .add a d => do return .add j (← go a) (← go d)
+        | .mul a b => do return .mul j (← go a) (← go b)
+        | .mulAdd a b d => do return .mulAdd j (← go a) (← go b) (← go d)
+        | .square a => do return .square j (← go a)
+        | .mulConstAdd a c0 c1 c2 d => do return .mulConstAdd j c0 c1 c2 (← go a) (← go d)
+        | _ => none
+
+/-- The WHIR sumcheck a test closes: one side a `Quad::eval`, back through fold rounds and the batch rounds before
+folded quadratics to the first quadratic's claim, in the transcript drawing the last round's challenge. A batch
+round's expression treats as atoms the wires the transcript binds by `λ`'s time in the random-oracle view. -/
+def whirOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (ms : List (Transcript × Array (Option ℕ)))
+    (u a b : ℕ) : Option WhirCert := Id.run do
+  for (side, final) in [(a, b), (b, a)] do
+    let some (_, _, x0, _, _, _) := quadEvalOf rp idx side | continue
+    let some c0 := chalOf rp idx x0 | continue
+    let some k := (List.range ms.length).find? fun k => (chalTime rp s (ms.getD k default).1 c0).isSome | continue
+    let (t, bd) := ms.getD k default
+    let timed := fun (cc : ChalCert) => (chalTime rp s t cc).map fun time => { cc with time }
+    let mut rounds : List WhirRound := []
+    let mut cur := side
+    for _ in [0:4096] do
+      let some (tAt, uAt, x, c, b, a) := quadEvalOf rp idx cur | break
+      let some q := quadOf rp idx 64 c b a | break
+      let some cc := (chalOf rp idx x).bind timed | break
+      rounds := .fold q cc uAt tAt :: rounds
+      cur := q.claim rp.outs
+      if let .fold .. := q then
+        let (s1, claim) := q.inner
+        -- `λ` is the first power, or the factor of `mul(one, λ)` making it.
+        let lam := if (chalOf rp idx s1).isSome then s1 else
+          (makerBy rp idx s1 fun _ call => match call with
+            | .mul _ y => some y
+            | _ => none).getD s1
+        let some lc := (chalOf rp idx lam).bind timed | break
+        let bound := fun w => (limbs3 w).all fun n => match bd.getD n none with
+          | some k => decide (k ≤ lc.time)
+          | none => false
+        let some e := pexprOf rp idx bound lam claim 100000 cur | break
+        rounds := .batch lc e :: rounds
+        cur := claim
+    if !rounds.isEmpty then
+      return some { claim0 := cur, rounds, test := u, final, transcript := k }
+  return none
+
+/-- A claim split a test closes (`design::program_claims`): one side a chain of `mul_add(c, h^(2^e), acc)` from a
+`zero`, the other the claim's value. -/
+def splitOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (u a b : ℕ) : Option SplitCert := Id.run do
+  for (tw, value) in [(a, b), (b, a)] do
+    let mut terms : List (ℕ × ℕ × List ℕ × ℕ) := []
+    let mut cur := tw
+    for _ in [0:256] do
+      if let some z := zeroAt rp idx cur then
+        if !terms.isEmpty then return some { zeroAt := z, terms, test := u, value }
+        break
+      let some (j, c, p, acc) := makerBy rp idx cur (fun j call => match call with
+        | .mulAdd c p acc => some (j, c, p, acc)
+        | _ => none) | break
+      let mut h := p
+      let mut sq : List ℕ := []
+      for _ in [0:64] do
+        match makerBy rp idx h (fun jj call => match call with
+          | .square y => some (jj, y)
+          | _ => none) with
+        | some (jj, y) => sq := jj :: sq; h := y
+        | none => break
+      terms := (c, h, sq, j) :: terms
+      cur := acc
   return none
 
 /-- The proof-of-work checks among the test calls: `eq_k_const` tests of bits of a `split` of a trial compression's
@@ -645,8 +858,6 @@ def powsOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (testCalls
 def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let s := rp.state
   let an0 := rowRules s rp.invs fun _ => false
-  -- The random-oracle view's rules, which the round certificates bind with: no rule reads a squeeze row.
-  let anRO := rowRules s rp.invs (isSqueezeRow s)
   let bs := blocks rp
   let squeezes := bs.filter (·.squeeze)
   let gamma := latestByCalls rp
@@ -654,7 +865,8 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let latestOf := fun w => (gamma[w]!).getD 0
   -- Equalities that bind: digests, methods', and field equalities reading no challenge.
   let mut rules := an0.rules
-  let mut rulesRO := anRO.rules
+  -- The rules besides the rows', which each transcript's random-oracle view keeps too.
+  let mut extra : Array (Just × Array ℕ × Array ℕ) := #[]
   let mut tests : Array (ℕ × ℕ × ℕ) := #[]
   let mut isTest : Array Bool := Array.replicate s.unions.size false
   for u in [0:s.unions.size] do
@@ -664,8 +876,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
       isTest := isTest.set! u true
     else
       for j in [0:4] do
-        rules := (rules.push (.eq u j true) #[limb a j] #[limb b j]).push (.eq u j false) #[limb b j] #[limb a j]
-        rulesRO := (rulesRO.push (.eq u j true) #[limb a j] #[limb b j]).push (.eq u j false) #[limb b j] #[limb a j]
+        extra := (extra.push (.eq u j true, #[limb a j], #[limb b j])).push (.eq u j false, #[limb b j], #[limb a j])
   -- A union product: bound once its pool's digests, begin bits, selection bits and the point are. A pool's `pack`
   -- calls are the run of them after its end mark.
   let pools := rp.pools.map fun pc => Id.run do
@@ -678,16 +889,16 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let mut claims : Array UnionClaim := #[]
   for qc in rp.prods do
     let uc := qc.claim rp.outs (pools.getD qc.pool default)
-    rules := rules.push (.union claims.size) (uc.inputs.flatMap limbs4).toArray (limbs3 uc.out).toArray
-    rulesRO := rulesRO.push (.union claims.size) (uc.inputs.flatMap limbs4).toArray (limbs3 uc.out).toArray
+    extra := extra.push (.union claims.size, (uc.inputs.flatMap limbs4).toArray, (limbs3 uc.out).toArray)
     claims := claims.push uc
   -- The calls whose equality is a test, relaxed when the certificate replays the unions' rows.
   let mut relax : Array Bool := Array.replicate rp.calls.size false
   for (u, _, _) in tests do
     relax := relax.set! (rp.eqCall[u]!) true
+  for (j, ps, cs) in extra do
+    rules := rules.push j ps cs
   let an := { an0 with rules }
   let idx := premiseIndex rules an.nodes rules.size
-  let idxRO := premiseIndex rulesRO an.nodes rulesRO.size
   let ts := transcripts bs
   -- Each absorb block's `HASH` row, by its output wire.
   let mut rowOfOut : Std.HashMap ℕ ℕ := {}
@@ -720,9 +931,15 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     -- The statement's words are claims the verifier of this circuit's proof checks: bound last, at the end.
     let seeds := (words.qsort (·.1 < ·.1)) ++ (stmt.map (rp.calls.size, ·)).toArray
     let (bd, firings) := bind rules an.nodes idx seeds
-    let (_, firingsRO) := bind rulesRO an.nodes idxRO seeds
+    -- The transcript's random-oracle view: no rule reads a row writing its own blocks' or squeezes' outputs
+    -- (`dropOf`).
+    let own : Std.HashSet ℕ := (blocksRev ++ squeezes).foldl (fun acc k => acc.insert ((s.hash.getD k []).getD 6 0)) {}
+    let rulesRO := extra.foldl (fun r (j, ps, cs) => r.push j ps cs)
+      (rowRules s rp.invs fun row => own.contains (row.getD 6 0)).rules
+    let (_, firingsRO) := bind rulesRO an.nodes (premiseIndex rulesRO an.nodes rulesRO.size) seeds
     binds := binds.push bd
-    certs := certs.push { blocks := blocksRev.reverse.toList, firings, squeezes := squeezes.reverse.toList, firingsRO }
+    certs := certs.push { blocks := blocksRev.reverse.toList, firings, squeezes := squeezes.reverse.toList, firingsRO,
+                          rulesRO }
   -- Each product's point: `X + 1` is made by the call after the point's first.
   let points := rp.prods.map fun qc =>
     let start := rp.maker.getD qc.x1 0 - 1
@@ -744,7 +961,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     | _, _ => none
   let cert : Cert := {
     rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList, calls := rp.calls, relax, pools
-    prods := rp.prods, points, covers, rulesRO }
+    prods := rp.prods, points, covers }
   -- The tests closing a sumcheck whose rounds the verdict certifies.
   let idxO := outIndex rp
   let ms := cert.marksRO s
@@ -755,7 +972,21 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let odds := (tests.filterMap fun (u, a, b) =>
       if sumchecks.any (·.test == u) then none else oddOf rp idxO s certs.toList u (rp.eqCall[u]!) a b).filter fun oc =>
     ({ cert with odds := #[oc] }).oddsOk s os ms
-  let cert := { cert with sumchecks, pows, odds }
+  -- The other late tests: GKR's radix-four top layers, WHIR's sumchecks, and claim splits.
+  let isEqE := fun (u : ℕ) => match rp.calls.getD (rp.eqCall[u]!) .zero with
+    | .eqE .. => true
+    | _ => false
+  let named := fun (u : ℕ) => sumchecks.any (·.test == u) || odds.any (·.test == u) || covers.any (·.test == u)
+  let tops := (tests.filterMap fun (u, a, b) =>
+      if named u || !isEqE u then none else topOf rp idxO s certs.toList u (rp.eqCall[u]!) a b).filter fun tc =>
+    ({ cert with tops := #[tc] }).topsOk s os ms
+  let whirs := (tests.filterMap fun (u, a, b) =>
+      if named u || !isEqE u || tops.any (·.test == u) then none else whirOf rp idxO s ms u a b).filter fun wc =>
+    ({ cert with whirs := #[wc] }).whirsOk s os ms
+  let splits := (tests.filterMap fun (u, a, b) =>
+      if named u || !isEqE u || tops.any (·.test == u) || whirs.any (·.test == u) then none
+      else splitOf rp idxO u a b).filter fun pc => ({ cert with splits := #[pc] }).splitsOk s os
+  let cert := { cert with sumchecks, pows, odds, tops, whirs, splits }
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -808,11 +1039,11 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     late, deferred,
     exposed, exposedUnbound, probes, sumchecks := sumchecks.size,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
-    pows := pows.size, powTests := pows.foldl (fun n pc => n + pc.bits) 0, odds := odds.size,
-    others := tests.filterMap fun (u, _, _) => match rp.calls.getD (rp.eqCall[u]!) .zero with
-      | .eqE .. =>
-        if sumchecks.any (·.test == u) || odds.any (·.test == u) || covers.any (·.test == u) then none
-        else some (rp.eqCall[u]!)
-      | _ => none }
+    residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
+    pows := pows.size, powTests := pows.foldl (fun n pc => n + pc.bits) 0, odds := odds.size, tops := tops.size,
+    whirs := whirs.size, whirRounds := whirs.foldl (fun n wc => n + wc.rounds.length) 0, splits := splits.size,
+    others := tests.filterMap fun (u, _, _) =>
+      if !isEqE u || named u || tops.any (·.test == u) || whirs.any (·.test == u) || splits.any (·.test == u) then none
+      else some (rp.eqCall[u]!) }
 
 end LeanVMCircuits.Rec.Bind
