@@ -402,6 +402,10 @@ impl<'p> Design<'p> {
                 Some(c) => c.statement.map(|&w| b.free_e(w)),
                 None => TreeStatement::filled(self.statement, F192::ZERO).map(|&w| b.free_e(w)),
             };
+            b.mark(|| {
+                let ws: Vec<String> = statement.words().iter().map(|w| w.0.to_string()).collect();
+                format!("edge child {i} {} {}", ws.len(), ws.join(" "))
+            });
             let (top, is_node) = b.scope(format!("child {i} kind"), |b| {
                 self.kind_rows(b, statement.kind(), child_tier)
             });
@@ -626,6 +630,8 @@ impl NodeRows {
         let b = &mut self.b;
         let claims = &self.claims;
 
+        b.mark(|| design.statement.edge_line(&design.vars.0));
+        b.mark(|| claims.edge_lines());
         // The instance is every value the claims rest on, their count first.
         let count = b.k_const(claims.bound.len() as u64);
         let mut instance = vec![count];

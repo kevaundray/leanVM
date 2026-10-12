@@ -41,8 +41,8 @@ jobs:
       - name: Replay the builders and check native table bindings
         working-directory: verification/circuits
         run: |
-          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots
-          lake build checkrec checkflushes checkbind checkdesign
+          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots Mathlib.Algebra.BigOperators.Field Mathlib.Algebra.Order.BigOperators.Group.Finset Mathlib.Algebra.Order.Field.Rat Mathlib.Data.Fintype.Card
+          lake build checkrec checkflushes checkbind checkdesign checkedges
           lake exe checkrec /tmp/circuits/*.txt
           lake exe checkflushes /tmp/circuits/table-flushes.dump
       - name: Check the design model
@@ -55,3 +55,6 @@ jobs:
           # A circuit from before the union absorbed its begin bits (#626): its coverage test must stay unbound.
           xz -dc fixtures/pre626-claimset-two-tier-circuit-1.txt.xz > /tmp/pre626-claimset-two-tier-circuit-1.txt
           lake exe checkbind --expect-unbound /tmp/pre626-claimset-two-tier-circuit-1.txt
+      - name: Check the tree's edges
+        working-directory: verification/circuits
+        run: lake exe checkedges /tmp/circuits/*.txt

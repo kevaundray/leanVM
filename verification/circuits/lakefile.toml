@@ -25,3 +25,7 @@ root = "CheckBind"
 [[lean_exe]]
 name = "checkdesign"
 root = "CheckDesign"
+
+[[lean_exe]]
+name = "checkedges"
+root = "CheckEdges"
