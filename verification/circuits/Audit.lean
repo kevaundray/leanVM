@@ -579,3 +579,11 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.UnionSound.coverage_sound
 #print axioms LeanVMCircuits.Rec.UnionSound.union_coverage_sound
 #print axioms LeanVMCircuits.Rec.UnionSound.chain_unique
+#print axioms LeanVMCircuits.Rec.PoolClaims.run_reads
+#print axioms LeanVMCircuits.Rec.PoolClaims.readC_blocks
+#print axioms LeanVMCircuits.Rec.PoolClaims.reads_sum
+#print axioms LeanVMCircuits.Rec.Bind.pool_claims
+#print axioms LeanVMCircuits.Rec.Bind.decl_claims
+#print axioms LeanVMCircuits.Rec.Bind.cur_runAt
+#print axioms LeanVMCircuits.Rec.Bind.sel_claims
+#print axioms LeanVMCircuits.Rec.Bind.union_sound_sets

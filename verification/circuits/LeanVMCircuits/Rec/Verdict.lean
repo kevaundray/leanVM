@@ -250,7 +250,8 @@ def Cert.testsBound (c : Cert) (s : State) (ms : List (Transcript × Array (Opti
     | none => true
 
 /-- Each product is in a coverage entry, and each entry's equality is a test of its two products' outputs at one
-point, whose transcript's marks cover what both pools commit to. -/
+point, whose transcript's marks cover what both pools commit to; the declared pool has one digest and does not select,
+and the children's pool's run one-hot closes at its last digest. -/
 def Cert.coversOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) :
     Bool :=
   (List.range c.prods.size).all (fun i => c.covers.any fun cv => cv.sel == i || cv.decl == i) &&
@@ -259,7 +260,8 @@ def Cert.coversOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Tra
     s.unions[cv.test]? == some (ProdCert.out os (c.poolOf cv.sel) (c.prods.getD cv.sel default),
       ProdCert.out os (c.poolOf cv.decl) (c.prods.getD cv.decl default)) &&
     (((c.poolOf cv.sel).committed os ++ (c.poolOf cv.decl).committed os).flatMap limbs4).all
-      fun n => ((ms.getD cv.transcript default).2.getD n none).isSome
+      (fun n => ((ms.getD cv.transcript default).2.getD n none).isSome) &&
+    !(c.poolOf cv.decl).selecting && (c.poolOf cv.decl).runs == 1 && (c.poolOf cv.sel).endOk os c.calls c.relax
 
 /-- The verdict: every rule is justified, every transcript is a chain, the unions' rows are certified, every field
 equality reading a challenge is a test, some transcript marks every test's wires, and the coverage entries hold. -/

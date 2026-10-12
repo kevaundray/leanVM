@@ -645,7 +645,7 @@ theorem union_sound (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover}
   obtain ⟨hr, -, hun, -, -, hcov⟩ := Cert.accepts_parts h
   simp only [Cert.coversOk, Bool.and_eq_true, Array.all_eq_true', List.all_eq_true, decide_eq_true_eq,
     beq_iff_eq] at hcov
-  obtain ⟨⟨⟨⟨⟨⟨hsel, hdecl⟩, htr⟩, -⟩, hpts⟩, hu⟩, hm⟩ := hcov.2 cv hcv
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨hsel, hdecl⟩, htr⟩, -⟩, hpts⟩, hu⟩, hm⟩, -⟩, -⟩, -⟩ := hcov.2 cv hcv
   rw [Cert.marks_getD c s htr] at hm
   -- What both pools commit to is in the transcript's closure, so the answers agree with `val₀` on it.
   have hagree : ∀ ω, ∀ w ∈ (c.poolOf cv.sel).committed c.outs ++ (c.poolOf cv.decl).committed c.outs,

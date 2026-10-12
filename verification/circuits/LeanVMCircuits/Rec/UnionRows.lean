@@ -430,6 +430,14 @@ def ok (cs : Array Call) (rl : Array Bool) : Bool :=
     (List.range pc.n).all (fun i => callsOk cs rl (pc.itemCalls os i)) &&
     callsOk cs rl [(pc.endAt, .eqE (o os (pc.p (pc.n - 1) + 4)) (pc.one os))] && pc.bitsOk os cs
 
+/-- The run one-hot's closing checks, after the pool's end check: it is at the last digest. -/
+def endCalls : List (ℕ × Call) :=
+  (List.range pc.runs).map fun r =>
+    (pc.endAt + 1 + r, .eqConstE (pc.cur os (pc.chunks - 1) r) (if r + 1 = pc.runs then 1 else 0) 0 0)
+
+/-- The run one-hot's closing checks are in the replay. -/
+def endOk (cs : Array Call) (rl : Array Bool) : Bool := callsOk cs rl (pc.endCalls os)
+
 /-- One assignment's values of the pool's items. -/
 noncomputable def vals (val : Val) : Vals where
   b0 i := val (o os (pc.p i)) 0
