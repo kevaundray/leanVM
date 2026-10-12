@@ -189,6 +189,10 @@ theorem collision_alarm {R : Type} (C : PrimitiveOracle) (iv : Digest32) (progra
     (p := (⟨0,by decide⟩,⟨0,by decide⟩)) (boundary := 0) C iv program Q (le_refl Q) counted roots
     collision
 
+/-- The three explicit summands of the current endpoint. -/
+def finalBound (Q : ℚ) : ℚ :=
+  Q * ((17/32 : ℚ)^56 + 1/2^78) + min 1 ((2*Q^2-Q)/2^256) + (Q^3+3*Q^2-2*Q)/2^256
+
 /-! ## Current #607 endpoint -/
 
 section Current
@@ -212,7 +216,7 @@ named hypotheses, not probability premises. -/
 theorem current_knowledge_bound {Coins : Type} [Fintype Coins] [Nonempty Coins]
     (iv : Digest32) (tag instanceBytes : List Byte)
     (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls messages : List Call)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64)
     (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input) (A : Nat)
     (attacker : ∀ coin, Counts A (prefixProgram coin))
@@ -285,7 +289,7 @@ theorem reduction_of_openingCover {Coins : Type}
       (SpongefishCurrentSourceCallerOriginal.preludeShape layout) = some before)
     (payloadEq : SpongefishCurrentSourceCallerOriginal.shapeCalls
       (SpongefishCurrentSourceCallerOriginal.payloadShape layout) = some payloadCalls)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64)
     (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input) (A : Nat)
     (attacker : ∀ coin, Counts A (prefixProgram coin))
@@ -341,7 +345,7 @@ theorem current_knowledge_cover {Coins : Type} [Fintype Coins] [Nonempty Coins]
       (SpongefishCurrentSourceCallerOriginal.preludeShape layout) = some before)
     (payloadEq : SpongefishCurrentSourceCallerOriginal.shapeCalls
       (SpongefishCurrentSourceCallerOriginal.payloadShape layout) = some payloadCalls)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64)
     (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input) (A : Nat)
     (attacker : ∀ coin, Counts A (prefixProgram coin))
@@ -386,13 +390,181 @@ theorem current_knowledge_cover {Coins : Type} [Fintype Coins] [Nonempty Coins]
       beforeEq payloadEq decode grinding prefixProgram A attacker Bad roots quiet openingCover)
     refines
 
+/-! ### Every record-binding message shape -/
+
+/-- Literal binding read calls of a record with `packs` normalized pending E. -/
+def bindingCalls (shape : AnchoredHeaderCodec.Shape) (packs : Nat) : List Call :=
+  List.replicate 3 (.read .scalar) ++ [.read .root,.read .root] ++ List.replicate 2 (.read .scalar) ++
+    List.replicate packs (.read .scalar) ++ List.replicate shape.logN (.read .scalar) ++ [.read .scalar]
+
+theorem messageCalls_binding (r : SpongefishSessionAdapter.Record)
+    (pointLength : r.point.length = r.shape.logN) :
+    SpongefishCurrentAcceptedJoin.messageCalls r =
+      bindingCalls r.shape ((r.context.pending.length+23)/24) := by
+  simp only [SpongefishCurrentAcceptedJoin.messageCalls,SpongefishRecordBindingParser.messages,
+    SpongefishRecordBindingParser.scalarMessages,List.map_append,List.map_map,List.map_cons,
+    List.map_nil,bindingCalls,SpongefishSessionAdapter.constants,SpongefishSessionAdapter.contextScalars,
+    SpongefishSessionAdapter.pendingPacks,Function.comp_def,List.map_const',List.length_ofFn,
+    pointLength]
+  rfl
+
+/-- The received record of an accepted caller path has at most three pending packs. -/
+theorem accepted_packs (c : DuplexRefinement.Compression) (iv : Digest32)
+    (tag instanceBytes narg : List Byte) (hints : List (List Byte))
+    (layout : WHIRCallerClaims.CallerLayout) (before : List Call)
+    (r : SpongefishSessionAdapter.Record) (initial pre received : Cursor)
+    (setup : SpongefishCurrentObservedSessionEntry.actualSetup c iv tag instanceBytes narg hints =
+      some initial)
+    (preRun : SpongefishCurrentPrimitiveEventCompiler.actualReplay c initial before = .ok pre)
+    (receivedEq : SpongefishCurrentCommitmentReceive.receive c pre
+      (AnchoredSourceCaller.shape layout) = some (received,r)) :
+    (r.context.pending.length+23)/24 < 4 ∧ r.point.length = r.shape.logN := by
+  obtain ⟨shapeEq,contextEq,pointLength,_⟩ :=
+    SpongefishCurrentCommitmentReceive.receive_retains c pre received _ r receivedEq
+  have bounded := SpongefishCurrentAcceptedJoin.actualReplay_bounded c before initial pre
+    (SpongefishCurrentAcceptedJoin.setup_bounded c iv tag instanceBytes narg hints initial setup) preRun
+  have pendingBound : r.context.pending.length ≤ 64 := by
+    rw [contextEq]
+    simpa [SpongefishSessionAdapter.capture] using bounded
+  refine ⟨by omega,?_⟩
+  rw [shapeEq]
+  exact pointLength
+
+/-- Native acceptance with `Bad` for SOME received record, without fixing its
+binding message shape in advance. -/
+def NativeAcceptedAny (C : PrimitiveOracle) (iv : Digest32) (tag instanceBytes : List Byte)
+    (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls : List Call)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (grinding : Fin (cfg).folds.size → Fin 64)
+    (prefixProgram : Program SpongefishCurrentInitializedMode.Input)
+    (Bad : PCSBCSCallerBinding.CallerInput p → View SourceResult → Prop) : Prop :=
+  ∃ k : Fin 4, NativeAcceptedBad C iv tag instanceBytes layout before payloadCalls
+    (bindingCalls (AnchoredSourceCaller.shape layout) k.val) decode grinding prefixProgram Bad
+
+/-- Every natively accepted run, whatever its received record, has one of the
+four binding message shapes. -/
+theorem nativeAny_of_native (C : PrimitiveOracle) (iv : Digest32) (tag instanceBytes : List Byte)
+    (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls messages : List Call)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (grinding : Fin (cfg).folds.size → Fin 64)
+    (prefixProgram : Program SpongefishCurrentInitializedMode.Input)
+    (Bad : PCSBCSCallerBinding.CallerInput p → View SourceResult → Prop)
+    (native : NativeAcceptedBad C iv tag instanceBytes layout before payloadCalls messages decode
+      grinding prefixProgram Bad) :
+    NativeAcceptedAny C iv tag instanceBytes layout before payloadCalls decode grinding
+      prefixProgram Bad := by
+  obtain ⟨r,input,initial,pre,received,payload,next,setup,preRun,receivedEq,rest⟩ := native
+  obtain ⟨packs,pointLength⟩ := accepted_packs _ iv tag instanceBytes _ _ layout before r initial pre
+    received setup preRun receivedEq
+  have shapeEq := (SpongefishCurrentCommitmentReceive.receive_retains _ pre received _ r receivedEq).1
+  obtain ⟨payloadRun,bindingEq,messagesEq,rest⟩ := rest
+  have exact := messageCalls_binding r pointLength
+  rw [shapeEq] at exact
+  subst messagesEq
+  refine ⟨⟨_,packs⟩,r,input,initial,pre,received,payload,next,setup,preRun,receivedEq,payloadRun,
+    bindingEq,exact,?_⟩
+  rw [← exact]
+  exact rest
+
+open Classical in
+/-- Union over the four binding message shapes: the probability of native
+acceptance with `Bad` for any received record is at most the sum of the four
+per-shape probabilities, each bounded by `current_knowledge_bound`. -/
+theorem nativeAny_union {Coins : Type} [Fintype Coins]
+    (iv : Digest32) (tag instanceBytes : List Byte)
+    (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls : List Call)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (grinding : Fin (cfg).folds.size → Fin 64)
+    (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input)
+    (Bad : PCSBCSCallerBinding.CallerInput p → View SourceResult → Prop) :
+    average (fun coins : PrimitiveOracle × Coins =>
+      if NativeAcceptedAny coins.1 iv tag instanceBytes layout before payloadCalls decode grinding
+        (prefixProgram coins.2) Bad then (1 : ℚ) else 0) ≤
+      ∑ k : Fin 4, average (fun coins : PrimitiveOracle × Coins =>
+        if NativeAcceptedBad coins.1 iv tag instanceBytes layout before payloadCalls
+          (bindingCalls (AnchoredSourceCaller.shape layout) k.val) decode grinding
+          (prefixProgram coins.2) Bad then (1 : ℚ) else 0) := by
+  unfold average
+  rw [← Finset.sum_div]
+  apply div_le_div_of_nonneg_right _ (by positivity)
+  rw [Finset.sum_comm]
+  apply Finset.sum_le_sum
+  intro coins _
+  by_cases any : NativeAcceptedAny coins.1 iv tag instanceBytes layout before payloadCalls decode
+      grinding (prefixProgram coins.2) Bad
+  · obtain ⟨k,hk⟩ := any
+    simp only [show NativeAcceptedAny coins.1 iv tag instanceBytes layout before payloadCalls decode
+      grinding (prefixProgram coins.2) Bad from ⟨k,hk⟩,↓reduceIte]
+    calc (1 : ℚ) = if NativeAcceptedBad coins.1 iv tag instanceBytes layout before payloadCalls
+          (bindingCalls (AnchoredSourceCaller.shape layout) k.val) decode grinding
+          (prefixProgram coins.2) Bad then 1 else 0 := by simp only [hk,↓reduceIte]
+      _ ≤ _ := Finset.single_le_sum (f := fun k : Fin 4 =>
+          if NativeAcceptedBad coins.1 iv tag instanceBytes layout before payloadCalls
+            (bindingCalls (AnchoredSourceCaller.shape layout) k.val) decode grinding
+            (prefixProgram coins.2) Bad then (1 : ℚ) else 0)
+          (fun _ _ => by split <;> norm_num) (Finset.mem_univ k)
+  · simp only [any,↓reduceIte]
+    exact Finset.sum_nonneg (fun _ _ => by split <;> norm_num)
+
+open Classical in
+/-- The current endpoint for EVERY received record: the four binding message
+shapes each satisfy their own refinement obligations, and the bound is the sum
+of the four explicit three-term bounds. -/
+theorem current_knowledge_all {Coins : Type} [Fintype Coins] [Nonempty Coins]
+    (iv : Digest32) (tag instanceBytes : List Byte)
+    (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls : List Call)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (grinding : Fin (cfg).folds.size → Fin 64)
+    (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input) (A : Nat)
+    (attacker : ∀ coin, Counts A (prefixProgram coin))
+    (Bad : PCSBCSCallerBinding.CallerInput p → View SourceResult → Prop)
+    (boundary : Nat)
+    (build : ∀ k : Fin 4, Builder p (budget tag instanceBytes layout before payloadCalls
+      (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding A) iv grinding boundary)
+    (good : Fin 4 → View SourceResult → Bool)
+    (roots : Fin 4 → PublicMerkleProbability.RootPolicy)
+    (rootCap : ∀ (k : Fin 4) (log : PublicMerkleLog.PublicLog),
+      log.length ≤ budget tag instanceBytes layout before payloadCalls
+        (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding A →
+      (roots k log).card ≤ budget tag instanceBytes layout before payloadCalls
+          (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding A *
+        (budget tag instanceBytes layout before payloadCalls
+          (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding A + 1))
+    (reduction : ∀ k : Fin 4, Reduction (roots k) iv
+      (fun coin => program iv tag instanceBytes layout before payloadCalls
+        (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding (prefixProgram coin))
+      (fun coin => SpongefishCurrentInitializedMode.afterPrefix_counted iv tag instanceBytes
+        (prefixProgram coin) (calls layout before payloadCalls
+          (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding) A (attacker coin))
+      (fun C coin => NativeAcceptedBad C iv tag instanceBytes layout before payloadCalls
+        (bindingCalls (AnchoredSourceCaller.shape layout) k.val) decode grinding (prefixProgram coin) Bad)
+      (good k))
+    (refines : ∀ (k : Fin 4) coin, Refines (partition p (budget tag instanceBytes layout before
+        payloadCalls (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding A) iv grinding
+        boundary)
+      (model p _ iv grinding boundary (build k)) iv
+      (program iv tag instanceBytes layout before payloadCalls
+        (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding (prefixProgram coin))
+      (SpongefishCurrentInitializedMode.afterPrefix_counted iv tag instanceBytes
+        (prefixProgram coin) (calls layout before payloadCalls
+          (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding) A (attacker coin))
+      (good k)) :
+    average (fun coins : PrimitiveOracle × Coins =>
+      if NativeAcceptedAny coins.1 iv tag instanceBytes layout before payloadCalls decode grinding
+        (prefixProgram coins.2) Bad then (1 : ℚ) else 0) ≤
+      ∑ k : Fin 4, finalBound (budget tag instanceBytes layout before payloadCalls
+        (bindingCalls (AnchoredSourceCaller.shape layout) k.val) grinding A : ℚ) := by
+  refine (nativeAny_union iv tag instanceBytes layout before payloadCalls decode grinding
+    prefixProgram Bad).trans (Finset.sum_le_sum fun k _ => ?_)
+  have bound := current_knowledge_bound iv tag instanceBytes layout before payloadCalls
+    (bindingCalls (AnchoredSourceCaller.shape layout) k.val) decode grinding prefixProgram A attacker
+    Bad boundary (build k) (good k) (roots k) (rootCap k) (reduction k) (refines k)
+  unfold finalBound
+  exact bound
+
 end Current
 
 /-! ## Concrete level from the deployed parameters -/
-
-/-- The three explicit summands of the current endpoint. -/
-def finalBound (Q : ℚ) : ℚ :=
-  Q * ((17/32 : ℚ)^56 + 1/2^78) + min 1 ((2*Q^2-Q)/2^256) + (Q^3+3*Q^2-2*Q)/2^256
 
 /-- For every aggregate budget up to `2^64` primitive-work units the complete
 bound is at most `Q / 2^51`: each unit of attacker plus verifier work buys at
@@ -429,7 +601,7 @@ obligations. -/
 theorem current_knowledge_level {p : ParameterBounds.Profile} {Coins : Type} [Fintype Coins]
     [Nonempty Coins] (iv : Digest32) (tag instanceBytes : List Byte)
     (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls messages : List Call)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input) (A : Nat)
     (attacker : ∀ coin, Counts A (prefixProgram coin))
     (Bad : PCSBCSCallerBinding.CallerInput p → View SourceResult → Prop)
@@ -483,5 +655,9 @@ theorem current_knowledge_level {p : ParameterBounds.Profile} {Coins : Type} [Fi
 #print axioms collision_alarm
 #print axioms reduction_of_openingCover
 #print axioms current_knowledge_cover
+#print axioms messageCalls_binding
+#print axioms nativeAny_of_native
+#print axioms nativeAny_union
+#print axioms current_knowledge_all
 
 end Whir.SpongefishCurrentBCSKnowledge

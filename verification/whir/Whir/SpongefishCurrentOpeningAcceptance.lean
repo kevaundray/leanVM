@@ -12,8 +12,9 @@ raw32 root or full residual, OOD value and intro, query intro), and the
 accepted opening is checked by the anchored native equation verifier on the
 original family and point claims of the caller and the received record.
 
-The Merkle hint wire codec is an explicit parameter: every theorem below holds
-for an arbitrary decoder. This module is the deterministic adapter; it is not
+The Merkle hint wire codec is an explicit parameter receiving the query
+positions and row width, as the native `PrunedMerklePaths::from_hint` does:
+every theorem below holds for an arbitrary decoder. This module is the deterministic adapter; it is not
 a probability or knowledge statement. -/
 namespace Whir.SpongefishCurrentOpeningAcceptance
 open Concrete Protocol CausalGame CausalProbability FiatShamirGame DuplexModeGame
@@ -152,7 +153,7 @@ def openQuery (C : PrimitiveOracle) (lanes : Nat) (i : Fin (cfg).folds.size) (ro
       (WHIRPhysicalVerifier.leafWords p i.val))
 
 /-- The prover reply at a coordinate, in native wire order. -/
-def replyStep (C : PrimitiveOracle) (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+def replyStep (C : PrimitiveOracle) (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (lanes : Nat) (cur : Cursor) (col : Collected p) : Coord p → Option (Cursor × Collected p)
   | .initial => do
     let (next,m) ← readMessage C cur
@@ -175,7 +176,8 @@ def replyStep (C : PrimitiveOracle) (decode : List Byte → Option MerkleTranspo
   | .query i => do
     let hint ← cur.hints.head?
     let hinted ← takeHint cur
-    let proof ← decode hint
+    let proof ← decode (WHIRPhysicalVerifier.queryIndices p i (CausalProbability.get (.query i) col.tape))
+      (if i.val = 0 then lanes else WHIRPhysicalVerifier.leafWords p i.val) hint
     let root ← col.roots[i.val]?
     let opened ← openQuery C lanes i root proof (CausalProbability.get (.query i) col.tape)
     let (next,m) ← readMessage C hinted
@@ -187,14 +189,14 @@ def replyStep (C : PrimitiveOracle) (decode : List Byte → Option MerkleTranspo
       pure (next,{col with replies := col.replies.push (.tail m)})
     else some (cur,col)
 
-def step (C : PrimitiveOracle) (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+def step (C : PrimitiveOracle) (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat)
     (state : Cursor × Collected p) (q : Coord p) : Option (Cursor × Collected p) := do
   let (powed,col) ← powStep C grinding state.1 state.2 q
   let (drawn,x) ← drawStep C powed q
   replyStep C decode lanes drawn (recordSample col q x) q
 
-def run (C : PrimitiveOracle) (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+def run (C : PrimitiveOracle) (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat) :
     List (Coord p) → Cursor × Collected p → Option (Cursor × Collected p)
   | [], state => some state
@@ -228,7 +230,7 @@ theorem anchoredVerify_historical {m : Nat} (r : SpongefishSessionAdapter.Record
 /-- Accepted native opening: every proof of work clears, the replies parse at
 the configured shape, and the anchored native equations hold for the original
 caller claims. Merkle hints authenticated inside `run`. -/
-structure Accepted (C : PrimitiveOracle) (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+structure Accepted (C : PrimitiveOracle) (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (r : SpongefishSessionAdapter.Record)
     (input : PCSBCSCallerBinding.CallerInput p) (cur : Cursor) where
   final : Cursor
@@ -245,7 +247,7 @@ structure Accepted (C : PrimitiveOracle) (decode : List Byte → Option MerkleTr
     (challenges cfg collected.tape) proof = .ok ()
 
 /-- Executable acceptance decision with exactly the fields of `Accepted`. -/
-def verify (C : PrimitiveOracle) (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+def verify (C : PrimitiveOracle) (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (r : SpongefishSessionAdapter.Record)
     (input : PCSBCSCallerBinding.CallerInput p) (cur : Cursor) : Bool :=
   match run C decode grinding r.shape.lanes (WHIRHistory.schedule cfg) (cur,Collected.start r.root) with
@@ -265,7 +267,7 @@ def verify (C : PrimitiveOracle) (decode : List Byte → Option MerkleTransport.
         | .ok () => true
 
 theorem verify_accepted (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (r : SpongefishSessionAdapter.Record)
     (input : PCSBCSCallerBinding.CallerInput p) (cur : Cursor)
     (accepted : verify C decode grinding r input cur = true) :
@@ -376,7 +378,7 @@ theorem drawStep_replay (C : PrimitiveOracle) (cur next : Cursor) (q : Coord p)
       exact replay_cons _ _ _ _ _ _ (squeezeGroup_call _ _ _ _ _ squeezed) (replay_nil _ _)
 
 theorem replyStep_replay (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths) (lanes : Nat)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths) (lanes : Nat)
     (cur next : Cursor) (col col' : Collected p) (q : Coord p)
     (ok : replyStep C decode lanes cur col q = some (next,col')) :
     SpongefishCurrentPrimitiveEventCompiler.actualReplay (compressionOf C) cur (replyCalls q) =
@@ -448,7 +450,7 @@ theorem replyStep_replay (C : PrimitiveOracle)
       rfl
 
 theorem step_replay (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat)
     (state next : Cursor × Collected p) (q : Coord p)
     (ok : step C decode grinding lanes state q = some next) :
@@ -468,7 +470,7 @@ theorem step_replay (C : PrimitiveOracle)
 /-- The accepted native opening is one accepted actual replay of the literal
 opening call list. -/
 theorem run_replay (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat) :
     ∀ (qs : List (Coord p)) (state final : Cursor × Collected p),
       run C decode grinding lanes qs state = some final →
@@ -540,7 +542,7 @@ theorem recordSample_pows (col : Collected p) (q : Coord p) (x : PCSBCSRounds.Ra
   cases q <;> rfl
 
 theorem replyStep_pows (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths) (lanes : Nat)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths) (lanes : Nat)
     (cur next : Cursor) (col col' : Collected p) (q : Coord p)
     (ok : replyStep C decode lanes cur col q = some (next,col')) : col'.pows = col.pows := by
   cases q with
@@ -583,7 +585,7 @@ theorem replyStep_pows (C : PrimitiveOracle)
     · cases ok; rfl
 
 theorem step_pows (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat)
     (state next : Cursor × Collected p) (q : Coord p)
     (ok : step C decode grinding lanes state q = some next) :
@@ -596,7 +598,7 @@ theorem step_pows (C : PrimitiveOracle)
   rw [replyStep_pows C decode lanes _ next.1 _ next.2 q ok,recordSample_pows,grown]
 
 theorem run_pows (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat) :
     ∀ (qs : List (Coord p)) (state final : Cursor × Collected p),
       run C decode grinding lanes qs state = some final →
@@ -613,7 +615,7 @@ theorem run_pows (C : PrimitiveOracle)
     exact ⟨a ++ b,by rw [hb,ha,List.append_assoc]⟩
 
 theorem run_query_pow (C : PrimitiveOracle)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (lanes : Nat) (i : Fin (cfg).folds.size)
     (positive : (grinding i).val ≠ 0) :
     ∀ (qs : List (Coord p)) (state final : Cursor × Collected p), .query i ∈ qs →
@@ -640,7 +642,7 @@ theorem run_query_pow (C : PrimitiveOracle)
 /-- Every ground query level of an accepted opening executed its proof of work
 on the actual raw32 challenge, and that work cleared the configured difficulty. -/
 theorem accepted_pow {C : PrimitiveOracle}
-    {decode : List Byte → Option MerkleTransport.PrunedMerklePaths}
+    {decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths}
     {grinding : Fin (cfg).folds.size → Fin 64} {r : SpongefishSessionAdapter.Record}
     {input : PCSBCSCallerBinding.CallerInput p} {cur : Cursor}
     (a : Accepted C decode grinding r input cur) (i : Fin (cfg).folds.size)
@@ -658,7 +660,7 @@ theorem accepted_pow {C : PrimitiveOracle}
 
 /-- The first opening draw passes the source cursor guard. -/
 theorem first_draw_guard (C : PrimitiveOracle) (iv : Digest32)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (r : SpongefishSessionAdapter.Record)
     (input : PCSBCSCallerBinding.CallerInput p) (cur : Cursor)
     (represented : RepresentsCurrent (compressionOf C) iv cur.pending cur.state)
@@ -725,7 +727,7 @@ theorem accepted_opening_original (C : PrimitiveOracle) (iv : Digest32)
     (payloadRun : SpongefishCurrentPrimitiveEventCompiler.actualReplay (compressionOf C) received
       payloadCalls = .ok payload)
     (bindingEq : SpongefishRecordBindingParser.verify (compressionOf C) payload r = some next)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64) (input : PCSBCSCallerBinding.CallerInput p)
     (opened : Accepted C decode grinding r input next) :
     let tape := before ++ headerCalls r.shape.logN ++ payloadCalls ++ messageCalls r

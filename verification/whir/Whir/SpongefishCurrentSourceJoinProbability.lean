@@ -45,7 +45,7 @@ the prepared original used by the opening equations. `Bad` may inspect the
 whole source view, for example a failed public extraction. -/
 def NativeAcceptedBad (C : PrimitiveOracle) (iv : Digest32) (tag instanceBytes : List Byte)
     (layout : WHIRCallerClaims.CallerLayout) (before payloadCalls messages : List Call)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64)
     (prefixProgram : Program SpongefishCurrentInitializedMode.Input)
     (Bad : PCSBCSCallerBinding.CallerInput p → View SourceResult → Prop) : Prop :=
@@ -93,7 +93,7 @@ theorem native_public (C : PrimitiveOracle) (iv : Digest32) (tag instanceBytes :
       (SpongefishCurrentSourceCallerOriginal.preludeShape layout) = some before)
     (payloadEq : SpongefishCurrentSourceCallerOriginal.shapeCalls
       (SpongefishCurrentSourceCallerOriginal.payloadShape layout) = some payloadCalls)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64)
     (prefixProgram : Program SpongefishCurrentInitializedMode.Input) (A : Nat)
     (attacker : Counts A prefixProgram)
@@ -130,7 +130,7 @@ theorem native_ideal_bound {Coins : Type} [Fintype Coins] [Nonempty Coins]
       (SpongefishCurrentSourceCallerOriginal.preludeShape layout) = some before)
     (payloadEq : SpongefishCurrentSourceCallerOriginal.shapeCalls
       (SpongefishCurrentSourceCallerOriginal.payloadShape layout) = some payloadCalls)
-    (decode : List Byte → Option MerkleTransport.PrunedMerklePaths)
+    (decode : List Nat → Nat → List Byte → Option MerkleTransport.PrunedMerklePaths)
     (grinding : Fin (cfg).folds.size → Fin 64)
     (prefixProgram : Coins → Program SpongefishCurrentInitializedMode.Input) (A : Nat)
     (attacker : ∀ coin, Counts A (prefixProgram coin))
