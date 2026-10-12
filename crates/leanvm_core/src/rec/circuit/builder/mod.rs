@@ -205,7 +205,10 @@ impl Builder {
     ///
     /// `CheckBind` reads `pool` and `product` lines as the start of calls the Lean model makes as one program
     /// (`Model.poolRows`, `Model.product`), and checks the calls up to the matching `end` line build what it builds.
-    #[cfg_attr(not(feature = "circuit-trace"), allow(clippy::unused_self))]
+    #[cfg_attr(
+        not(feature = "circuit-trace"),
+        allow(clippy::unused_self, clippy::needless_pass_by_ref_mut)
+    )]
     pub(crate) fn mark(&mut self, line: impl FnOnce() -> String) {
         #[cfg(feature = "circuit-trace")]
         if let Some(t) = &mut self.trace
