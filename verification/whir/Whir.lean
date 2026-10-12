@@ -257,3 +257,7 @@ import Whir.SpongefishCurrentReplayProvenance
 import Whir.SpongefishCurrentObservedRecordBinding
 import Whir.SpongefishCurrentByteTransport
 import Whir.SpongefishCurrentAcceptedJoin
+import Whir.SpongefishCurrentOpeningAcceptance
+import Whir.SpongefishCurrentSourceJoinProbability
+import Whir.SpongefishCurrentRoundPackets
+import Whir.SpongefishCurrentBCSKnowledge
