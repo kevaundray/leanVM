@@ -9,7 +9,7 @@ use crate::rec::RecError;
 use crate::rec::circuit::{Assignment, Builder, Kw};
 use crate::rec::sphincs::{SphincsBatch, SphincsClaim, SphincsProof};
 use crate::rec::table::HashFlock;
-use crate::rec::xmss::{XmssBatch, XmssClaim, XmssProof, XmssSignature};
+use crate::rec::xmss::{XmssBatch, XmssClaim, XmssError, XmssProof, XmssSignature};
 use crate::rv::Region;
 use crate::rv::asm::*;
 use crate::tables::TableId;
@@ -540,16 +540,103 @@ fn an_xmss_tree_binds_its_statements() {
         x.tree.prove_first(&[leaves[0].clone(), other]).map(|_| ()),
         Err(TreeError::ForeignLeaf { index: 1 })
     );
+}
 
-    // A claim-set tree's leaves are RISC-V proofs.
-    let claims = TreeShape {
-        claims: Some(ClaimShape::new(Capacity { claims: 4, groups: 1 })),
-        ..PAIRS
+// A claim-set tree of 2 to 1 over leaves of at most four claims in total.
+const CLAIM_PAIRS: TreeShape = TreeShape {
+    claims: Some(ClaimShape {
+        capacity: Capacity { claims: 5, groups: 1 },
+        small: None,
+    }),
+    ..PAIRS
+};
+
+#[test]
+fn a_claim_set_tree_over_xmss_leaves_states_their_signers() {
+    // Invariant: a leanXMSS leaf publishes its claims as one group, the set the guest publishes for the same
+    // signatures, and a claim-set tree over such leaves states the union of their sets.
+    let s = signed();
+    let tree = Tree::new(s.batch.leaves(), CLAIM_PAIRS).expect("a claim-set tree");
+    let leaves = s.leaves();
+    let sets: Vec<ClaimSet> = (s.claims.iter())
+        .map(|c| s.batch.claim_set(&[*c]).expect("one claim"))
+        .collect();
+    let first = |i: usize| {
+        let pair = [0, 1].map(|j| ClaimLeaf::new(leaves[i + j].clone(), &sets[i + j]));
+        tree.aggregate_leaves(&pair, None).expect("honest leaves")
     };
+    let firsts = [first(0), first(2)];
+    tree.verify_claims(&firsts[0].proof, &firsts[0].claims)
+        .expect("a first-level root");
+    let root = tree
+        .aggregate(&[&firsts[0], &firsts[1]], None)
+        .expect("honest children");
+
+    // The guest's set of the four signers, canonical: the root's.
+    let guest = leanxmss_host::SignerSet::from_claims(leanxmss_host::batch(4).set.claims());
+    let guest = ClaimSet {
+        groups: (guest.label_groups().into_iter())
+            .map(|(label, members)| ClaimGroup { label, members })
+            .collect(),
+    };
+    assert_eq!(root.claims, guest);
+    tree.verify_claims(&root.proof, &guest)
+        .expect("the root of the four signers");
+
+    // A batch's set, in its claims' order, is the guest's for the same signers.
+    let four = XmssBatch::new(4, Rate::MIN).expect("four signatures fit");
+    let set = four.claim_set(&s.claims).expect("one epoch and message");
+    assert_eq!(set.digest(), leanxmss_host::batch(4).set.digest());
+
+    // Mutation: a leaf given another leaf's set, claims of two messages, the set of the root narrowed.
+    //
+    //     leaf 1's statement states its own claim
+    //     → the set given with it is not published by it
+    let wrong = [0, 1].map(|j| ClaimLeaf::new(leaves[j].clone(), &sets[0]));
     assert_eq!(
-        Tree::new(s.batch.leaves(), claims).err(),
-        Some(TreeError::CircuitClaims)
+        tree.aggregate_leaves(&wrong, None),
+        Err(TreeError::LeafClaims { index: 1 })
     );
+    let mut other = s.claims[1];
+    other.message[0] ^= 1;
+    let pair = XmssBatch::new(2, Rate::MIN).expect("two signatures fit");
+    assert_eq!(pair.claim_set(&[s.claims[0], other]), Err(XmssError::Label));
+    assert_eq!(
+        tree.verify_claims(&root.proof, &firsts[0].claims),
+        Err(TreeError::Claims)
+    );
+
+    // The claim-set tree and the tree of outputs over the same leaves have sessions of their own.
+    let x = xmss_tree();
+    assert_ne!(tree.design.session, x.tree.design.session);
+    assert!(matches!(
+        x.tree.verify(
+            &root.proof,
+            &Subtree::balanced(s.statements(), &PAIRS).expect("four leaves")
+        ),
+        Err(TreeError::Kind { .. } | TreeError::Root(_) | TreeError::Circuit(_))
+    ));
+}
+
+#[test]
+fn a_claim_set_tree_over_sphincs_leaves_states_their_signers() {
+    // Invariant: a leanSPHINCS leaf publishes its claims as one group, the set the guest publishes for the same
+    // signatures.
+    let s = sphincs_signed();
+    let tree = Tree::new(s.batch.leaves(), CLAIM_PAIRS).expect("a claim-set tree");
+    let sets: Vec<ClaimSet> = (s.claims.iter())
+        .map(|c| s.batch.claim_set(&[*c]).expect("one claim"))
+        .collect();
+    let leaves: Vec<ClaimLeaf<'_>> = (s.leaves().into_iter().zip(&sets))
+        .map(|(l, set)| ClaimLeaf::new(l, set))
+        .collect();
+    let first = tree.aggregate_leaves(&leaves, None).expect("honest leaves");
+    let pair = SphincsBatch::new(2, Rate::MIN).expect("two signatures fit");
+    let both = pair.claim_set(&s.claims).expect("one message");
+    assert_eq!(both.digest(), leansphincs_host::batch(2).set.digest());
+    assert_eq!(first.claims, ClaimSet::from_claims(both.claims()));
+    tree.verify_claims(&first.proof, &first.claims)
+        .expect("the root of both signers");
 }
 
 #[test]

@@ -147,9 +147,10 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// A tree of outputs has one node arity, and its root states its leaves' outputs in order. A claim-set tree
 /// ([`TreeShape::claims`]) has nodes of every arity up to its largest: anyone combines any of its proofs
 /// ([`Tree::aggregate`]), each node declaring the union of its children's claim sets or part of it, and its root states a
-/// canonical claim set ([`Tree::verify_claims`]). Its leaves are RISC-V proofs: a leaf program publishes the claims it
-/// checked (a [`ClaimSet`]: groups of 6-word labels and 4-word members, whose meaning is the program's), its output the
-/// hash of the set's digest.
+/// canonical claim set ([`Tree::verify_claims`]). Its leaves publish the claims they checked (a [`ClaimSet`]: groups of
+/// 6-word labels and 4-word members, whose meaning is the leaf's): a RISC-V leaf program's output is the hash of the
+/// set's digest, and a signature circuit's proof (an [`XmssBatch`]'s, a [`SphincsBatch`]'s) publishes one group, a claim
+/// a signature, as the scheme's guest writes its signer set ([`XmssBatch::claim_set`]).
 ///
 /// A tree over one leaf, with `arity_0 = 1`, is a single proof's recursion.
 pub mod aggregate {

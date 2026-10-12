@@ -10,7 +10,7 @@
 
 use super::circuit::{Builder, Circuit, Dw, Ew, Finished, Kw, Limbs, Replay, Unsatisfied, chain};
 use super::fixed::FixedColumns;
-use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
+use super::tree::{CircuitStats, ClaimLayout, ClaimSet, ClaimWord, Leaf, LeafCircuit, LeafStatement, Leaves};
 use crate::cpu::{DecodeError, VerifyError};
 use crate::envelope::Envelope;
 use crate::pcs::Rate;
@@ -39,6 +39,29 @@ const CHAIN_STEPS: usize = V * STEPS - 195;
 
 /// The bit a signature's index starts at in its chains' bus keys, above the tweak word's position.
 const TAG_SHIFT: usize = 41;
+
+/// leanXMSS's scheme word, the first of a claim's label, as the guest's signer sets write it.
+const SCHEME: u64 = 1;
+
+/// How the statement states claims, one a signature, as the guest's signer sets write them: the label is the scheme,
+/// the epoch and the message's words, the member the key's root then its public parameter.
+const CLAIMS: ClaimLayout = ClaimLayout {
+    words: WORDS,
+    label: [
+        ClaimWord::Const(SCHEME),
+        ClaimWord::At { at: 3, word: 0 },
+        ClaimWord::At { at: 1, word: 0 },
+        ClaimWord::At { at: 1, word: 1 },
+        ClaimWord::At { at: 2, word: 0 },
+        ClaimWord::At { at: 2, word: 1 },
+    ],
+    member: [
+        ClaimWord::At { at: 4, word: 0 },
+        ClaimWord::At { at: 4, word: 1 },
+        ClaimWord::At { at: 0, word: 0 },
+        ClaimWord::At { at: 0, word: 1 },
+    ],
+};
 
 /// What one signature is checked against: the signer's public key, the epoch and the message.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -122,6 +145,9 @@ pub enum XmssError {
     /// A signature fails a check of the circuit.
     #[error("the signature does not verify: {0}")]
     Unsatisfied(Unsatisfied),
+    /// Claims of more than one epoch or message, which make no claim set of one group.
+    #[error("the claims are not of one epoch and message")]
+    Label,
     /// A signature reaches another root than its key's.
     #[error("signature {index} reaches another root than its key's")]
     Root {
@@ -248,8 +274,20 @@ impl XmssBatch {
         Ok(LeafStatement::circuit(&self.leaf_circuit(), statement(claims)))
     }
 
+    /// The claim set a leaf of these claims publishes in a claim-set tree: one group, of the epoch and message they
+    /// share, a member a key, in the claims' order, as the guest's signer sets write it.
+    ///
+    /// # Errors
+    ///
+    /// - Claims of another number than the batch's.
+    /// - Claims of more than one epoch or message.
+    pub fn claim_set(&self, claims: &[XmssClaim]) -> Result<ClaimSet, XmssError> {
+        self.count(claims.len(), "claims")?;
+        CLAIMS.set(&statement(claims)).ok_or(XmssError::Label)
+    }
+
     const fn leaf_circuit(&self) -> LeafCircuit<'_> {
-        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate)
+        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate, &CLAIMS)
     }
 
     /// Prove that each signature verifies under its claim, in order.

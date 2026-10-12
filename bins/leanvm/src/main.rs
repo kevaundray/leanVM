@@ -4,6 +4,7 @@ use aggregate::LeafProgram;
 use bench::Plan;
 use clap::builder::RangedU64ValueParser;
 use clap::{Parser, Subcommand};
+use leanvm::aggregate::Capacity;
 use leanvm::{Prover, Rate};
 use std::error::Error;
 use std::fmt::Arguments;
@@ -144,6 +145,14 @@ enum Command {
         /// The children each node verifies.
         #[arg(long, default_value_t = 2)]
         arity: usize,
+        /// A claim-set tree whose sets hold fewer claims than this: each leaf publishes its signer set (a leanXMSS or
+        /// leanSPHINCS guest's, or a signature circuit's), and the tree states their union. Without it, a tree of
+        /// outputs.
+        #[arg(long, value_parser = RangedU64ValueParser::<usize>::new().range(2..))]
+        capacity: Option<usize>,
+        /// The most groups a claim-set tree's sets hold.
+        #[arg(long, default_value_t = 1, requires = "capacity", value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
+        groups: usize,
     },
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
@@ -246,7 +255,15 @@ fn main() {
             leaves,
             arity0,
             arity,
-        } => aggregate::run((program, n), leaves, arity0, arity, &leaf_prover, &prover, plan),
+            capacity,
+            groups,
+        } => aggregate::run(
+            (program, n),
+            (leaves, arity0, arity),
+            capacity.map(|claims| Capacity { claims, groups }),
+            (&leaf_prover, &prover),
+            plan,
+        ),
         Command::Bench {
             cycles_only,
             markdown,

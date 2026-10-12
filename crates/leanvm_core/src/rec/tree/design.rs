@@ -381,6 +381,13 @@ impl<'p> Design<'p> {
                     height(&mut tag, t);
                 }
                 tag.push(c.leaf.rate.log_inv_rate());
+                // A claim-set tree's first level reads the leaves' sets by the circuit's layout.
+                if self.claims.is_some() {
+                    c.leaf
+                        .claims
+                        .tag()
+                        .for_each(|w| tag.extend_from_slice(&w.to_le_bytes()));
+                }
             }
         }
         let large = self.claims.map(|c| c.capacity);
@@ -508,7 +515,7 @@ impl<'p> Design<'p> {
 
     /// The first level's rows over proofs of a recursion circuit, verifying its leaves at the circuit's own heights, rate and session.
     ///
-    /// Each leaf's statement is free wires, which its verifier's rows absorb as its transcript's instance; the digest is over each transcript's digest of its instance (`instance_digest`).
+    /// Each leaf's statement is free wires, which its verifier's rows absorb as its transcript's instance. In a tree of outputs the digest is over each transcript's digest of its instance (`instance_digest`); in a claim-set tree each leaf's set is read from its statement's wires (`leaf_set`), and the union reads the sets at their digests.
     pub(crate) fn first_circuit(
         &self,
         family: &CircuitFamily<'_>,
@@ -520,6 +527,7 @@ impl<'p> Design<'p> {
         let zero = b.k_const(0);
         let mut claims = NodeClaims::default();
         let mut instances = Vec::with_capacity(self.arity_0);
+        let mut sets = Vec::with_capacity(self.arity_0);
         for i in 0..self.arity_0 {
             let item = inputs.item(i);
             let limbs: Vec<[Kw; 4]> = (0..leaf.circuit.statement_len)
@@ -532,7 +540,7 @@ impl<'p> Design<'p> {
             let source = item.map_or(ProofSource::Shape, |l| ProofSource::Proof(l.proof, &l.openings));
             let (instance, rows) = b.scope(format!("leaf {i}"), |b| {
                 let t = RecShape::transcript(b, &leaf.session, &limbs, source);
-                let instance = t.digest_so_far(b);
+                let instance = self.claims.is_none().then(|| t.digest_so_far(b));
                 (instance, family.shape.verify_from(b, t, &limbs, columns))
             });
             claims.bind_state(&mut b, rows.state);
@@ -541,9 +549,15 @@ impl<'p> Design<'p> {
                 .dense
                 .push(fixed_claim(DensePoly::Leaf, &family.fixed, &rows.hints, &[]));
             claims.matrices.push(MatrixClaim::fresh(HashFlock::FLOCK, &rows.matrix));
-            instances.push(b.d_to_k(instance));
+            match instance {
+                Some(instance) => instances.push(b.d_to_k(instance)),
+                None => sets.push(b.scope(format!("leaf {i} claims"), |b| leaf.claims.digest_rows(b, &limbs))),
+            }
         }
-        let digest = Items::Circuit(leaf.seed()).digest_rows(&mut b, &instances);
+        let digest = match self.union_shape(0) {
+            Some(shape) => union_rows(&mut b, &shape, &self.session, &sets, inputs.union()),
+            None => Items::Circuit(leaf.seed()).digest_rows(&mut b, &instances),
+        };
         NodeRows {
             b,
             position: 0,

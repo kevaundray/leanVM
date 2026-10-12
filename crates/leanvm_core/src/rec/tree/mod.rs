@@ -22,12 +22,12 @@
 //! A tree has one of two semantics, which its shape fixes:
 //!
 //! - **Outputs**: the digest is of what the leaves under the proof state, in order, through the tree's fixed shape.
-//! - **Claim sets**: the leaves publish claim sets (their output is the hash of their set's digest), and the digest is
-//!   of the set the proof declares: by default the union of its children's sets, or any part of it. Each node proves
-//!   every claim it declares is one of its children's (`union`), so every claim of the root's set is one a leaf
-//!   published, whatever the tree's shape: anyone may combine any proofs of the tree, up to its largest arity, and the
-//!   root's verifier needs the set alone. What a claim means is the leaf program's (`multiset`). Its leaves are RISC-V
-//!   proofs.
+//! - **Claim sets**: the leaves publish claim sets, and the digest is of the set the proof declares: by default the
+//!   union of its children's sets, or any part of it. Each node proves every claim it declares is one of its
+//!   children's (`union`), so every claim of the root's set is one a leaf published, whatever the tree's shape: anyone
+//!   may combine any proofs of the tree, up to its largest arity, and the root's verifier needs the set alone. What a
+//!   claim means is the leaf's (`multiset`). A RISC-V leaf's output is the hash of its set's digest; a signature
+//!   circuit's leaf publishes one group, a claim a signature, read from its statement (`leaf_set`).
 //!
 //! A claim-set tree has a node circuit for each arity from two to its largest, all of one height, or two tiers each
 //! at heights of its own ([`Tier`]): small proofs then never pay for the largest node's union and children.
@@ -48,6 +48,7 @@ use design::{
     ChildWitness, CircuitFamily, CircuitWitness, Design, Family, LARGE, LeafWitness, Level, NodeInputs, NodeRows, SMALL,
 };
 use fiat_shamir::{FromNarg, ProofTranscript, ProverState, SessionId};
+pub(crate) use leaf_set::{ClaimLayout, ClaimWord};
 use pcs::merkle::Openings;
 use primitives::field::F192;
 use primitives::multilinear::{eq_table, mle_eval_par};
@@ -62,6 +63,7 @@ mod claim_tests;
 mod claims;
 mod design;
 mod fixed;
+mod leaf_set;
 
 mod multiset;
 mod reduce;
@@ -95,7 +97,8 @@ pub struct LeafShape {
     rate: Rate,
 }
 
-/// A recursion circuit whose proofs are leaves of a tree: its circuit, its fixed columns, its transcript's session and its proofs' rate.
+/// A recursion circuit whose proofs are leaves of a tree: its circuit, its fixed columns, its transcript's session, its
+/// proofs' rate, and how its statement states claims.
 ///
 /// A batch of signatures gives it (`XmssBatch::leaves`).
 #[derive(Clone, Copy)]
@@ -108,6 +111,8 @@ pub struct LeafCircuit<'p> {
     pub(crate) session: SessionId,
     /// Its proofs' rate.
     pub(crate) rate: Rate,
+    /// How its statement states claims, one a signature: what a proof of it publishes in a claim-set tree.
+    pub(crate) claims: &'static ClaimLayout,
 }
 
 /// A tree's leaf family: what every leaf of the tree is a proof of.
@@ -237,10 +242,12 @@ pub struct TreeProof {
     rate: Rate,
 }
 
-/// A leaf of a claim-set tree: a RISC-V leaf proof, and the claim set whose digest's hash its output is.
+/// A leaf of a claim-set tree: a leaf proof, and the claim set it publishes.
+///
+/// A RISC-V proof's output is the hash of the set's digest; a proof of a signature circuit states the set's claims.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClaimLeaf<'a> {
-    /// The proof and its output.
+    /// The proof and what it states.
     leaf: Leaf<'a>,
     /// The set it publishes.
     claims: &'a ClaimSet,
@@ -290,9 +297,6 @@ pub enum TreeError {
         /// Its capacity.
         capacity: Capacity,
     },
-    /// A claim-set tree whose leaves are proofs of a recursion circuit: a claim-set tree's leaves are RISC-V proofs.
-    #[error("a claim-set tree's leaves are RISC-V proofs")]
-    CircuitClaims,
     /// No RISC-V proof of the program has the leaves' shape.
     #[error("the leaves' shape: {0}")]
     LeafShape(VerifyError),
@@ -380,8 +384,9 @@ pub enum TreeError {
     /// A proof of no circuit of the tree.
     #[error("a proof of kind {0}, which the tree has no circuit of")]
     Circuit(usize),
-    /// A leaf's output is not the hash of its claim set's digest.
-    #[error("leaf {index}'s output is not its claim set's")]
+    /// A leaf that does not publish the claim set given with it: a RISC-V output not the hash of its digest, or a
+    /// statement stating another set, or claims of more than one label.
+    #[error("leaf {index} does not publish its claim set")]
     LeafClaims {
         /// The leaf's index among its node's.
         index: usize,
@@ -449,13 +454,21 @@ fn instance_digest(session: &SessionId, statement: &[Limbs]) -> Limbs {
 }
 
 impl<'p> LeafCircuit<'p> {
-    /// The leaf circuit of a circuit, its fixed columns at its heights, its proofs' session and rate.
-    pub(crate) const fn new(circuit: &'p Circuit, columns: &'p FixedColumns, session: SessionId, rate: Rate) -> Self {
+    /// The leaf circuit of a circuit, its fixed columns at its heights, its proofs' session and rate, and how its
+    /// statement states claims.
+    pub(crate) const fn new(
+        circuit: &'p Circuit,
+        columns: &'p FixedColumns,
+        session: SessionId,
+        rate: Rate,
+        claims: &'static ClaimLayout,
+    ) -> Self {
         Self {
             circuit,
             columns,
             session,
             rate,
+            claims,
         }
     }
 
@@ -662,7 +675,8 @@ impl TreeProof {
 }
 
 impl<'a> ClaimLeaf<'a> {
-    /// The leaf of a proof whose output is the hash of this set's digest, as a guest that commits the digest gives.
+    /// The leaf of a proof that publishes this set: a RISC-V proof whose output is the hash of its digest, as a guest
+    /// that commits the digest gives, or a proof of a signature circuit whose statement states it.
     #[must_use]
     pub const fn new(leaf: Leaf<'a>, claims: &'a ClaimSet) -> Self {
         Self { leaf, claims }
@@ -678,7 +692,6 @@ impl<'p> Tree<'p> {
     ///
     /// - Arities that make no tree: a first level of no leaf, or nodes of fewer than two children.
     /// - A small tier past the tree's.
-    /// - A claim-set tree over proofs of a recursion circuit.
     /// - A leaf shape no proof of the program has.
     /// - Circuits that fit no commitment.
     pub fn new(leaves: Leaves<'p>, shape: TreeShape) -> Result<Self, TreeError> {
@@ -698,9 +711,6 @@ impl<'p> Tree<'p> {
             && (!(2..=arity).contains(&a) || capacity.claims > large.claims || capacity.groups > large.groups)
         {
             return Err(TreeError::SmallTier { arity: a, capacity });
-        }
-        if claims.is_some() && matches!(leaves, Leaves::Circuit(_)) {
-            return Err(TreeError::CircuitClaims);
         }
         let tiers = claims.map_or(1, |c| c.tiers());
         let family = || match leaves {
@@ -999,8 +1009,9 @@ impl<'p> Tree<'p> {
     /// # Errors
     ///
     /// - A tree of outputs.
-    /// - The wrong number of leaves, a leaf of another shape, a leaf that does not verify, or one whose output is not
-    ///   its set's.
+    /// - The wrong number of leaves, a leaf of another family or shape, a leaf that does not verify, or one that does
+    ///   not publish its set: a RISC-V output not the hash of its digest, a statement stating another set or claims
+    ///   of more than one label.
     /// - A declared set that is not canonical, past the capacity, or with a claim no leaf carries.
     /// - Leaves whose sets together do not fit the first level's capacity: the small tier's, if the tree has one.
     pub fn aggregate_leaves(
@@ -1009,27 +1020,48 @@ impl<'p> Tree<'p> {
         declare: Option<&ClaimSet>,
     ) -> Result<Aggregate, TreeError> {
         self.capacity()?;
-        let Family::Runs(shape) = &self.design.family else {
-            unreachable!("a claim-set tree's leaves are RISC-V proofs");
-        };
-        let digests: Vec<[u64; 4]> = leaves.iter().map(|l| l.claims.digest()).collect();
+        let d = &self.design;
         let plain: Vec<&Leaf<'_>> = leaves.iter().map(|l| &l.leaf).collect();
-        let items = self.leaf_witnesses(shape, &plain, |index, output| {
-            // The guest commits the digest, so its output is the digest's hash.
-            if *output.words() == chain(&digests[index]) {
-                Ok(digests[index])
-            } else {
-                Err(TreeError::LeafClaims { index })
-            }
-        })?;
         let sets: Vec<&ClaimSet> = leaves.iter().map(|l| l.claims).collect();
-        let (union, claims) = self.fill(0, &sets, declare)?;
-        let inputs = NodeInputs::Prove {
-            items: &items,
-            tables: &self.tables,
-            union: Some(&union),
+        let (rows, claims) = match &d.family {
+            Family::Runs(shape) => {
+                let digests: Vec<[u64; 4]> = sets.iter().map(|s| s.digest()).collect();
+                let items = self.leaf_witnesses(shape, &plain, |index, output| {
+                    // The guest commits the digest, so its output is the digest's hash.
+                    if *output.words() == chain(&digests[index]) {
+                        Ok(digests[index])
+                    } else {
+                        Err(TreeError::LeafClaims { index })
+                    }
+                })?;
+                let (union, claims) = self.fill(0, &sets, declare)?;
+                let inputs = NodeInputs::Prove {
+                    items: &items,
+                    tables: &self.tables,
+                    union: Some(&union),
+                };
+                let rows = info_span!("Build circuit").in_scope(|| d.first_runs(shape, &inputs));
+                (rows, claims)
+            }
+            Family::Circuit(family) => {
+                let items = self.circuit_witnesses(family, &plain)?;
+                // The statement states the set: one group, a claim a signature.
+                let stated = |(w, set): (&CircuitWitness<'_>, &&ClaimSet)| {
+                    family.leaf.claims.set(&w.statement).as_ref() == Some(*set)
+                };
+                if let Some(index) = items.iter().zip(&sets).position(|p| !stated(p)) {
+                    return Err(TreeError::LeafClaims { index });
+                }
+                let (union, claims) = self.fill(0, &sets, declare)?;
+                let inputs = NodeInputs::Prove {
+                    items: &items,
+                    tables: &self.tables,
+                    union: Some(&union),
+                };
+                let rows = info_span!("Build circuit").in_scope(|| d.first_circuit(family, &inputs));
+                (rows, claims)
+            }
         };
-        let rows = info_span!("Build circuit").in_scope(|| self.design.first_runs(shape, &inputs));
         let proof = self.prove_rows(rows, 0)?;
         Ok(Aggregate { proof, claims })
     }

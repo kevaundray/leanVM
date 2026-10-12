@@ -12,7 +12,7 @@
 
 use super::circuit::{Builder, Circuit, Dw, Finished, Kw, Limbs, PARAM_IV, Replay, Unsatisfied};
 use super::fixed::FixedColumns;
-use super::tree::{CircuitStats, Leaf, LeafCircuit, LeafStatement, Leaves};
+use super::tree::{CircuitStats, ClaimLayout, ClaimSet, ClaimWord, Leaf, LeafCircuit, LeafStatement, Leaves};
 use super::xmss::{STEPS, V, chains, digit_product, statement_words};
 use crate::cpu::{DecodeError, VerifyError};
 use crate::envelope::Envelope;
@@ -50,6 +50,29 @@ const LAYER_STEPS: usize = V * STEPS - 191;
 
 /// The most signatures a batch holds: the chains' tags `3 j + lay` stay below `2^22`.
 const MAX_SIGNATURES: usize = 1 << 20;
+
+/// leanSPHINCS's scheme word, the first of a claim's label, as the guest's signer sets write it.
+const SCHEME: u64 = 2;
+
+/// How the statement states claims, one a signature, as the guest's signer sets write them: the label is the scheme,
+/// a zero and the message's words, the member the key's root then its public parameter.
+const CLAIMS: ClaimLayout = ClaimLayout {
+    words: 4,
+    label: [
+        ClaimWord::Const(SCHEME),
+        ClaimWord::Const(0),
+        ClaimWord::At { at: 2, word: 0 },
+        ClaimWord::At { at: 2, word: 1 },
+        ClaimWord::At { at: 3, word: 0 },
+        ClaimWord::At { at: 3, word: 1 },
+    ],
+    member: [
+        ClaimWord::At { at: 0, word: 0 },
+        ClaimWord::At { at: 0, word: 1 },
+        ClaimWord::At { at: 1, word: 0 },
+        ClaimWord::At { at: 1, word: 1 },
+    ],
+};
 
 /// What one signature is checked against: the signer's public key and the message.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -187,6 +210,9 @@ pub enum SphincsError {
     /// A signature fails a check of the circuit, its root among them.
     #[error("the signature does not verify: {0}")]
     Unsatisfied(Unsatisfied),
+    /// Claims of more than one message, which make no claim set of one group.
+    #[error("the claims are not of one message")]
+    Label,
     /// A proof at another rate than the batch's.
     #[error(
         "a proof at log-inv-rate {}, and the batch's is {}",
@@ -307,8 +333,20 @@ impl SphincsBatch {
         Ok(LeafStatement::circuit(&self.leaf_circuit(), statement(claims)))
     }
 
+    /// The claim set a leaf of these claims publishes in a claim-set tree: one group, of the message they share, a
+    /// member a key, in the claims' order, as the guest's signer sets write it.
+    ///
+    /// # Errors
+    ///
+    /// - Claims of another number than the batch's.
+    /// - Claims of more than one message.
+    pub fn claim_set(&self, claims: &[SphincsClaim]) -> Result<ClaimSet, SphincsError> {
+        self.count(claims.len(), "claims")?;
+        CLAIMS.set(&statement(claims)).ok_or(SphincsError::Label)
+    }
+
     const fn leaf_circuit(&self) -> LeafCircuit<'_> {
-        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate)
+        LeafCircuit::new(&self.circuit, &self.columns, self.session, self.rate, &CLAIMS)
     }
 
     /// Prove that each signature verifies under its claim, in order.
