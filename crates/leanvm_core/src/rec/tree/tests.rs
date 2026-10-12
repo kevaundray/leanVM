@@ -97,7 +97,7 @@ impl Fixture {
 fn legacy_and_foreign_tree_proofs_are_refused_before_the_body() {
     let current = TreeProof::ENVELOPE.seal(&[]);
     let expected = u16::from_le_bytes(current[4..6].try_into().unwrap());
-    for found in 0..=17 {
+    for found in 0..=18 {
         let bytes = Envelope::new(*b"LVMT", found).seal(&[0xff]);
         assert_eq!(
             TreeProof::from_bytes(&bytes),
@@ -852,4 +852,34 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
             "claim {c}"
         );
     }
+}
+
+// A tree of outputs is as protocol version `leanvm-tree-12` built it, before the tiers: the same heights, statement
+// layout and session tag but for the version.
+#[test]
+fn a_tree_of_outputs_is_unchanged_from_tree_12() {
+    let d = &fixture().tree.design;
+    assert_eq!(d.tiers.len(), 1);
+    assert_eq!(d.tiers[SMALL].taus.into_values(), [16, 16, 14, 10, 14, 10]);
+    assert_eq!(d.statement.len(), 97);
+    let sections = [
+        Section::Kind,
+        Section::Digest,
+        Section::DensePoint,
+        Section::DenseValues,
+        Section::Rows,
+        Section::Cols,
+        Section::Matrices,
+    ];
+    assert_eq!(
+        sections.map(|s| d.statement.range(s)),
+        [0..1, 1..3, 3..24, 24..27, 27..41, 41..55, 55..97]
+    );
+    assert_eq!(
+        d.session_with(b"leanvm-tree-12").0,
+        [
+            131, 35, 57, 135, 111, 161, 159, 65, 198, 173, 203, 59, 29, 190, 76, 72, 162, 204, 82, 150, 192, 101, 73,
+            98, 94, 12, 195, 130, 18, 239, 205, 34
+        ]
+    );
 }

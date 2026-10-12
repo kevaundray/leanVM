@@ -114,6 +114,7 @@ fn main() {
                 points: &point_claims,
                 rings: &rings,
             };
+            #[expect(clippy::disallowed_methods, reason = "the claims' values are bound just above")]
             committed.open(&mut ch, &witness, statement);
         });
         open_t.push(t.elapsed().as_secs_f64());

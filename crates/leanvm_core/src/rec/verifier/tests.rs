@@ -627,6 +627,10 @@ fn fresh_opening_rows(
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the test's statement is fixed before the transcript: public"
+)]
 fn a_fresh_opening_keeps_the_original_record_in_both_verifiers() {
     use pcs::stack::{CommittedStack, StackCommitment, Statement};
 

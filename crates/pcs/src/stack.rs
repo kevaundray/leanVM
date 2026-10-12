@@ -263,7 +263,12 @@ impl CommittedStack {
 
     /// Prove `statement` about `stack`, the words committed.
     ///
-    /// Every claim must already be bound by the transcript: the opening observes none of them.
+    /// The opening observes none of the claims, so the caller must have bound them before it:
+    ///
+    /// - every claim's value is a prover message or part of the instance,
+    /// - every point is an earlier challenge or public.
+    ///
+    /// Each call site expects the workspace's `clippy::disallowed_methods` and says where its claims are bound.
     ///
     /// # Panics
     ///
@@ -387,6 +392,14 @@ impl<E: Copy, R: Copy, K: Copy> StackCommitment<E, R, K> {
     /// - The WHIR verifier then evaluates the weight once, at its terminal point.
     ///
     /// The same code runs natively and as the recursion machine's rows.
+    ///
+    /// The opening observes none of the claims, so the caller must have bound them before it:
+    ///
+    /// - every claim's value is a prover message or part of the instance,
+    /// - every point is an earlier challenge or public.
+    ///
+    /// A value the prover picks after the batching challenges breaks soundness.
+    /// Each call site expects the workspace's `clippy::disallowed_methods` and says where its claims are bound.
     ///
     /// # Errors
     ///
@@ -1221,6 +1234,10 @@ mod tests {
         build_instance_in_session(seed, false, None)
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the test's statement is fixed before the transcript: public"
+    )]
     fn build_instance_in_session(seed: u64, omit_last_lane: bool, opening_label: Option<&'static [u8]>) -> Instance {
         let log_n = 14usize;
         let pc = test_config_for(log_n);
@@ -1332,6 +1349,10 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the test's statement is fixed before the transcript: public"
+    )]
     fn verify_instance(
         inst: &Instance,
         point_claims: &[StackClaim],
@@ -1434,6 +1455,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the test's statement is fixed before the transcript: public"
+    )]
     fn a_fresh_opening_binds_the_complete_original_record() {
         const FRESH: &[u8] = b"stack-fresh-record";
         let inst = build_instance_in_session(4, true, Some(FRESH));
@@ -1483,6 +1508,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the test's statement is fixed before the transcript: public"
+    )]
     fn malformed_metadata_is_refused_before_frame_reads_or_challenges() {
         let inst = build_instance_in_session(5, true, Some(b"metadata-fresh"));
         let mut source = VerifierState::new(&SessionId::new(DOMAIN), &0u64, inst.header.as_ref().unwrap());
@@ -1601,6 +1630,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the test's statement is fixed before the transcript: public"
+    )]
     fn stacked_open_residual_crosses_qflock() {
         // Invariant: an opening verifies when the residual cube crosses into a ring-switched region.
         //
