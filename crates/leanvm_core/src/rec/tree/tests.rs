@@ -958,7 +958,12 @@ fn a_tree_resolves_its_leaves_assumptions() {
         },
     )
     .expect("a tree");
-    assert!(matches!(plain.verify(&f.root, &f.committed), Err(TreeError::Root(_))));
+    // Its statements may also be shorter, its dense polynomials having fewer variables: then the root is no proof of
+    // its circuits at all.
+    assert!(matches!(
+        plain.verify(&f.root, &f.committed),
+        Err(TreeError::Root(_) | TreeError::Circuit(_))
+    ));
 }
 
 // What a first-level prover is handed: every assumption named by the leaf's output, in order, each proven, and
