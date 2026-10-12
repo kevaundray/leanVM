@@ -393,7 +393,8 @@ theorem slots_agree {s : State} (hF : Facts cs rl os st val) (hF' : Facts cs rl 
         have hpad : val (o os (pc.p 0)) 0 * val (o os (pc.p 0 + 1)) 0 = 0 := by
           by_contra hc; exact (hpd hc).1 (hnh ▸ h0)
         funext t; simp only [hdrT]; split; rfl; split; rw [hm hpad _ (by omega)]; rfl
-      · rfl
+      · -- The first item starts a run: its label before it is zero in both, not `labT` of an item before it.
+        simp only [PoolCert.sigma_zero, if_true]
     | succ i ih =>
       intro hi
       obtain ⟨hnh, -, hm, hpd⟩ := item (i + 1) hi
@@ -413,7 +414,7 @@ theorem slots_agree {s : State} (hF : Facts cs rl os st val) (hF' : Facts cs rl 
     have hsel : (if pc.selecting then emb (val (selW os pc i sl) 0) else 1) =
         (if pc.selecting then emb (val' (selW os pc i sl) 0) else 1) := by
       cases hse : pc.selecting with
-      | false => rfl
+      | false => simp only [Bool.false_eq_true, if_false]
       | true =>
         obtain ⟨a, b⟩ := hs hse i hi
         simp only [if_true]; unfold selW; split
@@ -432,7 +433,7 @@ theorem slots_agree {s : State} (hF : Facts cs rl os st val) (hF' : Facts cs rl 
       onClaims ((slotsN os pc val' k).map fun p => (p.1, fun t : Fin 16 => p.2 t)) := by
     intro k
     induction k with
-    | zero => intro _; rfl
+    | zero => intro _; simp only [slotsN, List.range_zero, List.flatMap_nil]
     | succ k ih =>
       intro hk
       have split : ∀ v, slotsN os pc v (k + 1) = slotsN os pc v k ++
@@ -503,6 +504,50 @@ theorem facts_of_holds {c : Cert} {s : State} (h : c.unionsOk s = true) {st : �
       exact Array.getElem_mem hi
     exact ⟨(hall _ hq).1, (hall _ hq).2, hpts i hi⟩
 
+theorem PointCert.ok_parts {os : Array (List ℕ)} {pt : PointCert} {cs : Array Call} {rl : Array Bool}
+    {qc : ProdCert} (h : pt.ok os cs rl qc = true) :
+    callsOk cs rl (pt.calls os) = true ∧ qc.x1 = pt.x1 os ∧ qc.weights = (List.range 16).map (pt.weight os) := by
+  simp only [PointCert.ok, Bool.and_eq_true, beq_iff_eq] at h
+  exact ⟨h.1.1, h.1.2, h.2⟩
+
+/-- A product's `X + 1` and weights at a point `f` its point takes. -/
+theorem cover_point {c : Cert} {s : State} (h : c.unionsOk s = true) {st₀ st : ℕ → Fin 4 → K} {val₀ val : Val}
+    (hv₀ : Holds st₀ s c.test val₀) (hv : Holds st s c.test val) {f : Fin 5 → E}
+    {i l : ℕ} (hl : l < c.prods.size) (hptl : c.points.getD l default = c.points.getD i default)
+    (hx : Model.ev val (c.points.getD i default).x = f 0)
+    (ha : ∀ k : Fin 4, Model.ev val ((c.points.getD i default).aj k) = f k.succ) :
+    Model.ev val (c.prods.getD l default).x1 = f 0 + 1 ∧
+      ∀ k : Fin 16, Model.ev val ((c.prods.getD l default).w k) = eqAt (Fin.tail f) k := by
+  obtain ⟨-, -, hcerts⟩ := facts_of_holds h hv₀
+  obtain ⟨hF, -, -⟩ := facts_of_holds h hv
+  obtain ⟨hcalls, hx1, hw⟩ := PointCert.ok_parts (hcerts l hl).2.2
+  rw [hptl] at hcalls hx1 hw
+  obtain ⟨hpx, hpw⟩ := point_sem hF hcalls
+  refine ⟨by rw [hx1, hpx, hx], fun k => ?_⟩
+  rw [ProdCert.w, hw, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range k.isLt,
+    Option.map_some, Option.getD_some, hpw k]
+  congr 1
+  funext t
+  exact ha t
+
+/-- At a point `f` that product `i`'s point takes, a product `l` reading the same point, in an assignment agreeing with
+`val₀` on its pool's digests, begin and selection bits, is the product of its pool's claims on in `val₀`. -/
+theorem cover_side {c : Cert} {s : State} (h : c.unionsOk s = true) {st₀ st : ℕ → Fin 4 → K} {val₀ val : Val}
+    (hv₀ : Holds st₀ s c.test val₀) (hv : Holds st s c.test val) (hcr : HashCR s val₀ val) {f : Fin 5 → E}
+    {i l : ℕ} (hl : l < c.prods.size) (hptl : c.points.getD l default = c.points.getD i default)
+    (hx : Model.ev val (c.points.getD i default).x = f 0)
+    (ha : ∀ k : Fin 4, Model.ev val ((c.points.getD i default).aj k) = f k.succ)
+    (hag : (c.poolOf l).Agree c.outs val₀ val) :
+    Model.ev val (out c.outs (c.poolOf l) (c.prods.getD l default)) =
+      prodAt (onClaims (slots c.outs (c.poolOf l) val₀)) (f 0) (Fin.tail f) := by
+  obtain ⟨hF₀, hR, hcerts⟩ := facts_of_holds h hv₀
+  obtain ⟨hF, -, -⟩ := facts_of_holds h hv
+  obtain ⟨hd, hb, hs⟩ := hag
+  obtain ⟨hpo, hqo, -⟩ := hcerts l hl
+  obtain ⟨hx1, hW⟩ := cover_point h hv₀ hv hl hptl hx ha
+  rw [prod_slotsAt hF hpo hqo _ hW, hx1, slots_eq _ (slots_bits hF hpo) (f 0) (Fin.tail f),
+    slots_agree hF₀ hF hR hpo hcr hd hb hs]
+
 open Classical Finset in
 /-- The coverage check's soundness on the circuit. Products `i` and `j` read one point, squeezed after their pools'
 digests, begin and selection bits. If in an assignment `val₀` holding every constraint but the tests the claims on
@@ -522,7 +567,6 @@ theorem union_cover (c : Cert) (s : State) (h : c.unionsOk s = true) {i j : ℕ}
           Model.ev val (out c.outs (c.poolOf j) (c.prods.getD j default))} : ℚ≥0) / (#S ^ 5 : ℚ≥0) ≤
       4 * (2 * max (c.poolOf i).n (c.poolOf j).n : ℕ) / #S := by
   classical
-  obtain ⟨hF₀, hR, hcerts⟩ := facts_of_holds h hv₀
   set P := onClaims (slots c.outs (c.poolOf i) val₀)
   set Q := onClaims (slots c.outs (c.poolOf j) val₀)
   set N := 2 * max (c.poolOf i).n (c.poolOf j).n
@@ -536,28 +580,7 @@ theorem union_cover (c : Cert) (s : State) (h : c.unionsOk s = true) {i j : ℕ}
   rw [mem_filter] at hf ⊢
   obtain ⟨hfS, st, val, hv, hcr, hai, haj, hx, ha, htest⟩ := hf
   refine ⟨hfS, ?_⟩
-  obtain ⟨hF, -, -⟩ := facts_of_holds h hv
-  have side : ∀ l < c.prods.size, c.points.getD l default = c.points.getD i default →
-      (c.poolOf l).Agree c.outs val₀ val →
-      Model.ev val (out c.outs (c.poolOf l) (c.prods.getD l default)) =
-        prodAt (onClaims (slots c.outs (c.poolOf l) val₀)) (f 0) (Fin.tail f) := by
-    intro l hl hptl ⟨hd, hb, hs⟩
-    obtain ⟨hpo, hqo, hpto⟩ := hcerts l hl
-    simp only [PointCert.ok, Bool.and_eq_true, beq_iff_eq] at hpto
-    obtain ⟨⟨hcalls, hx1⟩, hw⟩ := hpto
-    rw [hptl] at hcalls hx1 hw
-    obtain ⟨hpx, hpw⟩ := point_sem hF hcalls
-    have hW : ∀ k : Fin 16, Model.ev val ((c.prods.getD l default).w k) = eqAt (Fin.tail f) k := by
-      intro k
-      rw [ProdCert.w, hw, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range k.isLt,
-        Option.map_some, Option.getD_some, hpw k]
-      congr 1
-      funext t
-      exact ha t
-    rw [prod_slotsAt hF hpo hqo _ hW, hx1, hpx, hx,
-      slots_eq _ (slots_bits hF hpo) (f 0) (Fin.tail f),
-      slots_agree hF₀ hF hR hpo hcr hd hb hs]
-  rw [← side i hi rfl hai, ← side j hj hpt.symm haj, htest]
+  rw [← cover_side h hv₀ hv hcr hi rfl hx ha hai, ← cover_side h hv₀ hv hcr hj hpt.symm hx ha haj, htest]
 
 /-! The union's soundness on an accepted circuit. -/
 

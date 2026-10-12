@@ -567,7 +567,9 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.prod_closed
 #print axioms LeanVMCircuits.Rec.Bind.prod_slotsAt
 #print axioms LeanVMCircuits.Rec.Bind.slots_agree
+#print axioms LeanVMCircuits.Rec.Bind.cover_side
 #print axioms LeanVMCircuits.Rec.Bind.union_cover
+#print axioms LeanVMCircuits.Rec.Bind.uniform_count
 #print axioms LeanVMCircuits.Rec.Bind.Cert.accepts_parts
 #print axioms LeanVMCircuits.Rec.Bind.union_sound
 #print axioms LeanVMCircuits.Rec.Bind.taintOk_sound
