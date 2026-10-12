@@ -6,7 +6,7 @@ import LeanVMCircuits.Rec.Dump
 
 The summaries (`fixtures/design-summaries.txt`, written by `rec::tree::design_tests`) hold, for a grid of tree shapes, whether `Tree::new` refuses the shape's arities or small tier, and else its design: `Place::all`, each tier's range, each position's kind, `Design::position` of the kinds below 40, each position's union shape, the dense variables and fixed stacks' variables, and the statement's length and polynomials. Each must be the model's (`Shape.check`, `Shape.places`, `Shape.start`, `Shape.stop`, `Shape.code`, `Shape.position`, `Shape.union`, `Shape.vars`, `Shape.layout`), given the program's two dense variables and each tier's fixed stack's variables, which the summary states.
 
-Each dump is a tracked circuit (`cargo leanvm circuits`), named by its tree and position. Its calls are replayed through the builder model; each child's statement is a run of as many `free_e` calls as the circuit exposes words, and the calls after it must add to the circuit exactly what `Model.kindRows` adds from the same state, for the child's tier: the same unions, rows, public rows, wires and units. A node must read as many children as `Shape.children` says, a first-level circuit none, and the statement's length must leave the dense point a nonnegative number of words.
+Each dump is a tracked circuit (`cargo leanvm circuits`), named by its tree and position. Its calls are replayed through the builder model; each child's statement is a run of as many `free_e` calls as the circuit exposes words, and the calls after it must add to the circuit exactly what `Model.kindRows` adds from the same state, for the child's tier, then exactly what `Model.limbRows` adds for its words: the same unions, rows, public rows, wires and units. A node must read as many children as `Shape.children` says, a first-level circuit none, and the statement's length must leave the dense point a nonnegative number of words.
 -/
 
 open LeanVMCircuits.Rec
@@ -162,6 +162,16 @@ def checkDump (path : System.FilePath) : IO Bool := do
       unless sameCircuit model s do
         IO.eprintln s!"{path}: child {children}'s kind rows differ from the model's at call {i}"; return false
       i := i + kindCalls sh tier
+      -- Then the words' limbs: as many calls as `limbRows` makes, adding what it adds.
+      let ws := (List.range len).map (kind + ·)
+      let limbs := ((limbRows ws).run s).2
+      for c in (calls.extract i (i + 1 + len)).toList do
+        unless c.args.all (· < s.next) && c.ok do
+          IO.eprintln s!"{path}: call {i} names a wire not yet made"; return false
+        s := (c.exec.run s).2
+      unless sameCircuit limbs s do
+        IO.eprintln s!"{path}: child {children}'s limbs differ from the model's at call {i}"; return false
+      i := i + 1 + len
       children := children + 1
     else
       let c := calls.getD i .freeE
@@ -171,7 +181,7 @@ def checkDump (path : System.FilePath) : IO Bool := do
       i := i + 1
   unless children = expected do
     IO.eprintln s!"{path}: {children} children's kind rows, the model {expected}"; return false
-  IO.println s!"{path}: position {position}, {children} children's kind rows are the model's, statement {len} words"
+  IO.println s!"{path}: position {position}, {children} children's kind rows and limbs are the model's, statement {len} words"
   return true
 
 end CheckDesign

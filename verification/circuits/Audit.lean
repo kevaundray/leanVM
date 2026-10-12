@@ -681,6 +681,8 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Model.split_bits
 #print axioms LeanVMCircuits.Rec.Model.first_core
 #print axioms LeanVMCircuits.Rec.Model.kindRows_good
+#print axioms LeanVMCircuits.Rec.Model.mapM_eToK_good
+#print axioms LeanVMCircuits.Rec.Model.limbRows_good
 #print axioms LeanVMCircuits.Rec.Model.oneChild_good
 #print axioms LeanVMCircuits.Rec.Model.readChildren_good
 #print axioms LeanVMCircuits.Rec.Model.nodeRows_good

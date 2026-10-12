@@ -455,16 +455,60 @@ def KindBound (sh : Shape) (ct : ℕ) (val : Val) (x : ℕ × List ℕ × ℕ) :
     (∀ j < sh.kindBits ct, ev val (x.2.1.getD j 0) = if (q - sh.start ct).testBit j then 1 else 0) ∧
     (ev val x.2.2 = 0 ↔ q = 0)
 
-/-- One child as `Design::node` reads it: its statement's `S` words (`free_e`), its kind rows, then `rest`, the rows that stay transcription (the words' limbs, `RecShape::verify`, `bind_state`, the fixed and carried claims, the digest), given the words and the kind rows' outputs. -/
-def oneChild (sh : Shape) (ct S : ℕ) (rest : List ℕ → List ℕ × ℕ → M Unit) : M (ℕ × List ℕ × ℕ) := do
+/-- `Design::node`'s limbs of a child's words: `k_const 0`, then each word's `e_to_k`. Word `i`'s limbs are its `e_to_k`'s three outputs and the zero (`[c0, c1, c2, zero]`), the statement `RecShape::verify` absorbs and reads (`Edges.InstCert`). -/
+def limbRows (ws : List ℕ) : M (ℕ × List (List ℕ)) := do
+  let z ← kConst 0
+  let ls ← ws.mapM eToK
+  pure (z, ls)
+
+/-- What `limbRows` binds in an assignment: the zero is zero, and word `i`'s three limbs are its first three. -/
+def LimbsBound (ws : List ℕ) (val : Val) (l : ℕ × List (List ℕ)) : Prop :=
+  val l.1 = limbsOf [0, 0, 0, 0] ∧ l.2.length = ws.length ∧
+    ∀ i < ws.length, ∀ c : Fin 4, c.val < 3 → val ((l.2.getD i []).getD c 0) 0 = val (ws.getD i 0) c
+
+theorem mapM_eToK_good : ∀ ws : List ℕ, Good (Wires ws) (ws.mapM eToK) fun _ ls s' => ls.length = ws.length ∧
+    ∀ st val, Sat st s' val → ∀ i < ws.length, ∀ c : Fin 4, c.val < 3 →
+      val ((ls.getD i []).getD c 0) 0 = val (ws.getD i 0) c
+  | [] => Good.pure' fun _ _ _ => ⟨rfl, fun _ _ _ i hi => absurd hi (by simp)⟩
+  | w :: ws => by
+    rw [List.mapM_cons]
+    refine Good.seq ((eToK_good w).pre fun s hs x hx => hs x (by simp_all)) fun s ks s1 _ hw he1 hk => ?_
+    have hw1 : Wires ws s1 := Wires.mono (fun x hx => hw x (List.mem_cons_of_mem _ hx)) he1
+    refine Good.seq ((mapM_eToK_good ws).pre fun s' hs' => hs' ▸ hw1) fun s' ls s2 _ hs' he2 hls => ?_
+    subst hs'
+    refine Good.pure' fun s3 _ hs3 => ?_
+    subst hs3
+    refine ⟨by simp [hls.1], fun st val hsat i hi c hc => ?_⟩
+    rcases i with _ | i
+    · exact hk.2 st val (hsat.mono he2) c hc
+    · exact hls.2 st val hsat i (by simpa using hi) c hc
+
+theorem limbRows_good (ws : List ℕ) : Good (Wires ws) (limbRows ws) fun _ l s' => ∀ st val, Sat st s' val →
+    LimbsBound ws val l := by
+  unfold limbRows
+  refine Good.seq ((kConst_good 0).pre fun _ _ => trivial) fun s z s1 _ hw he1 hz => ?_
+  refine Good.seq ((mapM_eToK_good ws).pre fun s' hs' => hs' ▸ hw.mono he1) fun s' ls s2 _ hs' he2 hls => ?_
+  subst hs'
+  refine Good.pure' fun s3 _ hs3 => ?_
+  subst hs3
+  exact fun st val hsat => ⟨hz.2 st val (hsat.mono he2), hls.1, hls.2 st val hsat⟩
+
+/-- One child as `Design::node` reads it: its statement's `S` words (`free_e`), its kind rows, its words' limbs, then `rest`, the rows that stay transcription (`RecShape::verify` past the statement it absorbs and reads, `bind_state`, the fixed and carried claims, the digest), given the words, the kind rows' outputs and the limbs. It returns the words, the kind rows' outputs and the limbs. -/
+def oneChild (sh : Shape) (ct S : ℕ) (rest : List ℕ → List ℕ × ℕ → ℕ × List (List ℕ) → M Unit) :
+    M (List ℕ × (List ℕ × ℕ) × (ℕ × List (List ℕ))) := do
   let ws ← (List.range S).mapM fun _ => wire
   let r ← kindRows sh ct (ws.headD 0)
-  rest ws r
-  pure (ws.headD 0, r)
+  let l ← limbRows ws
+  rest ws r l
+  pure (ws, r, l)
+
+/-- What a child's rows bind: its kind (`KindBound`) and its words' limbs (`LimbsBound`). -/
+def ChildBound (sh : Shape) (ct : ℕ) (val : Val) (x : List ℕ × (List ℕ × ℕ) × (ℕ × List (List ℕ))) : Prop :=
+  KindBound sh ct val (x.1.headD 0, x.2.1) ∧ LimbsBound x.1 val x.2.2
 
 /-- The first `n` children, in order. -/
-def readChildren (sh : Shape) (ct S : ℕ) (rest : ℕ → List ℕ → List ℕ × ℕ → M Unit) :
-    ℕ → M (List (ℕ × List ℕ × ℕ))
+def readChildren (sh : Shape) (ct S : ℕ) (rest : ℕ → List ℕ → List ℕ × ℕ → ℕ × List (List ℕ) → M Unit) :
+    ℕ → M (List (List ℕ × (List ℕ × ℕ) × (ℕ × List (List ℕ))))
   | 0 => pure []
   | n + 1 => do
     let xs ← readChildren sh ct S rest n
@@ -472,8 +516,8 @@ def readChildren (sh : Shape) (ct S : ℕ) (rest : ℕ → List ℕ → List ℕ
     pure (xs ++ [x])
 
 /-- `Design::node` at position `p`: its `Shape.children` children of their tier, then `tail`, the rows that stay transcription (the union or the digest, the reduction, the statement's exposure). -/
-def nodeRows (sh : Shape) (p S : ℕ) (rest : ℕ → List ℕ → List ℕ × ℕ → M Unit) (tail : M Unit) :
-    M (List (ℕ × List ℕ × ℕ)) :=
+def nodeRows (sh : Shape) (p S : ℕ) (rest : ℕ → List ℕ → List ℕ × ℕ → ℕ × List (List ℕ) → M Unit) (tail : M Unit) :
+    M (List (List ℕ × (List ℕ × ℕ) × (ℕ × List (List ℕ)))) :=
   match sh.children p with
   | some (a, ct) => do
     let xs ← readChildren sh ct S rest a
@@ -482,9 +526,9 @@ def nodeRows (sh : Shape) (p S : ℕ) (rest : ℕ → List ℕ → List ℕ × �
   | none => pure []
 
 theorem oneChild_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (ct : ℕ) (hct : ct < sh.nTiers)
-    (S : ℕ) (hS : 1 ≤ S) (rest : List ℕ → List ℕ × ℕ → M Unit)
-    (hrest : ∀ ws r, Good (fun _ => True) (rest ws r) fun _ _ _ => True) :
-    Good (fun _ => True) (oneChild sh ct S rest) fun _ x s' => ∀ st val, Sat st s' val → KindBound sh ct val x := by
+    (S : ℕ) (hS : 1 ≤ S) (rest : List ℕ → List ℕ × ℕ → ℕ × List (List ℕ) → M Unit)
+    (hrest : ∀ ws r l, Good (fun _ => True) (rest ws r l) fun _ _ _ => True) :
+    Good (fun _ => True) (oneChild sh ct S rest) fun _ x s' => ∀ st val, Sat st s' val → ChildBound sh ct val x := by
   unfold oneChild
   refine Good.seq (mapM_good (fun _ => True) (fun _ _ h _ => h) (fun _ => wire) (fun _ _ => True)
     (fun _ => fresh_good) (List.range S)) fun s ws s1 _ _ he1 ⟨hl, _, hw⟩ => ?_
@@ -497,18 +541,20 @@ theorem oneChild_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (ct
     · exact hw w (by simp)
   refine Good.seq ((kindRows_good sh h hs ct hct _).pre fun s' hs' => hs' ▸ hk) fun s' r s2 _ hs' he2 hr => ?_
   subst hs'
-  refine Good.seq ((hrest ws r).pre fun _ _ => trivial) fun s' _ s3 _ hs' he3 _ => ?_
+  refine Good.seq ((limbRows_good ws).pre fun s' hs' => hs' ▸ hw.mono he2) fun s' l s3 _ hs' he3 hl3 => ?_
   subst hs'
-  refine Good.pure' fun s4 _ hs4 => ?_
-  subst hs4
+  refine Good.seq ((hrest ws r l).pre fun _ _ => trivial) fun s' _ s4 _ hs' he4 _ => ?_
+  subst hs'
+  refine Good.pure' fun s5 _ hs5 => ?_
+  subst hs5
   intro st val hsat
-  exact hr.2.2.2 st val (hsat.mono he3)
+  exact ⟨hr.2.2.2 st val ((hsat.mono he4).mono he3), hl3 st val (hsat.mono he4)⟩
 
 theorem readChildren_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (ct : ℕ) (hct : ct < sh.nTiers)
-    (S : ℕ) (hS : 1 ≤ S) (rest : ℕ → List ℕ → List ℕ × ℕ → M Unit)
-    (hrest : ∀ i ws r, Good (fun _ => True) (rest i ws r) fun _ _ _ => True) :
+    (S : ℕ) (hS : 1 ≤ S) (rest : ℕ → List ℕ → List ℕ × ℕ → ℕ × List (List ℕ) → M Unit)
+    (hrest : ∀ i ws r l, Good (fun _ => True) (rest i ws r l) fun _ _ _ => True) :
     ∀ n, Good (fun _ => True) (readChildren sh ct S rest n) fun _ xs s' =>
-      xs.length = n ∧ ∀ st val, Sat st s' val → ∀ x ∈ xs, KindBound sh ct val x
+      xs.length = n ∧ ∀ st val, Sat st s' val → ∀ x ∈ xs, ChildBound sh ct val x
   | 0 => Good.pure' fun _ _ _ => ⟨rfl, fun _ _ _ x hx => absurd hx (by simp)⟩
   | n + 1 => by
     refine Good.seq (readChildren_good sh h hs ct hct S hS rest hrest n) fun s xs s1 _ _ he1 ⟨hl, hxs⟩ => ?_
@@ -523,14 +569,14 @@ theorem readChildren_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62)
     · rw [List.mem_singleton.mp hy]
       exact hx st val hsat
 
-/-- A node circuit, for every accepted shape: whatever its transcribed rows, as long as they keep the builder's invariant (every row a model method's on wires already made, what `checkrec` checks of the tracked dumps), in every assignment satisfying the circuit each of its `Shape.children` children's kind is the kind of a circuit of the child tier, its `top` bits select that circuit's block of the tier's fixed polynomial, and `is_node` is zero exactly at the first level. -/
+/-- A node circuit, for every accepted shape: whatever its transcribed rows, as long as they keep the builder's invariant (every row a model method's on wires already made, what `checkrec` checks of the tracked dumps), in every assignment satisfying the circuit each of its `Shape.children` children's kind is the kind of a circuit of the child tier, its `top` bits select that circuit's block of the tier's fixed polynomial, `is_node` is zero exactly at the first level, and the limbs its verifier is given are its words' (`ChildBound`). -/
 theorem nodeRows_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (p : ℕ) (hp : p < sh.size)
     (a ct : ℕ) (hc : sh.children p = some (a, ct)) (S : ℕ) (hS : 1 ≤ S)
-    (rest : ℕ → List ℕ → List ℕ × ℕ → M Unit)
-    (hrest : ∀ i ws r, Good (fun _ => True) (rest i ws r) fun _ _ _ => True)
+    (rest : ℕ → List ℕ → List ℕ × ℕ → ℕ × List (List ℕ) → M Unit)
+    (hrest : ∀ i ws r l, Good (fun _ => True) (rest i ws r l) fun _ _ _ => True)
     (tail : M Unit) (htail : Good (fun _ => True) tail fun _ _ _ => True) :
     Good (fun _ => True) (nodeRows sh p S rest tail) fun _ xs s' =>
-      xs.length = a ∧ ∀ st val, Sat st s' val → ∀ x ∈ xs, KindBound sh ct val x := by
+      xs.length = a ∧ ∀ st val, Sat st s' val → ∀ x ∈ xs, ChildBound sh ct val x := by
   have hct := (children_tier sh h p hp a ct hc).1
   unfold nodeRows
   rw [hc]
