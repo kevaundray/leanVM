@@ -14,7 +14,7 @@ An edge certificate (`EdgeCert`) records them with the calls that compute each c
 
 `EdgeCert.edge`: in any assignment satisfying the circuit the calls build, if a child's words carry statement `st`, every claim `st` makes at its kind's scale (`nodeScale`) is among the claims the reduction takes, and the digest the circuit reads is `st`'s. `EdgeCert.edge_holds`: when those claims hold, `st`'s do. `hedge_of_certs` gives `TreeSound.tree_sound`'s edge premise for a tree whose circuits have accepted certificates, reading a node's input claims as its reduction's and a node's statement as its words' claims; `tree_sound_certs` is `tree_sound` with it.
 
-That the parent's hinted words carry the child's statement is the recursive verifier's soundness, a premise (`hpub`): the parent verifies the child's proof with these words as its statement.
+The parent verifies the child's proof with these words as its statement: `InstCert` names the calls by which the child's verifier (`RecShape::verify`) absorbs them as its transcript's instance and reads them into its public table's columns (`FixedHints::statement_at`), and `InstCert.verifies` proves that in any satisfying assignment those are the words' instance and limbs (`InstCert.VerifiesAt`). A child's statement is therefore the words its parent's verifier reads (`treeStmt`), and `tree_sound_certs` assumes, in place of a link between those words and the child's statement, the recursive verifier's soundness at the statement it reads (`hrec`); `sat_tree` gives every node's circuit satisfied at its `treeStmt`.
 -/
 
 namespace LeanVMCircuits.Rec.Edges
@@ -334,13 +334,152 @@ theorem ScaleCert.sem {cs : Array Call} {os : Array (List ℕ)} {st : ℕ → Fi
       holds_at hF hlast
     rw [hL, hacc _ le_rfl, hone]
 
+/-! The child's verifier reads the child's words as its statement. -/
+
+/-- Limb `c` of a statement word as `Design::node` passes it to the child's verifier (`[c0, c1, c2, zero]`): its first three limbs, then zero. -/
+noncomputable def limbK (x : Fin 4 → K) (c : ℕ) : K := if h : c < 3 then x ⟨c, by omega⟩ else ofWord 0
+
+/-- Word `i` of the instance a verifier absorbs for a statement `s` of `n` words (`RecShape::verify`'s, the native verifier's `instance`): the limb count `4 n`, then each word's four limbs. -/
+noncomputable def instAt (s : ℕ → Fin 4 → K) (n i : ℕ) : BitVec 64 :=
+  if i = 0 then BitVec.ofNat 64 (4 * n) else BitVec.ofNat 64 (toWord (limbK (s ((i - 1) / 4)) ((i - 1) % 4)))
+
+/-- Where a parent's verifier of a child (`RecShape::verify`) reads the child's words as its statement: each word's `e_to_k` call, the `k_const` calls of the limb count and of the zero limb, the `d_const` call starting its transcript, the `leaf_block` calls absorbing the instance, and the statement's shares of the public table's columns (`FixedHints::statement_at`), each a limb, the `zero` call it starts from and one `mul_k_add` call per word. -/
+structure InstCert where
+  limbs : List ℕ
+  count : ℕ
+  zero : ℕ
+  seed : ℕ
+  blocks : List ℕ
+  shares : List (ℕ × ℕ × List ℕ)
+  deriving DecidableEq, Repr, Inhabited
+
+/-- The wire of word `z`'s limb `c`. -/
+def InstCert.limbWire (ic : InstCert) (os : Array (List ℕ)) (z c : ℕ) : ℕ :=
+  if c < 3 then out os (ic.limbs.getD z 0) c else out os ic.zero 0
+
+/-- The wire of the instance's word `i`. -/
+def InstCert.msg (ic : InstCert) (os : Array (List ℕ)) (i : ℕ) : ℕ :=
+  if i = 0 then out os ic.count 0 else ic.limbWire os ((i - 1) / 4) ((i - 1) % 4)
+
+/-- The chaining value block `b` of the transcript starts from: the `d_const`'s output, then the previous block's. -/
+def InstCert.cvIn (ic : InstCert) (os : Array (List ℕ)) (b : ℕ) : ℕ :=
+  if b = 0 then out os ic.seed 0 else out os (ic.blocks.getD (b - 1) 0) 0
+
+/-- A share's accumulator after `z` words: its `zero` call's output, then the `z`th `mul_k_add`'s. -/
+def accW (os : Array (List ℕ)) (z0 : ℕ) (ms : List ℕ) (z : ℕ) : ℕ :=
+  if z = 0 then out os z0 0 else out os (ms.getD (z - 1) 0) 0
+
+/-- The weight a share's `z`th `mul_k_add` gives its word. -/
+def weightW (cs : Array Call) (ms : List ℕ) (z : ℕ) : ℕ :=
+  match cs[ms.getD z 0]? with
+  | some (.mulKAdd a _ _) => a
+  | _ => 0
+
+/-- Whether call `j` starts the transcript at a constant. -/
+def isDConst (cs : Array Call) (j : ℕ) : Bool :=
+  match cs[j]? with
+  | some (.dConst _) => true
+  | _ => false
+
+/-- Block `b` is a `leaf_block` from its chaining value. -/
+def InstCert.blockOk (cs : Array Call) (os : Array (List ℕ)) (ic : InstCert) (b : ℕ) : Bool :=
+  match cs[ic.blocks.getD b 0]? with
+  | some (.leafBlock h _ _ _) => h == ic.cvIn os b
+  | _ => false
+
+/-- The instance's word `i` is the `i % 8`th message word of block `i / 8`. -/
+def InstCert.msgOk (cs : Array Call) (os : Array (List ℕ)) (ic : InstCert) (i : ℕ) : Bool :=
+  match cs[ic.blocks.getD (i / 8) 0]? with
+  | some (.leafBlock _ m _ _) => m.getD (i % 8) 0 == ic.msg os i
+  | _ => false
+
+/-- A share reads limb `c` of each word, in order, from a `zero`. -/
+def shareOk (cs : Array Call) (os : Array (List ℕ)) (ic : InstCert) (n : ℕ) (sh : ℕ × ℕ × List ℕ) : Bool :=
+  cs[sh.2.1]? == some .zero && sh.2.2.length == n &&
+    (List.range n).all fun z => match cs[sh.2.2.getD z 0]? with
+      | some (.mulKAdd _ k d) => k == ic.limbWire os z sh.1 && d == accW os sh.2.1 sh.2.2 z
+      | _ => false
+
+/-- The certificate checks against the child's words: each word's limbs are its `e_to_k`'s, the count is `4 n`, the transcript starts at a constant and its blocks chain, the instance is their first `4 n + 1` message words, and each of the four limbs has a share reading it. -/
+def InstCert.ok (cs : Array Call) (os : Array (List ℕ)) (words : List ℕ) (ic : InstCert) : Bool :=
+  let n := words.length
+  ic.limbs.length == n && decide (4 * n < 2 ^ 64) &&
+    (List.range n).all (fun z => cs[ic.limbs.getD z 0]? == some (.eToK (words.getD z 0))) &&
+    cs[ic.count]? == some (.kConst (4 * n)) && cs[ic.zero]? == some (.kConst 0) && isDConst cs ic.seed &&
+    (List.range ic.blocks.length).all (ic.blockOk cs os) && (List.range (4 * n + 1)).all (ic.msgOk cs os) &&
+    (List.range 4).all (fun c => ic.shares.any (·.1 == c)) && ic.shares.all (shareOk cs os ic n)
+
+/-- What the parent's verifier reads as the child's statement is `s`: the transcript's first `4 n + 1` absorbed words are `s`'s instance, and each share is the sum over `s`'s words of their limb at the share's weights. -/
+def InstCert.VerifiesAt (cs : Array Call) (os : Array (List ℕ)) (ic : InstCert) (val : Val) (s : ℕ → Fin 4 → K)
+    (n : ℕ) : Prop :=
+  (∀ i < 4 * n + 1, w64 val (ic.msg os i) = instAt s n i) ∧
+    ∀ sh ∈ ic.shares, Model.ev val (accW os sh.2.1 sh.2.2 n) =
+      ∑ z ∈ Finset.range n, Model.ev val (weightW cs sh.2.2 z) * emb (limbK (s z) sh.1)
+
+theorem InstCert.limb_sem {cs : Array Call} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+    (hF : AllHold cs os st val) {words : List ℕ} {ic : InstCert} (h : ic.ok cs os words = true) {z c : ℕ}
+    (hz : z < words.length) : val (ic.limbWire os z c) 0 = limbK (val (words.getD z 0)) c := by
+  simp only [InstCert.ok, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨-, -⟩, hl⟩, -⟩, hzero⟩, -⟩, -⟩, -⟩, -⟩, -⟩ := h
+  unfold InstCert.limbWire limbK
+  split_ifs with hc
+  · have H : ∀ i : Fin 4, i.val < 3 → val (out os (ic.limbs.getD z 0) i) 0 = val (words.getD z 0) i :=
+      holds_at hF (hl z hz)
+    exact H ⟨c, by omega⟩ hc
+  · have H : val (out os ic.zero 0) = limbsOf [0, 0, 0, 0] := holds_at hF hzero
+    rw [H]; rfl
+
+/-- A checked certificate's words are what the parent's verifier reads as the child's statement. -/
+theorem InstCert.verifies {cs : Array Call} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+    (hF : AllHold cs os st val) {words : List ℕ} {ic : InstCert} (h : ic.ok cs os words = true) :
+    ic.VerifiesAt cs os val (fun z => val (words.getD z 0)) words.length := by
+  have h' := h
+  simp only [InstCert.ok, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range, decide_eq_true_eq] at h'
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨-, h64⟩, -⟩, hcount⟩, -⟩, -⟩, -⟩, -⟩, -⟩, hsh⟩ := h'
+  refine ⟨fun i hi => ?_, fun sh hm => ?_⟩
+  · unfold InstCert.msg instAt
+    split_ifs with h0
+    · have H : val (out os ic.count 0) = limbsOf [4 * words.length, 0, 0, 0] := holds_at hF hcount
+      simp only [w64, H, limbsOf]
+      exact congrArg (BitVec.ofNat 64) (toWord_ofWord _ h64)
+    · simp only [w64]
+      rw [ic.limb_sem hF h (by omega)]
+  · have hs := hsh sh hm
+    simp only [shareOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true, List.mem_range] at hs
+    obtain ⟨⟨hz, -⟩, hms⟩ := hs
+    have key : ∀ z ≤ words.length, Model.ev val (accW os sh.2.1 sh.2.2 z) =
+        ∑ z' ∈ Finset.range z, Model.ev val (weightW cs sh.2.2 z') * emb (limbK (val (words.getD z' 0)) sh.1) := by
+      intro z hzl
+      induction z with
+      | zero =>
+        have H : Model.ev val (out os sh.2.1 0) = 0 := holds_at hF hz
+        simpa [accW] using H
+      | succ z ih =>
+        have hm := hms z (by omega)
+        rw [Finset.sum_range_succ, ← ih (by omega)]
+        revert hm
+        unfold weightW
+        split
+        · next a k d heq =>
+          intro hm
+          simp only [Bool.and_eq_true, beq_iff_eq] at hm
+          obtain ⟨rfl, rfl⟩ := hm
+          have H : Model.ev val (out os (sh.2.2.getD z 0) 0) =
+              Model.ev val a * emb (val (ic.limbWire os z sh.1) 0) + Model.ev val (accW os sh.2.1 sh.2.2 z) :=
+            holds_at hF heq
+          have hA : accW os sh.2.1 sh.2.2 (z + 1) = out os (sh.2.2.getD z 0) 0 := by simp [accW]
+          rw [hA, H, ic.limb_sem hF h (by omega), add_comm]
+        · intro hm; simp at hm
+    exact key _ le_rfl
+
 /-! The certificate. -/
 
-/-- A child's edge: its statement's words, the calls computing its scale, and the `halves_to_d` call reading its digest. -/
+/-- A child's edge: its statement's words, the calls computing its scale, the `halves_to_d` call reading its digest, and where its verifier reads its words. -/
 structure ChildEdge where
   words : List ℕ
   scale : ScaleCert
   digest : ℕ
+  inst : InstCert
   deriving DecidableEq, Repr, Inhabited
 
 /-- A circuit's edges: its calls, its statement's layout, the claims its reduction takes and its children. -/
@@ -365,10 +504,14 @@ def ChildEdge.ok (c : EdgeCert) (os : Array (List ℕ)) (ch : ChildEdge) : Bool 
 def EdgeCert.accepts (c : EdgeCert) (os : Array (List ℕ)) : Bool :=
   c.layout.ok && c.children.all (ChildEdge.ok c os)
 
-/-- The replay's verdict: the calls replay with every equality, building a circuit of the layout's statement length, and the certificate accepts their outputs. -/
+/-- Each child's verifier reads the child's words as its statement. -/
+def EdgeCert.verifies (c : EdgeCert) (os : Array (List ℕ)) : Bool :=
+  c.children.all fun ch => ch.inst.ok c.calls os ch.words
+
+/-- The replay's verdict: the calls replay with every equality, building a circuit of the layout's statement length, the certificate accepts their outputs, and each child's verifier reads its words. -/
 def EdgeCert.check (c : EdgeCert) : Bool :=
   match replayR c.calls #[] 0 {} #[] with
-  | some (t, os) => t.statement == c.layout.len && c.accepts os
+  | some (t, os) => t.statement == c.layout.len && c.accepts os && c.verifies os
   | none => false
 
 theorem allHold_of_replay {cs : Array Call} {t : State} {os : Array (List ℕ)}
@@ -464,20 +607,85 @@ theorem hedge_of_certs (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι 
   rw [hL _ hp] at this
   exact this
 
-/-- `TreeSound.tree_sound` with its edges from accepted certificates: off every node's `bad`, every node's statement and input claims hold. -/
+open Classical in
+/-- A node's statement: the root's `stRoot`, every other node's the words its parent's verifier reads as its statement. -/
+noncomputable def treeStmt (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K)
+    (val : ι → Ω → Val) (v : ι) (ω : Ω) : ℕ → Fin 4 → K :=
+  if v = T.root then stRoot ω
+  else fun i => val (T.parent v) ω (((cert (T.parent v)).children.getD (slot v) default).words.getD i 0)
+
+/-- Every node's circuit is satisfied at its `treeStmt` when the root's is and each child's is whenever its parent's verifier reads the statement (`hrec`, the recursive verifier's soundness): the parent's satisfied circuit makes its verifier of the child read `treeStmt` (`InstCert.verifies`). -/
+theorem sat_tree (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State) (os : ι → Array (List ℕ))
+    (hr : ∀ v ∈ T.nodes, replayR (cert v).calls #[] 0 {} #[] = some (t v, os v))
+    (hacc : ∀ v ∈ T.nodes, (cert v).accepts (os v) = true) (hver : ∀ v ∈ T.nodes, (cert v).verifies (os v) = true)
+    (L : Layout) (hL : ∀ v ∈ T.nodes, (cert v).layout = L)
+    (slot : ι → ℕ) (hslot : ∀ v ∈ T.nodes, v ≠ T.root → slot v < (cert (T.parent v)).children.length)
+    (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
+    (hsroot : ∀ ω, Sat (stRoot ω) (t T.root) (val T.root ω))
+    (hrec : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω,
+      ((cert (T.parent v)).children.getD (slot v) default).inst.VerifiesAt (cert (T.parent v)).calls
+        (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
+      Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω)) (ω : Ω) :
+    ∀ v ∈ T.nodes, Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω) := by
+  have key : ∀ k, ∀ v ∈ T.nodes, T.depth v = k → Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω) := by
+    intro k
+    induction k with
+    | zero =>
+      intro v hv hd
+      obtain rfl := T.root_of_depth v hv hd
+      simpa [treeStmt] using hsroot ω
+    | succ k ih =>
+      intro v hv hd
+      have hne : v ≠ T.root := by
+        rintro rfl
+        rw [T.depth_root] at hd
+        omega
+      obtain ⟨hp, hpd⟩ := T.parent_mem v hv hne
+      refine hrec v hv hne ω ?_
+      have hF := allHold_of_replay (hr _ hp) (ih _ hp (by omega))
+      have hch : (cert (T.parent v)).children.getD (slot v) default ∈ (cert (T.parent v)).children := by
+        rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hslot v hv hne), Option.getD_some]
+        exact List.getElem_mem _
+      have hi := List.all_eq_true.mp (hver _ hp) _ hch
+      have hok : ChildEdge.ok (cert (T.parent v)) (os (T.parent v))
+          ((cert (T.parent v)).children.getD (slot v) default) = true := by
+        have := hacc _ hp
+        simp only [EdgeCert.accepts, Bool.and_eq_true, List.all_eq_true] at this
+        exact this.2 _ hch
+      have hlen : ((cert (T.parent v)).children.getD (slot v) default).words.length = L.len := by
+        simp only [ChildEdge.ok, Bool.and_eq_true, beq_iff_eq] at hok
+        rw [hok.1.1.1.1, hL _ hp]
+      have := InstCert.verifies hF hi
+      rw [hlen] at this
+      have hst : treeStmt T cert slot stRoot val v ω =
+          fun i => val (T.parent v) ω (((cert (T.parent v)).children.getD (slot v) default).words.getD i 0) := by
+        simp [treeStmt, hne]
+      rw [hst]
+      exact this
+  exact fun v hv => key _ v hv rfl
+
+/-- `TreeSound.tree_sound` with its edges from accepted certificates: off every node's `bad`, every node's statement and input claims hold. A node's statement is its `treeStmt`: a child's is the words its parent's verifier reads as its statement, which `EdgeCert.verifies` checks are the instance its transcript absorbs and the statement its public table reads. The premise on a child is the recursive verifier's soundness (`hrec`): its circuit is satisfied at the statement its parent's verifier reads. -/
 theorem tree_sound_certs (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State) (os : ι → Array (List ℕ))
     (hr : ∀ v ∈ T.nodes, replayR (cert v).calls #[] 0 {} #[] = some (t v, os v))
-    (hacc : ∀ v ∈ T.nodes, (cert v).accepts (os v) = true) (L : Layout) (hL : ∀ v ∈ T.nodes, (cert v).layout = L)
+    (hacc : ∀ v ∈ T.nodes, (cert v).accepts (os v) = true) (hver : ∀ v ∈ T.nodes, (cert v).verifies (os v) = true)
+    (L : Layout) (hL : ∀ v ∈ T.nodes, (cert v).layout = L)
     (slot : ι → ℕ) (hslot : ∀ v ∈ T.nodes, v ≠ T.root → slot v < (cert (T.parent v)).children.length)
-    (st : ι → Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val) (hsat : ∀ v ∈ T.nodes, ∀ ω, Sat (st v ω) (t v) (val v ω))
-    (hpub : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, ∀ i < L.len,
-      val (T.parent v) ω (((cert (T.parent v)).children.getD (slot v) default).words.getD i 0) = st v ω i)
+    (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
+    (hsroot : ∀ ω, Sat (stRoot ω) (t T.root) (val T.root ω))
+    (hrec : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω,
+      ((cert (T.parent v)).children.getD (slot v) default).inst.VerifiesAt (cert (T.parent v)).calls
+        (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
+      Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω))
     (tD : Dense E → Prop) (tM : Matrix E → Prop) (bad : ι → Set Ω)
-    (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v → stmt T cert slot L st tD tM v ω → ins cert val tD tM v ω)
-    (hroot : ∀ ω, stmt T cert slot L st tD tM T.root ω) (ω : Ω) (hω : ∀ v ∈ T.nodes, ω ∉ bad v) :
-    ∀ v ∈ T.nodes, stmt T cert slot L st tD tM v ω ∧ ins cert val tD tM v ω :=
+    (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
+      stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
+    (hroot : ∀ ω, stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM T.root ω) (ω : Ω)
+    (hω : ∀ v ∈ T.nodes, ω ∉ bad v) :
+    ∀ v ∈ T.nodes, stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω ∧ ins cert val tD tM v ω :=
   TreeSound.tree_sound T _ _ bad hstep
-    (hedge_of_certs T cert t os hr hacc L hL slot hslot st val hsat hpub tD tM) hroot ω hω
+    (hedge_of_certs T cert t os hr hacc L hL slot hslot _ val
+      (fun v hv ω => sat_tree T cert t os hr hacc hver L hL slot hslot stRoot val hsroot hrec ω v hv)
+      (fun v _ hne ω i _ => by simp [treeStmt, hne]) tD tM) hroot ω hω
 
 end Tree
 

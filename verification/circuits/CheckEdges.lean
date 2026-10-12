@@ -2,7 +2,7 @@ import LeanVMCircuits.Rec.Dump
 import LeanVMCircuits.Rec.Edges
 
 /-!
-`lake exe checkedges <dump>...`: read each dump's edge marks (its statement's layout, each child's statement words, the claims its reduction takes), find the calls computing each child's scale from its kind word and the call reading its digest, and check the certificate (`Edges.EdgeCert.check`, which `Edges.EdgeCert.edge` proves sound). Dumps of one tree (the name up to `-first`, `-node` or `-circuit-`) must share a layout.
+`lake exe checkedges <dump>...`: read each dump's edge marks (its statement's layout, each child's statement words, the claims its reduction takes), find the calls computing each child's scale from its kind word, the call reading its digest and the calls by which its verifier absorbs and reads its words (`Edges.InstCert`), and check the certificate (`Edges.EdgeCert.check`, which `Edges.EdgeCert.edge` and `Edges.InstCert.verifies` prove sound). Dumps of one tree (the name up to `-first`, `-node` or `-circuit-`) must share a layout.
 -/
 
 open LeanVMCircuits.Rec Model Edges
@@ -109,6 +109,67 @@ def scaleOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Ar
     acc := a
   return .bits o e sp last steps
 
+/-- The call whose output `k` is wire `w`, if one is. -/
+def makerAt (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w k : ℕ) : Option ℕ :=
+  (idx.getD w #[]).toList.findSome? fun (j, k') => if k' = k then some j else none
+
+/-- Where the child's verifier (`RecShape::verify`) reads its words `ws`: the first `leaf_block` absorbing the first word's limbs after a count, the blocks chained from it over the instance, each word's `e_to_k` call there, and every `mul_k_add` chain reading one limb of each word in order from a `zero`. -/
+def instOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (ws : List ℕ) :
+    Option InstCert := do
+  let n := ws.length
+  let isE0 := fun (w : ℕ) => (idx.getD w #[]).toList.any fun (j, k) => k = 0 && cs[j]? == some (Call.eToK (ws.getD 0 0))
+  -- Each `leaf_block` by the chaining value it reads, and each `mul_k_add` by the accumulator it adds to.
+  let mut byH : Std.HashMap ℕ ℕ := {}
+  let mut byD : Std.HashMap ℕ (Array ℕ) := {}
+  let mut first : Option ℕ := none
+  for j in [0:cs.size] do
+    match (cs[j]? : Option Call) with
+    | some (.leafBlock h m _ _) =>
+      unless byH.contains h do byH := byH.insert h j
+      if first.isNone && isE0 (m.getD 1 0) then first := some j
+    | some (.mulKAdd _ _ d) => byD := byD.insert d ((byD.getD d #[]).push j)
+    | _ => pure ()
+  let b0 ← first
+  let mut blocks := [b0]
+  for _ in [1:(4 * n + 1 + 7) / 8] do
+    blocks := blocks ++ [← byH[out os (blocks.getLast?.getD 0) 0]?]
+  let msgAt := fun (i : ℕ) => match cs[blocks.getD (i / 8) 0]? with
+    | some (.leafBlock _ m _ _) => m.getD (i % 8) 0
+    | _ => 0
+  let h0 ← match cs[b0]? with
+    | some (.leafBlock h _ _ _) => some h
+    | _ => none
+  let ic : InstCert := {
+    limbs := (List.range n).map fun z => (makerAt idx (msgAt (1 + 4 * z)) 0).getD 0
+    count := (makerAt idx (msgAt 0) 0).getD 0
+    zero := (makerAt idx (msgAt 4) 0).getD 0
+    seed := (makerAt idx h0 0).getD 0
+    blocks
+    shares := [] }
+  let isZero := fun (w : ℕ) => (idx.getD w #[]).toList.findSome? fun (j, k) =>
+    if k = 0 && cs[j]? == some Call.zero then some j else none
+  let mut shares := []
+  for c in [0:4] do
+    for (d, js) in byD.toList do
+      let some z0 := isZero d | continue
+      for j in js do
+        let mut chain := [j]
+        let mut ok := true
+        for z in [0:n] do
+          let cur := chain.getLast?.getD 0
+          match cs[cur]? with
+          | some (.mulKAdd _ k _) =>
+            unless k == ic.limbWire os z c do ok := false; break
+          | _ => ok := false; break
+          if z + 1 < n then
+            match (byD.getD (out os cur 0) #[]).toList.find? (fun j' => match (cs[j']? : Option Call) with
+                | some (.mulKAdd _ k _) => k == ic.limbWire os (z + 1) c
+                | _ => false) with
+            | some j' => chain := chain ++ [j']
+            | none => ok := false; break
+        if ok then shares := shares ++ [(c, z0, chain)]
+  return { ic with shares }
+
 /-- The certificate of a dump's calls, outputs and marks. -/
 def certOf (cs : Array Call) (os : Array (List ℕ)) (m : Marks) (L : Layout) : Except String EdgeCert := do
   let idx := outIndex os
@@ -127,7 +188,8 @@ def certOf (cs : Array Call) (os : Array (List ℕ)) (m : Marks) (L : Layout) : 
     let some sc := scaleOf cs os idx (w 0) s | .error s!"child {j}: no calls computing its scale"
     let some dg := (List.range cs.size).find? (cs[·]? == some (.halvesToD (w 1) (w 2)))
       | .error s!"child {j}: its digest is not read"
-    children := children.push { words := ws, scale := sc, digest := dg }
+    let some inst := instOf cs os idx ws | .error s!"child {j}: its verifier does not absorb its words"
+    children := children.push { words := ws, scale := sc, digest := dg, inst }
   return { calls := cs, layout := L, claims, children := children.toList }
 
 def modeName : Mode → String
@@ -156,10 +218,16 @@ def check (path : System.FilePath) : IO (Option Layout) := do
     | .ok c => pure c
     | .error e => do IO.eprintln s!"{path}: {e}"; return none
   let ok := cert.check
+  unless ok do
+    IO.eprintln s!"{path}: claims and digests {if cert.accepts os then "accepted" else "rejected"}, \
+      verifiers' statements {if cert.verifies os then "accepted" else "rejected"}"
   let per := (stmtClaims L (fun _ => 0) 0 : Claims ℕ)
   let edges := if cert.children.isEmpty then "no child" else
     s!"children with scales from {", ".intercalate (cert.children.map fun ch => modeName ch.scale.mode)}, \
-      each making {per.dense.length} dense and {per.matrices.length} matrix claims among them"
+      each making {per.dense.length} dense and {per.matrices.length} matrix claims among them, \
+      their verifiers absorbing their words in {", ".intercalate (cert.children.map fun ch => toString ch.inst.blocks.length)} \
+      blocks and reading them in {", ".intercalate (cert.children.map fun ch => toString ch.inst.shares.length)} \
+      statement shares"
   IO.println s!"{path}: {if ok then "accepted" else "rejected"}: a statement of {L.len} words, the reduction takes \
     {cert.claims.dense.length} dense and {cert.claims.matrices.length} matrix claims, {edges}"
   return if ok then some L else none
