@@ -6,7 +6,8 @@ use bench::{Plan, Timing};
 use clap::ValueEnum;
 use core::ops::Range;
 use leanvm::aggregate::{
-    Aggregate, Capacity, CircuitStats, ClaimLeaf, ClaimSet, Kind, Leaf, LeafShape, Tree, TreeProof, TreeShape,
+    Aggregate, Capacity, CircuitStats, ClaimLeaf, ClaimSet, ClaimShape, Kind, Leaf, LeafShape, Tree, TreeProof,
+    TreeShape,
 };
 use leanvm::{ProvenRun, Prover};
 use primitives::{pretty_f64, pretty_integer};
@@ -362,7 +363,7 @@ pub fn run_signers(
         arity_0,
         arity,
         rate: prover.rate(),
-        claims: Some(capacity),
+        claims: Some(ClaimShape::new(capacity)),
     };
     let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
         let _span = tracing::info_span!("Tree setup").entered();

@@ -22,7 +22,8 @@ use crate::refuse;
 use crate::workload::{Items, Workload};
 use bench::{Heap, Metric, Plan, Timing, bencher_json};
 use leanvm::aggregate::{
-    Aggregate, Capacity, CircuitStats, ClaimLeaf, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof, TreeShape,
+    Aggregate, Capacity, CircuitStats, ClaimLeaf, ClaimShape, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof,
+    TreeShape,
 };
 use leanvm::{ProvenRun, Prover, Rate, Stats};
 use primitives::pretty_integer;
@@ -153,7 +154,7 @@ impl Aggregation {
             arity_0: self.arity_0,
             arity: self.arity,
             rate,
-            claims: self.signers,
+            claims: self.signers.map(ClaimShape::new),
         };
         Tree::new(&self.leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }
