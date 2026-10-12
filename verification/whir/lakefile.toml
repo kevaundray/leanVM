@@ -118,3 +118,11 @@ root = "Whir.SpongefishCurrentAdapterSmoke"
 [[lean_exe]]
 name = "spongefishCurrentRecordCodecSmoke"
 root = "Whir.SpongefishCurrentRecordCodecSmoke"
+
+[[lean_exe]]
+name = "spongefishCurrentCallerSmoke"
+root = "Whir.SpongefishCurrentCallerSmoke"
+
+[[lean_exe]]
+name = "pcsbcsSourceRootReferencesSmoke"
+root = "Whir.PCSBCSSourceRootReferencesSmoke"

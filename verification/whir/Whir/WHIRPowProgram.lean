@@ -15,15 +15,6 @@ variable {R S : Type}
 
 def askPow (n : Node) (next : Digest32 → Program R) : Program R := .ask (.primitive .pow n) next
 
-private def askPowStored (n : Node) (next : Digest32 → Program R) : Program R :=
-  .ask (.primitive .pow n) fun answer =>
-    let bytes := Array.ofFn answer
-    next (fun i => bytes[i.val]'(by simp only [bytes,Array.size_ofFn]; exact i.isLt))
-
-@[csimp] theorem askPow_stored : @askPow = @askPowStored := by
-  funext R n next
-  simp [askPow,askPowStored]
-
 theorem askPow_counted (n : Node) (next : Digest32 → Program R) (budget : Nat)
     (after : ∀ d, Counts budget (next d)) : Counts (1+budget) (askPow n next) := by
   simpa [askPow,Counts,Query.cost] using And.intro (by omega : 1 ≤ 1+budget) after
@@ -42,6 +33,15 @@ def passed (digest : Digest32) (bits : Nat) : Bool :=
 
 def powOK (C : PrimitiveOracle) (base : Digest32) (nonce : Scalar24) (bits : Nat) : Bool :=
   passed (C (powNode base nonce)) bits
+
+/-- The standalone reference predicate bypasses the observed interpreter. -/
+private def powOKStored (C : PrimitiveOracle) (base : Digest32)
+    (nonce : Scalar24) (bits : Nat) : Bool :=
+  withDigest (C (powNode base nonce)) (fun digest => passed digest bits)
+
+@[csimp] private theorem powOK_stored : powOK = powOKStored := by
+  funext C base nonce bits
+  simp only [powOK,powOKStored,withDigest_eq]
 
 theorem powOK_blake (base : Digest32) (nonce : Scalar24) (bits : Nat) :
     powOK blake2sOracle base nonce bits = DuplexCompression.powOK base nonce bits := by
@@ -485,5 +485,7 @@ theorem replay_ideal {G : Nat} {Seed SimState : Type} (sim : Simulator G Seed Si
     replay p ((runIdeal sim ro iv state p remaining cap counted).view.observations ++ suffix) =
       some ((runIdeal sim ro iv state p remaining cap counted).view.result,suffix) :=
   replay_runs only (runIdeal_runs sim ro iv state p remaining cap counted) suffix
+
+#print axioms powOK_stored
 
 end Whir.WHIRPowProgram

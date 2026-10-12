@@ -30,7 +30,7 @@ def absorbByteProgram (s : State) (b : Byte) : Program State :=
   let s := if s.consumed = 0 then s else {s with previous := s.consumed, consumed := 0}
   if s.pending.size = 64 then
     seq (primitive s.cv (padded s.pending) (absorbTweak s.first false 64 s.previous) true)
-      (fun d => .done {memoCV s d with pending := #[b], first := false, previous := 0})
+      (fun d => .done {s with cv := d, pending := #[b], first := false, previous := 0})
   else .done {s with pending := s.pending.push b}
 
 def absorbProgram : State → List Byte → Program State
@@ -41,11 +41,11 @@ def finishProgram (s : State) : Program State :=
   if s.pending.isEmpty then .done s else
     seq (primitive s.cv (padded s.pending)
       (absorbTweak s.first true s.pending.size s.previous) true)
-      (fun d => .done {memoCV s d with pending := #[], first := true, previous := 0})
+      (fun d => .done {s with cv := d, pending := #[], first := true, previous := 0})
 
 def squeezeByteProgram (s : State) : Program (State × Byte) :=
   let next := fun d => Program.done
-    ({memoOutput s d with consumed := s.consumed + 1},
+    ({s with output := d, consumed := s.consumed + 1},
       d ⟨s.consumed % 32, Nat.mod_lt _ (by decide)⟩)
   if s.consumed % 32 = 0 then
     seq (primitive s.cv (wordsBlock [s.consumed / 32]) (UInt64.ofNat (6*2^56)) true) next
@@ -69,7 +69,7 @@ def squeezeProgram (s : State) (n : Nat) : Program (Except Error (State × List 
     (runReal C iv (absorbByteProgram s b)).view.result = absorbByte (compressionOf C) s b := by
   simp only [absorbByteProgram,absorbByte]
   split <;> split <;>
-    simp [seq,WHIRModeFinal.bind_real_result,primitive_real,runReal,memoCV_eq]
+    simp [seq,WHIRModeFinal.bind_real_result,primitive_real,runReal]
 
 @[simp] theorem absorbProgram_real (C : PrimitiveOracle) (iv : Digest32)
     (s : State) (bs : List Byte) :
@@ -83,12 +83,12 @@ def squeezeProgram (s : State) (n : Nat) : Program (Except Error (State × List 
 @[simp] theorem finishProgram_real (C : PrimitiveOracle) (iv : Digest32) (s : State) :
     (runReal C iv (finishProgram s)).view.result = finish (compressionOf C) s := by
   simp only [finishProgram,finish,finalized]
-  split <;> simp_all [seq,WHIRModeFinal.bind_real_result,primitive_real,runReal,memoCV_eq]
+  split <;> simp_all [seq,WHIRModeFinal.bind_real_result,primitive_real,runReal]
 
 @[simp] theorem squeezeByteProgram_real (C : PrimitiveOracle) (iv : Digest32) (s : State) :
     (runReal C iv (squeezeByteProgram s)).view.result = squeezeByte (compressionOf C) s := by
   simp only [squeezeByteProgram,squeezeByte,outputBlock]
-  split <;> simp_all [seq,WHIRModeFinal.bind_real_result,primitive_real,runReal,memoOutput_eq]
+  split <;> simp_all [seq,WHIRModeFinal.bind_real_result,primitive_real,runReal]
 
 @[simp] theorem squeezeLoopProgram_real (C : PrimitiveOracle) (iv : Digest32)
     (n : Nat) (s : State) :
@@ -466,6 +466,13 @@ theorem seq_observations {A B : Type} (C : PrimitiveOracle) (iv : Digest32)
 def record (C : PrimitiveOracle) (n : DuplexFraming.Node) : List Observation :=
   [⟨.primitive .auxiliary n,C n⟩]
 
+private def recordStored (C : PrimitiveOracle) (n : DuplexFraming.Node) : List Observation :=
+  withDigest (C n) (fun d => [⟨.primitive .auxiliary n,d⟩])
+
+@[csimp] private theorem record_stored : record = recordStored := by
+  funext C n
+  simp only [record,recordStored,withDigest_eq]
+
 /-- These source traces compute literal nodes from the actual reached states,
 not from ideal raw keys or an independently supplied opening tape. -/
 def absorbByteTrace (C : PrimitiveOracle) (s : State) : List Observation :=
@@ -577,6 +584,44 @@ theorem replayProgram_trace (C : PrimitiveOracle) (iv : Digest32) (cur : Cursor)
     simp only [replayProgram,seq_observations,callProgram_trace,callProgram_real,replayTrace]
     cases actualCall (compressionOf C) cur call <;> simp only [runReal,ih]
 
+/-- Reference trace adapters use the same single observed execution as their
+programs. Computing a separate state transition beside each record would
+retain a second compression history in the returned observations. -/
+private def absorbTraceStored (C : PrimitiveOracle) (s : State) (bs : List Byte) :
+    List Observation := (runReal C zeroDigest (absorbProgram s bs)).view.observations
+
+@[csimp] private theorem absorbTrace_stored : absorbTrace = absorbTraceStored := by
+  funext C s bs
+  exact (absorbProgram_trace C zeroDigest s bs).symm
+
+private def squeezeLoopTraceStored (C : PrimitiveOracle) (n : Nat) (s : State) :
+    List Observation := (runReal C zeroDigest (squeezeLoopProgram n s)).view.observations
+
+@[csimp] private theorem squeezeLoopTrace_stored : squeezeLoopTrace = squeezeLoopTraceStored := by
+  funext C n s
+  exact (squeezeLoopProgram_trace C zeroDigest n s).symm
+
+private def squeezeTraceStored (C : PrimitiveOracle) (s : State) (n : Nat) :
+    List Observation := (runReal C zeroDigest (squeezeProgram s n)).view.observations
+
+@[csimp] private theorem squeezeTrace_stored : squeezeTrace = squeezeTraceStored := by
+  funext C s n
+  exact (squeezeProgram_trace C zeroDigest s n).symm
+
+private def callTraceStored (C : PrimitiveOracle) (cur : Cursor) (call : Call) :
+    List Observation := (runReal C zeroDigest (callProgram cur call)).view.observations
+
+@[csimp] private theorem callTrace_stored : callTrace = callTraceStored := by
+  funext C cur call
+  exact (callProgram_trace C zeroDigest cur call).symm
+
+private def replayTraceStored (C : PrimitiveOracle) (cur : Cursor) (calls : List Call) :
+    List Observation := (runReal C zeroDigest (replayProgram cur calls)).view.observations
+
+@[csimp] private theorem replayTrace_stored : replayTrace = replayTraceStored := by
+  funext C cur calls
+  exact (replayProgram_trace C zeroDigest cur calls).symm
+
 theorem replayProgram_exact_count (C : PrimitiveOracle) (iv : Digest32) (cur : Cursor) (calls : List Call) :
     (runReal C iv (replayProgram cur calls)).primitiveCost = (replayTrace C cur calls).length := by
   rw [← replayProgram_trace]
@@ -596,6 +641,13 @@ theorem compiledReplay_real (C : PrimitiveOracle) (iv : Digest32) (cur : Cursor)
 theorem compiledReplay_source (C : PrimitiveOracle) (iv : Digest32) (cur : Cursor) (calls : List Call) :
     (TypedOracleCompiler.Sampling.eval C (compiledReplay iv cur calls)).view.result = actualReplay (compressionOf C) cur calls := by
   rw [compiledReplay_real,replayProgram_real]
+
+#print axioms record_stored
+#print axioms absorbTrace_stored
+#print axioms squeezeLoopTrace_stored
+#print axioms squeezeTrace_stored
+#print axioms callTrace_stored
+#print axioms replayTrace_stored
 
 #print axioms compiledReplay_real
 #print axioms compiledReplay_source

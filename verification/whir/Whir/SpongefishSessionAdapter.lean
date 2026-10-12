@@ -54,6 +54,18 @@ open FiatShamirGame Concrete DuplexRefinement
   let bs := (squeezeLoop c 32 (finish c (absorb c (init c parameter derivationIV) tag))).2
   fun i => bs[i.val]'(by simp only [bs, squeezeLoop_length]; exact i.isLt)
 
+ /-- Evaluate the complete ordinary draw before handing its list-backed digest
+to a data-valued consumer. A Digest32-returning derivation wrapper alone can
+be eta-expanded and repeat initialization and absorption for every byte. -/
+ def withDerived {Result : Type} (c : Compression) (parameter : Digest32)
+    (tag : List Byte) (next : Digest32 → Result) : Result :=
+  let bs := (squeezeLoop c 32 (finish c (absorb c (init c parameter derivationIV) tag))).2
+  next (fun i => bs[i.val]'(by simp only [bs,squeezeLoop_length]; exact i.isLt))
+
+ theorem withDerived_eq {Result : Type} (c : Compression) (parameter : Digest32)
+    (tag : List Byte) (next : Digest32 → Result) :
+    withDerived c parameter tag next = next (derive c parameter tag) := rfl
+
  theorem derive_checked (c : Compression) (parameter : Digest32) (tag : List Byte) :
     squeeze c (absorb c (init c parameter derivationIV) tag) 32 =
       .ok ((squeezeLoop c 32 (finish c (absorb c (init c parameter derivationIV) tag))).1,
@@ -341,11 +353,12 @@ BLAKE2s implementation. Each output line is compared byte-for-byte. -/
   let mut lines := ["init|" ++ DuplexCompression.hex (rawRoot (init c parameter root).cv)]
   for n in [0,1,31,32,63,64,65,129] do
     let tag : List Byte := (List.range n).map fun i => ⟨i%256, Nat.mod_lt _ (by decide)⟩
-    lines := lines ++ ["derive" ++ toString n ++ "|" ++ DuplexCompression.hex (rawRoot (derive c parameter tag))]
+    lines := lines ++ [withDerived c parameter tag fun session =>
+      "derive" ++ toString n ++ "|" ++ DuplexCompression.hex (rawRoot session)]
   let tag : List Byte := "607-runtime-fixture".toUTF8.toList.map fun b =>
     ⟨b.toNat%256, Nat.mod_lt _ (by decide)⟩
-  let session := derive c parameter tag
-  let s := absorb c (init c parameter session) (littleWord 0x0102030405060708)
+  let s := withDerived c parameter tag fun session =>
+    absorb c (init c parameter session) (littleWord 0x0102030405060708)
   lines := lines ++ ["session|" ++ DuplexCompression.hex (rawRoot s.cv)]
   let shape : Shape := ⟨3,1,1,2⟩
   let value : E := ⟨1,2,3⟩
@@ -362,5 +375,7 @@ BLAKE2s implementation. Each output line is compared byte-for-byte. -/
     match squeeze c (absorb c (observe c t value) opening) 32 with
     | .error e => return lines ++ ["error|" ++ reprStr e]
     | .ok (_,bytes) => return lines ++ ["final32|" ++ DuplexCompression.hex bytes]
+
+#print axioms withDerived_eq
 
 end Whir.SpongefishSessionAdapter

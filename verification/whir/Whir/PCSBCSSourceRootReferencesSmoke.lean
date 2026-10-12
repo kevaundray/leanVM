@@ -5,6 +5,17 @@ open Whir Concrete Protocol FiatShamirGame WHIRHistory WHIRHistoryKey
 open AnchoredHeaderCodec WHIRCallerClaims PCSBCSSourceRootReferences
 open DuplexModeGame DuplexFraming PCSBCSMerkleRootCache
 
+local instance : DecidableEq Terminal := by
+  intro a b
+  cases a <;> cases b <;> simp <;> infer_instance
+
+local instance : DecidableEq Coordinate := by
+  intro a b
+  cases a
+  cases b
+  simp only [Coordinate.mk.injEq]
+  infer_instance
+
 private def digest (n : Nat) : Digest32 :=
   fun i => ⟨(n / 256^i.val) % 256,Nat.mod_lt _ (by decide)⟩
 private def p : ParameterBounds.Profile := (⟨1,by decide⟩,⟨0,by decide⟩)
@@ -55,7 +66,11 @@ def smoke : IO Unit := do
   let payload := ((WHIRCallerClaims.callerShape layout).drop (rootScalarCount layout)).map zeroToken
   let tokens := payload ++ (openingScalars saved).map CallerToken.sent
   let entry := tokenHistory (digest 11) (digest 13) tokens
-  let answers := DuplexRefinement.evalCoordinate compression iv
+  let blocks := (WHIRCallerOutputs.callerOutputs entry).map fun q =>
+    DuplexFraming.withCoordinate compression iv q (fun d => (q,d))
+  let answers := fun q => match blocks.find? (fun row => decide (row.1 = q)) with
+    | some (_,d) => d
+    | none => DuplexRefinement.evalCoordinate compression iv q
   require "fresh caller identity admitted" (AnchoredSourceFreshCaller.decode layout saved entry answers).isSome
   printParse "initial exact role3" (parseInitial saved (openingScalars saved) 3)
   printParse "initial rejected context-CV role5" (parseInitial saved (openingScalars saved) 5)
@@ -106,8 +121,9 @@ def smoke : IO Unit := do
           require "noncanonical root halves rejected"
             (parsePhase c q malformed (i.val+1) 2).isNone
       | _ => pure ()
-  let physical := DuplexRefinement.evalCoordinate compression iv key
-  IO.println s!"actual deployed compression output first byte={physical ⟨0,by decide⟩}"
+  let physicalByte := DuplexFraming.withCoordinate compression iv key
+    (fun d => d ⟨0,by decide⟩)
+  IO.println s!"actual deployed compression output first byte={physicalByte}"
   let final := register registry [] (digest 17) (initialShape saved.shape)
   require "final proof root already captured costs zero addresses" (decide (final.size = registry.size))
 

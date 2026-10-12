@@ -43,6 +43,17 @@ structure State where
   consumed : Nat := 0
   output : Digest32 := zeroDigest
 
+/-- Materialize a digest before entering a data-valued continuation. Returning
+a function-valued digest alone permits eta expansion to defer the entire
+computation until each byte lookup, including earlier compression histories. -/
+def withDigest {Result : Type} (d : Digest32) (next : Digest32 → Result) : Result :=
+  let bytes := Array.ofFn d
+  next (fun i => bytes[i.val]'(by simp only [bytes,Array.size_ofFn]; exact i.isLt))
+
+theorem withDigest_eq {Result : Type} (d : Digest32) (next : Digest32 → Result) :
+    withDigest d next = next d := by
+  simp [withDigest]
+
 /-- Eagerly close a finite digest over 32 stored bytes, rather than retaining a
 closure that recursively recomputes the previous compression history. -/
 def memoCV (s : State) (d : Digest32) : State :=
@@ -191,6 +202,19 @@ def verifyNonce (compress : Compression) (powOK : Digest32 → Scalar24 → Nat 
     let ok := if bits = 0 then decide (nonce = fun _ => 0) else powOK (powBase compress s bits) nonce bits
     .ok (bindNonce compress s nonce bits, ok)
   else .error .grindingBits
+
+def verifyNonceMemo (c : Compression) (powOK : Digest32 → Scalar24 → Nat → Bool)
+    (s : State) (nonce : Scalar24) (bits : Nat) : Except Error (State × Bool) :=
+  if bits ≤ 63 then
+    let s := finish c s
+    let ok := if bits = 0 then decide (nonce = fun _ => 0) else
+      withDigest (powBase c s bits) fun base => powOK base nonce bits
+    .ok (bindNonce c s nonce bits,ok)
+  else .error .grindingBits
+
+@[csimp] theorem verifyNonce_memo : verifyNonce = verifyNonceMemo := by
+  funext c powOK s nonce bits
+  simp only [verifyNonce,verifyNonceMemo,withDigest_eq]
 
 @[simp] theorem absorb_empty (c : Compression) (s : State) : absorb c s [] = s := rfl
 
@@ -407,6 +431,35 @@ theorem squeezeLoop_stream (c : Compression) (s : State) (n : Nat) (h : CacheVal
     rw [squeezeByte_value c s h, ih _ (squeezeByte_cache c s h)]
     rfl
 
+/-- Direct reference streams use the same stored output cache as ordinary
+draws, including a partially consumed initial block. Empty streams do no work. -/
+def streamMemo (c : Compression) (cv : Digest32) (offset n : Nat) : List Byte :=
+  if n = 0 then [] else
+    let s : State := {cv := cv,consumed := offset}
+    let s := if offset % 32 = 0 then s else
+      memoOutput s (outputBlock c cv (offset / 32))
+    (squeezeLoop c n s).2
+
+@[csimp] theorem stream_memo : stream = streamMemo := by
+  funext c cv offset n
+  by_cases empty : n = 0
+  · subst n; simp only [stream,streamMemo,↓reduceIte]
+  · by_cases aligned : offset % 32 = 0
+    · have cache : CacheValid c ({cv := cv,consumed := offset} : State) := by
+        intro hn
+        exact (hn aligned).elim
+      simpa only [streamMemo,empty,aligned,↓reduceIte] using
+        (squeezeLoop_stream c {cv := cv,consumed := offset} n cache).symm
+    · have cache : CacheValid c
+          (memoOutput {cv := cv,consumed := offset} (outputBlock c cv (offset / 32))) := by
+        simp only [memoOutput_eq,CacheValid]
+        intro _
+        trivial
+      simpa only [streamMemo,empty,aligned,↓reduceIte,memoOutput_eq] using
+        (squeezeLoop_stream c
+          (memoOutput {cv := cv,consumed := offset} (outputBlock c cv (offset / 32)))
+          n cache).symm
+
 theorem squeezeLoop_cache (c : Compression) (s : State) (n : Nat) (h : CacheValid c s) :
     CacheValid c (squeezeLoop c n s).1 := by
   induction n generalizing s with
@@ -494,6 +547,22 @@ def evalHistoryMemo (c : Compression) (iv : Digest32) (h : FramedHistory) : Dige
       simp only [memoCV_eq]
   exact (fold h.frames (seed c iv h.domain h.statement)).symm
 
+theorem evalHistoryState_cv (c : Compression) (iv : Digest32) (h : FramedHistory) :
+    (evalHistoryState c iv h).cv = evalHistory c iv h :=
+  (congrFun (congrFun (congrFun evalHistory_memo c) iv) h).symm
+
+/-- History consumers keep the already snapshotted state, rather than closing
+over a digest-valued replay wrapper that may be eta-expanded. -/
+def withHistory {Result : Type} (c : Compression) (iv : Digest32) (h : FramedHistory)
+    (next : Digest32 → Result) : Result :=
+  let state := evalHistoryState c iv h
+  next state.cv
+
+theorem withHistory_eq {Result : Type} (c : Compression) (iv : Digest32)
+    (h : FramedHistory) (next : Digest32 → Result) :
+    withHistory c iv h next = next (evalHistory c iv h) := by
+  simp only [withHistory,evalHistoryState_cv]
+
 def evalTerminal (c : Compression) (cv : Digest32) : Terminal → Digest32
   | .output block => outputBlock c cv block
   | .commitment consumed => c cv (wordsBlock [consumed]) (UInt64.ofNat (7 * 2^56)) true
@@ -516,6 +585,14 @@ structure Model where
 
 def materialize (c : Compression) (iv : Digest32) (m : Model) (out : Digest32) : State :=
   absorb c {cv := evalHistory c iv m.history, previous := m.previous, consumed := m.consumed, output := out} m.run
+
+def materializeMemo (c : Compression) (iv : Digest32) (m : Model) (out : Digest32) : State :=
+  withHistory c iv m.history fun cv =>
+    absorb c {cv := cv, previous := m.previous, consumed := m.consumed, output := out} m.run
+
+@[csimp] theorem materialize_memo : materialize = materializeMemo := by
+  funext c iv m out
+  simp only [materialize,materializeMemo,withHistory_eq]
 
 def Model.Valid (m : Model) : Prop :=
   (m.run ≠ [] → m.consumed = 0) ∧ (m.run = [] → m.previous = 0) ∧ m.consumed ≤ maxCursor ∧ m.previous ≤ maxCursor
@@ -1041,5 +1118,11 @@ theorem absorbTweak_source_bits (first last : Bool) (len previous : Nat)
   rw [absorbTweak, packTweak_or _ _ _ (by omega) hp']
   simp only [UInt64.ofNat_or, UInt64.ofNat_shiftLeft _ 56 (by decide), UInt64.ofNat_shiftLeft _ 49 (by decide)]
   rfl
+
+#print axioms verifyNonce_memo
+#print axioms evalHistoryState_cv
+#print axioms withHistory_eq
+#print axioms materialize_memo
+#print axioms stream_memo
 
 end Whir.DuplexRefinement

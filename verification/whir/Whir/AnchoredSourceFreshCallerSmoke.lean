@@ -54,6 +54,14 @@ private def actualBlocks (entry : FramedHistory) : List (Coordinate × Array Byt
   (WHIRCallerOutputs.callerOutputs entry).map
     (fun q => (q,Array.ofFn (DuplexRefinement.evalCoordinate compression iv q)))
 
+private def actualBlocksStored (entry : FramedHistory) : List (Coordinate × Array Byte) :=
+  (WHIRCallerOutputs.callerOutputs entry).map fun q =>
+    DuplexFraming.withCoordinate compression iv q (fun d => (q,Array.ofFn d))
+
+@[csimp] private theorem actualBlocks_stored : actualBlocks = actualBlocksStored := by
+  funext entry
+  simp only [actualBlocks,actualBlocksStored,DuplexFraming.withCoordinate_eq]
+
 private def answersFromBlocks (blocks : List (Coordinate × Array Byte)) (q : Coordinate) : Digest32 :=
   match blocks.find? (fun row => decide (row.1 = q)) with
   | some (_,bytes) => fun i => bytes[i.val]!

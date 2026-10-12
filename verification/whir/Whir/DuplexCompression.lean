@@ -53,7 +53,9 @@ def digest (ws : Array UInt32) : Digest32 := fun i =>
 
 def parameterIV : Digest32 := digest (ivWords.set! 0 (ivWords[0]! ^^^ 0x01010020))
 
-def compress : Compression := fun h block counter last => Id.run do
+/-- Data-valued compression result; byte-function consumers enter through CPS. -/
+def compressionWords (h : Digest32) (block : Block64) (counter : UInt64) (last : Bool) :
+    Array UInt32 := Id.run do
   let hw := (Array.range 8).map (word h)
   let m := (Array.range 16).map (word block)
   let mut v := hw ++ ivWords
@@ -64,11 +66,29 @@ def compress : Compression := fun h block counter last => Id.run do
     for g in [0:8] do
       let (a,b,c,d) := lanes[g]!
       v := mix v a b c d m[schedule[2*g]!]! m[schedule[2*g+1]!]!
-  return digest ((Array.range 8).map fun i => hw[i]! ^^^ v[i]! ^^^ v[i+8]!)
+  return (Array.range 8).map fun i => hw[i]! ^^^ v[i]! ^^^ v[i+8]!
+
+def compress : Compression := fun h block counter last =>
+  digest (compressionWords h block counter last)
+
+def withCompression {Result : Type} (h : Digest32) (block : Block64) (counter : UInt64)
+    (last : Bool) (next : Digest32 → Result) : Result :=
+  let words := compressionWords h block counter last
+  next (digest words)
+
+theorem withCompression_eq {Result : Type} (h : Digest32) (block : Block64) (counter : UInt64)
+    (last : Bool) (next : Digest32 → Result) :
+    withCompression h block counter last next = next (compress h block counter last) := rfl
 
 /-- Ordinary one-block BLAKE2s-256 (inputs of length at most 64). -/
 def hashBlock (bytes : Array Byte) : Digest32 :=
   compress parameterIV (padded bytes) (UInt64.ofNat bytes.size) true
+
+def withHashBlock {Result : Type} (bytes : Array Byte) (next : Digest32 → Result) : Result :=
+  withCompression parameterIV (padded bytes) (UInt64.ofNat bytes.size) true next
+
+theorem withHashBlock_eq {Result : Type} (bytes : Array Byte) (next : Digest32 → Result) :
+    withHashBlock bytes next = next (hashBlock bytes) := rfl
 
 /-- Ordinary BLAKE2s PoW test; not a claimed soundness amplification. -/
 def powOK (base : Digest32) (nonce : Scalar24) (bits : Nat) : Bool :=
@@ -76,6 +96,16 @@ def powOK (base : Digest32) (nonce : Scalar24) (bits : Nat) : Bool :=
   let d := hashBlock bs.toArray
   let low := ByteCodec.decodeNat 8 (fun i => d ⟨i.val, by omega⟩)
   low % 2^bits == 0
+
+def powOKStored (base : Digest32) (nonce : Scalar24) (bits : Nat) : Bool :=
+  let bs := List.ofFn base ++ List.ofFn nonce ++ littleWord 0x31574f502d534646
+  withHashBlock bs.toArray fun d =>
+    let low := ByteCodec.decodeNat 8 (fun i => d ⟨i.val,by omega⟩)
+    low % 2^bits == 0
+
+@[csimp] theorem powOK_stored : powOK = powOKStored := by
+  funext base nonce bits
+  simp only [powOK,powOKStored,withHashBlock_eq]
 
 def hex (bs : List Byte) : String :=
   String.ofList (bs.flatMap fun b =>
@@ -88,6 +118,15 @@ def knownAnswers : Bool :=
   hex (List.ofFn (hashBlock #[])) == "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9" &&
   hex (List.ofFn (hashBlock #[97,98,99])) == "508c5e8c327c14e2e1a72ba34eeb452f37458b209ed63a294d999b4c86675982"
 
+def knownAnswersStored : Bool :=
+  withHashBlock #[] (fun d =>
+    hex (List.ofFn d) == "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9") &&
+  withHashBlock #[97,98,99] (fun d =>
+    hex (List.ofFn d) == "508c5e8c327c14e2e1a72ba34eeb452f37458b209ed63a294d999b4c86675982")
+
+@[csimp] theorem knownAnswers_stored : knownAnswers = knownAnswersStored := by
+  simp only [knownAnswers,knownAnswersStored,withHashBlock_eq]
+
 /-- Observable snapshot used by the source-pinned external Rust differential
 probe: CV, active pending bytes, first flag, prior cursor, consumed cursor,
 cached output block, nonmutating commitment. -/
@@ -95,6 +134,26 @@ def snapshot (label : String) (s : State) : String :=
   label ++ "|" ++ hex (List.ofFn s.cv) ++ "|" ++ hex s.pending.toList ++ "|" ++
   toString s.first ++ "|" ++ toString s.previous ++ "|" ++ toString s.consumed ++ "|" ++
   hex (List.ofFn s.output) ++ "|" ++ hex (List.ofFn (commitment compress s))
+
+def snapshotStored (label : String) (s : State) : String :=
+  let t := finish compress s
+  withCompression t.cv (wordsBlock [s.consumed]) (UInt64.ofNat (7*2^56)) true fun d =>
+    label ++ "|" ++ hex (List.ofFn s.cv) ++ "|" ++ hex s.pending.toList ++ "|" ++
+    toString s.first ++ "|" ++ toString s.previous ++ "|" ++ toString s.consumed ++ "|" ++
+    hex (List.ofFn s.output) ++ "|" ++ hex (List.ofFn d)
+
+@[csimp] theorem snapshot_stored : snapshot = snapshotStored := by
+  funext label s
+  simp only [snapshot,snapshotStored,withCompression_eq,finish_cv,commitment]
+
+def powBaseHex (s : State) (bits : Nat) : String :=
+  let t := finish compress s
+  withCompression t.cv (wordsBlock [s.consumed,bits]) (UInt64.ofNat (8*2^56)) true
+    (fun d => hex (List.ofFn d))
+
+theorem powBaseHex_eq (s : State) (bits : Nat) :
+    powBaseHex s bits = hex (List.ofFn (powBase compress s bits)) := by
+  simp only [powBaseHex,withCompression_eq,finish_cv,powBase]
 
 def traceDraw (label : String) (s : State) (n : Nat) : State × List String :=
   match squeeze compress s n with
@@ -146,7 +205,7 @@ def differentialTrace : List String := Id.run do
   let vectorBad := match squeeze compress s 24 with
     | .error .cursorExhausted => true | _ => false
   return out ++ ["bits-limit:" ++ toString bitsBad, "cursor-limit:" ++ toString cursorBad,
-    "vector-limit:" ++ toString vectorBad, "pow-base:" ++ hex (List.ofFn (powBase compress s 63))]
+    "vector-limit:" ++ toString vectorBad, "pow-base:" ++ powBaseHex s 63]
 
 /-- Observed verbatim from the pinned Rust source in an external Rust 1.97
 harness. Fixtures retain state as well as challenges and all export families.

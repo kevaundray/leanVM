@@ -4,6 +4,7 @@ import Whir.SpongefishCurrentPhysicalRootCapture
 import Whir.SpongefishCurrentPrimitiveEventCompiler
 import Whir.SpongefishCurrentInitializedMode
 import Whir.SpongefishCurrentRoundSeparation
+import Whir.SpongefishCurrentObservedRecordBinding
 
 /-! Real BLAKE2s execution of the current byte-adapter paths, including raw-root
 mismatch, truncated immutable record and an output-block boundary. This is a
@@ -25,8 +26,9 @@ def main : IO Unit := do
   let parameter := DuplexCompression.parameterIV
   let tag := ([] : List Byte)
   let derived := DuplexModeGame.runReal C parameter (SpongefishOrdinarySession.deriveProgram parameter tag)
-  let session := derive c parameter tag
-  unless derived.view.result = session && derived.view.observations.length = 2 do
+  let session := derived.view.result
+  unless withDerived c parameter tag (fun expected =>
+      Array.ofFn expected = Array.ofFn session) && derived.view.observations.length = 2 do
     throw (IO.userError "observed session derivation disagrees")
   report "observed session derivation agrees"
   let instanceBytes : List Byte := [11]
@@ -65,6 +67,41 @@ def main : IO Unit := do
       rejectedData.hintsRead = 0 do
     throw (IO.userError "initialized mode charged or mutated an unreached rejected suffix")
   report "observed initialized mode retained reached reject prefix and no later hint"
+  let observedShape : Shape := ⟨2,1,1,1⟩
+  let receiveBytes := SpongefishCurrentAnchorHeader.bytes observedShape zeroDigest ++ valueBytes
+  let some observedStart := SpongefishCurrentObservedSessionEntry.actualSetup c parameter tag
+      instanceBytes receiveBytes []
+    | throw (IO.userError "observed-record constructor rejected")
+  let some (_,observedRecord) := SpongefishCurrentCommitmentReceive.receive c observedStart observedShape
+    | throw (IO.userError "observed-record literal receive rejected")
+  let expectedBytes := (SpongefishRecordBindingParser.messages observedRecord).flatMap
+    (fun message => message.bytes)
+  let observedInput := receiveBytes ++ expectedBytes
+  let observedRun := DuplexModeGame.runReal C parameter
+    (SpongefishCurrentObservedRecordBinding.program parameter tag instanceBytes observedInput []
+      observedShape [] [])
+  let some (.ok (observedSnapshot,retainedRecord)) := observedRun.view.result
+    | throw (IO.userError "observed initialized record composition rejected")
+  unless observedSnapshot.1.narg = [] && observedSnapshot.1.bytesRead = observedInput.length &&
+      retainedRecord.point = observedRecord.point && retainedRecord.value = observedRecord.value &&
+      Array.ofFn retainedRecord.context.cv = Array.ofFn (capture observedStart.state).cv &&
+      retainedRecord.context.pending = (capture observedStart.state).pending &&
+      retainedRecord.context.previous = (capture observedStart.state).previous &&
+      retainedRecord.context.squeezed = (capture observedStart.state).squeezed do
+    throw (IO.userError "observed record did not retain its computed pre-header context")
+  report "observed initialized receive and expected-record binding derived the actual immutable context"
+  let foreignRecord := {observedRecord with root := fun _ => 1}
+  let foreignBytes := (SpongefishRecordBindingParser.messages foreignRecord).flatMap
+    (fun message => message.bytes)
+  let foreignRun := DuplexModeGame.runReal C parameter
+    (SpongefishCurrentObservedRecordBinding.program parameter tag instanceBytes
+      (receiveBytes ++ foreignBytes) [] observedShape [] [])
+  let some (.error (foreignSnapshot,.fieldMismatch .root)) := foreignRun.view.result
+    | throw (IO.userError "foreign expected-record root was not rejected after its read")
+  unless foreignSnapshot.1.bytesRead = receiveBytes.length + 104 &&
+      foreignSnapshot.1.narg.length = foreignBytes.length - 104 do
+    throw (IO.userError "foreign record rejection lost the reached post-absorb cursor")
+  report "observed opening mismatch retained read-first-compare-second rejection transport"
   let layout : OpeningLayout :=
     ⟨2,⟨2,1,3,5,⟨1,by decide⟩⟩,[(1,⟨1,1,2,3,⟨0,by decide⟩⟩)],1,2,1,3,⟨0,by decide⟩⟩
   unless SpongefishCurrentRoundSeparation.scan false layout.schedule = some true &&

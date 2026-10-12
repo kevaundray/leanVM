@@ -78,6 +78,22 @@ def sourceFrameTokens (c : Compression) (iv : Digest32) (entry : FramedHistory)
   tokensFromFrame f (stream c (evalHistory c iv {entry with frames := entry.frames.take i})
     0 (previousConsumed f))
 
+/-- Share the physical prior-history replay before the cached stream consumes
+its CV; a digest-returning replay wrapper can otherwise restart on each byte. -/
+private def sourceFrameTokensStored (c : Compression) (iv : Digest32)
+    (entry : FramedHistory) (i : Nat) (f : Frame) : Option (List CallerToken) :=
+  if previousConsumed f = 0 then tokensFromFrame f [] else
+    withHistory c iv {entry with frames := entry.frames.take i} (fun cv =>
+      tokensFromFrame f (stream c cv 0 (previousConsumed f)))
+
+@[csimp] private theorem sourceFrameTokens_stored :
+    sourceFrameTokens = sourceFrameTokensStored := by
+  funext c iv entry i f
+  simp only [sourceFrameTokens,sourceFrameTokensStored,withHistory_eq]
+  by_cases empty : previousConsumed f = 0 <;> simp [empty,stream]
+
+#print axioms sourceFrameTokens_stored
+
 theorem frameTokens_source (c : Compression) (iv : Digest32) (entry : FramedHistory)
     (answers : Coordinate → Digest32)
     (observed : ∀ q ∈ callerOutputs entry, answers q = evalCoordinate c iv q)

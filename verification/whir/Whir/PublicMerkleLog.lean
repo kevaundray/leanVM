@@ -47,6 +47,28 @@ def run (query : Node → Option Digest32) (cv : Digest32) (count : Nat) :
       let d ← query (node cv count b false)
       run query d (count + b.length) (next :: rest)
 
+/-- Reference/getter execution does not pass through runReal. Snapshot at
+the Option boundary, including the final reply, without changing absence. -/
+private def runStored (query : Node → Option Digest32) (cv : Digest32) (count : Nat) :
+    List (List Byte) → Option Digest32
+  | [] => none
+  | [b] => (query (node cv count b true)).bind (fun d => withDigest d Option.some)
+  | b :: next :: rest => (query (node cv count b false)).bind (fun d =>
+      withDigest d (fun stored => runStored query stored (count+b.length) (next :: rest)))
+
+@[csimp] private theorem run_stored : run = runStored := by
+  funext query cv count bs
+  induction bs generalizing cv count with
+  | nil => rfl
+  | cons b rest ih =>
+    cases rest with
+    | nil =>
+      simp only [run,runStored,withDigest_eq]
+      cases query (node cv count b true) <;> rfl
+    | cons next rest =>
+      simp only [run,runStored,withDigest_eq,ih]
+      rfl
+
 def hash (C : PrimitiveOracle) (bytes : List Byte) : Digest32 :=
   (run (fun n => some (C n)) DuplexCompression.parameterIV 0 (chunks bytes)).getD
     DuplexCompression.parameterIV
@@ -64,6 +86,38 @@ def planFrom (C : PrimitiveOracle) (cv : Digest32) (count : Nat) :
 
 def plan (C : PrimitiveOracle) (bytes : List Byte) : PublicLog :=
   planFrom C DuplexCompression.parameterIV 0 (chunks bytes)
+/-- Materialize each public plan reply before using it as the next input CV.
+This keeps the literal record list while avoiding repeated evaluation of the
+entire preceding compression chain through function-valued digests. -/
+private def planFromStored (C : PrimitiveOracle) (cv : Digest32) (count : Nat) :
+    List (List Byte) → PublicMerkleLog.PublicLog
+  | [] => []
+  | [b] =>
+    let input := PublicMerkleLog.node cv count b true
+    withDigest (C input) (fun digest => [(input,digest)])
+  | b :: next :: rest =>
+    let input := PublicMerkleLog.node cv count b false
+    withDigest (C input) (fun digest =>
+      (input,digest) :: planFromStored C digest (count+b.length) (next :: rest))
+
+@[csimp] theorem ordinaryPlanFrom_stored : PublicMerkleLog.planFrom = planFromStored := by
+  funext C cv count bs
+  induction bs generalizing cv count with
+  | nil => rfl
+  | cons b rest ih =>
+    cases rest with
+    | nil =>
+      simp only [PublicMerkleLog.planFrom,planFromStored,withDigest_eq]
+    | cons next rest =>
+      simp only [PublicMerkleLog.planFrom,planFromStored,withDigest_eq,ih]
+
+def planStored (C : PrimitiveOracle) (bytes : List Byte) : PublicMerkleLog.PublicLog :=
+  planFromStored C DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
+
+@[csimp] theorem ordinaryPlan_stored : PublicMerkleLog.plan = planStored := by
+  funext C bytes
+  unfold PublicMerkleLog.plan planStored
+  rw [ordinaryPlanFrom_stored]
 
 /-- Only a full output-CV match and the exact ordinary counter are accepted. -/
 def predecessor (log : PublicLog) (count : Nat) (cv : Digest32) : Option Node :=
@@ -891,5 +945,8 @@ theorem frozen_target_fresh (C : PrimitiveOracle) (oldLog : PublicLog)
   · exact False.elim (absent h)
   · exact False.elim (noCollision h)
   · exact h
+
+#print axioms run_stored
+#print axioms ordinaryPlanFrom_stored
 
 end Whir.PublicMerkleLog

@@ -75,6 +75,20 @@ def modeOracle (p : Profile) (compression : DuplexRefinement.Compression)
     (DuplexRefinement.evalHistory compression iv (DuplexRefinement.closeRun m).history)
     m.consumed (24 * WHIRHistory.scalarCount q)))
 
+/-- Share the complete prior-history CV before the data-valued codec consumes
+the cached stream, rather than re-entering the history through each byte. -/
+def modeOracleStored (p : Profile) (compression : DuplexRefinement.Compression)
+    (iv domain : Digest32) : TypedFiatShamirGame.Oracle (A := Sample) (query p) := fun key =>
+  let m := beforeModel p domain key
+  let q := query p (key.statement,key.messages)
+  DuplexRefinement.withHistory compression iv (DuplexRefinement.closeRun m).history fun cv =>
+    codec q (slices q (DuplexRefinement.stream compression cv
+      m.consumed (24*WHIRHistory.scalarCount q)))
+
+@[csimp] theorem modeOracle_stored : modeOracle = modeOracleStored := by
+  funext p compression iv domain key
+  simp only [modeOracle,modeOracleStored,DuplexRefinement.withHistory_eq]
+
 /-- This is an equality to the actual checked streaming operation, not a parser
 or mode-correctness hypothesis. Reachability/limits are checked separately. -/
 theorem modeOracle_squeeze (p : Profile) (compression : DuplexRefinement.Compression)

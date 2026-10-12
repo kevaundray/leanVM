@@ -438,6 +438,19 @@ def traceFrame (c : Compression) (t : Traced) : Frame → Traced
     let n : Node := ⟨t.state.cv,nonceBlock nonce previous bits,UInt64.ofNat (9*2^56),true⟩
     ⟨{cv := nodeValue c n},n :: t.nodes⟩
 
+/-- Captured nonce trees store their computed CV at a data-valued boundary,
+just as absorb and finish already do through the executable state machine. -/
+def traceFrameMemo (c : Compression) (t : Traced) : Frame → Traced
+  | .absorb previous bs =>
+    traceFinish c (traceAbsorb c ⟨{cv := t.state.cv, previous := previous},t.nodes⟩ bs)
+  | .nonce previous bits nonce =>
+    let n : Node := ⟨t.state.cv,nonceBlock nonce previous bits,UInt64.ofNat (9*2^56),true⟩
+    ⟨memoCV {cv := zeroDigest} (nodeValue c n),n :: t.nodes⟩
+
+@[csimp] theorem traceFrame_memo : traceFrame = traceFrameMemo := by
+  funext c t f
+  cases f <;> simp only [traceFrame,traceFrameMemo,memoCV_eq]
+
 theorem traceFrame_cv (c : Compression) (t : Traced) (f : Frame) :
     (traceFrame c t f).state.cv = evalFrame c t.state.cv f := by
   cases f with
@@ -873,42 +886,66 @@ theorem modeKey_injective (iv : Digest32) {a b : Coordinate}
 CV. The data-valued fold is essential: a Digest32-valued helper can be eta
 expanded into a byte function that recomputes the whole predecessor chain.
 This evaluator allocates neither mode Programs nor public execution traces. -/
-private def evalPlanStoredResult (c : Compression) (cv : Digest32) :
+def evalPlanResult (c : Compression) (cv : Digest32) :
     List DuplexEncoding.Instruction → Option Digest32
   | [] => some cv
   | i :: rest =>
-    let bytes := Array.ofFn (c cv i.1 i.2 true)
-    evalPlanStoredResult c (fun j => bytes[j.val]'(by
-      simp only [bytes,Array.size_ofFn]
-      exact j.isLt)) rest
+    withDigest (c cv i.1 i.2 true) fun answer =>
+      evalPlanResult c answer rest
 
-private theorem evalPlanStoredResult_eq (c : Compression) (cv : Digest32)
+theorem evalPlanResult_eq (c : Compression) (cv : Digest32)
     (xs : List DuplexEncoding.Instruction) :
-    evalPlanStoredResult c cv xs = some (evalPlan c cv xs) := by
+    evalPlanResult c cv xs = some (evalPlan c cv xs) := by
   induction xs generalizing cv with
   | nil => rfl
-  | cons i rest ih => simp [evalPlanStoredResult,ih,evalPlan]
+  | cons i rest ih => simp only [evalPlanResult,withDigest_eq,ih,evalPlan,List.foldl_cons]
+
+/-- The public digest evaluator uses the same boxed fold; callers retaining
+its result should use `withPlan` to avoid eta-expanding the entire traversal. -/
+def evalPlanStored (c : Compression) (cv : Digest32)
+    (xs : List DuplexEncoding.Instruction) : Digest32 :=
+  let result := evalPlanResult c cv xs
+  result.get (by simp only [result,evalPlanResult_eq,Option.isSome_some])
+
+@[csimp] theorem evalPlan_stored : evalPlan = evalPlanStored := by
+  funext c cv xs
+  simp only [evalPlanStored,evalPlanResult_eq,Option.get_some]
+
+def withPlan {Result : Type} (c : Compression) (cv : Digest32)
+    (xs : List DuplexEncoding.Instruction) (next : Digest32 → Result) : Result :=
+  let result := evalPlanResult c cv xs
+  next (result.get (by simp only [result,evalPlanResult_eq,Option.isSome_some]))
+
+theorem withPlan_eq {Result : Type} (c : Compression) (cv : Digest32)
+    (xs : List DuplexEncoding.Instruction) (next : Digest32 → Result) :
+    withPlan c cv xs next = next (evalPlan c cv xs) := by
+  simp only [withPlan,evalPlanResult_eq,Option.get_some]
 
 def evalCoordinateStored (c : Compression) (iv : Digest32) (q : Coordinate) : Digest32 :=
-  let result := evalPlanStoredResult c iv (DuplexEncoding.plan q)
-  result.get (by simp only [result,evalPlanStoredResult_eq,Option.isSome_some])
+  let result := evalPlanResult c iv (DuplexEncoding.plan q)
+  result.get (by simp only [result,evalPlanResult_eq,Option.isSome_some])
 
 /-- Checked runtime refinement for the actual construction evaluator; the
 logical semantics, all compression inputs, and all resource bounds are unchanged. -/
 @[csimp] theorem evalCoordinate_stored : evalCoordinate = evalCoordinateStored := by
   funext c iv q
-  simp only [evalCoordinateStored,evalPlanStoredResult_eq,Option.get_some,plan_evaluate]
+  simp only [evalCoordinateStored,evalPlanResult_eq,Option.get_some,plan_evaluate]
 
 /-- A data-valued consumer can force the complete construction once, rather
 than invoking the Digest32-valued wrapper separately for each requested byte. -/
 def withCoordinate {Result : Type} (c : Compression) (iv : Digest32) (q : Coordinate)
     (next : Digest32 → Result) : Result :=
-  let result := evalPlanStoredResult c iv (DuplexEncoding.plan q)
-  next (result.get (by simp only [result,evalPlanStoredResult_eq,Option.isSome_some]))
+  withPlan c iv (DuplexEncoding.plan q) next
 
 theorem withCoordinate_eq {Result : Type} (c : Compression) (iv : Digest32) (q : Coordinate)
     (next : Digest32 → Result) :
     withCoordinate c iv q next = next (evalCoordinate c iv q) := by
-  simp only [withCoordinate,evalPlanStoredResult_eq,Option.get_some,plan_evaluate]
+  simp only [withCoordinate,withPlan_eq,plan_evaluate]
+
+#print axioms traceFrame_memo
+#print axioms evalPlanResult_eq
+#print axioms evalPlan_stored
+#print axioms withPlan_eq
+#print axioms withCoordinate_eq
 
 end Whir.DuplexFraming

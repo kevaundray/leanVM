@@ -2,6 +2,7 @@ import Whir.ByteCodec
 import Whir.MerkleBinding
 import Whir.MerkleLevels
 import Mathlib.Data.Nat.Bitwise
+import Whir.DuplexRefinement
 
 /-! Baseline `fiat_shamir/src/merkle.rs:164-236` transport at
 `69f5499304a6957f6780c8998999d783bae13302`. The Merkle file is byte-identical
@@ -168,6 +169,100 @@ def leafNodes (hash : Primitive) (leafWords : Nat) (table : Level (List K)) :
     Level Digest32 :=
   table.map fun (i, row) => (i, hash (ByteCodec.wordsBytes (leafImage 0 leafWords row)))
 
+/-- Leaf replies enter a data-valued table; no closure over a prior hash chain
+is retained in the level walk. -/
+private def leafNodesStored (hash : Primitive) (leafWords : Nat)
+    (table : Level (List K)) : Level Digest32 :=
+  table.map fun (i,row) =>
+    DuplexRefinement.withDigest (hash (ByteCodec.wordsBytes (leafImage 0 leafWords row)))
+      (fun d => (i,d))
+
+@[csimp] private theorem leafNodes_stored : leafNodes = leafNodesStored := by
+  funext hash leafWords table
+  simp only [leafNodes,leafNodesStored,DuplexRefinement.withDigest_eq]
+
+/-- Only a successful parent emission computes a hash, matching emit's original
+Option guard and preserving every missing-sibling rejection. -/
+private def emitDigest (pair : Digest32 × Digest32 → Digest32)
+    (index : Nat) (left right : Digest32)
+    (result : Option (Level Digest32 × Level Digest32 × List Digest32)) :
+    Option (Level Digest32 × Level Digest32 × List Digest32) :=
+  result.bind fun (parents,known,rest) =>
+    DuplexRefinement.withDigest (pair (left,right)) (fun d =>
+      some ((index/2,d)::parents,
+        (2*(index/2),left)::(2*(index/2)+1,right)::known,rest))
+
+private theorem emitDigest_eq (pair : Digest32 × Digest32 → Digest32)
+    (index : Nat) (left right : Digest32)
+    (result : Option (Level Digest32 × Level Digest32 × List Digest32)) :
+    emitDigest pair index left right result = emit pair index left right result := by
+  cases result <;> simp [emitDigest,emit,DuplexRefinement.withDigest_eq]
+
+private def foldLevelDigest (pair : Digest32 × Digest32 → Digest32) :
+    Level Digest32 → List Digest32 → Option (Level Digest32 × Level Digest32 × List Digest32)
+  | [], supplied => some ([],[],supplied)
+  | (i,d)::nodes, supplied =>
+    if i % 2 = 0 then
+      match nodes with
+      | (j,e)::tail =>
+        if j = i+1 then emitDigest pair i d e (foldLevelDigest pair tail supplied)
+        else match supplied with
+          | [] => none
+          | s::ss => emitDigest pair i d s (foldLevelDigest pair ((j,e)::tail) ss)
+      | [] => match supplied with
+        | [] => none
+        | s::ss => emitDigest pair i d s (foldLevelDigest pair [] ss)
+    else match supplied with
+      | [] => none
+      | s::ss => emitDigest pair i s d (foldLevelDigest pair nodes ss)
+termination_by nodes => nodes.length
+
+private theorem foldLevelDigest_eq (pair : Digest32 × Digest32 → Digest32)
+    (nodes : Level Digest32) (supplied : List Digest32) :
+    foldLevelDigest pair nodes supplied = foldLevel pair nodes supplied := by
+  induction nodes using (measure List.length).wf.induction generalizing supplied with
+  | _ nodes ih =>
+    cases nodes with
+    | nil => rw [foldLevelDigest.eq_def,foldLevel.eq_def]
+    | cons x nodes =>
+      rcases x with ⟨i,d⟩
+      rw [foldLevelDigest.eq_def,foldLevel.eq_def]
+      by_cases hi : i % 2 = 0
+      · simp only [hi,↓reduceIte]
+        cases nodes with
+        | nil =>
+          have tailEq := ih [] (by change 0 < 1; decide)
+          cases supplied <;> simp [emitDigest_eq,tailEq]
+        | cons x tail =>
+          rcases x with ⟨j,e⟩
+          have tailEq := ih tail (by change tail.length < tail.length+2; omega)
+          have nodesEq := ih ((j,e)::tail) (by
+            change ((j,e)::tail).length < ((i,d)::(j,e)::tail).length
+            simp)
+          by_cases hj : j = i+1
+          · simp [hj,emitDigest_eq,tailEq]
+          · cases supplied <;> simp [hj,emitDigest_eq,nodesEq]
+      · have nodesEq := ih nodes (by
+          change nodes.length < ((i,d)::nodes).length
+          simp)
+        cases supplied <;> simp [hi,emitDigest_eq,nodesEq]
+
+private def runLevelsDigest (pair : Digest32 × Digest32 → Digest32) :
+    Nat → Level Digest32 → List Digest32 →
+      Option (Level Digest32 × List (Level Digest32) × List Digest32)
+  | 0,nodes,supplied => some (nodes,[],supplied)
+  | n+1,nodes,supplied => do
+    let (parents,known,rest) ← foldLevelDigest pair nodes supplied
+    let (final,levels,remainder) ← runLevelsDigest pair n parents rest
+    return (final,known::levels,remainder)
+
+private theorem runLevelsDigest_eq (pair : Digest32 × Digest32 → Digest32)
+    (n : Nat) (nodes : Level Digest32) (supplied : List Digest32) :
+    runLevelsDigest pair n nodes supplied = runLevels pair n nodes supplied := by
+  induction n generalizing nodes supplied with
+  | zero => rfl
+  | succ n ih => simp only [runLevelsDigest,runLevels,foldLevelDigest_eq,ih]
+
 def distinctPaths (leafWords : Nat) (levels : List (Level Digest32))
     (table : Level (List K)) : Option (Level RawPath) :=
   collect (fun (i, row) => do
@@ -196,6 +291,33 @@ def PrunedMerklePaths.open (hash : Primitive) (proof : PrunedMerklePaths)
       else do
         let distinct ← distinctPaths leafWords levels table
         collect (fun q => binaryLookup q distinct) queries
+
+/-- Specialize only the executable digest walk; generic MerkleLevels APIs and
+all proof equations retain their original polymorphic semantics. -/
+private def PrunedMerklePaths.openStored (hash : Primitive) (proof : PrunedMerklePaths)
+    (root : Digest32) (numLeaves : Nat) (queries : List Nat)
+    (rowWords leafWords : Nat) : Option (List RawPath) := do
+  if numLeaves = 0 ∨ 2 ^ numLeaves.log2 ≠ numLeaves ∨ queries = [] then none
+  else if (sortedUnique queries).length ≠ proof.leafData.length ∨ rowWords > leafWords then none
+  else if ¬ ∀ row ∈ proof.leafData, row.length = rowWords then none
+  else if ∃ q ∈ queries, numLeaves ≤ q then none
+  else do
+    let table := leafTable queries proof.leafData
+    let nodes := leafNodes hash leafWords table
+    let (final,levels,rest) ← runLevelsDigest
+      (fun p => hash (List.ofFn (ByteCodec.pairBytes p))) numLeaves.log2 nodes proof.siblingHashes
+    if rest ≠ [] then none
+    else do
+      let (_,computed) ← final.head?
+      if computed ≠ root then none
+      else do
+        let distinct ← distinctPaths leafWords levels table
+        collect (fun q => binaryLookup q distinct) queries
+
+@[csimp] private theorem PrunedMerklePaths.open_stored :
+    PrunedMerklePaths.open = PrunedMerklePaths.openStored := by
+  funext hash proof root numLeaves queries rowWords leafWords
+  simp only [PrunedMerklePaths.open,PrunedMerklePaths.openStored,runLevelsDigest_eq]
 
 theorem collect_mem {A B : Type} (f : A → Option B) (xs : List A) (ys : List B)
     (h : collect f xs = some ys) {y : B} (hy : y ∈ ys) :
@@ -1143,5 +1265,11 @@ theorem recorded_oracle_absent_irrelevant (snapshot : Snapshot) (root : Digest32
   simp [recordedHash,hd]
 
 end Commitments
+
+#print axioms leafNodes_stored
+#print axioms emitDigest_eq
+#print axioms foldLevelDigest_eq
+#print axioms runLevelsDigest_eq
+#print axioms PrunedMerklePaths.open_stored
 
 end Whir.MerkleTransport

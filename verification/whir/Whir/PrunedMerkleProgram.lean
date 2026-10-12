@@ -34,6 +34,20 @@ def eval (H : Primitive) : HashProgram R → R
   | .done r => r
   | .hash bytes next => eval H (next (H bytes))
 
+/-- The direct reference evaluator bypasses both lower and runReal. Snapshot
+the hash reply at the recursive consumer, not in a Digest32-returning wrapper. -/
+private def evalStored (H : Primitive) : HashProgram R → R
+  | .done r => r
+  | .hash bytes next =>
+    DuplexRefinement.withDigest (H bytes) (fun d => evalStored H (next d))
+
+@[csimp] private theorem eval_stored : @eval = @evalStored := by
+  funext R H p
+  induction p with
+  | done => rfl
+  | hash bytes next ih =>
+    simp only [eval,evalStored,DuplexRefinement.withDigest_eq,ih]
+
 theorem eval_bind (H : Primitive) (p : HashProgram R) (next : R → HashProgram S) :
     eval H (bind p next) = eval H (next (eval H p)) := by
   induction p with
@@ -171,6 +185,8 @@ theorem Certified.counts {p : HashProgram R} {budget : Nat} {post : R → Prop}
     have hh := PublicMerkleProgram.hash_bind_counted bytes (fun d => lower (next d))
       (budget-(PublicMerkleLog.chunks bytes).length) (fun d => ih d (h.2 d))
     exact WHIRModeFinal.counts_mono hh (by have := h.1; omega)
+
+#print axioms eval_stored
 
 end HashProgram
 

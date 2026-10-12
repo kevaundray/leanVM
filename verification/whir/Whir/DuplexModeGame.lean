@@ -362,15 +362,15 @@ theorem concrete_transfer {Q : Nat} {Seed State AdvCoins Result : Type}
   have hm := randomCompression_transfer sim iv security adversary counted D ideal
   linarith
 
-/-- Force a construction's boxed instruction fold once at the data-valued
-execution boundary. Merely returning a Digest32 from realAnswer permits the
-compiler to defer the entire construction until each individual byte lookup. -/
+/-- Materialize ordinary replies and force each construction's boxed fold at
+the data-valued execution boundary. Function-valued wrappers alone permit eta
+expansion to recompute earlier compression histories at each byte lookup. -/
 def runRealStored {Result : Type} (oracle : PrimitiveOracle) (iv : Digest32) :
     Program Result → Execution Result
   | .done r => ⟨⟨[],r⟩,0,0,0⟩
   | .ask (.primitive purpose input) next =>
-    let answer := oracle input
-    prepend (.primitive purpose input) answer 0 (runRealStored oracle iv (next answer))
+    DuplexRefinement.withDigest (oracle input) fun answer =>
+      prepend (.primitive purpose input) answer 0 (runRealStored oracle iv (next answer))
   | .ask (.construction q valid) next =>
     DuplexFraming.withCoordinate (compressionOf oracle) iv q fun answer =>
       prepend (.construction q valid) answer 0 (runRealStored oracle iv (next answer))
@@ -381,6 +381,6 @@ def runRealStored {Result : Type} (oracle : PrimitiveOracle) (iv : Digest32) :
   | done r => rfl
   | ask q next ih =>
     cases q <;> simp only [runReal,runRealStored,realAnswer,
-      DuplexFraming.withCoordinate_eq,ih]
+      DuplexRefinement.withDigest_eq,DuplexFraming.withCoordinate_eq,ih]
 
 end Whir.DuplexModeGame

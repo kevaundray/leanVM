@@ -35,23 +35,14 @@ private def planCallsStored (cv : Digest32) :
     (xs : List DuplexEncoding.Instruction) → Computation Digest32 xs.length
   | [] => .ret cv
   | i :: rest => .draw ⟨cv,i.1,i.2,true⟩ (fun d =>
-      let bytes := Array.ofFn d
-      planCallsStored (fun j => bytes[j.val]'(by simp [bytes])) rest)
+      withDigest d (fun stored => planCallsStored stored rest))
 
 @[csimp] private theorem planCalls_stored : planCalls = planCallsStored := by
   funext cv xs
   induction xs generalizing cv with
   | nil => rfl
   | cons i rest ih =>
-    simp only [planCalls,planCallsStored]
-    congr 1
-    funext d
-    have stored : (fun j : Fin 32 =>
-        (Array.ofFn d)[j.val]'(by simp)) = d := by
-      funext j
-      simp
-    rw [stored]
-    exact ih d
+    simp only [planCalls,planCallsStored,withDigest_eq,ih]
 
  theorem planCalls_eval (C : PrimitiveOracle) (cv : Digest32) (xs : List DuplexEncoding.Instruction) :
     Sampling.eval C (planCalls cv xs) = evalPlan (compressionOf C) cv xs := by
@@ -62,6 +53,17 @@ private def planCallsStored (cv : Digest32) :
 def queryCalls (iv : Digest32) : (q : Query) → Computation Digest32 q.cost
   | .primitive _ n => .draw n (fun d => .ret d)
   | .construction q _ => planCalls iv (DuplexEncoding.plan q)
+
+/-- Sampling executes independently of the mode interpreter, so primitive
+replies need their own data-valued snapshot before reaching a continuation. -/
+private def queryCallsStored (iv : Digest32) :
+    (q : Query) → Computation Digest32 q.cost
+  | .primitive _ n => .draw n (fun d => withDigest d (fun stored => .ret stored))
+  | .construction q _ => planCalls iv (DuplexEncoding.plan q)
+
+@[csimp] private theorem queryCalls_stored : queryCalls = queryCallsStored := by
+  funext iv q
+  cases q <;> simp only [queryCalls,queryCallsStored,withDigest_eq] <;> rfl
 
  theorem queryCalls_eval (C : PrimitiveOracle) (iv : Digest32) (q : Query) :
     Sampling.eval C (queryCalls iv q) = realAnswer C iv q := by
@@ -93,6 +95,31 @@ def toLog (trace : List (Sigma (fun _ : Node => Digest32))) : PublicMerkleLog.Pu
 def primitiveLog {R : Type} (C : PrimitiveOracle) (iv : Digest32)
     (p : Program R) (Q : Nat) (h : Counts Q p) : PublicMerkleLog.PublicLog :=
   toLog (Sampling.execute C (compile iv p Q h)).2
+
+/-- The generic Sampling executor stores its original oracle reply, outside
+queryCalls' continuation. Share one snapshot across that continuation and log
+entry instead of leaving a separately deferred digest in the public trace. -/
+private def executeStored {R : Type} (C : PrimitiveOracle) {Q : Nat} :
+    Computation R Q → R × List (Sigma (fun _ : Node => Digest32))
+  | .ret r => (r,[])
+  | .draw n next => withDigest (C n) (fun d =>
+      let result := executeStored C (next d)
+      (result.1,⟨n,d⟩::result.2))
+
+private theorem executeStored_eq {R : Type} (C : PrimitiveOracle) {Q : Nat}
+    (p : Computation R Q) : executeStored C p = Sampling.execute C p := by
+  induction p with
+  | ret => rfl
+  | draw n next ih =>
+    simp only [executeStored,withDigest_eq,Sampling.execute,ih]
+
+private def primitiveLogStored {R : Type} (C : PrimitiveOracle) (iv : Digest32)
+    (p : Program R) (Q : Nat) (h : Counts Q p) : PublicMerkleLog.PublicLog :=
+  toLog (executeStored C (compile iv p Q h)).2
+
+@[csimp] private theorem primitiveLog_stored : @primitiveLog = @primitiveLogStored := by
+  funext R C iv p Q h
+  simp only [primitiveLog,primitiveLogStored,executeStored_eq]
 
  theorem primitiveLog_length {R : Type} (C : PrimitiveOracle) (iv : Digest32)
     (p : Program R) (Q : Nat) (h : Counts Q p) :
@@ -249,5 +276,10 @@ def smoke : IO Unit := do
   unless memoized.2.length == 3 && memoized.1.1.view.result == reference.view.result do
     throw (IO.userError "shared compression cache failed to reuse repeated input")
   IO.println "Conditional mode: 4 full compression calls, tags [0,1,6,0], 2 public direct records, 3 fresh cached draws; exact result OK"
+
+#print axioms planCalls_stored
+#print axioms queryCalls_stored
+#print axioms executeStored_eq
+#print axioms primitiveLog_stored
 
 end Whir.PublicCompressionProgram

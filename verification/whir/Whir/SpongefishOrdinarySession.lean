@@ -20,6 +20,10 @@ def instructions (cv : Digest32) : List DuplexEncoding.Instruction → Program D
   | i :: rest => .ask (.primitive .auxiliary ⟨cv,i.1,i.2,true⟩)
       (fun answer => instructions answer rest)
 
+/- Reply materialization belongs to the data-valued executable interpreters,
+not this instruction syntax: duplicating it here would snapshot every ordinary
+answer twice. The same stored reply becomes the next input and final result. -/
+
 theorem instructions_counted (cv : Digest32) (xs : List DuplexEncoding.Instruction) :
     Counts xs.length (instructions cv xs) := by
   induction xs generalizing cv with

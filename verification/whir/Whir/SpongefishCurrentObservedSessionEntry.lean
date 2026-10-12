@@ -67,6 +67,20 @@ def actualSetup (c : Compression) (parameter : Digest32) (tag instanceBytes narg
   let session := derive c parameter tag
   (newSession c parameter session instanceBytes).map (cursor session instanceBytes narg hints)
 
+/-- The reference adapter bypasses runReal. Share its derived session across
+the initialization node and pending-frame domain at the Option boundary.
+The existing constructor guard still rejects before any derived work. -/
+private def actualSetupStored (c : Compression) (parameter : Digest32)
+    (tag instanceBytes narg : List Byte) (hints : List (List Byte)) : Option Cursor :=
+  if instanceBytes = [] then none else
+    withDerived c parameter tag (fun session =>
+      (newSession c parameter session instanceBytes).map (cursor session instanceBytes narg hints))
+
+@[csimp] private theorem actualSetup_stored : actualSetup = actualSetupStored := by
+  funext c parameter tag instanceBytes narg hints
+  simp only [actualSetup,actualSetupStored,withDerived_eq]
+  by_cases empty : instanceBytes = [] <;> simp [newSession,empty]
+
 @[simp] theorem setupProgram_real (C : PrimitiveOracle) (iv parameter : Digest32)
     (tag instanceBytes narg : List Byte) (hints : List (List Byte)) :
     (runReal C iv (setupProgram parameter tag instanceBytes narg hints)).view.result =
@@ -249,6 +263,41 @@ theorem entryProgram_trace (C : PrimitiveOracle) (iv parameter : Digest32)
   cases actualSetup (compressionOf C) parameter tag instanceBytes narg hints <;>
     simp only [seq_observations,replayProgram_trace,runReal,List.append_nil]
 
+/-- Reference provenance adapters replay one metered execution rather than
+computing a separate reply chain beside each stored observation. -/
+private def instructionsTraceStored (C : PrimitiveOracle) (cv : Digest32)
+    (xs : List DuplexEncoding.Instruction) : List Observation :=
+  (runReal C zeroDigest (instructions cv xs)).view.observations
+
+@[csimp] private theorem instructionsTrace_stored : instructionsTrace = instructionsTraceStored := by
+  funext C cv xs
+  exact (instructions_trace C zeroDigest cv xs).symm
+
+private def sessionTraceStored (C : PrimitiveOracle) (parameter session : Digest32)
+    (instanceBytes : List Byte) : List Observation :=
+  (runReal C zeroDigest (sessionProgram parameter session instanceBytes [] [])).view.observations
+
+@[csimp] private theorem sessionTrace_stored : sessionTrace = sessionTraceStored := by
+  funext C parameter session instanceBytes
+  exact (sessionProgram_trace C zeroDigest parameter session instanceBytes [] []).symm
+
+private def setupTraceStored (C : PrimitiveOracle) (parameter : Digest32)
+    (tag instanceBytes : List Byte) : List Observation :=
+  (runReal C zeroDigest (setupProgram parameter tag instanceBytes [] [])).view.observations
+
+@[csimp] private theorem setupTrace_stored : setupTrace = setupTraceStored := by
+  funext C parameter tag instanceBytes
+  exact (setupProgram_trace C zeroDigest parameter tag instanceBytes [] []).symm
+
+private def entryTraceStored (C : PrimitiveOracle) (parameter : Digest32)
+    (tag instanceBytes narg : List Byte) (hints : List (List Byte)) (calls : List Call) :
+    List Observation :=
+  (runReal C zeroDigest (entryProgram parameter tag instanceBytes narg hints calls)).view.observations
+
+@[csimp] private theorem entryTrace_stored : entryTrace = entryTraceStored := by
+  funext C parameter tag instanceBytes narg hints calls
+  exact (entryProgram_trace C zeroDigest parameter tag instanceBytes narg hints calls).symm
+
 theorem setupProgram_observation_count (C : PrimitiveOracle) (iv parameter : Digest32)
     (tag instanceBytes narg : List Byte) (hints : List (List Byte)) (nonempty : instanceBytes ≠ []) :
     (runReal C iv (setupProgram parameter tag instanceBytes narg hints)).view.observations.length =
@@ -291,6 +340,11 @@ theorem compiledEntry_real (C : PrimitiveOracle) (iv parameter : Digest32)
       runReal C iv (entryProgram parameter tag instanceBytes narg hints calls) :=
   PublicCompressionProgram.compile_eval C iv _ _ _
 
+#print axioms actualSetup_stored
+#print axioms instructionsTrace_stored
+#print axioms sessionTrace_stored
+#print axioms setupTrace_stored
+#print axioms entryTrace_stored
 #print axioms initProgram_real
 #print axioms setupProgram_nonempty
 #print axioms setupProgram_bridge

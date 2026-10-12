@@ -78,35 +78,6 @@ def hashFrom (cv : Digest32) (count : Nat) : (bs : List (List Byte)) → bs ≠ 
     .ask (.primitive .verification (PublicMerkleLog.node cv count b false)) fun answer =>
       hashFrom answer (count+b.length) (next :: rest) (by simp)
 
-/-- Close each 256-bit reply over stored bytes before it becomes another CV;
-do not retain a function that recomputes the whole preceding hash chain. -/
-private def withStoredDigest {T : Type} (d : Digest32) (next : Digest32 → T) : T :=
-  let bytes := Array.ofFn d
-  next (fun i => bytes[i.val]'(by simp only [bytes, Array.size_ofFn]; exact i.isLt))
-
-private theorem withStoredDigest_eq {T : Type} (d : Digest32) (next : Digest32 → T) :
-    withStoredDigest d next = next d := by
-  simp [withStoredDigest]
-
-private def hashFromStored (cv : Digest32) (count : Nat) :
-    (bs : List (List Byte)) → bs ≠ [] → Program Digest32
-  | [], h => False.elim (h rfl)
-  | [b], _ => .ask (.primitive .verification (PublicMerkleLog.node cv count b true))
-      (fun answer => withStoredDigest answer Program.done)
-  | b :: next :: rest, _ =>
-    .ask (.primitive .verification (PublicMerkleLog.node cv count b false)) fun answer =>
-      withStoredDigest answer (fun cv => hashFromStored cv (count+b.length) (next :: rest) (by simp))
-
-@[csimp] theorem hashFrom_stored : hashFrom = hashFromStored := by
-  funext cv count bs hne
-  induction bs generalizing cv count with
-  | nil => contradiction
-  | cons b rest ih =>
-    cases rest with
-    | nil => simp only [hashFrom, hashFromStored, withStoredDigest_eq]
-    | cons next rest =>
-      simp only [hashFrom, hashFromStored, withStoredDigest_eq, ih]
-
 def hash (bytes : List Byte) : Program Digest32 :=
   hashFrom DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes) (PublicMerkleLog.chunks_nonempty bytes)
 
@@ -149,23 +120,12 @@ theorem hash_real_result (C : PrimitiveOracle) (iv : Digest32) (bytes : List Byt
   rw [hashFrom_real_run C iv _ _ _ (PublicMerkleLog.chunks_nonempty bytes)]
   rfl
 
-/-- The pure hash API uses the existing ordinary fold with eagerly stored
-replies. Unlike evaluating a mode Program, this allocates no public trace. -/
-private def storedQuery (C : PrimitiveOracle) (n : Node) : Option Digest32 :=
-  withStoredDigest (C n) Option.some
-
-private theorem storedQuery_eq (C : PrimitiveOracle) :
-    storedQuery C = (fun n => some (C n)) := by
-  funext n
-  exact withStoredDigest_eq _ _
-
 private def hashResultStored (C : PrimitiveOracle) (bytes : List Byte) : Option Digest32 :=
-  PublicMerkleLog.run (storedQuery C) DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
+  PublicMerkleLog.run (fun n => some (C n)) DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
 
 private theorem hashResultStored_present (C : PrimitiveOracle) (bytes : List Byte) :
     (hashResultStored C bytes).isSome := by
   unfold hashResultStored
-  rw [storedQuery_eq]
   obtain ⟨d,hd⟩ := PublicMerkleLog.run_nonempty C (PublicMerkleLog.chunks bytes)
     (PublicMerkleLog.chunks_nonempty bytes) DuplexCompression.parameterIV 0
   rw [hd]
@@ -178,7 +138,7 @@ def hashStored (C : PrimitiveOracle) (bytes : List Byte) : Digest32 :=
   funext C bytes
   obtain ⟨d,hd⟩ := PublicMerkleLog.run_nonempty C (PublicMerkleLog.chunks bytes)
     (PublicMerkleLog.chunks_nonempty bytes) DuplexCompression.parameterIV 0
-  simp only [PublicMerkleLog.hash, hashStored, hashResultStored, storedQuery_eq, hd]
+  simp only [PublicMerkleLog.hash, hashStored, hashResultStored, hd]
   rfl
 
 /-- Force the stored ordinary fold before passing its digest to a consumer.
@@ -186,12 +146,26 @@ The continuation prevents a function-valued digest from delaying that fold
 until each individual byte projection in native compilation. -/
 def withHashStored {T : Type} (C : PrimitiveOracle) (bytes : List Byte)
     (next : Digest32 → T) : T :=
-  next ((hashResultStored C bytes).get (hashResultStored_present C bytes))
+  match present : hashResultStored C bytes with
+  | some digest => next digest
+  | none => False.elim (by
+      have stored := hashResultStored_present C bytes
+      simp [present] at stored)
 
 theorem withHashStored_eq {T : Type} (C : PrimitiveOracle) (bytes : List Byte)
     (next : Digest32 → T) : withHashStored C bytes next = next (PublicMerkleLog.hash C bytes) := by
+  obtain ⟨d,hd⟩ := PublicMerkleLog.run_nonempty C (PublicMerkleLog.chunks bytes)
+    (PublicMerkleLog.chunks_nonempty bytes) DuplexCompression.parameterIV 0
+  simp only [PublicMerkleLog.hash,hd,Option.getD_some]
   unfold withHashStored
-  exact congrArg next (congrFun (congrFun ordinaryHash_stored C) bytes).symm
+  split
+  · rename_i digest present
+    unfold hashResultStored at present
+    exact congrArg next (Option.some.inj (present.symm.trans hd))
+  · rename_i present
+    unfold hashResultStored at present
+    have impossible := present.symm.trans hd
+    contradiction
 
 def hashBlake2sStored : List Byte → Digest32 := hashStored blake2sOracle
 
@@ -201,38 +175,6 @@ not retain the old unstored fold. Neither implementation calls itself. -/
     PublicMerkleLog.hashBlake2s = hashBlake2sStored := by
   exact congrFun ordinaryHash_stored blake2sOracle
 
-/-- Materialize each public plan reply before using it as the next input CV.
-This keeps the literal record list while avoiding repeated evaluation of the
-entire preceding compression chain through function-valued digests. -/
-private def planFromStored (C : PrimitiveOracle) (cv : Digest32) (count : Nat) :
-    List (List Byte) → PublicMerkleLog.PublicLog
-  | [] => []
-  | [b] =>
-    let input := PublicMerkleLog.node cv count b true
-    withStoredDigest (C input) (fun digest => [(input,digest)])
-  | b :: next :: rest =>
-    let input := PublicMerkleLog.node cv count b false
-    withStoredDigest (C input) (fun digest =>
-      (input,digest) :: planFromStored C digest (count+b.length) (next :: rest))
-
-@[csimp] theorem ordinaryPlanFrom_stored : PublicMerkleLog.planFrom = planFromStored := by
-  funext C cv count bs
-  induction bs generalizing cv count with
-  | nil => rfl
-  | cons b rest ih =>
-    cases rest with
-    | nil =>
-      simp only [PublicMerkleLog.planFrom,planFromStored,withStoredDigest_eq]
-    | cons next rest =>
-      simp only [PublicMerkleLog.planFrom,planFromStored,withStoredDigest_eq,ih]
-
-def planStored (C : PrimitiveOracle) (bytes : List Byte) : PublicMerkleLog.PublicLog :=
-  planFromStored C DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
-
-@[csimp] theorem ordinaryPlan_stored : PublicMerkleLog.plan = planStored := by
-  funext C bytes
-  unfold PublicMerkleLog.plan planStored
-  rw [ordinaryPlanFrom_stored]
 
 theorem hash_bind_real_result (C : PrimitiveOracle) (iv : Digest32) (bytes : List Byte)
     (next : Digest32 → Program R) :
@@ -334,5 +276,8 @@ theorem hash_trace {bytes : List Byte} {trace : List Observation} {digest : Dige
     (run : Runs (hash bytes) trace digest) :
     trace.length = (PublicMerkleLog.chunks bytes).length ∧
       ∀ o ∈ trace, ∃ n, o.query = .primitive .verification n := hashFrom_trace run
+
+#print axioms ordinaryHash_stored
+#print axioms withHashStored_eq
 
 end Whir.PublicMerkleProgram

@@ -106,6 +106,24 @@ def append (ctx : Context) (Q : Nat) (p : Program R) (final : R → Option (Pack
 def realHistory (ctx : Context) (Q : Nat) (oracle : PrimitiveOracle) (ps : List (Packet ctx Q)) :
     List (Sigma (GroupAnswer ctx Q)) := ps.map (fun p => ⟨.inl p,realPacket ctx Q oracle p⟩)
 
+/-- The packet reader requests exactly blocks, not a capacity or work cap.
+Keep each coordinate result boxed while constructing the data-valued history,
+then close the packet getter over that array rather than a replay function. -/
+private def realHistoryStored (ctx : Context) (Q : Nat) (oracle : PrimitiveOracle)
+    (ps : List (Packet ctx Q)) : List (Sigma (GroupAnswer ctx Q)) :=
+  ps.map fun p =>
+    let replies := Array.ofFn (fun i : Fin (RawWHIRKeys.blocks ctx p.val) =>
+      withCoordinate (compressionOf oracle) ctx.iv
+        (RawWHIRKeys.coordinate ctx p.val i.val) Option.some)
+    ⟨.inl p,fun i => (replies[i.val]'(by simp [replies])).get (by
+      simp [replies,withCoordinate_eq])⟩
+
+@[csimp] private theorem realHistory_stored : realHistory = realHistoryStored := by
+  funext ctx Q oracle ps
+  simp [realHistory,realHistoryStored,withCoordinate_eq]
+  intro data valid member
+  rfl
+
 def idealHistory (ctx : Context) (Q : Nat) (ro : RawKey Q → Digest32) (ps : List (Packet ctx Q)) :
     List (Sigma (GroupAnswer ctx Q)) := ps.map (fun p => ⟨.inl p,idealPacket ctx Q ro p⟩)
 
@@ -113,6 +131,21 @@ def realCallers (ctx : Context) (Q : Nat) (oracle : PrimitiveOracle) (p : Packet
     (qs : List (CallerPosition ctx Q p)) : List (Sigma (GroupAnswer ctx Q)) :=
   qs.map (fun q => ⟨.inr (RawWHIRKeys.callerOutputKey ctx Q p q.val q.property),
     evalCoordinate (compressionOf oracle) ctx.iv q.val⟩)
+
+/-- Singleton caller replies are also direct reference computations, outside
+the mode interpreter's central reply store. -/
+private def realCallersStored (ctx : Context) (Q : Nat) (oracle : PrimitiveOracle)
+    (p : Packet ctx Q) (qs : List (CallerPosition ctx Q p)) :
+    List (Sigma (GroupAnswer ctx Q)) :=
+  qs.map fun q => withCoordinate (compressionOf oracle) ctx.iv q.val (fun d =>
+    ⟨.inr (RawWHIRKeys.callerOutputKey ctx Q p q.val q.property),d⟩)
+
+@[csimp] private theorem realCallers_stored : realCallers = realCallersStored := by
+  funext ctx Q oracle p qs
+  simp only [realCallers,realCallersStored,withCoordinate_eq]
+
+#print axioms realHistory_stored
+#print axioms realCallers_stored
 
 def idealCallers (ctx : Context) (Q : Nat) (ro : RawKey Q → Digest32) (p : Packet ctx Q)
     (qs : List (CallerPosition ctx Q p)) : List (Sigma (GroupAnswer ctx Q)) :=

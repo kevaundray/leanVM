@@ -1,4 +1,5 @@
 import Whir.SpongefishPowAdapter
+import Whir.PublicMerkleProgram
 import Whir.RawOracleCoupling
 
 /-! Current #607 PCS round/cursor bridge, source-inspected at
@@ -757,6 +758,24 @@ def powCursor (C : DuplexModeGame.PrimitiveOracle) (cur : Cursor) (bits : Fin 64
       let (next,nonce) ← read (DuplexModeGame.compressionOf C) challenged .nonce
       let challenge : Digest32 := fun i => bytes[i.val]?.getD 0
       pure (next,SpongefishPowAdapter.clears bits (SpongefishPowAdapter.trial C challenge nonce))
+
+/-- The PoW predicate consumes the boxed ordinary hash at its Option boundary,
+instead of repeatedly entering a function-valued trial hash for word bytes. -/
+def powCursorStored (C : DuplexModeGame.PrimitiveOracle) (cur : Cursor) (bits : Fin 64) :
+    Option (Cursor × Bool) :=
+  if bits.val = 0 then some (cur,true) else
+    match squeezeGroup (DuplexModeGame.compressionOf C) cur .positivePow with
+    | .error _ => none
+    | .ok (challenged,bytes) => do
+      let (next,nonce) ← read (DuplexModeGame.compressionOf C) challenged .nonce
+      let challenge : Digest32 := fun i => bytes[i.val]?.getD 0
+      PublicMerkleProgram.withHashStored C (SpongefishPowAdapter.trialBytes challenge nonce)
+        (fun digest => pure (next,SpongefishPowAdapter.clears bits digest))
+
+@[csimp] theorem powCursor_stored : powCursor = powCursorStored := by
+  funext C cur bits
+  simp only [powCursor,powCursorStored,PublicMerkleProgram.withHashStored_eq,
+    SpongefishPowAdapter.trial]
 
 theorem zero_pow_cursor (C : DuplexModeGame.PrimitiveOracle) (cur : Cursor) :
     powCursor C cur ⟨0,by decide⟩ = some (cur,true) := rfl

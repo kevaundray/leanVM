@@ -1,5 +1,5 @@
 import Whir.SpongefishSessionAdapter
-import Whir.PublicMerkleLog
+import Whir.PublicMerkleProgram
 
 /-! Hand-ported positive-PoW byte adapter for the current source pin in
 SpongefishSessionAdapter. The trial uses ordinary BLAKE2s-256, not the old
@@ -69,6 +69,24 @@ def check (C : PrimitiveOracle) (s : State) (bits : Fin 64) (nonce : UInt64) :
     | .ok (t,bytes) =>
       let challenge : Digest32 := fun i => bytes[i.val]?.getD 0
       .ok (absorb (compressionOf C) t (nonceBytes nonce),clears bits (trial C challenge nonce))
+
+/-- The standalone verifier predicate consumes the ordinary boxed hash fold
+directly. Its trial wrapper alone can be eta-expanded once per first-word byte. -/
+private def checkStored (C : PrimitiveOracle) (s : State) (bits : Fin 64)
+    (nonce : UInt64) : Except Error (State × Bool) :=
+  if bits.val = 0 then .ok (s,true) else
+    match squeeze (compressionOf C) s 32 with
+    | .error e => .error e
+    | .ok (t,bytes) =>
+      let challenge : Digest32 := fun i => bytes[i.val]?.getD 0
+      PublicMerkleProgram.withHashStored C (trialBytes challenge nonce) (fun digest =>
+        .ok (absorb (compressionOf C) t (nonceBytes nonce),clears bits digest))
+
+@[csimp] private theorem check_stored : check = checkStored := by
+  funext C s bits nonce
+  simp only [check,checkStored,PublicMerkleProgram.withHashStored_eq,trial]
+
+#print axioms check_stored
 
 theorem zero_no_event (C : PrimitiveOracle) (s : State) (nonce : UInt64) :
     check C s ⟨0,by decide⟩ nonce = .ok (s,true) := rfl
