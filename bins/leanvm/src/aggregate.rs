@@ -302,7 +302,7 @@ fn prove_signer_tree(
         level = (level.chunks(arity))
             .map(|chunk| {
                 let children: Vec<&Aggregate> = chunk.iter().collect();
-                // A node of one child takes it twice, as the node of two.
+                // A node of one child is the node of two, its other place absent.
                 timed(proofs, Circuit::Node(chunk.len().max(2)), || {
                     (tree.aggregate(&children, node)).unwrap_or_else(|e| refuse(format_args!("a node: {e}")))
                 })
@@ -486,8 +486,8 @@ mod tests {
 
     #[test]
     fn a_signer_set_tree_proves_and_its_root_verifies() {
-        // End to end over both schemes: a level of three nodes, so its last takes one child twice, and a root
-        // declaring half its union, checked against the set it is asked for and verified by it.
+        // End to end over both schemes: a level of three nodes, so its last takes one child, its other place absent,
+        // and a root declaring half its union, checked against the set it is asked for and verified by it.
         let signers = Signers {
             capacity: Capacity { claims: 64, groups: 8 },
             groups: 2,
