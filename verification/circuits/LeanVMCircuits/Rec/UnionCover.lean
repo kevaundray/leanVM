@@ -18,6 +18,10 @@ The union's coverage check on the shipped circuit (`rec::tree::union`).
   begin and selection bits, whose compressions do not collide with the first's, holds every constraint but the tests
   and the coverage test, are at most a `4N/|S|` fraction, `N` bounding both pools' slots. The point is squeezed after
   the digests and the begin and selection bits are absorbed (`Bind.tests_determined`).
+- `union_sound`: the union's theorem on an accepted circuit. With what the union's transcript absorbs fixed, the
+  point uniform on `S^5`, and the prover answering each point with an assignment that absorbs the same words, holds
+  every constraint but the tests, and does not collide with the first, the coverage test holds at a matching point
+  for at most a `4N/|S|` fraction of the outcomes when the two multisets differ.
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -250,9 +254,18 @@ theorem prod_slotsAt (hF : Facts cs rl os st val) (hok : pc.ok os cs rl = true) 
     (a : Fin 4 → E) (hW : ∀ k : Fin 16, Model.ev val (qc.w k) = eqAt a k) :
     Model.ev val (out os pc qc) = slotsAt (slots os pc val) (Model.ev val qc.x1) a := by
   set W : ℕ → E := fun k => if h : k < 16 then eqAt a ⟨k, h⟩ else 0
+  have hs : ∀ g : ℕ → E, wfp W g = fpAt a fun t => g t := by
+    intro g
+    rw [wfp, ← Fin.sum_univ_eq_sum_range (fun k => W k * g k) 16, fpAt]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    simp only [W, dif_pos k.isLt, Fin.eta]
   rw [prod_closed hF hok hqok W (fun k hk => by rw [hW ⟨k, by omega⟩]; simp [W, show k < 16 by omega]), slotsAt,
     slots, List.map_map]
-  congr 1
+  apply congrArg List.prod
+  apply List.map_congr_left
+  intro p _
+  rw [factor, hs]
+  rfl
 
 /-- Each slot's bit is a bit. -/
 theorem slots_bits (hF : Facts cs rl os st val) (hok : pc.ok os cs rl = true) :
@@ -434,21 +447,20 @@ end Agree
 
 /-! The coverage check. -/
 
-/-- The relaxed replay's outputs, which a certificate's wires are read from. -/
-def Cert.outs (c : Cert) : Array (List ℕ) :=
-  match replayR c.calls c.relax 0 {} #[] with
-  | some (_, os) => os
-  | none => #[]
-
-/-- Product `i`'s pool. -/
-def Cert.poolOf (c : Cert) (i : ℕ) : PoolCert := c.pools.getD (c.prods.getD i default).pool default
-
 /-- Two assignments agree on a pool's digests, begin and selection bits: what the union's transcript absorbs of it. -/
 def PoolCert.Agree (os : Array (List ℕ)) (pc : PoolCert) (val val' : Val) : Prop :=
   (∀ r < pc.runs, val (pc.digests.getD r 0) = val' (pc.digests.getD r 0)) ∧
   (∀ j < pc.chunks, pc.begins j = true → val (pc.beta os j) = val' (pc.beta os j)) ∧
   (pc.selecting = true → ∀ i < pc.n, val (o os (pc.blk os i + 16)) = val' (o os (pc.blk os i + 16)) ∧
     val (o os (pc.blk os i + 17)) = val' (o os (pc.blk os i + 17)))
+
+theorem PoolCert.agree_of_committed {os : Array (List ℕ)} {pc : PoolCert} {val val' : Val}
+    (h : ∀ w ∈ pc.committed os, val w = val' w) : pc.Agree os val val' := by
+  simp only [PoolCert.committed, List.mem_append, List.mem_map, List.mem_filter, List.mem_range] at h
+  refine ⟨fun r hr => h _ (Or.inl (Or.inl (getD_mem_of_lt hr))), fun j hj hb => h _ (Or.inl (Or.inr ⟨j, ⟨hj, hb⟩, rfl⟩)),
+    fun hse i hi => ⟨?_, ?_⟩⟩
+  · exact h _ (Or.inr (by simp [hse]; exact ⟨i, hi, Or.inl rfl⟩))
+  · exact h _ (Or.inr (by simp [hse]; exact ⟨i, hi, Or.inr rfl⟩))
 
 theorem length_slotsN (os : Array (List ℕ)) (pc : PoolCert) (val : Val) :
     ∀ k, (slotsN os pc val k).length = 2 * k
@@ -475,7 +487,8 @@ theorem facts_of_holds {c : Cert} {s : State} (h : c.unionsOk s = true) {st : �
   · simp at h
   · rename_i t os hr
     rw [hr]
-    simp only [Bool.and_eq_true, beq_iff_eq, Array.all_eq_true', List.all_eq_true, List.mem_range] at h
+    simp only [Cert.unionsAt, Bool.and_eq_true, beq_iff_eq, Array.all_eq_true', List.all_eq_true,
+      List.mem_range] at h
     obtain ⟨⟨⟨hsame, -⟩, hall⟩, hpts⟩ := h
     obtain ⟨-, -, -, hfacts⟩ := replayR_sound c.calls c.relax 0 {} #[] t os inv_empty rfl (Nat.zero_le _)
       (fun j hj => absurd hj (Nat.not_lt_zero j)) hr
@@ -551,5 +564,92 @@ theorem union_cover (c : Cert) (s : State) (h : c.unionsOk s = true) {i j : ℕ}
     rw [← side i hi rfl hai, ← side j hj hpt.symm haj, htest]
   refine le_trans ?_ (coverage_sound P Q N hP hQ hne S)
   gcongr
+
+/-! The union's soundness on an accepted circuit. -/
+
+/-- A point's challenges `(X, A)`. -/
+noncomputable def PointCert.at (pt : PointCert) (val : Val) : Fin 5 → E :=
+  Fin.cons (Model.ev val pt.x) fun k : Fin 4 => Model.ev val (pt.aj k)
+
+theorem Cert.marks_getD (c : Cert) (s : State) {k : ℕ} (hk : k < (c.marks s).length) :
+    (c.marks s).getD k default = (c.transcripts.getD k default, c.times s (c.transcripts.getD k default)) := by
+  have hk' : k < c.transcripts.length := by simpa [Cert.marks] using hk
+  simp [Cert.marks, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk']
+
+open Classical Finset in
+/-- The union's soundness. Take an accepted circuit and one of its unions (`cv`): the coverage test of the products
+over the children's selected claims and the declared claims, and the transcript drawing their point `(X, A)`. Fix
+what the transcript absorbs by an assignment `val₀` holding every constraint but the tests, in which the selected
+child claims and the declared claims are different multisets. The point is the transcript's challenge, uniform on
+`S^5` (`pt`, over the outcomes `Ω`). For each outcome the prover answers with an assignment holding every constraint
+but the tests, whose transcript absorbs the same words and whose compressions and output windows do not collide with
+`val₀`'s. Then the outcomes at which its point is the challenge and the coverage test holds are at most a `4N/|S|`
+fraction, `N` the slots of the larger pool. -/
+theorem union_sound (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover} (hcv : cv ∈ c.covers)
+    {st₀ : ℕ → Fin 4 → K} {val₀ : Val} (hv₀ : Holds st₀ s c.test val₀)
+    (hne : onClaims (slots c.outs (c.poolOf cv.sel) val₀) ≠ onClaims (slots c.outs (c.poolOf cv.decl) val₀))
+    (S : Finset E) {Ω : Type} [Fintype Ω] (pt : Ω → Fin 5 → E) (hS : ∀ ω, pt ω ∈ Fintype.piFinset fun _ : Fin 5 => S)
+    (hpt : ∀ f ∈ Fintype.piFinset (fun _ : Fin 5 => S), #S ^ 5 * #{ω | pt ω = f} = Fintype.card Ω)
+    (st : Ω → ℕ → Fin 4 → K) (val : Ω → Val) (hv : ∀ ω, Holds (st ω) s c.test (val ω))
+    (hcr : ∀ ω, HashCR s val₀ (val ω)) (hwin : ∀ ω, WindowCR s val₀ (val ω))
+    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default).blocks, nu val₀ n = nu (val ω) n) :
+    (#{ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
+        ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : ℚ≥0) / Fintype.card Ω ≤
+      4 * (2 * max (c.poolOf cv.sel).n (c.poolOf cv.decl).n : ℕ) / #S := by
+  classical
+  obtain ⟨hr, -, hun, -, -, hcov⟩ := Cert.accepts_parts h
+  simp only [Cert.coversOk, Bool.and_eq_true, Array.all_eq_true', List.all_eq_true, decide_eq_true_eq,
+    beq_iff_eq] at hcov
+  obtain ⟨⟨⟨⟨⟨⟨hsel, hdecl⟩, htr⟩, -⟩, hpts⟩, hu⟩, hm⟩ := hcov.2 cv hcv
+  rw [Cert.marks_getD c s htr] at hm
+  -- What both pools commit to is in the transcript's closure, so the answers agree with `val₀` on it.
+  have hagree : ∀ ω, ∀ w ∈ (c.poolOf cv.sel).committed c.outs ++ (c.poolOf cv.decl).committed c.outs,
+      val₀ w = val ω w := by
+    intro ω w hw
+    have hvalid := rules_valid hr hv₀ (hv ω) (hcr ω) (hwin ω) (unionsValid c s hun hv₀ (hv ω) (hcr ω))
+    exact eq_of_limbs4 fun n hn => by
+      obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp (hm n (List.mem_flatMap.mpr ⟨w, hw, hn⟩))
+      exact closure_agree hvalid (hseed ω) ((Cert.times_sound c s _ hk).mono seedsBefore_seedsOf)
+  have hcover := union_cover c s hun hsel hdecl hpts hv₀ hne S
+  set F := {f ∈ Fintype.piFinset fun _ : Fin 5 => S | ∃ (st : ℕ → Fin 4 → K) (val : Val), Holds st s c.test val ∧
+      HashCR s val₀ val ∧ (c.poolOf cv.sel).Agree c.outs val₀ val ∧ (c.poolOf cv.decl).Agree c.outs val₀ val ∧
+      Model.ev val (c.points.getD cv.sel default).x = f 0 ∧
+      (∀ k : Fin 4, Model.ev val ((c.points.getD cv.sel default).aj k) = f k.succ) ∧
+      Model.ev val (out c.outs (c.poolOf cv.sel) (c.prods.getD cv.sel default)) =
+        Model.ev val (out c.outs (c.poolOf cv.decl) (c.prods.getD cv.decl default))} with hF
+  -- Each outcome of the event draws a challenge of `F`.
+  have hsub : ({ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
+      ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : Finset Ω) ⊆
+      F.biUnion fun f => {ω | pt ω = f} := by
+    intro ω hω
+    simp only [mem_filter, mem_univ, true_and] at hω
+    obtain ⟨hat, htest⟩ := hω
+    simp only [mem_biUnion, mem_filter, mem_univ, true_and]
+    refine ⟨pt ω, ?_, rfl⟩
+    rw [hF, mem_filter]
+    have heq := htest _ _ hu
+    refine ⟨hS ω, st ω, val ω, hv ω, hcr ω,
+      PoolCert.agree_of_committed fun w hw => hagree ω w (List.mem_append_left _ hw),
+      PoolCert.agree_of_committed fun w hw => hagree ω w (List.mem_append_right _ hw), ?_, fun k => ?_, ?_⟩
+    · rw [← hat]; simp [PointCert.at]
+    · rw [← hat]; simp [PointCert.at]
+    · unfold Model.ev; rw [heq]
+  have hcard := (card_le_card hsub).trans card_biUnion_le
+  have hsum : #S ^ 5 * ∑ f ∈ F, #({ω | pt ω = f} : Finset Ω) = #F * Fintype.card Ω := by
+    rw [mul_sum, sum_congr rfl fun f hf => hpt f (mem_filter.mp hf).1, sum_const, smul_eq_mul]
+  rcases (Fintype.card Ω).eq_zero_or_pos with h0 | h0
+  · rw [h0]; simp
+  have hS0 : 0 < #S := by
+    obtain ⟨ω⟩ : Nonempty Ω := Fintype.card_pos_iff.mp h0
+    have := hS ω
+    rw [Fintype.mem_piFinset] at this
+    exact card_pos.mpr ⟨_, this 0⟩
+  refine le_trans ?_ hcover
+  rw [div_le_div_iff₀ (by exact_mod_cast h0) (by positivity)]
+  have key : #({ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
+      ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : Finset Ω) * #S ^ 5 ≤ #F * Fintype.card Ω := by
+    rw [mul_comm, ← hsum]
+    exact Nat.mul_le_mul_left _ hcard
+  exact_mod_cast key
 
 end LeanVMCircuits.Rec.Bind

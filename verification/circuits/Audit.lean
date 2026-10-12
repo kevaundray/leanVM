@@ -548,9 +548,12 @@ run_cmd do
 #print axioms LeanVMCircuits.ExtensionProduct.witness_exists
 
 #print axioms LeanVMCircuits.Rec.Bind.closure_agree
-#print axioms LeanVMCircuits.Rec.Bind.certify_sound
+#print axioms LeanVMCircuits.Rec.Bind.certifyT_sound
+#print axioms LeanVMCircuits.Rec.Bind.Cert.times_sound
+#print axioms LeanVMCircuits.Rec.Bind.tests_by
 #print axioms LeanVMCircuits.Rec.Bind.Just.valid
 #print axioms LeanVMCircuits.Rec.Bind.rules_valid
+#print axioms LeanVMCircuits.Rec.Bind.Sat.holds
 #print axioms LeanVMCircuits.Rec.Bind.checkbind_sound
 #print axioms LeanVMCircuits.Rec.Bind.tests_determined
 #print axioms LeanVMCircuits.Rec.Model.replayR_sound
@@ -565,6 +568,8 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.prod_slotsAt
 #print axioms LeanVMCircuits.Rec.Bind.slots_agree
 #print axioms LeanVMCircuits.Rec.Bind.union_cover
+#print axioms LeanVMCircuits.Rec.Bind.Cert.accepts_parts
+#print axioms LeanVMCircuits.Rec.Bind.union_sound
 #print axioms LeanVMCircuits.Rec.Bind.taintOk_sound
 #print axioms LeanVMCircuits.Rec.Bind.tests_cover
 #print axioms LeanVMCircuits.Rec.UnionSound.poly_injective

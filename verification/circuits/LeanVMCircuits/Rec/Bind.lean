@@ -510,9 +510,21 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     let x := match rp.calls.getD (start + 1) .zero with | .add x _ => x | _ => 0
     let a := (List.range 4).map fun j => match rp.calls.getD (pt.round j) .zero with | .add aj _ => aj | _ => 0
     { pt with x, a }
+  -- Each union's coverage test: the test of its two products' outputs, and a transcript binding what both pools
+  -- commit to.
+  let outOf := fun (i : ℕ) => let qc := rp.prods.getD i default; ProdCert.out rp.outs (pools.getD qc.pool default) qc
+  let committedOf := fun (i : ℕ) => (pools.getD (rp.prods.getD i default).pool default).committed rp.outs
+  let prodIdx := List.range rp.prods.size
+  let covers := tests.filterMap fun (u, a, b) =>
+    match prodIdx.find? (outOf · == a), prodIdx.find? (outOf · == b) with
+    | some i, some j =>
+      let ls := (committedOf i ++ committedOf j).flatMap limbs4
+      let k := (List.range binds.size).find? (fun k => ls.all fun n => ((binds.getD k #[])[n]?.join).isSome)
+      some { test := u, sel := i, decl := j, transcript := k.getD 0 }
+    | _, _ => none
   let cert : Cert := {
     rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList, calls := rp.calls, relax, pools
-    prods := rp.prods, points }
+    prods := rp.prods, points, covers }
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do

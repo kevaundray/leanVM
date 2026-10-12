@@ -1221,12 +1221,16 @@ theorem getD_mem_of_lt {l : List ℕ} {r : ℕ} (hr : r < l.length) : l.getD r 0
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hr, Option.getD_some]
   exact List.getElem_mem hr
 
-/-- A product's claim: the wires its value is a function of (its pool's digests, begin and selection bits, the
-point's `X + 1` and the weights it reads), and its output. -/
-def ProdCert.claim (os : Array (List ℕ)) (qc : ProdCert) (pc : PoolCert) : UnionClaim where
-  inputs := pc.digests ++ ((List.range pc.chunks).filter (pc.begins ·)).map (pc.beta os) ++
+/-- What a pool commits to before its point is drawn: its digests, begin bits, and selection words when selecting. -/
+def PoolCert.committed (os : Array (List ℕ)) (pc : PoolCert) : List ℕ :=
+  pc.digests ++ ((List.range pc.chunks).filter (pc.begins ·)).map (pc.beta os) ++
     (if pc.selecting then (List.range pc.n).flatMap fun i => [o os (pc.blk os i + 16), o os (pc.blk os i + 17)]
-      else []) ++ qc.x1 :: (List.range 11).map qc.w
+      else [])
+
+/-- A product's claim: the wires its value is a function of (what its pool commits to, the point's `X + 1` and the
+weights it reads), and its output. -/
+def ProdCert.claim (os : Array (List ℕ)) (qc : ProdCert) (pc : PoolCert) : UnionClaim where
+  inputs := pc.committed os ++ qc.x1 :: (List.range 11).map qc.w
   out := ProdCert.out os pc qc
 
 /-- A product is a function of its claim's inputs: parse uniqueness of its pool under collision resistance. -/
@@ -1234,7 +1238,8 @@ theorem claim_valid {s : State} (hF : Facts cs rl os st val) (hF' : Facts cs rl 
     (hok : pc.ok os cs rl = true) (hqok : qc.ok os pc cs rl = true) (hcr : HashCR s val val')
     (hin : ∀ w ∈ (qc.claim os pc).inputs, val w = val' w) :
     Model.ev val (qc.claim os pc).out = Model.ev val' (qc.claim os pc).out := by
-  simp only [ProdCert.claim, List.mem_append, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range] at hin
+  simp only [ProdCert.claim, PoolCert.committed, List.mem_append, List.mem_cons, List.mem_map, List.mem_filter,
+    List.mem_range] at hin
   refine prod_agree hF hF' hR hok hqok hcr (fun r hr => hin _ (Or.inl (Or.inl (Or.inl (getD_mem_of_lt hr)))))
     (fun j hj hb => hin _ (Or.inl (Or.inl (Or.inr ⟨j, ⟨hj, hb⟩, rfl⟩)))) (fun hse i hi => ⟨?_, ?_⟩)
     (hin _ (Or.inr (Or.inl rfl))) (fun k hk => hin _ (Or.inr (Or.inr ⟨k, hk, rfl⟩)))

@@ -8,14 +8,16 @@ public import LeanVMCircuits.Rec.UnionRows
 The checker's verdict on a recursion circuit.
 
 `Cert.accepts`: every rule is justified, every transcript is a chain of compressions, the unions' rows are where the
-certificate says (`Cert.unionsOk`), and for every test some transcript's `certify` marks both its wires.
+certificate says (`Cert.unionsOk`), every field equality reading a challenge is a test, for every test some
+transcript's `certifyT` gives both its wires a binding time, and each union's coverage entry holds (`Cert.coversOk`).
 
-- `checkbind_sound`: each test's wires are in the closure of one transcript's absorbed words and the statement.
+- `tests_by`: each test's wires, at their binding time `k`, are in the closure of what one transcript's first `k`
+  blocks absorb, and of the statement only once `k` passes its last block; `checkbind_sound` is its weaker form.
 - `unionsValid`: on two assignments holding every constraint but the tests, under collision resistance of the
   compression, the union products are functions of their inputs.
 - `tests_determined`: on two such assignments, under collision resistance of the compression and of the duplex's
-  output window, agreeing on that transcript's absorbed words and the statement, each test's wires agree: a test is a
-  function of what the transcript absorbs.
+  output window, agreeing on what that transcript's first `k` blocks absorb (and the statement past its last block),
+  each test's wires agree.
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -100,9 +102,11 @@ structure Transcript where
   firings : Array ℕ
   deriving Inhabited
 
+/-- The words block `k` absorbs, as nodes. -/
+def wordsOf (s : State) (k : ℕ) : List ℕ := (List.range 8).map fun j => limb ((s.hash.getD k []).getD (8 + j) 0) 0
+
 /-- The words the blocks absorb, as nodes. -/
-def absorbed (s : State) (blocks : List ℕ) : List ℕ :=
-  blocks.flatMap fun k => (List.range 8).map fun j => limb ((s.hash.getD k []).getD (8 + j) 0) 0
+def absorbed (s : State) (blocks : List ℕ) : List ℕ := blocks.flatMap (wordsOf s)
 
 /-- The statement's nodes. -/
 def statementNodes (s : State) : List ℕ :=
@@ -112,6 +116,52 @@ def statementNodes (s : State) : List ℕ :=
 
 /-- A transcript's seeds: what its blocks absorb, and the statement. -/
 def seedsOf (s : State) (blocks : List ℕ) : List ℕ := absorbed s blocks ++ statementNodes s
+
+/-- A transcript's seeds with their times: block `i`'s words at `i + 1`, the statement after the last block. -/
+def seedsT (s : State) (blocks : List ℕ) : List (ℕ × ℕ) :=
+  (List.range blocks.length).flatMap (fun i => (wordsOf s (blocks.getD i 0)).map ((i + 1), ·)) ++
+    (statementNodes s).map ((blocks.length + 1), ·)
+
+/-- What a transcript's first `k` blocks absorb, and the statement once `k` passes its last block. -/
+def seedsBefore (s : State) (blocks : List ℕ) (k : ℕ) : List ℕ :=
+  absorbed s (blocks.take k) ++ if blocks.length < k then statementNodes s else []
+
+theorem seedsBy_seedsT {s : State} {blocks : List ℕ} {k : ℕ} :
+    ∀ n ∈ seedsBy (seedsT s blocks) k, n ∈ seedsBefore s blocks k := by
+  intro n hn
+  simp only [seedsBy, seedsT, List.mem_map, List.mem_filter, List.mem_append, List.mem_flatMap, List.mem_range,
+    decide_eq_true_eq] at hn
+  obtain ⟨p, ⟨hp, hk⟩, rfl⟩ := hn
+  simp only [seedsBefore, absorbed, List.mem_append, List.mem_flatMap]
+  rcases hp with ⟨i, hi, hp⟩ | ⟨w, hw, rfl⟩
+  · obtain ⟨w, hw, rfl⟩ := hp
+    left
+    refine ⟨blocks.getD i 0, ?_, hw⟩
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some]
+    exact List.mem_iff_getElem.mpr ⟨i, by simp; omega, by simp⟩
+  · right
+    rw [if_pos (by simp only at hk; omega)]
+    exact hw
+
+theorem seedsBefore_mono {s : State} {blocks : List ℕ} {k k' : ℕ} (h : k ≤ k') :
+    ∀ n ∈ seedsBefore s blocks k, n ∈ seedsBefore s blocks k' := by
+  intro n hn
+  simp only [seedsBefore, absorbed, List.mem_append, List.mem_flatMap] at hn ⊢
+  rcases hn with ⟨b, hb, hn⟩ | hn
+  · exact Or.inl ⟨b, (List.take_prefix_take_left h).subset hb, hn⟩
+  · split at hn
+    · rw [if_pos (by omega)]; exact Or.inr hn
+    · simp at hn
+
+theorem seedsBefore_seedsOf {s : State} {blocks : List ℕ} {k : ℕ} :
+    ∀ n ∈ seedsBefore s blocks k, n ∈ seedsOf s blocks := by
+  intro n hn
+  simp only [seedsBefore, seedsOf, absorbed, List.mem_append, List.mem_flatMap] at hn ⊢
+  rcases hn with ⟨b, hb, hn⟩ | hn
+  · exact Or.inl ⟨b, List.mem_of_mem_take hb, hn⟩
+  · split at hn
+    · exact Or.inr hn
+    · simp at hn
 
 /-- Whether a wire is a constant. -/
 def isConst (s : State) (w : ℕ) : Bool :=
@@ -129,9 +179,18 @@ def chainOk (s : State) : List ℕ → Bool
   | [] => true
   | k :: ks => k < s.hash.size && isConst s ((s.hash.getD k []).getD 0 0) && links s k ks
 
+/-- A union's coverage test: its equality, its two products (the children's selected claims, the declared claims),
+and the transcript that draws its point. -/
+structure Cover where
+  test : ℕ
+  sel : ℕ
+  decl : ℕ
+  transcript : ℕ
+  deriving Inhabited, Repr
+
 /-- What `CheckBind` claims of a circuit: its justified rules, which equalities are tests, the union products, and
-its transcripts; and to read the unions' rows, the calls that built it, the calls whose equality is a test, and where
-each union's pools and products are. -/
+its transcripts; and to read the unions' rows, the calls that built it, the calls whose equality is a test, where
+each union's pools and products are, and each union's coverage test. -/
 structure Cert where
   rules : Rules Just
   nodes : ℕ
@@ -144,33 +203,117 @@ structure Cert where
   prods : Array ProdCert
   /-- Each product's point. -/
   points : Array PointCert
+  covers : Array Cover
 
 def Cert.test (c : Cert) (u : ℕ) : Bool := c.isTest.getD u false
 
-/-- Each transcript with the nodes its firings mark. -/
-def Cert.marks (c : Cert) (s : State) : List (Transcript × Array Bool) :=
-  c.transcripts.map fun t => (t, certify c.rules c.nodes (seedsOf s t.blocks) t.firings)
+/-- The time a transcript's firings bind each node at: the number of its blocks it needs, one more than their number
+if it needs the statement. -/
+def Cert.times (c : Cert) (s : State) (t : Transcript) : Array (Option ℕ) :=
+  certifyT c.rules c.nodes (seedsT s t.blocks) t.firings
 
-/-- The unions' rows: the calls replayed with the tests' equalities relaxed build the circuit without its tests, each
-product's pool, product and point calls are where the certificate says, and the claims are the products'. -/
+/-- Each transcript with its times. -/
+def Cert.marks (c : Cert) (s : State) : List (Transcript × Array (Option ℕ)) :=
+  c.transcripts.map fun t => (t, c.times s t)
+
+/-- When a transcript binds two wires: their limbs' latest time. -/
+def bindTime (m : Array (Option ℕ)) (a b : ℕ) : Option ℕ := latest m (some 0) (limbs4 a ++ limbs4 b)
+
+/-- Product `i`'s pool. -/
+def Cert.poolOf (c : Cert) (i : ℕ) : PoolCert := c.pools.getD (c.prods.getD i default).pool default
+
+/-- The unions' rows, given the replay with the tests' equalities relaxed: it builds the circuit without its tests,
+each product's pool, product and point calls are where the certificate says, and the claims are the products'. -/
+def Cert.unionsAt (c : Cert) (s t : State) (os : Array (List ℕ)) : Bool :=
+  sameSat (keep s c.test) t &&
+    c.claims == c.prods.map (fun qc => qc.claim os (c.pools.getD qc.pool default)) &&
+    c.prods.all (fun qc => (c.pools.getD qc.pool default).ok os c.calls c.relax &&
+      qc.ok os (c.pools.getD qc.pool default) c.calls c.relax) &&
+    (List.range c.prods.size).all fun i => (c.points.getD i default).ok os c.calls c.relax (c.prods.getD i default)
+
+/-- The unions' rows are where the certificate says. -/
 def Cert.unionsOk (c : Cert) (s : State) : Bool :=
   match replayR c.calls c.relax 0 {} #[] with
   | none => false
-  | some (t, os) => sameSat (keep s c.test) t &&
-      c.claims == c.prods.map (fun qc => qc.claim os (c.pools.getD qc.pool default)) &&
-      c.prods.all (fun qc => (c.pools.getD qc.pool default).ok os c.calls c.relax &&
-        qc.ok os (c.pools.getD qc.pool default) c.calls c.relax) &&
-      (List.range c.prods.size).all fun i => (c.points.getD i default).ok os c.calls c.relax (c.prods.getD i default)
+  | some (t, os) => c.unionsAt s t os
+
+/-- The relaxed replay's outputs, which a certificate's wires are read from. -/
+def Cert.outs (c : Cert) : Array (List ℕ) :=
+  match replayR c.calls c.relax 0 {} #[] with
+  | some (_, os) => os
+  | none => #[]
+
+/-- Some transcript's marks cover every test's wires. -/
+def Cert.testsBound (c : Cert) (s : State) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
+  (List.range s.unions.size).all fun u => !c.test u || match s.unions[u]? with
+    | some (a, b) => ms.any fun m => (bindTime m.2 a b).isSome
+    | none => true
+
+/-- Each product is in a coverage entry, and each entry's equality is a test of its two products' outputs at one
+point, whose transcript's marks cover what both pools commit to. -/
+def Cert.coversOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) :
+    Bool :=
+  (List.range c.prods.size).all (fun i => c.covers.any fun cv => cv.sel == i || cv.decl == i) &&
+  c.covers.all fun cv => cv.sel < c.prods.size && cv.decl < c.prods.size && cv.transcript < ms.length &&
+    c.test cv.test && c.points.getD cv.sel default == c.points.getD cv.decl default &&
+    s.unions[cv.test]? == some (ProdCert.out os (c.poolOf cv.sel) (c.prods.getD cv.sel default),
+      ProdCert.out os (c.poolOf cv.decl) (c.prods.getD cv.decl default)) &&
+    (((c.poolOf cv.sel).committed os ++ (c.poolOf cv.decl).committed os).flatMap limbs4).all
+      fun n => ((ms.getD cv.transcript default).2.getD n none).isSome
 
 /-- The verdict: every rule is justified, every transcript is a chain, the unions' rows are certified, every field
-equality reading a challenge is a test, and some transcript marks every test's wires. -/
+equality reading a challenge is a test, some transcript marks every test's wires, and the coverage entries hold. -/
 def Cert.accepts (c : Cert) (s : State) : Bool :=
-  rulesOk s c.test c.claims c.rules && c.transcripts.all (fun t => chainOk s t.blocks) && c.unionsOk s &&
-    taintOk c.calls c.relax 0 {} #[] &&
-    let ms := c.marks s
-    (List.range s.unions.size).all fun u => !c.test u || match s.unions[u]? with
-      | some (a, b) => ms.any fun m => (limbs4 a ++ limbs4 b).all (m.2.getD · false)
-      | none => true
+  match replayR c.calls c.relax 0 {} #[] with
+  | none => false
+  | some (t, os) =>
+    rulesOk s c.test c.claims c.rules && c.transcripts.all (fun t => chainOk s t.blocks) && c.unionsAt s t os &&
+      taintOk c.calls c.relax 0 {} #[] &&
+      let ms := c.marks s
+      c.testsBound s ms && c.coversOk s os ms
+
+theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
+    rulesOk s c.test c.claims c.rules = true ∧ c.transcripts.all (fun t => chainOk s t.blocks) = true ∧
+      c.unionsOk s = true ∧ taintOk c.calls c.relax 0 {} #[] = true ∧ c.testsBound s (c.marks s) = true ∧
+      c.coversOk s c.outs (c.marks s) = true := by
+  unfold Cert.accepts at h
+  unfold Cert.unionsOk Cert.outs
+  split at h
+  · simp at h
+  · rename_i t os hr
+    rw [hr]
+    simp only [Bool.and_eq_true] at h
+    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, hb, hcv⟩ := h
+    exact ⟨hr, hc, hu, ht, hb, hcv⟩
+
+/-- A node a transcript binds at time `k` is in the closure of what its first `k` blocks absorb, and of the statement
+once `k` passes its last block. -/
+theorem Cert.times_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
+    (h : (c.times s t).getD n none = some k) : Closure c.rules (seedsBefore s t.blocks k) n :=
+  (certifyT_sound _ _ _ _ n k h).mono seedsBy_seedsT
+
+/-- A passing verdict: every rule is justified, and each test's wires are bound by one transcript at a time `k`: in
+the closure of what its first `k` blocks absorb, and of the statement once `k` passes its last block. -/
+theorem tests_by (c : Cert) (s : State) (h : c.accepts s = true) :
+    rulesOk s c.test c.claims c.rules = true ∧
+    ∀ u a b, s.unions[u]? = some (a, b) → c.test u = true →
+      ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧ ∃ k, bindTime (c.times s t) a b = some k ∧
+        ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsBefore s t.blocks k) n := by
+  obtain ⟨hr, hc, -, -, ht, -⟩ := Cert.accepts_parts h
+  simp only [Cert.testsBound, List.all_eq_true, List.mem_range] at ht hc
+  refine ⟨hr, fun u a b hab htu => ?_⟩
+  have hu : u < s.unions.size := by
+    by_contra hn
+    rw [Array.getElem?_eq_none (by omega)] at hab
+    simp at hab
+  have := ht u hu
+  rw [htu, hab] at this
+  simp only [Bool.not_true, Bool.false_or, List.any_eq_true, Cert.marks, List.mem_map] at this
+  obtain ⟨_, ⟨t, htm, rfl⟩, hk⟩ := this
+  obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp hk
+  refine ⟨t, htm, hc t htm, k, hk, fun n hn => ?_⟩
+  obtain ⟨tn, htn, hle⟩ := (latest_some _ _ _ _ hk).2 n hn
+  exact (Cert.times_sound c s t htn).mono (seedsBefore_mono hle)
 
 /-- A passing verdict: every rule is justified, and each test's wires are in the closure of one transcript's absorbed
 words and the statement. -/
@@ -179,18 +322,10 @@ theorem checkbind_sound (c : Cert) (s : State) (h : c.accepts s = true) :
     ∀ u a b, s.unions[u]? = some (a, b) → c.test u = true →
       ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧
         ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsOf s t.blocks) n := by
-  simp only [Cert.accepts, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
-  obtain ⟨⟨⟨⟨hr, hc⟩, -⟩, -⟩, ht⟩ := h
+  obtain ⟨hr, hall⟩ := tests_by c s h
   refine ⟨hr, fun u a b hab htu => ?_⟩
-  have hu : u < s.unions.size := by
-    by_contra hn
-    rw [Array.getElem?_eq_none (by omega)] at hab
-    simp at hab
-  have := ht u hu
-  rw [htu, hab] at this
-  simp only [Bool.not_true, Bool.false_or, List.any_eq_true, List.all_eq_true, Cert.marks, List.mem_map] at this
-  obtain ⟨_, ⟨t, htm, rfl⟩, hall⟩ := this
-  exact ⟨t, htm, hc t htm, fun n hn => certify_sound _ _ _ _ n (hall n hn)⟩
+  obtain ⟨t, htm, hch, k, -, hcl⟩ := hall u a b hab htu
+  exact ⟨t, htm, hch, fun n hn => (hcl n hn).mono seedsBefore_seedsOf⟩
 
 
 theorem rows_of_hash {c : Call} {t s : State} {outs : List ℕ} (h : c.Rows t outs) (hh : t.hash = s.hash) :
@@ -208,7 +343,7 @@ theorem unionsValid {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Cert) (
   split at h
   · simp at h
   · rename_i t os hr
-    simp only [Bool.and_eq_true, beq_iff_eq, Array.all_eq_true'] at h
+    simp only [Cert.unionsAt, Bool.and_eq_true, beq_iff_eq, Array.all_eq_true'] at h
     obtain ⟨⟨⟨hsame, hcl⟩, hall⟩, -⟩ := h
     obtain ⟨-, -, -, hfacts⟩ := replayR_sound c.calls c.relax 0 {} #[] t os inv_empty rfl (Nat.zero_le _)
       (fun j hj => absurd hj (Nat.not_lt_zero j)) hr
@@ -227,19 +362,18 @@ theorem unionsValid {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Cert) (
     exact claim_valid hF hF' hR hp hqk hcr hin
 
 /-- On two assignments holding every constraint but the tests, under collision resistance of the compression and of
-the duplex's output window, a test's wires are a function of one transcript's absorbed words and the statement. -/
+the duplex's output window, a test's wires are a function of what one transcript's first `k` blocks absorb, `k` its
+binding time, and of the statement once `k` passes the transcript's last block. -/
 theorem tests_determined {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Cert) (s : State) (h : c.accepts s = true)
     (hv : Holds st s c.test val) (hv' : Holds st' s c.test val') (hcr : HashCR s val val')
     (hw : WindowCR s val val') {u a b : ℕ}
     (hab : s.unions[u]? = some (a, b)) (ht : c.test u = true) :
-    ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧
-      ((∀ n ∈ seedsOf s t.blocks, nu val n = nu val' n) → val a = val' a ∧ val b = val' b) := by
-  obtain ⟨hr, hall⟩ := checkbind_sound c s h
-  have hu : UnionsValid c.claims val val' := by
-    simp only [Cert.accepts, Bool.and_eq_true] at h
-    exact unionsValid c s h.1.1.2 hv hv' hcr
-  obtain ⟨t, htm, hch, hcl⟩ := hall u a b hab ht
-  refine ⟨t, htm, hch, fun hs => ?_⟩
+    ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧ ∃ k, bindTime (c.times s t) a b = some k ∧
+      ((∀ n ∈ seedsBefore s t.blocks k, nu val n = nu val' n) → val a = val' a ∧ val b = val' b) := by
+  obtain ⟨hr, hall⟩ := tests_by c s h
+  have hu : UnionsValid c.claims val val' := unionsValid c s (Cert.accepts_parts h).2.2.1 hv hv' hcr
+  obtain ⟨t, htm, hch, k, hk, hcl⟩ := hall u a b hab ht
+  refine ⟨t, htm, hch, k, hk, fun hs => ?_⟩
   have key : ∀ n ∈ limbs4 a ++ limbs4 b, nu val n = nu val' n :=
     fun n hn => closure_agree (rules_valid hr hv hv' hcr hw hu) hs (hcl n hn)
   exact ⟨eq_of_limbs4 fun n hn => key n (List.mem_append_left _ hn),
@@ -251,8 +385,7 @@ constant). The kept equalities are the circuit's equalities that are not tests (
 theorem tests_cover (c : Cert) (s : State) (h : c.accepts s = true) :
     ∀ j < c.calls.size, (c.calls.getD j .zero).isFieldEq = true → c.relax.getD j false = false →
       ∀ a ∈ (c.calls.getD j .zero).args, (taintUpTo c.calls c.relax j).2.getD a false = false := by
-  simp only [Cert.accepts, Bool.and_eq_true] at h
   intro j hj
-  exact taintOk_sound c.calls c.relax 0 (Nat.zero_le _) h.1.2 j (Nat.zero_le _) hj
+  exact taintOk_sound c.calls c.relax 0 (Nat.zero_le _) (Cert.accepts_parts h).2.2.2.1 j (Nat.zero_le _) hj
 
 end LeanVMCircuits.Rec.Bind
