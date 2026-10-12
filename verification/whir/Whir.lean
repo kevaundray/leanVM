@@ -243,3 +243,7 @@ import Whir.AnchoredMixedAttackerPrefixObserver
 import Whir.SpongefishCurrentCommitmentReceive
 import Whir.SpongefishCurrentPhysicalRootCapture
 import Whir.SpongefishCurrentPrimitiveEventCompiler
+import Whir.SpongefishCurrentObservedSessionEntry
+import Whir.SpongefishCurrentMixedModeCompiler
+import Whir.SpongefishCurrentInitializedMode
+import Whir.SpongefishCurrentRoundSeparation

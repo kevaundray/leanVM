@@ -2,6 +2,8 @@ import Whir.SpongefishCurrentCommitmentReceive
 import Whir.SpongefishCurrentRecordOpeningQueries
 import Whir.SpongefishCurrentPhysicalRootCapture
 import Whir.SpongefishCurrentPrimitiveEventCompiler
+import Whir.SpongefishCurrentInitializedMode
+import Whir.SpongefishCurrentRoundSeparation
 
 /-! Real BLAKE2s execution of the current byte-adapter paths, including raw-root
 mismatch, truncated immutable record and an output-block boundary. This is a
@@ -13,6 +15,10 @@ private def report (label : String) : IO Unit := do
   IO.println s!"current adapter: {label}"
   (← IO.getStdout).flush
 
+private def eventBytes (events : List SourceEvent) : List Byte :=
+  events.flatMap fun event => match event with
+    | .publicBytes bytes | .prover _ bytes | .verifier bytes | .hint bytes => bytes
+
 def main : IO Unit := do
   let C := DuplexModeGame.blake2sOracle
   let c := DuplexModeGame.compressionOf C
@@ -23,6 +29,48 @@ def main : IO Unit := do
   unless derived.view.result = session && derived.view.observations.length = 2 do
     throw (IO.userError "observed session derivation disagrees")
   report "observed session derivation agrees"
+  let instanceBytes : List Byte := [11]
+  let valueBytes := scalarBytes (E.ofK 9)
+  let initializedNarg := rawRoot zeroDigest ++ valueBytes
+  let initializedCalls : List Call :=
+    [.read .root,.draw .fold,.draw .fold,.read .scalar,.draw .fold,.hint]
+  let initialized := DuplexModeGame.runReal C parameter
+    (SpongefishCurrentInitializedMode.program parameter tag instanceBytes initializedNarg [[7]] initializedCalls)
+  let some (.ok initializedData) := initialized.view.result
+    | throw (IO.userError "observed initialized mixed entry rejected valid input")
+  let some (.ok actualInitialized) :=
+    SpongefishCurrentObservedSessionEntry.actualEntry c parameter tag instanceBytes initializedNarg [[7]] initializedCalls
+    | throw (IO.userError "actual initialized replay rejected valid input")
+  unless initializedData.narg = [] && initializedData.bytesRead = 56 &&
+      initializedData.messagesRead = 2 && initializedData.hintsRead = 1 &&
+      initializedData.pending.frames = actualInitialized.pending.frames &&
+      initializedData.pending.consumed = actualInitialized.pending.consumed &&
+      eventBytes initializedData.events = eventBytes actualInitialized.events do
+    throw (IO.userError "initialized mixed replay disagrees on actual bytes, cache reuse or reached state")
+  let ordinaryCount := initialized.view.observations.countP fun o => match o.query with
+    | .primitive _ _ => true | .construction _ _ => false
+  let constructionCount := initialized.view.observations.countP fun o => match o.query with
+    | .primitive _ _ => false | .construction _ _ => true
+  unless ordinaryCount = 3 && constructionCount = 3 &&
+      initialized.primitiveCost ≤ SpongefishCurrentInitializedMode.budget tag instanceBytes initializedCalls do
+    throw (IO.userError "session seed or full-coordinate cache work disagrees")
+  report "observed initialized session and mixed replay matched actual bytes across shared and fresh output blocks"
+  let rejectedEntry := DuplexModeGame.runReal C parameter
+    (SpongefishCurrentInitializedMode.program parameter tag instanceBytes
+      (rawRoot zeroDigest ++ valueBytes.take 23) [[7]] initializedCalls)
+  let some (.error (rejectedData,.readRejected .scalar)) := rejectedEntry.view.result
+    | throw (IO.userError "initialized mode did not retain scalar rejection")
+  unless rejectedData.bytesRead = 32 && rejectedData.messagesRead = 1 &&
+      rejectedData.narg.length = 23 && rejectedData.pending.consumed = 48 &&
+      rejectedData.hintsRead = 0 do
+    throw (IO.userError "initialized mode charged or mutated an unreached rejected suffix")
+  report "observed initialized mode retained reached reject prefix and no later hint"
+  let layout : OpeningLayout :=
+    ⟨2,⟨2,1,3,5,⟨1,by decide⟩⟩,[(1,⟨1,1,2,3,⟨0,by decide⟩⟩)],1,2,1,3,⟨0,by decide⟩⟩
+  unless SpongefishCurrentRoundSeparation.scan false layout.schedule = some true &&
+      (SpongefishCurrentRoundSeparation.scan false [.draw .fold,.hint,.draw .fold]).isNone do
+    throw (IO.userError "current round separation accepted a hint as an absorbed prover payload")
+  report "actual current PCS schedule separated verifier messages; a transport hint alone did not"
   let state := init c parameter session
   let pending : Pending := {domain := session}
   let shape : Shape := ⟨2,1,1,1⟩
