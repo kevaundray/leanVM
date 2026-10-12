@@ -3,8 +3,6 @@ use super::reduce::{self, DenseProver, DenseVars, MatrixProver, MatrixReduced, R
 use super::statement::{Section, digest_halves_rows};
 use super::*;
 use crate::cpu::{Claim, Prover};
-use crate::gkr::GkrError;
-use crate::leaf::BusError;
 use crate::rec::RecError;
 use crate::rec::circuit::{Assignment, Builder, Kw};
 use crate::rec::sphincs::{SphincsBatch, SphincsClaim, SphincsProof};
@@ -16,7 +14,9 @@ use crate::tables::TableId;
 use design::NodeRows;
 use fiat_shamir::arith::{Arith, Native};
 use fiat_shamir::{LengthPrefixed, ProofTranscript, ProverState, SessionId, VerifierState};
+use flock::FlockError;
 use flock::lincheck::MatrixForm;
+use flock::zerocheck::ZerocheckError;
 use leanxmss_host::{LEAF_INDEX, MESSAGE};
 use primitives::field::F64;
 use primitives::multilinear::mle_eval;
@@ -842,7 +842,7 @@ fn under(tree: &Tree<'_>, session: &SessionId, p: &TreeProof) -> Result<(), RecE
 // tree takes another's proofs, and nothing but the session and the statement refuses them.
 //
 //     the leanXMSS and leanSPHINCS trees share their heights and statement layout: their proofs have one shape
-//     a proof against its own tree's circuit under the other tree's session fails at the bus's GKR
+//     a proof against its own tree's circuit under the other tree's session fails at its first stage, flock's zerocheck
 //     → as a child of the other tree's node, or as its root, it fails with that same error
 //     a RISC-V tree's statement has another length than a circuit-leaf tree's
 //     → each refuses the other's proofs at the statement's length, as of no circuit of its own
@@ -873,7 +873,10 @@ fn a_tree_refuses_another_familys_tree_proofs() {
         under(tree, &tree.design.session, p).expect("its own session");
         let refused = under(tree, &other.design.session, p).expect_err("the other tree's session");
         assert!(
-            matches!(refused, RecError::Bus(BusError::Gkr(GkrError::LayerMismatch { .. }))),
+            matches!(
+                refused,
+                RecError::Flock(FlockError::Zerocheck(ZerocheckError::TerminalMismatch))
+            ),
             "{refused:?}"
         );
         VerifyError::from(refused)
