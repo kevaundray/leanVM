@@ -37,7 +37,7 @@ use std::collections::HashMap;
 pub(crate) const CHUNK: usize = 32;
 
 /// The tag of the union's transcript's session, beside the tree's.
-const SESSION_TAG: &[u8] = b"leanvm-claim-union-2";
+const SESSION_TAG: &[u8] = b"leanvm-claim-union-3";
 
 /// A pool's size, in chunks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -554,17 +554,16 @@ pub(crate) fn union_rows(
     fill: Option<&UnionFill>,
 ) -> Dw {
     assert_eq!(children.len(), shape.arity, "one digest a child");
-    let read: Vec<Dw> = if shape.optional {
+    // Where a child may be absent, its bit, packed into words the challenge binds, picks the digest read.
+    let (read, absent): (Vec<Dw>, Vec<Kw>) = if shape.optional {
         let empty = ClaimSet::new().digest();
         let [e_lo, e_hi] = [F192::new(empty[0], empty[1], 0), F192::new(empty[2], empty[3], 0)].map(|v| b.e_const(v));
         let bits: Vec<Kw> = (0..shape.arity)
             .map(|r| b.free_k(u64::from(fill.is_some_and(|f| f.absent[r]))))
             .collect();
-        // The bits are bits.
-        for chunk in bits.chunks(64) {
-            b.pack(chunk);
-        }
-        (children.iter().zip(&bits))
+        // The bits are bits, and their words are bound.
+        let words = bits.chunks(64).map(|chunk| b.pack(chunk)).collect();
+        let read = (children.iter().zip(&bits))
             .map(|(&d, &absent)| {
                 let [lo, hi] = b.d_to_halves(d);
                 let d_lo = b.add(lo, e_lo);
@@ -573,9 +572,10 @@ pub(crate) fn union_rows(
                 let hi = b.mul_k_add(d_hi, absent, hi);
                 b.halves_to_d(lo, hi)
             })
-            .collect()
+            .collect();
+        (read, words)
     } else {
-        children.to_vec()
+        (children.to_vec(), Vec::new())
     };
     let digest = b.free_d(fill.map_or([0; 4], |f| f.digest));
     let pool = b.scope("children's pool", |b| {
@@ -584,7 +584,7 @@ pub(crate) fn union_rows(
     let declared = b.scope("declared pool", |b| {
         pool_rows(b, shape.declared, &[digest], fill.map(|f| &f.declared), false)
     });
-    let point = challenge(b, session, &read, digest, &[&pool, &declared]);
+    let point = challenge(b, session, &read, digest, &absent, &[&pool, &declared]);
     b.scope("coverage", |b| {
         let selected = product(b, &pool.items, &point);
         let declared = product(b, &declared.items, &point);
@@ -594,13 +594,21 @@ pub(crate) fn union_rows(
 }
 
 /// The challenge point, drawn from a transcript of everything that decides which claims the products read: the sets
-/// the children's pool reads (an absent child's the empty set's), the node's, and the pools' begin and selection
-/// words.
-fn challenge(b: &mut Builder, session: &SessionId, read: &[Dw], digest: Dw, pools: &[&PoolWires]) -> Point {
+/// the children's pool reads (an absent child's the empty set's), the node's, the absent bits' words, and the pools'
+/// begin and selection words.
+fn challenge(
+    b: &mut Builder,
+    session: &SessionId,
+    read: &[Dw],
+    digest: Dw,
+    absent: &[Kw],
+    pools: &[&PoolWires],
+) -> Point {
     let mut instance = Vec::new();
     for &d in read.iter().chain([&digest]) {
         instance.extend(b.d_to_k(d));
     }
+    instance.extend(absent);
     for pool in pools {
         instance.extend(&pool.begins);
         instance.extend(&pool.selections);
@@ -948,7 +956,7 @@ mod tests {
                 let digest = b.free_d(f.digest);
                 let pool = pool_rows(&mut b, shape.children, &read, Some(&f.children), true);
                 let declared = pool_rows(&mut b, shape.declared, &[digest], Some(&f.declared), false);
-                let point = challenge(&mut b, &SessionId([7; 32]), &read, digest, &[&pool, &declared]);
+                let point = challenge(&mut b, &SessionId([7; 32]), &read, digest, &[], &[&pool, &declared]);
                 let words = |ws: &[Kw]| ws.iter().map(|&w| b.k(w)).collect::<Vec<u64>>();
                 (words(&pool.selections), words(&pool.begins), b.e(point.x1))
             };
