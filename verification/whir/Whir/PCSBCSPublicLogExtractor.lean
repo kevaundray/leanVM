@@ -10,38 +10,40 @@ namespace Whir.PCSBCSPublicLogExtractor
 open Concrete Protocol FiatShamirGame DuplexFraming DuplexPublicSimulator
 open PCSBCSMerkleRootCache PCSBCSSourceRootReferences
 
-variable (p : ParameterBounds.Profile) (Q : Nat)
-    (layout : PublicLog → Node → WHIRCallerClaims.CallerLayout)
-    (savedAt : PublicLog → Node → AnchoredHeaderCodec.Record)
-    (entry : PublicLog → Node → FramedHistory)
-    (answers : PublicLog → Node → FiatShamirGame.Coordinate → Digest32)
-    (headers : PublicLog → Node → AnchoredHeaderRoots.Public)
+variable (p : ParameterBounds.Profile) (Q boundary : Nat)
+    (registry : AnchoredHeaderRoots.Public)
     (target : AnchoredHeaderCodec.Record)
 
-def selectPrefix : PublicLog → Option PublicLog
+/-- Materialize the target's digest/geometry address once, outside the loop. -/
+def selectPrefixLoop (wanted : CacheKey) : PublicLog → Option PublicLog
   | [] => none
   | (input,_) :: queryPrefix =>
-    match selectPrefix queryPrefix with
+    match selectPrefixLoop wanted queryPrefix with
     | some captured => some captured
     | none =>
-      if (PCSBCSSourcePrimitiveRootBudget.references p Q layout savedAt entry answers headers
+      if (PCSBCSSourcePrimitiveRootBudget.references p Q boundary registry
           queryPrefix input).any (fun ref => decide
-            (cacheKey ref.root ref.shape = cacheKey target.root (initialShape target.shape))) then
+            (cacheKey ref.root ref.shape = wanted)) then
         some queryPrefix
       else none
+
+def selectPrefix (log : PublicLog) : Option PublicLog :=
+  selectPrefixLoop p Q boundary registry
+    (cacheKey target.root (initialShape target.shape)) log
 
 /-- Later primitive queries cannot replace the already captured prefix or
 supply new preimages to the initial word extraction. -/
 theorem selectPrefix_preserves (log captured : PublicLog) (input : Node) (digest : Digest32)
-    (known : selectPrefix p Q layout savedAt entry answers headers target log = some captured) :
-    selectPrefix p Q layout savedAt entry answers headers target ((input,digest)::log) =
+    (known : selectPrefix p Q boundary registry target log = some captured) :
+    selectPrefix p Q boundary registry target ((input,digest)::log) =
       some captured := by
-  simp only [selectPrefix,known]
+  simp only [selectPrefix] at known ⊢
+  simp only [selectPrefixLoop,known]
 
 def extract {m : Nat} (lanes : Nat) (family : Fin m → RingPCSGame.FamilyClaim)
     (points : Array RingPCSGame.PointClaim) (anchorPoint : Array E) (anchorValue : E)
     (log : PublicLog) : Option (CausalGame.Witness (ParameterBounds.config p) lanes) := do
-  let captured ← selectPrefix p Q layout savedAt entry answers headers target log
+  let captured ← selectPrefix p Q boundary registry target log
   PCSBCSPublicRootExtractor.extract p lanes family points anchorPoint anchorValue captured target
 
 /-- Every actual returned word explains every original claim and the anchor.
@@ -49,9 +51,9 @@ No collision assumption or final success-probability premise is used here. -/
 theorem output_explains {m : Nat} (lanes : Nat) (family : Fin m → RingPCSGame.FamilyClaim)
     (points : Array RingPCSGame.PointClaim) (anchorPoint : Array E) (anchorValue : E)
     (log : PublicLog) (w : CausalGame.Witness (ParameterBounds.config p) lanes)
-    (returned : extract p Q layout savedAt entry answers headers target lanes family points
+    (returned : extract p Q boundary registry target lanes family points
       anchorPoint anchorValue log = some w) :
-    ∃ captured, selectPrefix p Q layout savedAt entry answers headers target log = some captured ∧
+    ∃ captured, selectPrefix p Q boundary registry target log = some captured ∧
       PCSRewindSource.ExplainsOriginal (ParameterBounds.config p) lanes
         (freeze captured target.root (initialShape target.shape)).raw
         family points anchorPoint anchorValue w := by

@@ -9,10 +9,23 @@ Fiat–Shamir security claim for either transcript version. -/
 namespace Whir.ByteCodec
 open Concrete FiatShamirGame
 
-def encodeNat : (n : Nat) → Nat → (Fin n → Byte)
-  | 0, _, i => Fin.elim0 i
-  | n + 1, x, i => Fin.cases ⟨x % 256, Nat.mod_lt _ (by decide)⟩
-      (encodeNat n (x / 256)) i
+/-- Select a little-endian digit directly. Recursive `Fin.cases` indexing makes
+compiled callers repeatedly traverse predecessor functions. -/
+def encodeNat (n x : Nat) : Fin n → Byte :=
+  fun i => ⟨(x / 256^i.val)%256,Nat.mod_lt _ (by decide)⟩
+
+theorem encodeNat_zero (n x : Nat) :
+    encodeNat (n+1) x 0 = ⟨x%256,Nat.mod_lt _ (by decide)⟩ := by
+  apply Fin.ext
+  simp [encodeNat]
+
+theorem encodeNat_succ (n x : Nat) (i : Fin n) :
+    encodeNat (n+1) x i.succ = encodeNat n (x/256) i := by
+  apply Fin.ext
+  simp only [encodeNat,Fin.val_succ]
+  rw [Nat.div_div_eq_div_mul,pow_succ]
+  congr 2
+  omega
 
 def decodeNat : (n : Nat) → (Fin n → Byte) → Nat
   | 0, _ => 0
@@ -35,7 +48,7 @@ theorem decodeNat_encodeNat (n x : Nat) (h : x < 256 ^ n) :
     have hd : x / 256 < 256 ^ n := by
       apply (Nat.div_lt_iff_lt_mul (by decide)).mpr
       simpa [pow_succ] using h
-    simp only [decodeNat, encodeNat, Fin.cases_zero, Fin.cases_succ]
+    simp only [decodeNat,encodeNat_zero,encodeNat_succ]
     rw [ih _ hd]
     exact Nat.mod_add_div x 256
 
@@ -48,7 +61,8 @@ theorem encodeNat_decodeNat (n : Nat) (b : Fin n → Byte) :
     refine Fin.cases ?_ (fun j => ?_) i
     · apply Fin.ext
       simp [encodeNat, decodeNat, Nat.add_mod, Nat.mod_eq_of_lt (b 0).isLt]
-    · simp only [encodeNat, decodeNat, Fin.cases_succ]
+    · rw [encodeNat_succ]
+      simp only [decodeNat]
       rw [Nat.add_mul_div_left _ _ (by decide)]
       rw [Nat.div_eq_of_lt (b 0).isLt, Nat.zero_add]
       exact congrFun (ih (fun i => b i.succ)) j
@@ -56,15 +70,7 @@ theorem encodeNat_decodeNat (n : Nat) (b : Fin n → Byte) :
 /-- Byte `i` is exactly the base-256 little-endian digit, not merely an
 arbitrary injective representation of the machine word. -/
 theorem encodeNat_byte (n x : Nat) (i : Fin n) :
-    (encodeNat n x i).val = (x / 256 ^ i.val) % 256 := by
-  induction n generalizing x with
-  | zero => exact Fin.elim0 i
-  | succ n ih =>
-    refine Fin.cases ?_ (fun j => ?_) i
-    · simp [encodeNat]
-    · simp only [encodeNat, Fin.cases_succ, Fin.val_succ]
-      rw [ih]
-      simp [Nat.div_div_eq_div_mul, pow_succ, Nat.mul_comm]
+    (encodeNat n x i).val = (x / 256 ^ i.val) % 256 := rfl
 
 def encodeK (x : K) : Fin 8 → Byte := encodeNat 8 x.toNat
 def decodeK (b : Fin 8 → Byte) : K := UInt64.ofNat (decodeNat 8 b)

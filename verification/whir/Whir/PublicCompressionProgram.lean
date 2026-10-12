@@ -31,6 +31,28 @@ def planCalls (cv : Digest32) : (xs : List DuplexEncoding.Instruction) → Compu
   | [] => .ret cv
   | i :: rest => .draw ⟨cv,i.1,i.2,true⟩ (fun d => planCalls d rest)
 
+private def planCallsStored (cv : Digest32) :
+    (xs : List DuplexEncoding.Instruction) → Computation Digest32 xs.length
+  | [] => .ret cv
+  | i :: rest => .draw ⟨cv,i.1,i.2,true⟩ (fun d =>
+      let bytes := Array.ofFn d
+      planCallsStored (fun j => bytes[j.val]'(by simp [bytes])) rest)
+
+@[csimp] private theorem planCalls_stored : planCalls = planCallsStored := by
+  funext cv xs
+  induction xs generalizing cv with
+  | nil => rfl
+  | cons i rest ih =>
+    simp only [planCalls,planCallsStored]
+    congr 1
+    funext d
+    have stored : (fun j : Fin 32 =>
+        (Array.ofFn d)[j.val]'(by simp)) = d := by
+      funext j
+      simp
+    rw [stored]
+    exact ih d
+
  theorem planCalls_eval (C : PrimitiveOracle) (cv : Digest32) (xs : List DuplexEncoding.Instruction) :
     Sampling.eval C (planCalls cv xs) = evalPlan (compressionOf C) cv xs := by
   induction xs generalizing cv with

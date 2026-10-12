@@ -66,3 +66,55 @@ root = "Whir.PCSBCSSourceCoordinateDecoderSmoke"
 [[lean_exe]]
 name = "pcsbcsPublicLogExtractorSmoke"
 root = "Whir.PCSBCSPublicLogExtractorSmoke"
+
+[[lean_exe]]
+name = "pcsbcsCallerPayloadCostSmoke"
+root = "Whir.PCSBCSCallerPayloadCostSmoke"
+
+[[lean_exe]]
+name = "pcsbcsCallerSchedulePolynomialSmoke"
+root = "Whir.PCSBCSCallerSchedulePolynomialBoundSmoke"
+
+[[lean_exe]]
+name = "pcsbcsCapturedNativeReplyBridgeSmoke"
+root = "Whir.PCSBCSCapturedNativeReplyBridgeSmoke"
+
+[[lean_exe]]
+name = "pcsbcsCapturedSourceExecutableSmoke"
+root = "Whir.PCSBCSCapturedSourceExecutableSmoke"
+
+[[lean_exe]]
+name = "pcsbcsSavedRecordDecoderSmoke"
+root = "Whir.PCSBCSSourceSavedRecordDecoderSmoke"
+
+[[lean_exe]]
+name = "pcsbcsSavedRecordDecoderCostSmoke"
+root = "Whir.PCSBCSSourceSavedRecordDecoderCostSmoke"
+
+[[lean_exe]]
+name = "pcsbcsMerkleSeedProjectionSmoke"
+root = "Whir.PCSBCSMerkleSeedProjectionSmoke"
+
+[[lean_exe]]
+name = "pcsbcsPublicCallerAnswersSmoke"
+root = "Whir.PCSBCSPublicCallerAnswersSmoke"
+
+[[lean_exe]]
+name = "pcsbcsSourcePublicMetadataSmoke"
+root = "Whir.PCSBCSSourcePublicMetadataSmoke"
+
+[[lean_exe]]
+name = "pcsbcsNativePacketCodecSmoke"
+root = "Whir.PCSBCSNativePacketCodecSmoke"
+
+[[lean_exe]]
+name = "pcsbcsPublicExtractorSmoke"
+root = "Whir.PCSBCSPublicExtractorSmoke"
+
+[[lean_exe]]
+name = "spongefishCurrentAdapterSmoke"
+root = "Whir.SpongefishCurrentAdapterSmoke"
+
+[[lean_exe]]
+name = "spongefishCurrentRecordCodecSmoke"
+root = "Whir.SpongefishCurrentRecordCodecSmoke"

@@ -180,25 +180,49 @@ theorem countedRawMul_cost_of_size (p q : CPolynomial.Raw F) (width : Nat)
       Nat.mul_le_mul left (Nat.add_le_add left (Nat.mul_le_mul_left 2 right))
     _ = 3 * width ^ 2 := by ring
 
-/-- Instrumented canonical multiplication returns exactly the polynomial used
-by Gao and triangular extraction. Its field count is the raw convolution count. -/
+/-- Instrumented canonical multiplication puts the shorter operand on the
+convolution's iterated side. This avoids repeated long shifted accumulators;
+trimming makes polynomial commutativity valid even for empty raw arrays. -/
 def countedMul (p q : CPolynomial F) : CPolynomial F × Nat :=
-  let result := countedRawMul p.val q.val
+  let result := if p.val.size ≤ q.val.size then countedRawMul p.val q.val
+    else countedRawMul q.val p.val
   (⟨result.1.trim, CPolynomial.Raw.Trim.isCanonical_trim _⟩, result.2)
 
 omit [DecidableEq F] in
 theorem countedMul_value (p q : CPolynomial F) :
     (countedMul p q).1 = p * q := by
-  apply CPolynomial.ext
-  change (countedRawMul p.val q.val).1.trim = _
-  rw [countedRawMul_value]
-  rfl
+  by_cases ordered : p.val.size ≤ q.val.size
+  · simp only [countedMul,ordered,↓reduceIte]
+    apply CPolynomial.ext
+    change (countedRawMul p.val q.val).1.trim = _
+    rw [countedRawMul_value]
+    rfl
+  · simp only [countedMul,ordered,↓reduceIte]
+    apply CPolynomial.ext
+    change (countedRawMul q.val p.val).1.trim = _
+    rw [countedRawMul_value]
+    change (q * p).val = (p * q).val
+    rw [mul_comm]
+
+omit [DecidableEq F] in
+theorem countedMul_cost_asymmetric (p q : CPolynomial F) :
+    (countedMul p q).2 ≤ p.val.size * (p.val.size + 2 * q.val.size) := by
+  by_cases ordered : p.val.size ≤ q.val.size
+  · simpa only [countedMul,ordered,↓reduceIte] using countedRawMul_cost p.val q.val
+  · have shorter : q.val.size ≤ p.val.size := by omega
+    have squares := Nat.mul_self_le_mul_self shorter
+    simp only [countedMul,ordered,↓reduceIte]
+    exact (countedRawMul_cost q.val p.val).trans (by nlinarith)
 
 omit [DecidableEq F] in
 theorem countedMul_cost (p q : CPolynomial F) (width : Nat)
     (left : p.val.size ≤ width) (right : q.val.size ≤ width) :
-    (countedMul p q).2 ≤ 3 * width ^ 2 :=
-  countedRawMul_cost_of_size p.val q.val width left right
+    (countedMul p q).2 ≤ 3 * width ^ 2 := by
+  calc
+    _ ≤ p.val.size * (p.val.size + 2 * q.val.size) := countedMul_cost_asymmetric p q
+    _ ≤ width * (width + 2 * width) :=
+      Nat.mul_le_mul left (Nat.add_le_add left (Nat.mul_le_mul_left 2 right))
+    _ = 3 * width ^ 2 := by ring
 
 /-- Raw power uses the same repeated-multiplication specification as the
 division backend, rather than pretending that constructing `X^k` is free. -/
@@ -891,8 +915,8 @@ theorem countedBasisFactor_cost (inverseCost : Nat) (node other : F) :
   have factorSupport : (CPolynomial.X - CPolynomial.C other).val.size ≤ 2 :=
     (sub_support _ _).trans (max_le (Nat.le_refl 2) (c.trans (by omega)))
   have scalar := constant_support (node - other)⁻¹
-  have product := countedRawMul_cost (CPolynomial.C (node - other)⁻¹).val
-    (CPolynomial.X - CPolynomial.C other).val
+  have product := countedMul_cost_asymmetric (CPolynomial.C (node - other)⁻¹)
+    (CPolynomial.X - CPolynomial.C other)
   have productBudget : (countedMul (CPolynomial.C (node - other)⁻¹)
       (CPolynomial.X - CPolynomial.C other)).2 ≤ 5 := by
     exact product.trans (by
@@ -950,12 +974,49 @@ theorem countedBasis_cost (inverseCost n : Nat) (nodes : Fin n → F) (i : Fin n
     (by intro term ht; obtain ⟨j, hj, rfl⟩ := List.mem_map.mp ht; exact countedBasisFactor_cost _ _ _)
   exact bound.trans (Nat.mul_le_mul_right _ (by simpa using length))
 
+/-- Zero coefficients contribute no basis polynomial. Skip their construction
+and inversions for every interpolant, while charging the coefficient test. -/
+def countedInterpolationTerm (inverseCost n : Nat) (nodes : Fin n → F) (i : Fin n)
+    (value : F) : CPolynomial F × Nat :=
+  if value == 0 then (0,1) else
+    let basis := countedBasis inverseCost n nodes i
+    let term := countedMul (CPolynomial.C value) basis.1
+    (term.1,basis.2+term.2+1)
+
+omit [DecidableEq F] in
+theorem countedInterpolationTerm_value (inverseCost n : Nat) (nodes : Fin n → F)
+    (i : Fin n) (value : F) :
+    (countedInterpolationTerm inverseCost n nodes i value).1 =
+      CPolynomial.C value * (countedBasis inverseCost n nodes i).1 := by
+  by_cases zero : value = 0
+  · subst value
+    simp [countedInterpolationTerm]
+  · simp [countedInterpolationTerm,zero,countedMul_value]
+
+omit [DecidableEq F] in
+theorem countedInterpolationTerm_support (inverseCost n : Nat) (nodes : Fin n → F)
+    (i : Fin n) (value : F) :
+    (countedInterpolationTerm inverseCost n nodes i value).1.val.size ≤ 2*n+1 := by
+  rw [countedInterpolationTerm_value]
+  exact (constant_mul_support _ _).trans (countedBasis_support _ _ _ _)
+
+omit [DecidableEq F] in
+theorem countedInterpolationTerm_cost (inverseCost n : Nat) (nodes : Fin n → F)
+    (i : Fin n) (value : F) :
+    (countedInterpolationTerm inverseCost n nodes i value).2 ≤
+      n*(inverseCost+9+3*(2*n+1)^2)+3*(2*n+1)^2+1 := by
+  unfold countedInterpolationTerm
+  split
+  · simp
+  · exact Nat.add_le_add_right
+      (Nat.add_le_add (countedBasis_cost _ _ _ _)
+        (countedMul_cost _ _ _ ((constant_support _).trans (by omega))
+          (countedBasis_support _ _ _ _))) 1
+
 def countedInterpolant (inverseCost : Nat) (D : Domain (F := F)) (received : Vector F D.n) :
     CPolynomial F × Nat :=
   countedSum ((List.finRange D.n).map fun i =>
-    let basis := countedBasis inverseCost D.n (D.val[·]) i
-    let term := countedMul (CPolynomial.C (received.get i)) basis.1
-    (term.1, basis.2 + term.2))
+    countedInterpolationTerm inverseCost D.n (D.val[·]) i (received.get i))
 
 omit [DecidableEq F] in
 theorem countedInterpolant_value (inverseCost : Nat) (D : Domain (F := F))
@@ -965,17 +1026,17 @@ theorem countedInterpolant_value (inverseCost : Nat) (D : Domain (F := F))
   apply CPolynomial.toPolyLinearEquiv.injective
   rw [CPolynomial.toPolyLinearEquiv_apply, CPolynomial.toPolyLinearEquiv_apply,
     countedInterpolant, countedSum_value]
-  simp only [List.map_map, countedMul_value, countedBasis_value]
+  simp only [List.map_map]
   rw [← List.sum_toFinset _ (List.nodup_finRange _)]
   simp only [List.toFinset_finRange]
   rw [CompPoly.ReedSolomon.Gao.receivedInterpolant,
     CPolynomial.CLagrange.cinterpolate_eq_interpolate, Lagrange.interpolate]
-  simp [CPolynomial.toPoly_sum, CPolynomial.toPoly_mul, CPolynomial.C_toPoly,
-    CPolynomial.CLagrange.cbasis_eq_basis]
+  simp [countedInterpolationTerm_value,countedBasis_value,CPolynomial.toPoly_sum,
+    CPolynomial.toPoly_mul,CPolynomial.C_toPoly,CPolynomial.CLagrange.cbasis_eq_basis]
 
 def interpolationBudget (inverseCost n : Nat) : Nat :=
   n * (n * (inverseCost + 9 + 3 * (2 * n + 1) ^ 2) +
-    3 * (2 * n + 1) ^ 2 + (2 * n + 1))
+    3 * (2 * n + 1) ^ 2 + 1 + (2 * n + 1))
 
 omit [DecidableEq F] in
 theorem countedInterpolant_support (inverseCost : Nat) (D : Domain (F := F))
@@ -984,8 +1045,7 @@ theorem countedInterpolant_support (inverseCost : Nat) (D : Domain (F := F))
   apply countedSum_support
   intro term ht
   obtain ⟨i, hi, rfl⟩ := List.mem_map.mp ht
-  rw [countedMul_value]
-  exact (constant_mul_support _ _).trans (countedBasis_support _ _ _ _)
+  exact countedInterpolationTerm_support _ _ _ _ _
 
 omit [DecidableEq F] in
 theorem countedInterpolant_cost (inverseCost : Nat) (D : Domain (F := F))
@@ -994,22 +1054,17 @@ theorem countedInterpolant_cost (inverseCost : Nat) (D : Domain (F := F))
   unfold countedInterpolant interpolationBudget
   have bound := countedSum_cost
     ((List.finRange D.n).map fun i =>
-      let basis := countedBasis inverseCost D.n (D.val[·]) i
-      let term := countedMul (CPolynomial.C (received.get i)) basis.1
-      (term.1, basis.2 + term.2))
+      countedInterpolationTerm inverseCost D.n (D.val[·]) i (received.get i))
     (2 * D.n + 1)
-    (D.n * (inverseCost + 9 + 3 * (2 * D.n + 1) ^ 2) + 3 * (2 * D.n + 1) ^ 2)
+    (D.n * (inverseCost + 9 + 3 * (2 * D.n + 1) ^ 2) + 3 * (2 * D.n + 1) ^ 2 + 1)
     (by
       intro term ht
       obtain ⟨i, hi, rfl⟩ := List.mem_map.mp ht
-      rw [countedMul_value]
-      exact (constant_mul_support _ _).trans (countedBasis_support _ _ _ _))
+      exact countedInterpolationTerm_support _ _ _ _ _)
     (by
       intro term ht
       obtain ⟨i, hi, rfl⟩ := List.mem_map.mp ht
-      exact Nat.add_le_add (countedBasis_cost _ _ _ _)
-        (countedMul_cost _ _ _ ((constant_support _).trans (by omega))
-          (countedBasis_support _ _ _ _)))
+      exact countedInterpolationTerm_cost _ _ _ _ _)
   simpa only [List.length_map, List.length_finRange] using bound
 
 def countedNodal (D : Domain (F := F)) : CPolynomial F × Nat :=
@@ -1108,12 +1163,11 @@ theorem xgcdStepBudget_mono (inverseCost : Nat) {a b : Nat} (bound : a ≤ b) :
   unfold xgcdStepBudget
   gcongr
 
-/-- Complete coefficient-arithmetic instrumentation of Gao: nodal product,
-Lagrange interpolation, partial xgcd and both final remainder/division calls.
-The public-domain array construction itself uses no field arithmetic. -/
-def countedDecode (inverseCost k : Nat) (D : Domain (F := F)) (received : Vector F D.n) :
+/-- Reuse an already materialized public-domain nodal product. Its cost field
+charges construction at the owner, not again at each independent row. -/
+def countedDecodePrepared (inverseCost k : Nat) (D : Domain (F := F))
+    (received : Vector F D.n) (nodal : CPolynomial F × Nat) :
     Option (CPolynomial F) × Nat :=
-  let nodal := countedNodal D
   let interpolant := countedInterpolant inverseCost D received
   let gcd := countedXgcd inverseCost ((D.n + k + 1) / 2) nodal.1 interpolant.1
   let remainder := countedMod inverseCost gcd.1.1 gcd.1.2.2
@@ -1124,10 +1178,38 @@ def countedDecode (inverseCost k : Nat) (D : Domain (F := F)) (received : Vector
   else (none, cost)
 
 omit [DecidableEq F] in
+theorem countedDecodePrepared_value_cost_independent (inverseCost k : Nat)
+    (D : Domain (F := F)) (received : Vector F D.n) (nodal : CPolynomial F) (cost : Nat) :
+    (countedDecodePrepared inverseCost k D received (nodal,cost)).1 =
+      (countedDecodePrepared inverseCost k D received (nodal,0)).1 := by
+  unfold countedDecodePrepared
+  dsimp only
+  split_ifs <;> rfl
+
+omit [DecidableEq F] in
+theorem countedDecodePrepared_cost (inverseCost k : Nat) (D : Domain (F := F))
+    (received : Vector F D.n) (nodal : CPolynomial F) (cost : Nat) :
+    (countedDecodePrepared inverseCost k D received (nodal,cost)).2 =
+      cost + (countedDecodePrepared inverseCost k D received (nodal,0)).2 := by
+  unfold countedDecodePrepared
+  dsimp only
+  split_ifs <;> simp [Nat.add_assoc]
+
+#print axioms countedDecodePrepared_value_cost_independent
+#print axioms countedDecodePrepared_cost
+
+/-- Complete coefficient-arithmetic instrumentation of Gao: nodal product,
+Lagrange interpolation, partial xgcd and both final remainder/division calls.
+The public-domain array construction itself uses no field arithmetic. -/
+def countedDecode (inverseCost k : Nat) (D : Domain (F := F)) (received : Vector F D.n) :
+    Option (CPolynomial F) × Nat :=
+  countedDecodePrepared inverseCost k D received (countedNodal D)
+
+omit [DecidableEq F] in
 theorem countedDecode_value (inverseCost k : Nat) (D : Domain (F := F))
     (received : Vector F D.n) :
     (countedDecode inverseCost k D received).1 = decode k D received := by
-  simp only [countedDecode, countedNodal_value, countedInterpolant_value, countedXgcd_value,
+  simp only [countedDecode, countedDecodePrepared, countedNodal_value, countedInterpolant_value, countedXgcd_value,
     countedMod_value, countedDiv_value, decode, CompPoly.ReedSolomon.Gao.decode,
     CompPoly.ReedSolomon.Gao.partialGcd]
   split_ifs <;> simp_all
@@ -1172,7 +1254,7 @@ theorem countedDecode_cost (inverseCost k : Nat) (D : Domain (F := F))
     gcd.1.1 gcd.1.2.2 rSupport tSupport
   have nodalCost := countedNodal_cost D
   have interpolantCost := countedInterpolant_cost inverseCost D received
-  unfold countedDecode
+  unfold countedDecode countedDecodePrepared
   change (if (countedMod inverseCost gcd.1.1 gcd.1.2.2).1 == 0 then
     (if (countedDiv inverseCost gcd.1.1 gcd.1.2.2).1.degree < k then
       some (countedDiv inverseCost gcd.1.1 gcd.1.2.2).1 else none,
@@ -1187,5 +1269,13 @@ theorem countedDecode_cost (inverseCost k : Nat) (D : Domain (F := F))
     change interpolant.2 ≤ _ at interpolantCost
     dsimp only [residueWidth] at gcdBudget
     omega
+
+#print axioms countedInterpolationTerm_value
+#print axioms countedInterpolationTerm_support
+#print axioms countedInterpolationTerm_cost
+#print axioms countedInterpolant_value
+#print axioms countedInterpolant_cost
+#print axioms countedDecode_value
+#print axioms countedDecode_cost
 
 end Whir.ReedSolomonExtraction

@@ -281,19 +281,79 @@ uses no extension-field arithmetic. The field counter includes Gao's nodal
 product, Lagrange interpolation, fueled Euclidean loop with actual degree
 drop, final remainder/division, original novel-basis preparation, coefficient
 peeling and the guarded projection. -/
-def countedExtractRow (n rate : Nat) (noWrap : n + rate ≤ 64)
-    (received : Vector E (domain (n + rate) noWrap).n) : Option (Array K) × Nat :=
-  let decoded := ReedSolomonExtraction.countedDecode 382 (2 ^ n) (domain (n + rate) noWrap) received
+def countedExtractRowPrepared (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n)
+    (nodal : CPolynomial E × Nat) : Option (Array K) × Nat :=
+  let decoded := ReedSolomonExtraction.countedDecodePrepared 382 (2 ^ n)
+    (domain (n + rate) noWrap) received nodal
   match decoded.1 with
   | none => (none, decoded.2)
   | some p =>
     let projected := countedBaseWords n p
     (projected.1, decoded.2 + projected.2)
 
+def countedExtractRow (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n) : Option (Array K) × Nat :=
+  countedExtractRowPrepared n rate noWrap received
+    (ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap))
+
+theorem countedExtractRow_eq (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n) :
+    countedExtractRow n rate noWrap received =
+      let decoded := ReedSolomonExtraction.countedDecode 382 (2 ^ n)
+        (domain (n + rate) noWrap) received
+      match decoded.1 with
+      | none => (none,decoded.2)
+      | some p => let projected := countedBaseWords n p
+                  (projected.1,decoded.2+projected.2) := rfl
+
+theorem countedExtractRowPrepared_value_cost_independent (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n) (nodal : CPolynomial E) (cost : Nat) :
+    (countedExtractRowPrepared n rate noWrap received (nodal,cost)).1 =
+      (countedExtractRowPrepared n rate noWrap received (nodal,0)).1 := by
+  unfold countedExtractRowPrepared
+  dsimp only
+  rw [ReedSolomonExtraction.countedDecodePrepared_value_cost_independent]
+  split <;> simp_all
+
+theorem countedExtractRowPrepared_cost (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n) (nodal : CPolynomial E) (cost : Nat) :
+    (countedExtractRowPrepared n rate noWrap received (nodal,cost)).2 =
+      cost + (countedExtractRowPrepared n rate noWrap received (nodal,0)).2 := by
+  unfold countedExtractRowPrepared
+  dsimp only
+  rw [ReedSolomonExtraction.countedDecodePrepared_value_cost_independent,
+    ReedSolomonExtraction.countedDecodePrepared_cost]
+  split <;> simp_all [Nat.add_assoc]
+
+theorem countedExtractRow_shared_value (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n) :
+    (countedExtractRowPrepared n rate noWrap received
+      ((ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).1,0)).1 =
+      (countedExtractRow n rate noWrap received).1 := by
+  simpa only [countedExtractRow,Prod.mk.eta] using
+    (countedExtractRowPrepared_value_cost_independent n rate noWrap received
+      (ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).1
+      (ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).2).symm
+
+theorem countedExtractRow_shared_cost (n rate : Nat) (noWrap : n + rate ≤ 64)
+    (received : Vector E (domain (n + rate) noWrap).n) :
+    (countedExtractRow n rate noWrap received).2 =
+      (ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).2 +
+      (countedExtractRowPrepared n rate noWrap received
+        ((ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).1,0)).2 := by
+  simpa only [countedExtractRow,Prod.mk.eta] using
+    countedExtractRowPrepared_cost n rate noWrap received
+      (ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).1
+      (ReedSolomonExtraction.countedNodal (domain (n + rate) noWrap)).2
+
+#print axioms countedExtractRow_shared_value
+#print axioms countedExtractRow_shared_cost
+
 theorem countedExtractRow_value (n rate : Nat) (noWrap : n + rate ≤ 64)
     (received : Vector E (domain (n + rate) noWrap).n) :
     (countedExtractRow n rate noWrap received).1 = extractRow n rate noWrap received := by
-  simp only [countedExtractRow, ReedSolomonExtraction.countedDecode_value, extractRow, decode]
+  simp only [countedExtractRow_eq, ReedSolomonExtraction.countedDecode_value, extractRow, decode]
   split <;> simp_all [countedBaseWords_value]
 
 /-- Explicit polynomial field-arithmetic budget. `N=2^(n+rate)`, `k=2^n`;
@@ -310,7 +370,7 @@ theorem countedExtractRow_cost (n rate : Nat) (noWrap : n + rate ≤ 64)
   have decoderCost := ReedSolomonExtraction.countedDecode_cost 382 (2 ^ n)
     (domain (n + rate) noWrap) received
   rw [domain_size] at decoderCost
-  unfold countedExtractRow
+  rw [countedExtractRow_eq]
   cases output : (ReedSolomonExtraction.countedDecode 382 (2 ^ n)
       (domain (n + rate) noWrap) received).1 with
   | none =>

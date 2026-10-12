@@ -29,14 +29,14 @@ noncomputable local instance (key : Key p Q iv boundary) : Fintype (Answer p Q i
   | .inr _ => inferInstance
 
 abbrev Builder := (current : EnteredPacket p Q iv boundary) →
-  current.OtherValues → (∀ earlier : current.Earlier, Raw earlier.val) → CallerData p
+  current.OtherValues → (∀ earlier : current.Earlier, Raw earlier.val) → Option (CallerData p)
 
 open Classical in
 noncomputable def model (build : Builder p Q iv boundary) :
     PCSStateRestoration.Latent.NodeModel (Key p Q iv boundary) (Answer p Q iv boundary)
       (Option (CallerData p)) where
   reconstruct key other := match key with
-    | .inl current => some (current.metadataFromOther (build current) other)
+    | .inl current => current.metadataFromOther (build current) other
     | .inr _ => none
   before data key := match key, data with
     | .inl current, some caller => (callerCertificate p).before caller current.2.coord
@@ -72,14 +72,19 @@ theorem conditional_hazard (build : Builder p Q iv boundary) :
   intro key other undoomed
   cases key with
   | inl current =>
-    change (callerCertificate p).before
-      (current.metadataFromOther (build current) other) current.2.coord = false at undoomed
-    have bound := whole_packet_fiber p Q iv boundary
-      (current.metadataFromOther (build current) other) current undoomed
-    unfold Soundness.uniformProb at bound ⊢
-    simp only [model,Fintype.card_eq_nat_card] at bound ⊢
-    convert bound using 1
-    congr 2
+    cases recovered : current.metadataFromOther (build current) other with
+    | none =>
+      simp only [model,recovered,Bool.false_eq_true,Finset.filter_false,
+        Soundness.uniformProb,Finset.card_empty,Nat.cast_zero,zero_div]
+      unfold PCSRoundByRoundKnowledge.rbrError SupportedCandidateExtraction.radiusEnvelope
+      positivity
+    | some caller =>
+      simp only [model,recovered] at undoomed
+      change (callerCertificate p).before caller current.2.coord = false at undoomed
+      have bound := whole_packet_fiber p Q iv boundary caller current undoomed
+      unfold Soundness.uniformProb at bound ⊢
+      simp only [model,recovered,Fintype.card_eq_nat_card] at bound ⊢
+      exact bound
   | inr garbage =>
     simp only [model,Bool.false_eq_true,Finset.filter_false,Soundness.uniformProb,
       Finset.card_empty,Nat.cast_zero,zero_div]

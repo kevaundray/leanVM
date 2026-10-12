@@ -75,9 +75,9 @@ attribute [local irreducible] ParameterBounds.config
           ((PCSRewindExtraction.witnessLane input w lane).map E.ofK))[i.val]!) ≤
         blockLength input.config - width input.config) :
     (decodeRoot input noWrap).1 = some w := by
+  rw [decodeRoot_value]
   apply PCSRewindExtraction.assembleWitness_recovers
   intro lane
-  simp only [Array.getElem_ofFn]
   exact (ConcreteRowExtraction.countedExtractRow_recovers _ _ noWrap redundancy
     (PCSRewindExtraction.witnessLane input w lane) (by simp [PCSRewindExtraction.witnessLane])
     _ (radius lane)).1

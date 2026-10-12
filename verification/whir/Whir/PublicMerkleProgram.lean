@@ -159,22 +159,39 @@ private theorem storedQuery_eq (C : PrimitiveOracle) :
   funext n
   exact withStoredDigest_eq _ _
 
+private def hashResultStored (C : PrimitiveOracle) (bytes : List Byte) : Option Digest32 :=
+  PublicMerkleLog.run (storedQuery C) DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
+
+private theorem hashResultStored_present (C : PrimitiveOracle) (bytes : List Byte) :
+    (hashResultStored C bytes).isSome := by
+  unfold hashResultStored
+  rw [storedQuery_eq]
+  obtain ⟨d,hd⟩ := PublicMerkleLog.run_nonempty C (PublicMerkleLog.chunks bytes)
+    (PublicMerkleLog.chunks_nonempty bytes) DuplexCompression.parameterIV 0
+  rw [hd]
+  rfl
+
 def hashStored (C : PrimitiveOracle) (bytes : List Byte) : Digest32 :=
-  let result := PublicMerkleLog.run (storedQuery C) DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
-  result.get (by
-    dsimp only [result]
-    rw [storedQuery_eq]
-    obtain ⟨d,hd⟩ := PublicMerkleLog.run_nonempty C (PublicMerkleLog.chunks bytes)
-      (PublicMerkleLog.chunks_nonempty bytes) DuplexCompression.parameterIV 0
-    rw [hd]
-    rfl)
+  (hashResultStored C bytes).get (hashResultStored_present C bytes)
 
 @[csimp] theorem ordinaryHash_stored : PublicMerkleLog.hash = hashStored := by
   funext C bytes
   obtain ⟨d,hd⟩ := PublicMerkleLog.run_nonempty C (PublicMerkleLog.chunks bytes)
     (PublicMerkleLog.chunks_nonempty bytes) DuplexCompression.parameterIV 0
-  simp only [PublicMerkleLog.hash, hashStored, storedQuery_eq, hd]
+  simp only [PublicMerkleLog.hash, hashStored, hashResultStored, storedQuery_eq, hd]
   rfl
+
+/-- Force the stored ordinary fold before passing its digest to a consumer.
+The continuation prevents a function-valued digest from delaying that fold
+until each individual byte projection in native compilation. -/
+def withHashStored {T : Type} (C : PrimitiveOracle) (bytes : List Byte)
+    (next : Digest32 → T) : T :=
+  next ((hashResultStored C bytes).get (hashResultStored_present C bytes))
+
+theorem withHashStored_eq {T : Type} (C : PrimitiveOracle) (bytes : List Byte)
+    (next : Digest32 → T) : withHashStored C bytes next = next (PublicMerkleLog.hash C bytes) := by
+  unfold withHashStored
+  exact congrArg next (congrFun (congrFun ordinaryHash_stored C) bytes).symm
 
 def hashBlake2sStored : List Byte → Digest32 := hashStored blake2sOracle
 
@@ -183,6 +200,39 @@ not retain the old unstored fold. Neither implementation calls itself. -/
 @[csimp] theorem ordinaryBlake2s_stored :
     PublicMerkleLog.hashBlake2s = hashBlake2sStored := by
   exact congrFun ordinaryHash_stored blake2sOracle
+
+/-- Materialize each public plan reply before using it as the next input CV.
+This keeps the literal record list while avoiding repeated evaluation of the
+entire preceding compression chain through function-valued digests. -/
+private def planFromStored (C : PrimitiveOracle) (cv : Digest32) (count : Nat) :
+    List (List Byte) → PublicMerkleLog.PublicLog
+  | [] => []
+  | [b] =>
+    let input := PublicMerkleLog.node cv count b true
+    withStoredDigest (C input) (fun digest => [(input,digest)])
+  | b :: next :: rest =>
+    let input := PublicMerkleLog.node cv count b false
+    withStoredDigest (C input) (fun digest =>
+      (input,digest) :: planFromStored C digest (count+b.length) (next :: rest))
+
+@[csimp] theorem ordinaryPlanFrom_stored : PublicMerkleLog.planFrom = planFromStored := by
+  funext C cv count bs
+  induction bs generalizing cv count with
+  | nil => rfl
+  | cons b rest ih =>
+    cases rest with
+    | nil =>
+      simp only [PublicMerkleLog.planFrom,planFromStored,withStoredDigest_eq]
+    | cons next rest =>
+      simp only [PublicMerkleLog.planFrom,planFromStored,withStoredDigest_eq,ih]
+
+def planStored (C : PrimitiveOracle) (bytes : List Byte) : PublicMerkleLog.PublicLog :=
+  planFromStored C DuplexCompression.parameterIV 0 (PublicMerkleLog.chunks bytes)
+
+@[csimp] theorem ordinaryPlan_stored : PublicMerkleLog.plan = planStored := by
+  funext C bytes
+  unfold PublicMerkleLog.plan planStored
+  rw [ordinaryPlanFrom_stored]
 
 theorem hash_bind_real_result (C : PrimitiveOracle) (iv : Digest32) (bytes : List Byte)
     (next : Digest32 → Program R) :

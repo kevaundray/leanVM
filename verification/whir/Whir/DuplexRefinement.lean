@@ -470,6 +470,30 @@ def evalFrame (c : Compression) (cv : Digest32) : Frame → Digest32
 def evalHistory (c : Compression) (iv : Digest32) (h : FramedHistory) : Digest32 :=
   h.frames.foldl (evalFrame c) (seed c iv h.domain h.statement).cv
 
+/-- Runtime history replay stores each intermediate CV as bytes. Folding
+digest-valued closures instead recursively recomputes older frames whenever a
+later compression reads its input CV. The public literal evaluator stays fixed. -/
+def evalHistoryState (c : Compression) (iv : Digest32) (h : FramedHistory) : State :=
+  h.frames.foldl (fun s f => memoCV s (evalFrame c s.cv f))
+    (seed c iv h.domain h.statement)
+
+def evalHistoryMemo (c : Compression) (iv : Digest32) (h : FramedHistory) : Digest32 :=
+  (evalHistoryState c iv h).cv
+
+@[csimp] theorem evalHistory_memo : evalHistory = evalHistoryMemo := by
+  funext c iv h
+  have fold : ∀ fs : List Frame, ∀ s : State,
+      (fs.foldl (fun s f => memoCV s (evalFrame c s.cv f)) s).cv =
+        fs.foldl (evalFrame c) s.cv := by
+    intro fs
+    induction fs with
+    | nil => intro s; rfl
+    | cons f fs ih =>
+      intro s
+      rw [List.foldl_cons, List.foldl_cons, ih]
+      simp only [memoCV_eq]
+  exact (fold h.frames (seed c iv h.domain h.statement)).symm
+
 def evalTerminal (c : Compression) (cv : Digest32) : Terminal → Digest32
   | .output block => outputBlock c cv block
   | .commitment consumed => c cv (wordsBlock [consumed]) (UInt64.ofNat (7 * 2^56)) true

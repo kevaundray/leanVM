@@ -23,9 +23,6 @@ private def require (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
 
 private def p : ParameterBounds.Profile := (⟨0,by decide⟩,⟨0,by decide⟩)
-private def layout : WHIRCallerClaims.CallerLayout :=
-  .recursion ⟨⟨[],[],[],0⟩,[],#[.committed 0 15,.committed (2^15) 0],⟨0,6,7⟩,1⟩
-
 def smoke : IO Unit := do
   let words : List (List K) := [[0,3],[0,5],[0,7],[0,11]]
   let bytes := words.map ByteCodec.wordsBytes
@@ -48,27 +45,20 @@ def smoke : IO Unit := do
     | throw (IO.userError "empty anchored public source path")
   let target : Record := ⟨shape,root,⟨digest 41,fun _ => none,0,true,0,0⟩,[0,0],0⟩
   require (decide target.Valid) "invalid local immutable target"
-  let layouts := fun (_ : PublicLog) (_ : Node) => layout
-  let records := fun (_ : PublicLog) (_ : Node) => target
-  let entries := fun (_ : PublicLog) (_ : Node) => (⟨domain,statement,[]⟩ : FramedHistory)
-  let answers := fun (_ : PublicLog) (_ : Node) (_ : FiatShamirGame.Coordinate) => digest 0
-  let headers := fun (_ : PublicLog) (_ : Node) =>
+  let registry :=
     (⟨iv,domain,fun s => if s = statement then some shape else none⟩ : AnchoredHeaderRoots.Public)
-  let refs := PCSBCSSourcePrimitiveRootBudget.references p 64 layouts records entries answers
-    headers queryPrefix input
+  let refs := PCSBCSSourcePrimitiveRootBudget.references p 64 0 registry queryPrefix input
   let childKey := {key with terminal := .output 1}
   let some (childPrefix,childInput) := publicPath iv incomplete (DuplexEncoding.plan childKey)
     | throw (IO.userError "empty child-block source path")
   let childLog := Whir.DuplexPublicSimulator.observe childPrefix childInput (blake2sOracle childInput)
-  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 layouts records entries answers
-    headers target childLog) == some childPrefix)
+  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 0 registry target childLog) == some childPrefix)
     "later point block did not capture the root before its own first disclosure"
   require (refs.length == 1 && refs.all (fun r => decide
     (r = ⟨root,PCSBCSSourceRootReferences.initialShape shape⟩)))
     "actual commitment key did not select its complete-image address"
   let received := Whir.DuplexPublicSimulator.observe queryPrefix input (blake2sOracle input)
-  let some captured := PCSBCSPublicLogExtractor.selectPrefix p 64 layouts records entries answers
-      headers target received | throw (IO.userError "public anchor root was not captured")
+  let some captured := PCSBCSPublicLogExtractor.selectPrefix p 64 0 registry target received | throw (IO.userError "public anchor root was not captured")
   require (decide (captured = queryPrefix)) "capture included its challenge answer"
   let first := Whir.PCSBCSMerkleRootCache.freeze captured root (PCSBCSSourceRootReferences.initialShape shape)
   require (((first.cells[0]?).map (fun cell => cell.available)) == some false &&
@@ -76,20 +66,39 @@ def smoke : IO Unit := do
     "missing prefix image was authenticated or an available sibling was lost"
   let later := plan blake2sOracle bytes[0]! ++ received
   let changed := Whir.DuplexPublicSimulator.observe queryPrefix input (digest 123)
-  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 layouts records entries answers
-    headers target later) == some captured)
+  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 0 registry target later) == some captured)
     "later image queries replaced the first captured prefix"
-  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 layouts records entries answers
-    headers target changed) == some captured)
+  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 0 registry target changed) == some captured)
     "current whole answer changed the captured metadata"
-  let some stable := PCSBCSPublicLogExtractor.selectPrefix p 64 layouts records entries answers
-      headers target later | throw (IO.userError "later log lost an existing capture")
+  let some stable := PCSBCSPublicLogExtractor.selectPrefix p 64 0 registry target later | throw (IO.userError "later log lost an existing capture")
   require (((((Whir.PCSBCSMerkleRootCache.freeze stable root (PCSBCSSourceRootReferences.initialShape shape)).cells[0]?).map
     (fun cell => cell.available))) == some false)
     "future leaf preimage entered the straight-line extraction table"
   let foreign := { target with root := digest 42 }
-  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 layouts records entries answers
-    headers foreign received).isNone) "unmentioned target root was invented"
+  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 0 registry foreign received).isNone) "unmentioned target root was invented"
+  let config := ParameterBounds.config p
+  let decodedShape : Shape := ⟨config.logN,config.folds[0]!,config.rates[0]!,1⟩
+  let decodedTarget : Record :=
+    ⟨decodedShape,root,⟨digest 41,fun _ => none,0,true,0,0⟩,
+      List.replicate config.logN 0,0⟩
+  require (decide decodedTarget.Valid) "invalid supported opening fixture"
+  let decodedEntry := WHIRHistory.encodeHistory
+    ⟨domain,statement,[.absorb 0 (openingScalars decodedTarget)]⟩
+  let openingKey := WHIRCallerPrefix.outputKeyFrom (WHIRHistoryKey.stackWidth config)
+    decodedEntry [WHIRHistoryKey.initialPending] 0
+  let some (openingPrefix,openingInput) := publicPath iv incomplete (DuplexEncoding.plan openingKey)
+    | throw (IO.userError "empty literal saved-opening path")
+  let openingRefs := PCSBCSSourcePrimitiveRootBudget.references p 64 decodedEntry.frames.length
+    registry openingPrefix openingInput
+  require (openingRefs.length == 1 && openingRefs.all (fun r => decide
+    (r = ⟨root,PCSBCSSourceRootReferences.initialShape decodedShape⟩)))
+    "literal saved opening failed conservative role recovery"
+  let openingLog := Whir.DuplexPublicSimulator.observe openingPrefix openingInput
+    (blake2sOracle openingInput)
+  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 decodedEntry.frames.length registry
+    decodedTarget openingLog) == some openingPrefix) "decoded saved opening not captured before reply"
+  require ((PCSBCSPublicLogExtractor.selectPrefix p 64 decodedEntry.frames.length registry
+    target openingLog).isNone) "equal roots at different shapes shared a cache address"
   IO.println "public-log extractor smoke PASS (real BLAKE2s, anchored address, before-answer capture, unavailable status, future/current independence)"
 
 end Whir.PCSBCSPublicLogExtractorSmoke

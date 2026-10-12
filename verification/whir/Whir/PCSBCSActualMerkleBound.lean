@@ -8,20 +8,16 @@ namespace Whir.PCSBCSActualMerkleBound
 open Concrete Protocol FiatShamirGame DuplexFraming DuplexPublicSimulator
 open PCSBCSSourcePrimitiveRootBudget PCSBCSMerkleQueryLog
 
-variable (p : ParameterBounds.Profile) (Q : Nat)
-    (layout : PublicLog → Node → WHIRCallerClaims.CallerLayout)
-    (saved : PublicLog → Node → AnchoredHeaderCodec.Record)
-    (entry : PublicLog → Node → FramedHistory)
-    (answers : PublicLog → Node → FiatShamirGame.Coordinate → Digest32)
-    (headers : PublicLog → Node → AnchoredHeaderRoots.Public)
+variable (p : ParameterBounds.Profile) (Q boundary : Nat)
+    (registry : AnchoredHeaderRoots.Public)
 
 theorem source_extraction_probability {T : Type}
     (program : PublicCompressionProgram.Computation T Q) :
-    extractionProbability (targets p Q layout saved entry answers headers) program ≤
+    extractionProbability (targets p Q boundary registry) program ≤
       PublicMerkleProbability.bound Q (Q*(Q+1)) :=
-  multi_extraction_probability (targets p Q layout saved entry answers headers) Q (Q*(Q+1))
-    (targets_cap p Q layout saved entry answers headers)
-    (targets_grow p Q layout saved entry answers headers) program
+  multi_extraction_probability (targets p Q boundary registry) Q (Q*(Q+1))
+    (targets_cap p Q boundary registry)
+    (targets_grow p Q boundary registry) program
 
 theorem exact_merkle_loss (Q : Nat) :
     PublicMerkleProbability.bound Q (Q*(Q+1)) =

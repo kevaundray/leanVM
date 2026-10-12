@@ -104,6 +104,30 @@ finals also handles a final query appearing before its predecessor queries. -/
 def records (log : PublicLog) : Records :=
   log.filterMap fun (n,d) => (parse log n d).map fun bytes => (bytes,d)
 
+private def storedRecord (record : Node × Digest32) : Node × Digest32 :=
+  let bytes := Array.ofFn record.2
+  (record.1, fun i => bytes[i.val]'(by simp [bytes]))
+
+private theorem storedRecord_eq (record : Node × Digest32) :
+    storedRecord record = record := by
+  apply Prod.ext
+  · simp only [storedRecord]
+  · funext i
+    simp [storedRecord]
+
+private def storedRecords (log : PublicLog) : Records :=
+  let stored := log.map storedRecord
+  stored.filterMap fun (n,d) => (parse stored n d).map fun bytes => (bytes,d)
+
+@[csimp] private theorem records_stored :
+    records = storedRecords := by
+  funext log
+  have hs : log.map storedRecord = log := by
+    have hf : storedRecord = id := funext storedRecord_eq
+    rw [hf]
+    exact List.map_id log
+  simp only [storedRecords, hs, records]
+
 def observe (log : PublicLog) (n : Node) (answer : Digest32) : PublicLog × Records :=
   let updated := insert log n answer
   (updated, records updated)

@@ -10,6 +10,7 @@ namespace Whir.PCSRoundByRoundSource
 open Concrete Protocol CausalGame KnowledgeExtraction SupportedCandidateExtraction
 open scoped BigOperators
 set_option maxHeartbeats 4000000
+local instance : Field E := ExtractionField.field
 
 /-- Literal physical availability, not equality with an honest commitment. -/
 def FullRoot (c : Config) (lanes : Nat) (root : BaseOracle) : Prop :=
@@ -21,17 +22,40 @@ instance (c : Config) (lanes : Nat) (root : BaseOracle) : Decidable (FullRoot c 
 def receivedLane (input : Public) (lane : Fin input.lanes) : Fin (blockLength input.config) → E :=
   fun q => E.ofK (recordLane input.lanes input.root[q.val]! lane.val)
 
-/-- One counted Gao/novel/base-word run per occupied lane; only lane vectors
-are materialized. Root leaves are neither copied nor searched. -/
+/-- Share the public-domain nodal product across occupied lanes, charging its
+construction once. Root leaves are neither copied nor searched. -/
 def decodeRoot (input : Public)
     (noWrap : input.config.logN - input.config.folds[0]! + input.config.rates[0]! ≤ 64) :
     Option (Witness input.config input.lanes) × Nat :=
+  let nodal := if input.lanes = 0 then (0,0) else
+    ReedSolomonExtraction.countedNodal (ConcreteRowExtraction.domain
+      (input.config.logN - input.config.folds[0]! + input.config.rates[0]!) noWrap)
   let decoded := Array.ofFn fun lane : Fin input.lanes =>
-    ConcreteRowExtraction.countedExtractRow (input.config.logN - input.config.folds[0]!)
-      input.config.rates[0]! noWrap ⟨Array.ofFn (receivedLane input lane), by simp⟩
+    ConcreteRowExtraction.countedExtractRowPrepared (input.config.logN - input.config.folds[0]!)
+      input.config.rates[0]! noWrap ⟨Array.ofFn (receivedLane input lane), by simp⟩ (nodal.1,0)
   (PCSRewindExtraction.assembleWitness input fun lane =>
     (decoded[lane.val]'(by simp [decoded])).1,
-    (decoded.map Prod.snd).toList.sum)
+    nodal.2 + (decoded.map Prod.snd).toList.sum)
+
+theorem decodeRoot_value (input : Public)
+    (noWrap : input.config.logN - input.config.folds[0]! + input.config.rates[0]! ≤ 64) :
+    (decodeRoot input noWrap).1 =
+      PCSRewindExtraction.assembleWitness input (fun lane =>
+        (ConcreteRowExtraction.countedExtractRow
+          (input.config.logN - input.config.folds[0]!) input.config.rates[0]! noWrap
+          ⟨Array.ofFn (receivedLane input lane),by simp⟩).1) := by
+  by_cases empty : input.lanes = 0
+  · simp only [decodeRoot,empty,↓reduceIte]
+    apply congrArg (PCSRewindExtraction.assembleWitness input)
+    funext lane
+    have := lane.isLt
+    omega
+  · simp only [decodeRoot,empty,↓reduceIte,Array.getElem_ofFn]
+    apply congrArg (PCSRewindExtraction.assembleWitness input)
+    funext lane
+    exact ConcreteRowExtraction.countedExtractRow_shared_value _ _ noWrap _
+
+#print axioms decodeRoot_value
 
 def matchingRows (input : Public) (w : Witness input.config input.lanes) :
     Finset (Fin (blockLength input.config)) :=
@@ -61,14 +85,29 @@ theorem decodeRoot_cost (input : Public)
     (redundancy : width input.config < blockLength input.config) :
     (decodeRoot input noWrap).2 ≤ input.lanes *
       ConcreteRowExtraction.rowArithmeticPolynomial (blockLength input.config) := by
-  simp only [decodeRoot, Array.toList_map, Array.toList_ofFn, List.map_ofFn, List.sum_ofFn]
-  calc
-    _ ≤ ∑ _lane : Fin input.lanes,
-        ConcreteRowExtraction.rowArithmeticPolynomial (blockLength input.config) := by
-      apply Finset.sum_le_sum
-      intro lane _
-      exact ConcreteRowExtraction.countedExtractRow_polynomial_cost _ _ noWrap redundancy _
-    _ = _ := by simp
+  by_cases empty : input.lanes = 0
+  · simp [decodeRoot,empty]
+  · simp only [decodeRoot,empty,↓reduceIte,Array.toList_map,
+      Array.toList_ofFn,List.map_ofFn,List.sum_ofFn]
+    have positive : 0 < input.lanes := by omega
+    calc
+      _ ≤ ∑ lane : Fin input.lanes,
+          (ConcreteRowExtraction.countedExtractRow
+            (input.config.logN-input.config.folds[0]!) input.config.rates[0]! noWrap
+            ⟨Array.ofFn (receivedLane input lane),by simp⟩).2 := by
+        simp_rw [ConcreteRowExtraction.countedExtractRow_shared_cost]
+        rw [Finset.sum_add_distrib]
+        simp only [Finset.sum_const,Finset.card_univ,Fintype.card_fin,nsmul_eq_mul]
+        simpa only [Function.comp_apply,Nat.cast_id] using
+          Nat.add_le_add_right (Nat.le_mul_of_pos_left _ positive) _
+      _ ≤ ∑ _lane : Fin input.lanes,
+          ConcreteRowExtraction.rowArithmeticPolynomial (blockLength input.config) := by
+        apply Finset.sum_le_sum
+        intro lane _
+        exact ConcreteRowExtraction.countedExtractRow_polynomial_cost _ _ noWrap redundancy _
+      _ = _ := by simp
+
+#print axioms decodeRoot_cost
 
 def runForConfig {m : Nat} (c : Config)
     (noWrap : c.logN - c.folds[0]! + c.rates[0]! ≤ 64) (lanes : Nat)

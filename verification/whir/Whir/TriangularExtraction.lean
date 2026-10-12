@@ -201,7 +201,7 @@ theorem countedPeel_cost (inverseCost : Nat) (basis : Nat → CPolynomial F)
       calc
         _ ≤ (CPolynomial.C a).val.size *
             ((CPolynomial.C a).val.size + 2 * (basis size).val.size) :=
-          ReedSolomonExtraction.countedRawMul_cost _ _
+          ReedSolomonExtraction.countedMul_cost_asymmetric _ _
         _ ≤ 1 * (1 + 2 * width) :=
           Nat.mul_le_mul constantSize
             (Nat.add_le_add constantSize (Nat.mul_le_mul_left 2 basisSize))
@@ -434,7 +434,7 @@ theorem countedPreparedPeel_cost (inverseCost : Nat) (v : Nat → F) (depth size
     have productSupport : (countedMul (CPolynomial.C coefficient) basis.1).1.val.size ≤ width := by
       rw [countedMul_value]; exact (constant_mul_support _ _).trans basisSupport
     have productCost : (countedMul (CPolynomial.C coefficient) basis.1).2 ≤ 1 + 2 * width := by
-      exact (countedRawMul_cost _ _).trans (by
+      exact (countedMul_cost_asymmetric _ _).trans (by
         calc
           _ ≤ 1 * (1 + 2 * width) :=
             Nat.mul_le_mul (constant_support coefficient)

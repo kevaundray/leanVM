@@ -473,7 +473,7 @@ theorem trace_authenticatedRows {ctx : RawWHIRKeys.Context} {stack : ctx.mode = 
   rw [rows,actualRows,incoming]
   exact atQueries_get _ _ j jBound
 
-private theorem run_indexed_replies (input : CausalGame.Public) (tape : CausalGame.Tape input.config)
+theorem run_indexed_replies (input : CausalGame.Public) (tape : CausalGame.Tape input.config)
     (replies : Array CausalGame.Reply) (proof : Opening)
     (parsed : CausalGame.opening input.config (CausalGame.challenges input.config tape) replies = .ok proof) :
     CausalGame.run (CausalStrategy.indexedStrategy replies) input []
