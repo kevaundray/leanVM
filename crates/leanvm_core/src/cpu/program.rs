@@ -46,7 +46,7 @@ const _: () = assert!(cfg!(target_endian = "little"));
 
 impl Program {
     /// The domain separator of the digest, versioned with the statement's format.
-    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-15";
+    const DIGEST_DOMAIN: &'static [u8] = b"leanvm-rv64im-14";
 
     /// The protocol half of the transcript's session tag: the proof system, its sponge and codecs, its version.
     ///

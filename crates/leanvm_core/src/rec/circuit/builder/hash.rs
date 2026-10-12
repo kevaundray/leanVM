@@ -62,11 +62,18 @@ impl Builder {
 
     /// One block of a long message: `m` absorbed into `h` at byte counter `t`, final if `last`.
     pub fn leaf_block(&mut self, h: Dw, m: [Kw; 8], t: u64, last: bool) -> Dw {
-        let compression = Compression::new(self.d(h), m.map(|w| self.k(w)), t, last);
+        let tf = self.d_const([t, if last { Hash::FINAL } else { 0 }, 0, 0]);
+        self.block(h, m, tf)
+    }
+
+    /// One block of a long message whose byte counter and finalization word are wires: `tf` is `[t, f, 0, 0]`.
+    pub fn block(&mut self, h: Dw, m: [Kw; 8], tf: Dw) -> Dw {
+        let [t, f, ..] = self.d(tf);
+        let compression = Compression::with_flags(self.d(h), m.map(|w| self.k(w)), t, f);
         let v = &compression.inputs()[6..];
         let head = HashHead {
             h,
-            tf: self.d_const([t, if last { Hash::FINAL } else { 0 }, 0, 0]),
+            tf,
             mux: self.free_d([v[0], v[1], v[2], v[3]]),
             bit: self.free_k(0),
             x: self.free_e(F192::new(v[4], v[5], v[6])),
