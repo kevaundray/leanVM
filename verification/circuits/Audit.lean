@@ -604,6 +604,14 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.TreeSound.tree_sound
 #print axioms LeanVMCircuits.Rec.TreeSound.tree_sound_frac
 #print axioms LeanVMCircuits.Rec.TreeSound.tree_sound_eps
+#print axioms LeanVMCircuits.Rec.Edges.stmtClaims_map
+#print axioms LeanVMCircuits.Rec.Edges.stmtClaims_congr
+#print axioms LeanVMCircuits.Rec.Edges.ScaleCert.sem
+#print axioms LeanVMCircuits.Rec.Edges.allHold_of_replay
+#print axioms LeanVMCircuits.Rec.Edges.EdgeCert.edge
+#print axioms LeanVMCircuits.Rec.Edges.EdgeCert.edge_holds
+#print axioms LeanVMCircuits.Rec.Edges.hedge_of_certs
+#print axioms LeanVMCircuits.Rec.Edges.tree_sound_certs
 #print axioms LeanVMCircuits.Rec.balanced_of_eq
 #print axioms LeanVMCircuits.Rec.bus_balance_sound
 #print axioms LeanVMCircuits.Rec.bus_copy_sound

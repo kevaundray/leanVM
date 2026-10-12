@@ -4,6 +4,7 @@
 
 use crate::class_flock::FlockId;
 use crate::cpu::Claim;
+use crate::rec::circuit::Ew;
 use flock::lincheck::MatrixForm;
 
 /// The polynomials the program and the tree's circuits fix, on which tree proofs carry claims.
@@ -270,5 +271,62 @@ impl<E: Copy> NodeClaims<E> {
             dense: self.dense.iter().map(|c| c.map(&mut f)).collect(),
             matrices: self.matrices.iter().map(|c| c.map(&mut f)).collect(),
         }
+    }
+}
+
+/// Wires as a dump line's numbers: their count, then each.
+fn wire_list(ws: &[Ew]) -> String {
+    let mut s = ws.len().to_string();
+    for w in ws {
+        s.push(' ');
+        s.push_str(&w.0.to_string());
+    }
+    s
+}
+
+impl Coefficient<Ew> {
+    /// The coefficient as a dump line's word: `zero`, `one`, or its wire.
+    fn edge_word(self) -> String {
+        match self {
+            Self::Zero => "zero".into(),
+            Self::One => "one".into(),
+            Self::Of(w) => w.0.to_string(),
+        }
+    }
+}
+
+impl NodeClaims<Ew> {
+    /// The claims the reduction takes as `CheckEdges` reads them: per dense claim an `edge dense` line and an `edge term` line per term, then per matrix claim an `edge matrix`, an `edge row` and an `edge col` line.
+    pub(crate) fn edge_lines(&self) -> String {
+        let mut lines = Vec::new();
+        for c in &self.dense {
+            lines.push(format!("edge dense {} {}", c.poly as usize, wire_list(&c.low)));
+            for t in &c.terms {
+                let scale = t.scale.map_or_else(|| "none".into(), |w| w.0.to_string());
+                lines.push(format!(
+                    "edge term {} {} {} {scale} {} {}",
+                    t.n_low,
+                    t.bits.value,
+                    t.bits.len,
+                    t.value.0,
+                    wire_list(&t.top)
+                ));
+            }
+        }
+        for m in &self.matrices {
+            let [a, b] = m.coefficients.map(Coefficient::edge_word);
+            lines.push(format!("edge matrix {} {a} {b} {}", m.circuit.index(), m.value.0));
+            lines.push(match &m.row {
+                RowWeight::Skip { z, rest } => format!("edge row skip {} {}", z.0, wire_list(rest)),
+                RowWeight::Point(p) => format!("edge row point {}", wire_list(p)),
+            });
+            lines.push(match &m.col {
+                ColWeight::Slices { slices, rest } => {
+                    format!("edge col slices {} {}", wire_list(slices), wire_list(rest))
+                }
+                ColWeight::Point(p) => format!("edge col point {}", wire_list(p)),
+            });
+        }
+        lines.join("\n")
     }
 }

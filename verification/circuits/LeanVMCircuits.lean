@@ -42,6 +42,7 @@ public import LeanVMCircuits.Rec.RomExamples
 public import LeanVMCircuits.Rec.RoundSound
 public import LeanVMCircuits.Rec.Rounds
 public import LeanVMCircuits.Rec.TreeSound
+public import LeanVMCircuits.Rec.Edges
 public import LeanVMCircuits.Rec.Sumcheck
 public import LeanVMCircuits.Rec.Union
 public import LeanVMCircuits.Rec.UnionCover
