@@ -87,7 +87,7 @@ pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{Assumption, DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 #[doc(hidden)]
 pub use rec::tree::{
-    AssumedProofs, Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError,
+    Aggregate, AssumedProofs, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError,
     ClaimShape, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tier, Tree, TreeError, TreeProof,
     TreeShape, Unsatisfied,
 };
@@ -161,7 +161,7 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// values' digest, with nothing left assumed.
 pub mod aggregate {
     pub use crate::rec::tree::{
-        AssumedProofs, Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError,
+        Aggregate, AssumedProofs, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError,
         ClaimShape, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tier, Tree, TreeError, TreeProof,
         TreeShape, Unsatisfied,
     };
