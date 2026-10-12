@@ -528,42 +528,36 @@ theorem union_cover (c : Cert) (s : State) (h : c.unionsOk s = true) {i j : ℕ}
   set N := 2 * max (c.poolOf i).n (c.poolOf j).n
   have hP : Multiset.card P ≤ N := (card_onClaims _).trans (by rw [length_slots]; omega)
   have hQ : Multiset.card Q ≤ N := (card_onClaims _).trans (by rw [length_slots]; omega)
-  -- At a point where some such assignment passes the test, the two multisets' products agree.
-  have hsub : {f ∈ Fintype.piFinset fun _ : Fin 5 => S | ∃ (st : ℕ → Fin 4 → K) (val : Val),
-      Holds st s c.test val ∧ HashCR s val₀ val ∧ (c.poolOf i).Agree c.outs val₀ val ∧
-      (c.poolOf j).Agree c.outs val₀ val ∧ Model.ev val (c.points.getD i default).x = f 0 ∧
-      (∀ k : Fin 4, Model.ev val ((c.points.getD i default).aj k) = f k.succ) ∧
-      Model.ev val (out c.outs (c.poolOf i) (c.prods.getD i default)) =
-        Model.ev val (out c.outs (c.poolOf j) (c.prods.getD j default))} ⊆
-      {f ∈ Fintype.piFinset fun _ : Fin 5 => S | prodAt P (f 0) (Fin.tail f) = prodAt Q (f 0) (Fin.tail f)} := by
-    intro f hf
-    simp only [mem_filter] at hf ⊢
-    obtain ⟨hfS, st, val, hv, hcr, hai, haj, hx, ha, htest⟩ := hf
-    refine ⟨hfS, ?_⟩
-    obtain ⟨hF, -, -⟩ := facts_of_holds h hv
-    have side : ∀ l < c.prods.size, c.points.getD l default = c.points.getD i default →
-        (c.poolOf l).Agree c.outs val₀ val →
-        Model.ev val (out c.outs (c.poolOf l) (c.prods.getD l default)) =
-          prodAt (onClaims (slots c.outs (c.poolOf l) val₀)) (f 0) (Fin.tail f) := by
-      intro l hl hptl ⟨hd, hb, hs⟩
-      obtain ⟨hpo, hqo, hpto⟩ := hcerts l hl
-      simp only [PointCert.ok, Bool.and_eq_true, beq_iff_eq] at hpto
-      obtain ⟨⟨hcalls, hx1⟩, hw⟩ := hpto
-      rw [hptl] at hcalls hx1 hw
-      obtain ⟨hpx, hpw⟩ := point_sem hF hcalls
-      have hW : ∀ k : Fin 16, Model.ev val ((c.prods.getD l default).w k) = eqAt (Fin.tail f) k := by
-        intro k
-        rw [ProdCert.w, hw, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range k.isLt,
-          Option.map_some, Option.getD_some, hpw k]
-        congr 1
-        funext t
-        exact ha t
-      rw [prod_slotsAt hF hpo hqo _ hW, hx1, hpx, hx,
-        slots_eq _ (slots_bits hF hpo) (f 0) (Fin.tail f),
-        slots_agree hF₀ hF hR hpo hcr hd hb hs]
-    rw [← side i hi rfl hai, ← side j hj hpt.symm haj, htest]
-  refine le_trans ?_ (coverage_sound P Q N hP hQ hne S)
-  gcongr
+  -- At a point where some such assignment passes the test, the two multisets' products agree. The sets are the
+  -- statements' own, so no two decidability instances need comparing.
+  refine le_trans (div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_le_card ?_)) (by positivity))
+    (coverage_sound P Q N hP hQ hne S)
+  intro f hf
+  rw [mem_filter] at hf ⊢
+  obtain ⟨hfS, st, val, hv, hcr, hai, haj, hx, ha, htest⟩ := hf
+  refine ⟨hfS, ?_⟩
+  obtain ⟨hF, -, -⟩ := facts_of_holds h hv
+  have side : ∀ l < c.prods.size, c.points.getD l default = c.points.getD i default →
+      (c.poolOf l).Agree c.outs val₀ val →
+      Model.ev val (out c.outs (c.poolOf l) (c.prods.getD l default)) =
+        prodAt (onClaims (slots c.outs (c.poolOf l) val₀)) (f 0) (Fin.tail f) := by
+    intro l hl hptl ⟨hd, hb, hs⟩
+    obtain ⟨hpo, hqo, hpto⟩ := hcerts l hl
+    simp only [PointCert.ok, Bool.and_eq_true, beq_iff_eq] at hpto
+    obtain ⟨⟨hcalls, hx1⟩, hw⟩ := hpto
+    rw [hptl] at hcalls hx1 hw
+    obtain ⟨hpx, hpw⟩ := point_sem hF hcalls
+    have hW : ∀ k : Fin 16, Model.ev val ((c.prods.getD l default).w k) = eqAt (Fin.tail f) k := by
+      intro k
+      rw [ProdCert.w, hw, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range k.isLt,
+        Option.map_some, Option.getD_some, hpw k]
+      congr 1
+      funext t
+      exact ha t
+    rw [prod_slotsAt hF hpo hqo _ hW, hx1, hpx, hx,
+      slots_eq _ (slots_bits hF hpo) (f 0) (Fin.tail f),
+      slots_agree hF₀ hF hR hpo hcr hd hb hs]
+  rw [← side i hi rfl hai, ← side j hj hpt.symm haj, htest]
 
 /-! The union's soundness on an accepted circuit. -/
 
@@ -575,6 +569,34 @@ theorem Cert.marks_getD (c : Cert) (s : State) {k : ℕ} (hk : k < (c.marks s).l
     (c.marks s).getD k default = (c.transcripts.getD k default, c.times s (c.transcripts.getD k default)) := by
   have hk' : k < c.transcripts.length := by simpa [Cert.marks] using hk
   simp [Cert.marks, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk']
+
+open Classical Finset in
+/-- With the challenge `pt` uniform on `S^5` over the outcomes `Ω`, the outcomes of `A`, each drawing a challenge of
+`F ⊆ S^5`, are at most a `#F/|S|^5` fraction. -/
+theorem uniform_count {Ω : Type} [Fintype Ω] (S : Finset E) (pt : Ω → Fin 5 → E)
+    (hS : ∀ ω, pt ω ∈ Fintype.piFinset fun _ : Fin 5 => S)
+    (hpt : ∀ f ∈ Fintype.piFinset (fun _ : Fin 5 => S), #S ^ 5 * #{ω | pt ω = f} = Fintype.card Ω)
+    (A : Finset Ω) (F : Finset (Fin 5 → E)) (hF : F ⊆ Fintype.piFinset fun _ : Fin 5 => S)
+    (hA : ∀ ω ∈ A, pt ω ∈ F) : (#A : ℚ≥0) / Fintype.card Ω ≤ #F / (#S ^ 5 : ℚ≥0) := by
+  have hsub : A ⊆ F.biUnion fun f => {ω | pt ω = f} := by
+    intro ω hω
+    simp only [mem_biUnion, mem_filter, mem_univ, true_and]
+    exact ⟨pt ω, hA ω hω, rfl⟩
+  have hcard := (card_le_card hsub).trans card_biUnion_le
+  have hsum : #S ^ 5 * ∑ f ∈ F, #({ω | pt ω = f} : Finset Ω) = #F * Fintype.card Ω := by
+    rw [mul_sum, sum_congr rfl fun f hf => hpt f (hF hf), sum_const, smul_eq_mul]
+  rcases (Fintype.card Ω).eq_zero_or_pos with h0 | h0
+  · rw [h0]; simp
+  have hS0 : 0 < #S := by
+    obtain ⟨ω⟩ : Nonempty Ω := Fintype.card_pos_iff.mp h0
+    have := hS ω
+    rw [Fintype.mem_piFinset] at this
+    exact card_pos.mpr ⟨_, this 0⟩
+  rw [div_le_div_iff₀ (by exact_mod_cast h0) (by positivity)]
+  have key : #A * #S ^ 5 ≤ #F * Fintype.card Ω := by
+    rw [mul_comm, ← hsum]
+    exact Nat.mul_le_mul_left _ hcard
+  exact_mod_cast key
 
 open Classical Finset in
 /-- The union's soundness. Take an accepted circuit and one of its unions (`cv`): the coverage test of the products
@@ -610,46 +632,16 @@ theorem union_sound (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover}
     exact eq_of_limbs4 fun n hn => by
       obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp (hm n (List.mem_flatMap.mpr ⟨w, hw, hn⟩))
       exact closure_agree hvalid (hseed ω) ((Cert.times_sound c s _ hk).mono seedsBefore_seedsOf)
-  have hcover := union_cover c s hun hsel hdecl hpts hv₀ hne S
-  set F := {f ∈ Fintype.piFinset fun _ : Fin 5 => S | ∃ (st : ℕ → Fin 4 → K) (val : Val), Holds st s c.test val ∧
-      HashCR s val₀ val ∧ (c.poolOf cv.sel).Agree c.outs val₀ val ∧ (c.poolOf cv.decl).Agree c.outs val₀ val ∧
-      Model.ev val (c.points.getD cv.sel default).x = f 0 ∧
-      (∀ k : Fin 4, Model.ev val ((c.points.getD cv.sel default).aj k) = f k.succ) ∧
-      Model.ev val (out c.outs (c.poolOf cv.sel) (c.prods.getD cv.sel default)) =
-        Model.ev val (out c.outs (c.poolOf cv.decl) (c.prods.getD cv.decl default))} with hF
-  -- Each outcome of the event draws a challenge of `F`.
-  have hsub : ({ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
-      ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : Finset Ω) ⊆
-      F.biUnion fun f => {ω | pt ω = f} := by
-    intro ω hω
-    simp only [mem_filter, mem_univ, true_and] at hω
-    obtain ⟨hat, htest⟩ := hω
-    simp only [mem_biUnion, mem_filter, mem_univ, true_and]
-    refine ⟨pt ω, ?_, rfl⟩
-    rw [hF, mem_filter]
-    have heq := htest _ _ hu
-    refine ⟨hS ω, st ω, val ω, hv ω, hcr ω,
-      PoolCert.agree_of_committed fun w hw => hagree ω w (List.mem_append_left _ hw),
-      PoolCert.agree_of_committed fun w hw => hagree ω w (List.mem_append_right _ hw), ?_, fun k => ?_, ?_⟩
-    · rw [← hat]; simp [PointCert.at]
-    · rw [← hat]; simp [PointCert.at]
-    · unfold Model.ev; rw [heq]
-  have hcard := (card_le_card hsub).trans card_biUnion_le
-  have hsum : #S ^ 5 * ∑ f ∈ F, #({ω | pt ω = f} : Finset Ω) = #F * Fintype.card Ω := by
-    rw [mul_sum, sum_congr rfl fun f hf => hpt f (mem_filter.mp hf).1, sum_const, smul_eq_mul]
-  rcases (Fintype.card Ω).eq_zero_or_pos with h0 | h0
-  · rw [h0]; simp
-  have hS0 : 0 < #S := by
-    obtain ⟨ω⟩ : Nonempty Ω := Fintype.card_pos_iff.mp h0
-    have := hS ω
-    rw [Fintype.mem_piFinset] at this
-    exact card_pos.mpr ⟨_, this 0⟩
-  refine le_trans ?_ hcover
-  rw [div_le_div_iff₀ (by exact_mod_cast h0) (by positivity)]
-  have key : #({ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
-      ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : Finset Ω) * #S ^ 5 ≤ #F * Fintype.card Ω := by
-    rw [mul_comm, ← hsum]
-    exact Nat.mul_le_mul_left _ hcard
-  exact_mod_cast key
+  refine le_trans (uniform_count S pt hS hpt _ _ (filter_subset _ _) fun ω hω => ?_)
+    (union_cover c s hun hsel hdecl hpts hv₀ hne S)
+  rw [mem_filter] at hω ⊢
+  obtain ⟨-, hat, htest⟩ := hω
+  have heq := htest _ _ hu
+  refine ⟨hS ω, st ω, val ω, hv ω, hcr ω,
+    PoolCert.agree_of_committed fun w hw => hagree ω w (List.mem_append_left _ hw),
+    PoolCert.agree_of_committed fun w hw => hagree ω w (List.mem_append_right _ hw), ?_, fun k => ?_, ?_⟩
+  · rw [← hat]; simp [PointCert.at]
+  · rw [← hat]; simp [PointCert.at]
+  · unfold Model.ev; rw [heq]
 
 end LeanVMCircuits.Rec.Bind
