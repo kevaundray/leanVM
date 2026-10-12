@@ -390,6 +390,8 @@ structure Report where
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
+  /-- The GKR odd layers the certificate names. -/
+  odds : ℕ := 0
   /-- The calls of the `eq_e` tests that close no certified sumcheck and no union. -/
   others : Array ℕ := #[]
   deriving Repr
@@ -502,6 +504,68 @@ def foldOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) 
     | none => return none
   return (zeroAt rp idx cur).map (·, calls)
 
+/-- The challenge `x`: three squeezed words. -/
+def chalOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (x : ℕ) : Option ChalCert := do
+  let (chalAt, w0, w1, w2) ← makerBy rp idx x (fun j c => match c with
+    | .kToE a b d => some (j, a, b, d)
+    | _ => none)
+  let words ← [w0, w1, w2].mapM fun wk => (idx.getD wk #[]).findSome? fun (dk, p) =>
+    match rp.calls.getD dk .zero with
+    | .dToK d => makerBy rp idx d (fun lb c => match c with
+      | .leafBlock _ _ t _ => if t / 2 ^ 56 = 6 then some (dk, p, lb) else none
+      | _ => none)
+    | _ => none
+  return { chal := x, chalAt, words, time := 0 }
+
+/-- A challenge's time in a transcript: one more than the place of the block whose output its squeeze reads. -/
+def chalTime (rp : Replay) (s : State) (t : Transcript) (cc : ChalCert) : Option ℕ := do
+  let (_, _, lb) ← cc.words.head?
+  let .leafBlock h _ _ _ := rp.calls.getD lb .zero | none
+  let k ← t.blocks.findIdx? fun b => (s.hash.getD b []).getD 6 0 == h
+  return k + 1
+
+/-- The GKR odd layer a test closes: one side the values at `λ` by Horner, the other the products of children at `λ`,
+then each value's line through its children at the next challenge, made after the test. -/
+def oddOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (ts : List Transcript)
+    (u call a b : ℕ) : Option OddCert := Id.run do
+  for (cw, ew) in [(a, b), (b, a)] do
+    let some (lam, values, claimZero, claimAt) := hornerOf rp idx cw | continue
+    let some (lam', prods, expZero, expAt) := hornerOf rp idx ew | continue
+    if lam' ≠ lam ∨ prods.length ≠ values.length then continue
+    let some kids := prods.mapM (fun p => makerBy rp idx p (fun j c => match c with
+      | .mul l r => some (j, l, r)
+      | _ => none)) | continue
+    -- Each value's line: `add(l, r)`, then `mul_add(r', sum, l)`, after the test.
+    let mut sums := #[]
+    let mut outs := #[]
+    let mut rr : Option ℕ := none
+    for (_, l, r) in kids do
+      let some j := (List.range 400).findSome? (fun d => match rp.calls.getD (call + d) .zero with
+        | .add l' r' => if l' = l ∧ r' = r then some (call + d) else none
+        | _ => none) | break
+      let sw := o rp.outs j
+      let some (j', x) := (List.range 400).findSome? (fun d => match rp.calls.getD (j + d) .zero with
+        | .mulAdd x sw' l' => if sw' = sw ∧ l' = l then some (j + d, x) else none
+        | _ => none) | break
+      if rr.any (· ≠ x) then break
+      rr := some x
+      sums := sums.push j
+      outs := outs.push j'
+    let some x := rr | continue
+    if outs.size ≠ kids.length then continue
+    let some lamC := chalOf rp idx lam | continue
+    let some nextC := chalOf rp idx x | continue
+    let some k := (List.range ts.length).find? fun k => (chalTime rp s (ts.getD k default) nextC).isSome | continue
+    let t := ts.getD k default
+    let some lt := chalTime rp s t lamC | continue
+    let some nt := chalTime rp s t nextC | continue
+    let oc : OddCert := {
+      values, lam := { lamC with time := lt }, claimZero, claimAt, lefts := kids.map (·.2.1),
+      rights := kids.map (·.2.2), prodAt := kids.map (·.1), expZero, expAt, test := u, next := { nextC with time := nt },
+      sumAt := sums.toList, outAt := outs.toList, transcript := k }
+    return some oc
+  return none
+
 /-- The round whose next claim is `w`, with the claim it reads. -/
 def roundOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ) : Option (RoundCert × ℕ) := do
   let (x, coeffs, hornerZero, hornerAt) ← hornerOf rp idx w
@@ -515,18 +579,10 @@ def roundOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w : ℕ)
     | none => makerBy rp idx (coeffs.getD 1 0) (fun j c => match c with
       | .add cl t => (foldOf rp idx t (coeffs.drop 2)).map fun (z, ts) => (none, cl, j, z, ts)
       | _ => none)
-  -- The challenge: three squeezed words.
-  let (chalAt, w0, w1, w2) ← makerBy rp idx x (fun j c => match c with
-    | .kToE a b d => some (j, a, b, d)
-    | _ => none)
-  let words ← [w0, w1, w2].mapM fun wk => (idx.getD wk #[]).findSome? fun (dk, p) =>
-    match rp.calls.getD dk .zero with
-    | .dToK d => makerBy rp idx d (fun lb c => match c with
-      | .leafBlock _ _ t _ => if t / 2 ^ 56 = 6 then some (dk, p, lb) else none
-      | _ => none)
-    | _ => none
-  return ({ coeffs, weight, tailZero, tailAt, fixedAt, chal := x, hornerZero, hornerAt, chalAt, words, time := 0 },
-    claim)
+  let cc ← chalOf rp idx x
+  let rc : RoundCert := { coeffs, weight, tailZero, tailAt, fixedAt, chal := x, hornerZero, hornerAt,
+                          chalAt := cc.chalAt, words := cc.words, time := 0 }
+  return (rc, claim)
 
 /-- A round's time in a transcript: one more than the place of the block whose output its challenge's squeeze reads. -/
 def roundTime (rp : Replay) (s : State) (t : Transcript) (rc : RoundCert) : Option ℕ := do
@@ -674,7 +730,10 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let sumchecks := (tests.filterMap fun (u, a, b) => sumcheckOf rp idxO s certs.toList u a b).filter fun sc =>
     ({ cert with sumchecks := #[sc] }).sumchecksOk s os ms
   let pows := (powsOf rp idxO (tests.map fun (u, _, _) => rp.eqCall[u]!)).filter (·.ok os cert.calls cert.relax)
-  let cert := { cert with sumchecks, pows }
+  let odds := (tests.filterMap fun (u, a, b) =>
+      if sumchecks.any (·.test == u) then none else oddOf rp idxO s certs.toList u (rp.eqCall[u]!) a b).filter fun oc =>
+    ({ cert with odds := #[oc] }).oddsOk s os ms
+  let cert := { cert with sumchecks, pows, odds }
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -727,9 +786,11 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     late, deferred,
     exposed, exposedUnbound, probes, sumchecks := sumchecks.size,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
-    pows := pows.size, powTests := pows.foldl (fun n pc => n + pc.bits) 0,
+    pows := pows.size, powTests := pows.foldl (fun n pc => n + pc.bits) 0, odds := odds.size,
     others := tests.filterMap fun (u, _, _) => match rp.calls.getD (rp.eqCall[u]!) .zero with
-      | .eqE .. => if sumchecks.any (·.test == u) || covers.any (·.test == u) then none else some (rp.eqCall[u]!)
+      | .eqE .. =>
+        if sumchecks.any (·.test == u) || odds.any (·.test == u) || covers.any (·.test == u) then none
+        else some (rp.eqCall[u]!)
       | _ => none }
 
 end LeanVMCircuits.Rec.Bind

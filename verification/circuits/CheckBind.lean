@@ -49,7 +49,7 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     {r.deferred.size} bound only with the statement's claims; \
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound; \
     {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds), \
-    {r.powTests} are the bits of {r.pows} certified proof-of-work checks"
+    {r.powTests} are the bits of {r.pows} certified proof-of-work checks, {r.odds} close a certified GKR odd layer"
   for f in r.unbound.toList.take 10 do
     IO.println s!"  unbound test at {line f.call}, per transcript {repr f.perTranscript}"
     for h in f.hints.eraseDups do

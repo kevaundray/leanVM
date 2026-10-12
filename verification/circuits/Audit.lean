@@ -607,3 +607,6 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.balanced_of_eq
 #print axioms LeanVMCircuits.Rec.bus_balance_sound
 #print axioms LeanVMCircuits.Rec.bus_copy_sound
+#print axioms LeanVMCircuits.Rec.Sumcheck.coeff_polyOf
+#print axioms LeanVMCircuits.Rec.Bind.odd_sem
+#print axioms LeanVMCircuits.Rec.Bind.odd_test_sound

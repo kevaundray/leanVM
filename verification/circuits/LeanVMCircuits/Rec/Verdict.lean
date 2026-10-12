@@ -11,8 +11,8 @@ The checker's verdict on a recursion circuit.
 `Cert.accepts`: every rule is justified, every transcript is a chain of compressions, the unions' rows are where the
 certificate says (`Cert.unionsOk`), every field equality reading a challenge is a test, for every test some
 transcript's `certifyT` gives both its wires a binding time, each union's coverage entry holds (`Cert.coversOk`), and
-each named sumcheck's rounds and proof-of-work check are where the certificate says (`Cert.sumchecksOk`,
-`PowCert.ok`).
+each named sumcheck's rounds, proof-of-work check and GKR odd layer are where the certificate says
+(`Cert.sumchecksOk`, `PowCert.ok`, `Cert.oddsOk`).
 
 - `tests_by`: each test's wires, at their binding time `k`, are in the closure of what one transcript's first `k`
   blocks absorb, and of the statement only once `k` passes its last block; `checkbind_sound` is its weaker form.
@@ -209,6 +209,7 @@ structure Cert where
   covers : Array Cover
   sumchecks : Array SumcheckCert := #[]
   pows : Array PowCert := #[]
+  odds : Array OddCert := #[]
 
 def Cert.test (c : Cert) (u : ℕ) : Bool := c.isTest.getD u false
 
@@ -268,15 +269,37 @@ def Cert.coversOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Tra
       (fun n => ((ms.getD cv.transcript default).2.getD n none).isSome) &&
     !(c.poolOf cv.decl).selecting && (c.poolOf cv.decl).runs == 1 && (c.poolOf cv.sel).endOk os c.calls c.relax
 
-/-- A round's challenge is drawn after its transcript's first `time` blocks: its `k_to_e` call reads three words,
-each a word of a `d_to_k` of a squeeze whose chaining value is block `time`'s output. -/
-def RoundCert.chalOk (s : State) (os : Array (List ℕ)) (cs : Array Call) (blocks : List ℕ) (rc : RoundCert) : Bool :=
-  let wd := fun k => let e := rc.words.getD k default; outAt os e.1 e.2.1
-  0 < rc.time && rc.time ≤ blocks.length && outAt os rc.chalAt 0 == rc.chal && rc.words.length == 3 &&
-    cs[rc.chalAt]? == some (.kToE (wd 0) (wd 1) (wd 2)) &&
-    rc.words.all fun e => cs[e.1]? == some (.dToK (outAt os e.2.2 0)) && match cs[e.2.2]? with
-      | some (.leafBlock h _ t _) => t / 2 ^ 56 == 6 && h == (s.hash.getD (blocks.getD (rc.time - 1) 0) []).getD 6 0
+/-- A challenge is drawn after its transcript's first `time` blocks: its `k_to_e` call reads three words, each a word
+of a `d_to_k` of a squeeze whose chaining value is block `time`'s output. -/
+def ChalCert.ok (s : State) (os : Array (List ℕ)) (cs : Array Call) (blocks : List ℕ) (cc : ChalCert) : Bool :=
+  let wd := fun k => let e := cc.words.getD k default; outAt os e.1 e.2.1
+  0 < cc.time && cc.time ≤ blocks.length && outAt os cc.chalAt 0 == cc.chal && cc.words.length == 3 &&
+    cs[cc.chalAt]? == some (.kToE (wd 0) (wd 1) (wd 2)) &&
+    cc.words.all fun e => cs[e.1]? == some (.dToK (outAt os e.2.2 0)) && match cs[e.2.2]? with
+      | some (.leafBlock h _ t _) => t / 2 ^ 56 == 6 && h == (s.hash.getD (blocks.getD (cc.time - 1) 0) []).getD 6 0
       | _ => false
+
+/-- A round's challenge is drawn after its transcript's first `time` blocks. -/
+def RoundCert.chalOk (s : State) (os : Array (List ℕ)) (cs : Array Call) (blocks : List ℕ) (rc : RoundCert) : Bool :=
+  ChalCert.ok s os cs blocks ⟨rc.chal, rc.chalAt, rc.words, rc.time⟩
+
+/-- Wires a transcript binds by `time`: every limb of their `E` view. -/
+def boundBy (m : Array (Option ℕ)) (ws : List ℕ) (time : ℕ) : Bool :=
+  (ws.flatMap limbs3).all fun n => match m.getD n none with
+    | some k => decide (k ≤ time)
+    | none => false
+
+/-- Each GKR odd layer's calls are in the replay, its test is a test of its claim and expected value, its input claims
+are bound before `λ` is drawn, and its children before the next challenge is. -/
+def Cert.oddsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
+  c.odds.all fun oc =>
+    let t := ms.getD oc.transcript default
+    oc.transcript < ms.length && oc.ok os c.calls c.relax && c.test oc.test &&
+      (s.unions[oc.test]? == some (oc.claim os, oc.expected os) ||
+        s.unions[oc.test]? == some (oc.expected os, oc.claim os)) &&
+      oc.lam.ok s os c.calls t.1.blocks && oc.next.ok s os c.calls t.1.blocks &&
+      boundBy t.2 oc.values oc.lam.time &&
+      boundBy t.2 ((List.range oc.m).flatMap fun k => [oc.left k, oc.right k]) oc.next.time
 
 /-- What round `i`'s prover sends, its weight, and for the first round the input claim, are bound by the round's
 time. -/
@@ -308,7 +331,8 @@ def Cert.accepts (c : Cert) (s : State) : Bool :=
     rulesOk s c.test c.claims c.rules && c.transcripts.all (fun t => chainOk s t.blocks) && c.unionsAt s t os &&
       taintOk c.calls c.relax 0 {} #[] &&
       let ms := c.marks s
-      c.testsBound s ms && c.coversOk s os ms && c.sumchecksOk s os ms && c.pows.all (·.ok os c.calls c.relax)
+      c.testsBound s ms && c.coversOk s os ms && c.sumchecksOk s os ms && c.pows.all (·.ok os c.calls c.relax) &&
+        c.oddsOk s os ms
 
 theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
     rulesOk s c.test c.claims c.rules = true ∧ c.transcripts.all (fun t => chainOk s t.blocks) = true ∧
@@ -321,11 +345,12 @@ theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨hb, hcv⟩, -⟩, -⟩ := h
+    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩ := h
     exact ⟨hr, hc, hu, ht, hb, hcv⟩
 
 theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
-    c.sumchecksOk s c.outs (c.marks s) = true ∧ c.pows.all (·.ok c.outs c.calls c.relax) = true := by
+    c.sumchecksOk s c.outs (c.marks s) = true ∧ c.pows.all (·.ok c.outs c.calls c.relax) = true ∧
+      c.oddsOk s c.outs (c.marks s) = true := by
   unfold Cert.accepts at h
   unfold Cert.outs
   split at h
@@ -333,7 +358,7 @@ theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    exact ⟨h.2.1.2, h.2.2⟩
+    exact ⟨h.2.1.1.2, h.2.1.2, h.2.2⟩
 
 /-- A node a transcript binds at time `k` is in the closure of what its first `k` blocks absorb, and of the statement
 once `k` passes its last block. -/

@@ -163,6 +163,64 @@ def ok (cs : Array Call) (rl : Array Bool) : Bool :=
 
 end PowCert
 
+/-- A challenge: its wire; its `k_to_e` call and, per word, the `d_to_k` call, the word's place and the squeeze; and
+the number of its transcript's blocks absorbed before that squeeze. -/
+structure ChalCert where
+  chal : ℕ
+  chalAt : ℕ
+  words : List (ℕ × ℕ × ℕ)
+  time : ℕ
+  deriving Inhabited, Repr
+
+/-- GKR's odd layer (`gkr::verify_products`' binary layer, which runs no sumcheck): the input claims combined at `λ`
+by Horner (`claimAt`), each value's two children and their product (`prodAt`), the products combined at `λ`
+(`expAt`), the test of the two, and each value's line through its children at the next challenge (`sumAt`, then
+`outAt`: `l + r' · (l + r)`). -/
+structure OddCert where
+  values : List ℕ
+  lam : ChalCert
+  claimZero : ℕ
+  claimAt : List ℕ
+  lefts : List ℕ
+  rights : List ℕ
+  prodAt : List ℕ
+  expZero : ℕ
+  expAt : List ℕ
+  test : ℕ
+  next : ChalCert
+  sumAt : List ℕ
+  outAt : List ℕ
+  transcript : ℕ
+  deriving Inhabited, Repr
+
+namespace OddCert
+
+variable (os : Array (List ℕ)) (oc : OddCert)
+
+/-- The number of values, a child's wires, the products, the two combinations and each value's next claim. -/
+def m : ℕ := oc.values.length
+def left (k : ℕ) : ℕ := oc.lefts.getD k 0
+def right (k : ℕ) : ℕ := oc.rights.getD k 0
+def prods : List ℕ := (List.range oc.m).map fun k => o os (oc.prodAt.getD k 0)
+def claim : ℕ := hornerOut os (o os oc.claimZero) oc.values.reverse oc.claimAt
+def expected : ℕ := hornerOut os (o os oc.expZero) (oc.prods os).reverse oc.expAt
+def out (k : ℕ) : ℕ := o os (oc.outAt.getD k 0)
+
+/-- The layer's calls. -/
+def calls : List (ℕ × Call) :=
+  [(oc.claimZero, .zero), (oc.expZero, .zero)] ++
+    hornerCalls os oc.lam.chal (o os oc.claimZero) oc.values.reverse oc.claimAt ++
+    hornerCalls os oc.lam.chal (o os oc.expZero) (oc.prods os).reverse oc.expAt ++
+    (List.range oc.m).flatMap fun k => [(oc.prodAt.getD k 0, .mul (oc.left k) (oc.right k)),
+      (oc.sumAt.getD k 0, .add (oc.left k) (oc.right k)),
+      (oc.outAt.getD k 0, .mulAdd oc.next.chal (o os (oc.sumAt.getD k 0)) (oc.left k))]
+
+/-- The layer's calls are in the replay. -/
+def ok (cs : Array Call) (rl : Array Bool) : Bool :=
+  0 < oc.m && oc.claimAt.length == oc.m && oc.expAt.length == oc.m && callsOk cs rl (oc.calls os)
+
+end OddCert
+
 /-! What the calls give. -/
 
 section Sem
@@ -276,6 +334,45 @@ theorem pow_sem (hF : Facts cs rl os st val) {pc : PowCert} (hok : pc.ok os cs r
       simp [this]
     · exact Nat.testBit_lt_two_pow (lt_of_lt_of_le (num_lt _ 64) (Nat.pow_le_pow_right (by norm_num) (by omega)))
   · simp at hcalls
+
+open Sumcheck in
+/-- GKR's odd layer: the claim is the values' polynomial at `λ`, the expected value the children's products', and
+each next claim is its value's line through its children at the next challenge. -/
+theorem odd_sem (hF : Facts cs rl os st val) {oc : OddCert} (hok : oc.ok os cs rl = true) :
+    Model.ev val (oc.claim os) = (polyOf (oc.values.map (Model.ev val))).eval (Model.ev val oc.lam.chal) ∧
+      Model.ev val (oc.expected os) = (polyOf ((List.range oc.m).map fun k =>
+        Model.ev val (oc.left k) * Model.ev val (oc.right k))).eval (Model.ev val oc.lam.chal) ∧
+      ∀ k < oc.m, Model.ev val (oc.out os k) = Model.ev val (oc.left k) +
+        Model.ev val oc.next.chal * (Model.ev val (oc.left k) + Model.ev val (oc.right k)) := by
+  simp only [OddCert.ok, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hok
+  obtain ⟨⟨⟨-, hcl⟩, hel⟩, hcalls⟩ := hok
+  simp only [OddCert.calls, callsOk_append, Bool.and_eq_true] at hcalls
+  obtain ⟨⟨⟨hz, hh1⟩, hh2⟩, hks⟩ := hcalls
+  obtain ⟨hz1, hz2⟩ := callsOk_cons hz
+  have hz1' : Model.ev val (o os oc.claimZero) = 0 := holds_of_mem hF hz1 (List.mem_singleton_self _)
+  have hz2' : Model.ev val (o os oc.expZero) = 0 := holds_of_mem hF hz2 (List.mem_cons_self ..)
+  have hk : ∀ k < oc.m, ∀ x ∈ [(oc.prodAt.getD k 0, Call.mul (oc.left k) (oc.right k)),
+      (oc.sumAt.getD k 0, Call.add (oc.left k) (oc.right k)),
+      (oc.outAt.getD k 0, Call.mulAdd oc.next.chal (o os (oc.sumAt.getD k 0)) (oc.left k))],
+      x.2.Holds st val (os.getD x.1 []) := fun k hk x hx =>
+    holds_of_mem hF hks (List.mem_flatMap.mpr ⟨k, List.mem_range.mpr hk, hx⟩)
+  have hprods : (oc.prods os).map (Model.ev val) =
+      (List.range oc.m).map fun k => Model.ev val (oc.left k) * Model.ev val (oc.right k) := by
+    simp only [OddCert.prods, List.map_map]
+    refine List.map_congr_left fun k hkm => ?_
+    exact hk k (List.mem_range.mp hkm) _ (List.mem_cons_self ..)
+  refine ⟨?_, ?_, fun k hkm => ?_⟩
+  · rw [OddCert.claim, horner_sem hF _ _ _ _ (by simp [OddCert.m] at hcl ⊢; omega) hh1, hz1', eval_polyOf,
+      List.map_reverse, List.foldl_reverse]
+  · rw [OddCert.expected, horner_sem hF _ _ _ _ (by simp [OddCert.prods] at hel ⊢; omega) hh2, hz2', eval_polyOf,
+      List.map_reverse, List.foldl_reverse, hprods]
+  · have hs : Model.ev val (o os (oc.sumAt.getD k 0)) = Model.ev val (oc.left k) + Model.ev val (oc.right k) :=
+      hk k hkm _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))
+    have ho : Model.ev val (oc.out os k) =
+        Model.ev val oc.next.chal * Model.ev val (o os (oc.sumAt.getD k 0)) + Model.ev val (oc.left k) :=
+      hk k hkm _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_singleton_self _)))
+    rw [ho, hs]
+    ring
 
 end Sem
 

@@ -311,4 +311,25 @@ theorem natDegree_polyOf : ∀ cs : List F, (polyOf cs).natDegree ≤ cs.length 
     simp only [List.length_cons] at ih ⊢
     omega
 
+theorem coeff_polyOf : ∀ (cs : List F) (k : ℕ), (polyOf cs).coeff k = cs.getD k 0
+  | [], k => by simp [polyOf]
+  | c :: cs, 0 => by
+    have he : polyOf (c :: cs) = polyOf cs * X + C c := rfl
+    rw [he, coeff_add, coeff_mul_X_zero, coeff_C_zero, zero_add]
+    rfl
+  | c :: cs, k + 1 => by
+    have he : polyOf (c :: cs) = polyOf cs * X + C c := rfl
+    rw [he, coeff_add, coeff_mul_X, coeff_C_succ, add_zero, coeff_polyOf cs k]
+    rfl
+
+theorem polyOf_map_sub {α : Type} (f g : α → F) : ∀ l : List α,
+    polyOf (l.map fun x => f x - g x) = polyOf (l.map f) - polyOf (l.map g)
+  | [] => by simp [polyOf]
+  | x :: l => by
+    have e1 : polyOf ((x :: l).map fun x => f x - g x) = polyOf (l.map fun x => f x - g x) * X + C (f x - g x) := rfl
+    have e2 : polyOf ((x :: l).map f) = polyOf (l.map f) * X + C (f x) := rfl
+    have e3 : polyOf ((x :: l).map g) = polyOf (l.map g) * X + C (g x) := rfl
+    rw [e1, e2, e3, polyOf_map_sub f g l, C_sub]
+    ring
+
 end LeanVMCircuits.Rec.Sumcheck
