@@ -1,7 +1,5 @@
 //! Arithmetic over `E`: the `EMUL` and `EXK` rows, with the units and repeated rows folded away.
 
-#[cfg(feature = "circuit-trace")]
-use super::list;
 use super::{Builder, row_key};
 use crate::rec::circuit::{Ew, Kw};
 use crate::rec::clean::{ARITH_A, ARITH_B, ARITH_C, ARITH_D};
@@ -159,20 +157,6 @@ impl Builder {
         self.eq_e_const(p, F192::ONE);
         i
     }
-
-    /// `sum_i terms_i`.
-    pub fn sum(&mut self, terms: &[Ew]) -> Ew {
-        traced!(
-            self,
-            format!("sum {}", list(terms.iter().map(|w| w.0))),
-            self.sum_rows(terms)
-        )
-    }
-
-    fn sum_rows(&mut self, terms: &[Ew]) -> Ew {
-        let zero = self.zero();
-        terms.iter().fold(zero, |acc, &t| self.add(acc, t))
-    }
 }
 
 #[cfg(test)]
@@ -194,7 +178,6 @@ mod tests {
         assert_eq!(b.mul_k_add(x, k1, zero), x);
         assert_eq!(b.mul_k_add(x, k0, one), one);
         assert_eq!(b.mul_k_add(zero, k, zero), zero);
-        assert_eq!(b.sum(&[x]), x);
         let finished = b.finish();
         assert!(finished.failures.is_empty(), "{:?}", finished.failures);
         assert_eq!(finished.circuit.row_counts().into_values(), [0, 0, 0, 0, 0, 0, 0, 4]);

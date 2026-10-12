@@ -15,9 +15,9 @@ pub enum DensePoly {
     Bytecode,
     /// That program's RAM image, zero padded to a power of two.
     Image,
-    /// The leaves' fixed polynomial `W_leaf`, if proofs of recursion circuits are leaves: each such circuit's fixed columns, stacked.
+    /// The leaves' fixed polynomial `W_leaf`, if proofs of a recursion circuit are leaves: that circuit's fixed columns, stacked.
     Leaf,
-    /// The nodes' fixed polynomial `W_node`: each kind's circuit's fixed columns, stacked in the order of the kinds' codes.
+    /// The nodes' fixed polynomial `W_node`: each kind's circuit's fixed columns, stacked, the first level's then the node's.
     Fixed,
 }
 
@@ -30,15 +30,15 @@ pub(crate) struct Bits {
     pub(crate) len: usize,
 }
 
-/// One claim on a dense polynomial `P`, at the shared prefix, then public bits, then the kind's bits: `s P(low, bits, top) = s v`.
+/// One claim on a dense polynomial `P`, at the shared prefix, then public bits, then the kind: `s P(low, bits, top) = s v`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DenseTerm<E> {
     /// How many of the shared prefix's coordinates the point starts with.
     pub(crate) n_low: usize,
     /// The public coordinates after them.
     pub(crate) bits: Bits,
-    /// The last coordinates, a child's kind's bits lowest first, if any.
-    pub(crate) top: Vec<E>,
+    /// The last coordinate, a child's kind, if any.
+    pub(crate) top: Option<E>,
     /// A factor both sides carry, one when absent: a zero scale makes the claim vacuous.
     pub(crate) scale: Option<E>,
     /// The claimed value.
@@ -130,7 +130,7 @@ impl<E: Copy> DenseTerm<E> {
         DenseTerm {
             n_low: self.n_low,
             bits: self.bits,
-            top: self.top.iter().map(|&x| f(x)).collect(),
+            top: self.top.map(&mut *f),
             scale: self.scale.map(&mut *f),
             value: f(self.value),
         }
@@ -147,7 +147,7 @@ impl<E: Copy> DenseClaim<E> {
             terms: vec![DenseTerm {
                 n_low,
                 bits: Bits::NONE,
-                top: Vec::new(),
+                top: None,
                 scale,
                 value,
             }],

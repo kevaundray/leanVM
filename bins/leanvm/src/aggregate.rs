@@ -1,4 +1,4 @@
-//! Aggregation: prove one leaf of each family once, then a tree over copies of their proofs, and report each kind of node and the whole tree.
+//! Aggregation: prove one leaf once, then a tree over copies of its proof, and report each kind of node and the whole tree.
 
 use crate::refuse;
 use crate::workload::Workload;
@@ -28,7 +28,7 @@ pub enum LeafProgram {
     LeansphincsRec,
 }
 
-/// One leaf family: its key and what each of its leaves proves.
+/// The tree's leaf family: its key and what each of its leaves proves.
 enum Family {
     /// A RISC-V program's runs, and the shape their proofs announce.
     Runs {
@@ -50,7 +50,7 @@ enum Family {
     },
 }
 
-/// A family's proven leaf.
+/// The family's proven leaf.
 enum Proven {
     Run(Box<ProvenRun>),
     Xmss(XmssProof),
@@ -208,11 +208,11 @@ fn report(name: &str, tree: &Tree<'_>, kind: Kind, proof: &TreeProof, prove: &Ti
     println!("  verifying as a root         : {}", ms(verify));
 }
 
-/// Prove one leaf of each family at `leaf_prover`'s rate, then the tree of `leaves` over copies of their proofs, every tree proof at `prover`'s rate, and print the report.
+/// Prove one leaf of `program` at size `n` at `leaf_prover`'s rate, then the tree of `leaves` over copies of its proof, every tree proof at `prover`'s rate, and print the report.
 ///
-/// The tree's first level verifies `arity_0` leaves, each node `arity` children. With several families, the first-level nodes take them in turn, the first family's first.
+/// The tree's first level verifies `arity_0` leaves, each node `arity` children.
 pub fn run(
-    programs: &[(LeafProgram, usize)],
+    (program, n): (LeafProgram, usize),
     leaves: usize,
     arity_0: usize,
     arity: usize,
@@ -223,90 +223,59 @@ pub fn run(
     let rate = prover.rate();
     let shape = TreeShape { arity_0, arity, rate };
     shape.depth(leaves).unwrap_or_else(|e| refuse(format_args!("{e}")));
-    let n_first = leaves / arity_0;
-    if n_first < programs.len() {
-        refuse(format_args!(
-            "{n_first} first-level nodes cannot take {} leaf families in turn",
-            programs.len()
-        ));
-    }
-    let families: Vec<Family> = (programs.iter())
-        .map(|&(program, n)| Family::new(program, n, leaf_prover.rate()))
-        .collect();
-    let titles: Vec<String> = families.iter().map(Family::title).collect();
+    let family = Family::new(program, n, leaf_prover.rate());
+    let title = family.title();
 
-    let proven: Vec<(Proven, Timing)> = (families.iter())
-        .map(|f| {
-            plan.warm_then_measure(|last| {
-                let _quiet = (!last).then(bench::suppress_tracing);
-                f.prove(leaf_prover)
-            })
-        })
-        .collect();
+    let (proven, leaf_time) = plan.warm_then_measure(|last| {
+        let _quiet = (!last).then(bench::suppress_tracing);
+        family.prove(leaf_prover)
+    });
     let quiet = Plan::new(plan.repeat, 0);
 
     let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
         let _span = tracing::info_span!("Tree setup").entered();
-        let leaves: Vec<Leaves<'_>> = families.iter().map(Family::leaves).collect();
-        Tree::new(&leaves, shape).unwrap_or_else(|e| refuse(format_args!("{e}")))
+        Tree::new(family.leaves(), shape).unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
-    let items: Vec<(Leaf<'_>, LeafStatement)> = (families.iter().zip(&proven)).map(|(f, (p, _))| f.leaf(p)).collect();
+    let (leaf, statement) = family.leaf(&proven);
 
     println!(
-        "Aggregation tree over {leaves} leaves of {}, first level {arity_0}, arity {arity}, leaves at log-inv-rate {}, tree proofs at {}",
-        titles.join(" and "),
+        "Aggregation tree over {leaves} leaves of {title}, first level {arity_0}, arity {arity}, leaves at log-inv-rate {}, tree proofs at {}",
         leaf_prover.rate().log_inv_rate(),
         rate.log_inv_rate()
     );
-    if families.len() > 1 {
-        println!("the first-level nodes take the families in turn");
-    }
-    for ((family, title), (proof, time)) in families.iter().zip(&titles).zip(&proven) {
-        println!("leaf: {title}");
-        let (stats, committed) = family.cost();
-        print_cost(stats.as_ref(), committed);
-        println!(
-            "  proof size                  : {:.1} KiB",
-            proof.bytes() as f64 / 1024.0
-        );
-        println!("  proving                     : {}", secs(time));
-    }
+    println!("leaf: {title}");
+    let (stats, committed) = family.cost();
+    print_cost(stats.as_ref(), committed);
     println!(
-        "tree setup (every kind's circuit, the fixed polynomials): {}",
-        secs(&setup)
+        "  proof size                  : {:.1} KiB",
+        proven.bytes() as f64 / 1024.0
+    );
+    println!("  proving                     : {}", secs(&leaf_time));
+    println!("tree setup (both circuits, the fixed polynomials): {}", secs(&setup));
+
+    let firsts = vec![leaf.clone(); arity_0];
+    let (first, first_time) = plan.warm_then_measure(|last| {
+        let _quiet = (!last).then(bench::suppress_tracing);
+        tree.prove_first(&firsts).expect("honest leaves")
+    });
+    let first_level = Subtree::First(vec![statement.clone(); arity_0]);
+    let (_, first_verify) = quiet.measure_quiet(|_| tree.verify(&first, &first_level).expect("a first-level root"));
+    report(
+        &format!("first-level node, {arity_0} x {title}"),
+        &tree,
+        Kind::First,
+        &first,
+        &first_time,
+        &first_verify,
     );
 
-    // One first-level node per family, over copies of its leaf.
-    let firsts: Vec<(TreeProof, Subtree)> = (items.iter().enumerate().zip(&titles))
-        .map(|((i, (leaf, statement)), title)| {
-            let leaves = vec![leaf.clone(); arity_0];
-            let (first, first_time) = plan.warm_then_measure(|last| {
-                let _quiet = (!last).then(bench::suppress_tracing);
-                tree.prove_first(&leaves).expect("honest leaves")
-            });
-            let expected = Subtree::First(vec![statement.clone(); arity_0]);
-            let (_, first_verify) =
-                quiet.measure_quiet(|_| tree.verify(&first, &expected).expect("a first-level root"));
-            report(
-                &format!("first-level node, {arity_0} x {title}"),
-                &tree,
-                Kind::First(i),
-                &first,
-                &first_time,
-                &first_verify,
-            );
-            (first, expected)
-        })
-        .collect();
-
     if leaves > arity_0 {
-        let (children, expected): (Vec<TreeProof>, Vec<Subtree>) =
-            (0..arity).map(|i| firsts[i % firsts.len()].clone()).unzip();
+        let children = vec![first; arity];
         let (node, node_time) = plan.warm_then_measure(|last| {
             let _quiet = (!last).then(bench::suppress_tracing);
             tree.prove_node(&children).expect("honest children")
         });
-        let expected = Subtree::Node(expected);
+        let expected = Subtree::Node(vec![first_level; arity]);
         let (_, node_verify) = quiet.measure_quiet(|_| tree.verify(&node, &expected).expect("a root"));
         report(
             &format!("node, {arity} first-level children"),
@@ -318,10 +287,8 @@ pub fn run(
         );
     }
 
-    // The leaves in order: first-level node `j` takes family `j mod families`.
-    let (all, statements): (Vec<Leaf<'_>>, Vec<LeafStatement>) =
-        (0..leaves).map(|i| items[(i / arity_0) % items.len()].clone()).unzip();
-    let expected = Subtree::balanced(statements, &shape).unwrap_or_else(|e| refuse(format_args!("{e}")));
+    let all = vec![leaf; leaves];
+    let expected = Subtree::balanced(vec![statement; leaves], &shape).unwrap_or_else(|e| refuse(format_args!("{e}")));
     let (root, whole) = Plan::new(1, 0).measure_quiet(|_| {
         let _span = tracing::info_span!("Prove tree", leaves).entered();
         tree.prove(&all).unwrap_or_else(|e| refuse(format_args!("{e}")))

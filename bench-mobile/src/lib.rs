@@ -207,7 +207,7 @@ pub fn shielded_aggregate(spec: BenchSpec) -> Result<BenchReport, TimingError> {
         shape: LeafShape::measured(&stats, fixture.prover.rate()),
     };
     let tree = Tree::new(
-        &[family],
+        family,
         TreeShape {
             arity_0: AGGREGATION_LEAVES,
             arity: AGGREGATION_LEAVES,

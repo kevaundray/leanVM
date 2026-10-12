@@ -128,15 +128,15 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// # Overview
 ///
 /// ```text
-///                 node                  verifies `arity` tree proofs, of any kind
+///                 node                  verifies `arity` tree proofs, of either kind
 ///               /      \
-///        first-level   first-level      each verifies `arity_0` leaves of one family
+///        first-level   first-level      each verifies `arity_0` leaves
 ///          /  \          /  \
 ///       leaf  leaf    leaf  leaf
 /// ```
 ///
-/// A leaf family ([`Leaves`]) is RISC-V proofs of one program, or proofs of one recursion circuit such as an
-/// [`XmssBatch`]'s; one tree may mix families.
+/// A tree's leaves are of one family ([`Leaves`]): RISC-V proofs of one program, or proofs of one recursion circuit such
+/// as an [`XmssBatch`]'s. The tree's session names the family, so a tree takes no other tree's proofs.
 ///
 /// Every tree proof states the same few hundred words:
 ///

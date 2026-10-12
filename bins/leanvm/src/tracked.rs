@@ -134,7 +134,7 @@ impl Aggregation {
             arity: self.arity,
             rate,
         };
-        Tree::new(&[leaves], shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
+        Tree::new(leaves, shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }
 
     /// A kind of node's benchmark name, and what the markdown table calls it: `<name>-first`, a
@@ -142,7 +142,7 @@ impl Aggregation {
     /// `<name>-node`, a higher node (the recursion verifier in rows over `arity` child proofs).
     fn node(&self, kind: Kind) -> (String, String) {
         match kind {
-            Kind::First(_) => (
+            Kind::First => (
                 format!("{}-first", self.name),
                 format!("first-level node over {} x {}", self.arity_0, self.leaf.title),
             ),
@@ -343,7 +343,7 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
 fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> [(Kind, CircuitStats); 2] {
     let shape = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
     let built = tree.tree(shape, rate);
-    [Kind::First(0), Kind::Node].map(|kind| (kind, built.stats(kind)))
+    Kind::ALL.map(|kind| (kind, built.stats(kind)))
 }
 
 /// The leanXMSS batch sizes whose recursion circuits `dump` writes: the smallest, and the benchmark's.
@@ -367,7 +367,7 @@ pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
     for tree in counted_trees().into_iter().chain(proven) {
         let shape = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
         let built = tree.tree(shape, rate);
-        for kind in built.kinds() {
+        for kind in Kind::ALL {
             let path = out.join(format!("{}.txt", tree.node(kind).0));
             std::fs::write(&path, built.circuit_dump(kind))
                 .unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
@@ -490,7 +490,7 @@ fn proved_tree(
     let node_level = Subtree::Node(vec![first_level; tree.arity]);
     let (_, node_report) = proved_node(&built, &node_level, plan, || built.prove_node(&children));
     vec![
-        (tree.node(Kind::First(0)).0, first_report),
+        (tree.node(Kind::First).0, first_report),
         (tree.node(Kind::Node).0, node_report),
     ]
 }

@@ -276,7 +276,7 @@ impl SphincsBatch {
         CircuitStats::of(&self.circuit)
     }
 
-    /// The leaves of an aggregation tree that are proofs of this batch.
+    /// The leaf family of an aggregation tree over proofs of this batch, which takes no other leaves.
     #[must_use]
     pub const fn leaves(&self) -> Leaves<'_> {
         Leaves::Circuit(self.leaf_circuit())
@@ -609,7 +609,7 @@ fn signature(b: &mut Builder, j: usize, claim: &SphincsClaim, sig: &SphincsSigna
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use leansphincs_host::{LayerSignature, MESSAGE};
 
@@ -628,7 +628,7 @@ mod tests {
     }
 
     /// `n` honest signers' claims and signatures.
-    fn signed(n: usize) -> (Vec<SphincsClaim>, Vec<SphincsSignature>) {
+    pub(crate) fn signed(n: usize) -> (Vec<SphincsClaim>, Vec<SphincsSignature>) {
         (leansphincs_host::signers(n).into_iter())
             .map(|(pk, s)| {
                 let claim = SphincsClaim {

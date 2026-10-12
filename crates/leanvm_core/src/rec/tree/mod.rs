@@ -1,21 +1,20 @@
-//! Aggregation trees: leaf proofs of one or more families, recursion proofs above them, one root the native verifier checks.
+//! Aggregation trees: leaf proofs of one family, recursion proofs above them, one root the native verifier checks.
 //!
 //! ```text
-//!                 node                  verifies arity tree proofs of any kind
+//!                 node                  verifies arity tree proofs of either kind
 //!               /      \
-//!        first-level   first-level      each verifies arity_0 leaves of one family
+//!        first-level   first-level      each verifies arity_0 leaves
 //!          /  \          /  \
 //!       leaf  leaf    leaf  leaf
 //! ```
 //!
-//! A leaf family is RISC-V proofs of one program, at most one such family per tree, or proofs of one recursion circuit
-//! (a batch of signatures, say). Each family has its first-level kind; nodes take children of any kind, so one tree
-//! mixes families.
+//! A tree's leaves are of one family: RISC-V proofs of one program, or proofs of one recursion circuit (a batch of
+//! signatures, say). The tree's session names the family, so a tree proof verifies under a tree of its own family only.
 //!
 //! Every tree proof states the same words, whatever the tree's size:
 //!
 //! - its kind, and a digest of what the leaves under it state;
-//! - one claim on each dense polynomial the tree has: the RISC-V program's bytecode table and RAM image, the leaf circuits' fixed polynomial, and the nodes' fixed polynomial, which holds every kind's circuit's fixed columns;
+//! - one claim on each dense polynomial the tree has: the RISC-V program's bytecode table and RAM image, or the leaf circuit's fixed polynomial, and the nodes' fixed polynomial, which holds both kinds' circuits' fixed columns;
 //! - each flock circuit's two matrices at one row point and one column point.
 //!
 //! Each node reduces the claims its children leave and carry to one of each, and only the root's verifier evaluates them.
@@ -92,7 +91,7 @@ pub struct LeafCircuit<'p> {
     pub(crate) rate: Rate,
 }
 
-/// One family of a tree's leaves.
+/// A tree's leaf family: what every leaf of the tree is a proof of.
 #[derive(Clone, Copy)]
 pub enum Leaves<'p> {
     /// RISC-V proofs of one program, of one shape.
@@ -140,7 +139,7 @@ enum Stated {
 /// The tree a root is expected to cover: its shape, and what each leaf states.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Subtree {
-    /// A first-level node: what its leaves state, in order, every leaf of one family.
+    /// A first-level node: what its leaves state, in order.
     First(Vec<LeafStatement>),
     /// A node: its children, in order.
     Node(Vec<Self>),
@@ -157,20 +156,20 @@ pub struct TreeShape {
     pub rate: Rate,
 }
 
-/// An aggregation tree over leaf proofs of some families.
+/// An aggregation tree over leaf proofs of one family.
 ///
 /// It is the tree's verifying key, and what its prover needs.
 ///
-/// It is built from the leaf families and the shape alone, before any proof exists.
+/// It is built from the leaf family and the shape alone, before any proof exists.
 pub struct Tree<'p> {
     /// How it is shaped.
     shape: TreeShape,
     /// What fixes the circuits.
     design: Design<'p>,
     /// Each kind's circuit, by code.
-    circuits: Vec<Circuit>,
+    circuits: [Circuit; 2],
     /// Each kind's circuit's fixed columns, by code.
-    columns: Vec<FixedColumns>,
+    columns: [FixedColumns; 2],
     /// The dense polynomials the root's claims are settled against.
     tables: DenseTables,
 }
@@ -219,9 +218,6 @@ pub enum TreeError {
         /// The children a node verifies.
         arity: usize,
     },
-    /// Leaf families that make no tree: none, two of RISC-V proofs, or one recursion circuit twice.
-    #[error("a tree has at least one leaf family, at most one of RISC-V proofs, and each recursion circuit once")]
-    Families,
     /// No RISC-V proof of the program has the leaves' shape.
     #[error("the leaves' shape: {0}")]
     LeafShape(VerifyError),
@@ -246,8 +242,8 @@ pub enum TreeError {
         /// The nodes' arity.
         arity: usize,
     },
-    /// A leaf of no family of the tree, of another family than its node's first, or of another shape than its family's.
-    #[error("leaf {index} is of another family or shape than its first-level node's")]
+    /// A leaf of another family or shape than the tree's.
+    #[error("leaf {index} is of another family or shape than the tree's")]
     ForeignLeaf {
         /// The leaf's index among its node's.
         index: usize,
@@ -259,12 +255,6 @@ pub enum TreeError {
         index: usize,
         /// Why its verifier refuses it.
         error: VerifyError,
-    },
-    /// A child whose kind is none of the tree's.
-    #[error("child {index} is of no kind of the tree")]
-    ForeignChild {
-        /// The child's index among its node's.
-        index: usize,
     },
     /// A child proof does not verify.
     #[error("child {index}: {error}")]
@@ -539,49 +529,29 @@ impl TreeProof {
 }
 
 impl<'p> Tree<'p> {
-    /// The tree over leaves of these families, by index (`Kind::First(i)` verifies family `i`), shaped as given.
+    /// The tree over leaves of this family, shaped as given.
     ///
-    /// The circuits are built from the families and the shape alone, so a verifier needs no proof to build its key.
+    /// The circuits are built from the family and the shape alone, so a verifier needs no proof to build its key.
     ///
     /// # Errors
     ///
     /// - Arities that make no tree: a first level of no leaf, or nodes of fewer than two children.
-    /// - No family, two of RISC-V proofs, or one recursion circuit twice.
     /// - A leaf shape no proof of the program has.
     /// - Circuits that fit no commitment.
-    pub fn new(leaves: &[Leaves<'p>], shape: TreeShape) -> Result<Self, TreeError> {
+    pub fn new(leaves: Leaves<'p>, shape: TreeShape) -> Result<Self, TreeError> {
         let TreeShape { arity_0, arity, rate } = shape;
         if arity_0 == 0 || arity < 2 {
             return Err(TreeError::Arity { arity_0, arity });
         }
-        let runs = leaves.iter().filter(|l| matches!(l, Leaves::Runs { .. })).count();
-        let sessions: Vec<SessionId> = (leaves.iter())
-            .filter_map(|l| match l {
-                Leaves::Circuit(c) => Some(c.session),
-                Leaves::Runs { .. } => None,
-            })
-            .collect();
-        let repeated = (sessions.iter().enumerate()).any(|(i, s)| sessions[..i].contains(s));
-        if leaves.is_empty() || runs > 1 || repeated {
-            return Err(TreeError::Families);
-        }
-        let families = || {
-            let mut slot = 0;
-            (leaves.iter())
-                .map(|&l| match l {
-                    Leaves::Runs { program, shape } => ProofShape::new(program, shape.taus, shape.rate)
-                        .map(Family::Runs)
-                        .map_err(|e| TreeError::LeafShape(e.into())),
-                    Leaves::Circuit(c) => {
-                        slot += 1;
-                        CircuitFamily::new(c, slot - 1).map(Family::Circuit)
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()
+        let family = || match leaves {
+            Leaves::Runs { program, shape } => ProofShape::new(program, shape.taus, shape.rate)
+                .map(Family::Runs)
+                .map_err(|e| TreeError::LeafShape(e.into())),
+            Leaves::Circuit(c) => CircuitFamily::new(c).map(Family::Circuit),
         };
-        let (design, circuits) = Self::converge(|taus| Design::new(families()?, arity_0, arity, rate, taus))?;
-        let columns: Vec<FixedColumns> = circuits.iter().map(|c| FixedColumns::of(c, &design.taus)).collect();
-        let tables = design.tables(&columns);
+        let (design, circuits) = Self::converge(|taus| Design::new(family()?, arity_0, arity, rate, taus))?;
+        let columns = circuits.each_ref().map(|c| FixedColumns::of(c, &design.taus));
+        let tables = design.tables(columns.each_ref());
         Ok(Self {
             shape,
             design,
@@ -591,36 +561,30 @@ impl<'p> Tree<'p> {
         })
     }
 
-    /// The heights every kind's circuit shares, and the circuits at them, by code.
+    /// The heights both circuits share, and the circuits at them, by code.
     ///
-    /// They are the least fixed point of `tau -> max(tau, max_k circuit_k(tau))`, from the first-level circuits' own heights.
-    /// A table is absent from them, its height none, only while every kind's circuit lacks it.
+    /// They are the least fixed point of `tau -> max(tau, max_k circuit_k(tau))`, from the first-level circuit's own heights.
+    /// A table is absent from them, its height none, only while both circuits lack it.
     ///
     /// Each round only raises heights, and a node's rows grow with the logarithm of its children's, so few rounds reach it.
     fn converge(
         design: impl Fn(Heights) -> Result<Design<'p>, TreeError>,
-    ) -> Result<(Design<'p>, Vec<Circuit>), TreeError> {
+    ) -> Result<(Design<'p>, [Circuit; 2]), TreeError> {
         let max = |taus: Heights, built: &[Circuit]| {
             Heights::from_fn(|t| built.iter().map(|c| c.heights()[t]).fold(taus[t], Option::max))
         };
-        // The first-level circuits do not depend on the heights: those of a circuit of no rows build them.
+        // The first-level circuit does not depend on the heights: those of a circuit of no rows build it.
         let start = design(Heights::from_fn(|t: Table| t.height_log(0)))?;
-        let firsts: Vec<Circuit> = (start.kinds().into_iter())
-            .filter(|&k| k != Kind::Node)
-            .map(|k| start.shape(k).circuit)
-            .collect();
-        let mut taus = max(Heights::default(), &firsts);
+        let mut taus = max(Heights::default(), &[start.shape(Kind::First).circuit]);
         for _ in 0..MAX_ROUNDS {
             let d = design(taus)?;
-            let built: Vec<Circuit> = d.kinds().into_iter().map(|k| d.shape(k).circuit).collect();
+            let built = Kind::ALL.map(|k| d.shape(k).circuit);
             let next = max(taus, &built);
             if next == taus {
-                let circuits = (built.into_iter())
-                    .map(|mut c| {
-                        c.floor = taus;
-                        c
-                    })
-                    .collect();
+                let circuits = built.map(|mut c| {
+                    c.floor = taus;
+                    c
+                });
                 RecLayout::from_taus(taus).map_err(|_| TreeError::TooLarge)?;
                 return Ok((d, circuits));
             }
@@ -629,19 +593,8 @@ impl<'p> Tree<'p> {
         Err(TreeError::TooLarge)
     }
 
-    /// Every kind of the tree's proofs, by code: a first-level node per leaf family, and a node.
-    #[must_use]
-    pub fn kinds(&self) -> Vec<Kind> {
-        self.design.kinds()
-    }
-
-    /// Whether a kind is one of the tree's.
-    const fn has(&self, kind: Kind) -> bool {
-        kind.code() < self.circuits.len()
-    }
-
-    /// The circuit of a proof of this kind, one of the tree's.
-    pub(crate) fn circuit(&self, kind: Kind) -> &Circuit {
+    /// The circuit of a proof of this kind.
+    pub(crate) const fn circuit(&self, kind: Kind) -> &Circuit {
         &self.circuits[kind.code()]
     }
 
@@ -659,20 +612,11 @@ impl<'p> Tree<'p> {
         calls + "circuit\n" + &circuit.dump() + &self.columns[kind.code()].dump_next(&circuit)
     }
 
-    /// The family of a leaf of this session, or of a RISC-V proof with none.
-    fn family(&self, session: Option<SessionId>) -> Option<usize> {
-        (self.design.families.iter()).position(|f| match (f, session) {
-            (Family::Runs(_), None) => true,
-            (Family::Circuit(c), Some(session)) => c.leaf.session == session,
-            _ => false,
-        })
-    }
-
-    /// Prove a first-level node over its leaves, in order, all of one family.
+    /// Prove a first-level node over its leaves, in order.
     ///
     /// # Errors
     ///
-    /// The wrong number of leaves, a leaf of no family of the tree, of another family than the first or of another shape than its family's, or a leaf that does not verify.
+    /// The wrong number of leaves, a leaf of another family or shape than the tree's, or a leaf that does not verify.
     pub fn prove_first(&self, leaves: &[Leaf<'_>]) -> Result<TreeProof, TreeError> {
         let d = &self.design;
         if leaves.len() != d.arity_0 {
@@ -681,14 +625,8 @@ impl<'p> Tree<'p> {
                 got: leaves.len(),
             });
         }
-        let session = |l: &Leaf<'_>| match l.0 {
-            LeafProof::Run { .. } => None,
-            LeafProof::Circuit { session, .. } => Some(session),
-        };
-        let family = (self.family(session(&leaves[0]))).ok_or(TreeError::ForeignLeaf { index: 0 })?;
-        let kind = Kind::First(family);
         let foreign = |index| TreeError::ForeignLeaf { index };
-        let rows = match &d.families[family] {
+        let rows = match &d.family {
             Family::Runs(shape) => {
                 let announced = LeafShape::new(*shape.taus(), shape.rate());
                 let program = shape.program();
@@ -713,7 +651,7 @@ impl<'p> Tree<'p> {
                     items: &items,
                     tables: &self.tables,
                 };
-                info_span!("Build circuit").in_scope(|| d.first_runs(kind, shape, &inputs))
+                info_span!("Build circuit").in_scope(|| d.first_runs(shape, &inputs))
             }
             Family::Circuit(family) => {
                 let c = &family.leaf;
@@ -749,17 +687,19 @@ impl<'p> Tree<'p> {
                     items: &items,
                     tables: &self.tables,
                 };
-                info_span!("Build circuit").in_scope(|| d.first_circuit(kind, family, &inputs))
+                info_span!("Build circuit").in_scope(|| d.first_circuit(family, &inputs))
             }
         };
-        self.prove_rows(rows, kind)
+        self.prove_rows(rows, Kind::First)
     }
 
-    /// Prove a node over its children, tree proofs of any kind, in order.
+    /// Prove a node over its children, tree proofs of either kind, in order.
+    ///
+    /// A child is verified under the tree's session, which names the tree's leaf family: a tree proof of another tree is refused as a child that does not verify.
     ///
     /// # Errors
     ///
-    /// The wrong number of children, a child of no kind of the tree, or a child that does not verify.
+    /// The wrong number of children, or a child that does not verify.
     pub fn prove_node(&self, children: &[TreeProof]) -> Result<TreeProof, TreeError> {
         let d = &self.design;
         if children.len() != d.arity {
@@ -769,12 +709,7 @@ impl<'p> Tree<'p> {
             });
         }
         let openings = (children.iter().enumerate())
-            .map(|(index, c)| {
-                if !self.has(c.kind) {
-                    return Err(TreeError::ForeignChild { index });
-                }
-                self.read(c).map_err(|error| TreeError::Child { index, error })
-            })
+            .map(|(index, c)| self.read(c).map_err(|error| TreeError::Child { index, error }))
             .collect::<Result<Vec<_>, _>>()?;
         let statements: Vec<TreeStatement> = (children.iter())
             .map(|c| TreeStatement::new(d.statement, c.words.clone()))
@@ -795,7 +730,7 @@ impl<'p> Tree<'p> {
         self.prove_rows(rows, Kind::Node)
     }
 
-    /// Prove the balanced tree over its leaves, in order, each first-level node's of one family.
+    /// Prove the balanced tree over its leaves, in order.
     ///
     /// The first level, then each level of nodes, up to the root.
     ///
@@ -857,23 +792,20 @@ impl<'p> Tree<'p> {
         match tree {
             Subtree::First(leaves) => {
                 count(d.arity_0, leaves.len())?;
-                let session = |l: &LeafStatement| match l.0 {
-                    Stated::Run(_) => None,
-                    Stated::Circuit { session, .. } => Some(session),
-                };
-                let first = session(&leaves[0]);
-                let family = self.family(first).ok_or(TreeError::ForeignLeaf { index: 0 })?;
-                if let Some(index) = leaves.iter().position(|l| session(l) != first) {
-                    return Err(TreeError::ForeignLeaf { index });
-                }
-                let items: Vec<Limbs> = (leaves.iter())
-                    .map(|l| match &l.0 {
-                        Stated::Run(output) => *output.words(),
-                        Stated::Circuit { session, words } => instance_digest(session, words),
+                let items = (leaves.iter().enumerate())
+                    .map(|(index, l)| match (&d.family, &l.0) {
+                        (Family::Runs(_), Stated::Run(output)) => Ok(*output.words()),
+                        (Family::Circuit(c), Stated::Circuit { session, words }) if *session == c.leaf.session => {
+                            Ok(instance_digest(session, words))
+                        }
+                        _ => Err(TreeError::ForeignLeaf { index }),
                     })
-                    .collect();
-                let level = first.map_or(Level::Runs, |s| Level::Circuit(digest_limbs(&s.0)));
-                Ok((Kind::First(family), level.digest(&items)))
+                    .collect::<Result<Vec<Limbs>, _>>()?;
+                let level = match &d.family {
+                    Family::Runs(_) => Level::Runs,
+                    Family::Circuit(c) => Level::Circuit(c.leaf.seed()),
+                };
+                Ok((Kind::First, level.digest(&items)))
             }
             Subtree::Node(children) => {
                 count(d.arity, children.len())?;

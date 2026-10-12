@@ -1,7 +1,7 @@
-//! The fixed polynomials: circuits' fixed columns stacked, one stack per circuit, the stacks side by side.
+//! The fixed polynomials: circuits' fixed columns stacked, one stack per circuit.
 //!
-//! - The nodes' `W_node` holds each kind's circuit, by the kind's code. The kinds' circuits share their heights, so their stacks have one layout, and the code's bits select the circuit.
-//! - The leaves' `W_leaf` holds each leaf circuit, by its slot. Each has its own heights and layout, its stack zero padded to the largest.
+//! - The nodes' `W_node` holds the first level's circuit's stack, then the node's. The two circuits share their heights, so their stacks have one layout, and one more variable, the kind, selects the circuit.
+//! - The leaves' `W_leaf` is the leaf circuit's stack, at its own heights.
 
 use crate::rec::fixed::{FixedColumn, FixedColumns};
 use crate::rec::table::Heights;

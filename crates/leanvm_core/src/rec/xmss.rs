@@ -217,7 +217,7 @@ impl XmssBatch {
         CircuitStats::of(&self.circuit)
     }
 
-    /// The leaves of an aggregation tree that are proofs of this batch.
+    /// The leaf family of an aggregation tree over proofs of this batch, which takes no other leaves.
     #[must_use]
     pub const fn leaves(&self) -> Leaves<'_> {
         Leaves::Circuit(self.leaf_circuit())

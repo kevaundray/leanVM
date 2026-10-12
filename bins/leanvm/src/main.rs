@@ -126,7 +126,7 @@ enum Command {
         #[arg(long, default_value_t = 1, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         blobs: usize,
     },
-    /// Prove a leaf of each family once, then an aggregation tree over copies of their proofs.
+    /// Prove a leaf once, then an aggregation tree over copies of its proof.
     Aggregate {
         /// The leaf program: a RISC-V guest's (`fibonacci`, `leanxmss`, `leansphincs`) or a recursion circuit's
         /// (`leanxmss-rec`, `leansphincs-rec`).
@@ -135,12 +135,6 @@ enum Command {
         /// The leaf program's size: Fibonacci's steps, or the signatures it verifies.
         #[arg(long, default_value_t = 400, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
-        /// A second leaf family, for a mixed tree: the first-level nodes take the two in turn.
-        #[arg(long, value_enum)]
-        mixed: Option<LeafProgram>,
-        /// The second family's size, `--n` by default.
-        #[arg(long, requires = "mixed", value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
-        mixed_n: Option<usize>,
         /// The leaves: the first level's arity times a power of the nodes' arity.
         #[arg(long, default_value_t = 4)]
         leaves: usize,
@@ -249,16 +243,10 @@ fn main() {
         Command::Aggregate {
             program,
             n,
-            mixed,
-            mixed_n,
             leaves,
             arity0,
             arity,
-        } => {
-            let mut programs = vec![(program, n)];
-            programs.extend(mixed.map(|m| (m, mixed_n.unwrap_or(n))));
-            aggregate::run(&programs, leaves, arity0, arity, &leaf_prover, &prover, plan);
-        }
+        } => aggregate::run((program, n), leaves, arity0, arity, &leaf_prover, &prover, plan),
         Command::Bench {
             cycles_only,
             markdown,
