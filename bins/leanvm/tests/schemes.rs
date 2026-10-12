@@ -48,7 +48,7 @@ fn leanxmss_and_leansphincs_trees_do_not_combine() {
             trees[i].aggregate_leaves(&[leaf], None).expect("an honest leaf")
         })
         .collect();
-    // A node of one child takes it twice.
+    // A node of one child, its other place absent.
     let nodes: Vec<Aggregate> = (0..2)
         .map(|i| trees[i].aggregate(&[&firsts[i]], None).expect("an honest child"))
         .collect();
