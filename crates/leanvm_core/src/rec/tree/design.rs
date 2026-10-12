@@ -9,9 +9,9 @@
 //!
 //! A claim-set tree may have two tiers, each at heights of its own. The small tier holds the first level, nodes of a few
 //! children within a small capacity, and a wrap; the large tier holds one node of the tree's arity within the tree's
-//! capacity, whose unused child places are absent and read as the empty set. Every node, of either tier, verifies
-//! children of the small tier, and a wrap verifies one proof of the large tier and states its set: so a small proof
-//! never pays the large tier's heights, and a large one is combined once wrapped.
+//! capacity. Every node, of either tier, verifies children of the small tier, and a wrap verifies one proof of the
+//! large tier and states its set: so a small proof never pays the large tier's heights, and a large one is combined
+//! once wrapped. A claim-set node's places past its children are absent, their sets read as the empty set.
 
 use super::claims::{Bits, DenseClaim, DensePoly, DenseTerm, MatrixClaim, NodeClaims};
 use super::fixed::FixedLayout;
@@ -39,7 +39,7 @@ use primitives::multilinear::mle_eval_par;
 use std::ops::Range;
 
 /// The protocol half of every recursion proof's session tag.
-const DOMAIN: &[u8] = b"leanvm-tree-14";
+const DOMAIN: &[u8] = b"leanvm-tree-15";
 
 /// The tier of a tree of one tier, or of a claim-set tree's small tier: the first level's.
 pub(crate) const SMALL: usize = 0;
@@ -195,8 +195,8 @@ impl Place {
     /// wrap and the large tier's one node.
     ///
     /// A tree of outputs has one node, of its arity; a claim-set tree of one tier one of each arity up to its largest.
-    /// The large tier's node takes from one child to its arity, the rest absent (in rows, any place may be), so the
-    /// tier's fixed polynomial, which every proof above a wrap reduces, is of one circuit.
+    /// A claim-set node takes from one child to its arity, the rest absent (in rows, any place may be), so the large
+    /// tier needs one node and its fixed polynomial, which every proof above a wrap reduces, is of one circuit.
     pub(crate) fn all(arity: usize, claims: Option<ClaimShape>) -> Vec<Self> {
         let place = |tier, level| Self { tier, level };
         let nodes = |tier, arities: std::ops::RangeInclusive<usize>| arities.map(move |a| place(tier, Level::Node(a)));
@@ -326,19 +326,16 @@ impl<'p> Design<'p> {
     }
 
     /// The union a circuit runs, in a claim-set tree: none for a wrap, which states its child's set.
+    ///
+    /// A node's places past its children are absent; a first-level node verifies all its leaves.
     pub(crate) fn union_shape(&self, position: usize) -> Option<UnionShape> {
         let Place { tier, level } = self.places[position];
-        let arity = match level {
-            Level::First => self.arity_0,
-            Level::Node(arity) => arity,
-            Level::Wrap => return None,
-        };
         let capacity = self.tiers[tier].capacity?;
-        Some(if tier == LARGE {
-            UnionShape::optional(capacity, arity)
-        } else {
-            UnionShape::new(capacity, arity)
-        })
+        match level {
+            Level::First => Some(UnionShape::new(capacity, self.arity_0)),
+            Level::Node(arity) => Some(UnionShape::optional(capacity, arity)),
+            Level::Wrap => None,
+        }
     }
 
     /// The position of the circuit of this place, if the tree has one.

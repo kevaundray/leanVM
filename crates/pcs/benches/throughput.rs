@@ -87,13 +87,18 @@ fn main() {
         let committed = tracing::info_span!("Commit").in_scope(|| CommittedStack::new(&witness, log_n, pc.clone()));
         commit_t.push(t.elapsed().as_secs_f64());
 
+        // The root, then the claims' values, are prover messages before the opening draws its challenges.
         let mut ch = ProverState::new(&SessionId::new(b"pcs-throughput"), &0u64);
+        ch.prover_message(&committed.root());
+        ch.prover_message(&value);
+        ch.prover_messages(&rings[0].claims[0].s_hat_v);
         let t = Instant::now();
         tracing::info_span!("PCS open").in_scope(|| {
             let statement = Statement {
                 points: &point_claims,
                 rings: &rings,
             };
+            #[expect(clippy::disallowed_methods, reason = "the claims' values are bound just above")]
             committed.open(&mut ch, &witness, statement);
         });
         open_t.push(t.elapsed().as_secs_f64());

@@ -437,7 +437,7 @@ impl TreeProof {
     /// The header of a tree proof's bytes: the magic `LVMT`, then the tree protocol's version.
     ///
     /// The version is bumped by every change to what a tree proof says.
-    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 17);
+    const ENVELOPE: Envelope = Envelope::new(*b"LVMT", 18);
 
     /// The kind of node that made the proof.
     #[must_use]
@@ -785,13 +785,13 @@ impl<'p> Tree<'p> {
     /// Prove a node of a claim-set tree over any of its proofs, from one to the tree's arity, each with the set it
     /// declares, declaring `declare`, by default the union of their sets.
     ///
-    /// The children may be of any kind and any provers'. One child is taken twice: its claims once, its repeat's
-    /// unselected, which narrows or republishes it.
+    /// The children may be of any kind and any provers'. A node's places past its children verify the first child again
+    /// and are absent: their sets are read as the empty set. So a lone child is taken once, by a node of two, which
+    /// narrows or republishes it whatever the size of its set within the capacity.
     ///
-    /// In a tree of two tiers, the node is the small tier's if the children are few enough and their sets (a lone
-    /// child's twice) and the declared set fit its capacity, else the large tier's one node, its places past the
-    /// children absent: a lone child too large to be taken twice is taken once by the large node, a large proof of its
-    /// set. A child of the large tier is wrapped first, a proof of its own.
+    /// In a tree of two tiers, the node is the small tier's if the children are few enough and their sets and the
+    /// declared set fit its capacity, else the large tier's one node. A child of the large tier is wrapped first, a
+    /// proof of its own.
     ///
     /// # Errors
     ///
@@ -803,7 +803,7 @@ impl<'p> Tree<'p> {
         self.capacity()?;
         let d = &self.design;
         let n = children.len();
-        // A lone child is taken twice by the small tier's node, or the only tier's.
+        // A lone child is taken by a node of two, its other place absent.
         let small = d.place(SMALL, Level::Node(n.max(2))).map(|p| (p, n.max(2)));
         let large = d.place(LARGE, Level::Node(d.arity)).map(|p| (p, d.arity));
         if n == 0 || n > d.arity || (small.is_none() && large.is_none()) {
@@ -834,12 +834,10 @@ impl<'p> Tree<'p> {
             return Err(TreeError::ChildClaims { index });
         }
         let sets: Vec<&ClaimSet> = children.iter().map(|c| &c.claims).collect();
-        // The first tier whose union holds the sets. A place past the children verifies the first child again: taken
-        // twice by the small tier, absent from the large tier's union.
+        // The first tier whose union holds the sets. A place past the children verifies the first child again, absent
+        // from the union.
         for (position, slots) in small.into_iter().chain(large) {
-            let read = if d.places[position].tier == LARGE { n } else { slots };
-            let read_sets: Vec<&ClaimSet> = (0..read).map(|i| sets[i.min(n - 1)]).collect();
-            let (union, claims) = match self.fill(position, &read_sets, declare) {
+            let (union, claims) = match self.fill(position, &sets, declare) {
                 Err(TreeError::Capacity) => continue,
                 filled => filled?,
             };
