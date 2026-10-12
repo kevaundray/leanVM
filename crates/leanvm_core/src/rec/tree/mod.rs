@@ -642,7 +642,7 @@ impl<'p> Tree<'p> {
     /// The number of positional circuits, including every claim-set node and tier wrap.
     #[cfg(feature = "circuit-trace")]
     #[must_use]
-    pub fn circuit_count(&self) -> usize {
+    pub const fn circuit_count(&self) -> usize {
         self.circuits.len()
     }
 
