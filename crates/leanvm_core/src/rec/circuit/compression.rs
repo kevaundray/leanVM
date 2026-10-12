@@ -17,7 +17,11 @@ impl Compression {
 
     /// The compression of the message `m` into `h` at byte counter `t`, final if `last`.
     pub const fn new(h: Limbs, m: [u64; 8], t: u64, last: bool) -> Self {
-        let f = if last { Hash::FINAL } else { 0 };
+        Self::with_flags(h, m, t, if last { Hash::FINAL } else { 0 })
+    }
+
+    /// The compression of the message `m` into `h` at byte counter `t`, with finalization word `f`.
+    pub const fn with_flags(h: Limbs, m: [u64; 8], t: u64, f: u64) -> Self {
         Self([
             t, f, h[0], h[1], h[2], h[3], m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
         ])
@@ -50,7 +54,7 @@ impl Compression {
     }
 
     /// The output chaining value by the portable compression, which the native verifier runs.
-    fn output_portable(&self) -> Limbs {
+    pub(crate) fn output_portable(&self) -> Limbs {
         let i = &self.0;
         // Each word of `h` and `m` as its two 32-bit halves, low first.
         let mut h: [u32; 8] = std::array::from_fn(|k| (i[2 + k / 2] >> (32 * (k % 2))) as u32);

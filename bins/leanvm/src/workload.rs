@@ -105,13 +105,19 @@ impl Workload {
     /// Verify `n` leanXMSS signatures, one key each.
     pub fn leanxmss(n: usize) -> Self {
         let title = format!("leanXMSS verification, {n} signatures");
-        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n), n, "signature")
+        Self::hosted(title, leanxmss_host::ELF, leanxmss_host::batch(n).run, n, "signature")
     }
 
     /// Verify `n` leanSPHINCS signatures, one key each.
     pub fn leansphincs(n: usize) -> Self {
         let title = format!("leanSPHINCS verification, {n} signatures");
-        Self::hosted(title, leansphincs_host::ELF, leansphincs_host::batch(n), n, "signature")
+        Self::hosted(
+            title,
+            leansphincs_host::ELF,
+            leansphincs_host::batch(n).run,
+            n,
+            "signature",
+        )
     }
 
     /// Verify `n` Falcon-512 signatures, one key each.
@@ -234,7 +240,8 @@ impl Workload {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use leanvm::aggregate::{Leaf, LeafShape, Tree, TreeShape};
+    use leanvm::aggregate::{Capacity, ClaimGroup, ClaimLeaf, ClaimSet, ClaimShape, Leaf, LeafShape, Tree, TreeShape};
+    use leanvm::asm::Ld;
     use leanvm::{Proof, Rate};
 
     #[test]
@@ -288,7 +295,7 @@ mod tests {
         #[cfg(target_arch = "x86_64")]
         assert!(refused(|| _ = std::hint::black_box(hash(b"leanvm"))));
 
-        // A leaf proof, a tampered copy of it, and a two-leaf tree over it, each verified in the guard.
+        // A leaf proof, a tampered copy of it, a two-leaf tree over it and a claim-set root, each verified in the guard.
         let leaf = Workload::fibonacci(1_000);
         let prover = Prover::new(Rate::MIN);
         let proved = leaf.prove(&prover);
@@ -306,6 +313,7 @@ mod tests {
             arity_0: 2,
             arity: 2,
             rate: Rate::MIN,
+            claims: None,
         };
         let tree = Tree::new(&leaf.program, shape).expect("a tree");
         let root = tree
@@ -313,5 +321,43 @@ mod tests {
             .expect("honest leaves");
         tree.verify(&root, &[proved.output; 2]).expect("the root");
         assert!(tree.verify(&root, &[proved.output, Output::new([1, 2, 3, 4])]).is_err());
+
+        // A leaf that outputs its advice, the hash of its set's digest, after a loop that reads every framework block.
+        let text = Asm::new()
+            .li(Reg::T0, Region::ADVICE.base())
+            .load(Ld, Reg::A0, 0, Reg::T0)
+            .load(Ld, Reg::A1, 8, Reg::T0)
+            .load(Ld, Reg::A2, 16, Reg::T0)
+            .load(Ld, Reg::A3, 24, Reg::T0)
+            .li(Reg::T1, 9)
+            .label("loop")
+            .i(Addi, Reg::T1, Reg::T1, -1)
+            .branch(Bne, Reg::T1, Reg::ZERO, "loop")
+            .exit()
+            .finish();
+        let program = Program::new(&text, Region::TEXT.base(), vec![3, 5], 2, 2).expect("a valid program");
+        let set = ClaimSet {
+            groups: vec![ClaimGroup {
+                label: [1, 9, 0, 0, 0, 1],
+                members: vec![[1, 8, 1 << 9, 0x5eed ^ 1]],
+            }],
+        };
+        let words: Vec<u8> = set.digest().iter().flat_map(|w| w.to_le_bytes()).collect();
+        let run = (prover.prove(&program, &digest_words(&hash(&words)))).expect("the run halts");
+        let shape = TreeShape {
+            leaf: LeafShape::of(&run.proof).expect("a canonical announcement"),
+            arity_0: 1,
+            arity: 3,
+            rate: Rate::MIN,
+            claims: Some(ClaimShape {
+                capacity: Capacity { claims: 12, groups: 4 },
+                small: None,
+            }),
+        };
+        let tree = Tree::new(&program, shape).expect("a tree");
+        let first = (tree.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&run.proof, run.output), &set)], None))
+            .expect("an honest leaf");
+        tree.verify_claims(&first.proof, &first.claims).expect("the root");
+        assert!(tree.verify_claims(&first.proof, &ClaimSet { groups: vec![] }).is_err());
     }
 }

@@ -126,6 +126,7 @@ impl Aggregation {
             arity_0: self.arity_0,
             arity: self.arity,
             rate,
+            claims: None,
         };
         Tree::new(&self.leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }

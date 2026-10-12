@@ -79,8 +79,8 @@ pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 #[doc(hidden)]
 pub use rec::tree::{
-    CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
-    TreeShape, Unsatisfied,
+    Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, ClaimShape, DensePoly,
+    FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tier, Tree, TreeError, TreeProof, TreeShape, Unsatisfied,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
 
@@ -123,7 +123,7 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// # Overview
 ///
 /// ```text
-///                 node                  verifies `arity` tree proofs, of either kind
+///                 node                  verifies tree proofs, of any kind
 ///               /      \
 ///        first-level   first-level      each verifies `arity_0` proofs of the program
 ///          /  \          /  \
@@ -132,13 +132,20 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 ///
 /// Every tree proof states the same few hundred words:
 ///
-/// - a digest of its leaves' outputs,
+/// - a digest: of its leaves' outputs in a tree of outputs, of the claim set it declares in a claim-set tree,
 /// - claims that only the root's verifier evaluates.
+///
+/// A tree of outputs has one node arity, and its root states its leaves' outputs in order. A claim-set tree
+/// ([`TreeShape::claims`]) has nodes of every arity up to its largest: anyone combines any of its proofs
+/// ([`Tree::aggregate`]), each node declaring the union of its children's claim sets or part of it, and its root states a
+/// canonical claim set ([`Tree::verify_claims`]). A leaf program publishes the claims it checked (a [`ClaimSet`]: groups
+/// of 6-word labels and 4-word members, whose meaning is the program's), its output the hash of the set's digest.
 ///
 /// A tree over one leaf, with `arity_0 = 1`, is a single proof's recursion.
 pub mod aggregate {
     pub use crate::rec::tree::{
-        CircuitStats, DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tree, TreeError, TreeProof,
-        TreeShape, Unsatisfied,
+        Aggregate, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError, ClaimShape,
+        DensePoly, FalseClaim, Kind, Leaf, LeafShape, Part, TableStats, Tier, Tree, TreeError, TreeProof, TreeShape,
+        Unsatisfied,
     };
 }
