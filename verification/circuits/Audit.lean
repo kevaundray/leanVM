@@ -553,6 +553,13 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.rules_valid
 #print axioms LeanVMCircuits.Rec.Bind.checkbind_sound
 #print axioms LeanVMCircuits.Rec.Bind.tests_determined
+#print axioms LeanVMCircuits.Rec.Model.replayR_sound
+#print axioms LeanVMCircuits.Rec.PoolParse.parse_unique
+#print axioms LeanVMCircuits.Rec.Bind.PoolCert.pool_sem
+#print axioms LeanVMCircuits.Rec.Bind.PoolCert.pool_unique
+#print axioms LeanVMCircuits.Rec.Bind.prod_agree
+#print axioms LeanVMCircuits.Rec.Bind.claim_valid
+#print axioms LeanVMCircuits.Rec.Bind.unionsValid
 #print axioms LeanVMCircuits.Rec.UnionSound.poly_injective
 #print axioms LeanVMCircuits.Rec.UnionSound.slots_eq
 #print axioms LeanVMCircuits.Rec.UnionSound.coverage_sound

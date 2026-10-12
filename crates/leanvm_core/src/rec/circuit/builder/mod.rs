@@ -203,8 +203,8 @@ impl Builder {
 
     /// Record a line that is not a call when traced and outside the builder's methods.
     ///
-    /// `CheckBind` reads `pool` and `product` lines as the start of calls the Lean model makes as one program
-    /// (`Model.poolRows`, `Model.product`), and checks the calls up to the matching `end` line build what it builds.
+    /// `CheckBind` reads `pool` and `product` lines as the start of a union pool's or product's calls, up to the
+    /// matching `end` line, and certifies them call by call (`Bind.PoolCert`, `Bind.ProdCert`).
     #[cfg_attr(
         not(feature = "circuit-trace"),
         allow(clippy::unused_self, clippy::needless_pass_by_ref_mut)

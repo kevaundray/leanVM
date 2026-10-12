@@ -43,7 +43,8 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   for (w, ts) in r.probes do
     IO.println s!"  probe {w} (made at call {rp.maker.getD w 0 + 1}): {repr ts}"
   let line := fun (i : ℕ) => s!"call {i + 1}: {(lines.getD i "").take 120}"
-  IO.println s!"{path}: {if r.accepted then "accepted" else "rejected"}: {r.transcripts} transcripts, {r.squeezes} squeezes, {r.tests} tests reading a challenge, \
+  IO.println s!"{path}: {if r.accepted then "accepted" else "rejected"}: {r.transcripts} transcripts, {r.squeezes} squeezes, {r.products} union products, \
+    {r.tests} tests reading a challenge, \
     {r.unbound.size} unbound, {r.late.size} bound only after their latest challenge, \
     {r.deferred.size} bound only with the statement's claims; \
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound"

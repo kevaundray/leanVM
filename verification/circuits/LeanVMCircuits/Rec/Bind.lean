@@ -1,7 +1,6 @@
 module
 
-public import LeanVMCircuits.Rec.Justify
-public import LeanVMCircuits.Rec.Union
+public import LeanVMCircuits.Rec.Verdict
 public import LeanVMCircuits.Rec.Dump
 
 @[expose] public section
@@ -14,7 +13,7 @@ whose chaining value is the end of a run of absorb blocks from a constant seed. 
 it is determined by the words absorbed before it: it is one of them or a constant, or a determination rule makes it
 from bound wires. Each rule carries its justification (`Just`): a row's forms, a split, a constant mux bit, a
 compression at a constant final word, an equality that is not a test, an inverse, collision resistance of the
-compression and of the output window, or a marked union product.
+compression and of the output window, or a marked union product (`Bind.unionsValid`).
 
 A *test* is an equality made from outside the builder's methods (`eq_e`, `eq_k`, `eq_e_const`, `eq_k_const`) that
 reads a wire depending on a challenge. Tests do not bind. The check: every test's wires are bound by one transcript,
@@ -38,24 +37,10 @@ inductive EqKind where
   | method
   deriving Repr, DecidableEq, Inhabited
 
-/-- A pool the dump marks, whose calls build what `Model.poolRows` builds. -/
-structure ModeledPool where
-  digests : List ℕ
-  selecting : Bool
-  pool : Pool
-  deriving Inhabited
-
-/-- A product the dump marks, whose calls build what `Model.product` builds: the pool, the point, the output. -/
-structure ModeledProduct where
-  pool : ℕ
-  x1 : ℕ
-  weights : List ℕ
-  out : ℕ
-
-/-- A marked block being replayed, and the state the model builds from its start. -/
+/-- A marked block being replayed: a pool or a product, its calls from its start. -/
 inductive Pending where
-  | pool (m : ModeledPool) (expected : State)
-  | product (m : ModeledProduct) (expected : State)
+  | pool (pc : PoolCert)
+  | product (qc : ProdCert)
 
 /-- A replay of a dump's calls through the model, with what the analysis needs of each call. -/
 structure Replay where
@@ -69,36 +54,55 @@ structure Replay where
   /-- The call that made each equality. -/
   eqCall : Array ℕ := #[]
   pending : Option Pending := none
-  pools : Array ModeledPool := #[]
-  products : Array ModeledProduct := #[]
+  pools : Array PoolCert := #[]
+  prods : Array ProdCert := #[]
   /-- Each `inv` call's `EMUL` row and equality. -/
   invs : Array (ℕ × ℕ) := #[]
 
-/-- Two states hold the same circuit and counters (the caches follow from the calls). -/
-def sameCircuit (a b : State) : Bool :=
-  a.next == b.next && a.unions == b.unions && a.emul == b.emul && a.exk == b.exk && a.hash == b.hash &&
-    a.split == b.split && a.cast == b.cast && a.pub == b.pub && a.statement == b.statement
+/-- A pool's chunk and item cursors and closing check, by `pool_rows`' call counts from its start: where
+`PoolCert.ok` checks its calls. -/
+def PoolCert.layout (pc : PoolCert) : PoolCert := Id.run do
+  let runs := pc.digests.length
+  let mut pos := pc.start + 9 + runs
+  let mut chunkAt := #[]
+  let mut itemAt := #[]
+  for j in [0:pc.chunks] do
+    chunkAt := chunkAt.push pos
+    pos := pos + (if pc.begins j then 1 + 2 * runs else 0) + (if 1 < runs then 2 * runs else 0)
+    for k in [0:chunk] do
+      itemAt := itemAt.push pos
+      let st : Start := if j * chunk + k = 0 then .yes else if k = 0 ∧ 1 < runs then .ifBit 0 else .no
+      pos := pos + 13 + sLen st + 6 + hLen st + 16 + (if pc.selecting then 2 else 0)
+  return { pc with chunkAt, itemAt, endAt := pos }
 
-/-- Open or close a marked block: at its start the model builds the block from the current state; at its end the
-calls replayed since must have built the same. -/
+/-- A product's item cursors, by `product`'s call counts from its start. -/
+def ProdCert.layout (qc : ProdCert) (pc : PoolCert) : ProdCert := Id.run do
+  let len := if pc.selecting then 8 else 7
+  let mut pos := qc.start + 2
+  let mut itemAt := #[]
+  for i in [0:pc.n] do
+    itemAt := itemAt.push pos
+    pos := pos + (if i ≠ 0 ∧ i % chunk = 0 ∧ 1 < pc.runs then 1 else 0) + 8 + 2 * len
+  return { qc with itemAt }
+
+/-- Open or close a marked block: a pool's or a product's certificate, its cursors laid out from its first call. -/
 def Replay.mark (r : Replay) (line : Dump.Line) : Except String Replay :=
   match line, r.pending with
   | .call _, _ => .ok r
   | .pool chunks selecting digests, none =>
-    let (pool, expected) := (poolRows chunks selecting digests).run r.state
-    .ok { r with pending := some (.pool { digests, selecting, pool } expected) }
+    .ok { r with
+      pending := some (.pool { start := r.calls.size, chunks, selecting, digests, chunkAt := #[], itemAt := #[],
+                               endAt := 0, packs := [] }) }
   | .product first x1 weights, none =>
-    match r.pools.findIdx? fun p => (p.pool.items[0]?.bind (·.m.head?)) = some first with
+    match r.pools.findIdx? fun pc => o r.outs (pc.blk r.outs 0) = first with
     | none => .error s!"a product of no pool marked before it: {first}"
     | some i =>
-      let (out, expected) := (product r.pools[i]!.pool.items x1 weights).run r.state
-      .ok { r with pending := some (.product { pool := i, x1, weights, out } expected) }
-  | .stop, some (.pool m expected) =>
-    if sameCircuit r.state expected then .ok { r with pending := none, pools := r.pools.push m }
-    else .error "the calls marked as a pool build something else than Model.poolRows"
-  | .stop, some (.product m expected) =>
-    if sameCircuit r.state expected then .ok { r with pending := none, products := r.products.push m }
-    else .error "the calls marked as a product build something else than Model.product"
+      .ok { r with pending := some (.product { pool := i, start := r.calls.size, x1, weights, itemAt := #[] }) }
+  | .stop, some (.pool pc) =>
+    -- The pool's `pack` calls follow its end mark.
+    .ok { r with pending := none, pools := r.pools.push { pc.layout with packs := [r.calls.size] } }
+  | .stop, some (.product qc) =>
+    .ok { r with pending := none, prods := r.prods.push (qc.layout (r.pools.getD qc.pool default)) }
   | .stop, none => .error "an end mark without a start"
   | _, some _ => .error "a mark inside a marked block"
 
@@ -109,7 +113,7 @@ def eqKindOf : Call → EqKind
 
 def Replay.step (r : Replay) (c : Call) : Replay := Id.run do
   -- Take the fields apart first, so that each array is updated in place.
-  let { state, calls, outs, maker, eqKind, eqCall, pending, pools, products, invs } := r
+  let { state, calls, outs, maker, eqKind, eqCall, pending, pools, prods, invs } := r
   let (n0, u0) := (state.next, state.unions.size)
   let (out, s') := c.exec.run state
   let i := calls.size
@@ -125,7 +129,7 @@ def Replay.step (r : Replay) (c : Call) : Replay := Id.run do
     | .inv _ => if s'.emul.size = state.emul.size + 1 ∧ s'.unions.size = u0 + 1 then invs.push (state.emul.size, u0)
       else invs
     | _ => invs
-  return ⟨s', calls.push c, outs.push out, maker, eqKind, eqCall, pending, pools, products, invs⟩
+  return ⟨s', calls.push c, outs.push out, maker, eqKind, eqCall, pending, pools, prods, invs⟩
 
 /-- The counter word's role, its top byte. -/
 def role (t : ℕ) : ℕ := t / 2 ^ 56
@@ -366,6 +370,8 @@ structure Report where
   accepted : Bool
   transcripts : ℕ
   squeezes : ℕ
+  /-- Union products whose rows the certificate reads. -/
+  products : ℕ
   tests : ℕ
   /-- Tests no transcript binds. -/
   unbound : Array Failure
@@ -453,18 +459,24 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     else
       for j in [0:4] do
         rules := (rules.push (.eq u j true) #[limb a j] #[limb b j]).push (.eq u j false) #[limb b j] #[limb a j]
-  -- A union product: bound once its pool's digests, begin bits, selection bits and the point are.
+  -- A union product: bound once its pool's digests, begin bits, selection bits and the point are. A pool's `pack`
+  -- calls are the run of them after its end mark.
+  let pools := rp.pools.map fun pc => Id.run do
+    let mut packs := #[]
+    let mut j := pc.packs.headD 0
+    while j < rp.calls.size && (match rp.calls.getD j .zero with | .pack _ => true | _ => false) do
+      packs := packs.push j
+      j := j + 1
+    return { pc with packs := packs.toList }
   let mut claims : Array UnionClaim := #[]
-  for p in rp.products do
-    let mp := rp.pools[p.pool]!
-    let mut ins : Array ℕ := mp.digests.toArray ++ mp.pool.begins
-    for it in mp.pool.items do
-      match it.select with
-      | some (s0, s1) => ins := (ins.push s0).push s1
-      | none => pure ()
-    let uc : UnionClaim := { inputs := (ins.push p.x1 ++ p.weights.toArray).toList, out := p.out }
-    rules := rules.push (.union claims.size) (uc.inputs.flatMap limbs4).toArray (limbsA uc.out)
+  for qc in rp.prods do
+    let uc := qc.claim rp.outs (pools.getD qc.pool default)
+    rules := rules.push (.union claims.size) (uc.inputs.flatMap limbs4).toArray (limbs3 uc.out).toArray
     claims := claims.push uc
+  -- The calls whose equality is a test, relaxed when the certificate replays the unions' rows.
+  let mut relax : Array Bool := Array.replicate rp.calls.size false
+  for (u, _, _) in tests do
+    relax := relax.set! (rp.eqCall[u]!) true
   let an := { an0 with rules }
   let idx := premiseIndex rules an.nodes rules.size
   let ts := transcripts bs
@@ -491,7 +503,9 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     let (bd, firings) := bind rules an.nodes idx (words.reverse ++ (stmt.map (rp.calls.size, ·)).toArray)
     binds := binds.push bd
     certs := certs.push { blocks := blocksRev.reverse.toList, firings }
-  let cert : Cert := { rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList }
+  let cert : Cert := {
+    rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList, calls := rp.calls, relax, pools
+    prods := rp.prods }
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -540,7 +554,8 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   -- A probe's per-transcript binding, then its latest challenge as a last entry.
   let probes := probe.map fun w => (w, binds.toList.map (wireTime · w) ++ [if tainted w then some (latestOf w) else none])
   return {
-    accepted, transcripts := ts.size, squeezes := squeezes.size, tests := tests.size, unbound, late, deferred,
+    accepted, transcripts := ts.size, squeezes := squeezes.size, products := rp.prods.size, tests := tests.size, unbound,
+    late, deferred,
     exposed, exposedUnbound, probes }
 
 end LeanVMCircuits.Rec.Bind

@@ -76,12 +76,12 @@ def parse (line : String) : Except String Call := do
   | "chain" => return .chain (← list args)
   | op => .error s!"unknown call: {op}"
 
-/-- A line of a dump: a call, or a mark around calls the model makes as one program (`Builder::mark`). -/
+/-- A line of a dump: a call, or a mark around the calls of one union pool or product (`Builder::mark`). -/
 inductive Line where
   | call (c : Call)
-  /-- `Model.poolRows chunks selecting digests` follows, up to `stop`. -/
+  /-- `union::pool_rows` of `chunks` chunks reading `digests` follows, up to `stop`. -/
   | pool (chunks : ℕ) (selecting : Bool) (digests : List ℕ)
-  /-- `Model.product` of the pool whose first item's first word is `first`, at `x1` and `weights`, up to `stop`. -/
+  /-- `union::product` over the pool whose first item's first word is `first`, at `x1` and `weights`, up to `stop`. -/
   | product (first x1 : ℕ) (weights : List ℕ)
   | stop
 

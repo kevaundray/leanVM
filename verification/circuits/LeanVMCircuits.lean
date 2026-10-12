@@ -33,5 +33,9 @@ public import LeanVMCircuits.Rec.Dump
 public import LeanVMCircuits.Rec.Bind
 public import LeanVMCircuits.Rec.Closure
 public import LeanVMCircuits.Rec.Justify
+public import LeanVMCircuits.Rec.PoolParse
+public import LeanVMCircuits.Rec.Relax
 public import LeanVMCircuits.Rec.Union
+public import LeanVMCircuits.Rec.UnionRows
 public import LeanVMCircuits.Rec.UnionSound
+public import LeanVMCircuits.Rec.Verdict
