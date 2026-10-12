@@ -26,22 +26,24 @@ namespace LeanVMCircuits.Rec.Bind
 
 open LeanVMCircuits.Rec Model Sumcheck Polynomial
 
-/-- Answers indexed by `ι` in the random-oracle view: each holds every constraint and every replayed call but the
-tests and the squeezes (`HoldsP` dropping `isSqueezeRow`, `Facts`), whose outputs are the oracle's answers; no two
-answers' compressions or output windows away from the squeezes collide; and each union product is a function of its
-inputs. -/
-structure RomAnswers (c : Cert) (s : State) {ι : Type} (st : ι → ℕ → Fin 4 → K) (val : ι → Val) : Prop where
-  holds : ∀ r, HoldsP (st r) s c.test (isSqueezeRow s) (val r)
+/-- Answers indexed by `ι` in the random-oracle view of transcript `T`: each holds every constraint and every
+replayed call but the tests and `T`'s own compressions (`HoldsP` dropping `dropOf`, `Facts` dropping every squeeze),
+whose outputs are the oracle's answers; no two answers' compressions or output windows away from those collide; and
+each union product is a function of its inputs. -/
+structure RomAnswers (c : Cert) (s : State) (T : ℕ) {ι : Type} (st : ι → ℕ → Fin 4 → K) (val : ι → Val) :
+    Prop where
+  holds : ∀ r, HoldsP (st r) s c.test (dropOf s (c.transcripts.getD T default)) (val r)
   facts : ∀ r, Facts c.calls c.relax c.outs (st r) (val r)
-  cr : ∀ r r', HashCRP s (isSqueezeRow s) (val r) (val r')
-  win : ∀ r r', WindowCRP s (isSqueezeRow s) (val r) (val r')
+  cr : ∀ r r', HashCRP s (dropOf s (c.transcripts.getD T default)) (val r) (val r')
+  win : ∀ r r', WindowCRP s (dropOf s (c.transcripts.getD T default)) (val r) (val r')
   unions : ∀ r r', UnionsValid c.claims (val r) (val r')
 
 /-- Assignments of an accepted circuit holding every constraint but the tests, the squeezes' compressions included,
-pairwise free of collisions, are such answers. -/
-theorem RomAnswers.of_holds {c : Cert} {s : State} (h : c.accepts s = true) {ι : Type} {st : ι → ℕ → Fin 4 → K}
-    {val : ι → Val} (hv : ∀ r, Holds (st r) s c.test (val r)) (hcr : ∀ r r', HashCR s (val r) (val r'))
-    (hwin : ∀ r r', WindowCR s (val r) (val r')) : RomAnswers c s st val :=
+pairwise free of collisions, are such answers for every transcript. -/
+theorem RomAnswers.of_holds {c : Cert} {s : State} (h : c.accepts s = true) (T : ℕ) {ι : Type}
+    {st : ι → ℕ → Fin 4 → K} {val : ι → Val} (hv : ∀ r, Holds (st r) s c.test (val r))
+    (hcr : ∀ r r', HashCR s (val r) (val r')) (hwin : ∀ r r', WindowCR s (val r) (val r')) :
+    RomAnswers c s T st val :=
   have hun := (Cert.accepts_parts h).2.2.1
   ⟨fun r => (hv r).toP _, fun r => (facts_of_holds hun (hv r)).1, fun r r' => (hcr r r').toP _,
     fun r r' => (hwin r r').toP _, fun r r' => unionsValid c s hun (hv r) (hv r') (hcr r r')⟩
@@ -54,11 +56,16 @@ theorem Cert.marksRO_getD (c : Cert) (s : State) {k : ℕ} (hk : k < (c.marksRO 
 /-- A wire whose limbs a transcript binds by `time` in the random-oracle view is a function of what its first `time`
 blocks absorb and the challenges drawn before `time`. -/
 theorem bound_agree {c : Cert} {s : State} (h : c.accepts s = true) {T : ℕ} (hT : T < (c.marksRO s).length)
-    {ι : Type} {st : ι → ℕ → Fin 4 → K} {val : ι → Val} (ha : RomAnswers c s st val) (r r' : ι) {time w : ℕ}
+    {ι : Type} {st : ι → ℕ → Fin 4 → K} {val : ι → Val} (ha : RomAnswers c s T st val) (r r' : ι) {time w : ℕ}
     (hb : ∀ n ∈ limbs3 w, ∃ k, ((c.marksRO s).getD T default).2.getD n none = some k ∧ k ≤ time)
     (hs : ∀ m ∈ seedsBefore s (c.transcripts.getD T default) time, nu (val r) m = nu (val r') m) :
     Model.ev (val r) w = Model.ev (val r') w := by
-  have hr := (Cert.accepts_rounds h).2.2.2
+  have hall := (Cert.accepts_rounds h).2.2.2.1
+  have hT' : T < c.transcripts.length := by simpa [Cert.marksRO] using hT
+  have hr : rulesOk s c.test c.claims (dropOf s (c.transcripts.getD T default))
+      (c.transcripts.getD T default).rulesRO = true := by
+    rw [List.all_eq_true] at hall
+    exact hall _ (by rw [List.getD_eq_getElem _ _ hT']; exact List.getElem_mem hT')
   refine ev_eq_of_limbs3 fun n hn => ?_
   obtain ⟨k, hk, hle⟩ := hb n hn
   rw [Cert.marksRO_getD c s hT] at hk
@@ -67,7 +74,7 @@ theorem bound_agree {c : Cert} {s : State} (h : c.accepts s = true) {T : ℕ} (h
 
 theorem boundOk_wires {m : Array (Option ℕ)} {sc : SumcheckCert} {i : ℕ} (h : sc.boundOk m i = true) :
     ∀ w ∈ (sc.rounds.getD i default).sent ++ (sc.rounds.getD i default).weight.toList ++
-        (if i = 0 then [sc.claim0] else []),
+        (if i = 0 ∧ sc.hinted = false then [sc.claim0] else []),
       ∀ n ∈ limbs3 w, ∃ k, m.getD n none = some k ∧ k ≤ (sc.rounds.getD i default).time := by
   intro w hw n hn
   simp only [SumcheckCert.boundOk, List.all_eq_true, List.mem_flatMap] at h
@@ -128,39 +135,44 @@ theorem coeffs_agree {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)}
   exact List.map_congr_left fun w hw => (mem_coeffs hw hfix).elim (hs w) fun he => he ▸ hfixed
 
 /-- What `sumcheck_test_sound` asks of the prover's answers to a certified sumcheck `sc`'s challenge vectors `r`:
-they are answers in the random-oracle view (`RomAnswers`); two answers whose challenges before round `i` agree agree
-on the seeds before round `i`'s time (what the blocks before its challenge absorb and the challenges drawn before
-them, not round `i`'s own); round `i`'s challenge is `r i`; the eq weights are the honest instance's; and the input
-claim is not the instance's sum. `sumcheck_answers_exist` exhibits such answers. -/
+they are answers in the random-oracle view of its transcript (`RomAnswers`); two answers whose challenges before round
+`i` agree agree on the seeds before round `i`'s time (what the blocks before its challenge absorb and the challenges
+drawn before them, not round `i`'s own); round `i`'s challenge is `r i`; the eq weights are the honest instance's; when
+the input claim is hinted (`SumcheckCert.hinted`: it reads hinted fixed-column evaluations, claims deferred to the
+opening, which no transcript binds) it is the same in every answer, as it is where those claims are true; and the
+input claim is not the instance's sum. `sumcheck_answers_exist` exhibits such answers. -/
 structure SumcheckAnswers (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length)
     (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val) : Prop where
-  rom : RomAnswers c s st val
+  rom : RomAnswers c s sc.transcript st val
   seed : ∀ r r' (i : Fin sc.rounds.length), (∀ j < i, r j = r' j) →
     ∀ m ∈ seedsBefore s (c.transcripts.getD sc.transcript default) (sc.rounds.getD i default).time,
       nu (val r) m = nu (val r') m
   chal : ∀ r (i : Fin sc.rounds.length), Model.ev (val r) (sc.rounds.getD i default).chal = r i
   weight : ∀ r (i : Fin sc.rounds.length), (sc.rounds.getD i default).weight.map (Model.ev (val r)) = I.weight r i
+  input : sc.hinted = true → ∀ r r', Model.ev (val r) sc.claim0 = Model.ev (val r') sc.claim0
   false_claim : ∀ r, Model.ev (val r) sc.claim0 ≠ I.sum
 
 open Classical Finset in
 /-- Sumcheck's soundness on a certified test. Take an accepted circuit and a sumcheck it names (`sc`, `n` rounds of
 degree `d`), the honest instance `I` of degree `d`, and the prover's answers to the challenge vectors (`SumcheckAnswers`:
 in the random-oracle view, each round's challenge `r i`, what is absorbed before it reading only the challenges before
-it, from a false input claim). The challenge vectors of `S^n` at which the test holds and its other side is the
-instance's final value are at most `n · d · |S|^(n-1)`. -/
+it, from a false input claim). The challenge vectors of `S^n` at which the test holds and its other side, plus the
+residual's terms when the test is of a residual, is the instance's final value are at most `n · d · |S|^(n-1)`. -/
 theorem sumcheck_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {sc : SumcheckCert}
     (hsc : sc ∈ c.sumchecks) (S : Finset E) (I : Inst E sc.rounds.length) (hI : I.ok sc.deg)
     (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val)
     (ha : SumcheckAnswers c s sc I st val) :
     #{r ∈ Fintype.piFinset (fun _ : Fin sc.rounds.length => S) |
-        (∀ a b, s.unions[sc.test]? = some (a, b) → val r a = val r b) ∧ Model.ev (val r) sc.final = I.final r} ≤
+        (∀ a b, s.unions[sc.test]? = some (a, b) → val r a = val r b) ∧
+          Model.ev (val r) sc.final + (sc.resid.map fun t => Model.ev (val r) t.1 * Model.ev (val r) t.2.1).sum =
+            I.final r} ≤
       sc.rounds.length * sc.deg * #S ^ (sc.rounds.length - 1) := by
   have hall := (Cert.accepts_rounds h).1
   simp only [Cert.sumchecksOk, Array.all_eq_true', Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq,
     decide_eq_true_eq, List.all_eq_true, List.mem_range] at hall
   obtain ⟨⟨⟨⟨htr, hok⟩, -⟩, hpair⟩, hrounds⟩ := hall sc hsc
   simp only [SumcheckCert.ok, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range] at hok
-  obtain ⟨hpos, hok⟩ := hok
+  obtain ⟨⟨hpos, hok⟩, hres⟩ := hok
   have hF := ha.rom.facts
   have hseed := ha.seed
   have hchal := ha.chal
@@ -189,7 +201,9 @@ theorem sumcheck_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {sc 
       have hb := boundOk_wires (hbound 0 hi)
       have h0 : cl r ⟨0, by omega⟩ = cl r' ⟨0, by omega⟩ := by
         simp only [cl, SumcheckCert.claimAt, if_true]
-        exact bound_agree h htr ha.rom r r' (hb _ (by simp)) hs
+        cases hh : sc.hinted
+        · exact bound_agree h htr ha.rom r r' (hb _ (by simp [hh])) hs
+        · exact ha.input hh r r'
       refine ⟨h0, congrArg polyOf (coeffs_agree (hF r) (hF r') (hok 0 hi) h0 (fun e he => ?_) fun w hw => ?_)⟩
       · exact bound_agree h htr ha.rom r r' (hb _ (List.mem_append_left _ (List.mem_append_right _ he))) hs
       · exact bound_agree h htr ha.rom r r' (hb _ (List.mem_append_left _ (List.mem_append_left _ hw))) hs
@@ -216,11 +230,15 @@ theorem sumcheck_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {sc 
   simp only [mem_filter] at hr ⊢
   obtain ⟨hS, htest, hfin⟩ := hr
   refine ⟨hS, hc0 r, fun i => (hsem r i).2.1, fun i => (hsem r i).2.2, ?_⟩
-  have hlast : cl r (Fin.last sc.rounds.length) = Model.ev (val r) sc.final := by
+  have hlast : cl r (Fin.last sc.rounds.length) = Model.ev (val r) sc.final +
+      (sc.resid.map fun t => Model.ev (val r) t.1 * Model.ev (val r) t.2.1).sum := by
+    have hside : Model.ev (val r) (sc.side c.outs) = Model.ev (val r) sc.final := by
+      rcases hpair with hp | hp
+      · simp only [Model.ev, htest _ _ hp]
+      · simp only [Model.ev, ← htest _ _ hp]
+    rw [SumcheckCert.side, resid_sem (hF r) _ _ hres] at hside
     simp only [cl, Fin.val_last]
-    rcases hpair with hp | hp
-    · simp only [Model.ev, htest _ _ hp]
-    · simp only [Model.ev, ← htest _ _ hp]
+    linear_combination hside - (sc.resid.map fun t => Model.ev (val r) t.1 * Model.ev (val r) t.2.1).sum * two_E
   rw [hlast, hfin]
 
 /-! Proof of work. -/
@@ -338,7 +356,7 @@ the seeds before the next challenge's time; whose challenges are `r`; and in whi
 children's product. `odd_answers_exist` exhibits such answers. -/
 structure OddAnswers (c : Cert) (s : State) (oc : OddCert) (L R : ℕ → E) (st : (Fin 2 → E) → ℕ → Fin 4 → K)
     (val : (Fin 2 → E) → Val) : Prop where
-  rom : RomAnswers c s st val
+  rom : RomAnswers c s oc.transcript st val
   seed0 : ∀ r r', ∀ n ∈ seedsBefore s (c.transcripts.getD oc.transcript default) oc.lam.time,
     nu (val r) n = nu (val r') n
   seed1 : ∀ r r', r 0 = r' 0 →

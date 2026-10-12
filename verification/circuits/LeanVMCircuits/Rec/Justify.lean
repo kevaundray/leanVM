@@ -232,9 +232,9 @@ inductive Just where
 
 instance : Inhabited Just := ⟨.union 0⟩
 
-/-- A squeeze row: its counter word is a constant at the duplex's output role. In the random-oracle view its output is
-the oracle's answer, a challenge, so no rule reads the row and the assignments a soundness theorem quantifies over need
-not compress there (`HoldsP` with `isSqueezeRow`). -/
+/-- A squeeze row: its counter word is a constant at the duplex's output role. In a transcript's random-oracle view its
+output is the oracle's answer, a challenge (`Bind.chalSeeds`), and no rule reads the transcript's own rows
+(`HoldsP` with `Bind.dropOf`). -/
 def isSqueezeRow (s : State) (row : List ℕ) : Bool :=
   s.pub.any fun e => e.1 == row.getD 1 0 && match e.2 with
     | .const v => v.headD 0 / 2 ^ 56 == 6

@@ -48,8 +48,10 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     {r.unbound.size} unbound, {r.late.size} bound only after their latest challenge, \
     {r.deferred.size} bound only with the statement's claims; \
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound; \
-    {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds), \
-    {r.powTests} are the bits of {r.pows} certified proof-of-work checks, {r.odds} close a certified GKR odd layer"
+    {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds, {r.residuals} of them by a residual), \
+    {r.powTests} are the bits of {r.pows} certified proof-of-work checks, {r.odds} close a certified GKR odd layer, \
+    {r.tops} a certified GKR radix-four top layer, {r.whirs} a certified WHIR sumcheck ({r.whirRounds} rounds), \
+    {r.splits} a certified claim split"
   for f in r.unbound.toList.take 10 do
     IO.println s!"  unbound test at {line f.call}, per transcript {repr f.perTranscript}"
     for h in f.hints.eraseDups do
