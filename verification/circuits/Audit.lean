@@ -587,3 +587,6 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.cur_runAt
 #print axioms LeanVMCircuits.Rec.Bind.sel_claims
 #print axioms LeanVMCircuits.Rec.Bind.union_sound_sets
+#print axioms LeanVMCircuits.Rec.Bind.sets_differ
+#print axioms LeanVMCircuits.Rec.Bind.union_sound_queries
+#print axioms LeanVMCircuits.Rec.Bind.union_sound_sets_queries

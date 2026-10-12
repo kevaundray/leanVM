@@ -857,23 +857,46 @@ theorem sel_claims (hF : Facts cs rl os st val) (hok : pc.ok os cs rl = true) (h
     · exact h
     · exact absurd hxy (runAt_lt h hx.2).ne'
 
+/-- In `val₀`, a union's children's digests name the sets `Cs r` and its declared digest names `D` under the
+compression `F` (`blakeF` for BLAKE2s), and no row of either pool collides with those sets' chains. -/
+structure SetsNamed (c : Cert) (cv : Cover) (val₀ : Val) (F : (ℕ → K) → Bool → ℕ → K) (Cs : ℕ → ClaimSet)
+    (D : ClaimSet) : Prop where
+  sel : ∀ r < (c.poolOf cv.sel).runs, ∀ k : Fin 4,
+    val₀ ((c.poolOf cv.sel).digests.getD r 0) k = ClaimSet.digest F (Cs r) k
+  decl : ∀ k : Fin 4, val₀ ((c.poolOf cv.decl).digests.getD 0 0) k = ClaimSet.digest F D k
+  crSel : ∀ r < (c.poolOf cv.sel).runs, ChainCR (c.poolOf cv.sel).n ((c.poolOf cv.sel).vals c.outs val₀)
+    (Cs r).blocks.length (chainIn F iv (Cs r).blocks) (chainOut F iv (Cs r).blocks)
+  crDecl : ChainCR (c.poolOf cv.decl).n ((c.poolOf cv.decl).vals c.outs val₀) D.blocks.length
+    (chainIn F iv D.blocks) (chainOut F iv D.blocks)
+
+/-- On an accepted circuit, if the sets a union's digests name in `val₀` are such that the declared set's claims are
+not among the children's, the two pools' claims on differ. -/
+theorem sets_differ (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover} (hcv : cv ∈ c.covers)
+    {st₀ : ℕ → Fin 4 → K} {val₀ : Val} (hv₀ : Holds st₀ s c.test val₀) {F : (ℕ → K) → Bool → ℕ → K}
+    {Cs : ℕ → ClaimSet} {D : ClaimSet} (hN : SetsNamed c cv val₀ F Cs D)
+    (hne : ¬ D.tuples ≤ ∑ r ∈ Finset.range (c.poolOf cv.sel).runs, (Cs r).tuples) :
+    onClaims (slots c.outs (c.poolOf cv.sel) val₀) ≠ onClaims (slots c.outs (c.poolOf cv.decl) val₀) := by
+  obtain ⟨-, -, hun, -, -, hcov⟩ := Cert.accepts_parts h
+  simp only [Cert.coversOk, Bool.and_eq_true, Array.all_eq_true', List.all_eq_true, decide_eq_true_eq,
+    beq_iff_eq, Bool.not_eq_true'] at hcov
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨hsel, hdecl⟩, -⟩, -⟩, -⟩, -⟩, -⟩, hds⟩, hdr⟩, hend⟩ := hcov.2 cv hcv
+  obtain ⟨hF, -, hpools⟩ := facts_of_holds hun hv₀
+  have hS' := sel_claims hF (hpools _ hsel).1 hend F Cs hN.sel hN.crSel
+  have hD' := decl_claims hF (hpools _ hdecl).1 hds hdr F D hN.decl hN.crDecl
+  intro heq
+  apply hne
+  rw [← hD', ← heq]
+  exact hS'
+
 open Classical Finset in
 /-- `Bind.union_sound` with the two multisets read as the sets the digests name. Take an accepted circuit, one of its
-unions, and an assignment `val₀` holding every constraint but the tests in which the children's digests name the sets
-`Cs r` and the declared digest names `D` under a compression `F` (`blakeF` for BLAKE2s), no row of either pool
-colliding with those sets' chains, and in which `D`'s claims are not among the children's. Then, with the point
-uniform on `S^5` and the prover answering as in `Bind.union_sound`, the coverage test holds at a matching point for at
-most a `4N/|S|` fraction of the outcomes. -/
+unions, and an assignment `val₀` holding every constraint but the tests in which the union's digests name sets
+(`SetsNamed`) and the declared set's claims are not among the children's. Then, with the point uniform on `S^5` and
+the prover answering as in `Bind.union_sound`, the coverage test holds at a matching point for at most a `4N/|S|`
+fraction of the outcomes. -/
 theorem union_sound_sets (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover} (hcv : cv ∈ c.covers)
     {st₀ : ℕ → Fin 4 → K} {val₀ : Val} (hv₀ : Holds st₀ s c.test val₀)
-    (F : (ℕ → K) → Bool → ℕ → K) (Cs : ℕ → ClaimSet) (D : ClaimSet)
-    (hCs : ∀ r < (c.poolOf cv.sel).runs, ∀ k : Fin 4,
-      val₀ ((c.poolOf cv.sel).digests.getD r 0) k = ClaimSet.digest F (Cs r) k)
-    (hD : ∀ k : Fin 4, val₀ ((c.poolOf cv.decl).digests.getD 0 0) k = ClaimSet.digest F D k)
-    (hcrS : ∀ r < (c.poolOf cv.sel).runs, ChainCR (c.poolOf cv.sel).n ((c.poolOf cv.sel).vals c.outs val₀)
-      (Cs r).blocks.length (chainIn F iv (Cs r).blocks) (chainOut F iv (Cs r).blocks))
-    (hcrD : ChainCR (c.poolOf cv.decl).n ((c.poolOf cv.decl).vals c.outs val₀) D.blocks.length
-      (chainIn F iv D.blocks) (chainOut F iv D.blocks))
+    {F : (ℕ → K) → Bool → ℕ → K} {Cs : ℕ → ClaimSet} {D : ClaimSet} (hN : SetsNamed c cv val₀ F Cs D)
     (hne : ¬ D.tuples ≤ ∑ r ∈ Finset.range (c.poolOf cv.sel).runs, (Cs r).tuples)
     (S : Finset E) {Ω : Type} [Fintype Ω] (pt : Ω → Fin 5 → E) (hS : ∀ ω, pt ω ∈ Fintype.piFinset fun _ : Fin 5 => S)
     (hpt : ∀ f ∈ Fintype.piFinset (fun _ : Fin 5 => S), #S ^ 5 * #{ω | pt ω = f} = Fintype.card Ω)
@@ -882,18 +905,8 @@ theorem union_sound_sets (c : Cert) (s : State) (h : c.accepts s = true) {cv : C
     (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default).blocks, nu val₀ n = nu (val ω) n) :
     (#{ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
         ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : ℚ≥0) / Fintype.card Ω ≤
-      4 * (2 * max (c.poolOf cv.sel).n (c.poolOf cv.decl).n : ℕ) / #S := by
-  classical
-  obtain ⟨-, -, hun, -, -, hcov⟩ := Cert.accepts_parts h
-  simp only [Cert.coversOk, Bool.and_eq_true, Array.all_eq_true', List.all_eq_true, decide_eq_true_eq,
-    beq_iff_eq, Bool.not_eq_true'] at hcov
-  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨hsel, hdecl⟩, -⟩, -⟩, -⟩, -⟩, -⟩, hds⟩, hdr⟩, hend⟩ := hcov.2 cv hcv
-  obtain ⟨hF, -, hpools⟩ := facts_of_holds hun hv₀
-  have hS' := sel_claims hF (hpools _ hsel).1 hend F Cs hCs hcrS
-  have hD' := decl_claims hF (hpools _ hdecl).1 hds hdr F D hD hcrD
-  refine union_sound c s h hcv hv₀ (fun heq => hne ?_) S pt hS hpt st val hv hcr hwin hseed
-  rw [← hD', ← heq]
-  exact hS'
+      4 * (2 * max (c.poolOf cv.sel).n (c.poolOf cv.decl).n : ℕ) / #S :=
+  union_sound c s h hcv hv₀ (sets_differ c s h hcv hv₀ hN hne) S pt hS hpt st val hv hcr hwin hseed
 
 end Claims
 

@@ -32,6 +32,7 @@ public import LeanVMCircuits.Bus.TableEmit
 public import LeanVMCircuits.Rec.Dump
 public import LeanVMCircuits.Rec.Bind
 public import LeanVMCircuits.Rec.Closure
+public import LeanVMCircuits.Rec.Composition
 public import LeanVMCircuits.Rec.Justify
 public import LeanVMCircuits.Rec.PoolParse
 public import LeanVMCircuits.Rec.PoolClaims
