@@ -42,7 +42,7 @@ jobs:
       - name: Check source, lowering, artifact, and theorem axioms
         working-directory: verification/circuits
         run: |
-          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots
+          lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots Mathlib.Algebra.MvPolynomial.SchwartzZippel
           # Keep the kernel-reduced multiplier plan and its export out of concurrent heavy builds.
           lake build LeanVMCircuits.Multiply.Checked
           lake build LeanVMCircuits.MulDivExport
