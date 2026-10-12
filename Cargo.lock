@@ -1471,6 +1471,7 @@ dependencies = [
  "leanvm_guest",
  "parallel",
  "primitives",
+ "thiserror",
 ]
 
 [[package]]
@@ -1534,6 +1535,7 @@ dependencies = [
  "leanxmss",
  "parallel",
  "primitives",
+ "thiserror",
 ]
 
 [[package]]

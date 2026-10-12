@@ -74,6 +74,7 @@ pub fn run(n: u64, leaf_prover: &Prover, prover: &Prover, plan: Plan) {
         arity_0: 1,
         arity: 2,
         rate,
+        claims: None,
     };
     let tree = Tree::assuming(
         outer,

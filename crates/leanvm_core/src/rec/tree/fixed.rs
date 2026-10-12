@@ -1,6 +1,6 @@
-//! The nodes' fixed polynomial `W_node`: each circuit's fixed columns stacked, the first level's circuit's then the node's.
+//! The nodes' fixed polynomial `W_node`: each circuit's fixed columns stacked, in the order of their kind's index.
 //!
-//! The two circuits share their heights, so their stacks have one layout, and one more variable, the kind's bit, selects the circuit.
+//! The circuits share their heights, so their stacks have one layout, and the kind's bits, more variables, select the circuit.
 
 use crate::rec::fixed::{FixedColumn, FixedColumns};
 use crate::rec::table::PerRecTable;
@@ -59,8 +59,10 @@ impl FixedLayout {
         out
     }
 
-    /// The fixed polynomial of the two circuits' columns, the first level's half first.
-    pub(crate) fn polynomial(&self, columns: [&FixedColumns; 2]) -> Vec<F64> {
-        columns.map(|c| self.stack(c)).concat()
+    /// The fixed polynomial of the circuits' columns, in order, zero for the indices past the last.
+    pub(crate) fn polynomial(&self, columns: &[&FixedColumns]) -> Vec<F64> {
+        let mut out: Vec<F64> = columns.iter().flat_map(|c| self.stack(c)).collect();
+        out.resize(out.len().next_power_of_two(), F64::ZERO);
+        out
     }
 }

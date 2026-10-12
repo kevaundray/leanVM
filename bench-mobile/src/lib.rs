@@ -209,6 +209,7 @@ pub fn shielded_aggregate(spec: BenchSpec) -> Result<BenchReport, TimingError> {
             arity_0: AGGREGATION_LEAVES,
             arity: AGGREGATION_LEAVES,
             rate: Rate::new(AGGREGATION_LOG_INV_RATE).map_err(execution_error)?,
+            claims: None,
         },
     )
     .map_err(execution_error)?;
