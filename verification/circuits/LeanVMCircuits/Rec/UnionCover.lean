@@ -497,7 +497,7 @@ theorem facts_of_holds {c : Cert} {s : State} (h : c.unionsOk s = true) {st : �
     have hhash : t.hash = s.hash := by
       simp only [sameSat, Bool.and_eq_true, beq_iff_eq] at hsame
       exact hsame.1.1.1.2.symm
-    refine ⟨fun j hj hrl => (hfacts j hj hj).1 st val hsat hrl, fun j hj => rows_of_hash (hfacts j hj hj).2 hhash,
+    refine ⟨fun j hj hrl _ => (hfacts j hj hj).1 st val hsat hrl, fun j hj => rows_of_hash (hfacts j hj hj).2 hhash,
       fun i hi => ?_⟩
     have hq : c.prods.getD i default ∈ c.prods := by
       simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hi, Option.getD_some]
@@ -637,7 +637,7 @@ theorem union_sound (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover}
     (hpt : ∀ f ∈ Fintype.piFinset (fun _ : Fin 5 => S), #S ^ 5 * #{ω | pt ω = f} = Fintype.card Ω)
     (st : Ω → ℕ → Fin 4 → K) (val : Ω → Val) (hv : ∀ ω, Holds (st ω) s c.test (val ω))
     (hcr : ∀ ω, HashCR s val₀ (val ω)) (hwin : ∀ ω, WindowCR s val₀ (val ω))
-    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default).blocks, nu val₀ n = nu (val ω) n) :
+    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default), nu val₀ n = nu (val ω) n) :
     (#{ω | (c.points.getD cv.sel default).at (val ω) = pt ω ∧
         ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : ℚ≥0) / Fintype.card Ω ≤
       4 * (2 * max (c.poolOf cv.sel).n (c.poolOf cv.decl).n : ℕ) / #S := by
@@ -651,7 +651,7 @@ theorem union_sound (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover}
   have hagree : ∀ ω, ∀ w ∈ (c.poolOf cv.sel).committed c.outs ++ (c.poolOf cv.decl).committed c.outs,
       val₀ w = val ω w := by
     intro ω w hw
-    have hvalid := rules_valid hr hv₀ (hv ω) (hcr ω) (hwin ω) (unionsValid c s hun hv₀ (hv ω) (hcr ω))
+    have hvalid := rules_valid hr (hv₀.toP _) ((hv ω).toP _) ((hcr ω).toP _) ((hwin ω).toP _) (unionsValid c s hun hv₀ (hv ω) (hcr ω))
     exact eq_of_limbs4 fun n hn => by
       obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp (hm n (List.mem_flatMap.mpr ⟨w, hw, hn⟩))
       exact closure_agree hvalid (hseed ω) ((Cert.times_sound c s _ hk).mono seedsBefore_seedsOf)

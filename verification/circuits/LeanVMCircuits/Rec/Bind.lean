@@ -228,16 +228,19 @@ def formPlan (t : Table) : Array (ℕ × ℕ × List (ℕ × ℕ)) := Id.run do
   return plan
 
 /-- The rows' rules, each with its justification, then collision resistance. `invs` are the `EMUL` rows and
-equalities of `inv` calls. -/
-def rowRules (s : State) (invs : Array (ℕ × ℕ)) : Analysis := Id.run do
+equalities of `inv` calls. No rule reads a hash row `drop` names: the random-oracle view drops the squeeze rows, whose
+outputs are the oracle's answers, seeds of the transcript at their times (`chalSeeds`). -/
+def rowRules (s : State) (invs : Array (ℕ × ℕ)) (drop : List ℕ → Bool) : Analysis := Id.run do
   let mut r : Rules Just := {}
+  let dropped := s.hash.map drop
   for t in [Table.emul, .exk, .cast, .split, .hash] do
     let plan := formPlan t
     let rows := rowsOf s t
     for k in [0:rows.size] do
       let row := rows[k]!
-      for (sl, i, srcs) in plan do
-        r := r.push (.form t k sl i srcs) (srcs.map (colNode row)).toArray #[limb (row.getD sl 0) i]
+      if liveRow drop t row then
+        for (sl, i, srcs) in plan do
+          r := r.push (.form t k sl i srcs) (srcs.map (colNode row)).toArray #[limb (row.getD sl 0) i]
   -- Constants by wire: their public row and value.
   let mut consts : Std.HashMap ℕ (ℕ × Limbs) := {}
   for p in [0:s.pub.size] do
@@ -256,6 +259,7 @@ def rowRules (s : State) (invs : Array (ℕ × ℕ)) : Analysis := Id.run do
   let mut outputs : Std.HashMap (ℕ × ℕ) ℕ := {}
   for k in [0:s.hash.size] do
     let row := s.hash[k]!
+    if dropped[k]! then continue
     -- At a constant bit the mux is one half of the message.
     match consts[row.getD 3 0]? with
     | some (p, v) =>
@@ -274,7 +278,8 @@ def rowRules (s : State) (invs : Array (ℕ × ℕ)) : Analysis := Id.run do
     | none => pure ()
   let nFunction := r.size
   for k in [0:s.hash.size] do
-    r := r.push (.collision k) (hashOut s.hash[k]!).toArray (hashIn s.hash[k]!).toArray
+    if !dropped[k]! then
+      r := r.push (.collision k) (hashOut s.hash[k]!).toArray (hashIn s.hash[k]!).toArray
   -- Four consecutive words of the output stream that straddle two blocks bind the chaining value.
   for ((h, n), ka) in outputs.toList do
     match outputs[(h, n + 1)]? with
@@ -639,7 +644,9 @@ def powsOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (testCalls
 
 def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let s := rp.state
-  let an0 := rowRules s rp.invs
+  let an0 := rowRules s rp.invs fun _ => false
+  -- The random-oracle view's rules, which the round certificates bind with: no rule reads a squeeze row.
+  let anRO := rowRules s rp.invs (isSqueezeRow s)
   let bs := blocks rp
   let squeezes := bs.filter (·.squeeze)
   let gamma := latestByCalls rp
@@ -647,6 +654,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let latestOf := fun w => (gamma[w]!).getD 0
   -- Equalities that bind: digests, methods', and field equalities reading no challenge.
   let mut rules := an0.rules
+  let mut rulesRO := anRO.rules
   let mut tests : Array (ℕ × ℕ × ℕ) := #[]
   let mut isTest : Array Bool := Array.replicate s.unions.size false
   for u in [0:s.unions.size] do
@@ -657,6 +665,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     else
       for j in [0:4] do
         rules := (rules.push (.eq u j true) #[limb a j] #[limb b j]).push (.eq u j false) #[limb b j] #[limb a j]
+        rulesRO := (rulesRO.push (.eq u j true) #[limb a j] #[limb b j]).push (.eq u j false) #[limb b j] #[limb a j]
   -- A union product: bound once its pool's digests, begin bits, selection bits and the point are. A pool's `pack`
   -- calls are the run of them after its end mark.
   let pools := rp.pools.map fun pc => Id.run do
@@ -670,6 +679,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   for qc in rp.prods do
     let uc := qc.claim rp.outs (pools.getD qc.pool default)
     rules := rules.push (.union claims.size) (uc.inputs.flatMap limbs4).toArray (limbs3 uc.out).toArray
+    rulesRO := rulesRO.push (.union claims.size) (uc.inputs.flatMap limbs4).toArray (limbs3 uc.out).toArray
     claims := claims.push uc
   -- The calls whose equality is a test, relaxed when the certificate replays the unions' rows.
   let mut relax : Array Bool := Array.replicate rp.calls.size false
@@ -677,6 +687,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     relax := relax.set! (rp.eqCall[u]!) true
   let an := { an0 with rules }
   let idx := premiseIndex rules an.nodes rules.size
+  let idxRO := premiseIndex rulesRO an.nodes rulesRO.size
   let ts := transcripts bs
   -- Each absorb block's `HASH` row, by its output wire.
   let mut rowOfOut : Std.HashMap ℕ ℕ := {}
@@ -686,21 +697,32 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let mut binds : Array (Array (Option ℕ)) := #[]
   let mut certs : Array Transcript := #[]
   for path in ts do
-    -- Absorbed words are bound at the next squeeze on the path; the blocks absorbed before a squeeze seed it.
+    -- Absorbed words are bound at the next squeeze on the path; the blocks absorbed before a squeeze seed it. A
+    -- squeeze reading an absorb block's output is a challenge, the oracle's answer: a seed at its own squeeze.
     let mut words : Array (ℕ × ℕ) := #[]
     let mut blocksRev : Array ℕ := #[]
+    let mut squeezes : Array ℕ := #[]
     let mut nextSq : Option ℕ := none
+    let absorbOuts : Std.HashSet ℕ := path.foldl (fun acc b => if b.squeeze then acc else acc.insert b.cvOut) {}
     for b in path.reverse do
-      if b.squeeze then nextSq := some (match nextSq with | some t => min t b.call | none => b.call)
+      if b.squeeze then
+        nextSq := some (match nextSq with | some t => min t b.call | none => b.call)
+        if absorbOuts.contains b.cvIn then
+          let k := rowOfOut.getD b.cvOut 0
+          if isSqueezeRow s (s.hash.getD k []) then
+            squeezes := squeezes.push k
+            for n in hashOut (s.hash.getD k []) do words := words.push (b.call, n)
       else match nextSq with
         | some t =>
           for w in b.words do words := words.push (t, limb w 0)
           blocksRev := blocksRev.push (rowOfOut.getD b.cvOut 0)
         | none => pure ()
     -- The statement's words are claims the verifier of this circuit's proof checks: bound last, at the end.
-    let (bd, firings) := bind rules an.nodes idx (words.reverse ++ (stmt.map (rp.calls.size, ·)).toArray)
+    let seeds := (words.qsort (·.1 < ·.1)) ++ (stmt.map (rp.calls.size, ·)).toArray
+    let (bd, firings) := bind rules an.nodes idx seeds
+    let (_, firingsRO) := bind rulesRO an.nodes idxRO seeds
     binds := binds.push bd
-    certs := certs.push { blocks := blocksRev.reverse.toList, firings }
+    certs := certs.push { blocks := blocksRev.reverse.toList, firings, squeezes := squeezes.reverse.toList, firingsRO }
   -- Each product's point: `X + 1` is made by the call after the point's first.
   let points := rp.prods.map fun qc =>
     let start := rp.maker.getD qc.x1 0 - 1
@@ -722,10 +744,10 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     | _, _ => none
   let cert : Cert := {
     rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList, calls := rp.calls, relax, pools
-    prods := rp.prods, points, covers }
+    prods := rp.prods, points, covers, rulesRO }
   -- The tests closing a sumcheck whose rounds the verdict certifies.
   let idxO := outIndex rp
-  let ms := cert.marks s
+  let ms := cert.marksRO s
   let os := cert.outs
   let sumchecks := (tests.filterMap fun (u, a, b) => sumcheckOf rp idxO s certs.toList u a b).filter fun sc =>
     ({ cert with sumchecks := #[sc] }).sumchecksOk s os ms

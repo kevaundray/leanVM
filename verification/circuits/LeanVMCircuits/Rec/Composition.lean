@@ -37,7 +37,7 @@ theorem union_sound_queries (c : Cert) (s : State) (h : c.accepts s = true) {cv 
     (qOf : Ω → ℕ) (hq : ∀ ω, qOf ω < Q) (st : Ω → ℕ → Fin 4 → K) (val : Ω → Val)
     (hv : ∀ ω, Holds (st ω) s c.test (val ω)) (hcr : ∀ ω, HashCR s (val₀ (qOf ω)) (val ω))
     (hwin : ∀ ω, WindowCR s (val₀ (qOf ω)) (val ω))
-    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default).blocks,
+    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default),
       nu (val₀ (qOf ω)) n = nu (val ω) n) :
     (#{ω | (c.points.getD cv.sel default).at (val ω) = pt (qOf ω) ω ∧
         ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : ℚ≥0) / Fintype.card Ω ≤
@@ -96,7 +96,7 @@ theorem union_sound_sets_queries (c : Cert) (s : State) (h : c.accepts s = true)
     (qOf : Ω → ℕ) (hq : ∀ ω, qOf ω < Q) (st : Ω → ℕ → Fin 4 → K) (val : Ω → Val)
     (hv : ∀ ω, Holds (st ω) s c.test (val ω)) (hcr : ∀ ω, HashCR s (val₀ (qOf ω)) (val ω))
     (hwin : ∀ ω, WindowCR s (val₀ (qOf ω)) (val ω))
-    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default).blocks,
+    (hseed : ∀ ω, ∀ n ∈ seedsOf s (c.transcripts.getD cv.transcript default),
       nu (val₀ (qOf ω)) n = nu (val ω) n) :
     (#{ω | (c.points.getD cv.sel default).at (val ω) = pt (qOf ω) ω ∧
         ∀ a b, s.unions[cv.test]? = some (a, b) → val ω a = val ω b} : ℚ≥0) / Fintype.card Ω ≤

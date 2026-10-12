@@ -38,11 +38,6 @@ def _root_.LeanVMCircuits.Rec.Model.Call.isFieldEq : Call → Bool
   | .eqE .. | .eqK .. | .eqConstE .. | .eqConstK .. => true
   | _ => false
 
-/-- A squeeze: a `leaf_block` at the duplex's output role. -/
-def _root_.LeanVMCircuits.Rec.Model.Call.isSqueeze : Call → Bool
-  | .leafBlock _ _ t _ => t / 2 ^ 56 == 6
-  | _ => false
-
 /-- One call of the scan for wires that read a challenge: the call reads one if it is a squeeze or reads a wire that
 does, and so does each wire it makes, but a constant. -/
 def taintStep (c : Call) (relax : Bool) (s : State) (tw : Array Bool) : State × Array Bool :=
@@ -99,10 +94,14 @@ theorem taintOk_sound (calls : Array Call) (relax : Array Bool) :
 
 /-! The verdict. -/
 
-/-- A transcript: its absorb blocks as `HASH` row indices in order, and the firings that bind its tests. -/
+/-- A transcript: its absorb blocks as `HASH` row indices in order, the firings that bind its tests, and its squeezes
+as `HASH` row indices. -/
 structure Transcript where
   blocks : List ℕ
   firings : Array ℕ
+  squeezes : List ℕ := []
+  /-- The firings that bind with `Cert.rulesRO`, the random-oracle view's rules. -/
+  firingsRO : Array ℕ := #[]
   deriving Inhabited
 
 /-- The words block `k` absorbs, as nodes. -/
@@ -117,51 +116,74 @@ def statementNodes (s : State) : List ℕ :=
     | .statement _ => limbs4 e.1
     | .const _ => []
 
-/-- A transcript's seeds: what its blocks absorb, and the statement. -/
-def seedsOf (s : State) (blocks : List ℕ) : List ℕ := absorbed s blocks ++ statementNodes s
+/-- The place among `blocks` of the block whose output is a row's chaining value. -/
+def readsBlock (s : State) (blocks : List ℕ) (row : List ℕ) : Option ℕ :=
+  blocks.findIdx? fun b => (s.hash.getD b []).getD 6 0 == row.getD 0 0
 
-/-- A transcript's seeds with their times: block `i`'s words at `i + 1`, the statement after the last block. -/
-def seedsT (s : State) (blocks : List ℕ) : List (ℕ × ℕ) :=
-  (List.range blocks.length).flatMap (fun i => (wordsOf s (blocks.getD i 0)).map ((i + 1), ·)) ++
-    (statementNodes s).map ((blocks.length + 1), ·)
+/-- A transcript's challenges with their times: each of its squeeze rows' outputs, the random oracle's answer, one
+after the number of blocks its chaining value needs. A challenge is so a seed of what is absorbed after it, and not of
+the round that draws it. -/
+def chalSeeds (s : State) (t : Transcript) : List (ℕ × ℕ) :=
+  t.squeezes.flatMap fun k =>
+    match isSqueezeRow s (s.hash.getD k []), readsBlock s t.blocks (s.hash.getD k []) with
+    | true, some i => (hashOut (s.hash.getD k [])).map ((i + 2), ·)
+    | _, _ => []
 
-/-- What a transcript's first `k` blocks absorb, and the statement once `k` passes its last block. -/
-def seedsBefore (s : State) (blocks : List ℕ) (k : ℕ) : List ℕ :=
-  absorbed s (blocks.take k) ++ if blocks.length < k then statementNodes s else []
+/-- A transcript's seeds: what its blocks absorb, its challenges, and the statement. -/
+def seedsOf (s : State) (t : Transcript) : List ℕ :=
+  absorbed s t.blocks ++ (chalSeeds s t).map (·.2) ++ statementNodes s
 
-theorem seedsBy_seedsT {s : State} {blocks : List ℕ} {k : ℕ} :
-    ∀ n ∈ seedsBy (seedsT s blocks) k, n ∈ seedsBefore s blocks k := by
+/-- A transcript's seeds with their times: block `i`'s words at `i + 1`, a challenge one after the block it reads,
+the statement after the last block. -/
+def seedsT (s : State) (t : Transcript) : List (ℕ × ℕ) :=
+  (List.range t.blocks.length).flatMap (fun i => (wordsOf s (t.blocks.getD i 0)).map ((i + 1), ·)) ++ chalSeeds s t ++
+    (statementNodes s).map ((t.blocks.length + 1), ·)
+
+/-- What a transcript's first `k` blocks absorb, the challenges seeded by `k`, and the statement once `k` passes its
+last block. -/
+def seedsBefore (s : State) (t : Transcript) (k : ℕ) : List ℕ :=
+  absorbed s (t.blocks.take k) ++ ((chalSeeds s t).filter (·.1 ≤ k)).map (·.2) ++
+    if t.blocks.length < k then statementNodes s else []
+
+theorem seedsBy_seedsT {s : State} {t : Transcript} {k : ℕ} :
+    ∀ n ∈ seedsBy (seedsT s t) k, n ∈ seedsBefore s t k := by
   intro n hn
   simp only [seedsBy, seedsT, List.mem_map, List.mem_filter, List.mem_append, List.mem_flatMap, List.mem_range,
     decide_eq_true_eq] at hn
   obtain ⟨p, ⟨hp, hk⟩, rfl⟩ := hn
-  simp only [seedsBefore, absorbed, List.mem_append, List.mem_flatMap]
-  rcases hp with ⟨i, hi, hp⟩ | ⟨w, hw, rfl⟩
+  simp only [seedsBefore, absorbed, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_filter,
+    decide_eq_true_eq]
+  rcases hp with (⟨i, hi, hp⟩ | hp) | ⟨w, hw, rfl⟩
   · obtain ⟨w, hw, rfl⟩ := hp
-    left
-    refine ⟨blocks.getD i 0, ?_, hw⟩
+    left; left
+    refine ⟨t.blocks.getD i 0, ?_, hw⟩
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some]
     exact List.mem_iff_getElem.mpr ⟨i, by simp; omega, by simp⟩
+  · exact Or.inl (Or.inr ⟨p, ⟨hp, hk⟩, rfl⟩)
   · right
     rw [if_pos (by simp only at hk; omega)]
     exact hw
 
-theorem seedsBefore_mono {s : State} {blocks : List ℕ} {k k' : ℕ} (h : k ≤ k') :
-    ∀ n ∈ seedsBefore s blocks k, n ∈ seedsBefore s blocks k' := by
+theorem seedsBefore_mono {s : State} {t : Transcript} {k k' : ℕ} (h : k ≤ k') :
+    ∀ n ∈ seedsBefore s t k, n ∈ seedsBefore s t k' := by
   intro n hn
-  simp only [seedsBefore, absorbed, List.mem_append, List.mem_flatMap] at hn ⊢
-  rcases hn with ⟨b, hb, hn⟩ | hn
-  · exact Or.inl ⟨b, (List.take_prefix_take_left h).subset hb, hn⟩
+  simp only [seedsBefore, absorbed, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_filter,
+    decide_eq_true_eq] at hn ⊢
+  rcases hn with (⟨b, hb, hn⟩ | ⟨p, ⟨hp, hk⟩, rfl⟩) | hn
+  · exact Or.inl (Or.inl ⟨b, (List.take_prefix_take_left h).subset hb, hn⟩)
+  · exact Or.inl (Or.inr ⟨p, ⟨hp, by omega⟩, rfl⟩)
   · split at hn
     · rw [if_pos (by omega)]; exact Or.inr hn
     · simp at hn
 
-theorem seedsBefore_seedsOf {s : State} {blocks : List ℕ} {k : ℕ} :
-    ∀ n ∈ seedsBefore s blocks k, n ∈ seedsOf s blocks := by
+theorem seedsBefore_seedsOf {s : State} {t : Transcript} {k : ℕ} :
+    ∀ n ∈ seedsBefore s t k, n ∈ seedsOf s t := by
   intro n hn
-  simp only [seedsBefore, seedsOf, absorbed, List.mem_append, List.mem_flatMap] at hn ⊢
-  rcases hn with ⟨b, hb, hn⟩ | hn
-  · exact Or.inl ⟨b, List.mem_of_mem_take hb, hn⟩
+  simp only [seedsBefore, seedsOf, absorbed, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_filter,
+    decide_eq_true_eq] at hn ⊢
+  rcases hn with (⟨b, hb, hn⟩ | ⟨p, ⟨hp, -⟩, rfl⟩) | hn
+  · exact Or.inl (Or.inl ⟨b, List.mem_of_mem_take hb, hn⟩)
+  · exact Or.inl (Or.inr ⟨p, hp, rfl⟩)
   · split at hn
     · exact Or.inr hn
     · simp at hn
@@ -210,17 +232,27 @@ structure Cert where
   sumchecks : Array SumcheckCert := #[]
   pows : Array PowCert := #[]
   odds : Array OddCert := #[]
+  /-- The rules without the squeeze rows (`isSqueezeRow`), which the round certificates bind with. -/
+  rulesRO : Rules Just := {}
 
 def Cert.test (c : Cert) (u : ℕ) : Bool := c.isTest.getD u false
 
 /-- The time a transcript's firings bind each node at: the number of its blocks it needs, one more than their number
 if it needs the statement. -/
 def Cert.times (c : Cert) (s : State) (t : Transcript) : Array (Option ℕ) :=
-  certifyT c.rules c.nodes (seedsT s t.blocks) t.firings
+  certifyT c.rules c.nodes (seedsT s t) t.firings
 
 /-- Each transcript with its times. -/
 def Cert.marks (c : Cert) (s : State) : List (Transcript × Array (Option ℕ)) :=
   c.transcripts.map fun t => (t, c.times s t)
+
+/-- The times in the random-oracle view: `rulesRO` and its firings. -/
+def Cert.timesRO (c : Cert) (s : State) (t : Transcript) : Array (Option ℕ) :=
+  certifyT c.rulesRO c.nodes (seedsT s t) t.firingsRO
+
+/-- Each transcript with its random-oracle times. -/
+def Cert.marksRO (c : Cert) (s : State) : List (Transcript × Array (Option ℕ)) :=
+  c.transcripts.map fun t => (t, c.timesRO s t)
 
 /-- When a transcript binds two wires: their limbs' latest time. -/
 def bindTime (m : Array (Option ℕ)) (a b : ℕ) : Option ℕ := latest m (some 0) (limbs4 a ++ limbs4 b)
@@ -328,14 +360,15 @@ def Cert.accepts (c : Cert) (s : State) : Bool :=
   match replayR c.calls c.relax 0 {} #[] with
   | none => false
   | some (t, os) =>
-    rulesOk s c.test c.claims c.rules && c.transcripts.all (fun t => chainOk s t.blocks) && c.unionsAt s t os &&
-      taintOk c.calls c.relax 0 {} #[] &&
+    rulesOk s c.test c.claims (fun _ => false) c.rules && c.transcripts.all (fun t => chainOk s t.blocks) &&
+      c.unionsAt s t os && taintOk c.calls c.relax 0 {} #[] &&
       let ms := c.marks s
-      c.testsBound s ms && c.coversOk s os ms && c.sumchecksOk s os ms && c.pows.all (·.ok os c.calls c.relax) &&
-        c.oddsOk s os ms
+      let mr := c.marksRO s
+      c.testsBound s ms && c.coversOk s os ms && c.sumchecksOk s os mr && c.pows.all (·.ok os c.calls c.relax) &&
+        c.oddsOk s os mr && rulesOk s c.test c.claims (isSqueezeRow s) c.rulesRO
 
 theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
-    rulesOk s c.test c.claims c.rules = true ∧ c.transcripts.all (fun t => chainOk s t.blocks) = true ∧
+    rulesOk s c.test c.claims (fun _ => false) c.rules = true ∧ c.transcripts.all (fun t => chainOk s t.blocks) = true ∧
       c.unionsOk s = true ∧ taintOk c.calls c.relax 0 {} #[] = true ∧ c.testsBound s (c.marks s) = true ∧
       c.coversOk s c.outs (c.marks s) = true := by
   unfold Cert.accepts at h
@@ -345,12 +378,12 @@ theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩ := h
+    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩, -⟩⟩ := h
     exact ⟨hr, hc, hu, ht, hb, hcv⟩
 
 theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
-    c.sumchecksOk s c.outs (c.marks s) = true ∧ c.pows.all (·.ok c.outs c.calls c.relax) = true ∧
-      c.oddsOk s c.outs (c.marks s) = true := by
+    c.sumchecksOk s c.outs (c.marksRO s) = true ∧ c.pows.all (·.ok c.outs c.calls c.relax) = true ∧
+      c.oddsOk s c.outs (c.marksRO s) = true ∧ rulesOk s c.test c.claims (isSqueezeRow s) c.rulesRO = true := by
   unfold Cert.accepts at h
   unfold Cert.outs
   split at h
@@ -358,21 +391,26 @@ theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    exact ⟨h.2.1.1.2, h.2.1.2, h.2.2⟩
+    exact ⟨h.2.1.1.1.2, h.2.1.1.2, h.2.1.2, h.2.2⟩
 
 /-- A node a transcript binds at time `k` is in the closure of what its first `k` blocks absorb, and of the statement
 once `k` passes its last block. -/
 theorem Cert.times_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
-    (h : (c.times s t).getD n none = some k) : Closure c.rules (seedsBefore s t.blocks k) n :=
+    (h : (c.times s t).getD n none = some k) : Closure c.rules (seedsBefore s t k) n :=
+  (certifyT_sound _ _ _ _ n k h).mono seedsBy_seedsT
+
+/-- The same for the random-oracle view's rules. -/
+theorem Cert.timesRO_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
+    (h : (c.timesRO s t).getD n none = some k) : Closure c.rulesRO (seedsBefore s t k) n :=
   (certifyT_sound _ _ _ _ n k h).mono seedsBy_seedsT
 
 /-- A passing verdict: every rule is justified, and each test's wires are bound by one transcript at a time `k`: in
 the closure of what its first `k` blocks absorb, and of the statement once `k` passes its last block. -/
 theorem tests_by (c : Cert) (s : State) (h : c.accepts s = true) :
-    rulesOk s c.test c.claims c.rules = true ∧
+    rulesOk s c.test c.claims (fun _ => false) c.rules = true ∧
     ∀ u a b, s.unions[u]? = some (a, b) → c.test u = true →
       ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧ ∃ k, bindTime (c.times s t) a b = some k ∧
-        ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsBefore s t.blocks k) n := by
+        ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsBefore s t k) n := by
   obtain ⟨hr, hc, -, -, ht, -⟩ := Cert.accepts_parts h
   simp only [Cert.testsBound, List.all_eq_true, List.mem_range] at ht hc
   refine ⟨hr, fun u a b hab htu => ?_⟩
@@ -392,10 +430,10 @@ theorem tests_by (c : Cert) (s : State) (h : c.accepts s = true) :
 /-- A passing verdict: every rule is justified, and each test's wires are in the closure of one transcript's absorbed
 words and the statement. -/
 theorem checkbind_sound (c : Cert) (s : State) (h : c.accepts s = true) :
-    rulesOk s c.test c.claims c.rules = true ∧
+    rulesOk s c.test c.claims (fun _ => false) c.rules = true ∧
     ∀ u a b, s.unions[u]? = some (a, b) → c.test u = true →
       ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧
-        ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsOf s t.blocks) n := by
+        ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsOf s t) n := by
   obtain ⟨hr, hall⟩ := tests_by c s h
   refine ⟨hr, fun u a b hab htu => ?_⟩
   obtain ⟨t, htm, hch, k, -, hcl⟩ := hall u a b hab htu
@@ -423,8 +461,8 @@ theorem unionsValid {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Cert) (
       (fun j hj => absurd hj (Nat.not_lt_zero j)) hr
     have hsat : Sat st t val := sat_of_sameSat hsame hv
     have hsat' : Sat st' t val' := sat_of_sameSat hsame hv'
-    have hF : Facts c.calls c.relax os st val := fun j hj hrl => (hfacts j hj hj).1 st val hsat hrl
-    have hF' : Facts c.calls c.relax os st' val' := fun j hj hrl => (hfacts j hj hj).1 st' val' hsat' hrl
+    have hF : Facts c.calls c.relax os st val := fun j hj hrl _ => (hfacts j hj hj).1 st val hsat hrl
+    have hF' : Facts c.calls c.relax os st' val' := fun j hj hrl _ => (hfacts j hj hj).1 st' val' hsat' hrl
     have hhash : t.hash = s.hash := by
       simp only [sameSat, Bool.and_eq_true, beq_iff_eq] at hsame
       exact hsame.1.1.1.2.symm
@@ -443,13 +481,13 @@ theorem tests_determined {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Ce
     (hw : WindowCR s val val') {u a b : ℕ}
     (hab : s.unions[u]? = some (a, b)) (ht : c.test u = true) :
     ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧ ∃ k, bindTime (c.times s t) a b = some k ∧
-      ((∀ n ∈ seedsBefore s t.blocks k, nu val n = nu val' n) → val a = val' a ∧ val b = val' b) := by
+      ((∀ n ∈ seedsBefore s t k, nu val n = nu val' n) → val a = val' a ∧ val b = val' b) := by
   obtain ⟨hr, hall⟩ := tests_by c s h
   have hu : UnionsValid c.claims val val' := unionsValid c s (Cert.accepts_parts h).2.2.1 hv hv' hcr
   obtain ⟨t, htm, hch, k, hk, hcl⟩ := hall u a b hab ht
   refine ⟨t, htm, hch, k, hk, fun hs => ?_⟩
   have key : ∀ n ∈ limbs4 a ++ limbs4 b, nu val n = nu val' n :=
-    fun n hn => closure_agree (rules_valid hr hv hv' hcr hw hu) hs (hcl n hn)
+    fun n hn => closure_agree (rules_valid hr (hv.toP _) (hv'.toP _) (hcr.toP _) (hw.toP _) hu) hs (hcl n hn)
   exact ⟨eq_of_limbs4 fun n hn => key n (List.mem_append_left _ hn),
     eq_of_limbs4 fun n hn => key n (List.mem_append_right _ hn)⟩
 

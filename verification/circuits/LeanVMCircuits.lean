@@ -38,6 +38,7 @@ public import LeanVMCircuits.Rec.Justify
 public import LeanVMCircuits.Rec.PoolParse
 public import LeanVMCircuits.Rec.PoolClaims
 public import LeanVMCircuits.Rec.Relax
+public import LeanVMCircuits.Rec.RomExamples
 public import LeanVMCircuits.Rec.RoundSound
 public import LeanVMCircuits.Rec.Rounds
 public import LeanVMCircuits.Rec.TreeSound

@@ -610,3 +610,13 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Sumcheck.coeff_polyOf
 #print axioms LeanVMCircuits.Rec.Bind.odd_sem
 #print axioms LeanVMCircuits.Rec.Bind.odd_test_sound
+#print axioms LeanVMCircuits.Rec.toE_surjective
+#print axioms LeanVMCircuits.Rec.Bind.Holds.toP
+#print axioms LeanVMCircuits.Rec.Bind.RomAnswers.of_holds
+#print axioms LeanVMCircuits.Rec.Bind.bound_agree
+#print axioms LeanVMCircuits.Rec.Bind.RomExample.sumcheck_answers_exist
+#print axioms LeanVMCircuits.Rec.Bind.RomExample.odd_answers_exist
+#print axioms LeanVMCircuits.Rec.Bind.RomExample.pow_answers_exist
+#print axioms LeanVMCircuits.Rec.Bind.Cert.timesRO_sound
+#print axioms LeanVMCircuits.Rec.Bind.WindowCR.toP
+#print axioms LeanVMCircuits.Rec.Bind.HashCR.toP

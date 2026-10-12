@@ -304,28 +304,23 @@ theorem sumRound_sem (hF : Facts cs rl os st val) {rc : RoundCert} {d claim : �
   · rw [RoundCert.next, horner_sem hF _ _ _ _ (by simp; omega) hhorner, hz2', eval_polyOf, List.map_reverse,
       List.foldl_reverse]
 
-/-- Where every replayed call holds and the proof-of-work tests hold, the trial compression's first output word is
-below `2^(64 - bits)`: its top `bits` bits are zero. -/
+/-- Where every replayed call holds and the proof-of-work tests hold, the trial digest's first word is below
+`2^(64 - bits)`: its top `bits` bits are zero. -/
 theorem pow_sem (hF : Facts cs rl os st val) {pc : PowCert} (hok : pc.ok os cs rl = true)
     (htests : ∀ k < pc.bits, val (pc.bit os (64 - pc.bits + k)) 0 = 0) :
-    ∃ acc x ds, cs[pc.compressAt]? = some (.compress acc x ds) ∧
-      (Rec.node (words4 (val acc)) (words4 (xds val x ds)) 0).toNat < 2 ^ (64 - pc.bits) := by
+    toWord (val (PowCert.trial os pc) 0) < 2 ^ (64 - pc.bits) := by
   simp only [PowCert.ok, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hok
   obtain ⟨⟨⟨hb, -⟩, hcalls⟩, -⟩ := hok
   split at hcalls
-  · rename_i acc x ds hc
-    refine ⟨acc, x, ds, hc, ?_⟩
-    obtain ⟨h1, hrest⟩ := callsOk_cons hcalls
+  · obtain ⟨-, hrest⟩ := callsOk_cons hcalls
     obtain ⟨h2, h3⟩ := callsOk_cons hrest
-    have hcomp : words4 (val (PowCert.trial os pc)) = Rec.node (words4 (val acc)) (words4 (xds val x ds)) :=
-      holds_of_mem hF h1 (List.mem_singleton_self _)
     have hdk : ∀ i : Fin 4, val (outAt os pc.dkAt i) 0 = val (PowCert.trial os pc) i :=
       holds_of_mem hF h2 (List.mem_singleton_self _)
     have hsp : (∀ i < 64, val (PowCert.bit os pc i) 0 = 0 ∨ val (PowCert.bit os pc i) 0 = 1) ∧
         toWord (val (PowCert.word os pc) 0) = num (fun i => if val (PowCert.bit os pc i) 0 = 1 then 1 else 0) 64 :=
       holds_of_mem hF h3 (List.mem_singleton_self _)
     have hw : val (PowCert.word os pc) 0 = val (PowCert.trial os pc) 0 := hdk 0
-    rw [← hcomp, words4, BitVec.toNat_ofNat, ← hw, hsp.2, Nat.mod_eq_of_lt (num_lt _ 64)]
+    rw [← hw, hsp.2]
     refine Nat.lt_pow_two_of_testBit _ fun i hi => ?_
     by_cases h64 : i < 64
     · rw [testBit_num _ _ _ h64]

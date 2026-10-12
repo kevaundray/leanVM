@@ -232,13 +232,28 @@ inductive Just where
 
 instance : Inhabited Just := ⟨.union 0⟩
 
+/-- A squeeze row: its counter word is a constant at the duplex's output role. In the random-oracle view its output is
+the oracle's answer, a challenge, so no rule reads the row and the assignments a soundness theorem quantifies over need
+not compress there (`HoldsP` with `isSqueezeRow`). -/
+def isSqueezeRow (s : State) (row : List ℕ) : Bool :=
+  s.pub.any fun e => e.1 == row.getD 1 0 && match e.2 with
+    | .const v => v.headD 0 / 2 ^ 56 == 6
+    | .statement _ => false
+
+/-- A row a rule may read: any row but a dropped hash row. -/
+def liveRow (drop : List ℕ → Bool) : Table → List ℕ → Bool
+  | .hash, row => !drop row
+  | _, _ => true
+
 /-- A justification names exactly the rule's premises and conclusions, in the circuit. -/
-def Just.ok (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (prem concl : List ℕ) : Just → Bool
+def Just.ok (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (drop : List ℕ → Bool) (prem concl : List ℕ) :
+    Just → Bool
   | .form t k sl i srcs =>
     match (rowsOf s t)[k]? with
     | none => false
     | some row =>
-      sl < (formsOf t).length && i < 4 && concl == [limb (row.getD sl 0) i] && prem == srcs.map (colNode row) &&
+      liveRow drop t row && sl < (formsOf t).length && i < 4 && concl == [limb (row.getD sl 0) i] &&
+        prem == srcs.map (colNode row) &&
         srcs.all (fun src => src.1 < (formsOf t).length && src.2 < 4 && (formAt t src.1 src.2).colOf.isSome) &&
         (formAt t sl i).cols.all fun c => srcs.any fun src => (formAt t src.1 src.2).colOf == some c
   | .pubConst p i =>
@@ -261,22 +276,23 @@ def Just.ok (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (pre
   | .mux k i p =>
     match s.hash[k]?, s.pub[p]? with
     | some row, some (w, .const v) =>
-      w == row.getD 3 0 && i < 4 && prem == [limb (row.getD 2 0) i] &&
+      !drop row && w == row.getD 3 0 && i < 4 && prem == [limb (row.getD 2 0) i] &&
         (if v == [0, 0, 0, 0] then concl == [colNode row (hashSrc (6 + i))]
         else v == [1, 0, 0, 0] && concl == [colNode row (hashSrc (10 + i))])
     | _, _ => false
   | .compress k p =>
     match s.hash[k]?, s.pub[p]? with
     | some row, some (w, .const v) =>
-      w == row.getD 1 0 && finalOk (v.getD 1 0) && prem == hashIn row && concl == hashOut row
+      !drop row && w == row.getD 1 0 && finalOk (v.getD 1 0) && prem == hashIn row && concl == hashOut row
     | _, _ => false
   | .collision k =>
     match s.hash[k]? with
-    | some row => prem == hashOut row && concl == hashIn row
+    | some row => !drop row && prem == hashOut row && concl == hashIn row
     | none => false
   | .window ka kb j =>
     match s.hash[ka]?, s.hash[kb]? with
-    | some ra, some rb => ra.getD 0 0 == rb.getD 0 0 && 1 ≤ j && j < 4 && prem == windowIn ra rb j && concl == hashH ra
+    | some ra, some rb => !drop ra && !drop rb && ra.getD 0 0 == rb.getD 0 0 && 1 ≤ j && j < 4 &&
+      prem == windowIn ra rb j && concl == hashH ra
     | _, _ => false
   | .inv k u pz po fwd =>
     match s.emul[k]?, s.unions[u]?, s.pub[pz]?, s.pub[po]? with
@@ -292,8 +308,8 @@ def Just.ok (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (pre
     | none => false
 
 /-- Every rule is justified. -/
-def rulesOk (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (r : Rules Just) : Bool :=
-  (List.range r.size).all fun i => (r.why.getD i default).ok s isTest claims (r.prem i) (r.concl i)
+def rulesOk (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (drop : List ℕ → Bool) (r : Rules Just) : Bool :=
+  (List.range r.size).all fun i => (r.why.getD i default).ok s isTest claims drop (r.prem i) (r.concl i)
 
 /-! Assignments and premises. -/
 
@@ -323,17 +339,62 @@ theorem Holds.union {st : ℕ → Fin 4 → K} {s : State} {isTest : ℕ → Boo
   rw [Array.getElem?_eq_none (by omega)] at hu
   simp at hu
 
+/-- The circuit without its tests and the hash rows `drop` names. -/
+def keepP (s : State) (isTest : ℕ → Bool) (drop : List ℕ → Bool) : State :=
+  { keep s isTest with hash := s.hash.filter fun row => !drop row }
+
+/-- An assignment satisfying every constraint of the circuit but the tests and the squeezes: the random-oracle view,
+in which a squeeze's output is the oracle's answer rather than the compression of its chaining value. -/
+def HoldsP (statement : ℕ → Fin 4 → K) (s : State) (isTest : ℕ → Bool) (drop : List ℕ → Bool) (val : Val) : Prop :=
+  Sat statement (keepP s isTest drop) val
+
+theorem Holds.toP {st : ℕ → Fin 4 → K} {s : State} {isTest : ℕ → Bool} {val : Val} (h : Holds st s isTest val)
+    (drop : List ℕ → Bool) : HoldsP st s isTest drop val :=
+  ⟨h.unions, h.emul, h.exk, fun r hr => h.hash r (Array.mem_of_mem_filter hr), h.split, h.cast, h.pub⟩
+
+theorem mem_keepP_hash {s : State} {isTest : ℕ → Bool} {drop : List ℕ → Bool} {row : List ℕ} (h : row ∈ s.hash)
+    (hs : drop row = false) : row ∈ (keepP s isTest drop).hash :=
+  Array.mem_filter.mpr ⟨h, by simp [hs]⟩
+
+theorem HoldsP.union {st : ℕ → Fin 4 → K} {s : State} {isTest : ℕ → Bool} {drop : List ℕ → Bool} {val : Val}
+    (h : HoldsP st s isTest drop val) {u a b : ℕ} (hu : s.unions[u]? = some (a, b)) (ht : isTest u = false) :
+    val a = val b := by
+  refine h.unions (a, b) ?_
+  simp only [keepP, keep, List.mem_toArray, List.mem_filterMap, List.mem_range]
+  refine ⟨u, ?_, by simp [ht, hu]⟩
+  by_contra hn
+  rw [Array.getElem?_eq_none (by omega)] at hu
+  simp at hu
+
 /-- Collision resistance of the compression, as a premise on two assignments: two hash rows given the same output
 ports, one by each assignment, are given the same input ports. -/
 def HashCR (s : State) (val val' : Val) : Prop :=
   ∀ row ∈ s.hash, ∀ row' ∈ s.hash, (hashOut row).map (nu val) = (hashOut row').map (nu val') →
     (hashIn row).map (nu val) = (hashIn row').map (nu val')
 
+/-- `HashCR` on the rows that are not squeezes: what the rules need. Two answers of a random oracle at different
+chaining values may share an output, so a premise over many oracles' answers cannot ask more. -/
+def HashCRP (s : State) (drop : List ℕ → Bool) (val val' : Val) : Prop :=
+  ∀ row ∈ s.hash, ∀ row' ∈ s.hash, drop row = false → drop row' = false →
+    (hashOut row).map (nu val) = (hashOut row').map (nu val') → (hashIn row).map (nu val) = (hashIn row').map (nu val')
+
+theorem HashCR.toP {s : State} {val val' : Val} (h : HashCR s val val') (drop : List ℕ → Bool) : HashCRP s drop val val' :=
+  fun row hr row' hr' _ _ => h row hr row' hr'
+
 /-- Collision resistance of the duplex's output window, as a premise on two assignments: two hash rows of one
-chaining value given the same window of output words are given the same chaining value. -/
+chaining value, neither a squeeze, given the same window of output words are given the same chaining value. -/
 def WindowCR (s : State) (val val' : Val) : Prop :=
   ∀ ra ∈ s.hash, ∀ rb ∈ s.hash, ra.getD 0 0 = rb.getD 0 0 → ∀ j, 1 ≤ j → j < 4 →
     (∀ n ∈ windowIn ra rb j, nu val n = nu val' n) → ∀ n ∈ hashH ra, nu val n = nu val' n
+
+/-- `WindowCR` on the hash rows `drop` does not name. -/
+def WindowCRP (s : State) (drop : List ℕ → Bool) (val val' : Val) : Prop :=
+  ∀ ra ∈ s.hash, ∀ rb ∈ s.hash, drop ra = false → drop rb = false → ra.getD 0 0 = rb.getD 0 0 →
+    ∀ j, 1 ≤ j → j < 4 → (∀ n ∈ windowIn ra rb j, nu val n = nu val' n) → ∀ n ∈ hashH ra, nu val n = nu val' n
+
+theorem WindowCR.toP {s : State} {val val' : Val} (h : WindowCR s val val') (drop : List ℕ → Bool) :
+    WindowCRP s drop val val' :=
+  fun ra ha rb hb _ _ => h ra ha rb hb
 
 /-- The union's parse uniqueness, as a premise on two assignments: a union product is a function of its inputs. -/
 def UnionsValid (claims : Array UnionClaim) (val val' : Val) : Prop :=
@@ -365,11 +426,12 @@ theorem final_of_ok {v : ℕ} (hv : finalOk v = true) : ∃ f : Bool,
 
 section
 
-variable {st st' : ℕ → Fin 4 → K} {s : State} {isTest : ℕ → Bool} {claims : Array UnionClaim} {val val' : Val}
+variable {st st' : ℕ → Fin 4 → K} {s : State} {isTest : ℕ → Bool} {claims : Array UnionClaim} {drop : List ℕ → Bool}
+  {val val' : Val}
 
 theorem ok_form {t : Table} {k sl i : ℕ} {srcs : List (ℕ × ℕ)} {prem concl : List ℕ}
-    (hok : (Just.form t k sl i srcs).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+    (hok : (Just.form t k sl i srcs).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ p ∈ prem, nu val p = nu val' p) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp n hn
   simp only [Just.ok] at hok
@@ -377,10 +439,13 @@ theorem ok_form {t : Table} {k sl i : ℕ} {srcs : List (ℕ × ℕ)} {prem conc
   · simp at hok
   rename_i row hrow
   simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq, List.all_eq_true, List.any_eq_true] at hok
-  obtain ⟨⟨⟨⟨⟨hsl, hi⟩, rfl⟩, rfl⟩, hsrcs⟩, hcols⟩ := hok
+  obtain ⟨⟨⟨⟨⟨⟨hlive, hsl⟩, hi⟩, rfl⟩, rfl⟩, hsrcs⟩, hcols⟩ := hok
   simp only [List.mem_singleton] at hn
   subst hn
-  have hmem : row ∈ rowsOf (keep s isTest) t := by cases t <;> exact Array.mem_of_getElem? hrow
+  have hmem : row ∈ rowsOf (keepP s isTest drop) t := by
+    cases t
+    case hash => exact mem_keepP_hash (Array.mem_of_getElem? hrow) (by simpa [liveRow] using hlive)
+    all_goals exact Array.mem_of_getElem? hrow
   obtain ⟨col, -, hl⟩ := Sat.row h hmem
   obtain ⟨col', -, hl'⟩ := Sat.row h' hmem
   have hcol : ∀ c ∈ (formAt t sl i).cols, col c = col' c := by
@@ -398,8 +463,8 @@ theorem ok_form {t : Table} {k sl i : ℕ} {srcs : List (ℕ × ℕ)} {prem conc
 
 theorem nu_limb0 (val : Val) (w : ℕ) : nu val (limb w 0) = val w 0 := nu_limb val w 0 (by norm_num)
 
-theorem ok_pubConst {p i : ℕ} {prem concl : List ℕ} (hok : (Just.pubConst p i).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+theorem ok_pubConst {p i : ℕ} {prem concl : List ℕ} (hok : (Just.pubConst p i).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro _ n hn
   cases hq : s.pub[p]? with
@@ -413,13 +478,13 @@ theorem ok_pubConst {p i : ℕ} {prem concl : List ℕ} (hok : (Just.pubConst p 
       obtain ⟨⟨hi, -⟩, rfl⟩ := hok
       simp only [List.mem_singleton] at hn
       subst hn
-      have hm : (w, PubSource.const v) ∈ (keep s isTest).pub := Array.mem_of_getElem? hq
+      have hm : (w, PubSource.const v) ∈ (keepP s isTest drop).pub := Array.mem_of_getElem? hq
       rw [nu_limb val _ _ hi, nu_limb val' _ _ hi, h.pub w _ hm, h'.pub w _ hm]
       rfl
 
 theorem ok_eq {u i : ℕ} {fwd : Bool} {prem concl : List ℕ}
-    (hok : (Just.eq u i fwd).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+    (hok : (Just.eq u i fwd).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp n hn
   cases hu : s.unions[u]? with
@@ -446,8 +511,8 @@ theorem ok_eq {u i : ℕ} {fwd : Bool} {prem concl : List ℕ}
       rw [nu_limb val _ _ hi, nu_limb val' _ _ hi] at this ⊢
       rw [← hab, ← hab', this]
 
-theorem ok_splitWord {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitWord k).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+theorem ok_splitWord {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitWord k).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp n hn
   cases hr : s.split[k]? with
@@ -457,7 +522,7 @@ theorem ok_splitWord {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitWord k)
     obtain ⟨rfl, rfl⟩ := hok
     simp only [List.mem_singleton] at hn
     subst hn
-    have hm : row ∈ (keep s isTest).split := Array.mem_of_getElem? hr
+    have hm : row ∈ (keepP s isTest drop).split := Array.mem_of_getElem? hr
     obtain ⟨-, hw⟩ := split_sem h hm
     obtain ⟨-, hw'⟩ := split_sem h' hm
     have hb : ∀ b < 64, val (row.getD (1 + b) 0) 0 = val' (row.getD (1 + b) 0) 0 := by
@@ -470,8 +535,8 @@ theorem ok_splitWord {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitWord k)
     rw [hw, hw']
     exact num_congr _ _ 64 fun b hb' => by simp only [hb b hb']
 
-theorem ok_splitBits {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitBits k).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+theorem ok_splitBits {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitBits k).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp n hn
   cases hr : s.split[k]? with
@@ -479,7 +544,7 @@ theorem ok_splitBits {k : ℕ} {prem concl : List ℕ} (hok : (Just.splitBits k)
   | some row =>
     simp only [Just.ok, hr, Bool.and_eq_true, beq_iff_eq] at hok
     obtain ⟨rfl, rfl⟩ := hok
-    have hm : row ∈ (keep s isTest).split := Array.mem_of_getElem? hr
+    have hm : row ∈ (keepP s isTest drop).split := Array.mem_of_getElem? hr
     obtain ⟨hb, hw⟩ := split_sem h hm
     obtain ⟨hb', hw'⟩ := split_sem h' hm
     have hword : toWord (val (row.getD 0 0) 0) = toWord (val' (row.getD 0 0) 0) := by
@@ -500,8 +565,8 @@ theorem hash_col {val : Val} {row : List ℕ} {col : ℕ → K}
     (hc : c < 19) : col c = nu val (colNode row (hashSrc c)) :=
   col_eq (t := .hash) hl (hashSrc_col c hc).1 (hashSrc_col c hc).2.1 (hashSrc_col c hc).2.2
 
-theorem ok_mux {k i p : ℕ} {prem concl : List ℕ} (hok : (Just.mux k i p).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+theorem ok_mux {k i p : ℕ} {prem concl : List ℕ} (hok : (Just.mux k i p).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp n hn
   cases hr : s.hash[k]? with
@@ -514,14 +579,14 @@ theorem ok_mux {k i p : ℕ} {prem concl : List ℕ} (hok : (Just.mux k i p).ok 
     cases src with
     | statement _ => simp [Just.ok, hr, hq] at hok
     | const v =>
-      simp only [Just.ok, hr, hq, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hok
-      obtain ⟨⟨⟨rfl, hi⟩, rfl⟩, hv⟩ := hok
-      have hm : row ∈ (keep s isTest).hash := Array.mem_of_getElem? hr
-      have hpub : (row.getD 3 0, PubSource.const v) ∈ (keep s isTest).pub := Array.mem_of_getElem? hq
+      simp only [Just.ok, hr, hq, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, Bool.not_eq_true'] at hok
+      obtain ⟨⟨⟨⟨hsq, rfl⟩, hi⟩, rfl⟩, hv⟩ := hok
+      have hm : row ∈ (keepP s isTest drop).hash := mem_keepP_hash (Array.mem_of_getElem? hr) hsq
+      have hpub : (row.getD 3 0, PubSource.const v) ∈ (keepP s isTest drop).pub := Array.mem_of_getElem? hq
       have hp0 := hp _ (List.mem_singleton_self _)
       rw [nu_limb val _ _ hi, nu_limb val' _ _ hi] at hp0
       -- In each assignment the mux limb is the message word the constant bit picks.
-      have pick : ∀ {st : ℕ → Fin 4 → K} {val : Val}, Holds st s isTest val → ∀ c ∈ concl,
+      have pick : ∀ {st : ℕ → Fin 4 → K} {val : Val}, HoldsP st s isTest drop val → ∀ c ∈ concl,
           nu val c = val (row.getD 2 0) ⟨i, hi⟩ := by
         intro st val h c hc
         obtain ⟨col, hrow, hl⟩ := h.hash row hm
@@ -552,8 +617,8 @@ theorem ok_mux {k i p : ℕ} {prem concl : List ℕ} (hok : (Just.mux k i p).ok 
       rw [pick h n hn, pick h' n hn, hp0]
 
 theorem ok_compress {k p : ℕ} {prem concl : List ℕ}
-    (hok : (Just.compress k p).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+    (hok : (Just.compress k p).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp n hn
   cases hr : s.hash[k]? with
@@ -566,10 +631,10 @@ theorem ok_compress {k p : ℕ} {prem concl : List ℕ}
     cases src with
     | statement _ => simp [Just.ok, hr, hq] at hok
     | const v =>
-      simp only [Just.ok, hr, hq, Bool.and_eq_true, beq_iff_eq] at hok
-      obtain ⟨⟨⟨rfl, hf⟩, rfl⟩, rfl⟩ := hok
-      have hm : row ∈ (keep s isTest).hash := Array.mem_of_getElem? hr
-      have hpub : (row.getD 1 0, PubSource.const v) ∈ (keep s isTest).pub := Array.mem_of_getElem? hq
+      simp only [Just.ok, hr, hq, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at hok
+      obtain ⟨⟨⟨⟨hsq, rfl⟩, hf⟩, rfl⟩, rfl⟩ := hok
+      have hm : row ∈ (keepP s isTest drop).hash := mem_keepP_hash (Array.mem_of_getElem? hr) hsq
+      have hpub : (row.getD 1 0, PubSource.const v) ∈ (keepP s isTest drop).pub := Array.mem_of_getElem? hq
       obtain ⟨f, hfw⟩ := final_of_ok hf
       obtain ⟨col, hrow, hl⟩ := h.hash row hm
       obtain ⟨col', hrow', hl'⟩ := h'.hash row hm
@@ -577,7 +642,7 @@ theorem ok_compress {k p : ℕ} {prem concl : List ℕ}
         intro c hc
         rw [hash_col hl c (by omega), hash_col hl' c (by omega)]
         exact hp _ (List.mem_map.mpr ⟨c, List.mem_range.mpr hc, rfl⟩)
-      have hF : ∀ {st : ℕ → Fin 4 → K} {val : Val} {col : ℕ → K}, Holds st s isTest val →
+      have hF : ∀ {st : ℕ → Fin 4 → K} {val : Val} {col : ℕ → K}, HoldsP st s isTest drop val →
           (∀ s < Rec.hash.length, ∀ i : Fin 4, limbs Rec.hash s col i = val (row.getD s 0) i) →
           (columnWord col hashF).setWidth 32 = if f then BitVec.allOnes 32 else 0 := by
         intro st val col h hl
@@ -616,19 +681,19 @@ theorem ok_compress {k p : ℕ} {prem concl : List ℕ}
       exact hout k hk
 
 theorem ok_collision {k : ℕ} {prem concl : List ℕ}
-    (hok : (Just.collision k).ok s isTest claims prem concl = true) (hcr : HashCR s val val') :
+    (hok : (Just.collision k).ok s isTest claims drop prem concl = true) (hcr : HashCRP s drop val val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp
   cases hr : s.hash[k]? with
   | none => simp [Just.ok, hr] at hok
   | some row =>
-    simp only [Just.ok, hr, Bool.and_eq_true, beq_iff_eq] at hok
-    obtain ⟨rfl, rfl⟩ := hok
+    simp only [Just.ok, hr, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at hok
+    obtain ⟨⟨hsq, rfl⟩, rfl⟩ := hok
     have hm := Array.mem_of_getElem? hr
-    exact List.map_inj_left.mp (hcr row hm row hm (List.map_inj_left.mpr hp))
+    exact List.map_inj_left.mp (hcr row hm row hm hsq hsq (List.map_inj_left.mpr hp))
 
 theorem ok_window {ka kb j : ℕ} {prem concl : List ℕ}
-    (hok : (Just.window ka kb j).ok s isTest claims prem concl = true) (hw : WindowCR s val val') :
+    (hok : (Just.window ka kb j).ok s isTest claims drop prem concl = true) (hw : WindowCRP s drop val val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp
   cases ha : s.hash[ka]? with
@@ -637,9 +702,9 @@ theorem ok_window {ka kb j : ℕ} {prem concl : List ℕ}
   cases hb : s.hash[kb]? with
   | none => simp [Just.ok, ha, hb] at hok
   | some rb =>
-    simp only [Just.ok, ha, hb, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hok
-    obtain ⟨⟨⟨⟨hh, hj1⟩, hj4⟩, rfl⟩, rfl⟩ := hok
-    exact hw ra (Array.mem_of_getElem? ha) rb (Array.mem_of_getElem? hb) hh j hj1 hj4 hp
+    simp only [Just.ok, ha, hb, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, Bool.not_eq_true'] at hok
+    obtain ⟨⟨⟨⟨⟨⟨hsa, hsb⟩, hh⟩, hj1⟩, hj4⟩, rfl⟩, rfl⟩ := hok
+    exact hw ra (Array.mem_of_getElem? ha) rb (Array.mem_of_getElem? hb) hsa hsb hh j hj1 hj4 hp
 
 theorem nu_limbF (val : Val) (w : ℕ) (i : Fin 4) : nu val (limb w i) = val w i := nu_limb val w i i.isLt
 
@@ -675,8 +740,8 @@ theorem list_eq_four {l : List ℕ} (h : l.length = 4) : l = [l.getD 0 0, l.getD
   | [_, _, _, _], _ => rfl
 
 theorem ok_inv {k u pz po : ℕ} {fwd : Bool} {prem concl : List ℕ}
-    (hok : (Just.inv k u pz po fwd).ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') :
+    (hok : (Just.inv k u pz po fwd).ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp
   cases hr : s.emul[k]? with
@@ -703,9 +768,9 @@ theorem ok_inv {k u pz po : ℕ} {fwd : Bool} {prem concl : List ℕ}
     simp only [Just.ok, hr, hu, hz, ho, Bool.and_eq_true, Bool.not_eq_true', beq_iff_eq] at hok
     obtain ⟨⟨⟨⟨⟨⟨⟨ht, hlen⟩, hzw⟩, hpw⟩, hoo⟩, rfl⟩, rfl⟩, hfwd⟩ := hok
     subst hzw hpw hoo
-    have hrow : [row.getD 0 0, row.getD 1 0, row.getD 2 0, row.getD 3 0] ∈ (keep s isTest).emul := by
+    have hrow : [row.getD 0 0, row.getD 1 0, row.getD 2 0, row.getD 3 0] ∈ (keepP s isTest drop).emul := by
       rw [← list_eq_four hlen]; exact Array.mem_of_getElem? hr
-    have hprod : ∀ {st : ℕ → Fin 4 → K} {val : Val}, Holds st s isTest val →
+    have hprod : ∀ {st : ℕ → Fin 4 → K} {val : Val}, HoldsP st s isTest drop val →
         Model.ev val (row.getD 0 0) * Model.ev val (row.getD 1 0) = 1 := by
       intro st val h
       have := emul_row_ev h hrow
@@ -731,7 +796,7 @@ theorem ok_inv {k u pz po : ℕ} {fwd : Bool} {prem concl : List ℕ}
       rw [← ha] at p2
       exact inv_unique (hprod h) p2
 
-theorem ok_union {c : ℕ} {prem concl : List ℕ} (hok : (Just.union c).ok s isTest claims prem concl = true)
+theorem ok_union {c : ℕ} {prem concl : List ℕ} (hok : (Just.union c).ok s isTest claims drop prem concl = true)
     (hu : UnionsValid claims val val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ n ∈ concl, nu val n = nu val' n := by
   intro hp
@@ -744,8 +809,8 @@ theorem ok_union {c : ℕ} {prem concl : List ℕ} (hok : (Just.union c).ok s is
     exact List.mem_flatMap.mpr ⟨w, hw, hn⟩
 
 /-- A justified rule is valid on two assignments holding every constraint but the tests, under the premises. -/
-theorem Just.valid (j : Just) {prem concl : List ℕ} (hok : j.ok s isTest claims prem concl = true)
-    (h : Holds st s isTest val) (h' : Holds st' s isTest val') (hcr : HashCR s val val') (hw : WindowCR s val val')
+theorem Just.valid (j : Just) {prem concl : List ℕ} (hok : j.ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') (hcr : HashCRP s drop val val') (hw : WindowCRP s drop val val')
     (hu : UnionsValid claims val val') :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   cases j with
@@ -761,8 +826,8 @@ theorem Just.valid (j : Just) {prem concl : List ℕ} (hok : j.ok s isTest claim
   | inv => exact ok_inv hok h h'
   | union => exact ok_union hok hu
 
-theorem rules_valid {r : Rules Just} (hok : rulesOk s isTest claims r = true) (h : Holds st s isTest val)
-    (h' : Holds st' s isTest val') (hcr : HashCR s val val') (hw : WindowCR s val val')
+theorem rules_valid {r : Rules Just} (hok : rulesOk s isTest claims drop r = true) (h : HoldsP st s isTest drop val)
+    (h' : HoldsP st' s isTest drop val') (hcr : HashCRP s drop val val') (hw : WindowCRP s drop val val')
     (hu : UnionsValid claims val val') : ∀ i < r.size, Valid r (nu val) (nu val') i := by
   intro i hi
   simp only [rulesOk, List.all_eq_true, List.mem_range] at hok

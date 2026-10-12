@@ -87,4 +87,24 @@ theorem toE_injective (a0 a1 a2 b0 b1 b2 : K) (h : toE a0 a1 a2 = toE b0 b1 b2) 
   simp at h0 h1 h2
   exact ⟨h0.symm, h1.symm, h2.symm⟩
 
+/-- Every element of `E` has limbs. -/
+theorem toE_surjective (e : E) : ∃ c0 c1 c2 : K, toE c0 c1 c2 = e := by
+  induction e using AdjoinRoot.induction_on with
+  | ih p =>
+    have hne : extModulus ≠ 1 := fun h => by
+      have := extModulus_natDegree
+      rw [h, natDegree_one] at this
+      exact absurd this (by norm_num)
+    have hdeg : (p %ₘ extModulus).natDegree < 3 :=
+      extModulus_natDegree ▸ natDegree_modByMonic_lt p extModulus_monic hne
+    have hq : AdjoinRoot.mk extModulus p = AdjoinRoot.mk extModulus (p %ₘ extModulus) := by
+      rw [AdjoinRoot.mk_eq_mk]
+      exact ⟨p /ₘ extModulus, by linear_combination (modByMonic_add_div p extModulus).symm⟩
+    have hs := congrArg (AdjoinRoot.mk extModulus) ((p %ₘ extModulus).as_sum_range' 3 hdeg)
+    simp only [Finset.sum_range_succ, Finset.sum_range_zero, zero_add, map_add, ← C_mul_X_pow_eq_monomial,
+      map_mul, map_pow, AdjoinRoot.mk_C, AdjoinRoot.mk_X, pow_zero, pow_one, mul_one] at hs
+    refine ⟨(p %ₘ extModulus).coeff 0, (p %ₘ extModulus).coeff 1, (p %ₘ extModulus).coeff 2, ?_⟩
+    rw [hq, hs]
+    rfl
+
 end LeanVMCircuits.Rec
