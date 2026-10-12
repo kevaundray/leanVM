@@ -503,9 +503,16 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     let (bd, firings) := bind rules an.nodes idx (words.reverse ++ (stmt.map (rp.calls.size, ·)).toArray)
     binds := binds.push bd
     certs := certs.push { blocks := blocksRev.reverse.toList, firings }
+  -- Each product's point: `X + 1` is made by the call after the point's first.
+  let points := rp.prods.map fun qc =>
+    let start := rp.maker.getD qc.x1 0 - 1
+    let pt : PointCert := { start, x := 0, a := [] }
+    let x := match rp.calls.getD (start + 1) .zero with | .add x _ => x | _ => 0
+    let a := (List.range 4).map fun j => match rp.calls.getD (pt.round j) .zero with | .add aj _ => aj | _ => 0
+    { pt with x, a }
   let cert : Cert := {
     rules, nodes := an.nodes, isTest, claims, transcripts := certs.toList, calls := rp.calls, relax, pools
-    prods := rp.prods }
+    prods := rp.prods, points }
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do

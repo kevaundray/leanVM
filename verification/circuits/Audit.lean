@@ -560,6 +560,11 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.prod_agree
 #print axioms LeanVMCircuits.Rec.Bind.claim_valid
 #print axioms LeanVMCircuits.Rec.Bind.unionsValid
+#print axioms LeanVMCircuits.Rec.Bind.point_sem
+#print axioms LeanVMCircuits.Rec.Bind.prod_closed
+#print axioms LeanVMCircuits.Rec.Bind.prod_slotsAt
+#print axioms LeanVMCircuits.Rec.Bind.slots_agree
+#print axioms LeanVMCircuits.Rec.Bind.union_cover
 #print axioms LeanVMCircuits.Rec.UnionSound.poly_injective
 #print axioms LeanVMCircuits.Rec.UnionSound.slots_eq
 #print axioms LeanVMCircuits.Rec.UnionSound.coverage_sound

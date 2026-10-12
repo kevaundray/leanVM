@@ -4,6 +4,7 @@ public import LeanVMCircuits.Rec.Justify
 public import LeanVMCircuits.Rec.Relax
 public import LeanVMCircuits.Rec.Union
 public import LeanVMCircuits.Rec.PoolParse
+public import LeanVMCircuits.Rec.UnionSound
 
 @[expose] public section
 
@@ -17,6 +18,9 @@ every replayed call holds (`Facts`, from `Model.replayR_sound`), the calls give:
 
 - a pool's values satisfy `PoolParse.Sem` (`pool_sem`);
 - a product is `prodSpec` of its pool's items' values and the point (`prod_sem`).
+
+`PointCert`: where a dump's calls draw a union's point from its challenges, `X + 1` and the sixteen weights `eq(A, k)`
+of `A`'s four challenges (`union::challenge`, `union::eq_weights`); `point_sem`: the weights are `UnionSound.eqAt A k`.
 
 `unionsValid`: two such assignments that agree on a union's digests, begin and selection bits and point, whose
 compressions do not collide (`HashCR`), give its products one value. With `PoolParse.parse_unique` the pools' items
@@ -1238,5 +1242,125 @@ theorem claim_valid {s : State} (hF : Facts cs rl os st val) (hF' : Facts cs rl 
   · exact hin _ (Or.inl (Or.inr (by simp [hse]; exact ⟨i, hi, Or.inr rfl⟩)))
 
 end Two
+
+/-! The point. -/
+
+/-- Where a dump's calls draw a union's point: the first call, `X`'s wire and `A`'s four wires. -/
+structure PointCert where
+  start : ℕ
+  x : ℕ
+  a : List ℕ
+  deriving Inhabited, Repr, DecidableEq
+
+namespace PointCert
+
+variable (os : Array (List ℕ)) (pt : PointCert)
+
+def aj (j : ℕ) : ℕ := pt.a.getD j 0
+def one : ℕ := o os (pt.start + 2)
+/-- Round `j`'s first call. -/
+def round (j : ℕ) : ℕ := pt.start + 3 + j + 2 * (2 ^ j - 1)
+/-- The table's entry `k` before round `j`. -/
+def tbl (j k : ℕ) : ℕ := if j = 0 then pt.one os else o os (pt.round (j - 1) + 1 + k)
+
+/-- `X + 1`, then `eq_weights`: each round's `1 + A_j`, the table times it, then the table times `A_j`. -/
+def calls : List (ℕ × Call) :=
+  [(pt.start, .one), (pt.start + 1, .add pt.x (o os pt.start)), (pt.start + 2, .one)] ++
+  (List.range 4).flatMap fun j =>
+    ((pt.round j, .add (pt.aj j) (pt.one os)) ::
+      (List.range (2 ^ j)).map fun k => (pt.round j + 1 + k, .mul (pt.tbl os j k) (o os (pt.round j)))) ++
+      (List.range (2 ^ j)).map fun k => (pt.round j + 1 + 2 ^ j + k, .mul (pt.tbl os j k) (pt.aj j))
+
+def x1 : ℕ := o os (pt.start + 1)
+def weight (k : ℕ) : ℕ := o os (pt.start + 21 + k)
+
+/-- The point's calls are in the replay, and a product reads its `X + 1` and weights. -/
+def ok (cs : Array Call) (rl : Array Bool) (qc : ProdCert) : Bool :=
+  callsOk cs rl (pt.calls os) && qc.x1 == pt.x1 os && qc.weights == (List.range 16).map (pt.weight os)
+
+end PointCert
+
+/-- `∏_{i < j} (A_i if bit i of k else 1 + A_i)`. -/
+noncomputable def prodBits (a : ℕ → E) (k j : ℕ) : E :=
+  ∏ i ∈ Finset.range j, if k.testBit i then a i else 1 + a i
+
+section Point
+
+variable {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+  {pt : PointCert}
+
+theorem round_succ (j : ℕ) : pt.round (j + 1) = pt.round j + 1 + 2 ^ j + 2 ^ j := by
+  simp only [PointCert.round, pow_succ]
+  have : 1 ≤ 2 ^ j := Nat.one_le_two_pow
+  omega
+
+/-- Round `j` of `eq_weights` doubles the table. -/
+theorem round_sem (hF : Facts cs rl os st val) (hok : callsOk cs rl (pt.calls os) = true)
+    (ho : Model.ev val (pt.one os) = 1) {j : ℕ} (hj : j < 4) :
+    ∀ k < 2 ^ (j + 1), Model.ev val (pt.tbl os (j + 1) k) =
+      Model.ev val (pt.tbl os j (k % 2 ^ j)) *
+        (if k.testBit j then Model.ev val (pt.aj j) else 1 + Model.ev val (pt.aj j)) := by
+  have hmem : ∀ x, x ∈ ((pt.round j, Call.add (pt.aj j) (pt.one os)) ::
+      (List.range (2 ^ j)).map fun k => (pt.round j + 1 + k, Call.mul (pt.tbl os j k) (o os (pt.round j)))) ++
+      (List.range (2 ^ j)).map (fun k => (pt.round j + 1 + 2 ^ j + k, Call.mul (pt.tbl os j k) (pt.aj j))) →
+      x ∈ pt.calls os := fun x hx =>
+    List.mem_append_right _ (List.mem_flatMap.mpr ⟨j, List.mem_range.mpr hj, hx⟩)
+  have hnot := holds_of_mem hF hok (hmem _ (List.mem_append_left _ (List.mem_cons_self ..)))
+  simp only [Call.Holds, getD_o, ho] at hnot
+  intro k hk
+  rw [show pt.tbl os (j + 1) k = o os (pt.round j + 1 + k) by simp [PointCert.tbl]]
+  by_cases hlo : k < 2 ^ j
+  · have h := holds_of_mem hF hok (hmem _ (List.mem_append_left _ (List.mem_cons_of_mem _
+      (List.mem_map.mpr ⟨k, List.mem_range.mpr hlo, rfl⟩))))
+    simp only [Call.Holds, getD_o] at h
+    rw [h, hnot, Nat.mod_eq_of_lt hlo]
+    simp only [Nat.testBit_lt_two_pow hlo, Bool.false_eq_true, if_false]
+    ring
+  · have hk' : k - 2 ^ j < 2 ^ j := by rw [pow_succ] at hk; omega
+    have h := holds_of_mem hF hok (hmem _ (List.mem_append_right _
+      (List.mem_map.mpr ⟨k - 2 ^ j, List.mem_range.mpr hk', rfl⟩)))
+    simp only [Call.Holds, getD_o] at h
+    rw [show pt.round j + 1 + 2 ^ j + (k - 2 ^ j) = pt.round j + 1 + k by omega] at h
+    have hmod : k % 2 ^ j = k - 2 ^ j := by
+      rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt hk']
+    have hbit : k.testBit j = true := by
+      have := Nat.testBit_two_pow_add_eq (k - 2 ^ j) j
+      rwa [show 2 ^ j + (k - 2 ^ j) = k by omega, Nat.testBit_lt_two_pow hk', Bool.not_false] at this
+    rw [h, hmod, hbit]
+    simp
+
+theorem tbl_sem (hF : Facts cs rl os st val) (hok : callsOk cs rl (pt.calls os) = true)
+    (ho : Model.ev val (pt.one os) = 1) :
+    ∀ j ≤ 4, ∀ k < 2 ^ j, Model.ev val (pt.tbl os j k) = prodBits (fun i => Model.ev val (pt.aj i)) k j := by
+  intro j
+  induction j with
+  | zero => intro _ k _; simp [PointCert.tbl, ho, prodBits]
+  | succ j ih =>
+    intro hj k hk
+    rw [round_sem hF hok ho (by omega) k hk, ih (by omega) _ (Nat.mod_lt _ (by positivity)), prodBits, prodBits,
+      Finset.prod_range_succ]
+    congr 1
+    apply Finset.prod_congr rfl
+    intro i hi
+    rw [Finset.mem_range] at hi
+    simp [Nat.testBit_mod_two_pow, hi]
+
+/-- The point's calls: `X + 1`, and the weights `eq(A, k)`. -/
+theorem point_sem (hF : Facts cs rl os st val) (hok : callsOk cs rl (pt.calls os) = true) :
+    Model.ev val (pt.x1 os) = Model.ev val pt.x + 1 ∧
+      ∀ k : Fin 16, Model.ev val (pt.weight os k) = UnionSound.eqAt (fun j => Model.ev val (pt.aj j)) k := by
+  have H := holds_all hF hok
+  have h0 := H (pt.start, .one) (by simp [PointCert.calls])
+  have h1 := H (pt.start + 1, .add pt.x (o os pt.start)) (by simp [PointCert.calls])
+  have h2 := H (pt.start + 2, .one) (by simp [PointCert.calls])
+  simp only [Call.Holds, getD_o] at h0 h1 h2
+  refine ⟨by rw [PointCert.x1, h1, h0], fun k => ?_⟩
+  have ht := tbl_sem hF hok h2 4 le_rfl k (by have := k.isLt; norm_num)
+  rw [show pt.weight os k = pt.tbl os 4 k by
+    simp only [PointCert.weight, PointCert.tbl, PointCert.round]; norm_num, ht, prodBits, UnionSound.eqAt,
+    ← Fin.prod_univ_eq_prod_range (fun i => if (k : ℕ).testBit i then Model.ev val (pt.aj i)
+      else 1 + Model.ev val (pt.aj i)) 4]
+
+end Point
 
 end LeanVMCircuits.Rec.Bind

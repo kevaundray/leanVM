@@ -36,6 +36,7 @@ public import LeanVMCircuits.Rec.Justify
 public import LeanVMCircuits.Rec.PoolParse
 public import LeanVMCircuits.Rec.Relax
 public import LeanVMCircuits.Rec.Union
+public import LeanVMCircuits.Rec.UnionCover
 public import LeanVMCircuits.Rec.UnionRows
 public import LeanVMCircuits.Rec.UnionSound
 public import LeanVMCircuits.Rec.Verdict

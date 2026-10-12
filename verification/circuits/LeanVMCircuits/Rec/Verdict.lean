@@ -74,6 +74,8 @@ structure Cert where
   relax : Array Bool
   pools : Array PoolCert
   prods : Array ProdCert
+  /-- Each product's point. -/
+  points : Array PointCert
 
 def Cert.test (c : Cert) (u : ℕ) : Bool := c.isTest.getD u false
 
@@ -82,14 +84,15 @@ def Cert.marks (c : Cert) (s : State) : List (Transcript × Array Bool) :=
   c.transcripts.map fun t => (t, certify c.rules c.nodes (seedsOf s t.blocks) t.firings)
 
 /-- The unions' rows: the calls replayed with the tests' equalities relaxed build the circuit without its tests, each
-product's pool and product calls are where the certificate says, and the claims are the products'. -/
+product's pool, product and point calls are where the certificate says, and the claims are the products'. -/
 def Cert.unionsOk (c : Cert) (s : State) : Bool :=
   match replayR c.calls c.relax 0 {} #[] with
   | none => false
   | some (t, os) => sameSat (keep s c.test) t &&
       c.claims == c.prods.map (fun qc => qc.claim os (c.pools.getD qc.pool default)) &&
-      c.prods.all fun qc => (c.pools.getD qc.pool default).ok os c.calls c.relax &&
-        qc.ok os (c.pools.getD qc.pool default) c.calls c.relax
+      c.prods.all (fun qc => (c.pools.getD qc.pool default).ok os c.calls c.relax &&
+        qc.ok os (c.pools.getD qc.pool default) c.calls c.relax) &&
+      (List.range c.prods.size).all fun i => (c.points.getD i default).ok os c.calls c.relax (c.prods.getD i default)
 
 /-- The verdict: every rule is justified, every transcript is a chain, the unions' rows are certified, and some
 transcript marks every test's wires. -/
@@ -137,7 +140,7 @@ theorem unionsValid {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Cert) (
   · simp at h
   · rename_i t os hr
     simp only [Bool.and_eq_true, beq_iff_eq, Array.all_eq_true'] at h
-    obtain ⟨⟨hsame, hcl⟩, hall⟩ := h
+    obtain ⟨⟨⟨hsame, hcl⟩, hall⟩, -⟩ := h
     obtain ⟨-, -, -, hfacts⟩ := replayR_sound c.calls c.relax 0 {} #[] t os inv_empty rfl (Nat.zero_le _)
       (fun j hj => absurd hj (Nat.not_lt_zero j)) hr
     have hsat : Sat st t val := sat_of_sameSat hsame hv
