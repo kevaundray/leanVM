@@ -261,3 +261,11 @@ import Whir.SpongefishCurrentOpeningAcceptance
 import Whir.SpongefishCurrentSourceJoinProbability
 import Whir.SpongefishCurrentRoundPackets
 import Whir.SpongefishCurrentBCSKnowledge
+import Whir.SpongefishCurrentOpeningProgram
+import Whir.SpongefishCurrentRootPolicy
+import Whir.SpongefishCurrentOpeningPackets
+import Whir.SpongefishCurrentOpeningExperiment
+import Whir.SpongefishCurrentCallerOriginalTable
+import Whir.SpongefishCurrentPartitionCapture
+import Whir.SpongefishCurrentGoodEvent
+import Whir.SpongefishCurrentKnowledgeEndpoint
