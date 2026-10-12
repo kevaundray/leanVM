@@ -373,7 +373,7 @@ inductive Call where
   | dToEAndK (d : ℕ) | halvesToD (lo hi : ℕ) | kToD (k0 k1 k2 k3 : ℕ) | dToHalves (d : ℕ)
   | compress (acc x ds : ℕ) | node (acc bit : ℕ) | parent (l r : ℕ) | leafBlock (h : ℕ) (m : List ℕ) (t : ℕ) (last : Bool)
   | hashBlock (h : ℕ) (m : List ℕ) (tf : ℕ) | chain (words : List ℕ)
-  deriving Repr
+  deriving Repr, DecidableEq
 
 /-- Run one call, returning its output wires (`expose_e`'s statement index). -/
 def Call.exec : Call → M (List ℕ)

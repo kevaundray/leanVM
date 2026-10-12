@@ -6,25 +6,21 @@ public import LeanVMCircuits.Rec.Contracts
 @[expose] public section
 
 /-!
-Justified determination rules of a recursion circuit, and the checker's verdict.
+Justified determination rules of a recursion circuit.
 
 A node is a wire's limb. Each rule `CheckBind` uses carries a justification `Just`, and `Just.ok` checks it against
 the circuit: the rule's premises and conclusions are exactly the nodes the justification names, in a row, an equality
 or a public row of the circuit. `Just.valid`: two assignments that satisfy every constraint but the tests (`Holds`)
 and agree on a justified rule's premises agree on its conclusions, given the explicit premises
 
-- `HashCR`: a hash row given the same output ports by both assignments is given the same input ports, collision
-  resistance of the compression;
+- `HashCR`: two hash rows given the same output ports, one by each assignment, are given the same input ports,
+  collision resistance of the compression;
 - `WindowCR`: four consecutive output words of two output blocks of one chaining value fix that chaining value,
   collision resistance of the duplex's output window;
 - `UnionsValid`: a union product is a function of its pool's digests, begin and selection bits and its point (the
-  union's parse uniqueness).
+  union's parse uniqueness), which `Bind.unionsValid` proves from the rows under `HashCR`.
 
-`Cert.accepts` is the checker's verdict: every rule is justified, every transcript is a chain of compressions, and
-for every test some transcript's `certify` marks both its wires. `checkbind_sound`: then each test's wires are in the
-closure of one transcript's absorbed words and the statement. `tests_determined`: on two assignments holding every
-constraint but the tests, under the premises, agreeing on that transcript's absorbed words and the statement, each
-test's wires agree: a test is a function of what the transcript absorbs.
+`LeanVMCircuits.Rec.Verdict` checks the rules and the transcripts.
 -/
 
 namespace LeanVMCircuits.Rec
@@ -199,12 +195,12 @@ def finalOk (v : ℕ) : Bool := v < 2 ^ 64 && (v % 2 ^ 32 == 0 || v % 2 ^ 32 == 
 
 /-! Justifications. -/
 
-/-- A union product's premises: the wires its value is a function of (`Model.poolRows`' digests, begin and selection
-bits, the point), and its output. -/
+/-- A union product's premises: the wires its value is a function of (its pool's digests, begin and selection bits,
+the point), and its output. -/
 structure UnionClaim where
   inputs : List ℕ
   out : ℕ
-  deriving Repr, Inhabited
+  deriving Repr, Inhabited, DecidableEq
 
 /-- Why a rule holds. -/
 inductive Just where
@@ -292,7 +288,7 @@ def Just.ok (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (pre
     | _, _, _, _ => false
   | .union c =>
     match claims[c]? with
-    | some uc => prem == uc.inputs.flatMap limbs4 && concl == limbs4 uc.out
+    | some uc => prem == uc.inputs.flatMap limbs4 && concl == limbs3 uc.out
     | none => false
 
 /-- Every rule is justified. -/
@@ -327,10 +323,11 @@ theorem Holds.union {st : ℕ → Fin 4 → K} {s : State} {isTest : ℕ → Boo
   rw [Array.getElem?_eq_none (by omega)] at hu
   simp at hu
 
-/-- Collision resistance of the compression, as a premise on two assignments: a hash row given the same output ports
-is given the same input ports. -/
+/-- Collision resistance of the compression, as a premise on two assignments: two hash rows given the same output
+ports, one by each assignment, are given the same input ports. -/
 def HashCR (s : State) (val val' : Val) : Prop :=
-  ∀ row ∈ s.hash, (∀ n ∈ hashOut row, nu val n = nu val' n) → ∀ n ∈ hashIn row, nu val n = nu val' n
+  ∀ row ∈ s.hash, ∀ row' ∈ s.hash, (hashOut row).map (nu val) = (hashOut row').map (nu val') →
+    (hashIn row).map (nu val) = (hashIn row').map (nu val')
 
 /-- Collision resistance of the duplex's output window, as a premise on two assignments: two hash rows of one
 chaining value given the same window of output words are given the same chaining value. -/
@@ -340,7 +337,7 @@ def WindowCR (s : State) (val val' : Val) : Prop :=
 
 /-- The union's parse uniqueness, as a premise on two assignments: a union product is a function of its inputs. -/
 def UnionsValid (claims : Array UnionClaim) (val val' : Val) : Prop :=
-  ∀ uc ∈ claims, (∀ w ∈ uc.inputs, val w = val' w) → val uc.out = val' uc.out
+  ∀ uc ∈ claims, (∀ w ∈ uc.inputs, val w = val' w) → Model.ev val uc.out = Model.ev val' uc.out
 
 /-! Each justification is valid. -/
 
@@ -627,7 +624,8 @@ theorem ok_collision {k : ℕ} {prem concl : List ℕ}
   | some row =>
     simp only [Just.ok, hr, Bool.and_eq_true, beq_iff_eq] at hok
     obtain ⟨rfl, rfl⟩ := hok
-    exact hcr row (Array.mem_of_getElem? hr) hp
+    have hm := Array.mem_of_getElem? hr
+    exact List.map_inj_left.mp (hcr row hm row hm (List.map_inj_left.mpr hp))
 
 theorem ok_window {ka kb j : ℕ} {prem concl : List ℕ}
     (hok : (Just.window ka kb j).ok s isTest claims prem concl = true) (hw : WindowCR s val val') :
@@ -742,7 +740,7 @@ theorem ok_union {c : ℕ} {prem concl : List ℕ} (hok : (Just.union c).ok s is
   | some uc =>
     simp only [Just.ok, hc, Bool.and_eq_true, beq_iff_eq] at hok
     obtain ⟨rfl, rfl⟩ := hok
-    refine limbs4_of_eq (hu uc (Array.mem_of_getElem? hc) fun w hw => eq_of_limbs4 fun n hn => hp n ?_)
+    refine limbs3_of_ev (hu uc (Array.mem_of_getElem? hc) fun w hw => eq_of_limbs4 fun n hn => hp n ?_)
     exact List.mem_flatMap.mpr ⟨w, hw, hn⟩
 
 /-- A justified rule is valid on two assignments holding every constraint but the tests, under the premises. -/
@@ -771,101 +769,5 @@ theorem rules_valid {r : Rules Just} (hok : rulesOk s isTest claims r = true) (h
   exact Just.valid _ (hok i hi) h h' hcr hw hu
 
 end
-
-/-! The verdict. -/
-
-/-- A transcript: its absorb blocks as `HASH` row indices in order, and the firings that bind its tests. -/
-structure Transcript where
-  blocks : List ℕ
-  firings : Array ℕ
-  deriving Inhabited
-
-/-- The words the blocks absorb, as nodes. -/
-def absorbed (s : State) (blocks : List ℕ) : List ℕ :=
-  blocks.flatMap fun k => (List.range 8).map fun j => limb ((s.hash.getD k []).getD (8 + j) 0) 0
-
-/-- The statement's nodes. -/
-def statementNodes (s : State) : List ℕ :=
-  s.pub.toList.flatMap fun e => match e.2 with
-    | .statement _ => limbs4 e.1
-    | .const _ => []
-
-/-- A transcript's seeds: what its blocks absorb, and the statement. -/
-def seedsOf (s : State) (blocks : List ℕ) : List ℕ := absorbed s blocks ++ statementNodes s
-
-/-- Whether a wire is a constant. -/
-def isConst (s : State) (w : ℕ) : Bool :=
-  s.pub.any fun e => e.1 == w && match e.2 with
-    | .const _ => true
-    | .statement _ => false
-
-/-- Each block's chaining value is the previous block's output. -/
-def links (s : State) (k : ℕ) : List ℕ → Bool
-  | [] => true
-  | k' :: ks => k' < s.hash.size && (s.hash.getD k' []).getD 0 0 == (s.hash.getD k []).getD 6 0 && links s k' ks
-
-/-- The blocks are a chain of compressions from a constant chaining value. -/
-def chainOk (s : State) : List ℕ → Bool
-  | [] => true
-  | k :: ks => k < s.hash.size && isConst s ((s.hash.getD k []).getD 0 0) && links s k ks
-
-/-- What `CheckBind` claims of a circuit: its justified rules, which equalities are tests, the union products, and
-its transcripts. -/
-structure Cert where
-  rules : Rules Just
-  nodes : ℕ
-  isTest : Array Bool
-  claims : Array UnionClaim
-  transcripts : List Transcript
-
-def Cert.test (c : Cert) (u : ℕ) : Bool := c.isTest.getD u false
-
-/-- Each transcript with the nodes its firings mark. -/
-def Cert.marks (c : Cert) (s : State) : List (Transcript × Array Bool) :=
-  c.transcripts.map fun t => (t, certify c.rules c.nodes (seedsOf s t.blocks) t.firings)
-
-/-- The verdict: every rule is justified, every transcript is a chain, and some transcript marks every test's wires. -/
-def Cert.accepts (c : Cert) (s : State) : Bool :=
-  rulesOk s c.test c.claims c.rules && c.transcripts.all (fun t => chainOk s t.blocks) &&
-    let ms := c.marks s
-    (List.range s.unions.size).all fun u => !c.test u || match s.unions[u]? with
-      | some (a, b) => ms.any fun m => (limbs4 a ++ limbs4 b).all (m.2.getD · false)
-      | none => true
-
-/-- A passing verdict: every rule is justified, and each test's wires are in the closure of one transcript's absorbed
-words and the statement. -/
-theorem checkbind_sound (c : Cert) (s : State) (h : c.accepts s = true) :
-    rulesOk s c.test c.claims c.rules = true ∧
-    ∀ u a b, s.unions[u]? = some (a, b) → c.test u = true →
-      ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧
-        ∀ n ∈ limbs4 a ++ limbs4 b, Closure c.rules (seedsOf s t.blocks) n := by
-  simp only [Cert.accepts, Bool.and_eq_true, List.all_eq_true, List.mem_range] at h
-  obtain ⟨⟨hr, hc⟩, ht⟩ := h
-  refine ⟨hr, fun u a b hab htu => ?_⟩
-  have hu : u < s.unions.size := by
-    by_contra hn
-    rw [Array.getElem?_eq_none (by omega)] at hab
-    simp at hab
-  have := ht u hu
-  rw [htu, hab] at this
-  simp only [Bool.not_true, Bool.false_or, List.any_eq_true, List.all_eq_true, Cert.marks, List.mem_map] at this
-  obtain ⟨_, ⟨t, htm, rfl⟩, hall⟩ := this
-  exact ⟨t, htm, hc t htm, fun n hn => certify_sound _ _ _ _ n (hall n hn)⟩
-
-/-- On two assignments holding every constraint but the tests, under the collision resistance premises and the
-union's parse uniqueness, a test's wires are a function of one transcript's absorbed words and the statement. -/
-theorem tests_determined {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Cert) (s : State) (h : c.accepts s = true)
-    (hv : Holds st s c.test val) (hv' : Holds st' s c.test val') (hcr : HashCR s val val')
-    (hw : WindowCR s val val') (hu : UnionsValid c.claims val val') {u a b : ℕ}
-    (hab : s.unions[u]? = some (a, b)) (ht : c.test u = true) :
-    ∃ t ∈ c.transcripts, chainOk s t.blocks = true ∧
-      ((∀ n ∈ seedsOf s t.blocks, nu val n = nu val' n) → val a = val' a ∧ val b = val' b) := by
-  obtain ⟨hr, hall⟩ := checkbind_sound c s h
-  obtain ⟨t, htm, hch, hcl⟩ := hall u a b hab ht
-  refine ⟨t, htm, hch, fun hs => ?_⟩
-  have key : ∀ n ∈ limbs4 a ++ limbs4 b, nu val n = nu val' n :=
-    fun n hn => closure_agree (rules_valid hr hv hv' hcr hw hu) hs (hcl n hn)
-  exact ⟨eq_of_limbs4 fun n hn => key n (List.mem_append_left _ hn),
-    eq_of_limbs4 fun n hn => key n (List.mem_append_right _ hn)⟩
 
 end LeanVMCircuits.Rec.Bind
