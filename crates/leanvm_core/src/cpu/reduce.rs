@@ -53,7 +53,7 @@ impl<E: Clone> TableClaims<E> {
 impl Layout {
     /// The verifier's core past the announcement, for a run that ends on the given clock and returns the given output.
     ///
-    /// It reads the commitment, verifies the bus and the tables, the flock reductions and the opening, then checks nothing is left to read.
+    /// It reads the commitment, verifies the flock reductions, the bus and the tables, and the opening, then checks nothing is left to read.
     /// It returns the claims the proof leaves on the program's polynomials and on each circuit's matrices.
     ///
     /// # Errors
@@ -67,14 +67,9 @@ impl Layout {
         rate: Rate,
     ) -> Result<DeferredClaims<V::E>, CpuError> {
         let commitment = Commitment::read(v, self.shape, rate).map_err(CpuError::Open)?;
-        let reduced = {
-            v.begin_scope(fiat_shamir::arith::Stage::BusAndTables);
-            let scoped_result = self.reduce_tables(v, clock, output);
-            v.end_scope();
-            scoped_result
-        }?;
 
         // Flock's reductions, batched over every class circuit then every clock circuit, each leaving its matrices' form to its circuit.
+        // They read only the commitment; their claims wait for the opening, whose challenges follow every claim.
         let batches = FlockId::batches(&self.taus);
         let replays = {
             v.begin_scope(fiat_shamir::arith::Stage::Flock);
@@ -86,6 +81,12 @@ impl Layout {
         let (slices, circuits): (Vec<_>, Vec<_>) = (replays.into_iter())
             .map(|replay| (replay.claim, replay.matrices.into()))
             .unzip();
+        let reduced = {
+            v.begin_scope(fiat_shamir::arith::Stage::BusAndTables);
+            let scoped_result = self.reduce_tables(v, clock, output);
+            v.end_scope();
+            scoped_result
+        }?;
 
         // The one opening, its ring-switched regions each packed witness, each producer's multiplicity column and each table's register numbers.
         {
