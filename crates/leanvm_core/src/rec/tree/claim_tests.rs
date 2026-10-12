@@ -10,23 +10,26 @@ use crate::rv::Region;
 use crate::rv::asm::*;
 use std::sync::LazyLock;
 
-// A program whose output is its four advice words, after a loop that reads every framework block: a leaf that
-// publishes whatever set the advice names, which the tree's mechanics need and no more.
-static PROGRAM: LazyLock<Program> = LazyLock::new(|| {
+// A program whose output is its four advice words, after a loop of `rounds` that reads every framework block: a leaf
+// that publishes whatever set the advice names, which the tree's mechanics need and no more. Another round count is
+// another program, of the same shape.
+fn looping(rounds: u64) -> Program {
     let text = Asm::new()
         .li(Reg::T0, Region::ADVICE.base())
         .load(Ld, Reg::A0, 0, Reg::T0)
         .load(Ld, Reg::A1, 8, Reg::T0)
         .load(Ld, Reg::A2, 16, Reg::T0)
         .load(Ld, Reg::A3, 24, Reg::T0)
-        .li(Reg::T1, 9)
+        .li(Reg::T1, rounds)
         .label("loop")
         .i(Addi, Reg::T1, Reg::T1, -1)
         .branch(Bne, Reg::T1, Reg::ZERO, "loop")
         .exit()
         .finish();
     Program::new(&text, Region::TEXT.base(), vec![3, 5], 2, 2).expect("a valid program")
-});
+}
+
+static PROGRAM: LazyLock<Program> = LazyLock::new(|| looping(9));
 
 fn program() -> &'static Program {
     &PROGRAM
@@ -87,8 +90,12 @@ fn shape(leaf: LeafShape, claims: Option<ClaimShape>) -> TreeShape {
 }
 
 fn leaf_proof(set: &ClaimSet) -> (Proof, Output) {
+    leaf_proof_of(program(), set)
+}
+
+fn leaf_proof_of(program: &Program, set: &ClaimSet) -> (Proof, Output) {
     let run = Prover::new(Rate::MIN)
-        .prove(program(), &chain(&set.digest()))
+        .prove(program, &chain(&set.digest()))
         .expect("the run halts");
     (run.proof, run.output)
 }
@@ -375,6 +382,52 @@ fn aggregates_from_different_provers_combine() {
     theirs
         .verify_claims(&combined.proof, &combined.claims)
         .expect("our root is theirs");
+}
+
+#[test]
+fn trees_of_different_leaf_programs_do_not_combine() {
+    let f = fixture();
+    // Another leaf program, of the same shape and publishing the same sets: a tree is its leaf program's, so the
+    // other's tree is another tree, and neither takes the other's leaves, aggregates or roots.
+    let other = looping(10);
+    let leaves: Vec<(Proof, Output)> = f.sets[..2].iter().map(|set| leaf_proof_of(&other, set)).collect();
+    let leaf = LeafShape::of(&leaves[0].0).expect("a canonical announcement");
+    assert_eq!(Some(leaf), LeafShape::of(&f.leaves[0].0).ok(), "one leaf shape");
+    let theirs = Tree::new(&other, shape(leaf, Some(ClaimShape::new(CAPACITY)))).expect("a tree");
+    let firsts: Vec<Aggregate> = (f.sets.iter().zip(&leaves))
+        .map(|(set, (proof, output))| {
+            let leaf = ClaimLeaf::new(Leaf::new(proof, *output), set);
+            theirs.aggregate_leaves(&[leaf], None).expect("an honest leaf")
+        })
+        .collect();
+    let pair = theirs
+        .aggregate(&[&firsts[0], &firsts[1]], None)
+        .expect("honest children");
+    // Each tree's aggregates state the same sets: only the leaf program tells them apart.
+    assert_eq!(pair.claims, f.pair.claims);
+
+    for (tree, own, foreign_leaves, foreign) in [
+        (&f.tree, &f.firsts[0], &leaves, [&firsts[0], &pair]),
+        (&theirs, &firsts[0], &f.leaves, [&f.firsts[0], &f.pair]),
+    ] {
+        // A leaf of the other program does not verify as this tree's leaf.
+        let (proof, output) = &foreign_leaves[0];
+        let leaf = ClaimLeaf::new(Leaf::new(proof, *output), &f.sets[0]);
+        assert!(matches!(
+            tree.aggregate_leaves(&[leaf], None),
+            Err(TreeError::Leaf { index: 0, .. })
+        ));
+        // The other tree's first-level aggregate and node, alone or beside one of this tree's, are not children,
+        // and do not verify as this tree's roots.
+        for child in foreign {
+            let refused = tree.aggregate(&[child], None);
+            assert!(matches!(refused, Err(TreeError::Child { index: 0, .. })), "{refused:?}");
+            let refused = tree.aggregate(&[own, child], None);
+            assert!(matches!(refused, Err(TreeError::Child { index: 1, .. })), "{refused:?}");
+            let refused = tree.verify_claims(&child.proof, &child.claims);
+            assert!(matches!(refused, Err(TreeError::Root(_))), "{refused:?}");
+        }
+    }
 }
 
 #[test]
