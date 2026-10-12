@@ -29,3 +29,7 @@ public import LeanVMCircuits.Bus.TableClock
 public import LeanVMCircuits.MulDivEmit
 public import LeanVMCircuits.ExtensionEmit
 public import LeanVMCircuits.Bus.TableEmit
+public import LeanVMCircuits.Rec.Dump
+public import LeanVMCircuits.Rec.Bind
+public import LeanVMCircuits.Rec.Closure
+public import LeanVMCircuits.Rec.Union

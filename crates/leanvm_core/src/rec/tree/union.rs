@@ -343,6 +343,16 @@ struct PoolWires {
 fn pool_rows(b: &mut Builder, shape: PoolShape, digests: &[Dw], fill: Option<&PoolFill>, selecting: bool) -> PoolWires {
     let runs = digests.len();
     assert!(runs >= 1 && runs <= shape.chunks, "a run a chunk at most");
+    b.mark(|| {
+        let ds: Vec<String> = digests.iter().map(|d| d.0.to_string()).collect();
+        format!(
+            "pool {} {} {} {}",
+            shape.chunks,
+            u8::from(selecting),
+            runs,
+            ds.join(" ")
+        )
+    });
     let (zero, one) = (b.zero(), b.one());
     let k_zero = b.k_const(0);
     let [iv_lo, iv_hi] = [
@@ -481,6 +491,7 @@ fn pool_rows(b: &mut Builder, shape: PoolShape, digests: &[Dw], fill: Option<&Po
     for (r, &c) in current.iter().enumerate() {
         b.eq_e_const(c, F192::new(u64::from(r + 1 == runs), 0, 0));
     }
+    b.mark(|| "end pool".into());
     // The hinted bits are bits; the begin and selection bits' words are kept for the transcript.
     for chunk in bits.chunks(64) {
         b.pack(chunk);
@@ -495,6 +506,10 @@ fn pool_rows(b: &mut Builder, shape: PoolShape, digests: &[Dw], fill: Option<&Po
 
 /// The product over a pool's claims of `1 + s · valid · (X + 1 + fp)`, `s` a slot's selection bit or one.
 fn product(b: &mut Builder, items: &[ItemWires], point: &Point) -> Ew {
+    b.mark(|| {
+        let ws: Vec<String> = point.weights.iter().map(|w| w.0.to_string()).collect();
+        format!("product {} {} {}", items[0].m[0].0, point.x1.0, ws.join(" "))
+    });
     let (zero, one) = (b.zero(), b.one());
     let w = &point.weights;
     let mut label = zero;
@@ -522,6 +537,7 @@ fn product(b: &mut Builder, items: &[ItemWires], point: &Point) -> Ew {
             product = b.mul(product, factor);
         }
     }
+    b.mark(|| "end product".into());
     product
 }
 

@@ -201,6 +201,23 @@ impl Builder {
         }
     }
 
+    /// Record a line that is not a call when traced and outside the builder's methods.
+    ///
+    /// `CheckBind` reads `pool` and `product` lines as the start of calls the Lean model makes as one program
+    /// (`Model.poolRows`, `Model.product`), and checks the calls up to the matching `end` line build what it builds.
+    #[cfg_attr(not(feature = "circuit-trace"), allow(clippy::unused_self))]
+    pub(crate) fn mark(&mut self, line: impl FnOnce() -> String) {
+        #[cfg(feature = "circuit-trace")]
+        if let Some(t) = &mut self.trace
+            && t.depth == 0
+        {
+            t.out.push_str(&line());
+            t.out.push('\n');
+        }
+        #[cfg(not(feature = "circuit-trace"))]
+        let _ = line;
+    }
+
     /// Run `f` under a name, which an equality that fails reports.
     pub fn scope<T>(&mut self, name: impl Into<String>, f: impl FnOnce(&mut Self) -> T) -> T {
         self.enter(name);
