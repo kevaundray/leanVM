@@ -593,6 +593,45 @@ theorem finalBound_levels :
 def deployedGrinding (p : ParameterBounds.Profile) : Fin (ParameterBounds.config p).folds.size → Fin 64 :=
   fun _ => ⟨17,by decide⟩
 
+deriving instance DecidableEq for WireKind
+deriving instance DecidableEq for Call
+
+/-- The predecessor's literal current source loop layout for a configuration. -/
+def boundaryOf (c : Protocol.Config) (grinding : Nat → Fin 64) (i : Nat) : Boundary :=
+  ⟨CausalGame.remaining c i,CausalGame.oodCount c i,CausalGame.remaining c i + c.rates[i]!,
+    c.queries[i]!,grinding i⟩
+
+def layoutOf (c : Protocol.Config) (grinding : Nat → Fin 64) : OpeningLayout where
+  initialRounds := c.folds[0]!
+  firstBoundary := boundaryOf c grinding 0
+  intermediate := (List.range (c.folds.size - 2)).map fun k =>
+    (c.folds[k+1]!,boundaryOf c grinding (k+1))
+  finalFoldRounds := c.folds[c.folds.size - 1]!
+  residualDimension := CausalGame.remaining c (c.folds.size - 1)
+  finalDepth := CausalGame.remaining c (c.folds.size - 1) + c.rates[c.folds.size - 1]!
+  finalCount := c.queries[c.folds.size - 1]!
+  finalGrinding := grinding (c.folds.size - 1)
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 0 in
+/-- Kernel computation for all 56 production profiles at the deployed grinding:
+the per-coordinate opening call list is exactly the separately inspected
+current source loop layout `SpongefishPCSRoundFrames.OpeningLayout.schedule`. -/
+theorem deployed_schedule : ∀ p : ParameterBounds.Profile,
+    SpongefishCurrentOpeningAcceptance.openingCalls (p := p) (deployedGrinding p) =
+      (layoutOf (ParameterBounds.config p) (fun _ => ⟨17,by decide⟩)).schedule := by
+  decide +kernel
+
+/-- Consequently any two verifier draws of the deployed opening are separated
+by a nonempty canonical prover payload. -/
+theorem deployed_opening_between (p : ParameterBounds.Profile) (pre middle suffix : List Call)
+    (first second : Group)
+    (scheduled : SpongefishCurrentOpeningAcceptance.openingCalls (p := p) (deployedGrinding p) =
+      pre ++ (Call.draw first :: (middle ++ Call.draw second :: suffix))) :
+    ∃ kind, Call.read kind ∈ middle ∧ ∀ value : kind.Value, kind.codec.bytes value ≠ [] := by
+  rw [deployed_schedule p] at scheduled
+  exact SpongefishCurrentRoundSeparation.opening_between _ pre middle suffix first second scheduled
+
 open Classical SpongefishCurrentRoundPackets SpongefishCurrentSourceJoinProbability in
 /-- The current endpoint at the deployed grinding, evaluated numerically: with
 an aggregate budget of at most `2^64` units the real probability of native
@@ -659,5 +698,7 @@ theorem current_knowledge_level {p : ParameterBounds.Profile} {Coins : Type} [Fi
 #print axioms nativeAny_of_native
 #print axioms nativeAny_union
 #print axioms current_knowledge_all
+#print axioms deployed_schedule
+#print axioms deployed_opening_between
 
 end Whir.SpongefishCurrentBCSKnowledge
