@@ -284,12 +284,25 @@ pub trait Verifier: Arith {
     ///
     /// Returns an error past the end of the proof.
     fn prover_messages(&mut self, n: usize) -> Result<Vec<Self::E>, TranscriptError> {
-        (0..n).map(|_| self.prover_message()).collect()
+        // An index loop rather than a collecting closure, so no closure captures the verifier.
+        let mut out = Vec::with_capacity(n);
+        let mut i = 0;
+        while i < n {
+            out.push(self.prover_message()?);
+            i += 1;
+        }
+        Ok(out)
     }
 
     /// `n` verifier messages.
     fn verifier_messages(&mut self, n: usize) -> Vec<Self::E> {
-        (0..n).map(|_| self.verifier_message()).collect()
+        let mut out = Vec::with_capacity(n);
+        let mut i = 0;
+        while i < n {
+            out.push(self.verifier_message());
+            i += 1;
+        }
+        out
     }
 }
 
