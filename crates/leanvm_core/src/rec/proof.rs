@@ -45,11 +45,10 @@ struct HashBatch {
     tables: Tables,
 }
 
-/// The prover's stack, the hash table's ports by global column, and the hash table's batch.
+/// The prover's stack and the hash table's ports by global column.
 struct RecWitness {
     q: Vec<F64>,
     ports: Vec<(usize, Vec<F64>)>,
-    batch: HashBatch,
 }
 
 /// The bus and the constraint batch over the owned tables, which leave the column claims the opening settles.
@@ -119,7 +118,8 @@ impl HashBatch {
 }
 
 impl RecWitness {
-    fn build(layout: &RecLayout, a: &Assignment) -> Self {
+    /// The witness, and the hash table's batch, which the reduction consumes.
+    fn build(layout: &RecLayout, a: &Assignment) -> (Self, HashBatch) {
         let mut q = Box::new_uninit_slice(layout.shape.committed_len());
         // SAFETY: the owned tables and hash batch fill every committed window before it is read.
         // The pad tail is zeroed.
@@ -143,7 +143,7 @@ impl RecWitness {
             // SAFETY: the batch wrote every row of every port.
             .map(|(port, values)| (ports_at + port, unsafe { values.assume_init() }.into_vec()))
             .collect();
-        Self { q, ports, batch }
+        (Self { q, ports }, batch)
     }
 
     /// One view per global column: a committed column's window, a port's own buffer.
@@ -209,7 +209,7 @@ impl<'a> TableArgument<'a> {
         Ok(self.layout.opening_claims(bus.claims, &tables.claims))
     }
 
-    /// The verifier's core: the commitment, the bus and the tables, the hash rows' reduction and the opening, then nothing left to read.
+    /// The verifier's core: the commitment, the hash rows' reduction, the bus and the tables, and the opening, then nothing left to read.
     ///
     /// It returns the hash rows' claim on their matrices, which whoever holds the circuit settles.
     ///
@@ -222,10 +222,10 @@ impl<'a> TableArgument<'a> {
         rate: Rate,
     ) -> Result<MatrixClaim<V::E>, RecError> {
         let commitment = Commitment::read(v, self.layout.shape, rate)?;
-        let slots = v.scope("bus and tables", |v| self.verify(v))?;
         let batch = (HashFlock::FLOCK.shape(), self.layout.tau(Table::Hash));
         let [replay] = <[_; 1]>::try_from(v.scope("flock", |v| reduction::verify(&[batch], v))?)
             .unwrap_or_else(|_| unreachable!("a batch of one circuit"));
+        let slots = v.scope("bus and tables", |v| self.verify(v))?;
         let ring = self.layout.hash_window().ring(replay.claim);
         v.scope("opening", |v| commitment.verify(v, &slots, &[ring]))?;
         v.check_eof()?;
@@ -279,15 +279,16 @@ impl Circuit {
         let layout = RecLayout::new(self)?;
         let mut ps = ProverState::new(session, &instance(&a.statement));
 
-        let w = info_span!("Build witness").in_scope(|| RecWitness::build(&layout, a));
+        let (w, batch) = info_span!("Build witness").in_scope(|| RecWitness::build(&layout, a));
         let committed = info_span!("Commit")
             .in_scope(|| Committed::new(&mut ps, &w.q, layout.shape, rate).expect("the witness matches its layout"));
+        // The hash rows' reduction reads only the commitment, so it runs first and frees their batch before the bus.
+        let ring = info_span!("Flock reduction").in_scope(|| batch.prove(&layout, &w.q, &mut ps));
         let fixed = fixed.map_or_else(|| Cow::Owned(FixedColumns::of(self, &layout.taus)), Cow::Borrowed);
         let slots = TableArgument::of(&fixed, &a.statement, &layout).prove(&w, &mut ps);
 
-        let RecWitness { q, ports, batch } = w;
+        let RecWitness { q, ports } = w;
         drop(ports);
-        let ring = info_span!("Flock reduction").in_scope(|| batch.prove(&layout, &q, &mut ps));
         info_span!("PCS open").in_scope(|| {
             committed
                 .open(&mut ps, &q, &slots, &[ring])
@@ -355,7 +356,6 @@ impl Circuit {
 mod tests {
     use super::*;
     use crate::constraints::ConstraintError;
-    use crate::leaf::BusError;
     use crate::pcs::{self, Rate};
     use crate::rec::circuit::{Builder, Dw, Ew, Finished, Kw, PARAM_IV};
     use fiat_shamir::arith::Arith;
@@ -469,9 +469,16 @@ mod tests {
         for (i, limb) in [(0, 1), (1, 3), (2, 0)] {
             let mut statement = a.statement.clone();
             statement[i][limb] ^= 1;
+            // As the instance, the word changes every challenge, and the first stage, flock, refuses it.
             let refused = verify_run(&circuit, &statement, &proof);
             assert!(
-                matches!(refused, Err(RecError::Bus(_))),
+                matches!(refused, Err(RecError::Flock(_))),
+                "word {i} limb {limb}: {refused:?}"
+            );
+            // Under the honest instance, what the bus says the public rows owe refuses it.
+            let refused = circuit.verify_absorbing(&statement, &session(), &a.statement, Rate::MIN, &proof, None);
+            assert!(
+                matches!(refused, Err(RecError::Bus(_) | RecError::Constraint(_))),
                 "word {i} limb {limb}: {refused:?}"
             );
         }
@@ -493,10 +500,11 @@ mod tests {
         assert!(failures.is_empty(), "{failures:?}");
         let proof = prove_run(&circuit, &a);
 
-        // Replay the honest verifier up to the bus to read the fingerprint weights of the limbs.
+        // Replay the honest verifier up to the bus, past the hash rows' reduction, to read the fingerprint weights of the limbs.
         let layout = RecLayout::new(&circuit).unwrap();
         let mut vs = VerifierState::new(&session(), &instance(&a.statement), &proof);
         Commitment::read(&mut vs, layout.shape, Rate::MIN).unwrap();
+        reduction::verify(&[(HashFlock::FLOCK.shape(), layout.tau(Table::Hash))], &mut vs).unwrap();
         let fixed = FixedColumns::of(&circuit, &layout.taus);
         let blocks = BusBlocks::new(&fixed, fixed.public_values(&a.statement), &layout);
         let bus = blocks.verify(&mut vs).unwrap();
@@ -526,16 +534,14 @@ mod tests {
             *l ^= dl.0;
         }
 
-        // Under the honest instance the bus accepts the forged words; with them as the instance, the proof is refused.
+        // Under the honest instance the bus accepts the forged words; with them as the instance, the proof is refused
+        // at its first stage.
         assert!(
             circuit
                 .verify_absorbing(&forged, &session(), &a.statement, Rate::MIN, &proof, None)
                 .is_ok()
         );
-        assert!(matches!(
-            verify_run(&circuit, &forged, &proof),
-            Err(RecError::Bus(BusError::Gkr(_)))
-        ));
+        assert!(matches!(verify_run(&circuit, &forged, &proof), Err(RecError::Flock(_))));
     }
 
     // A wire in one slot balances whatever it holds, so what refuses a non-Boolean bit is its table's identities.

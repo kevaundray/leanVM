@@ -14,7 +14,7 @@
 //!
 //! - the program runs, and its rows are recorded, then padded to powers of two;
 //! - the rows fill one stacked witness, which is committed;
-//! - the bus balance, one batch of table constraints, and every circuit's reduction are proven;
+//! - every circuit's reduction, the bus balance, and one batch of table constraints are proven;
 //! - one opening discharges every claim they leave.
 
 mod batch;
