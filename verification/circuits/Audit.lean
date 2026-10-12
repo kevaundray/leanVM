@@ -604,3 +604,6 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.TreeSound.tree_sound
 #print axioms LeanVMCircuits.Rec.TreeSound.tree_sound_frac
 #print axioms LeanVMCircuits.Rec.TreeSound.tree_sound_eps
+#print axioms LeanVMCircuits.Rec.balanced_of_eq
+#print axioms LeanVMCircuits.Rec.bus_balance_sound
+#print axioms LeanVMCircuits.Rec.bus_copy_sound

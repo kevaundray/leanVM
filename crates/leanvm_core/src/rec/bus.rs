@@ -184,3 +184,48 @@ impl Summand for TableSummand {
         V::reduce(self.0.eval_unreduced(cols, quadratic))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rec::circuit::{Builder, Finished, Kw};
+
+    // The plan the Lean copy argument assumes (`Rec.Balanced`, `Rec.bus_copy_sound`): every slot, the public table's
+    // first, pulls its own key and pushes its `next` key, both blocks carrying the same limbs at the same height.
+    #[test]
+    fn every_slot_pulls_its_key_and_pushes_its_next_with_its_limbs() {
+        let mut b = Builder::new();
+        let x = b.free_e(F192::new(3, 5, 7));
+        let y = b.e_const(F192::new(11, 13, 17));
+        let one = b.one();
+        let p = b.mul_add(x, y, one);
+        let w: [Kw; 4] = std::array::from_fn(|i| b.free_k(10 + i as u64));
+        let d = b.k_to_d(w);
+        b.expose_e(p);
+        b.expose_d(d);
+        let Finished {
+            circuit, assignment, ..
+        } = b.finish();
+        let layout = RecLayout::new(&circuit).unwrap();
+        let fixed = FixedColumns::of(&circuit, &layout.taus);
+        let blocks = BusBlocks::new(&fixed, fixed.public_values(&assignment.statement), &layout);
+
+        let slots: Vec<(Table, usize)> = std::iter::once((Table::Pub, 0))
+            .chain(
+                Table::OWNED
+                    .into_iter()
+                    .flat_map(|t| (0..t.n_slots()).map(move |s| (t, s))),
+            )
+            .collect();
+        assert_eq!(blocks.pull.len(), slots.len());
+        assert_eq!(blocks.push.len(), slots.len());
+        let show = |c: &[Coord]| format!("{c:?}");
+        for ((pull, push), &(table, slot)) in blocks.pull.iter().zip(&blocks.push).zip(&slots) {
+            assert_eq!((pull.kappa, pull.owner), (push.kappa, push.owner));
+            assert_eq!(show(&pull.coords[1..]), show(&push.coords[1..]));
+            assert_eq!(show(&pull.coords[..1]), show(&[SlotKey::column(table, slot)]));
+            let next = fixed.public(FixedColumn::Next(table.first_slot() + slot));
+            assert_eq!(show(&push.coords[..1]), show(&[Coord::Public(next)]));
+        }
+    }
+}

@@ -11,6 +11,7 @@ public import LeanVMCircuits.Rec.Statement
 public import LeanVMCircuits.Rec.Duplex
 public import LeanVMCircuits.MemoryExport
 public import LeanVMCircuits.Rec.Bus
+public import LeanVMCircuits.Rec.BusBalance
 public import LeanVMCircuits.Rec.ExtField
 public import LeanVMCircuits.Rec.Builder
 public import LeanVMCircuits.Rec.Contracts
