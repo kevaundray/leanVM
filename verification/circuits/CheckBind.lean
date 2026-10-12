@@ -3,7 +3,8 @@ import LeanVMCircuits.Rec.Bind
 
 /-!
 `lake exe checkbind <dump>...`: replay each dump's builder calls through the model and check transcript binding
-(`LeanVMCircuits.Rec.Bind`): every test reading a challenge reads only wires some transcript binds.
+(`LeanVMCircuits.Rec.Bind`): every test reading a challenge reads only wires some transcript binds. The verdict is
+`Bind.Cert.accepts` of the certificate the analysis records, which `Bind.checkbind_sound` proves sound.
 
 `--expect-unbound <dump>` checks a dump fails, the regression fixture of a circuit that did not bind.
 -/
@@ -42,7 +43,7 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   for (w, ts) in r.probes do
     IO.println s!"  probe {w} (made at call {rp.maker.getD w 0 + 1}): {repr ts}"
   let line := fun (i : ℕ) => s!"call {i + 1}: {(lines.getD i "").take 120}"
-  IO.println s!"{path}: {r.transcripts} transcripts, {r.squeezes} squeezes, {r.tests} tests reading a challenge, \
+  IO.println s!"{path}: {if r.accepted then "accepted" else "rejected"}: {r.transcripts} transcripts, {r.squeezes} squeezes, {r.tests} tests reading a challenge, \
     {r.unbound.size} unbound, {r.late.size} bound only after their latest challenge, \
     {r.deferred.size} bound only with the statement's claims; \
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound"
@@ -53,7 +54,9 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   for f in r.late.toList.take 5 do
     IO.println s!"  late test at {line f.call}: bound at call {f.hints.headD 0 + 1}, latest challenge at call \
       {f.hints.getD 1 0 + 1}"
-  return some r.unbound.isEmpty
+  if r.accepted != r.unbound.isEmpty then
+    IO.println s!"  the certificate's verdict differs from the worklist's"
+  return some r.accepted
 
 def main (args : List String) : IO UInt32 := do
   let mut ok := true

@@ -32,4 +32,6 @@ public import LeanVMCircuits.Bus.TableEmit
 public import LeanVMCircuits.Rec.Dump
 public import LeanVMCircuits.Rec.Bind
 public import LeanVMCircuits.Rec.Closure
+public import LeanVMCircuits.Rec.Justify
 public import LeanVMCircuits.Rec.Union
+public import LeanVMCircuits.Rec.UnionSound

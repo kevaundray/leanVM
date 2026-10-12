@@ -546,3 +546,15 @@ run_cmd do
 #print axioms LeanVMCircuits.ExtensionProduct.instruction_soundness
 #print axioms LeanVMCircuits.ExtensionProduct.base_operand
 #print axioms LeanVMCircuits.ExtensionProduct.witness_exists
+
+#print axioms LeanVMCircuits.Rec.Bind.closure_agree
+#print axioms LeanVMCircuits.Rec.Bind.certify_sound
+#print axioms LeanVMCircuits.Rec.Bind.Just.valid
+#print axioms LeanVMCircuits.Rec.Bind.rules_valid
+#print axioms LeanVMCircuits.Rec.Bind.checkbind_sound
+#print axioms LeanVMCircuits.Rec.Bind.tests_determined
+#print axioms LeanVMCircuits.Rec.UnionSound.poly_injective
+#print axioms LeanVMCircuits.Rec.UnionSound.slots_eq
+#print axioms LeanVMCircuits.Rec.UnionSound.coverage_sound
+#print axioms LeanVMCircuits.Rec.UnionSound.union_coverage_sound
+#print axioms LeanVMCircuits.Rec.UnionSound.chain_unique
