@@ -42,6 +42,13 @@ jobs:
         working-directory: verification/circuits
         run: |
           lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots
-          lake build checkrec checkflushes
+          lake build checkrec checkflushes checkbind
           lake exe checkrec /tmp/circuits/*.txt
           lake exe checkflushes /tmp/circuits/table-flushes.dump
+      - name: Check transcript binding
+        working-directory: verification/circuits
+        run: |
+          lake exe checkbind /tmp/circuits/*.txt
+          # A circuit from before the union absorbed its begin bits (#626): its coverage test must stay unbound.
+          xz -dc fixtures/pre626-claimset-two-tier-circuit-1.txt.xz > /tmp/pre626-claimset-two-tier-circuit-1.txt
+          lake exe checkbind --expect-unbound /tmp/pre626-claimset-two-tier-circuit-1.txt
