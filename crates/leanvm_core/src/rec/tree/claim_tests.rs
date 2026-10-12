@@ -569,10 +569,11 @@ fn a_tiered_first_level_and_union_stay_within_their_capacities() {
         .tree
         .aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &four)], None))
     .expect("a set within the small tier");
-    // Alone, it is too large to be taken twice by the small tier: the large node takes it once, the rest absent.
-    let lone = (t.tree.aggregate(&[&first], None)).expect("a lone child");
+    // A lone child whose set is past the small tier's (a large proof, wrapped) is taken by the large node, the rest of
+    // its places absent.
+    let lone = (t.tree.aggregate(&[&t.pair], None)).expect("a lone child");
     assert!(t.tree.is_large(&lone.proof));
-    assert_eq!(lone.claims, union(&[&four]));
+    assert_eq!(lone.claims, t.pair.claims);
     (t.tree)
         .verify_claims(&lone.proof, &lone.claims)
         .expect("a large root of one child");
@@ -862,5 +863,62 @@ fn a_fake_large_circuit_under_a_wrap_is_refused_at_the_root() {
     assert_eq!(
         t.tree.verify_claims(&root, &forged_set),
         Err(TreeError::Claim(FalseClaim::Dense(DensePoly::Wide)))
+    );
+}
+
+// At a capacity of many chunks, a lone child of more than half of it is narrowed and republished: its set needs room in
+// the pool of a node of two once, its other place absent.
+#[test]
+fn a_lone_child_past_half_the_capacity_is_narrowed_and_republished() {
+    let wide = Capacity { claims: 401, groups: 2 };
+    let leaf = LeafShape::of(&fixture().leaves[0].0).expect("a canonical announcement");
+    let tree = Tree::new(runs(leaf), shape(Some(ClaimShape::new(wide)))).expect("a tree");
+    let d = &tree.design;
+    let pool = (d.union_shape(d.place(SMALL, Level::Node(2)).expect("a node of two"))).expect("a union");
+    let big = set(vec![group(4, 4, &(0..400).collect::<Vec<_>>())]);
+    assert!(
+        2 * big.items().len() > pool.children.items(),
+        "twice, it does not fit the pool"
+    );
+    let (proof, output) = leaf_proof(&big);
+    let first = (tree.aggregate_leaves(&[ClaimLeaf::new(Leaf::new(&proof, output), &big)], None))
+        .expect("a set within the capacity");
+    let republished = (tree.aggregate(&[&first], None)).expect("a lone child");
+    assert_eq!(republished.claims, big);
+    (tree.verify_claims(&republished.proof, &big)).expect("a republished root");
+    let part = set(vec![group(4, 4, &(0..300).collect::<Vec<_>>())]);
+    let narrowed = (tree.aggregate(&[&first], Some(&part))).expect("a covered declaration");
+    (tree.verify_claims(&narrowed.proof, &part)).expect("a narrowed root");
+}
+
+// A claim-set tree of one tier keeps the heights and statement layout of protocol version `leanvm-tree-12`, before the
+// tiers, the absent STEP and LINK tables aside; its nodes' circuits add the absent places. Its session tag also names
+// its leaf family, so it is pinned here as it is now.
+#[test]
+fn a_claim_set_tree_of_one_tier_keeps_tree_12s_heights_and_layout() {
+    let d = &fixture().tree.design;
+    let sections = [
+        Section::Kind,
+        Section::Digest,
+        Section::DensePoint,
+        Section::DenseValues,
+        Section::Rows,
+        Section::Cols,
+        Section::Matrices,
+    ];
+    assert_eq!(d.tiers.len(), 1);
+    let heights = [Some(17), Some(17), Some(15), Some(11), Some(14), None, None, Some(10)];
+    assert_eq!(d.tiers[SMALL].taus.into_values(), heights);
+    assert_eq!(d.statement.len(), 99);
+    assert_eq!(
+        sections.map(|s| d.statement.range(s)),
+        [0..1, 1..3, 3..26, 26..29, 29..43, 43..57, 57..99]
+    );
+    assert_eq!(
+        d.session_with(b"leanvm-tree-12").0,
+        [
+            119, 91, 64, 136, 240, 39, 114, 202, 233, 199, 134, 190, 82, 9, 217, 110, 132, 33, 245, 20, 23, 157, 81,
+            183, 79, 211, 16, 74, 31, 213, 177, 68
+        ]
     );
 }

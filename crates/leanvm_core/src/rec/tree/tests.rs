@@ -1305,3 +1305,34 @@ fn the_matrix_reduction_reduces_to_the_matrices() {
         );
     }
 }
+
+// A tree of outputs keeps the heights and statement layout of protocol version `leanvm-tree-12`, before the tiers, the
+// absent STEP and LINK tables aside. Its session tag also names its leaf family, so it is pinned here as it is now.
+#[test]
+fn a_tree_of_outputs_keeps_tree_12s_heights_and_layout() {
+    let d = &fixture().tree.design;
+    assert_eq!(d.tiers.len(), 1);
+    let heights = [Some(16), Some(16), Some(14), Some(10), Some(14), None, None, Some(10)];
+    assert_eq!(d.tiers[SMALL].taus.into_values(), heights);
+    assert_eq!(d.statement.len(), 97);
+    let sections = [
+        Section::Kind,
+        Section::Digest,
+        Section::DensePoint,
+        Section::DenseValues,
+        Section::Rows,
+        Section::Cols,
+        Section::Matrices,
+    ];
+    assert_eq!(
+        sections.map(|s| d.statement.range(s)),
+        [0..1, 1..3, 3..24, 24..27, 27..41, 41..55, 55..97]
+    );
+    assert_eq!(
+        d.session_with(b"leanvm-tree-12").0,
+        [
+            121, 224, 140, 60, 37, 211, 121, 72, 182, 187, 33, 223, 187, 185, 249, 170, 210, 244, 146, 0, 222, 223,
+            157, 89, 167, 222, 2, 229, 112, 222, 182, 189
+        ]
+    );
+}
