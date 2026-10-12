@@ -7,7 +7,7 @@ the queries accepts against the root (`HintOpens`), the generated native `open_r
 each query's row and consumes the hint. Under injective leaf and pair hashes, an accepting hint
 against a committed tree's root opens the committed rows. -/
 namespace WhirAeneas.MerkleNative
-open Aeneas Aeneas.Std MerkleSource WhirAeneas.Merkle
+open Aeneas Aeneas.Std ReplaySource WhirAeneas.Merkle
 
 /-- The distinct queries, ascending. -/
 def sortedOf (qs : List Nat) : List Nat := qs.toFinset.sort (· ≤ ·)

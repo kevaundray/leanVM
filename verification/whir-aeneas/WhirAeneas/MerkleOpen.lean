@@ -5,7 +5,7 @@ rebuilt levels (`push_path`), the per-query expansion into leaf images and paths
 and the top-level composition with its guards, the distinct sorted queries, the leaf hashes
 (`RowHash`) and the rebuild. -/
 namespace WhirAeneas.Merkle
-open Aeneas Aeneas.Std MerkleSource
+open Aeneas Aeneas.Std ReplaySource
 
 private theorem loop_cont {α β : Type} {body : α → Result (ControlFlow α β)} {x x' : α}
     (h : body x = .ok (.cont x')) : loop body x = loop body x' := by

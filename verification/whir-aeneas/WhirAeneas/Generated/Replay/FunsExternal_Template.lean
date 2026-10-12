@@ -20,6 +20,33 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 open ReplaySource
 
+/-- [core::array::from_fn]:
+    Source: '/rustc/library/core/src/array/mod.rs', lines 109:0-111:52
+    Name pattern: [core::array::from_fn]
+    Visibility: public -/
+@[rust_fun "core::array::from_fn"]
+axiom core.array.from_fn
+  {T : Type} {F : Type} (N : Std.Usize) (opsfunctionFnMutFTupleUsizeTInst :
+  core.ops.function.FnMut F Std.Usize T) :
+  F → Result (Array T N)
+
+/-- [core::array::{[T; N]}::map]:
+    Source: '/rustc/library/core/src/array/mod.rs', lines 609:4-613:28
+    Name pattern: [core::array::{[@T; @N]}::map]
+    Visibility: public -/
+@[rust_fun "core::array::{[@T; @N]}::map"]
+axiom core.array.Array.map
+  {T : Type} {F : Type} {U : Type} {N : Std.Usize}
+  (opsfunctionFnMutFTupleTUInst : core.ops.function.FnMut F T U) :
+  Array T N → F → Result (Array U N)
+
+/-- [core::bool::{bool}::then_some]:
+    Source: '/rustc/library/core/src/bool.rs', lines 36:4-36:72
+    Name pattern: [core::bool::{bool}::then_some]
+    Visibility: public -/
+@[rust_fun "core::bool::{bool}::then_some"]
+axiom core.bool.Bool.then_some {T : Type} : Bool → T → Result (Option T)
+
 /-- [core::num::{usize}::trailing_zeros]:
     Source: '/rustc/library/core/src/num/uint_macros.rs', lines 177:8-177:48
     Name pattern: [core::num::{usize}::trailing_zeros]
@@ -34,6 +61,61 @@ axiom core.num.Usize.trailing_zeros : Std.Usize → Result Std.U32
 @[rust_fun "core::num::{usize}::div_ceil"]
 axiom core.num.Usize.div_ceil : Std.Usize → Std.Usize → Result Std.Usize
 
+/-- [core::option::{core::option::Option<T>}::get_or_insert]:
+    Source: '/rustc/library/core/src/option.rs', lines 1753:4-1755:28
+    Name pattern: [core::option::{core::option::Option<@T>}::get_or_insert]
+    Visibility: public -/
+@[rust_fun "core::option::{core::option::Option<@T>}::get_or_insert"]
+axiom core.option.Option.get_or_insert
+  {T : Type} : Option T → T → Result (T × (T → Option T))
+
+/-- [core::option::{core::option::Option<&'_0 T>}::copied]:
+    Source: '/rustc/library/core/src/option.rs', lines 2135:4-2137:16
+    Name pattern: [core::option::{core::option::Option<&'0 @T>}::copied]
+    Visibility: public -/
+@[rust_fun "core::option::{core::option::Option<&'0 @T>}::copied"]
+axiom core.option.OptionShared0T.copied
+  {T : Type} (markerCopyInst : core.marker.Copy T) :
+  Option T → Result (Option T)
+
+/-- [core::option::{impl core::ops::try_trait::Try for core::option::Option<T>}::branch]:
+    Source: '/rustc/library/core/src/option.rs', lines 2875:4-2875:64
+    Name pattern: [core::option::{core::ops::try_trait::Try<core::option::Option<@T>>}::branch]
+    Visibility: public -/
+@[rust_fun
+  "core::option::{core::ops::try_trait::Try<core::option::Option<@T>>}::branch"]
+axiom core.option.Option.Insts.CoreOpsTry_traitTry.branch
+  {T : Type} :
+  Option T → Result (core.ops.control_flow.ControlFlow (Option Never) T)
+
+/-- [core::option::{impl core::ops::try_trait::FromResidual<core::option::Option<!>> for core::option::Option<T>}::from_residual]:
+    Source: '/rustc/library/core/src/option.rs', lines 2889:4-2889:49
+    Name pattern: [core::option::{core::ops::try_trait::FromResidual<core::option::Option<@T>, core::option::Option<!>>}::from_residual]
+    Visibility: public -/
+@[rust_fun
+  "core::option::{core::ops::try_trait::FromResidual<core::option::Option<@T>, core::option::Option<!>>}::from_residual"]
+axiom
+  core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+  (T : Type) : Option Never → Result (Option T)
+
+/-- [core::slice::{[T]}::split_first_chunk]:
+    Source: '/rustc/library/core/src/slice/mod.rs', lines 389:4-389:84
+    Name pattern: [core::slice::{[@T]}::split_first_chunk]
+    Visibility: public -/
+@[rust_fun "core::slice::{[@T]}::split_first_chunk"]
+axiom core.slice.Slice.split_first_chunk
+  {T : Type} (N : Std.Usize) :
+  Slice T → Result (Option ((Array T N) × (Slice T)))
+
+/-- [core::slice::{[T]}::as_chunks]:
+    Source: '/rustc/library/core/src/slice/mod.rs', lines 1399:4-1399:96
+    Name pattern: [core::slice::{[@T]}::as_chunks]
+    Visibility: public -/
+@[rust_fun "core::slice::{[@T]}::as_chunks"]
+axiom core.slice.Slice.as_chunks
+  {T : Type} (N : Std.Usize) :
+  Slice T → Result ((Slice (Array T N)) × (Slice T))
+
 /-- [core::slice::{[T]}::rotate_left]:
     Source: '/rustc/library/core/src/slice/mod.rs', lines 3905:4-3905:51
     Name pattern: [core::slice::{[@T]}::rotate_left]
@@ -41,6 +123,25 @@ axiom core.num.Usize.div_ceil : Std.Usize → Std.Usize → Result Std.Usize
 @[rust_fun "core::slice::{[@T]}::rotate_left"]
 axiom core.slice.Slice.rotate_left
   {T : Type} : Slice T → Std.Usize → Result (Slice T)
+
+/-- [core::tuple::{impl core::cmp::PartialEq<(U, T)> for (U, T)}::eq]:
+    Source: '/rustc/library/core/src/tuple.rs', lines 30:16-30:55
+    Name pattern: [core::tuple::{core::cmp::PartialEq<(@U, @T), (@U, @T)>}::eq]
+    Visibility: public -/
+@[rust_fun "core::tuple::{core::cmp::PartialEq<(@U, @T), (@U, @T)>}::eq"]
+axiom Pair.Insts.CoreCmpPartialEqPair.eq
+  {U : Type} {T : Type} (cmpPartialEqInst : core.cmp.PartialEq U U)
+  (cmpPartialEqInst1 : core.cmp.PartialEq T T) :
+  (U × T) → (U × T) → Result Bool
+
+/-- [alloc::vec::{alloc::vec::Vec<T>}::truncate]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 1816:4-1816:42
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::truncate]
+    Visibility: public -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::truncate"]
+axiom alloc.vec.Vec.truncate
+  {T : Type} (A : Type) :
+  alloc.vec.Vec T → Std.Usize → Result (alloc.vec.Vec T)
 
 /-- [alloc::vec::{alloc::vec::Vec<T>}::remove]:
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 2407:4-2407:47
@@ -51,128 +152,139 @@ axiom alloc.vec.Vec.remove
   {T : Type} (A : Type) :
   alloc.vec.Vec T → Std.Usize → Result (T × (alloc.vec.Vec T))
 
-/-- [fiat_shamir::arith::Arith::zero]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 39:4-39:33
-    Name pattern: [fiat_shamir::arith::Arith::zero]
+/-- [alloc::vec::{alloc::vec::Vec<T>}::clear]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 3103:4-3103:27
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::clear]
     Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::zero"]
-axiom fiat_shamir.arith.Arith.zero.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Result (Clause0_E × Self)
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::clear"]
+axiom alloc.vec.Vec.clear
+  {T : Type} (A : Type) : alloc.vec.Vec T → Result (alloc.vec.Vec T)
 
-/-- [fiat_shamir::arith::Arith::one]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 44:4-44:32
-    Name pattern: [fiat_shamir::arith::Arith::one]
+/-- [alloc::vec::{alloc::vec::Vec<T>}::is_empty]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 3160:4-3160:40
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::is_empty]
     Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::one"]
-axiom fiat_shamir.arith.Arith.one.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Result (Clause0_E × Self)
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::is_empty"]
+axiom alloc.vec.Vec.is_empty
+  {T : Type} (A : Type) : alloc.vec.Vec T → Result Bool
 
-/-- [fiat_shamir::arith::Arith::mul]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 49:4-49:56
-    Name pattern: [fiat_shamir::arith::Arith::mul]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::mul"]
-axiom fiat_shamir.arith.Arith.mul.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Clause0_E → Clause0_E → Result (Clause0_E × Self)
-
-/-- [fiat_shamir::arith::Arith::mul_const]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 60:4-60:59
-    Name pattern: [fiat_shamir::arith::Arith::mul_const]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::mul_const"]
-axiom fiat_shamir.arith.Arith.mul_const.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Clause0_E → primitives.field.gf2_64x3.F192 → Result (Clause0_E
-    × Self)
-
-/-- [fiat_shamir::arith::Arith::add_const]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 66:4-66:59
-    Name pattern: [fiat_shamir::arith::Arith::add_const]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::add_const"]
-axiom fiat_shamir.arith.Arith.add_const.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Clause0_E → primitives.field.gf2_64x3.F192 → Result (Clause0_E
-    × Self)
-
-/-- [fiat_shamir::arith::Arith::times_one_plus]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 100:4-100:67
-    Name pattern: [fiat_shamir::arith::Arith::times_one_plus]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::times_one_plus"]
-axiom fiat_shamir.arith.Arith.times_one_plus.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Clause0_E → Clause0_E → Result (Clause0_E × Self)
-
-/-- [fiat_shamir::arith::Arith::eq_table_prefix]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 141:4-141:80
-    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::eq_table_prefix"]
-axiom fiat_shamir.arith.Arith.eq_table_prefix.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Slice Clause0_E → Std.Usize → Result ((alloc.vec.Vec Clause0_E)
-    × Self)
-
-/-- [fiat_shamir::arith::Arith::mle]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 169:4-169:71
-    Name pattern: [fiat_shamir::arith::Arith::mle]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
-axiom fiat_shamir.arith.Arith.mle.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Slice Clause0_E → Slice Clause0_E → Result (Clause0_E × Self)
-
-/-- [fiat_shamir::arith::Arith::powers]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 186:4-186:62
-    Name pattern: [fiat_shamir::arith::Arith::powers]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Arith::powers"]
-axiom fiat_shamir.arith.Arith.powers.default
-  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
-  Clause0_E) :
-  Self → Clause0_E → Std.Usize → Result ((alloc.vec.Vec Clause0_E) ×
-    Self)
-
-/-- [fiat_shamir::arith::Verifier::prover_messages]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 286:4-286:84
-    Name pattern: [fiat_shamir::arith::Verifier::prover_messages]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Verifier::prover_messages"]
-axiom fiat_shamir.arith.Verifier.prover_messages.default
-  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
-  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) :
-  Self → Std.Usize → Result ((core.result.Result (alloc.vec.Vec
-    Clause0_Clause0_E) fiat_shamir.error.TranscriptError) × Self)
-
-/-- [fiat_shamir::arith::Verifier::verifier_messages]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 291:4-291:61
-    Name pattern: [fiat_shamir::arith::Verifier::verifier_messages]
-    Visibility: public -/
-@[trait_default, rust_fun "fiat_shamir::arith::Verifier::verifier_messages"]
-axiom fiat_shamir.arith.Verifier.verifier_messages.default
-  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
-  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) :
-  Self → Std.Usize → Result ((alloc.vec.Vec Clause0_Clause0_E) × Self)
-
-/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; 24usize]> for primitives::field::gf2_64x3::F192}::from_uniform]:
-    Source: 'crates/fiat_shamir/src/codec.rs', lines 83:4-83:43
-    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_uniform]
+/-- [alloc::vec::{impl core::iter::traits::collect::Extend<T> for alloc::vec::Vec<T>}::extend]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 4107:4-4107:60
+    Name pattern: [alloc::vec::{core::iter::traits::collect::Extend<alloc::vec::Vec<@T>, @T>}::extend]
     Visibility: public -/
 @[rust_fun
-  "fiat_shamir::codec::{fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_uniform"]
+  "alloc::vec::{core::iter::traits::collect::Extend<alloc::vec::Vec<@T>, @T>}::extend"]
+axiom alloc.vec.Vec.Insts.CoreIterTraitsCollectExtend.extend
+  {T : Type} (A : Type) {I : Type} {Clause0_IntoIter : Type}
+  (coreitertraitscollectIntoIteratorInst :
+  core.iter.traits.collect.IntoIterator I T Clause0_IntoIter) :
+  alloc.vec.Vec T → I → Result (alloc.vec.Vec T)
+
+/-- [primitives::hash::hash]:
+    Source: 'crates/primitives/src/hash/mod.rs', lines 209:0-209:41
+    Name pattern: [primitives::hash::hash]
+    Visibility: public -/
+@[rust_fun "primitives::hash::hash"]
+axiom primitives.hash.hash : Slice Std.U8 → Result (Array Std.U8 32#usize)
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; 8usize]> for u64}::encode]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 121:4-121:31
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::Encoding<u64, [u8; 8]>}::encode]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::Encoding<u64, [u8; 8]>}::encode"]
+axiom U64.Insts.Fiat_shamirCodecEncodingArrayU88.encode
+  : Std.U64 → Result (Array Std.U8 8#usize)
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; 24usize]> for primitives::field::gf2_64x3::F192}::encode]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 60:4-60:32
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::Encoding<primitives::field::gf2_64x3::F192, [u8; 24]>}::encode]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::Encoding<primitives::field::gf2_64x3::F192, [u8; 24]>}::encode"]
 axiom
-  primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform
-  : Array Std.U8 24#usize → Result primitives.field.gf2_64x3.F192
+  primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecEncodingArrayU824.encode
+  : primitives.field.gf2_64x3.F192 → Result (Array Std.U8 24#usize)
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; N]> for [u8; N]}::encode]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 94:4-94:28
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::Encoding<[u8; @N], [u8; @N]>}::encode]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::Encoding<[u8; @N], [u8; @N]>}::encode"]
+axiom ArrayU8N.Insts.Fiat_shamirCodecEncodingArrayU8N.encode
+  {N : Std.Usize} : Array Std.U8 N → Result (Array Std.U8 N)
+
+/-- [fiat_shamir::duplex::{impl core::clone::Clone for fiat_shamir::duplex::Blake2sDuplex}::clone]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 107:9-107:14
+    Name pattern: [fiat_shamir::duplex::{core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>}::clone]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>}::clone"]
+axiom fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Result fiat_shamir.duplex.Blake2sDuplex
+
+/-- [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::context]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 130:4-130:87
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::context]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::context"]
+axiom fiat_shamir.duplex.Blake2sDuplex.context
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Result (fiat_shamir.TranscriptContext
+    primitives.field.gf2_64.F64 (Array Std.U8 32#usize))
+
+/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::squeeze]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 210:4-210:48
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::squeeze]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::squeeze"]
+axiom
+  fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
+    (fiat_shamir.duplex.Blake2sDuplex × (Slice Std.U8))
+
+/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::absorb]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 183:4-183:42
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::absorb]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::absorb"]
+axiom
+  fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
+    fiat_shamir.duplex.Blake2sDuplex
+
+/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::init]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 168:4-168:33
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::init]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::init"]
+axiom fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init
+  : Array Std.U8 32#usize → Result fiat_shamir.duplex.Blake2sDuplex
+
+/-- [pcs::merkle::hash_pairs]:
+    Source: 'crates/pcs/src/merkle.rs', lines 442:0-446:1 -/
+axiom merkle.hash_pairs
+  :
+  Slice (Array (Array Std.U8 32#usize) 2#usize) → alloc.vec.Vec (Array Std.U8
+    32#usize) → Result (alloc.vec.Vec (Array Std.U8 32#usize))
+
+/-- [pcs::merkle::sorted_unique]:
+    Source: 'crates/pcs/src/merkle.rs', lines 450:0-455:1 -/
+axiom merkle.sorted_unique
+  : Slice Std.Usize → Result (alloc.vec.Vec Std.Usize)
+
+/-- [pcs::merkle::hash_rows]:
+    Source: 'crates/pcs/src/merkle.rs', lines 463:0-468:1 -/
+axiom merkle.hash_rows
+  :
+  Slice primitives.field.gf2_64.F64 → Std.Usize → Std.Usize → Std.Usize
+    → Result (alloc.vec.Vec (Array Std.U8 32#usize))
 

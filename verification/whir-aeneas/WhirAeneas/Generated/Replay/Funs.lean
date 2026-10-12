@@ -21,8 +21,901 @@ set_option maxRecDepth 2048
 
 namespace ReplaySource
 
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ZERO]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 44:4-44:24
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ZERO]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ZERO"]
+def primitives.field.gf2_64x3.F192.ZERO : primitives.field.gf2_64x3.F192 :=
+  { c0 := 0#u64, c1 := 0#u64, c2 := 0#u64 }
+
+/-- [fiat_shamir::arith::Arith::zero]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 39:4-39:33
+    Name pattern: [fiat_shamir::arith::Arith::zero]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::zero"]
+def fiat_shamir.arith.Arith.zero.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) :
+  Result (Clause0_E × Self)
+  := do
+  ArithInst.constant self primitives.field.gf2_64x3.F192.ZERO
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ONE]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 45:4-45:23
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ONE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ONE"]
+def primitives.field.gf2_64x3.F192.ONE : primitives.field.gf2_64x3.F192 :=
+  { c0 := 1#u64, c1 := 0#u64, c2 := 0#u64 }
+
+/-- [fiat_shamir::arith::Arith::one]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 44:4-44:32
+    Name pattern: [fiat_shamir::arith::Arith::one]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::one"]
+def fiat_shamir.arith.Arith.one.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) :
+  Result (Clause0_E × Self)
+  := do
+  ArithInst.constant self primitives.field.gf2_64x3.F192.ONE
+
+/-- [fiat_shamir::arith::Arith::mul]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 49:4-49:56
+    Name pattern: [fiat_shamir::arith::Arith::mul]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::mul"]
+def fiat_shamir.arith.Arith.mul.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (a : Clause0_E) (b : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let (zero, self1) ← ArithInst.zero self
+  ArithInst.mul_add self1 a b zero
+
+/-- [fiat_shamir::arith::Arith::square]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 55:4-55:47
+    Name pattern: [fiat_shamir::arith::Arith::square]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::square"]
+def fiat_shamir.arith.Arith.square.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (a : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  ArithInst.mul self a a
+
+/-- [fiat_shamir::arith::Arith::mul_const]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 60:4-60:59
+    Name pattern: [fiat_shamir::arith::Arith::mul_const]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::mul_const"]
+def fiat_shamir.arith.Arith.mul_const.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (a : Clause0_E) (c : primitives.field.gf2_64x3.F192)
+  :
+  Result (Clause0_E × Self)
+  := do
+  let (zero, self1) ← ArithInst.zero self
+  ArithInst.mul_const_add self1 a c zero
+
+/-- [fiat_shamir::arith::Arith::add_const]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 66:4-66:59
+    Name pattern: [fiat_shamir::arith::Arith::add_const]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::add_const"]
+def fiat_shamir.arith.Arith.add_const.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (a : Clause0_E) (c : primitives.field.gf2_64x3.F192)
+  :
+  Result (Clause0_E × Self)
+  := do
+  let (c1, self1) ← ArithInst.constant self c
+  ArithInst.add self1 a c1
+
+/-- [fiat_shamir::arith::Arith::product]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 75:8-77:9
+    Name pattern: [fiat_shamir::arith::Arith::product]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun "fiat_shamir::arith::Arith::product"]
+def fiat_shamir.arith.Arith.product.default_loop.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (iter : core.slice.iter.Iter Clause0_E) (self : Self)
+  (acc : Clause0_E) :
+  Result (ControlFlow ((core.slice.iter.Iter Clause0_E) × Self × Clause0_E)
+    (Clause0_E × Self))
+  := do
+  let (o, iter1) ← core.slice.iter.IteratorSliceIter.next iter
+  match o with
+  | none => ok (done (acc, self))
+  | some f =>
+    let (acc1, self1) ← ArithInst.mul self acc f
+    ok (cont (iter1, self1, acc1))
+
+/-- [fiat_shamir::arith::Arith::product]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 75:8-77:9
+    Name pattern: [fiat_shamir::arith::Arith::product]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::product"]
+def fiat_shamir.arith.Arith.product.default_loop
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (iter : core.slice.iter.Iter Clause0_E) (self : Self)
+  (acc : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  loop
+    (fun (iter1, self1, acc1) =>
+      fiat_shamir.arith.Arith.product.default_loop.body ArithInst iter1 self1
+      acc1)
+    (iter, self, acc)
+
+/-- [fiat_shamir::arith::Arith::product]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 72:4-72:57
+    Name pattern: [fiat_shamir::arith::Arith::product]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::product"]
+def fiat_shamir.arith.Arith.product.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (factors : Slice Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let (one, self1) ← ArithInst.one self
+  let iter ←
+    SharedSlice.Insts.CoreIterTraitsCollectIntoIteratorSharedIter.into_iter
+      factors
+  fiat_shamir.arith.Arith.product.default_loop ArithInst iter self1 one
+
+/-- [fiat_shamir::arith::Arith::poly_eval]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 86:8-89:9
+    Name pattern: [fiat_shamir::arith::Arith::poly_eval]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::poly_eval"]
+def fiat_shamir.arith.Arith.poly_eval.default_loop.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (coeffs : Slice Clause0_E) (x : Clause0_E) (self : Self)
+  (acc : Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (Self × Clause0_E × Std.Usize) (Clause0_E × Self))
+  := do
+  if i > 0#usize
+  then
+    let i1 ← lift (Std.Usize.wrapping_sub i 1#usize)
+    let t ← Slice.index_usize coeffs i1
+    let (acc1, self1) ← ArithInst.mul_add self acc x t
+    ok (cont (self1, acc1, i1))
+  else ok (done (acc, self))
+
+/-- [fiat_shamir::arith::Arith::poly_eval]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 86:8-89:9
+    Name pattern: [fiat_shamir::arith::Arith::poly_eval]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::poly_eval"]
+def fiat_shamir.arith.Arith.poly_eval.default_loop
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (coeffs : Slice Clause0_E) (x : Clause0_E)
+  (acc : Clause0_E) (i : Std.Usize) :
+  Result (Clause0_E × Self)
+  := do
+  loop
+    (fun (self1, acc1, i1) =>
+      fiat_shamir.arith.Arith.poly_eval.default_loop.body ArithInst coeffs x
+      self1 acc1 i1)
+    (self, acc, i)
+
+/-- [fiat_shamir::arith::Arith::poly_eval]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 82:4-82:70
+    Name pattern: [fiat_shamir::arith::Arith::poly_eval]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::poly_eval"]
+def fiat_shamir.arith.Arith.poly_eval.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (coeffs : Slice Clause0_E) (x : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let (zero, self1) ← ArithInst.zero self
+  let i := Slice.len coeffs
+  fiat_shamir.arith.Arith.poly_eval.default_loop ArithInst self1 coeffs x zero
+    i
+
+/-- [fiat_shamir::arith::Arith::interp]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 94:4-94:73
+    Name pattern: [fiat_shamir::arith::Arith::interp]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::interp"]
+def fiat_shamir.arith.Arith.interp.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (lo : Clause0_E) (hi : Clause0_E) (t : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let (d, self1) ← ArithInst.add self lo hi
+  ArithInst.mul_add self1 t d lo
+
+/-- [fiat_shamir::arith::Arith::times_one_plus]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 100:4-100:67
+    Name pattern: [fiat_shamir::arith::Arith::times_one_plus]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::times_one_plus"]
+def fiat_shamir.arith.Arith.times_one_plus.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (v : Clause0_E) (r : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  ArithInst.mul_add self v r v
+
+/-- [fiat_shamir::arith::Arith::eq_eval]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 109:8-112:9
+    Name pattern: [fiat_shamir::arith::Arith::eq_eval]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun "fiat_shamir::arith::Arith::eq_eval"]
+def fiat_shamir.arith.Arith.eq_eval.default_loop.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (x : Slice Clause0_E) (y : Slice Clause0_E)
+  (iter : core.ops.range.Range Std.Usize) (self : Self) (acc : Clause0_E) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × Self × Clause0_E)
+    (Clause0_E × Self))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done (acc, self))
+  | some i =>
+    let t ← Slice.index_usize x i
+    let t1 ← Slice.index_usize y i
+    let (s, self1) ← ArithInst.add self t t1
+    let (acc1, self2) ← ArithInst.times_one_plus self1 acc s
+    ok (cont (iter1, self2, acc1))
+
+/-- [fiat_shamir::arith::Arith::eq_eval]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 109:8-112:9
+    Name pattern: [fiat_shamir::arith::Arith::eq_eval]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::eq_eval"]
+def fiat_shamir.arith.Arith.eq_eval.default_loop
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (iter : core.ops.range.Range Std.Usize) (self : Self)
+  (x : Slice Clause0_E) (y : Slice Clause0_E) (acc : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  loop
+    (fun (iter1, self1, acc1) =>
+      fiat_shamir.arith.Arith.eq_eval.default_loop.body ArithInst x y iter1
+      self1 acc1)
+    (iter, self, acc)
+
+/-- [fiat_shamir::arith::Arith::eq_eval]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 105:4-105:66
+    Name pattern: [fiat_shamir::arith::Arith::eq_eval]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::eq_eval"]
+def fiat_shamir.arith.Arith.eq_eval.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (x : Slice Clause0_E) (y : Slice Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let left_val := Slice.len x
+  let right_val := Slice.len y
+  if left_val = right_val
+  then
+    let (one, self1) ← ArithInst.one self
+    let i := Slice.len x
+    fiat_shamir.arith.Arith.eq_eval.default_loop ArithInst
+      { start := 0#usize, «end» := i } self1 x y one
+  else
+    let _ ← core.fmt.Arguments.from_str (toStr "two points of one cube")
+    fail panic
+
+/-- [fiat_shamir::arith::Arith::eq_bits]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 124:8-131:9
+    Name pattern: [fiat_shamir::arith::Arith::eq_bits]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun "fiat_shamir::arith::Arith::eq_bits"]
+def fiat_shamir.arith.Arith.eq_bits.default_loop.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (bits : Std.Usize) (point : Slice Clause0_E) (self : Self)
+  (acc : Clause0_E) (j : Std.Usize) :
+  Result (ControlFlow (Self × Clause0_E × Std.Usize) (Clause0_E × Self))
+  := do
+  if j > 0#usize
+  then
+    let j1 ← lift (Std.Usize.wrapping_sub j 1#usize)
+    let i ← lift (Std.Usize.wrapping_shr bits j1)
+    let i1 ← lift (i &&& 1#usize)
+    if i1 = 1#usize
+    then
+      let t ← Slice.index_usize point j1
+      let (acc1, self1) ← ArithInst.mul self acc t
+      ok (cont (self1, acc1, j1))
+    else
+      let t ← Slice.index_usize point j1
+      let (acc1, self1) ← ArithInst.times_one_plus self acc t
+      ok (cont (self1, acc1, j1))
+  else ok (done (acc, self))
+
+/-- [fiat_shamir::arith::Arith::eq_bits]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 124:8-131:9
+    Name pattern: [fiat_shamir::arith::Arith::eq_bits]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::eq_bits"]
+def fiat_shamir.arith.Arith.eq_bits.default_loop
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (bits : Std.Usize) (point : Slice Clause0_E)
+  (acc : Clause0_E) (j : Std.Usize) :
+  Result (Clause0_E × Self)
+  := do
+  loop
+    (fun (self1, acc1, j1) => fiat_shamir.arith.Arith.eq_bits.default_loop.body
+      ArithInst bits point self1 acc1 j1)
+    (self, acc, j)
+
+/-- [fiat_shamir::arith::Arith::eq_bits]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 120:4-120:68
+    Name pattern: [fiat_shamir::arith::Arith::eq_bits]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::eq_bits"]
+def fiat_shamir.arith.Arith.eq_bits.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (bits : Std.Usize) (point : Slice Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let (one, self1) ← ArithInst.one self
+  let j := Slice.len point
+  fiat_shamir.arith.Arith.eq_bits.default_loop ArithInst self1 bits point one j
+
+/-- [fiat_shamir::arith::Arith::eq_table]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 136:4-136:61
+    Name pattern: [fiat_shamir::arith::Arith::eq_table]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::eq_table"]
+def fiat_shamir.arith.Arith.eq_table.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (point : Slice Clause0_E) :
+  Result ((alloc.vec.Vec Clause0_E) × Self)
+  := do
+  let i := Slice.len point
+  let i1 ← lift (Std.Usize.wrapping_shl 1#usize i)
+  ArithInst.eq_table_prefix self point i1
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]: loop body 1:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 152:12-155:13
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop0.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (table : alloc.vec.Vec Clause0_E) (r : Clause0_E)
+  (count : Std.Usize) (self : Self) (high : alloc.vec.Vec Clause0_E)
+  (j : Std.Usize) :
+  Result (ControlFlow (Self × (alloc.vec.Vec Clause0_E) × Std.Usize) (Self ×
+    (alloc.vec.Vec Clause0_E)))
+  := do
+  if j < count
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        table j
+    let (t1, self1) ← ArithInst.mul self t r
+    let high1 ← alloc.vec.Vec.push high t1
+    let j1 ← lift (Std.Usize.wrapping_add j 1#usize)
+    ok (cont (self1, high1, j1))
+  else ok (done (self, high))
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]: loop 1:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 152:12-155:13
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop0
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (table : alloc.vec.Vec Clause0_E) (r : Clause0_E)
+  (count : Std.Usize) (high : alloc.vec.Vec Clause0_E) (j : Std.Usize) :
+  Result (Self × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (self1, high1, j1) =>
+      fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop0.body
+      ArithInst table r count self1 high1 j1)
+    (self, high, j)
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]: loop body 2:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 157:12-160:13
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop1.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (r : Clause0_E) (self : Self) (table : alloc.vec.Vec Clause0_E)
+  (j : Std.Usize) :
+  Result (ControlFlow (Self × (alloc.vec.Vec Clause0_E) × Std.Usize) (Self ×
+    (alloc.vec.Vec Clause0_E)))
+  := do
+  let i := alloc.vec.Vec.len table
+  if j < i
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        table j
+    let (t1, self1) ← ArithInst.times_one_plus self t r
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        table j
+    let j1 ← lift (Std.Usize.wrapping_add j 1#usize)
+    let table1 := index_mut_back t1
+    ok (cont (self1, table1, j1))
+  else ok (done (self, table))
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]: loop 2:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 157:12-160:13
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop1
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (table : alloc.vec.Vec Clause0_E) (r : Clause0_E)
+  (j : Std.Usize) :
+  Result (Self × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (self1, table1, j1) =>
+      fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop1.body
+      ArithInst r self1 table1 j1)
+    (self, table, j)
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 146:8-163:9
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default_loop0.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (point : Slice Clause0_E) (len : Std.Usize) (self : Self)
+  (table : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (Self × (alloc.vec.Vec Clause0_E) × Std.Usize) (Self ×
+    (alloc.vec.Vec Clause0_E)))
+  := do
+  let i1 := Slice.len point
+  if i < i1
+  then
+    let r ← Slice.index_usize point i
+    let i2 ← lift (Std.Usize.wrapping_shl 2#usize i)
+    let need ← lift (core.cmp.impls.OrdUsize.min len i2)
+    let i3 := alloc.vec.Vec.len table
+    let count ← lift (core.num.Usize.saturating_sub need i3)
+    let high := alloc.vec.Vec.with_capacity Clause0_E count
+    let (self1, high1) ←
+      fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop0 ArithInst
+        self table r count high 0#usize
+    let (self2, table1) ←
+      fiat_shamir.arith.Arith.eq_table_prefix.default_loop0_loop1 ArithInst
+        self1 table r 0#usize
+    let table2 ←
+      alloc.vec.Vec.Insts.CoreIterTraitsCollectExtend.extend Global
+        (core.iter.traits.collect.IntoIteratorVec Clause0_E) table1 high1
+    let i4 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (self2, table2, i4))
+  else ok (done (self, table))
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 146:8-163:9
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default_loop0
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (point : Slice Clause0_E) (len : Std.Usize)
+  (table : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (Self × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (self1, table1, i1) =>
+      fiat_shamir.arith.Arith.eq_table_prefix.default_loop0.body ArithInst
+      point len self1 table1 i1)
+    (self, table, i)
+
+/-- [fiat_shamir::arith::Arith::eq_table_prefix]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 141:4-141:80
+    Name pattern: [fiat_shamir::arith::Arith::eq_table_prefix]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::eq_table_prefix"]
+def fiat_shamir.arith.Arith.eq_table_prefix.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (point : Slice Clause0_E) (len : Std.Usize) :
+  Result ((alloc.vec.Vec Clause0_E) × Self)
+  := do
+  let i := Slice.len point
+  let i1 ← lift (Std.Usize.wrapping_shl 1#usize i)
+  massert (len <= i1)
+  let table := alloc.vec.Vec.with_capacity Clause0_E 1#usize
+  let (t, self1) ← ArithInst.one self
+  let table1 ← alloc.vec.Vec.push table t
+  let (self2, table2) ←
+    fiat_shamir.arith.Arith.eq_table_prefix.default_loop0 ArithInst self1 point
+      len table1 0#usize
+  let table3 ← alloc.vec.Vec.truncate Global table2 len
+  ok (table3, self2)
+
+/-- [fiat_shamir::arith::Arith::mle]: loop body 1:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 176:12-179:13
+    Name pattern: [fiat_shamir::arith::Arith::mle]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
+def fiat_shamir.arith.Arith.mle.default_loop0_loop0.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (folded : alloc.vec.Vec Clause0_E) (x : Clause0_E)
+  (len : Std.Usize) (self : Self) (next : alloc.vec.Vec Clause0_E)
+  (i : Std.Usize) :
+  Result (ControlFlow (Self × (alloc.vec.Vec Clause0_E) × Std.Usize) (Self ×
+    (alloc.vec.Vec Clause0_E)))
+  := do
+  if i < len
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        folded i
+    let i1 ← lift (Std.Usize.wrapping_add i 1#usize)
+    let t1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        folded i1
+    let (t2, self1) ← ArithInst.interp self t t1 x
+    let next1 ← alloc.vec.Vec.push next t2
+    let i2 ← lift (Std.Usize.wrapping_add i 2#usize)
+    ok (cont (self1, next1, i2))
+  else ok (done (self, next))
+
+/-- [fiat_shamir::arith::Arith::mle]: loop 1:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 176:12-179:13
+    Name pattern: [fiat_shamir::arith::Arith::mle]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
+def fiat_shamir.arith.Arith.mle.default_loop0_loop0
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (folded : alloc.vec.Vec Clause0_E) (x : Clause0_E)
+  (len : Std.Usize) (next : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (Self × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (self1, next1, i1) =>
+      fiat_shamir.arith.Arith.mle.default_loop0_loop0.body ArithInst folded x
+      len self1 next1 i1)
+    (self, next, i)
+
+/-- [fiat_shamir::arith::Arith::mle]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 172:8-181:9
+    Name pattern: [fiat_shamir::arith::Arith::mle]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
+def fiat_shamir.arith.Arith.mle.default_loop0.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (iter : core.slice.iter.Iter Clause0_E) (self : Self)
+  (folded : alloc.vec.Vec Clause0_E) :
+  Result (ControlFlow ((core.slice.iter.Iter Clause0_E) × Self ×
+    (alloc.vec.Vec Clause0_E)) (Self × (alloc.vec.Vec Clause0_E)))
+  := do
+  let (o, iter1) ← core.slice.iter.IteratorSliceIter.next iter
+  match o with
+  | none => ok (done (self, folded))
+  | some x =>
+    let len := alloc.vec.Vec.len folded
+    let i ← len / 2#usize
+    let i1 ← len % 2#usize
+    let i2 ← lift (Std.Usize.wrapping_add i i1)
+    let next := alloc.vec.Vec.with_capacity Clause0_E i2
+    let (self1, next1) ←
+      fiat_shamir.arith.Arith.mle.default_loop0_loop0 ArithInst self folded x
+        len next 0#usize
+    ok (cont (iter1, self1, next1))
+
+/-- [fiat_shamir::arith::Arith::mle]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 172:8-181:9
+    Name pattern: [fiat_shamir::arith::Arith::mle]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
+def fiat_shamir.arith.Arith.mle.default_loop0
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (iter : core.slice.iter.Iter Clause0_E) (self : Self)
+  (folded : alloc.vec.Vec Clause0_E) :
+  Result (Self × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (iter1, self1, folded1) =>
+      fiat_shamir.arith.Arith.mle.default_loop0.body ArithInst iter1 self1
+      folded1)
+    (iter, self, folded)
+
+/-- [fiat_shamir::arith::Arith::mle]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 169:4-169:71
+    Name pattern: [fiat_shamir::arith::Arith::mle]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::mle"]
+def fiat_shamir.arith.Arith.mle.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (values : Slice Clause0_E) (point : Slice Clause0_E)
+  :
+  Result (Clause0_E × Self)
+  := do
+  let left_val := Slice.len values
+  let i := Slice.len point
+  let right_val ← lift (Std.Usize.wrapping_shl 1#usize i)
+  if left_val = right_val
+  then
+    let folded ←
+      alloc.slice.Slice.to_vec ArithInst.coremarkerCopyInst.cloneInst values
+    let iter ←
+      SharedSlice.Insts.CoreIterTraitsCollectIntoIteratorSharedIter.into_iter
+        point
+    let (self1, folded1) ←
+      fiat_shamir.arith.Arith.mle.default_loop0 ArithInst iter self folded
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        folded1 0#usize
+    ok (t, self1)
+  else
+    let _ ← core.fmt.Arguments.from_str (toStr "a value per vertex")
+    fail panic
+
+/-- [fiat_shamir::arith::Arith::powers]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 189:8-192:9
+    Name pattern: [fiat_shamir::arith::Arith::powers]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun "fiat_shamir::arith::Arith::powers"]
+def fiat_shamir.arith.Arith.powers.default_loop.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (x : Clause0_E) (iter : core.ops.range.Range Std.Usize)
+  (self : Self) (out : alloc.vec.Vec Clause0_E) (acc : Clause0_E) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × Self ×
+    (alloc.vec.Vec Clause0_E) × Clause0_E) ((alloc.vec.Vec Clause0_E) ×
+    Self))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done (out, self))
+  | some _ =>
+    let out1 ← alloc.vec.Vec.push out acc
+    let (acc1, self1) ← ArithInst.mul self acc x
+    ok (cont (iter1, self1, out1, acc1))
+
+/-- [fiat_shamir::arith::Arith::powers]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 189:8-192:9
+    Name pattern: [fiat_shamir::arith::Arith::powers]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::powers"]
+def fiat_shamir.arith.Arith.powers.default_loop
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (iter : core.ops.range.Range Std.Usize) (self : Self)
+  (x : Clause0_E) (out : alloc.vec.Vec Clause0_E) (acc : Clause0_E) :
+  Result ((alloc.vec.Vec Clause0_E) × Self)
+  := do
+  loop
+    (fun (iter1, self1, out1, acc1) =>
+      fiat_shamir.arith.Arith.powers.default_loop.body ArithInst x iter1 self1
+      out1 acc1)
+    (iter, self, out, acc)
+
+/-- [fiat_shamir::arith::Arith::powers]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 186:4-186:62
+    Name pattern: [fiat_shamir::arith::Arith::powers]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::powers"]
+def fiat_shamir.arith.Arith.powers.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (x : Clause0_E) (n : Std.Usize) :
+  Result ((alloc.vec.Vec Clause0_E) × Self)
+  := do
+  let out := alloc.vec.Vec.with_capacity Clause0_E n
+  let (acc, self1) ← ArithInst.one self
+  fiat_shamir.arith.Arith.powers.default_loop ArithInst
+    { start := 0#usize, «end» := n } self1 x out acc
+
+/-- [primitives::field::gf2_64x3::{impl core::convert::From<primitives::field::gf2_64::F64> for primitives::field::gf2_64x3::F192}::from]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 193:4-193:27
+    Name pattern: [primitives::field::gf2_64x3::{core::convert::From<primitives::field::gf2_64x3::F192, primitives::field::gf2_64::F64>}::from]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{core::convert::From<primitives::field::gf2_64x3::F192, primitives::field::gf2_64::F64>}::from"]
+def primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from
+  (k : primitives.field.gf2_64.F64) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  ok { c0 := k, c1 := 0#u64, c2 := 0#u64 }
+
+/-- [fiat_shamir::arith::Arith::int_index]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 200:8-202:9
+    Name pattern: [fiat_shamir::arith::Arith::int_index]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Arith::int_index"]
+def fiat_shamir.arith.Arith.int_index.default_loop.body
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (shift : Std.U32)
+  (iter : core.iter.adapters.enumerate.Enumerate (core.slice.iter.Iter
+  Clause0_E)) (self : Self) (acc : Clause0_E) :
+  Result (ControlFlow ((core.iter.adapters.enumerate.Enumerate
+    (core.slice.iter.Iter Clause0_E)) × Self × Clause0_E) (Clause0_E ×
+    Self))
+  := do
+  let (o, iter1) ←
+    core.iter.adapters.enumerate.IteratorEnumerate.next
+      (core.iter.traits.iterator.IteratorSliceIter Clause0_E) iter
+  match o with
+  | none => ok (done (acc, self))
+  | some p =>
+    let (i, z) := p
+    let i1 ← lift (UScalar.cast .U32 i)
+    let i2 ← lift (Std.U32.wrapping_add i1 shift)
+    let i3 ← lift (Std.U64.wrapping_shl 1#u64 i2)
+    let f ← primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from i3
+    let (acc1, self1) ← ArithInst.mul_const_add self z f acc
+    ok (cont (iter1, self1, acc1))
+
+/-- [fiat_shamir::arith::Arith::int_index]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 200:8-202:9
+    Name pattern: [fiat_shamir::arith::Arith::int_index]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun "fiat_shamir::arith::Arith::int_index"]
+def fiat_shamir.arith.Arith.int_index.default_loop
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E)
+  (iter : core.iter.adapters.enumerate.Enumerate (core.slice.iter.Iter
+  Clause0_E)) (self : Self) (shift : Std.U32) (acc : Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  loop
+    (fun (iter1, self1, acc1) =>
+      fiat_shamir.arith.Arith.int_index.default_loop.body ArithInst shift iter1
+      self1 acc1)
+    (iter, self, acc)
+
+/-- [fiat_shamir::arith::Arith::int_index]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 197:4-197:80
+    Name pattern: [fiat_shamir::arith::Arith::int_index]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Arith::int_index"]
+def fiat_shamir.arith.Arith.int_index.default
+  {Self : Type} {Clause0_E : Type} (ArithInst : fiat_shamir.arith.Arith Self
+  Clause0_E) (self : Self) (base : primitives.field.gf2_64.F64)
+  (shift : Std.U32) (point : Slice Clause0_E) :
+  Result (Clause0_E × Self)
+  := do
+  let f ← primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from base
+  let (base1, self1) ← ArithInst.constant self f
+  let i ← core.slice.Slice.iter point
+  let iter ←
+    core.iter.traits.iterator.Iterator.enumerate.trait_default
+      (core.iter.traits.iterator.IteratorSliceIter Clause0_E) i
+  fiat_shamir.arith.Arith.int_index.default_loop ArithInst iter self1 shift
+    base1
+
+/-- [fiat_shamir::arith::Verifier::prover_messages]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 290:8-295:5
+    Name pattern: [fiat_shamir::arith::Verifier::prover_messages]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Verifier::prover_messages"]
+def fiat_shamir.arith.Verifier.prover_messages.default_loop.body
+  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
+  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) (n : Std.Usize)
+  (self : Self) (out : alloc.vec.Vec Clause0_Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (Self × (alloc.vec.Vec Clause0_Clause0_E) × Std.Usize)
+    ((core.result.Result (alloc.vec.Vec Clause0_Clause0_E)
+    fiat_shamir.error.TranscriptError) × Self))
+  := do
+  if i < n
+  then
+    let (r, self1) ← VerifierInst.prover_message self
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let out1 ← alloc.vec.Vec.push out val
+      let i1 ← lift (Std.Usize.wrapping_add i 1#usize)
+      ok (cont (self1, out1, i1))
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (alloc.vec.Vec Clause0_Clause0_E) (core.convert.FromSame
+          fiat_shamir.error.TranscriptError) residual
+      ok (done (r1, self1))
+  else ok (done (core.result.Result.Ok out, self))
+
+/-- [fiat_shamir::arith::Verifier::prover_messages]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 290:8-295:5
+    Name pattern: [fiat_shamir::arith::Verifier::prover_messages]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun
+  "fiat_shamir::arith::Verifier::prover_messages"]
+def fiat_shamir.arith.Verifier.prover_messages.default_loop
+  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
+  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) (self : Self)
+  (n : Std.Usize) (out : alloc.vec.Vec Clause0_Clause0_E) (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec Clause0_Clause0_E)
+    fiat_shamir.error.TranscriptError) × Self)
+  := do
+  loop
+    (fun (self1, out1, i1) =>
+      fiat_shamir.arith.Verifier.prover_messages.default_loop.body VerifierInst
+      n self1 out1 i1)
+    (self, out, i)
+
+/-- [fiat_shamir::arith::Verifier::prover_messages]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 286:4-286:84
+    Name pattern: [fiat_shamir::arith::Verifier::prover_messages]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Verifier::prover_messages"]
+def fiat_shamir.arith.Verifier.prover_messages.default
+  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
+  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) (self : Self)
+  (n : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec Clause0_Clause0_E)
+    fiat_shamir.error.TranscriptError) × Self)
+  := do
+  let out := alloc.vec.Vec.with_capacity Clause0_Clause0_E n
+  fiat_shamir.arith.Verifier.prover_messages.default_loop VerifierInst self n
+    out 0#usize
+
+/-- [fiat_shamir::arith::Verifier::verifier_messages]: loop body 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 301:8-304:9
+    Name pattern: [fiat_shamir::arith::Verifier::verifier_messages]
+    Visibility: public -/
+@[rust_loop_body, trait_default, rust_fun
+  "fiat_shamir::arith::Verifier::verifier_messages"]
+def fiat_shamir.arith.Verifier.verifier_messages.default_loop.body
+  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
+  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) (n : Std.Usize)
+  (self : Self) (out : alloc.vec.Vec Clause0_Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (Self × (alloc.vec.Vec Clause0_Clause0_E) × Std.Usize)
+    ((alloc.vec.Vec Clause0_Clause0_E) × Self))
+  := do
+  if i < n
+  then
+    let (t, self1) ← VerifierInst.verifier_message self
+    let out1 ← alloc.vec.Vec.push out t
+    let i1 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (self1, out1, i1))
+  else ok (done (out, self))
+
+/-- [fiat_shamir::arith::Verifier::verifier_messages]: loop 0:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 301:8-304:9
+    Name pattern: [fiat_shamir::arith::Verifier::verifier_messages]
+    Visibility: public -/
+@[rust_loop, trait_default, rust_fun
+  "fiat_shamir::arith::Verifier::verifier_messages"]
+def fiat_shamir.arith.Verifier.verifier_messages.default_loop
+  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
+  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) (self : Self)
+  (n : Std.Usize) (out : alloc.vec.Vec Clause0_Clause0_E) (i : Std.Usize) :
+  Result ((alloc.vec.Vec Clause0_Clause0_E) × Self)
+  := do
+  loop
+    (fun (self1, out1, i1) =>
+      fiat_shamir.arith.Verifier.verifier_messages.default_loop.body
+      VerifierInst n self1 out1 i1)
+    (self, out, i)
+
+/-- [fiat_shamir::arith::Verifier::verifier_messages]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 298:4-298:61
+    Name pattern: [fiat_shamir::arith::Verifier::verifier_messages]
+    Visibility: public -/
+@[trait_default, rust_fun "fiat_shamir::arith::Verifier::verifier_messages"]
+def fiat_shamir.arith.Verifier.verifier_messages.default
+  {Self : Type} {Clause0_Clause0_E : Type} (VerifierInst :
+  fiat_shamir.arith.Verifier Self Clause0_Clause0_E) (self : Self)
+  (n : Std.Usize) :
+  Result ((alloc.vec.Vec Clause0_Clause0_E) × Self)
+  := do
+  let out := alloc.vec.Vec.with_capacity Clause0_Clause0_E n
+  fiat_shamir.arith.Verifier.verifier_messages.default_loop VerifierInst self n
+    out 0#usize
+
 /-- [fiat_shamir::arith::fixed_coefficient]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 315:0-315:51
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 328:0-328:51
     Name pattern: [fiat_shamir::arith::fixed_coefficient] -/
 @[rust_fun "fiat_shamir::arith::fixed_coefficient"]
 def fiat_shamir.arith.fixed_coefficient
@@ -32,7 +925,7 @@ def fiat_shamir.arith.fixed_coefficient
   else ok 1#usize
 
 /-- [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<E>>}::read]: loop body 0:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 369:8-372:9
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 382:8-385:9
     Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -54,7 +947,7 @@ def fiat_shamir.arith.RoundPolynomialVec.read_loop.body
   else ok (done (v, tail))
 
 /-- [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<E>>}::read]: loop 0:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 369:8-372:9
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 382:8-385:9
     Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -71,7 +964,7 @@ def fiat_shamir.arith.RoundPolynomialVec.read_loop
     (v, tail, i)
 
 /-- [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<E>>}::read]:
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 351:4-356:38
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 364:4-369:38
     Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::RoundPolynomial<alloc::vec::Vec<@E>>}::read]
     Visibility: public -/
 @[rust_fun
@@ -119,51 +1012,98 @@ def fiat_shamir.arith.RoundPolynomialVec.read
         (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
     ok (r1, v1)
 
-/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; 24usize]> for primitives::field::gf2_64x3::F192}]
-    Source: 'crates/fiat_shamir/src/codec.rs', lines 80:0-80:25
-    Name pattern: [fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>] -/
-@[reducible, rust_trait_impl
-  "fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>"]
-def primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824 :
-  fiat_shamir.codec.FromUniform primitives.field.gf2_64x3.F192 (Array Std.U8
-  24#usize) := {
-  coredefaultDefaultInst := core.default.DefaultArray 24#usize
-    core.default.DefaultU8
-  coreconvertAsMutSelf_ReprSliceU8Inst := Array.Insts.CoreConvertAsMutSlice
-    Std.U8 24#usize
-  from_uniform :=
-    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform
-}
-
-/-- [primitives::field::gf2_64::{impl core::clone::Clone for primitives::field::gf2_64::F64}::clone]:
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:9-16:14
-    Name pattern: [primitives::field::gf2_64::{core::clone::Clone<primitives::field::gf2_64::F64>}::clone]
+/-- [primitives::field::gf2_64x3::{impl core::cmp::PartialEq<primitives::field::gf2_64x3::F192> for primitives::field::gf2_64x3::F192}::eq]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 32:38-32:47
+    Name pattern: [primitives::field::gf2_64x3::{core::cmp::PartialEq<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>}::eq]
     Visibility: public -/
 @[rust_fun
-  "primitives::field::gf2_64::{core::clone::Clone<primitives::field::gf2_64::F64>}::clone"]
-def primitives.field.gf2_64.F64.Insts.CoreCloneClone.clone
-  (self : primitives.field.gf2_64.F64) :
-  Result primitives.field.gf2_64.F64
+  "primitives::field::gf2_64x3::{core::cmp::PartialEq<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>}::eq"]
+def primitives.field.gf2_64x3.F192.Insts.CoreCmpPartialEqF192.eq
+  (self : primitives.field.gf2_64x3.F192)
+  (other : primitives.field.gf2_64x3.F192) :
+  Result Bool
+  := do
+  if self.c0 = other.c0
+  then if self.c1 = other.c1
+       then ok (self.c2 = other.c2)
+       else ok false
+  else ok false
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{impl core::cmp::PartialEq<primitives::field::gf2_64x3::F192> for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 32:38-32:47
+    Name pattern: [core::cmp::PartialEq<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialEq<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>"]
+impl_def primitives.field.gf2_64x3.F192.Insts.CoreCmpPartialEqF192 :
+  core.cmp.PartialEq primitives.field.gf2_64x3.F192
+  primitives.field.gf2_64x3.F192 := {
+  eq := primitives.field.gf2_64x3.F192.Insts.CoreCmpPartialEqF192.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    primitives.field.gf2_64x3.F192.Insts.CoreCmpPartialEqF192
+}
+
+/-- [primitives::field::gf2_64x3::{impl core::clone::Clone for primitives::field::gf2_64x3::F192}::clone]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 32:9-32:14
+    Name pattern: [primitives::field::gf2_64x3::{core::clone::Clone<primitives::field::gf2_64x3::F192>}::clone]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{core::clone::Clone<primitives::field::gf2_64x3::F192>}::clone"]
+def primitives.field.gf2_64x3.F192.Insts.CoreCloneClone.clone
+  (self : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192
   := do
   ok self
 
-/-- Trait implementation: [primitives::field::gf2_64::{impl core::clone::Clone for primitives::field::gf2_64::F64}]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:9-16:14
-    Name pattern: [core::clone::Clone<primitives::field::gf2_64::F64>] -/
+/-- Trait implementation: [primitives::field::gf2_64x3::{impl core::clone::Clone for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 32:9-32:14
+    Name pattern: [core::clone::Clone<primitives::field::gf2_64x3::F192>] -/
 @[reducible, rust_trait_impl
-  "core::clone::Clone<primitives::field::gf2_64::F64>"]
-def primitives.field.gf2_64.F64.Insts.CoreCloneClone : core.clone.Clone
-  primitives.field.gf2_64.F64 := {
-  clone := primitives.field.gf2_64.F64.Insts.CoreCloneClone.clone
+  "core::clone::Clone<primitives::field::gf2_64x3::F192>"]
+def primitives.field.gf2_64x3.F192.Insts.CoreCloneClone : core.clone.Clone
+  primitives.field.gf2_64x3.F192 := {
+  clone := primitives.field.gf2_64x3.F192.Insts.CoreCloneClone.clone
 }
 
-/-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ONE]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 25:4-25:23
-    Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ONE]
+/-- Trait implementation: [primitives::field::gf2_64x3::{impl core::marker::Copy for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 32:16-32:20
+    Name pattern: [core::marker::Copy<primitives::field::gf2_64x3::F192>] -/
+@[reducible, rust_trait_impl
+  "core::marker::Copy<primitives::field::gf2_64x3::F192>"]
+def primitives.field.gf2_64x3.F192.Insts.CoreMarkerCopy : core.marker.Copy
+  primitives.field.gf2_64x3.F192 := {
+  cloneInst := primitives.field.gf2_64x3.F192.Insts.CoreCloneClone
+}
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::frobenius]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 144:4-144:40
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::frobenius]
     Visibility: public -/
-@[global_simps, irreducible, rust_const
-  "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ONE"]
-def primitives.field.gf2_64.F64.ONE : primitives.field.gf2_64.F64 := 1#u64
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::frobenius"]
+def primitives.field.gf2_64x3.F192.frobenius
+  (self : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  let i ← lift (self.c1 ^^^ self.c2)
+  ok { self with c1 := self.c2, c2 := i }
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::frobenius2]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 457:4-457:45
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::frobenius2]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::frobenius2"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.frobenius2
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (a : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  let f ← primitives.field.gf2_64x3.F192.frobenius a
+  let f1 ← primitives.field.gf2_64x3.F192.frobenius f
+  ok (f1, self)
 
 /-- [primitives::field::gf2_64::reduce]:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 187:0-187:35
@@ -187,6 +1127,169 @@ def primitives.field.gf2_64.reduce (p : Std.U128) : Result Std.U64 := do
   let i9 ← lift (i7 ^^^ i8)
   let i10 ← lift (Std.U64.wrapping_shl v 4#i32)
   ok (i9 ^^^ i10)
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{impl core::ops::function::FnMut<([u64; 2usize],), u64> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{closure}}::call_mut]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 570:21-570:31
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>}::call_mut] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>}::call_mut"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnMutTupleArrayU642U64.call_mut
+  (c : primitives.field.gf2_64x3.F192Unreduced.reduce.closure)
+  (tupled_args : Array Std.U64 2#usize) :
+  Result (Std.U64 × primitives.field.gf2_64x3.F192Unreduced.reduce.closure)
+  := do
+  let lo ← Array.index_usize tupled_args 0#usize
+  let hi ← Array.index_usize tupled_args 1#usize
+  let i ← lift (core.convert.num.FromU128U64.from hi)
+  let i1 ← lift (Std.U128.wrapping_shl i 64#i32)
+  let i2 ← lift (core.convert.num.FromU128U64.from lo)
+  let i3 ← lift (i1 ||| i2)
+  let i4 ← primitives.field.gf2_64.reduce i3
+  ok (i4, c)
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{impl core::ops::function::FnOnce<([u64; 2usize],), u64> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{closure}}::call_once]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 570:21-570:31
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>}::call_once] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>}::call_once"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnOnceTupleArrayU642U64.call_once
+  (c : primitives.field.gf2_64x3.F192Unreduced.reduce.closure)
+  (a : Array Std.U64 2#usize) :
+  Result Std.U64
+  := do
+  let (i, _) ←
+    primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnMutTupleArrayU642U64.call_mut
+      c a
+  ok i
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{impl core::ops::function::FnOnce<([u64; 2usize],), u64> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{closure}}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 570:21-570:31
+    Name pattern: [core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnOnceTupleArrayU642U64
+  : core.ops.function.FnOnce
+  primitives.field.gf2_64x3.F192Unreduced.reduce.closure (Array Std.U64
+  2#usize) Std.U64 := {
+  call_once :=
+    primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnOnceTupleArrayU642U64.call_once
+}
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{impl core::ops::function::FnMut<([u64; 2usize],), u64> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{closure}}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 570:21-570:31
+    Name pattern: [core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure, ([u64; 2]), u64>"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnMutTupleArrayU642U64
+  : core.ops.function.FnMut
+  primitives.field.gf2_64x3.F192Unreduced.reduce.closure (Array Std.U64
+  2#usize) Std.U64 := {
+  FnOnceInst :=
+    primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnOnceTupleArrayU642U64
+  call_mut :=
+    primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnMutTupleArrayU642U64.call_mut
+}
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 561:4-561:31
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce"]
+def primitives.field.gf2_64x3.F192Unreduced.reduce
+  (self : primitives.field.gf2_64x3.F192Unreduced) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  let a ←
+    core.array.Array.map
+      primitives.field.gf2_64x3.F192Unreduced.reduce.closure.Insts.CoreOpsFunctionFnMutTupleArrayU642U64
+      self.coeffs ()
+  let c0 ← Array.index_usize a 0#usize
+  let c1 ← Array.index_usize a 1#usize
+  let c2 ← Array.index_usize a 2#usize
+  ok { c0, c1, c2 }
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{impl core::ops::function::FnMut<(u128,), [u64; 2usize]> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{closure}}::call_mut]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 555:31-555:34
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>}::call_mut] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>}::call_mut"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnMutTupleU128ArrayU642.call_mut
+  (c : primitives.field.gf2_64x3.F192Unreduced.from_wide.closure)
+  (tupled_args : Std.U128) :
+  Result ((Array Std.U64 2#usize) ×
+    primitives.field.gf2_64x3.F192Unreduced.from_wide.closure)
+  := do
+  let i ← lift (UScalar.cast .U64 tupled_args)
+  let i1 ← lift (Std.U128.wrapping_shr tupled_args 64#i32)
+  let i2 ← lift (UScalar.cast .U64 i1)
+  ok (Array.make 2#usize [ i, i2 ], c)
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{impl core::ops::function::FnOnce<(u128,), [u64; 2usize]> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{closure}}::call_once]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 555:31-555:34
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>}::call_once] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>}::call_once"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnOnceTupleU128ArrayU642.call_once
+  (c : primitives.field.gf2_64x3.F192Unreduced.from_wide.closure)
+  (i : Std.U128) :
+  Result (Array Std.U64 2#usize)
+  := do
+  let (a, _) ←
+    primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnMutTupleU128ArrayU642.call_mut
+      c i
+  ok a
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{impl core::ops::function::FnOnce<(u128,), [u64; 2usize]> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{closure}}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 555:31-555:34
+    Name pattern: [core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnOnceTupleU128ArrayU642
+  : core.ops.function.FnOnce
+  primitives.field.gf2_64x3.F192Unreduced.from_wide.closure Std.U128 (Array
+  Std.U64 2#usize) := {
+  call_once :=
+    primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnOnceTupleU128ArrayU642.call_once
+}
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{impl core::ops::function::FnMut<(u128,), [u64; 2usize]> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{closure}}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 555:31-555:34
+    Name pattern: [core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure, (u128), [u64; 2]>"]
+def
+  primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnMutTupleU128ArrayU642
+  : core.ops.function.FnMut
+  primitives.field.gf2_64x3.F192Unreduced.from_wide.closure Std.U128 (Array
+  Std.U64 2#usize) := {
+  FnOnceInst :=
+    primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnOnceTupleU128ArrayU642
+  call_mut :=
+    primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnMutTupleU128ArrayU642.call_mut
+}
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 553:4-553:43
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide"]
+def primitives.field.gf2_64x3.F192Unreduced.from_wide
+  (coeffs : Array Std.U128 3#usize) :
+  Result primitives.field.gf2_64x3.F192Unreduced
+  := do
+  let a ←
+    core.array.Array.map
+      primitives.field.gf2_64x3.F192Unreduced.from_wide.closure.Insts.CoreOpsFunctionFnMutTupleU128ArrayU642
+      coeffs ()
+  ok { coeffs := a }
 
 /-- [primitives::field::gf2_64::software::clmul]: loop body 0:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 361:8-366:9
@@ -236,6 +1339,139 @@ def primitives.field.gf2_64.software.clmul
   (a : Std.U64) (b : Std.U64) : Result Std.U128 := do
   primitives.field.gf2_64.software.clmul_loop a b 0#u128 0#i32
 
+/-- [primitives::field::gf2_64x3::software::mul_unreduced]: loop body 1:
+    Source: 'crates/primitives/src/field/gf2_64x3/software.rs', lines 10:8-12:9
+    Name pattern: [primitives::field::gf2_64x3::software::mul_unreduced]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "primitives::field::gf2_64x3::software::mul_unreduced"]
+def primitives.field.gf2_64x3.software.mul_unreduced_loop0_loop0.body
+  (a : Array Std.U64 3#usize) (b : Array Std.U64 3#usize) (i : Std.Usize)
+  (iter : core.ops.range.Range Std.Usize) (e : Array Std.U128 5#usize) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (Array Std.U128
+    5#usize)) (Array Std.U128 5#usize))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done e)
+  | some j =>
+    let i1 ← Array.index_usize a i
+    let i2 ← Array.index_usize b j
+    let i3 ← primitives.field.gf2_64.software.clmul i1 i2
+    let i4 ← lift (Std.Usize.wrapping_add i j)
+    let i5 ← Array.index_usize e i4
+    let i6 ← lift (i5 ^^^ i3)
+    let a1 ← Array.update e i4 i6
+    ok (cont (iter1, a1))
+
+/-- [primitives::field::gf2_64x3::software::mul_unreduced]: loop 1:
+    Source: 'crates/primitives/src/field/gf2_64x3/software.rs', lines 10:8-12:9
+    Name pattern: [primitives::field::gf2_64x3::software::mul_unreduced]
+    Visibility: public -/
+@[rust_loop, rust_fun "primitives::field::gf2_64x3::software::mul_unreduced"]
+def primitives.field.gf2_64x3.software.mul_unreduced_loop0_loop0
+  (iter : core.ops.range.Range Std.Usize) (a : Array Std.U64 3#usize)
+  (b : Array Std.U64 3#usize) (e : Array Std.U128 5#usize) (i : Std.Usize) :
+  Result (Array Std.U128 5#usize)
+  := do
+  loop
+    (fun (iter1, e1) =>
+      primitives.field.gf2_64x3.software.mul_unreduced_loop0_loop0.body a b i
+      iter1 e1)
+    (iter, e)
+
+/-- [primitives::field::gf2_64x3::software::mul_unreduced]: loop body 0:
+    Source: 'crates/primitives/src/field/gf2_64x3/software.rs', lines 9:4-13:5
+    Name pattern: [primitives::field::gf2_64x3::software::mul_unreduced]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "primitives::field::gf2_64x3::software::mul_unreduced"]
+def primitives.field.gf2_64x3.software.mul_unreduced_loop0.body
+  (a : Array Std.U64 3#usize) (b : Array Std.U64 3#usize)
+  (iter : core.ops.range.Range Std.Usize) (e : Array Std.U128 5#usize) :
+  Result (ControlFlow ((core.ops.range.Range Std.Usize) × (Array Std.U128
+    5#usize)) (Array Std.U128 5#usize))
+  := do
+  let (o, iter1) ←
+    core.iter.range.IteratorRange.next core.iter.range.StepUsize iter
+  match o with
+  | none => ok (done e)
+  | some i =>
+    let e1 ←
+      primitives.field.gf2_64x3.software.mul_unreduced_loop0_loop0
+        { start := 0#usize, «end» := 3#usize } a b e i
+    ok (cont (iter1, e1))
+
+/-- [primitives::field::gf2_64x3::software::mul_unreduced]: loop 0:
+    Source: 'crates/primitives/src/field/gf2_64x3/software.rs', lines 9:4-13:5
+    Name pattern: [primitives::field::gf2_64x3::software::mul_unreduced]
+    Visibility: public -/
+@[rust_loop, rust_fun "primitives::field::gf2_64x3::software::mul_unreduced"]
+def primitives.field.gf2_64x3.software.mul_unreduced_loop0
+  (iter : core.ops.range.Range Std.Usize) (a : Array Std.U64 3#usize)
+  (b : Array Std.U64 3#usize) (e : Array Std.U128 5#usize) :
+  Result (Array Std.U128 5#usize)
+  := do
+  loop
+    (fun (iter1, e1) =>
+      primitives.field.gf2_64x3.software.mul_unreduced_loop0.body a b iter1 e1)
+    (iter, e)
+
+/-- [primitives::field::gf2_64x3::software::mul_unreduced]:
+    Source: 'crates/primitives/src/field/gf2_64x3/software.rs', lines 5:0-5:55
+    Name pattern: [primitives::field::gf2_64x3::software::mul_unreduced]
+    Visibility: public -/
+@[rust_fun "primitives::field::gf2_64x3::software::mul_unreduced"]
+def primitives.field.gf2_64x3.software.mul_unreduced
+  (a : primitives.field.gf2_64x3.F192) (b : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192Unreduced
+  := do
+  let e := Array.repeat 5#usize 0#u128
+  let e1 ←
+    primitives.field.gf2_64x3.software.mul_unreduced_loop0
+      { start := 0#usize, «end» := 3#usize }
+      (Array.make 3#usize [ a.c0, a.c1, a.c2 ])
+      (Array.make 3#usize [ b.c0, b.c1, b.c2 ]) e
+  let i ← Array.index_usize e1 0#usize
+  let i1 ← Array.index_usize e1 3#usize
+  let i2 ← lift (i ^^^ i1)
+  let i3 ← Array.index_usize e1 1#usize
+  let i4 ← lift (i3 ^^^ i1)
+  let i5 ← Array.index_usize e1 4#usize
+  let i6 ← lift (i4 ^^^ i5)
+  let i7 ← Array.index_usize e1 2#usize
+  let i8 ← lift (i7 ^^^ i5)
+  primitives.field.gf2_64x3.F192Unreduced.from_wide
+    (Array.make 3#usize [ i2, i6, i8 ])
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_unreduced]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 61:4-61:58
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_unreduced]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_unreduced"]
+def primitives.field.gf2_64x3.F192.mul_unreduced
+  (self : primitives.field.gf2_64x3.F192)
+  (rhs : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192Unreduced
+  := do
+  primitives.field.gf2_64x3.software.mul_unreduced self rhs
+
+/-- [primitives::field::gf2_64x3::{impl core::ops::arith::Mul<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192> for primitives::field::gf2_64x3::F192}::mul]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 201:4-201:35
+    Name pattern: [primitives::field::gf2_64x3::{core::ops::arith::Mul<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>}::mul]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{core::ops::arith::Mul<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>}::mul"]
+def primitives.field.gf2_64x3.F192.Insts.CoreOpsArithMulF192F192.mul
+  (self : primitives.field.gf2_64x3.F192)
+  (rhs : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  let fu ← primitives.field.gf2_64x3.F192.mul_unreduced self rhs
+  primitives.field.gf2_64x3.F192Unreduced.reduce fu
+
 /-- [primitives::field::gf2_64::mul_wide]:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 139:0-139:39
     Name pattern: [primitives::field::gf2_64::mul_wide]
@@ -244,6 +1480,110 @@ def primitives.field.gf2_64.software.clmul
 def primitives.field.gf2_64.mul_wide
   (a : Std.U64) (b : Std.U64) : Result Std.U128 := do
   primitives.field.gf2_64.software.clmul a b
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{impl core::ops::function::FnMut<(u64,), u128> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{closure}<'_0>}::call_mut]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 112:69-112:72
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>}::call_mut] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>}::call_mut"]
+def
+  primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnMutTupleU64U128.call_mut
+  (c : primitives.field.gf2_64x3.F192.mul_base_unreduced.closure)
+  (tupled_args : Std.U64) :
+  Result (Std.U128 ×
+    primitives.field.gf2_64x3.F192.mul_base_unreduced.closure)
+  := do
+  let i ← primitives.field.gf2_64.mul_wide tupled_args c
+  ok (i, c)
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{impl core::ops::function::FnOnce<(u64,), u128> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{closure}<'_0>}::call_once]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 112:69-112:72
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>}::call_once] -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>}::call_once"]
+def
+  primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnOnceTupleU64U128.call_once
+  (c : primitives.field.gf2_64x3.F192.mul_base_unreduced.closure) (i : Std.U64)
+  :
+  Result Std.U128
+  := do
+  let (i1, _) ←
+    primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnMutTupleU64U128.call_mut
+      c i
+  ok i1
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{impl core::ops::function::FnOnce<(u64,), u128> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{closure}<'_0>}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 112:69-112:72
+    Name pattern: [core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnOnce<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>"]
+def
+  primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnOnceTupleU64U128
+  : core.ops.function.FnOnce
+  primitives.field.gf2_64x3.F192.mul_base_unreduced.closure Std.U64 Std.U128
+  := {
+  call_once :=
+    primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnOnceTupleU64U128.call_once
+}
+
+/-- Trait implementation: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{impl core::ops::function::FnMut<(u64,), u128> for primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{closure}<'_0>}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 112:69-112:72
+    Name pattern: [core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnMut<primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure<'0>, (u64), u128>"]
+def
+  primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnMutTupleU64U128
+  : core.ops.function.FnMut
+  primitives.field.gf2_64x3.F192.mul_base_unreduced.closure Std.U64 Std.U128
+  := {
+  FnOnceInst :=
+    primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnOnceTupleU64U128
+  call_mut :=
+    primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnMutTupleU64U128.call_mut
+}
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 97:4-97:60
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced"]
+def primitives.field.gf2_64x3.F192.mul_base_unreduced
+  (self : primitives.field.gf2_64x3.F192) (k : primitives.field.gf2_64.F64) :
+  Result primitives.field.gf2_64x3.F192Unreduced
+  := do
+  let a ←
+    core.array.Array.map
+      primitives.field.gf2_64x3.F192.mul_base_unreduced.closure.Insts.CoreOpsFunctionFnMutTupleU64U128
+      (Array.make 3#usize [ self.c0, self.c1, self.c2 ]) k
+  primitives.field.gf2_64x3.F192Unreduced.from_wide a
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 84:4-84:41
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base"]
+def primitives.field.gf2_64x3.F192.mul_base
+  (self : primitives.field.gf2_64x3.F192) (k : primitives.field.gf2_64.F64) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  let fu ← primitives.field.gf2_64x3.F192.mul_base_unreduced self k
+  primitives.field.gf2_64x3.F192Unreduced.reduce fu
+
+/-- [primitives::field::gf2_64::{impl core::ops::arith::Mul<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64> for primitives::field::gf2_64::F64}::mul]:
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 99:4-99:35
+    Name pattern: [primitives::field::gf2_64::{core::ops::arith::Mul<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64, primitives::field::gf2_64::F64>}::mul]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64::{core::ops::arith::Mul<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64, primitives::field::gf2_64::F64>}::mul"]
+def primitives.field.gf2_64.F64.Insts.CoreOpsArithMulF64F64.mul
+  (self : primitives.field.gf2_64.F64) (rhs : primitives.field.gf2_64.F64) :
+  Result primitives.field.gf2_64.F64
+  := do
+  let i ← primitives.field.gf2_64.mul_wide self rhs
+  let i1 ← primitives.field.gf2_64.reduce i
+  ok i1
 
 /-- [primitives::field::gf2_64::square_wide]:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 161:0-161:34
@@ -264,20 +1604,6 @@ def primitives.field.gf2_64.F64.square
   Result primitives.field.gf2_64.F64
   := do
   let i ← primitives.field.gf2_64.square_wide self
-  let i1 ← primitives.field.gf2_64.reduce i
-  ok i1
-
-/-- [primitives::field::gf2_64::{impl core::ops::arith::Mul<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64> for primitives::field::gf2_64::F64}::mul]:
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 99:4-99:35
-    Name pattern: [primitives::field::gf2_64::{core::ops::arith::Mul<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64, primitives::field::gf2_64::F64>}::mul]
-    Visibility: public -/
-@[rust_fun
-  "primitives::field::gf2_64::{core::ops::arith::Mul<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64, primitives::field::gf2_64::F64>}::mul"]
-def primitives.field.gf2_64.F64.Insts.CoreOpsArithMulF64F64.mul
-  (self : primitives.field.gf2_64.F64) (rhs : primitives.field.gf2_64.F64) :
-  Result primitives.field.gf2_64.F64
-  := do
-  let i ← primitives.field.gf2_64.mul_wide self rhs
   let i1 ← primitives.field.gf2_64.reduce i
   ok i1
 
@@ -379,6 +1705,1181 @@ def primitives.field.gf2_64.F64.inv
   primitives.field.gf2_64.F64.inv.closure.Insts.CoreOpsFunctionFnPairF64U32F64.call
     () (t63, 1#u32)
 
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::inv]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 159:4-159:28
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::inv]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::inv"]
+def primitives.field.gf2_64x3.F192.inv
+  (self : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  let f ← primitives.field.gf2_64x3.F192.frobenius self
+  let f1 ← primitives.field.gf2_64x3.F192.frobenius f
+  let m ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithMulF192F192.mul f f1
+  let norm ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithMulF192F192.mul self m
+  let f2 ← primitives.field.gf2_64.F64.inv norm.c0
+  primitives.field.gf2_64x3.F192.mul_base m f2
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::is_zero]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 55:4-55:38
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::is_zero]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::is_zero"]
+def primitives.field.gf2_64x3.F192.is_zero
+  (self : primitives.field.gf2_64x3.F192) : Result Bool := do
+  if self.c0 = 0#u64
+  then if self.c1 = 0#u64
+       then ok (self.c2 = 0#u64)
+       else ok false
+  else ok false
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::inv]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 453:4-453:38
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::inv]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::inv"]
+def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.inv
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (a : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  let b ← primitives.field.gf2_64x3.F192.is_zero a
+  if b
+  then ok (primitives.field.gf2_64x3.F192.ZERO, self)
+  else let f ← primitives.field.gf2_64x3.F192.inv a
+       ok (f, self)
+
+/-- [primitives::field::gf2_64x3::{impl core::ops::arith::Add<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192> for primitives::field::gf2_64x3::F192}::add]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 173:4-173:35
+    Name pattern: [primitives::field::gf2_64x3::{core::ops::arith::Add<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>}::add]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{core::ops::arith::Add<primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192, primitives::field::gf2_64x3::F192>}::add"]
+def primitives.field.gf2_64x3.F192.Insts.CoreOpsArithAddF192F192.add
+  (self : primitives.field.gf2_64x3.F192)
+  (rhs : primitives.field.gf2_64x3.F192) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  let i ← lift (self.c0 ^^^ rhs.c0)
+  let i1 ← lift (self.c1 ^^^ rhs.c1)
+  let i2 ← lift (self.c2 ^^^ rhs.c2)
+  ok { c0 := i, c1 := i1, c2 := i2 }
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::mul_const_add]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 449:4-449:66
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::mul_const_add]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::mul_const_add"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.mul_const_add
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (a : primitives.field.gf2_64x3.F192) (c : primitives.field.gf2_64x3.F192)
+  (d : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  let f ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithMulF192F192.mul a c
+  let f1 ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithAddF192F192.add f d
+  ok (f1, self)
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::add]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 445:4-445:47
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::add]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::add"]
+def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.add
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (a : primitives.field.gf2_64x3.F192) (d : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  let f ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithAddF192F192.add a d
+  ok (f, self)
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::mul_add]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 441:4-441:60
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::mul_add]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::mul_add"]
+def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.mul_add
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (a : primitives.field.gf2_64x3.F192) (b : primitives.field.gf2_64x3.F192)
+  (d : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  let f ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithMulF192F192.mul a b
+  let f1 ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithAddF192F192.add f d
+  ok (f1, self)
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::constant]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 437:4-437:43
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::constant]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::constant"]
+def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.constant
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (c : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  ok (c, self)
+
+/-- Trait implementation: [fiat_shamir::arith::{impl fiat_shamir::arith::Arith<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}]
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 434:0-434:52
+    Name pattern: [fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::arith::Arith<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>"]
+impl_def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192 {H
+  : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H) :
+  fiat_shamir.arith.Arith (fiat_shamir.verifier.VerifierState H)
+  primitives.field.gf2_64x3.F192 := {
+  coremarkerCopyInst := primitives.field.gf2_64x3.F192.Insts.CoreMarkerCopy
+  corecmpPartialEqInst :=
+    primitives.field.gf2_64x3.F192.Insts.CoreCmpPartialEqF192
+  constant :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.constant
+    duplexDuplexSpongeInst
+  mul_add :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.mul_add
+    duplexDuplexSpongeInst
+  add := fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.add
+    duplexDuplexSpongeInst
+  mul_const_add :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.mul_const_add
+    duplexDuplexSpongeInst
+  inv := fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.inv
+    duplexDuplexSpongeInst
+  frobenius2 :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192.frobenius2
+    duplexDuplexSpongeInst
+  zero := fiat_shamir.arith.Arith.zero.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  one := fiat_shamir.arith.Arith.one.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  mul := fiat_shamir.arith.Arith.mul.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  square := fiat_shamir.arith.Arith.square.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  mul_const := fiat_shamir.arith.Arith.mul_const.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  add_const := fiat_shamir.arith.Arith.add_const.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  product := fiat_shamir.arith.Arith.product.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  poly_eval := fiat_shamir.arith.Arith.poly_eval.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  interp := fiat_shamir.arith.Arith.interp.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  times_one_plus := fiat_shamir.arith.Arith.times_one_plus.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  eq_eval := fiat_shamir.arith.Arith.eq_eval.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  eq_bits := fiat_shamir.arith.Arith.eq_bits.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  eq_table := fiat_shamir.arith.Arith.eq_table.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  eq_table_prefix := fiat_shamir.arith.Arith.eq_table_prefix.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  mle := fiat_shamir.arith.Arith.mle.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  powers := fiat_shamir.arith.Arith.powers.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+  int_index := fiat_shamir.arith.Arith.int_index.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst)
+}
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::end_scope]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 493:4-493:27
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::end_scope]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::end_scope"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.end_scope
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result (fiat_shamir.verifier.VerifierState H)
+  := do
+  ok self
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::begin_scope]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 490:4-490:39
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::begin_scope]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::begin_scope"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.begin_scope
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) (s : fiat_shamir.arith.Stage) :
+  Result (fiat_shamir.verifier.VerifierState H)
+  := do
+  ok self
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::check_eof]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 198:4-198:64
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::check_eof]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::check_eof"]
+def fiat_shamir.verifier.VerifierState.check_eof
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result (core.result.Result Unit fiat_shamir.error.TranscriptError)
+  := do
+  match self.poison with
+  | none =>
+    let b ← core.slice.Slice.is_empty self.narg
+    if b
+    then
+      let b1 ← core.slice.Slice.is_empty self.hints
+      if b1
+      then ok (core.result.Result.Ok ())
+      else
+        let i := Slice.len self.narg
+        let i1 := Slice.len self.hints
+        ok (core.result.Result.Err
+          (fiat_shamir.error.TranscriptError.TrailingBytes i i1))
+    else
+      let i := Slice.len self.narg
+      let i1 := Slice.len self.hints
+      ok (core.result.Result.Err
+        (fiat_shamir.error.TranscriptError.TrailingBytes i i1))
+  | some e => ok (core.result.Result.Err e)
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::check_eof]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 485:4-485:58
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::check_eof]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::check_eof"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.check_eof
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result ((core.result.Result Unit fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  let r ←
+    fiat_shamir.verifier.VerifierState.check_eof duplexDuplexSpongeInst self
+  ok (r, self)
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::ensure_eq]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 481:4-481:93
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::ensure_eq]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::ensure_eq"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.ensure_eq
+  {H : Type} {Er : Type} {T3 : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H) (coreopsfunctionFnOnceT3TupleErInst :
+  core.ops.function.FnOnce T3 Unit Er)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (a : primitives.field.gf2_64x3.F192) (b : primitives.field.gf2_64x3.F192)
+  (err : T3) :
+  Result ((core.result.Result Unit Er) × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  let b1 ← primitives.field.gf2_64x3.F192.Insts.CoreCmpPartialEqF192.eq a b
+  let r ←
+    if b1
+    then ok (core.result.Result.Ok ())
+    else
+      do
+      let t ← coreopsfunctionFnOnceT3TupleErInst.call_once err ()
+      ok (core.result.Result.Err t)
+  if b1
+  then ok (r, self)
+  else ok (r, self)
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::verifier_message]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 160:4-160:59
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::verifier_message]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::verifier_message"]
+def fiat_shamir.verifier.VerifierState.verifier_message
+  {H : Type} {T : Type} {Clause1_Repr : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H) (codecFromUniformInst :
+  fiat_shamir.codec.FromUniform T Clause1_Repr)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result (T × (fiat_shamir.verifier.VerifierState H))
+  := do
+  let repr ← codecFromUniformInst.coredefaultDefaultInst.default
+  let (s, as_mut_back) ←
+    codecFromUniformInst.coreconvertAsMutSelf_ReprSliceU8Inst.as_mut repr
+  let (t, s1) ← duplexDuplexSpongeInst.squeeze self.sponge s
+  let repr1 := as_mut_back s1
+  let t1 ← codecFromUniformInst.from_uniform repr1
+  ok (t1, { self with sponge := t })
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::guard]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 72:4-72:92
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::guard] -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::guard"]
+def fiat_shamir.verifier.VerifierState.guard
+  {H : Type} {T : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H)
+  (result : core.result.Result T fiat_shamir.error.TranscriptError) :
+  Result ((core.result.Result T fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  match result with
+  | core.result.Result.Ok _ => ok (result, self)
+  | core.result.Result.Err e =>
+    let (te, get_or_insert_back) ←
+      core.option.Option.get_or_insert self.poison e
+    let o := get_or_insert_back te
+    ok (result, { self with poison := o })
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::prover_message]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 89:4-89:79
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_message]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_message"]
+def fiat_shamir.verifier.VerifierState.prover_message
+  {H : Type} {T : Type} {Clause1_Clause0_Bytes : Type} (duplexDuplexSpongeInst
+  : fiat_shamir.duplex.DuplexSponge H) (codecFromNargInst :
+  fiat_shamir.codec.FromNarg T Clause1_Clause0_Bytes)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result ((core.result.Result T fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  match self.poison with
+  | none =>
+    let (o, cursor) ← codecFromNargInst.from_narg self.narg
+    let value ←
+      core.option.Option.ok_or o (fiat_shamir.error.TranscriptError.Malformed
+        self.messages_read)
+    let (r, self1) ←
+      fiat_shamir.verifier.VerifierState.guard duplexDuplexSpongeInst self
+        value
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let i := Slice.len self1.narg
+      let i1 := Slice.len cursor
+      let i2 ← lift (Std.Usize.wrapping_sub i i1)
+      let read ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8) self1.narg
+          { «end» := i2 }
+      let t ← duplexDuplexSpongeInst.absorb self1.sponge read
+      let i3 ← lift (Std.Usize.wrapping_add self1.messages_read 1#usize)
+      ok (core.result.Result.Ok val,
+        { self1 with sponge := t, narg := cursor, messages_read := i3 })
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          T (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
+      ok (r1, self1)
+  | some e => ok (core.result.Result.Err e, self)
+
+/-- [fiat_shamir::pow::clears]:
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 46:0-46:53
+    Name pattern: [fiat_shamir::pow::clears] -/
+@[rust_fun "fiat_shamir::pow::clears"]
+def fiat_shamir.pow.clears
+  (digest : Array Std.U8 32#usize) (bits : Std.U32) : Result Bool := do
+  let s ← lift (Array.to_slice digest)
+  let o ← core.slice.Slice.split_first_chunk 8#usize s
+  let (word, _) ← core.option.Option.expect o (toStr "a digest holds a word")
+  let i ← lift (core.num.U64.from_le_bytes word)
+  let i1 ← lift (core.num.U64.leading_zeros i)
+  ok (i1 >= bits)
+
+/-- [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::TRIAL_TAG]
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 58:4-58:28
+    Name pattern: [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::TRIAL_TAG]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::TRIAL_TAG"]
+def fiat_shamir.pow.ProofOfWork.TRIAL_TAG : Std.U64 :=
+  core.num.U64.from_le_bytes
+    (Array.make 8#usize [
+      70#u8, 83#u8, 45#u8, 80#u8, 79#u8, 87#u8, 45#u8, 49#u8
+      ])
+
+/-- [fiat_shamir::pow::block]:
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 37:0-37:54
+    Name pattern: [fiat_shamir::pow::block] -/
+@[rust_fun "fiat_shamir::pow::block"]
+def fiat_shamir.pow.block
+  (challenge : Array Std.U8 32#usize) (nonce : Std.U64) :
+  Result (Array Std.U8 64#usize)
+  := do
+  let block := Array.repeat 64#usize 0#u8
+  let (s, index_mut_back) ←
+    core.array.Array.index_mut (core.ops.index.IndexMutSlice
+      (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)) block
+      { «end» := 32#usize }
+  let s1 ← lift (Array.to_slice challenge)
+  let s2 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s s1
+  let block1 := index_mut_back s2
+  let (s3, index_mut_back1) ←
+    core.array.Array.index_mut (core.ops.index.IndexMutSlice
+      (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)) block1
+      { start := 32#usize, «end» := 40#usize }
+  let a ← lift (core.num.U64.to_le_bytes nonce)
+  let s4 ← lift (Array.to_slice a)
+  let s5 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s3 s4
+  let block2 := index_mut_back1 s5
+  let (s6, index_mut_back2) ←
+    core.array.Array.index_mut (core.ops.index.IndexMutSlice
+      (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8)) block2
+      { start := 56#usize }
+  let a1 ←
+    lift (core.num.U64.to_le_bytes fiat_shamir.pow.ProofOfWork.TRIAL_TAG)
+  let s7 ← lift (Array.to_slice a1)
+  let s8 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s6 s7
+  ok (index_mut_back2 s8)
+
+/-- [fiat_shamir::pow::trial]:
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 32:0-32:54
+    Name pattern: [fiat_shamir::pow::trial] -/
+@[rust_fun "fiat_shamir::pow::trial"]
+def fiat_shamir.pow.trial
+  (challenge : Array Std.U8 32#usize) (nonce : Std.U64) :
+  Result (Array Std.U8 32#usize)
+  := do
+  let a ← fiat_shamir.pow.block challenge nonce
+  let s ← lift (Array.to_slice a)
+  primitives.hash.hash s
+
+/-- [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::verify]:
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 79:4-79:65
+    Name pattern: [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::verify]
+    Visibility: public -/
+@[rust_fun "fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::verify"]
+def fiat_shamir.pow.ProofOfWork.verify
+  (self : fiat_shamir.pow.ProofOfWork) (challenge : Array Std.U8 32#usize)
+  (nonce : Std.U64) :
+  Result Bool
+  := do
+  let a ← fiat_shamir.pow.trial challenge nonce
+  fiat_shamir.pow.clears a self.bits
+
+/-- [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::MAX_BITS]
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 53:4-53:27
+    Name pattern: [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::MAX_BITS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::MAX_BITS"]
+def fiat_shamir.pow.ProofOfWork.MAX_BITS : Std.U32 := 63#u32
+
+/-- [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::new]:
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 66:4-66:39
+    Name pattern: [fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::new]
+    Visibility: public -/
+@[rust_fun "fiat_shamir::pow::{fiat_shamir::pow::ProofOfWork}::new"]
+def fiat_shamir.pow.ProofOfWork.new
+  (bits : Std.U32) : Result fiat_shamir.pow.ProofOfWork := do
+  massert (bits <= fiat_shamir.pow.ProofOfWork.MAX_BITS)
+  ok { bits }
+
+/-- [fiat_shamir::codec::take]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 164:0-164:71
+    Name pattern: [fiat_shamir::codec::take] -/
+@[rust_fun "fiat_shamir::codec::take"]
+def fiat_shamir.codec.take
+  (N : Std.Usize) (narg : Slice Std.U8) :
+  Result ((Option (Array Std.U8 N)) × (Slice Std.U8))
+  := do
+  let o ← core.slice.Slice.split_first_chunk N narg
+  let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue p =>
+    let (head, rest) := p
+    ok (some head, rest)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let o1 ←
+      core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+        (Array Std.U8 N) residual
+    ok (o1, narg)
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg::{impl core::ops::function::FnOnce<(&'_0 [u8; 8usize],), u64> for fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg::{closure}}::call_once]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 128:28-128:35
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::{core::ops::function::FnOnce<fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure, (&'0 [u8; 8]), u64>}::call_once] -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::{core::ops::function::FnOnce<fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure, (&'0 [u8; 8]), u64>}::call_once"]
+def
+  fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure.Insts.CoreOpsFunctionFnOnceTupleShared0ArrayU88U64.call_once
+  (c : fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure)
+  (tupled_args : Array Std.U8 8#usize) :
+  Result Std.U64
+  := do
+  ok (core.num.U64.from_le_bytes tupled_args)
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg::{impl core::ops::function::FnOnce<(&'_0 [u8; 8usize],), u64> for fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg::{closure}}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 128:28-128:35
+    Name pattern: [core::ops::function::FnOnce<fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure, (&'0 [u8; 8]), u64>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnOnce<fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure, (&'0 [u8; 8]), u64>"]
+def
+  fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure.Insts.CoreOpsFunctionFnOnceTupleShared0ArrayU88U64
+  : core.ops.function.FnOnce
+  fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure (Array Std.U8
+  8#usize) Std.U64 := {
+  call_once :=
+    fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure.Insts.CoreOpsFunctionFnOnceTupleShared0ArrayU88U64.call_once
+}
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 127:4-127:50
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg"]
+def U64.Insts.Fiat_shamirCodecFromNargArrayU88.from_narg
+  (narg : Slice Std.U8) : Result ((Option Std.U64) × (Slice Std.U8)) := do
+  let (o, narg1) ← fiat_shamir.codec.take 8#usize narg
+  let o1 ←
+    core.option.Option.map
+      fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure.Insts.CoreOpsFunctionFnOnceTupleShared0ArrayU88U64
+      o ()
+  ok (o1, narg1)
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; 8usize]> for u64}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 118:0-118:21
+    Name pattern: [fiat_shamir::codec::Encoding<u64, [u8; 8]>] -/
+@[reducible, rust_trait_impl "fiat_shamir::codec::Encoding<u64, [u8; 8]>"]
+def U64.Insts.Fiat_shamirCodecEncodingArrayU88 : fiat_shamir.codec.Encoding
+  Std.U64 (Array Std.U8 8#usize) := {
+  coreconvertAsRefSelf_BytesSliceU8Inst := Array.Insts.CoreConvertAsRefSlice
+    Std.U8 8#usize
+  encode := U64.Insts.Fiat_shamirCodecEncodingArrayU88.encode
+}
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 126:0-126:21
+    Name pattern: [fiat_shamir::codec::FromNarg<u64, [u8; 8]>] -/
+@[reducible, rust_trait_impl "fiat_shamir::codec::FromNarg<u64, [u8; 8]>"]
+def U64.Insts.Fiat_shamirCodecFromNargArrayU88 : fiat_shamir.codec.FromNarg
+  Std.U64 (Array Std.U8 8#usize) := {
+  EncodingInst := U64.Insts.Fiat_shamirCodecEncodingArrayU88
+  from_narg := U64.Insts.Fiat_shamirCodecFromNargArrayU88.from_narg
+}
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; N]> for [u8; N]}::from_uniform]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 112:4-112:39
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromUniform<[u8; @N], [u8; @N]>}::from_uniform]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromUniform<[u8; @N], [u8; @N]>}::from_uniform"]
+def ArrayU8N.Insts.Fiat_shamirCodecFromUniformArrayU8N.from_uniform
+  {N : Std.Usize} (coredefaultDefaultArrayU8NInst : core.default.Default (Array
+  Std.U8 N)) (repr : Array Std.U8 N) :
+  Result (Array Std.U8 N)
+  := do
+  ok repr
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; N]> for [u8; N]}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 106:0-108:18
+    Name pattern: [fiat_shamir::codec::FromUniform<[u8; @N], [u8; @N]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::FromUniform<[u8; @N], [u8; @N]>"]
+def ArrayU8N.Insts.Fiat_shamirCodecFromUniformArrayU8N {N : Std.Usize}
+  (coredefaultDefaultArrayU8NInst : core.default.Default (Array Std.U8 N)) :
+  fiat_shamir.codec.FromUniform (Array Std.U8 N) (Array Std.U8 N) := {
+  coredefaultDefaultInst := coredefaultDefaultArrayU8NInst
+  coreconvertAsMutSelf_ReprSliceU8Inst := Array.Insts.CoreConvertAsMutSlice
+    Std.U8 N
+  from_uniform :=
+    ArrayU8N.Insts.Fiat_shamirCodecFromUniformArrayU8N.from_uniform
+    coredefaultDefaultArrayU8NInst
+}
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::check_pow]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 182:4-182:73
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::check_pow]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::check_pow"]
+def fiat_shamir.verifier.VerifierState.check_pow
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) (bits : Std.U32) :
+  Result ((core.result.Result Unit fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  let pow ← fiat_shamir.pow.ProofOfWork.new bits
+  if bits = 0#u32
+  then ok (core.result.Result.Ok (), self)
+  else
+    let (challenge, self1) ←
+      fiat_shamir.verifier.VerifierState.verifier_message
+        duplexDuplexSpongeInst
+        (ArrayU8N.Insts.Fiat_shamirCodecFromUniformArrayU8N
+        (core.default.DefaultArray 32#usize core.default.DefaultU8)) self
+    let (r, self2) ←
+      fiat_shamir.verifier.VerifierState.prover_message duplexDuplexSpongeInst
+        U64.Insts.Fiat_shamirCodecFromNargArrayU88 self1
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let worked ← fiat_shamir.pow.ProofOfWork.verify pow challenge val
+      let o ← core.bool.Bool.then_some worked ()
+      let r1 ←
+        core.option.Option.ok_or o (fiat_shamir.error.TranscriptError.PowFailed
+          bits)
+      fiat_shamir.verifier.VerifierState.guard duplexDuplexSpongeInst self2 r1
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame fiat_shamir.error.TranscriptError)
+          residual
+      ok (r1, self2)
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::check_pow]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 477:4-477:69
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::check_pow]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::check_pow"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.check_pow
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) (bits : Std.U32) :
+  Result ((core.result.Result Unit fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  fiat_shamir.verifier.VerifierState.check_pow duplexDuplexSpongeInst self bits
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::new]:
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 50:4-50:55
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::new]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::new"]
+def primitives.field.gf2_64x3.F192.new
+  (c0 : Std.U64) (c1 : Std.U64) (c2 : Std.U64) :
+  Result primitives.field.gf2_64x3.F192
+  := do
+  ok { c0, c1, c2 }
+
+/-- [fiat_shamir::codec::limbs::{impl core::ops::function::FnMut<(usize,), u64> for fiat_shamir::codec::limbs::{closure}<'_0>}::call_mut]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 173:24-173:27
+    Name pattern: [fiat_shamir::codec::limbs::{core::ops::function::FnMut<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>}::call_mut] -/
+@[rust_fun
+  "fiat_shamir::codec::limbs::{core::ops::function::FnMut<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>}::call_mut"]
+def
+  fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64.call_mut
+  (c : fiat_shamir.codec.limbs.closure) (tupled_args : Std.Usize) :
+  Result (Std.U64 × fiat_shamir.codec.limbs.closure)
+  := do
+  let a ← Slice.index_usize c tupled_args
+  let i ← lift (core.num.U64.from_le_bytes a)
+  ok (i, c)
+
+/-- [fiat_shamir::codec::limbs::{impl core::ops::function::FnOnce<(usize,), u64> for fiat_shamir::codec::limbs::{closure}<'_0>}::call_once]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 173:24-173:27
+    Name pattern: [fiat_shamir::codec::limbs::{core::ops::function::FnOnce<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>}::call_once] -/
+@[rust_fun
+  "fiat_shamir::codec::limbs::{core::ops::function::FnOnce<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>}::call_once"]
+def
+  fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeU64.call_once
+  (c : fiat_shamir.codec.limbs.closure) (i : Std.Usize) : Result Std.U64 := do
+  let (i1, _) ←
+    fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64.call_mut
+      c i
+  ok i1
+
+/-- Trait implementation: [fiat_shamir::codec::limbs::{impl core::ops::function::FnOnce<(usize,), u64> for fiat_shamir::codec::limbs::{closure}<'_0>}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 173:24-173:27
+    Name pattern: [core::ops::function::FnOnce<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnOnce<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>"]
+def fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeU64 :
+  core.ops.function.FnOnce fiat_shamir.codec.limbs.closure Std.Usize Std.U64
+  := {
+  call_once :=
+    fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeU64.call_once
+}
+
+/-- Trait implementation: [fiat_shamir::codec::limbs::{impl core::ops::function::FnMut<(usize,), u64> for fiat_shamir::codec::limbs::{closure}<'_0>}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 173:24-173:27
+    Name pattern: [core::ops::function::FnMut<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnMut<fiat_shamir::codec::limbs::closure<'0>, (usize), u64>"]
+def fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64 :
+  core.ops.function.FnMut fiat_shamir.codec.limbs.closure Std.Usize Std.U64
+  := {
+  FnOnceInst :=
+    fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeU64
+  call_mut :=
+    fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64.call_mut
+}
+
+/-- [fiat_shamir::codec::limbs]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 171:0-171:38
+    Name pattern: [fiat_shamir::codec::limbs] -/
+@[rust_fun "fiat_shamir::codec::limbs"]
+def fiat_shamir.codec.limbs
+  (bytes : Array Std.U8 24#usize) : Result (Array Std.U64 3#usize) := do
+  let s ← lift (Array.to_slice bytes)
+  let (chunks, _) ← core.slice.Slice.as_chunks 8#usize s
+  core.array.from_fn 3#usize
+    fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64
+    chunks
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; 24usize]> for primitives::field::gf2_64x3::F192}::from_uniform]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 83:4-83:43
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_uniform]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_uniform"]
+def
+  primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform
+  (repr : Array Std.U8 24#usize) : Result primitives.field.gf2_64x3.F192 := do
+  let a ← fiat_shamir.codec.limbs repr
+  let c0 ← Array.index_usize a 0#usize
+  let c1 ← Array.index_usize a 1#usize
+  let c2 ← Array.index_usize a 2#usize
+  primitives.field.gf2_64x3.F192.new c0 c1 c2
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromUniform<[u8; 24usize]> for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 80:0-80:25
+    Name pattern: [fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::FromUniform<primitives::field::gf2_64x3::F192, [u8; 24]>"]
+def primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824 :
+  fiat_shamir.codec.FromUniform primitives.field.gf2_64x3.F192 (Array Std.U8
+  24#usize) := {
+  coredefaultDefaultInst := core.default.DefaultArray 24#usize
+    core.default.DefaultU8
+  coreconvertAsMutSelf_ReprSliceU8Inst := Array.Insts.CoreConvertAsMutSlice
+    Std.U8 24#usize
+  from_uniform :=
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform
+}
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::verifier_message]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 473:4-473:42
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::verifier_message]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::verifier_message"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.verifier_message
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  fiat_shamir.verifier.VerifierState.verifier_message duplexDuplexSpongeInst
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824
+    self
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 24usize]> for primitives::field::gf2_64x3::F192}::from_narg]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 70:4-70:50
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_narg]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_narg"]
+def
+  primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824.from_narg
+  (narg : Slice Std.U8) :
+  Result ((Option primitives.field.gf2_64x3.F192) × (Slice Std.U8))
+  := do
+  let (o, narg1) ← fiat_shamir.codec.take 24#usize narg
+  let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let a ← fiat_shamir.codec.limbs val
+    let c0 ← Array.index_usize a 0#usize
+    let c1 ← Array.index_usize a 1#usize
+    let c2 ← Array.index_usize a 2#usize
+    let f ← primitives.field.gf2_64x3.F192.new c0 c1 c2
+    ok (some f, narg1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let o1 ←
+      core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+        primitives.field.gf2_64x3.F192 residual
+    ok (o1, narg1)
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; 24usize]> for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 57:0-57:22
+    Name pattern: [fiat_shamir::codec::Encoding<primitives::field::gf2_64x3::F192, [u8; 24]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::Encoding<primitives::field::gf2_64x3::F192, [u8; 24]>"]
+def primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecEncodingArrayU824 :
+  fiat_shamir.codec.Encoding primitives.field.gf2_64x3.F192 (Array Std.U8
+  24#usize) := {
+  coreconvertAsRefSelf_BytesSliceU8Inst := Array.Insts.CoreConvertAsRefSlice
+    Std.U8 24#usize
+  encode :=
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecEncodingArrayU824.encode
+}
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 24usize]> for primitives::field::gf2_64x3::F192}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 69:0-69:22
+    Name pattern: [fiat_shamir::codec::FromNarg<primitives::field::gf2_64x3::F192, [u8; 24]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::FromNarg<primitives::field::gf2_64x3::F192, [u8; 24]>"]
+def primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824 :
+  fiat_shamir.codec.FromNarg primitives.field.gf2_64x3.F192 (Array Std.U8
+  24#usize) := {
+  EncodingInst :=
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecEncodingArrayU824
+  from_narg :=
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824.from_narg
+}
+
+/-- [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}::prover_message]:
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 469:4-469:65
+    Name pattern: [fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::prover_message]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::arith::{fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>}::prover_message"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.prover_message
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result ((core.result.Result primitives.field.gf2_64x3.F192
+    fiat_shamir.error.TranscriptError) × (fiat_shamir.verifier.VerifierState
+    H))
+  := do
+  fiat_shamir.verifier.VerifierState.prover_message duplexDuplexSpongeInst
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824 self
+
+/-- Trait implementation: [fiat_shamir::arith::{impl fiat_shamir::arith::Verifier<primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, H>}]
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 468:0-468:55
+    Name pattern: [fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::arith::Verifier<fiat_shamir::verifier::VerifierState<'0, @H>, primitives::field::gf2_64x3::F192>"]
+impl_def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H) :
+  fiat_shamir.arith.Verifier (fiat_shamir.verifier.VerifierState H)
+  primitives.field.gf2_64x3.F192 := {
+  ArithInst :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithArithF192
+    duplexDuplexSpongeInst
+  prover_message :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.prover_message
+    duplexDuplexSpongeInst
+  verifier_message :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.verifier_message
+    duplexDuplexSpongeInst
+  check_pow :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.check_pow
+    duplexDuplexSpongeInst
+  ensure_eq := fun {Er : Type} {T3 : Type} (coreopsfunctionFnOncePTuplePInst :
+    core.ops.function.FnOnce T3 Unit Er) =>
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.ensure_eq
+    duplexDuplexSpongeInst coreopsfunctionFnOncePTuplePInst
+  check_eof :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.check_eof
+    duplexDuplexSpongeInst
+  begin_scope :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.begin_scope
+    duplexDuplexSpongeInst
+  end_scope :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.end_scope
+    duplexDuplexSpongeInst
+  prover_messages := fiat_shamir.arith.Verifier.prover_messages.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192
+    duplexDuplexSpongeInst)
+  verifier_messages := fiat_shamir.arith.Verifier.verifier_messages.default
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192
+    duplexDuplexSpongeInst)
+}
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; N]> for [u8; N]}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 91:0-91:41
+    Name pattern: [fiat_shamir::codec::Encoding<[u8; @N], [u8; @N]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::Encoding<[u8; @N], [u8; @N]>"]
+def ArrayU8N.Insts.Fiat_shamirCodecEncodingArrayU8N (N : Std.Usize) :
+  fiat_shamir.codec.Encoding (Array Std.U8 N) (Array Std.U8 N) := {
+  coreconvertAsRefSelf_BytesSliceU8Inst := Array.Insts.CoreConvertAsRefSlice
+    Std.U8 N
+  encode := ArrayU8N.Insts.Fiat_shamirCodecEncodingArrayU8N.encode
+}
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; N]> for [u8; N]}::from_narg]:
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 100:4-100:50
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<[u8; @N], [u8; @N]>}::from_narg]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<[u8; @N], [u8; @N]>}::from_narg"]
+def ArrayU8N.Insts.Fiat_shamirCodecFromNargArrayU8N.from_narg
+  (N : Std.Usize) (narg : Slice Std.U8) :
+  Result ((Option (Array Std.U8 N)) × (Slice Std.U8))
+  := do
+  let (o, narg1) ← fiat_shamir.codec.take N narg
+  let o1 ←
+    core.option.OptionShared0T.copied (Array.Insts.CoreMarkerCopy N
+      core.marker.CopyU8) o
+  ok (o1, narg1)
+
+/-- Trait implementation: [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; N]> for [u8; N]}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 99:0-99:41
+    Name pattern: [fiat_shamir::codec::FromNarg<[u8; @N], [u8; @N]>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::codec::FromNarg<[u8; @N], [u8; @N]>"]
+def ArrayU8N.Insts.Fiat_shamirCodecFromNargArrayU8N (N : Std.Usize) :
+  fiat_shamir.codec.FromNarg (Array Std.U8 N) (Array Std.U8 N) := {
+  EncodingInst := ArrayU8N.Insts.Fiat_shamirCodecEncodingArrayU8N N
+  from_narg := ArrayU8N.Insts.Fiat_shamirCodecFromNargArrayU8N.from_narg N
+}
+
+/-- Trait implementation: [fiat_shamir::duplex::{impl core::clone::Clone for fiat_shamir::duplex::Blake2sDuplex}]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 107:9-107:14
+    Name pattern: [core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>] -/
+@[reducible, rust_trait_impl
+  "core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>"]
+def fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone : core.clone.Clone
+  fiat_shamir.duplex.Blake2sDuplex := {
+  clone := fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 167:0-167:35
+    Name pattern: [fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>"]
+def fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge :
+  fiat_shamir.duplex.DuplexSponge fiat_shamir.duplex.Blake2sDuplex := {
+  corecloneCloneInst := fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone
+  init :=
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init
+  absorb :=
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb
+  squeeze :=
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze
+}
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, fiat_shamir::duplex::Blake2sDuplex>}::context]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 43:4-43:87
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, fiat_shamir::duplex::Blake2sDuplex>}::context]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, fiat_shamir::duplex::Blake2sDuplex>}::context"]
+def fiat_shamir.verifier.VerifierStateABlake2sDuplex.context
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  :
+  Result (fiat_shamir.TranscriptContext primitives.field.gf2_64.F64 (Array
+    Std.U8 32#usize))
+  := do
+  fiat_shamir.duplex.Blake2sDuplex.context self.sponge
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::prover_hint]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 124:4-124:70
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint"]
+def fiat_shamir.verifier.VerifierState.prover_hint
+  {H : Type} (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result ((core.result.Result (Slice Std.U8) fiat_shamir.error.TranscriptError)
+    × (fiat_shamir.verifier.VerifierState H))
+  := do
+  match self.poison with
+  | none =>
+    let i := Slice.len self.hints
+    let len ←
+      if i < 4#usize
+      then
+        ok (core.result.Result.Err
+          (fiat_shamir.error.TranscriptError.MissingHint self.hints_read))
+      else
+        do
+        let i1 ← Slice.index_usize self.hints 0#usize
+        let i2 ← Slice.index_usize self.hints 1#usize
+        let i3 ← Slice.index_usize self.hints 2#usize
+        let i4 ← Slice.index_usize self.hints 3#usize
+        let i5 ←
+          lift (core.num.U32.from_le_bytes
+            (Array.make 4#usize [ i1, i2, i3, i4 ]))
+        let len1 ← lift (UScalar.cast .Usize i5)
+        let i6 := Slice.len self.hints
+        let i7 ← lift (Std.Usize.wrapping_sub i6 4#usize)
+        if i7 < len1
+        then
+          ok (core.result.Result.Err
+            (fiat_shamir.error.TranscriptError.MissingHint self.hints_read))
+        else ok (core.result.Result.Ok len1)
+    let (r, self1) ←
+      fiat_shamir.verifier.VerifierState.guard duplexDuplexSpongeInst self len
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let i1 ← lift (Std.Usize.wrapping_add 4#usize val)
+      let hint ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) self.hints
+          { start := 4#usize, «end» := i1 }
+      let i2 ← lift (Std.Usize.wrapping_add 4#usize val)
+      let s ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) self.hints
+          { start := i2 }
+      let i3 ← lift (Std.Usize.wrapping_add self1.hints_read 1#usize)
+      ok (core.result.Result.Ok hint,
+        { self1 with hints := s, hints_read := i3 })
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (Slice Std.U8) (core.convert.FromSame
+          fiat_shamir.error.TranscriptError) residual
+      ok (r1, self1)
+  | some e => ok (core.result.Result.Err e, self)
+
+/-- [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, H>}::prover_hint_with]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 152:4-152:115
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint_with]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::verifier::VerifierState<'a, @H>}::prover_hint_with"]
+def fiat_shamir.verifier.VerifierState.prover_hint_with
+  {H : Type} {T : Type} {T3 : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H)
+  (coreopsfunctionFnOnceT3TupleSharedASliceU8OptionInst :
+  core.ops.function.FnOnce T3 (Slice Std.U8) (Option T))
+  (self : fiat_shamir.verifier.VerifierState H) (decode : T3) :
+  Result ((core.result.Result T fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState H))
+  := do
+  let (r, self1) ←
+    fiat_shamir.verifier.VerifierState.prover_hint duplexDuplexSpongeInst self
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let o ←
+      coreopsfunctionFnOnceT3TupleSharedASliceU8OptionInst.call_once decode val
+    let decoded ←
+      core.option.Option.ok_or o (fiat_shamir.error.TranscriptError.InvalidHint
+        self.hints_read)
+    fiat_shamir.verifier.VerifierState.guard duplexDuplexSpongeInst self1
+      decoded
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        T (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
+    ok (r1, self1)
+
+/-- [fiat_shamir::verifier::{impl fiat_shamir::Challenger for fiat_shamir::verifier::VerifierState<'_0, H>}::verifier_message]:
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 214:4-214:55
+    Name pattern: [fiat_shamir::verifier::{fiat_shamir::Challenger<fiat_shamir::verifier::VerifierState<'0, @H>>}::verifier_message]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::verifier::{fiat_shamir::Challenger<fiat_shamir::verifier::VerifierState<'0, @H>>}::verifier_message"]
+def
+  fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger.verifier_message
+  {H : Type} {T : Type} {Clause1_Repr : Type} (duplexDuplexSpongeInst :
+  fiat_shamir.duplex.DuplexSponge H) (codecFromUniformInst :
+  fiat_shamir.codec.FromUniform T Clause1_Repr)
+  (self : fiat_shamir.verifier.VerifierState H) :
+  Result (T × (fiat_shamir.verifier.VerifierState H))
+  := do
+  fiat_shamir.verifier.VerifierState.verifier_message duplexDuplexSpongeInst
+    codecFromUniformInst self
+
+/-- Trait implementation: [fiat_shamir::verifier::{impl fiat_shamir::Challenger for fiat_shamir::verifier::VerifierState<'_0, H>}]
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 213:0-213:57
+    Name pattern: [fiat_shamir::Challenger<fiat_shamir::verifier::VerifierState<'0, @H>>] -/
+@[reducible, rust_trait_impl
+  "fiat_shamir::Challenger<fiat_shamir::verifier::VerifierState<'0, @H>>"]
+def fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger {H : Type}
+  (duplexDuplexSpongeInst : fiat_shamir.duplex.DuplexSponge H) :
+  fiat_shamir.Challenger (fiat_shamir.verifier.VerifierState H) := {
+  verifier_message := fun {T : Type} {Clause0_Repr : Type}
+    (codecFromUniformInst : fiat_shamir.codec.FromUniform T Clause0_Repr) =>
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger.verifier_message
+    duplexDuplexSpongeInst codecFromUniformInst
+}
+
+/-- [primitives::field::gf2_64::{impl core::clone::Clone for primitives::field::gf2_64::F64}::clone]:
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:9-16:14
+    Name pattern: [primitives::field::gf2_64::{core::clone::Clone<primitives::field::gf2_64::F64>}::clone]
+    Visibility: public -/
+@[rust_fun
+  "primitives::field::gf2_64::{core::clone::Clone<primitives::field::gf2_64::F64>}::clone"]
+def primitives.field.gf2_64.F64.Insts.CoreCloneClone.clone
+  (self : primitives.field.gf2_64.F64) :
+  Result primitives.field.gf2_64.F64
+  := do
+  ok self
+
+/-- Trait implementation: [primitives::field::gf2_64::{impl core::clone::Clone for primitives::field::gf2_64::F64}]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:9-16:14
+    Name pattern: [core::clone::Clone<primitives::field::gf2_64::F64>] -/
+@[reducible, rust_trait_impl
+  "core::clone::Clone<primitives::field::gf2_64::F64>"]
+def primitives.field.gf2_64.F64.Insts.CoreCloneClone : core.clone.Clone
+  primitives.field.gf2_64.F64 := {
+  clone := primitives.field.gf2_64.F64.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [primitives::field::gf2_64::{impl core::marker::Copy for primitives::field::gf2_64::F64}]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 16:16-16:20
+    Name pattern: [core::marker::Copy<primitives::field::gf2_64::F64>] -/
+@[reducible, rust_trait_impl
+  "core::marker::Copy<primitives::field::gf2_64::F64>"]
+def primitives.field.gf2_64.F64.Insts.CoreMarkerCopy : core.marker.Copy
+  primitives.field.gf2_64.F64 := {
+  cloneInst := primitives.field.gf2_64.F64.Insts.CoreCloneClone
+}
+
+/-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ZERO]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 24:4-24:24
+    Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ZERO]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ZERO"]
+def primitives.field.gf2_64.F64.ZERO : primitives.field.gf2_64.F64 := 0#u64
+
+/-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ONE]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 25:4-25:23
+    Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ONE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::ONE"]
+def primitives.field.gf2_64.F64.ONE : primitives.field.gf2_64.F64 := 1#u64
+
 /-- [primitives::field::gf2_64::{impl core::ops::arith::Add<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64> for primitives::field::gf2_64::F64}::add]:
     Source: 'crates/primitives/src/field/gf2_64.rs', lines 83:4-83:35
     Name pattern: [primitives::field::gf2_64::{core::ops::arith::Add<primitives::field::gf2_64::F64, primitives::field::gf2_64::F64, primitives::field::gf2_64::F64>}::add]
@@ -392,26 +2893,788 @@ def primitives.field.gf2_64.F64.Insts.CoreOpsArithAddF64F64.add
   let i ← lift (self ^^^ rhs)
   ok i
 
-/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ONE]
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 45:4-45:23
-    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ONE]
-    Visibility: public -/
-@[global_simps, irreducible, rust_const
-  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::ONE"]
-def primitives.field.gf2_64x3.F192.ONE : primitives.field.gf2_64x3.F192 :=
-  { c0 := 1#u64, c1 := 0#u64, c2 := 0#u64 }
-
-/-- [primitives::field::gf2_64x3::{impl core::convert::From<primitives::field::gf2_64::F64> for primitives::field::gf2_64x3::F192}::from]:
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 193:4-193:27
-    Name pattern: [primitives::field::gf2_64x3::{core::convert::From<primitives::field::gf2_64x3::F192, primitives::field::gf2_64::F64>}::from]
-    Visibility: public -/
-@[rust_fun
-  "primitives::field::gf2_64x3::{core::convert::From<primitives::field::gf2_64x3::F192, primitives::field::gf2_64::F64>}::from"]
-def primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from
-  (k : primitives.field.gf2_64.F64) :
-  Result primitives.field.gf2_64x3.F192
+/-- [pcs::merkle::pair_level]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 490:4-512:1 -/
+@[rust_loop_body]
+def merkle.pair_level_loop.body
+  (nodes : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (siblings : Slice (Array Std.U8 32#usize)) (used : Std.Usize)
+  (parents : alloc.vec.Vec Std.Usize)
+  (pairs : alloc.vec.Vec (Array (Array Std.U8 32#usize) 2#usize))
+  (known : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (ControlFlow (Std.Usize × (alloc.vec.Vec Std.Usize) × (alloc.vec.Vec
+    (Array (Array Std.U8 32#usize) 2#usize)) × (alloc.vec.Vec (Std.Usize ×
+    (Array Std.U8 32#usize))) × Std.Usize) ((Option Std.Usize) ×
+    (alloc.vec.Vec Std.Usize) × (alloc.vec.Vec (Array (Array Std.U8 32#usize)
+    2#usize)) × (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))))
   := do
-  ok { c0 := k, c1 := 0#u64, c2 := 0#u64 }
+  let i1 := Slice.len nodes
+  if i < i1
+  then
+    let (idx, a) ← Slice.index_usize nodes i
+    let parent ← lift (Std.Usize.wrapping_shr idx 1#i32)
+    let i2 ← lift (idx &&& 1#usize)
+    let paired ←
+      if i2 = 0#usize
+      then
+        do
+        let i3 ← lift (Std.Usize.wrapping_add i 1#usize)
+        let i4 := Slice.len nodes
+        if i3 < i4
+        then
+          let i5 ← lift (Std.Usize.wrapping_add i 1#usize)
+          let (i6, _) ← Slice.index_usize nodes i5
+          let i7 ← lift (Std.Usize.wrapping_add idx 1#usize)
+          ok (i6 = i7)
+        else ok false
+      else ok false
+    if paired
+    then
+      let i3 ← lift (Std.Usize.wrapping_add i 1#usize)
+      let (_, right) ← Slice.index_usize nodes i3
+      let parents1 ← alloc.vec.Vec.push parents parent
+      let pairs1 ←
+        alloc.vec.Vec.push pairs (Array.make 2#usize [ a, right ] : Array
+          (Array Std.U8 32#usize) 2#usize)
+      let i4 ← lift (Std.Usize.wrapping_mul 2#usize parent)
+      let known1 ← alloc.vec.Vec.push known (i4, a)
+      let i5 ← lift (Std.Usize.wrapping_mul 2#usize parent)
+      let i6 ← lift (Std.Usize.wrapping_add i5 1#usize)
+      let known2 ← alloc.vec.Vec.push known1 (i6, right)
+      let i7 ← if paired
+                 then ok 2#usize
+                 else ok 1#usize
+      let i8 ← lift (Std.Usize.wrapping_add i i7)
+      ok (cont (used, parents1, pairs1, known2, i8))
+    else
+      let i3 := Slice.len siblings
+      if used = i3
+      then ok (done (none, parents, pairs, known))
+      else
+        let i4 ← lift (idx &&& 1#usize)
+        let (used1, left, right) ←
+          if i4 = 0#usize
+          then
+            do
+            let used2 ← lift (Std.Usize.wrapping_add used 1#usize)
+            let i5 ← lift (Std.Usize.wrapping_sub used2 1#usize)
+            let a1 ← Slice.index_usize siblings i5
+            ok (used2, a, a1)
+          else
+            do
+            let used2 ← lift (Std.Usize.wrapping_add used 1#usize)
+            let i5 ← lift (Std.Usize.wrapping_sub used2 1#usize)
+            let a1 ← Slice.index_usize siblings i5
+            ok (used2, a1, a)
+        let parents1 ← alloc.vec.Vec.push parents parent
+        let pairs1 ←
+          alloc.vec.Vec.push pairs (Array.make 2#usize [ left, right ] : Array
+            (Array Std.U8 32#usize) 2#usize)
+        let i5 ← lift (Std.Usize.wrapping_mul 2#usize parent)
+        let known1 ← alloc.vec.Vec.push known (i5, left)
+        let i6 ← lift (Std.Usize.wrapping_mul 2#usize parent)
+        let i7 ← lift (Std.Usize.wrapping_add i6 1#usize)
+        let known2 ← alloc.vec.Vec.push known1 (i7, right)
+        let i8 ← if paired
+                   then ok 2#usize
+                   else ok 1#usize
+        let i9 ← lift (Std.Usize.wrapping_add i i8)
+        ok (cont (used1, parents1, pairs1, known2, i9))
+  else ok (done (some used, parents, pairs, known))
+
+/-- [pcs::merkle::pair_level]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 490:4-512:1 -/
+@[rust_loop]
+def merkle.pair_level_loop
+  (nodes : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (siblings : Slice (Array Std.U8 32#usize)) (used : Std.Usize)
+  (parents : alloc.vec.Vec Std.Usize)
+  (pairs : alloc.vec.Vec (Array (Array Std.U8 32#usize) 2#usize))
+  (known : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result ((Option Std.Usize) × (alloc.vec.Vec Std.Usize) × (alloc.vec.Vec
+    (Array (Array Std.U8 32#usize) 2#usize)) × (alloc.vec.Vec (Std.Usize ×
+    (Array Std.U8 32#usize))))
+  := do
+  loop
+    (fun (used1, parents1, pairs1, known1, i1) => merkle.pair_level_loop.body
+      nodes siblings used1 parents1 pairs1 known1 i1)
+    (used, parents, pairs, known, i)
+
+/-- [pcs::merkle::pair_level]:
+    Source: 'crates/pcs/src/merkle.rs', lines 479:0-512:1 -/
+def merkle.pair_level
+  (nodes : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (siblings : Slice (Array Std.U8 32#usize)) (used : Std.Usize)
+  (parents : alloc.vec.Vec Std.Usize)
+  (pairs : alloc.vec.Vec (Array (Array Std.U8 32#usize) 2#usize))
+  (known : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))) :
+  Result ((Option Std.Usize) × (alloc.vec.Vec Std.Usize) × (alloc.vec.Vec
+    (Array (Array Std.U8 32#usize) 2#usize)) × (alloc.vec.Vec (Std.Usize ×
+    (Array Std.U8 32#usize))))
+  := do
+  let parents1 ← alloc.vec.Vec.clear Global parents
+  let pairs1 ← alloc.vec.Vec.clear Global pairs
+  merkle.pair_level_loop nodes siblings used parents1 pairs1 known 0#usize
+
+/-- [pcs::merkle::next_nodes]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 580:4-583:5 -/
+@[rust_loop_body]
+def merkle.next_nodes_loop.body
+  (parents : Slice Std.Usize) (digests : Slice (Array Std.U8 32#usize))
+  (nodes : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (p : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+    × Std.Usize) (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))))
+  := do
+  let i := Slice.len parents
+  if p < i
+  then
+    let i1 ← Slice.index_usize parents p
+    let a ← Slice.index_usize digests p
+    let nodes1 ← alloc.vec.Vec.push nodes (i1, a)
+    let p1 ← lift (Std.Usize.wrapping_add p 1#usize)
+    ok (cont (nodes1, p1))
+  else ok (done nodes)
+
+/-- [pcs::merkle::next_nodes]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 580:4-583:5 -/
+@[rust_loop]
+def merkle.next_nodes_loop
+  (parents : Slice Std.Usize) (digests : Slice (Array Std.U8 32#usize))
+  (nodes : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (p : Std.Usize) :
+  Result (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  := do
+  loop
+    (fun (nodes1, p1) => merkle.next_nodes_loop.body parents digests nodes1 p1)
+    (nodes, p)
+
+/-- [pcs::merkle::next_nodes]:
+    Source: 'crates/pcs/src/merkle.rs', lines 577:0-584:1 -/
+def merkle.next_nodes
+  (parents : Slice Std.Usize) (digests : Slice (Array Std.U8 32#usize))
+  (nodes : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))) :
+  Result (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  := do
+  let nodes1 ← alloc.vec.Vec.clear Global nodes
+  merkle.next_nodes_loop parents digests nodes1 0#usize
+
+/-- [pcs::merkle::rebuild]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 526:4-539:1 -/
+@[rust_loop_body]
+def merkle.rebuild_loop.body
+  (siblings : Slice (Array Std.U8 32#usize)) (height : Std.Usize)
+  (root : Array Std.U8 32#usize)
+  (nodes : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (used : Std.Usize)
+  (known : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : alloc.vec.Vec Std.Usize) (parents : alloc.vec.Vec Std.Usize)
+  (pairs : alloc.vec.Vec (Array (Array Std.U8 32#usize) 2#usize))
+  (digests : alloc.vec.Vec (Array Std.U8 32#usize)) (level : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+    × Std.Usize × (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))) ×
+    (alloc.vec.Vec Std.Usize) × (alloc.vec.Vec Std.Usize) × (alloc.vec.Vec
+    (Array (Array Std.U8 32#usize) 2#usize)) × (alloc.vec.Vec (Array Std.U8
+    32#usize)) × Std.Usize) (Option ((alloc.vec.Vec (Std.Usize × (Array
+    Std.U8 32#usize))) × (alloc.vec.Vec Std.Usize))))
+  := do
+  if level < height
+  then
+    let i := alloc.vec.Vec.len known
+    let starts1 ← alloc.vec.Vec.push starts i
+    let s := alloc.vec.Vec.deref nodes
+    let (o, parents1, pairs1, known1) ←
+      merkle.pair_level s siblings used parents pairs known
+    let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let s1 := alloc.vec.Vec.deref pairs1
+      let digests1 ← merkle.hash_pairs s1 digests
+      let s2 := alloc.vec.Vec.deref parents1
+      let s3 := alloc.vec.Vec.deref digests1
+      let nodes1 ← merkle.next_nodes s2 s3 nodes
+      let level1 ← lift (Std.Usize.wrapping_add level 1#usize)
+      ok (cont (nodes1, val, known1, starts1, parents1, pairs1, digests1,
+        level1))
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let o1 ←
+        core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+          ((alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))) ×
+          (alloc.vec.Vec Std.Usize)) residual
+      ok (done o1)
+  else
+    let i := alloc.vec.Vec.len known
+    let starts1 ← alloc.vec.Vec.push starts i
+    let i1 := Slice.len siblings
+    if used < i1
+    then ok (done none)
+    else
+      let b ← alloc.vec.Vec.is_empty Global nodes
+      if b
+      then ok (done none)
+      else
+        let (_, a) ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.Usize
+            × (Array Std.U8 32#usize))) nodes 0#usize
+        let b1 ←
+          core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8 a root
+        if b1
+        then ok (done none)
+        else ok (done (some (known, starts1)))
+
+/-- [pcs::merkle::rebuild]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 526:4-539:1 -/
+@[rust_loop]
+def merkle.rebuild_loop
+  (nodes : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (siblings : Slice (Array Std.U8 32#usize)) (height : Std.Usize)
+  (root : Array Std.U8 32#usize) (used : Std.Usize)
+  (known : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : alloc.vec.Vec Std.Usize) (parents : alloc.vec.Vec Std.Usize)
+  (pairs : alloc.vec.Vec (Array (Array Std.U8 32#usize) 2#usize))
+  (digests : alloc.vec.Vec (Array Std.U8 32#usize)) (level : Std.Usize) :
+  Result (Option ((alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))) ×
+    (alloc.vec.Vec Std.Usize)))
+  := do
+  loop
+    (fun (nodes1, used1, known1, starts1, parents1, pairs1, digests1, level1)
+      => merkle.rebuild_loop.body siblings height root nodes1 used1 known1
+      starts1 parents1 pairs1 digests1 level1)
+    (nodes, used, known, starts, parents, pairs, digests, level)
+
+/-- [pcs::merkle::rebuild]:
+    Source: 'crates/pcs/src/merkle.rs', lines 520:0-539:1 -/
+def merkle.rebuild
+  (nodes : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (siblings : Slice (Array Std.U8 32#usize)) (height : Std.Usize)
+  (root : Array Std.U8 32#usize) :
+  Result (Option ((alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))) ×
+    (alloc.vec.Vec Std.Usize)))
+  := do
+  let i ← lift (Std.Usize.wrapping_add height 1#usize)
+  let starts := alloc.vec.Vec.with_capacity Std.Usize i
+  merkle.rebuild_loop nodes siblings height root 0#usize (alloc.vec.Vec.new
+    (Std.Usize × (Array Std.U8 32#usize))) starts (alloc.vec.Vec.new
+    Std.Usize) (alloc.vec.Vec.new (Array (Array Std.U8 32#usize) 2#usize))
+    (alloc.vec.Vec.new (Array Std.U8 32#usize)) 0#usize
+
+/-- [pcs::merkle::node_position]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 606:4-618:1 -/
+@[rust_loop_body]
+def merkle.node_position_loop.body
+  (level : Slice (Std.Usize × (Array Std.U8 32#usize))) (key : Std.Usize)
+  (lo : Std.Usize) (hi : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) (Option Std.Usize))
+  := do
+  if lo < hi
+  then
+    let i ← lift (Std.Usize.wrapping_sub hi lo)
+    let i1 ← i / 2#usize
+    let mid ← lift (Std.Usize.wrapping_add lo i1)
+    let (i2, _) ← Slice.index_usize level mid
+    if i2 = key
+    then ok (done (some mid))
+    else
+      if i2 < key
+      then
+        let lo1 ← lift (Std.Usize.wrapping_add mid 1#usize)
+        ok (cont (lo1, hi))
+      else ok (cont (lo, mid))
+  else ok (done none)
+
+/-- [pcs::merkle::node_position]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 606:4-618:1 -/
+@[rust_loop]
+def merkle.node_position_loop
+  (level : Slice (Std.Usize × (Array Std.U8 32#usize))) (key : Std.Usize)
+  (lo : Std.Usize) (hi : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun (lo1, hi1) => merkle.node_position_loop.body level key lo1 hi1)
+    (lo, hi)
+
+/-- [pcs::merkle::node_position]:
+    Source: 'crates/pcs/src/merkle.rs', lines 604:0-618:1 -/
+def merkle.node_position
+  (level : Slice (Std.Usize × (Array Std.U8 32#usize))) (key : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let hi := Slice.len level
+  merkle.node_position_loop level key 0#usize hi
+
+/-- [pcs::merkle::push_path]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 625:4-636:1 -/
+@[rust_loop_body]
+def merkle.push_path_loop.body
+  (known : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : Slice Std.Usize) (q : Std.Usize)
+  (paths : alloc.vec.Vec (Array Std.U8 32#usize)) (lvl : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Array Std.U8 32#usize)) × Std.Usize)
+    (Bool × (alloc.vec.Vec (Array Std.U8 32#usize))))
+  := do
+  let i ← lift (Std.Usize.wrapping_add lvl 1#usize)
+  let i1 := Slice.len starts
+  if i < i1
+  then
+    let i2 ← Slice.index_usize starts lvl
+    let i3 ← lift (Std.Usize.wrapping_add lvl 1#usize)
+    let i4 ← Slice.index_usize starts i3
+    let level ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        (Std.Usize × (Array Std.U8 32#usize))) known
+        { start := i2, «end» := i4 }
+    let node ← lift (Std.Usize.wrapping_shr q lvl)
+    let i5 ← lift (node &&& 1#usize)
+    let sibling ←
+      if i5 = 0#usize
+      then ok (Std.Usize.wrapping_add node 1#usize)
+      else ok (Std.Usize.wrapping_sub node 1#usize)
+    let o ← merkle.node_position level sibling
+    match o with
+    | none => ok (done (false, paths))
+    | some pos =>
+      let (_, a) ← Slice.index_usize level pos
+      let paths1 ← alloc.vec.Vec.push paths a
+      let lvl1 ← lift (Std.Usize.wrapping_add lvl 1#usize)
+      ok (cont (paths1, lvl1))
+  else ok (done (true, paths))
+
+/-- [pcs::merkle::push_path]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 625:4-636:1 -/
+@[rust_loop]
+def merkle.push_path_loop
+  (known : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : Slice Std.Usize) (q : Std.Usize)
+  (paths : alloc.vec.Vec (Array Std.U8 32#usize)) (lvl : Std.Usize) :
+  Result (Bool × (alloc.vec.Vec (Array Std.U8 32#usize)))
+  := do
+  loop
+    (fun (paths1, lvl1) => merkle.push_path_loop.body known starts q paths1
+      lvl1)
+    (paths, lvl)
+
+/-- [pcs::merkle::push_path]:
+    Source: 'crates/pcs/src/merkle.rs', lines 623:0-636:1 -/
+@[reducible]
+def merkle.push_path
+  (known : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : Slice Std.Usize) (q : Std.Usize)
+  (paths : alloc.vec.Vec (Array Std.U8 32#usize)) :
+  Result (Bool × (alloc.vec.Vec (Array Std.U8 32#usize)))
+  := do
+  merkle.push_path_loop known starts q paths 0#usize
+
+/-- [pcs::merkle::position]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 589:4-601:1 -/
+@[rust_loop_body]
+def merkle.position_loop.body
+  (sorted : Slice Std.Usize) (key : Std.Usize) (lo : Std.Usize)
+  (hi : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) (Option Std.Usize))
+  := do
+  if lo < hi
+  then
+    let i ← lift (Std.Usize.wrapping_sub hi lo)
+    let i1 ← i / 2#usize
+    let mid ← lift (Std.Usize.wrapping_add lo i1)
+    let i2 ← Slice.index_usize sorted mid
+    if i2 = key
+    then ok (done (some mid))
+    else
+      if i2 < key
+      then
+        let lo1 ← lift (Std.Usize.wrapping_add mid 1#usize)
+        ok (cont (lo1, hi))
+      else ok (cont (lo, mid))
+  else ok (done none)
+
+/-- [pcs::merkle::position]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 589:4-601:1 -/
+@[rust_loop]
+def merkle.position_loop
+  (sorted : Slice Std.Usize) (key : Std.Usize) (lo : Std.Usize)
+  (hi : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun (lo1, hi1) => merkle.position_loop.body sorted key lo1 hi1)
+    (lo, hi)
+
+/-- [pcs::merkle::position]:
+    Source: 'crates/pcs/src/merkle.rs', lines 587:0-601:1 -/
+def merkle.position
+  (sorted : Slice Std.Usize) (key : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let hi := Slice.len sorted
+  merkle.position_loop sorted key 0#usize hi
+
+/-- [pcs::merkle::expand]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 560:4-574:1 -/
+@[rust_loop_body]
+def merkle.expand_loop.body
+  (rows : Slice primitives.field.gf2_64.F64) (sorted : Slice Std.Usize)
+  (known : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : Slice Std.Usize) (queries : Slice Std.Usize)
+  (row_words : Std.Usize) (leaf_words : Std.Usize) (leaf_words1 : Std.Usize)
+  (height : Std.Usize) (v : alloc.vec.Vec primitives.field.gf2_64.F64)
+  (v1 : alloc.vec.Vec (Array Std.U8 32#usize)) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec primitives.field.gf2_64.F64) ×
+    (alloc.vec.Vec (Array Std.U8 32#usize)) × Std.Usize) (Option
+    merkle.Openings))
+  := do
+  let i := Slice.len queries
+  if k < i
+  then
+    let q ← Slice.index_usize queries k
+    let o ← merkle.position sorted q
+    let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let i1 ← lift (Std.Usize.wrapping_add k 1#usize)
+      let image ← lift (Std.Usize.wrapping_mul i1 leaf_words)
+      let i2 ← lift (Std.Usize.wrapping_sub image row_words)
+      let (s, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexRangeUsizeSlice
+          primitives.field.gf2_64.F64) v { start := i2, «end» := image }
+      let i3 ← lift (Std.Usize.wrapping_mul val row_words)
+      let i4 ← lift (Std.Usize.wrapping_add val 1#usize)
+      let i5 ← lift (Std.Usize.wrapping_mul i4 row_words)
+      let s1 ←
+        core.slice.index.Slice.index
+          (core.slice.index.SliceIndexRangeUsizeSlice
+          primitives.field.gf2_64.F64) rows { start := i3, «end» := i5 }
+      let s2 ←
+        core.slice.Slice.copy_from_slice
+          primitives.field.gf2_64.F64.Insts.CoreMarkerCopy s s1
+      let (b, v2) ← merkle.push_path known starts q v1
+      if b
+      then
+        let k1 ← lift (Std.Usize.wrapping_add k 1#usize)
+        let v3 := index_mut_back s2
+        ok (cont (v3, v2, k1))
+      else ok (done none)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let o1 ←
+        core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+          merkle.Openings residual
+      ok (done o1)
+  else
+    ok (done (some
+      { leaf_words := leaf_words1, height, images := v, paths := v1 }))
+
+/-- [pcs::merkle::expand]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 560:4-574:1 -/
+@[rust_loop]
+def merkle.expand_loop
+  (rows : Slice primitives.field.gf2_64.F64) (sorted : Slice Std.Usize)
+  (known : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : Slice Std.Usize) (queries : Slice Std.Usize)
+  (row_words : Std.Usize) (leaf_words : Std.Usize) (leaf_words1 : Std.Usize)
+  (height : Std.Usize) (v : alloc.vec.Vec primitives.field.gf2_64.F64)
+  (v1 : alloc.vec.Vec (Array Std.U8 32#usize)) (k : Std.Usize) :
+  Result (Option merkle.Openings)
+  := do
+  loop
+    (fun (v2, v3, k1) => merkle.expand_loop.body rows sorted known starts
+      queries row_words leaf_words leaf_words1 height v2 v3 k1)
+    (v, v1, k)
+
+/-- [pcs::merkle::expand]:
+    Source: 'crates/pcs/src/merkle.rs', lines 543:0-574:1 -/
+def merkle.expand
+  (rows : Slice primitives.field.gf2_64.F64) (sorted : Slice Std.Usize)
+  (known : Slice (Std.Usize × (Array Std.U8 32#usize)))
+  (starts : Slice Std.Usize) (queries : Slice Std.Usize)
+  (row_words : Std.Usize) (leaf_words : Std.Usize) :
+  Result (Option merkle.Openings)
+  := do
+  let i := Slice.len starts
+  let height ← lift (Std.Usize.wrapping_sub i 1#usize)
+  let i1 := Slice.len queries
+  let i2 ← lift (Std.Usize.wrapping_mul i1 leaf_words)
+  let v ←
+    alloc.vec.from_elem primitives.field.gf2_64.F64.Insts.CoreCloneClone
+      primitives.field.gf2_64.F64.ZERO i2
+  let i3 := Slice.len queries
+  let i4 ← lift (Std.Usize.wrapping_mul i3 height)
+  let v1 := alloc.vec.Vec.with_capacity (Array Std.U8 32#usize) i4
+  merkle.expand_loop rows sorted known starts queries row_words leaf_words
+    leaf_words height v v1 0#usize
+
+/-- [pcs::merkle::word_at]:
+    Source: 'crates/pcs/src/merkle.rs', lines 639:0-650:1 -/
+def merkle.word_at
+  (hint : Slice Std.U8) («at» : Std.Usize) : Result Std.U64 := do
+  let i ← Slice.index_usize hint «at»
+  let i1 ← lift (Std.Usize.wrapping_add «at» 1#usize)
+  let i2 ← Slice.index_usize hint i1
+  let i3 ← lift (Std.Usize.wrapping_add «at» 2#usize)
+  let i4 ← Slice.index_usize hint i3
+  let i5 ← lift (Std.Usize.wrapping_add «at» 3#usize)
+  let i6 ← Slice.index_usize hint i5
+  let i7 ← lift (Std.Usize.wrapping_add «at» 4#usize)
+  let i8 ← Slice.index_usize hint i7
+  let i9 ← lift (Std.Usize.wrapping_add «at» 5#usize)
+  let i10 ← Slice.index_usize hint i9
+  let i11 ← lift (Std.Usize.wrapping_add «at» 6#usize)
+  let i12 ← Slice.index_usize hint i11
+  let i13 ← lift (Std.Usize.wrapping_add «at» 7#usize)
+  let i14 ← Slice.index_usize hint i13
+  ok (core.num.U64.from_le_bytes
+    (Array.make 8#usize [ i, i2, i4, i6, i8, i10, i12, i14 ]))
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::from_hint]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 698:8-701:9
+    Visibility: public -/
+@[rust_loop_body]
+def merkle.PrunedMerklePaths.from_hint_loop0.body
+  (hint : Slice Std.U8) (n_words : Std.Usize)
+  (rows : alloc.vec.Vec primitives.field.gf2_64.F64) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec primitives.field.gf2_64.F64) ×
+    Std.Usize) (alloc.vec.Vec primitives.field.gf2_64.F64))
+  := do
+  if i < n_words
+  then
+    let i1 ← lift (Std.Usize.wrapping_mul 8#usize i)
+    let i2 ← merkle.word_at hint i1
+    let rows1 ← alloc.vec.Vec.push rows i2
+    let i3 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (rows1, i3))
+  else ok (done rows)
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::from_hint]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 698:8-701:9
+    Visibility: public -/
+@[rust_loop]
+def merkle.PrunedMerklePaths.from_hint_loop0
+  (hint : Slice Std.U8) (n_words : Std.Usize)
+  (rows : alloc.vec.Vec primitives.field.gf2_64.F64) (i : Std.Usize) :
+  Result (alloc.vec.Vec primitives.field.gf2_64.F64)
+  := do
+  loop
+    (fun (rows1, i1) => merkle.PrunedMerklePaths.from_hint_loop0.body hint
+      n_words rows1 i1)
+    (rows, i)
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::from_hint]: loop body 1:
+    Source: 'crates/pcs/src/merkle.rs', lines 705:8-710:9
+    Visibility: public -/
+@[rust_loop_body]
+def merkle.PrunedMerklePaths.from_hint_loop1.body
+  (hint : Slice Std.U8) (row_bytes : Std.Usize) (n_siblings : Std.Usize)
+  (sibling_hashes : alloc.vec.Vec (Array Std.U8 32#usize)) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Array Std.U8 32#usize)) × Std.Usize)
+    (alloc.vec.Vec (Array Std.U8 32#usize)))
+  := do
+  if j < n_siblings
+  then
+    let digest := Array.repeat 32#usize 0#u8
+    let (s, to_slice_mut_back) ← lift (Array.to_slice_mut digest)
+    let i ← lift (Std.Usize.wrapping_mul 32#usize j)
+    let i1 ← lift (Std.Usize.wrapping_add row_bytes i)
+    let i2 ← lift (Std.Usize.wrapping_add j 1#usize)
+    let i3 ← lift (Std.Usize.wrapping_mul 32#usize i2)
+    let i4 ← lift (Std.Usize.wrapping_add row_bytes i3)
+    let s1 ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) hint { start := i1, «end» := i4 }
+    let s2 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s s1
+    let digest1 := to_slice_mut_back s2
+    let sibling_hashes1 ← alloc.vec.Vec.push sibling_hashes digest1
+    let j1 ← lift (Std.Usize.wrapping_add j 1#usize)
+    ok (cont (sibling_hashes1, j1))
+  else ok (done sibling_hashes)
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::from_hint]: loop 1:
+    Source: 'crates/pcs/src/merkle.rs', lines 705:8-710:9
+    Visibility: public -/
+@[rust_loop]
+def merkle.PrunedMerklePaths.from_hint_loop1
+  (hint : Slice Std.U8) (row_bytes : Std.Usize) (n_siblings : Std.Usize)
+  (sibling_hashes : alloc.vec.Vec (Array Std.U8 32#usize)) (j : Std.Usize) :
+  Result (alloc.vec.Vec (Array Std.U8 32#usize))
+  := do
+  loop
+    (fun (sibling_hashes1, j1) => merkle.PrunedMerklePaths.from_hint_loop1.body
+      hint row_bytes n_siblings sibling_hashes1 j1)
+    (sibling_hashes, j)
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::from_hint]:
+    Source: 'crates/pcs/src/merkle.rs', lines 690:4-712:5
+    Visibility: public -/
+def merkle.PrunedMerklePaths.from_hint
+  (hint : Slice Std.U8) (n_rows : Std.Usize) (row_words : Std.Usize) :
+  Result (Option merkle.PrunedMerklePaths)
+  := do
+  let o ← lift (Usize.checked_mul n_rows row_words)
+  let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let o1 ← lift (Usize.checked_mul val 8#usize)
+    let cf1 ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let i := Slice.len hint
+      if i < val1
+      then ok none
+      else
+        let i1 := Slice.len hint
+        let i2 ← lift (Std.Usize.wrapping_sub i1 val1)
+        let b ← core.num.Usize.is_multiple_of i2 32#usize
+        if b
+        then
+          let rows :=
+            alloc.vec.Vec.with_capacity primitives.field.gf2_64.F64 val
+          let rows1 ←
+            merkle.PrunedMerklePaths.from_hint_loop0 hint val rows 0#usize
+          let i3 := Slice.len hint
+          let i4 ← lift (Std.Usize.wrapping_sub i3 val1)
+          let n_siblings ← i4 / 32#usize
+          let sibling_hashes :=
+            alloc.vec.Vec.with_capacity (Array Std.U8 32#usize) n_siblings
+          let sibling_hashes1 ←
+            merkle.PrunedMerklePaths.from_hint_loop1 hint val1 n_siblings
+              sibling_hashes 0#usize
+          ok (some { rows := rows1, sibling_hashes := sibling_hashes1 })
+        else ok none
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+        merkle.PrunedMerklePaths residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+      merkle.PrunedMerklePaths residual
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::open]: loop body 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 796:8-799:9
+    Visibility: public -/
+@[rust_loop_body]
+def merkle.PrunedMerklePaths.open_loop.body
+  (sorted : alloc.vec.Vec Std.Usize)
+  (leaf_hashes : alloc.vec.Vec (Array Std.U8 32#usize))
+  (leaves : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+    × Std.Usize) (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize))))
+  := do
+  let i1 := alloc.vec.Vec.len sorted
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize)
+        sorted i
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Array Std.U8
+        32#usize)) leaf_hashes i
+    let leaves1 ← alloc.vec.Vec.push leaves (i2, a)
+    let i3 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (leaves1, i3))
+  else ok (done leaves)
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::open]: loop 0:
+    Source: 'crates/pcs/src/merkle.rs', lines 796:8-799:9
+    Visibility: public -/
+@[rust_loop]
+def merkle.PrunedMerklePaths.open_loop
+  (sorted : alloc.vec.Vec Std.Usize)
+  (leaf_hashes : alloc.vec.Vec (Array Std.U8 32#usize))
+  (leaves : alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (Std.Usize × (Array Std.U8 32#usize)))
+  := do
+  loop
+    (fun (leaves1, i1) => merkle.PrunedMerklePaths.open_loop.body sorted
+      leaf_hashes leaves1 i1)
+    (leaves, i)
+
+/-- [pcs::merkle::{pcs::merkle::PrunedMerklePaths}::open]:
+    Source: 'crates/pcs/src/merkle.rs', lines 775:4-802:5
+    Visibility: public -/
+def merkle.PrunedMerklePaths.open
+  (self : merkle.PrunedMerklePaths) (root : Array Std.U8 32#usize)
+  (num_leaves : Std.Usize) (queries : Slice Std.Usize) (row_words : Std.Usize)
+  (leaf_words : Std.Usize) :
+  Result (Option merkle.Openings)
+  := do
+  let b ← core.num.Usize.is_power_of_two num_leaves
+  if b
+  then
+    if num_leaves = 0#usize
+    then ok none
+    else
+      let b1 ← core.slice.Slice.is_empty queries
+      if b1
+      then ok none
+      else
+        if row_words > leaf_words
+        then ok none
+        else
+          let i ← core.num.Usize.trailing_zeros num_leaves
+          let height ← lift (UScalar.cast .Usize i)
+          let sorted ← merkle.sorted_unique queries
+          let i1 := alloc.vec.Vec.len sorted
+          let i2 ← lift (Std.Usize.wrapping_sub i1 1#usize)
+          let i3 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              Std.Usize) sorted i2
+          if i3 >= num_leaves
+          then ok none
+          else
+            let i4 := alloc.vec.Vec.len self.rows
+            let i5 := alloc.vec.Vec.len sorted
+            let i6 ← lift (Std.Usize.wrapping_mul i5 row_words)
+            if i4 != i6
+            then ok none
+            else
+              let s := alloc.vec.Vec.deref self.rows
+              let i7 := alloc.vec.Vec.len sorted
+              let leaf_hashes ← merkle.hash_rows s i7 row_words leaf_words
+              let i8 := alloc.vec.Vec.len sorted
+              let leaves :=
+                alloc.vec.Vec.with_capacity (Std.Usize × (Array Std.U8
+                  32#usize)) i8
+              let leaves1 ←
+                merkle.PrunedMerklePaths.open_loop sorted leaf_hashes leaves
+                  0#usize
+              let s1 := alloc.vec.Vec.deref self.sibling_hashes
+              let o ← merkle.rebuild leaves1 s1 height root
+              let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+              match cf with
+              | core.ops.control_flow.ControlFlow.Continue val =>
+                let (known, starts) := val
+                let s2 := alloc.vec.Vec.deref self.rows
+                let s3 := alloc.vec.Vec.deref sorted
+                let s4 := alloc.vec.Vec.deref known
+                let s5 := alloc.vec.Vec.deref starts
+                merkle.expand s2 s3 s4 s5 queries row_words leaf_words
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+                  merkle.Openings residual
+  else ok none
+
+/-- [pcs::merkle::{pcs::merkle::Openings}::len]:
+    Source: 'crates/pcs/src/merkle.rs', lines 826:4-828:5
+    Visibility: public -/
+def merkle.Openings.len (self : merkle.Openings) : Result Std.Usize := do
+  let i := alloc.vec.Vec.len self.images
+  i / self.leaf_words
+
+/-- [pcs::merkle::{pcs::merkle::Openings}::image]:
+    Source: 'crates/pcs/src/merkle.rs', lines 838:4-840:5
+    Visibility: public -/
+def merkle.Openings.image
+  (self : merkle.Openings) (i : Std.Usize) :
+  Result (Slice primitives.field.gf2_64.F64)
+  := do
+  let i1 ← lift (Std.Usize.wrapping_mul i self.leaf_words)
+  let s ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFromUsizeSlice
+      primitives.field.gf2_64.F64) self.images { start := i1 }
+  core.slice.index.Slice.index (core.slice.index.SliceIndexRangeToUsizeSlice
+    primitives.field.gf2_64.F64) s { «end» := self.leaf_words }
 
 /-- [pcs::ring_switch::{pcs::ring_switch::RingMap<E>}::close]: loop body 0:
     Source: 'crates/pcs/src/ring_switch.rs', lines 458:8-461:9
@@ -459,54 +3722,249 @@ def ring_switch.RingMap.close
   let acc ← Slice.index_usize terms i1
   ring_switch.RingMap.close_loop fiat_shamirarithArithInst a terms i1 acc
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::initial_k]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 212:4-214:5
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::query_point]:
+    Source: 'crates/pcs/src/verifier.rs', lines 127:4-129:5
     Visibility: public -/
-def whir.config.Config.impl.initial_k
-  (self : whir.config.Config) : Result Std.Usize := do
-  ok self.initial_k
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.query_point
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (query : Std.Usize) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let i ← lift (UScalar.cast .U64 query)
+  let f ← primitives.field.gf2_64x3.F192.new i 0#u64 0#u64
+  ok (f, self)
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::level_steps]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 217:4-219:5
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::e_of_limbs]:
+    Source: 'crates/pcs/src/verifier.rs', lines 123:4-125:5
     Visibility: public -/
-def whir.config.Config.level_steps
-  (self : whir.config.Config) : Result Std.Usize := do
-  ok (alloc.vec.Vec.len self.level_ks)
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.e_of_limbs
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (limbs : Array primitives.field.gf2_64.F64 3#usize) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let f ← Array.index_usize limbs 0#usize
+  let f1 ← Array.index_usize limbs 1#usize
+  let f2 ← Array.index_usize limbs 2#usize
+  let f3 ← primitives.field.gf2_64x3.F192.new f f1 f2
+  ok (f3, self)
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::level_ks]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 222:4-224:5
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::mul_k_add]:
+    Source: 'crates/pcs/src/verifier.rs', lines 119:4-121:5
     Visibility: public -/
-def whir.config.Config.impl.level_ks
-  (self : whir.config.Config) : Result (Slice Std.Usize) := do
-  ok (alloc.vec.Vec.deref self.level_ks)
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.mul_k_add
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (a : primitives.field.gf2_64x3.F192) (k : primitives.field.gf2_64.F64)
+  (d : primitives.field.gf2_64x3.F192) :
+  Result (primitives.field.gf2_64x3.F192 × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let f ← primitives.field.gf2_64x3.F192.mul_base a k
+  let f1 ←
+    primitives.field.gf2_64x3.F192.Insts.CoreOpsArithAddF192F192.add f d
+  ok (f1, self)
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::log_inv_rates]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 227:4-229:5
-    Visibility: public -/
-def whir.config.Config.impl.log_inv_rates
-  (self : whir.config.Config) : Result (Slice Std.Usize) := do
-  ok (alloc.vec.Vec.deref self.log_inv_rates)
+/-- [pcs::verifier::rows_of]: loop body 0:
+    Source: 'crates/pcs/src/verifier.rs', lines 167:4-171:5 -/
+@[rust_loop_body]
+def verifier.rows_of_loop.body
+  (openings : merkle.Openings) (row_words : Std.Usize) (n : Std.Usize)
+  (rows : alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)) × Std.Usize) (alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)))
+  := do
+  if i < n
+  then
+    let image ← merkle.Openings.image openings i
+    let i1 := Slice.len image
+    let i2 ← lift (Std.Usize.wrapping_sub i1 row_words)
+    let s ←
+      core.slice.index.Slice.index
+        (core.slice.index.SliceIndexRangeFromUsizeSlice
+        primitives.field.gf2_64.F64) image { start := i2 }
+    let v ←
+      alloc.slice.Slice.to_vec primitives.field.gf2_64.F64.Insts.CoreCloneClone
+        s
+    let rows1 ← alloc.vec.Vec.push rows v
+    let i3 ← lift (Std.Usize.wrapping_add i 1#usize)
+    ok (cont (rows1, i3))
+  else ok (done rows)
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::queries]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 232:4-234:5
-    Visibility: public -/
-def whir.config.Config.impl.queries
-  (self : whir.config.Config) : Result (Slice Std.Usize) := do
-  ok (alloc.vec.Vec.deref self.queries)
+/-- [pcs::verifier::rows_of]: loop 0:
+    Source: 'crates/pcs/src/verifier.rs', lines 167:4-171:5 -/
+@[rust_loop]
+def verifier.rows_of_loop
+  (openings : merkle.Openings) (row_words : Std.Usize) (n : Std.Usize)
+  (rows : alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  := do
+  loop
+    (fun (rows1, i1) => verifier.rows_of_loop.body openings row_words n rows1
+      i1)
+    (rows, i)
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::grinding_bits]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 240:4-242:5
-    Visibility: public -/
-def whir.config.Config.impl.grinding_bits
-  (self : whir.config.Config) : Result (Slice Std.Usize) := do
-  ok (alloc.vec.Vec.deref self.grinding_bits)
+/-- [pcs::verifier::rows_of]:
+    Source: 'crates/pcs/src/verifier.rs', lines 163:0-173:1 -/
+def verifier.rows_of
+  (openings : merkle.Openings) (row_words : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+  := do
+  let n ← merkle.Openings.len openings
+  let rows :=
+    alloc.vec.Vec.with_capacity (alloc.vec.Vec primitives.field.gf2_64.F64) n
+  verifier.rows_of_loop openings row_words n rows 0#usize
 
-/-- [pcs::whir::config::{pcs::whir::config::Config}::ood_samples]:
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 249:4-251:5
+/-- [pcs::verifier::authenticate::{impl core::ops::function::FnOnce<(&'_6 [u8],), core::option::Option<pcs::merkle::Openings>> for pcs::verifier::authenticate::{closure}<'_0, '_1, '_2, '_3, '_4, '_5>}::call_once]:
+    Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
+def
+  verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings.call_once
+  (c : verifier.authenticate.closure) (tupled_args : Slice Std.U8) :
+  Result (Option merkle.Openings)
+  := do
+  let (v, i, a, i1, s, i2) := c
+  let i3 := alloc.vec.Vec.len v
+  let o ← merkle.PrunedMerklePaths.from_hint tupled_args i3 i
+  let cf ← core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let i4 ← lift (Std.Usize.wrapping_shl 1#usize i1)
+    merkle.PrunedMerklePaths.open val a i4 s i i2
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+      merkle.Openings residual
+
+/-- Trait implementation: [pcs::verifier::authenticate::{impl core::ops::function::FnOnce<(&'_6 [u8],), core::option::Option<pcs::merkle::Openings>> for pcs::verifier::authenticate::{closure}<'_0, '_1, '_2, '_3, '_4, '_5>}]
+    Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
+@[reducible]
+def
+  verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings
+  : core.ops.function.FnOnce verifier.authenticate.closure (Slice Std.U8)
+  (Option merkle.Openings) := {
+  call_once :=
+    verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings.call_once
+}
+
+/-- [pcs::verifier::authenticate]:
+    Source: 'crates/pcs/src/verifier.rs', lines 146:0-160:1 -/
+def verifier.authenticate
+  (vs : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (root : Array Std.U8 32#usize) (depth : Std.Usize)
+  (queries : Slice Std.Usize) (row_words : Std.Usize) (leaf_words : Std.Usize)
+  :
+  Result ((core.result.Result merkle.Openings
+    fiat_shamir.error.TranscriptError) × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let distinct ← merkle.sorted_unique queries
+  fiat_shamir.verifier.VerifierState.prover_hint_with
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge
+    verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings
+    vs (distinct, row_words, root, depth, queries, leaf_words)
+
+/-- [pcs::verifier::open_rows_native]:
+    Source: 'crates/pcs/src/verifier.rs', lines 133:0-143:1 -/
+def verifier.open_rows_native
+  (vs : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (root : Array Std.U8 32#usize) (depth : Std.Usize)
+  (queries : Slice Std.Usize) (row_words : Std.Usize) (leaf_words : Std.Usize)
+  :
+  Result ((core.result.Result (alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)) fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let (r, vs1) ←
+    verifier.authenticate vs root depth queries row_words leaf_words
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let v ← verifier.rows_of val row_words
+    ok (core.result.Result.Ok v, vs1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64))
+        (core.convert.FromSame fiat_shamir.error.TranscriptError) residual
+    ok (r1, vs1)
+
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::open_rows]:
+    Source: 'crates/pcs/src/verifier.rs', lines 108:4-117:5
     Visibility: public -/
-def whir.config.Config.impl.ood_samples
-  (self : whir.config.Config) : Result (Slice Std.Usize) := do
-  ok (alloc.vec.Vec.deref self.ood_samples)
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.open_rows
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (root : Array Std.U8 32#usize) (depth : Std.Usize)
+  (queries : Slice Std.Usize) (row_words : Std.Usize) (leaf_words : Std.Usize)
+  :
+  Result ((core.result.Result (alloc.vec.Vec (alloc.vec.Vec
+    primitives.field.gf2_64.F64)) fiat_shamir.error.TranscriptError) ×
+    (fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  verifier.open_rows_native self root depth queries row_words leaf_words
+
+/-- [pcs::whir::push_chunks]: loop body 0:
+    Source: 'crates/pcs/src/whir/mod.rs', lines 146:4-155:5 -/
+@[rust_loop_body]
+def whir.push_chunks_loop.body
+  (limbs : Array Std.U64 3#usize) (d : Std.Usize) (take : Std.Usize)
+  (block_len : Std.Usize) (out : alloc.vec.Vec Std.Usize) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.Usize) × Std.Usize) (alloc.vec.Vec
+    Std.Usize))
+  := do
+  if j < take
+  then
+    let off ← lift (Std.Usize.wrapping_mul j d)
+    let li ← off / 64#usize
+    let sh ← off % 64#usize
+    let i ← Array.index_usize limbs li
+    let chunk ← lift (Std.U64.wrapping_shr i sh)
+    let i1 ← lift (Std.Usize.wrapping_add sh d)
+    let chunk1 ←
+      if i1 > 64#usize
+      then
+        do
+        let i2 ← lift (Std.Usize.wrapping_add li 1#usize)
+        let i3 ← Array.index_usize limbs i2
+        let i4 ← lift (Std.Usize.wrapping_sub 64#usize sh)
+        let i5 ← lift (Std.U64.wrapping_shl i3 i4)
+        ok (chunk ||| i5)
+      else ok chunk
+    let i2 ← lift (UScalar.cast .Usize chunk1)
+    let i3 ← lift (Std.Usize.wrapping_sub block_len 1#usize)
+    let i4 ← lift (i2 &&& i3)
+    let out1 ← alloc.vec.Vec.push out i4
+    let j1 ← lift (Std.Usize.wrapping_add j 1#usize)
+    ok (cont (out1, j1))
+  else ok (done out)
+
+/-- [pcs::whir::push_chunks]: loop 0:
+    Source: 'crates/pcs/src/whir/mod.rs', lines 146:4-155:5 -/
+@[rust_loop]
+def whir.push_chunks_loop
+  (out : alloc.vec.Vec Std.Usize) (limbs : Array Std.U64 3#usize)
+  (d : Std.Usize) (take : Std.Usize) (block_len : Std.Usize) (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.Usize)
+  := do
+  loop
+    (fun (out1, j1) => whir.push_chunks_loop.body limbs d take block_len out1
+      j1)
+    (out, j)
+
+/-- [pcs::whir::push_chunks]:
+    Source: 'crates/pcs/src/whir/mod.rs', lines 144:0-156:1 -/
+@[reducible]
+def whir.push_chunks
+  (out : alloc.vec.Vec Std.Usize) (limbs : Array Std.U64 3#usize)
+  (d : Std.Usize) (take : Std.Usize) (block_len : Std.Usize) :
+  Result (alloc.vec.Vec Std.Usize)
+  := do
+  whir.push_chunks_loop out limbs d take block_len 0#usize
 
 /-- [pcs::whir::push_group]: loop body 0:
     Source: 'crates/pcs/src/whir/mod.rs', lines 106:4-112:5 -/
@@ -595,64 +4053,6 @@ def whir.strata
   let out := alloc.vec.Vec.with_capacity whir.Stratum count
   let g ← lift (UScalar.cast .Usize core.num.Usize.BITS)
   whir.strata_loop count depth out g
-
-/-- [pcs::whir::push_chunks]: loop body 0:
-    Source: 'crates/pcs/src/whir/mod.rs', lines 146:4-155:5 -/
-@[rust_loop_body]
-def whir.push_chunks_loop.body
-  (limbs : Array Std.U64 3#usize) (d : Std.Usize) (take : Std.Usize)
-  (block_len : Std.Usize) (out : alloc.vec.Vec Std.Usize) (j : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.Usize) × Std.Usize) (alloc.vec.Vec
-    Std.Usize))
-  := do
-  if j < take
-  then
-    let off ← lift (Std.Usize.wrapping_mul j d)
-    let li ← off / 64#usize
-    let sh ← off % 64#usize
-    let i ← Array.index_usize limbs li
-    let chunk ← lift (Std.U64.wrapping_shr i sh)
-    let i1 ← lift (Std.Usize.wrapping_add sh d)
-    let chunk1 ←
-      if i1 > 64#usize
-      then
-        do
-        let i2 ← lift (Std.Usize.wrapping_add li 1#usize)
-        let i3 ← Array.index_usize limbs i2
-        let i4 ← lift (Std.Usize.wrapping_sub 64#usize sh)
-        let i5 ← lift (Std.U64.wrapping_shl i3 i4)
-        ok (chunk ||| i5)
-      else ok chunk
-    let i2 ← lift (UScalar.cast .Usize chunk1)
-    let i3 ← lift (Std.Usize.wrapping_sub block_len 1#usize)
-    let i4 ← lift (i2 &&& i3)
-    let out1 ← alloc.vec.Vec.push out i4
-    let j1 ← lift (Std.Usize.wrapping_add j 1#usize)
-    ok (cont (out1, j1))
-  else ok (done out)
-
-/-- [pcs::whir::push_chunks]: loop 0:
-    Source: 'crates/pcs/src/whir/mod.rs', lines 146:4-155:5 -/
-@[rust_loop]
-def whir.push_chunks_loop
-  (out : alloc.vec.Vec Std.Usize) (limbs : Array Std.U64 3#usize)
-  (d : Std.Usize) (take : Std.Usize) (block_len : Std.Usize) (j : Std.Usize) :
-  Result (alloc.vec.Vec Std.Usize)
-  := do
-  loop
-    (fun (out1, j1) => whir.push_chunks_loop.body limbs d take block_len out1
-      j1)
-    (out, j)
-
-/-- [pcs::whir::push_chunks]:
-    Source: 'crates/pcs/src/whir/mod.rs', lines 144:0-156:1 -/
-@[reducible]
-def whir.push_chunks
-  (out : alloc.vec.Vec Std.Usize) (limbs : Array Std.U64 3#usize)
-  (d : Std.Usize) (take : Std.Usize) (block_len : Std.Usize) :
-  Result (alloc.vec.Vec Std.Usize)
-  := do
-  whir.push_chunks_loop out limbs d take block_len 0#usize
 
 /-- [pcs::whir::sample_queries_ordered]: loop body 0:
     Source: 'crates/pcs/src/whir/mod.rs', lines 127:4-131:5 -/
@@ -757,6 +4157,162 @@ def whir.sample_queries_ordered
   let strata ← whir.strata count d
   let out2 ← whir.sample_queries_ordered_loop1 d out1 strata 0#usize
   ok (out2, ch1)
+
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::sample_queries]:
+    Source: 'crates/pcs/src/verifier.rs', lines 104:4-106:5
+    Visibility: public -/
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.sample_queries
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (depth : Std.Usize) (count : Std.Usize) :
+  Result ((alloc.vec.Vec Std.Usize) × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let i ← lift (Std.Usize.wrapping_shl 1#usize depth)
+  whir.sample_queries_ordered
+    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge) self
+    i count
+
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::next_root]:
+    Source: 'crates/pcs/src/verifier.rs', lines 100:4-102:5
+    Visibility: public -/
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.next_root
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  :
+  Result ((core.result.Result (Array Std.U8 32#usize)
+    fiat_shamir.error.TranscriptError) × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  fiat_shamir.verifier.VerifierState.prover_message
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge
+    (ArrayU8N.Insts.Fiat_shamirCodecFromNargArrayU8N 32#usize) self
+
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::ensure_root_eq]:
+    Source: 'crates/pcs/src/verifier.rs', lines 92:4-98:5
+    Visibility: public -/
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.ensure_root_eq
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  (actual : Array Std.U8 32#usize) (expected : Array Std.U8 32#usize) :
+  Result ((core.result.Result Unit whir.verify.WhirError) ×
+    (fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let b ←
+    core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 actual expected
+  if b
+  then ok (core.result.Result.Ok (), self)
+  else
+    ok (core.result.Result.Err whir.verify.WhirError.CommitmentMismatch, self)
+
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::zero_k]:
+    Source: 'crates/pcs/src/verifier.rs', lines 88:4-90:5
+    Visibility: public -/
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.zero_k
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  :
+  Result (primitives.field.gf2_64.F64 × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  ok (primitives.field.gf2_64.F64.ZERO, self)
+
+/-- [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}::context]:
+    Source: 'crates/pcs/src/verifier.rs', lines 84:4-86:5
+    Visibility: public -/
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.context
+  (self : fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex)
+  :
+  Result ((fiat_shamir.TranscriptContext primitives.field.gf2_64.F64 (Array
+    Std.U8 32#usize)) × (fiat_shamir.verifier.VerifierState
+    fiat_shamir.duplex.Blake2sDuplex))
+  := do
+  let tc ← fiat_shamir.verifier.VerifierStateABlake2sDuplex.context self
+  ok (tc, self)
+
+/-- Trait implementation: [pcs::verifier::{impl pcs::verifier::OpeningVerifier<[u8; 32usize], primitives::field::gf2_64::F64, usize, primitives::field::gf2_64x3::F192> for fiat_shamir::verifier::VerifierState<'_0, fiat_shamir::duplex::Blake2sDuplex>}]
+    Source: 'crates/pcs/src/verifier.rs', lines 79:0-130:1 -/
+@[reducible]
+def
+  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192
+  : verifier.OpeningVerifier (fiat_shamir.verifier.VerifierState
+  fiat_shamir.duplex.Blake2sDuplex) (Array Std.U8 32#usize)
+  primitives.field.gf2_64.F64 Std.Usize primitives.field.gf2_64x3.F192 := {
+  fiat_shamirarithVerifierInst :=
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192
+    fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge
+  coremarkerCopyInst := Array.Insts.CoreMarkerCopy 32#usize core.marker.CopyU8
+  coremarkerCopyInst1 := primitives.field.gf2_64.F64.Insts.CoreMarkerCopy
+  context :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.context
+  zero_k :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.zero_k
+  ensure_root_eq :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.ensure_root_eq
+  next_root :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.next_root
+  sample_queries :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.sample_queries
+  open_rows :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.open_rows
+  mul_k_add :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.mul_k_add
+  e_of_limbs :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.e_of_limbs
+  query_point :=
+    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.query_point
+}
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::initial_k]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 212:4-214:5
+    Visibility: public -/
+def whir.config.Config.impl.initial_k
+  (self : whir.config.Config) : Result Std.Usize := do
+  ok self.initial_k
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::level_steps]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 217:4-219:5
+    Visibility: public -/
+def whir.config.Config.level_steps
+  (self : whir.config.Config) : Result Std.Usize := do
+  ok (alloc.vec.Vec.len self.level_ks)
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::level_ks]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 222:4-224:5
+    Visibility: public -/
+def whir.config.Config.impl.level_ks
+  (self : whir.config.Config) : Result (Slice Std.Usize) := do
+  ok (alloc.vec.Vec.deref self.level_ks)
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::log_inv_rates]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 227:4-229:5
+    Visibility: public -/
+def whir.config.Config.impl.log_inv_rates
+  (self : whir.config.Config) : Result (Slice Std.Usize) := do
+  ok (alloc.vec.Vec.deref self.log_inv_rates)
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::queries]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 232:4-234:5
+    Visibility: public -/
+def whir.config.Config.impl.queries
+  (self : whir.config.Config) : Result (Slice Std.Usize) := do
+  ok (alloc.vec.Vec.deref self.queries)
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::grinding_bits]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 240:4-242:5
+    Visibility: public -/
+def whir.config.Config.impl.grinding_bits
+  (self : whir.config.Config) : Result (Slice Std.Usize) := do
+  ok (alloc.vec.Vec.deref self.grinding_bits)
+
+/-- [pcs::whir::config::{pcs::whir::config::Config}::ood_samples]:
+    Source: 'crates/pcs/src/whir/config/mod.rs', lines 249:4-251:5
+    Visibility: public -/
+def whir.config.Config.impl.ood_samples
+  (self : whir.config.Config) : Result (Slice Std.Usize) := do
+  ok (alloc.vec.Vec.deref self.ood_samples)
 
 /-- [pcs::whir::query::{pcs::whir::query::Normalizers}::new]: loop body 0:
     Source: 'crates/pcs/src/whir/query.rs', lines 53:8-56:9 -/

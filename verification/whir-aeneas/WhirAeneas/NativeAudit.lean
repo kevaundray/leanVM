@@ -5,7 +5,10 @@ import Lean.Util.CollectAxioms
 extractions, their proofs, the Merkle opening composition and binding, and the link. -/
 
 #print axioms WhirAeneas.Native.verify_eq_native
-#print axioms WhirAeneas.Native.transcript_native
+#print axioms WhirAeneas.NativeReads.native_transcript
+#print axioms WhirAeneas.NativeReads.check_pow_ok
+#print axioms WhirAeneas.NativeReads.queries_ok
+#print axioms WhirAeneas.Native.level_hints
 #print axioms WhirAeneas.Native.authenticated_native
 #print axioms WhirAeneas.Replay.verify_eq
 #print axioms WhirAeneas.Replay.nativeVerify_withOracles
@@ -21,14 +24,15 @@ extractions, their proofs, the Merkle opening composition and binding, and the l
 #print axioms WhirAeneas.Merkle.rebuildSpec_tree
 #print axioms WhirAeneas.Merkle.openSpec_accepts
 #print axioms WhirAeneas.Merkle.openSpec_binding
-#print axioms MerkleSource.verifier.open_rows_native
+#print axioms ReplaySource.verifier.open_rows_native
+#print axioms WhirAeneas.NativeReads.nativeInst
 #print axioms ReplaySource.whir.verify.verify
 
 open Lean in
 run_cmd do
   let environment ← getEnv
-  let prefixes := [`WhirAeneas.Native, `WhirAeneas.Merkle, `WhirAeneas.MerkleNative, `WhirAeneas.Replay,
-    `WhirAeneas.Fold, `WhirAeneas.Query, `WhirAeneas.Sampling, `MerkleSource, `ReplaySource]
+  let prefixes := [`WhirAeneas.Native, `WhirAeneas.NativeReads, `WhirAeneas.Merkle, `WhirAeneas.MerkleNative,
+    `WhirAeneas.Replay, `WhirAeneas.Fold, `WhirAeneas.Query, `WhirAeneas.Sampling, `ReplaySource]
   let mut count : Nat := 0
   for (declarationName, declarationInfo) in environment.constants.toList do
     if prefixes.any (·.isPrefixOf declarationName) then

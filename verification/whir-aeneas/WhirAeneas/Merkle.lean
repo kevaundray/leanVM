@@ -1,4 +1,4 @@
-import WhirAeneas.Generated.Merkle.Funs
+import WhirAeneas.Generated.Replay.Funs
 
 /-! The generated `pcs::merkle` opening surface: `PrunedMerklePaths::from_hint` decodes a hint
 into rows and siblings, and `PrunedMerklePaths::open` accepts exactly when rebuilding every node
@@ -7,7 +7,7 @@ query's leaf image and sibling path. The hash kernels `hash_rows` and `hash_pair
 boundary: `RowHash` and `PairHash` state their content contracts over abstract leaf and pair
 hashes. Index and length premises are stated where the source would otherwise wrap. -/
 namespace WhirAeneas.Merkle
-open Aeneas Aeneas.Std MerkleSource
+open Aeneas Aeneas.Std ReplaySource
 
 abbrev Digest := Aeneas.Std.Array U8 32#usize
 

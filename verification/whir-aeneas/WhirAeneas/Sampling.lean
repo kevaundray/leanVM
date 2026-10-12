@@ -197,12 +197,12 @@ theorem push_chunks_eq (hw : System.Platform.numBits = 64) (limbs : Array U64 3#
 
 /-! ## The squeeze loop -/
 
-/-- The challenger's squeezes: each `F192` verifier message drawn from the duplex is the
-tape's next element. -/
+/-- The challenger's squeezes: `tape ch xs` says the next `F192` verifier messages drawn from
+the duplex in state `ch` are `xs`. -/
 structure SqueezeTape {T0 : Type} (Ch : fiat_shamir.Challenger T0)
-    (tape : T0 → List primitives.field.gf2_64x3.F192) : Prop where
-  sample : ∀ ch x rest, tape ch = x :: rest → ∃ ch', Ch.verifier_message
-    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824 ch = .ok (x, ch') ∧ tape ch' = rest
+    (tape : T0 → List primitives.field.gf2_64x3.F192 → Prop) : Prop where
+  sample : ∀ ch x rest, tape ch (x :: rest) → ∃ ch', Ch.verifier_message
+    primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824 ch = .ok (x, ch') ∧ tape ch' rest
 
 /-- A squeezed element as the model's extension element. -/
 def toE (x : primitives.field.gf2_64x3.F192) : Concrete.E :=
@@ -222,15 +222,15 @@ def rawAt (ns : List Nat) (d per i : Nat) : Nat :=
   (ns.getD (i / per) 0 / 2 ^ ((i % per) * d)) % 2 ^ d
 
 theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fiat_shamir.Challenger T0)
-    (tape : T0 → List primitives.field.gf2_64x3.F192) (ht : SqueezeTape Ch tape)
+    (tape : T0 → List primitives.field.gf2_64x3.F192 → Prop) (ht : SqueezeTape Ch tape)
     (block_len count d per : Usize) (hd0 : 0 < d.val) (hd : d.val < 64) (hb : block_len.val = 2 ^ d.val)
     (hper : per.val = 192 / d.val) (sq : List primitives.field.gf2_64x3.F192)
     (hsq : sq.length = (count.val + per.val - 1) / per.val) (rest : List primitives.field.gf2_64x3.F192) :
     ∀ (m k : Nat) (ch : T0) (out : alloc.vec.Vec Usize), sq.length - k = m → k ≤ sq.length →
-      tape ch = sq.drop k ++ rest → out.val.length = min (k * per.val) count.val →
+      tape ch (sq.drop k ++ rest) → out.val.length = min (k * per.val) count.val →
       out.val.map (·.val) = (List.range out.val.length).map (rawAt (sq.map sqNat) d.val per.val) →
       ∃ ch' out', whir.sample_queries_ordered_loop0 Ch ch block_len count d per out = .ok (ch', out') ∧
-        tape ch' = rest ∧ out'.val.map (·.val) = (List.range count.val).map (rawAt (sq.map sqNat) d.val per.val) := by
+        tape ch' rest ∧ out'.val.map (·.val) = (List.range count.val).map (rawAt (sq.map sqNat) d.val per.val) := by
   have hp0 : 0 < per.val := by rw [hper]; exact Nat.div_pos (by omega) hd0
   have hpd : per.val * d.val ≤ 192 := by rw [hper]; exact Nat.div_mul_le_self 192 d.val
   have hceil : ∀ k, k < sq.length ↔ k * per.val < count.val := by
@@ -243,7 +243,7 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
     have hk' : k = sq.length := by omega
     have hge : count.val ≤ k * per.val := by have := (hceil k).not.mp (by omega); omega
     have hlc : out.val.length = count.val := by rw [hlen]; omega
-    refine ⟨ch, out, ?_, by rw [hch, hk', List.drop_length]; rfl, by rw [hout, hlc]⟩
+    refine ⟨ch, out, ?_, by rw [hk', List.drop_length] at hch; exact hch, by rw [hout, hlc]⟩
     unfold whir.sample_queries_ordered_loop0
     apply loop_done
     have : ¬ (alloc.vec.Vec.len out < count) := by
@@ -255,7 +255,7 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
     have hkc : k * per.val < count.val := (hceil k).mp hkl
     have hlo : out.val.length = k * per.val := by rw [hlen]; omega
     obtain ⟨ch1, hsample, hch1⟩ := ht.sample ch sq[k] (sq.drop (k + 1) ++ rest)
-      (by rw [hch, List.drop_eq_getElem_cons hkl]; rfl)
+      (by rw [List.drop_eq_getElem_cons hkl] at hch; exact hch)
     have hcm : count.val ≤ Usize.max := by clear * - count; scalar_tac
     have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
     have hsub : (Std.Usize.wrapping_sub count (alloc.vec.Vec.len out)).val = count.val - k * per.val := by
@@ -277,7 +277,7 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
     have hl1 : out1.val.length = min ((k + 1) * per.val) count.val := by
       have := congrArg List.length e1; simp at this; rw [this, hlo, etk, Nat.add_mul]; omega
     obtain ⟨ch', out', hloop, hch', hout'⟩ := ih (k + 1) ch1 out1 (by omega) (by omega)
-      (by rw [hch1]) hl1 (by
+      hch1 hl1 (by
         rw [e1, hout, hlo, hl1]
         rw [show min ((k + 1) * per.val) count.val = k * per.val + min per.val (count.val - k * per.val) by
           rw [Nat.add_mul]; omega, List.range_add, List.map_append]
@@ -613,12 +613,12 @@ theorem trailing_zeros_pow (x : Usize) (d : Nat) (hd : d < 64) (hx : x.val = 2 ^
 returns exactly the model's `deriveQueries` of those squeezes read as extension elements,
 for a power-of-two block of depth `d` with `0 < d < 64`. -/
 theorem sample_queries_ordered_eq (hw : System.Platform.numBits = 64) {T0 : Type}
-    (Ch : fiat_shamir.Challenger T0) (tape : T0 → List primitives.field.gf2_64x3.F192)
+    (Ch : fiat_shamir.Challenger T0) (tape : T0 → List primitives.field.gf2_64x3.F192 → Prop)
     (ht : SqueezeTape Ch tape) (ch : T0) (block_len count : Usize) (d : Nat) (hd0 : 0 < d) (hd : d < 64)
     (hb : block_len.val = 2 ^ d) (sq : List primitives.field.gf2_64x3.F192)
     (hsq : sq.length = (count.val + 192 / d - 1) / (192 / d)) (rest : List primitives.field.gf2_64x3.F192)
-    (hch : tape ch = sq ++ rest) :
-    ∃ out ch', whir.sample_queries_ordered Ch ch block_len count = .ok (out, ch') ∧ tape ch' = rest ∧
+    (hch : tape ch (sq ++ rest)) :
+    ∃ out ch', whir.sample_queries_ordered Ch ch block_len count = .ok (out, ch') ∧ tape ch' rest ∧
       deriveQueries d count.val (sq.map toE).toArray = some (out.val.map (·.val)).toArray := by
   have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
   obtain ⟨t, htz, et⟩ := trailing_zeros_pow block_len d hd hb

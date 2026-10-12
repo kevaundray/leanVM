@@ -7,7 +7,7 @@ with `PrunedMerklePaths::from_hint` for the distinct queries, authenticate it wi
 authenticate is `InvalidHint`, one that is absent or cut short is `MissingHint`, and a poisoned
 transcript returns its error; both failures poison it. -/
 namespace WhirAeneas.MerkleNative
-open Aeneas Aeneas.Std MerkleSource WhirAeneas.Merkle
+open Aeneas Aeneas.Std ReplaySource WhirAeneas.Merkle
 
 /-- The verifier state over the BLAKE2s duplex, as the native `open_rows` takes it. -/
 abbrev VS := fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex

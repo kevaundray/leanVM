@@ -61,19 +61,22 @@ theorem slice_range {α : Type} (s : Slice α) (a b : Usize) (hab : a.val ≤ b.
 
 /-! ## The transcript interface
 
-`tape v` is what the opening verifier in state `v` answers next, as source values, in the
-replay's read order. It is stated against the spongefish transcript of PR 607: a verifier
-message (`sample`, `sampleVec`, the batch challenge, the query positions) is drawn from the
-BLAKE2s duplex and takes no proof bytes; a prover message is read off the NARG string and
-absorbed (`scalar`, `scalars`: 24 bytes per element, three little-endian limbs lowest first;
-`root`: the raw 32-byte digest); a round polynomial is two prover messages, its constant and
-quadratic coefficients, from which the generated `RoundPolynomial::read` fixes the linear
-one; `grind` is the proof-of-work check (a 32-byte challenge drawn, then an 8-byte
-little-endian nonce read and absorbed; zero bits is no step); `rows` is one length-prefixed
-hint, not absorbed, authenticated by the opening verifier against the root, depth, query
-positions and row and leaf widths the replay passes, which the event records. The interface
-assumes nothing about how the duplex derives the draws or how the hint is authenticated;
-those are separate contracts of the concrete verifier. -/
+`tape v evs` says the opening verifier in state `v` answers the events `evs` next, as source
+values, in the replay's read order. It is a relation rather than a function of the state: a
+read that changes nothing observable (a proof of work of zero bits, an empty batch) leaves the
+state as it was while consuming its event. It is stated against the spongefish transcript of
+PR 607: a verifier message (`sample`, `sampleVec`, the batch challenge, the query positions) is
+drawn from the BLAKE2s duplex and takes no proof bytes; a prover message is read off the NARG
+string and absorbed (`scalar`, `scalars`: 24 bytes per element, three little-endian limbs
+lowest first; `root`: the raw 32-byte digest); a round polynomial is two prover messages, its
+constant and quadratic coefficients, from which the generated `RoundPolynomial::read` fixes the
+linear one; `grind bits` is the proof-of-work check of `bits` bits (a 32-byte challenge drawn,
+then an 8-byte little-endian nonce read and absorbed; zero bits is no step); `queries depth qs`
+are positions of `depth` bits; `rows` is one length-prefixed hint, not absorbed, authenticated
+by the opening verifier against the root, depth, query positions and row and leaf widths the
+replay passes, which the event records. The interface assumes nothing about how the duplex
+derives the draws or how the hint is authenticated; those are separate contracts of the
+concrete verifier. -/
 
 inductive Event (E Q R K : Type) where
   | sample (e : E)
@@ -82,49 +85,49 @@ inductive Event (E Q R K : Type) where
   | scalars (ys : List E)
   | poly (u0 u2 : E)
   | root (r : R)
-  | grind
-  | queries (qs : List Q)
+  | grind (bits : Nat)
+  | queries (depth : Nat) (qs : List Q)
   | rows (root : R) (depth : Nat) (qs : List Q) (rowWords leafWords : Nat) (ws : List (List K))
 
-/-- Every read but the Merkle rows: each returns the tape's next answer and leaves the rest; a
+/-- Every read but the Merkle rows: each answers the tape's next event and leaves the rest; a
 round polynomial is read as its two transmitted coefficients; scopes change nothing. -/
 structure Reads {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
-    (encode : E → Concrete.E) (tape : V → List (Event E Q R K)) : Prop where
-  sample : ∀ v e rest, tape v = .sample e :: rest →
-    ∃ v', inst.fiat_shamirarithVerifierInst.verifier_message v = .ok (e, v') ∧ tape v' = rest
-  sample_vec : ∀ v (n : Usize) zs rest, tape v = .sampleVec zs :: rest → zs.length = n.val →
+    (encode : E → Concrete.E) (tape : V → List (Event E Q R K) → Prop) : Prop where
+  sample : ∀ v e rest, tape v (.sample e :: rest) →
+    ∃ v', inst.fiat_shamirarithVerifierInst.verifier_message v = .ok (e, v') ∧ tape v' rest
+  sample_vec : ∀ v (n : Usize) zs rest, tape v (.sampleVec zs :: rest) → zs.length = n.val →
     ∃ w v', inst.fiat_shamirarithVerifierInst.verifier_messages v n = .ok (w, v') ∧ w.val = zs ∧
-      tape v' = rest
-  scalar : ∀ v y rest, tape v = .scalar y :: rest →
-    ∃ v', inst.fiat_shamirarithVerifierInst.prover_message v = .ok (.Ok y, v') ∧ tape v' = rest
-  scalars : ∀ v (n : Usize) ys rest, tape v = .scalars ys :: rest → ys.length = n.val →
+      tape v' rest
+  scalar : ∀ v y rest, tape v (.scalar y :: rest) →
+    ∃ v', inst.fiat_shamirarithVerifierInst.prover_message v = .ok (.Ok y, v') ∧ tape v' rest
+  scalars : ∀ v (n : Usize) ys rest, tape v (.scalars ys :: rest) → ys.length = n.val →
     ∃ w v', inst.fiat_shamirarithVerifierInst.prover_messages v n = .ok (.Ok w, v') ∧ w.val = ys ∧
-      tape v' = rest
-  poly : ∀ v (n : Usize) u0 u2 rest, tape v = .poly u0 u2 :: rest → n.val = 2 →
+      tape v' rest
+  poly : ∀ v (n : Usize) u0 u2 rest, tape v (.poly u0 u2 :: rest) → n.val = 2 →
     ∃ w v', inst.fiat_shamirarithVerifierInst.prover_messages v n = .ok (.Ok w, v') ∧ w.val = [u0, u2] ∧
-      tape v' = rest
-  root : ∀ v r rest, tape v = .root r :: rest →
-    ∃ v', inst.next_root v = .ok (.Ok r, v') ∧ tape v' = rest
-  grind : ∀ v bits rest, tape v = .grind :: rest →
-    ∃ v', inst.fiat_shamirarithVerifierInst.check_pow v bits = .ok (.Ok (), v') ∧ tape v' = rest
-  queries : ∀ v depth (count : Usize) qs rest, tape v = .queries qs :: rest → qs.length = count.val →
-    ∃ w v', inst.sample_queries v depth count = .ok (w, v') ∧ w.val = qs ∧ tape v' = rest
+      tape v' rest
+  root : ∀ v r rest, tape v (.root r :: rest) →
+    ∃ v', inst.next_root v = .ok (.Ok r, v') ∧ tape v' rest
+  grind : ∀ v (bits : U32) rest, tape v (.grind bits.val :: rest) →
+    ∃ v', inst.fiat_shamirarithVerifierInst.check_pow v bits = .ok (.Ok (), v') ∧ tape v' rest
+  queries : ∀ v (depth count : Usize) qs rest, tape v (.queries depth.val qs :: rest) → qs.length = count.val →
+    ∃ w v', inst.sample_queries v depth count = .ok (w, v') ∧ w.val = qs ∧ tape v' rest
   begin_scope : ∀ v stage, inst.fiat_shamirarithVerifierInst.begin_scope v stage = .ok v
   end_scope : ∀ v, inst.fiat_shamirarithVerifierInst.end_scope v = .ok v
 
 /-- The reads, and the rows read answering the arguments its event records. -/
 structure Transcript {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
-    (encode : E → Concrete.E) (tape : V → List (Event E Q R K)) : Prop extends Reads inst encode tape where
+    (encode : E → Concrete.E) (tape : V → List (Event E Q R K) → Prop) : Prop extends Reads inst encode tape where
   rows : ∀ v root (depth : Usize) (queries : Slice Q) (a b : Usize) ws rest,
-    tape v = .rows root depth.val queries.val a.val b.val ws :: rest →
+    tape v (.rows root depth.val queries.val a.val b.val ws :: rest) →
     ∃ w v', inst.open_rows v root depth queries a b = .ok (.Ok w, v') ∧
-      w.val.map (·.val) = ws ∧ tape v' = rest
+      w.val.map (·.val) = ws ∧ tape v' rest
 
 section Steps
 open AccumulatedTerminalRefinement WHIRNativeArithmetic
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E) (index : Q → Nat)
-  (tape : V → List (Event E Q R K))
+  (tape : V → List (Event E Q R K) → Prop)
 
 /-- The generated `RoundPolynomial::read` of a quadratic with the linear coefficient fixed:
 the two transmitted coefficients with `claim + u2` inserted between them. -/
@@ -169,9 +172,9 @@ theorem read_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst enco
 linear coefficient `claim + u2`. -/
 theorem recv_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
-    (claim u0 u2 : E) (rest : List (Event E Q R K)) (hv : tape v = .poly u0 u2 :: rest) :
+    (claim u0 u2 : E) (rest : List (Event E Q R K)) (hv : tape v (.poly u0 u2 :: rest)) :
     ∃ q v', whir.verify.Quad.recv copy inst v claim = .ok (.Ok q, v') ∧ q.c = u0 ∧ q.a = u2 ∧
-      encode q.b = encode claim + encode u2 ∧ tape v' = rest := by
+      encode q.b = encode claim + encode u2 ∧ tape v' rest := by
   obtain ⟨w, v', hpm, hw, hrest⟩ := ht.poly v (Std.Usize.wrapping_sub 3#usize 1#usize) u0 u2 rest hv
     (by rw [Fold.sub_val _ _ (by simp)]; simp)
   obtain ⟨coeffs, b, hread, hc, hb⟩ := read_eq inst encode const h copy v v' claim u0 u2 w hw hpm
@@ -193,7 +196,7 @@ theorem fold_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst
       (self : whir.verify.WhirReplay V R K Q E) (v : V) (rs : alloc.vec.Vec E) (st : State)
       (rest : List (Event E Q R K)),
       iter.start.val + rounds.length = iter.end.val →
-      tape v = foldTape rounds ++ rest →
+      tape v (foldTape rounds ++ rest) →
       encode self.t_r = st.claim →
       (⟨encode self.quad.c, encode self.quad.a⟩ : Protocol.Message Concrete.E) = st.message →
       encode self.quad.b = st.claim + encode self.quad.a →
@@ -202,7 +205,7 @@ theorem fold_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst
       ∃ rs' t' q' ris' v',
         whir.verify.WhirReplay.fold_rounds_loop inst iter self v rs =
           .ok (.Ok rs', t', q', ris', self.levels, self.oods, v') ∧
-        tape v' = rest ∧ rs'.val = rs.val ++ rounds.map (·.1) ∧ ris'.val = self.ris.val ++ rs'.val ∧
+        tape v' rest ∧ rs'.val = rs.val ++ rounds.map (·.1) ∧ ris'.val = self.ris.val ++ rs'.val ∧
         encode t' = (foldModel encode rounds st).claim ∧
         (⟨encode q'.c, encode q'.a⟩ : Protocol.Message Concrete.E) = (foldModel encode rounds st).message ∧
         encode q'.b = (foldModel encode rounds st).claim + encode q'.a ∧
@@ -227,12 +230,12 @@ theorem fold_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst
     obtain ⟨r, u0, u2⟩ := rd
     obtain ⟨iter1, hnext, hs1, he1⟩ := range_next_some iter (by simp at hlen; omega)
     obtain ⟨v1, hsample, hv1⟩ := ht.sample v r (.poly u0 u2 :: (foldTape rounds ++ rest))
-      (by simp [hv, foldTape])
+      (by simpa [foldTape] using hv)
     obtain ⟨t, het, et⟩ := quad_eval inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
       encode const h self.quad v1 r st.claim hb
     obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode const tape h ht
       inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v1 t u0 u2
-      (foldTape rounds ++ rest) (by rw [hv1])
+      (foldTape rounds ++ rest) hv1
     obtain ⟨rs1, hpush, ers1⟩ := push_ok rs r (by simp at hcap; omega)
     have hbody : whir.verify.WhirReplay.fold_rounds_loop.body inst iter self v rs =
         .ok (.cont (iter1, { self with t_r := t, quad := q }, v3, rs1)) := by
@@ -262,10 +265,10 @@ theorem fold_rounds_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithIn
     (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
     (self : whir.verify.WhirReplay V R K Q E) (st : State) (hrel : StateRel encode index self st)
     (v : V) (k : Usize) (rounds : List (E × E × E)) (rest : List (Event E Q R K))
-    (hk : rounds.length = k.val) (hv : tape v = foldTape rounds ++ rest)
+    (hk : rounds.length = k.val) (hv : tape v (foldTape rounds ++ rest))
     (hcap : self.ris.val.length + rounds.length ≤ Usize.max) :
     ∃ rs self' v', whir.verify.WhirReplay.fold_rounds inst self v k = .ok (.Ok rs, self', v') ∧
-      tape v' = rest ∧ rs.val = rounds.map (·.1) ∧ self'.ris.val = self.ris.val ++ rs.val ∧
+      tape v' rest ∧ rs.val = rounds.map (·.1) ∧ self'.ris.val = self.ris.val ++ rs.val ∧
       self'.levels = self.levels ∧ self'.oods = self.oods ∧
       StateRel encode index self' (foldModel encode rounds st) ∧
       (foldModel encode rounds st).n = st.n - k.val := by
@@ -292,9 +295,9 @@ def OodIs (o : whir.verify.Ood E) (d : List E × E × E × E) : Prop :=
 theorem ood_replay_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
     (n : Usize) (z : List E) (y u0 u2 : E) (rest : List (Event E Q R K)) (hz : z.length = n.val)
-    (hv : tape v = .sampleVec z :: .scalar y :: .poly u0 u2 :: rest) :
+    (hv : tape v (.sampleVec z :: .scalar y :: .poly u0 u2 :: rest)) :
     ∃ o v', whir.verify.Ood.replay copy inst v n = .ok (.Ok o, v') ∧ OodIs encode o (z, y, u0, u2) ∧
-      tape v' = rest := by
+      tape v' rest := by
   obtain ⟨w, v1, h1, ew, hv1⟩ := ht.sample_vec v n z _ hv hz
   obtain ⟨v2, h2, hv2⟩ := ht.scalar v1 y _ hv1
   obtain ⟨q, v3, h3, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode const tape h ht copy v2 y u0 u2 rest hv2
@@ -306,10 +309,10 @@ theorem replay_all_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.Ari
     (count n : Usize) :
     ∀ (l : List (List E × E × E × E)) (i : Usize) (oods : alloc.vec.Vec (whir.verify.Ood E)) (v : V)
       (rest : List (Event E Q R K)),
-      i.val + l.length = count.val → (∀ d ∈ l, d.1.length = n.val) → tape v = oodTape l ++ rest →
+      i.val + l.length = count.val → (∀ d ∈ l, d.1.length = n.val) → tape v (oodTape l ++ rest) →
       oods.val.length + l.length ≤ Usize.max →
       ∃ w v', whir.verify.Ood.replay_all_loop copy inst v count n oods i = .ok (.Ok w, v') ∧
-        tape v' = rest ∧ ∃ ws, w.val = oods.val ++ ws ∧ List.Forall₂ (OodIs encode) ws l := by
+        tape v' rest ∧ ∃ ws, w.val = oods.val ++ ws ∧ List.Forall₂ (OodIs encode) ws l := by
   intro l
   induction l with
   | nil =>
@@ -323,7 +326,7 @@ theorem replay_all_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.Ari
     intro i oods v rest hi hz hv hcap
     obtain ⟨z, y, u0, u2⟩ := d
     obtain ⟨o, v1, h1, eo, hv1⟩ := ood_replay_eq inst encode const tape h ht copy v n z y u0 u2
-      (oodTape l ++ rest) (hz (z, y, u0, u2) (by simp)) (by simp [hv, oodTape])
+      (oodTape l ++ rest) (hz (z, y, u0, u2) (by simp)) (by simpa [oodTape] using hv)
     obtain ⟨oods1, hpush, eoods1⟩ := push_ok oods o (by simp at hcap; omega)
     have hlt : i.val < count.val := by simp at hi; omega
     have hsucc := succ_val i count.val hlt (by scalar_tac)
@@ -344,8 +347,8 @@ theorem replay_all_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.Ari
 theorem replay_all_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (ht : Transcript inst encode tape) (copy : core.marker.Copy E)
     (v : V) (count n : Usize) (l : List (List E × E × E × E)) (rest : List (Event E Q R K))
-    (hl : l.length = count.val) (hz : ∀ d ∈ l, d.1.length = n.val) (hv : tape v = oodTape l ++ rest) :
-    ∃ w v', whir.verify.Ood.replay_all copy inst v count n = .ok (.Ok w, v') ∧ tape v' = rest ∧
+    (hl : l.length = count.val) (hz : ∀ d ∈ l, d.1.length = n.val) (hv : tape v (oodTape l ++ rest)) :
+    ∃ w v', whir.verify.Ood.replay_all copy inst v count n = .ok (.Ok w, v') ∧ tape v' rest ∧
       List.Forall₂ (OodIs encode) w.val l := by
   obtain ⟨w, v', hloop, hv', ws, ew, hws⟩ := replay_all_loop_eq inst encode const tape h ht copy count n l
     0#usize (alloc.vec.Vec.new _) v rest (by simp [hl]) hz hv (by simp [alloc.vec.Vec.new]; scalar_tac)
@@ -357,8 +360,8 @@ takes the challenge's powers as the query weights. -/
 theorem begin_query_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (ht : Transcript inst encode tape) (v : V) (phase : whir.verify.QueryPhase) (qs : List Q) (lam : E)
     (rest : List (Event E Q R K)) (hq : qs.length = phase.count.val)
-    (hv : tape v = .grind :: .queries qs :: .sample lam :: rest) :
-    ∃ b v', whir.verify.WhirReplay.begin_query inst v phase = .ok (.Ok b, v') ∧ tape v' = rest ∧
+    (hv : tape v (.grind phase.grinding.val :: .queries phase.depth.val qs :: .sample lam :: rest)) :
+    ∃ b v', whir.verify.WhirReplay.begin_query inst v phase = .ok (.Ok b, v') ∧ tape v' rest ∧
       b.queries.val = qs ∧ b.lambda = lam ∧
       b.weights.val.map encode = (Concrete.powers (encode lam) qs.length).toList := by
   obtain ⟨v1, h1, hv1⟩ := ht.grind v phase.grinding _ hv
@@ -377,7 +380,7 @@ section Rows
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (encodeK : K → Concrete.K)
   (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E) (index : Q → Nat)
-  (tape : V → List (Event E Q R K))
+  (tape : V → List (Event E Q R K) → Prop)
 
 /-- A row of words read as elements, three limbs each, lowest first. -/
 def eRow (ws : List K) : List Concrete.E :=
@@ -526,8 +529,8 @@ theorem open_e_rows_eq (hr : RowModel inst encode encodeK ofLimbs index) (ht : T
     (hroot : oracle.root = root)
     (hdepth : (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate).val = depth)
     (hq : queries.val = qs) (hwords : (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = words)
-    (hv : tape v = .rows root depth qs words words ws :: rest) :
-    ∃ rows v', whir.verify.Oracle.open_e_rows inst oracle v queries = .ok (.Ok rows, v') ∧ tape v' = rest ∧
+    (hv : tape v (.rows root depth qs words words ws :: rest)) :
+    ∃ rows v', whir.verify.Oracle.open_e_rows inst oracle v queries = .ok (.Ok rows, v') ∧ tape v' rest ∧
       rows.val.map (fun r => r.val.map encode) = ws.map (eRow encodeK ofLimbs) := by
   subst hroot hdepth hq hwords
   obtain ⟨w, v1, h1, ew, hv1⟩ := ht.rows v oracle.root
@@ -548,6 +551,9 @@ end Rows
 
 section Config
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
+
+theorem cast_u32_val (x : Usize) (hx : x ≤ U32.max) : (UScalar.cast .U32 x).val = x.val := by
+  rw [UScalar.cast_val_eq]; apply Nat.mod_eq_of_lt; scalar_tac
 
 theorem phase_eq (config : whir.config.Config) (level depth : Usize)
     (hl : level.val < config.grinding_bits.val.length) (hq : level.val < config.queries.val.length)
@@ -1093,7 +1099,7 @@ open AccumulatedTerminalRefinement WHIRNativeArithmetic
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
   (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
-  (index : Q → Nat) (tape : V → List (Event E Q R K))
+  (index : Q → Nat) (tape : V → List (Event E Q R K) → Prop)
 
 /-- A residual round's reads: its challenge, then its polynomial unless it is the last. -/
 def tailEvents : E × Option (E × E) → List (Event E Q R K)
@@ -1155,7 +1161,7 @@ theorem tail_loop_eq {T1 : Type} (h : ArithModel inst.fiat_shamirarithVerifierIn
     ∀ (m j : Nat) (iter : core.ops.range.Range Usize) (self : whir.verify.WhirReplay V R K Q E) (v : V)
       (rt : alloc.vec.Vec E),
       iter.start.val = j → iter.end = nc → tail.length - j = m → j ≤ tail.length →
-      tape v = ((tailPairs tail msgs).drop j).flatMap tailEvents ++ rest →
+      tape v (((tailPairs tail msgs).drop j).flatMap tailEvents ++ rest) →
       self.ris = ris0 → self.levels = levels0 → self.oods = oods0 → rt.val = tail.take j →
       encode self.t_r = (Protocol.runSteps (tailStep ch pf) j 0 st0).claim →
       (⟨encode self.quad.c, encode self.quad.a⟩ : Protocol.Message Concrete.E) =
@@ -1539,7 +1545,7 @@ open AccumulatedTerminalRefinement WHIRNativeArithmetic
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
   (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
-  (index : Q → Nat) (tape : V → List (Event E Q R K))
+  (index : Q → Nat) (tape : V → List (Event E Q R K) → Prop)
 
 /-- The model's state after a later level's query batch with no out-of-domain claims. -/
 def lastState (st : State) (n : Nat) (qs : List Q) (lam : E) (rows : List (List K)) (point : List E)
@@ -1555,7 +1561,7 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
     (hens : EnsureModel inst encode) (W : whir.verify.WeightAt T1 E V R K Q) (weight_at : T1)
     (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
-    (config : whir.config.Config) (oracle : whir.verify.Oracle R) (root : R) (depth words : Nat)
+    (config : whir.config.Config) (oracle : whir.verify.Oracle R) (root : R) (depth words bits : Nat)
     (horoot : oracle.root = root)
     (hodepth : (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate).val = depth)
     (howords : (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = words)
@@ -1564,12 +1570,13 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (hfits : ModelFits st) (v : V) (n : Usize) (hst : st.n = n.val) (hn64 : n.val < 64)
     (ys : List E) (qs : List Q) (lam : E) (rows : List (List K)) (i0 i2 : E) (tail : List E)
     (msgs : List (E × E)) (rest : List (Event E Q R K))
-    (hv : tape v = [.scalars ys, .grind, .queries qs, .sample lam, .rows root depth qs words words rows,
-      .poly i0 i2] ++ (tailTape tail msgs ++ rest))
+    (hv : tape v ([.scalars ys, .grind bits, .queries depth qs, .sample lam, .rows root depth qs words words rows,
+      .poly i0 i2] ++ (tailTape tail msgs ++ rest)))
     (hys : ys.length = 2 ^ n.val)
     (hgl : (alloc.vec.Vec.len config.level_ks).val < config.grinding_bits.val.length)
     (hql : (alloc.vec.Vec.len config.level_ks).val < config.queries.val.length)
     (hg : config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val] ≤ U32.max)
+    (hbits : (config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val]).val = bits)
     (hcount : qs.length = (config.queries.val[(alloc.vec.Vec.len config.level_ks).val]).val)
     (hrows : rows.length = qs.length) (hne : rows ≠ [])
     (hwidth : ∀ r ∈ rows, r.length = 3 * 2 ^ level_rs.val.length) (hpt : level_rs.val.length < 64)
@@ -1589,10 +1596,14 @@ theorem last_level_eq {T1 : Type} (hw : System.Platform.numBits = 64)
           i0 i2)).claim) := by
   have hshl := shl_one_val hw n hn64
   obtain ⟨yr, v1, h1, eyr, hv1⟩ := ht.scalars v (Std.Usize.wrapping_shl 1#usize n) ys _ hv (by rw [hshl, hys])
+  have hgv : (UScalar.cast .U32 config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val]).val = bits := by
+    rw [cast_u32_val _ hg, hbits]
   obtain ⟨b, v2, h2, hv2, ebq, ebl, ebw⟩ := begin_query_eq inst encode const tape h ht v1
     (whir.verify.QueryPhase.mk (UScalar.cast .U32 config.grinding_bits.val[(alloc.vec.Vec.len config.level_ks).val])
       (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate)
-      config.queries.val[(alloc.vec.Vec.len config.level_ks).val]) qs lam _ hcount hv1
+      config.queries.val[(alloc.vec.Vec.len config.level_ks).val]) qs lam _ hcount (by
+        show tape v1 (.grind (UScalar.cast .U32 _).val :: .queries (Std.Usize.wrapping_add _ _).val qs :: _)
+        rw [hgv, hodepth]; exact hv1)
   obtain ⟨rowsV, v3, h3, hv3, erows⟩ := open_e_rows_eq inst encode encodeK ofLimbs index tape hr ht oracle v2
     (alloc.vec.Vec.deref b.queries) root depth qs words rows _ (fun r hr' => by rw [hwidth r hr']; omega)
     horoot hodepth (by simpa [alloc.vec.Vec.deref] using ebq) howords hv2
@@ -1883,13 +1894,15 @@ open AccumulatedTerminalRefinement WHIRNativeArithmetic
 
 /-- One level's answers, as source values: the fold rounds `(r, u0, u2)`, the next oracle's
 root or (at the last level) the residual polynomial, the out-of-domain claims
-`(z, y, u0, u2)`, the query positions and the model's squeezes behind them, the batch
-challenge, the arguments the replay passes to the rows read (the level oracle's root and
-depth, the row and leaf widths in words), the opened rows and the batch's intro round. -/
+`(z, y, u0, u2)`, the batch's proof-of-work bits, the query positions and the model's squeezes
+behind them, the batch challenge, the arguments the replay passes to the rows read (the level
+oracle's root and depth, the row and leaf widths in words), the opened rows and the batch's
+intro round. -/
 structure SLevel (E Q R K : Type) where
   folds : List (E × E × E)
   head : R ⊕ List E
   oods : List (List E × E × E × E)
+  bits : Nat
   squeezes : Array Concrete.E
   queries : List Q
   lambda : E
@@ -1913,7 +1926,7 @@ def headTape : R ⊕ List E → List (Event E Q R K)
   | .inr ys => [.scalars ys]
 
 def batchTape (l : SLevel E Q R K) : List (Event E Q R K) :=
-  [.grind, .queries l.queries, .sample l.lambda, .rows l.root l.depth l.queries l.rowWords l.leafWords l.rows,
+  [.grind l.bits, .queries l.depth l.queries, .sample l.lambda, .rows l.root l.depth l.queries l.rowWords l.leafWords l.rows,
     .poly l.intro.1 l.intro.2]
 
 def levelTape (l : SLevel E Q R K) : List (Event E Q R K) :=

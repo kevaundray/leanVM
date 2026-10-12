@@ -278,7 +278,7 @@ open AccumulatedTerminalRefinement WHIRNativeArithmetic
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
   (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
-  (index : Q → Nat) (tape : V → List (Event E Q R K))
+  (index : Q → Nat) (tape : V → List (Event E Q R K) → Prop)
 
 theorem mid_level_eq {T1 : Type}
     (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
@@ -293,7 +293,7 @@ theorem mid_level_eq {T1 : Type}
     (hodepth : (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate).val = l.depth)
     (howords : (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = l.rowWords)
     (hleaf : l.leafWords = l.rowWords)
-    (hv : tape v = levelTape l ++ rest)
+    (hv : tape v (levelTape l ++ rest))
     (hit : iter.start.val < iter.end.val) (hiend : iter.end = alloc.vec.Vec.len config.level_ks)
     (hmid : iter.start.val + 1 < config.level_ks.val.length)
     (hfl : l.folds.length = (config.level_ks.val[iter.start.val]'(by omega)).val)
@@ -304,6 +304,7 @@ theorem mid_level_eq {T1 : Type}
     (hgl : iter.start.val + 1 < config.grinding_bits.val.length)
     (hql : iter.start.val + 1 < config.queries.val.length)
     (hg : config.grinding_bits.val[iter.start.val + 1] ≤ U32.max)
+    (hbits : (config.grinding_bits.val[iter.start.val + 1]).val = l.bits)
     (hcount : l.queries.length = (config.queries.val[iter.start.val + 1]).val)
     (hrows : l.rows.length = l.queries.length) (hne : l.rows ≠ [])
     (hwidth : ∀ r ∈ l.rows, r.length = 3 * 2 ^ l.folds.length) (hk64 : l.folds.length < 64)
@@ -315,7 +316,7 @@ theorem mid_level_eq {T1 : Type}
     ∃ iter' v' w' n' oracle',
       whir.verify.WhirReplay.run_loop1.body inst W config weight_at iter v w n oracle =
         .ok (.cont (iter', v', w', n', oracle')) ∧
-      iter'.start.val = iter.start.val + 1 ∧ iter'.end = iter.end ∧ tape v' = rest ∧
+      iter'.start.val = iter.start.val + 1 ∧ iter'.end = iter.end ∧ tape v' rest ∧
       n'.val = n.val - l.folds.length ∧ w'.ris.val = w.ris.val ++ l.folds.map (·.1) ∧
       Query.StateRel encode index w'
         (queryBatch (foldBlock (l.chal encode) (l.prf encode encodeK ofLimbs false) st).n j (l.chal encode)
@@ -345,10 +346,10 @@ theorem mid_level_eq {T1 : Type}
   -- fold rounds
   obtain ⟨rs, w1, v1, hfold, hv1, ers, eris1, elev1, eoods1, hrel1, hn1⟩ :=
     fold_rounds_eq inst encode const index tape h ht hclone w st hrel v k l.folds _ hfl
-      (by rw [hv, levelTape, List.append_assoc]) hcap
+      (by simpa [levelTape, List.append_assoc] using hv) hcap
   -- root
-  have hv1' : tape v1 = .root root :: (oodTape l.oods ++ (batchTape l ++ rest)) := by
-    rw [hv1, hhead]; simp [headTape]
+  have hv1' : tape v1 (.root root :: (oodTape l.oods ++ (batchTape l ++ rest))) := by
+    rw [hhead] at hv1; exact hv1
   obtain ⟨v2, hroot, hv2⟩ := ht.root v1 root _ hv1'
   -- out-of-domain claims
   have hsub : (Std.Usize.wrapping_sub n k).val = n.val - k.val := Fold.sub_val _ _ (by omega)
@@ -363,17 +364,22 @@ theorem mid_level_eq {T1 : Type}
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v2 cnt n1 l.oods _ hoodn
     (fun d hd => by rw [hsub, hoodz d hd, hfl]) hv2
   -- query phase
-  obtain ⟨ph, hph, hphc⟩ : ∃ ph, whir.verify.WhirReplay.phase inst config (Std.Usize.wrapping_add iter.start 1#usize)
+  obtain ⟨ph, hph, hphc, hphg, hphd⟩ : ∃ ph, whir.verify.WhirReplay.phase inst config (Std.Usize.wrapping_add iter.start 1#usize)
       (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate) = .ok ph ∧
-      ph.count = config.queries.val[(Std.Usize.wrapping_add iter.start 1#usize).val]'(by rw [hi1]; exact hql) :=
+      ph.count = config.queries.val[(Std.Usize.wrapping_add iter.start 1#usize).val]'(by rw [hi1]; exact hql) ∧
+      ph.grinding = UScalar.cast .U32 (config.grinding_bits.val[(Std.Usize.wrapping_add iter.start 1#usize).val]'(by
+        rw [hi1]; exact hgl)) ∧
+      ph.depth = Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate :=
     ⟨_, phase_eq inst config (Std.Usize.wrapping_add iter.start 1#usize)
       (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate) (by rw [hi1]; exact hgl)
-      (by rw [hi1]; exact hql) (by simp only [hi1]; exact hg), rfl⟩
+      (by rw [hi1]; exact hql) (by simp only [hi1]; exact hg), rfl, rfl, rfl⟩
+  have hgv : ph.grinding.val = l.bits := by
+    rw [hphg, cast_u32_val _ (by simp only [hi1]; exact hg)]; simp only [hi1]; exact hbits
   obtain ⟨b, v4, hbq, hv4, ebq, ebl, ebw⟩ := begin_query_eq inst encode const tape h ht v3 ph l.queries l.lambda _
-    (by rw [hphc]; simp only [hi1]; exact hcount) (by rw [hv3]; rfl)
-  have hv4' : tape v4 = .rows l.root l.depth l.queries l.rowWords l.rowWords l.rows ::
-      .poly l.intro.1 l.intro.2 :: rest := by
-    rw [hv4]; simp [hleaf]
+    (by rw [hphc]; simp only [hi1]; exact hcount) (by rw [hgv, hphd, hodepth]; exact hv3)
+  have hv4' : tape v4 (.rows l.root l.depth l.queries l.rowWords l.rowWords l.rows ::
+      .poly l.intro.1 l.intro.2 :: rest) := by
+    rw [hleaf] at hv4; exact hv4
   obtain ⟨rowsV, v5, hopen, hv5, erows⟩ := open_e_rows_eq inst encode encodeK ofLimbs index tape hr ht oracle v4
     (alloc.vec.Vec.deref b.queries) l.root l.depth l.queries l.rowWords l.rows _
     (fun r hr' => by rw [hwidth r hr']; omega) horoot hodepth (by simpa [alloc.vec.Vec.deref] using ebq) howords hv4'
@@ -444,7 +450,7 @@ theorem last_iter_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (howords : (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = l.rowWords)
     (hleaf : l.leafWords = l.rowWords)
     (tail : List E) (msgs : List (E × E)) (rest : List (Event E Q R K))
-    (hv : tape v = levelTape l ++ (tailTape tail msgs ++ rest))
+    (hv : tape v (levelTape l ++ (tailTape tail msgs ++ rest)))
     (hit : iter.start.val < iter.end.val) (hiend : iter.end = alloc.vec.Vec.len config.level_ks)
     (hlast : iter.start.val + 1 = config.level_ks.val.length)
     (hfl : l.folds.length = (config.level_ks.val[iter.start.val]'(by omega)).val)
@@ -452,6 +458,7 @@ theorem last_iter_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (hgl : config.level_ks.val.length < config.grinding_bits.val.length)
     (hql : config.level_ks.val.length < config.queries.val.length)
     (hg : config.grinding_bits.val[config.level_ks.val.length] ≤ U32.max)
+    (hbits : (config.grinding_bits.val[config.level_ks.val.length]).val = l.bits)
     (hcount : l.queries.length = (config.queries.val[config.level_ks.val.length]).val)
     (hrows : l.rows.length = l.queries.length) (hne : l.rows ≠ [])
     (hwidth : ∀ r ∈ l.rows, r.length = 3 * 2 ^ l.folds.length)
@@ -481,25 +488,25 @@ theorem last_iter_eq {T1 : Type} (hw : System.Platform.numBits = 64)
   have hnk : ¬ (n.val < k.val) := by omega
   obtain ⟨rs, w1, v1, hfold, hv1, ers, eris1, elev1, eoods1, hrel1, hn1⟩ :=
     fold_rounds_eq inst encode const index tape h ht hclone w st hrel v k l.folds _ hfl
-      (by rw [hv, levelTape, List.append_assoc]) (by omega)
+      (by simpa [levelTape, List.append_assoc] using hv) (by omega)
   have hsub : (Std.Usize.wrapping_sub n k).val = n.val - k.val := Fold.sub_val _ _ (by omega)
   obtain ⟨n1, hn1e⟩ : ∃ n1, Std.Usize.wrapping_sub n k = n1 := ⟨_, rfl⟩
   rw [hn1e] at hsub
   have heq1 : Std.Usize.wrapping_add iter.start 1#usize = alloc.vec.Vec.len config.level_ks :=
     UScalar.eq_of_val_eq (by rw [hi1, alloc.vec.Vec.len_val]; simpa using hlast)
-  have hv1' : tape v1 = [.scalars ys, .grind, .queries l.queries, .sample l.lambda,
+  have hv1' : tape v1 ([.scalars ys, .grind l.bits, .queries l.depth l.queries, .sample l.lambda,
       .rows l.root l.depth l.queries l.rowWords l.rowWords l.rows,
-      .poly l.intro.1 l.intro.2] ++ (tailTape tail msgs ++ rest) := by
-    rw [hv1, hhead, hoods]; simp [headTape, oodTape, batchTape, hleaf]
+      .poly l.intro.1 l.intro.2] ++ (tailTape tail msgs ++ rest)) := by
+    rw [hhead, hoods] at hv1; simpa [headTape, oodTape, batchTape, hleaf] using hv1
   have hlen : (alloc.vec.Vec.len config.level_ks).val = config.level_ks.val.length := by simp
   have hfits1 := ModelFits.ofFold encode l.folds st hfits (by omega)
   have hrsl : (alloc.vec.Vec.deref rs).val.length = l.folds.length := by simp [alloc.vec.Vec.deref, ers]
   obtain ⟨r, v', wF, hll, hrelF, hrisF, hiff⟩ := last_level_eq inst encode const encodeK ofLimbs index tape hw h hr hn
-    ht hclone hens W weight_at callerAt hcall config oracle l.root l.depth l.rowWords horoot hodepth howords
+    ht hclone hens W weight_at callerAt hcall config oracle l.root l.depth l.rowWords l.bits horoot hodepth howords
     (alloc.vec.Vec.deref rs) w1 (foldModel encode l.folds st)
     hrel1 hfits1 v1 n1 (by rw [hn1, hst, hsub]) (by omega) ys l.queries l.lambda l.rows l.intro.1 l.intro.2
     tail msgs rest hv1' (by rw [hys, hsub, hfl]) (by rw [hlen]; exact hgl) (by rw [hlen]; exact hql)
-    (by simp only [hlen]; exact hg) (by simp only [hlen]; exact hcount) hrows hne
+    (by simp only [hlen]; exact hg) (by simp only [hlen]; exact hbits) (by simp only [hlen]; exact hcount) hrows hne
     (fun r hr' => by rw [hwidth r hr', hrsl]) (by omega) (by rw [htail, hsub, hfl])
     hmsgs (by rw [eris1, ers]; simp; omega) (by rw [eris1, ers]; simp; omega) (by rw [eoods1]; exact hcapo)
     (by rw [elev1]; exact hcapl) ch pf hch hpf
@@ -663,7 +670,12 @@ open AccumulatedTerminalRefinement WHIRNativeArithmetic
 variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
   (encodeK : K → Concrete.K) (ofLimbs : Concrete.K → Concrete.K → Concrete.K → Concrete.E)
-  (index : Q → Nat) (tape : V → List (Event E Q R K))
+  (index : Q → Nat) (tape : V → List (Event E Q R K) → Prop)
+
+/-- Each script level's proof-of-work bits are the configuration's grinding bits for it. -/
+def GrindShape (config : whir.config.Config) (s : Script E Q R K) : Prop :=
+  ∀ i (hi : i < s.levels.length) (hg : i < config.grinding_bits.val.length),
+    (s.levels[i]).bits = (config.grinding_bits.val[i]).val
 
 /-- The oracle the replay builds for level `j + 1` answers the rows read with that level's
 depth and with three words per element of the level's fold as its leaf width. -/
@@ -693,6 +705,7 @@ theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
     (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) (hcfg : ConfigRel config c log_n)
     (s : Script E Q R K) (lanes : Nat) (hch : (s.chal encode).valid c = true) (hS : ScriptShape index c s lanes)
+    (hgs : GrindShape config s)
     (init : State) (rest : List (Event E Q R K)) :
     ∀ (m : Nat) (iter : core.ops.range.Range Usize) (v : V) (w : whir.verify.WhirReplay V R K Q E) (n : Usize)
       (oracle : whir.verify.Oracle R) (st : State),
@@ -708,7 +721,7 @@ theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
       (Std.Usize.wrapping_add oracle.log_msg_cols oracle.log_inv_rate).val =
         CausalGame.remaining c (iter.start.val + 1) + c.rates[iter.start.val + 1]! →
       (Std.Usize.wrapping_shl 3#usize oracle.log_num_interleaved).val = 3 * 2 ^ c.folds[iter.start.val + 1]! →
-      tape v = (s.levels.drop (iter.start.val + 1)).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest) →
+      tape v ((s.levels.drop (iter.start.val + 1)).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest)) →
       ∃ sL r v', Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) c.folds.size 0
           init = .ok sL ∧
         whir.verify.WhirReplay.run_loop1 inst W iter v config weight_at w n oracle = .ok (r, v') ∧
@@ -772,10 +785,12 @@ theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     obtain ⟨r, v', hbody, hiff⟩ := last_iter_eq inst encode const encodeK ofLimbs index tape hw h hr hn ht hclone
       hens W weight_at callerAt hcall config oracle iter w st hrel hfits v n hst (by omega) l ys hys hoods0
       hor1.symm (by rw [hod, hdep]) (by rw [how, hrw]) (by rw [hlw, hrw])
-      s.tail s.tailMsgs rest (by rw [hv, hdrop]; simp) (by rw [hend]; simp; omega) hend (by omega)
+      s.tail s.tailMsgs rest (by rw [hdrop] at hv; simpa using hv) (by rw [hend]; simp; omega) hend (by omega)
       (by rw [hfl, hk]) (by rw [hfl]; omega)
       (by rw [hyl, hfl, hnr, ← hbefore, hstep]; congr 2; omega)
       (by omega) (by omega) (hcfg.grinding _ (List.getElem_mem _))
+      (by have e := hgs (i + 1) hjl (by omega); simp only [show config.level_ks.val.length = i + 1 by omega]
+          exact e.symm)
       (by rw [hql, hcfg.query (i + 1) (by omega)]; congr 2; omega) hrowsl
       (by intro hnil; have := congrArg List.length hnil; simp only [List.length_nil] at this; omega)
       (fun r hr' => by rw [hext r hr', hfl]) htail hS.tail
@@ -828,10 +843,11 @@ theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
       encodeK ofLimbs index tape h hr ht hclone W weight_at config oracle iter w st hrel v n hst l _ hroot
       ((s.levels.drop (i + 2)).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest))
       hor1.symm (by rw [hod, hdep]) (by rw [how, hrw]) (by rw [hlw, hrw])
-      (by rw [hv]; simp [List.flatMap_cons, List.append_assoc]) (by rw [hend]; simp; omega) hend (by omega)
+      (by simpa [List.flatMap_cons, List.append_assoc] using hv) (by rw [hend]; simp; omega) hend (by omega)
       (by rw [hfl, hk]) (by rw [hfl]; omega) (by omega) (by rw [hol, hoodc])
       (fun o ho => by rw [hoz o ho, hfl, hnr, ← hbefore, hstep]) (by omega) (by omega)
-      (hcfg.grinding _ (List.getElem_mem _)) (by rw [hql, hcfg.query (i + 1) (by omega)])
+      (hcfg.grinding _ (List.getElem_mem _)) (hgs (i + 1) hjl (by omega)).symm
+      (by rw [hql, hcfg.query (i + 1) (by omega)])
       hrowsl (by intro hnil; have := congrArg List.length hnil; simp only [List.length_nil] at this; omega)
       (fun r hr' => by rw [hext r hr', hfl]) (by omega) (by omega)
       (by rw [← hk2, hfl]; have := hcl2.2.1; rw [hbefore2, ← hstep, hbefore] at this; omega)
@@ -857,13 +873,14 @@ theorem run_loop_eq {T1 : Type} (hw : System.Platform.numBits = 64)
         rw [hs', show i + 1 + 1 = i + 2 by omega, add_val_lt _ _ (by omega)]
         omega)
       (by rw [hs', show i + 1 + 1 = i + 2 by omega, shl_three_val hw _ hks2, ho2, ← hk2])
-      (by rw [hv', hs'])
+      (by rw [hs']; exact hv')
     refine ⟨sL, r, v'', hL', ?_, hiff⟩
     unfold whir.verify.WhirReplay.run_loop1
     rw [loop_cont hbody]
     unfold whir.verify.WhirReplay.run_loop1 at hloop
     exact hloop
 
+set_option maxHeartbeats 400000 in
 /-- With an accepted lane count, `run` replays level 0, then the level loop, and returns
 `Ok` exactly when the model's final terminal check holds after its checked level replay. -/
 theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
@@ -875,9 +892,10 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
     (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) (hcfg : ConfigRel config c log_n)
     (s : Script E Q R K) (n_lanes : Usize) (hch : (s.chal encode).valid c = true)
-    (hS : ScriptShape index c s n_lanes.val) (target : E) (root : R) (v : V) (rest : List (Event E Q R K))
+    (hS : ScriptShape index c s n_lanes.val) (hgs : GrindShape config s) (target : E) (root : R) (v : V)
+    (rest : List (Event E Q R K))
     (hroot : ∀ (hl : 0 < s.levels.length), (s.levels[0]'hl).root = root)
-    (hv : tape v = s.tape ++ rest) (hl0 : n_lanes.val ≠ 0) (hlm : n_lanes.val ≤ 2 ^ config.initial_k.val) :
+    (hv : tape v (s.tape ++ rest)) (hl0 : n_lanes.val ≠ 0) (hlm : n_lanes.val ≤ 2 ^ config.initial_k.val) :
     ∃ sL r v', Protocol.runChecked (verifyLevel c (s.chal encode) (s.prf encode encodeK ofLimbs)) c.folds.size 0
         ⟨c.logN, encode target, (s.prf encode encodeK ofLimbs).initial, ⟨[], []⟩⟩ = .ok sL ∧
       whir.verify.WhirReplay.run inst W v config log_n n_lanes target root weight_at = .ok (r, v') ∧
@@ -922,12 +940,16 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
   have hz : ¬ (n_lanes = 0#usize) := by intro he; rw [he] at hl0; simp at hl0
   have hgt : ¬ ((Std.Usize.wrapping_shl 1#usize config.initial_k).val < n_lanes.val) := by
     rw [hshl]; omega
-  have hv' : tape v = .poly s.initial.1 s.initial.2 :: (foldTape l0.folds ++
+  have hv' : tape v (.poly s.initial.1 s.initial.2 :: (foldTape l0.folds ++
       (headTape l0.head ++ (oodTape l0.oods ++ (batchTape l0 ++
-        ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest)))))) := by
-    rw [hv, Script.tape]
-    conv_lhs => rw [hdrop0]
-    simp [levelTape, List.append_assoc]
+        ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest))))))) := by
+    have e : s.tape ++ rest = .poly s.initial.1 s.initial.2 :: (foldTape l0.folds ++
+        (headTape l0.head ++ (oodTape l0.oods ++ (batchTape l0 ++
+          ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest)))))) := by
+      rw [Script.tape]
+      conv_lhs => rw [hdrop0]
+      simp [levelTape, List.append_assoc]
+    rw [← e]; exact hv
   obtain ⟨q, v1, hrecv, hqc, hqa, hqb, hv1⟩ := recv_eq inst encode const tape h ht
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v target s.initial.1 s.initial.2 _ hv'
   obtain ⟨val1, hcs, hval1⟩ := checked_sub_some log_n config.initial_k (by
@@ -943,9 +965,9 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
   obtain ⟨rs, w1, v2, hfold, hv2, ers, eris1, elev1, eoods1, hrel1, hn1⟩ :=
     fold_rounds_eq inst encode const index tape h ht hclone w0 init hrel0 v1 config.initial_k l0.folds _
       (by rw [hfl0, hf0]) hv1 (by simp [w0, alloc.vec.Vec.new, hfl0, hf0]; omega)
-  have hv2' : tape v2 = .root root0 :: (oodTape l0.oods ++ (batchTape l0 ++
-      ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest)))) := by
-    rw [hv2, hroot0]; rfl
+  have hv2' : tape v2 (.root root0 :: (oodTape l0.oods ++ (batchTape l0 ++
+      ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest))))) := by
+    rw [hroot0] at hv2; exact hv2
   obtain ⟨v3, hnroot, hv3⟩ := ht.root v2 root0 _ hv2'
   set cnt := config.ood_samples.val[1]'(by omega) with hcnt
   have hidxo : Slice.index_usize (alloc.vec.Vec.deref config.ood_samples) 1#usize = .ok cnt := by
@@ -960,25 +982,29 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
   have hidxr : Slice.index_usize (alloc.vec.Vec.deref config.log_inv_rates) 0#usize = .ok rate0 := by
     rw [slice_index _ _ (by simp only [alloc.vec.Vec.deref, Slice.from_val]; simp; omega)]
     simp [alloc.vec.Vec.deref, hrate0]
-  obtain ⟨ph, hph, hphc, hphd⟩ : ∃ ph, whir.verify.WhirReplay.phase inst config 0#usize
+  obtain ⟨ph, hph, hphc, hphg, hphd⟩ : ∃ ph, whir.verify.WhirReplay.phase inst config 0#usize
       (Std.Usize.wrapping_add val1 rate0) = .ok ph ∧ ph.count = config.queries.val[0]'(by omega) ∧
+      ph.grinding = UScalar.cast .U32 (config.grinding_bits.val[0]'(by omega)) ∧
       ph.depth = Std.Usize.wrapping_add val1 rate0 :=
     ⟨_, phase_eq inst config 0#usize (Std.Usize.wrapping_add val1 rate0) (by simp; omega) (by simp; omega)
-      (hcfg.grinding _ (List.getElem_mem _)), rfl, rfl⟩
+      (hcfg.grinding _ (List.getElem_mem _)), rfl, rfl, rfl⟩
+  have hdepth0 : ph.depth.val = l0.depth := by
+    have hdep0 : l0.depth = CausalGame.remaining c 0 + c.rates[0]! := hS.depth 0 hjl0
+    have hr0 : c.rates[0]! = rate0.val := hcfg.rate 0 (by omega)
+    rw [hphd, add_val_lt _ _ (by rw [← hrem0, ← hr0]; exact hcl0.2.2.2.2), hdep0, hrem0, hr0]
+  have hgv0 : ph.grinding.val = l0.bits := by
+    rw [hphg, cast_u32_val _ (hcfg.grinding _ (List.getElem_mem _))]; exact (hgs 0 hjl0 (by omega)).symm
   obtain ⟨b, v5, hbq, hv5, ebq, ebl, ebw⟩ := begin_query_eq inst encode const tape h ht v4 ph l0.queries l0.lambda _
-    (by rw [hphc, hql0, hcfg.query 0 (by omega)]) (by rw [hv4]; rfl)
-  have hv5' : tape v5 = .rows root ph.depth.val (alloc.vec.Vec.deref b.queries).val n_lanes.val
+    (by rw [hphc, hql0, hcfg.query 0 (by omega)]) (by rw [hgv0, hdepth0]; exact hv4)
+  have hv5' : tape v5 (.rows root ph.depth.val (alloc.vec.Vec.deref b.queries).val n_lanes.val
       (Std.Usize.wrapping_shl 1#usize config.initial_k).val l0.rows :: .poly l0.intro.1 l0.intro.2 ::
-      ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest)) := by
+      ((s.levels.drop 1).flatMap levelTape ++ (tailTape s.tail s.tailMsgs ++ rest))) := by
     have hrw0 : l0.rowWords = n_lanes.val := (hS.baseWords hjl0).1
     have hlw0 : l0.leafWords = 2 ^ c.folds[0]! := (hS.baseWords hjl0).2
     have hroot0' : l0.root = root := hroot hjl0
-    have hdepth0 : ph.depth.val = l0.depth := by
-      have hdep0 : l0.depth = CausalGame.remaining c 0 + c.rates[0]! := hS.depth 0 hjl0
-      have hr0 : c.rates[0]! = rate0.val := hcfg.rate 0 (by omega)
-      rw [hphd, add_val_lt _ _ (by rw [← hrem0, ← hr0]; exact hcl0.2.2.2.2), hdep0, hrem0, hr0]
-    rw [hv5, hdepth0, ← hroot0', hshl, ← hf0, ← hlw0, ← hrw0]
-    simp [alloc.vec.Vec.deref, ebq]
+    rw [hdepth0, ← hroot0', hshl, ← hf0, ← hlw0, ← hrw0,
+      show (alloc.vec.Vec.deref b.queries).val = l0.queries by simp [alloc.vec.Vec.deref, ebq]]
+    exact hv5
   obtain ⟨wR, v6, hopen, ewR, hv6⟩ := ht.rows v5 root ph.depth (alloc.vec.Vec.deref b.queries) n_lanes
     (Std.Usize.wrapping_shl 1#usize config.initial_k) l0.rows _ hv5'
   have hlenR : wR.val.length = l0.rows.length := by simpa using congrArg List.length ewR
@@ -1051,7 +1077,7 @@ theorem run_eq {T1 : Type} (hw : System.Platform.numBits = 64)
   have hlevlen : w2.levels.val.length = 1 := by
     rw [hrelS.levels.length_eq, hcl0']; simp [init]
   obtain ⟨sL, r, v', hL', hloop, hiff⟩ := run_loop_eq inst encode const encodeK ofLimbs index tape hw h hr hn ht
-    hclone hens W weight_at callerAt hcall config c log_n hcfg s n_lanes.val hch hS init rest (c.folds.size - 2)
+    hclone hens W weight_at callerAt hcall config c log_n hcfg s n_lanes.val hch hS hgs init rest (c.folds.size - 2)
     { start := 0#usize, «end» := alloc.vec.Vec.len config.level_ks } v7 w2 val1 o' st0 (by simp) (by simp; omega)
     rfl (by simpa using hrunA) hrelS hfits0 (by rw [hn0]; simp only [init]; rw [hfl0, hf0, hval1, hlogN])
     (by simp; omega) (by rw [hris2, eris1, ers]; simp [w0, alloc.vec.Vec.new, hfl0, hf0]; omega)
@@ -1080,9 +1106,10 @@ theorem verify_eq {T1 : Type} (hw : System.Platform.numBits = 64)
     (callerAt : Array Concrete.E → Concrete.E) (hcall : CallerModel W weight_at encode callerAt)
     (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) (hcfg : ConfigRel config c log_n)
     (s : Script E Q R K) (n_lanes : Usize) (hch : (s.chal encode).valid c = true)
-    (hS : ScriptShape index c s n_lanes.val) (target : E) (root : R) (v : V) (rest : List (Event E Q R K))
+    (hS : ScriptShape index c s n_lanes.val) (hgs : GrindShape config s) (target : E) (root : R) (v : V)
+    (rest : List (Event E Q R K))
     (hroot : ∀ (hl : 0 < s.levels.length), (s.levels[0]'hl).root = root)
-    (hv : tape v = s.tape ++ rest) :
+    (hv : tape v (s.tape ++ rest)) :
     ∃ r v', whir.verify.verify inst W v config log_n n_lanes target root weight_at = .ok (r, v') ∧
       (r = .Ok () ↔ nativeVerify c (s.chal encode) n_lanes.val (encode target) callerAt
         (s.prf encode encodeK ofLimbs) = .ok ()) := by
@@ -1115,7 +1142,7 @@ theorem verify_eq {T1 : Type} (hw : System.Platform.numBits = 64)
       · simp only [reduceCtorEq, false_iff]; exact hnat
   · obtain ⟨hl0, hlm⟩ : n_lanes.val ≠ 0 ∧ n_lanes.val ≤ 2 ^ config.initial_k.val := by omega
     obtain ⟨sL, r, v', hrun, hrunEq, hiff⟩ := run_eq inst encode const encodeK ofLimbs index tape hw h hr hn ht hclone
-      hens W weight_at callerAt hcall config c log_n hcfg s n_lanes hch hS target root v rest hroot hv hl0 hlm
+      hens W weight_at callerAt hcall config c log_n hcfg s n_lanes hch hS hgs target root v rest hroot hv hl0 hlm
     refine ⟨r, v', hrunEq, ?_⟩
     rw [hiff, nativeVerify_ok_iff c (s.chal encode) n_lanes.val (encode target) callerAt
       (s.prf encode encodeK ofLimbs) sL hch hl0 (by rw [hf0]; exact hlm)

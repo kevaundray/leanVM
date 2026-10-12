@@ -29,6 +29,13 @@ structure primitives.field.gf2_64x3.F192 where
   c1 : Std.U64
   c2 : Std.U64
 
+/-- [primitives::field::gf2_64::F64]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 18:0-18:14
+    Name pattern: [primitives::field::gf2_64::F64]
+    Visibility: public -/
+@[reducible, rust_type "primitives::field::gf2_64::F64"]
+def primitives.field.gf2_64.F64 := Std.U64
+
 /-- Trait declaration: [fiat_shamir::arith::Arith]
     Source: 'crates/fiat_shamir/src/arith.rs', lines 16:0-16:15
     Name pattern: [fiat_shamir::arith::Arith]
@@ -49,16 +56,25 @@ structure fiat_shamir.arith.Arith (Self : Type) (Self_E : Type) where
   zero : Self → Result (Self_E × Self)
   one : Self → Result (Self_E × Self)
   mul : Self → Self_E → Self_E → Result (Self_E × Self)
+  square : Self → Self_E → Result (Self_E × Self)
   mul_const : Self → Self_E → primitives.field.gf2_64x3.F192 → Result
     (Self_E × Self)
   add_const : Self → Self_E → primitives.field.gf2_64x3.F192 → Result
     (Self_E × Self)
+  product : Self → Slice Self_E → Result (Self_E × Self)
+  poly_eval : Self → Slice Self_E → Self_E → Result (Self_E × Self)
+  interp : Self → Self_E → Self_E → Self_E → Result (Self_E × Self)
   times_one_plus : Self → Self_E → Self_E → Result (Self_E × Self)
+  eq_eval : Self → Slice Self_E → Slice Self_E → Result (Self_E × Self)
+  eq_bits : Self → Std.Usize → Slice Self_E → Result (Self_E × Self)
+  eq_table : Self → Slice Self_E → Result ((alloc.vec.Vec Self_E) × Self)
   eq_table_prefix : Self → Slice Self_E → Std.Usize → Result
     ((alloc.vec.Vec Self_E) × Self)
   mle : Self → Slice Self_E → Slice Self_E → Result (Self_E × Self)
   powers : Self → Self_E → Std.Usize → Result ((alloc.vec.Vec Self_E) ×
     Self)
+  int_index : Self → primitives.field.gf2_64.F64 → Std.U32 → Slice Self_E
+    → Result (Self_E × Self)
 
 /-- [fiat_shamir::arith::Stage]
     Source: 'crates/fiat_shamir/src/arith.rs', lines 224:0-224:14
@@ -116,12 +132,73 @@ structure fiat_shamir.arith.Verifier (Self : Type) (Self_Clause0_E : Type)
     Self_Clause0_E) × Self)
 
 /-- [fiat_shamir::arith::RoundPolynomial]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 309:0-309:29
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 322:0-322:29
     Name pattern: [fiat_shamir::arith::RoundPolynomial]
     Visibility: public -/
 @[rust_type "fiat_shamir::arith::RoundPolynomial"]
 structure fiat_shamir.arith.RoundPolynomial (C : Type) where
   coeffs : C
+
+/-- [fiat_shamir::verifier::VerifierState]
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 16:0-16:61
+    Name pattern: [fiat_shamir::verifier::VerifierState]
+    Visibility: public -/
+@[rust_type "fiat_shamir::verifier::VerifierState"]
+structure fiat_shamir.verifier.VerifierState (H : Type) where
+  sponge : H
+  narg : Slice Std.U8
+  hints : Slice Std.U8
+  messages_read : Std.Usize
+  hints_read : Std.Usize
+  poison : Option fiat_shamir.error.TranscriptError
+
+/-- Trait declaration: [fiat_shamir::duplex::DuplexSponge]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 44:0-44:29
+    Name pattern: [fiat_shamir::duplex::DuplexSponge]
+    Visibility: public -/
+@[rust_trait "fiat_shamir::duplex::DuplexSponge"
+  (parentClauses := ["corecloneCloneInst"])]
+structure fiat_shamir.duplex.DuplexSponge (Self : Type) where
+  corecloneCloneInst : core.clone.Clone Self
+  init : Array Std.U8 32#usize → Result Self
+  absorb : Self → Slice Std.U8 → Result Self
+  squeeze : Self → Slice Std.U8 → Result (Self × (Slice Std.U8))
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{closure}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 570:21-570:31
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure] -/
+@[reducible, rust_type
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure"]
+def primitives.field.gf2_64x3.F192Unreduced.reduce.closure := Unit
+
+/-- [primitives::field::gf2_64x3::F192Unreduced]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 541:0-541:24
+    Name pattern: [primitives::field::gf2_64x3::F192Unreduced]
+    Visibility: public -/
+@[rust_type "primitives::field::gf2_64x3::F192Unreduced"]
+structure primitives.field.gf2_64x3.F192Unreduced where
+  coeffs : Array (Array Std.U64 2#usize) 3#usize
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{closure}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 555:31-555:34
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure] -/
+@[reducible, rust_type
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure"]
+def primitives.field.gf2_64x3.F192Unreduced.from_wide.closure := Unit
+
+/-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{closure}]
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 112:69-112:72
+    Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure] -/
+@[reducible, rust_type
+  "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure"]
+def primitives.field.gf2_64x3.F192.mul_base_unreduced.closure := Std.U64
+
+/-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::{closure}]
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 58:17-58:38
+    Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure] -/
+@[reducible, rust_type
+  "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure"]
+def primitives.field.gf2_64.F64.inv.closure := Unit
 
 /-- Trait declaration: [fiat_shamir::codec::FromUniform]
     Source: 'crates/fiat_shamir/src/codec.rs', lines 48:0-48:28
@@ -134,6 +211,63 @@ structure fiat_shamir.codec.FromUniform (Self : Type) (Self_Repr : Type) where
   coreconvertAsMutSelf_ReprSliceU8Inst : core.convert.AsMut Self_Repr (Slice
     Std.U8)
   from_uniform : Self_Repr → Result Self
+
+/-- Trait declaration: [fiat_shamir::codec::Encoding]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 23:0-23:18
+    Name pattern: [fiat_shamir::codec::Encoding]
+    Visibility: public -/
+@[rust_trait "fiat_shamir::codec::Encoding"
+  (parentClauses := ["coreconvertAsRefSelf_BytesSliceU8Inst"])]
+structure fiat_shamir.codec.Encoding (Self : Type) (Self_Bytes : Type) where
+  coreconvertAsRefSelf_BytesSliceU8Inst : core.convert.AsRef Self_Bytes (Slice
+    Std.U8)
+  encode : Self → Result Self_Bytes
+
+/-- Trait declaration: [fiat_shamir::codec::FromNarg]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 36:0-36:36
+    Name pattern: [fiat_shamir::codec::FromNarg]
+    Visibility: public -/
+@[rust_trait "fiat_shamir::codec::FromNarg"
+  (parentClauses := ["EncodingInst"])]
+structure fiat_shamir.codec.FromNarg (Self : Type) (Self_Clause0_Bytes : Type)
+  where
+  EncodingInst : fiat_shamir.codec.Encoding Self Self_Clause0_Bytes
+  from_narg : Slice Std.U8 → Result ((Option Self) × (Slice Std.U8))
+
+/-- [fiat_shamir::pow::ProofOfWork]
+    Source: 'crates/fiat_shamir/src/pow.rs', lines 20:0-20:22
+    Name pattern: [fiat_shamir::pow::ProofOfWork]
+    Visibility: public -/
+@[rust_type "fiat_shamir::pow::ProofOfWork"]
+structure fiat_shamir.pow.ProofOfWork where
+  bits : Std.U32
+
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg::{closure}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 128:28-128:35
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure] -/
+@[reducible, rust_type
+  "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure"]
+def fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure := Unit
+
+/-- [fiat_shamir::codec::limbs::{closure}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 173:24-173:27
+    Name pattern: [fiat_shamir::codec::limbs::closure] -/
+@[reducible, rust_type "fiat_shamir::codec::limbs::closure"]
+def fiat_shamir.codec.limbs.closure := Slice (Array Std.U8 8#usize)
+
+/-- [fiat_shamir::duplex::Blake2sDuplex]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 108:0-108:24
+    Name pattern: [fiat_shamir::duplex::Blake2sDuplex]
+    Visibility: public -/
+@[rust_type "fiat_shamir::duplex::Blake2sDuplex"]
+structure fiat_shamir.duplex.Blake2sDuplex where
+  cv : Array Std.U32 8#usize
+  pending : Array Std.U8 64#usize
+  n_pending : Std.Usize
+  first : Bool
+  previous : Std.U64
+  squeezed : Std.U64
+  output : Array Std.U8 32#usize
 
 /-- [fiat_shamir::TranscriptContext]
     Source: 'crates/fiat_shamir/src/lib.rs', lines 42:0-42:34
@@ -158,19 +292,21 @@ structure fiat_shamir.Challenger (Self : Type) where
     (codecFromUniformInst : fiat_shamir.codec.FromUniform T Clause0_Repr), Self
     → Result (T × Self)
 
-/-- [primitives::field::gf2_64::F64]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 18:0-18:14
-    Name pattern: [primitives::field::gf2_64::F64]
+/-- [pcs::merkle::Openings]
+    Source: 'crates/pcs/src/merkle.rs', lines 812:0-821:1
     Visibility: public -/
-@[reducible, rust_type "primitives::field::gf2_64::F64"]
-def primitives.field.gf2_64.F64 := Std.U64
+structure merkle.Openings where
+  leaf_words : Std.Usize
+  height : Std.Usize
+  images : alloc.vec.Vec primitives.field.gf2_64.F64
+  paths : alloc.vec.Vec (Array Std.U8 32#usize)
 
-/-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::{closure}]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 58:17-58:38
-    Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure] -/
-@[reducible, rust_type
-  "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure"]
-def primitives.field.gf2_64.F64.inv.closure := Unit
+/-- [pcs::merkle::PrunedMerklePaths]
+    Source: 'crates/pcs/src/merkle.rs', lines 663:0-668:1
+    Visibility: public -/
+structure merkle.PrunedMerklePaths where
+  rows : alloc.vec.Vec primitives.field.gf2_64.F64
+  sibling_hashes : alloc.vec.Vec (Array Std.U8 32#usize)
 
 /-- [pcs::whir::config::ConfigError]
     Source: 'crates/pcs/src/whir/config/mod.rs', lines 58:0-71:1
@@ -222,6 +358,19 @@ structure verifier.OpeningVerifier (Self : Type) (Self_Root : Type) (Self_K :
     × Self)
   query_point : Self → Self_Query → Result (Self_Clause0_Clause0_E × Self)
 
+/-- [pcs::verifier::authenticate::{closure}]
+    Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
+def verifier.authenticate.closure :=
+  alloc.vec.Vec Std.Usize × Std.Usize × Array Std.U8 32#usize × Std.Usize ×
+  Slice Std.Usize × Std.Usize
+
+/-- [pcs::whir::Stratum]
+    Source: 'crates/pcs/src/whir/mod.rs', lines 67:0-72:1
+    Visibility: public -/
+structure whir.Stratum where
+  bits : Std.Usize
+  index : Std.Usize
+
 /-- [pcs::whir::config::Config]
     Source: 'crates/pcs/src/whir/config/mod.rs', lines 157:0-170:1
     Visibility: public -/
@@ -232,13 +381,6 @@ structure whir.config.Config where
   queries : alloc.vec.Vec Std.Usize
   grinding_bits : alloc.vec.Vec Std.Usize
   ood_samples : alloc.vec.Vec Std.Usize
-
-/-- [pcs::whir::Stratum]
-    Source: 'crates/pcs/src/whir/mod.rs', lines 67:0-72:1
-    Visibility: public -/
-structure whir.Stratum where
-  bits : Std.Usize
-  index : Std.Usize
 
 /-- [pcs::whir::query::Normalizers]
     Source: 'crates/pcs/src/whir/query.rs', lines 37:0-42:1 -/

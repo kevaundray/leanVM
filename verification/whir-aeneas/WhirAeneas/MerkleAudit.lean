@@ -5,15 +5,15 @@ import Lean.Util.CollectAxioms
 /-! Axiom audit of the Merkle opening extraction and its proofs. `WhirAeneas.NativeAudit` audits
 them together with the replay and the composed native theorem. -/
 
-#print axioms MerkleSource.merkle.PrunedMerklePaths.from_hint
-#print axioms MerkleSource.merkle.PrunedMerklePaths.open
+#print axioms ReplaySource.merkle.PrunedMerklePaths.from_hint
+#print axioms ReplaySource.merkle.PrunedMerklePaths.open
 #print axioms WhirAeneas.Merkle.from_hint_some
 #print axioms WhirAeneas.Merkle.from_hint_none
 #print axioms WhirAeneas.Merkle.pair_level_loop_eq
 #print axioms WhirAeneas.Merkle.rebuild_eq
 #print axioms WhirAeneas.Merkle.position_loop_eq
 #print axioms WhirAeneas.Merkle.node_position_loop_eq
-#print axioms MerkleSource.verifier.open_rows_native
+#print axioms ReplaySource.verifier.open_rows_native
 #print axioms WhirAeneas.MerkleNative.from_le_to_le
 #print axioms WhirAeneas.MerkleNative.to_le_four
 #print axioms WhirAeneas.MerkleNative.decode_prefix
@@ -41,7 +41,7 @@ run_cmd do
   let mut count : Nat := 0
   for (declarationName, declarationInfo) in environment.constants.toList do
     if (`WhirAeneas.Merkle).isPrefixOf declarationName || (`WhirAeneas.MerkleNative).isPrefixOf declarationName ||
-        (`MerkleSource).isPrefixOf declarationName then
+        (`ReplaySource.merkle).isPrefixOf declarationName || (`ReplaySource.verifier).isPrefixOf declarationName then
       match declarationInfo with
       | .thmInfo _ =>
         let axioms ← collectAxioms declarationName

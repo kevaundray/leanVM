@@ -31,8 +31,16 @@ case "$surface" in
         dest="$here/llbc/replay"
         generated="$here"
         args=(--start-from pcs::whir::verify::verify --start-from pcs::whir::sample_queries_ordered
-              --start-from pcs::ring_switch::RingMap::close --include primitives
-              --include 'fiat_shamir::arith::_::read' --include fiat_shamir::arith::fixed_coefficient)
+              --start-from pcs::ring_switch::RingMap::close
+              --start-from pcs::merkle::PrunedMerklePaths::open --start-from pcs::merkle::PrunedMerklePaths::from_hint
+              --start-from pcs::verifier::open_rows_native
+              --start-from '{impl pcs::verifier::OpeningVerifier for fiat_shamir::verifier::VerifierState<_>}'
+              --include primitives --include fiat_shamir
+              --opaque pcs::merkle::hash_pairs --opaque pcs::merkle::hash_rows --opaque pcs::merkle::sorted_unique
+              --opaque primitives::hash::hash --opaque 'fiat_shamir::codec::_::encode'
+              --opaque 'fiat_shamir::duplex::_::context' --opaque 'fiat_shamir::duplex::_::init'
+              --opaque 'fiat_shamir::duplex::_::absorb' --opaque 'fiat_shamir::duplex::_::squeeze'
+              --opaque 'fiat_shamir::duplex::_::clone')
         cargo_args=(--lib --release)
         aeneas_args=(-backend lean -namespace ReplaySource -no-progress-bar
                      -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Replay)
@@ -67,23 +75,6 @@ case "$surface" in
         fi
         cargo_args=(--lib --tests --release)
         ;;
-    merkle)
-        dest="$here/llbc/merkle"
-        generated="$here"
-        args=(--start-from pcs::merkle::PrunedMerklePaths::open --start-from pcs::merkle::PrunedMerklePaths::from_hint
-              --start-from pcs::verifier::open_rows_native
-              --include primitives --include fiat_shamir
-              --opaque pcs::merkle::hash_pairs
-              --opaque pcs::merkle::hash_rows
-              --opaque pcs::merkle::sorted_unique
-              --opaque 'fiat_shamir::duplex::_::init'
-              --opaque 'fiat_shamir::duplex::_::absorb'
-              --opaque 'fiat_shamir::duplex::_::squeeze'
-              --opaque 'fiat_shamir::duplex::_::clone')
-        cargo_args=(--lib --release)
-        aeneas_args=(-backend lean -namespace MerkleSource -no-progress-bar
-                     -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Merkle)
-        ;;
     portable)
         crate="$root/crates/primitives"
         llbc_name=primitives
@@ -106,14 +97,12 @@ if [[ "$surface" == statement ]]; then
 fi
 if [[ "$surface" == replay ]]; then
     for root in pcs::whir::verify::verify pcs::whir::sample_queries_ordered pcs::ring_switch::RingMap::close \
-        fiat_shamir::arith::RoundPolynomial::read fiat_shamir::arith::fixed_coefficient; do
-        python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
-    done
-fi
-if [[ "$surface" == merkle ]]; then
-    for root in pcs::merkle::PrunedMerklePaths::open pcs::merkle::PrunedMerklePaths::from_hint \
+        fiat_shamir::arith::RoundPolynomial::read fiat_shamir::arith::fixed_coefficient \
+        pcs::merkle::PrunedMerklePaths::open pcs::merkle::PrunedMerklePaths::from_hint \
         pcs::verifier::open_rows_native pcs::verifier::authenticate pcs::verifier::rows_of \
-        fiat_shamir::verifier::VerifierState::prover_hint_with fiat_shamir::verifier::VerifierState::prover_hint; do
+        fiat_shamir::verifier::VerifierState::prover_hint_with fiat_shamir::verifier::VerifierState::prover_hint \
+        fiat_shamir::verifier::VerifierState::prover_message fiat_shamir::verifier::VerifierState::verifier_message \
+        fiat_shamir::verifier::VerifierState::check_pow fiat_shamir::pow::ProofOfWork::verify; do
         python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" "$root"
     done
 fi
