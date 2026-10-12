@@ -8,6 +8,7 @@ use crate::cpu::Prover;
 use crate::rec::circuit::Builder;
 use crate::rv::Region;
 use crate::rv::asm::*;
+use primitives::multilinear::mle_eval_par;
 use std::sync::LazyLock;
 
 // A program whose output is its four advice words, after a loop that reads every framework block: a leaf that
