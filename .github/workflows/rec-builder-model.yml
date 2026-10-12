@@ -42,9 +42,12 @@ jobs:
         working-directory: verification/circuits
         run: |
           lake exe cache get Mathlib.Tactic Mathlib.FieldTheory.Finite.Extension Mathlib.RingTheory.AdjoinRoot Mathlib.Algebra.Polynomial.SpecificDegree Mathlib.Algebra.MvPolynomial.Eval Mathlib.Algebra.Polynomial.Roots
-          lake build checkrec checkflushes checkbind
+          lake build checkrec checkflushes checkbind checkdesign
           lake exe checkrec /tmp/circuits/*.txt
           lake exe checkflushes /tmp/circuits/table-flushes.dump
+      - name: Check the design model
+        working-directory: verification/circuits
+        run: lake exe checkdesign fixtures/design-summaries.txt /tmp/circuits/*.txt
       - name: Check transcript binding
         working-directory: verification/circuits
         run: |

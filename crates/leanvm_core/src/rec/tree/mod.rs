@@ -54,6 +54,8 @@ use union::{FillError, UnionFill};
 mod claim_tests;
 mod claims;
 mod design;
+#[cfg(test)]
+mod design_tests;
 mod fixed;
 
 mod multiset;
