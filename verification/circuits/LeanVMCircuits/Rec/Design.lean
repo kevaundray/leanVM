@@ -203,8 +203,8 @@ theorem places_getElem? (sh : Shape) (h : sh.Accepted) (p : ℕ) (hp : p < sh.si
     rcases p with _ | p
     · rfl
     · simp only [reduceCtorEq, if_false, List.cons_append, List.getElem?_cons_succ, List.append_assoc,
-        List.getElem?_append, nodes_length, List.getElem?_cons, nodes_getElem?, List.length_cons, List.length_nil]
-      split_ifs <;> first | rfl | omega | (congr 3 <;> omega)
+        List.getElem?_append, nodes_length, List.getElem?_cons, nodes_getElem?, List.length_nil]
+      split_ifs <;> first | rfl | omega | (congr 3; omega)
 
 /-- `Place::all` is the closed form. -/
 theorem places_getElem (sh : Shape) (h : sh.Accepted) (p : ℕ) (hp : p < sh.places.length) :
@@ -242,15 +242,15 @@ theorem tiers_cover (sh : Shape) (h : sh.Accepted) :
   · simp only [Shape.nTiers, Shape.start, Shape.stop, Shape.smallEnd, Shape.size]
     refine ⟨rfl, fun t ht => ?_, rfl, fun h2 => absurd h2 (by decide)⟩
     obtain rfl : t = 0 := by omega
-    simp <;> omega
+    simp
   · simp only [Shape.nTiers, Shape.start, Shape.stop, Shape.smallEnd, Shape.size]
     refine ⟨rfl, fun t ht => ?_, rfl, fun h2 => absurd h2 (by decide)⟩
     obtain rfl : t = 0 := by omega
-    simp <;> omega
+    simp; omega
   · have hs := (h.small large s rfl).1
     simp only [Shape.nTiers, Shape.start, Shape.stop, Shape.smallEnd, Shape.size]
     refine ⟨rfl, fun t ht => ?_, by simp, fun _ => rfl⟩
-    split_ifs <;> (try dsimp only) <;> omega
+    split_ifs <;> omega
 
 /-- The first level is position zero, and only it. -/
 theorem first_iff (sh : Shape) (h : sh.Accepted) (p : ℕ) (hp : p < sh.size) :
@@ -452,9 +452,9 @@ theorem children_tier (sh : Shape) (h : sh.Accepted) (p : ℕ) (hp : p < sh.size
   have ha : 2 ≤ a' := h.arity
   rcases cl with _ | ⟨large, _ | s⟩
   · simp only [Shape.children, Shape.placeAt, Shape.nTiers, Shape.size] at hc hp ⊢
-    split_ifs at hc ⊢ <;> simp_all <;> omega
+    split_ifs at hc ⊢; simp_all; omega
   · simp only [Shape.children, Shape.placeAt, Shape.nTiers, Shape.size] at hc hp ⊢
-    split_ifs at hc ⊢ <;> simp_all <;> omega
+    split_ifs at hc ⊢; simp_all; omega
   · obtain ⟨hs1, hs2, -⟩ := h.small large s rfl
     simp only [Shape.children, Shape.placeAt, Shape.nTiers, Shape.size] at hc hp ⊢
     split_ifs at hc ⊢ <;> simp_all <;> omega
