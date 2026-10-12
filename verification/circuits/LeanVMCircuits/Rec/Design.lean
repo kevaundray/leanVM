@@ -754,14 +754,14 @@ theorem kind_digest_words (l : Layout) : l.start 0 = 0 ∧ l.start 1 = 1 ∧ l.s
 
 section Converge
 
-variable {α : Type} [SemilatticeSup α] [DecidableEq α]
+variable {α : Type} [SemilatticeSup α]
 
 /-- One round: each tier's heights joined with each of its circuits' heights `H σ p` at the tiers' heights `σ`. -/
 def step (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (σ : ℕ → α) (t : ℕ) : α :=
   (members t).foldl (fun h p => h ⊔ H σ p) (σ t)
 
 /-- `Tree::converge` from the tiers' heights `σ`, for `k` rounds: `fits` is `RecLayout::from_taus` succeeding, which `Design::new` requires of every tier at every round (`RecShape::new`), else `TooLarge`; a round that changes no tier's heights returns them; running out of rounds is `TooLarge`. -/
-def converge (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (fits : α → Bool) :
+def converge [DecidableEq α] (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (fits : α → Bool) :
     ℕ → (ℕ → α) → Option (ℕ → α)
   | 0, _ => none
   | k + 1, σ =>
@@ -783,7 +783,7 @@ theorem le_step (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (
   (foldl_sup_le _ _ _ _).mp le_rfl
 
 /-- Heights `converge` returns fit (`RecLayout::from_taus` succeeds at each tier's), every circuit's heights are within its tier's, and they are at least where it started. -/
-theorem converge_fits (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (fits : α → Bool) :
+theorem converge_fits [DecidableEq α] (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (fits : α → Bool) :
     ∀ k σ₀ σ, converge n members H fits k σ₀ = some σ →
       (∀ t < n, fits (σ t) = true) ∧ (∀ t < n, ∀ p ∈ members t, H σ p ≤ σ t) ∧ ∀ t < n, σ₀ t ≤ σ t := by
   intro k
@@ -803,7 +803,7 @@ theorem converge_fits (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) �
       exact ⟨h1, h2, fun t ht => (le_step members H σ₀ t).1.trans (h3 t ht)⟩
 
 /-- When a circuit's heights grow with its tiers' heights, `converge` returns the least heights above its start at which every circuit fits: `Tree::converge`'s least fixed point. -/
-theorem converge_least (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (fits : α → Bool)
+theorem converge_least [DecidableEq α] (n : ℕ) (members : ℕ → List ℕ) (H : (ℕ → α) → ℕ → α) (fits : α → Bool)
     (hmono : ∀ σ τ : ℕ → α, (∀ t < n, σ t ≤ τ t) → ∀ t < n, ∀ p ∈ members t, H σ p ≤ H τ p)
     (τ : ℕ → α) (hτ : ∀ t < n, ∀ p ∈ members t, H τ p ≤ τ t) :
     ∀ k σ₀ σ, (∀ t < n, σ₀ t ≤ τ t) → converge n members H fits k σ₀ = some σ → ∀ t < n, σ t ≤ τ t := by

@@ -21,3 +21,7 @@ root = "CheckFlushes"
 [[lean_exe]]
 name = "checkbind"
 root = "CheckBind"
+
+[[lean_exe]]
+name = "checkdesign"
+root = "CheckDesign"

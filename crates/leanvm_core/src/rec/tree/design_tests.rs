@@ -107,16 +107,16 @@ fn summaries() -> String {
         crate::class_flock::N_FLOCKS
     );
     for (arity_0, arity, claims) in grid() {
-        let claim_words = match claims {
-            None => "none".to_owned(),
-            Some(c) => {
+        let claim_words = claims.map_or_else(
+            || "none".to_owned(),
+            |c| {
                 let large = format!("{} {}", c.capacity.claims, c.capacity.groups);
-                match c.small {
-                    None => format!("{large} -"),
-                    Some(s) => format!("{large} {} {} {}", s.arity, s.capacity.claims, s.capacity.groups),
-                }
-            }
-        };
+                c.small.map_or_else(
+                    || format!("{large} -"),
+                    |s| format!("{large} {} {} {}", s.arity, s.capacity.claims, s.capacity.groups),
+                )
+            },
+        );
         let _ = writeln!(out, "shape {arity_0} {arity} {claim_words}");
         let shape = TreeShape {
             leaf: refused,
@@ -153,5 +153,8 @@ fn the_design_summaries_are_the_designs() {
         std::fs::write(&path, &built).expect("the fixture is writable");
     }
     let committed = std::fs::read_to_string(&path).expect("the committed summaries");
-    assert!(committed == built, "the design summaries changed: rerun with LEANVM_BLESS=1");
+    assert!(
+        committed == built,
+        "the design summaries changed: rerun with LEANVM_BLESS=1"
+    );
 }
