@@ -810,6 +810,12 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.DesignClaims.exposedOk_mutations
 #print axioms LeanVMCircuits.Rec.DesignClaims.fixed_placement
 #print axioms LeanVMCircuits.Rec.DesignClaims.fixedOk_mutations
+#print axioms LeanVMCircuits.Rec.Edges.ofWord_zero_limb
+#print axioms LeanVMCircuits.Rec.Edges.DigestCert.exposed
+#print axioms LeanVMCircuits.Rec.Edges.DigestCert.wrap_states
+#print axioms LeanVMCircuits.Rec.Edges.DigestCert.node_states
+#print axioms LeanVMCircuits.Rec.Edges.wrap_mutations
+#print axioms LeanVMCircuits.Rec.Edges.node_mutations
 #print axioms LeanVMCircuits.Rec.Collision.answers_length
 #print axioms LeanVMCircuits.Rec.Collision.mem_answers
 #print axioms LeanVMCircuits.Rec.Collision.answers_congr

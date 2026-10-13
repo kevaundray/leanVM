@@ -1,8 +1,9 @@
 import LeanVMCircuits.Rec.EdgeMarks
 import LeanVMCircuits.Rec.DesignClaims
+import LeanVMCircuits.Rec.DigestEdges
 
 /-!
-`lake exe checkedges <dump>...`: read each dump's edge marks (its statement's layout, each child's statement words, the claims its reduction takes), find the calls computing each child's scale from its kind word, the call reading its digest and the calls by which its verifier absorbs and reads its words (`Edges.InstCert`), and check the certificate (`Edges.EdgeCert.check`, which `Edges.EdgeCert.edge` and `Edges.InstCert.verifies` prove sound), and that each child's scale is computed in its tier's mode (`DesignClaims.modeOk`, under which `DesignClaims.tierMode_scale` makes it zero exactly at the first level). Dumps of one tree (the name up to `-first`, `-node` or `-circuit-`) must share a layout.
+`lake exe checkedges <dump>...`: read each dump's edge marks (its statement's layout, each child's statement words, the claims its reduction takes), find the calls computing each child's scale from its kind word, the call reading its digest and the calls by which its verifier absorbs and reads its words (`Edges.InstCert`), and check the certificate (`Edges.EdgeCert.check`, which `Edges.EdgeCert.edge` and `Edges.InstCert.verifies` prove sound), and that each child's scale is computed in its tier's mode (`DesignClaims.modeOk`, under which `DesignClaims.tierMode_scale` makes it zero exactly at the first level). For a wrap and a node of a tree of outputs, find the calls by which its statement exposes its digest (`Edges.DigestCert`) and check them (`Edges.DigestCert.ok`, under which `Edges.DigestCert.wrap_states` and `Edges.DigestCert.node_states` prove the digest the wrap's child's or the tree digest of the node's children's). Dumps of one tree (the name up to `-first`, `-node` or `-circuit-`) must share a layout.
 -/
 
 open LeanVMCircuits.Rec Model Edges
@@ -50,6 +51,37 @@ def scaleOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Ar
 /-- The call whose output `k` is wire `w`, if one is. -/
 def makerAt (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (w k : ℕ) : Option ℕ :=
   (idx.getD w #[]).toList.findSome? fun (j, k') => if k' = k then some j else none
+
+/-- Where a statement exposes its digest (`Edges.DigestCert`): the `expose_e` calls at statement positions 1 and 2, the `k_to_e` halves they expose, the `d_to_k` and zero those read, and the digest's source: for a wrap the `halves_to_d` reading its child's words, else the `chain` over a header's `k_const`s and each child's `d_to_k` of a `halves_to_d`. -/
+def digestOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (wrap : Bool)
+    (children : ℕ) : Option DigestCert := do
+  let mut at1 : Option ℕ := none
+  let mut at2 : Option ℕ := none
+  for j in [0:cs.size] do
+    if let some (.exposeE _) := (cs[j]? : Option Call) then
+      if out os j 0 = 1 then at1 := some j
+      if out os j 0 = 2 then at2 := some j
+  let e1 ← at1
+  let e2 ← at2
+  let exposed := fun (j : ℕ) => match (cs[j]? : Option Call) with
+    | some (.exposeE w) => makerAt idx w 0
+    | _ => none
+  let h0 ← exposed e1
+  let h1 ← exposed e2
+  let some (.kToE a _ zw) := (cs[h0]? : Option Call) | none
+  let dk ← makerAt idx a 0
+  let z ← makerAt idx zw 0
+  let some (.dToK d) := (cs[dk]? : Option Call) | none
+  let s ← makerAt idx d 0
+  let src ← if wrap then pure (DigestSrc.wrap s) else do
+    let some (.chain words) := (cs[s]? : Option Call) | none
+    let header ← (words.take 8).mapM (makerAt idx · 0)
+    let reads ← (List.range children).mapM fun i => do
+      let r2 ← makerAt idx (words.getD (8 + 4 * i) 0) 0
+      let some (.dToK hd) := (cs[r2]? : Option Call) | none
+      pure ((← makerAt idx hd 0), r2)
+    pure (DigestSrc.node s header reads)
+  return { src, dk, z, h0, h1, e1, e2 }
 
 /-- Where the child's verifier (`RecShape::verify`) reads its words `ws`: the first `leaf_block` absorbing the first word's limbs after a count, the blocks chained from it over the instance, each word's `e_to_k` call there, and every `mul_k_add` chain reading one limb of each word in order from a `zero`. -/
 def instOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (ws : List ℕ) :
@@ -109,8 +141,8 @@ def instOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Arr
   return { ic with shares }
 
 /-- The certificate of a dump's calls, outputs and marks. -/
-def certOf (cs : Array Call) (os : Array (List ℕ)) (m : Marks) (L : Layout) : Except String EdgeCert := do
-  let idx := outIndex os
+def certOf (cs : Array Call) (os : Array (List ℕ)) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (m : Marks) (L : Layout) :
+    Except String EdgeCert := do
   let claims : Claims ℕ := ⟨m.dense.toList, m.matrices.toList⟩
   let mut children := #[]
   for (i, (j, ws)) in m.children.toList.zipIdx.map (fun (x, i) => (i, x)) do
@@ -152,7 +184,8 @@ def check (path : System.FilePath) : IO (Option Layout) := do
     | .error e => do IO.eprintln s!"{path}: {e}"; return none
   let some L := marks.layout | do IO.eprintln s!"{path}: no layout mark"; return none
   let some (_, os) := replayR calls #[] 0 {} #[] | do IO.eprintln s!"{path}: the calls do not replay"; return none
-  let cert ← match certOf calls os marks L with
+  let idx := outIndex os
+  let cert ← match certOf calls os idx marks L with
     | .ok c => pure c
     | .error e => do IO.eprintln s!"{path}: {e}"; return none
   -- Each child's scale is computed as its tier computes it (`DesignClaims.tierMode`), so it is zero exactly at the
@@ -162,6 +195,20 @@ def check (path : System.FilePath) : IO (Option Layout) := do
   let ct := ((sh.children position).map (·.2)).getD 0
   unless cert.children.all fun ch => DesignClaims.modeOk sh ct ch.scale.mode do
     IO.eprintln s!"{path}: a child's scale is not computed as tier {ct} computes it"; return none
+  -- A wrap states its child's digest (`DigestCert.wrap_states`) and a node of a tree of outputs its children's tree
+  -- digest (`DigestCert.node_states`), exposed at statement positions 1 and 2 (`DigestCert.exposed`).
+  let wrap? : Option Bool := match (sh.placeAt position).level, sh.claims with
+    | .wrap, _ => some true
+    | .node _, none => some false
+    | _, _ => none
+  let words := cert.children.map (·.words)
+  let digest ← match wrap? with
+    | none => pure ""
+    | some wrap => do
+      unless (digestOf calls os idx wrap words.length).any (·.ok calls os words) do
+        IO.eprintln s!"{path}: its statement does not expose {if wrap then "its child's digest" else "its children's tree digest"}"
+        return none
+      pure (if wrap then ", exposing its child's digest" else ", exposing its children's tree digest")
   let ok := cert.check
   unless ok do
     IO.eprintln s!"{path}: claims and digests {if cert.accepts os then "accepted" else "rejected"}, \
@@ -174,7 +221,7 @@ def check (path : System.FilePath) : IO (Option Layout) := do
       blocks and reading them in {", ".intercalate (cert.children.map fun ch => toString ch.inst.shares.length)} \
       statement shares"
   IO.println s!"{path}: {if ok then "accepted" else "rejected"}: a statement of {L.len} words, the reduction takes \
-    {cert.claims.dense.length} dense and {cert.claims.matrices.length} matrix claims, {edges}"
+    {cert.claims.dense.length} dense and {cert.claims.matrices.length} matrix claims, {edges}{digest}"
   return if ok then some L else none
 
 /-- The tree a dump is of: its name up to its position. -/

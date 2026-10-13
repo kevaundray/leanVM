@@ -54,6 +54,7 @@ public import LeanVMCircuits.Rec.DesignKind
 public import LeanVMCircuits.Rec.Edges
 public import LeanVMCircuits.Rec.EdgeMarks
 public import LeanVMCircuits.Rec.DesignClaims
+public import LeanVMCircuits.Rec.DigestEdges
 public import LeanVMCircuits.Rec.Sumcheck
 public import LeanVMCircuits.Rec.Union
 public import LeanVMCircuits.Rec.UnionCover
