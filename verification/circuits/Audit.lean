@@ -745,6 +745,14 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.RomExample.chalsOk_mutations
 #print axioms LeanVMCircuits.Rec.Bind.sumcheck_claim_agree
 #print axioms LeanVMCircuits.Rec.Bind.card_at
+#print axioms LeanVMCircuits.Rec.Bind.CommittedBefore.const
+#print axioms LeanVMCircuits.Rec.Bind.CommittedBefore.comp
+#print axioms LeanVMCircuits.Rec.Bind.Run.committed_at
+#print axioms LeanVMCircuits.Rec.Bind.draws_not_fixed
+#print axioms LeanVMCircuits.Rec.Bind.Run.sumcheck_committed
+#print axioms LeanVMCircuits.Rec.Bind.Run.whir_committed
+#print axioms LeanVMCircuits.Rec.Bind.Run.odd_committed
+#print axioms LeanVMCircuits.Rec.Bind.Run.top_committed
 #print axioms LeanVMCircuits.Rec.Bind.sumcheck_run_sound_at
 #print axioms LeanVMCircuits.Rec.Bind.sumcheck_part
 #print axioms LeanVMCircuits.Rec.Bind.whir_run_sound_at
@@ -849,6 +857,14 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Edges.crBad_frac
 #print axioms LeanVMCircuits.Rec.Edges.PcsBound.one
 #print axioms LeanVMCircuits.Rec.Edges.tree_sound_eps
+#print axioms LeanVMCircuits.Rec.Edges.finalBound_nonneg
+#print axioms LeanVMCircuits.Rec.Edges.card_preimage
+#print axioms LeanVMCircuits.Rec.Edges.Pcs551.frac
+#print axioms LeanVMCircuits.Rec.Edges.pcsBound_of_551
+#print axioms LeanVMCircuits.Rec.Edges.restrict_fiber_eq
+#print axioms LeanVMCircuits.Rec.Edges.restrict_fiber
+#print axioms LeanVMCircuits.Rec.Edges.pair_fiber
+#print axioms LeanVMCircuits.Rec.Edges.compress_fiber
 #print axioms LeanVMCircuits.Rec.AirLink.forms_length
 #print axioms LeanVMCircuits.Rec.AirLink.firstSlot_inj
 #print axioms LeanVMCircuits.Rec.AirLink.wireClass_spec
@@ -926,3 +942,7 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.AirLink.checksGiveBatch_claims
 #print axioms LeanVMCircuits.Rec.AirLink.tree_sound_batch
 #print axioms LeanVMCircuits.Rec.AirLink.tree_sound_ideal_batch
+#print axioms LeanVMCircuits.Rec.AirLink.batchOf_card
+#print axioms LeanVMCircuits.Rec.AirLink.busRun_frac
+#print axioms LeanVMCircuits.Rec.AirLink.batchRun_frac
+#print axioms LeanVMCircuits.Rec.AirLink.tree_sound_run

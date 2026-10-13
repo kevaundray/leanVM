@@ -49,6 +49,8 @@ public import LeanVMCircuits.Rec.Rounds
 public import LeanVMCircuits.Rec.Run
 public import LeanVMCircuits.Rec.TreeSound
 public import LeanVMCircuits.Rec.TreeBound
+public import LeanVMCircuits.Rec.AirRun
+public import LeanVMCircuits.Rec.PcsMatch
 public import LeanVMCircuits.Rec.Design
 public import LeanVMCircuits.Rec.DesignKind
 public import LeanVMCircuits.Rec.Edges

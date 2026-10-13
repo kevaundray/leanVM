@@ -21,6 +21,8 @@ the challenge vectors `r` (`Run.sumcheckAnswers`, `Run.oddAnswers`, `Run.topAnsw
 substitution is a lens (`readR_oracleAt`, `oracleAt_readR`, `oracleAt_oracleAt`), so a uniform oracle gives uniform
 challenges: each round theorem's bound holds as a fraction of the oracles (`sumcheck_run_sound`, `odd_run_sound`,
 `top_run_sound`, `whir_run_sound`). `RomExample.run_exists` gives a run meeting every premise but acceptance.
+
+The `_at` versions take the honest instance as a function of the oracle, fixed before the check's challenges, as the committed witness's is: `CommittedBefore` is a function of what the transcript absorbs before a time, and `Run.committed_at` makes it fixed across the challenge vectors put in (`Run.sumcheck_committed` and the like per check; `draws_not_fixed`: the draws themselves are not).
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -229,6 +231,35 @@ theorem Run.chal_at (hR : Run c s T st val) (hown : OwnAt s (c.transcripts.getD 
   rw [hread, a0, a1, a2, oracleAt_own hinj, oracleAt_own hinj, oracleAt_own hinj]
   exact toE_coords (r i)
 
+/-- A function of the oracle committed before time `k` of a run: it reads only the run's seeds before `k` (what its first `k` blocks absorb), as a committed witness does through the commitment its transcript absorbs. -/
+def CommittedBefore {α : Type} (s : State) (t : Transcript) (val : (ℕ → K) → Val) (k : ℕ) (f : (ℕ → K) → α) : Prop :=
+  ∀ ρ ρ', (∀ m ∈ seedsBefore s t k, nu (val ρ) m = nu (val ρ') m) → f ρ = f ρ'
+
+/-- Non-vacuity: a constant is committed at every time. -/
+theorem CommittedBefore.const {α : Type} (s : State) (t : Transcript) (val : (ℕ → K) → Val) (k : ℕ) (a : α) :
+    CommittedBefore s t val k fun _ => a := fun _ _ _ => rfl
+
+/-- What is computed from a committed value is committed: the honest instance of a committed witness. -/
+theorem CommittedBefore.comp {α β : Type} {s : State} {t : Transcript} {val : (ℕ → K) → Val} {k : ℕ}
+    {f : (ℕ → K) → α} (hf : CommittedBefore s t val k f) (g : α → β) : CommittedBefore s t val k (g ∘ f) :=
+  fun ρ ρ' h => congrArg g (hf ρ ρ' h)
+
+/-- What is committed before every challenge `own` draws is unchanged by putting other challenges in. -/
+theorem Run.committed_at (hR : Run c s T st val) (hown : OwnAt s (c.transcripts.getD T default) own time)
+    (hinj : OwnInj own) {k : ℕ} (hk : ∀ i, k ≤ time i) {α : Type} {f : (ℕ → K) → α}
+    (hf : CommittedBefore s (c.transcripts.getD T default) val k f) (ρ : ℕ → K) (r : Fin n → E) :
+    f (oracleAt own ρ r) = f ρ := by
+  have := hf _ _ (hR.seed_at hown hinj ρ k r (readR own ρ) fun j _ => hk j)
+  rwa [oracleAt_readR hinj] at this
+
+/-- Mutation test of `Run.committed_at`'s conclusion: the draws themselves are not unchanged by putting challenges in, so a value read after the draws is not committed before them. -/
+theorem draws_not_fixed (hinj : OwnInj own) (i : Fin n) (ρ : ℕ → K) :
+    ¬ ∀ r, readR own (oracleAt own ρ r) = readR own ρ := by
+  intro hall
+  have h := congrFun (hall fun _ => readR own ρ i + 1) i
+  rw [readR_oracleAt hinj] at h
+  exact one_ne_zero (add_eq_left.mp h)
+
 /-! What acceptance gives of the challenges. -/
 
 theorem facts_at {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
@@ -431,23 +462,57 @@ theorem own_mem_oracleWords {s : State} {t : Transcript} {own : Fin n → Fin 3 
     (hown : OwnAt s t own time) (i : Fin n) (k : Fin 3) : own i k ∈ oracleWords s t :=
   List.mem_toFinset.mpr (List.mem_map.mpr ⟨_, (hown i k).1, rfl⟩)
 
+/-! What is committed before a check's challenges is fixed across them: its honest instance. -/
+
+theorem Run.sumcheck_committed (h : c.accepts s = true) {sc : SumcheckCert} (hsc : sc ∈ c.sumchecks)
+    (hR : Run c s sc.transcript st val) {k : ℕ} (hk : ∀ i, k ≤ (sc.chals i).time) {α : Type} {f : (ℕ → K) → α}
+    (hf : CommittedBefore s (c.transcripts.getD sc.transcript default) val k f) :
+    ∀ ρ r, f (oracleAt (chalWords c.outs sc.chals) ρ r) = f ρ := by
+  obtain ⟨hc, hok⟩ := Cert.sumcheck_chals h hsc
+  obtain ⟨hown, hinj, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
+  exact hR.committed_at hown hinj hk hf
+
+theorem Run.whir_committed (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈ c.whirs)
+    (hR : Run c s wc.transcript st val) {k : ℕ} (hk : ∀ i, k ≤ (wc.chals i).time) {α : Type} {f : (ℕ → K) → α}
+    (hf : CommittedBefore s (c.transcripts.getD wc.transcript default) val k f) :
+    ∀ ρ r, f (oracleAt (chalWords c.outs wc.chals) ρ r) = f ρ := by
+  obtain ⟨hc, hok⟩ := Cert.whir_chals h hwc
+  obtain ⟨hown, hinj, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i).1
+  exact hR.committed_at hown hinj hk hf
+
+theorem Run.odd_committed (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c.odds)
+    (hR : Run c s oc.transcript st val) {k : ℕ} (hk : ∀ i, k ≤ (oc.chals i).time) {α : Type} {f : (ℕ → K) → α}
+    (hf : CommittedBefore s (c.transcripts.getD oc.transcript default) val k f) :
+    ∀ ρ r, f (oracleAt (chalWords c.outs oc.chals) ρ r) = f ρ := by
+  obtain ⟨hc, hok⟩ := Cert.odd_chals h hoc
+  obtain ⟨hown, hinj, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
+  exact hR.committed_at hown hinj hk hf
+
+theorem Run.top_committed (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c.tops)
+    (hR : Run c s tc.transcript st val) {k : ℕ} (hk : ∀ i, k ≤ (tc.chals i).time) {α : Type} {f : (ℕ → K) → α}
+    (hf : CommittedBefore s (c.transcripts.getD tc.transcript default) val k f) :
+    ∀ ρ r, f (oracleAt (chalWords c.outs tc.chals) ρ r) = f ρ := by
+  obtain ⟨hc, hok⟩ := Cert.top_chals h htc
+  obtain ⟨hown, hinj, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
+  exact hR.committed_at hown hinj hk hf
+
 /-! Each check's answers from a run. -/
 
 /-- A run's assignments at the oracle with a sumcheck's challenges put in are `SumcheckAnswers`, where the circuit's
 eq weights are the honest instance's at the oracle's challenges and the input claim is false where the hints are
 true. -/
 theorem Run.sumcheckAnswers (h : c.accepts s = true) {sc : SumcheckCert} (hsc : sc ∈ c.sumchecks)
-    (hR : Run c s sc.transcript st val) (I : Inst E sc.rounds.length) (T' : ℕ → E)
-    (hw : ∀ ρ (i : Fin sc.rounds.length), (sc.rounds.getD i default).weight.map (Model.ev (val ρ)) =
-      I.weight (readR (chalWords c.outs sc.chals) ρ) i)
-    (ρ : ℕ → K) (hf : ∀ r, (∀ w ∈ sc.hints, Model.ev (val (oracleAt (chalWords c.outs sc.chals) ρ r)) w = T' w) →
+    (hR : Run c s sc.transcript st val) (I : Inst E sc.rounds.length) (T' : ℕ → E) (ρ : ℕ → K)
+    (hw : ∀ r (i : Fin sc.rounds.length),
+      (sc.rounds.getD i default).weight.map (Model.ev (val (oracleAt (chalWords c.outs sc.chals) ρ r))) = I.weight r i)
+    (hf : ∀ r, (∀ w ∈ sc.hints, Model.ev (val (oracleAt (chalWords c.outs sc.chals) ρ r)) w = T' w) →
       Model.ev (val (oracleAt (chalWords c.outs sc.chals) ρ r)) sc.claim0 ≠ I.sum) :
     SumcheckAnswers c s sc I T' (fun r => st (oracleAt (chalWords c.outs sc.chals) ρ r))
       (fun r => val (oracleAt (chalWords c.outs sc.chals) ρ r)) := by
   obtain ⟨hc, hok⟩ := Cert.sumcheck_chals h hsc
   obtain ⟨hown, hinj, hmono, -, hchal⟩ := hR.chals hc hok
   refine ⟨hR.rom.comp _, fun r r' i hj => hR.seed_at hown hinj ρ _ r r' fun j hne => ?_, fun r i => hchal ρ r i,
-    fun r i => by rw [hw]; exact congrArg (fun x => I.weight x i) (readR_oracleAt hinj ρ r), hf⟩
+    fun r i => hw r i, hf⟩
   rcases lt_or_ge j i with hji | hij
   · exact absurd (hj j hji) hne
   · rcases hij.lt_or_eq with hij | rfl
@@ -627,7 +692,8 @@ theorem sumcheck_run_sound (h : c.accepts s = true) {sc : SumcheckCert} (hsc : s
   obtain ⟨hc, hok⟩ := Cert.sumcheck_chals h hsc
   obtain ⟨hown, hinj, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
   refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (sumcheckEvent c s sc I T' val) _ fun ρ => mul_card_le ?_
-  have hb := sumcheck_test_sound c s h hsc univ I hI T' _ _ (hR.sumcheckAnswers h hsc I T' hw ρ fun r => hf _)
+  have hb := sumcheck_test_sound c s h hsc univ I hI T' _ _ (hR.sumcheckAnswers h hsc I T' ρ
+    (fun r i => by rw [hw, readR_oracleAt hinj]) fun r => hf _)
   rw [card_univ] at hb
   refine hb.trans' (card_le_card fun r hr => ?_)
   simp only [mem_filter, mem_univ, true_and, Fintype.mem_piFinset, implies_true] at hr ⊢
@@ -722,16 +788,15 @@ def sumcheckFalse (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.roun
   sumcheckEvent c s sc I T' val ρ ∧ Model.ev (val ρ) sc.claim0 ≠ I.sum
 
 open Classical in
-/-- Sumcheck's soundness over a uniform oracle, at each oracle: with no premise on the input claim, the oracles at
-which `sumcheckEvent` holds and the input claim is not the instance's sum (`sumcheckFalse`) are at most an `n · d / |E|` fraction. The
-claim is bound before the first challenge with the hints as seeds (`sumcheck_claim_agree`), so it is one value over
-the vectors put in at an oracle wherever the hints are true. -/
+/-- Sumcheck's soundness over a uniform oracle, at each oracle: with no premise on the input claim, the oracles at which `sumcheckEvent` holds and the input claim is not the instance's sum (`sumcheckFalse`) are at most an `n · d / |E|` fraction. The claim is bound before the first challenge with the hints as seeds (`sumcheck_claim_agree`), so it is one value over the vectors put in at an oracle wherever the hints are true. The honest instance `I ρ` and the hints' true values `T' ρ` are the oracle's, as the committed witness's are: fixed before the check's challenges (`hIc`, `hTc`, which `Run.committed_at` gives for anything committed before them). -/
 theorem sumcheck_run_sound_at (h : c.accepts s = true) {sc : SumcheckCert} (hsc : sc ∈ c.sumchecks)
-    (I : Inst E sc.rounds.length) (hI : I.ok sc.deg) (T' : ℕ → E) (hR : Run c s sc.transcript st val)
+    (I : (ℕ → K) → Inst E sc.rounds.length) (hI : ∀ ρ, (I ρ).ok sc.deg) (T' : (ℕ → K) → ℕ → E)
+    (hIc : ∀ ρ r, I (oracleAt (chalWords c.outs sc.chals) ρ r) = I ρ)
+    (hTc : ∀ ρ r, T' (oracleAt (chalWords c.outs sc.chals) ρ r) = T' ρ) (hR : Run c s sc.transcript st val)
     (hw : ∀ ρ (i : Fin sc.rounds.length), (sc.rounds.getD i default).weight.map (Model.ev (val ρ)) =
-      I.weight (readR (chalWords c.outs sc.chals) ρ) i)
+      (I ρ).weight (readR (chalWords c.outs sc.chals) ρ) i)
     (U : Finset ℕ) (hU : oracleWords s (c.transcripts.getD sc.transcript default) ⊆ U) :
-    (#{ρ : U → K | sumcheckFalse c s sc I T' val (extU _ ρ)} : ℚ≥0) /
+    (#{ρ : U → K | sumcheckFalse c s sc (I (extU _ ρ)) (T' (extU _ ρ)) val (extU _ ρ)} : ℚ≥0) /
         Fintype.card (U → K) ≤ ((sc.rounds.length * sc.deg : ℕ) : ℚ≥0) / Fintype.card E := by
   obtain ⟨hc, hok⟩ := Cert.sumcheck_chals h hsc
   obtain ⟨hown, hinj, hmono, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
@@ -742,22 +807,25 @@ theorem sumcheck_run_sound_at (h : c.accepts s = true) {sc : SumcheckCert} (hsc 
     simp only [SumcheckCert.ok, Bool.and_eq_true, decide_eq_true_eq] at this
     exact this.1.1
   refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k))
-    (sumcheckFalse c s sc I T' val) _ fun ρ => mul_card_le ?_
+    (fun ρ => sumcheckFalse c s sc (I ρ) (T' ρ) val ρ) _ fun ρ => mul_card_le ?_
+  simp only [hIc ρ, hTc ρ]
   let v := fun r => val (oracleAt (chalWords c.outs sc.chals) ρ r)
-  refine (card_le_card fun r hr => ?_).trans (card_at (fun r => ∀ w ∈ sc.hints, Model.ev (v r) w = T' w)
+  refine (card_le_card fun r hr => ?_).trans (card_at (fun r => ∀ w ∈ sc.hints, Model.ev (v r) w = T' ρ w)
     (fun r => (∀ a b, s.unions[sc.test]? = some (a, b) → v r a = v r b) ∧
-      Model.ev (v r) sc.final + (sc.resid.map fun t => Model.ev (v r) t.1 * Model.ev (v r) t.2.1).sum = I.final r)
-    (fun r => Model.ev (v r) sc.claim0 ≠ I.sum) _ (fun r r' hr hr' hb => ?_) fun hall => ?_)
+      Model.ev (v r) sc.final + (sc.resid.map fun t => Model.ev (v r) t.1 * Model.ev (v r) t.2.1).sum =
+        (I ρ).final r)
+    (fun r => Model.ev (v r) sc.claim0 ≠ (I ρ).sum) _ (fun r r' hr hr' hb => ?_) fun hall => ?_)
   · simp only [mem_filter, mem_univ, true_and, sumcheckFalse, sumcheckEvent, readR_oracleAt hinj] at hr ⊢
     exact ⟨hr.1.1, hr.1.2, hr.2⟩
-  · have hagree := sumcheck_claim_agree c s h hsc (hR.rom.comp _) T' r r'
+  · have hagree := sumcheck_claim_agree c s h hsc (hR.rom.comp _) (T' ρ) r r'
       (hR.seed_at hown hinj ρ _ r r' fun j _ => by
         rcases Nat.eq_zero_or_pos j.val with hj | hj
         · obtain rfl : j = ⟨0, hpos⟩ := Fin.ext hj
           exact le_rfl
         · exact hmono ⟨0, hpos⟩ j hj) hr hr'
     rwa [← hagree]
-  · have hb := sumcheck_test_sound c s h hsc univ I hI T' _ _ (hR.sumcheckAnswers h hsc I T' hw ρ hall)
+  · have hb := sumcheck_test_sound c s h hsc univ (I ρ) (hI ρ) (T' ρ) _ _ (hR.sumcheckAnswers h hsc (I ρ) (T' ρ) ρ
+      (fun r i => by rw [hw, hIc, readR_oracleAt hinj]) hall)
     rw [card_univ] at hb
     refine hb.trans' (card_le_card fun r hr => ?_)
     simp only [mem_filter, mem_univ, true_and, Fintype.mem_piFinset, implies_true] at hr ⊢
@@ -777,14 +845,13 @@ def topFalse (c : Cert) (s : State) (tc : TopCert) (T' : ℕ → ℕ → E) (val
   topEvent c s tc T' val ρ ∧ ∃ k < tc.m, Model.ev (val ρ) (tc.values.getD k 0) ≠ T' k 0 * T' k 1 * T' k 2 * T' k 3
 
 open Classical in
-/-- WHIR's sumcheck over a uniform oracle, at each oracle: the oracles at which `whirEvent` holds and the input claim
-is not the instance's sum (`whirFalse`) are at most an `n · d / |E|` fraction. The claim is bound before the first
-challenge, so it is one value over the vectors put in at an oracle. -/
-theorem whir_run_sound_at (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈ c.whirs) (I : Inst E wc.rounds.length)
-    (hI : I.ok wc.deg) (hR : Run c s wc.transcript st val)
-    (hw : ∀ r (i : Fin wc.rounds.length), (wc.rounds.getD i default).weight = I.weight r i)
+/-- WHIR's sumcheck over a uniform oracle, at each oracle: the oracles at which `whirEvent` holds and the input claim is not the instance's sum (`whirFalse`) are at most an `n · d / |E|` fraction. The claim is bound before the first challenge, so it is one value over the vectors put in at an oracle. The honest instance `I ρ` is the oracle's, fixed before the check's challenges (`hIc`). -/
+theorem whir_run_sound_at (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈ c.whirs)
+    (I : (ℕ → K) → Inst E wc.rounds.length) (hI : ∀ ρ, (I ρ).ok wc.deg)
+    (hIc : ∀ ρ r, I (oracleAt (chalWords c.outs wc.chals) ρ r) = I ρ) (hR : Run c s wc.transcript st val)
+    (hw : ∀ ρ r (i : Fin wc.rounds.length), (wc.rounds.getD i default).weight = (I ρ).weight r i)
     (U : Finset ℕ) (hU : oracleWords s (c.transcripts.getD wc.transcript default) ⊆ U) :
-    (#{ρ : U → K | whirFalse c s wc I val (extU _ ρ)} : ℚ≥0) / Fintype.card (U → K) ≤
+    (#{ρ : U → K | whirFalse c s wc (I (extU _ ρ)) val (extU _ ρ)} : ℚ≥0) / Fintype.card (U → K) ≤
       ((wc.rounds.length * wc.deg : ℕ) : ℚ≥0) / Fintype.card E := by
   obtain ⟨hc, hok⟩ := Cert.whir_chals h hwc
   obtain ⟨hown, hinj, hmono, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i).1
@@ -792,12 +859,13 @@ theorem whir_run_sound_at (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈
   simp only [Cert.lateOk, Cert.whirsOk, Array.all_eq_true', Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq,
     decide_eq_true_eq, List.all_eq_true, List.mem_range] at hall
   obtain ⟨⟨⟨⟨⟨htr, -⟩, -⟩, -⟩, hb0⟩, -⟩ := hall.2 wc hwc
-  refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (whirFalse c s wc I val) _
+  refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (fun ρ => whirFalse c s wc (I ρ) val ρ) _
     fun ρ => mul_card_le ?_
+  simp only [hIc ρ]
   let v := fun r => val (oracleAt (chalWords c.outs wc.chals) ρ r)
   refine (card_le_card fun r hr => ?_).trans (card_at (fun _ => True)
-    (fun r => (∀ a b, s.unions[wc.test]? = some (a, b) → v r a = v r b) ∧ Model.ev (v r) wc.final = I.final r)
-    (fun r => Model.ev (v r) wc.claim0 ≠ I.sum) _ (fun r r' _ _ hb => ?_) fun hall => ?_)
+    (fun r => (∀ a b, s.unions[wc.test]? = some (a, b) → v r a = v r b) ∧ Model.ev (v r) wc.final = (I ρ).final r)
+    (fun r => Model.ev (v r) wc.claim0 ≠ (I ρ).sum) _ (fun r r' _ _ hb => ?_) fun hall => ?_)
   · simp only [mem_filter, mem_univ, true_and, whirFalse, whirEvent, readR_oracleAt hinj] at hr ⊢
     exact ⟨hr.1, hr.2⟩
   · rcases Nat.eq_zero_or_pos wc.rounds.length with h0 | hpos
@@ -811,34 +879,38 @@ theorem whir_run_sound_at (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈
             exact le_rfl
           · exact hmono ⟨0, hpos⟩ j hj)
       rwa [← hagree]
-  · have hb := whir_test_sound c s h hwc univ I hI _ _ (hR.whirAnswers h hwc I hw ρ fun r => hall r trivial)
+  · have hb := whir_test_sound c s h hwc univ (I ρ) (hI ρ) _ _
+      (hR.whirAnswers h hwc (I ρ) (hw ρ) ρ fun r => hall r trivial)
     rw [card_univ] at hb
     refine hb.trans' (card_le_card fun r hr => ?_)
     simp only [mem_filter, mem_univ, true_and, Fintype.mem_piFinset, implies_true] at hr ⊢
     exact hr
 
 open Classical in
-/-- GKR's odd layer over a uniform oracle, at each oracle: the oracles at which `oddEvent` holds and some input value
-is not its true children's product (`oddFalse`) are at most an `m / |E|` fraction. The values are bound before `λ`,
-so they are one list over the vectors put in at an oracle. -/
-theorem odd_run_sound_at (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c.odds) (L R : ℕ → E)
+/-- GKR's odd layer over a uniform oracle, at each oracle: the oracles at which `oddEvent` holds and some input value is not its true children's product (`oddFalse`) are at most an `m / |E|` fraction. The values are bound before `λ`, so they are one list over the vectors put in at an oracle. The true children `L ρ`, `R ρ` are the oracle's, fixed before the layer's challenges (`hLc`, `hRc`). -/
+theorem odd_run_sound_at (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c.odds) (L R : (ℕ → K) → ℕ → E)
+    (hLc : ∀ ρ r, L (oracleAt (chalWords c.outs oc.chals) ρ r) = L ρ)
+    (hRc : ∀ ρ r, R (oracleAt (chalWords c.outs oc.chals) ρ r) = R ρ)
     (hR : Run c s oc.transcript st val)
     (U : Finset ℕ) (hU : oracleWords s (c.transcripts.getD oc.transcript default) ⊆ U) :
-    (#{ρ : U → K | oddFalse c s oc L R val (extU _ ρ)} : ℚ≥0) / Fintype.card (U → K) ≤ oc.m / Fintype.card E := by
+    (#{ρ : U → K | oddFalse c s oc (L (extU _ ρ)) (R (extU _ ρ)) val (extU _ ρ)} : ℚ≥0) / Fintype.card (U → K) ≤
+      oc.m / Fintype.card E := by
   obtain ⟨hc, hok⟩ := Cert.odd_chals h hoc
   obtain ⟨hown, hinj, hmono, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
   have hall := (Cert.accepts_rounds h).2.2.1
   simp only [Cert.oddsOk, Array.all_eq_true', Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq,
     decide_eq_true_eq] at hall
   obtain ⟨⟨⟨⟨⟨⟨⟨htr, -⟩, -⟩, -⟩, -⟩, -⟩, hb0⟩, -⟩ := hall oc hoc
-  refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (oddFalse c s oc L R val) _ fun ρ => ?_
+  refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (fun ρ => oddFalse c s oc (L ρ) (R ρ) val ρ) _
+    fun ρ => ?_
+  simp only [hLc ρ, hRc ρ]
   let v := fun r => val (oracleAt (chalWords c.outs oc.chals) ρ r)
-  have hcount : #{r : Fin 2 → E | oddFalse c s oc L R val (oracleAt (chalWords c.outs oc.chals) ρ r)} ≤
+  have hcount : #{r : Fin 2 → E | oddFalse c s oc (L ρ) (R ρ) val (oracleAt (chalWords c.outs oc.chals) ρ r)} ≤
       oc.m * Fintype.card E := by
     refine (card_le_card fun r hr => ?_).trans (card_at (fun _ => True)
       (fun r => (∀ a b, s.unions[oc.test]? = some (a, b) → v r a = v r b) ∧
-        ∀ k < oc.m, Model.ev (v r) (oc.out c.outs k) = L k + r 1 * (L k + R k))
-      (fun r => ∃ k < oc.m, Model.ev (v r) (oc.values.getD k 0) ≠ L k * R k) _ (fun r r' _ _ hb => ?_)
+        ∀ k < oc.m, Model.ev (v r) (oc.out c.outs k) = L ρ k + r 1 * (L ρ k + R ρ k))
+      (fun r => ∃ k < oc.m, Model.ev (v r) (oc.values.getD k 0) ≠ L ρ k * R ρ k) _ (fun r r' _ _ hb => ?_)
       fun hall => ?_)
     · simp only [mem_filter, mem_univ, true_and, oddFalse, oddEvent, readR_oracleAt hinj] at hr ⊢
       exact ⟨hr.1, hr.2⟩
@@ -854,7 +926,8 @@ theorem odd_run_sound_at (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c
           · exact le_rfl
           · exact hmono 0 1 (by decide))
       rwa [← hagree]
-    · have hb := odd_test_sound c s h hoc univ L R _ _ (hR.oddAnswers h hoc L R ρ fun r => hall r trivial)
+    · have hb := odd_test_sound c s h hoc univ (L ρ) (R ρ) _ _
+        (hR.oddAnswers h hoc (L ρ) (R ρ) ρ fun r => hall r trivial)
       rw [card_univ] at hb
       refine hb.trans' (card_le_card fun r hr => ?_)
       simp only [mem_filter, mem_univ, true_and, Fintype.mem_piFinset, implies_true] at hr ⊢
@@ -863,12 +936,11 @@ theorem odd_run_sound_at (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c
     _ = oc.m * Fintype.card E ^ 2 := by ring
 
 open Classical in
-/-- GKR's radix-four top layer over a uniform oracle, at each oracle: the oracles at which `topEvent` holds and some
-input value is not its true children's product (`topFalse`) are at most an `(m + 1) / |E|` fraction. -/
-theorem top_run_sound_at (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c.tops) (T' : ℕ → ℕ → E)
-    (hR : Run c s tc.transcript st val)
+/-- GKR's radix-four top layer over a uniform oracle, at each oracle: the oracles at which `topEvent` holds and some input value is not its true children's product (`topFalse`) are at most an `(m + 1) / |E|` fraction. The true children `T' ρ` are the oracle's, fixed before the layer's challenges (`hTc`). -/
+theorem top_run_sound_at (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c.tops) (T' : (ℕ → K) → ℕ → ℕ → E)
+    (hTc : ∀ ρ r, T' (oracleAt (chalWords c.outs tc.chals) ρ r) = T' ρ) (hR : Run c s tc.transcript st val)
     (U : Finset ℕ) (hU : oracleWords s (c.transcripts.getD tc.transcript default) ⊆ U) :
-    (#{ρ : U → K | topFalse c s tc T' val (extU _ ρ)} : ℚ≥0) / Fintype.card (U → K) ≤
+    (#{ρ : U → K | topFalse c s tc (T' (extU _ ρ)) val (extU _ ρ)} : ℚ≥0) / Fintype.card (U → K) ≤
       (tc.m + 1 : ℕ) / Fintype.card E := by
   obtain ⟨hc, hok⟩ := Cert.top_chals h htc
   obtain ⟨hown, hinj, hmono, -⟩ := chalsOk_sem hc fun i => ChalCert.ok_words (hok i)
@@ -877,15 +949,17 @@ theorem top_run_sound_at (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c
     decide_eq_true_eq] at hall
   obtain ⟨⟨htops, -⟩, -⟩ := hall
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨htr, -⟩, -⟩, -⟩, -⟩, -⟩, -⟩, hb0⟩, -⟩ := htops tc htc
-  refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (topFalse c s tc T' val) _ fun ρ => ?_
+  refine run_frac hinj (fun i k => hU (own_mem_oracleWords hown i k)) (fun ρ => topFalse c s tc (T' ρ) val ρ) _
+    fun ρ => ?_
+  simp only [hTc ρ]
   let v := fun r => val (oracleAt (chalWords c.outs tc.chals) ρ r)
-  have hcount : #{r : Fin 3 → E | topFalse c s tc T' val (oracleAt (chalWords c.outs tc.chals) ρ r)} ≤
+  have hcount : #{r : Fin 3 → E | topFalse c s tc (T' ρ) val (oracleAt (chalWords c.outs tc.chals) ρ r)} ≤
       (tc.m + 1) * Fintype.card E ^ 2 := by
     refine (card_le_card fun r hr => ?_).trans (card_at (fun _ => True)
       (fun r => (∀ a b, s.unions[tc.test]? = some (a, b) → v r a = v r b) ∧
         ∀ k < tc.m, Model.ev (v r) (tc.out c.outs k) =
-          lineE (lineE (T' k 0) (T' k 1) (r 1)) (lineE (T' k 2) (T' k 3) (r 1)) (r 2))
-      (fun r => ∃ k < tc.m, Model.ev (v r) (tc.values.getD k 0) ≠ T' k 0 * T' k 1 * T' k 2 * T' k 3) _
+          lineE (lineE (T' ρ k 0) (T' ρ k 1) (r 1)) (lineE (T' ρ k 2) (T' ρ k 3) (r 1)) (r 2))
+      (fun r => ∃ k < tc.m, Model.ev (v r) (tc.values.getD k 0) ≠ T' ρ k 0 * T' ρ k 1 * T' ρ k 2 * T' ρ k 3) _
       (fun r r' _ _ hb => ?_) fun hall => ?_)
     · simp only [mem_filter, mem_univ, true_and, topFalse, topEvent, readR_oracleAt hinj] at hr ⊢
       exact ⟨hr.1, hr.2⟩
@@ -902,7 +976,7 @@ theorem top_run_sound_at (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c
           · exact hmono 0 1 (by decide)
           · exact hmono 0 2 (by decide))
       rwa [← hagree]
-    · have hb := top_test_sound c s h htc univ T' _ _ (hR.topAnswers h htc T' ρ fun r => hall r trivial)
+    · have hb := top_test_sound c s h htc univ (T' ρ) _ _ (hR.topAnswers h htc (T' ρ) ρ fun r => hall r trivial)
       rw [card_univ] at hb
       refine hb.trans' (card_le_card fun r hr => ?_)
       simp only [mem_filter, mem_univ, true_and, Fintype.mem_piFinset, implies_true] at hr ⊢
