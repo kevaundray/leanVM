@@ -475,6 +475,100 @@ theorem checksGiveBatch_claims [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
         ProductClaim (t v) (wit v ω) (draw v ω), outOk, testBad, pcsBad, crBad⟩ n bdraw aOf draw wit :=
   fun _ _ _ _ _ hin _ _ => hin 0 Nat.one_pos
 
+/-! The table sumcheck's and bus GKR's honest instances on the committed witness. -/
+
+/-- The table sumcheck's honest sum on a committed witness at `(ζ, ξ)` (`TableSummand::batch` summed with
+`eq(ζ, ·)`): the bus forms' weighted sums `a` at `ξ^0` (push) and `ξ^1` (pull), and each identity's, `coef`, at
+`ξ^(2 + j)`. -/
+noncomputable def tableSum {n : ℕ} (w : Witness) (ζ : Fin n → E) (a : Fin 2 → E) (ξ : E) : E :=
+  a 0 + ξ * a 1 + ∑ j : Fin allIds.length, ξ ^ (2 + (j : ℕ)) * coef w ζ allIds[j]
+
+/-- The batch claim from the table sumcheck's input claim: the verifier's claim, the bus totals' `σ_0 + ξ σ_1`, equal
+to the committed witness's honest sum is the batch claim with bus parts the forms' sums less the totals. -/
+theorem batchClaim_of_sum {n : ℕ} {w : Witness} {ζ : Fin n → E} {a σ : Fin 2 → E} {ξ : E}
+    (h : σ 0 + ξ * σ 1 = tableSum w ζ a ξ) : BatchClaim w ζ (fun i => a i - σ i) ξ := by
+  unfold BatchClaim
+  unfold tableSum at h
+  linear_combination -h
+
+/-- The bus GKR's honest root over the pulls at a draw `f = (β, A)`: the product of `β + fp_A(t)` over them. -/
+noncomputable def pullRoot (s : State) (w : Witness) (f : Fin 5 → E) : E :=
+  UnionSound.prodAt (pulls busTuple (fun i : Fin (slots w).length => key (slots w)[i])
+    (fun i => carried w (slots w)[i])) (f 0) (Fin.tail f)
+
+/-- The bus GKR's honest root over the pushes at a draw `f = (β, A)`. -/
+noncomputable def pushRoot (s : State) (w : Witness) (f : Fin 5 → E) : E :=
+  UnionSound.prodAt (pushes busTuple (fun i : Fin (slots w).length => key (slots w)[i])
+    (classNext fun i => slotClass s (slots w)[i]) (fun i => carried w (slots w)[i])) (f 0) (Fin.tail f)
+
+/-- The product claim is the two honest roots' agreement. -/
+theorem productClaim_iff {s : State} {w : Witness} {f : Fin 5 → E} :
+    ProductClaim s w f ↔ pullRoot s w f = pushRoot s w f := Iff.rfl
+
+/-- The premise with the table sumcheck's and bus GKR's honest instances the committed witness's: where the parent's
+circuit is satisfied, every check's inputs are true, no compression collides and the parent's verifier reads statement
+`st`, child `v`'s committed witness `wit v ω` holds its rows within heights below `2^32`, carries the public columns at
+`st` and has its hash rows' packed witnesses; the table sumcheck's input claim, the bus totals `tot` at the batch's
+draw as `σ_0 + ξ σ_1`, is the committed witness's honest sum (`tableSum`, with the bus forms' weighted sums `forms`);
+and the bus GKR's root claims `roots` are the committed witness's honest roots at its draw (`pullRoot`, `pushRoot`),
+which the verifier holds equal (`leaf::verify_balance`). -/
+def ChecksGiveInst [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
+    (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
+    (P : RecParts ι Ω) (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)
+    (forms tot : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → E) (roots : ι → Ω → Fin 2 → E) (draw : ι → Ω → Fin 5 → E)
+    (wit : ι → Ω → Witness) : Prop :=
+  ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω,
+    Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v)) (val (T.parent v) ω) →
+    (∀ j < P.J v, P.inOk v j ω) → ω ∉ P.crBad v →
+    ((cert (T.parent v)).children.getD (slot v) default).inst.VerifiesAt (cert (T.parent v)).calls
+      (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
+    (∀ T', (rowsOf (t v) T').size ≤ (wit v ω).height T' ∧ (wit v ω).height T' ≤ 2 ^ 32) ∧
+    (∀ z (hz : z < (t v).pub.size) (i : Fin 4),
+      (wit v ω).cols .pub z i = srcVal (treeStmt T cert slot stRoot val v ω) (t v).pub[z].2 i) ∧
+    Flocked (t v) (wit v ω) ∧
+    tot v ω (bdraw v ω).1 0 + (bdraw v ω).2 * tot v ω (bdraw v ω).1 1 =
+      tableSum (wit v ω) (bdraw v ω).1 (forms v ω (bdraw v ω).1) (bdraw v ω).2 ∧
+    roots v ω 0 = pullRoot (t v) (wit v ω) (draw v ω) ∧ roots v ω 1 = pushRoot (t v) (wit v ω) (draw v ω) ∧
+    roots v ω 0 = roots v ω 1
+
+/-- `ChecksGiveBatch` from `ChecksGiveInst`, the batch's bus parts the forms' sums less the totals: the batch claim from
+the table sumcheck's input claim (`batchClaim_of_sum`), the product claim from the bus GKR's roots. -/
+theorem checksGiveBatch_of_inst [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
+    (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
+    (P : RecParts ι Ω) (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E)
+    (forms tot : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → E) (roots : ι → Ω → Fin 2 → E) (draw : ι → Ω → Fin 5 → E)
+    (wit : ι → Ω → Witness) (h : ChecksGiveInst T cert t os L slot stRoot val P n bdraw forms tot roots draw wit) :
+    ChecksGiveBatch T cert t os L slot stRoot val P n bdraw (fun v ω ζ i => forms v ω ζ i - tot v ω ζ i) draw wit := by
+  intro v hv hne ω hps hin hcr hver
+  obtain ⟨hfit, hpub, hfl, hsum, h0, h1, heq⟩ := h v hv hne ω hps hin hcr hver
+  exact ⟨hfit, hpub, hfl, batchClaim_of_sum hsum, productClaim_iff.mpr (h0.symm.trans (heq.trans h1))⟩
+
+/-- Non-vacuity of `ChecksGiveInst`: parts whose one check per child has its conclusion as its inputs meet it. -/
+theorem checksGiveInst_claims [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)
+    (os : ι → Array (List ℕ)) (L : Layout) (slot : ι → ℕ) (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
+    (n : ι → ℕ) (bdraw : (v : ι) → Ω → (Fin (n v) → E) × E) (forms tot : (v : ι) → Ω → (Fin (n v) → E) → Fin 2 → E)
+    (roots : ι → Ω → Fin 2 → E) (draw : ι → Ω → Fin 5 → E) (wit : ι → Ω → Witness) (outOk : ι → ℕ → Ω → Prop)
+    (testBad : ι → ℕ → Finset Ω) (pcsBad crBad : ι → Finset Ω) :
+    ChecksGiveInst T cert t os L slot stRoot val
+      ⟨fun _ => 1, fun v _ ω =>
+        (∀ T', (rowsOf (t v) T').size ≤ (wit v ω).height T' ∧ (wit v ω).height T' ≤ 2 ^ 32) ∧
+        (∀ z (hz : z < (t v).pub.size) (i : Fin 4),
+          (wit v ω).cols .pub z i = srcVal (treeStmt T cert slot stRoot val v ω) (t v).pub[z].2 i) ∧
+        Flocked (t v) (wit v ω) ∧
+        tot v ω (bdraw v ω).1 0 + (bdraw v ω).2 * tot v ω (bdraw v ω).1 1 =
+          tableSum (wit v ω) (bdraw v ω).1 (forms v ω (bdraw v ω).1) (bdraw v ω).2 ∧
+        roots v ω 0 = pullRoot (t v) (wit v ω) (draw v ω) ∧ roots v ω 1 = pushRoot (t v) (wit v ω) (draw v ω) ∧
+        roots v ω 0 = roots v ω 1, outOk, testBad, pcsBad, crBad⟩ n bdraw forms tot roots draw wit :=
+  fun _ _ _ _ _ hin _ _ => hin 0 Nat.one_pos
+
+/-- Mutation test of `batchClaim_of_sum`: with no identities broken, the batch claim at bus parts `a - σ` fails where
+the claim `σ_0 + ξ σ_1` misses the honest sum by one. -/
+example {n : ℕ} (w : Witness) (ζ : Fin n → E) (a : Fin 2 → E) (ξ : E) (hc : ∀ j : Fin allIds.length, coef w ζ allIds[j] = 0) :
+    ¬ BatchClaim w ζ (fun i => a i - (a i + if i = 0 then 1 else 0)) ξ := by
+  unfold BatchClaim
+  simp only [hc, mul_zero, Finset.sum_const_zero, add_zero]
+  simp
+
 open Classical in
 /-- `tree_sound_bound` with the batch's bound: the constraint batch's event is the batch's draw event (`batchBad`), at most `(n_v + 66 + 1)/|E|` of the outcomes (`batchBad_frac`), and the premise left is `ChecksGiveBatch`. -/
 theorem tree_sound_batch [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State)

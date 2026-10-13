@@ -227,7 +227,7 @@ theorem sumcheck_answers_exist :
     Fin.ext (by have := i.isLt; simp [sumcheck] at this; omega)
   refine ⟨cert, state, sumcheck, inst, fun _ => 0, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0,
     by simp [cert], by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun _ _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
     fun r i => ?_, fun r _ _ => ?_⟩
   · obtain rfl := h0 i
     rw [show (sumcheck.rounds.getD 0 default).time = 1 from rfl,
@@ -253,7 +253,7 @@ theorem sumcheck_hinted_answers_exist :
   let ans : E → Val := fun a w => if w = 17 then limbsE a else answer a 0 w
   refine ⟨cert, state, sumcheckH, inst, fun _ => 1, fun _ _ _ => 0, fun r => ans (r ⟨0, by decide⟩), by simp [cert],
     rfl, by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩,
-    ⟨rom _ _ fun r => by simp [ans, answer], fun r r' i _ m hm => ?_, fun _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
+    ⟨rom _ _ fun r => by simp [ans, answer], fun r r' i _ m hm => ?_, fun _ _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
       fun r i => ?_, fun r _ hT => ?_⟩,
     fun r i => by rw [h0 i]; exact ev_limbsE _ 17 _ (by simp [ans, sumcheckH, sumcheck])⟩
   · obtain rfl := h0 i
@@ -275,7 +275,7 @@ theorem odd_answers_exist :
       (val : (Fin 2 → E) → Val), oc ∈ c.odds ∧ OddAnswers c s oc L R (fun _ => True) st val := by
   refine ⟨cert, state, odd, fun _ => 0, fun _ => 0, fun _ _ _ => 0, fun r => answer (r 0) (r 1), by simp [cert], ?_⟩
   refine ⟨rom _ _ fun r => by simp [answer], fun r r' m hm => ?_, fun r r' h0 m hm => ?_,
-    fun _ _ _ => pairCR _ _ _, fun _ _ _ _ => pairCR _ _ _, fun r => ⟨?_, ?_⟩,
+    fun _ _ _ _ => pairCR _ _ _, fun _ _ _ _ _ => pairCR _ _ _, fun r => ⟨?_, ?_⟩,
     fun r _ => ⟨0, by simp [OddCert.m, odd], ?_⟩⟩
   · rw [show odd.lam.time = 1 from rfl, show cert.transcripts.getD odd.transcript default = transcript from rfl,
       seeds_one] at hm
@@ -298,7 +298,7 @@ theorem top_answers_exist :
       (val : (Fin 3 → E) → Val), tc ∈ c.tops ∧ TopAnswers c s tc T (fun _ => True) st val := by
   refine ⟨cert, state, top, fun _ _ => 0, fun _ _ _ => 0, fun r => answer3 (r 0) (r 1) (r 2), by simp [cert], ?_⟩
   refine ⟨rom _ _ fun r => by simp [answer3, answer], fun r r' m hm => ?_, fun r r' h0 m hm => ?_,
-    fun _ _ _ => pairCR _ _ _, fun _ _ _ _ => pairCR _ _ _, fun r => ⟨?_, ?_, ?_⟩,
+    fun _ _ _ _ => pairCR _ _ _, fun _ _ _ _ _ => pairCR _ _ _, fun r => ⟨?_, ?_, ?_⟩,
     fun r _ => ⟨0, by simp [TopCert.m, top], ?_⟩⟩
   · rw [show top.lam.time = 1 from rfl, show cert.transcripts.getD top.transcript default = transcript from rfl,
       seeds_one] at hm
@@ -325,7 +325,7 @@ theorem whir_answers_exist :
   refine ⟨cert, state, whir, inst2, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) (r ⟨1, by decide⟩),
     by simp [cert], by decide,
     ⟨by simp, fun _ => ⟨by simp [Inst.sum, lin], by simp, fun _ => ⟨by simp [Inst.sum], trivial⟩⟩⟩, ?_, sibs_one⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i hj m hm => ?_, fun _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i hj m hm => ?_, fun _ _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
     fun r i => ?_, fun r _ => ?_⟩
   · match i with
     | ⟨0, _⟩ =>
@@ -416,7 +416,7 @@ theorem run_exists :
         toE (nu (val ρ) (own i 0)) (nu (val ρ) (own i 1)) (nu (val ρ) (own i 2))) ∧
       ∀ ρ, Model.ev (val ρ) sumcheck.claim0 ≠ inst.sum := by
   refine ⟨cert, state, fun _ _ _ => 0, runVal, runOwn, runTime, runChal,
-    ⟨rom _ _ fun ρ => by simp [runVal], run_ans, run_causal, fun _ _ _ _ _ _ _ => pairCR _ _ _⟩, fun i k => ?_, ?_,
+    ⟨rom _ _ fun ρ => by simp [runVal], run_ans, run_causal, fun _ _ _ _ _ _ _ _ => pairCR _ _ _⟩, fun i k => ?_, ?_,
     fun i j hij => ?_, fun ρ i => ?_, fun ρ => ?_⟩
   · show (_, _) ∈ chalSeeds state transcript ∧ ∀ p ∈ chalSeeds state transcript, _
     rw [chalSeeds_eq]

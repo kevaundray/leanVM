@@ -90,7 +90,7 @@ theorem card_plane_zero (S : Finset E) {d0 d1 d2 d3 : E} (h : d0 ≠ 0 ∨ d1 �
 
 /-- What `top_test_sound` asks of the prover's answers to a top layer's challenge triples `r` (`λ`, `low`, `high`):
 answers in the random-oracle view (`RomAnswers`) that agree on the seeds before `λ`'s time, and when their `λ` agree on
-the seeds before `low`'s time, the first one `good` collision-free with the second on the rows bound by those times
+the seeds before `low`'s time, both `good` collision-free on the rows bound by those times
 (`PairCR`); whose challenges are `r`; and in which some input value is not its true children's product (`T k i`, child
 `i` of value `k`). `top_answers_exist` exhibits such answers. -/
 structure TopAnswers (c : Cert) (s : State) (tc : TopCert) (T : ℕ → ℕ → E) (good : (Fin 3 → E) → Prop)
@@ -100,8 +100,8 @@ structure TopAnswers (c : Cert) (s : State) (tc : TopCert) (T : ℕ → ℕ → 
     nu (val r) n = nu (val r') n
   seed1 : ∀ r r', r 0 = r' 0 →
     ∀ n ∈ seedsBefore s (c.transcripts.getD tc.transcript default) tc.low.time, nu (val r) n = nu (val r') n
-  cr0 : ∀ r r', good r → PairCRAt c s tc.transcript tc.lam.time (val r) (val r')
-  cr1 : ∀ r r', good r → r 0 = r' 0 → PairCRAt c s tc.transcript tc.low.time (val r) (val r')
+  cr0 : ∀ r r', good r → good r' → PairCRAt c s tc.transcript tc.lam.time (val r) (val r')
+  cr1 : ∀ r r', good r → good r' → r 0 = r' 0 → PairCRAt c s tc.transcript tc.low.time (val r) (val r')
   chal : ∀ r, Model.ev (val r) tc.lam.chal = r 0 ∧ Model.ev (val r) tc.low.chal = r 1 ∧
     Model.ev (val r) tc.high.chal = r 2
   false_value : ∀ r, good r → ∃ k < tc.m, Model.ev (val r) (tc.values.getD k 0) ≠ T k 0 * T k 1 * T k 2 * T k 3
@@ -128,14 +128,14 @@ theorem top_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {tc : Top
     exact hok.1.1.1
   have hF := ha.rom.facts
   have agree := fun r r' {time w : ℕ} hc hb hs => bound_agree h htr ha.rom r r' (time := time) (w := w) hc hb hs
-  have hval : ∀ r r', good r → ∀ k < tc.m,
+  have hval : ∀ r r', good r → good r' → ∀ k < tc.m,
       Model.ev (val r) (tc.values.getD k 0) = Model.ev (val r') (tc.values.getD k 0) :=
-    fun r r' hg k hk => agree r r' (ha.cr0 r r' hg)
+    fun r r' hg hg' k hk => agree r r' (ha.cr0 r r' hg hg')
       (boundBy_wires hb0 _ (getD_mem_of_lt (by simpa [TopCert.m] using hk))) (ha.seed0 r r')
-  have hch : ∀ r r', good r → r 0 = r' 0 → ∀ k < tc.m, ∀ i < 4,
+  have hch : ∀ r r', good r → good r' → r 0 = r' 0 → ∀ k < tc.m, ∀ i < 4,
       Model.ev (val r) (tc.kid k i) = Model.ev (val r') (tc.kid k i) := by
-    intro r r' hg h0 k hk i hi
-    exact agree r r' (ha.cr1 r r' hg h0) (boundBy_wires hb1 _ (List.mem_flatMap.mpr ⟨k, List.mem_range.mpr hk,
+    intro r r' hg hg' h0 k hk i hi
+    exact agree r r' (ha.cr1 r r' hg hg' h0) (boundBy_wires hb1 _ (List.mem_flatMap.mpr ⟨k, List.mem_range.mpr hk,
       List.mem_map.mpr ⟨i, List.mem_range.mpr hi, rfl⟩⟩)) (ha.seed1 r r' h0)
   -- The values' differences from the children's products, a nonzero polynomial in `λ`.
   by_cases hex : ∃ r₀ : Fin 3 → E, good r₀
@@ -177,7 +177,7 @@ theorem top_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {tc : Top
       · simp only [Model.ev, ← htest _ _ hp]
     rw [hc1, he1, (ha.chal r1).1, h10, map_eq_range _ 0 tc.values] at htv
     have hvs : (List.range tc.values.length).map (fun k => Model.ev (val r1) (tc.values.getD k 0)) =
-        (List.range tc.m).map vs := List.map_congr_left fun k hk => hval r1 r₀ hg1 k (List.mem_range.mp hk)
+        (List.range tc.m).map vs := List.map_congr_left fun k hk => hval r1 r₀ hg1 hg₀ k (List.mem_range.mp hk)
     rw [hvs] at htv
     obtain ⟨k, hk, hkne⟩ : ∃ k < tc.m, Model.ev (val r1) (tc.kid k 0) * Model.ev (val r1) (tc.kid k 1) *
         Model.ev (val r1) (tc.kid k 2) * Model.ev (val r1) (tc.kid k 3) ≠ P k := by
@@ -205,7 +205,7 @@ theorem top_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {tc : Top
       simp only [Finset.mem_coe, mem_filter, mem_product]
       refine ⟨⟨hS 1, hS 2⟩, ?_⟩
       have e := (top_sem (hF r) hok).2.2 k hk
-      have hk' := hch r r1 hg (h0.trans h10.symm) k hk
+      have hk' := hch r r1 hg hg1 (h0.trans h10.symm) k hk
       rw [hout k hk, (ha.chal r).2.1, (ha.chal r).2.2, hk' 0 (by norm_num), hk' 1 (by norm_num),
         hk' 2 (by norm_num), hk' 3 (by norm_num)] at e
       simp only [lineE] at e ⊢
@@ -293,7 +293,7 @@ theorem whirBound_closure {c : Cert} {s : State} {os : Array (List ℕ)} {T : Tr
 /-- What `whir_test_sound` asks of the prover's answers to a WHIR sumcheck `wc`'s challenge vectors `r`: answers in
 the random-oracle view (`RomAnswers`); two answers whose challenges before round `i` agree agree on round `i`'s seeds
 (`WhirRound.seeds`: the seeds before its time, and for a batch round the words squeezed with `λ` but `λ`'s own, its
-query positions) and, the first one `good`, are collision-free on the rows those seeds bind (`PairCR`); round `i`'s
+query positions) and, both `good`, are collision-free on the rows those seeds bind (`PairCR`); round `i`'s
 challenge is `r i`; the rounds' eq weights (none for a fold round, zero for a batch round) are the honest instance's;
 and the input claim is not the instance's sum. `whir_answers_exist` exhibits such answers. -/
 structure WhirAnswers (c : Cert) (s : State) (wc : WhirCert) (I : Inst E wc.rounds.length)
@@ -303,7 +303,7 @@ structure WhirAnswers (c : Cert) (s : State) (wc : WhirCert) (I : Inst E wc.roun
   seed : ∀ r r' (i : Fin wc.rounds.length), (∀ j < i, r j = r' j) →
     ∀ m ∈ (wc.rounds.getD i default).seeds s (c.transcripts.getD wc.transcript default),
       nu (val r) m = nu (val r') m
-  cr : ∀ r r' (i : Fin wc.rounds.length), good r → (∀ j < i, r j = r' j) →
+  cr : ∀ r r' (i : Fin wc.rounds.length), good r → good r' → (∀ j < i, r j = r' j) →
     PairCR c s wc.transcript ((wc.rounds.getD i default).seeds s (c.transcripts.getD wc.transcript default)) (val r)
       (val r')
   chal : ∀ r (i : Fin wc.rounds.length), Model.ev (val r) (wc.rounds.getD i default).chal.chal = r i
@@ -342,11 +342,11 @@ theorem whir_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {wc : Wh
     simp only [cl, Fin.val_succ, WhirCert.claimAt, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
     rw [h3, ha.chal r i]
   have htm := Cert.marksRO_getD c s htr
-  have hpre : PrefixDepOn {r | good r} g := fun r hr r' _ i hrr => by
+  have hpre : PrefixDepOn {r | good r} g := fun r hr r' hr' i hrr => by
     have hb := (hrounds i i.isLt).2
     rw [htm] at hb
     exact WhirRound.poly_congr _ _ fun w hw =>
-      ro_agree h htr ha.rom r r' (ha.cr r r' i hr hrr) (fun n hn => hn.mono fun m hm => List.mem_append_left _ hm)
+      ro_agree h htr ha.rom r r' (ha.cr r r' i hr hr' hrr) (fun n hn => hn.mono fun m hm => List.mem_append_left _ hm)
         (whirBound_closure hb w hw) (ha.seed r r' i hrr)
   by_cases hex : ∃ r₀ : Fin wc.rounds.length → E, good r₀
   swap
@@ -355,7 +355,7 @@ theorem whir_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {wc : Wh
   obtain ⟨r₀, hg₀⟩ := hex
   have hc0 : ∀ r, good r → cl r 0 = cl r₀ 0 := fun r hr =>
     bound_agree h htr ha.rom r r₀
-      ((ha.cr r r₀ ⟨0, hpos⟩ hr fun j hj => absurd hj (by simp [Fin.lt_def])).anti
+      ((ha.cr r r₀ ⟨0, hpos⟩ hr hg₀ fun j hj => absurd hj (by simp [Fin.lt_def])).anti
         (Cert.liveOn_mono c _ (WhirRound.seedsBefore_sub _ _ _)))
       (boundBy_wires hb0 _ (List.mem_singleton_self _)) fun m hm =>
       ha.seed r r₀ ⟨0, hpos⟩ (fun j hj => absurd hj (by simp [Fin.lt_def])) m (WhirRound.seedsBefore_sub _ _ _ m hm)

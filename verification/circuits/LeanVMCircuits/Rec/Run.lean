@@ -11,9 +11,10 @@ The round theorems (`sumcheck_test_sound`, `odd_test_sound`, `top_test_sound`, `
 vectors `r` and take the prover's answer at each (`SumcheckAnswers`, ...). A prover in the random-oracle model is
 instead an assignment at each oracle `ρ`, the answers at its transcript's squeezes' output words (`Run`): in the
 random-oracle view (`RomAnswers`), its squeezes' outputs `ρ`'s answers, what its first `k` blocks absorb a function
-of the answers drawn by `k` (it absorbs a block knowing only the challenges before it), and, off its execution's
-collision event `C`, collision-free against any execution sharing its prefix on the rows that prefix binds
-(`Run.cr`, which `Bind.pairCR_of_prefix` derives from one execution's compression queries).
+of the answers drawn by `k` (it absorbs a block knowing only the challenges before it), and, off its executions'
+collision events `C`, collision-free against any execution sharing its prefix on the rows that prefix binds
+(`Run.cr`, which `Bind.Run.cr_of_extract` derives from a causal prover's compression queries by straight-line
+extraction).
 
 A certified check's challenges read three words of a squeeze each (`ChalCert.own`). The verdict checks they are drawn
 in order from the oracle's words (`Cert.chalsOk`: each word a challenge seed one step after its challenge's time and
@@ -163,11 +164,12 @@ theorem mul_card_le {x n B : ℕ} (h : x ≤ n * B * Fintype.card E ^ (n - 1)) :
 /-- A prover's run in the random-oracle view of transcript `T`: an assignment at each oracle `ρ`, in that view
 (`RomAnswers`), whose squeezes' outputs are `ρ`'s answers (`ans`), whose seeds before time `k` (what its first `k`
 blocks absorb, and the statement past its last block) read only `ρ`'s answers drawn by `k` (`causal`), and which, off
-the collision event `C` of its execution at `ρ`, is collision-free against the assignment at any `ρ'` sharing its
-prefix, on the rows that prefix binds (`cr`): `ρ'` agrees with `ρ` on the answers drawn by `k` and on those drawn at
-`k + 1` but the words `ownL`, and the rows are those the seeds before `k` and the words drawn at `k + 1` but `ownL`
-bind. `Bind.pairCR_of_prefix` gives `cr` from a prover whose compression queries before a squeeze are shared by the
-executions agreeing before it and include those rows' inputs, `C` the event that its queries collide. -/
+the collision events `C` of its executions at `ρ` and `ρ'`, is collision-free against the assignment at any `ρ'`
+sharing its prefix, on the rows that prefix binds (`cr`): `ρ'` agrees with `ρ` on the answers drawn by `k` and on those
+drawn at `k + 1` but the words `ownL`, and the rows are those the seeds before `k` and the words drawn at `k + 1` but
+`ownL` bind. `Bind.Run.cr_of_extract` gives `cr` from a causal prover whose rows are among its compression queries and
+whose rows that prefix binds output words it fixed by then, `C` the event that its queries collide, hit a window or
+answer a word fixed before them. -/
 structure Run (c : Cert) (s : State) (T : ℕ) (C : (ℕ → K) → Prop) (st : (ℕ → K) → ℕ → Fin 4 → K)
     (val : (ℕ → K) → Val) : Prop where
   rom : RomAnswers c s T st val
@@ -176,6 +178,7 @@ structure Run (c : Cert) (s : State) (T : ℕ) (C : (ℕ → K) → Prop) (st : 
     ∀ m ∈ seedsBefore s (c.transcripts.getD T default) k, nu (val ρ) m = nu (val ρ') m
   cr : ∀ ρ ρ' k (ownL : List ℕ), (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 ≤ k → ρ p.2 = ρ' p.2) →
     (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 = k + 1 → p.2 ∉ ownL → ρ p.2 = ρ' p.2) → ¬ C ρ →
+    ¬ C ρ' →
     PairCR c s T (seedsBefore s (c.transcripts.getD T default) k ++ sibSeeds s (c.transcripts.getD T default) k ownL)
       (val ρ) (val ρ')
 
@@ -197,14 +200,15 @@ theorem mem_ownAll (own : Fin n → Fin 3 → ℕ) (j : Fin n) (l : Fin 3) : own
   List.mem_flatMap.mpr ⟨j, List.mem_finRange j, List.mem_ofFn.mpr ⟨l, rfl⟩⟩
 
 /-- Two vectors differing only at challenges drawn at `k` or later, those drawn at `k` with all their words in `ownL`,
-give assignments collision-free on the rows the seeds before `k` and the words drawn at `k + 1` but `ownL` bind, the
-first off `C`. -/
+give assignments collision-free on the rows the seeds before `k` and the words drawn at `k + 1` but `ownL` bind, both
+off `C`. -/
 theorem Run.cr_at (hR : Run c s T C st val) (hown : OwnAt s (c.transcripts.getD T default) own time)
     (hinj : OwnInj own) (ρ : ℕ → K) (k : ℕ) (ownL : List ℕ) (r r' : Fin n → E)
-    (hr : ∀ j, r j ≠ r' j → k ≤ time j ∧ (time j = k → ∀ l, own j l ∈ ownL)) (hC : ¬ C (oracleAt own ρ r)) :
+    (hr : ∀ j, r j ≠ r' j → k ≤ time j ∧ (time j = k → ∀ l, own j l ∈ ownL)) (hC : ¬ C (oracleAt own ρ r))
+    (hC' : ¬ C (oracleAt own ρ r')) :
     PairCR c s T (seedsBefore s (c.transcripts.getD T default) k ++ sibSeeds s (c.transcripts.getD T default) k ownL)
       (val (oracleAt own ρ r)) (val (oracleAt own ρ r')) := by
-  refine hR.cr _ _ k ownL (fun p hp hk => ?_) (fun p hp hk hno => ?_) hC
+  refine hR.cr _ _ k ownL (fun p hp hk => ?_) (fun p hp hk hno => ?_) hC hC'
   · by_cases h : ∃ q : Fin n × Fin 3, own q.1 q.2 = p.2
     · obtain ⟨⟨j, l⟩, hj⟩ := h
       have ht := (hown j l).2 p hp hj.symm
@@ -228,9 +232,9 @@ theorem Run.cr_at (hR : Run c s T C st val) (hown : OwnAt s (c.transcripts.getD 
 /-- `Run.cr_at` with every challenge's words left out: collision-free on the rows the seeds before `k` bind. -/
 theorem Run.crAt (hR : Run c s T C st val) (hown : OwnAt s (c.transcripts.getD T default) own time)
     (hinj : OwnInj own) (ρ : ℕ → K) (k : ℕ) (r r' : Fin n → E) (hr : ∀ j, r j ≠ r' j → k ≤ time j)
-    (hC : ¬ C (oracleAt own ρ r)) :
+    (hC : ¬ C (oracleAt own ρ r)) (hC' : ¬ C (oracleAt own ρ r')) :
     PairCRAt c s T k (val (oracleAt own ρ r)) (val (oracleAt own ρ r')) :=
-  (hR.cr_at hown hinj ρ k (ownAll own) r r' (fun j hj => ⟨hr j hj, fun _ l => mem_ownAll own j l⟩) hC).anti
+  (hR.cr_at hown hinj ρ k (ownAll own) r r' (fun j hj => ⟨hr j hj, fun _ l => mem_ownAll own j l⟩) hC hC').anti
     (Cert.liveOn_mono c T fun m hm => List.mem_append_left _ hm)
 
 /-- Two vectors differing only at challenges drawn after `k` give assignments agreeing on the seeds before `k`. -/
@@ -575,7 +579,8 @@ theorem Run.sumcheckAnswers (h : c.accepts s = true) {sc : SumcheckCert} (hsc : 
       · exact hmono i j hij
       · exact le_rfl
   exact ⟨hR.rom.comp _, fun r r' i hj => hR.seed_at hown hinj ρ _ r r' (hpre r r' i hj),
-    fun r r' i hg hj => hR.crAt hown hinj ρ _ r r' (hpre r r' i hj) hg, fun r i => hchal ρ r i, fun r i => hw r i, hf⟩
+    fun r r' i hg hg' hj => hR.crAt hown hinj ρ _ r r' (hpre r r' i hj) hg hg', fun r i => hchal ρ r i, fun r i => hw r i,
+    hf⟩
 
 /-- A run's assignments at the oracle with an odd layer's challenges put in are `OddAnswers`, good off the collision
 event at the substituted oracle, where some input value is not its true children's product. -/
@@ -598,8 +603,9 @@ theorem Run.oddAnswers (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c.o
       · exact absurd h0 hne
       · exact le_rfl
   exact ⟨hR.rom.comp _, fun r r' => hR.seed_at hown hinj ρ _ r r' (p0 r r'),
-    fun r r' h0 => hR.seed_at hown hinj ρ _ r r' (p1 r r' h0), fun r r' hg => hR.crAt hown hinj ρ _ r r' (p0 r r') hg,
-    fun r r' hg h0 => hR.crAt hown hinj ρ _ r r' (p1 r r' h0) hg, fun r => ⟨hchal ρ r 0, hchal ρ r 1⟩, hf⟩
+    fun r r' h0 => hR.seed_at hown hinj ρ _ r r' (p1 r r' h0),
+    fun r r' hg hg' => hR.crAt hown hinj ρ _ r r' (p0 r r') hg hg',
+    fun r r' hg hg' h0 => hR.crAt hown hinj ρ _ r r' (p1 r r' h0) hg hg', fun r => ⟨hchal ρ r 0, hchal ρ r 1⟩, hf⟩
 
 /-- A run's assignments at the oracle with a top layer's challenges put in are `TopAnswers`, good off the collision
 event at the substituted oracle, where some input value is not its true children's product. -/
@@ -626,8 +632,10 @@ theorem Run.topAnswers (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c.t
       · exact le_rfl
       · exact h12
   exact ⟨hR.rom.comp _, fun r r' => hR.seed_at hown hinj ρ _ r r' (p0 r r'),
-    fun r r' h0 => hR.seed_at hown hinj ρ _ r r' (p1 r r' h0), fun r r' hg => hR.crAt hown hinj ρ _ r r' (p0 r r') hg,
-    fun r r' hg h0 => hR.crAt hown hinj ρ _ r r' (p1 r r' h0) hg, fun r => ⟨hchal ρ r 0, hchal ρ r 1, hchal ρ r 2⟩, hf⟩
+    fun r r' h0 => hR.seed_at hown hinj ρ _ r r' (p1 r r' h0),
+    fun r r' hg hg' => hR.crAt hown hinj ρ _ r r' (p0 r r') hg hg',
+    fun r r' hg hg' h0 => hR.crAt hown hinj ρ _ r r' (p1 r r' h0) hg hg',
+    fun r => ⟨hchal ρ r 0, hchal ρ r 1, hchal ρ r 2⟩, hf⟩
 
 /-- A run's assignments at the oracle with a WHIR sumcheck's challenges put in are `WhirAnswers`, good off the
 collision event at the substituted oracle, where the rounds' eq weights are the honest instance's and the input claim
@@ -690,14 +698,14 @@ theorem Run.whirAnswers (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈ c
         fun j hne => ⟨hpi j hne, fun he k => ?_⟩⟩
       obtain rfl := hji j hne he
       exact hi k
-  refine ⟨hR.rom.comp _, fun r r' i hj m hm => ?_, fun r r' i hg hj => ?_, fun r i => hchal ρ r i,
+  refine ⟨hR.rom.comp _, fun r r' i hj m hm => ?_, fun r r' i hg hg' hj => ?_, fun r i => hchal ρ r i,
     fun r i => hw r i, hf⟩
   · obtain ⟨ownL, hsub, hi, hr⟩ := key r r' i hj
     rcases List.mem_append.mp (hsub m hm) with hm | hm
     · exact hR.seed_at hown hinj ρ _ r r' (fun j hne => (hr j hne).1) m hm
     · exact hR.sib_at hown hlt ρ i ownL hi r r' m hm
   · obtain ⟨ownL, hsub, -, hr⟩ := key r r' i hj
-    exact (hR.cr_at hown hinj ρ _ ownL r r' hr hg).anti (Cert.liveOn_mono c _ hsub)
+    exact (hR.cr_at hown hinj ρ _ ownL r r' hr hg hg').anti (Cert.liveOn_mono c _ hsub)
 
 /-! A uniform oracle: each round theorem as a fraction of the oracles. -/
 
@@ -860,7 +868,7 @@ theorem sumcheck_run_sound_at (h : c.accepts s = true) {sc : SumcheckCert} (hsc 
       hTc ρ] at hr ⊢
     exact ⟨⟨hr.2, hr.1.1.1⟩, hr.1.1.2, hr.1.2⟩
   · have hagree := sumcheck_claim_agree c s h hsc (hR.rom.comp _) (T' ρ) r r'
-      (hR.crAt hown hinj ρ _ r r' (hp0 r r') hr.1) (hR.seed_at hown hinj ρ _ r r' (hp0 r r')) hr.2 hr'.2
+      (hR.crAt hown hinj ρ _ r r' (hp0 r r') hr.1 hr'.1) (hR.seed_at hown hinj ρ _ r r' (hp0 r r')) hr.2 hr'.2
     rwa [← hagree]
   · have hb := sumcheck_test_sound c s h hsc univ (I ρ) (hI ρ) (T' ρ) _ _ _ (hR.sumcheckAnswers h hsc (I ρ) (T' ρ) ρ
       (fun r i => by rw [hw, hIc, readR_oracleAt hinj]) fun r hg hh => hall r ⟨hg, hh⟩)
@@ -903,7 +911,7 @@ theorem whir_run_sound_at (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈
   let v := fun r => val (o r)
   refine (card_le_card fun r hr => ?_).trans (card_at (fun r => ¬ C (o r))
     (fun r => (∀ a b, s.unions[wc.test]? = some (a, b) → v r a = v r b) ∧ Model.ev (v r) wc.final = (I ρ).final r)
-    (fun r => Model.ev (v r) wc.claim0 ≠ (I ρ).sum) _ (fun r r' hg _ hb => ?_) fun hall => ?_)
+    (fun r => Model.ev (v r) wc.claim0 ≠ (I ρ).sum) _ (fun r r' hg hg' hb => ?_) fun hall => ?_)
   · simp only [mem_filter, mem_univ, true_and, offC, whirFalse, whirEvent, readR_oracleAt hinj, hIc ρ] at hr ⊢
     exact ⟨hr.2, hr.1.1, hr.1.2⟩
   · rcases Nat.eq_zero_or_pos wc.rounds.length with h0 | hpos
@@ -915,7 +923,7 @@ theorem whir_run_sound_at (h : c.accepts s = true) {wc : WhirCert} (hwc : wc ∈
           exact le_rfl
         · exact hmono ⟨0, hpos⟩ j hj
       have hagree := bound_agree h htr (hR.rom.comp fun r => oracleAt (chalWords c.outs wc.chals) ρ r) r r'
-        (hR.crAt hown hinj ρ _ r r' hp0 hg) (boundBy_wires hb0 _ (List.mem_singleton_self _))
+        (hR.crAt hown hinj ρ _ r r' hp0 hg hg') (boundBy_wires hb0 _ (List.mem_singleton_self _))
         (hR.seed_at hown hinj ρ _ r r' hp0)
       rwa [← hagree]
   · have hb := whir_test_sound c s h hwc univ (I ρ) (hI ρ) _ _ _
@@ -953,7 +961,7 @@ theorem odd_run_sound_at (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c
     refine (card_le_card fun r hr => ?_).trans (card_at (fun r => ¬ C (o r))
       (fun r => (∀ a b, s.unions[oc.test]? = some (a, b) → v r a = v r b) ∧
         ∀ k < oc.m, Model.ev (v r) (oc.out c.outs k) = L ρ k + r 1 * (L ρ k + R ρ k))
-      (fun r => ∃ k < oc.m, Model.ev (v r) (oc.values.getD k 0) ≠ L ρ k * R ρ k) _ (fun r r' hg _ hb => ?_)
+      (fun r => ∃ k < oc.m, Model.ev (v r) (oc.values.getD k 0) ≠ L ρ k * R ρ k) _ (fun r r' hg hg' hb => ?_)
       fun hall => ?_)
     · simp only [mem_filter, mem_univ, true_and, offC, oddFalse, oddEvent, readR_oracleAt hinj, o, hLc ρ, hRc ρ]
         at hr ⊢
@@ -961,7 +969,7 @@ theorem odd_run_sound_at (h : c.accepts s = true) {oc : OddCert} (hoc : oc ∈ c
     · obtain ⟨k, hk, hne⟩ := hb
       refine ⟨k, hk, ?_⟩
       have hagree := bound_agree h htr (hR.rom.comp fun r => oracleAt (chalWords c.outs oc.chals) ρ r) r r'
-        (hR.crAt hown hinj ρ _ r r' (hp0 r r') hg)
+        (hR.crAt hown hinj ρ _ r r' (hp0 r r') hg hg')
         (boundBy_wires hb0 (oc.values.getD k 0) (by
           have hk' : k < oc.values.length := hk
           rw [List.getD_eq_getElem _ _ hk']
@@ -1007,13 +1015,13 @@ theorem top_run_sound_at (h : c.accepts s = true) {tc : TopCert} (htc : tc ∈ c
         ∀ k < tc.m, Model.ev (v r) (tc.out c.outs k) =
           lineE (lineE (T' ρ k 0) (T' ρ k 1) (r 1)) (lineE (T' ρ k 2) (T' ρ k 3) (r 1)) (r 2))
       (fun r => ∃ k < tc.m, Model.ev (v r) (tc.values.getD k 0) ≠ T' ρ k 0 * T' ρ k 1 * T' ρ k 2 * T' ρ k 3) _
-      (fun r r' hg _ hb => ?_) fun hall => ?_)
+      (fun r r' hg hg' hb => ?_) fun hall => ?_)
     · simp only [mem_filter, mem_univ, true_and, offC, topFalse, topEvent, readR_oracleAt hinj, o, hTc ρ] at hr ⊢
       exact ⟨hr.2, hr.1.1, hr.1.2⟩
     · obtain ⟨k, hk, hne⟩ := hb
       refine ⟨k, hk, ?_⟩
       have hagree := bound_agree h htr (hR.rom.comp fun r => oracleAt (chalWords c.outs tc.chals) ρ r) r r'
-        (hR.crAt hown hinj ρ _ r r' (hp0 r r') hg)
+        (hR.crAt hown hinj ρ _ r r' (hp0 r r') hg hg')
         (boundBy_wires hb0 (tc.values.getD k 0) (by
           have hk' : k < tc.values.length := hk
           rw [List.getD_eq_getElem _ _ hk']
