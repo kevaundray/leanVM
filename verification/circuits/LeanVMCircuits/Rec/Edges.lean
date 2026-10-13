@@ -636,6 +636,7 @@ theorem sat_tree_at (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι →
     (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val) (ω : Ω)
     (hsroot : Sat (stRoot ω) (t T.root) (val T.root ω))
     (hrec : ∀ v ∈ T.nodes, v ≠ T.root →
+      Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v)) (val (T.parent v) ω) →
       ((cert (T.parent v)).children.getD (slot v) default).inst.VerifiesAt (cert (T.parent v)).calls
         (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
       Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω)) :
@@ -654,7 +655,7 @@ theorem sat_tree_at (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι →
         rw [T.depth_root] at hd
         omega
       obtain ⟨hp, hpd⟩ := T.parent_mem v hv hne
-      refine hrec v hv hne ?_
+      refine hrec v hv hne (ih _ hp (by omega)) ?_
       have hF := allHold_of_replay (hr _ hp) (ih _ hp (by omega))
       have hch : (cert (T.parent v)).children.getD (slot v) default ∈ (cert (T.parent v)).children := by
         rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hslot v hv hne), Option.getD_some]
@@ -690,7 +691,7 @@ theorem sat_tree (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → St
         (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
       Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω)) (ω : Ω) :
     ∀ v ∈ T.nodes, Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω) :=
-  sat_tree_at T cert t os hr hacc hver L hL slot hslot stRoot val ω (hsroot ω) fun v hv hne => hrec v hv hne ω
+  sat_tree_at T cert t os hr hacc hver L hL slot hslot stRoot val ω (hsroot ω) fun v hv hne _ => hrec v hv hne ω
 
 /-- `TreeSound.tree_sound` with its edges from accepted certificates: off every node's `bad`, every node's statement and input claims hold. A node's statement is its `treeStmt`: a child's is the words its parent's verifier reads as its statement, which `EdgeCert.verifies` checks are the instance its transcript absorbs and the statement its public table reads. The premise on a child is the recursive verifier's soundness (`hrec`): its circuit is satisfied at the statement its parent's verifier reads. -/
 theorem tree_sound_certs (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State) (os : ι → Array (List ℕ))
@@ -715,7 +716,7 @@ theorem tree_sound_certs (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : �
       (fun v hv ω => sat_tree T cert t os hr hacc hver L hL slot hslot stRoot val hsroot hrec ω v hv)
       (fun v _ hne ω i _ => by simp [treeStmt, hne]) tD tM) hroot ω hω
 
-/-- `tree_sound_certs` with the recursive verifier's soundness off an event, as a verifier's soundness is: off `badRec v`, child `v`'s circuit is satisfied at the statement its parent's verifier reads (`hrec`). Off every node's `bad` and `badRec`, every node's statement and input claims hold. -/
+/-- `tree_sound_certs` with the recursive verifier's soundness off an event, as a verifier's soundness is: off `badRec v`, child `v`'s circuit is satisfied at the statement its parent's verifier reads, the parent's circuit being satisfied at its own (`hrec`). Off every node's `bad` and `badRec`, every node's statement and input claims hold. -/
 theorem tree_sound_certs_off (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι → State) (os : ι → Array (List ℕ))
     (hr : ∀ v ∈ T.nodes, replayR (cert v).calls #[] 0 {} #[] = some (t v, os v))
     (hacc : ∀ v ∈ T.nodes, (cert v).accepts (os v) = true) (hver : ∀ v ∈ T.nodes, (cert v).verifies (os v) = true)
@@ -724,6 +725,7 @@ theorem tree_sound_certs_off (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t
     (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (hsroot : ∀ ω, Sat (stRoot ω) (t T.root) (val T.root ω)) (badRec : ι → Set Ω)
     (hrec : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, ω ∉ badRec v →
+      Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v)) (val (T.parent v) ω) →
       ((cert (T.parent v)).children.getD (slot v) default).inst.VerifiesAt (cert (T.parent v)).calls
         (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
       Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω))
@@ -736,7 +738,7 @@ theorem tree_sound_certs_off (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t
   -- The outcomes at which every node's circuit is satisfied at its `treeStmt`, `ω` among them.
   let G : Set Ω := {ω' | ∀ v ∈ T.nodes, Sat (treeStmt T cert slot stRoot val v ω') (t v) (val v ω')}
   have hG : ω ∈ G := sat_tree_at T cert t os hr hacc hver L hL slot hslot stRoot val ω (hsroot ω)
-    fun v hv hne => hrec v hv hne ω (hωr v hv)
+    fun v hv hne hps => hrec v hv hne ω (hωr v hv) hps
   have key := TreeSound.tree_sound T
     (fun v ω' => ω' ∈ G → stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω')
     (fun v ω' => ω' ∈ G → ins cert val tD tM v ω') bad
@@ -756,6 +758,7 @@ theorem tree_sound_certs_frac [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι �
     (stRoot : Ω → ℕ → Fin 4 → K) (val : ι → Ω → Val)
     (hsroot : ∀ ω, Sat (stRoot ω) (t T.root) (val T.root ω)) (badRec : ι → Finset Ω)
     (hrec : ∀ v ∈ T.nodes, v ≠ T.root → ∀ ω, ω ∉ badRec v →
+      Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v)) (val (T.parent v) ω) →
       ((cert (T.parent v)).children.getD (slot v) default).inst.VerifiesAt (cert (T.parent v)).calls
         (os (T.parent v)) (val (T.parent v) ω) (treeStmt T cert slot stRoot val v ω) L.len →
       Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω))

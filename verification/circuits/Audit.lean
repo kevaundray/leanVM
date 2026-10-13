@@ -743,3 +743,11 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.pow_run_sound
 #print axioms LeanVMCircuits.Rec.Bind.RomExample.run_exists
 #print axioms LeanVMCircuits.Rec.Bind.RomExample.chalsOk_mutations
+#print axioms LeanVMCircuits.Rec.Bind.sumcheck_claim_agree
+#print axioms LeanVMCircuits.Rec.Bind.card_at
+#print axioms LeanVMCircuits.Rec.Bind.sumcheck_run_sound_at
+#print axioms LeanVMCircuits.Rec.Bind.sumcheck_part
+#print axioms LeanVMCircuits.Rec.Edges.RecParts.least_ok
+#print axioms LeanVMCircuits.Rec.Edges.RecParts.ins_ok
+#print axioms LeanVMCircuits.Rec.Edges.RecParts.hrec
+#print axioms LeanVMCircuits.Rec.Edges.tree_sound_parts
