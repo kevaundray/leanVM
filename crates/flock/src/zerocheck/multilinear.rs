@@ -36,11 +36,19 @@ use primitives::stream::Stream;
 use super::Padding;
 use super::round1::EQ_HIGH_VARS;
 
-/// Eq variables in the per-task half of a bit pass's split eq table.
+/// Most eq variables in the per-task half of a bit pass's split eq table.
 ///
 /// - `2^10` entries are 24 KiB, so the table stays in L1 beside the fold's matrices.
 /// - The remaining variables index the tasks, one reduced product each.
 const EQ_LO_VARS: usize = 10;
+
+/// Fewest eq variables a bit pass leaves to index its tasks, while its table has them to spare.
+///
+/// A small circuit's pass, or a late one, would otherwise split into fewer tasks than there are workers.
+const MIN_TASK_VARS: usize = 7;
+
+/// Fewest eq variables in the per-task half: one folded block, sixteen quads.
+const MIN_EQ_LO_VARS: usize = (BLOCK / 4).trailing_zeros() as usize;
 
 /// Four independent products.
 ///
@@ -356,11 +364,15 @@ fn bit_pass_kernel<const CHUNKS: usize>(
     }
 
     // `r_eq[0]` weights round `t`'s split by `v`; the rest weight the quads.
+    let quad_vars = r_eq.len() - 1;
+    let low_vars = quad_vars
+        .saturating_sub(MIN_TASK_VARS)
+        .clamp(MIN_EQ_LO_VARS, EQ_LO_VARS);
     let SplitEq {
         low: eq_lo,
         high: eq_hi,
         ..
-    } = SplitEq::with_low_vars(&r_eq[1..], EQ_LO_VARS);
+    } = SplitEq::with_low_vars(&r_eq[1..], low_vars);
     let lo_size = eq_lo.len();
 
     // A quad covers 64 skip bits times its 4 * 2^t bound rows.
