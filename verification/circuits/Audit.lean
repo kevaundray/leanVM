@@ -612,10 +612,14 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Edges.EdgeCert.edge
 #print axioms LeanVMCircuits.Rec.Edges.EdgeCert.edge_holds
 #print axioms LeanVMCircuits.Rec.Edges.hedge_of_certs
+#print axioms LeanVMCircuits.Rec.Edges.hedge_at
 #print axioms LeanVMCircuits.Rec.Edges.InstCert.limb_sem
 #print axioms LeanVMCircuits.Rec.Edges.InstCert.verifies
 #print axioms LeanVMCircuits.Rec.Edges.sat_tree
+#print axioms LeanVMCircuits.Rec.Edges.sat_tree_at
 #print axioms LeanVMCircuits.Rec.Edges.tree_sound_certs
+#print axioms LeanVMCircuits.Rec.Edges.tree_sound_certs_off
+#print axioms LeanVMCircuits.Rec.Edges.tree_sound_certs_frac
 #print axioms LeanVMCircuits.Rec.balanced_of_eq
 #print axioms LeanVMCircuits.Rec.bus_balance_sound
 #print axioms LeanVMCircuits.Rec.bus_copy_sound
