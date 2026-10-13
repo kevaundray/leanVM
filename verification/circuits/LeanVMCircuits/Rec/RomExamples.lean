@@ -17,11 +17,12 @@ squeezes of its transcript's blocks. `top_test_sound` and `whir_test_sound` take
 
 The circuit (`state`): four `HASH` rows tagged at the duplex's output role, the first and third read as absorb blocks
 (`transcript`), the second and fourth as the squeezes drawing `λ` (wire 16, from block 0) and the next challenge (wire
-22, from block 1). The sumcheck (`sumcheck`) has one round reading the first block's words; the odd layer (`odd`) and
-the top layer (`top`, whose last challenge is wire 23) have one value; the WHIR sumcheck (`whir`) has one fold round.
-`sumcheck_answers_exist`, `odd_answers_exist`, `top_answers_exist` and `whir_answers_exist` give answers whose
-challenges are any vector, which the first statement could not; `pow_answers_exist` gives proof-of-work answers whose
-trial words are uniform.
+22, from block 1). The sumcheck (`sumcheck`) has one round reading the first block's words, and `sumcheckH` is it with
+its input claim a hint; the odd layer (`odd`) and the top layer (`top`, whose last challenge is wire 23) have one value;
+the WHIR sumcheck (`whir`) has a batch round at `λ`, whose squeeze's fourth word is squeezed with it, then a fold round.
+`sumcheck_answers_exist`, `sumcheck_hinted_answers_exist`, `odd_answers_exist`, `top_answers_exist` and
+`whir_answers_exist` give answers whose challenges are any vector, which the first statement could not;
+`pow_answers_exist` gives proof-of-work answers whose trial words are uniform.
 -/
 
 namespace LeanVMCircuits.Rec.Bind.RomExample
@@ -65,6 +66,9 @@ def sumcheck : SumcheckCert where
   final := 18
   transcript := 0
 
+/-- The same sumcheck with its input claim a hint (wire 17), which no transcript binds. -/
+def sumcheckH : SumcheckCert := { sumcheck with hints := [17] }
+
 def odd : OddCert where
   values := [17]
   lam := ⟨16, 0, [], 1⟩
@@ -96,11 +100,15 @@ def top : TopCert where
   lineAt := []
   transcript := 0
 
-def whirRound : WhirRound := .fold (.recv 17 8 9 0 0 0) ⟨16, 0, [], 1⟩ 0 0
+/-- A batch round at `λ` (wire 16, drawn after block 0; its own words the squeeze's first three), then a fold round
+at the next challenge (wire 22, after block 1). -/
+def batchRound : WhirRound := .batch ⟨16, 0, [], 1⟩ (.atom 17) [64, 65, 66] #[]
+
+def whirRound : WhirRound := .fold (.recv 17 8 9 0 0 0) ⟨22, 0, [], 2⟩ 0 0
 
 def whir : WhirCert where
   claim0 := 17
-  rounds := [whirRound]
+  rounds := [batchRound, whirRound]
   test := 0
   final := 18
   transcript := 0
@@ -124,7 +132,7 @@ def cert : Cert where
   prods := #[]
   points := #[]
   covers := #[]
-  sumchecks := #[sumcheck]
+  sumchecks := #[sumcheck, sumcheckH]
   pows := #[powCert]
   odds := #[odd]
   tops := #[top]
@@ -193,20 +201,29 @@ theorem seeds_two : seedsBefore state transcript 2 =
   rw [seedsBefore, chalSeeds_eq]
   simp [absorbed, wordsOf, transcript, state, row, limb, List.range_succ]
 
+/-- The words squeezed with `λ` but its own three: its squeeze's fourth. -/
+theorem sibs_one : sibSeeds state transcript 1 [64, 65, 66] = [67] := by
+  rw [sibSeeds, chalSeeds_eq]
+  rfl
+
 /-- The honest instance of one round: the zero polynomial, ending at zero. -/
 noncomputable def inst : Inst E 1 := .node none 0 fun _ => .leaf 0
 
+/-- The honest instance of two rounds, the first with eq weight zero (a batch round): zero polynomials, ending at
+zero. -/
+noncomputable def inst2 : Inst E 2 := .node (some 0) 0 fun _ => .node none 0 fun _ => .leaf 0
+
 /-- Answers meeting every premise of `sumcheck_test_sound` but acceptance, at every challenge vector. -/
 theorem sumcheck_answers_exist :
-    ∃ (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length)
+    ∃ (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length) (T : ℕ → E)
       (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val),
-      sc ∈ c.sumchecks ∧ 0 < sc.rounds.length ∧ I.ok sc.deg ∧ SumcheckAnswers c s sc I st val := by
+      sc ∈ c.sumchecks ∧ 0 < sc.rounds.length ∧ I.ok sc.deg ∧ SumcheckAnswers c s sc I T st val := by
   have h0 : ∀ i : Fin sumcheck.rounds.length, i = ⟨0, by decide⟩ := fun i =>
     Fin.ext (by have := i.isLt; simp [sumcheck] at this; omega)
-  refine ⟨cert, state, sumcheck, inst, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0, by simp [cert],
-    by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
+  refine ⟨cert, state, sumcheck, inst, fun _ => 0, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0,
+    by simp [cert], by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
   refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_,
-    fun h => absurd h (by decide), fun r => ?_⟩
+    fun r _ => ?_⟩
   · obtain rfl := h0 i
     rw [show (sumcheck.rounds.getD 0 default).time = 1 from rfl,
       show cert.transcripts.getD sumcheck.transcript default = transcript from rfl, seeds_one] at hm
@@ -217,6 +234,32 @@ theorem sumcheck_answers_exist :
   · obtain rfl := h0 i
     rfl
   · rw [show sumcheck.claim0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer])]
+    simp [inst, Inst.sum, lin]
+
+/-- Answers meeting every premise of `sumcheck_test_sound` but acceptance, at every challenge vector, for a sumcheck
+whose input claim is a hint the prover picks after the challenge (its value is the challenge), true at one. -/
+theorem sumcheck_hinted_answers_exist :
+    ∃ (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length) (T : ℕ → E)
+      (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val),
+      sc ∈ c.sumchecks ∧ sc.hints = [sc.claim0] ∧ 0 < sc.rounds.length ∧ I.ok sc.deg ∧
+        SumcheckAnswers c s sc I T st val ∧ ∀ r i, Model.ev (val r) sc.claim0 = r i := by
+  have h0 : ∀ i : Fin sumcheckH.rounds.length, i = ⟨0, by decide⟩ := fun i =>
+    Fin.ext (by have := i.isLt; simp [sumcheckH, sumcheck] at this; omega)
+  let ans : E → Val := fun a w => if w = 17 then limbsE a else answer a 0 w
+  refine ⟨cert, state, sumcheckH, inst, fun _ => 1, fun _ _ _ => 0, fun r => ans (r ⟨0, by decide⟩), by simp [cert],
+    rfl, by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩,
+    ⟨rom _ _ fun r => by simp [ans, answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_, fun r hT => ?_⟩,
+    fun r i => by rw [h0 i]; exact ev_limbsE _ 17 _ (by simp [ans, sumcheckH, sumcheck])⟩
+  · obtain rfl := h0 i
+    rw [show (sumcheckH.rounds.getD 0 default).time = 1 from rfl,
+      show cert.transcripts.getD sumcheckH.transcript default = transcript from rfl, seeds_one] at hm
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [nu, ans, answer]
+  · obtain rfl := h0 i
+    exact ev_limbsE _ 16 _ (by simp [ans, answer, sumcheckH, sumcheck, round])
+  · obtain rfl := h0 i
+    rfl
+  · rw [show sumcheckH.claim0 = 17 from rfl, hT 17 (by simp [sumcheckH])]
     simp [inst, Inst.sum, lin]
 
 /-- Answers meeting every premise of `odd_test_sound` but acceptance, at every challenge pair, with true children
@@ -264,27 +307,39 @@ theorem top_answers_exist :
   · rw [show top.values.getD 0 0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer3, answer])]
     simp
 
-/-- Answers meeting every premise of `whir_test_sound` but acceptance, at every challenge vector. -/
+/-- Answers meeting every premise of `whir_test_sound` but acceptance, at every challenge vector, for a batch round
+(`λ` wire 16, whose squeeze's fourth word is squeezed with it) and a fold round. -/
 theorem whir_answers_exist :
     ∃ (c : Cert) (s : State) (wc : WhirCert) (I : Inst E wc.rounds.length)
       (st : (Fin wc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin wc.rounds.length → E) → Val),
-      wc ∈ c.whirs ∧ 0 < wc.rounds.length ∧ I.ok wc.deg ∧ WhirAnswers c s wc I st val := by
-  have h0 : ∀ i : Fin whir.rounds.length, i = ⟨0, by decide⟩ := fun i =>
-    Fin.ext (by have := i.isLt; simp [whir] at this; omega)
-  refine ⟨cert, state, whir, inst, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0, by simp [cert],
-    by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_, fun r => ?_⟩
-  · obtain rfl := h0 i
-    rw [show (whir.rounds.getD 0 default).chal.time = 1 from rfl,
-      show cert.transcripts.getD whir.transcript default = transcript from rfl, seeds_one] at hm
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [nu, answer]
-  · obtain rfl := h0 i
-    exact ev_limbsE _ 16 _ (by simp [answer, whir, whirRound])
-  · obtain rfl := h0 i
-    rfl
+      wc ∈ c.whirs ∧ 0 < wc.rounds.length ∧ I.ok wc.deg ∧ WhirAnswers c s wc I st val ∧
+        sibSeeds s (c.transcripts.getD wc.transcript default) 1 [64, 65, 66] = [67] := by
+  refine ⟨cert, state, whir, inst2, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) (r ⟨1, by decide⟩),
+    by simp [cert], by decide,
+    ⟨by simp, fun _ => ⟨by simp [Inst.sum, lin], by simp, fun _ => ⟨by simp [Inst.sum], trivial⟩⟩⟩, ?_, sibs_one⟩
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i hj m hm => ?_, fun r i => ?_, fun r i => ?_, fun r => ?_⟩
+  · match i with
+    | ⟨0, _⟩ =>
+      rw [show (whir.rounds.getD 0 default).seeds state (cert.transcripts.getD whir.transcript default) =
+        seedsBefore state transcript 1 ++ sibSeeds state transcript 1 [64, 65, 66] from rfl, seeds_one,
+        sibs_one] at hm
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hm
+      rcases hm with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | rfl <;> simp [nu, answer, limbsE]
+    | ⟨1, _⟩ =>
+      have h0 : r ⟨0, by decide⟩ = r' ⟨0, by decide⟩ := hj ⟨0, by decide⟩ (by simp [Fin.lt_def])
+      rw [show (whir.rounds.getD 1 default).seeds state (cert.transcripts.getD whir.transcript default) =
+        seedsBefore state transcript 2 from rfl, seeds_two] at hm
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+      rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+        rfl | rfl | rfl | rfl <;> simp [nu, answer, h0]
+  · match i with
+    | ⟨0, _⟩ => exact ev_limbsE _ 16 _ (by simp [answer, whir, batchRound])
+    | ⟨1, _⟩ => exact ev_limbsE _ 22 _ (by simp [answer, whir, whirRound])
+  · match i with
+    | ⟨0, _⟩ => rfl
+    | ⟨1, _⟩ => rfl
   · rw [show whir.claim0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer])]
-    simp [inst, Inst.sum, lin]
+    simp [inst2, Inst.sum, lin]
 
 /-- Proof-of-work answers meeting every premise of `pow_test_sound` but acceptance: one trial, whose word is each
 outcome. -/

@@ -72,9 +72,35 @@ theorem bound_agree {c : Cert} {s : State} (h : c.accepts s = true) {T : ℕ} (h
   exact closure_agree (rules_valid hr (ha.holds r) (ha.holds r') (ha.cr r r') (ha.win r r') (ha.unions r r')) hs
     ((Cert.timesRO_sound c s _ hk).mono (seedsBefore_mono hle))
 
+/-- A wire whose limbs are in the closure of `seeds` under a transcript's random-oracle rules is a function of those
+seeds. -/
+theorem ro_agree {c : Cert} {s : State} (h : c.accepts s = true) {T : ℕ} (hT : T < (c.marksRO s).length)
+    {ι : Type} {st : ι → ℕ → Fin 4 → K} {val : ι → Val} (ha : RomAnswers c s T st val) (r r' : ι) {seeds : List ℕ}
+    {w : ℕ} (hb : ∀ n ∈ limbs3 w, Closure (c.transcripts.getD T default).rulesRO seeds n)
+    (hs : ∀ m ∈ seeds, nu (val r) m = nu (val r') m) :
+    Model.ev (val r) w = Model.ev (val r') w := by
+  have hall := (Cert.accepts_rounds h).2.2.2.1
+  have hT' : T < c.transcripts.length := by simpa [Cert.marksRO] using hT
+  have hr : rulesOk s c.test c.claims (dropOf s (c.transcripts.getD T default))
+      (c.transcripts.getD T default).rulesRO = true := by
+    rw [List.all_eq_true] at hall
+    exact hall _ (by rw [List.getD_eq_getElem _ _ hT']; exact List.getElem_mem hT')
+  exact ev_eq_of_limbs3 fun n hn =>
+    closure_agree (rules_valid hr (ha.holds r) (ha.holds r') (ha.cr r r') (ha.win r r') (ha.unions r r')) hs (hb n hn)
+
+theorem boundBy_wires {m : Array (Option ℕ)} {ws : List ℕ} {time : ℕ} (h : boundBy m ws time = true) :
+    ∀ w ∈ ws, ∀ n ∈ limbs3 w, ∃ k, m.getD n none = some k ∧ k ≤ time := by
+  intro w hw n hn
+  simp only [boundBy, List.all_eq_true, List.mem_flatMap] at h
+  have := h n ⟨w, hw, hn⟩
+  split at this
+  · rename_i k hk
+    exact ⟨k, hk, of_decide_eq_true this⟩
+  · simp at this
+
 theorem boundOk_wires {m : Array (Option ℕ)} {sc : SumcheckCert} {i : ℕ} (h : sc.boundOk m i = true) :
     ∀ w ∈ (sc.rounds.getD i default).sent ++ (sc.rounds.getD i default).weight.toList ++
-        (if i = 0 ∧ sc.hinted = false then [sc.claim0] else []),
+        (if i = 0 ∧ sc.hints = [] then [sc.claim0] else []),
       ∀ n ∈ limbs3 w, ∃ k, m.getD n none = some k ∧ k ≤ (sc.rounds.getD i default).time := by
   intro w hw n hn
   simp only [SumcheckCert.boundOk, List.all_eq_true, List.mem_flatMap] at h
@@ -137,11 +163,11 @@ theorem coeffs_agree {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)}
 /-- What `sumcheck_test_sound` asks of the prover's answers to a certified sumcheck `sc`'s challenge vectors `r`:
 they are answers in the random-oracle view of its transcript (`RomAnswers`); two answers whose challenges before round
 `i` agree agree on the seeds before round `i`'s time (what the blocks before its challenge absorb and the challenges
-drawn before them, not round `i`'s own); round `i`'s challenge is `r i`; the eq weights are the honest instance's; when
-the input claim is hinted (`SumcheckCert.hinted`: it reads hinted fixed-column evaluations, claims deferred to the
-opening, which no transcript binds) it is the same in every answer, as it is where those claims are true; and the
-input claim is not the instance's sum. `sumcheck_answers_exist` exhibits such answers. -/
-structure SumcheckAnswers (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length)
+drawn before them, not round `i`'s own); round `i`'s challenge is `r i`; the eq weights are the honest instance's; and
+where the hints the input claim reads (`SumcheckCert.hints`: hinted fixed-column evaluations, claims deferred to the
+reduction, which no transcript binds) are their true values `T`, the input claim is not the instance's sum.
+`sumcheck_answers_exist` exhibits such answers. -/
+structure SumcheckAnswers (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length) (T : ℕ → E)
     (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val) : Prop where
   rom : RomAnswers c s sc.transcript st val
   seed : ∀ r r' (i : Fin sc.rounds.length), (∀ j < i, r j = r' j) →
@@ -149,35 +175,35 @@ structure SumcheckAnswers (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E
       nu (val r) m = nu (val r') m
   chal : ∀ r (i : Fin sc.rounds.length), Model.ev (val r) (sc.rounds.getD i default).chal = r i
   weight : ∀ r (i : Fin sc.rounds.length), (sc.rounds.getD i default).weight.map (Model.ev (val r)) = I.weight r i
-  input : sc.hinted = true → ∀ r r', Model.ev (val r) sc.claim0 = Model.ev (val r') sc.claim0
-  false_claim : ∀ r, Model.ev (val r) sc.claim0 ≠ I.sum
+  false_claim : ∀ r, (∀ w ∈ sc.hints, Model.ev (val r) w = T w) → Model.ev (val r) sc.claim0 ≠ I.sum
 
 open Classical Finset in
 /-- Sumcheck's soundness on a certified test. Take an accepted circuit and a sumcheck it names (`sc`, `n` rounds of
-degree `d`), the honest instance `I` of degree `d`, and the prover's answers to the challenge vectors (`SumcheckAnswers`:
-in the random-oracle view, each round's challenge `r i`, what is absorbed before it reading only the challenges before
-it, from a false input claim). The challenge vectors of `S^n` at which the test holds and its other side, plus the
-residual's terms when the test is of a residual, is the instance's final value are at most `n · d · |S|^(n-1)`. -/
+degree `d`), the honest instance `I` of degree `d`, the true values `T` of the hints its input claim reads, and the
+prover's answers to the challenge vectors (`SumcheckAnswers`: in the random-oracle view, each round's challenge `r i`,
+what is absorbed before it reading only the challenges before it, from an input claim false where the hints are
+true). The challenge vectors of `S^n` at which the hints are their true values, the test holds and its other side,
+plus the residual's terms when the test is of a residual, is the instance's final value are at most
+`n · d · |S|^(n-1)`. Where a hint is not its true value, the claim the reduction takes on it is false. -/
 theorem sumcheck_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {sc : SumcheckCert}
-    (hsc : sc ∈ c.sumchecks) (S : Finset E) (I : Inst E sc.rounds.length) (hI : I.ok sc.deg)
+    (hsc : sc ∈ c.sumchecks) (S : Finset E) (I : Inst E sc.rounds.length) (hI : I.ok sc.deg) (T : ℕ → E)
     (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val)
-    (ha : SumcheckAnswers c s sc I st val) :
+    (ha : SumcheckAnswers c s sc I T st val) :
     #{r ∈ Fintype.piFinset (fun _ : Fin sc.rounds.length => S) |
-        (∀ a b, s.unions[sc.test]? = some (a, b) → val r a = val r b) ∧
+        (∀ w ∈ sc.hints, Model.ev (val r) w = T w) ∧ (∀ a b, s.unions[sc.test]? = some (a, b) → val r a = val r b) ∧
           Model.ev (val r) sc.final + (sc.resid.map fun t => Model.ev (val r) t.1 * Model.ev (val r) t.2.1).sum =
             I.final r} ≤
       sc.rounds.length * sc.deg * #S ^ (sc.rounds.length - 1) := by
   have hall := (Cert.accepts_rounds h).1
   simp only [Cert.sumchecksOk, Array.all_eq_true', Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq,
     decide_eq_true_eq, List.all_eq_true, List.mem_range] at hall
-  obtain ⟨⟨⟨⟨htr, hok⟩, -⟩, hpair⟩, hrounds⟩ := hall sc hsc
+  obtain ⟨⟨⟨⟨⟨htr, hok⟩, -⟩, hpair⟩, hrounds⟩, hhint⟩ := hall sc hsc
   simp only [SumcheckCert.ok, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range] at hok
   obtain ⟨⟨hpos, hok⟩, hres⟩ := hok
   have hF := ha.rom.facts
   have hseed := ha.seed
   have hchal := ha.chal
   have hw := ha.weight
-  have hne := ha.false_claim
   have hbound : ∀ i < sc.rounds.length, sc.boundOk ((c.marksRO s).getD sc.transcript default).2 i = true :=
     fun i hi => (hrounds i hi).2
   -- Round `i`'s polynomial and claims along `r`.
@@ -190,28 +216,56 @@ theorem sumcheck_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {sc 
     refine ⟨h1, by rw [← hw r i]; exact h2, ?_⟩
     simp only [cl, Fin.val_succ, SumcheckCert.claimAt, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
     rw [h3, hchal r i]
-  -- What a round's prover sends, its weight and its claim agree between answers agreeing on the challenges before it.
-  have hagree : ∀ i, (hi : i < sc.rounds.length) → ∀ r r', (∀ j : Fin sc.rounds.length, j.val < i → r j = r' j) →
+  -- The challenge vectors at which the hints are their true values.
+  set A : Set (Fin sc.rounds.length → E) := {r | ∀ w ∈ sc.hints, Model.ev (val r) w = T w}
+  -- The input claim is one value among them: bound by the transcript, or with the hints as seeds.
+  have hin : ∀ r ∈ A, ∀ r' ∈ A, cl r ⟨0, by omega⟩ = cl r' ⟨0, by omega⟩ := by
+    intro r hr r' hr'
+    have hs := hseed r r' ⟨0, hpos⟩ fun j hj => absurd hj (by simp [Fin.lt_def])
+    simp only [cl, SumcheckCert.claimAt, if_true]
+    by_cases hh : sc.hints = []
+    · exact bound_agree h htr ha.rom r r' (boundOk_wires (hbound 0 hpos) _ (by simp [hh])) hs
+    · have hb : boundBy (c.timesX s (c.transcripts.getD sc.transcript default) sc.hintSeeds sc.hintFirings)
+          [sc.claim0] (sc.rounds.getD 0 default).time = true := by
+        rcases hhint with hh' | hb
+        · exact absurd (List.isEmpty_iff.mp hh') hh
+        · rwa [Cert.marksRO_getD c s htr] at hb
+      refine ro_agree h htr ha.rom r r'
+        (seeds := seedsBefore s (c.transcripts.getD sc.transcript default) (sc.rounds.getD 0 default).time ++
+          sc.hints.flatMap limbs3) (fun n hn => ?_) fun m hm => ?_
+      · obtain ⟨k, hk, hle⟩ := boundBy_wires hb _ (List.mem_singleton_self _) n hn
+        refine (Cert.timesX_sound c s _ _ _ hk).mono fun m hm => ?_
+        rw [List.mem_append] at hm ⊢
+        rcases hm with hm | hm
+        · exact Or.inl (seedsBefore_mono hle m hm)
+        · simp only [SumcheckCert.hintSeeds, seedsBy, List.mem_map, List.mem_filter] at hm
+          obtain ⟨p, ⟨⟨x, hx, rfl⟩, -⟩, rfl⟩ := hm
+          exact Or.inr hx
+      · rw [List.mem_append] at hm
+        rcases hm with hm | hm
+        · exact hs m hm
+        · obtain ⟨w, hw, hmw⟩ := List.mem_flatMap.mp hm
+          exact limbs3_of_ev ((hr w hw).trans (hr' w hw).symm) m hmw
+  -- What a round's prover sends, its weight and its claim agree between such answers agreeing on the challenges
+  -- before it.
+  have hagree : ∀ i, (hi : i < sc.rounds.length) → ∀ r ∈ A, ∀ r' ∈ A,
+      (∀ j : Fin sc.rounds.length, j.val < i → r j = r' j) →
       cl r ⟨i, by omega⟩ = cl r' ⟨i, by omega⟩ ∧ g r ⟨i, hi⟩ = g r' ⟨i, hi⟩ := by
     intro i
     induction i with
     | zero =>
-      intro hi r r' hrr
+      intro hi r hr r' hr' _
       have hs := hseed r r' ⟨0, hi⟩ fun j hj => absurd hj (by simp [Fin.lt_def])
       have hb := boundOk_wires (hbound 0 hi)
-      have h0 : cl r ⟨0, by omega⟩ = cl r' ⟨0, by omega⟩ := by
-        simp only [cl, SumcheckCert.claimAt, if_true]
-        cases hh : sc.hinted
-        · exact bound_agree h htr ha.rom r r' (hb _ (by simp [hh])) hs
-        · exact ha.input hh r r'
+      have h0 := hin r hr r' hr'
       refine ⟨h0, congrArg polyOf (coeffs_agree (hF r) (hF r') (hok 0 hi) h0 (fun e he => ?_) fun w hw => ?_)⟩
       · exact bound_agree h htr ha.rom r r' (hb _ (List.mem_append_left _ (List.mem_append_right _ he))) hs
       · exact bound_agree h htr ha.rom r r' (hb _ (List.mem_append_left _ (List.mem_append_left _ hw))) hs
     | succ i ih =>
-      intro hi r r' hrr
+      intro hi r hr r' hr' hrr
       have hs := hseed r r' ⟨i + 1, hi⟩ fun j hj => hrr j hj
       have hb := boundOk_wires (hbound (i + 1) hi)
-      obtain ⟨-, hg⟩ := ih (by omega) r r' fun j hj => hrr j (by omega)
+      obtain ⟨-, hg⟩ := ih (by omega) r hr r' hr' fun j hj => hrr j (by omega)
       have hcl : cl r ⟨i + 1, by omega⟩ = cl r' ⟨i + 1, by omega⟩ := by
         have e1 := (hsem r ⟨i, by omega⟩).2.2
         have e2 := (hsem r' ⟨i, by omega⟩).2.2
@@ -221,15 +275,17 @@ theorem sumcheck_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {sc 
         fun w hw => ?_)⟩
       · exact bound_agree h htr ha.rom r r' (hb _ (List.mem_append_left _ (List.mem_append_right _ he))) hs
       · exact bound_agree h htr ha.rom r r' (hb _ (List.mem_append_left _ (List.mem_append_left _ hw))) hs
-  have hpre : PrefixDep g := fun r r' i hrr => (hagree i i.isLt r r' fun j hj => hrr j hj).2
-  -- The input claim is one value.
-  set r₀ : Fin sc.rounds.length → E := fun _ => 0
-  have hc0 : ∀ r, cl r 0 = cl r₀ 0 := fun r => (hagree 0 hpos r r₀ fun j hj => absurd hj (Nat.not_lt_zero _)).1
+  have hpre : PrefixDepOn A g := fun r hr r' hr' i hrr => (hagree i i.isLt r hr r' hr' fun j hj => hrr j hj).2
+  by_cases hex : ∃ r₀, r₀ ∈ A
+  swap
+  · simp only [not_exists] at hex
+    exact le_trans (le_of_eq (card_eq_zero.mpr (filter_eq_empty_iff.mpr fun r _ hr => hex r hr.1))) (Nat.zero_le _)
+  obtain ⟨r₀, hr₀⟩ := hex
   refine le_trans (card_le_card fun r hr => ?_)
-    (sumcheck_sound_fun S sc.deg I hI g hpre (fun r i => (hsem r i).1) cl (cl r₀ 0) (hne r₀))
+    (sumcheck_sound_on S sc.deg I hI A g hpre (fun r i => (hsem r i).1) cl (cl r₀ 0) (ha.false_claim r₀ hr₀))
   simp only [mem_filter] at hr ⊢
-  obtain ⟨hS, htest, hfin⟩ := hr
-  refine ⟨hS, hc0 r, fun i => (hsem r i).2.1, fun i => (hsem r i).2.2, ?_⟩
+  obtain ⟨hS, hA, htest, hfin⟩ := hr
+  refine ⟨hS, hA, hin r hA r₀ hr₀, fun i => (hsem r i).2.1, fun i => (hsem r i).2.2, ?_⟩
   have hlast : cl r (Fin.last sc.rounds.length) = Model.ev (val r) sc.final +
       (sc.resid.map fun t => Model.ev (val r) t.1 * Model.ev (val r) t.2.1).sum := by
     have hside : Model.ev (val r) (sc.side c.outs) = Model.ev (val r) sc.final := by
@@ -334,16 +390,6 @@ theorem pow_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {pc : Pow
   exact pow_sem (hF ω) hok hω
 
 /-! GKR's odd layer. -/
-
-theorem boundBy_wires {m : Array (Option ℕ)} {ws : List ℕ} {time : ℕ} (h : boundBy m ws time = true) :
-    ∀ w ∈ ws, ∀ n ∈ limbs3 w, ∃ k, m.getD n none = some k ∧ k ≤ time := by
-  intro w hw n hn
-  simp only [boundBy, List.all_eq_true, List.mem_flatMap] at h
-  have := h n ⟨w, hw, hn⟩
-  split at this
-  · rename_i k hk
-    exact ⟨k, hk, of_decide_eq_true this⟩
-  · simp at this
 
 theorem map_eq_range {α β : Type} (f : α → β) (d : α) (l : List α) :
     l.map f = (List.range l.length).map fun k => f (l.getD k d) := by

@@ -128,9 +128,11 @@ structure SumcheckCert where
   final : ℕ
   transcript : ℕ
   resid : List (ℕ × ℕ × ℕ) := []
-  /-- The input claim reads hints no transcript binds (the table sumcheck's target reads hinted fixed-column
-  evaluations, claims deferred to the opening), so the certificate does not bind it. -/
-  hinted : Bool := false
+  /-- The hints the input claim reads that no transcript binds (the table sumcheck's target reads hinted
+  fixed-column evaluations, claims deferred to the reduction), and the firings binding the input claim with them as
+  seeds. -/
+  hints : List ℕ := []
+  hintFirings : Array ℕ := #[]
   deriving Inhabited, Repr
 
 namespace SumcheckCert

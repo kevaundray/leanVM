@@ -4,7 +4,9 @@ import LeanVMCircuits.Rec.Bind
 /-!
 `lake exe checkbind <dump>...`: replay each dump's builder calls through the model and check transcript binding
 (`LeanVMCircuits.Rec.Bind`): every test reading a challenge reads only wires some transcript binds. The verdict is
-`Bind.Cert.accepts` of the certificate the analysis records, which `Bind.checkbind_sound` proves sound.
+`Bind.Cert.accepts` of the certificate the analysis records, which `Bind.checkbind_sound` proves sound. An accepted dump
+also fails unless every WHIR sumcheck is certified from its opening's first claim and every hint a certified input
+claim reads is the value of an `edge term` mark, a claim the node's reduction takes.
 
 `--expect-unbound <dump>` checks a dump fails, the regression fixture of a circuit that did not bind.
 -/
@@ -48,9 +50,11 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     {r.unbound.size} unbound, {r.late.size} bound only after their latest challenge, \
     {r.deferred.size} bound only with the statement's claims; \
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound; \
-    {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds, {r.residuals} of them by a residual), \
+    {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds, {r.residuals} of them by a residual, their \
+    input claims reading {r.hints.length} hints), \
     {r.powTests} are the bits of {r.pows} certified proof-of-work checks, {r.odds} close a certified GKR odd layer, \
-    {r.tops} a certified GKR radix-four top layer, {r.whirs} a certified WHIR sumcheck ({r.whirRounds} rounds), \
+    {r.tops} a certified GKR radix-four top layer, {r.whirs} a certified WHIR sumcheck ({r.whirRounds} rounds, \
+    {r.whirBatches} of them batching a level's claims, {r.whirPartial} sumchecks not from the opening's first claim), \
     {r.splits} a certified claim split"
   for f in r.unbound.toList.take 10 do
     IO.println s!"  unbound test at {line f.call}, per transcript {repr f.perTranscript}"
@@ -65,7 +69,21 @@ def check (path : System.FilePath) : IO (Option Bool) := do
       {f.hints.getD 1 0 + 1}"
   if r.accepted != r.unbound.isEmpty then
     IO.println s!"  the certificate's verdict differs from the worklist's"
-  return some r.accepted
+  if !r.accepted then return some false
+  -- Every WHIR sumcheck is certified from its opening's first claim, its query batches included.
+  if r.whirPartial != 0 then
+    IO.eprintln s!"{path}: {r.whirPartial} WHIR sumchecks are not certified from their opening's first claim"
+    return none
+  -- Each hint a certified input claim reads is a claim the node's reduction takes: an `edge term`'s value.
+  let terms : Std.HashSet ℕ := (Dump.edgeLines (← IO.FS.readFile path)).foldl (fun acc ws => match ws with
+    | "term" :: _ :: _ :: _ :: _ :: v :: _ => match v.toNat? with
+      | some w => acc.insert w
+      | none => acc
+    | _ => acc) {}
+  if let some w := r.hints.find? (!terms.contains ·) then
+    IO.eprintln s!"{path}: the hint at wire {w} a certified input claim reads is no claim the reduction takes"
+    return none
+  return some true
 
 def main (args : List String) : IO UInt32 := do
   let mut ok := true

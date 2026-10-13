@@ -18,8 +18,8 @@ sum at the true values of the hints, some hint is not its true value: the input 
 claim is.
 
 `whir_test_sound`: WHIR's sumcheck (`WhirCert`, fold rounds and batch rounds) is a sumcheck whose rounds' polynomials
-read only wires bound before their challenges, so `Sumcheck.sumcheck_sound_fun` bounds its test as
-`sumcheck_test_sound` does.
+read only what is bound before their challenges (a batch round's with the words squeezed with `λ`, its query
+positions, as seeds), so `Sumcheck.sumcheck_sound_fun` bounds its test as `sumcheck_test_sound` does.
 -/
 
 namespace LeanVMCircuits.Rec.Bind
@@ -258,15 +258,39 @@ theorem split_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {pc : S
 
 /-! WHIR's sumcheck. -/
 
+/-- A WHIR round's atoms are in the closure of its seeds (`WhirRound.seeds`) under its transcript's random-oracle
+rules, when `Cert.whirBound` passes. -/
+theorem whirBound_closure {c : Cert} {s : State} {os : Array (List ℕ)} {T : Transcript} {wr : WhirRound}
+    (h : c.whirBound s os (T, c.timesRO s T) wr = true) :
+    ∀ w ∈ wr.atoms os, ∀ n ∈ limbs3 w, Closure T.rulesRO (wr.seeds s T) n := by
+  intro w hw n hn
+  cases wr with
+  | fold q cc u v =>
+    simp only [Cert.whirBound] at h
+    obtain ⟨k, hk, hle⟩ := boundBy_wires h w hw n hn
+    exact (Cert.timesRO_sound c s T hk).mono (seedsBefore_mono hle)
+  | batch cc e own fs =>
+    simp only [Cert.whirBound, Bool.and_eq_true] at h
+    obtain ⟨k, hk, hle⟩ := boundBy_wires h.2 w hw n hn
+    refine (Cert.timesX_sound c s T _ fs hk).mono fun m hm => ?_
+    simp only [WhirRound.seeds, List.mem_append] at hm ⊢
+    rcases hm with hm | hm
+    · exact Or.inl (seedsBefore_mono hle m hm)
+    · simp only [seedsBy, List.mem_map, List.mem_filter, decide_eq_true_eq] at hm
+      obtain ⟨p, ⟨⟨x, hx, rfl⟩, -⟩, rfl⟩ := hm
+      exact Or.inr hx
+
 /-- What `whir_test_sound` asks of the prover's answers to a WHIR sumcheck `wc`'s challenge vectors `r`: answers in
-the random-oracle view (`RomAnswers`); two answers whose challenges before round `i` agree agree on the seeds before
-round `i`'s time; round `i`'s challenge is `r i`; the rounds' eq weights (none for a fold round, zero for a batch round)
-are the honest instance's; and the input claim is not the instance's sum. `whir_answers_exist` exhibits such answers. -/
+the random-oracle view (`RomAnswers`); two answers whose challenges before round `i` agree agree on round `i`'s seeds
+(`WhirRound.seeds`: the seeds before its time, and for a batch round the words squeezed with `λ` but `λ`'s own, its
+query positions); round `i`'s challenge is `r i`; the rounds' eq weights (none for a fold round, zero for a batch
+round) are the honest instance's; and the input claim is not the instance's sum. `whir_answers_exist` exhibits such
+answers. -/
 structure WhirAnswers (c : Cert) (s : State) (wc : WhirCert) (I : Inst E wc.rounds.length)
     (st : (Fin wc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin wc.rounds.length → E) → Val) : Prop where
   rom : RomAnswers c s wc.transcript st val
   seed : ∀ r r' (i : Fin wc.rounds.length), (∀ j < i, r j = r' j) →
-    ∀ m ∈ seedsBefore s (c.transcripts.getD wc.transcript default) (wc.rounds.getD i default).chal.time,
+    ∀ m ∈ (wc.rounds.getD i default).seeds s (c.transcripts.getD wc.transcript default),
       nu (val r) m = nu (val r') m
   chal : ∀ r (i : Fin wc.rounds.length), Model.ev (val r) (wc.rounds.getD i default).chal.chal = r i
   weight : ∀ r (i : Fin wc.rounds.length), (wc.rounds.getD i default).weight = I.weight r i
@@ -303,13 +327,16 @@ theorem whir_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {wc : Wh
     refine ⟨h1.trans (wc.deg_le i.isLt), by rw [← ha.weight r i]; exact h2, ?_⟩
     simp only [cl, Fin.val_succ, WhirCert.claimAt, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
     rw [h3, ha.chal r i]
-  have hpre : PrefixDep g := fun r r' i hrr =>
-    WhirRound.poly_congr _ _ fun w hw =>
-      bound_agree h htr ha.rom r r' (boundBy_wires (hrounds i i.isLt).2 w hw) (ha.seed r r' i hrr)
+  have htm := Cert.marksRO_getD c s htr
+  have hpre : PrefixDep g := fun r r' i hrr => by
+    have hb := (hrounds i i.isLt).2
+    rw [htm] at hb
+    exact WhirRound.poly_congr _ _ fun w hw =>
+      ro_agree h htr ha.rom r r' (whirBound_closure hb w hw) (ha.seed r r' i hrr)
   set r₀ : Fin wc.rounds.length → E := fun _ => 0
   have hc0 : ∀ r, cl r 0 = cl r₀ 0 := fun r =>
-    bound_agree h htr ha.rom r r₀ (boundBy_wires hb0 _ (List.mem_singleton_self _))
-      (ha.seed r r₀ ⟨0, hpos⟩ fun j hj => absurd hj (by simp [Fin.lt_def]))
+    bound_agree h htr ha.rom r r₀ (boundBy_wires hb0 _ (List.mem_singleton_self _)) fun m hm =>
+      ha.seed r r₀ ⟨0, hpos⟩ (fun j hj => absurd hj (by simp [Fin.lt_def])) m (WhirRound.seedsBefore_sub _ _ _ m hm)
   refine le_trans (card_le_card fun r hr => ?_)
     (sumcheck_sound_fun S wc.deg I hI g hpre (fun r i => (hsem r i).1) cl (cl r₀ 0) (ha.false_claim r₀))
   simp only [mem_filter] at hr ⊢

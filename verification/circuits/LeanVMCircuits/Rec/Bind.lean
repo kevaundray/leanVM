@@ -393,6 +393,8 @@ structure Report where
   sumchecks : ℕ := 0
   rounds : ℕ := 0
   residuals : ℕ := 0
+  /-- The hints the certified sumchecks' input claims read. -/
+  hints : List ℕ := []
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
@@ -402,6 +404,10 @@ structure Report where
   /-- The WHIR sumchecks the certificate names, and their rounds. -/
   whirs : ℕ := 0
   whirRounds : ℕ := 0
+  /-- Their batch rounds, and the WHIR sumchecks not certified from the opening's first claim (whose first round does
+  not fold a quadratic received against it). -/
+  whirBatches : ℕ := 0
+  whirPartial : ℕ := 0
   /-- The claim splits the certificate names. -/
   splits : ℕ := 0
   /-- The calls of the `eq_e` tests that close nothing certified and no union. -/
@@ -629,9 +635,8 @@ def sumcheckOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : S
           let t := ts.getD k default
           let timed := rounds.filterMap fun rc => (roundTime rp s t rc).map fun time => { rc with time }
           if timed.length = rounds.length then
-            -- The table sumcheck's target reads hinted fixed-column evaluations no transcript binds.
             return some { claim0, rounds := timed, deg := lastRound.coeffs.length - 1, test := u, final,
-                          transcript := k, resid, hinted := !resid.isEmpty }
+                          transcript := k, resid }
       -- A residual is tested against `zero`.
       if (zeroAt rp idx final).isNone then break
       match makerBy rp idx last (fun j c => match c with
@@ -640,6 +645,26 @@ def sumcheckOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : S
       | some (w, x, acc, j) => resid := (w, x, j) :: resid; last := acc
       | none => break
   return none
+
+/-- The hints behind `w` that a transcript's marks `bd` do not bind by `time`: back through the calls making the
+unbound wires, the outputs of `free_*` calls. -/
+def hintsBehind (rp : Replay) (bd : Array (Option ℕ)) (time w : ℕ) : List ℕ := Id.run do
+  let bound := fun v => (limbs3 v).all fun n => match bd.getD n none with
+    | some k => decide (k ≤ time)
+    | none => false
+  let mut seen : Std.HashSet ℕ := {}
+  let mut stack := #[w]
+  let mut hints := #[]
+  while !stack.isEmpty do
+    let v := stack.back!
+    stack := stack.pop
+    if seen.contains v || bound v then continue
+    seen := seen.insert v
+    let c := rp.calls.getD (rp.maker.getD v 0) .zero
+    match c with
+    | .freeE | .freeK | .freeD => hints := hints.push v
+    | _ => for a in c.args do stack := stack.push a
+  return hints.toList
 
 /-- A call among the 400 from `start` that `f` takes. -/
 def findFrom {α : Type} (rp : Replay) (start : ℕ) (f : Call → Option α) : Option (ℕ × α) :=
@@ -771,14 +796,17 @@ def pexprOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (bound : 
 
 /-- The WHIR sumcheck a test closes: one side a `Quad::eval`, back through fold rounds and the batch rounds before
 folded quadratics to the first quadratic's claim, in the transcript drawing the last round's challenge. A batch
-round's expression treats as atoms the wires the transcript binds by `λ`'s time in the random-oracle view. -/
-def whirOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (ms : List (Transcript × Array (Option ℕ)))
+round's expression treats as atoms the wires the transcript's random-oracle view binds by `λ`'s time with the words
+squeezed with `λ` but its own (its query positions) as seeds: the transcript's seeds up to `λ`'s last squeeze but
+`λ`'s words, bound again (`seedsAt`, by the premise index `idxAt`) for the firings the verdict replays. -/
+def whirOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State) (cert : Cert) (os : Array (List ℕ))
+    (ms : List (Transcript × Array (Option ℕ))) (seedsAt : ℕ → Array (ℕ × ℕ)) (idxAt : ℕ → Array (Array ℕ))
     (u a b : ℕ) : Option WhirCert := Id.run do
   for (side, final) in [(a, b), (b, a)] do
     let some (_, _, x0, _, _, _) := quadEvalOf rp idx side | continue
     let some c0 := chalOf rp idx x0 | continue
     let some k := (List.range ms.length).find? fun k => (chalTime rp s (ms.getD k default).1 c0).isSome | continue
-    let (t, bd) := ms.getD k default
+    let (t, _) := ms.getD k default
     let timed := fun (cc : ChalCert) => (chalTime rp s t cc).map fun time => { cc with time }
     let mut rounds : List WhirRound := []
     let mut cur := side
@@ -796,11 +824,16 @@ def whirOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State
             | .mul _ y => some y
             | _ => none).getD s1
         let some lc := (chalOf rp idx lam).bind timed | break
-        let bound := fun w => (limbs3 w).all fun n => match bd.getD n none with
-          | some k => decide (k ≤ lc.time)
+        let own := lc.own os
+        let lamCall := (lc.words.map (·.2.2)).foldl max 0
+        let (_, fs) := bind t.rulesRO cert.nodes (idxAt k)
+          ((seedsAt k).filter fun (tm, n) => tm ≤ lamCall && !own.contains n)
+        let bx := cert.timesX s t ((sibSeeds s t lc.time own).map (lc.time, ·)) fs
+        let bound := fun w => (limbs3 w).all fun n => match bx.getD n none with
+          | some j => decide (j ≤ lc.time)
           | none => false
         let some e := pexprOf rp idx bound lam claim 100000 cur | break
-        rounds := .batch lc e :: rounds
+        rounds := .batch lc e own fs :: rounds
         cur := claim
     if !rounds.isEmpty then
       return some { claim0 := cur, rounds, test := u, final, transcript := k }
@@ -907,6 +940,9 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let stmt := statementNodes s
   let mut binds : Array (Array (Option ℕ)) := #[]
   let mut certs : Array Transcript := #[]
+  -- Each transcript's seeds and its random-oracle rules' premise index, which WHIR's batch rounds bind again with.
+  let mut seedsOfT : Array (Array (ℕ × ℕ)) := #[]
+  let mut idxRO : Array (Array (Array ℕ)) := #[]
   for path in ts do
     -- Absorbed words are bound at the next squeeze on the path; the blocks absorbed before a squeeze seed it. A
     -- squeeze reading an absorb block's output is a challenge, the oracle's answer: a seed at its own squeeze.
@@ -936,8 +972,11 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     let own : Std.HashSet ℕ := (blocksRev ++ squeezes).foldl (fun acc k => acc.insert ((s.hash.getD k []).getD 6 0)) {}
     let rulesRO := extra.foldl (fun r (j, ps, cs) => r.push j ps cs)
       (rowRules s rp.invs fun row => own.contains (row.getD 6 0)).rules
-    let (_, firingsRO) := bind rulesRO an.nodes (premiseIndex rulesRO an.nodes rulesRO.size) seeds
+    let idxR := premiseIndex rulesRO an.nodes rulesRO.size
+    let (_, firingsRO) := bind rulesRO an.nodes idxR seeds
     binds := binds.push bd
+    seedsOfT := seedsOfT.push seeds
+    idxRO := idxRO.push idxR
     certs := certs.push { blocks := blocksRev.reverse.toList, firings, squeezes := squeezes.reverse.toList, firingsRO,
                           rulesRO }
   -- Each product's point: `X + 1` is made by the call after the point's first.
@@ -966,8 +1005,17 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let idxO := outIndex rp
   let ms := cert.marksRO s
   let os := cert.outs
-  let sumchecks := (tests.filterMap fun (u, a, b) => sumcheckOf rp idxO s certs.toList u a b).filter fun sc =>
-    ({ cert with sumchecks := #[sc] }).sumchecksOk s os ms
+  -- A sumcheck closed by a residual (the table sumcheck) has an input claim reading hinted fixed-column evaluations:
+  -- the certificate names them and binds the claim with them as seeds.
+  let withHints := fun (sc : SumcheckCert) =>
+    if sc.resid.isEmpty then sc else
+      let t := ms.getD sc.transcript default
+      let hints := hintsBehind rp t.2 (sc.rounds.getD 0 default).time sc.claim0
+      let (_, hintFirings) := bind t.1.rulesRO cert.nodes (idxRO.getD sc.transcript #[])
+        ((hints.flatMap limbs3).toArray.map (0, ·) ++ seedsOfT.getD sc.transcript #[])
+      { sc with hints, hintFirings }
+  let sumchecks := (tests.filterMap fun (u, a, b) => (sumcheckOf rp idxO s certs.toList u a b).map withHints).filter
+    fun sc => ({ cert with sumchecks := #[sc] }).sumchecksOk s os ms
   let pows := (powsOf rp idxO (tests.map fun (u, _, _) => rp.eqCall[u]!)).filter (·.ok os cert.calls cert.relax)
   let odds := (tests.filterMap fun (u, a, b) =>
       if sumchecks.any (·.test == u) then none else oddOf rp idxO s certs.toList u (rp.eqCall[u]!) a b).filter fun oc =>
@@ -981,7 +1029,8 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
       if named u || !isEqE u then none else topOf rp idxO s certs.toList u (rp.eqCall[u]!) a b).filter fun tc =>
     ({ cert with tops := #[tc] }).topsOk s os ms
   let whirs := (tests.filterMap fun (u, a, b) =>
-      if named u || !isEqE u || tops.any (·.test == u) then none else whirOf rp idxO s ms u a b).filter fun wc =>
+      if named u || !isEqE u || tops.any (·.test == u) then none
+      else whirOf rp idxO s cert os ms (seedsOfT.getD · #[]) (idxRO.getD · #[]) u a b).filter fun wc =>
     ({ cert with whirs := #[wc] }).whirsOk s os ms
   let splits := (tests.filterMap fun (u, a, b) =>
       if named u || !isEqE u || tops.any (·.test == u) || whirs.any (·.test == u) then none
@@ -1040,8 +1089,13 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     exposed, exposedUnbound, probes, sumchecks := sumchecks.size,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
     residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
+    hints := sumchecks.toList.flatMap (·.hints),
     pows := pows.size, powTests := pows.foldl (fun n pc => n + pc.bits) 0, odds := odds.size, tops := tops.size,
     whirs := whirs.size, whirRounds := whirs.foldl (fun n wc => n + wc.rounds.length) 0, splits := splits.size,
+    whirBatches := whirs.foldl (fun n wc => n + (wc.rounds.filter fun | .batch .. => true | _ => false).length) 0,
+    whirPartial := (whirs.filter fun wc => match wc.rounds.head? with
+      | some (.fold (.recv ..) ..) => false
+      | _ => true).size,
     others := tests.filterMap fun (u, _, _) =>
       if !isEqE u || named u || tops.any (·.test == u) || whirs.any (·.test == u) || splits.any (·.test == u) then none
       else some (rp.eqCall[u]!) }

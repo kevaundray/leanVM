@@ -211,10 +211,12 @@ def calls : QuadCert → List (ℕ × Call)
 end QuadCert
 
 /-- A WHIR round: a fold round (its quadratic, its challenge, and `Quad::eval`'s two `mul_add` calls) or a batch
-round (its challenge `λ`, and the claim after batching as an expression in `λ`). -/
+round (its challenge `λ`, the claim after batching as an expression in `λ`, the output words of its squeezes that
+`λ` reads (`own`), and the firings binding the expression's atoms with the words squeezed with `λ`, its query
+positions, as seeds). -/
 inductive WhirRound where
   | fold (q : QuadCert) (cc : ChalCert) (uAt tAt : ℕ)
-  | batch (cc : ChalCert) (e : PExpr)
+  | batch (cc : ChalCert) (e : PExpr) (own : List ℕ) (firings : Array ℕ)
   deriving Inhabited, Repr
 
 namespace WhirRound
@@ -222,7 +224,7 @@ namespace WhirRound
 variable (os : Array (List ℕ))
 
 def chal : WhirRound → ChalCert
-  | fold _ cc .. | batch cc _ => cc
+  | fold _ cc .. | batch cc .. => cc
 
 /-- The round's eq weight: none for a fold round, zero for a batch round, whose check is its value at zero. -/
 noncomputable def weight : WhirRound → Option E
@@ -231,35 +233,35 @@ noncomputable def weight : WhirRound → Option E
 
 def deg : WhirRound → ℕ
   | fold .. => 2
-  | batch _ e => e.deg
+  | batch _ e .. => e.deg
 
 /-- The next claim. -/
 def next : WhirRound → ℕ
   | fold _ _ _ t => o os t
-  | batch cc e => e.wire os cc.chal
+  | batch cc e .. => e.wire os cc.chal
 
 /-- The wires the round's polynomial reads: the quadratic's coefficients, or the expression's atoms. -/
 def atoms : WhirRound → List ℕ
   | fold q .. => [q.c os, q.b os, q.a os]
-  | batch _ e => e.atoms
+  | batch _ e .. => e.atoms
 
 /-- The round's polynomial. -/
 noncomputable def poly (val : Val) : WhirRound → E[X]
   | fold q .. => Sumcheck.polyOf ([q.c os, q.b os, q.a os].map (Model.ev val))
-  | batch _ e => e.poly val
+  | batch _ e .. => e.poly val
 
 /-- The round's calls are in the replay and it reads `claim`: a fold round's quadratic has it as its claim, a batch
 round's expression is it at zero. -/
 def ok (cs : Array Call) (rl : Array Bool) (claim : ℕ) : WhirRound → Bool
   | fold q cc u t => q.claim os == claim &&
     callsOk cs rl (q.calls os ++ [(u, .mulAdd (q.a os) cc.chal (q.b os)), (t, .mulAdd (o os u) cc.chal (q.c os))])
-  | batch cc e => e.fixes claim && callsOk cs rl (e.calls os cc.chal)
+  | batch cc e .. => e.fixes claim && callsOk cs rl (e.calls os cc.chal)
 
 /-- A round's polynomial reads only its atoms. -/
 theorem poly_congr {val val' : Val} : ∀ wr : WhirRound, (∀ w ∈ wr.atoms os, Model.ev val w = Model.ev val' w) →
     wr.poly os val = wr.poly os val'
   | fold .., h => congrArg Sumcheck.polyOf (List.map_congr_left h)
-  | batch _ e, h => e.poly_congr h
+  | batch _ e .., h => e.poly_congr h
 
 end WhirRound
 
@@ -410,7 +412,7 @@ theorem whirRound_sem (hF : Facts cs rl os st val) {wr : WhirRound} {claim : ℕ
         List.foldr_cons, List.foldr_nil]
       rw [et, eu]
       ring
-  | .batch cc e =>
+  | .batch cc e _ _ =>
     simp only [WhirRound.ok, Bool.and_eq_true] at hok
     obtain ⟨hfix, hcalls⟩ := hok
     refine ⟨e.natDegree_poly val, ?_, pexpr_sem hF cc.chal e hcalls⟩

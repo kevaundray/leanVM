@@ -147,6 +147,13 @@ def seedsBefore (s : State) (t : Transcript) (k : ℕ) : List ℕ :=
   absorbed s (t.blocks.take k) ++ ((chalSeeds s t).filter (·.1 ≤ k)).map (·.2) ++
     if t.blocks.length < k then statementNodes s else []
 
+/-- The words a transcript squeezes from the chaining value a challenge drawn after its first `time` blocks reads,
+but the challenge's own words `own`: a squeeze row's outputs are the oracle's answers, each word independent of the
+others, so the words squeezed with a challenge (WHIR's query positions, squeezed with its batching challenge) fix
+nothing about it. -/
+def sibSeeds (s : State) (t : Transcript) (time : ℕ) (own : List ℕ) : List ℕ :=
+  ((chalSeeds s t).filter fun p => p.1 == time + 1 && !own.contains p.2).map (·.2)
+
 theorem seedsBy_seedsT {s : State} {t : Transcript} {k : ℕ} :
     ∀ n ∈ seedsBy (seedsT s t) k, n ∈ seedsBefore s t k := by
   intro n hn
@@ -263,6 +270,22 @@ def Cert.timesRO (c : Cert) (s : State) (t : Transcript) : Array (Option ℕ) :=
 def Cert.marksRO (c : Cert) (s : State) : List (Transcript × Array (Option ℕ)) :=
   c.transcripts.map fun t => (t, c.timesRO s t)
 
+/-- The times in the random-oracle view with `extra` seeds too, by `firings`. -/
+def Cert.timesX (c : Cert) (s : State) (t : Transcript) (extra : List (ℕ × ℕ)) (firings : Array ℕ) :
+    Array (Option ℕ) :=
+  certifyT t.rulesRO c.nodes (seedsT s t ++ extra) firings
+
+/-- The output words of its squeezes a challenge reads: for each word, its `d_to_k` call's place in the squeeze's
+digest. -/
+def ChalCert.own (os : Array (List ℕ)) (cc : ChalCert) : List ℕ :=
+  cc.words.map fun e => limb (outAt os e.2.2 0) e.2.1
+
+/-- What a WHIR round's polynomial is read with: the seeds before its challenge, and for a batch round the words
+squeezed with `λ`, its query positions. -/
+def WhirRound.seeds (s : State) (t : Transcript) : WhirRound → List ℕ
+  | .fold _ cc .. => seedsBefore s t cc.time
+  | .batch cc _ own _ => seedsBefore s t cc.time ++ sibSeeds s t cc.time own
+
 /-- When a transcript binds two wires: their limbs' latest time. -/
 def bindTime (m : Array (Option ℕ)) (a b : ℕ) : Option ℕ := latest m (some 0) (limbs4 a ++ limbs4 b)
 
@@ -346,21 +369,27 @@ def Cert.oddsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Trans
 by the round's time. -/
 def SumcheckCert.boundOk (m : Array (Option ℕ)) (sc : SumcheckCert) (i : ℕ) : Bool :=
   let rc := sc.rounds.getD i default
-  ((rc.sent ++ rc.weight.toList ++ (if i = 0 ∧ sc.hinted = false then [sc.claim0] else [])).flatMap limbs3).all
+  ((rc.sent ++ rc.weight.toList ++ (if i = 0 ∧ sc.hints = [] then [sc.claim0] else [])).flatMap limbs3).all
     fun n =>
     match m.getD n none with
     | some k => decide (k ≤ rc.time)
     | none => false
 
+/-- The seeds a hinted input claim is bound with: its hints' limbs, at the start. -/
+def SumcheckCert.hintSeeds (sc : SumcheckCert) : List (ℕ × ℕ) := (sc.hints.flatMap limbs3).map (0, ·)
+
 /-- Each named sumcheck's rounds are in the replay, its test is a test of its last side (the last claim, or the
-residual from it), and each round's challenge is drawn after the blocks binding what the prover sends in it. -/
+residual from it), each round's challenge is drawn after the blocks binding what the prover sends in it, and a hinted
+input claim is bound before the first challenge with its hints as seeds. -/
 def Cert.sumchecksOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) :
     Bool :=
   c.sumchecks.all fun sc => sc.transcript < ms.length && sc.ok os c.calls c.relax && c.test sc.test &&
     (s.unions[sc.test]? == some (sc.side os, sc.final) || s.unions[sc.test]? == some (sc.final, sc.side os)) &&
-    (List.range sc.rounds.length).all fun i =>
+    ((List.range sc.rounds.length).all fun i =>
       (sc.rounds.getD i default).chalOk s os c.calls (ms.getD sc.transcript default).1.blocks &&
-        sc.boundOk (ms.getD sc.transcript default).2 i
+        sc.boundOk (ms.getD sc.transcript default).2 i) &&
+    (sc.hints.isEmpty || boundBy (c.timesX s (ms.getD sc.transcript default).1 sc.hintSeeds sc.hintFirings)
+      [sc.claim0] (sc.rounds.getD 0 default).time)
 
 /-- Each GKR radix-four top layer's calls are in the replay, its test is a test of its claim and expected value, its
 challenges are drawn where it says, its input claims are bound before `λ` is drawn, and its children before `low`
@@ -380,9 +409,18 @@ def Cert.splitsOk (c : Cert) (s : State) (os : Array (List ℕ)) : Bool :=
   c.splits.all fun pc => pc.ok os c.calls c.relax && c.test pc.test &&
     (s.unions[pc.test]? == some (pc.total os, pc.value) || s.unions[pc.test]? == some (pc.value, pc.total os))
 
+/-- A WHIR round's polynomial is bound by its challenge: a fold round's coefficients by its time; a batch round's
+atoms by `λ`'s time with the words squeezed with `λ` as seeds at that time, `own` being the words `λ` reads, each a
+squeeze's output one step after `λ`'s time. -/
+def Cert.whirBound (c : Cert) (s : State) (os : Array (List ℕ)) (t : Transcript × Array (Option ℕ)) :
+    WhirRound → Bool
+  | wr@(.fold _ cc ..) => boundBy t.2 (wr.atoms os) cc.time
+  | wr@(.batch cc _ own fs) => own == cc.own os && own.all (fun n => (chalSeeds s t.1).contains (cc.time + 1, n)) &&
+      boundBy (c.timesX s t.1 ((sibSeeds s t.1 cc.time own).map (cc.time, ·)) fs) (wr.atoms os) cc.time
+
 /-- Each WHIR sumcheck's rounds are in the replay, its test is a test of its last claim, each round's challenge is
 drawn where it says, the input claim is bound before the first challenge, and what each round's polynomial reads
-before its challenge. -/
+before its challenge (`Cert.whirBound`). -/
 def Cert.whirsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
   c.whirs.all fun wc =>
     let t := ms.getD wc.transcript default
@@ -391,8 +429,7 @@ def Cert.whirsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Tran
         s.unions[wc.test]? == some (wc.final, wc.claimAt os wc.rounds.length)) &&
       boundBy t.2 [wc.claim0] (wc.rounds.getD 0 default).chal.time &&
       (List.range wc.rounds.length).all fun i =>
-        (wc.rounds.getD i default).chal.ok s os c.calls t.1.blocks &&
-          boundBy t.2 ((wc.rounds.getD i default).atoms os) (wc.rounds.getD i default).chal.time
+        (wc.rounds.getD i default).chal.ok s os c.calls t.1.blocks && c.whirBound s os t (wc.rounds.getD i default)
 
 /-- The later checks: the radix-four top layers, the claim splits and the WHIR sumchecks. -/
 def Cert.lateOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
@@ -451,6 +488,26 @@ theorem Cert.times_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
 theorem Cert.timesRO_sound (c : Cert) (s : State) (t : Transcript) {n k : ℕ}
     (h : (c.timesRO s t).getD n none = some k) : Closure t.rulesRO (seedsBefore s t k) n :=
   (certifyT_sound _ _ _ _ n k h).mono seedsBy_seedsT
+
+theorem seedsBy_append (a b : List (ℕ × ℕ)) (k : ℕ) : seedsBy (a ++ b) k = seedsBy a k ++ seedsBy b k := by
+  simp [seedsBy]
+
+/-- The same with `extra` seeds: a node marked at `k` is in the closure of what `k` gives and the extra seeds by `k`. -/
+theorem Cert.timesX_sound (c : Cert) (s : State) (t : Transcript) (extra : List (ℕ × ℕ)) (fs : Array ℕ) {n k : ℕ}
+    (h : (c.timesX s t extra fs).getD n none = some k) : Closure t.rulesRO (seedsBefore s t k ++ seedsBy extra k) n :=
+  (certifyT_sound _ _ _ _ n k h).mono fun m hm => by
+    rw [seedsBy_append, List.mem_append] at hm
+    rcases hm with hm | hm
+    · exact List.mem_append_left _ (seedsBy_seedsT _ hm)
+    · exact List.mem_append_right _ hm
+
+/-- A round's seeds include those before its challenge. -/
+theorem WhirRound.seedsBefore_sub (s : State) (t : Transcript) (wr : WhirRound) :
+    ∀ m ∈ seedsBefore s t wr.chal.time, m ∈ wr.seeds s t := by
+  intro m hm
+  cases wr with
+  | fold => exact hm
+  | batch => exact List.mem_append_left _ hm
 
 /-- A passing verdict: every rule is justified, and each test's wires are bound by one transcript at a time `k`: in
 the closure of what its first `k` blocks absorb, and of the statement once `k` passes its last block. -/

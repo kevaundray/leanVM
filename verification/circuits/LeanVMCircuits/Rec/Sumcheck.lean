@@ -274,6 +274,49 @@ theorem sumcheck_sound_fun (S : Finset F) (d : ℕ) {n : ℕ} (I : Inst F n) (hI
   obtain ⟨hS, h0, h1, h2, h3⟩ := hr
   exact ⟨hS, h0 ▸ accepts_ofFun I g hg r (cl r) h1 h2 h3⟩
 
+/-- Round polynomials reading only the challenges before them among the challenge vectors of `A`. -/
+def PrefixDepOn {n : ℕ} (A : Set (Fin n → F)) (g : (Fin n → F) → Fin n → F[X]) : Prop :=
+  ∀ r ∈ A, ∀ r' ∈ A, ∀ i : Fin n, (∀ j < i, r j = r' j) → g r i = g r' i
+
+open Classical in
+/-- `sumcheck_sound_fun` counting only the challenge vectors of `A`, the round polynomials reading only the challenges
+before them among those: on a prefix some vector of `A` has, the prover answers with that vector's polynomial. -/
+theorem sumcheck_sound_on (S : Finset F) (d : ℕ) {n : ℕ} (I : Inst F n) (hI : I.ok d) (A : Set (Fin n → F))
+    (g : (Fin n → F) → Fin n → F[X]) (hg : PrefixDepOn A g) (hd : ∀ r i, (g r i).natDegree ≤ d)
+    (cl : (Fin n → F) → Fin (n + 1) → F) (c : F) (hc : c ≠ I.sum) :
+    #{r ∈ Fintype.piFinset (fun _ : Fin n => S) | r ∈ A ∧ cl r 0 = c ∧
+      (∀ i, lin (I.weight r i) (g r i) = cl r i.castSucc) ∧ (∀ i, cl r i.succ = (g r i).eval (r i)) ∧
+        cl r (Fin.last n) = I.final r} ≤ n * d * #S ^ (n - 1) := by
+  let pre : (Fin n → F) → Fin n → (Fin n → F) → Prop := fun r i x => x ∈ A ∧ ∀ j < i, x j = r j
+  let G : Fin n → ((Fin n → F) → Prop) → F[X] := fun i P => if h : ∃ x, P x then g (Classical.choose h) i else 0
+  let g' : (Fin n → F) → Fin n → F[X] := fun r i => G i (pre r i)
+  have hpre : PrefixDep g' := fun r r' i h => by
+    have e : pre r i = pre r' i := by
+      funext x
+      apply propext
+      constructor
+      · rintro ⟨hx, hj⟩
+        exact ⟨hx, fun j hji => (hj j hji).trans (h j hji)⟩
+      · rintro ⟨hx, hj⟩
+        exact ⟨hx, fun j hji => (hj j hji).trans (h j hji).symm⟩
+    show G i (pre r i) = G i (pre r' i)
+    rw [e]
+  have hagree : ∀ r ∈ A, ∀ i, g' r i = g r i := fun r hr i => by
+    have hex : ∃ x, pre r i x := ⟨r, hr, fun _ _ => rfl⟩
+    show G i (pre r i) = g r i
+    simp only [G, dif_pos hex]
+    exact hg _ (Classical.choose_spec hex).1 r hr i (Classical.choose_spec hex).2
+  have hd' : ∀ r i, (g' r i).natDegree ≤ d := fun r i => by
+    show (G i (pre r i)).natDegree ≤ d
+    simp only [G]
+    split
+    · exact hd _ _
+    · simp
+  refine le_trans (card_le_card fun r hr => ?_) (sumcheck_sound_fun S d I hI g' hpre hd' cl c hc)
+  simp only [mem_filter] at hr ⊢
+  obtain ⟨hS, hA, h0, h1, h2, h3⟩ := hr
+  exact ⟨hS, h0, fun i => (hagree r hA i).symm ▸ h1 i, fun i => (hagree r hA i).symm ▸ h2 i, h3⟩
+
 /-! A round polynomial of its coefficients. -/
 
 /-- The polynomial of coefficients, constant first. -/
