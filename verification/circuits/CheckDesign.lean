@@ -158,18 +158,6 @@ def checkSummaries (text : String) : Except String ℕ := do
     n := n + 1
   return n
 
-/-- The tracked dumps' shapes, by their name: output trees `2to1` and `4to1`, and the two claim-set examples. -/
-def dumpShape (name : String) : Option (Shape × ℕ) :=
-  let pos (s : String) : Option ℕ := (s.splitOn "-circuit-").getLast?.bind String.toNat?
-  if name.startsWith "aggregate-" then
-    let a := if (name.splitOn "-2to1-").length = 2 then 2 else 4
-    some (⟨a, a, none⟩, if name.endsWith "-first" then 0 else 1)
-  else if name.startsWith "claimset-single-tier-circuit-" then
-    (pos name).map fun p => (⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩, p)
-  else if name.startsWith "claimset-two-tier-circuit-" then
-    (pos name).map fun p => (⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩, p)
-  else none
-
 def isFreeE : Model.Call → Bool
   | .freeE => true
   | _ => false
@@ -191,7 +179,7 @@ def kindCalls (sh : Shape) (t : ℕ) : ℕ :=
   else 2 + 3 * (sh.stop t - sh.start t) + 3 + 64 + (if t = 0 then 2 * sh.kindBits t + 1 else 0)
 
 def checkDump (path : System.FilePath) : IO Bool := do
-  let some (sh, position) := dumpShape (path.fileStem.getD "")
+  let some (sh, position) := DesignClaims.dumpShape (path.fileStem.getD "")
     | IO.eprintln s!"{path}: not a tracked circuit's name"; return false
   let text ← IO.FS.readFile path
   let (lines, _, _) ← match Dump.sections text with

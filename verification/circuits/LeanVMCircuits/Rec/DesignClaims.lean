@@ -716,6 +716,32 @@ theorem nodeScale_two (sh : Shape) (h : sh.Accepted) (h2 : sh.size = 2) (q : ℕ
     subst this; simp [ofWord_one]
     exact map_one _
 
+/-- The scale mode `Design::kind_rows` gives a child of tier `ct`: the kind word itself with two kinds, one for the large tier, else the small tier's kind bits. -/
+def tierMode (sh : Shape) (ct : ℕ) : Edges.Mode :=
+  if sh.size = 2 then .kind else if ct = 0 then .bits (sh.kindBits 0) else .one
+
+/-- At its tier's mode, a child's scale is zero exactly at the first level and one at every node. -/
+theorem tierMode_scale (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (q : ℕ) (hq : q < sh.size)
+    (x : Fin 4 → K) (hx : x 0 = ofWord (sh.code q)) (hx1 : x 1 = 0) (hx2 : x 2 = 0) :
+    Edges.nodeScale (tierMode sh (sh.placeAt q).tier) x = if q = 0 then 0 else 1 := by
+  unfold tierMode
+  by_cases h2 : sh.size = 2
+  · rw [if_pos h2]; exact nodeScale_two sh h h2 q hq x hx hx1 hx2
+  rw [if_neg h2]
+  by_cases h0 : (sh.placeAt q).tier = 0
+  · rw [if_pos h0]; exact nodeScale_small sh h hs q hq h0 x hx
+  rw [if_neg h0]
+  · have hst := ((tier_iff sh h q hq _).mp rfl).2.1
+    have hq0 : q ≠ 0 := by
+      intro e
+      subst e
+      have : (sh.placeAt 0).tier = 0 := by simp [Shape.placeAt]
+      exact h0 this
+    have hsm : 1 ≤ sh.start (sh.placeAt q).tier := by
+      simp only [Shape.start, h0, ↓reduceIte, Shape.smallEnd]
+      split <;> omega
+    simp [Edges.nodeScale, hq0]
+
 end Scale
 
 /-! The design's checks, as `checkdesign` makes them on a summary. -/
@@ -762,7 +788,30 @@ def nodeDigestOk (a : ℕ) (ws : List ℕ) : Bool := ws == nodeDigestModel a
 /-- `NodeClaims::bind_state` of a final state of words 1 to 4 binds `1 + 2y + 3y^2` and `4`, as `bindState` does. -/
 def bindOk (ws : List Word) : Bool := ws == [(1, 2, 3), (4, 0, 0)]
 
+/-- The tracked dumps' shapes, by their name: output trees `2to1` and `4to1`, and the two claim-set examples. -/
+def dumpShape (name : String) : Option (Shape × ℕ) :=
+  let pos (s : String) : Option ℕ := (s.splitOn "-circuit-").getLast?.bind String.toNat?
+  if name.startsWith "aggregate-" then
+    let a := if (name.splitOn "-2to1-").length = 2 then 2 else 4
+    some (⟨a, a, none⟩, if name.endsWith "-first" then 0 else 1)
+  else if name.startsWith "claimset-single-tier-circuit-" then
+    (pos name).map fun p => (⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩, p)
+  else if name.startsWith "claimset-two-tier-circuit-" then
+    (pos name).map fun p => (⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩, p)
+  else none
+
+/-- A tracked dump's child's scale mode is its tier's (`tierMode`). -/
+def modeOk (sh : Shape) (ct : ℕ) (m : Edges.Mode) : Bool := m == tierMode sh ct
+
 /-! Mutations each check rejects, on small layouts. -/
+
+/-- `modeOk` accepts each tracked tree's child modes and rejects the others: a tree of two kinds reads the kind word, a single-tier claim-set node the small tier's two kind bits, a two-tier wrap's child one. -/
+theorem modeOk_mutations :
+    modeOk ⟨2, 2, none⟩ 0 .kind = true ∧ modeOk ⟨2, 2, none⟩ 0 .one = false ∧
+      modeOk ⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩ 0 (.bits 2) = true ∧ modeOk ⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩ 0 .kind = false ∧
+      modeOk ⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩ 1 .one = true ∧
+      modeOk ⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩ 1 (.bits 1) = false := by
+  decide
 
 /-- `bindOk` rejects the fourth word first, and its first three words without the third. -/
 theorem bindOk_mutations : bindOk [(1, 2, 3), (4, 0, 0)] = true ∧ bindOk [(4, 0, 0), (1, 2, 3)] = false ∧

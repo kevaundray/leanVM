@@ -1,7 +1,8 @@
 import LeanVMCircuits.Rec.EdgeMarks
+import LeanVMCircuits.Rec.DesignClaims
 
 /-!
-`lake exe checkedges <dump>...`: read each dump's edge marks (its statement's layout, each child's statement words, the claims its reduction takes), find the calls computing each child's scale from its kind word, the call reading its digest and the calls by which its verifier absorbs and reads its words (`Edges.InstCert`), and check the certificate (`Edges.EdgeCert.check`, which `Edges.EdgeCert.edge` and `Edges.InstCert.verifies` prove sound). Dumps of one tree (the name up to `-first`, `-node` or `-circuit-`) must share a layout.
+`lake exe checkedges <dump>...`: read each dump's edge marks (its statement's layout, each child's statement words, the claims its reduction takes), find the calls computing each child's scale from its kind word, the call reading its digest and the calls by which its verifier absorbs and reads its words (`Edges.InstCert`), and check the certificate (`Edges.EdgeCert.check`, which `Edges.EdgeCert.edge` and `Edges.InstCert.verifies` prove sound), and that each child's scale is computed in its tier's mode (`DesignClaims.modeOk`, under which `DesignClaims.tierMode_scale` makes it zero exactly at the first level). Dumps of one tree (the name up to `-first`, `-node` or `-circuit-`) must share a layout.
 -/
 
 open LeanVMCircuits.Rec Model Edges
@@ -154,6 +155,13 @@ def check (path : System.FilePath) : IO (Option Layout) := do
   let cert ← match certOf calls os marks L with
     | .ok c => pure c
     | .error e => do IO.eprintln s!"{path}: {e}"; return none
+  -- Each child's scale is computed as its tier computes it (`DesignClaims.tierMode`), so it is zero exactly at the
+  -- first level (`DesignClaims.tierMode_scale`).
+  let some (sh, position) := DesignClaims.dumpShape (path.fileStem.getD "")
+    | do IO.eprintln s!"{path}: not a tracked circuit's name"; return none
+  let ct := ((sh.children position).map (·.2)).getD 0
+  unless cert.children.all fun ch => DesignClaims.modeOk sh ct ch.scale.mode do
+    IO.eprintln s!"{path}: a child's scale is not computed as tier {ct} computes it"; return none
   let ok := cert.check
   unless ok do
     IO.eprintln s!"{path}: claims and digests {if cert.accepts os then "accepted" else "rejected"}, \

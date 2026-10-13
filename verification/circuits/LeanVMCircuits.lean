@@ -41,6 +41,7 @@ public import LeanVMCircuits.Rec.PoolParse
 public import LeanVMCircuits.Rec.PoolClaims
 public import LeanVMCircuits.Rec.RecParts
 public import LeanVMCircuits.Rec.AirLink
+public import LeanVMCircuits.Rec.AirBatch
 public import LeanVMCircuits.Rec.Relax
 public import LeanVMCircuits.Rec.RomExamples
 public import LeanVMCircuits.Rec.RoundSound
