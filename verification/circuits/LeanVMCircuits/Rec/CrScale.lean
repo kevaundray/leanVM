@@ -77,6 +77,12 @@ example (σ : List Bool → Bool) (h : Bool → Bool) (Q : ℕ) : ¬ LateHit σ 
   rintro ⟨m, -, -, hm⟩
   simp at hm
 
+/-- A late hit is not a collision: one query, which collides with nothing, answering a target fixed before it (a word
+the prover wrote without computing it) is a late hit, so `LateHit` is charged beside `Coll`. -/
+example (σ : List Bool → Bool) (h : Bool → Bool) : ¬ Coll σ h 1 ∧ LateHit σ h 1 fun _ => {h (σ [])} :=
+  ⟨fun ⟨i, hi, i', hi', hne, _⟩ => hne (by rw [show i = 0 by omega, show i' = 0 by omega]),
+    ⟨0, by omega, fun i hi => absurd hi (by omega), by simp [query, answers]⟩⟩
+
 end LeanVMCircuits.Rec.Collision
 
 namespace LeanVMCircuits.Rec.Bind
