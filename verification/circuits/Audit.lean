@@ -976,6 +976,9 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.AirLink.layerInst_sum_level
 #print axioms LeanVMCircuits.Rec.AirLink.mleAt_zero
 #print axioms LeanVMCircuits.Rec.AirLink.odd_next
+#print axioms LeanVMCircuits.Rec.Bind.LayerCert.link_sem
+#print axioms LeanVMCircuits.Rec.Bind.LayerCert.chain_cons
+#print axioms LeanVMCircuits.Rec.Bind.GkrCert.sem
 #print axioms LeanVMCircuits.Rec.Edges.lateEvent_frac
 #print axioms LeanVMCircuits.Rec.Edges.not_mem_exec
 #print axioms LeanVMCircuits.Rec.AirLink.frac_prod_le

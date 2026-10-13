@@ -674,4 +674,69 @@ def TableCert.okIn (tc : TableCert) (scs : Array SumcheckCert) (tops : Array Top
 def TableCert.ok (tc : TableCert) (c : Cert) (os : Array (List ℕ)) : Bool :=
   tc.okIn c.sumchecks c.tops c.odds c.calls c.relax os
 
+/-- A radix-four GKR layer past the top, run as certified sumcheck `sc` (`gkr::verify_products`): a top layer's calls
+(`layer`, its test unused), the sumcheck's input claim the layer's claim `Σ_t λ^t values_t` and its final side the
+expected `Σ_t λ^t Π_c kids_{t,c}`. -/
+structure LayerCert where
+  sc : ℕ
+  layer : TopCert
+  deriving Inhabited, Repr
+
+/-- A layer's link to the one before: its sumcheck closed by no residual, its values the previous layer's next claims
+`outs`, its claim and expected the sumcheck's input claim and final side, and its rounds' eq weights the point `pt`
+the previous layer leaves. -/
+def LayerCert.linkOk (lc : LayerCert) (sc : SumcheckCert) (os : Array (List ℕ)) (outs pt : List ℕ) : Bool :=
+  sc.resid.isEmpty && lc.layer.values == outs && lc.layer.claim os == sc.claim0 && lc.layer.expected os == sc.final &&
+    sc.rounds.map (·.weight) == pt.map some
+
+/-- The layers from the next claims `outs` and the point `pt` of the layer before, each linked to the one before, its
+calls in the replay and over two trees; the last layer's next claims. -/
+def LayerCert.chain (scs : Array SumcheckCert) (cs : Array Call) (rl : Array Bool) (os : Array (List ℕ)) :
+    List LayerCert → List ℕ → List ℕ → Option (List ℕ)
+  | [], outs, _ => some outs
+  | lc :: rest, outs, pt => match scs[lc.sc]? with
+    | some sc =>
+      if lc.linkOk sc os outs pt && lc.layer.ok os cs rl && lc.layer.m == 2 then
+        LayerCert.chain scs cs rl os rest ((List.range 2).map (lc.layer.out os))
+          ([lc.layer.low.chal, lc.layer.high.chal] ++ sc.rounds.map (·.chal))
+      else none
+    | none => none
+
+/-- A table sumcheck's bus GKR (`TableCert`): its first layer (top layer `first`, or with `odd` odd layer `first`)
+reading the table's root as both trees' value, its layers past it (`LayerCert.chain` from the first layer's next claims
+and point, `[low, high]` or `[r]` past an odd layer), and the table's totals each the `add` at `totAt` of a framework
+share `fw` and the last layer's next claim (`leaf::verify_balance`: `totals[s] = framework + values[s]`). -/
+structure GkrCert where
+  odd : Bool
+  first : ℕ
+  layers : List LayerCert
+  totAt : ℕ × ℕ
+  fw : ℕ × ℕ
+  deriving Inhabited, Repr
+
+/-- The first layer's values, next claims and point. -/
+def GkrCert.start (g : GkrCert) (tops : Array TopCert) (odds : Array OddCert) (os : Array (List ℕ)) :
+    List ℕ × List ℕ × List ℕ :=
+  if g.odd then
+    let oc := odds.getD g.first default
+    (oc.values, (List.range 2).map (oc.out os), [oc.next.chal])
+  else
+    let t := tops.getD g.first default
+    (t.values, (List.range 2).map (t.out os), [t.low.chal, t.high.chal])
+
+/-- `GkrCert`'s check for table sumcheck `tc` on a certificate's parts. -/
+def GkrCert.okIn (g : GkrCert) (tc : TableCert) (scs : Array SumcheckCert) (tops : Array TopCert)
+    (odds : Array OddCert) (cs : Array Call) (rl : Array Bool) (os : Array (List ℕ)) : Bool :=
+  decide (g.first < if g.odd then odds.size else tops.size) &&
+  (g.start tops odds os).1 == [tc.root, tc.root] &&
+  match LayerCert.chain scs cs rl os g.layers (g.start tops odds os).2.1 (g.start tops odds os).2.2 with
+  | some [v0, v1] =>
+    callsOk cs rl [(g.totAt.1, .add g.fw.1 v0), (g.totAt.2, .add g.fw.2 v1)] && o os g.totAt.1 == tc.tot0 &&
+      o os g.totAt.2 == tc.tot1
+  | _ => false
+
+/-- `GkrCert`'s check on a certificate. -/
+def GkrCert.ok (g : GkrCert) (tc : TableCert) (c : Cert) (os : Array (List ℕ)) : Bool :=
+  g.okIn tc c.sumchecks c.tops c.odds c.calls c.relax os
+
 end LeanVMCircuits.Rec.Bind

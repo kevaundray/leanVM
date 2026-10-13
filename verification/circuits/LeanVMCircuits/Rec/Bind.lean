@@ -401,6 +401,11 @@ structure Report where
   /-- The table sumchecks the certificate names (`TableCert`), one per residual, and whether each passes its check. -/
   tables : ℕ := 0
   tablesOk : Bool := true
+  /-- The table sumchecks whose bus GKR the certificate names from root to totals (`GkrCert`), their layers past the
+  first, and whether each passes its check. -/
+  gkrs : ℕ := 0
+  gkrLayers : ℕ := 0
+  gkrsOk : Bool := true
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
@@ -1063,6 +1068,40 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
         some ({ sc := i, target := j, xi, tot0 := t0, tot1 := t1, root } : TableCert)
       | _ => none
   let tablesOk := tables.all (·.ok cert os)
+  -- Each table sumcheck's bus GKR: from the latest first layer reading its root before it, the certified sumchecks
+  -- whose input claim is a radix-four layer's claim over the last layer's next claims, then the totals' `add`s.
+  let layerCands := (List.range sumchecks.size).filterMap fun i =>
+    let sc := sumchecks[i]!
+    if !sc.resid.isEmpty then none else
+      (topOf rp idxO s certs.toList sc.test (rp.eqCall[sc.test]!) sc.claim0 sc.final).map fun t => (i, sc, t)
+  let gkrOf := fun (tc : TableCert) => Id.run do
+    let firsts := ((List.range tops.size).filterMap fun i =>
+        let t := tops[i]!
+        if t.values == [tc.root, tc.root] && t.claimZero < tc.target then some (t.claimZero, false, i) else none) ++
+      ((List.range odds.size).filterMap fun i =>
+        let t := odds[i]!
+        if t.values == [tc.root, tc.root] && t.claimZero < tc.target then some (t.claimZero, true, i) else none)
+    let some (_, odd, first) := firsts.foldl (fun acc p => match acc with
+      | some a => if a.1 < p.1 then some p else acc
+      | none => some p) none | return none
+    let g0 : GkrCert := { odd, first, layers := [], totAt := (0, 0), fw := (0, 0) }
+    let mut outs := (g0.start tops odds os).2.1
+    let mut layers : Array LayerCert := #[]
+    for _ in [0:64] do
+      let cur := outs
+      let some (i, sc, t) := layerCands.find? (fun (_, _, t) => t.values == cur) | break
+      layers := layers.push { sc := i, layer := t }
+      outs := (List.range 2).map (t.out os)
+      if sc.rounds.isEmpty then break
+    let addOf := fun (w v : ℕ) => match rp.calls.getD (rp.maker.getD w 0) .zero with
+      | .add x y => if y == v then some (rp.maker.getD w 0, x) else none
+      | _ => none
+    let some (j0, f0) := addOf tc.tot0 (outs.getD 0 0) | return none
+    let some (j1, f1) := addOf tc.tot1 (outs.getD 1 0) | return none
+    return some { g0 with layers := layers.toList, totAt := (j0, j1), fw := (f0, f1) }
+  let gkrs := tables.filterMap fun tc => (gkrOf tc).map (tc, ·)
+  let gkrsOk := gkrs.all fun (tc, g) => g.ok tc cert os
+  let gkrLayers := gkrs.foldl (fun n (_, g) => n + g.layers.length) 0
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -1114,6 +1153,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     accepted, transcripts := ts.size, squeezes := squeezes.size, products := rp.prods.size, tests := tests.size, unbound,
     late, deferred,
     exposed, exposedUnbound, probes, sumchecks := sumchecks.size, tables := tables.length, tablesOk,
+    gkrs := gkrs.length, gkrLayers, gkrsOk,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
     residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
     hints := sumchecks.toList.flatMap (·.hints),

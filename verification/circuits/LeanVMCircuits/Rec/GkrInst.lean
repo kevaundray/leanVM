@@ -305,3 +305,96 @@ theorem odd_next (r : E) (W : ℕ → E) : mleAt 1 (Fin.cons r Fin.elim0) W = Bi
   linear_combination (r * W 1 + W 1) * two_E
 
 end LeanVMCircuits.Rec.AirLink
+
+namespace LeanVMCircuits.Rec.Bind
+
+open LeanVMCircuits.Rec Model
+
+/-! The bus GKR as the certificate names it. -/
+
+/-- A passing link: the layer's sumcheck has no residual, its values are the previous next claims, its claim and
+expected are the sumcheck's input claim and final side, and its rounds' eq weights are the previous point. -/
+theorem LayerCert.link_sem {lc : LayerCert} {sc : SumcheckCert} {os : Array (List ℕ)} {outs pt : List ℕ}
+    (h : lc.linkOk sc os outs pt = true) :
+    sc.resid = [] ∧ lc.layer.values = outs ∧ lc.layer.claim os = sc.claim0 ∧ lc.layer.expected os = sc.final ∧
+      sc.rounds.map (·.weight) = pt.map some := by
+  simp only [LayerCert.linkOk, Bool.and_eq_true, beq_iff_eq, List.isEmpty_iff] at h
+  exact ⟨h.1.1.1.1, h.1.1.1.2, h.1.1.2, h.1.2, h.2⟩
+
+/-- A chain's first layer is linked to the next claims and point it starts from, and the rest chains from its own. -/
+theorem LayerCert.chain_cons {scs : Array SumcheckCert} {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)}
+    {lc : LayerCert} {rest : List LayerCert} {outs pt last : List ℕ}
+    (h : LayerCert.chain scs cs rl os (lc :: rest) outs pt = some last) :
+    ∃ sc, scs[lc.sc]? = some sc ∧ lc.linkOk sc os outs pt = true ∧ lc.layer.ok os cs rl = true ∧ lc.layer.m = 2 ∧
+      LayerCert.chain scs cs rl os rest ((List.range 2).map (lc.layer.out os))
+        ([lc.layer.low.chal, lc.layer.high.chal] ++ sc.rounds.map (·.chal)) = some last := by
+  simp only [LayerCert.chain] at h
+  split at h
+  · rename_i sc hsc
+    split at h
+    · rename_i hc
+      simp only [Bool.and_eq_true, beq_iff_eq] at hc
+      exact ⟨sc, hsc, hc.1.1, hc.1.2, hc.2, h⟩
+    · exact absurd h (by simp)
+  · exact absurd h (by simp)
+
+/-- What a passing `GkrCert` gives where the calls hold: its first layer reads the table's root as both trees' value,
+its layers chain from the first layer's next claims and point to two last next claims, and the table's totals are a
+framework share plus each. -/
+theorem GkrCert.sem {g : GkrCert} {tc : TableCert} {scs : Array SumcheckCert} {tops : Array TopCert}
+    {odds : Array OddCert} {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+    (hF : Facts cs rl os st val) (h : g.okIn tc scs tops odds cs rl os = true) :
+    (g.start tops odds os).1 = [tc.root, tc.root] ∧ ∃ v0 v1,
+      LayerCert.chain scs cs rl os g.layers (g.start tops odds os).2.1 (g.start tops odds os).2.2 = some [v0, v1] ∧
+      Model.ev val tc.tot0 = Model.ev val g.fw.1 + Model.ev val v0 ∧
+      Model.ev val tc.tot1 = Model.ev val g.fw.2 + Model.ev val v1 := by
+  unfold GkrCert.okIn at h
+  simp only [Bool.and_eq_true, beq_iff_eq] at h
+  obtain ⟨⟨-, hroot⟩, hrest⟩ := h
+  refine ⟨hroot, ?_⟩
+  split at hrest
+  · rename_i v0 v1 hch
+    simp only [Bool.and_eq_true, beq_iff_eq] at hrest
+    obtain ⟨⟨hcalls, h0⟩, h1⟩ := hrest
+    have e0 : Model.ev val (o os g.totAt.1) = Model.ev val g.fw.1 + Model.ev val v0 :=
+      holds_of_mem hF hcalls List.mem_cons_self
+    have e1 : Model.ev val (o os g.totAt.2) = Model.ev val g.fw.2 + Model.ev val v1 :=
+      holds_of_mem hF hcalls (List.mem_cons_of_mem _ List.mem_cons_self)
+    exact ⟨v0, v1, hch, h0 ▸ e0, h1 ▸ e1⟩
+  · exact absurd hrest (by simp)
+
+/-- Mutation tests of `GkrCert.okIn` with no layer past a top layer: the totals adding the top layer's next claims
+pass; totals reading another wire, or a first layer reading two roots, fail. -/
+example : ({ odd := false, first := 0, layers := [], totAt := (1, 2), fw := (3, 4) } : GkrCert).okIn
+    { (default : TableCert) with root := 7, tot0 := 8, tot1 := 9 } #[]
+    #[{ (default : TopCert) with values := [7, 7] }] #[] #[.zero, .add 3 5, .add 4 5] #[] #[[5], [8], [9]] = true := by
+  decide +kernel
+
+example : ({ odd := false, first := 0, layers := [], totAt := (1, 2), fw := (3, 4) } : GkrCert).okIn
+    { (default : TableCert) with root := 7, tot0 := 8, tot1 := 9 } #[]
+    #[{ (default : TopCert) with values := [7, 7] }] #[] #[.zero, .add 3 6, .add 4 5] #[] #[[5], [8], [9]] = false := by
+  decide +kernel
+
+example : ({ odd := false, first := 0, layers := [], totAt := (1, 2), fw := (3, 4) } : GkrCert).okIn
+    { (default : TableCert) with root := 7, tot0 := 8, tot1 := 9 } #[]
+    #[{ (default : TopCert) with values := [7, 6] }] #[] #[.zero, .add 3 5, .add 4 5] #[] #[[5], [8], [9]] = false := by
+  decide +kernel
+
+/-- Mutation tests of `LayerCert.linkOk`: a layer linked to the previous next claims and point passes; one whose round
+reads another eq weight, or whose values are not the previous next claims, fails. -/
+example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 5] } } : LayerCert).linkOk
+    { (default : SumcheckCert) with rounds := [{ (default : RoundCert) with weight := some 3 }] } #[] [5, 5] [3] =
+      true := by
+  decide +kernel
+
+example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 5] } } : LayerCert).linkOk
+    { (default : SumcheckCert) with rounds := [{ (default : RoundCert) with weight := some 4 }] } #[] [5, 5] [3] =
+      false := by
+  decide +kernel
+
+example : ({ sc := 0, layer := { (default : TopCert) with values := [5, 6] } } : LayerCert).linkOk
+    { (default : SumcheckCert) with rounds := [{ (default : RoundCert) with weight := some 3 }] } #[] [5, 5] [3] =
+      false := by
+  decide +kernel
+
+end LeanVMCircuits.Rec.Bind
