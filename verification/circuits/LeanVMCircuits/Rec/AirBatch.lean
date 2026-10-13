@@ -516,7 +516,7 @@ end Tree
 
 section Ideal
 
-variable {ι Ω₀ X V : Type}
+variable {ι Ω₀ X V C R : Type}
 
 open Classical in
 /-- `tree_sound_ideal` with the batch's bound: in the ideal compression model with the bus's draw uniform after the commitment, the batch's draw `(ζ, ξ)` uniform after the commitment with the bus parts fixed but for `ζ`, and `ChecksGiveBatch`, the bound is the sum over the nodes of their reduction's `bad` and checks' `testBad` fractions, `epsPCS v`, `epsCR V (Q v)`, `4 N_v/|E|` and `(n_v + 66 + 1)/|E|`. -/
@@ -539,7 +539,8 @@ theorem tree_sound_ideal_batch [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
     (hroot : ∀ ω, stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM T.root ω)
-    (σ : ι → Ω₀ → List (Fin 4 → V) → X) (Q : ι → ℕ) (hcrEq : ∀ v, P.crBad v = crEvent (σ v) (Q v))
+    (ch : X → C) (re : X → R) (hinj : ∀ x y, re x = re y → ch x = ch y → x = y)
+    (σ : ι → Ω₀ → List (Fin 4 → V) → X) (Q : ι → ℕ) (hcrEq : ∀ v, P.crBad v = crEvent ch re (σ v) (Q v))
     (put : ι → Ω₀ × (X → Fin 4 → V) → (Fin 5 → E) → Ω₀ × (X → Fin 4 → V))
     (hgp : ∀ v ω x, draw v (put v ω x) = x) (hpg : ∀ v ω, put v ω (draw v ω) = ω)
     (hpp : ∀ v ω x y, put v (put v ω x) y = put v ω y) (hwit : ∀ v ω x, wit v (put v ω x) = wit v ω)
@@ -557,7 +558,7 @@ theorem tree_sound_ideal_batch [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty
   tree_sound_ideal T cert t os hr hacc hver L hL slot hslot stRoot val hsroot P hP
     (fun v => batchBad (wit v) (aOf v) (bdraw v)) draw wit hval
     (checksGiveRows_of_batch T cert t os L slot stRoot val P n bdraw aOf draw wit hlink) tD tM bad hstep hroot
-    σ Q hcrEq put hgp hpg hpp hwit hfit N hN epsPCS
+    ch re hinj σ Q hcrEq put hgp hpg hpp hwit hfit N hN epsPCS
     (fun v => ((n v + allIds.length + 1 : ℕ) : ℚ≥0) / Fintype.card E) hpcs
     (fun v _ => batchBad_frac (wit v) (aOf v) (bdraw v) (bput v) (bgp v) (bpg v) (bpp v) (bwit v) (baOf v)
       (htau v))

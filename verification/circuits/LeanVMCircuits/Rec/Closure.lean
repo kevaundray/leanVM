@@ -65,6 +65,14 @@ theorem closure_agree {α : Type} {r : Rules J} {seeds : List ℕ} {ν ν' : ℕ
   | seed hn => exact hs _ hn
   | fire hi _ hn ih => exact hv _ hi (fun p hp => ih p hp) _ hn
 
+/-- `closure_agree` asking validity only of the rules the closure fires: those whose premises are all in it. -/
+theorem closure_agree_on {α : Type} {r : Rules J} {seeds : List ℕ} {ν ν' : ℕ → α}
+    (hv : ∀ i < r.size, (∀ p ∈ r.prem i, Closure r seeds p) → Valid r ν ν' i) (hs : ∀ n ∈ seeds, ν n = ν' n) {n : ℕ}
+    (h : Closure r seeds n) : ν n = ν' n := by
+  induction h with
+  | seed hn => exact hs _ hn
+  | fire hi hp hn ih => exact hv _ hi hp (fun p hp => ih p hp) _ hn
+
 /-- The closure grows with its seeds. -/
 theorem Closure.mono {r : Rules J} {A B : List ℕ} (hAB : ∀ n ∈ A, n ∈ B) {n : ℕ} (h : Closure r A n) :
     Closure r B n := by

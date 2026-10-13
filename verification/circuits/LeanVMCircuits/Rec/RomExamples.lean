@@ -185,9 +185,12 @@ theorem rom {ι : Type} (st : ι → ℕ → Fin 4 → K) (val : ι → Val) (hp
       obtain ⟨rfl, rfl⟩ := hp
       exact hpub r }
   facts _ := fun j hj => absurd hj (by simp [cert])
-  cr _ _ := fun x hx _ _ hs => absurd (dropped_rows x hx) (by rw [hs]; decide)
-  win _ _ := fun x hx _ _ hs => absurd (dropped_rows x hx) (by rw [hs]; decide)
   unions _ _ := fun uc hu => by simp [cert] at hu
+
+/-- Every row is a squeeze, so any two assignments are collision-free on the rows any seeds bind. -/
+theorem pairCR (X : List ℕ) (val val' : Val) : PairCR cert state 0 X val val' :=
+  ⟨fun x hx _ _ hs => absurd (dropped_rows x hx) (by rw [hs]; decide),
+    fun x hx _ _ hs => absurd (dropped_rows x hx) (by rw [hs]; decide)⟩
 
 /-- What the simp sets need to compute a seed list. -/
 theorem chalSeeds_eq : chalSeeds state transcript = [(2, 64), (2, 65), (2, 66), (2, 67), (3, 88), (3, 89), (3, 90), (3, 91)] := by
@@ -215,17 +218,17 @@ noncomputable def inst : Inst E 1 := .node none 0 fun _ => .leaf 0
 zero. -/
 noncomputable def inst2 : Inst E 2 := .node (some 0) 0 fun _ => .node none 0 fun _ => .leaf 0
 
-/-- Answers meeting every premise of `sumcheck_test_sound` but acceptance, at every challenge vector. -/
+/-- Answers meeting every premise of `sumcheck_test_sound` but acceptance, at every challenge vector, all `good`. -/
 theorem sumcheck_answers_exist :
     ∃ (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length) (T : ℕ → E)
       (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val),
-      sc ∈ c.sumchecks ∧ 0 < sc.rounds.length ∧ I.ok sc.deg ∧ SumcheckAnswers c s sc I T st val := by
+      sc ∈ c.sumchecks ∧ 0 < sc.rounds.length ∧ I.ok sc.deg ∧ SumcheckAnswers c s sc I T (fun _ => True) st val := by
   have h0 : ∀ i : Fin sumcheck.rounds.length, i = ⟨0, by decide⟩ := fun i =>
     Fin.ext (by have := i.isLt; simp [sumcheck] at this; omega)
   refine ⟨cert, state, sumcheck, inst, fun _ => 0, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) 0,
     by simp [cert], by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩, ?_⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_,
-    fun r _ => ?_⟩
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i _ m hm => ?_, fun _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
+    fun r i => ?_, fun r _ _ => ?_⟩
   · obtain rfl := h0 i
     rw [show (sumcheck.rounds.getD 0 default).time = 1 from rfl,
       show cert.transcripts.getD sumcheck.transcript default = transcript from rfl, seeds_one] at hm
@@ -244,13 +247,14 @@ theorem sumcheck_hinted_answers_exist :
     ∃ (c : Cert) (s : State) (sc : SumcheckCert) (I : Inst E sc.rounds.length) (T : ℕ → E)
       (st : (Fin sc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin sc.rounds.length → E) → Val),
       sc ∈ c.sumchecks ∧ sc.hints = [sc.claim0] ∧ 0 < sc.rounds.length ∧ I.ok sc.deg ∧
-        SumcheckAnswers c s sc I T st val ∧ ∀ r i, Model.ev (val r) sc.claim0 = r i := by
+        SumcheckAnswers c s sc I T (fun _ => True) st val ∧ ∀ r i, Model.ev (val r) sc.claim0 = r i := by
   have h0 : ∀ i : Fin sumcheckH.rounds.length, i = ⟨0, by decide⟩ := fun i =>
     Fin.ext (by have := i.isLt; simp [sumcheckH, sumcheck] at this; omega)
   let ans : E → Val := fun a w => if w = 17 then limbsE a else answer a 0 w
   refine ⟨cert, state, sumcheckH, inst, fun _ => 1, fun _ _ _ => 0, fun r => ans (r ⟨0, by decide⟩), by simp [cert],
     rfl, by decide, ⟨by simp, fun r => ⟨by simp [Inst.sum], trivial⟩⟩,
-    ⟨rom _ _ fun r => by simp [ans, answer], fun r r' i _ m hm => ?_, fun r i => ?_, fun r i => ?_, fun r hT => ?_⟩,
+    ⟨rom _ _ fun r => by simp [ans, answer], fun r r' i _ m hm => ?_, fun _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
+      fun r i => ?_, fun r _ hT => ?_⟩,
     fun r i => by rw [h0 i]; exact ev_limbsE _ 17 _ (by simp [ans, sumcheckH, sumcheck])⟩
   · obtain rfl := h0 i
     rw [show (sumcheckH.rounds.getD 0 default).time = 1 from rfl,
@@ -264,14 +268,15 @@ theorem sumcheck_hinted_answers_exist :
   · rw [show sumcheckH.claim0 = 17 from rfl, hT 17 (by simp [sumcheckH])]
     simp [inst, Inst.sum, lin]
 
-/-- Answers meeting every premise of `odd_test_sound` but acceptance, at every challenge pair, with true children
-zero. -/
+/-- Answers meeting every premise of `odd_test_sound` but acceptance, at every challenge pair, all `good`, with true
+children zero. -/
 theorem odd_answers_exist :
     ∃ (c : Cert) (s : State) (oc : OddCert) (L R : ℕ → E) (st : (Fin 2 → E) → ℕ → Fin 4 → K)
-      (val : (Fin 2 → E) → Val), oc ∈ c.odds ∧ OddAnswers c s oc L R st val := by
+      (val : (Fin 2 → E) → Val), oc ∈ c.odds ∧ OddAnswers c s oc L R (fun _ => True) st val := by
   refine ⟨cert, state, odd, fun _ => 0, fun _ => 0, fun _ _ _ => 0, fun r => answer (r 0) (r 1), by simp [cert], ?_⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' m hm => ?_, fun r r' h0 m hm => ?_, fun r => ⟨?_, ?_⟩,
-    fun r => ⟨0, by simp [OddCert.m, odd], ?_⟩⟩
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' m hm => ?_, fun r r' h0 m hm => ?_,
+    fun _ _ _ => pairCR _ _ _, fun _ _ _ _ => pairCR _ _ _, fun r => ⟨?_, ?_⟩,
+    fun r _ => ⟨0, by simp [OddCert.m, odd], ?_⟩⟩
   · rw [show odd.lam.time = 1 from rfl, show cert.transcripts.getD odd.transcript default = transcript from rfl,
       seeds_one] at hm
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
@@ -286,14 +291,15 @@ theorem odd_answers_exist :
   · rw [show odd.values.getD 0 0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer])]
     simp
 
-/-- Answers meeting every premise of `top_test_sound` but acceptance, at every challenge triple, with true children
-zero. -/
+/-- Answers meeting every premise of `top_test_sound` but acceptance, at every challenge triple, all `good`, with true
+children zero. -/
 theorem top_answers_exist :
     ∃ (c : Cert) (s : State) (tc : TopCert) (T : ℕ → ℕ → E) (st : (Fin 3 → E) → ℕ → Fin 4 → K)
-      (val : (Fin 3 → E) → Val), tc ∈ c.tops ∧ TopAnswers c s tc T st val := by
+      (val : (Fin 3 → E) → Val), tc ∈ c.tops ∧ TopAnswers c s tc T (fun _ => True) st val := by
   refine ⟨cert, state, top, fun _ _ => 0, fun _ _ _ => 0, fun r => answer3 (r 0) (r 1) (r 2), by simp [cert], ?_⟩
   refine ⟨rom _ _ fun r => by simp [answer3, answer], fun r r' m hm => ?_, fun r r' h0 m hm => ?_,
-    fun r => ⟨?_, ?_, ?_⟩, fun r => ⟨0, by simp [TopCert.m, top], ?_⟩⟩
+    fun _ _ _ => pairCR _ _ _, fun _ _ _ _ => pairCR _ _ _, fun r => ⟨?_, ?_, ?_⟩,
+    fun r _ => ⟨0, by simp [TopCert.m, top], ?_⟩⟩
   · rw [show top.lam.time = 1 from rfl, show cert.transcripts.getD top.transcript default = transcript from rfl,
       seeds_one] at hm
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
@@ -309,17 +315,18 @@ theorem top_answers_exist :
   · rw [show top.values.getD 0 0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [answer3, answer])]
     simp
 
-/-- Answers meeting every premise of `whir_test_sound` but acceptance, at every challenge vector, for a batch round
-(`λ` wire 16, whose squeeze's fourth word is squeezed with it) and a fold round. -/
+/-- Answers meeting every premise of `whir_test_sound` but acceptance, at every challenge vector, all `good`, for a
+batch round (`λ` wire 16, whose squeeze's fourth word is squeezed with it) and a fold round. -/
 theorem whir_answers_exist :
     ∃ (c : Cert) (s : State) (wc : WhirCert) (I : Inst E wc.rounds.length)
       (st : (Fin wc.rounds.length → E) → ℕ → Fin 4 → K) (val : (Fin wc.rounds.length → E) → Val),
-      wc ∈ c.whirs ∧ 0 < wc.rounds.length ∧ I.ok wc.deg ∧ WhirAnswers c s wc I st val ∧
+      wc ∈ c.whirs ∧ 0 < wc.rounds.length ∧ I.ok wc.deg ∧ WhirAnswers c s wc I (fun _ => True) st val ∧
         sibSeeds s (c.transcripts.getD wc.transcript default) 1 [64, 65, 66] = [67] := by
   refine ⟨cert, state, whir, inst2, fun _ _ _ => 0, fun r => answer (r ⟨0, by decide⟩) (r ⟨1, by decide⟩),
     by simp [cert], by decide,
     ⟨by simp, fun _ => ⟨by simp [Inst.sum, lin], by simp, fun _ => ⟨by simp [Inst.sum], trivial⟩⟩⟩, ?_, sibs_one⟩
-  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i hj m hm => ?_, fun r i => ?_, fun r i => ?_, fun r => ?_⟩
+  refine ⟨rom _ _ fun r => by simp [answer], fun r r' i hj m hm => ?_, fun _ _ _ _ _ => pairCR _ _ _, fun r i => ?_,
+    fun r i => ?_, fun r _ => ?_⟩
   · match i with
     | ⟨0, _⟩ =>
       rw [show (whir.rounds.getD 0 default).seeds state (cert.transcripts.getD whir.transcript default) =
@@ -397,18 +404,20 @@ theorem run_causal (ρ ρ' : ℕ → K) (k : ℕ) (h : ∀ p ∈ chalSeeds state
     · simp at hm
 
 /-- A prover's run meeting every premise of the answer theorems (`Run.sumcheckAnswers`, ...) but acceptance: a `Run`
-whose two challenges each read three words of their squeeze as an element of `E`, drawn at increasing times, each word
-a challenge seed only one step after its challenge's time, no word shared; and its input claim false. -/
+with no collision event (every row a squeeze) whose two challenges each read three words of their squeeze as an
+element of `E`, drawn at increasing times, each word a challenge seed only one step after its challenge's time, no
+word shared; and its input claim false. -/
 theorem run_exists :
     ∃ (c : Cert) (s : State) (st : (ℕ → K) → ℕ → Fin 4 → K) (val : (ℕ → K) → Val) (own : Fin 2 → Fin 3 → ℕ)
-      (time : Fin 2 → ℕ) (chal : Fin 2 → ℕ), Run c s 0 st val ∧ OwnAt s (c.transcripts.getD 0 default) own time ∧
+      (time : Fin 2 → ℕ) (chal : Fin 2 → ℕ), Run c s 0 (fun _ => False) st val ∧
+      OwnAt s (c.transcripts.getD 0 default) own time ∧
       OwnInj own ∧ (∀ i j, i < j → time i < time j) ∧
       (∀ ρ i, Model.ev (val ρ) (chal i) =
         toE (nu (val ρ) (own i 0)) (nu (val ρ) (own i 1)) (nu (val ρ) (own i 2))) ∧
       ∀ ρ, Model.ev (val ρ) sumcheck.claim0 ≠ inst.sum := by
   refine ⟨cert, state, fun _ _ _ => 0, runVal, runOwn, runTime, runChal,
-    ⟨rom _ _ fun ρ => by simp [runVal], run_ans, run_causal⟩, fun i k => ?_, ?_, fun i j hij => ?_,
-    fun ρ i => ?_, fun ρ => ?_⟩
+    ⟨rom _ _ fun ρ => by simp [runVal], run_ans, run_causal, fun _ _ _ _ _ _ _ => pairCR _ _ _⟩, fun i k => ?_, ?_,
+    fun i j hij => ?_, fun ρ i => ?_, fun ρ => ?_⟩
   · show (_, _) ∈ chalSeeds state transcript ∧ ∀ p ∈ chalSeeds state transcript, _
     rw [chalSeeds_eq]
     fin_cases i <;> fin_cases k <;> simp [runOwn, runTime]

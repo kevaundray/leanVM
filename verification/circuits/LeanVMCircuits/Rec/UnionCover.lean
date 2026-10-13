@@ -651,7 +651,8 @@ theorem union_sound (c : Cert) (s : State) (h : c.accepts s = true) {cv : Cover}
   have hagree : ∀ ω, ∀ w ∈ (c.poolOf cv.sel).committed c.outs ++ (c.poolOf cv.decl).committed c.outs,
       val₀ w = val ω w := by
     intro ω w hw
-    have hvalid := rules_valid hr (hv₀.toP _) ((hv ω).toP _) ((hcr ω).toP _) ((hwin ω).toP _) (unionsValid c s hun hv₀ (hv ω) (hcr ω))
+    have hvalid := fun i hi => rules_valid (L := fun _ => True) hr (hv₀.toP _) ((hv ω).toP _) ((hcr ω).toP _ _)
+      ((hwin ω).toP _ _) (unionsValid c s hun hv₀ (hv ω) (hcr ω)) i hi fun _ _ => trivial
     exact eq_of_limbs4 fun n hn => by
       obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp (hm n (List.mem_flatMap.mpr ⟨w, hw, hn⟩))
       exact closure_agree hvalid (hseed ω) ((Cert.times_sound c s _ hk).mono seedsBefore_seedsOf)

@@ -666,7 +666,7 @@ theorem tree_sound_air [Fintype Ω] (T : TreeSound.Tree ι) (cert : ι → EdgeC
         Fintype.card Ω := by
   have hP' : (withAir P (airBad t wit draw batchBad)).Ok fun v ω =>
       Sat (treeStmt T cert slot stRoot val (T.parent v) ω) (t (T.parent v)) (val (T.parent v) ω) :=
-    ⟨hP.test, hP.flow⟩
+    ⟨fun v j ω hj hh hc => hP.test v j ω hj hh fun h => hc (Finset.mem_union_left _ h), hP.flow⟩
   have hair := hair_of_air T cert t os L slot stRoot val P batchBad draw wit hval hlink
   have hparts := tree_sound_parts T cert t os hr hacc hver L hL slot hslot stRoot val hsroot
     (withAir P (airBad t wit draw batchBad)) hP' hair tD tM bad hstep hroot

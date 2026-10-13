@@ -46,11 +46,12 @@ structure RecParts (ι Ω : Type) where
   pcsBad : ι → Finset Ω
   crBad : ι → Finset Ω
 
-/-- What the checks satisfy where the parent's circuit is satisfied (`held`): each check's test lets a false input
-through with true outputs only on its `testBad` (`test`), and each check's outputs are later checks' inputs or openings
-true off `pcsBad` (`flow`). -/
+/-- What the checks satisfy where the parent's circuit is satisfied (`held`): off the collision event `crBad`, each
+check's test lets a false input through with true outputs only on its `testBad` (`test`; a round theorem's event is
+counted off its run's collision event, `Bind.sumcheck_run_sound_at`), and each check's outputs are later checks' inputs
+or openings true off `pcsBad` (`flow`). -/
 structure RecParts.Ok (P : RecParts ι Ω) (held : ι → Ω → Prop) : Prop where
-  test : ∀ v j ω, j < P.J v → held v ω → ω ∉ P.testBad v j → P.outOk v j ω → P.inOk v j ω
+  test : ∀ v j ω, j < P.J v → held v ω → ω ∉ P.crBad v → ω ∉ P.testBad v j → P.outOk v j ω → P.inOk v j ω
   flow : ∀ v j ω, j < P.J v → ω ∉ P.pcsBad v → (∀ j', j < j' → j' < P.J v → P.inOk v j' ω) → P.outOk v j ω
 
 open Classical in
@@ -75,23 +76,24 @@ noncomputable def RecParts.least [Fintype Ω] (J : ι → ℕ) (inOk outOk : ι 
 `testBad` (`Bind.sumcheck_part`) and #551's for `pcsBad`. -/
 theorem RecParts.least_ok [Fintype Ω] (J : ι → ℕ) (inOk outOk : ι → ℕ → Ω → Prop) (held : ι → Ω → Prop)
     (crBad : ι → Finset Ω) : (RecParts.least J inOk outOk held crBad).Ok held where
-  test v j ω _ hh hb ho := by
+  test v j ω _ hh _ hb ho := by
     by_contra hn
     exact hb (by simp only [RecParts.least, mem_filter, mem_univ, true_and]; exact ⟨hh, ho, hn⟩)
   flow v j ω hj hp hin := by
     by_contra hn
     exact hp (by simp only [RecParts.least, mem_filter, mem_univ, true_and]; exact ⟨j, hj, hin, hn⟩)
 
-/-- Off every check's `testBad` and off `pcsBad`, where the parent's circuit is satisfied, every check's inputs are
-true: by induction from the last check, whose outputs are openings. -/
+/-- Off every check's `testBad`, `pcsBad` and `crBad`, where the parent's circuit is satisfied, every check's inputs
+are true: by induction from the last check, whose outputs are openings. -/
 theorem RecParts.ins_ok {P : RecParts ι Ω} {held : ι → Ω → Prop} (hP : P.Ok held) (v : ι) (ω : Ω) (hh : held v ω)
-    (ht : ∀ j < P.J v, ω ∉ P.testBad v j) (hp : ω ∉ P.pcsBad v) : ∀ j < P.J v, P.inOk v j ω := by
+    (ht : ∀ j < P.J v, ω ∉ P.testBad v j) (hp : ω ∉ P.pcsBad v) (hc : ω ∉ P.crBad v) :
+    ∀ j < P.J v, P.inOk v j ω := by
   suffices H : ∀ d j, P.J v - j = d → j < P.J v → P.inOk v j ω from fun j hj => H _ j rfl hj
   intro d
   induction d using Nat.strong_induction_on with
   | _ d ih =>
     intro j hd hj
-    exact hP.test v j ω hj hh (ht j hj)
+    exact hP.test v j ω hj hh hc (ht j hj)
       (hP.flow v j ω hj hp fun j' hjj' hj' => ih (P.J v - j') (by omega) j' rfl hj')
 
 open Classical in
@@ -119,7 +121,7 @@ theorem RecParts.hrec (T : TreeSound.Tree ι) (cert : ι → EdgeCert) (t : ι �
       Sat (treeStmt T cert slot stRoot val v ω) (t v) (val v ω) := by
   intro v hv hne ω hb hps hver
   obtain ⟨ht, hp, hc⟩ := RecParts.not_mem_badRec hb
-  exact hair v hv hne ω hps (P.ins_ok hP v ω hps ht hp) hc hver
+  exact hair v hv hne ω hps (P.ins_ok hP v ω hps ht hp hc) hc hver
 
 open Classical in
 /-- The tree over its parts: the outcomes at which some node's statement or input claims are false are at most the sum

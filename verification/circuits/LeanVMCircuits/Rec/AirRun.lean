@@ -37,11 +37,11 @@ theorem batchOf_card {n : ℕ} (S : Finset ((Fin n → E) × E)) : #{r : Fin (n 
 
 section Run
 
-variable {c : Cert} {s : State} {T : ℕ} {st : (ℕ → K) → ℕ → Fin 4 → K} {val : (ℕ → K) → Val}
+variable {c : Cert} {s : State} {T : ℕ} {C : (ℕ → K) → Prop} {st : (ℕ → K) → ℕ → Fin 4 → K} {val : (ℕ → K) → Val}
 
 open Classical in
 /-- The bus's draw `(β, A)` as a run's five challenges `own`, drawn after time `k`: where the committed witness is fixed before `k` (`hwit`), the oracles at which the draw is in its draw event are at most a `4N/|E|` fraction. -/
-theorem busRun_frac (hR : Run c s T st val) {own : Fin 5 → Fin 3 → ℕ} {time : Fin 5 → ℕ}
+theorem busRun_frac (hR : Run c s T C st val) {own : Fin 5 → Fin 3 → ℕ} {time : Fin 5 → ℕ}
     (hown : OwnAt s (c.transcripts.getD T default) own time) (hinj : OwnInj own) {k : ℕ} (hk : ∀ i, k ≤ time i)
     (sc : State) (wit : (ℕ → K) → Witness) (hwit : CommittedBefore s (c.transcripts.getD T default) val k wit)
     (hfit : ∀ ρ T', (wit ρ).height T' ≤ 2 ^ 32) (N : ℕ) (hN : ∀ ρ, (slots (wit ρ)).length ≤ N)
@@ -60,7 +60,7 @@ theorem busRun_frac (hR : Run c s T st val) {own : Fin 5 → Fin 3 → ℕ} {tim
 
 open Classical in
 /-- The batch's draw `(ζ, ξ)` as a run's `n + 1` challenges `own`, drawn after time `k`: where the committed witness and the bus parts' dependence on `ζ` are fixed before `k` (`hwit`, `haOf`), the oracles at which the draw is in the witness's draw event are at most an `(n + 66 + 1)/|E|` fraction. -/
-theorem batchRun_frac (hR : Run c s T st val) {n : ℕ} {own : Fin (n + 1) → Fin 3 → ℕ} {time : Fin (n + 1) → ℕ}
+theorem batchRun_frac (hR : Run c s T C st val) {n : ℕ} {own : Fin (n + 1) → Fin 3 → ℕ} {time : Fin (n + 1) → ℕ}
     (hown : OwnAt s (c.transcripts.getD T default) own time) (hinj : OwnInj own) {k : ℕ} (hk : ∀ i, k ≤ time i)
     (wit : (ℕ → K) → Witness) (aOf : (ℕ → K) → (Fin n → E) → Fin 2 → E)
     (hwit : CommittedBefore s (c.transcripts.getD T default) val k wit)
@@ -83,8 +83,9 @@ end Run
 
 /-- A run in which `m` challenges `own` are drawn after `f` is committed: a run of some transcript (`Bind.Run`) whose oracle words are among `U`, `own` its challenges at times at least `k` (`Bind.OwnAt`, `Bind.OwnInj`), and `f` fixed before `k` (`Bind.CommittedBefore`). -/
 def DrawsRun (U : Finset ℕ) {m : ℕ} (own : Fin m → Fin 3 → ℕ) {α : Type} (f : (ℕ → K) → α) : Prop :=
-  ∃ (c : Cert) (s : State) (T : ℕ) (st : (ℕ → K) → ℕ → Fin 4 → K) (val : (ℕ → K) → Val) (time : Fin m → ℕ) (k : ℕ),
-    Run c s T st val ∧ OwnAt s (c.transcripts.getD T default) own time ∧ OwnInj own ∧ (∀ i, k ≤ time i) ∧
+  ∃ (c : Cert) (s : State) (T : ℕ) (C : (ℕ → K) → Prop) (st : (ℕ → K) → ℕ → Fin 4 → K) (val : (ℕ → K) → Val)
+    (time : Fin m → ℕ) (k : ℕ),
+    Run c s T C st val ∧ OwnAt s (c.transcripts.getD T default) own time ∧ OwnInj own ∧ (∀ i, k ≤ time i) ∧
       CommittedBefore s (c.transcripts.getD T default) val k f ∧ oracleWords s (c.transcripts.getD T default) ⊆ U
 
 section Tree
@@ -128,9 +129,9 @@ theorem tree_sound_run (U : Finset ℕ) (T : TreeSound.Tree ι) (cert : ι → E
     (fun v ω => readR (own v) (extU U ω)) (fun v ω => wit v (extU U ω)) hval
     (checksGiveRows_of_batch T cert t os L slot stRoot val P n _ _ _ _ hlink) tD tM bad hstep hroot
     epsPCS epsCR _ _ hpcs hcr (fun v hv => ?_) (fun v hv => ?_)
-  · obtain ⟨c, s, Tr, st, val', time, k, hR, hown, hinj, hk, hwit, hU⟩ := hbusRun v hv
+  · obtain ⟨c, s, Tr, C, st, val', time, k, hR, hown, hinj, hk, hwit, hU⟩ := hbusRun v hv
     exact busRun_frac hR hown hinj hk (t v) (wit v) hwit (hfit v) (N v) (hN v) U hU
-  · obtain ⟨c, s, Tr, st, val', time, k, hR, hown, hinj, hk, hwa, hU⟩ := hbatchRun v hv
+  · obtain ⟨c, s, Tr, C, st, val', time, k, hR, hown, hinj, hk, hwa, hU⟩ := hbatchRun v hv
     exact batchRun_frac hR hown hinj hk (wit v) (aOf v) (hwa.comp Prod.fst) (hwa.comp Prod.snd) (htau v) U hU
 
 end Tree

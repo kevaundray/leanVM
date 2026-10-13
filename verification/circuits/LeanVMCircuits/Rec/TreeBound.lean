@@ -83,7 +83,7 @@ end Bound
 
 section Ideal
 
-variable {ι Ω₀ X V : Type}
+variable {ι Ω₀ X V C R : Type}
 
 open Classical in
 /-- The capstone with `crBad` the ideal compression model's collision event: over outcomes pairing other coins with a uniform oracle `X → (Fin 4 → V)`, child `v`'s `crBad` is `crEvent (σ v) (Q v)` (a collision or near hit among the first `Q v` compression queries of its prover `σ v`), bounded by `Edges.epsCR V (Q v)` (`crBad_frac`). -/
@@ -105,7 +105,8 @@ theorem tree_sound_crEvent [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty V] 
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
     (hroot : ∀ ω, stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM T.root ω)
-    (σ : ι → Ω₀ → List (Fin 4 → V) → X) (Q : ι → ℕ) (hcrEq : ∀ v, P.crBad v = crEvent (σ v) (Q v))
+    (ch : X → C) (re : X → R) (hinj : ∀ x y, re x = re y → ch x = ch y → x = y)
+    (σ : ι → Ω₀ → List (Fin 4 → V) → X) (Q : ι → ℕ) (hcrEq : ∀ v, P.crBad v = crEvent ch re (σ v) (Q v))
     (epsPCS epsBus epsBatch : ι → ℚ≥0) (hpcs : PcsBound P epsPCS)
     (hbus : ∀ v ∈ T.nodes, ((busBad (t v) (wit v) (draw v)).card : ℚ≥0) /
       Fintype.card (Ω₀ × (X → Fin 4 → V)) ≤ epsBus v)
@@ -116,7 +117,7 @@ theorem tree_sound_crEvent [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty V] 
         Fintype.card (Ω₀ × (X → Fin 4 → V)) + epsPCS v + Edges.epsCR V (Q v) + epsBus v + epsBatch v) :=
   tree_sound_bound T cert t os hr hacc hver L hL slot hslot stRoot val hsroot P hP batchBad draw wit hval hlink tD tM
     bad hstep hroot epsPCS (fun v => Edges.epsCR V (Q v)) epsBus epsBatch hpcs
-    (fun v _ => crBad_frac P σ Q hcrEq v) hbus hbatch
+    (fun v _ => crBad_frac ch re hinj P σ Q hcrEq v) hbus hbatch
 
 open Classical in
 /-- The capstone in the ideal model with the bus's bound instantiated: child `v`'s draw `draw v` is uniform and made after its commitment (a lens `put v`/`draw v` leaving `wit v` unchanged, as `busBad_frac` takes), its committed witnesses' buses having at most `N v` slots, so its bus bound is `4 N_v / |E|`. -/
@@ -138,7 +139,8 @@ theorem tree_sound_ideal [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty V] (T
     (hstep : ∀ v ∈ T.nodes, ∀ ω, ω ∉ bad v →
       stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM v ω → ins cert val tD tM v ω)
     (hroot : ∀ ω, stmt T cert slot L (treeStmt T cert slot stRoot val) tD tM T.root ω)
-    (σ : ι → Ω₀ → List (Fin 4 → V) → X) (Q : ι → ℕ) (hcrEq : ∀ v, P.crBad v = crEvent (σ v) (Q v))
+    (ch : X → C) (re : X → R) (hinj : ∀ x y, re x = re y → ch x = ch y → x = y)
+    (σ : ι → Ω₀ → List (Fin 4 → V) → X) (Q : ι → ℕ) (hcrEq : ∀ v, P.crBad v = crEvent ch re (σ v) (Q v))
     (put : ι → Ω₀ × (X → Fin 4 → V) → (Fin 5 → E) → Ω₀ × (X → Fin 4 → V))
     (hgp : ∀ v ω x, draw v (put v ω x) = x) (hpg : ∀ v ω, put v ω (draw v ω) = ω)
     (hpp : ∀ v ω x y, put v (put v ω x) y = put v ω y) (hwit : ∀ v ω x, wit v (put v ω x) = wit v ω)
@@ -151,7 +153,7 @@ theorem tree_sound_ideal [Fintype Ω₀] [Fintype X] [Fintype V] [Nonempty V] (T
         Fintype.card (Ω₀ × (X → Fin 4 → V)) + epsPCS v + Edges.epsCR V (Q v) +
         ((4 * N v : ℕ) : ℚ≥0) / Fintype.card E + epsBatch v) :=
   tree_sound_crEvent T cert t os hr hacc hver L hL slot hslot stRoot val hsroot P hP batchBad draw wit hval hlink tD
-    tM bad hstep hroot σ Q hcrEq epsPCS (fun v => ((4 * N v : ℕ) : ℚ≥0) / Fintype.card E) epsBatch hpcs
+    tM bad hstep hroot ch re hinj σ Q hcrEq epsPCS (fun v => ((4 * N v : ℕ) : ℚ≥0) / Fintype.card E) epsBatch hpcs
     (fun v _ => busBad_frac (t v) (wit v) (draw v) (put v) (hgp v) (hpg v) (hpp v) (hwit v) (hfit v) (N v) (hN v))
     hbatch
 

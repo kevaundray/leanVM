@@ -187,6 +187,12 @@ def windowIn (ra rb : List ℕ) (j : ℕ) : List ℕ :=
   (List.range (4 - j)).map (fun k => colNode ra (hashSrc (14 + j + k))) ++
     (List.range j).map fun k => colNode rb (hashSrc (14 + k))
 
+/-- A hash row's input words other than its chaining value: counter, finalization and message. -/
+def restIdx : Fin 10 → ℕ := ![0, 1, 6, 7, 8, 9, 10, 11, 12, 13]
+
+/-- A hash row's input port nodes other than its chaining value (`restIdx`). -/
+def hashRest (row : List ℕ) : List ℕ := List.ofFn fun i => colNode row (hashSrc (restIdx i))
+
 /-- The nodes of a split row's bits. -/
 def splitBitNodes (row : List ℕ) : List ℕ := (List.range 64).map fun b => limb (row.getD (1 + b) 0) 0
 
@@ -292,7 +298,7 @@ def Just.ok (s : State) (isTest : ℕ → Bool) (claims : Array UnionClaim) (dro
   | .window ka kb j =>
     match s.hash[ka]?, s.hash[kb]? with
     | some ra, some rb => !drop ra && !drop rb && ra.getD 0 0 == rb.getD 0 0 && 1 ≤ j && j < 4 &&
-      prem == windowIn ra rb j && concl == hashH ra
+      prem == windowIn ra rb j ++ hashRest ra ++ hashRest rb && concl == hashH ra
     | _, _ => false
   | .inv k u pz po fwd =>
     match s.emul[k]?, s.unions[u]?, s.pub[pz]?, s.pub[po]? with
@@ -372,29 +378,36 @@ def HashCR (s : State) (val val' : Val) : Prop :=
   ∀ row ∈ s.hash, ∀ row' ∈ s.hash, (hashOut row).map (nu val) = (hashOut row').map (nu val') →
     (hashIn row).map (nu val) = (hashIn row').map (nu val')
 
-/-- `HashCR` on the rows that are not squeezes: what the rules need. Two answers of a random oracle at different
-chaining values may share an output, so a premise over many oracles' answers cannot ask more. -/
-def HashCRP (s : State) (drop : List ℕ → Bool) (val val' : Val) : Prop :=
-  ∀ row ∈ s.hash, ∀ row' ∈ s.hash, drop row = false → drop row' = false →
+/-- A hash row is live on nodes `L` when one of its output ports is among them: a rule firing on `L` reads it. -/
+def RowLive (L : ℕ → Prop) (row : List ℕ) : Prop := ∃ n ∈ hashOut row, L n
+
+/-- `HashCR` on the live rows (`RowLive L`) that are not squeezes: what the rules firing on `L` need. Two answers of a
+random oracle at different chaining values may share an output, so a premise over many oracles' answers cannot ask more;
+and the rows a rule fires on before a challenge are the ones a prover's queries before it decide. -/
+def HashCRP (s : State) (drop : List ℕ → Bool) (L : ℕ → Prop) (val val' : Val) : Prop :=
+  ∀ row ∈ s.hash, ∀ row' ∈ s.hash, drop row = false → drop row' = false → RowLive L row → RowLive L row' →
     (hashOut row).map (nu val) = (hashOut row').map (nu val') → (hashIn row).map (nu val) = (hashIn row').map (nu val')
 
-theorem HashCR.toP {s : State} {val val' : Val} (h : HashCR s val val') (drop : List ℕ → Bool) : HashCRP s drop val val' :=
-  fun row hr row' hr' _ _ => h row hr row' hr'
+theorem HashCR.toP {s : State} {val val' : Val} (h : HashCR s val val') (drop : List ℕ → Bool) (L : ℕ → Prop) :
+    HashCRP s drop L val val' :=
+  fun row hr row' hr' _ _ _ _ => h row hr row' hr'
 
 /-- Collision resistance of the duplex's output window, as a premise on two assignments: two hash rows of one
-chaining value, neither a squeeze, given the same window of output words are given the same chaining value. -/
+chaining value, given the same window of output words and the same input words but the chaining value (their counter,
+finalization and message, constants in an output block), are given the same chaining value. -/
 def WindowCR (s : State) (val val' : Val) : Prop :=
   ∀ ra ∈ s.hash, ∀ rb ∈ s.hash, ra.getD 0 0 = rb.getD 0 0 → ∀ j, 1 ≤ j → j < 4 →
-    (∀ n ∈ windowIn ra rb j, nu val n = nu val' n) → ∀ n ∈ hashH ra, nu val n = nu val' n
+    (∀ n ∈ windowIn ra rb j ++ hashRest ra ++ hashRest rb, nu val n = nu val' n) → ∀ n ∈ hashH ra, nu val n = nu val' n
 
-/-- `WindowCR` on the hash rows `drop` does not name. -/
-def WindowCRP (s : State) (drop : List ℕ → Bool) (val val' : Val) : Prop :=
-  ∀ ra ∈ s.hash, ∀ rb ∈ s.hash, drop ra = false → drop rb = false → ra.getD 0 0 = rb.getD 0 0 →
-    ∀ j, 1 ≤ j → j < 4 → (∀ n ∈ windowIn ra rb j, nu val n = nu val' n) → ∀ n ∈ hashH ra, nu val n = nu val' n
+/-- `WindowCR` on the live rows that are not squeezes. -/
+def WindowCRP (s : State) (drop : List ℕ → Bool) (L : ℕ → Prop) (val val' : Val) : Prop :=
+  ∀ ra ∈ s.hash, ∀ rb ∈ s.hash, drop ra = false → drop rb = false → RowLive L ra → RowLive L rb →
+    ra.getD 0 0 = rb.getD 0 0 → ∀ j, 1 ≤ j → j < 4 →
+    (∀ n ∈ windowIn ra rb j ++ hashRest ra ++ hashRest rb, nu val n = nu val' n) → ∀ n ∈ hashH ra, nu val n = nu val' n
 
-theorem WindowCR.toP {s : State} {val val' : Val} (h : WindowCR s val val') (drop : List ℕ → Bool) :
-    WindowCRP s drop val val' :=
-  fun ra ha rb hb _ _ => h ra ha rb hb
+theorem WindowCR.toP {s : State} {val val' : Val} (h : WindowCR s val val') (drop : List ℕ → Bool) (L : ℕ → Prop) :
+    WindowCRP s drop L val val' :=
+  fun ra ha rb hb _ _ _ _ => h ra ha rb hb
 
 /-- The union's parse uniqueness, as a premise on two assignments: a union product is a function of its inputs. -/
 def UnionsValid (claims : Array UnionClaim) (val val' : Val) : Prop :=
@@ -680,9 +693,9 @@ theorem ok_compress {k p : ℕ} {prem concl : List ℕ}
       rw [← hash_col hl (14 + k) (by omega), ← hash_col hl' (14 + k) (by omega)]
       exact hout k hk
 
-theorem ok_collision {k : ℕ} {prem concl : List ℕ}
-    (hok : (Just.collision k).ok s isTest claims drop prem concl = true) (hcr : HashCRP s drop val val') :
-    (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
+theorem ok_collision {k : ℕ} {prem concl : List ℕ} {L : ℕ → Prop}
+    (hok : (Just.collision k).ok s isTest claims drop prem concl = true) (hcr : HashCRP s drop L val val')
+    (hL : ∀ q ∈ prem, L q) : (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp
   cases hr : s.hash[k]? with
   | none => simp [Just.ok, hr] at hok
@@ -690,11 +703,13 @@ theorem ok_collision {k : ℕ} {prem concl : List ℕ}
     simp only [Just.ok, hr, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at hok
     obtain ⟨⟨hsq, rfl⟩, rfl⟩ := hok
     have hm := Array.mem_of_getElem? hr
-    exact List.map_inj_left.mp (hcr row hm row hm hsq hsq (List.map_inj_left.mpr hp))
+    have hlive : RowLive L row :=
+      ⟨_, List.mem_map.mpr ⟨0, List.mem_range.mpr (by omega), rfl⟩, hL _ (List.mem_map.mpr ⟨0, List.mem_range.mpr (by omega), rfl⟩)⟩
+    exact List.map_inj_left.mp (hcr row hm row hm hsq hsq hlive hlive (List.map_inj_left.mpr hp))
 
-theorem ok_window {ka kb j : ℕ} {prem concl : List ℕ}
-    (hok : (Just.window ka kb j).ok s isTest claims drop prem concl = true) (hw : WindowCRP s drop val val') :
-    (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
+theorem ok_window {ka kb j : ℕ} {prem concl : List ℕ} {L : ℕ → Prop}
+    (hok : (Just.window ka kb j).ok s isTest claims drop prem concl = true) (hw : WindowCRP s drop L val val')
+    (hL : ∀ q ∈ prem, L q) : (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   intro hp
   cases ha : s.hash[ka]? with
   | none => simp [Just.ok, ha] at hok
@@ -704,7 +719,16 @@ theorem ok_window {ka kb j : ℕ} {prem concl : List ℕ}
   | some rb =>
     simp only [Just.ok, ha, hb, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, Bool.not_eq_true'] at hok
     obtain ⟨⟨⟨⟨⟨⟨hsa, hsb⟩, hh⟩, hj1⟩, hj4⟩, rfl⟩, rfl⟩ := hok
-    exact hw ra (Array.mem_of_getElem? ha) rb (Array.mem_of_getElem? hb) hsa hsb hh j hj1 hj4 hp
+    -- each row gives the window a word: `ra` its word `j`, `rb` its word `0`
+    have hla : RowLive L ra := by
+      refine ⟨colNode ra (hashSrc (14 + j)), List.mem_map.mpr ⟨j, List.mem_range.mpr hj4, rfl⟩, hL _ ?_⟩
+      refine List.mem_append_left _ (List.mem_append_left _ (List.mem_append_left _ ?_))
+      exact List.mem_map.mpr ⟨0, List.mem_range.mpr (by omega), rfl⟩
+    have hlb : RowLive L rb := by
+      refine ⟨colNode rb (hashSrc (14 + 0)), List.mem_map.mpr ⟨0, List.mem_range.mpr (by omega), rfl⟩, hL _ ?_⟩
+      refine List.mem_append_left _ (List.mem_append_left _ (List.mem_append_right _ ?_))
+      exact List.mem_map.mpr ⟨0, List.mem_range.mpr (by omega), rfl⟩
+    exact hw ra (Array.mem_of_getElem? ha) rb (Array.mem_of_getElem? hb) hsa hsb hla hlb hh j hj1 hj4 hp
 
 theorem nu_limbF (val : Val) (w : ℕ) (i : Fin 4) : nu val (limb w i) = val w i := nu_limb val w i i.isLt
 
@@ -808,10 +832,11 @@ theorem ok_union {c : ℕ} {prem concl : List ℕ} (hok : (Just.union c).ok s is
     refine limbs3_of_ev (hu uc (Array.mem_of_getElem? hc) fun w hw => eq_of_limbs4 fun n hn => hp n ?_)
     exact List.mem_flatMap.mpr ⟨w, hw, hn⟩
 
-/-- A justified rule is valid on two assignments holding every constraint but the tests, under the premises. -/
-theorem Just.valid (j : Just) {prem concl : List ℕ} (hok : j.ok s isTest claims drop prem concl = true)
-    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') (hcr : HashCRP s drop val val') (hw : WindowCRP s drop val val')
-    (hu : UnionsValid claims val val') :
+/-- A justified rule is valid on two assignments holding every constraint but the tests, under the premises, its
+premises among the nodes `L` the collision premises are asked on. -/
+theorem Just.valid (j : Just) {prem concl : List ℕ} {L : ℕ → Prop} (hok : j.ok s isTest claims drop prem concl = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') (hcr : HashCRP s drop L val val')
+    (hw : WindowCRP s drop L val val') (hu : UnionsValid claims val val') (hL : ∀ q ∈ prem, L q) :
     (∀ q ∈ prem, nu val q = nu val' q) → ∀ c ∈ concl, nu val c = nu val' c := by
   cases j with
   | form => exact ok_form hok h h'
@@ -821,18 +846,35 @@ theorem Just.valid (j : Just) {prem concl : List ℕ} (hok : j.ok s isTest claim
   | splitBits => exact ok_splitBits hok h h'
   | mux => exact ok_mux hok h h'
   | compress => exact ok_compress hok h h'
-  | collision => exact ok_collision hok hcr
-  | window => exact ok_window hok hw
+  | collision => exact ok_collision hok hcr hL
+  | window => exact ok_window hok hw hL
   | inv => exact ok_inv hok h h'
   | union => exact ok_union hok hu
 
-theorem rules_valid {r : Rules Just} (hok : rulesOk s isTest claims drop r = true) (h : HoldsP st s isTest drop val)
-    (h' : HoldsP st' s isTest drop val') (hcr : HashCRP s drop val val') (hw : WindowCRP s drop val val')
-    (hu : UnionsValid claims val val') : ∀ i < r.size, Valid r (nu val) (nu val') i := by
-  intro i hi
+/-- Every rule whose premises are among the nodes `L` is valid, the collision premises asked only of the rows live on
+`L`. -/
+theorem rules_valid {r : Rules Just} {L : ℕ → Prop} (hok : rulesOk s isTest claims drop r = true)
+    (h : HoldsP st s isTest drop val) (h' : HoldsP st' s isTest drop val') (hcr : HashCRP s drop L val val')
+    (hw : WindowCRP s drop L val val') (hu : UnionsValid claims val val') :
+    ∀ i < r.size, (∀ q ∈ r.prem i, L q) → Valid r (nu val) (nu val') i := by
+  intro i hi hL
   simp only [rulesOk, List.all_eq_true, List.mem_range] at hok
-  exact Just.valid _ (hok i hi) h h' hcr hw hu
+  exact Just.valid _ (hok i hi) h h' hcr hw hu hL
 
 end
+
+/-- Mutation test of the window rule: two blocks of one chaining value, a window from word 1 with both blocks' other
+input words as premises passes; the window alone, or one block's other words missing, fails; rows of two chaining
+values fail. -/
+example :
+    (Just.window 0 1 1).ok ({ hash := #[[5, 6], [5, 7]] } : State) (fun _ => false) #[] (fun _ => false)
+        (windowIn [5, 6] [5, 7] 1 ++ hashRest [5, 6] ++ hashRest [5, 7]) (hashH [5, 6]) = true ∧
+      (Just.window 0 1 1).ok ({ hash := #[[5, 6], [5, 7]] } : State) (fun _ => false) #[] (fun _ => false)
+        (windowIn [5, 6] [5, 7] 1) (hashH [5, 6]) = false ∧
+      (Just.window 0 1 1).ok ({ hash := #[[5, 6], [5, 7]] } : State) (fun _ => false) #[] (fun _ => false)
+        (windowIn [5, 6] [5, 7] 1 ++ hashRest [5, 6]) (hashH [5, 6]) = false ∧
+      (Just.window 0 1 1).ok ({ hash := #[[5, 6], [8, 7]] } : State) (fun _ => false) #[] (fun _ => false)
+        (windowIn [5, 6] [8, 7] 1 ++ hashRest [5, 6] ++ hashRest [8, 7]) (hashH [5, 6]) = false := by
+  decide
 
 end LeanVMCircuits.Rec.Bind

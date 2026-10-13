@@ -280,12 +280,15 @@ def rowRules (s : State) (invs : Array (ℕ × ℕ)) (drop : List ℕ → Bool) 
   for k in [0:s.hash.size] do
     if !dropped[k]! then
       r := r.push (.collision k) (hashOut s.hash[k]!).toArray (hashIn s.hash[k]!).toArray
-  -- Four consecutive words of the output stream that straddle two blocks bind the chaining value.
+  -- Four consecutive words of the output stream that straddle two blocks bind the chaining value, with the blocks'
+  -- other input words (their counter, finalization and message, constants).
   for ((h, n), ka) in outputs.toList do
     match outputs[(h, n + 1)]? with
     | some kb =>
       for j in [1:4] do
-        r := r.push (.window ka kb j) (windowIn s.hash[ka]! s.hash[kb]! j).toArray (hashH s.hash[ka]!).toArray
+        r := r.push (.window ka kb j)
+          (windowIn s.hash[ka]! s.hash[kb]! j ++ hashRest s.hash[ka]! ++ hashRest s.hash[kb]!).toArray
+          (hashH s.hash[ka]!).toArray
     | none => pure ()
   -- `inv`: the inverse and its argument determine each other.
   for (k, u) in invs do

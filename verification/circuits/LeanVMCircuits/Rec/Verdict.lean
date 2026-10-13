@@ -631,7 +631,8 @@ theorem tests_determined {st st' : ℕ → Fin 4 → K} {val val' : Val} (c : Ce
   obtain ⟨t, htm, hch, k, hk, hcl⟩ := hall u a b hab ht
   refine ⟨t, htm, hch, k, hk, fun hs => ?_⟩
   have key : ∀ n ∈ limbs4 a ++ limbs4 b, nu val n = nu val' n :=
-    fun n hn => closure_agree (rules_valid hr (hv.toP _) (hv'.toP _) (hcr.toP _) (hw.toP _) hu) hs (hcl n hn)
+    fun n hn => closure_agree (fun i hi => rules_valid (L := fun _ => True) hr (hv.toP _) (hv'.toP _) (hcr.toP _ _)
+      (hw.toP _ _) hu i hi fun _ _ => trivial) hs (hcl n hn)
   exact ⟨eq_of_limbs4 fun n hn => key n (List.mem_append_left _ hn),
     eq_of_limbs4 fun n hn => key n (List.mem_append_right _ hn)⟩
 
