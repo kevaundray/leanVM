@@ -14,7 +14,8 @@ verifier reads. `RecParts` splits it. The parent's circuit holds a verifier of t
 (sumchecks, GKR layers, WHIR sumchecks) on the child's transcript. At an outcome, check `j` reduces its input claims
 (`inOk v j`) to its output claims (`outOk v j`). Where the parent's circuit is satisfied (`held v`) its test holds, and
 it lets a false input through with true outputs only on `testBad v j`, which its round theorem bounds
-(`Bind.sumcheck_part`: `Bind.sumcheck_run_sound_at`'s event, for a run of the parent's prover). Each check's outputs are
+(`Bind.sumcheck_part`, `Bind.whir_part`, `Bind.odd_part`, `Bind.top_part`: the events of `Bind.sumcheck_run_sound_at`
+and the like, for a run of the parent's prover). Each check's outputs are
 later checks' inputs or openings of the child's committed witness, true off `pcsBad v`, the event #551's `ε_PCS` bounds
 (`RecParts.Ok.flow`). `RecParts.ins_ok`: off every check's `testBad` and off `pcsBad`, every check's inputs are true.
 
@@ -187,5 +188,39 @@ theorem sumcheck_part {c : Cert} {s : State} {sc : SumcheckCert} {I : Sumcheck.I
     Model.ev (val ρ) sc.claim0 = I.sum := by
   by_contra hne
   exact hnot ⟨⟨hout.1, htest, hout.2⟩, hne⟩
+
+/-- A WHIR sumcheck is a check of `RecParts`: its event `whirFalse`, which `whir_run_sound_at` bounds by `n · d / |E|`
+of the oracles. -/
+theorem whir_part {c : Cert} {s : State} {wc : WhirCert} {I : Sumcheck.Inst E wc.rounds.length}
+    {val : (ℕ → K) → Val} (ρ : ℕ → K) (htest : ∀ a b, s.unions[wc.test]? = some (a, b) → val ρ a = val ρ b)
+    (hout : Model.ev (val ρ) wc.final = I.final (readR (chalWords c.outs wc.chals) ρ))
+    (hnot : ¬ whirFalse c s wc I val ρ) : Model.ev (val ρ) wc.claim0 = I.sum := by
+  by_contra hne
+  exact hnot ⟨⟨htest, hout⟩, hne⟩
+
+/-- A GKR odd layer is a check of `RecParts`: its input values are their true children's products where its test
+holds and every next claim is its value's true line, off its event `oddFalse`, which `odd_run_sound_at` bounds by
+`m / |E|` of the oracles. -/
+theorem odd_part {c : Cert} {s : State} {oc : OddCert} {L R : ℕ → E} {val : (ℕ → K) → Val} (ρ : ℕ → K)
+    (htest : ∀ a b, s.unions[oc.test]? = some (a, b) → val ρ a = val ρ b)
+    (hout : ∀ k < oc.m, Model.ev (val ρ) (oc.out c.outs k) =
+      L k + readR (chalWords c.outs oc.chals) ρ 1 * (L k + R k))
+    (hnot : ¬ oddFalse c s oc L R val ρ) : ∀ k < oc.m, Model.ev (val ρ) (oc.values.getD k 0) = L k * R k := by
+  intro k hk
+  by_contra hne
+  exact hnot ⟨⟨htest, hout⟩, k, hk, hne⟩
+
+/-- A GKR radix-four top layer is a check of `RecParts`: its event `topFalse`, which `top_run_sound_at` bounds by
+`(m + 1) / |E|` of the oracles. -/
+theorem top_part {c : Cert} {s : State} {tc : TopCert} {T' : ℕ → ℕ → E} {val : (ℕ → K) → Val} (ρ : ℕ → K)
+    (htest : ∀ a b, s.unions[tc.test]? = some (a, b) → val ρ a = val ρ b)
+    (hout : ∀ k < tc.m, Model.ev (val ρ) (tc.out c.outs k) =
+      lineE (lineE (T' k 0) (T' k 1) (readR (chalWords c.outs tc.chals) ρ 1))
+        (lineE (T' k 2) (T' k 3) (readR (chalWords c.outs tc.chals) ρ 1)) (readR (chalWords c.outs tc.chals) ρ 2))
+    (hnot : ¬ topFalse c s tc T' val ρ) :
+    ∀ k < tc.m, Model.ev (val ρ) (tc.values.getD k 0) = T' k 0 * T' k 1 * T' k 2 * T' k 3 := by
+  intro k hk
+  by_contra hne
+  exact hnot ⟨⟨htest, hout⟩, k, hk, hne⟩
 
 end LeanVMCircuits.Rec.Bind

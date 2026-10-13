@@ -747,6 +747,12 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Bind.card_at
 #print axioms LeanVMCircuits.Rec.Bind.sumcheck_run_sound_at
 #print axioms LeanVMCircuits.Rec.Bind.sumcheck_part
+#print axioms LeanVMCircuits.Rec.Bind.whir_run_sound_at
+#print axioms LeanVMCircuits.Rec.Bind.odd_run_sound_at
+#print axioms LeanVMCircuits.Rec.Bind.top_run_sound_at
+#print axioms LeanVMCircuits.Rec.Bind.whir_part
+#print axioms LeanVMCircuits.Rec.Bind.odd_part
+#print axioms LeanVMCircuits.Rec.Bind.top_part
 #print axioms LeanVMCircuits.Rec.Edges.RecParts.least_ok
 #print axioms LeanVMCircuits.Rec.Edges.RecParts.ins_ok
 #print axioms LeanVMCircuits.Rec.Edges.RecParts.hrec
