@@ -410,6 +410,8 @@ structure Report where
   whirPartial : ℕ := 0
   /-- The claim splits the certificate names. -/
   splits : ℕ := 0
+  /-- Whether every certified check's challenges are drawn in order from the oracle's words (`Cert.chalsOk`). -/
+  chalsOk : Bool := true
   /-- The calls of the `eq_e` tests that close nothing certified and no union. -/
   others : Array ℕ := #[]
   deriving Repr
@@ -1095,7 +1097,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     whirBatches := whirs.foldl (fun n wc => n + (wc.rounds.filter fun | .batch .. => true | _ => false).length) 0,
     whirPartial := (whirs.filter fun wc => match wc.rounds.head? with
       | some (.fold (.recv ..) ..) => false
-      | _ => true).size,
+      | _ => true).size, chalsOk := cert.chalsOk s os,
     others := tests.filterMap fun (u, _, _) =>
       if !isEqE u || named u || tops.any (·.test == u) || whirs.any (·.test == u) || splits.any (·.test == u) then none
       else some (rp.eqCall[u]!) }

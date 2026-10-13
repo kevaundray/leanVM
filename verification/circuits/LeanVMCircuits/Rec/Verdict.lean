@@ -435,9 +435,38 @@ def Cert.whirsOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Tran
 def Cert.lateOk (c : Cert) (s : State) (os : Array (List ℕ)) (ms : List (Transcript × Array (Option ℕ))) : Bool :=
   c.topsOk s os ms && c.splitsOk s os && c.whirsOk s os ms
 
+/-- A round's challenge as a `ChalCert`. -/
+def RoundCert.cc (rc : RoundCert) : ChalCert := ⟨rc.chal, rc.chalAt, rc.words, rc.time⟩
+
+/-- A challenge's own words are the oracle's: each word's place is one of its digest's four, and each own word is a
+challenge seed of its transcript one step after the challenge's time, and at no other time. -/
+def ChalCert.ownOk (s : State) (os : Array (List ℕ)) (t : Transcript) (cc : ChalCert) : Bool :=
+  cc.words.all (fun e => decide (e.2.1 < 4)) &&
+    (cc.own os).all fun n => (chalSeeds s t).contains (cc.time + 1, n) &&
+      (chalSeeds s t).all fun p => p.2 != n || p.1 == cc.time + 1
+
+/-- Challenges a check draws in order from one transcript: each challenge's own words are the oracle's, no two
+challenges share a word, and their times do not decrease (`strict`: increase). -/
+def chalsOk (s : State) (os : Array (List ℕ)) (t : Transcript) (strict : Bool) (ccs : List ChalCert) : Bool :=
+  ccs.all (·.ownOk s os t) && decide (ccs.flatMap (·.own os)).Nodup &&
+    if strict then decide (ccs.Pairwise fun a b => a.time < b.time)
+    else decide (ccs.Pairwise fun a b => a.time ≤ b.time)
+
+/-- Every certified check's challenges are drawn in order from its transcript (`chalsOk`), a WHIR sumcheck's at
+increasing times, since a batch round's polynomial reads the other words squeezed with its challenge. -/
+def Cert.chalsOk (c : Cert) (s : State) (os : Array (List ℕ)) : Bool :=
+  c.sumchecks.all (fun sc => Bind.chalsOk s os (c.transcripts.getD sc.transcript default) false
+    (sc.rounds.map RoundCert.cc)) &&
+  c.odds.all (fun oc => Bind.chalsOk s os (c.transcripts.getD oc.transcript default) false [oc.lam, oc.next]) &&
+  c.tops.all (fun tc => Bind.chalsOk s os (c.transcripts.getD tc.transcript default) false
+    [tc.lam, tc.low, tc.high]) &&
+  c.whirs.all fun wc => Bind.chalsOk s os (c.transcripts.getD wc.transcript default) true
+    (wc.rounds.map (·.chal))
+
 /-- The verdict: every rule is justified, every transcript is a chain, the unions' rows are certified, every field
-equality reading a challenge is a test, some transcript marks every test's wires, the coverage entries hold, and the
-named sumchecks' rounds, proof-of-work checks, GKR layers, claim splits and WHIR sumchecks are certified. -/
+equality reading a challenge is a test, some transcript marks every test's wires, the coverage entries hold, the
+named sumchecks' rounds, proof-of-work checks, GKR layers, claim splits and WHIR sumchecks are certified, and their
+challenges are drawn in order from the oracle's words. -/
 def Cert.accepts (c : Cert) (s : State) : Bool :=
   match replayR c.calls c.relax 0 {} #[] with
   | none => false
@@ -448,7 +477,7 @@ def Cert.accepts (c : Cert) (s : State) : Bool :=
       let mr := c.marksRO s
       c.testsBound s ms && c.coversOk s os ms && c.sumchecksOk s os mr && c.pows.all (·.ok os c.calls c.relax) &&
         c.oddsOk s os mr && c.transcripts.all (fun t => rulesOk s c.test c.claims (dropOf s t) t.rulesRO) &&
-        c.lateOk s os mr
+        c.lateOk s os mr && c.chalsOk s os
 
 theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
     rulesOk s c.test c.claims (fun _ => false) c.rules = true ∧ c.transcripts.all (fun t => chainOk s t.blocks) = true ∧
@@ -461,7 +490,7 @@ theorem Cert.accepts_parts {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩, -⟩, -⟩⟩ := h
+    obtain ⟨⟨⟨⟨hr, hc⟩, hu⟩, ht⟩, ⟨⟨⟨⟨⟨⟨⟨hb, hcv⟩, -⟩, -⟩, -⟩, -⟩, -⟩, -⟩⟩ := h
     exact ⟨hr, hc, hu, ht, hb, hcv⟩
 
 theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
@@ -476,7 +505,17 @@ theorem Cert.accepts_rounds {c : Cert} {s : State} (h : c.accepts s = true) :
   · rename_i t os hr
     rw [hr]
     simp only [Bool.and_eq_true] at h
-    exact ⟨h.2.1.1.1.1.2, h.2.1.1.1.2, h.2.1.1.2, h.2.1.2, h.2.2⟩
+    exact ⟨h.2.1.1.1.1.1.2, h.2.1.1.1.1.2, h.2.1.1.1.2, h.2.1.1.2, h.2.1.2⟩
+
+theorem Cert.accepts_chals {c : Cert} {s : State} (h : c.accepts s = true) : c.chalsOk s c.outs = true := by
+  unfold Cert.accepts at h
+  unfold Cert.outs
+  split at h
+  · simp at h
+  · rename_i t os hr
+    rw [hr]
+    simp only [Bool.and_eq_true] at h
+    exact h.2.2
 
 /-- A node a transcript binds at time `k` is in the closure of what its first `k` blocks absorb, and of the statement
 once `k` passes its last block. -/

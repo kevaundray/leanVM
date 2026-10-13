@@ -364,15 +364,15 @@ theorem grinding_bound (b : ℕ) (hb : b ≤ 64) (Q : ℕ) {Ω : Type} [Fintype 
 
 open Classical Finset in
 /-- Proof of work on the circuit. Take an accepted circuit and a proof-of-work check it names (`pc`, difficulty
-`b`). For each outcome the prover answers with an assignment holding every replayed call but the tests and the
-squeezes, whose trial digest's first word is the word of the trial it picked among `Q`, each uniform (the random
-oracle's answer to the trial). Then the outcomes at which the check's tests hold (the word's top `b` bits zero) are at
+`b`). For each outcome the prover answers with an assignment holding every replayed call but the tests, the
+squeezes and the trial's compression (`FactsBut`), whose trial digest's first word is the word of the trial it picked
+among `Q`, each uniform (the ideal compression's answer to the trial). Then the outcomes at which the check's tests hold (the word's top `b` bits zero) are at
 most a `Q / 2^b` fraction. `pow_answers_exist` exhibits such answers. -/
 theorem pow_test_sound (c : Cert) (s : State) (h : c.accepts s = true) {pc : PowCert} (hpc : pc ∈ c.pows) (Q : ℕ)
     {Ω : Type} [Fintype Ω] (wd : ℕ → Ω → Fin (2 ^ 64))
     (hwd : ∀ q < Q, ∀ v : Fin (2 ^ 64), 2 ^ 64 * #{ω | wd q ω = v} = Fintype.card Ω) (qOf : Ω → ℕ)
     (hq : ∀ ω, qOf ω < Q) (st : Ω → ℕ → Fin 4 → K) (val : Ω → Val)
-    (hF : ∀ ω, Facts c.calls c.relax c.outs (st ω) (val ω))
+    (hF : ∀ ω, FactsBut c.calls c.relax c.outs pc.compressAt (st ω) (val ω))
     (htrial : ∀ ω, toWord (val ω (PowCert.trial c.outs pc) 0) = (wd (qOf ω) ω).val) :
     (#{ω | ∀ k < pc.bits, val ω (pc.bit c.outs (64 - pc.bits + k)) 0 = 0} : ℚ≥0) / Fintype.card Ω ≤
       Q / 2 ^ pc.bits := by

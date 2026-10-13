@@ -73,6 +73,27 @@ theorem holds_all {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {s
     {l : List (ℕ × Call)} (hF : Facts cs rl os st val) (h : callsOk cs rl l = true) :
     ∀ x ∈ l, x.2.Holds st val (os.getD x.1 []) := fun _ hx => holds_of_mem hF h hx
 
+/-- Every replayed call but call `j0` holds, unless it is a relaxed equality or a squeeze: in the ideal compression
+model a proof-of-work trial's compression is the oracle's answer, not the compression of its inputs. -/
+def FactsBut (cs : Array Call) (rl : Array Bool) (os : Array (List ℕ)) (j0 : ℕ) (st : ℕ → Fin 4 → K) (val : Val) :
+    Prop :=
+  ∀ j (hj : j < cs.size), j ≠ j0 → (rl.getD j false && cs[j].isEq) = false → cs[j].isSqueeze = false →
+    cs[j].Holds st val (os.getD j [])
+
+theorem Facts.but {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+    (hF : Facts cs rl os st val) (j0 : ℕ) : FactsBut cs rl os j0 st val :=
+  fun j hj _ => hF j hj
+
+theorem holds_of_mem_but {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+    {j0 : ℕ} {l : List (ℕ × Call)} {j : ℕ} {c : Call} (hF : FactsBut cs rl os j0 st val)
+    (h : callsOk cs rl l = true) (hm : (j, c) ∈ l) (hj0 : j ≠ j0) : c.Holds st val (os.getD j []) := by
+  simp only [callsOk, List.all_eq_true, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at h
+  obtain ⟨⟨hc, hr⟩, hsq⟩ := h _ hm
+  dsimp only at hc hr hsq
+  obtain ⟨hj, hcj⟩ := Array.getElem?_eq_some_iff.mp hc
+  subst hcj
+  exact hF j hj hj0 hr hsq
+
 theorem rows_of_mem {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {s : State}
     {l : List (ℕ × Call)} {j : ℕ} {c : Call} (hR : RowsIn cs os s) (h : callsOk cs rl l = true)
     (hm : (j, c) ∈ l) : c.Rows s (os.getD j []) := by

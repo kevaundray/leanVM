@@ -67,7 +67,9 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   for f in r.late.toList.take 5 do
     IO.println s!"  late test at {line f.call}: bound at call {f.hints.headD 0 + 1}, latest challenge at call \
       {f.hints.getD 1 0 + 1}"
-  if r.accepted != r.unbound.isEmpty then
+  if !r.chalsOk then
+    IO.println s!"  the certified checks' challenges are not drawn in order from the oracle's words"
+  if r.accepted != r.unbound.isEmpty && r.chalsOk then
     IO.println s!"  the certificate's verdict differs from the worklist's"
   if !r.accepted then return some false
   -- Every WHIR sumcheck is certified from its opening's first claim, its query batches included.

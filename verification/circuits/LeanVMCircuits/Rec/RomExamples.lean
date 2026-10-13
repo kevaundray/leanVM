@@ -1,6 +1,6 @@
 module
 
-public import LeanVMCircuits.Rec.LateSound
+public import LeanVMCircuits.Rec.Run
 
 @[expose] public section
 
@@ -22,7 +22,9 @@ its input claim a hint; the odd layer (`odd`) and the top layer (`top`, whose la
 the WHIR sumcheck (`whir`) has a batch round at `λ`, whose squeeze's fourth word is squeezed with it, then a fold round.
 `sumcheck_answers_exist`, `sumcheck_hinted_answers_exist`, `odd_answers_exist`, `top_answers_exist` and
 `whir_answers_exist` give answers whose challenges are any vector, which the first statement could not;
-`pow_answers_exist` gives proof-of-work answers whose trial words are uniform.
+`pow_answers_exist` gives proof-of-work answers whose trial words are uniform. `run_exists` gives a prover's run in
+the random-oracle model (`Run`) whose two challenges read three words each of their squeezes, drawn in order, meeting
+every premise of `Run.sumcheckAnswers` and the other answer theorems but acceptance.
 -/
 
 namespace LeanVMCircuits.Rec.Bind.RomExample
@@ -347,11 +349,95 @@ theorem pow_answers_exist :
     ∃ (c : Cert) (pc : PowCert) (wd : ℕ → Fin (2 ^ 64) → Fin (2 ^ 64)) (qOf : Fin (2 ^ 64) → ℕ)
       (st : Fin (2 ^ 64) → ℕ → Fin 4 → K) (val : Fin (2 ^ 64) → Val), pc ∈ c.pows ∧
       (∀ q < 1, ∀ v : Fin (2 ^ 64), 2 ^ 64 * #{ω | wd q ω = v} = Fintype.card (Fin (2 ^ 64))) ∧
-      (∀ ω, qOf ω < 1) ∧ (∀ ω, Facts c.calls c.relax c.outs (st ω) (val ω)) ∧
+      (∀ ω, qOf ω < 1) ∧ (∀ ω, FactsBut c.calls c.relax c.outs pc.compressAt (st ω) (val ω)) ∧
       ∀ ω, toWord (val ω (PowCert.trial c.outs pc) 0) = (wd (qOf ω) ω).val := by
   refine ⟨cert, powCert, fun _ ω => ω, fun _ => 0, fun _ _ _ => 0, fun ω _ _ => ofWord ω.val, by simp [cert],
-    fun q _ v => ?_, fun _ => by norm_num, fun _ j hj => absurd hj (by simp [cert]), fun ω => toWord_ofWord _ ω.isLt⟩
+    fun q _ v => ?_, fun _ => by norm_num, fun _ j hj _ => absurd hj (by simp [cert]), fun ω => toWord_ofWord _ ω.isLt⟩
   rw [show ({ω | ω = v} : Finset (Fin (2 ^ 64))) = {v} by ext; simp, card_singleton, Fintype.card_fin]
   ring
+
+/-- A run on `state`: at oracle `ρ`, the squeezes' outputs (wires 16 and 22) are `ρ`'s answers at their words, the
+counter its constant, the input claim one, every other wire zero. -/
+noncomputable def runVal (ρ : ℕ → K) : Val := fun w =>
+  if w = 1 then limbsOf [outTag, 0, 0, 0] else if w = 16 then fun i => ρ (64 + i) else if w = 22 then fun i => ρ (88 + i)
+  else if w = 17 then limbsE 1 else fun _ => 0
+
+/-- The run's challenges: `λ` (wire 16) reads its squeeze's first three words, drawn after block 0; the next (wire 22)
+its squeeze's, after block 1. -/
+def runOwn : Fin 2 → Fin 3 → ℕ := ![![64, 65, 66], ![88, 89, 90]]
+
+def runTime : Fin 2 → ℕ := ![1, 2]
+
+def runChal : Fin 2 → ℕ := ![16, 22]
+
+theorem run_ans (ρ : ℕ → K) : ∀ p ∈ chalSeeds state transcript, nu (runVal ρ) p.2 = ρ p.2 := by
+  rw [chalSeeds_eq]
+  simp only [List.mem_cons, List.not_mem_nil, or_false]
+  rintro p (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) <;> simp [nu, runVal]
+
+theorem run_causal (ρ ρ' : ℕ → K) (k : ℕ) (h : ∀ p ∈ chalSeeds state transcript, p.1 ≤ k → ρ p.2 = ρ' p.2) :
+    ∀ m ∈ seedsBefore state transcript k, nu (runVal ρ) m = nu (runVal ρ') m := by
+  intro m hm
+  simp only [seedsBefore, List.mem_append, List.mem_map, List.mem_filter, decide_eq_true_eq] at hm
+  rcases hm with (hm | ⟨p, ⟨hp, hk⟩, rfl⟩) | hm
+  · have hsub : m ∈ absorbed state transcript.blocks := by
+      simp only [absorbed, List.mem_flatMap] at hm ⊢
+      obtain ⟨b, hb, hm⟩ := hm
+      exact ⟨b, List.mem_of_mem_take hb, hm⟩
+    have hl : absorbed state transcript.blocks =
+        [32, 36, 40, 44, 48, 52, 56, 60, 32, 36, 40, 44, 48, 52, 56, 60] := by
+      simp [absorbed, wordsOf, transcript, state, row, limb, List.range_succ]
+    rw [hl] at hsub
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hsub
+    rcases hsub with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp [nu, runVal]
+  · rw [run_ans ρ p hp, run_ans ρ' p hp, h p hp hk]
+  · split at hm
+    · simp [statementNodes, state] at hm
+    · simp at hm
+
+/-- A prover's run meeting every premise of the answer theorems (`Run.sumcheckAnswers`, ...) but acceptance: a `Run`
+whose two challenges each read three words of their squeeze as an element of `E`, drawn at increasing times, each word
+a challenge seed only one step after its challenge's time, no word shared; and its input claim false. -/
+theorem run_exists :
+    ∃ (c : Cert) (s : State) (st : (ℕ → K) → ℕ → Fin 4 → K) (val : (ℕ → K) → Val) (own : Fin 2 → Fin 3 → ℕ)
+      (time : Fin 2 → ℕ) (chal : Fin 2 → ℕ), Run c s 0 st val ∧ OwnAt s (c.transcripts.getD 0 default) own time ∧
+      OwnInj own ∧ (∀ i j, i < j → time i < time j) ∧
+      (∀ ρ i, Model.ev (val ρ) (chal i) =
+        toE (nu (val ρ) (own i 0)) (nu (val ρ) (own i 1)) (nu (val ρ) (own i 2))) ∧
+      ∀ ρ, Model.ev (val ρ) sumcheck.claim0 ≠ inst.sum := by
+  refine ⟨cert, state, fun _ _ _ => 0, runVal, runOwn, runTime, runChal,
+    ⟨rom _ _ fun ρ => by simp [runVal], run_ans, run_causal⟩, fun i k => ?_, ?_, fun i j hij => ?_,
+    fun ρ i => ?_, fun ρ => ?_⟩
+  · show (_, _) ∈ chalSeeds state transcript ∧ ∀ p ∈ chalSeeds state transcript, _
+    rw [chalSeeds_eq]
+    fin_cases i <;> fin_cases k <;> simp [runOwn, runTime]
+  · rintro ⟨i, k⟩ ⟨j, l⟩ h
+    fin_cases i <;> fin_cases k <;> fin_cases j <;> fin_cases l <;> simp_all [runOwn]
+  · fin_cases i <;> fin_cases j <;> simp_all [runTime]
+  · fin_cases i <;> simp [Model.ev, runVal, runChal, runOwn, nu]
+  · rw [show sumcheck.claim0 = 17 from rfl, ev_limbsE _ 17 1 (by simp [runVal])]
+    simp [inst, Inst.sum, lin]
+
+/-- A replay whose call 0 outputs `λ`'s squeeze wire 16 and call 1 the next challenge's wire 22. -/
+def chalOs : Array (List ℕ) := #[[16], [22]]
+
+/-- `λ` reading wire 16's first three words, drawn after block 0; the next challenge wire 22's, after block 1. -/
+def lamCC : ChalCert := ⟨16, 0, [(0, 0, 0), (0, 1, 0), (0, 2, 0)], 1⟩
+
+def nextCC : ChalCert := ⟨22, 0, [(1, 0, 1), (1, 1, 1), (1, 2, 1)], 2⟩
+
+/-- The verdict's `chalsOk` on `state`'s transcript: `λ` then the next challenge pass, strictly; the same challenge
+twice (a shared word), `λ` drawn a block later than its squeeze (its words not seeds one step after its time), the
+two out of order, and a word at a fifth place of its digest each fail. -/
+theorem chalsOk_mutations :
+    chalsOk state chalOs transcript true [lamCC, nextCC] = true ∧
+      chalsOk state chalOs transcript false [lamCC, lamCC] = false ∧
+      chalsOk state chalOs transcript false [{ lamCC with time := 2 }] = false ∧
+      chalsOk state chalOs transcript false [nextCC, lamCC] = false ∧
+      chalsOk state chalOs transcript false [{ lamCC with words := [(0, 0, 0), (0, 1, 0), (0, 4, 0)] }] = false := by
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;>
+    simp (config := { decide := true }) [chalsOk, ChalCert.ownOk, ChalCert.own, chalSeeds_eq, lamCC, nextCC, chalOs,
+      outAt, limb]
 
 end LeanVMCircuits.Rec.Bind.RomExample

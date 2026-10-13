@@ -42,6 +42,7 @@ public import LeanVMCircuits.Rec.Relax
 public import LeanVMCircuits.Rec.RomExamples
 public import LeanVMCircuits.Rec.RoundSound
 public import LeanVMCircuits.Rec.Rounds
+public import LeanVMCircuits.Rec.Run
 public import LeanVMCircuits.Rec.TreeSound
 public import LeanVMCircuits.Rec.Design
 public import LeanVMCircuits.Rec.DesignKind

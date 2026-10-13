@@ -21,7 +21,8 @@ each round's claim the previous round's Horner output, from the reduction's inpu
 
 A proof-of-work certificate (`PowCert`) names `Transcript::check_pow`'s calls: the trial's compression, its words, the
 split of its first word, and the tests holding the word's top `bits` bits to zero. `pow_sem`: where every replayed
-call holds and the tests hold, the trial compression's first output word is below `2^(64 - bits)`.
+call but the trial's compression holds (`FactsBut`) and the tests hold, the trial compression's first output word is
+below `2^(64 - bits)`.
 
 `sumRound_sem`: in an assignment where every replayed call holds, the round polynomial `g` of the coefficients' values
 has degree at most the certificate's, passes the round's check against the claim (`Sumcheck.lin`), and the next claim
@@ -432,21 +433,30 @@ theorem sumRound_sem (hF : Facts cs rl os st val) {rc : RoundCert} {d claim : �
   · rw [RoundCert.next, horner_sem hF _ _ _ _ (by simp; omega) hhorner, hz2', eval_polyOf, List.map_reverse,
       List.foldl_reverse]
 
-/-- Where every replayed call holds and the proof-of-work tests hold, the trial digest's first word is below
-`2^(64 - bits)`: its top `bits` bits are zero. -/
-theorem pow_sem (hF : Facts cs rl os st val) {pc : PowCert} (hok : pc.ok os cs rl = true)
+/-- Where every replayed call but the trial's compression holds and the proof-of-work tests hold, the trial digest's
+first word is below `2^(64 - bits)`: its top `bits` bits are zero. The trial's compression need not hold: in the ideal
+compression model its digest is the oracle's answer. -/
+theorem pow_sem {pc : PowCert} (hF : FactsBut cs rl os pc.compressAt st val) (hok : pc.ok os cs rl = true)
     (htests : ∀ k < pc.bits, val (pc.bit os (64 - pc.bits + k)) 0 = 0) :
     toWord (val (PowCert.trial os pc) 0) < 2 ^ (64 - pc.bits) := by
   simp only [PowCert.ok, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hok
   obtain ⟨⟨⟨hb, -⟩, hcalls⟩, -⟩ := hok
   split at hcalls
-  · obtain ⟨-, hrest⟩ := callsOk_cons hcalls
+  next acc x ds hc =>
+    obtain ⟨-, hrest⟩ := callsOk_cons hcalls
     obtain ⟨h2, h3⟩ := callsOk_cons hrest
+    -- The `d_to_k` and `split` calls are not the trial's compression.
+    have hne : ∀ {j : ℕ} {c' : Call}, callsOk cs rl [(j, c')] = true → c' ≠ .compress acc x ds →
+        j ≠ pc.compressAt := by
+      intro j c' hj hc' he
+      subst he
+      simp only [callsOk, List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, beq_iff_eq, hc] at hj
+      exact hc' (Option.some.inj hj.1.1).symm
     have hdk : ∀ i : Fin 4, val (outAt os pc.dkAt i) 0 = val (PowCert.trial os pc) i :=
-      holds_of_mem hF h2 (List.mem_singleton_self _)
+      holds_of_mem_but hF h2 (List.mem_singleton_self _) (hne h2 fun h => by cases h)
     have hsp : (∀ i < 64, val (PowCert.bit os pc i) 0 = 0 ∨ val (PowCert.bit os pc i) 0 = 1) ∧
         toWord (val (PowCert.word os pc) 0) = num (fun i => if val (PowCert.bit os pc i) 0 = 1 then 1 else 0) 64 :=
-      holds_of_mem hF h3 (List.mem_singleton_self _)
+      holds_of_mem_but hF h3 (List.mem_singleton_self _) (hne h3 fun h => by cases h)
     have hw : val (PowCert.word os pc) 0 = val (PowCert.trial os pc) 0 := hdk 0
     rw [← hw, hsp.2]
     refine Nat.lt_pow_two_of_testBit _ fun i hi => ?_
