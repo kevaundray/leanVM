@@ -1,10 +1,10 @@
-import LeanVMCircuits.Rec.DesignKind
-import LeanVMCircuits.Rec.Dump
+import LeanVMCircuits.Rec.DesignClaims
+import LeanVMCircuits.Rec.EdgeMarks
 
 /-!
 `lake exe checkdesign <summaries> [<dump>...]`: compare the Lean model of `Design` with the Rust design.
 
-The summaries (`fixtures/design-summaries.txt`, written by `rec::tree::design_tests`) hold, for a grid of tree shapes, whether `Tree::new` refuses the shape's arities or small tier, and else its design: `Place::all`, each tier's range, each position's kind, `Design::position` of the kinds below 40, each position's union shape, the dense variables and fixed stacks' variables, and the statement's length and polynomials. Each must be the model's (`Shape.check`, `Shape.places`, `Shape.start`, `Shape.stop`, `Shape.code`, `Shape.position`, `Shape.union`, `Shape.vars`, `Shape.layout`), given the program's two dense variables and each tier's fixed stack's variables, which the summary states.
+The summaries (`fixtures/design-summaries.txt`, written by `rec::tree::design_tests`) hold, for a grid of tree shapes, whether `Tree::new` refuses the shape's arities or small tier, and else its design: `Place::all`, each tier's range, each position's kind, `Design::position` of the kinds below 40, each position's union shape, the dense variables and fixed stacks' variables, and the statement's length and polynomials. Each must be the model's (`Shape.check`, `Shape.places`, `Shape.start`, `Shape.stop`, `Shape.code`, `Shape.position`, `Shape.union`, `Shape.vars`, `Shape.layout`), given the program's two dense variables, which the summary states. They also hold the two scalars `NodeClaims::bind_state` binds of a final state of words 1 to 4 (`bindOk`, `bindState`), and the design's claims, each compared with `DesignClaims`: the statement's edge layout (`edgeLayout`); the claims `Design::carried` takes from a statement of labeled words (`carriedOk`); the statement `Reduced::statement` exposes for labeled reduction outputs, after as many rounds as the point has coordinates with every polynomial reduced and after the bytecode's rounds with only the bytecode and image reduced (`exposedOk`); and each tier's fixed claim `Design::fixed_claim` on labeled hints of every fixed column, at zero heights and at heights differing per table (`fixedOk`), whose columns' variables place the stack, so each tier's fixed stack's variables are the model's `kappa` of them.
 
 Each dump is a tracked circuit (`cargo leanvm circuits`), named by its tree and position. Its calls are replayed through the builder model; each child's statement is a run of as many `free_e` calls as the circuit exposes words, and the calls after it must add to the circuit exactly what `Model.kindRows` adds from the same state, for the child's tier, then exactly what `Model.limbRows` adds for its words: the same unions, rows, public rows, wires and units. A node must read as many children as `Shape.children` says, a first-level circuit none, and the statement's length must leave the dense point a nonnegative number of words. The circuit's first exposure, at statement position zero, must be of the constant of its own kind `Shape.code` (`Model.kind_exposed`, `Model.kindConst_ev`).
 -/
@@ -56,12 +56,43 @@ def verdict : Option Refusal → String
   | some .arity => "reject arity"
   | some .smallTier => "reject small"
 
+/-- Edge lines joined by ` | `, as the claims they mark. -/
+def marksOf (line : String) : Except String Edges.Marks :=
+  ((line.splitOn " | ").filter (· ≠ "")).foldlM (fun m part => m.add ((part.splitOn " ").filter (· ≠ ""))) {}
+
+def claimsOf (m : Edges.Marks) : Edges.Claims ℕ := ⟨m.dense.toList, m.matrices.toList⟩
+
+def word! (s : String) : Except String DesignClaims.Word := do
+  match s.splitOn ":" with
+  | [a, b, c] => pure (← nat! a, ← nat! b, ← nat! c)
+  | _ => .error s!"not a word: {s}"
+
+/-- A `fixed` or `hfixed` line: the tier, its kind bits, its columns' variables, its fixed claim. Checks the claim is `fixedModel`'s, the kind bits the shape's, and returns the tier and the stack's `kappa`. -/
+def checkFixed (sh : Shape) (line : String) : Except String (ℕ × ℕ) := do
+  let (head, rest) := match line.splitOn " | " with
+    | h :: r => (h, " | ".intercalate r)
+    | [] => ("", "")
+  let ws := (head.splitOn " ").drop 1
+  let (tier, kb, n) ← match ws with
+    | t :: k :: n :: _ => pure (← nat! t, ← nat! k, ← nat! n)
+    | _ => .error s!"not a fixed claim: {head.take 60}"
+  let taus ← (ws.drop 3).mapM nat!
+  unless taus.length = n do .error s!"tier {tier}: {taus.length} columns, said {n}"
+  unless kb = sh.kindBits tier do .error s!"tier {tier}: {kb} kind bits, the model {sh.kindBits tier}"
+  let c := claimsOf (← marksOf rest)
+  unless DesignClaims.fixedOk tier kb taus c do .error s!"tier {tier}: the fixed claim is not the model's"
+  return (tier, DesignClaims.kappa taus)
+
 /-- Compare every summary with the model; the number of shapes checked. -/
 def checkSummaries (text : String) : Except String ℕ := do
   let lines := text.splitOn "\n" |>.filter (· ≠ "")
   let some first := lines.head? | .error "empty summaries"
   unless first = s!"consts {maxKLog} {nFlocks}" do .error s!"constants differ: {first}"
-  let mut rest := lines.tail
+  let bound ← match (lines.getD 1 "").splitOn " " with
+    | "bind" :: ws => ws.mapM word!
+    | _ => .error "no bound state"
+  unless DesignClaims.bindOk bound do .error s!"the bound state's scalars are not the model's: {lines.getD 1 ""}"
+  let mut rest := lines.drop 2
   let mut n := 0
   while !rest.isEmpty do
     let shapeLine := rest.headD ""
@@ -70,21 +101,51 @@ def checkSummaries (text : String) : Except String ℕ := do
       | _ => .error s!"expected a shape: {shapeLine}"
     let v := rest.getD 1 ""
     unless v = verdict sh.check do .error s!"{shapeLine}: Rust says {v}, the model {verdict sh.check}"
+    let block := (rest.drop 2).takeWhile (· ≠ "end")
+    rest := rest.drop (2 + block.length)
     if sh.check = none then
-      let block := (rest.drop 2).take 8
       let vars ← match (block.getD 5 "").splitOn " " with
         | ["vars", v0, v1, _, _] => pure (← nat! v0, ← nat! v1)
         | _ => .error s!"{shapeLine}: no variables"
-      let kappas ← match (block.getD 6 "").splitOn " " with
-        | "kappas" :: ks => ks.mapM nat!
-        | _ => .error s!"{shapeLine}: no fixed stacks"
+      let kappaLine := fun (name : String) => do
+        match ((block.find? (·.startsWith (name ++ " "))).getD "").splitOn " " with
+        | k :: ks => if k = name then ks.mapM nat! else .error s!"{shapeLine}: no {name}"
+        | [] => .error s!"{shapeLine}: no {name}"
+      let kappas ← kappaLine "kappas"
+      let hkappas ← kappaLine "hkappas"
       let model := summary sh vars.1 vars.2 kappas
       for (r, m) in block.zip model do
         unless r = m do .error s!"{shapeLine}: Rust `{r}`, the model `{m}`"
       unless sh.places = (List.range sh.size).map sh.placeAt do .error s!"{shapeLine}: places not closed form"
-      rest := rest.drop 10
-    else
-      rest := rest.drop 2
+      let L := DesignClaims.edgeLayout sh vars.1 vars.2 fun t => kappas.getD t 0
+      let mut seen : List String := []
+      for line in block.drop 8 do
+        let key := (line.splitOn " ").headD ""
+        match key with
+        | "layout" =>
+          let m ← (({} : Edges.Marks).add (line.splitOn " ")).mapError (s!"{shapeLine}: " ++ ·)
+          unless m.layout = some L do .error s!"{shapeLine}: the layout is not the model's"
+        | "carried" =>
+          let c := claimsOf (← (marksOf (line.drop 8).toString).mapError (s!"{shapeLine}: " ++ ·))
+          unless DesignClaims.carriedOk L c do .error s!"{shapeLine}: the carried claims are not the model's"
+        | "exposed" =>
+          let (rounds, present, ws) ← match line.splitOn " " with
+            | _ :: r :: p :: ws => pure (← nat! r, p.toList.map (· == '1'), ← ws.mapM word!)
+            | _ => .error s!"{shapeLine}: not an exposure"
+          unless DesignClaims.exposedOk L rounds present ws do
+            .error s!"{shapeLine}: the statement exposed after {rounds} rounds is not the model's"
+        | "fixed" | "hfixed" =>
+          let (t, k) ← (checkFixed sh line).mapError (s!"{shapeLine}: " ++ ·)
+          let ks := if key = "fixed" then kappas else hkappas
+          unless ks.getD t 0 = k ∧ t < ks.length do .error s!"{shapeLine}: tier {t}'s stack of {k} variables, Rust's {ks}"
+        | "hkappas" => pure ()
+        | _ => .error s!"{shapeLine}: an unknown line {line.take 40}"
+        seen := key :: seen
+      let tiers := sh.nTiers
+      let want := [("layout", 1), ("carried", 1), ("exposed", 2), ("fixed", tiers), ("hkappas", 1), ("hfixed", tiers)]
+      for (k, c) in want do
+        unless seen.count k = c do .error s!"{shapeLine}: {seen.count k} {k} lines, expected {c}"
+      unless kappas.length = tiers ∧ hkappas.length = tiers do .error s!"{shapeLine}: a stack per tier"
     unless rest.headD "" = "end" do .error s!"{shapeLine}: no end"
     rest := rest.tail
     n := n + 1

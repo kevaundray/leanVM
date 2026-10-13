@@ -214,7 +214,7 @@ impl Place {
 
 impl NodeClaims<Ew> {
     /// Bind a verified proof's final transcript digest, as two scalars: its first three words, then its fourth.
-    fn bind_state(&mut self, b: &mut Builder, state: Dw) {
+    pub(super) fn bind_state(&mut self, b: &mut Builder, state: Dw) {
         let [w0, w1, w2, w3] = b.d_to_k(state);
         self.bound.extend([b.k_to_e([w0, w1, w2]), b.k_to_e1(w3)]);
     }
@@ -531,7 +531,7 @@ impl<'p> Design<'p> {
     /// A child's hinted fixed-column evaluations as claims on its tier's fixed polynomial, in its circuit's block.
     ///
     /// Column `c` at the bus point's prefix `p` is the fixed polynomial at `(p, block_c, kind's bits)`.
-    fn fixed_claim(&self, hints: &[FixedHint], top: &[Ew], tier: usize) -> DenseClaim<Ew> {
+    pub(super) fn fixed_claim(&self, hints: &[FixedHint], top: &[Ew], tier: usize) -> DenseClaim<Ew> {
         let fixed = &self.tiers[tier].fixed;
         let low = hints
             .iter()
@@ -572,7 +572,7 @@ impl<'p> Design<'p> {
     /// The claims a child's statement carries.
     ///
     /// A first-level node reduces no claim on a fixed polynomial, so its carried ones are scaled by `is_node`, zero.
-    fn carried(&self, statement: &TreeStatement<Ew>, is_node: Ew, claims: &mut NodeClaims<Ew>) {
+    pub(super) fn carried(&self, statement: &TreeStatement<Ew>, is_node: Ew, claims: &mut NodeClaims<Ew>) {
         let point = statement.dense_point();
         for &poly in self.statement.polys() {
             let n = self.vars.0[poly as usize];
@@ -600,7 +600,13 @@ impl Reduced<Ew> {
     /// The statement of a circuit of this kind and digest whose reduction left these claims.
     ///
     /// A polynomial left unreduced has a zero value, and the point is zero past the reduction's rounds.
-    fn statement(&self, b: &mut Builder, layout: StatementLayout, kind: usize, digest: Dw) -> TreeStatement<Ew> {
+    pub(super) fn statement(
+        &self,
+        b: &mut Builder,
+        layout: StatementLayout,
+        kind: usize,
+        digest: Dw,
+    ) -> TreeStatement<Ew> {
         let zero = b.zero();
         let mut s = TreeStatement::filled(layout, zero);
         s.section_mut(Section::Kind)[0] = b.e_const(F192::new(kind as u64, 0, 0));
