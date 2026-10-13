@@ -4,7 +4,7 @@ import LeanVMCircuits.Rec.EdgeMarks
 /-!
 `lake exe checkdesign <summaries> [<dump>...]`: compare the Lean model of `Design` with the Rust design.
 
-The summaries (`fixtures/design-summaries.txt`, written by `rec::tree::design_tests`) hold, for a grid of tree shapes, whether `Tree::new` refuses the shape's arities or small tier, and else its design: `Place::all`, each tier's range, each position's kind, `Design::position` of the kinds below 40, each position's union shape, the dense variables and fixed stacks' variables, and the statement's length and polynomials. Each must be the model's (`Shape.check`, `Shape.places`, `Shape.start`, `Shape.stop`, `Shape.code`, `Shape.position`, `Shape.union`, `Shape.vars`, `Shape.layout`), given the program's two dense variables, which the summary states. They also hold the two scalars `NodeClaims::bind_state` binds of a final state of words 1 to 4 (`bindOk`, `bindState`), and the design's claims, each compared with `DesignClaims`: the statement's edge layout (`edgeLayout`); the claims `Design::carried` takes from a statement of labeled words (`carriedOk`); the statement `Reduced::statement` exposes for labeled reduction outputs, after as many rounds as the point has coordinates with every polynomial reduced and after the bytecode's rounds with only the bytecode and image reduced (`exposedOk`); and each tier's fixed claim `Design::fixed_claim` on labeled hints of every fixed column, at zero heights and at heights differing per table (`fixedOk`), whose columns' variables place the stack, so each tier's fixed stack's variables are the model's `kappa` of them.
+The summaries (`fixtures/design-summaries.txt`, written by `rec::tree::design_tests`) hold, for a grid of tree shapes, whether `Tree::new` refuses the shape's arities or small tier, and else its design: `Place::all`, each tier's range, each position's kind, `Design::position` of the kinds below 40, each position's union shape, the dense variables and fixed stacks' variables, and the statement's length and polynomials. Each must be the model's (`Shape.check`, `Shape.places`, `Shape.start`, `Shape.stop`, `Shape.code`, `Shape.position`, `Shape.union`, `Shape.vars`, `Shape.layout`), given the program's two dense variables, which the summary states. They also hold the two scalars `NodeClaims::bind_state` binds of a final state of words 1 to 4 (`bindOk`, `bindState`), for a tree of outputs the digest `Kind::Node::digest_rows` computes of its node's children's labeled digests (`nodeDigestOk`: the tree statement digest `treeDigest`, which `digestRows_good` proves the rows compute), and the design's claims, each compared with `DesignClaims`: the statement's edge layout (`edgeLayout`); the claims `Design::carried` takes from a statement of labeled words (`carriedOk`); the statement `Reduced::statement` exposes for labeled reduction outputs, after as many rounds as the point has coordinates with every polynomial reduced and after the bytecode's rounds with only the bytecode and image reduced (`exposedOk`); and each tier's fixed claim `Design::fixed_claim` on labeled hints of every fixed column, at zero heights and at heights differing per table (`fixedOk`), whose columns' variables place the stack, so each tier's fixed stack's variables are the model's `kappa` of them.
 
 Each dump is a tracked circuit (`cargo leanvm circuits`), named by its tree and position. Its calls are replayed through the builder model; each child's statement is a run of as many `free_e` calls as the circuit exposes words, and the calls after it must add to the circuit exactly what `Model.kindRows` adds from the same state, for the child's tier, then exactly what `Model.limbRows` adds for its words: the same unions, rows, public rows, wires and units. A node must read as many children as `Shape.children` says, a first-level circuit none, and the statement's length must leave the dense point a nonnegative number of words. The circuit's first exposure, at statement position zero, must be of the constant of its own kind `Shape.code` (`Model.kind_exposed`, `Model.kindConst_ev`).
 -/
@@ -138,11 +138,18 @@ def checkSummaries (text : String) : Except String ℕ := do
           let (t, k) ← (checkFixed sh line).mapError (s!"{shapeLine}: " ++ ·)
           let ks := if key = "fixed" then kappas else hkappas
           unless ks.getD t 0 = k ∧ t < ks.length do .error s!"{shapeLine}: tier {t}'s stack of {k} variables, Rust's {ks}"
+        | "digest" =>
+          let (a, ws) ← match line.splitOn " " with
+            | _ :: a :: ws => pure (← nat! a, ← ws.mapM nat!)
+            | _ => .error s!"{shapeLine}: not a digest"
+          unless sh.claims = none ∧ sh.children 1 = some (a, 0) do .error s!"{shapeLine}: a node digest of {a} items"
+          unless DesignClaims.nodeDigestOk a ws do .error s!"{shapeLine}: the node's digest of {a} items is not the model's"
         | "hkappas" => pure ()
         | _ => .error s!"{shapeLine}: an unknown line {line.take 40}"
         seen := key :: seen
       let tiers := sh.nTiers
-      let want := [("layout", 1), ("carried", 1), ("exposed", 2), ("fixed", tiers), ("hkappas", 1), ("hfixed", tiers)]
+      let want := [("layout", 1), ("carried", 1), ("exposed", 2), ("fixed", tiers), ("hkappas", 1), ("hfixed", tiers),
+        ("digest", if sh.claims = none then 1 else 0)]
       for (k, c) in want do
         unless seen.count k = c do .error s!"{shapeLine}: {seen.count k} {k} lines, expected {c}"
       unless kappas.length = tiers ∧ hkappas.length = tiers do .error s!"{shapeLine}: a stack per tier"

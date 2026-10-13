@@ -3,10 +3,10 @@
 use super::claims::NodeClaims;
 use super::design::{Design, Level};
 use super::reduce::{DenseReduced, MatrixReduced, Reduced};
-use super::statement::{Section, TreeStatement};
+use super::statement::{Kind, Section, TreeStatement};
 use super::*;
 use crate::class_flock::N_FLOCKS;
-use crate::rec::circuit::{Builder, Ew};
+use crate::rec::circuit::{Builder, Ew, Kw};
 use crate::rec::fixed::FixedColumn;
 use crate::rec::table::Table;
 use crate::rec::verifier::FixedHint;
@@ -75,7 +75,25 @@ fn summary(d: &Design<'_>) -> String {
     s.push_str(&exposed(d, d.statement.range(Section::DensePoint).len(), [true; 4]));
     s.push_str(&exposed(d, d.vars.0[0], [true, true, false, false]));
     s.push_str(&fixed(d, "fixed"));
+    if d.claims.is_none() {
+        s.push_str(&node_digest(d.arity));
+    }
     s
+}
+
+/// The digest `Kind::Node::digest_rows` computes of `arity` children's digests, child `i`'s words `4i + 1` to `4i + 4`,
+/// as its words.
+fn node_digest(arity: usize) -> String {
+    let mut b = Builder::new();
+    let items: Vec<[Kw; 4]> = (0..arity as u64)
+        .map(|i| {
+            let d = b.free_d([4 * i + 1, 4 * i + 2, 4 * i + 3, 4 * i + 4]);
+            b.d_to_k(d)
+        })
+        .collect();
+    let digest = Kind::Node.digest_rows(&mut b, &items);
+    let words: Vec<String> = b.d(digest).iter().map(ToString::to_string).collect();
+    format!("digest {arity} {}\n", words.join(" "))
 }
 
 /// Claims as one summary line: their edge lines without `edge`, joined by `|`.

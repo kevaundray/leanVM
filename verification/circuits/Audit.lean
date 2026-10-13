@@ -796,6 +796,13 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.DesignClaims.bindState_binds
 #print axioms LeanVMCircuits.Rec.DesignClaims.digestHalves_good
 #print axioms LeanVMCircuits.Rec.DesignClaims.digest_roundtrip
+#print axioms LeanVMCircuits.Rec.DesignClaims.mapM_kConst_good
+#print axioms LeanVMCircuits.Rec.DesignClaims.w64_const
+#print axioms LeanVMCircuits.Rec.DesignClaims.flatten_map_w64
+#print axioms LeanVMCircuits.Rec.DesignClaims.digestRows_good
+#print axioms LeanVMCircuits.Rec.DesignClaims.firstProd_bits
+#print axioms LeanVMCircuits.Rec.DesignClaims.nodeScale_small
+#print axioms LeanVMCircuits.Rec.DesignClaims.nodeScale_two
 #print axioms LeanVMCircuits.Rec.DesignClaims.bindOk_mutations
 #print axioms LeanVMCircuits.Rec.DesignClaims.carriedOk_mutations
 #print axioms LeanVMCircuits.Rec.DesignClaims.exposedOk_mutations

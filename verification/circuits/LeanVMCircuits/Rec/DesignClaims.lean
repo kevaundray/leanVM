@@ -13,6 +13,8 @@ The claims a node's design makes, for every shape: what it reads of a child's st
 `stmtOf` is the statement a node exposes from its reduction's outputs (`Reduced`): its kind, its digest's halves, the dense point (zero past the reduction's rounds), each dense polynomial's value (zero when unreduced), the matrices' row and column points and values. `stmtClaims_stmtOf`: the claims a parent reads off those words are the reduction's outputs (`outClaims`), so `reduced_dense_mem` and `reduced_matrix_mem`: every claim the reduction leaves is one the statement makes. `checkdesign` compares `Reduced::statement` with `stmtOf` on labeled outputs for every summarized shape (`exposedOk`).
 
 A tier's fixed polynomial stacks each circuit's fixed columns (`FixedLayout`): column `c` of `2 ^ taus c` words at `offset taus c`, the columns of more variables first and ties by index (`stack_offsets`), in a stack of `2 ^ kappa taus` words, the tier's circuits' stacks in order of their kind's index. `offset_aligned`, `offset_disjoint` and `offset_fits`: each column's offset is a multiple of its length, no two columns overlap and every column ends within the stack. `fixedModel` is `Design::fixed_claim`: column `c`'s term is at its prefix of the point, then its block `offset / 2 ^ tau` over `kappa - tau` bits, then the child's kind bits. `term_reads`: for any values of the circuits' columns, the multilinear extension of the tier's polynomial at that point is column `c` of the circuit the kind bits select at its prefix of the point, so a fresh fixed claim is a claim on the child's own column. `checkdesign` compares `Design::fixed_claim` on labeled hints with `fixedModel` for every summarized shape at zero heights and at heights that differ per table (`fixedOk`), and each tier's `kappa` with the summary's.
+
+`bindState` (`NodeClaims::bind_state`) binds a verified proof's final digest as two scalars that determine it (`bindState_good`, `bindState_binds`); `digestHalves` (`digest_halves_rows`) writes a digest as the statement's two halves, which a parent's `halves_to_d` reads back (`digest_roundtrip`); `digestRows` (`Kind::digest_rows`) computes the tree statement digest of a tag and items (`digestRows_good`), and `checkdesign` compares Rust's value of a tree of outputs' node digest with the model's (`nodeDigestOk`). A child's scale is zero exactly at the first level and one at every node (`nodeScale_small`, `nodeScale_two`).
 -/
 
 namespace LeanVMCircuits.Rec.DesignClaims
@@ -569,7 +571,152 @@ theorem digest_roundtrip (lo hi r x : Fin 4 → K) (hlo : toE (lo 0) (lo 1) (lo 
   · exact hr.2.2.1.trans b0
   · exact hr.2.2.2.trans b1
 
+/-- `Kind::tag` of a node of a tree of outputs: `tree-nod`'s little-endian bytes. -/
+def tagNode : ℕ := 0x646f6e2d65657274
+
+/-- `Kind::digest_rows`: the header (the kind's tag, the item count, six zeros) as `k_const`s, then `chain` over it and the items' words. -/
+def digestRows (tag : ℕ) (items : List (List ℕ)) : M ℕ := do
+  let header ← [tag, items.length, 0, 0, 0, 0, 0, 0].mapM kConst
+  Model.chain (header ++ items.flatten)
+
+theorem mapM_kConst_good : ∀ cs : List ℕ, Good (fun _ => True) (cs.mapM kConst) fun _ ws s' =>
+    ws.length = cs.length ∧ ∀ st val, Sat st s' val → ∀ i < cs.length, val (ws.getD i 0) = limbsOf [cs.getD i 0, 0, 0, 0]
+  | [] => Good.pure' fun _ _ _ => ⟨rfl, fun _ _ _ i hi => absurd hi (by simp)⟩
+  | c :: cs => by
+    rw [List.mapM_cons]
+    refine Good.seq ((kConst_good c).pre fun _ _ => trivial) fun s w s1 _ _ he1 hw => ?_
+    refine Good.seq ((mapM_kConst_good cs).pre fun _ _ => trivial) fun s' ws s2 _ hs' he2 hws => ?_
+    subst hs'
+    refine Good.pure' fun s3 _ hs3 => ?_
+    subst hs3
+    refine ⟨by simp [hws.1], fun st val hsat i hi => ?_⟩
+    rcases i with _ | i
+    · simpa using hw.2 st val (hsat.mono he2)
+    · simpa using hws.2 st val hsat i (by simpa using hi)
+
+theorem w64_const {val : Model.Val} {w c : ℕ} (h : val w = limbsOf [c, 0, 0, 0]) (hc : c < 2 ^ 64) :
+    w64 val w = BitVec.ofNat 64 c := by
+  simp only [w64, h, limbsOf]
+  rw [show ([c, 0, 0, 0] : List ℕ).getD (0 : Fin 4) 0 = c from rfl, toWord_ofWord c hc]
+
+theorem flatten_map_w64 (val : Model.Val) : ∀ items : List (List ℕ), (∀ it ∈ items, it.length = 4) →
+    items.flatten.map (w64 val) = (items.map fun it (k : Fin 4) => w64 val (it.getD k 0)).flatMap fun d => List.ofFn d
+  | [], _ => rfl
+  | it :: items, h => by
+    rw [List.flatten_cons, List.map_append, List.map_cons, List.flatMap_cons,
+      flatten_map_w64 val items fun x hx => h x (List.mem_cons_of_mem _ hx)]
+    congr 1
+    have h4 := h it List.mem_cons_self
+    apply List.ext_getElem (by simp [h4])
+    intro i h1 h2
+    simp only [List.getElem_map, List.getElem_ofFn, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (show i < it.length by simpa using h1), Option.getD_some]
+
+/-- A node's digest in rows: in any satisfying assignment, `digestRows` of a tag and items of four words each is the tree statement digest (`treeDigest`) of the tag and the items' words. -/
+theorem digestRows_good (tag : ℕ) (htag : tag < 2 ^ 64) (items : List (List ℕ)) (h4 : ∀ it ∈ items, it.length = 4)
+    (hlen : 8 * (8 + 4 * items.length) < 2 ^ 64) :
+    Good (fun _ => True) (digestRows tag items) fun _ r s' => ∀ st val, Sat st s' val →
+      words4 (val r) = digest (treeDigest (BitVec.ofNat 64 tag) (items.map fun it (k : Fin 4) => w64 val (it.getD k 0))) := by
+  unfold digestRows
+  have hfl : items.flatten.length = 4 * items.length := by
+    rw [List.length_flatten, List.sum_eq_card_nsmul _ 4 (fun n hn => by
+      obtain ⟨it, hit, rfl⟩ := List.mem_map.mp hn; exact h4 it hit)]
+    simp [mul_comm]
+  refine Good.seq (mapM_kConst_good _) fun s hs s1 _ _ he1 hh => ?_
+  have hl : 8 * (hs ++ items.flatten).length < 2 ^ 64 := by
+    rw [List.length_append, hh.1, hfl]; simpa using hlen
+  refine ((chain_good _ hl).pre fun _ _ => trivial).weaken (fun _ h => h) fun s' r s2 _ hs' he2 hc => ?_
+  subst hs'
+  intro st val hsat
+  rw [hc.2 st val hsat, List.map_append, flatten_map_w64 val items h4, treeDigest, List.length_map]
+  congr 3
+  have hv := hh.2 st val (hsat.mono he2)
+  have hn : items.length < 2 ^ 64 := by omega
+  apply List.ext_getElem (by simp [hh.1])
+  intro i h1 h2
+  have h8 : i < 8 := by simpa using h2
+  have h1' : i < hs.length := by simpa using h1
+  rw [List.getElem_map]
+  have e := hv i (by simpa using h8)
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h1', Option.getD_some] at e
+  interval_cases i <;> simp only [List.getD_cons_zero, List.getD_cons_succ] at e <;>
+    first
+    | exact w64_const e htag
+    | exact w64_const e hn
+    | exact (w64_const e (by norm_num)).trans rfl
+
+/-- The digest `Kind::Node::digest_rows` computes of `a` children's digests, child `i`'s words `4i + 1` to `4i + 4`, as its words: `treeDigest` of the node's tag and those digests. -/
+def nodeDigestModel (a : ℕ) : List ℕ :=
+  (List.ofFn (digest (treeDigest (BitVec.ofNat 64 tagNode)
+    ((List.range a).map fun i (k : Fin 4) => BitVec.ofNat 64 (4 * i + k.val + 1))))).map BitVec.toNat
+
 end Digest
+
+/-! A child's scale. -/
+
+section Scale
+
+/-- `Edges.firstProd` of the low `b` bits of a word holding `m`: one when they are all zero, else zero. -/
+theorem firstProd_bits (x : Fin 4 → K) (m : ℕ) : ∀ b, (∀ j < b, (toWord (x 0)).testBit j = m.testBit j) →
+    Edges.firstProd x b = if m % 2 ^ b = 0 then 1 else 0
+  | 0, _ => by simp [Edges.firstProd, Nat.mod_one]
+  | b + 1, hx => by
+    rw [Edges.firstProd, firstProd_bits x m b fun j hj => hx j (by omega)]
+    have hb : Edges.bitK x b = if m.testBit b then 1 else 0 := by rw [Edges.bitK, hx b (by omega)]
+    have hm : m % 2 ^ (b + 1) = m % 2 ^ b + 2 ^ b * (m / 2 ^ b % 2) := Nat.mod_pow_succ
+    have ht : m.testBit b = decide (m / 2 ^ b % 2 = 1) := Nat.testBit_eq_decide_div_mod_eq
+    have hpos : 0 < 2 ^ b := Nat.two_pow_pos b
+    rw [hb, ht]
+    rcases Nat.mod_two_eq_zero_or_one (m / 2 ^ b) with h2 | h2
+    · simp only [h2, zero_ne_one, decide_false, Bool.false_eq_true, ↓reduceIte, emb_zero, zero_add, mul_one, hm,
+        mul_zero, add_zero]
+    · have hne : m % 2 ^ (b + 1) ≠ 0 := by rw [hm, h2]; positivity
+      simp only [h2, decide_true, ↓reduceIte, hne]
+      have h1 : emb 1 + 1 = 0 := by rw [show emb 1 = 1 from map_one _, one_add_one_eq_two]; exact two_E
+      rw [h1, mul_zero]
+
+/-- The scale of a child of the small tier (`kind_rows` with more than two kinds, `Mode.bits` of its kind bits): zero exactly at the first level, else one. -/
+theorem nodeScale_small (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (q : ℕ) (hq : q < sh.size)
+    (ht : (sh.placeAt q).tier = 0) (x : Fin 4 → K) (hx : x 0 = ofWord (sh.code q)) :
+    Edges.nodeScale (.bits (sh.kindBits 0)) x = if q = 0 then 0 else 1 := by
+  have hc := code_lt sh h q hq hs
+  have hmod := code_mod sh h q hq
+  rw [ht] at hmod
+  have hs0 : sh.start 0 = 0 := rfl
+  rw [hs0, Nat.sub_zero] at hmod
+  rw [Edges.nodeScale, firstProd_bits x (sh.code q) _ fun j _ => by rw [hx, toWord_ofWord _ hc], hmod]
+  by_cases hq0 : q = 0
+  · simp only [hq0, ↓reduceIte]
+    rw [one_add_one_eq_two]; exact two_E
+  · simp [hq0]
+
+/-- The scale of a child of a tree of two kinds (`kind_rows` holding the kind to a bit, `Mode.kind`): zero exactly at the first level, else one. -/
+theorem nodeScale_two (sh : Shape) (h : sh.Accepted) (h2 : sh.size = 2) (q : ℕ) (hq : q < sh.size)
+    (x : Fin 4 → K) (hx : x 0 = ofWord (sh.code q)) (hx1 : x 1 = 0) (hx2 : x 2 = 0) :
+    Edges.nodeScale .kind x = if q = 0 then 0 else 1 := by
+  have hn1 : sh.nTiers = 1 := by
+    rcases hc : sh.claims with _ | ⟨large, _ | s⟩
+    · simp [Shape.nTiers, hc]
+    · simp [Shape.nTiers, hc]
+    · have := (h.small large s hc).1
+      simp [Shape.size, hc] at h2
+      omega
+  have hcq : sh.code q = q := by
+    have ht := tier_lt sh h q hq
+    have ht0 : (sh.placeAt q).tier = 0 := by omega
+    rw [code_eq sh h q hq, ht0]
+    simp [Shape.start]
+  rw [Edges.nodeScale, hx, hx1, hx2, hcq, ← ofWord_zero]
+  have e := Model.ev_code q
+  rw [e]
+  rcases Nat.lt_or_ge q 1 with hq1 | hq1
+  · have : q = 0 := by omega
+    subst this; simp [ofWord_zero, emb_zero]
+  · have : q = 1 := by omega
+    subst this; simp [ofWord_one]
+    exact map_one _
+
+end Scale
 
 /-! The design's checks, as `checkdesign` makes them on a summary. -/
 
@@ -608,6 +755,9 @@ def fixedModel (tier kb : ℕ) (taus : List ℕ) : Dense ℕ :=
 
 /-- A tier's fixed claim, of `kb` kind bits, on hints of columns of variables `taus`, is `fixedModel`'s. -/
 def fixedOk (tier kb : ℕ) (taus : List ℕ) (c : Claims ℕ) : Bool := c == ⟨[fixedModel tier kb taus], []⟩
+
+/-- `Kind::Node::digest_rows` of `a` children's digests of words `4i + 1` to `4i + 4` is `nodeDigestModel a`. -/
+def nodeDigestOk (a : ℕ) (ws : List ℕ) : Bool := ws == nodeDigestModel a
 
 /-- `NodeClaims::bind_state` of a final state of words 1 to 4 binds `1 + 2y + 3y^2` and `4`, as `bindState` does. -/
 def bindOk (ws : List Word) : Bool := ws == [(1, 2, 3), (4, 0, 0)]
