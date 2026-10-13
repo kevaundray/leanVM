@@ -20,12 +20,30 @@
 #![warn(unreachable_pub)]
 
 pub mod circuit;
-mod error;
 pub mod gadgets;
 pub mod lincheck;
 pub mod reduction;
+mod round;
+#[cfg(any(test, feature = "test-util"))]
+pub mod test_util;
 mod witness;
 pub mod zerocheck;
 
-pub use error::FlockError;
-pub use witness::{Tables, Witness};
+use thiserror::Error;
+
+use crate::lincheck::LincheckError;
+use crate::zerocheck::ZerocheckError;
+
+pub use witness::{BatchRows, Tables};
+
+/// Why a flock reduction is refused, by the step that refuses it.
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum FlockError {
+    /// The zerocheck refuses.
+    #[error("zerocheck: {0}")]
+    Zerocheck(ZerocheckError),
+
+    /// The lincheck refuses.
+    #[error("lincheck: {0}")]
+    Lincheck(LincheckError),
+}

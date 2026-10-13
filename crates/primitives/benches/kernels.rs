@@ -19,7 +19,7 @@ use std::hint::black_box;
 
 use bench::{Metric, Plan, Timing, bencher_json};
 use primitives::bits::{bit_transpose_64bytes, transpose_64x64};
-use primitives::field::{F64, F192, mul4};
+use primitives::field::{F64, F192};
 use primitives::test_util::Rng;
 
 /// Operands per array, few enough that a sweep's inputs and outputs stay in L1.
@@ -63,11 +63,11 @@ fn main() {
         ),
         (
             "f192-mul4-throughput",
-            time(plan, 1 << 22, |ops| sweep2(ea4, eb4, &mut e4_out, ops, mul4)),
+            time(plan, 1 << 22, |ops| sweep2(ea4, eb4, &mut e4_out, ops, F192::mul4)),
         ),
         (
             "f192-mul4-latency",
-            time(plan, 1 << 22, |ops| chain(ea4[0], eb4[0], ops, mul4)),
+            time(plan, 1 << 22, |ops| chain(ea4[0], eb4[0], ops, F192::mul4)),
         ),
         (
             "f192-square",
@@ -98,7 +98,7 @@ fn main() {
         ),
     ];
 
-    if std::env::args().any(|arg| arg == "--json") {
+    if bench::json_requested() {
         let report =
             rows.map(|(name, (ops, t))| (name.to_string(), vec![("per-op", Metric::nanoseconds_per_op(&t, ops))]));
         println!("{}", bencher_json(&report));
@@ -112,7 +112,7 @@ fn main() {
 
 /// A warmup and the plan's measured passes of `kernel`, each doing `ops` operations.
 fn time(plan: Plan, ops: usize, mut kernel: impl FnMut(usize)) -> (usize, Timing) {
-    (ops, plan.warm_then_measure(|_| kernel(ops)).1)
+    (ops, plan.warm_then_measure(|| kernel(ops)).1)
 }
 
 /// `ops` calls `out[i] = f(a[i])`, in sweeps over the arrays, each reading operands the optimizer cannot see.

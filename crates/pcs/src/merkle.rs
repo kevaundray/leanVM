@@ -25,12 +25,13 @@
 
 use parallel::SendPtr;
 use primitives::field::F64;
-use primitives::hash::{BATCH, BLOCK_LEN, OUT_LEN, hash_many, hash_many_dyn_from_state, zero_prefix_state};
+use primitives::hash::{BATCH, BLOCK_LEN, ChainingValue, OUT_LEN, hash_many};
 use std::mem::MaybeUninit;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-pub type Hash = [u8; 32];
+/// A node of the tree: one BLAKE2s-256 digest.
+pub type Hash = [u8; OUT_LEN];
 
 /// Hash one leaf with standard BLAKE2s-256.
 #[inline]
@@ -55,7 +56,7 @@ const STAGE_TILE_BYTES: usize = 16 << 10;
 /// The image's whole hash blocks of leading zeros are one chaining value, computed once for every leaf.
 ///
 /// The committer and the native verifier hash leaves through it alike.
-pub struct LeafHasher(LeafShape);
+pub(crate) struct LeafHasher(LeafShape);
 
 /// The hashing plan for one leaf shape, chosen once.
 enum LeafShape {
@@ -63,10 +64,8 @@ enum LeafShape {
     Direct {
         /// Bytes of a row.
         row_bytes: usize,
-        /// The chaining value after the zero blocks.
-        state: [u32; 8],
-        /// Bytes the zero blocks account for, the hash counter's start.
-        t_offset: u64,
+        /// The hash after the zero blocks.
+        start: ChainingValue,
     },
     /// Some padding remains past the zero blocks, so rows are zero-extended in a tile first.
     ///
@@ -76,10 +75,8 @@ enum LeafShape {
         row_bytes: usize,
         /// Bytes of the image past the zero blocks: the remaining padding, then the row.
         image: usize,
-        /// The chaining value after the zero blocks.
-        state: [u32; 8],
-        /// Bytes the zero blocks account for, the hash counter's start.
-        t_offset: u64,
+        /// The hash after the zero blocks.
+        start: ChainingValue,
     },
     /// Leaves of no whole number of blocks: one at a time, zero-extended to `leaf_bytes`.
     Single {
@@ -96,7 +93,7 @@ impl LeafHasher {
     /// # Panics
     ///
     /// Panics unless `0 < row_bytes <= leaf_bytes`, and a staged image fits the tile.
-    pub fn new(row_bytes: usize, leaf_bytes: usize) -> Self {
+    pub(crate) fn new(row_bytes: usize, leaf_bytes: usize) -> Self {
         assert!(0 < row_bytes && row_bytes <= leaf_bytes, "a leaf holds its row");
         if !leaf_bytes.is_multiple_of(BLOCK_LEN) {
             assert!(
@@ -106,27 +103,22 @@ impl LeafHasher {
             return Self(LeafShape::Single { row_bytes, leaf_bytes });
         }
         let zero_blocks = (leaf_bytes - row_bytes) / BLOCK_LEN;
-        let (state, t_offset) = (zero_prefix_state(zero_blocks), (zero_blocks * BLOCK_LEN) as u64);
+        let start = ChainingValue::zero_prefix(zero_blocks);
         let image = leaf_bytes - zero_blocks * BLOCK_LEN;
         if image == row_bytes {
-            Self(LeafShape::Direct {
-                row_bytes,
-                state,
-                t_offset,
-            })
+            Self(LeafShape::Direct { row_bytes, start })
         } else {
             assert!(image <= STAGE_TILE_BYTES, "a padded leaf fits the tile");
             Self(LeafShape::Staged {
                 row_bytes,
                 image,
-                state,
-                t_offset,
+                start,
             })
         }
     }
 
     /// Bytes of a row.
-    pub const fn row_bytes(&self) -> usize {
+    pub(crate) const fn row_bytes(&self) -> usize {
         match self.0 {
             LeafShape::Direct { row_bytes, .. }
             | LeafShape::Staged { row_bytes, .. }
@@ -135,20 +127,15 @@ impl LeafHasher {
     }
 
     /// Hash one leaf per row into `out`.
-    pub fn hash(&self, rows: &[u8], out: &mut [MaybeUninit<Hash>]) {
+    pub(crate) fn hash(&self, rows: &[u8], out: &mut [MaybeUninit<Hash>]) {
         match self.0 {
-            LeafShape::Direct {
-                row_bytes,
-                state,
-                t_offset,
-            } => {
-                hash_many_dyn_from_state(rows, row_bytes, &state, t_offset, digests_as_bytes(out));
+            LeafShape::Direct { row_bytes, start } => {
+                start.hash_many(rows, row_bytes, digests_as_bytes(out));
             }
             LeafShape::Staged {
                 row_bytes,
                 image,
-                state,
-                t_offset,
+                start,
             } => {
                 // Images per tile: whole hash batches where the tile holds at least one batch.
                 let per_tile = STAGE_TILE_BYTES / image;
@@ -160,7 +147,7 @@ impl LeafHasher {
                 let mut tile = Tile::new();
                 for (out, rows) in out.chunks_mut(per_tile).zip(rows.chunks(per_tile * row_bytes)) {
                     let images = tile.extend(rows, row_bytes, image);
-                    hash_many_dyn_from_state(images, image, &state, t_offset, digests_as_bytes(out));
+                    start.hash_many(images, image, digests_as_bytes(out));
                 }
             }
             LeafShape::Single { row_bytes, leaf_bytes } if row_bytes == leaf_bytes => {
@@ -294,10 +281,72 @@ impl MerkleBuilder {
     /// # Panics
     ///
     /// Panics unless every leaf was absorbed.
-    pub(crate) fn finish(self) -> Vec<Hash> {
+    pub(crate) fn finish(self) -> MerkleTree {
         assert!(self.progress.all_claimed(), "every leaf absorbed");
         // SAFETY: every block was absorbed once, and the last arrivals climbed every level above the blocks.
-        unsafe { self.nodes.assume_init() }
+        MerkleTree(unsafe { self.nodes.assume_init() })
+    }
+}
+
+/// A finished Merkle tree over a power of two of leaves.
+///
+/// Its nodes are stored level after level from the leaves, the root last.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MerkleTree(Vec<Hash>);
+
+impl MerkleTree {
+    /// The root.
+    pub(crate) fn root(&self) -> Hash {
+        *self.0.last().expect("a tree has a root")
+    }
+
+    /// The number of leaves.
+    pub(crate) const fn num_leaves(&self) -> usize {
+        self.0.len().div_ceil(2)
+    }
+
+    /// Open `positions`: one row per distinct position, and one octopus authenticating them all.
+    ///
+    /// - `row(q)` is the leaf at position `q`.
+    /// - The octopus holds every sibling no queried subtree supplies.
+    ///
+    /// A sibling shared by several paths is stored once.
+    /// So `q` queries in a tree of depth `d` store at most `q d` digests, what `q` independent paths would.
+    pub(crate) fn prune<R: AsRef<[F64]>>(&self, positions: &[usize], row: impl Fn(usize) -> R) -> PrunedMerklePaths {
+        let num_leaves = self.num_leaves();
+        let sorted = sorted_unique(positions);
+        debug_assert!(sorted.iter().all(|&p| p < num_leaves));
+
+        let mut sibling_hashes = Vec::new();
+        let mut active = sorted.clone();
+        let (mut level_start, mut level_len) = (0usize, num_leaves);
+        while level_len > 1 {
+            let mut next = Vec::with_capacity(active.len());
+            let mut i = 0;
+            while i < active.len() {
+                let p = active[i];
+                // Both children active: they fold into the same parent, so no sibling is needed.
+                // Otherwise the sibling has to be sent.
+                if i + 1 < active.len() && active[i + 1] == (p ^ 1) {
+                    i += 2;
+                } else {
+                    sibling_hashes.push(self.0[level_start + (p ^ 1)]);
+                    i += 1;
+                }
+                next.push(p >> 1);
+            }
+            // `next` stays sorted and unique: sibling pairs collapse to one parent, and `p >> 1` is otherwise increasing.
+            active = next;
+            level_start += level_len;
+            level_len >>= 1;
+        }
+
+        // The distinct rows, one after another.
+        let mut rows = Vec::new();
+        for &q in &sorted {
+            rows.extend_from_slice(row(q).as_ref());
+        }
+        PrunedMerklePaths { rows, sibling_hashes }
     }
 }
 
@@ -334,7 +383,10 @@ impl Nodes {
     /// # Safety
     ///
     /// No other live slice overlaps them.
-    #[allow(clippy::mut_from_ref)]
+    #[expect(
+        clippy::mut_from_ref,
+        reason = "the nodes are written through a shared base pointer at disjoint ranges"
+    )]
     unsafe fn level_mut(&self, level: usize, first: usize, n: usize) -> &mut [MaybeUninit<Hash>] {
         debug_assert!(first + n <= self.width(level));
         // SAFETY: in bounds, and exclusive by the caller.
@@ -445,27 +497,25 @@ fn hash_pairs(pairs: &[[Hash; 2]], parents: &mut Vec<Hash>) {
     hash_many::<{ 2 * OUT_LEN }>(pairs.as_flattened().as_flattened(), parents.as_flattened_mut());
 }
 
-/// Query positions with duplicates removed, ascending: the order a phase stores
-/// its rows in, and the order the octopus is built and checked against.
-fn sorted_unique(queries: &[usize]) -> Vec<usize> {
+/// Query positions with duplicates removed, ascending.
+///
+/// It is the order a phase stores its rows in, and the order its octopus is built and checked against.
+pub(crate) fn sorted_unique(queries: &[usize]) -> Vec<usize> {
     let mut unique = queries.to_vec();
     unique.sort_unstable();
     unique.dedup();
     unique
 }
 
-/// One opening phase's Merkle data: the rows opened at each distinct queried
-/// position (sorted), and one octopus authenticating all of them.
+/// One opening phase's Merkle data: the rows at each distinct queried position, ascending, and one octopus over them.
 ///
-/// Leaf data is `F64` because that is what a Merkle preimage is; an `E`-valued
-/// row of width `w` is `3w` words, packed by the opener. The phase never says how
-/// wide a row is: the caller announces that, which is what pins the leaf image the
-/// octopus is checked against. A row may be NARROWER than the image it hashes to,
-/// the missing words being a zero prefix the caller also announces,
-/// which is what keeps a padding-free L0 commitment's absent lanes out of the
-/// proof.
+/// - A row is words of `K`, what a Merkle preimage is; a row of `w` elements of `E` is `3w` words.
+/// - The phase never says how wide a row is: the caller announces it, which pins the leaf image the octopus checks.
+/// - A row may be narrower than the image it hashes to, the missing words a zero prefix the caller also announces.
+///
+/// That prefix is what keeps an L0 commitment's absent lanes out of the proof.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PrunedMerklePaths {
+pub(crate) struct PrunedMerklePaths {
     /// The distinct rows, ascending by position, one after another.
     pub rows: Vec<F64>,
     /// The octopus: every sibling no queried subtree supplies, bottom level first.
@@ -477,7 +527,7 @@ impl PrunedMerklePaths {
     ///
     /// No length is written: the verifier knows how many rows and how wide.
     #[must_use]
-    pub fn to_hint(&self) -> Vec<u8> {
+    pub(crate) fn to_hint(&self) -> Vec<u8> {
         let mut hint = Vec::with_capacity(8 * self.rows.len() + 32 * self.sibling_hashes.len());
         for word in &self.rows {
             hint.extend_from_slice(&word.0.to_le_bytes());
@@ -492,7 +542,7 @@ impl PrunedMerklePaths {
     ///
     /// Returns nothing when the bytes do not split that way, so each paths value has one hint.
     #[must_use]
-    pub fn from_hint(hint: &[u8], n_rows: usize, row_words: usize) -> Option<Self> {
+    pub(crate) fn from_hint(hint: &[u8], n_rows: usize, row_words: usize) -> Option<Self> {
         let (rows, siblings) = hint.split_at_checked(n_rows.checked_mul(row_words)?.checked_mul(8)?)?;
         let (words, []) = rows.as_chunks::<8>() else {
             unreachable!("the rows span whole words")
@@ -506,68 +556,16 @@ impl PrunedMerklePaths {
         })
     }
 
-    /// Prover side: open `positions` of `tree`, storing one row per distinct
-    /// position plus a single octopus over them. `row(q)` is the leaf at `q`.
+    /// Authenticate this phase against `root`, and expand it into one opening per query, in query order.
     ///
-    /// For `q` queries in a tree of depth `d` the octopus is at most `q · d`
-    /// hashes (what `q` independent paths would cost) and typically much
-    /// smaller, since a sibling shared by several paths is emitted once.
-    pub fn prune<R: AsRef<[F64]>>(
-        tree: &[Hash],
-        num_leaves: usize,
-        positions: &[usize],
-        row: impl Fn(usize) -> R,
-    ) -> Self {
-        assert!(num_leaves.is_power_of_two() && num_leaves > 0);
-        assert_eq!(tree.len(), 2 * num_leaves - 1);
-        let sorted = sorted_unique(positions);
-        debug_assert!(sorted.iter().all(|&p| p < num_leaves));
-
-        let mut sibling_hashes = Vec::new();
-        let mut active = sorted.clone();
-        let (mut level_start, mut level_len) = (0usize, num_leaves);
-        while level_len > 1 {
-            let mut next = Vec::with_capacity(active.len());
-            let mut i = 0;
-            while i < active.len() {
-                let p = active[i];
-                // Both children active: they fold into the same parent, so no
-                // sibling is needed. Otherwise the sibling has to be sent.
-                if i + 1 < active.len() && active[i + 1] == (p ^ 1) {
-                    i += 2;
-                } else {
-                    sibling_hashes.push(tree[level_start + (p ^ 1)]);
-                    i += 1;
-                }
-                next.push(p >> 1);
-            }
-            // `next` stays sorted-unique: sibling pairs collapse to one parent,
-            // and `p >> 1` is otherwise strictly increasing.
-            active = next;
-            level_start += level_len;
-            level_len >>= 1;
-        }
-
-        // The distinct rows, one after another.
-        let mut rows = Vec::new();
-        for &q in &sorted {
-            rows.extend_from_slice(row(q).as_ref());
-        }
-        Self { rows, sibling_hashes }
-    }
-
-    /// Verifier side: authenticate this phase against `root` and expand it into
-    /// one opening per query, in `queries` order (duplicates included).
+    /// - It is the one way to consume a phase, so no row is read before the Merkle check runs.
+    /// - Rebuilding every node on the queried paths recomputes the root and yields each query's full sibling path.
+    /// - So the pruned form is checked and the unpruned form produced in one walk.
     ///
-    /// The single way to consume a phase, so rows can never be read without the
-    /// Merkle check having run. Rebuilding every node on the queried paths both
-    /// recomputes the root AND yields each query's full sibling path, so the
-    /// pruned form is checked and the unpruned form produced in one walk.
+    /// # Returns
     ///
-    /// `None` on any mismatch: a wrong row count or width, an out-of-range
-    /// query, an octopus with too few or too many siblings, or a root that does
-    /// not match.
-    pub fn open(
+    /// Nothing on a wrong row count or width, an out-of-range query, a wrong sibling count, or another root.
+    pub(crate) fn open(
         &self,
         root: &Hash,
         num_leaves: usize,
@@ -591,8 +589,8 @@ impl PrunedMerklePaths {
         // SAFETY: the hasher wrote one digest per row.
         let leaf_hashes = unsafe { leaf_hashes.assume_init() };
 
-        // Rebuild every node on the queried paths bottom-up, pulling a stored
-        // sibling only where that sibling is not itself a queried subtree.
+        // Rebuild every node on the queried paths bottom-up.
+        // A stored sibling is pulled only where it is not itself a queried subtree.
         //
         // Every level's known nodes go into one buffer, level `l` at `starts[l]..starts[l + 1]`:
         // both children of each parent, ascending by index.
@@ -692,6 +690,14 @@ impl Openings {
         &self.images[i * self.leaf_words..][..self.leaf_words]
     }
 
+    /// Each query's row: its leaf image with the zero prefix dropped, the last `row_words` words.
+    #[must_use]
+    pub fn rows(&self, row_words: usize) -> Vec<Vec<F64>> {
+        (0..self.len())
+            .map(|i| self.image(i)[self.leaf_words - row_words..].to_vec())
+            .collect()
+    }
+
     /// Query `i`'s siblings, lowest first.
     #[must_use]
     pub fn path(&self, i: usize) -> &[Hash] {
@@ -703,49 +709,46 @@ impl Openings {
 mod tests {
     use super::*;
 
-    impl MerkleBuilder {
-        /// Absorb all rows, in parallel blocks.
-        fn absorb_all(&self, data: &[u8]) {
-            let num_leaves = self.nodes.width(0);
-            assert_eq!(data.len(), num_leaves * self.leaves.row_bytes(), "one row per leaf");
-            // Enough blocks for every worker, each at most one unit.
-            let log_tasks = (4 * parallel::num_threads()).next_power_of_two().ilog2();
-            let log_block = num_leaves.ilog2().saturating_sub(log_tasks).min(UNIT.ilog2());
-            let block_bytes = self.leaves.row_bytes() << log_block;
-            parallel::for_each(num_leaves >> log_block, |b| {
-                self.absorb_bytes(b << log_block, &data[b * block_bytes..][..block_bytes]);
-            });
-        }
+    /// Absorb all rows into `builder`, in parallel blocks.
+    fn absorb_all(builder: &MerkleBuilder, data: &[u8]) {
+        let num_leaves = builder.nodes.width(0);
+        assert_eq!(data.len(), num_leaves * builder.leaves.row_bytes(), "one row per leaf");
+        // Enough blocks for every worker, each at most one unit.
+        let log_tasks = (4 * parallel::num_threads()).next_power_of_two().ilog2();
+        let log_block = num_leaves.ilog2().saturating_sub(log_tasks).min(UNIT.ilog2());
+        let block_bytes = builder.leaves.row_bytes() << log_block;
+        parallel::for_each(num_leaves >> log_block, |b| {
+            builder.absorb_bytes(b << log_block, &data[b * block_bytes..][..block_bytes]);
+        });
     }
 
     /// The tree over `num_leaves` rows of `row_words`, each hashed as `zeros(leaf_words - row_words) || row`.
-    fn merkle_tree_padded_rows(data: &[F64], num_leaves: usize, row_words: usize, leaf_words: usize) -> Vec<Hash> {
+    fn merkle_tree_padded_rows(data: &[F64], num_leaves: usize, row_words: usize, leaf_words: usize) -> MerkleTree {
         assert_eq!(data.len(), row_words * num_leaves);
         let builder = MerkleBuilder::new(num_leaves, row_words, leaf_words);
-        builder.absorb_all(words_as_bytes(data));
+        absorb_all(&builder, words_as_bytes(data));
         builder.finish()
     }
 
     /// The tree over `num_leaves` equal byte leaves, each hashed as plain BLAKE2s-256 of its bytes.
-    fn merkle_tree(data: &[u8], num_leaves: usize) -> Vec<Hash> {
+    fn merkle_tree(data: &[u8], num_leaves: usize) -> MerkleTree {
         let leaf_bytes = data.len() / num_leaves;
         let builder = MerkleBuilder::with_bytes(num_leaves, leaf_bytes, leaf_bytes);
-        builder.absorb_all(data);
+        absorb_all(&builder, data);
         builder.finish()
     }
 
-    /// Per-leaf reference for the tree.
-    fn merkle_tree_sequential(leaves: impl Iterator<Item = Hash>, num_leaves: usize) -> Vec<Hash> {
+    /// The tree over these leaf digests, one parent at a time: the reference the builder is checked against.
+    fn merkle_tree_sequential(leaves: impl Iterator<Item = Hash>) -> MerkleTree {
         let mut tree: Vec<Hash> = leaves.collect();
-        assert_eq!(tree.len(), num_leaves);
-        let (mut start, mut len) = (0, num_leaves);
+        let (mut start, mut len) = (0, tree.len());
         while len > 1 {
             for i in 0..len / 2 {
                 tree.push(hash_pair(&tree[start + 2 * i], &tree[start + 2 * i + 1]));
             }
             (start, len) = (start + len, len / 2);
         }
-        tree
+        MerkleTree(tree)
     }
 
     #[test]
@@ -770,10 +773,10 @@ mod tests {
             let data: Vec<u8> = (0..num_leaves * leaf_size)
                 .map(|i| (i.wrapping_mul(131) ^ 0x5a) as u8)
                 .collect();
-            let want = merkle_tree_sequential(data.chunks(leaf_size).map(hash_leaf), num_leaves);
+            let want = merkle_tree_sequential(data.chunks(leaf_size).map(hash_leaf));
             assert_eq!(
-                &merkle_tree(&data, num_leaves)[..],
-                &want[..],
+                merkle_tree(&data, num_leaves),
+                want,
                 "num_leaves={num_leaves} leaf_size={leaf_size}"
             );
         }
@@ -802,17 +805,14 @@ mod tests {
             let data: Vec<F64> = (0..row_words * num_leaves)
                 .map(|i| F64(i.wrapping_mul(0x9E37_79B9_7F4A_7C15) as u64 | 1))
                 .collect();
-            let want = merkle_tree_sequential(
-                data.chunks(row_words).map(|row| {
-                    let mut image = vec![0u8; 8 * (leaf_words - row_words)];
-                    image.extend_from_slice(words_as_bytes(row));
-                    hash_leaf(&image)
-                }),
-                num_leaves,
-            );
+            let want = merkle_tree_sequential(data.chunks(row_words).map(|row| {
+                let mut image = vec![0u8; 8 * (leaf_words - row_words)];
+                image.extend_from_slice(words_as_bytes(row));
+                hash_leaf(&image)
+            }));
             assert_eq!(
-                &merkle_tree_padded_rows(&data, num_leaves, row_words, leaf_words)[..],
-                &want[..],
+                merkle_tree_padded_rows(&data, num_leaves, row_words, leaf_words),
+                want,
                 "num_leaves={num_leaves} row_words={row_words} leaf_words={leaf_words}"
             );
         }
@@ -831,7 +831,7 @@ mod tests {
                 let rows = row_words << log_block;
                 builder.absorb(b << log_block, &data[b * rows..][..rows]);
             }
-            assert_eq!(&builder.finish()[..], &want[..], "log_block={log_block}");
+            assert_eq!(builder.finish(), want, "log_block={log_block}");
         }
     }
 
@@ -853,12 +853,12 @@ mod tests {
         builder.absorb(8, &data[..64]);
     }
 
-    // A leaf's hash: its words' little-endian bytes.
+    /// A leaf's hash: its words' little-endian bytes.
     fn hash_words(image: &[F64]) -> Hash {
         hash_leaf(&image.iter().flat_map(|w| w.0.to_le_bytes()).collect::<Vec<u8>>())
     }
 
-    // The root a leaf image and its path reach, the direction at each level the index's bit.
+    /// The root a leaf image and its path reach, the direction at each level the index's bit.
     fn walk(image: &[F64], path: &[Hash], index: usize) -> Hash {
         (path.iter().enumerate()).fold(hash_words(image), |acc, (lvl, sibling)| {
             if index >> lvl & 1 == 0 {
@@ -869,17 +869,9 @@ mod tests {
         })
     }
 
-    fn tree_of(rows: &[Vec<F64>]) -> Vec<Hash> {
-        let mut tree: Vec<Hash> = rows.iter().map(|r| hash_words(r)).collect();
-        let (mut start, mut len) = (0usize, rows.len());
-        while len > 1 {
-            for i in 0..len / 2 {
-                tree.push(hash_pair(&tree[start + 2 * i], &tree[start + 2 * i + 1]));
-            }
-            start += len;
-            len /= 2;
-        }
-        tree
+    /// The tree whose leaves are these rows' words.
+    fn tree_of(rows: &[Vec<F64>]) -> MerkleTree {
+        merkle_tree_sequential(rows.iter().map(|r| hash_words(r)))
     }
 
     #[test]
@@ -889,10 +881,10 @@ mod tests {
             .map(|q| (0..width).map(|j| F64((q * width + j) as u64)).collect())
             .collect();
         let tree = tree_of(&rows);
-        let root = tree[tree.len() - 1];
+        let root = tree.root();
         let queries = [5usize, 1, 5, 3, 1];
 
-        let paths = PrunedMerklePaths::prune(&tree, num_leaves, &queries, |q| rows[q].clone());
+        let paths = tree.prune(&queries, |q| rows[q].clone());
         assert_eq!(paths.rows.len(), 3 * width, "one row per distinct query");
 
         let openings = paths.open(&root, num_leaves, &queries, width, width).expect("open");
@@ -915,9 +907,9 @@ mod tests {
             .map(|q| (0..width).map(|j| F64((q * width + j) as u64)).collect())
             .collect();
         let tree = tree_of(&rows);
-        let root = tree[tree.len() - 1];
+        let root = tree.root();
         let queries = [5usize, 1, 3];
-        let good = PrunedMerklePaths::prune(&tree, num_leaves, &queries, |q| rows[q].clone());
+        let good = tree.prune(&queries, |q| rows[q].clone());
         let open = |p: &PrunedMerklePaths, qs: &[usize], w: usize, n: usize| p.open(&root, n, qs, w, w);
         assert!(open(&good, &queries, width, num_leaves).is_some(), "honest phase");
 
@@ -961,7 +953,7 @@ mod tests {
         // Fixture: three distinct rows of four words in a tree of eight leaves.
         let rows: Vec<Vec<F64>> = (0..8).map(|q| (0..4).map(|j| F64(q * 4 + j)).collect()).collect();
         let tree = tree_of(&rows);
-        let paths = PrunedMerklePaths::prune(&tree, 8, &[5, 1, 3], |q| rows[q].clone());
+        let paths = tree.prune(&[5, 1, 3], |q| rows[q].clone());
 
         // The hint is the 3 * 4 words, then the siblings, nothing else.
         let hint = paths.to_hint();

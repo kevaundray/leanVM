@@ -265,7 +265,9 @@ mod tests {
     use super::*;
     use crate::rv::Ext;
     use crate::tables::{TableId, Word};
+    use flock::BatchRows;
     use flock::lincheck::LincheckCircuit;
+    use flock::test_util::Witness;
     use primitives::field::F192;
     use primitives::test_util::Rng;
 
@@ -299,11 +301,8 @@ mod tests {
                 }
             }
         }
-        let words = (1usize << circuit.k_log()) / 64;
         for (ts, prev) in cases {
-            let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-            let inputs = [ts, prev[0], prev[1], prev[2]];
-            circuit.witness_instance(&inputs, &mut z, &mut az, &mut bz);
+            let z = Witness::of_instance(&circuit, &[ts, prev[0], prev[1], prev[2]]).z;
             assert_eq!(
                 z[4],
                 Clock { timestamp: ts }.step(&prev, &slots),
@@ -377,10 +376,9 @@ mod tests {
                     [vec![ts], prev, operands].concat()
                 })
                 .collect();
-            let walk = circuit.witness_by_walk(&rows, &rows[0], n_log, |row: &Vec<u64>, words| {
-                words.copy_from_slice(row);
-            });
-            let words = circuit.witness_by_instance(&rows, &rows[0], n_log, |row: &Vec<u64>, z, az, bz| match spec {
+            let rows = BatchRows::new(&rows, &rows[0], n_log);
+            let walk = Witness::by_walk(&circuit, rows, |row: &Vec<u64>, words| words.copy_from_slice(row));
+            let words = Witness::by_instance(&circuit, rows, |row: &Vec<u64>, z, az, bz| match spec {
                 Some(spec) => spec.clock_witness(&slots, row, z, az, bz),
                 None => Clock::witness(&slots, row[0], &row[1..], z, az, bz),
             });
@@ -404,9 +402,7 @@ mod tests {
         assert_eq!(Clock { timestamp: ts }.step(&prev, &slots) >> Clock::FAIL_BIT, 0);
 
         // The instance as the gate walk fills it, then the clock's bit 0 as the forger commits it.
-        let words = (1usize << circuit.k_log()) / 64;
-        let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-        circuit.witness_instance(&[ts, prev[0], prev[1], prev[2]], &mut z, &mut az, &mut bz);
+        let mut z = Witness::of_instance(&circuit, &[ts, prev[0], prev[1], prev[2]]).z;
         z[0] |= 1;
         let w: Vec<F192> = (0..circuit.n_cols())
             .map(|s| [F192::ZERO, F192::ONE][(z[s / 64] >> (s % 64) & 1) as usize])

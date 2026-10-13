@@ -1,3 +1,9 @@
+//! The x86-64 kernels of `E`.
+//!
+//! - One element at a time with PCLMULQDQ.
+//! - Four lanes per ZMM register with AVX-512 and VPCLMULQDQ.
+//! - The same kernels on two YMM halves with AVX2 and VPCLMULQDQ, so the types and their callers are unchanged.
+
 #[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 use super::Weights8;
 use super::{F192, F192Unreduced};
@@ -133,16 +139,18 @@ pub struct F192x1 {
 #[derive(Clone, Copy)]
 pub struct F192x1Unreduced([__m128i; 3]);
 
-impl F192x1 {
+impl From<F192> for F192x1 {
     #[inline(always)]
-    pub fn new(e: F192) -> Self {
+    fn from(e: F192) -> Self {
         // SAFETY: SSE2 is part of the x86-64 baseline.
         Self {
             c01: pair(e.c0, e.c1),
             c22: unsafe { _mm_set1_epi64x(e.c2 as i64) },
         }
     }
+}
 
+impl F192x1 {
     /// The element at `e`, loaded into its registers.
     #[inline(always)]
     pub fn load(e: &F192) -> Self {
@@ -388,7 +396,11 @@ pub unsafe fn mul_vec2(a: [F192; 2], b: [F192; 2]) -> [F192; 2] {
 /// # Safety
 ///
 /// Requires the `vpclmulqdq` and `avx2` target features.
-#[cfg(all(target_feature = "vpclmulqdq", target_feature = "avx2"))]
+#[cfg(all(
+    target_feature = "vpclmulqdq",
+    target_feature = "avx2",
+    not(target_feature = "avx512f")
+))]
 #[inline]
 #[target_feature(enable = "vpclmulqdq", enable = "avx2")]
 pub unsafe fn mul_unreduced_vec2(a: [F192; 2], b: [F192; 2]) -> [F192Unreduced; 2] {
@@ -775,9 +787,6 @@ pub unsafe fn sum_lanes4(d: [__m512i; 3]) -> F192Unreduced {
     F192Unreduced { coeffs }
 }
 
-// AVX2 with VPCLMULQDQ: the same kernels on two YMM halves, two elements or two sums per
-// instruction, so the types above and the callers stay as on AVX-512.
-
 /// [`super::MixedSums8`]'s registers on AVX2: [`mul_by_pairs256`]'s six products for rows
 /// `0..4`, then six for rows `4..8`.
 #[cfg(all(
@@ -1095,7 +1104,7 @@ impl F192x8 {
     ///
     /// # Safety
     ///
-    /// Requires the features this impl is compiled with.
+    /// The CPU must support the target features the function enables.
     #[inline]
     #[target_feature(enable = "avx512f")]
     pub fn add(self, rhs: Self) -> Self {
@@ -1124,7 +1133,7 @@ impl F192x8 {
     ///
     /// # Safety
     ///
-    /// Requires the features this impl is compiled with.
+    /// The CPU must support the target features the function enables.
     #[inline]
     #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
     pub fn mul(self, rhs: Self) -> Self {
@@ -1146,7 +1155,7 @@ impl F192x8Sum {
     ///
     /// # Safety
     ///
-    /// Requires the features this impl is compiled with.
+    /// The CPU must support the target features the function enables.
     #[inline]
     #[target_feature(enable = "avx512f")]
     pub fn zero() -> Self {
@@ -1157,7 +1166,7 @@ impl F192x8Sum {
     ///
     /// # Safety
     ///
-    /// Requires the features this impl is compiled with.
+    /// The CPU must support the target features the function enables.
     #[inline]
     #[target_feature(enable = "vpclmulqdq", enable = "avx512f")]
     pub fn mul_add(&mut self, a: F192x8, b: F192x8) {
@@ -1171,7 +1180,7 @@ impl F192x8Sum {
     ///
     /// # Safety
     ///
-    /// Requires the features this impl is compiled with.
+    /// The CPU must support the target features the function enables.
     #[inline]
     #[target_feature(enable = "avx512f")]
     pub fn total(self) -> F192Unreduced {

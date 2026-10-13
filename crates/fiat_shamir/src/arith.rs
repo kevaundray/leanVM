@@ -5,10 +5,7 @@
 //! - Natively an element is an `F192`, a read comes off the proof, and a failed equality is an error.
 //! - In rows an element is a wire, a read is a free wire bound by a hash row, and an equality joins two wires.
 
-use crate::duplex::DuplexSponge;
-use crate::error::TranscriptError;
-use crate::prover::ProverState;
-use crate::verifier::VerifierState;
+use crate::verifier::{TranscriptError, VerifierState};
 use primitives::field::{F64, F192};
 use primitives::multilinear::mle_eval_par;
 
@@ -268,6 +265,23 @@ pub trait Verifier: Arith {
     /// Returns an error when the proof holds data past what was read and the verifier checks values.
     fn check_eof(&mut self) -> Result<(), TranscriptError>;
 
+    /// Mark the prover messages read from now on as sent under one-time-pad keys, or not.
+    ///
+    /// - A verifier of values reads a padded scalar as it is.
+    /// - A verifier that records a zero-knowledge proof's checks holds it as its value plus an unknown key.
+    ///
+    /// By default the section is not tracked.
+    fn set_hidden(&mut self, hidden: bool) {
+        let _ = hidden;
+    }
+
+    /// Whether the prover messages read next were sent under one-time-pad keys.
+    ///
+    /// The opening of a hiding commitment reveals its claim exactly when it was hidden.
+    fn is_hidden(&self) -> bool {
+        false
+    }
+
     /// Start a named stage of the verifier.
     ///
     /// A verifier that records failed checks reports them under the active stages.
@@ -291,55 +305,15 @@ pub trait Verifier: Arith {
     fn verifier_messages(&mut self, n: usize) -> Vec<Self::E> {
         (0..n).map(|_| self.verifier_message()).collect()
     }
-}
 
-/// One sumcheck round's polynomial, as its coefficients, constant first.
-///
-/// The prover sends all of them but one: the round's claim fixes the last.
-///
-/// - Plain round: `h(0) + h(1) = claim`, and `h(0) + h(1) = sum_{i>=1} c_i`, so the claim fixes `c_1`.
-/// - Round with its eq weight `r` factored out: `claim = c_0 + r * sum_{i>=1} c_i`, which fixes `c_0`.
-///
-/// Either way the fixed coefficient is a sum, and no inverse is needed.
-///
-/// The fixed coefficient is a function of the claim and the sent ones, so binding it would add nothing.
-///
-/// The coefficients are any slice-like storage: the prover sends from an array, the verifier reads into a vector.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RoundPolynomial<C> {
-    /// The coefficients, constant first.
-    pub coeffs: C,
-}
-
-/// The index of the coefficient the claim fixes: the constant with an eq weight, else the linear one.
-const fn fixed_coefficient(weighted: bool) -> usize {
-    if weighted { 0 } else { 1 }
-}
-
-impl<C: AsRef<[F192]>> RoundPolynomial<C> {
-    /// Send every coefficient but the one the claim fixes.
+    /// Read one sumcheck round's polynomial of `n_coeffs` coefficients, constant first.
     ///
-    /// `weighted` says whether the round's eq weight was factored out.
+    /// The prover sent all of them but the one the round's claim fixes, which is rebuilt here.
     ///
-    /// # Panics
+    /// - Plain round, `eq` absent: `h(0) + h(1) = claim` fixes `c_1 = claim + sum_{i>=2} c_i`.
+    /// - Round with its eq weight `r = eq` factored out: `claim = c_0 + r sum_{i>=1} c_i` fixes `c_0`.
     ///
-    /// Panics on fewer than two coefficients.
-    pub fn send<H: DuplexSponge>(&self, ps: &mut ProverState<H>, weighted: bool) {
-        let coeffs = self.coeffs.as_ref();
-        assert!(coeffs.len() >= 2, "a round polynomial has at least two coefficients");
-        let fixed = fixed_coefficient(weighted);
-        for (i, c) in coeffs.iter().enumerate() {
-            if i != fixed {
-                ps.prover_message(c);
-            }
-        }
-    }
-}
-
-impl<E: Copy> RoundPolynomial<Vec<E>> {
-    /// Read a round polynomial of `n_coeffs` coefficients: the sent ones, then the fixed one from `claim`.
-    ///
-    /// `eq` is the round's eq weight `r`, when it was factored out.
+    /// Either way the fixed coefficient is a sum, and no inverse is needed.
     ///
     /// # Errors
     ///
@@ -348,29 +322,50 @@ impl<E: Copy> RoundPolynomial<Vec<E>> {
     /// # Panics
     ///
     /// Panics on fewer than two coefficients.
-    pub fn read<V: Verifier<E = E>>(
-        v: &mut V,
+    fn read_round(
+        &mut self,
         n_coeffs: usize,
-        claim: E,
-        eq: Option<E>,
-    ) -> Result<Self, TranscriptError> {
+        claim: Self::E,
+        eq: Option<Self::E>,
+    ) -> Result<Vec<Self::E>, TranscriptError> {
         assert!(n_coeffs >= 2, "a round polynomial has at least two coefficients");
 
-        // Read the sent coefficients, then put the fixed one in its place.
-        let fixed = fixed_coefficient(eq.is_some());
-        let mut coeffs = v.prover_messages(n_coeffs - 1)?;
+        // Read the sent coefficients, then put the claim in the fixed one's place.
+        let fixed = eq.map_or(RoundWeight::Plain, |_| RoundWeight::Eq).fixed_index();
+        let mut coeffs = self.prover_messages(n_coeffs - 1)?;
         coeffs.insert(fixed, claim);
 
         // The coefficients past the fixed one, summed.
-        let zero = v.zero();
-        let tail = coeffs[fixed + 1..].iter().fold(zero, |acc, &c| v.add(acc, c));
+        let zero = self.zero();
+        let tail = coeffs[fixed + 1..].iter().fold(zero, |acc, &c| self.add(acc, c));
 
-        // c_1 = claim + sum_{i>=2} c_i, or c_0 = claim + r * sum_{i>=1} c_i.
+        // c_1 = claim + sum_{i>=2} c_i, or c_0 = claim + r sum_{i>=1} c_i.
         coeffs[fixed] = match eq {
-            None => v.add(claim, tail),
-            Some(r) => v.mul_add(r, tail, claim),
+            None => self.add(claim, tail),
+            Some(r) => self.mul_add(r, tail, claim),
         };
-        Ok(Self { coeffs })
+        Ok(coeffs)
+    }
+}
+
+/// Which coefficient of a sumcheck round's polynomial the round's claim fixes, so that the prover never sends it.
+///
+/// The fixed coefficient is a function of the claim and the sent ones, so binding it would add nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RoundWeight {
+    /// A plain round, `h(0) + h(1) = claim`: the claim fixes the linear coefficient.
+    Plain,
+    /// A round with its eq weight `r` factored out, `claim = c_0 + r sum_{i>=1} c_i`: the claim fixes the constant.
+    Eq,
+}
+
+impl RoundWeight {
+    /// The index of the coefficient the claim fixes.
+    pub(crate) const fn fixed_index(self) -> usize {
+        match self {
+            Self::Plain => 1,
+            Self::Eq => 0,
+        }
     }
 }
 
@@ -398,7 +393,7 @@ impl Arith for Native {
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() { F192::ZERO } else { a.inv() }
+        a.inv()
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
@@ -412,41 +407,42 @@ impl PublicMle for Native {
     }
 }
 
-impl<H: DuplexSponge> Arith for VerifierState<'_, H> {
+/// The native verifier computes in the clear, as the prover does.
+impl Arith for VerifierState<'_> {
     type E = F192;
 
     fn constant(&mut self, c: F192) -> F192 {
-        c
+        Native.constant(c)
     }
 
     fn mul_add(&mut self, a: F192, b: F192, d: F192) -> F192 {
-        a * b + d
+        Native.mul_add(a, b, d)
     }
 
     fn add(&mut self, a: F192, d: F192) -> F192 {
-        a + d
+        Native.add(a, d)
     }
 
     fn mul_const_add(&mut self, a: F192, c: F192, d: F192) -> F192 {
-        a * c + d
+        Native.mul_const_add(a, c, d)
     }
 
     fn inv(&mut self, a: F192) -> F192 {
-        if a.is_zero() { F192::ZERO } else { a.inv() }
+        Native.inv(a)
     }
 
     fn frobenius2(&mut self, a: F192) -> F192 {
-        a.frobenius().frobenius()
+        Native.frobenius2(a)
     }
 }
 
 impl PublicMle for VerifierState<'_> {
     fn public_mle(&mut self, values: &[F64], point: &[F192]) -> F192 {
-        mle_eval_par(values, point)
+        Native.public_mle(values, point)
     }
 }
 
-impl<H: DuplexSponge> Verifier for VerifierState<'_, H> {
+impl Verifier for VerifierState<'_> {
     fn prover_message(&mut self) -> Result<F192, TranscriptError> {
         Self::prover_message(self)
     }
@@ -472,4 +468,12 @@ impl<H: DuplexSponge> Verifier for VerifierState<'_, H> {
 
     #[inline]
     fn end_scope(&mut self) {}
+
+    fn set_hidden(&mut self, hidden: bool) {
+        Self::set_hidden(self, hidden);
+    }
+
+    fn is_hidden(&self) -> bool {
+        Self::is_hidden(self)
+    }
 }

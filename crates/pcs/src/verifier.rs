@@ -5,8 +5,8 @@
 //! - Natively a root is a digest, a query an index, and a committed word a `K` value.
 //! - In rows they are the wires holding them, and an opened row is authenticated by hash rows.
 
-use super::whir::sample_queries_ordered;
-use crate::merkle::{Hash, Openings, PrunedMerklePaths};
+use crate::merkle::{Hash, Openings, PrunedMerklePaths, sorted_unique};
+use crate::whir::sample_queries;
 use fiat_shamir::arith::{Arith, PublicMle, Stage, Verifier};
 use fiat_shamir::{TranscriptContext, TranscriptError, VerifierState};
 use primitives::field::{F64, F192};
@@ -102,7 +102,7 @@ impl OpeningVerifier for VerifierState<'_> {
     }
 
     fn sample_queries(&mut self, depth: usize, count: usize) -> Vec<usize> {
-        sample_queries_ordered(self, 1 << depth, count)
+        sample_queries(self, depth, count)
     }
 
     fn open_rows(
@@ -114,7 +114,7 @@ impl OpeningVerifier for VerifierState<'_> {
         leaf_words: usize,
     ) -> Result<Vec<Vec<F64>>, TranscriptError> {
         let openings = authenticate(self, root, depth, queries, row_words, leaf_words)?;
-        Ok(rows_of(&openings, row_words))
+        Ok(openings.rows(row_words))
     }
 
     fn mul_k_add(&mut self, a: F192, k: F64, d: F192) -> F192 {
@@ -140,23 +140,11 @@ fn authenticate(
     leaf_words: usize,
 ) -> Result<Openings, TranscriptError> {
     // The hint holds one row per distinct query, which the verifier counts itself.
-    let mut distinct = queries.to_vec();
-    distinct.sort_unstable();
-    distinct.dedup();
+    let distinct = sorted_unique(queries).len();
     vs.prover_hint_with(|hint| {
-        let paths = PrunedMerklePaths::from_hint(hint, distinct.len(), row_words)?;
+        let paths = PrunedMerklePaths::from_hint(hint, distinct, row_words)?;
         paths.open(root, 1 << depth, queries, row_words, leaf_words)
     })
-}
-
-/// Each opening's row: its leaf image with the zero prefix dropped.
-fn rows_of(openings: &Openings, row_words: usize) -> Vec<Vec<F64>> {
-    (0..openings.len())
-        .map(|i| {
-            let image = openings.image(i);
-            image[image.len() - row_words..].to_vec()
-        })
-        .collect()
 }
 
 /// A native verifier that keeps every opening it authenticates, for a recursive verifier to hash.
@@ -195,19 +183,19 @@ impl Arith for Recording<'_> {
     type E = F192;
 
     fn constant(&mut self, c: F192) -> F192 {
-        c
+        self.vs.constant(c)
     }
 
     fn mul_add(&mut self, a: F192, b: F192, d: F192) -> F192 {
-        a * b + d
+        self.vs.mul_add(a, b, d)
     }
 
     fn add(&mut self, a: F192, d: F192) -> F192 {
-        a + d
+        self.vs.add(a, d)
     }
 
     fn mul_const_add(&mut self, a: F192, c: F192, d: F192) -> F192 {
-        a * c + d
+        self.vs.mul_const_add(a, c, d)
     }
 
     fn inv(&mut self, a: F192) -> F192 {
@@ -253,6 +241,14 @@ impl Verifier for Recording<'_> {
     fn end_scope(&mut self) {
         self.vs.end_scope();
     }
+
+    fn set_hidden(&mut self, hidden: bool) {
+        self.vs.set_hidden(hidden);
+    }
+
+    fn is_hidden(&self) -> bool {
+        self.vs.is_hidden()
+    }
 }
 
 impl OpeningVerifier for Recording<'_> {
@@ -290,7 +286,7 @@ impl OpeningVerifier for Recording<'_> {
     ) -> Result<Vec<Vec<F64>>, TranscriptError> {
         // Authenticate as the plain verifier does, then keep the openings.
         let openings = authenticate(&mut self.vs, root, depth, queries, row_words, leaf_words)?;
-        let rows = rows_of(&openings, row_words);
+        let rows = openings.rows(row_words);
         self.openings.push(openings);
         Ok(rows)
     }

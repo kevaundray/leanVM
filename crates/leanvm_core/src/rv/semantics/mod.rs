@@ -67,7 +67,9 @@ pub(super) mod tests {
     use super::*;
     use crate::rv::Class;
     use crate::tables::spec::InstanceWitness;
+    use flock::BatchRows;
     use flock::circuit::Circuit;
+    use flock::test_util::Witness;
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::ValueTree;
@@ -133,12 +135,8 @@ pub(super) mod tests {
 
     /// The circuit's first `n` output words on `inputs`, read off the witness the gate walk writes.
     pub(super) fn run(circuit: &Circuit, inputs: &[u64], n: usize) -> Vec<u64> {
-        // One instance's tables, zeroed.
-        let words = 1 << (circuit.k_log() - 6);
-        let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
-
         // The output ports follow the input ports in the instance's words.
-        circuit.witness_instance(inputs, &mut z, &mut az, &mut bz);
+        let z = Witness::of_instance(circuit, inputs).z;
         let first = circuit.n_input_words();
         z[first..first + n].to_vec()
     }
@@ -197,23 +195,24 @@ pub(super) mod tests {
         let rows: Vec<Vec<u64>> = edges.into_iter().chain(random).collect();
 
         let words = 1 << (circuit.k_log() - 6);
-        let tables = || [vec![0u64; words], vec![0; words], vec![0; words]];
         for row in &rows {
             assert_eq!(row.len(), n_in, "an edge instance has the wrong number of input words");
-            let [mut z, mut az, mut bz] = tables();
-            circuit.witness_instance(row, &mut z, &mut az, &mut bz);
-            let walk = [z, az, bz];
-            let [mut z, mut az, mut bz] = tables();
+            let walk = Witness::of_instance(&circuit, row);
+            let (mut z, mut az, mut bz) = (vec![0; words], vec![0; words], vec![0; words]);
             witness(row, &mut z, &mut az, &mut bz);
-            for (name, (walk, word)) in ["z", "A·z", "B·z"].into_iter().zip(walk.iter().zip([z, az, bz])) {
+            for (name, (walk, word)) in ["z", "A·z", "B·z"]
+                .into_iter()
+                .zip([walk.z, walk.az, walk.bz].iter().zip([z, az, bz]))
+            {
                 let at = walk.iter().zip(&word).position(|(a, b)| a != b);
                 assert!(at.is_none(), "{name} word {at:?} on inputs {row:#x?}");
             }
         }
 
         let n_log = rows.len().next_power_of_two().trailing_zeros() as usize;
-        let walk = circuit.witness_by_walk(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
-        let words = circuit.witness_by_instance(&rows, &rows[0], n_log, |row, z, az, bz| witness(row, z, az, bz));
+        let rows = BatchRows::new(&rows, &rows[0], n_log);
+        let walk = Witness::by_walk(&circuit, rows, |row, words| words.copy_from_slice(row));
+        let words = Witness::by_instance(&circuit, rows, |row, z, az, bz| witness(row, z, az, bz));
         assert!(walk.z == words.z, "z");
         assert!(walk.az == words.az, "A·z");
         assert!(walk.bz == words.bz, "B·z");
