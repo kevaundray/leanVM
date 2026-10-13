@@ -398,6 +398,9 @@ structure Report where
   residuals : ℕ := 0
   /-- The hints the certified sumchecks' input claims read. -/
   hints : List ℕ := []
+  /-- The table sumchecks the certificate names (`TableCert`), one per residual, and whether each passes its check. -/
+  tables : ℕ := 0
+  tablesOk : Bool := true
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
@@ -1041,6 +1044,25 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
       if named u || !isEqE u || tops.any (·.test == u) || whirs.any (·.test == u) then none
       else splitOf rp idxO u a b).filter fun pc => ({ cert with splits := #[pc] }).splitsOk s os
   let cert := { cert with sumchecks, pows, odds, tops, whirs, splits }
+  -- Each residual sumcheck's table certificate: its input claim's `mul_add` of the bus totals, and the latest GKR first
+  -- layer reading one root for both trees before it.
+  let firstLayers : List (ℕ × ℕ) :=
+    (tops.toList.filterMap fun t => match t.values with
+      | [a, b] => if a == b then some (t.claimZero, a) else none
+      | _ => none) ++
+    (odds.toList.filterMap fun t => match t.values with
+      | [a, b] => if a == b then some (t.claimZero, a) else none
+      | _ => none)
+  let tables := (List.range sumchecks.size).filterMap fun i =>
+    let sc := sumchecks[i]!
+    if sc.resid.isEmpty then none else
+      let j := rp.maker.getD sc.claim0 0
+      match rp.calls.getD j .zero with
+      | .mulAdd xi t1 t0 =>
+        let root := ((firstLayers.filter (·.1 < j)).foldl (fun acc p => if acc.1 < p.1 then p else acc) (0, 0)).2
+        some ({ sc := i, target := j, xi, tot0 := t0, tot1 := t1, root } : TableCert)
+      | _ => none
+  let tablesOk := tables.all (·.ok cert os)
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -1091,7 +1113,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   return {
     accepted, transcripts := ts.size, squeezes := squeezes.size, products := rp.prods.size, tests := tests.size, unbound,
     late, deferred,
-    exposed, exposedUnbound, probes, sumchecks := sumchecks.size,
+    exposed, exposedUnbound, probes, sumchecks := sumchecks.size, tables := tables.length, tablesOk,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
     residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
     hints := sumchecks.toList.flatMap (·.hints),

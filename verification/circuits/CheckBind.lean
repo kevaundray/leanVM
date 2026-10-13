@@ -51,7 +51,7 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     {r.deferred.size} bound only with the statement's claims; \
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound; \
     {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds, {r.residuals} of them by a residual, their \
-    input claims reading {r.hints.length} hints), \
+    input claims reading {r.hints.length} hints, {r.tables} named as a table sumcheck), \
     {r.powTests} are the bits of {r.pows} certified proof-of-work checks, {r.odds} close a certified GKR odd layer, \
     {r.tops} a certified GKR radix-four top layer, {r.whirs} a certified WHIR sumcheck ({r.whirRounds} rounds, \
     {r.whirBatches} of them batching a level's claims, {r.whirPartial} sumchecks not from the opening's first claim), \
@@ -75,6 +75,11 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   -- Every WHIR sumcheck is certified from its opening's first claim, its query batches included.
   if r.whirPartial != 0 then
     IO.eprintln s!"{path}: {r.whirPartial} WHIR sumchecks are not certified from their opening's first claim"
+    return none
+  -- Every residual sumcheck is a table sumcheck reading the bus totals and a GKR root (`Bind.TableCert`).
+  if r.tables != r.residuals || !r.tablesOk then
+    IO.eprintln s!"{path}: {r.tables} of {r.residuals} residual sumchecks named as table sumchecks, checks passing: \
+      {r.tablesOk}"
     return none
   -- Each hint a certified input claim reads is a claim the node's reduction takes: an `edge term`'s value.
   let terms : Std.HashSet ℕ := (Dump.edgeLines (← IO.FS.readFile path)).foldl (fun acc ws => match ws with

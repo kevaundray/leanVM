@@ -645,4 +645,33 @@ theorem tests_cover (c : Cert) (s : State) (h : c.accepts s = true) :
   intro j hj
   exact taintOk_sound c.calls c.relax 0 (Nat.zero_le _) (Cert.accepts_parts h).2.2.2.1 j (Nat.zero_le _) hj
 
+/-- The table sumcheck as a child's verifier names it (`TableArgument::verify`): certified sumcheck `sc`, closed by a
+residual and reading every round with no eq weight factored out; its input claim the output of the `mul_add` call
+`target`, `σ_0 + ξ σ_1` from the bus totals `tot0` and `tot1` at the batch's challenge `xi` (`target = mul_add(xi,
+totals[1], totals[0])`); and the bus GKR's root `root`, read as both trees' value by a GKR first layer (a radix-four top
+layer or an odd layer whose values are `[root, root]`, `gkr::verify_products`' one root for both trees) made before the
+target. `checkbind` names the latest such layer before the target, the bus's GKR running after flock's. -/
+structure TableCert where
+  sc : ℕ
+  target : ℕ
+  xi : ℕ
+  tot0 : ℕ
+  tot1 : ℕ
+  root : ℕ
+  deriving Inhabited, Repr
+
+/-- `TableCert`'s check on a certificate's parts. -/
+def TableCert.okIn (tc : TableCert) (scs : Array SumcheckCert) (tops : Array TopCert) (odds : Array OddCert)
+    (cs : Array Call) (rl : Array Bool) (os : Array (List ℕ)) : Bool :=
+  (match scs[tc.sc]? with
+    | some sc => !sc.resid.isEmpty && sc.rounds.all (fun rc => rc.weight.isNone) && o os tc.target == sc.claim0
+    | none => false) &&
+  callsOk cs rl [(tc.target, .mulAdd tc.xi tc.tot1 tc.tot0)] &&
+  (tops.any (fun t => t.values == [tc.root, tc.root] && decide (t.claimZero < tc.target)) ||
+    odds.any (fun t => t.values == [tc.root, tc.root] && decide (t.claimZero < tc.target)))
+
+/-- `TableCert`'s check on a certificate. -/
+def TableCert.ok (tc : TableCert) (c : Cert) (os : Array (List ℕ)) : Bool :=
+  tc.okIn c.sumchecks c.tops c.odds c.calls c.relax os
+
 end LeanVMCircuits.Rec.Bind

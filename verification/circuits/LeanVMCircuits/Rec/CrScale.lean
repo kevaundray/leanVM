@@ -83,6 +83,54 @@ example (σ : List Bool → Bool) (h : Bool → Bool) : ¬ Coll σ h 1 ∧ LateH
   ⟨fun ⟨i, hi, i', hi', hne, _⟩ => hne (by rw [show i = 0 by omega, show i' = 0 by omega]),
     ⟨0, by omega, fun i hi => absurd hi (by omega), by simp [query, answers]⟩⟩
 
+/-- Two strategies agreeing along the first's answers before `n` get the same first `n` answers. -/
+theorem answers_along {σ σ' : List Y → X} {h : X → Y} {n : ℕ}
+    (hs : ∀ i < n, σ' (answers σ h i) = σ (answers σ h i)) : ∀ i ≤ n, answers σ' h i = answers σ h i
+  | 0, _ => rfl
+  | i + 1, hi => by simp only [answers, answers_along hs i (by omega), hs i (by omega)]
+
+/-- Two strategies agreeing along the first's answers before `n` make the same first `n` queries. -/
+theorem queries_along {σ σ' : List Y → X} {h : X → Y} {n : ℕ}
+    (hs : ∀ i < n, σ' (answers σ h i) = σ (answers σ h i)) : queries σ' h n = queries σ h n := by
+  have hq : ∀ i < n, query σ' h i = query σ h i := fun i hi => by
+    simp only [query, answers_along hs i hi.le, hs i hi]
+  ext x
+  constructor
+  · rintro ⟨i, hi, rfl⟩
+    exact ⟨i, hi, (hq i hi).symm⟩
+  · rintro ⟨i, hi, rfl⟩
+    exact ⟨i, hi, hq i hi⟩
+
+/-- The prover normalized: its own first `Q` queries, then the entries of `extra` at its first `Q` answers, one per
+query (`default` past their end). -/
+def normalize [Inhabited X] (σ : List Y → X) (Q : ℕ) (extra : List Y → List X) : List Y → X := fun as =>
+  if as.length < Q then σ as else (extra (as.take Q)).getD (as.length - Q) default
+
+theorem normalize_lt [Inhabited X] {σ : List Y → X} {Q : ℕ} {extra : List Y → List X} (as : List Y)
+    (h : as.length < Q) : normalize σ Q extra as = σ as := if_pos h
+
+/-- The normalized prover's first `n ≤ Q` answers are the prover's. -/
+theorem answers_normalize [Inhabited X] (σ : List Y → X) (h : X → Y) {Q n : ℕ} (extra : List Y → List X)
+    (hn : n ≤ Q) : answers (normalize σ Q extra) h n = answers σ h n :=
+  answers_strat (fun as has => normalize_lt as has) n hn
+
+/-- Every entry of `extra` at the prover's first `Q` answers is among the normalized prover's first `Q + m` queries,
+`m` bounding `extra`'s length. -/
+theorem extra_mem_queries [Inhabited X] (σ : List Y → X) (h : X → Y) (Q m : ℕ) (extra : List Y → List X)
+    (hm : ∀ as, (extra as).length ≤ m) {x : X} (hx : x ∈ extra (answers σ h Q)) :
+    x ∈ queries (normalize σ Q extra) h (Q + m) := by
+  obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hx
+  refine ⟨Q + j, by have := hm (answers σ h Q); omega, ?_⟩
+  have hlen : (answers (normalize σ Q extra) h (Q + j)).length = Q + j := answers_length _ _ _
+  have htake : (answers (normalize σ Q extra) h (Q + j)).take Q = answers σ h Q := by
+    rw [answers_take _ _ (by omega), answers_normalize σ h extra le_rfl]
+  simp only [query, normalize, hlen, show ¬ (Q + j < Q) by omega, if_false, Nat.add_sub_cancel_left, htake,
+    List.getD_eq_getElem _ _ hj]
+
+/-- Non-vacuity of `extra_mem_queries`' bound: a prover making no query of its own queries its one extra entry. -/
+example (h : Bool → Bool) : true ∈ queries (normalize (fun _ => false) 0 fun _ => [true]) h 1 :=
+  extra_mem_queries _ h 0 1 _ (fun _ => le_rfl) (List.mem_singleton_self _)
+
 end LeanVMCircuits.Rec.Collision
 
 namespace LeanVMCircuits.Rec.Bind
@@ -140,16 +188,16 @@ def ExecBad (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin
 
 /-- The prover model's collision premise by straight-line extraction: a run's `cr`, off both executions' `ExecBad`,
 from a causal prover (`hcaus`: its first `n ρ k ownL` queries, those before the squeeze after time `k`, the same at
-every oracle agreeing with `ρ` on the answers drawn by `k` and on those drawn at `k + 1` but the words `ownL`),
-normalized (`hnorm`: the rows the prefix binds consistent with `H`, their inputs among its first `Q` queries), whose rows
-the prefix binds output words fixed by then (`hout`: answers to its queries before the squeeze, or targets its answers
-by then fix, `tg` growing with the answers). -/
+every oracle agreeing with `ρ` on the answers drawn by `k` and on those drawn at `k + 1` but the words `ownL`, asked
+along its own answers), normalized (`hnorm`: the rows the prefix binds consistent with `H`, their inputs among its first
+`Q` queries), whose rows the prefix binds output words fixed by then (`hout`: answers to its queries before the
+squeeze, or targets its answers by then fix, `tg` growing with the answers). -/
 theorem Run.cr_of_extract (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K) (Q : ℕ)
     (n : (ℕ → K) → ℕ → List ℕ → ℕ) (hn : ∀ ρ k ownL, n ρ k ownL ≤ Q)
     (tg : (ℕ → K) → List (Fin 4 → K) → Finset (Fin 4 → K)) (htg : ∀ ρ as bs, tg ρ as ⊆ tg ρ (as ++ bs))
     (hcaus : ∀ ρ ρ' k ownL, (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 ≤ k → ρ p.2 = ρ' p.2) →
       (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 = k + 1 → p.2 ∉ ownL → ρ p.2 = ρ' p.2) →
-      n ρ' k ownL = n ρ k ownL ∧ ∀ as : List (Fin 4 → K), as.length < n ρ k ownL → σ ρ' as = σ ρ as)
+      n ρ' k ownL = n ρ k ownL ∧ ∀ i < n ρ k ownL, σ ρ' (answers (σ ρ) H i) = σ ρ (answers (σ ρ) H i))
     (hnorm : ∀ ρ k ownL, OracleRows H (queries (σ ρ) H Q) s (dropOf s (c.transcripts.getD T default))
       (c.liveOn T (seedsBefore s (c.transcripts.getD T default) k ++ sibSeeds s (c.transcripts.getD T default) k ownL))
       (val ρ))
@@ -168,7 +216,7 @@ theorem Run.cr_of_extract (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K)
   obtain ⟨hnn, hσ⟩ := hcaus ρ ρ' k ownL h1 h2
   have hv := oracleRows_of_late H (σ ρ) (tg ρ) (htg ρ) (hnorm ρ k ownL) (hout ρ k ownL) hC.1 hC.2.2
   have hv' := oracleRows_of_late H (σ ρ') (tg ρ') (htg ρ') (hnorm ρ' k ownL) (hout ρ' k ownL) hC'.1 hC'.2.2
-  rw [hnn, queries_strat hσ] at hv'
+  rw [hnn, queries_along hσ] at hv'
   have hsub : queries (σ ρ) H (n ρ k ownL) ⊆ queries (σ ρ) H Q := fun x ⟨i, hi, hx⟩ =>
     ⟨i, lt_of_lt_of_le hi (hn ρ k ownL), hx⟩
   exact pairCR_of_oracle H _ ((injOn_of_not_coll hC.1).mono hsub) (fun hw => hC.2.1 (WinOn.mono hsub hw)) hv hv'
@@ -187,6 +235,166 @@ example (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin 4 �
       rowOut (val ρ) row ∈ tg ρ (answers (σ ρ) H (n ρ k ownL)) ∨
         ∃ i < n ρ k ownL, rowOut (val ρ) row = H (query (σ ρ) H i)) :=
   ⟨fun _ k ownL row _ _ hl => absurd hl (hnone k ownL row), fun _ k ownL row _ _ hl => absurd hl (hnone k ownL row)⟩
+
+/-- `Run.cr_of_extract` without `hnorm`: the prover normalized to query, after its own first `Q` queries, the input of
+every hash row of its output (`Collision.normalize`), so every committed row is among its first `Q + |rows|` queries.
+Asked instead: its output is a function `out` of its first `Q` compression answers (`hval`), and its rows but the
+transcript's own are consistent with the oracle (`hrows`, the ideal model's compression). Causality and `hout` are the
+prover's own, the normalized prover agreeing with it on its first `Q` queries. Off both executions' `ExecBad` of the
+normalized prover's `Q + |rows|` queries, `cr` holds. -/
+theorem Run.cr_of_normal (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K) (Q : ℕ)
+    (n : (ℕ → K) → ℕ → List ℕ → ℕ) (hn : ∀ ρ k ownL, n ρ k ownL ≤ Q)
+    (tg : (ℕ → K) → List (Fin 4 → K) → Finset (Fin 4 → K)) (htg : ∀ ρ as bs, tg ρ as ⊆ tg ρ (as ++ bs))
+    (hcaus : ∀ ρ ρ' k ownL, (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 ≤ k → ρ p.2 = ρ' p.2) →
+      (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 = k + 1 → p.2 ∉ ownL → ρ p.2 = ρ' p.2) →
+      n ρ' k ownL = n ρ k ownL ∧ ∀ i < n ρ k ownL, σ ρ' (answers (σ ρ) H i) = σ ρ (answers (σ ρ) H i))
+    (out : (ℕ → K) → List (Fin 4 → K) → Val) (hval : ∀ ρ, val ρ = out ρ (answers (σ ρ) H Q))
+    (hrows : ∀ ρ, ∀ row ∈ s.hash, dropOf s (c.transcripts.getD T default) row = false →
+      rowOut (val ρ) row = H (rowIn (val ρ) row))
+    (hout : ∀ ρ k ownL, ∀ row ∈ s.hash, dropOf s (c.transcripts.getD T default) row = false →
+      RowLive (c.liveOn T (seedsBefore s (c.transcripts.getD T default) k ++
+        sibSeeds s (c.transcripts.getD T default) k ownL)) row →
+      rowOut (val ρ) row ∈ tg ρ (answers (σ ρ) H (n ρ k ownL)) ∨
+        ∃ i < n ρ k ownL, rowOut (val ρ) row = H (query (σ ρ) H i)) :
+    ∀ ρ ρ' k (ownL : List ℕ), (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 ≤ k → ρ p.2 = ρ' p.2) →
+      (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 = k + 1 → p.2 ∉ ownL → ρ p.2 = ρ' p.2) →
+      ¬ ExecBad H (fun ρ => normalize (σ ρ) Q fun as => s.hash.toList.map (rowIn (out ρ as))) (Q + s.hash.size) tg ρ →
+      ¬ ExecBad H (fun ρ => normalize (σ ρ) Q fun as => s.hash.toList.map (rowIn (out ρ as))) (Q + s.hash.size) tg ρ' →
+      PairCR c s T (seedsBefore s (c.transcripts.getD T default) k ++ sibSeeds s (c.transcripts.getD T default) k ownL)
+        (val ρ) (val ρ') := by
+  refine Run.cr_of_extract H (fun ρ => normalize (σ ρ) Q fun as => s.hash.toList.map (rowIn (out ρ as)))
+    (Q + s.hash.size) n (fun ρ k ownL => (hn ρ k ownL).trans (Nat.le_add_right _ _)) tg htg ?_ ?_ ?_
+  · intro ρ ρ' k ownL h1 h2
+    obtain ⟨hnn, hσ⟩ := hcaus ρ ρ' k ownL h1 h2
+    refine ⟨hnn, fun i hi => ?_⟩
+    have hiQ : i < Q := lt_of_lt_of_le hi (hn ρ k ownL)
+    have hlen : (answers (σ ρ) H i).length < Q := by rw [answers_length]; exact hiQ
+    rw [answers_normalize (σ ρ) H _ hiQ.le, normalize_lt _ hlen, normalize_lt _ hlen]
+    exact hσ i hi
+  · intro ρ k ownL row hr hd _
+    refine ⟨?_, hrows ρ row hr hd⟩
+    rw [hval ρ]
+    exact extra_mem_queries (σ ρ) H Q s.hash.size _ (fun as => by simp)
+      (List.mem_map.mpr ⟨row, Array.mem_toList_iff.mpr hr, rfl⟩)
+  · intro ρ k ownL row hr hd hl
+    rcases hout ρ k ownL row hr hd hl with ht | ⟨i, hi, hy⟩
+    · left
+      rwa [answers_normalize (σ ρ) H _ (hn ρ k ownL)]
+    · right
+      refine ⟨i, hi, hy.trans (congrArg H ?_)⟩
+      have hiQ : i < Q := lt_of_lt_of_le hi (hn ρ k ownL)
+      simp only [query]
+      rw [answers_normalize (σ ρ) H _ hiQ.le, normalize_lt _ (by rw [answers_length]; exact hiQ)]
+
+/-- Non-vacuity of `cr_of_normal`'s new premises: a prover whose output is fixed meets `hval`, and on a circuit with no
+hash rows `hrows`. -/
+example (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K) (Q : ℕ) (v : Val)
+    (hs : s.hash = #[]) :
+    (∀ ρ : ℕ → K, (fun _ => v) ρ = (fun _ _ => v : (ℕ → K) → List (Fin 4 → K) → Val) ρ (answers (σ ρ) H Q)) ∧
+    ∀ ρ : ℕ → K, ∀ row ∈ s.hash, dropOf s (c.transcripts.getD T default) row = false →
+      rowOut ((fun _ => v) ρ) row = H (rowIn ((fun _ => v) ρ) row) :=
+  ⟨fun _ => rfl, fun _ row hr => absurd hr (by simp [hs])⟩
+
+/-! Causality from staging. -/
+
+/-- A staged prover: at its answers `as` it is at transcript time `tm ρ as`, and its query there and that time read the
+transcript's challenges `seeds` only through those drawn by any time `k` it has not passed: oracles agreeing on the
+challenges drawn by `k`, at answers where the prover is at time at most `k`, give it the same query and time. A
+Fiat-Shamir prover is staged: before it asks for the challenge after time `k` it has seen none drawn later. -/
+def Staged (seeds : List (ℕ × ℕ)) (σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K)
+    (tm : (ℕ → K) → List (Fin 4 → K) → ℕ) : Prop :=
+  ∀ ρ ρ' k as, (∀ p ∈ seeds, p.1 ≤ k → ρ p.2 = ρ' p.2) → tm ρ as ≤ k → σ ρ' as = σ ρ as ∧ tm ρ' as = tm ρ as
+
+section Stage
+
+variable (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K)
+  (tm : (ℕ → K) → List (Fin 4 → K) → ℕ) (Q k : ℕ) (ρ : ℕ → K)
+
+open Classical in
+/-- A staged prover's queries before it passes time `k`, at most `Q`: the first query at which its time is past `k`. -/
+noncomputable def stageN : ℕ := Nat.find (⟨Q, Or.inl rfl⟩ : ∃ i, i = Q ∨ k < tm ρ (answers (σ ρ) H i))
+
+theorem stageN_eq_iff (m : ℕ) : stageN H σ tm Q k ρ = m ↔
+    (m = Q ∨ k < tm ρ (answers (σ ρ) H m)) ∧ ∀ i < m, ¬ (i = Q ∨ k < tm ρ (answers (σ ρ) H i)) := by
+  classical
+  exact Nat.find_eq_iff _
+
+theorem stageN_spec : stageN H σ tm Q k ρ = Q ∨ k < tm ρ (answers (σ ρ) H (stageN H σ tm Q k ρ)) :=
+  ((stageN_eq_iff H σ tm Q k ρ _).mp rfl).1
+
+theorem stageN_le : stageN H σ tm Q k ρ ≤ Q := by
+  classical
+  exact Nat.find_min' _ (Or.inl rfl)
+
+theorem stageN_lt {i : ℕ} (hi : i < stageN H σ tm Q k ρ) : tm ρ (answers (σ ρ) H i) ≤ k :=
+  not_lt.mp fun h => ((stageN_eq_iff H σ tm Q k ρ _).mp rfl).2 i hi (Or.inr h)
+
+end Stage
+
+/-- Causality from staging: oracles agreeing on the challenges drawn by `k` give a staged prover the same queries
+before it passes `k`, along its answers, and it passes `k` at the same query. -/
+theorem hcaus_of_staged (H : (Fin 14 → K) → Fin 4 → K) {seeds : List (ℕ × ℕ)}
+    {σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K} {tm : (ℕ → K) → List (Fin 4 → K) → ℕ} (hst : Staged seeds σ tm)
+    (Q k : ℕ) (ρ ρ' : ℕ → K) (h1 : ∀ p ∈ seeds, p.1 ≤ k → ρ p.2 = ρ' p.2) :
+    stageN H σ tm Q k ρ' = stageN H σ tm Q k ρ ∧
+      ∀ i < stageN H σ tm Q k ρ, σ ρ' (answers (σ ρ) H i) = σ ρ (answers (σ ρ) H i) := by
+  have hag : ∀ i < stageN H σ tm Q k ρ, σ ρ' (answers (σ ρ) H i) = σ ρ (answers (σ ρ) H i) ∧
+      tm ρ' (answers (σ ρ) H i) = tm ρ (answers (σ ρ) H i) :=
+    fun i hi => hst ρ ρ' k _ h1 (stageN_lt H σ tm Q k ρ hi)
+  have hans := answers_along (h := H) (fun i hi => (hag i hi).1)
+  refine ⟨(stageN_eq_iff H σ tm Q k ρ' _).mpr ⟨?_, fun i hi hP => ?_⟩, fun i hi => (hag i hi).1⟩
+  · rcases stageN_spec H σ tm Q k ρ with hQ | hk
+    · exact Or.inl hQ
+    · right
+      rw [hans _ le_rfl]
+      by_contra hle
+      have := (hst ρ' ρ k _ (fun p hp hk' => (h1 p hp hk').symm) (not_lt.mp hle)).2
+      omega
+  · rcases hP with hQ | hk
+    · have := stageN_le H σ tm Q k ρ
+      omega
+    · rw [hans i hi.le, (hag i hi).2] at hk
+      exact absurd (stageN_lt H σ tm Q k ρ hi) (not_le.mpr hk)
+
+/-- `Run.cr_of_normal` for a staged prover: causality is not asked, the queries before the squeeze after time `k`
+being those the prover makes before it passes `k` (`stageN`). The premises left: the prover is staged (`Staged`), its
+output a function of its first `Q` answers, its rows consistent with the oracle, and its rows the prefix binds output
+words fixed by then (`hout`). -/
+theorem Run.cr_of_staged (H : (Fin 14 → K) → Fin 4 → K) (σ : (ℕ → K) → List (Fin 4 → K) → Fin 14 → K) (Q : ℕ)
+    (tm : (ℕ → K) → List (Fin 4 → K) → ℕ) (hst : Staged (chalSeeds s (c.transcripts.getD T default)) σ tm)
+    (tg : (ℕ → K) → List (Fin 4 → K) → Finset (Fin 4 → K)) (htg : ∀ ρ as bs, tg ρ as ⊆ tg ρ (as ++ bs))
+    (out : (ℕ → K) → List (Fin 4 → K) → Val) (hval : ∀ ρ, val ρ = out ρ (answers (σ ρ) H Q))
+    (hrows : ∀ ρ, ∀ row ∈ s.hash, dropOf s (c.transcripts.getD T default) row = false →
+      rowOut (val ρ) row = H (rowIn (val ρ) row))
+    (hout : ∀ ρ k (ownL : List ℕ), ∀ row ∈ s.hash, dropOf s (c.transcripts.getD T default) row = false →
+      RowLive (c.liveOn T (seedsBefore s (c.transcripts.getD T default) k ++
+        sibSeeds s (c.transcripts.getD T default) k ownL)) row →
+      rowOut (val ρ) row ∈ tg ρ (answers (σ ρ) H (stageN H σ tm Q k ρ)) ∨
+        ∃ i < stageN H σ tm Q k ρ, rowOut (val ρ) row = H (query (σ ρ) H i)) :
+    ∀ ρ ρ' k (ownL : List ℕ), (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 ≤ k → ρ p.2 = ρ' p.2) →
+      (∀ p ∈ chalSeeds s (c.transcripts.getD T default), p.1 = k + 1 → p.2 ∉ ownL → ρ p.2 = ρ' p.2) →
+      ¬ ExecBad H (fun ρ => normalize (σ ρ) Q fun as => s.hash.toList.map (rowIn (out ρ as))) (Q + s.hash.size) tg ρ →
+      ¬ ExecBad H (fun ρ => normalize (σ ρ) Q fun as => s.hash.toList.map (rowIn (out ρ as))) (Q + s.hash.size) tg ρ' →
+      PairCR c s T (seedsBefore s (c.transcripts.getD T default) k ++ sibSeeds s (c.transcripts.getD T default) k ownL)
+        (val ρ) (val ρ') :=
+  Run.cr_of_normal H σ Q (fun ρ k _ => stageN H σ tm Q k ρ) (fun ρ k _ => stageN_le H σ tm Q k ρ) tg htg
+    (fun ρ ρ' k _ h1 _ => hcaus_of_staged H hst Q k ρ ρ' h1) out hval hrows hout
+
+/-- Non-vacuity of `Staged`: a prover reading no challenge, at time zero throughout, is staged. -/
+example (seeds : List (ℕ × ℕ)) (σ₀ : List (Fin 4 → K) → Fin 14 → K) : Staged seeds (fun _ => σ₀) fun _ _ => 0 :=
+  fun _ _ _ _ _ _ => ⟨rfl, rfl⟩
+
+/-- Mutation test of `Staged`: a prover querying the challenge word drawn at time one while at time zero is not
+staged, when the word can vary. -/
+example (ρ₀ ρ₁ : ℕ → K) (h4 : ρ₀ 4 = ρ₁ 4) (h : ρ₀ 5 ≠ ρ₁ 5) :
+    ¬ Staged [(0, 4), (1, 5)] (fun ρ _ _ => ρ 5) fun _ _ => 0 := by
+  intro hst
+  have := (hst ρ₀ ρ₁ 0 [] (fun p hp hk => by
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl
+    · exact h4
+    · simp at hk) le_rfl).1
+  exact h (congrFun this 0).symm
 
 end LeanVMCircuits.Rec.Bind
 
