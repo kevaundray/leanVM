@@ -689,6 +689,7 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Model.vanish_root
 #print axioms LeanVMCircuits.Rec.Model.split_bits
 #print axioms LeanVMCircuits.Rec.Model.first_core
+#print axioms LeanVMCircuits.Rec.Model.prod_zero_or_one
 #print axioms LeanVMCircuits.Rec.Model.kindRows_good
 #print axioms LeanVMCircuits.Rec.Model.kind_exposed
 #print axioms LeanVMCircuits.Rec.Model.kindConst_ev
@@ -865,6 +866,8 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.Edges.restrict_fiber
 #print axioms LeanVMCircuits.Rec.Edges.pair_fiber
 #print axioms LeanVMCircuits.Rec.Edges.compress_fiber
+#print axioms LeanVMCircuits.Rec.Bind.run_frac_off
+#print axioms LeanVMCircuits.Rec.Edges.epsCR_deployed
 #print axioms LeanVMCircuits.Rec.AirLink.forms_length
 #print axioms LeanVMCircuits.Rec.AirLink.firstSlot_inj
 #print axioms LeanVMCircuits.Rec.AirLink.wireClass_spec

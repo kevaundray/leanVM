@@ -11,7 +11,7 @@ A child's kind in rows, for every shape (`Design::kind_rows`).
 
 A node reads a child's kind, its statement's first word, and must read the child's claims on its tier's fixed polynomial at the child's circuit's block. `kindRows sh t kind` is `Design::kind_rows` as a builder program: with two circuits the kind is held to a bit (`square`, `eq_e`); else the product of `kind + code` over the tier's kinds is held to zero, the kind's first limb is split, its bits past the tier's kind bits are held to the tier's (`Shape.above`), its low bits are the `top` bits that select the block, and in the small tier `is_node` is one plus the product of `top_j + 1`.
 
-`kindRows_good`: in every assignment satisfying a circuit containing its rows, the kind is the kind of a circuit `p` of tier `t` (`Shape.code p`, so `Design::position` names it, `position_code`), the `top` bits are the bits of `p`'s index within its tier, and `is_node` is zero exactly when `p` is the first level. This is the binding of a child's kind to its circuit's block of its tier's fixed polynomial, for every shape `Tree::new` accepts.
+`kindRows_good`: in every assignment satisfying a circuit containing its rows, the kind is the kind of a circuit `p` of tier `t` (`Shape.code p`, so `Design::position` names it, `position_code`), the `top` bits are the bits of `p`'s index within its tier, and `is_node`, the child's scale, is zero when `p` is the first level and one at every node. This is the binding of a child's kind to its circuit's block of its tier's fixed polynomial, and its scale's value, for every shape `Tree::new` accepts.
 -/
 
 namespace LeanVMCircuits.Rec.Model
@@ -271,14 +271,24 @@ theorem first_core (idx : ℕ) (vs : List E) (hidx : idx < 2 ^ vs.length)
     rw [this, List.map_const', List.prod_replicate, one_pow]
     exact add_self_E 1
 
-/-- `Design::kind_rows`'s contract. In every assignment satisfying a circuit containing its rows, the child's kind is the kind of a circuit `p` of tier `t`, its `top` bits are the bits of `p`'s index within the tier, and `is_node` is zero exactly when `p` is the first level. -/
+/-- A product of zeros and ones is zero or one. -/
+theorem prod_zero_or_one : ∀ l : List E, (∀ x ∈ l, x = 0 ∨ x = 1) → l.prod = 0 ∨ l.prod = 1
+  | [], _ => Or.inr List.prod_nil
+  | x :: l, h => by
+    rw [List.prod_cons]
+    rcases h x List.mem_cons_self with rfl | rfl
+    · exact Or.inl (zero_mul _)
+    · rw [one_mul]
+      exact prod_zero_or_one l fun y hy => h y (List.mem_cons_of_mem _ hy)
+
+/-- `Design::kind_rows`'s contract. In every assignment satisfying a circuit containing its rows, the child's kind is the kind of a circuit `p` of tier `t`, its `top` bits are the bits of `p`'s index within the tier, and `is_node` (the child's scale) is zero when `p` is the first level and one at every node. -/
 theorem kindRows_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (t : ℕ) (ht : t < sh.nTiers)
     (kind : ℕ) :
     Good (Wires [kind]) (kindRows sh t kind) fun _ r s' => r.2 < s'.next ∧ Wires r.1 s' ∧
       r.1.length = sh.kindBits t ∧ ∀ st val, Sat st s' val → ∃ p < sh.size, (sh.placeAt p).tier = t ∧
         ev val kind = emb (ofWord (sh.code p)) ∧
         (∀ j < sh.kindBits t, ev val (r.1.getD j 0) = if (p - sh.start t).testBit j then 1 else 0) ∧
-        (ev val r.2 = 0 ↔ p = 0) := by
+        ev val r.2 = if p = 0 then 0 else 1 := by
   have hkb := (shift_le sh h hs).1 t ht
   unfold kindRows
   by_cases h2 : sh.size = 2
@@ -445,8 +455,25 @@ theorem kindRows_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (t 
         have := htop j (by rw [List.length_map] at hj; omega)
         rwa [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa using hj), Option.getD_some] at this)
       rw [List.map_map] at e
-      rw [show (top.map fun x => ev val x + 1) = top.map ((· + 1) ∘ ev val) from rfl, e, hs0]
-      omega
+      have e' : (top.map fun x => ev val x + 1).prod + 1 = 0 ↔ p - sh.start 0 = 0 := e
+      have h01 : ∀ x ∈ top.map (fun x => ev val x + 1), x = 0 ∨ x = 1 := by
+        intro x hx
+        obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hx
+        obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hy
+        have hb := htop j (by omega)
+        rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some] at hb
+        rw [hb]
+        split_ifs
+        · exact Or.inl (add_self_E 1)
+        · exact Or.inr (zero_add 1)
+      split_ifs with hp0
+      · exact e'.mpr (by rw [hs0]; omega)
+      · rcases prod_zero_or_one _ h01 with hP | hP
+        · rw [hP, zero_add]
+        · exfalso
+          have := e'.mp (by rw [hP]; exact add_self_E 1)
+          rw [hs0] at this
+          omega
     · refine Good.pure' fun s9 _ hs9 => ?_
       subst hs9
       refine ⟨lt_of_lt_of_le ho (he3.trans he4 |>.trans he5 |>.trans he6 |>.trans he7 |>.trans he8).next, htw,
@@ -455,20 +482,18 @@ theorem kindRows_good (sh : Shape) (h : sh.Accepted) (hs : sh.size < 2 ^ 62) (t 
       refine ⟨p, hp, hpt, hkp, htop, ?_⟩
       have hone : ev val o = 1 :=
         hov st val (hsat.mono (he3.trans he4 |>.trans he5 |>.trans he6 |>.trans he7 |>.trans he8))
-      rw [hone]
-      constructor
-      · intro h10; exact absurd h10 one_ne_zero
-      · rintro rfl
-        have : (sh.placeAt 0).tier = 0 := by simp [Shape.placeAt]
-        omega
+      rw [hone, if_neg]
+      rintro rfl
+      have : (sh.placeAt 0).tier = 0 := by simp [Shape.placeAt]
+      omega
 
 /-! A node circuit, its transcribed rows abstract. -/
 
-/-- What a child's kind rows bind in an assignment, for the child `x = (kind, top, is_node)` of tier `ct`: its kind is the kind of a circuit `q` of tier `ct`, its `top` bits are `q`'s index's, and `is_node` is zero exactly at the first level. -/
+/-- What a child's kind rows bind in an assignment, for the child `x = (kind, top, is_node)` of tier `ct`: its kind is the kind of a circuit `q` of tier `ct`, its `top` bits are `q`'s index's, and `is_node` is zero at the first level and one at every node. -/
 def KindBound (sh : Shape) (ct : ℕ) (val : Val) (x : ℕ × List ℕ × ℕ) : Prop :=
   ∃ q < sh.size, (sh.placeAt q).tier = ct ∧ ev val x.1 = emb (ofWord (sh.code q)) ∧
     (∀ j < sh.kindBits ct, ev val (x.2.1.getD j 0) = if (q - sh.start ct).testBit j then 1 else 0) ∧
-    (ev val x.2.2 = 0 ↔ q = 0)
+    ev val x.2.2 = if q = 0 then 0 else 1
 
 /-- `Design::node`'s limbs of a child's words: `k_const 0`, then each word's `e_to_k`. Word `i`'s limbs are its `e_to_k`'s three outputs and the zero (`[c0, c1, c2, zero]`), the statement `RecShape::verify` absorbs and reads (`Edges.InstCert`). -/
 def limbRows (ws : List ℕ) : M (ℕ × List (List ℕ)) := do
