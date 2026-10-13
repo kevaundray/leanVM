@@ -87,6 +87,21 @@ theorem Good.seq {α β : Type} {P : State → Prop} {m : M α} {f : α → M β
 theorem ev_code (c : ℕ) : toE (ofWord c) (ofWord 0) (ofWord 0) = emb (ofWord c) := by
   rw [ofWord_zero, toE_emb]
 
+/-- A circuit's own kind in its statement (`Reduced::statement`'s `e_const` of `Design::code`, exposed first): where the exposure holds, the statement word it writes is its wire's value. `checkdesign` checks a circuit's first exposure is at position zero, of a wire whose first maker is the `e_const` of `Shape.code` of its position, or the builder's cached `zero` or `one` when the code is zero or one (`kindConst_ev`). -/
+theorem kind_exposed {st : ℕ → Fin 4 → K} {val : Val} {w k c : ℕ} (he : Call.Holds st val [k] (.exposeE w))
+    (hc : ev val w = emb (ofWord c)) : toE (st k 0) (st k 1) (st k 2) = emb (ofWord c) := by
+  have E : val w = st k := he
+  rw [← hc, ev, E]
+
+/-- The value of a kind's constant, from its maker: the `e_const` of the code, or `zero` or `one` for those codes. -/
+theorem kindConst_ev {st : ℕ → Fin 4 → K} {val : Val} {w c : ℕ}
+    (h : Call.Holds st val [w] (.eConst c 0 0) ∨ (c = 0 ∧ Call.Holds st val [w] .zero) ∨
+      (c = 1 ∧ Call.Holds st val [w] .one)) : ev val w = emb (ofWord c) := by
+  rcases h with h | ⟨rfl, h⟩ | ⟨rfl, h⟩
+  · exact (show ev val w = toE (ofWord c) (ofWord 0) (ofWord 0) from h).trans (ev_code c)
+  · rw [show ev val w = 0 from h, ofWord_zero, emb_zero]
+  · rw [show ev val w = 1 from h, ofWord_one, show emb 1 = 1 from map_one _]
+
 theorem vanish_good (sh : Shape) (kind : ℕ) : ∀ (ps : List ℕ) (acc : ℕ),
     Good (Wires [kind, acc]) (vanish sh kind ps acc) fun _ r s' => r < s'.next ∧ ∀ st val, Sat st s' val →
       ev val r = ev val acc * (ps.map fun p => ev val kind + emb (ofWord (sh.code p))).prod

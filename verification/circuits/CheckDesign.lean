@@ -6,7 +6,7 @@ import LeanVMCircuits.Rec.Dump
 
 The summaries (`fixtures/design-summaries.txt`, written by `rec::tree::design_tests`) hold, for a grid of tree shapes, whether `Tree::new` refuses the shape's arities or small tier, and else its design: `Place::all`, each tier's range, each position's kind, `Design::position` of the kinds below 40, each position's union shape, the dense variables and fixed stacks' variables, and the statement's length and polynomials. Each must be the model's (`Shape.check`, `Shape.places`, `Shape.start`, `Shape.stop`, `Shape.code`, `Shape.position`, `Shape.union`, `Shape.vars`, `Shape.layout`), given the program's two dense variables and each tier's fixed stack's variables, which the summary states.
 
-Each dump is a tracked circuit (`cargo leanvm circuits`), named by its tree and position. Its calls are replayed through the builder model; each child's statement is a run of as many `free_e` calls as the circuit exposes words, and the calls after it must add to the circuit exactly what `Model.kindRows` adds from the same state, for the child's tier, then exactly what `Model.limbRows` adds for its words: the same unions, rows, public rows, wires and units. A node must read as many children as `Shape.children` says, a first-level circuit none, and the statement's length must leave the dense point a nonnegative number of words.
+Each dump is a tracked circuit (`cargo leanvm circuits`), named by its tree and position. Its calls are replayed through the builder model; each child's statement is a run of as many `free_e` calls as the circuit exposes words, and the calls after it must add to the circuit exactly what `Model.kindRows` adds from the same state, for the child's tier, then exactly what `Model.limbRows` adds for its words: the same unions, rows, public rows, wires and units. A node must read as many children as `Shape.children` says, a first-level circuit none, and the statement's length must leave the dense point a nonnegative number of words. The circuit's first exposure, at statement position zero, must be of the constant of its own kind `Shape.code` (`Model.kind_exposed`, `Model.kindConst_ev`).
 -/
 
 open LeanVMCircuits.Rec
@@ -181,7 +181,30 @@ def checkDump (path : System.FilePath) : IO Bool := do
       i := i + 1
   unless children = expected do
     IO.eprintln s!"{path}: {children} children's kind rows, the model {expected}"; return false
-  IO.println s!"{path}: position {position}, {children} children's kind rows and limbs are the model's, statement {len} words"
+  -- The statement's first word is the circuit's kind: the exposure at position zero of the `e_const` of its code, or of
+  -- the cached `zero` or `one` for those codes (`Model.kindConst_ev`, `Model.kind_exposed`).
+  let mut s2 : State := {}
+  let mut maker : Std.HashMap ℕ Model.Call := {}
+  let mut kindOk := false
+  let mut exposed := false
+  for c in calls do
+    let (outs, s') := c.exec.run s2
+    s2 := s'
+    if let .exposeE w := c then
+      unless exposed do
+        exposed := true
+        let code := sh.code position
+        kindOk := outs == [0] && match maker[w]? with
+          | some (.eConst c 0 0) => c == code
+          | some .zero => code == 0
+          | some .one => code == 1
+          | _ => false
+    for o in outs do
+      unless maker.contains o do maker := maker.insert o c
+  unless kindOk do
+    IO.eprintln s!"{path}: the statement's first word is not the constant {sh.code position}"; return false
+  IO.println s!"{path}: position {position}, {children} children's kind rows and limbs are the model's, \
+    statement {len} words, the first its kind {sh.code position}"
   return true
 
 end CheckDesign
