@@ -2,10 +2,12 @@
 //! The base field `K = GF(2)[x] / (x^64 + x^4 + x^3 + x + 1)`, in which `x` has order `2^64 - 1`.
 //!
 //! A product is one carry-less 64x64 multiplication followed by a reduction.
-//! The reduction folds the high word back with shifts and XORs ([`reduce`]), except in the scalar products
-//! (`x86_64::mul`, `aarch64::mul_shift_tail`), which fold it with two more carry-less multiplications by `0x1B`
-//! and so never leave the vector register.
+//!
+//! - The reduction folds the high word back with shifts and XORs.
+//! - The scalar product folds it with two more carry-less multiplications by `0x1B` instead.
+//! - That product so never leaves the vector register.
 
+use core::iter::Sum;
 use core::ops::{Add, AddAssign, Mul, MulAssign};
 use serde::{Deserialize, Serialize};
 
@@ -67,6 +69,20 @@ impl F64 {
         self.0 == 0
     }
 
+    /// The elements as their bit vectors: bit `i` of a word is the coefficient of `x^i`.
+    #[inline]
+    pub const fn as_bits(elements: &[Self]) -> &[u64] {
+        // SAFETY: `F64` is `repr(transparent)` over `u64`.
+        unsafe { core::slice::from_raw_parts(elements.as_ptr().cast::<u64>(), elements.len()) }
+    }
+
+    /// The elements as mutable bit vectors.
+    #[inline]
+    pub const fn as_bits_mut(elements: &mut [Self]) -> &mut [u64] {
+        // SAFETY: `F64` is `repr(transparent)` over `u64`, and every `u64` is a valid `F64`.
+        unsafe { core::slice::from_raw_parts_mut(elements.as_mut_ptr().cast::<u64>(), elements.len()) }
+    }
+
     /// Squaring, as a bit spread followed by one reduction.
     ///
     /// Cross terms vanish in characteristic 2, so the square moves bit `i` to bit `2i`.
@@ -82,6 +98,19 @@ impl F64 {
         {
             Self(reduce(square_wide(self.0)))
         }
+    }
+
+    /// `self^exp`, by square-and-multiply.
+    pub fn pow(self, mut exp: u64) -> Self {
+        let (mut base, mut acc) = (self, Self::ONE);
+        while exp > 0 {
+            if exp & 1 == 1 {
+                acc *= base;
+            }
+            base = base.square();
+            exp >>= 1;
+        }
+        acc
     }
 
     /// Multiplicative inverse `x^(2^64 - 2)`, mapping zero to zero.
@@ -105,9 +134,22 @@ impl F64 {
     pub const fn inv_portable(self) -> Self {
         itoh_tsujii!(self, Self::mul_portable, Self::square_portable)
     }
+
+    /// `self^exp` by square-and-multiply, with no SIMD intrinsic or assembly.
+    pub const fn pow_portable(self, mut exp: u64) -> Self {
+        let (mut base, mut acc) = (self, Self::ONE);
+        while exp > 0 {
+            if exp & 1 == 1 {
+                acc = acc.mul_portable(base);
+            }
+            base = base.square_portable();
+            exp >>= 1;
+        }
+        acc
+    }
 }
 
-#[allow(clippy::suspicious_arithmetic_impl)]
+#[expect(clippy::suspicious_arithmetic_impl, reason = "addition in characteristic 2 is XOR")]
 impl Add for F64 {
     type Output = Self;
     #[inline]
@@ -116,7 +158,14 @@ impl Add for F64 {
     }
 }
 
-#[allow(clippy::suspicious_op_assign_impl)]
+impl Sum for F64 {
+    #[inline]
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, Add::add)
+    }
+}
+
+#[expect(clippy::suspicious_op_assign_impl, reason = "addition in characteristic 2 is XOR")]
 impl AddAssign for F64 {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
@@ -132,7 +181,7 @@ impl Mul for F64 {
         {
             crate::portable::kernel();
             // SAFETY: aes target feature is enabled at compile time.
-            unsafe { aarch64::mul_shift_tail(self, rhs) }
+            unsafe { aarch64::mul_pmull(self, rhs) }
         }
         #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq"))]
         {
@@ -192,8 +241,11 @@ pub fn mul_wide(a: u64, b: u64) -> u128 {
 }
 
 /// The carry-less square of a 64-bit polynomial: bit `i` moves to bit `2i`.
+///
+/// On aarch64 with PMULL a square is a product instead, which stays in the vector register.
+#[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
 #[inline]
-pub fn square_wide(a: u64) -> u128 {
+pub(crate) fn square_wide(a: u64) -> u128 {
     #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
     {
         crate::portable::kernel();
@@ -303,18 +355,18 @@ pub mod aarch64 {
         }
     }
 
-    /// The default `Mul` kernel on aarch64. 3-PMULL multiply: product, then two
-    /// PMULL-by-0x1B folds, the second taking the first's ≤4-bit overflow
-    /// exactly (`ov·0x1B` fits in 8 bits). The shift-XOR tail this replaced was
-    /// chosen on the premise that the vector pipes were PMULL-saturated and the
-    /// scalar ports free; PMULL retires at about the rate `eor` does here, so
-    /// the extra product costs less than the lane extraction it removes.
+    /// One field product in three PMULLs: the product, then two folds of its high word by `0x1B`.
+    ///
+    /// The second fold takes the first's overflow exactly, since four bits times `0x1B` fit in eight.
+    ///
+    /// A shift-XOR fold would move the high word to integer registers and back, which costs more here.
     ///
     /// # Safety
-    /// Requires the `aes` target feature; see [`pmull`].
+    ///
+    /// Requires the `aes` target feature.
     #[inline]
     #[target_feature(enable = "aes")]
-    pub unsafe fn mul_shift_tail(a: F64, b: F64) -> F64 {
+    pub(crate) unsafe fn mul_pmull(a: F64, b: F64) -> F64 {
         // SAFETY: function carries the aes target feature.
         unsafe {
             let r = vdupq_n_u64(R64);
@@ -328,7 +380,7 @@ pub mod aarch64 {
 
 /// The x86-64 products.
 #[cfg(target_arch = "x86_64")]
-pub mod x86_64 {
+mod x86_64 {
     use super::R64;
     use core::arch::x86_64::*;
 
@@ -376,6 +428,7 @@ pub mod x86_64 {
     /// # Safety
     ///
     /// Requires the `bmi2` target feature.
+    #[cfg(target_feature = "bmi2")]
     #[inline]
     #[target_feature(enable = "bmi2")]
     pub unsafe fn spread(a: u64) -> u128 {
@@ -497,8 +550,9 @@ mod tests {
             // The widening products are the carry-less product on every backend.
             assert_eq!(portable::clmul(a, b), schoolbook(a, b));
             assert_eq!(mul_wide(a, b), schoolbook(a, b));
-            // The bit spreads are the carry-less square, and squaring is the self-product.
+            // The bit spreads are the carry-less square, where a square uses one, and squaring is the self-product.
             assert_eq!(portable::spread(a), schoolbook(a, a));
+            #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
             assert_eq!(square_wide(a), schoolbook(a, a));
             assert_eq!(F64(a).square(), F64(reference_mul(a, a)));
             assert_eq!(F64(a).square_portable(), F64(reference_mul(a, a)));
@@ -516,7 +570,7 @@ mod tests {
         for (a, b) in random.chain(corners) {
             // SAFETY: aes target feature is enabled at compile time.
             unsafe {
-                assert_eq!(aarch64::mul_shift_tail(F64(a), F64(b)).0, reference_mul(a, b));
+                assert_eq!(aarch64::mul_pmull(F64(a), F64(b)).0, reference_mul(a, b));
                 // The pair reduction takes two wide products and returns both reduced, in lane order:
                 //
                 //     [a * b, b * b]  ->  lane 0 = a * b,  lane 1 = b * b
@@ -545,20 +599,10 @@ mod tests {
     /// x is primitive: x^((2^64−1)/q) ≠ 1 for every prime q | 2^64 − 1.
     #[test]
     fn x_is_primitive() {
-        fn pow(mut base: F64, mut e: u128) -> F64 {
-            let mut r = F64::ONE;
-            while e > 0 {
-                if e & 1 == 1 {
-                    r *= base;
-                }
-                base = base.square();
-                e >>= 1;
-            }
-            r
-        }
-        let n: u128 = (1 << 64) - 1;
-        for q in [3u128, 5, 17, 257, 641, 65537, 6700417] {
-            assert_ne!(pow(F64::G, n / q), F64::ONE, "x^((2^64-1)/{q}) == 1");
+        let n = u64::MAX;
+        for q in [3, 5, 17, 257, 641, 65537, 6700417] {
+            assert_ne!(F64::G.pow(n / q), F64::ONE, "x^((2^64-1)/{q}) == 1");
+            assert_eq!(F64::G.pow_portable(n / q), F64::G.pow(n / q));
         }
     }
 }

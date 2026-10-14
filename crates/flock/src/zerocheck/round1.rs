@@ -67,11 +67,11 @@ use primitives::field::gf2_8::avx2::gf8_mul_vec32;
 use primitives::field::gf2_8::gf8_reduce;
 #[cfg(target_arch = "aarch64")]
 use primitives::field::gf2_8::neon::{gf8_mul_vec16, gf8_reduce_vec16};
-use primitives::field::{F8, F192, phi8_192};
+use primitives::field::{F8, F192};
 use primitives::multilinear::SplitEq;
 
+use super::lde::LdeTable;
 use super::multilinear::PackedWitness;
-use super::ntt::InvNttTableByteSingleGf8;
 use super::{K_SKIP, N_INNER, Padding};
 
 /// Evaluations per row: the size of the skip domain.
@@ -113,22 +113,20 @@ const C_S_F8: u8 = 0x1C;
 
 /// `C_s = phi_8(0x1C)`: the naive message is the sweep's times this constant.
 pub(crate) fn c_s() -> F192 {
-    phi8_192(F8(C_S_F8))
+    F192::from(F8(C_S_F8))
 }
 
 /// The three small challenges in F192.
 pub(crate) fn small_challenges() -> [F192; 3] {
-    SMALL_CHAL_F8.map(|byte| phi8_192(F8(byte)))
+    SMALL_CHAL_F8.map(|byte| F192::from(F8(byte)))
 }
 
 /// The medium generator `gamma`, fixed by the protocol in the tower basis.
-const fn medium_generator() -> F192 {
-    F192::new(0x243f_6a88_85a3_08d3, 0x1319_8a2e_0370_7344, 0xa409_3822_299f_31d0)
-}
+const MEDIUM_GENERATOR: F192 = F192::new(0x243f_6a88_85a3_08d3, 0x1319_8a2e_0370_7344, 0xa409_3822_299f_31d0);
 
 /// `gamma, gamma^2, gamma^4, gamma^8`.
 const MEDIUM_SQUARES: [F192; N_MEDIUM] = {
-    let mut g = [medium_generator(); N_MEDIUM];
+    let mut g = [MEDIUM_GENERATOR; N_MEDIUM];
     let mut i = 1;
     while i < N_MEDIUM {
         g[i] = g[i - 1].square_portable();
@@ -170,17 +168,10 @@ fn gamma_powers() -> &'static [F192; N_MEDIUM_VALUES] {
         // Each power is the one before times the generator.
         let mut pow = [F192::ONE; N_MEDIUM_VALUES];
         for b in 1..N_MEDIUM_VALUES {
-            pow[b] = pow[b - 1] * medium_generator();
+            pow[b] = pow[b - 1] * MEDIUM_GENERATOR;
         }
         pow
     })
-}
-
-/// Extend F192 values from `S` to `Lambda`, by the byte transform's butterflies lifted through `phi_8`.
-pub(crate) fn extend(on_s: &[F192], table: &InvNttTableByteSingleGf8) -> Vec<F192> {
-    let mut out = on_s.to_vec();
-    table.extend_lifted(&mut out);
-    out
 }
 
 /// Which medium positions of a window can hold a nonzero bit.
@@ -263,7 +254,7 @@ pub(crate) struct Round1<'a> {
     /// The eq coordinates past the skip: the seven fixed ones, then the outer ones.
     r: &'a [F192],
     /// The byte extension from `S` to `Lambda`.
-    lde: &'a InvNttTableByteSingleGf8,
+    lde: &'a LdeTable,
     /// Where the witness is zero or repeats itself.
     padding: Padding,
 }
@@ -274,13 +265,7 @@ impl<'a> Round1<'a> {
     /// # Panics
     ///
     /// When the cube is below a window, or the lengths disagree with `m`.
-    pub(crate) fn new(
-        bits: PackedWitness<'a>,
-        m: usize,
-        r: &'a [F192],
-        lde: &'a InvNttTableByteSingleGf8,
-        padding: &Padding,
-    ) -> Self {
+    pub(crate) fn new(bits: PackedWitness<'a>, m: usize, r: &'a [F192], lde: &'a LdeTable, padding: &Padding) -> Self {
         // A window is the sweep's unit: the skip and the seven fixed coordinates.
         assert!(m >= WINDOW_LOG, "the sweep needs at least one {WINDOW_LOG}-bit window");
         assert_eq!(bits.a.len(), (1 << m) / 8);
@@ -310,7 +295,7 @@ impl<'a> Round1<'a> {
             lde: self.lde,
             // `1 / D` rides the low half once, cancelling the medium eq's normalization.
             eq_lo: eq.low.iter().map(|&e| e * D_INV).collect(),
-            n_lo: eq.low_log(),
+            n_lo: eq.low_log,
             n_windows,
             medium: MediumCounts::new(&self.padding),
         };
@@ -326,7 +311,8 @@ impl<'a> Round1<'a> {
 
         // Phase 3: `C` was summed on `S`, being linear: extend it to `Lambda` once.
         let mut ab = sums[0].to_vec();
-        let mut c = extend(&sums[1], self.lde);
+        let mut c = sums[1].to_vec();
+        self.lde.extend(&mut c);
 
         // Phase 4: the tail's last group, once, at the tail's eq mass.
         if let Some(tail) = tail {
@@ -353,7 +339,7 @@ struct Sweep<'a> {
     /// The packed `a` and `b`.
     bits: PackedWitness<'a>,
     /// The byte extension from `S` to `Lambda`.
-    lde: &'a InvNttTableByteSingleGf8,
+    lde: &'a LdeTable,
     /// The low half of the outer eq table, times `1 / D`.
     eq_lo: Vec<F192>,
     /// The low half's variables.
@@ -415,57 +401,70 @@ impl Sweep<'_> {
 }
 
 /// The `A B` bytes of one medium position, `a` and `b` its eight K-rows of eight bytes each.
+///
+/// For each K-row `K` in `0..8`, lane by lane on `Lambda`:
+///
+/// ```text
+///     y_K[lane]  = LDE(a_K)[lane] * LDE(b_K)[lane]        in GF(2^8)
+///     acc[lane] ^= y_K[lane] << K                         16 bits, not yet reduced
+///     out[lane]  = acc[lane] mod p                        once, after the eight rows
+/// ```
+///
+/// Each target takes its widest kernel, the scalar one being every kernel's reference.
 #[inline]
-fn product_bytes(a: &[u8; MEDIUM_BYTES], b: &[u8; MEDIUM_BYTES], table: &InvNttTableByteSingleGf8) -> [u8; ELL] {
+fn product_bytes(a: &[u8; MEDIUM_BYTES], b: &[u8; MEDIUM_BYTES], table: &LdeTable) -> [u8; ELL] {
     let mut out = [0; ELL];
-    shift_reduce_inner_ab(a, b, table, &mut out);
+    #[cfg(target_arch = "aarch64")]
+    product_bytes_neon(a, b, table, &mut out);
+    #[cfg(all(target_arch = "x86_64", target_feature = "gfni", target_feature = "avx512bw"))]
+    // SAFETY: gfni and avx512bw are statically enabled at compile time.
+    unsafe {
+        product_bytes_gfni(a, b, table, &mut out);
+    }
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        not(all(target_feature = "gfni", target_feature = "avx512bw"))
+    ))]
+    // SAFETY: avx2, and gfni where the kernel uses it, are statically enabled at compile time.
+    unsafe {
+        product_bytes_avx2(a, b, table, &mut out);
+    }
+    #[cfg(not(any(target_arch = "aarch64", all(target_arch = "x86_64", target_feature = "avx2"))))]
+    product_bytes_scalar(a, b, table, &mut out);
     out
 }
 
-// For one medium position and its eight K-rows K in 0..8:
-//   1. Look up the extended A, B rows at bytes `8K .. 8K + 8`.
-//   2. y_K[lane] = ntt_a[lane] · ntt_b[lane]  (in F_8).
-//   3. acc[lane] ^= (y_K[lane] as u16) << K   (no reduction yet).
-// At the end, reduce each acc[lane] back to a u8 in F_8.
-//
-// Output `out[lane]` is the F_8 representative of Σ_K x^K · y_K[lane] mod p.
-
-// Fused NEON inner kernel: inv_NTT apply + F_8 mul + shift_reduce, all in
-// NEON registers (no Vec<F8> round-trip).
-//
-// `xor_apply_byte_into_8_regs::<BH, ODD>` handles one byte position (b ≥ 1).
-// `BH` (= b >> 1) selects which chunk-index XOR to apply; `ODD` (= b & 1)
-// switches on the within-chunk half-swap. Both const-generic so the compiler
-// dead-code-eliminates the if-branch and folds the chunk-index XORs.
-//
-// `fused_apply_one_k::<K>` runs one full K-row: the initial b=0 plain load,
-// 7 calls to the byte helper for b=1..7 (with the specific protocol BH/ODD
-// pattern), one 16-lane F_8 mul per output chunk, and finally widen-shift-XOR
-// into the per-(K, lane) 16-bit accumulators.
-
+/// XOR the extended table rows of one byte position of `a` and of `b` into the eight running registers.
+///
+/// - Byte `b` of a K-row selects table row `byte`, read with its 16-byte chunks permuted by `chunk ^ BH`.
+/// - `BH` is `b >> 1`, a constant, so the permutation is a free load offset.
+///
 /// # Safety
+///
 /// `table_base` points to a `256 * 64`-byte table, and `BH < 4`.
 #[cfg(target_arch = "aarch64")]
-// `0 ^ BH` is the i = 0 case of the `i ^ BH` row-select pattern below; spelling
-// it out keeps the four loads visibly parallel.
-#[allow(clippy::identity_op)]
+#[expect(
+    clippy::identity_op,
+    reason = "`0 ^ BH` spells out the first case of the `i ^ BH` chunk select, keeping the four loads visibly parallel"
+)]
 #[inline(always)]
 #[expect(
     clippy::too_many_arguments,
     reason = "Separate NEON accumulators preserve the register layout of the fused kernel."
 )]
-unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
+unsafe fn xor_table_rows<const BH: usize>(
     table_base: *const u8,
     a_byte: u8,
     b_byte: u8,
-    da0: &mut core::arch::aarch64::uint8x16_t,
-    da1: &mut core::arch::aarch64::uint8x16_t,
-    da2: &mut core::arch::aarch64::uint8x16_t,
-    da3: &mut core::arch::aarch64::uint8x16_t,
-    db0: &mut core::arch::aarch64::uint8x16_t,
-    db1: &mut core::arch::aarch64::uint8x16_t,
-    db2: &mut core::arch::aarch64::uint8x16_t,
-    db3: &mut core::arch::aarch64::uint8x16_t,
+    da0: &mut uint8x16_t,
+    da1: &mut uint8x16_t,
+    da2: &mut uint8x16_t,
+    da3: &mut uint8x16_t,
+    db0: &mut uint8x16_t,
+    db1: &mut uint8x16_t,
+    db2: &mut uint8x16_t,
+    db3: &mut uint8x16_t,
 ) {
     // SAFETY: NEON is part of the aarch64 baseline; `table_base` is the caller's `256 * 64`-byte table, so row
     // `byte * 64` plus a chunk offset `(i ^ BH) * 16 < 64` (`BH < 4`) stays inside it.
@@ -491,10 +490,21 @@ unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
     }
 }
 
-/// Process one K-row: 8 byte positions of `a` and `b` via the inv_NTT table,
-/// F_8 multiply, widen-shift by K, XOR into the four `(acc_lo, acc_hi)` pairs.
+/// One K-row of the NEON product: its eight byte positions extended, multiplied, and shifted by `K` into the accumulators.
+///
+/// Byte position `b` permutes its table row by `i -> i ^ 8b`:
+///
+/// - `b >> 1` permutes the 16-byte chunks, a free load offset.
+/// - An odd `b` also swaps each chunk's two 8-byte halves.
+///
+/// The swap distributes over XOR, so the odd positions are summed plainly, then swapped once.
+///
+/// ```text
+///     row sum = E + swap(O)        E, O the sums over the even and the odd positions
+/// ```
 ///
 /// # Safety
+///
 /// `table_base` points to a `256 * 64`-byte table, and `a_row` and `b_row` to `N_CHUNKS` readable bytes each.
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
@@ -502,30 +512,23 @@ unsafe fn xor_apply_byte_into_8_regs<const BH: usize>(
     clippy::too_many_arguments,
     reason = "Separate NEON accumulators preserve the register layout of the fused kernel."
 )]
-unsafe fn fused_apply_one_k<const K: i32>(
+unsafe fn product_row_neon<const K: i32>(
     table_base: *const u8,
     a_row: *const u8,
     b_row: *const u8,
-    acc0_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc0_hi: &mut core::arch::aarch64::uint16x8_t,
-    acc1_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc1_hi: &mut core::arch::aarch64::uint16x8_t,
-    acc2_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc2_hi: &mut core::arch::aarch64::uint16x8_t,
-    acc3_lo: &mut core::arch::aarch64::uint16x8_t,
-    acc3_hi: &mut core::arch::aarch64::uint16x8_t,
+    acc0_lo: &mut uint16x8_t,
+    acc0_hi: &mut uint16x8_t,
+    acc1_lo: &mut uint16x8_t,
+    acc1_hi: &mut uint16x8_t,
+    acc2_lo: &mut uint16x8_t,
+    acc2_hi: &mut uint16x8_t,
+    acc3_lo: &mut uint16x8_t,
+    acc3_hi: &mut uint16x8_t,
 ) {
     // SAFETY: NEON is part of the aarch64 baseline; the caller guarantees `N_CHUNKS` readable bytes at `a_row` and
     // `b_row` and a `256 * 64`-byte table, and every load is a table row plus an offset below 64.
     unsafe {
-        // `π_b(i') = i' ⊕ 8b` is a chunk-index XOR by `b >> 1`, which is a free
-        // load offset, and for odd `b` a swap of each chunk's two 8-byte halves.
-        // That swap is an involution and distributes over XOR, and it commutes
-        // with the chunk reindexing, so the eight positions need one swap of the
-        // accumulators between the odd group and the even group rather than one
-        // per register per odd position: `E ⊕ S(O)` with the odds accumulated
-        // plainly first. Four times fewer `ext`, and `ext` was the largest
-        // single share of this body's vector work.
+        // The first odd position, b = 1, loads its rows plainly.
         let ra1 = table_base.add(*a_row.add(1) as usize * 64);
         let rb1 = table_base.add(*b_row.add(1) as usize * 64);
         let mut da0 = vld1q_u8(ra1);
@@ -540,7 +543,7 @@ unsafe fn fused_apply_one_k<const K: i32>(
         // The rest of the odd positions, b = 3, 5, 7.
         macro_rules! apply {
             ($bh:literal, $b:literal) => {
-                xor_apply_byte_into_8_regs::<$bh>(
+                xor_table_rows::<$bh>(
                     table_base,
                     *a_row.add($b),
                     *b_row.add($b),
@@ -593,20 +596,20 @@ unsafe fn fused_apply_one_k<const K: i32>(
     }
 }
 
+/// The product's NEON kernel: the table lookups, products and shifts all in registers.
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
-fn shift_reduce_inner_ab_fused_neon(
+fn product_bytes_neon(
     a_packed: &[u8; MEDIUM_BYTES],
     b_packed: &[u8; MEDIUM_BYTES],
-    inv_table: &InvNttTableByteSingleGf8,
+    table: &LdeTable,
     out: &mut [u8; 64],
 ) {
-    let byte_base_b = 0;
-    let table_base = inv_table.data_ptr();
+    let table_base = table.data_ptr();
 
-    // SAFETY: NEON is part of the aarch64 baseline. The table is `256 * 64` bytes, its `k` being `K_SKIP` (asserted
-    // at the entry point). The row windows `byte_base_b + K * N_CHUNKS .. + N_CHUNKS` for `K < 8` lie in both packed
-    // tables, whose lengths the entry point asserts against the windows it walks. `out` is 64 bytes.
+    // SAFETY: NEON is part of the aarch64 baseline.
+    // The table is `256 * 64` bytes, its `k` being `K_SKIP`, which the sweep asserts.
+    // The row windows `K * N_CHUNKS .. + N_CHUNKS` for `K < 8` lie in both packed rows, and `out` is 64 bytes.
     unsafe {
         let mut acc0_lo = vdupq_n_u16(0);
         let mut acc0_hi = vdupq_n_u16(0);
@@ -617,12 +620,11 @@ fn shift_reduce_inner_ab_fused_neon(
         let mut acc3_lo = vdupq_n_u16(0);
         let mut acc3_hi = vdupq_n_u16(0);
 
-        // 8 K-iterations: each consumes N_CHUNKS = 8 packed witness bytes
-        // for `a` and `b`. K is a const generic so `vshll_n_u8::<K>` specializes.
+        // Eight K-rows of `N_CHUNKS` bytes each, `K` a constant so that the widening shift specializes.
         macro_rules! do_k {
             ($k:literal) => {{
-                let off = byte_base_b + $k * N_CHUNKS;
-                fused_apply_one_k::<$k>(
+                let off = $k * N_CHUNKS;
+                product_row_neon::<$k>(
                     table_base,
                     a_packed.as_ptr().add(off),
                     b_packed.as_ptr().add(off),
@@ -646,7 +648,7 @@ fn shift_reduce_inner_ab_fused_neon(
         do_k!(6);
         do_k!(7);
 
-        // Reduce 16-bit accs → 16-byte F_8 results (4 × 16 lanes).
+        // Reduce the 16-bit accumulators to bytes of GF(2^8), four registers of 16 lanes.
         let r0 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc0_lo), vreinterpretq_u8_u16(acc0_hi));
         let r1 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc1_lo), vreinterpretq_u8_u16(acc1_hi));
         let r2 = gf8_reduce_vec16(vreinterpretq_u8_u16(acc2_lo), vreinterpretq_u8_u16(acc2_hi));
@@ -660,56 +662,24 @@ fn shift_reduce_inner_ab_fused_neon(
     }
 }
 
-/// Dispatch helper: picks the widest SIMD kernel this target has, otherwise scalar.
-#[inline]
-fn shift_reduce_inner_ab(
-    a_packed: &[u8; MEDIUM_BYTES],
-    b_packed: &[u8; MEDIUM_BYTES],
-    inv_table: &InvNttTableByteSingleGf8,
-    out: &mut [u8; 64],
-) {
-    #[cfg(target_arch = "aarch64")]
-    {
-        shift_reduce_inner_ab_fused_neon(a_packed, b_packed, inv_table, out);
-    }
-    #[cfg(all(target_arch = "x86_64", target_feature = "gfni", target_feature = "avx512bw"))]
-    {
-        // SAFETY: gfni and avx512bw are statically enabled at compile time.
-        unsafe { shift_reduce_inner_ab_gfni_512(a_packed, b_packed, inv_table, out) };
-    }
-    #[cfg(all(
-        target_arch = "x86_64",
-        target_feature = "avx2",
-        not(all(target_feature = "gfni", target_feature = "avx512bw"))
-    ))]
-    {
-        // SAFETY: avx2, and gfni where the kernel uses it, are statically enabled at compile time.
-        unsafe { shift_reduce_inner_ab_avx2(a_packed, b_packed, inv_table, out) };
-    }
-    #[cfg(not(any(target_arch = "aarch64", all(target_arch = "x86_64", target_feature = "avx2"))))]
-    {
-        shift_reduce_inner_ab_scalar(a_packed, b_packed, inv_table, out);
-    }
-}
-
-/// The GFNI kernel one register wide: `ELL` is 64, so the whole column is one
-/// ZMM and the combine issues a quarter of the instructions the 128-bit arm
-/// does. Byte unpacking and `packus` both work within 128-bit lanes and are
-/// exact inverses there, so the widened accumulators may sit in a different
-/// order than the narrow arm's and still narrow back to the same bytes.
+/// The product's AVX-512 kernel with GFNI, one register wide: `ELL` is 64, so a whole column is one register.
+///
+/// Byte unpacking and `packus` work within 128-bit lanes and invert each other there.
+///
+/// So the widened accumulators may sit in any lane order and still narrow back to the same bytes.
 ///
 /// # Safety
+///
 /// Requires the `gfni` and `avx512bw` target features.
 #[cfg(all(target_arch = "x86_64", target_feature = "gfni", target_feature = "avx512bw"))]
 #[target_feature(enable = "gfni", enable = "avx512f", enable = "avx512bw")]
-unsafe fn shift_reduce_inner_ab_gfni_512(
+unsafe fn product_bytes_gfni(
     a_packed: &[u8; MEDIUM_BYTES],
     b_packed: &[u8; MEDIUM_BYTES],
-    inv_table: &InvNttTableByteSingleGf8,
+    inv_table: &LdeTable,
     out: &mut [u8; 64],
 ) {
-    let byte_base_b = 0;
-    let chunk = |k: usize| byte_base_b + k * N_CHUNKS..byte_base_b + (k + 1) * N_CHUNKS;
+    let chunk = |k: usize| k * N_CHUNKS..(k + 1) * N_CHUNKS;
 
     // SAFETY: the target features are carried by the function; the store covers exactly `out`.
     unsafe {
@@ -749,22 +719,23 @@ unsafe fn shift_reduce_inner_ab_gfni_512(
     }
 }
 
-/// The 512-bit kernel two registers wide. With GFNI the products are
-/// `gf2p8mulb`; without it, the shift-and-add of `gf2_8::avx2::gf8_mul_vec32`.
+/// The product's AVX2 kernel, two registers wide.
+///
+/// With GFNI the products are `gf2p8mulb`, and without it the byte field's shift-and-add.
 ///
 /// # Safety
+///
 /// Requires the `avx2` target feature, and `gfni` where the target has it.
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 #[cfg_attr(all(target_feature = "gfni", target_feature = "avx512bw"), allow(dead_code))]
 #[target_feature(enable = "avx2")]
-unsafe fn shift_reduce_inner_ab_avx2(
+unsafe fn product_bytes_avx2(
     a_packed: &[u8; MEDIUM_BYTES],
     b_packed: &[u8; MEDIUM_BYTES],
-    inv_table: &InvNttTableByteSingleGf8,
+    inv_table: &LdeTable,
     out: &mut [u8; 64],
 ) {
-    let byte_base_b = 0;
-    // `inv_table.apply` overwrites every lane, so these need no re-zeroing per K.
+    // Applying the table overwrites every lane, so these need no re-zeroing per K.
     let mut a_col = [F8::ZERO; ELL];
     let mut b_col = [F8::ZERO; ELL];
 
@@ -776,7 +747,7 @@ unsafe fn shift_reduce_inner_ab_avx2(
         let zero = _mm256_setzero_si256();
 
         for k in 0..8 {
-            let chunk_off = byte_base_b + k * N_CHUNKS;
+            let chunk_off = k * N_CHUNKS;
             inv_table.apply(&a_packed[chunk_off..chunk_off + N_CHUNKS], &mut a_col);
             inv_table.apply(&b_packed[chunk_off..chunk_off + N_CHUNKS], &mut b_col);
             let shift = _mm_cvtsi32_si128(k as i32);
@@ -817,24 +788,23 @@ unsafe fn shift_reduce_inner_ab_avx2(
     }
 }
 
-/// The scalar route: the fallback without NEON or AVX2, and every kernel's reference.
+/// The product's scalar kernel: the fallback without NEON or AVX2, and every kernel's reference.
 #[cfg_attr(
     any(target_arch = "aarch64", all(target_arch = "x86_64", target_feature = "avx2")),
     allow(dead_code)
 )]
-fn shift_reduce_inner_ab_scalar(
+fn product_bytes_scalar(
     a_packed: &[u8; MEDIUM_BYTES],
     b_packed: &[u8; MEDIUM_BYTES],
-    inv_table: &InvNttTableByteSingleGf8,
+    inv_table: &LdeTable,
     out: &mut [u8; 64],
 ) {
-    // `inv_table.apply` overwrites every lane, so these need no re-zeroing per K.
+    // Applying the table overwrites every lane, so these need no re-zeroing per K.
     let mut a_col = [F8::ZERO; ELL];
     let mut b_col = [F8::ZERO; ELL];
     let mut acc: [u16; 64] = [0u16; 64];
-    let byte_base_b = 0;
     for k in 0..8 {
-        let chunk_off = byte_base_b + k * N_CHUNKS;
+        let chunk_off = k * N_CHUNKS;
         inv_table.apply(&a_packed[chunk_off..chunk_off + N_CHUNKS], &mut a_col);
         inv_table.apply(&b_packed[chunk_off..chunk_off + N_CHUNKS], &mut b_col);
         for lane in 0..ELL {
@@ -870,7 +840,7 @@ use table::Convert;
 mod table {
     use std::sync::OnceLock;
 
-    use primitives::field::{F192, PHI_8_TABLE_192};
+    use primitives::field::{F192, PHI8_TABLE};
 
     use super::{ELL, N_MEDIUM_VALUES, gamma_powers};
 
@@ -887,7 +857,7 @@ mod table {
             // Row `b` is `phi_8` of every byte, scaled by `gamma^b`.
             let mut table: Box<Table> = Box::new([[F192::ZERO; 256]; N_MEDIUM_VALUES]);
             for (row, &g_b) in table.iter_mut().zip(gamma_powers()) {
-                for (entry, &phi) in row.iter_mut().zip(PHI_8_TABLE_192.iter()) {
+                for (entry, &phi) in row.iter_mut().zip(PHI8_TABLE.iter()) {
                     *entry = g_b * phi;
                 }
             }
@@ -967,7 +937,7 @@ mod avx2 {
     use std::sync::LazyLock;
 
     use primitives::bit_fold::avx2::{self, Best, HALF, OUT_BYTES, Product};
-    use primitives::field::{F192, PHI_8_TABLE_192, mul4};
+    use primitives::field::{F192, PHI8_TABLE};
 
     use super::{ELL, N_MEDIUM_VALUES, gamma_powers};
 
@@ -976,7 +946,7 @@ mod avx2 {
 
     /// The maps of the product `P`.
     pub(super) fn maps<P: Product>() -> Maps<P> {
-        let units: [F192; 8] = std::array::from_fn(|s| PHI_8_TABLE_192[1 << s]);
+        let units: [F192; 8] = std::array::from_fn(|s| PHI8_TABLE[1 << s]);
         gamma_powers().map(|g| P::maps(&units.map(|u| g * u)))
     }
 
@@ -1021,7 +991,7 @@ mod avx2 {
                 // SAFETY: the module is compiled only with AVX2 enabled.
                 let cf = unsafe { convert::<Best>(rows, &MAPS) };
                 for (acc, cf) in acc.as_chunks_mut::<4>().0.iter_mut().zip(cf.as_chunks::<4>().0) {
-                    for (acc, p) in acc.iter_mut().zip(mul4(*cf, [eq_lo; 4])) {
+                    for (acc, p) in acc.iter_mut().zip(F192::mul4(*cf, [eq_lo; 4])) {
                         *acc += p;
                     }
                 }
@@ -1055,7 +1025,7 @@ mod gfni {
     use std::sync::OnceLock;
 
     use primitives::bit_fold::gfni::{OUT_BYTES, store_f192, weight_matrices};
-    use primitives::field::{F64, F192, PHI_8_TABLE_192, mul_base8, mul4};
+    use primitives::field::{F64, F192, PHI8_TABLE};
 
     use super::{ELL, N_MEDIUM_VALUES, gamma_powers};
 
@@ -1084,7 +1054,7 @@ mod gfni {
             static UNITS: OnceLock<[F64; 8]> = OnceLock::new();
             let units = UNITS.get_or_init(|| {
                 std::array::from_fn(|s| {
-                    let phi = PHI_8_TABLE_192[1 << s];
+                    let phi = PHI8_TABLE[1 << s];
                     assert!(phi.c1 == 0 && phi.c2 == 0, "phi_8 lands in the base field");
                     F64(phi.c0)
                 })
@@ -1098,8 +1068,8 @@ mod gfni {
                 .iter()
                 .zip(matrices.as_chunks_mut::<4>().0)
             {
-                for (t, m) in mul4(*quad, [eq_lo; 4]).iter().zip(m) {
-                    *m = weight_matrices(&mul_base8(*t, *units));
+                for (t, m) in F192::mul4(*quad, [eq_lo; 4]).iter().zip(m) {
+                    *m = weight_matrices(&F192::mul_base8(*t, *units));
                 }
             }
 
@@ -1149,7 +1119,8 @@ pub(crate) mod tests {
     use primitives::test_util::Rng;
 
     use super::*;
-    use crate::zerocheck::ntt::AdditiveNttGf8;
+    use crate::zerocheck::lde::AdditiveNttF8;
+    use crate::zerocheck::padding::tests::dense;
 
     /// Pack bits low bit first into bytes.
     pub(crate) fn pack_bits(bits: &[bool]) -> Vec<u8> {
@@ -1159,13 +1130,13 @@ pub(crate) mod tests {
     }
 
     /// The byte extension from `S` to `Lambda` at the protocol's skip.
-    fn lde() -> InvNttTableByteSingleGf8 {
+    fn lde() -> LdeTable {
         table(K_SKIP, F8::ZERO, F8(1 << K_SKIP))
     }
 
     /// The byte extension from `beta_s + S` to `beta_l + S`, `S` of size `2^k`.
-    fn table(k: usize, beta_s: F8, beta_l: F8) -> InvNttTableByteSingleGf8 {
-        InvNttTableByteSingleGf8::new(&AdditiveNttGf8::new(k, beta_s), &AdditiveNttGf8::new(k, beta_l))
+    fn table(k: usize, beta_s: F8, beta_l: F8) -> LdeTable {
+        LdeTable::new(&AdditiveNttF8::new(k, beta_s), &AdditiveNttF8::new(k, beta_l))
     }
 
     /// The eq coordinates: the seven fixed ones, then random outer ones.
@@ -1191,7 +1162,7 @@ pub(crate) mod tests {
                 let x = beta_l + F8(i as u8);
                 let numerator = s.iter().fold(F8::ONE, |acc, &s_h| acc * (x + s_h));
                 (s.iter().zip(&denominators))
-                    .map(|(&s_j, &d)| phi8_192(numerator * (x + s_j).inv() * d))
+                    .map(|(&s_j, &d)| F192::from(numerator * (x + s_j).inv() * d))
                     .collect()
             })
             .collect()
@@ -1199,8 +1170,8 @@ pub(crate) mod tests {
 
     /// The message by the protocol's formula: every row extended on its own, nothing factored.
     fn naive(bits: [&[bool]; 3], m: usize, r: &[F192]) -> (Vec<F192>, Vec<F192>) {
-        let ntt_s = AdditiveNttGf8::new(K_SKIP, F8::ZERO);
-        let ntt_l = AdditiveNttGf8::new(K_SKIP, F8(ELL as u8));
+        let ntt_s = AdditiveNttF8::new(K_SKIP, F8::ZERO);
+        let ntt_l = AdditiveNttF8::new(K_SKIP, F8(ELL as u8));
         let mut p = [vec![F192::ZERO; ELL], vec![F192::ZERO; ELL]];
         for (x, &weight) in eq_table(r).iter().enumerate().take(1 << (m - K_SKIP)) {
             // Row `x` of each vector, extended from `S` to `Lambda`.
@@ -1211,8 +1182,8 @@ pub(crate) mod tests {
                 col
             });
             for l in 0..ELL {
-                p[0][l] += weight * phi8_192(a[l] * b[l]);
-                p[1][l] += weight * phi8_192(c[l]);
+                p[0][l] += weight * F192::from(a[l] * b[l]);
+                p[1][l] += weight * F192::from(c[l]);
             }
         }
         let [ab, c] = p;
@@ -1234,6 +1205,12 @@ pub(crate) mod tests {
                     (matrix.iter())
                         .map(|row| (row.iter().zip(input)).fold(F192::ZERO, |acc, (&w, &v)| acc + w * v))
                         .collect()
+                };
+                // The lifted transform, on a copy of the input.
+                let extend = |input: &[F192], lde: &LdeTable| -> Vec<F192> {
+                    let mut out = input.to_vec();
+                    lde.extend(&mut out);
+                    out
                 };
                 // Random inputs.
                 for _ in 0..4 {
@@ -1270,7 +1247,7 @@ pub(crate) mod tests {
                 }
             }
             let mut scalar = [0; ELL];
-            shift_reduce_inner_ab_scalar(&a, &b, &lde, &mut scalar);
+            product_bytes_scalar(&a, &b, &lde, &mut scalar);
             assert_eq!(scalar, want.map(|w| w.0), "the scalar route");
             assert_eq!(product_bytes(&a, &b, &lde), scalar, "the dispatched kernel");
         }
@@ -1336,7 +1313,7 @@ pub(crate) mod tests {
             };
 
             let (naive_ab, naive_c) = naive([&a, &b, &c], m, &r);
-            let (ab, c) = Round1::new(bits, m, &r, &lde, &Padding::dense(m)).message();
+            let (ab, c) = Round1::new(bits, m, &r, &lde, &dense(m)).message();
             assert_eq!(ab.iter().map(|&x| c_s * x).collect::<Vec<_>>(), naive_ab, "A B, m={m}");
             assert_eq!(c.iter().map(|&x| c_s * x).collect::<Vec<_>>(), naive_c, "C, m={m}");
         }
@@ -1375,9 +1352,9 @@ pub(crate) mod tests {
                 useful_bits: useful,
                 live_blocks: usize::MAX,
             };
-            let dense = Round1::new(bits, m, &r, &lde, &Padding::dense(m)).message();
+            let full = Round1::new(bits, m, &r, &lde, &dense(m)).message();
             let padded = Round1::new(bits, m, &r, &lde, &padding).message();
-            assert_eq!(dense, padded, "k_log={k_log}, useful={useful}, m={m}");
+            assert_eq!(full, padded, "k_log={k_log}, useful={useful}, m={m}");
         }
     }
 
@@ -1385,7 +1362,7 @@ pub(crate) mod tests {
     fn reference(rows: &[[u8; 64]]) -> [F192; ELL] {
         std::array::from_fn(|lane| {
             (rows.iter().zip(gamma_powers()))
-                .fold(F192::ZERO, |acc, (row, &gamma)| acc + gamma * phi8_192(F8(row[lane])))
+                .fold(F192::ZERO, |acc, (row, &gamma)| acc + gamma * F192::from(F8(row[lane])))
         })
     }
 

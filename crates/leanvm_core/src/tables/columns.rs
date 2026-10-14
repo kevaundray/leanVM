@@ -1,7 +1,7 @@
 //! Local column allocation and the aliases used by memory moves.
 
 use super::{ClassSpec, Ram, Word};
-use crate::leaf::Coord::{self, Col};
+use crate::bus::Coord::{self, Col};
 use crate::rv::{Ext, Hash};
 
 /// The `rs2` read's columns: the register's number and what it held.

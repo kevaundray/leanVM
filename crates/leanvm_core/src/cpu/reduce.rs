@@ -4,12 +4,11 @@ use super::batch::{FormPowers, VerifierBatch};
 use super::deferred::{Claim, DeferredClaims, ProgramPoint};
 use super::error::CpuError;
 use super::layout::{Framework, Layout, Schema};
-use crate::class_flock::FlockId;
+use crate::bus::PublicColumns;
+use crate::commitment::{Commitment, Rate, StackClaim};
 use crate::constraints::Claims;
-use crate::leaf::PublicColumns;
-use crate::pcs::{Commitment, Rate, StackClaim};
-use crate::tables::{ClassTable, N_TABLES};
-use crate::{constraints, leaf};
+use crate::tables::{CircuitId, ClassTable, N_TABLES};
+use crate::{bus, constraints};
 use fiat_shamir::arith::Verifier;
 use flock::reduction;
 use pcs::verifier::OpeningVerifier;
@@ -53,7 +52,7 @@ impl<E: Clone> TableClaims<E> {
 impl Layout {
     /// The verifier's core past the announcement, for a run that ends on the given clock and returns the given output.
     ///
-    /// It reads the commitment, verifies the bus and the tables, the flock reductions and the opening, then checks nothing is left to read.
+    /// It reads the commitment, verifies the flock reductions, the bus and the tables, and the opening, then checks nothing is left to read.
     /// It returns the claims the proof leaves on the program's polynomials and on each circuit's matrices.
     ///
     /// # Errors
@@ -67,16 +66,33 @@ impl Layout {
         rate: Rate,
     ) -> Result<DeferredClaims<V::E>, CpuError> {
         let commitment = Commitment::read(v, self.shape, rate)?;
-        let reduced = v.scope("bus and tables", |v| self.reduce_tables(v, clock, output))?;
+        let claims = self.verify_committed(v, &commitment, clock, output)?;
+        v.check_eof()?;
+        Ok(claims)
+    }
 
+    /// The verifier's core past the commitment's root: the flock reductions, the bus and the tables, and the opening.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first stage that refuses the proof.
+    pub(crate) fn verify_committed<V: OpeningVerifier + PublicColumns>(
+        &self,
+        v: &mut V,
+        commitment: &Commitment<V::Root>,
+        clock: V::E,
+        output: &[V::E; 4],
+    ) -> Result<DeferredClaims<V::E>, CpuError> {
         // Flock's reductions, batched over every class circuit then every clock circuit, each leaving its matrices' form to its circuit.
-        let batches = FlockId::batches(&self.taus);
+        // They read only the commitment; their claims wait for the opening, whose challenges follow every claim.
+        let batches = CircuitId::batches(&self.taus);
         let replays = v
             .scope("flock", |v| reduction::verify(&batches, v))
             .map_err(CpuError::Reductions)?;
         let (slices, circuits): (Vec<_>, Vec<_>) = (replays.into_iter())
             .map(|replay| (replay.claim, replay.matrices.into()))
             .unzip();
+        let reduced = v.scope("bus and tables", |v| self.reduce_tables(v, clock, output))?;
 
         // The one opening, its ring-switched regions each packed witness, each producer's multiplicity column and each table's register numbers.
         v.scope("opening", |v| {
@@ -85,7 +101,6 @@ impl Layout {
             commitment.verify(v, &reduced.slots, &rings)
         })
         .map_err(CpuError::Open)?;
-        v.check_eof()?;
         Ok(DeferredClaims {
             program: reduced.program,
             circuits,
@@ -109,7 +124,7 @@ impl Layout {
         clock: V::E,
         output: &[V::E; 4],
     ) -> Result<TableReduction<V::E>, CpuError> {
-        let mut bus = leaf::verify_balance(
+        let mut bus = bus::verify_balance(
             v,
             &self.push,
             &self.pull,

@@ -3,7 +3,11 @@
 // Modifications copyright 2026 Succinct Labs, Benedikt Bunz, William Wang
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! The weight a level's queries induce on its message, in the novel basis.
+//! A level's queries: their positions, and the weight they induce on the level's message.
+//!
+//! # Where queries land
+//!
+//! The positions are stratified: each binary digit of the query count is a group, its queries spread over the cosets of their top bits.
 //!
 //! # What is induced
 //!
@@ -24,108 +28,159 @@
 //!
 //! Every subspace-polynomial value lives in `K`; it is lifted into `E` only where it scales an accumulator in `E`.
 
-use crate::ntt::{AdditiveNttF64, transposed_butterfly_lanes};
-use parallel::SendPtr;
-use primitives::field::{F64, F192, F192Unreduced};
-use primitives::multilinear::{eq_table, inner_product, inner_product_base};
-use std::collections::HashMap;
+use crate::ntt::{AdditiveNtt, NovelBasis, basis_values};
+use fiat_shamir::Challenger;
+use fiat_shamir::arith::{Arith, Native};
+use primitives::field::{F64, F192, F192Unreduced, Subfield};
+use primitives::multilinear::eq_table;
 
-/// The subspace polynomials' normalizers on the standard basis, `s_k(v_k)` for `k <= log_n`, and their inverses.
+/// Where a query of a batch lands: the top `bits` bits of its position are `index`, the rest uniform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stratum {
+    /// How many of the position's top bits are fixed.
+    pub bits: usize,
+    /// Their value.
+    pub index: usize,
+}
+
+impl Stratum {
+    /// The strata of a batch of `count` queries into `2^depth` positions, in query order.
+    ///
+    /// # Overview
+    ///
+    /// The batch is cut by the binary digits of `count`, highest first.
+    ///
+    /// ```text
+    ///     a group of 2^g queries, s = min(g, depth):
+    ///         query j fixes the top s bits of its position to j mod 2^s
+    ///         so each of the 2^s cosets of those bits holds equally many of the group's queries
+    /// ```
+    ///
+    /// # Why it is sound
+    ///
+    /// - A set every query misses with probability at most `1 - delta` is missed by the batch with probability at most `(1 - delta)^count`.
+    /// - That is the bound of independent queries (the PCS annex, `thm:rbr`).
+    /// - The top `s` levels of a group's Merkle paths are then one complete subtree, hashed once by the verifier.
+    pub fn batch(count: usize, depth: usize) -> Vec<Self> {
+        let mut out = Vec::with_capacity(count);
+        for g in (0..usize::BITS as usize).rev().filter(|&g| count >> g & 1 == 1) {
+            let bits = g.min(depth);
+            out.extend((0..1usize << g).map(|j| Self {
+                bits,
+                index: j & ((1 << bits) - 1),
+            }));
+        }
+        out
+    }
+}
+
+/// Sample `count` query positions of `depth` bits, in transcript order.
 ///
-/// Each is nonzero: `v_k` lies outside the span of `v_0, ..., v_(k-1)`, where `s_k` vanishes.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Normalizers {
-    /// `s_k(v_k)`, for `k = 0..=log_n`.
-    at_roots: &'static [F64],
-    /// `1 / s_k(v_k)`.
-    inverses: &'static [F64],
-}
-
-/// `s_k(v_k)` for every `k < 64`, at compile time: a domain's normalizers are a prefix of them.
-static AT_ROOTS: [F64; 64] = {
-    // The recurrence `s_(k+1)(x) = s_k(x) (s_k(x) + s_k(v_k))`, run on every basis vector above the current one.
-    //
-    // At step `k`, `row[j]` holds `s_k(v_j)` for `j > k`, and entry `k + 1` is the next normalizer.
-    let mut at_roots = [F64::ONE; 64];
-    let mut row = [F64::ZERO; 64];
-    let mut j = 1;
-    while j < 64 {
-        row[j] = F64(1 << j);
-        j += 1;
-    }
-    let mut k = 0;
-    while k + 1 < 64 {
-        let mut j = k + 1;
-        while j < 64 {
-            row[j] = row[j].mul_portable(F64(row[j].0 ^ at_roots[k].0));
-            j += 1;
-        }
-        at_roots[k + 1] = row[k + 1];
-        k += 1;
-    }
-    at_roots
-};
-
-/// `1 / s_k(v_k)` for every `k < 64`.
-static INVERSES: [F64; 64] = {
-    let mut inverses = AT_ROOTS;
-    let mut k = 0;
-    while k < 64 {
-        inverses[k] = inverses[k].inv_portable();
-        k += 1;
-    }
-    inverses
-};
-
-impl Normalizers {
-    /// The normalizers of a domain of `2^log_n` points.
-    pub(crate) fn new(log_n: usize) -> Self {
-        Self {
-            at_roots: &AT_ROOTS[..=log_n],
-            inverses: &INVERSES[..=log_n],
-        }
-    }
-
-    /// `s_k(v_k)`, for `k = 0..=log_n`.
-    pub(crate) const fn at_roots(&self) -> &[F64] {
-        self.at_roots
-    }
-
-    /// `1 / s_k(v_k)`, for `k = 0..=log_n`.
-    pub(crate) const fn inverses(&self) -> &[F64] {
-        self.inverses
-    }
-
-    /// The normalized `s_k(x) / s_k(v_k)`, for `k < out.len()`.
-    fn normalized_at(&self, x: F64, out: &mut [F64]) {
-        // The unnormalized recurrence first, from `s_0(x) = x`.
-        let mut s = x;
-        for (k, o) in out.iter_mut().enumerate() {
-            if k > 0 {
-                s *= s + self.at_roots[k - 1];
+/// - Each squeezed element of `E` yields `floor(192 / depth)` positions: its disjoint `depth`-bit chunks, low bits first.
+/// - Each position then takes its stratum: its top bits are replaced by the stratum's.
+///
+/// Positions are neither sorted nor deduplicated.
+///
+/// A repeated position opens the same authenticated row again, which is harmless.
+pub(crate) fn sample_queries(ch: &mut impl Challenger, depth: usize, count: usize) -> Vec<usize> {
+    let per = 192 / depth;
+    let mut out = Vec::with_capacity(count);
+    while out.len() < count {
+        let v: F192 = ch.verifier_message();
+        for j in 0..per.min(count - out.len()) {
+            let off = j * depth;
+            let limbs = [v.c0, v.c1, v.c2];
+            let (li, sh) = (off / 64, off % 64);
+            let mut chunk = limbs[li] >> sh;
+            if sh + depth > 64 {
+                chunk |= limbs[li + 1] << (64 - sh);
             }
-            *o = s * self.inverses[k];
+            out.push(chunk as usize & ((1 << depth) - 1));
         }
     }
-}
-
-/// An entry of an opened row: a word of `K` at L0, an element of `E` at every deeper level.
-pub(crate) trait RowElem: Copy + Sync {
-    /// The inner product `sum_l row[l] * eq[l]`, in `E`.
-    fn dot(row: &[Self], eq: &[F192]) -> F192;
-}
-
-impl RowElem for F64 {
-    #[inline]
-    fn dot(row: &[Self], eq: &[F192]) -> F192 {
-        inner_product_base(row, eq)
+    for (x, s) in out.iter_mut().zip(Stratum::batch(count, depth)) {
+        let low = depth - s.bits;
+        *x = (*x & ((1 << low) - 1)) | s.index << low;
     }
+    out
 }
 
-impl RowElem for F192 {
-    #[inline]
-    fn dot(row: &[Self], eq: &[F192]) -> F192 {
-        inner_product(row, eq)
+/// The padding of a hiding commitment's level-0 lanes, as both sides take its share off a folded row.
+///
+/// A lane of `2^m` words is padded by `W_m(X + s) R(X)`, `R` of degree below `k` in the novel basis.
+///
+/// # Why the shift
+///
+/// `s = F64(2^(m + r))` is the first basis element past a `2^(m + r)`-point domain, and the factor must vanish nowhere on the domain.
+///
+/// - `W_m` vanishes on the domain's first `2^m` points.
+/// - It is `F_2`-linear and injective on the span of the basis elements from `m` up.
+/// - So it maps the domain onto the span of `W_m(2^b)`, `m <= b < m + r`, which `W_m(s)` lies outside.
+pub(crate) struct Padding {
+    /// The log of a lane's words, `m`.
+    log_msg_cols: usize,
+    /// `W_m(s)`, the padding factor's shift.
+    shift: F64,
+    /// The subspace polynomials up to `W_m`.
+    basis: NovelBasis,
+}
+
+impl Padding {
+    /// The padding of lanes of `2^log_msg_cols` words at rate `2^-log_inv_rate`.
+    pub(crate) fn new(log_msg_cols: usize, log_inv_rate: usize) -> Self {
+        let basis = NovelBasis::new(log_msg_cols);
+        Self {
+            log_msg_cols,
+            shift: basis.normalized_portable(F64(1 << (log_msg_cols + log_inv_rate)), log_msg_cols),
+            basis,
+        }
+    }
+
+    /// `W_m(s)`, the constant the padding factor `W_m(X + s) = W_m(X) + W_m(s)` adds.
+    pub(crate) const fn shift(&self) -> F64 {
+        self.shift
+    }
+
+    /// The share at `x` of a padding whose lane fold is `g1`.
+    ///
+    /// ```text
+    ///     W_m(x + s) * sum_j g1[j] X_j(x)
+    /// ```
+    ///
+    /// Adding it, which in characteristic two takes it off, leaves the folded data's codeword.
+    ///
+    /// The same code runs natively, in the verifier, and in the recursion machine's rows.
+    pub(crate) fn share<A: Arith>(&self, ar: &mut A, x: A::E, g1: &[A::E]) -> A::E {
+        let m = self.log_msg_cols;
+        let inverses = self.basis.inverses();
+        // W_b(x) for the bits of j < k, then W_m(x), by the subspace polynomials' recurrence.
+        let bits = g1.len().next_power_of_two().trailing_zeros() as usize;
+        let mut s = x;
+        let mut w = Vec::with_capacity(bits);
+        for (b, &inverse) in inverses[..=m].iter().enumerate() {
+            if b > 0 {
+                s = self.basis.next(ar, s, b - 1);
+            }
+            if b < bits {
+                w.push(ar.mul_const(s, F192::from(inverse)));
+            }
+        }
+        let w_m = ar.mul_const(s, F192::from(inverses[m]));
+        let w_m = ar.add_const(w_m, F192::from(self.shift));
+        // sum_j g1[j] X_j(x), folding the top bit of j at a time: X_j is the product of W_b over the bits b of j.
+        let mut g = g1.to_vec();
+        while g.len() > 1 {
+            let half = g.len().next_power_of_two() >> 1;
+            let w_b = w[half.trailing_zeros() as usize];
+            for j in 0..g.len() - half {
+                g[j] = ar.mul_add(w_b, g[j + half], g[j]);
+            }
+            g.truncate(half);
+        }
+        match g.first() {
+            Some(&p) => ar.mul(w_m, p),
+            None => ar.zero(),
+        }
     }
 }
 
@@ -158,11 +213,14 @@ impl<'a> QueryBatch<'a> {
     ///
     /// # Panics
     ///
-    /// Panics unless there is one opened row per query.
-    pub(crate) fn claimed_sum<T: RowElem>(&self, rows: &[Vec<T>], fold: &[F192]) -> F192 {
+    /// Panics unless there is one opened row per query, each one fold wide.
+    pub(crate) fn claimed_sum<T: Subfield>(&self, rows: &[Vec<T>], fold: &[F192]) -> F192 {
         assert_eq!(rows.len(), self.positions.len(), "one opened row per query");
         let eq = eq_table(fold);
-        (rows.iter().zip(self.weights)).fold(F192::ZERO, |sum, (row, &w)| sum + w * T::dot(row, &eq))
+        (rows.iter().zip(self.weights)).fold(F192::ZERO, |sum, (row, &w)| {
+            assert_eq!(row.len(), eq.len(), "a row is one fold's width");
+            sum + w * T::dot(&eq, row, F192::ZERO)
+        })
     }
 
     /// The weight the batch induces on a message of `2^log_msg_cols` coefficients, encoded at rate `2^-log_inv_rate`.
@@ -176,6 +234,14 @@ impl<'a> QueryBatch<'a> {
         } else {
             self.expanded(log_msg_cols)
         }
+    }
+
+    /// What a padding whose lane fold is `g1` adds to the batch's claimed sum: each query's share, weighted.
+    pub(crate) fn padding_correction(&self, padding: &Padding, g1: &[F192]) -> F192 {
+        (self.positions.iter().zip(self.weights)).fold(F192::ZERO, |acc, (&q, &weight)| {
+            let x = F192::from(F64(q as u64));
+            acc + weight * padding.share(&mut Native, x, g1)
+        })
     }
 
     /// Whether the transposed encode computes the induced weight.
@@ -208,21 +274,13 @@ impl<'a> QueryBatch<'a> {
         const SUB: usize = 128;
 
         let low = log_msg_cols.min(LOW_BITS);
-        let normalizers = Normalizers::new(log_msg_cols);
+        let basis = NovelBasis::new(log_msg_cols);
 
-        // Phase 1: per query, its normalized `s_k` and its low table, doubled one bit at a time.
-        //
-        //     low_i[0] = 1,   low_i[j + 2^k] = low_i[j] * s_k(q_i)   for j < 2^k
+        // Phase 1: per query, its normalized `s_k`, and its basis polynomials over the low bits.
         let per_query: Vec<(Vec<F64>, Vec<F64>)> = parallel::map_collect(self.positions.len(), |i| {
             let mut s = vec![F64::ZERO; log_msg_cols];
-            normalizers.normalized_at(F64(self.positions[i] as u64), &mut s);
-            let mut table = vec![F64::ONE; 1 << low];
-            for (k, &s_k) in s[..low].iter().enumerate() {
-                let (lo, hi) = table.split_at_mut(1 << k);
-                for (h, &l) in hi[..1 << k].iter_mut().zip(lo.iter()) {
-                    *h = l * s_k;
-                }
-            }
+            basis.normalized_at(F64(self.positions[i] as u64), &mut s);
+            let table = basis_values(&s[..low]);
             (s, table)
         });
 
@@ -265,297 +323,17 @@ impl<'a> QueryBatch<'a> {
     ///
     /// Its twiddles are in `K`, and only the low `2^log_msg_cols` outputs are kept.
     pub(super) fn transposed(&self, log_msg_cols: usize, log_inv_rate: usize) -> Vec<F192> {
-        let encode = TransposedEncode::new(log_msg_cols + log_inv_rate);
-        let mut weight = encode.apply_sparse(self.positions, self.weights, log_inv_rate);
+        let ntt = AdditiveNtt::standard(log_msg_cols + log_inv_rate);
+        let mut weight = ntt.transpose_sparse(self.positions, self.weights, log_inv_rate);
         weight.truncate(1 << log_msg_cols);
         weight
     }
-}
-
-/// The transposed butterfly `s = a + b; a' = s; b' = t*s + b` on every pair of a top and a bottom row.
-///
-/// An element of `E` is three words of `K` and `t` is in `K`, so the rows are lanes of `K` sharing one twiddle.
-fn transposed_butterflies(t: F64, top: &mut [F192], bot: &mut [F192]) {
-    // SAFETY:
-    // - An element of `E` is laid out as three words of `K`, and an element of `K` as one word.
-    // - So each view covers exactly the memory of the slice it came from, which it shadows for its lifetime.
-    let (top, bot) = unsafe {
-        (
-            std::slice::from_raw_parts_mut(top.as_mut_ptr().cast::<F64>(), 3 * top.len()),
-            std::slice::from_raw_parts_mut(bot.as_mut_ptr().cast::<F64>(), 3 * bot.len()),
-        )
-    };
-    transposed_butterfly_lanes(top, bot, t);
-}
-
-/// Elements per cache-resident window of the layer-blocked run.
-const TRANSPOSE_CHUNK: usize = 1 << 16;
-
-/// Layers the gathered pass takes at most: a group is `2^6` rows.
-const GATHER_LOG: usize = 6;
-
-/// Residues one gathered task takes: 32 residues of 64 rows is 48 KiB, sized to stay in L2.
-const GATHER_RESIDUES: usize = 32;
-
-/// The transpose of the additive NTT on a domain of `2^log_d` points, applied to vectors of `E`.
-struct TransposedEncode {
-    ntt: AdditiveNttF64,
-    log_d: usize,
-}
-
-impl TransposedEncode {
-    /// The transposed encode of a domain of `2^log_d` points.
-    fn new(log_d: usize) -> Self {
-        Self {
-            ntt: AdditiveNttF64::standard(log_d),
-            log_d,
-        }
-    }
-
-    /// The transposed encode of a sparse input, its first `2^(log_d - log_inv_rate)` outputs valid.
-    ///
-    /// The input is `values` at `positions`, repeated positions adding.
-    ///
-    /// # Algorithm
-    ///
-    /// 1. The first `k` transposed layers mix only within `2^k`-aligned windows, so only occupied windows run them.
-    /// 2. The windows are written into a dense vector, the empty ones staying zero.
-    /// 3. The remaining layers run densely down to layer `log_inv_rate`.
-    /// 4. The lowest `log_inv_rate` layers are replaced by adding the blocks into the first one.
-    ///
-    /// # Returns
-    ///
-    /// A vector of `2^log_d` elements whose first `2^(log_d - log_inv_rate)` are the outputs; the rest are unspecified.
-    fn apply_sparse(&self, positions: &[usize], values: &[F192], log_inv_rate: usize) -> Vec<F192> {
-        let log_d = self.log_d;
-        let _span = tracing::info_span!(
-            "NTT",
-            kind = "transpose induce",
-            log_domain = log_d,
-            nonzero = positions.len()
-        )
-        .entered();
-        debug_assert!(log_inv_rate <= log_d);
-        let n = 1usize << log_d;
-        // Windows of `2^8` elements from a domain of `2^12` up; their layers stop before the block fold.
-        let k = if log_d >= 12 { 8usize.min(log_d) } else { 0 };
-        let prefix_steps = k.min(log_d - log_inv_rate);
-
-        let mut data = vec![F192::ZERO; n];
-        if k == 0 {
-            for (&p, &v) in positions.iter().zip(values) {
-                data[p] += v;
-            }
-        } else {
-            // Group the nonzero inputs into windows of `2^k` elements.
-            let wmask = (1usize << k) - 1;
-            let mut windows: HashMap<usize, Vec<F192>> = HashMap::new();
-            for (&p, &v) in positions.iter().zip(values) {
-                let buf = windows.entry(p >> k).or_insert_with(|| vec![F192::ZERO; 1 << k]);
-                buf[p & wmask] += v;
-            }
-
-            // The prefix layers inside each occupied window, in parallel since windows are disjoint.
-            let mut windows: Vec<(usize, Vec<F192>)> = windows.into_iter().collect();
-            parallel::chunks_mut(&mut windows, 1, |_, window| {
-                let (w, buf) = &mut window[0];
-                for s in 0..prefix_steps {
-                    let layer = log_d - 1 - s;
-                    let half = 1usize << s;
-                    for (jb, block) in buf.chunks_mut(2 * half).enumerate() {
-                        // The block's index in the whole domain: `((w << k) + jb * 2 half) >> (s + 1)`.
-                        let t = self.ntt.twiddle(layer, (*w << (k - s - 1)) + jb);
-                        let (top, bot) = block.split_at_mut(half);
-                        transposed_butterflies(t, top, bot);
-                    }
-                }
-            });
-
-            // Densify the occupied windows; an empty window stays zero, which its prefix layers would leave it.
-            for (w, buf) in &windows {
-                data[(w << k)..((w + 1) << k)].copy_from_slice(buf);
-            }
-        }
-
-        // The dense layers stop before the ones the block fold replaces.
-        self.run_layers(&mut data, (log_inv_rate..(log_d - prefix_steps)).rev(), TRANSPOSE_CHUNK);
-        fold_blocks(&mut data, log_inv_rate);
-        data
-    }
-
-    /// The transposed-butterfly sweep over `layers`, which descend, in the order given.
-    ///
-    /// # Layer blocking
-    ///
-    /// - Layers descend, so a layer's blocks grow along the run, and the layers whose blocks fit a window are a prefix.
-    /// - Blocks nest, so a window of `window_len` elements holds whole blocks of every layer in that prefix.
-    /// - That prefix then runs back to back inside each window: one read and one write of memory instead of one per layer.
-    ///
-    /// # Parallelism
-    ///
-    /// - The blocked prefix runs one window per task.
-    /// - A later layer runs one block per task once there are as many blocks as threads, and splits its rows otherwise.
-    /// - When the layers left after that prefix are at most `GATHER_LOG` consecutive ones, one gathered pass runs them.
-    fn run_layers(&self, data: &mut [F192], layers: impl Iterator<Item = usize>, window_len: usize) {
-        let log_d = self.log_d;
-        let n_threads = parallel::num_threads();
-        let layers: Vec<usize> = layers.collect();
-        debug_assert!(layers.windows(2).all(|w| w[0] > w[1]), "layers descend");
-        // Why the size floor: without a window per worker, the blocked run loses more parallelism than it saves traffic.
-        let blocked = if data.len() >= window_len.saturating_mul(n_threads) {
-            (layers.iter())
-                .position(|&l| (1usize << (log_d - l)) > window_len)
-                .unwrap_or(layers.len())
-        } else {
-            0
-        };
-        if blocked > 1 {
-            parallel::chunks_mut(data, window_len, |c, window: &mut [F192]| {
-                let base = c * window_len;
-                for &layer in &layers[..blocked] {
-                    let block_size = 1usize << (log_d - layer);
-                    for (b, block) in window.chunks_mut(block_size).enumerate() {
-                        let (top, bot) = block.split_at_mut(block_size >> 1);
-                        transposed_butterflies(self.ntt.twiddle(layer, base / block_size + b), top, bot);
-                    }
-                }
-            });
-        }
-        let rest = &layers[if blocked > 1 { blocked } else { 0 }..];
-
-        // The layers left take the gathered pass when they are at most `GATHER_LOG` consecutive ones, ending at `low`.
-        // The run may stop above layer zero: its `2^low` outer blocks are then independent.
-        let g = rest.len();
-        let low = rest.last().copied().unwrap_or(0);
-        if (1..=GATHER_LOG).contains(&g) && rest.iter().copied().eq((low..low + g).rev()) {
-            self.run_gathered(data, low, g);
-            return;
-        }
-        for &layer in rest {
-            let num_blocks = 1usize << layer;
-            let block_size = 1usize << (log_d - layer);
-            let half = block_size >> 1;
-            if num_blocks >= n_threads {
-                parallel::chunks_mut(data, block_size, |block, chunk: &mut [F192]| {
-                    let (top, bot) = chunk.split_at_mut(half);
-                    transposed_butterflies(self.ntt.twiddle(layer, block), top, bot);
-                });
-            } else {
-                for (block, chunk) in data.chunks_mut(block_size).enumerate() {
-                    let t = self.ntt.twiddle(layer, block);
-                    let (top, bot) = chunk.split_at_mut(half);
-                    let chunk_len = parallel::recommended_chunk_size(half);
-                    parallel::chunks_mut2(top, bot, chunk_len, |_, top, bot| transposed_butterflies(t, top, bot));
-                }
-            }
-        }
-    }
-
-    /// The transposed butterflies of layers `low + g - 1` down to `low`, in one gathered pass.
-    ///
-    /// - The `2^low` outer blocks are independent.
-    /// - Within one, the rows `r + i * step` for `i < 2^g` pair only with each other, where `step = 2^(log_d - low - g)`.
-    /// - A task gathers a run of consecutive residues `r`, runs every layer on them in cache, and scatters them back.
-    ///
-    /// Its twiddles include the outer block's offset in the full domain.
-    fn run_gathered(&self, data: &mut [F192], low: usize, g: usize) {
-        let (log_d, ntt) = (self.log_d, &self.ntt);
-        let rows = 1usize << g;
-        let step = 1usize << (log_d - low - g);
-        let per_task = GATHER_RESIDUES.min(step);
-        let base = SendPtr(data.as_mut_ptr());
-        let tasks_per_block = step / per_task;
-        parallel::for_each((1usize << low) * tasks_per_block, |task| {
-            let outer = task / tasks_per_block;
-            let r0 = outer * (1usize << (log_d - low)) + (task % tasks_per_block) * per_task;
-            // Scratch index `i * per_task + j` holds row `r0 + j + i * step`.
-            let mut scratch = [F192::ZERO; GATHER_RESIDUES << GATHER_LOG];
-            let scratch = &mut scratch[..rows * per_task];
-
-            // Gather: one contiguous run of residues per group row.
-            for (i, dst) in scratch.chunks_exact_mut(per_task).enumerate() {
-                // SAFETY: the rows `r0 + j + i * step`, `j < per_task`, lie inside this task's outer block.
-                // Tasks own disjoint pairs of outer block and residue range, so no other task touches these rows.
-                dst.copy_from_slice(unsafe { base.slice(r0 + i * step, per_task) });
-            }
-
-            // Relative layers g - 1 .. 0 pair group rows `half` apart.
-            for layer in (0..g).rev() {
-                let half = 1usize << (g - 1 - layer);
-                for block in 0..1usize << layer {
-                    let t = ntt.twiddle(low + layer, (outer << layer) + block);
-                    let at = block * 2 * half * per_task;
-                    let (top, bot) = scratch[at..at + 2 * half * per_task].split_at_mut(half * per_task);
-                    transposed_butterflies(t, top, bot);
-                }
-            }
-
-            // Scatter: every group row returns to its place.
-            for (i, src) in scratch.chunks_exact(per_task).enumerate() {
-                // SAFETY: as for the gather.
-                unsafe { base.slice(r0 + i * step, per_task) }.copy_from_slice(src);
-            }
-        });
-    }
-}
-
-/// Add the `2^log_inv_rate` blocks of `data` into its first block, which is retained.
-///
-/// Through the omitted lowest `log_inv_rate` layers, a retained output depends only on top outputs, `a' = a + b`.
-///
-/// So those layers reduce to `N - n` additions and no product, for `N` inputs and `n` retained outputs.
-fn fold_blocks(data: &mut [F192], log_inv_rate: usize) {
-    if log_inv_rate == 0 {
-        return;
-    }
-    let n = data.len() >> log_inv_rate;
-    let (retained, rest) = data.split_at_mut(n);
-    let chunk_len = parallel::recommended_chunk_size(n);
-    parallel::chunks_mut(retained, chunk_len, |chunk, out| {
-        let start = chunk * chunk_len;
-        for block in rest.chunks_exact(n) {
-            for (out, &value) in out.iter_mut().zip(&block[start..]) {
-                *out += value;
-            }
-        }
-    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use primitives::test_util::Rng;
-
-    #[test]
-    fn blocked_and_gathered_transposes_match_layer_by_layer() {
-        // Invariant: the windowed prefix and the gathered tail compute the plain transposed NTT.
-        let mut rng = Rng::new(0x7A55);
-        // At most six layers are left to the gathered pass.
-        // The shapes cover a nonzero lowest layer, several outer blocks and fewer than 32 residues.
-        for (log_d, low) in [(12, 0), (12, 1), (12, 3), (12, 6), (8, 0), (8, 2), (8, 7)] {
-            let encode = TransposedEncode::new(log_d);
-            let data: Vec<F192> = rng.ext_vec(1 << log_d);
-
-            // Reference: one layer at a time, highest first, every block's butterflies in place.
-            let mut want = data.clone();
-            for layer in (low..log_d).rev() {
-                let half = 1usize << (log_d - 1 - layer);
-                for (block, chunk) in want.chunks_mut(2 * half).enumerate() {
-                    let t = encode.ntt.twiddle(layer, block);
-                    let (top, bot) = chunk.split_at_mut(half);
-                    for (a, b) in top.iter_mut().zip(bot.iter_mut()) {
-                        let s = *a + *b;
-                        (*a, *b) = (s, s.mul_base(t) + *b);
-                    }
-                }
-            }
-
-            let mut got = data;
-            let gathered = GATHER_LOG.min(log_d - low);
-            encode.run_layers(&mut got, (low..log_d).rev(), 1 << (log_d - low - gathered));
-            assert_eq!(got, want, "log_d={log_d}, low={low}");
-        }
-    }
 
     #[test]
     fn the_transposed_encode_is_the_expansion() {
@@ -572,6 +350,32 @@ mod tests {
                 batch.expanded(log_msg_cols),
                 "log_msg_cols={log_msg_cols}, log_inv_rate={log_inv_rate}"
             );
+        }
+    }
+
+    #[test]
+    fn each_group_of_strata_covers_its_cosets_equally() {
+        // Invariant: each group covers every coset of its fixed bits equally often, which the stratified queries' soundness rests on.
+        for depth in [1usize, 3, 7, 22] {
+            for count in 1..=300usize {
+                let strata = Stratum::batch(count, depth);
+                assert_eq!(strata.len(), count);
+                let mut at = 0;
+                for g in (0..usize::BITS as usize).rev().filter(|&g| count >> g & 1 == 1) {
+                    let group = &strata[at..at + (1 << g)];
+                    let bits = g.min(depth);
+                    let mut hits = vec![0usize; 1 << bits];
+                    for s in group {
+                        assert_eq!(s.bits, bits, "count {count}, depth {depth}");
+                        hits[s.index] += 1;
+                    }
+                    assert!(
+                        hits.iter().all(|&h| h == 1 << (g - bits)),
+                        "count {count}, depth {depth}"
+                    );
+                    at += 1 << g;
+                }
+            }
         }
     }
 }

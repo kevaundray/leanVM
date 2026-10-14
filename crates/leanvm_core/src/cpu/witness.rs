@@ -4,8 +4,8 @@ use super::MAX_LOG_ROWS;
 use super::execute::Execution;
 use super::layout::{Layout, Lookup, Schema, Shared, q_column};
 use super::program::Program;
-use crate::class_flock::FlockId;
-use crate::tables::{ClassTable, FillContext, PerTable, TableId};
+use super::proof::ProofKind;
+use crate::tables::{CircuitId, ClassTable, FillContext, PerTable, TableId};
 use flock::Tables;
 use primitives::field::F64;
 use std::mem::MaybeUninit;
@@ -23,18 +23,20 @@ pub(crate) struct Witness {
     pub(crate) layout: Layout,
     /// The clock the run ended on, which the prover announces.
     pub(crate) ts_final: u64,
-    /// Every circuit's flock batch but its `z`, which is its committed column, in [`FlockId::ALL`] order; freed right
+    /// Every circuit's flock batch but its `z`, which is its committed column, in [`CircuitId::ALL`] order; freed right
     /// after the batched reduction.
     pub(crate) reductions: Vec<Tables>,
 }
 
 impl Witness {
-    /// The witness of a finished run.
+    /// The witness of a finished run, laid out for a proof of this kind.
+    ///
+    /// A zero-knowledge proof's stack ends with zero lanes, which its hiding commitment completes.
     ///
     /// # Panics
     ///
     /// Panics if a table's rows are not a power of two at flock's floor: the fill blocks failed to fill it.
-    pub(crate) fn build(program: &Program, exec: &Execution) -> Self {
+    pub(crate) fn build(program: &Program, exec: &Execution, kind: ProofKind) -> Self {
         let (p, trace, schema) = (&program.rv, &exec.trace, Schema::get());
 
         // Every table's rows are real, filled to a power of two at flock's floor, so its height is its row count.
@@ -61,7 +63,7 @@ impl Witness {
         });
 
         // The public layout comes first: it fixes each column's length, so each is allocated once.
-        let layout = Layout::new(p, taus, trace.ts_final);
+        let layout = Layout::new(p, taus, trace.ts_final).of_kind(kind);
 
         // The stack is written exactly once: one window per committed column, each filled in place.
         let mut q = Box::new_uninit_slice(layout.shape.committed_len());
@@ -76,7 +78,7 @@ impl Witness {
         // SAFETY: each table fills its column windows before they are read.
         // The shared columns are filled below.
         // The pad tail is zeroed.
-        let mut windows = crate::witness::split_stack(unsafe { primitives::write_only(&mut q) }, &layout.placements);
+        let mut windows = crate::stacking::split_stack(unsafe { primitives::write_only(&mut q) }, &layout.placements);
         for (i, buf) in virt.iter_mut() {
             // SAFETY: each table checks that it writes every circuit port column in full.
             windows[*i] = unsafe { primitives::write_only(buf) };
@@ -108,7 +110,7 @@ impl Witness {
 
         // The packed witnesses, one instance per row of their table.
         let reductions = info_span!("Build flock witnesses").in_scope(|| {
-            (FlockId::ALL.into_iter())
+            (CircuitId::ALL.into_iter())
                 .map(|f| f.tables(trace, p, windows[q_column(f)]))
                 .collect()
         });
@@ -154,6 +156,6 @@ impl Witness {
 
     /// The committed data before the stack's zero pad: the real witness size.
     pub(crate) fn committed_size(&self) -> usize {
-        crate::witness::committed_len(&self.layout.placements)
+        crate::stacking::committed_len(&self.layout.placements)
     }
 }

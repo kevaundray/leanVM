@@ -1,8 +1,6 @@
 //! The duplex sponge: a byte string absorbed, a byte stream squeezed.
 //!
-//! The transcript layer runs over any duplex sponge.
-//!
-//! This one is built from the BLAKE2s compression function, the hash the VM proves.
+//! It is built from the BLAKE2s compression function, the hash the VM proves.
 //!
 //! # The mode
 //!
@@ -36,24 +34,11 @@
 //!
 //! The loss is `q^2 / 2^257` for `q` compressions.
 
-use crate::Hashing;
 use crate::arith::Native;
+use crate::codec::{Encoding, FromUniform};
+use crate::{Hashing, SessionId};
 use primitives::hash::PARAM_IV;
 use std::marker::PhantomData;
-
-/// A duplex sponge over bytes.
-///
-/// Every implementation must stream: splitting a call into several never changes the bytes squeezed.
-pub trait DuplexSponge: Clone {
-    /// The sponge started from a 32-byte initialization vector, such as a session identifier.
-    fn init(iv: [u8; 32]) -> Self;
-
-    /// Absorb `input`.
-    fn absorb(&mut self, input: &[u8]);
-
-    /// Fill `output` with the next squeezed bytes.
-    fn squeeze(&mut self, output: &mut [u8]);
-}
 
 /// The role of a node, in the top byte of its compression counter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,9 +57,6 @@ pub enum Role {
     /// One 32-byte output block, addressed by its index.
     Output = 6,
 }
-
-/// Bytes one squeeze run may consume: a 49-bit count fits the framing word.
-pub const MAX_SQUEEZE: u64 = (1 << 49) - 1;
 
 impl Role {
     /// The compression counter of a node of this role.
@@ -108,6 +90,8 @@ impl Role {
 ///
 /// It holds at most one pending input block and one output block, and never allocates.
 ///
+/// It streams: splitting an absorb or a squeeze into several calls never changes the bytes squeezed.
+///
 /// `H` compresses: the prover's [`Native`] kernels, or the native verifier's [`crate::arith::Portable`] code.
 #[derive(Clone, Debug)]
 pub struct Blake2sDuplex<H = Native> {
@@ -129,7 +113,34 @@ pub struct Blake2sDuplex<H = Native> {
     hashing: PhantomData<H>,
 }
 
+impl Blake2sDuplex {
+    /// Bytes one squeeze run may consume, whatever compresses: a 49-bit count fits the framing word.
+    pub const MAX_SQUEEZE: u64 = (1 << 49) - 1;
+}
+
 impl<H: Hashing> Blake2sDuplex<H> {
+    /// The sponge a transcript starts from: seeded with the session, then the instance absorbed.
+    ///
+    /// The instance is public: both sides absorb it, and the proof does not carry it.
+    ///
+    /// # Panics
+    ///
+    /// Panics on an instance of no bytes, which would bind no statement.
+    pub(crate) fn transcript(session: &SessionId, instance: &impl Encoding) -> Self {
+        let mut sponge = Self::new(session.0);
+        let encoded = instance.encode();
+        assert!(!encoded.as_ref().is_empty(), "an instance has bytes");
+        sponge.absorb(encoded.as_ref());
+        sponge
+    }
+
+    /// Draw one verifier message from the bytes squeezed next.
+    pub(crate) fn draw<T: FromUniform>(&mut self) -> T {
+        let mut repr = T::Repr::default();
+        self.squeeze(repr.as_mut());
+        T::from_uniform(repr)
+    }
+
     /// Compress the pending block into the chaining value.
     ///
     /// `last` says whether it closes its absorb run.
@@ -146,8 +157,10 @@ impl<H: Hashing> Blake2sDuplex<H> {
     }
 }
 
-impl<H: Hashing> DuplexSponge for Blake2sDuplex<H> {
-    fn init(iv: [u8; 32]) -> Self {
+impl<H: Hashing> Blake2sDuplex<H> {
+    /// The sponge started from a 32-byte initialization vector, such as a session identifier.
+    #[must_use]
+    pub fn new(iv: [u8; 32]) -> Self {
         // The seed block is the initialization vector, then zeros.
         let mut block = [0; 64];
         block[..32].copy_from_slice(&iv);
@@ -163,7 +176,8 @@ impl<H: Hashing> DuplexSponge for Blake2sDuplex<H> {
         }
     }
 
-    fn absorb(&mut self, mut input: &[u8]) {
+    /// Absorb `input`.
+    pub fn absorb(&mut self, mut input: &[u8]) {
         // An empty absorb is no absorb at all, and leaves a squeeze run open.
         if input.is_empty() {
             return;
@@ -187,16 +201,21 @@ impl<H: Hashing> DuplexSponge for Blake2sDuplex<H> {
         }
     }
 
+    /// Fill `output` with the next squeezed bytes.
+    ///
     /// # Panics
     ///
-    /// Panics when the squeeze run would pass `MAX_SQUEEZE` bytes, before changing the state.
-    fn squeeze(&mut self, mut output: &mut [u8]) {
+    /// Panics when the squeeze run would pass the most one run may consume, before changing the state.
+    pub fn squeeze(&mut self, mut output: &mut [u8]) {
         // An empty squeeze is no squeeze at all, and leaves an absorb run open.
         if output.is_empty() {
             return;
         }
         let len = output.len() as u64;
-        assert!(len <= MAX_SQUEEZE - self.squeezed, "squeeze run too long");
+        assert!(
+            len <= Blake2sDuplex::MAX_SQUEEZE - self.squeezed,
+            "squeeze run too long"
+        );
 
         // Close the absorb run: its pending block is its last.
         if self.n_pending != 0 {
@@ -307,7 +326,7 @@ mod tests {
             //
             // Splitting and empty calls must change nothing.
             let iv = [9; 32];
-            let mut sponge: Blake2sDuplex = Blake2sDuplex::init(iv);
+            let mut sponge: Blake2sDuplex = Blake2sDuplex::new(iv);
             let mut out = Vec::new();
             for run in &runs {
                 match run {
@@ -335,7 +354,7 @@ mod tests {
     fn padding_and_squeeze_counts_are_bound() {
         // The framing tells apart transcripts a plain concatenation would merge.
         let challenge = |squeezed: usize, absorbed: &[u8]| {
-            let mut sponge: Blake2sDuplex = Blake2sDuplex::init([0; 32]);
+            let mut sponge: Blake2sDuplex = Blake2sDuplex::new([0; 32]);
             sponge.absorb(b"x");
             sponge.squeeze(&mut vec![0; squeezed]);
             sponge.absorb(absorbed);
@@ -363,9 +382,9 @@ mod tests {
     #[test]
     fn a_squeeze_run_past_the_limit_is_refused_before_any_change() {
         // Fixture: a sponge whose run already consumed all but one byte of the limit.
-        let mut sponge: Blake2sDuplex = Blake2sDuplex::init([0; 32]);
+        let mut sponge: Blake2sDuplex = Blake2sDuplex::new([0; 32]);
         sponge.squeeze(&mut [0; 1]);
-        sponge.squeezed = MAX_SQUEEZE - 1;
+        sponge.squeezed = Blake2sDuplex::MAX_SQUEEZE - 1;
         let before = sponge.clone();
 
         // Two more bytes cross the limit: the call panics, and the sponge is untouched.
@@ -381,7 +400,7 @@ mod tests {
         //
         // Any change to the framing, the padding or the byte order moves these bytes, on either compression.
         fn run<H: Hashing>() -> String {
-            let mut sponge = Blake2sDuplex::<H>::init(std::array::from_fn(|i| i as u8));
+            let mut sponge = Blake2sDuplex::<H>::new(std::array::from_fn(|i| i as u8));
             sponge.absorb(&(0..131).collect::<Vec<u8>>());
             let mut first = [0; 40];
             sponge.squeeze(&mut first);

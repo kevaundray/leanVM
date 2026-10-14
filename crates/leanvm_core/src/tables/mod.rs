@@ -4,6 +4,7 @@
 //! Circuit words are virtual columns bound to the machine through the bus.
 
 mod bus;
+mod circuits;
 mod clock;
 mod columns;
 mod fill;
@@ -12,20 +13,12 @@ pub(crate) mod spec;
 mod table;
 mod word;
 
+pub use circuits::{CircuitId, MIN_CUBE_LOG, N_CIRCUITS, Part, batch_log};
 pub use clock::Clock;
 pub use id::{N_TABLES, PerTable, TableId, TableKey};
-pub use spec::{BAD_SLOT, ClassSpec, EXIT_SLOT, Fill, N_CIRCUITS, Ram};
+pub use spec::{BAD_SLOT, ClassSpec, EXIT_SLOT, Fill, N_CLASS_CIRCUITS, Ram};
 pub use table::ClassTable;
 pub use word::Word;
 
 pub(crate) use bus::Separator;
 pub(crate) use fill::FillContext;
-
-/// One of a table's flock circuits: its class's function, which the extension-field table has none of, or its clock.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Part {
-    /// Instruction semantics.
-    Class,
-    /// Memory access ordering.
-    Clock,
-}

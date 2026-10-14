@@ -361,7 +361,9 @@ mod tests {
     };
     use fiat_shamir::arith::Portable;
     use fiat_shamir::{ProverState, SessionId, VerifierState};
-    use flock::reduction::{self, Instance};
+    use flock::BatchRows;
+    use flock::reduction;
+    use flock::test_util::Witness;
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -442,12 +444,14 @@ mod tests {
 
         // Prove the batch, optionally flipping one witness bit first, and verify.
         let accepts = |tamper: Option<usize>| {
-            let mut witness = ALU.witness_by_walk(&rows, &[0; 6], n_log, |row, words| words.copy_from_slice(row));
+            let mut witness = Witness::by_walk(&ALU, BatchRows::new(&rows, &[0; 6], n_log), |row, words| {
+                words.copy_from_slice(row);
+            });
             if let Some(bit) = tamper {
                 witness.z[bit / 64] ^= 1 << (bit % 64);
             }
             let mut ps = ProverState::new(&SessionId::new(LABEL), &0u64);
-            let instance = Instance::of(block, n_log, &witness);
+            let instance = witness.instance(block, n_log);
             let claims = reduction::prove(&[instance], &mut ps);
             let proof = ps.into_proof();
             let mut vs = VerifierState::new(&SessionId::new(LABEL), &0u64, &proof);

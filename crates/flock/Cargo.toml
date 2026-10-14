@@ -17,5 +17,10 @@ pcs.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 
+[features]
+# Whole witnesses for this and other crates' tests and benchmarks (`test_util`).
+# Kept off the default build so that no proof links them.
+test-util = []
+
 [dev-dependencies]
 primitives = { workspace = true, features = ["test-util"] }

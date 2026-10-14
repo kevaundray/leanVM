@@ -246,10 +246,6 @@ impl Multiplier {
 
     /// Write the complement selector, the carry-save products and the final carries.
     fn witness_into(&self, a: u64, b: u64, tables: &mut InstanceRows<'_>) -> u128 {
-        // A wrapping product needs only the low half of every row.
-        if self.width == u128::from(u64::MAX) {
-            return u128::from(self.witness_low(a, b, tables));
-        }
         let (na, nb) = (!a, !b);
         let mut rows = [0u128; N_ROWS];
         for (i, row) in rows[..64].iter_mut().enumerate() {
@@ -279,42 +275,6 @@ impl Multiplier {
         let sum = rx.wrapping_add(ry) & self.width;
         let carry_in = sum ^ rx ^ ry;
         tables.products(self.carry_slot, self.carries, rx ^ carry_in, ry ^ carry_in);
-        sum
-    }
-
-    /// The same plan modulo `2^64`, on words: a 64-bit shift clips the rows for free.
-    fn witness_low(&self, a: u64, b: u64, tables: &mut InstanceRows<'_>) -> u64 {
-        let mut rows = [0u64; N_ROWS];
-        for (i, row) in rows[..64].iter_mut().enumerate() {
-            let v = b ^ ((a >> i) & 1).wrapping_sub(1);
-            *row = if i == 0 { v >> 1 } else { v << (i - 1) };
-        }
-        rows[A_ROW] = (!a >> 1) | (a << 63);
-        rows[B_ROW] = (!b >> 1) | (b << 63);
-        rows[2] |= 1;
-        rows[3] |= !a & !b & 1;
-        tables.products(self.g_slot, 1, u128::from(!a), u128::from(!b));
-
-        // Each step replaces three rows by the same sum and carry.
-        for s in &self.steps {
-            let (rx, ry, rz) = (rows[s.x], rows[s.y], rows[s.z]);
-            let (xz, yz) = (rx ^ rz, ry ^ rz);
-            let moved = (ry & s.move_y as u64) | (rz & s.move_z as u64);
-            rows[s.x] = rx ^ ry ^ rz ^ moved;
-            rows[s.y] = ((((xz & yz) ^ rz) & s.products as u64) << 1) | moved;
-            tables.products(s.slot, s.products, u128::from(xz), u128::from(yz));
-        }
-
-        // The native sum's XOR with its operands recovers the final carry-in bits.
-        let (rx, ry) = (rows[self.last.0], rows[self.last.1]);
-        let sum = rx.wrapping_add(ry);
-        let carry_in = sum ^ rx ^ ry;
-        tables.products(
-            self.carry_slot,
-            self.carries,
-            u128::from(rx ^ carry_in),
-            u128::from(ry ^ carry_in),
-        );
         sum
     }
 

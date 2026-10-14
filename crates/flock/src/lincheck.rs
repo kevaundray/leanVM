@@ -65,21 +65,22 @@
 //!     q(inf) = sum_i (comb_lo[i] + comb_hi[i]) * (z_lo[i] + z_hi[i])      the leading coefficient
 //! ```
 
-use fiat_shamir::arith::{Arith, Native, RoundPolynomial, Verifier};
+use fiat_shamir::arith::{Arith, Native, RoundWeight, Verifier};
 use fiat_shamir::{ProverState, TranscriptError};
 use parallel::SendPtr;
 use pcs::ring_switch::SliceClaim;
 use primitives::bits::bit_transpose_64bytes;
 use primitives::field::F192;
-use primitives::multilinear::{eq_table, skip_lagrange_weights};
+use primitives::multilinear::eq_table;
 use thiserror::Error;
 
 use crate::reduction::Shape;
-use crate::zerocheck::{SkipDomain, ZerocheckReplay};
+use crate::round::RoundEvals;
+use crate::zerocheck::{SkipDomain, ZerocheckReplay, lagrange_sum};
 
 /// A circuit's linear maps as the lincheck reads them, never as matrices.
 ///
-/// The one implementation walks its gate list: backwards for the prover's marginal, forwards for the verifier's form.
+/// The production implementation walks its gate list: backwards for the prover's marginal, forwards for the verifier's form.
 pub trait LincheckCircuit: Sync {
     /// The columns of the base matrices: `2^k_log`.
     fn n_cols(&self) -> usize;
@@ -101,27 +102,27 @@ pub trait LincheckCircuit: Sync {
 ///
 /// `1 + (k_log - k_skip) + n_log` coordinates in all, the shape the zerocheck's claims come at.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct QuirkyPoint {
+pub(crate) struct SkipPoint {
     /// The skip challenge, standing for the first `k_skip` inner variables.
-    pub z_skip: F192,
+    pub(crate) z_skip: F192,
 
     /// The other inner coordinates, low variable first.
-    pub x_inner_rest: Vec<F192>,
+    pub(crate) x_inner_rest: Vec<F192>,
 
     /// The outer coordinates, which index the instances.
-    pub x_outer: Vec<F192>,
+    pub(crate) x_outer: Vec<F192>,
 }
 
 /// The lincheck's output on one circuit: the bit slices of `z` at the inner point `r_inner_rest`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LincheckClaim {
+pub(crate) struct LincheckClaim {
     /// The inner coordinates the product sumcheck drew, low variable first.
-    pub r_inner_rest: Vec<F192>,
+    pub(crate) r_inner_rest: Vec<F192>,
 
     /// The `2^k_skip` bit slices of `z` at `(r_inner_rest, x_outer)`, pinned by the terminal identity.
     ///
     /// They are the ring switch's claim too, so the opening reuses them rather than receive them again.
-    pub s_hat_v: Vec<F192>,
+    pub(crate) s_hat_v: Vec<F192>,
 }
 
 impl LincheckClaim {
@@ -151,26 +152,17 @@ pub enum LincheckError {
     #[error("the sumcheck's final claim does not match the matrices")]
     SumcheckMismatch,
 
+    /// The circuit's matrices' form misses the value the prover claimed for it.
+    #[error("the matrices' form misses its claimed value")]
+    FormMismatch,
+
     /// The proof stream is malformed.
     #[error(transparent)]
     Transcript(#[from] TranscriptError),
 }
 
-/// The eq table of the inner half of a quirky point, the skip's Lagrange weights on the low index bits.
-///
-/// ```text
-///     out[i_skip + i_rest 2^k_skip] = L_(i_skip)(z_skip) * eq(x_inner_rest, i_rest)
-/// ```
-pub fn build_quirky_eq_table(z_skip: F192, x_inner_rest: &[F192], k_skip: usize) -> Vec<F192> {
-    outer_product(
-        &mut Native,
-        &eq_table(x_inner_rest),
-        &skip_lagrange_weights(k_skip, z_skip),
-    )
-}
-
 /// `out[i_lo + i_hi lo.len()] = lo[i_lo] * hi[i_hi]`: `lo` varies fastest.
-fn outer_product<A: Arith>(a: &mut A, hi: &[A::E], lo: &[A::E]) -> Vec<A::E> {
+pub(crate) fn outer_product<A: Arith>(a: &mut A, hi: &[A::E], lo: &[A::E]) -> Vec<A::E> {
     // Sized up front: a flattened iterator cannot report its length.
     let mut out = Vec::with_capacity(hi.len() * lo.len());
     for &h in hi {
@@ -181,36 +173,36 @@ fn outer_product<A: Arith>(a: &mut A, hi: &[A::E], lo: &[A::E]) -> Vec<A::E> {
 
 /// The weights of a batch's circuits: circuit `f`'s `A`, `B`, `C` and pin terms ride `alpha^(4f)` to `alpha^(4f + 3)`.
 fn circuit_weights(alpha: F192, n: usize) -> Vec<F192> {
-    primitives::field::powers(alpha.square().square(), n)
+    alpha.square().square().powers(n)
 }
 
 /// One circuit's witness in a batched lincheck, and the point its zerocheck claims are at.
 #[derive(Clone, Copy)]
 pub(crate) struct LincheckInput<'a> {
     /// The witness, instance-major, packed 64 bits a word.
-    pub z: &'a [u64],
+    pub(crate) z: &'a [u64],
 
     /// The base-two logarithm of the witness's bits.
-    pub m: usize,
+    pub(crate) m: usize,
 
     /// The base-two logarithm of the bits per instance.
-    pub k_log: usize,
+    pub(crate) k_log: usize,
 
     /// The inner variables the skip stands for.
-    pub k_skip: usize,
+    pub(crate) k_skip: usize,
 
     /// The bits of an instance before its zero padding.
-    pub useful_bits: usize,
+    pub(crate) useful_bits: usize,
 
     /// The circuit's matrices.
-    pub circuit: &'a dyn LincheckCircuit,
+    pub(crate) circuit: &'a dyn LincheckCircuit,
 
     /// The zerocheck's point.
-    pub x_ab: &'a QuirkyPoint,
+    pub(crate) x_ab: &'a SkipPoint,
 }
 
 /// One circuit's share of the batched product sumcheck.
-struct CircuitProver {
+struct CircuitSumcheck {
     /// Its marginal and folded witness.
     sumcheck: ProductSumcheck,
     /// Its rounds: its inner variables past the skip.
@@ -219,11 +211,11 @@ struct CircuitProver {
     running: F192,
     /// The challenges of the rounds since its last, multiplied.
     lift: F192,
-    /// Its next round's `(q(1), q(inf))`.
-    next: (F192, F192),
+    /// Its next round.
+    next: RoundEvals,
 }
 
-impl CircuitProver {
+impl CircuitSumcheck {
     /// The circuit's marginal and folded witness, and its first round.
     fn new(input: &LincheckInput<'_>, alpha: F192) -> Self {
         let LincheckInput {
@@ -244,8 +236,8 @@ impl CircuitProver {
         assert_eq!(x_ab.x_outer.len(), m - k_log);
 
         // Phase 1: the batched marginal of `A` and `B`, through the circuit.
-        let eq_inner =
-            tracing::info_span!("Eq table").in_scope(|| build_quirky_eq_table(x_ab.z_skip, &x_ab.x_inner_rest, k_skip));
+        let eq_inner = tracing::info_span!("Eq table")
+            .in_scope(|| SkipDomain::new(k_skip).inner_eq_table(x_ab.z_skip, &x_ab.x_inner_rest));
         let mut comb = tracing::info_span!("Fold circuit").in_scope(|| circuit.fold_alpha_batched(alpha, &eq_inner));
 
         // Phase 2: `C = I` at `alpha^2`, so its marginal is the row weights themselves.
@@ -260,16 +252,12 @@ impl CircuitProver {
 
         // Phase 4: the witness folded at the outer half of the point.
         let z = tracing::info_span!("Partial fold")
-            .in_scope(|| partial_fold(z, k_log, useful_bits, &eq_table(&x_ab.x_outer)));
+            .in_scope(|| Stripes::new(z, k_log).fold(useful_bits, &eq_table(&x_ab.x_outer)));
 
         // Phase 5: the only standalone round; every later one falls out of binding the one before.
         let sumcheck = ProductSumcheck::new(comb, z);
         let rounds = k_log - k_skip;
-        let next = if rounds > 0 {
-            sumcheck.round()
-        } else {
-            (F192::ZERO, F192::ZERO)
-        };
+        let next = if rounds > 0 { sumcheck.round() } else { RoundEvals::ZERO };
         Self {
             running: sumcheck.claim(),
             sumcheck,
@@ -279,11 +267,11 @@ impl CircuitProver {
         }
     }
 
-    /// The round's coefficients; `q(0) + q(1) = claim` lets the wire drop the linear one.
+    /// The round's coefficients.
+    ///
+    /// `q(0) + q(1) = claim` fixes `q(0)`, which lets the wire drop the linear coefficient.
     fn message(&self) -> [F192; 3] {
-        let (e1, einf) = self.next;
-        let e0 = self.running + e1;
-        [e0, e0 + e1 + einf, einf]
+        self.next.coefficients(self.running + self.next.at_one)
     }
 
     /// Bind round `t` at `r`.
@@ -310,7 +298,7 @@ pub(crate) fn prove(inputs: &[LincheckInput<'_>], ps: &mut ProverState) -> Vec<L
     // Phase 1: `alpha` batches each circuit's `a`, `b`, `c` checks and pin, and the circuits.
     let alpha = ps.verifier_message();
     let weights = circuit_weights(alpha, inputs.len());
-    let mut provers: Vec<CircuitProver> = inputs.iter().map(|input| CircuitProver::new(input, alpha)).collect();
+    let mut provers: Vec<CircuitSumcheck> = inputs.iter().map(|input| CircuitSumcheck::new(input, alpha)).collect();
 
     // Phase 2: the batched product sumcheck, a done circuit lifted by the variables it lacks.
     let span = tracing::info_span!("Sumcheck").entered();
@@ -328,7 +316,7 @@ pub(crate) fn prove(inputs: &[LincheckInput<'_>], ps: &mut ProverState) -> Vec<L
                 *m += weight * c;
             }
         }
-        RoundPolynomial { coeffs: message }.send(ps, false);
+        ps.send_round(&message, RoundWeight::Plain);
         let r = ps.verifier_message();
         r_rounds.push(r);
         for prover in &mut provers {
@@ -423,7 +411,7 @@ pub(crate) fn verify_deferred<V: Verifier>(
     let n_rounds = rests.iter().copied().max().expect("a batch has a circuit");
     let mut r_rounds = Vec::with_capacity(n_rounds);
     for _ in 0..n_rounds {
-        let q = RoundPolynomial::read(v, 3, running, None)?.coeffs;
+        let q = v.read_round(3, running, None)?;
         let challenge = v.verifier_message();
         running = v.poly_eval(&q, challenge);
         r_rounds.push(challenge);
@@ -525,7 +513,7 @@ impl<E: Copy> ClosedTerms<E> {
         let own = a.mul_add(self.beta, pin_term, value);
 
         // The `C` term: the slices' Lagrange sum at the skip challenge, times the inner eq.
-        let slices = SkipDomain::lagrange_with(a, self.scale, &self.inverses, s_hat_v);
+        let slices = lagrange_sum(a, self.scale, &self.inverses, s_hat_v);
         let eq = *self.eq_inner[r_inner_rest.len()].get_or_insert_with(|| a.eq_eval(x_inner_rest, r_inner_rest));
         let c_term = a.mul(eq, slices);
         a.mul_add(self.alpha_sq, c_term, own)
@@ -574,18 +562,23 @@ impl<E: Copy> MatrixForm<E> {
 }
 
 impl MatrixForm {
+    /// The skip domain the form's slices are the bits of: one slice per skipped bit.
+    const fn domain(&self) -> SkipDomain {
+        SkipDomain::new(self.s_hat_v.len().ilog2() as usize)
+    }
+
     /// The form against a circuit's matrices, on `a`: the native verifier's `Portable`, or a prover's replay.
     ///
     /// The row weights `u = eq_rows (x) lagrange` are never built: each block of `2^k_skip` rows takes the Lagrange
     /// weights, and the blocks their eq weights.
     pub fn evaluate<A: Arith<E = F192>>(&self, a: &mut A, circuit: &dyn LincheckCircuit) -> F192 {
-        let k_skip = self.s_hat_v.len().ilog2() as usize;
-        let lagrange = SkipDomain::new(k_skip).lagrange_weights(a, self.z_skip);
+        let domain = self.domain();
+        let lagrange = domain.lagrange_weights(a, self.z_skip);
         let eq_rows = a.eq_table(&self.x_inner_rest);
         let eq_cols = a.eq_table(&self.r_inner_rest);
         let w = outer_product(a, &eq_cols, &self.s_hat_v);
         let (ra, rb) = circuit.matrix_rows(&w);
-        let n = ra.len().min(eq_rows.len() << k_skip);
+        let n = ra.len().min(eq_rows.len() << domain.k_skip());
         let rows: Vec<F192> = (ra[..n].iter().zip(&rb))
             .map(|(&ra, &rb)| a.mul_add(self.alpha, rb, ra))
             .collect();
@@ -593,6 +586,21 @@ impl MatrixForm {
             .map(|block| a.dot(&lagrange[..block.len()], block))
             .collect();
         a.dot(&eq_rows[..blocks.len()], &blocks)
+    }
+
+    /// The form's weight on each bit slice, so that its value is `sum_i s_hat_v[i] * weights[i]`.
+    ///
+    /// The form is linear in its slices, and the weights depend on its other coordinates alone.
+    #[must_use]
+    pub fn slice_weights(&self, circuit: &dyn LincheckCircuit) -> Vec<F192> {
+        let n_slices = self.s_hat_v.len();
+        let eq_inner = self.domain().inner_eq_table(self.z_skip, &self.x_inner_rest);
+        let marginal = circuit.fold_alpha_batched(self.alpha, &eq_inner);
+        let eq_rest = eq_table(&self.r_inner_rest);
+        // Column j * n_slices + i takes eq_rest[j] times slice i.
+        (0..n_slices)
+            .map(|i| (eq_rest.iter().enumerate()).fold(F192::ZERO, |acc, (j, &e)| acc + e * marginal[j * n_slices + i]))
+            .collect()
     }
 }
 
@@ -613,7 +621,7 @@ impl MatrixClaim {
     ///
     /// # Errors
     ///
-    /// The circuit's width if it is not the form's, and a sumcheck mismatch when the form misses the value.
+    /// The circuit's width if it is not the form's, and a form mismatch when the form misses the value.
     pub fn check<A: Arith<E = F192>>(&self, a: &mut A, circuit: &dyn LincheckCircuit) -> Result<(), LincheckError> {
         // The form's column point and slices fix the circuit's width.
         let n_cols = self.form.s_hat_v.len() << self.form.r_inner_rest.len();
@@ -627,7 +635,7 @@ impl MatrixClaim {
         if self.form.evaluate(a, circuit) == self.value {
             Ok(())
         } else {
-            Err(LincheckError::SumcheckMismatch)
+            Err(LincheckError::FormMismatch)
         }
     }
 }
@@ -661,21 +669,23 @@ impl ProductSumcheck {
         primitives::multilinear::inner_product(&self.comb, &self.z)
     }
 
-    /// The current round's `(q(1), q(inf))`.
-    fn round(&self) -> (F192, F192) {
+    /// The current round's `q(1)` and `q(inf)`.
+    fn round(&self) -> RoundEvals {
         let half = self.z.len() / 2;
         let (c_lo, c_hi) = self.comb.split_at(half);
         let (z_lo, z_hi) = self.z.split_at(half);
         // One term of each coefficient at index `i`.
-        let term = |i: usize| (c_hi[i] * z_hi[i], (c_lo[i] + c_hi[i]) * (z_lo[i] + z_hi[i]));
-        let add = |x: (F192, F192), y: (F192, F192)| (x.0 + y.0, x.1 + y.1);
+        let term = |i: usize| RoundEvals {
+            at_one: c_hi[i] * z_hi[i],
+            at_inf: (c_lo[i] + c_hi[i]) * (z_lo[i] + z_hi[i]),
+        };
         if half < PAR_THRESHOLD {
-            return (0..half).map(term).fold((F192::ZERO, F192::ZERO), add);
+            return (0..half).map(term).sum();
         }
-        parallel::map_reduce(half, || (F192::ZERO, F192::ZERO), term, add)
+        parallel::map_reduce(half, || RoundEvals::ZERO, term, |x, y| x + y)
     }
 
-    /// Bind the top variable at `r`, and return the next round's `(q(1), q(inf))`.
+    /// Bind the top variable at `r`, and return the next round's `q(1)` and `q(inf)`.
     ///
     /// Binding produces exactly the halves the next round pairs up, so both happen in one pass:
     ///
@@ -690,7 +700,7 @@ impl ProductSumcheck {
     /// # Panics
     ///
     /// When fewer than four values remain, which leaves no next round.
-    fn bind_and_round(&mut self, r: F192) -> (F192, F192) {
+    fn bind_and_round(&mut self, r: F192) -> RoundEvals {
         let len = self.z.len();
         let (half, quarter) = (len / 2, len / 4);
         assert!(quarter >= 1, "a next round needs two values after binding");
@@ -710,28 +720,30 @@ impl ProductSumcheck {
             let z_lo = *z0 + r * (z2[i] + *z0);
             let z_hi = *z1 + r * (z3[i] + *z1);
             (*c0, *c1, *z0, *z1) = (lo, hi, z_lo, z_hi);
-            (hi * z_hi, (hi + lo) * (z_hi + z_lo))
+            RoundEvals {
+                at_one: hi * z_hi,
+                at_inf: (hi + lo) * (z_hi + z_lo),
+            }
         };
-        let add = |x: (F192, F192), y: (F192, F192)| (x.0 + y.0, x.1 + y.1);
 
         let next = if quarter < PAR_THRESHOLD {
             ((c0.iter_mut().zip(c1.iter_mut())).zip(z0.iter_mut().zip(z1.iter_mut())))
                 .enumerate()
                 .map(|(i, ((c0, c1), (z0, z1)))| step([c0, c1, z0, z1], i))
-                .fold((F192::ZERO, F192::ZERO), add)
+                .sum()
         } else {
             // Four written quarters cannot zip into one parallel loop, so each task indexes them.
             let ptrs = [c0, c1, z0, z1].map(|q| SendPtr(q.as_mut_ptr()));
             parallel::map_reduce(
                 quarter,
-                || (F192::ZERO, F192::ZERO),
+                || RoundEvals::ZERO,
                 |i| {
                     // SAFETY: distinct `i` touch distinct slots of four disjoint quarters.
                     // All four stay borrowed for the dispatch.
                     let slots = ptrs.map(|p| unsafe { &mut *p.add(i) });
                     step(slots, i)
                 },
-                add,
+                |x, y| x + y,
             )
         };
         self.comb.truncate(half);
@@ -821,76 +833,74 @@ impl<'a> Stripes<'a> {
         bit_transpose_64bytes(rows.as_flattened().try_into().expect("eight words"), &mut out);
         out
     }
-}
 
-/// The eq-weighted sum over instances of every position of the witness.
-///
-/// - `z` is instance-major, `2^k_log` bits per instance.
-/// - `eq_outer` holds one weight per instance.
-/// - Positions from `useful_bits` on are zero in every instance, so they fold to zero unread.
-///
-/// # Panics
-///
-/// When there is not one weight per instance.
-fn partial_fold(z: &[u64], k_log: usize, useful_bits: usize, eq_outer: &[F192]) -> Vec<F192> {
-    let stripes = Stripes::new(z, k_log);
-    assert_eq!(eq_outer.len(), 8 * stripes.len(), "one weight per instance");
-    assert!(useful_bits <= stripes.positions());
-    // Groups of 64 positions holding a useful bit; a group straddling the boundary folds its zeros harmlessly.
-    let groups = useful_bits.div_ceil(64);
-    #[cfg(all(
-        target_arch = "x86_64",
-        target_feature = "gfni",
-        target_feature = "avx512bw",
-        target_feature = "avx512vbmi"
-    ))]
-    if stripes.len().is_multiple_of(gfni::TILE) {
-        return gfni::partial_fold(stripes, groups, eq_outer);
+    /// The eq-weighted sum over instances of every position of the witness.
+    ///
+    /// - `eq_outer` holds one weight per instance.
+    /// - Positions from `useful_bits` on are zero in every instance, so they fold to zero unread.
+    ///
+    /// # Panics
+    ///
+    /// When there is not one weight per instance.
+    fn fold(self, useful_bits: usize, eq_outer: &[F192]) -> Vec<F192> {
+        assert_eq!(eq_outer.len(), 8 * self.len(), "one weight per instance");
+        assert!(useful_bits <= self.positions());
+        // Groups of 64 positions holding a useful bit; a group straddling the boundary folds its zeros harmlessly.
+        let groups = useful_bits.div_ceil(64);
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "gfni",
+            target_feature = "avx512bw",
+            target_feature = "avx512vbmi"
+        ))]
+        if self.len().is_multiple_of(gfni::TILE) {
+            return gfni::partial_fold(self, groups, eq_outer);
+        }
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"))
+        ))]
+        if self.len().is_multiple_of(avx2::TILE) {
+            return avx2::partial_fold::<primitives::bit_fold::avx2::Best>(self, groups, eq_outer);
+        }
+        #[cfg(target_arch = "aarch64")]
+        if self.len().is_multiple_of(neon::TILE) {
+            return neon::partial_fold(self, groups, eq_outer);
+        }
+        self.fold_by_tables(groups, eq_outer)
     }
-    #[cfg(all(
-        target_arch = "x86_64",
-        target_feature = "avx2",
-        not(all(target_feature = "gfni", target_feature = "avx512bw", target_feature = "avx512vbmi"))
-    ))]
-    if stripes.len().is_multiple_of(avx2::TILE) {
-        return avx2::partial_fold::<primitives::bit_fold::avx2::Best>(stripes, groups, eq_outer);
-    }
-    #[cfg(target_arch = "aarch64")]
-    if stripes.len().is_multiple_of(neon::TILE) {
-        return neon::partial_fold(stripes, groups, eq_outer);
-    }
-    partial_fold_tables(stripes, groups, eq_outer)
-}
 
-/// The fold by 256-entry sum tables, one table per stripe: the portable kernel, and every target's for few stripes.
-fn partial_fold_tables(stripes: Stripes<'_>, groups: usize, eq_outer: &[F192]) -> Vec<F192> {
-    let k = stripes.positions();
-    // Enough stripes per task to amortize its table, and enough tasks for every worker.
-    let per_task = (stripes.len() / 256).max(1);
-    parallel::fold_reduce(
-        stripes.len().div_ceil(per_task),
-        || vec![F192::ZERO; k],
-        |acc, task| {
-            let mut table = [F192::ZERO; 256];
-            for s in task * per_task..((task + 1) * per_task).min(stripes.len()) {
-                sum_table(
-                    eq_outer[8 * s..8 * s + 8].try_into().expect("eight weights"),
-                    &mut table,
-                );
-                for (g, acc) in acc.as_chunks_mut::<64>().0[..groups].iter_mut().enumerate() {
-                    for (acc, byte) in acc.iter_mut().zip(stripes.bytes(s, g)) {
-                        *acc += table[usize::from(byte)];
+    /// The fold by 256-entry sum tables, one table per stripe: the portable kernel, and every target's for few stripes.
+    fn fold_by_tables(self, groups: usize, eq_outer: &[F192]) -> Vec<F192> {
+        let k = self.positions();
+        // Enough stripes per task to amortize its table, and enough tasks for every worker.
+        let per_task = (self.len() / 256).max(1);
+        parallel::fold_reduce(
+            self.len().div_ceil(per_task),
+            || vec![F192::ZERO; k],
+            |acc, task| {
+                let mut table = [F192::ZERO; 256];
+                for s in task * per_task..((task + 1) * per_task).min(self.len()) {
+                    sum_table(
+                        eq_outer[8 * s..8 * s + 8].try_into().expect("eight weights"),
+                        &mut table,
+                    );
+                    for (g, acc) in acc.as_chunks_mut::<64>().0[..groups].iter_mut().enumerate() {
+                        for (acc, byte) in acc.iter_mut().zip(self.bytes(s, g)) {
+                            *acc += table[usize::from(byte)];
+                        }
                     }
                 }
-            }
-        },
-        |mut x, y| {
-            for (x, y) in x.iter_mut().zip(&y) {
-                *x += *y;
-            }
-            x
-        },
-    )
+            },
+            |mut x, y| {
+                for (x, y) in x.iter_mut().zip(&y) {
+                    *x += *y;
+                }
+                x
+            },
+        )
+    }
 }
 
 /// The 256 subset sums of eight weights: `table[b] = sum_{r : bit r of b} eq8[r]`.
@@ -1132,8 +1142,7 @@ mod neon {
             for i in 0..BLOCK {
                 let e0 = &tables[0][usize::from(pair[0][at + i])];
                 let e1 = &tables[1][usize::from(pair[1][at + i])];
-                // SAFETY: the three-way XOR's target features are those the crate is built with.
-                acc01[i] = unsafe { xor3_u64(acc01[i], low(e0), low(e1)) };
+                acc01[i] = xor3_u64(acc01[i], low(e0), low(e1));
                 acc2[i] ^= e0.c2 ^ e1.c2;
             }
         }
@@ -1250,7 +1259,7 @@ mod tests {
         k_skip: usize,
         circuit: SparseCircuit,
         z: Vec<bool>,
-        x_ab: QuirkyPoint,
+        x_ab: SkipPoint,
         evals: [F192; 3],
     }
 
@@ -1266,13 +1275,13 @@ mod tests {
             for block in z.chunks_exact_mut(k) {
                 block[PIN_COL] = true;
             }
-            let x_ab = QuirkyPoint {
+            let x_ab = SkipPoint {
                 z_skip: rng.ext(),
                 x_inner_rest: rng.ext_vec(k_log - k_skip),
                 x_outer: rng.ext_vec(m - k_log),
             };
             let (a, b) = (circuit.a_0.apply_blocks(&z), circuit.b_0.apply_blocks(&z));
-            let eval = |f: &[bool]| quirky_eval(f, k_log, k_skip, &x_ab);
+            let eval = |f: &[bool]| skip_eval(f, k_log, k_skip, &x_ab);
             let evals = [eval(&a), eval(&b), eval(&z)];
             Self {
                 m,
@@ -1327,8 +1336,8 @@ mod tests {
     }
 
     /// A Boolean vector's extension at a quirky point: skip Lagrange weights, then eq on the other coordinates.
-    fn quirky_eval(f: &[bool], k_log: usize, k_skip: usize, point: &QuirkyPoint) -> F192 {
-        let lambda = skip_lagrange_weights(k_skip, point.z_skip);
+    fn skip_eval(f: &[bool], k_log: usize, k_skip: usize, point: &SkipPoint) -> F192 {
+        let lambda = SkipDomain::new(k_skip).lagrange_weights(&mut Native, point.z_skip);
         let eq_rest = eq_table(&point.x_inner_rest);
         let eq_outer = eq_table(&point.x_outer);
         let mut acc = F192::ZERO;
@@ -1388,7 +1397,7 @@ mod tests {
                 r_inner_rest: rng.ext_vec(k_log - k_skip),
                 s_hat_v: rng.ext_vec(1 << k_skip),
             };
-            let u = build_quirky_eq_table(form.z_skip, &form.x_inner_rest, k_skip);
+            let u = SkipDomain::new(k_skip).inner_eq_table(form.z_skip, &form.x_inner_rest);
             let w = outer_product(&mut Native, &eq_table(&form.r_inner_rest), &form.s_hat_v);
             let (ra, rb) = circuit.matrix_rows(&w);
             let want = (u.iter().zip(ra.iter().zip(&rb)))
@@ -1407,6 +1416,33 @@ mod tests {
     }
 
     #[test]
+    fn a_form_is_its_slices_against_their_weights() {
+        // Invariant: the form is linear in its slices, with weights fixed by its other coordinates.
+        //
+        //     evaluate(form)  =  sum_i s_hat_v[i] * slice_weights(form)[i]
+        //
+        // Fixture state, (k_log, k_skip): no skip, a partial skip, the whole instance skipped.
+        for (k_log, k_skip) in [(6, 0), (6, 3), (7, 4), (6, 6)] {
+            let mut rng = Rng::new(88 + (k_log * 10 + k_skip) as u64);
+            let f = Fixture::new(10, k_log, k_skip, 3, &mut rng);
+            let form = MatrixForm {
+                alpha: rng.ext(),
+                z_skip: rng.ext(),
+                x_inner_rest: rng.ext_vec(k_log - k_skip),
+                r_inner_rest: rng.ext_vec(k_log - k_skip),
+                s_hat_v: rng.ext_vec(1 << k_skip),
+            };
+            let weights = form.slice_weights(&f.circuit);
+            let linear = (form.s_hat_v.iter().zip(&weights)).fold(F192::ZERO, |acc, (&s, &w)| acc + s * w);
+            assert_eq!(
+                form.evaluate(&mut Portable, &f.circuit),
+                linear,
+                "k_log={k_log}, k_skip={k_skip}"
+            );
+        }
+    }
+
+    #[test]
     fn a_moved_slice_misses_the_terminal_identity() {
         // Invariant: every slice the sumcheck weights is pinned; moving one refuses the proof.
         //
@@ -1417,7 +1453,7 @@ mod tests {
         let mut rng = Rng::new(66);
         let f = Fixture::new(m, k_log, k_skip, 5, &mut rng);
         let (_, proof) = f.prove();
-        let eq_inner = build_quirky_eq_table(f.x_ab.z_skip, &f.x_ab.x_inner_rest, k_skip);
+        let eq_inner = SkipDomain::new(k_skip).inner_eq_table(f.x_ab.z_skip, &f.x_ab.x_inner_rest);
         let (row_a, row_b) = (f.circuit.a_0.marginal(&eq_inner), f.circuit.b_0.marginal(&eq_inner));
         let column = (0..1 << k_log)
             .find(|&i| row_a[i] != F192::ZERO || row_b[i] != F192::ZERO)
@@ -1539,13 +1575,9 @@ mod tests {
             let groups = useful.div_ceil(64);
 
             // The dispatched kernel, then each kernel this target compiles.
+            assert_eq!(stripes.fold(useful, &eq), want, "dispatch, {k_log} {n_log} {useful}");
             assert_eq!(
-                partial_fold(&z, k_log, useful, &eq),
-                want,
-                "dispatch, {k_log} {n_log} {useful}"
-            );
-            assert_eq!(
-                partial_fold_tables(stripes, groups, &eq),
+                stripes.fold_by_tables(groups, &eq),
                 want,
                 "tables, {k_log} {n_log} {useful}"
             );

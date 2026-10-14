@@ -2,11 +2,11 @@
 
 use crate::{chain, refuse};
 use bench::Plan;
+use bench::{pretty_f64, pretty_integer};
 use leanvm::asm::{Add, Addi, Asm, Bne, Reg};
 use leanvm::{Output, Program, ProvenRun, Prover, Region, Stats};
 use leanvm_guest::{PublicValues, Run};
 use primitives::hash::{digest_words, hash};
-use primitives::{pretty_f64, pretty_integer};
 use std::path::Path;
 
 /// One run of a program: what it is given and what it must output.
@@ -184,19 +184,15 @@ impl Workload {
 
     /// Prove and verify the run, and print the report.
     ///
-    /// Proving runs one discarded warmup pass, then `plan.repeat` measured passes, the last one traced.
+    /// Proving runs one discarded warmup pass, then the plan's measured passes, the last one traced.
     pub fn run(&self, prover: &Prover, plan: Plan) {
         let (
             ProvenRun {
                 proof, output, stats, ..
             },
             prove_time,
-        ) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            self.prove(prover)
-        });
-        let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
+        ) = plan.warm_then_measure(|| self.prove(prover));
+        let (_, verify_time) = plan.without_cooldown().measure_quiet(|| {
             self.program.verify(output, &proof).expect("the proof verifies");
         });
 
@@ -242,7 +238,7 @@ mod tests {
     use super::*;
     use leanvm::aggregate::{Capacity, ClaimGroup, ClaimLeaf, ClaimSet, ClaimShape, Leaf, LeafShape, Tree, TreeShape};
     use leanvm::asm::Ld;
-    use leanvm::{Proof, Rate};
+    use leanvm::{Proof, Randomness, Rate};
 
     #[test]
     fn the_workloads_prove() {
@@ -295,7 +291,8 @@ mod tests {
         #[cfg(target_arch = "x86_64")]
         assert!(refused(|| _ = std::hint::black_box(hash(b"leanvm"))));
 
-        // A leaf proof, a tampered copy of it, a two-leaf tree over it and a claim-set root, each verified in the guard.
+        // A leaf proof, a tampered copy of it, a two-leaf tree over it, the same over a zero-knowledge leaf, and a claim-set
+        // root, each verified in the guard.
         let leaf = Workload::fibonacci(1_000);
         let prover = Prover::new(Rate::MIN);
         let proved = leaf.prove(&prover);
@@ -321,6 +318,30 @@ mod tests {
             .expect("honest leaves");
         tree.verify(&root, &[proved.output; 2]).expect("the root");
         assert!(tree.verify(&root, &[proved.output, Output::new([1, 2, 3, 4])]).is_err());
+
+        // A zero-knowledge leaf, its outer proof included, and a tree over two of them.
+        let hidden = leaf.prove(&prover.zero_knowledge(Randomness::Fixed([3; 32])));
+        leaf.program
+            .verify(hidden.output, &hidden.proof)
+            .expect("an honest zero-knowledge proof");
+        let mut bytes = hidden.proof.to_bytes();
+        let middle = bytes.len() / 2;
+        bytes[middle] ^= 1;
+        if let Ok(tampered) = Proof::from_bytes(&bytes) {
+            assert!(leaf.program.verify(hidden.output, &tampered).is_err());
+        }
+        let shape = TreeShape {
+            leaf: LeafShape::of(&hidden.proof).expect("a canonical announcement"),
+            arity_0: 2,
+            arity: 2,
+            rate: Rate::MIN,
+            claims: None,
+        };
+        let tree = Tree::new(&leaf.program, shape).expect("a tree");
+        let root = tree
+            .prove(&[Leaf::new(&hidden.proof, hidden.output); 2])
+            .expect("honest zero-knowledge leaves");
+        tree.verify(&root, &[hidden.output; 2]).expect("the root");
 
         // A leaf that outputs its advice, the hash of its set's digest, after a loop that reads every framework block.
         let text = Asm::new()

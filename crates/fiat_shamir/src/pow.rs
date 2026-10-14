@@ -44,12 +44,6 @@ fn block(challenge: &[u8; 32], nonce: u64) -> [u8; 64] {
     block
 }
 
-/// Whether a digest clears `bits` of work: its first eight bytes, little-endian, have their top `bits` bits zero.
-const fn clears(digest: &[u8; 32], bits: u32) -> bool {
-    let (word, _) = digest.split_first_chunk::<8>().expect("a digest holds a word");
-    u64::from_le_bytes(*word).leading_zeros() >= bits
-}
-
 impl ProofOfWork {
     /// The largest difficulty: the work reads one 64-bit word of the digest.
     pub const MAX_BITS: u32 = 63;
@@ -79,7 +73,13 @@ impl ProofOfWork {
     /// Whether `nonce` is this much work on `challenge`, hashed by `H`.
     #[must_use]
     pub fn verify<H: Hashing>(self, challenge: &[u8; 32], nonce: u64) -> bool {
-        clears(&trial::<H>(challenge, nonce), self.bits)
+        self.accepts(&trial::<H>(challenge, nonce))
+    }
+
+    /// Whether a trial's digest is this much work: its first eight bytes, little-endian, have their top bits zero.
+    const fn accepts(self, digest: &[u8; 32]) -> bool {
+        let (word, _) = digest.split_first_chunk::<8>().expect("a digest holds a word");
+        u64::from_le_bytes(*word).leading_zeros() >= self.bits
     }
 
     /// The smallest nonce that is this much work on `challenge`, searched on the thread pool.
@@ -117,7 +117,7 @@ impl ProofOfWork {
             hash_many::<64>(blocks.as_flattened(), digests.as_flattened_mut());
 
             // Within a batch the first success is the smallest.
-            digests.iter().position(|d| clears(d, bits)).is_some_and(|i| {
+            digests.iter().position(|d| self.accepts(d)).is_some_and(|i| {
                 best.fetch_min(first + i as u64, Ordering::Relaxed);
                 true
             })
@@ -174,9 +174,9 @@ mod tests {
         //     word = 0x0000_0000_0000_0001 -> 63 bits of work
         let mut digest = [0; 32];
         digest[7] = 0x80;
-        assert!(clears(&digest, 0) && !clears(&digest, 1));
+        assert!(ProofOfWork::new(0).accepts(&digest) && !ProofOfWork::new(1).accepts(&digest));
         let mut digest = [0; 32];
         digest[0] = 1;
-        assert!(clears(&digest, 63));
+        assert!(ProofOfWork::new(63).accepts(&digest));
     }
 }

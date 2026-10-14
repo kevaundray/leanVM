@@ -14,12 +14,11 @@
 use super::batch::FormPowers;
 use super::layout::Lookup;
 use super::{CpuError, Program};
-use crate::class_flock::{FlockId, N_FLOCKS};
+use crate::bus;
+use crate::bus::{BusVerify, N_TUPLE_BITS, SparseColumn};
 use crate::constraints::{ConstraintError, Final};
-use crate::leaf;
-use crate::leaf::{BusVerify, N_TUPLE_BITS, SparseColumn};
 use crate::rv::RiscvProgram;
-use crate::tables::{N_TABLES, Part};
+use crate::tables::{CircuitId, N_CIRCUITS, N_TABLES, Part};
 use fiat_shamir::arith::{Arith, Portable};
 use flock::FlockError;
 use flock::lincheck::{LincheckError, MatrixClaim, MatrixForm};
@@ -138,7 +137,7 @@ impl ProgramPoint {
         let (chi, alphas) = self.bytecode.split_at(kbc);
         // The fingerprint weights are the eq weights of the slots at `alphas`.
         let weights = a.eq_table(alphas);
-        let bytecode = leaf::producer_public_twist(a, &Lookup::Bytecode.tuple(rv), &weights, chi, &self.twist);
+        let bytecode = bus::producer_public_twist(a, &Lookup::Bytecode.tuple(rv), &weights, chi, &self.twist);
         let image = SparseColumn::new(rv.log_ram(), &[(0, rv.image())]).eval(a, &self.image_point);
         Some(a.mul_add(self.image_weight, image, bytecode))
     }
@@ -210,9 +209,9 @@ impl Program {
     /// [`Self::check_deferred`] on `a`.
     #[tracing::instrument(name = "Check deferred", skip_all)]
     pub(super) fn settle<A: Arith<E = F192>>(&self, a: &mut A, claims: &DeferredClaims) -> Result<(), CpuError> {
-        if claims.circuits.len() != N_FLOCKS {
+        if claims.circuits.len() != N_CIRCUITS {
             return Err(CpuError::MalformedClaim(MalformedClaim::CircuitCount {
-                expected: N_FLOCKS,
+                expected: N_CIRCUITS,
                 got: claims.circuits.len(),
             }));
         }
@@ -224,7 +223,7 @@ impl Program {
             return Err(CpuError::Constraint(ConstraintError::FinalMismatch));
         }
 
-        for (f, claim) in FlockId::ALL.into_iter().zip(&claims.circuits) {
+        for (f, claim) in CircuitId::ALL.into_iter().zip(&claims.circuits) {
             let (table, part) = (f.table().name(), f.part());
             if !f.shape().fits(&claim.point) {
                 return Err(CpuError::MalformedClaim(MalformedClaim::MatrixForm { table, part }));
@@ -233,7 +232,7 @@ impl Program {
                 return Err(CpuError::Flock {
                     table,
                     part,
-                    error: FlockError::Lincheck(LincheckError::SumcheckMismatch),
+                    error: FlockError::Lincheck(LincheckError::FormMismatch),
                 });
             }
         }
@@ -266,7 +265,7 @@ mod tests {
         let kbc = crate::log2_strict_usize(rv.entries().len());
         let mut rng = Rng::new(5);
         let (chi, alphas) = (rng.ext_vec(kbc), rng.ext_vec(N_TUPLE_BITS));
-        let weights = leaf::fingerprint_weights(&alphas);
+        let weights = bus::fingerprint_weights(&alphas);
         let tuple = Lookup::Bytecode.tuple(rv);
         let table = Lookup::Bytecode.table(rv);
 
@@ -282,7 +281,7 @@ mod tests {
             let d = eq.iter().zip(&c).fold(F192::ZERO, |acc, (&e, &v)| acc + e * v);
             let unit: Vec<F192> = (0..=i).map(|j| if j == i { F192::ONE } else { F192::ZERO }).collect();
             assert_eq!(
-                leaf::producer_public_twist(&mut Portable, &tuple, &weights, &chi, &unit),
+                bus::producer_public_twist(&mut Portable, &tuple, &weights, &chi, &unit),
                 d,
                 "bit {i}"
             );
@@ -298,7 +297,7 @@ mod tests {
         let twist = rng.ext_vec(bits);
         let batched = (twist.iter().zip(&per_bit)).fold(F192::ZERO, |acc, (&mu, &d)| acc + mu * d);
         assert_eq!(
-            leaf::producer_public_twist(&mut Portable, &tuple, &weights, &chi, &twist),
+            bus::producer_public_twist(&mut Portable, &tuple, &weights, &chi, &twist),
             batched
         );
     }

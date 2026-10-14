@@ -8,15 +8,15 @@
 
 use super::error::CpuError;
 use super::execute::Trace;
+use super::proof::ProofKind;
 use super::{MAX_LOG_ROWS, UNGROUND_LOG_BYTECODE};
-use crate::class_flock::FlockId;
+use crate::bus::{Block, ColumnClaim, Coord, Producer, PublicColumn, SparseColumn};
+use crate::commitment::{Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::constraints::{BitColumns, Claims};
-use crate::leaf::{Block, ColumnClaim, Coord, Producer, PublicColumn, SparseColumn};
-use crate::pcs::{Rate, RingSwitch, SliceClaim, StackClaim};
 use crate::rv::{Entry, Reg, Region, RegisterFile, RiscvProgram, Syscall};
-use crate::tables::{ClassTable, Clock, N_TABLES, PerTable, Separator, TableId};
-use crate::witness::{Placement, Source, StackShape, Window};
-use crate::{class_flock, witness};
+use crate::stacking;
+use crate::stacking::{Placement, Source, StackShape, Window};
+use crate::tables::{CircuitId, ClassTable, Clock, N_CIRCUITS, N_TABLES, PerTable, Separator, TableId};
 use Coord::{Col, Const, IntIndex, Sparse};
 use fiat_shamir::ProofOfWork;
 use fiat_shamir::ProverState;
@@ -210,7 +210,7 @@ impl Lookup {
     ///
     /// It is also what the program digest binds.
     pub fn table(self, p: &RiscvProgram) -> Vec<F64> {
-        crate::leaf::stacked_bytecode_table(self.log_rows(Sizes::of(p)), &self.tuple(p))
+        crate::bus::stacked_bytecode_table(self.log_rows(Sizes::of(p)), &self.tuple(p))
     }
 
     /// The array's public columns over its entries, in tuple order after the address.
@@ -224,10 +224,9 @@ impl Lookup {
                 let column = |f: &dyn Fn(usize, &Entry) -> u64| -> Vec<F64> {
                     (entries.iter().enumerate()).map(|(i, e)| F64(f(i, e))).collect()
                 };
-                let tags = PerTable::from_fn(|t: TableId| primitives::field::g_pow(t.index()));
                 vec![
                     // An illegal entry's tag is zero, which is no table's: nothing can read it.
-                    column(&|_, e| TableId::of(e.class).map_or(0, |t| tags[t].0)),
+                    column(&|_, e| TableId::of(e.class).map_or(0, |t| t.tag().0)),
                     column(&|_, e| e.flags),
                     column(&|_, e| e.a1 as u64),
                     column(&|_, e| e.a2 as u64),
@@ -340,10 +339,10 @@ const _: () = {
 pub const Q_BASE: usize = Shared::ALL.len();
 
 /// The columns before the first table's: the shared ones, then the packed witnesses.
-pub const N_SHARED: usize = Q_BASE + class_flock::N_FLOCKS;
+pub const N_SHARED: usize = Q_BASE + N_CIRCUITS;
 
 /// The committed column holding packed witness `f`.
-pub(crate) const fn q_column(f: FlockId) -> usize {
+pub(crate) const fn q_column(f: CircuitId) -> usize {
     Q_BASE + f.index()
 }
 
@@ -372,7 +371,7 @@ impl Sizes {
     ///
     /// No witness is needed.
     pub(super) fn stack(self, taus: &PerTable<usize>) -> (Vec<Placement>, StackShape) {
-        witness::placements_of(&self.column_sources(taus))
+        stacking::placements_of(&self.column_sources(taus))
     }
 
     /// Every column's source, in global order.
@@ -391,7 +390,7 @@ impl Sizes {
             .collect();
 
         // The packed witnesses: every class circuit's, then every clock circuit's.
-        sources.extend(FlockId::ALL.map(|f| Source::Committed(taus[f.table()] + f.stride_log())));
+        sources.extend(CircuitId::ALL.map(|f| Source::Committed(taus[f.table()] + f.stride_log())));
 
         // Each table's columns, its circuit words turned into ports of its packed witnesses.
         //
@@ -399,7 +398,7 @@ impl Sizes {
         for (t, table) in ClassTable::all().iter() {
             let base = sources.len();
             sources.resize(base + table.n_committed_columns(), Source::Committed(taus[t]));
-            for f in FlockId::class(t).into_iter().chain([FlockId::clock(t)]) {
+            for f in CircuitId::class(t).into_iter().chain([CircuitId::clock(t)]) {
                 for (port, c) in table.word_columns(f.part()) {
                     sources[base + c] = Source::Port {
                         column: q_column(f),
@@ -607,7 +606,7 @@ impl Layout {
     }
 
     /// Packed witness `f`'s window in the stack.
-    pub(crate) fn witness_window(&self, f: FlockId) -> Window {
+    pub(crate) fn witness_window(&self, f: CircuitId) -> Window {
         self.placements[q_column(f)]
             .window()
             .expect("a packed witness is committed")
@@ -632,7 +631,8 @@ impl Layout {
         tables: &[Claims<E>],
         zero: E,
     ) -> Vec<RingSwitch<E>> {
-        let witnesses = (FlockId::ALL.into_iter().zip(witnesses)).map(|(f, claim)| self.witness_window(f).ring(claim));
+        let witnesses =
+            (CircuitId::ALL.into_iter().zip(witnesses)).map(|(f, claim)| self.witness_window(f).ring(claim));
         let producers = (self.producers.iter().zip(multiplicities)).map(|(p, claims)| {
             let claim = SliceClaim::zero_padded(claims.chi.clone(), claims.evals.iter().copied(), zero);
             self.multiplicity_window(p).ring(claim)
@@ -724,10 +724,63 @@ impl Announcement {
 
     /// Send the announcement, which binds it into the transcript.
     pub(super) fn write(&self, ps: &mut ProverState) {
-        for size in Self::sizes(&self.taus, self.rate) {
+        Self::write_shape(&self.taus, self.rate, ps);
+        ps.prover_message(&F192::new(self.ts_final, 0, 0));
+    }
+
+    /// Send a zero-knowledge proof's announcement: each table's height, then the rate.
+    ///
+    /// Its final clock is not announced: it is hidden.
+    pub(super) fn write_shape(taus: &PerTable<usize>, rate: Rate, ps: &mut ProverState) {
+        for size in Self::sizes(taus, rate) {
             ps.prover_message(&size);
         }
-        ps.prover_message(&F192::new(self.ts_final, 0, 0));
+    }
+
+    /// Read a zero-knowledge proof's announcement, checking it as a full one is checked.
+    ///
+    /// # Errors
+    ///
+    /// Refuses a short stream, a non-canonical size, a table height or a rate outside its range.
+    pub(super) fn read_shape(vs: &mut impl Verifier<E = F192>) -> Result<(PerTable<usize>, Rate), CpuError> {
+        let mut scalars = [F192::ZERO; N_TABLES + 1];
+        for x in &mut scalars {
+            *x = vs.prover_message()?;
+        }
+        Self::decode_shape(&scalars)
+    }
+
+    /// A zero-knowledge proof's announced shape, from its scalars, checked as a full announcement is.
+    ///
+    /// # Errors
+    ///
+    /// Refuses a non-canonical size, a table height or a rate outside its range.
+    pub(crate) fn decode_shape(scalars: &[F192; N_TABLES + 1]) -> Result<(PerTable<usize>, Rate), CpuError> {
+        let (taus, log_inv_rate) = Self::decode_sizes(scalars)?;
+        Layout::check_heights(&taus)?;
+        Ok((taus, Self::decode_rate(log_inv_rate)?))
+    }
+
+    /// Each table's height, then the rate's logarithm, each a canonical integer in the first coordinate.
+    fn decode_sizes(scalars: &[F192; N_TABLES + 1]) -> Result<(PerTable<usize>, usize), CpuError> {
+        let size = |x: &F192| -> Result<usize, CpuError> {
+            if x.c1 != 0 || x.c2 != 0 {
+                return Err(CpuError::NonCanonicalSize);
+            }
+            usize::try_from(x.c0).map_err(|_| CpuError::NonCanonicalSize)
+        };
+        let mut taus = PerTable::default();
+        for (t, x) in TableId::ALL.into_iter().zip(scalars) {
+            taus[t] = size(x)?;
+        }
+        Ok((taus, size(&scalars[N_TABLES])?))
+    }
+
+    /// A rate the commitment supports.
+    fn decode_rate(log_inv_rate: usize) -> Result<Rate, CpuError> {
+        (u8::try_from(log_inv_rate).ok())
+            .and_then(|r| Rate::new(r).ok())
+            .ok_or(CpuError::Rate { log_inv_rate })
     }
 
     /// Read an announcement off the proof, binding it, and check every value is in range.
@@ -751,18 +804,10 @@ impl Announcement {
     ///
     /// Refuses a non-canonical size, a final clock that is not live, a table height or a rate outside its range.
     pub(crate) fn decode(scalars: &[F192; Self::LEN]) -> Result<Self, CpuError> {
-        // A size is a canonical integer in the first coordinate.
-        let size = |x: &F192| -> Result<usize, CpuError> {
-            if x.c1 != 0 || x.c2 != 0 {
-                return Err(CpuError::NonCanonicalSize);
-            }
-            usize::try_from(x.c0).map_err(|_| CpuError::NonCanonicalSize)
-        };
-        let mut taus = PerTable::default();
-        for (t, x) in TableId::ALL.into_iter().zip(scalars) {
-            taus[t] = size(x)?;
-        }
-        let log_inv_rate = size(&scalars[N_TABLES])?;
+        let sizes: &[F192; N_TABLES + 1] = scalars[..=N_TABLES]
+            .try_into()
+            .expect("the sizes lead the announcement");
+        let (taus, log_inv_rate) = Self::decode_sizes(sizes)?;
 
         // A live clock at slot zero: neither a padding row's clock nor a failed row's can end the run.
         let ts_final = scalars[N_TABLES + 1];
@@ -772,14 +817,9 @@ impl Announcement {
         }
 
         Layout::check_heights(&taus)?;
-
-        // A rate the commitment supports.
-        let rate = (u8::try_from(log_inv_rate).ok())
-            .and_then(|r| Rate::new(r).ok())
-            .ok_or(CpuError::Rate { log_inv_rate })?;
         Ok(Self {
             taus,
-            rate,
+            rate: Self::decode_rate(log_inv_rate)?,
             ts_final: ts_final.c0,
         })
     }
@@ -792,7 +832,7 @@ impl Announcement {
     ///
     /// Refuses heights whose stacked witness the commitment does not take.
     pub(super) fn layout(&self, p: &RiscvProgram) -> Result<Layout, CpuError> {
-        Layout::announced(p, self.taus)
+        Layout::announced(p, self.taus, ProofKind::Plain)
     }
 }
 
@@ -802,14 +842,42 @@ impl Layout {
     /// # Errors
     ///
     /// Refuses a height outside its table's range, or heights whose stacked witness the commitment does not take.
-    pub(crate) fn announced(p: &RiscvProgram, taus: PerTable<usize>) -> Result<Self, CpuError> {
+    pub(crate) fn announced(p: &RiscvProgram, taus: PerTable<usize>, kind: ProofKind) -> Result<Self, CpuError> {
         Self::check_heights(&taus)?;
         // The caps bound each height alone; the stacked size they imply is checked here.
-        let layout = Self::new(p, taus, 0);
-        if !(crate::pcs::MIN_MU..=crate::pcs::MAX_MU).contains(&layout.shape.mu) {
-            return Err(CpuError::WitnessSize { mu: layout.shape.mu });
+        Self::new(p, taus, 0).of_kind(kind).fits()
+    }
+
+    /// The layout, if the commitment takes its stacked witness.
+    fn fits(self) -> Result<Self, CpuError> {
+        if (crate::commitment::MIN_MU..=crate::commitment::MAX_MU).contains(&self.shape.mu) {
+            Ok(self)
+        } else {
+            Err(CpuError::WitnessSize { mu: self.shape.mu })
         }
-        Ok(layout)
+    }
+
+    /// The same columns, laid out for a proof of this kind.
+    ///
+    /// A zero-knowledge proof's layout differs in two ways:
+    ///
+    /// - its stack is the hiding one: lanes long enough to hide, then the zero lanes and the random group;
+    /// - its bus grinds one more list's worth of bits.
+    ///
+    /// Why the extra grinding:
+    ///
+    /// - A zero-knowledge proof commits its keys too, before the bus's challenges.
+    /// - That commitment also binds only to a list, and hidden values are what was sent minus a key.
+    /// - So each challenge before the openings must hold against a pair of list members, one of each list.
+    pub(crate) fn of_kind(self, kind: ProofKind) -> Self {
+        match kind {
+            ProofKind::Plain => self,
+            ProofKind::ZeroKnowledge => Self {
+                shape: StackShape::hiding(stacking::committed_len(&self.placements)),
+                grinding: self.grinding + pcs::whir::L0_LIST_BITS as u32,
+                ..self
+            },
+        }
     }
 
     /// Check each table's height lies between flock's instance floor and the public cap.

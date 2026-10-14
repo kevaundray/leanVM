@@ -1,6 +1,6 @@
 //! State, bytecode, and memory tuples for the offline bus.
 
-use crate::leaf::Coord::{self, Col, Const};
+use crate::bus::Coord::{self, Col, Const};
 use primitives::field::F64;
 use std::iter::Enumerate;
 use std::vec::IntoIter;

@@ -22,14 +22,17 @@
 //! - So neither the infinity weights nor partial sums take a separate memory pass.
 //! - The wider x86 kernels keep their lane-parallel layout.
 
-use super::{FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, InitialWeight, PRECOMPUTED_ROUNDS, SumcheckMessage};
+use crate::whir::sumcheck::{
+    FIRST_PASS_PAR_THRESHOLD, INITIAL_BASIS_CHUNK, InitialWeight, PRECOMPUTED_ROUNDS, SumcheckMessage,
+};
 #[cfg(not(any(
     all(target_arch = "x86_64", target_feature = "pclmulqdq"),
     all(target_arch = "aarch64", target_feature = "aes")
 )))]
 use primitives::field::gf2_64::mul_wide;
 use primitives::field::{F64, F192};
-use std::ops::Range;
+use primitives::multilinear::inner_product;
+use std::ops::{BitXor, BitXorAssign, Range};
 
 /// Lanes per group: `2^R`, with `R = PRECOMPUTED_ROUNDS`.
 const GROUP: usize = 1 << PRECOMPUTED_ROUNDS;
@@ -55,34 +58,18 @@ const LANE_IN_GRID: [usize; GROUP] = {
 /// Word offsets the first pass handles side by side: one row of every grid point.
 const ROW: usize = 8;
 
-/// Extends values at the lanes' grid points to all of `{0, 1, inf}^R`, one digit at a time.
+/// Extends values at the lanes' grid points along the first `digits` of the `R` digits, one digit at a time.
 ///
 /// A multilinear's value at `inf` is its leading coefficient, the sum of its values at 0 and 1.
 #[inline(always)]
-fn extend_grid<T: Copy, const R: usize>(grid: &mut [T; GRID], add: impl Fn(&T, &T) -> T) {
+fn extend_grid<T: Copy, const R: usize>(grid: &mut [T; GRID], digits: usize, add: impl Fn(T, T) -> T) {
     let mut stride = 1;
-    for i in 0..R {
+    for i in 0..digits {
         // Digit `i`: the digits below are already extended and those above are still in `{0, 1}`.
         for &high in &LANE_IN_GRID[..1 << (R - 1 - i)] {
             let base = 3 * stride * high;
             for at in base..base + stride {
-                grid[at + 2 * stride] = add(&grid[at], &grid[at + stride]);
-            }
-        }
-        stride *= 3;
-    }
-}
-
-/// The grid extension's first `digits` digits only, the rest left to the caller.
-#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
-#[inline(always)]
-fn extend_grid_digits<T: Copy, const R: usize>(grid: &mut [T; GRID], digits: usize, add: impl Fn(&T, &T) -> T) {
-    let mut stride = 1;
-    for i in 0..digits {
-        for &high in &LANE_IN_GRID[..1 << (R - 1 - i)] {
-            let base = 3 * stride * high;
-            for at in base..base + stride {
-                grid[at + 2 * stride] = add(&grid[at], &grid[at + stride]);
+                grid[at + 2 * stride] = add(grid[at], grid[at + stride]);
             }
         }
         stride *= 3;
@@ -98,15 +85,15 @@ fn accumulate_grid<const R: usize>(
     acc: &mut [ProductRow; GRID],
 ) {
     if R > 0 {
-        extend_grid_digits::<_, R>(fg, R - 1, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
-        extend_grid_digits::<_, R>(bg, R - 1, WeightRow::add);
+        extend_grid::<_, R>(fg, R - 1, xor_words);
+        extend_grid::<_, R>(bg, R - 1, BitXor::bitxor);
         // SAFETY: PMULL is enabled at compile time, `R >= 1`, and the helper stays within the grid.
         unsafe { lanes::finish_grid::<R>(fg, bg, acc) };
         return;
     }
     // No digit: the single point's products, as on the other targets.
-    extend_grid::<_, R>(fg, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
-    extend_grid::<_, R>(bg, WeightRow::add);
+    extend_grid::<_, R>(fg, R, xor_words);
+    extend_grid::<_, R>(bg, R, BitXor::bitxor);
     for (a, (k, w)) in acc.iter_mut().zip(fg.iter().zip(bg.iter())).take(3usize.pow(R as u32)) {
         a.mul_acc(w, k);
     }
@@ -137,17 +124,26 @@ impl WeightRow {
         }
         row
     }
+}
 
-    /// The coefficient-wise sum of two rows.
+/// The coefficient-wise sum of two rows.
+impl BitXor for WeightRow {
+    type Output = Self;
+
     #[inline(always)]
-    fn add(&self, other: &Self) -> Self {
-        let xor = |a: &[u64; ROW], b: &[u64; ROW]| std::array::from_fn(|i| a[i] ^ b[i]);
+    fn bitxor(self, other: Self) -> Self {
         Self {
-            lo: xor(&self.lo, &other.lo),
-            hi: xor(&self.hi, &other.hi),
-            c2: xor(&self.c2, &other.c2),
+            lo: xor_words(self.lo, other.lo),
+            hi: xor_words(self.hi, other.hi),
+            c2: xor_words(self.c2, other.c2),
         }
     }
+}
+
+/// The word-wise XOR of two rows of words.
+#[inline(always)]
+fn xor_words(a: [u64; ROW], b: [u64; ROW]) -> [u64; ROW] {
+    std::array::from_fn(|i| a[i] ^ b[i])
 }
 
 /// Unreduced sums of a weight row's products by words: per coefficient, four 128-bit partial sums.
@@ -197,14 +193,6 @@ impl ProductRow {
         }
     }
 
-    /// Adds another row's sums.
-    #[inline(always)]
-    fn add(&mut self, other: &Self) {
-        for (a, b) in self.0.as_flattened_mut().iter_mut().zip(other.0.as_flattened()) {
-            *a ^= b;
-        }
-    }
-
     /// The sum of every product, reduced.
     fn sum(&self) -> F192 {
         let [c0, c1, c2] = self.0.map(|lanes| {
@@ -218,10 +206,20 @@ impl ProductRow {
     }
 }
 
+/// Adds another row's sums.
+impl BitXorAssign<&Self> for ProductRow {
+    #[inline(always)]
+    fn bitxor_assign(&mut self, other: &Self) {
+        for (a, b) in self.0.as_flattened_mut().iter_mut().zip(other.0.as_flattened()) {
+            *a ^= b;
+        }
+    }
+}
+
 /// The AVX-512 kernels: four 128-bit lanes per register, nothing crossing a lane.
 #[cfg(all(target_arch = "x86_64", target_feature = "vpclmulqdq", target_feature = "avx512f"))]
 mod avx512 {
-    use super::{F64, LaneWeight, ProductRow, ROW, WeightRow};
+    use crate::whir::sumcheck::first_pass::{F64, LaneWeight, ProductRow, ROW, WeightRow};
     use core::arch::x86_64::*;
 
     /// Adds `e * f[x]` to word `x`'s sums for eight base words, into one row of the many-bit fold.
@@ -321,8 +319,8 @@ mod avx512 {
 #[cfg_attr(all(target_feature = "vpclmulqdq", target_feature = "avx512f"), allow(dead_code))]
 mod lanes {
     #[cfg(target_arch = "aarch64")]
-    use super::GRID;
-    use super::{F64, LaneWeight, ProductRow, ROW, WeightRow};
+    use crate::whir::sumcheck::first_pass::GRID;
+    use crate::whir::sumcheck::first_pass::{F64, LaneWeight, ProductRow, ROW, WeightRow};
     #[cfg(target_arch = "aarch64")]
     use core::arch::aarch64::*;
     #[cfg(target_arch = "x86_64")]
@@ -486,8 +484,7 @@ mod lanes {
 
         #[inline(always)]
         fn xor3(self, b: Self, c: Self) -> Self {
-            // SAFETY: `xor3_u64` issues EOR3 only where the target enables `sha3`; registers only.
-            Self(unsafe { xor3_u64(self.0, b.0, c.0) })
+            Self(xor3_u64(self.0, b.0, c.0))
         }
     }
 
@@ -658,6 +655,39 @@ pub(crate) struct InitialRounds {
 }
 
 impl InitialRounds {
+    /// The first pass: the grid sums of the first `min(PRECOMPUTED_ROUNDS, initial_k)` lane rounds.
+    ///
+    /// # Panics
+    ///
+    /// If `block` is not a power of two dividing the witness's length, or if `initial_k` is zero.
+    pub(super) fn new(f: &[F64], block: usize, initial_k: usize, w: &dyn InitialWeight) -> Self {
+        assert!(block.is_power_of_two() && f.len().is_multiple_of(block));
+        let rounds = PRECOMPUTED_ROUNDS.min(initial_k);
+        assert!(rounds >= 1, "at least one lane round");
+        let n_lanes = f.len() / block;
+        // Whole groups first: the lane count rounded down to a multiple of `2^rounds`.
+        let whole = n_lanes >> rounds << rounds;
+        let mut grid = if whole > 0 {
+            grid_pass(rounds, f, block, w, 0..whole)
+        } else {
+            vec![F192::ZERO; 3usize.pow(rounds as u32)]
+        };
+        // A partial last group is summed over the digits its lanes reach.
+        // Past those digits every lane bit is clear: at 1 the group is empty, and at 0 and at inf it has the tail's sums.
+        if whole < n_lanes {
+            let digits = (n_lanes - whole).next_power_of_two().ilog2() as usize;
+            let tail = grid_pass(digits, f, block, w, whole..n_lanes);
+            let low = tail.len();
+            for &high in &LANE_IN_GRID[..1 << (rounds - digits)] {
+                let base = low * 2 * high;
+                for (g, &t) in grid[base..base + low].iter_mut().zip(&tail) {
+                    *g += t;
+                }
+            }
+        }
+        Self { rounds, grid }
+    }
+
     /// Lane round `j`'s message, given the challenges `rs` of the rounds before it.
     ///
     /// # Panics
@@ -681,43 +711,10 @@ impl InitialRounds {
                     *s += g;
                 }
             }
-            sums.iter().zip(&weights).fold(F192::ZERO, |acc, (&s, &w)| acc + s * w)
+            inner_product(&sums, &weights)
         });
         SumcheckMessage { u_0, u_2 }
     }
-}
-
-/// The first pass: the grid sums of the first `min(PRECOMPUTED_ROUNDS, initial_k)` lane rounds.
-///
-/// # Panics
-///
-/// If `block` is not a power of two dividing the witness's length, or if `initial_k` is zero.
-pub(super) fn first_pass(f: &[F64], block: usize, initial_k: usize, w: &dyn InitialWeight) -> InitialRounds {
-    assert!(block.is_power_of_two() && f.len().is_multiple_of(block));
-    let rounds = PRECOMPUTED_ROUNDS.min(initial_k);
-    assert!(rounds >= 1, "at least one lane round");
-    let n_lanes = f.len() / block;
-    // Whole groups first: the lane count rounded down to a multiple of `2^rounds`.
-    let whole = n_lanes >> rounds << rounds;
-    let mut grid = if whole > 0 {
-        grid_pass(rounds, f, block, w, 0..whole)
-    } else {
-        vec![F192::ZERO; 3usize.pow(rounds as u32)]
-    };
-    // A partial last group is summed over the digits its lanes reach.
-    // Past those digits every lane bit is clear: at 1 the group is empty, and at 0 and at inf it has the tail's sums.
-    if whole < n_lanes {
-        let digits = (n_lanes - whole).next_power_of_two().ilog2() as usize;
-        let tail = grid_pass(digits, f, block, w, whole..n_lanes);
-        let low = tail.len();
-        for &high in &LANE_IN_GRID[..1 << (rounds - digits)] {
-            let base = low * 2 * high;
-            for (g, &t) in grid[base..base + low].iter_mut().zip(&tail) {
-                *g += t;
-            }
-        }
-    }
-    InitialRounds { rounds, grid }
 }
 
 /// The grid sums over `lanes` with `rounds` digits: whole groups, or one group whose missing lanes are zero.
@@ -784,8 +781,8 @@ fn grid_pass_with<const R: usize>(f: &[F64], block: usize, w: &dyn InitialWeight
             accumulate_grid::<R>(fg, bg, acc);
             #[cfg(not(all(target_arch = "aarch64", target_feature = "aes")))]
             {
-                extend_grid::<_, R>(fg, |a, b| std::array::from_fn(|i| a[i] ^ b[i]));
-                extend_grid::<_, R>(bg, WeightRow::add);
+                extend_grid::<_, R>(fg, R, xor_words);
+                extend_grid::<_, R>(bg, R, BitXor::bitxor);
                 for (a, (k, w)) in acc.iter_mut().zip(fg.iter().zip(bg.iter())).take(points) {
                     a.mul_acc(w, k);
                 }
@@ -813,7 +810,7 @@ fn grid_pass_with<const R: usize>(f: &[F64], block: usize, w: &dyn InitialWeight
             |scratch, acc, t| task(scratch, acc, t),
             |mut a, c| {
                 for (a, c) in a.iter_mut().zip(c.iter()) {
-                    a.add(c);
+                    *a ^= c;
                 }
                 a
             },
@@ -930,7 +927,7 @@ impl WeightFold {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::whir::sumcheck::tests::Table;
+    use crate::whir::DenseWeight;
     use primitives::test_util::Rng;
 
     #[test]
@@ -958,11 +955,11 @@ mod tests {
                 for lanes in [1, (1 << rounds) - 1, 1 << rounds, (1 << rounds) + 3] {
                     let f: Vec<F64> = (0..block * lanes).map(|_| F64(rng.next_u64())).collect();
                     let weight = rng.ext_vec(f.len());
-                    let table = Table {
+                    let table = DenseWeight {
                         weight: weight.clone(),
                         block,
                     };
-                    let got = first_pass(&f, block, rounds, &table);
+                    let got = InitialRounds::new(&f, block, rounds, &table);
                     for (point, &sum) in got.grid.iter().enumerate() {
                         let mut want = F192::ZERO;
                         for start in (0..lanes).step_by(1 << rounds) {

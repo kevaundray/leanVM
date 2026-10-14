@@ -3,7 +3,7 @@
 //! surfaces on the dispatcher without wedging the pool.
 
 #[cfg(not(miri))]
-use parallel::Topology;
+use parallel::{AlreadyConfigured, Topology};
 #[cfg(not(miri))]
 use std::num::NonZeroUsize;
 #[cfg(not(miri))]
@@ -43,7 +43,7 @@ fn explicit_thread_count_is_idempotent_and_cannot_change_a_live_pool() {
     parallel::for_each(64, |_| assert_eq!(std::thread::current().id(), caller));
     assert_eq!(
         parallel::init_with_threads(NonZeroUsize::new(2).unwrap()),
-        Err(Topology { perf: 1, efficiency: 0 })
+        Err(AlreadyConfigured(Topology { perf: 1, efficiency: 0 }))
     );
     assert_eq!(parallel::map_reduce(16, || 0, |i| i, |a, b| a + b), 120);
 }
