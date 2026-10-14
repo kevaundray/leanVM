@@ -83,27 +83,27 @@ section Quad
 variable {E V R K Q : Type} (copy : core.marker.Copy E) (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E)
 
-/-- `Quad::eval` is the model's message evaluation `Message.eval`, with the source's
+/-- `RoundQuad::eval` is the model's message evaluation `Message.eval`, with the source's
 stored linear coefficient interpreted as `claim + u2`. -/
 theorem quad_eval (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
-    (q : whir.verify.Quad E) (v : V) (x : E) (claim : Concrete.E)
+    (q : whir.sumcheck.RoundQuad E) (v : V) (x : E) (claim : Concrete.E)
     (hb : encode q.b = claim + encode q.a) :
-    ∃ y, whir.verify.Quad.eval copy inst q v x = .ok (y, v) ∧
+    ∃ y, whir.sumcheck.RoundQuad.eval copy inst.fiat_shamirarithVerifierInst.ArithInst q v x = .ok (y, v) ∧
       encode y = Protocol.Message.eval ⟨encode q.c, encode q.a⟩ claim (encode x) := by
   obtain ⟨u, hu, eu⟩ := h.mul_add v q.a x q.b
   obtain ⟨y, hy, ey⟩ := h.mul_add v u x q.c
   refine ⟨y, ?_, ?_⟩
-  · simp [whir.verify.Quad.eval, hu, hy]
+  · simp [whir.sumcheck.RoundQuad.eval, hu, hy]
   · rw [ey, eu, hb]
     simp only [Protocol.Message.eval]
     ring
 
-/-- `Quad::fold` is the model's `Message.glue` on the transmitted coefficients, and keeps
+/-- `RoundQuad::fold` is the model's `Message.glue` on the transmitted coefficients, and keeps
 the linear coefficient equal to the batched claim `claim + s * value` plus the new `u2`. -/
 theorem quad_fold (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
-    (q other : whir.verify.Quad E) (v : V) (s : E) (claim value : Concrete.E)
+    (q other : whir.sumcheck.RoundQuad E) (v : V) (s : E) (claim value : Concrete.E)
     (hb : encode q.b = claim + encode q.a) (hob : encode other.b = value + encode other.a) :
-    ∃ r, whir.verify.Quad.fold copy inst q v other s = .ok (r, v) ∧
+    ∃ r, whir.sumcheck.RoundQuad.fold copy inst.fiat_shamirarithVerifierInst.ArithInst q v other s = .ok (r, v) ∧
       (⟨encode r.c, encode r.a⟩ : Protocol.Message Concrete.E) =
         Protocol.Message.glue ⟨encode q.c, encode q.a⟩ ⟨encode other.c, encode other.a⟩ (encode s) ∧
       encode r.b = claim + encode s * value + encode r.a := by
@@ -111,7 +111,7 @@ theorem quad_fold (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst en
   obtain ⟨b, hb', eb⟩ := h.mul_add v s other.b q.b
   obtain ⟨a, ha, ea⟩ := h.mul_add v s other.a q.a
   refine ⟨{ c := c, b := b, a := a }, ?_, ?_, ?_⟩
-  · simp [whir.verify.Quad.fold, hc, hb', ha]
+  · simp [whir.sumcheck.RoundQuad.fold, hc, hb', ha]
   · simp only [Protocol.Message.glue, ec, ea]
     congr 1 <;> ring
   · simp only [eb, ea, hb, hob]
@@ -320,16 +320,16 @@ def factors (lin : Slice (E × E)) : Array (Concrete.E × Concrete.E) :=
   (lin.val.map fun p => (encode p.1, encode p.2)).toArray
 
 theorem basis_loop_eq (h : ArithModel inst encode const) (lin : Slice (E × E))
-    (sks : Slice primitives.field.gf2_64.F64) (roots : Array Concrete.K) (s0 : E)
-    (hsks : lin.val.length ≤ sks.val.length + 1)
-    (hroots : ∀ i (hi : i < sks.val.length) f,
-      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from sks.val[i] = .ok f →
+    (basis : ntt.basis.NovelBasis) (roots : Array Concrete.K) (s0 : E)
+    (hsks : lin.val.length ≤ basis.normalizers.val.length + 1)
+    (hroots : ∀ i (hi : i < basis.normalizers.val.length) f,
+      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from basis.normalizers.val[i] = .ok f →
         const f = Concrete.E.ofK roots[i]!) :
     ∀ (m : Nat) (k : Usize) (st product : E) (a : S), lin.val.length - k.val = m →
       k.val ≤ lin.val.length →
       (encode st, encode product) = (List.range k.val).foldl
         (InducedTerminalRefinement.nativeStep roots (factors encode lin)) (encode s0, 1) →
-      ∃ y, whir.verify.basis_product_loop inst a lin sks st product k = .ok (y, a) ∧
+      ∃ y, whir.verify.basis_product_loop inst a lin basis st product k = .ok (y, a) ∧
         encode y = ((List.range lin.val.length).foldl
           (InducedTerminalRefinement.nativeStep roots (factors encode lin)) (encode s0, 1)).2 := by
   intro m
@@ -356,7 +356,7 @@ theorem basis_loop_eq (h : ArithModel inst encode const) (lin : Slice (E × E))
     have hkl' : (k.val < (Slice.len lin).val) := by simpa using hkl
     -- The recurrence's new `s`, then the factor and the product.
     have hstep : ∃ s1 product1,
-        whir.verify.basis_product_loop.body inst lin sks a st product k =
+        whir.verify.basis_product_loop.body inst lin basis a st product k =
           .ok (.cont (a, s1, product1, Std.Usize.wrapping_add k 1#usize)) ∧
         encode s1 = (if k.val = 0 then encode st else
           encode st * encode st + encode st * Concrete.E.ofK roots[k.val - 1]!) ∧
@@ -371,15 +371,16 @@ theorem basis_loop_eq (h : ArithModel inst encode const) (lin : Slice (E × E))
         simp [hf, hp]
       · have h0 : (0#usize).val < k.val := by simp; omega
         have hpred := pred_val k (by omega)
-        have hi : (Std.Usize.wrapping_sub k 1#usize).val < sks.val.length := by omega
+        have hi : (Std.Usize.wrapping_sub k 1#usize).val < basis.normalizers.val.length := by omega
         obtain ⟨u, hu, eu⟩ := h.mul_const a st
-          { c0 := sks.val[(Std.Usize.wrapping_sub k 1#usize).val], c1 := 0#u64, c2 := 0#u64 }
+          { c0 := basis.normalizers.val[(Std.Usize.wrapping_sub k 1#usize).val], c1 := 0#u64, c2 := 0#u64 }
         obtain ⟨s2, hs2, es2⟩ := h.mul_add a st st u
         obtain ⟨f, hf, ef⟩ := h.mul_add a p2 s2 p1
         obtain ⟨product1, hp, ep⟩ := h.mul a product f
         refine ⟨s2, product1, ?_, ?_, by rw [ep, ef]⟩
         · simp only [whir.verify.basis_product_loop.body, UScalar.lt_equiv, gt_iff_lt, hkl', h0,
-            ↓reduceIte, hix, slice_index sks _ hi, Std.bind_ok, bind_tc_ok, lift,
+            ↓reduceIte, hix, ntt.basis.NovelBasis.next, vec_index basis.normalizers _ hi, alloc.vec.Vec.index_usize, hi,
+            Std.bind_ok, bind_tc_ok, lift,
             primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from, hu, hs2, hf, hp]
           simp [hs2, hf, hp]
         · simp only [hk0, ↓reduceIte]
@@ -398,16 +399,16 @@ theorem basis_loop_eq (h : ArithModel inst encode const) (lin : Slice (E × E))
 /-- `basis_product` is the model's per-query fold of `nativeStep`, the inner product of
 `nativeBasisAt`, given the source's normalizers interpret as the model's subspace roots. -/
 theorem basis_product_eq (h : ArithModel inst encode const) (a : S) (lin : Slice (E × E))
-    (sks : Slice primitives.field.gf2_64.F64) (roots : Array Concrete.K) (s : E)
-    (hsks : lin.val.length ≤ sks.val.length + 1)
-    (hroots : ∀ i (hi : i < sks.val.length) f,
-      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from sks.val[i] = .ok f →
+    (basis : ntt.basis.NovelBasis) (roots : Array Concrete.K) (s : E)
+    (hsks : lin.val.length ≤ basis.normalizers.val.length + 1)
+    (hroots : ∀ i (hi : i < basis.normalizers.val.length) f,
+      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from basis.normalizers.val[i] = .ok f →
         const f = Concrete.E.ofK roots[i]!) :
-    ∃ y, whir.verify.basis_product copy inst a lin sks s = .ok (y, a) ∧
+    ∃ y, whir.verify.basis_product copy inst a lin basis s = .ok (y, a) ∧
       encode y = ((List.range lin.val.length).foldl
         (InducedTerminalRefinement.nativeStep roots (factors encode lin)) (encode s, 1)).2 := by
   obtain ⟨one, hone, eone⟩ := h.one a
-  obtain ⟨y, hy, ey⟩ := basis_loop_eq inst encode const h lin sks roots s hsks hroots _ 0#usize s one a
+  obtain ⟨y, hy, ey⟩ := basis_loop_eq inst encode const h lin basis roots s hsks hroots _ 0#usize s one a
     rfl (by simp) (by simp [eone])
   exact ⟨y, by simp only [whir.verify.basis_product, hone, Std.bind_ok, bind_tc_ok]; exact hy, ey⟩
 

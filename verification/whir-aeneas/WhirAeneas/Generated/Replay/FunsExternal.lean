@@ -45,16 +45,10 @@ opaque primitives.hash.hash : Slice Std.U8 → Result (Array Std.U8 32#usize)
     contract is `WhirAeneas.NativeReads.Duplex`: an absorb extends the logical transcript by its
     bytes, a squeeze returns the duplex's output for the transcript so far. `context` copies the
     logical state for recursion records and no verifier read uses it. -/
-opaque fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone :
-    fiat_shamir.duplex.Blake2sDuplex → Result fiat_shamir.duplex.Blake2sDuplex
-
-opaque fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init :
-    Array Std.U8 32#usize → Result fiat_shamir.duplex.Blake2sDuplex
-
-opaque fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb :
+opaque fiat_shamir.duplex.Blake2sDuplex.absorb :
     fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result fiat_shamir.duplex.Blake2sDuplex
 
-opaque fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze :
+opaque fiat_shamir.duplex.Blake2sDuplex.squeeze :
     fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 →
       Result (fiat_shamir.duplex.Blake2sDuplex × Slice Std.U8)
 

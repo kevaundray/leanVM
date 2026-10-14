@@ -20,13 +20,22 @@ def core.num.Usize.div_ceil (a b : Usize) : Result Usize :=
   if b.val = 0 then .fail .panic
   else .ok ⟨BitVec.ofNat _ ((a.val + b.val - 1) / b.val)⟩
 
-/-- `Vec::remove`, which panics past the end. -/
-@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::remove"]
-def alloc.vec.Vec.remove {T : Type} (_A : Type) (v : alloc.vec.Vec T) (i : Usize) :
-    Result (T × alloc.vec.Vec T) :=
-  if h : i.val < v.val.length then
-    .ok (v.val[i.val], .from (v.val.eraseIdx i.val) (by
-      have := v.property
-      rw [List.length_eraseIdx_of_lt h]
-      omega))
-  else .fail .panic
+/-- `usize::next_power_of_two` in release: the smallest power of two at least `x` (one for
+zero), wrapped to zero when it does not fit. -/
+@[rust_fun "core::num::{usize}::next_power_of_two"]
+def core.num.Usize.next_power_of_two (x : Usize) : Result Usize :=
+  let p := x.val.nextPowerOfTwo
+  .ok (if p ≤ Usize.max then ⟨BitVec.ofNat _ p⟩ else 0#usize)
+
+/-- `Option::as_ref`: references are erased, so the option itself. -/
+@[rust_fun "core::option::{core::option::Option<@T>}::as_ref"]
+def core.option.Option.as_ref {T : Type} (o : Option T) : Result (Option T) :=
+  .ok o
+
+/-- `Option::map_or`: the default for `none`, the closure on the payload of `some`. -/
+@[rust_fun "core::option::{core::option::Option<@T>}::map_or"]
+def core.option.Option.map_or {T U F : Type} (fnOnce : core.ops.function.FnOnce F T U)
+    (o : Option T) (default : U) (f : F) : Result U :=
+  match o with
+  | some value => fnOnce.call_once f value
+  | none => .ok default

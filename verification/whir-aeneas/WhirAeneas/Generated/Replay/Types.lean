@@ -20,7 +20,7 @@ set_option maxRecDepth 2048
 namespace ReplaySource
 
 /-- [primitives::field::gf2_64x3::F192]
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 34:0-34:15
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 35:0-35:15
     Name pattern: [primitives::field::gf2_64x3::F192]
     Visibility: public -/
 @[rust_type "primitives::field::gf2_64x3::F192"]
@@ -30,14 +30,14 @@ structure primitives.field.gf2_64x3.F192 where
   c2 : Std.U64
 
 /-- [primitives::field::gf2_64::F64]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 18:0-18:14
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 20:0-20:14
     Name pattern: [primitives::field::gf2_64::F64]
     Visibility: public -/
 @[reducible, rust_type "primitives::field::gf2_64::F64"]
 def primitives.field.gf2_64.F64 := Std.U64
 
 /-- Trait declaration: [fiat_shamir::arith::Arith]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 16:0-16:15
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 13:0-13:15
     Name pattern: [fiat_shamir::arith::Arith]
     Visibility: public -/
 @[rust_trait "fiat_shamir::arith::Arith"
@@ -77,7 +77,7 @@ structure fiat_shamir.arith.Arith (Self : Type) (Self_E : Type) where
     → Result (Self_E × Self)
 
 /-- [fiat_shamir::arith::Stage]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 224:0-224:14
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 221:0-221:14
     Name pattern: [fiat_shamir::arith::Stage]
     Visibility: public -/
 @[discriminant isize, rust_type "fiat_shamir::arith::Stage"]
@@ -94,20 +94,23 @@ inductive fiat_shamir.arith.Stage where
 | Whir : fiat_shamir.arith.Stage
 | Zerocheck : fiat_shamir.arith.Stage
 
-/-- [fiat_shamir::error::TranscriptError]
-    Source: 'crates/fiat_shamir/src/error.rs', lines 9:0-9:24
-    Name pattern: [fiat_shamir::error::TranscriptError]
+/-- [fiat_shamir::verifier::TranscriptError]
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 14:0-14:24
+    Name pattern: [fiat_shamir::verifier::TranscriptError]
     Visibility: public -/
-@[discriminant isize, rust_type "fiat_shamir::error::TranscriptError"]
-inductive fiat_shamir.error.TranscriptError where
-| Malformed : Std.Usize → fiat_shamir.error.TranscriptError
-| MissingHint : Std.Usize → fiat_shamir.error.TranscriptError
-| InvalidHint : Std.Usize → fiat_shamir.error.TranscriptError
-| PowFailed : Std.U32 → fiat_shamir.error.TranscriptError
-| TrailingBytes : Std.Usize → Std.Usize → fiat_shamir.error.TranscriptError
+@[discriminant isize, rust_type "fiat_shamir::verifier::TranscriptError"]
+inductive fiat_shamir.verifier.TranscriptError where
+| Malformed : Std.Usize → fiat_shamir.verifier.TranscriptError
+| MissingHint : Std.Usize → fiat_shamir.verifier.TranscriptError
+| InvalidHint : Std.Usize → fiat_shamir.verifier.TranscriptError
+| PowFailed : Std.U32 → fiat_shamir.verifier.TranscriptError
+| TrailingBytes :
+  Std.Usize →
+  Std.Usize →
+  fiat_shamir.verifier.TranscriptError
 
 /-- Trait declaration: [fiat_shamir::arith::Verifier]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 239:0-239:25
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 236:0-236:25
     Name pattern: [fiat_shamir::arith::Verifier]
     Visibility: public -/
 @[rust_trait "fiat_shamir::arith::Verifier" (parentClauses := ["ArithInst"])]
@@ -115,64 +118,61 @@ structure fiat_shamir.arith.Verifier (Self : Type) (Self_Clause0_E : Type)
   where
   ArithInst : fiat_shamir.arith.Arith Self Self_Clause0_E
   prover_message : Self → Result ((core.result.Result Self_Clause0_E
-    fiat_shamir.error.TranscriptError) × Self)
+    fiat_shamir.verifier.TranscriptError) × Self)
   verifier_message : Self → Result (Self_Clause0_E × Self)
   check_pow : Self → Std.U32 → Result ((core.result.Result Unit
-    fiat_shamir.error.TranscriptError) × Self)
+    fiat_shamir.verifier.TranscriptError) × Self)
   ensure_eq : forall {Er : Type} {T2 : Type} (coreopsfunctionFnOncePTuplePInst
     : core.ops.function.FnOnce T2 Unit Er), Self → Self_Clause0_E →
     Self_Clause0_E → T2 → Result ((core.result.Result Unit Er) × Self)
   check_eof : Self → Result ((core.result.Result Unit
-    fiat_shamir.error.TranscriptError) × Self)
+    fiat_shamir.verifier.TranscriptError) × Self)
+  set_hidden : Self → Bool → Result Self
+  is_hidden : Self → Result Bool
   begin_scope : Self → fiat_shamir.arith.Stage → Result Self
   end_scope : Self → Result Self
   prover_messages : Self → Std.Usize → Result ((core.result.Result
-    (alloc.vec.Vec Self_Clause0_E) fiat_shamir.error.TranscriptError) × Self)
+    (alloc.vec.Vec Self_Clause0_E) fiat_shamir.verifier.TranscriptError) ×
+    Self)
   verifier_messages : Self → Std.Usize → Result ((alloc.vec.Vec
     Self_Clause0_E) × Self)
+  read_round : Self → Std.Usize → Self_Clause0_E → Option Self_Clause0_E
+    → Result ((core.result.Result (alloc.vec.Vec Self_Clause0_E)
+    fiat_shamir.verifier.TranscriptError) × Self)
 
-/-- [fiat_shamir::arith::RoundPolynomial]
-    Source: 'crates/fiat_shamir/src/arith.rs', lines 322:0-322:29
-    Name pattern: [fiat_shamir::arith::RoundPolynomial]
+/-- [fiat_shamir::arith::RoundWeight]
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 374:0-374:20
+    Name pattern: [fiat_shamir::arith::RoundWeight]
     Visibility: public -/
-@[rust_type "fiat_shamir::arith::RoundPolynomial"]
-structure fiat_shamir.arith.RoundPolynomial (C : Type) where
-  coeffs : C
+@[discriminant isize, rust_type "fiat_shamir::arith::RoundWeight"]
+inductive fiat_shamir.arith.RoundWeight where
+| Plain : fiat_shamir.arith.RoundWeight
+| Eq : fiat_shamir.arith.RoundWeight
 
-/-- [fiat_shamir::verifier::VerifierState]
-    Source: 'crates/fiat_shamir/src/verifier.rs', lines 16:0-16:61
-    Name pattern: [fiat_shamir::verifier::VerifierState]
-    Visibility: public -/
-@[rust_type "fiat_shamir::verifier::VerifierState"]
-structure fiat_shamir.verifier.VerifierState (H : Type) where
-  sponge : H
-  narg : Slice Std.U8
-  hints : Slice Std.U8
-  messages_read : Std.Usize
-  hints_read : Std.Usize
-  poison : Option fiat_shamir.error.TranscriptError
+/-- [fiat_shamir::arith::Verifier::read_round::{closure}]
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 347:50-347:53
+    Name pattern: [fiat_shamir::arith::Verifier::read_round::closure] -/
+@[reducible, rust_type "fiat_shamir::arith::Verifier::read_round::closure"]
+def fiat_shamir.arith.Verifier.read_round.closure (Self : Type)
+  (Clause0_Clause0_E : Type) :=
+Unit
 
-/-- Trait declaration: [fiat_shamir::duplex::DuplexSponge]
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 44:0-44:29
-    Name pattern: [fiat_shamir::duplex::DuplexSponge]
+/-- [fiat_shamir::arith::Native]
+    Source: 'crates/fiat_shamir/src/arith.rs', lines 393:0-393:17
+    Name pattern: [fiat_shamir::arith::Native]
     Visibility: public -/
-@[rust_trait "fiat_shamir::duplex::DuplexSponge"
-  (parentClauses := ["corecloneCloneInst"])]
-structure fiat_shamir.duplex.DuplexSponge (Self : Type) where
-  corecloneCloneInst : core.clone.Clone Self
-  init : Array Std.U8 32#usize → Result Self
-  absorb : Self → Slice Std.U8 → Result Self
-  squeeze : Self → Slice Std.U8 → Result (Self × (Slice Std.U8))
+@[reducible, rust_type "fiat_shamir::arith::Native"]
+def fiat_shamir.arith.Native := Unit
 
 /-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::{closure}]
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 570:21-570:31
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 634:21-634:31
     Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure] -/
 @[reducible, rust_type
   "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::reduce::closure"]
 def primitives.field.gf2_64x3.F192Unreduced.reduce.closure := Unit
 
 /-- [primitives::field::gf2_64x3::F192Unreduced]
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 541:0-541:24
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 601:0-601:24
     Name pattern: [primitives::field::gf2_64x3::F192Unreduced]
     Visibility: public -/
 @[rust_type "primitives::field::gf2_64x3::F192Unreduced"]
@@ -180,25 +180,61 @@ structure primitives.field.gf2_64x3.F192Unreduced where
   coeffs : Array (Array Std.U64 2#usize) 3#usize
 
 /-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::{closure}]
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 555:31-555:34
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 619:31-619:34
     Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure] -/
 @[reducible, rust_type
   "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192Unreduced}::from_wide::closure"]
 def primitives.field.gf2_64x3.F192Unreduced.from_wide.closure := Unit
 
 /-- [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::{closure}]
-    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 112:69-112:72
+    Source: 'crates/primitives/src/field/gf2_64x3/mod.rs', lines 160:69-160:72
     Name pattern: [primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure] -/
 @[reducible, rust_type
   "primitives::field::gf2_64x3::{primitives::field::gf2_64x3::F192}::mul_base_unreduced::closure"]
 def primitives.field.gf2_64x3.F192.mul_base_unreduced.closure := Std.U64
 
 /-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::{closure}]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 58:17-58:38
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 87:17-87:38
     Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure] -/
 @[reducible, rust_type
   "primitives::field::gf2_64::{primitives::field::gf2_64::F64}::inv::closure"]
 def primitives.field.gf2_64.F64.inv.closure := Unit
+
+/-- [fiat_shamir::proof::Hints]
+    Source: 'crates/fiat_shamir/src/proof.rs', lines 72:0-72:20
+    Name pattern: [fiat_shamir::proof::Hints]
+    Visibility: public -/
+@[rust_type "fiat_shamir::proof::Hints"]
+structure fiat_shamir.proof.Hints where
+  rest : Slice Std.U8
+
+/-- [fiat_shamir::duplex::Blake2sDuplex]
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 93:0-93:24
+    Name pattern: [fiat_shamir::duplex::Blake2sDuplex]
+    Visibility: public -/
+@[rust_type "fiat_shamir::duplex::Blake2sDuplex"]
+structure fiat_shamir.duplex.Blake2sDuplex where
+  cv : Array Std.U32 8#usize
+  pending : Array Std.U8 64#usize
+  n_pending : Std.Usize
+  first : Bool
+  previous : Std.U64
+  squeezed : Std.U64
+  output : Array Std.U8 32#usize
+
+/-- [fiat_shamir::verifier::VerifierState]
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 54:0-54:28
+    Name pattern: [fiat_shamir::verifier::VerifierState]
+    Visibility: public -/
+@[rust_type "fiat_shamir::verifier::VerifierState"]
+structure fiat_shamir.verifier.VerifierState where
+  sponge : fiat_shamir.duplex.Blake2sDuplex
+  narg : Slice Std.U8
+  hints : fiat_shamir.proof.Hints
+  messages_read : Std.Usize
+  hints_read : Std.Usize
+  poison : Option fiat_shamir.verifier.TranscriptError
+  hidden : Bool
 
 /-- Trait declaration: [fiat_shamir::codec::FromUniform]
     Source: 'crates/fiat_shamir/src/codec.rs', lines 48:0-48:28
@@ -243,34 +279,21 @@ structure fiat_shamir.pow.ProofOfWork where
   bits : Std.U32
 
 /-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 8usize]> for u64}::from_narg::{closure}]
-    Source: 'crates/fiat_shamir/src/codec.rs', lines 128:28-128:35
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 121:28-121:35
     Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure] -/
 @[reducible, rust_type
   "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<u64, [u8; 8]>}::from_narg::closure"]
 def fiat_shamir.codec.FromNargU64ArrayU88.from_narg.closure := Unit
 
-/-- [fiat_shamir::codec::limbs::{closure}]
-    Source: 'crates/fiat_shamir/src/codec.rs', lines 173:24-173:27
-    Name pattern: [fiat_shamir::codec::limbs::closure] -/
-@[reducible, rust_type "fiat_shamir::codec::limbs::closure"]
-def fiat_shamir.codec.limbs.closure := Slice (Array Std.U8 8#usize)
-
-/-- [fiat_shamir::duplex::Blake2sDuplex]
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 108:0-108:24
-    Name pattern: [fiat_shamir::duplex::Blake2sDuplex]
-    Visibility: public -/
-@[rust_type "fiat_shamir::duplex::Blake2sDuplex"]
-structure fiat_shamir.duplex.Blake2sDuplex where
-  cv : Array Std.U32 8#usize
-  pending : Array Std.U8 64#usize
-  n_pending : Std.Usize
-  first : Bool
-  previous : Std.U64
-  squeezed : Std.U64
-  output : Array Std.U8 32#usize
+/-- [fiat_shamir::codec::{impl fiat_shamir::codec::FromNarg<[u8; 24usize]> for primitives::field::gf2_64x3::F192}::from_narg::{closure}]
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 68:29-68:36
+    Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::FromNarg<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_narg::closure] -/
+@[reducible, rust_type
+  "fiat_shamir::codec::{fiat_shamir::codec::FromNarg<primitives::field::gf2_64x3::F192, [u8; 24]>}::from_narg::closure"]
+def fiat_shamir.codec.FromNargF192ArrayU824.from_narg.closure := Unit
 
 /-- [fiat_shamir::TranscriptContext]
-    Source: 'crates/fiat_shamir/src/lib.rs', lines 42:0-42:34
+    Source: 'crates/fiat_shamir/src/lib.rs', lines 38:0-38:34
     Name pattern: [fiat_shamir::TranscriptContext]
     Visibility: public -/
 @[rust_type "fiat_shamir::TranscriptContext"]
@@ -283,7 +306,7 @@ structure fiat_shamir.TranscriptContext (K : Type) (R : Type) where
   squeezed : Std.U64
 
 /-- Trait declaration: [fiat_shamir::Challenger]
-    Source: 'crates/fiat_shamir/src/lib.rs', lines 56:0-56:20
+    Source: 'crates/fiat_shamir/src/lib.rs', lines 52:0-52:20
     Name pattern: [fiat_shamir::Challenger]
     Visibility: public -/
 @[rust_trait "fiat_shamir::Challenger"]
@@ -293,7 +316,7 @@ structure fiat_shamir.Challenger (Self : Type) where
     → Result (T × Self)
 
 /-- [pcs::merkle::Openings]
-    Source: 'crates/pcs/src/merkle.rs', lines 812:0-821:1
+    Source: 'crates/pcs/src/merkle.rs', lines 808:0-817:1
     Visibility: public -/
 structure merkle.Openings where
   leaf_words : Std.Usize
@@ -302,34 +325,44 @@ structure merkle.Openings where
   paths : alloc.vec.Vec (Array Std.U8 32#usize)
 
 /-- [pcs::merkle::PrunedMerklePaths]
-    Source: 'crates/pcs/src/merkle.rs', lines 663:0-668:1
-    Visibility: public -/
+    Source: 'crates/pcs/src/merkle.rs', lines 711:0-716:1 -/
 structure merkle.PrunedMerklePaths where
   rows : alloc.vec.Vec primitives.field.gf2_64.F64
   sibling_hashes : alloc.vec.Vec (Array Std.U8 32#usize)
 
+/-- [pcs::ntt::basis::NovelBasis]
+    Source: 'crates/pcs/src/ntt/basis.rs', lines 21:0-28:1 -/
+structure ntt.basis.NovelBasis where
+  rows : alloc.vec.Vec (alloc.vec.Vec primitives.field.gf2_64.F64)
+  normalizers : alloc.vec.Vec primitives.field.gf2_64.F64
+  inverses : alloc.vec.Vec primitives.field.gf2_64.F64
+
 /-- [pcs::whir::config::ConfigError]
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 58:0-71:1
+    Source: 'crates/pcs/src/whir/config.rs', lines 63:0-82:1
     Visibility: public -/
 @[discriminant isize]
 inductive whir.config.ConfigError where
 | RateOutOfRange : Std.Usize → whir.config.ConfigError
 | SizeOutOfRange : Std.Usize → whir.config.ConfigError
+| HidingSizeOutOfRange : Std.Usize → whir.config.ConfigError
 
 /-- [pcs::whir::verify::WhirError]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 26:0-68:1
+    Source: 'crates/pcs/src/whir/verify.rs', lines 28:0-81:1
     Visibility: public -/
 @[discriminant isize]
 inductive whir.verify.WhirError where
-| Transcript : fiat_shamir.error.TranscriptError → whir.verify.WhirError
+| Transcript : fiat_shamir.verifier.TranscriptError → whir.verify.WhirError
 | Config : whir.config.ConfigError → whir.verify.WhirError
 | LaneCount : Std.Usize → Std.Usize → whir.verify.WhirError
 | InvalidShape : Std.Usize → whir.verify.WhirError
 | CommitmentMismatch : whir.verify.WhirError
+| Anchoring : whir.verify.WhirError
 | NoRingClaim : whir.verify.WhirError
 | Region : Std.Usize → whir.verify.WhirError
 | PointClaim : Std.Usize → whir.verify.WhirError
 | TerminalMismatch : whir.verify.WhirError
+| RevealedClaim : whir.verify.WhirError
+| WeightedClaim : whir.verify.WhirError
 
 /-- Trait declaration: [pcs::verifier::OpeningVerifier]
     Source: 'crates/pcs/src/verifier.rs', lines 17:0-77:1
@@ -346,12 +379,12 @@ structure verifier.OpeningVerifier (Self : Type) (Self_Root : Type) (Self_K :
   ensure_root_eq : Self → Self_Root → Self_Root → Result
     ((core.result.Result Unit whir.verify.WhirError) × Self)
   next_root : Self → Result ((core.result.Result Self_Root
-    fiat_shamir.error.TranscriptError) × Self)
+    fiat_shamir.verifier.TranscriptError) × Self)
   sample_queries : Self → Std.Usize → Std.Usize → Result ((alloc.vec.Vec
     Self_Query) × Self)
   open_rows : Self → Self_Root → Std.Usize → Slice Self_Query →
     Std.Usize → Std.Usize → Result ((core.result.Result (alloc.vec.Vec
-    (alloc.vec.Vec Self_K)) fiat_shamir.error.TranscriptError) × Self)
+    (alloc.vec.Vec Self_K)) fiat_shamir.verifier.TranscriptError) × Self)
   mul_k_add : Self → Self_Clause0_Clause0_E → Self_K →
     Self_Clause0_Clause0_E → Result (Self_Clause0_Clause0_E × Self)
   e_of_limbs : Self → Array Self_K 3#usize → Result (Self_Clause0_Clause0_E
@@ -361,18 +394,18 @@ structure verifier.OpeningVerifier (Self : Type) (Self_Root : Type) (Self_K :
 /-- [pcs::verifier::authenticate::{closure}]
     Source: 'crates/pcs/src/verifier.rs', lines 156:24-159:5 -/
 def verifier.authenticate.closure :=
-  alloc.vec.Vec Std.Usize × Std.Usize × Array Std.U8 32#usize × Std.Usize ×
-  Slice Std.Usize × Std.Usize
+  Std.Usize × Std.Usize × Array Std.U8 32#usize × Std.Usize × Slice
+  Std.Usize × Std.Usize
 
-/-- [pcs::whir::Stratum]
-    Source: 'crates/pcs/src/whir/mod.rs', lines 67:0-72:1
+/-- [pcs::whir::query::Stratum]
+    Source: 'crates/pcs/src/whir/query.rs', lines 39:0-44:1
     Visibility: public -/
-structure whir.Stratum where
+structure whir.query.Stratum where
   bits : Std.Usize
   index : Std.Usize
 
 /-- [pcs::whir::config::Config]
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 157:0-170:1
+    Source: 'crates/pcs/src/whir/config.rs', lines 168:0-183:1
     Visibility: public -/
 structure whir.config.Config where
   initial_k : Std.Usize
@@ -381,29 +414,31 @@ structure whir.config.Config where
   queries : alloc.vec.Vec Std.Usize
   grinding_bits : alloc.vec.Vec Std.Usize
   ood_samples : alloc.vec.Vec Std.Usize
+  padding : Std.Usize
 
-/-- [pcs::whir::query::Normalizers]
-    Source: 'crates/pcs/src/whir/query.rs', lines 37:0-42:1 -/
-structure whir.query.Normalizers where
-  at_roots : alloc.vec.Vec primitives.field.gf2_64.F64
-  inverses : alloc.vec.Vec primitives.field.gf2_64.F64
+/-- [pcs::whir::query::Padding]
+    Source: 'crates/pcs/src/whir/query.rs', lines 142:0-149:1 -/
+structure whir.query.Padding where
+  log_msg_cols : Std.Usize
+  shift : primitives.field.gf2_64.F64
+  basis : ntt.basis.NovelBasis
 
-/-- [pcs::whir::verify::Quad]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 72:0-79:1 -/
-structure whir.verify.Quad (E : Type) where
+/-- [pcs::whir::sumcheck::RoundQuad]
+    Source: 'crates/pcs/src/whir/sumcheck/mod.rs', lines 83:0-90:1 -/
+structure whir.sumcheck.RoundQuad (E : Type) where
   c : E
   b : E
   a : E
 
 /-- [pcs::whir::verify::Ood]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 82:0-89:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 84:0-91:1 -/
 structure whir.verify.Ood (E : Type) where
   z : alloc.vec.Vec E
   y : E
-  intro : whir.verify.Quad E
+  intro : whir.sumcheck.RoundQuad E
 
 /-- [pcs::whir::verify::LevelCtx]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 92:0-103:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 94:0-105:1 -/
 structure whir.verify.LevelCtx (Q : Type) (E : Type) where
   log_msg_cols : Std.Usize
   queries : alloc.vec.Vec Q
@@ -412,14 +447,14 @@ structure whir.verify.LevelCtx (Q : Type) (E : Type) where
   beta : E
 
 /-- [pcs::whir::verify::OodCtx]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 106:0-113:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 108:0-115:1 -/
 structure whir.verify.OodCtx (E : Type) where
   z : alloc.vec.Vec E
   ris_start : Std.Usize
   beta : E
 
 /-- [pcs::whir::verify::Oracle]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 116:0-125:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 118:0-127:1 -/
 structure whir.verify.Oracle (R : Type) where
   root : R
   log_num_interleaved : Std.Usize
@@ -427,35 +462,41 @@ structure whir.verify.Oracle (R : Type) where
   log_inv_rate : Std.Usize
 
 /-- [pcs::whir::verify::QueryPhase]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 129:0-136:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 131:0-138:1 -/
 structure whir.verify.QueryPhase where
   grinding : Std.U32
   depth : Std.Usize
   count : Std.Usize
 
 /-- [pcs::whir::verify::WhirReplay]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 141:0-152:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 143:0-154:1 -/
 structure whir.verify.WhirReplay (V : Type) (Clause0_Root : Type) (Clause0_K :
   Type) (Clause0_Query : Type) (Clause0_Clause0_Clause0_E : Type) where
   t_r : Clause0_Clause0_Clause0_E
-  quad : whir.verify.Quad Clause0_Clause0_Clause0_E
+  quad : whir.sumcheck.RoundQuad Clause0_Clause0_Clause0_E
   ris : alloc.vec.Vec Clause0_Clause0_Clause0_E
   levels : alloc.vec.Vec (whir.verify.LevelCtx Clause0_Query
     Clause0_Clause0_Clause0_E)
   oods : alloc.vec.Vec (whir.verify.OodCtx Clause0_Clause0_Clause0_E)
 
 /-- [pcs::whir::verify::BaseRows]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 155:0-155:32 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 157:0-157:32 -/
 @[reducible]
 def whir.verify.BaseRows (K : Type) := alloc.vec.Vec (alloc.vec.Vec K)
 
+/-- [pcs::whir::verify::FoldedPadding]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 160:0-165:1 -/
+structure whir.verify.FoldedPadding (E : Type) where
+  g1 : alloc.vec.Vec E
+  padding : whir.query.Padding
+
 /-- [pcs::whir::verify::ExtRows]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 158:0-158:31 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 168:0-168:31 -/
 @[reducible]
 def whir.verify.ExtRows (E : Type) := alloc.vec.Vec (alloc.vec.Vec E)
 
 /-- Trait declaration: [pcs::whir::verify::WeightAt]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 163:0-165:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 318:0-320:1 -/
 structure whir.verify.WeightAt (Self : Type) (E : Type) (V : Type)
   (Self_Clause0_Root : Type) (Self_Clause0_K : Type) (Self_Clause0_Query :
   Type) where
@@ -464,14 +505,14 @@ structure whir.verify.WeightAt (Self : Type) (E : Type) (V : Type)
   call : Self → V → Slice E → Result (E × V)
 
 /-- [pcs::whir::verify::PendingQuery]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 168:0-172:1 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 323:0-330:1 -/
 structure whir.verify.PendingQuery (Q : Type) (E : Type) where
   queries : alloc.vec.Vec Q
   weights : alloc.vec.Vec E
   lambda : E
 
 /-- [pcs::whir::verify::{pcs::whir::verify::WhirReplay<V, Clause0_Root, Clause0_K, Clause0_Query, Clause0_Clause0_Clause0_E>}::terminal::{closure}]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 685:35-685:65 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 693:35-693:65 -/
 @[reducible]
 def whir.verify.WhirReplay.terminal.closure (V : Type) (T1 : Type)
   (Clause0_Root : Type) (Clause0_K : Type) (Clause0_Query : Type)
@@ -479,13 +520,21 @@ def whir.verify.WhirReplay.terminal.closure (V : Type) (T1 : Type)
   (Clause1_Clause0_K : Type) (Clause1_Clause0_Query : Type) :=
 Unit
 
+/-- [pcs::whir::verify::{pcs::whir::verify::WhirReplay<V, Clause0_Root, Clause0_K, Clause0_Query, Clause0_Clause0_Clause0_E>}::reveal::{closure}]
+    Source: 'crates/pcs/src/whir/verify.rs', lines 539:37-539:64 -/
+@[reducible]
+def whir.verify.WhirReplay.reveal.closure (V : Type) (Clause0_Root : Type)
+  (Clause0_K : Type) (Clause0_Query : Type) (Clause0_Clause0_Clause0_E : Type)
+  :=
+Unit
+
 /-- [pcs::whir::verify::check_config_shape::{closure#1}]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 237:37-237:70 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 467:37-467:70 -/
 @[reducible]
 def whir.verify.check_config_shape.closure_1 := Std.Usize
 
 /-- [pcs::whir::verify::check_config_shape::{closure}]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 219:21-219:41 -/
+    Source: 'crates/pcs/src/whir/verify.rs', lines 449:21-449:41 -/
 @[reducible]
 def whir.verify.check_config_shape.closure := Std.Usize
 

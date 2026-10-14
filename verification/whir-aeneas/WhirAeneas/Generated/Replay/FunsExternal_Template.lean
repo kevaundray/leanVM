@@ -20,16 +20,6 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 open ReplaySource
 
-/-- [core::array::from_fn]:
-    Source: '/rustc/library/core/src/array/mod.rs', lines 109:0-111:52
-    Name pattern: [core::array::from_fn]
-    Visibility: public -/
-@[rust_fun "core::array::from_fn"]
-axiom core.array.from_fn
-  {T : Type} {F : Type} (N : Std.Usize) (opsfunctionFnMutFTupleUsizeTInst :
-  core.ops.function.FnMut F Std.Usize T) :
-  F → Result (Array T N)
-
 /-- [core::array::{[T; N]}::map]:
     Source: '/rustc/library/core/src/array/mod.rs', lines 609:4-613:28
     Name pattern: [core::array::{[@T; @N]}::map]
@@ -60,6 +50,30 @@ axiom core.num.Usize.trailing_zeros : Std.Usize → Result Std.U32
     Visibility: public -/
 @[rust_fun "core::num::{usize}::div_ceil"]
 axiom core.num.Usize.div_ceil : Std.Usize → Std.Usize → Result Std.Usize
+
+/-- [core::num::{usize}::next_power_of_two]:
+    Source: '/rustc/library/core/src/num/uint_macros.rs', lines 3944:8-3944:52
+    Name pattern: [core::num::{usize}::next_power_of_two]
+    Visibility: public -/
+@[rust_fun "core::num::{usize}::next_power_of_two"]
+axiom core.num.Usize.next_power_of_two : Std.Usize → Result Std.Usize
+
+/-- [core::option::{core::option::Option<T>}::as_ref]:
+    Source: '/rustc/library/core/src/option.rs', lines 743:4-743:44
+    Name pattern: [core::option::{core::option::Option<@T>}::as_ref]
+    Visibility: public -/
+@[rust_fun "core::option::{core::option::Option<@T>}::as_ref"]
+axiom core.option.Option.as_ref {T : Type} : Option T → Result (Option T)
+
+/-- [core::option::{core::option::Option<T>}::map_or]:
+    Source: '/rustc/library/core/src/option.rs', lines 1224:4-1227:28
+    Name pattern: [core::option::{core::option::Option<@T>}::map_or]
+    Visibility: public -/
+@[rust_fun "core::option::{core::option::Option<@T>}::map_or"]
+axiom core.option.Option.map_or
+  {T : Type} {U : Type} {F : Type} (opsfunctionFnOnceFTupleTUInst :
+  core.ops.function.FnOnce F T U) :
+  Option T → U → F → Result U
 
 /-- [core::option::{core::option::Option<T>}::get_or_insert]:
     Source: '/rustc/library/core/src/option.rs', lines 1753:4-1755:28
@@ -143,15 +157,6 @@ axiom alloc.vec.Vec.truncate
   {T : Type} (A : Type) :
   alloc.vec.Vec T → Std.Usize → Result (alloc.vec.Vec T)
 
-/-- [alloc::vec::{alloc::vec::Vec<T>}::remove]:
-    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 2407:4-2407:47
-    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::remove]
-    Visibility: public -/
-@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::remove"]
-axiom alloc.vec.Vec.remove
-  {T : Type} (A : Type) :
-  alloc.vec.Vec T → Std.Usize → Result (T × (alloc.vec.Vec T))
-
 /-- [alloc::vec::{alloc::vec::Vec<T>}::clear]:
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 3103:4-3103:27
     Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::clear]
@@ -180,15 +185,36 @@ axiom alloc.vec.Vec.Insts.CoreIterTraitsCollectExtend.extend
   core.iter.traits.collect.IntoIterator I T Clause0_IntoIter) :
   alloc.vec.Vec T → I → Result (alloc.vec.Vec T)
 
+/-- [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::squeeze]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 225:4-225:52
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::squeeze]
+    Visibility: public -/
+@[rust_fun
+  "fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::squeeze"]
+axiom fiat_shamir.duplex.Blake2sDuplex.squeeze
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
+    (fiat_shamir.duplex.Blake2sDuplex × (Slice Std.U8))
+
+/-- [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::absorb]:
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 196:4-196:46
+    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::absorb]
+    Visibility: public -/
+@[rust_fun "fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::absorb"]
+axiom fiat_shamir.duplex.Blake2sDuplex.absorb
+  :
+  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
+    fiat_shamir.duplex.Blake2sDuplex
+
 /-- [primitives::hash::hash]:
-    Source: 'crates/primitives/src/hash/mod.rs', lines 209:0-209:41
+    Source: 'crates/primitives/src/hash/mod.rs', lines 214:0-214:41
     Name pattern: [primitives::hash::hash]
     Visibility: public -/
 @[rust_fun "primitives::hash::hash"]
 axiom primitives.hash.hash : Slice Std.U8 → Result (Array Std.U8 32#usize)
 
 /-- [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; 8usize]> for u64}::encode]:
-    Source: 'crates/fiat_shamir/src/codec.rs', lines 121:4-121:31
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 114:4-114:31
     Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::Encoding<u64, [u8; 8]>}::encode]
     Visibility: public -/
 @[rust_fun
@@ -207,7 +233,7 @@ axiom
   : primitives.field.gf2_64x3.F192 → Result (Array Std.U8 24#usize)
 
 /-- [fiat_shamir::codec::{impl fiat_shamir::codec::Encoding<[u8; N]> for [u8; N]}::encode]:
-    Source: 'crates/fiat_shamir/src/codec.rs', lines 94:4-94:28
+    Source: 'crates/fiat_shamir/src/codec.rs', lines 87:4-87:28
     Name pattern: [fiat_shamir::codec::{fiat_shamir::codec::Encoding<[u8; @N], [u8; @N]>}::encode]
     Visibility: public -/
 @[rust_fun
@@ -215,18 +241,8 @@ axiom
 axiom ArrayU8N.Insts.Fiat_shamirCodecEncodingArrayU8N.encode
   {N : Std.Usize} : Array Std.U8 N → Result (Array Std.U8 N)
 
-/-- [fiat_shamir::duplex::{impl core::clone::Clone for fiat_shamir::duplex::Blake2sDuplex}::clone]:
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 107:9-107:14
-    Name pattern: [fiat_shamir::duplex::{core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>}::clone]
-    Visibility: public -/
-@[rust_fun
-  "fiat_shamir::duplex::{core::clone::Clone<fiat_shamir::duplex::Blake2sDuplex>}::clone"]
-axiom fiat_shamir.duplex.Blake2sDuplex.Insts.CoreCloneClone.clone
-  :
-  fiat_shamir.duplex.Blake2sDuplex → Result fiat_shamir.duplex.Blake2sDuplex
-
 /-- [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::context]:
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 130:4-130:87
+    Source: 'crates/fiat_shamir/src/duplex.rs', lines 140:4-140:87
     Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::Blake2sDuplex}::context]
     Visibility: public -/
 @[rust_fun
@@ -236,53 +252,20 @@ axiom fiat_shamir.duplex.Blake2sDuplex.context
   fiat_shamir.duplex.Blake2sDuplex → Result (fiat_shamir.TranscriptContext
     primitives.field.gf2_64.F64 (Array Std.U8 32#usize))
 
-/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::squeeze]:
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 210:4-210:48
-    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::squeeze]
-    Visibility: public -/
-@[rust_fun
-  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::squeeze"]
-axiom
-  fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze
-  :
-  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
-    (fiat_shamir.duplex.Blake2sDuplex × (Slice Std.U8))
-
-/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::absorb]:
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 183:4-183:42
-    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::absorb]
-    Visibility: public -/
-@[rust_fun
-  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::absorb"]
-axiom
-  fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb
-  :
-  fiat_shamir.duplex.Blake2sDuplex → Slice Std.U8 → Result
-    fiat_shamir.duplex.Blake2sDuplex
-
-/-- [fiat_shamir::duplex::{impl fiat_shamir::duplex::DuplexSponge for fiat_shamir::duplex::Blake2sDuplex}::init]:
-    Source: 'crates/fiat_shamir/src/duplex.rs', lines 168:4-168:33
-    Name pattern: [fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::init]
-    Visibility: public -/
-@[rust_fun
-  "fiat_shamir::duplex::{fiat_shamir::duplex::DuplexSponge<fiat_shamir::duplex::Blake2sDuplex>}::init"]
-axiom fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.init
-  : Array Std.U8 32#usize → Result fiat_shamir.duplex.Blake2sDuplex
-
 /-- [pcs::merkle::hash_pairs]:
-    Source: 'crates/pcs/src/merkle.rs', lines 442:0-446:1 -/
+    Source: 'crates/pcs/src/merkle.rs', lines 494:0-498:1 -/
 axiom merkle.hash_pairs
   :
   Slice (Array (Array Std.U8 32#usize) 2#usize) → alloc.vec.Vec (Array Std.U8
     32#usize) → Result (alloc.vec.Vec (Array Std.U8 32#usize))
 
 /-- [pcs::merkle::sorted_unique]:
-    Source: 'crates/pcs/src/merkle.rs', lines 450:0-455:1 -/
+    Source: 'crates/pcs/src/merkle.rs', lines 503:0-508:1 -/
 axiom merkle.sorted_unique
   : Slice Std.Usize → Result (alloc.vec.Vec Std.Usize)
 
 /-- [pcs::merkle::hash_rows]:
-    Source: 'crates/pcs/src/merkle.rs', lines 463:0-468:1 -/
+    Source: 'crates/pcs/src/merkle.rs', lines 515:0-520:1 -/
 axiom merkle.hash_rows
   :
   Slice primitives.field.gf2_64.F64 → Std.Usize → Std.Usize → Std.Usize

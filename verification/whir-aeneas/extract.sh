@@ -30,7 +30,7 @@ case "$surface" in
     replay)
         dest="$here/llbc/replay"
         generated="$here"
-        args=(--start-from pcs::whir::verify::verify --start-from pcs::whir::sample_queries_ordered
+        args=(--start-from pcs::whir::verify::verify --start-from pcs::whir::query::sample_queries
               --start-from pcs::ring_switch::RingMap::close
               --start-from pcs::merkle::PrunedMerklePaths::open --start-from pcs::merkle::PrunedMerklePaths::from_hint
               --start-from pcs::verifier::open_rows_native
@@ -38,9 +38,8 @@ case "$surface" in
               --include primitives --include fiat_shamir
               --opaque pcs::merkle::hash_pairs --opaque pcs::merkle::hash_rows --opaque pcs::merkle::sorted_unique
               --opaque primitives::hash::hash --opaque 'fiat_shamir::codec::_::encode'
-              --opaque 'fiat_shamir::duplex::_::context' --opaque 'fiat_shamir::duplex::_::init'
-              --opaque 'fiat_shamir::duplex::_::absorb' --opaque 'fiat_shamir::duplex::_::squeeze'
-              --opaque 'fiat_shamir::duplex::_::clone')
+              --opaque 'fiat_shamir::duplex::_::context'
+              --opaque 'fiat_shamir::duplex::_::absorb' --opaque 'fiat_shamir::duplex::_::squeeze')
         cargo_args=(--lib --release)
         aeneas_args=(-backend lean -namespace ReplaySource -no-progress-bar
                      -abort-on-error -all-computable -split-files -subdir WhirAeneas/Generated/Replay)
@@ -96,10 +95,12 @@ if [[ "$surface" == statement ]]; then
     python3 "$here/toolchain/check-extracted-root.py" "$dest/$llbc_name.llbc" pcs::stack::Statement::check
 fi
 if [[ "$surface" == replay ]]; then
-    for root in pcs::whir::verify::verify pcs::whir::sample_queries_ordered pcs::ring_switch::RingMap::close \
-        fiat_shamir::arith::RoundPolynomial::read fiat_shamir::arith::fixed_coefficient \
+    for root in pcs::whir::verify::verify pcs::whir::query::sample_queries pcs::whir::query::Stratum::batch \
+        pcs::ring_switch::RingMap::close pcs::whir::sumcheck::RoundQuad::read \
+        fiat_shamir::arith::Verifier::read_round fiat_shamir::arith::RoundWeight::fixed_index \
         pcs::merkle::PrunedMerklePaths::open pcs::merkle::PrunedMerklePaths::from_hint \
-        pcs::verifier::open_rows_native pcs::verifier::authenticate pcs::verifier::rows_of \
+        pcs::verifier::open_rows_native pcs::verifier::authenticate pcs::merkle::Openings::rows \
+        pcs::ntt::basis::NovelBasis::new pcs::whir::query::Padding::share \
         fiat_shamir::verifier::VerifierState::prover_hint_with fiat_shamir::verifier::VerifierState::prover_hint \
         fiat_shamir::verifier::VerifierState::prover_message fiat_shamir::verifier::VerifierState::verifier_message \
         fiat_shamir::verifier::VerifierState::check_pow fiat_shamir::pow::ProofOfWork::verify; do
