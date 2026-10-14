@@ -1569,7 +1569,7 @@ mod tests {
         let plain = Config::for_rate(log_n, 1).unwrap();
         let empty = ProverState::new(&SessionId::new(DOMAIN), &0u64).into_proof();
         let mut vs = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty);
-        let refused = StackCommitment::receive(&mut vs, log_n, 8, hiding.clone());
+        let refused = StackCommitment::receive(&mut vs, log_n, 8, hiding);
         assert!(matches!(refused, Err(WhirError::Anchoring)));
         assert!(matches!(
             StackCommitment::<F192, Hash, F64>::hiding([0; 32], log_n, 8, plain.clone()),
