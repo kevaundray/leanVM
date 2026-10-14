@@ -175,8 +175,8 @@ theorem fixes_eval (val : Val) (w : ℕ) : ∀ e : PExpr, e.fixes w = true → (
 
 end PExpr
 
-/-- A WHIR round's quadratic `c + b X + a X^2`: received against a claim by `RoundPolynomial::read` (`c` and `a` sent,
-`b = claim + (0 + a)` by `tailZero`, `tailAt` and `fixedAt`), or `Quad::fold` of `intro` into `base` at `s`, each
+/-- A WHIR round's quadratic `c + b X + a X^2`: received against a claim by `Verifier::read_round` (`c` and `a` sent,
+`b = claim + (0 + a)` by `tailZero`, `tailAt` and `fixedAt`), or `RoundQuad::fold` of `intro` into `base` at `s`, each
 coefficient `mul_add(s, intro's, base's)`, its claim the running claim's `mul_add(s, intro's claim, base's claim)`. -/
 inductive QuadCert where
   | recv (claim c a tailZero tailAt fixedAt : ℕ)

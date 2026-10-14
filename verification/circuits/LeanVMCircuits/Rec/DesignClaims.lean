@@ -25,7 +25,7 @@ variable {β : Type}
 
 /-! The layout. -/
 
-/-- `FlockId::k_log` of each flock circuit, in `FlockId::ALL` order. -/
+/-- `CircuitId::k_log` of each flock circuit, in `CircuitId::ALL` order. -/
 def flockKLogs : List ℕ := [10, 10, 10, 8, 8, 10, 12, 13, 13, 14, 9, 9, 9, 9, 9, 9, 9, 9, 9, 11, 12]
 
 theorem flockKLogs_length : flockKLogs.length = nFlocks := rfl

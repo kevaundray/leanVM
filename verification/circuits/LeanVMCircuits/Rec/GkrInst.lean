@@ -11,7 +11,7 @@ The bus GKR's layers as `Sumcheck.Inst`s, and its root as the product of its lea
 `p_i` factored out, binding variable `0` first: each round's polynomial is `P` summed over the cube in the variables
 after it, weighted by their `eq` (`eqv`), and its final value is `P` at the challenges. `eqInst_sum`, `eqInst_ok`,
 `eqInst_final`, `eqInst_weight`: its sum is that eq-weighted sum, it has degree `d` when `P` has degree at most `d` in
-each variable, its final value is `P(r)` and round `i` factors out `p_i`, as `RoundPolynomial::read(v, 5, claim,
+each variable, its final value is `P(r)` and round `i` factors out `p_i`, as `v.read_round(5, claim,
 Some(eq_point))` reads it.
 
 A product tree (`gkr::prove_products`, leaves padded with ones to `2^μ`): node `x` of the level `k` above the leaves is

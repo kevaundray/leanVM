@@ -632,7 +632,7 @@ theorem union_capacity (sh : Shape) (h : sh.Accepted) (p : ℕ) (u : UnionShape)
 
 /-! Dense variables and the statement. -/
 
-/-- `FlockId::MAX_K_LOG`, the matrix points' coordinates. -/
+/-- `CircuitId::MAX_K_LOG`, the matrix points' coordinates. -/
 def maxKLog : ℕ := 14
 
 /-- `N_FLOCKS`. -/

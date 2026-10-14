@@ -8,7 +8,7 @@ public import LeanVMCircuits.Rec.Sumcheck
 /-!
 A sumcheck's rounds, read off the builder's calls.
 
-Every sumcheck of the recursion verifier reads its round polynomials with `RoundPolynomial::read` and takes the next
+Every sumcheck of the recursion verifier reads its round polynomials with `Verifier::read_round` and takes the next
 claim with `poly_eval`: the prover sends every coefficient but one, and the verifier computes the fixed one from the
 running claim (the linear one, `c_1 = claim + ∑_{i ≥ 2} c_i`, or with the round's eq weight `e` factored out the
 constant one, `c_0 = claim + e · ∑_{i ≥ 1} c_i`), so the round's check holds by construction. The reduction's only
