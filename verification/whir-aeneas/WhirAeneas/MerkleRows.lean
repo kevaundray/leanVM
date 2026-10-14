@@ -111,10 +111,10 @@ theorem open_rows_ok (hword : UScalarTy.Usize.numBits = 64) {leaf : List U64 →
     {node : Digest → Digest → Digest} (hR : RowHash leaf) (hP : PairHash node) (vs : VS)
     (hp : vs.poison = none) (root : Digest) (depth : Usize) (queries : Slice Usize) (rw lw : Usize)
     (L : U32) (hint more : Slice U8) (hL : L.val = hint.val.length)
-    (hb : vs.hints.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val) (ws : List (List U64))
+    (hb : vs.hints.rest.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val) (ws : List (List U64))
     (hh : HintOpens leaf node root depth.val (queries.val.map (·.val)) rw.val lw.val ws hint.val) :
     ∃ rows : alloc.vec.Vec (alloc.vec.Vec U64), verifier.open_rows_native vs root depth queries rw lw =
-        .ok (.Ok rows, ({ vs with hints := more, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize } : VS)) ∧
+        .ok (.Ok rows, ({ vs with hints := ⟨more⟩, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize } : VS)) ∧
       rows.val.map (fun r : alloc.vec.Vec U64 => r.val) = ws := by
   set qs := queries.val.map (·.val) with hqs
   obtain ⟨distinct, hd, ed⟩ := sorted_unique_eq hword queries

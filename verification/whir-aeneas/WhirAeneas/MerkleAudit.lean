@@ -17,6 +17,8 @@ them together with the replay and the composed native theorem. -/
 #print axioms WhirAeneas.MerkleNative.from_le_to_le
 #print axioms WhirAeneas.MerkleNative.to_le_four
 #print axioms WhirAeneas.MerkleNative.decode_prefix
+#print axioms WhirAeneas.MerkleNative.next_ok
+#print axioms WhirAeneas.MerkleNative.next_none
 #print axioms WhirAeneas.MerkleNative.prover_hint_ok
 #print axioms WhirAeneas.MerkleNative.prover_hint_missing
 #print axioms WhirAeneas.MerkleNative.prover_hint_poisoned
@@ -25,8 +27,8 @@ them together with the replay and the composed native theorem. -/
 #print axioms WhirAeneas.MerkleNative.closure_eq
 #print axioms WhirAeneas.MerkleNative.image_eq
 #print axioms WhirAeneas.MerkleNative.rowsOf_length
-#print axioms WhirAeneas.MerkleNative.rows_of_loop_eq
-#print axioms WhirAeneas.MerkleNative.rows_of_eq
+#print axioms WhirAeneas.MerkleNative.rows_loop_eq
+#print axioms WhirAeneas.MerkleNative.rows_eq
 #print axioms WhirAeneas.MerkleNative.shl_one_val
 #print axioms WhirAeneas.MerkleNative.decodeOpen_eq
 #print axioms WhirAeneas.MerkleNative.authenticate_eq

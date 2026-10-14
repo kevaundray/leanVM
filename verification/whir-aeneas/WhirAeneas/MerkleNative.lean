@@ -9,11 +9,11 @@ transcript returns its error; both failures poison it. -/
 namespace WhirAeneas.MerkleNative
 open Aeneas Aeneas.Std ReplaySource WhirAeneas.Merkle
 
-/-- The verifier state over the BLAKE2s duplex, as the native `open_rows` takes it. -/
-abbrev VS := fiat_shamir.verifier.VerifierState fiat_shamir.duplex.Blake2sDuplex
+/-- The verifier state, as the native `open_rows` takes it. -/
+abbrev VS := fiat_shamir.verifier.VerifierState
 
 /-- The transcript error. -/
-abbrev TE := fiat_shamir.error.TranscriptError
+abbrev TE := fiat_shamir.verifier.TranscriptError
 
 private theorem loop_cont {α β : Type} {body : α → Result (ControlFlow α β)} {x x' : α}
     (h : body x = .ok (.cont x')) : loop body x = loop body x' := by
@@ -53,39 +53,38 @@ theorem decode_prefix (L : U32) (a b c d : U8) (h : (core.num.U32.to_le_bytes L)
     rw [Array.eq_iff]; simp only [Array.make_val, h]
   rw [this, from_le_to_le]
 
-/-- Reading a hint: the four-byte little-endian length `L`, then those bytes. -/
-theorem prover_hint_ok {H : Type} (inst : fiat_shamir.duplex.DuplexSponge H)
-    (vs : fiat_shamir.verifier.VerifierState H) (hp : vs.poison = none)
+/-- The next hint: the four-byte little-endian length `L`, then those bytes. -/
+theorem next_ok (hs : fiat_shamir.proof.Hints)
     (L : U32) (hint more : Slice U8) (hL : L.val = hint.val.length)
-    (hb : vs.hints.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val) :
-    fiat_shamir.verifier.VerifierState.prover_hint inst vs =
-      .ok (.Ok hint, { vs with hints := more, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize }) := by
+    (hb : hs.rest.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val) :
+    fiat_shamir.proof.Hints.Insts.CoreIterTraitsIteratorIteratorSharedASliceU8.next hs =
+      .ok (some hint, { rest := more }) := by
   obtain ⟨a, b, c, d, habcd⟩ := to_le_four L
   rw [habcd] at hb
-  have hl := vs.hints.property
-  have hl' : vs.hints.length = vs.hints.val.length := rfl
-  have hlen : vs.hints.val.length = 4 + hint.val.length + more.val.length := by
+  have hl := hs.rest.property
+  have hl' : hs.rest.length = hs.rest.val.length := rfl
+  have hlen : hs.rest.val.length = 4 + hint.val.length + more.val.length := by
     rw [hb]; simp only [List.length_append, List.length_cons, List.length_nil]
   have hcast : (UScalar.cast .Usize L).val = hint.val.length := by
     rw [U32.cast_Usize_val_eq]; exact hL
-  have hsub : (Std.Usize.wrapping_sub (Slice.len vs.hints) 4#usize).val = hint.val.length + more.val.length := by
+  have hsub : (Std.Usize.wrapping_sub (Slice.len hs.rest) 4#usize).val = hint.val.length + more.val.length := by
     rw [sub_val _ _ (by simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega)]
     simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega
   have hadd : (Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L)).val = 4 + hint.val.length := by
     rw [add_val _ _ (by rw [hcast]; simp only [UScalar.ofNatCore_val_eq]; omega)]
     simp only [UScalar.ofNatCore_val_eq, hcast]
-  have hrest : vs.hints.val.drop 4 = hint.val ++ more.val := by
+  have hrest : hs.rest.val.drop 4 = hint.val ++ more.val := by
     rw [hb, List.append_assoc, List.drop_left' (by rfl)]
-  obtain ⟨t, ht, et⟩ := slice_range vs.hints 4#usize (Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L))
+  obtain ⟨t, ht, et⟩ := slice_range hs.rest 4#usize (Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L))
     (by rw [hadd]; simp only [UScalar.ofNatCore_val_eq]; omega) (by rw [hadd]; omega)
   have et' : t = hint := by
     apply Slice.ext
     rw [et, hadd]
     simp only [UScalar.ofNatCore_val_eq, Nat.add_sub_cancel_left, hrest]
     exact List.take_left' rfl
-  have hfrom : core.slice.index.Slice.index (core.slice.index.SliceIndexRangeFromUsizeSlice U8) vs.hints
+  have hfrom : core.slice.index.Slice.index (core.slice.index.SliceIndexRangeFromUsizeSlice U8) hs.rest
       { start := Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L) } = .ok more := by
-    have hle : (Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L)).val ≤ vs.hints.length := by
+    have hle : (Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L)).val ≤ hs.rest.length := by
       rw [hadd, hl']; omega
     simp only [core.slice.index.Slice.index, core.slice.index.SliceIndexRangeFromUsizeSlice.index, hle,
       ↓reduceIte]
@@ -94,82 +93,90 @@ theorem prover_hint_ok {H : Type} (inst : fiat_shamir.duplex.DuplexSponge H)
     simp only [Slice.drop, Slice.from_val, hadd]
     rw [show 4 + hint.val.length = 4 + hint.val.length from rfl, ← List.drop_drop, hrest]
     exact List.drop_left' rfl
-  have hnot : ¬ (Slice.len vs.hints < 4#usize) := by
+  have hnot : ¬ (Slice.len hs.rest < 4#usize) := by
     intro h
-    have : (Slice.len vs.hints).val < (4#usize).val := h
+    have : (Slice.len hs.rest).val < (4#usize).val := h
     simp only [Slice.len_val, UScalar.ofNatCore_val_eq] at this
     omega
-  have hnot2 : ¬ (Std.Usize.wrapping_sub (Slice.len vs.hints) 4#usize < UScalar.cast .Usize L) := by
+  have hnot2 : ¬ (Std.Usize.wrapping_sub (Slice.len hs.rest) 4#usize < UScalar.cast .Usize L) := by
     intro h
-    have : (Std.Usize.wrapping_sub (Slice.len vs.hints) 4#usize).val < (UScalar.cast .Usize L).val := h
+    have : (Std.Usize.wrapping_sub (Slice.len hs.rest) 4#usize).val < (UScalar.cast .Usize L).val := h
     omega
-  have hi0 := slice_index vs.hints 0#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-  have hi1 := slice_index vs.hints 1#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-  have hi2 := slice_index vs.hints 2#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-  have hi3 := slice_index vs.hints 3#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+  have hi0 := slice_index hs.rest 0#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+  have hi1 := slice_index hs.rest 1#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+  have hi2 := slice_index hs.rest 2#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+  have hi3 := slice_index hs.rest 3#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
   simp only [hb, UScalar.ofNatCore_val_eq] at hi0 hi1 hi2 hi3
-  unfold fiat_shamir.verifier.VerifierState.prover_hint
-  simp only [hp, hnot, ↓reduceIte, lift, bind_ok, hi0, hi1, hi2, hi3]
+  unfold fiat_shamir.proof.Hints.Insts.CoreIterTraitsIteratorIteratorSharedASliceU8.next
+  simp only [hnot, ↓reduceIte, lift, bind_ok, hi0, hi1, hi2, hi3]
   simp only [List.cons_append, List.getElem_cons_zero, List.getElem_cons_succ]
-  simp only [decode_prefix L a b c d habcd, hnot2, ↓reduceIte, bind_ok,
-    fiat_shamir.verifier.VerifierState.guard]
-  have ht2 : core.slice.index.SliceIndexRangeUsizeSlice.index
-      { start := 4#usize, «end» := Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L) } vs.hints = .ok hint := by
-    rw [← et']; exact ht
-  have hfrom2 : core.slice.index.SliceIndexRangeFromUsizeSlice.index
-      { start := Std.Usize.wrapping_add 4#usize (UScalar.cast .Usize L) } vs.hints = .ok more := hfrom
-  simp [core.result.Result.Insts.CoreOpsTry.branch, ht2, hfrom2, hp]
+  simp only [decode_prefix L a b c d habcd, hnot2, ↓reduceIte, bind_ok, hfrom]
+  simp only [ht, bind_ok, et']
+
+/-- No next hint: fewer than four bytes remain, or the length they encode runs past the bytes
+after them. Nothing is consumed. -/
+theorem next_none (hs : fiat_shamir.proof.Hints)
+    (h : hs.rest.val.length < 4 ∨ ∃ (L : U32) (rest : List U8),
+      hs.rest.val = (core.num.U32.to_le_bytes L).val ++ rest ∧ rest.length < L.val) :
+    fiat_shamir.proof.Hints.Insts.CoreIterTraitsIteratorIteratorSharedASliceU8.next hs = .ok (none, hs) := by
+  have hl' : hs.rest.length = hs.rest.val.length := rfl
+  rcases h with h4 | ⟨L, rest, hb, hr⟩
+  · have hlt : Slice.len hs.rest < 4#usize := by
+      show (Slice.len hs.rest).val < (4#usize).val
+      simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega
+    unfold fiat_shamir.proof.Hints.Insts.CoreIterTraitsIteratorIteratorSharedASliceU8.next
+    simp only [hlt, ↓reduceIte]
+  · obtain ⟨a, b, c, d, habcd⟩ := to_le_four L
+    rw [habcd] at hb
+    have hlen : hs.rest.val.length = 4 + rest.length := by
+      rw [hb]; simp only [List.length_append, List.length_cons, List.length_nil]
+    have hnot : ¬ (Slice.len hs.rest < 4#usize) := by
+      intro h
+      have : (Slice.len hs.rest).val < (4#usize).val := h
+      simp only [Slice.len_val, UScalar.ofNatCore_val_eq] at this
+      omega
+    have hsub : (Std.Usize.wrapping_sub (Slice.len hs.rest) 4#usize).val = rest.length := by
+      rw [sub_val _ _ (by simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega)]
+      simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega
+    have hlt2 : Std.Usize.wrapping_sub (Slice.len hs.rest) 4#usize < UScalar.cast .Usize L := by
+      show (Std.Usize.wrapping_sub (Slice.len hs.rest) 4#usize).val < (UScalar.cast .Usize L).val
+      rw [hsub, U32.cast_Usize_val_eq]; exact hr
+    have hi0 := slice_index hs.rest 0#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+    have hi1 := slice_index hs.rest 1#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+    have hi2 := slice_index hs.rest 2#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+    have hi3 := slice_index hs.rest 3#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
+    simp only [hb, UScalar.ofNatCore_val_eq] at hi0 hi1 hi2 hi3
+    unfold fiat_shamir.proof.Hints.Insts.CoreIterTraitsIteratorIteratorSharedASliceU8.next
+    simp only [hnot, ↓reduceIte, lift, bind_ok, hi0, hi1, hi2, hi3]
+    simp only [List.cons_append, List.getElem_cons_zero, List.getElem_cons_succ]
+    simp only [decode_prefix L a b c d habcd, hlt2, ↓reduceIte]
+
+/-- Reading a hint: the four-byte little-endian length `L`, then those bytes. -/
+theorem prover_hint_ok (vs : VS) (hp : vs.poison = none)
+    (L : U32) (hint more : Slice U8) (hL : L.val = hint.val.length)
+    (hb : vs.hints.rest.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val) :
+    fiat_shamir.verifier.VerifierState.prover_hint vs =
+      .ok (.Ok hint, { vs with hints := ⟨more⟩, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize }) := by
+  unfold fiat_shamir.verifier.VerifierState.prover_hint
+  simp [hp, next_ok vs.hints L hint more hL hb, core.option.Option.ok_or, lift,
+    fiat_shamir.verifier.VerifierState.guard, core.result.Result.Insts.CoreOpsTry.branch]
 
 /-- A hint that is absent or cut short: fewer than four bytes remain, or the length they encode
 runs past the bytes after them. -/
-theorem prover_hint_missing {H : Type} (inst : fiat_shamir.duplex.DuplexSponge H)
-    (vs : fiat_shamir.verifier.VerifierState H) (hp : vs.poison = none)
-    (h : vs.hints.val.length < 4 ∨ ∃ (L : U32) (rest : List U8),
-      vs.hints.val = (core.num.U32.to_le_bytes L).val ++ rest ∧ rest.length < L.val) :
-    fiat_shamir.verifier.VerifierState.prover_hint inst vs =
+theorem prover_hint_missing (vs : VS) (hp : vs.poison = none)
+    (h : vs.hints.rest.val.length < 4 ∨ ∃ (L : U32) (rest : List U8),
+      vs.hints.rest.val = (core.num.U32.to_le_bytes L).val ++ rest ∧ rest.length < L.val) :
+    fiat_shamir.verifier.VerifierState.prover_hint vs =
       .ok (.Err (.MissingHint vs.hints_read), { vs with poison := some (.MissingHint vs.hints_read) }) := by
-  have hl' : vs.hints.length = vs.hints.val.length := rfl
-  rcases h with h4 | ⟨L, rest, hb, hr⟩
-  · have hlt : Slice.len vs.hints < 4#usize := by
-      show (Slice.len vs.hints).val < (4#usize).val
-      simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega
-    unfold fiat_shamir.verifier.VerifierState.prover_hint
-    simp only [hp, hlt, ↓reduceIte, bind_ok]
-    simp [fiat_shamir.verifier.VerifierState.guard, core.option.Option.get_or_insert, hp,
-      core.result.Result.Insts.CoreOpsTry.branch,
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
-  · obtain ⟨a, b, c, d, habcd⟩ := to_le_four L
-    rw [habcd] at hb
-    have hlen : vs.hints.val.length = 4 + rest.length := by
-      rw [hb]; simp only [List.length_append, List.length_cons, List.length_nil]
-    have hnot : ¬ (Slice.len vs.hints < 4#usize) := by
-      intro h
-      have : (Slice.len vs.hints).val < (4#usize).val := h
-      simp only [Slice.len_val, UScalar.ofNatCore_val_eq] at this
-      omega
-    have hsub : (Std.Usize.wrapping_sub (Slice.len vs.hints) 4#usize).val = rest.length := by
-      rw [sub_val _ _ (by simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega)]
-      simp only [Slice.len_val, UScalar.ofNatCore_val_eq]; omega
-    have hlt2 : Std.Usize.wrapping_sub (Slice.len vs.hints) 4#usize < UScalar.cast .Usize L := by
-      show (Std.Usize.wrapping_sub (Slice.len vs.hints) 4#usize).val < (UScalar.cast .Usize L).val
-      rw [hsub, U32.cast_Usize_val_eq]; exact hr
-    have hi0 := slice_index vs.hints 0#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-    have hi1 := slice_index vs.hints 1#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-    have hi2 := slice_index vs.hints 2#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-    have hi3 := slice_index vs.hints 3#usize (by simp only [UScalar.ofNatCore_val_eq]; omega)
-    simp only [hb, UScalar.ofNatCore_val_eq] at hi0 hi1 hi2 hi3
-    unfold fiat_shamir.verifier.VerifierState.prover_hint
-    simp only [hp, hnot, ↓reduceIte, lift, bind_ok, hi0, hi1, hi2, hi3]
-    simp only [List.cons_append, List.getElem_cons_zero, List.getElem_cons_succ]
-    simp only [decode_prefix L a b c d habcd, hlt2, ↓reduceIte, bind_ok]
-    simp [fiat_shamir.verifier.VerifierState.guard, core.option.Option.get_or_insert, hp,
-      core.result.Result.Insts.CoreOpsTry.branch,
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
+  unfold fiat_shamir.verifier.VerifierState.prover_hint
+  simp [hp, next_none vs.hints h, core.option.Option.ok_or,
+    fiat_shamir.verifier.VerifierState.guard, core.option.Option.get_or_insert,
+    core.result.Result.Insts.CoreOpsTry.branch,
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
 
 /-- A poisoned transcript reads no hint and returns its error. -/
-theorem prover_hint_poisoned {H : Type} (inst : fiat_shamir.duplex.DuplexSponge H)
-    (vs : fiat_shamir.verifier.VerifierState H) (e : TE) (hp : vs.poison = some e) :
-    fiat_shamir.verifier.VerifierState.prover_hint inst vs = .ok (.Err e, vs) := by
+theorem prover_hint_poisoned (vs : VS) (e : TE) (hp : vs.poison = some e) :
+    fiat_shamir.verifier.VerifierState.prover_hint vs = .ok (.Err e, vs) := by
   unfold fiat_shamir.verifier.VerifierState.prover_hint
   simp [hp]
 
@@ -177,12 +184,12 @@ theorem prover_hint_poisoned {H : Type} (inst : fiat_shamir.duplex.DuplexSponge 
 
 /-- Reading and decoding a hint: the decoder's value, or `InvalidHint` (indexed by the hints read
 before it) poisoning the transcript. -/
-theorem prover_hint_with_ok {H T F : Type} (inst : fiat_shamir.duplex.DuplexSponge H)
+theorem prover_hint_with_ok {T F : Type}
     (fn : core.ops.function.FnOnce F (Slice U8) (Option T))
-    (vs vs1 : fiat_shamir.verifier.VerifierState H) (decode : F) (hint : Slice U8) (r : Option T)
-    (hph : fiat_shamir.verifier.VerifierState.prover_hint inst vs = .ok (.Ok hint, vs1))
+    (vs vs1 : VS) (decode : F) (hint : Slice U8) (r : Option T)
+    (hph : fiat_shamir.verifier.VerifierState.prover_hint vs = .ok (.Ok hint, vs1))
     (hp1 : vs1.poison = none) (hdec : fn.call_once decode hint = .ok r) :
-    fiat_shamir.verifier.VerifierState.prover_hint_with inst fn vs decode = .ok (match r with
+    fiat_shamir.verifier.VerifierState.prover_hint_with fn vs decode = .ok (match r with
       | some x => (.Ok x, vs1)
       | none => (.Err (.InvalidHint vs.hints_read), { vs1 with poison := some (.InvalidHint vs.hints_read) })) := by
   unfold fiat_shamir.verifier.VerifierState.prover_hint_with
@@ -191,11 +198,11 @@ theorem prover_hint_with_ok {H T F : Type} (inst : fiat_shamir.duplex.DuplexSpon
     fiat_shamir.verifier.VerifierState.guard, core.option.Option.get_or_insert, hp1]
 
 /-- A hint that cannot be read is not decoded; its error is returned. -/
-theorem prover_hint_with_err {H T F : Type} (inst : fiat_shamir.duplex.DuplexSponge H)
+theorem prover_hint_with_err {T F : Type}
     (fn : core.ops.function.FnOnce F (Slice U8) (Option T))
-    (vs vs1 : fiat_shamir.verifier.VerifierState H) (decode : F) (e : TE)
-    (hph : fiat_shamir.verifier.VerifierState.prover_hint inst vs = .ok (.Err e, vs1)) :
-    fiat_shamir.verifier.VerifierState.prover_hint_with inst fn vs decode = .ok (.Err e, vs1) := by
+    (vs vs1 : VS) (decode : F) (e : TE)
+    (hph : fiat_shamir.verifier.VerifierState.prover_hint vs = .ok (.Err e, vs1)) :
+    fiat_shamir.verifier.VerifierState.prover_hint_with fn vs decode = .ok (.Err e, vs1) := by
   unfold fiat_shamir.verifier.VerifierState.prover_hint_with
   simp [hph, core.result.Result.Insts.CoreOpsTry.branch,
     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
@@ -210,15 +217,15 @@ def decodeOpen (hint : Slice U8) (n : Usize) (root : Digest) (depth : Usize) (qu
   | some p => p.open root (Std.Usize.wrapping_shl 1#usize depth) queries row_words leaf_words
 
 /-- The closure `authenticate` passes to `prover_hint_with` is `decodeOpen`. -/
-theorem closure_eq (distinct : alloc.vec.Vec Usize) (root : Digest) (depth : Usize) (queries : Slice Usize)
+theorem closure_eq (n : Usize) (root : Digest) (depth : Usize) (queries : Slice Usize)
     (row_words leaf_words : Usize) (hint : Slice U8) :
     verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings.call_once
-      (distinct, row_words, root, depth, queries, leaf_words) hint =
-      decodeOpen hint (alloc.vec.Vec.len distinct) root depth queries row_words leaf_words := by
+      (n, row_words, root, depth, queries, leaf_words) hint =
+      decodeOpen hint n root depth queries row_words leaf_words := by
   unfold verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings.call_once
     decodeOpen
-  show Bind.bind (merkle.PrunedMerklePaths.from_hint hint (alloc.vec.Vec.len distinct) row_words) _ =
-    Bind.bind (merkle.PrunedMerklePaths.from_hint hint (alloc.vec.Vec.len distinct) row_words) _
+  show Bind.bind (merkle.PrunedMerklePaths.from_hint hint n row_words) _ =
+    Bind.bind (merkle.PrunedMerklePaths.from_hint hint n row_words) _
   congr 1
   funext fo
   cases fo <;> simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok, lift,
@@ -272,11 +279,11 @@ theorem rowsOf_length (o : merkle.Openings) (rw : Nat) :
     (rowsOf o rw).length = o.images.val.length / o.leaf_words.val := by
   simp [rowsOf]
 
-theorem rows_of_loop_eq (o : merkle.Openings) (rw n : Usize) (hrw : rw.val ≤ o.leaf_words.val)
+theorem rows_loop_eq (o : merkle.Openings) (rw n : Usize) (hrw : rw.val ≤ o.leaf_words.val)
     (hn : n.val = o.images.val.length / o.leaf_words.val) :
     ∀ (k : Nat) (i : Usize) (rows : alloc.vec.Vec (alloc.vec.Vec U64)), n.val - i.val = k → i.val ≤ n.val →
       rows.val.map (·.val) = (rowsOf o rw.val).take i.val →
-      ∃ rows', verifier.rows_of_loop o rw n rows i = .ok rows' ∧ rows'.val.map (·.val) = rowsOf o rw.val := by
+      ∃ rows', merkle.Openings.rows_loop o rw n rows i = .ok rows' ∧ rows'.val.map (·.val) = rowsOf o rw.val := by
   have hmax : o.images.val.length ≤ Usize.max := o.images.slice.property
   intro k
   induction k with
@@ -284,10 +291,10 @@ theorem rows_of_loop_eq (o : merkle.Openings) (rw n : Usize) (hrw : rw.val ≤ o
     intro i rows hk hi hrows
     have hin : i.val = n.val := by omega
     refine ⟨rows, ?_, ?_⟩
-    · unfold verifier.rows_of_loop
+    · unfold merkle.Openings.rows_loop
       apply loop_done
       have : ¬ (i < n) := by intro h; have : i.val < n.val := h; omega
-      simp [verifier.rows_of_loop.body, this]
+      simp [merkle.Openings.rows_loop.body, this]
     · rw [hrows, hin, hn, ← rowsOf_length o rw.val, List.take_length]
   | succ k ih =>
     intro i rows hk hi hrows
@@ -304,16 +311,15 @@ theorem rows_of_loop_eq (o : merkle.Openings) (rw n : Usize) (hrw : rw.val ≤ o
       rw [es, List.length_take, List.length_drop]
       omega
     have hsl2 : s.length = o.leaf_words.val := hsl
-    have hsub : (Std.Usize.wrapping_sub (Slice.len s) rw).val = o.leaf_words.val - rw.val := by
-      rw [sub_val _ _ (by simp only [Slice.len_val]; omega)]
-      simp only [Slice.len_val, hsl2]
+    have hsub : (Std.Usize.wrapping_sub o.leaf_words rw).val = o.leaf_words.val - rw.val :=
+      sub_val _ _ hrw
     have hfrom : core.slice.index.SliceIndexRangeFromUsizeSlice.index
-        { start := Std.Usize.wrapping_sub (Slice.len s) rw } s = .ok (s.drop (Std.Usize.wrapping_sub (Slice.len s) rw)) := by
-      have hle : (Std.Usize.wrapping_sub (Slice.len s) rw).val ≤ s.length := by
+        { start := Std.Usize.wrapping_sub o.leaf_words rw } s = .ok (s.drop (Std.Usize.wrapping_sub o.leaf_words rw)) := by
+      have hle : (Std.Usize.wrapping_sub o.leaf_words rw).val ≤ s.length := by
         rw [hsub]; show _ ≤ s.val.length; omega
       simp only [core.slice.index.SliceIndexRangeFromUsizeSlice.index, hle, ↓reduceIte]
     obtain ⟨v, hv, ev⟩ := to_vec_ok primitives.field.gf2_64.F64.Insts.CoreCloneClone (fun _ => rfl)
-      (s.drop (Std.Usize.wrapping_sub (Slice.len s) rw))
+      (s.drop (Std.Usize.wrapping_sub o.leaf_words rw))
     have hrl : rows.val.length = i.val := by
       have := congrArg List.length hrows
       rw [List.length_map, List.length_take, rowsOf_length] at this
@@ -321,9 +327,9 @@ theorem rows_of_loop_eq (o : merkle.Openings) (rw n : Usize) (hrw : rw.val ≤ o
     obtain ⟨rows1, hpush, epush⟩ := push_ok rows v (by rw [hrl]; omega)
     have hadd : (Std.Usize.wrapping_add i 1#usize).val = i.val + 1 :=
       add_val _ _ (by simp only [UScalar.ofNatCore_val_eq]; omega)
-    have hbody : verifier.rows_of_loop.body o rw n rows i =
+    have hbody : merkle.Openings.rows_loop.body o rw n rows i =
         .ok (.cont (rows1, Std.Usize.wrapping_add i 1#usize)) := by
-      unfold verifier.rows_of_loop.body
+      unfold merkle.Openings.rows_loop.body
       simp only [hlt, ↓reduceIte, hs, bind_ok, lift]
       simp only [core.slice.index.Slice.index, hfrom, bind_ok, hv, hpush]
     obtain ⟨rows', h', e'⟩ := ih (Std.Usize.wrapping_add i 1#usize) rows1 (by rw [hadd]; omega)
@@ -332,21 +338,21 @@ theorem rows_of_loop_eq (o : merkle.Openings) (rw n : Usize) (hrw : rw.val ≤ o
         rw [List.take_succ_eq_append_getElem (by rw [rowsOf_length]; omega)]
         congr 1
         simp only [Slice.drop, Slice.from_val, hsub, es, rowsOf, List.getElem_map, List.getElem_range])
-    exact ⟨rows', by unfold verifier.rows_of_loop; rw [loop_cont hbody]; exact h', e'⟩
+    exact ⟨rows', by unfold merkle.Openings.rows_loop; rw [loop_cont hbody]; exact h', e'⟩
 
-/-- `rows_of`: each opening's row, its leaf image with the zero prefix dropped. -/
-theorem rows_of_eq (o : merkle.Openings) (rw : Usize) (h0 : 0 < o.leaf_words.val)
+/-- `Openings::rows`: each opening's row, its leaf image with the zero prefix dropped. -/
+theorem rows_eq (o : merkle.Openings) (rw : Usize) (h0 : 0 < o.leaf_words.val)
     (hrw : rw.val ≤ o.leaf_words.val) :
-    ∃ rows, verifier.rows_of o rw = .ok rows ∧ rows.val.map (·.val) = rowsOf o rw.val := by
+    ∃ rows, merkle.Openings.rows o rw = .ok rows ∧ rows.val.map (·.val) = rowsOf o rw.val := by
   obtain ⟨n, hn, en⟩ : ∃ n : Usize, alloc.vec.Vec.len o.images / o.leaf_words = Result.ok n ∧
       n.val = o.images.val.length / o.leaf_words.val := by
     obtain ⟨z, hz, hp⟩ := UScalar.div_bv_spec (alloc.vec.Vec.len o.images) (y := o.leaf_words)
       (by intro h; rw [h] at h0; simp at h0)
     exact ⟨z, hz, by rw [hp.1]; simp [alloc.vec.Vec.val]⟩
-  obtain ⟨rows', h', e'⟩ := rows_of_loop_eq o rw n hrw en _ 0#usize
+  obtain ⟨rows', h', e'⟩ := rows_loop_eq o rw n hrw en _ 0#usize
     (alloc.vec.Vec.with_capacity _ n) rfl (by simp) (by simp [alloc.vec.Vec.with_capacity])
   refine ⟨rows', ?_, e'⟩
-  unfold verifier.rows_of merkle.Openings.len
+  unfold merkle.Openings.rows merkle.Openings.len
   simp only [hn, bind_ok]
   exact h'
 
@@ -383,33 +389,33 @@ theorem decodeOpen_eq (hint : Slice U8) (n : Usize) (root : Digest) (depth : Usi
 
 theorem authenticate_eq (vs : VS) (hp : vs.poison = none) (root : Digest) (depth : Usize)
     (queries : Slice Usize) (rw lw : Usize) (L : U32) (hint more : Slice U8) (hL : L.val = hint.val.length)
-    (hb : vs.hints.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val)
+    (hb : vs.hints.rest.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val)
     (distinct : alloc.vec.Vec Usize) (hd : merkle.sorted_unique queries = .ok distinct)
     (oo : Option merkle.Openings)
     (hdec : decodeOpen hint (alloc.vec.Vec.len distinct) root depth queries rw lw = .ok oo) :
     verifier.authenticate vs root depth queries rw lw = .ok (match oo with
-      | some o => (.Ok o, { vs with hints := more, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize })
+      | some o => (.Ok o, { vs with hints := ⟨more⟩, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize })
       | none => (.Err (.InvalidHint vs.hints_read),
-          { vs with hints := more, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize,
+          { vs with hints := ⟨more⟩, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize,
                     poison := some (.InvalidHint vs.hints_read) })) := by
   unfold verifier.authenticate
   rw [hd, bind_ok]
-  refine (prover_hint_with_ok (F := verifier.authenticate.closure) _
+  refine (prover_hint_with_ok (F := verifier.authenticate.closure)
     verifier.authenticate.closure.Insts.CoreOpsFunctionFnOnceTupleShared6SliceU8OptionOpenings vs _
-    (distinct, rw, root, depth, queries, lw) hint oo (prover_hint_ok _ vs hp L hint more hL hb) (by simp [hp])
-    (by rw [← hdec]; exact closure_eq distinct root depth queries rw lw hint)).trans ?_
+    (alloc.vec.Vec.len distinct, rw, root, depth, queries, lw) hint oo (prover_hint_ok vs hp L hint more hL hb)
+    (by simp [hp])
+    (by rw [← hdec]; exact closure_eq _ root depth queries rw lw hint)).trans ?_
   cases oo <;> rfl
 
 /-- A hint that cannot be read is not decoded; `authenticate` returns its error. -/
 theorem authenticate_err (vs vs1 : VS) (e : TE) (root : Digest) (depth : Usize)
     (queries : Slice Usize) (rw lw : Usize)
-    (hph : fiat_shamir.verifier.VerifierState.prover_hint
-      fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge vs = .ok (.Err e, vs1)) :
+    (hph : fiat_shamir.verifier.VerifierState.prover_hint vs = .ok (.Err e, vs1)) :
     verifier.authenticate vs root depth queries rw lw = .ok (.Err e, vs1) := by
   obtain ⟨distinct, hd⟩ : ∃ d, merkle.sorted_unique queries = .ok d := ⟨_, rfl⟩
   unfold verifier.authenticate
   rw [hd, bind_ok]
-  exact prover_hint_with_err (F := verifier.authenticate.closure) _ _ vs vs1 _ e hph
+  exact prover_hint_with_err (F := verifier.authenticate.closure) _ vs vs1 _ e hph
 
 /-- The native `open_rows` on a transcript whose next hint is `hint` (its four-byte little-endian
 length `L`, then its bytes) followed by `more`: it reads the hint, decodes it with `from_hint`
@@ -418,7 +424,7 @@ succeed it returns each opening's row, otherwise `InvalidHint` indexed by the hi
 it, poisoning the transcript. -/
 theorem open_rows_eq (vs : VS) (hp : vs.poison = none) (root : Digest) (depth : Usize)
     (queries : Slice Usize) (rw lw : Usize) (L : U32) (hint more : Slice U8) (hL : L.val = hint.val.length)
-    (hb : vs.hints.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val)
+    (hb : vs.hints.rest.val = (core.num.U32.to_le_bytes L).val ++ hint.val ++ more.val)
     (distinct : alloc.vec.Vec Usize) (hd : merkle.sorted_unique queries = .ok distinct)
     (fo : Option merkle.PrunedMerklePaths)
     (hf : merkle.PrunedMerklePaths.from_hint hint (alloc.vec.Vec.len distinct) rw = .ok fo)
@@ -428,12 +434,12 @@ theorem open_rows_eq (vs : VS) (hp : vs.poison = none) (root : Digest) (depth : 
     match oo with
     | some o => ∃ rows : alloc.vec.Vec (alloc.vec.Vec U64), verifier.open_rows_native vs root depth queries rw lw =
         Result.ok (core.result.Result.Ok rows,
-          ({ vs with hints := more, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize } : VS)) ∧
+          ({ vs with hints := ⟨more⟩, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize } : VS)) ∧
         rows.val.map (fun r : alloc.vec.Vec U64 => r.val) = rowsOf o rw.val
     | none => verifier.open_rows_native vs root depth queries rw lw =
-        Result.ok (core.result.Result.Err (fiat_shamir.error.TranscriptError.InvalidHint vs.hints_read),
-          ({ vs with hints := more, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize,
-                     poison := some (fiat_shamir.error.TranscriptError.InvalidHint vs.hints_read) } : VS)) := by
+        Result.ok (core.result.Result.Err (fiat_shamir.verifier.TranscriptError.InvalidHint vs.hints_read),
+          ({ vs with hints := ⟨more⟩, hints_read := Std.Usize.wrapping_add vs.hints_read 1#usize,
+                     poison := some (fiat_shamir.verifier.TranscriptError.InvalidHint vs.hints_read) } : VS)) := by
   have ha := authenticate_eq vs hp root depth queries rw lw L hint more hL hb distinct hd oo
     (decodeOpen_eq hint _ root depth queries rw lw fo hf oo ho)
   cases oo with
@@ -444,7 +450,7 @@ theorem open_rows_eq (vs : VS) (hp : vs.poison = none) (root : Digest) (depth : 
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
   | some o =>
     obtain ⟨h0, hrw⟩ := hw o rfl
-    obtain ⟨rows, hr, er⟩ := rows_of_eq o rw h0 hrw
+    obtain ⟨rows, hr, er⟩ := rows_eq o rw h0 hrw
     refine ⟨rows, ?_, er⟩
     unfold verifier.open_rows_native
     rw [ha]
@@ -454,12 +460,12 @@ theorem open_rows_eq (vs : VS) (hp : vs.poison = none) (root : Digest) (depth : 
 and poisons the transcript. -/
 theorem open_rows_missing (vs : VS) (hp : vs.poison = none) (root : Digest) (depth : Usize)
     (queries : Slice Usize) (rw lw : Usize)
-    (h : vs.hints.val.length < 4 ∨ ∃ (L : U32) (rest : List U8),
-      vs.hints.val = (core.num.U32.to_le_bytes L).val ++ rest ∧ rest.length < L.val) :
+    (h : vs.hints.rest.val.length < 4 ∨ ∃ (L : U32) (rest : List U8),
+      vs.hints.rest.val = (core.num.U32.to_le_bytes L).val ++ rest ∧ rest.length < L.val) :
     verifier.open_rows_native vs root depth queries rw lw =
       .ok (.Err (.MissingHint vs.hints_read), { vs with poison := some (.MissingHint vs.hints_read) }) := by
   unfold verifier.open_rows_native
-  rw [authenticate_err vs _ _ root depth queries rw lw (prover_hint_missing _ vs hp h)]
+  rw [authenticate_err vs _ _ root depth queries rw lw (prover_hint_missing vs hp h)]
   simp [core.result.Result.Insts.CoreOpsTry.branch,
     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
 
@@ -468,7 +474,7 @@ theorem open_rows_poisoned (vs : VS) (e : TE) (hp : vs.poison = some e) (root : 
     (queries : Slice Usize) (rw lw : Usize) :
     verifier.open_rows_native vs root depth queries rw lw = .ok (.Err e, vs) := by
   unfold verifier.open_rows_native
-  rw [authenticate_err vs _ _ root depth queries rw lw (prover_hint_poisoned _ vs e hp)]
+  rw [authenticate_err vs _ _ root depth queries rw lw (prover_hint_poisoned vs e hp)]
   simp [core.result.Result.Insts.CoreOpsTry.branch,
     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
 
