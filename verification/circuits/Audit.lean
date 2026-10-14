@@ -949,6 +949,8 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.AirLink.layoutFits_converge
 #print axioms LeanVMCircuits.Rec.AirLink.taus_le_rounds
 #print axioms LeanVMCircuits.Rec.AirLink.checksGiveRows_of_converge
+#print axioms LeanVMCircuits.Rec.AirLink.checksGiveTable_of_named
+#print axioms LeanVMCircuits.Rec.AirLink.named_inputs
 #print axioms LeanVMCircuits.Rec.Bind.TableCert.sem
 #print axioms LeanVMCircuits.Rec.Bind.TableCert.answers_weight
 #print axioms LeanVMCircuits.Rec.Bind.TableCert.claim_iff
