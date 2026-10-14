@@ -14,16 +14,21 @@
 //!
 //! An aggregation tree is tracked the same way: each kind of node's circuit counted without a
 //! proof (the leaf's run measured gives the shape its proofs announce), and one node of each
-//! kind proven over copies of one leaf proof.
+//! kind proven over copies of one leaf proof. A signer-set tree (`aggregate-signers-...`) is
+//! counted the same way, its node circuit of every arity, and proven the same way, each node
+//! declaring the union of its children's sets and verified by it.
 
 use crate::refuse;
 use crate::workload::{Items, Workload};
 use bench::pretty_integer;
 use bench::{Heap, Metric, Plan, Stage, Timing, bencher_json};
 #[cfg(feature = "circuits")]
-use leanvm::aggregate::{Capacity, ClaimShape, Tier};
-use leanvm::aggregate::{CircuitStats, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof, TreeShape};
-use leanvm::{Output, ProvenRun, Prover, Rate, Stats};
+use leanvm::aggregate::Tier;
+use leanvm::aggregate::{
+    Aggregate, Capacity, CircuitStats, ClaimLeaf, ClaimShape, Kind, Leaf, LeafShape, Tree, TreeError, TreeProof,
+    TreeShape,
+};
+use leanvm::{ProvenRun, Prover, Rate, Stats};
 use serde_json::{Map, Value};
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
@@ -83,13 +88,15 @@ fn proven() -> [(&'static str, Build); 7] {
 
 /// Every timed case's pool size. Legacy 1/4/8 cases select performance workers through
 /// `LEANVM_NUM_THREADS`; 16-thread children initialize an exact total pool at CLI startup.
-const THREADS: [(&str, usize); 15] = [
+const THREADS: [(&str, usize); 17] = [
     ("fibonacci-asm-2000000-16thread", 16),
     ("hash-50000-16thread", 16),
     ("leanxmss-100-16thread", 16),
     ("leansphincs-26-16thread", 16),
     ("aggregate-leanxmss-100-2to1-16thread", 16),
     ("aggregate-leanxmss-100-4to1-16thread", 16),
+    ("aggregate-signers-leanxmss-100-2to1-16thread", 16),
+    ("aggregate-signers-leanxmss-100-4to1-16thread", 16),
     ("leanxmss-100-1thread", 1),
     ("leanxmss-100-4thread", 4),
     ("leanxmss-100-8thread", 8),
@@ -101,14 +108,23 @@ const THREADS: [(&str, usize); 15] = [
     ("aggregate-leanxmss-100-4to1-8thread", 8),
 ];
 
+/// One of a tree's circuits: the first level's, or the node circuit of one arity.
+#[derive(Clone, Copy)]
+enum NodeCircuit {
+    First,
+    Node(usize),
+}
+
 /// An aggregation tree over copies of one case's proof: first-level nodes of `arity_0` leaves,
-/// nodes of `arity` tree proofs. A tree's name ends `<N>to1` when both are `N`: every node
-/// combines `N` proofs into 1; then `-<T>thread` when it is proven on `T` threads (`THREADS`).
+/// nodes of `arity` tree proofs, or with a capacity a signer-set tree, whose nodes take up to
+/// `arity`. A tree's name ends `<N>to1` when both are `N`: every node combines `N` proofs into
+/// 1; then `-<T>thread` when it is proven on `T` threads (`THREADS`).
 struct Aggregation {
     name: &'static str,
     leaf: Workload,
     arity_0: usize,
     arity: usize,
+    signers: Option<Capacity>,
 }
 
 impl Aggregation {
@@ -118,6 +134,18 @@ impl Aggregation {
             leaf,
             arity_0,
             arity,
+            signers: None,
+        }
+    }
+
+    /// A signer-set tree of this capacity, over a leaf that publishes its signer set.
+    const fn signers(name: &'static str, leaf: Workload, arity_0: usize, arity: usize, capacity: Capacity) -> Self {
+        Self {
+            name,
+            leaf,
+            arity_0,
+            arity,
+            signers: Some(capacity),
         }
     }
 
@@ -128,25 +156,37 @@ impl Aggregation {
             arity_0: self.arity_0,
             arity: self.arity,
             rate,
-            claims: None,
+            claims: self.signers.map(ClaimShape::new),
         };
         Tree::new(&self.leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{}: {e}", self.name)))
     }
 
-    /// A kind of node's benchmark name, and what the markdown table calls it: `<name>-first`, a
+    /// A circuit's benchmark name, and what the markdown table calls it: `<name>-first`, a
     /// first-level node (the RISC-V verifier in rows over `arity_0` leaf proofs), and
-    /// `<name>-node`, a higher node (the recursion verifier in rows over `arity` child proofs).
-    fn node(&self, kind: Kind) -> (String, String) {
-        match kind {
-            Kind::First => (
+    /// `<name>-node`, a node of the largest arity (the recursion verifier in rows over `arity`
+    /// child proofs); a signer-set tree's smaller node circuits are `<name>-node<k>`.
+    fn node(&self, circuit: NodeCircuit) -> (String, String) {
+        let signers = self.signers.map_or_else(String::new, |c| {
+            format!(
+                ", signer sets of fewer than {} claims in at most {} groups",
+                pretty_integer(&c.claims),
+                pretty_integer(&c.groups)
+            )
+        });
+        match circuit {
+            NodeCircuit::First => (
                 format!("{}-first", self.name),
-                format!("first-level node over {} x {}", self.arity_0, self.leaf.title),
+                format!("first-level node over {} x {}{signers}", self.arity_0, self.leaf.title),
             ),
-            Kind::Node => (
-                format!("{}-node", self.name),
+            NodeCircuit::Node(arity) => (
+                if arity == self.arity {
+                    format!("{}-node", self.name)
+                } else {
+                    format!("{}-node{arity}", self.name)
+                },
                 format!(
-                    "node over {} tree proofs, first level {} x {}",
-                    self.arity, self.arity_0, self.leaf.title
+                    "node over {arity} tree proofs, first level {} x {}{signers}",
+                    self.arity_0, self.leaf.title
                 ),
             ),
         }
@@ -154,12 +194,27 @@ impl Aggregation {
 }
 
 /// Aggregation trees counted without a proof: the README's leaves, 2 to 1 (`cargo leanvm
-/// aggregate`'s shape) and 4 to 1.
+/// aggregate`'s shape) and 4 to 1, and the signer-set trees of those shapes, each sized for
+/// its tree of distinct leaves.
 fn counted_trees() -> Vec<Aggregation> {
     let leaf = || Workload::leanxmss(400);
     vec![
         Aggregation::new("aggregate-leanxmss-400-2to1", leaf(), 2, 2),
         Aggregation::new("aggregate-leanxmss-400-4to1", leaf(), 4, 4),
+        Aggregation::signers(
+            "aggregate-signers-leanxmss-400-2to1",
+            leaf(),
+            2,
+            2,
+            sixteen_groups(1601),
+        ),
+        Aggregation::signers(
+            "aggregate-signers-leanxmss-400-4to1",
+            leaf(),
+            4,
+            4,
+            sixteen_groups(6401),
+        ),
     ]
 }
 
@@ -167,15 +222,22 @@ fn counted_trees() -> Vec<Aggregation> {
 type BuildTree = fn(&'static str) -> Aggregation;
 
 /// Aggregation trees proven: the counted trees' arities over leaves of a size proven above, and
-/// both trees on 16 total threads and on the legacy 1, 4 and 8 performance workers. Each gives two benchmarks, `<name>-first` and
-/// `<name>-node`.
-fn proven_trees() -> [(&'static str, BuildTree); 8] {
+/// both trees on 16 total threads and on the legacy 1, 4 and 8 performance workers, and both
+/// signer-set trees on 16, each sized for its tree of distinct leaves. Each gives two
+/// benchmarks, `<name>-first` and `<name>-node`.
+fn proven_trees() -> [(&'static str, BuildTree); 10] {
     [
         ("aggregate-leanxmss-100-2to1-16thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
         }),
         ("aggregate-leanxmss-100-4to1-16thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 4, 4)
+        }),
+        ("aggregate-signers-leanxmss-100-2to1-16thread", |name| {
+            Aggregation::signers(name, Workload::leanxmss(100), 2, 2, sixteen_groups(401))
+        }),
+        ("aggregate-signers-leanxmss-100-4to1-16thread", |name| {
+            Aggregation::signers(name, Workload::leanxmss(100), 4, 4, sixteen_groups(1601))
         }),
         ("aggregate-leanxmss-100-2to1-1thread", |name| {
             Aggregation::new(name, Workload::leanxmss(100), 2, 2)
@@ -196,6 +258,11 @@ fn proven_trees() -> [(&'static str, BuildTree); 8] {
             Aggregation::new(name, Workload::leanxmss(100), 4, 4)
         }),
     ]
+}
+
+/// A signer-set tree's capacity of fewer than `claims` claims in at most 16 groups.
+const fn sixteen_groups(claims: usize) -> Capacity {
+    Capacity { claims, groups: 16 }
 }
 
 /// With `cycles_only`, count every case without a proof and print the counts as JSON, or with
@@ -334,15 +401,28 @@ fn counts(stats: &Stats) -> Vec<(&'static str, Metric)> {
     ]
 }
 
-/// Each kind of node's circuit, without a proof: the leaf's run, measured, gives the shape its
-/// proofs announce at `leaf_rate`; the tree's proofs are at `rate`.
-fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> [(Kind, CircuitStats); 2] {
+/// Each of the tree's circuits, without a proof: the first level's, then the nodes', a signer-set
+/// tree's of every arity from 2. The leaf's run, measured, gives the shape its proofs announce at
+/// `leaf_rate`; the tree's proofs are at `rate`.
+fn circuits(tree: &Aggregation, leaf_rate: Rate, rate: Rate) -> Vec<(NodeCircuit, CircuitStats)> {
     let shape = LeafShape::measured(&tree.leaf.measure(), leaf_rate);
     let built = tree.tree(shape, rate);
-    Kind::ALL.map(|kind| (kind, built.stats(kind)))
+    let first = (NodeCircuit::First, built.stats(Kind::First));
+    match tree.signers {
+        None => vec![first, (NodeCircuit::Node(tree.arity), built.stats(Kind::Node))],
+        Some(_) => {
+            let nodes = (2..=tree.arity).map(|arity| {
+                let stats = built
+                    .node_stats(arity)
+                    .expect("a node circuit of every arity up to the largest");
+                (NodeCircuit::Node(arity), stats)
+            });
+            std::iter::once(first).chain(nodes).collect()
+        }
+    }
 }
 
-/// Write every tracked output-tree circuit, one over zero-knowledge leaves, and every claim-set tier position, plus native instruction table bindings.
+/// Write every tracked tree's circuits (a signer-set tree's node circuit of every arity), the output tree's over zero-knowledge leaves, and every claim-set tier position, plus native instruction table bindings.
 ///
 /// CI's `rec-builder-model` workflow replays the recorded builders and checks the table slot and clock-port bindings against their Lean sources.
 #[cfg(feature = "circuits")]
@@ -362,8 +442,13 @@ pub fn dump(out: &Path, leaf_rate: Rate, rate: Rate) {
         let shape = if zk { measured.zero_knowledge() } else { measured };
         let built = tree.tree(shape, rate);
         for position in 0..built.circuit_count() {
-            let kind = if position == 0 { Kind::First } else { Kind::Node };
-            let path = out.join(format!("{}.txt", tree.node(kind).0));
+            // A signer-set tree's node circuits are of every arity from 2, at positions 1 onward.
+            let circuit = match (position, tree.signers) {
+                (0, _) => NodeCircuit::First,
+                (_, None) => NodeCircuit::Node(tree.arity),
+                (_, Some(_)) => NodeCircuit::Node(position + 1),
+            };
+            let path = out.join(format!("{}.txt", tree.node(circuit).0));
             std::fs::write(&path, built.circuit_dump(position))
                 .unwrap_or_else(|e| refuse(format_args!("{}: {e}", path.display())));
         }
@@ -486,7 +571,8 @@ fn measures(
 /// Prove the leaf once at `leaf_prover`'s rate, then one first-level node over copies of its
 /// proof and one node over copies of that at `prover`'s, each reported as `proved` reports a case: its stages are the children of a
 /// `Prove` span around it, its verifying time is as a root, and its peak memory is the
-/// process's so far, the node's including the first-level node's.
+/// process's so far, the node's including the first-level node's. A signer-set tree's nodes
+/// declare the union of their children's sets, and are verified by it.
 fn proved_tree(
     tree: &Aggregation,
     leaf_prover: &Prover,
@@ -498,25 +584,60 @@ fn proved_tree(
     let built = tree.tree(LeafShape::of(&proof).expect("an honest announcement"), prover.rate());
     // The leaf's stages.
     bench::take_stages();
-    let leaves = vec![Leaf::new(&proof, output); tree.arity_0];
-    let outputs = vec![output; tree.arity_0];
-    let (first, first_report) = proved_node(&built, &outputs, plan, || built.prove_first(&leaves));
-    let children = vec![first; tree.arity];
-    let outputs = vec![output; tree.arity_0 * tree.arity];
-    let (_, node_report) = proved_node(&built, &outputs, plan, || built.prove_node(&children));
+    let leaf = Leaf::new(&proof, output);
+    let (first_report, node_report) = match tree.signers {
+        None => {
+            let leaves = vec![leaf; tree.arity_0];
+            let outputs = vec![output; tree.arity_0];
+            let (first, first_report) = proved_node(plan, || built.prove_first(&leaves), |p| built.verify(p, &outputs));
+            let children = vec![first; tree.arity];
+            let outputs = vec![output; tree.arity_0 * tree.arity];
+            let (_, node_report) = proved_node(plan, || built.prove_node(&children), |p| built.verify(p, &outputs));
+            (first_report, node_report)
+        }
+        Some(_) => {
+            let set = tree
+                .leaf
+                .claims
+                .as_ref()
+                .expect("a signer-set tree's leaf publishes its claims");
+            let leaves = vec![ClaimLeaf::new(leaf, set); tree.arity_0];
+            let verify = |a: &Aggregate| built.verify_claims(&a.proof, &a.claims);
+            let (first, first_report) = proved_node(plan, || built.aggregate_leaves(&leaves, None), verify);
+            let children = vec![&first; tree.arity];
+            let (_, node_report) = proved_node(plan, || built.aggregate(&children, None), verify);
+            (first_report, node_report)
+        }
+    };
     vec![
-        (tree.node(Kind::First).0, first_report),
-        (tree.node(Kind::Node).0, node_report),
+        (tree.node(NodeCircuit::First).0, first_report),
+        (tree.node(NodeCircuit::Node(tree.arity)).0, node_report),
     ]
 }
 
-/// One node's proof and its measures.
-fn proved_node(
-    tree: &Tree<'_>,
-    outputs: &[Output],
+/// A tree proof, alone or with the signer set it declares.
+trait NodeProof {
+    fn tree_proof(&self) -> &TreeProof;
+}
+
+impl NodeProof for TreeProof {
+    fn tree_proof(&self) -> &TreeProof {
+        self
+    }
+}
+
+impl NodeProof for Aggregate {
+    fn tree_proof(&self) -> &TreeProof {
+        &self.proof
+    }
+}
+
+/// One node's proof and its measures, verified as a root by `verify`.
+fn proved_node<P: NodeProof>(
     plan: Plan,
-    prove: impl Fn() -> Result<TreeProof, TreeError>,
-) -> (TreeProof, Vec<(String, Metric)>) {
+    prove: impl Fn() -> Result<P, TreeError>,
+    verify: impl Fn(&P) -> Result<(), TreeError>,
+) -> (P, Vec<(String, Metric)>) {
     let mut passes = Vec::new();
     let mut heaps = Vec::new();
     let (proof, time) = plan.warm_then_measure(|| {
@@ -526,12 +647,11 @@ fn proved_node(
         proof.expect("honest children")
     });
     let peak_memory = bench::peak_rss_bytes();
-    let (verified, verify_time) =
-        Plan::new(VERIFY_PASSES, Duration::ZERO).measure_quiet(|| tree.verify(&proof, outputs));
+    let (verified, verify_time) = Plan::new(VERIFY_PASSES, Duration::ZERO).measure_quiet(|| verify(&proof));
     verified.expect("an honest tree proof verifies");
     let report = measures(
         &time,
-        proof.to_bytes().len(),
+        proof.tree_proof().to_bytes().len(),
         &verify_time,
         &passes[1..],
         peak_memory,
@@ -598,12 +718,12 @@ fn table(counted: &[(Case, Stats)]) -> String {
 }
 
 /// Each tree's circuits as a markdown table, with the rows per table and their heights.
-fn tree_table(trees: &[(Aggregation, [(Kind, CircuitStats); 2])]) -> String {
+fn tree_table(trees: &[(Aggregation, Vec<(NodeCircuit, CircuitStats)>)]) -> String {
     let mut table = String::from(
         "\n| recursion circuit | rows | proven rows | committed words | tables |\n|---|---:|---:|---:|---|\n",
     );
     for (tree, circuits) in trees {
-        for (kind, stats) in circuits {
+        for (circuit, stats) in circuits {
             let (rows, proven) = circuit_rows(stats);
             let tables: Vec<String> = (stats.tables.iter())
                 .map(|t| format!("{} {} (2^{})", t.name, pretty_integer(&t.rows), t.height_log))
@@ -611,7 +731,7 @@ fn tree_table(trees: &[(Aggregation, [(Kind, CircuitStats); 2])]) -> String {
             writeln!(
                 table,
                 "| {} | {} | {} | 2^{:.2} | {} |",
-                tree.node(*kind).1,
+                tree.node(*circuit).1,
                 pretty_integer(&rows),
                 pretty_integer(&proven),
                 (stats.committed as f64).log2(),

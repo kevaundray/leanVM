@@ -893,6 +893,13 @@ impl<'p> Tree<'p> {
         })
     }
 
+    /// What the node circuit of this arity costs, if the tree has one: of a tree of two tiers, the large tier's.
+    #[must_use]
+    pub fn node_stats(&self, arity: usize) -> Option<CircuitStats> {
+        let tier = self.design.tiers.len() - 1;
+        (self.design.place(tier, Level::Node(arity))).map(|p| self.circuit_stats(p))
+    }
+
     /// What the circuit at this position costs.
     fn circuit_stats(&self, position: usize) -> CircuitStats {
         // The circuit's rows per table, and the padded heights it is proven at.

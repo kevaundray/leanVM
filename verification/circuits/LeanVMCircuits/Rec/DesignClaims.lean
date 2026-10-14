@@ -788,11 +788,17 @@ def nodeDigestOk (a : ℕ) (ws : List ℕ) : Bool := ws == nodeDigestModel a
 /-- `NodeClaims::bind_state` of a final state of words 1 to 4 binds `1 + 2y + 3y^2` and `4`, as `bindState` does. -/
 def bindOk (ws : List Word) : Bool := ws == [(1, 2, 3), (4, 0, 0)]
 
-/-- The tracked dumps' shapes, by their name: output trees `2to1` and `4to1`, and the two claim-set examples. -/
+/-- The tracked dumps' shapes, by their name: output trees `2to1` and `4to1`; signer-set trees of those arities (`aggregate-signers-...`, single-tier claim-set trees of capacity 1601 and 6401 claims in 16 groups), whose node of arity `k` below the largest is `-node<k>`, at position `k - 1`; and the two claim-set examples. -/
 def dumpShape (name : String) : Option (Shape × ℕ) :=
   let pos (s : String) : Option ℕ := (s.splitOn "-circuit-").getLast?.bind String.toNat?
-  if name.startsWith "aggregate-" then
-    let a := if (name.splitOn "-2to1-").length = 2 then 2 else 4
+  let a := if (name.splitOn "-2to1-").length = 2 then 2 else 4
+  if name.startsWith "aggregate-signers-" then
+    let sh : Shape := ⟨a, a, some ⟨⟨if a = 2 then 1601 else 6401, 16⟩, none⟩⟩
+    if name.endsWith "-first" then some (sh, 0)
+    else if name.endsWith "-node" then some (sh, a - 1)
+    else ((name.splitOn "-node").getLast?.bind String.toNat?).bind fun k =>
+      if 2 ≤ k ∧ k < a then some (sh, k - 1) else none
+  else if name.startsWith "aggregate-" then
     some (⟨a, a, none⟩, if name.endsWith "-first" then 0 else 1)
   else if name.startsWith "claimset-single-tier-circuit-" then
     (pos name).map fun p => (⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩, p)
@@ -805,12 +811,14 @@ def modeOk (sh : Shape) (ct : ℕ) (m : Edges.Mode) : Bool := m == tierMode sh c
 
 /-! Mutations each check rejects, on small layouts. -/
 
-/-- `modeOk` accepts each tracked tree's child modes and rejects the others: a tree of two kinds reads the kind word, a single-tier claim-set node the small tier's two kind bits, a two-tier wrap's child one. -/
+/-- `modeOk` accepts each tracked tree's child modes and rejects the others: a tree of two kinds reads the kind word (a signer-set tree of arity 2 too), a single-tier claim-set node the small tier's two kind bits (a signer-set tree of arity 4's four kinds too), a two-tier wrap's child one. -/
 theorem modeOk_mutations :
     modeOk ⟨2, 2, none⟩ 0 .kind = true ∧ modeOk ⟨2, 2, none⟩ 0 .one = false ∧
       modeOk ⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩ 0 (.bits 2) = true ∧ modeOk ⟨1, 3, some ⟨⟨12, 4⟩, none⟩⟩ 0 .kind = false ∧
       modeOk ⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩ 1 .one = true ∧
-      modeOk ⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩ 1 (.bits 1) = false := by
+      modeOk ⟨1, 3, some ⟨⟨12, 4⟩, some ⟨2, ⟨5, 2⟩⟩⟩⟩ 1 (.bits 1) = false ∧
+      modeOk ⟨2, 2, some ⟨⟨1601, 16⟩, none⟩⟩ 0 .kind = true ∧ modeOk ⟨2, 2, some ⟨⟨1601, 16⟩, none⟩⟩ 0 (.bits 1) = false ∧
+      modeOk ⟨4, 4, some ⟨⟨6401, 16⟩, none⟩⟩ 0 (.bits 2) = true ∧ modeOk ⟨4, 4, some ⟨⟨6401, 16⟩, none⟩⟩ 0 .kind = false := by
   decide
 
 /-- `bindOk` rejects the fourth word first, and its first three words without the third. -/
