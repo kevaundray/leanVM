@@ -19,31 +19,30 @@ set_option maxRecDepth 2048
 
 namespace StatementSource
 
-/-- [fiat_shamir::transcript::TranscriptError]
-    Source: 'crates/fiat_shamir/src/transcript.rs', lines 56:0-56:24
-    Name pattern: [fiat_shamir::transcript::TranscriptError]
+/-- [fiat_shamir::verifier::TranscriptError]
+    Source: 'crates/fiat_shamir/src/verifier.rs', lines 14:0-14:24
+    Name pattern: [fiat_shamir::verifier::TranscriptError]
     Visibility: public -/
-@[discriminant isize, rust_type "fiat_shamir::transcript::TranscriptError"]
-inductive fiat_shamir.transcript.TranscriptError where
-| ExceededStream : Std.Usize → fiat_shamir.transcript.TranscriptError
-| MissingHint : Std.Usize → fiat_shamir.transcript.TranscriptError
-| InvalidMerkleOpening : Std.Usize → fiat_shamir.transcript.TranscriptError
-| NotFullyConsumed :
+@[discriminant isize, rust_type "fiat_shamir::verifier::TranscriptError"]
+inductive fiat_shamir.verifier.TranscriptError where
+| Malformed : Std.Usize → fiat_shamir.verifier.TranscriptError
+| MissingHint : Std.Usize → fiat_shamir.verifier.TranscriptError
+| InvalidHint : Std.Usize → fiat_shamir.verifier.TranscriptError
+| PowFailed : Std.U32 → fiat_shamir.verifier.TranscriptError
+| TrailingBytes :
   Std.Usize →
   Std.Usize →
-  fiat_shamir.transcript.TranscriptError
-| PowFailed : Std.U32 → fiat_shamir.transcript.TranscriptError
-| NonCanonicalEncoding : fiat_shamir.transcript.TranscriptError
+  fiat_shamir.verifier.TranscriptError
 
 /-- [pcs::ring_switch::SliceClaim]
-    Source: 'crates/pcs/src/ring_switch.rs', lines 492:0-497:1
+    Source: 'crates/pcs/src/ring_switch.rs', lines 396:0-401:1
     Visibility: public -/
 structure ring_switch.SliceClaim (E : Type) where
   suffix_point : alloc.vec.Vec E
   s_hat_v : alloc.vec.Vec E
 
 /-- [pcs::ring_switch::RingSwitch]
-    Source: 'crates/pcs/src/ring_switch.rs', lines 517:0-524:1
+    Source: 'crates/pcs/src/ring_switch.rs', lines 421:0-428:1
     Visibility: public -/
 structure ring_switch.RingSwitch (E : Type) where
   offset : Std.Usize
@@ -51,7 +50,7 @@ structure ring_switch.RingSwitch (E : Type) where
   claims : alloc.vec.Vec (ring_switch.SliceClaim E)
 
 /-- [pcs::stack::StackClaim]
-    Source: 'crates/pcs/src/stack.rs', lines 66:0-83:1
+    Source: 'crates/pcs/src/stack/mod.rs', lines 102:0-119:1
     Visibility: public -/
 @[discriminant isize]
 inductive stack.StackClaim (E : Type) where
@@ -65,43 +64,47 @@ inductive stack.StackClaim (E : Type) where
   stack.StackClaim E
 
 /-- [pcs::stack::{pcs::stack::StackClaim<E>}::support::{closure}]
-    Source: 'crates/pcs/src/stack.rs', lines 103:57-103:79 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 139:57-139:79 -/
 @[reducible]
 def stack.StackClaim.support.closure (E : Type) := Std.Usize
 
 /-- [pcs::stack::is_aligned_slice::{closure}]
-    Source: 'crates/pcs/src/stack.rs', lines 162:78-162:100 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 197:74-197:96 -/
 @[reducible]
 def stack.is_aligned_slice.closure := Std.Usize
 
 /-- [pcs::stack::Statement]
-    Source: 'crates/pcs/src/stack.rs', lines 175:0-180:1
+    Source: 'crates/pcs/src/stack/mod.rs', lines 210:0-215:1
     Visibility: public -/
 structure stack.Statement (E : Type) where
   points : Slice (stack.StackClaim E)
   rings : Slice (ring_switch.RingSwitch E)
 
 /-- [pcs::whir::config::ConfigError]
-    Source: 'crates/pcs/src/whir/config/mod.rs', lines 58:0-71:1
+    Source: 'crates/pcs/src/whir/config.rs', lines 63:0-82:1
     Visibility: public -/
 @[discriminant isize]
 inductive whir.config.ConfigError where
 | RateOutOfRange : Std.Usize → whir.config.ConfigError
 | SizeOutOfRange : Std.Usize → whir.config.ConfigError
+| HidingSizeOutOfRange : Std.Usize → whir.config.ConfigError
 
 /-- [pcs::whir::verify::WhirError]
-    Source: 'crates/pcs/src/whir/verify.rs', lines 25:0-67:1
+    Source: 'crates/pcs/src/whir/verify.rs', lines 28:0-81:1
     Visibility: public -/
 @[discriminant isize]
 inductive whir.verify.WhirError where
-| Transcript : fiat_shamir.transcript.TranscriptError → whir.verify.WhirError
+| Transcript : fiat_shamir.verifier.TranscriptError → whir.verify.WhirError
 | Config : whir.config.ConfigError → whir.verify.WhirError
 | LaneCount : Std.Usize → Std.Usize → whir.verify.WhirError
 | InvalidShape : Std.Usize → whir.verify.WhirError
 | CommitmentMismatch : whir.verify.WhirError
+| Anchoring : whir.verify.WhirError
 | NoRingClaim : whir.verify.WhirError
 | Region : Std.Usize → whir.verify.WhirError
 | PointClaim : Std.Usize → whir.verify.WhirError
 | TerminalMismatch : whir.verify.WhirError
+| RevealedClaim : whir.verify.WhirError
+| WeightedClaim : whir.verify.WhirError
 
 end StatementSource

@@ -22,7 +22,7 @@ set_option maxRecDepth 2048
 namespace StatementSource
 
 /-- [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::DEGREE]
-    Source: 'crates/primitives/src/field/gf2_64.rs', lines 22:4-22:27
+    Source: 'crates/primitives/src/field/gf2_64.rs', lines 24:4-24:27
     Name pattern: [primitives::field::gf2_64::{primitives::field::gf2_64::F64}::DEGREE]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -30,7 +30,7 @@ namespace StatementSource
 def primitives.field.gf2_64.F64.DEGREE : Std.Usize := 64#usize
 
 /-- [pcs::stack::{pcs::stack::StackClaim<E>}::support::{impl core::ops::function::FnOnce<(usize,), (usize, usize)> for pcs::stack::{pcs::stack::StackClaim<E>}::support::{closure}<'_0, E>}::call_once]:
-    Source: 'crates/pcs/src/stack.rs', lines 103:57-103:79 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 139:57-139:79 -/
 def
   stack.StackClaim.support.closure.Insts.CoreOpsFunctionFnOnceTupleUsizePairUsizeUsize.call_once
   {E : Type} (coremarkerCopyInst : core.marker.Copy E)
@@ -40,7 +40,7 @@ def
   ok (c, tupled_args)
 
 /-- Trait implementation: [pcs::stack::{pcs::stack::StackClaim<E>}::support::{impl core::ops::function::FnOnce<(usize,), (usize, usize)> for pcs::stack::{pcs::stack::StackClaim<E>}::support::{closure}<'_0, E>}]
-    Source: 'crates/pcs/src/stack.rs', lines 103:57-103:79 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 139:57-139:79 -/
 @[reducible]
 def
   stack.StackClaim.support.closure.Insts.CoreOpsFunctionFnOnceTupleUsizePairUsizeUsize
@@ -53,7 +53,7 @@ def
 }
 
 /-- [pcs::stack::{pcs::stack::StackClaim<E>}::support]:
-    Source: 'crates/pcs/src/stack.rs', lines 95:4-105:5 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 131:4-141:5 -/
 def stack.StackClaim.support
   {E : Type} (coremarkerCopyInst : core.marker.Copy E)
   (self : stack.StackClaim E) :
@@ -71,7 +71,7 @@ def stack.StackClaim.support
       coremarkerCopyInst) o offset
 
 /-- [pcs::stack::is_aligned_slice::{impl core::ops::function::FnOnce<(usize,), bool> for pcs::stack::is_aligned_slice::{closure}<'_0>}::call_once]:
-    Source: 'crates/pcs/src/stack.rs', lines 162:78-162:100 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 197:74-197:96 -/
 def
   stack.is_aligned_slice.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeBool.call_once
   (c : stack.is_aligned_slice.closure) (tupled_args : Std.Usize) :
@@ -80,7 +80,7 @@ def
   ok (tupled_args <= c)
 
 /-- Trait implementation: [pcs::stack::is_aligned_slice::{impl core::ops::function::FnOnce<(usize,), bool> for pcs::stack::is_aligned_slice::{closure}<'_0>}]
-    Source: 'crates/pcs/src/stack.rs', lines 162:78-162:100 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 197:74-197:96 -/
 @[reducible]
 def stack.is_aligned_slice.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeBool :
   core.ops.function.FnOnce stack.is_aligned_slice.closure Std.Usize Bool := {
@@ -89,7 +89,7 @@ def stack.is_aligned_slice.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeBool :
 }
 
 /-- [pcs::stack::is_aligned_slice]:
-    Source: 'crates/pcs/src/stack.rs', lines 158:0-164:1 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 194:0-199:1 -/
 def stack.is_aligned_slice
   (offset : Std.Usize) (vars : Std.Usize) (committed : Std.Usize) :
   Result Bool
@@ -109,7 +109,7 @@ def stack.is_aligned_slice
   else ok false
 
 /-- [pcs::stack::{pcs::stack::StackClaim<E>}::is_well_formed]:
-    Source: 'crates/pcs/src/stack.rs', lines 110:4-121:5 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 146:4-157:5 -/
 def stack.StackClaim.is_well_formed
   {E : Type} (coremarkerCopyInst : core.marker.Copy E)
   (self : stack.StackClaim E) (committed : Std.Usize) :
@@ -136,7 +136,7 @@ def stack.StackClaim.is_well_formed
     else ok false
 
 /-- [pcs::stack::spans_region]:
-    Source: 'crates/pcs/src/stack.rs', lines 167:0-169:1 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 202:0-204:1 -/
 def stack.spans_region
   {E : Type} (claim : ring_switch.SliceClaim E) (vars : Std.Usize) :
   Result Bool
@@ -149,7 +149,7 @@ def stack.spans_region
   else ok false
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop body 0:
-    Source: 'crates/pcs/src/stack.rs', lines 191:8-194:9 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 226:8-229:9 -/
 @[rust_loop_body]
 def stack.Statement.check_loop0.body
   {E : Type} (s : Slice (ring_switch.RingSwitch E)) (index : Std.Usize)
@@ -169,7 +169,7 @@ def stack.Statement.check_loop0.body
   else ok (done all_empty)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop 0:
-    Source: 'crates/pcs/src/stack.rs', lines 191:8-194:9 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 226:8-229:9 -/
 @[rust_loop]
 def stack.Statement.check_loop0
   {E : Type} (s : Slice (ring_switch.RingSwitch E)) (index : Std.Usize)
@@ -182,7 +182,7 @@ def stack.Statement.check_loop0
     (index, all_empty)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop body 2:
-    Source: 'crates/pcs/src/stack.rs', lines 204:12-207:13 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 239:12-242:13 -/
 @[rust_loop_body]
 def stack.Statement.check_loop1_loop0.body
   {E : Type} (ring : ring_switch.RingSwitch E) (claim_index : Std.Usize)
@@ -204,7 +204,7 @@ def stack.Statement.check_loop1_loop0.body
   else ok (done (ring.offset, ring.qflock_vars, spans))
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop 2:
-    Source: 'crates/pcs/src/stack.rs', lines 204:12-207:13 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 239:12-242:13 -/
 @[rust_loop]
 def stack.Statement.check_loop1_loop0
   {E : Type} (ring : ring_switch.RingSwitch E) (claim_index : Std.Usize)
@@ -217,7 +217,7 @@ def stack.Statement.check_loop1_loop0
     (claim_index, spans)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop body 1:
-    Source: 'crates/pcs/src/stack.rs', lines 200:8-212:9 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 235:8-247:9 -/
 @[rust_loop_body]
 def stack.Statement.check_loop1.body
   {E : Type} (s : Slice (ring_switch.RingSwitch E)) (log_n : Std.Usize)
@@ -254,7 +254,7 @@ def stack.Statement.check_loop1.body
   else ok (done result)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop 1:
-    Source: 'crates/pcs/src/stack.rs', lines 200:8-212:9 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 235:8-247:9 -/
 @[rust_loop]
 def stack.Statement.check_loop1
   {E : Type} (s : Slice (ring_switch.RingSwitch E)) (log_n : Std.Usize)
@@ -268,7 +268,7 @@ def stack.Statement.check_loop1
     (index, result)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop body 3:
-    Source: 'crates/pcs/src/stack.rs', lines 214:8-219:9 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 249:8-254:9 -/
 @[rust_loop_body]
 def stack.Statement.check_loop2.body
   {E : Type} (coremarkerCopyInst : core.marker.Copy E)
@@ -297,7 +297,7 @@ def stack.Statement.check_loop2.body
   else ok (done result)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]: loop 3:
-    Source: 'crates/pcs/src/stack.rs', lines 214:8-219:9 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 249:8-254:9 -/
 @[rust_loop]
 def stack.Statement.check_loop2
   {E : Type} (coremarkerCopyInst : core.marker.Copy E)
@@ -311,7 +311,7 @@ def stack.Statement.check_loop2
     (index, result)
 
 /-- [pcs::stack::{pcs::stack::Statement<'_0, E>}::check]:
-    Source: 'crates/pcs/src/stack.rs', lines 188:4-221:5 -/
+    Source: 'crates/pcs/src/stack/mod.rs', lines 223:4-256:5 -/
 def stack.Statement.check
   {E : Type} (coremarkerCopyInst : core.marker.Copy E)
   (self : stack.Statement E) (log_n : Std.Usize) (committed : Std.Usize) :
