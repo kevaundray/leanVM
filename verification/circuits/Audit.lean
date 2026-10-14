@@ -1039,6 +1039,16 @@ run_cmd do
 #print axioms LeanVMCircuits.Rec.AirLink.rowEq_restrict
 #print axioms LeanVMCircuits.Rec.AirLink.formSums_restrict
 #print axioms LeanVMCircuits.Rec.AirLink.tableClaim_of_leaves
+#print axioms LeanVMCircuits.Rec.AirLink.xi_roots_low
+#print axioms LeanVMCircuits.Rec.AirLink.parts_zero
+#print axioms LeanVMCircuits.Rec.AirLink.balDraws_card
+#print axioms LeanVMCircuits.Rec.AirLink.balBad_frac
+#print axioms LeanVMCircuits.Rec.AirLink.balRun_frac
+#print axioms LeanVMCircuits.Rec.AirLink.balance_part
+#print axioms LeanVMCircuits.Rec.AirLink.balance_of_inst
+#print axioms LeanVMCircuits.Rec.Bind.table_part
+#print axioms LeanVMCircuits.Rec.Edges.tableParts_ok
+#print axioms LeanVMCircuits.Rec.Edges.checksGiveTable_of_parts
 #print axioms LeanVMCircuits.Rec.Edges.lateEvent_frac
 #print axioms LeanVMCircuits.Rec.Edges.not_mem_exec
 #print axioms LeanVMCircuits.Rec.AirLink.frac_prod_le
