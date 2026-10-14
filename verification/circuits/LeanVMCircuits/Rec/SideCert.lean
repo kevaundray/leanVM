@@ -1097,13 +1097,13 @@ def FormCert.isFinal (f : FormCert) (n : ℕ) (st : FormSt) : Bool :=
 
 /-- Both sides of a table sumcheck's bus (`SideCert`s for push and pull) against its named certificates: each side's
 certificate passes; its share is the GKR's named framework share; its point is the GKR's last point; the sides share
-the weights and `β`; each owned table's final forms are its residual term's named push and pull forms; its blocks are
+the weights and `β`; the table sumcheck's point is the bus point's first coordinates; each owned table's final forms are its residual term's named push and pull forms; its blocks are
 `BusBlocks::new`'s (`recCoords`) with each owned table's height its residual term's `τ`. -/
 def sidesOk (os : Array (List ℕ)) (cs : Array Call) (rl : Array Bool) (scs : Array SumcheckCert)
     (tops : Array TopCert) (odds : Array OddCert) (g : GkrCert) (rc : ResidCert) (s0 s1 : SideCert) : Bool :=
   s0.ok os cs rl && s1.ok os cs rl && s0.fw os == g.fw.1 && s1.fw os == g.fw.2 &&
     s0.zeta == g.point scs tops odds os && s1.zeta == s0.zeta && s0.mu == s0.zeta.length && s1.mu == s0.mu &&
-    s1.w == s0.w && s1.beta == s0.beta &&
+    s1.w == s0.w && s1.beta == s0.beta && rc.zeta == s0.zeta.take rc.zeta.length &&
     ownedList.all (fun T => (rc.termOf T).push.isFinal (nCols T) ((s0.final os).forms T) &&
       (rc.termOf T).pull.isFinal (nCols T) ((s1.final os).forms T)) &&
     s0.blocks.map (fun b => (b.owner, b.coords)) == recCoords false &&
@@ -1239,6 +1239,160 @@ theorem SideCert.dec (hF : Facts cs rl os st val) {sc : SideCert} (h : sc.ok os 
   rw [hforms T hT, hsem.2]
 
 end Dec
+
+/-! The recorded blocks' leaves as the bus's tuples: the GKR's leaf layer as those blocks. -/
+
+mutual
+theorem formTerms_val (r : ℕ → K) (z : ℕ) : ∀ f : Form,
+    ((formTerms f).map fun t => (TermD.dc t).val (fun c => emb (r c)) z).sum = emb (f.eval r)
+  | .const w => by simp [formTerms, TermD.dc, DCoord.val, Form.eval]
+  | .col c => by simp [formTerms, TermD.dc, DCoord.val, Form.eval]
+  | .prod a b => by simp [formTerms, TermD.dc, DCoord.val, Form.eval, emb_mul]
+  | .sum ts => by rw [formTerms, Form.eval, formTermsSum_val r z ts]
+
+theorem formTermsSum_val (r : ℕ → K) (z : ℕ) : ∀ ts : List Form,
+    ((formTermsSum ts).map fun t => (TermD.dc t).val (fun c => emb (r c)) z).sum = emb (Form.evalSum r ts)
+  | [] => by simp [formTermsSum, Form.evalSum, emb_zero]
+  | t :: ts => by
+    rw [formTermsSum, List.map_append, List.sum_append, formTerms_val r z t, formTermsSum_val r z ts, Form.evalSum,
+      emb_add]
+end
+
+/-- A limb coordinate's terms at weight `w` sum to `w` times the limb's value. -/
+theorem limb_leaf (pubF : Bool → ℕ → ℕ → E) (w : E) (r : ℕ → K) (z : ℕ) (f : Form) :
+    (((CoordD.terms (formTerms f)).ts pubF w).map fun t => t.1 * t.2.val (fun c => emb (r c)) z).sum =
+      w * emb (f.eval r) := by
+  rw [CoordD.ts, List.map_map, ← formTerms_val r z f, ← List.sum_map_mul_left]
+  rfl
+
+/-- The fingerprint of a bus tuple: its key and four limbs at the first five weights. -/
+theorem fpAt_busTuple (A : Fin 4 → E) (k : ℕ) (l : Fin 4 → K) :
+    UnionSound.fpAt A (busTuple (k, l)) = UnionSound.eqAt A 0 * emb (ofWord k) +
+      (UnionSound.eqAt A 1 * emb (l 0) + (UnionSound.eqAt A 2 * emb (l 1) + (UnionSound.eqAt A 3 * emb (l 2) +
+        UnionSound.eqAt A 4 * emb (l 3)))) := by
+  simp only [UnionSound.fpAt, Fin.sum_univ_succ, Fin.sum_univ_zero, busTuple]
+  simp
+
+/-- A slot's block leaf: `β` plus its key coordinate's value and its four limbs at the first five weights, the
+weights `eq(A, k)`, is the bus tuple's `β + fp_A` (`AirLink.busTuple`), the key's value `kv`. -/
+theorem slotLeaf (pubF : Bool → ℕ → ℕ → E) (wv : ℕ → E) (A : Fin 4 → E)
+    (h0 : wv 0 = UnionSound.eqAt A 0) (h1 : wv 1 = UnionSound.eqAt A 1) (h2 : wv 2 = UnionSound.eqAt A 2)
+    (h3 : wv 3 = UnionSound.eqAt A 3) (h4 : wv 4 = UnionSound.eqAt A 4) (β : E) (k : CoordD) (kv : ℕ) (fs : List Form)
+    (hfs : fs.length = 4) (r : ℕ → K) (z : ℕ)
+    (hk : ((k.ts pubF (wv 0)).map fun t => t.1 * t.2.val (fun c => emb (r c)) z).sum = wv 0 * emb (ofWord kv)) :
+    blockLeaf β (coordsTs pubF wv 0 (k :: fs.map fun f => .terms (formTerms f))) (fun c => emb (r c)) z =
+      β + UnionSound.fpAt A (busTuple (kv, fun j => (fs.getD j .zero).eval r)) := by
+  match fs, hfs with
+  | [f0, f1, f2, f3], _ =>
+    simp only [blockLeaf, coordsTs, List.map_cons, List.map_nil, List.map_append, List.sum_append, hk,
+      limb_leaf, List.sum_nil, add_zero, fpAt_busTuple]
+    simp only [zero_add, Nat.reduceAdd, h0, h1, h2, h3, h4, List.getD_eq_getElem?_getD]
+    rfl
+
+/-- An index key coordinate's value at a row of a slot: `slot · 2^32 ^ z` is the slot's key (`SlotKey::new`). -/
+theorem idxKey_val (pubF : Bool → ℕ → ℕ → E) (w : E) (row : ℕ → E) (slot z : ℕ) (hz : z < 2 ^ 32) :
+    (((CoordD.idx (slot * 2 ^ 32) 0).ts pubF w).map fun t => t.1 * t.2.val row z).sum =
+      w * emb (ofWord (slotKey slot z)) := by
+  have hx : slot * 2 ^ 32 ^^^ z = slot * 2 ^ 32 + z := by
+    apply Nat.eq_of_testBit_eq
+    intro j
+    rw [Nat.testBit_xor, show slot * 2 ^ 32 = 2 ^ 32 * slot + 0 by ring,
+      Nat.testBit_two_pow_mul_add slot (by positivity : 0 < 2 ^ 32) j, Nat.add_zero,
+      Nat.testBit_two_pow_mul_add slot hz j]
+    by_cases hj : j < 32
+    · rw [if_pos hj, if_pos hj, Nat.zero_testBit, Bool.false_xor]
+    · rw [if_neg hj, if_neg hj, Nat.testBit_lt_two_pow (lt_of_lt_of_le hz
+        (Nat.pow_le_pow_right (by norm_num) (by omega))), Bool.xor_false]
+  simp only [CoordD.ts, DCoord.val, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero,
+    Nat.shiftLeft_zero]
+  rw [hx, slotKey]
+
+/-! The balance on the dumps' certificates. -/
+
+theorem FormCert.isFinal_quad {f : FormCert} {n : ℕ} {st : FormSt} (h : f.isFinal n st = true) (val : Val) :
+    f.quad val = st.quad val n := by
+  simp only [FormCert.isFinal, Bool.and_eq_true, beq_iff_eq] at h
+  obtain ⟨⟨hc, hl⟩, hp⟩ := h
+  have hl' := congrArg (List.map fun t : ℕ × ℕ => (t.1, Model.ev val t.2)) hl
+  have hp' := congrArg (List.map fun t : ℕ × ℕ × ℕ => (t.1, t.2.1, Model.ev val t.2.2)) hp
+  simp only [List.map_map, Function.comp_def] at hl' hp'
+  simp only [FormCert.quad, FormSt.quad, hc, hl', hp']
+
+/-- A side's leaf claim: its stacked layer (`stackLeaf`, each owned block's leaves over its table's committed rows,
+the framework's over its public columns) at the bus point. -/
+noncomputable def SideCert.leafClaim (sc : SideCert) (val : Val) (pubF : Bool → ℕ → ℕ → E) (w : Witness) : E :=
+  ∑ x ∈ range (2 ^ sc.mu), rowEq (sc.zetaV val) sc.mu x *
+    stackLeaf (fun b => sc.blocks[b].kappa) (fun b => sc.blocks[b].q) (fun b z =>
+      if sc.blocks[b].owner = none then sc.leafOf val pubF b z
+      else blockLeaf (Model.ev val sc.beta) (sc.tsOf val pubF b)
+        (fun c => emb (w.cols (sc.blocks[b].owner.getD .emul) z c)) z) x
+
+section Balance
+
+variable {cs : Array Call} {rl : Array Bool} {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val}
+
+/-- A side's share plus its leaf claim is the named forms' sums at the table sumcheck's point `ζ'`, the bus point's
+first `N` coordinates. -/
+theorem SideCert.dec_named (hF : Facts cs rl os st val) {sc : SideCert} (h : sc.ok os cs rl = true)
+    (pubF : Bool → ℕ → ℕ → E) (hpub : sc.PubTrue val pubF) (w : Witness)
+    (hτ : ∀ b : Fin sc.blocks.length, ∀ T, sc.blocks[b].owner = some T → sc.blocks[b].kappa = tauOf w T)
+    (forms : Fin 2 → Table → Quad) (i : Fin 2)
+    (hforms : ∀ T ∈ owned, ∀ col, (forms i T).eval col = (((sc.final os).forms T).quad val (nCols T)).eval col)
+    {N : ℕ} (ζ' : Fin N → E) (hN : N ≤ sc.mu) (hζ' : ∀ j : Fin N, ζ' j = Model.ev val (sc.zeta.getD j 0))
+    (htau : ∀ T ∈ owned, tauOf w T ≤ N) :
+    Model.ev val (sc.fw os) + sc.leafClaim val pubF w = formSums w ζ' forms i := by
+  rw [formSums_restrict w (sc.zetaV val) ζ' hN (fun j => hζ' j) htau, SideCert.leafClaim,
+    SideCert.dec hF h pubF hpub w hτ (forms i) hforms i]
+  rfl
+
+/-- The balance on the dumps' certificates (`balance_named` with its premise from `sidesOk`): where the calls hold, the
+table sumcheck `tc`, its bus GKR `g` and its residual `rc` pass and both sides `s0`, `s1` are certified against them
+(`sidesOk`), each side's public coordinates' named values are their columns' extensions, each recorded owned block is
+at its table's height, and the table sumcheck's input claim is its honest instance's sum at the named forms and point
+`ζ'` (`table_part`'s output), the GKR's two last next claims are the sides' stacked leaf claims, off the balance's
+draw event at the bus parts the forms' sums less the named totals. -/
+theorem balance_sides {tc : TableCert} {g : GkrCert} {rc : ResidCert} {scs : Array SumcheckCert}
+    {tops : Array TopCert} {odds : Array OddCert} {s0 s1 : SideCert}
+    (hF : Facts cs rl os st val) (htc : tc.okIn scs tops odds cs rl os = true)
+    (hg : g.okIn tc scs tops odds cs rl os = true) {sc : SumcheckCert} (hsc : scs[tc.sc]? = some sc)
+    (hs : sidesOk os cs rl scs tops odds g rc s0 s1 = true) (pubF0 pubF1 : Bool → ℕ → ℕ → E)
+    (hp0 : s0.PubTrue val pubF0) (hp1 : s1.PubTrue val pubF1) (w : Witness)
+    (hτ0 : ∀ b : Fin s0.blocks.length, ∀ T, s0.blocks[b].owner = some T → s0.blocks[b].kappa = tauOf w T)
+    (hτ1 : ∀ b : Fin s1.blocks.length, ∀ T, s1.blocks[b].owner = some T → s1.blocks[b].kappa = tauOf w T)
+    {N : ℕ} (ζ' : Fin N → E) (hNl : N ≤ rc.zeta.length) (hζ' : ∀ j : Fin N, ζ' j = Model.ev val (rc.zeta.getD j 0))
+    (htau : ∀ T ∈ owned, tauOf w T ≤ N) {a : (Fin N → E) → Fin 2 → E}
+    (ha : a ζ' = fun i => formSums w ζ' (rc.formsV val) i - Model.ev val (if i = 0 then tc.tot0 else tc.tot1))
+    (hin : Model.ev val sc.claim0 = (tableInst N w ζ' (rc.formsV val) (Model.ev val tc.xi)).sum)
+    (hx : (ζ', Model.ev val tc.xi) ∉ balDraws w a) :
+    ∃ v0 v1, LayerCert.chain scs cs rl os g.layers (g.start tops odds os).2.1 (g.start tops odds os).2.2 =
+      some [v0, v1] ∧ Model.ev val v0 = s0.leafClaim val pubF0 w ∧ Model.ev val v1 = s1.leafClaim val pubF1 w := by
+  simp only [sidesOk, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hs
+  obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨h0, h1⟩, hfw0⟩, hfw1⟩, -⟩, hz1⟩, hmu0⟩, hmu1⟩, -⟩, -⟩, hrz⟩, hfin⟩, -⟩, -⟩, -⟩ := hs
+  have hz : ∀ j : Fin N, Model.ev val (rc.zeta.getD j 0) = Model.ev val (s0.zeta.getD j 0) := fun j => by
+    rw [hrz, List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt
+      (lt_of_lt_of_le j.isLt hNl)]
+  have hNmu : N ≤ s0.mu := by
+    have := congrArg List.length hrz
+    rw [List.length_take] at this
+    omega
+  have hmem : ∀ T ∈ owned, T ∈ ownedList := fun T hT => by
+    simp only [owned, Finset.mem_insert, Finset.mem_singleton] at hT
+    rcases hT with rfl | rfl | rfl | rfl | rfl <;> decide
+  have hd0 := SideCert.dec_named hF h0 pubF0 hp0 w hτ0 (rc.formsV val) 0 (fun T hT col => by
+    simp only [ResidCert.formsV, if_true]
+    rw [FormCert.isFinal_quad ((hfin T (hmem T hT)).1)]) ζ' hNmu
+    (fun j => (hζ' j).trans (hz j)) htau
+  have hd1 := SideCert.dec_named hF h1 pubF1 hp1 w hτ1 (rc.formsV val) 1 (fun T hT col => by
+    simp only [ResidCert.formsV, if_neg (by decide : (1 : Fin 2) ≠ 0)]
+    rw [FormCert.isFinal_quad ((hfin T (hmem T hT)).2)]) ζ'
+    (by rw [hmu1]; exact hNmu) (fun j => (hζ' j).trans ((hz j).trans (by rw [hz1]))) htau
+  refine balance_named hF htc hg hsc htau ha (V := fun i => if i = 0 then s0.leafClaim val pubF0 w
+    else s1.leafClaim val pubF1 w) (fun i => ?_) hin hx |>.imp fun v0 ⟨v1, hch, e0, e1⟩ => ⟨v1, hch, e0, e1⟩
+  fin_cases i
+  · simpa [hfw0] using hd0
+  · simpa [hfw1] using hd1
+
+end Balance
 
 /-! The check on a small side, and mutations it rejects. -/
 
