@@ -90,7 +90,8 @@ inductive Event (E Q R K : Type) where
   | rows (root : R) (depth : Nat) (qs : List Q) (rowWords leafWords : Nat) (ws : List (List K))
 
 /-- Every read but the Merkle rows: each answers the tape's next event and leaves the rest; a
-round polynomial is read as its two transmitted coefficients; scopes change nothing. -/
+round polynomial is read as its two transmitted coefficients by the trait's default
+`Verifier::read_round`; scopes change nothing. -/
 structure Reads {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
     (encode : E → Concrete.E) (tape : V → List (Event E Q R K) → Prop) : Prop where
   sample : ∀ v e rest, tape v (.sample e :: rest) →
@@ -106,6 +107,8 @@ structure Reads {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   poly : ∀ v (n : Usize) u0 u2 rest, tape v (.poly u0 u2 :: rest) → n.val = 2 →
     ∃ w v', inst.fiat_shamirarithVerifierInst.prover_messages v n = .ok (.Ok w, v') ∧ w.val = [u0, u2] ∧
       tape v' rest
+  read_round : inst.fiat_shamirarithVerifierInst.read_round =
+    fiat_shamir.arith.Verifier.read_round.default inst.fiat_shamirarithVerifierInst
   root : ∀ v r rest, tape v (.root r :: rest) →
     ∃ v', inst.next_root v = .ok (.Ok r, v') ∧ tape v' rest
   grind : ∀ v (bits : U32) rest, tape v (.grind bits.val :: rest) →
@@ -129,14 +132,14 @@ variable {V R K Q E : Type} (inst : verifier.OpeningVerifier V R K Q E)
   (encode : E → Concrete.E) (const : primitives.field.gf2_64x3.F192 → Concrete.E) (index : Q → Nat)
   (tape : V → List (Event E Q R K) → Prop)
 
-/-- The generated `RoundPolynomial::read` of a quadratic with the linear coefficient fixed:
-the two transmitted coefficients with `claim + u2` inserted between them. -/
+/-- The generated default `Verifier::read_round` of a quadratic with the linear coefficient
+fixed: the two transmitted coefficients with `claim + u2` inserted between them. -/
 theorem read_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
-    (copy : core.marker.Copy E) (v v1 : V) (claim u0 u2 : E) (w : alloc.vec.Vec E) (hw : w.val = [u0, u2])
+    (v v1 : V) (claim u0 u2 : E) (w : alloc.vec.Vec E) (hw : w.val = [u0, u2])
     (hpm : inst.fiat_shamirarithVerifierInst.prover_messages v (Std.Usize.wrapping_sub 3#usize 1#usize) =
       .ok (.Ok w, v1)) :
-    ∃ coeffs b, fiat_shamir.arith.RoundPolynomialVec.read copy inst.fiat_shamirarithVerifierInst v 3#usize claim
-        none = .ok (.Ok { coeffs := coeffs }, v1) ∧ coeffs.val = [u0, b, u2] ∧
+    ∃ coeffs b, fiat_shamir.arith.Verifier.read_round.default inst.fiat_shamirarithVerifierInst v 3#usize
+        claim none = .ok (.Ok coeffs, v1) ∧ coeffs.val = [u0, b, u2] ∧
       encode b = encode claim + encode u2 := by
   obtain ⟨z, hz, ez⟩ := h.zero v1
   obtain ⟨t, ht, et⟩ := h.add v1 z u2
@@ -148,38 +151,40 @@ theorem read_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst enco
     UScalar.eq_of_val_eq (by rw [succ_val 1#usize 2 (by simp) (by omega)]; simp)
   have h21 : (Std.Usize.wrapping_add 2#usize 1#usize).val = 3 := by
     rw [succ_val 2#usize 3 (by simp) (by omega)]; simp
-  have hloop : fiat_shamir.arith.RoundPolynomialVec.read_loop copy inst.fiat_shamirarithVerifierInst v1
+  have hloop : fiat_shamir.arith.Verifier.read_round.default_loop inst.fiat_shamirarithVerifierInst v1
       w3 z 2#usize = .ok (v1, t) := by
-    unfold fiat_shamir.arith.RoundPolynomialVec.read_loop
-    have hb1 : fiat_shamir.arith.RoundPolynomialVec.read_loop.body copy inst.fiat_shamirarithVerifierInst
+    unfold fiat_shamir.arith.Verifier.read_round.default_loop
+    have hb1 : fiat_shamir.arith.Verifier.read_round.default_loop.body inst.fiat_shamirarithVerifierInst
         w3 v1 z 2#usize = .ok (.cont (v1, t, Std.Usize.wrapping_add 2#usize 1#usize)) := by
       have h2 : (2#usize : Usize) < alloc.vec.Vec.len w3 := by simp [UScalar.lt_equiv, ew3]
-      simp only [fiat_shamir.arith.RoundPolynomialVec.read_loop.body, h2, ↓reduceIte,
+      simp only [fiat_shamir.arith.Verifier.read_round.default_loop.body, h2, ↓reduceIte,
         alloc.vec.Vec.index_slice_index, vec_index_usize w3 2#usize (by simp [ew3]), Std.bind_ok, lift]
       simp [ew3, ht]
     rw [loop_cont hb1]
     apply loop_done
     have h3 : ¬ (Std.Usize.wrapping_add 2#usize 1#usize < alloc.vec.Vec.len w3) := by
       simp [UScalar.lt_equiv, ew3, h21]
-    simp [fiat_shamir.arith.RoundPolynomialVec.read_loop.body, h3]
+    simp [fiat_shamir.arith.Verifier.read_round.default_loop.body, h3]
   refine ⟨alloc.vec.Vec.set w3 1#usize t2, t2, ?_, by simp [ew3], ?_⟩
-  · simp [fiat_shamir.arith.RoundPolynomialVec.read, massert, hpm, core.result.Result.Insts.CoreOpsTry.branch,
-      fiat_shamir.arith.fixed_coefficient, core.option.Option.is_some, hins, hz, lift, h11, hloop, ht2,
+  · simp [fiat_shamir.arith.Verifier.read_round.default, massert, hpm,
+      core.result.Result.Insts.CoreOpsTry.branch, core.option.Option.map_or,
+      fiat_shamir.arith.RoundWeight.fixed_index, hins, hz, lift, h11, hloop, ht2,
       alloc.vec.Vec.index_mut_usize, vec_index_usize w3 1#usize (by simp [ew3])]
   · rw [et2, et, ez, zero_add]
 
-/-- `Quad::recv` reads the next round polynomial: the transmitted `u0` and `u2`, with the
+/-- `RoundQuad::read` reads the next round polynomial: the transmitted `u0` and `u2`, with the
 linear coefficient `claim + u2`. -/
 theorem recv_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (ht : Transcript inst encode tape) (copy : core.marker.Copy E) (v : V)
     (claim u0 u2 : E) (rest : List (Event E Q R K)) (hv : tape v (.poly u0 u2 :: rest)) :
-    ∃ q v', whir.verify.Quad.recv copy inst v claim = .ok (.Ok q, v') ∧ q.c = u0 ∧ q.a = u2 ∧
-      encode q.b = encode claim + encode u2 ∧ tape v' rest := by
+    ∃ q v', whir.sumcheck.RoundQuad.read copy inst.fiat_shamirarithVerifierInst v claim = .ok (.Ok q, v') ∧
+      q.c = u0 ∧ q.a = u2 ∧ encode q.b = encode claim + encode u2 ∧ tape v' rest := by
   obtain ⟨w, v', hpm, hw, hrest⟩ := ht.poly v (Std.Usize.wrapping_sub 3#usize 1#usize) u0 u2 rest hv
     (by rw [Fold.sub_val _ _ (by simp)]; simp)
-  obtain ⟨coeffs, b, hread, hc, hb⟩ := read_eq inst encode const h copy v v' claim u0 u2 w hw hpm
+  obtain ⟨coeffs, b, hread, hc, hb⟩ := read_eq inst encode const h v v' claim u0 u2 w hw hpm
   refine ⟨{ c := u0, b := b, a := u2 }, v', ?_, rfl, rfl, hb, hrest⟩
-  simp [whir.verify.Quad.recv, hread, core.result.Result.Insts.CoreOpsTry.branch, alloc.vec.Vec.index_usize, hc]
+  simp [whir.sumcheck.RoundQuad.read, ht.read_round, hread, core.result.Result.Insts.CoreOpsTry.branch,
+    alloc.vec.Vec.index_usize, hc]
 
 /-- The tape of fold rounds: each samples its challenge, then reads its polynomial. -/
 def foldTape (rounds : List (E × E × E)) : List (Event E Q R K) :=
@@ -190,8 +195,7 @@ def foldModel (rounds : List (E × E × E)) (st : State) : State :=
   rounds.foldl (fun s (r, u0, u2) => foldScalar s (encode r) ⟨encode u0, encode u2⟩) st
 
 theorem fold_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
-    (ht : Transcript inst encode tape)
-    (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x) :
+    (ht : Transcript inst encode tape) :
     ∀ (rounds : List (E × E × E)) (iter : core.ops.range.Range Std.Usize)
       (self : whir.verify.WhirReplay V R K Q E) (v : V) (rs : alloc.vec.Vec E) (st : State)
       (rest : List (Event E Q R K)),
@@ -200,69 +204,73 @@ theorem fold_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst
       encode self.t_r = st.claim →
       (⟨encode self.quad.c, encode self.quad.a⟩ : Protocol.Message Concrete.E) = st.message →
       encode self.quad.b = st.claim + encode self.quad.a →
-      (self.ris.val ++ rs.val).map encode = st.source.ris →
-      self.ris.val.length + rs.val.length + rounds.length ≤ Usize.max →
-      ∃ rs' t' q' ris' v',
-        whir.verify.WhirReplay.fold_rounds_loop inst iter self v rs =
-          .ok (.Ok rs', t', q', ris', self.levels, self.oods, v') ∧
-        tape v' rest ∧ rs'.val = rs.val ++ rounds.map (·.1) ∧ ris'.val = self.ris.val ++ rs'.val ∧
-        encode t' = (foldModel encode rounds st).claim ∧
-        (⟨encode q'.c, encode q'.a⟩ : Protocol.Message Concrete.E) = (foldModel encode rounds st).message ∧
-        encode q'.b = (foldModel encode rounds st).claim + encode q'.a ∧
-        ris'.val.map encode = (foldModel encode rounds st).source.ris ∧
+      self.ris.val.map encode = st.source.ris →
+      self.ris.val.length + rounds.length ≤ Usize.max →
+      rs.val.length + rounds.length ≤ Usize.max →
+      ∃ rs' self' v',
+        whir.verify.WhirReplay.fold_rounds_loop inst iter self v rs = .ok (.Ok rs', self', v') ∧
+        tape v' rest ∧ rs'.val = rs.val ++ rounds.map (·.1) ∧
+        self'.ris.val = self.ris.val ++ rounds.map (·.1) ∧
+        self'.levels = self.levels ∧ self'.oods = self.oods ∧
+        encode self'.t_r = (foldModel encode rounds st).claim ∧
+        (⟨encode self'.quad.c, encode self'.quad.a⟩ : Protocol.Message Concrete.E) =
+          (foldModel encode rounds st).message ∧
+        encode self'.quad.b = (foldModel encode rounds st).claim + encode self'.quad.a ∧
+        self'.ris.val.map encode = (foldModel encode rounds st).source.ris ∧
         (foldModel encode rounds st).source.saved = st.source.saved ∧
         (foldModel encode rounds st).n = st.n - rounds.length := by
   intro rounds
   induction rounds with
   | nil =>
-    intro iter self v rs st rest hlen hv hc hm hb hris hcap
-    obtain ⟨w, hw, ew⟩ := extend_ok _ hclone self.ris (alloc.vec.Vec.deref rs)
-      (by simp [alloc.vec.Vec.deref]; simp at hcap; omega)
-    refine ⟨rs, self.t_r, self.quad, w, v, ?_, by simpa [foldTape] using hv, by simp,
-      by rw [ew]; simp [alloc.vec.Vec.deref], hc, hm, hb,
-      by rw [ew]; simpa [alloc.vec.Vec.deref, foldModel] using hris,
-      rfl, by simp [foldModel]⟩
+    intro iter self v rs st rest hlen hv hc hm hb hris _ _
+    refine ⟨rs, self, v, ?_, by simpa [foldTape] using hv, by simp, by simp, rfl, rfl, hc, hm, hb,
+      by simpa [foldModel] using hris, rfl, by simp [foldModel]⟩
     unfold whir.verify.WhirReplay.fold_rounds_loop
     apply loop_done
-    simp [whir.verify.WhirReplay.fold_rounds_loop.body, range_next_none iter (by simp at hlen; omega), hw]
+    simp [whir.verify.WhirReplay.fold_rounds_loop.body, range_next_none iter (by simp at hlen; omega)]
   | cons rd rounds ih =>
-    intro iter self v rs st rest hlen hv hc hm hb hris hcap
+    intro iter self v rs st rest hlen hv hc hm hb hris hcap hcaprs
     obtain ⟨r, u0, u2⟩ := rd
     obtain ⟨iter1, hnext, hs1, he1⟩ := range_next_some iter (by simp at hlen; omega)
     obtain ⟨v1, hsample, hv1⟩ := ht.sample v r (.poly u0 u2 :: (foldTape rounds ++ rest))
       (by simpa [foldTape] using hv)
     obtain ⟨t, het, et⟩ := quad_eval inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
       encode const h self.quad v1 r st.claim hb
+    obtain ⟨ris1, hpris, eris1⟩ := push_ok self.ris r (by simp at hcap; omega)
     obtain ⟨q, v3, hrecv, hqc, hqa, hqb, hv3⟩ := recv_eq inst encode const tape h ht
       inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst v1 t u0 u2
       (foldTape rounds ++ rest) hv1
-    obtain ⟨rs1, hpush, ers1⟩ := push_ok rs r (by simp at hcap; omega)
+    obtain ⟨rs1, hpush, ers1⟩ := push_ok rs r (by simp at hcaprs; omega)
+    have hfc : whir.verify.WhirReplay.fold_challenge inst self v =
+        .ok (r, { self with t_r := t, ris := ris1 }, v1) := by
+      simp [whir.verify.WhirReplay.fold_challenge, hsample, het, hpris]
     have hbody : whir.verify.WhirReplay.fold_rounds_loop.body inst iter self v rs =
-        .ok (.cont (iter1, { self with t_r := t, quad := q }, v3, rs1)) := by
-      simp [whir.verify.WhirReplay.fold_rounds_loop.body, hnext, hsample, het, hrecv,
+        .ok (.cont (iter1, { self with t_r := t, ris := ris1, quad := q }, v3, rs1)) := by
+      simp [whir.verify.WhirReplay.fold_rounds_loop.body, hnext, hfc, hrecv,
         core.result.Result.Insts.CoreOpsTry.branch, hpush]
     let st1 := foldScalar st (encode r) ⟨encode u0, encode u2⟩
-    obtain ⟨rs', t', q', ris', v', hloop, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ :=
-      ih iter1 { self with t_r := t, quad := q } v3 rs1 st1 rest
+    obtain ⟨rs', self', v', hloop, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩ :=
+      ih iter1 { self with t_r := t, ris := ris1, quad := q } v3 rs1 st1 rest
         (by simp at hlen; rw [hs1, he1]; omega) hv3
         (by rw [et, hm]; rfl)
         (by simp only [st1, foldScalar, hqc, hqa])
         (by rw [hqb, hqa, et, hm]; rfl)
-        (by simp only [ers1, st1, foldScalar, SourceState.step, ← hris]; simp)
-        (by simp only [ers1]; simp at hcap ⊢; omega)
-    refine ⟨rs', t', q', ris', v', ?_, e1, by rw [e2, ers1]; simp, e3, e4, e5, e6, e7, e8, ?_⟩
+        (by simp only [eris1, st1, foldScalar, SourceState.step, ← hris]; simp)
+        (by simp only [eris1]; simp at hcap ⊢; omega)
+        (by simp only [ers1]; simp at hcaprs ⊢; omega)
+    refine ⟨rs', self', v', ?_, e1, by rw [e2, ers1]; simp, by rw [e3, eris1]; simp, e4, e5, e6, e7,
+      e8, e9, e10, ?_⟩
     · unfold whir.verify.WhirReplay.fold_rounds_loop
       rw [loop_cont hbody]
       unfold whir.verify.WhirReplay.fold_rounds_loop at hloop
       exact hloop
     · change (foldModel encode rounds st1).n = _
-      rw [e9]; simp only [st1, foldScalar, List.length_cons]; omega
+      rw [e11]; simp only [st1, foldScalar, List.length_cons]; omega
 
 /-- `fold_rounds` reads `k` rounds, folds the running claim and quadratic exactly as the
 model's `foldScalar`, and appends the challenges to the transcript's fold point. -/
 theorem fold_rounds_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (ht : Transcript inst encode tape)
-    (hclone : ∀ x, inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst.cloneInst.clone x = .ok x)
     (self : whir.verify.WhirReplay V R K Q E) (st : State) (hrel : StateRel encode index self st)
     (v : V) (k : Usize) (rounds : List (E × E × E)) (rest : List (Event E Q R K))
     (hk : rounds.length = k.val) (hv : tape v (foldTape rounds ++ rest))
@@ -272,14 +280,15 @@ theorem fold_rounds_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithIn
       self'.levels = self.levels ∧ self'.oods = self.oods ∧
       StateRel encode index self' (foldModel encode rounds st) ∧
       (foldModel encode rounds st).n = st.n - k.val := by
-  obtain ⟨rs', t', q', ris', v', hloop, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ :=
-    fold_loop_eq inst encode const tape h ht hclone rounds { start := 0#usize, «end» := k } self v
+  obtain ⟨rs', self', v', hloop, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11⟩ :=
+    fold_loop_eq inst encode const tape h ht rounds { start := 0#usize, «end» := k } self v
       (alloc.vec.Vec.with_capacity E k) st rest (by simp [hk]) hv hrel.claim hrel.message hrel.linear
-      (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, ← hrel.ris])
-      (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]; omega)
-  refine ⟨rs', { t_r := t', quad := q', ris := ris', levels := self.levels, oods := self.oods }, v', ?_,
-    e1, by simpa [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using e2, e3, rfl, rfl,
-    ⟨e4, e5, e6, e7, by simpa [e8] using hrel.oods, by simpa [e8] using hrel.levels⟩, by rw [e9, hk]⟩
+      hrel.ris hcap (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]; omega)
+  have hrs : rs'.val = rounds.map (·.1) := by
+    simpa [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using e2
+  refine ⟨rs', self', v', ?_, e1, hrs, by rw [e3, hrs], e4, e5,
+    ⟨e6, e7, e8, e9, by simpa [e4, e5, e10] using hrel.oods, by simpa [e4, e5, e10] using hrel.levels⟩,
+    by rw [e11, hk]⟩
   simp [whir.verify.WhirReplay.fold_rounds, hloop]
 
 /-- The tape of a level's out-of-domain claims: each point, its value, its intro round. -/
@@ -600,17 +609,17 @@ end Config
 
 /-! ## A level's induced basis at the terminal point -/
 
-/-- The normalizers' interpretation: `Normalizers::new n` holds the model's subspace roots
-`s_k(v_k)` and their inverses (zero at zero), read as `F192` constants through `const`, and
-`const` reads the constant one as one. -/
+/-- The normalizers' interpretation: `NovelBasis::new n` holds the model's subspace roots
+`s_k(v_k)` as its normalizers and their inverses (zero at zero), read as `F192` constants
+through `const`, and `const` reads the constant one as one. -/
 structure NormalizerModel (const : primitives.field.gf2_64x3.F192 → Concrete.E) : Prop where
-  new : ∀ n : Usize, n.val < 64 → ∃ nz, whir.query.Normalizers.new n = .ok nz ∧
-    n.val ≤ nz.at_roots.val.length ∧ n.val ≤ nz.inverses.val.length ∧
-    (∀ i (hi : i < nz.at_roots.val.length) f,
-      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from nz.at_roots.val[i] = .ok f →
+  new : ∀ n : Usize, n.val < 64 → ∃ nb, ntt.basis.NovelBasis.new n = .ok nb ∧
+    n.val ≤ nb.normalizers.val.length ∧ n.val ≤ nb.inverses.val.length ∧
+    (∀ i (hi : i < nb.normalizers.val.length) f,
+      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from nb.normalizers.val[i] = .ok f →
         const f = Concrete.E.ofK (subspaceRoots n.val)[i]!) ∧
-    (∀ i (hi : i < nz.inverses.val.length) f,
-      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from nz.inverses.val[i] = .ok f →
+    (∀ i (hi : i < nb.inverses.val.length) f,
+      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from nb.inverses.val[i] = .ok f →
         const f = Concrete.E.ofK (InducedTerminalRefinement.nativeInverse (subspaceRoots n.val)[i]!))
   one : const primitives.field.gf2_64x3.F192.ONE = 1
 
@@ -715,18 +724,18 @@ def queryProduct (n : Nat) (pt : Array Concrete.E) (q : Nat) : Concrete.E :=
 
 theorem basis_at_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (hr : RowModel inst encode encodeK ofLimbs index) (copy : core.marker.Copy E) (n : Nat)
-    (queries : alloc.vec.Vec Q) (weights : alloc.vec.Vec E) (nz : whir.query.Normalizers)
+    (queries : alloc.vec.Vec Q) (weights : alloc.vec.Vec E) (nb : ntt.basis.NovelBasis)
     (lin : alloc.vec.Vec (E × E)) (pt : Array Concrete.E) (stop : Usize)
     (hstop : stop.val = min queries.val.length weights.val.length)
     (hlin : factors encode (alloc.vec.Vec.deref lin) = InducedTerminalRefinement.nativeLinear n pt)
-    (hsize : lin.val.length = pt.size) (hsks : lin.val.length ≤ nz.at_roots.val.length + 1)
-    (hroots : ∀ i (hi : i < nz.at_roots.val.length) f,
-      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from nz.at_roots.val[i] = .ok f →
+    (hsize : lin.val.length = pt.size) (hsks : lin.val.length ≤ nb.normalizers.val.length + 1)
+    (hroots : ∀ i (hi : i < nb.normalizers.val.length) f,
+      primitives.field.gf2_64x3.F192.Insts.CoreConvertFromF64.from nb.normalizers.val[i] = .ok f →
         const f = Concrete.E.ofK (subspaceRoots n)[i]!) :
     ∀ (m : Nat) (i : Usize) (acc : E) (v : V), stop.val - i.val = m → i.val ≤ stop.val →
       encode acc = (List.range i.val).foldl (fun acc j =>
         (weights.val.map encode)[j]! * queryProduct n pt (queries.val.map index)[j]! + acc) 0 →
-      ∃ y, whir.verify.LevelCtx.basis_at_loop copy inst { start := i, «end» := stop } queries weights v nz
+      ∃ y, whir.verify.LevelCtx.basis_at_loop copy inst { start := i, «end» := stop } queries weights v nb
           lin acc = .ok (y, v) ∧
         encode y = (List.range stop.val).foldl (fun acc j =>
           (weights.val.map encode)[j]! * queryProduct n pt (queries.val.map index)[j]! + acc) 0 := by
@@ -747,14 +756,13 @@ theorem basis_at_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.Arith
     obtain ⟨iter1, hnext, hs1, he1⟩ := range_next_some { start := i, «end» := stop } hlt
     obtain ⟨s, hs, es⟩ := hr.query_point v queries.val[i.val]
     obtain ⟨prod, hprod, eprod⟩ := basis_product_eq copy inst.fiat_shamirarithVerifierInst.ArithInst encode
-      const h v (alloc.vec.Vec.deref lin) (alloc.vec.Vec.deref nz.at_roots) (subspaceRoots n) s
-      (by simpa [alloc.vec.Vec.deref] using hsks)
-      (by simpa [alloc.vec.Vec.deref] using hroots)
+      const h v (alloc.vec.Vec.deref lin) nb (subspaceRoots n) s
+      (by simpa [alloc.vec.Vec.deref] using hsks) hroots
     obtain ⟨acc1, hacc1, eacc1⟩ := h.mul_add v weights.val[i.val] prod acc
-    have hbody : whir.verify.LevelCtx.basis_at_loop.body copy inst queries weights nz lin
+    have hbody : whir.verify.LevelCtx.basis_at_loop.body copy inst queries weights nb lin
         { start := i, «end» := stop } v acc = .ok (.cont (iter1, v, acc1)) := by
       simp [whir.verify.LevelCtx.basis_at_loop.body, hnext, vec_index_usize queries i hq, hs,
-        whir.query.Normalizers.impl.at_roots, hprod, vec_index_usize weights i hw, hacc1]
+        hprod, vec_index_usize weights i hw, hacc1]
     have hiter : iter1 = { start := Std.Usize.wrapping_add i 1#usize, «end» := stop } := by
       have hsucc := succ_val i stop.val hlt (by scalar_tac)
       cases iter1
@@ -787,23 +795,23 @@ theorem basis_at_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst 
       encode y = InducedTerminalRefinement.nativeBasisAt ctx.log_msg_cols.val
         (ctx.queries.val.map index).toArray (ctx.weights.val.map encode).toArray
         (point.val.map encode).toArray := by
-  obtain ⟨nz, hnz, hroots_len, hinv_len, hroots, hinv⟩ := hn.new ctx.log_msg_cols h64
+  obtain ⟨nb, hnb, hroots_len, hinv_len, hroots, hinv⟩ := hn.new ctx.log_msg_cols h64
   obtain ⟨lin, hlin, hlen, elin⟩ := affine_factors_eq copy
     inst.fiat_shamirarithVerifierInst.ArithInst encode const h hn.one ctx.log_msg_cols.val v point
-    (alloc.vec.Vec.deref nz.inverses) (by simp [alloc.vec.Vec.deref]; omega)
+    (alloc.vec.Vec.deref nb.inverses) (by simp [alloc.vec.Vec.deref]; omega)
     (by simpa [alloc.vec.Vec.deref] using hinv)
   obtain ⟨zero, hzero, ezero⟩ := h.zero v
   have hmin : (core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len ctx.queries) (alloc.vec.Vec.len ctx.weights)).val =
       min ctx.queries.val.length ctx.weights.val.length := by
     simp [core.cmp.impls.OrdUsize.min_val]
   obtain ⟨y, hy, ey⟩ := basis_at_loop_eq inst encode const encodeK ofLimbs index h hr copy ctx.log_msg_cols.val
-    ctx.queries ctx.weights nz lin (point.val.map encode).toArray _ hmin elin (by simp [hlen])
+    ctx.queries ctx.weights nb lin (point.val.map encode).toArray _ hmin elin (by simp [hlen])
     (by omega) hroots _ 0#usize zero v rfl (by simp) (by simp [ezero])
   refine ⟨y, ?_, ?_⟩
   · have hpl : Slice.len point = ctx.log_msg_cols := by
       apply UScalar.eq_of_val_eq; simp [hp]
-    simp only [whir.verify.LevelCtx.basis_at, hpl, ↓reduceIte, hnz, Std.bind_ok,
-      whir.query.Normalizers.impl.inverses, hlin, lift]
+    simp only [whir.verify.LevelCtx.basis_at, hpl, ↓reduceIte, hnb, Std.bind_ok,
+      ntt.basis.NovelBasis.impl.inverses, hlin, lift]
     generalize core.cmp.impls.OrdUsize.min ctx.queries.len ctx.weights.len = stop at hy ⊢
     simp [hzero, hy]
   · rw [ey, InducedTerminalRefinement.nativeBasisAt, hmin]
