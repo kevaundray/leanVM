@@ -52,7 +52,8 @@ def check (path : System.FilePath) : IO (Option Bool) := do
     {r.exposed} statement words read a challenge, {r.exposedUnbound.size} unbound; \
     {r.sumchecks} tests close a certified sumcheck ({r.rounds} rounds, {r.residuals} of them by a residual, their \
     input claims reading {r.hints.length} hints, {r.tables} named as a table sumcheck, {r.gkrs} with their bus GKR \
-    named from root to totals over {r.gkrLayers} layers past the first), \
+    named from root to totals over {r.gkrLayers} layers past the first, {r.resids} with their residual certified \
+    term by term), \
     {r.powTests} are the bits of {r.pows} certified proof-of-work checks, {r.odds} close a certified GKR odd layer, \
     {r.tops} a certified GKR radix-four top layer, {r.whirs} a certified WHIR sumcheck ({r.whirRounds} rounds, \
     {r.whirBatches} of them batching a level's claims, {r.whirPartial} sumchecks not from the opening's first claim), \
@@ -85,6 +86,11 @@ def check (path : System.FilePath) : IO (Option Bool) := do
   -- Every table sumcheck's bus GKR is named from its root to its totals (`Bind.GkrCert`).
   if r.gkrs != r.tables || !r.gkrsOk then
     IO.eprintln s!"{path}: {r.gkrs} of {r.tables} table sumchecks with their bus GKR named, checks passing: {r.gkrsOk}"
+    return none
+  -- Every table sumcheck's residual is named term by term (`Bind.ResidCert`).
+  if r.resids != r.tables || !r.residsOk then
+    IO.eprintln s!"{path}: {r.resids} of {r.tables} table sumchecks with their residual named, checks passing: \
+      {r.residsOk}"
     return none
   -- Each hint a certified input claim reads is a claim the node's reduction takes: an `edge term`'s value.
   let terms : Std.HashSet ℕ := (Dump.edgeLines (← IO.FS.readFile path)).foldl (fun acc ws => match ws with

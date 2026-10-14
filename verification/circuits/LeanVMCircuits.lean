@@ -53,6 +53,7 @@ public import LeanVMCircuits.Rec.AirRun
 public import LeanVMCircuits.Rec.PcsMatch
 public import LeanVMCircuits.Rec.CrScale
 public import LeanVMCircuits.Rec.TableSum
+public import LeanVMCircuits.Rec.TableResid
 public import LeanVMCircuits.Rec.GkrInst
 public import LeanVMCircuits.Rec.GkrParts
 public import LeanVMCircuits.Rec.Design

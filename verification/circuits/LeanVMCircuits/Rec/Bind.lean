@@ -2,6 +2,7 @@ module
 
 public import LeanVMCircuits.Rec.Verdict
 public import LeanVMCircuits.Rec.Dump
+public import LeanVMCircuits.Rec.TableResid
 
 @[expose] public section
 
@@ -406,6 +407,10 @@ structure Report where
   gkrs : ℕ := 0
   gkrLayers : ℕ := 0
   gkrsOk : Bool := true
+  /-- The table sumchecks whose residual the certificate names term by term (`ResidCert`), and whether each passes its
+  check. -/
+  resids : ℕ := 0
+  residsOk : Bool := true
   /-- The proof-of-work checks the certificate names, and their tests. -/
   pows : ℕ := 0
   powTests : ℕ := 0
@@ -852,6 +857,146 @@ def whirOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (s : State
       return some { claim0 := cur, rounds, test := u, final, transcript := k }
   return none
 
+/-- The table sumcheck's residual certificate (`ResidCert`), its terms read back from the residual's
+`mul_add(weight, summand, residual)`s: each weight through its rounds to a `one`, each summand through its table's
+identities and its forms' `mul_add(ξ, pull, push)` to its push and pull forms, each form forward from its constant (the
+first of its calls after the rounds) over the table's columns and then its products. -/
+def residOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (os : Array (List ℕ)) (scIdx : ℕ)
+    (sc : SumcheckCert) (xi : ℕ) : Option ResidCert := Id.run do
+  let n := sc.rounds.length
+  let r := sc.rounds.map (·.chal)
+  let callAt := fun (j : ℕ) => rp.calls.getD j .zero
+  let out := fun (j : ℕ) => o os j
+  -- The calls whose first output is `w`.
+  let makers := fun (w : ℕ) => ((idx.getD w #[]).filterMap fun (j, p) => if p == 0 then some j else none).toList
+  let some lastChal := r.getLast? | return none
+  let start := rp.maker.getD lastChal 0
+  -- Weights, back through the rounds.
+  let mut sAt : Array ℕ := Array.replicate n 0
+  let mut zeta : Array ℕ := Array.replicate n 0
+  let mut wts : List (ℕ × ℕ × List ℕ) := []
+  for (w, _, _) in sc.resid do
+    let mut cur := w
+    let mut wAt : List ℕ := []
+    let mut tau := 0
+    for jj in (List.range n).reverse do
+      let rj := r.getD jj 0
+      let found := (makers cur).findSome? fun j => match callAt j with
+        | .mulAdd a b d => if a != d then none else match callAt (rp.maker.getD b 0) with
+          | .add z x => if x == rj then some (j, a, some (rp.maker.getD b 0, z)) else none
+          | _ => none
+        | .mul a b => if b == rj then some (j, a, none) else none
+        | _ => none
+      let some (j, a, act) := found | return none
+      wAt := j :: wAt
+      cur := a
+      if let some (sj, z) := act then
+        tau := tau + 1
+        sAt := sAt.set! jj sj
+        zeta := zeta.set! (n - 1 - jj) z
+    let some oneAt := (makers cur).find? fun j => callAt j == .one | return none
+    wts := wts ++ [(tau, oneAt, wAt)]
+  -- The powers of `ξ`: a `one`, then `mul(p, ξ)`.
+  let mut byMul : Std.HashMap ℕ ℕ := {}
+  for j in [rp.maker.getD xi 0:rp.calls.size] do
+    if let .mul a b := callAt j then
+      if b == xi && !byMul.contains a then byMul := byMul.insert a j
+  let some (_, one0, _) := wts.head? | return none
+  let mut pows : Array ℕ := #[one0]
+  for _ in [0:AirLink.allIds.length + 1] do
+    let some j := byMul.get? (out pows.back!) | return none
+    pows := pows.push j
+  -- A form forward from its constant `c` over `nc` columns from call `from`: its terms, its columns, its output and
+  -- the call after its last.
+  let formFrom := fun (c nc pos0 : ℕ) => Id.run do
+    let mut cur := c
+    let mut pos := pos0
+    let mut lin : List (ℕ × ℕ × ℕ) := []
+    let mut cols : List ℕ := []
+    for i in [0:nc] do
+      let some j := ((List.range (rp.calls.size - pos)).findSome? fun d => match callAt (pos + d) with
+        | .mulAdd _ _ acc => if acc == cur then some (pos + d) else none
+        | _ => none) | return none
+      let .mulAdd a v _ := callAt j | return none
+      lin := lin ++ [(i, a, j)]
+      cols := cols ++ [v]
+      cur := out j
+      pos := j + 1
+    let mut prods : List (ℕ × ℕ × ℕ × ℕ × ℕ) := []
+    for _ in [0:4096] do
+      let some j := ((List.range (rp.calls.size - pos)).find? fun d => match callAt (pos + d) with
+        | .mulAdd .. => true
+        | _ => false) | break
+      let .mulAdd a p acc := callAt (pos + j) | break
+      if acc != cur then break
+      let m := rp.maker.getD p 0
+      let .mul x y := callAt m | break
+      if m < start then break
+      let some ia := cols.idxOf? x | break
+      let some ib := cols.idxOf? y | break
+      prods := prods ++ [(ia, ib, a, m, pos + j)]
+      cur := out (pos + j)
+      pos := pos + j + 1
+    return some (({ const := c, lin, prods } : FormCert), cols, cur, pos)
+  -- The constant a form's wire `w` reaches back through its calls after the rounds.
+  let constOf := fun (w : ℕ) => Id.run do
+    let mut cur := w
+    for _ in [0:4096] do
+      let step := (makers cur).findSome? fun j => if j ≤ start then none else match callAt j with
+        | .mulAdd _ _ acc => if acc != cur then some acc else none
+        | _ => none
+      match step with
+      | some acc => cur := acc
+      | none => break
+    return cur
+  let mut terms : List TermCert := []
+  for k in [0:5] do
+    let (_, s, _) := sc.resid.getD k default
+    let T := ownedList.getD k .emul
+    let (tau, oneAt, wAt) := wts.getD k default
+    -- The identities, back from the summand.
+    let mut cur := s
+    let mut back : List (ℕ × ℕ × ℕ) := []
+    for g in (idsOf T).reverse do
+      let p := out (pows.getD (2 + g) 0)
+      let some (j, v, acc) := ((makers cur).findSome? fun j => match callAt j with
+        | .mulAdd a v acc => if a == p then some (j, v, acc) else none
+        | _ => none) | return none
+      back := (g, v, j) :: back
+      cur := acc
+    let formsOut := cur
+    let some formsAt := ((makers formsOut).find? fun j => match callAt j with
+      | .mulAdd a _ _ => a == xi
+      | _ => false) | return none
+    let .mulAdd _ pullW pushW := callAt formsAt | return none
+    let some (push, cols, pushO, pos) := formFrom (constOf pushW) (nCols T) (start + 1) | return none
+    let some (pull, cols', pullO, _) := formFrom (constOf pullW) (nCols T) pos | return none
+    if cols != cols' || pushO != pushW || pullO != pullW then return none
+    -- Each identity's calls, back from its value.
+    let mut ids : List IdCert := []
+    for (g, v, accAt) in back do
+      let id := idAt g
+      let mut here := v
+      let mut prodCalls : List (ℕ × ℕ) := []
+      for (a, b, w) in id.prods.reverse do
+        let some (mj, j, acc) := ((makers here).findSome? fun j => match callAt j with
+          | .mulConstAdd m w' 0 0 acc => if w' != w then none else
+            ((makers m).find? fun mj => callAt mj == .mul (cols.getD a 0) (cols.getD b 0)).map (·, j, acc)
+          | _ => none) | return none
+        prodCalls := (mj, j) :: prodCalls
+        here := acc
+      let mut linCalls : List ℕ := []
+      for (c, w) in id.linear.reverse do
+        let some (j, acc) := ((makers here).findSome? fun j => match callAt j with
+          | .mulConstAdd x w' 0 0 acc => if x == cols.getD c 0 && w' == w then some (j, acc) else none
+          | _ => none) | return none
+        linCalls := j :: linCalls
+        here := acc
+      let some st := (makers here).find? fun j => callAt j == .eConst 0 0 0 | return none
+      ids := ids ++ [{ g, start := st, lin := linCalls, prods := prodCalls, accAt }]
+    terms := terms ++ [{ tau, oneAt, wAt, cols, push, pull, formsAt, ids }]
+  return some { sc := scIdx, xi, zeta := zeta.toList, sAt := sAt.toList, pows := pows.toList, terms }
+
 /-- A claim split a test closes (`design::program_claims`): one side a chain of `mul_add(c, h^(2^e), acc)` from a
 `zero`, the other the claim's value. -/
 def splitOf (rp : Replay) (idx : Std.HashMap ℕ (Array (ℕ × ℕ))) (u a b : ℕ) : Option SplitCert := Id.run do
@@ -1116,6 +1261,9 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let gkrs := found.filterMap fun (tc, g) => g.map (tc, ·)
   let gkrsOk := gkrs.all fun (tc, g) => g.ok tc cert os && g.layersOk cert s os
   let gkrLayers := gkrs.foldl (fun n (_, g) => n + g.layers.length) 0
+  -- Each table sumcheck's residual, term by term.
+  let resids := tables.filterMap fun tc => sumchecks[tc.sc]?.bind fun sc => residOf rp idxO os tc.sc sc tc.xi
+  let residsOk := resids.all (·.okIn os sumchecks cert.calls cert.relax)
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false
   for bd in binds do
@@ -1168,6 +1316,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     late, deferred,
     exposed, exposedUnbound, probes, sumchecks := sumchecks.size, tables := tables.length, tablesOk,
     gkrs := gkrs.length, gkrLayers, gkrsOk,
+    resids := resids.length, residsOk,
     rounds := sumchecks.foldl (fun n sc => n + sc.rounds.length) 0,
     residuals := (sumchecks.filter (!·.resid.isEmpty)).size,
     hints := sumchecks.toList.flatMap (·.hints),
