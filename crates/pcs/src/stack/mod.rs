@@ -512,8 +512,10 @@ impl<E: Copy, V: OpeningVerifier<E = E>> WeightAt<V> for WeightedAt<'_, E> {
         let eq = v.eq_table(&x[..self.vars]);
         let zero = v.zero();
         let mut low = zero;
-        for i in 0..eq.len().min(self.weight.len()) {
+        let mut i = 0;
+        while i < eq.len().min(self.weight.len()) {
             low = v.mul_add(eq[i], self.weight[i], low);
+            i += 1;
         }
         let high = v.eq_bits(0, &x[self.vars..]);
         v.mul(low, high)
@@ -1539,7 +1541,7 @@ mod tests {
         let plain = Config::for_rate(log_n, 1).unwrap();
         let empty = ProverState::new(&SessionId::new(DOMAIN), &0u64).into_proof();
         let mut vs = VerifierState::new(&SessionId::new(DOMAIN), &0u64, &empty);
-        let refused = StackCommitment::receive(&mut vs, log_n, 8, hiding.clone());
+        let refused = StackCommitment::receive(&mut vs, log_n, 8, hiding);
         assert!(matches!(refused, Err(WhirError::Anchoring)));
         assert!(matches!(
             StackCommitment::<F192, Hash, F64>::hiding([0; 32], log_n, 8, plain.clone()),
