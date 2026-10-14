@@ -1692,8 +1692,9 @@ end Last
 
 /-- The source configuration is the model's: the lane fold then the level folds, the rates,
 query counts and out-of-domain counts per level, at most 32 grinding bits per level, a
-witness of fewer than 64 variables, and level folds below 62 (the source's guard on a
-row of three words per element). -/
+witness of fewer than 64 variables, level folds below 62 (the source's guard on a row of three
+words per element), and no zero-knowledge padding of the lanes (the model has no padding, so
+`verify` never takes its reveal branch). -/
 structure ConfigRel (config : whir.config.Config) (c : Protocol.Config) (log_n : Usize) : Prop where
   logN : c.logN = log_n.val
   folds : c.folds.toList = (config.initial_k :: config.level_ks.val).map (·.val)
@@ -1704,6 +1705,7 @@ structure ConfigRel (config : whir.config.Config) (c : Protocol.Config) (log_n :
   grinding : ∀ g ∈ config.grinding_bits.val, g.val ≤ U32.max
   log64 : log_n.val < 64
   ks : ∀ k ∈ config.level_ks.val, k.val < 62
+  padding : config.padding.val = 0
 
 theorem arr_get (a : Array Nat) (l : List Nat) (h : a.toList = l) (j : Nat) : a[j]! = l[j]! := by
   cases a; simp_all

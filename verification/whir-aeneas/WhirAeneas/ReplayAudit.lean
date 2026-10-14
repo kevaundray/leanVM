@@ -7,7 +7,7 @@ import Lean.Util.CollectAxioms
 audits because the generated namespaces declare the same top-level instance names. -/
 
 #print axioms ReplaySource.whir.verify.verify
-#print axioms ReplaySource.whir.sample_queries_ordered
+#print axioms ReplaySource.whir.query.sample_queries
 #print axioms ReplaySource.ring_switch.RingMap.close
 #print axioms WhirAeneas.Fold.quad_eval
 #print axioms WhirAeneas.Fold.quad_fold
@@ -32,12 +32,15 @@ audits because the generated namespaces declare the same top-level instance name
 #print axioms WhirAeneas.Query.finish_query_eq
 #print axioms WhirAeneas.Replay.mid_level_eq
 #print axioms WhirAeneas.Replay.last_iter_eq
-#print axioms WhirAeneas.Replay.run_loop_eq
-#print axioms WhirAeneas.Replay.run_eq
+#print axioms WhirAeneas.Replay.verify_loop3_eq
+#print axioms WhirAeneas.Replay.verify_loop4_eq
+#print axioms WhirAeneas.Replay.lane_fold_eq
+#print axioms WhirAeneas.Replay.replay_eq
 #print axioms WhirAeneas.Replay.verify_eq
 #print axioms WhirAeneas.Replay.read_eq
-#print axioms ReplaySource.fiat_shamir.arith.RoundPolynomialVec.read
-#print axioms WhirAeneas.Sampling.sample_queries_ordered_eq
+#print axioms ReplaySource.fiat_shamir.arith.Verifier.read_round.default
+#print axioms ReplaySource.whir.sumcheck.RoundQuad.read
+#print axioms WhirAeneas.Sampling.sample_queries_eq
 
 open Lean in
 run_cmd do
