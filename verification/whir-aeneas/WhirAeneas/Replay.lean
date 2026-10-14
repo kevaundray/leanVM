@@ -69,7 +69,7 @@ PR 607: a verifier message (`sample`, `sampleVec`, the batch challenge, the quer
 drawn from the BLAKE2s duplex and takes no proof bytes; a prover message is read off the NARG
 string and absorbed (`scalar`, `scalars`: 24 bytes per element, three little-endian limbs
 lowest first; `root`: the raw 32-byte digest); a round polynomial is two prover messages, its
-constant and quadratic coefficients, from which the generated `RoundPolynomial::read` fixes the
+constant and quadratic coefficients, from which the default `Verifier::read_round` fixes the
 linear one; `grind bits` is the proof-of-work check of `bits` bits (a 32-byte challenge drawn,
 then an 8-byte little-endian nonce read and absorbed; zero bits is no step); `queries depth qs`
 are positions of `depth` bits; `rows` is one length-prefixed hint, not absorbed, authenticated

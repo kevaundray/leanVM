@@ -46,10 +46,9 @@ structure Duplex (out : List DOp → Nat → List U8)
     (R : fiat_shamir.duplex.Blake2sDuplex → List DOp → Prop) : Prop where
   out_length : ∀ h n, (out h n).length = n
   absorb : ∀ s h (b : Slice U8), R s h →
-    ∃ s', fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.absorb s b = .ok s' ∧
-      R s' (h ++ [.absorb b.val])
+    ∃ s', fiat_shamir.duplex.Blake2sDuplex.absorb s b = .ok s' ∧ R s' (h ++ [.absorb b.val])
   squeeze : ∀ s h (o : Slice U8), R s h → runOf h + o.val.length ≤ maxSqueeze →
-    ∃ s' o', fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge.squeeze s o = .ok (s', o') ∧
+    ∃ s' o', fiat_shamir.duplex.Blake2sDuplex.squeeze s o = .ok (s', o') ∧
       o'.val = out h o.val.length ∧ R s' (h ++ [.squeeze o.val.length])
 
 /-- The content contract of the opaque one-block hash: `H` of the input bytes (BLAKE2s-256). -/
@@ -147,9 +146,9 @@ theorem chunks_24 (l : List U8) (hl : l.length = 24) :
     chunks_nil _ _ (by simp; omega)]
   simp [List.drop_drop]
 
-theorem limbs_eq (bytes : Aeneas.Std.Array U8 24#usize) :
-    ∃ a, fiat_shamir.codec.limbs bytes = .ok a ∧
-      a.val = [u64Of bytes.val, u64Of (bytes.val.drop 8), u64Of (bytes.val.drop 16)] := by
+/-- `F192::from_le_bytes`: three little-endian limbs, lowest first. -/
+theorem from_le_bytes_eq (bytes : Aeneas.Std.Array U8 24#usize) :
+    primitives.field.gf2_64x3.F192.from_le_bytes bytes = .ok (f192Of bytes.val) := by
   have hl : bytes.val.length = 24 := by simp
   have hc := chunks_24 bytes.val hl
   obtain ⟨A0, A1, A2, hcs⟩ : ∃ A0 A1 A2, core.slice.Slice.as_chunks.chunks 8#usize bytes.val = [A0, A1, A2] := by
@@ -160,15 +159,13 @@ theorem limbs_eq (bytes : Aeneas.Std.Array U8 24#usize) :
   rw [hcs] at hc
   simp only [List.map_cons, List.map_nil, List.cons.injEq] at hc
   obtain ⟨h0, h1, h2, -⟩ := hc
-  refine ⟨Aeneas.Std.Array.make 3#usize [core.num.U64.from_le_bytes A0, core.num.U64.from_le_bytes A1,
-    core.num.U64.from_le_bytes A2] (by simp), ?_, ?_⟩
-  · have hs : (Aeneas.Std.Array.to_slice bytes).val = bytes.val := by simp [Aeneas.Std.Array.to_slice]
-    have h3 : (3 : Nat) ≤ Usize.max := by scalar_tac
-    simp [fiat_shamir.codec.limbs, core.slice.Slice.as_chunks, hs, hcs, lift, core.array.from_fn,
-      core.array.from_fn.calls, fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64,
-      fiat_shamir.codec.limbs.closure.Insts.CoreOpsFunctionFnMutTupleUsizeU64.call_mut, Slice.index_usize,
-      List.range_succ, h3, Slice.from_val, usize_ofNat_val]
-  · simp only [Aeneas.Std.Array.make_val, u64Of_eq, h0, h1, h2, u64Of_take]
+  have hs : (Aeneas.Std.Array.to_slice bytes).val = bytes.val := by simp [Aeneas.Std.Array.to_slice]
+  have h3 : (3 : Nat) ≤ Usize.max := by scalar_tac
+  have e0 : core.num.U64.from_le_bytes A0 = u64Of bytes.val := by rw [u64Of_eq, h0, u64Of_take]
+  have e1 : core.num.U64.from_le_bytes A1 = u64Of (bytes.val.drop 8) := by rw [u64Of_eq, h1, u64Of_take]
+  have e2 : core.num.U64.from_le_bytes A2 = u64Of (bytes.val.drop 16) := by rw [u64Of_eq, h2, u64Of_take]
+  simp [primitives.field.gf2_64x3.F192.from_le_bytes, core.slice.Slice.as_chunks, hs, hcs, lift, h3,
+    Slice.index_usize, Slice.from_val, e0, e1, e2, primitives.field.gf2_64x3.F192.new, f192Of]
 
 theorem f192Of_take (l : List U8) : f192Of (l.take 24) = f192Of l := by
   have e1 : u64Of ((l.take 24).drop 8) = u64Of (l.drop 8) := by
@@ -182,21 +179,20 @@ theorem f192Of_take (l : List U8) : f192Of (l.take 24) = f192Of l := by
 theorem from_uniform_eq (repr : Aeneas.Std.Array U8 24#usize) :
     primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform repr =
       .ok (f192Of repr.val) := by
-  obtain ⟨a, ha, ea⟩ := limbs_eq repr
-  simp [primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform, ha,
-    Aeneas.Std.Array.index_usize, ea, primitives.field.gf2_64x3.F192.new, f192Of]
+  simp [primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromUniformArrayU824.from_uniform,
+    from_le_bytes_eq]
 
 theorem from_narg_f192 (narg : Slice U8) (h : 24 ≤ narg.val.length) :
     ∃ rest, primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824.from_narg narg =
       .ok (some (f192Of narg.val), rest) ∧ rest.val = narg.val.drop 24 := by
   obtain ⟨a, rest, ht, ea, er⟩ := take_some 24#usize narg (by simpa using h)
-  obtain ⟨b, hb, eb⟩ := limbs_eq a
   refine ⟨rest, ?_, by simpa using er⟩
   have hf : f192Of a.val = f192Of narg.val := by rw [ea]; simpa using f192Of_take narg.val
   rw [← hf]
-  simp [primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824.from_narg, ht, hb,
-    core.option.Option.Insts.CoreOpsTry_traitTry.branch, Aeneas.Std.Array.index_usize, eb,
-    primitives.field.gf2_64x3.F192.new, f192Of]
+  simp [primitives.field.gf2_64x3.F192.Insts.Fiat_shamirCodecFromNargArrayU824.from_narg, ht, core.option.Option.map,
+    fiat_shamir.codec.FromNargF192ArrayU824.from_narg.closure.Insts.CoreOpsFunctionFnOnceTupleShared0ArrayU824F192,
+    fiat_shamir.codec.FromNargF192ArrayU824.from_narg.closure.Insts.CoreOpsFunctionFnOnceTupleShared0ArrayU824F192.call_once,
+    from_le_bytes_eq]
 
 theorem from_narg_digest (narg : Slice U8) (h : 32 ≤ narg.val.length) :
     ∃ (a : Aeneas.Std.Array U8 32#usize) (rest : Slice U8), ArrayU8N.Insts.Fiat_shamirCodecFromNargArrayU8N.from_narg 32#usize narg =
@@ -225,9 +221,6 @@ theorem index_to (s : Slice U8) (e : Usize) (he : e.val ≤ s.val.length) :
 
 /-! ## Reads of the generated `VerifierState` -/
 
-/-- The duplex instance the native state runs over. -/
-abbrev SpI := fiat_shamir.duplex.Blake2sDuplex.Insts.Fiat_shamirDuplexDuplexSponge
-
 section State
 variable {out : List DOp → Nat → List U8} {R : fiat_shamir.duplex.Blake2sDuplex → List DOp → Prop}
 
@@ -237,7 +230,7 @@ theorem prover_message_ok (hD : Duplex out R) {T B : Type} (inst : fiat_shamir.c
     (hp : v.poison = none) (x : T) (cursor : Slice U8) (k : Nat) (hk : k ≤ v.narg.val.length)
     (hfrom : inst.from_narg v.narg = .ok (some x, cursor)) (hc : cursor.val = v.narg.val.drop k)
     (h : List DOp) (hR : R v.sponge h) :
-    ∃ v', fiat_shamir.verifier.VerifierState.prover_message SpI inst v = .ok (.Ok x, v') ∧
+    ∃ v', fiat_shamir.verifier.VerifierState.prover_message inst v = .ok (.Ok x, v') ∧
       v'.poison = none ∧ v'.narg.val = v.narg.val.drop k ∧ v'.hints = v.hints ∧
       R v'.sponge (h ++ [.absorb (v.narg.val.take k)]) := by
   have hsub : (Std.Usize.wrapping_sub (Slice.len v.narg) (Slice.len cursor)).val = k := by
@@ -253,7 +246,7 @@ theorem prover_message_ok (hD : Duplex out R) {T B : Type} (inst : fiat_shamir.c
     ?_, hp, hc, rfl, by simpa using hR'⟩
   simp [fiat_shamir.verifier.VerifierState.prover_message, hp, hfrom,
     core.option.Option.ok_or, fiat_shamir.verifier.VerifierState.guard,
-    core.result.Result.Insts.CoreOpsTry.branch, lift, hidx, SpI, habs]
+    core.result.Result.Insts.CoreOpsTry.branch, lift, hidx, habs]
 
 /-- A verifier message drawn as `n` squeezed bytes, within the run budget. -/
 theorem verifier_message_ok (hD : Duplex out R) {T : Type} (n : Usize) (inst : fiat_shamir.codec.FromUniform T
@@ -261,7 +254,7 @@ theorem verifier_message_ok (hD : Duplex out R) {T : Type} (n : Usize) (inst : f
     (has : inst.coreconvertAsMutSelf_ReprSliceU8Inst = Aeneas.Std.Array.Insts.CoreConvertAsMutSlice U8 n)
     (v : VS) (h : List DOp) (hR : R v.sponge h) (hb : runOf h + n.val ≤ maxSqueeze)
     (y : T) (hy : ∀ a : Aeneas.Std.Array U8 n, a.val = out h n.val → inst.from_uniform a = .ok y) :
-    ∃ v', fiat_shamir.verifier.VerifierState.verifier_message SpI inst v = .ok (y, v') ∧
+    ∃ v', fiat_shamir.verifier.VerifierState.verifier_message inst v = .ok (y, v') ∧
       v'.poison = v.poison ∧ v'.narg = v.narg ∧ v'.hints = v.hints ∧ R v'.sponge (h ++ [.squeeze n.val]) := by
   have hz : (List.replicate n.val (0#u8 : U8)).length ≤ Usize.max := by simp; scalar_tac
   obtain ⟨s', o', hsq, ho, hR'⟩ := hD.squeeze v.sponge h (Slice.from (List.replicate n.val 0#u8) hz) hR
@@ -275,14 +268,15 @@ theorem verifier_message_ok (hD : Duplex out R) {T : Type} (n : Usize) (inst : f
       Slice.from (List.replicate n.val 0#u8) hz := by apply Slice.ext; simp
   have hfu := hy _ hback
   have hd0 : (core.default.DefaultU8.default : U8) = 0#u8 := rfl
-  simp only [fiat_shamir.verifier.VerifierState.verifier_message, hdef, has, core.default.DefaultArray,
+  simp only [fiat_shamir.verifier.VerifierState.verifier_message, fiat_shamir.duplex.Blake2sDuplex.draw, hdef, has,
+    core.default.DefaultArray,
     core.default.DefaultArray.default, Aeneas.Std.Array.Insts.CoreConvertAsMutSlice,
     Aeneas.Std.Array.Insts.CoreConvertAsMutSlice.as_mut, Std.bind_ok, hd0]
   simp [hrep, hsq, hfu]
 
 /-- The generated opening verifier for the native state. -/
 abbrev nativeInst :=
-  fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192
+  fiat_shamir.verifier.VerifierState.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192
 
 /-- The arithmetic verifier of the native state. -/
 abbrev nativeV := nativeInst.fiat_shamirarithVerifierInst
@@ -334,7 +328,7 @@ theorem prover_messages_loop (hD : Duplex out R) (n : Usize) :
     intro i v acc h hm hi hacc hp hR hn
     have hlt : i < n := by simp [UScalar.lt_equiv]; omega
     obtain ⟨v1, h1, p1, n1, s1, r1⟩ := scalar_ok hD v hp h hR (by omega)
-    have h1' : fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.prover_message SpI v =
+    have h1' : fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.prover_message v =
         .ok (.Ok (f192Of v.narg.val), v1) := h1
     obtain ⟨acc1, hpush, eacc1⟩ := Query.push_ok acc (f192Of v.narg.val) (by
       have := n.hBounds; simp [Usize.max] at *; scalar_tac)
@@ -375,7 +369,7 @@ theorem verifier_messages_loop (hD : Duplex out R) (n : Usize) :
     intro i v acc h hm hi hacc hR hb
     have hlt : i < n := by simp [UScalar.lt_equiv]; omega
     obtain ⟨v1, h1, p1, n1, s1, r1⟩ := sample_ok hD v h hR (by omega)
-    have h1' : fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.verifier_message SpI v =
+    have h1' : fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirArithVerifierF192.verifier_message v =
         .ok (f192Of (out h 24), v1) := h1
     obtain ⟨acc1, hpush, eacc1⟩ := Query.push_ok acc (f192Of (out h 24)) (by
       have := n.hBounds; simp [Usize.max] at *; scalar_tac)
@@ -426,8 +420,8 @@ theorem block_eq (challenge : Aeneas.Std.Array U8 32#usize) (nonce : U64) :
   simp [e1, e2, e3, powBlock, List.take_append, List.drop_append, hc, hn]
   rw [e4, e5]
 
-theorem clears_eq (digest : Aeneas.Std.Array U8 32#usize) (bits : U32) :
-    fiat_shamir.pow.clears digest bits =
+theorem accepts_eq (digest : Aeneas.Std.Array U8 32#usize) (bits : U32) :
+    fiat_shamir.pow.ProofOfWork.accepts { bits := bits } digest =
       .ok (decide (bits.val ≤ (core.num.U64.leading_zeros (u64Of digest.val)).val)) := by
   have hd : digest.val.length = 32 := by simp
   have hs : core.slice.Slice.split_first_chunk 8#usize (Aeneas.Std.Array.to_slice digest) =
@@ -436,7 +430,8 @@ theorem clears_eq (digest : Aeneas.Std.Array U8 32#usize) (bits : U32) :
     simp [core.slice.Slice.split_first_chunk, Aeneas.Std.Array.to_slice, hd]
   have hw : core.num.U64.from_le_bytes (Aeneas.Std.Array.make 8#usize (digest.val.take 8) (by simp)) =
       u64Of digest.val := by rw [u64Of_eq]; simp [u64Of_take]
-  simp [fiat_shamir.pow.clears, lift, hs, core.option.Option.expect, Result.ofOption, hw, UScalar.le_equiv]
+  simp [fiat_shamir.pow.ProofOfWork.accepts, lift, hs, core.option.Option.expect, Result.ofOption, hw,
+    UScalar.le_equiv]
 
 theorem pow_verify_eq {H : List U8 → Merkle.Digest} (hH : PowHash H) (bits : U32)
     (challenge : Aeneas.Std.Array U8 32#usize) (nonce : U64) :
@@ -448,7 +443,7 @@ theorem pow_verify_eq {H : List U8 → Merkle.Digest} (hH : PowHash H) (bits : U
     rw [hH]; congr 2; simpa [Aeneas.Std.Array.to_slice] using eb
   refine ⟨decide (bits.val ≤ (core.num.U64.leading_zeros (u64Of (H (powBlock challenge.val
     (core.num.U64.to_le_bytes nonce).val)).val)).val), ?_, by simp [Works]⟩
-  simp [fiat_shamir.pow.ProofOfWork.verify, fiat_shamir.pow.trial, hb, lift, hh, clears_eq]
+  simp [fiat_shamir.pow.ProofOfWork.verify, fiat_shamir.pow.trial, hb, lift, hh, accepts_eq]
 
 theorem pow_new (bits : U32) (h : bits.val ≤ 63) : fiat_shamir.pow.ProofOfWork.new bits = .ok { bits := bits } := by
   have : bits ≤ fiat_shamir.pow.ProofOfWork.MAX_BITS := by
@@ -525,7 +520,7 @@ def SqueezeRel (out : List DOp → Nat → List U8) (R : fiat_shamir.duplex.Blak
 
 theorem squeeze_tape (hD : Duplex out R) (v0 : VS) (h0 : List DOp) (m : Nat)
     (hb : runOf h0 + 24 * m ≤ maxSqueeze) :
-    Sampling.SqueezeTape (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger SpI)
+    Sampling.SqueezeTape fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger
       (SqueezeRel out R v0 h0 m) := by
   constructor
   intro ch x rest ⟨p, n, s, k, hk, hR, hx⟩
@@ -556,10 +551,9 @@ theorem queries_ok (hw : System.Platform.numBits = 64) (hD : Duplex out R) (v : 
       v'.poison = v.poison ∧ v'.narg = v.narg ∧ v'.hints = v.hints ∧
       R v'.sponge (h ++ sqs ((count.val + 192 / depth.val - 1) / (192 / depth.val))) := by
   set m := (count.val + 192 / depth.val - 1) / (192 / depth.val) with hm
-  obtain ⟨qs, v', hs, hrel, hq⟩ := Sampling.sample_queries_ordered_eq hw
-    (fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger SpI) (SqueezeRel out R v h m)
-    (squeeze_tape hD v h m hb) v (Std.Usize.wrapping_shl 1#usize depth) count depth.val hd0 hd64
-    (Replay.shl_one_val hw depth hd64) (draws out h m) (by rw [draws_length]) []
+  obtain ⟨qs, v', hs, hrel, hq⟩ := Sampling.sample_queries_eq hw
+    fiat_shamir.verifier.VerifierState.Insts.Fiat_shamirChallenger (SqueezeRel out R v h m)
+    (squeeze_tape hD v h m hb) v depth count hd0 hd64 (draws out h m) (by rw [draws_length]) []
     ⟨rfl, rfl, rfl, 0, by omega, by simpa [sqs] using hR, by simp⟩
   obtain ⟨p, n, s, k, hk, hR', hx⟩ := hrel
   have hkm : k = m := by
@@ -568,8 +562,7 @@ theorem queries_ok (hw : System.Platform.numBits = 64) (hD : Duplex out R) (v : 
   subst hkm
   refine ⟨qs, v', ?_, hq, p, n, s, hR'⟩
   simp only [nativeInst,
-    fiat_shamir.verifier.VerifierState0Blake2sDuplex.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.sample_queries,
-    lift, Std.bind_ok]
+    fiat_shamir.verifier.VerifierState.Insts.PcsVerifierOpeningVerifierArrayU832F64UsizeF192.sample_queries]
   exact hs
 end State
 
@@ -625,7 +618,7 @@ remaining proof answers `evs` after `h`. -/
 def NativeAnswers (out : List DOp → Nat → List U8) (R : fiat_shamir.duplex.Blake2sDuplex → List DOp → Prop)
     (H : List U8 → Merkle.Digest) (leaf : List U64 → Merkle.Digest)
     (node : Merkle.Digest → Merkle.Digest → Merkle.Digest) (v : VS) (evs : List NEvent) : Prop :=
-  v.poison = none ∧ ∃ h, R v.sponge h ∧ Answers out H leaf node h v.narg.val v.hints.val evs
+  v.poison = none ∧ ∃ h, R v.sponge h ∧ Answers out H leaf node h v.narg.val v.hints.rest.val evs
 
 theorem vec_val_inj (a b : List Usize) (h : a.map (·.val) = b.map (·.val)) : a = b := by
   apply List.map_injective_iff.mpr _ h
@@ -688,6 +681,7 @@ theorem native_transcript (hw : System.Platform.numBits = 64) {out : List DOp �
       simp [fiat_shamir.arith.Verifier.prover_messages.default, hl]
     · rw [ew, h2, hy]; simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
     · rw [nn, s, h2]; exact hrest
+  read_round := rfl
   root := by
     intro v r rest ⟨hp, h, hR, hA⟩
     simp only [Answers] at hA
@@ -720,8 +714,8 @@ theorem native_transcript (hw : System.Platform.numBits = 64) {out : List DOp �
     intro v root depth queries a b ws rest ⟨hp, h, hR, hA⟩
     simp only [Answers] at hA
     obtain ⟨L, hint, more, hL, hb, hh, hrest⟩ := hA
-    have hbound := v.hints.property
-    have hlen : v.hints.val.length = 4 + hint.length + more.length := by
+    have hbound := v.hints.rest.property
+    have hlen : v.hints.rest.val.length = 4 + hint.length + more.length := by
       rw [hb]; simp [core.num.U32.to_le_bytes]; omega
     have hword : UScalarTy.Usize.numBits = 64 := by simp only [UScalarTy.numBits]; exact hw
     obtain ⟨rows, hrun, erows⟩ := open_rows_ok hword hRow hPair v hp root depth queries a b L
