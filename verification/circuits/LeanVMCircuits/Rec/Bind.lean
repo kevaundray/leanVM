@@ -1084,7 +1084,13 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     for _ in [0:64] do
       let cur := outs
       let some (i, _, t) := layerCands.find? (fun (_, _, t) => t.values == cur) | break
-      layers := layers.push { sc := i, layer := t }
+      -- The values bound by `λ`'s time with the words squeezed with `λ` but its own as seeds, as a WHIR batch round's.
+      let k := t.transcript
+      let own := t.lam.own os
+      let lamCall := (t.lam.words.map (·.2.2)).foldl max 0
+      let (_, fs) := bind (certs.getD k default).rulesRO cert.nodes (idxRO.getD k #[])
+        ((seedsOfT.getD k #[]).filter fun (tm, n) => tm ≤ lamCall && !own.contains n)
+      layers := layers.push { sc := i, layer := t, fs }
       outs := (List.range 2).map (t.out os)
     let some (j0, f0) := addOf tc.tot0 (outs.getD 0 0) | return none
     let some (j1, f1) := addOf tc.tot1 (outs.getD 1 0) | return none
@@ -1108,7 +1114,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
   let tables := found.map (·.1)
   let tablesOk := tables.all (·.ok cert os)
   let gkrs := found.filterMap fun (tc, g) => g.map (tc, ·)
-  let gkrsOk := gkrs.all fun (tc, g) => g.ok tc cert os
+  let gkrsOk := gkrs.all fun (tc, g) => g.ok tc cert os && g.layersOk cert s os
   let gkrLayers := gkrs.foldl (fun n (_, g) => n + g.layers.length) 0
   let accepted := cert.accepts s
   let mut anyBound : Array Bool := Array.replicate an.nodes false

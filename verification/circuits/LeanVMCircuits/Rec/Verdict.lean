@@ -676,10 +676,12 @@ def TableCert.ok (tc : TableCert) (c : Cert) (os : Array (List ℕ)) : Bool :=
 
 /-- A radix-four GKR layer past the top, run as certified sumcheck `sc` (`gkr::verify_products`): a top layer's calls
 (`layer`, its test unused), the sumcheck's input claim the layer's claim `Σ_t λ^t values_t` and its final side the
-expected `Σ_t λ^t Π_c kids_{t,c}`. -/
+expected `Σ_t λ^t Π_c kids_{t,c}`. `fs` are the firings binding its values by `λ`'s time with the words squeezed with
+`λ` as seeds (`LayerCert.lamOk`). -/
 structure LayerCert where
   sc : ℕ
   layer : TopCert
+  fs : Array ℕ := #[]
   deriving Inhabited, Repr
 
 /-- A layer's link to the one before: its sumcheck closed by no residual, its values the previous layer's next claims
@@ -738,5 +740,30 @@ def GkrCert.okIn (g : GkrCert) (tc : TableCert) (scs : Array SumcheckCert) (tops
 /-- `GkrCert`'s check on a certificate. -/
 def GkrCert.ok (g : GkrCert) (tc : TableCert) (c : Cert) (os : Array (List ℕ)) : Bool :=
   g.okIn tc c.sumchecks c.tops c.odds c.calls c.relax os
+
+/-- A layer's children bound by `low`'s time, in a transcript's times. -/
+def LayerCert.boundOk (times : Array (Option ℕ)) (lc : LayerCert) : Bool :=
+  boundBy times ((List.range lc.layer.m).flatMap fun k => (List.range 4).map (lc.layer.kid k)) lc.layer.low.time
+
+/-- A layer's values bound by `λ`'s time with the words squeezed with `λ` but its own as seeds at that time, by the
+firings `fs` (`Cert.whirBound`'s batch rounds). Its values, the previous layer's next claims, read the previous layer's
+`high`, squeezed from the chaining value `λ` is squeezed from: words independent of `λ`'s own. -/
+def LayerCert.lamOk (c : Cert) (s : State) (os : Array (List ℕ)) (t : Transcript) (lc : LayerCert) : Bool :=
+  boundBy (c.timesX s t ((sibSeeds s t lc.layer.lam.time (lc.layer.lam.own os)).map (lc.layer.lam.time, ·)) lc.fs)
+    lc.layer.values lc.layer.lam.time
+
+/-- A layer's challenges as a top layer's (`Cert.topsOk`, `Cert.chalsOk`): `λ`, `low` and `high` drawn in order from
+its transcript, its values bound by `λ`'s time with the words squeezed with `λ` (`LayerCert.lamOk`) and its children by
+`low`'s, in the random-oracle view. -/
+def LayerCert.chalOk (c : Cert) (s : State) (os : Array (List ℕ)) (lc : LayerCert) : Bool :=
+  let t := (c.marksRO s).getD lc.layer.transcript default
+  lc.layer.transcript < (c.marksRO s).length &&
+    chalsOk s os (c.transcripts.getD lc.layer.transcript default) false [lc.layer.lam, lc.layer.low, lc.layer.high] &&
+    lc.layer.lam.ok s os c.calls t.1.blocks && lc.layer.low.ok s os c.calls t.1.blocks &&
+    lc.layer.high.ok s os c.calls t.1.blocks && lc.boundOk t.2 && lc.lamOk c s os t.1
+
+/-- Every layer of a `GkrCert` draws its challenges as `LayerCert.chalOk` says. -/
+def GkrCert.layersOk (g : GkrCert) (c : Cert) (s : State) (os : Array (List ℕ)) : Bool :=
+  g.layers.all (·.chalOk c s os)
 
 end LeanVMCircuits.Rec.Bind
