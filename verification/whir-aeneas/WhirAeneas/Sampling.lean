@@ -1,7 +1,7 @@
 import WhirAeneas.Replay
 
-/-! The generated `sample_queries_ordered` is the model's `deriveQueries` on the squeezed
-elements it reads, read as 192-bit numbers. -/
+/-! The generated `sample_queries` is the model's `deriveQueries` on the squeezed elements it
+reads, read as 192-bit numbers. -/
 namespace WhirAeneas.Sampling
 open Aeneas Aeneas.Std ReplaySource Whir Whir.Concrete WhirAeneas.Fold WhirAeneas.Replay
 
@@ -72,10 +72,10 @@ theorem rem_ok {ty : UScalarTy} (x y : UScalar ty) (h : y.val ≠ 0) :
 
 /-- One iteration of `push_chunks` pushes chunk `j`: the `d` bits at offset `j * d`. -/
 theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 3#usize) (x0 x1 x2 : U64)
-    (hl : limbs.val = [x0, x1, x2]) (d take block_len : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
-    (hb : block_len.val = 2 ^ d.val) (out : alloc.vec.Vec Usize) (j : Usize) (hj : j.val < take.val)
+    (hl : limbs.val = [x0, x1, x2]) (d take : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
+    (out : alloc.vec.Vec Usize) (j : Usize) (hj : j.val < take.val)
     (hoff : j.val * d.val + d.val ≤ 192) (hcap : out.val.length < Usize.max) :
-    ∃ out', whir.push_chunks_loop.body limbs d take block_len out j =
+    ∃ out', whir.query.push_chunks_loop.body limbs d take out j =
         .ok (.cont (out', Std.Usize.wrapping_add j 1#usize)) ∧
       out'.val.map (·.val) = out.val.map (·.val) ++ [(limbsNat x0 x1 x2 / 2 ^ (j.val * d.val)) % 2 ^ d.val] := by
   have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
@@ -97,8 +97,9 @@ theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 
   have hc : (Std.U64.wrapping_shr L0 sh).val = L0.val / 2 ^ sh.val := shr_val L0 sh (by simp; omega)
   have hsd : (Std.Usize.wrapping_add sh d).val = sh.val + d.val := by
     rw [Std.Usize.wrapping_add_val_eq, UScalar.size_def, hU]; apply Nat.mod_eq_of_lt; omega
-  have hbm : (Std.Usize.wrapping_sub block_len 1#usize).val = 2 ^ d.val - 1 := by
-    rw [Fold.sub_val _ _ (by simp [hb]), hb]; simp
+  have hbm : (Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize d) 1#usize).val = 2 ^ d.val - 1 := by
+    rw [Fold.sub_val _ _ (by rw [Replay.shl_one_val hw d hd]; exact Nat.one_le_two_pow),
+      Replay.shl_one_val hw d hd]; simp
   have hcast : ∀ x : U64, (UScalar.cast .Usize x).val = x.val := by
     intro x; rw [UScalar.cast_val_eq, hU]; exact Nat.mod_eq_of_lt (by have := x.hBounds; simpa using this)
   have b0 := x0.hBounds; have b1 := x1.hBounds
@@ -121,7 +122,8 @@ theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 
     rw [hoffs, Nat.pow_add, ← Nat.div_div_eq_div_mul, hNL]
   have hcore := chunk_core L0.val L1 L2 sh.val d.val L0.hBounds hsh64 (by omega)
   rw [← hN] at hcore
-  have hmask : ∀ x : Usize, (x &&& Std.Usize.wrapping_sub block_len 1#usize).val = x.val % 2 ^ d.val := by
+  have hmask : ∀ x : Usize, (x &&& Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize d) 1#usize).val =
+      x.val % 2 ^ d.val := by
     intro x; rw [UScalar.val_and, hbm, Nat.and_two_pow_sub_one_eq_mod]
   by_cases hx : 64 < sh.val + d.val
   · obtain ⟨hl1, eL1⟩ := hcross hx
@@ -138,7 +140,7 @@ theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 
       simp [h64s]
     obtain ⟨v, hv⟩ : ∃ v, (UScalar.cast .Usize (Std.U64.wrapping_shr L0 sh |||
         Std.U64.wrapping_shl L1v (Std.Usize.wrapping_sub 64#usize sh)) &&&
-        Std.Usize.wrapping_sub block_len 1#usize) = v := ⟨_, rfl⟩
+        Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize d) 1#usize) = v := ⟨_, rfl⟩
     have ev : v.val = (limbsNat x0 x1 x2 / 2 ^ (j.val * d.val)) % 2 ^ d.val := by
       rw [← hv, hmask, hcast, UScalar.val_or, hc, hshl, ← eL1, ← hcore, if_pos hx]
     obtain ⟨out', hpush, eout⟩ := Query.push_ok out v hcap
@@ -146,26 +148,26 @@ theorem push_chunks_body (hw : System.Platform.numBits = 64) (limbs : Array U64 
     have hgt : Std.Usize.wrapping_add sh d > 64#usize := by simp only [gt_iff_lt, UScalar.lt_equiv, hsd]; simpa using hx
     have hidx1 := hidx (Std.Usize.wrapping_add li 1#usize) (by rw [hli1]; exact hl1)
     simp only [hli1] at hidx1
-    simp only [whir.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
+    simp only [whir.query.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
       hidx1, ← hL0, ← hL1v, hv, hpush]
   · obtain ⟨v, hv⟩ : ∃ v, (UScalar.cast .Usize (Std.U64.wrapping_shr L0 sh) &&&
-        Std.Usize.wrapping_sub block_len 1#usize) = v := ⟨_, rfl⟩
+        Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize d) 1#usize) = v := ⟨_, rfl⟩
     have ev : v.val = (limbsNat x0 x1 x2 / 2 ^ (j.val * d.val)) % 2 ^ d.val := by
       rw [← hv, hmask, hcast, hc, ← hcore, if_neg hx]
     obtain ⟨out', hpush, eout⟩ := Query.push_ok out v hcap
     refine ⟨out', ?_, by rw [eout]; simp [ev]⟩
     have hgt : ¬ (Std.Usize.wrapping_add sh d > 64#usize) := by
       simp only [gt_iff_lt, UScalar.lt_equiv, hsd]; simpa using hx
-    simp only [whir.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
+    simp only [whir.query.push_chunks_loop.body, hjt, ↓reduceIte, lift, Std.bind_ok, hli, hsh, hidx li hli3, hgt,
       ← hL0, hv, hpush]
 
 /-- `push_chunks` pushes the first `take` chunks of the limbs' number, in order. -/
 theorem push_chunks_eq (hw : System.Platform.numBits = 64) (limbs : Array U64 3#usize) (x0 x1 x2 : U64)
-    (hl : limbs.val = [x0, x1, x2]) (d take block_len : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
-    (hb : block_len.val = 2 ^ d.val) (htake : take.val * d.val ≤ 192) :
+    (hl : limbs.val = [x0, x1, x2]) (d take : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
+    (htake : take.val * d.val ≤ 192) :
     ∀ (m : Nat) (j : Usize) (out : alloc.vec.Vec Usize), take.val - j.val = m → j.val ≤ take.val →
       out.val.length + (take.val - j.val) ≤ Usize.max →
-      ∃ out', whir.push_chunks_loop out limbs d take block_len j = .ok out' ∧
+      ∃ out', whir.query.push_chunks_loop out limbs d take j = .ok out' ∧
         out'.val.map (·.val) = out.val.map (·.val) ++
           (List.range' j.val (take.val - j.val)).map fun k => (limbsNat x0 x1 x2 / 2 ^ (k * d.val)) % 2 ^ d.val := by
   intro m
@@ -173,14 +175,14 @@ theorem push_chunks_eq (hw : System.Platform.numBits = 64) (limbs : Array U64 3#
   | zero =>
     intro j out hm hj hcap
     refine ⟨out, ?_, by rw [show take.val - j.val = 0 by omega]; simp⟩
-    unfold whir.push_chunks_loop
+    unfold whir.query.push_chunks_loop
     apply loop_done
     have : ¬ (j < take) := by simp only [UScalar.lt_equiv]; omega
-    simp [whir.push_chunks_loop.body, this]
+    simp [whir.query.push_chunks_loop.body, this]
   | succ m ih =>
     intro j out hm hj hcap
     have hjt : j.val < take.val := by omega
-    obtain ⟨out1, hbody, e1⟩ := push_chunks_body hw limbs x0 x1 x2 hl d take block_len hd0 hd hb out j hjt
+    obtain ⟨out1, hbody, e1⟩ := push_chunks_body hw limbs x0 x1 x2 hl d take hd0 hd out j hjt
       (by have : (j.val + 1) * d.val ≤ take.val * d.val := Nat.mul_le_mul_right _ hjt; rw [Nat.add_mul] at this; omega)
       (by omega)
     have hsucc := succ_val j take.val hjt (by have := take.hBounds; scalar_tac)
@@ -188,9 +190,9 @@ theorem push_chunks_eq (hw : System.Platform.numBits = 64) (limbs : Array U64 3#
     obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_add j 1#usize) out1 (by omega) (by omega)
       (by rw [hl1, hsucc]; omega)
     refine ⟨out', ?_, ?_⟩
-    · unfold whir.push_chunks_loop
+    · unfold whir.query.push_chunks_loop
       rw [loop_cont hbody]
-      unfold whir.push_chunks_loop at hloop
+      unfold whir.query.push_chunks_loop at hloop
       exact hloop
     · rw [e', e1, hsucc, show take.val - j.val = (take.val - (j.val + 1)) + 1 by omega, List.range'_succ]
       simp
@@ -223,13 +225,13 @@ def rawAt (ns : List Nat) (d per i : Nat) : Nat :=
 
 theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fiat_shamir.Challenger T0)
     (tape : T0 → List primitives.field.gf2_64x3.F192 → Prop) (ht : SqueezeTape Ch tape)
-    (block_len count d per : Usize) (hd0 : 0 < d.val) (hd : d.val < 64) (hb : block_len.val = 2 ^ d.val)
+    (count d per : Usize) (hd0 : 0 < d.val) (hd : d.val < 64)
     (hper : per.val = 192 / d.val) (sq : List primitives.field.gf2_64x3.F192)
     (hsq : sq.length = (count.val + per.val - 1) / per.val) (rest : List primitives.field.gf2_64x3.F192) :
     ∀ (m k : Nat) (ch : T0) (out : alloc.vec.Vec Usize), sq.length - k = m → k ≤ sq.length →
       tape ch (sq.drop k ++ rest) → out.val.length = min (k * per.val) count.val →
       out.val.map (·.val) = (List.range out.val.length).map (rawAt (sq.map sqNat) d.val per.val) →
-      ∃ ch' out', whir.sample_queries_ordered_loop0 Ch ch block_len count d per out = .ok (ch', out') ∧
+      ∃ ch' out', whir.query.sample_queries_loop0 Ch ch d count per out = .ok (ch', out') ∧
         tape ch' rest ∧ out'.val.map (·.val) = (List.range count.val).map (rawAt (sq.map sqNat) d.val per.val) := by
   have hp0 : 0 < per.val := by rw [hper]; exact Nat.div_pos (by omega) hd0
   have hpd : per.val * d.val ≤ 192 := by rw [hper]; exact Nat.div_mul_le_self 192 d.val
@@ -244,11 +246,11 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
     have hge : count.val ≤ k * per.val := by have := (hceil k).not.mp (by omega); omega
     have hlc : out.val.length = count.val := by rw [hlen]; omega
     refine ⟨ch, out, ?_, by rw [hk', List.drop_length] at hch; exact hch, by rw [hout, hlc]⟩
-    unfold whir.sample_queries_ordered_loop0
+    unfold whir.query.sample_queries_loop0
     apply loop_done
     have : ¬ (alloc.vec.Vec.len out < count) := by
       rw [UScalar.lt_equiv, alloc.vec.Vec.len_val]; simp only [alloc.vec.Vec.length]; omega
-    simp [whir.sample_queries_ordered_loop0.body, this]
+    simp [whir.query.sample_queries_loop0.body, this]
   | succ m ih =>
     intro k ch out hm hk hch hlen hout
     have hkl : k < sq.length := by omega
@@ -265,14 +267,14 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
         take.val = min per.val (count.val - k * per.val) := ⟨_, rfl, by simp [core.cmp.impls.OrdUsize.min_val, hsub]⟩
     have hz0 : (0#usize : Usize).val = 0 := by simp
     let limbs := Array.make 3#usize [sq[k].c0, sq[k].c1, sq[k].c2]
-    obtain ⟨out1, hloop1, e1⟩ := push_chunks_eq hw limbs sq[k].c0 sq[k].c1 sq[k].c2 rfl d take block_len hd0 hd hb
+    obtain ⟨out1, hloop1, e1⟩ := push_chunks_eq hw limbs sq[k].c0 sq[k].c1 sq[k].c2 rfl d take hd0 hd
       (by rw [etk]; exact le_trans (Nat.mul_le_mul_right _ (Nat.min_le_left _ _)) hpd) _ 0#usize out rfl (by simp)
       (by rw [hz0, etk, hlo, Nat.sub_zero]; omega)
     have hlt : alloc.vec.Vec.len out < count := by
       rw [UScalar.lt_equiv, alloc.vec.Vec.len_val]; simp only [alloc.vec.Vec.length]; omega
-    have hbody : whir.sample_queries_ordered_loop0.body Ch block_len count d per ch out = .ok (.cont (ch1, out1)) := by
-      simp only [whir.sample_queries_ordered_loop0.body, hlt, ↓reduceIte, Std.bind_ok, hsample, lift, htk]
-      simp [whir.push_chunks, limbs] at hloop1 ⊢
+    have hbody : whir.query.sample_queries_loop0.body Ch d count per ch out = .ok (.cont (ch1, out1)) := by
+      simp only [whir.query.sample_queries_loop0.body, hlt, ↓reduceIte, Std.bind_ok, hsample, lift, htk]
+      simp [whir.query.push_chunks, limbs] at hloop1 ⊢
       rw [hloop1]; simp only [Std.bind_ok]
     have hl1 : out1.val.length = min ((k + 1) * per.val) count.val := by
       have := congrArg List.length e1; simp at this; rw [this, hlo, etk, Nat.add_mul]; omega
@@ -294,9 +296,9 @@ theorem sample_loop_eq (hw : System.Platform.numBits = 64) {T0 : Type} (Ch : fia
             rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hjp]]
         simp [List.getD_eq_getElem?_getD, hkl, sqNat])
     refine ⟨ch', out', ?_, hch', hout'⟩
-    unfold whir.sample_queries_ordered_loop0
+    unfold whir.query.sample_queries_loop0
     rw [loop_cont hbody]
-    unfold whir.sample_queries_ordered_loop0 at hloop
+    unfold whir.query.sample_queries_loop0 at hloop
     exact hloop
 
 /-! ## Strata -/
@@ -331,12 +333,12 @@ theorem strata_model (count depth : Nat) :
   simp [List.range_eq_range']
 
 /-- A stratum as the model's pair. -/
-def pr (st : whir.Stratum) : Nat × Nat := (st.bits.val, st.index.val)
+def pr (st : whir.query.Stratum) : Nat × Nat := (st.bits.val, st.index.val)
 
 theorem push_group_eq (hw : System.Platform.numBits = 64) (g bits : Usize) (hg : g.val < 64) (hb : bits.val < 64) :
-    ∀ (m : Nat) (j : Usize) (out : alloc.vec.Vec whir.Stratum), 2 ^ g.val - j.val = m → j.val ≤ 2 ^ g.val →
+    ∀ (m : Nat) (j : Usize) (out : alloc.vec.Vec whir.query.Stratum), 2 ^ g.val - j.val = m → j.val ≤ 2 ^ g.val →
       out.val.length + (2 ^ g.val - j.val) ≤ Usize.max →
-      ∃ out', whir.push_group_loop out g bits j = .ok out' ∧
+      ∃ out', whir.query.Stratum.push_group_loop out g bits j = .ok out' ∧
         out'.val.map pr = out.val.map pr ++
           (List.range' j.val (2 ^ g.val - j.val)).map fun k => (bits.val, k % 2 ^ bits.val) := by
   have hg1 := shl_one_val hw g hg
@@ -347,32 +349,33 @@ theorem push_group_eq (hw : System.Platform.numBits = 64) (g bits : Usize) (hg :
   | zero =>
     intro j out hm hj hcap
     refine ⟨out, ?_, by rw [show 2 ^ g.val - j.val = 0 by omega]; simp⟩
-    unfold whir.push_group_loop
+    unfold whir.query.Stratum.push_group_loop
     apply loop_done
     have : ¬ (j.val < (Std.Usize.wrapping_shl 1#usize g).val) := by rw [hg1]; omega
-    simp [whir.push_group_loop.body, lift, this]
+    simp [whir.query.Stratum.push_group_loop.body, lift, this]
   | succ m ih =>
     intro j out hm hj hcap
     have hjt : j.val < 2 ^ g.val := by omega
     have hlt : j < Std.Usize.wrapping_shl 1#usize g := by simp only [UScalar.lt_equiv, hg1]; omega
     have hsucc := succ_val j (2 ^ g.val) hjt (by have := Usize.max_def; scalar_tac)
-    obtain ⟨st, hst⟩ : ∃ st : whir.Stratum,
+    obtain ⟨st, hst⟩ : ∃ st : whir.query.Stratum,
         ({ bits := bits, index := j &&& Std.Usize.wrapping_sub (Std.Usize.wrapping_shl 1#usize bits) 1#usize } :
-          whir.Stratum) = st := ⟨_, rfl⟩
+          whir.query.Stratum) = st := ⟨_, rfl⟩
     have est : pr st = (bits.val, j.val % 2 ^ bits.val) := by
       rw [← hst, pr]
       simp only [UScalar.val_and]
       rw [Fold.sub_val _ _ (by rw [hb1]; exact Nat.one_le_two_pow), hb1]
       simp [Nat.and_two_pow_sub_one_eq_mod]
     obtain ⟨out1, hpush, e1⟩ := Query.push_ok out st (by omega)
-    have hbody : whir.push_group_loop.body g bits out j = .ok (.cont (out1, Std.Usize.wrapping_add j 1#usize)) := by
-      simp only [whir.push_group_loop.body, lift, Std.bind_ok, hlt, ↓reduceIte, hst, hpush]
+    have hbody : whir.query.Stratum.push_group_loop.body g bits out j =
+        .ok (.cont (out1, Std.Usize.wrapping_add j 1#usize)) := by
+      simp only [whir.query.Stratum.push_group_loop.body, lift, Std.bind_ok, hlt, ↓reduceIte, hst, hpush]
     obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_add j 1#usize) out1 (by omega) (by omega)
       (by rw [e1, hsucc]; simp; omega)
     refine ⟨out', ?_, ?_⟩
-    · unfold whir.push_group_loop
+    · unfold whir.query.Stratum.push_group_loop
       rw [loop_cont hbody]
-      unfold whir.push_group_loop at hloop
+      unfold whir.query.Stratum.push_group_loop at hloop
       exact hloop
     · rw [e', e1, hsucc, show 2 ^ g.val - j.val = (2 ^ g.val - (j.val + 1)) + 1 by omega, List.range'_succ]
       simp [est]
@@ -390,9 +393,9 @@ theorem strataList_length (count depth g : Nat) :
     rcases h2 with h | h <;> simp [h, groupList] <;> ring
 
 theorem strata_loop_eq (hw : System.Platform.numBits = 64) (count depth : Usize) (hdep : depth.val < 64) :
-    ∀ (m : Nat) (g : Usize) (out : alloc.vec.Vec whir.Stratum), g.val = m → g.val ≤ 64 →
+    ∀ (m : Nat) (g : Usize) (out : alloc.vec.Vec whir.query.Stratum), g.val = m → g.val ≤ 64 →
       out.val.length + count.val % 2 ^ g.val ≤ Usize.max →
-      ∃ out', whir.strata_loop count depth out g = .ok out' ∧
+      ∃ out', whir.query.Stratum.batch_loop count depth out g = .ok out' ∧
         out'.val.map pr = out.val.map pr ++ strataList count.val depth.val (List.range g.val).reverse := by
   have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
   intro m
@@ -400,10 +403,10 @@ theorem strata_loop_eq (hw : System.Platform.numBits = 64) (count depth : Usize)
   | zero =>
     intro g out hm hg hcap
     refine ⟨out, ?_, by rw [hm]; simp [strataList]⟩
-    unfold whir.strata_loop
+    unfold whir.query.Stratum.batch_loop
     apply loop_done
     have : ¬ (g.val > 0) := by omega
-    simp [whir.strata_loop.body, this]
+    simp [whir.query.Stratum.batch_loop.body, this]
   | succ m ih =>
     intro g out hm hg hcap
     have hgp : g > 0#usize := by simp only [gt_iff_lt, UScalar.lt_equiv]; simp; omega
@@ -432,17 +435,18 @@ theorem strata_loop_eq (hw : System.Platform.numBits = 64) (count depth : Usize)
       obtain ⟨out1, hpg, e1⟩ := push_group_eq hw (Std.Usize.wrapping_sub g 1#usize)
         (core.cmp.impls.OrdUsize.min (Std.Usize.wrapping_sub g 1#usize) depth) (by omega) (by rw [hmin]; omega)
         _ 0#usize out rfl (by rw [hz0]; positivity) (by rw [hz0, hg1]; rw [h1] at hmod; omega)
-      have hbody : whir.strata_loop.body count depth out g =
+      have hbody : whir.query.Stratum.batch_loop.body count depth out g =
           .ok (.cont (out1, Std.Usize.wrapping_sub g 1#usize)) := by
-        simp only [whir.strata_loop.body, hgp, ↓reduceIte, lift, Std.bind_ok, heq, whir.push_group, hpg]
+        simp only [whir.query.Stratum.batch_loop.body, hgp, ↓reduceIte, lift, Std.bind_ok, heq,
+          whir.query.Stratum.push_group, hpg]
       have hl1 : out1.val.length = out.val.length + 2 ^ m := by
         have := congrArg List.length e1; simp [hz0, hg1] at this; omega
       obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_sub g 1#usize) out1 hg1 (by omega)
         (by rw [hl1, hg1]; rw [h1] at hmod; omega)
       refine ⟨out', ?_, ?_⟩
-      · unfold whir.strata_loop
+      · unfold whir.query.Stratum.batch_loop
         rw [loop_cont hbody]
-        unfold whir.strata_loop at hloop
+        unfold whir.query.Stratum.batch_loop at hloop
         exact hloop
       · rw [e', e1, hsplit, hg1, if_pos ht, hz0, hmin]
         simp [groupList, List.range_eq_range']
@@ -450,15 +454,15 @@ theorem strata_loop_eq (hw : System.Platform.numBits = 64) (count depth : Usize)
         rw [Nat.testBit_eq_decide_div_mod_eq] at ht; simp at ht; omega
       have heq : ¬ (Std.Usize.wrapping_shr count (Std.Usize.wrapping_sub g 1#usize) &&& 1#usize) = 1#usize := by
         intro he; have := congrArg UScalar.val he; rw [hbit, h0] at this; simp at this
-      have hbody : whir.strata_loop.body count depth out g =
+      have hbody : whir.query.Stratum.batch_loop.body count depth out g =
           .ok (.cont (out, Std.Usize.wrapping_sub g 1#usize)) := by
-        simp only [whir.strata_loop.body, hgp, ↓reduceIte, lift, Std.bind_ok, heq]
+        simp only [whir.query.Stratum.batch_loop.body, hgp, ↓reduceIte, lift, Std.bind_ok, heq]
       obtain ⟨out', hloop, e'⟩ := ih (Std.Usize.wrapping_sub g 1#usize) out hg1 (by omega)
         (by rw [hg1]; rw [h0] at hmod; omega)
       refine ⟨out', ?_, ?_⟩
-      · unfold whir.strata_loop
+      · unfold whir.query.Stratum.batch_loop
         rw [loop_cont hbody]
-        unfold whir.strata_loop at hloop
+        unfold whir.query.Stratum.batch_loop at hloop
         exact hloop
       · rw [e', hsplit, hg1, if_neg ht]; simp
 
@@ -483,13 +487,14 @@ theorem strataList_trim (count depth : Nat) (h : count < 2 ^ 64) :
   simp [this]
 
 theorem strata_eq (hw : System.Platform.numBits = 64) (count depth : Usize) (hdep : depth.val < 64) :
-    ∃ out, whir.strata count depth = .ok out ∧ out.val.map pr = (Concrete.strata count.val depth.val).toList := by
+    ∃ out, whir.query.Stratum.batch count depth = .ok out ∧
+      out.val.map pr = (Concrete.strata count.val depth.val).toList := by
   have hb := Replay.bits_val hw
   have hc : count.val < 2 ^ 64 := by have := count.hBounds; simpa [hw] using this
   obtain ⟨out, hloop, e⟩ := strata_loop_eq hw count depth hdep 64 _ (alloc.vec.Vec.with_capacity _ count) hb
     (by rw [hb]) (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, hb]; have := Usize.max_def; scalar_tac)
   refine ⟨out, ?_, ?_⟩
-  · simp only [whir.strata, lift, Std.bind_ok]; exact hloop
+  · simp only [whir.query.Stratum.batch, lift, Std.bind_ok]; exact hloop
   · rw [e, strata_model, hb, strataList_trim _ _ hc]; simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
 
 theorem strataList_mem (count depth : Nat) (gs : List Nat) (p : Nat × Nat) (hp : p ∈ strataList count depth gs) :
@@ -508,12 +513,12 @@ theorem strataList_mem (count depth : Nat) (gs : List Nat) (p : Nat × Nat) (hp 
 def place (d raw : Nat) (p : Nat × Nat) : Nat := raw % 2 ^ (d - p.1) + p.2 * 2 ^ (d - p.1)
 
 theorem place_loop_eq (hw : System.Platform.numBits = 64) (d : Usize) (hd : d.val < 64)
-    (strata : alloc.vec.Vec whir.Stratum) (raws : List Nat) (hlen : strata.val.length = raws.length)
+    (strata : alloc.vec.Vec whir.query.Stratum) (raws : List Nat) (hlen : strata.val.length = raws.length)
     (hs : ∀ p ∈ strata.val.map pr, p.1 ≤ d.val ∧ p.2 < 2 ^ p.1) :
     ∀ (m : Nat) (i : Usize) (out : alloc.vec.Vec Usize), raws.length - i.val = m → i.val ≤ raws.length →
       out.val.map (·.val) = (List.range raws.length).map (fun k =>
         if k < i.val then place d.val raws[k]! (strata.val.map pr)[k]! else raws[k]!) →
-      ∃ out', whir.sample_queries_ordered_loop1 d out strata i = .ok out' ∧
+      ∃ out', whir.query.sample_queries_loop1 d out strata i = .ok out' ∧
         out'.val.map (·.val) = (List.range raws.length).map fun k => place d.val raws[k]! (strata.val.map pr)[k]! := by
   have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
   intro m
@@ -522,10 +527,10 @@ theorem place_loop_eq (hw : System.Platform.numBits = 64) (d : Usize) (hd : d.va
     intro i out hm hi hout
     have hol : out.val.length = raws.length := by simpa using congrArg List.length hout
     refine ⟨out, ?_, ?_⟩
-    · unfold whir.sample_queries_ordered_loop1
+    · unfold whir.query.sample_queries_loop1
       apply loop_done
       have : ¬ (i.val < out.val.length) := by omega
-      simp [whir.sample_queries_ordered_loop1.body, lift, this]
+      simp [whir.query.sample_queries_loop1.body, lift, this]
     · rw [hout]; apply List.map_congr_left; intro k hk; simp at hk; simp [show k < i.val by omega]
   | succ m ih =>
     intro i out hm hi hout
@@ -568,11 +573,11 @@ theorem place_loop_eq (hw : System.Platform.numBits = 64) (d : Usize) (hd : d.va
       simp only [pr]
       rw [Nat.lor_comm, Nat.mul_comm st.index.val, ← Nat.two_pow_add_eq_or_of_lt (Nat.mod_lt _ (Nat.two_pow_pos _)),
         Nat.add_comm]
-    have hbody : whir.sample_queries_ordered_loop1.body d strata out i =
+    have hbody : whir.query.sample_queries_loop1.body d strata out i =
         .ok (.cont (alloc.vec.Vec.set out i x, Std.Usize.wrapping_add i 1#usize)) := by
       have hlt : i < core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len out) (alloc.vec.Vec.len strata) := by
         simpa [UScalar.lt_equiv] using hmin
-      simp only [whir.sample_queries_ordered_loop1.body, lift, Std.bind_ok, hlt, ↓reduceIte,
+      simp only [whir.query.sample_queries_loop1.body, lift, Std.bind_ok, hlt, ↓reduceIte,
         alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize,
         vec_index_usize strata i (by omega), vec_index_usize out i (by omega), ← hst, ← hr, hx]
       simp
@@ -589,56 +594,41 @@ theorem place_loop_eq (hw : System.Platform.numBits = 64) (d : Usize) (hd : d.va
           · simp [hk2, show k < i.val + 1 by omega]
           · simp [hk2, show ¬ (k < i.val + 1) by omega])
     refine ⟨out', ?_, e'⟩
-    unfold whir.sample_queries_ordered_loop1
+    unfold whir.query.sample_queries_loop1
     rw [loop_cont hbody]
-    unfold whir.sample_queries_ordered_loop1 at hloop
+    unfold whir.query.sample_queries_loop1 at hloop
     exact hloop
 
 /-! ## The composed sampler -/
 
-theorem trailing_zeros_pow (x : Usize) (d : Nat) (hd : d < 64) (hx : x.val = 2 ^ d) :
-    ∃ t : U32, core.num.Usize.trailing_zeros x = .ok t ∧ t.val = d := by
-  have hne : x.val ≠ 0 := by rw [hx]; positivity
-  have hf : (List.range 64).find? (fun i => x.val.testBit i) = some d := by
-    rw [List.find?_eq_some_iff_getElem]
-    refine ⟨by simp [hx, Nat.testBit_two_pow_self], d, by simpa using hd, by simp, ?_⟩
-    intro j hj
-    simp [hx, Nat.testBit_two_pow, show d ≠ j by omega]
-  refine ⟨⟨BitVec.ofNat 32 d⟩, ?_, ?_⟩
-  · simp [core.num.Usize.trailing_zeros, hne, hf]
-  · show (BitVec.ofNat 32 d).toNat = d
-    simp; omega
-
-/-- The generated `sample_queries_ordered`, reading the squeezes `sq` from its challenger,
-returns exactly the model's `deriveQueries` of those squeezes read as extension elements,
-for a power-of-two block of depth `d` with `0 < d < 64`. -/
-theorem sample_queries_ordered_eq (hw : System.Platform.numBits = 64) {T0 : Type}
+/-- The generated `sample_queries`, reading the squeezes `sq` from its challenger, returns
+exactly the model's `deriveQueries` of those squeezes read as extension elements, for a depth
+`0 < depth < 64`. -/
+theorem sample_queries_eq (hw : System.Platform.numBits = 64) {T0 : Type}
     (Ch : fiat_shamir.Challenger T0) (tape : T0 → List primitives.field.gf2_64x3.F192 → Prop)
-    (ht : SqueezeTape Ch tape) (ch : T0) (block_len count : Usize) (d : Nat) (hd0 : 0 < d) (hd : d < 64)
-    (hb : block_len.val = 2 ^ d) (sq : List primitives.field.gf2_64x3.F192)
-    (hsq : sq.length = (count.val + 192 / d - 1) / (192 / d)) (rest : List primitives.field.gf2_64x3.F192)
-    (hch : tape ch (sq ++ rest)) :
-    ∃ out ch', whir.sample_queries_ordered Ch ch block_len count = .ok (out, ch') ∧ tape ch' rest ∧
-      deriveQueries d count.val (sq.map toE).toArray = some (out.val.map (·.val)).toArray := by
-  have hU : UScalarTy.Usize.numBits = 64 := by simp [hw]
-  obtain ⟨t, htz, et⟩ := trailing_zeros_pow block_len d hd hb
-  obtain ⟨dU, hdU⟩ : ∃ dU : Usize, UScalar.cast .Usize t = dU := ⟨_, rfl⟩
-  have edU : dU.val = d := by rw [← hdU, UScalar.cast_val_eq, hU, et]; omega
-  obtain ⟨per, hdiv, eper⟩ := UScalar.div_spec 192#usize (y := dU) (by omega)
+    (ht : SqueezeTape Ch tape) (ch : T0) (depth count : Usize) (hd0 : 0 < depth.val) (hd : depth.val < 64)
+    (sq : List primitives.field.gf2_64x3.F192)
+    (hsq : sq.length = (count.val + 192 / depth.val - 1) / (192 / depth.val))
+    (rest : List primitives.field.gf2_64x3.F192) (hch : tape ch (sq ++ rest)) :
+    ∃ out ch', whir.query.sample_queries Ch ch depth count = .ok (out, ch') ∧ tape ch' rest ∧
+      deriveQueries depth.val count.val (sq.map toE).toArray = some (out.val.map (·.val)).toArray := by
+  set d := depth.val with hd_def
+  have edU : depth.val = d := hd_def.symm
+  obtain ⟨per, hdiv, eper⟩ := UScalar.div_spec 192#usize (y := depth) (by omega)
   have hper : per.val = 192 / d := by rw [eper, edU]; simp
   have hp0 : 0 < 192 / d := Nat.div_pos (by omega) hd0
-  obtain ⟨ch', out1, hl0, hch', e1⟩ := sample_loop_eq hw Ch tape ht block_len count dU per (by omega) (by omega)
-    (by rw [edU]; exact hb) (by rw [hper, edU]) sq (by rw [hper]; exact hsq) rest sq.length 0 ch
+  obtain ⟨ch', out1, hl0, hch', e1⟩ := sample_loop_eq hw Ch tape ht count depth per (by omega) (by omega)
+    (by rw [hper, edU]) sq (by rw [hper]; exact hsq) rest sq.length 0 ch
     (alloc.vec.Vec.with_capacity Usize count) (by simp) (by simp) (by simpa using hch)
     (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]) (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
-  obtain ⟨strataV, hstr, estr⟩ := strata_eq hw count dU (by omega)
+  obtain ⟨strataV, hstr, estr⟩ := strata_eq hw count depth (by omega)
   have hcnt : count.val < 2 ^ 64 := by have := count.hBounds; simpa [hw] using this
   have hslen : (Concrete.strata count.val d).toList.length = count.val := by
     rw [strata_model, ← strataList_trim _ _ hcnt, strataList_length]; exact Nat.mod_eq_of_lt hcnt
-  set raws := (List.range count.val).map (rawAt (sq.map sqNat) dU.val per.val) with hraws
+  set raws := (List.range count.val).map (rawAt (sq.map sqNat) depth.val per.val) with hraws
   have hlenS : strataV.val.length = raws.length := by
     have := congrArg List.length estr; simp only [List.length_map] at this; rw [this, edU, hslen]; simp [hraws]
-  obtain ⟨out', hl1, e'⟩ := place_loop_eq hw dU (by omega) strataV raws hlenS (by
+  obtain ⟨out', hl1, e'⟩ := place_loop_eq hw depth (by omega) strataV raws hlenS (by
       intro p hp
       rw [estr, strata_model] at hp
       exact strataList_mem _ _ _ p hp) _ 0#usize out1 rfl (by simp) (by
@@ -648,7 +638,7 @@ theorem sample_queries_ordered_eq (hw : System.Platform.numBits = 64) {T0 : Type
       have hk : k < count.val := by simpa [hraws] using h1
       simp [hraws, hk])
   refine ⟨out', ch', ?_, hch', ?_⟩
-  · simp [whir.sample_queries_ordered, htz, lift, hdU, hdiv, hl0, hstr, hl1]
+  · simp [whir.query.sample_queries, lift, hdiv, hl0, hstr, hl1]
   · rw [e']
     unfold deriveQueries
     have hd' : ¬ (d == 0 || decide (d > 64)) = true := by simp; omega
