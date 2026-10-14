@@ -124,7 +124,7 @@ def finish (s : State) : String × List (List ℕ) := Id.run do
       | .statement i => s!"statement {i}") ++ "\n"
   (out ++ s!"statement_len {s.statement}\n", classes)
 
-/-- `Rec.classNext` of every slot, as `FixedColumns::of` writes it: the `SlotKey` of the next slot of its class in
+/-- `Rec.classNext` of every slot, as `FixedColumns::new` writes it: the `SlotKey` of the next slot of its class in
 slot order, the class's first after its last, per table, row-major. -/
 def nextKeys (classes : List (List ℕ)) : String := Id.run do
   let widths := Table.all.map Table.nSlots
