@@ -1004,6 +1004,25 @@ mod tests {
         }
     }
 
+    // The building facts `LeanVMCircuits.Rec.AirLink.checksGiveRows_of_tree` takes: each circuit `Tree::converge`
+    // returns has its tier's heights, at which a node reads its children, and they hold its rows.
+    fn assert_converged(tree: &Tree<'_>) {
+        for (p, place) in tree.design.places.iter().enumerate() {
+            let tier = &tree.design.tiers[place.tier];
+            let circuit = tree.circuit(p);
+            assert_eq!(circuit.heights(), tier.taus, "{place:?}");
+            let counts = circuit.row_counts();
+            for t in Table::ALL {
+                assert!(counts[t] <= 1 << tier.taus[t], "{place:?}, {t:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_circuit_is_at_its_tiers_converged_heights_which_hold_its_rows() {
+        assert_converged(&fixture().tree);
+    }
+
     #[test]
     fn a_tree_verifies_and_binds_its_leaves_in_order() {
         let f = fixture();
@@ -1988,10 +2007,8 @@ mod tests {
             let d = &t.tree.design;
             assert!(d.place(SMALL, Level::Node(3)).is_none() && d.place(SMALL, Level::Wrap).is_some());
             assert!(d.place(LARGE, Level::Node(3)).is_some() && d.place(LARGE, Level::Node(2)).is_none());
-            // Each tier's circuits are at its own heights.
-            for (p, place) in d.places.iter().enumerate() {
-                assert_eq!(t.tree.circuit(p).heights(), d.tiers[place.tier].taus, "{place:?}");
-            }
+            // Each tier's circuits are at its own heights, which hold their rows.
+            super::assert_converged(&t.tree);
             // A kind names one circuit, whose proofs state it.
             for p in 0..d.places.len() {
                 assert_eq!(d.position(d.code(p)), Some(p));

@@ -266,4 +266,28 @@ mod tests {
             assert_eq!(F64(a) * F64(b), F64(c), "{a:#x} * {b:#x}");
         }
     }
+
+    #[test]
+    fn a_tables_height_is_the_proven_transcription_and_holds_its_rows() {
+        // Invariant: `height_log` is `LeanVMCircuits.Rec.AirLink.heightLog` at flock's floor, which
+        // `le_pow_heightLog` proves holds the rows.
+        let cube = flock::zerocheck::MIN_CUBE_LOG.saturating_sub(hash::CIRCUIT.k_log());
+        let clog = |n: usize| {
+            (0..usize::BITS as usize)
+                .find(|&k| n <= 1 << k)
+                .expect("a power of two holds it")
+        };
+        let big = [1 << 20, (1 << 20) + 1, (1 << 32) - 1, 1 << 32, (1 << 32) + 1];
+        for t in Table::ALL {
+            for rows in (0..=1 << 16).chain(big) {
+                let lean = if t == Table::Hash {
+                    clog(rows.max(1).max(8)).max(cube)
+                } else {
+                    clog(rows.max(1))
+                };
+                assert_eq!(t.height_log(rows), lean, "{t:?} at {rows} rows");
+                assert!(rows <= 1 << t.height_log(rows), "{t:?} at {rows} rows");
+            }
+        }
+    }
 }

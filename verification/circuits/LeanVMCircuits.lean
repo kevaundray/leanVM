@@ -54,10 +54,12 @@ public import LeanVMCircuits.Rec.PcsMatch
 public import LeanVMCircuits.Rec.CrScale
 public import LeanVMCircuits.Rec.TableSum
 public import LeanVMCircuits.Rec.GkrInst
+public import LeanVMCircuits.Rec.GkrParts
 public import LeanVMCircuits.Rec.Design
 public import LeanVMCircuits.Rec.DesignKind
 public import LeanVMCircuits.Rec.Heights
 public import LeanVMCircuits.Rec.Named
+public import LeanVMCircuits.Rec.Tries
 public import LeanVMCircuits.Rec.Edges
 public import LeanVMCircuits.Rec.EdgeMarks
 public import LeanVMCircuits.Rec.DesignClaims
