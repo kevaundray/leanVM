@@ -2,8 +2,8 @@
 
 use super::clock::Clock;
 use super::{N_TABLES, TableId, Word};
+use crate::rv;
 use crate::rv::{Alu, Class, Ext, Hash, Ld, Load, Mul, Mulh, Shift, Store};
-use crate::{class_flock, rv};
 use flock::circuit::Circuit;
 use std::ops::Range;
 
@@ -435,7 +435,7 @@ impl ClassSpec {
             Some(circuit) if circuit.k_log < self.clock_k_log => circuit.k_log,
             _ => self.clock_k_log,
         };
-        class_flock::batch_log(smallest, n_rows)
+        super::batch_log(smallest, n_rows)
     }
 
     /// The height the table is proven at when the run makes `rows` of its rows: the next power of two at or above its floor.
@@ -516,13 +516,14 @@ pub const BAD_SLOT: usize = 10;
 /// Bytecode slot binding the exit selector.
 pub const EXIT_SLOT: usize = 11;
 
-/// Number of tables with a class circuit, which come first: table `t < N_CIRCUITS` has one, and its class circuit is
-/// packed witness `t`.
+/// How many tables have a class circuit.
+///
+/// They come first: table `t < N_CLASS_CIRCUITS` has one, and it is circuit `t`.
 ///
 /// Their bus forms are linear, so their columns are opened at the bus's point.
 ///
 /// The tables past them prove identities of their own, in the table sumcheck.
-pub const N_CIRCUITS: usize = {
+pub const N_CLASS_CIRCUITS: usize = {
     let mut n = 0;
     while n < N_TABLES && TableId::ALL[n].spec().has_circuit() {
         n += 1;
@@ -532,7 +533,7 @@ pub const N_CIRCUITS: usize = {
 
 // The tables with a class circuit come first.
 const _: () = {
-    let mut t = N_CIRCUITS;
+    let mut t = N_CLASS_CIRCUITS;
     while t < N_TABLES {
         assert!(
             !TableId::ALL[t].spec().has_circuit(),

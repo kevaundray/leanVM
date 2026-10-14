@@ -8,8 +8,8 @@
 //!
 //! Every message the rows absorb is whole 64-bit words, so the native byte framing is a word framing here.
 
-use super::circuit::{Builder, Compression, Dw, Ew, Kw, PARAM_IV, digest_limbs, zero_prefix};
-use fiat_shamir::{FromNarg, MAX_SQUEEZE, ProofOfWork, ProofTranscript, Role, SessionId};
+use super::circuit::{Builder, Compression, Dw, Ew, Kw, PARAM_IV, zero_prefix};
+use fiat_shamir::{Blake2sDuplex, FromNarg, ProofOfWork, ProofTranscript, Role, SessionId};
 use pcs::merkle::Openings;
 use primitives::field::F192;
 
@@ -24,6 +24,14 @@ pub enum ProofSource<'a> {
     Proof(&'a ProofTranscript, &'a [Openings]),
     /// No proof: every message and opening is zero.
     Shape,
+}
+
+/// A row of a Merkle tree, opened in rows: its words, and the node its path reaches.
+pub struct OpenedRow {
+    /// The node the row's path reaches.
+    pub node: Dw,
+    /// The row's words.
+    pub words: Vec<Kw>,
 }
 
 /// The duplex state in rows, and the cursors into the proof it reads.
@@ -47,8 +55,6 @@ pub struct Transcript<'a> {
     source: ProofSource<'a>,
     /// Message bytes read so far.
     narg_read: usize,
-    /// Hint bytes read so far.
-    hints_read: usize,
     /// The phase whose openings the rows hash, none when there is no such phase.
     openings: Option<&'a Openings>,
     /// Phases read so far.
@@ -69,7 +75,7 @@ impl<'a> Transcript<'a> {
         assert!(!instance.is_empty(), "an instance has bytes");
 
         // The seed block is the session identifier, then zeros.
-        let sid = digest_limbs(&session.0);
+        let sid = primitives::hash::digest_words(&session.0);
         let seed = [sid[0], sid[1], sid[2], sid[3], 0, 0, 0, 0];
         let cv = Compression::new(PARAM_IV, seed, Role::Seed.counter(0, 0), true).output();
 
@@ -84,7 +90,6 @@ impl<'a> Transcript<'a> {
             output: [zero; 4],
             source,
             narg_read: 0,
-            hints_read: 0,
             openings: None,
             phases_read: 0,
             next_opening: 0,
@@ -96,9 +101,15 @@ impl<'a> Transcript<'a> {
     }
 
     /// Whether every message and hint of the proof was read, and nothing past them.
-    pub const fn finished(&self) -> bool {
+    ///
+    /// Each opening phase reads one hint, so the hints must frame exactly one per phase.
+    pub fn finished(&self) -> bool {
         match self.source {
-            ProofSource::Proof(p, _) => self.narg_read == p.narg.len() && self.hints_read == p.hints.len(),
+            ProofSource::Proof(p, _) => {
+                let mut hints = p.iter_hints();
+                let framed = hints.by_ref().count();
+                self.narg_read == p.narg.len() && framed == self.phases_read && hints.as_slice().is_empty()
+            }
             ProofSource::Shape => true,
         }
     }
@@ -129,7 +140,7 @@ impl<'a> Transcript<'a> {
 
     /// Squeeze one word, a new output block every four.
     fn squeeze_word(&mut self, b: &mut Builder) -> Kw {
-        assert!(8 <= MAX_SQUEEZE - self.squeezed, "squeeze run too long");
+        assert!(8 <= Blake2sDuplex::MAX_SQUEEZE - self.squeezed, "squeeze run too long");
         if self.n_pending != 0 {
             self.compress_pending(b, true);
         }
@@ -173,7 +184,7 @@ impl<'a> Transcript<'a> {
     /// The next prover message, a 32-byte digest such as a Merkle root: four free words, absorbed.
     pub fn prover_root(&mut self, b: &mut Builder) -> Dw {
         let bytes = self.take::<[u8; 32]>(32);
-        let words = digest_limbs(&bytes).map(|w| b.free_k(w));
+        let words = primitives::hash::digest_words(&bytes).map(|w| b.free_k(w));
         for &word in &words {
             self.absorb_word(b, word);
         }
@@ -222,27 +233,22 @@ impl<'a> Transcript<'a> {
         }
     }
 
-    /// Take the next opening phase: its hint is skipped, its openings are the next the native verifier authenticated.
+    /// Take the next opening phase: its openings are the next the native verifier authenticated.
+    ///
+    /// The phase's hint holds the same paths, so the rows read the openings and never decode the hint.
     ///
     /// A phase with no such openings, from a proof that was not verified, hashes zeros: its rows then fail.
     pub fn next_openings(&mut self) {
         self.next_opening = 0;
         let phase = self.phases_read;
         self.phases_read += 1;
-        self.openings = None;
-        let ProofSource::Proof(p, openings) = self.source else {
-            return;
+        self.openings = match self.source {
+            ProofSource::Proof(_, openings) => openings.get(phase),
+            ProofSource::Shape => None,
         };
-
-        // The hint: a four-byte little-endian length, then the paths, which the openings already hold.
-        let len = (p.hints.get(self.hints_read..))
-            .and_then(|rest| rest.first_chunk::<4>())
-            .map_or(0, |len| u32::from_le_bytes(*len) as usize);
-        self.hints_read += 4 + len;
-        self.openings = openings.get(phase);
     }
 
-    /// Hash the next queued row up its path's lowest `bits.len()` levels, returning the node reached and the row's words.
+    /// Hash the next opened row up its path's lowest `bits.len()` levels.
     ///
     /// The leaf image ends with the row, every word before it zero.
     /// It is hashed from the shared state of its whole zero blocks, then up the path.
@@ -258,7 +264,7 @@ impl<'a> Transcript<'a> {
     /// # Panics
     ///
     /// Panics if the leaf is not whole blocks of eight words, or the row is longer than it.
-    pub fn open_row(&mut self, b: &mut Builder, bits: &[Kw], row_words: usize, leaf_words: usize) -> (Dw, Vec<Kw>) {
+    pub fn open_row(&mut self, b: &mut Builder, bits: &[Kw], row_words: usize, leaf_words: usize) -> OpenedRow {
         assert!(
             leaf_words.is_multiple_of(8) && row_words <= leaf_words,
             "a leaf of whole blocks holds the row"
@@ -269,7 +275,11 @@ impl<'a> Transcript<'a> {
         self.next_opening += 1;
         let opened = self.openings.filter(|o| i < o.len());
         let image = |w: usize| opened.and_then(|o| o.image(i).get(w)).map_or(0, |x| x.0);
-        let sibling = |l: usize| opened.and_then(|o| o.path(i).get(l)).map_or([0; 4], digest_limbs);
+        let sibling = |l: usize| {
+            opened
+                .and_then(|o| o.path(i).get(l))
+                .map_or([0; 4], primitives::hash::digest_words)
+        };
 
         // The image's whole zero blocks are one constant state, its other words free.
         let prefix = leaf_words - row_words;
@@ -287,7 +297,10 @@ impl<'a> Transcript<'a> {
         for (l, &bit) in bits.iter().enumerate() {
             h = b.node(h, bit, sibling(l));
         }
-        (h, words[prefix - zero_blocks * 8..].to_vec())
+        OpenedRow {
+            node: h,
+            words: words[prefix - zero_blocks * 8..].to_vec(),
+        }
     }
 }
 
@@ -300,14 +313,6 @@ mod tests {
     use primitives::field::F64;
 
     const INSTANCE: [u64; 2] = [3, 4];
-
-    impl<'a> Transcript<'a> {
-        // Set the openings the next rows hash, as a decoded hint would, for rows built without one.
-        pub(crate) fn queue_openings(&mut self, openings: &'a Openings) {
-            self.openings = Some(openings);
-            self.next_opening = 0;
-        }
-    }
 
     fn session() -> SessionId {
         SessionId::new(b"rec-transcript-test")
@@ -405,13 +410,15 @@ mod tests {
             paths: path.to_vec(),
         };
         let mut b = Builder::new();
-        let root = b.d_const(digest_limbs(root));
+        let root = b.d_const(primitives::hash::digest_words(root));
         let bits = vec![b.k_const(0); depth];
         let instance = [b.k_const(0)];
-        let mut t = Transcript::new(&mut b, &session(), &instance, ProofSource::Shape);
-        t.queue_openings(&openings);
-        let (node, _) = t.open_row(&mut b, &bits, 8, 8);
-        b.eq_d(node, root);
+        let proof = ProofTranscript::default();
+        let phases = [openings];
+        let mut t = Transcript::new(&mut b, &session(), &instance, ProofSource::Proof(&proof, &phases));
+        t.next_openings();
+        let row = t.open_row(&mut b, &bits, 8, 8);
+        b.eq(row.node, root);
         b.finish().failures
     }
 
@@ -426,7 +433,7 @@ mod tests {
         assert!(open(&words(0), &[leaves[1], nodes[1]], &root, 2).is_empty());
 
         // The first node's preimage, its children's digests, is a one-block leaf of the same hash.
-        let preimage: [u64; 8] = std::array::from_fn(|j| digest_limbs(&leaves[j / 4])[j % 4]);
+        let preimage: [u64; 8] = std::array::from_fn(|j| primitives::hash::digest_words(&leaves[j / 4])[j % 4]);
         assert!(open(&preimage, &[nodes[1]], &root, 1).is_empty());
         assert!(!open(&preimage, &[nodes[1]], &root, 2).is_empty());
     }

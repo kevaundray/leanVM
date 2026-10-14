@@ -13,16 +13,14 @@
 //!
 //! The leaves and every level are `E`-valued: the bus fingerprints mix `K` columns into `E` upstream.
 
-mod lanes;
 mod layer;
 
-use self::lanes::{Lane, Lanes};
 use self::layer::{EQ_LOW_VARS, Grid, Layer};
 use crate::PAR_THRESHOLD;
-use fiat_shamir::arith::RoundPolynomial;
 use fiat_shamir::arith::Verifier;
 use fiat_shamir::{ProverState, TranscriptError};
-use primitives::field::{F192, mul2};
+use primitives::field::F192;
+use primitives::field::lanes::{Lane, Lanes};
 use primitives::multilinear::{SplitEq, interp};
 use std::mem::MaybeUninit;
 use thiserror::Error;
@@ -82,7 +80,7 @@ pub(crate) fn next_level(current: &[F192]) -> Vec<F192> {
 /// Entry `row` of the next level: the product of `current[4 * row..]`'s first four, ones past its end.
 pub(crate) fn padded_product(current: &[F192], row: usize) -> F192 {
     let child = |c: usize| current.get(4 * row + c).copied().unwrap_or(F192::ONE);
-    let [left, right] = mul2([child(0), child(2)], [child(1), child(3)]);
+    let [left, right] = F192::mul2([child(0), child(2)], [child(1), child(3)]);
     left * right
 }
 
@@ -277,7 +275,7 @@ pub fn verify_products<V: Verifier>(v: &mut V, mu: usize) -> Result<Products<V::
         // A radix-four layer: one quartic per variable of the level above.
         let mut challenges = Vec::with_capacity(point.len());
         for &eq_point in &point {
-            let message = RoundPolynomial::read(v, 5, claim, Some(eq_point))?.coeffs;
+            let message = v.read_round(5, claim, Some(eq_point))?;
             let r = v.verifier_message();
             challenges.push(r);
             claim = v.poly_eval(&message, r);

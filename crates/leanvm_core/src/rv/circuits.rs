@@ -268,6 +268,8 @@ fn spread3(x: u64) -> u64 {
 mod tests {
     use crate::rv::entry::Class;
     use crate::rv::semantics::tests::edge_word;
+    use flock::BatchRows;
+    use flock::test_util::Witness;
     use proptest::strategy::{Strategy, ValueTree};
     use proptest::test_runner::TestRunner;
 
@@ -307,10 +309,9 @@ mod tests {
                 .collect();
 
             // The same batch through both generators, every table compared.
-            let walk = circuit.witness_by_instance(&rows, &rows[0], n_log, |row, z, az, bz| {
-                circuit.witness_instance(row, z, az, bz);
-            });
-            let sliced = circuit.witness_by_walk(&rows, &rows[0], n_log, |row, words| words.copy_from_slice(row));
+            let rows = BatchRows::new(&rows, &rows[0], n_log);
+            let walk = Witness::by_reference(&circuit, rows);
+            let sliced = Witness::by_walk(&circuit, rows, |row, words| words.copy_from_slice(row));
             assert!(walk == sliced, "the witness tables");
         }
     }

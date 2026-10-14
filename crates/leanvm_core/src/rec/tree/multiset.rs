@@ -269,35 +269,39 @@ impl ClaimSet {
     /// The set these bytes encode, if they encode one and nothing more.
     #[must_use]
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        let mut rest = bytes;
+        let mut rest = Reader(bytes);
         // A length is read before what it counts, so a length past the bytes left fails at the read, not at an
         // allocation.
-        let n_groups = take_u32(&mut rest)?;
+        let n_groups = rest.u32()?;
         let mut set = Self::new();
         for _ in 0..n_groups {
-            let label = take_words(&mut rest)?;
-            let n_members = take_u32(&mut rest)?;
-            let members = (0..n_members).map(|_| take_words(&mut rest)).collect::<Option<_>>()?;
+            let label = rest.words()?;
+            let n_members = rest.u32()?;
+            let members = (0..n_members).map(|_| rest.words()).collect::<Option<_>>()?;
             set.groups.push(ClaimGroup { label, members });
         }
-        rest.is_empty().then_some(set)
+        rest.0.is_empty().then_some(set)
     }
 }
 
-/// The next little-endian `u32` of `rest`.
-fn take_u32(rest: &mut &[u8]) -> Option<u32> {
-    let (head, tail) = rest.split_first_chunk::<4>()?;
-    *rest = tail;
-    Some(u32::from_le_bytes(*head))
-}
+/// The bytes of a claim set not read yet.
+struct Reader<'a>(&'a [u8]);
 
-/// The next `N` little-endian words of `rest`.
-fn take_words<const N: usize>(rest: &mut &[u8]) -> Option<[u64; N]> {
-    let (head, tail) = rest.split_at_checked(8 * N)?;
-    *rest = tail;
-    Some(std::array::from_fn(|i| {
-        u64::from_le_bytes(head[8 * i..8 * i + 8].try_into().expect("eight bytes"))
-    }))
+impl Reader<'_> {
+    /// The next little-endian `u32`.
+    fn u32(&mut self) -> Option<u32> {
+        let (head, tail) = self.0.split_first_chunk::<4>()?;
+        self.0 = tail;
+        Some(u32::from_le_bytes(*head))
+    }
+
+    /// The next `N` little-endian words.
+    fn words<const N: usize>(&mut self) -> Option<[u64; N]> {
+        let (head, tail) = self.0.split_at_checked(8 * N)?;
+        self.0 = tail;
+        let (chunks, _) = head.as_chunks::<8>();
+        Some(std::array::from_fn(|i| u64::from_le_bytes(chunks[i])))
+    }
 }
 
 #[cfg(test)]

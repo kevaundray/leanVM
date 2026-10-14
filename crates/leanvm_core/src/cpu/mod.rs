@@ -21,7 +21,7 @@ mod batch;
 mod deferred;
 mod error;
 pub(crate) mod execute;
-pub mod filler;
+mod filler;
 pub(crate) mod layout;
 mod output;
 mod program;
@@ -29,6 +29,7 @@ mod proof;
 mod prover;
 mod reduce;
 mod witness;
+mod zero_knowledge;
 
 pub use deferred::{Claim, DeferredClaims, MalformedClaim, ProgramPoint};
 pub use error::{CpuError, DecodeError, ProveError, VerifyError};
@@ -38,6 +39,7 @@ pub use layout::{Layout, Lookup, Q_BASE};
 pub use output::{Assumption, Output};
 pub use program::{Program, Stats};
 pub use proof::Proof;
+pub(crate) use proof::ProofKind;
 pub use prover::{ProvenRun, Prover};
 
 /// Each table holds at most `2^MAX_LOG_ROWS` rows: its class's executed instructions.

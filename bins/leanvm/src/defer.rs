@@ -4,10 +4,9 @@
 use crate::aggregate::{report, secs};
 use crate::refuse;
 use crate::workload::Workload;
-use bench::Plan;
+use bench::{Plan, pretty_integer};
 use leanvm::aggregate::{AssumedProofs, Kind, Leaf, LeafShape, Tree, TreeShape};
 use leanvm::{Assumption, Output, Program, ProvenRun, Prover};
-use primitives::pretty_integer;
 
 /// Prove `F(n + 2)` from proofs of `F(n)` and `F(n + 1)`, resolve the assumptions in a tree, and print the report.
 ///
@@ -37,10 +36,7 @@ pub fn run(n: u64, leaf_prover: &Prover, prover: &Prover, plan: Plan) {
         items: None,
     };
     let prove = |workload: &Workload| {
-        let (proved, time) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            workload.prove(leaf_prover)
-        });
+        let (proved, time) = plan.warm_then_measure(|| workload.prove(leaf_prover));
         println!(
             "{}: {} cycles, proving {}",
             workload.title,
@@ -88,12 +84,11 @@ pub fn run(n: u64, leaf_prover: &Prover, prover: &Prover, plan: Plan) {
     .unwrap_or_else(|e| refuse(format_args!("{e}")));
     let assumed: Vec<Leaf<'_>> = inner.iter().map(Leaf::from).collect();
     let leaf = Leaf::assuming(&proved.proof, committed, &assumed);
-    let (root, root_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
+    let (root, root_time) = plan.warm_then_measure(|| {
         tree.prove_first(&[leaf])
             .unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
-    let (_, verify_time) = Plan::new(plan.repeat, 0).measure_quiet(|_| {
+    let (_, verify_time) = plan.without_cooldown().measure_quiet(|| {
         tree.verify(&root, &[committed])
             .unwrap_or_else(|e| refuse(format_args!("the root: {e}")));
     });

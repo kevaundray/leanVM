@@ -4,12 +4,11 @@
 //! The public table commits nothing: its blocks are the framework's.
 
 use super::circuit::{Assignment, WireKind};
-use crate::class_flock::{self, FlockId};
-use crate::leaf::{BusForm, Coord};
-use crate::tables::{PerTable, TableId, TableKey};
+use super::hash;
+use crate::bus::{BusForm, Coord};
+use crate::tables::{self, PerTable, TableKey};
 use Coord::{Col, Prod, Sum};
 use WireKind::{D, E, K};
-use flock::circuit::Circuit;
 use primitives::field::{F64, F192};
 
 /// The recursion machine's tables, in protocol order.
@@ -42,11 +41,6 @@ struct LimbOf {
     slot: usize,
     limb: usize,
 }
-
-/// The packed BLAKE2s witness behind the hash table, which flock proves.
-///
-/// The table's first columns are ports of it: the inputs `t`, `f`, `h0..h3`, `m0..m7`, then the outputs `o0..o3`.
-pub(crate) struct HashFlock;
 
 /// A hash row's slots, in order:
 ///
@@ -117,7 +111,7 @@ impl Table {
         match self {
             Self::Emul => 9,
             Self::Exk => 7,
-            Self::Hash => HashFlock::N_PORTS + 1,
+            Self::Hash => hash::N_PORTS + 1,
             Self::Split => 65,
             Self::Cast => 4,
             Self::Pub => 0,
@@ -126,17 +120,13 @@ impl Table {
 
     /// How many of its columns are ports of its packed witness: its first.
     pub(crate) const fn n_ports(self) -> usize {
-        if matches!(self, Self::Hash) {
-            HashFlock::N_PORTS
-        } else {
-            0
-        }
+        if matches!(self, Self::Hash) { hash::N_PORTS } else { 0 }
     }
 
     /// `log2` of its height for `rows` rows: a power of two, at flock's floor for the hash table.
     pub(crate) fn height_log(self, rows: usize) -> usize {
         match self {
-            Self::Hash => HashFlock::height_log(rows),
+            Self::Hash => tables::batch_log(hash::CIRCUIT.k_log(), rows),
             _ => crate::log2_ceil_usize(rows.max(1)),
         }
     }
@@ -147,7 +137,7 @@ impl Table {
             Self::Emul => SlotForm::emul(s),
             Self::Exk => SlotForm::exk(s),
             Self::Hash => SlotForm::hash(s),
-            Self::Split if s < 65 => SlotForm::k(s),
+            Self::Split if s < 65 => Some(SlotForm::k(s)),
             Self::Cast => SlotForm::cast(s),
             _ => None,
         };
@@ -172,7 +162,7 @@ impl Table {
         let boolean = |c: usize| form(&[(c, F192::ONE)], vec![(c, c, F192::ONE)]);
         match self {
             // A Boolean mux bit; what a hash row hashes is its wiring's.
-            Self::Hash => vec![boolean(HashFlock::SEL)],
+            Self::Hash => vec![boolean(hash::SEL)],
             // A word is its bits, each Boolean.
             Self::Split => {
                 let word: Vec<(usize, F192)> = std::iter::once((0, F192::ONE))
@@ -218,23 +208,18 @@ impl SlotForm {
     const ZERO: Coord = Coord::Const(F64::ZERO);
 
     /// A `K` slot: column `c`.
-    const fn k(c: usize) -> Option<Self> {
-        Some(Self([Coord::Col(c), Self::ZERO, Self::ZERO, Self::ZERO]))
+    const fn k(c: usize) -> Self {
+        Self([Coord::Col(c), Self::ZERO, Self::ZERO, Self::ZERO])
     }
 
     /// An `E` slot: columns `c..c + 3`.
-    const fn e(c: usize) -> Option<Self> {
-        Some(Self([Coord::Col(c), Coord::Col(c + 1), Coord::Col(c + 2), Self::ZERO]))
+    const fn e(c: usize) -> Self {
+        Self([Coord::Col(c), Coord::Col(c + 1), Coord::Col(c + 2), Self::ZERO])
     }
 
     /// A digest slot: columns `c..c + 4`.
-    const fn d(c: usize) -> Option<Self> {
-        Some(Self([
-            Coord::Col(c),
-            Coord::Col(c + 1),
-            Coord::Col(c + 2),
-            Coord::Col(c + 3),
-        ]))
+    const fn d(c: usize) -> Self {
+        Self([Coord::Col(c), Coord::Col(c + 1), Coord::Col(c + 2), Coord::Col(c + 3)])
     }
 
     /// `EMUL`'s slots `a`, `b`, `d` and `c = a·b + d` modulo `y^3 + y + 1`.
@@ -248,7 +233,7 @@ impl SlotForm {
         };
         let limb = |parts: &[usize], d: usize| Sum(parts.iter().flat_map(|&i| p(i)).chain([Col(d)]).collect());
         match s {
-            0..3 => Self::e(3 * s),
+            0..3 => Some(Self::e(3 * s)),
             3 => Some(Self([
                 limb(&[0, 3], 6),
                 limb(&[1, 3, 4], 7),
@@ -262,9 +247,9 @@ impl SlotForm {
     /// `EXK`'s slots `a`, `k`, `d` and `c = a·k + d`, limb by limb.
     fn exk(s: usize) -> Option<Self> {
         match s {
-            0 => Self::e(0),
-            1 => Self::k(3),
-            2 => Self::e(4),
+            0 => Some(Self::e(0)),
+            1 => Some(Self::k(3)),
+            2 => Some(Self::e(4)),
             3 => Some(Self(std::array::from_fn(|i| {
                 if i < 3 {
                     Sum(vec![Prod(i, 3), Col(4 + i)])
@@ -278,27 +263,20 @@ impl SlotForm {
 
     /// `HASH`'s slots, over its ports and its mux bit.
     fn hash(s: usize) -> Option<Self> {
-        let (t, f, h, m, o, sel) = (
-            HashFlock::T,
-            HashFlock::F,
-            HashFlock::H,
-            HashFlock::M,
-            HashFlock::O,
-            HashFlock::SEL,
-        );
+        let (t, f, h, m, o, sel) = (hash::T, hash::F, hash::H, hash::M, hash::O, hash::SEL);
         match s {
-            0 => Self::d(h),
+            0 => Some(Self::d(h)),
             1 => Some(Self([Col(t), Col(f), Self::ZERO, Self::ZERO])),
             // The Merkle mux: the message's left half at `b = 0`, its right half at `b = 1`.
             2 => Some(Self(std::array::from_fn(|i| {
                 Sum(vec![Col(m + i), Prod(sel, m + i), Prod(sel, m + 4 + i)])
             }))),
-            3 => Self::k(sel),
-            4 => Self::e(m + 4),
-            5 => Self::k(m + 7),
-            6 => Self::d(o),
-            7 => Self::e(o),
-            8..16 => Self::k(m + s - 8),
+            3 => Some(Self::k(sel)),
+            4 => Some(Self::e(m + 4)),
+            5 => Some(Self::k(m + 7)),
+            6 => Some(Self::d(o)),
+            7 => Some(Self::e(o)),
+            8..16 => Some(Self::k(m + s - 8)),
             _ => None,
         }
     }
@@ -306,11 +284,11 @@ impl SlotForm {
     /// `CAST`'s slots over its four words.
     const fn cast(s: usize) -> Option<Self> {
         match s {
-            0 => Self::d(0),
-            1 => Self::e(0),
+            0 => Some(Self::d(0)),
+            1 => Some(Self::e(0)),
             2 => Some(Self([Col(0), Col(1), Self::ZERO, Self::ZERO])),
             3 => Some(Self([Col(2), Col(3), Self::ZERO, Self::ZERO])),
-            4..8 => Self::k(s - 4),
+            4..8 => Some(Self::k(s - 4)),
             _ => None,
         }
     }
@@ -334,40 +312,9 @@ impl TableKey<{ Self::COUNT }> for Table {
     }
 }
 
-impl HashFlock {
-    /// How many ports the hash table reads, at the witness's words `0..18`.
-    pub(crate) const N_PORTS: usize = 18;
-    const T: usize = 0;
-    const F: usize = 1;
-    const H: usize = 2;
-    const M: usize = 6;
-    const O: usize = 14;
-    /// The hash table's mux bit, its one committed column, after its ports.
-    const SEL: usize = Self::N_PORTS;
-
-    /// The packed witness of the BLAKE2s class circuit, which proves every hash row.
-    pub(crate) const FLOCK: FlockId = FlockId::class(TableId::HASH).expect("the HASH class has a circuit");
-
-    /// The BLAKE2s compression circuit.
-    pub(crate) fn circuit() -> &'static Circuit {
-        Self::FLOCK.circuit()
-    }
-
-    /// `log2` of a hash row's packed words: the stride between consecutive rows' same-port words.
-    pub(crate) const fn stride_log() -> usize {
-        Self::FLOCK.stride_log()
-    }
-
-    /// `log2` of the hash table's height for `rows` rows, at least flock's floor.
-    const fn height_log(rows: usize) -> usize {
-        class_flock::batch_log(Self::FLOCK.k_log(), rows)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tables::{ClassSpec, Word};
     use proptest::prelude::*;
 
     fn eval(c: &Coord, cols: &[F64]) -> F64 {
@@ -409,15 +356,5 @@ mod tests {
             }
             assert_eq!(t.committed_sources().len(), t.n_cols() - t.n_ports());
         }
-    }
-
-    #[test]
-    fn the_hash_ports_are_the_precompile_ports() {
-        let ports: Vec<Word> = ClassSpec::HASH.ports().collect();
-        assert_eq!(ports.len(), HashFlock::N_PORTS);
-        assert_eq!((ports[HashFlock::T], ports[HashFlock::F]), (Word::V2, Word::Flags));
-        assert!((0..4).all(|i| ports[HashFlock::H + i] == Word::Cell(i as u8)));
-        assert!((0..8).all(|i| ports[HashFlock::M + i] == Word::Cell(8 + i as u8)));
-        assert!((0..4).all(|i| ports[HashFlock::O + i] == Word::CellNew(4 + i as u8)));
     }
 }

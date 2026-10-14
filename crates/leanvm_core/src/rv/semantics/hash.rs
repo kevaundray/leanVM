@@ -257,6 +257,8 @@ mod tests {
     use super::*;
     use crate::rv::Class;
     use crate::rv::semantics::tests::{Ports, circuit_matches_reference, edge_word};
+    use flock::BatchRows;
+    use flock::test_util::Witness;
     use proptest::prelude::*;
     use proptest::sample::select;
     use proptest::strategy::BoxedStrategy;
@@ -325,9 +327,9 @@ mod tests {
             .collect();
 
         // Both generators on the same batch, every table compared.
-        let walk = BLAKE2S.witness_by_walk(&rows, &[0; 14], n_log, |row, words| words.copy_from_slice(row));
-        let fast =
-            BLAKE2S.witness_by_instance(&rows, &[0; 14], n_log, |row, z, az, bz| blake2s_witness(row, z, az, bz));
+        let rows = BatchRows::new(&rows, &[0; 14], n_log);
+        let walk = Witness::by_walk(&BLAKE2S, rows, |row, words| words.copy_from_slice(row));
+        let fast = Witness::by_instance(&BLAKE2S, rows, |row, z, az, bz| blake2s_witness(row, z, az, bz));
         assert!(walk == fast, "the witness tables");
     }
 

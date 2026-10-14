@@ -3,10 +3,10 @@
 use crate::refuse;
 use crate::workload::Workload;
 use bench::{Plan, Timing};
+use bench::{pretty_f64, pretty_integer};
 use clap::ValueEnum;
 use leanvm::Prover;
 use leanvm::aggregate::{Kind, Leaf, LeafShape, Tree, TreeProof, TreeShape};
-use primitives::{pretty_f64, pretty_integer};
 
 /// The leaf program.
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -77,7 +77,11 @@ pub fn run(
     // The leaf's run, measured, gives the shape its proofs announce: the tree is checked before anything is proven.
     let stats = leaf.measure();
     let shape = TreeShape {
-        leaf: LeafShape::measured(&stats, leaf_prover.rate()),
+        leaf: if leaf_prover.is_zero_knowledge() {
+            LeafShape::measured(&stats, leaf_prover.rate()).zero_knowledge()
+        } else {
+            LeafShape::measured(&stats, leaf_prover.rate())
+        },
         arity_0,
         arity,
         rate,
@@ -85,14 +89,11 @@ pub fn run(
     };
     shape.root_kind(leaves).unwrap_or_else(|e| refuse(format_args!("{e}")));
 
-    let (proved, leaf_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        leaf.prove(leaf_prover)
-    });
+    let (proved, leaf_time) = plan.warm_then_measure(|| leaf.prove(leaf_prover));
     let (proof, output) = (&proved.proof, proved.output);
-    let quiet = Plan::new(plan.repeat, 0);
+    let quiet = plan.without_cooldown();
 
-    let (tree, setup) = Plan::new(1, 0).measure_quiet(|_| {
+    let (tree, setup) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Tree setup").entered();
         Tree::new(&leaf.program, shape).unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
@@ -117,12 +118,9 @@ pub fn run(
     println!("tree setup (both circuits, the fixed polynomials): {}", secs(&setup));
 
     let firsts = vec![Leaf::new(proof, output); arity_0];
-    let (first, first_time) = plan.warm_then_measure(|last| {
-        let _quiet = (!last).then(bench::suppress_tracing);
-        tree.prove_first(&firsts).expect("honest leaves")
-    });
+    let (first, first_time) = plan.warm_then_measure(|| tree.prove_first(&firsts).expect("honest leaves"));
     let outputs = vec![output; arity_0];
-    let (_, first_verify) = quiet.measure_quiet(|_| tree.verify(&first, &outputs).expect("a first-level root"));
+    let (_, first_verify) = quiet.measure_quiet(|| tree.verify(&first, &outputs).expect("a first-level root"));
     report(
         &format!("first-level node, {arity_0} leaves"),
         &tree,
@@ -134,12 +132,9 @@ pub fn run(
 
     if leaves > arity_0 {
         let children = vec![first; arity];
-        let (node, node_time) = plan.warm_then_measure(|last| {
-            let _quiet = (!last).then(bench::suppress_tracing);
-            tree.prove_node(&children).expect("honest children")
-        });
+        let (node, node_time) = plan.warm_then_measure(|| tree.prove_node(&children).expect("honest children"));
         let outputs = vec![output; arity_0 * arity];
-        let (_, node_verify) = quiet.measure_quiet(|_| tree.verify(&node, &outputs).expect("a root"));
+        let (_, node_verify) = quiet.measure_quiet(|| tree.verify(&node, &outputs).expect("a root"));
         report(
             &format!("node, {arity} children"),
             &tree,
@@ -150,13 +145,13 @@ pub fn run(
         );
     }
 
-    let (root, whole) = Plan::new(1, 0).measure_quiet(|_| {
+    let (root, whole) = Plan::default().measure_quiet(|| {
         let _span = tracing::info_span!("Prove tree", leaves).entered();
         tree.prove(&leaves_proofs)
             .unwrap_or_else(|e| refuse(format_args!("{e}")))
     });
     let outputs = vec![output; leaves];
-    let (_, root_verify) = quiet.measure_quiet(|_| tree.verify(&root, &outputs).expect("the root verifies"));
+    let (_, root_verify) = quiet.measure_quiet(|| tree.verify(&root, &outputs).expect("the root verifies"));
     println!("whole tree");
     println!(
         "  proving every node          : {}, after the leaf proofs",

@@ -19,21 +19,17 @@
 pub mod arith;
 mod codec;
 mod duplex;
-mod error;
 mod pow;
 mod proof;
 mod prover;
-mod session;
 mod verifier;
 
 pub use codec::{Encoding, FromNarg, FromUniform, LengthPrefixed};
-pub use duplex::{Blake2sDuplex, DuplexSponge, MAX_SQUEEZE, Role};
-pub use error::TranscriptError;
+pub use duplex::{Blake2sDuplex, Role};
 pub use pow::ProofOfWork;
-pub use proof::ProofTranscript;
+pub use proof::{Hints, ProofTranscript};
 pub use prover::ProverState;
-pub use session::SessionId;
-pub use verifier::VerifierState;
+pub use verifier::{TranscriptError, VerifierState};
 
 /// What both sides of a transcript do alike: draw verifier messages.
 ///
@@ -41,4 +37,67 @@ pub use verifier::VerifierState;
 pub trait Challenger {
     /// Draw a verifier message from the sponge.
     fn verifier_message<T: FromUniform>(&mut self) -> T;
+}
+
+/// The 32 bytes that start a transcript.
+///
+/// It identifies the protocol, the relation, and the context, as `draft-irtf-cfrg-fiat-shamir` requires.
+///
+/// - Two protocols, or one protocol over two relations, get unrelated challenges.
+/// - The instance is not part of it: the transcript absorbs the instance as its first message.
+///
+/// A newtype, so that a tag cannot stand in for an identifier by mistake.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SessionId(pub [u8; 32]);
+
+/// The initialization vector session identifiers are derived under.
+///
+/// The draft's constant: exactly 32 bytes.
+const DERIVATION_IV: [u8; 32] = *b"irtf-cfrg-fiat-shamir/session-id";
+
+impl SessionId {
+    /// The identifier of a tag.
+    ///
+    /// The tag names the protocol, its version, its hash and codecs, and the relation.
+    ///
+    /// ```text
+    ///     sponge = init("irtf-cfrg-fiat-shamir/session-id")
+    ///     absorb(tag)
+    ///     id     = squeeze(32)
+    /// ```
+    #[must_use]
+    pub fn new(tag: &[u8]) -> Self {
+        let mut sponge = Blake2sDuplex::new(DERIVATION_IV);
+        sponge.absorb(tag);
+        let mut id = [0; 32];
+        sponge.squeeze(&mut id);
+        Self(id)
+    }
+
+    /// The identifier of a protocol's tag followed by the relation it is run for.
+    ///
+    /// ```text
+    ///     id = new(protocol || relation)
+    /// ```
+    ///
+    /// The relation is a digest or a parent session, so it has a fixed length and the concatenation is unambiguous.
+    #[must_use]
+    pub fn tagged(protocol: &[u8], relation: &[u8]) -> Self {
+        Self::new(&[protocol, relation].concat())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn distinct_tags_give_distinct_identifiers() {
+        // A tag and its extension by one zero byte must not collide.
+        //
+        // The absorb run's length in the sponge's framing tells them apart.
+        let a = SessionId::new(b"protocol");
+        let b = SessionId::new(b"protocol\0");
+        assert_ne!(a, b);
+    }
 }

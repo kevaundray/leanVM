@@ -1,14 +1,23 @@
 //! The prover: it runs a program and proves the run.
 
+use super::proof::ProofKind;
 use super::{Output, Program, Proof, ProveError, Stats};
-use crate::pcs::Rate;
+use crate::commitment::Rate;
 use tracing::info_span;
+use zk::Randomness;
 
 /// A prover: it proves runs at one commitment rate.
 ///
 /// The rate trades proving time for proof size.
 ///
 /// The verifier needs no rate: each proof announces its own.
+///
+/// # Zero knowledge
+///
+/// A zero-knowledge prover hides the advice and the run, but not the run's shape.
+///
+/// - Each table's height and the rate are public.
+/// - A program whose advice is private must prove at a fixed shape, so that the heights say nothing of the advice.
 ///
 /// # Performance
 ///
@@ -23,6 +32,8 @@ use tracing::info_span;
 pub struct Prover {
     /// The commitment rate every proof is made at.
     rate: Rate,
+    /// Where a zero-knowledge prover draws its randomness; none for a plain prover.
+    randomness: Option<Randomness>,
 }
 
 impl Prover {
@@ -33,13 +44,41 @@ impl Prover {
     pub fn new(rate: Rate) -> Self {
         // Spawning up front keeps the spawn cost out of the first proof.
         crate::init_prover();
-        Self { rate }
+        Self { rate, randomness: None }
     }
 
     /// The commitment rate every proof is made at.
     #[must_use]
     pub const fn rate(&self) -> Rate {
         self.rate
+    }
+
+    /// The same prover, making zero-knowledge proofs from this randomness.
+    #[must_use]
+    pub const fn zero_knowledge(self, randomness: Randomness) -> Self {
+        Self {
+            randomness: Some(randomness),
+            ..self
+        }
+    }
+
+    /// Whether the prover makes zero-knowledge proofs.
+    #[must_use]
+    pub const fn is_zero_knowledge(&self) -> bool {
+        self.randomness.is_some()
+    }
+
+    /// Where a zero-knowledge prover draws its randomness.
+    pub(super) const fn randomness(&self) -> Option<Randomness> {
+        self.randomness
+    }
+
+    /// The kind of proof the prover makes.
+    pub(super) const fn kind(&self) -> ProofKind {
+        match self.randomness {
+            Some(_) => ProofKind::ZeroKnowledge,
+            None => ProofKind::Plain,
+        }
     }
 
     /// Run the program on the advice, and prove the run.
@@ -54,11 +93,15 @@ impl Prover {
     /// - The run traps.
     /// - The run is longer than one proof holds.
     /// - The advice is longer than the program's region.
-    #[tracing::instrument(name = "Prove", skip_all, fields(log_inv_rate = self.rate.log_inv_rate()))]
+    #[tracing::instrument(
+        name = "Prove",
+        skip_all,
+        fields(log_inv_rate = self.rate.log_inv_rate(), zk = self.is_zero_knowledge())
+    )]
     pub fn prove(&self, program: &Program, advice: &[u64]) -> Result<ProvenRun, ProveError> {
         let exec = info_span!("Execute program").in_scope(|| program.execute(advice))?;
-        program.committed_size(exec.trace.row_counts())?;
-        let (proof, stats) = program.prove_execution(&exec, self.rate);
+        program.committed_size(exec.trace.row_counts(), self.kind())?;
+        let (proof, stats) = program.prove_execution(&exec, self);
         Ok(ProvenRun {
             proof,
             output: Output::new(exec.output),

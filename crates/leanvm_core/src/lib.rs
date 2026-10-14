@@ -34,6 +34,18 @@
 //! The run's own proof then shows its committed values only under its assumptions: [`Program::verify_assuming`]
 //! checks it and returns them, unresolved. An aggregation tree resolves them, verifying the assumed proofs too.
 //!
+//! A zero-knowledge proof assumes and is assumed as a plain one does. The assumptions are part of its statement, given
+//! to its verifier with the committed values' digest, so zero knowledge hides the advice and never the assumptions.
+//!
+//! # Zero knowledge
+//!
+//! A plain proof hides nothing: a verifier who guesses the advice can recompute the proof and compare.
+//!
+//! A prover made zero knowledge proves the same statement and reveals nothing of the advice or the run beyond its shape.
+//!
+//! - The shape is each table's height and the rate.
+//! - A program whose advice is private must therefore prove at a fixed public shape.
+//!
 //! # Examples
 //!
 //! ```no_run
@@ -57,33 +69,32 @@
 //! A timestamp is `2^40 | cycle << 5 | slot`, and the clock circuit of each table orders its accesses and steps it (§sec:memchan).
 //! Every committed column is `K`-valued; challenges and transcript scalars live in `E = GF(2^192)`.
 //!
-//! - `pcs`: `K`-committed witness, `E`-opened, via the stacked WHIR (§sec:stacking, §annex:pcs).
-//! - `witness`: `K`-valued columns stacked into one committed witness.
-//! - `gkr`: the grand product via GKR (§sec:gkr), balancing the bus.
-//! - `leaf`: the shared bus: grand-product balance, decomposed to per-column claims (§sec:gp through §sec:leafstack, §sec:omc).
-//! - `constraints`: one table sumcheck over every table's two bus forms, the extension-field identities and the lookup producers (§sec:air).
+//! The modules:
+//!
+//! - `stacking`: `K`-valued columns stacked into one committed witness.
+//! - `commitment`: that witness committed in `K` and opened in `E`, via the stacked WHIR (§sec:stacking, §annex:pcs).
+//! - `gkr`: the grand product via GKR (§sec:gkr), which balances the bus.
+//! - `bus`: the shared bus, its balance decomposed into per-column claims (§sec:gp through §sec:leafstack, §sec:omc).
+//! - `constraints`: one table sumcheck over every table's bus forms, the extension-field identities and the lookup producers (§sec:air).
 //! - `rv`: RISC-V (rv64im): the decoder, each instruction class's function and circuit, and the reference interpreter.
-//! - `tables`: the instruction tables, one per class (columns, bus tuples, clock circuits).
-//! - `class_flock`: the glue to flock: each circuit proven over its own packed witness, in the same commitment.
-//! - `cpu`: whole-program assembly and the prove/verify entry points.
+//! - `tables`: the instruction tables, one per class: columns, bus tuples, circuits and their packed witnesses.
+//! - `cpu`: whole-program assembly and the prove and verify entry points.
 //! - `rec`: the recursion machine and the aggregation trees (§annex:rec).
 
 pub(crate) use primitives::{log2_ceil_usize, log2_strict_usize};
 
-mod class_flock;
-mod colval;
+mod bus;
+mod commitment;
 mod constraints;
 mod cpu;
 mod envelope;
 mod gkr;
-mod leaf;
-mod pcs;
 mod rec;
 mod rv;
+mod stacking;
 mod tables;
-mod witness;
 
-pub use crate::pcs::{InvalidRate, Rate, SECURITY_BITS};
+pub use commitment::{InvalidRate, Rate, SECURITY_BITS};
 pub use cpu::{Assumption, DecodeError, Output, Program, Proof, ProveError, ProvenRun, Prover, Stats, VerifyError};
 #[doc(hidden)]
 pub use rec::tree::{
@@ -92,21 +103,22 @@ pub use rec::tree::{
     TreeShape, Unsatisfied,
 };
 pub use rv::{ElfError, ProgramError, Region, Trap, asm};
+pub use zk::Randomness;
 
 #[doc(hidden)]
-pub use crate::pcs::{MAX_MU, MIN_MU};
+pub use bus::{BusError, N_TUPLE_BITS};
 #[doc(hidden)]
-pub use class_flock::{FlockId, MIN_CUBE_LOG, N_FLOCKS};
+pub use commitment::{MAX_MU, MIN_MU};
 #[doc(hidden)]
 pub use constraints::ConstraintError;
 #[doc(hidden)]
 pub use cpu::{CpuError, DeferredClaims, Lookup, MAX_LOG_ROWS, MalformedClaim, Q_BASE, UNGROUND_LOG_BYTECODE};
 #[doc(hidden)]
-pub use leaf::{BusError, N_TUPLE_BITS};
-#[doc(hidden)]
 pub use rv::{Alu, Class, Guest, Hash, Machine, Reg, RegisterFile, Syscall};
 #[doc(hidden)]
-pub use tables::{BAD_SLOT, Clock, EXIT_SLOT, Fill, N_TABLES, PerTable, TableId, Word};
+pub use tables::{
+    BAD_SLOT, CircuitId, Clock, EXIT_SLOT, Fill, MIN_CUBE_LOG, N_CIRCUITS, N_TABLES, PerTable, TableId, Word,
+};
 
 /// Prepare the process for proving: spawn the worker pool up front.
 ///
@@ -124,7 +136,7 @@ pub fn init_prover() {
 }
 
 /// Below this many parallelizable items a pass runs serially: the fan-out
-/// overhead is not worth it for small inputs. Shared by [`constraints`], [`gkr`], [`leaf`].
+/// overhead is not worth it for small inputs. Shared by [`constraints`], [`gkr`], [`bus`].
 pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 
 /// Aggregation trees: many proofs of one program, verified as one.
@@ -158,7 +170,8 @@ pub(crate) const PAR_THRESHOLD: usize = 1 << 11;
 /// under those assumptions ([`crate::Program::verify_assuming`]). A tree built with [`aggregate::Tree::assuming`]
 /// resolves them: its first level verifies, beside each leaf's proof, the proofs that leaf's run assumed, and checks
 /// that they are exactly the assumptions its output folds in, in order. Its root then states each leaf's committed
-/// values' digest, with nothing left assumed.
+/// values' digest, with nothing left assumed. Its leaves and the proofs they assume may each be zero knowledge, as
+/// their [`aggregate::LeafShape`]s say.
 pub mod aggregate {
     pub use crate::rec::tree::{
         Aggregate, AssumedProofs, Capacity, CircuitStats, Claim, ClaimGroup, ClaimLeaf, ClaimSet, ClaimSetError,

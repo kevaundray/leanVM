@@ -3,11 +3,11 @@
 use super::bus::{FlushBuilder, Separator};
 use super::columns::Columns;
 use super::{BAD_SLOT, EXIT_SLOT, Part, PerTable, TableId, Word};
+use crate::bus::BusForm;
+use crate::bus::Coord::{self, Col, Const, Scaled};
 use crate::constraints::{BitColumns, BitField};
-use crate::leaf::BusForm;
-use crate::leaf::Coord::{self, Col, Const, Scaled};
 use crate::rv::{Ext, Hash, Reg, RegisterFile};
-use primitives::field::{F64, F192, g_pow};
+use primitives::field::{F64, F192};
 use std::sync::OnceLock;
 
 /// Circuit bindings and bus interactions for one instruction class.
@@ -207,7 +207,7 @@ impl ClassTable {
         let mut entry = vec![
             Separator::Bytecode.coordinate(),
             Col(c.pc),
-            Const(g_pow(self.id.index())),
+            Const(self.id.tag()),
             c.flags.map_or(Const(F64::ZERO), Col),
             Col(c.a1),
             c.rs2.map_or(Const(F64::ZERO), |r| Col(r.a2)),
@@ -343,7 +343,6 @@ impl ClassTable {
 mod tests {
     use super::super::Clock;
     use super::*;
-    use crate::colval::ColVal;
 
     fn check_columns(coordinate: &Coord, width: usize) {
         // Every table-side coordinate must use its own local span of columns.
@@ -404,7 +403,7 @@ mod tests {
             row[cols.limbs..cols.limbs + 9].copy_from_slice(&limbs.map(F64));
             row[cols.new..cols.new + 3].copy_from_slice(&Ext { flags, pointers: [0; 3], limbs }.eval().map(F64));
             (row[bits], row[bits + 1]) = (F64(flags & 1), F64(flags >> 1));
-            let values = |row: &[F64]| table.identities().iter().map(|form| <F64 as ColVal>::reduce(form.eval_unreduced(row, false))).collect::<Vec<_>>();
+            let values = |row: &[F64]| table.identities().iter().map(|form| form.eval_unreduced(row, false).reduce()).collect::<Vec<_>>();
             proptest::prop_assert_eq!(values(&row), vec![F192::ZERO; 3]);
             row[cols.new + wrong].0 ^= 1 << bit;
             let values = values(&row);

@@ -155,6 +155,17 @@
 \newcommand{\strs}{s_{\mathrm{st}}}     % the top index bits a group of stratified columns fixes
 \newcommand{\stcov}[1]{a_{\mathrm{st},#1}} % the fraction of coset #1 of a group's fixed bits that a set covers
 
+% ---------- the hiding commitment (Annex B) and zero knowledge (Annex F) ----------
+\newcommand{\npad}{N_{\mathrm{pad}}}     % coefficients a hiding commitment pads each level-0 row with, past its power of two
+\newcommand{\padc}{\mathsf{p}}           % a level-0 row's padding: its \npad coefficients past the power of two
+\newcommand{\padfold}{\bar{\mathsf{p}}}  % the paddings folded by the lane challenges, sent after the lane fold
+\newcommand{\padshift}{s_{\mathrm{pad}}} % the shift of the padding's factor: the first basis element past the domain
+\newcommand{\rndgrp}{G_{\mathrm{rnd}}}  % the random group: four uniform level-0 rows of a hiding commitment
+\newcommand{\cpad}{\mathcal{C}^{\mathrm{pad}}} % the padded level-0 code of a hiding commitment
+\newcommand{\zkey}{\mathsf{k}}          % a one-time-pad key of a zero-knowledge proof
+\newcommand{\zrec}{\mathcal{R}}         % the rank-one system the recording verifier records over the keys
+\newcommand{\zrho}{\varrho}             % the challenge batching a zero-knowledge proof's public evaluations
+
 % ---------- novel basis and additive NTT (Annex D) ----------
 \newcommand{\subsp}{\mathcal{U}}         % F_2-subspace                (was U_i)
 \newcommand{\vansub}{\mathcal{V}}        % subspace vanishing poly     (was W_i)

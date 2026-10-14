@@ -52,7 +52,7 @@ pub const OUT_LEN: usize = 32;
 /// Compression block length in bytes.
 pub const BLOCK_LEN: usize = 64;
 /// Rounds per compression.
-pub const ROUNDS: usize = 10;
+const ROUNDS: usize = 10;
 
 /// BLAKE2s message schedule.
 pub const SIGMA: [[usize; 16]; ROUNDS] = [
@@ -164,7 +164,9 @@ fn state_bytes(h: &[u32; 8]) -> [u8; OUT_LEN] {
 /// The final block carries the final flag, so a full buffer is held back until more input arrives.
 #[derive(Clone)]
 pub struct Hasher {
+    /// The chaining value after every block compressed so far.
     h: [u32; 8],
+    /// The input not compressed yet.
     buf: [u8; BLOCK_LEN],
     /// Bytes currently in `buf`, in `0..=BLOCK_LEN`.
     buf_len: usize,
@@ -173,6 +175,7 @@ pub struct Hasher {
 }
 
 impl Hasher {
+    /// A hasher with nothing absorbed.
     pub const fn new() -> Self {
         Self::from_iv(PARAM_IV)
     }
@@ -191,6 +194,7 @@ impl Hasher {
         }
     }
 
+    /// Absorbs `data`.
     pub fn update(&mut self, mut data: &[u8]) -> &mut Self {
         while !data.is_empty() {
             if self.buf_len == BLOCK_LEN {
@@ -207,6 +211,7 @@ impl Hasher {
         self
     }
 
+    /// The digest of everything absorbed, the buffered block compressed as the last.
     pub fn finalize(&self) -> [u8; OUT_LEN] {
         let mut h = self.h;
         let mut block = self.buf;
@@ -227,13 +232,7 @@ impl Default for Hasher {
 pub fn hash(data: &[u8]) -> [u8; OUT_LEN] {
     // Whole blocks, the shape hashed in bulk, need no buffering.
     if !data.is_empty() && data.len().is_multiple_of(BLOCK_LEN) {
-        let mut h = PARAM_IV;
-        let n = data.len() / BLOCK_LEN;
-        for (b, block) in data.as_chunks::<BLOCK_LEN>().0.iter().enumerate() {
-            let t = ((b + 1) * BLOCK_LEN) as u64;
-            compress(&mut h, &block_words(block), t, b + 1 == n);
-        }
-        return state_bytes(&h);
+        return ChainingValue::START.hash(data);
     }
     let mut hasher = Hasher::new();
     hasher.update(data);
@@ -265,60 +264,78 @@ pub fn hash_many<const LEN: usize>(data: &[u8], out: &mut [u8]) {
     const {
         assert!(LEN > 0 && LEN.is_multiple_of(BLOCK_LEN));
     }
-    hash_many_dyn(data, LEN, out);
+    ChainingValue::START.hash_many(data, LEN, out);
 }
 
-/// The chaining value after `n_blocks` all-zero blocks from the unkeyed IV.
+/// An unkeyed BLAKE2s-256 hash partway through its image, after some whole blocks.
 ///
-/// PCS leaves share such a prefix, their absent interleaving lanes.
+/// Images sharing a prefix absorb it once, then each continues from here.
 ///
-/// The committer absorbs it once and starts every leaf here.
-///
-/// Digests are unchanged: a prefix's compressions depend on nothing after them.
-pub fn zero_prefix_state(n_blocks: usize) -> [u32; 8] {
-    let mut h = PARAM_IV;
-    for b in 0..n_blocks {
-        compress(&mut h, &[0u32; 16], ((b + 1) * BLOCK_LEN) as u64, false);
+/// A continued digest is the digest of the full image: a prefix's compressions depend on nothing after them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChainingValue {
+    /// The state words after the absorbed blocks.
+    h: [u32; 8],
+    /// The bytes absorbed, the byte counter the next block continues.
+    absorbed: u64,
+}
+
+impl ChainingValue {
+    /// The start of every image: nothing absorbed yet.
+    pub const START: Self = Self {
+        h: PARAM_IV,
+        absorbed: 0,
+    };
+
+    /// The value after `n_blocks` all-zero blocks.
+    ///
+    /// PCS leaves share such a prefix: their absent interleaving lanes.
+    pub fn zero_prefix(n_blocks: usize) -> Self {
+        let mut h = PARAM_IV;
+        for b in 0..n_blocks {
+            compress(&mut h, &[0u32; 16], ((b + 1) * BLOCK_LEN) as u64, false);
+        }
+        Self {
+            h,
+            absorbed: (n_blocks * BLOCK_LEN) as u64,
+        }
     }
-    h
-}
 
-/// The one-shot hash, continued from a chaining value.
-///
-/// - `data` is the rest of the image, a nonzero whole number of blocks.
-/// - `t_offset` counts the bytes already absorbed into `state`.
-pub fn hash_from_state(data: &[u8], state: &[u32; 8], t_offset: u64) -> [u8; OUT_LEN] {
-    assert!(
-        !data.is_empty() && data.len().is_multiple_of(BLOCK_LEN),
-        "a continued image is whole blocks"
-    );
-    let mut h = *state;
-    let n = data.len() / BLOCK_LEN;
-    for (b, block) in data.as_chunks::<BLOCK_LEN>().0.iter().enumerate() {
-        let t = t_offset + ((b + 1) * BLOCK_LEN) as u64;
-        compress(&mut h, &block_words(block), t, b + 1 == n);
+    /// The state words.
+    pub const fn state(&self) -> [u32; 8] {
+        self.h
     }
-    state_bytes(&h)
-}
 
-/// The batched hash, every input continued from one shared chaining value.
-///
-/// Each digest equals the hash of its full image.
-pub fn hash_many_dyn_from_state(data: &[u8], len: usize, state: &[u32; 8], t_offset: u64, out: &mut [u8]) {
-    assert!(
-        len > 0 && len.is_multiple_of(BLOCK_LEN),
-        "batched inputs are whole blocks"
-    );
-    let n = out.len() / OUT_LEN;
-    assert_eq!(data.len(), n * len);
-    assert_eq!(out.len(), n * OUT_LEN);
-    // SAFETY: the asserts pin the buffer sizes, and the backend is gated on the features its intrinsics need.
-    unsafe { hash_many_with::<Backend>(data, len, state, t_offset, out) }
-}
+    /// The digest of the image continued by `rest`, a nonzero whole number of blocks.
+    pub fn hash(&self, rest: &[u8]) -> [u8; OUT_LEN] {
+        assert!(
+            !rest.is_empty() && rest.len().is_multiple_of(BLOCK_LEN),
+            "a continued image is whole blocks"
+        );
+        let mut h = self.h;
+        let n = rest.len() / BLOCK_LEN;
+        for (b, block) in rest.as_chunks::<BLOCK_LEN>().0.iter().enumerate() {
+            // Each block's counter counts every byte through its end, the absorbed prefix included.
+            let t = self.absorbed + ((b + 1) * BLOCK_LEN) as u64;
+            compress(&mut h, &block_words(block), t, b + 1 == n);
+        }
+        state_bytes(&h)
+    }
 
-/// The batched hash with a runtime input length, a nonzero multiple of 64.
-pub fn hash_many_dyn(data: &[u8], len: usize, out: &mut [u8]) {
-    hash_many_dyn_from_state(data, len, &PARAM_IV, 0, out);
+    /// The digests of many images continued from here, each by `len` bytes of `data`, into `out`.
+    ///
+    /// `len` is a nonzero whole number of blocks.
+    pub fn hash_many(&self, data: &[u8], len: usize, out: &mut [u8]) {
+        assert!(
+            len > 0 && len.is_multiple_of(BLOCK_LEN),
+            "batched inputs are whole blocks"
+        );
+        let n = out.len() / OUT_LEN;
+        assert_eq!(data.len(), n * len);
+        assert_eq!(out.len(), n * OUT_LEN);
+        // SAFETY: the asserts pin the buffer sizes, and the backend is gated on the features its intrinsics need.
+        unsafe { hash_many_with::<Backend>(data, len, &self.h, self.absorbed, out) }
+    }
 }
 
 #[cfg(test)]
@@ -327,13 +344,31 @@ mod tests {
     use super::*;
     #[cfg(target_arch = "x86_64")]
     use crate::test_util::Rng;
-    use crate::test_util::test_vectors;
     #[cfg(target_arch = "aarch64")]
     use arm::Neon;
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     use x86::Avx2;
     #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
     use x86::Avx512;
+
+    /// The official unkeyed BLAKE2s-256 test vectors, as `(input, digest)` pairs.
+    ///
+    /// Input `n` is the `n` bytes `00 01 .. n-1`, for `n` in `0..256`: every length through four blocks.
+    ///
+    /// `test_vectors.txt` is extracted from `testvectors/blake2-kat.json` of <https://github.com/BLAKE2/BLAKE2>:
+    ///
+    /// ```text
+    /// jq -r '.[] | select(.hash == "blake2s" and .key == "") | .out' blake2-kat.json
+    /// ```
+    fn test_vectors() -> impl Iterator<Item = (Vec<u8>, [u8; OUT_LEN])> {
+        let lines: Vec<&str> = include_str!("test_vectors.txt").lines().collect();
+        assert_eq!(lines.len(), 256, "the vector file is truncated");
+        lines.into_iter().enumerate().map(|(n, line)| {
+            let input = (0..n).map(|i| i as u8).collect();
+            let digest = std::array::from_fn(|i| u8::from_str_radix(&line[2 * i..2 * i + 2], 16).unwrap());
+            (input, digest)
+        })
+    }
 
     #[test]
     fn continued_from_zero_prefix_matches_whole_image() {
@@ -343,11 +378,11 @@ mod tests {
         for zero_blocks in [0usize, 1, 3, 7] {
             for rest_blocks in [1usize, 2, 5] {
                 let (zlen, rlen) = (zero_blocks * BLOCK_LEN, rest_blocks * BLOCK_LEN);
-                let state = zero_prefix_state(zero_blocks);
+                let start = ChainingValue::zero_prefix(zero_blocks);
                 for n in [1usize, 4, 17, 33] {
                     let rest: Vec<u8> = (0..n * rlen).map(|i| (i * 31 + zero_blocks) as u8).collect();
                     let mut got = vec![0u8; n * OUT_LEN];
-                    hash_many_dyn_from_state(&rest, rlen, &state, zlen as u64, &mut got);
+                    start.hash_many(&rest, rlen, &mut got);
                     for i in 0..n {
                         let mut whole = vec![0u8; zlen];
                         whole.extend_from_slice(&rest[i * rlen..(i + 1) * rlen]);
@@ -358,7 +393,7 @@ mod tests {
                             "batched, zero_blocks={zero_blocks} rest_blocks={rest_blocks} n={n} i={i}"
                         );
                         assert_eq!(
-                            hash_from_state(&rest[i * rlen..(i + 1) * rlen], &state, zlen as u64),
+                            start.hash(&rest[i * rlen..(i + 1) * rlen]),
                             want,
                             "scalar, zero_blocks={zero_blocks} rest_blocks={rest_blocks}"
                         );
