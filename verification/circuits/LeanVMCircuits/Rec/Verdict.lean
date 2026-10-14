@@ -650,7 +650,7 @@ residual and reading every round with no eq weight factored out; its input claim
 `target`, `σ_0 + ξ σ_1` from the bus totals `tot0` and `tot1` at the batch's challenge `xi` (`target = mul_add(xi,
 totals[1], totals[0])`); and the bus GKR's root `root`, read as both trees' value by a GKR first layer (a radix-four top
 layer or an odd layer whose values are `[root, root]`, `gkr::verify_products`' one root for both trees) made before the
-target. `checkbind` names the latest such layer before the target, the bus's GKR running after flock's. -/
+target. `checkbind` names the latest such layer from which the GKR's layers reach the table's totals (`GkrCert`). -/
 structure TableCert where
   sc : ℕ
   target : ℕ

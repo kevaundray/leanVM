@@ -1058,7 +1058,7 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
     (odds.toList.filterMap fun t => match t.values with
       | [a, b] => if a == b then some (t.claimZero, a) else none
       | _ => none)
-  let tables := (List.range sumchecks.size).filterMap fun i =>
+  let tables0 := (List.range sumchecks.size).filterMap fun i =>
     let sc := sumchecks[i]!
     if sc.resid.isEmpty then none else
       let j := rp.maker.getD sc.claim0 0
@@ -1067,39 +1067,47 @@ def analyse (rp : Replay) (probe : List ℕ := []) : Report := Id.run do
         let root := ((firstLayers.filter (·.1 < j)).foldl (fun acc p => if acc.1 < p.1 then p else acc) (0, 0)).2
         some ({ sc := i, target := j, xi, tot0 := t0, tot1 := t1, root } : TableCert)
       | _ => none
-  let tablesOk := tables.all (·.ok cert os)
-  -- Each table sumcheck's bus GKR: from the latest first layer reading its root before it, the certified sumchecks
-  -- whose input claim is a radix-four layer's claim over the last layer's next claims, then the totals' `add`s.
+  -- Each table sumcheck's bus GKR: from a first layer reading one root for both trees before it, the certified
+  -- sumchecks whose input claim is a radix-four layer's claim over the last layer's next claims, then the totals'
+  -- `add`s; the table's root is the first layer's from which the chain reaches its totals, the latest such.
   let layerCands := (List.range sumchecks.size).filterMap fun i =>
     let sc := sumchecks[i]!
     if !sc.resid.isEmpty then none else
       (topOf rp idxO s certs.toList sc.test (rp.eqCall[sc.test]!) sc.claim0 sc.final).map fun t => (i, sc, t)
-  let gkrOf := fun (tc : TableCert) => Id.run do
-    let firsts := ((List.range tops.size).filterMap fun i =>
-        let t := tops[i]!
-        if t.values == [tc.root, tc.root] && t.claimZero < tc.target then some (t.claimZero, false, i) else none) ++
-      ((List.range odds.size).filterMap fun i =>
-        let t := odds[i]!
-        if t.values == [tc.root, tc.root] && t.claimZero < tc.target then some (t.claimZero, true, i) else none)
-    let some (_, odd, first) := firsts.foldl (fun acc p => match acc with
-      | some a => if a.1 < p.1 then some p else acc
-      | none => some p) none | return none
+  let addOf := fun (w v : ℕ) => match rp.calls.getD (rp.maker.getD w 0) .zero with
+    | .add x y => if y == v then some (rp.maker.getD w 0, x) else none
+    | _ => none
+  let chainFrom := fun (tc : TableCert) (odd : Bool) (first : ℕ) => Id.run do
     let g0 : GkrCert := { odd, first, layers := [], totAt := (0, 0), fw := (0, 0) }
     let mut outs := (g0.start tops odds os).2.1
     let mut layers : Array LayerCert := #[]
     for _ in [0:64] do
       let cur := outs
-      let some (i, sc, t) := layerCands.find? (fun (_, _, t) => t.values == cur) | break
+      let some (i, _, t) := layerCands.find? (fun (_, _, t) => t.values == cur) | break
       layers := layers.push { sc := i, layer := t }
       outs := (List.range 2).map (t.out os)
-      if sc.rounds.isEmpty then break
-    let addOf := fun (w v : ℕ) => match rp.calls.getD (rp.maker.getD w 0) .zero with
-      | .add x y => if y == v then some (rp.maker.getD w 0, x) else none
-      | _ => none
     let some (j0, f0) := addOf tc.tot0 (outs.getD 0 0) | return none
     let some (j1, f1) := addOf tc.tot1 (outs.getD 1 0) | return none
     return some { g0 with layers := layers.toList, totAt := (j0, j1), fw := (f0, f1) }
-  let gkrs := tables.filterMap fun tc => (gkrOf tc).map (tc, ·)
+  let gkrOf := fun (tc : TableCert) =>
+    let firsts := ((List.range tops.size).filterMap fun i =>
+        let t := tops[i]!
+        match t.values with
+        | [a, b] => if a == b && t.claimZero < tc.target then some (t.claimZero, a, false, i) else none
+        | _ => none) ++
+      ((List.range odds.size).filterMap fun i =>
+        let t := odds[i]!
+        match t.values with
+        | [a, b] => if a == b && t.claimZero < tc.target then some (t.claimZero, a, true, i) else none
+        | _ => none)
+    ((firsts.mergeSort fun p q => p.1 ≥ q.1).findSome? fun (_, a, odd, first) =>
+      (chainFrom tc odd first).map fun g => (a, g))
+  let found := tables0.map fun tc => match gkrOf tc with
+    | some (a, g) => ({ tc with root := a }, some g)
+    | none => (tc, none)
+  let tables := found.map (·.1)
+  let tablesOk := tables.all (·.ok cert os)
+  let gkrs := found.filterMap fun (tc, g) => g.map (tc, ·)
   let gkrsOk := gkrs.all fun (tc, g) => g.ok tc cert os
   let gkrLayers := gkrs.foldl (fun n (_, g) => n + g.layers.length) 0
   let accepted := cert.accepts s
