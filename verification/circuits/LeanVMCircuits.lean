@@ -44,6 +44,7 @@ public import LeanVMCircuits.Rec.AirLink
 public import LeanVMCircuits.Rec.AirBatch
 public import LeanVMCircuits.Rec.Relax
 public import LeanVMCircuits.Rec.RomExamples
+public import LeanVMCircuits.Rec.RingSwitch
 public import LeanVMCircuits.Rec.RoundSound
 public import LeanVMCircuits.Rec.Rounds
 public import LeanVMCircuits.Rec.Run
@@ -64,6 +65,9 @@ public import LeanVMCircuits.Rec.DesignKind
 public import LeanVMCircuits.Rec.Heights
 public import LeanVMCircuits.Rec.Named
 public import LeanVMCircuits.Rec.TableChain
+public import LeanVMCircuits.Rec.FlockLin
+public import LeanVMCircuits.Rec.FlockInst
+public import LeanVMCircuits.Rec.FlockZero
 public import LeanVMCircuits.Rec.Tries
 public import LeanVMCircuits.Rec.Edges
 public import LeanVMCircuits.Rec.EdgeMarks
