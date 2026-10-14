@@ -363,6 +363,26 @@ theorem GkrCert.sem {g : GkrCert} {tc : TableCert} {scs : Array SumcheckCert} {t
     exact ⟨v0, v1, hch, h0 ▸ e0, h1 ▸ e1⟩
   · exact absurd hrest (by simp)
 
+/-- A linked layer's wires where the calls hold, in `AirLink.layerInst`'s form: its sumcheck has no residual and its
+rounds' eq weights are the previous point; its input claim is the previous next claims combined at `λ` (the claim
+`layerInst_sum` names); its final side is the children's products combined at `λ` (`layerInst_final`'s form); and its
+next claims are the lines through its children at `low` and `high` (`AirLink.next_claim`'s form). -/
+theorem LayerCert.layer_sem {lc : LayerCert} {sc : SumcheckCert} {cs : Array Call} {rl : Array Bool}
+    {os : Array (List ℕ)} {st : ℕ → Fin 4 → K} {val : Val} {outs pt : List ℕ} (hF : Facts cs rl os st val)
+    (hlink : lc.linkOk sc os outs pt = true) (hok : lc.layer.ok os cs rl = true) :
+    sc.resid = [] ∧ sc.rounds.map (·.weight) = pt.map some ∧
+      Model.ev val sc.claim0 = (Sumcheck.polyOf (outs.map (Model.ev val))).eval (Model.ev val lc.layer.lam.chal) ∧
+      Model.ev val sc.final = (Sumcheck.polyOf ((List.range lc.layer.m).map fun k =>
+        Model.ev val (lc.layer.kid k 0) * Model.ev val (lc.layer.kid k 1) * Model.ev val (lc.layer.kid k 2) *
+          Model.ev val (lc.layer.kid k 3))).eval (Model.ev val lc.layer.lam.chal) ∧
+      ∀ k < lc.layer.m, Model.ev val (lc.layer.out os k) =
+        lineE (lineE (Model.ev val (lc.layer.kid k 0)) (Model.ev val (lc.layer.kid k 1)) (Model.ev val lc.layer.low.chal))
+          (lineE (Model.ev val (lc.layer.kid k 2)) (Model.ev val (lc.layer.kid k 3)) (Model.ev val lc.layer.low.chal))
+          (Model.ev val lc.layer.high.chal) := by
+  obtain ⟨hres, hv, hc, he, hw⟩ := LayerCert.link_sem hlink
+  obtain ⟨tc, te, tl⟩ := top_sem hF hok
+  exact ⟨hres, hw, hc ▸ hv ▸ tc, he ▸ te, tl⟩
+
 /-- Mutation tests of `GkrCert.okIn` with no layer past a top layer: the totals adding the top layer's next claims
 pass; totals reading another wire, or a first layer reading two roots, fail. -/
 example : ({ odd := false, first := 0, layers := [], totAt := (1, 2), fw := (3, 4) } : GkrCert).okIn
