@@ -1,0 +1,7 @@
+{
+  "name": "clean-spark-example",
+  "private": true,
+  "dependencies": {
+    "snarkjs": "0.7.6"
+  }
+}

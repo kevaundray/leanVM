@@ -1,0 +1,27 @@
+[package]
+name = "clean-spark"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[dependencies]
+anyhow = "1.0"
+ark-ff = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+provekit-backend-bn254 = { git = "https://github.com/worldfnd/ProveKit", rev = "35324c0dc699947d6872639b22f3ae96a42b2a09" }
+provekit-common = { git = "https://github.com/worldfnd/ProveKit", rev = "35324c0dc699947d6872639b22f3ae96a42b2a09" }
+provekit-prover = { git = "https://github.com/worldfnd/ProveKit", rev = "35324c0dc699947d6872639b22f3ae96a42b2a09", default-features = false }
+provekit-spark = { git = "https://github.com/worldfnd/ProveKit", rev = "35324c0dc699947d6872639b22f3ae96a42b2a09" }
+provekit-verifier = { git = "https://github.com/worldfnd/ProveKit", rev = "35324c0dc699947d6872639b22f3ae96a42b2a09" }
+# Must match ProveKit's source and revision so transcript types are identical.
+whir = { git = "https://github.com/worldfnd/whir.git", rev = "78e9460420da0954768feb1e52f581a0529c2124", features = ["tracing", "rs_in_order"] }
+
+[profile.release]
+lto = "thin"
+
+[profile.dev.package."*"]
+opt-level = 3

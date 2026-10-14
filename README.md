@@ -177,3 +177,28 @@ Fibonacci (in the exponent, i.e. modulo 2^64 - 1), N = 2,000,000
 - [WHIR](https://eprint.iacr.org/2024/1586) PCS, aka [Ligerito](https://eprint.iacr.org/2025/1187)
 - [Flock](https://github.com/succinctlabs/flock/tree/main) hash proving
 - [Binius](https://github.com/IrreducibleOSS/binius)/[Binius64](https://github.com/binius-zk/binius64) ring switching, M3 arithmetisation, and more (see [DP23](https://eprint.iacr.org/2023/1784) and [DP24](https://eprint.iacr.org/2024/504))
+
+## Clean circuits with SPARK
+
+[`examples/clean-spark`](examples/clean-spark) is a standalone circuit-to-proof example, separate from leanVM's binary-field prover. [`clean/Main.lean`](examples/clean-spark/clean/Main.lean) defines `y = x*x + x + 5` over the BN254 scalar field using [Clean](https://github.com/Verified-zkEVM/clean), with Lean-checked soundness and completeness proofs. Clean's existing Circom backend exports the constraints and a WASM witness generator; the Rust adapter imports those constraints rather than reconstructing the circuit.
+
+Prerequisites: `elan`/Lake, `rustup`, Node.js and npm, and a native C/C++ build toolchain. The example pins Lean, Rust nightly, Clean, ProveKit, WHIR, and npm dependencies; the first build downloads and compiles their dependencies.
+
+```bash
+cd examples/clean-spark
+npm ci --ignore-scripts
+(cd clean && lake exe cache get)
+bash run.sh 3
+```
+
+The run computes `y = 17`, checks the generated witness against the exported binary R1CS, proves and verifies the R1CS using ProveKit's Spartan/WHIR implementation, then proves and verifies its actual matrix-evaluation query using [SPARK](https://github.com/worldfnd/provekit/blob/35324c0dc699947d6872639b22f3ae96a42b2a09/provekit/spark/SPARK.md). It also checks that verification rejects a changed public output, changed SPARK query, and tampered SPARK proof. Pass any canonical decimal BN254 scalar instead of `3`; arithmetic is modulo the scalar-field modulus.
+
+Generated files stay in `examples/clean-spark/artifacts/`: `circuit.json` (snarkjs R1CS JSON), `circuit.r1cs` (binary R1CS), `circuit.wasm` (witness generator), `input.json`, `witness.wtns`, and `witness.json`. The signal order is `[1, y, x, x*x]`; both `y` and `x` are public. The generic Rust importer consumes BN254 R1CS JSON plus the decimal-string witness array, with constant one at signal zero and public outputs followed by public inputs. It checks the field, signal bounds, public prefix, and witness satisfaction. Clean rejects lookups and channel interactions that cannot be exported as R1CS.
+
+```bash
+# From examples/clean-spark, use already-exported artifacts:
+cargo run --release --locked -- artifacts/circuit.json artifacts/witness.json --self-check
+cargo test --release --locked
+```
+
+This is an in-process proving/verification example, not a persisted proof/key format. Native verification still evaluates the full matrices; SPARK is an additional verified proof, not yet a replacement for that step in a succinct composed verifier. Its setup is derived from the loaded circuit, not supplied by the proof. Backend minimum domains require zero padding even for this small circuit. The Lean theorem covers the circuit semantics, not the exporter or Rust cryptographic implementation; this example makes no end-to-end formal verification or full zero-knowledge claim.
