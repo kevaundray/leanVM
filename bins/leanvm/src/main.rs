@@ -1,9 +1,10 @@
 //! Benchmark CLI.
 
-use aggregate::LeafProgram;
+use aggregate::{Declare, LeafProgram, Signers};
 use bench::Plan;
 use clap::builder::RangedU64ValueParser;
 use clap::{Parser, Subcommand};
+use leanvm::aggregate::Capacity;
 use leanvm::{Prover, Randomness, Rate};
 use std::error::Error;
 use std::fmt::Arguments;
@@ -111,7 +112,8 @@ enum Command {
         #[arg(long, default_value_t = 1, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         blobs: usize,
     },
-    /// Prove a leaf program once, then an aggregation tree over copies of its proof.
+    /// Prove a leaf program once, then an aggregation tree over copies of its proof; or, with `--signers`, a
+    /// signer-set tree over distinct leaves, each publishing the signer set it verifies.
     Aggregate {
         /// The leaf program.
         #[arg(long, value_enum, default_value = "leanxmss")]
@@ -119,15 +121,39 @@ enum Command {
         /// The leaf program's size: Fibonacci's steps, or the signatures it verifies.
         #[arg(long, default_value_t = 400, value_parser = RangedU64ValueParser::<usize>::new().range(1..))]
         n: usize,
-        /// The leaves: the first level's arity times a power of the nodes' arity.
+        /// The leaves: the first level's arity times a power of the nodes' arity; with `--signers`, any multiple of
+        /// the first level's arity.
         #[arg(long, default_value_t = 4)]
         leaves: usize,
         /// The leaves each first-level node verifies.
         #[arg(long, default_value_t = 2)]
         arity0: usize,
-        /// The children each node verifies.
+        /// The children each node verifies; with `--signers`, the most, the last node of a level taking fewer.
         #[arg(long, default_value_t = 2)]
         arity: usize,
+        /// A signer-set tree (leanxmss and leansphincs): each leaf a distinct run publishing its signer set, the
+        /// tree proven bottom-up, every node declaring the union of its children's sets, and the root verified by
+        /// its set alone. Each node's proving time is reported under its circuit; `--repeat` proves the tree again.
+        #[arg(long)]
+        signers: bool,
+        /// The signer-set tree's bound on claims: every node's children's sets together hold fewer. Required with
+        /// `--signers`: the capacity sets every circuit's heights, so it has no default.
+        #[arg(long, requires = "signers", required_if_eq("signers", "true"))]
+        max_claims: Option<usize>,
+        /// The signer-set tree's bound on groups: every node's children's sets together have at most as many.
+        /// Required with `--signers`.
+        #[arg(long, requires = "signers", required_if_eq("signers", "true"))]
+        max_groups: Option<usize>,
+        /// The groups each leaf's signatures are split across, group `j` signing message `j`.
+        #[arg(long, default_value_t = 1, requires = "signers")]
+        groups: usize,
+        /// The percentage of each leaf's signers, group by group, that are the previous leaf's, so the union is
+        /// smaller than the sum of the leaves' sets.
+        #[arg(long, default_value_t = 0, requires = "signers", value_parser = RangedU64ValueParser::<usize>::new().range(0..=100))]
+        overlap: usize,
+        /// What the root declares: the union of its children's sets, or the first half of its claims.
+        #[arg(long, value_enum, default_value = "all", requires = "signers")]
+        declare: Declare,
     },
     /// Prove the benchmarks CI tracks and print them as Bencher Metric Format JSON.
     ///
@@ -243,7 +269,28 @@ fn main() {
             leaves,
             arity0,
             arity,
-        } => aggregate::run(&program.workload(n), leaves, arity0, arity, &leaf_prover, &prover, plan),
+            signers,
+            max_claims,
+            max_groups,
+            groups,
+            overlap,
+            declare,
+        } => {
+            if signers {
+                let signers = Signers {
+                    capacity: Capacity {
+                        claims: max_claims.expect("--signers requires --max-claims"),
+                        groups: max_groups.expect("--signers requires --max-groups"),
+                    },
+                    groups,
+                    overlap,
+                    declare,
+                };
+                aggregate::run_signers(program, n, leaves, arity0, arity, signers, &leaf_prover, &prover, plan);
+            } else {
+                aggregate::run(&program.workload(n), leaves, arity0, arity, &leaf_prover, &prover, plan);
+            }
+        }
         Command::Bench {
             cycles_only,
             markdown,
