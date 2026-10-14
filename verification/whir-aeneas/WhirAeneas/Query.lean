@@ -110,48 +110,54 @@ theorem base_inner_eq (hr : RowModel inst encode encodeK ofLimbs index) (v : V)
   rw [ey, hz, zero_add, baseInner]
   simp
 
+/-- The level-0 loop without padding (a configuration with no padding never folds one): each
+row's inner product starts from zero. -/
 theorem base_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
-    (hr : RowModel inst encode encodeK ofLimbs index) (weights : Slice E)
+    (hr : RowModel inst encode encodeK ofLimbs index) (weights : Slice E) (queries : Slice Q)
     (rows : alloc.vec.Vec (alloc.vec.Vec K)) (eq : alloc.vec.Vec E) (zero : E)
     (hz : encode zero = 0) :
-    ∀ (m : Nat) (i : Usize) (acc : E) (v : V), min rows.val.length weights.val.length - i.val = m →
-      i.val ≤ min rows.val.length weights.val.length →
+    ∀ (m : Nat) (i : Usize) (acc : E) (v : V),
+      min (min rows.val.length weights.val.length) queries.val.length - i.val = m →
+      i.val ≤ min (min rows.val.length weights.val.length) queries.val.length →
       encode acc = ∑ i' ∈ Finset.range i.val, (weights.val.map encode)[i']! *
         baseInner (eq.val.map encode) ((rows.val.map fun r => r.val.map encodeK)[i']!) →
-      ∃ y, whir.verify.BaseRows.enforced_sum_loop copyK inst v weights rows eq zero acc i = .ok (y, v) ∧
-        encode y = ∑ i' ∈ Finset.range (min rows.val.length weights.val.length),
+      ∃ y, whir.verify.BaseRows.enforced_sum_loop copyK inst v weights queries none rows eq zero acc i =
+          .ok (y, v) ∧
+        encode y = ∑ i' ∈ Finset.range (min (min rows.val.length weights.val.length) queries.val.length),
           (weights.val.map encode)[i']! *
             baseInner (eq.val.map encode) ((rows.val.map fun r => r.val.map encodeK)[i']!) := by
   intro m
   induction m with
   | zero =>
     intro i acc v hm hi hacc
-    have hil : i.val = min rows.val.length weights.val.length := by omega
+    have hil : i.val = min (min rows.val.length weights.val.length) queries.val.length := by omega
     refine ⟨acc, ?_, by rw [← hil]; exact hacc⟩
     unfold whir.verify.BaseRows.enforced_sum_loop
     apply loop_done
-    have : ¬ (i < core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len rows) (Slice.len weights)) := by
+    have : ¬ (i < core.cmp.impls.OrdUsize.min (core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len rows)
+        (Slice.len weights)) (Slice.len queries)) := by
       simp only [UScalar.lt_equiv, core.cmp.impls.OrdUsize.min_val, Slice.len_val, Slice.length,
         alloc.vec.Vec.len_val, alloc.vec.Vec.length]; omega
     simp only [whir.verify.BaseRows.enforced_sum_loop.body, lift, Std.bind_ok, bind_tc_ok, this,
       ↓reduceIte]
   | succ k ih =>
     intro i acc v hm hi hacc
-    have hil : i.val < min rows.val.length weights.val.length := by omega
+    have hil : i.val < min (min rows.val.length weights.val.length) queries.val.length := by omega
     have hir : i.val < rows.val.length := by omega
     have hiw : i.val < weights.val.length := by omega
     obtain ⟨inner, hin, ein⟩ := base_inner_eq inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
       copyK inst encode encodeK ofLimbs index hr v
       (alloc.vec.Vec.deref eq) (alloc.vec.Vec.deref rows.val[i.val]) zero hz
     obtain ⟨acc1, hacc1, eacc1⟩ := h.mul_add v weights.val[i.val] inner acc
-    have hbody : whir.verify.BaseRows.enforced_sum_loop.body copyK inst weights rows eq zero v acc i =
-        .ok (.cont (v, acc1, Std.Usize.wrapping_add i 1#usize)) := by
-      have hlt : i < core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len rows) (Slice.len weights) := by
+    have hbody : whir.verify.BaseRows.enforced_sum_loop.body copyK inst weights queries rows eq zero v none
+        acc i = .ok (.cont (v, none, acc1, Std.Usize.wrapping_add i 1#usize)) := by
+      have hlt : i < core.cmp.impls.OrdUsize.min (core.cmp.impls.OrdUsize.min (alloc.vec.Vec.len rows)
+          (Slice.len weights)) (Slice.len queries) := by
         simp only [UScalar.lt_equiv, core.cmp.impls.OrdUsize.min_val, Slice.len_val, Slice.length,
           alloc.vec.Vec.len_val, alloc.vec.Vec.length]; omega
       simp only [whir.verify.BaseRows.enforced_sum_loop.body, lift, Std.bind_ok, hlt,
-        ↓reduceIte, vec_index rows i hir, hin, slice_index weights i hiw]
-      all_goals simp [hacc1]
+        ↓reduceIte, vec_index rows i hir, slice_index weights i hiw]
+      all_goals simp [hin, hacc1]
     have hsucc := succ_val i _ hil (by scalar_tac)
     obtain ⟨y, hy, ey⟩ := ih (Std.Usize.wrapping_add i 1#usize) acc1 v (by omega) (by omega) (by
       rw [hsucc, Finset.sum_range_succ, eacc1, hacc, ein]
@@ -167,10 +173,11 @@ theorem base_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst
 model's `Protocol.enforced` with the rows as given (the caller reverses them). -/
 theorem base_enforced_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (hr : RowModel inst encode encodeK ofLimbs index) (v : V) (rows : whir.verify.BaseRows K)
-    (point weights : Slice E) (width : Nat) (hne : rows.val ≠ [])
+    (point weights : Slice E) (queries : Slice Q) (width : Nat) (hne : rows.val ≠ [])
     (hwidth : ∀ r ∈ rows.val, r.val.length = width) (hpoint : point.val.length < 64)
-    (hfit : width ≤ 2 ^ point.val.length) (hcount : weights.val.length = rows.val.length) :
-    ∃ y, whir.verify.BaseRows.enforced_sum copyK inst rows v point weights = .ok (y, v) ∧
+    (hfit : width ≤ 2 ^ point.val.length) (hcount : weights.val.length = rows.val.length)
+    (hqcount : queries.val.length = rows.val.length) :
+    ∃ y, whir.verify.BaseRows.enforced_sum copyK inst rows v point weights queries none = .ok (y, v) ∧
       encode y = Protocol.enforced
         (rows.val.map fun r => (r.val.map fun k => Concrete.E.ofK (encodeK k)).toArray).toArray
         (point.val.map encode).toArray (weights.val.map encode).toArray false := by
@@ -179,13 +186,14 @@ theorem base_enforced_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.Arith
   obtain ⟨eq, heq, eeq⟩ := h.eq_table_prefix v point (alloc.vec.Vec.len rows.val[0]) hpoint
     (by simp [alloc.vec.Vec.len_val, hw0, hfit])
   obtain ⟨zero, hzero, ezero⟩ := h.zero v
-  obtain ⟨y, hy, ey⟩ := base_loop_eq copyK inst encode const encodeK ofLimbs index h hr weights
+  obtain ⟨y, hy, ey⟩ := base_loop_eq copyK inst encode const encodeK ofLimbs index h hr weights queries
     rows eq zero ezero _ 0#usize zero v rfl (by simp) (by simp [ezero])
   refine ⟨y, ?_, ?_⟩
   · simp only [whir.verify.BaseRows.enforced_sum, vec_index rows 0#usize h0, Std.bind_ok]
     simp [heq, hzero, hy]
   · rw [ey, Protocol.enforced, foldl_tab]
-    have hmin : min rows.val.length weights.val.length = rows.val.length := by omega
+    have hmin : min (min rows.val.length weights.val.length) queries.val.length = rows.val.length := by
+      omega
     have hsz : (Concrete.eqTable (point.val.map encode).toArray).size = 2 ^ point.val.length := by
       simpa using TerminalRefinement.size_eqTable (point.val.map encode).toArray
     simp only [List.size_toArray, List.length_map, hmin]
@@ -468,7 +476,7 @@ def oodData (oods : List (whir.verify.Ood E)) :
 theorem finish_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (lambda : E) (ris_start : Usize) :
     ∀ (oods : List (whir.verify.Ood E)) (iter : alloc.vec.into_iter.IntoIter (whir.verify.Ood E))
-      (t : E) (q : whir.verify.Quad E) (saved : alloc.vec.Vec (whir.verify.OodCtx E)) (v : V)
+      (t : E) (q : whir.sumcheck.RoundQuad E) (saved : alloc.vec.Vec (whir.verify.OodCtx E)) (v : V)
       (scalar : E) (st : State),
       iter.val = oods →
       (∀ o ∈ oods, encode o.intro.b = encode o.y + encode o.intro.a) →
@@ -477,8 +485,9 @@ theorem finish_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithIn
       encode q.b = st.claim + encode q.a → ris_start.val = st.source.ris.length →
       List.Forall₂ (OodMatch encode) saved.val (st.source.saved.filter isOod) →
       ∃ t' q' saved' scalar',
-        whir.verify.WhirReplay.finish_query_loop inst iter t q saved v lambda ris_start scalar =
-          .ok (t', q', saved', v, scalar') ∧
+        whir.verify.batch_oods_loop inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
+            inst.fiat_shamirarithVerifierInst.ArithInst iter v lambda ris_start q t saved scalar =
+          .ok (scalar', v, q', t', saved') ∧
         encode t' = (oodFold (encode lambda) (oodData encode oods) (st, encode scalar)).1.claim ∧
         (⟨encode q'.c, encode q'.a⟩ : Protocol.Message Concrete.E) =
           (oodFold (encode lambda) (oodData encode oods) (st, encode scalar)).1.message ∧
@@ -496,9 +505,9 @@ theorem finish_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithIn
   | nil =>
     intro iter t q saved v scalar st hiter _ _ ht hq hb _ hsv
     refine ⟨t, q, saved, scalar, ?_, ht, hq, hb, rfl, rfl, rfl, hsv, rfl⟩
-    unfold whir.verify.WhirReplay.finish_query_loop
+    unfold whir.verify.batch_oods_loop
     apply loop_done
-    simp [whir.verify.WhirReplay.finish_query_loop.body, next_nil iter hiter]
+    simp [whir.verify.batch_oods_loop.body, next_nil iter hiter]
   | cons o rest ih =>
     intro iter t q saved v scalar st hiter hoods hcap ht hq hb hris hsv
     obtain ⟨scalar1, hs1, es1⟩ := h.mul v scalar lambda
@@ -509,9 +518,10 @@ theorem finish_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithIn
     obtain ⟨saved1, hpush, esaved1⟩ := push_ok saved
       ({ z := o.z, ris_start, beta := scalar1 } : whir.verify.OodCtx E) (by simp at hcap; omega)
     obtain ⟨iter1, hnext, eiter1⟩ := next_cons iter o rest hiter
-    have hbody : whir.verify.WhirReplay.finish_query_loop.body inst lambda ris_start iter t q saved v
-        scalar = .ok (.cont (iter1, t1, q1, saved1, v, scalar1)) := by
-      simp [whir.verify.WhirReplay.finish_query_loop.body, hnext, hs1, hq1, ht1, hpush]
+    have hbody : whir.verify.batch_oods_loop.body inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
+        inst.fiat_shamirarithVerifierInst.ArithInst lambda ris_start iter v q t saved scalar =
+        .ok (.cont (iter1, v, q1, t1, saved1, scalar1)) := by
+      simp [whir.verify.batch_oods_loop.body, hnext, hs1, hq1, ht1, hpush]
     let st1 : State := batchScalar st (.ood (o.z.val.map encode).toArray) (encode o.y)
       (encode scalar * encode lambda) ⟨encode o.intro.c, encode o.intro.a⟩
     obtain ⟨t', q', saved', scalar', hloop, e1, e2, e3, e4, e5, e6, e7, e8⟩ := ih iter1 t1 q1 saved1 v
@@ -534,9 +544,9 @@ theorem finish_loop_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithIn
         oodFold (encode lambda) (oodData encode rest) (st1, encode scalar1) := by
       simp only [oodData, List.map_cons, oodFold, st1, es1]
     refine ⟨t', q', saved', scalar', ?_, ?_⟩
-    · unfold whir.verify.WhirReplay.finish_query_loop
+    · unfold whir.verify.batch_oods_loop
       rw [loop_cont hbody]
-      unfold whir.verify.WhirReplay.finish_query_loop at hloop
+      unfold whir.verify.batch_oods_loop at hloop
       exact hloop
     · rw [hfold]
       refine ⟨e1, e2, e3, by rw [e4]; rfl, e5, by rw [e6]; rfl, e7, ?_⟩
@@ -550,10 +560,10 @@ model's `oodBatch` then `batchScalar` on the query basis, and saves the same con
 theorem finish_query_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithInst encode const)
     (self : whir.verify.WhirReplay V R K Q E) (st : State) (hrel : StateRel encode index self st)
     (v v1 v2 : V) (batch : whir.verify.PendingQuery Q E) (oods : alloc.vec.Vec (whir.verify.Ood E))
-    (log_msg_cols : Usize) (sum : E) (intro : whir.verify.Quad E)
+    (log_msg_cols : Usize) (sum : E) (intro : whir.sumcheck.RoundQuad E)
     (hend : inst.fiat_shamirarithVerifierInst.end_scope v = .ok v1)
-    (hrecv : whir.verify.Quad.recv inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst
-      v1 sum = .ok (.Ok intro, v2))
+    (hrecv : whir.sumcheck.RoundQuad.read inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
+      inst.fiat_shamirarithVerifierInst v1 sum = .ok (.Ok intro, v2))
     (hintro : encode intro.b = encode sum + encode intro.a)
     (hoods : ∀ o ∈ oods.val, encode o.intro.b = encode o.y + encode o.intro.a)
     (hweights : batch.weights.val.map encode =
@@ -575,6 +585,11 @@ theorem finish_query_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithI
       self.t_r self.quad self.oods v2 one st rfl hoods hcap hrel.claim hrel.message hrel.linear hris
       hrel.oods
   rw [eone] at e1 e2 e3 e5 e6 e7 e8
+  have hbo : whir.verify.batch_oods inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst
+      inst.fiat_shamirarithVerifierInst.ArithInst v2 oods batch.lambda (alloc.vec.Vec.len self.ris)
+      self.quad self.t_r self.oods = .ok (scalar', v2, q', t', saved') := by
+    simp only [whir.verify.batch_oods, hone, Std.bind_ok, alloc.vec.IntoIteratorVec.into_iter]
+    exact hloop
   obtain ⟨scalar2, hs2, es2⟩ := h.mul v2 scalar' batch.lambda
   obtain ⟨q1, hq1, eq1, eb1⟩ := WhirAeneas.Fold.quad_fold
     inst.fiat_shamirarithVerifierInst.ArithInst.coremarkerCopyInst inst encode const h q' intro v2
@@ -585,7 +600,7 @@ theorem finish_query_eq (h : ArithModel inst.fiat_shamirarithVerifierInst.ArithI
        ris_start := alloc.vec.Vec.len self.ris, beta := scalar2 } : whir.verify.LevelCtx Q E) hcapl
   refine ⟨{ self with t_r := t1, quad := q1, levels := levels1, oods := saved' }, ?_, rfl, ?_⟩
   · simp [whir.verify.WhirReplay.finish_query, hend, core.result.Result.Insts.CoreOpsTry.branch, hrecv,
-      hone, alloc.vec.IntoIteratorVec.into_iter, hloop, hs2, hq1, ht1, hpush]
+      hbo, hs2, hq1, ht1, hpush]
   · refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
     · simp only [batchScalar]; rw [et1, es2, e1, e5]; ring
     · simp only [batchScalar]; rw [eq1, e2, es2, e5]
